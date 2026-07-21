@@ -550,20 +550,102 @@ def check_quarantine() -> list[str]:
     return _check_no_engine_ref(load_map(), q, "F047", "quarantined")
 
 
+# R7: a POSITIONING metric must be a DATED LEVEL or a Z-SCORE -- never a forecast/percentile-projection family.
+# Level units are the raw position/OI counts + the signed pct-of-OI; z families carry a sigma/z-score unit. A
+# metric outside these families (or a forward-looking name) means positioning is being served as something
+# other than observed history, which the ratified fence forbids.
+_COT_LEVEL_UNITS = frozenset({"contracts", "pct of OI (signed)"})
+
+
+def _is_cot_z_unit(unit: str) -> bool:
+    u = (unit or "").strip().lower()
+    return "sigma" in u or "z-score" in u or "zscore" in u or u.endswith(" z")
+
+
+def _suggest_catalog_metric_text() -> "str | None":
+    """The suggester's advertised ANSWERABLE-FUNDAMENTALS catalog string (server._SUGGEST_METRICS), read by
+    AST (no heavyweight server import): the enumerated source of metrics the grounded suggester may propose.
+    None when the module/constant is absent (R10 then prints a skip note -- never a silent pass)."""
+    import ast
+    src = Path(__file__).with_name("server.py")
+    if not src.exists():
+        return None
+    try:
+        tree = ast.parse(src.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001 -- an unparseable server.py is surfaced as a skip, not a crash
+        return None
+    for node in tree.body:
+        if (isinstance(node, ast.Assign) and len(node.targets) == 1
+                and isinstance(node.targets[0], ast.Name) and node.targets[0].id == "_SUGGEST_METRICS"):
+            try:
+                v = ast.literal_eval(node.value)
+                return v if isinstance(v, str) else None
+            except Exception:  # noqa: BLE001
+                return None
+    return None
+
+
 def check_cot_register() -> list[str]:
     """PRICE_OBSERVABILITY W0.2 (the W4 gate) -- positioning-table fence. R9: no engine ref points at a
-    POSITIONING_TABLE (active now). R7/R10: silver_cot metric + suggester-source discipline -- vacuously green
-    until W4 registers silver_cot."""
+    POSITIONING_TABLE (active now). R7: silver_cot metric descs register-clean AND every metric limited to a
+    dated level/z family (no forward-looking name). R10: the suggester's answerable-fundamentals catalog
+    source (server._SUGGEST_METRICS) names no positioning-table metric. R7/R10 go NON-VACUOUS once silver_cot
+    is registered."""
+    from leviathan.graphrag.numbers import stats as st
     from leviathan.graphrag.numbers.cascade import load_map
     from leviathan.graphrag.numbers.registry import load_registry
     errs: list[str] = _check_no_engine_ref(load_map(), POSITIONING_TABLES, "R9", "positioning")
-    cot = load_registry().tables.get("silver_cot")
+    tables = load_registry().tables
+    cot = tables.get("silver_cot")
     if cot is None:
         return errs   # R7/R10 vacuous until W4 registers silver_cot
     from leviathan.graphrag import register as reg
+    # R7a: desc register-cleanliness (a metric desc must carry no valuation/flow word).
     for mname, m in cot.metrics.items():
         if reg.count_valuation_words(m.desc) or reg.count_flow_words(m.desc):
             errs.append(f"R7 silver_cot.{mname}: metric desc carries a banned valuation/flow word")
+        # R7b: metric limited to a dated LEVEL or Z family, and no forward-looking name.
+        if st.is_banned_name(mname):
+            errs.append(f"R7 silver_cot.{mname}: metric name is forward-looking "
+                        f"(fit|trend|forecast|project|extrapolat|predict) -- positioning is history only")
+        if not (m.unit in _COT_LEVEL_UNITS or _is_cot_z_unit(m.unit)):
+            errs.append(f"R7 silver_cot.{mname}: unit {m.unit!r} is neither a dated level nor a z-score "
+                        f"family -- positioning metrics are limited to observed levels + z-scores")
+    # R10: the suggester grounds answerable questions on _SUGGEST_METRICS (its catalog source); a positioning
+    # table's metric must never appear there (positioning is a driver LANE, never a suggestible numbers source).
+    cat = _suggest_catalog_metric_text()
+    if cat is None:
+        print("NOTE cot_register R10: suggester catalog source (_SUGGEST_METRICS) not found -- skipped")
+    else:
+        low = cat.lower()
+        for tid in POSITIONING_TABLES:
+            pt = tables.get(tid)
+            for mname in (pt.metrics if pt else {}):
+                for form in (mname.lower(), mname.replace("_", " ").lower()):
+                    if form and form in low:
+                        errs.append(f"R10 suggester catalog: positioning metric {tid}.{mname!r} appears in "
+                                    f"the suggester's answerable-fundamentals catalog -- positioning must "
+                                    f"never be a suggestible source")
+                        break
+        for tok in ("managed money", "managed-money", "net long", "net short", "positioning"):
+            if tok in low:
+                errs.append(f"R10 suggester catalog: positioning vocabulary {tok!r} in _SUGGEST_METRICS -- "
+                            f"positioning is a driver LANE, not a suggestible numbers source")
+    return errs
+
+
+def check_stats_registry() -> list[str]:
+    """PRICE_OBSERVABILITY W3.5 -- the descriptive-only stats fence, as a build gate. The stats tool belt is
+    enum-locked to stats.STAT_REGISTRY; any registered name matching fit|trend|forecast|project|extrapolat|
+    predict is a projection tool wearing a math costume (R3's forbidden forward statement) and FAILS the
+    build. Imports the live registry so a smuggled name is caught here, not just by the module's import-time
+    assertion."""
+    from leviathan.graphrag.numbers import stats as st
+    errs: list[str] = []
+    for name in st.STAT_REGISTRY:
+        if st.is_banned_name(name):
+            errs.append(f"stats_registry: registered stat {name!r} matches the forward-looking ban "
+                        f"(fit|trend|forecast|project|extrapolat|predict) -- descriptive history only")
     return errs
 
 
@@ -581,7 +663,8 @@ def main() -> int:
                         ("price_register", check_price_register()),
                         ("quarantine", check_quarantine()),
                         ("numbers_schema_pins", check_numbers_schema_pins()),
-                        ("cot_register", check_cot_register())):
+                        ("cot_register", check_cot_register()),
+                        ("stats_registry", check_stats_registry())):
         if errs:
             failures += len(errs)
             print(f"FAIL {label}:")

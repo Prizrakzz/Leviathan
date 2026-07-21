@@ -12,10 +12,19 @@ import re
 HAIKU = "claude-haiku-4-5"
 
 # numbers: asks for a figure/level/quantity of an observed series.
+# PRICE_OBSERVABILITY W4.2 (S3.F5/S2.F10): positioning vocabulary sends managed-money COT asks down the
+# NUMBERS lane. Conservative additions only -- each is a positioning LEVEL cue. "net long|net short" are
+# ALSO _REASON triggers below (a positioning-flavored reasoning ask), so those two now fire BOTH cues ->
+# classify_intent yields hybrid, which still routes to numbers (needs_numbers) WITHOUT dropping the
+# reasoning lane -- an additive capability, never a removal. The narrow `funds? <positioning-noun>` clause
+# (funds crowded|net|position...) catches the "are funds crowded" shape without matching bare "funds"
+# elsewhere. Positioning is HISTORICAL CONTEXT ONLY (R9); routing it to numbers surfaces the dated level/z.
 _NUM = re.compile(
     r"\b(how much|how many|what (?:was|were|is|are)|what'?s the|level of|the number|the figure|"
     r"exports?|imports?|production|ending stocks|beginning stocks|stocks-to-use|acreage|area harvested|"
-    r"yield|the price|exchange rate|oni|el ni[nñ]o index|how weak|how strong|basis)\b", re.I)
+    r"yield|the price|exchange rate|oni|el ni[nñ]o index|how weak|how strong|basis|"
+    r"managed[ -]?money|positioning|open interest|net length|net long|net short|"
+    r"funds?[ -]+(?:crowded|net|position\w*|long|short))\b", re.I)
 # reasoning: asks why/how/what-if about drivers, cascades, convexity, exposure, direction.
 _REASON = re.compile(
     r"\b(why|how does|how do|what happens|what would|if .+(?:then|would|will|enough)|explain|mechanism|"

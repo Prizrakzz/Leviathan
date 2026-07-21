@@ -99,7 +99,7 @@ def _verify_numbers_answer(answer: str, calls: list) -> dict:
     # (2026M07), marketing years (2024/25) and [N#] handles all shed numeric fragments (06, 07, 25, 1)
     # that read as "stated figures" -- the pink_sheet provenance stamp made this fire for the first time
     # (W3.7: both CORRECT price answers wore a false caution banner and failed their mismatch pins).
-    scrub = re.sub(r"\d{4}-\d{2}(?:-\d{2})?|\d{4}M\d{2}|\d{4}/\d{2,4}|\[N\d+\]", " ", answer)
+    scrub = re.sub(r"\d{4}-M\d{2}|\d{4}-\d{2}(?:-\d{2})?|\d{4}M\d{2}|\d{4}/\d{2,4}|\[N\d+\]", " ", answer)
     stated = [v for v in vf._numbers_in(scrub)
               if abs(v) >= 0.001 and not (1900 <= v <= 2100 and float(v).is_integer())]   # skip years
     mismatched = [v for v in stated if row_vals and not vf._num_matches([v], row_vals)]
@@ -931,19 +931,24 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
                                       ms_dispatch=_ms_dispatch)
         decided = (classify or it.classify_intent)(query, call=call)
         kind = decided["intent"]
-        # W2.5/W3.7 routing tiebreak: a price ask naming a NONE-tier commodity (robusta, JSE maize, the
-        # fenced US farm price, ...) resolves to no tracked contract, so the classifier lands on
-        # reasoning/hybrid -- but the deterministic decline preface only fires on the pure-numbers path,
-        # and a reasoning-lane answer would improvise around a price series we do not govern. The guard
-        # detector IS the router here: if it fires, the honest lane is numbers_only by construction.
-        if kind != "numbers_only":
-            try:
-                from leviathan.graphrag.numbers.agent import price_coverage_scope
-                if price_coverage_scope(query):
-                    kind = "numbers_only"
-                    decided = {**decided, "intent": "numbers_only", "price_decline_reroute": True}
-            except Exception:  # noqa: BLE001 -- the tiebreak must never break a turn
-                pass
+
+    # W2.5/W3.7 routing tiebreak -- covers BOTH the planner and the classify paths (the first placement
+    # sat only on the classify fallback, so every planner-routed turn bypassed it and the W3.7 rerun
+    # proved the decline rows still landed on reasoning). A price ask naming a NONE-tier commodity
+    # (robusta, JSE maize, the fenced US farm price, ...) resolves to no tracked contract, so intent
+    # lands on reasoning/hybrid -- but the deterministic decline preface only fires on the pure-numbers
+    # path, and a reasoning-lane answer would improvise around a price series we do not govern. The
+    # guard detector IS the router here: if it fires, the honest lane is numbers_only by construction.
+    # Live turns are exempt (a NONE-tier price ask never legitimately routes live anyway; if the planner
+    # said live, the news path owns it).
+    if kind in ("reasoning", "hybrid"):
+        try:
+            from leviathan.graphrag.numbers.agent import price_coverage_scope
+            if price_coverage_scope(query):
+                kind = "numbers_only"
+                decided = {**decided, "intent": "numbers_only", "price_decline_reroute": True}
+        except Exception:  # noqa: BLE001 -- the tiebreak must never break a turn
+            pass
 
     # ── typed context attachments (P2), part 2: RESOLVE (asof is final here — plan.asof already applied)
     # then override the resolved route. Placed after BOTH route_fn bindings (session coreference + planner)

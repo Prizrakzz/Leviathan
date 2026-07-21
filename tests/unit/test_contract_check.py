@@ -168,9 +168,11 @@ def test_feature_only_table_not_in_scope():
     ids = cch._numbers_table_ids(reg)
     # NB: silver_icco_cocoa was a feature-only example until the numbers-depth wave wired it into the
     # numbers registry -- dropped; silver_pink_sheet likewise dropped once PRICE_OBSERVABILITY W2 wired it
-    # into the numbers registry (it is now legitimately IN scope); the rest stay feature-only.
-    for feature_only in ("silver_chirps", "silver_cot"):
+    # into the numbers registry; silver_cot dropped once PRICE_OBSERVABILITY W4 wired it in (it is now
+    # legitimately IN scope -- consumers=both); the rest stay feature-only.
+    for feature_only in ("silver_chirps",):
         assert feature_only not in ids
+    assert "silver_cot" in ids                                   # W4: now a numbers table, in C002 scope
 
 
 # ---------------------------------------------------------------------------

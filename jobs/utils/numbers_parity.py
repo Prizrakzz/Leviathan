@@ -42,7 +42,12 @@ SAMPLE_COMMODITY = {"silver_psd": "corn_cbot", "silver_wasde": "corn", "silver_p
                     # (probed on S3); a wrong value makes the panel vacuous (0==0 passes blind).
                     "silver_icco_cocoa": None,
                     "silver_mpob": "malaysian_crude_palm_oil_cme",
-                    "silver_sagis_cec": "total_maize"}
+                    "silver_sagis_cec": "total_maize",
+                    # PRICE_OBSERVABILITY W4.2 (S3.F4): silver_cot's commodity_col is leviathan_slug, which
+                    # holds CONTRACT slugs via _MARKET_TO_SLUG (raw_to_bronze/cftc_cot.py:55-56) -- corn_cbot,
+                    # NOT bare 'corn' (which matches zero rows = the gold_weather_z vacuous-panel trap; the
+                    # EMPTY-PANEL guard would catch it loudly, but the RIGHT sample is corn_cbot).
+                    "silver_cot": "corn_cbot"}
 # 2026 asof included because ingest-semantics tables (silver_production) were ingested in 2026 — earlier
 # asofs legitimately see 0 rows (honest PIT), which would leave that panel vacuous.
 ASOFS = ["2021-08-15", "2024-06-01", "2026-07-01"]

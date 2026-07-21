@@ -9,14 +9,24 @@ lever to see the future. Returns the model's answer plus the exact (query, rows)
 from __future__ import annotations
 
 import json
+import os
 import re
 from typing import Optional
 
 from leviathan.graphrag.numbers import query as Q
+from leviathan.graphrag.numbers import stats as ST
 from leviathan.graphrag.numbers.registry import NumbersRegistry, TableSpec, load_registry
 
 HAIKU = "claude-haiku-4-5"                                 # cheap + mechanical; the agent just selects table/metric/scope
 TOOL_NAME = "lookup_number"
+STATS_TOOL_NAME = "compute_stat"                           # W3.5 deterministic stats tool belt (enum-locked)
+
+
+def _stats_tool_on() -> bool:
+    """Kill-switch GRAPHRAG_STATS_TOOL (default ON). OFF removes compute_stat from BOTH the tool schema and the
+    system prompt -- byte-identical to the pre-W3.5 agent (no stats bullet, no tool, no handles minted). Any
+    value other than an explicit off/0/false leaves it on (fail-safe-on: the belt is descriptive-only + fenced)."""
+    return os.environ.get("GRAPHRAG_STATS_TOOL", "on").strip().lower() not in ("off", "0", "false", "no")
 
 # ── ESR destination-scope honesty guard ──────────────────────────────────────────────────────────────
 # silver_esr carries per-DESTINATION rows, but the registered query shape has NO destination filter (the
@@ -309,6 +319,128 @@ def tool_schema(reg: NumbersRegistry) -> dict:
     }
 
 
+# ── W3.5 deterministic stats tool belt ────────────────────────────────────────────────────────────────
+# ONE enum-locked tool. The model does NOT do arithmetic: it REQUESTS a descriptive statistic by name over
+# lookup HANDLES it already fetched THIS turn, and the code COMPUTES it (leviathan.graphrag.numbers.stats).
+# The result is injected as an [N] row into `calls` -- carrying provenance {stat, params, input_handles} --
+# so the all-numbers guard (orchestrator._verify_numbers_answer) value-checks it exactly like any observed
+# number. Handles are TURN-SCOPED: only a handle minted by a lookup THIS turn resolves; a cross-turn handle
+# (or any unknown id) is REFUSED (the agent cannot reach a prior turn's rows -- PIT is inherited from the
+# rows the handle points at, never re-argued). The enum is stats.STAT_REGISTRY, whose names are lint-fenced
+# against fit|trend|forecast|project|extrapolat|predict -- a projection tool is a forbidden forward statement
+# wearing a math costume.
+def stats_tool_schema() -> dict:
+    return {
+        "name": STATS_TOOL_NAME,
+        "description": (
+            "Compute ONE deterministic descriptive statistic over rows you ALREADY looked up THIS turn. You do "
+            "NOT do the arithmetic -- you REQUEST it by naming the statistic and the lookup handle(s) that hold "
+            "the numbers, and the result comes back as an observed [N] figure you then state in plain past/"
+            "present tense. `series_handle`/`value_handle` are the `handle` field on a prior lookup_number "
+            "result FROM THIS TURN; a handle from a different turn, or an unknown one, is refused. Never "
+            "forecast, extrapolate, or fit a trend -- these are DESCRIPTIVE history only."),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "stat": {"type": "string", "enum": sorted(ST.STAT_NAMES),
+                         "description": "which statistic to compute"},
+                "series_handle": {"type": "string", "description": "handle of a prior lookup whose returned "
+                                  "rows form the series/history, oldest -> newest (agg=series lookups)"},
+                "value_handle": {"type": "string", "description": "handle of a prior lookup whose latest value "
+                                 "is the point scored (percentile/zscore); omit to score series_handle's last point"},
+                "direction": {"type": "string", "enum": list(ST.DIRECTIONS),
+                              "description": "for streak / revision_count"},
+                "window": {"type": "integer", "description": "trailing window length for zscore"},
+                "t1": {"type": "integer", "description": "start index for window_change (0-based; negatives allowed)"},
+                "t2": {"type": "integer", "description": "end index for window_change"},
+                "periods": {"type": "integer", "description": "lookback periods for yoy_delta (12 for monthly YoY)"},
+            },
+            "required": ["stat", "series_handle"],
+        },
+    }
+
+
+def _series_from_rows(rows: list) -> list[float]:
+    """The numeric series a handle exposes: the value cell of each row that coerces to a finite number
+    (chronological -- the loop appends rows oldest -> newest). Non-numeric / null cells are dropped."""
+    out: list[float] = []
+    for r in rows or []:
+        v = (r or {}).get("value")
+        if v is None or isinstance(v, bool):
+            continue
+        try:
+            out.append(float(str(v).replace(",", "")))
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
+def _handle_kd(rows: list) -> Optional[str]:
+    """The latest knowledge/data date across a handle's rows -- the stat INHERITS it (PIT is a property of the
+    input rows, never re-derived)."""
+    ds = [d for r in (rows or []) for d in ((r or {}).get("knowledge_date"), (r or {}).get("data_date")) if d]
+    return max(ds) if ds else None
+
+
+def _dispatch_stat(stat: str, inp: dict, handles: dict) -> dict:
+    """Resolve the referenced turn-scoped handles and run ONE stats function. Returns the stats contract dict
+    (declined or not). RAISES KeyError for an unknown/cross-turn handle (the caller turns it into a refusal)."""
+    sh = inp.get("series_handle")
+    vh = inp.get("value_handle")
+    for h in (sh, vh):
+        if h is not None and h not in handles:
+            raise KeyError(h)
+    series = handles[sh]["series"]
+
+    def _val():
+        return handles[vh]["series"][-1] if vh is not None else (series[-1] if series else None)
+
+    if stat == "streak":
+        return ST.streak(series, inp.get("direction"))
+    if stat == "percentile":
+        return ST.percentile(_val(), series)
+    if stat == "zscore":
+        return ST.zscore(_val(), series, window=inp.get("window"))
+    if stat == "window_change":
+        return ST.window_change(series, inp.get("t1"), inp.get("t2"))
+    if stat == "revision_count":
+        return ST.revision_count(series, inp.get("direction"))
+    if stat == "extrema":
+        return ST.extrema(series)
+    if stat == "yoy_delta":
+        p = inp.get("periods")
+        return ST.yoy_delta(series, periods=1 if p is None else p)
+    raise ValueError(f"unknown stat {stat!r}")   # unreachable: the enum + STAT_NAMES gate this upstream
+
+
+def _stat_provenance(stat: str, inp: dict, handles: dict) -> dict:
+    """{stat, params, input_handles} stamped onto every injected stat [N] row so the guard + citations carry
+    the exact derivation (which handles, which scalar params)."""
+    params = {k: inp[k] for k in ("direction", "window", "t1", "t2", "periods", "value_handle")
+              if inp.get(k) is not None}
+    ins = [h for h in (inp.get("series_handle"), inp.get("value_handle")) if h]
+    return {"stat": stat, "params": params, "input_handles": ins}
+
+
+# The result of a percentile/streak/z-score is NOT in the series' unit -- it is its own kind of quantity. Only
+# the magnitude-preserving stats (window/YoY change, extrema) inherit the series unit.
+_STAT_UNIT = {"streak": "consecutive periods", "revision_count": "consecutive revisions",
+              "percentile": "percentile", "zscore": "sigma"}
+
+
+def _stat_calls(stat: str, res: dict, prov: dict, series_unit: Optional[str], kd: Optional[str]) -> list[dict]:
+    """Turn a SUCCESSFUL stats result into one (or, for extrema, two) synthetic lookup call(s) -- each an
+    [N] row carrying the computed value so the all-numbers guard value-checks it. A decline injects nothing."""
+    unit = _STAT_UNIT.get(stat, series_unit)
+    def _row(val, metric):
+        q = {"table": STATS_TOOL_NAME, "metric": metric}
+        return {"query": q, "rows": [{"value": val, "unit": unit, "knowledge_date": kd}],
+                "status": "ok", "stat_provenance": prov}
+    if stat == "extrema":
+        return [_row(res["min"], "extrema_min"), _row(res["max"], "extrema_max")]
+    return [_row(res["value"], stat)]
+
+
 def _table_card(ts: TableSpec) -> str:
     ident = ", ".join(x for x in (
         f"commodity={ts.commodity_col}" if ts.commodity_col else "",
@@ -320,8 +452,20 @@ def _table_card(ts: TableSpec) -> str:
             f"identify by: {ident or 'n/a'}\nmetrics: {metrics}\n{('note: ' + ts.notes.strip()) if ts.notes else ''}")
 
 
-def system_prompt(reg: NumbersRegistry) -> str:
+def system_prompt(reg: NumbersRegistry, stats_tool: Optional[bool] = None) -> str:
     cards = "\n\n".join(_table_card(reg.get(t)) for t in sorted(reg.tables))
+    stats_on = _stats_tool_on() if stats_tool is None else stats_tool
+    # The stats bullet ships ONLY when compute_stat is in the schema (kill-switch parity: off removes the tool
+    # AND its steering, so the model is never told about a tool it does not have).
+    stats_bullet = (
+        "- To state a PERCENTILE, STREAK, Z-SCORE, or window/year-over-year CHANGE over figures you have "
+        "looked up, do NOT do the arithmetic yourself -- REQUEST it with the compute_stat tool, naming the "
+        "statistic and the lookup handle(s) that hold the numbers (each lookup_number result carries a "
+        "`handle`). The computed figure comes back as an observed [N] value; state it in plain past/present "
+        "tense (e.g. 'the latest reading sits in the 96th percentile of its own history [N]', 'a third "
+        "consecutive downward revision [N]'). Percentile / streak / z-score vocabulary is servable ONLY "
+        "through the tool, and only over history -- never as a forecast, trend-fit, or extrapolation.\n"
+        if stats_on else "")
     return (
         "You are a data-lookup agent for an agricultural-commodity desk. Answer ONLY with numbers you actually "
         "retrieve via the lookup_number tool from the tables below — never invent or recall a figure. Every value "
@@ -369,6 +513,14 @@ def system_prompt(reg: NumbersRegistry) -> str:
         "- State prices, premiums, discounts, and spreads as an observed level + date + historical percentile, "
         "in PAST or PRESENT tense. NEVER characterize a level as cheap, rich, or attractive; never forecast that "
         "a spread narrows, normalizes, or corrects; never give timing.\n"
+        "- silver_cot is CFTC MANAGED-MONEY positioning (weekly, per contract slug): open_interest, "
+        "mm_long/mm_short/mm_net/mm_spread [contracts], mm_pct_oi (SIGNED net percent of OI; negative = net "
+        "short), and mm_net_z_3yr / mm_pct_oi_z_3yr (sigma vs a 3-yr mean). Positioning is HISTORICAL CONTEXT "
+        "ONLY -- report observed levels + z + the report date in PAST tense; NEVER forecast a squeeze, never "
+        "say positioning will unwind or must revert, and never let it drive a price call or a cascade fork. It "
+        "is lag-published (about 6 days) and can be several weeks stale, so ALWAYS cite the report date -- "
+        "staleness must be visible, not hidden.\n"
+        + stats_bullet +
         "- silver_noaa_oni has NO date column: window months with period_start/period_end as 'YYYY-MM', or use "
         "agg=latest for the most recent month on/before the as-of date.\n"
         "- silver_nasa_power is per STATION-REGION: each lookup reads ONE region (defaults to the commodity's "
@@ -400,10 +552,16 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
         model = pv.resolve_model(model)
     else:
         pv = None                                  # injected fake (tests): no provider, no backoff
-    tools = [tool_schema(reg)]
-    system = [{"type": "text", "text": system_prompt(reg), "cache_control": {"type": "ephemeral"}}]  # cached
+    stats_on = _stats_tool_on()
+    tools = [tool_schema(reg)] + ([stats_tool_schema()] if stats_on else [])   # kill-switch removes the tool
+    system = [{"type": "text", "text": system_prompt(reg, stats_tool=stats_on),
+               "cache_control": {"type": "ephemeral"}}]                        # cached; prompt matches the schema
     convo: list[dict] = [{"role": "user", "content": f"As-of date (fixed): {asof}\n\nQuestion: {question}"}]
     calls: list[dict] = []
+    # W3.5 turn-scoped handle registry: {handle -> {series, kd, unit}}. A lookup mints a handle the model can
+    # feed to compute_stat; the registry lives for THIS turn only, so a cross-turn handle can never resolve.
+    handles: dict[str, dict] = {}
+    hseq = 0
     # ESR destination-scope honesty guard: detect a named buyer/destination ONCE, up front. Only applied
     # when an ESR lookup actually executes — a destination-worded question that never touches export
     # sales stays byte-identical. None (the common case) is a no-op everywhere below.
@@ -471,24 +629,77 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                 payload["scope_note"] = _esr_scope_note(dest)
             return payload
 
-        # The tool_use blocks within ONE model response are independent lookups, but each was executed
-        # serially at Athena's ~3.5s/query floor (a 3-query batch = ~11s of the turn). Run the batch
-        # concurrently — pool.map preserves input order, so calls/results/tool_use_ids stay aligned and
-        # the conversation the model sees is byte-identical. boto3 clients are thread-safe.
-        if len(uses) > 1:
+        def _exec_stat(b) -> tuple[dict, list[dict]]:
+            """A compute_stat tool call -> (tool_result payload for the model, synthetic [N] calls to inject).
+            Enum-locked (STAT_NAMES), turn-scoped handles (an unknown/cross-turn handle is REFUSED), honest
+            declines inject nothing. The code COMPUTES; the model only narrates."""
+            inp = dict(getattr(b, "input", {}) or {})
+            stat = inp.get("stat")
+            if stat not in ST.STAT_NAMES:                          # enum fence (belt + the schema enum)
+                return ({"stat": stat, "declined": True, "status": "error",
+                         "error": f"unknown stat {stat!r}; allowed: {sorted(ST.STAT_NAMES)}"}, [])
+            try:
+                res = _dispatch_stat(stat, inp, handles)
+            except KeyError as ke:                                 # cross-turn / unknown handle -> REFUSE
+                return ({"stat": stat, "declined": True, "status": "error",
+                         "error": f"unknown handle {ke.args[0]!r} -- handles are turn-scoped; reference a "
+                                  f"lookup_number result FROM THIS TURN"}, [])
+            except Exception as e:  # noqa: BLE001 — a bad stat request must not kill the loop
+                return ({"stat": stat, "declined": True, "status": "error", "error": str(e)[:200]}, [])
+            if res.get("declined"):                                # honest decline: no value row minted
+                return ({**res, "status": "declined"}, [])
+            prov = _stat_provenance(stat, inp, handles)
+            sh = handles.get(inp.get("series_handle")) or {}
+            injected = _stat_calls(stat, res, prov, sh.get("unit"), sh.get("kd"))
+            payload = {**res, "status": "ok", "provenance": prov,
+                       "note": "This is now an injected observed figure -- state it with its unit and stay "
+                               "descriptive (no forecast/extrapolation)."}
+            return (payload, injected)
+
+        # The tool_use blocks within ONE model response are independent LOOKUPS run concurrently at Athena's
+        # ~3.5s/query floor (pool.map preserves order so calls/results/ids stay aligned; boto3 is thread-safe).
+        # compute_stat calls are instant + pure, and must see the handles that lookups mint -- so lookups run
+        # first (concurrently), then the whole batch is assembled in tool_use ORDER, minting a handle per
+        # lookup as it lands and dispatching each stat against the handles registered so far.
+        lookup_uses = [b for b in uses if getattr(b, "name", TOOL_NAME) == TOOL_NAME]
+        payload_by_id: dict[str, dict] = {}
+        if len(lookup_uses) > 1:
             from concurrent.futures import ThreadPoolExecutor
-            with ThreadPoolExecutor(max_workers=min(4, len(uses))) as pool:
-                payloads = list(pool.map(_exec, uses))
-        else:
-            payloads = [_exec(b) for b in uses]
-        payloads = [_stamp_scope(p) for p in payloads]    # no-op unless destination-scoped AND ESR-routed
+            with ThreadPoolExecutor(max_workers=min(4, len(lookup_uses))) as pool:
+                for b, p in zip(lookup_uses, pool.map(_exec, lookup_uses)):
+                    payload_by_id[b.id] = p
+        elif lookup_uses:
+            payload_by_id[lookup_uses[0].id] = _exec(lookup_uses[0])
+
         results = []
-        for b, payload in zip(uses, payloads):
-            calls.append(payload)
-            results.append({"type": "tool_result", "tool_use_id": b.id, "content": json.dumps(payload)[:6000]})
+        for b in uses:
+            name = getattr(b, "name", TOOL_NAME)
+            if name == STATS_TOOL_NAME and stats_on:
+                content, injected = _exec_stat(b)
+                for p in injected:
+                    calls.append(p)
+                if injected:                                       # mint a chaining handle for the stat result
+                    hseq += 1
+                    h = f"L{hseq}"
+                    content["handle"] = h
+                    handles[h] = {"series": [v for p in injected for v in _series_from_rows(p["rows"])],
+                                  "kd": injected[0]["rows"][0].get("knowledge_date"),
+                                  "unit": injected[0]["rows"][0].get("unit")}
+            elif name == TOOL_NAME:
+                content = _stamp_scope(payload_by_id[b.id])
+                calls.append(content)
+                hseq += 1                                          # mint the lookup's turn-scoped handle
+                h = f"L{hseq}"
+                content["handle"] = h
+                _rows = content.get("rows") or []
+                handles[h] = {"series": _series_from_rows(_rows), "kd": _handle_kd(_rows),
+                              "unit": (_rows[0].get("unit") if _rows else None)}
+            else:                                                  # unknown tool (or stats off) -> honest error
+                content = {"status": "error", "error": f"unknown tool {name!r}"}
+            results.append({"type": "tool_result", "tool_use_id": b.id, "content": json.dumps(content)[:6000]})
             if on_call is not None:
                 try:
-                    on_call(len(calls), (payload.get("query") or {}).get("table"))
+                    on_call(len(calls), (content.get("query") or {}).get("table") or content.get("stat"))
                 except Exception:  # noqa: BLE001 — progress reporting can never fail a lookup
                     pass
         convo.append({"role": "user", "content": results})

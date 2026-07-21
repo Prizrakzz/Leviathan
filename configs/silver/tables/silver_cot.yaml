@@ -4,7 +4,7 @@ table_name: silver_cot
 layer: silver
 domain: positioning
 lifecycle_class: source
-owner: silver-platform
+owner: numbers-platform
 schema_version: 1
 glue_database: leviathan_dev
 s3_root: s3://leviathan-dev-shahem-001/silver/cot
@@ -92,20 +92,25 @@ required_nonnull:
 - report_date
 value_columns:
 - open_interest
+- mm_long
+- mm_short
+- mm_spread
 - mm_net
+- mm_pct_oi
 - mm_net_z_3yr
+- mm_pct_oi_z_3yr
 min_nonnull_frac: 0.5
 min_nonnull_frac_status: provisional
 coverage_axis: leviathan_slug x report_date
 vintage_retention: latest-only
-knowledge_date_col: null
-knowledge_semantics: null
-publication_lag_days: null
+knowledge_date_col: report_date
+knowledge_semantics: data_date
+publication_lag_days: 6
 freshness_sla:
   cadence: weekly
-  max_lag_days: null
-consumers: feature_layer
-numbers_ref: null
+  max_lag_days: 10
+consumers: both
+numbers_ref: configs/graphrag/numbers/tables.yaml#silver_cot
 cascade_ref: null
 source_contract_ref: configs/datasets/source_contracts.yaml#cot
 serving_table: null

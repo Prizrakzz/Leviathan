@@ -612,9 +612,10 @@ _PRE_WAVE_8 = frozenset({
     "silver_psd", "silver_wasde", "silver_production", "silver_nasa_power",
     "silver_esr", "silver_fred_fx", "silver_noaa_oni", "gold_weather_z",
 })
-# PRICE_OBSERVABILITY W2 wired silver_pink_sheet in as a LATER wave; it is present regardless of the
-# depth-wave kill-switch, so the depth-wave enum baseline is the pre-wave 8 PLUS the price table.
-_PRICE_IDS = ("silver_pink_sheet",)
+# PRICE_OBSERVABILITY W2 wired silver_pink_sheet, and W4 wired silver_cot, as LATER waves; both are
+# present regardless of the depth-wave kill-switch, so the depth-wave enum baseline is the pre-wave 8
+# PLUS the price + positioning tables.
+_PRICE_IDS = ("silver_pink_sheet", "silver_cot")
 _DEPTH_BASELINE = _PRE_WAVE_8 | set(_PRICE_IDS)
 
 

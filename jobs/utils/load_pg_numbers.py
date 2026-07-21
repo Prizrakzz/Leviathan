@@ -47,7 +47,11 @@ P1_TABLES = ["silver_psd", "silver_wasde", "silver_production", "silver_esr", "s
              # PRICE_OBSERVABILITY W3.3: pink_sheet is a small flat wide table (798 rows); metric columns
              # mirror numeric, `date` (physical timestamp) stringifies to the Athena render and stays
              # TEXT COLLATE "C" -- the DP-5 substr normalization makes both backends compare identically.
-             "silver_pink_sheet"]
+             "silver_pink_sheet",
+             # PRICE_OBSERVABILITY W4.2 (v2): silver_cot is a small flat wide table; the managed-money
+             # metric columns (open_interest / mm_* levels + net + signed pct_oi + 3-yr z-scores) mirror
+             # numeric under the type doctrine, and report_date / leviathan_slug / source stay ISO TEXT.
+             "silver_cot"]
 SCHEMA = "leviathan_dev"                       # == numbers.pgnumbers.SCHEMA == query.ATHENA_DB
 GLUE_DB = "leviathan_dev"
 

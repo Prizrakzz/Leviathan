@@ -62,6 +62,7 @@ NUMBERS_TABLES = (
     "silver_mpob",
     "silver_sagis_cec",
     "silver_pink_sheet",                # PRICE_OBSERVABILITY W2: WB Pink Sheet monthly price benchmarks
+    "silver_cot",                       # PRICE_OBSERVABILITY W4: CFTC COT managed-money positioning (v2)
 )
 
 

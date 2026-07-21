@@ -59,6 +59,26 @@ def test_numbers_pit_fields_match_tablespec(reg):
     assert reg.table("silver_esr")["publication_lag_days"] == 0
 
 
+def test_price_observability_tables_in_exact_numbers_set(reg):
+    """PRICE_OBSERVABILITY W2/W4: silver_pink_sheet (v1b) and silver_cot (v2) are members of the EXACT
+    NUMBERS_TABLES set, reconcile clean, and carry consumers=both + their W-card PIT fields (a mis-derived
+    lag or a dropped back-pointer would ship live while the gate reports 'clean' -- CORRECTION V3)."""
+    specs = RC._numbers_specs()
+    for name in ("silver_pink_sheet", "silver_cot"):
+        assert name in RC.NUMBERS_TABLES, name
+        assert [d.detail for d in RC.reconcile_numbers(reg) if d.table == name] == []
+        c = reg.table(name)
+        assert c["numbers_ref"] and c["consumers"] == "both", name
+        assert c["knowledge_date_col"] == specs[name].get("knowledge_date_col"), name
+        assert c["publication_lag_days"] == specs[name].get("publication_lag_days"), name
+    # silver_cot's W4.1 card values, pinned exactly (data_date semantics, 6d lag, max_lag_days=10 SLA).
+    cot = reg.table("silver_cot")
+    assert cot["knowledge_semantics"] == "data_date" and cot["knowledge_date_col"] == "report_date"
+    assert cot["publication_lag_days"] == 6
+    assert cot["freshness_sla"]["max_lag_days"] == 10          # the staleness alarm ceiling (W4.0)
+    assert cot["cascade_ref"] is None                          # positioning enters NO engine map (R9)
+
+
 def test_cascade_refs_all_resolve(reg):
     assert RC.reconcile_cascade(reg) == []
 
