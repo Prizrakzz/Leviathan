@@ -290,3 +290,34 @@ def test_check_price_and_cot_register_green_on_real_config():
     # W0 GATE: both new checks pass on the live config -- nothing registered yet, R4/R9 active and clean.
     assert cc.check_price_register() == []
     assert cc.check_cot_register() == []
+
+
+# -- SILVER-F047 quarantine (corrected 2026-07-21: engine-leg ban is the REAL fence; no dispatch guard exists) --
+def test_quarantine_engine_ref_flagged():
+    # a cascade_map ref at a quarantined table must fail the build (the F047 INV-3 rule as lint, not prose)
+    errs = cc._check_no_engine_ref(
+        {"weather_leg": {"table": "silver_nasa_power"}}, ("silver_nasa_power",), "F047", "quarantined")
+    assert errs and "silver_nasa_power" in errs[0]
+
+
+def test_check_quarantine_green_on_real_config():
+    # live cascade_map/complex_map reference no quarantined table (the weather leg reads gold_weather_z)
+    assert cc.check_quarantine() == []
+
+
+def test_nasa_power_quarantine_flag_loaded():
+    # the flag survives the extra="forbid" loader (it was silently DROPPED by pydantic before 2026-07-21)
+    from leviathan.graphrag.numbers.registry import load_registry
+    assert load_registry().get("silver_nasa_power").quarantined is True
+
+
+def test_nasa_power_excluded_from_pg_mirror():
+    # the pg mirror excludes the projection by size; a P1_TABLES edit re-adding it must trip this pin
+    import ast
+    from pathlib import Path
+    src = (Path(__file__).resolve().parents[2] / "jobs" / "utils" / "load_pg_numbers.py").read_text(
+        encoding="utf-8")
+    p1 = next(ast.literal_eval(node.value) for node in ast.walk(ast.parse(src))
+              if isinstance(node, ast.Assign)
+              and any(getattr(t, "id", None) == "P1_TABLES" for t in node.targets))
+    assert "silver_nasa_power" not in p1 and "silver_psd" in p1

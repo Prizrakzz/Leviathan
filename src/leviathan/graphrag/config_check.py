@@ -477,6 +477,19 @@ def check_price_register() -> list[str]:
     return errs
 
 
+def check_quarantine() -> list[str]:
+    """SILVER-F047 -- a quarantined table (TableSpec.quarantined) keeps serving DIRECT agent lookups (raw
+    daily weather has no gold replacement; gold_weather_z serves anomalies, not observations), but no engine
+    map may ever reference it: the cascade weather leg moved to gold_weather_z at Phase D-W4 and INV-3
+    forbids re-adding an engine leg on the LIST-storm projection. Build-failing, not prose."""
+    from leviathan.graphrag.numbers.cascade import load_map
+    from leviathan.graphrag.numbers.registry import load_registry
+    q = tuple(tid for tid, ts in load_registry().tables.items() if getattr(ts, "quarantined", False))
+    if not q:
+        return []
+    return _check_no_engine_ref(load_map(), q, "F047", "quarantined")
+
+
 def check_cot_register() -> list[str]:
     """PRICE_OBSERVABILITY W0.2 (the W4 gate) -- positioning-table fence. R9: no engine ref points at a
     POSITIONING_TABLE (active now). R7/R10: silver_cot metric + suggester-source discipline -- vacuously green
@@ -506,6 +519,7 @@ def main() -> int:
                         ("driver_slices", check_driver_slices()),
                         ("edge_blurbs", check_edge_blurbs()),
                         ("price_register", check_price_register()),
+                        ("quarantine", check_quarantine()),
                         ("cot_register", check_cot_register())):
         if errs:
             failures += len(errs)

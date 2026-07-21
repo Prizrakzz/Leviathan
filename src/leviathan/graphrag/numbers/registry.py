@@ -61,10 +61,11 @@ class TableSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
     id: str
     description: str
-    quarantined: bool = False                                # SILVER-F047 marker (silver_nasa_power). Declared so
-    #                                                          extra="forbid" keeps loading the yaml; NOT yet read
-    #                                                          by dispatch -- the serving protections are the
-    #                                                          gold_weather_z weather path + the INV-3 lint.
+    quarantined: bool = False                                # SILVER-F047 (silver_nasa_power): no engine map may
+    #                                                          reference a quarantined table -- enforced build-
+    #                                                          failing by config_check.check_quarantine. Direct
+    #                                                          agent lookups stay allowed (raw daily weather has
+    #                                                          no gold replacement; gold_weather_z = anomalies).
     athena_table: Optional[str] = None                       # physical Glue table when it differs from the id —
     #                                                          e.g. silver_esr serves from silver_esr_compact
     #                                                          (registered partitions; the projected original
