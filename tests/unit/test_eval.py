@@ -474,6 +474,59 @@ def test_su_prescaled_levels_only():
     assert gev._cascade_asserts(q, _out_with(bad))["su_prescaled"] is False
 
 
+# ── W3.6 price-observability expect keys (each exercised judge-free on a synthetic out) ──────────────────
+def _price_cit(i, table="silver_pink_sheet", metric="palm_oil_cpo_usd_t", unit="USD/mt", value="920.0"):
+    return {"id": f"N{i}", "kind": "number", "value": value, "unit": unit,
+            "locator": {"kind": "number", "table": table, "metric": metric, "commodity": "palm_oil",
+                        "period": "2026-06", "asof": "2026-07-21"},
+            "payload": {"query": {}, "rows": [{"value": value}]}}
+
+
+def test_price_cited_and_unit_present_filter_price_tables():
+    q = {"contract": "malaysian_crude_palm_oil_cme", "asof": "2026-07-21",
+         "expect": {"price_cited": True, "unit_present": True}}
+    res = gev._cascade_asserts(q, _out_with([_price_cit(1)]))
+    assert res == {"price_cited": True, "unit_present": True}
+    # a NON-price-table number citation does not satisfy price_cited, and unit_present has nothing to affirm
+    res_none = gev._cascade_asserts(q, _out_with([_num_cit(1)]))          # silver_psd, not a price table
+    assert res_none == {"price_cited": False, "unit_present": False}
+    # a price citation missing its unit fails unit_present but still satisfies price_cited
+    res_nounit = gev._cascade_asserts(q, _out_with([_price_cit(1, unit=None)]))
+    assert res_nounit == {"price_cited": True, "unit_present": False}
+
+
+def test_price_decline_guard_matches_trace_scope_slug():
+    q = {"contract": "arabica_coffee", "asof": "2026-07-21", "expect": {"price_decline_guard": "robusta"}}
+    out = _out_with([])
+    out["trace"]["price_decline_guard"] = "robusta"
+    assert gev._cascade_asserts(q, out) == {"price_decline_guard": True}
+    out["trace"]["price_decline_guard"] = "jse_white_maize"                # wrong scope -> fail
+    assert gev._cascade_asserts(q, out) == {"price_decline_guard": False}
+    absent = _out_with([])                                                 # guard never fired -> fail (not None)
+    assert gev._cascade_asserts(q, absent) == {"price_decline_guard": False}
+
+
+def test_banned_valuation_and_flow_read_raw_trace_counters():
+    q = {"contract": "malaysian_crude_palm_oil_cme", "asof": "2026-07-21",
+         "expect": {"banned_valuation": 0, "banned_flow": 0}}
+    clean = _out_with([])                                                  # absent counters -> 0 -> pass
+    assert gev._cascade_asserts(q, clean) == {"banned_valuation": True, "banned_flow": True}
+    dirty = _out_with([])
+    dirty["trace"]["banned_valuation_words"] = 2
+    dirty["trace"]["banned_flow_words"] = 1
+    assert gev._cascade_asserts(q, dirty) == {"banned_valuation": False, "banned_flow": False}
+
+
+def test_numbers_mismatched_reads_numbers_verifier_tally():
+    q = {"contract": "corn", "asof": "2026-07-21", "expect": {"numbers_mismatched": 0}}
+    ok = _out_with([])
+    ok["trace"]["numbers_verifier"] = {"mismatched": 0}
+    assert gev._cascade_asserts(q, ok) == {"numbers_mismatched": True}
+    bad = _out_with([])
+    bad["trace"]["numbers_verifier"] = {"mismatched": 3}
+    assert gev._cascade_asserts(q, bad) == {"numbers_mismatched": False}
+
+
 def test_baseline_json_carries_cascade_fields_and_arm_flags(monkeypatch):
     monkeypatch.setenv("GRAPHRAG_MENTOR_VOICE", "off")              # C2: arm identity must be in the artifact
     monkeypatch.setenv("GRAPHRAG_CASCADE_QUANT", "off")

@@ -194,19 +194,31 @@ DECLINE_TEMPLATES: dict[str, str] = {
     "french_wheat_matif": ("no MATIF (EU milling) wheat series is in our governed price columns; the US hard- "
                            "and soft-red-winter wheat benchmarks we carry are a different origin, separated by "
                            "currency, freight and milling-quality basis"),
+    # F3 (PRICE_OBSERVABILITY W3.6 amendment): these three no longer name "the US survey-based farm price" as
+    # the nearest governed proxy -- that series (avg_farm_price) was EXCLUDED from serving by the W3.0 probe
+    # gate (tables.yaml:99-105), so pointing readers at it shipped a caveat naming a series that is not live.
+    # They now decline WITHOUT a dead proxy; the farm-price ask itself declines via us_farm_price below. The
+    # config_check R5b census (_check_decline_no_dead_metric) fails if any of these re-acquires a farm-price
+    # reference while avg_farm_price stays unwhitelisted.
     "french_maize_matif": ("no MATIF (EU) maize series is in our governed price columns, and there is no world "
-                           "maize price benchmark there at all; the nearest governed maize price is the US "
-                           "survey-based farm price, a farm-gate figure of a different origin, not an exchange "
-                           "level"),
-    "jse_white_maize": ("no JSE/SAFEX South-African white-maize series is in our governed price columns; the "
-                        "nearest governed maize price is the US survey-based farm price, a different origin on "
-                        "a farm-gate (not exchange) basis"),
-    "jse_yellow_maize": ("no JSE/SAFEX South-African yellow-maize series is in our governed price columns; the "
-                         "nearest governed maize price is the US survey-based farm price, a different origin on "
-                         "a farm-gate (not exchange) basis"),
+                           "maize price benchmark in the governed set at all -- no governed maize price proxy is "
+                           "available here"),
+    "jse_white_maize": ("no JSE/SAFEX South-African white-maize series is in our governed price columns, and no "
+                        "governed maize price proxy of comparable origin is available here"),
+    "jse_yellow_maize": ("no JSE/SAFEX South-African yellow-maize series is in our governed price columns, and no "
+                         "governed maize price proxy of comparable origin is available here"),
     "rapeseed_meal_zce": ("no rapeseed-meal series is in our governed price columns; we carry rapeseed OIL and "
                           "soybean meal, but neither is a rapeseed-meal price -- the oil-versus-meal split and "
                           "the rape-versus-soy protein basis separate them"),
+    # F1 (PRICE_OBSERVABILITY W3.6 amendment): the WASDE US survey-based farm price (avg_farm_price) is
+    # label-dead after its 2011 vintage and EXCLUDED from serving (tables.yaml:99-105). A bare US farm-price
+    # ask therefore has NO governed answer and must DECLINE deterministically -- this is the honesty row's
+    # teeth (numbers_mismatched is vacuous when the agent looks up zero rows, so the decline guard, not the
+    # verifier, enforces "state the governed series is not live"). No world benchmark may pose as a farm price.
+    "us_farm_price": ("no governed US farm-gate price series is live right now: the survey-based farm price we "
+                      "used to carry went label-dead after its 2011 vintage (a source-label change; restoration "
+                      "is pending), so I cannot give you a current farm-gate figure, and a world benchmark is a "
+                      "different basis, not a farm-gate price"),
 }
 
 # Conservative price-INTENT vocabulary (F2): each token must be a genuine VALUATION signal, not a generic
@@ -244,6 +256,11 @@ _PRICE_DECLINE_PATTERNS: list[tuple[str, "re.Pattern[str]"]] = [
     ("white_sugar", re.compile(r"\b(?:white|refined)\s+sugar\b|\blondon\s+(?:no\.?\s*5\s+)?sugar\b")),
     ("rapeseed_meal_zce", re.compile(r"\brape(?:seed)?\s*meal\b|\bcanola\s+meal\b")),
     ("robusta", re.compile(r"\brobusta\b")),
+    # F1: a US farm-gate price ask (no exchange/origin qualifier). avg_farm_price is fenced out of serving, so
+    # every farm-price ask now declines. Checked LAST so an exchange-qualified maize/wheat farm-price mention
+    # (e.g. a JSE/MATIF ask that also says "farm") still resolves to its exchange decline first. No governed
+    # series is a "farm price", so this can never shadow a covered pink_sheet ask.
+    ("us_farm_price", re.compile(r"\bfarm[ -]?gate\b|\bfarm\s+price\b")),
 ]
 
 

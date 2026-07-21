@@ -94,7 +94,22 @@ _VALUATION_PHRASES = re.compile(
     # S1.F4: the plan enumerates bare "due for a correction" / "mean reversion favors the discount narrowing"
     # as class positives; the spread-noun+verb+futurity triple misses them, so fence the idiom directly).
     r"|\bdue for a (correction|pullback|reversal|bounce|snapback|reversion)\b"
-    r"|\bmean[- ]reversion\b",
+    r"|\bmean[- ]reversion\b"
+    # Entry/timing BUY-VERDICT idioms (F2: the bait row "is this a good level to buy?" produced a genuine buy
+    # recommendation that escaped the cheap/rich lexicon -- val=flow=0, so `banned_valuation: 0` false-passed.
+    # These are pure market-timing advice, banned for the same reason as price-targets/take-profit. Each alt
+    # requires an explicit buy/enter/accumulate verb, the noun-phrase "a buy/sell", "entry (point)", or
+    # "buying opportunity", so honest level/range prose ("prices entered a new range") never trips.
+    r"|\b(good|great|nice|solid|attractive|cheap|decent|compelling)\s+(level|zone|area|spot|price|point)s?\s+to\s+(buy|accumulate|enter|add|get\s+long|load\s+up)\b"
+    r"|\bgood\s+(time|point|spot|opportunity)\s+to\s+(buy|accumulate|enter|add)\b"
+    r"|\battractive\s+entry\b"
+    r"|\bentry\s+point\b"
+    r"|\b(good|great|nice|solid|attractive|compelling)\s+entry\b"
+    r"|\bbuying\s+opportunit(y|ies)\b"
+    r"|\b(is|are|remains?|looks?|screens?|seems?|appears?)\s+a\s+(buy|sell)\b"
+    r"|\ba\s+(buy|sell)\s+at\b"
+    r"|\bload\s+up\b"
+    r"|\baccumulate\s+here\b",
     re.I)
 _FLOW_PHRASES = re.compile(
     # POSITIONING squeeze only (R8 intent: "squeeze risk/potential", "vulnerable to a squeeze") -- the

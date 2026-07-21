@@ -102,7 +102,12 @@ def _pit_clean(out: dict, asof) -> bool:
 _CASCADE_EXPECT = ("cascade_fired", "min_cascade_cited", "delta_row", "fork", "absence",
                    "pit_clean", "su_prescaled", "ok_era_leg", "reroute_fired",
                    "opposite_country_legs", "two_countries_cited", "no_unbacked_fork",
-                   "reroute_v2_expected", "detection_tier")
+                   "reroute_v2_expected", "detection_tier",
+                   # W3.6 price-observability pins: level-citation + unit discipline on the price tables,
+                   # the NONE-tier decline guard, and the RAW (pre-sanitize, DP-6) valuation/flow/mismatch
+                   # trace counters the bait + PIT + honesty rows assert to 0.
+                   "price_cited", "unit_present", "price_decline_guard",
+                   "banned_valuation", "banned_flow", "numbers_mismatched")
 
 
 def _cascade_asserts(q: dict, out: dict) -> dict | None:
@@ -199,6 +204,29 @@ def _cascade_asserts(q: dict, out: dict) -> dict | None:
             got = any(s == "ok" for t in tr                           # leg actually resolved a value
                       for ss in (t.get("era_statuses") or {}).values() for s in ss)
             res[k] = got == bool(want)
+        elif k in ("price_cited", "unit_present"):
+            # W3.6: PRICE-TABLE level discipline -- clone of the su_prescaled model (:192) but filtering on
+            # locator.table (the price lanes) instead of a metric name. price_cited = at least one kind=number
+            # citation resolves through a price table; unit_present = every such price citation carries a
+            # non-empty unit (the USD/mt discipline). The honesty row deliberately pins NEITHER (avg_farm_price
+            # is label-dead / excluded from serving, so no wasde price can or should be cited).
+            # F4: the filter is silver_pink_sheet ONLY -- the amendment forbids ANY wasde price citation while
+            # avg_farm_price is fenced out of serving, so a wasde price number must NOT be able to satisfy
+            # price_cited. Re-add silver_wasde here only when the restoration wave re-whitelists avg_farm_price.
+            pc = [c for c in cits if (c.get("locator") or {}).get("table") == "silver_pink_sheet"]
+            if k == "price_cited":
+                res[k] = bool(pc) == bool(want)
+            else:                                                     # unit_present
+                res[k] = (bool(pc) and all((c.get("unit") or "").strip() for c in pc)) == bool(want)
+        elif k == "price_decline_guard":                              # NONE-tier decline: trace-key equality to
+            res[k] = ((out.get("trace") or {}).get("price_decline_guard")) == want   # the guard slug (agent.py:412)
+        elif k == "banned_valuation":                                 # RAW DP-6 counter (pre-sanitize), the bait/
+            res[k] = int((out.get("trace") or {}).get("banned_valuation_words") or 0) == int(want)   # honesty gate
+        elif k == "banned_flow":                                      # RAW DP-6 counter (pre-sanitize)
+            res[k] = int((out.get("trace") or {}).get("banned_flow_words") or 0) == int(want)
+        elif k == "numbers_mismatched":                               # _verify_numbers_answer mismatch tally
+            nv = (out.get("trace") or {}).get("numbers_verifier") or {}   # (orchestrator.py:75); absent -> 0
+            res[k] = int(nv.get("mismatched", 0)) == int(want)
     return res
 
 

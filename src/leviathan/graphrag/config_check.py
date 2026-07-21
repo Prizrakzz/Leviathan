@@ -36,7 +36,10 @@ _FARM_PRICE_COMMODITIES: frozenset = frozenset({"corn", "wheat", "soybeans", "co
 # NONE-tier decline names (R5 census). Every one must own a decline template that passes register_leaks clean --
 # checked once the W2.5 numbers-agent template registry exists (vacuous-pass with a printed note until then).
 _NONE_TIER_DECLINE = ("robusta", "white_sugar", "french_wheat_matif", "french_maize_matif",
-                      "jse_white_maize", "jse_yellow_maize", "rapeseed_meal_zce")
+                      "jse_white_maize", "jse_yellow_maize", "rapeseed_meal_zce",
+                      # F1 (W3.6 amendment): the US farm-gate price (avg_farm_price) is fenced out of serving,
+                      # so a bare farm-price ask is a NONE-tier decline too. Owns the us_farm_price template.
+                      "us_farm_price")
 # R2/R8 detector probes: one banned sentence per term + per class rule (must FLAG), the Lane B windowed probes,
 # and the ag-collision must-NOT-flag battery. Green in W0 by construction -- this tests the detector, not tables.
 _DETECTOR_FLAG = (
@@ -430,6 +433,34 @@ def _check_decline_census() -> list[str]:
     return errs
 
 
+def _check_decline_no_dead_metric() -> list[str]:
+    """R5b (F3): no decline template may point readers at a metric fenced OUT of serving. Concretely -- while
+    avg_farm_price is NOT whitelisted in silver_wasde, no template EXCEPT us_farm_price (which exists precisely
+    to DECLINE the farm price) may present a 'farm price'/'farm-gate' proxy. That drift shipped three maize
+    templates naming 'the US survey-based farm price' as the nearest governed proxy after W3.0 removed it. When
+    avg_farm_price is restored (re-whitelisted) the references become legitimate again and this passes."""
+    from leviathan.graphrag.numbers.registry import load_registry
+    try:
+        from leviathan.graphrag.numbers import agent as na
+    except Exception:  # noqa: BLE001 -- agent import must never break the lint
+        na = None
+    templates = getattr(na, "DECLINE_TEMPLATES", None) if na is not None else None
+    if not templates:
+        return []
+    wasde = load_registry().tables.get("silver_wasde")
+    if wasde is not None and "avg_farm_price" in wasde.metrics:
+        return []                                   # restored -> proxy references are legitimate again
+    rx = re.compile(r"farm[ -]?gate|farm\s+price", re.I)
+    errs: list[str] = []
+    for name, t in templates.items():
+        if name == "us_farm_price":
+            continue                                # the one template that legitimately DECLINES the farm price
+        if rx.search(str(t)):
+            errs.append(f"R5b decline census: template {name!r} references the fenced US farm price while "
+                        f"avg_farm_price is not whitelisted (F3 drift -- repoint or remove the reference)")
+    return errs
+
+
 def check_price_register() -> list[str]:
     """PRICE_OBSERVABILITY W0.2 -- the register fence lint (AWS-free, pure). R1 unit/override discipline
     (conditional on registration -- vacuous today), R2/R8 detector probe (green now by construction), R3 wasde
@@ -474,6 +505,8 @@ def check_price_register() -> list[str]:
     errs += _check_no_engine_ref(load_map(), PRICE_TABLES, "R4", "price")
     # R5: decline census.
     errs += _check_decline_census()
+    # R5b (F3): no decline template points at the fenced farm-price metric while it is unwhitelisted.
+    errs += _check_decline_no_dead_metric()
     return errs
 
 
