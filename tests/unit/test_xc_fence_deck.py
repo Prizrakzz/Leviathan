@@ -54,7 +54,8 @@ def _gating_negatives():
 def test_deck_composition_matches_d5_d13():
     assert len(_gating_negatives()) >= 50                        # D5: ~50 negatives, all gating
     assert len(_cat("pos_llm")) == 15                            # D13: >=12/15 LLM-only gate base
-    assert len(_cat("pos_regex_floor")) == 4                     # D13: 4/4 floor proof
+    assert len(_cat("pos_regex_floor")) == 5                     # D13: 4 authored floor proofs + the ratified
+                                                                 # c8 relabel (pos_cause_frame_soyoil_to_palm)
     chips = _cat("pos_chip")
     assert len(chips) == 10 and all(r.get("pending_sample") for r in chips)
     law = _cat("law_decline_expected")
@@ -65,8 +66,11 @@ def test_deck_split_is_roughly_half_per_category():
     cats = {r["category"] for r in _ROWS}
     for c in cats:
         rows = _cat(c)
-        if len(rows) < 2:
-            continue                                             # single-row categories can't split
+        if len(rows) < 3:
+            continue                                             # a <3-row category can't hold a frozen heldout
+                                                                 # member without freezing half of itself
+                                                                 # (neg_c8_context dropped to 2 when its heldout
+                                                                 # row was relabeled to the floor)
         splits = {r["split"] for r in rows}
         assert splits == {"tune", "heldout"}, f"category {c} is not split across tune/heldout"
         n_h = sum(1 for r in rows if r["split"] == "heldout")
@@ -185,14 +189,15 @@ def test_mock_full_run_passes_all_gates(monkeypatch):
     assert agg["run_valid"] is True and agg["invalid_negatives"] == []
     assert agg["neg_gate"] == "PASS" and agg["neg_failed"] == []
     assert agg["pos_llm_gate"] == "PASS" and agg["pos_llm_passed"] == 15
-    assert agg["floor_gate"] == "PASS" and agg["floor_passed"] == 4
+    assert agg["floor_gate"] == "PASS" and agg["floor_passed"] == 5
     assert agg["chip_gate"].startswith("PENDING")                # 10 placeholders unsampled
     assert agg["temperature_ok"] is True                         # D18: every call saw temperature=0
     ran_ids = {item["row"]["id"] for item in results}
     assert not any(i.startswith("chip_pending") for i in ran_ids)   # placeholders never run
     # the c8 rows report their by-design regex hits informationally, and still PASS at the plan level
+    # (was 2 hits over 3 rows; the ratified relabel moved the second hit-carrying row to the floor)
     c8 = [s for s in scored["per_row"] if s["category"] == "neg_c8_context"]
-    assert sum(s["regex_hits"] for s in c8) == 2 and all(s["pass"] for s in c8)
+    assert sum(s["regex_hits"] for s in c8) == 1 and all(s["pass"] for s in c8)
     # the law-decline row is informational: fires, but can neither fail nor pass a gate
     law = next(s for s in scored["per_row"] if s["category"] == "law_decline_expected")
     assert law["pass"] is None and law["fires"] == 3
@@ -230,7 +235,7 @@ def test_errored_positive_does_not_invalidate_but_floor_gate_fails(monkeypatch):
     _, scored = _run(factory=factory)
     agg = scored["aggregates"]
     assert agg["run_valid"] is True                              # only NEGATIVE errors invalidate (S2-3)
-    assert agg["floor_gate"] == "FAIL" and agg["floor_passed"] == 3   # floor demands every repeat clean
+    assert agg["floor_gate"] == "FAIL" and agg["floor_passed"] == 4   # floor demands every repeat clean
 
 
 def test_silent_fallback_and_degraded_are_errored(monkeypatch):

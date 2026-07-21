@@ -287,7 +287,7 @@ def score(results: list[dict], deck: dict, *, subset: str | None = None) -> dict
         "pos_llm_rows": len(pos_llm), "pos_llm_passed": sum(1 for s in pos_llm if s["pass"]),
         "pos_llm_gate": _gate(sum(1 for s in pos_llm if s["pass"]) >= POS_LLM_GATE),
         "floor_rows": len(floor), "floor_passed": sum(1 for s in floor if s["pass"]),
-        "floor_gate": _gate(sum(1 for s in floor if s["pass"]) == 4 and len(floor) == 4),
+        "floor_gate": _gate(len(floor) >= 4 and sum(1 for s in floor if s["pass"]) == len(floor)),
         "chip_rows_sampled": len(chips), "chip_passed": sum(1 for s in chips if s["pass"]),
         "chip_gate": (f"PENDING ({len(pending_chips)} unsampled)" if pending_chips
                       else _gate(sum(1 for s in chips if s["pass"]) >= CHIP_GATE)),
@@ -316,7 +316,7 @@ def _print_report(doc: dict) -> None:
           + (f"  failed={','.join(agg['neg_failed'])}" if agg["neg_failed"] else ""))
     print(f"  POS gate  (llm-only >= {POS_LLM_GATE}/{agg['pos_llm_rows']})       : "
           f"{agg['pos_llm_gate']}  passed={agg['pos_llm_passed']}")
-    print(f"  FLOOR gate (regex 4/4)              : {agg['floor_gate']}  passed={agg['floor_passed']}")
+    print(f"  FLOOR gate (regex {agg['floor_passed']}/{agg['floor_rows']})              : {agg['floor_gate']}  passed={agg['floor_passed']}")
     print(f"  CHIP gate  (>= {CHIP_GATE}/10 once sampled)    : {agg['chip_gate']}")
     if doc["mock"]:
         print("  NOTE: MOCK RUN -- canned calls, synthetic enum; NOT a certification, never a gate.")
