@@ -365,3 +365,59 @@ def test_pink_sheet_now_in_numbers_scope_for_contract_check():
     it in scope (the FR-001 feature-only footer path no longer owns it)."""
     reg = load_registry()
     assert TID in CC._numbers_table_ids(reg)
+
+
+# ======================================================================================================
+# W3.1 GOLDEN RIDER -- REAL rows snapshotted from Athena by the W3.0 probe battery (2026-07-21, WB
+# release 2026M07). These are hand-copied fixtures, not live queries: they pin the ENGINE's behavior
+# against genuine production values (the table is latest-only and WB revises retroactively, so the
+# live values may drift -- the fixture does not). Feb-2011 is the food-crisis spike (palm z ~ +1.95);
+# Jun-2020 is the COVID trough (Brent 39.9).
+# ======================================================================================================
+GOLDEN_ROWS = [
+    {"date": "2011-02-01 00:00:00.000", "palm_oil_cpo_usd_t": 1327.0, "soybean_oil_usd_t": 1360.0,
+     "urea_usd_mt": 297.5, "brent_crude_usd_bbl": 104.0, "raw_sugar_world_usd_t": 650.0,
+     "wheat_us_hrw_usd_t": 348.1, "palm_oil_cpo_usd_t_zscore_5yr": 1.9520930348498196,
+     "latest_release_ym": "2026M07"},
+    {"date": "2020-06-01 00:00:00.000", "palm_oil_cpo_usd_t": 656.0, "soybean_oil_usd_t": 756.0,
+     "urea_usd_mt": 202.0, "brent_crude_usd_bbl": 39.9, "raw_sugar_world_usd_t": 270.0,
+     "wheat_us_hrw_usd_t": 198.4, "palm_oil_cpo_usd_t_zscore_5yr": -0.22522786001448222,
+     "latest_release_ym": "2026M07"},
+    {"date": "2026-04-01 00:00:00.000", "palm_oil_cpo_usd_t": 1146.0, "soybean_oil_usd_t": 1643.0,
+     "urea_usd_mt": 856.9, "brent_crude_usd_bbl": 120.4, "raw_sugar_world_usd_t": 320.0,
+     "wheat_us_hrw_usd_t": 282.0, "palm_oil_cpo_usd_t_zscore_5yr": 0.40872766660060955,
+     "latest_release_ym": "2026M07"},
+    {"date": "2026-05-01 00:00:00.000", "palm_oil_cpo_usd_t": 1136.0, "soybean_oil_usd_t": 1781.0,
+     "urea_usd_mt": 770.5, "brent_crude_usd_bbl": 107.5, "raw_sugar_world_usd_t": 340.0,
+     "wheat_us_hrw_usd_t": 303.0, "palm_oil_cpo_usd_t_zscore_5yr": 0.3634810614418705,
+     "latest_release_ym": "2026M07"},
+    {"date": "2026-06-01 00:00:00.000", "palm_oil_cpo_usd_t": 1105.0, "soybean_oil_usd_t": 1765.0,
+     "urea_usd_mt": 453.1, "brent_crude_usd_bbl": 85.4, "raw_sugar_world_usd_t": 320.0,
+     "wheat_us_hrw_usd_t": 286.0, "palm_oil_cpo_usd_t_zscore_5yr": 0.21561525009156313,
+     "latest_release_ym": "2026M07"},
+]
+
+
+def test_golden_lag_makes_june_knowable_from_jul21_but_not_jul05():
+    """Real-row PIT: on 2026-07-21 (lag-40 guard 2026-06-11) the June observation IS knowable and is the
+    latest month; on 2026-07-05 (guard 2026-05-26) June is hidden and May's 1136.0 serves -- the exact
+    DP-3 semantics the probe validated against the live release calendar (2026M07 carries June data)."""
+    ts = _ts()
+    late = _pit(GOLDEN_ROWS, ts, table=TID, metric="palm_oil_cpo_usd_t", asof="2026-07-21")
+    assert [r["date"][:10] for r in late][-1] == "2026-06-01"
+    early = _pit(GOLDEN_ROWS, ts, table=TID, metric="palm_oil_cpo_usd_t", asof="2026-07-05")
+    assert [r["date"][:10] for r in early][-1] == "2026-05-01"
+    assert early[-1]["palm_oil_cpo_usd_t"] == 1136.0
+
+
+def test_golden_food_crisis_and_covid_rows_survive_pit_with_stamp():
+    """Historical asks serve the real values with the release stamp: a 2011-06-30 asof sees the Feb-2011
+    spike row (palm 1327.0, z ~ +1.95); a 2020-08-31 asof window catches the COVID trough (Brent 39.9)."""
+    ts = _ts()
+    crisis = _pit(GOLDEN_ROWS, ts, table=TID, metric="palm_oil_cpo_usd_t", asof="2011-06-30")
+    assert crisis and crisis[-1]["palm_oil_cpo_usd_t"] == 1327.0
+    assert abs(crisis[-1]["palm_oil_cpo_usd_t_zscore_5yr"] - 1.952) < 0.01
+    covid = _pit(GOLDEN_ROWS, ts, table=TID, metric="brent_crude_usd_bbl", asof="2020-08-31",
+                 period_start="2020-06-01", period_end="2020-06-30")
+    assert [r["brent_crude_usd_bbl"] for r in covid] == [39.9]
+    assert covid[0]["latest_release_ym"] == "2026M07"

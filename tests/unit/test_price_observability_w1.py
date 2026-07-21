@@ -41,9 +41,38 @@ from leviathan.graphrag.register import register_leaks, sanitize
 
 WASDE = "silver_wasde"
 
+# W3.0 PROBE VERDICT (2026-07-21): the physical avg_farm_price series is LABEL-DEAD (every commodity's last
+# release_date is 2011-08-11; it is the only price-like attribute in silver), so the metric is EXCLUDED from
+# the live whitelist per the ratified honesty rule -- serving would present a 2011 vintage as latest-known.
+# The DP-1/DP-2 machinery stays built-and-tested here against the exact live table shape via a synthetic
+# re-injection, ready for the restoration wave (bronze alias extension + re-parse task, 2026-07-21).
+_FARM_METRIC = Metric(
+    desc="US season-average farm price (USDA survey-based; NOT a futures settle); current/future-MY values "
+         "are USDA PROJECTIONS -- attribute them",
+    unit_overrides={"corn": "$/bu", "wheat": "$/bu", "soybeans": "$/bu", "cotton": "c/lb", "rice": "$/cwt"})
+
+
+def _wasde_live() -> TableSpec:
+    return load_registry().get(WASDE)
+
 
 def _wasde() -> TableSpec:
-    return load_registry().get(WASDE)
+    """The LIVE silver_wasde spec CLONED with avg_farm_price re-injected (see the probe-verdict note above)."""
+    live = _wasde_live()
+    return live.model_copy(update={"metrics": {**live.metrics, "avg_farm_price": _FARM_METRIC}})
+
+
+@pytest.fixture()
+def farm_registry(monkeypatch):
+    """Patch load_registry in every consumer module so Q.run / the agent loop resolve the synthetic
+    re-injected spec -- the live registry EXCLUDES the metric and would reject these calls."""
+    import leviathan.graphrag.numbers.registry as R
+    live = R.load_registry()
+    reg = R.NumbersRegistry(tables={**live.tables, WASDE: _wasde()})
+    monkeypatch.setattr(R, "load_registry", lambda path=None: reg)
+    monkeypatch.setattr(Q, "load_registry", lambda path=None: reg)
+    monkeypatch.setattr(A, "load_registry", lambda path=None: reg)
+    return reg
 
 
 # -- synthetic avg_farm_price rows shaped to the LIVE silver_wasde spec (tall). estimate is the value_col,
@@ -117,7 +146,7 @@ def test_farm_price_forced_asof_serves_prior_vintage():
     assert [r["estimate"] for r in _pit(rows, "2025-06-30")] == ["4.55"]
 
 
-def test_farm_price_asof_before_any_release_is_not_known():
+def test_farm_price_asof_before_any_release_is_not_known(farm_registry):
     """An asof strictly before the earliest release (2024-04-01) has NO public estimate -> empty
     apply_pit_filter AND the agent's vintage-only not_known status (never a fabricated figure)."""
     rows = _farm_rows()
@@ -144,7 +173,7 @@ def test_farm_price_tiebreak_actual_beats_projection_at_late_asof():
 # ======================================================================================================
 # DP-1 -- unit_overrides post-fetch rewrite (the choke point is Q.run; citations.py stays untouched).
 # ======================================================================================================
-def test_unit_override_rewrites_junk_unit_and_citation_is_correct():
+def test_unit_override_rewrites_junk_unit_and_citation_is_correct(farm_registry):
     """A returned row carrying the junk section-heading unit 'Milled Basis' is REWRITTEN to '$/bu' for
     corn, and the number-citation unit built by citations.from_number is '$/bu' (it reads r['unit'] first,
     which the post-fetch set)."""
@@ -158,7 +187,7 @@ def test_unit_override_rewrites_junk_unit_and_citation_is_correct():
     assert cit.unit in cit.label
 
 
-def test_unit_override_cotton_and_rice_distinct_units():
+def test_unit_override_cotton_and_rice_distinct_units(farm_registry):
     """The map is per-commodity, not a single unit: cotton serves 'c/lb', rice '$/cwt'."""
     for commodity, unit in (("cotton", "c/lb"), ("rice", "$/cwt")):
         spec = Q.NumberQuery(table=WASDE, metric="avg_farm_price", asof="2025-12-31", commodity=commodity,
@@ -167,7 +196,7 @@ def test_unit_override_cotton_and_rice_distinct_units():
         assert out[0]["unit"] == unit
 
 
-def test_unit_override_on_agg_row_still_carries_unit():
+def test_unit_override_on_agg_row_still_carries_unit(farm_registry):
     """An agg-shaped row (SELECT avg(value) AS value -- NO extras, NO unit column) still gets the override:
     a 'mean farm price over 5 MYs' must not cite unitless (S3.F6). The value is untouched."""
     agg = [{"value": "4.60"}]
@@ -177,7 +206,7 @@ def test_unit_override_on_agg_row_still_carries_unit():
     assert out[0]["unit"] == "$/bu" and out[0]["value"] == "4.60"
 
 
-def test_unit_override_blank_fallback_when_commodity_off_map():
+def test_unit_override_blank_fallback_when_commodity_off_map(farm_registry):
     """An off-map commodity (sorghum -- multiplicity-suspect, not in the coverage set) serves BLANK ''
     (blank-on-unresolvable beats serving the junk section-heading unit), never a wrong unit."""
     spec = Q.NumberQuery(table=WASDE, metric="avg_farm_price", asof="2025-12-31", commodity="sorghum",
@@ -228,7 +257,7 @@ def test_revision_stamp_in_sql_and_row_and_citation():
 # REGISTER CLEANLINESS -- every NEW reader-facing prose sentence passes register_leaks.
 # ======================================================================================================
 def test_new_metric_desc_is_register_clean():
-    desc = _wasde().metrics["avg_farm_price"].desc
+    desc = _FARM_METRIC.desc
     assert register_leaks(desc) == []
     assert "PROJECTION" in desc.upper() and "NOT a futures settle" in desc
 
@@ -239,7 +268,7 @@ def test_new_agent_bullets_are_register_clean():
     vocabulary WITHOUT tripping the fence detector on itself (no futurity modal beside the spread verb)."""
     from leviathan.graphrag.numbers.agent import system_prompt
     sp = system_prompt(load_registry())
-    for marker in ("US season-average farm price per marketing year",
+    for marker in ("NO governed US farm-gate price series is live",
                    "State prices, premiums, discounts, and spreads as an observed level"):
         assert marker in sp, f"bullet missing: {marker}"
         seg = sp[sp.find(marker):sp.find(marker) + 400]
@@ -279,19 +308,20 @@ def test_reconcile_gate_covers_silver_wasde():
     assert "silver_wasde" in reconcile.NUMBERS_TABLES
 
 
-def test_config_check_price_register_binds_and_passes():
-    """R1 (unit_overrides keys == the curated coverage set exactly) and R3 (estimate_role-first
-    vintage_tiebreak + provenance_col) are now NON-vacuous (avg_farm_price is whitelisted) and PASS."""
+def test_avg_farm_price_excluded_from_live_whitelist():
+    """W3.0 PROBE VERDICT PIN: the live registry does NOT whitelist avg_farm_price (label-dead series;
+    serving would present the 2011-08-11 vintage as latest-known). A restoration re-whitelist must come
+    with the bronze alias extension + fresh probes -- this pin makes a premature re-add loud."""
     from leviathan.graphrag import config_check as CCK
-    assert CCK.check_price_register() == []
-    # R1 binding: the unit_overrides keys equal the curated coverage set exactly.
-    ov = load_registry().get(WASDE).metrics["avg_farm_price"].unit_overrides
-    assert set(ov) == CCK._FARM_PRICE_COMMODITIES == {"corn", "wheat", "soybeans", "cotton", "rice"}
+    assert "avg_farm_price" not in _wasde_live().metrics
+    assert CCK.check_price_register() == []                   # R1/R3 vacuous-by-exclusion, R2/R8/R4/R5 green
+    # the curated set constant stays staged for the restoration wave
+    assert CCK._FARM_PRICE_COMMODITIES == {"corn", "wheat", "soybeans", "cotton", "rice"}
 
 
-def test_config_check_r1_fails_on_coverage_drift(monkeypatch):
-    """R1 is a real gate: if the unit_overrides keys drift from the curated set (either way), the lint
-    FAILS. Proven by narrowing the curated set under the check -- the equality branch must fire."""
+def test_config_check_r1_fails_on_coverage_drift(farm_registry, monkeypatch):
+    """R1 is a real gate: with the metric (synthetically) whitelisted, unit_overrides keys drifting from
+    the curated set FAIL the lint -- proven by narrowing the curated set under the check."""
     from leviathan.graphrag import config_check as CCK
     monkeypatch.setattr(CCK, "_FARM_PRICE_COMMODITIES", frozenset({"corn", "wheat"}))
     errs = CCK.check_price_register()
