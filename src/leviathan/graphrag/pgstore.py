@@ -69,6 +69,20 @@ _POOL_SIZE = int(os.environ.get("EVIDENCE_PG_POOL", "4"))
 # means slots leaked or a holder wedged — fail the ONE caller loudly (pg_query degrades to its Athena
 # fallback; a walk fetch errors its turn) instead of blocking every worker forever (Jul-11 stall autopsy).
 _POOL_WAIT_S = int(os.environ.get("EVIDENCE_PG_POOL_WAIT_S", "120"))
+# Server-side per-statement ceiling on POOLED SERVING connections (numbers lookups AND evidence-walk
+# fetches — both draw from this pool). A pooled conn should hold its slot only for one execute()+fetch;
+# without a server-side kill a pathological query (e.g. a bad plan on a freshly-reloaded, un-ANALYZEd
+# mirror table) holds its slot for MINUTES, and because a turn's walk fans out GRAPHRAG_WALK_WORKERS
+# fetches while several turns run at once, a couple of wedged holders starve every slot -> the 120s
+# checkout wait above trips for everyone and turns floor. Worse, the eval watchdog ORPHANS a wedged
+# worker WITHOUT releasing its slot, so the pool monotonically dies and never recovers (the 2026-07-22
+# rev-51 gate: silver_wasde reloaded +18% rows -> ~800K, first heavy run of the new row_filters
+# `col IN (...)` SQL wedged the pool at ~64min and 18 turns floored / the last 3 ran to the 4200s
+# watchdog). Bounding each statement server-side keeps the hold to <=_STMT_TIMEOUT_MS: a numbers lookup
+# catches the cancel and falls back to Athena on the SAME SQL (honest); an evidence fetch floors only
+# its own turn; and an orphaned worker's query self-cancels so its finally frees the slot. The LOADER
+# connects directly (never via _acquire), so a multi-minute bulk COPY stays unbounded. 0 disables.
+_STMT_TIMEOUT_MS = int(os.environ.get("EVIDENCE_PG_STATEMENT_TIMEOUT_MS", "60000"))
 
 
 def _acquire():
@@ -90,7 +104,14 @@ def _acquire():
                            f"(size={_POOL_SIZE}) — leaked slot or wedged holder") from None
     if conn is None or conn.closed:
         try:
-            conn = psycopg.connect(dsn(), autocommit=True)
+            kw = {"autocommit": True}
+            if _STMT_TIMEOUT_MS > 0:
+                # bound EVERY statement server-side via libpq options (atomic with connect, survives the
+                # pooled conn's whole lifetime, no extra round-trip) so a wedged query is KILLED instead
+                # of holding a pool slot for minutes (the rev-51 pool death). Read at call time so tests
+                # and an env override take effect without re-import.
+                kw["options"] = f"-c statement_timeout={int(_STMT_TIMEOUT_MS)}"
+            conn = psycopg.connect(dsn(), **kw)
         except BaseException:
             _POOL.put(None)      # a failed connect returns the SLOT (lazy) — it must never shrink the pool
             raise

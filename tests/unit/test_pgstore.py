@@ -75,6 +75,72 @@ def test_pool_exhaustion_raises_loudly_not_blocks(tiny_pool, monkeypatch):
     pg._release(again)
 
 
+def test_pg_query_returns_slot_on_midquery_exception(tiny_pool, monkeypatch):
+    """rev-51 pool-death guard: a query that raises MID-EXECUTE (a server-side statement_timeout cancel,
+    a bad-plan error) must not leak its pool slot — pg_query's finally has to return it even on the
+    exception path, or a handful of wedged lookups monotonically kill the shared pool."""
+    import psycopg
+    from leviathan.graphrag.numbers import pgnumbers
+
+    class BoomCursor:
+        description: list = []
+        def __enter__(self):
+            return self
+        def __exit__(self, *a):
+            return False
+        def execute(self, *a, **k):
+            raise RuntimeError("query cancelled: statement timeout")   # blows up mid-query
+        def fetchall(self):
+            return []
+
+    class Conn:
+        closed = False
+        def cursor(self):
+            return BoomCursor()
+
+    monkeypatch.setattr(psycopg, "connect", lambda *a, **k: Conn())
+    with pytest.raises(RuntimeError, match="statement timeout"):
+        pgnumbers.pg_query("SELECT 1")             # drains the single slot, then execute raises
+    # if the finally leaked the slot, this would raise RuntimeError('pg pool exhausted') after the wait
+    c = pg._acquire()
+    assert not c.closed
+    pg._release(c)
+
+
+def test_acquire_bounds_statements_with_server_side_timeout(tiny_pool, monkeypatch):
+    """Every pooled serving connection carries a server-side statement_timeout so a wedged query is
+    killed (freeing its slot) instead of holding it for minutes and starving the pool."""
+    import psycopg
+    seen: dict = {}
+
+    def fake_connect(*a, **k):
+        seen.update(k)
+        return type("C", (), {"closed": False})()
+
+    monkeypatch.setattr(psycopg, "connect", fake_connect)
+    monkeypatch.setattr(pg, "_STMT_TIMEOUT_MS", 60000)
+    c = pg._acquire()
+    pg._release(c)
+    assert seen.get("autocommit") is True
+    assert "statement_timeout=60000" in (seen.get("options") or "")   # bound via libpq options
+
+
+def test_stmt_timeout_zero_disables_bound(tiny_pool, monkeypatch):
+    """0 (parity/tests) => no options kwarg, byte-identical to the pre-fix connect."""
+    import psycopg
+    seen: dict = {}
+
+    def fake_connect(*a, **k):
+        seen.update(k)
+        return type("C", (), {"closed": False})()
+
+    monkeypatch.setattr(psycopg, "connect", fake_connect)
+    monkeypatch.setattr(pg, "_STMT_TIMEOUT_MS", 0)
+    c = pg._acquire()
+    pg._release(c)
+    assert "options" not in seen
+
+
 # ── integration (local pgvector container; skip if unreachable) ──────────────────────────
 def _conn():
     import psycopg

@@ -229,6 +229,18 @@ def load_table(ts, conn, *, dry_run: bool = False, batch_rows: int = 20000) -> i
         for col in filter(None, {ts.commodity_col, ts.metric_col, ts.knowledge_col(), ts.date_col}):
             cur.execute(f'CREATE INDEX IF NOT EXISTS "ix_{physical}_{col}" '
                         f'ON "{SCHEMA}"."{physical}" ("{col}")')
+    with conn.cursor() as cur:                                  # REFRESH planner statistics: a DROP+CREATE
+        cur.execute(f'ANALYZE "{SCHEMA}"."{physical}"')         # table starts with ZERO stats, so the planner
+    #                                                             estimates blindly and can pick a catastrophic
+    #                                                             plan for the serve SQL (the vintage ROW_NUMBER
+    #                                                             window + row_filters `col IN (...)`) on a large
+    #                                                             table -- the 2026-07-22 rev-51 pool death, where
+    #                                                             the first heavy run after silver_wasde reloaded
+    #                                                             to ~800K rows wedged multi-minute queries that
+    #                                                             starved the serving pool. ANALYZE is seconds and
+    #                                                             the serving statement_timeout only MASKS a
+    #                                                             missing one (kills the bad-plan query, degrades
+    #                                                             the lookup to Athena) -- this prevents it.
     logger.info("[%s] loaded %d rows in %.1fs", ts.id, n, time.time() - t0)
     return n
 
