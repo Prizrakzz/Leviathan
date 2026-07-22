@@ -69,6 +69,11 @@ def _cascade_stats(out: dict) -> dict:
             # complex-wide co-move rendered this turn. NOT a len() count (a co-move fires at most one pair/era):
             # the fired dict has ~13 keys, so len() would mislead a future exact-count assert -- bool() is honest.
             "comove_fired": bool((out.get("trace") or {}).get("quantify_comove")),
+            # SEAM B (F2): quantify_price_leg is ENGINE-written, present IFF a settled farm-price pair rendered
+            # this turn. BOOLEAN (mirror comove_fired [F7]) -- the fired dict has ~8 keys, so len() would mislead
+            # a future exact-count assert. Judge-free soak/attribution signal; the deck pins ride price_cited /
+            # unit_present (citation-based), not this stat.
+            "price_leg_fired": bool((out.get("trace") or {}).get("quantify_price_leg")),
             "statuses": sorted(statuses)}
 
 
@@ -326,6 +331,7 @@ def _per_answer_record(r: dict, run_kind: str) -> dict:
             # can attribute fires per tier post-run; None on non-orchestrator rows (no intent_decision).
             "reroute_v2_pairs": cs["reroute_v2_pairs"],
             "comove_fired": cs["comove_fired"],                # SEAM A boolean (F7): per-tier soak attribution
+            "price_leg_fired": cs["price_leg_fired"],          # SEAM B boolean: settled farm-price pair rendered
             "detection_tier": ((out.get("intent_decision") or {}).get("xc_detect") or {}).get("tier"),
             "cascade_asserts": (r.get("rubric") or {}).get("cascade_asserts"),
             # R3 F12: without degraded_model in the record a degraded turn is byte-indistinguishable from a

@@ -619,7 +619,8 @@ def test_seam_injects_block_and_trace(monkeypatch):
     rpair = {"contract": "wheat", "metric": "exports_mt", "countryA": "Russia", "dA": -14.573,
              "countryB": "United States", "dB": 11.216, "window": "MY2009-MY2010", "reroute": True}
 
-    def stub(sg, graph, *, qfn, asof, near, extra_number_calls, xc_request=None, comove=False):
+    def stub(sg, graph, *, qfn, asof, near, extra_number_calls, xc_request=None, comove=False,
+             price_request=None):
         extra_number_calls.append({"query": {"metric": "exports_mt"}, "rows": [{"value": 2.46}], "status": "ok"})
         return "OBSERVED CASCADE NUMBERS (test):\n- [N1] wheat exports 2.46 MMT", [{"divergence": False}], [rpair]
 
@@ -630,7 +631,8 @@ def test_seam_injects_block_and_trace(monkeypatch):
 
 
 def test_seam_empty_reroute_trace_not_stashed(monkeypatch):
-    def stub(sg, graph, *, qfn, asof, near, extra_number_calls, xc_request=None, comove=False):
+    def stub(sg, graph, *, qfn, asof, near, extra_number_calls, xc_request=None, comove=False,
+             price_request=None):
         return "OBSERVED CASCADE NUMBERS (test):\n- x", [{"divergence": False}], []
 
     out, _captured = _seam_harness(monkeypatch, stub)

@@ -507,7 +507,8 @@ def test_answer_l2_passes_xc_request_to_quantify(monkeypatch):
 
     rec = {}
 
-    def _stub_quantify(sg, graph, *, qfn, asof, near, extra_number_calls, xc_request=None, comove=False):
+    def _stub_quantify(sg, graph, *, qfn, asof, near, extra_number_calls, xc_request=None, comove=False,
+                       price_request=None):
         rec["xc_request"] = xc_request
         rec["comove"] = comove
         return None, None, None

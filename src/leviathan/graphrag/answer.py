@@ -340,8 +340,18 @@ _SYSTEM_CASCADE = (
     "not a divergence, you have NO price-direction license here: state only that both world balance sheets moved "
     "the same way (both tightened, or both loosened). Render '## Complex-wide move' ONLY when a 'CO-MOVE' line is "
     "present; never volunteer a complex-wide co-move from prose. "
-    "If there is NO DIVERGENCE line, NO REROUTE line, NO CROSS-COMMODITY line and NO CO-MOVE line, do NOT "
-    "invent a fork -- "
+    # SEAM B (F2 price-response): the price-LEVEL blessing hoisted from the Cross-commodity paragraph to the
+    # main '## The record' section -- a settled farm-price pair renders here, not under any fork heading.
+    "If the block carries a line beginning 'PRICE-RESPONSE', the settled US season-average FARM price moved "
+    "over the analogue marketing years: put BOTH price LEVELS under '## The record', each cited by its [N] "
+    "handle EXACTLY as printed, and narrate the DIRECTION in prose (rose/fell) -- the level is the [N] row, the "
+    "direction is prose. This is a survey-based USDA season-average actual (revision_stamp), NOT a futures "
+    "settle and NOT your forecast; a current- or future-MY value is a USDA PROJECTION and must be attributed as "
+    "one. observed price LEVELS arrive as [N] rows -- cite them with their [N] handle like any observed number; "
+    "NEVER mint an uncited price figure. Render this ONLY when a 'PRICE-RESPONSE' line is present; never "
+    "volunteer a price move from prose. "
+    "If there is NO DIVERGENCE line, NO REROUTE line, NO CROSS-COMMODITY line, NO CO-MOVE line and NO "
+    "PRICE-RESPONSE line, do NOT invent a fork -- "
     "and a record that contradicts the USER'S PREMISE is NOT a fork: correct that in the TL;DR, never under "
     "'## Where the record disagrees'. "
     "If a leg reads 'not yet in effect as of <asof>' or '(record silent for that era)', narrate that ABSENCE "
@@ -387,6 +397,16 @@ def _comove_on() -> bool:
     orchestrator's _xc_llm_detect_on idiom). When off, same-sign eras drop exactly as before so opposite-sign
     reroute-v2 output is byte-identical. Read PER CALL (never memoized) so the env-flip rollback is live."""
     return os.environ.get("GRAPHRAG_COMOVE", "").strip().lower() in ("on", "1", "true")
+
+
+def _price_leg_on() -> bool:
+    """SEAM-B price-response kill-switch (GRAPHRAG_CASCADE_PRICE_LEG), read at the answer.py quantify SEAM and
+    threaded as the `price_request` kwarg down quantify()->_price_pair ([SKEPTIC F3]/xc_request discipline --
+    NEVER an os.environ read inside cascade.py, so the ENGINE is gated by the ARGUMENT and a mis-plumbed enable
+    can never fire it on an unasked turn). DEFAULT-OFF, fail-closed. When off, price_request is None and
+    quantify() is byte-identical to today (the cascade rows are unchanged). Read PER CALL (never memoized) so
+    the env-flip rollback is live -> serving rev 51, no redeploy (mirror _comove_on)."""
+    return os.environ.get("GRAPHRAG_CASCADE_PRICE_LEG", "").strip().lower() in ("on", "1", "true")
 
 
 def _system() -> str:
@@ -690,12 +710,21 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
             and _pgnumbers_live()):
         from leviathan.graphrag.numbers import cascade as cq
         extra_number_calls = list(extra_number_calls or [])       # rebind ONCE: None -> [], hybrid list -> copy
+        # SEAM B (F2 price leg): the flag is read HERE and the focus contract (the first seed, focus-first) is
+        # packed into price_request; the engine is gated by that ARGUMENT ([F3]). Flag off -> None -> quantify
+        # byte-identical. The _farm_wasde map gates non-farm focuses, so a coffee/meal seed declines honestly.
+        _price_request = None
+        if _price_leg_on():
+            _focus = next((c for c in (getattr(sg, "seeds", None) or []) if c in graph.contracts), None)
+            if _focus:
+                _price_request = {"focus_contract": _focus}
         try:                                                      # GRACEFUL (R6): a raise here must NEVER 500
             _t_quant = time.perf_counter()                        # W6.1-0 stage timer (MsQuantify)
             _cblock, _quant_trace, _reroute_trace = cq.quantify(sg, graph, qfn=numbers_lookup, asof=asof,
                                                                 near=near,
                                                                 extra_number_calls=extra_number_calls,
-                                                                xc_request=xc_request, comove=_comove_on())
+                                                                xc_request=xc_request, comove=_comove_on(),
+                                                                price_request=_price_request)
             sg.trace["ms_quantify"] = int((time.perf_counter() - _t_quant) * 1000)
             if _cblock:
                 volatile_blocks = volatile_blocks + [_cblock]

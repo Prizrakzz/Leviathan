@@ -106,6 +106,14 @@ def _my_span(window: tuple, commodity: str) -> list[int]:
     return list(range(lo, hi + 1))
 
 
+def _my_slash(my: int) -> str:
+    """int START-year MY -> the source's 'YYYY/YY' marketing_year label (silver_wasde stores the slash form,
+    e.g. 2011 -> '2011/12', 2009 -> '2009/10', 1999 -> '1999/00'). silver_wasde.period_sql_type=string, so the
+    bare int a PSD (period_sql_type=int) leg passes would compile to marketing_year='2011' and match ZERO rows
+    -- the SEAM-B price leg is the first cascade leg on a string-MY table, so it formats explicitly (B-S2)."""
+    return f"{int(my)}/{(int(my) + 1) % 100:02d}"
+
+
 # ── one PIT-safe windowed lookup (B-S1) ──────────────────────────────────────────────────────────────
 def _status(rows: list, *, vintage: bool) -> str:
     """ok | record_silent (no rows in range) | not_known (vintage, value not yet published as-of)."""
@@ -487,7 +495,7 @@ def _pair_units(groups: list) -> tuple:
 
 # ── the orchestration (B-S3) ─────────────────────────────────────────────────────────────────────────
 def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request: dict | None = None,
-             comove: bool = False) -> tuple:
+             comove: bool = False, price_request: dict | None = None) -> tuple:
     """Select grounded nodes with mapped refs, derive analogue-era windows from their dated props, build
     per-node leg GROUPS (era legs + a current rhyme leg), detect cross-country REROUTE pairs (RF-3:
     natural two-node pairs + the synthesized primary-country beneficiary), cap on WHOLE pair-atomic
@@ -557,6 +565,20 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
             except Exception:  # noqa: BLE001 -- a traceless sg must never break the v1 answer
                 pass
             block_lines = block_lines + xc_lines
+    # SEAM B (F2 price-response): the settled US farm-price consequence pair for the FOCUS contract, gated ONLY
+    # by the answer.py-threaded price_request (GRAPHRAG_CASCADE_PRICE_LEG is read at that seam, never here --
+    # [F3]/xc_request discipline). price_request None -> inert, everything above byte-identical. POST-CAP + POST-
+    # _assemble: the 2 fetches never enter the CASCADE_CAP truncation, so the cap can never split the pair. On
+    # FIRE the engine WRITES quantify_price_leg itself (twin of the xc seam) and appends its '## The record' block.
+    if price_request:
+        p_lines, p_trace = _price_pair(price_request, sg, graph, groups, qfn, asof, near,
+                                       extra_number_calls, len(extra_number_calls))
+        if p_trace:
+            try:
+                sg.trace["quantify_price_leg"] = p_trace
+            except Exception:  # noqa: BLE001 -- a traceless sg must never break the v1 answer
+                pass
+            block_lines = block_lines + p_lines
     block = ("OBSERVED CASCADE NUMBERS (as-known at each leg's asof; the record then vs now):\n"
              + "\n".join(block_lines)) if block_lines else None
     return block, trace, r_trace
@@ -1332,4 +1354,129 @@ def _run_xc(xc_request: dict, sg, graph, groups: list, qfn, asof, near, calls: l
             fired["detect_tier"] = (xc_request or {}).get("detect_tier")
         return block, fired
     except Exception:  # noqa: BLE001
+        return [], None
+
+
+# ── SEAM B: F2 price-response leg (Alternative B) ─────────────────────────────────────────────────────
+# A settled US season-average FARM-price pair ($X -> $Y) for the FOCUS contract over its analogue marketing
+# years, synthesized PARALLEL to _run_xc (its own [N] minting via the _xc_call pattern), NOT a _node_specs
+# leg mode. Bypasses _cross_era_diff/_divergence BY CONSTRUCTION: no driver carries silver_ref=price_response,
+# so the focus node never enters groups/kept/flat/_assemble -- the pair is minted inline here, exactly the
+# _reroute_xc precedent. Fetched at the SESSION asof so the vintage-collapse returns the realized ACTUAL, not
+# the as-known-then PROJECTION an era-leg asof (window-end) would return (SEAM_B_LEG_SPEC section 1/6.8).
+
+# focus-contract -> BARE WASDE commodity for avg_farm_price. avg_farm_price is keyed by bare commodity + region
+# (tables.yaml), NOT the PSD exchange slug. All-class wheat: SRW/KC/spring all map to 'wheat' (a single
+# all-class series -- never labeled SRW, the _xc_label all-class rule). soybean_oil_cbot/soybean_meal_cbot are
+# ABSENT (Decatur MARKET price, not farm-gate); coffee/cocoa/sugar and every non-US contract are ABSENT (no US
+# farm series) -> _farm_wasde returns None -> the leg declines honestly.
+_PRICE_FOCUS_WASDE = {
+    "corn": "corn", "corn_cbot": "corn",
+    "soybeans": "soybeans", "soybeans_cbot": "soybeans",
+    "soft_red_winter_wheat_cbot": "wheat", "hard_red_winter_wheat_kcbt": "wheat",
+    "hard_red_spring_wheat_mgex": "wheat",
+    "rough_rice_cbot": "rice", "rough_rice": "rice",
+    "cotton": "cotton",
+}
+
+
+def _farm_wasde(focus_contract: str) -> str | None:
+    """The BARE WASDE commodity for avg_farm_price, or None (-> NO price leg: an honest decline for a market-
+    price contract like soybean_oil/meal, a non-US contract, or any non-farm-gate slug)."""
+    return _PRICE_FOCUS_WASDE.get((focus_contract or "").strip().lower())
+
+
+def _farm_region(commodity: str, my: int) -> str:
+    """The avg_farm_price region for (commodity, MY). Cotton's US farm price lives under region 'u_s_cotton'
+    before the 2011-09 break and 'united_states' after (tables.yaml -- a REAL split). The metric's row_filter
+    already WIDENS the SQL to region IN ('u_s_cotton','united_states'), so this governs the per-MY CITATION
+    attribution, not the scope. Every other commodity: united_states."""
+    if commodity == "cotton" and my is not None and int(my) < 2011:
+        return "u_s_cotton"
+    return "united_states"
+
+
+def _fmt_price(value: float, unit: str) -> str:
+    """Reader-facing price token: '$/bu'->'$3.60/bu', '$/cwt'->'$14.40/cwt', 'c/lb'->'68.09c/lb'; blank/other
+    -> '<val> <unit>'. The numeral value-checks against the injected row within verify._num_backed's 1%
+    tolerance, so 2-dp display over a 4-dp stored value is safe."""
+    s = f"{value:.2f}"
+    u = (unit or "").strip()
+    if u.startswith("$/"):
+        return f"${s}/{u[2:]}"
+    if u == "c/lb":
+        return f"{s}c/lb"
+    return f"{s} {u}".strip()
+
+
+def _price_call(commodity: str, region: str, value: float, my_label: str, asof, *, unit: str) -> dict:
+    """A synthetic silver_wasde call-record so a narrated farm-price LEVEL IS a citable, value-checkable [N]
+    row (the _xc_call discipline). [SKEPTIC F6]: `unit` is an EXPLICIT param sourced from the FETCHED row's
+    _apply_unit_overrides value (rows[0]['unit']), NEVER narrate_unit -- confining the unit fallback to the two
+    price-leg call sites so _fmt_line/_delta_call stay UNTOUCHED. `table` rides the query so the citation
+    locator carries table=silver_wasde (the eval price_cited / unit_present filter keys on it)."""
+    return {"query": {"table": "silver_wasde", "metric": "avg_farm_price", "commodity": commodity,
+                      "country": region, "period": f"MY{my_label}", "asof": asof},
+            "rows": [{"value": round(float(value), 4), "unit": unit}], "status": "ok"}
+
+
+def _price_pair(price_request: dict, sg, graph, groups: list, qfn, asof, near, calls: list, base: int) -> tuple:
+    """SEAM B synthesis. The settled US farm-price consequence pair for the FOCUS contract over its nearest
+    analogue-era window's MY span. Returns (block_lines, fired) -- ([], None) on ANY honest decline: no map
+    (market-price/non-US slug), no derived focus window, <2 MYs, or either endpoint not status=='ok' (PAIR-
+    ATOMIC -- both settle or the whole pair declines, the _beneficiary keep-both-or-drop-both discipline at
+    fetch time). At most ONE pair, the single focus contract, <=2 extra fetches (it cannot multiply across
+    nodes). SESSION asof on both specs -> vintage-collapse returns the realized ACTUAL. Never raises (fail-
+    closed: a price-leg failure must never break the v1 answer)."""
+    try:
+        focus = (price_request or {}).get("focus_contract")
+        if not focus:
+            return [], None
+        commodity = _farm_wasde(focus)
+        if commodity is None:
+            return [], None                                       # market-price / non-US / non-farm slug: NO leg
+        windows = _xc_focus_windows(sg, graph, groups, focus, near, asof)   # Invariant-4 shared window, no 2nd walk
+        if not windows:
+            return [], None
+        span = _my_span(windows[0], focus)                        # nearest window; focus slug -> correct MY_START
+        if len(span) < 2:
+            return [], None
+        my_a, my_b = span[0], span[-1]
+        specs = []
+        for my in (my_a, my_b):
+            specs.append({"table": "silver_wasde", "metric": "avg_farm_price", "commodity": commodity,
+                          "country": _farm_region(commodity, my), "period_type": "marketing_year", "my": my,
+                          "period": _my_slash(my), "agg": "latest", "asof": asof, "t1": None, "t2": None,
+                          "node_key": None, "leg": ("price", None), "era_idx": None})
+        recs = [_run_one(qfn, s) for s in specs]                  # 2 fetches at SESSION asof (settled actual)
+        if any(r.get("status") != "ok" for r in recs):
+            return [], None                                       # pair-atomic: both settle or the pair declines
+        p_a, p_b = _float_val(recs[0]), _float_val(recs[1])
+        if p_a is None or p_b is None:
+            return [], None
+        u_a = ((recs[0].get("rows") or [{}])[0].get("unit")) or ""   # the _apply_unit_overrides fetched unit (F6)
+        u_b = ((recs[1].get("rows") or [{}])[0].get("unit")) or ""
+        lab_a, lab_b = _my_slash(my_a), _my_slash(my_b)
+        reg_a, reg_b = _farm_region(commodity, my_a), _farm_region(commodity, my_b)
+        n = base
+        n += 1
+        h_a = n
+        calls.append(_price_call(commodity, reg_a, p_a, lab_a, asof, unit=u_a))   # [N{h_a}] baseline-MY level
+        n += 1
+        h_b = n
+        calls.append(_price_call(commodity, reg_b, p_b, lab_b, asof, unit=u_b))   # [N{h_b}] event-MY level
+        label = "US wheat farm price (all classes)" if commodity == "wheat" else f"US {commodity} farm price"
+        verb = "rose from" if p_b >= p_a else "fell from"         # direction is prose; the level is the [N] row
+        lines = [
+            f"- [N{h_a}] {label} MY{lab_a}: {_fmt_price(p_a, u_a)}",
+            f"- [N{h_b}] {label} MY{lab_b}: {_fmt_price(p_b, u_b)}",
+            (f"PRICE-RESPONSE on avg_farm_price: {label} {verb} {_fmt_price(p_a, u_a)} [N{h_a}] (MY{lab_a}) "
+             f"to {_fmt_price(p_b, u_b)} [N{h_b}] (MY{lab_b}) -- the settled USDA season-average farm price "
+             f"(survey-based, revision_stamp actual at the session as-of; NOT a futures settle, NOT a forecast); "
+             f"render under '## The record', the level is the [N] row and the direction is prose."),
+        ]
+        fired = {"price_leg": True, "focus": focus, "commodity": commodity, "unit": (u_a or u_b),
+                 "my_lo": lab_a, "p_lo": round(p_a, 4), "my_hi": lab_b, "p_hi": round(p_b, 4)}
+        return lines, fired
+    except Exception:  # noqa: BLE001 -- fail-closed: a price-leg failure must never break the v1 answer
         return [], None
