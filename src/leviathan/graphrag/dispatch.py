@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as _dt
+import functools
 import inspect
 import os
 import re
@@ -50,8 +51,10 @@ class ToolSpec:
 REGISTRY: tuple[ToolSpec, ...] = (
     ToolSpec(
         name="numbers",
-        purpose=("leakage-safe SQL over OBSERVED values (USDA PSD S&D vintages, ESR export sales, "
-                 "weather aggregates, FX, ONI)."),
+        purpose=("leakage-safe SQL over OBSERVED values (USDA PSD S&D vintages, ESR export sales AND "
+                 "their PACE vs the year-ago week/marketing year, CFTC managed-money POSITIONING levels "
+                 "-- net length, net long/short, how stretched vs its own history -- weather aggregates, "
+                 "FX, ONI)."),
         when_to_use="a figure, level, quantity, \"what was X\".",
         hard_rules=("it only sees data published on or before the as-of. If the user asks about a "
                     "report dated AFTER the as-of, still route here — the agent answers \"not "
@@ -84,6 +87,29 @@ def registry_block() -> str:
         for i, t in enumerate(REGISTRY, 1))
 
 
+_FAMILY_PREFIX = re.compile(r"^(?:silver|gold|bronze)_")
+
+
+@functools.lru_cache(maxsize=1)
+def family_names() -> tuple[str, ...]:
+    """The observed-data FAMILY enum for the planner's data_families facet (Lane F2 durable fix). DERIVED
+    from the numbers registry at load -- one family per registered table id with the source-layer prefix
+    (silver_/gold_/bronze_) stripped (silver_cot->cot, silver_esr->esr, silver_pink_sheet->pink_sheet,
+    silver_psd->psd, ...) -- so the enum tracks the registry and is NEVER hardcoded. FAIL-CLOSED: any load
+    failure yields the empty tuple, so the schema offers no families and _validate rejects everything
+    (data_families -> []); the facet then simply never promotes (promotion-only, so a dark enum is a no-op)."""
+    try:
+        from leviathan.graphrag.numbers import registry as _nreg
+        out: list[str] = []
+        for tid in sorted(_nreg.load_registry().tables):
+            fam = _FAMILY_PREFIX.sub("", str(tid)).strip()
+            if fam and fam not in out:
+                out.append(fam)
+        return tuple(out)
+    except Exception:  # noqa: BLE001 -- registry load must never break planning
+        return ()
+
+
 PLANNER_SYS = (
     "You are the dispatch planner for a point-in-time-correct commodity research tool used by quant\n"
     "researchers (31 ag contracts). You NEVER answer the question. You output a routing plan: which\n"
@@ -104,11 +130,22 @@ PLANNER_SYS = (
     "  close is the glut regime\") are REASONING even when phrased as a count or a \"how many\" — the answer is\n"
     "  a mechanism and a confluence, not an observed series. Add a numbers step ONLY if a SPECIFIC observed\n"
     "  figure is ALSO demanded (\"given stocks-to-use, ...\") -> [numbers, reasoning].\n"
+    "- A CFTC managed-money POSITIONING level (net length, net long/short, how stretched vs its own history)\n"
+    "  and export-sales PACE (sales/purchases vs the year-ago week or marketing year) are OBSERVED series ->\n"
+    "  numbers_only. Carve-outs: a positioning/pace figure PLUS a judgment ask (\"...does that change your\n"
+    "  supply-and-demand read?\") is [numbers, reasoning]; a historical-episode positioning question is\n"
+    "  REASONING under the historical-episode rule above (no numbers step unless a specific figure is demanded).\n"
     "- \"What changed since <era>\" / analog questions -> reasoning with near=<era ISO prefix>.\n"
     "- An EXPLICIT news request (\"any news on...\", \"latest headlines\", \"what just happened\") with a\n"
     "  today as-of -> route live. The live-is-a-privilege rule guards AMBIGUOUS nowness (\"thoughts on\n"
     "  wheat right now?\"), never an explicit ask for news.\n"
     "- Maximum 3 steps. Never add a step the user didn't ask for.\n"
+    "\n"
+    "## OBSERVED-DATA FAMILIES (data_families -- orthogonal to steps)\n"
+    "- ALSO list every OBSERVED-DATA family this turn implicates -- the registered numbers series the\n"
+    "  question touches (positioning=cot, export sales/pace=esr, balance sheet=psd/wasde, prices=pink_sheet,\n"
+    "  weather=nasa_power/gold weather, FX=fred_fx, ENSO=noaa_oni, ...). Fill it whenever a family is\n"
+    "  implicated even when you routed reasoning-only. Use ONLY names from the enum; empty when none apply.\n"
     "\n"
     "## COREFERENCE AND SESSION STATE (the state block, when present, is your short-term memory)\n"
     "- An explicit commodity named in THIS turn always wins over state.\n"
@@ -152,6 +189,9 @@ class Plan:
     xc_explicit: bool = False           # explicit cross-commodity ask THIS turn (RV2 tier-2; dark until W2)
     xc_target: str | None = None        # effected commodity's surface text verbatim; None = open/no ask
     degraded: bool = False              # dispatch degraded Sonnet->Haiku (D2: tier-2 never consults these turns)
+    data_families: list[str] = dataclasses.field(default_factory=list)  # F2 durable facet: observed-data
+                                        # families implicated this turn (enum-locked to family_names());
+                                        # consumed promotion-only + flag-gated in orchestrator, dark otherwise
     fallback: bool = False              # True -> caller must use the legacy is_live+classify path
 
     def kind(self) -> str:
@@ -167,7 +207,8 @@ class Plan:
     def trace(self) -> dict:
         return {"planner": "llm", "steps": list(self.steps), "contracts": list(self.contracts),
                 "asof": self.asof, "near": self.near, "country": self.country,
-                "xc_explicit": self.xc_explicit, "xc_target": self.xc_target, "degraded": self.degraded}
+                "xc_explicit": self.xc_explicit, "xc_target": self.xc_target, "degraded": self.degraded,
+                "data_families": list(self.data_families)}
 
 
 _FALLBACK = Plan(steps=[], contracts=[], fallback=True)
@@ -176,8 +217,8 @@ _NEAR_RE = re.compile(r"^\d{4}(-\d{2}){0,2}$")
 
 def _plan_tool(contract_ids: list[str]) -> dict:
     step_names = [t.name for t in REGISTRY]
-    return {"name": "set_plan", "description": "Emit the routing plan for this turn.",
-            "input_schema": {"type": "object", "properties": {
+    fams = list(family_names())
+    props: dict = {
                 "steps": {"type": "array", "items": {"type": "string", "enum": step_names},
                           "maxItems": MAX_STEPS,
                           "description": "Agents to run, in order. [numbers, reasoning] = the numbers feed the reasoner."},
@@ -193,8 +234,14 @@ def _plan_tool(contract_ids: list[str]) -> dict:
                 "xc_explicit": {"type": "boolean",
                                 "description": "True ONLY for an explicit typed cross-commodity ask THIS turn (the effect on / relative value against a SECOND commodity). Context mentions, background clauses, given/amid/despite frames, and analyst-volunteered comparisons are FALSE. When uncertain, false."},
                 "xc_target": {"type": ["string", "null"],
-                              "description": "The effected commodity's surface text verbatim; null for an open ask or when xc_explicit is false."}},
-                "required": ["steps", "contracts"]}}
+                              "description": "The effected commodity's surface text verbatim; null for an open ask or when xc_explicit is false."}}
+    if fams:                                                     # enum-locked to the registry; omitted (no field)
+        props["data_families"] = {                              # when the registry load failed -> fail-closed []
+            "type": "array", "items": {"type": "string", "enum": fams}, "maxItems": len(fams),
+            "description": "The OBSERVED-DATA families this turn implicates (cot=positioning, esr=export sales/pace, psd/wasde=balance sheet, pink_sheet=prices, ...). List ALL that apply even on a reasoning-only route; empty when none. ONLY these enum names."}
+    return {"name": "set_plan", "description": "Emit the routing plan for this turn.",
+            "input_schema": {"type": "object", "properties": props,
+                             "required": ["steps", "contracts"]}}
 
 
 def _valid_asof(s) -> str | None:
@@ -232,9 +279,18 @@ def _validate(out: dict, contract_ids: set[str]) -> Plan:
     country = str(out.get("country")).strip()[:40] if out.get("country") else None
     xc = out.get("xc_explicit") is True                          # strict: schema-typed bool, re-verified in code
     xc_target = (str(out.get("xc_target")).strip()[:60] or None) if (xc and out.get("xc_target")) else None
+    fam_enum = set(family_names())                               # F2 facet: re-verify against the registry enum in
+    fams, fseen = [], set()                                      # code (the model can't mint a family); fail-closed:
+    raw_fams = out.get("data_families")                          # absent/garbage/unknown -> dropped -> [] -> no promo
+    for f in (raw_fams if isinstance(raw_fams, list) else []):   # a non-list (str/int/None) yields []
+        f = str(f).strip()
+        if f in fam_enum and f not in fseen:
+            fams.append(f)
+            fseen.add(f)
     return Plan(steps=steps[:MAX_STEPS], contracts=contracts, asof=_valid_asof(out.get("asof")),
                 near=near, country=country, xc_explicit=xc, xc_target=xc_target,
-                degraded=bool(out.get("_degraded_model")))       # answer._call_opus degradation tag (D2)
+                degraded=bool(out.get("_degraded_model")),       # answer._call_opus degradation tag (D2)
+                data_families=fams)
 
 
 def plan_turn(query: str, *, graph, state_block: str | None = None, today: str | None = None,

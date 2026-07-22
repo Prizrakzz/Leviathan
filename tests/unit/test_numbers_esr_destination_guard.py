@@ -119,14 +119,19 @@ def test_destination_breakdown_asks_detected_generic():
 
 
 def test_breakdown_ask_gets_generic_decline_and_is_register_clean():
-    model_text = "Weekly corn exports were 1,234.5 thousand MT (report of 2026-05-14)."
+    # decline-WITH-aggregate (L3): the generic-breakdown path now REPLACES the model's zero-number decline
+    # with the honesty line + the SUPPORTED national aggregate served with [N] handles + the single-country
+    # hint. The model's prose is not carried; the deterministic aggregate answer is.
+    model_text = "I can't break this out by destination."
     out = _run("Which countries are buying US corn right now?",
                [_resp([_esr_use()], "tool_use"), _resp([_text(model_text)], "end_turn")])
     ans = out["answer"]
     assert out["esr_destination_guard"] == A._ESR_DEST_GENERIC
     assert ans.startswith("One limitation to flag")
-    assert "breakdown by individual destination" in ans and model_text in ans
-    assert out["calls"][0]["scope_note"].startswith("NATIONAL TOTAL")
+    assert "breakdown by individual destination" in ans
+    assert out["calls"][0]["scope_note"].startswith("NATIONAL TOTAL")   # model's own ESR call still stamped
+    assert out["esr_aggregate_legs"] >= 1                                # aggregate served, not a bare decline
+    assert "ask a specific destination, e.g. China" in ans              # single-country hint offered
     assert register_leaks(sanitize(ans)) == []
 
 
@@ -221,3 +226,80 @@ def test_numbers_block_carries_scope_note_for_hybrid():
     unflagged = orch._numbers_block([plain])
     assert "SCOPE NOTE" not in unflagged                             # national path: block byte-identical
     assert unflagged == block.split("\nSCOPE NOTE")[0]
+
+
+# ── L3: destination-BREAKDOWN decline WITH the supported national aggregate ────────────────────────────
+def _agg_qfn(sql):
+    """Model's weekly latest lookup -> the _ESR_ROWS weekly figure; the two aggregate SUM legs (period
+    2025 -> market_year 2026 current, 2024 -> 2025 prior; period_offset=1) -> distinct MY totals."""
+    if "sum(value)" in sql:
+        if "market_year = 2026" in sql:
+            return [{"value": "40000"}]
+        if "market_year = 2025" in sql:
+            return [{"value": "35000"}]
+        return [{"value": "0"}]
+    return list(_ESR_ROWS)
+
+
+def _breakdown_run(question="Give me the destination breakdown of US soybean export sales this year"):
+    # the model runs an ESR lookup (period 2025) then declines to zero numbers on the breakdown
+    esr = _tool_use({"table": "silver_esr", "metric": "gross_new_sales_1000mt",
+                     "commodity": "soybean_cbot", "period": "2025", "agg": "latest"})
+    return A.answer_numbers(question, asof="2026-05-20", client=FakeClient(
+        [_resp([esr], "tool_use"),
+         _resp([_text("I can't break this out by destination.")], "end_turn")]),
+        query_fn=_agg_qfn)
+
+
+def test_breakdown_serves_aggregate_numbers_with_handles_hint_and_honesty():
+    out = _breakdown_run()
+    ans = out["answer"]
+    assert out["esr_destination_guard"] == A._ESR_DEST_GENERIC
+    assert out["esr_aggregate_legs"] == 2                             # both MY totals served
+    assert ans.startswith("One limitation to flag")                  # honesty one-liner, decline register
+    assert "breakdown by individual destination" in ans
+    # the SUPPORTED aggregate magnitudes appear, each carrying a positional [N] handle
+    assert "40,000 thousand MT" in ans and "35,000 thousand MT" in ans
+    assert "[N2]" in ans and "[N3]" in ans                           # handles for calls 2 and 3
+    assert "ask a specific destination, e.g. China" in ans          # single-country capability offered
+    assert register_leaks(sanitize(ans)) == []                       # register-clean decline-with-aggregate
+
+
+def test_breakdown_handles_are_positionally_valid_for_the_verifier():
+    # the [N] handles must survive the deterministic citation verifier (no strip): they were minted through
+    # the normal lookup path, so their positions in out["calls"] back the narrated magnitudes exactly.
+    from leviathan.graphrag.verify import verify_citations
+    out = _breakdown_run()
+    assert len(out["calls"]) == 3                                     # model weekly + 2 aggregate legs
+    assert out["calls"][1]["rows"][0]["value"] == "40000"            # [N2] -> current MY total
+    assert out["calls"][2]["rows"][0]["value"] == "35000"            # [N3] -> prior MY total
+    structured = {"tldr": out["answer"], "mechanism": "", "sources": []}
+    report = verify_citations(structured, [], out["calls"])
+    assert report["stripped"] == 0                                    # neither aggregate handle is stripped
+    assert "[N2]" in structured["tldr"] and "[N3]" in structured["tldr"]
+
+
+def test_breakdown_falls_back_to_plain_decline_when_no_aggregate_available():
+    # a commodity-less ESR breakdown ask can't scope the aggregate SUM partition -> both legs are dropped
+    # (never fabricated) and the path degrades to the plain honest decline, no numbers minted.
+    esr = _tool_use({"table": "silver_esr", "metric": "gross_new_sales_1000mt", "agg": "latest"})
+    out = A.answer_numbers("Which countries are buying US corn?", asof="2026-05-20",
+                           client=FakeClient([_resp([esr], "tool_use"),
+                                              _resp([_text("Unavailable by destination.")], "end_turn")]),
+                           query_fn=_agg_qfn)
+    assert out["esr_destination_guard"] == A._ESR_DEST_GENERIC
+    assert "esr_aggregate_legs" not in out                            # no aggregate served
+    assert out["answer"].startswith("One limitation to flag")        # plain preface decline preserved
+    assert "thousand MT [N" not in out["answer"]
+
+
+def test_single_named_destination_unchanged_by_aggregate_path():
+    # a named single destination NEVER routes through the aggregate path: it keeps the preface + model text,
+    # byte-for-byte the prior behavior (aggregate is generic-breakdown only).
+    model_text = "Weekly soybean exports were 1,234.5 thousand MT (report of 2026-05-14)."
+    out = _run("How are soybean sales to China pacing?",
+               [_resp([_esr_use()], "tool_use"), _resp([_text(model_text)], "end_turn")])
+    assert out["esr_destination_guard"] == "China"
+    assert "esr_aggregate_legs" not in out
+    assert out["answer"].startswith("One limitation to flag")
+    assert "not specific to China" in out["answer"] and model_text in out["answer"]

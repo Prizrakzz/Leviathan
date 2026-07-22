@@ -24,7 +24,10 @@ _NUM = re.compile(
     r"exports?|imports?|production|ending stocks|beginning stocks|stocks-to-use|acreage|area harvested|"
     r"yield|the price|exchange rate|oni|el ni[nñ]o index|how weak|how strong|basis|"
     r"managed[ -]?money|positioning|open interest|net length|net long|net short|"
-    r"funds?[ -]+(?:crowded|net|position\w*|long|short))\b", re.I)
+    r"funds?[ -]+(?:crowded|net|position\w*|long|short)|"
+    # F2 floor (defense-in-depth; recon-proved collateral-free on both decks): colloquial export-sales PACE
+    # forms. Deliberately NOT 'marketing year' / 'picked up' (proven collateral on the reasoning deck).
+    r"export sales|sales pace|pacing|purchases?\s+of)\b", re.I)
 # reasoning: asks why/how/what-if about drivers, cascades, convexity, exposure, direction.
 _REASON = re.compile(
     r"\b(why|how does|how do|what happens|what would|if .+(?:then|would|will|enough)|explain|mechanism|"

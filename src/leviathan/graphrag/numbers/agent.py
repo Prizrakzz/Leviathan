@@ -181,6 +181,91 @@ def _is_esr_call(c: dict) -> bool:
     return (c.get("query") or {}).get("table") == "silver_esr"
 
 
+# -- ESR destination-BREAKDOWN decline-WITH-aggregate (L3) ---------------------------------------------
+# The full-breakdown ask ("give me the destination breakdown of US soybean export sales this year") is
+# structurally unsupported -- silver_esr has no wired destination grouping, so a per-buyer GROUP BY cannot
+# run. The honest decline of the CUT stands, but declining with ZERO numbers strands the reader when the
+# SUPPORTED national aggregate IS available. So the generic-breakdown path ALSO issues the two aggregate
+# reads the tool already supports -- the marketing-year total export sales and the prior-marketing-year
+# same-metric read (the pace-vs-prior-year comparison) -- and serves them WITH real [N] handles minted
+# through the normal lookup path (so the deterministic citation verifier accepts them). A named single
+# destination (dest != _ESR_DEST_GENERIC) is UNTOUCHED by all of this -- it keeps the plain preface path.
+_ESR_METRICS = ("weekly_exports_1000mt", "outstanding_sales_1000mt", "gross_new_sales_1000mt",
+                "changes_1000mt")
+
+
+def _fmt_esr_num(v) -> Optional[str]:
+    """A row value -> a reader magnitude string whose numeric matches the row within the verifier's 1%
+    tolerance (comma-grouped integer when near-whole, else one decimal). None on an unparseable value."""
+    try:
+        f = float(str(v).replace(",", ""))
+    except (TypeError, ValueError):
+        return None
+    if abs(f - round(f)) < 0.05:
+        return f"{int(round(f)):,}"
+    return f"{f:,.1f}"
+
+
+def _esr_aggregate_legs(esr_query: dict, asof: str, query_fn) -> list[dict]:
+    """The two SUPPORTED aggregate ESR reads for the generic destination-breakdown decline: total
+    marketing-year export sales (agg=sum over the MY, across all destinations) and the prior-MY
+    same-metric read (the pace-vs-prior-year comparison the tool already supports). Commodity + metric +
+    marketing year are derived from the ESR lookup the model already ran (a missing/odd period falls back
+    to the as-of calendar year; an unrecognized metric falls back to gross_new_sales). Each leg runs
+    through the normal query path so its rows carry real provenance. A leg that errors (e.g. no commodity
+    to scope the partition) or yields no value is DROPPED -- never fabricated -- so [] means fall back to
+    the plain preface decline."""
+    commodity = esr_query.get("commodity")
+    metric = esr_query.get("metric")
+    if metric not in _ESR_METRICS:
+        metric = "gross_new_sales_1000mt"
+    period = esr_query.get("period")
+    try:
+        cur_my = int(str(period)[:4]) if period else int(asof[:4])
+    except (TypeError, ValueError):
+        cur_my = int(asof[:4])
+    legs: list[dict] = []
+    for my, span in ((cur_my, "current"), (cur_my - 1, "prior")):
+        inp = {"table": "silver_esr", "metric": metric, "agg": "sum", "period": str(my)}
+        if commodity:
+            inp["commodity"] = commodity
+        try:
+            spec = _forced_spec(asof, inp)
+            rows = Q.run(spec, query_fn=query_fn)
+        except Exception:  # noqa: BLE001 -- a failed aggregate leg is dropped, not fatal
+            continue
+        vals = [r for r in rows if r.get("value") not in (None, "")]
+        if not vals:
+            continue
+        legs.append({"query": spec.model_dump(exclude_none=True), "rows": vals, "status": "ok",
+                     "esr_pace_span": span})
+    return legs
+
+
+def _esr_aggregate_answer(indexed_legs: list[tuple[int, dict]]) -> Optional[str]:
+    """Build the reader-facing decline-WITH-aggregate answer from the aggregate legs and their 1-based [N]
+    positions in the calls list. Register-clean, decline-template voice (no mood/valuation words). Returns
+    None if neither leg carried a usable magnitude (caller falls back to the plain preface)."""
+    by_span = {leg.get("esr_pace_span"): (idx, leg) for idx, leg in indexed_legs}
+    cur = by_span.get("current")
+    prior = by_span.get("prior")
+    cur_num = _fmt_esr_num(cur[1]["rows"][0].get("value")) if cur else None
+    if not cur_num:
+        return None
+    # honesty one-liner (same register as the generic preface: national-only, no per-buyer cut)
+    lines = [_esr_destination_preface(_ESR_DEST_GENERIC).strip(),
+             f"What I can give you at the national level: total US export sales so far in the marketing "
+             f"year were {cur_num} thousand MT [N{cur[0]}]"]
+    prior_num = _fmt_esr_num(prior[1]["rows"][0].get("value")) if prior else None
+    if prior_num:
+        lines[-1] += f", versus {prior_num} thousand MT for the prior marketing year [N{prior[0]}]"
+    lines[-1] += " (both are US-wide totals across all buyers)."
+    # single-destination capability, offered explicitly
+    lines.append("If you have one destination in mind, ask a specific destination, e.g. China, and I'll "
+                 "pull the closest supported read with the same national-total caveat noted.")
+    return "\n\n".join(lines)
+
+
 # -- R5 price-coverage decline guard (PRICE_OBSERVABILITY W2.5) ----------------------------------------
 # silver_pink_sheet carries a FIXED set of governed price columns. Several commodities a pro desk asks
 # about by name have NO column (NONE-tier): robusta coffee, white/refined sugar, MATIF (EU) milling wheat
@@ -586,10 +671,33 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                 preface += _price_decline_preface(price_scope)
                 result["price_decline_guard"] = price_scope
             if dest and any(_is_esr_call(c) for c in calls):
-                # deterministic decline of the destination cut: the caveat is PREPENDED regardless of what
-                # the model wrote, so an uncaveated national number can never pose as a destination answer.
-                preface += _esr_destination_preface(dest)
                 result["esr_destination_guard"] = dest
+                if dest == _ESR_DEST_GENERIC:
+                    # decline-WITH-aggregate: the per-destination cut is unsupported, but the SUPPORTED
+                    # national aggregate (MY total + prior-MY pace) IS served, with real [N] handles minted
+                    # through the normal lookup path so the citation verifier accepts them. This REPLACES
+                    # the model's prose (which declines to zero numbers) with a deterministic answer.
+                    esr_q = next((c.get("query") or {} for c in calls if _is_esr_call(c)), {})
+                    legs = _esr_aggregate_legs(esr_q, asof, query_fn)
+                    indexed: list[tuple[int, dict]] = []
+                    for leg in legs:
+                        calls.append(leg)                          # real provenance appended in call order
+                        hseq += 1
+                        h = f"L{hseq}"
+                        leg["handle"] = h
+                        _lrows = leg.get("rows") or []
+                        handles[h] = {"series": _series_from_rows(_lrows), "kd": _handle_kd(_lrows),
+                                      "unit": (_lrows[0].get("unit") if _lrows else None)}
+                        indexed.append((len(calls), leg))           # 1-based [N] position in the calls list
+                    agg = _esr_aggregate_answer(indexed) if indexed else None
+                    if agg:
+                        result["answer"] = agg
+                        result["esr_aggregate_legs"] = len(indexed)
+                        return result
+                # named single destination (or generic with no aggregate available): deterministic decline
+                # PREFACE prepended regardless of what the model wrote, so an uncaveated national number can
+                # never pose as a destination answer.
+                preface += _esr_destination_preface(dest)
             if preface:
                 result["answer"] = (preface + text).strip()
             return result

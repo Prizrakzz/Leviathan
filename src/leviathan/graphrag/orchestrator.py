@@ -382,6 +382,15 @@ def _reroute_v2_on() -> bool:
     return os.environ.get("GRAPHRAG_REROUTE_V2", "off").lower() == "on"
 
 
+def _family_facet_on() -> bool:
+    """Data-family facet consumption kill-switch (F2 durable fix). DEFAULT-OFF, case-insensitive, fail-closed
+    (any unrecognized value stays off) -- copies the _reroute_v2_on idiom exactly. When OFF the planner keeps
+    emitting plan.data_families dark (soak channel) but the orchestrator NEVER promotes, so the reasoning route
+    is byte-identical to today. Consumption is PROMOTION-ONLY (reasoning->hybrid, never a demotion). Rollback =
+    drop the env var (single flag, instant, no redeploy)."""
+    return os.environ.get("GRAPHRAG_FAMILY_FACET", "off").lower() == "on"
+
+
 def _xc_llm_detect_on() -> bool:
     """LLM cross-commodity detection tier kill-switch (RV2 D6). DEFAULT-OFF; only a case-insensitive
     on/1/true enables it, and ANY other value (unset, off, typo, 'yes') stays off -- fail-closed, so the
@@ -949,6 +958,21 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
                 decided = {**decided, "intent": "numbers_only", "price_decline_reroute": True}
         except Exception:  # noqa: BLE001 -- the tiebreak must never break a turn
             pass
+
+    # ── data-family facet (F2 durable fix): PROMOTION-ONLY reasoning->hybrid ─────────────────────────────
+    # The judged-30 misses were colloquial positioning/pace asks the dispatch planner routed reasoning-only,
+    # so the observed series never got looked up. This is the two-tier shape of rv2 detection: the planner
+    # emits plan.data_families (strict-validated against the registry enum, dark by default), and consumption
+    # is gated + promotion-only. It fires ONLY when: the plan exists (injected-classify/guardrail/trivial turns
+    # leave plan=None and are BYPASSED by construction -- mirrors the rv2 gate's plan-scoped read), the LLM
+    # route was reasoning (never numbers_only/live -- those already reach numbers or the news path; never a
+    # demotion), families are non-empty, and the kill-switch is on. Fail-closed like _reroute_v2_on: flag off
+    # => no-op => byte-identical to today. The deterministic _NUM vocab remains the independent floor.
+    if (kind == "reasoning" and plan is not None and plan.data_families and _family_facet_on()):
+        kind = "hybrid"
+        decided = (decided or {}) | {"intent": "hybrid", "family_facet_promoted": True,
+                                     "family_facet_families": list(plan.data_families)}
+        print("FAMILY_FACET_PROMOTED families=" + ",".join(plan.data_families))  # ASCII soak-grep surface
 
     # ── typed context attachments (P2), part 2: RESOLVE (asof is final here — plan.asof already applied)
     # then override the resolved route. Placed after BOTH route_fn bindings (session coreference + planner)

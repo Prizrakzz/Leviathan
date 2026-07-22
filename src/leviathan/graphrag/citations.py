@@ -8,6 +8,7 @@ recovery, fuzzy snippet-match fallback) — so numbers and page-level document c
 """
 from __future__ import annotations
 
+import datetime as _dt
 from typing import Literal, Optional
 
 from pydantic import BaseModel
@@ -50,16 +51,58 @@ def _metric_unit(table: str, metric: str) -> str:
         return ""
 
 
+def _row_order_key(r: dict) -> tuple:
+    """Chronology key mirroring the series SQL's total order (data_date, then year/month, then period,
+    then knowledge_date). The series query (numbers.query._total_order) sorts rows ASCENDING, so the
+    FRESHEST observation is max() over this key — computed rather than trusting rows[-1] so an
+    engine-arbitrary sample can never headline the oldest print (judged-30 RCA (b))."""
+    def _i(x) -> int:
+        try:
+            return int(x)
+        except (TypeError, ValueError):
+            return -1
+    return (str(r.get("data_date") or ""), _i(r.get("year")), _i(r.get("month")),
+            str(r.get("period") or ""), str(r.get("knowledge_date") or ""))
+
+
+def _parse_date(s) -> Optional[_dt.date]:
+    try:
+        return _dt.date.fromisoformat(str(s)[:10])
+    except (TypeError, ValueError):
+        return None
+
+
+def _empty_label(status: Optional[str], asof: Optional[str]) -> str:
+    """Status-aware label for a zero-row lookup — preserve the agent's taxonomy so the synthesizer can
+    tell a coverage gap (answerable elsewhere) from a vintage-timing gap (genuinely not yet published)
+    from a lookup failure. Erasing this to one flat '(not known at asof)' made a June-2026-scoped COT
+    window (empty because silver_cot ends 2025-12-30) read as a timing claim and the whole question
+    was declared unanswerable (judged-30 RCA (a)). Status ABSENT -> the legacy text, unchanged."""
+    a = str(asof) if asof else "asof"
+    if status in ("not_known", "future_unpublished"):
+        return f"(not yet published as of {a})"
+    if status in ("no_rows", "record_silent"):
+        return "(no matching rows -- scope/coverage gap, not a timing claim)"
+    if status == "error":
+        return "(lookup error)"
+    return "(not known at asof)"
+
+
 def from_number(call: dict, i: int) -> Citation:
-    """Build a Citation from a numbers-agent call record ({query, rows})."""
+    """Build a Citation from a numbers-agent call record ({query, rows, status})."""
     q = call.get("query", {})
     rows = call.get("rows") or []
-    r0 = rows[0] if rows else {}
+    status = call.get("status")
+    # headline = the LATEST observation, not rows[0]: a series (agg=series/default) arrives chronological
+    # ASCENDING, so rows[0] is the OLDEST print — surfacing it headlined a stale 2023 value as if current
+    # (judged-30 RCA (b)). The full `rows` order is untouched (payload keeps rows[:3] as before).
+    rH = max(rows, key=_row_order_key) if rows else {}
     table, metric = q.get("table", ""), q.get("metric", "")
     src = _source_label(table)
-    value = r0.get("value")
-    unit = r0.get("unit") or _metric_unit(table, metric)
-    kd = r0.get("knowledge_date") or r0.get("data_date")
+    asof = q.get("asof")
+    value = rH.get("value")
+    unit = rH.get("unit") or _metric_unit(table, metric)
+    kd = rH.get("knowledge_date") or rH.get("data_date")
     # period label: agent calls carry a BARE MY year ("2011" -> render "MY2011"); cascade calls arrive
     # PRE-labeled ("MY2011" / "2010-06-01..2010-09-01") — re-prefixing those minted "MYMY2011" in the
     # Sources footer and fed the judge malformed provenance (P9-AB P0-6).
@@ -69,8 +112,14 @@ def from_number(call: dict, i: int) -> Citation:
     scope = " ".join(x for x in (q.get("commodity"), q.get("country"), per) if x)
     if rows:
         label = f"{src} {metric} {scope} = {_fmt(value)} {unit}".strip()
+        # staleness affordance (RCA (c)): when the freshest knowable date trails the asof by more than
+        # ~30 days, give the synthesizer a clean 'latest available X; as-of Y' to STATE instead of
+        # conflating the two dates and reading as fabrication. Terse by design — one clause, no prose.
+        _hd, _ad = _parse_date(kd), _parse_date(asof)
+        if _hd and _ad and (_ad - _hd).days > 30:
+            label += f" (latest available {str(kd)[:10]}; as-of {asof})"
     else:
-        label = f"{src} {metric} {scope} = (not known at asof)".strip()
+        label = f"{src} {metric} {scope} = {_empty_label(status, asof)}".strip()
     locator = {"kind": "number", **{k: q.get(k) for k in ("table", "metric", "commodity", "country", "period", "asof")}}
     return Citation(id=f"N{i}", kind="number", label=label, source=src, date=kd,
                     value=(str(value) if value is not None else None), unit=(unit or None),
