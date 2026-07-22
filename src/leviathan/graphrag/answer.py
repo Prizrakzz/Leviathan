@@ -329,7 +329,19 @@ _SYSTEM_CASCADE = (
     "premium engine ships. If asked the SIZE of a spread or gap with no citable spread row, state each level "
     "with its [N] handle and characterize the gap ONLY in derive words (wider/narrower/above/below) -- never "
     "compute the difference yourself, and say plainly that a governed spread series is not yet served. "
-    "If there is NO DIVERGENCE line, NO REROUTE line and NO CROSS-COMMODITY line, do NOT invent a fork -- "
+    # SEAM A (co-move): a DEDICATED reserved heading, injected-only, parallel to CROSS-COMMODITY -- a
+    # complex-wide co-move is NOT a relative-value divergence, so it never reuses that heading and carries NO
+    # price-direction license.
+    "If the block carries a line beginning 'CO-MOVE', two DIFFERENT commodities' stocks-to-use ratios moved the "
+    "SAME direction over one shared window -- a complex-wide co-move, NOT a relative-value divergence: render a "
+    "dedicated '## Complex-wide move' section (NEVER '## Cross-commodity' and NEVER '## Where the record "
+    "disagrees') and show BOTH commodities' su_ratio [N] rows side by side, labeled BY COMMODITY (never by "
+    "country, never by era), on su_ratio PERCENTAGES only -- NEVER tonnage levels. Because this is a co-move and "
+    "not a divergence, you have NO price-direction license here: state only that both world balance sheets moved "
+    "the same way (both tightened, or both loosened). Render '## Complex-wide move' ONLY when a 'CO-MOVE' line is "
+    "present; never volunteer a complex-wide co-move from prose. "
+    "If there is NO DIVERGENCE line, NO REROUTE line, NO CROSS-COMMODITY line and NO CO-MOVE line, do NOT "
+    "invent a fork -- "
     "and a record that contradicts the USER'S PREMISE is NOT a fork: correct that in the TL;DR, never under "
     "'## Where the record disagrees'. "
     "If a leg reads 'not yet in effect as of <asof>' or '(record silent for that era)', narrate that ABSENCE "
@@ -366,6 +378,15 @@ def _count_banned_valuation(structured: dict) -> int:
 def _count_banned_flow(structured: dict) -> int:
     """PRICE_OBSERVABILITY DP-6: raw pre-sanitize flow/positioning count on tldr+mechanism."""
     return reg.count_flow_words(_structured_prose(structured))
+
+
+def _comove_on() -> bool:
+    """SEAM-A co-move kill-switch (GRAPHRAG_COMOVE), read at the answer.py quantify SEAM and threaded as the
+    `comove` kwarg down quantify()->_run_xc()->_reroute_xc ([SKEPTIC F3] -- NEVER an os.environ read inside
+    cascade.py). DEFAULT-OFF, fail-closed: only a case-insensitive on/1/true enables it (mirrors the
+    orchestrator's _xc_llm_detect_on idiom). When off, same-sign eras drop exactly as before so opposite-sign
+    reroute-v2 output is byte-identical. Read PER CALL (never memoized) so the env-flip rollback is live."""
+    return os.environ.get("GRAPHRAG_COMOVE", "").strip().lower() in ("on", "1", "true")
 
 
 def _system() -> str:
@@ -674,7 +695,7 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
             _cblock, _quant_trace, _reroute_trace = cq.quantify(sg, graph, qfn=numbers_lookup, asof=asof,
                                                                 near=near,
                                                                 extra_number_calls=extra_number_calls,
-                                                                xc_request=xc_request)
+                                                                xc_request=xc_request, comove=_comove_on())
             sg.trace["ms_quantify"] = int((time.perf_counter() - _t_quant) * 1000)
             if _cblock:
                 volatile_blocks = volatile_blocks + [_cblock]

@@ -507,8 +507,9 @@ def test_answer_l2_passes_xc_request_to_quantify(monkeypatch):
 
     rec = {}
 
-    def _stub_quantify(sg, graph, *, qfn, asof, near, extra_number_calls, xc_request=None):
+    def _stub_quantify(sg, graph, *, qfn, asof, near, extra_number_calls, xc_request=None, comove=False):
         rec["xc_request"] = xc_request
+        rec["comove"] = comove
         return None, None, None
 
     # minimal L2 scaffolding: a grounded subgraph with one node + a stub reasoner render so answer returns.

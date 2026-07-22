@@ -486,7 +486,8 @@ def _pair_units(groups: list) -> tuple:
 
 
 # ── the orchestration (B-S3) ─────────────────────────────────────────────────────────────────────────
-def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request: dict | None = None) -> tuple:
+def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request: dict | None = None,
+             comove: bool = False) -> tuple:
     """Select grounded nodes with mapped refs, derive analogue-era windows from their dated props, build
     per-node leg GROUPS (era legs + a current rhyme leg), detect cross-country REROUTE pairs (RF-3:
     natural two-node pairs + the synthesized primary-country beneficiary), cap on WHOLE pair-atomic
@@ -544,10 +545,15 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
     # is byte-identical to v1. On FIRE the engine WRITES the trace key itself (C11: quantify_reroute_v2
     # non-empty == fired) and appends its BY-COMMODITY block; a decline/failure leaves the key absent.
     if xc_request:
-        xc_lines, xc_trace = _run_xc(xc_request, sg, graph, groups, qfn, asof, near, extra_number_calls)
+        xc_lines, xc_trace = _run_xc(xc_request, sg, graph, groups, qfn, asof, near, extra_number_calls,
+                                     comove=comove)
         if xc_trace:
+            # [SKEPTIC F3] The fired dict carries its own discriminator: a co-move sets comove:True (and omits
+            # reroute_v2), so it routes to the NEW quantify_comove key and NEVER pollutes quantify_reroute_v2
+            # (which eval reads as reroute_v2_pairs -- the rv2 NEGATIVE pins assert it empty).
             try:
-                sg.trace["quantify_reroute_v2"] = xc_trace
+                key = "quantify_comove" if xc_trace.get("comove") else "quantify_reroute_v2"
+                sg.trace[key] = xc_trace
             except Exception:  # noqa: BLE001 -- a traceless sg must never break the v1 answer
                 pass
             block_lines = block_lines + xc_lines
@@ -1160,45 +1166,69 @@ def _xc_sides_ok(pair_row, source: str, target: str) -> bool:
         return False
 
 
+def _xc_leg_lines(la, source, A, lb, target, B, calls: list, base: int, asof) -> tuple:
+    """The per-leg composite [N] line shape shared by the divergence (opposite-sign) and co-move (same-sign)
+    renders. For each leg it emits one reader line and injects THREE citable rows -- endpoint + baseline +
+    delta -- so every narrated magnitude value-checks against the all-numbers guard (the RV-W3.2 discipline).
+    Returns (lines, ((mya0,pa0,mya1,pa1),(myb0,pb0,myb1,pb1))) -- the caller builds its own marker line + trace
+    from the endpoints. BYTE-IDENTICAL to the historical inline loop: the divergence output must not shift."""
+    (mya0, pa0, _rda0), (mya1, pa1, _rda1) = A["a"], A["b"]
+    (myb0, pb0, _rdb0), (myb1, pb1, _rdb1) = B["a"], B["b"]
+    n = base
+    lines: list = []
+    for (lbl, cmdty, my_lo, p_lo, my_hi, p_hi, d) in (
+            (la, source, mya0, pa0, mya1, pa1, A["d"]),
+            (lb, target, myb0, pb0, myb1, pb1, B["d"])):
+        n += 1
+        handle = n
+        calls.append(_xc_call(cmdty, p_hi, my_hi, asof))        # the endpoint the [N{handle}] line cites
+        n += 1
+        calls.append(_xc_call(cmdty, p_lo, my_lo, asof))        # the baseline (backs the '(vs MY.. ..%)' term)
+        n += 1
+        calls.append(_xc_call(cmdty, d, my_hi, asof, unit="pp"))    # the delta (backs the '..pp' term)
+        lines.append(f"- [N{handle}] {lbl} stocks-to-use MY{my_hi}: {p_hi:g}% "
+                     f"(vs MY{my_lo} {p_lo:g}%, {d:+g}pp over the window)")
+    return lines, ((mya0, pa0, mya1, pa1), (myb0, pb0, myb1, pb1))
+
+
 def _reroute_xc(pair_row, source: str, target: str, focus_windows: list, qfn, asof,
-                calls: list, base: int, sg) -> tuple:
+                calls: list, base: int, sg, comove: bool = False) -> tuple:
     """The ratio-delta fork, labeled BY COMMODITY (RV-W2.3). BOTH legs are SYNTHESIZED World su_ratio legs over
     the SAME focus-window eras (Invariant 4 -- the shared window is FORCED, no second walk, no sibling
-    retrieval), each on its OWN marketing year (C4). Fire IFF the two within-window signs OPPOSE (the reused
-    _reroute L852 sign test): one tightens while the other loosens. SAME-SIGN records NOTHING (a co-move is not
-    a relative-value story -- the honest backstop, esp. crush joint products); a missing within-window delta on
-    EITHER leg declines that era. PAIR_CAP=1: at most one era of one pair fires. On fire, inject both legs'
-    endpoint + delta [N] rows (value-checkable) and return (block_lines, fired_trace); ([], None) otherwise.
-    Never raises."""
+    retrieval), each on its OWN marketing year (C4).
+
+    [SKEPTIC F1 -- HIGH] TWO-PASS. Opposite-sign (DIVERGENCE) candidates keep ABSOLUTE first-fire priority: the
+    loop scans ALL index-aligned eras and the FIRST era whose within-window signs OPPOSE (one tightens while the
+    other loosens -- the reused _reroute L852 sign test) fires the divergence fork and returns immediately
+    (PAIR_CAP=1), BYTE-IDENTICAL to the pre-co-move engine. A same-sign co-move is only NOTED during the scan and
+    rendered AFTER the scan proves NO era diverged -- so a lower-idx co-move can never PREEMPT a divergence that
+    renders today. The co-move render exists ONLY when `comove` is True (the kwarg the answer.py/orchestrator
+    seam threads from GRAPHRAG_COMOVE -- [SKEPTIC F3], NEVER an env read here); when False the same-sign eras
+    drop exactly as before, so opposite-sign output is byte-identical flag-off AND flag-on. A flat/no-delta leg
+    (sign 0) is neither divergence nor co-move -> honest continue. A missing within-window delta on EITHER leg
+    excludes that era from the intersection (never reaches this loop). On fire, inject both legs' endpoint +
+    baseline + delta [N] rows (value-checkable) and return (block_lines, fired_trace); ([], None) otherwise. The
+    co-move render uses its OWN CO-MOVE marker -> '## Complex-wide move' (never '## Cross-commodity', which
+    asserts a relative-value divergence and licenses price-direction -- both FALSE for a co-move). Never raises."""
     if not _xc_sides_ok(pair_row, source, target):
         return [], None
     da_by = _leg_world_deltas(qfn, source, focus_windows, asof)
     db_by = _leg_world_deltas(qfn, target, focus_windows, asof)
     la, lb = _xc_label(source), _xc_label(target)
-    n = base
+    comove_idx = None                                           # first true same-sign era, deferred to pass 2
     for i in sorted(set(da_by) & set(db_by)):                   # index-aligned eras: same era_idx on both legs
         A, B = da_by[i], db_by[i]
         sa, sb = _sign(A["d"]), _sign(B["d"])
-        if sa == 0 or sb == 0 or sa == sb:
-            continue                                            # co-move / flat -> record nothing (honest)
-        (mya0, pa0, _rda0), (mya1, pa1, _rda1) = A["a"], A["b"]
-        (myb0, pb0, _rdb0), (myb1, pb1, _rdb1) = B["a"], B["b"]
+        if sa == 0 or sb == 0:
+            continue                                            # a flat/no-delta leg -> never a co-move (honest)
+        if sa == sb:                                            # a TRUE same-sign co-move (both real moves)
+            if comove_idx is None:
+                comove_idx = i                                  # record the FIRST; render only if no era diverges
+            continue
+        # OPPOSITE-SIGN divergence -- the RV fork. First-fire priority: render + return here (byte-identical).
+        lines, ((mya0, pa0, mya1, pa1), (myb0, pb0, myb1, pb1)) = _xc_leg_lines(
+            la, source, A, lb, target, B, calls, base, asof)
         window = f"MY{mya0}-MY{mya1}"
-        lines: list = []
-        # one composite [N] line per leg (the RV-W3.2 shape); the endpoint value the handle cites plus its own
-        # baseline + delta are ALL injected so every magnitude value-checks against the all-numbers guard.
-        for (lbl, cmdty, my_lo, p_lo, my_hi, p_hi, d) in (
-                (la, source, mya0, pa0, mya1, pa1, A["d"]),
-                (lb, target, myb0, pb0, myb1, pb1, B["d"])):
-            n += 1
-            handle = n
-            calls.append(_xc_call(cmdty, p_hi, my_hi, asof))    # the endpoint the [N{handle}] line cites
-            n += 1
-            calls.append(_xc_call(cmdty, p_lo, my_lo, asof))    # the baseline (backs the '(vs MY.. ..%)' term)
-            n += 1
-            calls.append(_xc_call(cmdty, d, my_hi, asof, unit="pp"))   # the delta (backs the '..pp' term)
-            lines.append(f"- [N{handle}] {lbl} stocks-to-use MY{my_hi}: {p_hi:g}% "
-                         f"(vs MY{my_lo} {p_lo:g}%, {d:+g}pp over the window)")
         lines.append(
             f"CROSS-COMMODITY on su_ratio: {la} {pa1:g}% ({A['d']:+g}pp) vs {lb} {pb1:g}% ({B['d']:+g}pp) "
             f"over {window} -- {_xc_frame(pair_row, sg)}; each World balance sheet aggregates DIFFERING local "
@@ -1208,6 +1238,27 @@ def _reroute_xc(pair_row, source: str, target: str, focus_windows: list, qfn, as
                  "commodityA": source, "dA": round(A["d"], 4), "su_ratio_A": round(pa1, 4), "myA": mya1,
                  "commodityB": target, "dB": round(B["d"], 4), "su_ratio_B": round(pb1, 4), "myB": myb1,
                  "window": window, "reroute_v2": True}
+        return lines, fired
+    # PASS 2 -- co-move. No era diverged. Render the FIRST same-sign co-move ONLY when the flag is on, in its OWN
+    # '## Complex-wide move' section via the CO-MOVE marker.
+    if comove and comove_idx is not None:
+        A, B = da_by[comove_idx], db_by[comove_idx]
+        lines, ((mya0, pa0, mya1, pa1), (myb0, pb0, myb1, pb1)) = _xc_leg_lines(
+            la, source, A, lb, target, B, calls, base, asof)
+        window = f"MY{mya0}-MY{mya1}"
+        verb = "tightened" if _sign(A["d"]) < 0 else "loosened"    # SAFE frame word (in no lexicon); same sign
+        # SAFEST frame text (the plan's literal shape): su_ratio percentages + tightened/loosened only, NO
+        # valuation adjectives, NO price-direction -- a complex-wide move, not a relative-value divergence.
+        lines.append(
+            f"CO-MOVE on su_ratio: both {la} and {lb} {verb} (stocks-to-use {pa0:g}%->{pa1:g}% and "
+            f"{pb0:g}%->{pb1:g}%) -- a complex-wide move, not a relative-value divergence, over {window}; each "
+            f"World balance sheet aggregates DIFFERING local marketing years, so the comparison holds at the "
+            f"marketing-year grain, not a shared calendar; render '## Complex-wide move', labeled BY COMMODITY "
+            f"on su_ratio percentages only.")
+        fired = {"pair_id": getattr(pair_row, "id", None), "complex": getattr(pair_row, "complex_name", None),
+                 "commodityA": source, "dA": round(A["d"], 4), "su_ratio_A": round(pa1, 4), "myA": mya1,
+                 "commodityB": target, "dB": round(B["d"], 4), "su_ratio_B": round(pb1, 4), "myB": myb1,
+                 "window": window, "comove": True}
         return lines, fired
     return [], None
 
@@ -1253,9 +1304,12 @@ def _load_pair_row(pair_id: str):
     return None
 
 
-def _run_xc(xc_request: dict, sg, graph, groups: list, qfn, asof, near, calls: list) -> tuple:
+def _run_xc(xc_request: dict, sg, graph, groups: list, qfn, asof, near, calls: list,
+            *, comove: bool = False) -> tuple:
     """Resolve the curated pair + the focus window, then run the ratio-delta fork. Returns (block_lines,
-    fired_trace) -- ([], None) on ANY decline/failure so v2 NEVER breaks the v1 answer (fail-closed)."""
+    fired_trace) -- ([], None) on ANY decline/failure so v2 NEVER breaks the v1 answer (fail-closed). `comove`
+    ([SKEPTIC F3], threaded from the answer.py seam, never an env read) rides into _reroute_xc: when True a
+    pure same-sign complex-wide move may render (its OWN CO-MOVE marker); opposite-sign output is unaffected."""
     try:
         pair_id = (xc_request or {}).get("pair_id")
         source = (xc_request or {}).get("source_slug")
@@ -1268,7 +1322,9 @@ def _run_xc(xc_request: dict, sg, graph, groups: list, qfn, asof, near, calls: l
         windows = _xc_focus_windows(sg, graph, groups, source, near, asof)
         if not windows:
             return [], None
-        block, fired = _reroute_xc(pair_row, source, target, windows, qfn, asof, calls, len(calls), sg)
+        # comove passed POSITIONALLY (not keyword): the gate-test stub replaces _reroute_xc with a lambda that
+        # only accepts positional *a, so a keyword here would raise -> fail-closed swallow. Positional rides in.
+        block, fired = _reroute_xc(pair_row, source, target, windows, qfn, asof, calls, len(calls), sg, comove)
         if fired:
             # RV2 W2 tier telemetry (D7, S2-2): the fired trace records the DETECTING tier HERE, after the
             # call -- _reroute_xc has no xc_request in scope. A 3-key request (legacy/injected) reads None;

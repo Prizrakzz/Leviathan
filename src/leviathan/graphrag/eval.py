@@ -65,6 +65,10 @@ def _cascade_stats(out: dict) -> dict:
             # RV-v2 (C11): quantify_reroute_v2 is ENGINE-written, non-empty IFF the cross-commodity fork
             # FIRED this turn (never the orchestrator enable). The negative-pin battery asserts it EMPTY.
             "reroute_v2_pairs": len((out.get("trace") or {}).get("quantify_reroute_v2") or []),
+            # SEAM A [SKEPTIC F7]: BOOLEAN semantics -- quantify_comove is ENGINE-written, present IFF a
+            # complex-wide co-move rendered this turn. NOT a len() count (a co-move fires at most one pair/era):
+            # the fired dict has ~13 keys, so len() would mislead a future exact-count assert -- bool() is honest.
+            "comove_fired": bool((out.get("trace") or {}).get("quantify_comove")),
             "statuses": sorted(statuses)}
 
 
@@ -102,7 +106,7 @@ def _pit_clean(out: dict, asof) -> bool:
 _CASCADE_EXPECT = ("cascade_fired", "min_cascade_cited", "delta_row", "fork", "absence",
                    "pit_clean", "su_prescaled", "ok_era_leg", "reroute_fired",
                    "opposite_country_legs", "two_countries_cited", "no_unbacked_fork",
-                   "reroute_v2_expected", "detection_tier",
+                   "reroute_v2_expected", "detection_tier", "comove_expected",
                    # W3.6 price-observability pins: level-citation + unit discipline on the price tables,
                    # the NONE-tier decline guard, and the RAW (pre-sanitize, DP-6) valuation/flow/mismatch
                    # trace counters the bait + PIT + honesty rows assert to 0.
@@ -164,6 +168,20 @@ def _cascade_asserts(q: dict, out: dict) -> dict | None:
                 res[k] = fired_v2 and heading and non_fallback
             else:
                 res[k] = (not fired_v2) and (not heading) and non_fallback
+        elif k == "comove_expected":
+            # SEAM A: mirrors reroute_v2_expected. The POSITIVE pin is observational (a co-move fires only when
+            # the focus leg's retrieval-derived eras yield two SAME-sign World deltas AND no era diverges, so a
+            # boolean true-pin FLAPS -- keep it non-load-bearing). The NEGATIVE pin is the realizable teeth
+            # [SKEPTIC F2]: a pair with one leg absent from the era intersection renders NO co-move -> assert
+            # comove_fired false + no '## Complex-wide move' heading. Both branches require the dispatch planner
+            # actually ran (planner=='llm' == non-fallback) so a fallback turn can't false-green the pin.
+            fired_cm = cs["comove_fired"]
+            heading = "## Complex-wide move" in mech
+            non_fallback = ((out.get("intent_decision") or {}).get("planner")) == "llm"
+            if bool(want):
+                res[k] = fired_cm and heading and non_fallback
+            else:
+                res[k] = (not fired_cm) and (not heading) and non_fallback
         elif k == "detection_tier":
             # RV2 W2 (D15 amended): the tier pin requires the dispatch planner ACTUALLY ran (the same C11c
             # fallback-vacuity guard as reroute_v2_expected) AND the stamped tier to match -- a fallback,
@@ -307,6 +325,7 @@ def _per_answer_record(r: dict, run_kind: str) -> dict:
             # RV2 W2 (D15): the v2 fork count + the detecting tier ride every record so a soak/eval readout
             # can attribute fires per tier post-run; None on non-orchestrator rows (no intent_decision).
             "reroute_v2_pairs": cs["reroute_v2_pairs"],
+            "comove_fired": cs["comove_fired"],                # SEAM A boolean (F7): per-tier soak attribution
             "detection_tier": ((out.get("intent_decision") or {}).get("xc_detect") or {}).get("tier"),
             "cascade_asserts": (r.get("rubric") or {}).get("cascade_asserts"),
             # R3 F12: without degraded_model in the record a degraded turn is byte-indistinguishable from a

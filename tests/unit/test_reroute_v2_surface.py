@@ -166,3 +166,81 @@ def test_per_answer_record_carries_reroute_v2_pairs_and_tier():
 def test_per_answer_record_tier_none_on_non_orchestrator_row():
     rec = ev._per_answer_record({"q": {"id": "x2"}, "out": {"answer": ""}}, "single")
     assert rec["reroute_v2_pairs"] == 0 and rec["detection_tier"] is None
+
+
+# == SEAM A: co-move ('## Complex-wide move') prompt rules + comove_expected eval pins ====================
+def test_comove_heading_clause_is_injected_only_and_distinct(monkeypatch):
+    s = an._SYSTEM_CASCADE
+    assert "## Complex-wide move" in s
+    # a DEDICATED heading, never a reuse of the divergence/RV headings
+    assert "NEVER '## Cross-commodity' and NEVER '## Where the record disagrees'" in s
+    # render-gate: emitted ONLY when the engine supplies a CO-MOVE line, never volunteered from prose
+    assert "ONLY when a 'CO-MOVE' line is\n" in s or "ONLY when a 'CO-MOVE' line is present" in s
+    assert "never volunteer a complex-wide co-move from prose" in s
+    # a co-move carries NO price-direction license (unlike the CROSS-COMMODITY clause)
+    assert "NO price-direction license here" in s
+    # the no-fork backstop now enumerates the co-move line too
+    assert "NO CO-MOVE line" in s
+    # still appended only under the quant flag
+    monkeypatch.setenv("GRAPHRAG_MENTOR_VOICE", "on")
+    monkeypatch.setenv("GRAPHRAG_CASCADE_QUANT", "on")
+    assert "## Complex-wide move" in an._system()
+    monkeypatch.setenv("GRAPHRAG_CASCADE_QUANT", "off")
+    assert "## Complex-wide move" not in an._system()
+
+
+def _out_cm(*, fired=False, heading=False, planner="llm"):
+    """A minimal eval out dict for the comove pins. fired = the engine-written quantify_comove trace key
+    present; heading = whether '## Complex-wide move' rendered; planner = the dispatch decision."""
+    mech = ("## Complex-wide move\n- [N1] world soybean oil stocks-to-use MY2025: 8%"
+            if heading else "## Mechanism\nplain prose, no reserved heading")
+    trace = {"quantify": []}
+    if fired:
+        trace["quantify_comove"] = {"pair_id": "soyoil_palm_vegoil", "comove": True}
+    return {"trace": trace, "structured": {"tldr": "", "mechanism": mech}, "citations": [],
+            "intent_decision": {"planner": planner}}
+
+
+def test_cascade_stats_comove_fired_is_boolean():
+    # [SKEPTIC F7]: boolean semantics, NOT a len() count
+    assert ev._cascade_stats(_out_cm(fired=False))["comove_fired"] is False
+    assert ev._cascade_stats(_out_cm(fired=True))["comove_fired"] is True
+
+
+def test_comove_positive_pin_passes_when_fired_under_heading():
+    q = {"expect": {"comove_expected": True}}
+    assert ev._cascade_asserts(q, _out_cm(fired=True, heading=True))["comove_expected"] is True
+    # fired but no heading rendered -> the positive pin FAILS
+    assert ev._cascade_asserts(q, _out_cm(fired=True, heading=False))["comove_expected"] is False
+
+
+def test_comove_negative_pin_intersection_exclusion(monkeypatch):
+    """[SKEPTIC F2] the realizable NO-RENDER negative pin: no co-move fired + no heading -> passes; a leaked
+    fire or a manufactured heading -> fails."""
+    q = {"expect": {"comove_expected": False}}
+    assert ev._cascade_asserts(q, _out_cm(fired=False, heading=False))["comove_expected"] is True
+    assert ev._cascade_asserts(q, _out_cm(fired=True, heading=True))["comove_expected"] is False
+    assert ev._cascade_asserts(q, _out_cm(fired=False, heading=True))["comove_expected"] is False   # manufactured
+
+
+def test_comove_pin_fails_on_dispatch_fallback():
+    q = {"expect": {"comove_expected": False}}
+    assert ev._cascade_asserts(q, _out_cm(fired=False, heading=False, planner=None))["comove_expected"] is False
+    assert ev._cascade_asserts(q, _out_cm(fired=False, heading=False, planner="llm"))["comove_expected"] is True
+
+
+def test_comove_does_not_pollute_reroute_v2_pairs():
+    """A fired co-move rides quantify_comove, NEVER quantify_reroute_v2, so the rv2 negative pins stay green."""
+    cs = ev._cascade_stats(_out_cm(fired=True, heading=True))
+    assert cs["reroute_v2_pairs"] == 0 and cs["comove_fired"] is True
+
+
+def test_comove_flag_helper_default_off_and_on(monkeypatch):
+    monkeypatch.delenv("GRAPHRAG_COMOVE", raising=False)
+    assert an._comove_on() is False
+    for v in ("on", "1", "TRUE", "True"):
+        monkeypatch.setenv("GRAPHRAG_COMOVE", v)
+        assert an._comove_on() is True
+    for v in ("off", "", "yes", "no"):
+        monkeypatch.setenv("GRAPHRAG_COMOVE", v)
+        assert an._comove_on() is False
