@@ -63,6 +63,10 @@ NUMBERS_TABLES = (
     "silver_sagis_cec",
     "silver_pink_sheet",                # PRICE_OBSERVABILITY W2: WB Pink Sheet monthly price benchmarks
     "silver_cot",                       # PRICE_OBSERVABILITY W4: CFTC COT managed-money positioning (v2)
+    "silver_futures_prices",            # SEAM C (rev-52): futures v1.5-lite daily front-month settle (levels-only,
+    #                                     whitelist-absent from serving until the gate + freshness fix; the numbers
+    #                                     card + silver_futures_prices.yaml numbers_ref/knowledge fields reconcile
+    #                                     here regardless of the served-registry drop -- both read raw configs)
 )
 
 

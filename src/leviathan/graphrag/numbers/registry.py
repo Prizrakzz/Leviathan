@@ -107,6 +107,15 @@ class TableSpec(BaseModel):
     period_sql_type: Literal["int", "string"] = "string"     # how the period column compares in SQL
     period_offset: int = 0                                   # source-label translation: OUR convention is MY=START
     #                                                          year; ESR labels by END year -> offset +1 at compile
+    levels_only: bool = False                                # SEAM C (futures v1.5-lite): a roll-spliced
+    #                                                          continuous FRONT-MONTH settle series carries NO
+    #                                                          true vintage and NO PIT-safe cross-date delta --
+    #                                                          the splice between expiries contaminates any
+    #                                                          change/window/curve read. build_sql RAISES on any
+    #                                                          agg != latest OR any period_start/period_end window
+    #                                                          for such a table, so only single-date agg=latest
+    #                                                          levels are ever compiled (defense-in-depth beside
+    #                                                          the agent's phrasing-based decline routes).
     date_col: Optional[str] = None                           # the DATA date (weather obs date, week ending, ...)
     date_col_type: Literal["string", "timestamp"] = "string"  # DP-5 (PRICE_OBSERVABILITY W1.1): physical type of
     #                                                          the date col. "timestamp" -> the query builder emits
@@ -198,6 +207,17 @@ class NumbersRegistry(BaseModel):
         return self.tables[table_id]
 
 
+# SEAM C (futures v1.5-lite): silver_futures_prices is REGISTERED in tables.yaml + linted
+# (config_check.check_futures_lite) but WHITELIST-ABSENT from serving by DEFAULT -- it ships in this set so
+# load_registry drops it exactly like a GRAPHRAG_NUMBERS_DISABLE entry, keeping it out of the agent tool
+# enum + system-prompt cards. It stays absent until the SEAM-C no-judge gate AND the yfinance
+# freshness-stall fix BOTH pass; WHITELISTING = removing it from this frozenset (a gated code change, the
+# eval + freshness prerequisite). Post-whitelist the runtime kill-switch is the ordinary
+# GRAPHRAG_NUMBERS_DISABLE env idiom. Kept DISJOINT from _disabled_tables() (env-only) so the env-parse
+# kill-switch tests stay byte-identical; the union happens once, in load_registry.
+WHITELIST_ABSENT_DEFAULT: frozenset[str] = frozenset({"silver_futures_prices"})
+
+
 def _disabled_tables() -> frozenset[str]:
     """Kill-switch: table ids to DROP from the loaded registry at load time (env
     ``GRAPHRAG_NUMBERS_DISABLE``, comma-separated). A dropped table vanishes from the agent's tool
@@ -219,7 +239,7 @@ def load_registry(path: Optional[str] = None) -> NumbersRegistry:
     p = Path(path) if path else (ex._CFG / "numbers" / "tables.yaml")
     raw = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
     tables = {tid: TableSpec(id=tid, **spec) for tid, spec in (raw.get("tables") or {}).items()}
-    disabled = _disabled_tables()
+    disabled = _disabled_tables() | WHITELIST_ABSENT_DEFAULT   # env kill-switch + SEAM-C whitelist-absent default
     if disabled:
         tables = {tid: ts for tid, ts in tables.items() if tid not in disabled}
     return NumbersRegistry(tables=tables)

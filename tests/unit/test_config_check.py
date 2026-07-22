@@ -292,6 +292,24 @@ def test_check_price_and_cot_register_green_on_real_config():
     assert cc.check_cot_register() == []
 
 
+# -- SEAM C futures v1.5-lite lint (levels-only card + unit_overrides + whitelist-absent gate) ---------
+def test_check_futures_lite_green_on_real_config():
+    # the card exists with the exact levels-only shape, close-only + 12-slug unit_overrides, is
+    # WHITELIST-ABSENT from serving, and every decline template is register-clean.
+    assert cc.check_futures_lite() == []
+
+
+def test_check_futures_lite_flags_whitelist_leak(monkeypatch):
+    # if the table ever leaked into the SERVED registry while gate-absent, the lint must fail closed.
+    import leviathan.graphrag.numbers.registry as R
+    real = R.load_registry()
+    leaked = R.NumbersRegistry(tables={**real.tables,
+                                       "silver_futures_prices": R.TableSpec(
+                                           id="silver_futures_prices", description="", shape="wide")})
+    monkeypatch.setattr(R, "load_registry", lambda path=None: leaked)
+    assert any("leaked into the SERVED registry" in e for e in cc.check_futures_lite())
+
+
 # -- SILVER-F047 quarantine (corrected 2026-07-21: engine-leg ban is the REAL fence; no dispatch guard exists) --
 def test_quarantine_engine_ref_flagged():
     # a cascade_map ref at a quarantined table must fail the build (the F047 INV-3 rule as lint, not prose)

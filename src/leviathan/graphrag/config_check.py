@@ -649,6 +649,78 @@ def check_stats_registry() -> list[str]:
     return errs
 
 
+# SEAM C (ENGINE SEAMS rev-52) -- futures v1.5-lite (Option A, levels-only). The card lives in
+# configs/graphrag/numbers/tables.yaml but is WHITELIST-ABSENT from serving (registry.WHITELIST_ABSENT_DEFAULT),
+# so it is DROPPED from the loaded registry -- the registry-iterating lints never see it. This dedicated lint
+# reads the RAW card and asserts (a) it exists with the exact levels-only shape, (b) close is the ONLY metric
+# and its unit_overrides cover exactly the 12 slugs with the exact exchange-unit strings, (c) the whitelist
+# gate state is INTENTIONAL (the table is in WHITELIST_ABSENT_DEFAULT and absent from the served registry),
+# and (d) every futures decline template is register-clean and the class set matches the agent's guard.
+_FUTURES_TABLE = "silver_futures_prices"
+_FUTURES_UNIT_OVERRIDES: dict = {
+    "corn_cbot": "US cents/bushel", "soybeans_cbot": "US cents/bushel",
+    "soft_red_winter_wheat_cbot": "US cents/bushel", "hard_red_winter_wheat_kcbt": "US cents/bushel",
+    "soybean_oil_cbot": "US cents/lb", "arabica_coffee": "US cents/lb", "cotton": "US cents/lb",
+    "raw_sugar": "US cents/lb", "frozen_orange_juice": "US cents/lb",
+    "soybean_meal_cbot": "USD/short ton", "cocoa": "USD/metric ton", "rough_rice_cbot": "USD/cwt",
+}
+_FUTURES_CARD_FIELDS: dict = {
+    "shape": "wide", "commodity_col": "leviathan_slug", "date_col": "date", "date_col_type": "timestamp",
+    "knowledge_semantics": "data_date", "knowledge_date_col": "date", "publication_lag_days": 1,
+    "levels_only": True,
+}
+
+
+def check_futures_lite() -> list[str]:
+    """SEAM-C futures-lite lint (AWS-free, pure). Card-shape + close-only + unit_overrides completeness +
+    WHITELIST-ABSENT-until-gate + decline-template register-cleanliness. Reads the RAW tables.yaml (the card
+    is dropped from the loaded registry by WHITELIST_ABSENT_DEFAULT, so the registry-iterating lints cannot
+    see it)."""
+    from leviathan.graphrag import register as reg
+    from leviathan.graphrag.numbers import registry as R
+    errs: list[str] = []
+    doc = _load("numbers/tables.yaml") or {}
+    card = (doc.get("tables") or {}).get(_FUTURES_TABLE)
+    if not card:
+        return [f"futures_lite: {_FUTURES_TABLE} card is absent from numbers/tables.yaml (SEAM C registers it)"]
+    # (a) exact levels-only card shape.
+    for k, want in _FUTURES_CARD_FIELDS.items():
+        if card.get(k) != want:
+            errs.append(f"futures_lite: {_FUTURES_TABLE}.{k} is {card.get(k)!r}, expected {want!r}")
+    # (b) close is the ONLY whitelisted metric; unit_overrides EXACTLY the 12 slugs with the exact strings.
+    metrics = card.get("metrics") or {}
+    if set(metrics) != {"close"}:
+        errs.append(f"futures_lite: metrics must be close-ONLY (OHLC/volume/derived excluded), got "
+                    f"{sorted(metrics)}")
+    ov = (metrics.get("close") or {}).get("unit_overrides") or {}
+    if ov != _FUTURES_UNIT_OVERRIDES:
+        errs.append(f"futures_lite: close.unit_overrides {sorted(ov.items())} != the curated 12-slug set "
+                    f"{sorted(_FUTURES_UNIT_OVERRIDES.items())}")
+    # (c) whitelist gate state is intentional: registered-but-absent-from-serving until the gate flips.
+    if _FUTURES_TABLE not in R.WHITELIST_ABSENT_DEFAULT:
+        errs.append(f"futures_lite: {_FUTURES_TABLE} is registered but NOT in registry.WHITELIST_ABSENT_DEFAULT "
+                    f"-- the whitelist-absent gate state is unintentional (it would serve before the gate)")
+    if _FUTURES_TABLE in R.load_registry().tables:
+        errs.append(f"futures_lite: {_FUTURES_TABLE} leaked into the SERVED registry (agent tool enum) while "
+                    f"whitelist-absent -- it must be dropped at load until the gate + freshness fix pass")
+    # (d) decline templates register-clean + class set matches the agent's guard.
+    try:
+        from leviathan.graphrag.numbers import agent as na
+    except Exception:  # noqa: BLE001 -- agent import must never break the lint
+        na = None
+    templates = getattr(na, "FUTURES_DECLINE_TEMPLATES", None) if na is not None else None
+    classes = getattr(na, "_FUTURES_DECLINE_CLASSES", ()) if na is not None else ()
+    if not templates:
+        errs.append("futures_lite: numbers/agent.py FUTURES_DECLINE_TEMPLATES is missing")
+    else:
+        if set(templates) != set(classes):
+            errs.append(f"futures_lite: template keys {sorted(templates)} != decline classes {sorted(classes)}")
+        for name, t in templates.items():
+            if reg.register_leaks(str(t)) or reg.count_valuation_words(str(t)) or reg.count_flow_words(str(t)):
+                errs.append(f"futures_lite: decline template {name!r} carries a register leak")
+    return errs
+
+
 def main() -> int:
     failures = 0
     for label, errs in (("vocab", lint_vocab()), ("node_silver_map", check_node_silver_map()),
@@ -664,7 +736,8 @@ def main() -> int:
                         ("quarantine", check_quarantine()),
                         ("numbers_schema_pins", check_numbers_schema_pins()),
                         ("cot_register", check_cot_register()),
-                        ("stats_registry", check_stats_registry())):
+                        ("stats_registry", check_stats_registry()),
+                        ("futures_lite", check_futures_lite())):
         if errs:
             failures += len(errs)
             print(f"FAIL {label}:")

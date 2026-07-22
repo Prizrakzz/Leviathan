@@ -482,6 +482,15 @@ def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = AT
     """Compile a NumberQuery to leakage-safe Athena SQL. The as-of guard is injected unconditionally; for
     `vintage` tables it also collapses to the LATEST vintage published on/before asof (as-known-at-asof)."""
     ts = ts or load_registry().get(spec.table)
+    # SEAM-C LEVELS-ONLY GUARD: a roll-spliced continuous FRONT-MONTH settle series (silver_futures_prices)
+    # has NO PIT-safe cross-date delta -- the splice between expiries contaminates any change/window/curve
+    # read. Only a single-date agg=latest level is compilable; any other agg OR any period_start/period_end
+    # window RAISES deterministically (defense-in-depth beside the agent's phrasing-based decline routes --
+    # the Conventions bullet is discipline, this is enforcement, mirroring the DP-1 guard below).
+    if getattr(ts, "levels_only", False) and (spec.agg != "latest" or spec.period_start or spec.period_end):
+        raise ValueError(f"table {spec.table} is levels-only (roll-spliced continuous front-month settle): "
+                         f"only agg=latest single-date levels are served; a change/window/series/curve read "
+                         f"is not point-in-time-safe across roll boundaries")
     # DP-1 GUARD: a metric carrying unit_overrides is keyed by commodity for its unit (avg_farm_price). A
     # commodity-less query would serve unattributable blank-unit rows -- RAISE deterministically (the
     # Conventions bullet is discipline; this is enforcement).

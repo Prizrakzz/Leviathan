@@ -370,6 +370,111 @@ def _price_decline_preface(name: str) -> str:
     return f"One limitation to flag before the numbers: {DECLINE_TEMPLATES[name]}.\n\n"
 
 
+# -- SEAM C futures-lite LEVELS-ONLY decline guard (ENGINE SEAMS rev-52) --------------------------------
+# silver_futures_prices serves a DAILY continuous FRONT-MONTH settle. It is a roll-spliced series with no
+# true vintage, so the ONLY point-in-time-safe read is a single-date agg=latest LEVEL. Four ask classes are
+# structurally unservable from it and must decline with an honest, register-clean template rather than let
+# the model narrate a change/curve/named-contract number off a splice-contaminated series:
+#   * change  -- "how much has corn risen this month" (a windowed move; the roll handoff sits inside it)
+#   * curve   -- term structure / calendar carry / contango-backwardation (needs the expiry-by-expiry curve)
+#   * named   -- "December corn" (a specific delivery month; only the continuous front-month is served)
+# Cloning the ESR/price guard discipline: a FUTURES-covered commodity NAME must co-occur with an explicit
+# CLASS cue; ambiguity fails toward None so a plain LEVEL ask ("corn front-month settle on <date>") is
+# byte-identical (no preface). The templates below are censused by config_check.check_futures_lite (each
+# must pass register_leaks clean) and the keys EXACTLY match _FUTURES_DECLINE_CLASSES. The guard fires on
+# PHRASING alone (independent of whether the table is whitelisted), so the honest front-month framing is
+# prepended even while the table is whitelist-absent.
+FUTURES_DECLINE_TEMPLATES: dict[str, str] = {
+    "change": ("the daily futures data I can pull here is the continuous front-month settle as a "
+               "point-in-time level, not a windowed move -- it is a roll-spliced series, so a change "
+               "measured across dates is not a clean read from it (the handoff between expiries sits inside "
+               "the series); I can give the front-month settle level on a date, but not how far it travelled "
+               "over a period"),
+    "curve": ("the daily futures data I can pull here is the continuous FRONT-MONTH settle only, not the "
+              "term structure -- the curve across delivery months (and the carry between them) needs the "
+              "expiry-by-expiry data, which is not in this lookup; I can give the front-month settle level on "
+              "a date, not a curve read"),
+    "named": ("the daily futures data I can pull here is the continuous FRONT-MONTH settle only, not "
+              "individual delivery months -- a specific expiry (say, December) needs the full "
+              "expiry-by-expiry curve, which is not in this lookup; I can give the front-month settle level "
+              "on a date, not a named-contract quote"),
+}
+_FUTURES_DECLINE_CLASSES: tuple[str, ...] = ("change", "curve", "named")
+
+# FUTURES-covered commodity surface forms (the 12 contracts a desk names in prose). Longest-first at
+# compile so 'soybean oil' wins over 'soybean'. Deliberately broad on the bare head words (wheat/sugar/
+# coffee/rice/cotton/cocoa) because the CLASS cue -- not the name -- is what makes an ask futures-specific.
+_FUTURES_COMMODITY_TERMS: tuple[str, ...] = (
+    "soybean oil", "soybean meal", "soy oil", "soy meal", "soyoil", "soymeal", "bean oil", "bean meal",
+    "orange juice", "fcoj", "rough rice", "kc wheat", "kcbt wheat", "hrw wheat", "srw wheat",
+    "kansas city wheat", "chicago wheat", "hard red winter wheat", "soft red winter wheat",
+    "soybeans", "soybean", "corn", "wheat", "cotton", "sugar", "coffee", "cocoa", "rice")
+_FUT_COMMODITY_ALT = "|".join(re.escape(t) for t in sorted(_FUTURES_COMMODITY_TERMS, key=len, reverse=True))
+_FUT_COMMODITY = re.compile(r"\b(?:" + _FUT_COMMODITY_ALT + r")\b")
+
+# Volume/fundamental subjects: a change ask ABOUT one of these is NOT a futures-price ask -> fail toward None.
+_FUT_VOLUME_NOUN = re.compile(
+    r"\b(production|output|acreage|area|planting|yield|harvest|exports?|imports?|shipments?|sales?|demand|"
+    r"supply|stocks?|inventor\w+|use|usage|consumption|crush|grind\w*|deliver\w+)\b")
+
+_MONTH = (r"(?:jan(?:uary)?|feb(?:ruary)?|march|april|june|july|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|"
+          r"nov(?:ember)?|dec(?:ember)?)")   # 'may'/'mar' dropped bare: too homonym-prone; require adjacency below
+_FUT_NAMED_PATTERNS = [
+    # a delivery month ADJACENT to a futures commodity: "December corn", "corn (for) December",
+    # "the December wheat contract", "March soybean futures".
+    re.compile(rf"\b{_MONTH}\s+(?:{_FUT_COMMODITY_ALT})\b"),
+    re.compile(rf"\b(?:{_FUT_COMMODITY_ALT})\s+(?:for\s+|contract\s+)?{_MONTH}\b"),
+    re.compile(rf"\bthe\s+{_MONTH}\s+(?:contract|future|futures|delivery|expiry|expiration)\b"),
+    # explicit named-contract vocabulary (needs a futures commodity present, checked separately).
+    re.compile(r"\b(?:named contract|specific (?:delivery )?month|specific expir\w+|particular (?:month|expir\w+)|"
+               r"which (?:delivery )?month|which contract|what (?:delivery )?month|what expir\w+|"
+               r"nearby (?:vs\.?|versus) deferred|back month\w*|deferred (?:month|contract)\w*)\b"),
+]
+_FUT_CURVE_PATTERNS = [
+    re.compile(r"\b(?:term structure|forward curve|futures curve|the curve|price curve|calendar spread\w*|"
+               r"contango|backwardation|roll yield|carry between|front[- ]?month (?:vs\.?|versus)|"
+               r"nearby (?:vs\.?|versus))\b"),
+]
+_FUT_CHANGE_VERB = re.compile(
+    r"\b(?:risen|rose|rising|rallied|rally|gained|gaining|climbed|climbing|jumped|surged|advanced|"
+    r"fallen|fell|falling|dropped|dropping|declined|slid|slipped|sank|plunged|tumbled|retreated|"
+    r"moved|move|changed|gone up|gone down|up|down|higher|lower)\b")
+_FUT_WINDOW = re.compile(
+    r"\b(?:this (?:week|month|quarter|year|session)|ytd|year[- ]to[- ]date|week[- ]to[- ]date|"
+    r"month[- ]to[- ]date|today|so far this|over the (?:past|last)|in the (?:past|last)|(?:past|last) "
+    r"(?:week|month|quarter|year|few (?:days|weeks|months))|lately|recently|intraday|since \w+|"
+    r"year[- ]?on[- ]?year|from a (?:week|month|year) ago)\b")
+
+
+def futures_scope(question: str) -> Optional[str]:
+    """The FUTURES levels-only decline class when the question is UNAMBIGUOUSLY a change / curve / named-
+    contract futures ask (a futures-covered commodity name co-occurring with the class cue), else None.
+    Ambiguity fails toward None so a plain single-date LEVEL ask is byte-identical (no decline). Priority:
+    named-contract, then curve, then change -- a specific-expiry framing is the strongest signal."""
+    q = re.sub(r"\s+", " ", (question or "").lower())
+    if not _FUT_COMMODITY.search(q):
+        return None                                            # no futures commodity named -> never fire
+    # named-contract: the month-adjacency patterns already bind a commodity; the explicit-vocabulary
+    # pattern (index 3) needs a commodity present (guaranteed above).
+    for rx in _FUT_NAMED_PATTERNS:
+        if rx.search(q):
+            return "named"
+    for rx in _FUT_CURVE_PATTERNS:
+        if rx.search(q):
+            return "curve"
+    # change: a directional-move verb WITH a time window, and NOT a volume/fundamental subject (a
+    # production/exports/stocks "rose this month" ask is a fundamentals question, not a futures-price one).
+    if _FUT_CHANGE_VERB.search(q) and _FUT_WINDOW.search(q) and not _FUT_VOLUME_NOUN.search(q):
+        return "change"
+    return None
+
+
+def _futures_decline_preface(cls: str) -> str:
+    """Reader-facing honest decline of an unservable futures ask class (mentor register -- no internal
+    slugs). PREPENDED deterministically so a change/curve/named-contract read can never pose as served."""
+    return f"One limitation to flag before the numbers: {FUTURES_DECLINE_TEMPLATES[cls]}.\n\n"
+
+
 def tool_schema(reg: NumbersRegistry) -> dict:
     """The single tool. `table` is an enum over the registry; asof is DELIBERATELY absent (the harness forces it)."""
     return {
@@ -649,6 +754,10 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
     # Price-coverage decline guard: detect a NONE-tier PRICE ask (no governed pink_sheet column) ONCE, up
     # front. None (the common case) is a no-op everywhere below -- a covered/non-price ask is byte-identical.
     price_scope = price_coverage_scope(question)
+    # SEAM-C futures levels-only decline guard: detect a change / curve / named-contract futures ask ONCE, up
+    # front. None (the common case) is a no-op -- a plain single-date LEVEL ask is byte-identical. Fires on
+    # phrasing alone, so the honest front-month framing is prepended even while futures is whitelist-absent.
+    fut_scope = futures_scope(question)
 
     for _ in range(max_calls):
         def _one():
@@ -665,6 +774,12 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                 # what the model wrote, so an uncaveated proxy can never pose as the asked-for series.
                 preface += _price_decline_preface(price_scope)
                 result["price_decline_guard"] = price_scope
+            if fut_scope:
+                # SEAM-C: deterministic decline of an unservable futures ask class (change/curve/named): the
+                # front-month-only caveat is PREPENDED regardless of what the model wrote, so a change/curve/
+                # named-contract read can never pose as served off the roll-spliced series.
+                preface += _futures_decline_preface(fut_scope)
+                result["futures_decline_guard"] = fut_scope
             if dest and any(_is_esr_call(c) for c in calls):
                 result["esr_destination_guard"] = dest
                 if dest == _ESR_DEST_GENERIC:

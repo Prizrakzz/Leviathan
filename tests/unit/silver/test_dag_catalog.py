@@ -79,12 +79,17 @@ class TestFreshnessSla:
         # daily cadence default (3d) false-fires over a weekend (a Fri-close write is ~3d old by
         # Monday). The explicit max_lag_days=5 spans a weekend + one missed weekday while still
         # tripping a genuine multi-day stall (the class of the 2026-06-05 dark-chain stall).
+        # SEAM-C numbers wiring (2026-07-22): the futures card was wired into the numbers registry with
+        # publication_lag_days=1 (the settle for trading date D is public D+1). effective_sla_lag_days
+        # ADDS the publication lag as grace (so the alarm never fires on the normal +1 publish delay), so
+        # the EFFECTIVE ceiling is now 5 (explicit) + 1 (numbers pub-lag grace) = 6. The explicit
+        # freshness_sla.max_lag_days stays 5; only the effective/family ceiling picks up the grace.
         c = registry.table("silver_futures_prices")
         assert c["freshness_sla"]["max_lag_days"] == 5
         lag, basis = effective_sla_lag_days(c)
-        assert lag == 5
+        assert lag == 6                               # 5 explicit + 1 numbers publication_lag_days grace
         assert basis == "registry.max_lag_days"      # explicit, not the daily cadence default (3)
-        assert catalog["futures"].max_sla_lag_days == 5
+        assert catalog["futures"].max_sla_lag_days == 6
 
     def test_every_backfillable_family_has_a_positive_ceiling(self, catalog):
         for f in catalog.values():

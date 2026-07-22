@@ -4,7 +4,7 @@ table_name: silver_futures_prices
 layer: silver
 domain: prices
 lifecycle_class: source
-owner: silver-platform
+owner: numbers-platform
 schema_version: 1
 glue_database: leviathan_dev
 s3_root: s3://leviathan-dev-shahem-001/silver/futures_prices
@@ -128,22 +128,18 @@ required_nonnull:
 - date
 value_columns:
 - close
-- log_return
-- price_z_2yr
-- realized_vol_30d
-- vol_regime
 min_nonnull_frac: 0.5
 min_nonnull_frac_status: provisional
 coverage_axis: leviathan_slug x date
 vintage_retention: latest-only
-knowledge_date_col: null
-knowledge_semantics: null
-publication_lag_days: null
+knowledge_date_col: date
+knowledge_semantics: data_date
+publication_lag_days: 1
 freshness_sla:
   cadence: daily
   max_lag_days: 5
-consumers: feature_layer
-numbers_ref: null
+consumers: both
+numbers_ref: configs/graphrag/numbers/tables.yaml#silver_futures_prices
 cascade_ref: null
 source_contract_ref: configs/datasets/source_contracts.yaml#futures_prices
 serving_table: null
