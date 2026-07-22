@@ -814,3 +814,75 @@ resource "aws_iam_role_policy_attachment" "silver_publisher_repair" {
   role       = aws_iam_role.silver_publisher.name
   policy_arn = aws_iam_policy.silver_publisher_repair[0].arn
 }
+# ---------------------------------------------------------------------------
+# WASDE scanned-bronze Textract job role — DEDICATED (2026-07-22).
+# The 1973-1994 scanned WASDE PDFs are OCR'd via Textract async in a Fargate
+# Batch job. Textract has resource-level scoping only for a few actions, so the
+# two async-detection actions here are Resource="*" (read-only OCR, no data
+# mutation, no principal delegation). This role is DELIBERATELY separate from
+# batch_job_role: that role is reused by the internet-facing serving ECS task,
+# and the codebase's rule (see the P3 notifications-role note) is to never widen
+# the shared serving surface. S3 is scoped to the WASDE raw (read) + bronze
+# (write) prefixes only.
+# ---------------------------------------------------------------------------
+resource "aws_iam_role" "wasde_scanned_job" {
+  name = "${var.project_name}-${var.environment}-wasde-scanned-job-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "ecs-tasks.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+    Role        = "wasde-scanned-job"
+  }
+}
+
+data "aws_iam_policy_document" "wasde_scanned_job" {
+  statement {
+    sid       = "TextractAsyncDetectRead"
+    actions   = ["textract:StartDocumentTextDetection", "textract:GetDocumentTextDetection"]
+    resources = ["*"]
+  }
+
+  statement {
+    sid       = "ReadWasdeRawWriteWasdeBronze"
+    actions   = ["s3:GetObject", "s3:PutObject"]
+    resources = [
+      "${var.bucket_arn}/raw/production/source=usda_wasde/*",
+      "${var.bucket_arn}/bronze/production/source=usda_wasde/*",
+    ]
+  }
+
+  statement {
+    sid       = "ListWasdePrefixesOnly"
+    actions   = ["s3:ListBucket"]
+    resources = [var.bucket_arn]
+    condition {
+      test     = "StringLike"
+      variable = "s3:prefix"
+      values = [
+        "raw/production/source=usda_wasde/*",
+        "bronze/production/source=usda_wasde/*",
+      ]
+    }
+  }
+}
+
+resource "aws_iam_policy" "wasde_scanned_job" {
+  name        = "${var.project_name}-${var.environment}-wasde-scanned-textract-s3"
+  description = "Textract async OCR + WASDE raw-read/bronze-write for the scanned re-parse job. Not the shared serving role."
+  policy      = data.aws_iam_policy_document.wasde_scanned_job.json
+}
+
+resource "aws_iam_role_policy_attachment" "wasde_scanned_job" {
+  role       = aws_iam_role.wasde_scanned_job.name
+  policy_arn = aws_iam_policy.wasde_scanned_job.arn
+}
