@@ -253,7 +253,19 @@ def _extract_attrs_from_header(header_lines: list[str]) -> list[str]:
     if not candidate_lines:
         return []
 
-    last_lines = candidate_lines[-3:] if len(candidate_lines) >= 3 else candidate_lines
+    # Use only the LAST TWO candidate header lines -- the atomic sub-column
+    # header. In WASDE Format A the column names always wrap across exactly two
+    # printed rows (e.g. "Beg./Stocks", "Produc-/tion", "Ending/Stocks"), which
+    # are the two finest-grained, colon-ALIGNED lines. Any candidate line above
+    # those is a coarser column-SPANNING grouping header ("Supply"/"Use" or the
+    # "Domestic 2/" banner that spans the Feed+Total sub-columns) whose colon
+    # positions do NOT line up with the atomic columns. Folding such a spanning
+    # line into the per-column accumulator misaligns every column after it --
+    # e.g. "Domestic 2/" lands in the Feed slot and "Ending"'s wrapped "stocks"
+    # lands in the Exports slot, collapsing Feed+Exports into duplicate
+    # domestic_total/ending_stocks attrs that then dedupe away (the legacy
+    # World-table row-loss class). Two lines is the historical, canonical rule.
+    last_lines = candidate_lines[-2:] if len(candidate_lines) >= 2 else candidate_lines
 
     col_tokens: list[list[str]] = []
     for line in last_lines:

@@ -24,6 +24,7 @@ from leviathan.storage.paths import bronze_wasde_key
 from leviathan.transforms.raw_to_bronze.usda_wasde import (
     _colon_inject_data_section,
     _detect_format,
+    _extract_attrs_from_header,
     _inject_scanned_seps,
     _normalise_attr,
     _parse_market_year_and_status,
@@ -596,3 +597,144 @@ def test_merge_word_fragments_never_bridges_real_gaps() -> None:
              _w("nextline", 160.1, 190.0, top=120.0)]                          # x-adjacent, other line
     got = _merge_word_fragments(words)
     assert sorted(w["text"] for w in got) == ["Production", "Stocks", "beginning", "nextline", "year"]
+
+
+# ---------------------------------------------------------------------------
+# REGRESSION: legacy World-table header must NOT fold the column-spanning
+# grouping banner ("Domestic 2/") into the atomic sub-column accumulator.
+#
+# Root cause of the pre-2011 world-table row loss: _extract_attrs_from_header
+# widened from the last TWO header lines to the last THREE, which pulled in the
+# coarser "Region ... Domestic 2/ ... stocks" grouping line whose colon
+# positions do not align with the atomic "Beginning/Produc-" + "stocks/tion/..."
+# sub-header. That misalignment dropped the Feed and Exports columns (they
+# collapsed into duplicate domestic_total / ending_stocks attributes that then
+# deduped away), so a 7-attribute World row silently became 5 real attrs plus a
+# junk col_6. These fixtures are a byte-faithful excerpt of the real
+# 1995-01-12 WASDE .txt (wasde0195.txt), World Wheat Supply and Use.
+# ---------------------------------------------------------------------------
+
+# Exact excerpt (heading -> ===== -> 5 header lines -> ===== -> 1992/93 block)
+# from the real raw file. Leading whitespace is load-bearing (colon columns).
+_WORLD_WHEAT_1995_HEADER_LINES = [
+    "                       :          Supply         :           Use         :",
+    "                       :=========================:=======================:Ending",
+    "         Region        :         :       :       :  Domestic 2/  :       :stocks",
+    "                       :Beginning:Produc-:       :===============:       :",
+    "                       :  stocks : tion  :Imports: Feed : Total  :Exports:",
+]
+
+_WORLD_WHEAT_1995_LEGACY_TXT = "\n".join([
+    "                          World Wheat Supply and Use 1/",
+    "                              (Million Metric Tons)",
+    "================================================================================",
+    *_WORLD_WHEAT_1995_HEADER_LINES,
+    "================================================================================",
+    "                       :",
+    "                       :                       1992/93",
+    "                       :",
+    "World 3/               :   130.34  561.87  122.37 105.87  543.91   123.85 148.30",
+    "United States          :    12.93   67.14    1.91   5.29   30.69    36.84  14.44",
+    "    Argentina          :     0.35    9.80    0.02   0.05    4.27     5.85   0.05",
+    "================================================================================",
+]) + "\n"
+
+# The exact 7 attribute/value pairs the canonical parser emits for the World row.
+_WORLD_WHEAT_1992_93_CANONICAL = [
+    ("beginning_stocks", 130.34),
+    ("production",       561.87),
+    ("imports",         122.37),
+    ("feed",            105.87),
+    ("domestic_total",  543.91),
+    ("exports",         123.85),
+    ("ending_stocks",   148.30),
+]
+
+
+def test_extract_attrs_from_header_spanning_domestic_banner() -> None:
+    """The 5-line World header resolves to the 7 atomic attrs, in order.
+
+    Feed and Exports MUST survive as distinct columns; domestic_total must appear
+    exactly once (the "Domestic 2/" spanning banner must not create a second one).
+    """
+    attrs = _extract_attrs_from_header(_WORLD_WHEAT_1995_HEADER_LINES)
+    assert attrs == [
+        "beginning_stocks", "production", "imports",
+        "feed", "domestic_total", "exports", "ending_stocks",
+    ], attrs
+    assert attrs.count("domestic_total") == 1
+    assert "feed" in attrs and "exports" in attrs
+
+
+def test_parse_wasde_txt_legacy_world_wheat_seven_attrs() -> None:
+    """World Wheat 1992/93 (region=World) parses to the exact 7 canonical pairs.
+
+    Guards the pre-2011 legacy World-table row-loss regression: no dropped Feed /
+    Exports, no junk col_N attribute, no ending_stocks taking the Exports value.
+    """
+    df = parse_wasde_txt(_WORLD_WHEAT_1995_LEGACY_TXT.encode(), "1995-01-12")
+    world = df[
+        (df["table_name"] == "World Wheat Supply and Use")
+        & (df["region"] == "World")
+        & (df["market_year"] == "1992/93")
+    ]
+    pairs = list(zip(world["attribute"], world["value"].round(2)))
+    assert pairs == _WORLD_WHEAT_1992_93_CANONICAL, pairs
+    # No parser-invented column labels leaked through.
+    assert not any(str(a).startswith("col_") for a in world["attribute"])
+
+
+# ---------------------------------------------------------------------------
+# REGRESSION (scanned era): a 1987-style Format A world table must reconstruct
+# to a NON-EMPTY release with clean (non-col_N) attributes and a recognised
+# region -- i.e. the current scanned parser produces silver-survivable rows.
+#
+# Context: the 1987-02-09 / 1988-05-10 bronze on S3 is STALE garbage written
+# 2026-06-01 (before the scanned-reconstruction rework), so their silver drops
+# to empty. Real Textract LINE blocks require a cloud call; this fixture mirrors
+# the 1987 WASDE Format A layout (heading, colon sub-header, year banner, mixed
+# and split colon-free data rows) exactly like the existing 1989 fixture.
+# ---------------------------------------------------------------------------
+
+_TEXTRACT_1987_ERA = [
+    {"BlockType": "LINE", "Page": 1,
+     "Text": "World Wheat Supply and Use 1/ (Million metric tons)",
+     "Geometry": {"BoundingBox": {"Top": 0.050, "Left": 0.10}}},
+    {"BlockType": "LINE", "Page": 1,
+     "Text": ": Stocks : tion : Imports : Feed : Total : Exports :",
+     "Geometry": {"BoundingBox": {"Top": 0.090, "Left": 0.05}}},
+    {"BlockType": "LINE", "Page": 1,
+     "Text": "1986/87 (Est.)",
+     "Geometry": {"BoundingBox": {"Top": 0.110, "Left": 0.05}}},
+    # Mixed row: label + space-delimited values, no colons.
+    {"BlockType": "LINE", "Page": 1,
+     "Text": "World 3/ 111.79 529.02 96.34 328.15 505.34 100.54 135.79",
+     "Geometry": {"BoundingBox": {"Top": 0.125, "Left": 0.05}}},
+    # Split row: label on one block, values on the next (same visual row).
+    {"BlockType": "LINE", "Page": 1,
+     "Text": "United States",
+     "Geometry": {"BoundingBox": {"Top": 0.140, "Left": 0.05}}},
+    {"BlockType": "LINE", "Page": 1,
+     "Text": "41.87 66.99 0.05 20.62 30.53 25.28 38.29",
+     "Geometry": {"BoundingBox": {"Top": 0.1402, "Left": 0.30}}},
+    {"BlockType": "LINE", "Page": 1,
+     "Text": "Argentina 0.39 8.90 0.00 3.90 4.90 4.03 0.36",
+     "Geometry": {"BoundingBox": {"Top": 0.155, "Left": 0.05}}},
+]
+
+
+def test_parse_wasde_pdf_scanned_1987_returns_nonempty_release() -> None:
+    """1987-era scanned reconstruction produces a NON-EMPTY, clean release.
+
+    A silver build drops col_N attrs and unrecognised regions; this asserts the
+    scanned parser yields survivable rows (real region + real attribute), which a
+    forced re-parse of the stale 1987/1988 bronze would restore.
+    """
+    df = parse_wasde_pdf_scanned(_TEXTRACT_1987_ERA, "1987-02-09")
+    assert not df.empty, "1987-era fixture produced ZERO rows"
+    assert "World" in df["region"].values
+    assert (df["market_year"] == "1986/87").any()
+    # At least one recognised balance-sheet attribute must survive (not all col_N).
+    real_attrs = {"beginning_stocks", "production", "imports", "feed",
+                  "domestic_total", "exports", "ending_stocks"}
+    assert real_attrs & set(df["attribute"].unique()), sorted(df["attribute"].unique())
