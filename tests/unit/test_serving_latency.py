@@ -323,7 +323,7 @@ def test_numbers_agent_batch_parallel_preserves_order_and_errors(monkeypatch):
     monkeypatch.setattr(ag, "_forced_spec", lambda asof, inp: ag.Q.NumberQuery(table=inp["table"], metric="m",
                                                                                asof=asof))
     monkeypatch.setattr(ag, "tool_schema", lambda reg: {"name": "lookup", "input_schema": {"type": "object"}})
-    monkeypatch.setattr(ag, "system_prompt", lambda reg: "sys")
+    monkeypatch.setattr(ag, "system_prompt", lambda reg, **kwargs: "sys")   # stub tolerates stats_tool= kwarg
     from types import SimpleNamespace
     fake_reg = SimpleNamespace(get=lambda t: (_ for _ in ()).throw(KeyError(t)))
     t0 = time.perf_counter()

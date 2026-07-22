@@ -637,7 +637,12 @@ CURATION_OVERRIDES: dict = {
     # calibration proper stays OP-8 / AV-11. publication_lag_days is deliberately NOT set here:
     # it is reconciled 1:1 against the numbers TableSpec (F010), so a COT Tue-positions/Fri-release
     # lag (3d) or MPOB ~10th-of-month lag belongs in a numbers-stack change with its own eval gate.
-    "silver_cot": {"freshness_sla": {"cadence": "weekly"}},          # CFTC COT is a weekly release
+    # CFTC COT is a weekly release (Tue positions, Fri publish). max_lag_days=10 is the interim F082
+    # freshness-alarm ceiling (weekly cadence + a few days' slack). It was hand-tweaked directly into the
+    # checked-in card during COT registration, breaking the generated-never-hand-written invariant
+    # (test_checked_in_tree_matches_fresh_render); moved to its reproducible home here so render ==
+    # checked-in. Mirrors the silver_nass_crop_progress max_lag_days curation precedent.
+    "silver_cot": {"freshness_sla": {"cadence": "weekly", "max_lag_days": 10}},
     # ── BF-W3 lane COTTON (user-gated 2026-07-15): OP-8 per-column floor calibration.
     # samples_classed is structurally ABSENT from the AMS national extraction scope before season
     # 2018 (19/27 seasons null; bronze cross-check: the metric row is absent at source for every

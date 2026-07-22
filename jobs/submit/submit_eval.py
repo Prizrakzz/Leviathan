@@ -36,6 +36,71 @@ from leviathan.storage.metadata import utc_now_iso
 
 logger = get_logger("submit_eval")
 
+# Serving flags the eval MUST inherit or its measurement of that dimension is silently VACUOUS. The
+# evidence-build job-def (reused as the eval image) does NOT bake these, but prod serving does, so we
+# default them ON here. GRAPHRAG_REROUTE_V2: the judged-30 submit omitted it, making the rv2 (cross-
+# commodity RV) eval dimension a no-op while prod (serving rev-50 taskdef) has it ON. A user --env
+# override for the same key WINS (so an explicit A/B arm can still turn it off).
+DEFAULT_JOB_ENV = {"GRAPHRAG_REROUTE_V2": "on"}
+
+SERVING_FAMILY = "leviathan-dev-serving"
+
+
+def _is_flag_on(value: str | None) -> bool:
+    """A GRAPHRAG_* env value that reads as ENABLED (on/1/true/yes; anything else is off/unknown)."""
+    return (value or "").strip().lower() in ("on", "1", "true", "yes")
+
+
+def _graphrag_env_from_taskdef(taskdef: dict) -> dict[str, str]:
+    """Pull the GRAPHRAG_* container env out of an ecs describe_task_definition response's taskDefinition."""
+    out: dict[str, str] = {}
+    for cd in taskdef.get("containerDefinitions", []) or []:
+        for kv in cd.get("environment", []) or []:
+            name = kv.get("name", "")
+            if name.startswith("GRAPHRAG_"):
+                out[name] = kv.get("value", "")
+    return out
+
+
+def parity_warnings(serving_env: dict[str, str], job_env: dict[str, str]) -> list[str]:
+    """serving-ON GRAPHRAG_* flags that are ABSENT from the job env being submitted (sorted).
+
+    Pure/testable: no AWS. A serving flag set to an on-value but not present at all in the eval job
+    env means the eval measures that dimension as if OFF -> the report comparison against prod is
+    vacuous for it. We only flag ABSENT keys (not value mismatches): some divergence is legitimate
+    (e.g. session-table / provider env), so the caller WARNs, never hard-fails.
+    """
+    return sorted(
+        k for k, v in serving_env.items()
+        if k.startswith("GRAPHRAG_") and _is_flag_on(v) and k not in job_env
+    )
+
+
+def _fetch_serving_graphrag_env(region: str, family: str = SERVING_FAMILY) -> dict[str, str]:
+    """Latest ACTIVE task definition's GRAPHRAG_* env for `family`. Best-effort: any AWS error -> {}
+    (the parity guard is advisory, so a describe failure must never block a submission)."""
+    try:
+        ecs = boto3.client("ecs", region_name=region)
+        td = ecs.describe_task_definition(taskDefinition=family)["taskDefinition"]
+        return _graphrag_env_from_taskdef(td)
+    except Exception as exc:  # noqa: BLE001 - advisory guard, degrade gracefully
+        logger.warning("serving-parity check skipped: could not describe task def %s (%s)", family, exc)
+        return {}
+
+
+def _emit_parity_warning(region: str, job_env: dict[str, str]) -> None:
+    """Fetch the live serving taskdef and print an ASCII WARNING for any serving-ON GRAPHRAG_* flag
+    absent from the eval job env. Advisory only (never raises, never hard-fails)."""
+    serving_env = _fetch_serving_graphrag_env(region)
+    if not serving_env:
+        return
+    missing = parity_warnings(serving_env, job_env)
+    if missing:
+        logger.warning("SERVING-PARITY WARNING: serving-ON GRAPHRAG_* flags ABSENT from this eval job env: %s",
+                       "; ".join(f"{k}={serving_env[k]}" for k in missing))
+        logger.warning("  -> the eval measures these dimensions as if OFF; add --env <FLAG>=<val> if the "
+                       "comparison against prod should hold. (Some divergence is legitimate.)")
+
 
 def build_command(*, queries: str | None, convos: str | None, model: str, judge: bool,
                   judge_model: str, k: int, workers: int | None = None,
@@ -113,8 +178,10 @@ def main() -> None:
         ],
     }
     env_pairs = [p.split("=", 1) for p in args.env_overrides if "=" in p]
-    if env_pairs:
-        overrides["environment"] = [{"name": k, "value": v} for k, v in env_pairs]
+    # Job env = the DEFAULT serving-parity flags, then the user --env overrides on top (user wins).
+    job_env: dict[str, str] = dict(DEFAULT_JOB_ENV)
+    job_env.update({k: v for k, v in env_pairs})
+    overrides["environment"] = [{"name": k, "value": v} for k, v in job_env.items()]
     stem = Path(args.convos or args.queries).stem
     job_name = f"eval-{stem.replace('_', '-')}-{args.model.replace('.', '-')}"
     for k, v in env_pairs:
@@ -125,6 +192,10 @@ def main() -> None:
     if env_pairs:
         logger.info("env overrides: %s", ", ".join(f"{k}={v}" for k, v in env_pairs))
     logger.info("report will persist to  s3://.../graphrag_evidence/eval/report_%s_%s.md", args.model, stem)
+
+    # Serving-parity guard: WARN (never fail) if any serving-ON GRAPHRAG_* flag is missing from this
+    # job env, so an eval dimension isn't silently measured as OFF vs prod. Runs on dry-run too.
+    _emit_parity_warning(aws_region, job_env)
 
     if args.dry_run:
         logger.info("[DRY RUN] would submit job_name=%s (nothing submitted).", job_name)
