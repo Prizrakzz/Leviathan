@@ -234,10 +234,18 @@ def main() -> None:
     aws_region = args.aws_region or get_required_env("AWS_REGION")
     contract = load_registry().table(_TABLE)
 
+    # Fail fast with a clear message if the dep is absent. ROOT CAUSE of the 2026-06-05 chain stall:
+    # the worker image installs `.[batch]` (docker/leviathan_worker/Dockerfile) but yfinance was
+    # missing from that extra, so every run raised ImportError inside _fetch_bronze and wrote nothing
+    # for 6+ weeks with no freshness alarm to catch it. yfinance>=0.2 is now in pyproject [batch];
+    # a WORKER IMAGE REBUILD is required for this guard to pass in the cloud (local install already OK).
     try:
-        import yfinance  # noqa: F401 -- fail fast with a clear message if the dep is absent
+        import yfinance  # noqa: F401
     except ImportError:
-        logger.error("yfinance not installed -- run: pip install 'yfinance>=0.2'")
+        logger.error(
+            "yfinance not installed -- the worker image predates the pyproject [batch] yfinance pin; "
+            "rebuild the worker image (or locally: pip install 'yfinance>=0.2')"
+        )
         sys.exit(1)
 
     account_id, role_arn = args.account_id, args.role_arn

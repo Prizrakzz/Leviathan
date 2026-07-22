@@ -74,6 +74,18 @@ class TestFreshnessSla:
         # weather mixes daily + monthly members -> tightest (daily=3) wins.
         assert catalog["weather"].max_sla_lag_days == 3
 
+    def test_futures_carries_explicit_weekend_grace_ceiling(self, registry, catalog):
+        # SEAM-C prerequisite: the yfinance futures chain is a MON-FRI 23:00 cron, so the bare
+        # daily cadence default (3d) false-fires over a weekend (a Fri-close write is ~3d old by
+        # Monday). The explicit max_lag_days=5 spans a weekend + one missed weekday while still
+        # tripping a genuine multi-day stall (the class of the 2026-06-05 dark-chain stall).
+        c = registry.table("silver_futures_prices")
+        assert c["freshness_sla"]["max_lag_days"] == 5
+        lag, basis = effective_sla_lag_days(c)
+        assert lag == 5
+        assert basis == "registry.max_lag_days"      # explicit, not the daily cadence default (3)
+        assert catalog["futures"].max_sla_lag_days == 5
+
     def test_every_backfillable_family_has_a_positive_ceiling(self, catalog):
         for f in catalog.values():
             assert f.max_sla_lag_days > 0

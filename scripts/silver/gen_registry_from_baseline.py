@@ -643,6 +643,16 @@ CURATION_OVERRIDES: dict = {
     # (test_checked_in_tree_matches_fresh_render); moved to its reproducible home here so render ==
     # checked-in. Mirrors the silver_nass_crop_progress max_lag_days curation precedent.
     "silver_cot": {"freshness_sla": {"cadence": "weekly", "max_lag_days": 10}},
+    # SEAM-C prerequisite (2026-07-22): the yfinance futures chain runs on a MON-FRI 23:00 cron
+    # (configs/silver/dags/futures_prices.json). The bare daily cadence default (3d, dag_catalog
+    # CADENCE_DEFAULT_LAG_DAYS) false-fires over a normal weekend: a Friday-close write is already
+    # ~3 days old by the Monday-evening run, and any single skipped weekday pushes it past 3. The
+    # market is dark Sat/Sun, so 5d is the sane interim ceiling -- it spans a weekend + one missed
+    # weekday yet still trips on a genuine multi-day stall (the 2026-06-05 stall ran 6+ weeks dark
+    # with NO freshness alarm because max_lag_days was null and no cert emitted). Root-caused to the
+    # worker image never installing yfinance (now in the pyproject [batch] extra); this ceiling is the
+    # detection backstop. Same reproducible-override home as the silver_cot precedent above.
+    "silver_futures_prices": {"freshness_sla": {"cadence": "daily", "max_lag_days": 5}},
     # ── BF-W3 lane COTTON (user-gated 2026-07-15): OP-8 per-column floor calibration.
     # samples_classed is structurally ABSENT from the AMS national extraction scope before season
     # 2018 (19/27 seasons null; bronze cross-check: the metric row is absent at source for every

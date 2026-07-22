@@ -141,7 +141,7 @@ knowledge_semantics: null
 publication_lag_days: null
 freshness_sla:
   cadence: daily
-  max_lag_days: null
+  max_lag_days: 5
 consumers: feature_layer
 numbers_ref: null
 cascade_ref: null
