@@ -862,6 +862,12 @@ data "aws_iam_policy_document" "wasde_scanned_job" {
   }
 
   statement {
+    sid       = "StageTruncatedPdfForTextract"
+    actions   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+    resources = ["${var.bucket_arn}/text/tmp/usda_wasde_bronze/*"]
+  }
+
+  statement {
     sid       = "ListWasdePrefixesOnly"
     actions   = ["s3:ListBucket"]
     resources = [var.bucket_arn]
