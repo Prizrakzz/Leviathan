@@ -39,6 +39,19 @@ class Metric(BaseModel):
     #                                                          on EVERY row (incl. agg-shaped rows, which emit no
     #                                                          extras); build_sql RAISES if it is set and the query
     #                                                          carries no commodity (unattributable blank-unit rows).
+    row_filters: dict[str, dict[str, list[str]]] = {}        # A3 (PRICE_OBSERVABILITY re-whitelist): per-commodity
+    #                                                          row constraints for a metric whose silver rows carry
+    #                                                          ATTRIBUTION BLEED. Shape {commodity: {column: [allowed
+    #                                                          values]}} -> build_sql emits `column IN (...)` and
+    #                                                          apply_pit_filter mirrors it, only when spec.commodity
+    #                                                          has an entry (else byte-identical). If `column` is the
+    #                                                          table's country_col the IN clause REPLACES the plain
+    #                                                          country equality (widening the match -- silver_wasde
+    #                                                          cotton farm price lives under region 'u_s_cotton'
+    #                                                          pre-2011 AND 'united_states' 2011-09-12+); otherwise
+    #                                                          it is an ADDITIONAL restriction (soybeans farm price
+    #                                                          fenced to unit IN ('$/bu','') so the '$/s.t.'/'c/lb'/
+    #                                                          'Domestic Measure' bleed rows never reach serving).
 
 
 class VintageTiebreakTerm(BaseModel):

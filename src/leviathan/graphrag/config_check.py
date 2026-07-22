@@ -27,19 +27,19 @@ _DDL = _REPO / "sql" / "athena" / "ddl"
 # fenced at the metric level, not here.
 PRICE_TABLES = ("silver_pink_sheet",)
 POSITIONING_TABLES = ("silver_cot",)
-# The curated avg_farm_price coverage set. PRICE_OBSERVABILITY W1.2 whitelisted the metric with a PROVISIONAL
-# per-commodity unit_overrides map; R1 now BINDS -- the metric's unit_overrides keys must EQUAL this set exactly
-# (drift either way fails the build). This is the provisional 5-commodity map (corn/rice grain-multiplicity-
-# suspect, sorghum dropped, soy oil/meal presence-conditional, barley/oats/sugar dropped); the W3.0 probe
-# battery resolves it and this set + the tables.yaml map move together.
-_FARM_PRICE_COMMODITIES: frozenset = frozenset({"corn", "wheat", "soybeans", "cotton", "rice"})
-# NONE-tier decline names (R5 census). Every one must own a decline template that passes register_leaks clean --
-# checked once the W2.5 numbers-agent template registry exists (vacuous-pass with a printed note until then).
+# The curated avg_farm_price coverage set. PRICE_OBSERVABILITY A3 re-whitelist (2026-07-22): after the
+# silver_wasde rebuild + promote (canonical CERTIFIED, 373 releases 1995+, pg parity PASS) the probes resolved
+# the provisional set to the 10 commodities with a live, unit-clean farm/market price. R1 BINDS -- the metric's
+# unit_overrides keys must EQUAL this set exactly (drift either way fails the build), so this set + the
+# tables.yaml unit_overrides map move together. (soybean_oil/soybean_meal are Decatur US MARKET prices, carried
+# under the same metric with a market-price desc; cotton spans the u_s_cotton -> united_states region split.)
+_FARM_PRICE_COMMODITIES: frozenset = frozenset({"corn", "wheat", "sorghum", "oats", "barley", "rice",
+                                                "cotton", "soybeans", "soybean_oil", "soybean_meal"})
+# NONE-tier decline names (R5 census). Every one must own a decline template that passes register_leaks clean.
+# A3 (2026-07-22): us_farm_price is REMOVED -- avg_farm_price is re-whitelisted and live, so a US farm-price ask
+# is now SERVED, not declined (its us_farm_price template + _PRICE_DECLINE_PATTERNS entry retired in agent.py).
 _NONE_TIER_DECLINE = ("robusta", "white_sugar", "french_wheat_matif", "french_maize_matif",
-                      "jse_white_maize", "jse_yellow_maize", "rapeseed_meal_zce",
-                      # F1 (W3.6 amendment): the US farm-gate price (avg_farm_price) is fenced out of serving,
-                      # so a bare farm-price ask is a NONE-tier decline too. Owns the us_farm_price template.
-                      "us_farm_price")
+                      "jse_white_maize", "jse_yellow_maize", "rapeseed_meal_zce")
 # R2/R8 detector probes: one banned sentence per term + per class rule (must FLAG), the Lane B windowed probes,
 # and the ag-collision must-NOT-flag battery. Green in W0 by construction -- this tests the detector, not tables.
 _DETECTOR_FLAG = (

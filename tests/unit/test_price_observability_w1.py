@@ -41,38 +41,17 @@ from leviathan.graphrag.register import register_leaks, sanitize
 
 WASDE = "silver_wasde"
 
-# W3.0 PROBE VERDICT (2026-07-21): the physical avg_farm_price series is LABEL-DEAD (every commodity's last
-# release_date is 2011-08-11; it is the only price-like attribute in silver), so the metric is EXCLUDED from
-# the live whitelist per the ratified honesty rule -- serving would present a 2011 vintage as latest-known.
-# The DP-1/DP-2 machinery stays built-and-tested here against the exact live table shape via a synthetic
-# re-injection, ready for the restoration wave (bronze alias extension + re-parse task, 2026-07-21).
-_FARM_METRIC = Metric(
-    desc="US season-average farm price (USDA survey-based; NOT a futures settle); current/future-MY values "
-         "are USDA PROJECTIONS -- attribute them",
-    unit_overrides={"corn": "$/bu", "wheat": "$/bu", "soybeans": "$/bu", "cotton": "c/lb", "rice": "$/cwt"})
-
-
-def _wasde_live() -> TableSpec:
+# A3 RE-WHITELIST (2026-07-22): silver_wasde was rebuilt + promoted (canonical CERTIFIED, 373 releases 1995+,
+# pg parity PASS) and avg_farm_price is LIVE data again -- unwinding the July W3.0 label-dead exclusion. The
+# metric is now in the LIVE registry with the probe-verified 10-commodity unit_overrides + the soybeans-unit /
+# cotton-region row_filters, so the synthetic re-injection fixture is RETIRED: every gate below asserts against
+# the live spec directly.
+def _wasde() -> TableSpec:
+    """The LIVE silver_wasde spec -- avg_farm_price is now whitelisted (no re-injection)."""
     return load_registry().get(WASDE)
 
 
-def _wasde() -> TableSpec:
-    """The LIVE silver_wasde spec CLONED with avg_farm_price re-injected (see the probe-verdict note above)."""
-    live = _wasde_live()
-    return live.model_copy(update={"metrics": {**live.metrics, "avg_farm_price": _FARM_METRIC}})
-
-
-@pytest.fixture()
-def farm_registry(monkeypatch):
-    """Patch load_registry in every consumer module so Q.run / the agent loop resolve the synthetic
-    re-injected spec -- the live registry EXCLUDES the metric and would reject these calls."""
-    import leviathan.graphrag.numbers.registry as R
-    live = R.load_registry()
-    reg = R.NumbersRegistry(tables={**live.tables, WASDE: _wasde()})
-    monkeypatch.setattr(R, "load_registry", lambda path=None: reg)
-    monkeypatch.setattr(Q, "load_registry", lambda path=None: reg)
-    monkeypatch.setattr(A, "load_registry", lambda path=None: reg)
-    return reg
+_wasde_live = _wasde                                          # back-compat alias for the live-spec call sites
 
 
 # -- synthetic avg_farm_price rows shaped to the LIVE silver_wasde spec (tall). estimate is the value_col,
@@ -146,7 +125,7 @@ def test_farm_price_forced_asof_serves_prior_vintage():
     assert [r["estimate"] for r in _pit(rows, "2025-06-30")] == ["4.55"]
 
 
-def test_farm_price_asof_before_any_release_is_not_known(farm_registry):
+def test_farm_price_asof_before_any_release_is_not_known():
     """An asof strictly before the earliest release (2024-04-01) has NO public estimate -> empty
     apply_pit_filter AND the agent's vintage-only not_known status (never a fabricated figure)."""
     rows = _farm_rows()
@@ -173,7 +152,7 @@ def test_farm_price_tiebreak_actual_beats_projection_at_late_asof():
 # ======================================================================================================
 # DP-1 -- unit_overrides post-fetch rewrite (the choke point is Q.run; citations.py stays untouched).
 # ======================================================================================================
-def test_unit_override_rewrites_junk_unit_and_citation_is_correct(farm_registry):
+def test_unit_override_rewrites_junk_unit_and_citation_is_correct():
     """A returned row carrying the junk section-heading unit 'Milled Basis' is REWRITTEN to '$/bu' for
     corn, and the number-citation unit built by citations.from_number is '$/bu' (it reads r['unit'] first,
     which the post-fetch set)."""
@@ -187,7 +166,7 @@ def test_unit_override_rewrites_junk_unit_and_citation_is_correct(farm_registry)
     assert cit.unit in cit.label
 
 
-def test_unit_override_cotton_and_rice_distinct_units(farm_registry):
+def test_unit_override_cotton_and_rice_distinct_units():
     """The map is per-commodity, not a single unit: cotton serves 'c/lb', rice '$/cwt'."""
     for commodity, unit in (("cotton", "c/lb"), ("rice", "$/cwt")):
         spec = Q.NumberQuery(table=WASDE, metric="avg_farm_price", asof="2025-12-31", commodity=commodity,
@@ -196,7 +175,7 @@ def test_unit_override_cotton_and_rice_distinct_units(farm_registry):
         assert out[0]["unit"] == unit
 
 
-def test_unit_override_on_agg_row_still_carries_unit(farm_registry):
+def test_unit_override_on_agg_row_still_carries_unit():
     """An agg-shaped row (SELECT avg(value) AS value -- NO extras, NO unit column) still gets the override:
     a 'mean farm price over 5 MYs' must not cite unitless (S3.F6). The value is untouched."""
     agg = [{"value": "4.60"}]
@@ -206,10 +185,11 @@ def test_unit_override_on_agg_row_still_carries_unit(farm_registry):
     assert out[0]["unit"] == "$/bu" and out[0]["value"] == "4.60"
 
 
-def test_unit_override_blank_fallback_when_commodity_off_map(farm_registry):
-    """An off-map commodity (sorghum -- multiplicity-suspect, not in the coverage set) serves BLANK ''
-    (blank-on-unresolvable beats serving the junk section-heading unit), never a wrong unit."""
-    spec = Q.NumberQuery(table=WASDE, metric="avg_farm_price", asof="2025-12-31", commodity="sorghum",
+def test_unit_override_blank_fallback_when_commodity_off_map():
+    """An off-map commodity (sugar -- NOT in the 10-commodity coverage set) serves BLANK '' (blank-on-
+    unresolvable beats serving the junk section-heading unit), never a wrong unit."""
+    assert "sugar" not in _wasde().metrics["avg_farm_price"].unit_overrides
+    spec = Q.NumberQuery(table=WASDE, metric="avg_farm_price", asof="2025-12-31", commodity="sugar",
                          country="united_states", period="2024/25")
     out = Q.run(spec, query_fn=lambda sql: [{"value": "3.9", "unit": "Milled Basis"}])
     assert out[0]["unit"] == ""
@@ -257,18 +237,21 @@ def test_revision_stamp_in_sql_and_row_and_citation():
 # REGISTER CLEANLINESS -- every NEW reader-facing prose sentence passes register_leaks.
 # ======================================================================================================
 def test_new_metric_desc_is_register_clean():
-    desc = _FARM_METRIC.desc
+    """The LIVE avg_farm_price desc (the A3 serving desc, carrying the market-price / projection caveats)
+    passes register_leaks and states the USDA-projection + not-a-settle attribution."""
+    desc = _wasde().metrics["avg_farm_price"].desc
     assert register_leaks(desc) == []
     assert "PROJECTION" in desc.upper() and "NOT a futures settle" in desc
+    assert "Decatur" in desc and "NOT farm-gate" in desc     # soy oil/meal market-price caveat carried
 
 
 def test_new_agent_bullets_are_register_clean():
-    """The two new Conventions bullets (farm-price data semantics + the price/premium/spread REGISTER
-    bullet) are register-clean -- the REGISTER bullet is worded to forbid the convergence/valuation
-    vocabulary WITHOUT tripping the fence detector on itself (no futurity modal beside the spread verb)."""
+    """The two farm-price Conventions bullets (the A3 SERVING semantics bullet + the price/premium/spread
+    REGISTER bullet) are register-clean -- the REGISTER bullet forbids the convergence/valuation vocabulary
+    WITHOUT tripping the fence detector on itself, and the serving bullet names the market-price caveat."""
     from leviathan.graphrag.numbers.agent import system_prompt
     sp = system_prompt(load_registry())
-    for marker in ("NO governed US farm-gate price series is live",
+    for marker in ("The USDA WASDE season-average farm price is LIVE",
                    "State prices, premiums, discounts, and spreads as an observed level"):
         assert marker in sp, f"bullet missing: {marker}"
         seg = sp[sp.find(marker):sp.find(marker) + 400]
@@ -308,24 +291,89 @@ def test_reconcile_gate_covers_silver_wasde():
     assert "silver_wasde" in reconcile.NUMBERS_TABLES
 
 
-def test_avg_farm_price_excluded_from_live_whitelist():
-    """W3.0 PROBE VERDICT PIN: the live registry does NOT whitelist avg_farm_price (label-dead series;
-    serving would present the 2011-08-11 vintage as latest-known). A restoration re-whitelist must come
-    with the bronze alias extension + fresh probes -- this pin makes a premature re-add loud."""
+def test_avg_farm_price_whitelisted_in_live_registry():
+    """A3 RE-WHITELIST PIN (inverts the July W3.0 exclusion pin): the live registry now WHITELISTS
+    avg_farm_price (silver_wasde rebuilt + promoted), the R1/R3 price-register lint BINDS non-vacuously and
+    PASSES, and the curated coverage set is the probe-verified 10 commodities the unit_overrides map carries."""
     from leviathan.graphrag import config_check as CCK
-    assert "avg_farm_price" not in _wasde_live().metrics
-    assert CCK.check_price_register() == []                   # R1/R3 vacuous-by-exclusion, R2/R8/R4/R5 green
-    # the curated set constant stays staged for the restoration wave
-    assert CCK._FARM_PRICE_COMMODITIES == {"corn", "wheat", "soybeans", "cotton", "rice"}
+    m = _wasde_live().metrics.get("avg_farm_price")
+    assert m is not None                                       # live now (was excluded pre-restoration)
+    assert CCK.check_price_register() == []                    # R1/R3 non-vacuous + green; R2/R8/R4/R5 green
+    assert set(m.unit_overrides) == CCK._FARM_PRICE_COMMODITIES
+    assert CCK._FARM_PRICE_COMMODITIES == {"corn", "wheat", "sorghum", "oats", "barley", "rice",
+                                           "cotton", "soybeans", "soybean_oil", "soybean_meal"}
 
 
-def test_config_check_r1_fails_on_coverage_drift(farm_registry, monkeypatch):
-    """R1 is a real gate: with the metric (synthetically) whitelisted, unit_overrides keys drifting from
-    the curated set FAIL the lint -- proven by narrowing the curated set under the check."""
+def test_config_check_r1_fails_on_coverage_drift(monkeypatch):
+    """R1 is a real gate: with the metric whitelisted (live), unit_overrides keys drifting from the curated
+    set FAIL the lint -- proven by narrowing the curated set under the check."""
     from leviathan.graphrag import config_check as CCK
     monkeypatch.setattr(CCK, "_FARM_PRICE_COMMODITIES", frozenset({"corn", "wheat"}))
     errs = CCK.check_price_register()
     assert any("avg_farm_price" in e and "curated coverage" in e for e in errs)
+
+
+# ======================================================================================================
+# A3 -- row_filters (soybeans attribution bleed + cotton region split) and the farm-price serving flip.
+# ======================================================================================================
+def test_soybeans_row_filter_fences_non_bu_units_sql_and_oracle():
+    """The soybeans attribution bleed ('$/s.t.' meal-like, 'Domestic Measure' junk, 'c/lb' oil-like rows on
+    the soybeans commodity) is fenced to unit IN ('$/bu','') in BOTH the SQL and the PIT oracle, while the
+    US-region scope is still emitted. corn (no row_filter) stays byte-identical."""
+    ts = _wasde()
+    soy = Q.NumberQuery(table=WASDE, metric="avg_farm_price", asof="2026-07-21", commodity="soybeans",
+                        country="united_states", period="2024/25")
+    sql = Q.build_sql(soy, ts)
+    assert "unit IN ('$/bu', '')" in sql                       # the bleed fence
+    assert "region = 'united_states'" in sql                   # US scope preserved (unit is an EXTRA restriction)
+    base = dict(commodity="soybeans", table_type="balance_sheet", region="united_states",
+                marketing_year="2024/25", attribute="avg_farm_price", release_date="2025-05-09",
+                estimate_role="actual", projection_month="", source_table_id="s")
+    rows = [{**base, "unit": "$/bu", "estimate": "10.55", "source_table_id": "bean"},
+            {**base, "unit": "$/s.t.", "estimate": "392", "source_table_id": "meal"},
+            {**base, "unit": "Domestic Measure", "estimate": "5.86", "source_table_id": "junk"},
+            {**base, "unit": "c/lb", "estimate": "0.42", "source_table_id": "oil"}]
+    kept = Q.apply_pit_filter(rows, soy, ts)
+    assert [r["estimate"] for r in kept] == ["10.55"]          # only the true bean price survives
+    corn_sql = Q.build_sql(Q.NumberQuery(table=WASDE, metric="avg_farm_price", asof="2026-07-21",
+                                         commodity="corn", country="united_states", period="2024/25"), ts)
+    assert " IN (" not in corn_sql and "region = 'united_states'" in corn_sql   # corn byte-identical
+
+
+def test_cotton_region_split_resolves_pre2011_and_modern_asks():
+    """The cotton region SPLIT (region 'u_s_cotton' pre-2011, 'united_states' 2011-09-12+) is spanned by a
+    region IN (...) clause that REPLACES the plain region equality, so BOTH a 2005 ask and a 2024 ask resolve
+    the right era's row -- the vintage guard picks each by its own release."""
+    ts = _wasde()
+    sql = Q.build_sql(Q.NumberQuery(table=WASDE, metric="avg_farm_price", asof="2026-07-21", commodity="cotton",
+                                    country="united_states", period="2024/25"), ts)
+    assert "region IN ('u_s_cotton', 'united_states')" in sql
+    assert "region = 'united_states'" not in sql               # the plain equality is REPLACED, not ANDed
+    rows = [dict(commodity="cotton", table_type="balance_sheet", region="u_s_cotton", marketing_year="2004/05",
+                 attribute="avg_farm_price", unit="Million 480 Pound Bales", estimate="41.6",
+                 release_date="2005-05-10", estimate_role="actual", projection_month="", source_table_id="a"),
+            dict(commodity="cotton", table_type="balance_sheet", region="united_states", marketing_year="2024/25",
+                 attribute="avg_farm_price", unit="Million 480 Pound Bales", estimate="68.09",
+                 release_date="2025-05-09", estimate_role="actual", projection_month="", source_table_id="b")]
+    ask2005 = Q.NumberQuery(table=WASDE, metric="avg_farm_price", asof="2005-12-31", commodity="cotton",
+                            country="united_states", period="2004/05")
+    ask2024 = Q.NumberQuery(table=WASDE, metric="avg_farm_price", asof="2025-12-31", commodity="cotton",
+                            country="united_states", period="2024/25")
+    kept05 = Q.apply_pit_filter(rows, ask2005, ts)
+    kept24 = Q.apply_pit_filter(rows, ask2024, ts)
+    assert [(r["region"], r["estimate"]) for r in kept05] == [("u_s_cotton", "41.6")]
+    assert [(r["region"], r["estimate"]) for r in kept24] == [("united_states", "68.09")]
+    # the displayed unit is the c/lb override on BOTH eras (the bled 'Million 480 Pound Bales' label never ships)
+    out = Q.run(ask2024, query_fn=lambda sql: [{"value": "68.09", "unit": "Million 480 Pound Bales"}])
+    assert out[0]["unit"] == "c/lb"
+
+
+def test_price_coverage_scope_none_for_farm_price_post_restore():
+    """A3: the us_farm_price decline pattern is retired -- a bare US farm-price ask no longer force-declines
+    (price_coverage_scope returns None), so it routes to the now-live avg_farm_price lookup instead."""
+    assert A.price_coverage_scope("what is the US corn farm price") is None
+    assert A.price_coverage_scope("US soybean farm-gate price today") is None
+    assert "us_farm_price" not in A.DECLINE_TEMPLATES
 
 
 # ======================================================================================================

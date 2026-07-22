@@ -289,12 +289,11 @@ DECLINE_TEMPLATES: dict[str, str] = {
     "french_wheat_matif": ("no MATIF (EU milling) wheat series is in our governed price columns; the US hard- "
                            "and soft-red-winter wheat benchmarks we carry are a different origin, separated by "
                            "currency, freight and milling-quality basis"),
-    # F3 (PRICE_OBSERVABILITY W3.6 amendment): these three no longer name "the US survey-based farm price" as
-    # the nearest governed proxy -- that series (avg_farm_price) was EXCLUDED from serving by the W3.0 probe
-    # gate (tables.yaml:99-105), so pointing readers at it shipped a caveat naming a series that is not live.
-    # They now decline WITHOUT a dead proxy; the farm-price ask itself declines via us_farm_price below. The
-    # config_check R5b census (_check_decline_no_dead_metric) fails if any of these re-acquires a farm-price
-    # reference while avg_farm_price stays unwhitelisted.
+    # These three decline a specific EXCHANGE/origin maize series with no governed column. They intentionally do
+    # NOT redirect to the (now A3-restored) US WASDE farm price: a MATIF/JSE origin is separated from the US
+    # farm-gate figure by currency, freight and quality basis, so naming it as the "nearest proxy" would still
+    # mislead. (The config_check R5b census _check_decline_no_dead_metric no longer applies once avg_farm_price
+    # is whitelisted; leaving these origin-honest keeps the decline register-clean either way.)
     "french_maize_matif": ("no MATIF (EU) maize series is in our governed price columns, and there is no world "
                            "maize price benchmark in the governed set at all -- no governed maize price proxy is "
                            "available here"),
@@ -305,15 +304,9 @@ DECLINE_TEMPLATES: dict[str, str] = {
     "rapeseed_meal_zce": ("no rapeseed-meal series is in our governed price columns; we carry rapeseed OIL and "
                           "soybean meal, but neither is a rapeseed-meal price -- the oil-versus-meal split and "
                           "the rape-versus-soy protein basis separate them"),
-    # F1 (PRICE_OBSERVABILITY W3.6 amendment): the WASDE US survey-based farm price (avg_farm_price) is
-    # label-dead after its 2011 vintage and EXCLUDED from serving (tables.yaml:99-105). A bare US farm-price
-    # ask therefore has NO governed answer and must DECLINE deterministically -- this is the honesty row's
-    # teeth (numbers_mismatched is vacuous when the agent looks up zero rows, so the decline guard, not the
-    # verifier, enforces "state the governed series is not live"). No world benchmark may pose as a farm price.
-    "us_farm_price": ("no governed US farm-gate price series is live right now: the survey-based farm price we "
-                      "used to carry went label-dead after its 2011 vintage (a source-label change; restoration "
-                      "is pending), so I cannot give you a current farm-gate figure, and a world benchmark is a "
-                      "different basis, not a farm-gate price"),
+    # A3 (2026-07-22): the us_farm_price template is RETIRED. The WASDE US season-average farm price
+    # (avg_farm_price) is re-whitelisted and live (silver_wasde rebuilt + promoted), so a US farm-price ask is
+    # now SERVED through the numbers lookup, not declined. Its _PRICE_DECLINE_PATTERNS entry is retired too.
 }
 
 # Conservative price-INTENT vocabulary (F2): each token must be a genuine VALUATION signal, not a generic
@@ -351,11 +344,10 @@ _PRICE_DECLINE_PATTERNS: list[tuple[str, "re.Pattern[str]"]] = [
     ("white_sugar", re.compile(r"\b(?:white|refined)\s+sugar\b|\blondon\s+(?:no\.?\s*5\s+)?sugar\b")),
     ("rapeseed_meal_zce", re.compile(r"\brape(?:seed)?\s*meal\b|\bcanola\s+meal\b")),
     ("robusta", re.compile(r"\brobusta\b")),
-    # F1: a US farm-gate price ask (no exchange/origin qualifier). avg_farm_price is fenced out of serving, so
-    # every farm-price ask now declines. Checked LAST so an exchange-qualified maize/wheat farm-price mention
-    # (e.g. a JSE/MATIF ask that also says "farm") still resolves to its exchange decline first. No governed
-    # series is a "farm price", so this can never shadow a covered pink_sheet ask.
-    ("us_farm_price", re.compile(r"\bfarm[ -]?gate\b|\bfarm\s+price\b")),
+    # A3 (2026-07-22): the ("us_farm_price", farm-gate/farm-price regex) entry is RETIRED. avg_farm_price is
+    # re-whitelisted and live, so a US farm-price ask is SERVED by the numbers lookup -- price_coverage_scope
+    # must return None for it (a match here would keep force-declining a now-live series, independent of the
+    # registry). No governed pink_sheet series is a "farm price", so nothing else is shadowed by the removal.
 ]
 
 
@@ -582,11 +574,14 @@ def system_prompt(reg: NumbersRegistry, stats_tool: Optional[bool] = None) -> st
         "`country` selects the reporting scope (total | commercial | developing), so pass country='total' for "
         "the national headline estimate. For an explicitly South-African maize ask, prefer silver_sagis_cec "
         "(the SA national statutory authority) over silver_psd's USDA South-Africa corn estimate.\n"
-        "- NO governed US farm-gate price series is live: the WASDE avg_farm_price series is label-dead after "
-        "its 2011-08-11 release (source label change; restoration pending), so it is NOT queryable. If asked "
-        "for a US farm price, say plainly that the governed series is not yet restored -- NEVER improvise one "
-        "from memory, and never present a world benchmark as a farm-gate price without naming the basis "
-        "difference.\n"
+        "- The USDA WASDE season-average farm price is LIVE as silver_wasde.avg_farm_price: pass the base "
+        "commodity (corn, wheat, sorghum, oats, barley, rice, cotton, soybeans) with country='united_states' "
+        "and the marketing year as period '2023/24'. Units are per-commodity (corn/wheat/sorghum/oats/barley "
+        "$/bu, rice $/cwt, cotton c/lb, soybeans $/bu) and returned on each row. soybean_oil (c/lb) and "
+        "soybean_meal ($/s.t.) are US MARKET prices quoted at Decatur, NOT farm-gate -- say so when you cite "
+        "them. Current- and future-MY values are USDA PROJECTIONS: attribute them by revision_stamp (actual / "
+        "estimate / projection), never as our own forecast, and never present a world benchmark as a farm-gate "
+        "price.\n"
         "- silver_pink_sheet is the World Bank Pink Sheet of MONTHLY WORLD BENCHMARK price averages in US "
         "dollars: it has NO commodity/country arguments -- the METRIC NAME IS the series (e.g. "
         "palm_oil_cpo_usd_t, soybean_oil_usd_t, urea_usd_mt, brent_crude_usd_bbl). State the month + unit + "

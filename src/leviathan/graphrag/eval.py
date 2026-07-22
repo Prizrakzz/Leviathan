@@ -208,12 +208,12 @@ def _cascade_asserts(q: dict, out: dict) -> dict | None:
             # W3.6: PRICE-TABLE level discipline -- clone of the su_prescaled model (:192) but filtering on
             # locator.table (the price lanes) instead of a metric name. price_cited = at least one kind=number
             # citation resolves through a price table; unit_present = every such price citation carries a
-            # non-empty unit (the USD/mt discipline). The honesty row deliberately pins NEITHER (avg_farm_price
-            # is label-dead / excluded from serving, so no wasde price can or should be cited).
-            # F4: the filter is silver_pink_sheet ONLY -- the amendment forbids ANY wasde price citation while
-            # avg_farm_price is fenced out of serving, so a wasde price number must NOT be able to satisfy
-            # price_cited. Re-add silver_wasde here only when the restoration wave re-whitelists avg_farm_price.
-            pc = [c for c in cits if (c.get("locator") or {}).get("table") == "silver_pink_sheet"]
+            # non-empty unit (the USD/mt discipline).
+            # A3 (2026-07-22): silver_wasde is BACK in the filter set -- the restoration wave re-whitelisted
+            # avg_farm_price (silver_wasde rebuilt + promoted), so a WASDE farm-price citation (carrying a
+            # per-commodity unit_override: $/bu, c/lb, $/cwt, $/s.t.) now legitimately satisfies price_cited /
+            # unit_present, and the corn honesty row is a SERVED price row (not a decline).
+            pc = [c for c in cits if (c.get("locator") or {}).get("table") in ("silver_pink_sheet", "silver_wasde")]
             if k == "price_cited":
                 res[k] = bool(pc) == bool(want)
             else:                                                     # unit_present

@@ -148,6 +148,21 @@ def _commodity_code_filter(spec: NumberQuery, ts: TableSpec) -> list[str]:
     return []
 
 
+def _metric_commodity_filters(spec: NumberQuery, ts: TableSpec) -> dict[str, list[str]]:
+    """A3 (PRICE_OBSERVABILITY re-whitelist): per-commodity ROW constraints declared on the queried metric
+    (``Metric.row_filters``) as ``{column: [allowed values]}`` -- emitted as ``column IN (...)`` by build_sql
+    and mirrored by apply_pit_filter. EMPTY unless ``spec.commodity`` has an entry, so every other lookup is
+    byte-identical. silver_wasde.avg_farm_price uses it to (a) fence the soybeans attribution bleed to
+    ``unit IN ('$/bu','')`` and (b) span the cotton region split ``region IN ('u_s_cotton','united_states')``;
+    an IN clause on the table's country_col REPLACES the plain country equality (a WIDENING, not a narrowing --
+    see _filters)."""
+    m = ts.metrics.get(spec.metric)
+    rf = getattr(m, "row_filters", None) if m else None
+    if not rf or not spec.commodity:
+        return {}
+    return {col: list(vals) for col, vals in (rf.get(spec.commodity) or {}).items()}
+
+
 def _value_expr(spec: NumberQuery, ts: TableSpec) -> str:
     return spec.metric if ts.shape == "wide" else (ts.value_col or "value")
 
@@ -246,9 +261,13 @@ def _filters(spec: NumberQuery, ts: TableSpec) -> list[str]:
     """The identity/scope predicates (NOT the as-of guard)."""
     w: list[str] = list(_partition_filters(spec, ts)) if ts.partition_cols else []
     w += _vintage_partition_bounds(spec, ts) + _commodity_code_filter(spec, ts)
+    cf = _metric_commodity_filters(spec, ts)                 # A3 per-commodity row constraints (metric.row_filters)
     if spec.commodity and ts.commodity_col:
         w.append(f"{ts.commodity_col} = {_q(spec.commodity)}")
-    if spec.country and ts.country_col and ts.country_col not in ts.partition_cols:
+    for col, vals in cf.items():                             # emit `col IN (...)`; a country_col IN clause
+        if vals:                                             # REPLACES the plain equality below (widening the
+            w.append(f"{col} IN ({', '.join(_q(v) for v in vals)})")  # match across e.g. the cotton region split)
+    if spec.country and ts.country_col and ts.country_col not in ts.partition_cols and ts.country_col not in cf:
         w.append(f"{ts.country_col} = {_q(spec.country)}")
     if ts.shape == "tall" and ts.metric_col:
         w.append(f"{ts.metric_col} = {_q(spec.metric)}")
@@ -532,6 +551,8 @@ def apply_pit_filter(rows: list[dict], spec: NumberQuery, ts: TableSpec) -> list
         guard_asof = _fmt_pdate(guard_asof, ts.vintage_partition_format)
     part_country = (_resolved_country(spec, ts)                          # country-PARTITION identity resolved the
                     if ts.country_col and ts.country_col in ts.partition_cols else None)  # SAME way as build_sql
+    cf = _metric_commodity_filters(spec, ts)                             # A3 per-commodity row constraints (mirror
+    cf_sets = {col: {str(v) for v in vals} for col, vals in cf.items()}  # of build_sql's `col IN (...)` emit)
 
     def keep(r: dict) -> bool:
         if "region" in ts.partition_cols:
@@ -543,8 +564,16 @@ def apply_pit_filter(rows: list[dict], spec: NumberQuery, ts: TableSpec) -> list
         if ts.country_col and ts.country_col in ts.partition_cols:       # country is a partition: compare the
             if part_country and str(r.get(ts.country_col)) != str(part_country):   # RESOLVED value (D-W0.1 lockstep)
                 return False
+        elif ts.country_col and ts.country_col in cf_sets:               # A3: a row_filter on the country_col
+            if str(r.get(ts.country_col)) not in cf_sets[ts.country_col]:  # WIDENS the match (cotton region split)
+                return False
         elif spec.country and ts.country_col and str(r.get(ts.country_col)) != str(spec.country):
             return False
+        for col, allowed in cf_sets.items():                            # A3: non-country row_filters are ADDITIONAL
+            if col == ts.country_col:                                   # restrictions (soybeans unit bleed fence)
+                continue
+            if str(r.get(col)) not in allowed:
+                return False
         if ts.shape == "tall" and ts.metric_col and str(r.get(ts.metric_col)) != str(spec.metric):
             return False
         if spec.period and ts.period_col:
