@@ -196,6 +196,18 @@ physical_columns:
   parquet_physical_type: null
   target_arrow_type: string
   nullable: true
+- name: value_low
+  glue_type: null
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: float64
+  nullable: true
+- name: value_high
+  glue_type: null
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: float64
+  nullable: true
 writer_schema_pinned: false
 drift_summary:
 - column: prior_release_date

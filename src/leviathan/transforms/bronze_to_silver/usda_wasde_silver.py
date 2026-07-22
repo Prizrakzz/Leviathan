@@ -196,6 +196,12 @@ ADDITIVE_COLUMNS: tuple[str, ...] = (
     "source_table_id", "estimate_role", "projection_month", "is_current_release_estimate",
     "release_sequence", "revision_gap_days", "is_projection", "is_source_final",
     "marketing_year_end_date",
+    # WASDE-restoration W2 (2026-07-22): USDA range-era prices print "LOW - HIGH" (e.g. an
+    # avg_farm_price band). The restoration bronze parser stores the MIDPOINT in `estimate` and the
+    # printed bounds here; both are float64 and NULL for a point value. SPARSE by design (only the few
+    # range-priced attributes/eras carry them) -> they are NOT value_columns (the census floor never
+    # applies) and are declared hidden-schema in the registry until a gated catalog migration.
+    "value_low", "value_high",
 )
 
 SILVER_COLUMNS: tuple[str, ...] = LEGACY_COLUMNS + ADDITIVE_COLUMNS
@@ -903,6 +909,10 @@ def _stage_one(br: dict, *, source: str):
         "raw_status": status or None,
         "raw_projection_month": _blank_to_none(br.get("projection_month")),
         "source": source,
+        # WASDE-restoration W2 additive: range-era ("LOW - HIGH") price bounds. `estimate` already
+        # carries the midpoint (bronze `value`); these are the printed bounds, NULL for a point value.
+        "value_low": _to_float(br.get("value_low")),
+        "value_high": _to_float(br.get("value_high")),
         # F036 additive
         "source_table_id": source_table_id(table_name),
         "estimate_role": role,

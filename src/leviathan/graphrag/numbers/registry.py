@@ -46,15 +46,30 @@ class VintageTiebreakTerm(BaseModel):
     per-grain pick is a DETERMINISTIC TOTAL order — identical on Athena and the pg mirror by construction.
 
     A term with a non-empty ``role_order`` emits a CASE rank (the value listed FIRST ranks 0 == wins the tie —
-    e.g. actual < estimate < projection makes the most-settled figure win); otherwise it is a plain
-    ``col dir [NULLS first|last]`` term. Directions AND null placement are emitted EXPLICITLY because Presto
-    (Athena) and Postgres disagree on the DEFAULT null placement for DESC — a bare DESC on a nullable column
-    would order differently on the two engines and reopen the parity break."""
+    e.g. actual < estimate < projection makes the most-settled figure win); a term with ``match_release_month``
+    set emits a RELEASE-RELATIVE rank (rank 0 == wins when ``col`` equals the full English month name of that
+    date column's month — silver_wasde's current-vs-prior projection-month pair, where the CURRENT projection
+    == the RELEASE month and a static month order is WRONG at the Dec→Jan wrap, probed present); otherwise it
+    is a plain ``col dir [NULLS first|last]`` term. Directions AND null placement are emitted EXPLICITLY
+    because Presto (Athena) and Postgres disagree on the DEFAULT null placement for DESC — a bare DESC on a
+    nullable column would order differently on the two engines and reopen the parity break.
+
+    THE ORACLE-DIR CONTRACT: ``dir`` is honored SYMMETRICALLY in the SQL emitter (_vintage_tiebreak_order)
+    AND the pure-Python oracle (_vintage_cmp) for BOTH the plain and the role_order branch — a role_order term
+    with ``dir: desc`` would otherwise emit a descending CASE rank in SQL while the oracle ranked ascending
+    (a silent divergence). The release-relative term carries no ``dir`` at all (default ASC, rank 0 wins), so
+    both engines agree by construction."""
     model_config = ConfigDict(extra="forbid")
     col: str
     dir: Literal["asc", "desc"] = "asc"
     nulls: Optional[Literal["first", "last"]] = None
     role_order: list[str] = []                               # non-empty -> emit a CASE rank (priority order)
+    match_release_month: Optional[str] = None                # names a release-date column: rank 0 (wins) when
+    #                                                          `col` == full-month-name of that column's month.
+    #                                                          silver_wasde's chronological current-month pick;
+    #                                                          release-relative (correct at the Dec/Jan wrap,
+    #                                                          which a static winner-first list gets wrong).
+    #                                                          Default ASC, no `dir` -> both engines agree.
 
 
 class TableSpec(BaseModel):

@@ -330,3 +330,48 @@ def test_to_arrow_table_casts_rows_to_the_contract():
     assert table.column("estimate").to_pylist() == [7.5]
     assert table.column("estimate_role").to_pylist() == ["projection"]
     assert table.num_rows == 1
+
+
+# ---------------------------------------------------------------------------
+# WASDE-restoration W2 -- range-era price-band columns (value_low / value_high).
+# ---------------------------------------------------------------------------
+def _bronze_band(region, attribute, market_year, *, value, value_low=None, value_high=None,
+                 status="Proj.", table_name="U.S. Wheat Supply and Use (Million Metric Tons)",
+                 release_date="2024-06-12"):
+    return dict(release_date=release_date, table_name=table_name, region=region,
+                market_year=market_year, status=status, projection_month="", attribute=attribute,
+                value=value, unit="dollars per bushel", value_low=value_low, value_high=value_high)
+
+
+def test_stage_one_threads_value_low_high_range_and_null_for_point():
+    # A range-era price ("7.00 - 8.20" -> midpoint 7.60, bounds kept) AND a plain point value in ONE
+    # release. The producer carries value_low/value_high additively: populated for the range row, NULL
+    # for the point row (estimate always carries the midpoint / the point value).
+    rows = [
+        _bronze_band("United States", "Avg. Farm Price", "2024/25", value=7.60,
+                     value_low=7.00, value_high=8.20),
+        _bronze_band("United States", "Ending Stocks", "2024/25", value=540.0),   # point -> null band
+    ]
+    res = W.build_silver_frame(rows)
+    by = {r["attribute"]: r for r in res.rows}
+    assert by["avg_farm_price"]["value_low"] == 7.00 and by["avg_farm_price"]["value_high"] == 8.20
+    assert by["avg_farm_price"]["estimate"] == 7.60                       # midpoint stays in estimate
+    assert by["ending_stocks"]["value_low"] is None and by["ending_stocks"]["value_high"] is None
+    # both columns are declared on every finalized row (additive, order-stable).
+    assert "value_low" in res.rows[0] and "value_high" in res.rows[0]
+
+
+def test_value_low_high_in_arrow_writer_schema_float64():
+    import pyarrow as pa
+
+    contract = load_registry().table("silver_wasde")
+    schema = W.arrow_schema_from_contract(contract)
+    by = {f.name: f.type for f in schema}
+    # hidden-schema in the CATALOG, but the WRITER schema (keyed on target_arrow_type) DOES carry them
+    # as float64 -> the F034 producer physically emits the price bands into the parquet.
+    assert by["value_low"] == pa.float64() and by["value_high"] == pa.float64()
+    res = W.build_silver_frame([_bronze_band("United States", "Avg. Farm Price", "2024/25",
+                                             value=7.6, value_low=7.0, value_high=8.2)])
+    table = W.to_arrow_table(res.rows, contract)
+    assert table.column("value_low").to_pylist() == [7.0]
+    assert table.column("value_high").to_pylist() == [8.2]

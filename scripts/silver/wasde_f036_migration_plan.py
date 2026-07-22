@@ -52,6 +52,16 @@ RAW_SNAPSHOT = (_REPO / "reports" / "silver_readiness" / "20260712_p65impl"
 _ARROW_TO_GLUE = {"string": "string", "bool": "boolean", "int64": "bigint", "float64": "double",
                   "date32[day]": "date"}
 
+# The 9 F036 governed additive columns THIS migration registers. Scoping the promotion to exactly this
+# set keeps the plan about the F036 change alone: a LATER hidden-schema additive column (the
+# WASDE-restoration W2 value_low/value_high price-band pair) is a SEPARATE gated migration and must NOT
+# be swept into the F036 target (which would inflate the added-column set + the 29-column catalog count).
+_F036_ADDITIVE = frozenset({
+    "source_table_id", "estimate_role", "projection_month", "is_current_release_estimate",
+    "release_sequence", "revision_gap_days", "is_projection", "is_source_final",
+    "marketing_year_end_date",
+})
+
 
 class _FrozenGlue:
     """A read-only glue client returning the R0 live snapshot (plan mode never mutates)."""
@@ -83,7 +93,7 @@ def build_target_contract(contract: dict) -> dict:
     for col in target["physical_columns"]:
         if col["name"] == "months_to_marketing_year_end":
             col["glue_type"] = "bigint"          # C-WRONG-6 int64 correction (matches physical int64)
-        if col.get("glue_type") is None:         # a hidden-schema additive column -> register it
+        if col.get("glue_type") is None and col["name"] in _F036_ADDITIVE:   # register the F036 set only
             col["glue_type"] = _ARROW_TO_GLUE.get(col.get("target_arrow_type", "string"), "string")
             col["arrow_type"] = col["target_arrow_type"]
     # the migration resolves the recorded drift.

@@ -202,6 +202,64 @@ def test_461_partition_set_reconciles_without_mutation(contract):
 # ---------------------------------------------------------------------------
 # F034 -- releases thread chronologically; older replay recomputes only its own series.
 # ---------------------------------------------------------------------------
+def test_value_low_high_are_sparse_and_exempt_from_the_nonnull_floor(contract):
+    """WASDE-restoration W2 publisher-tolerance: the range-era price-band columns (value_low/value_high)
+    are SPARSE by design -- null for every point value, populated only on the few range-priced rows. A
+    full-history-shaped frame is therefore MOSTLY NULL in these columns. They must NOT be value_columns,
+    so the SILVER-V001 non-null floor (~0.5) never applies and the census PASSES. The test proves the
+    exemption is load-bearing: if value_low WERE a value_column the same frame would hard-fail the floor.
+    """
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    from leviathan.silver.value_census import (KIND_NONNULL_BELOW_FLOOR, build_table_result,
+                                               census_column, evaluate_gate, file_column_stat)
+
+    # (1) the registry declares estimate as the ONLY value_column; value_low/value_high are hidden-schema
+    #     physical-only columns (never value_columns), so the floor cannot reach them.
+    assert contract["value_columns"] == ["estimate"]
+    assert "value_low" not in contract["value_columns"] and "value_high" not in contract["value_columns"]
+
+    # (2) a full-history-shaped frame: estimate well-populated; value_low/value_high mostly NULL (only a
+    #     handful of range-priced rows carry a band); release_date carries >= 2 vintages (PIT-adequate).
+    n = 200
+    estimate = [float(i) for i in range(n)]                       # fully populated
+    band = [None] * n
+    for i in (3, 50, 120):                                        # only a few range rows carry a band
+        band[i] = float(i)
+    rd = ["2024-05-10"] * (n // 2) + ["2024-06-12"] * (n - n // 2)
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        path = f"{d}/wasde_fullhist.parquet"
+        pq.write_table(pa.table({
+            "estimate": pa.array(estimate, type=pa.float64()),
+            "value_low": pa.array(band, type=pa.float64()),
+            "value_high": pa.array(list(band), type=pa.float64()),
+            "release_date": pa.array(rd, type=pa.string()),
+        }), path)
+        md = pq.read_metadata(path)
+        census = {c: census_column([file_column_stat(md, c)], c)
+                  for c in ("estimate", "value_low", "value_high", "release_date")}
+
+    # value_low/value_high are genuinely sparse (well below the 0.5 floor) -- the exemption is real, not vacuous.
+    assert census["value_low"].nonnull_fraction < 0.1 and not census["value_low"].all_nan
+    assert census["value_high"].nonnull_fraction < 0.1
+
+    # (3) the publisher gate over the REGISTRY value_columns + floor PASSES on this mostly-null-band frame.
+    result = build_table_result(
+        "silver_wasde", partition_mode="registered", value_columns=contract["value_columns"],
+        min_nonnull_frac=contract["min_nonnull_frac"], knowledge_date_col=contract["knowledge_date_col"],
+        vintage_retention=contract["vintage_retention"], census_by_column=census,
+        files_sampled=1, sample_strategy="unit")
+    assert result.passed, [g.to_dict() for g in result.gate_rows]
+
+    # (4) load-bearing: were value_low a value_column, the SAME frame would BREACH the floor -> the
+    #     exemption (keeping it out of value_columns) is what makes the sparse column tolerable.
+    if_floored = evaluate_gate("silver_wasde", census, ["estimate", "value_low"],
+                               contract["min_nonnull_frac"])
+    assert any(g.kind == KIND_NONNULL_BELOW_FLOOR and g.column == "value_low" for g in if_floored)
+
+
 def test_release_objects_thread_revisions_in_order(contract):
     releases = {
         "2024-06-12": [_bronze("World", "Ending Stocks", "2024/25", value=105.0,

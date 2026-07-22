@@ -789,9 +789,10 @@ def test_vintage_agg_latest_without_order_col_unchanged():
 #    grain at ONE release_date, so the release_date-only latest-vintage ROW_NUMBER TIES and pg-vs-Athena break
 #    the tie by engine order (value flip-flops). A deterministic role-priority tiebreak restores parity. ──────
 def _wasde_tiebreak() -> TableSpec:
-    """silver_wasde WITH the F2 role-priority vintage tiebreak (mirrors the live tables.yaml entry): within a
-    grain the pick is release_date DESC, then role rank (actual < estimate < projection), then projection_month
-    DESC NULLS LAST, then source_table_id ASC — a total order identical on Athena and the pg mirror."""
+    """silver_wasde WITH the WASDE-restoration W2 vintage tiebreak (mirrors the live tables.yaml entry): within
+    a grain the pick is release_date DESC, then role rank (actual < estimate < projection), then the
+    RELEASE-RELATIVE projection_month rank (the current-month projection == the release month wins), then
+    source_table_id ASC — a total order identical on Athena and the pg mirror by construction."""
     return TableSpec(id="silver_wasde", description="", shape="tall", commodity_col="commodity",
                      country_col="region", period_col="marketing_year", period_type="marketing_year",
                      period_sql_type="string", knowledge_date_col="release_date",
@@ -802,7 +803,7 @@ def _wasde_tiebreak() -> TableSpec:
                      vintage_tiebreak=[
                          VintageTiebreakTerm(col="estimate_role",
                                              role_order=["actual", "estimate", "projection"]),
-                         VintageTiebreakTerm(col="projection_month", dir="desc", nulls="last"),
+                         VintageTiebreakTerm(col="projection_month", match_release_month="release_date"),
                          VintageTiebreakTerm(col="source_table_id", dir="asc")])
 
 
@@ -823,7 +824,10 @@ def test_wasde_registry_declares_role_tiebreak():
     tb = ts.vintage_tiebreak
     assert [t.col for t in tb] == ["estimate_role", "projection_month", "source_table_id"]
     assert tb[0].role_order == ["actual", "estimate", "projection"]   # actual (rank 0) wins the tie
-    assert tb[1].dir == "desc" and tb[1].nulls == "last"             # projection_month DESC NULLS LAST
+    # WASDE-restoration W2: projection_month is RELEASE-RELATIVE (current-month == release month wins), NOT a
+    # lexical DESC (which picked the stale prior-month value at ~half of releases + the wrong Dec/Jan wrap row).
+    assert tb[1].match_release_month == "release_date"
+    assert tb[1].dir == "asc" and tb[1].role_order == [] and tb[1].nulls is None  # default ASC, no dir -> engines agree
     assert tb[2].dir == "asc" and tb[2].role_order == []             # source_table_id ASC (final total order)
     # every OTHER vintage table carries NO tiebreak -> its generated SQL stays byte-identical (zero change).
     for tid in ("silver_psd", "silver_esr", "silver_production", "silver_fred_fx",
@@ -833,14 +837,20 @@ def test_wasde_registry_declares_role_tiebreak():
 
 def test_wasde_role_tiebreak_in_generated_sql_both_engines():
     # build_sql is BACKEND-AGNOSTIC: the ONE string it returns runs on BOTH pg and Athena (run() only picks the
-    # executor), so this single assertion covers both engines' ordering. Role rank + explicit dirs/NULLS force
-    # a deterministic total order; the tiebreak cols are silver `string` == pg TEXT COLLATE "C" == Presto order.
+    # executor), so this single assertion covers both engines' ordering. Role rank + the release-relative
+    # projection_month CASE (substr on the ISO release_date, engine-portable, default ASC) force a
+    # deterministic total order; the tiebreak cols are silver `string` == pg TEXT COLLATE "C" == Presto order.
     sql = build_sql(NumberQuery(table="silver_wasde", metric="ending_stocks", asof="1986-12-31",
                                 commodity="corn", country="united_states", period="1986/87"), _wasde_tiebreak())
     assert ("ORDER BY release_date DESC, CASE estimate_role WHEN 'actual' THEN 0 WHEN 'estimate' THEN 1 "
-            "WHEN 'projection' THEN 2 ELSE 3 END ASC, projection_month DESC NULLS LAST, "
-            "source_table_id ASC") in sql
+            "WHEN 'projection' THEN 2 ELSE 3 END ASC, CASE WHEN projection_month = CASE "
+            "substr(release_date, 6, 2) WHEN '01' THEN 'January' WHEN '02' THEN 'February' "
+            "WHEN '03' THEN 'March' WHEN '04' THEN 'April' WHEN '05' THEN 'May' WHEN '06' THEN 'June' "
+            "WHEN '07' THEN 'July' WHEN '08' THEN 'August' WHEN '09' THEN 'September' "
+            "WHEN '10' THEN 'October' WHEN '11' THEN 'November' WHEN '12' THEN 'December' ELSE '' END "
+            "THEN 0 ELSE 1 END ASC, source_table_id ASC") in sql
     assert "ROW_NUMBER() OVER (PARTITION BY commodity, table_type, region, marketing_year, attribute" in sql
+    assert "CAST(release_date" not in sql                            # substr, not CAST -> partition-safe
 
 
 def test_tiebreak_absent_spec_is_byte_identical_window():
@@ -919,3 +929,123 @@ def test_wasde_modern_single_role_unaffected():
     assert len(got) == 1 and got[0][0] == 55.0                       # latest release_date, unchanged by tiebreak
     kept = apply_pit_filter(rows, q, ts)                             # oracle agrees
     assert len(kept) == 1 and kept[0]["estimate"] == 55.0
+
+
+# ── WASDE-restoration W2: CHRONOLOGICAL projection_month tiebreak. The modern US two-vintage shape carries a
+#    current-month + a prior-month projection row per grain at ONE release; the CURRENT (== release month) must
+#    win. The old lexical `projection_month DESC` picked the STALE prior month at ~half of releases and the
+#    wrong row at the Dec/Jan wrap (Athena-probed present: 1549 grains, all January releases). The rank is
+#    RELEASE-RELATIVE (match_release_month), so SQL + oracle agree by construction (no dir to diverge). ─────────
+_WASDE_SQLITE_COLS = ("commodity", "table_type", "region", "marketing_year", "attribute", "estimate",
+                      "release_date", "estimate_role", "projection_month", "source_table_id", "unit")
+
+
+def _wasde_sqlite(rows):
+    import sqlite3
+    con = sqlite3.connect(":memory:")
+    con.execute("ATTACH ':memory:' AS leviathan_dev")
+    con.execute("""CREATE TABLE leviathan_dev.silver_wasde (
+        commodity TEXT, table_type TEXT, region TEXT, marketing_year TEXT, attribute TEXT,
+        estimate REAL, release_date TEXT, estimate_role TEXT, projection_month TEXT,
+        source_table_id TEXT, unit TEXT)""")
+    con.executemany("INSERT INTO leviathan_dev.silver_wasde VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                    [tuple(r.get(c) for c in _WASDE_SQLITE_COLS) for r in rows])
+    return con
+
+
+_MONTH_NAMES = ["January", "February", "March", "April", "May", "June",
+                "July", "August", "September", "October", "November", "December"]
+
+
+def _two_vintage_projection_grain(rel_month: int, rel_year: int = 2015):
+    """The modern US shape: ONE grain at ONE release, with the CURRENT-month projection column (projection_month
+    == the release month) carrying the operative value, and the PRIOR-month column carrying the stale value.
+    Returns (rows, release_date, current_value, prior_value). Prior month wraps Dec of the previous year."""
+    cur_name = _MONTH_NAMES[rel_month - 1]
+    prior_month = 12 if rel_month == 1 else rel_month - 1
+    prior_name = _MONTH_NAMES[prior_month - 1]
+    release_date = f"{rel_year}-{rel_month:02d}-10"
+    grain = dict(commodity="corn", table_type="us", region="united_states",
+                 marketing_year=f"{rel_year}/{(rel_year + 1) % 100:02d}", attribute="ending_stocks",
+                 unit="1000 MT", estimate_role="projection")
+    cur, prior = 1500.0 + rel_month, 1400.0 + rel_month
+    rows = [
+        {**grain, "release_date": release_date, "projection_month": prior_name,
+         "estimate": prior, "source_table_id": "ws_prior"},
+        {**grain, "release_date": release_date, "projection_month": cur_name,
+         "estimate": cur, "source_table_id": "ws_cur"},
+    ]
+    return rows, release_date, cur, prior
+
+
+def test_wasde_projection_month_release_relative_era_matrix():
+    """Era matrix: for EVERY release month (including the Dec→Jan wrap), the modern both-populated projection
+    pair must pick the CURRENT (release-month) value — on BOTH the SQL engine and the oracle — at every as-of
+    on/after the release. The lexical-DESC bug would pick the prior month for Nov (Oct>Nov), Sep, Jun, Mar,
+    and December at the January wrap."""
+    ts = _wasde_tiebreak()
+    for rel_month in range(1, 13):
+        rows, release_date, cur, prior = _two_vintage_projection_grain(rel_month)
+        for asof in (release_date, "2015-12-31", "2020-01-01"):       # every as-of on/after the release
+            q = NumberQuery(table="silver_wasde", metric="ending_stocks", asof=asof, commodity="corn",
+                            country="united_states", period=rows[0]["marketing_year"])
+            kept = apply_pit_filter(rows, q, ts)
+            assert len(kept) == 1 and kept[0]["estimate"] == cur, (rel_month, asof, "oracle")
+            got = _wasde_sqlite(rows).execute(build_sql(q, ts)).fetchall()
+            assert len(got) == 1 and got[0][0] == cur, (rel_month, asof, "sql")
+            assert cur != prior
+
+
+def test_wasde_projection_month_january_wrap_picks_january_not_december():
+    """The specific Dec/Jan wrap (probed PRESENT, 1549 grains): a January release carries a December (prior)
+    and a January (current) projection column. A static winner-first calendar list would wrongly pick
+    December; the release-relative rank picks January. Mirrors the live carry-forward series
+    (Jan'02 corn US ending_stocks = 1546, not the stale Dec = 1574)."""
+    ts = _wasde_tiebreak()
+    grain = dict(commodity="corn", table_type="us", region="united_states", marketing_year="2001/02",
+                 attribute="ending_stocks", unit="1000 MT", estimate_role="projection")
+    rows = [{**grain, "release_date": "2002-01-11", "projection_month": "December",
+             "estimate": 1574.0, "source_table_id": "ws_dec"},
+            {**grain, "release_date": "2002-01-11", "projection_month": "January",
+             "estimate": 1546.0, "source_table_id": "ws_jan"}]
+    q = NumberQuery(table="silver_wasde", metric="ending_stocks", asof="2002-06-30", commodity="corn",
+                    country="united_states", period="2001/02")
+    kept = apply_pit_filter(rows, q, ts)
+    assert len(kept) == 1 and kept[0]["projection_month"] == "January" and kept[0]["estimate"] == 1546.0
+    got = _wasde_sqlite(rows).execute(build_sql(q, ts)).fetchall()
+    assert len(got) == 1 and got[0][0] == 1546.0                     # SQL engine agrees
+
+
+def test_wasde_tiebreak_oracle_sql_run_parity():
+    """MANDATED oracle-run parity: build a mixed frame and run the SQL engine (sqlite) AND the pure-Python
+    oracle over the SAME rows, asserting they pick the IDENTICAL winner per grain. A byte-compare of the SQL
+    string alone cannot catch a divergence between the emitter and the oracle (the ORACLE-DIR trap); executing
+    both is the only proof. The frame mixes: a modern two-vintage projection pair (release-relative), a
+    January-wrap pair, and an early-era multi-role tie (actual < estimate < projection)."""
+    ts = _wasde_tiebreak()
+    modern, _, modern_cur, _ = _two_vintage_projection_grain(9, rel_year=2016)         # Sep: current=September
+    wrapg = dict(commodity="corn", table_type="us", region="united_states", marketing_year="2001/02",
+                 attribute="ending_stocks", unit="1000 MT", estimate_role="projection")
+    wrap = [{**wrapg, "release_date": "2002-01-11", "projection_month": "December", "estimate": 1574.0,
+             "source_table_id": "d"},
+            {**wrapg, "release_date": "2002-01-11", "projection_month": "January", "estimate": 1546.0,
+             "source_table_id": "j"}]
+    legacy = _wasde_multirole_rows()                                  # actual must win (rank 0)
+    frame = modern + wrap + legacy
+    con = _wasde_sqlite(frame)
+    grains = {("corn", "us", "united_states", "2016/17", "ending_stocks"): modern_cur,
+              ("corn", "us", "united_states", "2001/02", "ending_stocks"): 1546.0,
+              ("corn", "balance_sheet", "united_states", "1986/87", "ending_stocks"): 100.0}
+    for (co, tt, rg, my, at), want in grains.items():
+        q = NumberQuery(table="silver_wasde", metric="ending_stocks", asof="2020-01-01", commodity=co,
+                        country=rg, period=my)
+        # oracle over the rows of THIS grain
+        grain_rows = [r for r in frame if (r["commodity"], r["table_type"], r["region"],
+                                           r["marketing_year"], r["attribute"]) == (co, tt, rg, my, at)]
+        kept = apply_pit_filter(grain_rows, q, ts)
+        sql = build_sql(q, ts)
+        got = [g for g in con.execute(sql).fetchall()]
+        # a single grain's build_sql filters commodity+region+period+attribute, so exactly one winner each
+        assert len(kept) == 1 and kept[0]["estimate"] == want, (my, "oracle")
+        assert len(got) == 1 and got[0][0] == want, (my, "sql")
+        assert kept[0]["estimate"] == got[0][0]                       # oracle == SQL, by row-run not string

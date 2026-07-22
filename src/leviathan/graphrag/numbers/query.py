@@ -354,6 +354,28 @@ def _extras(ts: TableSpec) -> list[tuple[str, str]]:
     return out
 
 
+# ISO 'YYYY-MM-DD' month field -> the full English month name silver stores in projection_month
+# (usda_wasde_silver._norm_month emits exactly these Title-case names, else ''). The mapping is used
+# BYTE-IDENTICALLY by the SQL emitter and the Python oracle so a release-relative rank agrees on both.
+_MONTH_NUM_TO_NAME = {"01": "January", "02": "February", "03": "March", "04": "April",
+                      "05": "May", "06": "June", "07": "July", "08": "August",
+                      "09": "September", "10": "October", "11": "November", "12": "December"}
+
+
+def _release_month_name_sql(date_col: str) -> str:
+    """A backend-portable expression rendering an ISO 'YYYY-MM-DD' date column's MONTH to its full English
+    month name — substr + a literal CASE, NO engine-specific date function (date_format/to_char diverge
+    Presto-vs-Postgres). substr(col,6,2) yields 'MM' on Presto, Postgres AND sqlite (all 1-indexed), so the
+    ONE emitted SQL string sorts identically on both serving backends and in the sqlite execution tests."""
+    whens = " ".join(f"WHEN '{k}' THEN '{v}'" for k, v in _MONTH_NUM_TO_NAME.items())
+    return f"CASE substr({date_col}, 6, 2) {whens} ELSE '' END"
+
+
+def _release_month_name(iso: str) -> str:
+    """The Python-oracle twin of _release_month_name_sql: 'YYYY-MM-DD' -> full English month name (or '')."""
+    return _MONTH_NUM_TO_NAME.get(str(iso or "")[5:7], "")
+
+
 def _vintage_tiebreak_order(ts: TableSpec) -> str:
     """Extra ORDER BY terms appended (after ``knowledge_date DESC``) to the latest-vintage ROW_NUMBER window so
     the per-grain pick is a DETERMINISTIC TOTAL order — identical on Athena and the pg mirror BY CONSTRUCTION
@@ -365,11 +387,18 @@ def _vintage_tiebreak_order(ts: TableSpec) -> str:
 
     silver_wasde: early-era releases (1985-1999) carry MULTIPLE estimate_role rows per numbers grain at ONE
     release_date; without a tiebreak the ROW_NUMBER tie is engine-arbitrary (the F2 pg-parity break). The role
-    rank makes the MOST-SETTLED figure win (actual < estimate < projection), then projection_month DESC NULLS
-    LAST, then source_table_id ASC as the final total-order tiebreak."""
+    rank makes the MOST-SETTLED figure win (actual < estimate < projection). The modern US two-vintage shape
+    carries TWO projection rows per grain at one release (current-month + prior-month columns); the CURRENT
+    projection == the RELEASE month, so a `match_release_month` term ranks THAT row first — release-relative,
+    because a static month order picks the wrong row at the Dec→Jan wrap (probed present: 1549 grains). Then
+    source_table_id ASC is the final total-order tiebreak. ``dir`` is honored on BOTH the plain and role_order
+    branches, mirroring _vintage_cmp (the ORACLE-DIR contract)."""
     terms: list[str] = []
     for t in ts.vintage_tiebreak:
-        if t.role_order:                                     # CASE rank: listed-first value ranks 0 (wins)
+        if t.match_release_month:                            # release-relative: current-month projection wins
+            mexpr = _release_month_name_sql(t.match_release_month)
+            terms.append(f"CASE WHEN {t.col} = {mexpr} THEN 0 ELSE 1 END ASC")
+        elif t.role_order:                                   # CASE rank: listed-first value ranks 0 (wins)
             whens = " ".join(f"WHEN {_q(v)} THEN {i}" for i, v in enumerate(t.role_order))
             terms.append(f"CASE {t.col} {whens} ELSE {len(t.role_order)} END {t.dir.upper()}")
         else:
@@ -392,12 +421,19 @@ def _vintage_cmp(ts: TableSpec):
         if ka != kb:
             return -1 if ka > kb else 1                      # knowledge_date DESC: newer vintage wins
         for t in ts.vintage_tiebreak:
+            if t.match_release_month:                        # release-relative rank: current-month wins (rank 0)
+                ra = 0 if str(a.get(t.col) or "") == _release_month_name(a.get(t.match_release_month)) else 1
+                rb = 0 if str(b.get(t.col) or "") == _release_month_name(b.get(t.match_release_month)) else 1
+                if ra != rb:
+                    return -1 if ra < rb else 1              # ASC, no dir: byte-identical to the SQL CASE
+                continue
             va, vb = a.get(t.col), b.get(t.col)
-            if t.role_order:                                 # role rank ASC: listed-first value (rank 0) wins
+            if t.role_order:                                 # role rank: listed-first value (rank 0) wins
                 ra = t.role_order.index(va) if va in t.role_order else len(t.role_order)
                 rb = t.role_order.index(vb) if vb in t.role_order else len(t.role_order)
                 if ra != rb:
-                    return -1 if ra < rb else 1
+                    c = -1 if ra < rb else 1                 # honor `dir` SYMMETRICALLY with the SQL CASE rank
+                    return -c if t.dir == "desc" else c      # (the ORACLE-DIR trap: SQL honored dir, oracle didn't)
                 continue
             an, bn = (va is None or va == ""), (vb is None or vb == "")
             if an or bn:                                     # explicit NULLS placement (default last)

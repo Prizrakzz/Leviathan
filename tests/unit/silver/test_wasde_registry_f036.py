@@ -69,11 +69,14 @@ def test_additive_columns_present_as_hidden_schema(contract):
 
 
 def test_additive_columns_excluded_from_generated_ddl(contract):
-    """POST-F036: the migration applied, so the additive columns are catalog columns -- the DDL
-    carries all 29 (registry == live-Glue invariant, now at the post-migration state)."""
+    """POST-F036: the 9 F036 governed columns are catalog columns (the DDL carries them, registry ==
+    live-Glue). The WASDE-restoration W2 price-band pair (value_low/value_high) is the ONLY hidden-schema
+    (physical-parquet-only) set now -- a NEW additive pair awaiting its own gated ADD COLUMNS migration,
+    so it is excluded from the DDL until then."""
     catalog_names = {n for n, _ in D.catalog_columns(contract)}
     assert set(_ADDITIVE).issubset(catalog_names)
-    assert set(D.physical_only_columns(contract)) == set()
+    assert set(D.physical_only_columns(contract)) == {"value_low", "value_high"}
+    assert not ({"value_low", "value_high"} & catalog_names)     # not in the DDL/catalog yet
     assert set(_ADDITIVE).issubset(load_registry().columns("silver_wasde"))
 
 

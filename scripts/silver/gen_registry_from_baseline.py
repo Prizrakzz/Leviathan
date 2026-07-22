@@ -709,6 +709,14 @@ CURATION_OVERRIDES: dict = {
             ("revision_gap_days", "int64"), ("is_projection", "bool"), ("is_source_final", "bool"),
             ("marketing_year_end_date", "string"),
         ],
+        # WASDE-restoration W2 (2026-07-22): the range-era ("LOW - HIGH") price-band pair. The restoration
+        # bronze parser stores the midpoint in `estimate` and the printed bounds here; the F034 producer now
+        # threads them (usda_wasde_silver.ADDITIVE_COLUMNS). HIDDEN-schema (glue_type null) -- a NEW additive
+        # pair the live catalog has not registered yet, awaiting its own gated ADD COLUMNS migration; excluded
+        # from the generated DDL until then (registry == live-Glue invariant). SPARSE by design (null for
+        # every point value) -> deliberately NOT value_columns, so the SILVER-V001 non-null floor never
+        # applies (see the publisher-tolerance test).
+        "additive_columns_hidden": [("value_low", "float64"), ("value_high", "float64")],
         "drift_notes": {
             "months_to_marketing_year_end": (
                 "C-WRONG-6 int64 fix APPLIED 2026-07-15 (BF-W2 step 17): glue_type is bigint matching the "
@@ -758,13 +766,22 @@ def _apply_curation_overrides(name: str, contract: dict) -> None:
     # arrow -> glue for REGISTERED additive columns (additive_columns_registered: the catalog
     # migration has been applied, so the contract carries concrete types -- the same resolution
     # wasde_f036_migration_plan.build_target_contract uses).
-    _ARROW_TO_GLUE = {"string": "string", "bool": "boolean", "int64": "bigint"}
+    _ARROW_TO_GLUE = {"string": "string", "bool": "boolean", "int64": "bigint", "float64": "double"}
     registered = bool(ov.get("additive_columns_registered"))
     for cn, target in ov.get("additive_columns", []):
         if cn not in by_name:
             cols.append({"name": cn,
                          "glue_type": _ARROW_TO_GLUE[target] if registered else None,
                          "arrow_type": target if registered else None,
+                         "parquet_physical_type": None, "target_arrow_type": target, "nullable": True})
+    # additive_columns_hidden: producer-emitted columns NOT yet in the live catalog -> glue_type=None
+    # ("hidden schema": excluded from the DDL, surfaced in physical_only_columns), ALWAYS hidden
+    # regardless of additive_columns_registered. A NEW additive column awaiting its own gated catalog
+    # migration (the WASDE value_low/value_high price-band pair). The writer arrow schema keys on
+    # target_arrow_type, so the F034 producer still emits them into the parquet.
+    for cn, target in ov.get("additive_columns_hidden", []):
+        if cn not in by_name:
+            cols.append({"name": cn, "glue_type": None, "arrow_type": None,
                          "parquet_physical_type": None, "target_arrow_type": target, "nullable": True})
     for cn, gt in (ov.get("type_overrides") or {}).items():
         if cn in by_name:
