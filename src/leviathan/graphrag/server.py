@@ -120,11 +120,15 @@ def _silver_lookup(cap: int = 256):
     enabled (5.6 W6) — the convergence matrix's ~100+ sequential lookups were an Athena query storm
     (~15-30s cold + real S3 cost); pgnumbers keeps a per-request Athena fallback so a mirror gap degrades
     to Athena latency, never an error."""
+    from leviathan.graphrag import answer as _an
     from leviathan.graphrag import silverleg as slv
     from leviathan.graphrag.numbers import pgnumbers
     from leviathan.graphrag.numbers import query as Q
     qfn = _STATE.get("query_fn") or (pgnumbers.query_fn() if pgnumbers.enabled() else Q.athena_query_fn())
-    return slv.make_silver_lookup(_graph(), qfn, cap=cap)
+    # T1: GRAPHRAG_CONVERGENCE_INTENSITY read at this SERVER seam, threaded as a kwarg (never inside
+    # silverleg). Intensity reaches the FE ONLY via the DriverSignal-serializing routes (/v1/convergence,
+    # /v1/regimes/{contract}) as an UNDECLARED extra key; the map route discards driver rows ([SKEPTIC F4]).
+    return slv.make_silver_lookup(_graph(), qfn, cap=cap, intensity=_an._intensity_on())
 
 
 def _require_user(authorization: Optional[str] = Header(None)) -> str:

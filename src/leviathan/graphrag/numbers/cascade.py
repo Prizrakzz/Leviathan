@@ -17,6 +17,7 @@ US exports up -- the flow found a new door).
 from __future__ import annotations
 
 import functools
+import re
 
 from leviathan.graphrag import params as _pr
 from leviathan.graphrag.numbers import query as Q
@@ -343,9 +344,63 @@ def _scope(n, row) -> tuple:
     return commodity, _primary_title(commodity)
 
 
-def _node_specs(n, row, commodity, country, eras, asof) -> list[dict]:
+# ── T2a (CONVERGENCE_TIER1) pace-leg inventory: SUB-ANNUAL chronological grains ONLY ─────────────────
+# tables.yaml grains, plan-ratified: weekly/daily/monthly tables can honestly carry a streak/window_change
+# pace claim. Annual/MY tables (silver_psd, silver_wasde, silver_production, silver_sagis_cec,
+# silver_icco_cocoa) are ABSENT by design -- they must NEVER be handed a sub-annual window (YoY is a
+# different, existing surface). Event flags (frost_event_flag, narrate_unit=flag) get nothing: "pace" on a
+# binary flag is crossing-recency, which is the deferred T2b ledger, not a window_change.
+# silver_futures_prices is EXCLUDED despite its daily grain (skeptic fold 2026-07-23): the card is
+# levels_only -- build_sql RAISES on any series/window read (PIT-unsafe across roll splices), so a pace
+# spec there could only ever produce status=error, never a row. Re-add only if v1.5 lifts levels_only.
+PACE_TABLES = {
+    "silver_cot": "week", "silver_esr": "week",
+    "silver_pink_sheet": "month", "silver_mpob": "month", "gold_weather_z": "month",
+    "silver_noaa_oni": "month",
+    "silver_fred_fx": "day",
+}
+# T2a CROSS-SECTION COLLAPSE (skeptic fold, pre-flip blocker): two pace tables return MULTIPLE rows per
+# period under agg=series -- silver_esr is per DESTINATION x week (no country column even exists to
+# filter) and gold_weather_z per REGION x month (region is not a query filter in v1). A flat
+# vals[-1]-vals[-2] there deltas two destinations/regions inside ONE period, not two periods (probe: an
+# ESR fixture narrated '+565 1000 MT from the prior week' vs the true weekly change -45 -- direction
+# inverted -- riding a real minted [N] row the all-numbers guard validates). _pace_legs therefore
+# collapses to ONE value per period BEFORE any stats primitive runs: sum for a flow total across
+# destinations (the tables.yaml v1 doctrine: "v1 returns the TOTAL across destinations"), mean for a
+# regional-average anomaly (the silver_nasa_power v1 aggregate-across-regions precedent). A multi-row
+# period on a table NOT declared here declines the pace leg whole (honest absence, the E-STREAK-NODATA
+# idiom) -- never a cross-sectional delta. Every other pace table is one-row-per-period by grain.
+_PACE_COLLAPSE = {"silver_esr": "sum", "gold_weather_z": "mean"}
+_PACE_WINDOW_DAYS = {"day": 21, "week": 70, "month": 220}         # enough points for a run; never a year-crawl
+_PACE_GRAIN_NOUN = {"day": "daily", "week": "weekly", "month": "monthly"}
+# The T2a register fence for ENGINE-emitted pace prose: the present-continuous/momentum class is BANNED on
+# this surface (accelerating/decelerating/momentum/gaining steam/picking up/slowing). These are grep-absent
+# from register.py's global lexicons BY DESIGN (fencing them globally would strip honest ag prose like
+# "demand is slowing"); the fence therefore lives HERE, on the only surface that could mint them.
+_PACE_BANNED_RX = re.compile(
+    r"\b(acceler\w*|deceler\w*|momentum|gaining steam|picking up|slowing)\b", re.I)
+
+
+def pace_register_ok(text: str) -> bool:
+    """True when a pace line carries none of the banned momentum-class words (past-tense observed only)."""
+    return not _PACE_BANNED_RX.search(text or "")
+
+
+def _pace_grain(row) -> str | None:
+    """The pace grain word for a map row, or None (=> NO pace leg): annual/MY grain, event flags, and any
+    table outside the pace-capable inventory all decline structurally."""
+    if (row or {}).get("period_type") == "marketing_year":
+        return None                                               # annual/MY: never a sub-annual window
+    if (row or {}).get("narrate_unit") == "flag":
+        return None                                               # event flag: recency is T2b, not pace
+    return PACE_TABLES.get((row or {}).get("table"))
+
+
+def _node_specs(n, row, commodity, country, eras, asof, *, pace: bool = False) -> list[dict]:
     """The node's spec list: per era window, >=2 MY specs (marketing_year) or one windowed spec (date/ym);
-    plus ONE CURRENT rhyme spec (R1: the CURRENT period at the SESSION asof, never the era window re-run)."""
+    plus ONE CURRENT rhyme spec (R1: the CURRENT period at the SESSION asof, never the era window re-run).
+    `pace` (T2a, default OFF -- flag-threaded from quantify, never an env read): pace-capable sub-annual
+    tables ALSO get ONE trailing-window series spec (leg=('pace', None)) beside the current leg."""
     if not commodity:
         return []
     # id FIRST (RF-1, same re-key as _select_nodes): the group/spec key must be distinct per driver or
@@ -380,6 +435,11 @@ def _node_specs(n, row, commodity, country, eras, asof) -> list[dict]:
                           #                                       week <= asof); default 'series' keeps PSD
                           #                                       date legs (fred_fx) unchanged
                           "period": None})
+    if pace and asof and _pace_grain(row) is not None:            # T2a: ONE trailing sub-annual series spec
+        days = _PACE_WINDOW_DAYS[_pace_grain(row)]                # (flag off -> this block never runs ->
+        specs.append({**base, "leg": ("pace", None), "era_idx": None, "my": None,   # byte-identical specs)
+                      "t1": _plus_days(asof, -days), "t2": asof, "asof": asof,
+                      "agg": "series", "period": None})
     return specs
 
 
@@ -495,7 +555,7 @@ def _pair_units(groups: list) -> tuple:
 
 # ── the orchestration (B-S3) ─────────────────────────────────────────────────────────────────────────
 def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request: dict | None = None,
-             comove: bool = False, price_request: dict | None = None) -> tuple:
+             comove: bool = False, price_request: dict | None = None, pace: bool = False) -> tuple:
     """Select grounded nodes with mapped refs, derive analogue-era windows from their dated props, build
     per-node leg GROUPS (era legs + a current rhyme leg), detect cross-country REROUTE pairs (RF-3:
     natural two-node pairs + the synthesized primary-country beneficiary), cap on WHOLE pair-atomic
@@ -515,7 +575,7 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
         if country is SKIP_NODE:
             continue                                              # unresolved region leg -> stays qualitative
         row = _region_row(n, row)                                 # fred_fx: region currency picks the metric
-        specs = _node_specs(n, row, commodity, country, eras, asof)
+        specs = _node_specs(n, row, commodity, country, eras, asof, pace=pace)
         if specs:
             groups.append({"node": n, "row": row, "specs": specs, "key": specs[0]["node_key"],
                            "commodity": commodity, "contract": getattr(n, "contract", None),
@@ -546,6 +606,18 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
         records = list(pool.map(lambda s: _run_one(qfn, s), flat))   # order preserved; _run_one never raises
     base = len(extra_number_calls)
     block_lines, trace, era_deltas = _assemble(records, kept, base, extra_number_calls)
+    # T2a pace legs (CONVERGENCE_TIER1): gated ONLY by the answer.py-threaded `pace` kwarg
+    # (GRAPHRAG_CASCADE_PACE_LEG is read at that seam, never here -- the price_request/xc discipline).
+    # pace False -> no pace spec ever existed -> records carry no pace legs -> byte-identical. On FIRE the
+    # engine writes quantify_pace ITSELF (pace_fired == bool(trace key)); an honest decline leaves it absent.
+    if pace:
+        p_lines, p_trace = _pace_legs(records, kept, len(extra_number_calls), extra_number_calls)
+        if p_trace:
+            try:
+                sg.trace["quantify_pace"] = p_trace
+            except Exception:  # noqa: BLE001 -- a traceless sg must never break the v1 answer
+                pass
+            block_lines = block_lines + p_lines
     r_lines, r_trace = _reroute(pairs, era_deltas)
     block_lines = block_lines + r_lines
     # RV-W2: the cross-COMMODITY relative-value fork, gated ONLY by the orchestrator-threaded xc_request (the
@@ -635,6 +707,132 @@ def _delta_call(rec: dict, row: dict, delta: float, n: int, *, kind: str, period
     return {"query": q,
             "rows": [{"value": round(delta, 4), "unit": unit, **({"_provenance": prov} if prov else {})}],
             "status": "ok"}
+
+
+def _pace_synth(rec: dict, row: dict, value, n: int, *, kind: str, unit: str) -> dict:
+    """T2a: a synthetic pace call-record (twin of _delta_call) so a narrated pace fact IS a row value
+    (citable + value-checkable by the all-numbers guard). Provenance = the LATEST point's guard columns
+    (ASC series -> rows[-1]): the pace fact is as-known at the newest observation."""
+    src = (rec.get("rows") or [{}])[-1]
+    prov = {k: src.get(k) for k in _GUARD_COLS if src.get(k) is not None}
+    q = {**(rec.get("query") or {}), "metric": f"{row.get('metric')}_{kind}"}
+    return {"query": q,
+            "rows": [{"value": value, "unit": unit, **({"_provenance": prov} if prov else {})}],
+            "status": "ok"}
+
+
+def _pace_period_key(rr: dict, idx: int):
+    """The row's PERIOD identity for the T2a cross-section collapse: the chronological data-axis alias
+    (data_date) or the raw silver column names test fixtures/guard-cols carry, else (year, month) for
+    year_month tables, else the row's own index -- a keyless single-grain table keeps the legacy
+    one-row-one-period behavior exactly."""
+    for k in ("data_date", "week_ending_date", "date", "report_date"):
+        v = rr.get(k)
+        if v not in (None, ""):
+            return str(v)
+    y, m = rr.get("year"), rr.get("month")
+    if y not in (None, "") and m not in (None, ""):
+        return (str(y), str(m))
+    return ("_row", idx)
+
+
+def _pace_series(r: dict, table) -> tuple[list[float], str | None]:
+    """(one value per PERIOD in row order, collapse-mode-used-or-None) for a pace record. Rows arrive
+    period-ascending (_total_order sorts the chronological alias first). Cross-sectional rows (>1 row in
+    one period) collapse per _PACE_COLLAPSE -- sum (flow across ESR destinations) or mean (z across
+    weather regions); a multi-row period on an UNDECLARED table returns ([], None): the caller declines
+    the leg whole rather than ever delta-ing two cross-section rows."""
+    order: list = []
+    periods: dict = {}
+    for i, rr in enumerate(r.get("rows") or []):
+        try:
+            v = float(str(rr.get("value")).replace(",", ""))
+        except (TypeError, ValueError):
+            continue
+        k = _pace_period_key(rr, i)
+        if k not in periods:
+            order.append(k)
+            periods[k] = []
+        periods[k].append(v)
+    collapse = _PACE_COLLAPSE.get(table)
+    multi = any(len(periods[k]) > 1 for k in order)
+    if multi and collapse is None:
+        return [], None                                       # undeclared cross-section: honest decline
+    vals: list[float] = []
+    for k in order:
+        vs = periods[k]
+        if len(vs) == 1:
+            vals.append(vs[0])
+        elif collapse == "sum":
+            vals.append(sum(vs))
+        else:                                                 # collapse == "mean"
+            vals.append(sum(vs) / len(vs))
+    return vals, (collapse if multi else None)
+
+
+def _pace_legs(records: list, kept: list, base: int, calls: list) -> tuple:
+    """T2a: deterministic streak/window_change rows off the leg=('pace',*) series records (stats.py
+    primitives -- the engine never does free-form math), computed over the PER-PERIOD collapsed series
+    (_pace_series: ESR destination-sum / weather region-mean; an undeclared cross-section declines --
+    the skeptic fold). PAST-TENSE register-safe lines only (rose/fell/
+    'change from the prior week'); each [N] line carries exactly ONE figure (handle discipline). <2 points
+    -> honest absence: no line, no call, no trace (the E-STREAK-NODATA lesson). Appends [N] calls IN PLACE
+    (synthetic rows are cap-free, like every delta row). Returns (lines, trace); trace non-empty IFF at
+    least one pace row was emitted -- quantify writes sg.trace['quantify_pace'] only then."""
+    from leviathan.graphrag.numbers import stats as st
+    rows_by_key = {g["specs"][0]["node_key"]: g["row"] for g in kept if g.get("specs")}
+    lines, trace = [], []
+    n = base
+    for r in records:
+        leg = r.get("leg") or ()
+        if not leg or leg[0] != "pace" or r.get("status") != "ok":
+            continue
+        row = rows_by_key.get(r.get("node_key"))
+        grain = _pace_grain(row) if row else None
+        if grain is None:
+            continue
+        # PER-PERIOD collapse FIRST (the cross-section fold): ESR destinations sum, weather regions mean;
+        # an undeclared multi-row period returns ([], None) and the leg declines whole -- vals[-1]-vals[-2]
+        # below is only ever a PERIOD-over-PERIOD delta, never destinationB-destinationA.
+        vals, collapsed = _pace_series(r, row.get("table"))
+        if len(vals) < st.MIN_STREAK_N:
+            continue                                              # <2 periods: no pace claim, no fabricated row
+        scale = float(row.get("scale", 1) or 1)
+        unit = row.get("narrate_unit") or ""
+        gnoun = _PACE_GRAIN_NOUN[grain]
+        key = r.get("node_key")
+        entry = {"node_key": list(key) if isinstance(key, tuple) else key,
+                 "table": row.get("table"), "metric": row.get("metric"), "grain": grain,
+                 "n_points": len(vals), "streak": None, "window_change": None}
+        if collapsed:                                             # conditionally-attached (absent, not null):
+            entry["collapse"] = collapsed                         # a cross-section was actually merged
+        emitted = False
+        wc = st.window_change(vals, -2, -1)                       # latest point vs the prior point
+        if not wc.get("declined"):
+            d = round(wc["value"] * scale, 4)
+            entry["window_change"] = d
+            n += 1
+            calls.append(_pace_synth(r, row, d, n, kind="pace_change", unit=unit))
+            lines.append(f"- [N{n}] change in {row.get('metric')} from the prior {grain} "
+                         f"({gnoun} pace): {d:+g} {unit}".rstrip())
+            emitted = True
+        last_delta = vals[-1] - vals[-2]
+        if last_delta != 0:
+            direction = "up" if last_delta > 0 else "down"
+            sk = st.streak(vals, direction)
+            run = 0 if sk.get("declined") else int(sk["value"])
+            if run >= 2:                                          # a 1-period move is just the change row
+                entry["streak"] = run
+                entry["streak_direction"] = direction
+                n += 1
+                calls.append(_pace_synth(r, row, run, n, kind="pace_streak", unit=f"{grain}s"))
+                word = "rose" if direction == "up" else "fell"
+                lines.append(f"- [N{n}] {row.get('metric')} {word} in each of the last {run} {grain}s")
+                emitted = True
+        if emitted:
+            trace.append(entry)
+    lines = [ln for ln in lines if pace_register_ok(ln)]          # belt: the momentum-class fence, by design
+    return lines, trace
 
 
 def _era_delta(oks: list, row: dict) -> float | None:
@@ -758,6 +956,9 @@ def _group_by_node(records: list, kept: list) -> dict:
         leg = r.get("leg") or ("era", 0)
         if leg[0] == "current":
             grp["current"] = r
+        elif leg[0] == "pace":
+            grp["pace"] = r          # T2a: consumed by _pace_legs only -- NEVER an era bucket (a pace
+            #                          series in era 0 would poison _era_delta with sub-annual points)
         else:
             grp["eras"].setdefault(r.get("era_idx") or 0, []).append(r)
     for grp in out.values():

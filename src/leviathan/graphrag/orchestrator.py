@@ -881,7 +881,9 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
     silver_lookup = None
     if call is None and os.environ.get("GRAPHRAG_SILVER", "on") != "off":
         from leviathan.graphrag import silverleg as slv
-        silver_lookup = slv.make_silver_lookup(graph, qfn)
+        # T1: GRAPHRAG_CONVERGENCE_INTENSITY is read at THIS seam and threaded as a kwarg (the
+        # GRAPHRAG_COMOVE idiom); silverleg itself never reads the env. Default-off => byte-identical.
+        silver_lookup = slv.make_silver_lookup(graph, qfn, intensity=an._intensity_on())
 
     # ── dispatch tier (planner v1) ────────────────────────────────────────────────────────────────
     # One enum-locked planning call resolves {steps, contracts, asof, near} with the session state in

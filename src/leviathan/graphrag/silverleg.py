@@ -46,6 +46,44 @@ def _verdict_z(z: float, z_thr: float) -> str:
     return "inconclusive"
 
 
+# ── T1 graded firing (CONVERGENCE_TIER1): the intensity band, derived at the make_silver_lookup seam ──
+# NOT at _verdict_z ([SKEPTIC F2]): _oni INLINES its verdict and never calls _verdict_z, so a _verdict_z
+# edit would miss ONI entirely. All three handlers flow through make_silver_lookup.lookup, so the band is
+# derived THERE, from the z the handler already returned. Intensity is a LABEL on an already-observed
+# driver -- it never enters graph.regimes(), so fired/n_active/threshold/proximity are untouched.
+# ONI's meteorological |anomaly| boundaries (its `z` is the RAW anomaly, not a sigma -- NEVER band it as
+# sigma multiples of the 0.5 threshold). NOAA's 'weak' renders as 'elevated' (an observed driver is never
+# 'weak'); 'very strong' renders as 'extreme'. Vocabulary is the register-fence-safe set only.
+_ONI_INTENSITY_BANDS = ((2.0, "extreme"), (1.5, "strong"), (1.0, "moderate"), (0.5, "elevated"))
+
+
+def _intensity(ref: str, z, z_thr) -> str | None:
+    """The T1 band for one silver verdict, or None (=> the caller attaches NO key -- absent, not null,
+    per [SKEPTIC F1]). su_ratio/fx scale |z| to that ref's OWN z_thr: [z_thr,2*z_thr)=moderate,
+    [2*z_thr,3*z_thr)=strong, >=3*z_thr=extreme (an observed driver has |z|>=z_thr, so moderate is the
+    floor); oni_climate bands the RAW |anomaly| on 0.5/1.0/1.5/2.0."""
+    try:
+        a = abs(float(z))
+    except (TypeError, ValueError):
+        return None
+    if ref == "oni_climate":
+        for thr, label in _ONI_INTENSITY_BANDS:
+            if a >= thr:
+                return label
+        return None
+    try:
+        t = float(z_thr)
+    except (TypeError, ValueError):
+        return None
+    if t <= 0 or a < t:
+        return None                                    # sub-threshold (normal/inconclusive): unbanded
+    if a >= 3 * t:
+        return "extreme"
+    if a >= 2 * t:
+        return "strong"
+    return "moderate"
+
+
 def _z(latest: float, history: list[float]) -> float | None:
     if len(history) < 5:
         return None                                    # too little history to call anything anomalous
@@ -207,17 +245,33 @@ def _shared_put(key: tuple, out: dict, asof_s: str) -> None:
         _SHARED[key] = (out, exp)
 
 
-def make_silver_lookup(graph, query_fn=None, *, cap: int | None = None):
+def make_silver_lookup(graph, query_fn=None, *, cap: int | None = None, intensity: bool = False):
     """Build the `silver_lookup(contract, driver_id, asof)` callable ground() accepts. Memoized per
     (ref, contract-or-global, asof); at most `cap` silver reads per answer; failures -> {live: False}.
     THREAD-SAFE with single-flight: ground() now prefetches lookups in parallel, so concurrent callers of
-    the same key wait for one handler run instead of double-spending the budget on duplicate Athena reads."""
+    the same key wait for one handler run instead of double-spending the budget on duplicate Athena reads.
+
+    `intensity` (T1, default OFF): attach the graded band as a CONDITIONALLY-ATTACHED key on banded results
+    ([SKEPTIC F1] -- never a declared pydantic field, never null; absent when off / no-z / sub-threshold).
+    The flag is READ at the answer.py/server seam and threaded HERE as a kwarg (the GRAPHRAG_COMOVE idiom --
+    no os.environ read in this module). The memo/shared caches store the RAW handler output, so a shared
+    cross-turn cache entry can never leak a band into a flag-off factory."""
     import threading
     cap = cap if cap is not None else int(_pr.get("serving.silver.cap", 8))
     memo: dict[tuple, dict] = {}
     budget = {"left": cap}
     lk = threading.Lock()
     inflight: dict[tuple, threading.Event] = {}
+
+    def _deco(out: dict, ref: str) -> dict:
+        """The returned view of a cached/fresh handler result: ref stamped; intensity ONLY when the flag
+        is on AND the band derives (flag off => key ABSENT => model_dump() bytes provably unchanged)."""
+        res = {**out, "ref": ref}
+        if intensity:
+            band = _intensity(ref, out.get("z"), out.get("threshold"))
+            if band is not None:
+                res["intensity"] = band
+        return res
 
     def lookup(contract: str, driver_id: str, asof) -> dict:
         try:
@@ -234,11 +288,11 @@ def make_silver_lookup(graph, query_fn=None, *, cap: int | None = None):
             while True:
                 with lk:
                     if key in memo:
-                        return {**memo[key], "ref": ref}
+                        return _deco(memo[key], ref)
                     shared = _shared_get(key)
                     if shared is not None:                     # cross-turn hit: no budget, no Athena
                         memo[key] = shared
-                        return {**shared, "ref": ref}
+                        return _deco(shared, ref)
                     ev_wait = inflight.get(key)
                     if ev_wait is None:
                         if budget["left"] <= 0:
@@ -252,7 +306,7 @@ def make_silver_lookup(graph, query_fn=None, *, cap: int | None = None):
                 with lk:
                     memo[key] = out
                 _shared_put(key, out, asof_s)
-                return {**out, "ref": ref}
+                return _deco(out, ref)
             finally:
                 # ALWAYS release waiters — on handler failure they re-loop and one retries (budget-bounded).
                 with lk:

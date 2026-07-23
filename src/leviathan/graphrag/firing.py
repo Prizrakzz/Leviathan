@@ -17,10 +17,16 @@ from leviathan.graphrag import graph as gph
 
 
 def _driver_row(did: str, sv: dict) -> dict:
-    """Normalize a `silver_lookup` result into the driver row the gauge/heatmap shows (design §4.4)."""
-    return {"id": did, "live": bool(sv.get("live")), "verdict": sv.get("verdict"),
-            "z": sv.get("z"), "value": sv.get("value"), "unit": sv.get("unit", ""),
-            "ref": sv.get("ref"), "knowledge_date": sv.get("knowledge_date", "")}
+    """Normalize a `silver_lookup` result into the driver row the gauge/heatmap shows (design §4.4).
+    T1 `intensity` is forwarded ONLY when present ([SKEPTIC F1]): an UNDECLARED extra key on DriverSignal
+    (_RICH/extra=allow), never a declared Optional -- a declared field would leak "intensity":null on every
+    driver flag-off (server model_dump() has no exclude_none). Absent key => bytes provably unchanged."""
+    out = {"id": did, "live": bool(sv.get("live")), "verdict": sv.get("verdict"),
+           "z": sv.get("z"), "value": sv.get("value"), "unit": sv.get("unit", ""),
+           "ref": sv.get("ref"), "knowledge_date": sv.get("knowledge_date", "")}
+    if sv.get("intensity") is not None:
+        out["intensity"] = sv["intensity"]
+    return out
 
 
 def fire_contract(graph: gph.CausalGraph, contract: str, asof: str, silver_lookup) -> dict:

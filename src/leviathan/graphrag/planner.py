@@ -438,10 +438,13 @@ def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, s
                 sv = silver_lookup(cid, did, asof)
                 if sv and sv.get("live"):
                     if sv.get("verdict") == "observed":
-                        probe_cache[key] = {"kind": "observed", "date": sv.get("knowledge_date", ""),
-                                            "source": sv.get("ref", "silver"), "value": sv.get("value"),
-                                            "unit": sv.get("unit", ""), "z": sv.get("z"),
-                                            "detail": sv.get("detail", "")}
+                        basis = {"kind": "observed", "date": sv.get("knowledge_date", ""),
+                                 "source": sv.get("ref", "silver"), "value": sv.get("value"),
+                                 "unit": sv.get("unit", ""), "z": sv.get("z"),
+                                 "detail": sv.get("detail", "")}
+                        if sv.get("intensity") is not None:    # T1: forward ONLY when present ([SKEPTIC F1])
+                            basis["intensity"] = sv["intensity"]
+                        probe_cache[key] = basis
                         return probe_cache[key]
                     if sv.get("verdict") == "normal":
                         vetoed.setdefault(cid, {})[did] = {"value": sv.get("value"), "z": sv.get("z"),

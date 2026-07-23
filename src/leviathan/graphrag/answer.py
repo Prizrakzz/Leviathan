@@ -409,6 +409,24 @@ def _price_leg_on() -> bool:
     return os.environ.get("GRAPHRAG_CASCADE_PRICE_LEG", "").strip().lower() in ("on", "1", "true")
 
 
+def _intensity_on() -> bool:
+    """T1 graded-firing kill-switch (GRAPHRAG_CONVERGENCE_INTENSITY), read at the answer.py/server seam and
+    threaded as the `intensity` kwarg to silverleg.make_silver_lookup (the GRAPHRAG_COMOVE idiom -- env at
+    the seam, engine gated by the ARGUMENT, never an os.environ read inside silverleg.py). DEFAULT-OFF,
+    fail-closed; OFF -> the lookup seam never attaches the key (absent, not null, [SKEPTIC F1]) and every
+    consumer payload is byte-identical. Read PER CALL so the env-flip rollback is live -> rev 52."""
+    return os.environ.get("GRAPHRAG_CONVERGENCE_INTENSITY", "").strip().lower() in ("on", "1", "true")
+
+
+def _pace_leg_on() -> bool:
+    """T2a cascade pace-leg kill-switch (GRAPHRAG_CASCADE_PACE_LEG), read at the answer.py quantify SEAM and
+    threaded as the `pace` kwarg down quantify()->_node_specs/_pace_legs (the GRAPHRAG_CASCADE_PRICE_LEG
+    idiom -- NEVER an os.environ read inside cascade.py, so the ENGINE is gated by the ARGUMENT). DEFAULT-OFF,
+    fail-closed. When off, no pace spec exists and the cascade is byte-identical to today. Read PER CALL
+    (never memoized) so the env-flip rollback is live -> serving rev 52, no redeploy."""
+    return os.environ.get("GRAPHRAG_CASCADE_PACE_LEG", "").strip().lower() in ("on", "1", "true")
+
+
 def _system() -> str:
     """The active reader-facing persona. GRAPHRAG_MENTOR_VOICE default on -> mentor; =off -> the prior string.
     GRAPHRAG_CASCADE_QUANT on -> append the OBSERVED CASCADE NUMBERS addendum (P9-B: the loop supplies the
@@ -601,7 +619,14 @@ def _l2_blocks(sg, graph: gph.CausalGraph, asof: str | None = None) -> list[str]
         if fired:
             def _receipt(d, b):
                 if b.get("kind") == "observed":                    # silver leg: a real as-of-vintage value
-                    return (f"{d} (OBSERVED {b.get('value')} {b.get('unit', '')}, z={b.get('z')}, "
+                    # T1 intensity clause rides the EXISTING observed receipt, present-key-only ([F1]) --
+                    # phrased "consistent with", per the never-fired/active doctrine below; vocabulary is
+                    # the fence-safe set only (moderate/strong/extreme/elevated). Flag off -> key absent ->
+                    # this string is byte-identical.
+                    inten = b.get("intensity")
+                    art = "an" if inten and inten[0] in "aeiou" else "a"
+                    clause = f", consistent with {art} {inten} anomaly" if inten else ""
+                    return (f"{d} (OBSERVED {b.get('value')} {b.get('unit', '')}, z={b.get('z')}{clause}, "
                             f"{b.get('source', '')} {b.get('date', '')})")
                 return f"{d} ({b.get('source', '?')}, {b.get('date', '?')})"
             any_obs = any(b.get("kind") == "observed" for r in fired for b in (r.get("basis") or {}).values())
@@ -720,11 +745,15 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                 _price_request = {"focus_contract": _focus}
         try:                                                      # GRACEFUL (R6): a raise here must NEVER 500
             _t_quant = time.perf_counter()                        # W6.1-0 stage timer (MsQuantify)
+            # T2a: the pace kwarg is OMITTED when the flag is off (the orchestrator `_xc` omit-when-None
+            # idiom) -- the flag-off call is byte-identical to rev 52, and injected quantify fakes with the
+            # older signature stay valid.
+            _pace_kw = {"pace": True} if _pace_leg_on() else {}
             _cblock, _quant_trace, _reroute_trace = cq.quantify(sg, graph, qfn=numbers_lookup, asof=asof,
                                                                 near=near,
                                                                 extra_number_calls=extra_number_calls,
                                                                 xc_request=xc_request, comove=_comove_on(),
-                                                                price_request=_price_request)
+                                                                price_request=_price_request, **_pace_kw)
             sg.trace["ms_quantify"] = int((time.perf_counter() - _t_quant) * 1000)
             if _cblock:
                 volatile_blocks = volatile_blocks + [_cblock]

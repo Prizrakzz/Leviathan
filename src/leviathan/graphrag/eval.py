@@ -74,6 +74,11 @@ def _cascade_stats(out: dict) -> dict:
             # a future exact-count assert. Judge-free soak/attribution signal; the deck pins ride price_cited /
             # unit_present (citation-based), not this stat.
             "price_leg_fired": bool((out.get("trace") or {}).get("quantify_price_leg")),
+            # T2a (CONVERGENCE_TIER1): quantify_pace is ENGINE-written, non-empty IFF >=1 deterministic
+            # streak/window_change pace row was emitted this turn. BOOLEAN (mirror comove_fired/
+            # price_leg_fired [F7]) -- an honest decline (<2 points / annual grain / flag off) leaves the
+            # key absent, so the negative pins read false, never KeyError.
+            "pace_fired": bool((out.get("trace") or {}).get("quantify_pace")),
             "statuses": sorted(statuses)}
 
 
@@ -111,7 +116,7 @@ def _pit_clean(out: dict, asof) -> bool:
 _CASCADE_EXPECT = ("cascade_fired", "min_cascade_cited", "delta_row", "fork", "absence",
                    "pit_clean", "su_prescaled", "ok_era_leg", "reroute_fired",
                    "opposite_country_legs", "two_countries_cited", "no_unbacked_fork",
-                   "reroute_v2_expected", "detection_tier", "comove_expected",
+                   "reroute_v2_expected", "detection_tier", "comove_expected", "pace_expected",
                    # W3.6 price-observability pins: level-citation + unit discipline on the price tables,
                    # the NONE-tier decline guard, and the RAW (pre-sanitize, DP-6) valuation/flow/mismatch
                    # trace counters the bait + PIT + honesty rows assert to 0.
@@ -187,6 +192,13 @@ def _cascade_asserts(q: dict, out: dict) -> dict | None:
                 res[k] = fired_cm and heading and non_fallback
             else:
                 res[k] = (not fired_cm) and (not heading) and non_fallback
+        elif k == "pace_expected":
+            # T2a: trace-only boolean pin. quantify_pace is ENGINE-written, present IFF a deterministic
+            # pace row (streak/window_change) rendered; pace has NO reserved heading (the [N] rows ride
+            # the cascade block), so there is no heading half to gate. The NEGATIVE branches are the
+            # realizable teeth (annual/MY grain and <2-point declines MUST leave the key absent); the
+            # positive pin is flag-gated + data-dependent -> observational.
+            res[k] = cs["pace_fired"] == bool(want)
         elif k == "detection_tier":
             # RV2 W2 (D15 amended): the tier pin requires the dispatch planner ACTUALLY ran (the same C11c
             # fallback-vacuity guard as reroute_v2_expected) AND the stamped tier to match -- a fallback,
@@ -335,6 +347,7 @@ def _per_answer_record(r: dict, run_kind: str) -> dict:
             "reroute_v2_pairs": cs["reroute_v2_pairs"],
             "comove_fired": cs["comove_fired"],                # SEAM A boolean (F7): per-tier soak attribution
             "price_leg_fired": cs["price_leg_fired"],          # SEAM B boolean: settled farm-price pair rendered
+            "pace_fired": cs["pace_fired"],                    # T2a boolean: deterministic pace row rendered
             "detection_tier": ((out.get("intent_decision") or {}).get("xc_detect") or {}).get("tier"),
             "cascade_asserts": (r.get("rubric") or {}).get("cascade_asserts"),
             # R3 F12: without degraded_model in the record a degraded turn is byte-indistinguishable from a
