@@ -53,7 +53,16 @@ def _build_season_bronze(bucket: str, season: str, aws_region: str, *,
     prefix = _RAW_PREFIX_FMT.format(season=season)
     keys = sorted(list_s3_keys(bucket, prefix, suffix=".pdf", aws_region=aws_region))
     if not keys:
-        raise SystemExit(f"no citrus monthly-forecast raw PDFs under s3://{bucket}/{prefix}")
+        # HONEST NO-OP, not an error (2026-07-23 probe): NASS's citrus history page carries NO
+        # 2025-26 season at all -- the newest published file is 2024-25/cit0725.pdf, i.e. the
+        # SOURCE is paused/discontinued after Jul-2025. An empty season prefix therefore means
+        # "nothing published upstream yet", and failing red here would page every scheduled fire
+        # of a known-quiet source. Staleness detection is owned by the FreshnessLagDays poller +
+        # the per-table freshness alarm (silver_nass_citrus), NOT by this exit code. If NASS
+        # resumes, the fetch step stages PDFs and this branch never triggers.
+        logger.warning("no citrus monthly-forecast raw PDFs under s3://%s/%s -- source has "
+                       "published nothing for this season (upstream pause); honest no-op", bucket, prefix)
+        return (0, 0, 0)
     logger.info("citrus bronze: %d raw PDFs under %s", len(keys), prefix)
 
     written = skipped = failed = 0
