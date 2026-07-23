@@ -76,6 +76,27 @@ refs:
     notes: >
       13 instances, 10 ids. Also the PROXY for the deferred revision refs (conab_production_revision /
       wap_nonUS_revision / sagis_cec_revision): narrate the PSD production LEVEL for that country/MY.
+  # ── WIRING WAVE-1 (Card B) TODO -- conab_production_revision repoint (NOT landed this wave) ──────────────
+  # silver_conab_coffee is now a live numbers card (survey_release_date vintage), so the deferred
+  # conab_production_revision leg CAN be repointed off the silver_psd PROXY above to the REAL CONAB survey.
+  # It is NOT landed here because the plan (WIRING_WAVE1 §7 / SKEPTIC-3) gates the repoint on a PRODUCER
+  # region='brazil' filter that this wave does not ship: CONAB's `region` column carries 12 values (brazil +
+  # 11 states), and the cascade has NO honest in-map region pin (country_rule=none -> NO geo filter ->
+  # _scope returns (commodity, None), and `keying` is descriptive text the cascade never parses), so a
+  # repoint today would narrate 12 region rows, not the national headline. When the producer region filter
+  # lands, add the ref below AND drop conab_production_revision from the proxy note above; gate on
+  # config_check.check_cascade_map + a cascade_census --diff (only this ref moves):
+  #   conab_production_revision:
+  #     table: silver_conab_coffee
+  #     metric: production_thousand_bags
+  #     agg: latest
+  #     period_type: marketing_year
+  #     country_rule: none            # requires the producer region='brazil' filter to be meaningful
+  #     native_unit: "1000 60-kg bags"
+  #     narrate_unit: "M 60-kg bags"
+  #     scale: 0.001
+  #     coverage_start: 2023
+  #     status: mapped
   area:
     table: silver_psd
     metric: area_harvested_1000ha

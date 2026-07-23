@@ -537,6 +537,16 @@ def check_numbers_schema_pins() -> list[str]:
     return errs
 
 
+def check_esr_destinations() -> list[str]:
+    """ESR_DESTINATION_PLAN W0/§5.1: the FAS destination code<->name reference lints clean -- strict
+    (extra='forbid') schema parse, global alias uniqueness, pseudo<->kind consistency, and EVERY display
+    name in agent._ESR_DESTINATIONS resolves to a code (the guard vocabulary is fully served, else a
+    destination we claim to detect cannot be filtered). AWS-free; the S3 double-count / missing-code probe
+    is a separate in-VPC gate whose verdict is pinned into the YAML audit block."""
+    from leviathan.graphrag.numbers.esr_destinations import lint_reference
+    return lint_reference()
+
+
 def check_quarantine() -> list[str]:
     """SILVER-F047 -- a quarantined table (TableSpec.quarantined) keeps serving DIRECT agent lookups (raw
     daily weather has no gold replacement; gold_weather_z serves anomalies, not observations), but no engine
@@ -737,6 +747,7 @@ def main() -> int:
                         ("price_register", check_price_register()),
                         ("quarantine", check_quarantine()),
                         ("numbers_schema_pins", check_numbers_schema_pins()),
+                        ("esr_destinations", check_esr_destinations()),
                         ("cot_register", check_cot_register()),
                         ("stats_registry", check_stats_registry()),
                         ("futures_lite", check_futures_lite())):

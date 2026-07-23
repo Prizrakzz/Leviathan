@@ -102,6 +102,17 @@ class TableSpec(BaseModel):
     shape: Literal["wide", "tall"]
     commodity_col: Optional[str] = None
     country_col: Optional[str] = None
+    country_name_ref: Optional[str] = None                   # ESR_DESTINATION_PLAN W1: a numbers-owned static
+    #                                                          name<->code reference (configs/graphrag/<ref>.yaml,
+    #                                                          e.g. numbers/esr_destinations.yaml) for a card whose
+    #                                                          country_col is a RAW code (silver_esr.country_code, an
+    #                                                          int FAS destination code with no name). Set ->
+    #                                                          build_sql resolves spec.country NAME to code(s) and
+    #                                                          emits `CAST(country_col AS varchar) IN (...)` (fail-
+    #                                                          CLOSED on an unresolved name), and run() renders the
+    #                                                          row's code back to a display name in the `country`
+    #                                                          extra. None (every other table) -> byte-identical
+    #                                                          (the plain country equality path).
     period_col: Optional[str] = None
     period_type: Literal["marketing_year", "year", "date", "none"] = "none"
     period_sql_type: Literal["int", "string"] = "string"     # how the period column compares in SQL

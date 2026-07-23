@@ -48,6 +48,15 @@ SAMPLE_COMMODITY = {"silver_psd": "corn_cbot", "silver_wasde": "corn", "silver_p
                     # NOT bare 'corn' (which matches zero rows = the gold_weather_z vacuous-panel trap; the
                     # EMPTY-PANEL guard would catch it loudly, but the RIGHT sample is corn_cbot).
                     "silver_cot": "corn_cbot",
+                    # WIRING WAVE-1 (2026-07-23): silver_noaa_iod has NO commodity axis (global IOD state) ->
+                    # None, like noaa_oni/fred_fx/pink_sheet; the wide sampler takes its 2 served metrics.
+                    # silver_conab_coffee's commodity_col is `commodity` = arabica_coffee|robusta_coffee (NOT
+                    # a contract slug); arabica_coffee is the headline variety (a wrong sample -> vacuous
+                    # panel, caught loudly by EMPTY-PANEL). safra 2023+ only, so the 2021 asof legitimately
+                    # sees 0 rows -- non-empty at the 2024/2026 asofs. silver_sagis_weekly_exports is NOT in
+                    # the grid this wave (Card C BLOCKED, not wired into the registry).
+                    "silver_noaa_iod": None,
+                    "silver_conab_coffee": "arabica_coffee",
                     # SEAM C (futures v1.5-lite, whitelisted 2026-07-23): commodity_col is leviathan_slug
                     # holding continuous front-month CONTRACT slugs -- corn_cbot is the liquid probe. The card
                     # is levels-only, so the `series` grid legs SKIP (build_sql rejects non-latest) and the
@@ -97,6 +106,35 @@ def main() -> int:
     nonempty: dict[str, int] = {}                     # per-table compared queries with actual rows
     compared: dict[str, int] = {}
     lines = [f"# numbers pg-parity report ({date.today().isoformat()})", ""]
+    def _cmp(spec, tid, metric, asof, agg):
+        """One spec -> compare Athena vs the pg mirror (the SAME build_sql string on both) and tally into
+        the enclosing report state. Reused verbatim by the (table,metric,asof,agg) grid AND the ESR
+        destination leg (ESR_DESTINATION_PLAN 5.2), so both run identical compare logic."""
+        nonlocal total, match
+        try:
+            sql = Q.build_sql(spec)
+        except Exception as e:  # noqa: BLE001 — spec not valid for this table (e.g. region rules)
+            lines.append(f"- SKIP {tid}.{metric} asof={asof} agg={agg}: spec invalid ({e})")
+            return
+        total += 1
+        try:
+            a = _rows_key(athena(sql))
+        except Exception as e:  # noqa: BLE001
+            lines.append(f"- ATHENA-ERR {tid}.{metric} asof={asof} agg={agg}: {str(e)[:120]}")
+            return
+        try:
+            p = _rows_key(pgnumbers.pg_query(sql))
+        except Exception as e:  # noqa: BLE001
+            mismatches.append(f"PG-ERR {tid}.{metric} asof={asof} agg={agg}: {str(e)[:120]}")
+            return
+        compared[tid] = compared.get(tid, 0) + 1
+        if a or p:
+            nonempty[tid] = nonempty.get(tid, 0) + 1
+        if a == p:
+            match += 1
+        else:
+            mismatches.append(f"DIFF {tid}.{metric} asof={asof} agg={agg}: athena={a} pg={p}")
+
     for tid in tables:
         ts = reg.get(tid)
         commodity = SAMPLE_COMMODITY.get(tid)
@@ -108,31 +146,20 @@ def main() -> int:
         for metric in metric_list:
             for asof in ASOFS:
                 for agg in AGGS:
-                    spec = Q.NumberQuery(table=tid, metric=metric, asof=asof, commodity=commodity,
-                                         agg=agg, limit=50)
-                    try:
-                        sql = Q.build_sql(spec)
-                    except Exception as e:  # noqa: BLE001 — spec not valid for this table (e.g. region rules)
-                        lines.append(f"- SKIP {tid}.{metric} asof={asof} agg={agg}: spec invalid ({e})")
-                        continue
-                    total += 1
-                    try:
-                        a = _rows_key(athena(sql))
-                    except Exception as e:  # noqa: BLE001
-                        lines.append(f"- ATHENA-ERR {tid}.{metric} asof={asof} agg={agg}: {str(e)[:120]}")
-                        continue
-                    try:
-                        p = _rows_key(pgnumbers.pg_query(sql))
-                    except Exception as e:  # noqa: BLE001
-                        mismatches.append(f"PG-ERR {tid}.{metric} asof={asof} agg={agg}: {str(e)[:120]}")
-                        continue
-                    compared[tid] = compared.get(tid, 0) + 1
-                    if a or p:
-                        nonempty[tid] = nonempty.get(tid, 0) + 1
-                    if a == p:
-                        match += 1
-                    else:
-                        mismatches.append(f"DIFF {tid}.{metric} asof={asof} agg={agg}: athena={a} pg={p}")
+                    _cmp(Q.NumberQuery(table=tid, metric=metric, asof=asof, commodity=commodity,
+                                       agg=agg, limit=50), tid, metric, asof, agg)
+
+    # ESR_DESTINATION_PLAN 5.2: destination-scoped parity leg -- the concrete cross-backend proof that the
+    # smallint (Athena) / TEXT (pg) country_code compares IDENTICALLY under CAST(country_code AS varchar)
+    # IN (...). corn_cbot + country='China' (FAS 5700), agg=sum (MY total) and agg=latest (freshest week).
+    # Empty-on-both is a match (not a mismatch); only a genuine athena!=pg divergence flags -- exactly the
+    # smallint/TEXT trap needing runtime proof (the offline unit test only proves the SQL STRING is emitted).
+    if "silver_esr" in tables:
+        for asof in ASOFS:
+            for agg in ("sum", "latest"):
+                _cmp(Q.NumberQuery(table="silver_esr", metric="weekly_exports_1000mt", asof=asof,
+                                   commodity="corn_cbot", country="China", agg=agg, limit=50),
+                     "silver_esr", "weekly_exports_1000mt[China]", asof, agg)
     # A panel where EVERY compared query returned 0 rows on BOTH backends proves nothing (wrong sample
     # commodity, empty mirror table, ...) — vacuous panels BLOCK the flip like a mismatch does.
     for tid, n in compared.items():

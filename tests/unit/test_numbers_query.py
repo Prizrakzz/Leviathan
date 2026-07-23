@@ -618,7 +618,11 @@ _PRE_WAVE_8 = frozenset({
 # tables PLUS the SEAM-C futures card.
 _PRICE_IDS = ("silver_pink_sheet", "silver_cot")
 _SEAM_C_IDS = ("silver_futures_prices",)
-_DEPTH_BASELINE = _PRE_WAVE_8 | set(_PRICE_IDS) | set(_SEAM_C_IDS)
+# WIRING WAVE-1 (2026-07-23) wired two more cards (Card A IOD + Card B CONAB); Card C SAGIS-weekly is
+# BLOCKED (pre-step DDL/migration incomplete) and intentionally absent. They are present regardless of the
+# depth-wave kill-switch, so they belong in the depth-wave enum baseline alongside price + futures.
+_WIRING_W1_IDS = ("silver_noaa_iod", "silver_conab_coffee")
+_DEPTH_BASELINE = _PRE_WAVE_8 | set(_PRICE_IDS) | set(_SEAM_C_IDS) | set(_WIRING_W1_IDS)
 
 
 def _tool_enum():

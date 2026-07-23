@@ -186,8 +186,9 @@ def test_cot_is_branch_a_twelfth_pg_mirror_table():
     silver = SR.load_registry()
     assert TID in g.PG_MIRROR_TABLES
     assert g.select_branch(TID, silver_reg=silver) == g.BRANCH_A
-    # cot is the 12th pg-mirror table; silver_futures_prices (SEAM-C, whitelisted 2026-07-23) is the 13th.
-    assert len(g.PG_MIRROR_TABLES) == 13
+    # cot is the 12th pg-mirror table; silver_futures_prices (SEAM-C) is the 13th; WIRING WAVE-1 added
+    # silver_noaa_iod + silver_conab_coffee (2026-07-23) as the 14th/15th (Card C SAGIS-weekly stays out).
+    assert len(g.PG_MIRROR_TABLES) == 15
 
 
 # ======================================================================================================

@@ -148,6 +148,27 @@ def _commodity_code_filter(spec: NumberQuery, ts: TableSpec) -> list[str]:
     return []
 
 
+def _esr_country_codes(spec: NumberQuery, ts: TableSpec) -> list[str]:
+    """ESR_DESTINATION_PLAN W1 (sub-route A2): translate the model's destination NAME to FAS code(s)
+    and emit a backend-agnostic ``CAST(country_col AS varchar) IN ('...')`` filter. CAST-as-varchar is a
+    no-op on the pg TEXT ``country_code`` and stringifies the Athena smallint, so the quoted-string IN
+    list compares IDENTICALLY on both backends (the smallint/TEXT type trap, ESR plan 1). ``country_code``
+    is an in-file column of silver_esr_compact (NOT a projected partition key -- partitions = commodity),
+    so the no-CAST-on-projected-partition rule does not apply.
+
+    An UNRESOLVED name fails CLOSED (an IN list that matches ZERO rows), never a silent national total --
+    the July name-vs-code lesson class (``country='China'`` -> ``country_code = 'China'`` -> 0 rows
+    narrated as a real figure). EMPTY (no spec.country) -> [] so the national path is byte-identical."""
+    if not (ts.country_name_ref and spec.country):
+        return []
+    from leviathan.graphrag.numbers.esr_destinations import load_esr_destinations
+    codes = load_esr_destinations().resolve_codes(spec.country)
+    col = _dcol(ts.country_col)                                # CAST(country_code AS varchar) -- type-agnostic
+    if not codes:                                             # unresolved name -> fail CLOSED (zero rows)
+        return [f"{col} IN ('__unresolved_destination__')"]
+    return [f"{col} IN ({', '.join(_q(c) for c in codes)})"]
+
+
 def _metric_commodity_filters(spec: NumberQuery, ts: TableSpec) -> dict[str, list[str]]:
     """A3 (PRICE_OBSERVABILITY re-whitelist): per-commodity ROW constraints declared on the queried metric
     (``Metric.row_filters``) as ``{column: [allowed values]}`` -- emitted as ``column IN (...)`` by build_sql
@@ -267,7 +288,9 @@ def _filters(spec: NumberQuery, ts: TableSpec) -> list[str]:
     for col, vals in cf.items():                             # emit `col IN (...)`; a country_col IN clause
         if vals:                                             # REPLACES the plain equality below (widening the
             w.append(f"{col} IN ({', '.join(_q(v) for v in vals)})")  # match across e.g. the cotton region split)
-    if spec.country and ts.country_col and ts.country_col not in ts.partition_cols and ts.country_col not in cf:
+    if ts.country_name_ref:                                  # ESR destination: NAME->code IN filter (fail-closed);
+        w += _esr_country_codes(spec, ts)                    # [] when no spec.country -> national path unchanged
+    elif spec.country and ts.country_col and ts.country_col not in ts.partition_cols and ts.country_col not in cf:
         w.append(f"{ts.country_col} = {_q(spec.country)}")
     if ts.shape == "tall" and ts.metric_col:
         w.append(f"{ts.metric_col} = {_q(spec.metric)}")
@@ -468,13 +491,23 @@ def _vintage_cmp(ts: TableSpec):
     return cmp
 
 
-def _total_order(extras: list[tuple[str, str]]) -> str:
+def _total_order(extras: list[tuple[str, str]], include_country: bool = True) -> str:
     """A deterministic TOTAL ordering over the aliased output columns, chronology first. Without one,
     multi-row results under LIMIT are ENGINE-ARBITRARY — Athena and the pg mirror legitimately return
     different row samples for the same SQL (found by the pg-parity gate, 2026-07-05). Output aliases are
-    valid ORDER BY targets on both Presto and Postgres."""
+    valid ORDER BY targets on both Presto and Postgres.
+
+    ESR_DESTINATION_PLAN S1 [HIGH]: ``country`` participates in the tiebreak ONLY when a destination
+    filter is active (``include_country`` = ``spec.country is not None``). Declaring silver_esr's
+    ``country_col`` surfaces a ``country`` alias that would otherwise slot into the LIMIT-1 tiebreak of
+    the ``agg=latest`` vintage branch (the LIVE esr_exports cascade leg, country_rule=none) and silently
+    flip the freshest-week pick to the lexicographically-smallest ``country_code`` row — a different value
+    for the national leg. Dropping ``country`` on the no-country path keeps that leg's value byte-stable;
+    when a destination IS named the alias participates (a single scoped row anyway)."""
     have = [a for _, a in extras]
     pri = ["data_date", "period", "year", "month", "country", "metric", "knowledge_date", "unit"]
+    if not include_country:
+        pri = [p for p in pri if p != "country"]
     return ", ".join([a for a in pri if a in have] + ["value"])
 
 
@@ -500,6 +533,8 @@ def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = AT
                          f"commodity -- a commodity-less farm-price query serves unattributable blank-unit rows")
     val = _value_expr(spec, ts)
     extras = _extras(ts)
+    inc_country = spec.country is not None            # ESR S1: country enters _total_order only when a
+    #                                                   destination filter is active (national path stays stable)
     where = " AND ".join(_filters(spec, ts) + [_guard(spec, ts)])
     sel = f"{val} AS value" + "".join(f", {e} AS {a}" for e, a in extras)
     order = _order_col(ts)
@@ -531,9 +566,9 @@ def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = AT
             # (COLUMN_NOT_FOUND, live-caught at the BF-W2 step-11 serving smoke gate).
             alias = dict(extras)
             order_alias = alias[ts.date_col] if ts.date_col else "(year * 100 + month)"
-            return base + f" ORDER BY {order_alias} DESC, {_total_order(extras)} LIMIT 1"
+            return base + f" ORDER BY {order_alias} DESC, {_total_order(extras, inc_country)} LIMIT 1"
         else:
-            base += f" ORDER BY {_total_order(extras)}"
+            base += f" ORDER BY {_total_order(extras, inc_country)}"
         return base + f" LIMIT {int(spec.limit)}"
 
     # non-vintage (ingest / data_date / year_month)
@@ -541,8 +576,8 @@ def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = AT
     if spec.agg in ("sum", "mean", "max", "min"):
         return _agg(base) + f" LIMIT {int(spec.limit)}"
     if spec.agg == "latest" and order:                        # the single most-recent observation on/before asof
-        return base + f" ORDER BY {order} DESC, {_total_order(extras)} LIMIT 1"
-    base += f" ORDER BY {_total_order(extras)}"               # series/default: chronological + total tiebreak
+        return base + f" ORDER BY {order} DESC, {_total_order(extras, inc_country)} LIMIT 1"
+    base += f" ORDER BY {_total_order(extras, inc_country)}"  # series/default: chronological + total tiebreak
     return base + f" LIMIT {int(spec.limit)}"
 
 
@@ -562,6 +597,10 @@ def apply_pit_filter(rows: list[dict], spec: NumberQuery, ts: TableSpec) -> list
                     if ts.country_col and ts.country_col in ts.partition_cols else None)  # SAME way as build_sql
     cf = _metric_commodity_filters(spec, ts)                             # A3 per-commodity row constraints (mirror
     cf_sets = {col: {str(v) for v in vals} for col, vals in cf.items()}  # of build_sql's `col IN (...)` emit)
+    esr_codes: Optional[set[str]] = None                                 # ESR destination: resolved str codes for
+    if ts.country_name_ref and spec.country:                             # spec.country (mirrors _esr_country_codes;
+        from leviathan.graphrag.numbers.esr_destinations import load_esr_destinations  # EMPTY set == unresolved ->
+        esr_codes = {str(c) for c in load_esr_destinations().resolve_codes(spec.country)}  # fail CLOSED (no row kept)
 
     def keep(r: dict) -> bool:
         if "region" in ts.partition_cols:
@@ -575,6 +614,9 @@ def apply_pit_filter(rows: list[dict], spec: NumberQuery, ts: TableSpec) -> list
                 return False
         elif ts.country_col and ts.country_col in cf_sets:               # A3: a row_filter on the country_col
             if str(r.get(ts.country_col)) not in cf_sets[ts.country_col]:  # WIDENS the match (cotton region split)
+                return False
+        elif esr_codes is not None:                                      # ESR destination: NAME->code membership
+            if str(r.get(ts.country_col)) not in esr_codes:              # (esr_codes empty == unresolved -> closed)
                 return False
         elif spec.country and ts.country_col and str(r.get(ts.country_col)) != str(spec.country):
             return False
@@ -644,6 +686,24 @@ def _apply_unit_overrides(rows: list[dict], spec: NumberQuery, ts: TableSpec) ->
     return rows
 
 
+def _apply_country_names(rows: list[dict], spec: NumberQuery, ts: TableSpec) -> list[dict]:
+    """ESR_DESTINATION_PLAN W1.3.3 POST-FETCH: render the row's raw ``country_code`` (surfaced as the
+    ``country`` extra alias) to its display name, so a citation/answer shows 'China', not '5700'. The code
+    comes back as a STRING on BOTH backends (Athena VarCharValue / pg _stringify), so display() is
+    str-normalized (the folded S2 int-key/string-value reconciliation); an unmapped code falls back to the
+    bare code string (never raises -- the reference-lint makes a probe-present-but-unmapped code a hard
+    failure). Only for a card with country_name_ref; agg=sum rows carry no ``country`` extra (nothing to
+    render). Every other table is byte-identical."""
+    if not ts.country_name_ref:
+        return rows
+    from leviathan.graphrag.numbers.esr_destinations import load_esr_destinations
+    dst = load_esr_destinations()
+    for r in rows:
+        if r.get("country") is not None:
+            r["country"] = dst.display(r["country"])
+    return rows
+
+
 def run(spec: NumberQuery, *, query_fn=None, db: str = ATHENA_DB) -> list[dict]:
     """Execute on the active backend (or an injected query_fn(sql)->rows for tests/session-cache wrappers).
     Returns rows as list[dict]. The pg mirror's schema is NAMED like the Athena db, so the compiled SQL is
@@ -652,7 +712,8 @@ def run(spec: NumberQuery, *, query_fn=None, db: str = ATHENA_DB) -> list[dict]:
     ts = load_registry().get(spec.table)
     sql = build_sql(spec, ts, db=db)
     rows = query_fn(sql) if query_fn is not None else default_query_fn(db=db)(sql)
-    return _apply_unit_overrides(rows, spec, ts)
+    rows = _apply_unit_overrides(rows, spec, ts)
+    return _apply_country_names(rows, spec, ts)              # ESR: raw country_code -> display name (post-fetch)
 
 
 def default_query_fn(db: str = ATHENA_DB):

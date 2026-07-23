@@ -181,6 +181,45 @@ def _is_esr_call(c: dict) -> bool:
     return (c.get("query") or {}).get("table") == "silver_esr"
 
 
+# ── ESR destination guard DOWNGRADE (ESR_DESTINATION_PLAN W3.4) ────────────────────────────────────────
+# Now that silver_esr supports a destination cut (country=<name> -> FAS code IN filter), a NAMED destination
+# ask that the model actually SCOPED (passed a country that resolves) is ANSWERED -- the national-total
+# decline preface is downgraded to the FALLBACK for the unresolved/national case. A bloc/pseudo code
+# (the EU, ...) is served WITH a bloc-aggregate caveat. A destination ask that ran only a NATIONAL ESR
+# lookup (no country, or an unresolved name) keeps the honest national-total decline -- byte-identical to
+# before for every existing path.
+def _esr_call_codes(c: dict) -> Optional[list[str]]:
+    """Resolved FAS code(s) for an ESR call's `country`, or None when the call carried no country OR the
+    name did not resolve (fail-closed: an unresolved name is treated as NOT destination-scoped)."""
+    country = (c.get("query") or {}).get("country")
+    if not country:
+        return None
+    from leviathan.graphrag.numbers.esr_destinations import load_esr_destinations
+    codes = load_esr_destinations().resolve_codes(country)
+    return codes or None
+
+
+def _esr_codes_are_bloc(codes: list[str]) -> bool:
+    """True if ANY resolved code is a pseudo/bloc/region aggregate (the EU, an FSU residual, ...) -- such a
+    scoped read is a bloc aggregate, not a single country, and gets an honest caveat."""
+    from leviathan.graphrag.numbers.esr_destinations import load_esr_destinations
+    dst = load_esr_destinations()
+    return any(dst.is_pseudo(str(c)) for c in codes)
+
+
+def _esr_bloc_caveat_preface(dest: str) -> str:
+    """Reader-facing bloc-aggregate caveat for a scoped read against a bloc/region code (mentor register)."""
+    return (f"One note on scope before the number: {dest} is a bloc / regional aggregate in this export-sales "
+            f"data, not a single country -- the figure below covers the bloc as reported, and may aggregate "
+            f"member destinations.\n\n")
+
+
+def _esr_bloc_scope_note(dest: str) -> str:
+    """Model-facing note on an ESR tool_result scoped to a bloc/region code."""
+    return (f"BLOC/REGIONAL AGGREGATE ({dest}) -- this figure is scoped to a bloc/region destination code, not "
+            f"a single country; label it as the {dest} bloc aggregate, which may aggregate member destinations.")
+
+
 # -- ESR destination-BREAKDOWN decline-WITH-aggregate (L3) ---------------------------------------------
 # The full-breakdown ask ("give me the destination breakdown of US soybean export sales this year") is
 # structurally unsupported -- silver_esr has no wired destination grouping, so a per-buyer GROUP BY cannot
@@ -708,6 +747,24 @@ def system_prompt(reg: NumbersRegistry, stats_tool: Optional[bool] = None) -> st
         + stats_bullet +
         "- silver_noaa_oni has NO date column: window months with period_start/period_end as 'YYYY-MM', or use "
         "agg=latest for the most recent month on/before the as-of date.\n"
+        "- silver_noaa_iod is the Indian Ocean Dipole (DMI), a GLOBAL monthly climate index -- NO commodity or "
+        "country argument. Window months with period_start/period_end as 'YYYY-MM', or agg=latest for the most "
+        "recent month on/before the as-of date. Report the DMI (or its 3-month average) in degC + the month. It "
+        "is a lagging SST reconstruction whose latest available month can trail the as-of date by many months, "
+        "so ALWAYS cite the reading's month and make its age explicit -- staleness must be visible, not hidden; "
+        "an agg=latest reading that is months old is stated as such, NEVER as 'the current DMI'. Positive DMI is "
+        "the East-Africa/Australia teleconnection. It is an observed climate index, never a price and never a "
+        "crop-impact forecast.\n"
+        "- silver_conab_coffee is CONAB's Brazilian coffee production surveys (arabica / robusta), survey-"
+        "vintage, Brazil only. Pass commodity=arabica_coffee|robusta_coffee and region='brazil' (via the "
+        "country field) for the national headline; period = safra_year integer. It reports the latest survey's "
+        "production/area/yield as-known at the as-of date -- it does NOT report survey-over-survey revisions "
+        "(those are deltas, not levels). For the USDA global coffee balance sheet use silver_psd.\n"
+        "- silver_esr supports a DESTINATION cut: for a buyer-scoped ask ('corn sales to China') pass the "
+        "destination as `country` (e.g. country='China') to get that destination's export sales; OMIT country "
+        "for the US national total across all buyers. Label the figure as that destination (or as the US-wide "
+        "total when unscoped); the EU and other blocs are bloc aggregates. An unrecognised destination returns "
+        "no rows -- say the figure is unavailable, never present a national total as that destination.\n"
         "- silver_nasa_power is per STATION-REGION: each lookup reads ONE region (defaults to the commodity's "
         "primary growing region, e.g. us_corn_iowa for corn_cbot). The result is that station's value, not a "
         "belt-wide total — state the region when you report the number.\n"
@@ -804,10 +861,28 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                         result["answer"] = agg
                         result["esr_aggregate_legs"] = len(indexed)
                         return result
-                # named single destination (or generic with no aggregate available): deterministic decline
-                # PREFACE prepended regardless of what the model wrote, so an uncaveated national number can
-                # never pose as a destination answer.
-                preface += _esr_destination_preface(dest)
+                    # generic breakdown with no available aggregate: the plain national-total decline stands.
+                    preface += _esr_destination_preface(dest)
+                else:
+                    # NAMED destination -- ESR_DESTINATION_PLAN W3.4 DOWNGRADE. If an ESR lookup was actually
+                    # SCOPED to the destination (the model passed a country that resolved to a code), the
+                    # destination IS served: no national-total decline. A bloc/pseudo code gets a bloc caveat
+                    # instead. Only a NATIONAL ESR lookup for the destination ask (no country, or an
+                    # unresolved name) keeps the honest national-total decline (byte-identical to before).
+                    scoped_call = next((c for c in calls if _is_esr_call(c) and _esr_call_codes(c)), None)
+                    if scoped_call is not None:
+                        result["esr_destination_served"] = dest
+                        # The bloc caveat asserts "the figure below covers the bloc", so it may only ride an ESR
+                        # read that ACTUALLY RETURNED a figure. The one bloc in the detection vocabulary is the
+                        # EU (code 1), which silver_esr does NOT carry (esr_destinations W0 audit: EU-27 absent
+                        # from the data), so a "sales to the EU" ask resolves to code 1 -> IN ('1') -> ZERO rows;
+                        # prefacing that empty result with "the figure below covers the bloc" is self-
+                        # contradictory. Gate the caveat on rows-returned -> an empty bloc read falls through to
+                        # the model's honest no-data narration; a bloc code that DID return rows still gets it.
+                        if (scoped_call.get("rows") or []) and _esr_codes_are_bloc(_esr_call_codes(scoped_call) or []):
+                            preface += _esr_bloc_caveat_preface(dest)
+                    else:
+                        preface += _esr_destination_preface(dest)
             if preface:
                 result["answer"] = (preface + text).strip()
             return result
@@ -844,7 +919,15 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
             value is a national total (defense-in-depth next to the deterministic answer preface — the
             hybrid path consumes calls, not the agent's prose, so the note must ride the payload)."""
             if dest and _is_esr_call(payload):
-                payload["scope_note"] = _esr_scope_note(dest)
+                codes = _esr_call_codes(payload)
+                if not codes:                              # national lookup for a destination ask -> national caveat
+                    payload["scope_note"] = _esr_scope_note(dest)
+                elif _esr_codes_are_bloc(codes) and (payload.get("rows") or []):
+                    # scoped to a bloc/region code that RETURNED a figure -> bloc-aggregate note. Gated on rows:
+                    # an empty bloc read (e.g. the EU, absent from silver_esr) carries no figure to label as a
+                    # bloc aggregate, so the model just narrates the no_rows result honestly.
+                    payload["scope_note"] = _esr_bloc_scope_note(dest)
+                # scoped to a real single country -> NO scope_note (the value IS that destination's)
             return payload
 
         def _exec_stat(b) -> tuple[dict, list[dict]]:

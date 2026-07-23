@@ -56,7 +56,15 @@ P1_TABLES = ["silver_psd", "silver_wasde", "silver_production", "silver_esr", "s
              # front-month slugs x daily `close`); the single `close` metric column mirrors numeric under the
              # type doctrine, and `date` (physical timestamp) / leviathan_slug / source stay ISO TEXT. The
              # DP-5 substr normalization makes both backends compare identically.
-             "silver_futures_prices"]
+             "silver_futures_prices",
+             # WIRING WAVE-1 (2026-07-23): two freshly wired WIDE tables. silver_noaa_iod (year_month, 2
+             # served metrics dmi_value/iod_dmi_3month_avg mirror numeric; year/month mirror numeric; the
+             # producer trims the trailing NaN tail so latest is a real reading). silver_conab_coffee
+             # (survey-vintage; production_thousand_bags/area_in_production_ha/yield_bags_per_ha mirror
+             # numeric; safra_year period_sql_type=int mirrors numeric; commodity/region/survey_release_date
+             # stay ISO/TEXT). silver_sagis_weekly_exports is NOT wired this wave (Card C BLOCKED: the
+             # pre-step left the served-table DDL/migration incomplete -- see integrator report).
+             "silver_noaa_iod", "silver_conab_coffee"]
 SCHEMA = "leviathan_dev"                       # == numbers.pgnumbers.SCHEMA == query.ATHENA_DB
 GLUE_DB = "leviathan_dev"
 
