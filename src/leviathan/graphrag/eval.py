@@ -236,7 +236,10 @@ def _cascade_asserts(q: dict, out: dict) -> dict | None:
             # avg_farm_price (silver_wasde rebuilt + promoted), so a WASDE farm-price citation (carrying a
             # per-commodity unit_override: $/bu, c/lb, $/cwt, $/s.t.) now legitimately satisfies price_cited /
             # unit_present, and the corn honesty row is a SERVED price row (not a decline).
-            pc = [c for c in cits if (c.get("locator") or {}).get("table") in ("silver_pink_sheet", "silver_wasde")]
+            # SEAM C (2026-07-23): silver_futures_prices whitelisted -- a served front-month settle citation
+            # (exchange units: c/bu, c/lb, USD/short ton, USD/metric ton, USD/cwt per the 12-slug unit_overrides)
+            # now legitimately satisfies price_cited / unit_present too.
+            pc = [c for c in cits if (c.get("locator") or {}).get("table") in ("silver_pink_sheet", "silver_wasde", "silver_futures_prices")]
             if k == "price_cited":
                 res[k] = bool(pc) == bool(want)
             else:                                                     # unit_present

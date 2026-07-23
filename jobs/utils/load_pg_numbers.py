@@ -51,7 +51,12 @@ P1_TABLES = ["silver_psd", "silver_wasde", "silver_production", "silver_esr", "s
              # PRICE_OBSERVABILITY W4.2 (v2): silver_cot is a small flat wide table; the managed-money
              # metric columns (open_interest / mm_* levels + net + signed pct_oi + 3-yr z-scores) mirror
              # numeric under the type doctrine, and report_date / leviathan_slug / source stay ISO TEXT.
-             "silver_cot"]
+             "silver_cot",
+             # SEAM C (futures v1.5-lite, whitelisted 2026-07-23): a small flat wide table (12 continuous
+             # front-month slugs x daily `close`); the single `close` metric column mirrors numeric under the
+             # type doctrine, and `date` (physical timestamp) / leviathan_slug / source stay ISO TEXT. The
+             # DP-5 substr normalization makes both backends compare identically.
+             "silver_futures_prices"]
 SCHEMA = "leviathan_dev"                       # == numbers.pgnumbers.SCHEMA == query.ATHENA_DB
 GLUE_DB = "leviathan_dev"
 

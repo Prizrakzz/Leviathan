@@ -47,7 +47,12 @@ SAMPLE_COMMODITY = {"silver_psd": "corn_cbot", "silver_wasde": "corn", "silver_p
                     # holds CONTRACT slugs via _MARKET_TO_SLUG (raw_to_bronze/cftc_cot.py:55-56) -- corn_cbot,
                     # NOT bare 'corn' (which matches zero rows = the gold_weather_z vacuous-panel trap; the
                     # EMPTY-PANEL guard would catch it loudly, but the RIGHT sample is corn_cbot).
-                    "silver_cot": "corn_cbot"}
+                    "silver_cot": "corn_cbot",
+                    # SEAM C (futures v1.5-lite, whitelisted 2026-07-23): commodity_col is leviathan_slug
+                    # holding continuous front-month CONTRACT slugs -- corn_cbot is the liquid probe. The card
+                    # is levels-only, so the `series` grid legs SKIP (build_sql rejects non-latest) and the
+                    # `latest` legs at each asof carry the panel; bare 'corn' would match zero rows.
+                    "silver_futures_prices": "corn_cbot"}
 # 2026 asof included because ingest-semantics tables (silver_production) were ingested in 2026 — earlier
 # asofs legitimately see 0 rows (honest PIT), which would leave that panel vacuous.
 ASOFS = ["2021-08-15", "2024-06-01", "2026-07-01"]

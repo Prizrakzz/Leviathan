@@ -208,14 +208,14 @@ class NumbersRegistry(BaseModel):
 
 
 # SEAM C (futures v1.5-lite): silver_futures_prices is REGISTERED in tables.yaml + linted
-# (config_check.check_futures_lite) but WHITELIST-ABSENT from serving by DEFAULT -- it ships in this set so
-# load_registry drops it exactly like a GRAPHRAG_NUMBERS_DISABLE entry, keeping it out of the agent tool
-# enum + system-prompt cards. It stays absent until the SEAM-C no-judge gate AND the yfinance
-# freshness-stall fix BOTH pass; WHITELISTING = removing it from this frozenset (a gated code change, the
-# eval + freshness prerequisite). Post-whitelist the runtime kill-switch is the ordinary
-# GRAPHRAG_NUMBERS_DISABLE env idiom. Kept DISJOINT from _disabled_tables() (env-only) so the env-parse
-# kill-switch tests stay byte-identical; the union happens once, in load_registry.
-WHITELIST_ABSENT_DEFAULT: frozenset[str] = frozenset({"silver_futures_prices"})
+# (config_check.check_futures_lite) and, as of 2026-07-23, WHITELISTED for serving -- the SEAM-C no-judge
+# gate AND the yfinance freshness-stall fix BOTH passed (canonical silver/futures_prices/part-000.parquet
+# refreshed, freshness alarm green), so the card is REMOVED from this set and load_registry no longer drops
+# it: it enters the agent tool enum + system-prompt cards. The runtime kill-switch is now the ordinary
+# GRAPHRAG_NUMBERS_DISABLE env idiom (single-table rollback, no redeploy). The set is kept (empty) as the
+# symbol so re-gating any future table stays a one-line change, and stays DISJOINT from _disabled_tables()
+# (env-only) so the env-parse kill-switch tests stay byte-identical; the union happens once, in load_registry.
+WHITELIST_ABSENT_DEFAULT: frozenset[str] = frozenset()   # SEAM-C futures whitelisted 2026-07-23: freshness green + no-judge gate passed
 
 
 def _disabled_tables() -> frozenset[str]:

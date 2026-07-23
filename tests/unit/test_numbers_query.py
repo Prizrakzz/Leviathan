@@ -612,11 +612,13 @@ _PRE_WAVE_8 = frozenset({
     "silver_psd", "silver_wasde", "silver_production", "silver_nasa_power",
     "silver_esr", "silver_fred_fx", "silver_noaa_oni", "gold_weather_z",
 })
-# PRICE_OBSERVABILITY W2 wired silver_pink_sheet, and W4 wired silver_cot, as LATER waves; both are
-# present regardless of the depth-wave kill-switch, so the depth-wave enum baseline is the pre-wave 8
-# PLUS the price + positioning tables.
+# PRICE_OBSERVABILITY W2 wired silver_pink_sheet, and W4 wired silver_cot, as LATER waves; SEAM C
+# whitelisted silver_futures_prices (2026-07-23) as a still-later one. All are present regardless of the
+# depth-wave kill-switch, so the depth-wave enum baseline is the pre-wave 8 PLUS the price + positioning
+# tables PLUS the SEAM-C futures card.
 _PRICE_IDS = ("silver_pink_sheet", "silver_cot")
-_DEPTH_BASELINE = _PRE_WAVE_8 | set(_PRICE_IDS)
+_SEAM_C_IDS = ("silver_futures_prices",)
+_DEPTH_BASELINE = _PRE_WAVE_8 | set(_PRICE_IDS) | set(_SEAM_C_IDS)
 
 
 def _tool_enum():
@@ -633,7 +635,7 @@ def test_depth_wave_enum_gains_three_and_kill_switch_reverts_to_pre_wave_8(monke
     monkeypatch.delenv("GRAPHRAG_NUMBERS_DISABLE", raising=False)
     live = _tool_enum()
     assert set(_NEW_DEPTH_IDS) <= live, live
-    assert live == _DEPTH_BASELINE | set(_NEW_DEPTH_IDS)       # exactly the (8 + pink_sheet) + 3, nothing else
+    assert live == _DEPTH_BASELINE | set(_NEW_DEPTH_IDS)       # exactly (8 + price + futures) + 3, nothing else
 
     # (2) disable all three -> the enum reverts to the depth-wave baseline (pre-wave 8 + pink_sheet); a
     #     total, config-only rollback of the depth wave that leaves the separately-wired price table intact.

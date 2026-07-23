@@ -650,12 +650,13 @@ def check_stats_registry() -> list[str]:
 
 
 # SEAM C (ENGINE SEAMS rev-52) -- futures v1.5-lite (Option A, levels-only). The card lives in
-# configs/graphrag/numbers/tables.yaml but is WHITELIST-ABSENT from serving (registry.WHITELIST_ABSENT_DEFAULT),
-# so it is DROPPED from the loaded registry -- the registry-iterating lints never see it. This dedicated lint
-# reads the RAW card and asserts (a) it exists with the exact levels-only shape, (b) close is the ONLY metric
-# and its unit_overrides cover exactly the 12 slugs with the exact exchange-unit strings, (c) the whitelist
-# gate state is INTENTIONAL (the table is in WHITELIST_ABSENT_DEFAULT and absent from the served registry),
-# and (d) every futures decline template is register-clean and the class set matches the agent's guard.
+# configs/graphrag/numbers/tables.yaml and, as of 2026-07-23, is WHITELISTED for serving (removed from
+# registry.WHITELIST_ABSENT_DEFAULT), so it now LOADS into the served registry. This dedicated lint reads the
+# RAW card (authoritative for the card's shape regardless of load-time drops) and asserts (a) it exists with
+# the exact levels-only shape, (b) close is the ONLY metric and its unit_overrides cover exactly the 12 slugs
+# with the exact exchange-unit strings, (c) the whitelist state is INTENTIONAL (the table is NOT in
+# WHITELIST_ABSENT_DEFAULT and IS present in the served registry -- the agent tool enum), and (d) every
+# futures decline template is register-clean and the class set matches the agent's guard.
 _FUTURES_TABLE = "silver_futures_prices"
 _FUTURES_UNIT_OVERRIDES: dict = {
     "corn_cbot": "US cents/bushel", "soybeans_cbot": "US cents/bushel",
@@ -673,9 +674,9 @@ _FUTURES_CARD_FIELDS: dict = {
 
 def check_futures_lite() -> list[str]:
     """SEAM-C futures-lite lint (AWS-free, pure). Card-shape + close-only + unit_overrides completeness +
-    WHITELIST-ABSENT-until-gate + decline-template register-cleanliness. Reads the RAW tables.yaml (the card
-    is dropped from the loaded registry by WHITELIST_ABSENT_DEFAULT, so the registry-iterating lints cannot
-    see it)."""
+    WHITELISTED-AND-SERVED gate state + decline-template register-cleanliness. Reads the RAW tables.yaml (the
+    authoritative source for the card's shape); post-whitelist (2026-07-23) the card also loads into the
+    served registry, which block (c) now asserts."""
     from leviathan.graphrag import register as reg
     from leviathan.graphrag.numbers import registry as R
     errs: list[str] = []
@@ -696,13 +697,14 @@ def check_futures_lite() -> list[str]:
     if ov != _FUTURES_UNIT_OVERRIDES:
         errs.append(f"futures_lite: close.unit_overrides {sorted(ov.items())} != the curated 12-slug set "
                     f"{sorted(_FUTURES_UNIT_OVERRIDES.items())}")
-    # (c) whitelist gate state is intentional: registered-but-absent-from-serving until the gate flips.
-    if _FUTURES_TABLE not in R.WHITELIST_ABSENT_DEFAULT:
-        errs.append(f"futures_lite: {_FUTURES_TABLE} is registered but NOT in registry.WHITELIST_ABSENT_DEFAULT "
-                    f"-- the whitelist-absent gate state is unintentional (it would serve before the gate)")
-    if _FUTURES_TABLE in R.load_registry().tables:
-        errs.append(f"futures_lite: {_FUTURES_TABLE} leaked into the SERVED registry (agent tool enum) while "
-                    f"whitelist-absent -- it must be dropped at load until the gate + freshness fix pass")
+    # (c) whitelist state is intentional: SERVED (whitelisted 2026-07-23) -- removed from WHITELIST_ABSENT_DEFAULT
+    # and present in the loaded registry (the agent tool enum + system-prompt cards).
+    if _FUTURES_TABLE in R.WHITELIST_ABSENT_DEFAULT:
+        errs.append(f"futures_lite: {_FUTURES_TABLE} is whitelisted but STILL in registry.WHITELIST_ABSENT_DEFAULT "
+                    f"-- it would be force-dropped from serving (whitelist regression)")
+    if _FUTURES_TABLE not in R.load_registry().tables:
+        errs.append(f"futures_lite: {_FUTURES_TABLE} is whitelisted but ABSENT from the SERVED registry (agent "
+                    f"tool enum) -- the card must load once whitelist-absent is cleared")
     # (d) decline templates register-clean + class set matches the agent's guard.
     try:
         from leviathan.graphrag.numbers import agent as na

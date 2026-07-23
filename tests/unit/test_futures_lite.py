@@ -1,5 +1,5 @@
 """SEAM C -- futures v1.5-lite (Option A, LEVELS-ONLY) surface tests. Pure/hermetic -- no AWS, no LLM, no
-pg. Covers: the whitelist-absent-until-gate registry drop, the levels-only build_sql guard + DP-5 substr
+pg. Covers: the whitelisted-and-served registry load (2026-07-23), the levels-only build_sql guard + DP-5 substr
 as-of, the per-contract unit_overrides, the config_check.check_futures_lite lint (card shape + close-only +
 unit completeness + gate-state + template register-cleanliness), and the agent's phrasing-based decline
 routes (numbers/agent.futures_scope + FUTURES_DECLINE_TEMPLATES prepend)."""
@@ -14,12 +14,12 @@ from leviathan.graphrag.numbers import query as Q
 from leviathan.graphrag.numbers import registry as R
 
 
-# -- registry: registered-but-WHITELIST-ABSENT (dropped from serving until the gate flips) --------------
-def test_futures_whitelist_absent_by_default():
-    # the card is in WHITELIST_ABSENT_DEFAULT (intentional gate state) and DROPPED from the served registry
-    # (the agent tool enum / system-prompt cards), so it can never serve before the gate + freshness fix.
-    assert "silver_futures_prices" in R.WHITELIST_ABSENT_DEFAULT
-    assert "silver_futures_prices" not in R.load_registry().tables
+# -- registry: WHITELISTED-AND-SERVED (loaded into serving now the gate + freshness fix have passed) -----
+def test_futures_whitelisted_and_served():
+    # the card is WHITELISTED (removed from WHITELIST_ABSENT_DEFAULT 2026-07-23) so it LOADS into the served
+    # registry (the agent tool enum / system-prompt cards) -- the SEAM-C no-judge gate + freshness fix passed.
+    assert "silver_futures_prices" not in R.WHITELIST_ABSENT_DEFAULT
+    assert "silver_futures_prices" in R.load_registry().tables
 
 
 def test_futures_card_present_in_raw_yaml():
