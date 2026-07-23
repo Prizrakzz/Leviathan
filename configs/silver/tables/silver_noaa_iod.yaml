@@ -35,14 +35,14 @@ physical_columns:
   target_arrow_type: timestamp[us]
   nullable: true
 - name: dmi_value
-  glue_type: float
-  arrow_type: float
+  glue_type: double
+  arrow_type: double
   parquet_physical_type: FLOAT
   target_arrow_type: float64
   nullable: true
 - name: iod_dmi_3month_avg
-  glue_type: float
-  arrow_type: float
+  glue_type: double
+  arrow_type: double
   parquet_physical_type: FLOAT
   target_arrow_type: float64
   nullable: true
@@ -53,8 +53,8 @@ physical_columns:
   target_arrow_type: string
   nullable: true
 - name: iod_dmi_ethiopia_lag4
-  glue_type: float
-  arrow_type: float
+  glue_type: double
+  arrow_type: double
   parquet_physical_type: FLOAT
   target_arrow_type: float64
   nullable: true
@@ -65,25 +65,7 @@ physical_columns:
   target_arrow_type: string
   nullable: true
 writer_schema_pinned: false
-drift_summary:
-- column: dmi_value
-  kind: widen_float
-  current_physical: float
-  glue_type: float
-  target: float64
-  owner_package: SILVER-F041
-- column: iod_dmi_3month_avg
-  kind: widen_float
-  current_physical: float
-  glue_type: float
-  target: float64
-  owner_package: SILVER-F041
-- column: iod_dmi_ethiopia_lag4
-  kind: widen_float
-  current_physical: float
-  glue_type: float
-  target: float64
-  owner_package: SILVER-F041
+drift_summary: []
 natural_key:
 - year
 - month

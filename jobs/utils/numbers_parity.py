@@ -87,6 +87,35 @@ def _rows_key(rows: list[dict], limit: int = 5) -> list[tuple]:
     return out
 
 
+_SUM_REL_TOL = 1e-5
+
+
+def _sum_tolerant_eq(a: list[tuple], p: list[tuple]) -> bool:
+    """Float32-accumulation tolerance for ``agg=sum`` legs ONLY (WIRING-W1 parity fold).
+
+    Both backends sum a float32 column (Glue ``float`` -> pg ``real``) in engine-chosen row
+    order, so a cross-engine sum can legitimately differ in the ~1e-7-relative range
+    (observed 2026-07-23: ESR China corn 69140.06 athena vs 69140.08 pg). Exact equality
+    stays the bar for every other leg; a sum leg passes when the date parts are identical
+    and each value pair is within ``_SUM_REL_TOL`` relative. Row-set divergence still
+    fails: a missing/extra row shifts the sum far beyond tolerance or changes the length.
+    """
+    if len(a) != len(p):
+        return False
+    for (av, ad), (pv, pd) in zip(a, p):
+        if ad != pd:
+            return False
+        if av == pv:
+            continue
+        try:
+            fa, fp = float(av), float(pv)
+        except (TypeError, ValueError):
+            return False
+        if abs(fa - fp) > _SUM_REL_TOL * max(1.0, abs(fa), abs(fp)):
+            return False
+    return True
+
+
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     load_env()
@@ -132,6 +161,10 @@ def main() -> int:
             nonempty[tid] = nonempty.get(tid, 0) + 1
         if a == p:
             match += 1
+        elif agg == "sum" and _sum_tolerant_eq(a, p):
+            match += 1
+            lines.append(f"- TOL {tid}.{metric} asof={asof} agg=sum: float32-accumulation delta "
+                         f"within {_SUM_REL_TOL:g} rel (athena={a} pg={p})")
         else:
             mismatches.append(f"DIFF {tid}.{metric} asof={asof} agg={agg}: athena={a} pg={p}")
 

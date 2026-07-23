@@ -42,3 +42,19 @@ def test_tall_table_metric_cap_is_lifted_in_source():
     reg = load_registry()
     gz = reg.get("gold_weather_z")
     assert gz.shape == "tall" and len(gz.metrics) >= 5   # >4 -> the cap would have hidden metric #5
+
+
+# ---- WIRING-W1 fold: float32-accumulation tolerance is sum-leg-only and tight ----
+
+def test_sum_tolerant_eq_accepts_float32_accumulation_delta():
+    from jobs.utils.numbers_parity import _sum_tolerant_eq
+    assert _sum_tolerant_eq([("69140.06", "")], [("69140.08", "")])          # observed live delta
+    assert _sum_tolerant_eq([("0.0", "d"), ("1.5", "d")], [("0.0", "d"), ("1.5", "d")])
+
+
+def test_sum_tolerant_eq_rejects_real_divergence():
+    from jobs.utils.numbers_parity import _sum_tolerant_eq
+    assert not _sum_tolerant_eq([("69140.06", "")], [("69145.00", "")])      # beyond rel tol
+    assert not _sum_tolerant_eq([("1.0", "2026-01-01")], [("1.0", "2026-01-08")])  # date drift
+    assert not _sum_tolerant_eq([("1.0", "")], [("1.0", ""), ("2.0", "")])   # row-set drift
+    assert not _sum_tolerant_eq([("abc", "")], [("abd", "")])                # non-numeric mismatch

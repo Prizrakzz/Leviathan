@@ -11,10 +11,10 @@ CREATE EXTERNAL TABLE IF NOT EXISTS silver_noaa_iod (
     year                  bigint,
     month                 bigint,
     date                  timestamp,
-    dmi_value             float,
-    iod_dmi_3month_avg    float,
+    dmi_value             double,
+    iod_dmi_3month_avg    double,
     iod_phase             string,
-    iod_dmi_ethiopia_lag4 float,
+    iod_dmi_ethiopia_lag4 double,
     source                string
 )
 STORED AS PARQUET
