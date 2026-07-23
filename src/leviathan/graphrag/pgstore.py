@@ -82,7 +82,16 @@ _POOL_WAIT_S = int(os.environ.get("EVIDENCE_PG_POOL_WAIT_S", "120"))
 # catches the cancel and falls back to Athena on the SAME SQL (honest); an evidence fetch floors only
 # its own turn; and an orphaned worker's query self-cancels so its finally frees the slot. The LOADER
 # connects directly (never via _acquire), so a multi-minute bulk COPY stays unbounded. 0 disables.
-_STMT_TIMEOUT_MS = int(os.environ.get("EVIDENCE_PG_STATEMENT_TIMEOUT_MS", "60000"))
+#
+# CEILING CALIBRATION (2026-07-23 floor RCA): the original 60s default CAUSED the very floors it
+# guarded against — the fused hybrid retrieval (exact-scan by design, no ANN index, t4g.micro 2 vCPU)
+# has a LEGITIMATE >60s tail on heavy multi-node hybrid turns (the walk fans out ~8 concurrent fused
+# queries that contend for 2 vCPUs; solo turns still floor), so 19/30 judged rows died in
+# fetch_candidates wearing the "model tier unavailable" banner while Sonnet was never even called.
+# 300s clears the honest tail with headroom while still killing true wedges (the rev-51 wedge held
+# slots for 64+ minutes). Do NOT tighten below the observed heavy-turn retrieval tail without
+# measuring it first.
+_STMT_TIMEOUT_MS = int(os.environ.get("EVIDENCE_PG_STATEMENT_TIMEOUT_MS", "300000"))
 
 
 def _acquire():
