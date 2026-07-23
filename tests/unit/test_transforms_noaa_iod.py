@@ -211,6 +211,104 @@ class TestSilver:
 
 
 # ---------------------------------------------------------------------------
+# IOD-FRESHNESS (SKEPTIC-2): trailing placeholder-tail trim so agg=latest is honest
+#
+# The NOAA source pads the current year with -9999 sentinels (-> dmi_value NaN) and
+# lags the calendar; the silver transform must drop that trailing all-placeholder
+# block so the last (year, month) present is the last REAL observation. Otherwise the
+# numbers-agent agg=latest (LIMIT-1, no IS NOT NULL guard) serves the NaN sentinel row.
+# ---------------------------------------------------------------------------
+
+
+def _bronze_frame(records: list[tuple[int, int, float | None]]) -> pd.DataFrame:
+    """Build a minimal bronze frame (year, month, date, dmi_value) for silver tests.
+
+    ``records`` is a list of ``(year, month, dmi_value_or_None)`` in any order; None
+    stands for the -9999 sentinel the parser already coerced to NaN.
+    """
+    rows = [{"year": y, "month": m, "dmi_value": (float("nan") if v is None else v)}
+            for (y, m, v) in records]
+    df = pd.DataFrame(rows)
+    df["date"] = pd.to_datetime(df[["year", "month"]].assign(day=1))
+    df["source"] = "noaa_iod"
+    return df[["year", "month", "date", "dmi_value", "source"]]
+
+
+class TestTrailingTailTrim:
+    def _padded(self) -> pd.DataFrame:
+        # Two full real years + a current year with real months 1-3 then a NaN tail 4-12
+        # (exactly the source shape: current-year sentinel pad).
+        recs: list[tuple[int, int, float | None]] = []
+        for m in range(1, 13):
+            recs.append((2000, m, 0.10 + 0.01 * m))
+        for m in range(1, 13):
+            recs.append((2001, m, -0.10 + 0.01 * m))
+        recs.append((2002, 1, 0.20))
+        recs.append((2002, 2, 0.21))
+        recs.append((2002, 3, 0.22))
+        for m in range(4, 13):
+            recs.append((2002, m, None))          # trailing placeholder tail
+        return _bronze_frame(recs)
+
+    def test_trailing_nan_months_are_dropped(self):
+        s = build_iod_silver(self._padded())
+        # last real dmi is 2002-03; nothing after it survives.
+        assert (s["year"] * 100 + s["month"]).max() == 200203
+        assert s[(s["year"] == 2002) & (s["month"] >= 4)].empty
+        # 24 full + 3 real = 27 rows (9 placeholder months trimmed).
+        assert len(s) == 27
+
+    def test_latest_row_has_both_served_metrics_nonnull(self):
+        # The money invariant: agg=latest (max ym) must serve a REAL dmi_value AND a
+        # real iod_dmi_3month_avg -- never the NaN sentinel row.
+        s = build_iod_silver(self._padded())
+        last = s.sort_values(["year", "month"]).iloc[-1]
+        assert last["year"] == 2002 and last["month"] == 3
+        assert not math.isnan(last["dmi_value"])
+        assert not math.isnan(last["iod_dmi_3month_avg"])
+
+    def test_interior_gap_is_preserved(self):
+        # A NaN month BEFORE the last real observation is interior, not trailing:
+        # it must NOT be trimmed (only the contiguous trailing block goes).
+        recs: list[tuple[int, int, float | None]] = [(y, m, 0.1) for y in (2000, 2001)
+                                                      for m in range(1, 13)]
+        recs.append((2002, 1, 0.2))
+        recs.append((2002, 2, None))    # interior gap
+        recs.append((2002, 3, 0.2))     # real obs after the gap
+        recs.append((2002, 4, None))    # trailing tail
+        recs.append((2002, 5, None))
+        s = build_iod_silver(_bronze_frame(recs))
+        assert (s["year"] * 100 + s["month"]).max() == 200203       # trailing tail gone
+        interior = s[(s["year"] == 2002) & (s["month"] == 2)]
+        assert len(interior) == 1                                   # interior row kept
+        assert math.isnan(interior.iloc[0]["dmi_value"])            # still NaN, just present
+
+    def test_all_nan_dmi_fails_closed(self):
+        recs = [(2000, m, None) for m in range(1, 13)]
+        with pytest.raises(ValueError, match="no non-null dmi_value"):
+            build_iod_silver(_bronze_frame(recs))
+
+    def test_no_trim_when_last_month_is_real(self):
+        # A frame that ends on a real observation is returned unchanged in length.
+        recs = [(y, m, 0.1) for y in (2000, 2001) for m in range(1, 13)]
+        s = build_iod_silver(_bronze_frame(recs))
+        assert len(s) == 24
+        assert (s["year"] * 100 + s["month"]).max() == 200112
+
+    def test_golden_source_shape_trims_to_last_real_month(self):
+        # The real fixture (_IOD_FILE): 2025 has real months 1-4 then -9999 for 5-12.
+        # Silver must end at 2025-04, both served metrics real.
+        s = build_iod_silver(extract_iod_bronze(_bytes(_IOD_FILE)))
+        last = s.sort_values(["year", "month"]).iloc[-1]
+        assert last["year"] == 2025 and last["month"] == 4
+        assert not math.isnan(last["dmi_value"])
+        assert not math.isnan(last["iod_dmi_3month_avg"])
+        # 1870 (12) + 1871 (12) + 2025 (4 real) = 28 rows; the 8-month tail is gone.
+        assert len(s) == 28
+        assert s[(s["year"] == 2025) & (s["month"] >= 5)].empty
+
+
+# ---------------------------------------------------------------------------
 # INV-2: explicit writer schema reconciles with the registry contract
 # ---------------------------------------------------------------------------
 

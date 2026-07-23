@@ -35,6 +35,20 @@ iod_dmi_ethiopia_lag4
     smoothed DMI from month T−4.  The feature engineering pipeline does NOT
     apply an additional lag when building the annual crop-year feature matrix;
     it reads this column directly for the relevant growing-season month(s).
+
+Trailing-tail trim (IOD-FRESHNESS)
+----------------------------------
+The NOAA source pads the current year with the ``-9999`` sentinel for months
+not yet observed (which the bronze parser maps to ``dmi_value = NaN``), and the
+HadISST1.1 reconstruction it is built on lags the calendar by several months.
+This silver transform drops that trailing all-placeholder block so the last row
+is the last month with a real ``dmi_value``.  Without the trim, the numbers-agent
+``agg=latest`` (which has no ``IS NOT NULL`` guard on its LIMIT-1 pick) would
+return the NaN sentinel row for a live "latest IOD" ask instead of the last real
+reading.  Only the CONTIGUOUS trailing block is removed; every earlier row —
+including any interior gap — is preserved.  The bronze layer is unchanged: it
+still carries the sentinel months as NaN (source-faithful provenance); the trim
+is a silver-only concern because silver is the served / feature surface.
 """
 from __future__ import annotations
 
@@ -162,6 +176,38 @@ def build_iod_silver(df_bronze: pd.DataFrame) -> pd.DataFrame:
     )
 
     df["source"] = "noaa_iod"
+
+    # IOD-FRESHNESS (SKEPTIC-2) -- trim the trailing placeholder tail.
+    # The NOAA source pads the CURRENT year with the -9999 sentinel for months not
+    # yet observed (-> dmi_value NaN), and it is a lagging HadISST1.1 reconstruction
+    # whose real horizon trails the calendar. Left in place, those trailing all-
+    # placeholder months make the numbers-agent ``agg=latest`` return the NaN
+    # sentinel row (the latest-pick has no IS NOT NULL guard) instead of the last
+    # real DMI -- a live "latest IOD" ask serves NaN. Trim so the max (year, month)
+    # present IS the last observed reading, i.e. the last month with a real
+    # ``dmi_value`` (the source observation). Both served metrics (dmi_value and its
+    # 3-month mean) are real at that boundary, so ``agg=latest`` is honest.
+    #
+    # Only the CONTIGUOUS trailing block after the last real observation is removed:
+    # ``.loc[:last_obs]`` keeps every earlier row, so any interior gap (none exist in
+    # the complete 1870-present HadISST record, but guard regardless) is preserved.
+    # NB the sibling ``silver_noaa_oni`` needs no such trim -- the CPC ONI source
+    # publishes only completed seasons and never pads a sentinel tail.
+    observed = df.index[df["dmi_value"].notna()]
+    if len(observed) == 0:
+        raise ValueError(
+            "IOD silver: no non-null dmi_value in the series -- refusing to publish "
+            "an all-placeholder frame (upstream source is malformed or all-sentinel)"
+        )
+    last_obs = int(observed.max())
+    trimmed = len(df) - (last_obs + 1)
+    if trimmed:
+        logger.info(
+            "IOD silver: trimmed %d trailing placeholder month(s) past the last "
+            "observed dmi_value at %d-%02d",
+            trimmed, int(df.at[last_obs, "year"]), int(df.at[last_obs, "month"]),
+        )
+    df = df.loc[:last_obs]
 
     result = df[SILVER_COLUMNS].reset_index(drop=True)
 
