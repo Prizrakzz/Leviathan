@@ -132,6 +132,29 @@ def diff_storage_descriptor(existing: dict, desired: dict) -> list[str]:
     return out
 
 
+def is_schema_widen(existing_sd: Optional[dict], desired_sd: Optional[dict]) -> bool:
+    """True iff ``desired`` is a pure trailing-column WIDEN of ``existing`` at the SAME managed
+    location/format/serde/params.
+
+    A "widen" means: identical normalized location, input/output format, SerDe library, SerDe params,
+    and SD params -- and the existing columns are EXACTLY the leading prefix of the desired columns
+    with one or more columns APPENDED (no reorder, no retype, no drop). This is the exact shape a
+    deprojection produces when previously-partition-key columns (``country``/``region``/``month``)
+    become declared in-file columns on the TABLE but the already-registered partitions still carry the
+    narrower pre-widen descriptor (SILVER-F013/F047 weather-trio drift). A wrong-LOCATION mismatch, a
+    reordered/retyped column, or a dropped column is NOT a widen (returns ``False``), so this can gate
+    an automatic repair without weakening F013's wrong-location protection."""
+    a = normalize_storage_descriptor(existing_sd)
+    b = normalize_storage_descriptor(desired_sd)
+    if a["location"] != b["location"]:
+        return False
+    for field in ("input_format", "output_format", "serde_library", "serde_params", "sd_params"):
+        if a[field] != b[field]:
+            return False
+    ea, eb = a["columns"], b["columns"]
+    return len(eb) > len(ea) and eb[: len(ea)] == ea
+
+
 def diff_partition_managed(existing: dict, desired: dict) -> list[str]:
     """Managed-field differences between two Glue partitions (empty == no managed change).
 

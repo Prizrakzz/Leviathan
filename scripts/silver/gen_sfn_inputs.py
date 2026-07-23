@@ -99,6 +99,7 @@ _VALUELESS_TRAILING_FLAGS = frozenset({
     "--force-overwrite",    # yfinance_futures / gold_weather_z / nass_task
     "--current-season",     # fetch_usda_nass_citrus / fetch_unica_biweekly (season-scoped chain fetch, store_true)
     "--discover",           # fetch_unica_biweekly (enumerate bulletins via Playwright, store_true)
+    "--reconcile-schema-widen",  # compact_weather_silver_task (F013 pure-widen partition-SD self-heal, store_true)
 })
 
 # --- Platform constants (NOT descriptor-driven; the scheduled thin contract is uniform) ---------

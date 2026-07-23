@@ -109,6 +109,7 @@
             "nasa_power",
             "--commodity",
             "all",
+            "--reconcile-schema-widen",
             "--publish-mode",
             "shadow"
           ],
@@ -124,6 +125,7 @@
             "chirps",
             "--commodity",
             "all",
+            "--reconcile-schema-widen",
             "--publish-mode",
             "shadow"
           ],
@@ -139,6 +141,7 @@
             "cpc_soil",
             "--commodity",
             "all",
+            "--reconcile-schema-widen",
             "--publish-mode",
             "shadow"
           ],
@@ -173,6 +176,7 @@
           "nasa_power",
           "--commodity",
           "all",
+          "--reconcile-schema-widen",
           "--publish-mode",
           "canonical"
         ],
@@ -197,6 +201,7 @@
           "chirps",
           "--commodity",
           "all",
+          "--reconcile-schema-widen",
           "--publish-mode",
           "canonical"
         ],
@@ -221,6 +226,7 @@
           "cpc_soil",
           "--commodity",
           "all",
+          "--reconcile-schema-widen",
           "--publish-mode",
           "canonical"
         ],

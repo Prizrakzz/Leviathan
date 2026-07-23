@@ -189,6 +189,7 @@ class PartitionPublisher:
     lease: Optional[Lease] = None
     fencing_token: Optional[int] = None
     object_validator: Optional[Callable[[str], tuple[bool, str]]] = None
+    reconcile_schema_widen: bool = False
 
     def __post_init__(self) -> None:
         if self.object_validator is None:
@@ -254,6 +255,15 @@ class PartitionPublisher:
                                          PartitionOutcome.EXISTING, "exact managed match")
         # mismatch: only an explicit repair authorization may update it.
         if repair is None or not repair.permits(spec.values):
+            # Opt-in narrow self-heal: a PURE trailing-column WIDEN at the SAME location (a table SD
+            # that gained declared in-file columns after a deprojection, while the partition still
+            # carries the pre-widen descriptor) is reconciled WITHOUT an explicit RepairAuthorization.
+            # A wrong-LOCATION / reordered / retyped / dropped-column mismatch is NOT a widen and still
+            # fails closed -- F013's wrong-location protection is preserved (SILVER-F047 weather drift).
+            if self.reconcile_schema_widen and catalog.is_schema_widen(
+                existing.get("StorageDescriptor") or {}, desired_sd
+            ):
+                return self._repair(spec, desired_sd, diffs, validate_new=validate_new)
             return self._fail(
                 spec, f"registered at a DIFFERENT location/descriptor and no repair authority: "
                       f"{'; '.join(diffs)}",

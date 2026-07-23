@@ -345,3 +345,45 @@ def test_validation_hooks_floor_override_calibrates_one_column():
     # a non-overridden column keeps the base 0.5.
     bad2 = hooks.run(_obj(metrics={"sparse": 0.296, "dense": 0.4}))
     assert len(bad2) == 1 and "dense" in bad2[0]
+
+
+# --------------------------------------------------------------------------- schema-widen threading (F047)
+def _widened_reg_table_sd():
+    sd = _reg_table_sd()
+    # TABLE gained declared in-file columns (the deprojected weather-trio shape: e89f32e7 widen).
+    sd["Columns"] = [{"Name": "commodity_name", "Type": "string"},
+                     {"Name": "country", "Type": "string"},
+                     {"Name": "month", "Type": "bigint"}]
+    return sd
+
+
+def test_reconcile_schema_widen_threads_through_to_partition_publisher(fake_s3, fake_glue):
+    # reproduce the Jul-22/23 failure: table SD widened, partition still at the narrow (prefix) SD.
+    fake_glue.tables["silver_esr"] = {"Name": "silver_esr", "StorageDescriptor": _widened_reg_table_sd()}
+    values = ["101", "2000", "20260524"]
+    loc = ROOT + "/commodity_code=101/market_year=2000/as_of=20260524/"
+    narrow = dict(_widened_reg_table_sd())
+    narrow["Columns"] = [{"Name": "commodity_name", "Type": "string"}]  # pre-widen prefix
+    narrow["Location"] = loc
+    fake_glue.partitions[("silver_esr", tuple(values))] = {"Values": values, "StorageDescriptor": narrow}
+
+    key = "silver/production/source=usda_esr/commodity_code=101/market_year=2000/as_of=20260524/part.parquet"
+    obj = StagedObject(canonical_key=key, body=b"PAR1x", partition_values=values, row_count=5)
+
+    # flag OFF -> catalog step fails (the observed daily failure).
+    off = ShadowPublisher(job="j", table="silver_esr", database="leviathan_test", bucket=BUCKET,
+                          canonical_root=ROOT, auth=canonical_authorization(), s3_client=fake_s3,
+                          glue_client=fake_glue, strategy=PublishStrategy.REGISTERED,
+                          manifest_store=lambda k, b: None)
+    with pytest.raises(PublisherError):
+        off.run([obj])
+
+    # flag ON -> the widen is reconciled and the run certifies; partition SD now carries the added cols.
+    on = ShadowPublisher(job="j", table="silver_esr", database="leviathan_test", bucket=BUCKET,
+                         canonical_root=ROOT, auth=canonical_authorization(), s3_client=fake_s3,
+                         glue_client=fake_glue, strategy=PublishStrategy.REGISTERED,
+                         reconcile_schema_widen=True, manifest_store=lambda k, b: None)
+    m = on.run([obj])
+    assert m.state is ManifestState.CERTIFIED
+    stored = fake_glue.partitions[("silver_esr", tuple(values))]["StorageDescriptor"]
+    assert [c["Name"] for c in stored["Columns"]] == ["commodity_name", "country", "month"]

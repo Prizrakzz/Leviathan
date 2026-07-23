@@ -148,7 +148,8 @@
             "--source",
             "nasa_power",
             "--commodity",
-            "all"
+            "all",
+            "--reconcile-schema-widen"
           ],
           "env": {},
           "publishes": true,
@@ -165,7 +166,8 @@
             "--source",
             "chirps",
             "--commodity",
-            "all"
+            "all",
+            "--reconcile-schema-widen"
           ],
           "env": {},
           "publishes": true,
@@ -182,7 +184,8 @@
             "--source",
             "cpc_soil",
             "--commodity",
-            "all"
+            "all",
+            "--reconcile-schema-widen"
           ],
           "env": {},
           "publishes": true,

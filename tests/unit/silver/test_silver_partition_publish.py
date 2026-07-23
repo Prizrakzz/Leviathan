@@ -206,3 +206,70 @@ def test_athena_smoke_sql_is_sargable_and_filtered():
     assert "market_year = '2000'" in sql
     assert "as_of_date = '20260524'" in sql
     assert "count(*)" in sql
+
+
+# --------------------------------------------------------------------------- schema-widen reconcile (F047)
+_WIDEN_COLS = [
+    {"Name": "date", "Type": "date"},
+    {"Name": "value", "Type": "double"},
+    {"Name": "country", "Type": "string"},
+    {"Name": "region", "Type": "string"},
+    {"Name": "month", "Type": "bigint"},
+]
+_PREWIDEN_COLS = _WIDEN_COLS[:2]  # the pre-widen partition descriptor (leading prefix)
+
+
+def _widen_sd(location, cols):
+    sd = _sd(location)
+    sd["Columns"] = cols
+    return sd
+
+
+def _widen_publisher(fake_glue, fake_s3, *, reconcile):
+    return PartitionPublisher(
+        database="leviathan_test", table="silver_esr", bucket=BUCKET, allowed_root=ROOT,
+        glue_client=fake_glue, s3_client=fake_s3, auth=canonical_authorization(),
+        table_sd=_widen_sd(ROOT, _WIDEN_COLS),          # TABLE carries the widened (14-col-style) SD
+        object_validator=lambda k: (True, "ok"), reconcile_schema_widen=reconcile,
+    )
+
+
+def _seed_prewiden_partition(fake_glue, spec, cols=_PREWIDEN_COLS):
+    key = ("silver_esr", tuple(spec.values))
+    fake_glue.partitions[key] = {"Values": list(spec.values),
+                                 "StorageDescriptor": _widen_sd(spec.location, cols)}
+    return key
+
+
+def test_schema_widen_reconciled_when_enabled(fake_glue, fake_s3):
+    spec = _spec(101, 2000, "20260524")
+    key = _seed_prewiden_partition(fake_glue, spec)         # partition SD narrower than table SD
+    pub = _widen_publisher(fake_glue, fake_s3, reconcile=True)
+    res = pub.publish([spec])
+    assert res.repaired == 1 and res.failed == 0
+    # partition SD is now the widened table columns (country/region/month projectable), location intact.
+    stored = fake_glue.partitions[key]["StorageDescriptor"]
+    assert [c["Name"] for c in stored["Columns"]] == [c["Name"] for c in _WIDEN_COLS]
+    assert stored["Location"] == spec.location
+
+
+def test_schema_widen_fails_closed_when_disabled(fake_glue, fake_s3):
+    # default OFF: the pre-widen partition still fails (the observed Jul-22/23 daily behavior).
+    spec = _spec(101, 2000, "20260524")
+    _seed_prewiden_partition(fake_glue, spec)
+    pub = _widen_publisher(fake_glue, fake_s3, reconcile=False)
+    res = pub.publish([spec])
+    assert res.failed == 1 and res.repaired == 0
+    assert "no repair authority" in res.actions[0].detail
+
+
+def test_reconcile_does_not_repoint_wrong_location(fake_glue, fake_s3):
+    # a genuinely WRONG-location partition (not a widen) must still fail even with reconcile ON.
+    spec = _spec(101, 2000, "20260524")
+    wrong_loc = ROOT + "/commodity_code=101/market_year=2000/as_of=WRONG/"
+    _seed_prewiden_partition(  # existing registered at the WRONG location, narrow cols
+        fake_glue, PartitionSpec(values=spec.values, location=wrong_loc), cols=_PREWIDEN_COLS)
+    pub = _widen_publisher(fake_glue, fake_s3, reconcile=True)
+    res = pub.publish([spec])   # desired location differs -> not a widen -> fail closed
+    assert res.failed == 1 and res.repaired == 0
+    assert fake_glue.partitions[("silver_esr", tuple(spec.values))]["StorageDescriptor"]["Location"] == wrong_loc

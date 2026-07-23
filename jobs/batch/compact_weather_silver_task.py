@@ -111,7 +111,7 @@ def _retire_staging(s3_client, bucket: str, keys: list[str]) -> int:
 
 
 def _compact_one_commodity(bucket: str, source: str, table: str, commodity: str, aws_region: str,
-                           auth, glue_client) -> dict:
+                           auth, glue_client, reconcile_schema_widen: bool = False) -> dict:
     # Read BOTH tiers: the coarse canonical [commodity, year] objects AND the per-source b2s month-grain
     # staged under _staging/ (OUTSIDE commodity=). compact merges staging UNION canonical within a year
     # and re-publishes the coarse object canonically, so fresh b2s data reaches canonical WITHOUT ever
@@ -172,6 +172,7 @@ def _compact_one_commodity(bucket: str, source: str, table: str, commodity: str,
         strategy=PublishStrategy.REGISTERED,
         validation=ValidationHooks(min_rows=1, min_nonnull_frac=0.0),
         run_id=f"{table}-{commodity}",
+        reconcile_schema_widen=reconcile_schema_widen,
     )
     manifest = publisher.run(staged)
 
@@ -207,6 +208,14 @@ def main() -> None:
     parser.add_argument("--bucket", default=None)
     parser.add_argument("--aws-region", default=None, dest="aws_region")
     parser.add_argument("--publish-mode", default="dry-run")
+    parser.add_argument(
+        "--reconcile-schema-widen", action="store_true", dest="reconcile_schema_widen",
+        help="canonical-only: reconcile registered partitions whose SD is a PURE trailing-column "
+             "WIDEN of the current table SD (same location) -- e.g. the post-deprojection weather "
+             "trio where the TABLE gained declared in-file country/region/month columns but the "
+             "partitions still carry the pre-widen descriptor (SILVER-F047). A wrong-location or "
+             "reordered/retyped mismatch still fails closed. Default OFF (no behavior change).",
+    )
     args = parser.parse_args()
 
     bucket = args.bucket or get_required_env("LEVIATHAN_BUCKET")
@@ -232,7 +241,7 @@ def main() -> None:
     results = []
     with ThreadPoolExecutor(max_workers=8) as pool:
         futs = {pool.submit(_compact_one_commodity, bucket, args.source, table, c, aws_region,
-                            auth, glue_client): c for c in commodities}
+                            auth, glue_client, args.reconcile_schema_widen): c for c in commodities}
         for fut in as_completed(futs):
             results.append(fut.result())
     total_units = sum(r["units"] for r in results)

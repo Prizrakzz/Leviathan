@@ -280,6 +280,7 @@ class ShadowPublisher:
     registry_schema_version: Optional[int] = None
     inject_failure: Optional[FailurePoint] = None
     run_id: Optional[str] = None
+    reconcile_schema_widen: bool = False
 
     def __post_init__(self) -> None:
         if self.run_id is None:
@@ -450,6 +451,7 @@ class ShadowPublisher:
                 s3_client=self.s3_client, auth=self.auth, lease=self.lease,
                 fencing_token=self.fencing_token,
                 object_validator=lambda k: (True, "already validated in staging"),
+                reconcile_schema_widen=self.reconcile_schema_widen,
             )
             specs = [
                 PartitionSpec(values=o.partition_values or [],
