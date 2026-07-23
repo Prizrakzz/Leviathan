@@ -15,12 +15,21 @@ them):
   * ``z_vs_3yr_avg``    -- (prog - mean) / std over the <=3 most recent PRIOR seasons at the same
                            week_number. None when <2 prior seasons (std undefined) -- insufficient
                            history is honestly null, never fabricated.
+  * ``week_ending_date`` -- the ISO calendar date of the last day of the ``week_ending`` free-text
+                           range (e.g. ``'3 - 9 May 2003'`` -> ``2003-05-09``). This is the
+                           leakage-safe point-in-time as-of anchor the numbers agent card needs; the
+                           source labels most weeks WITHOUT a year, so the year is inferred by
+                           carry-forward + Dec->Jan wrap detection re-anchored on the weeks that DO
+                           carry an explicit year (see :func:`derive_week_ending_dates`). It is the
+                           TRUE week-ending date; the numbers card applies its own publication lag on
+                           top (data_date semantics, +5d ratified) -- NOT baked in here.
 
-Output: ``[season, crop, week_number, week_ending, prog_exports_mt, pct_of_prior_yr, z_vs_3yr_avg,
-source]``. Pure + AWS-free.
+Output: ``[season, crop, week_number, week_ending, week_ending_date, prog_exports_mt,
+pct_of_prior_yr, z_vs_3yr_avg, source]``. Pure + AWS-free.
 """
 from __future__ import annotations
 
+import datetime as dt
 import re
 import statistics
 from dataclasses import dataclass
@@ -33,12 +42,105 @@ from leviathan.common.logging import get_logger
 logger = get_logger(__name__)
 
 OUTPUT_COLUMNS: list[str] = [
-    "season", "crop", "week_number", "week_ending", "prog_exports_mt",
+    "season", "crop", "week_number", "week_ending", "week_ending_date", "prog_exports_mt",
     "pct_of_prior_yr", "z_vs_3yr_avg", "source",
 ]
 
 NATURAL_KEY = ["season", "crop", "week_number"]
 _SEASON_START_RE = re.compile(r"(\d{4})")
+
+# --- week_ending free-text -> ISO date parsing --------------------------------------------------
+# SAGIS labels each row's week as a free-text day range whose END carries the week-ending day. The
+# real formats (probed against the live silver 2026-07-23, all 1204 rows) are:
+#   '3 - 9 May 2003'  week-1, explicit 4-digit year         '10 - 16 May'   no year
+#   '31 May - 6 Jun'  cross-month, no year                  '27 Dec - 2 Jan 2004'  cross-year+year
+#   '2 - 8Aug'        missing space before the month        "30 Apr - 6 May '05"   two-digit year
+#   '07 Oct/Okt 2016' bilingual English/Afrikaans month     '1 - 7 Mar/Mrt 2014'   zero-padded day
+# Every row carries exactly ONE separating dash, so splitting on the first dash isolates the END.
+_MONTHS: dict[str, int] = {
+    "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
+    "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
+    # Afrikaans abbreviations SAGIS interleaves as "Month/Maand" (English first): Mrt=Mar, Mei=May,
+    # Okt=Oct, Des=Dec. The others coincide with the English 3-letter form.
+    "mrt": 3, "mei": 5, "okt": 10, "des": 12,
+}
+_DASH = "[-–—]"                                    # hyphen / en-dash / em-dash
+_END_RE = re.compile(r"^(\d{1,2})\s*([A-Za-z]+(?:/[A-Za-z]+)?)\.?\s*((?:19|20)\d{2}|'\d{2})?\.?$")
+
+
+def _month_number(token: str) -> Optional[int]:
+    """Resolve a (possibly bilingual ``Eng/Afr``) month token to 1-12, else None."""
+    for part in token.split("/"):
+        key = part.strip().lower()[:3]
+        if key in _MONTHS:
+            return _MONTHS[key]
+    return None
+
+
+def parse_week_ending_end(text: Optional[str]) -> Optional[tuple[int, int, Optional[int]]]:
+    """Parse the END of a SAGIS free-text week range -> ``(day, month, year_or_None)``.
+
+    Splits off everything after the single separating dash and parses the day, month (English or the
+    bilingual ``Eng/Afr`` form), and an optional trailing year (4-digit or ``'YY`` short form).
+    Returns None on anything unparseable (fail-soft -- the caller emits a null date, never a guess).
+    """
+    if not text:
+        return None
+    end = re.split(r"\s*" + _DASH + r"\s*", str(text).strip(), maxsplit=1)[-1].strip()
+    m = _END_RE.match(end)
+    if not m:
+        return None
+    month = _month_number(m.group(2))
+    if month is None:
+        return None
+    day = int(m.group(1))
+    ytok = m.group(3)
+    year: Optional[int] = None
+    if ytok:
+        year = 2000 + int(ytok[1:]) if ytok.startswith("'") else int(ytok)
+    return day, month, year
+
+
+def derive_week_ending_dates(
+    season: str, weeks: list[tuple[int, Optional[str]]]
+) -> dict[int, Optional[dt.date]]:
+    """Derive the ISO ``week_ending_date`` for every ``(week_number, week_ending)`` in ONE season+crop.
+
+    The source labels only some weeks (week-1 and the Dec->Jan cross-year week) with an explicit
+    year; the rest omit it. Year inference, in ascending week order:
+      * anchor the running year to the season-start calendar year (from ``'YYYY-YY'``) at the first
+        week that lacks an explicit year;
+      * an explicit trailing year, wherever it appears, RE-ANCHORS the running year exactly (so the
+        cross-year week's ``2004`` corrects the carry at the wrap, and any drift is self-healing);
+      * otherwise bump the year by one whenever the parsed end-month DECREASES vs the previous week
+        (the Dec->Jan boundary) -- robust even for a 53-week season that laps its start month.
+    Rows whose ``week_ending`` is null/unparseable map to None (fail-soft). No lookahead beyond the
+    already-known label text; this is a pure timing derivation and never touches a measured value.
+    """
+    out: dict[int, Optional[dt.date]] = {}
+    cur_year: Optional[int] = None
+    prev_month: Optional[int] = None
+    for week_number, text in sorted(weeks, key=lambda w: w[0]):
+        parsed = parse_week_ending_end(text)
+        if parsed is None:
+            out[week_number] = None
+            continue
+        day, month, year = parsed
+        if year is not None:
+            cur_year = year
+        elif cur_year is None:
+            cur_year = season_start_year(season)
+        elif prev_month is not None and month < prev_month:
+            cur_year += 1
+        prev_month = month
+        if cur_year is None:
+            out[week_number] = None
+            continue
+        try:
+            out[week_number] = dt.date(cur_year, month, day)
+        except ValueError:
+            out[week_number] = None                          # e.g. an impossible day/month -> null
+    return out
 
 
 class SagisDoubleCountError(ValueError):
@@ -176,5 +278,19 @@ def transform_weekly_exports(rows: list[WeeklyExportRow]) -> pd.DataFrame:
 
     df["pct_of_prior_yr"] = pct_list
     df["z_vs_3yr_avg"] = z_list
+
+    # Derive the ISO week-ending DATE per (season, crop) group from the free-text week_ending range
+    # (year inferred by carry-forward + wrap detection, re-anchored on explicit-year weeks). Held as
+    # python ``datetime.date`` -> the flat publisher encodes it date32[day] per the contract.
+    date_by_key: dict[tuple, Optional[dt.date]] = {}
+    for (season, crop), grp in df.groupby(["season", "crop"]):
+        weeks = [(int(w), we) for w, we in zip(grp["week_number"], grp["week_ending"])]
+        for wk, when in derive_week_ending_dates(season, weeks).items():
+            date_by_key[(season, crop, wk)] = when
+    df["week_ending_date"] = [
+        date_by_key.get((r["season"], r["crop"], int(r["week_number"])))
+        for _, r in df.iterrows()
+    ]
+
     df = df.sort_values(NATURAL_KEY).reset_index(drop=True)
     return df[OUTPUT_COLUMNS]

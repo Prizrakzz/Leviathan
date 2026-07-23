@@ -64,6 +64,12 @@ physical_columns:
   parquet_physical_type: BYTE_ARRAY
   target_arrow_type: string
   nullable: true
+- name: week_ending_date
+  glue_type: null
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: date32[day]
+  nullable: true
 writer_schema_pinned: true
 drift_summary: []
 natural_key:
@@ -82,9 +88,9 @@ min_nonnull_frac: 0.5
 min_nonnull_frac_status: provisional
 coverage_axis: season x crop x week_number
 vintage_retention: latest-only
-knowledge_date_col: null
-knowledge_semantics: null
-publication_lag_days: null
+knowledge_date_col: week_ending_date
+knowledge_semantics: data_date
+publication_lag_days: 5
 freshness_sla:
   cadence: weekly
   max_lag_days: null

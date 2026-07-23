@@ -217,6 +217,12 @@ KNOWLEDGE_DATE_OVERRIDE = {
     "silver_nass_citrus": ("release_date", "vintage", 0),
     "silver_sagis_cec": ("release_date", "vintage", 0),
     "silver_wap_table01_revisions": ("release_month", "year_month", None),
+    # SILVER-F059: the derived week_ending_date (CURATION_OVERRIDES additive_columns_hidden below)
+    # makes SAGIS weekly exports a data_date table. +5d ratified: SAGIS posts the cumulative file a
+    # few days after the week's end, so a small positive lag applies (unlike ESR's 0 -- its as_of IS
+    # the release; the MPOB nonzero-lag precedent). Pre-step home; superseded 1:1 by the numbers
+    # TableSpec once the Integrate wave adds the silver_sagis_weekly_exports card (numbers_spec wins).
+    "silver_sagis_weekly_exports": ("week_ending_date", "data_date", 5),
 }
 
 # Natural-key fallback for tables absent from source_contracts (numbers-only / consumer-none).
@@ -661,16 +667,21 @@ CURATION_OVERRIDES: dict = {
     # Calibrated floor 0.25 keeps the gate live: an all-null regression still hard-fails
     # (KIND_ALL_NAN), and a fall below 0.25 (losing the 2018+ populated seasons) still trips.
     "silver_ams_cotton_quality": {"min_nonnull_frac_overrides": {"samples_classed": 0.25}},
-    # ── Wave-3 conab canary forensics (2026-07-17): production_revision_thousand_bags is a first
-    # DIFFERENCE (groupby diff): null BY CONSTRUCTION for every region's first survey AND wherever
-    # production is null, so its ceiling is ((surveys-1)/surveys) x production-nonnull -- structurally
-    # below a level floor. Faithful minimum observed: robusta 2023 = 0.432 (12 first-survey nulls + 5
-    # non-conilon states blank in the CONAB source). 0.30 keeps fail-closed protection against a
-    # genuine diff-logic regression (near-all-null) with margin for a sparse 2-survey robusta slice.
-    # The old 2026-06-24 v3 producer had ZERO-FILLED first-survey revisions, masking this. (This
-    # override was first hand-edited into the YAML on 2026-07-17, breaking the generated-never-
-    # hand-written invariant -- moved to its reproducible home here 2026-07-18.)
-    "silver_conab_coffee": {"min_nonnull_frac_overrides": {"production_revision_thousand_bags": 0.30}},
+    # ── Wave-3 conab canary forensics (2026-07-17): the production_revision_thousand_bags min_nonnull
+    # override is RETIRED by WIRING WAVE-1 (2026-07-23). Wiring silver_conab_coffee into the numbers
+    # registry makes value_columns the NUMBERS-METRIC set (production_thousand_bags / area_in_production_ha
+    # / yield_bags_per_ha) -- the exact sibling behavior of silver_sagis_cec (a "both" table whose revision
+    # deltas are likewise non-value). production_revision_thousand_bags therefore drops OUT of value_columns,
+    # so a min_nonnull_frac_override keyed on it is orphaned (override keys must be value_columns) and the
+    # census no longer floors that derived-diff column at all -- exactly as for sagis_cec's revision fields.
+    # (No curation entry needed; left as a note so the forensic rationale is not lost.)
+    # ── SILVER-F059 (2026-07-23): the numbers wave needs a sargable point-in-time anchor, but SAGIS's
+    # only date-ish column (week_ending) is a free-text day range. The producer now derives an ISO
+    # week_ending_date (date32); it is emitted into parquet but the live Glue catalog has not yet
+    # registered it -> a HIDDEN/physical-only additive column (glue_type=None), excluded from the DDL
+    # + live-Glue diff until the gated catalog migration lands. Same pattern as the WASDE price-band
+    # pair. The knowledge fields (data_date / +5d) are set via KNOWLEDGE_DATE_OVERRIDE above.
+    "silver_sagis_weekly_exports": {"additive_columns_hidden": [("week_ending_date", "date32[day]")]},
     # ── BF-W3 lane ONI T7 (2026-07-15): the INV-2 target for the four ENSO flag columns is int64
     # (target_arrow_type), and the B3 canonical publish wrote them as physical INT64 -- the R0
     # baseline glue_type tinyint described the pre-rebuild int8 object. Catalog + registry follow

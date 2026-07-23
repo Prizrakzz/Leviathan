@@ -15,6 +15,7 @@ loader + transform are stubbed so no real bronze/S3/network is touched.
 """
 from __future__ import annotations
 
+import datetime as dt
 import sys
 
 import pandas as pd
@@ -36,6 +37,7 @@ def _weekly_df() -> pd.DataFrame:
         "crop": ["maize", "maize"],
         "week_number": [10, 11],
         "week_ending": ["2023-12-08", "2023-12-15"],
+        "week_ending_date": [dt.date(2023, 12, 8), dt.date(2023, 12, 15)],
         "prog_exports_mt": [125_000.0, 138_000.0],
         "pct_of_prior_yr": [104.5, 110.2],
         "z_vs_3yr_avg": [0.42, 0.61],
