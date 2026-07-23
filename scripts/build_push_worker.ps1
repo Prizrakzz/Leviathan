@@ -27,6 +27,16 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# SILVER-F085 (2026-07-23): NEVER push :latest-only. A latest-only image loses its tag when the
+# next push steals :latest; digest-pinned Batch jobdefs then reference an UNTAGGED image that ECR
+# lifecycle rules may expire (this broke the 14:00 UTC usda_esr run and stranded 16 jobdef
+# families on deleted digests). Every push therefore carries a durable datestamp tag: auto-derived
+# here whenever -Tag was omitted/left as "latest".
+if ($Tag -eq "latest") {
+    $Tag = Get-Date -Format "yyyyMMddTHHmmss"
+    Write-Host "==> No -Tag given: auto-datestamp tag '$Tag' (latest-only pushes are banned)" -ForegroundColor Yellow
+}
+
 # Build context = THIS script's repo root, NEVER the caller's cwd (the d9b2e10e trap: `docker build
 # ... .` packaged whatever tree the shell sat in -- on 2026-07-18 that baked a stale main-repo src/
 # into worker :latest, silently dropping the same-day CEC parser; caught by the in-container
