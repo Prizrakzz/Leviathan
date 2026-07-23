@@ -12,9 +12,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Install all dependencies first using a minimal stub so this large layer is
 # cached when only source files change (only re-runs if pyproject.toml changes).
+# [biweekly] adds Playwright — the UNICA bi-weekly fetch drives a JS-rendered
+# listing page via headless Chromium (fetch_unica_biweekly.py --discover).
 COPY pyproject.toml ./
 RUN mkdir -p src/leviathan && touch src/leviathan/__init__.py && \
-    pip install --no-cache-dir -e ".[batch]"
+    pip install --no-cache-dir -e ".[batch,biweekly]"
+
+# Install the Chromium browser + its OS-level deps in a dedicated layer so it
+# caches independently of source changes; chromium only, not every browser.
+RUN playwright install --with-deps chromium && rm -rf /var/lib/apt/lists/*
 
 # Copy real source after dependencies — only creates small new layers on change.
 COPY src/ ./src/

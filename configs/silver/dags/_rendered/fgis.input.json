@@ -53,7 +53,9 @@
       "tasks": [
         {
           "command": [
-            "jobs/batch/fgis_silver_task.py"
+            "jobs/batch/fgis_silver_task.py",
+            "--publish-mode",
+            "shadow"
           ],
           "env": [],
           "integration": "batch",

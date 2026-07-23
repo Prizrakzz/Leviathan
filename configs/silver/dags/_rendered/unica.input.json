@@ -49,7 +49,11 @@
         },
         {
           "command": [
-            "jobs/ingest/fetch_unica_biweekly.py"
+            "jobs/ingest/fetch_unica_biweekly.py",
+            "--discover",
+            "--current-season",
+            "--asof",
+            "<aws.scheduler.scheduled-time>"
           ],
           "env": [],
           "integration": "batch",

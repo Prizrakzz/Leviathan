@@ -54,7 +54,8 @@
           "command": [
             "jobs/batch/nass_task.py",
             "--series",
-            "all"
+            "all",
+            "--force-overwrite"
           ],
           "env": {},
           "publishes": false
@@ -75,7 +76,7 @@
           ],
           "env": {},
           "publishes": true,
-          "publish_mode": "latest_only"
+          "publish_mode": "shadow_canonical"
         },
         {
           "id": "nass_annual_silver",
@@ -93,5 +94,5 @@
       ]
     }
   ],
-  "notes": "QuickStats full series in one run covers BOTH crop_progress and annual (no separate annual schedule); bronze --series all writes both series so the two silver producers fan out. Year-round weekly, self-healing. Both silver producers are CLASS-B latest-only; held DISABLED until the A-W4 retrofit."
+  "notes": "QuickStats full series in one run covers BOTH crop_progress and annual (no separate annual schedule); bronze --series all writes both series so the two silver producers fan out. Year-round weekly, self-healing. | 2026-07-23 (leviathan-e4-wt lane) A-W4 crop_progress retrofit -- two stacked defects fixed: (1) BRONZE SKIP: nass_task.py skips an existing bronze partition unless --force-overwrite, and bronze_nass_key is YEAR-granular, so the current-CY partition (created in May) was never refreshed by weekly runs. Added --force-overwrite to the bronze command (nass_task.py has no current-year-scoped flag; --limit-years takes a hardcoded int, not self-healing). The ~1 GB QuickStats file is parsed unconditionally regardless, so force adds only cheap idempotent re-PUTs of the already-parsed full-history shards (a few thousand small snappy parquets, ~cents/week of S3 PUT), and is the only way the year-granular current-CY partition self-heals weekly. (2) SILVER DRY-RUN: nass_crop_progress_silver publish_mode latest_only->shadow_canonical (renderer appends --publish-mode shadow; latest_only left the b2s at its dry-run default = held no-op, zero silver writes). Mirrors modis_biweekly / the futures_prices interim shadow-first shape. promote stays stop_and_notify (CLASS-B): shadow+gate soak only, canonical is the manual W4 KMS-signed upgrade; promote.tasks EMPTY. retrofit_landed stays FALSE (shadow soak, not landed; keeps the Wave-2 CLASS-B invariant). nass_annual_silver is a SEPARATE lane -- left latest_only (held DISABLED, unchanged). Gate covers both silver_nass_annual + silver_nass_crop_progress; both route Branch B (feature_probe/value_census read the CANONICAL s3_root, never _shadow/), so a shadow publish leaves the gate inputs untouched -- gate stays green on existing canonical."
 }

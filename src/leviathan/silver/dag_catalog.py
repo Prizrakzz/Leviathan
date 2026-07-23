@@ -29,6 +29,7 @@ __all__ = [
     "FAMILY_RULES",
     "FAMILY_LABELS",
     "CADENCE_DEFAULT_LAG_DAYS",
+    "FRESHNESS_LAG_OVERRIDES",
     "DagFamily",
     "family_of",
     "build_catalog",
@@ -118,6 +119,18 @@ CADENCE_DEFAULT_LAG_DAYS: dict[str, int] = {
 }
 # Fallback when cadence is unrecorded (6 tables). Conservative monthly-ish.
 _CADENCE_FALLBACK_LAG_DAYS = 45
+
+# Freshness-audit corrections (freshness-poller lane, 2026-07-23). A registry ``max_lag_days`` value
+# that the freshness audit found MASKED a stalled producer -- the emitted family ceiling (and the
+# per-table alarm in silver_alarms.BURNED_TABLE_FRESHNESS) use the corrected value instead. Keyed by
+# ``table_name``; applied in :func:`build_catalog` and only ever TIGHTENS (``min`` with the registry-
+# derived lag), so it is a no-op the moment the registry baseline is regenerated with the real fix.
+#   silver_nass_crop_progress: cadence=weekly but the registry carried max_lag_days=170 (~24 weeks),
+#   which let the weekly crop-progress producer sit stale-green for 6-10 weeks. Corrected to the
+#   weekly cadence default (14) -- this is what drops the usda_nass family ceiling 170 -> 14.
+FRESHNESS_LAG_OVERRIDES: dict[str, int] = {
+    "silver_nass_crop_progress": 14,
+}
 
 
 def family_of(table_name: str) -> str:
@@ -210,7 +223,13 @@ def build_catalog(registry: Optional[SilverRegistry] = None) -> dict[str, DagFam
             for c in contracts
             if (c.get("producer") or {}).get("batch_task")
         }))
-        lags = [effective_sla_lag_days(c) for c in contracts]
+        lags = []
+        for c in contracts:
+            lag, basis = effective_sla_lag_days(c)
+            override = FRESHNESS_LAG_OVERRIDES.get(c["table_name"])
+            if override is not None and override < lag:
+                lag, basis = override, f"audit_override(was {lag},{basis})"
+            lags.append((lag, basis))
         tightest = min(lags, key=lambda t: t[0]) if lags else (_CADENCE_FALLBACK_LAG_DAYS, "none")
         out[family] = DagFamily(
             key=family,

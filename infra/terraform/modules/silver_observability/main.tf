@@ -163,24 +163,25 @@ resource "aws_cloudwatch_metric_alarm" "batch_job_failed" {
 }
 
 # ---------------------------------------------------------------------------
-# Per-family freshness-SLA-breach alarms (certificate metric FreshnessLagDays{Family}).
+# Per-family freshness-SLA-breach alarms (poller metric FreshnessLagDays{Family}).
 # Threshold is the family's interim ceiling from the DAG catalog (silver_freshness_slas map).
 #
-# treat_missing_data = MISSING (A-W5 step 1b): a newly-created BREACHING alarm with zero
-# datapoints transitions to ALARM within one 1-day evaluation period (period=86400,
-# evaluation_periods=1). A-W5 applies BEFORE any producer emits FreshnessLagDays (critical
-# path A-W5 -> A-W7), so with "breaching" all 21 freshness alarms would INSTANT-BREACH and
-# email the shared topic at apply. With "missing" they sit INSUFFICIENT_DATA (no alarm_actions
-# fire on INSUFFICIENT_DATA) until each family's wave activates and emits a real datapoint.
-# A stopped pipeline is still caught by batch_job_failed + the EventBridge backstop + the
-# orchestration-plane SFN/scheduler alarms -- NOT by freshness-on-missing. batch_job_failed and
-# value_census are already notBreaching, so ONLY this freshness set needed the flip.
+# treat_missing_data = BREACHING (freshness-audit flip, 2026-07-23). ORIGINALLY "missing" (A-W5
+# step 1b) because NOTHING emitted FreshnessLagDays yet -- with "breaching" the zero-datapoint
+# alarms would instant-breach at apply. The audit finding was exactly that this made all 21
+# freshness alarms HOLLOW: nothing emitted the metric, so "missing" could never fire, and four
+# producers ran stale-green for 6-10 weeks. Now that scripts/silver/freshness_poller.py emits the
+# metric on a schedule, "breaching" is correct AND necessary -- a producer that STOPS emitting (the
+# exact stall the audit missed) transitions to ALARM after one 1-day evaluation period. See the
+# emit-vs-alarm SEQUENCING note: apply this flip only once the poller schedule is live and has put
+# at least one datapoint per family (freshness_poller.tf.prepared), else the pre-emit families
+# instant-breach the shared topic -- the same reason A-W5 first set "missing".
 # ---------------------------------------------------------------------------
 resource "aws_cloudwatch_metric_alarm" "freshness_sla_breach" {
   for_each = var.silver_freshness_slas
 
   alarm_name          = "${local.name_prefix}-freshness-sla-breach-${replace(each.key, "_", "-")}"
-  alarm_description   = "Family '${each.key}' exceeded its interim freshness ceiling (${each.value}d). Runbook: R4_incident_runbooks.md#freshness-sla-breach."
+  alarm_description   = "Family '${each.key}' exceeded its interim freshness ceiling (${each.value}d). Emitted by scripts/silver/freshness_poller.py. Runbook: R4_incident_runbooks.md#freshness-sla-breach."
   namespace           = var.silver_metric_namespace
   metric_name         = "FreshnessLagDays"
   dimensions          = { Family = each.key }
@@ -189,7 +190,39 @@ resource "aws_cloudwatch_metric_alarm" "freshness_sla_breach" {
   evaluation_periods  = 1
   comparison_operator = "GreaterThanThreshold"
   threshold           = each.value
-  treat_missing_data  = "missing"
+  treat_missing_data  = "breaching"
+  alarm_actions       = local.alarm_actions
+  tags                = { Project = var.project_name, Environment = var.environment, ManagedBy = "terraform" }
+}
+
+# ---------------------------------------------------------------------------
+# Per-TABLE freshness-SLA-breach alarms (poller metric FreshnessLagDays{Table}).
+# The four tables the freshness audit found ran stale-green for 6-10 weeks: their FAMILY ceiling
+# read the stalest member (statistic=Maximum) against the family's tightest ceiling, so a mixed-
+# cadence family hid a stalled fast member. Each gets a precise alarm at its own ceiling. The alarm
+# is keyed on Table ALONE so it MATCHES the poller's single-dimension {Table} datapoint:
+# freshness.metric_data_for emits one {Table} point and a SEPARATE {Family} point -- a {Table,Family}
+# COMPOSITE is never written, so a composite-dimensioned alarm would receive no data and, under
+# treat_missing_data=breaching, page permanently while detecting no real stall. The family rollup is
+# fed by the dedicated {Family} datapoint, not by this per-table point (each.value.family survives
+# only in the alarm_description below). treat_missing_data = breaching for the same reason as the
+# family alarms (a stopped producer stops emitting). Inert until var.silver_table_freshness_slas is
+# wired from the root (default {}).
+# ---------------------------------------------------------------------------
+resource "aws_cloudwatch_metric_alarm" "freshness_sla_breach_table" {
+  for_each = var.silver_table_freshness_slas
+
+  alarm_name          = "${local.name_prefix}-freshness-sla-breach-table-${replace(each.key, "_", "-")}"
+  alarm_description   = "Table '${each.key}' (${each.value.family}) exceeded its per-table freshness ceiling (${each.value.threshold}d, basis=${each.value.basis}). Emitted by scripts/silver/freshness_poller.py. Runbook: R4_incident_runbooks.md#freshness-sla-breach."
+  namespace           = var.silver_metric_namespace
+  metric_name         = "FreshnessLagDays"
+  dimensions          = { Table = each.key }
+  statistic           = "Maximum"
+  period              = 86400
+  evaluation_periods  = 1
+  comparison_operator = "GreaterThanThreshold"
+  threshold           = each.value.threshold
+  treat_missing_data  = "breaching"
   alarm_actions       = local.alarm_actions
   tags                = { Project = var.project_name, Environment = var.environment, ManagedBy = "terraform" }
 }

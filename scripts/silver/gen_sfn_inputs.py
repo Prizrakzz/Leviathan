@@ -95,8 +95,10 @@ PROMOTE_MODES = frozenset({"autonomous", "stop_and_notify", "post_publish_audit"
 # ``--vintage-mode {latest,all}``) must supply its value in the descriptor, never be whitelisted --
 # whitelisting one is exactly the defect class this lint exists to catch.
 _VALUELESS_TRAILING_FLAGS = frozenset({
-    "--skip-existing-s3",   # fetch_usda_esr
+    "--skip-existing-s3",   # fetch_usda_esr / fetch_usda_nass_citrus
     "--force-overwrite",    # yfinance_futures / gold_weather_z / nass_task
+    "--current-season",     # fetch_usda_nass_citrus / fetch_unica_biweekly (season-scoped chain fetch, store_true)
+    "--discover",           # fetch_unica_biweekly (enumerate bulletins via Playwright, store_true)
 })
 
 # --- Platform constants (NOT descriptor-driven; the scheduled thin contract is uniform) ---------

@@ -56,6 +56,7 @@ from leviathan.common.logging import get_logger
 from leviathan.storage.paths import raw_nass_citrus_key
 from leviathan.storage.raw_metadata import check_min_file_size, write_raw_s3_metadata
 from leviathan.storage.s3 import s3_object_exists, upload_bytes_to_s3
+from leviathan.transforms.raw_to_bronze.nass_citrus import current_forecast_season
 
 logger = get_logger(__name__)
 
@@ -559,6 +560,20 @@ def main() -> None:
         help="Process only entries for this season, e.g. 2024-25.",
     )
     parser.add_argument(
+        "--current-season",
+        action="store_true",
+        help=(
+            "Season-scoped chain mode: derive the CURRENT open forecast season from --asof (or "
+            "today), discover that season's monthly_forecast PDFs LIVE (independent of the baked "
+            "manifest), and upload them. This is the fetch phase of the citrus SFN chain."
+        ),
+    )
+    parser.add_argument(
+        "--asof",
+        default=None,
+        help="Scheduled-time ISO used by --current-season to derive the open season.",
+    )
+    parser.add_argument(
         "--skip-existing-s3",
         action="store_true",
         help="Skip PDFs whose S3 key already exists.",
@@ -590,15 +605,24 @@ def main() -> None:
         _discover_and_update_manifest(session)
         return
 
-    entries = _load_manifest()
-
-    # Filter by --report-type
-    allowed_types = _REPORT_TYPE_MAP[args.report_type]
-    entries = [e for e in entries if e["report_type"] in allowed_types]
-
-    # Filter by --season
-    if args.season:
-        entries = [e for e in entries if e["season"] == args.season]
+    if args.current_season:
+        # Chain fetch phase: never trust the baked manifest to be current -- discover the open
+        # season's monthly_forecast PDFs live so genuinely new releases are picked up each fire.
+        season = current_forecast_season(args.asof)
+        entries = [
+            e for e in _discover_forecast_series(session)
+            if e["report_type"] == "monthly_forecast" and e["season"] == season
+        ]
+        logger.info("current-season mode: season=%s  discovered %d monthly_forecast entries",
+                    season, len(entries))
+    else:
+        entries = _load_manifest()
+        # Filter by --report-type
+        allowed_types = _REPORT_TYPE_MAP[args.report_type]
+        entries = [e for e in entries if e["report_type"] in allowed_types]
+        # Filter by --season
+        if args.season:
+            entries = [e for e in entries if e["season"] == args.season]
 
     if not entries:
         logger.warning("No entries to process after filtering.")

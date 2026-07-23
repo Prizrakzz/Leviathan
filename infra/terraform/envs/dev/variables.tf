@@ -138,6 +138,16 @@ variable "silver_freshness_slas" {
   default     = {}
 }
 
+variable "silver_table_freshness_slas" {
+  type = map(object({
+    family    = string
+    threshold = number
+    basis     = string
+  }))
+  description = "table_name -> {family, threshold, basis} for PER-TABLE freshness alarms (the four audit-burned tables). From silver_observability.auto.tfvars.json. Wire into module.silver_observability (see freshness_poller.tf.prepared) to render the per-table alarms."
+  default     = {}
+}
+
 variable "silver_alert_email" {
   type        = string
   description = "Email for the silver-pipeline SNS subscription placeholder ('' = no subscription)."

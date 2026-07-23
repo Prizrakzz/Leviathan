@@ -1,0 +1,139 @@
+# ===========================================================================
+# PREPARED -- NOT YET WIRED. SILVER-F082 freshness poller schedule + IAM.
+#
+# This file has the `.tf.prepared` extension on purpose: terraform does NOT auto-load it, so it
+# cannot be applied by an accidental `terraform apply`. It is prepared for the MAIN LOOP to activate.
+# It mirrors the P3 morning-brief scheduled-batch-utility pattern in main.tf (aws_scheduler_schedule
+# -> aws-sdk:batch:submitJob + a dedicated scheduler role) exactly.
+#
+# WHAT IT DOES: fires the leviathan-dev-freshness-poller Batch jobdef daily. The poller
+# (scripts/silver/freshness_poller.py) lists each registered table's canonical S3 prefix and
+# put_metric_data's FreshnessLagDays{Table} + {Family} into Leviathan/Silver -- the emitter the 21
+# freshness alarms were missing (audit: nothing emitted the metric, so treat_missing_data=missing
+# could never fire and four producers ran stale-green for 6-10 weeks).
+#
+# ----- ACTIVATION (main loop, gated) --------------------------------------------------------------
+#   0. Ship a worker image that contains scripts/silver/freshness_poller.py + src/leviathan/silver/
+#      freshness.py + configs/silver/tables (the embedder image on its next build), then register the
+#      jobdef:  python jobs/utils/register_freshness_poller_jobdef.py
+#   1. Rename this file freshness_poller.tf.prepared -> freshness_poller.tf.
+#   2. Add ONE line to the module.silver_observability call in main.tf so the per-table alarms render:
+#          silver_table_freshness_slas = var.silver_table_freshness_slas
+#      (the root variable is already declared in variables.tf; the value is already in
+#       silver_observability.auto.tfvars.json. Without this line the per-table alarms stay inert.)
+#   3. DRY-RUN the poller once read-only to confirm the lags look sane, reviewed by the operator:
+#          python scripts/silver/freshness_poller.py --dry-run
+#      (or submit the jobdef with ContainerOverrides Command ["scripts/silver/freshness_poller.py","--dry-run"]).
+#   4. Flip aws_scheduler_schedule.freshness_poller state = "ENABLED", targeted-apply this file +
+#      the module. SEQUENCING: the module's freshness alarms are now treat_missing_data=breaching, so
+#      the poller must have put at least one datapoint per family BEFORE (or in the same window as)
+#      the module apply, else the pre-emit families instant-breach the shared topic (the same A-W5
+#      reason the alarms first shipped "missing"). Apply order: enable+run the poller, confirm
+#      datapoints in Leviathan/Silver, THEN apply module.silver_observability.
+#   Rollback = state="DISABLED" (stops emission; alarms go INSUFFICIENT_DATA) or revert the module flip.
+# ===========================================================================
+
+# --- Scheduler role: assume by EventBridge Scheduler, submit ONLY the freshness-poller jobdef. ---
+resource "aws_iam_role" "freshness_poller_scheduler" {
+  name = "${var.project_name}-${var.environment}-freshness-poller-scheduler"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "scheduler.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "freshness_poller_scheduler" {
+  name = "${var.project_name}-${var.environment}-freshness-poller-scheduler-submit"
+  role = aws_iam_role.freshness_poller_scheduler.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = "batch:SubmitJob"
+      Resource = [
+        module.batch.job_queue_arn,
+        "arn:aws:batch:${var.aws_region}:${data.aws_caller_identity.current.account_id}:job-definition/${var.project_name}-${var.environment}-freshness-poller:*",
+      ]
+    }]
+  })
+}
+
+# --- Dedicated JOB role the poller container assumes: LIST the data-lake bucket + PUT the custom
+# metric. Deliberately NOT batch-job-role (reused by the internet-facing serving task) -- that role
+# must not gain account-wide cloudwatch:PutMetricData, and the poller must not gain serving's grants.
+resource "aws_iam_role" "freshness_poller_job" {
+  name = "${var.project_name}-${var.environment}-freshness-poller-job-role"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "ecs-tasks.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "freshness_poller_job" {
+  name = "${var.project_name}-${var.environment}-freshness-poller-job-perms"
+  role = aws_iam_role.freshness_poller_job.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "ListCanonicalPrefixes"
+        Effect   = "Allow"
+        Action   = "s3:ListBucket"
+        Resource = "arn:aws:s3:::${var.bucket_name}"
+      },
+      {
+        # PutMetricData has no resource-level scoping; constrain it to the poller's namespace.
+        Sid      = "EmitFreshnessMetric"
+        Effect   = "Allow"
+        Action   = "cloudwatch:PutMetricData"
+        Resource = "*"
+        Condition = {
+          StringEquals = { "cloudwatch:namespace" = var.silver_metric_namespace }
+        }
+      },
+    ]
+  })
+}
+
+# --- Daily schedule. Ships DISABLED -- a day-0 read-only dry-run is reviewed first (see ACTIVATION).
+resource "aws_scheduler_schedule" "freshness_poller" {
+  name  = "${var.project_name}-${var.environment}-freshness-poller"
+  state = "DISABLED" # flip to ENABLED after the reviewed dry-run + the module breaching-apply sequencing
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+  schedule_expression = "cron(0 6 * * ? *)" # 06:00 UTC daily (a fresh datapoint before the morning brief)
+
+  target {
+    arn      = "arn:aws:scheduler:::aws-sdk:batch:submitJob"
+    role_arn = aws_iam_role.freshness_poller_scheduler.arn
+    input = jsonencode({
+      JobName       = "freshness-poller"
+      JobQueue      = module.batch.job_queue_arn
+      JobDefinition = "${var.project_name}-${var.environment}-freshness-poller"
+      # Redundant safety -- the dedicated jobdef already bakes this command + sizing as defaults:
+      ContainerOverrides = {
+        Command = ["scripts/silver/freshness_poller.py"]
+        ResourceRequirements = [
+          { Type = "VCPU", Value = "0.25" },
+          { Type = "MEMORY", Value = "1024" },
+        ]
+      }
+      RetryStrategy = { Attempts = 2 }
+    })
+
+    retry_policy {
+      maximum_retry_attempts       = 3
+      maximum_event_age_in_seconds = 86400
+    }
+  }
+}

@@ -22,10 +22,36 @@
   ],
   "phases": {
     "bronze": {
-      "tasks": []
+      "tasks": [
+        {
+          "command": [
+            "jobs/batch/nass_citrus_bronze_task.py",
+            "--asof",
+            "<aws.scheduler.scheduled-time>"
+          ],
+          "env": [],
+          "integration": "batch",
+          "jobdef": "leviathan-dev-b3-flat-silver",
+          "queue": "leviathan-dev-queue-ondemand"
+        }
+      ]
     },
     "fetch": {
-      "tasks": []
+      "tasks": [
+        {
+          "command": [
+            "jobs/ingest/fetch_usda_nass_citrus.py",
+            "--current-season",
+            "--asof",
+            "<aws.scheduler.scheduled-time>",
+            "--skip-existing-s3"
+          ],
+          "env": [],
+          "integration": "batch",
+          "jobdef": "leviathan-dev-b3-flat-silver",
+          "queue": "leviathan-dev-queue-ondemand"
+        }
+      ]
     },
     "silver": {
       "tasks": [

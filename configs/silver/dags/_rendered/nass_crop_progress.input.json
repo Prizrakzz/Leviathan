@@ -28,7 +28,8 @@
           "command": [
             "jobs/batch/nass_task.py",
             "--series",
-            "all"
+            "all",
+            "--force-overwrite"
           ],
           "env": [],
           "integration": "batch",
@@ -54,7 +55,9 @@
       "tasks": [
         {
           "command": [
-            "jobs/batch/nass_crop_progress_silver_task.py"
+            "jobs/batch/nass_crop_progress_silver_task.py",
+            "--publish-mode",
+            "shadow"
           ],
           "env": [],
           "integration": "batch",

@@ -173,12 +173,56 @@ def test_phases_render_as_object_with_fetch_bronze_silver(gen, descriptors):
 
 
 def test_absent_phases_render_as_empty_task_lists(gen, descriptors):
-    """fx_macro_daily / nass_citrus declare only a silver phase; fetch+bronze must still be present
-    (empty [] -- a missing ItemsPath crashes the Map)."""
-    for stem in ("fx_macro_daily", "nass_citrus"):
+    """fx_macro_daily declares only a silver phase; fetch+bronze must still be present (empty [] --
+    a missing ItemsPath crashes the Map)."""
+    for stem in ("fx_macro_daily",):
         phases = gen.render_input(descriptors[stem])["phases"]
         assert phases["fetch"]["tasks"] == [] and phases["bronze"]["tasks"] == [], stem
         assert phases["silver"]["tasks"], f"{stem}: silver must be populated"
+
+
+def test_nass_citrus_is_fetch_bronze_silver(gen, descriptors):
+    """SILVER-F056 stale-producer restore: nass_citrus is no longer silver-only -- its fetch phase
+    runs the season-scoped citrus fetch and its bronze phase runs the tracked raw->bronze producer,
+    so silver can advance past the frozen corpus."""
+    phases = gen.render_input(descriptors["nass_citrus"])["phases"]
+    fetch = " ".join(phases["fetch"]["tasks"][0]["command"])
+    bronze = " ".join(phases["bronze"]["tasks"][0]["command"])
+    assert "fetch_usda_nass_citrus.py" in fetch and "--current-season" in fetch
+    assert "nass_citrus_bronze_task.py" in bronze
+    assert phases["silver"]["tasks"], "silver must remain populated"
+
+
+def test_unica_biweekly_fetch_discovers_current_season(gen, descriptors):
+    """DISCOVERY RETROFIT: the unica biweekly fetch previously ran with NO args -- a manifest-only
+    download (no --discover), so genuinely new bulletins (the whole 2026/27 season) never entered the
+    manifest and the fetch was a green no-op forever. It must now run --discover --current-season
+    --asof <scheduled-time> so the live JS-portal enumeration is scoped to the current harvest season
+    and auto-advances each April."""
+    d = descriptors["unica"]
+    assert gen.lint_descriptor(d, "unica") == [], gen.lint_descriptor(d, "unica")
+    fetch_tasks = gen.render_input(d)["phases"]["fetch"]["tasks"]
+    biweekly = next(t for t in fetch_tasks if "fetch_unica_biweekly.py" in t["command"][0])
+    assert biweekly["command"] == [
+        "jobs/ingest/fetch_unica_biweekly.py",
+        "--discover", "--current-season", "--asof", "<aws.scheduler.scheduled-time>",
+    ], biweekly["command"]
+
+
+def test_unica_ships_shadow_only_with_empty_promote(gen, descriptors):
+    """SFN doctrine (futures precedent): the retrofit ships SILVER --publish-mode shadow with
+    promote.tasks EMPTY (shadow-only soak; canonical promotion is a main-loop KMS-signed manual leg).
+    unica stays held (retrofit_required + not landed => promote_mode stop_and_notify), so the [Promote]
+    Map -- which runs promote.tasks UNCONDITIONALLY on a green gate -- must render nothing."""
+    d = descriptors["unica"]
+    assert d.get("retrofit_required") and not d.get("retrofit_landed"), "unica must stay CLASS-B held"
+    assert d["promote_mode"] == "stop_and_notify"
+    r = gen.render_input(d)
+    assert r["promote"]["tasks"] == [], "promote.tasks must be empty (no autonomous arm)"
+    # the shadow_canonical annual/state producer publishes --publish-mode shadow in the silver phase
+    shadow = [t for t in r["phases"]["silver"]["tasks"]
+              if t["command"][-2:] == ["--publish-mode", "shadow"]]
+    assert shadow, "the shadow_canonical silver publisher must carry --publish-mode shadow"
 
 
 def test_gold_phase_folds_into_silver(gen, descriptors):
@@ -566,15 +610,35 @@ def test_lint_accepts_store_true_flag_immediately_before_next_option(gen, descri
     assert not any("value-expecting option" in v for v in viol), viol
 
 
+def test_discover_is_a_whitelisted_valueless_flag(gen, descriptors):
+    """The unica biweekly fetch chains store_true flags: ``--discover --current-season --asof ...``.
+    ``--discover`` (store_true, no value) sits directly before another --opt, so it MUST be in the
+    valueless whitelist or the dangling-arg lint would false-positive on it. Guard both the whitelist
+    membership and that a --discover immediately before the next option lints clean."""
+    assert "--discover" in gen._VALUELESS_TRAILING_FLAGS
+    d = _one_descriptor(descriptors, "fx_macro_daily")
+    t = d["phases"][0]["tasks"][0]
+    t["command"] = ["jobs/ingest/fetch_unica_biweekly.py", "--discover", "--current-season", "--asof",
+                    "<aws.scheduler.scheduled-time>"]
+    t["invocation_form"] = "s"
+    viol = gen.lint_descriptor(d, d["schedule"])
+    assert not any("value-expecting option" in v for v in viol), viol
+
+
 def test_nass_crop_progress_bronze_renders_series_all(gen, descriptors):
     """Fixed path: the nass_crop_progress bronze task must render the COMPLETE
-    ``nass_task.py --series all`` command. ``all`` (not ``crop_progress``) because the one run must
-    write BOTH bronze series -- the chain fans out to nass_crop_progress_silver (reads
-    series=crop_progress) AND nass_annual_silver (reads series=annual), and both gate_tables gate."""
+    ``nass_task.py --series all --force-overwrite`` command. ``all`` (not ``crop_progress``) because
+    the one run must write BOTH bronze series -- the chain fans out to nass_crop_progress_silver
+    (reads series=crop_progress) AND nass_annual_silver (reads series=annual), and both gate_tables
+    gate. ``--force-overwrite`` (A-W4 crop_progress retrofit, 2026-07-23): nass_task.py skips an
+    existing bronze partition unless forced, and bronze_nass_key is YEAR-granular, so without it the
+    current-CY partition created mid-year is never refreshed by the weekly run (the ~1 GB QuickStats
+    file is parsed unconditionally, so force adds only cheap re-PUTs of the already-parsed shards)."""
     rendered = gen.render_input(descriptors["nass_crop_progress"])
     bronze_tasks = rendered["phases"]["bronze"]["tasks"]
     assert len(bronze_tasks) == 1, "nass_crop_progress must have exactly one bronze task"
-    assert bronze_tasks[0]["command"] == ["jobs/batch/nass_task.py", "--series", "all"]
+    assert bronze_tasks[0]["command"] == [
+        "jobs/batch/nass_task.py", "--series", "all", "--force-overwrite"]
     # gate covers both series' silver tables (why bronze must be --series all, not crop_progress)
     assert set(rendered["gate_tables"]) == {"silver_nass_annual", "silver_nass_crop_progress"}
 

@@ -16,6 +16,7 @@ Mirrors the SAGIS ``fetch_sagis_cec`` gating contract.
 """
 from __future__ import annotations
 
+import datetime as dt
 import urllib.error
 import urllib.request
 
@@ -27,6 +28,7 @@ from jobs.ingest.fetch_unica_biweekly import (
     _exit_reason,
     _is_pruned_source,
     _PrunedSourceError,
+    current_harvest_season,
 )
 
 
@@ -168,3 +170,60 @@ def test_exit_reason_errors_take_priority_over_dead_source() -> None:
 def test_exit_reason_none_when_all_zero() -> None:
     # Degenerate no-op (e.g. no target bulletins) is not a failure by itself.
     assert _exit_reason(uploaded=0, skipped=0, errors=0, missing=0) is None
+
+
+# ---------------------------------------------------------------------------
+# current_harvest_season  (the --current-season derivation; the discovery retrofit)
+#
+# RCA: the scheduled biweekly fetch ran with NO args -> a manifest-only download (no
+# --discover), so the entire 2026/27 season never entered the manifest.  The fix scopes a
+# LIVE --discover to the CURRENT harvest season, derived dynamically from the scheduler asof so
+# there is no hardcoded year to go stale next April.
+# ---------------------------------------------------------------------------
+
+def test_current_season_april_onward_is_that_years_season() -> None:
+    # The milling season is labelled by the April crush-start year: Apr..Dec -> YYYY/YYYY+1.
+    for month in (4, 7, 11, 12):
+        assert current_harvest_season(dt.date(2026, month, 15)) == "2026/2027"
+
+
+def test_current_season_jan_to_mar_is_prior_years_season() -> None:
+    # Jan..Mar publish the CLOSING bulletins of the season that opened the prior April.
+    for month in (1, 2, 3):
+        assert current_harvest_season(dt.date(2027, month, 10)) == "2026/2027"
+
+
+def test_current_season_april_boundary_auto_advances() -> None:
+    # The exact hinge: Mar 31 still closes the old season; Apr 1 opens the next -> no April staleness.
+    assert current_harvest_season(dt.date(2027, 3, 31)) == "2026/2027"
+    assert current_harvest_season(dt.date(2027, 4, 1)) == "2027/2028"
+
+
+def test_current_season_parses_scheduler_iso_asof() -> None:
+    # The SFN passes --asof <aws.scheduler.scheduled-time> as a full ISO 'Z' timestamp; the
+    # derivation must parse it. Today (Jul 2026) -> 2026/2027, i.e. the dynamic derivation
+    # subsumes the hand-authored '2026/2027' target and keeps advancing after it.
+    assert current_harvest_season("2026-07-23T12:00:00Z") == "2026/2027"
+    assert current_harvest_season("2027-02-01T00:00:00+00:00") == "2026/2027"
+    assert current_harvest_season("2026-04-01") == "2026/2027"  # bare date
+
+
+def test_current_season_accepts_date_and_datetime_objects() -> None:
+    assert current_harvest_season(dt.datetime(2026, 5, 1, 9, 30)) == "2026/2027"
+    assert current_harvest_season(dt.date(2026, 5, 1)) == "2026/2027"
+
+
+def test_current_season_none_defaults_to_today() -> None:
+    # None -> today's derivation (deterministic against the same rule); format is always YYYY/YYYY.
+    s = current_harvest_season(None)
+    assert s == current_harvest_season(dt.date.today())
+    assert len(s) == 9 and s[4] == "/" and s[:4].isdigit() and s[5:].isdigit()
+
+
+def test_current_season_mirrors_extractor_publication_month_rule() -> None:
+    # The derivation must match, value-for-value, the season inference already baked into the
+    # discovery extractor (_extract_current_bulletin): season_start = year if month>=4 else year-1.
+    for year in (2024, 2025, 2026, 2027):
+        for month in range(1, 13):
+            start = year if month >= 4 else year - 1
+            assert current_harvest_season(dt.date(year, month, 15)) == f"{start}/{start + 1}"

@@ -22,8 +22,48 @@
     "maximum_event_age_in_seconds": 86400
   },
   "queue": "leviathan-dev-queue-ondemand",
-  "chain_shape": "single-task season-scoped",
+  "chain_shape": "fetch->bronze->silver season-scoped",
   "phases": [
+    {
+      "name": "fetch",
+      "tasks": [
+        {
+          "id": "fetch_usda_nass_citrus",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "queue": "leviathan-dev-queue-ondemand",
+          "command": [
+            "jobs/ingest/fetch_usda_nass_citrus.py",
+            "--current-season",
+            "--asof",
+            "<aws.scheduler.scheduled-time>",
+            "--skip-existing-s3"
+          ],
+          "env": {},
+          "publishes": false
+        }
+      ]
+    },
+    {
+      "name": "bronze",
+      "tasks": [
+        {
+          "id": "nass_citrus_bronze",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "queue": "leviathan-dev-queue-ondemand",
+          "command": [
+            "jobs/batch/nass_citrus_bronze_task.py",
+            "--asof",
+            "<aws.scheduler.scheduled-time>"
+          ],
+          "env": {},
+          "publishes": false
+        }
+      ]
+    },
     {
       "name": "silver",
       "tasks": [
@@ -43,5 +83,5 @@
       ]
     }
   ],
-  "notes": "Silver-only (SILVER-F056): nass_citrus_task.py reads the existing usda_nass_citrus bronze corpus and publishes silver -- it does NOT fetch or ingest bronze (its argparse takes only --bucket/--aws-region/--run-id/--code-sha/--publish-mode). The prior '--discover' flag was a stray from jobs/ingest/fetch_usda_nass_citrus.py (scrapes NASS index pages to the manifest YAML; never feeds this chain) and exited 2. No tracked raw->bronze producer exists (an untracked step built the bronze), so like fx_macro_daily this is a lone silver phase. Same catalog family (usda_nass) as nass_crop_progress but a SEPARATE season-scoped schedule."
+  "notes": "fetch->bronze->silver season-scoped (SILVER-F056 stale-producer restore). PRIOR STATE: silver-only -- nass_citrus_task.py re-read a FROZEN bronze corpus (built by an UNTRACKED raw->bronze step) and republished identical silver, so new releases never reached bronze and silver froze at 2024-25. FIX: (1) fetch phase runs fetch_usda_nass_citrus.py --current-season, which derives the open forecast season from asof and discovers that season's monthly_forecast PDFs LIVE (manifest-independent), uploading new ones to raw; (2) bronze phase runs the NEW tracked producer jobs/batch/nass_citrus_bronze_task.py (leviathan.transforms.raw_to_bronze.nass_citrus, validated value-for-value vs the frozen 2024-25 bronze) to build the season's bronze; (3) silver phase (nass_citrus_task.py, UNCHANGED) reads the whole bronze corpus and publishes shadow->canonical. Season derivation falls forward through the Aug-Sep closed period. Same catalog family (usda_nass) as nass_crop_progress but a SEPARATE season-scoped schedule."
 }

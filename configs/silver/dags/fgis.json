@@ -70,7 +70,9 @@
           "jobdef": "leviathan-dev-fgis-silver:1",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
-            "jobs/batch/fgis_silver_task.py"
+            "jobs/batch/fgis_silver_task.py",
+            "--publish-mode",
+            "shadow"
           ],
           "env": {},
           "publishes": true,
@@ -79,5 +81,5 @@
       ]
     }
   ],
-  "notes": "ONE weekly run self-heals (cumulative CY{year}.csv) -- NOT a large-first-run. Named bronze+silver jobdefs. CLASS-B latest-only; held DISABLED until the A-W4 retrofit."
+  "notes": "ONE weekly run self-heals (cumulative CY{year}.csv) -- NOT a large-first-run. Named bronze+silver jobdefs. A-W4 CLASS-B RETROFIT ARMED 2026-07-23 (leviathan-e4-wt lane): silver fgis_silver_task.py now ships --publish-mode shadow. RCA it fixes: a BARE command defaults to --publish-mode dry-run and writes NOTHING (canonical frozen at the 2026-05-31 bulk backfill; fresh raw CY2026.csv staged 2026-07-17 sat unconsumed). promote.tasks stays EMPTY (shadow-only soak) -- the SFN [Promote] Map runs promote.tasks on a GREEN gate REGARDLESS of promote_mode (the state machine has NO mode Choice), so a populated promote WOULD arm autonomous canonical; canonical promotion instead runs via the main loop's KMS-signed manual legs (LEVIATHAN_APPROVAL_MODE=kms + LEVIATHAN_KMS_KEY_ID=alias/leviathan-dev-publish-signer). retrofit_landed stays FALSE deliberately: test_wave2_is_exactly_the_classb_set binds fgis to the retrofit_required-and-not-landed Wave-2 set, and the flip to autonomous is the user's one-word call (mirrors the futures_prices interim shape). A manual day-0 catch-up (fetch->bronze->silver-shadow->gate->canonical) must refresh the frozen canonical before the Thursday schedule maintains it. The dag_schedules.auto.tfvars.json fgis entry is ENABLED (the earlier 'held DISABLED until A-W4' note was stale)."
 }

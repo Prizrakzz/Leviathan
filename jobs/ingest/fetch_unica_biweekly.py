@@ -32,6 +32,7 @@ S3 key already exists.
 from __future__ import annotations
 
 import argparse
+import datetime as _dt
 import logging
 import re
 import time
@@ -75,6 +76,44 @@ _MIN_PDF_BYTES = 50_000  # real bulletins are ~2.8 MB; require at least 50 KB
 
 _REQUEST_TIMEOUT_S = 60
 _PLAYWRIGHT_TIMEOUT_MS = 60_000
+
+
+# ---------------------------------------------------------------------------
+# Season derivation (fetch-time scoping; the CURRENT open harvest season)
+# ---------------------------------------------------------------------------
+
+def _coerce_date(as_of: "str | _dt.date | _dt.datetime | None") -> _dt.date:
+    if as_of is None:
+        return _dt.date.today()
+    if isinstance(as_of, _dt.datetime):
+        return as_of.date()
+    if isinstance(as_of, _dt.date):
+        return as_of
+    s = str(as_of).strip().replace("Z", "").replace("z", "")
+    # tolerate a bare date, a full ISO timestamp, or a trailing offset
+    try:
+        return _dt.datetime.fromisoformat(s).date()
+    except ValueError:
+        return _dt.date.fromisoformat(s[:10])
+
+
+def current_harvest_season(as_of: "str | _dt.date | _dt.datetime | None" = None) -> str:
+    """Return the CURRENT UNICA Centre-South harvest season label (``YYYY/YYYY+1``) for ``as_of``.
+
+    The milling season is labelled by the calendar year in which crushing starts (April). Bulletins
+    published April..December belong to the season that opened that April; January..March publish the
+    closing bulletins of the season that opened the PRIOR April. This mirrors, byte-for-byte, the
+    publication-month -> season inference already used by the discovery extractor
+    (``_extract_current_bulletin``): a fetch scoped to "the current season" therefore always targets
+    the season whose bulletins are currently being published, and auto-advances at the April boundary
+    -- so there is no hardcoded year to go stale next April.
+
+    Examples: Jul 2026 -> ``2026/2027``; Dec 2026 -> ``2026/2027``; Feb 2027 -> ``2026/2027``;
+    Apr 2027 -> ``2027/2028``.
+    """
+    d = _coerce_date(as_of)
+    start = d.year if d.month >= 4 else d.year - 1
+    return f"{start}/{start + 1}"
 
 
 # ---------------------------------------------------------------------------
@@ -542,6 +581,22 @@ def main() -> None:
         ),
     )
     parser.add_argument(
+        "--current-season",
+        action="store_true",
+        help=(
+            "Season-scoped chain mode: derive the CURRENT open harvest season from --asof (or "
+            "today) and scope discovery+download to that single season, independent of the "
+            "manifest's baked harvest_years. This is the fetch phase of the unica SFN chain -- it "
+            "keeps the live Playwright --discover scoped to the current season and auto-advances "
+            "each April (no hardcoded year to go stale). Overrides --harvest-years when both given."
+        ),
+    )
+    parser.add_argument(
+        "--asof",
+        default=None,
+        help="Scheduled-time ISO used by --current-season to derive the open harvest season.",
+    )
+    parser.add_argument(
         "--skip-existing-s3",
         action="store_true",
         default=True,
@@ -571,7 +626,12 @@ def main() -> None:
     # -----------------------------------------------------------------------
     sources = _load_sources()
     all_harvest_years: list[str] = [str(y) for y in sources.get("harvest_years", [])]
-    target_years: list[str] = args.harvest_years if args.harvest_years else all_harvest_years
+    if args.current_season:
+        season = current_harvest_season(args.asof)
+        target_years: list[str] = [season]
+        logger.info("current-season mode: harvest season=%s (from asof=%s)", season, args.asof)
+    else:
+        target_years = args.harvest_years if args.harvest_years else all_harvest_years
     bulletins: list[dict[str, Any]] = _load_manifest()
 
     logger.info(

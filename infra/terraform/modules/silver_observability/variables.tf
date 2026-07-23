@@ -44,6 +44,21 @@ variable "silver_freshness_slas" {
   default     = {}
 }
 
+variable "silver_table_freshness_slas" {
+  type = map(object({
+    family    = string
+    threshold = number
+    basis     = string
+  }))
+  description = <<-EOT
+    table_name -> {family, threshold(days), basis} for the PER-TABLE freshness-SLA-breach alarms
+    (the four tables the freshness audit found ran stale-green for 6-10 weeks: their FAMILY ceiling
+    was too loose to catch a per-table stall). Emitted into silver_observability.auto.tfvars.json by
+    jobs/observability/silver_alarms.py (BURNED_TABLE_FRESHNESS). Empty default = no per-table alarms.
+  EOT
+  default     = {}
+}
+
 # --- A-W5 step 3: orchestration-plane alarm inputs -------------------------
 variable "state_machine_arn" {
   type        = string
