@@ -13,6 +13,11 @@
 -- reintroduce the parquet-order drift). SILVER-F024 widen was applied out-of-band 2026-07-14; see
 -- sql/athena/migrations/silver/20260714T201146Z_silver_conab_coffee_additive_update.json.
 --
+-- WIRING_WAVE1 pre-step (ADDITIVE, 2026-07-23): survey_release_date (string) HAND-APPENDED LAST as the
+-- 23rd column -- the derived vintage knowledge anchor the numbers card reads as knowledge_date_col. Live
+-- Glue catches up via a gated ADD COLUMNS (survey_release_date string), mirroring the append here; see
+-- sql/athena/migrations/silver/20260723T000000Z_silver_conab_coffee_survey_release_date_additive.json.
+--
 -- Flat table over silver/conab_coffee/ (hive partition keys are also in-file data columns).
 CREATE EXTERNAL TABLE IF NOT EXISTS silver_conab_coffee (
     commodity                         string,
@@ -36,7 +41,8 @@ CREATE EXTERNAL TABLE IF NOT EXISTS silver_conab_coffee (
     source_raw_key                    string,
     source_file_etag                  string,
     worksheet                         string,
-    parser_version                    string
+    parser_version                    string,
+    survey_release_date               string
 )
 STORED AS PARQUET
 LOCATION 's3://leviathan-dev-shahem-001/silver/conab_coffee/'

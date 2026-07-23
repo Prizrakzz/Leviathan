@@ -1,0 +1,22 @@
+{
+  "package": "WIRING_WAVE1",
+  "table": "silver_conab_coffee",
+  "database": "leviathan_dev",
+  "change_type": "additive_update",
+  "risk": "low",
+  "gated": true,
+  "applied": false,
+  "status": "planned -- registry LEADS live Glue by this one column; apply is a main-loop AWS step",
+  "generated_at": "2026-07-23T00:00:00+00:00",
+  "guard_mode": "planned",
+  "mechanism": "Direct ALTER TABLE ADD COLUMNS (Athena/Hive), mirroring the SILVER-F024 out-of-band precedent. survey_release_date is APPENDED LAST (position 23) so the live-Glue column order stays base-10 + 12-F024-appended + this 1 additive tail -- byte-consistent with sql/athena/ddl/silver_conab_coffee.sql and configs/silver/tables/silver_conab_coffee.yaml.",
+  "added_columns": [
+    {"name": "survey_release_date", "glue_type": "string"}
+  ],
+  "apply_sql": "ALTER TABLE leviathan_dev.silver_conab_coffee ADD COLUMNS (survey_release_date string);",
+  "glue_call": "glue.update_table(DatabaseName='leviathan_dev', TableInput=<desired silver_conab_coffee with the 23rd column appended>)  # additive; equivalently the ALTER above",
+  "sequencing_note": "Apply BEFORE (or together with) the 23-col producer republish. Athena reads flat parquet by NAME, so column-order divergence between the physical parquet and the catalog is immaterial for reads; the drift tripwire (jobs/utils/validate_athena_ddl_drift.py) compares the hand DDL against live Glue in ORDER, so the ADD COLUMNS append must match the DDL append (it does).",
+  "rollback_note": "ALTER TABLE leviathan_dev.silver_conab_coffee REPLACE COLUMNS (...the 22 pre-additive columns...) to drop survey_release_date from the catalog; OR leave the column and disable the numbers card via GRAPHRAG_NUMBERS_DISABLE=silver_conab_coffee. The stored parquet is unaffected either way.",
+  "reconciliation": "After apply + re-snapshot, D.structured_from_contract == D.structured_from_glue for silver_conab_coffee (23 cols) and the F011 catalog-migration-pending row for survey_release_date auto-resolves; scripts/silver/f011_ddl_diff_report.py _MIGRATION_PENDING may then drop the entry.",
+  "source_migration": "sql/athena/migrations/silver/20260714T201146Z_silver_conab_coffee_additive_update.json"
+}

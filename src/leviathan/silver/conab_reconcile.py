@@ -2,7 +2,9 @@
 
 OP-4 found a SECOND, catalog-less CONAB coffee representation at
 ``silver/production/source=conab/`` (26 objects / ~3,434 rows) with a 9-column EAV shape -- distinct
-from the ``silver_conab_coffee`` table (the wide 22-column canonical). Before the orphan can be
+from the ``silver_conab_coffee`` table (the wide canonical; 22 F024 cols + the WIRING_WAVE1
+survey_release_date additive = 23 -- reconciliation compares only the measured CANONICAL_METRICS, so
+the vintage-anchor additive does not affect it). Before the orphan can be
 classified/quarantined (deferred to F060), F024 requires a row/cell reconciliation between the two so
 we KNOW the canonical reproduces the orphan's facts, with an ``unexplained_difference_count`` of zero
 or an explicitly approved exception ledger.

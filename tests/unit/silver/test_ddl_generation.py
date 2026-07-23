@@ -242,7 +242,9 @@ def test_diff_report_covers_the_known_findings(report_mod):
     for r in rows:
         by_disp.setdefault(r.disposition, []).append(r)
     # POST-F024 (BF-W2 step 5 APPLIED): the CONAB migration landed and the snapshot was re-captured,
-    # so NO migration-pending row may remain -- a reappearing one means live Glue regressed.
+    # so NO migration-pending row may remain -- a reappearing one means live Glue regressed. The
+    # WIRING_WAVE1 survey_release_date additive follows the same apply-then-refresh discipline (registry
+    # + R0 snapshot + hand DDL all carry the 23rd column together), so it too leaves no pending row.
     reg_wins = by_disp.get(report_mod.REGISTRY_WINS, [])
     assert not any(r.table == "silver_conab_coffee" and r.dimension == "catalog-migration-pending"
                    for r in reg_wins)

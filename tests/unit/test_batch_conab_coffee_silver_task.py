@@ -1,7 +1,8 @@
 """Unit tests for the CONAB coffee silver Batch task helpers (SILVER-F024).
 
-The task publishes the 22-column canonical through the shadow-first publisher; ``--publish-mode``
-defaults to dry-run (nothing written). These tests exercise the helpers directly.
+The task publishes the 23-column canonical (22 F024 + the WIRING_WAVE1 survey_release_date additive)
+through the shadow-first publisher; ``--publish-mode`` defaults to dry-run (nothing written). These
+tests exercise the helpers directly.
 """
 from __future__ import annotations
 
@@ -9,7 +10,11 @@ import pandas as pd
 import pytest
 from leviathan.silver.registry import load_registry
 from leviathan.storage.paths import silver_conab_coffee_key
-from leviathan.transforms.bronze_to_silver.conab_coffee import OUTPUT_COLUMNS
+from leviathan.transforms.bronze_to_silver.conab_coffee import (
+    OUTPUT_COLUMNS,
+    PARSER_VERSION,
+    _survey_release_date,
+)
 
 from jobs.batch import conab_coffee_silver_task as task
 from tests.unit.silver.conftest import (
@@ -30,7 +35,7 @@ def _silver_row(
     region: str = "minas_gerais",
     production_revision: float | None = None,
 ) -> dict[str, object]:
-    """A full 22-column canonical silver row."""
+    """A full 23-column canonical silver row (22 F024 + the survey_release_date additive)."""
     return {
         "commodity": commodity, "country": "brazil", "safra_year": safra_year,
         "survey_number": survey_number, "region": region,
@@ -41,7 +46,8 @@ def _silver_row(
         "production_revision_streak": 0, "is_repeated_survey": False,
         "repeated_from_survey_number": None, "survey_content_fingerprint": "abc123",
         "source_raw_key": None, "source_file_etag": None, "worksheet": "2 Cafe Arabica",
-        "parser_version": "conab_coffee_silver_v2_f024",
+        "parser_version": PARSER_VERSION,
+        "survey_release_date": _survey_release_date(safra_year, survey_number),
     }
 
 

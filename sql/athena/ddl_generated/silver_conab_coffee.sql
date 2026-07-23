@@ -29,7 +29,8 @@ CREATE EXTERNAL TABLE IF NOT EXISTS silver_conab_coffee (
     source_raw_key                    string,
     source_file_etag                  string,
     worksheet                         string,
-    parser_version                    string
+    parser_version                    string,
+    survey_release_date               string
 )
 STORED AS PARQUET
 LOCATION 's3://leviathan-dev-shahem-001/silver/conab_coffee/'

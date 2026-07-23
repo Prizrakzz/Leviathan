@@ -1,4 +1,6 @@
-"""Silver transform for CONAB Brazil coffee bulletin XLS bronze data (SILVER-F024: 22 columns).
+"""Silver transform for CONAB Brazil coffee bulletin XLS bronze data (SILVER-F024: 22 columns; the
+WIRING_WAVE1 pre-step ADDITIVELY appends a 23rd, ``survey_release_date`` -- the derived vintage
+knowledge anchor, see ``_SURVEY_RELEASE_CALENDAR`` below).
 
 OP-4 close: the live physical parquet carries 22 columns (a rich revision/provenance vintage) while
 the narrowed producer emitted only 10 -- and Glue under-declared those 10, so 12 columns were
@@ -18,7 +20,12 @@ SILVER-F010 registry (``configs/silver/tables/silver_conab_coffee.yaml``):
   * ``survey_content_fingerprint`` -- a stable, order-independent hash of a survey's measured content;
   * ``source_raw_key`` / ``source_file_etag`` / ``worksheet`` / ``parser_version`` -- Bronze
     provenance carried through (raw S3 key + ETag when Bronze supplies them; the source worksheet
-    name; this transform's parser version).
+    name; this transform's parser version);
+  * ``survey_release_date`` (WIRING_WAVE1 pre-step) -- the DERIVED, conservative, never-leak vintage
+    release stamp (ISO ``YYYY-MM-DD``) mapping each ``survey_number`` to a fixed point on CONAB
+    Cafe's annual survey calendar. This is what makes the table a leakage-safe ``vintage`` numbers
+    card (``knowledge_date_col = survey_release_date``; ``survey_number`` DESC is the tiebreak). It
+    is a *timing* column only -- it never touches a measured value. See ``_SURVEY_RELEASE_CALENDAR``.
 
 The transform is pure (no AWS/IO). The batch task enforces the INV-2 arrow writer schema from the
 registry contract before any write and routes through the shadow-first publisher.
@@ -39,7 +46,8 @@ COUNTRY = "brazil"
 SOURCE = "conab_xls"
 
 # Bump when the revision/fingerprint/provenance algorithms below change in a value-affecting way.
-PARSER_VERSION = "conab_coffee_silver_v2_f024"
+# v3: WIRING_WAVE1 additive -- the 23rd column survey_release_date (the derived vintage anchor).
+PARSER_VERSION = "conab_coffee_silver_v3_survey_release"
 
 OUTPUT_COLUMNS = [
     "commodity",
@@ -64,6 +72,8 @@ OUTPUT_COLUMNS = [
     "source_file_etag",
     "worksheet",
     "parser_version",
+    # WIRING_WAVE1 additive tail (kept LAST to mirror the Glue ADD COLUMNS append + physical write).
+    "survey_release_date",
 ]
 
 _METRIC_ELEMENTS = {
@@ -85,6 +95,50 @@ _STATE_NAMES = {
     "RO": "rondonia", "RR": "roraima", "SC": "santa_catarina", "SP": "sao_paulo",
     "SE": "sergipe", "TO": "tocantins",
 }
+
+# ---------------------------------------------------------------------------
+# survey_release_date -- the derived, conservative, never-leak vintage anchor (WIRING_WAVE1 §3a).
+# ---------------------------------------------------------------------------
+# CONAB Cafe publishes 4 progressive surveys per safra on a fixed ANNUAL calendar, but each is
+# released MID-MONTH and the 4th slips into the NEXT calendar year. Research-confirmed publication
+# dates (CONAB + Cecafe primary sources):
+#     safra 2024 -> S1 Jan 2024, S2 May 23 2024, S3 Sep 19 2024, S4 Jan 21 2025
+#     safra 2025 -> ... S4 Dec 2025
+#     safra 2026 -> S1 Feb 5 2026, S2 May 21 2026, S3 Sep 24 2026, S4 Jan 7 2027
+# We derive survey_release_date as the FIRST DAY OF THE MONTH STRICTLY AFTER each survey's confirmed
+# publication window, so the derived stamp is ALWAYS on/after the real release: the point-in-time
+# as-of guard can never LEAK a survey before it was actually published (it withholds by <= ~4 weeks
+# -- the SAFE direction, honouring WIRING_WAVE1 §3a's "conservative -- never leaks"). The stamps stay
+# strictly increasing in survey_number within a safra, so `knowledge_date DESC` and `survey_number
+# DESC` agree (the deterministic vintage tiebreak).
+#
+# NOTE (WIRING_WAVE1 open-decision #2, ratifiable): this deliberately shifts the plan's PLACEHOLDER
+# {1->Jan,2->May,3->Sep,4->Dec} first-of-SAME-month map (which would leak up to ~5 weeks against the
+# real mid-month/next-year dates) to the conservative post-publication month-firsts below. The map is
+# a single knob: {survey_number: (safra_year_offset, month, day)}.
+_SURVEY_RELEASE_CALENDAR = {
+    1: (0, 3, 1),    # S1 published Jan-Feb of safra_year   -> Mar 1 of safra_year
+    2: (0, 6, 1),    # S2 published ~late May of safra_year -> Jun 1 of safra_year
+    3: (0, 10, 1),   # S3 published ~late Sep of safra_year -> Oct 1 of safra_year
+    4: (1, 2, 1),    # S4 published Dec(Y) / early Jan(Y+1) -> Feb 1 of safra_year + 1
+}
+
+
+def _survey_release_date(safra_year: int, survey_number: int) -> str:
+    """Conservative ISO ``YYYY-MM-DD`` vintage release stamp for one CONAB coffee survey.
+
+    Fixed-calendar, first-of-month, never-leak (see ``_SURVEY_RELEASE_CALENDAR``). Raises on any
+    ``survey_number`` outside CONAB's fixed 1..4 set -- fail-loud, because a stray survey ordinal is
+    a data defect and a null PIT anchor would silently drop the row from the leakage-safe as-of guard
+    (``null <= asof`` is UNKNOWN)."""
+    cal = _SURVEY_RELEASE_CALENDAR.get(int(survey_number))
+    if cal is None:
+        raise ValueError(
+            f"CONAB coffee survey_number {survey_number!r} is outside the fixed 1..4 survey "
+            f"calendar; cannot derive a leakage-safe survey_release_date"
+        )
+    yr_off, month, day = cal
+    return f"{int(safra_year) + yr_off:04d}-{month:02d}-{day:02d}"
 
 
 def _empty() -> pd.DataFrame:
@@ -298,9 +352,15 @@ def transform_conab_coffee_bronze_to_silver(df: pd.DataFrame) -> pd.DataFrame:
     silver["country"] = COUNTRY
     silver["source"] = SOURCE
     silver["parser_version"] = PARSER_VERSION
+    # WIRING_WAVE1 §3a: the derived, conservative, never-leak vintage anchor (always populated --
+    # every canonical row carries survey_number in {1,2,3,4}, so this is never null).
+    silver["survey_release_date"] = [
+        _survey_release_date(int(y), int(s))
+        for y, s in zip(silver["safra_year"], silver["survey_number"])
+    ]
 
     silver = silver[OUTPUT_COLUMNS].sort_values(
         ["safra_year", "survey_number", "commodity", "region"], kind="stable"
     )
-    logger.info("CONAB coffee silver produced %d rows (22-col contract)", len(silver))
+    logger.info("CONAB coffee silver produced %d rows (23-col contract)", len(silver))
     return silver.reset_index(drop=True)

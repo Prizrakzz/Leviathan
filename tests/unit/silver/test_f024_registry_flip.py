@@ -60,15 +60,22 @@ def contract(reg):
 # Registry <-> F024 artifact consistency (the step-3 STOP condition).
 # ---------------------------------------------------------------------------
 def test_registry_has_no_hidden_columns_left(contract):
-    """All 22 physical columns are catalog-typed; the hidden-schema (glue_type null) class is gone."""
+    """All physical columns are catalog-typed; the hidden-schema (glue_type null) class is gone. F024's
+    target is 22 catalog columns; the WIRING_WAVE1 pre-step additively appends survey_release_date (the
+    23rd), so the current catalog count is 23 with survey_release_date present + catalog-typed string."""
     assert D.physical_only_columns(contract) == []
-    assert len(D.catalog_columns(contract)) == 22
+    cols = dict(D.catalog_columns(contract))
+    assert len(cols) == 23
+    assert cols.get("survey_release_date") == "string"
 
 
 def test_registry_column_order_matches_f024_target(contract, f024):
     names = [n for n, _ in D.catalog_columns(contract)]
-    assert names == f024["target"]["glue_nonpartition_columns"]
-    assert len(names) == f024["target"]["count"]
+    # The FIRST 22 columns are the F024 target, in order; survey_release_date (WIRING_WAVE1) is the
+    # additive tail, so the F024 invariant is preserved exactly.
+    assert names[:22] == f024["target"]["glue_nonpartition_columns"]
+    assert len(f024["target"]["glue_nonpartition_columns"]) == f024["target"]["count"] == 22
+    assert names[22:] == ["survey_release_date"]
 
 
 def test_flipped_glue_types_match_f024_added_columns_exactly(contract, f024):
@@ -76,14 +83,17 @@ def test_flipped_glue_types_match_f024_added_columns_exactly(contract, f024):
     reg_types = dict(D.catalog_columns(contract))
     added = [(c["name"], c["glue_type"]) for c in f024["added_columns"]]
     assert [(n, reg_types[n]) for n, _ in added] == added
-    # ...and they are the registry tail, preserving the additive ADD COLUMNS order.
-    assert [n for n, _ in D.catalog_columns(contract)][10:] == [n for n, _ in added]
+    # ...and they are the F024 registry tail [10:22], preserving the additive ADD COLUMNS order
+    # (survey_release_date, the WIRING_WAVE1 additive, sits after them at [22:]).
+    assert [n for n, _ in D.catalog_columns(contract)][10:22] == [n for n, _ in added]
 
 
 def test_generated_ddl_carries_the_22_col_target(contract, f024):
     sql = D.render_ddl(contract)
     got = D.parse_ddl(sql)
-    assert [n for n, _ in got.columns] == f024["target"]["glue_nonpartition_columns"]
+    # First 22 == the F024 target; survey_release_date (WIRING_WAVE1 additive) is the appended tail.
+    assert [n for n, _ in got.columns][:22] == f024["target"]["glue_nonpartition_columns"]
+    assert [n for n, _ in got.columns][22:] == ["survey_release_date"]
     for c in f024["added_columns"]:
         assert dict(got.columns)[c["name"]] == c["glue_type"]
 
@@ -101,10 +111,12 @@ def _live_10col_glue(fake_glue):
 
 
 def test_desired_table_never_emits_null_types(reg, contract):
-    """The Deviation 9 regression pin: no ``Type: null`` in the desired TableInput."""
+    """The Deviation 9 regression pin: no ``Type: null`` in the desired TableInput. 22 F024 columns +
+    the WIRING_WAVE1 survey_release_date additive = 23, all catalog-typed."""
     desired = build_desired_table(contract)
     cols = desired["StorageDescriptor"]["Columns"]
-    assert len(cols) == 22
+    assert len(cols) == 23
+    assert dict((c["Name"], c["Type"]) for c in cols)["survey_release_date"] == "string"
     for c in cols:
         assert isinstance(c["Type"], str) and c["Type"] in _VALID_GLUE_TYPES, c
 
@@ -117,8 +129,10 @@ def test_migrator_plans_valid_additive_update_from_live_10col(fake_glue, reg, f0
     assert plan.change_type is ChangeType.ADDITIVE_UPDATE
     assert plan.unsafe == []  # additive only: no drop / narrow / partition-key change
     cols = plan.table_input["StorageDescriptor"]["Columns"]
-    assert [(c["Name"], c["Type"]) for c in cols][10:] == [
+    # cols [10:22] == the 12 F024 additions; cols [22:] == the WIRING_WAVE1 survey_release_date add.
+    assert [(c["Name"], c["Type"]) for c in cols][10:22] == [
         (c["name"], c["glue_type"]) for c in f024["added_columns"]]
+    assert [(c["Name"], c["Type"]) for c in cols][22:] == [("survey_release_date", "string")]
     assert all(c["Type"] in _VALID_GLUE_TYPES for c in cols)
     # flat table stays flat: the plan adds columns, never a partition key.
     assert plan.table_input["PartitionKeys"] == []

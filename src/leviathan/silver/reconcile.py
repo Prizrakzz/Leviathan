@@ -67,6 +67,10 @@ NUMBERS_TABLES = (
     #                                     whitelist-absent from serving until the gate + freshness fix; the numbers
     #                                     card + silver_futures_prices.yaml numbers_ref/knowledge fields reconcile
     #                                     here regardless of the served-registry drop -- both read raw configs)
+    "silver_noaa_iod",                  # WIRING WAVE-1 (Card A): NOAA IOD (year_month, global climate index)
+    "silver_conab_coffee",              # WIRING WAVE-1 (Card B): CONAB Brazil coffee surveys (survey-vintage)
+    #                                     Card C (silver_sagis_weekly_exports) stays OUT -- BLOCKED (pre-step DDL/
+    #                                     migration incomplete); it keeps consumers=feature_layer, numbers_ref=null.
 )
 
 
