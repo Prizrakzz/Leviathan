@@ -569,7 +569,14 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
         if row is None:
             continue                                              # unmapped OR deferred -> stays qualitative
         eras = _derive_windows(n, near, asof)
-        if not eras:
+        # T2a P4 (live-wiring fix): a `leg_mode: current` pace-capable node (esr_exports) never USES era
+        # windows, yet the gate below demanded them -- and its driver (export_pace) is a WAIVERED
+        # numbers-lane id with NO text slice, so ground() leaves it prior-only, _derive_windows returns
+        # [], and the node died HERE before _node_specs ever saw the pace kwarg (the P1-probe outcome (c):
+        # quantify_pace absent while the cascade fired on evidence-backed nodes). Fixture tests hand nodes
+        # dated evidence, which is why they passed. Gated on `pace` so the flag-off path (and every
+        # era-legged table) is byte-identical to today.
+        if not eras and not (pace and row.get("leg_mode") == "current" and _pace_grain(row) is not None):
             continue
         commodity, country = _scope(n, row)
         if country is SKIP_NODE:
@@ -1498,8 +1505,10 @@ def _xc_focus_windows(sg, graph, groups: list, source: str, near, asof) -> list:
     construction (Invariant 4; no second _derive_windows). Prefer an already-built focus group's eras; else
     derive from the grounded source node directly (the source may be grounded without a mapped su_ratio ref)."""
     for g in groups or []:
-        if _slug_match(g.get("commodity"), source):
-            return g.get("eras") or []
+        # skip era-less groups (a pace-on `leg_mode: current` node carries eras=[] by design -- P4): an
+        # empty match here would silently shadow a later era-bearing group for the same slug.
+        if _slug_match(g.get("commodity"), source) and g.get("eras"):
+            return g["eras"]
     try:
         for n in _select_nodes(sg, graph):
             c = getattr(n, "contract", None)
