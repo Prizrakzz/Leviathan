@@ -326,6 +326,9 @@ module "silver_observability" {
   silver_metric_namespace = var.silver_metric_namespace
   silver_batch_families   = var.silver_batch_families
   silver_freshness_slas   = var.silver_freshness_slas
+  # Stale-producer wave 2026-07-23: per-TABLE freshness alarms for the 4 burned tables
+  # (single-dim {Table} metric from the freshness poller; family rollup rides {Family}).
+  silver_table_freshness_slas = var.silver_table_freshness_slas
 
   # A-W5 step 3: orchestration-plane alarms + the aws.states failure rule. The machine ARN
   # gates the SFN-specific alarms/rule (empty -> they don't create), so this can apply before or
