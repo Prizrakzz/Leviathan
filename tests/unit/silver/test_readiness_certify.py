@@ -288,7 +288,9 @@ def test_runner_build_evidence_smoke(tmp_path):
 
     reg = load_registry()
     evidence = rcert.build_evidence(reg, evidence_dir=tmp_path)
-    assert len(evidence) == 43
+    # 43 R0 tables + the T2B gold_pattern_records ledger (generation-only, census-exempt like
+    # model_predictions -- an engine-replay output, not a value-census measurement source).
+    assert len(evidence) == 44
     cert = certify_all(evidence)
 
     # HONEST: today it must be RED (orphans unadopted, chirps all-NaN, ESR single-vintage).

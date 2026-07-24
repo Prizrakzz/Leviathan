@@ -68,10 +68,16 @@ DOMAIN = {
     "silver_unica_corn_ethanol": "biofuel", "silver_unica_monthly_ethanol_sales": "biofuel",
     "silver_wap_table01": "balance_sheet", "silver_wap_table01_revisions": "balance_sheet",
     "silver_wasde": "balance_sheet", "gold_weather_z": "weather",
+    # T2B pattern-records ledger (docs/private/T2B_PATTERN_RECORDS_PLAN.md): the durable, PIT-safe
+    # record of the deterministic engine's OWN fired/declined verdicts. Not a data source -- an
+    # observability surface the serving numbers agent reads as an ordinary observed table.
+    "gold_pattern_records": "observability",
 }
 
 LIFECYCLE = {
     "silver_esr_compact": "serving_copy", "gold_weather_z": "derived",
+    # generated daily by the pattern-records sweep (an engine replay), like model_predictions.
+    "gold_pattern_records": "generated",
     "silver_model_predictions": "generated", "silver_wap_table01_revisions": "derived",
     "silver_mpob_annual": "derived", "silver_unica_biweekly_release_series": "derived",
     "silver_unica_corn_ethanol": "derived", "silver_unica_monthly_ethanol_sales": "derived",
@@ -172,6 +178,9 @@ PRODUCER = {
     "silver_wap_table01_revisions": (_T + "wap_table01.py", _J + "wap_silver_task.py", "producer"),
     "silver_wasde": (None, _J + "wasde_bronze_modern_task.py", "producer"),
     "gold_weather_z": ("src/leviathan/transforms/gold/weather_z.py", _J + "gold_weather_z_task.py", "producer"),
+    # T2B: the sweep IS the producer (no bronze->silver transform -- it replays the engine over the
+    # mapped catalog and publishes the verdict ledger through F015 registered).
+    "gold_pattern_records": (None, _J + "pattern_records_sweep_task.py", "producer"),
 }
 
 # Tables whose producer emits an EXPLICIT pa.schema (INV-2) through the SILVER-F015 common publisher
@@ -223,6 +232,13 @@ KNOWLEDGE_DATE_OVERRIDE = {
     # the release; the MPOB nonzero-lag precedent). Pre-step home; superseded 1:1 by the numbers
     # TableSpec once the Integrate wave adds the silver_sagis_weekly_exports card (numbers_spec wins).
     "silver_sagis_weekly_exports": ("week_ending_date", "data_date", 5),
+    # T2B ledger (plan sec 4.1): the serving numbers card reads this table point-in-time on
+    # written_at (knowledge_semantics=ingest) -- a row written in 2026 was NOT "known at" a 2019
+    # asof, exactly the PIT semantics that confine backfill_grid rows to the labeled engine-replay
+    # base-rate path (F7). No numbers TableSpec exists yet (Writer B's serving card); this override
+    # is the pre-card home and is superseded 1:1 by the numbers_spec once the card lands
+    # (numbers_spec wins, build_contract), mirroring the SAGIS week_ending_date precedent above.
+    "gold_pattern_records": ("written_at", "ingest", None),
 }
 
 # Natural-key fallback for tables absent from source_contracts (numbers-only / consumer-none).
@@ -239,6 +255,11 @@ NATURAL_KEY_FALLBACK = {
     "silver_unica_biweekly_release_series": [],
     "silver_unica_corn_ethanol": [],
     "silver_unica_monthly_ethanol_sales": [],
+    # T2B ledger: one row per (record_kind, contract, driver_or_chain_id, asof_date). asof_date IS the
+    # registered partition key (plan sec 2.3 D3); listing it here makes record_kind/contract/
+    # driver_or_chain_id the non-null key columns (nullable = cn not in natural_key). counterparty
+    # stays NULLABLE (reserved for the deferred fork kinds, plan sec 1.1 / F4).
+    "gold_pattern_records": ["record_kind", "contract", "driver_or_chain_id", "as_of_date"],
 }
 
 # Tall numbers value column (the actual measure lives in ONE column; metric NAMES are row values).

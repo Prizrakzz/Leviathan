@@ -74,7 +74,7 @@ def test_render_all_is_deterministic(gen_mod):
     first = gen_mod.render_all()
     second = gen_mod.render_all()
     assert first == second
-    assert len(first) == 43
+    assert len(first) == 44  # 43 R0 tables + the T2B gold_pattern_records ledger
 
 
 def test_generated_dir_is_byte_identical_to_a_fresh_render(gen_mod):
@@ -91,7 +91,7 @@ def test_generated_dir_is_byte_identical_to_a_fresh_render(gen_mod):
 def test_all_43_tables_covered(gen_mod):
     rendered = set(gen_mod.render_all())
     on_disk = {p.stem for p in _GENERATED_DIR.glob("*.sql")}
-    assert len(rendered) == 43
+    assert len(rendered) == 44  # 43 R0 tables + the T2B gold_pattern_records ledger
     assert rendered == on_disk
 
 

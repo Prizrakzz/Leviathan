@@ -15,7 +15,7 @@ from leviathan.silver.types import (
     target_arrow_type,
 )
 
-EXPECTED_TABLE_COUNT = 43  # 42 silver + gold_weather_z
+EXPECTED_TABLE_COUNT = 44  # 42 silver + gold_weather_z + gold_pattern_records (T2B ledger)
 
 
 @pytest.fixture(scope="module")
@@ -26,7 +26,9 @@ def reg() -> R.SilverRegistry:
 def test_registry_has_exactly_the_live_42_plus_gold(reg):
     names = reg.names()
     assert len(names) == EXPECTED_TABLE_COUNT
-    assert "gold_weather_z" in names
+    # two gold tables now: the weather z-score serving surface + the T2B pattern-records ledger.
+    gold = [n for n in names if n.startswith("gold_")]
+    assert set(gold) == {"gold_weather_z", "gold_pattern_records"}
     silver = [n for n in names if n.startswith("silver_")]
     assert len(silver) == 42
     # the ESR pair + WASDE + model_predictions are all present (registered surfaces).
@@ -50,8 +52,9 @@ def test_partition_modes_match_the_r0_tally(reg):
     modes = {"flat": 0, "projected": 0, "registered": 0}
     for name in reg.names():
         modes[reg.table(name)["partition_mode"]] += 1
-    # R0 baseline: 28 flat / 10 projected / 4 registered (silver) + 1 flat gold.
-    assert modes == {"flat": 29, "projected": 10, "registered": 4}
+    # R0 baseline: 28 flat / 10 projected / 4 registered (silver) + 1 flat gold (weather_z) +
+    # 1 registered gold (T2B gold_pattern_records, on as_of_date). Total 44.
+    assert modes == {"flat": 29, "projected": 10, "registered": 5}
 
 
 def test_projection_field_is_quarantined_iff_projected(reg):
@@ -78,6 +81,43 @@ def test_value_columns_single_authority_present_and_declared(reg):
             assert c["min_nonnull_frac"] is not None
         else:
             assert c["min_nonnull_frac"] is None
+
+
+def test_pattern_records_ledger_contract(reg):
+    """T2B (docs/private/T2B_PATTERN_RECORDS_PLAN.md sec 1): the pattern-records ledger is a GOLD
+    table registered on as_of_date, carrying the ratified verdict columns + a reserved counterparty,
+    read PIT on written_at (ingest semantics). It is an observation ledger, not a measurement table:
+    no value_columns / non-null floor, and no writer-schema drift."""
+    c = reg.table("gold_pattern_records")
+    assert c["layer"] == "gold"
+    assert c["partition_mode"] == "registered"
+    assert [pk["name"] for pk in c["partition_keys"]] == ["as_of_date"]
+    cols = reg.columns("gold_pattern_records")
+    # the ratified schema (plan sec 1.1) -- every named column is present.
+    for col in ("record_kind", "contract", "driver_or_chain_id", "counterparty", "verdict",
+                "decline_reason", "streak_len", "streak_dir", "window_change", "grain", "n_points",
+                "n_rows", "n_hops", "extra", "engine_version", "graph_version", "provenance",
+                "run_id", "written_at", "as_of_date"):
+        assert col in cols, col
+    # counterparty is reserved for the deferred fork kinds -> NULLABLE (plan sec 1.1 / F4).
+    by = {col["name"]: col for col in c["physical_columns"]}
+    assert by["counterparty"]["nullable"] is True
+    # the natural key excludes engine_version (F1: it is non-key; the writer's write-guard, not the
+    # key, blocks a cross-engine overwrite).
+    assert "engine_version" not in c["natural_key"]
+    assert c["natural_key"] == ["record_kind", "contract", "driver_or_chain_id", "as_of_date"]
+    # PIT read semantics: written_at / ingest (plan sec 4.1 -- confines backfill_grid rows to the
+    # labeled base-rate path).
+    assert c["knowledge_date_col"] == "written_at"
+    assert c["knowledge_semantics"] == "ingest"
+    # an OBSERVATION ledger: no value_columns, no V001 floor, no drift.
+    assert c["value_columns"] == []
+    assert c["min_nonnull_frac"] is None
+    assert c["drift_summary"] == []
+    # never a LIST-storm surface (the WASDE lesson): registered, projection forbidden.
+    assert c["projection"] == "forbidden"
+    assert c["producer"]["status"] == "producer"
+    assert c["producer"]["batch_task"] == "jobs/batch/pattern_records_sweep_task.py"
 
 
 def test_esr_compact_pins_inv2_widen_targets(reg):

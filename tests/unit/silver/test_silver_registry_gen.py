@@ -43,11 +43,13 @@ def test_checked_in_tree_matches_fresh_render(gen):
     assert drift == [], f"registry drift; re-run the generator: {drift}"
 
 
-def test_generator_covers_exactly_the_43_baseline_tables(gen):
+def test_generator_covers_exactly_the_44_baseline_tables(gen):
     baseline = {p.stem for p in gen.TABLES_JSON.glob("*.json")}
     on_disk = {p.stem for p in _TABLES.glob("*.yaml")}
     assert baseline == on_disk
-    assert len(on_disk) == 43
+    # 43 R0 tables + the T2B gold_pattern_records ledger (synthetic R0 record, plan sec 1.2).
+    assert len(on_disk) == 44
+    assert "gold_pattern_records" in on_disk
 
 
 def test_no_yaml_lacks_a_baseline_record(gen):

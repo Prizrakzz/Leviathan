@@ -78,6 +78,12 @@ FAMILY_RULES: tuple[tuple[str, str], ...] = (
     ("silver_icco_cocoa", "icco"),
     # --- Model output (generation-only; NOT a source-backfill DAG) --------
     ("silver_model_predictions", "model_output"),
+    # --- Observability ledger (T2B; generation-only engine replay) --------
+    # gold_pattern_records is produced by the pattern-records sweep (an engine replay over the mapped
+    # catalog), NOT ingested from an external source -- so it has no source-backfill DAG and carries no
+    # F082 batch/freshness alarm (its own missed-sweep / zero-rows alarms are the T2B plan sec 8 set,
+    # separate from this estate). Grouped like model_output: generation-only.
+    ("gold_pattern_records", "pattern_records"),
 )
 
 # Human-facing family labels for runbook/alarm descriptions.
@@ -104,6 +110,7 @@ FAMILY_LABELS: dict[str, str] = {
     "ams": "USDA AMS cotton quality",
     "icco": "ICCO cocoa",
     "model_output": "Model predictions (generation-only)",
+    "pattern_records": "Pattern-records ledger (T2B; generation-only engine replay)",
 }
 
 # Interim freshness-SLA lag ceilings per cadence, used when the registry
@@ -193,7 +200,7 @@ class DagFamily:
 
 
 # Families that carry no source-backfill DAG (generation-only outputs).
-_NON_BACKFILL_FAMILIES = frozenset({"model_output"})
+_NON_BACKFILL_FAMILIES = frozenset({"model_output", "pattern_records"})
 
 
 def build_catalog(registry: Optional[SilverRegistry] = None) -> dict[str, DagFamily]:
