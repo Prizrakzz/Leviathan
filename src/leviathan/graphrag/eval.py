@@ -307,7 +307,12 @@ def _cascade_asserts(q: dict, out: dict) -> dict | None:
             # SEAM C (2026-07-23): silver_futures_prices whitelisted -- a served front-month settle citation
             # (exchange units: c/bu, c/lb, USD/short ton, USD/metric ton, USD/cwt per the 12-slug unit_overrides)
             # now legitimately satisfies price_cited / unit_present too.
-            pc = [c for c in cits if (c.get("locator") or {}).get("table") in ("silver_pink_sheet", "silver_wasde", "silver_futures_prices")]
+            # NEWCAP TRIAGE (2026-07-24): gate on value is not None -- a levels_only PIT-guard raise is
+            # surfaced as a kind=number citation with value=None + empty unit ('(lookup error)'), and
+            # counting those failed unit_present on SERVED-correct rows and scored a correct futures
+            # decline as a price leak (3 flagship-futures rows). Rejected probes are not price citations.
+            pc = [c for c in cits if (c.get("locator") or {}).get("table") in ("silver_pink_sheet", "silver_wasde", "silver_futures_prices")
+                  and c.get("value") is not None]
             if k == "price_cited":
                 res[k] = bool(pc) == bool(want)
             else:                                                     # unit_present
@@ -1138,7 +1143,8 @@ def _num_line(out: dict) -> str:
     return ", ".join(parts)
 
 
-def report(rows: list[dict], *, model: str, graph_version: str | None = None) -> str:
+def report(rows: list[dict], *, model: str, graph_version: str | None = None,
+           judge_requested: bool = False) -> str:
     routed = sum(r["rubric"]["routed_right"] for r in rows)
     judged = [r["judge"] for r in rows if r.get("judge")]
     intent_rows = [r for r in rows if r["rubric"].get("expected_intent")]
@@ -1155,7 +1161,9 @@ def report(rows: list[dict], *, model: str, graph_version: str | None = None) ->
     if graph_version:
         lines.append(f"- graph: `{graph_version}` (causal-YAML content hash — the graph this run scored)")
     lines.append(f"- contract routed correctly: **{routed}/{len(rows)}**")
-    if len(judged) < len(rows):                        # a degraded run must never masquerade as a full one
+    if judge_requested and len(judged) < len(rows):    # a degraded JUDGED run must never masquerade as a
+        # full one -- but a no-judge run is not degraded (the old unconditional guard printed a false
+        # '30 judge call(s) FAILED' banner on every no-judge run; NEWCAP TRIAGE 2026-07-24)
         lines.append(f"- **JUDGED {len(judged)}/{len(rows)}** — {len(rows) - len(judged)} judge call(s) "
                      "FAILED (see WARNs in the job log); judge averages cover judged rows only")
     if intent_rows:
@@ -1675,7 +1683,8 @@ def main() -> int:
                 _judge_row(r)
     _OUT.mkdir(parents=True, exist_ok=True)
     out_path = _OUT / f"report_{args.model}.md"
-    out_path.write_text(report(rows, model=args.model, graph_version=graph.version), encoding="utf-8")
+    out_path.write_text(report(rows, model=args.model, graph_version=graph.version,
+                               judge_requested=args.judge), encoding="utf-8")
     s3uri = ev._evid_s3()
     if s3uri:                                                     # persist so a Fargate run's report survives the container
         import boto3

@@ -90,16 +90,32 @@ def _verify_numbers_answer(answer: str, calls: list) -> dict:
     from leviathan.graphrag import verify as vf
     row_vals = []
     for c in calls:
+        metric = str((c.get("query") or {}).get("metric", "")).lower()
         for r in (c.get("rows") or []):
             try:
-                row_vals.append(float(str(r.get("value")).replace(",", "")))
+                v = float(str(r.get("value")).replace(",", ""))
             except (TypeError, ValueError):
                 continue
+            row_vals.append(v)
+            if "bag" in metric:
+                # coffee's 60-kg bag standard: a correct bags->tonnes restatement of a looked-up figure
+                # is GROUNDED, not fabricated (39,598.4 thousand bags -> 2,375,904 t; the answer's
+                # '~2.376 million metric tonnes' fired the caution banner on a correct CONAB serve)
+                row_vals.append(v * 60.0)
     # Non-VALUE tokens are scrubbed before extraction: ISO dates (2026-06-01), WB release stamps
     # (2026M07), marketing years (2024/25) and [N#] handles all shed numeric fragments (06, 07, 25, 1)
     # that read as "stated figures" -- the pink_sheet provenance stamp made this fire for the first time
     # (W3.7: both CORRECT price answers wore a false caution banner and failed their mismatch pins).
     scrub = re.sub(r"\d{4}-M\d{2}|\d{4}-\d{2}(?:-\d{2})?|\d{4}M\d{2}|\d{4}/\d{2,4}|\[N\d+\]", " ", answer)
+    # NEWCAP TRIAGE (2026-07-24, CONAB false-caution class): two more non-VALUE shapes fired the banner
+    # on CORRECT survey answers -- (a) prose dates ('published June 1, 2025' / '2 February 2026') shed a
+    # day-of-month that reads as a stated 1.0/2.0; (b) hyphen-glued unit descriptors ('60-kg bags') read
+    # as a stated 60. Both are labels, not data figures.
+    _MONTHS = (r"(?:January|February|March|April|May|June|July|August|September|October|November|"
+               r"December)")
+    scrub = re.sub(rf"{_MONTHS}\s+\d{{1,2}}(?:st|nd|rd|th)?(?:,\s*|\s+)\d{{4}}"
+                   rf"|\d{{1,2}}(?:st|nd|rd|th)?\s+{_MONTHS}(?:,\s*|\s+)\d{{4}}", " ", scrub)
+    scrub = re.sub(r"\b\d+(?:\.\d+)?-(?=[A-Za-z])", " ", scrub)
     stated = [v for v in vf._numbers_in(scrub)
               if abs(v) >= 0.001 and not (1900 <= v <= 2100 and float(v).is_integer())]   # skip years
     mismatched = [v for v in stated if row_vals and not vf._num_matches([v], row_vals)]
