@@ -16,7 +16,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # listing page via headless Chromium (fetch_unica_biweekly.py --discover).
 COPY pyproject.toml ./
 RUN mkdir -p src/leviathan && touch src/leviathan/__init__.py && \
-    pip install --no-cache-dir -e ".[batch,biweekly]"
+    pip install --no-cache-dir -e ".[batch,biweekly,pg]"
 
 # Install the Chromium browser + its OS-level deps in a dedicated layer so it
 # caches independently of source changes; chromium only, not every browser.
