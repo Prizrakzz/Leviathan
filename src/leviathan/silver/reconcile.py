@@ -69,8 +69,12 @@ NUMBERS_TABLES = (
     #                                     here regardless of the served-registry drop -- both read raw configs)
     "silver_noaa_iod",                  # WIRING WAVE-1 (Card A): NOAA IOD (year_month, global climate index)
     "silver_conab_coffee",              # WIRING WAVE-1 (Card B): CONAB Brazil coffee surveys (survey-vintage)
-    #                                     Card C (silver_sagis_weekly_exports) stays OUT -- BLOCKED (pre-step DDL/
-    #                                     migration incomplete); it keeps consumers=feature_layer, numbers_ref=null.
+    "silver_sagis_weekly_exports",      # WIRING WAVE-1 (Card C): SAGIS SA weekly cumulative export pace. The
+    #                                     pre-step DDL/migration is now COMPLETE (main loop applied the gated Glue
+    #                                     ADD COLUMNS -> 9-col catalog, week_ending_date DATE live) and the registry
+    #                                     records consumers=both + numbers_ref, so its data_date PIT fields
+    #                                     (week_ending_date, +5d publication_lag_days) reconcile here rather than
+    #                                     skipping the F010 gate unchecked.
 )
 
 

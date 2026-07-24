@@ -65,9 +65,13 @@ P1_TABLES = ["silver_psd", "silver_wasde", "silver_production", "silver_esr", "s
              # producer trims the trailing NaN tail so latest is a real reading). silver_conab_coffee
              # (survey-vintage; production_thousand_bags/area_in_production_ha/yield_bags_per_ha mirror
              # numeric; safra_year period_sql_type=int mirrors numeric; commodity/region/survey_release_date
-             # stay ISO/TEXT). silver_sagis_weekly_exports is NOT wired this wave (Card C BLOCKED: the
-             # pre-step left the served-table DDL/migration incomplete -- see integrator report).
-             "silver_noaa_iod", "silver_conab_coffee"]
+             # stay ISO/TEXT).
+             # WIRING WAVE-1 Card C (2026-07-24): silver_sagis_weekly_exports is now wired -- the catalog ALTER
+             # landed week_ending_date DATE. WIDE data_date table: the three served metrics prog_exports_mt/
+             # pct_of_prior_yr/z_vs_3yr_avg mirror numeric; crop/season/week_ending/source stay ISO/TEXT and the
+             # derived week_ending_date (DATE) stringifies to ISO TEXT COLLATE "C" (DP-5 substr-normalized, so
+             # both backends compare identically). Small (1204 rows).
+             "silver_noaa_iod", "silver_conab_coffee", "silver_sagis_weekly_exports"]
 SCHEMA = "leviathan_dev"                       # == numbers.pgnumbers.SCHEMA == query.ATHENA_DB
 GLUE_DB = "leviathan_dev"
 

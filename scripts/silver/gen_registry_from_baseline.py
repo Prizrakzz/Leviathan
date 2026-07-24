@@ -722,13 +722,16 @@ CURATION_OVERRIDES: dict = {
     # so a min_nonnull_frac_override keyed on it is orphaned (override keys must be value_columns) and the
     # census no longer floors that derived-diff column at all -- exactly as for sagis_cec's revision fields.
     # (No curation entry needed; left as a note so the forensic rationale is not lost.)
-    # ── SILVER-F059 (2026-07-23): the numbers wave needs a sargable point-in-time anchor, but SAGIS's
-    # only date-ish column (week_ending) is a free-text day range. The producer now derives an ISO
-    # week_ending_date (date32); it is emitted into parquet but the live Glue catalog has not yet
-    # registered it -> a HIDDEN/physical-only additive column (glue_type=None), excluded from the DDL
-    # + live-Glue diff until the gated catalog migration lands. Same pattern as the WASDE price-band
-    # pair. The knowledge fields (data_date / +5d) are set via KNOWLEDGE_DATE_OVERRIDE above.
-    "silver_sagis_weekly_exports": {"additive_columns_hidden": [("week_ending_date", "date32[day]")]},
+    # ── SILVER-F059 / WIRING WAVE-1 Card C (2026-07-24): the numbers wave needs a sargable point-in-time
+    # anchor; the producer derives an ISO week_ending_date (date32) that week_ending (free-text ranges)
+    # cannot serve. The pre-step staged it as a HIDDEN/physical-only additive column (glue_type=None);
+    # the main loop has since APPLIED the gated Glue ADD COLUMNS migration (live catalog now = 9 cols,
+    # week_ending_date DATE), so the R0 glue snapshot carries the 9th column and the column resolves
+    # from the glue section directly -- no additive_columns_hidden override remains (mirrors the CONAB
+    # survey_release_date apply-then-refresh: registry + R0 snapshot + hand DDL carry the derived date
+    # together). Card C wires the numbers TableSpec (configs/graphrag/numbers/tables.yaml), which now
+    # OWNS the knowledge fields (data_date / +5d); the KNOWLEDGE_DATE_OVERRIDE entry above is the dead
+    # pre-step fallback (numbers_spec wins, build_contract:495).
     # ── BF-W3 lane ONI T7 (2026-07-15): the INV-2 target for the four ENSO flag columns is int64
     # (target_arrow_type), and the B3 canonical publish wrote them as physical INT64 -- the R0
     # baseline glue_type tinyint described the pre-rebuild int8 object. Catalog + registry follow

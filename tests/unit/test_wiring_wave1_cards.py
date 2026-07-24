@@ -1,9 +1,9 @@
-"""WIRING WAVE-1 -- Card A (silver_noaa_iod) + Card B (silver_conab_coffee) wired into the numbers agent.
+"""WIRING WAVE-1 -- Card A (silver_noaa_iod) + Card B (silver_conab_coffee) + Card C
+(silver_sagis_weekly_exports) wired into the numbers agent.
 
-AWS-free: registry membership, build_sql shape (PIT guard + vintage collapse), and the apply_pit_filter
-oracle over local fixtures. Card C (silver_sagis_weekly_exports) is BLOCKED this wave (the pre-step left
-the served-table DDL/migration incomplete) and is deliberately NOT in the registry -- pinned here so a
-future accidental wiring without the DDL is caught.
+AWS-free: registry membership, build_sql shape (PIT guard + vintage/data-date collapse), and the
+apply_pit_filter oracle over local fixtures. Card C landed once the catalog ALTER registered the derived
+week_ending_date (DATE): it is a WIDE data_date card on that column with a conservative +5d publication lag.
 """
 from __future__ import annotations
 
@@ -85,6 +85,41 @@ def test_conab_pit_latest_survey_wins():
     assert len(late) == 1 and late[0]["survey_number"] == 4        # all four released -> latest survey wins
 
 
-# ── Card C: silver_sagis_weekly_exports is BLOCKED (NOT wired) ─────────────────────────────────────────
-def test_sagis_weekly_exports_not_registered_this_wave():
-    assert "silver_sagis_weekly_exports" not in load_registry().tables
+# ── Card C: silver_sagis_weekly_exports (data_date on the DERIVED week_ending_date; +5d pub lag) ───────
+def test_sagis_weekly_registered_data_date_shape():
+    ts = load_registry().get("silver_sagis_weekly_exports")
+    assert ts.knowledge_semantics == "data_date"
+    assert ts.date_col == "week_ending_date" and ts.knowledge_date_col == "week_ending_date"
+    assert ts.publication_lag_days == 5                             # cumulative file posts a few days after week-end
+    assert ts.commodity_col == "crop" and ts.country_col is None    # national crop total -- no geo axis
+    assert set(ts.metrics) == {"prog_exports_mt", "pct_of_prior_yr", "z_vs_3yr_avg"}
+    assert ts.group_cols() == ["crop"]                             # agg=latest collapses per crop -> newest week
+
+
+def test_sagis_weekly_build_sql_data_date_guard_and_pub_lag():
+    sql = Q.build_sql(Q.NumberQuery(table="silver_sagis_weekly_exports", metric="prog_exports_mt",
+                                    asof="2023-09-01", commodity="maize", agg="latest"))
+    assert "CAST(week_ending_date AS varchar) <= '2023-08-27'" in sql   # data_date PIT guard, +5d lag shifts RHS back
+    assert "crop = 'maize'" in sql                                 # SAGIS crop label (not a contract slug)
+    assert "prog_exports_mt AS value" in sql and sql.strip().endswith("LIMIT 1")   # newest week on/before asof
+
+
+def test_sagis_weekly_pit_data_date_no_leakage():
+    ts = load_registry().get("silver_sagis_weekly_exports")
+    rows = [{"crop": "maize", "week_number": n, "week_ending_date": d, "prog_exports_mt": v}
+            for n, d, v in ((15, "2023-08-11", 194079.0), (16, "2023-08-18", 220245.0),
+                            (17, "2023-08-25", 249861.0), (18, "2023-09-01", 280000.0))]
+    q = dict(table="silver_sagis_weekly_exports", metric="prog_exports_mt", commodity="maize")
+    kept = Q.apply_pit_filter(rows, Q.NumberQuery(asof="2023-09-01", agg="latest", **q), ts)
+    # asof 2023-09-01 minus the +5d lag = 2023-08-27, so wk18 (2023-09-01) is NOT yet published; wk15-17 are.
+    assert {r["week_number"] for r in kept} == {15, 16, 17}
+    assert max(kept, key=lambda r: r["week_ending_date"])["week_number"] == 17   # newest published week is wk17
+
+
+def test_sagis_weekly_bullet_carries_cadence_and_national_only():
+    sp = system_prompt(load_registry())
+    assert "silver_sagis_weekly_exports is SAGIS South-African WEEKLY cumulative grain export" in sp
+    sagis = sp.split("silver_sagis_weekly_exports is SAGIS", 1)[1].split("\n", 1)[0]
+    assert "staleness must be visible" in sagis                    # the COT/IOD-house cadence clause
+    assert "national crop total" in sagis                          # no per-destination/grade cut
+    assert "CUMULATIVE" in sagis                                   # never delta the running total vs a weekly ESR flow

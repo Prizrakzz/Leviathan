@@ -4,7 +4,7 @@ table_name: silver_sagis_weekly_exports
 layer: silver
 domain: trade_flows
 lifecycle_class: source
-owner: silver-platform
+owner: numbers-platform
 schema_version: 1
 glue_database: leviathan_dev
 s3_root: s3://leviathan-dev-shahem-001/silver/sagis_weekly_exports
@@ -65,13 +65,19 @@ physical_columns:
   target_arrow_type: string
   nullable: true
 - name: week_ending_date
-  glue_type: null
+  glue_type: date
   arrow_type: null
   parquet_physical_type: null
   target_arrow_type: date32[day]
   nullable: true
 writer_schema_pinned: true
-drift_summary: []
+drift_summary:
+- column: week_ending_date
+  kind: null_typed
+  current_physical: null
+  glue_type: date
+  target: date32[day]
+  owner_package: SILVER-F059
 natural_key:
 - season
 - crop
@@ -94,8 +100,8 @@ publication_lag_days: 5
 freshness_sla:
   cadence: weekly
   max_lag_days: null
-consumers: feature_layer
-numbers_ref: null
+consumers: both
+numbers_ref: configs/graphrag/numbers/tables.yaml#silver_sagis_weekly_exports
 cascade_ref: null
 source_contract_ref: configs/datasets/source_contracts.yaml#sagis_weekly_exports
 serving_table: null
@@ -110,7 +116,7 @@ fingerprint:
   catalog_hash_sha256: 3c4c8f50f45927770c31974c406abfc0b4437597fd2fb4bdc99f84797ea091c1
   registered_partition_count: 0
   placeholder_partition_count: 0
-  glue_nonpartition_cols: 8
+  glue_nonpartition_cols: 9
   physical_parquet_cols: 8
 provenance:
   baseline_id: 20260712_p65impl

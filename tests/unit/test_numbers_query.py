@@ -618,10 +618,11 @@ _PRE_WAVE_8 = frozenset({
 # tables PLUS the SEAM-C futures card.
 _PRICE_IDS = ("silver_pink_sheet", "silver_cot")
 _SEAM_C_IDS = ("silver_futures_prices",)
-# WIRING WAVE-1 (2026-07-23) wired two more cards (Card A IOD + Card B CONAB); Card C SAGIS-weekly is
-# BLOCKED (pre-step DDL/migration incomplete) and intentionally absent. They are present regardless of the
-# depth-wave kill-switch, so they belong in the depth-wave enum baseline alongside price + futures.
-_WIRING_W1_IDS = ("silver_noaa_iod", "silver_conab_coffee")
+# WIRING WAVE-1 wired Card A (IOD) + Card B (CONAB) on 2026-07-23; Card C (SAGIS weekly exports) followed on
+# 2026-07-24 once the catalog ALTER registered the derived week_ending_date DATE. All three are present
+# regardless of the depth-wave kill-switch, so they belong in the depth-wave enum baseline alongside
+# price + futures (they are NOT part of the _NEW_DEPTH_IDS the kill-switch reverts).
+_WIRING_W1_IDS = ("silver_noaa_iod", "silver_conab_coffee", "silver_sagis_weekly_exports")
 _DEPTH_BASELINE = _PRE_WAVE_8 | set(_PRICE_IDS) | set(_SEAM_C_IDS) | set(_WIRING_W1_IDS)
 
 

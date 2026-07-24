@@ -53,10 +53,14 @@ SAMPLE_COMMODITY = {"silver_psd": "corn_cbot", "silver_wasde": "corn", "silver_p
                     # silver_conab_coffee's commodity_col is `commodity` = arabica_coffee|robusta_coffee (NOT
                     # a contract slug); arabica_coffee is the headline variety (a wrong sample -> vacuous
                     # panel, caught loudly by EMPTY-PANEL). safra 2023+ only, so the 2021 asof legitimately
-                    # sees 0 rows -- non-empty at the 2024/2026 asofs. silver_sagis_weekly_exports is NOT in
-                    # the grid this wave (Card C BLOCKED, not wired into the registry).
+                    # sees 0 rows -- non-empty at the 2024/2026 asofs.
+                    # WIRING WAVE-1 Card C (2026-07-24): silver_sagis_weekly_exports commodity_col is `crop`,
+                    # a SAGIS crop LABEL (NOT a contract slug); values are maize | wheat (probed on S3). maize
+                    # is the liquid, current subject -- wheat data stops at 2011, so the 2024/2026 asofs would
+                    # see a stale row. A wrong sample makes the panel vacuous (caught loudly by EMPTY-PANEL).
                     "silver_noaa_iod": None,
                     "silver_conab_coffee": "arabica_coffee",
+                    "silver_sagis_weekly_exports": "maize",
                     # SEAM C (futures v1.5-lite, whitelisted 2026-07-23): commodity_col is leviathan_slug
                     # holding continuous front-month CONTRACT slugs -- corn_cbot is the liquid probe. The card
                     # is levels-only, so the `series` grid legs SKIP (build_sql rejects non-latest) and the
