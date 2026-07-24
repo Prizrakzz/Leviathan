@@ -186,3 +186,5 @@ notes: 'min_nonnull_frac is PROVISIONAL (uniform 0.5) pending per-source calibra
   soft_red_winter_wheat_cbot, hard_red_spring_wheat_mgex). Target additive net-commitment columns (accumulated_exports_1000mt,
   current_my_net_sales_1000mt, current_my_total_commitment_1000mt, next_my_outstanding_sales_1000mt, next_my_net_sales_1000mt)
   are specified for BF-W2 (see reports/silver_readiness/R2_esr/).'
+min_nonnull_frac_overrides:
+  changes_1000mt: 0.0

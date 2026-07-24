@@ -667,6 +667,19 @@ CURATION_OVERRIDES: dict = {
     # Calibrated floor 0.25 keeps the gate live: an all-null regression still hard-fails
     # (KIND_ALL_NAN), and a fall below 0.25 (losing the 2018+ populated seasons) still trips.
     "silver_ams_cotton_quality": {"min_nonnull_frac_overrides": {"samples_classed": 0.25}},
+    # ── ESR changes_1000mt UPSTREAM TERMINATION (2026-07-23 gate FAIL triage): the FAS ESR
+    # /allCountries response DROPPED the `changes` field entirely between the 20260524 and
+    # 20260712 fetches -- immutable raw proof: every record of as_of=20260712/17/23 for
+    # commodity_code=101 carries NO changes-like key (0/6863 records), while the 20260524
+    # vintage in silver is 100% non-null. The column was ALREADY deprecated-nullable by the
+    # SILVER-F030 ADR (INV-4: absent stays NULL, never synthesized 0.0), so the transform is
+    # CORRECT; each new all-null vintage now dilutes the mixed non-null fraction below the
+    # provisional 0.5 floor (canonical 0.4933 -> shadow 0.3300, monotonically falling forever).
+    # Floor 0.0 = tolerate the dead field while KEEPING the gate live: KIND_ALL_NAN still
+    # hard-fails if even the historical vintages go null (real corruption), and every other
+    # value column stays at the table floor.
+    "silver_esr": {"min_nonnull_frac_overrides": {"changes_1000mt": 0.0}},
+    "silver_esr_compact": {"min_nonnull_frac_overrides": {"changes_1000mt": 0.0}},
     # ── Wave-3 conab canary forensics (2026-07-17): the production_revision_thousand_bags min_nonnull
     # override is RETIRED by WIRING WAVE-1 (2026-07-23). Wiring silver_conab_coffee into the numbers
     # registry makes value_columns the NUMBERS-METRIC set (production_thousand_bags / area_in_production_ha
