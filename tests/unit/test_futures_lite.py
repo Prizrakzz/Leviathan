@@ -201,3 +201,148 @@ def test_answer_numbers_level_ask_no_preface():
                             client=_FakeClient("model text."), query_fn=lambda sql: [])
     assert "futures_decline_guard" not in out
     assert out["answer"] == "model text."
+
+
+# =======================================================================================================
+# FUTURES v1.5 (ratified 2026-07-23, docs/private/FUTURES_V15_PLAN.md): W1 unit column single-sourced +
+# W2 versioned roll policy + W2.3 roll-straddle regression + W4 provenance label + W3 no-overreach proof.
+# =======================================================================================================
+from pathlib import Path
+
+import yaml as _yaml
+
+from leviathan.transforms.bronze_to_silver.yfinance_futures import (
+    SILVER_COLUMNS,
+    build_futures_silver,
+)
+from leviathan.transforms.raw_to_bronze.yfinance_futures import TICKER_MAP, UNIT_MAP
+
+_REPO = Path(__file__).resolve().parents[2]
+
+
+# -- W1.2 single-source unit map: three-way equality + slug coverage ------------------------------------
+def test_unit_map_three_way_equality():
+    # transform UNIT_MAP == tracked lint constant == card unit_overrides -- the three historical copies
+    # (card / _FUTURES_UNIT_OVERRIDES / transform) can never drift (check_futures_lite blocks b + b2).
+    assert UNIT_MAP == cc._FUTURES_UNIT_OVERRIDES
+    doc = cc._load("numbers/tables.yaml")
+    ov = doc["tables"]["silver_futures_prices"]["metrics"]["close"]["unit_overrides"]
+    assert ov == UNIT_MAP
+    assert set(UNIT_MAP) == set(TICKER_MAP)          # every fetched slug carries a curated unit
+
+
+# -- W1.2 transform emits the physical unit column (all rows non-null, == UNIT_MAP) ---------------------
+def _bronze(slug: str, n: int = 8) -> "object":
+    import pandas as pd
+    dates = pd.date_range("2025-07-01", periods=n, freq="B")
+    return pd.DataFrame({
+        "date": dates.date, "leviathan_slug": slug,
+        "close": [100.0 + i for i in range(n)],
+        "log_return": [0.01] * n,
+    })
+
+
+def test_transform_emits_unit_from_unit_map():
+    out = build_futures_silver([_bronze("corn_cbot"), _bronze("cocoa")])
+    assert SILVER_COLUMNS[-1] == "unit" and "unit" in out.columns
+    assert not out["unit"].isna().any()              # widen acceptance: all rows non-null
+    per_slug = dict(out.groupby("leviathan_slug")["unit"].first())
+    assert per_slug == {"corn_cbot": "US cents/bushel", "cocoa": "USD/metric ton"}
+
+
+def test_transform_fails_closed_on_unknown_slug():
+    import pytest as _pt
+    with _pt.raises(ValueError, match="missing from UNIT_MAP"):
+        build_futures_silver([_bronze("not_a_contract")])
+
+
+# -- W1.1 registry contract: additive unit column + schema_version 2 + W2.2 roll policy ------------------
+def _contract() -> dict:
+    p = _REPO / "configs" / "silver" / "tables" / "silver_futures_prices.yaml"
+    return _yaml.safe_load(p.read_text(encoding="utf-8"))
+
+
+def test_registry_contract_unit_column_and_v2():
+    c = _contract()
+    names = [col["name"] for col in c["physical_columns"]]
+    assert names[-1] == "unit" and len(names) == 11          # additive tail widen, nothing else moved
+    ucol = c["physical_columns"][-1]
+    assert (ucol["glue_type"], ucol["arrow_type"], ucol["target_arrow_type"], ucol["nullable"]) == (
+        "string", "string", "string", True)                  # byte-matches the silver_wasde unit shape
+    assert c["schema_version"] == 2                          # additive 1 -> 2 (D6: no consumer pins ==1)
+    assert c["fingerprint"]["glue_nonpartition_cols"] == 11
+    assert c["fingerprint"]["physical_parquet_cols"] == 11
+
+
+def test_registry_roll_policy_versioned_note():
+    rp = _contract()["provenance"]["roll_policy"]
+    assert rp["roll_policy_version"] == 1
+    for tok in ("chained UNADJUSTED", "vendor-undocumented", "NaN-masked"):
+        assert tok in rp["policy"], tok
+
+
+def test_card_notes_carry_roll_policy_and_provenance_label():
+    card = cc._load("numbers/tables.yaml")["tables"]["silver_futures_prices"]
+    notes = str(card.get("notes") or "")
+    assert "roll_policy_version: 1" in notes                 # W2.2: the SAME versioned note, both places
+    assert "vendor-undocumented" in notes
+    # W4.2 (D4a): the verbatim provenance label a served futures [N] is framed with.
+    assert "Yahoo Finance continuous front-month close (not official exchange settlement)" in notes
+
+
+# -- FIX-LEG 2026-07-24: no surface may CALL the value a settle (W4.2 self-contradiction guard) ----------
+def test_check_futures_lite_flags_settle_wording_in_card(monkeypatch):
+    doc = cc._load("numbers/tables.yaml")
+    card = doc["tables"]["silver_futures_prices"]
+    card["description"] = str(card.get("description")) + " The served value is the front-month settle."
+    monkeypatch.setattr(cc, "_load", lambda name: doc)
+    assert any("calls the served value a settle" in e for e in cc.check_futures_lite())
+
+
+def test_check_futures_lite_flags_settle_wording_in_template(monkeypatch):
+    bad = dict(na.FUTURES_DECLINE_TEMPLATES)
+    first = next(iter(bad))
+    bad[first] = bad[first] + " -- the front-month settle only"
+    monkeypatch.setattr(na, "FUTURES_DECLINE_TEMPLATES", bad)
+    assert any("calls the value a settle" in e for e in cc.check_futures_lite())
+
+
+def test_live_surfaces_never_say_settle_outside_label():
+    # the LIVE surfaces themselves: templates carry NO settle token; the card's only settle token sits
+    # inside the verbatim honest label (strip it -> no settle remains in the model-facing fields).
+    import re as _re
+    for t in na.FUTURES_DECLINE_TEMPLATES.values():
+        assert not _re.search(r"(?i)settle", t)
+    card = cc._load("numbers/tables.yaml")["tables"]["silver_futures_prices"]
+    label = "Yahoo Finance continuous front-month close (not official exchange settlement)"
+    text = " ".join([str(card.get("description") or ""), str(card.get("grain") or ""),
+                     str(card["metrics"]["close"].get("desc") or ""), str(card.get("notes") or "")])
+    assert label in text
+    assert not _re.search(r"(?i)settle", text.replace(label, " "))
+
+
+# -- W2.3 splice-boundary regression: a window straddling a KNOWN corn roll date raises ------------------
+# Corn rolls ~July 14-15 each year (Jul->Dec handoff, raw_to_bronze docstring; 113 rolls 2000-2026).
+# NOTE (plan skeptic F3, D3): the levels-only guard is deliberately roll-AGNOSTIC -- it rejects EVERY
+# window/non-latest agg, which is exactly what makes a splice-crossing read unservable. This test pins
+# the blanket rejection AT a concrete roll boundary, not a (nonexistent) roll-aware window path.
+@pytest.mark.parametrize("kw", [
+    {"agg": "latest", "period_start": "2025-07-01", "period_end": "2025-07-31"},   # straddles the Jul roll
+    {"agg": "mean", "period_start": "2025-07-01", "period_end": "2025-07-31"},
+    {"agg": "series", "period_start": "2025-06-30", "period_end": "2025-08-01"},
+])
+def test_levels_only_window_straddling_known_corn_roll_raises(kw):
+    with pytest.raises(ValueError, match="levels-only"):
+        Q.build_sql(_spec(**kw), _ts())
+
+
+# -- W3.3 / acceptance 6: the two decline deck rows STILL pin price_cited=false (no overreach) ----------
+def test_decline_deck_rows_still_pin_no_price():
+    deck = _yaml.safe_load((_REPO / "configs" / "graphrag" / "eval_queries_v34_combined.yaml")
+                           .read_text(encoding="utf-8"))
+    rows = {r["id"]: r for r in (deck.get("queries") or []) if isinstance(r, dict) and "id" in r}
+    for rid, want_cls in (("futures_corn_change_decline", "change"),
+                          ("futures_corn_named_decline", "named")):
+        row = rows[rid]                                       # the PERMANENT-decline negatives (W3.3)
+        assert row["expect"]["price_cited"] is False
+        assert na.futures_scope(row["question"]) == want_cls  # the guard still fires on the deck phrasing

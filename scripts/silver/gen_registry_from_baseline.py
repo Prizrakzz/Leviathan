@@ -658,7 +658,41 @@ CURATION_OVERRIDES: dict = {
     # with NO freshness alarm because max_lag_days was null and no cert emitted). Root-caused to the
     # worker image never installing yfinance (now in the pyproject [batch] extra); this ceiling is the
     # detection backstop. Same reproducible-override home as the silver_cot precedent above.
-    "silver_futures_prices": {"freshness_sla": {"cadence": "daily", "max_lag_days": 5}},
+    # ── FUTURES v1.5 W1+W2 (ratified 2026-07-23, docs/private/FUTURES_V15_PLAN.md). W1 unit widen:
+    # the R0 snapshot (tables/silver_futures_prices.json) is PATCHED with the 11th additive `unit`
+    # string column + the catalog/schema fingerprints recomputed by the EXACT census algorithms
+    # (scratch/silver_f001/common.py catalog_hash / footer_fingerprint; both re-verified to reproduce
+    # the stored 10-col hashes byte-for-byte before patching), so the contract REGENERATES rather than
+    # being hand-edited (D1). schema_version 1 -> 2 is the ADDITIVE widen bump; D6 grep confirmed no
+    # consumer pins the registry schema_version (the F015 publisher manifest only RECORDS it). The
+    # producer emits `unit` from the SINGLE-SOURCE UNIT_MAP (transforms/raw_to_bronze/
+    # yfinance_futures.py, beside TICKER_MAP); config_check.check_futures_lite binds card
+    # unit_overrides == _FUTURES_UNIT_OVERRIDES == UNIT_MAP == this contract's unit column (D2 KEEP
+    # unit_overrides as the serving contract, redundant-but-consistent by lint). W2.2 roll policy:
+    # versioned splice-policy note in provenance.roll_policy + notes (the numbers card notes carry the
+    # SAME versioned note; the lint pins both). levels_only stays true (D3); curve stays deferred (D5).
+    "silver_futures_prices": {
+        "freshness_sla": {"cadence": "daily", "max_lag_days": 5},
+        "schema_version": 2,
+        "provenance_extra": {"roll_policy": {
+            "roll_policy_version": 1,
+            "policy": ("yfinance continuous front-month, chained UNADJUSTED; roll rule "
+                       "vendor-undocumented; rolls detected empirically at |close pct change| > 5% "
+                       "(src/leviathan/transforms/raw_to_bronze/yfinance_futures.py _ROLL_THRESHOLD); "
+                       "derived/return columns are NaN-masked at rolls and are NEVER served."),
+        }},
+        "notes_append": (
+            " FUTURES v1.5 (2026-07-23): additive `unit` column (schema_version 2) carries the "
+            "per-contract exchange unit from the single-source UNIT_MAP "
+            "(transforms/raw_to_bronze/yfinance_futures.py); lint-bound equal to the numbers card "
+            "unit_overrides (check_futures_lite three-way, D2 KEEP). roll_policy_version=1 "
+            "(provenance.roll_policy): yfinance continuous front-month, chained UNADJUSTED; roll rule "
+            "vendor-undocumented; rolls detected empirically at |close pct change| > 5%; derived/return "
+            "columns are NaN-masked at rolls and are NEVER served (levels_only stays true, D3). "
+            "Provenance label (W4.2, D4a card-text): the served number is the Yahoo Finance continuous "
+            "front-month close (not official exchange settlement), never an official settle."
+        ),
+    },
     # ── BF-W3 lane COTTON (user-gated 2026-07-15): OP-8 per-column floor calibration.
     # samples_classed is structurally ABSENT from the AMS national extraction scope before season
     # 2018 (19/27 seasons null; bronze cross-check: the metric row is absent at source for every
@@ -830,11 +864,15 @@ def _apply_curation_overrides(name: str, contract: dict) -> None:
         if note:
             row["note"] = note
     for key in ("natural_key", "required_nonnull", "coverage_axis", "vintage_waiver",
-                "min_nonnull_frac_overrides"):
+                "min_nonnull_frac_overrides", "schema_version"):
         if key in ov:
             contract[key] = ov[key]
     if "freshness_sla" in ov:
         contract["freshness_sla"] = {**(contract.get("freshness_sla") or {}), **ov["freshness_sla"]}
+    # provenance_extra: reproducible sub-keys appended to the generated provenance block (FUTURES v1.5
+    # roll_policy). dict-update so baseline_id/anchor_git_sha/generated_* stay generator-owned.
+    if "provenance_extra" in ov:
+        contract["provenance"].update(ov["provenance_extra"])
     if "producer" in ov:
         contract["producer"].update(ov["producer"])
     if "notes_append" in ov:

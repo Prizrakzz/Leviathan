@@ -410,7 +410,7 @@ def _price_decline_preface(name: str) -> str:
 
 
 # -- SEAM C futures-lite LEVELS-ONLY decline guard (ENGINE SEAMS rev-52) --------------------------------
-# silver_futures_prices serves a DAILY continuous FRONT-MONTH settle. It is a roll-spliced series with no
+# silver_futures_prices serves a DAILY continuous FRONT-MONTH close (Yahoo quote). It is a roll-spliced series with no
 # true vintage, so the ONLY point-in-time-safe read is a single-date agg=latest LEVEL. Four ask classes are
 # structurally unservable from it and must decline with an honest, register-clean template rather than let
 # the model narrate a change/curve/named-contract number off a splice-contaminated series:
@@ -424,18 +424,18 @@ def _price_decline_preface(name: str) -> str:
 # PHRASING alone (independent of whether the table is whitelisted), so the honest front-month framing is
 # prepended even while the table is whitelist-absent.
 FUTURES_DECLINE_TEMPLATES: dict[str, str] = {
-    "change": ("the daily futures data I can pull here is the continuous front-month settle as a "
-               "point-in-time level, not a windowed move -- it is a roll-spliced series, so a change "
-               "measured across dates is not a clean read from it (the handoff between expiries sits inside "
-               "the series); I can give the front-month settle level on a date, but not how far it travelled "
-               "over a period"),
-    "curve": ("the daily futures data I can pull here is the continuous FRONT-MONTH settle only, not the "
+    "change": ("the daily futures data I can pull here is the continuous front-month close (a Yahoo "
+               "quote) as a point-in-time level, not a windowed move -- it is a roll-spliced series, so a "
+               "change measured across dates is not a clean read from it (the handoff between expiries sits "
+               "inside the series); I can give the front-month close level on a date, but not how far it "
+               "travelled over a period"),
+    "curve": ("the daily futures data I can pull here is the continuous FRONT-MONTH close only, not the "
               "term structure -- the curve across delivery months (and the carry between them) needs the "
-              "expiry-by-expiry data, which is not in this lookup; I can give the front-month settle level on "
+              "expiry-by-expiry data, which is not in this lookup; I can give the front-month close level on "
               "a date, not a curve read"),
-    "named": ("the daily futures data I can pull here is the continuous FRONT-MONTH settle only, not "
+    "named": ("the daily futures data I can pull here is the continuous FRONT-MONTH close only, not "
               "individual delivery months -- a specific expiry (say, December) needs the full "
-              "expiry-by-expiry curve, which is not in this lookup; I can give the front-month settle level "
+              "expiry-by-expiry curve, which is not in this lookup; I can give the front-month close level "
               "on a date, not a named-contract quote"),
 }
 _FUTURES_DECLINE_CLASSES: tuple[str, ...] = ("change", "curve", "named")

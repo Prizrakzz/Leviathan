@@ -17,7 +17,8 @@ CREATE EXTERNAL TABLE IF NOT EXISTS silver_futures_prices (
     momentum_60d     float,
     momentum_1yr     float,
     vol_regime       tinyint,
-    source           string
+    source           string,
+    unit             string
 )
 STORED AS PARQUET
 LOCATION 's3://leviathan-dev-shahem-001/silver/futures_prices/'

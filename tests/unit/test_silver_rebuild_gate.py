@@ -50,9 +50,11 @@ def test_branch_selection_all_43_tables():
     # 10 after the numbers-depth wave wired ICCO/MPOB/SAGIS into P1_TABLES (was 7);
     # 11 after PRICE_OBSERVABILITY W3.3 wired silver_pink_sheet;
     # 12 after PRICE_OBSERVABILITY W4.2 wired silver_cot;
-    # 13 after SEAM C whitelisted silver_futures_prices (2026-07-23).
+    # 13 after SEAM C whitelisted silver_futures_prices (2026-07-23);
+    # 15 after WIRING WAVE-1 wired silver_noaa_iod + silver_conab_coffee (2026-07-23) -- the wave
+    # landed the P1_TABLES additions without bumping this pin (caught by the FUTURES v1.5 battery).
     assert branch_a == g.PG_MIRROR_TABLES, branch_a
-    assert len(branch_a) == 13
+    assert len(branch_a) == 15
     assert branch_a | branch_b == set(names)          # partition: no table is UNKNOWN in the real registry
     assert not (branch_a & branch_b)
 

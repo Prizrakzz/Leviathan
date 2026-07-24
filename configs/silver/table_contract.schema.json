@@ -463,6 +463,24 @@
         },
         "generated_from": {
           "type": "string"
+        },
+        "roll_policy": {
+          "type": "object",
+          "description": "FUTURES v1.5 W2.2: VERSIONED roll-splice policy note for a roll-spliced continuous series (silver_futures_prices). The numbers card notes carry the same versioned note; config_check.check_futures_lite pins both. Bump roll_policy_version on any change to the splice characterization.",
+          "additionalProperties": false,
+          "required": [
+            "roll_policy_version",
+            "policy"
+          ],
+          "properties": {
+            "roll_policy_version": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "policy": {
+              "type": "string"
+            }
+          }
         }
       }
     },

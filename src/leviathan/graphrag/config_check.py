@@ -686,7 +686,11 @@ def check_futures_lite() -> list[str]:
     """SEAM-C futures-lite lint (AWS-free, pure). Card-shape + close-only + unit_overrides completeness +
     WHITELISTED-AND-SERVED gate state + decline-template register-cleanliness. Reads the RAW tables.yaml (the
     authoritative source for the card's shape); post-whitelist (2026-07-23) the card also loads into the
-    served registry, which block (c) now asserts."""
+    served registry, which block (c) now asserts. FUTURES v1.5 (2026-07-23): block (b2) binds the transform
+    UNIT_MAP three-way with the card + the tracked constant, and block (e) pins the registry unit column /
+    schema_version 2 / versioned roll policy (both places) / the W4.2 provenance label. FIX-LEG 2026-07-24:
+    block (e2) + the template scan additionally REJECT any 'settle' framing outside the verbatim honest
+    label (the value is a Yahoo quote of the close, never an official settlement)."""
     from leviathan.graphrag import register as reg
     from leviathan.graphrag.numbers import registry as R
     errs: list[str] = []
@@ -707,6 +711,18 @@ def check_futures_lite() -> list[str]:
     if ov != _FUTURES_UNIT_OVERRIDES:
         errs.append(f"futures_lite: close.unit_overrides {sorted(ov.items())} != the curated 12-slug set "
                     f"{sorted(_FUTURES_UNIT_OVERRIDES.items())}")
+    # (b2) FUTURES v1.5 W1.2 three-way: the transform's SINGLE-SOURCE UNIT_MAP (the authority the physical
+    # silver `unit` column is written from) must equal the curated set -- with (b) this binds card ==
+    # _FUTURES_UNIT_OVERRIDES == UNIT_MAP, so the physical column and the serving override can never drift
+    # (D2 KEEP: unit_overrides stays the serving contract, redundant-but-consistent BY THIS LINT).
+    try:
+        from leviathan.transforms.raw_to_bronze.yfinance_futures import UNIT_MAP as _unit_map
+    except Exception as exc:  # noqa: BLE001 -- a transform import error must surface as a lint failure
+        errs.append(f"futures_lite: cannot import the transform UNIT_MAP (single-source unit map): {exc}")
+    else:
+        if _unit_map != _FUTURES_UNIT_OVERRIDES:
+            errs.append(f"futures_lite: transform UNIT_MAP {sorted(_unit_map.items())} != the curated "
+                        f"12-slug set {sorted(_FUTURES_UNIT_OVERRIDES.items())} (three-way drift)")
     # (c) whitelist state is intentional: SERVED (whitelisted 2026-07-23) -- removed from WHITELIST_ABSENT_DEFAULT
     # and present in the loaded registry (the agent tool enum + system-prompt cards).
     if _FUTURES_TABLE in R.WHITELIST_ABSENT_DEFAULT:
@@ -730,6 +746,58 @@ def check_futures_lite() -> list[str]:
         for name, t in templates.items():
             if reg.register_leaks(str(t)) or reg.count_valuation_words(str(t)) or reg.count_flow_words(str(t)):
                 errs.append(f"futures_lite: decline template {name!r} carries a register leak")
+            # FIX-LEG 2026-07-24 (W4.2 coherence): the served decline prose must never CALL the value a
+            # settle -- it is a Yahoo quote of the close, not an official settlement.
+            if re.search(r"(?i)settle", str(t)):
+                errs.append(f"futures_lite: decline template {name!r} calls the value a settle -- the "
+                            f"served value is the front-month close (Yahoo quote), never a settlement")
+    # (e) FUTURES v1.5 (2026-07-23): the F010 registry contract carries the additive physical `unit`
+    # column + the schema_version 2 bump + the VERSIONED roll-splice policy (provenance.roll_policy),
+    # and the card notes carry BOTH the same versioned roll-policy note (W2.2 both-places invariant)
+    # and the W4.2/D4a provenance label a served futures [N] must be framed with.
+    _reg_path = _REPO / "configs" / "silver" / "tables" / "silver_futures_prices.yaml"
+    try:
+        contract = yaml.safe_load(_reg_path.read_text(encoding="utf-8")) or {}
+    except Exception as exc:  # noqa: BLE001
+        contract = {}
+        errs.append(f"futures_lite: cannot read the F010 registry contract ({exc})")
+    if contract:
+        cols = {c.get("name"): c for c in (contract.get("physical_columns") or [])}
+        ucol = cols.get("unit")
+        if not ucol:
+            errs.append("futures_lite: registry contract lacks the physical `unit` column (v1.5 W1.1 widen)")
+        elif not (ucol.get("glue_type") == "string" and ucol.get("target_arrow_type") == "string"
+                  and ucol.get("nullable") is True):
+            errs.append(f"futures_lite: registry `unit` column shape drifted: {ucol!r} (want string/string/nullable)")
+        if contract.get("schema_version") != 2:
+            errs.append(f"futures_lite: registry schema_version is {contract.get('schema_version')!r}, "
+                        f"expected 2 (the additive v1.5 unit-widen bump)")
+        rp = (contract.get("provenance") or {}).get("roll_policy") or {}
+        if rp.get("roll_policy_version") != 1 or "vendor-undocumented" not in str(rp.get("policy") or ""):
+            errs.append("futures_lite: registry provenance.roll_policy must carry roll_policy_version=1 and "
+                        "the vendor-undocumented splice characterization (W2.2)")
+    card_notes = str(card.get("notes") or "")
+    if "roll_policy_version: 1" not in card_notes:
+        errs.append("futures_lite: card notes must carry the versioned roll-splice policy "
+                    "('roll_policy_version: 1') mirroring registry provenance.roll_policy (W2.2)")
+    card_text = f"{card.get('description') or ''} {card_notes}"
+    if "Yahoo Finance continuous front-month close (not official exchange settlement)" not in card_text:
+        errs.append("futures_lite: card text must carry the verbatim provenance label 'Yahoo Finance "
+                    "continuous front-month close (not official exchange settlement)' (W4.2, D4a)")
+    # (e2) FIX-LEG 2026-07-24: the card must never CALL the served value a settle. The only permitted
+    # 'settle*' token in the model-facing fields (description / grain / close.desc / notes) is the one
+    # inside the verbatim W4.2 honest label itself -- the positive substring check above let
+    # 'front-month settle' prose sit beside the not-a-settlement label (self-contradiction); this
+    # negative check closes that gap.
+    _honest_label = "Yahoo Finance continuous front-month close (not official exchange settlement)"
+    model_text = " ".join((
+        str(card.get("description") or ""), str(card.get("grain") or ""),
+        str((metrics.get("close") or {}).get("desc") or ""), card_notes,
+    )).replace(_honest_label, " ")
+    if re.search(r"(?i)settle", model_text):
+        errs.append("futures_lite: card text still calls the served value a settle outside the honest "
+                    "provenance label -- reword to 'close (Yahoo quote)' (W4.2: the value is a Yahoo "
+                    "quote, never an official settlement)")
     return errs
 
 

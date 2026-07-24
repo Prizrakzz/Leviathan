@@ -60,6 +60,28 @@ TICKER_MAP: dict[str, str] = {
     "frozen_orange_juice":          "OJ=F",
 }
 
+# FUTURES v1.5 W1.2 -- the SINGLE-SOURCE per-contract exchange-unit map. THE authority the silver
+# `unit` column is written from (bronze_to_silver/yfinance_futures.py reads it); the numbers card
+# `unit_overrides` and the tracked lint constant config_check._FUTURES_UNIT_OVERRIDES are lint-bound
+# EQUAL to this map (config_check.check_futures_lite three-way assertion), so the three historical
+# copies can never drift. Values are the curated exchange-convention strings (magnitudes
+# probe-verified 2026-06-05: corn 417.75 c/bu, cocoa 3828 USD/mt, rough rice 12.625 USD/cwt).
+UNIT_MAP: dict[str, str] = {
+    "corn_cbot":                    "US cents/bushel",
+    "soybeans_cbot":                "US cents/bushel",
+    "soft_red_winter_wheat_cbot":   "US cents/bushel",
+    "hard_red_winter_wheat_kcbt":   "US cents/bushel",
+    "soybean_oil_cbot":             "US cents/lb",
+    "arabica_coffee":               "US cents/lb",
+    "cotton":                       "US cents/lb",
+    "raw_sugar":                    "US cents/lb",
+    "frozen_orange_juice":          "US cents/lb",
+    "soybean_meal_cbot":            "USD/short ton",
+    "cocoa":                        "USD/metric ton",
+    "rough_rice_cbot":              "USD/cwt",
+}
+assert set(UNIT_MAP) == set(TICKER_MAP), "UNIT_MAP must cover exactly the TICKER_MAP slugs"
+
 BRONZE_COLUMNS: list[str] = [
     "date",
     "leviathan_slug",

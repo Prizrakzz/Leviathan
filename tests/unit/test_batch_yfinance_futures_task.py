@@ -26,12 +26,13 @@ _SENTINEL = b"OLD-CANONICAL-FUTURES"
 
 
 def _silver_df() -> pd.DataFrame:
-    """One full 10-column canonical silver row; date is a timestamp for the timestamp[us] schema."""
+    """One full 11-column canonical silver row (v1.5 adds `unit`); date is a timestamp for the
+    timestamp[us] schema."""
     return pd.DataFrame([{
         "date": pd.Timestamp("2012-07-20"), "leviathan_slug": "corn_cbot",
         "close": 800.0, "log_return": 0.012, "price_z_2yr": 2.0,
         "realized_vol_30d": 0.31, "momentum_60d": 0.15, "momentum_1yr": 0.42,
-        "vol_regime": 1, "source": "yfinance",
+        "vol_regime": 1, "source": "yfinance", "unit": "US cents/bushel",
     }])
 
 

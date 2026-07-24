@@ -55,7 +55,10 @@ P1_TABLES = ["silver_psd", "silver_wasde", "silver_production", "silver_esr", "s
              # SEAM C (futures v1.5-lite, whitelisted 2026-07-23): a small flat wide table (12 continuous
              # front-month slugs x daily `close`); the single `close` metric column mirrors numeric under the
              # type doctrine, and `date` (physical timestamp) / leviathan_slug / source stay ISO TEXT. The
-             # DP-5 substr normalization makes both backends compare identically.
+             # DP-5 substr normalization makes both backends compare identically. FUTURES v1.5 W1.3
+             # (2026-07-23): the additive `unit` column is TEXT, never numeric -- not a metric/value_col,
+             # so _numeric_cols routes it to TEXT COLLATE "C" automatically; NO loader change, just a
+             # re-run after the canonical schema widen.
              "silver_futures_prices",
              # WIRING WAVE-1 (2026-07-23): two freshly wired WIDE tables. silver_noaa_iod (year_month, 2
              # served metrics dmi_value/iod_dmi_3month_avg mirror numeric; year/month mirror numeric; the

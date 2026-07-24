@@ -40,6 +40,7 @@ import numpy as np
 import pandas as pd
 
 from leviathan.common.logging import get_logger
+from leviathan.transforms.raw_to_bronze.yfinance_futures import UNIT_MAP
 
 logger = get_logger(__name__)
 
@@ -64,6 +65,7 @@ SILVER_COLUMNS: list[str] = [
     "momentum_1yr",
     "vol_regime",
     "source",
+    "unit",       # FUTURES v1.5 W1: per-contract exchange unit from the single-source UNIT_MAP
 ]
 
 
@@ -116,6 +118,13 @@ def _features_for_slug(df: pd.DataFrame) -> pd.DataFrame:
     )
 
     g["source"] = "yfinance"
+    # FUTURES v1.5 W1: the physical `unit` column, written from the SINGLE-SOURCE UNIT_MAP
+    # (raw_to_bronze/yfinance_futures.py -- the same module TICKER_MAP lives in). Fail CLOSED on an
+    # unknown slug: a null unit would violate the widen acceptance (all rows non-null == UNIT_MAP).
+    g["unit"] = g["leviathan_slug"].map(UNIT_MAP)
+    if g["unit"].isna().any():
+        missing = sorted(set(g.loc[g["unit"].isna(), "leviathan_slug"].astype(str)))
+        raise ValueError(f"futures silver: slug(s) missing from UNIT_MAP: {missing}")
     return g[SILVER_COLUMNS]
 
 
