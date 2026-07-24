@@ -53,7 +53,8 @@ class TestOP2DroughtDataGated:
                              "variable": "precipitation_mm", "value": float(rng.uniform(0, 10))})
         real_chirps = pd.DataFrame(rows)
         gold = compute_weather_z("corn_cbot", nasa_power=None, chirps=real_chirps,
-                                 window_years=10, min_years=5)
+                                 window_years=10, min_years=5,
+                                 enforce_month_completeness=False)   # synthetic 28-day Januaries
         drought = gold[gold["metric"] == METRIC_DROUGHT_Z]
         assert len(drought) > 0
 

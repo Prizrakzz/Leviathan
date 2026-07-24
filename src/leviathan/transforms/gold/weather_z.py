@@ -50,11 +50,21 @@ not apply; importing two pure functions from base.py introduces no S3/AWS/featur
     frost_event_flag : 1.0 if the monthly MIN of temperature_2m_min_c < frost_threshold, else 0.0
                        (nasa_power). A flag, not a z -- emitted directly (0.0 is a real observation, kept).
 
-ASSUMPTION (documented): the reduction treats each calendar month as COMPLETE. The transform runs on
-historical/backfilled silver where months are whole; a partial trailing month would understate the
-sum/count families. The as-of year_month guard withholds the current partial month at serve time for a
-typical asof, and a follow-up may add a min-days-in-month completeness gate (weather_stage's stage-window
-analogue) if live weekly weather is ever wired.
+MONTH COMPLETENESS (RCA 2026-07-24, the served gdd_z=-13.16): live daily weather IS wired (A1-A2
+schedules), and the as-of year_month guard does NOT withhold the current month — the guard is
+``(year*100+month) <= asof_ym``, so a mid-month asof sees the in-progress month. A partial month's
+SUM/COUNT reductions (gdd, heat, drought runs) crater against full-month baselines: on 2026-07-24 every
+region's July gdd_z was -2..-80 (median -9.96) from ~12-23 observed days. The fix is transform-side:
+``_complete_months_only`` drops any (country, region, year, month) whose observed distinct days do not
+cover the FULL calendar month, for EVERY family (a partial month's mean/min/flag is a short sample too).
+Historic silver is gapless (probed 2012/2019: 0 incomplete region-months), so the gate binds only on the
+live trailing month — the honest serve is the latest COMPLETE month.
+
+Z WINSORIZE (same RCA, the historical tail): ~1,070 pre-2026 rows breached |z|>6 (mostly heat_stress_z)
+from thin same-month baselines — prior-year counts like {0,0,1,0,...} give a tiny nonzero std and one hot
+week explodes the z to +/-40..80. Beyond |z|~6 the magnitude asserts absurd probabilities and carries no
+statistical meaning REGARDLESS of whether the month was genuinely extreme, so z metrics are clipped to
++/-``Z_CAP`` (=6.0). Exact-zero variance already yields NaN in ``trailing_baseline_z`` and is dropped.
 """
 from __future__ import annotations
 
@@ -81,6 +91,9 @@ ALL_METRICS = Z_METRICS + (METRIC_FROST_FLAG,)
 # ── default thresholds — mirror the weather_stage.py defaults (baselines / gdd / heat_stress / drought) ─
 BASELINE_WINDOW_YEARS = 30
 BASELINE_MIN_YEARS = 10
+# Winsorize bound for all z metrics: beyond |z|~6 the magnitude is statistical noise from a thin
+# same-month baseline (prior-year counts like {0,0,1,0} -> tiny std), never a meaningful reading.
+Z_CAP = 6.0
 GDD_BASE_C = 10.0
 GDD_CAP_C = 30.0
 HEAT_THRESHOLD_C = 35.0
@@ -121,6 +134,22 @@ def _slice(long_df: pd.DataFrame | None, variable: str) -> pd.DataFrame | None:
     return df
 
 
+def _complete_months_only(daily: pd.DataFrame | None) -> pd.DataFrame | None:
+    """Drop (country, region, year, month) groups whose observed distinct days do not cover the FULL
+    calendar month. A partial month's SUM/COUNT reductions crater against full-month baselines (the
+    served gdd_z=-13.16), and its mean/min/flag reductions are short samples; no family may see one.
+    Historic silver is gapless (probed 2012/2019), so this binds only on the live trailing month."""
+    if daily is None or daily.empty:
+        return daily
+    key = ["country", "region", "year", "month"]
+    obs = daily.groupby(key)["day"].nunique().reset_index(name="observed_days")
+    cal = obs.apply(lambda r: pd.Timestamp(int(r["year"]), int(r["month"]), 1).days_in_month, axis=1)
+    keep = obs.loc[obs["observed_days"] >= cal, key]
+    if keep.empty:
+        return None
+    return daily.merge(keep, on=key, how="inner")
+
+
 def _emit(rows: list[tuple], keep_zero: bool = True) -> pd.DataFrame:
     """Build the tall gold frame from (commodity, country, region, year, month, metric, value) tuples,
     dropping NaN values (absence == missing in long format). 0.0 is a real observation and is kept."""
@@ -145,7 +174,7 @@ def _same_month_z(monthly: pd.DataFrame, *, commodity: str, metric: str,
     rows: list[tuple] = []
     for (country, region, month), grp in monthly.groupby(["country", "region", "month"], sort=True):
         yearly = grp.set_index("year")["scalar"].astype(float).sort_index()
-        z = trailing_baseline_z(yearly, window_years, min_years)
+        z = trailing_baseline_z(yearly, window_years, min_years).clip(lower=-Z_CAP, upper=Z_CAP)
         surface = to_psd_surface(country)
         for year, zval in z.items():
             rows.append((commodity, surface, region, int(year), int(month), metric, zval))
@@ -158,8 +187,11 @@ def _monthly_scalar(daily: pd.DataFrame, col: str, how: str) -> pd.DataFrame:
     return agg.rename(columns={col: "scalar"})
 
 
-def _tmax_anomaly(nasa: pd.DataFrame, *, commodity, window_years, min_years) -> list[tuple]:
+def _tmax_anomaly(nasa: pd.DataFrame, *, commodity, window_years, min_years,
+                  complete_months) -> list[tuple]:
     tmax = _slice(nasa, _TMAX)
+    if complete_months:
+        tmax = _complete_months_only(tmax)
     if tmax is None:
         return []
     monthly = _monthly_scalar(tmax, "value", "mean")
@@ -167,8 +199,11 @@ def _tmax_anomaly(nasa: pd.DataFrame, *, commodity, window_years, min_years) -> 
                          window_years=window_years, min_years=min_years)
 
 
-def _heat_stress_z(nasa: pd.DataFrame, *, commodity, window_years, min_years, threshold) -> list[tuple]:
+def _heat_stress_z(nasa: pd.DataFrame, *, commodity, window_years, min_years, threshold,
+                   complete_months) -> list[tuple]:
     tmax = _slice(nasa, _TMAX)
+    if complete_months:
+        tmax = _complete_months_only(tmax)
     if tmax is None:
         return []
     tmax = tmax.copy()
@@ -178,7 +213,8 @@ def _heat_stress_z(nasa: pd.DataFrame, *, commodity, window_years, min_years, th
                          window_years=window_years, min_years=min_years)
 
 
-def _gdd_z(nasa: pd.DataFrame, *, commodity, window_years, min_years, base, cap) -> list[tuple]:
+def _gdd_z(nasa: pd.DataFrame, *, commodity, window_years, min_years, base, cap,
+           complete_months) -> list[tuple]:
     tmax = _slice(nasa, _TMAX)
     tmin = _slice(nasa, _TMIN)
     if tmax is None or tmin is None:
@@ -186,7 +222,10 @@ def _gdd_z(nasa: pd.DataFrame, *, commodity, window_years, min_years, base, cap)
     merged = tmax.rename(columns={"value": "tmax"}).merge(
         tmin.rename(columns={"value": "tmin"}),
         on=["country", "region", "year", "month", "day"], how="inner")
-    if merged.empty:
+    if complete_months:
+        # gate the MERGED frame: a day missing from EITHER variable leaves the month's GDD sum short
+        merged = _complete_months_only(merged)
+    if merged is None or merged.empty:
         return []
     # GDD_day = clip((min(tmax,cap) + max(tmin,base)) / 2 - base, lower=0)  -- weather_stage.compute_gdd_z
     merged["gdd"] = ((merged["tmax"].clip(upper=cap) + merged["tmin"].clip(lower=base)) / 2.0 - base) \
@@ -220,8 +259,11 @@ def _drought_runs(precip: pd.DataFrame, *, window_years, min_years, dry_percenti
     return pd.DataFrame(rows, columns=["country", "region", "year", "month", "scalar"])
 
 
-def _drought_z(chirps: pd.DataFrame, *, commodity, window_years, min_years, dry_percentile) -> list[tuple]:
+def _drought_z(chirps: pd.DataFrame, *, commodity, window_years, min_years, dry_percentile,
+               complete_months) -> list[tuple]:
     precip = _slice(chirps, _PRECIP)
+    if complete_months:
+        precip = _complete_months_only(precip)
     if precip is None:
         return []
     runs = _drought_runs(precip, window_years=window_years, min_years=min_years,
@@ -232,8 +274,11 @@ def _drought_z(chirps: pd.DataFrame, *, commodity, window_years, min_years, dry_
                          window_years=window_years, min_years=min_years)
 
 
-def _frost_flag(nasa: pd.DataFrame, *, commodity, threshold) -> list[tuple]:
+def _frost_flag(nasa: pd.DataFrame, *, commodity, threshold, complete_months) -> list[tuple]:
     tmin = _slice(nasa, _TMIN)
+    if complete_months:
+        # a partial month's 0.0 flag would be a false "no frost" claim over days never observed
+        tmin = _complete_months_only(tmin)
     if tmin is None:
         return []
     monthly_min = tmin.groupby(_KEYS, as_index=False)["value"].min()
@@ -257,21 +302,26 @@ def compute_weather_z(
     heat_threshold_c: float = HEAT_THRESHOLD_C,
     dry_percentile: float = DRY_PERCENTILE,
     frost_threshold_c: float = FROST_THRESHOLD_C,
+    enforce_month_completeness: bool = True,
 ) -> pd.DataFrame:
     """Compute the tall gold_weather_z frame for ONE commodity from its silver weather long frames.
 
     ``nasa_power`` supplies temperature_2m_max_c / temperature_2m_min_c (heat/gdd/tmax/frost families);
     ``chirps`` supplies precipitation_mm (drought family). Either may be None/empty -> that family is
     skipped. Returns a frame with columns ``GOLD_COLUMNS``; NaN z-scores (insufficient baseline) are
-    dropped, frost 0.0 flags are kept.
+    dropped, frost 0.0 flags are kept. ``enforce_month_completeness`` (production default True) drops
+    months not covering every calendar day — the -13.16 partial-month guard; z metrics are winsorized
+    at +/-``Z_CAP`` either way. Tests exercising synthetic short months pass False explicitly.
     """
+    cm = enforce_month_completeness
     rows: list[tuple] = []
-    rows += _tmax_anomaly(nasa_power, commodity=commodity, window_years=window_years, min_years=min_years)
+    rows += _tmax_anomaly(nasa_power, commodity=commodity, window_years=window_years,
+                         min_years=min_years, complete_months=cm)
     rows += _heat_stress_z(nasa_power, commodity=commodity, window_years=window_years,
-                          min_years=min_years, threshold=heat_threshold_c)
+                          min_years=min_years, threshold=heat_threshold_c, complete_months=cm)
     rows += _gdd_z(nasa_power, commodity=commodity, window_years=window_years, min_years=min_years,
-                  base=gdd_base_c, cap=gdd_cap_c)
+                  base=gdd_base_c, cap=gdd_cap_c, complete_months=cm)
     rows += _drought_z(chirps, commodity=commodity, window_years=window_years, min_years=min_years,
-                      dry_percentile=dry_percentile)
-    rows += _frost_flag(nasa_power, commodity=commodity, threshold=frost_threshold_c)
+                      dry_percentile=dry_percentile, complete_months=cm)
+    rows += _frost_flag(nasa_power, commodity=commodity, threshold=frost_threshold_c, complete_months=cm)
     return _emit(rows)

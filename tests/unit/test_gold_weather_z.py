@@ -63,7 +63,7 @@ def _val(df: pd.DataFrame, metric: str, year: int, month: int = 7) -> float:
 def test_tmax_anomaly_equals_trailing_baseline_z() -> None:
     levels = {2000: 20.0, 2001: 22.0, 2002: 21.0, 2003: 25.0, 2004: 19.0, 2005: 30.0}
     nasa = _var_by_year(7, _TMAX, levels)
-    got = compute_weather_z("corn_cbot", nasa_power=nasa, window_years=WIN, min_years=MIN)
+    got = compute_weather_z("corn_cbot", nasa_power=nasa, window_years=WIN, min_years=MIN, enforce_month_completeness=False)
 
     expected = trailing_baseline_z(pd.Series(levels).sort_index(), WIN, MIN)
     # 2000-2002 have < MIN prior years -> NaN -> dropped; 2003-2005 emit.
@@ -78,9 +78,9 @@ def test_pit_year_Y_baseline_excludes_Y_and_later() -> None:
     base = {2000: 20.0, 2001: 22.0, 2002: 21.0, 2003: 25.0}
     full = {**base, 2004: 19.0, 2005: 999.0}             # later years, one extreme
     z_trunc = compute_weather_z("corn_cbot", nasa_power=_var_by_year(7, _TMAX, base),
-                                window_years=WIN, min_years=MIN)
+                                window_years=WIN, min_years=MIN, enforce_month_completeness=False)
     z_full = compute_weather_z("corn_cbot", nasa_power=_var_by_year(7, _TMAX, full),
-                               window_years=WIN, min_years=MIN)
+                               window_years=WIN, min_years=MIN, enforce_month_completeness=False)
     # 2003's z is identical whether or not 2004/2005 (incl. a 999 outlier) exist downstream.
     assert np.isclose(_val(z_trunc, METRIC_TMAX_ANOMALY, 2003), _val(z_full, METRIC_TMAX_ANOMALY, 2003))
 
@@ -99,7 +99,7 @@ def test_output_country_is_title_case() -> None:
     levels = {2000: 20.0, 2001: 22.0, 2002: 21.0, 2003: 25.0}
     got = compute_weather_z("soybeans_cbot",
                             nasa_power=_var_by_year(7, _TMAX, levels, country="brazil"),
-                            window_years=WIN, min_years=MIN)
+                            window_years=WIN, min_years=MIN, enforce_month_completeness=False)
     assert not got.empty
     assert set(got["country"].unique()) == {"Brazil"}       # never the raw snake_case 'brazil'
 
@@ -110,7 +110,7 @@ def test_tall_shape_schema_and_metrics() -> None:
     levels = {y: 20.0 + (y % 5) for y in range(2000, 2010)}
     tmin = {y: -3.0 if y == 2005 else 6.0 for y in range(2000, 2010)}
     nasa = pd.concat([_var_by_year(7, _TMAX, levels), _var_by_year(7, _TMIN, tmin)], ignore_index=True)
-    got = compute_weather_z("corn_cbot", nasa_power=nasa, window_years=WIN, min_years=MIN)
+    got = compute_weather_z("corn_cbot", nasa_power=nasa, window_years=WIN, min_years=MIN, enforce_month_completeness=False)
 
     assert list(got.columns) == GOLD_COLUMNS
     assert set(got["metric"].unique()) <= set(ALL_METRICS)
@@ -129,7 +129,7 @@ def test_frost_event_flag_keeps_zero_and_flags_subzero() -> None:
         _daily(2002, 7, _TMIN, [5.0, 6.0, 7.0, 5.0, 5.0]),
     ]
     got = compute_weather_z("corn_cbot", nasa_power=pd.concat(frames, ignore_index=True),
-                            window_years=WIN, min_years=MIN)
+                            window_years=WIN, min_years=MIN, enforce_month_completeness=False)
     assert _val(got, METRIC_FROST_FLAG, 2001) == 1.0
     assert _val(got, METRIC_FROST_FLAG, 2002) == 0.0       # 0.0 is a real observation, NOT dropped
 
@@ -144,7 +144,7 @@ def test_gdd_z_respects_cap_and_sums_monthly() -> None:
         _var_by_year(7, _TMAX, tmax_by_year, n_days=n_days),
         _var_by_year(7, _TMIN, {y: 15.0 for y in tmax_by_year}, n_days=n_days),
     ], ignore_index=True)
-    got = compute_weather_z("corn_cbot", nasa_power=nasa, window_years=WIN, min_years=MIN)
+    got = compute_weather_z("corn_cbot", nasa_power=nasa, window_years=WIN, min_years=MIN, enforce_month_completeness=False)
 
     def daily_gdd(tmax: float) -> float:
         return (min(tmax, 30.0) + max(15.0, 10.0)) / 2.0 - 10.0
@@ -165,7 +165,7 @@ def test_heat_stress_counts_days_over_threshold() -> None:
         vals = [40.0] * n_hot + [20.0] * (28 - n_hot)                     # 40 > 35 (hot), 20 not
         frames.append(_daily(y, 7, _TMAX, vals))
     got = compute_weather_z("corn_cbot", nasa_power=pd.concat(frames, ignore_index=True),
-                            window_years=WIN, min_years=MIN)
+                            window_years=WIN, min_years=MIN, enforce_month_completeness=False)
     expected = trailing_baseline_z(pd.Series({y: float(n) for y, n in hot_days.items()}).sort_index(),
                                    WIN, MIN)
     for y in (2003, 2004, 2005):
@@ -199,7 +199,7 @@ def test_drought_z_emitted_end_to_end() -> None:
         vals = list(rng.uniform(0.0, 10.0, size=20))
         frames.append(_daily(y, 7, _PRECIP, vals))
     got = compute_weather_z("corn_cbot", chirps=pd.concat(frames, ignore_index=True),
-                            window_years=WIN, min_years=MIN)
+                            window_years=WIN, min_years=MIN, enforce_month_completeness=False)
     assert METRIC_DROUGHT_Z in set(got["metric"].unique())
     assert (got["country"] == "United States").all()        # chirps country is title-cased too
 
@@ -228,8 +228,67 @@ def test_drought_z_emitted_for_zero_inflated_climate_end_to_end() -> None:
         vals = [0.0 if rng.random() < 0.7 else float(rng.uniform(2.0, 12.0)) for _ in range(20)]
         frames.append(_daily(y, 7, _PRECIP, vals))
     got = compute_weather_z("corn_cbot", chirps=pd.concat(frames, ignore_index=True),
-                            window_years=WIN, min_years=MIN)
+                            window_years=WIN, min_years=MIN, enforce_month_completeness=False)
     assert METRIC_DROUGHT_Z in set(got["metric"].unique())
+
+
+# ── month completeness gate + z winsorize (RCA 2026-07-24: the served gdd_z=-13.16) ────────────────────
+# The as-of year_month guard is <=, so a mid-month asof SEES the in-progress month; on 2026-07-24 every
+# region's partial July cratered (gdd_z median -9.96, min -80) because a ~23-day GDD sum was z-scored
+# against full-month baselines. The gate (production default) drops months not covering every calendar
+# day; z metrics are winsorized at +/-Z_CAP because beyond |z|~6 the magnitude is baseline-thinness
+# noise, not signal (~1,070 historical rows breached 6 this way, mostly heat_stress_z).
+
+def _full_july(year: int, variable: str, daily_value: float) -> pd.DataFrame:
+    return _daily(year, 7, variable, [daily_value] * 31)
+
+
+def test_partial_current_month_dropped_all_families() -> None:
+    frames = []
+    for y in range(2000, 2005):
+        frames.append(_full_july(y, _TMAX, 25.0 + (y % 3)))
+        frames.append(_full_july(y, _TMIN, 15.0))
+    # the live geometry: the trailing month observed only 20 of July's 31 days
+    frames.append(_daily(2005, 7, _TMAX, [25.0] * 20))
+    frames.append(_daily(2005, 7, _TMIN, [15.0] * 20))
+    got = compute_weather_z("corn_cbot", nasa_power=pd.concat(frames, ignore_index=True),
+                            window_years=WIN, min_years=MIN)
+    assert not got[got["year"] == 2004].empty     # complete months emit through the gate
+    # the partial month emits NOTHING — no z, and no false frost 0.0 over days never observed
+    assert got[got["year"] == 2005].empty
+
+
+def test_drought_family_gated_on_partial_months() -> None:
+    # same 20-day shape test_drought_z_emitted_end_to_end passes with the gate OFF -> empty with it ON
+    rng = np.random.default_rng(0)
+    frames = [_daily(y, 7, _PRECIP, list(rng.uniform(0.0, 10.0, size=20))) for y in range(2000, 2012)]
+    got = compute_weather_z("corn_cbot", chirps=pd.concat(frames, ignore_index=True),
+                            window_years=WIN, min_years=MIN)
+    assert got.empty
+
+
+def test_z_winsorized_at_cap_positive() -> None:
+    # degenerate-variance baseline: prior hot-day counts {0,0,1,0} -> std ~0.5; ten hot days would
+    # raw-z to ~+19 -> capped to exactly +Z_CAP
+    hot = {2000: 0, 2001: 0, 2002: 1, 2003: 0, 2004: 10}
+    frames = []
+    for y, n_hot in hot.items():
+        frames.append(_daily(y, 7, _TMAX, [40.0] * n_hot + [20.0] * (31 - n_hot)))
+    got = compute_weather_z("corn_cbot", nasa_power=pd.concat(frames, ignore_index=True),
+                            window_years=WIN, min_years=MIN)
+    from leviathan.transforms.gold.weather_z import Z_CAP
+    assert _val(got, METRIC_HEAT_STRESS_Z, 2004) == Z_CAP
+
+
+def test_z_winsorized_at_cap_negative() -> None:
+    # tight prior GDD sums (std ~1.8) + a collapsed year: raw z ~ -113 -> capped to exactly -Z_CAP
+    tmax = {2000: 25.0, 2001: 25.2, 2002: 25.0, 2003: 25.2, 2004: 12.0}
+    frames = [_full_july(y, _TMAX, v) for y, v in tmax.items()]
+    frames += [_full_july(y, _TMIN, 15.0) for y in tmax]
+    got = compute_weather_z("corn_cbot", nasa_power=pd.concat(frames, ignore_index=True),
+                            window_years=WIN, min_years=MIN)
+    from leviathan.transforms.gold.weather_z import Z_CAP
+    assert _val(got, METRIC_GDD_Z, 2004) == -Z_CAP
 
 
 # ── registry + build_sql: the year_month wiring is sargable & leakage-safe ──────────────────────────────
@@ -308,7 +367,7 @@ def test_task_melt_real_wide_schema_produces_gold_rows() -> None:
     assert set(long_df["variable"].unique()) == {_TMAX, _TMIN, _PRECIP}
 
     gold = compute_weather_z("corn_cbot", nasa_power=long_df, chirps=long_df,
-                             window_years=WIN, min_years=MIN)
+                             window_years=WIN, min_years=MIN, enforce_month_completeness=False)
     assert not gold.empty, "real-schema melt must yield gold rows (the run-1 failure mode)"
     assert (gold["country"] == "Argentina").all()          # PSD Title-Case surface form
     assert set(gold["metric"]).issubset(set(ALL_METRICS))
@@ -346,5 +405,5 @@ def test_task_passthrough_long_chirps_schema() -> None:
     assert set(out["variable"].unique()) == {_PRECIP}
 
     gold = compute_weather_z("corn_cbot", nasa_power=None, chirps=out,
-                             window_years=WIN, min_years=MIN)
+                             window_years=WIN, min_years=MIN, enforce_month_completeness=False)
     assert not gold.empty and (gold["metric"] == METRIC_DROUGHT_Z).all()
