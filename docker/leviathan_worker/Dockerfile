@@ -26,5 +26,9 @@ RUN playwright install --with-deps chromium && rm -rf /var/lib/apt/lists/*
 COPY src/ ./src/
 COPY jobs/ ./jobs/
 COPY configs/ ./configs/
+# silver-gate config_check lint (node_silver_map) + DDL drift checks read sql/athena/ddl/*.sql at
+# runtime -- the old images carried sql/ only via a pre-659a83ce layer; honest rebuilds dropped it
+# (refire3 gate FAIL "DDL silver_psd.sql not found", 2026-07-24).
+COPY sql/ ./sql/
 
 ENTRYPOINT ["python"]
