@@ -38,15 +38,46 @@ def test_iod_pit_year_month_no_leakage():
 
 
 def test_iod_bullet_carries_staleness_clause():
-    # SKEPTIC fold (Finding 2): the producer trims the NaN tail so agg=latest returns the LAST REAL month --
-    # which for a lagging SST reconstruction can sit many months before a live as-of (e.g. 2025-04 read at
-    # 2026-07 is ~15 months old). The IOD system-prompt bullet must carry a hard staleness-visible clause
-    # (mirroring the silver_cot positioning bullet) so a months-old 'latest DMI' is never narrated as 'current'.
+    # SKEPTIC fold (Finding 2): the producer trims the NaN tail so agg=latest returns the LAST REAL month,
+    # which can sit before a live as-of. The IOD system-prompt bullet must carry a hard staleness-visible
+    # clause (mirroring the silver_cot positioning bullet) so a dated 'latest DMI' is never narrated as
+    # 'current'. IOD SOURCE SWITCH (ADR_IOD_SOURCE_SWITCH, 2026-07-24): the clause SURVIVES the re-baseline
+    # but its justification changes -- the old text described a DEAD HadISST reconstruction trailing "many
+    # months"; the live CPC ERSSTv5 record trails by ~one publication cycle instead. The date-honesty
+    # invariant is unchanged; the dead-source framing is gone (see the live-cadence test below).
     sp = system_prompt(load_registry())
     assert "silver_noaa_iod is the Indian Ocean Dipole" in sp
     iod = sp.split("silver_noaa_iod is the Indian Ocean Dipole", 1)[1].split("\n", 1)[0]
     assert "staleness must be visible" in iod                      # the hard clause, same voice as the COT bullet
     assert "current DMI" in iod                                    # explicit no-stale-as-current guard
+    assert "many months" not in iod                                # the retired dead-source framing is gone
+
+
+def test_iod_bullet_states_live_cadence_not_a_dead_source():
+    # The re-baselined source is LIVE and monthly with a ~30-45d publication lag under a 45d SLA. The bullet
+    # must say so, because the failure mode flips: with a dead source the risk was narrating a 15-month-old
+    # reading as current; with a live one it is reporting the normal one-cycle lag as missing data (the
+    # fabricated-unavailability class). Both guards therefore ship in the same bullet.
+    sp = system_prompt(load_registry())
+    iod = sp.split("silver_noaa_iod is the Indian Ocean Dipole", 1)[1].split("\n", 1)[0]
+    assert "LIVE" in iod and "30-45 days" in iod                   # live cadence + the publication lag
+    assert "45-day freshness SLA" in iod                           # the ratified staleness ceiling
+    assert "1991-2020" in iod                                      # the anomaly basis the values are quoted on
+    assert "never report a month as unavailable" in iod            # no invented unpublished-month story
+
+
+def test_iod_card_text_carries_the_rebaselined_basis():
+    # Card A's own description/notes (what the model reads per table) must state the new basis, the live
+    # cadence + lag, the 45d SLA and the fixed climatology -- and must NOT still claim a month is "known at
+    # month end", which is false under a 30-45d publication lag.
+    ts = load_registry().get("silver_noaa_iod")
+    text = f"{ts.description} {ts.notes}"
+    assert "ERSSTv5" in text and "NOAA CPC" in text                # the new source of record
+    assert "1991-2020" in text                                     # fixed climatology (ADR decision 5)
+    assert "30-45" in text                                         # publication lag (EDA-PIT-002 governance)
+    assert "45-day freshness SLA" in text                          # the ratified ceiling
+    assert "1.55" in text and "1.28" in text                       # magnitudes RESTATED, both bases named
+    assert "known at month end" not in text                        # the retired (and now false) PIT claim
 
 
 # ── Card B: silver_conab_coffee (survey-vintage on the DERIVED survey_release_date) ───────────────────

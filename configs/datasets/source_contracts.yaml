@@ -480,8 +480,20 @@ sources:
     expected_min_rows: 100
     duplicate_check: full
 
+  # IOD SOURCE SWITCH (ADR_IOD_SOURCE_SWITCH, RATIFIED 2026-07-24, Option B). Source of record:
+  #   https://www.cpc.ncep.noaa.gov/products/international/ocean_monitoring/IODMI/mnth.ersstv5.clim19912020.dmi_current.txt
+  # NOAA CPC IODMI -- ERSSTv5 SSTs, anomalies vs the FIXED 1991-2020 climatology; DMI = WTIO - SETIO
+  # (box geometry identical to the retired HadISST product). Cadence MONTHLY, publication lag ~30-45
+  # days after month end; the registry holds freshness_sla.max_lag_days = 45. Units degC. Coverage
+  # 1950-01..present (the retired NOAA PSL HadISST1.1 file ran 1870-01..2025-04 and has not
+  # regenerated since 2025-06-16). glue_table + s3_prefix are RETAINED unchanged as legacy stable
+  # identifiers (decision 6.4 / ADR-003 rule 6): the served `source` column carries the truthful
+  # provider stamp `cpc_iodmi`, and raw + bronze capture under their own source=cpc_iodmi prefixes.
+  # The pre-switch HadISST series is kept as an immutable _hadisst_frozen snapshot (never served).
+  # No `limitation:` key is added: it would demote this core contract from pass to warn, and the
+  # switch declares no limitation -- it RESTORES a live source.
   - source_key: iod
-    title: NOAA IOD silver
+    title: NOAA CPC IOD silver (DMI, ERSSTv5, clim 1991-2020)
     glue_table: silver_noaa_iod
     s3_prefix: s3://leviathan-dev-shahem-001/silver/weather/source=noaa_iod/
     status: core

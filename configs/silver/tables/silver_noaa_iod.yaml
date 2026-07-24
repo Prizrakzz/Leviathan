@@ -84,7 +84,7 @@ knowledge_semantics: year_month
 publication_lag_days: null
 freshness_sla:
   cadence: monthly
-  max_lag_days: null
+  max_lag_days: 45
 consumers: both
 numbers_ref: configs/graphrag/numbers/tables.yaml#silver_noaa_iod
 cascade_ref: null
@@ -110,4 +110,25 @@ provenance:
   generated_from: reports/silver_readiness/20260712_p65impl/tables/silver_noaa_iod.json
 notes: 'min_nonnull_frac is PROVISIONAL (uniform 0.5) pending per-source calibration (OP-8 / AV-11, SILVER-V001).
   This registry is the SINGLE authority for value_columns and min_nonnull_frac (Attack 3 finding #6).
-  Types are the INV-2 TARGET writer schema; arrow_type is the current-physical type from the R0 baseline.'
+  Types are the INV-2 TARGET writer schema; arrow_type is the current-physical type from the R0 baseline.
+  IOD SOURCE SWITCH (ADR_IOD_SOURCE_SWITCH, RATIFIED 2026-07-24, Option B): the served DMI is re-baselined
+  from the FROZEN NOAA PSL HadISST1.1 long file (last real observation 2025-04, file stamp 2025-06-16)
+  onto the LIVE NOAA CPC IODMI record (ERSSTv5; https://www.cpc.ncep.noaa.gov/products/international/ocean_monitoring/IODMI/mnth.ersstv5.clim19912020.dmi_current.txt;
+  monthly). Key range moves 1870-01..2025-04 -> 1950-01..present: 960 pre-1950 keys DROPPED (no NAMED
+  positive-IOD analogue is pre-1950), 904 keys RESTATED, forward months added. Table name, 8-column schema
+  and s3_root are UNCHANGED (decision 6.4, legacy stable identifier -- ADR-003 rule 6); the `source` column
+  carries the truthful provider stamp `cpc_iodmi` (ADR-003 rule 2), so the path is a legacy misnomer and
+  the column is the provenance authority. UNITS (EDA-SEMANTIC-UNIT-001): dmi_value and iod_dmi_3month_avg
+  are degC SST anomalies against the FIXED 1991-2020 climatology, served exactly as published -- never
+  re-anomalized to HadISST''s full-record mean (decision 5), so historical magnitudes are RESTATED rather
+  than continued (1997-11 peak 1.28 -> 1.55; 2019-10 0.96 -> 1.78). PIT (EDA-PIT-002): CPC publishes a
+  completed month ~30-45 days after month end. That lag is governed HERE and on the numbers card as TEXT,
+  and publication_lag_days stays null on purpose -- under year_month semantics the as-of guard is month-grain
+  and never applies the lag shift (graphrag/numbers/query.py `_guard` returns before it), so a numeric
+  value would declare an enforcement that does not happen, AND dag_catalog.effective_sla_lag_days ADDS
+  publication_lag_days as freshness grace, which would loosen the ratified 45d ceiling to 90. Residual,
+  disclosed: an as-of inside the publication window can therefore see a month CPC has not yet released;
+  closing it needs a year_month lag shift in the numbers stack, not a registry field. FRESHNESS: freshness_sla.max_lag_days=45
+  + the F082 staleness alarm are the guard that a future upstream pause is caught in weeks rather than
+  the ~13 months this one ran unremediated. PROVENANCE: the pre-switch HadISST series is retained as an
+  immutable `_hadisst_frozen` snapshot (never served; rollback = repoint to it).'

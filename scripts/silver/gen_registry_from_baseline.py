@@ -714,6 +714,51 @@ CURATION_OVERRIDES: dict = {
             "front-month close (not official exchange settlement), never an official settle."
         ),
     },
+    # ── IOD SOURCE SWITCH (ADR_IOD_SOURCE_SWITCH, RATIFIED 2026-07-24, Option B). The served DMI
+    # re-bases from the FROZEN NOAA PSL HadISST1.1 file (last real month 2025-04; the file has not
+    # regenerated since 2025-06-16) onto the LIVE NOAA CPC ERSSTv5 IODMI record. Same table, same
+    # 8 columns, same s3_root (decision 6.4), so the ONLY registry-visible moves are the freshness
+    # guard and the contract notes -- both land here so the checked-in YAML stays a reproducible
+    # render (the F011 idempotency gate, test_checked_in_tree_matches_fresh_render). The R0-derived
+    # fingerprints are untouched by design: they regenerate from the R0 snapshot at publish time.
+    # max_lag_days=45 is the ADR's ratified staleness ceiling (Section 5 "freshness guard"). It is
+    # numerically the same as the monthly cadence default it replaces, but as an EXPLICIT value it
+    # survives a cadence re-derivation and states the SLA the alarm is justified from -- this table
+    # is the one that ran ~13 months stale-green, so the ceiling is a decision, not a default.
+    # publication_lag_days is deliberately NOT set (see the notes): it is inert under year_month PIT
+    # and would be ADDED as freshness grace, loosening this very ceiling to 90.
+    "silver_noaa_iod": {
+        "freshness_sla": {"cadence": "monthly", "max_lag_days": 45},
+        "notes_append": (
+            " IOD SOURCE SWITCH (ADR_IOD_SOURCE_SWITCH, RATIFIED 2026-07-24, Option B): the served "
+            "DMI is re-baselined from the FROZEN NOAA PSL HadISST1.1 long file (last real "
+            "observation 2025-04, file stamp 2025-06-16) onto the LIVE NOAA CPC IODMI record "
+            "(ERSSTv5; https://www.cpc.ncep.noaa.gov/products/international/ocean_monitoring/IODMI/"
+            "mnth.ersstv5.clim19912020.dmi_current.txt; monthly). Key range moves 1870-01..2025-04 "
+            "-> 1950-01..present: 960 pre-1950 keys DROPPED (no NAMED positive-IOD analogue is "
+            "pre-1950), 904 keys RESTATED, forward months added. Table name, 8-column schema and "
+            "s3_root are UNCHANGED (decision 6.4, legacy stable identifier -- ADR-003 rule 6); the "
+            "`source` column carries the truthful provider stamp `cpc_iodmi` (ADR-003 rule 2), so "
+            "the path is a legacy misnomer and the column is the provenance authority. UNITS "
+            "(EDA-SEMANTIC-UNIT-001): dmi_value and iod_dmi_3month_avg are degC SST anomalies "
+            "against the FIXED 1991-2020 climatology, served exactly as published -- never "
+            "re-anomalized to HadISST's full-record mean (decision 5), so historical magnitudes are "
+            "RESTATED rather than continued (1997-11 peak 1.28 -> 1.55; 2019-10 0.96 -> 1.78). PIT "
+            "(EDA-PIT-002): CPC publishes a completed month ~30-45 days after month end. That lag is "
+            "governed HERE and on the numbers card as TEXT, and publication_lag_days stays null on "
+            "purpose -- under year_month semantics the as-of guard is month-grain and never applies "
+            "the lag shift (graphrag/numbers/query.py `_guard` returns before it), so a numeric "
+            "value would declare an enforcement that does not happen, AND dag_catalog."
+            "effective_sla_lag_days ADDS publication_lag_days as freshness grace, which would "
+            "loosen the ratified 45d ceiling to 90. Residual, disclosed: an as-of inside the "
+            "publication window can therefore see a month CPC has not yet released; closing it "
+            "needs a year_month lag shift in the numbers stack, not a registry field. FRESHNESS: "
+            "freshness_sla.max_lag_days=45 + the F082 staleness alarm are the guard that a future "
+            "upstream pause is caught in weeks rather than the ~13 months this one ran "
+            "unremediated. PROVENANCE: the pre-switch HadISST series is retained as an immutable "
+            "`_hadisst_frozen` snapshot (never served; rollback = repoint to it)."
+        ),
+    },
     # ── BF-W3 lane COTTON (user-gated 2026-07-15): OP-8 per-column floor calibration.
     # samples_classed is structurally ABSENT from the AMS national extraction scope before season
     # 2018 (19/27 seasons null; bronze cross-check: the metric row is absent at source for every

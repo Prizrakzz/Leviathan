@@ -1914,6 +1914,28 @@ def silver_iod_key() -> str:
     return "silver/weather/source=noaa_iod/part-000.parquet"
 
 
+def raw_cpc_iodmi_key() -> str:
+    """S3 key for the NOAA CPC IODMI (ERSSTv5) DMI text file.
+
+    Source-faithful capture prefix for the re-baselined IOD source
+    (ADR_IOD_SOURCE_SWITCH, Option B): the raw/bronze provenance is truthfully
+    ``source=cpc_iodmi`` even though the SERVED silver keeps the legacy
+    ``source=noaa_iod`` root and table name.  Single overwrite object — CPC
+    updates the file in-place each month with the full 1950-present history.
+    """
+    return "raw/weather/source=cpc_iodmi/mnth.ersstv5.clim19912020.dmi_current.txt"
+
+
+def bronze_cpc_iodmi_key() -> str:
+    """S3 key for the CPC IODMI bronze Parquet.
+
+    Single flat file — one row per (year, month), 1950-present, carrying all
+    three published measures (wtio_value, setio_value, dmi_value).
+    Overwritten on each ingest run.
+    """
+    return "bronze/weather/source=cpc_iodmi/part-000.parquet"
+
+
 def raw_food_cpi_key(country_iso: str) -> str:
     """S3 key for a World Bank DataBank food CPI raw JSON file.
 
