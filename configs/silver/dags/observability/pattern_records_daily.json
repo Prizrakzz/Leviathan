@@ -1,0 +1,33 @@
+{
+  "schedule": "pattern_records_daily",
+  "family": "observability",
+  "kind": "standalone_scheduled_batch",
+  "estate": "A1-A2 EventBridge scheduler (default group) -- the P3 morning-brief pattern, NOT the silver-rebuild SFN estate",
+  "authoring_note": "AUTHORED not applied (plan sec 7 step 5). This is a STANDALONE EventBridge->Batch schedule (a dedicated scoped role + jobdef, the P3 morning-brief precedent aws_scheduler_schedule.notifications), NOT a gen_sfn_inputs fetch/bronze/silver/gate/promote SFN family -- so it lives under dags/observability/ (the non-recursive dags/*.json descriptor glob is pinned at 24 Section-3 families and must NOT enumerate it). See PATTERN_RECORDS_SCHEDULE_NOTES.md for the tf + tfvars hand-add shape.",
+  "cron": "cron(0 9 * * ? *)",
+  "cron_note": "09:00 UTC daily -- after the overnight silver-rebuild families have promoted (so the sweep replays the freshest pg mirror). The written_at gap alarm (plan sec 8) fires at > 25h.",
+  "state": "DISABLED",
+  "state_note": "ships DISABLED: one manual day-0 sweep the operator reviews first, then flip to ENABLED and inspect the first cron fire (the P3 pattern). Rollback = DISABLE the schedule (never touches the card flag).",
+  "scoped_role": "leviathan-dev-pattern-records-scheduler",
+  "role_note": "a DEDICATED scheduler role that may submit ONLY the pattern-records jobdef (never the serving-shared or publisher role) -- the least-privilege P3 precedent.",
+  "jobdef": "leviathan-dev-pattern-records-sweep",
+  "jobdef_note": "a dedicated scoped jobdef (own role; gold/pattern_records write scope only). Register out-of-band (the register_notifications_jobdef.py precedent), reference BY NAME (unversioned -> tracks the latest ACTIVE revision).",
+  "queue": "leviathan-dev-queue-ondemand",
+  "daily_sweep": {
+    "command": ["jobs/batch/pattern_records_sweep_task.py", "--asof", "<aws.scheduler.scheduled-time>", "--publish-mode", "canonical"],
+    "auth_mode": "kms",
+    "approval_env": {"LEVIATHAN_APPROVAL_MODE": "kms", "LEVIATHAN_KMS_KEY_ID": "alias/leviathan-dev-publish-signer"},
+    "publishes": "gold_pattern_records (registered as_of_date partition, provenance=daily_sweep)"
+  },
+  "backfill_grid": {
+    "note": "NOT scheduled -- a ONE-TIME manual run at rollout step 4 (plan sec 3.4 / 7), provenance=backfill_grid, over the bounded weekly VINTAGED-leg grid. Isolated by as_of_date + provenance so the rollback is a partition delete.",
+    "command": ["jobs/batch/pattern_records_sweep_task.py", "--backfill", "--publish-mode", "canonical"]
+  },
+  "retry": {
+    "maximum_retry_attempts": 2,
+    "maximum_event_age_in_seconds": 86400
+  },
+  "alarms": {
+    "note": "plan sec 8 (finalize numeric bands at the soak gate): (a) sweep wrote 0 rows -> job broke; (b) written_at gap > 25h -> missed sweep; (c) fired-rate collapse to 0 across a sweep -> possible pg-mirror/quantify-seam death (the phantom-regression class)."
+  }
+}

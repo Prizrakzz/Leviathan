@@ -99,6 +99,15 @@ def _cascade_stats(out: dict) -> dict:
             # price_leg_fired [F7]) -- an honest decline (<2 points / annual grain / flag off) leaves the
             # key absent, so the negative pins read false, never KeyError.
             "pace_fired": bool((out.get("trace") or {}).get("quantify_pace")),
+            # T2B pattern-records ledger signal (run_numbers_only copies answer_numbers' `pattern_records`
+            # key onto the trace). injected>=1 iff the scalar-presence leg was injected; recorded_firings is
+            # the cited COUNT; zero_materialized is the F8 honesty firing (a citable 0 was injected). The
+            # pins read these the pace_fired way -- an absent key reads 0/False, never KeyError.
+            "pattern_injected": int(((out.get("trace") or {}).get("pattern_records") or {}).get("injected") or 0),
+            "pattern_recorded_firings": int(((out.get("trace") or {}).get("pattern_records")
+                                             or {}).get("recorded_firings") or 0),
+            "pattern_zero_materialized": bool(((out.get("trace") or {}).get("pattern_records")
+                                               or {}).get("zero_materialized")),
             "statuses": sorted(statuses)}
 
 
@@ -146,7 +155,12 @@ _CASCADE_EXPECT = ("cascade_fired", "min_cascade_cited", "delta_row", "fork", "a
                    # the NONE-tier decline guard, and the RAW (pre-sanitize, DP-6) valuation/flow/mismatch
                    # trace counters the bait + PIT + honesty rows assert to 0.
                    "price_cited", "unit_present", "price_decline_guard",
-                   "banned_valuation", "banned_flow", "numbers_mismatched")
+                   "banned_valuation", "banned_flow", "numbers_mismatched",
+                   # T2B pattern-records pins (plan 6.1 / D12): pattern_cited (a backfill ENGINE base-rate
+                   # [N] was injected + a real firing count cited), pattern_zero_cited (the F8 mechanism -- a
+                   # materialized 0-count leg was injected and cited; FAILS if the card injects NOTHING), and
+                   # pattern_register_clean (no signal/set-up/regime/trend/breakout/persistent on the answer).
+                   "pattern_cited", "pattern_zero_cited", "pattern_register_clean")
 
 
 def _cascade_asserts(q: dict, out: dict) -> dict | None:
@@ -307,6 +321,14 @@ def _cascade_asserts(q: dict, out: dict) -> dict | None:
         elif k == "numbers_mismatched":                               # _verify_numbers_answer mismatch tally
             nv = (out.get("trace") or {}).get("numbers_verifier") or {}   # (orchestrator.py:75); absent -> 0
             res[k] = int(nv.get("mismatched", 0)) == int(want)
+        elif k == "pattern_cited":                                    # T2B: a real ledger base-rate [N] injected
+            res[k] = (cs["pattern_injected"] >= 1 and cs["pattern_recorded_firings"] > 0) == bool(want)
+        elif k == "pattern_zero_cited":                               # T2B F8: a materialized-0 leg injected +
+            res[k] = (cs["pattern_injected"] >= 1 and cs["pattern_zero_materialized"]) == bool(want)   # cited
+        elif k == "pattern_register_clean":                           # T2B D8: no banned pattern-vocab in prose
+            from leviathan.graphrag.numbers import pattern_records as _pr
+            _txt = f"{(out.get('structured') or {}).get('tldr') or ''} {mech} {out.get('answer') or ''}"
+            res[k] = (len(_pr.pr_register_leaks(_txt)) == 0) == bool(want)
     return res
 
 

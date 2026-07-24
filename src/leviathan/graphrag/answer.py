@@ -437,16 +437,30 @@ def _chain_on() -> bool:
     return os.environ.get("GRAPHRAG_CASCADE_CHAIN", "").strip().lower() in ("on", "1", "true")
 
 
+def _pattern_records_on() -> bool:
+    """T2B pattern-records card kill-switch (GRAPHRAG_PATTERN_RECORDS), read at the answer.py _system() seam.
+    When on, the reader-facing string gains the OBSERVATION-register '## Recorded history' [N]-rendering
+    directive so the model CITES the injected ledger count (and states the F8 empty-ledger honesty) instead
+    of minting a cross-day streak from the within-turn pace figure. DEFAULT-OFF, fail-closed: only a
+    case-insensitive on/1/true enables it, so with the flag off _system() is BYTE-IDENTICAL to pre-feature.
+    Read PER CALL (never memoized) so the env-flip rollback is live -> no redeploy (the _chain_on idiom)."""
+    return os.environ.get("GRAPHRAG_PATTERN_RECORDS", "").strip().lower() in ("on", "1", "true")
+
+
 def _system() -> str:
     """The active reader-facing persona. GRAPHRAG_MENTOR_VOICE default on -> mentor; =off -> the prior string.
     GRAPHRAG_CASCADE_QUANT on -> append the OBSERVED CASCADE NUMBERS addendum (P9-B: the loop supplies the
-    [N] rows). Read PER CALL, never memoized: a serving process is long-lived, so a once-at-import read would
+    [N] rows). GRAPHRAG_PATTERN_RECORDS on -> append the OBSERVATION-register RECORDED HISTORY directive (T2B).
+    Read PER CALL, never memoized: a serving process is long-lived, so a once-at-import read would
     make the env-flip rollback a silent no-op until a redeploy — defeating the gate's purpose."""
     if os.environ.get("GRAPHRAG_MENTOR_VOICE", "on") == "off":
         return _SYSTEM_LEGACY
     base = _SYSTEM_MENTOR
     if os.environ.get("GRAPHRAG_CASCADE_QUANT", "on") != "off":
         base = base + _SYSTEM_CASCADE
+    if _pattern_records_on():
+        from leviathan.graphrag.numbers import pattern_records as _pr   # lazy: avoid an import cycle
+        base = base + _pr.RECORDED_HISTORY_ADDENDUM
     return base
 
 

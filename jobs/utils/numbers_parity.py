@@ -65,7 +65,16 @@ SAMPLE_COMMODITY = {"silver_psd": "corn_cbot", "silver_wasde": "corn", "silver_p
                     # holding continuous front-month CONTRACT slugs -- corn_cbot is the liquid probe. The card
                     # is levels-only, so the `series` grid legs SKIP (build_sql rejects non-latest) and the
                     # `latest` legs at each asof carry the panel; bare 'corn' would match zero rows.
-                    "silver_futures_prices": "corn_cbot"}
+                    "silver_futures_prices": "corn_cbot",
+                    # T2B PATTERN RECORDS (2026-07-24): gold_pattern_records.commodity_col is `contract`
+                    # (the focus contract slug). corn_cbot is the backfillable flagship pair (US corn
+                    # export pace reads silver_esr_compact, a release-date-vintaged leg, so the bounded
+                    # weekly backfill grid populates corn_cbot rows) -- the parity grid's latest/series
+                    # legs on the numeric metric columns then compare non-empty on both backends. A wrong
+                    # slug (bare 'corn') matches zero rows -> vacuous panel, caught loudly by EMPTY-PANEL.
+                    # The grain is the full natural key (grain_cols), so the latest-vintage ROW_NUMBER never
+                    # ties across driver/kind and pg==Athena selection is deterministic.
+                    "gold_pattern_records": "corn_cbot"}
 # 2026 asof included because ingest-semantics tables (silver_production) were ingested in 2026 — earlier
 # asofs legitimately see 0 rows (honest PIT), which would leave that panel vacuous.
 ASOFS = ["2021-08-15", "2024-06-01", "2026-07-01"]

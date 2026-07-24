@@ -73,7 +73,7 @@ def run_numbers_only(query: str, asof: str, *, client=None, model: str = na.HAIK
     # copy them onto the trace so the eval deck can pin them (the ESR destination guard AND the new
     # price-coverage decline guard). Absent (the common case) -> the trace is byte-identical to before.
     _trace = {"numbers_verifier": nv, "banned_valuation_words": _banned_val, "banned_flow_words": _banned_flow}
-    for _gk in ("esr_destination_guard", "price_decline_guard"):
+    for _gk in ("esr_destination_guard", "price_decline_guard", "pattern_records"):
         if out.get(_gk) is not None:
             _trace[_gk] = out[_gk]
     return {"answer": body, "intent": "numbers_only",

@@ -13,6 +13,7 @@ import os
 import re
 from typing import Optional
 
+from leviathan.graphrag.numbers import pattern_records as PR
 from leviathan.graphrag.numbers import query as Q
 from leviathan.graphrag.numbers import stats as ST
 from leviathan.graphrag.numbers.registry import NumbersRegistry, TableSpec, load_registry
@@ -514,6 +515,17 @@ def _futures_decline_preface(cls: str) -> str:
     return f"One limitation to flag before the numbers: {FUTURES_DECLINE_TEMPLATES[cls]}.\n\n"
 
 
+def _visible_tables(reg: NumbersRegistry) -> list[str]:
+    """The registry tables EXPOSED to the agent this call: sorted(reg.tables), MINUS the flag-gated
+    pattern-records card when GRAPHRAG_PATTERN_RECORDS is OFF. Read per-call so the kill-switch rollback is
+    live; when off the returned list is BYTE-IDENTICAL to the pre-feature sorted(reg.tables) (the card is
+    the only new table), so tool_schema + system_prompt are unchanged (plan 7.6 identical-answers smoke)."""
+    tables = sorted(reg.tables)
+    if PR.PR_TABLE in tables and not PR.pattern_records_on():
+        tables = [t for t in tables if t != PR.PR_TABLE]
+    return tables
+
+
 def tool_schema(reg: NumbersRegistry) -> dict:
     """The single tool. `table` is an enum over the registry; asof is DELIBERATELY absent (the harness forces it)."""
     return {
@@ -523,7 +535,7 @@ def tool_schema(reg: NumbersRegistry) -> dict:
         "input_schema": {
             "type": "object",
             "properties": {
-                "table": {"type": "string", "enum": sorted(reg.tables), "description": "which table"},
+                "table": {"type": "string", "enum": _visible_tables(reg), "description": "which table"},
                 "metric": {"type": "string", "description": "a metric listed for that table"},
                 "commodity": {"type": "string", "description": "commodity/contract slug, if the table is per-commodity"},
                 "country": {"type": "string", "description": "country, if the table is per-country"},
@@ -674,7 +686,12 @@ def _table_card(ts: TableSpec) -> str:
 
 
 def system_prompt(reg: NumbersRegistry, stats_tool: Optional[bool] = None) -> str:
-    cards = "\n\n".join(_table_card(reg.get(t)) for t in sorted(reg.tables))
+    visible = _visible_tables(reg)                         # pattern-records card filtered out when flag OFF
+    cards = "\n\n".join(_table_card(reg.get(t)) for t in visible)
+    # T2B: the observation-register bullet ships ONLY when the gold_pattern_records card is visible (flag on),
+    # so with the flag off the ## Conventions block is byte-identical to pre-feature (kill-switch parity --
+    # the model is never told about a table it does not have).
+    pattern_bullet = PR.AGENT_CONVENTIONS_BULLET if PR.PR_TABLE in visible else ""
     stats_on = _stats_tool_on() if stats_tool is None else stats_tool
     # The stats bullet ships ONLY when compute_stat is in the schema (kill-switch parity: off removes the tool
     # AND its steering, so the model is never told about a tool it does not have).
@@ -744,7 +761,7 @@ def system_prompt(reg: NumbersRegistry, stats_tool: Optional[bool] = None) -> st
         "say positioning will unwind or must revert, and never let it drive a price call or a cascade fork. It "
         "is lag-published (about 6 days) and can be several weeks stale, so ALWAYS cite the report date -- "
         "staleness must be visible, not hidden.\n"
-        + stats_bullet +
+        + stats_bullet + pattern_bullet +
         "- silver_noaa_oni has NO date column: window months with period_start/period_end as 'YYYY-MM', or use "
         "agg=latest for the most recent month on/before the as-of date.\n"
         "- silver_noaa_iod is the Indian Ocean Dipole (DMI), a GLOBAL monthly climate index -- NO commodity or "
@@ -825,6 +842,10 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
     # front. None (the common case) is a no-op -- a plain single-date LEVEL ask is byte-identical. Fires on
     # phrasing alone, so the honest front-month framing is prepended even while futures is whitelist-absent.
     fut_scope = futures_scope(question)
+    # T2B pattern-records persistence-history dispatch: detect a persistence question ONCE, up front, and
+    # ONLY when the card flag is on -> flag-off never even computes the scope, so the loop is byte-identical
+    # to pre-feature. None (the common case, and always when off) is a no-op everywhere below.
+    pr_scope = PR.pattern_records_scope(question, contracts=None) if PR.pattern_records_on() else None
 
     for _ in range(max_calls):
         def _one():
@@ -893,6 +914,26 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                             preface += _esr_bloc_caveat_preface(dest)
                     else:
                         preface += _esr_destination_preface(dest)
+            if pr_scope:
+                # T2B: inject the ledger presence / backfill-base-rate leg as a real [N] handle (the ESR
+                # aggregate-leg idiom) and PREPEND the OBSERVATION-register line. The scalar-presence query
+                # ALWAYS returns a row (a materialized 0 when a pair has no recorded firing, F8), so the
+                # empty-ledger honesty answer cites an injected 0 rather than falling back to a minted streak.
+                pr_legs, pr_signal = PR.pattern_records_legs(pr_scope, asof, query_fn)
+                indexed_pr = None
+                for leg in pr_legs:
+                    calls.append(leg)
+                    hseq += 1
+                    h = f"L{hseq}"
+                    leg["handle"] = h
+                    _prrows = leg.get("rows") or []
+                    handles[h] = {"series": _series_from_rows(_prrows), "kd": _handle_kd(_prrows),
+                                  "unit": None}
+                    indexed_pr = (len(calls), leg)
+                pr_line = PR.pattern_records_answer(pr_scope, indexed_pr, pr_signal)
+                if pr_line:
+                    preface += pr_line + "\n\n"
+                result["pattern_records"] = pr_signal          # surfaced to out['trace'] by run_numbers_only
             if preface:
                 result["answer"] = (preface + text).strip()
             return result

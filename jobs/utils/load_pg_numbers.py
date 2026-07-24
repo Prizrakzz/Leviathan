@@ -71,7 +71,15 @@ P1_TABLES = ["silver_psd", "silver_wasde", "silver_production", "silver_esr", "s
              # pct_of_prior_yr/z_vs_3yr_avg mirror numeric; crop/season/week_ending/source stay ISO/TEXT and the
              # derived week_ending_date (DATE) stringifies to ISO TEXT COLLATE "C" (DP-5 substr-normalized, so
              # both backends compare identically). Small (1204 rows).
-             "silver_noaa_iod", "silver_conab_coffee", "silver_sagis_weekly_exports"]
+             "silver_noaa_iod", "silver_conab_coffee", "silver_sagis_weekly_exports",
+             # T2B PATTERN RECORDS (2026-07-24): gold_pattern_records is the engine's recorded verdict ledger
+             # (one row per record_kind x contract x driver x as_of_date). Its numeric metric columns
+             # (streak_len/window_change/n_points/n_rows/n_hops) mirror numeric under the type doctrine; every
+             # id/verdict/reason/provenance/run_id column stays ISO/TEXT COLLATE "C", and `written_at` (physical
+             # TIMESTAMP) / as_of_date stringify to the Athena render (DP-5 substr-normalized in the presence
+             # SQL, so both backends compare identically). Mirrored so the SQL-lane presence/base-rate
+             # aggregations serve warm from pg; the serving CARD is independently gated by GRAPHRAG_PATTERN_RECORDS.
+             "gold_pattern_records"]
 SCHEMA = "leviathan_dev"                       # == numbers.pgnumbers.SCHEMA == query.ATHENA_DB
 GLUE_DB = "leviathan_dev"
 
