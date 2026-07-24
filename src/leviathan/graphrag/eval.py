@@ -679,24 +679,33 @@ _JUDGE_SYS = (
     "Emit via score_answer.")
 
 
-def judge(query: dict, out: dict, *, graph=None, client=None, model: str = "claude-opus-4-8", call=None,
-          convo_history: str | None = None) -> dict:
-    """The quant-researcher persona scores the answer — shown the SAME graph + evidence + looked-up NUMBERS the tool
-    had, so it can tell grounded from invented and check point-in-time discipline. With `convo_history` (multi-turn
-    eval) the judge also scores CONTINUITY: did the answer interpret the vague/pronoun follow-up correctly given
-    the prior turns, and respect THIS turn's as-of rather than a stale one?"""
-    call = call or ex.call_opus
-    ctx = ""
-    if graph is not None:
-        from leviathan.graphrag import answer as an
-        ctx = "\n\n".join(an._context_block(graph, c) for c in (out.get("contracts") or [out.get("contract")]) if c)
-    ev_text = "\n".join(f"- ({e['source']}, {e['date']}) {e.get('text', '')}" for e in out.get("evidence") or [])
-    num_text = ""
+def _judge_numbers_panel(out: dict, max_rows_per_call: int = 8) -> str:
+    """The judge's OBSERVED-NUMBERS panel: EVERY retrieved row of every call, each with its period +
+    knowledge date — never rows[0] alone. RCA 2026-07-24 (cocoa false-fabrication): the old first-row-only
+    render showed a multi-row grindings series as '= 3727' (the 2007/08 row), so the judge convicted the
+    answer's CORRECT latest-row 4628 (2024/25, kd 2026-05-29) as fabricated — grounding 2/5 on a right
+    answer, three phantom 'hallucinations'. A narrated figure matching ANY row at its stated period is
+    grounded; the panel now says so and shows the rows to check against. Bounded per call so a long
+    series cannot blow the judge prompt."""
+    lines: list[str] = []
     for c in out.get("number_calls") or []:                          # the observed values the tool actually looked up
         qy, rws = c.get("query", {}), (c.get("rows") or [])
-        val = rws[0].get("value") if rws else "(NOT KNOWN at asof)"
-        num_text += (f"- {qy.get('table')}.{qy.get('metric')} {qy.get('commodity','')} {qy.get('period','')} "
-                     f"asof {qy.get('asof','')} = {val}\n")
+        head = (f"- {qy.get('table')}.{qy.get('metric')} {qy.get('commodity','')} {qy.get('period','')} "
+                f"asof {qy.get('asof','')}")
+        if not rws:
+            lines.append(head + " = (NOT KNOWN at asof)")
+        elif len(rws) == 1:
+            r = rws[0]
+            kd = r.get("knowledge_date")
+            lines.append(head + f" = {r.get('value')}" + (f"  [known {kd}]" if kd else ""))
+        else:
+            lines.append(head + f" -> {len(rws)} rows retrieved (a figure matching ANY row at its period is grounded):")
+            for r in rws[:max_rows_per_call]:
+                kd = r.get("knowledge_date")
+                lines.append(f"    period={r.get('period', '?')} value={r.get('value')}"
+                             + (f" known={kd}" if kd else ""))
+            if len(rws) > max_rows_per_call:
+                lines.append(f"    ... +{len(rws) - max_rows_per_call} more rows")
     # P9-AB G3: cascade-injected rows never reach number_calls (the seam appends to a COPY) — they live only
     # in citations kind=number. Without this merge the judge's OBSERVED-NUMBERS panel reads '(none)' on a
     # cascade turn and flags every narrated [N] figure as a hallucination. Dedup vs agent rows by locator.
@@ -709,9 +718,25 @@ def judge(query: dict, out: dict, *, graph=None, client=None, model: str = "clau
         loc = c.get("locator") or {}
         if (loc.get("table"), loc.get("metric"), loc.get("period"), loc.get("asof")) in seen_num:
             continue
-        num_text += (f"- [{c.get('id')}] {loc.get('table', '')}.{loc.get('metric', '')} "
+        lines.append(f"- [{c.get('id')}] {loc.get('table', '')}.{loc.get('metric', '')} "
                      f"{loc.get('commodity', '')} {loc.get('period', '')} asof {loc.get('asof', '')} "
-                     f"= {c.get('value')} {c.get('unit') or ''}\n")
+                     f"= {c.get('value')} {c.get('unit') or ''}")
+    return "\n".join(lines) + ("\n" if lines else "")
+
+
+def judge(query: dict, out: dict, *, graph=None, client=None, model: str = "claude-opus-4-8", call=None,
+          convo_history: str | None = None) -> dict:
+    """The quant-researcher persona scores the answer — shown the SAME graph + evidence + looked-up NUMBERS the tool
+    had, so it can tell grounded from invented and check point-in-time discipline. With `convo_history` (multi-turn
+    eval) the judge also scores CONTINUITY: did the answer interpret the vague/pronoun follow-up correctly given
+    the prior turns, and respect THIS turn's as-of rather than a stale one?"""
+    call = call or ex.call_opus
+    ctx = ""
+    if graph is not None:
+        from leviathan.graphrag import answer as an
+        ctx = "\n\n".join(an._context_block(graph, c) for c in (out.get("contracts") or [out.get("contract")]) if c)
+    ev_text = "\n".join(f"- ({e['source']}, {e['date']}) {e.get('text', '')}" for e in out.get("evidence") or [])
+    num_text = _judge_numbers_panel(out)
     convo = ""
     if convo_history is not None:
         convo = (f"=== CONVERSATION SO FAR (prior turns; the current question may be vague/pronoun-based and "
@@ -725,7 +750,9 @@ def judge(query: dict, out: dict, *, graph=None, client=None, model: str = "clau
             f"{out.get('contracts') or out.get('contract')})\n\n"
             f"=== CAUSAL GRAPH THE TOOL COULD CITE (drivers/signs/regimes here are authoritative) ===\n{ctx}\n\n"
             f"=== DATED EVIDENCE THE TOOL WAS SHOWN ===\n{ev_text or '(none retrieved)'}\n\n"
-            f"=== OBSERVED NUMBERS THE TOOL LOOKED UP (as-known at asof) ===\n{num_text or '(none)'}\n\n"
+            f"=== OBSERVED NUMBERS THE TOOL LOOKED UP (as-known at asof; multi-row calls list ALL retrieved "
+            f"rows — a narrated figure that matches ANY listed row at its stated period is GROUNDED, not a "
+            f"hallucination) ===\n{num_text or '(none)'}\n\n"
             f"=== THE TOOL'S ANSWER ===\n{out.get('answer')}")
     sys_blocks = [{"type": "text", "text": _JUDGE_SYS, "cache_control": {"type": "ephemeral"}}]  # judge calls share it
     scores, _ = call(client, sys_blocks, user, model=model, max_tokens=3200,
