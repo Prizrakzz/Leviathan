@@ -90,6 +90,18 @@ $ErrorActionPreference = $prevEAP
 if ($buildExit -ne 0) { throw "docker build failed (exit $buildExit)" }
 
 # ---------------------------------------------------------------------------
+# Step 3a: RUNTIME-CLOSURE SMOKE (SILVER-F085 family, 2026-07-24). Three prod
+# incidents in one night came from images that BUILT fine but lacked what the
+# shared silver-gate step needs at RUNTIME (psycopg via the pg extra; the
+# sql/athena/ddl tree for the node_silver_map lint) -- old images had them only
+# through STALE cached layers, so the first honest rebuild broke the 14:00 UTC
+# fires. A broken image must fail HERE, never in a scheduled gate.
+# ---------------------------------------------------------------------------
+Write-Host "==> Runtime-closure smoke (psycopg + sql/ + gate imports)..." -ForegroundColor Cyan
+docker run --rm --entrypoint python $LatestImage -c "import os, psycopg; assert os.path.isdir('sql/athena/ddl') and os.listdir('sql/athena/ddl'), 'sql/athena/ddl missing/empty'; assert os.path.isdir('configs/silver/tables'), 'configs missing'; import importlib; importlib.import_module('jobs.audit.silver_rebuild_gate'); importlib.import_module('jobs.audit.value_census'); print('closure smoke OK: psycopg', psycopg.__version__)"
+if ($LASTEXITCODE -ne 0) { throw "runtime-closure smoke FAILED (exit $LASTEXITCODE) -- image would break the scheduled silver-gate; NOT pushing" }
+
+# ---------------------------------------------------------------------------
 # Step 3: Tag with the extra label if one was requested
 # ---------------------------------------------------------------------------
 if ($Tag -ne "latest") {
