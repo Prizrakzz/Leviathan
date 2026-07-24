@@ -223,6 +223,124 @@ def _check_region_map(reg) -> list[str]:
     return errs
 
 
+# CHAIN ENGINE expansion guard (CHAIN_ENGINE_PLAN sec 2.5, S3 fold): the AUTHORED bound -- max 6 contracts per
+# row, max 7 rows, total expansions <= 25 (v1 actual: 24 after the S1 campinas drop). Subject to D1 as proposed.
+_CHAIN_MAX_CONTRACTS_PER_ROW = 6
+_CHAIN_MAX_ROWS = 7
+_CHAIN_MAX_EXPANSIONS = 25
+_CHAIN_MAX_HOPS = 3
+
+
+def check_chain_map() -> list[str]:
+    """CHAIN ENGINE (D3): the fail-closed chain_map.yaml lint. The curated-chain discipline as code -- the engine
+    walks ONLY these chains, so a malformed row must fail the BUILD, never firing a fabricated path at serve time.
+    Every check (sec 2.5), fail-closed like its cascade_map sibling:
+
+      1. every `contracts[]` entry is a LOADED contract; every `node` exists in that contract's DAG (ACCENT-FOLDED
+         both sides -- the ENSO root is accented `La_Niña` in 8/14 v1 DAGs, ASCII `La_Nina` in the chain_map; a
+         literal match would leave accented-contract roots unmatched while the lint stayed green).
+      2. every consecutive (parent->child) hop pair is a REAL DAG edge: child.parents contains the parent id,
+         accent-folded (the SAME fold the engine runs at match time, cascade._accent_fold).
+      3. every `ref` is an ACTIVE cascade_map row (load_map drops deferred); no hop's table is in the census
+         UNCERTIFIED set; every `country:` PIN is a known PSD title post-_PSD_COUNTRY_FOLD.
+      4. grain-direction (sec 2.2(3), S5): no hop finer-grained than its parent (year_month/date rank 0 <
+         marketing_year rank 1) -- a MY->year_month step (spread an MY over months) is the deferred hard case.
+      5. caps: <=3 quantified hops/row; <=6 contracts/row; <=7 rows; <=25 total contract expansions.
+    """
+    from leviathan.graphrag.graph import CausalGraph
+    from leviathan.graphrag.numbers.cascade import (_GRAIN_RANK, _PSD_COUNTRY_FOLD, _accent_fold, load_chain_map,
+                                                    load_map, load_region_map)
+    from leviathan.graphrag.numbers.cascade_census import UNCERTIFIED_TABLES as _uncertified
+    errs: list[str] = []
+    try:
+        chains = load_chain_map()
+    except Exception as exc:  # noqa: BLE001 -- a malformed chain_map must fail the build, not crash lint silently
+        return [f"chain_map: failed to parse ({exc})"]
+    if not chains:
+        return errs                                     # no file / all-deferred -> the chain engine no-ops (OK)
+    graph = CausalGraph.load()
+    loaded = frozenset(graph.contracts.keys())
+    refs = load_map() or {}
+    # known PSD surface-form titles = the curated region_map resolve country set + the fold targets (offline
+    # proxy for the live DISTINCT-title probe -- the lint is AWS-free).
+    resolve = (load_region_map() or {}).get("resolve") or {}
+    known_titles = {(v or {}).get("country") for v in resolve.values() if (v or {}).get("country")}
+    known_titles |= set(_PSD_COUNTRY_FOLD.values())
+    # per-contract accent-folded driver -> parents (accent-folded) index, built once.
+    dag: dict = {}
+    for cslug, c in graph.contracts.items():
+        dag[cslug] = {_accent_fold(d.id): {_accent_fold(p) for p in (d.parents or [])} for d in c.drivers}
+
+    if len(chains) > _CHAIN_MAX_ROWS:
+        errs.append(f"chain_map: {len(chains)} active rows > max {_CHAIN_MAX_ROWS} (expansion guard, sec 2.5)")
+    total_expansions = 0
+    seen_ids: set = set()
+    for ch in chains:
+        cid = (ch or {}).get("id") or "<no-id>"
+        if cid in seen_ids:
+            errs.append(f"chain_map {cid!r}: duplicate chain id")
+        seen_ids.add(cid)
+        contracts = (ch or {}).get("contracts") or []
+        hops = (ch or {}).get("hops") or []
+        if not contracts:
+            errs.append(f"chain_map {cid!r}: no contracts")
+        if not hops:
+            errs.append(f"chain_map {cid!r}: no hops")
+        if len(contracts) > _CHAIN_MAX_CONTRACTS_PER_ROW:
+            errs.append(f"chain_map {cid!r}: {len(contracts)} contracts > max "
+                        f"{_CHAIN_MAX_CONTRACTS_PER_ROW}/row (sec 2.5)")
+        if len(hops) > _CHAIN_MAX_HOPS:
+            errs.append(f"chain_map {cid!r}: {len(hops)} hops > max {_CHAIN_MAX_HOPS} quantified hops (sec 2.5)")
+        total_expansions += len(contracts)
+        # ── ref + pin + grain checks are contract-independent (per hop) ──
+        prev_rank = None
+        for i, hop in enumerate(hops):
+            ref = (hop or {}).get("ref")
+            row = refs.get(ref)
+            if row is None:
+                errs.append(f"chain_map {cid!r} hop {i} (node {(hop or {}).get('node')!r}): ref {ref!r} is not "
+                            f"an ACTIVE cascade_map row (absent or deferred)")
+                prev_rank = None
+                continue
+            if row.get("table") in _uncertified:
+                errs.append(f"chain_map {cid!r} hop {i}: ref {ref!r} table {row.get('table')!r} is in the census "
+                            f"UNCERTIFIED set -- a chain hop must read a certified table")
+            pin = (hop or {}).get("country")
+            if pin is not None:
+                folded = _PSD_COUNTRY_FOLD.get(pin, pin)
+                if folded not in known_titles:
+                    errs.append(f"chain_map {cid!r} hop {i}: country pin {pin!r} (fold {folded!r}) is not a known "
+                                f"PSD title (curated region_map country set)")
+            rank = _GRAIN_RANK.get(row.get("period_type"), 0)
+            if prev_rank is not None and rank < prev_rank:
+                errs.append(f"chain_map {cid!r} hop {i} (ref {ref!r}, {row.get('period_type')!r}): finer-grained "
+                            f"than its parent -- a downstream hop may not be sub-annual under an annual parent "
+                            f"(sec 2.2(3))")
+            prev_rank = rank
+        # ── node-existence + edge checks are PER CONTRACT (accent-folded) ──
+        for cslug in contracts:
+            if cslug not in loaded:
+                errs.append(f"chain_map {cid!r}: contract {cslug!r} is not a loaded contract")
+                continue
+            drivers = dag.get(cslug, {})
+            prev_fold = None
+            for i, hop in enumerate(hops):
+                node = (hop or {}).get("node")
+                nf = _accent_fold(node)
+                if nf not in drivers:
+                    errs.append(f"chain_map {cid!r}/{cslug}: node {node!r} is not a driver id in that DAG")
+                    prev_fold = None
+                    continue
+                if prev_fold is not None and prev_fold not in drivers.get(nf, set()):
+                    errs.append(f"chain_map {cid!r}/{cslug}: hop {i} {node!r} does not list the prior hop as a "
+                                f"parent -- (parent->child) is NOT a real DAG edge (accent-folded)")
+                prev_fold = nf
+    if total_expansions > _CHAIN_MAX_EXPANSIONS:
+        errs.append(f"chain_map: {total_expansions} total contract expansions > max {_CHAIN_MAX_EXPANSIONS} "
+                    f"(expansion guard, sec 2.5)")
+    return errs
+
+
 def check_complex_map() -> list[str]:
     """RV-W0: reroute-v2 complex_map integrity (mirrors check_cascade_map). Validates EVERY authored
     pair (material or not -- iter_all_pairs, so the loader's inert-drop can't hide a malformed row):
@@ -808,6 +926,7 @@ def main() -> int:
                         ("display_names", check_display_names()),
                         ("display_vocab", check_display_vocab()),
                         ("cascade_map", check_cascade_map()),
+                        ("chain_map", check_chain_map()),
                         ("complex_map", check_complex_map()),
                         ("pin_realizability", check_pin_realizability()),
                         ("driver_slices", check_driver_slices()),

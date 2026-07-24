@@ -56,7 +56,27 @@ def _cascade_stats(out: dict) -> dict:
             statuses.update(ss)
         if t.get("current_status"):
             statuses.add(t["current_status"])
+    # CHAIN ENGINE (CHAIN_ENGINE_PLAN sec 5.2): quantify_chain is ENGINE-written, present IFF a chain FIRED;
+    # an attempted-and-declined chain writes quantify_chain_decline (a reason enum); a no-match turn leaves BOTH
+    # absent. chain_fired = the pace_fired idiom (bool of the trace key). n_chain_hops_cited = the count of
+    # DISTINCT chain-hop metrics the model actually CITED (base metric, _delta/_pct suffix stripped) -- the
+    # min_chain_hops_cited pin (observational, flag+data-dependent, so a TRUE pin is calibrated live, D9).
+    chain_tr = (out.get("trace") or {}).get("quantify_chain") or {}
+    chain_dec = (out.get("trace") or {}).get("quantify_chain_decline") or {}
+    chain_hop_metrics = {h.get("metric") for h in (chain_tr.get("hops") or [])
+                         if h.get("metric") and "collapsed_into" not in h}
+
+    def _base_metric(loc) -> str:
+        mm = str((loc or {}).get("metric") or "")
+        for suf in ("_delta", "_pct"):
+            if mm.endswith(suf):
+                mm = mm[:-len(suf)]
+        return mm
+    cited_chain_metrics = {_base_metric(c.get("locator")) for c in cited
+                           if _base_metric(c.get("locator")) in chain_hop_metrics}
     return {"fired": bool(tr), "n_rows": len(cits), "n_cited": len(cited),
+            "chain_fired": bool(chain_tr), "chain_decline_reason": chain_dec.get("reason"),
+            "n_chain_hops_cited": len(cited_chain_metrics),
             "cited_ids": [c.get("id") for c in cited],
             "divergence_nodes": sum(1 for t in tr if t.get("divergence")),
             # RF-5: quantify_reroute carries FIRED (opposite-sign) pairs ONLY -- same-sign candidates
@@ -117,6 +137,11 @@ _CASCADE_EXPECT = ("cascade_fired", "min_cascade_cited", "delta_row", "fork", "a
                    "pit_clean", "su_prescaled", "ok_era_leg", "reroute_fired",
                    "opposite_country_legs", "two_countries_cited", "no_unbacked_fork",
                    "reroute_v2_expected", "detection_tier", "comove_expected", "pace_expected",
+                   # CHAIN ENGINE (sec 6.1): multi-hop quantified-cascade pins. chain_fired (boolean; the
+                   # negative pin is the realizable teeth -- an engine-dark chain MUST stay false),
+                   # min_chain_hops_cited (>= N distinct chain-hop metrics cited; observational), and
+                   # chain_decline_reason (the reasoned-decline enum / 'absent' for the negative rows).
+                   "chain_fired", "min_chain_hops_cited", "chain_decline_reason",
                    # W3.6 price-observability pins: level-citation + unit discipline on the price tables,
                    # the NONE-tier decline guard, and the RAW (pre-sanitize, DP-6) valuation/flow/mismatch
                    # trace counters the bait + PIT + honesty rows assert to 0.
@@ -199,6 +224,23 @@ def _cascade_asserts(q: dict, out: dict) -> dict | None:
             # realizable teeth (annual/MY grain and <2-point declines MUST leave the key absent); the
             # positive pin is flag-gated + data-dependent -> observational.
             res[k] = cs["pace_fired"] == bool(want)
+        elif k == "chain_fired":
+            # CHAIN ENGINE (sec 5.2/6.1): trace-only boolean pin (the pace_fired idiom). quantify_chain is
+            # ENGINE-written IFF a chain fired; a no-match / declined turn leaves it absent -> false, never
+            # KeyError. The NEGATIVE branch is the realizable teeth (an engine-dark chain, e.g. the SA-maize
+            # IOD ask that matches NO v1 chain, MUST stay false); the positive is flag-gated + data-dependent.
+            res[k] = cs["chain_fired"] == bool(want)
+        elif k == "min_chain_hops_cited":
+            # >= N DISTINCT chain-hop metrics actually cited in the STRUCTURED prose (observational: firing +
+            # citing both depend on the turn, so this rides the ON arm and is calibrated against the live probe).
+            res[k] = cs["n_chain_hops_cited"] >= int(want)
+        elif k == "chain_decline_reason":
+            # The reasoned-decline enum pin (D7). `want` is a reason string OR a list of accepted reasons;
+            # the token 'absent' (or a literal null in the list) accepts NO decline key -- a no-match or a
+            # FIRED turn. The negative row pins [absent, root_not_grounded]: an IOD ask engine-dark BY DESIGN.
+            allowed = list(want) if isinstance(want, (list, tuple)) else [want]
+            got = cs["chain_decline_reason"]
+            res[k] = (got in allowed) or (got is None and ("absent" in allowed or None in allowed))
         elif k == "detection_tier":
             # RV2 W2 (D15 amended): the tier pin requires the dispatch planner ACTUALLY ran (the same C11c
             # fallback-vacuity guard as reroute_v2_expected) AND the stamped tier to match -- a fallback,
@@ -348,6 +390,8 @@ def _per_answer_record(r: dict, run_kind: str) -> dict:
             "comove_fired": cs["comove_fired"],                # SEAM A boolean (F7): per-tier soak attribution
             "price_leg_fired": cs["price_leg_fired"],          # SEAM B boolean: settled farm-price pair rendered
             "pace_fired": cs["pace_fired"],                    # T2a boolean: deterministic pace row rendered
+            "chain_fired": cs["chain_fired"],                  # CHAIN boolean: a multi-hop chain fired this turn
+            "chain_decline_reason": cs["chain_decline_reason"],  # the reasoned-decline enum (D7 soak signal)
             "detection_tier": ((out.get("intent_decision") or {}).get("xc_detect") or {}).get("tier"),
             "cascade_asserts": (r.get("rubric") or {}).get("cascade_asserts"),
             # R3 F12: without degraded_model in the record a degraded turn is byte-indistinguishable from a
