@@ -52,9 +52,10 @@ def test_branch_selection_all_43_tables():
     # 12 after PRICE_OBSERVABILITY W4.2 wired silver_cot;
     # 13 after SEAM C whitelisted silver_futures_prices (2026-07-23);
     # 15 after WIRING WAVE-1 wired silver_noaa_iod + silver_conab_coffee (2026-07-23) -- the wave
-    # landed the P1_TABLES additions without bumping this pin (caught by the FUTURES v1.5 battery).
+    # landed the P1_TABLES additions without bumping this pin (caught by the FUTURES v1.5 battery);
+    # 16 after WIRING WAVE-1 Card C wired silver_sagis_weekly_exports once its catalog ALTER landed.
     assert branch_a == g.PG_MIRROR_TABLES, branch_a
-    assert len(branch_a) == 15
+    assert len(branch_a) == 16
     assert branch_a | branch_b == set(names)          # partition: no table is UNKNOWN in the real registry
     assert not (branch_a & branch_b)
 
