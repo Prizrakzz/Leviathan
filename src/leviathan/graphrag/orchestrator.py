@@ -107,15 +107,20 @@ def _verify_numbers_answer(answer: str, calls: list) -> dict:
     # that read as "stated figures" -- the pink_sheet provenance stamp made this fire for the first time
     # (W3.7: both CORRECT price answers wore a false caution banner and failed their mismatch pins).
     scrub = re.sub(r"\d{4}-M\d{2}|\d{4}-\d{2}(?:-\d{2})?|\d{4}M\d{2}|\d{4}/\d{2,4}|\[N\d+\]", " ", answer)
-    # NEWCAP TRIAGE (2026-07-24, CONAB false-caution class): two more non-VALUE shapes fired the banner
-    # on CORRECT survey answers -- (a) prose dates ('published June 1, 2025' / '2 February 2026') shed a
-    # day-of-month that reads as a stated 1.0/2.0; (b) hyphen-glued unit descriptors ('60-kg bags') read
-    # as a stated 60. Both are labels, not data figures.
+    # NEWCAP TRIAGE (2026-07-24, false-caution classes; two rounds, both live-serving bugs): non-VALUE
+    # numeral shapes fired the banner on CORRECT answers -- (a) prose dates with OR without a year
+    # ('published June 1, 2025', 'the June 5 trading session', '2 February 2026') shed a day-of-month;
+    # (b) hyphen-glued unit descriptors ('60-kg bags') read as a stated 60; (c) duration arithmetic
+    # ('more than 14 months old') is derived, not looked-up; (d) markdown ordered-list markers ('1. ')
+    # read as stated 1.0/2.0/3.0. All are labels/derivations, never data figures. The no-year date form
+    # subsumes the with-year one (the residual year token is already skipped by the year filter below).
     _MONTHS = (r"(?:January|February|March|April|May|June|July|August|September|October|November|"
                r"December)")
-    scrub = re.sub(rf"{_MONTHS}\s+\d{{1,2}}(?:st|nd|rd|th)?(?:,\s*|\s+)\d{{4}}"
-                   rf"|\d{{1,2}}(?:st|nd|rd|th)?\s+{_MONTHS}(?:,\s*|\s+)\d{{4}}", " ", scrub)
+    scrub = re.sub(rf"{_MONTHS}\s+\d{{1,2}}(?:st|nd|rd|th)?\b"
+                   rf"|\b\d{{1,2}}(?:st|nd|rd|th)?\s+{_MONTHS}", " ", scrub)
     scrub = re.sub(r"\b\d+(?:\.\d+)?-(?=[A-Za-z])", " ", scrub)
+    scrub = re.sub(r"\b\d+(?:\.\d+)?\s+(?:month|week|day|year|hour)s?\b", " ", scrub)
+    scrub = re.sub(r"(?m)^\s*\d{1,2}\.\s+", " ", scrub)
     stated = [v for v in vf._numbers_in(scrub)
               if abs(v) >= 0.001 and not (1900 <= v <= 2100 and float(v).is_integer())]   # skip years
     mismatched = [v for v in stated if row_vals and not vf._num_matches([v], row_vals)]

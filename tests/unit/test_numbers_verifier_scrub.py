@@ -52,6 +52,16 @@ def test_bag_conversion_only_for_bag_metrics():
     assert nv["mismatched"] == 1, nv
 
 
+def test_round2_classes_no_year_dates_durations_list_markers():
+    # the three residual classes the v2 no-judge run surfaced (iod/provenance/empty-persistence rows)
+    calls = [{"query": {"metric": "dmi_value"}, "rows": [{"value": 0.149}]}]
+    answer = ("The latest reading is +0.149 degC for April 2025, more than 14 months old. "
+              "The June 5 trading session had not settled.\n"
+              "1. WASDE does not track this\n2. PSD is annual only\n3. SAGIS covers South Africa")
+    nv = _verify_numbers_answer(answer, calls)
+    assert nv["mismatched"] == 0, nv
+
+
 def test_eval_price_asserts_ignore_error_citations():
     from leviathan.graphrag.eval import _cascade_asserts
     q = {"expect": {"price_cited": True, "unit_present": True}}
