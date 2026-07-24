@@ -39,12 +39,19 @@ def test_single_row_and_not_known_render():
     assert "(NOT KNOWN at asof)" in panel
 
 
-def test_per_call_row_bound_notes_overflow():
+def test_per_call_row_bound_is_tail_biased():
+    """Overflow keeps the FIRST 2 + LAST 6 rows (cocoa proof-run 2026-07-24: a head-only bound hid the
+    latest rows — exactly what answers cite — and the judge downgraded a correct figure to 'cannot be
+    confirmed'). Hidden middle rows are declared UNVERIFIED, never fabricated."""
     big = dict(_SERIES_CALL)
     big["rows"] = [{"value": float(i), "period": str(2000 + i)} for i in range(12)]
     panel = _judge_numbers_panel({"number_calls": [big]}, max_rows_per_call=8)
-    assert "+4 more rows" in panel
-    assert "value=7.0" in panel and "value=8.0" not in panel
+    # head 2 (2000, 2001) + tail 6 (2006..2011) visible; middle 4 (2002..2005) summarized
+    assert "value=0.0" in panel and "value=1.0" in panel
+    assert "value=11.0" in panel and "value=6.0" in panel
+    assert "value=3.0" not in panel
+    assert "+4 middle rows" in panel and "2002..2005" in panel
+    assert "UNVERIFIED" in panel and "never 'fabricated'" in panel
 
 
 def test_cascade_citation_merge_dedups_by_locator():

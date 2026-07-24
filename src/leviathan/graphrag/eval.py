@@ -700,12 +700,26 @@ def _judge_numbers_panel(out: dict, max_rows_per_call: int = 8) -> str:
             lines.append(head + f" = {r.get('value')}" + (f"  [known {kd}]" if kd else ""))
         else:
             lines.append(head + f" -> {len(rws)} rows retrieved (a figure matching ANY row at its period is grounded):")
-            for r in rws[:max_rows_per_call]:
+
+            def _row_line(r: dict) -> str:
                 kd = r.get("knowledge_date")
-                lines.append(f"    period={r.get('period', '?')} value={r.get('value')}"
-                             + (f" known={kd}" if kd else ""))
-            if len(rws) > max_rows_per_call:
-                lines.append(f"    ... +{len(rws) - max_rows_per_call} more rows")
+                return (f"    period={r.get('period', '?')} value={r.get('value')}"
+                        + (f" known={kd}" if kd else ""))
+
+            if len(rws) <= max_rows_per_call:
+                lines += [_row_line(r) for r in rws]
+            else:
+                # Tail-biased overflow (cocoa proof-run 2026-07-24): the first head-only bound hid the
+                # LATEST rows — exactly the ones answers cite — and the judge downgraded a correct latest-row
+                # figure to 'cannot be confirmed'. Answers overwhelmingly cite the most recent rows, so show
+                # the first 2 + the last (max-2), and tell the judge hidden rows are UNVERIFIED, not wrong.
+                n_tail = max_rows_per_call - 2
+                hidden = rws[2:-n_tail]
+                lines += [_row_line(r) for r in rws[:2]]
+                lines.append(f"    ... +{len(hidden)} middle rows (periods "
+                             f"{hidden[0].get('period', '?')}..{hidden[-1].get('period', '?')}) not shown -- "
+                             f"a figure claimed for an unshown period is UNVERIFIED here, never 'fabricated'")
+                lines += [_row_line(r) for r in rws[-n_tail:]]
     # P9-AB G3: cascade-injected rows never reach number_calls (the seam appends to a COPY) — they live only
     # in citations kind=number. Without this merge the judge's OBSERVED-NUMBERS panel reads '(none)' on a
     # cascade turn and flags every narrated [N] figure as a hallucination. Dedup vs agent rows by locator.
@@ -1111,7 +1125,15 @@ def _num_line(out: dict) -> str:
     parts = []
     for c in out.get("number_calls") or []:
         qy, rws = c.get("query", {}), (c.get("rows") or [])
-        val = rws[0].get("value") if rws else ("ERROR" if c.get("status") == "error" else "(not known)")
+        if not rws:
+            val = "ERROR" if c.get("status") == "error" else "(not known)"
+        elif len(rws) == 1:
+            val = rws[0].get("value")
+        else:
+            # LATEST row, labeled — the old rows[0] render showed a series' oldest year as THE value
+            # and seeded the cocoa false-fabrication mis-triage (RCA 2026-07-24)
+            last = rws[-1]
+            val = f"{last.get('value')}@{last.get('period', '?')} (latest of {len(rws)} rows)"
         parts.append(f"{qy.get('table','?')}.{qy.get('metric','?')}={val}")
     return ", ".join(parts)
 
