@@ -275,6 +275,7 @@ def check_chain_map() -> list[str]:
         errs.append(f"chain_map: {len(chains)} active rows > max {_CHAIN_MAX_ROWS} (expansion guard, sec 2.5)")
     total_expansions = 0
     seen_ids: set = set()
+    _waived_folds = None                                 # lazy one-shot driver_slices waivers read (anchorability lint)
     for ch in chains:
         cid = (ch or {}).get("id") or "<no-id>"
         if cid in seen_ids:
@@ -292,6 +293,25 @@ def check_chain_map() -> list[str]:
         if len(hops) > _CHAIN_MAX_HOPS:
             errs.append(f"chain_map {cid!r}: {len(hops)} hops > max {_CHAIN_MAX_HOPS} quantified hops (sec 2.5)")
         total_expansions += len(contracts)
+        # ── static anchorability (minideck RCA 2026-07-24): a waiver-dark node has no evidence slice, so it
+        # can never yield an anchor window. The runtime survives a dark ROOT via the downstream-anchor
+        # fallback (cascade.py), but a chain whose EVERY hop node is waived is statically dead -- it would
+        # silently skip and let a DIFFERENT-mechanism row fire into the question (the wheat skeleton fired
+        # enso_drought into an acreage ask). All-dark = config error, not a runtime surprise.
+        if hops:
+            if _waived_folds is None:                    # hoisted: one driver_slices read per lint run, not per row
+                from leviathan.graphrag import evidence as _ev
+                import yaml as _yaml
+                try:
+                    _waived_folds = {_accent_fold(k) for k in
+                                     ((_yaml.safe_load(_ev._DRIVER_PATH.read_text(encoding="utf-8")) or {})
+                                      .get("waivers") or {})}
+                except OSError:
+                    _waived_folds = set()
+            hop_folds = {_accent_fold((hp or {}).get("node")) for hp in hops}
+            if hop_folds and hop_folds <= _waived_folds:
+                errs.append(f"chain_map {cid!r}: EVERY hop node is waiver-dark in driver_slices.yaml -- the "
+                            f"chain can never derive an anchor window (statically unanchorable)")
         # ── ref + pin + grain checks are contract-independent (per hop) ──
         prev_rank = None
         for i, hop in enumerate(hops):

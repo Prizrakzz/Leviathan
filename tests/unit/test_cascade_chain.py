@@ -13,7 +13,10 @@ Coverage: loader schema (deferred filter + file-absent -> []); the PSD su_ratio 
 explicit per-hop country PIN (2.1); anchor-window monthly-x-annual alignment + the downstream-only grain
 rule (2.2); the degenerate-hop guard collapse-then-decline-if-<2 (2.3); accent-fold on selection AND
 per-hop lookups (3.2); CHAIN_CAP reuse-before-fetch cap-atomic (3.4); dark-hop kills the chain +
-reasoned-decline enum (4.1/5.2); byte-identical flag-off serialization.
+reasoned-decline enum (4.1/5.2); byte-identical flag-off serialization. Plus the minideck-RCA selection
+fixes (2026-07-24): the (coverage, DEPTH) tie-break that stops a 2-hop prefix shadowing its 3-hop chain, and
+the DOWNSTREAM anchor fallback that keeps a waiver-dark root (bare `area`) from silently handing the turn to
+a different-mechanism row.
 """
 from __future__ import annotations
 
@@ -223,9 +226,16 @@ def test_selection_full_mechanism_reaches_deeper_chain(monkeypatch):
     assert len([hp for hp in fired["hops"] if "collapsed_into" not in hp]) == 3     # the su terminal is present
 
 
-def test_selection_shorter_mechanism_keeps_file_order_shorter_chain(monkeypatch):
-    # only La_Nina + drought grounded (su NOT named): both tie at coverage 2 -> FILE ORDER wins -> the 2-hop
-    # enso_drought fires, NOT the deeper control. Proves the fix is coverage-first, not "always pick longest".
+# ── SELECTION tie-break by DEPTH after coverage (minideck RCA 2026-07-24; SUPERSEDES the file-order pin) ──
+# The coverage pick above only reaches the deeper row when the walk happens to ground its extra node. On the
+# live coffee deck it did NOT (no su node this walk), so the 3-hop CONTROL tied its own 2-hop PREFIX
+# (enso_drought) at coverage 2, file order handed it to the SHORTER row, and chain_coffee_control_pos
+# min_chain_hops_cited:3 was unsatisfiable on TWO consecutive live runs (…T110343Z, …T215259Z). The selection
+# key is now (cov, depth). Depth is honest ONLY as a tie-break: at equal coverage the deeper row CONTAINS the
+# shorter one as its prefix, so nothing the shorter row would have quantified is lost.
+def test_selection_depth_breaks_a_coverage_tie(monkeypatch):
+    # only La_Nina + drought grounded (su NOT named) -> both rows tie at coverage 2. Pre-fix the 2-hop
+    # enso_drought won on file order; the depth tie-break now reaches the 3-hop CONTROL and its su terminal.
     _cm(monkeypatch, _coffee_chains())
     monkeypatch.setattr("leviathan.graphrag.silverleg._primary_country", lambda c: "brazil")
     nodes = [_evnode("arabica_coffee", NINA, "oni_climate", ["2010-09-05", "2010-10-10"]),
@@ -233,8 +243,142 @@ def test_selection_shorter_mechanism_keeps_file_order_shorter_chain(monkeypatch)
     _l, fired, decline = cq._chain_legs(_sg(["arabica_coffee"], nodes), _coffee_graph(), [], [],
                                         _qfn_factory(), ASOF, "2010", [])
     assert decline is None and fired is not None
-    assert fired["chain_id"] == "enso_drought"                                      # coverage tie -> file order
+    assert fired["chain_id"] == "coffee_lanina_drought_su"                          # depth BEAT file order
+    hops = [hp for hp in fired["hops"] if "collapsed_into" not in hp]
+    assert len(hops) == 3 and hops[2]["metric"] == "su_ratio"    # the deck's 3rd hop is now quantifiable
+
+
+def _depth_vs_coverage_graph():
+    """The coffee DAG plus a PSD spine that the walk does NOT ground -- the geometry where a SHALLOW row
+    carries strictly more grounded hop nodes than a DEEPER one."""
+    return _graph("arabica_coffee", [
+        _drv(NINA, "oni_climate"),
+        _drv("drought", "drought_z", parents=[NINA], region="US_Midwest"),
+        _drv("brazil_production", "production", parents=[NINA]),
+        _drv("psd_ending_stock_su_ratio", "psd_ending_stock_su_ratio", parents=["brazil_production"],
+             typ="fundamental")])
+
+
+def test_selection_coverage_still_outranks_depth(monkeypatch):
+    # The DEEP row sits FIRST in file order and is one hop longer, but only its ROOT is grounded (cov 1);
+    # the SHALLOW row has BOTH hop nodes grounded (cov 2). Key (2,2) > (1,3) -> coverage wins. This is the
+    # anti-regression half of the tie-break: "prefer deeper" must never become "always pick the longest".
+    chains = [{"id": "deep_ungrounded", "contracts": ["arabica_coffee"],             # 3 hops, FILE-ORDER FIRST
+               "hops": [{"node": "La_Nina", "ref": "oni_climate"},
+                        {"node": "brazil_production", "ref": "production"},
+                        {"node": "psd_ending_stock_su_ratio", "ref": "psd_ending_stock_su_ratio"}]},
+              {"id": "enso_drought", "contracts": ["arabica_coffee"],                # 2 hops, LATER
+               "hops": [{"node": "La_Nina", "ref": "oni_climate"},
+                        {"node": "drought", "ref": "drought_z"}]}]
+    _cm(monkeypatch, chains)
+    monkeypatch.setattr("leviathan.graphrag.silverleg._primary_country", lambda c: "brazil")
+    nodes = [_evnode("arabica_coffee", NINA, "oni_climate", ["2010-09-05", "2010-10-10"]),
+             _evnode("arabica_coffee", "drought", "drought_z", ["2010-09-20"], region="US_Midwest")]
+    _l, fired, decline = cq._chain_legs(_sg(["arabica_coffee"], nodes), _depth_vs_coverage_graph(), [], [],
+                                        _qfn_factory(), ASOF, "2010", [])
+    assert decline is None and fired is not None
+    assert fired["chain_id"] == "enso_drought"                    # cov 2 beat the longer cov-1 row
     assert len([hp for hp in fired["hops"] if "collapsed_into" not in hp]) == 2
+
+
+def test_selection_exact_key_tie_keeps_file_order(monkeypatch):
+    # identical coverage AND identical depth -> the key comparison is not strictly-greater, so the FIRST
+    # focus row (file order) survives: selection stays deterministic under the new key.
+    twin = {"contracts": ["arabica_coffee"],
+            "hops": [{"node": "La_Nina", "ref": "oni_climate"},
+                     {"node": "drought", "ref": "drought_z"}]}
+    _cm(monkeypatch, [dict(twin, id="first_row"), dict(twin, id="second_row")])
+    monkeypatch.setattr("leviathan.graphrag.silverleg._primary_country", lambda c: "brazil")
+    nodes = [_evnode("arabica_coffee", NINA, "oni_climate", ["2010-09-05", "2010-10-10"]),
+             _evnode("arabica_coffee", "drought", "drought_z", ["2010-09-20"], region="US_Midwest")]
+    _l, fired, _d = cq._chain_legs(_sg(["arabica_coffee"], nodes), _coffee_graph(), [], [],
+                                   _qfn_factory(), ASOF, "2010", [])
+    assert fired is not None and fired["chain_id"] == "first_row"
+
+
+# ── ANCHOR FALLBACK: a waiver-dark ROOT no longer kills the chain (minideck RCA 2026-07-24, wheat) ────────
+# The skeleton roots on bare `area` -- a driver_slices WAIVER (deferred, "urea->area difflib noise"), so it
+# never carries dated evidence, _derive_windows returned [] and the row was SKIPPED. The next focus row
+# (enso_drought) then fired a CLIMATE chain into an ACREAGE question and the model rightly cited none of it
+# (min_chain_hops_cited 0/2 on both live runs). The anchor now falls back to the first DOWNSTREAM hop node
+# grounded with dated evidence -- still THE ONE shared window, still the R3 clamp.
+def _windowless_root_nodes(su_dates):
+    return [_evnode("wheat", "area", "area", []),                  # grounded in the walk, ZERO dated props
+            _evnode("wheat", "ending_stocks", "psd_ending_stock_su_ratio", list(su_dates))]
+
+
+def test_anchor_falls_back_to_first_grounded_downstream_hop(monkeypatch):
+    _cm(monkeypatch, _skeleton_chain())
+    monkeypatch.setattr("leviathan.graphrag.silverleg._primary_country", lambda c: "united_states")
+    nodes = _windowless_root_nodes(["2010-08-05", "2010-11-20"])
+    assert cq._derive_windows(nodes[0], "2010", ASOF) == []         # the pre-fix kill: the ROOT has NO window
+    calls = []
+    lines, fired, decline = cq._chain_legs(_sg(["wheat"], nodes), _skeleton_graph(), [], [],
+                                           _qfn_factory(), ASOF, "2010", calls)
+    assert decline is None and fired is not None and fired["chain_id"] == "wheat_area_su"
+    assert [hp["node"] for hp in fired["hops"]] == ["area", "ending_stocks"]
+    # THE deck payload: both hop metrics quantified, so min_chain_hops_cited:2 is satisfiable at all.
+    assert [hp["metric"] for hp in fired["hops"]] == ["area_harvested_1000ha", "su_ratio"]
+    # the anchor is the DOWNSTREAM node's OWN derived window -- never a minted or widened one.
+    w = cq._derive_windows(nodes[1], "2010", ASOF)
+    assert fired["window"] == f"{w[0][0]}..{w[0][1]}"
+    assert fired["n_rows"] == len(calls) > 0                       # every handle rides a real injected row
+    assert any("chain hop 1/2" in ln for ln in lines) and any("chain hop 2/2" in ln for ln in lines)
+
+
+def test_dated_root_still_anchors_on_the_root_window(monkeypatch):
+    # the fallback is a FALLBACK: a root with its own dated evidence keeps anchoring on the root (R3), even
+    # when a downstream hop node carries a different, closer episode.
+    _cm(monkeypatch, _skeleton_chain())
+    monkeypatch.setattr("leviathan.graphrag.silverleg._primary_country", lambda c: "united_states")
+    root = _evnode("wheat", "area", "area", ["2010-08-05", "2010-11-20"])
+    downstream = _evnode("wheat", "ending_stocks", "psd_ending_stock_su_ratio", ["2009-01-05", "2009-02-01"])
+    _l, fired, decline = cq._chain_legs(_sg(["wheat"], [root, downstream]), _skeleton_graph(), [], [],
+                                        _qfn_factory(), ASOF, "2010", [])
+    assert decline is None and fired is not None
+    w_root = cq._derive_windows(root, "2010", ASOF)
+    assert fired["window"] == f"{w_root[0][0]}..{w_root[0][1]}"
+
+
+def _skeleton_graph_with_enso():
+    return _graph("wheat", [_drv("area", "area"),
+                            _drv(NINA, "oni_climate"),
+                            _drv("ending_stocks", "psd_ending_stock_su_ratio", parents=["area", NINA])])
+
+
+def test_all_hops_windowless_falls_through_to_the_next_focus_row(monkeypatch):
+    # skeleton: BOTH hop nodes windowless -> no anchor anywhere -> the row is skipped (not an error), and a
+    # LATER focus row whose own root is dated still fires. The fallback never strands the turn.
+    _cm(monkeypatch, _skeleton_chain() + [{"id": "enso_su", "contracts": ["wheat"],
+                                           "hops": [{"node": "La_Nina", "ref": "oni_climate"},
+                                                    {"node": "ending_stocks",
+                                                     "ref": "psd_ending_stock_su_ratio"}]}])
+    monkeypatch.setattr("leviathan.graphrag.silverleg._primary_country", lambda c: "united_states")
+    nodes = _windowless_root_nodes([]) + [_evnode("wheat", NINA, "oni_climate", ["2010-09-05", "2010-10-10"])]
+    _l, fired, decline = cq._chain_legs(_sg(["wheat"], nodes), _skeleton_graph_with_enso(), [], [],
+                                        _qfn_factory(), ASOF, "2010", [])
+    assert decline is None and fired is not None and fired["chain_id"] == "enso_su"
+
+
+def test_all_hops_windowless_declines_root_not_grounded_and_injects_nothing(monkeypatch):
+    # the only focus row is unanchorable end to end -> the honest decline enum, ZERO injected rows, no raise.
+    _cm(monkeypatch, _skeleton_chain())
+    calls = []
+    lines, fired, decline = cq._chain_legs(_sg(["wheat"], _windowless_root_nodes([])), _skeleton_graph(),
+                                           [], [], _qfn_factory(), ASOF, "2010", calls)
+    assert lines == [] and fired is None and not calls
+    assert decline == {"chain_id": "wheat_area_su", "reason": "root_not_grounded"}
+
+
+def test_windowless_root_with_downstream_hop_absent_from_walk_declines(monkeypatch):
+    # the fallback's other edge: the downstream hop node is not a walk node at all (_chain_root_node -> None).
+    # It must be skipped, not dereferenced -> the same honest decline.
+    _cm(monkeypatch, _skeleton_chain())
+    only_root = [_evnode("wheat", "area", "area", [])]              # `ending_stocks` never grounded this walk
+    calls = []
+    _l, fired, decline = cq._chain_legs(_sg(["wheat"], only_root), _skeleton_graph(), [], [],
+                                        _qfn_factory(), ASOF, "2010", calls)
+    assert fired is None and decline["reason"] == "root_not_grounded" and not calls
 
 
 # ── the downstream-only grain rule (2.2(3), S5): a MY root admitted; a MY->month step declined ───────

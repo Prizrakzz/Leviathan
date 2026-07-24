@@ -10,6 +10,9 @@ CONTENT surface, so the curated list is monkeypatched at the loader seam (pinnin
   * flag ON  -> the accented ENSO root is folded-matched, the 2-hop chain (oni -> su_ratio) fires end to
                end, and trace.quantify_chain is PRESENT with minted per-hop [N] rows;
   * flag OFF -> byte-identical to today: no chain kwarg, no quantify_chain key, per-node cascade unchanged.
+
+The same seam's PROMPT half rides here too (minideck RCA 2026-07-24): _SYSTEM_CHAIN is appended inside the
+QUANT block and gated by the chain flag, so QUANT=off or chain=off leaves _system() byte-identical.
 """
 from __future__ import annotations
 
@@ -125,3 +128,49 @@ def test_live_path_flag_on_adds_chain_rows_over_off(monkeypatch):
     out_on = _run()["trace"]
     assert out_on["injected_n"] > n_off
     assert out_on["injected_n"] == n_off + out_on["quantify_chain"]["n_rows"]   # exactly the chain block's rows
+
+
+# ── _SYSTEM_CHAIN: the citation-discipline paragraph (minideck RCA 2026-07-24) ───────────────────────────
+# QUANTIFIED CHAIN was the ONLY injected marker with no system-prompt paragraph -- its lone in-block
+# instruction line lost to the five instructed markers, and the flagship corn row alone put 17 unbacked/
+# rounded chain figures into the deck's 24 strips. The paragraph rides INSIDE the QUANT block and is gated by
+# the chain flag, so both kill-switches stay live and flag-off is byte-identical to pre-feature.
+def _isolate_prompt_env(monkeypatch) -> None:
+    monkeypatch.delenv("GRAPHRAG_MENTOR_VOICE", raising=False)     # default mentor
+    monkeypatch.delenv("GRAPHRAG_PATTERN_RECORDS", raising=False)  # keep the T2B addendum out of the compare
+    monkeypatch.delenv("GRAPHRAG_CASCADE_QUANT", raising=False)    # default on
+
+
+def test_system_chain_paragraph_present_when_flag_on(monkeypatch):
+    _isolate_prompt_env(monkeypatch)
+    monkeypatch.setenv("GRAPHRAG_CASCADE_CHAIN", "on")
+    sp = an._system()
+    assert an._SYSTEM_CHAIN in sp and "QUANTIFIED CHAIN" in sp
+    assert an._SYSTEM_CASCADE in sp                                # ADDITIVE: the five-marker block is intact
+
+
+def test_system_chain_paragraph_absent_when_flag_off(monkeypatch):
+    _isolate_prompt_env(monkeypatch)
+    monkeypatch.delenv("GRAPHRAG_CASCADE_CHAIN", raising=False)    # default OFF, fail-closed
+    sp = an._system()
+    assert "QUANTIFIED CHAIN" not in sp and an._SYSTEM_CHAIN not in sp
+    assert sp == an._SYSTEM_MENTOR + an._SYSTEM_CASCADE            # byte-identical to pre-feature
+
+
+def test_system_chain_absent_when_quant_off_even_with_chain_on(monkeypatch):
+    # the paragraph rides INSIDE the QUANT block: no cascade block => no chain rows => no chain instruction.
+    _isolate_prompt_env(monkeypatch)
+    monkeypatch.setenv("GRAPHRAG_CASCADE_QUANT", "off")
+    monkeypatch.setenv("GRAPHRAG_CASCADE_CHAIN", "on")
+    sp = an._system()
+    assert "QUANTIFIED CHAIN" not in sp and an._SYSTEM_CHAIN not in sp
+    assert an._SYSTEM_CASCADE not in sp and sp == an._SYSTEM_MENTOR
+
+
+def test_system_chain_flag_is_read_per_call(monkeypatch):
+    # the env-flip rollback must be live without a redeploy (the _chain_on idiom) -- _system() is never memoized.
+    _isolate_prompt_env(monkeypatch)
+    monkeypatch.setenv("GRAPHRAG_CASCADE_CHAIN", "on")
+    assert an._SYSTEM_CHAIN in an._system()
+    monkeypatch.setenv("GRAPHRAG_CASCADE_CHAIN", "off")            # only on/1/true enable it
+    assert an._SYSTEM_CHAIN not in an._system()

@@ -135,3 +135,53 @@ def test_too_many_hops_rejected(monkeypatch):
 def test_duplicate_chain_id_rejected(monkeypatch):
     errs = _lint(monkeypatch, [_valid_skeleton(), _valid_skeleton()])
     assert any("duplicate chain id" in e for e in errs)
+
+
+# ── STATIC ANCHORABILITY (minideck RCA 2026-07-24): an ALL-waiver-dark row can never derive a window ──────
+# A waivered driver id has no text slice, so it never carries dated evidence. The runtime now survives a dark
+# ROOT via the downstream-anchor fallback, but a row whose EVERY hop node is waived is dead on arrival -- it
+# would silently skip and let a DIFFERENT-mechanism focus row fire into the question (the wheat skeleton fired
+# enso_drought into an acreage ask). That is a config error, not a runtime surprise. Hermetic: the waivers
+# read is redirected at evidence._DRIVER_PATH so the assertion never rides the shipped file's contents.
+def _waivers_file(tmp_path, names) -> object:
+    p = tmp_path / "driver_slices.yaml"
+    p.write_text("waivers:\n" + "".join(f"  {n}: {{category: deferred, note: \"test\"}}\n" for n in names),
+                 encoding="utf-8")
+    return p
+
+
+def _redirect_waivers(monkeypatch, tmp_path, names) -> None:
+    from leviathan.graphrag import evidence as ev
+    monkeypatch.setattr(ev, "_DRIVER_PATH", _waivers_file(tmp_path, names))
+
+
+def test_every_hop_node_waiver_dark_rejected(monkeypatch, tmp_path):
+    _redirect_waivers(monkeypatch, tmp_path, ["area", "ending_stocks"])
+    errs = _lint(monkeypatch, [_valid_skeleton()])
+    assert any("wheat_area_su" in e and "statically unanchorable" in e for e in errs)
+
+
+def test_one_non_waived_hop_keeps_the_row_anchorable(monkeypatch, tmp_path):
+    # the REAL shipped shape: `area` IS waived, `ending_stocks` is NOT -> the downstream fallback can anchor
+    # it, so the row must lint CLEAN (the lint must not regress the skeleton it exists to protect).
+    _redirect_waivers(monkeypatch, tmp_path, ["area"])
+    assert _lint(monkeypatch, [_valid_skeleton()]) == []
+
+
+def test_waiver_match_is_accent_folded(monkeypatch, tmp_path):
+    # both sides fold (sec 3.2): an ASCII waiver key covers the ACCENTED DAG id. Only the anchorability
+    # error is asserted -- this row's other lint checks are exercised by the cases above.
+    _redirect_waivers(monkeypatch, tmp_path, ["La_Nina", "drought"])
+    dark = {"id": "accent_dark", "contracts": ["corn_cbot"],
+            "hops": [{"node": "La_Niña", "ref": "oni_climate"},
+                     {"node": "drought", "ref": "drought_z"}]}
+    errs = _lint(monkeypatch, [dark])
+    assert any("accent_dark" in e and "statically unanchorable" in e for e in errs)
+
+
+def test_real_chain_map_has_no_unanchorable_row():
+    # the boundary the shipped map sits on: wheat_area_su roots on the WAIVED `area` and is still legal,
+    # because its `ending_stocks` hop supplies the fallback anchor.
+    cq.load_chain_map.cache_clear()
+    assert not any("statically unanchorable" in e for e in cc.check_chain_map())
+    cq.load_chain_map.cache_clear()

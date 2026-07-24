@@ -1984,7 +1984,7 @@ def _chain_legs(sg, graph, kept: list, records: list, qfn, asof, near, calls: li
         # ACCENT-FOLDED on both sides like _chain_root_node (sec 3.2).
         grounded = {_accent_fold(getattr(n, "id", None)) for n in _select_nodes(sg, graph)
                     if _fold_eq(getattr(n, "contract", None), focus)}
-        selected, root_node, eras, best_cov = None, None, None, -1
+        selected, root_node, eras, best_key = None, None, None, (-1, -1)
         for c in focus_rows:
             hops0 = (c or {}).get("hops") or []
             if not hops0:
@@ -1994,10 +1994,29 @@ def _chain_legs(sg, graph, kept: list, records: list, qfn, asof, near, calls: li
                 continue
             w = _derive_windows(rn, near, asof)                    # THE ONE anchor (root's own dated evidence, R3)
             if not w:
-                continue
+                # ANCHOR FALLBACK (minideck RCA 2026-07-24, wheat skeleton): a waiver-dark ROOT node
+                # (driver_slices deferred, e.g. bare 'area') carries no dated evidence, so the skeleton
+                # silently died and the NEXT focus row fired a CLIMATE chain into an ACREAGE question
+                # (the model rightly cited none of it -- min_chain_hops_cited 0/2). Derive THE ONE anchor
+                # from the first DOWNSTREAM hop node grounded with dated evidence this walk (same single
+                # window, same R3 clamp); every hop still resolves its own values at that window.
+                for hp in hops0[1:]:
+                    dn = _chain_root_node(sg, graph, focus, (hp or {}).get("node"))
+                    if dn is not None:
+                        w = _derive_windows(dn, near, asof)
+                        if w:
+                            break
+                if not w:
+                    continue
             cov = sum(1 for hp in hops0 if _accent_fold((hp or {}).get("node")) in grounded)
-            if cov > best_cov:                                     # strictly-greater -> FIRST (file order) wins ties
-                selected, root_node, eras, best_cov = c, rn, w, cov
+            # tie-break by DEPTH after coverage (minideck RCA 2026-07-24, coffee control): when the
+            # walk grounds no su node, the 3-hop control ties the 2-hop enso_drought prefix at cov=2
+            # and file order let the SHORTER chain permanently shadow the deeper one -- the exact
+            # failure the coverage pick was written to fix, half-fixed. Depth is honest here because
+            # the deeper row CONTAINS the shorter as its prefix; file order still breaks exact ties.
+            key = (cov, len(hops0))
+            if key > best_key:                                     # strictly-greater -> FIRST (file order) wins ties
+                selected, root_node, eras, best_key = c, rn, w, key
         if selected is None:                                       # a row matched the focus but no grounded root
             return [], None, {"chain_id": focus_rows[0].get("id"), "reason": "root_not_grounded"}
         selected_id = selected.get("id")

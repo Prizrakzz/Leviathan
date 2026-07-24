@@ -369,6 +369,21 @@ _SYSTEM_CASCADE = (
     "And in the record as everywhere else: never 'bullish' or 'bearish' -- direction is prose ('fell', "
     "'rose to fill the gap'), magnitude is the [N] row.\n")
 
+# CHAIN (minideck RCA 2026-07-24): the only injected marker WITHOUT a system-prompt paragraph -- its lone
+# in-block instruction line lost to the five instructed markers above, and the flagship corn row alone put
+# 17 unbacked/rounded chain figures into the strip count (19/24 of the deck's strips). Same shape as the
+# five: render ONLY on the marker, cite every stated hop figure, internal marker never printed.
+_SYSTEM_CHAIN = (
+    "If the block carries a line beginning 'QUANTIFIED CHAIN', the '(chain hop i/n: ...)' rows above it are "
+    "ONE mechanism measured on a SHARED anchor window: narrate them under '## The record' IN HOP ORDER, and "
+    "EVERY hop level or change you state takes its [N] handle, copied exactly as printed -- a chain figure "
+    "without its handle, or rounded, is stripped like any other. The '(chain hop i/n: ...)' parenthetical is "
+    "an INTERNAL marker -- never print it; name the hop by its country and metric in prose. A hop line that "
+    "reads dark or not-known is narrated as an honest absence -- never bridge it with your own arithmetic. "
+    "Direction, attribution, and any price read remain the analyst's interpretation, never the engine's. "
+    "Render the chain narration ONLY when a 'QUANTIFIED CHAIN' line is present; never volunteer a chain "
+    "from prose. ")
+
 
 def _count_banned_mood(structured: dict) -> int:
     """P9-A hard-gate metric: banned mood words on the RAW model output, BEFORE _humanize_structured/
@@ -458,6 +473,8 @@ def _system() -> str:
     base = _SYSTEM_MENTOR
     if os.environ.get("GRAPHRAG_CASCADE_QUANT", "on") != "off":
         base = base + _SYSTEM_CASCADE
+        if _chain_on():                                            # chain paragraph rides the cascade block
+            base = base + _SYSTEM_CHAIN
     if _pattern_records_on():
         from leviathan.graphrag.numbers import pattern_records as _pr   # lazy: avoid an import cycle
         base = base + _pr.RECORDED_HISTORY_ADDENDUM
