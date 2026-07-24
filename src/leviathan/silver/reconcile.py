@@ -75,6 +75,10 @@ NUMBERS_TABLES = (
     #                                     records consumers=both + numbers_ref, so its data_date PIT fields
     #                                     (week_ending_date, +5d publication_lag_days) reconcile here rather than
     #                                     skipping the F010 gate unchecked.
+    "gold_pattern_records",             # T2b: pattern-records ledger (44th contract, registered-partition GOLD,
+    #                                     flag-off until its deck gates the flip) — enumerated the moment its
+    #                                     tables.yaml card landed so its knowledge fields reconcile against F010
+    #                                     instead of shipping structurally unchecked.
 )
 
 

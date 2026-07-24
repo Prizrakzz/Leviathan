@@ -1,7 +1,7 @@
 """SILVER-C001 unit tests for the silver_rebuild_gate DISPATCHER.
 
 Everything AWS/pg is mocked or injected; nothing touches the mirror/Athena/Batch. Covers the three plan
-requirements: (1) branch selection for ALL 43 F010 tables from the `consumers` field, (2) a Branch-B
+requirements: (1) branch selection for ALL 44 F010 tables from the `consumers` field, (2) a Branch-B
 feature-only table NEVER calls load_pg_numbers (the crash class Attack 3 #1 fixed), (3) fail-closed on any
 red stage. Plus the census --diff new-dark detector and the offline (no-pg) skip posture."""
 from __future__ import annotations
@@ -41,7 +41,7 @@ def test_branch_selection_all_43_tables():
     from leviathan.silver import registry as sreg
     silver = sreg.load_registry()
     names = silver.names()
-    assert len(names) == 43, f"expected 43 F010 tables, got {len(names)}"
+    assert len(names) == 44, f"expected 44 F010 tables, got {len(names)}"
 
     branch_a = {t for t in names if g.select_branch(t, silver_reg=silver) == g.BRANCH_A}
     branch_b = {t for t in names if g.select_branch(t, silver_reg=silver) == g.BRANCH_B}
@@ -53,9 +53,10 @@ def test_branch_selection_all_43_tables():
     # 13 after SEAM C whitelisted silver_futures_prices (2026-07-23);
     # 15 after WIRING WAVE-1 wired silver_noaa_iod + silver_conab_coffee (2026-07-23) -- the wave
     # landed the P1_TABLES additions without bumping this pin (caught by the FUTURES v1.5 battery);
-    # 16 after WIRING WAVE-1 Card C wired silver_sagis_weekly_exports once its catalog ALTER landed.
+    # 16 after WIRING WAVE-1 Card C wired silver_sagis_weekly_exports once its catalog ALTER landed;
+    # 17 after T2b wired gold_pattern_records (44th contract; ledger mirror rides the same P1 loader).
     assert branch_a == g.PG_MIRROR_TABLES, branch_a
-    assert len(branch_a) == 16
+    assert len(branch_a) == 17
     assert branch_a | branch_b == set(names)          # partition: no table is UNKNOWN in the real registry
     assert not (branch_a & branch_b)
 
