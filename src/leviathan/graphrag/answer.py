@@ -427,6 +427,16 @@ def _pace_leg_on() -> bool:
     return os.environ.get("GRAPHRAG_CASCADE_PACE_LEG", "").strip().lower() in ("on", "1", "true")
 
 
+def _chain_on() -> bool:
+    """Chain-engine kill-switch (GRAPHRAG_CASCADE_CHAIN), read at the answer.py quantify SEAM and threaded as the
+    OMIT-WHEN-OFF `chain` kwarg down quantify()->_chain_legs (the _pace_leg_on idiom -- NEVER an os.environ read
+    inside cascade.py, so the ENGINE is gated by the ARGUMENT and a mis-plumbed enable can never fire it on an
+    unasked turn). DEFAULT-OFF, fail-closed: only a case-insensitive on/1/true enables it. When off, the kwarg is
+    ABSENT and quantify() is byte-identical to today (injected quantify fakes with the older signature stay
+    valid). Read PER CALL (never memoized) so the env-flip rollback is live -> no redeploy."""
+    return os.environ.get("GRAPHRAG_CASCADE_CHAIN", "").strip().lower() in ("on", "1", "true")
+
+
 def _system() -> str:
     """The active reader-facing persona. GRAPHRAG_MENTOR_VOICE default on -> mentor; =off -> the prior string.
     GRAPHRAG_CASCADE_QUANT on -> append the OBSERVED CASCADE NUMBERS addendum (P9-B: the loop supplies the
@@ -749,11 +759,14 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
             # idiom) -- the flag-off call is byte-identical to rev 52, and injected quantify fakes with the
             # older signature stay valid.
             _pace_kw = {"pace": True} if _pace_leg_on() else {}
+            # CHAIN engine (multi-hop): the omit-when-off idiom too -- flag off -> kwarg ABSENT -> byte-identical.
+            _chain_kw = {"chain": True} if _chain_on() else {}
             _cblock, _quant_trace, _reroute_trace = cq.quantify(sg, graph, qfn=numbers_lookup, asof=asof,
                                                                 near=near,
                                                                 extra_number_calls=extra_number_calls,
                                                                 xc_request=xc_request, comove=_comove_on(),
-                                                                price_request=_price_request, **_pace_kw)
+                                                                price_request=_price_request,
+                                                                **_pace_kw, **_chain_kw)
             sg.trace["ms_quantify"] = int((time.perf_counter() - _t_quant) * 1000)
             if _cblock:
                 volatile_blocks = volatile_blocks + [_cblock]

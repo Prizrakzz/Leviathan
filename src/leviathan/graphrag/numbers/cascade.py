@@ -23,6 +23,8 @@ from leviathan.graphrag import params as _pr
 from leviathan.graphrag.numbers import query as Q
 
 CASCADE_CAP = int(_pr.get("serving.cascade.cap", 12))            # own budget, separate from serving.silver.cap
+CHAIN_CAP = int(_pr.get("serving.cascade.chain.cap", 12))        # chain engine's OWN net-fetch budget (D5): chains
+#                                                                  never eat the per-node cascade's cap, nor vice versa
 
 
 # ── the map (B-S2) ───────────────────────────────────────────────────────────────────────────────────
@@ -55,6 +57,21 @@ def load_region_map() -> dict:
     p = ex._CFG / "numbers" / "cascade_map.yaml"
     doc = yaml.safe_load(p.read_text(encoding="utf-8")) if p.exists() else {}
     return (doc or {}).get("region_map") or {}
+
+
+@functools.lru_cache(maxsize=1)
+def load_chain_map() -> list:
+    """The curated `configs/graphrag/numbers/chain_map.yaml` `chains:` list, FILE ORDER preserved (the engine
+    selects the FIRST focus-matching row -- deterministic). Each chain: {id, contracts:[...], hops:[{node, ref,
+    country?}], terminal?}. A row flagged `deferred: true` is inert (skipped, mirroring load_map). Schema/loader
+    ONLY here -- the file CONTENT + the config_check `check_chain_map` lint are the chain_map curation surface
+    (TRACKED, like cascade_map, cascade_map.yaml:7-8). Missing file -> [] (the chain engine no-ops)."""
+    import yaml
+
+    from leviathan.graphrag import extract as ex
+    p = ex._CFG / "numbers" / "chain_map.yaml"
+    doc = yaml.safe_load(p.read_text(encoding="utf-8")) if p.exists() else {}
+    return [c for c in ((doc or {}).get("chains") or []) if not (c or {}).get("deferred")]
 
 
 # ── marketing-year boundaries (P8: a naive int(date[:4]) picks the WRONG MY for an Aug wheat event) ──
@@ -555,7 +572,8 @@ def _pair_units(groups: list) -> tuple:
 
 # ── the orchestration (B-S3) ─────────────────────────────────────────────────────────────────────────
 def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request: dict | None = None,
-             comove: bool = False, price_request: dict | None = None, pace: bool = False) -> tuple:
+             comove: bool = False, price_request: dict | None = None, pace: bool = False,
+             chain: bool = False) -> tuple:
     """Select grounded nodes with mapped refs, derive analogue-era windows from their dated props, build
     per-node leg GROUPS (era legs + a current rhyme leg), detect cross-country REROUTE pairs (RF-3:
     natural two-node pairs + the synthesized primary-country beneficiary), cap on WHOLE pair-atomic
@@ -587,8 +605,10 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
             groups.append({"node": n, "row": row, "specs": specs, "key": specs[0]["node_key"],
                            "commodity": commodity, "contract": getattr(n, "contract", None),
                            "country": country, "eras": eras})
-    if not groups:
-        return None, [], []
+    if not groups and not chain:
+        return None, [], []                                       # chain=False -> byte-identical early return;
+        #                                                           chain=True runs the chain over empty groups
+        #                                                           (its root-grounding check is independent)
     units, pairs = _pair_units(groups)
     # CAP ON WHOLE NODES (P7/F5): a node never loses a leg to truncation; drop trailing nodes whole.
     # A unit = one node OR a shock+beneficiary pair (RF-3, ATOMIC): keep both or drop both -- a shock kept
@@ -658,6 +678,24 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
             except Exception:  # noqa: BLE001 -- a traceless sg must never break the v1 answer
                 pass
             block_lines = block_lines + p_lines
+    # CHAIN ENGINE (multi-hop quantified cascade): LAST, purely APPENDED so every existing engine line keeps
+    # its byte position -- flag-off is byte-identical AND the flag-on diff is additive-only. Gated ONLY by the
+    # answer.py-threaded `chain` kwarg (GRAPHRAG_CASCADE_CHAIN read THERE, never here -- the [F3]/pace
+    # discipline). On FIRE the engine WRITES quantify_chain itself (fired == bool(trace key)); an attempted-
+    # and-declined chain writes quantify_chain_decline (D7); no match -> BOTH keys absent (zero-cost turns).
+    if chain:
+        c_lines, c_trace, c_decline = _chain_legs(sg, graph, kept, records, qfn, asof, near, extra_number_calls)
+        if c_trace:
+            try:
+                sg.trace["quantify_chain"] = c_trace
+            except Exception:  # noqa: BLE001 -- a traceless sg must never break the v1 answer
+                pass
+        elif c_decline:
+            try:
+                sg.trace["quantify_chain_decline"] = c_decline
+            except Exception:  # noqa: BLE001
+                pass
+        block_lines = block_lines + c_lines
     block = ("OBSERVED CASCADE NUMBERS (as-known at each leg's asof; the record then vs now):\n"
              + "\n".join(block_lines)) if block_lines else None
     return block, trace, r_trace
@@ -1690,3 +1728,405 @@ def _price_pair(price_request: dict, sg, graph, groups: list, qfn, asof, near, c
         return lines, fired
     except Exception:  # noqa: BLE001 -- fail-closed: a price-leg failure must never break the v1 answer
         return [], None
+
+
+# ── CHAIN ENGINE v1: multi-hop quantified cascade (a REAL [N] at every hop) ────────────────────────────
+# ONE curated causal chain (La_Nina -> safrinha -> su_ratio) walked hop-by-hop: ONE anchor window derived at
+# the ROOT (sec 2.2), re-expressed per hop in that hop's own period grammar, EACH hop fetched through the SAME
+# fetch_window machinery (PIT + sargable-partition discipline inherited by construction), ALL-HOPS-OR-NOTHING,
+# rendered as one chain block with per-hop [N] rows + a no-conclusion marker the model interprets. Doctrine
+# (non-negotiable): determinism owns ARITHMETIC + OBSERVATION only; the model interprets. NO minted thresholds,
+# NO templated conclusions, NO CROSS-HOP arithmetic (WITHIN-hop deltas only -- sec 4.1); a dark hop kills the
+# CHAIN (honest reasoned decline). Gated ONLY by the answer.py-threaded `chain` kwarg (GRAPHRAG_CASCADE_CHAIN
+# read THERE, never here -- the [F3]/pace discipline). Register FENCES on emitted lines are sec 5.1 (a separate
+# surface -- applied at the marked seam below).
+_CHAIN_DECLINE_REASONS = frozenset(
+    {"root_not_grounded", "hop_dark", "hop_thin", "degenerate", "cap", "error"})  # the sec 5.2 enum
+# Grain rank for the DOWNSTREAM-ONLY alignment rule (sec 2.2(3), S5 fold): a hop may not be FINER-grained than
+# its parent. Sub-annual (year_month/date) = 0, annual (marketing_year) = 1. v1 admits year_month roots ->
+# year_month|MY descendants AND annual roots (skeleton `area`) -> MY. A MY -> year_month step (spread an MY over
+# months) is the ONE genuinely hard alignment the plan DEFERS -> the chain declines rather than half-solve it.
+_GRAIN_RANK = {"year_month": 0, "date": 0, "marketing_year": 1}
+
+
+def _accent_fold(s) -> str:
+    """NFKD accent-fold -- the census/evidence `fold` idiom (sec 3.2): La_Nina <-> La_Niña match on BOTH
+    sides (chain_map names AND walk/DAG ids). Shares evidence.fold's ONE implementation (lazy import; sys.modules
+    caches it, so per-call cost is a dict lookup). Fail-open to the raw string so a fold error never hides a
+    literal match."""
+    try:
+        from leviathan.graphrag.evidence import fold
+        return fold(str(s if s is not None else ""))
+    except Exception:  # noqa: BLE001
+        return str(s if s is not None else "")
+
+
+def _fold_eq(a, b) -> bool:
+    return _accent_fold(a) == _accent_fold(b)
+
+
+def _chain_root_node(sg, graph, contract, node_name):
+    """The grounded WALK node for a chain's ROOT hop: contract match + ACCENT-FOLDED id match (sec 3.2 -- the
+    ENSO root is accented in 8/14 v1 DAGs; a literal match would leave accented-contract roots permanently
+    unmatched while the lint stayed green). None when no such node was grounded this walk."""
+    want = _accent_fold(node_name)
+    for n in _select_nodes(sg, graph):
+        if _fold_eq(getattr(n, "contract", None), contract) and _accent_fold(getattr(n, "id", None)) == want:
+            return n
+    return None
+
+
+def _chain_driver_id(graph, contract, node_name):
+    """The DAG driver id in `contract` whose ACCENT-FOLDED form matches the chain hop's node name (sec 3.2:
+    per-hop lookups fold BOTH sides too). None when absent (the config_check lint guarantees presence; runtime
+    stays defensive). Used to read a downstream hop's region token off the DAG (the hop is not a walk node)."""
+    try:
+        drivers = graph.contracts[contract].drivers
+    except Exception:  # noqa: BLE001
+        return None
+    want = _accent_fold(node_name)
+    for d in drivers:
+        if _accent_fold(getattr(d, "id", None)) == want:
+            return getattr(d, "id", None)
+    return None
+
+
+def _chain_hop_node(graph, contract, node_name, ref, root_node, *, is_root):
+    """The node object `_scope`/`_node_specs` key off for a hop. ROOT hop -> the REAL grounded node (its region
+    token + evidence ride along). DOWNSTREAM hop -> a SYNTHETIC node carrying the DAG driver's region token, so
+    `_scope` runs IDENTICALLY to a per-node leg (country_rule=region hops like drought_z resolve their country
+    from it). The node_key is overridden per hop by the caller (the _beneficiary idiom, cascade.py:506-508)."""
+    if is_root:
+        return root_node
+    from types import SimpleNamespace
+    did = _chain_driver_id(graph, contract, node_name)
+    region = None
+    if did is not None:
+        try:
+            region = getattr(graph.driver(contract, did), "region", None)
+        except Exception:  # noqa: BLE001
+            region = None
+    return SimpleNamespace(contract=contract, id=node_name,
+                           prior={"silver_ref": ref, "region": region}, evidence=[])
+
+
+def _chain_resolve_hop(graph, contract, hop, eras, asof, root_node, *, is_root) -> tuple | None:
+    """Resolve one chain hop to (identity, specs, meta) reusing the PROVEN per-node pieces (sec 2.1):
+      * table/metric/agg/period/scale/narrate_unit come from the hop's cascade_map REF row (map_row) -- the
+        chain names a REF, never a raw table (D2);
+      * commodity = the chain contract via PSD_SLUG_ALIAS;
+      * country = the explicit `country:` PIN (a PSD title, _PSD_COUNTRY_FOLD-folded) when present -- the
+        safrinha class whose GEOGRAPHY is the chain's semantics, overriding the ref's default -- ELSE the ref's
+        country_rule via _scope;
+      * periods = _node_specs over the SHARED anchor `eras` (sec 2.2) with a chain-owned node_key.
+    Returns None on any honest resolution failure (unmapped ref / SKIP_NODE region / no commodity / no specs)
+    -> the caller declines the chain whole (reason `error`). `identity` = (table, metric, commodity, country,
+    period_type) is the degenerate-guard key (sec 2.3)."""
+    ref = (hop or {}).get("ref")
+    row = map_row(ref)
+    if row is None:
+        return None                                                # unmapped/deferred ref: config drift
+    node = _chain_hop_node(graph, contract, (hop or {}).get("node"), ref, root_node, is_root=is_root)
+    commodity, country = _scope(node, row)
+    if country is SKIP_NODE:
+        return None                                                # region token cannot resolve -> honest fail
+    pin = (hop or {}).get("country")
+    if pin:                                                         # the safrinha-class PIN wins over the rule
+        country = _PSD_COUNTRY_FOLD.get(pin, pin)
+    if not commodity:
+        return None
+    row = _region_row(node, row)                                   # fred_fx region-currency metric pick (no-op else)
+    nid = getattr(node, "id", None)
+    nkey = ("__chain__", contract, ref, nid)
+    specs = [{**s, "node_key": nkey}
+             for s in _node_specs(node, row, commodity, country, eras, asof)]
+    if not specs:
+        return None
+    identity = (row.get("table"), row.get("metric"), commodity, country, row.get("period_type", "date"))
+    meta = {"node": (hop or {}).get("node"), "ref": ref, "row": row, "commodity": commodity, "country": country,
+            "table": row.get("table"), "metric": row.get("metric"), "period_type": row.get("period_type", "date")}
+    return identity, specs, meta
+
+
+def _chain_spec_key(spec) -> tuple:
+    """The fetch-identity key for reuse-before-fetch (sec 3.4): mirrors fetch_window's OWN query dict (incl its
+    t2 -> min(t2, asof) clamp), so a chain spec that EXACTLY matches an already-run record this turn consumes it
+    (typical for the ROOT hop, whose node is grounded and usually kept) instead of re-fetching."""
+    t2, asof = spec.get("t2"), spec.get("asof")
+    t2c = min(t2, asof) if (t2 and asof) else t2
+    q = _query_dict(spec["table"], spec["metric"], spec["commodity"], spec["country"],
+                    spec.get("t1"), t2c, asof, spec.get("period"), spec.get("period_type", "date"))
+    return (q["table"], q["metric"], q["commodity"], q["country"], q["period"], q["asof"])
+
+
+def _chain_rec_key(rec) -> tuple:
+    q = rec.get("query") or {}
+    return (q.get("table"), q.get("metric"), q.get("commodity"), q.get("country"), q.get("period"), q.get("asof"))
+
+
+def _chain_hop_label(hop_no: int, n_hops: int, names: list, meta: dict) -> str:
+    """The per-line hop marker: '(chain hop 2/3: safrinha -> Brazil production_mt)'. Collapsed hops show BOTH
+    DAG names joined (sec 2.3). No direction verb / threshold word (register-clean by construction)."""
+    who = " / ".join(names)
+    loc = (str(meta.get("country")) + " ") if meta.get("country") else ""
+    return f"(chain hop {hop_no}/{n_hops}: {who} -> {loc}{meta.get('metric') or ''})".replace("  ", " ")
+
+
+def _chain_fmt_line(rec: dict, row: dict, n: int, *, label: str, current: bool = False) -> str:
+    """Endpoint LEVEL line, hop-marked (the _fmt_line shape prefixed with the hop ordinal, sec 3.3); one figure
+    per line (the handle discipline). The value re-scales the RAW record (narrate_unit), matching the injected
+    _prescaled row exactly (the _assemble contract)."""
+    v = _float_val(rec)
+    scale = float(row.get("scale", 1) or 1)
+    val = f"{v * scale:g}" if v is not None else "?"
+    unit = row.get("narrate_unit") or ""
+    q = rec.get("query") or {}
+    period = "current" if current else (q.get("period") or "")
+    return (f"- [N{n}] {label} {q.get('commodity') or ''} {row.get('metric')} {period} "
+            f"(as-of {q.get('asof')}): {val} {unit}".rstrip())
+
+
+def _chain_fmt_delta(row: dict, d: float, n: int, *, label: str) -> str:
+    return (f"- [N{n}] {label} change within the anchor window in {row.get('metric')}: "
+            f"{d:+g} {row.get('narrate_unit') or ''}".rstrip())
+
+
+def _chain_fmt_pct(row: dict, pct: float, n: int, *, label: str) -> str:
+    return f"- [N{n}] {label} change within the anchor window in {row.get('metric')}: {pct:+g} %"
+
+
+def _chain_register_fence(lines: list, calls: list, base: int) -> list:
+    """CHAIN_ENGINE sec 5.1 register fences (writer B), applied at BUILD time to the ENGINE-emitted chain lines
+    -- before any line reaches the prompt, fail-closed. Three fences:
+
+      1. MOMENTUM class (pace_register_ok / _PACE_BANNED_RX): the present-continuous/momentum lexicon
+         (accelerating/decelerating/momentum/gaining steam/picking up/slowing) is grep-absent from register.py's
+         global lexicons BY DESIGN, so the fence lives HERE, on the only surface that could mint it -- reused
+         verbatim from the pace leg.
+      2. VALUATION/FLOW class (reg.count_valuation_words + reg.count_flow_words, the DP-6 counters) over EVERY
+         engine-built chain line, the marker included -- a belt on top of the template being clean by
+         construction.
+      3. NO-CONCLUSION template: the marker (_chain_marker) + the _chain_fmt_* lines are register-clean by
+         construction; a unit test asserts every literal passes all three fences.
+
+    A line failing fence 1 OR 2 is DROPPED together with its [N] handle. Because the chain renders LAST in
+    quantify (answer.py appends chain lines after every sibling), the chain's handles are the HIGHEST-numbered
+    calls of the turn -- calls[base:] -- so a dropped handle is removed and the surviving chain handles +
+    their calls are RENUMBERED contiguously from base+1 with ZERO effect on any lower (non-chain) handle. No
+    orphan handle survives; the grounding ledger count (len(calls)) stays honest. In the NORMAL path nothing
+    drops and both `lines` and `calls` are byte-identical (the fence is the belt against a future template
+    drift, not a live filter)."""
+    from leviathan.graphrag import register as reg
+
+    def _clean(text: str) -> bool:
+        return (pace_register_ok(text)
+                and reg.count_valuation_words(text) == 0 and reg.count_flow_words(text) == 0)
+
+    kept = [ln for ln in lines if _clean(ln)]
+    if len(kept) == len(lines):
+        return lines                                              # nothing dropped -> byte-identical, calls untouched
+    tail = calls[base:]                                           # the chain's own handle block (renders last)
+    surviving, out_lines = [], []
+    new_no = base
+    for ln in kept:
+        m = re.search(r"\[N(\d+)\]", ln)
+        if m is None:                                             # a handle-less line (the marker): keep as-is
+            out_lines.append(ln)
+            continue
+        old = int(m.group(1))
+        idx = old - 1 - base                                     # this handle's call position within the tail
+        if 0 <= idx < len(tail):
+            surviving.append(tail[idx])
+            new_no += 1
+            out_lines.append(ln.replace(f"[N{old}]", f"[N{new_no}]", 1))
+        # a line whose handle is out of the chain's own range is left untouched (defensive; never happens v1)
+    calls[base:] = surviving
+    return out_lines
+
+
+def _chain_marker(path: str, window: str) -> str:
+    """The FIXED no-conclusion marker (sec 5.1 literal): names the path + the shared anchor window + the render
+    directive. NO price-direction verb, NO therefore/so/implies, NO threshold word -- the anti-fake-precision
+    line applied to the chain surface. The [N] LEVELS + within-hop CHANGES are the record; direction /
+    attribution / any price read are explicitly the analyst's interpretation, NEVER the engine's."""
+    return (f"QUANTIFIED CHAIN {path} over {window}: each hop above is an observed record on the SHARED anchor "
+            f"window; narrate the mechanism hop by hop, citing each hop's [N] rows; levels and changes are the "
+            f"record -- direction, attribution, and any price read are the analyst's interpretation.")
+
+
+def _chain_legs(sg, graph, kept: list, records: list, qfn, asof, near, calls: list) -> tuple:
+    """The chain engine (secs 2-4). Returns (lines, fired_trace, decline_trace):
+      * (lines, {...}, None) -> quantify writes sg.trace['quantify_chain'] (fired == bool(trace key));
+      * ([], None, {...})    -> quantify writes sg.trace['quantify_chain_decline'] (attempted-and-declined, D7);
+      * ([], None, None)     -> NO chain matched the focus: zero trace, zero cost (both keys absent).
+    Never raises (fail-closed -- a chain failure must NEVER break the v1 answer; the seam belts it too)."""
+    selected_id = None
+    try:
+        chains = load_chain_map()
+        if not chains:
+            return [], None, None
+        focus = next((c for c in (getattr(sg, "seeds", None) or []) if c in getattr(graph, "contracts", {})), None)
+        if focus is None:
+            return [], None, None
+        # focus-matching chains, FILE ORDER (deterministic); contracts are ASCII slugs, folded defensively.
+        focus_rows = [c for c in chains
+                      if any(_fold_eq(focus, x) for x in ((c or {}).get("contracts") or []))]
+        if not focus_rows:
+            return [], None, None                                  # no attempt: zero trace, zero cost
+        # AT MOST ONE chain/turn (PAIR_CAP=1 precedent). Among focus rows whose ROOT is grounded THIS walk with a
+        # non-empty anchor window (sec 3.2), select the one whose HOP NODES are the MOST grounded this walk -- the
+        # question-dependent-grounding norm (sec 3.2 / D8) carried past the root. Root grounding ALONE is
+        # ambiguous when same-focus chains share a root: enso_drought (2-hop) and the coffee CONTROL (3-hop) both
+        # root on La_Nina for arabica, so a file-order-only pick let the SHORTER row permanently shadow the deeper
+        # one (chain_coffee_control_pos min_chain_hops_cited:3 unsatisfiable, gate 4 fails). Coverage lets a
+        # question that NAMES the full mechanism reach the deeper chain; FILE ORDER breaks ties (deterministic --
+        # strictly-greater keeps the first). No threshold minted -- a pure count over the deterministic walk,
+        # ACCENT-FOLDED on both sides like _chain_root_node (sec 3.2).
+        grounded = {_accent_fold(getattr(n, "id", None)) for n in _select_nodes(sg, graph)
+                    if _fold_eq(getattr(n, "contract", None), focus)}
+        selected, root_node, eras, best_cov = None, None, None, -1
+        for c in focus_rows:
+            hops0 = (c or {}).get("hops") or []
+            if not hops0:
+                continue
+            rn = _chain_root_node(sg, graph, focus, (hops0[0] or {}).get("node"))
+            if rn is None:
+                continue
+            w = _derive_windows(rn, near, asof)                    # THE ONE anchor (root's own dated evidence, R3)
+            if not w:
+                continue
+            cov = sum(1 for hp in hops0 if _accent_fold((hp or {}).get("node")) in grounded)
+            if cov > best_cov:                                     # strictly-greater -> FIRST (file order) wins ties
+                selected, root_node, eras, best_cov = c, rn, w, cov
+        if selected is None:                                       # a row matched the focus but no grounded root
+            return [], None, {"chain_id": focus_rows[0].get("id"), "reason": "root_not_grounded"}
+        selected_id = selected.get("id")
+        hops = selected.get("hops") or []
+        # ── per-hop resolution (sec 2.1) + the DOWNSTREAM-ONLY grain guard (sec 2.2(3), S5) ──
+        resolved = []
+        prev_rank = None
+        for i, hop in enumerate(hops):
+            res = _chain_resolve_hop(graph, focus, hop, eras, asof, root_node, is_root=(i == 0))
+            if res is None:
+                return [], None, {"chain_id": selected_id, "reason": "error", "hop": i}
+            identity, specs, meta = res
+            rank = _GRAIN_RANK.get(meta["period_type"], 0)
+            if prev_rank is not None and rank < prev_rank:         # finer than its parent: spread-MY-over-months
+                return [], None, {"chain_id": selected_id, "reason": "error", "hop": i}
+            prev_rank = rank
+            resolved.append({"idx": i, "identity": identity, "specs": specs, "meta": meta})
+        # ── degenerate-hop guard (sec 2.3): COLLAPSE consecutive identical-identity hops; decline if <2 distinct ──
+        distinct: list = []
+        for r in resolved:
+            if distinct and distinct[-1]["identity"] == r["identity"]:
+                distinct[-1]["idxs"].append(r["idx"])              # consecutive same series -> one quantified hop
+                distinct[-1]["names"].append(r["meta"]["node"])
+            else:
+                distinct.append({"identity": r["identity"], "specs": r["specs"], "meta": r["meta"],
+                                 "idxs": [r["idx"]], "names": [r["meta"]["node"]]})
+        if len(distinct) < 2:                                      # a 1-series "chain" is just a node (per-node
+            return [], None, {"chain_id": selected_id, "reason": "degenerate"}   # cascade already serves it)
+        # ── cap (sec 3.4): reuse-before-fetch, CHAIN_CAP NET, cap-ATOMIC (never a truncated chain) ──
+        reuse: dict = {}
+        for rec in records or []:
+            reuse.setdefault(_chain_rec_key(rec), rec)             # a reused spec costs 0 against CHAIN_CAP
+        all_specs = [s for d in distinct for s in d["specs"]]
+        need = [s for s in all_specs if _chain_spec_key(s) not in reuse]
+        if len(need) > CHAIN_CAP:
+            return [], None, {"chain_id": selected_id, "reason": "cap", "net": len(need)}
+        # ── fetch the misses in ONE pool wave (the R5 shape); reuse consumes prior records ──
+        fetched: dict = {}
+        if need:
+            from concurrent.futures import ThreadPoolExecutor
+
+            from leviathan.graphrag.pgstore import _POOL_SIZE
+            width = max(1, min(_POOL_SIZE, len(need)))
+            with ThreadPoolExecutor(max_workers=width) as pool:
+                for s, rec in zip(need, pool.map(lambda sp: _run_one(qfn, sp), need)):
+                    fetched[id(s)] = rec
+
+        def _rec_for(spec):
+            k = _chain_spec_key(spec)
+            return reuse[k] if k in reuse else fetched.get(id(spec))
+
+        # ── PASS 1: gather each distinct hop's records + DARK-HOP check BEFORE any injection (sec 4.1) ──
+        # A dark hop (zero ok endpoint across era+current) kills the CHAIN; a declined chain injects ZERO [N]
+        # rows -> no orphan handles, the ledger count stays honest.
+        hop_recs: list = []
+        for d in distinct:
+            eras_b: dict = {}
+            cur = None
+            for s in d["specs"]:
+                r = _rec_for(s)
+                if r is None:
+                    continue
+                leg = s.get("leg") or ("era", 0)
+                if leg[0] == "current":
+                    cur = r
+                elif leg[0] == "era":
+                    eras_b.setdefault(s.get("era_idx") or 0, []).append((s, r))
+            for i in eras_b:                                       # order each era by MY for a stable within-hop delta
+                eras_b[i].sort(key=lambda sr: (sr[0].get("my") is None, sr[0].get("my")))
+            ok_any = any(r.get("status") == "ok" and (r.get("rows") or [])
+                         for pairs in eras_b.values() for (_s, r) in pairs)
+            ok_cur = cur is not None and cur.get("status") == "ok" and bool(cur.get("rows"))
+            if not (ok_any or ok_cur):
+                return [], None, {"chain_id": selected_id, "reason": "hop_dark",
+                                  "hop": d["idxs"][0], "node": " / ".join(d["names"])}
+            hop_recs.append({"d": d, "eras": eras_b, "cur": cur})
+        # ── PASS 2: inject [N] rows (continue-count) + render (all hops confirmed live) ──
+        lines: list = []
+        hop_trace: list = []
+        base = len(calls)                                          # continue the turn's handle count (sec 3.3)
+        n = base
+        n_hops = len(hop_recs)
+        for hop_no, hr in enumerate(hop_recs, start=1):
+            d, eras_b, cur = hr["d"], hr["eras"], hr["cur"]
+            row = d["meta"]["row"]
+            label = _chain_hop_label(hop_no, n_hops, d["names"], d["meta"])
+            statuses: dict = {}
+            delta_val = None
+            for i in sorted(eras_b):
+                pairs = eras_b[i]
+                statuses[i] = [r.get("status") for (_s, r) in pairs]
+                oks = [r for (_s, r) in pairs if r.get("status") == "ok" and (r.get("rows") or [])]
+                for r in oks:                                      # each MY endpoint LEVEL (pre-scaled, R10 prov)
+                    n += 1
+                    calls.append(_prescaled(r, row, n))
+                    lines.append(_chain_fmt_line(r, row, n, label=label))
+                dlt = _era_delta(oks, row)                         # WITHIN-hop delta ONLY (no cross-hop math, 4.1)
+                if dlt is not None:
+                    delta_val = dlt
+                    n += 1
+                    calls.append(_delta_call(oks[-1], row, dlt, n, kind="delta"))
+                    lines.append(_chain_fmt_delta(row, dlt, n, label=label))
+                    pct = _pct_change(oks, row)
+                    if pct is not None:
+                        n += 1
+                        calls.append(_delta_call(oks[-1], row, pct, n, kind="pct"))
+                        lines.append(_chain_fmt_pct(row, pct, n, label=label))
+            if cur is not None and cur.get("status") == "ok" and (cur.get("rows") or []):
+                statuses["current"] = "ok"
+                n += 1
+                calls.append(_prescaled(cur, row, n))
+                lines.append(_chain_fmt_line(cur, row, n, label=label, current=True))
+            elif cur is not None:
+                statuses["current"] = cur.get("status")
+            entry = {"hop": d["idxs"][0], "node": " / ".join(d["names"]), "ref": d["meta"]["ref"],
+                     "table": d["meta"]["table"], "metric": d["meta"]["metric"], "country": d["meta"]["country"],
+                     "leg_statuses": statuses, "delta": (round(delta_val, 4) if delta_val is not None else None)}
+            hop_trace.append(entry)
+            for extra in d["idxs"][1:]:                            # the collapsed originals (sec 2.3 record)
+                hop_trace.append({"hop": extra, "collapsed_into": d["idxs"][0]})
+        window_lbl = f"{eras[0][0]}..{eras[0][1]}"                 # the anchor window, stated once (sec 4.1)
+        path = " -> ".join(" / ".join(hr["d"]["names"]) for hr in hop_recs)
+        lines.append(_chain_marker(path, window_lbl))
+        # sec 5.1 register fences (writer B): applied to `lines` HERE, the emitting surface, before the prompt.
+        # Drops any register-tripping line + its handle and renumbers the chain tail; byte-identical when clean.
+        lines = _chain_register_fence(lines, calls, base)
+        fired = {"chain_id": selected_id, "contract": focus, "window": window_lbl,
+                 "hops": hop_trace, "n_rows": len(calls) - base}    # honest post-fence count (== n-base when clean)
+        return lines, fired, None
+    except Exception as e:  # noqa: BLE001 -- fail-closed: never break the v1 answer
+        return [], None, ({"chain_id": selected_id, "reason": "error", "detail": type(e).__name__[:40]}
+                          if selected_id else None)

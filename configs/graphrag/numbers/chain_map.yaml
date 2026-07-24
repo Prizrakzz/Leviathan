@@ -1,0 +1,95 @@
+# CHAIN ENGINE map -- curated multi-hop quantified cascades (CHAIN_ENGINE_PLAN.md secs 1, 2.5).
+# The engine walks ONLY the chains listed here (never auto-derived from the DAG: auto-derivation IS path
+# minting -- the inventory audited 46 candidate paths and found 14 broken in non-obvious ways). Each row is a
+# human-ratified chain cross-checked against the CHAIN_ENGINE_PATH_INVENTORY verdict; the planner keeps walking
+# everything qualitatively as today.
+#
+# TRACKED (D3, same rationale as cascade_map.yaml:7-8): no secret/private IP beyond what tables.yaml already
+# exposes, and tracking dodges the gitignored-config rollback trap. Loader = cascade.load_chain_map()
+# (functools.lru_cache; FILE ORDER preserved -- the engine selects the FIRST focus-matching row). A row flagged
+# `deferred: true` is INERT (the loader skips it).
+#
+# SHAPE (per chain):
+#   id:        unique chain id (the deck's chain_fired pin + the fired-trace chain_id).
+#   contracts: [slug, ...]  every slug must be a LOADED contract; the chain fires only when the focus is one.
+#   hops:      ordered [{node, ref, country?}] -- the DAG walk the engine quantifies.
+#     node:    a DAG driver id in EVERY contract of the row (ACCENT-FOLDED both sides: ASCII `La_Nina` here
+#              matches the accented `La_Niña` DAG ids in 8/14 v1 contracts -- CHAIN_ENGINE_PLAN sec 3.2).
+#     ref:     an ACTIVE cascade_map ref row (never a raw table, D2). The chain names a REF -- the safrinha hop
+#              names `production` (the PSD proxy), NOT the DAG node's own conab_production_revision silver_ref.
+#     country: an explicit PSD-title PIN that OVERRIDES the ref's country_rule (the safrinha class whose
+#              GEOGRAPHY is the chain's semantics, not the ref default). Post-fold via _PSD_COUNTRY_FOLD.
+#   terminal:  prose / SEAM-B only; NEVER a fetched futures row (D6). Documentary -- the engine never reads it.
+#
+# LINT (config_check.check_chain_map, fail-closed): contracts loaded; every node in every contract's DAG; every
+# consecutive (parent->child) hop pair a REAL DAG edge (child.parents contains parent, accent-folded); every ref
+# active + non-uncertified table; every country pin a known PSD title; grain never finer downstream; <=3
+# quantified hops; <=6 contracts/row, <=7 rows, <=25 total expansions (v1 actual: 24 after the S1 campinas drop).
+
+chains:
+  # ── SKELETON (D1 build-first): area -> ending_stocks, the pure integration test. One table (silver_psd),
+  # one grain (marketing_year), one country rule (primary, France->EU fold shipped), ZERO new resolution
+  # machinery. If the skeleton cannot go green, nothing else ships. 4 contracts from one edge.
+  - id: wheat_area_su
+    contracts: [soft_red_winter_wheat_cbot, hard_red_winter_wheat_kcbt, hard_red_spring_wheat_mgex, french_wheat_matif]
+    hops:
+      - {node: area, ref: area}
+      - {node: ending_stocks, ref: psd_ending_stock_su_ratio}
+    terminal: price
+
+  # ── FLAGSHIP (D1 headline gate): climate anomaly -> foreign production -> stocks spine, 3 hops. Forces the
+  # two new machinery pieces v1 adds -- the explicit per-hop country PIN (safrinha -> PSD Brazil, overriding
+  # production's primary=US default) and monthly-x-annual alignment (ONI year_month episode -> PSD MY span).
+  # corn_cbot ONLY (S1): campinas_corn_reference_bmf DROPPED -- its DAG has NO safrinha->ending_stocks_su_ratio
+  # edge (campinas su parents are [conab_production_revision, export_pace, ethanol_demand_BR]), so the D3 edge
+  # lint rejects it by design. Campinas returns only as a v1.1 row if the 3-hop cap is re-decided.
+  - id: corn_lanina_safrinha_su
+    contracts: [corn_cbot]
+    hops:
+      - {node: La_Nina, ref: oni_climate}
+      - {node: safrinha, ref: production, country: Brazil}   # explicit PIN: PSD proxy, chain semantics (D2/2.1)
+      - {node: ending_stocks_su_ratio, ref: psd_ending_stock_su_ratio}
+    terminal: price
+
+  # ── FAMILY (D1 coverage): oni_climate x gold_weather_z, both already-mapped year_month rows -- near-zero
+  # marginal engineering after the skeleton, highest coverage-per-unit. 2-hop, no PSD leg. The hop-2 node picks
+  # the SINGLE-region drought/frost driver whose region token resolves (not the compound-region `drought` on
+  # corn/soy, which is region_map-unresolved -- CHAIN_ENGINE sec 3.2 spot-verify).
+  - id: enso_flash_drought
+    contracts: [corn_cbot, soybeans_cbot, campinas_corn_reference_bmf, soybeans_no_2_dce, soybean_oil_dce, soybean_meal_dce]
+    hops:
+      - {node: La_Nina, ref: oni_climate}
+      - {node: flash_drought, ref: drought_z}
+    terminal: price
+
+  - id: enso_drought
+    contracts: [arabica_coffee, brazilian_arabica_coffee, hard_red_winter_wheat_kcbt, soft_red_winter_wheat_cbot, campinas_corn_reference_bmf, soybeans_no_1_dce]
+    hops:
+      - {node: La_Nina, ref: oni_climate}
+      - {node: drought, ref: drought_z}
+    terminal: price
+
+  - id: enso_frost
+    contracts: [arabica_coffee, brazilian_arabica_coffee]
+    hops:
+      - {node: La_Nina, ref: oni_climate}
+      - {node: frost, ref: frost_event_flag}
+    terminal: price
+
+  - id: enso_prairie_drought
+    contracts: [canola_ice, rapeseed_oil_zce, rapeseed_meal_zce]
+    hops:
+      - {node: La_Nina, ref: oni_climate}
+      - {node: prairie_drought, ref: drought_z}
+    terminal: price
+
+  # ── CONTROL (D1 row 7): the ONLY 3-hop chain in v1 whose EVERY hop is an already-active map row with NO pin
+  # and NO proxy (softs REALIZABLE row 2). The control for the flagship: if corn fails and coffee fires, the
+  # bug is in the pin/proxy machinery, not the chain core.
+  - id: coffee_lanina_drought_su
+    contracts: [arabica_coffee, brazilian_arabica_coffee]
+    hops:
+      - {node: La_Nina, ref: oni_climate}
+      - {node: drought, ref: drought_z}
+      - {node: psd_ending_stock_su_ratio, ref: psd_ending_stock_su_ratio}
+    terminal: price
