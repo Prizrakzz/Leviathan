@@ -225,6 +225,44 @@ def test_unica_ships_shadow_only_with_empty_promote(gen, descriptors):
     assert shadow, "the shadow_canonical silver publisher must carry --publish-mode shadow"
 
 
+def test_enso_iod_leg_is_cpc_and_republishes(gen, descriptors):
+    """IOD RE-BASELINE (ADR_IOD_SOURCE_SWITCH, Option B): the enso chain must ingest the LIVE CPC
+    ERSSTv5 IODMI, and every monthly fire must actually REPUBLISH.
+
+    Three ways this silently regresses into a no-op, all locked here:
+      * the fetch leg falling back to fetch_noaa_iod.py -- the HadISST basis frozen upstream at 2025-04
+        (that script stays tracked for the _frozen provenance snapshot, but never on the schedule);
+      * a missing --source cpc_iodmi -- noaa_iod_task still DEFAULTS to the legacy noaa_iod basis;
+      * a missing --force-overwrite -- the task early-returns on an existing canonical object BEFORE
+        the publish guard, so BOTH the shadow silver leg and the canonical promote become silent
+        no-ops, canonical LastModified freezes, and the noaa_climate FreshnessLagDays alarm
+        (statistic=Maximum) goes red ~45 days out and stays red.
+    """
+    d = descriptors["enso_monthly"]
+    assert gen.lint_descriptor(d, "enso_monthly") == [], gen.lint_descriptor(d, "enso_monthly")
+    r = gen.render_input(d)
+
+    fetch_cmds = [" ".join(t["command"]) for t in r["phases"]["fetch"]["tasks"]]
+    assert any("fetch_cpc_iodmi.py" in c for c in fetch_cmds), fetch_cmds
+    assert not any("fetch_noaa_iod.py" in c for c in fetch_cmds), \
+        "the frozen HadISST fetch must not run on the schedule"
+
+    # the [m] IOD producer, in the silver (shadow) leg AND the canonical promote leg
+    iod_legs = [t["command"] for t in r["phases"]["silver"]["tasks"] + r["promote"]["tasks"]
+                if "jobs.batch.noaa_iod_task" in t["command"]]
+    assert len(iod_legs) == 2, f"expected a shadow + a canonical IOD leg, got {iod_legs}"
+    for cmd in iod_legs:
+        assert "--source" in cmd, f"no --source: the task defaults to the frozen HadISST basis: {cmd}"
+        assert cmd[cmd.index("--source") + 1] == "cpc_iodmi", cmd
+        assert "--force-overwrite" in cmd, f"monthly re-run would early-return as a no-op: {cmd}"
+    assert {tuple(c[-2:]) for c in iod_legs} == {("--publish-mode", "shadow"),
+                                                ("--publish-mode", "canonical")}, iod_legs
+
+    # IOD is a live monthly member of the family freshness alarm now, not a liveness-only poll
+    assert "silver_noaa_iod" in d["gate_tables"]
+    assert "silver_noaa_iod" not in (d.get("liveness_only_tables") or [])
+
+
 def test_gold_phase_folds_into_silver(gen, descriptors):
     """weather_daily's dependent gold_weather_z has no Gold Map to run in; it folds into the silver
     phase (after the silver tasks) so it is produced before the gate."""

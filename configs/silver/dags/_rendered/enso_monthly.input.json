@@ -38,7 +38,7 @@
         },
         {
           "command": [
-            "jobs/ingest/fetch_noaa_iod.py"
+            "jobs/ingest/fetch_cpc_iodmi.py"
           ],
           "env": [],
           "integration": "batch",
@@ -64,6 +64,9 @@
           "command": [
             "-m",
             "jobs.batch.noaa_iod_task",
+            "--source",
+            "cpc_iodmi",
+            "--force-overwrite",
             "--publish-mode",
             "shadow"
           ],
@@ -102,6 +105,9 @@
         "command": [
           "-m",
           "jobs.batch.noaa_iod_task",
+          "--source",
+          "cpc_iodmi",
+          "--force-overwrite",
           "--publish-mode",
           "canonical"
         ],

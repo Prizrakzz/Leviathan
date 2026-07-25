@@ -41,13 +41,13 @@
           "publishes": false
         },
         {
-          "id": "fetch_noaa_iod",
+          "id": "fetch_cpc_iodmi",
           "invocation_form": "s",
           "integration": "batch",
           "jobdef": "leviathan-dev-b3-flat-silver:4",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
-            "jobs/ingest/fetch_noaa_iod.py"
+            "jobs/ingest/fetch_cpc_iodmi.py"
           ],
           "env": {},
           "publishes": false
@@ -78,7 +78,10 @@
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "-m",
-            "jobs.batch.noaa_iod_task"
+            "jobs.batch.noaa_iod_task",
+            "--source",
+            "cpc_iodmi",
+            "--force-overwrite"
           ],
           "env": {},
           "publishes": true,
@@ -87,8 +90,5 @@
       ]
     }
   ],
-  "liveness_only_tables": [
-    "silver_noaa_iod"
-  ],
-  "notes": "Two independent single-source chains (oni + iod). noaa_iod_task is module form [m]. IOD is upstream-structural/frozen (ends 2025-04), scheduled monthly purely as a liveness/batch-failed poll; the noaa_climate freshness certificate is computed off ONI only -- there is NO per-IOD freshness alarm and enso is NOT gated on iod freshness."
+  "notes": "Two independent single-source chains (oni + iod). noaa_iod_task is module form [m]. IOD RE-BASELINED 2026-07-25 (docs/private/ADR_IOD_SOURCE_SWITCH.md, Option B) from the NOAA PSL HadISST DMI -- frozen upstream since 2025-06-16, last real observation 2025-04 -- to the NOAA CPC IODMI (ERSSTv5, fixed 1991-2020 climatology), a LIVE monthly series from 1950-01 with ~1 month publication lag. The served identity is unchanged (same silver_noaa_iod table, same 8-column schema, same silver key); only the basis, the raw/bronze capture prefixes and the source stamp move. FETCH leg is jobs/ingest/fetch_cpc_iodmi.py; jobs/ingest/fetch_noaa_iod.py stays TRACKED but off-schedule (it captures the HadISST series for the immutable silver/_frozen/noaa_iod_hadisst/ provenance snapshot; rollback = repoint to it). The silver AND promote legs MUST carry --source cpc_iodmi (the task still DEFAULTS to the legacy noaa_iod basis) plus --force-overwrite: jobs/batch/noaa_iod_task.py early-returns on an existing canonical object BEFORE the publish guard runs, so without the flag both the shadow silver leg and the canonical promote are silent no-ops, canonical LastModified freezes, and the noaa_climate FreshnessLagDays alarm (statistic=Maximum -- it reads the STALEST family member) goes red ~45 days out and stays red. --force-overwrite is the only lever the task exposes (there is no --skip-existing toggle) and it is honest here: silver_noaa_iod is a FLAT single-object full-refresh table rebuilt from the whole upstream file every run, so a re-run republishes a superset-or-equal snapshot rather than a partial one; the flag bypasses ONLY the exists-check, never the publish guard (canonical still needs the KMS-signed approval) and never the shadow-first validation -- the HARD gates (sys.exit(1)) are rows >= 900 and iod_dmi_3month_avg non-null >= 890, then the publisher's registry non-null floors, so a truncated upstream exits 1 before anything reaches canonical. NOTE the 1997-11 event band is WARN-ONLY: noaa_iod_task.py logs a warning and CONTINUES when the value falls outside 1.00-1.20 (and likewise when the 1997-11 row is absent entirely), so it is a sanity signal, NOT a gate -- an upstream basis swap or silent re-climatology that kept the row count would republish canonical with only a log line. Promote it to an exit if CPC ever restates the record. Residual, disclosed: the row floor is 900 against a 918-row 2026-06 vintage, so an upstream truncation that still cleared 900 would republish a shorter series; tighten the floor if CPC ever revises the record start. FRESHNESS: silver_noaa_iod now carries freshness_sla cadence=monthly max_lag_days=45 (publication_lag_days deliberately null) and is a full member of the noaa_climate family freshness alarm -- the pre-switch 'liveness-only poll, no per-IOD freshness alarm, enso not gated on iod freshness' note is OBSOLETE and the liveness_only_tables entry is dropped."
 }
