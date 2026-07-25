@@ -167,8 +167,22 @@ def test_on_deck_pins_the_transmission_surface():
     assert rows["xmit_feed_neg"]["transmission_fired"] is False   # engine-dark BY DESIGN (D3)
     # the crush row asserts an HONEST render, so it pins neither a fire nor a nature -- only the register.
     assert "transmission_fired" not in rows["xmit_crush_nature_honest"]
+    # REGISTER PINS (2026-07-25 probe). banned_flow: 0 on EVERY row -- the positioning triad is corpus-
+    # attainable (1 counting chunk repo-wide), so it is a real minting gate everywhere. banned_valuation: 0
+    # on every row EXCEPT the corn feed one: that pin reads the RAW pre-sanitize counter, which includes
+    # register.py Lane B (`cheap|rich|expensive` + a price/window noun), and the Lane-B corpus is 14/16
+    # usda_gain_corn -- so on a feed-SUBSTITUTION ask it trips on the model QUOTING its own sourced record
+    # ("cheap feed wheat ...", "sorghum ... too expensive ... at prices of RMB1930-1950") while sanitize
+    # strips the sentence and the served answer stays register-clean. The exception is NAMED rather than
+    # loosened to a blanket `.get(...) in (0, None)`: the veg-oil rows' corpus carries no such prose, so a
+    # hit there can only have been MINTED, and dropping the pin from one of THEM must still fail here.
+    _VAL_PIN_EXEMPT = {"xmit_feed_neg"}                          # corn corpus; see the deck's PROBE note
     for rid, exp in rows.items():
-        assert exp.get("banned_valuation") == 0 and exp.get("banned_flow") == 0, rid
+        assert exp.get("banned_flow") == 0, rid
+        if rid in _VAL_PIN_EXEMPT:
+            assert "banned_valuation" not in exp, rid
+        else:
+            assert exp.get("banned_valuation") == 0, rid
 
 
 def test_off_deck_asserts_no_artifacts_and_a_live_vertical_chain():
