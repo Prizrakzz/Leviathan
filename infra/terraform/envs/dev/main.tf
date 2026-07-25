@@ -53,6 +53,7 @@ module "s3" {
 module "iam" {
   source = "../../modules/iam"
 
+
   project_name               = var.project_name
   environment                = var.environment
   bucket_arn                 = module.s3.bucket_arn
@@ -104,6 +105,16 @@ module "ecr_trainer" {
   project_name    = var.project_name
   environment     = var.environment
   repository_name = "leviathan-trainer"
+}
+
+# Dedicated source-only EDA image. Apply with -target=module.ecr_eda before
+# running scripts/build_push_eda.ps1; never use a full untargeted apply here.
+module "ecr_eda" {
+  source = "../../modules/ecr"
+
+  project_name    = var.project_name
+  environment     = var.environment
+  repository_name = "leviathan-eda"
 }
 
 # A-W8 MLflow relocation: ECR repo for the baked MLflow server image (docker/mlflow/Dockerfile,

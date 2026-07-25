@@ -92,6 +92,16 @@ output "ecr_trainer_repository_url" {
   description = "ECR repository URL for the leviathan-trainer image."
 }
 
+output "ecr_eda_repository_url" {
+  value       = module.ecr_eda.repository_url
+  description = "ECR repository URL for the source-only Silver EDA image."
+}
+
+output "silver_eda_role_arn" {
+  value       = module.iam.silver_eda_role_arn
+  description = "Least-privilege Batch role for source-only Silver EDA jobs."
+}
+
 
 
 # A-W8: the relocated Fargate tracking server's stable Cloud Map endpoint. This

@@ -637,6 +637,113 @@ resource "aws_iam_role_policy_attachment" "silver_validator" {
   policy_arn = aws_iam_policy.silver_validator.arn
 }
 
+# Silver EDA role: canonical Silver is read-only; generated evidence is confined
+# to eda/silver/. It deliberately has no Athena actions and no gold/ access.
+resource "aws_iam_role" "silver_eda" {
+  name = "${var.project_name}-${var.environment}-silver-eda"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "ecs-tasks.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+    Role        = "silver-eda"
+  }
+}
+
+data "aws_iam_policy_document" "silver_eda" {
+  statement {
+    sid = "GlueSilverMetadataReadOnly"
+    actions = [
+      "glue:GetDatabase",
+      "glue:GetDatabases",
+      "glue:GetTable",
+      "glue:GetTables",
+      "glue:GetTableVersion",
+      "glue:GetTableVersions",
+      "glue:GetPartition",
+      "glue:GetPartitions",
+      "glue:BatchGetPartition",
+    ]
+    # Glue authorizes table reads against the table plus its database/catalog
+    # ancestors.  Restrict the leaf ARN to silver_* so this dedicated role
+    # cannot even inspect legacy Gold table metadata.
+    resources = [
+      local.glue_catalog_arn,
+      local.glue_database_arn,
+      local.glue_silver_tables_arn,
+    ]
+  }
+
+  statement {
+    sid = "ReadCanonicalSilverOnly"
+    actions = [
+      "s3:GetObject",
+      "s3:GetObjectVersion",
+    ]
+    resources = ["${var.bucket_arn}/silver/*"]
+  }
+
+  statement {
+    sid = "ReadWriteEdaCampaignArtifacts"
+    actions = [
+      "s3:AbortMultipartUpload",
+      "s3:GetObject",
+      "s3:ListMultipartUploadParts",
+      "s3:PutObject",
+    ]
+    resources = ["${var.bucket_arn}/eda/silver/*"]
+  }
+
+  statement {
+    sid = "ListOnlySilverAndEdaPrefixes"
+    actions = [
+      "s3:ListBucket",
+      "s3:ListBucketVersions",
+    ]
+    resources = [var.bucket_arn]
+
+    condition {
+      test     = "StringLike"
+      variable = "s3:prefix"
+      values = [
+        "silver",
+        "silver/*",
+        "eda/silver",
+        "eda/silver/*",
+      ]
+    }
+  }
+
+  statement {
+    sid = "InspectBucketIdentityAndVersioning"
+    actions = [
+      "s3:GetBucketLocation",
+      "s3:GetBucketVersioning",
+    ]
+    resources = [var.bucket_arn]
+  }
+}
+
+resource "aws_iam_policy" "silver_eda" {
+  name        = "${var.project_name}-${var.environment}-silver-eda"
+  description = "Read canonical Silver and write EDA campaign artifacts only; no Gold or Athena access."
+  policy      = data.aws_iam_policy_document.silver_eda.json
+}
+
+resource "aws_iam_role_policy_attachment" "silver_eda" {
+  role       = aws_iam_role.silver_eda.name
+  policy_arn = aws_iam_policy.silver_eda.arn
+}
+
 # ---------------------------------------------------------------------------
 # Publisher / deployer role — the single GATED writer.
 # ---------------------------------------------------------------------------
@@ -814,6 +921,7 @@ resource "aws_iam_role_policy_attachment" "silver_publisher_repair" {
   role       = aws_iam_role.silver_publisher.name
   policy_arn = aws_iam_policy.silver_publisher_repair[0].arn
 }
+
 # ---------------------------------------------------------------------------
 # WASDE scanned-bronze Textract job role — DEDICATED (2026-07-22).
 # The 1973-1994 scanned WASDE PDFs are OCR'd via Textract async in a Fargate
@@ -853,8 +961,8 @@ data "aws_iam_policy_document" "wasde_scanned_job" {
   }
 
   statement {
-    sid       = "ReadWasdeRawWriteWasdeBronze"
-    actions   = ["s3:GetObject", "s3:PutObject"]
+    sid     = "ReadWasdeRawWriteWasdeBronze"
+    actions = ["s3:GetObject", "s3:PutObject"]
     resources = [
       "${var.bucket_arn}/raw/production/source=usda_wasde/*",
       "${var.bucket_arn}/bronze/production/source=usda_wasde/*",

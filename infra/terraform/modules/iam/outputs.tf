@@ -42,6 +42,16 @@ output "silver_validator_role_name" {
   description = "SILVER-F014 read-only validator role NAME (== constants.SILVER_VALIDATOR_ROLE_NAME)."
 }
 
+output "silver_eda_role_arn" {
+  value       = aws_iam_role.silver_eda.arn
+  description = "Least-privilege Silver EDA role: read canonical silver/, write eda/silver/, no gold or Athena."
+}
+
+output "silver_eda_role_name" {
+  value       = aws_iam_role.silver_eda.name
+  description = "Least-privilege Silver EDA role name."
+}
+
 output "silver_publisher_role_arn" {
   value       = aws_iam_role.silver_publisher.arn
   description = "SILVER-F014 gated deployer/publisher role ARN (canonical writes fenced by the approval flag + a signed publish_guard approval)."
