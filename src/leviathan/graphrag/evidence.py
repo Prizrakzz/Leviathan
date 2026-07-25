@@ -433,6 +433,11 @@ def retrieve(query: str, node: str, *, k: int = 5, asof: str | None = None, near
     all_records = load_index(node) if records is None else records
     recs = [r for r in all_records if r["date"] <= asof] if asof else list(all_records)   # leakage filter FIRST
     if not recs:
+        if rerank:
+            # counted in the walk's coalescer hint but never scoring — retract, exactly as
+            # pgstore.pg_retrieve does at its own empty-candidate return
+            from leviathan.graphrag import rankers as rk
+            rk.rerank_unexpect()
         return []
     qv = embed([query], backend=recs[0].get("backend"), bedrock=bedrock)[0]   # same space as the index
 

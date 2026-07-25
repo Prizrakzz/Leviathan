@@ -237,6 +237,7 @@ def _parallel_fill(nodes, fn, query, retrieve, expected: int | None = None) -> N
         for n in nodes:
             fn(n)
         return
+    hinted = 0
     if getattr(retrieve, "func", retrieve) is ev.retrieve:
         try:
             ev.embed([query])
@@ -247,12 +248,38 @@ def _parallel_fill(nodes, fn, query, retrieve, expected: int | None = None) -> N
                 rankers as rk,  # the walk's per-node reranks merge into ONE request
             )
             if rk._rerank_backend() == "bedrock":
-                rk.rerank_expect(expected if expected is not None else len(nodes))
+                hinted = int(expected if expected is not None else len(nodes))
+                rk.rerank_expect(hinted)
         except Exception:  # noqa: BLE001 — a hint miss only costs latency, never correctness
-            pass
+            hinted = 0
     import concurrent.futures as cf
-    with cf.ThreadPoolExecutor(max_workers=min(_WALK_WORKERS, len(nodes))) as pool:
-        list(pool.map(fn, nodes))
+    workers = min(_WALK_WORKERS, len(nodes))
+    if hinted > workers:
+        # THE HINT MUST BE PHYSICALLY SATISFIABLE. A worker frees only when its _fill returns, and _fill
+        # returns only after its rerank resolves — so with a pool NARROWER than the promised batch the last
+        # arrivals are blocked behind the very request they were supposed to join. Measured in-VPC (job
+        # 44e96fc1): at 8 workers / 10 eligible nodes the floor is ceil(n_arrivals / workers) = 2 requests
+        # per turn at EVERY timer setting, and widening the quiescence only makes the leader manufacture its
+        # own straggler (final inter-arrival gap grew from 0.09-0.75 s at q=0.3 to 5.7-7.1 s at q=5.0). The
+        # one turn that reached 1 request at 8 workers was the one with 7 arrivals. Widening here does NOT
+        # widen DB concurrency: pgstore._acquire caps concurrent SQL at EVIDENCE_PG_POOL and releases the
+        # connection BEFORE the rerank, so the extra threads queue on that pool exactly as they do today and
+        # only the (network-bound, coalesced) rerank leg gains parallelism.
+        workers = min(hinted, len(nodes))
+    fn_ = fn
+    if hinted:
+        def fn_(n):  # noqa: E306
+            try:
+                fn(n)
+            except BaseException:                  # a promised arrival that died must RETRACT its promise,
+                try:                               # else the leader waits out the whole window for a caller
+                    from leviathan.graphrag import rankers as rk  # that can never arrive
+                    rk.rerank_unexpect()
+                except Exception:  # noqa: BLE001
+                    pass
+                raise
+    with cf.ThreadPoolExecutor(max_workers=workers) as pool:
+        list(pool.map(fn_, nodes))
 
 
 def _emit_stage(on_stage, stage: str, **info) -> None:

@@ -152,6 +152,205 @@ def test_coalescer_groups_by_query(monkeypatch, fresh_coal):
     assert sorted(calls) == ["q1", "q2"]                      # one request per distinct query
 
 
+# ── Phase-2 latency RCA: ONE Bedrock rerank request per turn ────────────────────────────────────────
+# The Cohere Rerank quota (3 req/min, L-11512E58, Adjustable=FALSE) is permanent, and serving measured
+# 6-8 requests per turn against it. The consequence is not latency: a mid-turn throttle drops the walk onto
+# the CPU cross-encoder, the walk then keeps DIFFERENT evidence, and the SAME question answers differently
+# run to run. Every test below pins one of the four mechanisms that split the batch. NOTE what the suite
+# looked like before: every existing coalescer test starts its threads simultaneously (arrivals microseconds
+# apart) with an explicit window=2.0, so a staggered walk, a post-close arrival and in-flight concurrency
+# were all uncovered — which is how 6-8 requests/turn shipped green.
+def test_coalescer_holds_one_batch_when_arrivals_are_staggered(monkeypatch, fresh_coal):
+    """Real walk arrivals are p50 0.142 s apart but p90 0.760 s (pg-pool serialisation, n=212 measured).
+    At the SHIPPED quiescence default a 0.4 s stagger must still be ONE request, not three."""
+    import threading
+    import time
+    calls: list[list[str]] = []
+
+    def fake_call(query, docs):
+        calls.append(list(docs))
+        return [1.0] * len(docs)
+
+    monkeypatch.setattr(rk, "_bedrock_rerank_call", fake_call)
+    assert rk._COALESCE_QUIESCENCE >= 1.0, "a sub-second quiescence closes the batch on a normal stagger"
+    fresh_coal.expect(3, window=8.0)
+    threads = []
+    for i in range(3):
+        t = threading.Thread(target=fresh_coal.submit, args=("q", [f"d{i}"]))
+        t.start()
+        threads.append(t)
+        time.sleep(0.4)                                       # wider than the OLD 0.3 s serving quiescence
+    for t in threads:
+        t.join(timeout=20)
+    assert len(calls) == 1 and calls[0] == ["d0", "d1", "d2"]
+
+
+def test_coalescer_never_runs_two_requests_concurrently(monkeypatch, fresh_coal):
+    """Leadership must be released AFTER the request. Released before it, arrivals during an in-flight call
+    elect a second leader and fire a SECOND concurrent request — a positive feedback loop against a 3/min
+    ceiling, reproduced in-VPC at 4 concurrent requests from one turn when the call was slow."""
+    import threading
+    import time
+    live, peak, lk = [0], [0], threading.Lock()
+
+    def slow_call(query, docs):
+        with lk:
+            live[0] += 1
+            peak[0] = max(peak[0], live[0])
+        time.sleep(0.6)
+        with lk:
+            live[0] -= 1
+        return [1.0] * len(docs)
+
+    monkeypatch.setattr(rk, "_bedrock_rerank_call", slow_call)
+    fresh_coal.expect(1, window=5.0)                          # leader closes on COUNT, then the call is slow
+    first = threading.Thread(target=fresh_coal.submit, args=("q", ["d"]))
+    first.start()
+    time.sleep(0.25)                                          # request #1 is now in flight
+    fresh_coal.expect(2, window=5.0)
+    later = [threading.Thread(target=fresh_coal.submit, args=("q", ["d"])) for _ in range(2)]
+    for t in later:
+        t.start()
+    for t in [first, *later]:
+        t.join(timeout=20)
+    assert peak[0] == 1                                       # at most ONE request in flight, ever
+
+
+def test_leader_abort_releases_the_flag_and_leaves_the_coalescer_usable(monkeypatch, fresh_coal):
+    """Holding leadership across the request means a leader that dies while holding the flag would wedge
+    EVERY later rerank in the process behind the 90 s follower timeout. The guard must release it."""
+    def boom(_batch):
+        raise RuntimeError("leader died holding the flag")
+
+    monkeypatch.setattr(fresh_coal, "_fire", boom)
+    fresh_coal.expect(1, window=1.0)
+    with pytest.raises(RuntimeError):
+        fresh_coal.submit("q", ["d"])
+    assert fresh_coal._leading is False and fresh_coal._pending == []
+    monkeypatch.undo()                                        # the process is not wedged: next turn works
+    monkeypatch.setattr(rk, "_bedrock_rerank_call", lambda q, d: [0.5] * len(d))
+    fresh_coal.expect(1, window=1.0)
+    assert fresh_coal.submit("q", ["d"]) == [0.5]
+
+
+def test_early_close_decrements_the_hint_so_late_arrivals_still_coalesce(monkeypatch, fresh_coal):
+    """`_expect = 0` after a drain pinned every later batch to the hardcoded 0.25 s idle window that NO env
+    var can reach (measured as the closer on 10/10 serving-config turns). Decrement instead: whatever the
+    walk still owes stays a COUNT, so the stragglers coalesce into one follow-up request."""
+    import threading
+    import time
+    calls: list[list[str]] = []
+    expect_after_drain: list[int] = []
+
+    def fake_call(query, docs):
+        calls.append(list(docs))
+        expect_after_drain.append(fresh_coal._expect)
+        return [1.0] * len(docs)
+
+    monkeypatch.setattr(rk, "_coalesce_quiescence", lambda: 0.15)   # force batch 1 to close EARLY
+    monkeypatch.setattr(rk, "_bedrock_rerank_call", fake_call)
+    fresh_coal.expect(4, window=8.0)
+    early = [threading.Thread(target=fresh_coal.submit, args=("q", [f"a{i}"])) for i in range(2)]
+    for t in early:
+        t.start()
+    for t in early:
+        t.join(timeout=20)                                    # batch 1 fired on quiescence with 2 of 4
+    late = [threading.Thread(target=fresh_coal.submit, args=("q", [f"b{i}"])) for i in range(2)]
+    for t in late:
+        t.start()
+    for t in late:
+        t.join(timeout=20)
+    assert len(calls) == 2
+    assert expect_after_drain[0] == 2                          # NOT 0 — the two stragglers are still owed
+    assert sorted(calls[1]) == ["b0", "b1"]                    # so batch 2 closed on COUNT, in ONE request
+    assert expect_after_drain[1] == 0
+
+
+def test_unexpect_closes_a_batch_a_hint_could_never_meet(monkeypatch, fresh_coal):
+    """`expect` counts nodes that will RETRIEVE; only the reranker knows which of them actually score (an
+    empty candidate set returns before the rerank). Retracting the difference is what keeps the closer a
+    count instead of a timer — EXPECT_MET fired ZERO times in 28 measured serving turns without it."""
+    import threading
+    import time
+    calls: list[int] = []
+
+    def fake_call(query, docs):
+        calls.append(len(docs))
+        return [1.0] * len(docs)
+
+    monkeypatch.setattr(rk, "_coalesce_quiescence", lambda: 60.0)   # neutralise the timer safety net
+    monkeypatch.setattr(rk, "_bedrock_rerank_call", fake_call)
+    fresh_coal.expect(3, window=60.0)                         # 3 promised, only 2 can ever arrive
+    t0 = time.time()
+    threads = [threading.Thread(target=fresh_coal.submit, args=("q", ["d"])) for _ in range(2)]
+    for t in threads:
+        t.start()
+    time.sleep(0.3)
+    rk.rerank_unexpect()                                      # node 3 found no candidates
+    for t in threads:
+        t.join(timeout=30)
+    assert calls == [2]
+    assert time.time() - t0 < 10                              # closed on the COUNT, not the 60 s window
+
+
+def test_unexpect_never_goes_negative(fresh_coal):
+    fresh_coal.expect(1)
+    rk.rerank_unexpect(5)
+    assert fresh_coal._expect == 0                            # a stray retraction can't poison the next turn
+
+
+# ── knob resolution order: env > params > code default ──────────────────────────────────────────────
+@pytest.mark.parametrize(("fn", "env", "key", "code_default"), [
+    (lambda: rk._coalesce_window(), "GRAPHRAG_COALESCE_WINDOW",
+     "serving.retrieval.coalesce_window", 4.0),
+    (lambda: rk._coalesce_quiescence(), "GRAPHRAG_COALESCE_QUIESCENCE",
+     "serving.retrieval.coalesce_quiescence", 2.5),
+    (lambda: rk._rerank_max_attempts(), "GRAPHRAG_RERANK_MAX_ATTEMPTS",
+     "serving.retrieval.rerank_max_attempts", 2),
+])
+def test_coalescer_knob_resolution_order(monkeypatch, fn, env, key, code_default):
+    """Serving's taskdef env is the authority, params.yaml is the reviewable default, and a public clone
+    with no params.yaml runs on the code default. All three legs asserted so a params edit can never be
+    silently inert (the RCA's S8 finding: the doc tuned 0.8/4.0 while serving ran 0.3/1.5 from env)."""
+    monkeypatch.delenv(env, raising=False)
+    monkeypatch.setattr(rk._pr, "get", lambda path, default: default)      # no params.yaml -> code default
+    assert fn() == code_default
+    monkeypatch.setattr(rk._pr, "get", lambda path, default, _k=key: 9 if path == _k else default)
+    assert fn() == 9                                                       # params beats the code default
+    monkeypatch.setenv(env, "7")
+    assert fn() == 7                                                       # env beats params
+
+
+def test_params_yaml_carries_the_measured_coalescer_defaults():
+    """The shipped params.yaml must actually declare the values the RCA measured — otherwise the code
+    default is silently the only thing in play and a taskdef env change has nothing to match."""
+    from leviathan.graphrag import params as pr
+    assert pr.get("serving.retrieval.coalesce_window", None) == 4.0
+    assert pr.get("serving.retrieval.coalesce_quiescence", None) == 2.5
+    assert pr.get("serving.retrieval.rerank_max_attempts", None) == 2
+
+
+# ── F1b: fail fast to bge instead of burning the adaptive ladder ────────────────────────────────────
+def test_bedrock_client_retry_ladder_is_capped(monkeypatch):
+    """max_attempts=8 adaptive meant a throttled call burned the whole ladder — while HOLDING the quota it
+    was waiting for — before the caller-level bge fallback was even reached. 2 = one retry, then fall back."""
+    boto3 = pytest.importorskip("boto3")
+    captured: dict = {}
+
+    def fake_client(service, **kw):
+        captured["service"] = service
+        captured["retries"] = kw["config"].retries
+        raise RuntimeError("stop here — the client is all we wanted to inspect")
+
+    monkeypatch.setattr(rk, "_bedrock_rerank_client", None)
+    monkeypatch.setattr(boto3, "client", fake_client)
+    monkeypatch.delenv("GRAPHRAG_RERANK_MAX_ATTEMPTS", raising=False)
+    with pytest.raises(RuntimeError):
+        rk._bedrock_rerank_call("q", ["a"])
+    assert captured["service"] == "bedrock-agent-runtime"
+    assert captured["retries"]["max_attempts"] == 2 and captured["retries"]["mode"] == "adaptive"
+
+
 def test_bedrock_rerank_call_chunks_past_api_cap(monkeypatch):
     fake = _FakeRerankClient([])                              # results filled per call below
 
@@ -395,6 +594,139 @@ def test_run_hybrid_numbers_failure_never_blocks_the_note(monkeypatch):
                           planner=None)
     assert out["structured"]["tldr"] == "t"                                # the note still lands
     assert out["number_calls"] == []                                       # no-numbers, same as an error today
+
+
+# ── Phase-2: the coalescer hint must be PHYSICALLY satisfiable ──────────────────────────────────────
+@pytest.fixture()
+def _spy_pool(monkeypatch):
+    """Capture the max_workers _parallel_fill actually asks for."""
+    import concurrent.futures as cf
+    seen: dict = {}
+    real = cf.ThreadPoolExecutor
+
+    class _Spy(real):                                          # type: ignore[misc,valid-type]
+        def __init__(self, max_workers=None, **kw):
+            seen["max_workers"] = max_workers
+            super().__init__(max_workers=max_workers, **kw)
+
+    monkeypatch.setattr(cf, "ThreadPoolExecutor", _Spy)
+    return seen
+
+
+@pytest.mark.parametrize(("n_nodes", "expected", "walk_workers", "want_workers"), [
+    (11, 10, 8, 10),      # the real serving shape: node budget 10 (+focus driver) vs 8 walk workers
+    (11, 4, 8, 8),        # hint below the pool -> pool unchanged, no widening
+    (3, 3, 8, 3),         # never more workers than nodes
+])
+def test_parallel_fill_pool_is_never_narrower_than_the_hint(monkeypatch, _spy_pool, n_nodes, expected,
+                                                            walk_workers, want_workers):
+    """A worker frees only when its _fill returns, and _fill returns only when its rerank resolves — so a
+    pool narrower than the promised batch blocks the last arrivals BEHIND the request they were meant to
+    join. Measured in-VPC: the floor is ceil(n_arrivals / workers) requests per turn at EVERY timer setting.
+    Widening here does not widen DB concurrency (pgstore caps that at EVIDENCE_PG_POOL and releases the
+    connection before the rerank)."""
+    from leviathan.graphrag import evidence as evd
+    from leviathan.graphrag import planner as pl
+    monkeypatch.setenv("GRAPHRAG_RERANK_BACKEND", "bedrock")
+    monkeypatch.setattr(pl, "_WALK_WORKERS", walk_workers)
+    monkeypatch.setattr(evd, "embed", lambda *a, **k: [[0.0]])           # no bge load in a unit test
+    hints: list[int] = []
+    monkeypatch.setattr(rk, "rerank_expect", lambda n, window=None: hints.append(n))
+    done: list[int] = []
+    pl._parallel_fill(list(range(n_nodes)), done.append, "q", evd.retrieve, expected=expected)
+    assert hints == [expected]
+    assert _spy_pool["max_workers"] == want_workers
+    assert sorted(done) == list(range(n_nodes))                          # every node still ran, exactly once
+
+
+def test_parallel_fill_does_not_hint_or_widen_on_the_bge_backend(monkeypatch, _spy_pool):
+    """bge never enters the coalescer (rankers._bedrock_rerank_scores is the only submit path), so the
+    offline/eval lane keeps its byte-identical 8-wide pool."""
+    from leviathan.graphrag import evidence as evd
+    from leviathan.graphrag import planner as pl
+    monkeypatch.setenv("GRAPHRAG_RERANK_BACKEND", "bge")
+    monkeypatch.setattr(pl, "_WALK_WORKERS", 8)
+    monkeypatch.setattr(evd, "embed", lambda *a, **k: [[0.0]])
+    monkeypatch.setattr(rk, "rerank_expect", lambda n, window=None: pytest.fail("bge must not hint"))
+    pl._parallel_fill(list(range(11)), lambda n: None, "q", evd.retrieve, expected=10)
+    assert _spy_pool["max_workers"] == 8
+
+
+def test_parallel_fill_retracts_the_hint_when_a_node_raises(monkeypatch):
+    """A promised arrival that dies must retract, or the leader waits out the entire window for a caller
+    that can never come."""
+    from leviathan.graphrag import evidence as evd
+    from leviathan.graphrag import planner as pl
+    monkeypatch.setenv("GRAPHRAG_RERANK_BACKEND", "bedrock")
+    monkeypatch.setattr(pl, "_WALK_WORKERS", 4)
+    monkeypatch.setattr(evd, "embed", lambda *a, **k: [[0.0]])
+    monkeypatch.setattr(rk, "rerank_expect", lambda n, window=None: None)
+    retracted: list[int] = []
+    monkeypatch.setattr(rk, "rerank_unexpect", lambda n=1: retracted.append(n))
+
+    def boom(n):
+        if n == 2:
+            raise RuntimeError("pg fetch died")
+
+    with pytest.raises(RuntimeError):
+        pl._parallel_fill(list(range(4)), boom, "q", evd.retrieve, expected=4)
+    assert retracted == [1]
+
+
+def test_pg_retrieve_retracts_the_hint_on_an_empty_candidate_set(monkeypatch):
+    """The hint counts nodes that will RETRIEVE. A node whose slice has no asof-legal candidates returns
+    before the reranker, so it must give its slot back."""
+    from leviathan.graphrag import pgstore
+    monkeypatch.setattr(pgstore, "fetch_candidates", lambda *a, **k: [])
+    retracted: list[int] = []
+    monkeypatch.setattr(rk, "rerank_unexpect", lambda n=1: retracted.append(n))
+    assert pgstore.pg_retrieve("q", "n", rerank=True, embed=lambda t: [[0.0]]) == []
+    assert retracted == [1]
+    retracted.clear()
+    assert pgstore.pg_retrieve("q", "n", rerank=False, embed=lambda t: [[0.0]]) == []
+    assert retracted == []                                   # the probe path never hinted, never retracts
+
+
+def test_flat_retrieve_retracts_the_hint_on_an_empty_slice(monkeypatch):
+    from leviathan.graphrag import evidence as evd
+    retracted: list[int] = []
+    monkeypatch.setattr(rk, "rerank_unexpect", lambda n=1: retracted.append(n))
+    assert evd.retrieve("q", "n", rerank=True, records=[]) == []
+    assert retracted == [1]
+    retracted.clear()
+    assert evd.retrieve("q", "n", rerank=False, records=[]) == []
+    assert retracted == []
+
+
+def test_floor_coalesces_its_contract_retrieves_and_keeps_contract_order(monkeypatch):
+    """The deterministic floor retrieves with rerank=True over <=2 contracts. Serially that is TWO
+    uncoalesced Bedrock requests on the slowest population in the fleet (p50 242.6 s / p95 1,163.6 s).
+    Hint + overlap = one request; results are re-assembled in CONTRACT order so the banner is unchanged."""
+    from leviathan.causal import schema as cs
+    from leviathan.graphrag import evidence as evd
+    from leviathan.graphrag import graph as g
+    from leviathan.graphrag import orchestrator as orch
+    mk = (lambda name: cs.CausalContract(contract=name, aliases=[name],
+                                         drivers=[cs.Driver(id="d", type="hazard", sign="+", mechanism="m")]))
+    graph = g.CausalGraph({"palm_oil": mk("palm_oil"), "soybean_oil": mk("soybean_oil")}, silver=set())
+    monkeypatch.setenv("GRAPHRAG_RERANK_BACKEND", "bedrock")
+    hints: list[int] = []
+    monkeypatch.setattr(rk, "rerank_expect", lambda n, window=None: hints.append(n))
+    order: list[str] = []
+
+    def fake_retrieve(query, node, **kw):
+        order.append(node)
+        assert kw.get("rerank") is True                       # the floor really is on the rerank path
+        return [{"date": "2026-01-0" + str(len(order)), "source": "GAIN",
+                 "source_key": f"s3://{node}", "text": f"{node} text"}]
+
+    monkeypatch.setattr(evd, "retrieve", fake_retrieve)
+    out = orch._evidence_only("palm and soyoil", "2026-07-21", graph=graph, kind="hybrid",
+                              exc=RuntimeError("tier dead"),
+                              route_fn=lambda q, gr: ["palm_oil", "soybean_oil"])
+    assert hints == [2]                                       # ONE coalesced request, not two serial ones
+    assert [e["contract"] for e in out["evidence"]] == ["palm_oil", "soybean_oil"]   # contract order kept
+    assert out["model"] == "(unavailable)" and out["contracts"] == ["palm_oil", "soybean_oil"]
 
 
 def test_serving_call_stream_falls_back_to_buffered_on_stream_error(monkeypatch):

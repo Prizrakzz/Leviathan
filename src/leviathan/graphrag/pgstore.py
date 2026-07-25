@@ -304,6 +304,8 @@ def pg_retrieve(query: str, node: str, *, k: int = 5, asof: str | None = None, n
     cand = fetch_candidates(qv, query, node, asof=asof, fetch_k=fetch_k, hybrid=(mode == "hybrid"), conn=conn,
                             with_vectors=with_vec)
     if not cand:
+        if rerank:                                 # this caller WAS counted in the walk's coalescer hint but
+            rk.rerank_unexpect()                   # will never score — retract, or the leader waits it out
         return []
 
     if with_vec:

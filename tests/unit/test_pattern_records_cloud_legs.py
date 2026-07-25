@@ -10,7 +10,8 @@ fail, it writes a wrong verdict into history that the write-guard then faithfull
   * the wrapper must never register a jobdef (terraform owns it; two owners = a silent revert);
   * the jobdef must carry the pg seam, the engine_version stamp, and the DEDICATED role;
   * the baked command must NOT pin --asof (a date would rot; the task stamps today UTC);
-  * the schedule must ship DISABLED (day-0 doctrine: one manual run, reviewed, THEN armed);
+  * the schedule must stay ARMED (it shipped DISABLED by day-0 doctrine -- one manual run, reviewed, THEN
+    armed -- and the doctrine was satisfied on 2026-07-25, so the pin now guards the armed state);
   * the IAM grant must be write-scoped to the ledger prefix and append-only (deletes denied).
 
 AWS-free + terraform-free: the tf checks are text-shape asserts over the committed HCL (the repo has
@@ -237,8 +238,14 @@ class TestJobdefTerraform:
 
 
 class TestScheduleTerraform:
-    def test_schedule_ships_disabled(self, schedule):
-        assert 'state = "DISABLED"' in schedule
+    def test_schedule_is_armed_after_the_reviewed_day0_run(self, schedule):
+        # Was `state = "DISABLED"` by day-0 doctrine. The doctrine was SATISFIED 2026-07-25 (dry-run ->
+        # shadow, 543 records reviewed -> canonical -> 156-partition backfill) and the schedule was armed
+        # under user direction (ee78c276). The pin now guards the ARMED state, so a stray revert to DISABLED
+        # -- which would silently stop the ledger accruing, the same class of failure the IOD monthly DAG
+        # turned out to be -- fails the suite instead of passing quietly.
+        assert 'state = "ENABLED"' in schedule
+        assert 'state = "DISABLED"' not in schedule
 
     def test_schedule_is_count_gated_on_the_digest(self, schedule):
         assert 'count = var.pattern_records_image_digest != "" ? 1 : 0' in schedule

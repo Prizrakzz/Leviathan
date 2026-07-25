@@ -151,8 +151,21 @@ _bedrock_rerank_client = None
 _COALESCE_MAX_DOCS = 1000            # API cap per request (10 nodes x pool 60 = 600, comfortably under)
 _COALESCE_IDLE_WINDOW = 0.25         # s — a lone caller (one-hop path) barely waits
 _COALESCE_HINT_WINDOW = 4.0          # s — hard cap the leader waits for the hinted batch (env/param tunable)
-_COALESCE_QUIESCENCE = 0.8           # s — a quiet gap this long after the last arrival = the hinted stragglers
+# QUIESCENCE (raised 0.8 -> 2.5, Phase-2 latency RCA, MEASURED in-VPC job 52e131bb over 20 stubbed + 5 live
+# arms): it is a SAFETY NET for an over-counted hint, not the normal closer, and at 0.3-0.8 s it was firing
+# as the PRIMARY closer on 10/10 serving-config turns. Real inter-arrival gaps between walk nodes are p50
+# 0.142 s but p90 0.760 s with 27.8% of gaps > 0.30 s (n=212) — the pg pool serialises fetches, so a
+# legitimate straggler routinely looks "quiet". The count-based closer (`_expect`, now kept accurate by
+# rerank_unexpect + a decrement-on-drain) is what should close the batch; quiescence only rescues a hint
+# that can never be met. 2.5 s is above the observed max legitimate gap and still bounds the damage.
+_COALESCE_QUIESCENCE = 2.5           # s — a quiet gap this long after the last arrival = the hinted stragglers
 #                                      (skipped/empty-retrieval nodes) aren't coming; don't burn the full window
+# F1b (Phase-2): the Bedrock Rerank quota (3 req/min, L-11512E58, Adjustable=FALSE, user-confirmed permanent)
+# means a throttle is a STEADY STATE, not a tail event. An adaptive ladder of 8 attempts burns tens of seconds
+# of a turn before the caller-level bge fallback is even reached, and it does so while HOLDING the quota it is
+# waiting for. Fail fast (2 attempts = 1 retry) so the fallback is reached in seconds. This is only affordable
+# because the fallback got cheap: bge was 10.3 s/60-doc pool on the 1-vCPU taskdef :64; serving is now 4 vCPU.
+_RERANK_MAX_ATTEMPTS = 2
 
 
 def _coalesce_window() -> float:
@@ -166,6 +179,13 @@ def _coalesce_quiescence() -> float:
     """Quiet-gap after the last arrival before the leader stops waiting on over-counted stragglers."""
     return float(os.environ.get("GRAPHRAG_COALESCE_QUIESCENCE")
                  or _pr.get("serving.retrieval.coalesce_quiescence", _COALESCE_QUIESCENCE))
+
+
+def _rerank_max_attempts() -> int:
+    """botocore total attempts (1 initial + retries) for the managed rerank. Env > params > code default,
+    same resolution order as every other serving knob, so the ladder is tunable without a rebuild."""
+    return max(1, int(os.environ.get("GRAPHRAG_RERANK_MAX_ATTEMPTS")
+                      or _pr.get("serving.retrieval.rerank_max_attempts", _RERANK_MAX_ATTEMPTS)))
 
 
 def _rerank_backend() -> str:
@@ -184,7 +204,7 @@ def _bedrock_rerank_call(query: str, docs: list[str]) -> list[float]:
         from botocore.config import Config
         _bedrock_rerank_client = boto3.client(
             "bedrock-agent-runtime", region_name=os.environ.get("AWS_REGION", "us-east-1"),
-            config=Config(retries={"mode": "adaptive", "max_attempts": 8}))
+            config=Config(retries={"mode": "adaptive", "max_attempts": _rerank_max_attempts()}))
     model_arn = (os.environ.get("GRAPHRAG_RERANK_MODEL")
                  or _pr.get("serving.retrieval.rerank_model", _DEFAULT_RERANK_MODEL))
     max_chars = int(_pr.get("serving.retrieval.rerank_max_chars", 2000))
@@ -234,6 +254,14 @@ class _RerankCoalescer:
             self._expect = max(0, int(n))
             self._window = float(window) if window is not None else _coalesce_window()
 
+    def unexpect(self, n: int = 1) -> None:
+        """RETRACT part of a hint: a promised caller has determined it will never reach the reranker (empty
+        candidate set, or its fill raised). Without this the leader waits out the window/quiescence for an
+        arrival that cannot come — which is exactly how a count-based closer degrades into a timer-based one.
+        `expect` counts nodes that WILL retrieve; only the reranker knows which of them actually score."""
+        with self._lock:
+            self._expect = max(0, self._expect - max(0, int(n)))
+
     def submit(self, query: str, texts: list[str]) -> list[float]:
         import threading
         import time
@@ -254,26 +282,69 @@ class _RerankCoalescer:
         return e["scores"]
 
     def _lead(self) -> None:
+        """Own the queue until it is empty, ONE request in flight at a time.
+
+        Two Phase-2 corrections, both measured (in-VPC jobs 52e131bb / 44e96fc1):
+          * leadership is released AFTER the request, not before it. Releasing early let arrivals that landed
+            during an in-flight call elect a second leader and fire a SECOND concurrent Bedrock request —
+            reproduced at 4 concurrent requests from a single turn when the call was slow (i.e. exactly when
+            it was throttled). That is a positive feedback loop against a 3-req/min ceiling, and it is the
+            mechanism behind the 410 s worst turn on record. Holding leadership caps in-flight at 1 and turns
+            late arrivals into a coalesced follow-up batch instead of a competing request.
+          * `_expect` is DECREMENTED by what the batch actually took, never zeroed. Zeroing pinned every batch
+            after the first to the hardcoded _COALESCE_IDLE_WINDOW (0.25 s) that no env var can reach —
+            measured as the closer on 10/10 serving-config turns.
+
+        The re-lead loop is NOT optional once leadership is held across the request: a caller that arrives
+        mid-flight has already passed the `if not self._leading` election, so nobody else will ever serve it.
+        Draining until empty is what keeps that queue live. The loop terminates because only the leader
+        removes from `_pending` and arrivals per turn are bounded by the node budget.
+        """
         import time
-        t0 = time.time()
-        quiesce = _coalesce_quiescence()
-        while True:
+        batch: list[dict] = []
+        try:
+            while True:
+                t0 = time.time()
+                quiesce = _coalesce_quiescence()
+                while True:
+                    with self._lock:
+                        n, exp, win, last = (len(self._pending), self._expect, self._window,
+                                             self._last_arrival)
+                    now = time.time()
+                    if exp and n >= exp:
+                        break                             # everyone the walk promised has arrived
+                    if now - t0 >= (win if exp else _COALESCE_IDLE_WINDOW):
+                        break                             # hard window cap
+                    if exp and n > 0 and now - last >= quiesce:
+                        break                             # QUIESCENCE: a quiet gap this long means the hint
+                        # over-counted and the stragglers are never coming. With rerank_unexpect() keeping
+                        # the count honest this is a safety net, not the normal path — see the constant.
+                    time.sleep(0.05)
+                with self._lock:
+                    batch, self._pending = self._pending, []
+                    self._expect = max(0, self._expect - len(batch))   # what's left is still promised
+                self._fire(batch)                         # _fire never raises: per-group try/except/finally
+                batch = []
+                with self._lock:
+                    if not self._pending:
+                        self._leading = False             # released only once nothing is queued AND nothing
+                        return                            # is in flight — at most ONE request per process
+        except BaseException:
+            # Defensive only (_fire swallows its own errors). A leader that dies while holding the flag
+            # would wedge EVERY later rerank in the process behind the 90 s follower timeout, so release
+            # the flag and unblock anything taken but unserved before propagating.
             with self._lock:
-                n, exp, win, last = len(self._pending), self._expect, self._window, self._last_arrival
-            now = time.time()
-            if exp and n >= exp:
-                break                                     # everyone the walk promised has arrived
-            if now - t0 >= (win if exp else _COALESCE_IDLE_WINDOW):
-                break                                     # hard window cap
-            if exp and n > 0 and now - last >= quiesce:
-                break                                     # QUIESCENCE: arrivals stagger ~0.25s apart (pg pool),
-                # so a quiet gap this long means the stragglers (skipped/empty nodes) are never coming — don't
-                # burn the full window waiting for an over-counted expectation.
-            time.sleep(0.05)
-        with self._lock:
-            batch, self._pending = self._pending, []
-            self._leading = False
-            self._expect = 0                       # the hinted batch is done; stragglers form a tiny 2nd batch
+                stranded, self._pending = [*batch, *self._pending], []
+                self._leading = False
+            for e in stranded:
+                if e["scores"] is None and e["err"] is None:
+                    e["err"] = RuntimeError("rerank coalescer leader aborted")
+                e["ev"].set()
+            raise
+
+    def _fire(self, batch: list[dict]) -> None:
+        """One grouped Bedrock request per distinct query; each caller gets its own contiguous score slice.
+        Errors propagate to every member of the group so the caller-level bge fallback stays intact."""
         groups: dict[str, list[dict]] = {}
         for e in batch:
             groups.setdefault(e["q"], []).append(e)
@@ -298,8 +369,19 @@ _COAL = _RerankCoalescer()
 
 def rerank_expect(n: int, window: float | None = None) -> None:
     """Hint from the walk: ~n rerank calls are about to arrive — coalesce them into one Bedrock request.
-    `window=None` -> the env/param-tunable default (_coalesce_window)."""
+    `window=None` -> the env/param-tunable default (_coalesce_window).
+
+    CONTRACT (Phase-2): the hint is a PROMISE the caller must be able to keep. It is only satisfiable if the
+    caller can hold all `n` retrieves in flight simultaneously — a walk pool narrower than `n` blocks the last
+    arrivals BEHIND the very request they were supposed to join, so the floor becomes ceil(n/workers) requests
+    at any timer setting (measured). See planner._parallel_fill, which sizes its pool from this count."""
     _COAL.expect(n, window)
+
+
+def rerank_unexpect(n: int = 1) -> None:
+    """Retract `n` from the outstanding hint — a promised caller that will never reach the reranker (empty
+    candidate set, or a fill that raised). Cheap, lock-guarded, and a no-op when nothing is expected."""
+    _COAL.unexpect(n)
 
 
 def _bedrock_rerank_scores(query: str, texts: list[str]) -> list[float]:

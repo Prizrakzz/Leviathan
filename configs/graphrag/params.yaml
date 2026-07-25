@@ -89,6 +89,20 @@ serving:
     k: 5
     mmr: 0.5
     fairness: 0.30
+    # ── managed-rerank coalescer (rankers._RerankCoalescer) ────────────────────────────────────────────
+    # Resolution order is ENV > params > code default for all three (rankers._coalesce_window /
+    # _coalesce_quiescence / _rerank_max_attempts), so the ECS taskdef still wins. These are the values the
+    # Phase-2 latency RCA measured to 1.00 Bedrock rerank calls/turn in-VPC; the serving taskdef env MUST be
+    # set to match (it carries the pre-RCA 1.5 / 0.3) or these params are inert on serving.
+    coalesce_window: 4.0        # s — leader's hard cap waiting for the hinted batch
+    coalesce_quiescence: 2.5    # s — safety net for an UNMEETABLE hint, not the normal closer. 0.3 (serving)
+                                # and 0.8 (old code default) both fired as the PRIMARY closer: real walk
+                                # inter-arrival gaps are p50 0.142 s but p90 0.760 s, 27.8% > 0.30 s (n=212).
+    rerank_max_attempts: 2      # F1b: botocore TOTAL attempts. The 3-req/min Cohere Rerank quota is
+                                # NON-adjustable and user-confirmed permanent, so a throttle is steady state;
+                                # an 8-attempt adaptive ladder burned tens of seconds HOLDING the quota
+                                # before the bge fallback was even reached. Fail fast — affordable now that
+                                # serving is 4 vCPU (bge was measured at 10.3 s/60-doc pool on 1 vCPU).
   timeline:                     # event timeline (layer 2): prop-store episodes per slice
     # DEFAULT OFF (GRAPHRAG_TIMELINE=on to enable): measured net-negative as first built (counts w/o
     # receipts invited confabulation); the receipted+evidence-gated path is what =on now exercises.

@@ -786,12 +786,36 @@ def _evidence_only(query: str, asof: str, *, graph, kind: str, exc: Exception,
         contracts = [c for c in an.route(query, graph) if c in graph.contracts]   # lexical tier only
     contracts = contracts[:2]
     retr = functools.partial(ev.retrieve, **an._RETRIEVAL)
-    evidence, seen = [], set()
-    for c in contracts:
+    # an._RETRIEVAL carries rerank=True, so a SERIAL loop over the <=2 contracts issued TWO uncoalesced
+    # Bedrock requests against a 3-req/min ceiling — on the population that is already the slowest in the
+    # fleet (floor turns: p50 242.6 s, p95 1,163.6 s). Hint the coalescer and overlap the contracts so the
+    # floor costs ONE request. Results are re-assembled in CONTRACT order below, so the dedup order, the
+    # citation order and the banner body are byte-identical to the sequential loop.
+    from leviathan.graphrag import rankers as rk
+
+    def _hits(c):
         try:
-            hits = retr(query, c, k=5, asof=asof, near=near)
+            return retr(query, c, k=5, asof=asof, near=near)
         except Exception:  # noqa: BLE001 — evidence store down too -> banner-only floor
-            hits = []
+            try:
+                rk.rerank_unexpect()               # a promised arrival that died; don't strand the leader
+            except Exception:  # noqa: BLE001
+                pass
+            return []
+
+    if len(contracts) > 1:
+        try:
+            if rk._rerank_backend() == "bedrock":
+                rk.rerank_expect(len(contracts))
+        except Exception:  # noqa: BLE001 — a hint miss only costs latency, never correctness
+            pass
+        import concurrent.futures as _cf
+        with _cf.ThreadPoolExecutor(max_workers=len(contracts)) as _pool:
+            per_contract = list(_pool.map(_hits, contracts))
+    else:
+        per_contract = [_hits(c) for c in contracts]
+    evidence, seen = [], set()
+    for c, hits in zip(contracts, per_contract):
         for h in hits:
             sk = h.get("source_key")
             if sk and sk in seen:
