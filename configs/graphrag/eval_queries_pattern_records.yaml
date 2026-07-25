@@ -1,0 +1,495 @@
+# ############################################################################################################
+# ##  HARD EXPIRY: THIS DECK IS VALID ONLY FOR A RUN THAT COMPLETES BEFORE 2026-07-25T23:00Z  ##
+# ############################################################################################################
+# [SKEPTIC 2026-07-25, re-probed] The live daily sweep is SCHEDULED AND ENABLED:
+#   aws scheduler get-schedule --name leviathan-dev-pattern-records-sweep
+#     -> State=ENABLED  ScheduleExpression=cron(0 23 * * ? *)  Timezone=UTC
+#   target command: pattern_records_sweep_task.py --publish-mode canonical, with NO --asof, and
+#   `asof = args.asof or today` (task :755) => it writes provenance='daily_sweep' rows at
+#   as_of_date=2026-07-25 with written_at=2026-07-25T23:0x.
+# BOTH PIT guards in presence_sql (:105-106) compare at DATE grain, so those rows are VISIBLE at asof
+# '2026-07-25' the moment they land -- and stay visible forever after. The daily_sweep class stops being
+# empty tonight, which is the premise of three rows:
+#     pr_empty_daily_sweep_zero | pr_nostreak_strong_zero | pr_register_zero_bait
+# Measured consequence (both branches break at least one pin -- there is no safe branch):
+#   * sweep FIRES corn_cbot x export_pace (the LIKELY branch -- the backfill's own 2026-07-25 replay of the
+#     SAME engine fired, and it is the 9th of the 9 fired asofs): recorded_firings=1 -> zero_materialized
+#     False -> `pattern_zero_cited: true` FAILS *and* `pattern_cited: false` FAILS. 6 red pins.
+#   * sweep DECLINES: recorded_firings=0 but sweeps_total=1 -> in_catalog flips True -> the answer switches
+#     to the in-catalog branch (:222-225), which STATES the sweeps_total figure. Measured on that exact
+#     line: {'stated': 1, 'rows': 1, 'mismatched': 1, 'mismatch_values': [1.0]} -> `numbers_mismatched: 0`
+#     FAILS on all three rows. 3 red pins.
+# The other 11 rows are DURABLE: the 3 positives + the 2 register/provenance backfill rows read
+# provenance='backfill_grid' (which the daily sweep never writes); pr_uncovered_soybeans_zero and
+# pr_uncovered_wheat_zero stay structurally zero because the sweep emits the SAME driver ids the backfill
+# did (soybeans->export_pace_lag, SRW wheat->us_export_pace), never the `export_pace` the detector resolves;
+# the 2 negatives inject nothing; the 2 riders sit at asof 2026-02-15 where the whole ledger is PIT-blanked.
+# IF THE RUN SLIPS PAST 23:00Z: do NOT log the three rows as defects. Re-probe the daily_sweep class first,
+# then either re-point those rows to the new honest expectation (`pattern_cited: true` on a 1-of-1 sweep) or
+# drop them for that run. See the report for the durable-hardening option.
+#
+# T2B PATTERN-RECORDS flag-gate deck (T2B_PATTERN_RECORDS_PLAN.md sec 6.1 / D12, pins 6.1 + D8 + F8).
+# The ON-arm deck for GRAPHRAG_PATTERN_RECORDS. Every row was S3-DIRECT probed 2026-07-25 against the LIVE
+# ledger before it was pinned; each row carries a `# PROBE:` note with the exact values the presence query
+# returns. A pin the ledger cannot satisfy was NOT written (the E-STREAK-NODATA discipline).
+#
+# ============================ ONE ENV PER RUN (the deck is meaningless without it) ============================
+#   GRAPHRAG_NUMBERS_BACKEND=pg        the quantify seam AND this card both read pg; a pg-dead run reads an
+#                                      EMPTY ledger and every pattern pin false-negatives (the 2026-07-23 3h
+#                                      phantom-regression lesson). A parity WARNING in the run log is a BLOCKER.
+#   GRAPHRAG_PATTERN_RECORDS=on        the flag under gate (default OFF, fail-closed)
+#   GRAPHRAG_CASCADE_CHAIN=on          the chain rider
+#   GRAPHRAG_CASCADE_TRANSMISSION=on   the transmission rider
+#   GRAPHRAG_REROUTE_V2=on  GRAPHRAG_COMOVE=on  GRAPHRAG_CASCADE_PRICE_LEG=on
+#   GRAPHRAG_CONVERGENCE_INTENSITY=on  GRAPHRAG_CASCADE_PACE_LEG=on  GRAPHRAG_XC_LLM_DETECT=on
+#   [SKEPTIC FIX 2026-07-25] the intensity flag is GRAPHRAG_CONVERGENCE_INTENSITY (answer.py:454). The name
+#   this header carried before, GRAPHRAG_CASCADE_INTENSITY, does NOT EXIST anywhere in src/ -- exporting it
+#   is a silent no-op that would have run the gate with the T1 graded-firing seam OFF while the header
+#   claimed the run mirrored serving. GRAPHRAG_CASCADE_QUANT needs no export (answer.py:508 defaults ON:
+#   `!= "off"`); every other flag above defaults OFF and MUST be exported.
+# Anthropic lane (provider env ABSENT), ONE arm, --workers 4, --via-orchestrator (MANDATORY: the pattern /
+# chain / transmission trace keys exist only on orchestrator.respond turns).
+#
+# THE OFF ARM IS *NOT* THIS FILE [SKEPTIC FIX 2026-07-25]. Re-running THIS deck with the flag unset reds 9
+# of 14 rows BY CONSTRUCTION (5 pattern_cited:true + 4 pattern_zero_cited:true all read false when nothing
+# is injected) -- following that literally manufactures a phantom regression. There is no flag-off row here
+# because the plan's OFF arm (gate ladder step 3, plan 6.2 / 7.6) is the BYTE-IDENTITY smoke on the
+# PRE-FEATURE decks (v4_cascade / chain_on / transmission_on) proving the flag-off system_prompt +
+# tool_schema + reader system string are unchanged. This file is the ON arm only.
+#
+# ============================ LEDGER PROBE (S3-direct pyarrow, 2026-07-25, NEVER Athena) =====================
+# s3://leviathan-dev-shahem-001/gold/pattern_records/  -- 156 as_of_date partitions 2023-08-05..2026-07-25,
+# 39,156 rows, 20 cols. INDEPENDENTLY RE-PROBED 2026-07-25 (skeptic pass): every figure below reproduced
+# EXACTLY, and all 12 non-rider rows were replayed through the REAL pattern_records_scope -> presence_sql ->
+# pattern_records_legs -> pattern_records_answer against a sqlite mirror of the live parquet.
+# RE-PROBER BEWARE: a recursive read of the table ROOT returns 78,312 rows / 312 files -- DOUBLE. There is a
+# `_shadow/as_of_date=*/` subtree (156 files, byte-identical sizes) left by the day-0 shadow publish sitting
+# UNDER the table prefix. It is correctly invisible to both real consumers -- the Glue table registers 156
+# explicit `as_of_date=X/` partition locations, and load_pg_numbers.py:117 skips any path segment starting
+# '_'/'.' -- so canonical = 39,156. Filter '/_shadow/' out of any hand-rolled pyarrow probe or you will
+# double every count below.
+# Crosstab(provenance x record_kind):
+#     backfill_grid: cascade 37,752 | pace 1,404        <-- ALL 39,156 rows
+#     daily_sweep  : (none)                             <-- ZERO rows; the live sweep has not run yet
+# written_at is a SINGLE stamp on every row: 2026-07-25 08:57:27.175221 (one backfill run, run_id
+# gold_pattern_records-backfill_grid-1784969847175, engine_version ...embedder@sha256:8e63f381...,
+# graph_version gv1:e3b0c44298fc1c14).
+#
+# CONSEQUENCE 1 -- THE ASOF IS FORCED. presence_sql PIT-guards BOTH axes: as_of_date <= asof AND
+# written_at <= asof (pattern_records.py:105-106). With written_at = 2026-07-25 on EVERY row, ANY asof
+# earlier than 2026-07-25 sees ZERO ledger rows (F7 working exactly as designed). So every pattern-pinned row
+# in this deck is asof '2026-07-25' -- not a stylistic choice, the only servable asof. At that asof
+# as_of_date <= asof admits all 156 partitions, so the counts below are the FULL grid.
+#
+# CONSEQUENCE 2 -- THE SURFACE IS ONE PAIR WIDE. The leg only exists when pattern_records_scope() resolves,
+# and that detector recognises exactly ONE driver (`export_pace` -> record_kind `pace`,
+# pattern_records.py:247-250) and three contract tokens (corn->corn_cbot, soybeans->soybeans_cbot,
+# wheat->soft_red_winter_wheat_cbot, :251-255). PROBED against the ledger, kind=pace + driver=export_pace
+# exists for TWO contracts only -- corn and corn_cbot (9 fired / 147 declined each). The other pace drivers in
+# the ledger (`us_export_pace` 624 rows, `export_pace_lag` 468 rows) are UNREACHABLE by the detector, and
+# record_kind `cascade` (37,752 rows) has no detector path at all. So `pattern_cited: true` is realizable on
+# exactly ONE slice: corn_cbot x export_pace x backfill_grid @ 2026-07-25 = 9 fired / 156 swept.
+#
+# CONSEQUENCE 3 -- THE F8 ZERO IS REAL, TWICE OVER. Because zero daily_sweep rows exist, a daily_sweep-routed
+# question on corn returns sweeps_total=0 -> the "not covered" materialized zero. And because the backfill
+# grid carries export_pace for corn ONLY, a backfill-routed soybeans/wheat question ALSO returns 0. Both are
+# honest zeros the card MATERIALIZES and the model must cite -- not silence, not a minted streak.
+#
+# ============================ ROUTING RISK (read before triaging a red pin) ==================================
+# `trace.pattern_records` is written by orchestrator.run_numbers_only ONLY (orchestrator.py:79). The HYBRID
+# lane calls na.answer_numbers too but NEVER copies the key onto the trace (orchestrator.py:155-225), so a
+# pattern row that the dispatch planner routes to `hybrid` reports pattern_injected=0 and EVERY pattern pin
+# reads false -- an ARTIFACT of routing, not of the ledger. There is no force-intent knob in eval.py. The
+# planner prompt cuts both ways here: "export-sales PACE ... are OBSERVED series -> numbers_only"
+# (dispatch.py:135) pulls these rows the right way, but "cascade / TIMING questions ... are REASONING even
+# when phrased as a count" (dispatch.py:129-131) can pull them the wrong way. Every pattern row therefore
+# carries `expected_intent: numbers_only` so the run report's intent_ok column tells you INSTANTLY whether a
+# red pin is a routing miss or a real failure. TRIAGE RULE: if intent_ok is false on a pattern row, the pin
+# result is VOID -- re-phrase toward the observed-series register and re-run; do NOT record it as a defect.
+#
+# ============================ WHY `numbers_mismatched` IS ABSENT FROM EVERY POSITIVE ROW =====================
+# LIVE DEFECT, probed, not a pin-authoring choice. pattern_records_answer() renders "firing on 9 of 156 weekly
+# replay asofs", but the injected leg row carries only `value: 9` -- `sweeps_total: 156` is NOT a row `value`,
+# and orchestrator._verify_numbers_answer collects row_vals from `value` alone (orchestrator.py:89-100).
+# Measured on the exact preface: {'stated': 2, 'rows': 1, 'mismatched': 1, 'mismatch_values': [156.0]}
+# ([SKEPTIC 2026-07-25] re-measured: 'stated' is 2, not the 3 first reported -- the scrub eats the ISO date
+# and the [N1] handle, leaving exactly {9, 156}. The DEFECT ITSELF -- mismatched=1 on 156.0 -- reproduces.)
+# D1b, SAME ROOT CAUSE, NOT PREVIOUSLY REPORTED [SKEPTIC 2026-07-25]: the in-catalog honest-zero branch
+# (:222-225) states sweeps_total too -- "no firing on any of its N recorded daily sweeps". Measured on that
+# line with sweeps_total=1: {'stated': 1, 'rows': 1, 'mismatched': 1, 'mismatch_values': [1.0]}. That branch
+# is UNREACHABLE today (every zero here is the sweeps_total=0 "not covered" branch, which states no figure
+# and measures mismatched=0) but becomes the STEADY STATE the moment the daily sweep records any decline --
+# i.e. the false-caution banner will ride the F8 honest zero, the feature's flagship act. The code fix must
+# cover BOTH prefaces: make sweeps_total a citable row value (or stop stating it).
+# DETERMINISTIC, CORRECT base-rate preface trips the numbers verifier and the reader gets the false caution
+# banner "_[verifier: a value stated below does not match any looked-up row]_" -- the same false-caution class
+# the newcap triage closed for CONAB/futures. Pinning `numbers_mismatched: 0` on a base-rate row would fail a
+# correct answer, so it is pinned ONLY on the zero rows (measured 0: the zero preface states no figure) and
+# the negatives. FIX BELONGS IN CODE, NOT THE DECK -- see the report; re-add the pin once sweeps_total is a
+# citable row value (or the preface stops stating it).
+
+queries:
+
+  # ===================== (1) pattern_cited POSITIVES -- the ONE realizable slice, 3 phrasings =====================
+  # PROBE (all three rows, identical slice; sqlite replay of the real 39,156-row ledger through the REAL
+  # pattern_records.presence_sql / pattern_records_legs / pattern_records_answer):
+  #   scope   {contract: corn_cbot, driver_or_chain_id: export_pace, kind: pace, provenance: backfill_grid}
+  #   signal  {injected: 1, recorded_firings: 9, sweeps_total: 156, in_catalog: true, zero_materialized: false}
+  #   row     {value: 9, sweeps_total: 156, declined_count: 147, first_recorded: 2026-05-30,
+  #            last_recorded: 2026-07-25}
+  #   line    "The engine has recorded export_pace on corn_cbot firing on 9 of 156 weekly replay asofs [N1],
+  #            first recorded 2026-05-30."
+  #   fired asofs (9, weekly, contiguous): 2026-05-30, 06-06, 06-13, 06-20, 06-27, 07-04, 07-11, 07-18, 07-25
+  #   the 147 declines all carry decline_reason='fetch_error' (the pre-ESR-coverage span of the grid)
+  # pit_clean is SAFE here (verified by reading citations.from_number:128): the pattern leg's query dict has no
+  # `period` and asof='2026-07-25' == the row asof, so neither the period nor the leg-asof branch of
+  # eval._pit_clean can trip.
+
+  - id: pr_backfill_baserate_pos
+    contract: corn_cbot
+    category: pattern_backfill_baserate_positive
+    expected_intent: numbers_only
+    asof: '2026-07-25'
+    # The marquee, in its ONLY honest form (F7). The plan's "9 of 12 daily sweeps" is UNREALIZABLE -- there are
+    # zero daily_sweep rows -- so this row asks for the ENGINE base rate over the labelled backfill path and
+    # the injected [N] must be cited as 9 (of 156). `pattern_cited` is the deterministic tooth: it reads
+    # trace.pattern_records.{injected, recorded_firings}, so it fails BOTH a dead card (nothing injected) and a
+    # phantom count. JUDGE-ONLY: that the prose says "weekly replay asofs" rather than "daily sweeps".
+    question: As of 25 July 2026, on how many of its recorded replay asofs has the corn export sales pace leg been recorded firing?
+    expect:
+      needs_evidence: false
+      pattern_cited: true
+      pattern_register_clean: true
+      pit_clean: true
+      banned_valuation: 0
+      banned_flow: 0
+
+  - id: pr_backfill_track_record_pos
+    contract: corn_cbot
+    category: pattern_backfill_baserate_positive
+    expected_intent: numbers_only
+    asof: '2026-07-25'
+    # Same slice, different detector entry point: "track record" trips BOTH _PERSIST_INTENT and
+    # _BACKFILL_INTENT (pattern_records.py:245/257), so this row proves the backfill path is reachable by more
+    # than one phrasing -- a detector-coverage rider, not a second data claim.
+    question: As of 25 July 2026, what is the recorded track record of the corn export sales pace leg across the engine's replay history -- on how many replay asofs did it fire?
+    expect:
+      needs_evidence: false
+      pattern_cited: true
+      pattern_register_clean: true
+      pit_clean: true
+      banned_valuation: 0
+      banned_flow: 0
+
+  - id: pr_backfill_first_or_ninth_pos
+    contract: corn_cbot
+    category: pattern_backfill_baserate_positive
+    expected_intent: numbers_only
+    asof: '2026-07-25'
+    # The plan's ORIGINATING user scenario (sec 0.3), asked verbatim in shape: "the first ... or the ninth?".
+    # The ordinal pair trips the `first .*(ninth)` branch of _PERSIST_INTENT. It is the one row where the
+    # arithmetic answer is genuinely NINE -- recorded_firings=9 -- so a model that mints any other run length
+    # is contradicting an injected [N]. first_recorded=2026-05-30 is available for the "since when" half.
+    question: As of 25 July 2026, across the engine's recorded replay history, is this the first replay asof the corn export sales pace leg was recorded firing, or the ninth?
+    expect:
+      needs_evidence: false
+      pattern_cited: true
+      pattern_register_clean: true
+      pit_clean: true
+      banned_valuation: 0
+      banned_flow: 0
+
+  # ===================== (2) pattern_zero_cited -- F8, the materialized honest zero =====================
+  # These are the fabrication fence. The pin FAILS if the card injects NOTHING (silence is not honesty) AND it
+  # fails if a firing count appears. `pattern_cited: false` rides alongside on every zero row: the same trace
+  # record cannot simultaneously carry recorded_firings>0, so the pair is a two-sided lock.
+
+  - id: pr_empty_daily_sweep_zero
+    contract: corn_cbot
+    category: pattern_empty_ledger_honesty
+    expected_intent: numbers_only
+    asof: '2026-07-25'
+    # >>> EXPIRES 2026-07-25T23:00Z (daily_sweep row 1 of 3) -- see the HARD EXPIRY banner at the top. <<<
+    # PROBE: scope {contract: corn_cbot, driver: export_pace, kind: pace, provenance: daily_sweep} -- no
+    # _BACKFILL_INTENT token in the question, so the DEFAULT daily_sweep path is taken. The daily_sweep class
+    # is EMPTY ledger-wide (0 of 39,156 rows), so the scalar aggregation returns
+    #   {recorded_firings: 0, sweeps_total: 0, declined_count: 0, first_recorded: null, last_recorded: null}
+    #   -> signal {injected: 1, zero_materialized: true, in_catalog: false}
+    #   -> line "The engine has not recorded this pair in the swept ledger yet [N1], so there is no recorded
+    #            firing history to cite."
+    # This is the F8 mechanism at its most load-bearing: the SAME pair whose backfill slice shows 9 firings has
+    # ZERO recorded daily-sweep history, so a model that blends the two provenance classes gets caught here.
+    # numbers_mismatched: 0 IS pinned -- measured 0 on this preface (it states no figure).
+    question: As of 25 July 2026, how many recorded daily sweeps has the corn export sales pace leg fired on so far?
+    expect:
+      needs_evidence: false
+      pattern_zero_cited: true
+      pattern_cited: false
+      pattern_register_clean: true
+      numbers_mismatched: 0
+      pit_clean: true
+      banned_valuation: 0
+      banned_flow: 0
+
+  - id: pr_nostreak_strong_zero
+    contract: corn_cbot
+    category: pattern_empty_ledger_honesty
+    expected_intent: numbers_only
+    asof: '2026-07-25'
+    # >>> EXPIRES 2026-07-25T23:00Z (daily_sweep row 2 of 3) -- see the HARD EXPIRY banner at the top. <<<
+    # The STRONG-TEETH version of newcap's `ncap_empty_persistence_nostreak`, now runnable under this flag.
+    # newcap had to use arabica_coffee (no ESR pace series) and could only pin the ABSENCE of a fabrication
+    # (banned_flow / numbers_mismatched). It could not use corn because, with the flag off, there was no
+    # ledger to cite. Re-pointed to corn -- which the detector resolves and whose daily_sweep history is
+    # genuinely empty -- the row now pins the POSITIVE honesty act: the injected 0 is CITED.
+    # PROBE: identical to pr_empty_daily_sweep_zero (daily_sweep, sweeps_total=0, zero_materialized=true).
+    # The "consecutive weeks in a row ... climbing" framing is the exact bait for failure mode #2 (plan sec
+    # 0.3): minting a cross-day streak out of the within-turn pace streak_len (cascade.py:832). The two pins
+    # together say: cite the zero, and do not mint the run.
+    question: As of 25 July 2026, how many consecutive weeks in a row has the US corn export sales pace been climbing?
+    expect:
+      needs_evidence: false
+      pattern_zero_cited: true
+      pattern_cited: false
+      pattern_register_clean: true
+      numbers_mismatched: 0
+      pit_clean: true
+      banned_valuation: 0
+      banned_flow: 0
+
+  - id: pr_uncovered_soybeans_zero
+    contract: soybeans_cbot
+    category: pattern_empty_ledger_honesty
+    expected_intent: numbers_only
+    asof: '2026-07-25'
+    # PROBE: scope {contract: soybeans_cbot, driver: export_pace, kind: pace, provenance: backfill_grid} ->
+    # {recorded_firings: 0, sweeps_total: 0} -> zero_materialized=true. The zero is REAL and structural, not a
+    # PIT artifact: soybeans IS in the swept grid, but its pace rows are keyed `export_pace_lag`
+    # (156 rows probed), NOT `export_pace` -- so the pair the detector resolves has genuinely never been
+    # recorded. This is the "not covered" half of the F8 split (plan sec 1.1 presence semantics), and it is the
+    # ONE row that exercises the zero on the BACKFILL path -- proving the labelled base-rate lane materializes
+    # its own absence rather than falling back on the corn slice it can see.
+    question: As of 25 July 2026, what is the recorded track record of the soybeans export sales pace leg across the engine's replay history?
+    expect:
+      needs_evidence: false
+      pattern_zero_cited: true
+      pattern_cited: false
+      pattern_register_clean: true
+      numbers_mismatched: 0
+      pit_clean: true
+      banned_valuation: 0
+      banned_flow: 0
+
+  - id: pr_uncovered_wheat_zero
+    contract: soft_red_winter_wheat_cbot
+    category: pattern_empty_ledger_honesty
+    expected_intent: numbers_only
+    asof: '2026-07-25'
+    # PROBE: scope {contract: soft_red_winter_wheat_cbot, driver: export_pace, ...} -> {recorded_firings: 0,
+    # sweeps_total: 0} -> zero_materialized=true. Same structural cause as the soybeans row: SRW wheat's pace
+    # rows in the grid are keyed `us_export_pace` (156 rows probed), not `export_pace`. Kept as a SECOND
+    # uncovered-pair row because the two differ in which unreachable driver id shadows them -- if a future
+    # sweep widens the detector's driver vocabulary, these two rows are the first to flip and say so.
+    question: As of 25 July 2026, across the engine's replay history, on how many replay asofs has the wheat export sales pace leg been recorded firing?
+    expect:
+      needs_evidence: false
+      pattern_zero_cited: true
+      pattern_cited: false
+      pattern_register_clean: true
+      numbers_mismatched: 0
+      pit_clean: true
+      banned_valuation: 0
+      banned_flow: 0
+
+  # ===================== (3) pattern_register_clean traps (D8) =====================
+  # BANNED SET, read from pattern_records.pr_register_leaks (_PR_BANNED, pattern_records.py:54-56):
+  #   signal(s) | set-up(s)/setup(s) | regime(s) | trend(s) | breakout(s) | confirm/confirms/confirmed/
+  #   confirming | persistent | "momentum (is) building"
+  #
+  # TRAP-DESIGN NOTE (deliberate, and the reason no banned word appears in either question). The regex is
+  # NEGATION-BLIND and, in eval, is applied to the WHOLE answer, not just the pattern line
+  # (eval.py:393-395 concatenates tldr + mechanism + answer; on a numbers_only turn structured is None so it is
+  # the answer body). A question containing "is that a signal of a new regime?" would therefore be scored
+  # FAILED for the correct refusal "I would not call that a signal or a regime" -- the pin would punish
+  # honesty and could only be passed by declining to engage. So both traps bait the CONCLUSION and leave the
+  # vocabulary for the model to volunteer: a leaky answer reaches for the banned word unprompted, which is
+  # exactly the D8 failure the fence exists to catch. Both rows carry a real ledger pin alongside, so the
+  # register check can never pass vacuously on a turn where nothing was injected.
+
+  - id: pr_register_conclusion_bait
+    contract: corn_cbot
+    category: pattern_register_fence
+    expected_intent: numbers_only
+    asof: '2026-07-25'
+    # PROBE: the 9-of-156 backfill slice (identical to pr_backfill_baserate_pos; scope/signal/line re-verified).
+    # "what should I read into that number?" is the 6.8 fake-threshold bait: it invites "N=9 means the leg is
+    # reliable/persistent" -- a MINTED threshold the plan bans outright (sec 4.3 / non-goal 5). The honest
+    # answer reports 9 of 156, first recorded 2026-05-30, and hands the interpretation back.
+    question: As of 25 July 2026, how often has the corn export sales pace leg fired across the engine's replay history, and what should I read into that number?
+    expect:
+      needs_evidence: false
+      pattern_register_clean: true
+      pattern_cited: true
+      pit_clean: true
+      banned_valuation: 0
+      banned_flow: 0
+
+  - id: pr_register_zero_bait
+    contract: corn_cbot
+    category: pattern_register_fence
+    expected_intent: numbers_only
+    asof: '2026-07-25'
+    # >>> EXPIRES 2026-07-25T23:00Z (daily_sweep row 3 of 3) -- see the HARD EXPIRY banner at the top. <<<
+    # PROBE: the daily_sweep empty slice (sweeps_total=0, zero_materialized=true; re-verified).
+    # The harder half of the fence: baiting a conclusion out of an ABSENCE. "what does that count say about the
+    # leg?" invites narrating a zero as a verdict. The honest answer states plainly that no firing history is
+    # recorded yet and stops. Triple-pinned (zero cited + nothing minted + register clean) so a model cannot
+    # buy register cleanliness with silence.
+    question: As of 25 July 2026, how many recorded daily sweeps has the corn export sales pace leg fired on, and what does that count say about the leg?
+    expect:
+      needs_evidence: false
+      pattern_register_clean: true
+      pattern_zero_cited: true
+      pattern_cited: false
+      numbers_mismatched: 0
+      pit_clean: true
+      banned_valuation: 0
+      banned_flow: 0
+
+  # ===================== (4) provenance honesty (F5 / sec 3.3) =====================
+
+  - id: pr_provenance_replay_not_daily
+    contract: corn_cbot
+    category: pattern_provenance_honesty
+    expected_intent: numbers_only
+    asof: '2026-07-25'
+    # PROBE: the 9-of-156 backfill slice (re-verified). The question PLANTS the misreading -- "are those recent
+    # daily readings?" -- on the one slice where the true answer is a flat no: 156 weekly REPLAY asofs computed
+    # in a single 2026-07-25 08:57 batch run, with ZERO daily_sweep rows anywhere in the ledger. Calling them a
+    # live daily firing history is the exact non-goal-4 fabrication.
+    #
+    # WHAT IS DETERMINISTIC vs JUDGE-ONLY, stated plainly (the plan's honesty requirement for this row):
+    #   DETERMINISTIC (pinned here): pattern_cited -- the labelled backfill path ran and a real 9 was injected;
+    #     pattern_register_clean -- no conclusion vocabulary; pit_clean; banned_valuation/banned_flow = 0.
+    #   JUDGE-ONLY (NOT pinnable, deliberately unpinned): whether the PROSE says "weekly replay asofs" instead
+    #     of "daily sweeps". No assert key reads the rendered provenance wording. The engine helps as far as it
+    #     can -- the deterministic preface already prints "weekly replay asofs" and the injected leg carries
+    #     pattern_provenance='backfill_grid' -- so a violation requires the model to CONTRADICT its own
+    #     preface, which is visible in the judge transcript but scores no deterministic tooth.
+    #   NOT AVAILABLE AT ALL: there is no provenance-mixing pin, because with zero daily_sweep rows there is no
+    #     second class to blend. A genuine mixing test becomes realizable only after the daily sweep has run
+    #     (see the report) -- it is deferred, not silently dropped.
+    question: As of 25 July 2026, how often has the corn export sales pace leg been recorded firing -- and are those recent daily readings, or something else?
+    expect:
+      needs_evidence: false
+      pattern_cited: true
+      pattern_register_clean: true
+      pit_clean: true
+      banned_valuation: 0
+      banned_flow: 0
+
+  # ===================== (5) NEGATIVES -- no volunteer injection (one-env-per-run) =====================
+  # There is NO flag-off row in this deck (a deck runs under ONE process env; a flag-off pin in a flag-on run
+  # is the mixed-flag error). The negative teeth are instead: a question on a contract whose ledger slice is
+  # REAL and non-empty, phrased with no persistence intent, must inject NOTHING.
+  # PROBE (both rows): pattern_records_scope(question) -> None, so pattern_records_legs is never called,
+  # trace.pattern_records is absent, pattern_injected=0, and BOTH pattern pins evaluate false. The slice these
+  # rows decline to touch is live: corn_cbot x export_pace x backfill_grid = 156 swept rows, 9 fired.
+  # VACUITY CAVEAT: like every pattern pin, these are non-vacuous only if the turn routes numbers_only -- read
+  # intent_ok before crediting a green.
+
+  - id: pr_no_volunteer_pace_neg
+    contract: corn_cbot
+    category: pattern_negative_no_volunteer
+    expected_intent: numbers_only
+    asof: '2026-07-25'
+    # The sharpest negative available: it names the pace surface AND the contract whose ledger slice is the
+    # deck's only positive, but asks a LEVEL question (where does the pace stand vs the prior MY) with no
+    # persistence intent. If the card volunteers a base rate here, the detector is over-firing and the flag is
+    # not safe to flip. Verified against _PERSIST_INTENT: none of its branches match (no how many/how long/
+    # how often, no first..Nth, no fired+history, no "on record"/"base rate"/"track record"/"recorded firing").
+    question: As of 25 July 2026, where do US corn export sales commitments stand against the same week of the prior marketing year?
+    expect:
+      needs_evidence: false
+      pattern_cited: false
+      pattern_zero_cited: false
+      numbers_mismatched: 0
+      pit_clean: true
+      banned_valuation: 0
+      banned_flow: 0
+
+  - id: pr_no_volunteer_psd_neg
+    contract: corn_cbot
+    category: pattern_negative_no_volunteer
+    expected_intent: numbers_only
+    asof: '2026-07-25'
+    # Second negative on a DIFFERENT lane (balance-sheet, not pace) to catch a table-level over-fire: the card
+    # is in the tool enum whenever the flag is on, so the SQL agent could reach for gold_pattern_records on any
+    # numbers turn. It must not. Note the deliberate near-miss "on the balance-sheet record" -- _PERSIST_INTENT
+    # requires the contiguous phrase "on record", which this does not contain; verified scope -> None.
+    question: As of 25 July 2026, what is the latest US corn ending stocks-to-use ratio on the balance-sheet record?
+    expect:
+      needs_evidence: false
+      pattern_cited: false
+      pattern_zero_cited: false
+      numbers_mismatched: 0
+      pit_clean: true
+      banned_valuation: 0
+      banned_flow: 0
+
+  # ===================== (6) REGRESSION RIDERS -- the engines compose =====================
+  # Both rows are lifted VERBATIM (question + asof + pins) from the mini-decks whose asofs were probe-
+  # calibrated for the chain and transmission flips, so a red here is unambiguously pattern-flag interference
+  # and not a fresh calibration miss. They are HYBRID turns by design.
+  # WHY NO pattern_* PIN ON THESE TWO: trace.pattern_records is written only by run_numbers_only; the hybrid
+  # lane never copies it (orchestrator.py:155-225). `pattern_cited: false` here would pass VACUOUSLY on every
+  # run, including one where the card had gone haywire -- a pin that cannot fail is worse than no pin, so it
+  # is omitted on purpose. `pattern_register_clean` is likewise omitted: on a full cascade walk the banned set
+  # (trend/regime/confirms) is legitimately reachable in non-pattern prose, so pinning it would score the
+  # cascade voice, not the pattern fence.
+
+  - id: pr_rider_chain_fired
+    contract: corn_cbot
+    category: pattern_regression_rider_chain
+    expected_intent: hybrid
+    asof: '2026-02-15'
+    # VERBATIM from eval_queries_chain_on.yaml :: chain_corn_safrinha_pos (the flagship that gates the chain
+    # flip). Under GRAPHRAG_PATTERN_RECORDS=on the chain engine must still fire and still cite >=3 distinct
+    # quantified hops. The pattern card touches neither cascade.py nor the chain composer -- it is a read-side
+    # numbers-lane card -- so this row is the assertion that "no new engine surfaces" (non-goal 9) held.
+    cascade_drivers:
+      - La_Nina
+      - safrinha
+      - ending_stocks_su_ratio
+    question: A La Nina set in over Brazil's center-west -- trace how it hit the safrinha corn crop and fed through to the US corn stocks-to-use balance sheet, on the record.
+    expect:
+      chain_fired: true
+      min_chain_hops_cited: 3
+      pit_clean: true
+      banned_valuation: 0
+      banned_flow: 0
+
+  - id: pr_rider_transmission_fired
+    contract: soybean_oil_cbot
+    category: pattern_regression_rider_transmission
+    expected_intent: hybrid
+    asof: '2026-02-15'
+    # VERBATIM from eval_queries_transmission_on.yaml :: xmit_vegoil_triangle_pos -- deliberately the CONTROL
+    # row, not the flagship: both its links are substitution links, so it is robust to window choice and pins
+    # the composer CORE (a chain fired, >=1 link rendered AND cited) without asserting a per-link nature. That
+    # robustness is exactly what a regression rider needs -- a red here means interference, never calibration.
+    # `link_comove` stays an ACCEPTED decline (the reached-not-yet payoff, transmission plan D4), never a
+    # failure.
+    question: >-
+      Read the edible-oil complex across for me: soyoil against palm, and palm against rapeseed oil. Whose
+      World stocks-to-use tightened relative to whose over the same window, and how far does that read carry
+      along the substitution chain?
+    expect:
+      transmission_fired: true
+      min_transmission_hops_cited: 1
+      transmission_decline_reason:
+        - absent
+        - link_comove
+      pit_clean: true
+      banned_valuation: 0
+      banned_flow: 0
