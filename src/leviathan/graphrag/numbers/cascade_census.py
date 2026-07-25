@@ -200,17 +200,21 @@ def _distinct_set(table: str, col: str, query_fn) -> set[str]:
 
 def _dark_reason(table: str, commodity: str | None, country: str | None, ts, caches: dict, query_fn) -> str:
     """Name the sub-reason for a resolved-but-zero-row leg. country-not-a-psd-title (France->EU) is checked
-    FIRST -- it is the class the existing table.metric + region-token lints structurally cannot catch."""
+    FIRST -- it is the class the existing table.metric + region-token lints structurally cannot catch.
+    The DISTINCT probes hit the PHYSICAL served table (ts.athena_table when it differs from the id --
+    silver_esr serves from silver_esr_compact): the raw logical id crashed the T2b backfill on pg with
+    UndefinedTable (2026-07-25) because only build_sql resolved the mapping, not this f-string path."""
+    phys = getattr(ts, "athena_table", None) or table
     ccol = getattr(ts, "country_col", None)
     if country and ccol:
-        titles = caches.setdefault(("title", table), _distinct_set(table, ccol, query_fn))
+        titles = caches.setdefault(("title", phys), _distinct_set(phys, ccol, query_fn))
         if country not in titles:
             return "country-not-a-psd-title"
     if table in _UNCERTIFIED:
         return "uncertified-table"
     scol = getattr(ts, "commodity_col", None)
     if commodity and scol:
-        slugs = caches.setdefault(("slug", table), _distinct_set(table, scol, query_fn))
+        slugs = caches.setdefault(("slug", phys), _distinct_set(phys, scol, query_fn))
         if commodity not in slugs:
             return "commodity-slug-miss"
     return "metric-empty-for-country"

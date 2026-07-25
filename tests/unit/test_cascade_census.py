@@ -421,3 +421,20 @@ def test_pair_realizable_public_true_false_none(monkeypatch):
     monkeypatch.setattr(pgnumbers, "enabled", lambda: False)          # pg down -> fail-closed None
     assert cc.pair_realizable("good") is None
     cc.pair_realizable.cache_clear()
+
+
+def test_dark_reason_probes_the_physical_served_table():
+    """T2b backfill RCA 2026-07-25: silver_esr serves from silver_esr_compact (ts.athena_table); the
+    census DISTINCT probes crashed pg with UndefinedTable because they f-stringed the LOGICAL id. The
+    probe must hit the physical name."""
+    from types import SimpleNamespace
+    from leviathan.graphrag.numbers import cascade_census as cc
+    seen = []
+    def qfn(sql):
+        seen.append(sql)
+        return [{"v": "corn_cbot"}]
+    ts = SimpleNamespace(country_col=None, commodity_col="commodity_name", athena_table="silver_esr_compact")
+    reason = cc._dark_reason("silver_esr", "soybeans_cbot", None, ts, {}, qfn)
+    assert reason == "commodity-slug-miss"
+    assert seen and "silver_esr_compact" in seen[0] and "FROM" in seen[0]
+    assert ".silver_esr " not in seen[0] and not seen[0].rstrip().endswith(".silver_esr")
