@@ -25,6 +25,12 @@ from leviathan.graphrag.numbers import query as Q
 CASCADE_CAP = int(_pr.get("serving.cascade.cap", 12))            # own budget, separate from serving.silver.cap
 CHAIN_CAP = int(_pr.get("serving.cascade.chain.cap", 12))        # chain engine's OWN net-fetch budget (D5): chains
 #                                                                  never eat the per-node cascade's cap, nor vice versa
+# The HORIZONTAL transmission engine's OWN net-fetch budget (TRANSMISSION_CHAIN_PLAN 3.3 control-2 / D5, fold-pass
+# finding 3). NOT a shared counter: the ratified vertical CHAIN_CAP above is standalone and stays untouched, so the
+# two chain engines are budget-INDEPENDENT (and under the D11 mutual exclusion at most one of them fires per turn,
+# which makes a combined counter redundant anyway). Overflow -> ATOMIC decline (`cap`), never a truncated chain.
+TRANSMISSION_CAP = int(_pr.get("serving.cascade.transmission.cap", 18))
+TRANSMISSION_DEPTH_CAP = 2                                       # links per chain, v1 (D1): 3-4 link paths deferred
 
 
 # ── the map (B-S2) ───────────────────────────────────────────────────────────────────────────────────
@@ -72,6 +78,55 @@ def load_chain_map() -> list:
     p = ex._CFG / "numbers" / "chain_map.yaml"
     doc = yaml.safe_load(p.read_text(encoding="utf-8")) if p.exists() else {}
     return [c for c in ((doc or {}).get("chains") or []) if not (c or {}).get("deferred")]
+
+
+def _transmission_row_ok(chain) -> bool:
+    """The FAIL-CLOSED structural rules for one transmission_map row (TRANSMISSION_CHAIN_PLAN D1). Applied by
+    the loader so a config drift can NEVER reach the composer (the load_complex_map `material` precedent, where
+    an unratified row simply does not load):
+      * 2..TRANSMISSION_DEPTH_CAP links -- the v1 depth cap; a 1-link "chain" is just an RV2 pair, which the
+        pair engine already serves;
+      * every link carries a non-empty pair_id/source/target, and source != target;
+      * consecutive links share EXACTLY one node: links[i].target == links[i+1].source (the hub);
+      * the node sequence is SIMPLE (no repeated slug) -- a revisited node is a walk, not a chain.
+    Never raises (a malformed row is a dropped row, not an exception at import time)."""
+    try:
+        links = (chain or {}).get("links") or []
+        if not (2 <= len(links) <= TRANSMISSION_DEPTH_CAP) or not str((chain or {}).get("id") or ""):
+            return False
+        nodes: list = []
+        for i, lk in enumerate(links):
+            src, tgt = (lk or {}).get("source"), (lk or {}).get("target")
+            if not ((lk or {}).get("pair_id") and src and tgt) or src == tgt:
+                return False
+            if i and links[i - 1].get("target") != src:               # the shared hub, exactly one node
+                return False
+            if not i:
+                nodes.append(src)
+            nodes.append(tgt)
+        return len(set(nodes)) == len(nodes)                          # simple path (no repeated node)
+    except Exception:  # noqa: BLE001
+        return False
+
+
+@functools.lru_cache(maxsize=1)
+def load_transmission_map() -> list:
+    """The curated `configs/graphrag/numbers/transmission_map.yaml` `chains:` list, FILE ORDER preserved (the
+    composer first-fires the FIRST focus-matching row -- deterministic), mirroring load_chain_map. Each chain:
+    {id, links: [{pair_id, source, target, nature}]}. `nature` is the per-link EXPECTATION HINT only -- never a
+    gate and never a forced render (D9 + the fold-pass HIGH finding: the RV2 fork is purely SIGN-driven, so the
+    engine renders the OBSERVED per-window sign, co-move or divergence, whichever the record shows).
+
+    A row flagged `deferred: true` is inert, and a row failing `_transmission_row_ok` is DROPPED (fail-closed).
+    Schema/loader ONLY here -- the file CONTENT is the curation surface (TRACKED, like chain_map.yaml).
+    Missing file -> [] (the composer no-ops)."""
+    import yaml
+
+    from leviathan.graphrag import extract as ex
+    p = ex._CFG / "numbers" / "transmission_map.yaml"
+    doc = yaml.safe_load(p.read_text(encoding="utf-8")) if p.exists() else {}
+    return [c for c in ((doc or {}).get("chains") or [])
+            if not (c or {}).get("deferred") and _transmission_row_ok(c)]
 
 
 # ── marketing-year boundaries (P8: a naive int(date[:4]) picks the WRONG MY for an Aug wheat event) ──
@@ -573,7 +628,7 @@ def _pair_units(groups: list) -> tuple:
 # ── the orchestration (B-S3) ─────────────────────────────────────────────────────────────────────────
 def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request: dict | None = None,
              comove: bool = False, price_request: dict | None = None, pace: bool = False,
-             chain: bool = False) -> tuple:
+             chain: bool = False, transmission: bool = False) -> tuple:
     """Select grounded nodes with mapped refs, derive analogue-era windows from their dated props, build
     per-node leg GROUPS (era legs + a current rhyme leg), detect cross-country REROUTE pairs (RF-3:
     natural two-node pairs + the synthesized primary-country beneficiary), cap on WHOLE pair-atomic
@@ -605,10 +660,12 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
             groups.append({"node": n, "row": row, "specs": specs, "key": specs[0]["node_key"],
                            "commodity": commodity, "contract": getattr(n, "contract", None),
                            "country": country, "eras": eras})
-    if not groups and not chain:
-        return None, [], []                                       # chain=False -> byte-identical early return;
-        #                                                           chain=True runs the chain over empty groups
-        #                                                           (its root-grounding check is independent)
+    if not groups and not chain and not transmission:
+        return None, [], []                                       # both flags False -> byte-identical early
+        #                                                           return; either chain engine runs over empty
+        #                                                           groups (their grounding checks are their own:
+        #                                                           the vertical roots on the walk, the horizontal
+        #                                                           derives its anchor from the source node)
     units, pairs = _pair_units(groups)
     # CAP ON WHOLE NODES (P7/F5): a node never loses a leg to truncation; drop trailing nodes whole.
     # A unit = one node OR a shock+beneficiary pair (RF-3, ATOMIC): keep both or drop both -- a shock kept
@@ -651,7 +708,33 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
     # env flag is checked at the answer.py seam). xc_request None -> this branch is inert and everything below
     # is byte-identical to v1. On FIRE the engine WRITES the trace key itself (C11: quantify_reroute_v2
     # non-empty == fired) and appends its BY-COMMODITY block; a decline/failure leaves the key absent.
-    if xc_request:
+    # [SKEPTIC F5] The transmission ENGINE runs first (its LINES still append at the chain-engines position
+    # below, so the flag-off path and the line ORDER are byte-identical to before): when the composer FIRES,
+    # its link-1 render IS this exact xc pair (the RV2 fence selects the curated row matching the ask), so the
+    # standalone render below would narrate the same pair TWICE with duplicate [N] rows. Fired -> standalone
+    # skipped; DECLINED or flag-off -> the standalone renders exactly as today (no lost fork).
+    _xmit_fired = False
+    _xmit_lines: list = []
+    if transmission:
+        try:
+            _chain_already = bool((getattr(sg, "trace", None) or {}).get("quantify_chain"))
+        except Exception:  # noqa: BLE001 -- a traceless sg reads as "the vertical engine has not fired"
+            _chain_already = False
+        _xmit_lines, x_trace, x_decline = _transmission_legs(sg, graph, groups, xc_request, qfn, asof, near,
+                                                             extra_number_calls, comove=comove,
+                                                             chain_fired=_chain_already)
+        if x_trace:
+            try:
+                sg.trace["quantify_transmission"] = x_trace
+            except Exception:  # noqa: BLE001 -- a traceless sg must never break the v1 answer
+                pass
+            _xmit_fired = True
+        elif x_decline:
+            try:
+                sg.trace["quantify_transmission_decline"] = x_decline
+            except Exception:  # noqa: BLE001
+                pass
+    if xc_request and not _xmit_fired:
         xc_lines, xc_trace = _run_xc(xc_request, sg, graph, groups, qfn, asof, near, extra_number_calls,
                                      comove=comove)
         if xc_trace:
@@ -678,12 +761,30 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
             except Exception:  # noqa: BLE001 -- a traceless sg must never break the v1 answer
                 pass
             block_lines = block_lines + p_lines
-    # CHAIN ENGINE (multi-hop quantified cascade): LAST, purely APPENDED so every existing engine line keeps
-    # its byte position -- flag-off is byte-identical AND the flag-on diff is additive-only. Gated ONLY by the
-    # answer.py-threaded `chain` kwarg (GRAPHRAG_CASCADE_CHAIN read THERE, never here -- the [F3]/pace
-    # discipline). On FIRE the engine WRITES quantify_chain itself (fired == bool(trace key)); an attempted-
-    # and-declined chain writes quantify_chain_decline (D7); no match -> BOTH keys absent (zero-cost turns).
-    if chain:
+    # THE TWO CHAIN ENGINES, both purely APPENDED after every other engine's lines so each existing line keeps
+    # its byte position -- flag-off is byte-identical AND the flag-on diff is additive-only.
+    #
+    # VERTICAL CHAIN ENGINE (multi-hop quantified cascade WITHIN one contract): gated ONLY by the answer.py-
+    # threaded `chain` kwarg (GRAPHRAG_CASCADE_CHAIN read THERE, never here -- the [F3]/pace discipline). On
+    # FIRE the engine WRITES quantify_chain itself (fired == bool(trace key)); an attempted-and-declined chain
+    # writes quantify_chain_decline (D7); no match -> BOTH keys absent (zero-cost turns).
+    #
+    # HORIZONTAL TRANSMISSION ENGINE (cross-commodity RV2 pair chain): the ENGINE ran ABOVE (before the
+    # standalone RV2 render -- [SKEPTIC F5] dedup: a fired composer subsumes the standalone pair), but its
+    # LINES append HERE so the rendered engine order is unchanged. D11 mutual exclusion holds in BOTH
+    # directions -- (a) `chain_fired` carried the literal record that the vertical engine already fired THIS
+    # turn (it yields, `cap`/yielded_to, before any fetch), and (b) when the composer fired, the vertical one
+    # is not run at all below. So a turn RENDERS at most ONE chain engine. [SKEPTIC] The budgets are
+    # engine-INDEPENDENT, not mutually exclusive in COST: a transmission chain that prewarms and then DECLINES
+    # (dark/thin/co-move head link) has already spent up to TRANSMISSION_CAP, and the vertical engine still
+    # runs below and may spend up to CHAIN_CAP -- a declined-transmission turn is the one shape where the two
+    # budgets sum (<=30 net fetches). Gated ONLY by the answer.py-threaded `transmission` kwarg
+    # (GRAPHRAG_CASCADE_TRANSMISSION read THERE, never here -- the [F3]/chain discipline) AND, inside the
+    # engine, by an explicit `xc_request` (the RV2 fence: never volunteered). On FIRE the engine WROTE
+    # quantify_transmission above; attempted-and-declined wrote quantify_transmission_decline; no attempt ->
+    # BOTH keys absent (zero-cost turns stay zero-trace).
+    block_lines = block_lines + _xmit_lines
+    if chain and not _xmit_fired:                                 # D11: at most ONE chain engine per turn
         c_lines, c_trace, c_decline = _chain_legs(sg, graph, kept, records, qfn, asof, near, extra_number_calls)
         if c_trace:
             try:
@@ -2146,6 +2247,352 @@ def _chain_legs(sg, graph, kept: list, records: list, qfn, asof, near, calls: li
         fired = {"chain_id": selected_id, "contract": focus, "window": window_lbl,
                  "hops": hop_trace, "n_rows": len(calls) - base}    # honest post-fence count (== n-base when clean)
         return lines, fired, None
+    except Exception as e:  # noqa: BLE001 -- fail-closed: never break the v1 answer
+        return [], None, ({"chain_id": selected_id, "reason": "error", "detail": type(e).__name__[:40]}
+                          if selected_id else None)
+
+
+# ── HORIZONTAL TRANSMISSION CHAIN (TRANSMISSION_CHAIN_PLAN.md D1-D12) ────────────────────────────────
+# The COMPOSITION layer over the RV2 pair engine: palm -> soyoil -> meal ACROSS commodities, folding the
+# EXISTING _reroute_xc fork per link (2.2 -- reused VERBATIM, never re-implemented) over ONE anchor window.
+# Distinct from the VERTICAL chain engine above (driver -> production -> su_ratio WITHIN one contract's DAG):
+# the two engines share the decline-reason VOCABULARY (D7) and nothing else -- separate caps (D5/fold-pass 3),
+# separate trace keys (D6), separate flags, and AT MOST ONE of them fires per turn (D11).
+#
+# DOCTRINE the engine encodes, restated because every branch below serves it:
+#   * determinism owns ARITHMETIC AND OBSERVATION, the model interprets: NO minted threshold, no pass-through
+#     ratio, no elasticity, no crush margin, no cents-per-link, and NEVER a cross-link quantity (2.2/2.5);
+#   * per-link nature is an EXPECTATION, the OBSERVED SIGN decides (1.5): the map's `nature` is a hint that
+#     rides the trace, never a gate -- a crush link DIVERGES when its legs oppose and a vegoil link CO-MOVES
+#     when they agree, and BOTH render honestly;
+#   * a dark / co-moving link TRUNCATES the chain to a narrative handoff (2.4/D4) -- "reached soyoil, not yet
+#     meal" is the PAYOFF, not a hidden failure -- and nothing downstream is ever imputed;
+#   * never volunteered: the fork inherits the RV2 fence (an explicit cross-commodity ask only, i.e. an
+#     `xc_request` from the detector), so the composer declines outright without one.
+_XMIT_DECLINE_REASONS = frozenset(
+    {"root_not_grounded", "hop_dark", "hop_thin", "degenerate", "cap", "error",   # the vertical enum, VERBATIM
+     "link_comove"})                                                              # + the ONE horizontal reason
+
+
+def _xmit_pair_realizable(pair_id: str) -> bool:
+    """The per-PAIR census gate (D1: every link must be a material CENSUS-REALIZABLE pair). Lazily imported so
+    the composer never hard-depends on the census module; ANY non-True verdict -- False (dark / era-overlap /
+    unserved leg) or None (uncurated, pg unavailable, or any raise) -- declines the link, per the
+    cascade_census.pair_realizable interface contract ("callers FAIL CLOSED")."""
+    try:
+        from leviathan.graphrag.numbers import cascade_census as cc
+        return cc.pair_realizable(pair_id) is True
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _xmit_memo_qfn(qfn):
+    """The HOT MEMO the two-phase composer runs on (3.3 control-3 / fold-pass finding 5). Keyed on the SQL TEXT
+    -- the single argument Q.run hands a query_fn -- so PHASE 2 can call `_reroute_xc` -> `_leg_world_deltas`
+    VERBATIM (a serial nested for-loop, unchanged) and still issue ZERO new pg round-trips: every
+    `_world_su_ratio` it asks for was already warmed by the pooled PHASE 1. Verbatim reuse is preserved; the
+    parallelism lives entirely in the prewarm.
+
+    A None qfn (the default-backend path) passes through untouched -- wrapping it would change backend
+    selection, and serving always injects one. `.memo` is exposed as the honest round-trip counter."""
+    if qfn is None:
+        return None
+    memo: dict = {}
+
+    def _q(sql):
+        if sql in memo:
+            return memo[sql]
+        rows = qfn(sql)
+        memo[sql] = rows
+        return rows
+
+    _q.memo = memo
+    return _q
+
+
+def _xmit_su_keys(links: list, windows: list) -> list:
+    """PHASE-1 work list: every DISTINCT (slug, marketing_year) World su_ratio the chain's links will need on
+    the shared anchor window, deduped ACROSS links -- which is the whole point of the hub memo (3.3: soyoil's
+    su_ratio serves BOTH the palm-soyoil link and the soyoil-meal link, and SBO is the cut vertex of nearly
+    every curated path). Each key costs exactly TWO component fetches (_XC_SU_STOCKS + _XC_SU_USE), which is
+    how the composer prices the chain against TRANSMISSION_CAP BEFORE paying anything. Sorted -> deterministic."""
+    keys = set()
+    for lk in links or []:
+        for slug in ((lk or {}).get("source"), (lk or {}).get("target")):
+            if not slug:
+                continue
+            for w in windows or []:
+                for my in _my_span(w, slug):
+                    keys.add((slug, my))
+    return sorted(keys)
+
+
+def _xmit_prewarm(qfn, keys: list, asof) -> None:
+    """PHASE 1 (the ONLY parallel step, 3.3 control-3): fetch every distinct World su_ratio the chain needs in
+    ONE ThreadPoolExecutor wave at the pg CONNECTION-POOL width, filling the memo. Wall-clock here is bounded
+    by ROUNDS (ceil(n / pool width)), not by the raw fetch sum -- the naive verbatim-serial shape would pay
+    ~12-24 cold serial fetches on a 2-link chain, which is exactly why the prewarm is load-bearing."""
+    if not keys:
+        return
+    from concurrent.futures import ThreadPoolExecutor
+
+    from leviathan.graphrag.pgstore import _POOL_SIZE
+    width = max(1, min(_POOL_SIZE, len(keys)))
+    with ThreadPoolExecutor(max_workers=width) as pool:
+        list(pool.map(lambda k: _world_su_ratio(qfn, k[0], k[1], asof), keys))
+
+
+def _xmit_link_reason(qfn, source: str, target: str, windows: list, asof) -> str:
+    """CLASSIFY a link that did NOT render, for the decline/handoff trace ONLY -- it renders nothing and
+    decides nothing (the fork already ran; this reads the SAME memo-hot deltas to LABEL the honest truncation).
+    Without it the `link_comove` reason could not exist and an honest same-sign handoff would be indistinguish-
+    able from a dark link in the T2b ledger. Costs zero pg round-trips (phase-1 memo hits).
+
+      * `hop_dark`   -- no shared era with >=2 resolved World ratios on BOTH legs (2.4's dark link);
+      * `link_comove`-- a shared era whose legs move the SAME way: the honest hub handoff that ends the
+                        divergence chain (D4). Reported whether or not the co-move RENDERED (the co-move render
+                        needs GRAPHRAG_COMOVE; the ledger stays honest either way);
+      * `hop_thin`   -- every shared era has a FLAT leg (sign 0): neither divergence nor co-move.
+    An opposite-sign era cannot reach here -- `_reroute_xc` gives divergence absolute first-fire."""
+    da_by = _leg_world_deltas(qfn, source, windows, asof)
+    db_by = _leg_world_deltas(qfn, target, windows, asof)
+    inter = sorted(set(da_by) & set(db_by))
+    if not inter:
+        return "hop_dark"
+    for i in inter:
+        sa, sb = _sign(da_by[i]["d"]), _sign(db_by[i]["d"])
+        if sa != 0 and sa == sb:
+            return "link_comove"
+    return "hop_thin"
+
+
+def _xmit_link_header(i: int, n: int, source: str, target: str, pair_id) -> str:
+    """The per-link ordinal header (2.2: each link's rows render under a marker PREFIXED with the link ordinal).
+    Deliberately a SEPARATE line rather than a rewrite of the RV2 template, so `_reroute_xc`'s own literals stay
+    byte-identical ("reused verbatim per link"). Naming only -- no direction verb, no valuation adjective, no
+    threshold word."""
+    return f"TRANSMISSION LINK {i}/{n}: {_xc_label(source)} -> {_xc_label(target)} ({pair_id})"
+
+
+# The honest WHY of a truncation, per decline reason -- observation only, never a conclusion and never a
+# price-direction verb. `link_comove` is the reached-not-yet payoff, so it reads as a RECORD, not a failure.
+_XMIT_HANDOFF_WHY = {
+    "link_comove": "that link is a same-sign complex-wide move over this window, not a relative-value divergence",
+    "hop_dark": "that link has no resolved World stocks-to-use pair on this window",
+    "hop_thin": "one side of that link has no within-window change on this window",
+}
+
+
+def _xmit_handoff(i: int, n: int, source: str, target: str, reason: str) -> str:
+    """The truncation-to-narrative HANDOFF (2.4/D4): the already-rendered upstream links STAY, the downstream
+    becomes prose. Never impute; never render a downstream link off an un-rendered upstream. This sentence IS
+    the "reached X, not yet Y" payoff -- stated as an observation, with no price-direction verb and no
+    conclusion of any kind."""
+    why = _XMIT_HANDOFF_WHY.get(reason, "that link is not quantifiable on this window")
+    return (f"TRANSMISSION HANDOFF at link {i}/{n} ({_xc_label(source)} -> {_xc_label(target)}): {why}, so the "
+            f"chain is quantified through the link(s) above ONLY; narrate the remainder as a qualitative "
+            f"handoff and say plainly that the record does not carry it -- never bridge it with arithmetic.")
+
+
+def _xmit_marker(path: str, window: str) -> str:
+    """The FIXED no-conclusion chain marker (5.1 literal): names the path + the shared anchor window + the
+    render directive. NO price-direction verb, NO therefore/implies, NO threshold word. The [N] LEVELS and
+    WITHIN-link changes are the record; direction and any price read are explicitly the analyst's, never the
+    engine's -- and a co-moving link is named as a complex-wide move, never as a relative-value divergence."""
+    return (f"TRANSMISSION CHAIN {path} over {window}: each link above is an observed cross-commodity record on "
+            f"the SHARED anchor window; where a link is a co-move it is a complex-wide move, NOT a "
+            f"relative-value divergence; narrate the mechanism link by link, citing each link's [N] rows; "
+            f"levels and changes are the record -- direction and any price read are the analyst's "
+            f"interpretation.")
+
+
+def _xmit_register_fence(lines: list) -> bool:
+    """5.1 register fences on EVERY engine-built transmission line, at BUILD time, fail-closed -- the momentum
+    class (pace_register_ok) + the DP-6 valuation/flow counters, the same three the vertical chain fence runs.
+    True iff every line is clean.
+
+    ATOMIC by design, and NOT the vertical `_chain_register_fence`: that one drops a tripping line and RENUMBERS
+    the tail, which is sound only where each line owns exactly ONE call. An RV2 leg line cites one handle but
+    injects THREE calls (endpoint + baseline + delta, `_xc_leg_lines`), so renumbering here would corrupt the
+    surviving handles. A trip therefore declines the WHOLE chain with its rows rolled back -- also the honest
+    outcome, since these templates are clean by construction and a trip means template DRIFT, not an accident."""
+    from leviathan.graphrag import register as reg
+    return all(pace_register_ok(ln) and reg.count_valuation_words(ln) == 0 and reg.count_flow_words(ln) == 0
+               for ln in lines or [])
+
+
+def _xmit_focus(sg, graph, xc_request: dict) -> str | None:
+    """The chain HEAD the selector matches on (2.1/D8). PRIMARY = the RV2 detector's own SOURCE slug (trigger 1,
+    the "how far did the palm squeeze travel through soyoil into meal?" multi-hop ask); FALLBACK = the walk's
+    focus contract (trigger 2, "the walk is already standing in the complex"). BOTH triggers are gated by the
+    RV2 detector upstream -- the caller declines outright without an `xc_request` -- so the fork is NEVER
+    volunteered on the analyst's own initiative."""
+    src = (xc_request or {}).get("source_slug")
+    if src:
+        return str(src)
+    try:
+        return next((c for c in (getattr(sg, "seeds", None) or []) if c in getattr(graph, "contracts", {})), None)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _xmit_select(chains: list, focus: str) -> tuple:
+    """FIRST-FIRE selection, PAIR_CAP=1 generalized (2.1): AT MOST ONE transmission chain per turn -- the
+    FILE-ORDER-first row whose HEAD-link source == focus AND whose EVERY link is a material, sides-matching,
+    census-realizable pair. Returns (chain, [pair_row, ...]) or (None, None) -> no attempt, no trace, zero cost.
+    Never auto-derived from the graph: the composer walks ONLY curated rows (the 22-path minting fence)."""
+    for c in chains or []:
+        links = (c or {}).get("links") or []
+        if not links or not _slug_match((links[0] or {}).get("source"), focus):
+            continue
+        rows = [_load_pair_row((lk or {}).get("pair_id")) for lk in links]
+        if any(r is None for r in rows):
+            continue                                              # uncurated / non-material / map missing
+        if not all(_xc_sides_ok(r, lk.get("source"), lk.get("target")) for r, lk in zip(rows, links)):
+            continue                                              # leg drift -> never a guessed comparison
+        if not all(_xmit_pair_realizable(lk.get("pair_id")) for lk in links):
+            continue                                              # per-PAIR census verdict, fail-closed
+        return c, rows
+    return None, None
+
+
+def _xmit_degenerate(links: list) -> bool:
+    """The degenerate guard (3.2, carried verbatim from the vertical enum): consecutive links resolving to the
+    IDENTICAL (slug, metric, country=World, period) identity collapse to one -- every link here is the same
+    su_ratio/World/anchor-window shape, so the identity IS the unordered slug pair (PSD-alias resolved). A chain
+    left with <2 distinct links is just an RV2 pair, which the pair engine already serves."""
+    idents: list = []
+    for lk in links or []:
+        a = PSD_SLUG_ALIAS.get((lk or {}).get("source"), (lk or {}).get("source"))
+        b = PSD_SLUG_ALIAS.get((lk or {}).get("target"), (lk or {}).get("target"))
+        ident = frozenset((a, b))
+        if not idents or idents[-1] != ident:
+            idents.append(ident)
+    return len(idents) < 2
+
+
+def _transmission_legs(sg, graph, groups: list, xc_request: dict | None, qfn, asof, near, calls: list,
+                       *, comove: bool = False, chain_fired: bool = False) -> tuple:
+    """The horizontal transmission composer (secs 2-5). Returns (lines, fired_trace, decline_trace):
+      * (lines, {...}, None) -> quantify writes sg.trace['quantify_transmission'] (fired == bool(key));
+      * ([], None, {...})    -> quantify writes sg.trace['quantify_transmission_decline'] (attempted-and-
+                                declined, 3.1/D7 -- one bounded dict, no [N] impact, no prompt impact);
+      * ([], None, None)     -> NO attempt (no cross-commodity ask, or no curated+realizable row for the focus):
+                                BOTH keys absent, zero cost -- zero-trace turns stay zero-trace.
+
+    The fired trace (3.1): {chain_id, focus, window, links: [{link, pair_id, source, target, nature (the map
+    HINT), observed, rendered, dA?, dB?}], n_rows, stopped_at?, stop_reason?}.
+
+    D11 MUTUAL EXCLUSION, both directions: `chain_fired` (the seam reads sg.trace['quantify_chain'] -- the
+    literal record that the vertical engine fired THIS turn) makes the horizontal yield to the ratified,
+    earlier-shipping engine, declining `cap` with `yielded_to` traced; and when THIS engine fires, the seam does
+    not run the vertical one. So the two chain budgets never sum, and a turn carries at most one chain engine.
+
+    Never raises (fail-closed -- a transmission failure must NEVER break the v1 answer; the seam belts it too)."""
+    selected_id = None
+    try:
+        if not xc_request:                                        # the RV2 fence: never volunteered
+            return [], None, None
+        chains = load_transmission_map()
+        if not chains:
+            return [], None, None
+        focus = _xmit_focus(sg, graph, xc_request)
+        if not focus:
+            return [], None, None
+        selected, pair_rows = _xmit_select(chains, focus)
+        if selected is None:
+            return [], None, None                                 # no attempt: zero trace, zero cost
+        selected_id = selected.get("id")
+        links = selected.get("links") or []
+        if chain_fired:                                           # D11: the vertical engine already fired
+            return [], None, {"chain_id": selected_id, "reason": "cap", "yielded_to": "quantify_chain"}
+        if _xmit_degenerate(links):
+            return [], None, {"chain_id": selected_id, "reason": "degenerate"}
+        # ── ONE anchor window from the ROOT source node's own evidence (2.3), FORCED on every link ──
+        # Every horizontal link is PSD marketing-year, so there is NO cross-grain alignment problem; the window
+        # end is <= session asof by the R3 derive-side clamp. `_xc_focus_windows` is the same Invariant-4
+        # shared-window forcing the pair engine already applies to its two legs -- extended to the shared hub.
+        # [SKEPTIC] The `[:1]` makes 2.3's singular LITERAL. `_derive_windows` returns `eps[:2]` -- typically an
+        # ANALOGUE era PLUS the current rhyme, whose MYs are disjoint -- and carrying both breaks the section two
+        # ways: (a) the flagship prices at 3 slugs x 4 MYs x 2 components = net 24 > TRANSMISSION_CAP 18, an
+        # ATOMIC `cap` decline on the COMMONEST real window shape (3.3's own arithmetic sizes the cap for ~3
+        # World su_ratios, i.e. ONE window); and (b) `_reroute_xc` first-fires per link INDEPENDENTLY, so link 1
+        # could fire on the analogue era while link 2 fires on the current one -- and `_xmit_marker` would then
+        # narrate two DIFFERENT eras as "the SHARED anchor window". One anchor, forced on every link.
+        windows = _xc_focus_windows(sg, graph, groups, links[0].get("source"), near, asof)[:1]
+        if not windows:
+            return [], None, {"chain_id": selected_id, "reason": "root_not_grounded"}
+        # ── cap: priced BEFORE any fetch, ATOMIC (3.3 control-2) ──
+        keys = _xmit_su_keys(links, windows)
+        net = 2 * len(keys)                                       # 2 PSD components per World su_ratio synthesis
+        if net > TRANSMISSION_CAP:
+            return [], None, {"chain_id": selected_id, "reason": "cap", "net": net}
+        mqfn = _xmit_memo_qfn(qfn)
+        _xmit_prewarm(mqfn, keys, asof)                           # PHASE 1 -- the only parallel step
+        # ── PHASE 2: `_reroute_xc` VERBATIM per link over the hot memo (zero new pg round-trips) ──
+        base = len(calls)
+        n_links = len(links)
+        lines: list = []
+        link_trace: list = []
+        window_lbl = None
+        stopped_at, stop_reason = None, None
+        for i, (lk, prow) in enumerate(zip(links, pair_rows), start=1):
+            src, tgt = lk.get("source"), lk.get("target")
+            # `comove` rides in POSITIONALLY, exactly as _run_xc passes it (a gate-test stub replaces
+            # _reroute_xc with a positional-only lambda). Threaded from the seam, never read from env here.
+            blk, fired = _reroute_xc(prow, src, tgt, windows, mqfn, asof, calls, len(calls), sg, comove)
+            entry = {"link": i, "pair_id": lk.get("pair_id"), "source": src, "target": tgt,
+                     "nature": lk.get("nature")}                  # `nature` = the map HINT, next to the record
+            if fired:
+                observed = "comove" if fired.get("comove") else "divergence"
+                entry.update({"observed": observed, "rendered": observed,
+                              "dA": fired.get("dA"), "dB": fired.get("dB")})
+                link_trace.append(entry)
+                lines.append(_xmit_link_header(i, n_links, src, tgt, lk.get("pair_id")))
+                lines.extend(blk)
+                window_lbl = window_lbl or fired.get("window")
+                if observed == "comove":
+                    # D4: a co-move at ANY hub (vegoil OR crush) ends the DIVERGENCE chain -- an honest handoff,
+                    # not a failure. Its own '## Complex-wide move' render stays; downstream is never imputed.
+                    stopped_at, stop_reason = i, "link_comove"
+                    break
+                continue
+            # No render. Classify the honest truncation (memo-hot, zero fetches).
+            reason = _xmit_link_reason(mqfn, src, tgt, windows, asof)
+            entry.update({"observed": reason, "rendered": "truncated"})
+            if not link_trace:
+                # 2.4: a chain whose HEAD link is dark declines WHOLE -- nothing reader-facing, ZERO [N] rows
+                # (the mentor answers qualitatively, as today). The belt keeps the handle ledger honest.
+                calls[base:] = []
+                return [], None, {"chain_id": selected_id, "reason": reason, "link": i}
+            link_trace.append(entry)
+            stopped_at, stop_reason = i, reason
+            break
+        n_rendered = sum(1 for e in link_trace if e.get("rendered") in ("divergence", "comove"))
+        if not n_rendered:
+            calls[base:] = []                                     # defensive: nothing rendered -> no orphans
+            return [], None, {"chain_id": selected_id, "reason": "degenerate"}
+        # The HANDOFF names the FIRST link the chain does NOT quantify: the link that declined (rendered
+        # 'truncated'), or -- when a co-move at a hub ENDED the divergence chain (D4) -- the one after it.
+        # A co-move on the LAST link leaves nothing downstream, so no handoff prints (both links rendered).
+        if stopped_at is not None:
+            unq = stopped_at + 1 if stop_reason == "link_comove" else stopped_at
+            if unq <= n_links:
+                nxt = links[unq - 1]
+                lines.append(_xmit_handoff(unq, n_links, nxt.get("source"), nxt.get("target"), stop_reason))
+        # The path names the QUANTIFIED span only -- never a node the chain did not reach (2.4).
+        path = " -> ".join([_xc_label(links[0].get("source"))]
+                           + [_xc_label(links[k].get("target")) for k in range(n_rendered)])
+        window_lbl = window_lbl or f"{windows[0][0]}..{windows[0][1]}"
+        lines.append(_xmit_marker(path, window_lbl))
+        if not _xmit_register_fence(lines):                       # 5.1 fences, ATOMIC + rows rolled back
+            calls[base:] = []
+            return [], None, {"chain_id": selected_id, "reason": "error", "detail": "register_fence"}
+        fired_trace = {"chain_id": selected_id, "focus": focus, "window": window_lbl,
+                       "links": link_trace, "n_rows": len(calls) - base}
+        if stopped_at is not None:
+            fired_trace["stopped_at"], fired_trace["stop_reason"] = stopped_at, stop_reason
+        return lines, fired_trace, None
     except Exception as e:  # noqa: BLE001 -- fail-closed: never break the v1 answer
         return [], None, ({"chain_id": selected_id, "reason": "error", "detail": type(e).__name__[:40]}
                           if selected_id else None)

@@ -35,6 +35,12 @@ variable "fas_api_key_secret_arn" {
   default     = ""
 }
 
+variable "numbers_pg_dsn_secret_arn" {
+  type        = string
+  description = "T2B: Secrets Manager ARN of the numbers/evidence pg DSN mounted as EVIDENCE_PG_DSN on the pattern-records sweep jobdef. Grants the batch EXECUTION role GetSecretValue (Batch injects secrets under the execution role, not the job role). Empty = no grant."
+  default     = ""
+}
+
 # SILVER-F014 (R1) — two fail-closed flags on the gated publisher role. Both DEFAULT
 # to the safe posture (canonical silver/ denied, repair off). Flipping either is a
 # governed, signed-approval action (see reports/silver_readiness/R1_F014_iam_gate.md).

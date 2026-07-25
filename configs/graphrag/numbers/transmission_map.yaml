@@ -1,0 +1,60 @@
+# HORIZONTAL TRANSMISSION map -- curated cross-commodity RV2 pair chains (TRANSMISSION_CHAIN_PLAN.md D1).
+# The composer walks ONLY the chains listed here. Auto-enumeration is path minting: the recon's DFS over the 7
+# curated complex_map edges found 22 distinct 2-4 link simple paths -- the v1 catalog is a HUMAN-RATIFIED
+# subset of TWO (plan 1.2/1.4), never the 22.
+#
+# TRACKED (same rationale as chain_map.yaml / cascade_map.yaml:7-8): no secret IP beyond what complex_map
+# already curates, and tracking dodges the gitignored-config rollback trap. Loader =
+# cascade.load_transmission_map() (functools.lru_cache; FILE ORDER preserved -- the composer first-fires the
+# FIRST focus-matching row). A row flagged `deferred: true` is INERT (the loader skips it), and the loader
+# DROPS any row that fails the structural rules below (fail-closed -- config drift never reaches the composer).
+#
+# SHAPE (per chain):
+#   id:      unique chain id (the deck's transmission_fired pin + the fired-trace chain_id).
+#   links:   ordered [{pair_id, source, target, nature}] -- the RV2 pairs the composer folds, in order.
+#     pair_id: a `material` complex_map pair id. The link ALSO has to pass the per-PAIR census verdict
+#              (cascade_census.pair_realizable is True) at runtime, or the chain declines -- fail-closed.
+#     source/target: the two leg contract slugs, VERBATIM. {source, target} must equal the pair's two curated
+#              sides (cascade._xc_sides_ok, which also re-checks material + both-World) or the link declines.
+#     nature:  the EXPECTED per-link sign -- `divergence` (substitutes with opposing balance sheets) or
+#              `co_move` (crush joint products). This is a HINT ONLY, never a gate and never a forced render
+#              (D9 + the fold-pass HIGH finding): the fork is purely SIGN-driven, so the engine renders the
+#              OBSERVED per-window sign -- a crush link DIVERGES when its legs oppose (direct S3: SBO-SBM
+#              World su_ratio deltas oppose at MY2024->2025, oil -1.123pp / meal +0.040pp) and a vegoil link
+#              CO-MOVES when they agree (PALM-SBO at MY2022->23 and MY2024->25). The hint rides the fired
+#              trace next to the observed sign so the ledger can read expectation vs record.
+#
+# STRUCTURAL RULES (enforced by the loader, fail-closed):
+#   * 2 links per chain -- v1 depth cap (D1: cascade.TRANSMISSION_DEPTH_CAP; 3-4 link paths deferred, and a
+#     1-link "chain" is just an RV2 pair the pair engine already serves);
+#   * consecutive links share EXACTLY one node: links[i].target == links[i+1].source (the hub);
+#   * the node sequence is SIMPLE (no repeated slug) -- a revisited node is a walk, not a chain;
+#   * source != target on every link.
+#
+# EXCLUDED FROM v1 BY RATIFIED DECISION (do not add without re-opening the decision):
+#   * feed_grain (corn_wheat_feed) -- an ISOLATED single edge (Cluster B, deg-1): ZERO multi-edge paths exist
+#     (D3). A grain-feed chain needs a THIRD feed node that does not exist in v1.
+#   * crush-only chains (SBM->SBO->SB) -- both links co-move-EXPECTED; lowest value in v1 (D2). This is a
+#     VALUE/scope call, NOT a claim that a crush link can never diverge (it can, and does).
+#   * every 3-4 link path -- depth capped at 2 for v1 (D1).
+
+chains:
+  # -- FLAGSHIP (D1): PALM -> SBO -> SBM, the read-ACROSS a desk actually asks ("the palm supply squeeze --
+  # how far did it travel?"). Link 1 is vegoil substitution, link 2 is the crush hop, and the chain crosses
+  # the CUT VERTEX (soyoil, deg 4): every cross-family transmission path must traverse it (plan 1.1). Both
+  # crush outcomes are narratable -- the "reached soyoil, not yet meal" verdict is ONE probe-verified
+  # window-contingent outcome (MY2023->2024), not a structural certainty; the most-recent step inverts it.
+  - id: xmit_palm_soyoil_meal
+    links:
+      - {pair_id: soyoil_palm_vegoil,  source: malaysian_crude_palm_oil_cme, target: soybean_oil_cbot,  nature: divergence}
+      - {pair_id: soymeal_soyoil_crush, source: soybean_oil_cbot,            target: soybean_meal_cbot, nature: co_move}
+
+  # -- CONTROL (D1, promoted to the ROBUST primary gate by the fold pass): the pure-vegoil triangle
+  # SBO -> PALM -> RSO. Both links are substitution (divergence-CAPABLE), so the pin stays nature-agnostic
+  # ("min 1 divergence link") and is robust to window choice: if the flagship's window-sensitive shape
+  # misbehaves while the triangle fires clean, the bug is in the flagship's calibration / crush-nature
+  # handling, not the composer core.
+  - id: xmit_vegoil_triangle
+    links:
+      - {pair_id: soyoil_palm_vegoil,   source: soybean_oil_cbot,            target: malaysian_crude_palm_oil_cme, nature: divergence}
+      - {pair_id: palm_rapeoil_vegoil,  source: malaysian_crude_palm_oil_cme, target: rapeseed_oil_zce,            nature: divergence}

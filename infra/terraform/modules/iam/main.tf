@@ -892,3 +892,180 @@ resource "aws_iam_role_policy_attachment" "wasde_scanned_job" {
   role       = aws_iam_role.wasde_scanned_job.name
   policy_arn = aws_iam_policy.wasde_scanned_job.arn
 }
+
+# ===========================================================================
+# T2B pattern-records sweep job role -- DEDICATED (T2B_PATTERN_RECORDS_PLAN.md
+# sec 7 step 5 / D10: "a dedicated scoped role + jobdef, the P3 morning-brief
+# pattern"). The daily engine-replay sweep WRITES the gold_pattern_records
+# ledger, so it must never ride batch_job_role (reused by the internet-facing
+# serving ECS task -- the standing rule from the P3 notifications-role note:
+# never widen the shared serving surface).
+#
+# The grant is the plan's WRITE-GUARD POSTURE made structural, not just
+# code-side (sec 2.3 / non-goal 6 -- "no retroactive recompute of DATA or CODE"):
+#
+#   * WRITE is confined to gold/pattern_records/* -- the ONE ledger root. The
+#     F015 shadow prefix (<root>/_shadow/...) and the manifests
+#     (<root>/_manifests/...) both live UNDER that root (publisher.py
+#     _shadow_key / _persist_manifest), so one prefix covers stage + promote +
+#     manifest with no widening.
+#   * READ on silver/ + gold/ (the engine-replay sources; the sweep itself
+#     probes the pg mirror, but the publisher re-reads what it staged).
+#   * Glue is scoped to the ONE ledger table and to exactly the calls the F013
+#     REGISTERED strategy makes: get_table / get_partition(s) / create_partition
+#     / update_partition (partition_publish.py:201/222/301/317). No table
+#     mutation, no Athena, no projection surface.
+#   * An EXPLICIT DENY on every S3 delete + every Glue table/partition DELETE
+#     makes the ledger APPEND-ONLY at the IAM layer: a registered daily
+#     partition can be re-registered (an idempotent same-code replace) but can
+#     never be destroyed by this identity. Deletion/repair stays a governed,
+#     out-of-band act under the publisher role -- exactly like the F014 posture.
+#
+# CANONICAL AUTHORITY is NOT here: it is the kms:Sign grant on the A-W1 publish
+# signer CMK, attached at the root (envs/dev/main.tf) so revoking that ONE inline
+# policy is the kill-switch that leaves the sweep able to run dry-run/shadow.
+# ===========================================================================
+locals {
+  glue_pattern_records_table_arn = "arn:aws:glue:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:table/${local.glue_database_name}/gold_pattern_records"
+}
+
+resource "aws_iam_role" "pattern_records_job" {
+  name = "${var.project_name}-${var.environment}-pattern-records-job-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "ecs-tasks.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+    Role        = "pattern-records-job"
+  }
+}
+
+data "aws_iam_policy_document" "pattern_records_job" {
+  # The ledger root -- the ONLY prefix this identity may write. Stage (_shadow/),
+  # promote (server-side copy needs Get on the source + Put on the destination),
+  # and the run manifest (_manifests/) all live under it.
+  statement {
+    sid = "PatternRecordsLedgerReadWrite"
+    actions = [
+      "s3:GetObject",
+      "s3:PutObject",
+      "s3:AbortMultipartUpload",
+      "s3:ListMultipartUploadParts",
+    ]
+    resources = ["${var.bucket_arn}/gold/pattern_records/*"]
+  }
+
+  # Engine-replay + validation SOURCES -- read only, never write.
+  statement {
+    sid       = "ReadSilverAndGoldSources"
+    actions   = ["s3:GetObject", "s3:GetObjectVersion"]
+    resources = ["${var.bucket_arn}/silver/*", "${var.bucket_arn}/gold/*"]
+  }
+
+  statement {
+    sid       = "ListSilverAndGoldPrefixesOnly"
+    actions   = ["s3:ListBucket"]
+    resources = [var.bucket_arn]
+    condition {
+      test     = "StringLike"
+      variable = "s3:prefix"
+      values   = ["silver/*", "gold/*"]
+    }
+  }
+
+  # Registered-partition cataloging on the ONE ledger table. Glue authorizes a
+  # table call against the table plus its database/catalog ancestors, so the
+  # ancestors are listed with the leaf pinned to gold_pattern_records.
+  statement {
+    sid = "GlueLedgerPartitionOps"
+    actions = [
+      "glue:GetDatabase",
+      "glue:GetTable",
+      "glue:GetPartition",
+      "glue:GetPartitions",
+      "glue:BatchGetPartition",
+      "glue:CreatePartition",
+      "glue:BatchCreatePartition",
+      "glue:UpdatePartition",
+    ]
+    resources = [
+      local.glue_catalog_arn,
+      local.glue_database_arn,
+      local.glue_pattern_records_table_arn,
+    ]
+  }
+
+  # APPEND-ONLY, enforced. An explicit Deny beats every Allow, including any
+  # future broadening of the statements above.
+  statement {
+    sid       = "DenyEveryS3DeleteLedgerIsAppendOnly"
+    effect    = "Deny"
+    actions   = ["s3:DeleteObject", "s3:DeleteObjectVersion"]
+    resources = ["${var.bucket_arn}/*"]
+  }
+
+  statement {
+    sid    = "DenyGlueTableMutationAndPartitionDeletion"
+    effect = "Deny"
+    actions = [
+      "glue:UpdateTable",
+      "glue:DeleteTable",
+      "glue:DeletePartition",
+      "glue:BatchDeletePartition",
+      "glue:DeleteDatabase",
+    ]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_policy" "pattern_records_job" {
+  name        = "${var.project_name}-${var.environment}-pattern-records-job"
+  description = "T2B pattern-records sweep: write ONLY gold/pattern_records/*, read silver/+gold/, registered-partition Glue ops on gold_pattern_records, append-only (all deletes denied)."
+  policy      = data.aws_iam_policy_document.pattern_records_job.json
+}
+
+resource "aws_iam_role_policy_attachment" "pattern_records_job" {
+  role       = aws_iam_role.pattern_records_job.name
+  policy_arn = aws_iam_policy.pattern_records_job.arn
+}
+
+# The sweep is pg-ONLY BY CONSTRUCTION (it asserts GRAPHRAG_NUMBERS_BACKEND=pg +
+# EVIDENCE_PG_DSN at startup and refuses to run otherwise -- a pg-dead run would
+# read an empty ledger and false-negative every persistence claim, the
+# 2026-07-23 phantom-regression class). Batch injects containerProperties.secrets
+# at container START via the EXECUTION role, so the DSN read grant lands there,
+# NOT on the job role -- the same split as the FAS key above. This CODIFIES the
+# out-of-band GetSecretValue grant the existing EVIDENCE_PG_DSN mounts rely on
+# (noted unreconciled at the top of this file); it is additive, so codifying it
+# cannot break the serving/evidence-build mounts. count-gated: no grant until the
+# ARN is wired.
+data "aws_iam_policy_document" "batch_execution_numbers_pg_dsn" {
+  count = var.numbers_pg_dsn_secret_arn != "" ? 1 : 0
+  statement {
+    sid       = "ReadNumbersPgDsnSecret"
+    actions   = ["secretsmanager:GetSecretValue"]
+    resources = ["${var.numbers_pg_dsn_secret_arn}-*", var.numbers_pg_dsn_secret_arn]
+  }
+}
+
+resource "aws_iam_policy" "batch_execution_numbers_pg_dsn" {
+  count       = var.numbers_pg_dsn_secret_arn != "" ? 1 : 0
+  name        = "${var.project_name}-${var.environment}-batch-execution-numbers-pg-dsn"
+  description = "Lets the Batch/ECS execution role inject EVIDENCE_PG_DSN into the pattern-records sweep task (pg-only engine replay)."
+  policy      = data.aws_iam_policy_document.batch_execution_numbers_pg_dsn[0].json
+}
+
+resource "aws_iam_role_policy_attachment" "batch_execution_role_numbers_pg_dsn" {
+  count      = var.numbers_pg_dsn_secret_arn != "" ? 1 : 0
+  role       = aws_iam_role.batch_execution_role.name
+  policy_arn = aws_iam_policy.batch_execution_numbers_pg_dsn[0].arn
+}

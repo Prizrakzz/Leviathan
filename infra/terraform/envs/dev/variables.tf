@@ -163,3 +163,21 @@ variable "dag_schedules" {
   default     = {}
   description = "Per-family DAG schedules rendered by gen_sfn_inputs --render-schedule (dag_schedules.auto.tfvars.json)."
 }
+
+# --- T2B pattern-records ledger (docs/private/T2B_PATTERN_RECORDS_PLAN.md) ---
+
+variable "pattern_records_image_digest" {
+  # The sha256 digest of the CONTENT-CHECKED embedder image that carries the sweep
+  # entrypoint (rollout step 3: docker run + inspect.getsource markers -- never trust a
+  # tag, the d9b2e10e stale-:latest lesson). Empty (default) count-gates the ENTIRE T2B
+  # cloud leg out of existence: no jobdef, no scheduler role, no schedule, no kms:Sign
+  # grant. The main loop pins the real digest; keep the value in the "sha256:..." form.
+  type        = string
+  description = "sha256 digest of the content-checked embedder image for the pattern-records sweep jobdef, e.g. 'sha256:abc...'. Empty = the whole T2B cloud leg is not created."
+  default     = ""
+
+  validation {
+    condition     = var.pattern_records_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.pattern_records_image_digest))
+    error_message = "pattern_records_image_digest must be empty or a full 'sha256:<64 hex>' digest (a TAG is not accepted: the ledger's engine_version stamp and the stale-image guard both depend on the digest)."
+  }
+}

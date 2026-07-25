@@ -2525,3 +2525,126 @@ resource "aws_batch_job_definition" "unica_annual_state" {
     ManagedBy   = "terraform"
   }
 }
+
+# ---------------------------------------------------------------------------
+# Job definition: T2B pattern-records ledger sweep
+# (docs/private/T2B_PATTERN_RECORDS_PLAN.md sec 7 step 5 / D10; the P3
+# morning-brief pattern: own scoped role, own jobdef, schedule created DISABLED,
+# ONE manual day-0 run, ENABLE only after review.)
+#
+# Runs jobs/batch/pattern_records_sweep_task.py: the DAILY engine replay over the
+# mapped (driver_or_chain, contract) catalog at asof=today, recording each pair's
+# fired/declined verdict into gold_pattern_records (~600 rows/day, plan F3). The
+# one-time backfill grid is the SAME jobdef with --backfill appended by the
+# submit wrapper (jobs/submit/submit_batch_pattern_records_sweep.py), never a
+# second jobdef.
+#
+# FOUR non-obvious wiring facts, each load-bearing:
+#
+#  1. IMAGE = the EMBEDDER image, pinned BY DIGEST (var.pattern_records_image is
+#     "<repo>@sha256:..."; the digest is CONTENT-CHECKED before it is pinned --
+#     never :latest, the d9b2e10e stale-tag lesson). count-gated on the variable,
+#     so this jobdef does not exist until the digest is pinned.
+#  2. NO --asof IN THE BAKED COMMAND. The task defaults asof to today UTC, and it
+#     REFUSES a non-backfill sweep at a past asof (a daily_sweep row must be
+#     written at its OWN asof). A baked date would rot on the first fire and a
+#     Ref:: parameter default would rot silently; omission is the only correct
+#     form for a scheduled daily job.
+#  3. GRAPHRAG_NUMBERS_BACKEND=pg + EVIDENCE_PG_DSN are MANDATORY, not
+#     decoration: the sweep asserts both at startup and exits otherwise. Without
+#     the pg seam the quantify path is DEAD and every fired=false verdict is an
+#     ARTIFACT (the 2026-07-23 phantom-regression lesson) -- which would poison
+#     the ledger permanently, since a recorded verdict is never recomputed.
+#  4. GRAPHRAG_ENGINE_VERSION = the pinned image ref. The engine_version
+#     WRITE-GUARD (plan sec 2.3 / F1) is what stops a re-run under bumped code
+#     from silently rewriting a past verdict -- and the task resolves that stamp
+#     from env FIRST, falling back to a git SHA that does not exist inside the
+#     container (it would degrade to "unknown" and collapse the code axis of the
+#     guard). Injecting the image ref makes the stamp exact and immutable.
+#
+# Canonical publish authority is NOT in this jobdef: --publish-mode canonical
+# still needs a signed approval, minted at runtime via kms:Sign on the A-W1
+# publish-signer CMK (LEVIATHAN_APPROVAL_MODE=kms + LEVIATHAN_KMS_KEY_ID below).
+# Revoking that ONE root-level grant leaves the sweep able to run dry-run/shadow
+# and nothing more -- the kill-switch.
+#
+# Sizing: 2 vCPU / 8 GiB -- ~600 pg probes + a parquet write per partition, the
+# same shape the submit wrapper has always sized for. Timeout 3 h covers the
+# daily sweep with a wide margin; the one-time backfill grid (~156 asofs) passes
+# a longer per-attempt timeout at submit time rather than inflating the daily
+# ceiling. NO retry_strategy: a publishing job must not be silently re-attempted
+# into a partial second publish -- a failed sweep is re-fired deliberately (the
+# same-asof re-run is idempotent under the write-guard).
+# ---------------------------------------------------------------------------
+resource "aws_batch_job_definition" "pattern_records_sweep" {
+  count = var.pattern_records_image != "" ? 1 : 0
+
+  name = "${var.project_name}-${var.environment}-pattern-records-sweep"
+  type = "container"
+
+  platform_capabilities = ["FARGATE"]
+
+  container_properties = jsonencode({
+    image = var.pattern_records_image
+
+    # Daily sweep at asof=today (see fact 2). --backfill / --dry-run / a different
+    # --publish-mode arrive as containerOverrides.command from the submit wrapper.
+    command = [
+      "jobs/batch/pattern_records_sweep_task.py",
+      "--publish-mode", "canonical"
+    ]
+
+    environment = [
+      { name = "LEVIATHAN_BUCKET", value = var.leviathan_bucket },
+      { name = "AWS_REGION", value = var.aws_region },
+      { name = "LEVIATHAN_ENV", value = var.environment },
+      # the quantify seam (fact 3) -- the task asserts this exact value
+      { name = "GRAPHRAG_NUMBERS_BACKEND", value = "pg" },
+      # the write-guard's code axis (fact 4)
+      { name = "GRAPHRAG_ENGINE_VERSION", value = var.pattern_records_image },
+      # runtime self-mint of the PublishApproval (A-W1); inert unless the job is
+      # run with --publish-mode canonical AND the role holds kms:Sign.
+      { name = "LEVIATHAN_APPROVAL_MODE", value = "kms" },
+      { name = "LEVIATHAN_KMS_KEY_ID", value = var.publish_signer_kms_key_arn }
+    ]
+
+    # EVIDENCE_PG_DSN injected by the ECS agent from Secrets Manager under the
+    # EXECUTION role (never a plaintext env, never in the task def).
+    secrets = [
+      { name = "EVIDENCE_PG_DSN", valueFrom = var.numbers_pg_dsn_secret_arn }
+    ]
+
+    resourceRequirements = [
+      { type = "VCPU", value = "2" },
+      { type = "MEMORY", value = "8192" }
+    ]
+
+    executionRoleArn = var.batch_execution_role_arn
+    # DEDICATED scoped role -- NOT batch_job_role (that one is reused by the
+    # internet-facing serving task).
+    jobRoleArn = var.pattern_records_job_role_arn
+
+    networkConfiguration = {
+      assignPublicIp = "ENABLED"
+    }
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = "/aws/batch/${var.project_name}-${var.environment}"
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "pattern-records-sweep"
+      }
+    }
+  })
+
+  timeout {
+    attempt_duration_seconds = 10800 # 3 h ceiling; a daily sweep is ~600 pg probes
+  }
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}

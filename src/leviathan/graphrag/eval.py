@@ -34,6 +34,11 @@ _NOT_KNOWN = ("not known", "not yet known", "not yet been", "no data", "not avai
 
 # ── P9-AB per-query cascade assertions (the v4 PRIMARY gate) ──────────────────────────────────────────
 _DARK_STATUSES = ("not_known", "record_silent", "future_unpublished")
+# TRANSMISSION CHAIN: the metric every transmission LEG row carries (cascade._xc_call's synthetic World
+# su_ratio call-record -- the links reuse the RV2 pair machinery verbatim, 2.2). Keyed on here so the
+# hop-citation counter reads the ENGINE's own row shape and can never count a per-country cascade su_ratio
+# row as a transmission leg.
+_XMIT_LEG_METRIC = "su_ratio_world"
 
 
 def _num_citations(out: dict) -> list[dict]:
@@ -74,9 +79,30 @@ def _cascade_stats(out: dict) -> dict:
         return mm
     cited_chain_metrics = {_base_metric(c.get("locator")) for c in cited
                            if _base_metric(c.get("locator")) in chain_hop_metrics}
+    # TRANSMISSION CHAIN (TRANSMISSION_CHAIN_PLAN sec 3.1/6.1): the HORIZONTAL engine's own keys -- DISTINCT
+    # key, SHARED shape (3.1), so the T2b ledger reads both chain engines uniformly. quantify_transmission is
+    # ENGINE-written IFF a transmission chain FIRED; an attempted-and-declined chain writes
+    # quantify_transmission_decline (the vertical enum verbatim + the horizontal-only `link_comove`, 3.2); a
+    # no-match turn leaves BOTH absent. transmission_fired = the chain_fired/pace_fired idiom.
+    # n_transmission_hops_cited counts the LINKS whose BOTH legs' World su_ratio [N] rows the model actually
+    # CITED. The link is the horizontal analogue of the vertical hop, but the vertical's DISTINCT-METRIC key
+    # cannot be reused: every link carries the SAME metric (`su_ratio_world`, cascade._xc_call) on a World
+    # basis, so a metric-keyed count collapses a 2-link chain to 1. The leg COMMODITY is the discriminator, and
+    # BOTH endpoints must be cited -- a link is "cited" only when its rendered pair of legs is, so a shared hub
+    # can never credit a downstream link the model never narrated.
+    xmit_tr = (out.get("trace") or {}).get("quantify_transmission") or {}
+    xmit_dec = (out.get("trace") or {}).get("quantify_transmission_decline") or {}
+    cited_xmit_legs = {str((c.get("locator") or {}).get("commodity") or "") for c in cited
+                       if str((c.get("locator") or {}).get("metric") or "") == _XMIT_LEG_METRIC} - {""}
+    n_xmit_links_cited = sum(1 for lk in (xmit_tr.get("links") or [])
+                             if {str((lk or {}).get("source") or ""),
+                                 str((lk or {}).get("target") or "")} <= cited_xmit_legs)
     return {"fired": bool(tr), "n_rows": len(cits), "n_cited": len(cited),
             "chain_fired": bool(chain_tr), "chain_decline_reason": chain_dec.get("reason"),
             "n_chain_hops_cited": len(cited_chain_metrics),
+            "transmission_fired": bool(xmit_tr),
+            "transmission_decline_reason": xmit_dec.get("reason"),
+            "n_transmission_hops_cited": n_xmit_links_cited,
             "cited_ids": [c.get("id") for c in cited],
             "divergence_nodes": sum(1 for t in tr if t.get("divergence")),
             # RF-5: quantify_reroute carries FIRED (opposite-sign) pairs ONLY -- same-sign candidates
@@ -151,6 +177,13 @@ _CASCADE_EXPECT = ("cascade_fired", "min_cascade_cited", "delta_row", "fork", "a
                    # min_chain_hops_cited (>= N distinct chain-hop metrics cited; observational), and
                    # chain_decline_reason (the reasoned-decline enum / 'absent' for the negative rows).
                    "chain_fired", "min_chain_hops_cited", "chain_decline_reason",
+                   # TRANSMISSION CHAIN (sec 6.1): the HORIZONTAL siblings. transmission_fired (boolean; the
+                   # negative pin is the realizable teeth -- feed_grain is engine-dark BY DESIGN, D3),
+                   # min_transmission_hops_cited (>= N links whose BOTH legs were cited; CALIBRATION-GATED --
+                   # the per-link natures are window-contingent, fold-pass finding 2), and
+                   # transmission_decline_reason (the shared decline enum + the horizontal-only `link_comove`,
+                   # which is the reached-not-yet PAYOFF, not a failure -- 3.2/D4).
+                   "transmission_fired", "min_transmission_hops_cited", "transmission_decline_reason",
                    # W3.6 price-observability pins: level-citation + unit discipline on the price tables,
                    # the NONE-tier decline guard, and the RAW (pre-sanitize, DP-6) valuation/flow/mismatch
                    # trace counters the bait + PIT + honesty rows assert to 0.
@@ -254,6 +287,32 @@ def _cascade_asserts(q: dict, out: dict) -> dict | None:
             # FIRED turn. The negative row pins [absent, root_not_grounded]: an IOD ask engine-dark BY DESIGN.
             allowed = list(want) if isinstance(want, (list, tuple)) else [want]
             got = cs["chain_decline_reason"]
+            res[k] = (got in allowed) or (got is None and ("absent" in allowed or None in allowed))
+        elif k == "transmission_fired":
+            # TRANSMISSION CHAIN (5.2/6.1): trace-only boolean pin (the chain_fired idiom). quantify_transmission
+            # is ENGINE-written IFF a horizontal chain fired; a no-match / declined turn leaves it absent ->
+            # false, never KeyError. The NEGATIVE branch is the realizable teeth (the corn/wheat feed ask matches
+            # NO v1 chain -- feed_grain is a deg-1 isolated edge, D3 -- and MUST stay false); the positive is
+            # flag-gated + data-dependent, and on the OFF arm it is the byte-identity assertion made
+            # deterministic (flag absent -> the engine cannot write the key, so the pin cannot flap).
+            res[k] = cs["transmission_fired"] == bool(want)
+        elif k == "min_transmission_hops_cited":
+            # >= N LINKS whose BOTH legs' World su_ratio [N] rows are cited in the STRUCTURED prose. CALIBRATION-
+            # GATED (6.1, fold-pass finding 2): which links render divergence vs co-move is WINDOW-contingent, so
+            # this rides the ON arm at a probe-verified asof and is re-calibrated against the live probe before
+            # any flip. It never pins a link's NATURE -- only that the link was rendered AND cited.
+            res[k] = cs["n_transmission_hops_cited"] >= int(want)
+        elif k == "transmission_decline_reason":
+            # The reasoned-decline enum pin (3.2/D7), same shape as chain_decline_reason: `want` is a reason
+            # string OR a list; 'absent' (or a literal null) accepts NO decline key -- a no-match or a FIRED
+            # turn. `link_comove` is an HONEST outcome (a co-move hub ended the divergence chain = the
+            # reached-not-yet payoff, D4), never a failure, so rows legitimately accept [absent, link_comove].
+            # It lands HERE when the co-move ends the chain at its HEAD link (nothing rendered upstream, so the
+            # composer declines whole); when an upstream link already rendered, the chain FIRES and link_comove
+            # rides the fired trace's `stop_reason` instead -> this key reads 'absent'. Either way the pin's
+            # teeth hold: it FAILS a genuine hop_dark / hop_thin / cap / degenerate / error decline.
+            allowed = list(want) if isinstance(want, (list, tuple)) else [want]
+            got = cs["transmission_decline_reason"]
             res[k] = (got in allowed) or (got is None and ("absent" in allowed or None in allowed))
         elif k == "detection_tier":
             # RV2 W2 (D15 amended): the tier pin requires the dispatch planner ACTUALLY ran (the same C11c
@@ -419,6 +478,11 @@ def _per_answer_record(r: dict, run_kind: str) -> dict:
             "pace_fired": cs["pace_fired"],                    # T2a boolean: deterministic pace row rendered
             "chain_fired": cs["chain_fired"],                  # CHAIN boolean: a multi-hop chain fired this turn
             "chain_decline_reason": cs["chain_decline_reason"],  # the reasoned-decline enum (D7 soak signal)
+            # TRANSMISSION booleans ride the SAME record shape (3.1) so the T2b ledger + soak scans read the
+            # vertical and horizontal chain engines uniformly, and `link_comove` (an HONEST reached-not-yet
+            # truncation) stays distinguishable from a genuine dark/thin decline.
+            "transmission_fired": cs["transmission_fired"],
+            "transmission_decline_reason": cs["transmission_decline_reason"],
             "detection_tier": ((out.get("intent_decision") or {}).get("xc_detect") or {}).get("tier"),
             "cascade_asserts": (r.get("rubric") or {}).get("cascade_asserts"),
             # R3 F12: without degraded_model in the record a degraded turn is byte-indistinguishable from a

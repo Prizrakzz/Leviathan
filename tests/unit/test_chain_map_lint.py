@@ -185,3 +185,165 @@ def test_real_chain_map_has_no_unanchorable_row():
     cq.load_chain_map.cache_clear()
     assert not any("statically unanchorable" in e for e in cc.check_chain_map())
     cq.load_chain_map.cache_clear()
+
+
+# ── FAMILY ROSTER content pin (sec 1.1 table, the oni_climate x gold_weather_z release) ───────────────────
+# The 4 family rows are the coverage half of v1 (17 of the 24 expansions, 14 distinct contracts across 4
+# complexes). Pinned by SHAPE, not by count alone: an edit that silently repoints a family hop's ref or drops
+# a contract still lints clean, so the roster itself is the assertion. Growing the roster is a v1.1 act (sec
+# 1.1: "everything else in the REALIZABLE 32 waits for v1.1") -- this test is the tripwire that says so.
+_FAMILY = {
+    "enso_flash_drought": (["corn_cbot", "soybeans_cbot", "campinas_corn_reference_bmf", "soybeans_no_2_dce",
+                            "soybean_oil_dce", "soybean_meal_dce"],
+                           [("La_Nina", "oni_climate"), ("flash_drought", "drought_z")]),
+    "enso_drought": (["arabica_coffee", "brazilian_arabica_coffee", "hard_red_winter_wheat_kcbt",
+                      "soft_red_winter_wheat_cbot", "campinas_corn_reference_bmf", "soybeans_no_1_dce"],
+                     [("La_Nina", "oni_climate"), ("drought", "drought_z")]),
+    "enso_frost": (["arabica_coffee", "brazilian_arabica_coffee"],
+                   [("La_Nina", "oni_climate"), ("frost", "frost_event_flag")]),
+    "enso_prairie_drought": (["canola_ice", "rapeseed_oil_zce", "rapeseed_meal_zce"],
+                             [("La_Nina", "oni_climate"), ("prairie_drought", "drought_z")]),
+}
+
+
+def test_family_rows_shape_pinned():
+    cq.load_chain_map.cache_clear()
+    rows = {r["id"]: r for r in cq.load_chain_map()}
+    assert set(_FAMILY) <= set(rows), f"family rows missing from chain_map: {set(_FAMILY) - set(rows)}"
+    for cid, (contracts, hops) in _FAMILY.items():
+        row = rows[cid]
+        assert row["contracts"] == contracts, f"{cid} roster drifted: {row['contracts']}"
+        assert [(h["node"], h["ref"]) for h in row["hops"]] == hops, f"{cid} hops drifted: {row['hops']}"
+        assert row.get("terminal") == "price"                       # prose terminal, never a futures fetch (D6)
+    assert sum(len(c) for c, _ in _FAMILY.values()) == 17           # family half of the 24 expansions
+    cq.load_chain_map.cache_clear()
+
+
+def test_every_family_hop2_region_resolves():
+    # THE family curation rule (sec 2.5 / 3.2): hop 2 picks the SINGLE-region weather driver per contract, never
+    # the compound-region one (`drought` on corn_cbot is 'US_Midwest;Argentina;Brazil' -> unresolvable -> the
+    # chain would decline whole, every turn). Asserted on the SHIPPED rows; check 6 of the lint enforces it
+    # structurally for any future row.
+    from leviathan.graphrag.graph import CausalGraph
+    graph = CausalGraph.load()
+    resolve = (cq.load_region_map() or {}).get("resolve") or {}
+    cq.load_chain_map.cache_clear()
+    rows = {r["id"]: r for r in cq.load_chain_map()}
+    for cid in _FAMILY:
+        hop2 = rows[cid]["hops"][1]
+        for cslug in rows[cid]["contracts"]:
+            did = cq._chain_driver_id(graph, cslug, hop2["node"])
+            tok = (graph.driver(cslug, did).region or "").strip()
+            assert tok in resolve, f"{cid}/{cslug}: hop-2 region {tok!r} does not resolve"
+    cq.load_chain_map.cache_clear()
+
+
+# ── STATIC SERVABILITY (check 6): the _scope SKIP_NODE class -- a hop that can never resolve a scope ───────
+def test_region_unservable_hop_rejected(monkeypatch):
+    # frozen_orange_juice IS a real enso_frost shape (La_Nina -> frost, frost_event_flag) -- every other check
+    # passes; ONLY its region token 'Florida_US / Sao_Paulo_Brazil' is compound, so the chain would decline
+    # `error` on every turn while the lint stayed green.
+    bad = {"id": "enso_frost", "contracts": ["arabica_coffee", "frozen_orange_juice"],
+           "hops": [{"node": "La_Nina", "ref": "oni_climate"},
+                    {"node": "frost", "ref": "frost_event_flag"}]}
+    errs = _lint(monkeypatch, [bad])
+    assert any("frozen_orange_juice" in e and "statically unservable" in e for e in errs)
+    assert not any("arabica_coffee" in e for e in errs)              # the resolvable half stays clean
+
+
+def test_psd_unserved_contract_hop_rejected(monkeypatch):
+    # the second SKIP_NODE cause: frozen_orange_juice is in PSD_UNSERVED_SLUGS, so a silver_psd hop has no
+    # series to read (its `ending_stocks` node DOES carry the psd ref and DOES list `frost` as a parent).
+    bad = {"id": "fcoj_frost_su", "contracts": ["frozen_orange_juice"],
+           "hops": [{"node": "frost", "ref": "frost_event_flag"},
+                    {"node": "ending_stocks", "ref": "psd_ending_stock_su_ratio"}]}
+    errs = _lint(monkeypatch, [bad])
+    assert any("declared-unserved PSD slug" in e for e in errs)
+
+
+def test_resolvable_region_hop_stays_clean(monkeypatch):
+    # the shipped family shape must NOT trip check 6: US_Midwest resolves, so the row lints clean.
+    ok = {"id": "enso_flash_drought", "contracts": ["corn_cbot", "soybeans_cbot"],
+          "hops": [{"node": "La_Nina", "ref": "oni_climate"},
+                   {"node": "flash_drought", "ref": "drought_z"}]}
+    assert _lint(monkeypatch, [ok]) == []
+
+
+def test_real_chain_map_has_no_unservable_row():
+    cq.load_chain_map.cache_clear()
+    assert not any("statically unservable" in e for e in cc.check_chain_map())
+    cq.load_chain_map.cache_clear()
+
+
+# ── v1.1 FAMILY EXPANSION: the AUTHORED-but-DEFERRED roster ───────────────────────────────────────────────
+# The three rows that make the five remaining ENSO-eligible contracts chain-eligible. They ship INERT because
+# the v1 set saturates the ratified guard (7/7 rows, 24/25 expansions) and each needs a NEW row slot -- each
+# roots on El_Nino (every shipped family row roots on La_Nina) with a contract-specific hop-2 node, so no
+# shipped row can carry them. Pinned by SHAPE here so a later cap re-decision flips on exactly what was
+# authored and verified, not a drifted row: `deferred: true` rows are invisible to load_chain_map AND to the
+# lint, which is precisely why they need their own tripwire.
+_V11_DEFERRED = {
+    "enso_sa_maize_drought": (["south_african_white_maize_jse", "south_african_yellow_maize_jse"],
+                              [("El_Nino", "oni_climate"), ("drought", "drought_z")]),
+    "enso_monsoon_sugar": (["raw_sugar", "white_sugar"],
+                           [("El_Nino", "oni_climate"), ("monsoon_weak", "drought_z")]),
+    "enso_robusta_drought": (["robusta_coffee"],
+                             [("El_Nino", "oni_climate"), ("Vietnam_drought", "drought_z")]),
+}
+
+
+def _raw_chains() -> list:
+    """chain_map.yaml INCLUDING the deferred rows (load_chain_map drops them by contract)."""
+    import yaml
+
+    from leviathan.graphrag import extract as ex
+    p = ex._CFG / "numbers" / "chain_map.yaml"
+    return (yaml.safe_load(p.read_text(encoding="utf-8")) or {}).get("chains") or []
+
+
+def test_v11_rows_are_deferred_and_inert():
+    raw = {r["id"]: r for r in _raw_chains()}
+    assert set(_V11_DEFERRED) <= set(raw), f"v1.1 rows missing: {set(_V11_DEFERRED) - set(raw)}"
+    for cid in _V11_DEFERRED:
+        assert raw[cid].get("deferred") is True, f"{cid} must stay deferred until the cap is re-decided"
+    cq.load_chain_map.cache_clear()
+    active = {r["id"] for r in cq.load_chain_map()}
+    assert active.isdisjoint(_V11_DEFERRED)                        # the loader drops them: zero serving effect
+    cq.load_chain_map.cache_clear()
+
+
+def test_v11_rows_shape_pinned():
+    raw = {r["id"]: r for r in _raw_chains()}
+    for cid, (contracts, hops) in _V11_DEFERRED.items():
+        row = raw[cid]
+        assert row["contracts"] == contracts, f"{cid} roster drifted: {row['contracts']}"
+        assert [(h["node"], h["ref"]) for h in row["hops"]] == hops, f"{cid} hops drifted: {row['hops']}"
+        assert row.get("terminal") == "price"                      # prose terminal, never a futures fetch (D6)
+    assert sum(len(c) for c, _ in _V11_DEFERRED.values()) == 5     # +5 distinct contracts: 16 covered -> 21
+
+
+def test_v11_rows_lint_clean_standalone(monkeypatch):
+    # the whole point of authoring them now: every sec-2.5 check ALREADY passes (real DAG edges accent-folded,
+    # active refs, certified tables, no finer-grained downstream hop, a live non-waived hop, and check 6's
+    # single-region token resolving for every contract). Only the caps stand between here and active.
+    raw = {r["id"]: r for r in _raw_chains()}
+    for cid in _V11_DEFERRED:
+        row = {k: v for k, v in raw[cid].items() if k != "deferred"}
+        assert _lint(monkeypatch, [row]) == [], f"{cid} does not lint clean standalone"
+
+
+def test_v11_activation_needs_a_cap_redecision(monkeypatch):
+    # pins WHY they are deferred rather than active -- if a future edit frees room, this test is the one that
+    # says the guard no longer blocks and the rows may be turned on.
+    cq.load_chain_map.cache_clear()
+    active = cq.load_chain_map()
+    cq.load_chain_map.cache_clear()                                # before the patch: the lambda has no cache
+    raw = {r["id"]: r for r in _raw_chains()}
+    merged = active + [{k: v for k, v in raw[cid].items() if k != "deferred"} for cid in _V11_DEFERRED]
+    assert len(merged) == 10 > cc._CHAIN_MAX_ROWS
+    assert sum(len(r["contracts"]) for r in merged) == 29 > cc._CHAIN_MAX_EXPANSIONS
+    errs = _lint(monkeypatch, merged)
+    assert any("active rows > max" in e for e in errs)
+    assert any("total contract expansions > max" in e for e in errs)
+    # and NOTHING else: the caps are the ONLY thing rejecting the expanded roster.
+    assert len(errs) == 2, f"expected caps-only rejection, got: {errs}"

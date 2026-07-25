@@ -28,6 +28,18 @@ locals {
   # absent secret fails at plan time. ECS valueFrom resolves the name-based ARN
   # for a same-region secret; the iam GetSecretValue grant widens it with -*.
   mlflow_backend_dsn_secret_arn = "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:leviathan/dev/mlflow-backend-dsn"
+
+  # T2B pattern-records sweep image: the EMBEDDER repo pinned BY DIGEST. Assembled here (not in
+  # module.batch) because module.batch is wired to the WORKER repo and the sweep needs the embedder,
+  # which already carries leviathan.graphrag + the F015 publisher -- the same reason
+  # submit_batch_gold_weather_z pins the embedder. EMPTY until the digest is pinned, which
+  # count-gates the jobdef, the scheduler role and the schedule out of existence: the whole T2B
+  # cloud leg is a terraform no-op until rollout step 3 content-checks an image.
+  pattern_records_image = (
+    var.pattern_records_image_digest == ""
+    ? ""
+    : "${data.aws_ecr_repository.embedder.repository_url}@${var.pattern_records_image_digest}"
+  )
 }
 
 module "s3" {
@@ -51,6 +63,9 @@ module "iam" {
   notifications_store_table_arn = module.dynamodb.table_arn
   # D-W1: execution-role GetSecretValue for the weekly ESR fetch's FAS_API_KEY (user-gated secret).
   fas_api_key_secret_arn = local.fas_api_key_secret_arn
+  # T2B: execution-role GetSecretValue for the pattern-records sweep's EVIDENCE_PG_DSN mount
+  # (the sweep is a pg-only engine replay and refuses to run without it).
+  numbers_pg_dsn_secret_arn = data.aws_secretsmanager_secret.pg_dsn.arn
   # SILVER-F014 latch: flipped TRUE under the signed A1-A2 G1+G5.0 grants (2026-07-16) --
   # canonical authority now rests on kms:Sign + gate-first + shadow-first, not the deny.
   silver_canonical_publish_approved = true
@@ -119,6 +134,17 @@ module "batch" {
   leviathan_bucket         = var.bucket_name
   # D-W1: enables the weekly ESR fetch jobdef (usda_esr_fetch) that mounts FAS_API_KEY.
   fas_api_key_secret_arn = local.fas_api_key_secret_arn
+
+  # T2B pattern-records sweep (plan sec 7 step 5). The jobdef is count-gated on the
+  # image ref: EMPTY until the main loop pins the CONTENT-CHECKED digest into
+  # var.pattern_records_image_digest, so this whole lane is a terraform no-op until then.
+  # The image is the EMBEDDER (it carries leviathan.graphrag + the publisher), NOT the
+  # worker repo module.batch otherwise uses -- the same choice submit_batch_gold_weather_z
+  # makes, and the reason the ref is passed in whole rather than assembled in the module.
+  pattern_records_image        = local.pattern_records_image
+  pattern_records_job_role_arn = module.iam.pattern_records_job_role_arn
+  numbers_pg_dsn_secret_arn    = data.aws_secretsmanager_secret.pg_dsn.arn
+  publish_signer_kms_key_arn   = aws_kms_key.publish_signer.arn
 }
 
 module "glue" {
@@ -655,6 +681,128 @@ resource "aws_scheduler_schedule" "esr_weekly_ingest" {
     })
   }
 }
+
+# ---------------------------------------------------------------------------
+# T2B pattern-records DAILY SWEEP schedule (T2B_PATTERN_RECORDS_PLAN.md sec 7
+# step 5 / D10). Ships state = "DISABLED", by contract, not by accident:
+#
+#   the day-0 doctrine is ONE MANUAL run first (submit wrapper, dry-run ->
+#   shadow -> canonical), a human review of the built records, and only THEN a
+#   flip to ENABLED. That is the P3 morning-brief pattern, and the reason it
+#   matters more here than there: a ledger row is a PERMANENT record of what the
+#   engine decided at T (never recomputed -- plan non-goal 6), so a mis-wired
+#   first fire does not just fail, it writes a wrong verdict into history that
+#   the write-guard then protects.
+#
+# The whole block is count-gated on the pinned image digest, so nothing lands
+# until rollout step 3.
+#
+# Cron 23:00 UTC daily: LATE in the UTC day, so every daily/weekly ingest and
+# gold rebuild has landed before the replay reads the pg mirror, while still
+# safely inside the same UTC day (the task stamps asof = today UTC and REFUSES a
+# past-asof daily sweep -- a 00:30 fire would silently record the NEXT day).
+#
+# The jobdef is terraform-managed and referenced BY NAME so the schedule tracks
+# the latest ACTIVE revision; its baked command/sizing make the
+# ContainerOverrides below redundant safety (the morning-brief rationale).
+# RetryStrategy is deliberately ABSENT: a publishing sweep must not be silently
+# re-attempted (a re-run is idempotent, but it should be a deliberate act).
+# Rollback at every stage = set state back to "DISABLED" (no redeploy).
+# ---------------------------------------------------------------------------
+resource "aws_iam_role" "pattern_records_scheduler" {
+  count = var.pattern_records_image_digest != "" ? 1 : 0
+
+  name = "${var.project_name}-${var.environment}-pattern-records-scheduler"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "scheduler.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "pattern_records_scheduler" {
+  count = var.pattern_records_image_digest != "" ? 1 : 0
+
+  name = "${var.project_name}-${var.environment}-pattern-records-scheduler-submit"
+  role = aws_iam_role.pattern_records_scheduler[0].id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = "batch:SubmitJob"
+      Resource = [
+        module.batch.job_queue_arn,
+        "arn:aws:batch:${var.aws_region}:${data.aws_caller_identity.current.account_id}:job-definition/${module.batch.pattern_records_sweep_job_definition_name}:*",
+      ]
+    }]
+  })
+}
+
+resource "aws_scheduler_schedule" "pattern_records_sweep" {
+  count = var.pattern_records_image_digest != "" ? 1 : 0
+
+  name  = "${var.project_name}-${var.environment}-pattern-records-sweep"
+  state = "DISABLED" # day-0 doctrine: ONE manual run + review BEFORE the cron is armed
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+  schedule_expression = "cron(0 23 * * ? *)" # 23:00 UTC daily, after the day's ingests land
+
+  target {
+    arn      = "arn:aws:scheduler:::aws-sdk:batch:submitJob"
+    role_arn = aws_iam_role.pattern_records_scheduler[0].arn
+    input = jsonencode({
+      JobName       = "pattern-records-sweep"
+      JobQueue      = module.batch.job_queue_arn
+      JobDefinition = module.batch.pattern_records_sweep_job_definition_name
+      # Redundant safety -- the jobdef already bakes this command + sizing. NOTE the
+      # deliberate absence of --asof: the task defaults to today UTC (a baked date rots).
+      ContainerOverrides = {
+        Command = ["jobs/batch/pattern_records_sweep_task.py", "--publish-mode", "canonical"]
+        ResourceRequirements = [
+          { Type = "VCPU", Value = "2" },
+          { Type = "MEMORY", Value = "8192" },
+        ]
+      }
+    })
+
+    # EXPLICIT override of the EventBridge Scheduler 185/86400 platform default (the
+    # retry-policy trap documented in modules/eventbridge/main.tf). maximum_retry_attempts=0:
+    # a failed sweep is re-fired deliberately, never 185 times into a partial publish.
+    retry_policy {
+      maximum_retry_attempts       = 0
+      maximum_event_age_in_seconds = 3600
+    }
+  }
+}
+
+# The ONLY canonical-publish authority the sweep holds: kms:Sign on the A-W1 publish-signer
+# CMK, which lets the scheduled container self-mint its short-lived PublishApproval
+# (publish_guard KMS mode; LEVIATHAN_APPROVAL_MODE=kms + LEVIATHAN_KMS_KEY_ID are set on the
+# jobdef). GetPublicKey is the verify half. DELETING THIS ONE RESOURCE is the kill-switch:
+# without it --publish-mode canonical fails closed at authorize_publish and the sweep can
+# still run dry-run/shadow. Same shape as silver_publisher_kms_sign above.
+resource "aws_iam_role_policy" "pattern_records_kms_sign" {
+  count = var.pattern_records_image_digest != "" ? 1 : 0
+
+  name = "${var.project_name}-${var.environment}-pattern-records-kms-sign"
+  role = module.iam.pattern_records_job_role_name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid      = "PublishSignerKmsSign"
+      Effect   = "Allow"
+      Action   = ["kms:Sign", "kms:GetPublicKey"]
+      Resource = aws_kms_key.publish_signer.arn
+    }]
+  })
+}
+
 
 
 # ---------------------------------------------------------------------------

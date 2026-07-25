@@ -93,3 +93,60 @@ chains:
       - {node: drought, ref: drought_z}
       - {node: psd_ending_stock_su_ratio, ref: psd_ending_stock_su_ratio}
     terminal: price
+
+  # ── v1.1 FAMILY EXPANSION -- AUTHORED, DEFERRED, INERT (the loader skips `deferred: true`) ─────────────────
+  # WHY DEFERRED and not shipped active: the v1 set already SATURATES the ratified expansion guard -- 7 of 7
+  # rows and 24 of 25 contract expansions (config_check._CHAIN_MAX_ROWS / _CHAIN_MAX_EXPANSIONS, sec 2.5 S3
+  # fold). Every row below needs a NEW ROW SLOT, never a seat in an existing row: each roots on `El_Nino` (all
+  # four shipped family rows root on `La_Nina`) and each hop-2 node name is contract-specific, so no shipped
+  # row's hop list can carry these contracts. Turning them on is TWO ratified edits: delete `deferred: true`
+  # here AND raise _CHAIN_MAX_ROWS 7 -> 10 plus _CHAIN_MAX_EXPANSIONS 25 -> 29 in config_check.py. Until then
+  # they cost nothing: load_chain_map drops them, so the active count stays 7 rows / 24 expansions and the lint
+  # sees exactly the ratified v1 set. Growing the roster is a v1.1 act by the plan's own words (sec 1.1:
+  # "everything else in the REALIZABLE 32 waits for v1.1").
+  #
+  # ELIGIBILITY (the census behind the roster). 17 of the 33 loaded DAGs have NO chain row -- the funnel behind
+  # the judged30 chain-ON run, where a walked contract with no row can never be chain-eligible. Exactly SEVEN of
+  # the 17 carry an ENSO -> SINGLE-region weather-z edge whose region token RESOLVES in region_map:
+  #   * the five below (raw_sugar, white_sugar, robusta_coffee, south_african_{white,yellow}_maize_jse);
+  #   * plus the two BASE DAGs `corn` and `soybeans` (La_Nina -> flash_drought, 'US_Midwest'), which need no new
+  #     row at all -- they are the shipped enso_flash_drought shape -- but that row is at 6/6, the
+  #     _CHAIN_MAX_CONTRACTS_PER_ROW ceiling. Lowest priority of the seven regardless: a base DAG is not a
+  #     tradeable focus slug, so the coverage it buys is the thinnest in the set.
+  # The remaining TEN (cocoa, cotton, french_maize_matif, french_rapeseed_matif, frozen_orange_juice,
+  # malaysian_crude_palm_oil_cme, palm_olein_dce, rough_rice_cbot, soybean_meal_cbot, soybean_oil_cbot) have NO
+  # eligible edge: their weather drivers carry only compound/prose region tokens ('US Texas / India',
+  # 'Brazil CS / India', 'SE Asia palm belt', 'Vietnam, Brazil, Indonesia', ...) that check 6 (statically
+  # unservable) rejects by design -- except french_rapeseed_matif, whose single ENSO node parents no weather-z
+  # driver at all. Unblocking any of them is a region_map CURATION act, not a chain_map act; minting those
+  # country choices here is exactly the fake precision the curated-chain discipline exists to stop.
+  #
+  # CUT from this roster (authored, verified lint-clean, then dropped -- they add ZERO new contracts, only a
+  # second mechanism on a contract the rows below already make chain-eligible, so they lose the row-slot
+  # contest): enso_monsoon_active_sugar (La_Nina -> monsoon_active, raw_sugar + white_sugar), and
+  # enso_conilon_drought (El_Nino -> Brazil_conilon_drought, robusta_coffee).
+  # Each row below lints CLEAN standalone at HEAD; tests/unit/test_chain_map_lint.py pins both the shapes and
+  # the inert-ness, so a cap re-decision cannot flip a drifted row on.
+  - id: enso_sa_maize_drought
+    deferred: true
+    contracts: [south_african_white_maize_jse, south_african_yellow_maize_jse]
+    hops:
+      - {node: El_Nino, ref: oni_climate}
+      - {node: drought, ref: drought_z}
+    terminal: price
+
+  - id: enso_monsoon_sugar
+    deferred: true
+    contracts: [raw_sugar, white_sugar]
+    hops:
+      - {node: El_Nino, ref: oni_climate}
+      - {node: monsoon_weak, ref: drought_z}   # the SINGLE-region 'India' driver; bare `drought` is compound
+    terminal: price
+
+  - id: enso_robusta_drought
+    deferred: true
+    contracts: [robusta_coffee]
+    hops:
+      - {node: El_Nino, ref: oni_climate}
+      - {node: Vietnam_drought, ref: drought_z}
+    terminal: price

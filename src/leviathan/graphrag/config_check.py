@@ -246,10 +246,18 @@ def check_chain_map() -> list[str]:
       4. grain-direction (sec 2.2(3), S5): no hop finer-grained than its parent (year_month/date rank 0 <
          marketing_year rank 1) -- a MY->year_month step (spread an MY over months) is the deferred hard case.
       5. caps: <=3 quantified hops/row; <=6 contracts/row; <=7 rows; <=25 total contract expansions.
+      6. static servability (the `_scope` SKIP_NODE class, PER CONTRACT): a country_rule=region hop whose
+         driver region TOKEN does not resolve in region_map, or a silver_psd hop on a PSD_UNSERVED_SLUGS
+         contract, makes `_chain_resolve_hop` return None -> the engine declines the WHOLE chain (reason
+         `error`) on EVERY turn, silently and forever. Same defect class as the all-hops-waiver-dark check:
+         a statically dead row is a config error, not a runtime surprise. This is what keeps the family
+         curation rule ("pick the SINGLE-region weather node, never the compound-region one" -- sec 2.5 /
+         3.2) enforced at BUILD time when the roster grows.
     """
     from leviathan.graphrag.graph import CausalGraph
-    from leviathan.graphrag.numbers.cascade import (_GRAIN_RANK, _PSD_COUNTRY_FOLD, _accent_fold, load_chain_map,
-                                                    load_map, load_region_map)
+    from leviathan.graphrag.numbers.cascade import (_GRAIN_RANK, _PSD_COUNTRY_FOLD, PSD_SLUG_ALIAS,
+                                                    PSD_UNSERVED_SLUGS, _accent_fold, load_chain_map, load_map,
+                                                    load_region_map)
     from leviathan.graphrag.numbers.cascade_census import UNCERTIFIED_TABLES as _uncertified
     errs: list[str] = []
     try:
@@ -266,10 +274,13 @@ def check_chain_map() -> list[str]:
     resolve = (load_region_map() or {}).get("resolve") or {}
     known_titles = {(v or {}).get("country") for v in resolve.values() if (v or {}).get("country")}
     known_titles |= set(_PSD_COUNTRY_FOLD.values())
-    # per-contract accent-folded driver -> parents (accent-folded) index, built once.
+    # per-contract accent-folded driver -> parents (accent-folded) index, built once; plus the driver's own
+    # region TOKEN (the country_rule=region resolution input -- the static-unservability lint below).
     dag: dict = {}
+    region_tok: dict = {}
     for cslug, c in graph.contracts.items():
         dag[cslug] = {_accent_fold(d.id): {_accent_fold(p) for p in (d.parents or [])} for d in c.drivers}
+        region_tok[cslug] = {_accent_fold(d.id): (d.region or "") for d in c.drivers}
 
     if len(chains) > _CHAIN_MAX_ROWS:
         errs.append(f"chain_map: {len(chains)} active rows > max {_CHAIN_MAX_ROWS} (expansion guard, sec 2.5)")
@@ -355,6 +366,34 @@ def check_chain_map() -> list[str]:
                     errs.append(f"chain_map {cid!r}/{cslug}: hop {i} {node!r} does not list the prior hop as a "
                                 f"parent -- (parent->child) is NOT a real DAG edge (accent-folded)")
                 prev_fold = nf
+                # ── static unservability (the _scope SKIP_NODE class, same shape as the waiver lint above):
+                # a hop whose scope cannot resolve returns None from _chain_resolve_hop, and the engine
+                # declines the WHOLE chain (reason `error`) EVERY time -- silently, forever. The two
+                # statically-decidable SKIP_NODE causes (cascade._scope):
+                #   * country_rule=region + a driver region TOKEN that is not in region_map.resolve (the
+                #     compound/prose tokens: 'US_Midwest;Argentina;Brazil', 'Brazil CS / India'). The
+                #     family rows already pick the SINGLE-region weather node per contract (sec 2.5 /
+                #     3.2); this makes that curation rule fail the BUILD instead of the serve.
+                #   * silver_psd + a contract in PSD_UNSERVED_SLUGS (declared-absent PSD series).
+                # silver_fred_fx additionally needs a currency on the resolved entry (no country column).
+                hrow = refs.get((hop or {}).get("ref"))
+                if hrow is None:
+                    continue                                  # already reported by the per-hop ref check
+                table = hrow.get("table")
+                if table == "silver_psd" and PSD_SLUG_ALIAS.get(cslug, cslug) in PSD_UNSERVED_SLUGS:
+                    errs.append(f"chain_map {cid!r}/{cslug}: hop {i} ref {(hop or {}).get('ref')!r} reads "
+                                f"silver_psd, but {cslug!r} is a declared-unserved PSD slug -- the hop can "
+                                f"never resolve a scope (statically unservable)")
+                elif hrow.get("country_rule") == "region":
+                    tok = (region_tok.get(cslug, {}).get(nf) or "").strip()
+                    entry = resolve.get(tok)
+                    if not entry:
+                        errs.append(f"chain_map {cid!r}/{cslug}: hop {i} {node!r} is country_rule=region but its "
+                                    f"region token {tok!r} does not resolve in region_map -- the hop can never "
+                                    f"resolve a country (statically unservable)")
+                    elif table == "silver_fred_fx" and not entry.get("currency"):
+                        errs.append(f"chain_map {cid!r}/{cslug}: hop {i} {node!r} resolves region {tok!r} with NO "
+                                    f"currency -- silver_fred_fx has no country column (statically unservable)")
     if total_expansions > _CHAIN_MAX_EXPANSIONS:
         errs.append(f"chain_map: {total_expansions} total contract expansions > max {_CHAIN_MAX_EXPANSIONS} "
                     f"(expansion guard, sec 2.5)")
@@ -446,6 +485,239 @@ def check_complex_map() -> list[str]:
         if p.shared_event not in all_driver_ids and not _edge_between(a, b):
             errs.append(f"complex_map {pid!r}: shared_event {p.shared_event!r} is neither a DAG driver id "
                         f"nor a curated inter_commodity relation between {a!r} and {b!r}")
+    return errs
+
+
+# TRANSMISSION CHAIN caps (TRANSMISSION_CHAIN_PLAN D1/D3/D5). The horizontal engine's v1 universe is DELIBERATELY
+# tiny: 2 curated rows (flagship PALM->SBO->SBM + pure-vegoil control SBO->PALM->RSO), depth 2 links, and the
+# two clusters the D-universe admits. The 22-path census is the COMBINATORIAL count, never the catalog (sec 1.2:
+# auto-enumeration IS path minting) -- these bounds are what keeps the curation honest at build time.
+_XMIT_MAX_ROWS = 2
+_XMIT_MAX_LINKS = 2
+_XMIT_MIN_LINKS = 2                                  # a 1-link "chain" IS an RV2 pair -> `degenerate` (3.2)
+_XMIT_CLUSTERS = frozenset({"vegoil_substitution", "soy_crush"})   # D3: feed_grain is an ISOLATED edge, never a chain
+_XMIT_NATURES = frozenset({"divergence", "co_move"})               # D9: an EXPECTATION hint, never a gate
+_XMIT_CAP_PARAM = "serving.cascade.transmission.cap"
+
+
+def _load_transmission_map() -> list:
+    """The AUTHORED `configs/graphrag/numbers/transmission_map.yaml` `chains:` rows (FILE ORDER preserved; only
+    `deferred: true` dropped) -- deliberately NOT `cascade.load_transmission_map()`'s output.
+
+    That loader is fail-closed by DROPPING any row failing `_transmission_row_ok`, so linting its output would
+    silently green-light exactly the drift this lint exists to catch: the row would vanish from serving instead
+    of failing the build. The lint reads the file, re-derives the structural verdict itself, and cross-checks
+    the engine's own predicate so a DROPPED row is REPORTED (an inert chain is a config error, not a runtime
+    surprise -- the check_chain_map static-anchorability lesson). Missing file -> [] -> the lint no-ops."""
+    p = _CFG / "numbers" / "transmission_map.yaml"
+    doc = yaml.safe_load(p.read_text(encoding="utf-8")) if p.exists() else {}
+    return [c for c in ((doc or {}).get("chains") or []) if not (c or {}).get("deferred")]
+
+
+def _transmission_cap():
+    """The horizontal engine's OWN net-fetch budget (D5), or None when nothing declares one. Resolution order:
+    the composer-lane constant `cascade.TRANSMISSION_CAP` (the CHAIN_CAP sibling), then the params path.
+    NEVER the vertical CHAIN_CAP: the caps stay ENGINE-INDEPENDENT (non-goals; the combined chain_family
+    counter was DROPPED, fold-pass finding 3), so reading the vertical budget here would re-introduce exactly
+    the shared counter the plan rejected."""
+    from leviathan.graphrag import params as _pr
+    from leviathan.graphrag.numbers import cascade as _casc
+    cap = getattr(_casc, "TRANSMISSION_CAP", None)
+    if cap is None:
+        cap = _pr.get(_XMIT_CAP_PARAM, None)
+    try:
+        return int(cap) if cap is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def check_transmission_map() -> list[str]:
+    """TRANSMISSION CHAIN (D1/D3/D5/D6/D9): the fail-closed transmission_map.yaml lint -- check_chain_map's
+    horizontal sibling. The engine composes ONLY these curated chains (never the 22-path census), so a
+    malformed row must fail the BUILD rather than compose a fabricated read-across at serve time.
+
+    Row schema (cascade.load_transmission_map's contract)::
+
+        chains:
+          - id: xmit_palm_soyoil_meal              # unique; NEVER a vertical chain_map id (D6)
+            links:                                 # ordered, 2 links in v1 (D1 depth cap)
+              - {pair_id: soyoil_palm_vegoil,   source: malaysian_crude_palm_oil_cme,
+                 target: soybean_oil_cbot,  nature: divergence}
+              - {pair_id: soymeal_soyoil_crush, source: soybean_oil_cbot,
+                 target: soybean_meal_cbot, nature: co_move}
+
+    There is no `focus:` field -- the HEAD link's source IS the focus the composer first-fires on
+    (`_xmit_select`); an optional `focus:` is accepted but must agree with it.
+
+    Checks (all fail-closed):
+
+      1. SCHEMA: unique row id; 2 links (>=2 or the "chain" is just an RV2 pair -> `degenerate`, 3.2; <=
+         cascade.TRANSMISSION_DEPTH_CAP by D1); each link carries pair_id/source/target; `nature`, when
+         present, is one of {divergence, co_move} -- an EXPECTATION HINT the composer may not force (D9: the
+         OBSERVED per-window sign decides the fork, fold-pass finding 1).
+      2. REFS RESOLVE TO ACTIVE RV2 LINKS: each `pair_id` is a MATERIAL complex_map row (load_complex_map
+         drops non-material, so a contextual/excluded pair can never fire -> a chain naming one is statically
+         dead); the link's {source, target} EQUAL that pair's two slugs and both sides are
+         `country_rule: world` -- the `_xc_sides_ok` runtime guard restated as config lint.
+      3. CLUSTER MEMBERSHIP: every link's pair sits in the D-universe {vegoil_substitution, soy_crush}. D3
+         fences feed_grain BY DESIGN -- corn_wheat_feed is a deg-1 isolated edge admitting ZERO multi-edge
+         paths, so a feed chain is unbuildable, not merely deferred.
+      4. COMPOSABILITY: consecutive links share EXACTLY one node and it is oriented (link i target == link
+         i+1 source); source != target; no repeated node (the census walks SIMPLE paths); no repeated pair
+         in one row (two identical links collapse -> `degenerate`, 3.2).
+      5. NO VERTICAL-CHAIN REF REUSE (D6): a transmission row id may not collide with a vertical chain_map
+         chain id, a link may not carry the vertical hop's `ref:`/`node:` keys, and its `pair_id` may not
+         name a cascade_map ref or a vertical chain id. The two engines share ONLY the decline vocabulary
+         (3.2); sharing a ref/id surface would blur the T2b ledger's engine attribution.
+      6. STATICALLY DEAD: a leg that is not a loaded contract, or is in PSD_UNSERVED_SLUGS (cocoa/FCOJ carry no
+         PSD balance sheet) can never yield the World su_ratio both legs need -> the chain is dead on arrival.
+         This is the OFFLINE half of the per-pair census (axes (a)/(b), sec 1.3); the era-disjoint + World-synth
+         axes need pg and stay with `pair_realizable` at runtime -- this lint is AWS-free by construction.
+         The same class covers a row the ENGINE LOADER would DROP (`cascade._transmission_row_ok`): silently
+         inert at serve time is a config error, not a runtime surprise.
+      7. CAP PRESENT (D5): the horizontal engine must own a transmission-scoped budget
+         (`cascade.TRANSMISSION_CAP` / `serving.cascade.transmission.cap`), positive. NOT the vertical
+         CHAIN_CAP and not a shared counter (fold-pass finding 3).
+
+    Missing/all-deferred map -> [] rows -> the lint no-ops (the engine composes nothing), exactly like
+    check_chain_map on an absent chain_map.
+    """
+    from leviathan.graphrag import complex_map as xcm
+    from leviathan.graphrag.graph import CausalGraph
+    from leviathan.graphrag.numbers import cascade as _casc
+    from leviathan.graphrag.numbers.cascade import PSD_SLUG_ALIAS, PSD_UNSERVED_SLUGS, load_chain_map, load_map
+    errs: list[str] = []
+    try:
+        chains = _load_transmission_map()
+    except Exception as exc:  # noqa: BLE001 -- a malformed map must fail the build, not crash lint silently
+        return [f"transmission_map: failed to parse ({exc})"]
+    if not chains:
+        return errs                              # no file / all-deferred -> the transmission engine no-ops (OK)
+    try:
+        cmap = xcm.load_complex_map()
+        material = {p.id: p for p in (getattr(cmap, "pairs", None) or [])}
+        authored = {p.id: p for p in xcm.iter_all_pairs()}
+    except Exception as exc:  # noqa: BLE001
+        return [f"transmission_map: complex_map unavailable ({exc}) -- every link is unverifiable, fail closed"]
+    loaded = frozenset(CausalGraph.load().contracts.keys())
+    refs = load_map() or {}
+    vertical_ids = {(c or {}).get("id") for c in (load_chain_map() or [])}
+    depth_cap = int(getattr(_casc, "TRANSMISSION_DEPTH_CAP", _XMIT_MAX_LINKS))
+    row_ok = getattr(_casc, "_transmission_row_ok", None)
+
+    cap = _transmission_cap()
+    if cap is None or cap <= 0:
+        errs.append(f"transmission_map: no transmission-scoped cap ({_XMIT_CAP_PARAM} / cascade.TRANSMISSION_CAP) "
+                    f"-- the horizontal engine must own its OWN net-fetch budget (D5); it may NOT decrement the "
+                    f"vertical CHAIN_CAP (no shared counter)")
+    if len(chains) > _XMIT_MAX_ROWS:
+        errs.append(f"transmission_map: {len(chains)} active rows > max {_XMIT_MAX_ROWS} (D1 v1 catalog = "
+                    f"flagship + control; the 22-path census is NOT the catalog)")
+    seen_ids: set = set()
+    for ch in chains:
+        cid = (ch or {}).get("id") or "<no-id>"
+        if cid in seen_ids:
+            errs.append(f"transmission_map {cid!r}: duplicate chain id")
+        seen_ids.add(cid)
+        if cid in vertical_ids:
+            errs.append(f"transmission_map {cid!r}: id collides with a vertical chain_map chain id (D6) -- the "
+                        f"two engines' trace keys and ledger rows must disambiguate by id")
+        focus = (ch or {}).get("focus")          # OPTIONAL: the head link's source IS the focus (`_xmit_select`)
+        links = (ch or {}).get("links") or []
+        if len(links) < _XMIT_MIN_LINKS:
+            errs.append(f"transmission_map {cid!r}: {len(links)} links < min {_XMIT_MIN_LINKS} -- a 1-link chain "
+                        f"IS an RV2 pair, which the pair engine already serves (`degenerate`, 3.2)")
+        if len(links) > depth_cap:
+            errs.append(f"transmission_map {cid!r}: {len(links)} links > max {depth_cap} (D1 depth cap; "
+                        f"3-4 link paths are deferred)")
+        # The row the ENGINE LOADER would silently DROP is a config error, not a runtime surprise: it would be
+        # inert at serve time (never composing, never declining, no trace) with the build still green.
+        if row_ok is not None and not row_ok(ch):
+            errs.append(f"transmission_map {cid!r}: the ENGINE loader DROPS this row "
+                        f"(cascade._transmission_row_ok fail-closed) -- it would be silently INERT at serve "
+                        f"time, never composing and never declining; fix the row, never ship a dead chain")
+        seen_pairs: set = set()
+        nodes_seen: list = []
+        prev_target = None
+        for i, lk in enumerate(links):
+            pid = (lk or {}).get("pair_id")
+            src, tgt = (lk or {}).get("source"), (lk or {}).get("target")
+            # 5. vertical-shape reuse (D6): a transmission link names an RV2 PAIR, never a cascade_map ref/DAG node.
+            for key in ("ref", "node"):
+                if (lk or {}).get(key) is not None:
+                    errs.append(f"transmission_map {cid!r} link {i}: carries the VERTICAL hop key {key!r} -- a "
+                                f"transmission link names a complex_map `pair_id`, never a cascade_map ref/DAG "
+                                f"node (D6, engines stay independent)")
+            if pid in refs:
+                errs.append(f"transmission_map {cid!r} link {i}: pair_id {pid!r} is a cascade_map REF, not a "
+                            f"complex_map pair -- vertical-chain ref reuse (D6)")
+            if pid in vertical_ids:
+                errs.append(f"transmission_map {cid!r} link {i}: pair_id {pid!r} is a VERTICAL chain id, not a "
+                            f"complex_map pair -- vertical-chain ref reuse (D6)")
+            if not pid or not src or not tgt:
+                errs.append(f"transmission_map {cid!r} link {i}: needs pair_id/source/target (got "
+                            f"{pid!r}/{src!r}/{tgt!r})")
+                prev_target = None
+                continue
+            if src == tgt:
+                errs.append(f"transmission_map {cid!r} link {i}: source == target ({src!r}) -- a link compares "
+                            f"TWO commodities' World balance sheets, so a self-link is a vacuous fork")
+            nature = (lk or {}).get("nature")
+            if nature is not None and nature not in _XMIT_NATURES:
+                errs.append(f"transmission_map {cid!r} link {i}: bad nature {nature!r} "
+                            f"({'|'.join(sorted(_XMIT_NATURES))}) -- and it is an EXPECTATION hint only (D9), "
+                            f"never a gate on the observed sign")
+            if pid in seen_pairs:
+                errs.append(f"transmission_map {cid!r} link {i}: pair_id {pid!r} repeats in this chain -- the two "
+                            f"links collapse to one identity (`degenerate`, 3.2)")
+            seen_pairs.add(pid)
+            # 4. composability: oriented hub + simple path (+ the optional focus field agreeing with the head)
+            if i == 0:
+                if focus and src != focus:
+                    errs.append(f"transmission_map {cid!r}: head-link source {src!r} != focus {focus!r} (D1) -- "
+                                f"the composer first-fires on the HEAD link's source, so the declared focus "
+                                f"would never select this row")
+                nodes_seen.append(src)
+            elif prev_target is not None and src != prev_target:
+                errs.append(f"transmission_map {cid!r} link {i}: source {src!r} != the prior link's target "
+                            f"{prev_target!r} -- consecutive links must share EXACTLY one node, oriented (D1)")
+            if tgt in nodes_seen:
+                errs.append(f"transmission_map {cid!r} link {i}: node {tgt!r} repeats -- the path census walks "
+                            f"SIMPLE paths (no repeated node)")
+            nodes_seen.append(tgt)
+            prev_target = tgt
+            # 2. the pair resolves to an ACTIVE (material) RV2 link, and the legs match it
+            pair = material.get(pid)
+            if pair is None:
+                if pid in authored:
+                    errs.append(f"transmission_map {cid!r} link {i}: pair_id {pid!r} is authored but NOT material "
+                                f"(tier {authored[pid].materiality_tier!r}) -- load_complex_map drops it, so the "
+                                f"link can never fire (statically dead)")
+                else:
+                    errs.append(f"transmission_map {cid!r} link {i}: pair_id {pid!r} is not a complex_map pair")
+                continue
+            if {src, tgt} != set(pair.pair):
+                errs.append(f"transmission_map {cid!r} link {i}: legs {{{src!r}, {tgt!r}}} are not the pair's own "
+                            f"slugs {set(pair.pair)!r} -- `_xc_sides_ok` would decline the whole fork")
+            for side, sd in (("sideA", pair.side_a), ("sideB", pair.side_b)):
+                if (sd or {}).get("country_rule") != "world":
+                    errs.append(f"transmission_map {cid!r} link {i}: pair_id {pid!r} {side}.country_rule "
+                                f"{(sd or {}).get('country_rule')!r} -- every transmission leg is World "
+                                f"(the both-World guard has no analogue to relax)")
+            # 3. cluster membership (the D-universe)
+            if pair.complex_name not in _XMIT_CLUSTERS:
+                errs.append(f"transmission_map {cid!r} link {i}: pair_id {pid!r} is complex "
+                            f"{pair.complex_name!r}, outside the v1 universe "
+                            f"{sorted(_XMIT_CLUSTERS)} -- feed_grain is an ISOLATED single edge (D3): it admits "
+                            f"ZERO multi-edge paths, so a chain over it is unbuildable, not merely deferred")
+            # 6. statically dead legs (the OFFLINE half of the per-pair census, sec 1.3 axes (a)/(b))
+            for slug in (src, tgt):
+                if slug not in loaded:
+                    errs.append(f"transmission_map {cid!r} link {i}: leg {slug!r} is not a loaded contract "
+                                f"(statically dead)")
+                elif PSD_SLUG_ALIAS.get(slug, slug) in PSD_UNSERVED_SLUGS:
+                    errs.append(f"transmission_map {cid!r} link {i}: leg {slug!r} is PSD-UNSERVED -- no balance "
+                                f"sheet, so its World su_ratio can never resolve (statically dead)")
     return errs
 
 
@@ -948,6 +1220,7 @@ def main() -> int:
                         ("cascade_map", check_cascade_map()),
                         ("chain_map", check_chain_map()),
                         ("complex_map", check_complex_map()),
+                        ("transmission_map", check_transmission_map()),
                         ("pin_realizability", check_pin_realizability()),
                         ("driver_slices", check_driver_slices()),
                         ("edge_blurbs", check_edge_blurbs()),

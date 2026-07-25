@@ -139,3 +139,20 @@ output "serving_task_security_group_id" {
   value       = module.serving.task_security_group_id
   description = "Serving task SG (added to the RDS SG on 5432)."
 }
+
+# --- T2B pattern-records ledger cloud legs (all null/"" until the digest is pinned) ---
+
+output "pattern_records_job_role_arn" {
+  value       = module.iam.pattern_records_job_role_arn
+  description = "Dedicated pattern-records sweep role: writes ONLY gold/pattern_records/*, append-only (every delete denied). Pass as jobRoleArn; never the shared batch-job-role."
+}
+
+output "pattern_records_sweep_job_definition_arn" {
+  value       = module.batch.pattern_records_sweep_job_definition_arn
+  description = "T2B sweep jobdef ARN. null until pattern_records_image_digest is pinned (rollout step 3)."
+}
+
+output "pattern_records_sweep_schedule_name" {
+  value       = one(aws_scheduler_schedule.pattern_records_sweep[*].name)
+  description = "Daily sweep schedule (created DISABLED; ENABLE only after the day-0 manual run is reviewed). null until the digest is pinned."
+}

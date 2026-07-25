@@ -51,3 +51,14 @@ output "silver_publisher_role_name" {
   value       = aws_iam_role.silver_publisher.name
   description = "SILVER-F014 gated publisher role NAME (== constants.SILVER_PUBLISHER_ROLE_NAME; matched by publish_guard's canonical role-ARN pattern)."
 }
+
+# T2B pattern-records sweep (dedicated, append-only ledger writer).
+output "pattern_records_job_role_arn" {
+  value       = aws_iam_role.pattern_records_job.arn
+  description = "T2B pattern-records sweep role ARN (the sweep jobdef's jobRoleArn; writes ONLY gold/pattern_records/*)."
+}
+
+output "pattern_records_job_role_name" {
+  value       = aws_iam_role.pattern_records_job.name
+  description = "T2B pattern-records sweep role NAME (for sibling-module policy attachments, e.g. the root kms:Sign grant)."
+}

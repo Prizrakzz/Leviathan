@@ -112,3 +112,13 @@ output "usda_esr_fetch_job_definition_arn" {
   value       = one(aws_batch_job_definition.usda_esr_fetch[*].arn)
   description = "ARN of the USDA FAS ESR weekly fetch job definition (Phase D D-W1). null until fas_api_key_secret_arn is wired."
 }
+
+output "pattern_records_sweep_job_definition_arn" {
+  value       = one(aws_batch_job_definition.pattern_records_sweep[*].arn)
+  description = "ARN of the T2B pattern-records sweep job definition. null until pattern_records_image is pinned (rollout step 3)."
+}
+
+output "pattern_records_sweep_job_definition_name" {
+  value       = "${var.project_name}-${var.environment}-pattern-records-sweep"
+  description = "NAME of the T2B pattern-records sweep jobdef. Deliberately NOT derived from the count-gated resource: the schedule + the submit wrapper reference the jobdef BY NAME (so a re-registration tracks the latest ACTIVE revision), and the name is stable whether or not the digest is pinned yet."
+}

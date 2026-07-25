@@ -384,6 +384,27 @@ _SYSTEM_CHAIN = (
     "Render the chain narration ONLY when a 'QUANTIFIED CHAIN' line is present; never volunteer a chain "
     "from prose. ")
 
+# TRANSMISSION (TRANSMISSION_CHAIN_PLAN 5.1): the HORIZONTAL chain's paragraph, same shape as the six markers
+# above and gated by its own flag. The engine composes RV2 pair links across a commodity complex, so its blocks
+# carry the EXISTING 'CROSS-COMMODITY' / 'CO-MOVE' lines -- this paragraph binds them into ONE chain, in link
+# order, and fences the two failure modes the surface could invent: narrating a downstream link the engine did
+# NOT quantify, and reading a co-moving link as a relative-value divergence.
+_SYSTEM_TRANSMISSION = (
+    "If the block carries a line beginning 'TRANSMISSION CHAIN', the 'TRANSMISSION LINK i/n:' blocks above it "
+    "are ONE cross-commodity chain measured on a SHARED anchor window: narrate them IN LINK ORDER as one "
+    "mechanism travelling through the complex, and EVERY level or change you state takes its [N] handle, copied "
+    "exactly as printed -- a chain figure without its handle, or rounded, is stripped like any other. Each link "
+    "renders by what its own record shows: a link whose line begins 'CROSS-COMMODITY' is a relative-value "
+    "divergence and belongs under '## Cross-commodity'; a link whose line begins 'CO-MOVE' is a complex-wide "
+    "move, belongs under '## Complex-wide move', and carries NO price-direction licence -- never narrate a "
+    "co-moving link as a divergence. Name each link by its two commodities. If a 'TRANSMISSION HANDOFF' line is "
+    "present the quantified chain STOPS there: state plainly how far the record carries and that the remaining "
+    "link is not quantified on this window -- that boundary is the finding, so never bridge it with your own "
+    "arithmetic and never imply the downstream move. The 'TRANSMISSION LINK i/n' and 'TRANSMISSION CHAIN' lines "
+    "are INTERNAL markers -- never print them. Direction, attribution, and any price read remain the analyst's "
+    "interpretation, never the engine's. Render the chain narration ONLY when a 'TRANSMISSION CHAIN' line is "
+    "present; never volunteer a cross-commodity chain from prose. ")
+
 
 def _count_banned_mood(structured: dict) -> int:
     """P9-A hard-gate metric: banned mood words on the RAW model output, BEFORE _humanize_structured/
@@ -452,6 +473,19 @@ def _chain_on() -> bool:
     return os.environ.get("GRAPHRAG_CASCADE_CHAIN", "").strip().lower() in ("on", "1", "true")
 
 
+def _transmission_on() -> bool:
+    """HORIZONTAL transmission-chain kill-switch (GRAPHRAG_CASCADE_TRANSMISSION), read at the answer.py quantify
+    SEAM and threaded as the OMIT-WHEN-OFF `transmission` kwarg down quantify()->_transmission_legs (the
+    _chain_on idiom -- NEVER an os.environ read inside cascade.py, so the ENGINE is gated by the ARGUMENT and a
+    mis-plumbed enable can never fire it on an unasked turn). DEFAULT-OFF, fail-closed: only a case-insensitive
+    on/1/true enables it. When off the kwarg is ABSENT and quantify() is byte-identical to today (injected
+    quantify fakes with the older signature stay valid). `GRAPHRAG_TRANSMISSION` -- the ratified plan's D6
+    spelling -- is accepted as an ALIAS so either name flips the one switch. Read PER CALL (never memoized) so
+    the env-flip rollback is live -> no redeploy."""
+    return any(os.environ.get(k, "").strip().lower() in ("on", "1", "true")
+               for k in ("GRAPHRAG_CASCADE_TRANSMISSION", "GRAPHRAG_TRANSMISSION"))
+
+
 def _pattern_records_on() -> bool:
     """T2B pattern-records card kill-switch (GRAPHRAG_PATTERN_RECORDS), read at the answer.py _system() seam.
     When on, the reader-facing string gains the OBSERVATION-register '## Recorded history' [N]-rendering
@@ -475,6 +509,8 @@ def _system() -> str:
         base = base + _SYSTEM_CASCADE
         if _chain_on():                                            # chain paragraph rides the cascade block
             base = base + _SYSTEM_CHAIN
+        if _transmission_on():                                     # ditto the HORIZONTAL chain's paragraph
+            base = base + _SYSTEM_TRANSMISSION
     if _pattern_records_on():
         from leviathan.graphrag.numbers import pattern_records as _pr   # lazy: avoid an import cycle
         base = base + _pr.RECORDED_HISTORY_ADDENDUM
@@ -792,12 +828,16 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
             _pace_kw = {"pace": True} if _pace_leg_on() else {}
             # CHAIN engine (multi-hop): the omit-when-off idiom too -- flag off -> kwarg ABSENT -> byte-identical.
             _chain_kw = {"chain": True} if _chain_on() else {}
+            # HORIZONTAL transmission chain: the same omit-when-off idiom. The engine ALSO needs the RV2
+            # detector's own xc_request (threaded above) to fire at all -- flag on + no cross-commodity ask =
+            # no attempt, so the fork is never volunteered.
+            _xmit_kw = {"transmission": True} if _transmission_on() else {}
             _cblock, _quant_trace, _reroute_trace = cq.quantify(sg, graph, qfn=numbers_lookup, asof=asof,
                                                                 near=near,
                                                                 extra_number_calls=extra_number_calls,
                                                                 xc_request=xc_request, comove=_comove_on(),
                                                                 price_request=_price_request,
-                                                                **_pace_kw, **_chain_kw)
+                                                                **_pace_kw, **_chain_kw, **_xmit_kw)
             sg.trace["ms_quantify"] = int((time.perf_counter() - _t_quant) * 1000)
             if _cblock:
                 volatile_blocks = volatile_blocks + [_cblock]
