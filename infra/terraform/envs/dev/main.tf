@@ -745,7 +745,7 @@ resource "aws_scheduler_schedule" "pattern_records_sweep" {
   count = var.pattern_records_image_digest != "" ? 1 : 0
 
   name  = "${var.project_name}-${var.environment}-pattern-records-sweep"
-  state = "DISABLED" # day-0 doctrine: ONE manual run + review BEFORE the cron is armed
+  state = "ENABLED" # day-0 SATISFIED 2026-07-25: dry-run -> shadow (543 records reviewed) -> canonical live; user-directed enable
 
   flexible_time_window {
     mode = "OFF"
