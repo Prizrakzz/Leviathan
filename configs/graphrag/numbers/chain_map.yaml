@@ -94,7 +94,7 @@ chains:
       - {node: psd_ending_stock_su_ratio, ref: psd_ending_stock_su_ratio}
     terminal: price
 
-  # ── v1.1 FAMILY EXPANSION -- AUTHORED, DEFERRED, INERT (the loader skips `deferred: true`) ─────────────────
+  # ── v1.1 FAMILY EXPANSION -- ACTIVATED 2026-07-25 (user cap re-decision: 7->10 rows, 25->29 expansions) ─
   # WHY DEFERRED and not shipped active: the v1 set already SATURATES the ratified expansion guard -- 7 of 7
   # rows and 24 of 25 contract expansions (config_check._CHAIN_MAX_ROWS / _CHAIN_MAX_EXPANSIONS, sec 2.5 S3
   # fold). Every row below needs a NEW ROW SLOT, never a seat in an existing row: each roots on `El_Nino` (all
@@ -128,7 +128,6 @@ chains:
   # Each row below lints CLEAN standalone at HEAD; tests/unit/test_chain_map_lint.py pins both the shapes and
   # the inert-ness, so a cap re-decision cannot flip a drifted row on.
   - id: enso_sa_maize_drought
-    deferred: true
     contracts: [south_african_white_maize_jse, south_african_yellow_maize_jse]
     hops:
       - {node: El_Nino, ref: oni_climate}
@@ -136,7 +135,6 @@ chains:
     terminal: price
 
   - id: enso_monsoon_sugar
-    deferred: true
     contracts: [raw_sugar, white_sugar]
     hops:
       - {node: El_Nino, ref: oni_climate}
@@ -144,7 +142,6 @@ chains:
     terminal: price
 
   - id: enso_robusta_drought
-    deferred: true
     contracts: [robusta_coffee]
     hops:
       - {node: El_Nino, ref: oni_climate}

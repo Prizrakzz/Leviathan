@@ -31,11 +31,13 @@ def test_real_chain_map_lints_clean():
     cq.load_chain_map.cache_clear()
 
 
-def test_real_chain_map_is_24_expansions_7_rows():
+def test_real_chain_map_is_29_expansions_10_rows():
+    # CAP RE-DECISION 2026-07-25: the three El_Nino family rows activated (SA maize, sugar, robusta);
+    # 7 rows/24 expansions -> 10/29, caps re-saturated by design.
     cq.load_chain_map.cache_clear()
     rows = cq.load_chain_map()
-    assert len(rows) == 7
-    assert sum(len(r["contracts"]) for r in rows) == 24        # S1: campinas dropped from the flagship
+    assert len(rows) == 10
+    assert sum(len(r["contracts"]) for r in rows) == 29
     cq.load_chain_map.cache_clear()
 
 
@@ -108,7 +110,7 @@ def test_too_many_contracts_per_row_rejected(monkeypatch):
 
 
 def test_too_many_rows_rejected(monkeypatch):
-    rows = [dict(_valid_skeleton(), id=f"r{i}") for i in range(8)]    # 8 > 7
+    rows = [dict(_valid_skeleton(), id=f"r{i}") for i in range(11)]   # 11 > 10 (cap re-decision 2026-07-25)
     errs = _lint(monkeypatch, rows)
     assert any("active rows > max" in e for e in errs)
 
@@ -301,14 +303,15 @@ def _raw_chains() -> list:
     return (yaml.safe_load(p.read_text(encoding="utf-8")) or {}).get("chains") or []
 
 
-def test_v11_rows_are_deferred_and_inert():
+def test_v11_rows_are_active():
+    # CAP RE-DECISION 2026-07-25: deferred:true deleted from all three rows; the loader now serves them.
     raw = {r["id"]: r for r in _raw_chains()}
     assert set(_V11_DEFERRED) <= set(raw), f"v1.1 rows missing: {set(_V11_DEFERRED) - set(raw)}"
     for cid in _V11_DEFERRED:
-        assert raw[cid].get("deferred") is True, f"{cid} must stay deferred until the cap is re-decided"
+        assert "deferred" not in raw[cid], f"{cid} still carries deferred -- the activation edit regressed"
     cq.load_chain_map.cache_clear()
     active = {r["id"] for r in cq.load_chain_map()}
-    assert active.isdisjoint(_V11_DEFERRED)                        # the loader drops them: zero serving effect
+    assert set(_V11_DEFERRED) <= active                            # the loader serves them: chain-eligible
     cq.load_chain_map.cache_clear()
 
 
@@ -332,18 +335,16 @@ def test_v11_rows_lint_clean_standalone(monkeypatch):
         assert _lint(monkeypatch, [row]) == [], f"{cid} does not lint clean standalone"
 
 
-def test_v11_activation_needs_a_cap_redecision(monkeypatch):
-    # pins WHY they are deferred rather than active -- if a future edit frees room, this test is the one that
-    # says the guard no longer blocks and the rows may be turned on.
+def test_v11_caps_resaturated_next_expansion_needs_its_own_redecision(monkeypatch):
+    # CAP RE-DECISION 2026-07-25: 7->10 rows / 25->29 expansions activated exactly the three-row roster,
+    # and the caps re-saturate at the new set BY DESIGN -- one more row (or expansion) trips the guard, so
+    # the next growth act is forced through the same deliberate re-decision this one went through.
     cq.load_chain_map.cache_clear()
     active = cq.load_chain_map()
-    cq.load_chain_map.cache_clear()                                # before the patch: the lambda has no cache
-    raw = {r["id"]: r for r in _raw_chains()}
-    merged = active + [{k: v for k, v in raw[cid].items() if k != "deferred"} for cid in _V11_DEFERRED]
-    assert len(merged) == 10 > cc._CHAIN_MAX_ROWS
-    assert sum(len(r["contracts"]) for r in merged) == 29 > cc._CHAIN_MAX_EXPANSIONS
-    errs = _lint(monkeypatch, merged)
+    cq.load_chain_map.cache_clear()
+    assert len(active) == 10 == cc._CHAIN_MAX_ROWS
+    assert sum(len(r["contracts"]) for r in active) == 29 == cc._CHAIN_MAX_EXPANSIONS
+    assert _lint(monkeypatch, active) == []                        # the active roster fits exactly
+    one_more = active + [dict(active[-1], id="one_row_too_many")]
+    errs = _lint(monkeypatch, one_more)
     assert any("active rows > max" in e for e in errs)
-    assert any("total contract expansions > max" in e for e in errs)
-    # and NOTHING else: the caps are the ONLY thing rejecting the expanded roster.
-    assert len(errs) == 2, f"expected caps-only rejection, got: {errs}"

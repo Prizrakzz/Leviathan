@@ -226,8 +226,12 @@ def _check_region_map(reg) -> list[str]:
 # CHAIN ENGINE expansion guard (CHAIN_ENGINE_PLAN sec 2.5, S3 fold): the AUTHORED bound -- max 6 contracts per
 # row, max 7 rows, total expansions <= 25 (v1 actual: 24 after the S1 campinas drop). Subject to D1 as proposed.
 _CHAIN_MAX_CONTRACTS_PER_ROW = 6
-_CHAIN_MAX_ROWS = 7
-_CHAIN_MAX_EXPANSIONS = 25
+# CAP RE-DECISION 2026-07-25 (user-directed, follows the judged30 3/30 firing-funnel census): the v1
+# caps (7/25) were SATURATED by the ratified v1 set, deferring the three El_Nino family rows (SA maize,
+# sugar, robusta -- 5 contracts). Raised 7->10 rows / 25->29 expansions to activate exactly that roster;
+# the caps re-saturate at the new set by design (the NEXT expansion needs its own re-decision).
+_CHAIN_MAX_ROWS = 10
+_CHAIN_MAX_EXPANSIONS = 29
 _CHAIN_MAX_HOPS = 3
 
 
