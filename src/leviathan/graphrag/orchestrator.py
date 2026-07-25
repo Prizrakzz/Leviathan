@@ -70,10 +70,11 @@ def run_numbers_only(query: str, asof: str, *, client=None, model: str = na.HAIK
         except Exception:  # noqa: BLE001 — routing must never break a numbers answer
             mc = []
     # W2.5: the agent's honesty-guard keys live only in answer_numbers' return dict (dropped here otherwise);
-    # copy them onto the trace so the eval deck can pin them (the ESR destination guard AND the new
-    # price-coverage decline guard). Absent (the common case) -> the trace is byte-identical to before.
+    # copy them onto the trace so the eval deck can pin them (the ESR destination guard, the price-coverage
+    # decline guard, and the year_month period-scoping guard -- task #142, whose value is the NAMED month
+    # window 'YYYY-MM' / 'YYYY-MM..YYYY-MM'). Absent (the common case) -> the trace is byte-identical.
     _trace = {"numbers_verifier": nv, "banned_valuation_words": _banned_val, "banned_flow_words": _banned_flow}
-    for _gk in ("esr_destination_guard", "price_decline_guard", "pattern_records"):
+    for _gk in ("esr_destination_guard", "price_decline_guard", "pattern_records", "period_mismatch_guard"):
         if out.get(_gk) is not None:
             _trace[_gk] = out[_gk]
     return {"answer": body, "intent": "numbers_only",
@@ -185,6 +186,17 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
         except Exception:  # noqa: BLE001
             nums = {}
         calls = nums.get("calls", [])
+        # SEAM-C futures levels-only decline on the HYBRID lane (task #144). The agent's own decline preface
+        # lives in nums['answer'], which this path never reads, so a curve/named ask arrived here as a bare
+        # front-month LEVEL and the reasoner narrated it as the asked-for quote. Neuter those lookups BEFORE
+        # the block is built (nothing citable survives) and keep the caveat: the class template rides the
+        # calls as the scope note the writer must state, and the preface is prepended to the finished note
+        # below. Guard absent — every non-futures turn, plus the servable level/'change' asks — returns the
+        # same list and an empty preface, so the join is byte-identical to today.
+        _fcls = nums.get("futures_decline_guard")
+        calls, _fpref = na.futures_hybrid_decline(_fcls, calls)
+        if _fpref:
+            holder["futures_decline"], holder["futures_preface"] = _fcls, _fpref
         holder["calls"], holder["resolved"] = calls, True
         holder["ms_numbers"] = nums.get("_ms_numbers")            # W6.1-0: numbers-agent duration (MsNumbers)
         return "\n\n".join(x for x in (extra_context, _numbers_block(calls)) if x), calls
@@ -201,6 +213,12 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
         _resolve()                      # still surface the numbers the agent found, as before
     out["intent"] = "hybrid"
     out["number_calls"] = holder["calls"]
+    if holder.get("futures_preface"):
+        # the DETERMINISTIC half of the SEAM-C hybrid decline (task #144): the caveat is prepended whatever
+        # the writer produced, exactly as the numbers_only lane does — the honesty never rides on the prompt.
+        # Same shape as answer.py's degraded banner; absent on every turn the guard did not fire.
+        out["answer"] = holder["futures_preface"] + (out.get("answer") or "")
+        out.setdefault("trace", {})["futures_decline_guard"] = holder["futures_decline"]
     if holder.get("ms_numbers") is not None:
         out.setdefault("trace", {})["ms_numbers"] = holder["ms_numbers"]   # W6.1-0: surface for the EMF block
     out["asof"] = asof

@@ -203,6 +203,131 @@ def test_answer_numbers_level_ask_no_preface():
     assert out["answer"] == "model text."
 
 
+# -- SEAM C on the HYBRID lane: the curve/named decline survives the path that drops the agent's prose ---
+# newcap-30 ncap_fut_corn_curve_decline failed because run_hybrid consumes `calls`, never `answer`: the
+# agent declined in prose the reasoner never saw, and the served front-month LEVEL (449.5) was narrated as
+# the December quote / the curve. The fix is the hybrid-lane twin of the preface, NOT a routing change --
+# futures_scope also fires 'change' on genuine reasoning asks ("why has corn fallen this month"), so
+# rerouting the class to numbers_only would demote real cascade turns.
+_FUT_LEVEL_CALL = {"query": {"table": "silver_futures_prices", "metric": "close", "commodity": "corn_cbot",
+                             "asof": "2026-07-21"},
+                   "rows": [{"value": 449.5, "unit": "US cents/bushel", "knowledge_date": "2026-07-20"}],
+                   "status": "ok", "handle": "L1"}
+_PSD_CALL = {"query": {"table": "silver_psd", "metric": "production", "commodity": "corn"},
+             "rows": [{"value": 377.0, "unit": "1000 MT"}], "status": "ok"}
+
+
+@pytest.mark.parametrize("cls", ["curve", "named"])
+def test_futures_hybrid_decline_neuters_the_level(cls):
+    calls, preface = na.futures_hybrid_decline(cls, [_FUT_LEVEL_CALL, _PSD_CALL])
+    assert calls[0]["rows"] == [] and calls[0]["status"] == "declined"     # no citable level survives
+    assert calls[0]["scope_note"] == na.FUTURES_DECLINE_TEMPLATES[cls]     # the WHY rides into the prompt
+    assert calls[0]["query"] == _FUT_LEVEL_CALL["query"]                   # provenance of the attempt kept
+    assert calls[1] is _PSD_CALL                                           # every other table untouched
+    assert preface.startswith("One limitation to flag before the numbers:") and "front-month" in preface
+    assert _FUT_LEVEL_CALL["rows"][0]["value"] == 449.5                    # caller's record not mutated
+
+
+@pytest.mark.parametrize("cls", [None, "change"])
+def test_futures_hybrid_decline_is_a_noop_for_servable_classes(cls):
+    # 'change' keeps the level: the template itself offers it ("I can give the front-month close level on a
+    # date, but not how far it travelled"), and levels_only already rejects the windowed read. None = every
+    # non-futures turn -> the SAME list object back, so the hybrid join is byte-identical.
+    src = [_FUT_LEVEL_CALL, _PSD_CALL]
+    calls, preface = na.futures_hybrid_decline(cls, src)
+    assert calls is src and preface == ""
+
+
+def test_futures_hybrid_decline_handles_empty_calls():
+    calls, preface = na.futures_hybrid_decline("named", [])
+    assert calls == [] and preface                                         # caveat still lands with no lookups
+
+
+def test_declined_status_labels_as_a_decline_not_a_timing_claim():
+    from leviathan.graphrag import citations as cit
+    calls, _ = na.futures_hybrid_decline("curve", [_FUT_LEVEL_CALL])
+    c = cit.from_number(calls[0], 1)
+    assert c.value is None                                                 # eval price_cited filters on this
+    assert "declined" in c.label and "not yet published" not in c.label
+
+
+# -- run_hybrid end-to-end (fake numbers agent + fake reasoner) -----------------------------------------
+def _corn_graph():
+    from leviathan.causal import schema as cs
+    from leviathan.graphrag import graph as g
+    corn = cs.CausalContract(contract="corn", aliases=["corn"],
+                             drivers=[cs.Driver(id="drought", type="hazard", sign="+", mechanism="m")])
+    return g.CausalGraph({"corn": corn}, silver=set())
+
+
+def _fake_retrieve(q, contract, *, k, asof=None, near=None):
+    return [{"date": "2012-07-20", "source": "GAIN", "source_key": "s3://x", "text": "drought"}]
+
+
+_CURVE_Q = "What is December corn trading at, and what does the futures curve look like across the months?"
+
+
+def _run_hybrid(monkeypatch, nums: dict, query: str) -> tuple[dict, dict]:
+    from leviathan.graphrag import orchestrator as orch
+    captured: dict = {}
+
+    def fake_call(system, user, *, model, tool):
+        captured["user"] = user if isinstance(user, str) else str(user)
+        return {"tldr": "t", "mechanism": "m", "sources": []}
+
+    monkeypatch.setattr(orch.na, "answer_numbers", lambda q, a, **kw: nums)
+    out = orch.run_hybrid(query, "2026-07-21", graph=_corn_graph(), call=fake_call,
+                          retrieve=_fake_retrieve, planner=None)
+    return out, captured
+
+
+def test_run_hybrid_curve_ask_declines(monkeypatch):
+    nums = {"answer": "prose the hybrid path throws away", "calls": [dict(_FUT_LEVEL_CALL)],
+            "futures_decline_guard": "named"}
+    out, captured = _run_hybrid(monkeypatch, nums, _CURVE_Q)
+    assert out["answer"].startswith("One limitation to flag before the numbers:")   # deterministic prepend
+    assert out["trace"]["futures_decline_guard"] == "named"
+    assert "449.5" not in captured["user"]                                  # the reasoner never sees the level
+    assert "SCOPE NOTE" in captured["user"] and "FRONT-MONTH close only" in captured["user"]
+    assert out["number_calls"][0]["status"] == "declined"
+    fut = [c for c in out["citations"]
+           if (c.get("locator") or {}).get("table") == "silver_futures_prices" and c.get("value") is not None]
+    assert fut == []                                                        # eval price_cited -> false
+
+
+def test_run_hybrid_level_ask_still_serves(monkeypatch):
+    # no guard -> the front-month level reaches the reasoner and stays a valued citation, exactly as today.
+    nums = {"answer": "model text.", "calls": [dict(_FUT_LEVEL_CALL)]}
+    out, captured = _run_hybrid(monkeypatch, nums, "What is the front-month corn futures settle?")
+    assert not out["answer"].startswith("One limitation")
+    assert "futures_decline_guard" not in (out.get("trace") or {})
+    assert "449.5" in captured["user"] and "SCOPE NOTE" not in captured["user"]
+    assert out["number_calls"][0]["status"] == "ok" and out["number_calls"][0]["rows"]
+    assert [c["value"] for c in out["citations"] if c["kind"] == "number"] == ["449.5"]
+
+
+def test_run_hybrid_change_ask_keeps_the_level(monkeypatch):
+    # 'change' is not neutered (the level is the honest partial serve) -- only the two unservable classes are.
+    nums = {"answer": "x", "calls": [dict(_FUT_LEVEL_CALL)], "futures_decline_guard": "change"}
+    out, captured = _run_hybrid(monkeypatch, nums, "How much has corn risen this month?")
+    assert "449.5" in captured["user"]
+    assert out["number_calls"][0]["status"] == "ok"
+    assert "futures_decline_guard" not in (out.get("trace") or {})
+
+
+def test_run_numbers_only_decline_lane_is_untouched(monkeypatch):
+    # the numbers_only lane is BYTE-IDENTICAL: the agent's own preface is the whole decline there, the served
+    # rows are not neutered, and no futures key is copied onto the trace (the guard list is unchanged).
+    from leviathan.graphrag import orchestrator as orch
+    nums = {"answer": na._futures_decline_preface("named") + "model text.",
+            "calls": [dict(_FUT_LEVEL_CALL)], "futures_decline_guard": "named"}
+    monkeypatch.setattr(orch.na, "answer_numbers", lambda q, a, **kw: nums)
+    out = orch.run_numbers_only(_CURVE_Q, "2026-07-21")
+    assert out["answer"].startswith("One limitation to flag before the numbers:")
+    assert out["number_calls"][0]["status"] == "ok" and out["number_calls"][0]["rows"][0]["value"] == 449.5
+    assert "futures_decline_guard" not in out["trace"]
+
+
 # =======================================================================================================
 # FUTURES v1.5 (ratified 2026-07-23, docs/private/FUTURES_V15_PLAN.md): W1 unit column single-sourced +
 # W2 versioned roll policy + W2.3 roll-straddle regression + W4 provenance label + W3 no-overreach proof.

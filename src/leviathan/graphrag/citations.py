@@ -85,6 +85,11 @@ def _empty_label(status: Optional[str], asof: Optional[str]) -> str:
         return "(no matching rows -- scope/coverage gap, not a timing claim)"
     if status == "error":
         return "(lookup error)"
+    if status == "declined":
+        # a lookup the harness STRUCTURALLY declined, not one that failed or came back empty: the SEAM-C
+        # hybrid futures decline (task #144) neuters a curve/named front-month read so no level can be cited
+        # as the asked-for quote. The scope note riding the same call carries the WHY to the writer.
+        return "(declined -- not servable from this series for this ask)"
     return "(not known at asof)"
 
 

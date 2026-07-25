@@ -515,6 +515,156 @@ def _futures_decline_preface(cls: str) -> str:
     return f"One limitation to flag before the numbers: {FUTURES_DECLINE_TEMPLATES[cls]}.\n\n"
 
 
+# -- SEAM C on the HYBRID lane: the same decline where the agent's prose is thrown away (task #144) -----
+# The preface above lands in THIS function's return dict -- which is exactly what run_hybrid discards: that
+# path consumes `calls`, never `answer` (the _stamp_scope precedent above). So a curve/named futures ask
+# that routed hybrid reached the reasoner as a bare front-month LEVEL and was narrated as the asked-for
+# quote (newcap-30 ncap_fut_corn_curve_decline: 449.5 served for "December corn ... and the curve"). Only
+# the two STRUCTURALLY unservable classes are neutered here: no agg, no date and no window makes a term
+# structure or a specific expiry appear in a continuous front-month series, so the level is not a partial
+# answer -- it is a different number wearing the ask's label. `change` is DELIBERATELY excluded: there the
+# level IS the partial serve the template itself offers ("I can give the front-month close level on a date,
+# but not how far it travelled"), and the levels_only build_sql guard already rejects the windowed read.
+FUTURES_TABLE = "silver_futures_prices"
+FUTURES_UNSERVABLE_CLASSES: frozenset[str] = frozenset({"curve", "named"})
+
+
+def futures_hybrid_decline(cls: Optional[str], calls: list[dict]) -> tuple[list[dict], str]:
+    """(calls, preface) for the hybrid lane. A curve/named ask has every EXECUTED futures lookup NEUTERED --
+    rows dropped, status 'declined', the verbatim class template stamped as the scope_note the synthesis
+    prompt states -- so no front-month level can be minted, prompted or cited as the curve/named quote; the
+    preface rides back for a deterministic prepend (never prompt discipline). Every other class (None and
+    the servable 'change'/level asks) returns the SAME list object and an empty preface: byte-identical."""
+    if cls not in FUTURES_UNSERVABLE_CLASSES:
+        return calls, ""
+    note = FUTURES_DECLINE_TEMPLATES[cls]
+    out: list[dict] = []
+    for c in (calls or []):
+        if isinstance(c, dict) and ((c.get("query") or {}).get("table")) == FUTURES_TABLE:
+            out.append({**c, "rows": [], "status": "declined", "scope_note": note})
+        else:
+            out.append(c)
+    return out, _futures_decline_preface(cls)
+
+
+# -- year_month PERIOD-SCOPING honesty guard (task #142) ------------------------------------------------
+# The month-grained cards (silver_noaa_iod, silver_noaa_oni, gold_weather_z) are as-of-guarded on
+# (year*100 + month) <= asof_ym, so an UNSCOPED lookup answers "the newest month on or before the as-of
+# date" -- NOT "the month you named". The judged newcap30 row ncap_iod_1997_analog is exactly that miss:
+# "the DMI in October 1997" as-of 1998-06-01 ran unscoped, the guard returned the June-1998 row, and the
+# answer then invented a "not yet published / lagging reconstruction" story for a month that sat in the
+# lake the whole time. Two teeth, cloning the ESR/price guard discipline:
+#   (a) the OFFENDING tool_result is stamped with the mismatch + the exact re-scoped call to issue (the
+#       loop still has call budget, so a stamped turn can repair itself), and
+#   (b) when the turn ENDS with no month-grained lookup having landed INSIDE the named window, a
+#       reader-facing period-mismatch line is PREPENDED and `period_mismatch_guard` rides the trace.
+# The inside-the-window escape is what keeps a legitimate two-month ask ("how does the latest reading
+# compare with October 1997?") unflagged: once the named month is actually resolved, (b) is a no-op.
+# Detection is conservative -- a MONTH NAME must sit adjacent to a 4-digit year, and a month-year that is
+# really a DATE ("1 June 1998") or the AS-OF framing ("as of June 2026") is excluded -- so a plain "what
+# is the latest DMI reading" ask is byte-identical (no note, no preface, no trace key).
+_MONTH_NUMS: dict[str, int] = {
+    "january": 1, "jan": 1, "february": 2, "feb": 2, "march": 3, "mar": 3, "april": 4, "apr": 4,
+    "may": 5, "june": 6, "jun": 6, "july": 7, "jul": 7, "august": 8, "aug": 8, "september": 9,
+    "sept": 9, "sep": 9, "october": 10, "oct": 10, "november": 11, "nov": 11, "december": 12, "dec": 12}
+_MONTH_LABELS = ("January", "February", "March", "April", "May", "June",
+                 "July", "August", "September", "October", "November", "December")
+# Longest-first so 'march' wins over 'mar' and 'sept' over 'sep'. The 4-digit year is REQUIRED (it is what
+# makes a bare 'may'/'march' unambiguously a month rather than a verb or a farm-march noun).
+_MONTH_YEAR_RX = re.compile(
+    r"\b(" + "|".join(sorted(_MONTH_NUMS, key=len, reverse=True)) + r")\.?[\s\-/]+(?:of\s+)?((?:19|20)\d{2})\b")
+# A month-year that is really a full DATE ('1 June 1998', 'as at June 2026') is the POINT-IN-TIME framing,
+# which the harness already fixes -- never the period the question is about. ('June 1, 1998' cannot match
+# _MONTH_YEAR_RX at all: the day sits between the month and the year.)
+_DATE_PREFIX_RX = re.compile(r"(?:\b\d{1,2}(?:st|nd|rd|th)?\s+|\bas[\s-]?of\s+|\bas\s+at\s+|\bdated\s+)$")
+
+
+def asked_month_window(question: str) -> Optional[tuple[int, int]]:
+    """(start_ym, end_ym) as YYYYMM ints for the historical month(s) the question NAMES, else None. One
+    named month gives a degenerate window; several give min..max (a span ask, e.g. 'October 1997 through
+    February 1998'). Ambiguity fails toward None -- an ask that names no month never reaches the guard."""
+    q = re.sub(r"\s+", " ", (question or "").lower())
+    yms: list[int] = []
+    for m in _MONTH_YEAR_RX.finditer(q):
+        if _DATE_PREFIX_RX.search(q[:m.start()]):
+            continue                                   # '1 June 1998' / 'as of June 2026' -> a date, not the ask
+        yms.append(int(m.group(2)) * 100 + _MONTH_NUMS[m.group(1)])
+    return (min(yms), max(yms)) if yms else None
+
+
+def _ym_label(ym: int) -> str:
+    return f"{_MONTH_LABELS[(ym % 100) - 1]} {ym // 100}"
+
+
+def _window_label(win: tuple[int, int]) -> str:
+    return _ym_label(win[0]) if win[0] == win[1] else f"{_ym_label(win[0])} to {_ym_label(win[1])}"
+
+
+def _ym_iso(ym: int) -> str:
+    return f"{ym // 100:04d}-{ym % 100:02d}"                  # the 'YYYY-MM' period_start/period_end form
+
+
+def _row_ym(row: dict) -> Optional[int]:
+    """A month-grained row's OWN (year, month) as a YYYYMM int -- every year_month card surfaces both as
+    self-identifying extras (query._extras). None when either cell is missing or unparseable."""
+    try:
+        y, mo = int(str((row or {}).get("year")).strip()), int(str((row or {}).get("month")).strip())
+    except (TypeError, ValueError):
+        return None
+    return y * 100 + mo if 1 <= mo <= 12 else None
+
+
+def _is_month_grain_call(c: dict, reg: NumbersRegistry) -> bool:
+    """True when the call hit a card whose as-of guard is month-grained (year_month semantics)."""
+    tbl = (c.get("query") or {}).get("table")
+    if not tbl:
+        return False
+    try:
+        return reg.get(tbl).knowledge_semantics == "year_month"
+    except KeyError:                                          # unregistered table -> not month-grained
+        return False
+
+
+def period_mismatch_ym(win: tuple[int, int], calls: list, reg: NumbersRegistry) -> Optional[int]:
+    """The YYYYMM of the FIRST month-grained row that landed OUTSIDE the named window, or None when either
+    no such row exists OR some month-grained lookup DID land inside it (the named month was resolved, so
+    there is nothing to flag)."""
+    off: Optional[int] = None
+    for c in calls:
+        if not _is_month_grain_call(c, reg):
+            continue
+        for ym in (_row_ym(r) for r in (c.get("rows") or [])):
+            if ym is None:
+                continue
+            if win[0] <= ym <= win[1]:
+                return None                                   # asked month resolved -> guard is a no-op
+            if off is None:
+                off = ym
+    return off
+
+
+def _period_mismatch_scope_note(win: tuple[int, int], row_ym: int) -> str:
+    """Model-facing note stamped on a month-grained tool_result whose row is NOT the month the question
+    named. Carries the exact re-scoped call, and bans the publication-lag story outright."""
+    return (f"PERIOD MISMATCH -- this row is {_ym_label(row_ym)}; the question named {_window_label(win)}. "
+            f"An unscoped monthly lookup returns the latest month on or before the as-of date, not the month "
+            f"asked about. To read the month asked about, call {TOOL_NAME} again for the same metric with "
+            f"period_start='{_ym_iso(win[0])}' and period_end='{_ym_iso(win[1])}'. NEVER present this row as "
+            f"if it were that month, and NEVER explain the asked month as not-yet-published, lagging, or "
+            f"unavailable -- an unscoped lookup simply did not request it.")
+
+
+def _period_mismatch_preface(win: tuple[int, int], row_ym: int) -> str:
+    """Reader-facing period-mismatch line (mentor register -- no internal slugs). PREPENDED deterministically
+    so a different month can never pose as the month asked about, and so the miss is named as what it is (a
+    scoping miss) instead of being dressed up as a publication gap."""
+    return (f"One scope note before the numbers: the lookup returned {_ym_label(row_ym)}, not "
+            f"{_window_label(win)} -- it was not scoped to the month asked about, so it came back with the "
+            f"most recent month on or before the as-of date. Read the figure below as the "
+            f"{_ym_label(row_ym)} reading. Nothing here means the {_window_label(win)} figure is missing or "
+            f"unpublished.\n\n")
+
+
 def _visible_tables(reg: NumbersRegistry) -> list[str]:
     """The registry tables EXPOSED to the agent this call: sorted(reg.tables), MINUS the flag-gated
     pattern-records card when GRAPHRAG_PATTERN_RECORDS is OFF. Read per-call so the kill-switch rollback is
@@ -762,6 +912,19 @@ def system_prompt(reg: NumbersRegistry, stats_tool: Optional[bool] = None) -> st
         "is lag-published (about 6 days) and can be several weeks stale, so ALWAYS cite the report date -- "
         "staleness must be visible, not hidden.\n"
         + stats_bullet + pattern_bullet +
+        # GENERAL month-grain rule (task #142). The IOD bullet below already carries it; this states it ONCE
+        # for every month-grained card (oni + iod + gold_weather_z) so the named-month discipline is not a
+        # per-card accident. It is prompt-side discipline only -- the deterministic period-mismatch guard
+        # (agent.py, _period_mismatch_scope_note / _period_mismatch_preface) is the enforcement.
+        "- MONTH-GRAINED tables (silver_noaa_oni, silver_noaa_iod, gold_weather_z) are identified by year + "
+        "month, and their as-of guard is month-grained: agg=latest returns the newest month ON OR BEFORE the "
+        "as-of date, which is the WRONG row whenever the question names a particular month. When the question "
+        "names a historical month or span ('the DMI in October 1997', 'heat stress over June-August 2012'), "
+        "the lookup MUST carry period_start AND period_end as 'YYYY-MM' for exactly that month or span -- "
+        "agg=latest is only for 'the newest reading'. If a returned row's year+month is not the month asked "
+        "about, say so plainly ('the lookup returned June 1998, not October 1997') and re-run it scoped to "
+        "that month; NEVER explain the difference as a publication lag, a reconstruction delay, or the month "
+        "being unpublished or unavailable -- an unscoped lookup simply did not request that month.\n"
         "- silver_noaa_oni has NO date column: window months with period_start/period_end as 'YYYY-MM', or use "
         "agg=latest for the most recent month on/before the as-of date.\n"
         "- silver_noaa_iod is the Indian Ocean Dipole (DMI), a GLOBAL monthly climate index -- NO commodity or "
@@ -845,6 +1008,15 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
     # front. None (the common case) is a no-op -- a plain single-date LEVEL ask is byte-identical. Fires on
     # phrasing alone, so the honest front-month framing is prepended even while futures is whitelist-absent.
     fut_scope = futures_scope(question)
+    # year_month period-scoping guard: the historical month/span the question NAMES, resolved ONCE up front.
+    # None (the common case -- no named month) is a no-op everywhere below, so a 'latest reading' ask is
+    # byte-identical. When set it arms BOTH teeth: the per-payload mismatch note and the closing preface.
+    ask_win = asked_month_window(question)
+    if ask_win and ask_win[0] > Q._asof_ym(asof):
+        # The whole named window sits AFTER the as-of month, so the month is genuinely not knowable here --
+        # the not-yet-published explanation this guard exists to ban is the CORRECT one. Disarm (the leakage
+        # guard's own month grain decides, so the two can never drift).
+        ask_win = None
     # T2B pattern-records persistence-history dispatch: detect a persistence question ONCE, up front, and
     # ONLY when the card flag is on -> flag-off never even computes the scope, so the loop is byte-identical
     # to pre-feature. None (the common case, and always when off) is a no-op everywhere below.
@@ -860,6 +1032,17 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
             text = "".join(getattr(b, "text", "") for b in resp.content if getattr(b, "type", None) == "text").strip()
             result: dict = {"answer": text, "calls": calls}
             preface = ""
+            if ask_win:
+                # year_month period-scoping guard, closing tooth: the question NAMED a month and no
+                # month-grained lookup ever landed in it, yet one came back with a different month. State the
+                # mismatch plainly, FIRST -- it re-labels every monthly figure that follows. (Placed ahead of
+                # the ESR generic-breakdown branch, which can REPLACE the answer and return early; the two
+                # are structurally disjoint -- silver_esr is vintage-semantics, never year_month.)
+                off_ym = period_mismatch_ym(ask_win, calls, reg)
+                if off_ym is not None:
+                    preface += _period_mismatch_preface(ask_win, off_ym)
+                    result["period_mismatch_guard"] = _ym_iso(ask_win[0]) if ask_win[0] == ask_win[1] else \
+                        f"{_ym_iso(ask_win[0])}..{_ym_iso(ask_win[1])}"
             if price_scope:
                 # deterministic decline of an uncovered price series: the caveat is PREPENDED regardless of
                 # what the model wrote, so an uncaveated proxy can never pose as the asked-for series.
@@ -982,6 +1165,20 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                     # bloc aggregate, so the model just narrates the no_rows result honestly.
                     payload["scope_note"] = _esr_bloc_scope_note(dest)
                 # scoped to a real single country -> NO scope_note (the value IS that destination's)
+            if ask_win and _is_month_grain_call(payload, reg):
+                # Month-grained card answering a NAMED-month ask with a row from a different month: tell the
+                # MODEL, on the offending result itself, WHICH month came back and how to re-scope (the loop
+                # still has call budget, so a stamped turn can repair itself). The ESR note above cannot
+                # collide (silver_esr is vintage-semantics, never year_month), but append rather than
+                # overwrite so a future card carrying both stays honest about both. The year_month gate is
+                # what keeps silver_nasa_power out of this — it is date-semantics, yet its year/month
+                # PARTITIONS surface the same self-identifying extras a row-level month check reads.
+                off = next((ym for ym in (_row_ym(r) for r in (payload.get("rows") or []))
+                            if ym is not None and not (ask_win[0] <= ym <= ask_win[1])), None)
+                if off is not None:
+                    note = _period_mismatch_scope_note(ask_win, off)
+                    prior = payload.get("scope_note")
+                    payload["scope_note"] = f"{prior} {note}" if prior else note
             return payload
 
         def _exec_stat(b) -> tuple[dict, list[dict]]:
