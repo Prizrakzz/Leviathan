@@ -62,7 +62,7 @@ _TASK_PATH = "jobs/batch/pattern_records_sweep_task.py"
 # onto a jobdef whose active revision carries a different image, so a half-applied re-pin is caught
 # before the job runs rather than after it has written verdicts.
 # STATUS: PLACEHOLDER -- filled at rollout step 3, together with the terraform variable.
-_IMAGE_DIGEST_PLACEHOLDER = "sha256:REPLACE_WITH_CONTENT_CHECKED_DIGEST"
+_IMAGE_DIGEST_PLACEHOLDER = "sha256:REPLACE_WITH_CONTENT_CHECKED_DIGEST"  # tripwire literal
 _ECR_IMAGE = (
     "668891723125.dkr.ecr.us-east-1.amazonaws.com/leviathan-dev-leviathan-embedder"
     f"@{_IMAGE_DIGEST_PLACEHOLDER}"
