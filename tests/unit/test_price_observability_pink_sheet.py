@@ -342,7 +342,10 @@ def test_run_numbers_only_no_guard_trace_is_unchanged(monkeypatch):
     from leviathan.graphrag.numbers import agent as na
     monkeypatch.setattr(na, "answer_numbers", lambda *a, **k: {"answer": "Corn stocks were 1,234.", "calls": []})
     out = orch.run_numbers_only("corn ending stocks?", "2026-07-12")
-    assert set(out["trace"]) == {"numbers_verifier", "banned_valuation_words", "banned_flow_words"}
+    # `ms_numbers` joined the base keys with F0 (latency RCA 2026-07-25): the numbers-agent leg is timed on
+    # this route too, so MsNumbers stops being absent on 100% of numbers_only turns. Still no GUARD keys.
+    assert set(out["trace"]) == {"numbers_verifier", "banned_valuation_words", "banned_flow_words",
+                                 "ms_numbers"}
 
 
 # ======================================================================================================

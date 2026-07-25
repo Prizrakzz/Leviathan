@@ -32,6 +32,13 @@ _RECENCY_DAYS = int(_pr.get("serving.ground.recency_days", 548))
 # The walk's per-node retrieves run concurrently to overlap the managed-rerank round-trips (env override wins).
 _WALK_WORKERS = int(os.environ.get("GRAPHRAG_WALK_WORKERS") or _pr.get("serving.walk.workers", 8))
 _PROBE_CAP = int(_pr.get("serving.ground.probe_cap", 24))
+# Convergence probes (F3) run concurrently at this width. They were the whole of the walk's `rest` stage:
+# 24 STRICTLY SERIAL pg round-trips at 596-682 ms each, serial-sum == wall to within 0.3% on 4/4 measured
+# turns. They are independent existence checks, so overlapping them is pure win. Default matches the walk's
+# own width; effective concurrency is min(this, EVIDENCE_PG_POOL) because the probes draw from that pool, so
+# raising it past the pool size only queues on checkout. <=1 forces the old sequential path (kill-switch).
+_PROBE_WORKERS = int(os.environ.get("GRAPHRAG_PROBE_WORKERS") or _pr.get("serving.ground.probe_workers",
+                                                                        _WALK_WORKERS))
 _EVIDENCE_CAP = int(_pr.get("serving.ground.evidence_cap", 24))
 _K_BY_DEPTH = tuple(_pr.get("serving.ground.k_by_depth", (5, 3, 2)))
 
@@ -427,10 +434,28 @@ def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, s
         # slowdown of the July-3 evals; a cheap dense/lex fetch is ~10x faster with identical semantics).
         probe = probe_retrieve or retrieve
 
-        def _basis(cid: str, did: str):
+        # ── F3: probes run CONCURRENTLY, but selection stays deterministic BY CONSTRUCTION ────────────────
+        # Three phases, and the split is the whole point. A naive pool.map over the shared budget["left"]
+        # counter would make WHICH drivers get probed depend on thread completion order -> different
+        # fired_regimes -> different answers. Instead:
+        #   (1) _plan walks the SAME sorted(cid) x sorted(d) order with the SAME budget arithmetic and
+        #       resolves everything that is not a slice probe — the walk-evidence pre-seed, and the
+        #       silver-first observed/normal verdicts (memo-warm from the prefetch above). It appends the
+        #       ADMITTED probes to `probe_plan` and never calls `probe`, so the admitted set + n_probes +
+        #       the `vetoed` insertion order are identical to the old serial loop.
+        #   (2) _run_probes executes that FROZEN list at width _PROBE_WORKERS.
+        #   (3) the firing loop below consumes probe_cache in the FROZEN order.
+        # Correctness does NOT rest on the cap binding (it saturates 24/24 on hybrid but a reasoning turn
+        # logged n_probes=11) — the frozen list is byte-identical to the serial selection either way.
+        # Thread-safety comes free: the workers touch nothing shared (probe/`_recent` read-only closures),
+        # and probe_cache/vetoed/budget are written ONLY on this thread. silver_lookup's single-flight is
+        # therefore not load-bearing here — phase 1 calls it serially, exactly as before.
+        probe_plan: list[tuple] = []                               # frozen [((cid, did), slice_path)], in order
+
+        def _plan(cid: str, did: str) -> None:
             key = (cid, did)
             if key in probe_cache:
-                return probe_cache[key]
+                return
             # SILVER FIRST (F4): an OBSERVED anomalous value at the as-of vintage is the strongest
             # receipt; a live-and-NORMAL value VETOES the driver — documented chatter cannot fire a
             # regime the observed data contradicts. Inconclusive/miss -> the text semantics decide.
@@ -445,29 +470,55 @@ def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, s
                         if sv.get("intensity") is not None:    # T1: forward ONLY when present ([SKEPTIC F1])
                             basis["intensity"] = sv["intensity"]
                         probe_cache[key] = basis
-                        return probe_cache[key]
+                        return
                     if sv.get("verdict") == "normal":
                         vetoed.setdefault(cid, {})[did] = {"value": sv.get("value"), "z": sv.get("z"),
                                                            "unit": sv.get("unit", ""),
                                                            "source": sv.get("ref", "silver"),
                                                            "date": sv.get("knowledge_date", "")}
                         probe_cache[key] = None
-                        return None
+                        return
             sp = slice_path(did) if did in backed else None
             if sp and budget["left"] > 0:                          # asof-guarded slice probe, recency-tested
                 budget["left"] -= 1
-                probe_cache[key] = _recent(list(probe(query, sp, k=2, asof=asof, near=near)))
+                probe_plan.append((key, sp))
             else:
                 probe_cache[key] = None
-            return probe_cache[key]
 
-        for cid in sorted({n.contract for n in sg.nodes}):
-            if cid not in graph.contracts:
-                continue
-            required = {d for s in graph.contracts[cid].convergence for d in s.drivers}
+        def _run_probes(plan: list[tuple]) -> None:
+            """Execute the frozen probe list and merge into probe_cache in the FROZEN order. Results are
+            collected by INDEX (never as_completed), so completion order cannot reach the caller; and
+            .result() surfaces the FIRST failing probe in frozen order — the serial loop's semantics."""
+            def _one(item):
+                return _recent(list(probe(query, item[1], k=2, asof=asof, near=near)))
+            if _PROBE_WORKERS <= 1 or len(plan) <= 1:              # sequential: exact pre-F3 call pattern
+                out = [_one(it) for it in plan]
+            else:
+                import concurrent.futures as cf
+                # NOT a `with` block: ThreadPoolExecutor.__exit__ is shutdown(wait=True), so a raising probe
+                # would then BLOCK on every QUEUED probe as well — 3 waves x a 300,000 ms pg statement
+                # timeout on a starved DB, i.e. a floor turn 3x SLOWER than the serial loop it replaces (the
+                # serial loop aborted on the FIRST failure). cancel_futures drops the not-yet-started ones;
+                # the <=_PROBE_WORKERS already running finish in the background and touch nothing we read.
+                pool = cf.ThreadPoolExecutor(max_workers=min(_PROBE_WORKERS, len(plan)))
+                try:
+                    out = [f.result() for f in [pool.submit(_one, it) for it in plan]]
+                finally:
+                    pool.shutdown(wait=False, cancel_futures=True)
+            for (key, _sp), res in zip(plan, out):
+                probe_cache[key] = res
+
+        # The firing order, materialised ONCE so phases 1 and 3 provably walk the same sequence.
+        firing_order = [(cid, sorted({d for s in graph.contracts[cid].convergence for d in s.drivers}))
+                        for cid in sorted({n.contract for n in sg.nodes}) if cid in graph.contracts]
+        for cid, required in firing_order:                         # (1) freeze
+            for d in required:
+                _plan(cid, d)
+        _run_probes(probe_plan)                                    # (2) execute concurrently
+        for cid, required in firing_order:                         # (3) consume, frozen order
             bases = {}
-            for d in sorted(required):
-                b = _basis(cid, d)
+            for d in required:
+                b = probe_cache.get((cid, d))
                 if b:
                     bases[d] = b
             regime_basis[cid] = bases

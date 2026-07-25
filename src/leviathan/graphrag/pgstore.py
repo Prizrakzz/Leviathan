@@ -14,6 +14,9 @@ Design choices (deliberate):
     which reuses the slices' inline vectors (never re-embed, never re-chunk).
   - Leakage-safety in SQL: `date <= asof` is part of the candidate query itself, mirroring retrieve()'s
     filter-FIRST rule.
+  - The vector payload is CONDITIONAL (F2): arms that consume the raw vectors in-process (rerank / MMR) get
+    `p.vector::text`; arms that consume only the cosine ORDER — every convergence probe — get the scalar
+    pgvector already computed for the ORDER BY. Same formula, ~700 KB less wire and no Python cosine.
 
 DSN from EVIDENCE_PG_DSN (e.g. postgresql://postgres:...@host:5432/leviathan). psycopg3; the query vector rides
 as a '[f1,f2,...]' literal cast ::vector, so no extra adapter package is needed.
@@ -221,10 +224,31 @@ def _tsquery(query: str) -> str:
     return " | ".join(dict.fromkeys(rk.tokenize(query))) or ""
 
 
+def needs_vectors(*, rerank: bool, mmr: float) -> bool:
+    """The F2 payload gate: does this retrieve() arm actually CONSUME the raw candidate vectors in-process?
+
+    Only two post-fetch steps read `cand[i]["vector"]`: MMR's same-source novelty term (rankers.mmr_select)
+    and — by convention, not by need — the rerank arm, which we keep on the vector payload so the fill path
+    (rerank=True, mmr=0.5) is provably untouched by F2. Everything else consumes only the ORDER the cosine
+    produces, and pgvector can compute that cosine in SQL. Written as a named predicate so the gate is
+    directly assertable in a test instead of inferred from a fetch_candidates call."""
+    return bool(rerank) or float(mmr) > 0
+
+
 def fetch_candidates(query_vec, query_text: str, node: str, *, asof: Optional[str], fetch_k: int,
-                     hybrid: bool = True, conn=None) -> list[dict]:
+                     hybrid: bool = True, conn=None, with_vectors: bool = True) -> list[dict]:
     """ONE round-trip: dense CTE + (optionally) lexical CTE, RRF-fused in SQL (c=60, same as rankers.rrf_fuse).
-    Rows come back with their vectors so rerank/MMR run in-process unchanged."""
+    Rows come back with their vectors so rerank/MMR run in-process unchanged.
+
+    `with_vectors=False` (F2) swaps the `p.vector::text` payload for the cosine pgvector ALREADY computes for
+    the ORDER BY — `1 - (p.vector <=> qv) AS cos_score`. The 24 convergence probes per turn (rerank=False,
+    mmr<=0) consumed nothing but the resulting order, while paying 60 x 1024 float4 rendered as text (~700 KB
+    on the wire), 60 `_vec_parse` calls and ~122,880 pure-Python mul-adds EACH. The six metadata columns are
+    byte-identical on both shapes; the seventh key is `score` (float) instead of `vector` (list[float]) —
+    pg_retrieve gates on needs_vectors() and its OWN return shape is unchanged either way. NB pgvector's
+    distance accumulates in single precision, so `score` can differ from ev._cosine in ~the 7th significant
+    digit; it is the same formula (both divide by the norms) and it is the SAME computation that already
+    picked the candidate set in the dense CTE."""
     pooled = conn is None
     t = table_name()
     qv = _vec_lit(query_vec)
@@ -232,6 +256,10 @@ def fetch_candidates(query_vec, query_text: str, node: str, *, asof: Optional[st
     params = {"node": node, "asof": asof, "qv": qv, "k": fetch_k, "tsq": _tsquery(query_text) if hybrid else ""}
     dense = (f"SELECT id, ROW_NUMBER() OVER (ORDER BY vector <=> %(qv)s::vector) AS rnk "
              f"FROM {t} WHERE {where} ORDER BY vector <=> %(qv)s::vector LIMIT %(k)s")
+    # 7th projected column: the raw vector (rerank/MMR need it in-process) or the scalar cosine. The alias is
+    # NOT `score` — the fused CTE already exposes one, and `ORDER BY f.score` must keep resolving to the CTE's.
+    payload = "p.vector::text" if with_vectors else "1 - (p.vector <=> %(qv)s::vector) AS cos_score"
+    cols = f"SELECT p.id, p.source, p.source_key, p.date, p.event_date, p.text, {payload} "
     if hybrid and params["tsq"]:
         lex = (f"SELECT id, ROW_NUMBER() OVER (ORDER BY ts_rank(tsv, to_tsquery('simple', %(tsq)s)) DESC) AS rnk "
                f"FROM {t} WHERE {where} AND tsv @@ to_tsquery('simple', %(tsq)s) LIMIT %(k)s")
@@ -239,12 +267,10 @@ def fetch_candidates(query_vec, query_text: str, node: str, *, asof: Optional[st
                  "fused AS (SELECT COALESCE(d.id, l.id) AS id, "
                  "COALESCE(1.0/(60+d.rnk),0) + COALESCE(1.0/(60+l.rnk),0) AS score "
                  "FROM dense d FULL OUTER JOIN lex l USING (id)) "
-                 "SELECT p.id, p.source, p.source_key, p.date, p.event_date, p.text, p.vector::text "
-                 f"FROM fused f JOIN {t} p USING (id) ORDER BY f.score DESC LIMIT %(k)s")
+                 + cols + f"FROM fused f JOIN {t} p USING (id) ORDER BY f.score DESC LIMIT %(k)s")
     else:
         fused = (f"WITH dense AS ({dense}) "
-                 "SELECT p.id, p.source, p.source_key, p.date, p.event_date, p.text, p.vector::text "
-                 f"FROM dense d JOIN {t} p USING (id) ORDER BY d.rnk LIMIT %(k)s")
+                 + cols + f"FROM dense d JOIN {t} p USING (id) ORDER BY d.rnk LIMIT %(k)s")
     if pooled:                                               # serving path: pooled conns, concurrent fetches
         c = _acquire()
         try:
@@ -257,8 +283,11 @@ def fetch_candidates(query_vec, query_text: str, node: str, *, asof: Optional[st
         with _PG_LOCK, conn.cursor() as cur:
             cur.execute(fused, params)
             rows = cur.fetchall()
+    if with_vectors:                                         # the six metadata keys are identical either way
+        return [{"id": r[0], "source": r[1], "source_key": r[2], "date": r[3], "event_date": r[4],
+                 "text": r[5], "vector": _vec_parse(r[6])} for r in rows]
     return [{"id": r[0], "source": r[1], "source_key": r[2], "date": r[3], "event_date": r[4],
-             "text": r[5], "vector": _vec_parse(r[6])} for r in rows]
+             "text": r[5], "score": float(r[6])} for r in rows]
 
 
 def pg_retrieve(query: str, node: str, *, k: int = 5, asof: str | None = None, near: str | None = None,
@@ -271,15 +300,29 @@ def pg_retrieve(query: str, node: str, *, k: int = 5, asof: str | None = None, n
     from leviathan.graphrag import rankers as rk
     embed = embed or ev.embed
     qv = embed([query])[0]
-    cand = fetch_candidates(qv, query, node, asof=asof, fetch_k=fetch_k, hybrid=(mode == "hybrid"), conn=conn)
+    with_vec = needs_vectors(rerank=rerank, mmr=mmr)           # F2: no vectors on the probe/no-MMR arms
+    cand = fetch_candidates(qv, query, node, asof=asof, fetch_k=fetch_k, hybrid=(mode == "hybrid"), conn=conn,
+                            with_vectors=with_vec)
     if not cand:
         return []
 
-    def _dense(r):                                            # identical scoring to evidence.retrieve
-        return ev._cosine(qv, r["vector"]) + (beta * ev._proximity(r["date"], near) if near else 0.0)
+    if with_vec:
+        def _dense(r):                                        # identical scoring to evidence.retrieve
+            return ev._cosine(qv, r["vector"]) + (beta * ev._proximity(r["date"], near) if near else 0.0)
+    else:
+        def _dense(r):  # noqa: E306
+            # Same formula, cosine leg computed in SQL. `near` still works: _proximity reads only r["date"],
+            # which the row carries on BOTH shapes — so F2 is NOT gated on `near is None` and stays live on
+            # near-dated turns (where it would otherwise have been a silent no-op).
+            return r["score"] + (beta * ev._proximity(r["date"], near) if near else 0.0)
 
-    cand.sort(key=_dense, reverse=True)
+    # ONE _dense evaluation per candidate, reused as BOTH the sort key and the relevance value: the old
+    # `cand.sort(key=_dense)` + `[_dense(r) for r in cand]` scored every candidate TWICE (2 x 60 x 1024
+    # mul-adds per fetch on the vector path). sorted(reverse=True) has the same stability guarantee as
+    # list.sort(reverse=True) — equal scores keep fetch order — so the sequence is byte-identical.
     relevance = [_dense(r) for r in cand]
+    order = sorted(range(len(cand)), key=lambda i: relevance[i], reverse=True)
+    cand, relevance = [cand[i] for i in order], [relevance[i] for i in order]
     if rerank and cand:
         cand = cand[:rk.RERANK_POOL]                          # same pool cap as evidence.retrieve
         relevance = rk.rerank_scores(query, [r["text"] for r in cand])

@@ -50,7 +50,10 @@ def _footer(cits) -> str:
 
 def run_numbers_only(query: str, asof: str, *, client=None, model: str = na.HAIKU, query_fn=None,
                      graph=None, contracts=None) -> dict:
+    import time as _time
+    _tn = _time.perf_counter()                                      # F0: MsNumbers on the numbers_only route
     out = na.answer_numbers(query, asof, client=client, model=model, query_fn=query_fn)
+    _ms_numbers = int((_time.perf_counter() - _tn) * 1000)
     cits = cit.unify(None, out.get("calls"))
     _raw = out.get("answer", "")                                    # DP-6: raw pre-sanitize agent text
     _banned_val = reg.count_valuation_words(_raw)                   # the price-serving lane -- counts must ride trace
@@ -73,7 +76,13 @@ def run_numbers_only(query: str, asof: str, *, client=None, model: str = na.HAIK
     # copy them onto the trace so the eval deck can pin them (the ESR destination guard, the price-coverage
     # decline guard, and the year_month period-scoping guard -- task #142, whose value is the NAMED month
     # window 'YYYY-MM' / 'YYYY-MM..YYYY-MM'). Absent (the common case) -> the trace is byte-identical.
-    _trace = {"numbers_verifier": nv, "banned_valuation_words": _banned_val, "banned_flow_words": _banned_flow}
+    # F0 (latency RCA 2026-07-25): the agent leg is timed on THIS route too. MsNumbers was stamped only by
+    # run_hybrid, so it was absent on 237/237 numbers_only turns and ~69% of an 8.0s numbers_only p50 was an
+    # unmeasured leg. The two lanes time the same call but differ in MARGINALITY: on hybrid the agent runs in
+    # a worker thread parallel with the walk (measured 0 marginal, >=18s of headroom on 335/335 turns), here
+    # it IS the critical path. The `intent` EMF dimension separates them -- never pool the two.
+    _trace = {"numbers_verifier": nv, "banned_valuation_words": _banned_val, "banned_flow_words": _banned_flow,
+              "ms_numbers": _ms_numbers}
     for _gk in ("esr_destination_guard", "price_decline_guard", "pattern_records", "period_mismatch_guard"):
         if out.get(_gk) is not None:
             _trace[_gk] = out[_gk]
@@ -716,6 +725,46 @@ def _guardrail_check(query: str):
             "trace": {"guardrail": {"action": "INTERVENED"}}}
 
 
+# ── F4a: the deterministic floor, made VISIBLE (latency RCA 2026-07-25) ─────────────────────────────
+# 135 floor turns in 3 days -- 17.6% of all turns, p50 242.6s / p95 1163.6s, each delivering a 279-char
+# service notice -- carried no metric at all: the exception rode `trace.error` to the caller and the [floor]
+# print carried raw exception text that nothing could group or alarm on. These slugs are a CLOSED set: a
+# `cause` DIMENSION over raw exception text would mint a new billed dimension value per distinct message.
+# The floor is NOT single-cause (the reason a dimension is required, not optional): the 7d log carries pg
+# statement timeouts under RDS credit/EBS starvation AND a bge model-download OSError against huggingface.co.
+_FLOOR_CAUSES = ("pg_statement_timeout", "pg_operational", "model_download", "other")
+
+
+def _floor_cause(exc: BaseException) -> str:
+    """One of `_FLOOR_CAUSES`, from the exception's TYPE NAME *and* its message. Both, because the same
+    failure surfaces differently by driver: psycopg raises `QueryCanceled` while a wrapper re-raises the
+    identical "canceling statement due to statement timeout" text as `OperationalError`, and the model
+    download arrives as a bare `OSError` whose message is the ONLY signal. The timeout test runs before the
+    generic pg one so a QueryCanceled can never land in `pg_operational`."""
+    name = type(exc).__name__.lower()
+    msg = str(exc).lower()
+    if "querycanceled" in name or "statement timeout" in msg or "canceling statement" in msg:
+        return "pg_statement_timeout"
+    if "huggingface" in msg or ("couldn't connect to" in msg and "load the files" in msg):
+        return "model_download"
+    if "operationalerror" in name or "operationalerror" in msg or "psycopg" in msg:
+        return "pg_operational"
+    return "other"
+
+
+def _floor_log(kind: str, exc: BaseException) -> str:
+    """ONE structured ASCII line per floor turn, emitted AT the seam -- before the floor's own retrieval
+    runs, so it lands even when that retrieval is the thing hanging -- and returns the cause slug for the
+    trace + the `FloorTurns` dimension. The format is APPEND-ONLY: `kind=` and the trailing raw
+    `cause=<Type>: <message>` are unchanged from the pre-F4a line (the 137 `[floor]` records the RCA read
+    stay greppable), with the bounded `cause_class=` inserted between them. The raw tail is newline-stripped
+    and ascii-replaced so a multi-line/UTF-8 driver message cannot split the record or kill a cp1252 stdout."""
+    slug = _floor_cause(exc)
+    raw = str(exc)[:200].replace("\n", " ").replace("\r", " ").encode("ascii", "replace").decode()
+    print(f"[floor] kind={kind} cause_class={slug} cause={type(exc).__name__}: {raw}", flush=True)
+    return slug
+
+
 def _evidence_only(query: str, asof: str, *, graph, kind: str, exc: Exception,
                    route_fn=None, near: Optional[str] = None) -> dict:
     """The DETERMINISTIC FLOOR (plan: production fallback chain, last resort). When every LLM attempt —
@@ -845,6 +894,14 @@ def respond(*args, **kwargs) -> dict:
                         "MultiCountryTurn": "Count", "CitedN": "Count", "InjectedN": "Count",
                         "AnswerChars": "Count", "TrivialShortCircuit": "Count",
                         "XcLlmWouldFire": "Count", "PlannerFallback": "Count"})
+        if tr.get("floor"):
+            # F4a: floor turns are COUNTED, split by the bounded cause slug. A SEPARATE EMF line on purpose:
+            # folding `cause` into the block above would re-dimension every metric in it and fork the
+            # per-(intent, model) series the 5.2 dashboard reads. No 0-semantics either -- FloorTurns is
+            # ABSENT on healthy turns, so any non-zero sum is a real failure and SUM alarms need no filter.
+            emf.emit({"FloorTurns": 1},
+                     dimensions={"intent": res.get("intent"), "cause": tr.get("floor_cause") or "other"},
+                     units={"FloorTurns": "Count"})
     except Exception:  # noqa: BLE001 — instrumentation must never break an answer
         pass
     return res
@@ -993,8 +1050,10 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
                 res = run_live(query, asof, graph=graph, call=call, retrieve=retrieve, model=model, planner=planner,
                                on_stage=on_stage, context_contracts=_ctx, route_fn=route_fn, qfn=qfn)
             except Exception as e:  # noqa: BLE001 — deterministic floor: a UI turn must never 500
+                _cause = _floor_log("live", e)      # F4a: this seam logged NOTHING at all before
                 an._emit(on_stage, "floor")
                 res = _evidence_only(query, asof, graph=graph, kind="live", exc=e, route_fn=route_fn)
+                res.setdefault("trace", {})["floor_cause"] = _cause   # bounded slug -> FloorTurns dimension
             res["intent_decision"] = {"intent": res["intent"], "live_checked": True}
             return _session_writeback(res, query, asof, session_id, store, state, graph, call,
                                       ms_dispatch=_ms_dispatch)
@@ -1125,9 +1184,11 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
         # The floor's CAUSE must be visible in logs: the 2026-07-19 incident spent hours attributing
         # an Anthropic-tier outage to a feature flag because the swallowed exception was never logged
         # (trace.error carries it to the caller, but batch/eval logs only showed the floor).
-        print(f"[floor] kind={kind} cause={type(e).__name__}: {str(e)[:200]}", flush=True)
+        # F4a: the same line, now carrying a BOUNDED cause_class the FloorTurns metric can be split by.
+        _cause = _floor_log(kind, e)
         an._emit(on_stage, "floor")
         res = _evidence_only(query, asof, graph=graph, kind=kind, exc=e, route_fn=route_fn, near=near)
+        res.setdefault("trace", {})["floor_cause"] = _cause   # additive: trace.error keeps the raw string
     if att["suppressed_note"]:
         # A future-dated attached event is refused VISIBLY (mirrors the news-agent silence fix). C1: the
         # note travels as trace.attachment_note — the FE renders it as a banner on ALL turn types (an

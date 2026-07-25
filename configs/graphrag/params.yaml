@@ -50,12 +50,26 @@ concept_expansion:
 # never as a code constant (the RERANK_POOL lesson: a quality knob shipped as a constant on an assertion).
 serving:
   # Provider routing (providers.py): SERVING inference only (Sonnet reasoner/planner, Haiku numbers/
-  # summary). BEDROCK is the default as of the 2026-07-04 parity eval — query content stays in-AWS;
-  # offline Opus/Batch paths are hardwired to the Anthropic API and ignore this. Gate result: strips
-  # 43 vs the 60-strip Anthropic timeline-off baseline (fewer = cleaner, not a regression),
-  # hallucinations identical at 40/40, 25/25 judged, zero fallback/floor events (pure Bedrock serving).
-  # GRAPHRAG_PROVIDER=anthropic is the instant per-run rollback.
-  provider: bedrock
+  # summary); offline Opus/Batch paths are hardwired to the Anthropic API and ignore this.
+  # ANTHROPIC as of the 2026-07-25 latency RCA (F8a) — this line now MATCHES reality instead of
+  # contradicting it. Serving taskdef :64 sets GRAPHRAG_PROVIDER=anthropic and env beats params, so that
+  # ONE env var was the only thing standing between the fleet and cross-region routing; deleting it armed
+  # THREE regressions at once, none of them observable:
+  #   1. `bedrock_models` below maps to `global.` inference profiles, which carry a region-LESS model ARN
+  #      and may serve from ANY enabled commercial region (measured: api.anthropic.com is 2 ms from the
+  #      task, ap-south-1 Mumbai 190 ms) — and Bedrock model-invocation logging is DISABLED, so there
+  #      would be no post-hoc evidence of which region answered;
+  #   2. the SSE slab regression — extract.py defaults the fine-grained-tool-streaming beta ON for
+  #      Anthropic and OFF for Bedrock; measured with it off: a few chars, 31.4 s of silence, then all
+  #      1,013 deltas back-to-back;
+  #   3. no `us.`-scoped profile is provisioned (returns AccessDeniedException) and the IAM policy
+  #      wildcards `arn:aws:bedrock:*::foundation-model/anthropic.claude-*`, so there is no
+  #      geography-bounded rollback target to fall back to.
+  # The 2026-07-04 Bedrock parity gate still stands (strips 43 vs the 60-strip Anthropic timeline-off
+  # baseline — fewer = cleaner, hallucinations 40/40, 25/25 judged, zero fallback/floor events), and the
+  # model MAP below is deliberately KEPT: GRAPHRAG_PROVIDER=bedrock remains the instant per-run switch in
+  # either direction. This pin changes the DEFAULT only — env still wins, both ways.
+  provider: anthropic
   bedrock_models:               # serving alias -> cross-region inference profile (Phase 0 probe, 2026-07-04)
     claude-sonnet-4-6: global.anthropic.claude-sonnet-4-6
     claude-haiku-4-5: global.anthropic.claude-haiku-4-5-20251001-v1:0
