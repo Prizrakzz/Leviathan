@@ -103,6 +103,17 @@ def _verify_numbers_answer(answer: str, calls: list) -> dict:
                 # is GROUNDED, not fabricated (39,598.4 thousand bags -> 2,375,904 t; the answer's
                 # '~2.376 million metric tonnes' fired the caution banner on a correct CONAB serve)
                 row_vals.append(v * 60.0)
+            # T2b D1/D1b (pattern-records deck skeptic, 2026-07-25): a ledger leg's DENOMINATOR rides the
+            # row as `sweeps_total`, never as a `value` -- yet the engine's OWN deterministic preface
+            # states it ("firing on 9 of 156 weekly replay asofs"), and so does the in-catalog honest-zero
+            # line ("no firing on any of its N sweeps"). Uncollected, the engine's own correct sentence
+            # wore the caution banner: the identical false-caution class as the CONAB/futures rows, and on
+            # the honest-zero branch it would have become the STEADY STATE once the daily sweep records a
+            # decline. The denominator is a looked-up quantity from this very row -> grounded by construction.
+            try:
+                row_vals.append(float(str(r.get("sweeps_total")).replace(",", "")))
+            except (TypeError, ValueError):
+                pass
     # Non-VALUE tokens are scrubbed before extraction: ISO dates (2026-06-01), WB release stamps
     # (2026M07), marketing years (2024/25) and [N#] handles all shed numeric fragments (06, 07, 25, 1)
     # that read as "stated figures" -- the pink_sheet provenance stamp made this fire for the first time
@@ -198,6 +209,12 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
         if _fpref:
             holder["futures_decline"], holder["futures_preface"] = _fcls, _fpref
         holder["calls"], holder["resolved"] = calls, True
+        # T2b D2 (pattern-records deck skeptic, 2026-07-25): run_numbers_only copies `pattern_records`
+        # onto its trace (:77) but the hybrid join never did -- so a persistence question routed hybrid
+        # still received the injected ledger leg AND the base-rate preface, with ZERO deterministic
+        # observability: no eval pin could read it and no soak telemetry could count it. Same lane
+        # asymmetry as the futures decline (#144) and the period guard (#142); carried the same way.
+        holder["pattern_records"] = nums.get("pattern_records")
         holder["ms_numbers"] = nums.get("_ms_numbers")            # W6.1-0: numbers-agent duration (MsNumbers)
         return "\n\n".join(x for x in (extra_context, _numbers_block(calls)) if x), calls
 
@@ -219,6 +236,8 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
         # Same shape as answer.py's degraded banner; absent on every turn the guard did not fire.
         out["answer"] = holder["futures_preface"] + (out.get("answer") or "")
         out.setdefault("trace", {})["futures_decline_guard"] = holder["futures_decline"]
+    if holder.get("pattern_records") is not None:
+        out.setdefault("trace", {})["pattern_records"] = holder["pattern_records"]   # T2b D2, see _resolve
     if holder.get("ms_numbers") is not None:
         out.setdefault("trace", {})["ms_numbers"] = holder["ms_numbers"]   # W6.1-0: surface for the EMF block
     out["asof"] = asof
