@@ -61,13 +61,13 @@ _TASK_PATH = "jobs/batch/pattern_records_sweep_task.py"
 # This value MUST equal terraform var.pattern_records_image_digest -- the wrapper refuses to submit
 # onto a jobdef whose active revision carries a different image, so a half-applied re-pin is caught
 # before the job runs rather than after it has written verdicts.
-# STATUS: PINNED 2026-07-25 (tag 20260725rev67, content-checked: transmission map loads 2 rows
+# STATUS: PINNED 2026-07-25 (tag 20260725rev68 (census physical-table fix), content-checked: transmission map loads 2 rows
 # in-container, chain 10/29, lints clean) -- equals var.pattern_records_image_digest in
 # envs/dev/terraform.tfvars, applied to jobdef leviathan-dev-pattern-records-sweep:1.
 _IMAGE_DIGEST_PLACEHOLDER = "sha256:REPLACE_WITH_CONTENT_CHECKED_DIGEST"  # tripwire literal
 _ECR_IMAGE = (
     "668891723125.dkr.ecr.us-east-1.amazonaws.com/leviathan-dev-leviathan-embedder"
-    "@sha256:4dd0860bace1875881de16bca8774a062f4e7ba94213e94ae681f03ab0c0601e"
+    "@sha256:8e63f381596069d072e436dc5f50d170d3ca241ef59e4c93682f2778b24dc0eb"
 )
 
 _REGION = "us-east-1"
