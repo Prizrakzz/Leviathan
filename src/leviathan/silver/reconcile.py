@@ -177,16 +177,39 @@ def reconcile_numbers(reg: SilverRegistry, path: Optional[Path] = None) -> list[
         # partition cols (where the spec declares them). The numbers agent may serve a table from a
         # separate athena_table (ESR -> silver_esr_compact): the spec's partition_cols then describe
         # the SERVING table's partitioning, so resolve against it when present.
+        #
+        # WHAT THIS LINT IS ACTUALLY FOR (SILVER-F047, 2026-07-28). ``partition_cols`` in the numbers
+        # TableSpec means "every query MUST carry a static equality on each of these". Its original
+        # failure mode is the Jul-2026 LIST storm: a PROJECTED partition that a query does not pin
+        # makes Athena enumerate the whole projected grid. So a spec partition_col that is not a
+        # partition key of a PROJECTED table is a real, expensive divergence and stays a hard fail.
+        #
+        # A DEPROJECTED column is a different animal. BF-W1 collapsed the weather storm trio to
+        # REGISTERED [commodity, year] and folded country/region/month into the parquet as ordinary
+        # declared columns. The numbers card keeps emitting the same country/region equalities --
+        # still correct SQL, still the right scoping discipline, and with catalog-side pruning on a
+        # registered table there is no enumeration to storm. Requiring those columns to be Glue
+        # PARTITION keys would force the card to declare [commodity, year] instead, and `year` is not
+        # a NumberQuery field, so every weather lookup would raise "requires a static year equality".
+        # Hence: a spec partition_col is legal when it is a partition key, OR when the table is
+        # partition_mode=registered AND the column is a declared physical column. Anything else --
+        # including any column on a projected table -- is still a divergence.
         spec_parts = spec.get("partition_cols")
         if spec_parts is not None:
             serving = spec.get("athena_table")
             part_table = serving if (serving and serving in reg.tables) else name
-            reg_parts = [pk["name"] for pk in reg.tables[part_table].get("partition_keys", [])]
-            missing = [p for p in spec_parts if p not in reg_parts]
+            part_contract = reg.tables[part_table]
+            reg_parts = [pk["name"] for pk in part_contract.get("partition_keys", [])]
+            deprojected: set = set()
+            if str(part_contract.get("partition_mode")) == "registered":
+                deprojected = {(col["name"] if isinstance(col, dict) else col)
+                               for col in (part_contract.get("physical_columns") or [])}
+            missing = [p for p in spec_parts if p not in reg_parts and p not in deprojected]
             if missing:
                 out.append(Divergence("numbers", name, "partition_cols",
-                                      f"tablespec partition_cols {spec_parts} not all partition keys "
-                                      f"of '{part_table}' {reg_parts}"))
+                                      f"tablespec partition_cols {spec_parts} are neither partition "
+                                      f"keys nor declared columns of '{part_table}' "
+                                      f"(keys {reg_parts}, offending {missing})"))
     return out
 
 

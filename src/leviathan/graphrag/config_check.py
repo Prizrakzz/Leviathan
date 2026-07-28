@@ -1418,6 +1418,72 @@ def check_futures_eod() -> list[str]:
     return errs
 
 
+# ---------------------------------------------------------------------------------------------
+# W2 / D8: the front-month roll rule -- one module, one version, NO inline copies (skeptic F-L)
+# ---------------------------------------------------------------------------------------------
+# The ONE module allowed to implement the rule. F-L's stated failure mode is three inline copies
+# (W2 gate 7, W3.3, the W2b straddle rule), so the fence below is a source scan, not a convention.
+_ROLL_RULE_OWNER = "src/leviathan/silver/futures_roll.py"
+# Files that may legitimately mention the rule's own tokens: the owner, its unit test, and this
+# lint. Everything else must IMPORT leviathan.silver.futures_roll, never re-derive it.
+_ROLL_RULE_ALLOWED = frozenset({
+    _ROLL_RULE_OWNER,
+    "tests/unit/test_futures_roll.py",
+    "src/leviathan/graphrag/config_check.py",
+})
+# Tokens that only a second IMPLEMENTATION would carry (not a mere mention): a competing version
+# constant, a competing rule table, or a competing front-month entry point.
+_ROLL_RULE_FORBIDDEN_TOKENS = (
+    "ROLL_RULE_VERSION =",
+    "ROLL_METHOD_BY_SOURCE =",
+    "DELIVERY_CYCLES =",
+    "def front_month(",
+    "def _front_month(",
+)
+_ROLL_RULE_SCAN_DIRS = ("src", "jobs", "scripts", "tests")
+
+
+def check_futures_roll() -> list[str]:
+    """W2 D8 lint: the named/versioned front-month rule is coherent AND is not re-derived inline.
+
+    Two halves, both load-bearing:
+      (a) the rule tables themselves (``futures_roll.lint_roll_rule``): every publication SOURCE in
+          CONTRACT_MAP declares a method, the two CEPEA cash references roll by 'none' and nothing
+          else does, and every delivery-cycle slug carries a curated listed-month cycle;
+      (b) THE FENCE -- a source scan for a SECOND implementation. F-L is not a style complaint: OI
+          lives on GLBX only because of the $1.76 statistics buy, so a call site that re-derives
+          "front" silently degrades to volume on exactly the flagship contracts, and nothing about
+          that is visible in the output."""
+    from leviathan.silver import futures_roll as FR
+    errs: list[str] = [f"futures_roll: {e}" for e in FR.lint_roll_rule()]
+
+    owner = _REPO / _ROLL_RULE_OWNER
+    if not owner.exists():
+        errs.append(f"futures_roll: the rule owner {_ROLL_RULE_OWNER} is MISSING -- D8 is the only "
+                    f"thing standing between gate 7 / W3.3 / W2b and three divergent inline rules")
+        return errs
+
+    for sub in _ROLL_RULE_SCAN_DIRS:
+        base = _REPO / sub
+        if not base.is_dir():
+            continue
+        for path in sorted(base.rglob("*.py")):
+            rel = path.relative_to(_REPO).as_posix()
+            if rel in _ROLL_RULE_ALLOWED:
+                continue
+            try:
+                text = path.read_text(encoding="utf-8", errors="ignore")
+            except OSError:  # noqa: PERF203 -- an unreadable file is not a rule copy
+                continue
+            hits = sorted({tok for tok in _ROLL_RULE_FORBIDDEN_TOKENS if tok in text})
+            if hits:
+                errs.append(
+                    f"futures_roll: {rel} carries front-month rule token(s) {hits} -- the rule "
+                    f"lives ONLY in {_ROLL_RULE_OWNER}; import it (skeptic F-L: three inline copies)"
+                )
+    return errs
+
+
 def main() -> int:
     failures = 0
     for label, errs in (("vocab", lint_vocab()), ("node_silver_map", check_node_silver_map()),
@@ -1438,7 +1504,8 @@ def main() -> int:
                         ("cot_register", check_cot_register()),
                         ("stats_registry", check_stats_registry()),
                         ("futures_lite", check_futures_lite()),
-                        ("futures_eod", check_futures_eod())):
+                        ("futures_eod", check_futures_eod()),
+                        ("futures_roll", check_futures_roll())):
         if errs:
             failures += len(errs)
             print(f"FAIL {label}:")

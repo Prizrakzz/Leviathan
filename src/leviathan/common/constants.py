@@ -40,6 +40,8 @@ MIN_RAW_FILE_SIZES: dict[str, int] = {
     "wb_cmo_outlook": 15_000,                      # 15 KB — modern reports are 3–8 MB; 1999 monthly data-table PDFs can be as small as 36 KB; catches HTML error pages
     "cftc_cot": 100_000,                            # 100 KB — weekly TXT is ~200-400 KB; annual extracted TXT is ~3-5 MB; catches HTML error pages
     "usda_esr": 500,                                  # 500 B — ESR JSON arrays for sparse early years can be small; catches HTML error pages from api.data.gov
+    "databento": 200,                                 # 200 B -- a zstd DBN file whose only content is the header is ~150-190 B; the floor catches a truncated/empty batch download without rejecting a legitimately sparse year (KE 2013 = 74 bars)
+    "databento_symbology": 200,                       # 200 B -- the two-step resolve artifact always carries the ten symbology.resolve keys plus the per-symbol outright verdict; anything smaller is a truncated write
 }
 
 ALL_COMMODITIES: tuple[CommodityName, ...] = get_args(CommodityName)

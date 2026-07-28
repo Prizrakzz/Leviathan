@@ -1978,6 +1978,79 @@ def raw_yfinance_key(slug: str) -> str:
     return f"raw/production/source=yfinance/{slug}/part-000.parquet"
 
 
+def raw_databento_key(dataset_slug: str, root: str, year: int, filename: str) -> str:
+    """S3 key for one Databento raw artifact (PRICE_AND_PLAYBOOKS W2 / D1).
+
+    Layout::
+
+        raw/production/source=databento/dataset={dataset_slug}/root={root}/year={year}/{filename}
+
+    ``dataset_slug`` is the SNAKE-CASED dataset id -- ``glbx_mdp3`` / ``ifus_impact`` /
+    ``ifeu_impact`` -- deliberately identical to the ``databento_`` suffix of the
+    ``futures_eod_contracts.CONTRACT_MAP`` ``source`` value. That keeps the raw prefix, the silver
+    ``source`` column and the settle_kind cross-tab on ONE vocabulary, and avoids a literal ``.``
+    inside a key segment.
+
+    ``root`` is the vendor root verbatim and uppercase (``ZC``, ``KE``, and the SINGLE-character
+    IFEU white-sugar root ``W`` -- never assume two characters).
+
+    ``year`` is the RESOLUTION / download year. It is also the decade-disambiguation anchor the
+    bronze transform reads for the single-digit GLBX year code, which is exactly why it is a path
+    segment rather than something recovered from ``datetime.now()`` at transform time.
+
+    Three artifact kinds share one prefix: ``symbology_{root}_{year}.json`` (the free two-step
+    resolve plus the per-symbol outright/dropped verdict -- the durable gate-2 evidence),
+    ``ohlcv-1d_{root}_{year}.dbn.zst`` (plus ``statistics_{root}_{year}.dbn.zst`` on GLBX) stored
+    as the vendor delivered them, and the ``write_raw_s3_metadata`` companion.
+
+    ``raw/`` is not a Glue surface, so the ``key=value`` segments are cosmetic consistency with the
+    rest of the raw estate, not partition projection.
+
+    Args:
+        dataset_slug: ``glbx_mdp3`` | ``ifus_impact`` | ``ifeu_impact``.
+        root:         Vendor root, uppercase (``ZC``, ``KC``, ``W``).
+        year:         Resolution / download year.
+        filename:     Artifact filename within the prefix.
+    """
+    return (
+        f"raw/production/source=databento/dataset={dataset_slug}/root={root}"
+        f"/year={int(year)}/{filename}"
+    )
+
+
+def databento_symbology_filename(root: str, year: int) -> str:
+    """``symbology_ZC_2016.json`` -- the two-step resolve artifact for one ``(root, year)``."""
+    return f"symbology_{root}_{int(year)}.json"
+
+
+def databento_payload_filename(schema: str, root: str, year: int, as_of=None) -> str:
+    """``ohlcv-1d_ZC_2016.dbn.zst`` (backfill) or ``ohlcv-1d_ZC_20260728.dbn.zst`` (incremental).
+
+    ONE function, TWO callers, deliberately. ``jobs/ingest/fetch_databento_eod.py`` writes the key
+    and ``jobs/batch/futures_eod_task.py`` reads it, and the nightly chain runs them back to back
+    inside one Step Function -- so a name the writer and the reader derive separately is a chain
+    that can never see the payload it just bought (the reader raises FileNotFoundError, or silently
+    re-reads a stale backfill object for the same year while the new session never lands).
+
+    The incremental artifact keeps the SAME ``year={current}`` prefix and is distinguished by an
+    ``as_of`` stamp, mirroring COT's as-of immutability without adding a directory level.
+
+    Args:
+        schema: ``ohlcv-1d`` | ``statistics``.
+        root:   Vendor root, uppercase.
+        year:   Resolution / download year (the prefix year).
+        as_of:  ``YYYYMMDD`` stamp for an incremental payload; ``None`` for a backfill payload.
+    """
+    stem = f"{schema}_{root}_{as_of}" if as_of else f"{schema}_{root}_{int(year)}"
+    return f"{stem}.dbn.zst"
+
+
+def databento_payload_prefix(schema: str, root: str) -> str:
+    """The filename prefix every payload of one ``(schema, root)`` shares -- the token the silver
+    task matches on when it LISTS a year prefix to find the newest incremental payload."""
+    return f"{schema}_{root}_"
+
+
 def bronze_yfinance_key(slug: str) -> str:
     """S3 key for a yfinance bronze Parquet (one file per slug).
 

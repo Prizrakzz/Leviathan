@@ -1,0 +1,387 @@
+"""PRICE_AND_PLAYBOOKS W2 / D1 -- the Databento raw producer. Hermetic: a FAKE client, no network,
+no AWS, no key.
+
+Covers what a wrong producer would cost real money for:
+  * the TWO-STEP resolve (parent -> instrument_id -> raw_symbol; the one-step form is a 422);
+  * the outright filter feeding the buy, and the dropped-symbol count landing in the manifest;
+  * the F-A hard fail;
+  * the --cost-only pre-buy table assembled from a mocked get_cost, including the grand total and
+    the zero-drop fail-closed;
+  * ``symbols`` is never None (None means ALL_SYMBOLS -- the $140.31 mistake) and ``schema`` is
+    always passed explicitly (the client default is ``trades``);
+  * end-exclusive windows and the per-root first-usable date;
+  * the raw key layout.
+"""
+from __future__ import annotations
+
+import importlib.util
+from datetime import date
+from pathlib import Path
+
+import pytest
+
+_REPO = Path(__file__).resolve().parents[2]
+_SPEC = importlib.util.spec_from_file_location(
+    "fetch_databento_eod", _REPO / "jobs" / "ingest" / "fetch_databento_eod.py")
+F = importlib.util.module_from_spec(_SPEC)
+_SPEC.loader.exec_module(F)
+
+from leviathan.storage.paths import raw_databento_key  # noqa: E402
+
+
+class FakeSymbology:
+    def __init__(self, owner):
+        self.owner = owner
+
+    def resolve(self, *, dataset, symbols, stype_in, stype_out, start_date, end_date):
+        self.owner.resolve_calls.append(
+            {"dataset": dataset, "symbols": symbols, "stype_in": stype_in,
+             "stype_out": stype_out, "start_date": start_date, "end_date": end_date})
+        if stype_in == "parent" and stype_out == "raw_symbol":
+            raise AssertionError("parent -> raw_symbol is an HTTP 422; the recipe is TWO steps")
+        if stype_in == "parent":
+            return {"result": {symbols: [{"d0": start_date, "d1": end_date, "s": str(i)}
+                                         for i in sorted(self.owner.id_to_symbol)]}}
+        return {"result": {str(i): [{"d0": start_date, "d1": end_date,
+                                     "s": self.owner.id_to_symbol[int(i)]}]
+                           for i in symbols}}
+
+
+class FakeMetadata:
+    def __init__(self, owner):
+        self.owner = owner
+
+    def get_cost(self, *, dataset, symbols, schema, stype_in, start, end, **kw):
+        assert symbols is not None and len(symbols) > 0, "None/empty means ALL_SYMBOLS"
+        assert schema in ("ohlcv-1d", "statistics"), "schema must always be explicit"
+        assert "mode" not in kw, "the deprecated mode parameter must never be passed"
+        self.owner.cost_calls.append({"dataset": dataset, "schema": schema, "n": len(symbols),
+                                      "start": start, "end": end, "stype_in": stype_in})
+        return self.owner.cost_per_symbol[schema] * len(symbols)
+
+
+class FakeBatch:
+    def __init__(self, owner):
+        self.owner = owner
+
+    def submit_job(self, **kw):
+        self.owner.submits.append(kw)
+        return {"id": f"JOB{len(self.owner.submits)}"}
+
+
+class FakeClient:
+    def __init__(self, id_to_symbol: dict, cost_per_symbol=None):
+        self.id_to_symbol = id_to_symbol
+        self.cost_per_symbol = cost_per_symbol or {"ohlcv-1d": 0.01, "statistics": 0.001}
+        self.resolve_calls: list[dict] = []
+        self.cost_calls: list[dict] = []
+        self.submits: list[dict] = []
+        self.symbology = FakeSymbology(self)
+        self.metadata = FakeMetadata(self)
+        self.batch = FakeBatch(self)
+
+
+ZC_2016 = {101: "ZCH6", 102: "ZCZ6", 201: "ZCH6-ZCK6", 202: "T12Q6", 203: "ZC:BF H6-K6-N6"}
+
+
+@pytest.fixture(autouse=True)
+def _no_sleep(monkeypatch):
+    monkeypatch.setattr(F.time, "sleep", lambda *_a, **_k: None)
+
+
+class TestResolve:
+    def test_two_step_recipe(self):
+        c = FakeClient(ZC_2016)
+        F.resolve_outrights(c, dataset="GLBX.MDP3", root="ZC", year=2016)
+        steps = [(x["stype_in"], x["stype_out"]) for x in c.resolve_calls]
+        assert steps[0] == ("parent", "instrument_id")
+        assert all(s == ("instrument_id", "raw_symbol") for s in steps[1:])
+        assert c.resolve_calls[0]["symbols"] == "ZC.FUT"
+
+    def test_outrights_and_the_gate2_dropped_count(self):
+        art = F.resolve_outrights(FakeClient(ZC_2016), dataset="GLBX.MDP3", root="ZC", year=2016)
+        assert art["outright_symbols"] == ["ZCH6", "ZCZ6"]
+        assert art["outright_count"] == 2
+        assert art["dropped_count"] == 3        # NON-ZERO for GLBX too -- the gate-2 formulation
+        assert "T12Q6" in art["dropped_symbols"]
+        assert art["leviathan_slug"] == "corn_cbot"
+        assert art["dataset_slug"] == "glbx_mdp3"
+
+    def test_the_window_is_end_exclusive_and_clipped_to_the_first_usable_date(self):
+        art = F.resolve_outrights(FakeClient(ZC_2016), dataset="GLBX.MDP3", root="ZC", year=2016)
+        assert art["window"] == {"start": "2016-01-01", "end_exclusive": "2017-01-01"}
+        assert F.year_window("ZC", 2010) == ("2010-06-06", "2011-01-01")
+        assert F.year_window("KE", 2014) == ("2014-01-01", "2015-01-01")
+        assert F.year_window("KC", 2018) == ("2018-12-23", "2019-01-01")
+
+    def test_pre_coverage_year_is_refused(self):
+        with pytest.raises(ValueError, match="empty window"):
+            F.year_window("KE", 2012)
+
+    def test_root_years_start_at_the_first_usable_year(self):
+        assert F.root_years("ZC", 2026)[0] == 2010
+        assert F.root_years("KE", 2026)[0] == 2014
+        assert F.root_years("RC", 2026)[0] == 2018
+
+    def test_fa_violation_is_a_hard_exit(self):
+        # Two instrument ids resolving to the SAME outright raw_symbol.
+        c = FakeClient({101: "ZCH6", 102: "ZCH6"})
+        with pytest.raises(SystemExit, match="F-A VIOLATION"):
+            F.resolve_outrights(c, dataset="GLBX.MDP3", root="ZC", year=2016)
+
+    def test_fa_ignores_dropped_spread_symbols(self):
+        # A spread symbol legitimately re-uses ids across the complex and is dropped anyway.
+        c = FakeClient({101: "ZCH6", 201: "ZCH6-ZCK6", 202: "ZCH6-ZCK6"})
+        art = F.resolve_outrights(c, dataset="GLBX.MDP3", root="ZC", year=2016)
+        assert art["outright_symbols"] == ["ZCH6"]
+
+    def test_ice_root_resolves_its_fixed_width_symbols(self):
+        c = FakeClient({1: "KC  FMZ0026!", 2: "KC  FMZ0026_Z!", 3: "SB   99   6512548"})
+        art = F.resolve_outrights(c, dataset="IFUS.IMPACT", root="KC", year=2026)
+        assert art["outright_symbols"] == ["KC  FMZ0026!"]
+        assert art["dropped_count"] == 2
+
+    def test_resolve_chunking_respects_the_cap(self, monkeypatch):
+        monkeypatch.setattr(F, "RESOLVE_CHUNK", 2)
+        c = FakeClient({100 + i: f"ZC{code}6" for i, code in enumerate("FGHJK")})
+        F.resolve_outrights(c, dataset="GLBX.MDP3", root="ZC", year=2016)
+        step2 = [x for x in c.resolve_calls if x["stype_in"] == "instrument_id"]
+        assert len(step2) == 3 and all(len(x["symbols"]) <= 2 for x in step2)
+
+
+class TestCostTable:
+    def test_per_root_per_year_table_and_grand_total(self):
+        c = FakeClient(ZC_2016, cost_per_symbol={"ohlcv-1d": 0.25, "statistics": 0.05})
+        table = F.build_cost_table(c, [("GLBX.MDP3", "ZC", 2016), ("GLBX.MDP3", "ZC", 2017)])
+        assert len(table["rows"]) == 2
+        row = table["rows"][0]
+        assert row["ohlcv_usd"] == pytest.approx(0.50)      # 2 outrights x 0.25
+        assert row["statistics_usd"] == pytest.approx(0.10)
+        assert row["total_usd"] == pytest.approx(0.60)
+        assert table["grand_total_usd"] == pytest.approx(1.20)
+        assert table["by_root"] == {"ZC": pytest.approx(1.20)}
+        assert table["zero_drop_roots"] == []
+
+    def test_statistics_is_glbx_only(self):
+        c = FakeClient({1: "KC  FMZ0026!", 2: "KC  FMZ0026_Z!"})
+        table = F.build_cost_table(c, [("IFUS.IMPACT", "KC", 2026)])
+        assert table["statistics_usd"] == 0.0
+        assert {x["schema"] for x in c.cost_calls} == {"ohlcv-1d"}
+
+    def test_no_statistics_flag_drops_the_glbx_leg(self):
+        c = FakeClient(ZC_2016)
+        table = F.build_cost_table(c, [("GLBX.MDP3", "ZC", 2016)], with_statistics=False)
+        assert table["statistics_usd"] == 0.0
+
+    def test_cost_uses_the_same_symbols_and_window_as_the_submit(self):
+        c = FakeClient(ZC_2016)
+        art = F.resolve_outrights(c, dataset="GLBX.MDP3", root="ZC", year=2016)
+        c.cost_calls.clear()
+        F.cost_for_unit(c, art, "ohlcv-1d")
+        F.submit_unit(c, art, "ohlcv-1d")
+        cost, sub = c.cost_calls[0], c.submits[0]
+        assert cost["dataset"] == sub["dataset"] and cost["schema"] == sub["schema"]
+        assert cost["start"] == sub["start"] and cost["end"] == sub["end"]
+        assert cost["n"] == len(sub["symbols"]) and cost["stype_in"] == sub["stype_in"]
+
+    def test_zero_drop_is_recorded_as_a_gate2_breach(self):
+        c = FakeClient({101: "ZCH6"})            # nothing to drop -> the filter did not run
+        table = F.build_cost_table(c, [("GLBX.MDP3", "ZC", 2016)])
+        assert table["zero_drop_roots"] == ["ZC"]
+        assert "GATE-2 PRECONDITION BREACH" in F.render_cost_table(table)
+
+    def test_per_dataset_subtotals_exist(self):
+        """A grand total alone cannot distinguish 'the outright filter ran' from 'one dataset
+        silently pulled the parent set'. The plan's per-dataset numbers (GLBX 2.7819 /
+        IFUS 34.2813 / IFEU 6.1793) are only diffable against a per-dataset breakdown."""
+        c = FakeClient(ZC_2016, cost_per_symbol={"ohlcv-1d": 0.25, "statistics": 0.05})
+        table = F.build_cost_table(c, [("GLBX.MDP3", "ZC", 2016)])
+        assert table["by_dataset"] == {"GLBX.MDP3": pytest.approx(0.60)}
+        assert "per-DATASET totals" in F.render_cost_table(table)
+
+    def test_window_override_prices_the_incremental_window(self):
+        """``--mode incremental --cost-only`` must quote the incremental window, not the ~250x
+        full-calendar-year one the resolve happens to carry."""
+        c = FakeClient(ZC_2016)
+        F.build_cost_table(c, [("GLBX.MDP3", "ZC", 2026)],
+                           window_override=("2026-07-23", "2026-07-29"))
+        assert {x["start"] for x in c.cost_calls} == {"2026-07-23"}
+        assert {x["end"] for x in c.cost_calls} == {"2026-07-29"}
+
+    def test_report_is_ascii_only(self):
+        table = F.build_cost_table(FakeClient(ZC_2016), [("GLBX.MDP3", "ZC", 2016)])
+        F.render_cost_table(table).encode("ascii")
+
+
+class TestBudgetGate:
+    """--cost-only is the PRE-BUY GATE. A gate that only prints the number is not a gate: the
+    $140.31 parent pull the plan exists to prevent would print and return 0."""
+
+    def _run(self, monkeypatch, argv, *, cost_per_symbol):
+        client = FakeClient(ZC_2016, cost_per_symbol=cost_per_symbol)
+        monkeypatch.setattr(F, "load_env", lambda *_a, **_k: None)
+        monkeypatch.setattr(F, "get_required_env", lambda name: "us-east-1")
+        monkeypatch.setattr(F, "load_api_key", lambda *_a, **_k: "not-a-real-key")
+        monkeypatch.setattr(F, "make_client", lambda _key: client)
+        return F.main(argv), client
+
+    def test_a_quote_inside_the_ceiling_returns_zero(self, monkeypatch):
+        rc, _ = self._run(monkeypatch,
+                          ["--mode", "backfill", "--root", "ZC", "--year", "2016", "--cost-only"],
+                          cost_per_symbol={"ohlcv-1d": 0.25, "statistics": 0.05})
+        assert rc == 0
+
+    def test_a_quote_over_the_ceiling_fails_closed(self, monkeypatch, capsys):
+        rc, _ = self._run(monkeypatch,
+                          ["--mode", "backfill", "--root", "ZC", "--year", "2016", "--cost-only",
+                           "--max-usd", "1.0"],
+                          cost_per_symbol={"ohlcv-1d": 40.0, "statistics": 1.0})
+        assert rc == 1
+        assert "BUDGET GATE FAILED" in capsys.readouterr().out
+
+    def test_the_ceiling_itself_cannot_be_raised_past_the_credit_pool(self, monkeypatch):
+        rc, client = self._run(monkeypatch,
+                               ["--mode", "backfill", "--root", "ZC", "--year", "2016",
+                                "--cost-only", "--max-usd", "500"],
+                               cost_per_symbol={"ohlcv-1d": 0.25, "statistics": 0.05})
+        assert rc == 1
+        assert client.cost_calls == [], "it must refuse BEFORE quoting"
+
+    def test_the_default_ceiling_sits_between_the_buy_and_the_parent_pull(self):
+        assert 45.0 < F.DEFAULT_MAX_USD < 140.31
+        assert F.HARD_CEILING_USD == 125.0
+
+    def test_incremental_cost_only_quotes_the_incremental_window(self, monkeypatch):
+        rc, client = self._run(
+            monkeypatch,
+            ["--mode", "incremental", "--root", "ZC", "--since", "2026-07-23", "--cost-only"],
+            cost_per_symbol={"ohlcv-1d": 0.001, "statistics": 0.0001})
+        assert rc == 0
+        assert {x["start"] for x in client.cost_calls} == {"2026-07-23"}
+        # END is exclusive and is today+1, never the calendar year end.
+        assert all(not x["end"].endswith("-01-01") for x in client.cost_calls)
+
+    def test_empty_symbol_set_costs_nothing_and_calls_nothing(self):
+        c = FakeClient(ZC_2016)
+        assert F.cost_for_unit(c, {"outright_symbols": [], "dataset": "GLBX.MDP3",
+                                   "window": {"start": "a", "end_exclusive": "b"}},
+                               "ohlcv-1d") == 0.0
+        assert c.cost_calls == []
+
+
+class TestSubmit:
+    def test_submit_shape(self):
+        c = FakeClient(ZC_2016)
+        art = F.resolve_outrights(c, dataset="GLBX.MDP3", root="ZC", year=2016)
+        F.submit_unit(c, art, "ohlcv-1d")
+        sub = c.submits[0]
+        assert sub["symbols"] == ["ZCH6", "ZCZ6"]
+        assert sub["stype_in"] == "raw_symbol"
+        assert sub["encoding"] == "dbn" and sub["compression"] == "zstd"
+        assert sub["split_symbols"] is False and sub["split_duration"] == "none"
+        assert sub["delivery"] == "download"
+
+    def test_submit_refuses_an_empty_symbol_set(self):
+        c = FakeClient(ZC_2016)
+        with pytest.raises(ValueError, match="ALL_SYMBOLS"):
+            F.submit_unit(c, {"outright_symbols": [], "dataset": "GLBX.MDP3", "root": "ZC",
+                              "year": 2016, "window": {"start": "a", "end_exclusive": "b"}},
+                          "ohlcv-1d")
+
+
+class TestBackoff:
+    def test_retries_a_429_then_succeeds(self):
+        calls = {"n": 0}
+
+        def flaky():
+            calls["n"] += 1
+            if calls["n"] < 3:
+                exc = RuntimeError("rate limited")
+                exc.http_status = 429
+                raise exc
+            return "ok"
+
+        assert F.call_with_backoff(flaky) == "ok" and calls["n"] == 3
+
+    def test_a_4xx_that_is_not_429_is_not_retried(self):
+        def bad():
+            exc = RuntimeError("unprocessable")
+            exc.http_status = 422
+            raise exc
+
+        with pytest.raises(RuntimeError):
+            F.call_with_backoff(bad)
+
+
+class TestRawLayout:
+    def test_key_layout(self):
+        key = raw_databento_key("glbx_mdp3", "ZC", 2016, "ohlcv-1d_ZC_2016.dbn.zst")
+        assert key == ("raw/production/source=databento/dataset=glbx_mdp3/root=ZC/year=2016/"
+                       "ohlcv-1d_ZC_2016.dbn.zst")
+
+    def test_single_character_root_survives(self):
+        assert "/root=W/" in raw_databento_key("ifeu_impact", "W", 2026, "x.json")
+
+    def test_filenames(self):
+        assert F.symbology_filename("ZC", 2016) == "symbology_ZC_2016.json"
+        assert F.payload_filename("ohlcv-1d", "ZC", 2016) == "ohlcv-1d_ZC_2016.dbn.zst"
+        assert F.payload_filename("ohlcv-1d", "ZC", 2026, "20260728") == \
+            "ohlcv-1d_ZC_20260728.dbn.zst"
+
+    def test_the_filename_is_the_shared_one_the_silver_task_reads(self):
+        """The writer and the reader must be the SAME function, not two that agree today: the
+        nightly chain runs the fetch job and the silver task back to back in one Step Function."""
+        from leviathan.storage.paths import (
+            databento_payload_filename,
+            databento_symbology_filename,
+        )
+        assert F.payload_filename is databento_payload_filename
+        assert F.symbology_filename is databento_symbology_filename
+
+    def test_min_file_size_floor_exists(self):
+        from leviathan.common.constants import MIN_RAW_FILE_SIZES
+        # check_min_file_size returns SILENTLY when the source key is absent -- so the entry
+        # existing is the whole guard.
+        assert MIN_RAW_FILE_SIZES["databento"] > 0
+        assert MIN_RAW_FILE_SIZES["databento_symbology"] > 0
+
+
+class TestCli:
+    def test_dry_run_prints_keys_and_touches_nothing(self, capsys):
+        assert F.main(["--mode", "backfill", "--root", "ZC", "--year", "2016", "--dry-run"]) == 0
+        out = capsys.readouterr().out
+        assert "dataset=glbx_mdp3/root=ZC/year=2016/symbology_ZC_2016.json" in out
+        assert "ohlcv-1d_ZC_2016.dbn.zst" in out
+        assert "statistics_ZC_2016.dbn.zst" in out
+
+    def test_ice_dry_run_has_no_statistics_leg(self, capsys):
+        assert F.main(["--mode", "backfill", "--root", "KC", "--year", "2026", "--dry-run"]) == 0
+        assert "statistics_KC" not in capsys.readouterr().out
+
+    def test_select_units_skips_pre_coverage_years(self):
+        assert F.select_units(["KE"], [2012, 2014], 2026) == [("GLBX.MDP3", "KE", 2014)]
+
+    def test_the_key_is_never_in_argv(self):
+        src = (_REPO / "jobs" / "ingest" / "fetch_databento_eod.py").read_text(encoding="utf-8")
+        assert "--api-key" not in src and "--key" not in src
+        assert "DATABENTO_API_KEY" in src and "leviathan/dev/databento-api-key" in src
+
+    def test_key_is_read_from_env_without_touching_secrets_manager(self, monkeypatch):
+        monkeypatch.setenv("DATABENTO_API_KEY", "db-not-a-real-key")
+        assert F.load_api_key() == "db-not-a-real-key"
+
+    def test_key_value_never_reaches_the_log(self, monkeypatch, caplog):
+        monkeypatch.setenv("DATABENTO_API_KEY", "db-secret-value-xyz")
+        with caplog.at_level("INFO"):
+            F.load_api_key()
+        assert "db-secret-value-xyz" not in caplog.text
+        assert "value not logged" in caplog.text
+
+    def test_the_key_length_is_not_logged_either(self, monkeypatch, caplog):
+        """A length is a free bit of a secret in a shared CloudWatch stream, and no operator can
+        act on it. 'present' is the whole actionable content."""
+        monkeypatch.setenv("DATABENTO_API_KEY", "db-secret-value-xyz")
+        with caplog.at_level("INFO"):
+            F.load_api_key()
+        assert "len=" not in caplog.text
+        assert str(len("db-secret-value-xyz")) not in caplog.text

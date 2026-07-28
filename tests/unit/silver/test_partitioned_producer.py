@@ -16,7 +16,6 @@ import io
 import pandas as pd
 import pyarrow.parquet as pq
 import pytest
-
 from leviathan.silver.partitioned_producer import (
     DEFAULT_OBJECT_NAME,
     build_partition_objects,
@@ -195,7 +194,13 @@ class TestPlan:
                                       auth=shadow_authorization(), job="futures_eod_test")
 
     def test_projected_or_flat_contract_is_refused(self):
-        proj = load_registry().table("silver_nasa_power")
+        # silver_fgis is partition_mode=projected. (This was silver_nasa_power until the
+        # SILVER-F047 registry catch-up of 2026-07-28 deprojected THAT table to
+        # partition_mode=registered, at which point the fixture silently stopped exercising the
+        # guard. A table's partition_mode is registry state: re-pick the fixture when it moves,
+        # and assert the precondition so the next move fails loudly instead of quietly.)
+        proj = load_registry().table("silver_fgis")
+        assert proj.get("partition_mode") != "registered"
         with pytest.raises(ValueError, match="registered"):
             build_partitioned_publish(df=pd.DataFrame(), contract=proj,
                                       auth=dryrun_authorization(), job="x")

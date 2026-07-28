@@ -1,0 +1,72 @@
+{
+  "schedule": "futures_eod_databento",
+  "family": "futures_eod",
+  "wave": 3,
+  "cron": "cron(0 8 ? * TUE-SAT *)",
+  "publish_class": "A (registered)",
+  "retrofit_required": false,
+  "retrofit_landed": true,
+  "promote_mode": "stop_and_notify",
+  "auth_mode": "kms",
+  "skip_existing": false,
+  "asof": "<aws.scheduler.scheduled-time>",
+  "gate_tables": [
+    "silver_futures_eod"
+  ],
+  "gate_baseline_uri": "s3://leviathan-dev-shahem-001/cascade_census/rolling/futures_eod_databento/census.json",
+  "gate_jobdef": "leviathan-dev-silver-gate",
+  "gate_queue": "leviathan-dev-queue-ondemand",
+  "retry": {
+    "maximum_retry_attempts": 3,
+    "maximum_event_age_in_seconds": 86400
+  },
+  "queue": "leviathan-dev-queue-ondemand",
+  "chain_shape": "fetch(databento incremental)->silver(registered per leviathan_slug/trade_year)",
+  "phases": [
+    {
+      "name": "fetch",
+      "tasks": [
+        {
+          "id": "fetch_databento_eod",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-databento-fetch:1",
+          "queue": "leviathan-dev-queue-ondemand",
+          "command": [
+            "jobs/ingest/fetch_databento_eod.py",
+            "--mode",
+            "incremental",
+            "--lookback-days",
+            "5"
+          ],
+          "env": {},
+          "publishes": false
+        }
+      ]
+    },
+    {
+      "name": "silver",
+      "tasks": [
+        {
+          "id": "futures_eod_silver",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-futures-eod-silver:1",
+          "queue": "leviathan-dev-queue-ondemand",
+          "command": [
+            "jobs/batch/futures_eod_task.py",
+            "--mode",
+            "incremental",
+            "--lookback-days",
+            "5"
+          ],
+          "env": {},
+          "publishes": true,
+          "publish_mode": "shadow_canonical"
+        }
+      ]
+    }
+  ],
+  "target_swap": false,
+  "notes": "CRON 08:00 UTC TUE-SAT, deliberately NOT the yfinance chain's 23:00. F3: the ohlcv-1d close is the session's last trade, the real settlement rides the GLBX statistics schema, and venues publish preliminary settlements first with FINAL settlements often only on the NEXT calendar day. A 23:00 UTC fire sits inside the CME settlement publication window and would ingest preliminary values; 08:00 UTC is ~02:00-03:00 CT the morning AFTER each session, which clears the GLBX statistics publication window, the ICE EOD, and the vendor's own batch pipeline. TUE-SAT because the run covers the PRIOR business day (a Monday session is published in the Tuesday fire; a Friday session in the Saturday fire). WAVE 3 + retrofit_landed: this is a NEW class-A registered-partition chain, so it is not part of the frozen wave-2 CLASS-B retrofit set. FAMILY is futures_eod, never futures -- dag_catalog maps silver_futures_eod to its own family and the silver_futures prefix would swallow the live yfinance table. Incremental windows are passed as --lookback-days rather than a templated date because the scheduler substitutes only <aws.scheduler.*> context attributes; 5 days matches the registry freshness_sla max_lag_days and costs ~$0.08 at the measured $0.016/day. NO bronze phase: the Databento leg is raw(DBN)->silver in one task via transforms.raw_to_bronze.databento_eod + transforms.bronze_to_silver.databento_eod. PROMOTE_MODE IS stop_and_notify, NOT autonomous, AND THAT IS DELIBERATE. F2 states that no registered-contract surface may consume ICE bars until a (trade_date, raw_symbol) uniqueness assertion passes ON PURCHASED DATA, and ICE_BAR_RULE is still the PROVISIONAL keep_last_by_ts_event pending probe P3 (the competing publisher-split hypothesis: IFEU 57/84, IFUS 97/98). stop_and_notify renders promote.tasks EMPTY, so the machine publishes SHADOW only and a human promotes after P3 and the eight gates. Flip to autonomous in the same commit that pins ICE_BAR_RULE against real data. The producer additionally asserts natural-key AND (trade_date, raw_symbol) uniqueness in-process before staging, and an incremental run UNIONS with the existing canonical partitions before publishing (it holds five days but stages the whole trade_year object). BEFORE ARMING: (a) mint the gate_baseline_uri census (it does not exist yet), (b) register the two jobdefs in terraform, (c) provision the leviathan/dev/databento-api-key secret + the execution-role GetSecretValue grant, (d) rebuild + repin the worker image with the pyproject [batch] databento pin."
+}

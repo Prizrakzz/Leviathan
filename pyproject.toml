@@ -47,6 +47,7 @@ batch = [
     "pypdf>=4.0",          # PDF page truncation before Textract (Phase 2 scanned WASDE)
     "olefile>=0.47",       # legacy Word .doc (OLE) reader for the SAGIS CEC raw->silver parser (task #118, pure-python, no LibreOffice)
     "yfinance>=0.2",       # continuous-futures fetch for silver_futures_prices (yfinance_futures_task); 0.2.x uses the pinned curl-cffi
+    "databento>=0.82",     # PRICE_AND_PLAYBOOKS W2: per-delivery-month EOD for silver_futures_eod (fetch_databento_eod + futures_eod_task). REQUIRES A WORKER IMAGE REBUILD + REPIN before any cloud run -- yfinance was missing from this extra for 6+ weeks and every run wrote nothing with no freshness alarm. 0.82 is the version the DBN decode was verified against (DBN v3; StatMsg.quantity is i8 there and i4 in v1)
 ]
 eda = [
     "jupyterlab>=4.2,<5",

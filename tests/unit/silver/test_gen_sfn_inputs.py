@@ -19,12 +19,16 @@ _DAGS = _REPO / "configs" / "silver" / "dags"
 _RENDERED = _DAGS / "_rendered"
 _SCHEMA = _DAGS / "dag_descriptor.schema.json"
 
-# The 24 Section-3 schedules (one descriptor each; gold_weather_z folds into weather_daily).
+# The 24 Section-3 schedules (one descriptor each; gold_weather_z folds into weather_daily) PLUS
+# the PRICE_AND_PLAYBOOKS W2 addition. futures_eod_databento is NOT a Section-3 row -- it is the
+# first new-wave class-A registered-partition chain (family futures_eod, wave 3), landed alongside
+# the silver_futures_eod producer.
 EXPECTED_SCHEDULES = {
     "fx_macro_daily", "enso_monthly", "pink_sheet_monthly", "mpob", "mpoc", "icco_cocoa",
     "ams_cotton_quality", "fnc_colombia", "production_conab", "nass_citrus", "sagis_weekly",
     "wap", "cot", "food_cpi", "futures_prices", "unica", "psd_monthly", "nass_crop_progress",
     "fgis", "modis_biweekly", "weather_daily", "esr_weekly", "wasde_monthly", "production_faostat",
+    "futures_eod_databento",
 }
 
 # The module-form producers named in A-W6 (invocation form [m] = -m jobs.batch.X).
@@ -56,7 +60,7 @@ def descriptors(gen):
 # ---------------------------------------------------------------------------
 def test_every_section3_schedule_has_a_descriptor(descriptors):
     assert set(descriptors) == EXPECTED_SCHEDULES
-    assert len(descriptors) == 24
+    assert len(descriptors) == 25
 
 
 def test_filename_stem_matches_schedule(descriptors):
