@@ -199,13 +199,32 @@ def _chunks(seq: list, size: int) -> Iterable[list]:
 # ---------------------------------------------------------------------------
 # step 1 + step 2: the free two-step resolve
 # ---------------------------------------------------------------------------
+# Per-dataset available-end cache (2026-07-28): the CURRENT year's natural window ends at
+# Jan-1-next-year, which is past the dataset's available range, and the API 422s on it
+# (data_end_date_after_available_end_date -- observed on KE/2026 after five other roots'
+# 2026 units were, inconsistently, tolerated). metadata.get_dataset_range is free; its end
+# is the same exclusive bound the 422 names, so clipping to it is exact, and past years
+# (whose Jan-1 end is earlier) are unaffected by construction.
+_DATASET_END_CACHE: dict[str, date] = {}
+
+
+def dataset_available_end(client, dataset: str) -> date:
+    if dataset not in _DATASET_END_CACHE:
+        rng = call_with_backoff(client.metadata.get_dataset_range, dataset=dataset)
+        raw = str(rng.get("end") or rng.get("end_date"))
+        _DATASET_END_CACHE[dataset] = date.fromisoformat(raw[:10])
+    return _DATASET_END_CACHE[dataset]
+
+
 def resolve_outrights(client, *, dataset: str, root: str, year: int,
                       through: Optional[date] = None) -> dict:
     """The full free discovery for one ``(dataset, root, year)`` + the F-A assertion.
 
     Returns the artifact persisted as ``symbology_{root}_{year}.json``: the outright set, the
     DROPPED set (gate 2's evidence), the symbol -> instrument_id mapping and the raw responses."""
-    start, end = year_window(root, year, through=through)
+    avail_end = dataset_available_end(client, dataset)
+    eff_through = min(through, avail_end) if through is not None else avail_end
+    start, end = year_window(root, year, through=eff_through)
 
     # STEP 1 (free): parent -> instrument_id. `<ROOT>.FUT` is upper-cased and validated as a smart
     # symbol by the client; `W.FUT` (the single-character IFEU root) is legal.

@@ -56,8 +56,15 @@ class FakeSymbology:
 
 
 class FakeMetadata:
+    # the exclusive available-end the real API names in its
+    # data_end_date_after_available_end_date 422 (current-year windows clip to this)
+    AVAILABLE_END = "2026-07-29"
+
     def __init__(self, owner):
         self.owner = owner
+
+    def get_dataset_range(self, *, dataset):
+        return {"start": "2010-06-06", "end": self.AVAILABLE_END}
 
     def get_cost(self, *, dataset, symbols, schema, stype_in, start, end, **kw):
         assert symbols is not None and len(symbols) > 0, "None/empty means ALL_SYMBOLS"
@@ -95,6 +102,12 @@ ZC_2016 = {101: "ZCH6", 102: "ZCZ6", 201: "ZCH6-ZCK6", 202: "T12Q6", 203: "ZC:BF
 @pytest.fixture(autouse=True)
 def _no_sleep(monkeypatch):
     monkeypatch.setattr(F.time, "sleep", lambda *_a, **_k: None)
+
+
+@pytest.fixture(autouse=True)
+def _fresh_dataset_end_cache(monkeypatch):
+    # the module-level per-dataset available-end cache must not leak across tests
+    monkeypatch.setattr(F, "_DATASET_END_CACHE", {})
 
 
 class TestResolve:
@@ -154,6 +167,16 @@ class TestResolve:
         assert "KEN4" in art["outright_symbols"]
         assert list(art["relisted_symbols"]) == ["KEN4"]
         assert [iv[2] for iv in art["relisted_symbols"]["KEN4"]] == ["688493", "234273"]
+
+    def test_current_year_window_clips_to_the_dataset_available_end(self):
+        # KE/2026 422'd on end_date=2027-01-01 (data_end_date_after_available_end_date);
+        # the window must clip to metadata.get_dataset_range's exclusive end. Past years
+        # are unaffected by construction (their Jan-1 end is earlier than the range end).
+        c = FakeClient({101: "KEH6"})
+        art = F.resolve_outrights(c, dataset="GLBX.MDP3", root="KE", year=2026)
+        assert art["window"]["end_exclusive"] == FakeMetadata.AVAILABLE_END
+        art16 = F.resolve_outrights(FakeClient(ZC_2016), dataset="GLBX.MDP3", root="ZC", year=2016)
+        assert art16["window"]["end_exclusive"] == "2017-01-01"
 
     def test_fa_overlapping_relisting_is_still_a_hard_exit(self):
         # One symbol on two ids on the SAME date -- the case that genuinely breaks the
