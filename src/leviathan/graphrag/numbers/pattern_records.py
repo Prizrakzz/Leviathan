@@ -6,7 +6,7 @@ fired/declined verdict AT that asof. This module is the READ half: it turns "has
 pair fired before, and on how many sweeps" into a CITABLE [N] fact read from an ordinary observed table
 (plan secs 4 / 4.2 / 4.3), register-fenced to OBSERVATION only.
 
-Two doctrine points this module enforces, both load-bearing (plan F8 / F7 / 3.3):
+Four doctrine points this module enforces, all load-bearing (plan F8 / F7 / 3.3; coverage-plan W2 / W4):
 
   * PRESENCE SEMANTICS (F8). The aggregations are SCALAR COUNT / MIN queries -- NEVER bare GROUP-BYs.
     A scalar aggregate ALWAYS returns exactly one row: over zero matched rows COUNT is 0 and MIN is
@@ -34,6 +34,18 @@ Two doctrine points this module enforces, both load-bearing (plan F8 / F7 / 3.3)
     the same true number. So `sweeps_evaluable` is a SEPARATE, ADDITIVE column: `sweeps_total` keeps its
     old meaning (raw attempted, honest context) so nothing downstream misreads an old field with a new
     meaning, and every rate the prose states is over the evaluable count with its covered window NAMED.
+
+  * A RATE NEEDS VARIANCE AND INDEPENDENT OBSERVATIONS, NOT A ROW COUNT (coverage-plan W2). The count
+    floor above is necessary and not sufficient: re-censused over all 158 canonical partitions, 163 of the
+    ledger's 251 pairs clear the shipped floor (172 at a height of 8) and every one of them is a CONSTANT
+    (fired on all its evaluable sweeps, or on none). Two further predicates gate the rate sentence -- DISCRIMINATION
+    (0 < fired < evaluable) and VINTAGE DEPTH (the evaluable sweeps must stand behind enough distinct
+    source states to be independent observations; nine evaluable pace asofs resolved to three ESR
+    vintages, one serving seven of them). Each suppression reason gets its OWN sentence: see pr_rate_gate.
+
+  * LEAKED HISTORY IS NOT CITABLE HISTORY (coverage-plan W4). cascade x backfill_grid is refused outright
+    at the leg seam -- the as-of axis those verdicts were replayed against is synthesized. See
+    PR_FENCED_READS.
 
 AWS-free + engine-agnostic: every SQL string is ANSI (COUNT / CASE / MIN / substr) so it runs
 byte-identically on the pg mirror (serving), Athena, and sqlite (tests). The as-of guard is
@@ -120,6 +132,111 @@ PR_BLIND_DECLINES = frozenset({
 # 9 evaluable sweeps, so this floor suppresses the rate on 100% of currently-reachable queries and the
 # card ships the count-plus-coverage sentence until the grid deepens (~2026-08-15 at one asof/week).
 PR_MIN_EVALUABLE_SWEEPS = 13
+
+# ── THE VARIANCE GATE: coverage COUNT is the wrong SHAPE for a rate (coverage-plan W2) ─────────────
+# The floor above gates on how MANY sweeps were evaluable. The re-census of the live ledger proves that
+# is the wrong predicate -- not too low, the wrong QUANTITY. Over the 251 (kind, contract, driver) pairs
+# in all 158 canonical partitions (39,658 rows, S3-direct pyarrow, `_shadow/` excluded) the per-pair
+# (fired, evaluable) distribution takes exactly THREE values and every one of them is a CONSTANT:
+#
+#     (158, 158) -> 163 pairs   cascade   fired on every sweep it could evaluate
+#     (  0,   0) ->  79 pairs   cascade   never evaluable at all (region-unresolved 70 / waived 9)
+#     ( 11,  11) ->   9 pairs   pace      fired on every sweep it could evaluate
+#
+# Pairs with `0 < fired < evaluable` -- the only shape that HAS a rate -- number ZERO, and no floor height
+# rescues it: >=8 admits 172 pairs, >=13 (the shipped height) and >=20 admit 163, and the non-degenerate
+# count is 0 at every one. A count floor therefore admits 163 pairs today and every one of them would
+# print "100%". The predicate a rate actually needs is DISCRIMINATION:
+# the pair must have both fired and not-fired among the sweeps that could be measured. Anything else is a
+# constant, and the honest render of a constant is to SAY it is one ("fired on all N it could evaluate"),
+# never to launder it through the grammar of a base rate. See pr_rate_gate.
+#
+# ── THE VINTAGE DENOMINATOR: sweeps are not independent observations ───────────────────────────────
+# The second wrong-shape defect, and the one the count floor cannot see at all. The 9 evaluable pace
+# sweeps in the flagship slice resolved to only THREE distinct ESR source vintages (`2026-05-24` served
+# SEVEN of the nine asofs, `2026-07-17` one, `2026-07-24` one). A weekly-published series read on a
+# weekly-or-denser grid re-reads the SAME snapshot repeatedly: the denominator counts re-reads, and a rate
+# over re-reads overstates its own evidence by whatever the re-read factor happens to be.
+#
+# WHAT THE LEDGER ACTUALLY CARRIES -- probed, not assumed. The row does NOT record the resolved vintage.
+# The physical schema is 19 columns (registry contract configs/silver/tables/gold_pattern_records.yaml)
+# and none of them is a vintage; `extra` is the only free-form slot and across ALL 158 partitions it holds
+# exactly three keys -- `collapse`, `metric`, `table` -- with ZERO date-like values anywhere in it. So a
+# true `COUNT(DISTINCT vintage)` is NOT COMPUTABLE from this ledger, and the honest closure is a
+# writer-side change (stamp the resolved vintage into `extra`), not a read-side one.
+#
+# WHAT IS IMPLEMENTED INSTEAD, named as the approximation it is: the count of distinct recorded
+# `window_change` values among the evaluable sweeps (vintage_depth_sql) -- a proxy for "how many distinct
+# source snapshots did the engine actually see".
+#
+# WHICH COLUMN, AND WHY ONLY THAT ONE. This was MEASURED against the one pair whose vintage truth is known
+# (corn_cbot x export_pace: ESR vintage 2026-05-24 served seven asofs, 2026-07-17 one, 2026-07-24 three).
+# Per-column behaviour over those 11 fired sweeps:
+#
+#     window_change  2 distinct   VINTAGE-STABLE   exactly one value per vintage, on all three
+#     n_points       8 distinct   asof-varying     counts DOWN 8,7,6,5,4,3,2 across the seven asofs the
+#                                                  SAME snapshot served -- it counts the points remaining
+#                                                  in an asof-relative lookback, so it tracks the asof,
+#                                                  not the source
+#     streak_len / streak_dir / n_rows             follow n_points out of the window and vary within a
+#                                                  vintage too
+#     grain          1 distinct   constant, carries no information
+#
+# window_change is stable BY CONSTRUCTION, not by luck: it is computed on the terminal windows of the
+# series, and within a fixed snapshot the series end is fixed, so the last two windows are the same two
+# periods no matter how far the asof has moved past them. The others slide with the asof.
+# The joint 6-column state that this originally used turned 3 true vintages into NINE states -- FAIL-OPEN,
+# the one direction this gate must never fail. It was caught by probing the live pg mirror, not by
+# reasoning, which is why the column choice is pinned by a test.
+#
+# ERROR DIRECTION, measured: on that same pair the proxy returns 2 against a truth of 3, because vintages
+# 2026-07-17 and 2026-07-24 happen to yield the SAME window_change. It UNDER-counts -- the fail-closed
+# direction, and the same one _evaluable_pred() deliberately picks. It under-counts a SECOND way, also
+# fail-closed: a decline records no measurement at all (the writer leaves window_change NULL), so every
+# evaluable-but-declined sweep collapses into ONE shared state however many vintages produced them.
+# _cadence_cap() bounds the residual fail-open risk for any future surface whose measurement is less
+# stable than this one: at most one NEW vintage can appear per publication week, true for every table in
+# VINTAGED_TABLES (ESR weekly, WASDE/PSD monthly) and fail-closed for anything faster.
+# The estimate is deliberately NOT printed to the reader: it is an approximation, and this module's
+# doctrine is that every figure a line states is a RECORDED OBSERVATION. It rides the signal only.
+PR_MIN_DISTINCT_VINTAGES = 13
+# Deliberately EQUAL to PR_MIN_EVALUABLE_SWEEPS, and that equality is the point rather than a coincidence:
+# the floor's whole justification (a quarter of weekly checks; a Wilson 95% lower bound of ~0.70 at n=9)
+# is an argument about INDEPENDENT OBSERVATIONS. Sweeps were only ever a proxy for those. Separate
+# constant so the two can be tuned apart once the writer records real vintages.
+
+# The recorded measurement whose distinct values stand in for "which source snapshot did the engine read".
+# ONE column, chosen by measurement (above) -- adding the asof-varying ones makes the gate fail OPEN.
+# A physical column of the registered contract, read by a SEPARATE, LAZY query (see _vintage_depth) so
+# that this extra schema dependency can never break the card's primary presence read on a mirror that lags
+# the contract -- a failure there costs the RATE (fail-closed), not the citable count.
+PR_VINTAGE_STATE_COLUMNS = ("window_change",)
+
+# ── READ-SIDE LEAKAGE FENCE (coverage-plan W4) ─────────────────────────────────────────────────────
+# cascade x backfill_grid is REFUSED at the read seam. Not a coverage judgement -- a LEAKAGE one:
+#   * the backfill grid replays cascade verdicts against `silver_psd`, whose as-of axis is SYNTHESIZED.
+#     `_compute_psd_release_dates` (transforms/bronze_to_silver/usda_psd.py) discards bronze's real
+#     download stamp and writes a closed-form label (always the 10th of a marketing-year-relative month)
+#     computed from `month_code in [0,12]`, which structurally cannot encode an off-cycle revision. The
+#     whole 765-value `release_date` axis is manufactured from exactly TWO real bronze observations.
+#   * measured consequence: 739 keys CHANGED VALUE under an unchanged computed release_date, and a
+#     further 9,292 keys exist in the July bronze but not the May bronze while carrying a computed
+#     release_date backdated as far as 2020-11-10. A cascade verdict is an EXISTENCE probe (n_rows >= 1;
+#     cascade_census.pg_probe is "a whole-history existence probe: agg=latest, no period window"), so
+#     that second, 12.6x larger channel maps EXACTLY onto the quantity these rows record.
+# The 37,752 such rows stay on S3 untouched -- they are an audit record of what the engine did, and
+# deleting them would destroy evidence. They are simply not CITABLE HISTORY. Serving has no cascade path
+# today, so the observable effect of this fence is ZERO: it is a RATCHET against a later, well-meaning
+# widening, placed at the leg seam because that is the single funnel through which a citable [N] row can
+# reach a reader. cascade x daily_sweep is NOT fenced -- a verdict recorded on the day it was reached has
+# a real as-of; only the REPLAY over a manufactured axis is leaked.
+PR_FENCED_READS = frozenset({(KIND_CASCADE, PROV_BACKFILL_GRID)})
+
+
+def pr_read_fenced(kind: str, provenance: str) -> Optional[str]:
+    """The leakage-fence slug for a (record_kind, provenance) pair, or None when the pair is readable."""
+    return "cascade_backfill_leaky_asof" if (kind, provenance) in PR_FENCED_READS else None
+
 
 # OBSERVATION-register fence (plan 4.3 / D8). These are the 6.8 fake-threshold + WS-COND
 # premature-determinism failure words: a pattern-records line reports the COUNT and the DATES; the
@@ -228,6 +345,59 @@ def baserate_backfill_sql(contract: str, driver_or_chain_id: str, *, kind: str, 
                         provenance=PROV_BACKFILL_GRID)
 
 
+def _value_state_expr() -> str:
+    """The ANSI render of one sweep's RECORDED VALUE-STATE as a single comparable scalar, so
+    COUNT(DISTINCT ...) counts distinct source states. NULL-safe by construction: `a || b` is NULL if
+    either side is NULL on every backend, so each column is COALESCEd to a sentinel first -- a fired row
+    with NULL streak_len and a declined row with NULL everything are then two well-defined states rather
+    than two NULLs that COUNT(DISTINCT) would drop.
+
+    CAST(<double> AS varchar) is the one backend-sensitive piece: a backend that rendered fewer digits
+    would COLLAPSE two nearby values into one state. That is the fail-CLOSED direction (fewer states ->
+    more suppression), and the count is only ever compared against a threshold within a single backend's
+    own render, never across backends, so no parity claim rests on it."""
+    return " || '|' || ".join(f"COALESCE(CAST({c} AS varchar), '~')" for c in PR_VINTAGE_STATE_COLUMNS)
+
+
+def vintage_depth_sql(contract: str, driver_or_chain_id: str, *, kind: str, asof: str,
+                      provenance: str = PROV_DAILY_SWEEP) -> str:
+    """The distinct-value-state count over the EVALUABLE sweeps of one pair -- the vintage-depth proxy
+    (see PR_MIN_DISTINCT_VINTAGES for what it approximates, why it is an approximation, and its measured
+    error direction). Same scalar shape and the same two PIT axes and pinned provenance as presence_sql,
+    so it can never see a row the presence read could not; the evaluable predicate moves into the WHERE
+    clause because the count is defined only over sweeps that actually saw data."""
+    where = [
+        f"record_kind = {_q(kind)}",
+        f"contract = {_q(contract)}",
+        f"driver_or_chain_id = {_q(driver_or_chain_id)}",
+        f"provenance = {_q(provenance)}",
+        f"{_date_at('as_of_date')} <= {_q(asof)}",
+        f"{_date_at('written_at')} <= {_q(asof)}",
+        _evaluable_pred(),
+    ]
+    return (f"SELECT COUNT(DISTINCT {_value_state_expr()}) AS distinct_value_states "
+            f"FROM {PR_TABLE} WHERE " + " AND ".join(where))
+
+
+def _cadence_cap(first_evaluable, last_evaluable, evaluable: int) -> int:
+    """Upper bound on how many distinct source vintages a span COULD hold, from the publication cadence:
+    at most ONE new vintage per week. True for every table in the writer's VINTAGED_TABLES (silver_esr
+    weekly, silver_wasde / silver_psd monthly) and fail-closed for anything faster. This is what bounds
+    the value-state proxy's one fail-OPEN mode -- a single vintage read at many asofs yielding different
+    values would inflate the state count, but it cannot inflate it past the number of weeks that elapsed.
+
+    Unparseable / absent dates return the evaluable count, i.e. the cap goes INERT rather than zeroing the
+    estimate: the cap is a refinement of the proxy, not the proxy itself, and the proxy is already the
+    fail-closed half."""
+    try:
+        import datetime as _dt
+        a = _dt.date.fromisoformat(str(first_evaluable)[:10])
+        b = _dt.date.fromisoformat(str(last_evaluable)[:10])
+    except (TypeError, ValueError):
+        return max(int(evaluable), 0)
+    return max(abs((b - a).days) // 7 + 1, 1)
+
+
 def _one_row(rows) -> dict:
     """The single scalar row a presence/baserate query returns (defensive: a mirror gap that returns []
     is treated as the not-covered 0 -- never a crash, never a fabricated firing)."""
@@ -251,6 +421,70 @@ _PROV_LABEL = {
     PROV_BACKFILL_GRID: "weekly replay asofs",
 }
 
+# The reasons a firing RATE may not be stated. Each one is a DIFFERENT FACT about the ledger and gets its
+# own sentence in pattern_records_answer -- collapsing any two of them into shared wording would let a
+# reader (or a model reading the preface) mistake "we have never looked here" for "we looked and it was
+# always true", which is the entire failure class this card exists to close.
+PR_SUP_NOT_COVERED = "not_covered"        # the pair is outside the swept catalog -- nothing was attempted
+PR_SUP_NOTHING_EVALUABLE = "nothing_evaluable"  # attempted, but every sweep was blind -- nothing measured
+PR_SUP_NO_FIRING = "no_firing"            # measured, and it never fired -- a constant, not a rate
+PR_SUP_TOO_THIN = "too_thin"              # measured history shorter than the coverage floor
+PR_SUP_NO_VARIANCE = "no_variance"        # fired on EVERY evaluable sweep -- a constant, not a rate
+PR_SUP_VINTAGE = "vintage_depth"          # enough sweeps, too few distinct source states behind them
+
+
+def pr_rate_gate(*, in_catalog: bool, recorded: int, evaluable: int,
+                 vintage_depth: Optional[int]) -> Optional[str]:
+    """None when a firing RATE may honestly be stated, else the slug naming the fact that forbids it.
+
+    ORDER IS MEANINGFUL. The coverage floor is tested BEFORE the variance predicate so that a short
+    all-fired history keeps reading as "too short to state a rate" (its pre-existing, correct sentence)
+    rather than being relabelled as a constant -- shortness is the more informative fact about it, and the
+    live 11-of-11 pace shape lands there, so the flagship path renders byte-identically to today.
+
+    `vintage_depth=None` means the depth could NOT be established (no such column on the mirror, a probe
+    error, or the estimator was never run) and it SUPPRESSES. An unknown denominator is not a permissive
+    one: that inversion is the 9-of-156 defect in a different costume."""
+    if not in_catalog:
+        return PR_SUP_NOT_COVERED
+    if evaluable <= 0:
+        return PR_SUP_NOTHING_EVALUABLE
+    if recorded <= 0:
+        return PR_SUP_NO_FIRING
+    if evaluable < PR_MIN_EVALUABLE_SWEEPS:
+        return PR_SUP_TOO_THIN
+    if recorded >= evaluable:
+        return PR_SUP_NO_VARIANCE
+    if vintage_depth is None or int(vintage_depth) < PR_MIN_DISTINCT_VINTAGES:
+        return PR_SUP_VINTAGE
+    return None
+
+
+def _vintage_depth(contract: str, driver: str, *, kind: str, asof: str, provenance: str,
+                   evaluable: int, first_evaluable, last_evaluable, query_fn) -> Optional[int]:
+    """The vintage-depth ESTIMATE for one pair, or None when it could not be established.
+
+    None is returned for EVERY failure -- the query raised (a mirror without PR_VINTAGE_STATE_COLUMNS
+    raises here rather than on the presence read, which is the whole reason this is a second statement),
+    it returned nothing, or the count came back NULL. pr_rate_gate reads None as "suppress", so every one
+    of those paths costs the rate and nothing else."""
+    try:
+        rows = query_fn(vintage_depth_sql(contract, driver, kind=kind, asof=asof, provenance=provenance))
+    except Exception:  # noqa: BLE001 -- an unanswerable depth probe suppresses the rate, never the leg
+        return None
+    if not rows:
+        return None
+    raw = (rows[0] or {}).get("distinct_value_states")
+    # BOTH null contracts: sqlite/Athena hand back None, while the pg mirror stringifies every cell and
+    # renders NULL as "" (pgnumbers._stringify, matching Athena's GetQueryResults). Either is "unknown",
+    # and _as_int("") would quietly read 0 -- a count, not an absence -- so it is caught here instead.
+    if raw is None or not str(raw).strip():
+        return None
+    states = _as_int(raw)
+    # Bound the proxy from both sides: it cannot exceed the number of sweeps it was computed over, and it
+    # cannot exceed the number of vintages the elapsed span could physically have published.
+    return max(0, min(states, _cadence_cap(first_evaluable, last_evaluable, evaluable), max(evaluable, 0)))
+
 
 def pattern_records_legs(scope: dict, asof: str, query_fn) -> tuple[list[dict], dict]:
     """Run the presence/base-rate aggregation for a persistence-scoped question and return
@@ -260,7 +494,13 @@ def pattern_records_legs(scope: dict, asof: str, query_fn) -> tuple[list[dict], 
     pace_fired idiom):
 
         {injected, recorded_firings, sweeps_total, sweeps_evaluable, sweeps_unmeasurable, in_catalog,
-         provenance, zero_materialized, rate_stated, first_evaluable, last_evaluable}
+         provenance, zero_materialized, rate_stated, rate_suppressed, vintage_depth, fenced,
+         first_evaluable, last_evaluable}
+
+    `rate_suppressed` is the slug from pr_rate_gate naming WHY no rate was stated (None when one was), and
+    `rate_stated` is exactly its negation -- previously it read `recorded > 0 and evaluable >= floor`,
+    which was TRUE for all 163 fired-on-every-sweep cascade pairs whose "rate" is a constant. `fenced`
+    carries the read-side leakage refusal (pr_read_fenced) and is None on every readable pair.
 
     zero_materialized=True is the F8 honesty mechanism firing: an in-catalog OR not-covered pair with
     recorded_firings=0 STILL injects a citable 0-count leg, so the model cites "no firing recorded" as a
@@ -286,9 +526,16 @@ def pattern_records_legs(scope: dict, asof: str, query_fn) -> tuple[list[dict], 
     _dead = {"injected": 0, "recorded_firings": 0, "sweeps_total": 0, "sweeps_evaluable": 0,
              "sweeps_unmeasurable": 0, "in_catalog": False, "provenance": provenance,
              "zero_materialized": False, "rate_stated": False,
+             "rate_suppressed": PR_SUP_NOT_COVERED, "vintage_depth": None, "fenced": None,
              "first_evaluable": None, "last_evaluable": None}
     if not (contract and driver and kind in V1_KINDS):
         return [], dict(_dead)
+    # W4 LEAKAGE FENCE (see PR_FENCED_READS): refuse the leaked class BEFORE any query is built, so the
+    # refusal cannot depend on what the ledger happens to hold. No leg, no citable row, and the reason is
+    # named on the signal so the refusal is observable in the trace rather than looking like an empty read.
+    fenced = pr_read_fenced(kind, provenance)
+    if fenced:
+        return [], dict(_dead, fenced=fenced)
     sql = (baserate_backfill_sql(contract, driver, kind=kind, asof=asof)
            if provenance == PROV_BACKFILL_GRID
            else presence_sql(contract, driver, kind=kind, asof=asof, provenance=provenance))
@@ -305,6 +552,21 @@ def pattern_records_legs(scope: dict, asof: str, query_fn) -> tuple[list[dict], 
     evaluable = _as_int(row.get("sweeps_evaluable")) if row.get("sweeps_evaluable") is not None else recorded
     evaluable = min(evaluable, sweeps) if sweeps else evaluable
     in_catalog = sweeps > 0
+    # VINTAGE DEPTH -- probed LAZILY, and the laziness is a design choice, not an optimisation. The
+    # cheaper gates (catalog / evaluability / the coverage floor / discrimination) are decided from the
+    # row already in hand; the depth query is issued ONLY when every one of them has passed and a rate is
+    # therefore about to be stated. Three consequences: on today's ledger, where all 251 pairs are
+    # constants, it is issued ZERO times and the serving seam keeps its one-query cost exactly; the
+    # widened schema dependency (PR_VINTAGE_STATE_COLUMNS) is never on the critical path of the citable
+    # count; and a mirror that cannot answer it costs the RATE, never the leg.
+    depth = None
+    if pr_rate_gate(in_catalog=in_catalog, recorded=recorded, evaluable=evaluable,
+                    vintage_depth=PR_MIN_DISTINCT_VINTAGES) is None:
+        depth = _vintage_depth(contract, driver, kind=kind, asof=asof, provenance=provenance,
+                               evaluable=evaluable, first_evaluable=row.get("first_evaluable"),
+                               last_evaluable=row.get("last_evaluable"), query_fn=query_fn)
+    suppressed = pr_rate_gate(in_catalog=in_catalog, recorded=recorded, evaluable=evaluable,
+                              vintage_depth=depth)
     # the citable row: `value` = the recorded firing count (a 0 is a real, citable observation).
     leg_row = {
         "value": recorded,
@@ -340,7 +602,8 @@ def pattern_records_legs(scope: dict, asof: str, query_fn) -> tuple[list[dict], 
               "sweeps_evaluable": evaluable, "sweeps_unmeasurable": max(sweeps - evaluable, 0),
               "in_catalog": in_catalog, "provenance": provenance,
               "zero_materialized": recorded == 0,
-              "rate_stated": recorded > 0 and evaluable >= PR_MIN_EVALUABLE_SWEEPS,
+              "rate_stated": suppressed is None,
+              "rate_suppressed": suppressed, "vintage_depth": depth, "fenced": None,
               "first_evaluable": row.get("first_evaluable"),
               "last_evaluable": row.get("last_evaluable")}
     return [leg], signal
@@ -381,6 +644,18 @@ def pattern_records_answer(scope: dict, indexed_leg: tuple[int, dict], signal: d
       * below PR_MIN_EVALUABLE_SWEEPS no rate is stated AT ALL. The firing count and the window still
         are: F8's materialized zero and the citable count are the anti-fabrication mechanism, and
         suppressing those would hand the model back the empty-ledger state where it mints a streak.
+
+    SIX SUPPRESSION FACTS, SIX SENTENCES (pr_rate_gate). The reasons a rate cannot be stated are not
+    interchangeable and the wording never lets them blur:
+      not_covered        we have never swept this pair          -> no figure at all
+      nothing_evaluable  we swept it and never once saw data    -> the attempted count, and nothing measured
+      no_firing          we measured it and it never fired      -> the honest, citable, MEASURED zero
+      too_thin           measured, but over too few sweeps      -> the count and the window, no ratio
+      no_variance        it fired on every sweep we could judge -> "on all N", named AS a constant
+      vintage_depth      enough sweeps, too few source states   -> the count, and why the sweeps repeat
+    The last two are the coverage-plan W2 additions and they are the ones a count floor cannot express:
+    163 of the ledger's 251 pairs clear the count floor and every one of them is a constant.
+
     Every figure any branch states is a value on the injected leg's rows (`recorded_firings` and
     `sweeps_total` on the firing row, `sweeps_evaluable` as the coverage row's value), which is what
     orchestrator._verify_numbers_answer harvests -- so a correct engine sentence never wears the
@@ -400,6 +675,11 @@ def pattern_records_answer(scope: dict, indexed_leg: tuple[int, dict], signal: d
     # the coverage clause, stated as "<evaluable> of <total>" -- both figures are citable row values, and
     # naming the measurable count directly is plainer than making the reader subtract.
     partial = evaluable < sweeps
+    # ONE gate decides both the prose and the signal (pattern_records_legs stores the identical call's
+    # result as `rate_suppressed`), so the sentence a reader sees and the slug the eval scores can never
+    # drift apart. Read from the signal, `vintage_depth` absent -> None -> suppress, fail-closed.
+    gate = pr_rate_gate(in_catalog=bool(signal.get("in_catalog")), recorded=recorded,
+                        evaluable=evaluable, vintage_depth=signal.get("vintage_depth"))
 
     if recorded == 0:
         if not signal.get("in_catalog"):
@@ -422,10 +702,14 @@ def pattern_records_answer(scope: dict, indexed_leg: tuple[int, dict], signal: d
             line += ", and that history is too short to read as a rate"
         return line + "."
 
-    if evaluable < PR_MIN_EVALUABLE_SWEEPS:
+    if gate in (PR_SUP_TOO_THIN, PR_SUP_NOTHING_EVALUABLE):
         # COVERAGE FLOOR: the count and the window are facts and stay; the RATIO does not get stated.
         # The window on the COUNT is the fired window -- pinning the evaluable span to a firing count
-        # would imply firings on dates that did not fire.
+        # would imply firings on dates that did not fire. NOTHING_EVALUABLE is folded in here rather than
+        # given its own sentence because it can only be reached on THIS path by a malformed mirror
+        # (recorded > 0 with evaluable == 0, which the writer's invariants forbid): the honest-zero branch
+        # above owns the real nothing-evaluable case, and this keeps that malformed shape rendering
+        # exactly as it does today instead of claiming nothing was measured while stating firings.
         plural = "" if recorded == 1 else "s"
         line = (f"For {driver} on {contract}, the engine has recorded {recorded} firing{plural}"
                 f"{_fired_window(row)} [N{idx}]. Only {evaluable} of the {sweeps} attempted {unit} "
@@ -434,12 +718,39 @@ def pattern_records_answer(scope: dict, indexed_leg: tuple[int, dict], signal: d
             line += f" ({win.lstrip(', ')})"
         return line + ", which is too short a recorded history to state a firing rate."
 
-    if recorded == evaluable:
+    if gate == PR_SUP_NO_VARIANCE:
+        # THE DISCRIMINATION GATE (W2a). recorded == evaluable: it fired on every sweep that could be
+        # judged. There is no rate here -- a ratio whose numerator and denominator are the same number is
+        # a constant wearing a fraction's clothes, and 163 of the ledger's 251 pairs are exactly this. The
+        # sentence therefore SAYS "all N", and then says in as many words that a rate is not available,
+        # which also closes the older gap where the 100%-of-measurable case never named itself as such.
         line = (f"For {driver} on {contract}, the engine has recorded firing on all {evaluable} "
                 f"{unit} it could evaluate{win} [N{idx}]")
-    else:
-        line = (f"For {driver} on {contract}, the engine has recorded firing on {recorded} of the "
-                f"{evaluable} {unit} it could evaluate{win} [N{idx}]")
+        if partial:
+            line += f"; only {evaluable} of the {sweeps} attempted carried data"
+        # NOTE the deliberate absence of the "so that rate covers only the window named" tail used by the
+        # rate branch below: there is no rate on this branch and the word must not appear as if there were.
+        return line + (". Every sweep it could evaluate fired, so this is a constant over the window "
+                       "named, not a firing rate.")
+
+    if gate == PR_SUP_VINTAGE:
+        # THE VINTAGE DENOMINATOR (W2b). Enough evaluable sweeps AND real variance among them, but those
+        # sweeps do not stand behind enough DISTINCT SOURCE STATES to be independent observations -- the
+        # flagship case is nine evaluable pace asofs resolving to three ESR vintages, one of which served
+        # seven of them. The count and the window are facts and stay; the ratio would silently claim more
+        # evidence than exists. No estimate is PRINTED: the depth is an approximation (see
+        # PR_MIN_DISTINCT_VINTAGES) and only recorded observations get stated as figures.
+        plural = "" if recorded == 1 else "s"
+        line = (f"For {driver} on {contract}, the engine has recorded {recorded} firing{plural} across "
+                f"the {evaluable} {unit} it could evaluate{win} [N{idx}]")
+        if partial:
+            line += f"; only {evaluable} of the {sweeps} attempted carried data"
+        return line + (". Those sweeps resolve to too few distinct source vintages to read as independent "
+                       "observations -- a series republished less often than the sweep grid runs is read "
+                       "again and again at the same vintage -- so I am not stating a firing rate over them.")
+
+    line = (f"For {driver} on {contract}, the engine has recorded firing on {recorded} of the "
+            f"{evaluable} {unit} it could evaluate{win} [N{idx}]")
     if partial:
         line += (f"; only {evaluable} of the {sweeps} attempted carried data, so that rate covers only "
                  f"the window named")
@@ -512,7 +823,10 @@ RECORDED_HISTORY_ADDENDUM = (
     "2026-07-18 [N]\"). Copy the injected line's OWN denominator and window -- never re-express the "
     "count over how many sweeps were attempted, and never drop the coverage clause: a count of sweeps "
     "the engine could not evaluate is NOT a count of times the pair failed to fire. If the injected "
-    "line states no rate, do not compute one. If the "
+    "line states no rate, do not compute one -- and if it says the count is a CONSTANT (it fired on "
+    "every sweep it could evaluate) or that the sweeps resolve to too few distinct source vintages, "
+    "carry that clause through: those sentences are not rates and must never be paraphrased into one. "
+    "If the "
     "injected row reads recorded_firings=0 or says no firing is recorded yet, state PLAINLY that no "
     "firing history is recorded for this pair yet -- and do NOT infer a cross-day run from any "
     "within-turn pace figure (the within-window streak is a DIFFERENT quantity). State ONLY the number "

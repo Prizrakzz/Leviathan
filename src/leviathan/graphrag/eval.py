@@ -1217,10 +1217,25 @@ def report(rows: list[dict], *, model: str, graph_version: str | None = None,
     # of turns measures the OUTAGE, not the pipeline -- its judge/strip aggregates must never be
     # compared against a healthy baseline (two such runs mis-attributed an Anthropic tier window to
     # a feature flag). 15% ~= one floored turn on the small decks.
-    floored = sum(1 for r in rows if (r.get("out") or {}).get("model") == "(unavailable)")
+    #
+    # W8: keyed on the TRACE SLUG (`trace.floor`, a machine contract set by orchestrator._evidence_only)
+    # and NOT on `out['model'] == "(unavailable)"`. That was a DISPLAY STRING -- the human-facing model
+    # label rendered in the UI -- and a copy edit of it would have silently disarmed the gate that exists
+    # to stop an outage being read as a quality regression. Presence, not equality: any floor variant
+    # counts, and the bounded WHY rides `trace.floor_cause` (pg_statement_timeout / pg_operational /
+    # model_download / llm_unavailable / other), reported below so a floored run says which outage it was.
+    def _floor_of(r: dict) -> str | None:
+        return ((r.get("out") or {}).get("trace") or {}).get("floor")
+
+    floored_rows = [r for r in rows if _floor_of(r)]
+    floored = len(floored_rows)
     if rows and floored / len(rows) > 0.15:
+        import collections
+        causes = collections.Counter(((r.get("out") or {}).get("trace") or {}).get("floor_cause")
+                                     or "other" for r in floored_rows)
+        why = ", ".join(f"{c} x{n}" for c, n in sorted(causes.items(), key=lambda kv: (-kv[1], kv[0])))
         lines += [f"> **RUN INCONCLUSIVE -- {floored}/{len(rows)} turns floored to the evidence-only "
-                  "fallback (model unavailable). Aggregates below measure the outage, not the "
+                  f"fallback (cause: {why}). Aggregates below measure the outage, not the "
                   "pipeline; do NOT compare against baselines.**", ""]
     if graph_version:
         lines.append(f"- graph: `{graph_version}` (causal-YAML content hash — the graph this run scored)")

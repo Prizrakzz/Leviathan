@@ -19,11 +19,21 @@ Doctrine (docs/private/T2B_PATTERN_RECORDS_PLAN.md, D1-D12 ratified 2026-07-24 -
   * v1 kinds = cascade + pace + chain ONLY. comove / reroute / price_leg are DECLARED in the enum but
     DEFERRED (cross-node forks with no single driver key, plan sec 2.2 / F4); the reserved
     `counterparty` column awaits them.
+  * The DAILY path records DAILY_SWEEP_KINDS = {pace} ONLY (COVERAGE_AND_CAPACITY_PLAN W3). cascade
+    verdicts are constant-valued catalog-EXISTENCE flags with zero measured variance and chain verdicts
+    are 100% root_not_grounded without a trace_provider -- neither has an event axis, and both
+    resolvability pictures live in cascade_census / config_check.check_chain_map instead. The BACKFILL
+    path still records every kind asked for. See DAILY_SWEEP_KINDS for the measurements.
   * provenance {daily_sweep, backfill_grid} -- BOTH are batch replays (today-asof vs a past-asof grid),
     NEVER a production "live" fire (there is none; serving has zero organic traffic, plan sec 3.3 / F5).
-  * The backfill grid runs ONLY over surfaces whose EVERY leg reads a RELEASE-DATE-VINTAGED table
-    (esr_compact / wasde / psd) -- the period LATEST-ONLY tables (silver_noaa_oni / gold_weather_z) read
-    RESTATED data at a past asof, so their legs are EXCLUDED (plan sec 3.1 / F2).
+    They are NOT additive at one asof: the layout is ONE OBJECT PER ASOF and provenance is a physical
+    column, so a cross-provenance write at an occupied asof DESTROYS the incumbent rows (it did, on
+    2026-07-25 09:03Z). apply_write_guard refuses it.
+  * The backfill grid runs ONLY over surfaces whose EVERY leg reads a table with a GENUINE as-of axis:
+    release-date-vintaged (VINTAGED_TABLES) and NOT in LEAKY_ASOF_TABLES. The period LATEST-ONLY tables
+    (silver_noaa_oni / gold_weather_z) read RESTATED data at a past asof (plan sec 3.1 / F2), and
+    silver_psd's release_date is SYNTHESIZED in code -- it admitted 37,752 leaked rows before it was
+    fenced (COVERAGE_AND_CAPACITY_PLAN sec 1.4 / D2; see LEAKY_ASOF_TABLES).
 
 ENGINE-REPLAY IDIOM (cascade_census): import the production quantify helpers (map_row / _scope /
 _region_row / _node_specs / _run_one / _pace_series / _pace_legs from cascade.py), never copy them, so
@@ -56,6 +66,34 @@ TABLE = "gold_pattern_records"
 DATABASE = "leviathan_dev"
 S3_PREFIX = "gold/pattern_records"
 
+# The SAME table, SCHEMA-QUALIFIED, for statements sent to the pg mirror. These are NOT interchangeable
+# and the difference is not cosmetic -- it silently disarmed the write-guard.
+#
+# TABLE is the GLUE/registry identity (ShadowPublisher's `table=`, load_registry().table(...)) and must
+# stay bare. But the pg mirror creates every table inside the schema `leviathan_dev`
+# (jobs/utils/load_pg_numbers.py: CREATE TABLE "leviathan_dev"."<physical>"), and the mirror connection
+# runs with the DEFAULT search_path -- pgstore._acquire() sets only statement_timeout, never a schema.
+# Probed in-VPC on the sweep's own connection (leviathan-dev-evidence-build, 2026-07-28):
+#
+#     search_path            = '"$user", public'
+#     current_schemas(true)  = ['pg_catalog', 'public']
+#     to_regclass('gold_pattern_records')               -> None
+#     to_regclass('leviathan_dev.gold_pattern_records') -> leviathan_dev.gold_pattern_records
+#
+# So an UNQUALIFIED `FROM gold_pattern_records` raises psycopg.errors.UndefinedTable (SQLSTATE 42P01,
+# message: relation "gold_pattern_records" does not exist) on EVERY call. _is_missing_ledger_table()
+# then matched on all three of its branches -- including the message branch, because the name in the
+# error IS our table name -- so read_existing_guard_rows returned [] ("a legitimate first write"),
+# apply_write_guard saw an EMPTY partition, and BOTH refusals (cross-provenance and cross-version) were
+# unreachable. The same probe run qualified returned 251 rows at as_of_date=2026-07-25: the rows the
+# guard was supposed to protect were there the whole time and it never saw one of them.
+#
+# This is why the 2026-07-25 09:03Z overwrite was not caught: the provenance filter (plan sec E) is a
+# real defect, but even with it removed the guard could not have refused, because the read itself could
+# not resolve. Every other numbers query in the repo is already qualified via build_sql(db=ATHENA_DB).
+PG_SCHEMA = "leviathan_dev"                 # == numbers.pgnumbers.SCHEMA == numbers.query.ATHENA_DB
+PG_TABLE = f'"{PG_SCHEMA}".{TABLE}'
+
 # ── record kinds (plan sec 1.1) ──────────────────────────────────────────────────────────────────
 KIND_CASCADE = "cascade"
 KIND_PACE = "pace"
@@ -64,6 +102,35 @@ V1_KINDS = frozenset({KIND_CASCADE, KIND_PACE, KIND_CHAIN})
 # DECLARED but DEFERRED to v1.1 (F4): cross-node forks with no single driver_or_chain_id, no per-kind
 # sweep loop yet. Reserved in the enum + the counterparty column; NEVER written by v1.
 DEFERRED_FORK_KINDS = frozenset({"comove", "reroute", "price_leg"})
+
+# ── what the DAILY path records: PACE ONLY (COVERAGE_AND_CAPACITY_PLAN W3) ───────────────────────
+# The daily sweep is a CITABLE ledger; only kinds with an EVENT AXIS belong in it. Measured on the
+# 156-asof backfill (39,156 rows), the other two kinds have none:
+#   * cascade -- 242 pairs x 156 asofs = 37,752 rows whose per-pair (fired, swept) takes exactly two
+#     values, (156,156) x163 and (0,156) x79. ZERO pairs vary. A FIRED cascade row is cascade_census's
+#     pg_probe returning >=1 row -- its own docstring calls it "A whole-history existence probe:
+#     agg=latest, no period window" -- i.e. a CATALOG-RESOLVABILITY flag, time-invariant by
+#     construction. Corroborated by the rows themselves: n_rows==1 with streak_len / streak_dir /
+#     window_change / grain / n_points / n_hops ALL NULL on all 25,428 fired cascade rows. Replicating
+#     a constant 242x/day dilutes every base rate computed over the ledger and cannot answer any
+#     question about an EVENT ("fired on 156 of 156 sweeps" means only "this table has rows").
+#   * chain -- 29 (chain, contract) pairs, and main() injects NO trace_provider, so chain_verdicts
+#     declines every one `root_not_grounded`: ~10,600 rows/yr recording only "we did not run the
+#     grounding walk." They are absent from the 156-asof backfill ONLY because backfill_eligible(())
+#     is False on chain's empty leg set -- the daily path has no such accident to protect it.
+# NOTHING IS LOST. Both resolvability pictures already live in richer, NON-citable ops surfaces:
+#   * cascade -> cascade_census.census() (src/leviathan/graphrag/numbers/cascade_census.py:231-308)
+#     emits the full per-leg verdict (FIRES / DARK-with-reason / DECLINES / PROBE_ERROR), the
+#     per_contract_has_firing_leg rollup and the fires/declines/dark/probe_errors banner -- strictly
+#     MORE than the ledger's boolean. It is published by jobs/audit/advance_rolling_census.py to
+#     s3://<bucket>/cascade_census/rolling/{family}/census.json and read back by
+#     jobs/audit/silver_rebuild_gate.py:468-490 from data/cascade_census/as_of_date=<asof>/census.json.
+#   * chain -> config_check.check_chain_map() (src/leviathan/graphrag/config_check.py:238), a
+#     fail-CLOSED BUILD lint over every hop ref, scope, country pin and contract binding. It fails the
+#     build instead of accruing a constant decline row forever.
+# The BACKFILL GRID path is DELIBERATELY UNCHANGED: a provenance=backfill_grid replay still records
+# every kind the caller asks for, so the existing grid stays reproducible.
+DAILY_SWEEP_KINDS = frozenset({KIND_PACE})
 
 # ── verdicts + provenance (plan sec 1.1 / 3.3 / F5) ──────────────────────────────────────────────
 VERDICT_FIRED = "fired"
@@ -98,9 +165,33 @@ CASCADE_DECLINE_REASONS = frozenset({
 # ── backfill eligibility (plan sec 3.1 / 3.4 / D6 / F2) ──────────────────────────────────────────
 # Release-date-vintaged: the engine at a historical asof returns exactly what was KNOWN at T (a later
 # restatement is a NEW vintage row). ONLY these are honestly as-of replayable.
+# NECESSARY BUT NOT SUFFICIENT -- membership here means the table CARRIES a release_date axis, not that
+# the axis is TRUE. LEAKY_ASOF_TABLES (below) overrides this set and is checked FIRST.
 VINTAGED_TABLES = frozenset({
     "silver_esr_compact", "silver_esr", "silver_wasde", "silver_psd",
 })
+# Vintaged in SCHEMA, SYNTHESIZED in fact -- backfill_eligible REJECTS these outright, ahead of every
+# other test (COVERAGE_AND_CAPACITY_PLAN sec 1.4 / D2 / SV-L2-N1 / SV-L2-N2).
+#
+# silver_psd: bronze holds exactly TWO objects (release_date=2026-05-20 and release_date=2026-07-17),
+# yet silver carries 765 distinct release_date values -- because
+# src/leviathan/transforms/bronze_to_silver/usda_psd.py::_compute_psd_release_dates REPLACES bronze's
+# real download stamp with a CLOSED-FORM label (cal_year + "-" + cal_month + "-10", clamped at
+# ingest_date). month_code is structurally confined to [0,12], so a revision made outside the
+# marketing year's 12-release cycle CANNOT be encoded and is silently BACKDATED into the window.
+# Measured by diffing the two bronze snapshots (join on country_name -- country_code is 100% NULL in
+# bronze and silently collapses the diff to 69,589 of 968,699 keys):
+#   * 739 keys CHANGED VALUE while keeping the SAME computed release_date (24 of them MY <= 2020);
+#   * 9,292 keys EXIST in the July bronze and NOT in the May bronze yet carry a computed
+#     release_date <= 2026-05-20 -- backdated as far as 2020-11-10.
+# The second channel is 12.6x larger and it is the one that matters here: a cascade verdict is an
+# EXISTENCE probe (n_rows >= 1), so ROW-EXISTENCE leakage maps exactly onto the recorded quantity.
+# This membership is what admitted the 37,752 backfill_grid cascade rows already on S3. Those rows are
+# LEFT IN PLACE as an audit record and fenced on the READ side in
+# src/leviathan/graphrag/numbers/pattern_records.py; this set is the WRITE-side half of the same fence,
+# so the leak cannot be re-earned by a future backfill run launched from a session that never read the
+# plan. A read fence alone leaves the write re-earnable.
+LEAKY_ASOF_TABLES = frozenset({"silver_psd"})
 # Period-partitioned LATEST-ONLY: one value per year_month = TODAY's value, possibly REBUILT since T
 # (the CHIRPS rebuild retired 17,642 weather_z partitions). A past-asof replay reads later data wearing a
 # past period label -> EXCLUDED from the backfill grid; recorded daily-sweep-only going forward.
@@ -135,12 +226,25 @@ def resolve_engine_version() -> str:
     return "unknown"
 
 
-def resolve_graph_version() -> str:
+def resolve_graph_version(*, repo=None) -> str:
     """The causal-graph + cascade_map content hash (the tracked-config version, plan sec 1.1). A
     deterministic sha256 over cascade_map.yaml + chain_map.yaml + the causal DAG yamls (sorted, bytes),
-    so a graph edit is a distinct graph_version that the write-guard separates from a prior asof's rows."""
+    so a graph edit is a distinct graph_version that the write-guard separates from a prior asof's rows.
+
+    REPO ROOT IS parents[2], NOT parents[1]. This file is <repo>/jobs/batch/…, so parents[1] is
+    <repo>/jobs -- and jobs/configs/graphrag DOES NOT EXIST (jobs/configs holds only `sources/`). The
+    glob therefore matched nothing, `parts` stayed empty, and every one of the 39,156 rows written so
+    far carries the hash of the EMPTY STRING: sha256(b"").hexdigest()[:16] == "e3b0c44298fc1c14", i.e.
+    graph_version was a DEAD guard axis and a cascade_map / causal-DAG edit was invisible to
+    apply_write_guard. parents[2] is the repo root, where configs/graphrag/{numbers,causal} live.
+    `repo` is injectable for tests ONLY; production always derives it (COVERAGE_AND_CAPACITY_PLAN W5).
+
+    NOTE for the first post-fix run: rows written from here on carry a DIFFERENT graph_version from the
+    39,156 backfill rows. That is intended. Because the guard only compares versions on a key that
+    ALREADY EXISTS, a fresh asof is unaffected; a re-publish AT an existing asof is REFUSED, which is
+    exactly the guard doing its job rather than a regression (plan U7)."""
     from pathlib import Path
-    repo = Path(__file__).resolve().parents[1]
+    repo = Path(repo) if repo is not None else Path(__file__).resolve().parents[2]
     parts: list[bytes] = []
     cfg = repo / "configs" / "graphrag"
     for rel in ("numbers/cascade_map.yaml", "numbers/chain_map.yaml"):
@@ -224,9 +328,16 @@ class PatternRecord:
         return (self.record_kind, self.contract, self.driver_or_chain_id, self.as_of_date)
 
     def guard_key(self) -> tuple:
-        """The natural key WITHIN a provenance class. daily_sweep and backfill_grid rows for the same
-        (kind, contract, driver, asof) COEXIST (they differ by the provenance column, plan sec 2.3): the
-        write-guard + idempotency operate per (natural_key, provenance), never across classes."""
+        """The natural key WITHIN a provenance class -- the IDEMPOTENCY key (one row per guard_key in a
+        published partition), NOT a licence to write across classes.
+
+        The plan (sec 2.3) originally read this as "daily_sweep and backfill_grid rows for the same
+        (kind, contract, driver, asof) COEXIST, so the classes never collide." That is FALSE at the
+        storage layer and it destroyed data on 2026-07-25: the layout is ONE OBJECT PER ASOF
+        (gold/pattern_records/as_of_date=<d>/pattern_records.parquet) and provenance is a physical
+        COLUMN, not a partition key -- so a second provenance class at an occupied asof is a
+        read-modify-write of a certified canonical object, not an addition. apply_write_guard therefore
+        refuses cross-provenance writes at the PARTITION level, before this key is ever consulted."""
         return self.natural_key() + (self.provenance,)
 
     def row(self) -> dict:
@@ -363,12 +474,21 @@ def classify_pace_decline(pace_rec: Optional[dict], row: Optional[dict], *,
 
 # ── backfill eligibility + grid (plan sec 3.1 / 3.4) ──────────────────────────────────────────────
 def backfill_eligible(tables: Iterable[Optional[str]]) -> bool:
-    """A surface is backfill-eligible iff EVERY leg reads a RELEASE-DATE-VINTAGED table -- equivalently,
-    NO leg reads a period LATEST-ONLY table (oni / weather_z). An unknown/None table fails closed
-    (excluded): the backfill records only verdicts it can honestly replay from vintage (plan sec 3.1/F2)."""
+    """A surface is backfill-eligible iff EVERY leg reads a table whose as-of axis is GENUINE:
+
+      * a leg in LEAKY_ASOF_TABLES  -> EXCLUDED. The table carries a release_date axis but the axis is
+        SYNTHESIZED in code, so a past-asof replay reads values that were not knowable at T. Checked
+        FIRST, so membership in VINTAGED_TABLES cannot re-admit it (W4-writer / SV-L2-N2).
+      * a leg in LATEST_ONLY_TABLES -> EXCLUDED. Period-partitioned latest-only (oni / weather_z): one
+        value per year_month = TODAY's value, possibly rebuilt since T (plan sec 3.1 / F2).
+      * a leg NOT in VINTAGED_TABLES -> EXCLUDED. Unknown/None fails CLOSED.
+
+    The backfill records only verdicts it can honestly replay from vintage."""
     seen = False
     for t in tables:
         seen = True
+        if t in LEAKY_ASOF_TABLES:
+            return False   # synthesized as-of axis -- a replay reads values not knowable at T
         if t in LATEST_ONLY_TABLES:
             return False
         if t not in VINTAGED_TABLES:
@@ -385,11 +505,38 @@ def weekly_backfill_grid(end: str, years: int = 3) -> list[str]:
     return [(end_d - _dt.timedelta(weeks=i)).isoformat() for i in range(n)]
 
 
-# ── the engine_version WRITE-GUARD (plan sec 2.3 / F1) ────────────────────────────────────────────
+# ── the WRITE-GUARD (plan sec 2.3 / F1 + COVERAGE_AND_CAPACITY_PLAN W6 / sec E) ───────────────────
+REFUSE_CROSS_VERSION = "cross_version"
+REFUSE_CROSS_PROVENANCE = "cross_provenance"
+
+
 @dataclass
 class WriteGuardResult:
     writable: list[PatternRecord]   # rows that may be published (new or a same-version idempotent replace)
-    refused: list[dict]             # cross-version overwrite attempts -> ALARM, never a silent rewrite
+    refused: list[dict]             # refused overwrite attempts -> ALARM, never a silent rewrite
+
+    @property
+    def cross_provenance(self) -> list[dict]:
+        """The refusals that would have DESTROYED another provenance class's partition (sec E)."""
+        return [r for r in self.refused if r.get("refusal") == REFUSE_CROSS_PROVENANCE]
+
+    @property
+    def cross_version(self) -> list[dict]:
+        return [r for r in self.refused if r.get("refusal") == REFUSE_CROSS_VERSION]
+
+
+def _asof_str(v: Any) -> Optional[str]:
+    """Normalize a partition value to the 'YYYY-MM-DD' string the incoming records key on. Defence in
+    depth: read_existing_guard_rows already normalizes, but a pg date/timestamp arriving by any other
+    route would otherwise miss the guard_key and the occupancy map -- i.e. fail OPEN."""
+    return None if v is None else str(v)[:10]
+
+
+def _existing_key(r: Any) -> tuple:
+    if isinstance(r, PatternRecord):
+        return r.guard_key()
+    return (r["record_kind"], r["contract"], r["driver_or_chain_id"],
+            _asof_str(r.get("as_of_date") or r.get(PARTITION_COL)), r["provenance"])
 
 
 def _as_existing(rows: Iterable[Any]) -> dict[tuple, dict]:
@@ -397,32 +544,83 @@ def _as_existing(rows: Iterable[Any]) -> dict[tuple, dict]:
     out: dict[tuple, dict] = {}
     for r in rows:
         if isinstance(r, PatternRecord):
-            key, ev, gv = r.guard_key(), r.engine_version, r.graph_version
+            ev, gv = r.engine_version, r.graph_version
         else:
-            key = (r["record_kind"], r["contract"], r["driver_or_chain_id"],
-                   r.get("as_of_date") or r.get(PARTITION_COL), r["provenance"])
             ev, gv = r.get("engine_version"), r.get("graph_version")
-        out[key] = {"engine_version": ev, "graph_version": gv}
+        out[_existing_key(r)] = {"engine_version": ev, "graph_version": gv}
+    return out
+
+
+def _occupancy(rows: Iterable[Any]) -> dict[str, set]:
+    """asof -> the set of provenance classes ALREADY holding rows at that asof. The partition-level
+    fact the cross-provenance refusal keys on (one physical object per asof, sec E)."""
+    out: dict[str, set] = {}
+    for r in rows:
+        if isinstance(r, PatternRecord):
+            asof, prov = r.as_of_date, r.provenance
+        else:
+            asof = _asof_str(r.get("as_of_date") or r.get(PARTITION_COL))
+            prov = r.get("provenance")
+        if asof is None or prov is None:
+            continue
+        out.setdefault(str(asof), set()).add(str(prov))
     return out
 
 
 def apply_write_guard(existing: Iterable[Any], incoming: Iterable[PatternRecord]) -> WriteGuardResult:
-    """Enforce the engine_version write-guard over a partition re-publish (plan sec 2.3 / F1).
+    """Enforce the write-guard over a partition re-publish. TWO independent refusals, checked in order.
 
+    (1) CROSS-PROVENANCE, at the PARTITION level (COVERAGE_AND_CAPACITY_PLAN sec E -- this one has
+        ALREADY DESTROYED DATA). If the target asof holds rows of ANY OTHER provenance class, every
+        incoming record at that asof is REFUSED. The old guard read `WHERE provenance = <target>`, so a
+        backfill_grid write at an asof holding daily_sweep rows saw NOTHING in the way and proceeded as
+        a "first write":
+
+            2026-07-25 08:35:31Z  daily_sweep  created as_of_date=2026-07-25 (object feca06a0..., engine ...4dd0860b)
+            2026-07-25 09:03:40Z  backfill_grid wrote the SAME canonical key (object 2e5222a4..., engine ...8e63f381)
+                                  and the publisher recorded it as "existing / exact managed match"
+            today                 the ledger holds ZERO daily_sweep rows
+
+        The engine_version ALSO differed, which is precisely the condition (2) exists to catch -- the
+        provenance filter meant (2) never got to see it. provenance CANNOT be additive here: the layout
+        is ONE OBJECT PER ASOF and provenance is a physical column, not a partition key, so a
+        second-class write is a read-modify-write of a certified canonical object. Refuse it. The
+        sanctioned move is a DIFFERENT asof, or a shadow prefix.
+
+    (2) CROSS-VERSION, per guard_key (plan sec 2.3 / F1):
       * a key ABSENT from `existing` -> writable (a fresh record);
       * a key PRESENT with the SAME engine_version + graph_version -> writable (a same-code retry /
-        same-day repair is an IDEMPOTENT replace, never a duplicate -- one row per (guard_key));
+        same-day repair is an IDEMPOTENT replace, never a duplicate -- one row per guard_key);
       * a key PRESENT with a DIFFERENT engine_version or graph_version -> REFUSED + alarmed: overwriting
-        it would rewrite the T-verdict with LATER CODE (a retroactive code-recompute, non-goal 6). Such a
-        re-derivation must instead be published as a FRESH backfill_grid row (its own provenance), NEVER
-        an in-place overwrite of the daily_sweep row that recorded what the then-current engine decided.
+        it would rewrite the T-verdict with LATER CODE (a retroactive code-recompute, non-goal 6).
 
-    daily_sweep and backfill_grid rows never collide (guard_key includes provenance) -- provenance
-    separation is structural, not a rule the guard has to remember (plan sec 3.3)."""
+    `existing` MUST come from a read that spans ALL provenance classes at the target asofs -- that is
+    what read_existing_guard_rows now does. Passing a provenance-filtered read back into this function
+    silently disarms (1)."""
     idx = _as_existing(existing)
+    occupied = _occupancy(existing)
     writable: list[PatternRecord] = []
     refused: list[dict] = []
     for rec in incoming:
+        foreign = sorted(occupied.get(rec.as_of_date, set()) - {rec.provenance})
+        if foreign:
+            refused.append({
+                "refusal": REFUSE_CROSS_PROVENANCE,
+                "guard_key": rec.guard_key(),
+                "as_of_date": rec.as_of_date,
+                "incoming_provenance": rec.provenance,
+                "stored_provenance": foreign,
+                "stored_engine_version": (idx.get(rec.guard_key()) or {}).get("engine_version"),
+                "incoming_engine_version": rec.engine_version,
+                "stored_graph_version": (idx.get(rec.guard_key()) or {}).get("graph_version"),
+                "incoming_graph_version": rec.graph_version,
+                "reason": f"CROSS-PROVENANCE overwrite REFUSED: as_of_date={rec.as_of_date} already holds "
+                          f"{foreign} rows and the layout is ONE OBJECT PER ASOF (provenance is a column, "
+                          f"NOT a partition key), so writing provenance={rec.provenance} here would "
+                          f"DESTROY them -- this is exactly what happened on 2026-07-25 09:03Z. Publish "
+                          f"the re-derivation at a different asof or to a shadow prefix; never in place.",
+            })
+            continue
         prior = idx.get(rec.guard_key())
         if prior is None:
             writable.append(rec)
@@ -431,7 +629,11 @@ def apply_write_guard(existing: Iterable[Any], incoming: Iterable[PatternRecord]
             writable.append(rec)  # idempotent same-version replace
             continue
         refused.append({
+            "refusal": REFUSE_CROSS_VERSION,
             "guard_key": rec.guard_key(),
+            "as_of_date": rec.as_of_date,
+            "incoming_provenance": rec.provenance,
+            "stored_provenance": [rec.provenance],
             "stored_engine_version": prior.get("engine_version"),
             "incoming_engine_version": rec.engine_version,
             "stored_graph_version": prior.get("graph_version"),
@@ -447,28 +649,82 @@ def _sql_lit(v: str) -> str:
     return "'" + str(v).replace("'", "''") + "'"
 
 
-def read_existing_guard_rows(query_fn, asofs: Iterable[str], provenance: str) -> list[dict]:
-    """Read the guard-key columns of any EXISTING ledger rows for the target (asofs, provenance) from the pg
-    mirror, so apply_write_guard can compare engine_version/graph_version BEFORE a re-publish overwrites a
-    T-verdict (plan sec 2.3 / F1). pg-ONLY (the injected query_fn is pgnumbers.pg_query) -- a mirror gap is
-    NEVER a silent Athena round-trip. The partition value is normalized to the 'YYYY-MM-DD' string the
-    incoming records key on (a pg date object / timestamp text would otherwise never match the guard_key,
-    silently PASSING a cross-version overwrite). Best-effort: a MISSING table (the first write / flip day) or
-    any read error yields [] -- the guard cannot (and must not) block a first write; it only blocks a
-    cross-version OVERWRITE of a row that already exists."""
+class GuardReadError(RuntimeError):
+    """The write-guard could not READ the existing ledger rows, so it cannot know what it would
+    overwrite. NOT the same as "there is nothing there" -- and the publish MUST abort (W6.i)."""
+
+
+def _is_missing_ledger_table(exc: BaseException) -> bool:
+    """Is this pg error 'the ledger table does not exist yet' -- a LEGITIMATE first write / flip day --
+    as opposed to 'the read FAILED' (mirror gap, dead connection, timeout, permission, syntax)?
+
+    The old code could not tell them apart: it swallowed EVERY exception and returned [], which
+    apply_write_guard reads as "first write" and therefore "everything is writable". A single pg blip
+    during a re-publish was a silent full overwrite of a certified canonical partition. Only the
+    narrow, positively-identified missing-table case may fail open; everything else raises.
+
+    "Undefined table" is recognised three ways, so the classification never depends on a driver import:
+      * the psycopg exception CLASS (psycopg2.errors.UndefinedTable / psycopg.errors.UndefinedTable);
+      * SQLSTATE 42P01 (undefined_table) off `.pgcode` or `.diag.sqlstate`, whichever the driver sets;
+      * the message text ('does not exist' / 'no such table').
+
+    ALL THREE are then AND-ed with "and the message names OUR table". That conjunction is load-bearing
+    and was missing: psycopg raises UndefinedTable/42P01 for ANY missing relation, so the class and
+    SQLSTATE tests are table-BLIND on their own and a missing *different* relation -- somebody else's
+    schema problem -- used to fail open into "everything is writable". Requiring the table name is the
+    only scoped signal available, and anything unrecognised now raises instead, which is the safe
+    direction: an unreadable guard MUST abort, never assume an empty partition.
+    """
+    msg = str(exc).lower()
+    if TABLE.lower() not in msg:
+        return False
+    if "undefinedtable" in type(exc).__name__.lower():
+        return True
+    code = getattr(exc, "pgcode", None) or getattr(getattr(exc, "diag", None), "sqlstate", None)
+    if code == "42P01":
+        return True
+    return "does not exist" in msg or "no such table" in msg
+
+
+def read_existing_guard_rows(query_fn, asofs: Iterable[str]) -> list[dict]:
+    """Read the guard-key columns of EVERY existing ledger row at the target asofs from the pg mirror, so
+    apply_write_guard can (a) refuse a cross-provenance partition overwrite and (b) compare
+    engine_version/graph_version BEFORE a re-publish rewrites a T-verdict.
+
+    ACROSS ALL PROVENANCE CLASSES -- the `WHERE provenance = <target>` predicate this function used to
+    carry is the defect in COVERAGE_AND_CAPACITY_PLAN sec E: on 2026-07-25 a backfill_grid run asked
+    "are there any backfill_grid rows at 2026-07-25?", got no, and overwrote the daily_sweep partition
+    written 28 minutes earlier. The guard cannot refuse what it does not read. provenance stays in the
+    SELECT list because it is part of the guard_key and of the occupancy map.
+
+    pg-ONLY (the injected query_fn is pgnumbers.pg_query) -- a mirror gap is NEVER a silent Athena
+    round-trip. The partition value is normalized to the 'YYYY-MM-DD' string the incoming records key on
+    (a pg date object / timestamp text would otherwise never match the guard_key, silently PASSING an
+    overwrite).
+
+    FAILURE POLICY (W6.i): a positively-identified MISSING TABLE -> [] (a first write is never blocked).
+    ANY OTHER read failure -> GuardReadError. Returning [] on an unreadable mirror is indistinguishable
+    from "the partition is empty" and licences a full overwrite."""
     asof_list = sorted({a for a in asofs if a})
     if not asof_list:
         return []
     in_list = ", ".join(_sql_lit(a) for a in asof_list)
+    # PG_TABLE, not TABLE -- schema-qualified. An unqualified name does not resolve on the mirror's
+    # default search_path and made this entire guard a no-op; see the PG_TABLE definition.
     sql = (f"SELECT record_kind, contract, driver_or_chain_id, {PARTITION_COL}, provenance, "
-           f"engine_version, graph_version FROM {TABLE} "
-           f"WHERE provenance = {_sql_lit(provenance)} "
-           f"AND substr(cast({PARTITION_COL} as varchar), 1, 10) IN ({in_list})")
+           f"engine_version, graph_version FROM {PG_TABLE} "
+           f"WHERE substr(cast({PARTITION_COL} as varchar), 1, 10) IN ({in_list})")
     try:
         rows = list(query_fn(sql) or [])
-    except Exception as e:  # noqa: BLE001 -- missing table / mirror gap -> best-effort empty; never Athena
-        logger.warning("write-guard: existing-row read failed (%s); proceeding as a first write", str(e)[:200])
-        return []
+    except Exception as e:  # noqa: BLE001 -- classify; never Athena, never a blanket swallow
+        if _is_missing_ledger_table(e):
+            logger.warning("write-guard: %s does not exist (%s) -- treating as a FIRST WRITE", TABLE, str(e)[:200])
+            return []
+        raise GuardReadError(
+            f"write-guard could not read existing rows for asofs={asof_list[:5]}"
+            f"{'...' if len(asof_list) > 5 else ''}: {type(e).__name__}: {str(e)[:300]}. ABORTING the "
+            f"publish -- an unreadable guard cannot distinguish 'nothing there' from 'could not look', "
+            f"and proceeding would overwrite a certified partition (W6.i)") from e
     for r in rows:
         av = r.get("as_of_date")  # PARTITION_COL == "as_of_date"; the SELECT aliases the column to this key
         r["as_of_date"] = str(av)[:10] if av is not None else None
@@ -655,8 +911,22 @@ def sweep(asof: str, query_fn, ctx: RunContext, *,
     """Produce the day's (or a grid asof's) records across the v1 kinds. When
     `backfill_only_vintaged` (the backfill grid), a verdict is recorded ONLY if its surface is
     backfill-eligible (every leg reads a release-date-vintaged table); oni/weather_z-legged surfaces are
-    EXCLUDED and left to accrue daily-sweep-only (plan sec 3.1 / 3.4 / F2)."""
+    EXCLUDED and left to accrue daily-sweep-only (plan sec 3.1 / 3.4 / F2).
+
+    W3: on the DAILY path (ctx.provenance == daily_sweep) the kind set is narrowed to DAILY_SWEEP_KINDS
+    = {pace} -- see that constant for the measured justification and for where the cascade/chain
+    resolvability pictures live instead. The narrowing keys on ctx.provenance, NOT on the --kinds CLI
+    argument, so it cannot be lost by an invocation that passes --kinds (the deployed jobdef passes
+    none, and the default is all three). The BACKFILL path is untouched."""
     kinds = set(kinds)
+    if ctx.provenance == PROV_DAILY_SWEEP:
+        dropped = kinds - DAILY_SWEEP_KINDS
+        kinds &= DAILY_SWEEP_KINDS
+        if dropped:
+            logger.info("W3: daily sweep records %s only -- dropping %s (cascade rows are constant-valued "
+                        "catalog-existence flags, chain rows are 100%% root_not_grounded without a "
+                        "trace_provider; both pictures live in cascade_census / config_check.check_chain_map, "
+                        "not in a citable ledger)", sorted(DAILY_SWEEP_KINDS), sorted(dropped))
     verdicts: list[_EngineVerdict] = []
     if KIND_CASCADE in kinds:
         verdicts += cascade_verdicts(asof, query_fn)
@@ -743,7 +1013,8 @@ def main(argv=None) -> int:
                     help="run the bounded weekly grid over vintaged-leg surfaces (provenance=backfill_grid)")
     ap.add_argument("--backfill-years", type=float, default=3.0, help="backfill grid depth in years (~3-5)")
     ap.add_argument("--kinds", default=",".join(sorted(V1_KINDS)),
-                    help="comma list of record kinds to sweep (v1: cascade,pace,chain)")
+                    help="comma list of record kinds to sweep (v1: cascade,pace,chain). The DAILY path "
+                         f"records {sorted(DAILY_SWEEP_KINDS)} regardless (W3); --kinds only narrows.")
     ap.add_argument("--dry-run", action="store_true", help="build records + print counts; write NOTHING")
     ap.add_argument("--publish-mode", default="dry-run", help="dry-run (default) | shadow | canonical")
     ap.add_argument("--shadow-prefix", default=None, dest="shadow_prefix")
@@ -796,31 +1067,57 @@ def main(argv=None) -> int:
         Path(args.out).parent.mkdir(parents=True, exist_ok=True)
         Path(args.out).write_text(json.dumps([r.row() for r in records], indent=1), encoding="utf-8")
 
-    # (F1) the engine_version WRITE-GUARD, ENFORCED AT RUNTIME (plan sec 2.3). Read the EXISTING ledger rows
-    # for the target partitions + provenance and REFUSE to overwrite any whose stored engine_version /
-    # graph_version differs -- an in-place retroactive CODE-recompute of a T-verdict (non-goal 6). Refusals
-    # ALARM (a loud ERROR line, never a silent rewrite); ONLY the writable set is published. daily_sweep and
-    # backfill_grid rows never collide (the guard_key carries provenance). A first write / missing table reads
-    # [] -> all writable. This is the read-existing-then-compare step the plan mandates; without it a same-asof
-    # re-run under a bumped image would silently overwrite the T-verdict (publisher._promote copy_object is
+    # (F1 + W6 + sec E) the WRITE-GUARD, ENFORCED AT RUNTIME. Read EVERY existing ledger row at the target
+    # asofs -- ACROSS ALL PROVENANCE CLASSES, which is the sec-E fix -- and refuse two things: a
+    # cross-PROVENANCE partition overwrite (the layout is one object per asof; provenance is a column, so a
+    # second class DESTROYS the first -- it did on 2026-07-25 09:03Z), and a cross-VERSION overwrite of a
+    # T-verdict under changed code (non-goal 6). Refusals ALARM (loud ERROR lines, never a silent rewrite)
+    # and ONLY the writable set is published. A positively-identified MISSING TABLE reads [] -> all
+    # writable; ANY OTHER read failure raises GuardReadError and ABORTS (W6.i) -- proceeding on an
+    # unreadable guard is how a pg blip becomes a full overwrite (publisher._promote copy_object is
     # unconditional and the pg mirror upserts on the natural key).
-    existing = read_existing_guard_rows(query_fn, asofs, provenance)
+    try:
+        existing = read_existing_guard_rows(query_fn, asofs)
+    except GuardReadError as e:
+        logger.error("ABORT %s", e)
+        return 3
     guard = apply_write_guard(existing, records)
     refused_n = len(guard.refused)
+    for r in guard.cross_provenance:
+        logger.error("ALARM write-guard REFUSED CROSS-PROVENANCE overwrite asof=%s stored_provenance=%s "
+                     "incoming_provenance=%s key=%s -- %s",
+                     r["as_of_date"], r["stored_provenance"], r["incoming_provenance"], r["guard_key"],
+                     r["reason"])
+    for r in guard.cross_version:
+        logger.error("ALARM write-guard REFUSED cross-version overwrite key=%s stored(engine=%s graph=%s) "
+                     "incoming(engine=%s graph=%s) -- re-derive as a fresh backfill_grid row, never in place",
+                     r["guard_key"], r["stored_engine_version"], r["stored_graph_version"],
+                     r["incoming_engine_version"], r["incoming_graph_version"])
+    cross_prov_n = len(guard.cross_provenance)
     if refused_n:
-        for r in guard.refused:
-            logger.error("ALARM write-guard REFUSED cross-version overwrite key=%s stored(engine=%s graph=%s) "
-                         "incoming(engine=%s graph=%s) -- re-derive as a fresh backfill_grid row, never in place",
-                         r["guard_key"], r["stored_engine_version"], r["stored_graph_version"],
-                         r["incoming_engine_version"], r["incoming_graph_version"])
-        logger.error("ALARM write-guard: REFUSED %d of %d built record(s) (cross engine_version/graph_version); "
-                     "publishing ONLY the %d writable row(s)", refused_n, len(records), len(guard.writable))
+        blocked = sorted({r["as_of_date"] for r in guard.cross_provenance})
+        logger.error("ALARM write-guard: REFUSED %d of %d built record(s) -- %d cross-provenance over %d "
+                     "asof(s) %s, %d cross-version. %s",
+                     refused_n, len(records), cross_prov_n, len(blocked), blocked[:8],
+                     len(guard.cross_version),
+                     "ABORTING the whole publish (cross-provenance)." if cross_prov_n
+                     else f"Publishing ONLY the {len(guard.writable)} writable row(s).")
     records = guard.writable
+    # A cross-provenance collision is an OPERATOR error (a backfill grid overlapping asofs the daily sweep
+    # already owns), not a data condition -- the run is NOT clean even though the guard prevented the
+    # damage, so the WHOLE publish aborts rather than writing a silently-partial grid. The same non-zero
+    # exit is returned under --dry-run, because the dry-run's whole job is to predict the publish.
+    # Cross-VERSION refusals keep their historical behaviour (alarm + publish the writable remainder).
 
     if args.dry_run:
         logger.info("--dry-run: %d writable record(s) (%d refused by write-guard); nothing written",
                     len(records), refused_n)
-        return 0
+        return 4 if cross_prov_n else 0
+    if cross_prov_n:
+        logger.error("ABORT: %d record(s) would have overwritten another provenance class's partition; "
+                     "refusing the whole publish. Re-derive at a different asof or to a shadow prefix.",
+                     cross_prov_n)
+        return 4
 
     contract = _load_contract()
     import boto3

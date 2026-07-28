@@ -773,7 +773,35 @@ def _guardrail_check(query: str):
 # `cause` DIMENSION over raw exception text would mint a new billed dimension value per distinct message.
 # The floor is NOT single-cause (the reason a dimension is required, not optional): the 7d log carries pg
 # statement timeouts under RDS credit/EBS starvation AND a bge model-download OSError against huggingface.co.
-_FLOOR_CAUSES = ("pg_statement_timeout", "pg_operational", "model_download", "other")
+#
+# W8 adds the 5th class, `llm_unavailable`, and it is the one the metric existed for. The floor's OWN
+# definition is "every LLM attempt has failed" (providers.py: backoff ladder -> one degraded-model attempt
+# -> raise), so a provider outage is the floor's most likely cause -- and until now it landed in `other`,
+# indistinguishable from a code bug. The 2026-07-19 incident cost hours because "the model tier is down"
+# and "our retrieval is broken" produced the same telemetry. These are TYPE-and-message classifications
+# over the anthropic SDK's own availability errors (providers.RETRYABLE = RateLimitError,
+# APIConnectionError, InternalServerError -- 529 overloaded arrives as InternalServerError), which reach
+# the floor UNWRAPPED: serving_call re-raises the original exception after the degraded attempt fails.
+_FLOOR_CAUSES = ("pg_statement_timeout", "pg_operational", "model_download", "llm_unavailable", "other")
+
+# Bounded, and matched against the TYPE NAME only -- never raw message text, so no user/provider string can
+# mint a dimension value. Bedrock's InvokeModel throttle/unavailability names are included because serving
+# is provider-routable (GRAPHRAG_PROVIDER=bedrock uses AnthropicBedrock over bedrock-runtime).
+_LLM_UNAVAILABLE_TYPES = (
+    "ratelimiterror",             # 429, both providers
+    # Every entry must match a name that ACTUALLY EXISTS -- substring matching does NOT follow the class
+    # hierarchy. anthropic.APITimeoutError subclasses APIConnectionError, but its NAME is
+    # "apitimeouterror", which does not contain "apiconnectionerror", so the subclass needs its own row.
+    # Verified against the installed SDK's exports (2026-07-28), not from memory: APIConnectionError,
+    # APITimeoutError, InternalServerError, OverloadedError, RateLimitError all exist under these names.
+    "apiconnectionerror",         # anthropic.APIConnectionError -- connection refused/reset/DNS
+    "apitimeouterror",            # anthropic.APITimeoutError (a SUBCLASS of the above; distinct name)
+    "internalservererror",        # >=500 incl. 529 overloaded_error
+    "overloadederror",
+    "serviceunavailable",         # botocore: ServiceUnavailableException
+    "throttlingexception",        # botocore: bedrock-runtime throttle
+    "modelnotready",              # botocore: ModelNotReadyException
+)
 
 
 def _floor_cause(exc: BaseException) -> str:
@@ -781,7 +809,12 @@ def _floor_cause(exc: BaseException) -> str:
     failure surfaces differently by driver: psycopg raises `QueryCanceled` while a wrapper re-raises the
     identical "canceling statement due to statement timeout" text as `OperationalError`, and the model
     download arrives as a bare `OSError` whose message is the ONLY signal. The timeout test runs before the
-    generic pg one so a QueryCanceled can never land in `pg_operational`."""
+    generic pg one so a QueryCanceled can never land in `pg_operational`.
+
+    ORDER MATTERS and the LLM test is deliberately LAST before `other`: an availability error raised while
+    a pg statement was timing out is still a pg incident, and `model_download` (bge, the rerank fallback)
+    is a retrieval-side outage, not an LLM-tier one. Only what nothing else claims can be llm_unavailable.
+    """
     name = type(exc).__name__.lower()
     msg = str(exc).lower()
     if "querycanceled" in name or "statement timeout" in msg or "canceling statement" in msg:
@@ -790,6 +823,8 @@ def _floor_cause(exc: BaseException) -> str:
         return "model_download"
     if "operationalerror" in name or "operationalerror" in msg or "psycopg" in msg:
         return "pg_operational"
+    if any(t in name for t in _LLM_UNAVAILABLE_TYPES):
+        return "llm_unavailable"
     return "other"
 
 

@@ -597,15 +597,77 @@ resource "aws_iam_role_policy" "notifications_scheduler" {
   role = aws_iam_role.notifications_scheduler.id
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Action = "batch:SubmitJob"
-      Resource = [
-        module.batch.job_queue_arn,
-        "arn:aws:batch:${var.aws_region}:${data.aws_caller_identity.current.account_id}:job-definition/${var.project_name}-${var.environment}-notifications:*",
-      ]
-    }]
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = "batch:SubmitJob"
+        Resource = [
+          module.batch.job_queue_arn,
+          "arn:aws:batch:${var.aws_region}:${data.aws_caller_identity.current.account_id}:job-definition/${var.project_name}-${var.environment}-notifications:*",
+          # 2026-07-28 INCIDENT FIX (U2) -- the SAME unversioned-jobdef-ARN defect that killed the
+          # pattern-records sweep (see the twin comment on the sweep policy below) has been killing the
+          # MORNING BRIEF since the day it was armed. The schedule submits `...-notifications` with NO
+          # `:revision` segment, the `:*` pattern above requires that segment, so every 12:00:08Z SubmitJob
+          # was AccessDenied. Evidence, two independent ways: CloudTrail lookup-events on SubmitJob
+          # (role leviathan-dev-notifications-scheduler, 07-26 and 07-27 12:00:08Z) AND AWS/Scheduler
+          # InvocationDroppedCount, which shows a drop EVERY DAY since 2026-07-10 -- the day this schedule
+          # flipped to ENABLED. 18 consecutive days, 0 briefs. Keep BOTH lines: `:*` covers a versioned
+          # manual submit, the bare one covers the scheduler.
+          "arn:aws:batch:${var.aws_region}:${data.aws_caller_identity.current.account_id}:job-definition/${var.project_name}-${var.environment}-notifications",
+        ]
+      },
+      {
+        # The schedule's dead-letter queue. EventBridge Scheduler writes the dropped event with the
+        # SCHEDULE's execution role, so the grant belongs here (SQS needs no resource policy for a
+        # same-account IAM principal).
+        Effect   = "Allow"
+        Action   = "sqs:SendMessage"
+        Resource = aws_sqs_queue.notifications_scheduler_dlq.arn
+      },
+    ]
   })
+}
+
+# ---------------------------------------------------------------------------
+# W1(a)/U2 -- make a dead schedule ATTRIBUTABLE and NON-SELF-CLEARING.
+#
+# Correcting the incident write-up while installing the fix: these failures were NOT undetected. The
+# group-level alarm `leviathan-dev-scheduler-target-errors` (silver_observability, AWS/Scheduler
+# TargetErrorCount > 0, dim ScheduleGroup=default) is live, ENABLED, wired to two SNS topics, and it
+# transitioned OK->ALARM->OK on EVERY one of the six failures (07-25/26/27 at 12:01Z and 23:01Z --
+# alarm history read 2026-07-28). What failed was ATTRIBUTION and PERSISTENCE:
+#   * AWS/Scheduler publishes NO per-schedule dimension (list-metrics: ScheduleGroup is the only one),
+#     so the alarm can say "a schedule in the default group errored" and nothing more -- and 20+
+#     schedules share that group;
+#   * a Sum-over-5-minutes alarm self-clears 15 minutes later, so by morning everything reads OK.
+# A DLQ fixes exactly those two things: the dropped event is a DURABLE object naming its own schedule
+# and carrying the target input, and it sits in the queue until a human deletes it.
+# ---------------------------------------------------------------------------
+resource "aws_sqs_queue" "notifications_scheduler_dlq" {
+  name                      = "${var.project_name}-${var.environment}-morning-brief-dlq"
+  message_retention_seconds = 1209600 # 14 days (SQS max) -- a weekend + a vacation
+  sqs_managed_sse_enabled   = true
+
+  tags = { Project = var.project_name, Environment = var.environment, ManagedBy = "terraform" }
+}
+
+resource "aws_cloudwatch_metric_alarm" "notifications_scheduler_dlq_depth" {
+  alarm_name        = "${var.project_name}-${var.environment}-morning-brief-dlq-depth"
+  alarm_description = "The morning-brief schedule dead-lettered an invocation (target unreachable/denied). The message body names the schedule and carries the SubmitJob input. Drain only after the cause is fixed."
+  namespace         = "AWS/SQS"
+  metric_name       = "ApproximateNumberOfMessagesVisible"
+  dimensions        = { QueueName = aws_sqs_queue.notifications_scheduler_dlq.name }
+  statistic         = "Maximum"
+  period            = 300
+  # UNLIKE the TargetErrorCount alarm this does NOT self-clear: the metric stays > 0 for as long as the
+  # message is in the queue, so the alarm holds until someone actually looks.
+  evaluation_periods  = 1
+  comparison_operator = "GreaterThanThreshold"
+  threshold           = 0
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [module.alerting.topic_arn]
+
+  tags = { Project = var.project_name, Environment = var.environment, ManagedBy = "terraform" }
 }
 
 resource "aws_scheduler_schedule" "notifications" {
@@ -634,6 +696,14 @@ resource "aws_scheduler_schedule" "notifications" {
       }
       RetryStrategy = { Attempts = 2 }
     })
+
+    # A dropped invocation now lands somewhere DURABLE. Scheduler treats an AccessDenied from the target
+    # as non-retryable and drops it immediately (InvocationDroppedCount == TargetErrorCount == 1/day
+    # through the whole outage -- no retry storm), so the event reaches this queue on the first failure
+    # with no retry_policy change needed here.
+    dead_letter_config {
+      arn = aws_sqs_queue.notifications_scheduler_dlq.arn
+    }
   }
 }
 
@@ -755,23 +825,94 @@ resource "aws_iam_role_policy" "pattern_records_scheduler" {
   role = aws_iam_role.pattern_records_scheduler[0].id
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Action = "batch:SubmitJob"
-      Resource = [
-        module.batch.job_queue_arn,
-        "arn:aws:batch:${var.aws_region}:${data.aws_caller_identity.current.account_id}:job-definition/${module.batch.pattern_records_sweep_job_definition_name}:*",
-        # 2026-07-28 INCIDENT FIX -- the sweep was ARMED AND SILENTLY DEAD for 3 nights. The schedule
-        # submits with the UNVERSIONED jobdef name, and Batch then authorizes against the ARN WITHOUT a
-        # `:revision` segment; the `:*` pattern above requires that segment to exist, so every nightly
-        # SubmitJob was AccessDenied (CloudTrail 07-26/07-27 23:00:38Z) and, with MaximumRetryAttempts=0
-        # and no DLQ, the failures were invisible. iam simulate-principal-policy: `...sweep:2` -> allowed,
-        # `...sweep` (bare) -> implicitDeny. The bare ARN below closes exactly that gap. Keep BOTH lines:
-        # `:*` covers versioned submits (manual runs pin a revision), the bare one covers the scheduler.
-        "arn:aws:batch:${var.aws_region}:${data.aws_caller_identity.current.account_id}:job-definition/${module.batch.pattern_records_sweep_job_definition_name}",
-      ]
-    }]
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = "batch:SubmitJob"
+        Resource = [
+          module.batch.job_queue_arn,
+          "arn:aws:batch:${var.aws_region}:${data.aws_caller_identity.current.account_id}:job-definition/${module.batch.pattern_records_sweep_job_definition_name}:*",
+          # 2026-07-28 INCIDENT FIX -- the sweep was ARMED AND SILENTLY DEAD for 3 nights. The schedule
+          # submits with the UNVERSIONED jobdef name, and Batch then authorizes against the ARN WITHOUT a
+          # `:revision` segment; the `:*` pattern above requires that segment to exist, so every nightly
+          # SubmitJob was AccessDenied (CloudTrail 07-26/07-27 23:00:38Z) and, with MaximumRetryAttempts=0
+          # and no DLQ, the fire was simply gone. ("Invisible" was the original wording and it is too
+          # strong -- re-probed 2026-07-28: the group TargetErrorCount alarm DID fire and self-clear on
+          # every one of them. What was missing is attribution and persistence; see the DLQ block below.)
+          # iam simulate-principal-policy: `...sweep:2` -> allowed,
+          # `...sweep` (bare) -> implicitDeny. The bare ARN below closes exactly that gap. Keep BOTH lines:
+          # `:*` covers versioned submits (manual runs pin a revision), the bare one covers the scheduler.
+          "arn:aws:batch:${var.aws_region}:${data.aws_caller_identity.current.account_id}:job-definition/${module.batch.pattern_records_sweep_job_definition_name}",
+        ]
+      },
+      {
+        # DLQ write. A SEPARATE statement on purpose: folding sqs:SendMessage into the Action list above
+        # would grant BOTH actions on BOTH resource sets (batch:SubmitJob on the queue is harmless, but
+        # sqs:SendMessage on a job-definition ARN is the kind of accidental widening this incident is
+        # already about). The write is performed BY THIS ROLE -- Scheduler assumes it to dead-letter.
+        Effect   = "Allow"
+        Action   = "sqs:SendMessage"
+        Resource = aws_sqs_queue.pattern_records_scheduler_dlq[0].arn
+      },
+    ]
   })
+}
+
+resource "aws_sqs_queue" "pattern_records_scheduler_dlq" {
+  count = var.pattern_records_image_digest != "" ? 1 : 0
+
+  name                      = "${var.project_name}-${var.environment}-pattern-records-sweep-dlq"
+  message_retention_seconds = 1209600 # 14 days (SQS max)
+  sqs_managed_sse_enabled   = true
+
+  tags = { Project = var.project_name, Environment = var.environment, ManagedBy = "terraform" }
+}
+
+resource "aws_cloudwatch_metric_alarm" "pattern_records_scheduler_dlq_depth" {
+  count = var.pattern_records_image_digest != "" ? 1 : 0
+
+  alarm_name        = "${var.project_name}-${var.environment}-pattern-records-sweep-dlq-depth"
+  alarm_description = "The nightly pattern-records sweep was DROPPED before it ever reached Batch (the 07-25/26/27 AccessDenied class). A ledger row is a permanent record of what the engine decided at T, so a missed night is a permanent hole in the as-of grid -- investigate, fix, re-fire with an explicit --asof, and only then drain this queue."
+  namespace         = "AWS/SQS"
+  metric_name       = "ApproximateNumberOfMessagesVisible"
+  dimensions        = { QueueName = aws_sqs_queue.pattern_records_scheduler_dlq[0].name }
+  statistic         = "Maximum"
+  period            = 300
+  # Holds ALARM until the queue is drained -- the property the 5-minute TargetErrorCount alarm lacks
+  # (it went OK->ALARM->OK inside 15 minutes on all six failures and read OK by morning).
+  evaluation_periods  = 1
+  comparison_operator = "GreaterThanThreshold"
+  threshold           = 0
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [module.alerting.topic_arn]
+
+  tags = { Project = var.project_name, Environment = var.environment, ManagedBy = "terraform" }
+}
+
+# The group-wide drop counter, alarmed for the first time. TargetErrorCount ("the target returned an
+# error") is already alarmed in silver_observability; InvocationDroppedCount is the strictly worse event
+# -- Scheduler GAVE UP and the fire is gone. Measured over the incident window they were identical
+# (1/day each per dead schedule, no retry storm), but they are not the same failure: a target that errors
+# and is retried into success never increments this one. Group-scoped because AWS/Scheduler publishes no
+# per-schedule dimension (list-metrics, 2026-07-28: ScheduleGroup is the ONLY dimension) -- which is also
+# why the DLQs above exist: the dropped event body is the only per-schedule attribution that exists.
+# Read before writing this: the counter shows a drop EVERY DAY since 2026-07-10 (25 in July), i.e. the
+# morning brief has been dead since it was armed and nobody could tell from the group alarm alone.
+resource "aws_cloudwatch_metric_alarm" "scheduler_invocations_dropped" {
+  alarm_name          = "${var.project_name}-${var.environment}-scheduler-invocations-dropped"
+  alarm_description   = "EventBridge Scheduler DROPPED >0 invocations in the default group (retries exhausted or a non-retryable target error -- e.g. an AccessDenied SubmitJob). The fire is gone; the schedule will not self-heal. Attribution: read the per-schedule DLQs."
+  namespace           = "AWS/Scheduler"
+  metric_name         = "InvocationDroppedCount"
+  dimensions          = { ScheduleGroup = "default" }
+  statistic           = "Sum"
+  period              = 300
+  evaluation_periods  = 1
+  comparison_operator = "GreaterThanThreshold"
+  threshold           = 0
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [module.alerting.topic_arn]
+
+  tags = { Project = var.project_name, Environment = var.environment, ManagedBy = "terraform" }
 }
 
 resource "aws_scheduler_schedule" "pattern_records_sweep" {
@@ -809,6 +950,14 @@ resource "aws_scheduler_schedule" "pattern_records_sweep" {
     retry_policy {
       maximum_retry_attempts       = 0
       maximum_event_age_in_seconds = 3600
+    }
+
+    # maximum_retry_attempts = 0 means EVERY failure is terminal on the first try -- which is the right
+    # call for a publishing job and is exactly why this schedule needed a DLQ more than any other. The
+    # 07-25/26/27 fires produced InvocationDroppedCount = 1/night and left NOTHING behind; with this the
+    # dropped event (schedule name + the full SubmitJob input) is durable for 14 days.
+    dead_letter_config {
+      arn = aws_sqs_queue.pattern_records_scheduler_dlq[0].arn
     }
   }
 }

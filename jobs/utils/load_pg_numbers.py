@@ -33,6 +33,24 @@ from leviathan.common.logging import get_logger
 
 logger = get_logger("load_pg_numbers")
 
+# W7 -- THE 2x MISCOUNT FENCE. The F015 publisher stages every object under `<root>/_shadow/` before
+# promoting it and persists run manifests under `<root>/_manifests/`, so a table root can hold a
+# BYTE-IDENTICAL twin of every canonical object (same size, same run_id, same written_at) under the same
+# prefix. `gold/pattern_records/` is the live example: 156 canonical `as_of_date=` objects + 156 shadow
+# copies + 3 manifests = 315 objects. A prefix scan that does not exclude these reads 312 parquet files /
+# 78,312 rows instead of 156 / 39,156 -- exactly 2x, with no error and no warning. That is not a storage
+# nuisance: this loader builds the pg mirror the serving numbers lane reads, and a DOUBLED DENOMINATOR in
+# a "fired on N of M sweeps" base rate is a wrong number delivered confidently. (Athena/Hive is safe by
+# accident -- `_shadow` does not match `as_of_date=`.)
+#
+# pyarrow's dataset discovery defaults to exactly this exclusion, so passing it EXPLICITLY is a no-op
+# today (verified 2026-07-28 on pyarrow 24.0.0 against a replica of the pattern_records layout: default
+# and explicit both discover 2 of 4 files; `ignore_prefixes=[]` discovers 4 AND dies on the manifest
+# JSON). It is passed anyway because "correct by an unstated library default" is how the miscount gets
+# re-earned -- by a future reader that lists with boto3, or by anyone who overrides this kwarg to pick up
+# some other hidden path and silently takes the shadow copies with it.
+_HIDDEN_PREFIXES = ["_", "."]
+
 P1_TABLES = ["silver_psd", "silver_wasde", "silver_production", "silver_esr", "silver_fred_fx",
              "silver_noaa_oni", "gold_weather_z",         # gold_weather_z: small tall z-table (D-W4);
              #                                              silver_nasa_power stays EXCLUDED (size, above)
@@ -114,8 +132,12 @@ def _probe_body_columns(location: str) -> set[str]:
     for page in s3.get_paginator("list_objects_v2").paginate(Bucket=bucket, Prefix=prefix + "/"):
         for obj in page.get("Contents", []):
             rel = obj["Key"][len(prefix):].lstrip("/")
-            if any(seg.startswith(("_", ".")) for seg in rel.split("/")):
-                continue                                     # hidden staging/manifest prefixes
+            if any(seg.startswith(tuple(_HIDDEN_PREFIXES)) for seg in rel.split("/")):
+                continue                                     # W7: _shadow/ + _manifests/ -- the 2x fence.
+                # This is the RAW-LIST reader, where the hazard is real and unguarded (boto3 has no
+                # ignore_prefixes default). Checked per SEGMENT, not on the basename, because the twin is
+                # `_shadow/as_of_date=<d>/pattern_records.parquet` -- an ordinary file name under a hidden
+                # DIRECTORY. See _HIDDEN_PREFIXES for what a doubled count actually costs.
             if obj["Key"].endswith(".parquet"):
                 # single URI STRING: the list form skips pyarrow's filesystem-from-URI resolution
                 # and raises ArrowInvalid ("Expected a local filesystem path, got a URI") -- caught
@@ -193,7 +215,8 @@ def load_table(ts, conn, *, dry_run: bool = False, batch_rows: int = 20000) -> i
             part_schema = pa.schema(
                 [(n, _ARROW.get(t.split("(")[0], pa.string())) for n, t in part_keys])
             partitioning = pads.partitioning(part_schema, flavor="hive") if part_keys else None
-            return pads.dataset(meta["location"], format="parquet", partitioning=partitioning)
+            return pads.dataset(meta["location"], format="parquet", partitioning=partitioning,
+                                ignore_prefixes=_HIDDEN_PREFIXES)   # W7: never the _shadow/ twin
         # Glue-derived UNIFIED read schema for fragments whose schemas diverge across write eras
         # (silver_production: year int32 in some files, int64 in others) or that carry all-null columns
         # written as arrow `null` type (silver_wasde: "Unsupported cast from string to null"). Ints widen
@@ -208,7 +231,7 @@ def load_table(ts, conn, *, dry_run: bool = False, batch_rows: int = 20000) -> i
         wide_parts = pa.schema([(n, _WIDE.get(t.split("(")[0], pa.string())) for n, t in part_keys])
         partitioning = pads.partitioning(wide_parts, flavor="hive") if part_keys else None
         return pads.dataset(meta["location"], format="parquet", partitioning=partitioning,
-                            schema=read_schema)
+                            schema=read_schema, ignore_prefixes=_HIDDEN_PREFIXES)   # W7, as above
 
     flt = None
     if ts.shape == "tall" and ts.metric_col and ts.metrics:

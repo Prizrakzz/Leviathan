@@ -6,7 +6,9 @@ fixtures) -- the pg-driven live sweep is validated at the rollout day-0 gate, no
 """
 from __future__ import annotations
 
+import hashlib
 import io
+from pathlib import Path
 
 import pyarrow.parquet as pq
 import pytest
@@ -62,20 +64,46 @@ def test_write_guard_idempotent_same_version_rerun():
 
 
 # ---------------------------------------------------------------------------
-# (F5 / sec 3.3) provenance separation: daily_sweep and backfill_grid never overwrite each other.
+# (COVERAGE_AND_CAPACITY_PLAN sec E) CROSS-PROVENANCE overwrite -- the defect that already destroyed the
+# 2026-07-25 day-0 daily_sweep partition at 09:03Z. provenance is a COLUMN, not a partition key, and the
+# layout is ONE OBJECT PER ASOF, so a second class at an occupied asof is a destructive rewrite.
 # ---------------------------------------------------------------------------
-def test_provenance_separation_no_overwrite():
-    asof = "2026-07-24"
+def test_cross_provenance_overwrite_is_refused():
+    asof = "2026-07-25"
     daily = prs.pace_record("corn_cbot", "export_pace", asof,
                             _ctx(provenance=prs.PROV_DAILY_SWEEP), entry=_PACE_ENTRY, n_rows=2)
-    # a backfill re-derivation of the SAME natural key under a DIFFERENT engine -- it must NOT be refused
-    # (different provenance class) and must NOT overwrite the daily_sweep row.
+    # the 2026-07-25 incident, replayed: a backfill_grid run at an asof already holding daily_sweep rows.
     backfill = prs.pace_record("corn_cbot", "export_pace", asof,
                                _ctx(engine="img:9", provenance=prs.PROV_BACKFILL_GRID), entry=_PACE_ENTRY, n_rows=2)
     assert daily.natural_key() == backfill.natural_key()
-    assert daily.guard_key() != backfill.guard_key()   # provenance distinguishes them
+    assert daily.guard_key() != backfill.guard_key()   # the guard_key alone would NOT have caught this
     res = prs.apply_write_guard([daily], [backfill])
-    assert len(res.writable) == 1 and res.refused == []
+    assert res.writable == [], "a cross-provenance write at an occupied asof must NOT be writable"
+    assert len(res.refused) == 1 and len(res.cross_provenance) == 1 and res.cross_version == []
+    r = res.refused[0]
+    assert r["refusal"] == prs.REFUSE_CROSS_PROVENANCE
+    assert r["as_of_date"] == asof
+    assert r["incoming_provenance"] == prs.PROV_BACKFILL_GRID
+    assert r["stored_provenance"] == [prs.PROV_DAILY_SWEEP]
+    # the reason must be LOUD and self-explaining -- it is the only thing an operator sees at 09:03Z.
+    assert "CROSS-PROVENANCE" in r["reason"] and "DESTROY" in r["reason"]
+    assert "ONE OBJECT PER ASOF" in r["reason"] and "2026-07-25" in r["reason"]
+
+    # symmetric: a daily_sweep run at an asof already held by the backfill grid is equally refused.
+    rev = prs.apply_write_guard([backfill], [daily])
+    assert rev.writable == [] and len(rev.cross_provenance) == 1
+
+    # the refusal is PARTITION-scoped, not key-scoped: an UNRELATED pair at the same occupied asof is
+    # refused too (writing the object at all destroys the incumbent rows, whatever their keys).
+    other = prs.pace_record("soybeans_cbot", "export_pace_lag", asof,
+                            _ctx(provenance=prs.PROV_BACKFILL_GRID), decline_reason=prs.PACE_DECLINE_FETCH)
+    assert prs.apply_write_guard([daily], [other]).writable == []
+
+    # ... and it is scoped to the OCCUPIED asof only: a different asof is untouched.
+    free = prs.pace_record("corn_cbot", "export_pace", "2026-07-26",
+                           _ctx(provenance=prs.PROV_BACKFILL_GRID), entry=_PACE_ENTRY, n_rows=2)
+    ok = prs.apply_write_guard([daily], [free])
+    assert len(ok.writable) == 1 and ok.refused == []
 
 
 # ---------------------------------------------------------------------------
@@ -84,7 +112,6 @@ def test_provenance_separation_no_overwrite():
 def test_backfill_excludes_oni_and_weather_z():
     assert prs.backfill_eligible(["silver_esr_compact"]) is True     # release-date vintaged
     assert prs.backfill_eligible(["silver_wasde"]) is True
-    assert prs.backfill_eligible(["silver_psd"]) is True
     assert prs.backfill_eligible(["silver_noaa_oni"]) is False        # period latest-only -> EXCLUDED
     assert prs.backfill_eligible(["gold_weather_z"]) is False
     # a MIXED surface (one vintaged leg + one weather leg) is excluded whole (its history is restated).
@@ -102,6 +129,62 @@ def test_backfill_excludes_oni_and_weather_z():
     ]
     kept = [prs._to_record(v, "2019-06-07", ctx) for v in verdicts if prs.backfill_eligible(v.tables)]
     assert [r.driver_or_chain_id for r in kept] == ["export_pace"]    # the weather leg is excluded
+
+
+# ---------------------------------------------------------------------------
+# (W4-writer / SV-L2-N2) the LEAKY as-of gate, on the WRITE side. silver_psd carries a release_date
+# axis that is SYNTHESIZED in code (_compute_psd_release_dates), so a past-asof replay reads values that
+# were not knowable at T -- 739 keys revised under an unchanged computed release_date, and 9,292 keys
+# backdated into existence as far as 2020-11-10. That membership is what admitted the 37,752 leaked
+# cascade rows. A READ fence alone leaves the write re-earnable by any future backfill run.
+# ---------------------------------------------------------------------------
+def test_leaky_asof_tables_rejected_by_backfill_eligible():
+    assert "silver_psd" in prs.LEAKY_ASOF_TABLES
+    # the trap this closes: silver_psd is STILL in VINTAGED_TABLES (it does carry a release_date axis),
+    # so eligibility must be decided by the LEAKY set winning, not by the vintaged set being edited.
+    assert "silver_psd" in prs.VINTAGED_TABLES
+    assert prs.backfill_eligible(["silver_psd"]) is False
+    # mixed surfaces are excluded whole -- one leaky leg poisons the whole replay.
+    assert prs.backfill_eligible(["silver_esr_compact", "silver_psd"]) is False
+    assert prs.backfill_eligible(["silver_psd", "silver_wasde"]) is False
+    # the genuinely-vintaged surfaces are untouched (the fence is targeted, not a blanket NO-GO).
+    assert prs.backfill_eligible(["silver_esr", "silver_esr_compact", "silver_wasde"]) is True
+    # every LEAKY table must be a known table, or the set is a silent no-op typo.
+    assert prs.LEAKY_ASOF_TABLES <= (prs.VINTAGED_TABLES | prs.LATEST_ONLY_TABLES)
+
+    # end-to-end through the backfill sweep path: a psd-legged cascade verdict is DROPPED.
+    ctx = _ctx(provenance=prs.PROV_BACKFILL_GRID)
+    verdicts = [
+        prs._EngineVerdict(prs.KIND_CASCADE, "corn_cbot", "ending_stocks", True,
+                           tables=("silver_psd",), n_rows=1, cascade_table="silver_psd"),
+        prs._EngineVerdict(prs.KIND_PACE, "corn_cbot", "export_pace", True,
+                           tables=("silver_esr",), pace_entry=_PACE_ENTRY, n_rows=2),
+    ]
+    kept = [prs._to_record(v, "2024-01-06", ctx) for v in verdicts if prs.backfill_eligible(v.tables)]
+    assert [r.driver_or_chain_id for r in kept] == ["export_pace"]
+
+
+def test_no_live_psd_legged_surface_is_backfill_replayable():
+    """The fence measured against the REAL catalog, not a fixture: every cascade-kind leg that reads
+    silver_psd is now ineligible for a past-asof replay. Those 242 legs x 156 asofs are exactly the
+    37,752 leaked rows already on S3; this pins that a re-run cannot produce them again.
+
+    Deliberately NOT asserting 'zero cascade legs are eligible' even though that is true today (the
+    other cascade tables are gold_weather_z / silver_noaa_oni -- LATEST_ONLY -- and silver_fred_fx,
+    which is not in VINTAGED_TABLES at all). The sanctioned silver_wasde repoint would legitimately make
+    cascade legs eligible again, and this test must not stand in its way."""
+    from leviathan.graphrag.numbers import cascade as casc
+    from leviathan.graphrag.numbers import cascade_census as cc
+    psd_legs = 0
+    for _contract, c in sorted(cc._contract_index().items()):
+        for d in c.drivers:
+            row = casc.map_row(d.silver_ref)
+            if row is None or prs._pace_capable(row):
+                continue
+            if row.get("table") == "silver_psd":
+                psd_legs += 1
+                assert prs.backfill_eligible((row.get("table"),)) is False
+    assert psd_legs > 0, "the census resolves no psd-legged cascade legs -- the fence is testing nothing"
 
 
 def test_weekly_backfill_grid_is_bounded_weekly_and_past():
@@ -289,7 +372,10 @@ def test_cascade_verdicts_excludes_pace_capable_legs(monkeypatch):
 # (F1) the WRITE-GUARD is WIRED at runtime: the writer READS existing rows then refuses a cross-version
 # overwrite -- it is not dead code. read_existing_guard_rows pins provenance + asof and fails safe.
 # ---------------------------------------------------------------------------
-def test_read_existing_guard_rows_pins_predicate_and_failsafe():
+def test_read_existing_guard_rows_reads_across_provenance():
+    """(sec E) the read must span ALL provenance classes at the target asofs. The old
+    `WHERE provenance = <target>` predicate is exactly why the 2026-07-25 backfill saw an empty result
+    at an asof that held daily_sweep rows and proceeded as a 'first write'."""
     seen = {}
 
     def qfn(sql):
@@ -298,21 +384,174 @@ def test_read_existing_guard_rows_pins_predicate_and_failsafe():
                  "as_of_date": "2026-07-24", "provenance": prs.PROV_DAILY_SWEEP,
                  "engine_version": "img:1", "graph_version": "gv1:aaaa"}]
 
-    rows = prs.read_existing_guard_rows(qfn, ["2026-07-24"], prs.PROV_DAILY_SWEEP)
+    rows = prs.read_existing_guard_rows(qfn, ["2026-07-24"])
     assert len(rows) == 1 and rows[0]["engine_version"] == "img:1"
-    assert prs.TABLE in seen["sql"]
-    assert "provenance = 'daily_sweep'" in seen["sql"] and "'2026-07-24'" in seen["sql"]
+    assert prs.TABLE in seen["sql"] and "'2026-07-24'" in seen["sql"]
+    # the provenance PREDICATE is gone (the column is still SELECTed -- the guard keys on it).
+    assert "provenance = " not in seen["sql"] and "provenance" in seen["sql"].split("FROM")[0]
     # a pg date object / timestamp is normalized to the 'YYYY-MM-DD' string the incoming records key on.
     norm = prs.read_existing_guard_rows(
         lambda s: [{"record_kind": "pace", "contract": "c", "driver_or_chain_id": "d",
                     "as_of_date": "2026-07-24T00:00:00", "provenance": prs.PROV_DAILY_SWEEP,
-                    "engine_version": "e", "graph_version": "g"}], ["2026-07-24"], prs.PROV_DAILY_SWEEP)
+                    "engine_version": "e", "graph_version": "g"}], ["2026-07-24"])
     assert norm[0]["as_of_date"] == "2026-07-24"
-    # fail-safe: a missing table / mirror gap -> [] (a first write is NEVER blocked), never an Athena retry.
+    assert prs.read_existing_guard_rows(qfn, []) == []                    # no asofs -> no query
+    # defence in depth: an UN-normalized partition value reaching apply_write_guard by any other route
+    # must still register as occupancy, or the cross-provenance refusal fails OPEN.
+    raw = {"record_kind": "pace", "contract": "corn_cbot", "driver_or_chain_id": "export_pace",
+           "as_of_date": "2026-07-24 00:00:00", "provenance": prs.PROV_DAILY_SWEEP,
+           "engine_version": "img:1", "graph_version": "gv1:aaaa"}
+    incoming = prs.pace_record("corn_cbot", "export_pace", "2026-07-24",
+                               _ctx(provenance=prs.PROV_BACKFILL_GRID), entry=_PACE_ENTRY, n_rows=2)
+    assert prs.apply_write_guard([raw], [incoming]).writable == []
+    # ... and the same holds on the VERSION axis (a same-provenance bumped-engine re-run).
+    bumped = prs.pace_record("corn_cbot", "export_pace", "2026-07-24", _ctx(engine="img:2"),
+                             entry=_PACE_ENTRY, n_rows=2)
+    assert prs.apply_write_guard([raw], [bumped]).writable == []
+
+
+# ---------------------------------------------------------------------------
+# (W6.i) the guard's OTHER fail-open: read_existing_guard_rows used to swallow EVERY pg error and return
+# [], which apply_write_guard reads as "first write" -> everything writable. A pg blip during a
+# re-publish was therefore a silent full overwrite of a certified canonical partition.
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize("exc", [
+    RuntimeError("connection to server at 10.0.3.7 port 5432 failed: timeout expired"),
+    RuntimeError("canceling statement due to statement timeout"),
+    RuntimeError('permission denied for table gold_pattern_records'),
+    RuntimeError('relation "some_other_table" does not exist'),   # a DIFFERENT missing relation
+])
+def test_guard_read_failure_aborts_never_proceeds(exc):
     def boom(sql):
-        raise RuntimeError("relation gold_pattern_records does not exist")
-    assert prs.read_existing_guard_rows(boom, ["2026-07-24"], prs.PROV_DAILY_SWEEP) == []
-    assert prs.read_existing_guard_rows(qfn, [], prs.PROV_DAILY_SWEEP) == []   # no asofs -> no query
+        raise exc
+    with pytest.raises(prs.GuardReadError) as ei:
+        prs.read_existing_guard_rows(boom, ["2026-07-24"])
+    assert "ABORTING the publish" in str(ei.value)
+    assert ei.value.__cause__ is exc                      # the real pg error is preserved for triage
+
+
+# the message psycopg ACTUALLY produces (probed in-VPC 2026-07-28), for our table and for another one.
+_MISSING_OURS = 'relation "leviathan_dev.gold_pattern_records" does not exist\nLINE 1: ...provenance'
+_MISSING_OTHER = 'relation "leviathan_dev.silver_esr" does not exist\nLINE 1: ...provenance'
+
+
+class _UndefinedTable(Exception):
+    """Stands in for psycopg.errors.UndefinedTable -- matched by CLASS NAME."""
+
+
+def _diag_exc(sqlstate):
+    class _Diag:
+        pass
+    _Diag.sqlstate = sqlstate
+
+    class BySqlState(Exception):
+        diag = _Diag()
+    return BySqlState
+
+
+def test_guard_read_missing_table_is_a_legitimate_first_write():
+    """The ONLY case allowed to fail open: OUR ledger table does not exist yet (flip day). Recognised by
+    class / SQLSTATE / message text -- but every route is AND-ed with 'the message names OUR table'."""
+    def by_message(sql):
+        raise RuntimeError(_MISSING_OURS)
+
+    def by_class(sql):
+        raise _UndefinedTable(_MISSING_OURS)
+
+    def by_sqlstate(sql):
+        raise _diag_exc("42P01")(_MISSING_OURS)
+
+    for fn in (by_message, by_class, by_sqlstate):
+        assert prs.read_existing_guard_rows(fn, ["2026-07-24"]) == []
+
+
+def test_guard_read_missing_OTHER_relation_fails_CLOSED():
+    """psycopg raises UndefinedTable/42P01 for ANY missing relation, so the class and SQLSTATE tests are
+    table-BLIND on their own. A missing *different* relation is somebody else's schema problem: it must
+    ABORT, not be mistaken for 'our ledger does not exist yet' and licence a full overwrite."""
+    def by_class(sql):
+        raise _UndefinedTable(_MISSING_OTHER)
+
+    def by_sqlstate(sql):
+        raise _diag_exc("42P01")(_MISSING_OTHER)
+
+    def unhelpful(sql):                      # UndefinedTable with a message naming nothing at all
+        raise _UndefinedTable("nope")
+
+    for fn in (by_class, by_sqlstate, unhelpful):
+        with pytest.raises(prs.GuardReadError):
+            prs.read_existing_guard_rows(fn, ["2026-07-24"])
+
+
+def test_guard_read_sql_is_SCHEMA_QUALIFIED():
+    """An UNQUALIFIED `FROM gold_pattern_records` does not resolve on the mirror: pgstore._acquire()
+    sets no search_path, and the loader creates the table inside the schema `leviathan_dev`. Probed
+    in-VPC 2026-07-28: to_regclass('gold_pattern_records') IS NULL while the qualified name returned 251
+    rows at as_of_date=2026-07-25. Unqualified, EVERY guard read raised UndefinedTable -> classified as
+    'table missing' -> [] -> apply_write_guard saw an empty partition and BOTH refusals were dead code.
+    This pins the qualification so the guard cannot silently become a no-op again."""
+    seen = {}
+
+    def capture(sql):
+        seen["sql"] = sql
+        return []
+
+    prs.read_existing_guard_rows(capture, ["2026-07-24"])
+    assert prs.PG_TABLE == '"leviathan_dev".gold_pattern_records'
+    assert f"FROM {prs.PG_TABLE}" in seen["sql"]
+    assert f"FROM {prs.TABLE}" not in seen["sql"]   # the bare name is never the FROM target
+    assert prs.TABLE == "gold_pattern_records"      # ...but TABLE stays bare: it is the GLUE identity
+
+
+def test_guard_read_failure_blocks_the_publish_end_to_end(monkeypatch):
+    """The abort must reach the CLI: a failed guard read returns a non-zero rc and never gets as far as
+    building a publish. Verified by making _load_contract explode -- if we ever reach it, the test fails
+    with the wrong exception instead of a clean rc."""
+    monkeypatch.setattr(prs, "_assert_pg_only", lambda: None)
+    monkeypatch.setattr(prs, "sweep", lambda *a, **k: [])
+    monkeypatch.setattr(prs, "read_existing_guard_rows",
+                        lambda *a, **k: (_ for _ in ()).throw(prs.GuardReadError("mirror unreadable")))
+    monkeypatch.setattr(prs, "_load_contract",
+                        lambda: pytest.fail("reached publish setup after a failed guard read"))
+    import leviathan.common.config as _cfg
+    monkeypatch.setattr(_cfg, "load_env", lambda *a, **k: None)
+    from leviathan.graphrag.numbers import pgnumbers
+    monkeypatch.setattr(pgnumbers, "pg_query", lambda sql: [])
+    assert prs.main(["--publish-mode", "canonical"]) == 3
+
+
+def _stub_cli_env(monkeypatch):
+    """The minimum patching that lets main() run to the write-guard without pg / AWS."""
+    monkeypatch.setattr(prs, "_assert_pg_only", lambda: None)
+    import leviathan.common.config as _cfg
+    monkeypatch.setattr(_cfg, "load_env", lambda *a, **k: None)
+    from leviathan.graphrag.numbers import pgnumbers
+    monkeypatch.setattr(pgnumbers, "pg_query", lambda sql: [])
+    monkeypatch.setattr(prs, "sweep", lambda asof, qfn, ctx, **k: [
+        prs.pace_record("corn_cbot", "export_pace", asof, ctx, entry=_PACE_ENTRY, n_rows=2)])
+    monkeypatch.setattr(prs, "_load_contract",
+                        lambda: pytest.fail("reached publish setup after a refused cross-provenance write"))
+
+
+@pytest.mark.parametrize("argv", [["--publish-mode", "canonical"], ["--dry-run"]])
+def test_cli_aborts_on_cross_provenance_collision(monkeypatch, argv):
+    """(sec E, end to end) a daily_sweep at an asof the backfill grid already occupies must ABORT with a
+    non-zero rc and never reach the publisher -- in --dry-run too, since the dry-run's job is to predict
+    the publish. This is the 2026-07-25 incident with the roles reversed."""
+    _stub_cli_env(monkeypatch)
+    monkeypatch.setattr(prs, "read_existing_guard_rows", lambda qfn, asofs: [
+        {"record_kind": "pace", "contract": "corn_cbot", "driver_or_chain_id": "export_pace",
+         "as_of_date": a, "provenance": prs.PROV_BACKFILL_GRID,
+         "engine_version": "img:0", "graph_version": "gv1:zzzz"} for a in asofs])
+    assert prs.main(argv) == 4
+
+
+def test_cli_publishes_when_the_target_asof_is_free(monkeypatch):
+    """The mirror image: an EMPTY target asof is not a collision, so --dry-run stays rc 0. Without this
+    the cross-provenance refusal could be trivially satisfied by refusing everything."""
+    _stub_cli_env(monkeypatch)
+    monkeypatch.setattr(prs, "read_existing_guard_rows", lambda qfn, asofs: [])
+    assert prs.main(["--dry-run"]) == 0
 
 
 def test_write_guard_runtime_composition_read_then_refuse():
@@ -323,14 +562,15 @@ def test_write_guard_runtime_composition_read_then_refuse():
     stored = {"record_kind": "pace", "contract": "corn_cbot", "driver_or_chain_id": "export_pace",
               "as_of_date": asof, "provenance": prs.PROV_DAILY_SWEEP,
               "engine_version": "img:1", "graph_version": "gv1:aaaa"}
-    existing = prs.read_existing_guard_rows(lambda s: [stored], [asof], prs.PROV_DAILY_SWEEP)
+    existing = prs.read_existing_guard_rows(lambda s: [stored], [asof])
     bumped = prs.pace_record("corn_cbot", "export_pace", asof, _ctx(engine="img:2"), entry=_PACE_ENTRY, n_rows=2)
     res = prs.apply_write_guard(existing, [bumped])
     assert res.writable == [] and len(res.refused) == 1
+    assert res.refused[0]["refusal"] == prs.REFUSE_CROSS_VERSION      # version axis, not provenance
     same = prs.pace_record("corn_cbot", "export_pace", asof, _ctx(engine="img:1", graph="gv1:aaaa"),
                            entry=_PACE_ENTRY, n_rows=2)
     res2 = prs.apply_write_guard(existing, [same])
-    assert len(res2.writable) == 1 and res2.refused == []
+    assert len(res2.writable) == 1 and res2.refused == []             # idempotent re-run still passes
 
 
 # ---------------------------------------------------------------------------
@@ -339,3 +579,123 @@ def test_write_guard_runtime_composition_read_then_refuse():
 # ---------------------------------------------------------------------------
 def test_daily_sweep_refuses_past_asof():
     assert prs.main(["--asof", "1990-01-01"]) == 2          # past asof + not --backfill -> refused (rc 2)
+
+
+# ---------------------------------------------------------------------------
+# (W3) the DAILY path records PACE ONLY. Cascade rows are constant-valued catalog-existence flags
+# (242 pairs, per-pair (fired,swept) in {(156,156), (0,156)}, zero variance) and chain rows are 100%
+# root_not_grounded for want of a trace_provider. Both resolvability pictures live in cascade_census /
+# config_check.check_chain_map. The BACKFILL path is deliberately unchanged.
+# ---------------------------------------------------------------------------
+def _stub_kind_drivers(monkeypatch, *, n_cascade=242, n_pace=9, n_chain=29):
+    """Stand in for the three live pg drivers with the measured production cardinalities."""
+    monkeypatch.setattr(prs, "cascade_verdicts", lambda asof, qfn: [
+        prs._EngineVerdict(prs.KIND_CASCADE, f"c{i}", f"d{i}", True, tables=("silver_wasde",), n_rows=1,
+                           cascade_table="silver_wasde", cascade_metric="m")
+        for i in range(n_cascade)])
+    monkeypatch.setattr(prs, "pace_verdicts", lambda asof, qfn: [
+        prs._EngineVerdict(prs.KIND_PACE, f"p{i}", "export_pace", True, tables=("silver_esr",),
+                           pace_entry=_PACE_ENTRY, n_rows=2)
+        for i in range(n_pace)])
+    monkeypatch.setattr(prs, "chain_verdicts", lambda asof, qfn, trace_provider=None: [
+        prs._EngineVerdict(prs.KIND_CHAIN, f"c{i}", f"chain{i}", False,
+                           chain_decline={"chain_id": f"chain{i}", "reason": "root_not_grounded"})
+        for i in range(n_chain)])
+
+
+def test_daily_sweep_records_pace_only(monkeypatch):
+    _stub_kind_drivers(monkeypatch)
+    ctx = _ctx(provenance=prs.PROV_DAILY_SWEEP)
+    recs = prs.sweep("2026-07-29", query_fn=lambda sql: [], ctx=ctx)      # default kinds = all of v1
+    assert len(recs) == 9, "a day-2 daily partition is the 9 pace rows, not 242+9+29"
+    assert {r.record_kind for r in recs} == {prs.KIND_PACE}
+    assert prs.DAILY_SWEEP_KINDS == frozenset({prs.KIND_PACE})
+    # the narrowing keys on ctx.provenance, NOT on --kinds: an explicit widening request cannot undo it
+    # (the deployed jobdef passes no --kinds at all, so the default is the whole v1 set).
+    widened = prs.sweep("2026-07-29", query_fn=lambda sql: [], ctx=ctx,
+                        kinds={prs.KIND_CASCADE, prs.KIND_PACE, prs.KIND_CHAIN})
+    assert len(widened) == 9 and {r.record_kind for r in widened} == {prs.KIND_PACE}
+    # narrowing FURTHER still works (--kinds cascade on the daily path yields nothing, not a cascade row).
+    assert prs.sweep("2026-07-29", query_fn=lambda sql: [], ctx=ctx, kinds={prs.KIND_CASCADE}) == []
+
+
+def test_backfill_path_still_records_every_kind(monkeypatch):
+    """W3 narrows the DAILY path only -- a provenance=backfill_grid replay is untouched, so the existing
+    grid stays reproducible. (Chain still self-excludes there: backfill_eligible(()) is False.)"""
+    _stub_kind_drivers(monkeypatch)
+    ctx = _ctx(provenance=prs.PROV_BACKFILL_GRID)
+    recs = prs.sweep("2024-01-06", query_fn=lambda sql: [], ctx=ctx)
+    kinds = {r.record_kind for r in recs}
+    assert prs.KIND_CASCADE in kinds and prs.KIND_PACE in kinds and prs.KIND_CHAIN in kinds
+    assert len(recs) == 242 + 9 + 29
+    # ... and with the vintage fence on, chain drops out on its empty leg set while the rest survive.
+    fenced = prs.sweep("2024-01-06", query_fn=lambda sql: [], ctx=ctx, backfill_only_vintaged=True)
+    assert {r.record_kind for r in fenced} == {prs.KIND_CASCADE, prs.KIND_PACE}
+    assert len(fenced) == 242 + 9
+
+
+def test_cascade_and_chain_resolvability_pictures_are_not_lost():
+    """W3's quality gate: narrowing must RELOCATE the cascade/chain coverage diagnostics, not delete
+    them. Both live in richer ops surfaces that the sweep does not own."""
+    from leviathan.graphrag import config_check
+    from leviathan.graphrag.numbers import cascade_census as cc
+    # cascade: the per-leg census carries strictly MORE than the ledger's boolean -- verdict, the
+    # DARK-with-reason sub-reason, the per-contract rollup and the counts banner.
+    art = cc.census(asof="2026-07-24", query_fn=lambda sql: [])
+    assert {"legs", "per_contract_has_firing_leg", "banner"} <= set(art)
+    leg = art["legs"][0]
+    assert {"contract", "node_id", "table", "metric", "verdict", "reason"} <= set(leg)
+    assert {"fires", "declines", "dark", "probe_errors"} <= set(art["banner"])
+    # chain: a fail-CLOSED build lint over every hop ref / scope / country pin -- it fails the BUILD
+    # rather than accruing a constant root_not_grounded row forever.
+    assert callable(config_check.check_chain_map)
+    assert config_check.check_chain_map() == []
+
+
+# ---------------------------------------------------------------------------
+# (W5) graph_version was a DEAD guard axis: resolve_graph_version() derived the repo root as
+# parents[1] == <repo>/jobs, and jobs/configs/graphrag DOES NOT EXIST, so it hashed the EMPTY STRING on
+# all 39,156 rows written so far. A cascade_map / causal-DAG edit was invisible to apply_write_guard.
+# ---------------------------------------------------------------------------
+_EMPTY_GV = "gv1:" + hashlib.sha256(b"").hexdigest()[:16]
+
+
+def test_resolve_graph_version_resolves_the_real_repo_configs():
+    assert _EMPTY_GV == "gv1:e3b0c44298fc1c14"          # the hash every existing ledger row carries
+    repo = Path(prs.__file__).resolve().parents[2]
+    assert (repo / "configs" / "graphrag" / "numbers" / "cascade_map.yaml").exists()
+    assert (repo / "configs" / "graphrag" / "causal").is_dir()
+    assert not (repo / "jobs" / "configs" / "graphrag").exists()   # what parents[1] used to point at
+    assert prs.resolve_graph_version() != _EMPTY_GV, "parents[1] regression: graph_version is sha256(b'')"
+
+
+def test_resolve_graph_version_tracks_config_bytes(tmp_path):
+    cfg = tmp_path / "configs" / "graphrag"
+    (cfg / "numbers").mkdir(parents=True)
+    (cfg / "causal").mkdir(parents=True)
+    (cfg / "numbers" / "cascade_map.yaml").write_text("rows: []\n", encoding="utf-8")
+    (cfg / "numbers" / "chain_map.yaml").write_text("chains: []\n", encoding="utf-8")
+    (cfg / "causal" / "corn.yaml").write_text("drivers: [a]\n", encoding="utf-8")
+
+    h0 = prs.resolve_graph_version(repo=tmp_path)
+    assert h0.startswith("gv1:") and h0 != _EMPTY_GV
+    assert prs.resolve_graph_version(repo=tmp_path) == h0, "must be stable when nothing changes"
+
+    # ONE byte of a tracked causal DAG.
+    (cfg / "causal" / "corn.yaml").write_text("drivers: [b]\n", encoding="utf-8")
+    h1 = prs.resolve_graph_version(repo=tmp_path)
+    assert h1 != h0 and h1 != _EMPTY_GV
+
+    # the cascade map.
+    (cfg / "numbers" / "cascade_map.yaml").write_text("rows: [x]\n", encoding="utf-8")
+    h2 = prs.resolve_graph_version(repo=tmp_path)
+    assert h2 not in (h0, h1)
+
+    # a NEW causal DAG appearing is also a new graph version.
+    (cfg / "causal" / "wheat.yaml").write_text("drivers: [a]\n", encoding="utf-8")
+    h3 = prs.resolve_graph_version(repo=tmp_path)
+    assert h3 not in (h0, h1, h2)
+
+    # and the old bug's exact signature, pinned so its meaning is unambiguous: a repo root with no
+    # configs/graphrag hashes NOTHING and yields the empty-string hash.
+    assert prs.resolve_graph_version(repo=tmp_path / "no_such_root") == _EMPTY_GV

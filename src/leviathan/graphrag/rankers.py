@@ -250,8 +250,32 @@ class _RerankCoalescer:
         self._last_arrival = 0.0
 
     def expect(self, n: int, window: float | None = None) -> None:
+        """ACCUMULATE the outstanding hint. It used to ASSIGN, and that is a cross-turn clobber.
+
+        `_expect` lives on a process-global singleton but a hint is per-TURN, so at C>=2 the newest
+        hint became the ONLY hint. The damaging direction is a hint that LOWERS the count: turn A hints
+        8, six of A's callers are queued, turn B hints 2 -> `_expect` becomes 2, the leader's
+        `n >= exp` test passes immediately, it fires a PARTIAL batch, and A's remaining callers form a
+        SECOND batch. That is 2 Bedrock requests for one turn against a 3-req/min ACCOUNT-WIDE bucket
+        (L-11512E58, Adjustable=false) -- i.e. the clobber is a correctness/quota defect, not the
+        "latency-only" one the earlier record claimed. Accumulating makes the number what it always
+        should have been: how many promised callers are outstanding PROCESS-WIDE, which is exactly what
+        the leader's count-based closer needs. Batches stay per-query (`_fire` groups by distinct
+        query), so coalescing two turns never merges their documents.
+
+        Deliberately NOT changed: leadership stays process-global. Per-turn leadership would put N
+        leaders against that same 3/min bucket simultaneously (measured burst: 3 of 8 succeed, 4-8
+        throttle), and a leader error propagates to every member -> one throttle drops a whole turn to
+        the 100x-slower bge path.
+
+        Cost of accumulating: an over-counted hint that is never retracted now leaks into later turns
+        instead of being reset by the next `expect`. That is what `unexpect()` is for -- every promised
+        caller that cannot reach the reranker retracts (planner on a raising fill, evidence/pgstore on
+        an empty candidate set) -- and the residue is bounded anyway by the quiescence safety net
+        (_COALESCE_QUIESCENCE) and by the leader's decrement-on-drain.
+        """
         with self._lock:
-            self._expect = max(0, int(n))
+            self._expect += max(0, int(n))
             self._window = float(window) if window is not None else _coalesce_window()
 
     def unexpect(self, n: int = 1) -> None:
@@ -369,7 +393,8 @@ _COAL = _RerankCoalescer()
 
 def rerank_expect(n: int, window: float | None = None) -> None:
     """Hint from the walk: ~n rerank calls are about to arrive — coalesce them into one Bedrock request.
-    `window=None` -> the env/param-tunable default (_coalesce_window).
+    `window=None` -> the env/param-tunable default (_coalesce_window). ADDITIVE across concurrent turns
+    (see `_RerankCoalescer.expect`): this raises the outstanding count, it does not replace it.
 
     CONTRACT (Phase-2): the hint is a PROMISE the caller must be able to keep. It is only satisfiable if the
     caller can hold all `n` retrieves in flight simultaneously — a walk pool narrower than `n` blocks the last

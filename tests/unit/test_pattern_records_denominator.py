@@ -33,15 +33,37 @@ ASOF = "2026-07-25"
 
 
 # ── fixtures ───────────────────────────────────────────────────────────────────────────────────────
-def _conn(rows):
-    """rows = [(as_of_date, verdict, decline_reason)] for corn_cbot/export_pace/pace/backfill_grid."""
+def _conn(rows, states=None):
+    """rows = [(as_of_date, verdict, decline_reason)] for corn_cbot/export_pace/pace/backfill_grid.
+
+    The VALUE-BEARING columns are carried because the production table carries them (registry contract
+    gold_pattern_records: window_change/n_points/streak_len/streak_dir/n_rows/grain are physical columns,
+    and the pg mirror loads all of them) and the vintage-depth probe reads them. A fixture without them is
+    not a mirror of production, it is a mirror with a hole -- and the hole reads as "depth unknown", which
+    fails closed and suppresses every rate.
+
+    `states` = how many DISTINCT recorded value-states the fired sweeps take. Default None = one per fired
+    asof, i.e. the world where every sweep saw a fresh source vintage, which is the only world in which a
+    rate is legitimately statable. Pass a small int to reproduce the LIVE ledger's shape, where many asofs
+    resolve to the same source snapshot. Declined-but-evaluable rows carry no values at all (the writer
+    sets n_rows=0 and leaves the rest NULL), so they all collapse into ONE further state -- faithful to
+    production, and an under-count of true vintage depth in the fail-closed direction."""
     c = sqlite3.connect(":memory:")
     c.execute("CREATE TABLE gold_pattern_records (record_kind TEXT, contract TEXT, "
               "driver_or_chain_id TEXT, verdict TEXT, decline_reason TEXT, as_of_date TEXT, "
-              "written_at TEXT, provenance TEXT)")
-    c.executemany("INSERT INTO gold_pattern_records VALUES (?,?,?,?,?,?,?,?)",
-                  [("pace", "corn_cbot", "export_pace", v, r, d, WRITTEN_AT, "backfill_grid")
-                   for d, v, r in rows])
+              "written_at TEXT, provenance TEXT, window_change REAL, n_points INTEGER, "
+              "streak_len INTEGER, streak_dir TEXT, n_rows INTEGER, grain TEXT)")
+    out, nfired = [], 0
+    for d, v, r in rows:
+        wc = np = nr = gr = None
+        if v == "fired":
+            wc = float(nfired % states if states else nfired) + 0.5
+            np, nr, gr, nfired = 8, 1, "week", nfired + 1
+        else:
+            nr = 0
+        out.append(("pace", "corn_cbot", "export_pace", v, r, d, WRITTEN_AT, "backfill_grid",
+                    wc, np, None, None, nr, gr))
+    c.executemany("INSERT INTO gold_pattern_records VALUES (" + ",".join(["?"] * 14) + ")", out)
     c.commit()
     return c
 
@@ -68,9 +90,9 @@ def _real_corn_slice() -> list[tuple]:
             + [(d, "fired", None) for d in grid[-9:]])
 
 
-def _answer(rows, scope=None, asof=ASOF):
+def _answer(rows, scope=None, asof=ASOF, states=None):
     scope = scope or SCOPE
-    legs, sig = pr.pattern_records_legs(scope, asof, _qfn(_conn(rows)))
+    legs, sig = pr.pattern_records_legs(scope, asof, _qfn(_conn(rows, states)))
     line = pr.pattern_records_answer(scope, (1, legs[0]), sig)
     return legs, sig, line
 
@@ -148,17 +170,23 @@ def test_all_evaluable_fired_reads_as_every_check_not_a_fraction():
 
 # ── (3) the coverage floor ─────────────────────────────────────────────────────────────────────────
 def test_below_floor_suppresses_the_rate_at_the_boundary():
-    """The floor is a boundary, not a vibe: one evaluable sweep either side flips the sentence."""
+    """The floor is a boundary, not a vibe: one evaluable sweep either side flips the sentence.
+
+    The slice is deliberately NON-degenerate (one evaluable sweep declines thin_history) so the floor is
+    the ONLY gate under test. An all-fired slice would be suppressed by the variance gate on both sides of
+    the boundary and this test would pass for the wrong reason."""
     n_blind = 5
     for evaluable, want_rate in ((pr.PR_MIN_EVALUABLE_SWEEPS - 1, False),
                                  (pr.PR_MIN_EVALUABLE_SWEEPS, True)):
         grid = _weekly(ASOF, evaluable + n_blind)
         rows = ([(d, "declined", "fetch_error") for d in grid[:n_blind]]
-                + [(d, "fired", None) for d in grid[n_blind:]])
+                + [(grid[n_blind], "declined", "thin_history")]
+                + [(d, "fired", None) for d in grid[n_blind + 1:]])
         _legs, sig, line = _answer(rows)
         assert sig["sweeps_evaluable"] == evaluable
         assert sig["rate_stated"] is want_rate
         assert ("too short a recorded history to state a firing rate" in line) is (not want_rate)
+        assert sig["rate_suppressed"] == (None if want_rate else pr.PR_SUP_TOO_THIN)
 
 
 def test_floor_is_a_named_constant_chosen_above_the_flagship_coverage():
@@ -204,25 +232,32 @@ def test_not_covered_branch_is_unchanged_and_states_no_figure():
 
 # ── (5) register + verifier: the two properties that must hold on EVERY branch ─────────────────────
 def _every_branch():
-    """(name, rows) covering every prose branch the module can emit."""
+    """(name, rows, states) covering every prose branch the module can emit."""
     grid156 = _weekly(ASOF, 156)
+    g20, g40 = _weekly(ASOF, 20), _weekly(ASOF, 40)
     return [
-        ("flagship_9_of_156", _real_corn_slice()),
-        ("nonevent_rate", _nonevent_slice()),
-        ("full_coverage_rate", [(d, "fired", None) for d in _weekly(ASOF, 20)]),
-        ("below_floor", [(d, "fired", None) for d in _weekly(ASOF, 4)]),
-        ("single_firing", [(_weekly(ASOF, 1)[0], "fired", None)]),
+        ("flagship_9_of_156", _real_corn_slice(), None),
+        ("nonevent_rate", _nonevent_slice(), None),
+        ("no_variance_full_coverage", [(d, "fired", None) for d in g20], None),
+        # W2a: fired on every evaluable sweep AND half the grid dark -> the constant sentence + coverage.
+        ("no_variance_partial", [(d, "declined", "fetch_error") for d in g40[:20]]
+                                + [(d, "fired", None) for d in g40[20:]], None),
+        # W2b: real variance and enough sweeps, but they resolve to ~3 distinct source states.
+        ("vintage_too_shallow", [(d, "declined", "thin_history") if i % 5 == 0 else (d, "fired", None)
+                                 for i, d in enumerate(g20)], 2),
+        ("below_floor", [(d, "fired", None) for d in _weekly(ASOF, 4)], None),
+        ("single_firing", [(_weekly(ASOF, 1)[0], "fired", None)], None),
         ("honest_zero_partial", [(d, "declined", "fetch_error") for d in grid156[:-9]]
-                                + [(d, "declined", "thin_history") for d in grid156[-9:]]),
-        ("honest_zero_all_blind", [(d, "declined", "fetch_error") for d in grid156]),
-        ("honest_zero_full_coverage", [(d, "declined", "thin_history") for d in _weekly(ASOF, 20)]),
-        ("not_covered", []),
+                                + [(d, "declined", "thin_history") for d in grid156[-9:]], None),
+        ("honest_zero_all_blind", [(d, "declined", "fetch_error") for d in grid156], None),
+        ("honest_zero_full_coverage", [(d, "declined", "thin_history") for d in g20], None),
+        ("not_covered", [], None),
     ]
 
 
 def test_register_stays_clean_on_every_branch():
-    for name, rows in _every_branch():
-        _legs, _sig, line = _answer(rows)
+    for name, rows, states in _every_branch():
+        _legs, _sig, line = _answer(rows, states=states)
         assert pr.pr_register_leaks(line) == [], f"{name}: OBSERVATION register leaked -> {line!r}"
 
 
@@ -231,8 +266,8 @@ def test_verifier_grounds_every_figure_the_preface_states_on_every_branch():
     sentence must never wear the '_[verifier: a value stated below does not match any looked-up row]_'
     caution banner. orchestrator._verify_numbers_answer is OUTSIDE this lane and is not widened -- the
     new evaluable denominator is grounded by riding the leg's second row as a citable `value`."""
-    for name, rows in _every_branch():
-        legs, _sig, line = _answer(rows)
+    for name, rows, states in _every_branch():
+        legs, _sig, line = _answer(rows, states=states)
         v = orc._verify_numbers_answer(line, legs)
         assert v["mismatched"] == 0, f"{name}: ungrounded stated figure(s) {v['mismatch_values']} in {line!r}"
 

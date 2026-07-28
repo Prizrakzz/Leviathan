@@ -24,7 +24,9 @@ def _ledger_conn():
     conn = sqlite3.connect(":memory:")
     conn.execute(
         "CREATE TABLE gold_pattern_records (record_kind TEXT, contract TEXT, driver_or_chain_id TEXT, "
-        "verdict TEXT, decline_reason TEXT, as_of_date TEXT, written_at TEXT, provenance TEXT)")
+        "verdict TEXT, decline_reason TEXT, as_of_date TEXT, written_at TEXT, provenance TEXT, "
+        "window_change REAL, n_points INTEGER, streak_len INTEGER, streak_dir TEXT, n_rows INTEGER, "
+        "grain TEXT)")
     # `decline_reason` carries the Lane-A denominator split (2026-07-25 gate defect D1): a decline is a
     # real NON-EVENT only when the engine held data and produced no firing (thin_history); a
     # fetch/resolution failure is BLINDNESS and belongs in no rate's denominator. See
@@ -51,8 +53,18 @@ def _ledger_conn():
           for i in range(1, 7)],
         ("pace", "corn_cbot", "export_pace", "fired", None, "2019-01-01", "2026-08-01T00:00:00+00:00", "backfill_grid"),
     ]
+    # The VALUE-BEARING columns production carries (registry contract gold_pattern_records; the pg mirror
+    # loads all of them). The vintage-depth probe reads them, and a fired sweep gets its own recorded
+    # state while every decline collapses to the all-NULL state -- exactly as the writer records them.
+    filled, nfired = [], 0
+    for r in rows:
+        if r[3] == "fired":
+            filled.append(r + (float(nfired) + 0.5, 8, None, None, 1, "week"))
+            nfired += 1
+        else:
+            filled.append(r + (None, None, None, None, 0, None))
     conn.executemany(
-        "INSERT INTO gold_pattern_records VALUES (?,?,?,?,?,?,?,?)", rows)
+        "INSERT INTO gold_pattern_records VALUES (" + ",".join(["?"] * 14) + ")", filled)
     conn.commit()
     return conn
 
@@ -119,17 +131,29 @@ def test_legs_materialize_zero_and_signal_marks_it():
 
 
 def test_legs_backfill_baserate_cites_a_real_count():
+    """The count and the coverage are cited; the RATE is withheld on the vintage denominator (W2b).
+
+    This slice clears the coverage floor (14 evaluable) and is genuinely non-degenerate (8 of 14 fired),
+    so the pre-W2 code stated a rate over it. It should not: its 14 evaluable sweeps carry only NINE
+    distinct recorded source states (8 fired states + the one all-NULL state every decline shares), well
+    under PR_MIN_DISTINCT_VINTAGES. That is the same shape as the live ledger's flagship, where 9 evaluable
+    pace asofs resolved to 3 ESR vintages. Everything that made the count honest survives -- the evaluable
+    denominator, the coverage clause, the provenance label -- only the ratio is withheld."""
     qfn = _qfn(_ledger_conn())
     scope = {"contract": "corn_cbot", "driver_or_chain_id": "export_pace", "kind": "pace",
              "provenance": pr.PROV_BACKFILL_GRID}
     legs, sig = pr.pattern_records_legs(scope, "2026-07-24", qfn)
     assert sig["recorded_firings"] == 8 and sig["sweeps_total"] == 20 and sig["zero_materialized"] is False
-    assert sig["sweeps_evaluable"] == 14 and sig["rate_stated"] is True
+    assert sig["sweeps_evaluable"] == 14
+    assert sig["rate_stated"] is False and sig["rate_suppressed"] == pr.PR_SUP_VINTAGE
+    assert sig["vintage_depth"] == 9        # 8 distinct fired states + the shared decline state
     line = pr.pattern_records_answer(scope, (3, legs[0]), sig)
-    # the rate is over what was EVALUABLE, and the incomplete coverage is stated in the same breath.
-    assert "8 of the 14" in line and "weekly replay asofs" in line and "[N3]" in line
+    # the COUNT is over what was EVALUABLE, and the incomplete coverage is stated in the same breath.
+    assert "8 firings across the 14" in line and "weekly replay asofs" in line and "[N3]" in line
     assert "only 14 of the 20 attempted carried data" in line
     assert "8 of 20" not in line, "the raw attempted total must never be the rate's denominator"
+    assert "8 of the 14" not in line, "a withheld rate must not be rendered as a ratio anyway"
+    assert "distinct source vintages" in line
     assert "daily sweep" not in line.lower()         # a backfill rate is NEVER phrased as daily sweeps
     assert pr.pr_register_leaks(line) == []
 
