@@ -491,6 +491,20 @@ module "serving" {
 module "mlflow_fargate" {
   source = "../../modules/mlflow_fargate"
 
+  # DECOMMISSIONED 2026-07-26 (user-directed, cost). The tracking server was scaled to desiredCount=0 and
+  # this module then gated off. What it was costing: the internet-facing ALB bills ~$16-18/mo whether or
+  # not a target is healthy, and it had ZERO healthy targets once the service stopped -- a front door to
+  # nothing. The ALB cannot be removed on its own: it lives in this module beside the service, listeners,
+  # target group, Route53 record and Cognito client, so an out-of-band delete would drift state and the
+  # next apply would silently resurrect it (and the bill). Gating the module is the only DURABLE off.
+  # Nothing in the pipeline breaks: the three training/certification jobdefs reach MLflow over Cloud Map
+  # (http://mlflow.leviathan.local:5000), never through this ALB -- the ALB served only the human web UI
+  # at mlflow.leviathanconvexity.com. The ECR repo (module.ecr_mlflow) is a SEPARATE module and is
+  # untouched, so the image survives and a restore is fast.
+  # TO RESTORE: flip mlflow_enabled back to true and `terraform apply -target=module.mlflow_fargate`.
+  # The ALB returns with a NEW DNS name; the module's own Route53 record repoints automatically.
+  count = var.mlflow_enabled ? 1 : 0
+
   project_name = var.project_name
   environment  = var.environment
   aws_region   = var.aws_region
@@ -747,6 +761,14 @@ resource "aws_iam_role_policy" "pattern_records_scheduler" {
       Resource = [
         module.batch.job_queue_arn,
         "arn:aws:batch:${var.aws_region}:${data.aws_caller_identity.current.account_id}:job-definition/${module.batch.pattern_records_sweep_job_definition_name}:*",
+        # 2026-07-28 INCIDENT FIX -- the sweep was ARMED AND SILENTLY DEAD for 3 nights. The schedule
+        # submits with the UNVERSIONED jobdef name, and Batch then authorizes against the ARN WITHOUT a
+        # `:revision` segment; the `:*` pattern above requires that segment to exist, so every nightly
+        # SubmitJob was AccessDenied (CloudTrail 07-26/07-27 23:00:38Z) and, with MaximumRetryAttempts=0
+        # and no DLQ, the failures were invisible. iam simulate-principal-policy: `...sweep:2` -> allowed,
+        # `...sweep` (bare) -> implicitDeny. The bare ARN below closes exactly that gap. Keep BOTH lines:
+        # `:*` covers versioned submits (manual runs pin a revision), the bare one covers the scheduler.
+        "arn:aws:batch:${var.aws_region}:${data.aws_caller_identity.current.account_id}:job-definition/${module.batch.pattern_records_sweep_job_definition_name}",
       ]
     }]
   })

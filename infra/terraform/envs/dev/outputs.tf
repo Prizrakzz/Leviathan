@@ -108,7 +108,8 @@ output "silver_eda_role_arn" {
 # is the URI the three re-registered training jobdefs point at post-cutover
 # (supersedes mlflow_tracking_uri once A-W9 retires the EC2).
 output "mlflow_fargate_tracking_uri" {
-  value       = module.mlflow_fargate.tracking_uri
+  # null while mlflow_enabled=false (decommissioned 2026-07-26); the module is count-gated.
+  value       = try(module.mlflow_fargate[0].tracking_uri, null)
   description = "MLFLOW_TRACKING_URI on the relocated Fargate server (http://mlflow.leviathan.local:5000)."
 }
 

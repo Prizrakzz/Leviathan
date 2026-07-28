@@ -181,3 +181,13 @@ variable "pattern_records_image_digest" {
     error_message = "pattern_records_image_digest must be empty or a full 'sha256:<64 hex>' digest (a TAG is not accepted: the ledger's engine_version stamp and the stale-image guard both depend on the digest)."
   }
 }
+
+# MLflow tracking server (module.mlflow_fargate). DEFAULT FALSE since 2026-07-26: the server was
+# decommissioned for cost (see the module block in main.tf). The default lives HERE, in the repo, rather
+# than in the gitignored tfvars -- otherwise a fresh checkout would default it back ON and quietly restart
+# the ~$16-18/mo ALB. Set true (or -var mlflow_enabled=true) to bring the whole stack back.
+variable "mlflow_enabled" {
+  type        = bool
+  default     = false
+  description = "Create the MLflow Fargate stack (service + ALB + Route53 + Cognito client). Off = decommissioned."
+}
