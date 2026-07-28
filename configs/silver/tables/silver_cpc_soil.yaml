@@ -11,25 +11,17 @@ s3_root: s3://leviathan-dev-shahem-001/silver/weather/source=cpc_soil
 s3_bucket: leviathan-dev-shahem-001
 s3_prefix: silver/weather/source=cpc_soil
 layout: partitioned
-partition_mode: projected
-projection: legacy-quarantined
+partition_mode: registered
+projection: forbidden
 partition_keys:
 - name: commodity
   glue_type: string
-  projected: true
-- name: country
-  glue_type: string
-  projected: true
-- name: region
-  glue_type: string
-  projected: true
+  projected: false
 - name: year
   glue_type: int
-  projected: true
-- name: month
-  glue_type: int
-  projected: true
-recovery_strategy: 'S3 footer only (INV-3: NEVER start-query-execution against this projection.* table)'
+  projected: false
+recovery_strategy: 'get-partitions reconcile + S3 footer reads (INV-3, post-F047 deprojection: NEVER start-query-execution
+  against this weather table; serving is quarantined to gold_weather_z)'
 physical_columns:
 - name: date
   glue_type: date
@@ -45,19 +37,19 @@ physical_columns:
   nullable: true
 - name: source
   glue_type: string
-  arrow_type: large_string
+  arrow_type: string
   parquet_physical_type: BYTE_ARRAY
   target_arrow_type: string
   nullable: true
 - name: ingest_date
   glue_type: string
-  arrow_type: large_string
+  arrow_type: string
   parquet_physical_type: BYTE_ARRAY
   target_arrow_type: string
   nullable: true
 - name: variable
   glue_type: string
-  arrow_type: large_string
+  arrow_type: string
   parquet_physical_type: BYTE_ARRAY
   target_arrow_type: string
   nullable: false
@@ -67,6 +59,24 @@ physical_columns:
   parquet_physical_type: DOUBLE
   target_arrow_type: float64
   nullable: true
+- name: country
+  glue_type: string
+  arrow_type: string
+  parquet_physical_type: BYTE_ARRAY
+  target_arrow_type: string
+  nullable: false
+- name: region
+  glue_type: string
+  arrow_type: string
+  parquet_physical_type: BYTE_ARRAY
+  target_arrow_type: string
+  nullable: false
+- name: month
+  glue_type: bigint
+  arrow_type: int64
+  parquet_physical_type: INT64
+  target_arrow_type: int64
+  nullable: false
 writer_schema_pinned: true
 drift_summary: []
 natural_key:
@@ -107,17 +117,17 @@ producer:
   transform: src/leviathan/transforms/bronze_to_silver/cpc_soil.py
   batch_task: jobs/batch/cpc_bronze_to_silver_task.py
 location_mode: static
-write_mode: overwrite
+write_mode: registered-partition
 fingerprint:
-  schema_fingerprint_sha256: 80de337af67e8705010f3036844fa3aeba7eba62a5fc02f82dfbec4fec568610
-  catalog_hash_sha256: 91e514793dfb7329a280e1351eac37db47c817ab59f47e96f605caf34a1add23
-  registered_partition_count: 0
+  schema_fingerprint_sha256: bcd49151dcdaf99c611e9669a707a85208335444aae82c32cec51a51de209a53
+  catalog_hash_sha256: ff5f37948ecda58a7b399bf2848ee3dc5c803a64ffd4428c7c332dfb71ee9a12
+  registered_partition_count: 837
   placeholder_partition_count: 0
-  glue_nonpartition_cols: 6
+  glue_nonpartition_cols: 9
   physical_parquet_cols: 11
 provenance:
   baseline_id: 20260712_p65impl
-  anchor_git_sha: 7cbbf58a7be021b60cd0f4cf2a5b54c02654fe36
+  anchor_git_sha: c6d78289b8d25761d9e914fbadf706a7c8fe7272
   generated_by: scripts/silver/gen_registry_from_baseline.py
   generated_from: reports/silver_readiness/20260712_p65impl/tables/silver_cpc_soil.json
 notes: 'min_nonnull_frac is PROVISIONAL (uniform 0.5) pending per-source calibration (OP-8 / AV-11, SILVER-V001).
@@ -126,16 +136,9 @@ notes: 'min_nonnull_frac is PROVISIONAL (uniform 0.5) pending per-source calibra
   SILVER-F046: DERIVATION-INPUT ONLY (weather serves from gold_weather_z); producer pins the LONG arrow
   schema. SILVER-F047: projected month-grain is the deproject+compact target (BF-W1, commodity+year registered
   grain, year= path segment preserved). OP-5: cpc_soil silver value-populatedness is an open probe --
-  the value census (SILVER-V001) is the gate.'
-projection_domains:
-  projection.commodity.type: enum
-  projection.commodity.values: cocoa,corn_cbot,campinas_corn_reference_bmf,french_wheat_matif,french_maize_matif,hard_red_winter_wheat_kcbt,hard_red_spring_wheat_mgex,soft_red_winter_wheat_cbot,rough_rice_cbot,south_african_white_maize_jse,south_african_yellow_maize_jse,soybeans_cbot,soybean_meal_cbot,soybean_oil_cbot,soybeans_no_1_dce,soybeans_no_2_dce,soybean_meal_dce,soybean_oil_dce,french_rapeseed_matif,canola_ice,rapeseed_oil_zce,rapeseed_meal_zce,malaysian_crude_palm_oil_cme,palm_olein_dce,brazilian_arabica_coffee,arabica_coffee,robusta_coffee,cotton,raw_sugar,white_sugar,frozen_orange_juice
-  projection.country.type: injected
-  projection.enabled: 'true'
-  projection.month.digits: '2'
-  projection.month.range: 1,12
-  projection.month.type: integer
-  projection.region.type: injected
-  projection.year.range: 2000,2035
-  projection.year.type: integer
-  storage.location.template: s3://leviathan-dev-shahem-001/silver/weather/source=cpc_soil/commodity=${commodity}/country=${country}/region=${region}/year=${year}/month=${month}
+  the value census (SILVER-V001) is the gate. SILVER-F047 registry catch-up (2026-07-28): BF-W1 deprojection
+  (2026-07-21) reflected via baseline re-capture -- REGISTERED [commodity, year]; country/region/month
+  declared in-file (non-null natural-key members; the in-file year -- and commodity where present -- stay
+  undeclared to avoid partition-key collisions); write_mode registered-partition (the F047 compaction
+  writer publishes via the F015 shadow + F013 registered path). Projection grid removed; INV-3 stands:
+  recovery never starts an Athena query.'

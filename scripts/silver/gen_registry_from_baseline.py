@@ -591,7 +591,13 @@ def build_contract(name: str, ctx: dict) -> dict:
     projection_enabled = bool(glue.get("projection_enabled"))
     storm_trio = {"silver_nasa_power", "silver_chirps", "silver_cpc_soil"}
     if name in storm_trio:
-        recovery = "S3 footer only (INV-3: NEVER start-query-execution against this projection.* table)"
+        # SILVER-F047 catch-up (2026-07-28): BF-W1 (2026-07-21) deprojected the trio to REGISTERED
+        # [commodity, year]. INV-3 outlives the projection it was written against: these are
+        # feature-layer tables read via S3 footers / get-partitions, and an Athena query against
+        # them is never the recovery path (numbers-serving is quarantined to gold_weather_z).
+        recovery = ("get-partitions reconcile + S3 footer reads (INV-3, post-F047 deprojection: "
+                    "NEVER start-query-execution against this weather table; serving is "
+                    "quarantined to gold_weather_z)")
     elif partition_mode == "projected":
         recovery = "get-partitions inventory + single sargable Athena probe on a registered surface"
     elif partition_mode == "registered":
@@ -694,7 +700,34 @@ def build_contract(name: str, ctx: dict) -> dict:
 # curation (the WRITER_SCHEMA_PINNED / EXTRA_NOTES precedent) makes the contract regenerate
 # byte-identically. Additive columns are hidden-schema (glue/arrow/parquet null): the F034 producer
 # emits them; the gated B-wave catalog migration registers them (reports/silver_readiness/R2_wasde/).
+
+# -- SILVER-F047 REGISTRY CATCH-UP (2026-07-28). BF-W1 (2026-07-21) deprojected the weather
+# storm-trio's 5-key projected layout to REGISTERED [commodity, year] partitions; the hand DDLs
+# were synced the same day, but the R0 baseline (20260712) PREDATED the migration, so the registry
+# kept emitting the projected shape -- surfaced as chirps hand-vs-generated drift during
+# PRICE_AND_PLAYBOOKS W1.0. Fixed by the sanctioned apply-then-refresh discipline (the F024 CONAB /
+# F036 WASDE precedent, test_generated_matches_live_glue_for_every_table): the three baseline
+# records under 20260712_p65impl/tables/ were RE-CAPTURED from live Glue via run_census.census_one
+# on 2026-07-28 (registered partitions: chirps/nasa 1,426 each, cpc_soil 837; zero placeholders;
+# country/region/month declared in-file at the END of the column list -- the parquet always
+# carried them, and all three are natural-key members so the nullability heuristic lands non-null).
+# The notes_append below is the only curation this needs: everything else regenerates from the
+# refreshed snapshot.
+_F047_WEATHER_NOTE: dict = {
+    "notes_append": (
+        " SILVER-F047 registry catch-up (2026-07-28): BF-W1 deprojection (2026-07-21) reflected via "
+        "baseline re-capture -- REGISTERED [commodity, year]; country/region/month declared in-file "
+        "(non-null natural-key members; the in-file year -- and commodity where present -- stay "
+        "undeclared to avoid partition-key collisions); write_mode registered-partition (the F047 "
+        "compaction writer publishes via the F015 shadow + F013 registered path). Projection grid "
+        "removed; INV-3 stands: recovery never starts an Athena query."
+    ),
+}
+
 CURATION_OVERRIDES: dict = {
+    "silver_chirps": _F047_WEATHER_NOTE,
+    "silver_nasa_power": _F047_WEATHER_NOTE,
+    "silver_cpc_soil": _F047_WEATHER_NOTE,
     # ── R4 cadence calibration: _cadence(grain) infers RELEASE cadence from DATA grain, which is
     # wrong wherever the two differ (a daily-grain table from a weekly/monthly release). These
     # cadences feed only the interim F082 freshness-alarm ceilings (dag_catalog); max_lag_days
@@ -978,10 +1011,14 @@ def _apply_curation_overrides(name: str, contract: dict) -> None:
     registered = bool(ov.get("additive_columns_registered"))
     for cn, target in ov.get("additive_columns", []):
         if cn not in by_name:
-            cols.append({"name": cn,
-                         "glue_type": _ARROW_TO_GLUE[target] if registered else None,
-                         "arrow_type": target if registered else None,
-                         "parquet_physical_type": None, "target_arrow_type": target, "nullable": True})
+            entry = {"name": cn,
+                     "glue_type": _ARROW_TO_GLUE[target] if registered else None,
+                     "arrow_type": target if registered else None,
+                     "parquet_physical_type": None, "target_arrow_type": target, "nullable": True}
+            cols.append(entry)
+            # register in by_name so later override stages (nullable_overrides -- the F047
+            # trio's demoted-key columns are natural-key members, hence non-null) can see it.
+            by_name[cn] = entry
     # additive_columns_hidden: producer-emitted columns NOT yet in the live catalog -> glue_type=None
     # ("hidden schema": excluded from the DDL, surfaced in physical_only_columns), ALWAYS hidden
     # regardless of additive_columns_registered. A NEW additive column awaiting its own gated catalog
@@ -989,8 +1026,10 @@ def _apply_curation_overrides(name: str, contract: dict) -> None:
     # target_arrow_type, so the F034 producer still emits them into the parquet.
     for cn, target in ov.get("additive_columns_hidden", []):
         if cn not in by_name:
-            cols.append({"name": cn, "glue_type": None, "arrow_type": None,
-                         "parquet_physical_type": None, "target_arrow_type": target, "nullable": True})
+            entry = {"name": cn, "glue_type": None, "arrow_type": None,
+                     "parquet_physical_type": None, "target_arrow_type": target, "nullable": True}
+            cols.append(entry)
+            by_name[cn] = entry
     for cn, gt in (ov.get("type_overrides") or {}).items():
         if cn in by_name:
             by_name[cn]["glue_type"] = gt

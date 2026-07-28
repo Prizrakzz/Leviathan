@@ -1,9 +1,14 @@
--- GENERATED from live Glue table leviathan_dev.silver_nasa_power; keep in sync with the S3 layout.
--- SYNCED 2026-07-21: BF-W1 deproject+compaction (SILVER-F047) collapsed the projected 5-key layout to
--- REGISTERED [commodity, year] partitions; country/region/month became IN-FILE columns (they always
--- existed in the parquet -- the rebuilt catalog just never declared them, which broke every numbers-lane
--- weather lookup with COLUMN_NOT_FOUND until the declaration was restored). The in-file `year` column is
--- deliberately NOT declared (it would collide with the partition key of the same name).
+-- silver_nasa_power - weather silver table (source); SILVER-F011 registry-generated DDL.
+--
+-- GENERATED from the SILVER-F010 registry (configs/silver/tables/silver_nasa_power.yaml) by
+-- leviathan.silver.ddl -- this RETIRES the first-parquet schema inference. Do NOT
+-- hand-edit; re-run:  python scripts/silver/generate_ddls_from_registry.py --write
+-- partition_mode = registered. recovery: get-partitions reconcile + S3 footer reads (INV-3, post-F047 deprojection: NEVER start-query-execution against this weather table; serving is quarantined to gold_weather_z)
+--
+-- REGISTERED partitions -- DO NOT re-add partition projection. The projected grid is
+-- the Jul-2026 S3 LIST-storm class ($134/2 days); partitions carry explicit Glue
+-- locations (MSCK cannot repair them). After a DROP+CREATE from this DDL, re-register:
+--     python jobs/utils/deproject_glue_table.py --register --tables silver_nasa_power
 CREATE EXTERNAL TABLE IF NOT EXISTS silver_nasa_power (
     date                     date,
     day                      bigint,
@@ -22,7 +27,7 @@ CREATE EXTERNAL TABLE IF NOT EXISTS silver_nasa_power (
 )
 PARTITIONED BY (commodity string, year int)
 STORED AS PARQUET
-LOCATION 's3://leviathan-dev-shahem-001/silver/weather/source=nasa_power'
+LOCATION 's3://leviathan-dev-shahem-001/silver/weather/source=nasa_power/'
 TBLPROPERTIES (
     'EXTERNAL' = 'TRUE',
     'parquet.compression' = 'SNAPPY'

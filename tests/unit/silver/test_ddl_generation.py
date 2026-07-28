@@ -179,8 +179,11 @@ def test_parse_round_trip_is_semantically_identity(reg):
 # Partition-mode behaviour is preserved (F011 acceptance: no flatten / re-project).
 # ---------------------------------------------------------------------------
 def test_projected_ddls_keep_projection(reg):
-    for name in ("silver_nasa_power", "silver_chirps", "silver_cpc_soil",
-                 "silver_nass_crop_progress"):
+    # SILVER-F047 catch-up (2026-07-28): the weather storm-trio left this list -- BF-W1
+    # (2026-07-21) deprojected them live to REGISTERED [commodity, year]; they are asserted in
+    # test_registered_ddls_partitioned_without_projection below. nass_crop_progress remains
+    # live-projected (verified projection.enabled='true' in Glue, 2026-07-28).
+    for name in ("silver_nass_crop_progress",):
         sql = D.render_ddl(reg.table(name))
         assert "PARTITIONED BY (" in sql, name
         assert "'projection.enabled' = 'true'" in sql, name
@@ -189,7 +192,9 @@ def test_projected_ddls_keep_projection(reg):
 
 def test_registered_ddls_partitioned_without_projection(reg):
     for name in ("silver_esr", "silver_esr_compact", "silver_wasde",
-                 "silver_model_predictions"):
+                 "silver_model_predictions",
+                 # SILVER-F047 catch-up: the deprojected weather trio renders registered.
+                 "silver_chirps", "silver_nasa_power", "silver_cpc_soil"):
         sql = D.render_ddl(reg.table(name))
         assert "PARTITIONED BY (" in sql, name
         # no projection TBLPROPERTY / storage template (the word "projection" appears only in the

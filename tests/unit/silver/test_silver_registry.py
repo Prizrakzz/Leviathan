@@ -58,7 +58,10 @@ def test_partition_modes_match_the_r0_tally(reg):
     # R0 baseline: 28 flat / 10 projected / 4 registered (silver) + 1 flat gold (weather_z) +
     # 1 registered gold (T2B gold_pattern_records, on as_of_date) + 1 registered silver
     # (PRICE_AND_PLAYBOOKS W1.0 silver_futures_eod, on leviathan_slug/trade_year). Total 45.
-    assert modes == {"flat": 29, "projected": 10, "registered": 6}
+    # SILVER-F047 catch-up (2026-07-28): the weather storm-trio (nasa_power/chirps/cpc_soil) moved
+    # projected -> registered [commodity, year] to match the BF-W1 (2026-07-21) live deprojection
+    # the R0 baseline predates, so projected 10 -> 7 and registered 6 -> 9.
+    assert modes == {"flat": 29, "projected": 7, "registered": 9}
 
 
 def test_projection_field_is_quarantined_iff_projected(reg):

@@ -1,9 +1,14 @@
--- GENERATED from live Glue table leviathan_dev.silver_chirps; keep in sync with the S3 layout.
--- SYNCED 2026-07-21: BF-W1 deproject+compaction (SILVER-F047) collapsed the projected 5-key layout to
--- REGISTERED [commodity, year] partitions; country/region/month became IN-FILE columns (nasa_power-class
--- drift -- the compacted parquet always carried them, the rebuilt catalog never declared them). The
--- in-file year and commodity columns are deliberately NOT declared (they would collide with the
--- partition keys of the same names).
+-- silver_chirps - weather silver table (source); SILVER-F011 registry-generated DDL.
+--
+-- GENERATED from the SILVER-F010 registry (configs/silver/tables/silver_chirps.yaml) by
+-- leviathan.silver.ddl -- this RETIRES the first-parquet schema inference. Do NOT
+-- hand-edit; re-run:  python scripts/silver/generate_ddls_from_registry.py --write
+-- partition_mode = registered. recovery: get-partitions reconcile + S3 footer reads (INV-3, post-F047 deprojection: NEVER start-query-execution against this weather table; serving is quarantined to gold_weather_z)
+--
+-- REGISTERED partitions -- DO NOT re-add partition projection. The projected grid is
+-- the Jul-2026 S3 LIST-storm class ($134/2 days); partitions carry explicit Glue
+-- locations (MSCK cannot repair them). After a DROP+CREATE from this DDL, re-register:
+--     python jobs/utils/deproject_glue_table.py --register --tables silver_chirps
 CREATE EXTERNAL TABLE IF NOT EXISTS silver_chirps (
     date        date,
     day         bigint,
@@ -17,7 +22,7 @@ CREATE EXTERNAL TABLE IF NOT EXISTS silver_chirps (
 )
 PARTITIONED BY (commodity string, year int)
 STORED AS PARQUET
-LOCATION 's3://leviathan-dev-shahem-001/silver/weather/source=chirps'
+LOCATION 's3://leviathan-dev-shahem-001/silver/weather/source=chirps/'
 TBLPROPERTIES (
     'EXTERNAL' = 'TRUE',
     'parquet.compression' = 'SNAPPY'

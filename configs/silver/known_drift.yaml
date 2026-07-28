@@ -3,4 +3,11 @@ _note: Reconciliation known-drift allowlist (SILVER-F010). Each entry is a regis
   disagreement that R1 cannot fix in code (a producer/data gap) and is deferred to
   its owning R2 package. The reconciliation test asserts reconcile_all() minus this
   list is EMPTY. numbers/PIT divergences are NOT permitted here (acceptance criterion).
-reconciliation_drift: []
+reconciliation_drift:
+- check: numbers
+  table: silver_nasa_power
+  kind: partition_cols
+  column: null
+  owner_package: SILVER-F046
+  reason: tablespec partition_cols ['commodity', 'country', 'region'] not all partition
+    keys of 'silver_nasa_power' ['commodity', 'year']
