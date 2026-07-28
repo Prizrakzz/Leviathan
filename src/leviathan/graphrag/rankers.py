@@ -163,8 +163,9 @@ _COALESCE_QUIESCENCE = 2.5           # s — a quiet gap this long after the las
 # F1b (Phase-2): the Bedrock Rerank quota (3 req/min, L-11512E58, Adjustable=FALSE, user-confirmed permanent)
 # means a throttle is a STEADY STATE, not a tail event. An adaptive ladder of 8 attempts burns tens of seconds
 # of a turn before the caller-level bge fallback is even reached, and it does so while HOLDING the quota it is
-# waiting for. Fail fast (2 attempts = 1 retry) so the fallback is reached in seconds. This is only affordable
-# because the fallback got cheap: bge was 10.3 s/60-doc pool on the 1-vCPU taskdef :64; serving is now 4 vCPU.
+# waiting for. Fail fast (2 attempts = 1 retry) so the fallback is reached in seconds. The fallback is NOT
+# cheap — bge measured 13.88 s/60-doc pool even on the 4-vCPU taskdef :67 (Fargate grants torch 2 threads
+# regardless of vCPU) — but paying it promptly still beats waiting through the ladder and paying it anyway.
 _RERANK_MAX_ATTEMPTS = 2
 
 
