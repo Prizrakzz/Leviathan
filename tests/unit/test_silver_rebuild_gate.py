@@ -35,13 +35,13 @@ def _ctx(silver_reg, **kw):
 
 
 # ---------------------------------------------------------------------------
-# (1) branch selection for all 43 tables from the F010 consumers field
+# (1) branch selection for all 45 tables from the F010 consumers field
 # ---------------------------------------------------------------------------
-def test_branch_selection_all_43_tables():
+def test_branch_selection_all_45_tables():
     from leviathan.silver import registry as sreg
     silver = sreg.load_registry()
     names = silver.names()
-    assert len(names) == 44, f"expected 44 F010 tables, got {len(names)}"
+    assert len(names) == 45, f"expected 45 F010 tables, got {len(names)}"
 
     branch_a = {t for t in names if g.select_branch(t, silver_reg=silver) == g.BRANCH_A}
     branch_b = {t for t in names if g.select_branch(t, silver_reg=silver) == g.BRANCH_B}
@@ -55,6 +55,9 @@ def test_branch_selection_all_43_tables():
     # landed the P1_TABLES additions without bumping this pin (caught by the FUTURES v1.5 battery);
     # 16 after WIRING WAVE-1 Card C wired silver_sagis_weekly_exports once its catalog ALTER landed;
     # 17 after T2b wired gold_pattern_records (44th contract; ledger mirror rides the same P1 loader).
+    # PRICE_AND_PLAYBOOKS W1.0 added the 45th contract (silver_futures_eod) as a Branch-B table:
+    # it is DEFERRED from the pg mirror until the W2 backfill is size-measured (D7 / probe P8), so
+    # Branch A is unchanged at 17.
     assert branch_a == g.PG_MIRROR_TABLES, branch_a
     assert len(branch_a) == 17
     assert branch_a | branch_b == set(names)          # partition: no table is UNKNOWN in the real registry

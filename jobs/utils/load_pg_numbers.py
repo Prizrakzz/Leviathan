@@ -13,7 +13,9 @@ indistinguishable from an Athena row.
 
 Tall tables load ONLY the registry-declared metrics (silver_wasde declares 5 of ~300 attributes — ~98% of
 rows are never servable). P1 tables below are all small-to-modest; silver_nasa_power is EXCLUDED until a
-size check (tens of millions of rows) decides pruning vs an RDS bump.
+size check (tens of millions of rows) decides pruning vs an RDS bump. silver_futures_eod is EXCLUDED on
+exactly the same ground (PRICE_AND_PLAYBOOKS W1.0 / D7, probe P8) -- see the comment at its place in the
+P1_TABLES list below.
 
     python jobs/utils/load_pg_numbers.py --dry-run
     python jobs/utils/load_pg_numbers.py --tables silver_fred_fx,silver_noaa_oni
@@ -78,6 +80,27 @@ P1_TABLES = ["silver_psd", "silver_wasde", "silver_production", "silver_esr", "s
              # so _numeric_cols routes it to TEXT COLLATE "C" automatically; NO loader change, just a
              # re-run after the canonical schema widen.
              "silver_futures_prices",
+             # PRICE_AND_PLAYBOOKS W1.0 / D7 (probe P8) -- silver_futures_eod is DELIBERATELY ABSENT.
+             # There is no named exclusion set in this loader: absence from P1_TABLES plus a comment IS
+             # the mechanism (the silver_nasa_power precedent in the module docstring), so the deferral
+             # is recorded HERE rather than implied by silence. Grounds: it is the first numbers table
+             # that can plausibly exceed the t4g.micro envelope -- ~29 contracts x EVERY delivery month x
+             # daily back to 2010-06 (Databento GLBX), versus silver_futures_prices's 12 slugs x one
+             # daily `close`; that is two-to-three orders of magnitude more rows for the same commodity
+             # coverage. ADD IT ONLY AFTER the W2 backfill has been MEASURED and a row/byte count decides
+             # pruning (e.g. mirror only near-dated expiries) versus an RDS bump. Adding it early is also
+             # inert-to-harmful today: the table is whitelist-absent from the numbers registry, so
+             # `reg.get(tid)` raises KeyError, load_table records a per-table failure and the run ends
+             # SystemExit(1) -- a red nightly loader for a table with zero rows. When it IS added, the
+             # type doctrine routes settle/open/high/low/close/volume/open_interest to numeric and keeps
+             # trade_date (physical TIMESTAMP) / contract_month / raw_symbol / instrument_kind /
+             # settle_kind / unit / currency / source / dataset as TEXT COLLATE "C"; trade_year (an int
+             # partition key) mirrors numeric via meta["partitions"].
+             # SEQUENCING, enforced rather than merely documented: numbers_parity carries the D8
+             # SAMPLE_COMMODITY entry for this table, and its table loop now SKIPs (loudly, as
+             # SKIP-UNMIRRORED) any sampled table absent from THIS list -- it imports P1_TABLES, so the
+             # two cannot drift. The W3 whitelist flip may therefore land BEFORE this addition without
+             # turning the whole pg-parity gate red; the parity entry activates when the mirror does.
              # WIRING WAVE-1 (2026-07-23): two freshly wired WIDE tables. silver_noaa_iod (year_month, 2
              # served metrics dmi_value/iod_dmi_3month_avg mirror numeric; year/month mirror numeric; the
              # producer trims the trailing NaN tail so latest is a real reading). silver_conab_coffee

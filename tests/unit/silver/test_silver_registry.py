@@ -1,4 +1,4 @@
-"""SILVER-F010: the registry schema validates all 43 contracts + the loader/structural lints.
+"""SILVER-F010: the registry schema validates all 45 contracts + the loader/structural lints.
 
 AWS-free, no network -- pure file reads under the F002 isolation guard.
 """
@@ -15,7 +15,10 @@ from leviathan.silver.types import (
     target_arrow_type,
 )
 
-EXPECTED_TABLE_COUNT = 44  # 42 silver + gold_weather_z + gold_pattern_records (T2B ledger)
+# 43 silver + gold_weather_z + gold_pattern_records (T2B ledger). The 43rd silver table is
+# silver_futures_eod (PRICE_AND_PLAYBOOKS W1.0): generated from a SYNTHETIC R0 record ahead of its
+# producers and FENCED out of serving until the W3 whitelist flip.
+EXPECTED_TABLE_COUNT = 45
 
 
 @pytest.fixture(scope="module")
@@ -23,14 +26,14 @@ def reg() -> R.SilverRegistry:
     return R.load_registry()
 
 
-def test_registry_has_exactly_the_live_42_plus_gold(reg):
+def test_registry_has_exactly_the_live_43_plus_gold(reg):
     names = reg.names()
     assert len(names) == EXPECTED_TABLE_COUNT
     # two gold tables now: the weather z-score serving surface + the T2B pattern-records ledger.
     gold = [n for n in names if n.startswith("gold_")]
     assert set(gold) == {"gold_weather_z", "gold_pattern_records"}
     silver = [n for n in names if n.startswith("silver_")]
-    assert len(silver) == 42
+    assert len(silver) == 43
     # the ESR pair + WASDE + model_predictions are all present (registered surfaces).
     for must in ("silver_esr", "silver_esr_compact", "silver_wasde", "silver_model_predictions"):
         assert must in names
@@ -53,8 +56,9 @@ def test_partition_modes_match_the_r0_tally(reg):
     for name in reg.names():
         modes[reg.table(name)["partition_mode"]] += 1
     # R0 baseline: 28 flat / 10 projected / 4 registered (silver) + 1 flat gold (weather_z) +
-    # 1 registered gold (T2B gold_pattern_records, on as_of_date). Total 44.
-    assert modes == {"flat": 29, "projected": 10, "registered": 5}
+    # 1 registered gold (T2B gold_pattern_records, on as_of_date) + 1 registered silver
+    # (PRICE_AND_PLAYBOOKS W1.0 silver_futures_eod, on leviathan_slug/trade_year). Total 45.
+    assert modes == {"flat": 29, "projected": 10, "registered": 6}
 
 
 def test_projection_field_is_quarantined_iff_projected(reg):

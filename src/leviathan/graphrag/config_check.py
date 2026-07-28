@@ -1215,6 +1215,209 @@ def check_futures_lite() -> list[str]:
     return errs
 
 
+# PRICE_AND_PLAYBOOKS W1.0 (2026-07-28) -- silver_futures_eod, the per-delivery-month futures EOD table.
+# Structural descendant of check_futures_lite, with clause (c) INVERTED: this table is REGISTERED (F010
+# contract + numbers card) but deliberately FENCED OUT of serving for all of W1.0/W1/W2, so the lint pins
+# the FENCED state (in WHITELIST_ABSENT_DEFAULT, absent from the served registry) -- a whitelist flip can
+# then never happen by accident, only by editing this lint and the fence together at W3.
+#
+# The core is the THREE-WAY unit bind, generalized from the v1.5 lesson. The single source is
+# leviathan.silver.futures_eod_contracts.CONTRACT_MAP, which is dict[slug, {unit, currency, settle_kind,
+# source}] -- RICHER than the card's dict[slug, str] -- so the bind is a PROJECTION equality (UNIT_MAP)
+# rather than a dict equality: map-projection == this tracked constant == card unit_overrides.
+#
+# What is NOT copied from check_futures_lite: its blanket `settle` token ban. That ban exists because the
+# yfinance value is NEVER a settlement. Here some sources DO publish a true settlement, so the honest
+# check is a VOCABULARY + COHERENCE one on the settle_kind column instead: the four legal values, and the
+# 1:1 source -> settle_kind cross-tab the plan's post-ship verification asserts on real data.
+_FUTURES_EOD_TABLE = "silver_futures_eod"
+_FUTURES_EOD_SETTLE_KINDS: frozenset = frozenset({"settlement", "mark_to_market", "cash_index", "close"})
+_FUTURES_EOD_SOURCES: frozenset = frozenset({
+    "databento_glbx_mdp3", "databento_ifus_impact", "databento_ifeu_impact",
+    "czce", "jse_safex", "cepea", "bursa", "miax", "euronext_matif", "dce",
+})
+_FUTURES_EOD_CARD_FIELDS: dict = {
+    "shape": "wide", "commodity_col": "leviathan_slug", "date_col": "trade_date",
+    "date_col_type": "timestamp", "knowledge_semantics": "data_date",
+    "knowledge_date_col": "trade_date", "publication_lag_days": 1,
+    # period_type is pinned like every other PIT field: it decides the grain rank the cascade/chain
+    # lints compare hops on, so an unpinned value could drift to month/annual without failing a build.
+    "period_type": "date",
+    "grain_cols": ["leviathan_slug", "contract_month", "trade_date"],
+}
+# The tracked copy of the serving unit contract: 31 contract slugs -> exchange-convention unit string.
+# Bound to CONTRACT_MAP and to the card by check_futures_eod (drift any direction fails the build).
+_FUTURES_EOD_UNIT_OVERRIDES: dict = {
+    "corn_cbot": "US cents/bushel", "soybeans_cbot": "US cents/bushel",
+    "soft_red_winter_wheat_cbot": "US cents/bushel", "hard_red_winter_wheat_kcbt": "US cents/bushel",
+    "hard_red_spring_wheat_mgex": "US cents/bushel", "soybean_oil_cbot": "US cents/lb",
+    "arabica_coffee": "US cents/lb", "cotton": "US cents/lb", "raw_sugar": "US cents/lb",
+    "frozen_orange_juice": "US cents/lb", "soybean_meal_cbot": "USD/short ton",
+    "cocoa": "USD/metric ton", "robusta_coffee": "USD/metric ton", "white_sugar": "USD/metric ton",
+    "rough_rice_cbot": "USD/cwt", "canola_ice": "CAD/t",
+    "french_wheat_matif": "EUR/t", "french_maize_matif": "EUR/t", "french_rapeseed_matif": "EUR/t",
+    "rapeseed_meal_zce": "CNY/t", "rapeseed_oil_zce": "CNY/t", "palm_olein_dce": "CNY/t",
+    "soybean_meal_dce": "CNY/t", "soybean_oil_dce": "CNY/t", "soybeans_no_1_dce": "CNY/t",
+    "soybeans_no_2_dce": "CNY/t", "malaysian_crude_palm_oil_cme": "MYR/t",
+    "south_african_white_maize_jse": "ZAR/t", "south_african_yellow_maize_jse": "ZAR/t",
+    "brazilian_arabica_coffee": "BRL/60-kg bag", "campinas_corn_reference_bmf": "BRL/60-kg bag",
+}
+
+
+def check_futures_eod() -> list[str]:
+    """W1.0 per-delivery-month EOD lint (AWS-free, pure). Card shape + settle-only metrics + the THREE-WAY
+    unit bind (CONTRACT_MAP projection == tracked constant == card unit_overrides) + the settle_kind /
+    source / currency vocabularies + the 31-slug completeness check against configs/commodities/ + the
+    FENCED gate state (whitelist-absent AND absent from the served registry) + the F010 registry contract
+    pins (registered, projection forbidden, registered-partition write mode, the declared column order and
+    the four contract-non-null label columns, and NO roll/continuous column ever)."""
+    from leviathan.graphrag.numbers import registry as R
+    from leviathan.silver import futures_eod_contracts as FC
+    errs: list[str] = []
+    doc = _load("numbers/tables.yaml") or {}
+    card = (doc.get("tables") or {}).get(_FUTURES_EOD_TABLE)
+    if not card:
+        return [f"futures_eod: {_FUTURES_EOD_TABLE} card is absent from numbers/tables.yaml "
+                f"(PRICE_AND_PLAYBOOKS W1.0 registers it)"]
+
+    # (a) exact card shape -- the PIT fields the F010 reconcile binds 1:1 against the registry contract.
+    for k, want in _FUTURES_EOD_CARD_FIELDS.items():
+        if card.get(k) != want:
+            errs.append(f"futures_eod: {_FUTURES_EOD_TABLE}.{k} is {card.get(k)!r}, expected {want!r}")
+    # levels_only would be WRONG here: a per-expiry series carries no roll splice, so a cross-date delta
+    # on one delivery month is legitimate (unlike the continuous flat table).
+    if card.get("levels_only"):
+        errs.append("futures_eod: levels_only must stay false -- per-delivery-month series carry no roll "
+                    "splice, so cross-date reads are legitimate (that guard belongs to the flat table)")
+
+    # (b) settle is the ONLY served metric; unit_overrides == the tracked constant.
+    metrics = card.get("metrics") or {}
+    if set(metrics) != {"settle"}:
+        errs.append(f"futures_eod: metrics must be settle-ONLY (OHLC/volume/open_interest are carried for "
+                    f"provenance but NULL by construction on settle-only sources), got {sorted(metrics)}")
+    ov = (metrics.get("settle") or {}).get("unit_overrides") or {}
+    if ov != _FUTURES_EOD_UNIT_OVERRIDES:
+        errs.append(f"futures_eod: settle.unit_overrides {sorted(ov.items())} != the curated 31-slug set "
+                    f"{sorted(_FUTURES_EOD_UNIT_OVERRIDES.items())}")
+
+    # (b2) THE THREE-WAY BIND: the SINGLE-SOURCE map's unit projection must equal the tracked constant.
+    # With (b) this binds CONTRACT_MAP == _FUTURES_EOD_UNIT_OVERRIDES == card, so the physical `unit`
+    # column (written from CONTRACT_MAP) and the serving override can never drift.
+    if FC.UNIT_MAP != _FUTURES_EOD_UNIT_OVERRIDES:
+        errs.append(f"futures_eod: futures_eod_contracts.UNIT_MAP {sorted(FC.UNIT_MAP.items())} != the "
+                    f"curated 31-slug set {sorted(_FUTURES_EOD_UNIT_OVERRIDES.items())} (three-way drift)")
+
+    # (b3) the map covers EXACTLY the registry contract slugs -- what makes "31" auditable rather than
+    # aspirational (the set(UNIT_MAP) == set(TICKER_MAP) analogue).
+    # NO `if slugs and ...` short-circuit: an absent/emptied configs/commodities/ (a trimmed image, a
+    # bad cwd) would make the completeness assertion vanish silently, which is precisely the
+    # "aspirational rather than auditable" state it exists to prevent. Empty is an ERROR.
+    slugs = {p.stem for p in (_REPO / "configs" / "commodities").glob("*.yaml")}
+    if not slugs:
+        errs.append(f"futures_eod: configs/commodities/ yielded NO contract yaml under {_REPO} -- the "
+                    f"31-slug completeness check cannot run, and silently skipping it is how "
+                    f"CONTRACT_MAP drifts from the contract registry")
+    elif set(FC.CONTRACT_MAP) != slugs:
+        missing = sorted(slugs - set(FC.CONTRACT_MAP))
+        extra = sorted(set(FC.CONTRACT_MAP) - slugs)
+        errs.append(f"futures_eod: CONTRACT_MAP does not cover exactly the contract registry "
+                    f"(missing={missing}, extra={extra})")
+    # (b4) vocabularies: settle_kind / source / unit / ISO-4217 currency, per record.
+    errs += [f"futures_eod: {e}" for e in FC.lint_map()]
+    kinds = {rec["settle_kind"] for rec in FC.CONTRACT_MAP.values()}
+    if not kinds <= _FUTURES_EOD_SETTLE_KINDS:
+        errs.append(f"futures_eod: settle_kind vocabulary drift {sorted(kinds - _FUTURES_EOD_SETTLE_KINDS)}")
+    srcs = {rec["source"] for rec in FC.CONTRACT_MAP.values()}
+    if not srcs <= _FUTURES_EOD_SOURCES:
+        errs.append(f"futures_eod: source vocabulary drift {sorted(srcs - _FUTURES_EOD_SOURCES)}")
+    # a source must map to exactly ONE settle_kind -- the cross-tab the plan's post-ship verification
+    # asserts on real rows; enforcing it on the MAP means a mislabeled row can never be authored.
+    by_source: dict = {}
+    for slug, rec in sorted(FC.CONTRACT_MAP.items()):
+        by_source.setdefault(rec["source"], set()).add(rec["settle_kind"])
+    for src, ks in sorted(by_source.items()):
+        if len(ks) != 1:
+            errs.append(f"futures_eod: source {src!r} maps to MULTIPLE settle_kinds {sorted(ks)} -- the "
+                        f"source -> settle_kind cross-tab must stay 1:1")
+    # cash_index is the ONLY settle_kind that may carry a NULL contract_month, so it must be exactly the
+    # CEPEA pair (the instrument_kind discriminator, plan line 121).
+    if FC.CASH_INDEX_SLUGS != frozenset({"brazilian_arabica_coffee", "campinas_corn_reference_bmf"}):
+        errs.append(f"futures_eod: cash_index slugs {sorted(FC.CASH_INDEX_SLUGS)} != the two CEPEA cash "
+                    f"references -- only those rows may carry contract_month IS NULL")
+
+    # (c) THE FENCE, inverted from check_futures_lite: this table must be whitelist-absent AND absent
+    # from the served registry for all of W1.0/W1/W2. Nothing has been produced; serving it would serve
+    # an empty table. Flipping this pin and the fence together IS the W3 whitelist step.
+    if _FUTURES_EOD_TABLE not in R.WHITELIST_ABSENT_DEFAULT:
+        errs.append(f"futures_eod: {_FUTURES_EOD_TABLE} is NOT in registry.WHITELIST_ABSENT_DEFAULT -- the "
+                    f"W1.0/W1/W2 serving fence has been lifted without the W3 gate (whitelist regression)")
+    if _FUTURES_EOD_TABLE in R.load_registry().tables:
+        errs.append(f"futures_eod: {_FUTURES_EOD_TABLE} is PRESENT in the served registry (agent tool enum) "
+                    f"-- the card must stay dropped at load while the table is fenced")
+
+    # (e) the F010 registry contract: the storm-safe layout + the INV-2 column contract, verbatim.
+    _reg_path = _REPO / "configs" / "silver" / "tables" / "silver_futures_eod.yaml"
+    try:
+        contract = yaml.safe_load(_reg_path.read_text(encoding="utf-8")) or {}
+    except Exception as exc:  # noqa: BLE001
+        contract = {}
+        errs.append(f"futures_eod: cannot read the F010 registry contract ({exc})")
+    if contract:
+        if contract.get("partition_mode") != "registered" or contract.get("projection") != "forbidden":
+            errs.append(f"futures_eod: registry must be partition_mode=registered + projection=forbidden "
+                        f"(got {contract.get('partition_mode')!r}/{contract.get('projection')!r}) -- "
+                        f"projection enumeration IS the Jul-2026 26.8M-LIST / $134 storm class")
+        if contract.get("write_mode") != "registered-partition":
+            errs.append(f"futures_eod: registry write_mode is {contract.get('write_mode')!r}, expected "
+                        f"'registered-partition' (the F013 write-then-verify-then-register path)")
+        pks = [pk.get("name") for pk in (contract.get("partition_keys") or [])]
+        if pks != ["leviathan_slug", "trade_year"]:
+            errs.append(f"futures_eod: registry partition_keys {pks} != ['leviathan_slug', 'trade_year']")
+        if any(pk.get("projected") for pk in (contract.get("partition_keys") or [])):
+            errs.append("futures_eod: a partition key is marked projected -- NEVER on this table")
+        if contract.get("natural_key") != ["leviathan_slug", "contract_month", "trade_date"]:
+            errs.append(f"futures_eod: registry natural_key {contract.get('natural_key')} != "
+                        f"['leviathan_slug', 'contract_month', 'trade_date'] (the point of the wave)")
+        if contract.get("value_columns") != ["settle"]:
+            errs.append(f"futures_eod: registry value_columns {contract.get('value_columns')} != ['settle'] "
+                        f"-- an OHLC value column would put a non-null floor on a by-construction-null column")
+        if contract.get("vintage_retention") != "latest-only":
+            errs.append(f"futures_eod: registry vintage_retention is {contract.get('vintage_retention')!r}, "
+                        f"expected 'latest-only' (prices do not revise -> latest IS only)")
+        cols = {c.get("name"): c for c in (contract.get("physical_columns") or [])}
+        # declaration order IS writer order (INV-2) -- pa_schema_from_contract emits it verbatim.
+        want_order = ["trade_date", "contract_month", "instrument_kind", "raw_symbol", "settle",
+                      "settle_kind", "open", "high", "low", "close", "volume", "open_interest",
+                      "unit", "currency", "expiry_date", "source", "dataset"]
+        if list(cols) != want_order:
+            errs.append(f"futures_eod: registry physical_columns order {list(cols)} != the ratified INV-2 "
+                        f"writer order {want_order}")
+        # the four contract-non-null labels + trade_date; contract_month is NULLABLE despite being a
+        # natural-key member (the CEPEA cash rows) -- the exact pair of facts the generator's
+        # nullable_overrides curation exists to express.
+        for cn in ("trade_date", "instrument_kind", "settle_kind", "unit", "source"):
+            if cn in cols and cols[cn].get("nullable") is not False:
+                errs.append(f"futures_eod: registry column {cn!r} must be nullable=false")
+        if cols.get("contract_month", {}).get("nullable") is not True:
+            errs.append("futures_eod: registry column 'contract_month' must be nullable=true -- it is NULL "
+                        "for the two CEPEA cash references (instrument_kind=cash_index)")
+        for cn, want_t in (("settle", "float64"), ("trade_date", "timestamp[us]"),
+                           ("expiry_date", "timestamp[us]"), ("volume", "int64"),
+                           ("open_interest", "int64")):
+            if cn in cols and cols[cn].get("target_arrow_type") != want_t:
+                errs.append(f"futures_eod: registry column {cn!r} target_arrow_type is "
+                            f"{cols[cn].get('target_arrow_type')!r}, expected {want_t!r}")
+        # ROLL AND CONTINUOUS STAY OUT OF INGEST (plan lines 143-148). A stored front-month flag IS roll
+        # policy; roll policy is a named, versioned QUERY-TIME decision. Fail the build if one appears.
+        banned = sorted(c for c in cols
+                        if re.search(r"(?i)front_month|roll|log_return|adjusted|continuous", c))
+        if banned:
+            errs.append(f"futures_eod: registry declares roll/continuous column(s) {banned} -- roll policy "
+                        f"is a QUERY-TIME decision (a continuous series is a separate derived "
+                        f"gold_futures_continuous with its own roll_policy_version)")
+    return errs
+
+
 def main() -> int:
     failures = 0
     for label, errs in (("vocab", lint_vocab()), ("node_silver_map", check_node_silver_map()),
@@ -1234,7 +1437,8 @@ def main() -> int:
                         ("esr_destinations", check_esr_destinations()),
                         ("cot_register", check_cot_register()),
                         ("stats_registry", check_stats_registry()),
-                        ("futures_lite", check_futures_lite())):
+                        ("futures_lite", check_futures_lite()),
+                        ("futures_eod", check_futures_eod())):
         if errs:
             failures += len(errs)
             print(f"FAIL {label}:")

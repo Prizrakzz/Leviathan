@@ -440,6 +440,27 @@ sources:
     duplicate_check: full
     limitation: raw market price/technical context must not enter core fundamental fitting unless used as an explicitly certified economic driver feature
 
+  # PRICE_AND_PLAYBOOKS W1.0 / D3: the PER-DELIVERY-MONTH EOD table, additive to futures_prices above
+  # (which stays untouched and served). diagnostic_only exactly like its flat sibling -- raw market
+  # prices are context, never a core fundamental fitting input -- and the status also keeps the table
+  # out of the V002 producer-coverage gap list until a real producer lands (W1a). required_columns is
+  # the IDENTITY + PROVENANCE set only: `settle` is deliberately the sole NUMERIC column listed,
+  # because OHLC / volume / open_interest are NULL BY CONSTRUCTION on settle-only sources and the
+  # registry would sweep any numeric required_column into value_columns under a non-null floor.
+  - source_key: futures_eod
+    title: futures EOD per-delivery-month silver
+    glue_table: silver_futures_eod
+    s3_prefix: s3://leviathan-dev-shahem-001/silver/futures_eod/
+    status: diagnostic_only
+    grain: leviathan_slug x contract_month x trade_date
+    required_columns: [trade_date, leviathan_slug, contract_month, instrument_kind, settle, settle_kind, unit, currency, source]
+    natural_key: [leviathan_slug, contract_month, trade_date]
+    date_columns: [trade_date]
+    availability_columns: [trade_date]
+    expected_min_rows: 1000
+    duplicate_check: full
+    limitation: raw market price/technical context must not enter core fundamental fitting unless used as an explicitly certified economic driver feature; contract_month is NULL only where instrument_kind = cash_index (the two CEPEA cash references), so duplicate detection must treat that NULL as a distinct key value rather than dropping the row
+
   - source_key: cot
     title: CFTC COT positioning silver
     glue_table: silver_cot

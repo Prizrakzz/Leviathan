@@ -223,10 +223,20 @@ class NumbersRegistry(BaseModel):
 # gate AND the yfinance freshness-stall fix BOTH passed (canonical silver/futures_prices/part-000.parquet
 # refreshed, freshness alarm green), so the card is REMOVED from this set and load_registry no longer drops
 # it: it enters the agent tool enum + system-prompt cards. The runtime kill-switch is now the ordinary
-# GRAPHRAG_NUMBERS_DISABLE env idiom (single-table rollback, no redeploy). The set is kept (empty) as the
-# symbol so re-gating any future table stays a one-line change, and stays DISJOINT from _disabled_tables()
-# (env-only) so the env-parse kill-switch tests stay byte-identical; the union happens once, in load_registry.
-WHITELIST_ABSENT_DEFAULT: frozenset[str] = frozenset()   # SEAM-C futures whitelisted 2026-07-23: freshness green + no-judge gate passed
+# GRAPHRAG_NUMBERS_DISABLE env idiom (single-table rollback, no redeploy).
+#
+# PRICE_AND_PLAYBOOKS W1.0 (2026-07-28): the set is no longer empty. ``silver_futures_eod`` -- the
+# per-delivery-month EOD table -- is REGISTERED (F010 contract, numbers card, three-way unit lint) but
+# FENCED OUT OF SERVING for all of W1.0 / W1 / W2, because no producer has written a single row yet.
+# The fence is the whole gate for those waves: a whitelist-absent table vanishes from the agent's tool
+# enum AND its system-prompt card, and every ``build_sql`` lookup raises ``KeyError`` -- fail-CLOSED.
+# Whitelisting = deleting it from this set (W3, once the producers and their deterministic gates pass);
+# the post-whitelist rollback lever is then the ordinary GRAPHRAG_NUMBERS_DISABLE=silver_futures_eod env
+# idiom. The set stays DISJOINT from _disabled_tables() (env-only) so the env-parse kill-switch tests
+# stay byte-identical; the union happens once, in load_registry.
+WHITELIST_ABSENT_DEFAULT: frozenset[str] = frozenset({
+    "silver_futures_eod",   # W1.0: registered + linted, FENCED from serving until the W3 whitelist flip
+})
 
 
 def _disabled_tables() -> frozenset[str]:

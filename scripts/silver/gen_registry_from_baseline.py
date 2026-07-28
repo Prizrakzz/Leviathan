@@ -51,7 +51,8 @@ DOMAIN = {
     "silver_fnc_colombia_area_department": "production",
     "silver_fnc_colombia_exports_port_type": "trade_flows",
     "silver_fnc_colombia_monthly": "production", "silver_food_cpi": "macro",
-    "silver_fred_fx": "macro", "silver_futures_prices": "prices",
+    "silver_fred_fx": "macro", "silver_futures_eod": "prices",
+    "silver_futures_prices": "prices",
     "silver_icco_cocoa": "balance_sheet", "silver_model_predictions": "model_output",
     "silver_modis_ndvi": "weather", "silver_mpob": "balance_sheet",
     "silver_mpob_annual": "balance_sheet", "silver_mpoc_exports_by_country": "trade_flows",
@@ -102,7 +103,8 @@ R2_OWNER = {
     "silver_fnc_colombia_area_department": "SILVER-F062",
     "silver_fnc_colombia_exports_port_type": "SILVER-F062",
     "silver_fnc_colombia_monthly": "SILVER-F062", "silver_food_cpi": "SILVER-F062",
-    "silver_fred_fx": "SILVER-F040", "silver_futures_prices": "SILVER-F062",
+    "silver_fred_fx": "SILVER-F040", "silver_futures_eod": "SILVER-F062",
+    "silver_futures_prices": "SILVER-F062",
     "silver_icco_cocoa": "SILVER-F051", "silver_model_predictions": "SILVER-F018",
     "silver_modis_ndvi": "SILVER-F062", "silver_mpob": "SILVER-F062",
     "silver_mpob_annual": "SILVER-F062", "silver_mpoc_exports_by_country": "SILVER-F053",
@@ -145,6 +147,12 @@ PRODUCER = {
     "silver_fnc_colombia_monthly": (_T + "fnc_colombia.py", _J + "fnc_colombia_silver_task.py", "producer"),
     "silver_food_cpi": (_T + "world_bank_food_cpi.py", _J + "food_cpi_task.py", "producer"),
     "silver_fred_fx": (_T + "frankfurter_fx.py", _J + "frankfurter_fx_task.py", "producer"),
+    # PRICE_AND_PLAYBOOKS W1.0: the registry DECLARES the mandated bronze->silver entrypoint ahead of
+    # the producers (W1a D3 lands jobs/batch/futures_eod_task.py with --source {czce,jse_safex,cepea,
+    # ...}). transform stays null on purpose -- it is per-source and lands with each leg -- so the
+    # readiness PRODUCER track stays honestly BLOCKED until the first leg ships (evaluate_producer
+    # blocks on a null transform), rather than a status flip papering over an unbuilt producer.
+    "silver_futures_eod": (None, _J + "futures_eod_task.py", "producer"),
     "silver_futures_prices": (_T + "yfinance_futures.py", _J + "yfinance_futures_task.py", "producer"),
     "silver_icco_cocoa": (_T + "icco_cocoa.py", _J + "icco_cocoa_task.py", "producer"),
     "silver_model_predictions": ("jobs/batch/train_commodity.py", None, "producer"),
@@ -392,6 +400,35 @@ EXTRA_NOTES["silver_cpc_soil"] = (
     "arrow schema. SILVER-F047: projected month-grain is the deproject+compact target (BF-W1, "
     "commodity+year registered grain, year= path segment preserved). OP-5: cpc_soil silver "
     "value-populatedness is an open probe -- the value census (SILVER-V001) is the gate."
+)
+
+
+# PRICE_AND_PLAYBOOKS W1.0 provenance note (disjoint assignment, the house convention).
+EXTRA_NOTES["silver_futures_eod"] = (
+    " PRICE_AND_PLAYBOOKS W1.0 (docs/private/PRICE_AND_PLAYBOOKS_PLAN.md, lines 98-148): the "
+    "PER-DELIVERY-MONTH futures EOD table, ADDITIVE to the flat silver_futures_prices -- which stays "
+    "untouched and served throughout W1/W2 and W3's soak. vintage_retention=latest-only because "
+    "PRICES DO NOT REVISE -> latest IS only; the table is append-only in practice and PIT-trivial. "
+    "projection is FORBIDDEN and partition_mode is REGISTERED: the Jul-2026 26.8M-LIST / $134 storm "
+    "was Athena partition-projection enumeration, and ~31 slugs x ~25 years is under 800 registered "
+    "partitions (WASDE already runs 463), with a nightly run touching only the 31 current-year ones. "
+    "instrument_kind (futures | cash_index) is the discriminator that makes a NULL contract_month "
+    "LEGAL rather than a defect -- it is null only for the two CEPEA cash references. settle_kind "
+    "(settlement | mark_to_market | cash_index | close) is the honesty label riding the row, the "
+    "direct descendant of the W4.2 futures-lite lint, so no prose can mislabel the value. "
+    "unit/currency are SOURCE-FAITHFUL from the SINGLE-SOURCE per-contract map "
+    "(src/leviathan/silver/futures_eod_contracts.py CONTRACT_MAP); there is NO FX conversion at "
+    "ingest, ever. raw_symbol is verbatim and is NEVER parsed into meaning at ingest; expiry_date is "
+    "recorded only where published and is never derived. ROLL AND CONTINUOUS STAY OUT: no "
+    "is_front_month, no is_roll_date, no log_return, no adjusted series -- a stored front-month flag "
+    "IS roll policy, and roll policy is a QUERY-TIME decision; a continuous series would be a "
+    "separate derived gold_futures_continuous with its own roll_policy_version. writer_schema_pinned "
+    "is deliberately FALSE until the first producer lands (W1a): the INV-2 route is mandated "
+    "(leviathan.silver.partitioned_producer -> pa_schema_from_contract -> F015 ShadowPublisher "
+    "REGISTERED), but the flag states an observed producer fact, not an intention. SERVING FENCE: "
+    "the numbers card is registered and linted (config_check.check_futures_eod) but the table is "
+    "WHITELIST-ABSENT from serving (numbers.registry.WHITELIST_ABSENT_DEFAULT) for all of "
+    "W1.0/W1/W2 -- it vanishes from the agent tool enum and every build_sql lookup raises KeyError."
 )
 
 
@@ -714,6 +751,35 @@ CURATION_OVERRIDES: dict = {
             "front-month close (not official exchange settlement), never an official settle."
         ),
     },
+    # -- PRICE_AND_PLAYBOOKS W1.0 (RATIFIED 2026-07-28): silver_futures_eod, the per-delivery-month
+    # futures EOD table. Everything here is a fact build_contract cannot derive from the R0 record:
+    #   * freshness_sla -- LOAD-BEARING, not cosmetic. _cadence(grain) tests "month" BEFORE "date",
+    #     so ANY grain string containing `contract_month` renders cadence=monthly; the table is
+    #     DAILY. max_lag_days=5 matches the flat futures table's ratified weekend-grace ceiling
+    #     (a Fri close is ~3d old by Monday, so the bare daily default of 3 false-fires).
+    #   * natural_key -- the whole point of the wave: (leviathan_slug, contract_month, trade_date).
+    #     The pre-override key comes from the source contract; the curated form is identical, so
+    #     this entry is the reproducible statement of record rather than a change.
+    #   * required_nonnull -- deliberately NOT the natural key (the WASDE precedent, 7 of 9):
+    #     contract_month is a KEY member that is legitimately NULL on the two CEPEA cash rows, so
+    #     the honest non-null set is the key minus contract_month PLUS the four contract-non-null
+    #     labels (instrument_kind / settle_kind / unit / source).
+    #   * nullable_overrides -- see _apply_curation_overrides; this is the INV-2 writer-schema
+    #     nullability the plan pins verbatim (lines 114-133).
+    "silver_futures_eod": {
+        "freshness_sla": {"cadence": "daily", "max_lag_days": 5},
+        "natural_key": ["leviathan_slug", "contract_month", "trade_date"],
+        "required_nonnull": ["leviathan_slug", "trade_date", "instrument_kind", "settle_kind",
+                             "unit", "source"],
+        "coverage_axis": "leviathan_slug x contract_month x trade_date",
+        "nullable_overrides": {
+            "contract_month": True,     # NULL only where instrument_kind=cash_index (2 CEPEA refs)
+            "instrument_kind": False,   # the futures | cash_index discriminator
+            "settle_kind": False,       # the honesty label rides every row
+            "unit": False,              # from the single-source CONTRACT_MAP; never guessed
+            "source": False,            # the publication channel; makes settle_kind auditable
+        },
+    },
     # ── IOD SOURCE SWITCH (ADR_IOD_SOURCE_SWITCH, RATIFIED 2026-07-24, Option B). The served DMI
     # re-bases from the FROZEN NOAA PSL HadISST1.1 file (last real month 2025-04; the file has not
     # regenerated since 2025-06-16) onto the LIVE NOAA CPC ERSSTv5 IODMI record. Same table, same
@@ -928,6 +994,19 @@ def _apply_curation_overrides(name: str, contract: dict) -> None:
     for cn, gt in (ov.get("type_overrides") or {}).items():
         if cn in by_name:
             by_name[cn]["glue_type"] = gt
+    # nullable_overrides (PRICE_AND_PLAYBOOKS W1.0): per-column INV-2 nullability, the ONE column
+    # fact build_contract cannot derive. Its default (`nullable = cn not in natural_key`) is a good
+    # heuristic but it is only a heuristic: silver_futures_eod's ratified natural key includes
+    # contract_month, which is legitimately NULL for the two CEPEA cash references (instrument_kind=
+    # cash_index is the discriminator), while instrument_kind / settle_kind / unit / source are
+    # NON-NULL by contract yet sit outside the key. The flag is load-bearing, not cosmetic:
+    # flat_producer.pa_schema_from_contract turns it into pa.field(..., nullable=...), so a wrong
+    # value either fails the pyarrow encode on legal data or silently permits an illegal null.
+    # Keys must be declared physical columns (a typo would otherwise be a silent no-op).
+    for cn, flag in (ov.get("nullable_overrides") or {}).items():
+        if cn not in by_name:
+            raise KeyError(f"{name}: nullable_overrides column {cn!r} is not a declared physical column")
+        by_name[cn]["nullable"] = bool(flag)
     for row in contract.get("drift_summary") or []:
         note = ov.get("drift_notes", {}).get(row.get("column") or row.get("name") or "")
         if note:
@@ -1115,7 +1194,7 @@ def _render_md(report, entries, contracts) -> str:
         f"# SILVER-F010 registry reconciliation ({report['baseline_id']})",
         "",
         f"Generated by `{report['generated_by']}` from the R0 baseline. {report['table_count']} "
-        f"contracts (42 silver + gold_weather_z).",
+        f"contracts (43 silver + gold_weather_z + gold_pattern_records).",
         "",
         "## Acceptance",
         f"- numbers-stack reconciliation clean (no publication_lag / PIT divergence): "

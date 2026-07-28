@@ -207,6 +207,27 @@ def test_planned_defect_renders_blocked_by_never_green():
     assert r.WO_V001 in c.blocking
 
 
+def test_pre_publish_table_blocks_on_its_publishing_wave_not_v001():
+    """PRICE_AND_PLAYBOOKS W1.0: a table REGISTERED AHEAD OF ITS PRODUCERS (the F010 contract lands
+    first so the schema is ratified, generated, DDL'd and linted before a byte is written) has zero
+    canonical objects, so a value census is not merely missing but IMPOSSIBLE. It stays BLOCKED and
+    is never silently green -- but the work order that closes it is the wave that PUBLISHES the
+    table, not SILVER-V001 ('census the data that exists'). Fabricating a {"passed": true} census
+    entry for a table with no objects is the alternative this branch exists to make unnecessary."""
+    c = certify_table(_clean(table="silver_futures_eod", census_present=False, census_passed=None,
+                             current_data_package="PRICE-PLAYBOOKS-W1A"))
+    assert c.readiness_state == r.STATE_BLOCKED
+    assert "PRICE-PLAYBOOKS-W1A" in c.blocking
+    assert r.WO_V001 not in c.blocking
+    # an ordinary uncensused table is unaffected -- it still lands on V001.
+    assert r.WO_V001 in certify_table(_clean(census_present=False, census_passed=None)).blocking
+
+
+def test_pre_publish_map_is_wired_into_the_runner():
+    from jobs.audit import readiness_certify as rcert
+    assert rcert.PRE_PUBLISH_PACKAGE["silver_futures_eod"] == "PRICE-PLAYBOOKS-W1A"
+
+
 def test_chirps_shape_blocks_on_three_tracks():
     """CHIRPS today: all-NaN value + stale silver + a projection catalog it repairs in BF-W1."""
     c = certify_table(_clean(
@@ -289,8 +310,9 @@ def test_runner_build_evidence_smoke(tmp_path):
     reg = load_registry()
     evidence = rcert.build_evidence(reg, evidence_dir=tmp_path)
     # 43 R0 tables + the T2B gold_pattern_records ledger (generation-only, census-exempt like
-    # model_predictions -- an engine-replay output, not a value-census measurement source).
-    assert len(evidence) == 44
+    # model_predictions -- an engine-replay output, not a value-census measurement source) +
+    # silver_futures_eod (PRICE_AND_PLAYBOOKS W1.0, registered ahead of its producers).
+    assert len(evidence) == 45
     cert = certify_all(evidence)
 
     # HONEST: today it must be RED (orphans unadopted, chirps all-NaN, ESR single-vintage).

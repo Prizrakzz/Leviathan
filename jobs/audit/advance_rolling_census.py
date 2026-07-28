@@ -28,6 +28,27 @@ task raises States.TaskFailed on the .sync integration -> the machine's Reconcil
 
 READ-ONLY of Athena (never touches it); the ONLY S3 write is the rolling-baseline put_object. ASCII-only
 stdout (the container console is cp1252-narrow; keep prints ASCII).
+
+RECORDED DEFERRAL -- PRICE_AND_PLAYBOOKS W1.0 / D6 (silver_futures_eod), deferred to W1a.
+----------------------------------------------------------------------------------------
+The plan lists D6 as "gate baseline seed s3://.../cascade_census/rolling/futures_eod/census.json",
+sited here. It is NOT seeded at W1.0, deliberately, and the deferral is written HERE rather than left
+implied by silence (the same discipline as the D7 pg-mirror deferral recorded in place at
+jobs/utils/load_pg_numbers.py). Grounds:
+
+  * The task needs NO code change for it -- ``main()`` already takes ``--asof`` and ``--dest-uri``, so
+    D6 is purely a runtime S3 write; nothing about it is blocked by W1.0 code.
+  * A baseline is a CENSUS of legs that exist. At W1.0 ``silver_futures_eod`` has zero objects, zero
+    registered partitions, ``cascade_ref: null`` and is whitelist-absent from the served numbers
+    registry -- it feeds no cascade leg, so its census is empty BY CONSTRUCTION. Seeding an empty
+    census would enshrine "no legs" as the baseline the first real gate diffs against, which is the
+    stale-snapshot failure this task exists to prevent, pointed the other way.
+  * The matching ``configs/silver/dags/futures_eod.json`` (the ``gate_baseline_uri`` carrier, 27
+    families have one) does not exist yet either; it is a W1a authoring item on the same schedule.
+
+SEED IT AT W1a, alongside the first canonical publish, with:
+    python jobs/audit/advance_rolling_census.py --asof <first-publish-date> \
+        --dest-uri s3://leviathan-dev-shahem-001/cascade_census/rolling/futures_eod/census.json
 """
 from __future__ import annotations
 

@@ -71,6 +71,13 @@ FAMILY_RULES: tuple[tuple[str, str], ...] = (
     ("silver_food_cpi", "world_bank"),
     ("silver_pink_sheet", "world_bank"),
     ("silver_futures_prices", "futures"),
+    # PRICE_AND_PLAYBOOKS W1.0: the per-delivery-month EOD table gets its OWN family, not the yfinance
+    # `futures` one. Its producers are a different estate (CZCE / JSE / CEPEA / Bursa / MIAX / Euronext /
+    # DCE / Databento, on their own venue-timezone crons), and W3 retires the yfinance chain -- so a
+    # shared family would page the wrong on-call and make the `futures` label ("...(yfinance)") a lie.
+    # NOTE the ordering hazard: never write this rule as ("silver_futures", ...) -- that prefix swallows
+    # BOTH tables (family_of matches on startswith) and would silently re-home the live yfinance table.
+    ("silver_futures_eod", "futures_eod"),
     ("silver_cot", "cftc"),
     # --- Single-source specialty ------------------------------------------
     ("silver_production", "faostat"),
@@ -105,6 +112,8 @@ FAMILY_LABELS: dict[str, str] = {
     "fred": "FRED FX rates",
     "world_bank": "World Bank (food CPI / Pink Sheet)",
     "futures": "Exchange futures prices (yfinance)",
+    "futures_eod": "Exchange futures EOD per delivery month (CZCE / JSE / CEPEA / Bursa / MIAX / "
+                   "Euronext / DCE / Databento)",
     "cftc": "CFTC Commitments of Traders",
     "faostat": "FAOSTAT production",
     "ams": "USDA AMS cotton quality",

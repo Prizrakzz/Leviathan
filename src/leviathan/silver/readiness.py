@@ -254,6 +254,7 @@ def evaluate_current_data(ev: TableEvidence) -> TrackResult:
     """Current-data readiness from the V001 value census + V002 value_nonnull posture.
 
     * generated ML table                 -> NA (no value contract)
+    * no census, table not published yet -> BLOCKED-BY the publishing wave (see below)
     * no census record at all            -> BLOCKED-BY SILVER-V001 (R4 DoD needs all 41)
     * census FAIL (all-NaN / single-vintage / floor) -> BLOCKED-BY the mapped B-wave
     * census PASS                        -> PASS
@@ -262,6 +263,19 @@ def evaluate_current_data(ev: TableEvidence) -> TrackResult:
         return TrackResult(TRACK_CURRENT_DATA, NA, (),
                            ("generated ML predictions carry no value_columns contract",))
     if not ev.census_present:
+        # A table registered AHEAD of its producers (the F010 contract lands first so the schema is
+        # ratified, generated and linted before a single object exists -- silver_futures_eod,
+        # PRICE_AND_PLAYBOOKS W1.0) has NOTHING to census: there are no canonical objects. That is
+        # still BLOCKED and still red -- it is never silently green, and it is never faked with a
+        # {"passed": true} census entry -- but attributing it to SILVER-V001 would be wrong: V001 is
+        # "run the census on data that exists", and the work order that actually closes this row is
+        # the wave that PUBLISHES the table. The runner supplies that package explicitly (a curated
+        # map), so an ordinary uncensused table still lands on V001.
+        if ev.current_data_package:
+            return TrackResult(TRACK_CURRENT_DATA, BLOCKED, (ev.current_data_package,),
+                               ("registered ahead of its producer: no canonical objects exist yet, so "
+                                "no value census is possible; the publishing wave "
+                                f"({ev.current_data_package}) closes this",))
         return TrackResult(TRACK_CURRENT_DATA, BLOCKED, (WO_V001,),
                            ("no value_census.json for this table; the R4 exit criterion "
                             "requires a census for every non-ML table (SILVER-V001)",))

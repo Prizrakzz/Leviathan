@@ -98,6 +98,31 @@ BURNED_TABLE_FRESHNESS: dict[str, tuple[str, int, str]] = {
     "silver_nass_citrus": ("usda_nass", 400, "cadence_default:annual (seasonal/annual citrus; full-cycle miss)"),
 }
 
+# ---------------------------------------------------------------------------
+# FAMILIES REGISTERED AHEAD OF THEIR PRODUCERS -- excluded from the TFVARS (never from the alarm
+# DOCUMENT, which keeps describing the target state).
+#
+# The per-family freshness alarm runs treat_missing_data = "breaching" (the 2026-07-23 flip: a
+# producer that STOPS emitting must page, which is exactly the stall the freshness audit missed for
+# 6-10 weeks). scripts/silver/freshness_poller.py emits NO datapoint for an EMPTY canonical prefix,
+# and a family whose table has not had its first canonical publish yet has, by construction, an
+# empty prefix. So declaring the alarm at registration time means it instant-breaches on the next
+# dev apply and pages the shared topic continuously until the producer lands -- the same hazard the
+# module's own terraform header names ("else the pre-emit families instant-breach the shared
+# topic"), and the reason the flip was sequenced behind the poller in the first place.
+#
+# The precedent that HID this: gold_pattern_records was also registered ahead of its producer and
+# escaped only incidentally, because its family sits in dag_catalog._NON_BACKFILL_FAMILIES and is
+# therefore filtered out of the tfvars already. futures_eod IS backfillable, so it needs an explicit
+# exclusion. This mirrors readiness_certify.PRE_PUBLISH_PACKAGE, which records the same fact for the
+# readiness certificate.
+#
+# REMOVE an entry the moment its table's first canonical publish lands (W1a for futures_eod), then
+# re-emit the tfvars and apply -- tests/unit/silver/test_silver_alarms.py fails if an entry is
+# removed while the family still has no producer transform, and fails if an entry lingers here after
+# the producer lands.
+PRE_PUBLISH_FAMILIES: frozenset = frozenset({"futures_eod"})
+
 
 def _alarm(*, failure_mode: str, family: str, metric_name: str, dimensions: dict,
            statistic: str, period_seconds: int, evaluation_periods: int,
@@ -283,10 +308,13 @@ def build_tfvars(registry=None) -> dict:
     ``batch_families`` drives the per-family Batch-failed rule+alarm; ``freshness_slas`` maps
     family -> ceiling-days for the per-family freshness alarms; ``table_freshness_slas`` maps
     table -> {family, threshold, basis} for the per-table freshness alarms (the four burned tables).
-    All three are pure functions of the registry + DAG catalog."""
+    All three are pure functions of the registry + DAG catalog, MINUS
+    :data:`PRE_PUBLISH_FAMILIES` -- filtered HERE and only here, so ``alarm_definitions.json`` keeps
+    documenting the target state while the APPLIED alarms wait for a first canonical publish."""
     reg = registry or load_registry()
     catalog = build_catalog(reg)
-    families = [k for k, f in catalog.items() if f.backfillable]
+    families = [k for k, f in catalog.items()
+                if f.backfillable and k not in PRE_PUBLISH_FAMILIES]
     return {
         "silver_metric_namespace": METRIC_NAMESPACE,
         "silver_batch_families": families,

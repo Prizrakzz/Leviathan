@@ -12,10 +12,28 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
 from datetime import date
+from pathlib import Path
 
 from leviathan.common.config import load_env
 from leviathan.common.logging import get_logger
+
+# Batch invokes this by PATH (`python jobs/utils/numbers_parity.py`), which puts jobs/utils/ -- not
+# the repo root -- on sys.path[0], so `import jobs.*` would not resolve. Put the repo root on the
+# path first (the silver_rebuild_gate precedent, jobs/audit/silver_rebuild_gate.py:58-61).
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+# The pg MIRROR allowlist, imported so the two can never drift (same bind as silver_rebuild_gate).
+# A SAMPLE_COMMODITY entry for a table the loader does not mirror has no pg side to compare against:
+# `pgnumbers.pg_query` would raise "relation does not exist", `_cmp` records that as a MISMATCH (not
+# a skip), and `main` returns 1 -- so ONE deferred table would turn the WHOLE parity gate red for
+# every other table. See the SKIP-UNMIRRORED branch in the table loop.
+from jobs.utils.load_pg_numbers import P1_TABLES as _PG_MIRROR_LIST  # noqa: E402
+
+PG_MIRROR_TABLES = frozenset(_PG_MIRROR_LIST)
 
 logger = get_logger("numbers_parity")
 
@@ -74,7 +92,21 @@ SAMPLE_COMMODITY = {"silver_psd": "corn_cbot", "silver_wasde": "corn", "silver_p
                     # slug (bare 'corn') matches zero rows -> vacuous panel, caught loudly by EMPTY-PANEL.
                     # The grain is the full natural key (grain_cols), so the latest-vintage ROW_NUMBER never
                     # ties across driver/kind and pg==Athena selection is deterministic.
-                    "gold_pattern_records": "corn_cbot"}
+                    "gold_pattern_records": "corn_cbot",
+                    # PRICE_AND_PLAYBOOKS W1.0 / D8: silver_futures_eod.commodity_col is leviathan_slug
+                    # holding CONTRACT slugs -- corn_cbot is the liquid probe (bare 'corn' matches zero
+                    # rows: the documented gold_weather_z vacuous-panel trap). The entry lands NOW, with
+                    # the schema, because WITHOUT it the panel is vacuous the first time the gate runs
+                    # live (0 == 0 passes blind). It is INERT while the table is whitelist-absent -- the
+                    # loop below SKIPs a fenced table loudly instead of crashing -- and goes live the
+                    # moment the W3 whitelist flip lands, so nobody has to remember to add it.
+                    # NON-VACUITY PRECONDITION to re-check AT the flip: corn_cbot rows only exist after
+                    # W2 (Databento GLBX root `ZC`); W1a/W1b produce CZCE rapeseed, JSE maize, CEPEA
+                    # arabica/corn, Bursa palm and MIAX HRS -- none of them corn_cbot. The card declares
+                    # grain_cols [leviathan_slug, contract_month, trade_date], so the latest-vintage
+                    # ROW_NUMBER never ties across delivery months and pg==Athena selection stays
+                    # deterministic (the gold_pattern_records lesson directly above).
+                    "silver_futures_eod": "corn_cbot"}
 # 2026 asof included because ingest-semantics tables (silver_production) were ingested in 2026 — earlier
 # asofs legitimately see 0 rows (honest PIT), which would leave that panel vacuous.
 ASOFS = ["2021-08-15", "2024-06-01", "2026-07-01"]
@@ -182,6 +214,31 @@ def main() -> int:
             mismatches.append(f"DIFF {tid}.{metric} asof={asof} agg={agg}: athena={a} pg={p}")
 
     for tid in tables:
+        # A table can be REGISTERED in tables.yaml yet FENCED out of the loaded registry
+        # (registry.WHITELIST_ABSENT_DEFAULT, or the GRAPHRAG_NUMBERS_DISABLE env kill-switch), which
+        # is precisely the state a freshly-schema'd table sits in before its producers land
+        # (silver_futures_eod, PRICE_AND_PLAYBOOKS W1.0). `reg.get` raises KeyError on those, and this
+        # loop is unguarded -- one fenced SAMPLE_COMMODITY entry would crash the WHOLE parity gate for
+        # every other table. Skip it LOUDLY (a report line, not a mismatch): a fenced table is not
+        # served, so there is nothing to prove parity about, and the entry activates by itself the
+        # moment the fence lifts. It is NOT counted as a mismatch -- that would block the pg flip
+        # forever on a table nobody is serving.
+        if tid not in reg.tables:
+            lines.append(f"- SKIP-FENCED {tid}: registered in tables.yaml but absent from the loaded "
+                         f"registry (whitelist-absent / GRAPHRAG_NUMBERS_DISABLE) - not served, "
+                         f"nothing to compare; this entry goes live at the whitelist flip")
+            continue
+        # ...and the SEQUENCING guard behind it. Lifting the fence is a ONE-LINE registry edit; adding
+        # the table to load_pg_numbers.P1_TABLES is a separate, deliberate decision gated on a measured
+        # size check (silver_futures_eod / D7, silver_nasa_power before it). If the fence lifts first,
+        # every leg for this table hits a pg relation that was never created, `_cmp` books each miss as
+        # a PG-ERR MISMATCH, and main() returns 1 -- the whole gate red because of one unmirrored table.
+        # Skip it LOUDLY instead: unmirrored means there is no pg side to be at parity WITH.
+        if tid not in PG_MIRROR_TABLES:
+            lines.append(f"- SKIP-UNMIRRORED {tid}: served, but absent from load_pg_numbers.P1_TABLES "
+                         f"- there is no pg mirror to compare against (the D7-class size-check "
+                         f"deferral); add it to P1_TABLES and reload the mirror to activate this entry")
+            continue
         ts = reg.get(tid)
         commodity = SAMPLE_COMMODITY.get(tid)
         # Lift the [:4] sampling cap for TALL tables (Attack 3 #4): a tall table's metrics are ROW values

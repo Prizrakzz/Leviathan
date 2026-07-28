@@ -68,6 +68,20 @@ ML_TABLE = "silver_model_predictions"
 # Re-add an entry ONLY with a fresh staleness census artifact naming the owning wave.
 KNOWN_STALENESS: dict = {}
 
+# Tables REGISTERED AHEAD OF THEIR PRODUCERS -> the wave that publishes them. The F010 contract for a
+# new table lands first on purpose (schema ratified, generated, DDL'd and linted before a single byte
+# is written), so between registration and the first canonical publish the table has zero objects and
+# a value census is not merely missing but IMPOSSIBLE. Mapping it here makes the certificate name the
+# work order that actually closes the row, instead of SILVER-V001 ("census the data that exists"), and
+# it keeps the dishonest alternative -- fabricating a {"passed": true} census entry for a table with no
+# objects -- off the table. The row stays BLOCKED and the certificate stays RED either way.
+# REMOVE an entry the moment its table's first canonical publish + census land.
+PRE_PUBLISH_PACKAGE: dict = {
+    # PRICE_AND_PLAYBOOKS W1.0: silver_futures_eod is registered + serving-fenced; W1a (the free-first
+    # venues) is the first wave that writes a canonical partition, and W2 completes the coverage.
+    "silver_futures_eod": "PRICE-PLAYBOOKS-W1A",
+}
+
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -168,7 +182,7 @@ def build_evidence(reg, *, evidence_dir: Path) -> list[TableEvidence]:
             census_present=cen is not None,
             census_passed=(cen.get("passed") if cen else None),
             census_gate_kinds=tuple(cen.get("kinds", [])) if cen else (),
-            current_data_package=None,
+            current_data_package=PRE_PUBLISH_PACKAGE.get(name),
             # freshness
             freshness_probe=probes.get(name),
             max_lag_days=max_lag,

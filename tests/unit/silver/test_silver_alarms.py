@@ -93,6 +93,34 @@ class TestTfvars:
     def test_tfvars_excludes_generation_only(self, sa):
         assert "model_output" not in sa.build_tfvars()["silver_batch_families"]
 
+    def test_tfvars_excludes_pre_publish_families(self, sa):
+        # A family whose table has had no first canonical publish emits NO FreshnessLagDays datapoint
+        # (freshness_poller: EMPTY canonical prefix -> no datapoint), and the per-family freshness
+        # alarm is treat_missing_data="breaching" -- so declaring it would instant-breach the shared
+        # on-call topic on the next apply and page continuously until the producer lands.
+        tf = sa.build_tfvars()
+        assert sa.PRE_PUBLISH_FAMILIES, "the exclusion set must stay explicit, not empty-by-accident"
+        for fam in sa.PRE_PUBLISH_FAMILIES:
+            assert fam not in tf["silver_batch_families"]
+            assert fam not in tf["silver_freshness_slas"]
+
+    def test_pre_publish_families_still_have_no_producer(self, sa):
+        # The removal trigger, pinned: an entry may only leave PRE_PUBLISH_FAMILIES once its family
+        # actually publishes. This FAILS the moment a producer transform lands (forcing the entry out
+        # + a tfvars re-emit + an apply), and it FAILS today if someone parks a live family here.
+        from leviathan.silver.dag_catalog import build_catalog
+        from leviathan.silver.registry import load_registry
+        reg = load_registry()
+        catalog = build_catalog(reg)
+        for fam in sa.PRE_PUBLISH_FAMILIES:
+            assert fam in catalog, f"{fam} is not a DAG family"
+            for table in catalog[fam].tables:
+                transform = (reg.table(table).get("producer") or {}).get("transform")
+                assert transform is None, (
+                    f"{table} now has a producer transform ({transform}) -- drop {fam!r} from "
+                    f"silver_alarms.PRE_PUBLISH_FAMILIES, re-emit the tfvars and apply, so its "
+                    f"batch-failure + freshness alarms actually arm")
+
     def test_emitted_tfvars_file_matches_current_registry(self, sa):
         # the checked-in auto.tfvars.json must equal a fresh emit (no drift).
         import json

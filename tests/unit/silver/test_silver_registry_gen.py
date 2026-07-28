@@ -43,13 +43,48 @@ def test_checked_in_tree_matches_fresh_render(gen):
     assert drift == [], f"registry drift; re-run the generator: {drift}"
 
 
-def test_generator_covers_exactly_the_44_baseline_tables(gen):
+def test_generator_covers_exactly_the_45_baseline_tables(gen):
     baseline = {p.stem for p in gen.TABLES_JSON.glob("*.json")}
     on_disk = {p.stem for p in _TABLES.glob("*.yaml")}
     assert baseline == on_disk
-    # 43 R0 tables + the T2B gold_pattern_records ledger (synthetic R0 record, plan sec 1.2).
-    assert len(on_disk) == 44
+    # 43 R0 tables + two SYNTHETIC R0 records: the T2B gold_pattern_records ledger (T2B plan sec 1.2)
+    # and silver_futures_eod (PRICE_AND_PLAYBOOKS W1.0) -- both authored from a ratified schema so the
+    # generator can emit their contracts byte-stably before any AWS object exists.
+    assert len(on_disk) == 45
     assert "gold_pattern_records" in on_disk
+    assert "silver_futures_eod" in on_disk
+
+
+class TestNullableOverrides:
+    """PRICE_AND_PLAYBOOKS W1.0: the one column fact ``build_contract`` cannot derive.
+
+    The default ``nullable = cn not in natural_key`` is a heuristic, and silver_futures_eod breaks it
+    in BOTH directions at once: ``contract_month`` is a natural-key member that is legitimately NULL
+    (the two CEPEA cash references), while instrument_kind / settle_kind / unit / source are non-null
+    by contract yet sit outside the key. The flag is load-bearing -- ``pa_schema_from_contract`` turns
+    it into ``pa.field(..., nullable=...)`` -- so a wrong value either fails the pyarrow encode on
+    legal data or silently admits an illegal null."""
+
+    def test_the_override_beats_the_natural_key_default(self, gen):
+        ctx = gen._build_context()
+        c = gen.build_contract("silver_futures_eod", ctx)
+        by = {col["name"]: col for col in c["physical_columns"]}
+        assert "contract_month" in c["natural_key"]
+        assert by["contract_month"]["nullable"] is True      # key member, still nullable
+        for cn in ("instrument_kind", "settle_kind", "unit", "source"):
+            assert by[cn]["nullable"] is False, cn           # non-key, still non-null
+
+    def test_an_unknown_override_column_fails_closed(self, gen):
+        # a typo would otherwise be a silent no-op -- exactly the failure mode a nullability knob
+        # must not have.
+        ctx = gen._build_context()
+        overrides = gen.CURATION_OVERRIDES["silver_futures_eod"]["nullable_overrides"]
+        overrides["typo_col"] = True
+        try:
+            with pytest.raises(KeyError, match="not a declared physical column"):
+                gen.build_contract("silver_futures_eod", ctx)
+        finally:
+            overrides.pop("typo_col")
 
 
 def test_no_yaml_lacks_a_baseline_record(gen):

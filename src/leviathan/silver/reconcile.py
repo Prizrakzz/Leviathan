@@ -75,6 +75,14 @@ NUMBERS_TABLES = (
     #                                     records consumers=both + numbers_ref, so its data_date PIT fields
     #                                     (week_ending_date, +5d publication_lag_days) reconcile here rather than
     #                                     skipping the F010 gate unchecked.
+    "silver_futures_eod",               # PRICE_AND_PLAYBOOKS W1.0: the per-delivery-month futures EOD table
+    #                                     (45th contract). Whitelist-absent from serving for all of
+    #                                     W1.0/W1/W2 -- but, exactly like silver_futures_prices was
+    #                                     pre-flip, the numbers card + the F010 contract's
+    #                                     numbers_ref/knowledge fields reconcile here REGARDLESS of the
+    #                                     served-registry drop (both lints read raw configs). Enumerated
+    #                                     the moment the card landed so its data_date/trade_date/+1d PIT
+    #                                     fields are structurally checked rather than shipping unchecked.
     "gold_pattern_records",             # T2b: pattern-records ledger (44th contract, registered-partition GOLD,
     #                                     flag-off until its deck gates the flip) — enumerated the moment its
     #                                     tables.yaml card landed so its knowledge fields reconcile against F010
