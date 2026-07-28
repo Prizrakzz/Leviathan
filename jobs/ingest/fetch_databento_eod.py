@@ -216,6 +216,42 @@ def dataset_available_end(client, dataset: str) -> date:
     return _DATASET_END_CACHE[dataset]
 
 
+def _is_server_error(exc: Exception) -> bool:
+    status = getattr(exc, "http_status", None)
+    return isinstance(status, int) and status >= 500
+
+
+def _resolve_chunk_salvaging(client, dataset: str, chunk: list, start: str, end: str,
+                             unresolvable: list) -> dict:
+    """One step-2 chunk, salvage-bisecting on a PERSISTENT server 5xx.
+
+    Observed live (2026-07-28): IFUS instrument_id 6512548 -- the ``SB   99   6512548``
+    numeric-ID junk instrument -- 500s the symbology resolver ALONE on every window tried,
+    surviving the full retry ladder. Junk numeric-ID instruments are dropped by the outright
+    filter anyway, so their symbology is unlearnable AND worthless -- but a whole chunk must
+    not die for one of them. On persistent 5xx the chunk is bisected (with a short retry
+    ladder -- the poison is deterministic) down to single ids; singles that still fail are
+    recorded in ``unresolvable`` and skipped. The CALLER enforces the fail-closed cap that
+    distinguishes poison ids from an outage. Non-5xx errors propagate untouched."""
+    try:
+        return call_with_backoff(
+            client.symbology.resolve, dataset=dataset, symbols=chunk,
+            stype_in="instrument_id", stype_out="raw_symbol", start_date=start, end_date=end,
+            attempts=2 if len(chunk) < RESOLVE_CHUNK else MAX_ATTEMPTS)
+    except Exception as exc:  # noqa: BLE001
+        if not _is_server_error(exc):
+            raise
+        if len(chunk) == 1:
+            unresolvable.append(str(chunk[0]))
+            return {"result": {}}
+        mid = len(chunk) // 2
+        left = _resolve_chunk_salvaging(client, dataset, chunk[:mid], start, end, unresolvable)
+        right = _resolve_chunk_salvaging(client, dataset, chunk[mid:], start, end, unresolvable)
+        merged = dict(left.get("result") or {})
+        merged.update(right.get("result") or {})
+        return {"result": merged}
+
+
 def resolve_outrights(client, *, dataset: str, root: str, year: int,
                       through: Optional[date] = None) -> dict:
     """The full free discovery for one ``(dataset, root, year)`` + the F-A assertion.
@@ -239,10 +275,9 @@ def resolve_outrights(client, *, dataset: str, root: str, year: int,
     sym_to_ids: dict[str, set[str]] = {}
     sym_to_intervals: dict[str, list] = {}
     step2: list[dict] = []
+    unresolvable: list[str] = []
     for chunk in _chunks(ids, RESOLVE_CHUNK):
-        r2 = call_with_backoff(
-            client.symbology.resolve, dataset=dataset, symbols=chunk,
-            stype_in="instrument_id", stype_out="raw_symbol", start_date=start, end_date=end)
+        r2 = _resolve_chunk_salvaging(client, dataset, list(chunk), start, end, unresolvable)
         step2.append(r2)
         for iid, entries in (r2.get("result") or {}).items():
             for e in entries:
@@ -252,6 +287,23 @@ def resolve_outrights(client, *, dataset: str, root: str, year: int,
                     sym_to_intervals.setdefault(sym, []).append(
                         [e.get("d0"), e.get("d1"), str(iid)])
         time.sleep(POLITE_SLEEP_SECONDS)
+    if unresolvable:
+        # Fail-closed sanity cap: a poison id is a vendor defect on a junk instrument; a MASS of
+        # skips is a server outage wearing a poison-id costume, and skipping through an outage
+        # would silently lose real symbology. 1 of 160 (the measured SB/2020 case) passes; a
+        # whole failing chunk does not.
+        cap = max(3, len(ids) // 20)
+        if len(unresolvable) > cap:
+            raise SystemExit(
+                f"STEP-2 FAILURE {dataset} {root}/{year}: {len(unresolvable)} of {len(ids)} "
+                f"instrument_ids unresolvable (cap {cap}) -- this is an outage, not poison ids; "
+                f"refusing to continue")
+        logger.warning(
+            "%s %s/%s: %d instrument_id(s) SKIPPED as unresolvable (server 5xx on the id alone; "
+            "the measured case is IFUS 6512548 = the 'SB   99   6512548' numeric-ID junk the "
+            "outright filter drops anyway): %s -- gate 3's bar-count reconciliation is the "
+            "backstop if a real outright were ever lost this way",
+            dataset, root, year, len(unresolvable), unresolvable[:10])
 
     outrights, dropped = partition_symbols(sym_to_ids.keys(), root, dataset)
 
@@ -303,6 +355,9 @@ def resolve_outrights(client, *, dataset: str, root: str, year: int,
         # disjoint-interval re-listings (GLBX id recycling) permitted by the amended F-A check;
         # rows of [d0, d1_exclusive, instrument_id] per affected outright. Gate evidence.
         "relisted_symbols": relisted,
+        # ids skipped by the salvage-bisect (persistent server 5xx on the id alone; the measured
+        # case is the numeric-ID junk instrument class). Gate evidence; capped fail-closed above.
+        "unresolvable_instrument_ids": sorted(unresolvable, key=int),
         "resolve_step1": r1,
         "resolve_step2": step2,
     }

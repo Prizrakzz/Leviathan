@@ -178,6 +178,42 @@ class TestResolve:
         art16 = F.resolve_outrights(FakeClient(ZC_2016), dataset="GLBX.MDP3", root="ZC", year=2016)
         assert art16["window"]["end_exclusive"] == "2017-01-01"
 
+    def test_poison_id_is_salvage_bisected_skipped_and_recorded(self):
+        # The measured SB/2020 case: IFUS iid 6512548 ('SB   99   6512548' numeric-ID junk)
+        # 500s the resolver ALONE on every window. The chunk must not die for it.
+        class Boom(Exception):
+            http_status = 500
+
+        class PoisonSymbology(FakeSymbology):
+            def resolve(self, *, symbols, stype_in, **kw):
+                if stype_in == "instrument_id" and {int(s) for s in symbols} & {6512548}:
+                    raise Boom()
+                return super().resolve(symbols=symbols, stype_in=stype_in, **kw)
+
+        c = FakeClient({101: "SB  FMH0020!", 102: "SB  FMK0020!", 6512548: "SB   99   6512548"})
+        c.symbology = PoisonSymbology(c)
+        art = F.resolve_outrights(c, dataset="IFUS.IMPACT", root="SB", year=2020)
+        assert art["unresolvable_instrument_ids"] == ["6512548"]
+        # the good ids survived the bisect
+        assert art["outright_symbols"] == ["SB  FMH0020!", "SB  FMK0020!"]
+
+    def test_mass_unresolvable_is_an_outage_and_fails_closed(self):
+        # Every id 5xx-ing is an outage wearing a poison-id costume; skipping through it would
+        # silently lose real symbology. Cap = max(3, len(ids)//20).
+        class Boom(Exception):
+            http_status = 500
+
+        class DeadSymbology(FakeSymbology):
+            def resolve(self, *, stype_in, **kw):
+                if stype_in == "instrument_id":
+                    raise Boom()
+                return super().resolve(stype_in=stype_in, **kw)
+
+        c = FakeClient({100 + i: f"SB{code}0" for i, code in enumerate("FGHJK")})
+        c.symbology = DeadSymbology(c)
+        with pytest.raises(SystemExit, match="STEP-2 FAILURE"):
+            F.resolve_outrights(c, dataset="IFUS.IMPACT", root="SB", year=2020)
+
     def test_fa_overlapping_relisting_is_still_a_hard_exit(self):
         # One symbol on two ids on the SAME date -- the case that genuinely breaks the
         # ohlcv/statistics join key and F2's dedupe rule. d1 is exclusive, so these overlap
