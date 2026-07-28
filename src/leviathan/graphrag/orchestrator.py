@@ -149,6 +149,42 @@ def _verify_numbers_answer(answer: str, calls: list) -> dict:
             "mismatch_values": mismatched[:5]}
 
 
+def _emit_numbers(on_stage, calls) -> None:
+    """F7 `number`: one event per RESOLVED numbers-agent lookup, projected to the pinned field set
+    {table, metric, value, unit, asof}. These are deterministic lookup results, not LLM prose, so they need
+    no verifier reconciliation.
+
+    ARRIVAL TIME, precisely: this fires the moment the numbers THREAD completes, which on a hybrid turn is
+    strictly before the synthesis-time join (`_resolve`) and typically many seconds before it — the walk is
+    the long pole. It is NOT per-individual-lookup: agent.on_call carries only (n_calls, table), and the
+    resolved record it would need lives inside numbers/agent.py, outside this lane. A per-lookup `number`
+    needs one line there (widen on_call to pass `content`); until then the count-only `numbers` tick keeps
+    covering the per-lookup beat.
+
+    `asof` is the ROW's knowledge/data date — the as-KNOWN date of this value, which is what a desk reads —
+    and falls back to the spec's PIT cutoff only when the row carries neither. Errored / empty lookups emit
+    NOTHING: there is no value to show, and a 'number' event with no number would be junk in the feed."""
+    if on_stage is None:
+        return
+    for c in (calls or []):
+        try:
+            if not isinstance(c, dict) or c.get("status") == "error":
+                continue
+            q = c.get("query") or {}
+            rows = c.get("rows") or []
+            if not rows:
+                continue
+            r0 = rows[0] or {}
+            val = r0.get("value")
+            if val in (None, ""):
+                continue
+            an._emit(on_stage, "number", table=str(q.get("table") or ""), metric=str(q.get("metric") or ""),
+                     value=val, unit=(str(r0["unit"]) if r0.get("unit") else None),
+                     asof=str(r0.get("knowledge_date") or r0.get("data_date") or q.get("asof") or ""))
+        except Exception:  # noqa: BLE001 — a malformed call record can never fail a turn (invariant 1)
+            continue
+
+
 def run_reasoning(query: str, asof: str, *, graph, call=None, retrieve=None, model: str = an.SONNET,
                   planner: str | None = None, extra_context: str | None = None, route_fn=None,
                   near: str | None = None, silver_lookup=None, on_stage=None,
@@ -192,6 +228,11 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
             nums = {"calls": [], "error": str(e)[:200]}
         nums["_ms_numbers"] = int((_time.perf_counter() - _tn) * 1000)
         an._emit(on_stage, "numbers", calls=len(nums.get("calls", [])))   # emitted on COMPLETION
+        # F7 `number`: the resolved rows, from THIS worker thread, the moment the agent returns — i.e.
+        # BEFORE the synthesis-time join in _resolve() below (the walk is normally the long pole, so this is
+        # the earliest a user could be shown a number). Concurrent with the walk's own emitters: the SSE
+        # relay is a queue.Queue, whose put() is thread-safe, so the two lanes interleave safely.
+        _emit_numbers(on_stage, nums.get("calls"))
         return nums
 
     pool = cf.ThreadPoolExecutor(max_workers=1)
@@ -1069,6 +1110,7 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
         # attachment block. The other half is the kind demotion in the override block below.
         if it.is_live(query) and asof >= _today() and not _att_present:
             an._emit(on_stage, "planning", intent="live", contracts=[])
+            an._emit(on_stage, "plan", intent="live", contracts=[])   # F7: the legacy-path twin of the tick above
             _ctx = [c for c in ((state.contracts if state else None) or []) if c in graph.contracts] or None
             try:
                 res = run_live(query, asof, graph=graph, call=call, retrieve=retrieve, model=model, planner=planner,
@@ -1148,6 +1190,12 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
     _tick_contracts = [] if (_geo_routing_on() and kind == "live") else \
         [c for c in (list(plan.contracts) if plan else []) if c in graph.contracts]
     an._emit(on_stage, "planning", intent=kind, contracts=_tick_contracts)   # staged-pipeline (P1.1)
+    # F7 `plan`: the SAME decision, in the content-bearing contract — dispatch has resolved intent + the
+    # routed contracts, and this is the first thing in a turn the user could be shown. `kind` rides
+    # VERBATIM: the pinned enum names the three engine intents, but "live" is a real fourth outcome and
+    # inventing a substitute here would be a lie about what the dispatcher decided (the FE ignores kinds
+    # it does not know — invariant 3).
+    an._emit(on_stage, "plan", intent=kind, contracts=_tick_contracts)
 
     # ── reroute v2 gate (RV-W1.3): the deterministic LAW that produces the cross-commodity request. It runs
     # ONLY on the two branches that reach the cascade quantify seam (reasoning/hybrid), ONLY when the flag is
@@ -1194,6 +1242,7 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
             res = run_numbers_only(nq, asof, client=numbers_client, model=numbers_model, query_fn=qfn,
                                    graph=graph, contracts=_mc)
             an._emit(on_stage, "numbers", calls=len(res.get("number_calls", [])))
+            _emit_numbers(on_stage, res.get("number_calls"))       # F7 `number`: the numbers-only lane's twin
         elif kind == "hybrid":
             res = run_hybrid(query, asof, graph=graph, call=call, retrieve=retrieve, model=model,
                              client=numbers_client, numbers_model=numbers_model, query_fn=qfn, planner=planner,

@@ -354,6 +354,11 @@ def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, s
                 _pdone[0] += 1
                 d = _pdone[0]
             _emit_stage(on_stage, "retrieving", done=d, total=eligible)
+            # F7 `evidence`: this node's leg is GROUNDED — slug + kept count as it lands, one per node, from
+            # inside the fill pool (the `retrieving` tick above already proves concurrent emission is safe
+            # here). SLUG ONLY: never the prop text, never a source_key (invariant 4 — walk evidence is
+            # document prose). A dark leg returns above, so a 0 here means "asked, kept nothing".
+            _emit_stage(on_stage, "evidence", node=":".join(str(p) for p in n.key), kept=len(n.evidence or []))
     _parallel_fill(sg.nodes, fill_fn, query, retrieve, expected=eligible)
     _t_fill = _time.perf_counter()
     # P7-P0.2: per-driver-leg evidence report — the E0/E3 sparsity-attribution instrumentation. Purely
@@ -554,6 +559,18 @@ def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, s
                                          "matched": fr.matched, "threshold": fr.threshold,
                                          "basis": {d: bases[d] for d in fr.matched if d in bases},
                                          "interactions": fr.interactions, "note": fr.note})
+                # F7 `regime`: ONE event the instant THIS regime fires, carrying the receipt the firing rule
+                # already computed — so the UI can show WHY, not just that. The basis is PROJECTED to
+                # {date, source} per the pinned contract: the richer internal basis also holds value/z/detail,
+                # which belong to the note, not the feed. Deterministic engine output -> no verifier
+                # reconciliation needed (an engine cannot fabricate its own firing). The projection is built
+                # INSIDE the None guard so a non-streamed walk does ZERO extra work (invariant 2) — _emit_stage
+                # only swallows what happens after it is called, not its argument expressions.
+                if on_stage is not None:
+                    _emit_stage(on_stage, "regime", contract=cid, regime=fr.name, direction=fr.direction,
+                                basis={d: {"date": str((bases[d] or {}).get("date") or ""),
+                                           "source": str((bases[d] or {}).get("source") or "")}
+                                       for d in fr.matched if d in bases})
     sg.trace["n_evidence"] = sum(len(n.evidence) for n in sg.nodes)
     sg.trace["active"] = [list(n.key) for n in sg.nodes if n.active]
     sg.trace["regime_basis"] = regime_basis

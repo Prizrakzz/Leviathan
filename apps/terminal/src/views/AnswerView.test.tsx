@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MOCK_RESULT, numbersOnlyResult } from '@/api/mock';
-import type { TurnState } from '@/api/useTurn';
+import { emptyTurn, type TurnState } from '@/api/useTurn';
 import { useUI } from '@/store/ui';
 import { AnswerView } from './AnswerView';
 
@@ -13,7 +13,8 @@ vi.mock('@/api/client', () => ({
 }));
 
 function doneTurn(result: TurnState['result']): TurnState {
-  return { status: 'done', stages: [], draft: '', result } as TurnState;
+  // A completed turn: citations are LIVE (the terminal `result` activates them — see api/partials).
+  return { ...emptyTurn('done'), citationsLive: true, result };
 }
 
 function mount(

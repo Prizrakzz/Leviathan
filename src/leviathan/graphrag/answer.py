@@ -768,6 +768,38 @@ def _emit(on_stage, stage: str, **info) -> None:
         pass
 
 
+def _emit_chains(on_stage, sg) -> None:
+    """F7 `chain`: relay the chain composers' FIRED hop path the moment quantify returns. Both traces are
+    DETERMINISTIC engine output (an engine cannot fabricate its own firing), so the event needs no verifier
+    reconciliation — unlike the streamed `token` draft. The VERTICAL engine writes sg.trace['quantify_chain']
+    with hops:[{node,...}]; the HORIZONTAL transmission composer writes sg.trace['quantify_transmission'] with
+    links:[{source,target,...}]. D11 mutual exclusion means at most one fires, but both are read so a future
+    relaxation needs no change here. SLUGS ONLY — never a rendered line, never evidence prose (invariant 4).
+    Declines (quantify_chain_decline / quantify_transmission_decline) emit NOTHING: an engine that did not
+    fire has no hops to show."""
+    if on_stage is None:
+        return
+    try:
+        tr = getattr(sg, "trace", None) or {}
+        c = tr.get("quantify_chain") or {}
+        if c.get("chain_id"):                                      # vertical: hop records, collapsed ones skipped
+            hops = [str(h.get("node")) for h in (c.get("hops") or []) if isinstance(h, dict) and h.get("node")]
+            _emit(on_stage, "chain", chain_id=str(c["chain_id"]), hops=hops)
+        x = tr.get("quantify_transmission") or {}
+        if x.get("chain_id"):                                      # horizontal: links -> the source->target path
+            hops: list[str] = []
+            for lk in (x.get("links") or []):
+                if not isinstance(lk, dict):
+                    continue
+                for side in ("source", "target"):
+                    v = lk.get(side)
+                    if v and (not hops or hops[-1] != str(v)):     # dedup the shared node between two links
+                        hops.append(str(v))
+            _emit(on_stage, "chain", chain_id=str(x["chain_id"]), hops=hops)
+    except Exception:  # noqa: BLE001 — a malformed trace can never fail an answer (invariant 1)
+        pass
+
+
 def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, retrieve, routed,
                extra_context: str | None = None, extra_number_calls: list | None = None,
                extra_resolver=None, focus_driver: str | None = None, use_blocks: bool = False,
@@ -790,6 +822,14 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                 sg.trace.setdefault("kept", []).append(list(node.key))
                 sg.trace["focus_driver"] = focus_driver
                 break
+    # F7 `walk`: the subgraph EXISTS now — shape (node count + reach) is decided BEFORE ground() spends its
+    # 8-20s on evidence + probes, so this lands far earlier than the `walking` completion tick below.
+    # The payload is built INSIDE the None guard, never as an eager kwarg: invariant 2 makes on_stage=None a
+    # STRICT no-op, and _emit can only swallow what happens after it is CALLED — argument expressions are
+    # evaluated before that. (test_reroute_v2_engine's _FakeNode, which has no .depth, catches exactly this.)
+    if on_stage is not None:
+        _emit(on_stage, "walk", nodes=len(sg.nodes),
+              depth=max((int(getattr(n, "depth", 0) or 0) for n in sg.nodes), default=0))
     probe_retr = None if retrieve else functools.partial(ev.retrieve, mode="hybrid", rerank=False)
     _emit(on_stage, "walking")                                    # early tick: the 8-20s ground starts NOW (5.6 W5)
     pl.ground(sg, query, graph, retrieve=retr, silver_lookup=silver_lookup, asof=asof, near=near,
@@ -839,6 +879,7 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                                                                 price_request=_price_request,
                                                                 **_pace_kw, **_chain_kw, **_xmit_kw)
             sg.trace["ms_quantify"] = int((time.perf_counter() - _t_quant) * 1000)
+            _emit_chains(on_stage, sg)                            # F7 `chain`: the composer has just decided
             if _cblock:
                 volatile_blocks = volatile_blocks + [_cblock]
             if _quant_trace:
@@ -871,6 +912,7 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     on_token = (lambda t: _emit(on_stage, "token", text=t)) if on_stage is not None else None
     call_kw = {"on_token": on_token} if (on_token is not None and call is _call_opus) else {}
     _emit(on_stage, "synthesizing")                               # prompt assembled; the model call starts NOW
+    _emit(on_stage, "drafting")                                   # F7: the engine feed is CLOSED — prose mode
     _t_synth = time.perf_counter()                                # W6.1-0 stage timer (MsSynthLLM)
     structured = call(_system(), _pack(sp, vp, use_blocks), model=model, tool=_answer_tool(), **call_kw)
     sg.trace["ms_synth_llm"] = int((time.perf_counter() - _t_synth) * 1000)
@@ -893,6 +935,10 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                                    foreign_names=_foreign_regime_names(graph, contracts))
     _emit(on_stage, "verifying", checked=int(verifier.get("checked", 0) or 0),
           stripped=int(verifier.get("stripped", 0) or 0))
+    # F7 `verified`: the verifier is DONE, so the streamed draft's citation handles are now reconcilable —
+    # this is the ONLY signal that permits the UI to ACTIVATE them (RCA F7c: the `token` draft is
+    # PRE-verifier, and strips run p50 1 / p90 7 / max 16, so a handle activated earlier could disappear).
+    _emit(on_stage, "verified", strips=int(verifier.get("stripped", 0) or 0))
     _attach_provenance(structured, verifier)                     # stamp source_key for durable chip join (6.4)
     _humanize_structured(structured)                              # clean the fields the UI renders directly (6.1)
     if os.environ.get("GRAPHRAG_ANSWER_V2", "off") == "on":       # P9-C typed sections: a DERIVED view of the
@@ -1176,6 +1222,7 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     _emit(on_stage, "retrieving", props=len(evidence))
     sp, vp = _prompt_parts(query, contracts, stable_blocks, volatile_blocks)
     _emit(on_stage, "synthesizing")                               # prompt assembled; the model call starts NOW
+    _emit(on_stage, "drafting")                                   # F7: the engine feed is CLOSED — prose mode
     structured = call(_system(), _pack(sp, vp, use_blocks), model=model, tool=_answer_tool())
     _banned_mood = _count_banned_mood(structured)                 # P9-A: RAW output, pre-sanitize
     _banned_val = _count_banned_valuation(structured)             # DP-6: valuation/flow raw counts, pre-sanitize
@@ -1195,6 +1242,7 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
                                    foreign_names=_foreign_regime_names(graph, contracts))
     _emit(on_stage, "verifying", checked=int(verifier.get("checked", 0) or 0),
           stripped=int(verifier.get("stripped", 0) or 0))
+    _emit(on_stage, "verified", strips=int(verifier.get("stripped", 0) or 0))   # F7: handles may ACTIVATE now
     _attach_provenance(structured, verifier)                     # stamp source_key for durable chip join (6.4)
     _humanize_structured(structured)                              # clean the fields the UI renders directly (6.1)
     if os.environ.get("GRAPHRAG_ANSWER_V2", "off") == "on":       # P9-C typed sections -- the one-hop twin of

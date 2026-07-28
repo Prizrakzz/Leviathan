@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import { respondStream } from './client';
+import { EMPTY_FINDINGS, finalizeFindings, parsePartial, reduceFindings, type Findings } from './partials';
 import type { ContextAttachment, RespondResult, StageEvent } from './schema';
 
 export type TurnStatus = 'idle' | 'streaming' | 'done' | 'error';
@@ -7,7 +8,10 @@ export type TurnStatus = 'idle' | 'streaming' | 'done' | 'error';
 /** A pipeline milestone stamped with its client arrival time (drives the per-phase elapsed display). */
 export type StampedStage = StageEvent & { ts: number };
 
-export interface TurnState {
+/** The live turn: transport state (status/draft/result) + the RAW milestone feed the Pipeline reads +
+ *  the STRUCTURED findings the F7 feed reads (see api/partials.ts). Findings default to empty, so a
+ *  server that emits no partials leaves every one of them at its zero value and the UI is unchanged. */
+export interface TurnState extends Findings {
   status: TurnStatus;
   stages: StampedStage[];
   draft: string; // accumulating synthesis deltas (the note streaming in before the verified result lands)
@@ -15,31 +19,56 @@ export interface TurnState {
   error?: string;
 }
 
+/** A clean turn. A FACTORY, not a shared constant: every array is fresh, so no two turns can ever alias
+ *  the same `stages`/`regimes`/… array (the reducers are pure, but a shared empty array is a footgun). */
+const fresh = (status: TurnStatus): TurnState => ({
+  status,
+  stages: [],
+  draft: '',
+  ...EMPTY_FINDINGS,
+  regimes: [],
+  numbers: [],
+  chains: [],
+  evidence: [],
+});
+
+/** A blank turn — exported so tests and stories can build one without restating every findings field
+ *  (and so adding a field here can never silently leave a caller with an unsound cast). */
+export const emptyTurn = (status: TurnStatus = 'idle'): TurnState => fresh(status);
+
 /**
- * Drive one streamed turn. Accumulates the granular `stage` ticks (the staged-pipeline UI reads them) and
- * the terminal `result` (the note). Starting a new turn aborts the previous stream (design §7 SSE lifecycle).
+ * Drive one streamed turn. Accumulates THREE things off the same SSE `stage` transport:
+ *   - `token` deltas               -> the synthesis draft (unchanged)
+ *   - every other milestone tick   -> `stages[]`, stamped with arrival time (unchanged — the Pipeline reads it)
+ *   - F7 content-bearing partials  -> structured findings (plan/walk/regimes/numbers/chains/evidence/phase)
+ * Partials ALSO stay in `stages[]`: the split is additive, so nothing reading the raw feed breaks and an
+ * unknown kind from a newer backend is simply ignored by both consumers. Starting a new turn aborts the
+ * previous stream (design §7 SSE lifecycle).
  */
 export function useTurn() {
-  const [state, setState] = useState<TurnState>({ status: 'idle', stages: [], draft: '' });
+  const [state, setState] = useState<TurnState>(() => fresh('idle'));
   const abortRef = useRef<AbortController | null>(null);
 
   const start = useCallback((question: string, opts?: { asof?: string; sessionId?: string; context?: ContextAttachment[] }) => {
     abortRef.current?.abort();
     const ac = new AbortController();
     abortRef.current = ac;
-    setState({ status: 'streaming', stages: [], draft: '' });
+    setState(fresh('streaming'));
     respondStream(
       { question, ...opts },
       {
-        // `token` stages are synthesis deltas → grow the draft; every other stage is a pipeline milestone
-        // (stamped with arrival time for the elapsed-per-phase display).
         onStage: (e) =>
-          setState((s) =>
-            e.stage === 'token'
-              ? { ...s, draft: s.draft + (e.text ?? '') }
-              : { ...s, stages: [...s.stages, { ...e, ts: performance.now() }] },
-          ),
-        onResult: (r) => setState((s) => ({ ...s, status: 'done', result: r })),
+          setState((s) => {
+            // `token` stages are synthesis deltas → grow the draft; every other stage is a pipeline
+            // milestone (stamped with arrival time for the elapsed-per-phase display).
+            if (e.stage === 'token') return { ...s, draft: s.draft + (e.text ?? '') };
+            const stages = [...s.stages, { ...e, ts: performance.now() }];
+            const p = parsePartial(e); // null = milestone tick, or an unknown kind from a newer server
+            return p ? { ...reduceFindings(s, p), stages } : { ...s, stages };
+          }),
+        // The turn is over: the answer is verified, so citation handles may go live (invariant: this must
+        // happen on `result` too, not only on a `verified` stage an older server never sends).
+        onResult: (r) => setState((s) => ({ ...finalizeFindings(s), status: 'done', result: r })),
         onError: (er) => setState((s) => ({ ...s, status: 'error', error: er.error })),
       },
       ac.signal,

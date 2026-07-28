@@ -26,8 +26,22 @@ export type StageName =
   | 'verifying'
   | 'floor'
   | 'token'
+  // F7 content-bearing partials (see `PartialStage` below) — listed here too because they ride the SAME
+  // `event: stage` transport, so they land in the raw `stages[]` feed alongside the milestone ticks.
+  | 'plan'
+  | 'walk'
+  | 'regime'
+  | 'number'
+  | 'chain'
+  | 'evidence'
+  | 'drafting'
+  | 'verified'
   | (string & {});
 
+/** The RAW wire shape of one `event: stage` block. Deliberately permissive and fully optional beyond
+ *  `stage`: SSE JSON is untrusted input, and an older bundle must survive a newer server's fields. Do NOT
+ *  read the F7 content fields off this type — run the event through `parsePartial()` (api/partials.ts),
+ *  the ONE validating boundary, and read the narrowed `PartialStage` instead. */
 export interface StageEvent {
   stage: StageName;
   intent?: string;
@@ -41,9 +55,113 @@ export interface StageEvent {
   done?: number; // retrieving progress: nodes filled so far
   total?: number; // retrieving progress: eligible nodes
   running?: boolean; // numbers progress tick (vs the final completion event)
-  table?: string; // numbers progress: the table just looked up
+  table?: string; // numbers progress: the table just looked up — ALSO the `number` partial's table
   text?: string; // stage === 'token': a synthesis delta (partial tool-input JSON)
+  // ── F7 partial fields (wire-level, unvalidated) ────────────────────────────────────────────────────
+  depth?: number; // 'walk'
+  contract?: string; // 'regime'
+  regime?: string; // 'regime'
+  direction?: string; // 'regime'
+  basis?: Record<string, { date?: string; source?: string }>; // 'regime'
+  metric?: string; // 'number'
+  value?: number | string; // 'number'
+  unit?: string | null; // 'number'
+  asof?: string; // 'number'
+  chain_id?: string; // 'chain'
+  hops?: string[]; // 'chain'
+  node?: string; // 'evidence'
+  kept?: number; // 'evidence'
+  strips?: number; // 'verified'
 }
+
+/* ── F7 · the content-bearing partials ────────────────────────────────────────────────────────────────
+ * Everything before synthesis (dispatch, the walk, the regime probes, the quantify seam) is finished and
+ * correct LONG before the writer starts, and today it is invisible: time-to-first-substance is ~156s p95.
+ * These kinds stream that engine output as it lands. They are sourced from DETERMINISTIC engine output —
+ * never LLM prose — which is why they need no verifier reconciliation: an engine cannot fabricate its own
+ * firing. Each kind is a strict member of the `PartialStage` discriminated union, so `switch (p.stage)`
+ * narrows to exactly the fields that kind carries; unknown kinds are dropped by `parsePartial()` rather
+ * than typed here (invariant 3: an older SPA WILL meet a newer server).
+ */
+
+/** Dispatch decided: the intent it routed to and the contracts in scope. */
+export interface PlanStage {
+  stage: 'plan';
+  intent: string;
+  contracts: string[];
+}
+
+/** The cascade walk's shape (how much graph the answer stands on). */
+export interface WalkStage {
+  stage: 'walk';
+  nodes: number;
+  depth: number;
+}
+
+/** The dated provenance of ONE driver behind a regime firing (`{driver: {date, source}}`). */
+export interface RegimeBasis {
+  date?: string;
+  source?: string;
+}
+
+/** A regime fired, with the dated basis that fired it. */
+export interface RegimeStage {
+  stage: 'regime';
+  contract: string;
+  regime: string;
+  direction: string;
+  basis: Record<string, RegimeBasis>;
+}
+
+/** A number resolved at the quantify seam (observed value, never a model estimate). */
+export interface NumberStage {
+  stage: 'number';
+  table: string;
+  metric: string;
+  value: number | string;
+  unit: string | null;
+  asof: string;
+}
+
+/** A transmission chain grounded end-to-end. */
+export interface ChainStage {
+  stage: 'chain';
+  chain_id: string;
+  hops: string[];
+}
+
+/** Evidence kept for one node after the ≤ as-of filter. */
+export interface EvidenceStage {
+  stage: 'evidence';
+  node: string;
+  kept: number;
+}
+
+/** Synthesis has started — the UI switches from the findings feed to prose. */
+export interface DraftingStage {
+  stage: 'drafting';
+}
+
+/** The verifier finished (`strips` unbacked citations removed). ONLY here may the UI activate citation
+ *  handles: the streamed draft is PRE-verifier, so a handle rendered live during streaming could be
+ *  stripped out from under the user (StripCount p50 1, p90 7, max 16). */
+export interface VerifiedStage {
+  stage: 'verified';
+  strips: number;
+}
+
+export type PartialStage =
+  | PlanStage
+  | WalkStage
+  | RegimeStage
+  | NumberStage
+  | ChainStage
+  | EvidenceStage
+  | DraftingStage
+  | VerifiedStage;
+
+/** The kinds this bundle understands. Anything else is an unknown kind → ignored (never rendered). */
+export type PartialKind = PartialStage['stage'];
 
 export interface RespondTrace {
   graph_version?: string | null;

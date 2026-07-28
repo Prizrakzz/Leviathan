@@ -13,6 +13,7 @@ import { useSession } from '@/store/session';
 import { useThread } from '@/store/thread';
 import { useUI } from '@/store/ui';
 import { EmptyState } from './answer/EmptyState';
+import { FindingsFeed } from './answer/FindingsFeed';
 import { SuggestionChips } from './answer/SuggestionChips';
 import { Banners } from './note/Banners';
 import { resolvedFor } from './note/citations';
@@ -208,7 +209,17 @@ export function AnswerView({
     return <EmptyState onAsk={onAsk} />;
 
   const finalReady = turn.status === 'done' && settled && !!r;
+  // The two REVEAL states (still streaming / result landed but the typewriter is still catching up) render
+  // the same shape, so they are ONE branch. Split, they sat at different child slots and React unmounted
+  // the whole subtree between them — remounting the findings feed and replaying every row's enter
+  // animation at the exact moment the answer arrives, and silently discarding the reader's expand/collapse
+  // choice with it. StreamingNote stops remounting here too (no caret/text flash across the settle).
+  const revealing = turn.status === 'streaming' || (turn.status === 'done' && !settled);
   const trace = (r?.trace ?? {}) as { fired_regimes?: { matched?: string[] }[]; drivers?: string[] };
+  // F7 citation rule: receipts exist only once the turn is verified (`verified` stage OR the terminal
+  // `result` — useTurn sets citationsLive on either). Until then the draft's [n] handles render inert, so
+  // a handle the verifier is about to strip is never something the user could have clicked.
+  const citeResolved = turn.citationsLive && r ? resolvedFor(r) : undefined;
 
   // P1.5 (user-directed): the graph renders as a WORKSPACE TAB ONLY — never inline in the chat (the
   // double-render read as a bug). The answer carries just this chip; the tab owns rendering, its own
@@ -244,27 +255,37 @@ export function AnswerView({
           <div className="space-y-3">
             <div className="font-mono text-12 text-cyan">▸ {question}</div>
 
-            {turn.status === 'streaming' && (
-              <>
-                <div className="rounded-panel border border-line bg-bg-1 p-3">
-                  <Pipeline stages={turn.stages} done={false} />
-                </div>
-                {shown ? <StreamingNote draft={shown} /> : null}
-              </>
+            {revealing && (
+              <div className="rounded-panel border border-line bg-bg-1 p-3">
+                <Pipeline stages={turn.stages} done={turn.status === 'done'} />
+              </div>
             )}
 
             {turn.status === 'error' && (
               <div className="font-mono text-12 text-neg">error: {turn.error}</div>
             )}
 
-            {turn.status === 'done' && !settled && (
-              <>
-                <div className="rounded-panel border border-line bg-bg-1 p-3">
-                  <Pipeline stages={turn.stages} done={true} />
-                </div>
-                {shown ? <StreamingNote draft={shown} /> : null}
-              </>
-            )}
+            {/* F7: ONE feed, at a slot that exists in EVERY turn state, so it is never unmounted between
+                them. It renders what the engines have already decided, as it lands (and nothing at all if
+                the server emits no partials — an older deployment leaves the view exactly as it was).
+                Collapsed once the writer takes over, but KEPT: the findings are the answer's provenance,
+                and staying one click away beats vanishing at the moment of delivery. It also survives an
+                errored turn now — engine work that really happened should not disappear with the error. */}
+            <FindingsFeed findings={turn} />
+
+            {/* The draft is PRE-VERIFIER, so its [n] handles stay inert: `chips` needs BOTH `live` AND a
+                resolved map, and the map exists only once `result` has landed (`r` is `turn.result`).
+                Passing `live` through the whole reveal is therefore safe — and it means the tail of the
+                reveal already carries LIVE citations, so the swap into the final Note activates nothing the
+                user can see change. */}
+            {revealing && shown ? (
+              <StreamingNote
+                draft={shown}
+                resolved={citeResolved}
+                live={turn.citationsLive}
+                onOpen={openReceipts}
+              />
+            ) : null}
 
             {finalReady && (
               // A render error inside a finalized answer (note/map/numbers) degrades to a readable line —

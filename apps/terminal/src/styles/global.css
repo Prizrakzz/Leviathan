@@ -35,6 +35,24 @@ body {
   outline-offset: 1px;
 }
 
+/* F7 live findings: a row ENTERS by fading up 3px. Only opacity/transform animate (both composited), so
+   appending a finding can never reflow the rows above it. `both` holds the end state, which is what makes
+   the reduced-motion override below a clean no-op rather than an invisible row. */
+@keyframes lv-finding-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.lv-finding {
+  animation: lv-finding-in 180ms ease-out both;
+}
+
 /* Motion is opt-out (design §2.4). */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -43,5 +61,10 @@ body {
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
+  }
+
+  /* Explicit, not merely duration-clamped: a findings row appears at once. */
+  .lv-finding {
+    animation: none !important;
   }
 }

@@ -1,0 +1,256 @@
+{
+  "reasoning": [
+    {
+      "stage": "accepted"
+    },
+    {
+      "stage": "planning",
+      "intent": "reasoning",
+      "contracts": []
+    },
+    {
+      "stage": "plan",
+      "intent": "reasoning",
+      "contracts": []
+    },
+    {
+      "stage": "walk",
+      "nodes": 2,
+      "depth": 1
+    },
+    {
+      "stage": "walking"
+    },
+    {
+      "stage": "retrieving",
+      "done": 1,
+      "total": 2
+    },
+    {
+      "stage": "evidence",
+      "node": "driver:arabica_coffee:frost",
+      "kept": 1
+    },
+    {
+      "stage": "retrieving",
+      "done": 2,
+      "total": 2
+    },
+    {
+      "stage": "evidence",
+      "node": "contract:arabica_coffee:arabica_coffee",
+      "kept": 1
+    },
+    {
+      "stage": "walking",
+      "nodes": 2,
+      "regimes": 0,
+      "ms_fill": 15,
+      "ms_rest": 3
+    },
+    {
+      "stage": "retrieving",
+      "props": 2
+    },
+    {
+      "stage": "synthesizing"
+    },
+    {
+      "stage": "drafting"
+    },
+    {
+      "stage": "verifying",
+      "checked": 3,
+      "stripped": 2
+    },
+    {
+      "stage": "verified",
+      "strips": 2
+    }
+  ],
+  "hybrid": [
+    {
+      "stage": "accepted"
+    },
+    {
+      "stage": "planning",
+      "intent": "hybrid",
+      "contracts": []
+    },
+    {
+      "stage": "plan",
+      "intent": "hybrid",
+      "contracts": []
+    },
+    {
+      "stage": "walk",
+      "nodes": 2,
+      "depth": 1
+    },
+    {
+      "stage": "walking"
+    },
+    {
+      "stage": "numbers",
+      "calls": 1,
+      "running": true,
+      "table": "silver_psd"
+    },
+    {
+      "stage": "numbers",
+      "calls": 1
+    },
+    {
+      "stage": "number",
+      "table": "silver_psd",
+      "metric": "ending_stocks_mt",
+      "value": "31400000",
+      "unit": "mt",
+      "asof": "2024-02-08"
+    },
+    {
+      "stage": "retrieving",
+      "done": 1,
+      "total": 2
+    },
+    {
+      "stage": "evidence",
+      "node": "driver:arabica_coffee:frost",
+      "kept": 1
+    },
+    {
+      "stage": "retrieving",
+      "done": 2,
+      "total": 2
+    },
+    {
+      "stage": "evidence",
+      "node": "contract:arabica_coffee:arabica_coffee",
+      "kept": 1
+    },
+    {
+      "stage": "walking",
+      "nodes": 2,
+      "regimes": 0,
+      "ms_fill": 73,
+      "ms_rest": 0
+    },
+    {
+      "stage": "retrieving",
+      "props": 2
+    },
+    {
+      "stage": "synthesizing"
+    },
+    {
+      "stage": "drafting"
+    },
+    {
+      "stage": "verifying",
+      "checked": 3,
+      "stripped": 1
+    },
+    {
+      "stage": "verified",
+      "strips": 1
+    }
+  ],
+  "numbers_only": [
+    {
+      "stage": "accepted"
+    },
+    {
+      "stage": "planning",
+      "intent": "numbers_only",
+      "contracts": []
+    },
+    {
+      "stage": "plan",
+      "intent": "numbers_only",
+      "contracts": []
+    },
+    {
+      "stage": "numbers",
+      "calls": 1
+    },
+    {
+      "stage": "number",
+      "table": "silver_psd",
+      "metric": "ending_stocks_mt",
+      "value": "31400000",
+      "unit": "mt",
+      "asof": "2024-02-08"
+    }
+  ],
+  "regime": [
+    {
+      "stage": "retrieving",
+      "done": 1,
+      "total": 2
+    },
+    {
+      "stage": "evidence",
+      "node": "driver:arabica:frost",
+      "kept": 1
+    },
+    {
+      "stage": "retrieving",
+      "done": 2,
+      "total": 2
+    },
+    {
+      "stage": "evidence",
+      "node": "contract:arabica:arabica",
+      "kept": 1
+    },
+    {
+      "stage": "regime",
+      "contract": "arabica",
+      "regime": "squeeze",
+      "direction": "+",
+      "basis": {
+        "frost": {
+          "date": "2021-07-20",
+          "source": "GAIN"
+        }
+      }
+    }
+  ],
+  "chain": [
+    {
+      "stage": "chain",
+      "chain_id": "chain_corn_flagship",
+      "hops": [
+        "safrinha",
+        "Brazil production_mt"
+      ]
+    },
+    {
+      "stage": "chain",
+      "chain_id": "xmit_palm_sbo",
+      "hops": [
+        "palm_oil",
+        "soybean_oil",
+        "soybean_meal"
+      ]
+    }
+  ],
+  "multi_number": [
+    {
+      "stage": "number",
+      "table": "silver_psd",
+      "metric": "ending_stocks_mt",
+      "value": 31400000.0,
+      "unit": "mt",
+      "asof": "2024-02-08"
+    },
+    {
+      "stage": "number",
+      "table": "silver_psd",
+      "metric": "ending_stocks_mt",
+      "value": 6900000.0,
+      "unit": "mt",
+      "asof": "2024-02-08"
+    }
+  ]
+}

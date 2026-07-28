@@ -365,9 +365,59 @@ export function mockGraph(contract: string): Schemas['GraphTopology'] {
 
 export const MOCK_RESULT = goodResult('KC frost 2021', '2021-07-20');
 
+/**
+ * F7 content-bearing partials, DERIVED from the same fixture the terminal result carries — so the mock
+ * findings feed is commodity-accurate (an arabica question streams arabica regimes) and can never drift
+ * from the answer it precedes. Deterministic engine output only: slugs, tables, values, dates.
+ */
+function partialsFor(result: RespondResult): StageEvent[] {
+  type Fired = { contract?: string; name?: string; direction?: string; matched?: string[] };
+  type Ev = { source?: string; date?: string; cited?: boolean };
+  type Call = { query?: { table?: string; metric?: string }; rows?: { value?: string; knowledge_date?: string }[] };
+  const contract = result.contract ?? result.contracts?.[0] ?? '';
+  const fired = (result.trace?.fired_regimes ?? []) as Fired[];
+  const evidence = (result.evidence ?? []) as Ev[];
+  const calls = (result.number_calls ?? []) as Call[];
+  const dir = (d?: string) => (d === '+' ? 'bullish' : d === '-' ? 'bearish' : (d ?? ''));
+
+  const regimes: StageEvent[] = fired.map((f) => {
+    const basis: Record<string, { date?: string; source?: string }> = {};
+    (f.matched ?? []).forEach((driver, i) => {
+      const e = evidence[i];
+      basis[driver] = { date: e?.date, source: e?.source };
+    });
+    return {
+      stage: 'regime',
+      contract: f.contract ?? contract,
+      regime: f.name ?? 'regime',
+      direction: dir(f.direction),
+      basis,
+    };
+  });
+  // Only RESOLVED lookups stream a `number` (the fixture carries an unresolved call too — the engine has
+  // nothing to report for it, so neither does the feed).
+  const numbers: StageEvent[] = calls
+    .filter((c) => !!c.rows?.[0]?.value)
+    .map((c) => ({
+      stage: 'number',
+      table: c.query?.table ?? '',
+      metric: c.query?.metric ?? '',
+      value: c.rows?.[0]?.value ?? '',
+      unit: null,
+      asof: c.rows?.[0]?.knowledge_date ?? '',
+    }));
+  const drivers = ((result.trace?.drivers ?? []) as string[]).slice(0, 3);
+  const nodes: StageEvent[] = drivers.map((d, i) => ({ stage: 'evidence', node: d, kept: 12 - i * 3 }));
+  const chain: StageEvent[] = drivers.length
+    ? [{ stage: 'chain', chain_id: `${contract}_transmission`, hops: [...drivers, contract] }]
+    : [];
+  return [...regimes, ...numbers, ...nodes, ...chain];
+}
+
 /** The mock stream (5.6): the full ordered tick sequence the backend emits — early walking, per-node
  *  retrieval progress, per-lookup numbers ticks, synthesizing, then bursty `token` deltas (exercises the
- *  typewriter) and the terminal result. */
+ *  typewriter) and the terminal result. F7: the content-bearing partials ride the same sequence, so
+ *  `VITE_MOCK=1` exercises the findings feed + the inert→live citation swap end to end. */
 export async function mockRespondStream(
   params: { question: string; asof?: string; context?: unknown[] },
   h: StreamHandlers,
@@ -388,16 +438,20 @@ export async function mockRespondStream(
       : [
           { stage: 'accepted' },
           { stage: 'planning', intent: result.intent, contracts: result.contracts },
+          { stage: 'plan', intent: result.intent ?? 'hybrid', contracts: result.contracts ?? [] },
           { stage: 'walking' },
+          { stage: 'walk', nodes: 7, depth: 3 },
           { stage: 'retrieving', done: 2, total: 7 },
           { stage: 'numbers', calls: 1, running: true, table: 'silver_psd' },
           { stage: 'retrieving', done: 5, total: 7 },
+          ...partialsFor(result),
           { stage: 'numbers', calls: 2, running: true, table: 'silver_oni' },
           { stage: 'retrieving', done: 7, total: 7 },
           { stage: 'walking', nodes: 7, regimes: 1 },
           { stage: 'retrieving', props: 24 },
           { stage: 'numbers', calls: 3 },
           { stage: 'synthesizing' },
+          { stage: 'drafting' },
         ];
   for (const st of stages) {
     await sleep(delay);
@@ -412,6 +466,8 @@ export async function mockRespondStream(
     }
     await sleep(delay);
     h.onStage?.({ stage: 'verifying', checked: 3, stripped: 0 });
+    // The verifier finished → the UI may activate citation handles (F7's one activation point).
+    h.onStage?.({ stage: 'verified', strips: 0 });
   }
   await sleep(delay);
   h.onResult?.(result);

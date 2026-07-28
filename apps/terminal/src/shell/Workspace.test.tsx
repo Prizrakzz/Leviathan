@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { TurnState } from '@/api/useTurn';
+import { emptyTurn } from '@/api/useTurn';
 import { DEFAULT_PANEL_PX } from '@/store/tabs';
 import { useUI } from '@/store/ui';
 import { Workspace } from './Workspace';
@@ -14,7 +14,7 @@ vi.mock('./tabs/TabDocument', () => ({
   default: ({ tab }: { tab: { id: string } }) => <div data-testid="tab-document-stub">{tab.id}</div>,
 }));
 
-const idleTurn = { status: 'idle', stages: [], draft: '' } as TurnState;
+const idleTurn = emptyTurn();
 
 function mount() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });

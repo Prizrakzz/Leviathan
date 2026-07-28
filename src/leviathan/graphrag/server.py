@@ -328,7 +328,15 @@ def respond_stream(question: str, session_id: Optional[str] = None, asof: Option
         out: queue.Queue = queue.Queue()
 
         def on_stage(stage: str, info: dict) -> None:
-            out.put(("stage", {"stage": stage, **(info or {})}))   # granular pipeline ticks (P1.1) from the worker
+            # granular pipeline ticks (P1.1) from the worker. THREAD-SAFETY (F7, verified — no change needed):
+            # this closure is called from MORE than the one `work` thread. run_hybrid's numbers pool emits
+            # `numbers`/`number` while the walk emits `walk`/`chain` on the caller, and planner.ground's fill
+            # pool emits `retrieving`/`evidence` from N fill workers concurrently. queue.Queue is already
+            # synchronized (put() takes the internal mutex; documented thread-safe), it is unbounded so put()
+            # never blocks a producer, and the dict is built fresh per call — so concurrent emitters interleave
+            # safely and nothing is dropped. Ordering across lanes is therefore ARRIVAL order, not lane order,
+            # which is the whole point of F7: the feed shows what landed, when it landed.
+            out.put(("stage", {"stage": stage, **(info or {})}))
 
         def work() -> None:
             try:
