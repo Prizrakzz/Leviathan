@@ -199,7 +199,7 @@ class TestResolve:
 
     def test_mass_unresolvable_is_an_outage_and_fails_closed(self):
         # Every id 5xx-ing is an outage wearing a poison-id costume; skipping through it would
-        # silently lose real symbology. Cap = max(3, len(ids)//20).
+        # silently lose real symbology. With ALL ids failing there is no canary either.
         class Boom(Exception):
             http_status = 500
 
@@ -213,6 +213,71 @@ class TestResolve:
         c.symbology = DeadSymbology(c)
         with pytest.raises(SystemExit, match="STEP-2 FAILURE"):
             F.resolve_outrights(c, dataset="IFUS.IMPACT", root="SB", year=2020)
+
+    @staticmethod
+    def _dense_junk_mapping(poison):
+        # 48 UNIQUE good outrights (12 month codes x 4 delivery years -- repeated symbols would
+        # trip the F-A overlap check) + the poison numeric-ID junk instruments.
+        good = {}
+        i = 0
+        for yr in ("0022", "0023", "0024", "0025"):
+            for code in "FGHJKMNQUVXZ":
+                good[100 + i] = f"SB  FM{code}{yr}!"
+                i += 1
+        mapping = dict(good)
+        mapping.update({p: f"SB   99   {p}" for p in poison})
+        return mapping
+
+    def test_dense_junk_year_passes_via_the_canary(self):
+        # The measured SB/2022 shape: skips over the soft cap (9 of 57; cap = max(3, 57//20) = 3)
+        # while the server answers every other id fine. The canary (re-resolving known-good ids)
+        # proves health, so the unit proceeds with the skips recorded.
+        class Boom(Exception):
+            http_status = 500
+
+        poison = set(range(7000, 7009))
+
+        class DenseJunkSymbology(FakeSymbology):
+            def resolve(self, *, symbols, stype_in, **kw):
+                if stype_in == "instrument_id" and {int(s) for s in symbols} & poison:
+                    raise Boom()
+                return super().resolve(symbols=symbols, stype_in=stype_in, **kw)
+
+        c = FakeClient(self._dense_junk_mapping(poison))
+        c.symbology = DenseJunkSymbology(c)
+        art = F.resolve_outrights(c, dataset="IFUS.IMPACT", root="SB", year=2022)
+        assert len(art["unresolvable_instrument_ids"]) == 9
+        assert art["outright_count"] == 48
+
+    def test_dense_junk_with_dead_canary_is_an_outage(self):
+        # Same density, but by canary time the server fails on EVERYTHING -> outage -> refuse.
+        # The canary is the post-bisect call with exactly the 3 known-good ids; the fake flips
+        # dead once the bisect has isolated all 9 poison singles.
+        class Boom(Exception):
+            http_status = 500
+
+        poison = set(range(7000, 7009))
+
+        class DeadByCanary(FakeSymbology):
+            def __init__(self, owner):
+                super().__init__(owner)
+                self.poison_seen = set()   # DISTINCT poison singles (retries must not double-count)
+
+            def resolve(self, *, symbols, stype_in, **kw):
+                if stype_in == "instrument_id":
+                    hit = {int(s) for s in symbols} & poison
+                    if hit:
+                        if len(symbols) == 1:
+                            self.poison_seen.add(next(iter(hit)))
+                        raise Boom()
+                    if len(self.poison_seen) >= len(poison):
+                        raise Boom()   # bisect done -> everything fails now, canary included
+                return super().resolve(symbols=symbols, stype_in=stype_in, **kw)
+
+        c = FakeClient(self._dense_junk_mapping(poison))
+        c.symbology = DeadByCanary(c)
+        with pytest.raises(SystemExit, match="outage"):
+            F.resolve_outrights(c, dataset="IFUS.IMPACT", root="SB", year=2022)
 
     def test_fa_overlapping_relisting_is_still_a_hard_exit(self):
         # One symbol on two ids on the SAME date -- the case that genuinely breaks the

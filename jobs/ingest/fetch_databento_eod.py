@@ -288,16 +288,38 @@ def resolve_outrights(client, *, dataset: str, root: str, year: int,
                         [e.get("d0"), e.get("d1"), str(iid)])
         time.sleep(POLITE_SLEEP_SECONDS)
     if unresolvable:
-        # Fail-closed sanity cap: a poison id is a vendor defect on a junk instrument; a MASS of
-        # skips is a server outage wearing a poison-id costume, and skipping through an outage
-        # would silently lose real symbology. 1 of 160 (the measured SB/2020 case) passes; a
-        # whole failing chunk does not.
+        # Fail-closed against outages, measured against reality twice (2026-07-28):
+        # SB/2020 skipped 1 id, SB/2021 skipped 2, SB/2022 skipped 12 of 164 -- while KC/CC/CT/
+        # OJ/RS resolved CLEAN in the same minutes. The junk-id density is per-root-per-year
+        # (SB and RC are exactly the roots the F1 recon named), so a bare count cap cannot
+        # separate a dense junk year from an outage. The CANARY can: ids that already resolved
+        # in THIS unit must still resolve. Canary healthy = the server answers per-id = the
+        # skips are genuine vendor defects on junk instruments; canary dead = outage = refuse.
         cap = max(3, len(ids) // 20)
-        if len(unresolvable) > cap:
+        hard_ceiling = max(cap, len(ids) // 4)
+        skipped = set(unresolvable)
+        canary_ids = [i for i in ids if str(i) not in skipped][:3]
+        if len(unresolvable) > hard_ceiling or not canary_ids:
             raise SystemExit(
                 f"STEP-2 FAILURE {dataset} {root}/{year}: {len(unresolvable)} of {len(ids)} "
-                f"instrument_ids unresolvable (cap {cap}) -- this is an outage, not poison ids; "
-                f"refusing to continue")
+                f"instrument_ids unresolvable (hard ceiling {hard_ceiling}) -- refusing to "
+                f"continue regardless of canary")
+        if len(unresolvable) > cap:
+            try:
+                call_with_backoff(
+                    client.symbology.resolve, dataset=dataset, symbols=canary_ids,
+                    stype_in="instrument_id", stype_out="raw_symbol",
+                    start_date=start, end_date=end, attempts=3)
+            except Exception as exc:  # noqa: BLE001
+                raise SystemExit(
+                    f"STEP-2 FAILURE {dataset} {root}/{year}: {len(unresolvable)} of {len(ids)} "
+                    f"instrument_ids unresolvable AND the canary re-resolve of known-good ids "
+                    f"failed ({type(exc).__name__}) -- this is an outage, refusing to continue"
+                ) from exc
+            logger.warning(
+                "%s %s/%s: DENSE junk-id year -- %d of %d skipped, over the soft cap %d, but the "
+                "canary re-resolve of known-good ids is HEALTHY, so the skips are per-id vendor "
+                "defects, not an outage", dataset, root, year, len(unresolvable), len(ids), cap)
         logger.warning(
             "%s %s/%s: %d instrument_id(s) SKIPPED as unresolvable (server 5xx on the id alone; "
             "the measured case is IFUS 6512548 = the 'SB   99   6512548' numeric-ID junk the "
