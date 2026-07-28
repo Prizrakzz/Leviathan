@@ -42,9 +42,17 @@ class FakeSymbology:
         if stype_in == "parent":
             return {"result": {symbols: [{"d0": start_date, "d1": end_date, "s": str(i)}
                                          for i in sorted(self.owner.id_to_symbol)]}}
-        return {"result": {str(i): [{"d0": start_date, "d1": end_date,
-                                     "s": self.owner.id_to_symbol[int(i)]}]
-                           for i in symbols}}
+
+        # a value may be "SYM" (full-window mapping) or ("SYM", d0, d1) for interval control
+        # (the amended F-A check distinguishes disjoint re-listings from true overlaps).
+        def _entry(i):
+            v = self.owner.id_to_symbol[int(i)]
+            if isinstance(v, tuple):
+                s, d0, d1 = v
+                return {"d0": d0, "d1": d1, "s": s}
+            return {"d0": start_date, "d1": end_date, "s": v}
+
+        return {"result": {str(i): [_entry(i)] for i in symbols}}
 
 
 class FakeMetadata:
@@ -134,6 +142,27 @@ class TestResolve:
         c = FakeClient({101: "ZCH6", 201: "ZCH6-ZCK6", 202: "ZCH6-ZCK6"})
         art = F.resolve_outrights(c, dataset="GLBX.MDP3", root="ZC", year=2016)
         assert art["outright_symbols"] == ["ZCH6"]
+
+    def test_fa_permits_disjoint_relisting_and_records_it(self):
+        # The measured KEN4/KE-2021 shape (gate fired on real data 2026-07-28): GLBX recycles
+        # instrument_ids, so the same outright appears on two ids with DISJOINT intervals.
+        # Decodable (the DBNStore symbology map is interval-scoped) -> permitted + recorded.
+        c = FakeClient({688493: ("KEN4", "2021-01-01", "2021-02-25"),
+                        234273: ("KEN4", "2021-06-30", "2022-01-01"),
+                        900001: "KEH1", 900002: "KEH1-KEK1"})
+        art = F.resolve_outrights(c, dataset="GLBX.MDP3", root="KE", year=2021)
+        assert "KEN4" in art["outright_symbols"]
+        assert list(art["relisted_symbols"]) == ["KEN4"]
+        assert [iv[2] for iv in art["relisted_symbols"]["KEN4"]] == ["688493", "234273"]
+
+    def test_fa_overlapping_relisting_is_still_a_hard_exit(self):
+        # One symbol on two ids on the SAME date -- the case that genuinely breaks the
+        # ohlcv/statistics join key and F2's dedupe rule. d1 is exclusive, so these overlap
+        # by exactly one day.
+        c = FakeClient({1: ("KEN4", "2021-01-01", "2021-07-01"),
+                        2: ("KEN4", "2021-06-30", "2022-01-01")})
+        with pytest.raises(SystemExit, match="OVERLAPPING"):
+            F.resolve_outrights(c, dataset="GLBX.MDP3", root="KE", year=2021)
 
     def test_ice_root_resolves_its_fixed_width_symbols(self):
         c = FakeClient({1: "KC  FMZ0026!", 2: "KC  FMZ0026_Z!", 3: "SB   99   6512548"})

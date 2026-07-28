@@ -218,6 +218,7 @@ def resolve_outrights(client, *, dataset: str, root: str, year: int,
     # STEP 2 (free): instrument_id -> raw_symbol, batched. An EMPTY symbols list raises inside the
     # client, so the zero-instrument case (e.g. KE before 2013) short-circuits here.
     sym_to_ids: dict[str, set[str]] = {}
+    sym_to_intervals: dict[str, list] = {}
     step2: list[dict] = []
     for chunk in _chunks(ids, RESOLVE_CHUNK):
         r2 = call_with_backoff(
@@ -229,22 +230,40 @@ def resolve_outrights(client, *, dataset: str, root: str, year: int,
                 sym = e.get("s")
                 if sym:
                     sym_to_ids.setdefault(sym, set()).add(str(iid))
+                    sym_to_intervals.setdefault(sym, []).append(
+                        [e.get("d0"), e.get("d1"), str(iid)])
         time.sleep(POLITE_SLEEP_SECONDS)
 
     outrights, dropped = partition_symbols(sym_to_ids.keys(), root, dataset)
 
-    # F-A, BINDING: inside one (root, year) a raw_symbol must map to exactly ONE instrument_id.
-    # F2's "the ICE double bar is not a symbology artifact" rests on it, and so does the
-    # ohlcv/statistics join key. Only the OUTRIGHTS are asserted -- a spread symbol legitimately
-    # re-uses ids across the complex and is dropped anyway.
-    multi = {s: sorted(sym_to_ids[s]) for s in outrights if len(sym_to_ids[s]) > 1}
-    if multi:
-        sample = ", ".join(f"{s}->{v}" for s, v in list(multi.items())[:10])
-        raise SystemExit(
-            f"F-A VIOLATION {dataset} {root}/{year}: {len(multi)} outright raw_symbol(s) map to "
-            f"MULTIPLE instrument_ids ({sample}) -- refusing to buy; the join key and the F2 dedupe "
-            f"rule would both be ambiguous"
-        )
+    # F-A, BINDING -- AMENDED 2026-07-28 after the gate fired on real data. GLBX RECYCLES
+    # instrument_ids across unrelated products (measured, KE/2021: KEN4 was iid 688493 for
+    # Jan-01..Feb-25 and iid 234273 from Jun-30; between KEN4 tenures, 688493 carried an equity
+    # option and 234273 a VIX option). A re-listing under a new id on DISJOINT date intervals is
+    # fully decodable: every (raw_symbol, date) still has exactly ONE instrument_id, the DBNStore
+    # symbology map is interval-scoped (symbology_from_artifact preserves d0/d1), and the
+    # ohlcv/statistics join key (instrument_id, date) stays unambiguous. What genuinely breaks
+    # the join and F2's dedupe is an OVERLAP -- one symbol on two ids on the SAME date -- so
+    # that, exactly, is what refuses the buy. Only the OUTRIGHTS are asserted -- a spread symbol
+    # legitimately re-uses ids across the complex and is dropped anyway.
+    relisted: dict[str, list] = {}
+    for s in outrights:
+        ivs = sorted(sym_to_intervals.get(s, []), key=lambda iv: str(iv[0]))
+        if len({iv[2] for iv in ivs}) > 1:
+            relisted[s] = ivs
+        for a, b in zip(ivs, ivs[1:]):
+            end_a = a[1] or "9999-12-31"   # an open interval overlaps anything after it
+            if str(end_a) > str(b[0]):     # d1 is EXCLUSIVE: d1 == next d0 is adjacency, not overlap
+                raise SystemExit(
+                    f"F-A VIOLATION {dataset} {root}/{year}: raw_symbol {s} maps to OVERLAPPING "
+                    f"instrument_id intervals ({a} vs {b}) -- refusing to buy; the join key and "
+                    f"the F2 dedupe rule would both be ambiguous"
+                )
+    if relisted:
+        logger.info(
+            "%s %s/%s: %d outright symbol(s) re-listed under a new instrument_id on disjoint "
+            "intervals (GLBX id recycling, decodable): %s", dataset, root, year, len(relisted),
+            ", ".join(f"{s}->{[iv[2] for iv in relisted[s]]}" for s in sorted(relisted)[:5]))
 
     artifact = {
         "producer": "jobs/ingest/fetch_databento_eod.py",
@@ -262,6 +281,9 @@ def resolve_outrights(client, *, dataset: str, root: str, year: int,
         "outright_symbols": outrights,
         "dropped_symbols": dropped,
         "symbol_instrument_ids": {s: sorted(sym_to_ids[s]) for s in outrights},
+        # disjoint-interval re-listings (GLBX id recycling) permitted by the amended F-A check;
+        # rows of [d0, d1_exclusive, instrument_id] per affected outright. Gate evidence.
+        "relisted_symbols": relisted,
         "resolve_step1": r1,
         "resolve_step2": step2,
     }
