@@ -89,6 +89,18 @@ _RANGE_TAIL = re.compile(r"(?:19|20)\d{2}[-/" + "\u2013\u2014" + r"]\Z")
 # A magnitude unit immediately after a 4-digit token flips it from year to CLAIM ('exports hit 1950
 # MMT' is a tonnage wearing a year costume -- the unit is the tell).
 _UNIT_AFTER = re.compile(r"\s*(?:MMT|MT|KT|kt|MMbu|bu|%|percent|ha|bales|cwt|tonnes|tons)\b")
+# T2b Lane-B RCA (2026-07-28): the DAY component of a date is not a magnitude. _RANGE_TAIL only exempts
+# the FIRST short tail after a year, so an ISO date shed its day ('2026-05-30' -> 30) and a long-form
+# date shed its day too ('as of 25 July 2026' -> 25) -- and the all-numbers guard then killed the whole
+# sentence as number_unbacked. Measured on the T2b deck: 25.0 was the offending magnitude in 4 of the
+# 10 audited strips, from the deck's own as-of phrasing. The numbers-lane verifier
+# (orchestrator._verify_numbers_answer) already scrubs exactly these tokens before extraction; this is
+# the same rule, applied where the citation verifier extracts.
+_MONTHS = (r"Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|"
+           r"Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?")
+_DATE_DAY_TAIL = re.compile(r"(?:19|20)\d{2}[-/]\d{1,2}[-/]\Z")           # '2026-05-' before the day
+_MONTH_AFTER = re.compile(r"\s+(?:" + _MONTHS + r")\b", re.I)             # '25 July 2026'
+_MONTH_BEFORE = re.compile(r"\b(?:" + _MONTHS + r")\s+\Z", re.I)          # 'July 25, 2026'
 
 
 def _claim_numbers_in(s: str) -> list[float]:
@@ -96,8 +108,9 @@ def _claim_numbers_in(s: str) -> list[float]:
     decimal/comma ('2,021' and '2010.5' keep their punctuation and stay magnitudes) -- UNLESS a unit
     token follows ('exports hit 1950 MMT' IS a claim); (b) the 1-2 digit tail of a YEAR
     range ('1998-99' -> the '99'); (c) any digit run immediately preceded by a letter (B40, T2, MY2021,
-    CO2), handled by _CLAIM_NUM's lookbehind. A fabricated magnitude ('23.5 MMT' with no such row) is
-    untouched by all three rules and still strips."""
+    CO2), handled by _CLAIM_NUM's lookbehind; (d) the 1-2 digit DAY of a date, ISO ('2026-05-30') or
+    long-form on either side of the month name ('25 July 2026', 'July 25, 2026'). A fabricated magnitude
+    ('23.5 MMT' with no such row) is untouched by all four rules and still strips."""
     s = s or ""
     out = []
     for m in _CLAIM_NUM.finditer(s):
@@ -106,11 +119,23 @@ def _claim_numbers_in(s: str) -> list[float]:
             v = float(tok.replace(",", ""))
         except ValueError:
             continue
-        if (re.fullmatch(r"\d{4}", tok) and 1900 <= v <= 2099
+        # rstrip the SENTENCE punctuation _CLAIM_NUM sweeps into the token ('2026-05-30.' -> '30.',
+        # 'July 25, 2026' -> '25,', 'in January 2026, but' -> '2026,') so a token at a clause/sentence
+        # end still reaches the exemptions below instead of silently falling through as a magnitude.
+        # T2b Lane-B: this cost the YEAR exemption too -- '2026,' failed fullmatch(\d{4}) and the audit
+        # shows a bare year charged as an unbacked magnitude ("for January 2026" -> 2026.0). An INTERIOR
+        # comma still disqualifies ('2,021' stays a magnitude) because rstrip only touches the tail.
+        core = tok.rstrip(".,")
+        if (re.fullmatch(r"\d{4}", core) and 1900 <= v <= 2099
                 and not _UNIT_AFTER.match(s[m.end():])):        # (a) year -- unless unit-suffixed
             continue
-        if re.fullmatch(r"\d{1,2}", tok) and _RANGE_TAIL.search(s[:m.start()]):
-            continue                                            # (b) year-range SHORT tail only
+        if re.fullmatch(r"\d{1,2}", core):
+            before, after = s[:m.start()], s[m.end():]
+            if _RANGE_TAIL.search(before):
+                continue                                        # (b) year-range SHORT tail only
+            if (_DATE_DAY_TAIL.search(before) or _MONTH_BEFORE.search(before)
+                    or (_MONTH_AFTER.match(after) and not _UNIT_AFTER.match(after))):
+                continue                                        # (d) the DAY of a date
         out.append(v)
     return out
 
@@ -124,10 +149,21 @@ def _num_matches(sent_nums: list[float], row_vals: list[float]) -> bool:
         a = abs(a0)
         for b0 in row_vals:
             b = abs(b0)
-            for scale in (1.0, 1e2, 1e3, 1e6, 1e9):
-                if b and abs(a * scale - b) <= 0.01 * b:
+            if a == 0 or b == 0:
+                # T2b Lane-B RCA: ZERO had no match arm at all. Both scale tests are guarded by a
+                # truthiness check (`if b and ...` / `if a and ...`) that a 0 row -- or a 0 claim --
+                # falls straight through, so "weekly export pace is 0 [N2]" citing a row whose value IS
+                # 0.0 was charged number_mismatch. This is the exact case the pattern-records F8 doctrine
+                # is built on (a materialized citable 0 = "no firing recorded"), and the ESR pace rows in
+                # the T2b deck are literally 0.0. _num_backed already encodes the rule -- 0 matches only
+                # 0 -- so mirror it here rather than let a legitimate zero citation strip.
+                if a == 0 and b == 0:
                     return True
-                if a and abs(b * scale - a) <= 0.01 * a:
+                continue
+            for scale in (1.0, 1e2, 1e3, 1e6, 1e9):
+                if abs(a * scale - b) <= 0.01 * b:
+                    return True
+                if abs(b * scale - a) <= 0.01 * a:
                     return True
     return False
 
@@ -236,6 +272,29 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
         evidence = evidence or []
         number_calls = number_calls or []
 
+        # T2b Lane-B RCA (2026-07-28): which KINDS of handle each index is written with in the prose. The
+        # ledger `ref` is a BARE INTEGER by contract -- answer.py's tool schema types it {"type":"integer"}
+        # and _SYSTEM tells the model "handle [E1] -> {ref: 1, ...} (an integer, not the string \"E1\")".
+        # So the `ref.upper().startswith("N")` numbers-skip below was UNREACHABLE for every real serving
+        # turn: a model that (correctly) declared its cited [N] rows had each declaration matched against
+        # the EVIDENCE list, failed -- a numbers row is not a document -- and was charged
+        # fabricated_citation. Measured on gate run 94468a0b: 19 of 50 strips, and in 3 answers it also
+        # DELETED the reader's `## Sources` block. The prose kind is the missing discriminator.
+        _prose_all = (structured.get("tldr") or "") + "\n" + (structured.get("mechanism") or "")
+        _kinds: dict[str, set[str]] = {}
+        for _m in _HANDLE.finditer(_prose_all):
+            _kinds.setdefault(_m.group("idx"), set()).add(_m.group("kind") or "E")
+
+        def _is_number_declaration(ref: str) -> bool:
+            """This unmatched ledger entry declares an injected NUMBERS row, not a fabricated document.
+            True only when the prose actually wrote [N<ref>] and <ref> indexes a real injected call --
+            so a genuine invented source still strips, and an [E<ref>]/[<ref>] entry on the SAME integer
+            is still resolved on its own merits (the E/N integer namespaces collide by schema: without
+            this the numbers entry overwrote resolved[ref] = [] and stripped the legitimate [E] handle
+            that pointed at a real dated item)."""
+            return (ref.isdigit() and "N" in _kinds.get(ref, set())
+                    and 1 <= int(ref) <= len(number_calls))
+
         # 1) resolve the model's ledger to real items; correct mistyped dates; drop fabrications
         resolved: dict[str, list[dict]] = {}
         kept_sources = []
@@ -246,6 +305,9 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
                 continue
             matched = _match_ledger_entry(s, evidence)
             if not matched:
+                if _is_number_declaration(ref):           # ditto -- the schema just cost it its "N" prefix
+                    kept_sources.append(s)
+                    continue
                 report["stripped"] += 1
                 report["by_rule"]["fabricated_citation"] = report["by_rule"].get("fabricated_citation", 0) + 1
                 resolved[ref] = []

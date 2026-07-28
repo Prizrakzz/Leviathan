@@ -24,28 +24,35 @@ def _ledger_conn():
     conn = sqlite3.connect(":memory:")
     conn.execute(
         "CREATE TABLE gold_pattern_records (record_kind TEXT, contract TEXT, driver_or_chain_id TEXT, "
-        "verdict TEXT, as_of_date TEXT, written_at TEXT, provenance TEXT)")
+        "verdict TEXT, decline_reason TEXT, as_of_date TEXT, written_at TEXT, provenance TEXT)")
+    # `decline_reason` carries the Lane-A denominator split (2026-07-25 gate defect D1): a decline is a
+    # real NON-EVENT only when the engine held data and produced no firing (thin_history); a
+    # fetch/resolution failure is BLINDNESS and belongs in no rate's denominator. See
+    # pattern_records.PR_NONEVENT_DECLINES / PR_BLIND_DECLINES.
     rows = [
-        # corn_cbot/export_pace daily_sweep: 3 fired + 2 declined (a real recorded history).
-        ("pace", "corn_cbot", "export_pace", "fired", "2026-07-20", "2026-07-20T09:00:00+00:00", "daily_sweep"),
-        ("pace", "corn_cbot", "export_pace", "fired", "2026-07-21", "2026-07-21T09:00:00+00:00", "daily_sweep"),
-        ("pace", "corn_cbot", "export_pace", "fired", "2026-07-22", "2026-07-22T09:00:00+00:00", "daily_sweep"),
-        ("pace", "corn_cbot", "export_pace", "declined", "2026-07-23", "2026-07-23T09:00:00+00:00", "daily_sweep"),
-        ("pace", "corn_cbot", "export_pace", "declined", "2026-07-24", "2026-07-24T09:00:00+00:00", "daily_sweep"),
+        # corn_cbot/export_pace daily_sweep: 3 fired + 2 declined (a real, MEASURED recorded history).
+        ("pace", "corn_cbot", "export_pace", "fired", None, "2026-07-20", "2026-07-20T09:00:00+00:00", "daily_sweep"),
+        ("pace", "corn_cbot", "export_pace", "fired", None, "2026-07-21", "2026-07-21T09:00:00+00:00", "daily_sweep"),
+        ("pace", "corn_cbot", "export_pace", "fired", None, "2026-07-22", "2026-07-22T09:00:00+00:00", "daily_sweep"),
+        ("pace", "corn_cbot", "export_pace", "declined", "thin_history", "2026-07-23", "2026-07-23T09:00:00+00:00", "daily_sweep"),
+        ("pace", "corn_cbot", "export_pace", "declined", "thin_history", "2026-07-24", "2026-07-24T09:00:00+00:00", "daily_sweep"),
         # soybeans_cbot/export_pace daily_sweep: in the swept catalog but EVERY sweep declined (F8: a
         # materialized recorded_firings=0, distinct from "not covered").
-        ("pace", "soybeans_cbot", "export_pace", "declined", "2026-07-23", "2026-07-23T09:00:00+00:00", "daily_sweep"),
-        ("pace", "soybeans_cbot", "export_pace", "declined", "2026-07-24", "2026-07-24T09:00:00+00:00", "daily_sweep"),
-        # corn_cbot/export_pace backfill_grid: 6 fired of 10 replay asofs (the ENGINE base rate). One
+        ("pace", "soybeans_cbot", "export_pace", "declined", "thin_history", "2026-07-23", "2026-07-23T09:00:00+00:00", "daily_sweep"),
+        ("pace", "soybeans_cbot", "export_pace", "declined", "thin_history", "2026-07-24", "2026-07-24T09:00:00+00:00", "daily_sweep"),
+        # corn_cbot/export_pace backfill_grid: 8 fired + 6 thin_history (evaluated, did NOT fire) + 6
+        # fetch_error (BLIND -- no vintage to replay against) => 8 of 14 EVALUABLE, 20 attempted. One
         # backfill row is written in the FUTURE relative to the query asof -> the PIT guard must drop it.
-        *[("pace", "corn_cbot", "export_pace", "fired", f"2024-0{i}-01", "2026-07-10T00:00:00+00:00", "backfill_grid")
+        *[("pace", "corn_cbot", "export_pace", "fired", None, f"2024-0{i}-01", "2026-07-10T00:00:00+00:00", "backfill_grid")
+          for i in range(1, 9)],
+        *[("pace", "corn_cbot", "export_pace", "declined", "thin_history", f"2024-0{i}-15", "2026-07-10T00:00:00+00:00", "backfill_grid")
           for i in range(1, 7)],
-        *[("pace", "corn_cbot", "export_pace", "declined", f"2024-0{i}-15", "2026-07-10T00:00:00+00:00", "backfill_grid")
-          for i in range(1, 5)],
-        ("pace", "corn_cbot", "export_pace", "fired", "2019-01-01", "2026-08-01T00:00:00+00:00", "backfill_grid"),
+        *[("pace", "corn_cbot", "export_pace", "declined", "fetch_error", f"2023-0{i}-15", "2026-07-10T00:00:00+00:00", "backfill_grid")
+          for i in range(1, 7)],
+        ("pace", "corn_cbot", "export_pace", "fired", None, "2019-01-01", "2026-08-01T00:00:00+00:00", "backfill_grid"),
     ]
     conn.executemany(
-        "INSERT INTO gold_pattern_records VALUES (?,?,?,?,?,?,?)", rows)
+        "INSERT INTO gold_pattern_records VALUES (?,?,?,?,?,?,?,?)", rows)
     conn.commit()
     return conn
 
@@ -64,9 +71,12 @@ def test_presence_returns_materialized_zero_for_declined_only_pair():
     # a real recorded history: 3 fired of 5 daily sweeps.
     r = qfn(pr.presence_sql("corn_cbot", "export_pace", kind="pace", asof="2026-07-24"))[0]
     assert r["recorded_firings"] == 3 and r["sweeps_total"] == 5 and r["first_recorded"] == "2026-07-20"
+    # every daily sweep here was EVALUATED, so the evaluable denominator equals the attempted total.
+    assert r["sweeps_evaluable"] == 5 and r["first_evaluable"] == "2026-07-20"
     # in-catalog, ALL declined -> ONE row with recorded_firings=0 (NOT an empty set), sweeps_total>0.
     z = qfn(pr.presence_sql("soybeans_cbot", "export_pace", kind="pace", asof="2026-07-24"))[0]
     assert z["recorded_firings"] == 0 and z["sweeps_total"] == 2 and z["first_recorded"] is None
+    assert z["sweeps_evaluable"] == 2, "declines that ran and did not fire are REAL non-events"
     # not covered: a pair with no rows STILL returns one scalar row (0/0) -- distinguishable via sweeps_total.
     n = qfn(pr.presence_sql("soft_red_winter_wheat_cbot", "export_pace", kind="pace", asof="2026-07-24"))
     assert len(n) == 1 and n[0]["recorded_firings"] == 0 and n[0]["sweeps_total"] == 0
@@ -77,10 +87,13 @@ def test_provenance_never_mixes_and_pit_guard_excludes_future_written_at():
     # the default presence read (daily_sweep) must NOT fold in the backfill_grid fired rows.
     d = qfn(pr.presence_sql("corn_cbot", "export_pace", kind="pace", asof="2026-07-24"))[0]
     assert d["recorded_firings"] == 3, "daily_sweep read leaked backfill_grid rows (provenance mix)"
-    # the labelled backfill base rate: 6 fired of 10 -- the future-written_at row (2026-08-01) is dropped
-    # by the written_at PIT guard, so it is 6/10 not 7/11.
+    # the labelled backfill base rate: 8 fired of 20 attempted -- the future-written_at row (2026-08-01)
+    # is dropped by the written_at PIT guard, so it is 8/20 not 9/21.
     b = qfn(pr.baserate_backfill_sql("corn_cbot", "export_pace", kind="pace", asof="2026-07-24"))[0]
-    assert b["recorded_firings"] == 6 and b["sweeps_total"] == 10
+    assert b["recorded_firings"] == 8 and b["sweeps_total"] == 20
+    # ...of which only 14 were EVALUABLE: the 6 fetch_error asofs are the engine being blind, not the
+    # pair failing to fire (the "9 of 156" inversion the 2026-07-25 gate shipped).
+    assert b["sweeps_evaluable"] == 14
 
 
 def test_presence_sql_pins_one_provenance_class():
@@ -110,9 +123,13 @@ def test_legs_backfill_baserate_cites_a_real_count():
     scope = {"contract": "corn_cbot", "driver_or_chain_id": "export_pace", "kind": "pace",
              "provenance": pr.PROV_BACKFILL_GRID}
     legs, sig = pr.pattern_records_legs(scope, "2026-07-24", qfn)
-    assert sig["recorded_firings"] == 6 and sig["sweeps_total"] == 10 and sig["zero_materialized"] is False
+    assert sig["recorded_firings"] == 8 and sig["sweeps_total"] == 20 and sig["zero_materialized"] is False
+    assert sig["sweeps_evaluable"] == 14 and sig["rate_stated"] is True
     line = pr.pattern_records_answer(scope, (3, legs[0]), sig)
-    assert "6 of 10" in line and "weekly replay asofs" in line and "[N3]" in line
+    # the rate is over what was EVALUABLE, and the incomplete coverage is stated in the same breath.
+    assert "8 of the 14" in line and "weekly replay asofs" in line and "[N3]" in line
+    assert "only 14 of the 20 attempted carried data" in line
+    assert "8 of 20" not in line, "the raw attempted total must never be the rate's denominator"
     assert "daily sweep" not in line.lower()         # a backfill rate is NEVER phrased as daily sweeps
     assert pr.pr_register_leaks(line) == []
 

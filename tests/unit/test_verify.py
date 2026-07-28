@@ -358,3 +358,111 @@ def test_strip_audit_numbers_agree_with_strip_decision_on_exemptions(monkeypatch
     nums = audit[0]["numbers"]
     assert 23.5 in nums and 5900.0 in nums                          # the real magnitudes captured
     assert 2010.0 not in nums and 40.0 not in nums                 # year + B40's '40' exempted, not listed
+
+
+# -- T2b Lane-B RCA (2026-07-28): the NUMBERS-ROW LEDGER DECLARATION is not a fabricated citation ------
+# answer.py types the ledger `ref` as {"type": "integer"} and _SYSTEM instructs "handle [E1] -> {ref: 1}
+# (an integer, not the string \"E1\")". So a model that correctly declares the [N] rows it cited emits
+# {ref: 3} for [N3] -- which the ledger loop's `ref.startswith("N")` skip can never recognise. Before the
+# fix each such declaration was matched against the EVIDENCE list, failed, and was charged
+# fabricated_citation (19 of 50 strips on gate run 94468a0b) while ALSO deleting the reader's Sources
+# entry. Worse, it wrote resolved[ref] = [] and so stripped a LEGITIMATE [E] handle sharing the integer.
+_PR_NUMS = [
+    {"query": {"table": "gold_pattern_records", "metric": "recorded_firings"}, "rows": [{"value": 9}]},
+    {"query": {"table": "silver_esr", "metric": "outstanding_sales_1000mt"}, "rows": [{"value": 0.0}]},
+    {"query": {"table": "silver_esr", "metric": "wow_change"}, "rows": [{"value": -251.438}]},
+]
+
+
+def test_integer_ledger_ref_for_a_cited_N_handle_is_not_a_fabrication():
+    """The measured regression: three [N] rows declared with the schema-mandated bare-integer refs."""
+    s = _structured("Weekly export pace is 0 [N2]. It fell 251.438 [N3].",
+                    [{"ref": 1, "source": "gold_pattern_records", "date": "2026-07-25"},
+                     {"ref": 2, "source": "silver_esr", "date": "2026-07-25"},
+                     {"ref": 3, "source": "silver_esr", "date": "2026-07-25"}],
+                    mechanism="## The record\nThe engine records 9 firings [N1].")
+    rep = vf.verify_citations(s, EV, _PR_NUMS)
+    assert rep["by_rule"].get("fabricated_citation", 0) == 0        # a numbers row is not a bad document
+    assert rep["stripped"] == 0
+    assert [x["ref"] for x in s["sources"]] == [1, 2, 3]            # the ledger survives for rendering
+    assert "[N1]" in s["mechanism"] and "[N2]" in s["tldr"]
+
+
+def test_number_declaration_does_not_clobber_a_real_evidence_ref_on_the_same_integer():
+    """E/N namespaces COLLIDE under an integer ref: [E1] and [N1] both declare {ref: 1}. The numbers
+    entry must not overwrite the resolved evidence item and strip a citation of a real dated document."""
+    s = _structured("Record corn prices occurred in August 2012 on the drought [E1]. The engine "
+                    "records 9 firings [N1].",
+                    [{"ref": 1, "source": "usda_wasde", "date": "2012-08-10"},
+                     {"ref": 1, "source": "gold_pattern_records", "date": "2026-07-25"}])
+    rep = vf.verify_citations(s, EV, _PR_NUMS)
+    assert rep["by_rule"].get("fabricated_citation", 0) == 0
+    assert "[E1]" in s["tldr"] and "[N1]" in s["tldr"]              # BOTH handles survive
+    assert rep["resolved"]["1"]["source"] == "usda_wasde"           # the real item still resolves
+
+
+def test_invented_document_still_strips_when_the_index_is_not_used_as_a_number():
+    """The anti-fabrication contract is intact: an unmatched ledger entry whose integer is NEVER written
+    as [N<idx>] in the prose is still a fabricated citation."""
+    s = _structured("Prices rose [3].",
+                    [{"ref": 3, "source": "reuters_live_wire", "date": "2026-01-01"}])
+    rep = vf.verify_citations(s, EV, _PR_NUMS)
+    assert rep["by_rule"].get("fabricated_citation", 0) >= 1         # ledger entry + the prose handle
+    assert s["sources"] == [] and "[3]" not in s["tldr"]
+
+
+def test_number_declaration_beyond_the_injected_call_count_still_strips():
+    """A ledger ref that indexes PAST the injected rows is not a declaration of anything -- it strips
+    (the ledger cannot launder an out-of-range handle into a free pass)."""
+    s = _structured("The ratio was 9 [N9].",
+                    [{"ref": 9, "source": "gold_pattern_records", "date": "2026-07-25"}])
+    rep = vf.verify_citations(s, EV, _PR_NUMS)                      # only 3 calls injected
+    assert rep["by_rule"].get("fabricated_citation", 0) == 1
+    assert s["sources"] == []
+
+
+def test_zero_row_backs_a_zero_claim_the_F8_materialized_zero():
+    """T2b Lane-B RCA: a citable ZERO is the whole point of the pattern-records F8 doctrine ("the engine
+    has recorded no firing on any of its N sweeps") and the deck's ESR pace rows are literally 0.0.
+    _num_matches guarded BOTH of its scale tests on truthiness (`if b and ...` / `if a and ...`), so a 0
+    claim against a 0 row fell through every arm and was charged number_mismatch."""
+    calls = [{"rows": [{"value": 0}]}]
+    assert vf._check_number_handle("weekly export pace reads 0 [N1]", 1, calls) is None
+    assert vf._num_matches([0.0], [0.0]) is True
+
+
+def test_zero_is_not_a_wildcard_in_either_direction():
+    """0 matches only 0 (the _num_backed rule): a zero row must not back a non-zero claim, and a zero
+    claim must not be backed by a non-zero row."""
+    assert vf._num_matches([5.0], [0.0]) is False
+    assert vf._num_matches([0.0], [5.0]) is False
+    assert vf._check_number_handle("exports were 5.0 MMT [N1]", 1,
+                                   [{"rows": [{"value": 0}]}]) == "number_mismatch"
+
+
+# -- T2b Lane-B RCA: the DAY of a date is not a magnitude ---------------------------------------------
+# Measured on the T2b deck's strip audit: 25.0 -- the day out of "as of 25 July 2026" and "2026-07-25" --
+# was the offending magnitude in 4 of the 10 audited strips, killing sentences whose REAL figures were
+# all backed. orchestrator._verify_numbers_answer already scrubs these tokens; this is the same rule.
+def test_date_day_component_is_not_a_claim_magnitude():
+    assert vf._claim_numbers_in("first recorded 2026-05-30.") == []
+    assert vf._claim_numbers_in("the engine recorded 0 sweeps as of 2026-07-25 [N3]") == [0.0]
+    assert vf._claim_numbers_in("verdict as of 25 July 2026 declined; the streak stands at 2") == [2.0]
+    assert vf._claim_numbers_in("on July 25, 2026 stocks were 31.4 MMT") == [31.4]
+
+
+def test_day_exemption_never_shields_a_unit_suffixed_magnitude():
+    """A short number carrying a UNIT is a claim even when a month name follows it."""
+    assert vf._claim_numbers_in("exports hit 25 MMT in May") == [25.0]
+    assert vf._claim_numbers_in("held 2,021 MT") == [2021.0]
+    assert vf._claim_numbers_in("ranged 5900-9999 MT") == [5900.0, 9999.0]
+    assert vf._claim_numbers_in("exports rose 12. Stocks fell 8.") == [12.0, 8.0]
+
+
+def test_pattern_records_preface_only_the_denominator_is_unbacked():
+    """The engine's OWN preface sentence: with the day exempted, 9 and 156 are the only magnitudes left,
+    so the strip decision now turns solely on whether the ledger DENOMINATOR (156, carried on the row as
+    `sweeps_total`, never as `value`) is collected -- which is the remaining, separately-owned defect."""
+    sent = ("The engine has recorded export_pace on CBOT corn firing on 9 of 156 weekly replay "
+            "asofs [N1], first recorded 2026-05-30.")
+    assert vf._claim_numbers_in(sent) == [9.0, 156.0]
