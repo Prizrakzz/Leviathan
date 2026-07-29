@@ -527,6 +527,15 @@ def _stub_cli_env(monkeypatch):
     monkeypatch.setattr(_cfg, "load_env", lambda *a, **k: None)
     from leviathan.graphrag.numbers import pgnumbers
     monkeypatch.setattr(pgnumbers, "pg_query", lambda sql: [])
+    # The stale-mirror cross-check (2026-07-29 incident) is part of the runtime path and stays
+    # ARMED under test -- only its S3 transport is stubbed, so the real detector logic runs.
+    # _S3Miss = "no object at that asof", i.e. the free-target case these CLI tests are about;
+    # a test that wants the stale branch injects _S3Hit itself.
+    monkeypatch.setenv("LEVIATHAN_BUCKET", "test-bucket")
+    _real_detect = prs.detect_stale_mirror
+    monkeypatch.setattr(prs, "detect_stale_mirror",
+                        lambda existing, asofs, *, bucket, s3_client=None:
+                        _real_detect(existing, asofs, bucket=bucket, s3_client=_S3Miss()))
     monkeypatch.setattr(prs, "sweep", lambda asof, qfn, ctx, **k: [
         prs.pace_record("corn_cbot", "export_pace", asof, ctx, entry=_PACE_ENTRY, n_rows=2)])
     monkeypatch.setattr(prs, "_load_contract",
@@ -699,3 +708,118 @@ def test_resolve_graph_version_tracks_config_bytes(tmp_path):
     # and the old bug's exact signature, pinned so its meaning is unambiguous: a repo root with no
     # configs/graphrag hashes NOTHING and yields the empty-string hash.
     assert prs.resolve_graph_version(repo=tmp_path / "no_such_root") == _EMPTY_GV
+
+
+# ---------------------------------------------------------------------------
+# (2026-07-29 incident) STALE MIRROR -- the third guard-read failure mode.
+#
+# The guard reads the pg mirror; the mirror's loader is on-demand. A read that SUCCEEDS and
+# returns nothing is ambiguous -- genuinely-empty vs simply-behind -- and apply_write_guard
+# cannot tell them apart, so every refusal it would have raised is silently disarmed. On
+# 2026-07-29 a backfill_grid replay was licensed straight over a certified daily_sweep
+# partition on exactly this path. Worse, the deployed loader image did not carry
+# gold_pattern_records in P1_TABLES at all, so read_existing_guard_rows had been taking its
+# missing-table fail-open branch on EVERY run since T2b shipped. S3 is the authority on
+# occupancy (one object per asof), so the cross-check is exact.
+# ---------------------------------------------------------------------------
+_STALE_DETECT = prs.detect_stale_mirror   # pristine reference for tests that re-arm
+
+
+class _S3Hit:
+    """Every HEAD succeeds -- the object is there."""
+
+    def __init__(self):
+        self.heads = []
+
+    def head_object(self, **kw):
+        self.heads.append(kw["Key"])
+        return {"ContentLength": 1}
+
+
+class _S3Miss:
+    """Every HEAD 404s -- pg and S3 agree the asof is empty."""
+
+    def __init__(self):
+        self.heads = []
+
+    def head_object(self, **kw):
+        self.heads.append(kw["Key"])
+        err = Exception("not found")
+        err.response = {"Error": {"Code": "404"}}
+        raise err
+
+
+def _pg_row(asof):
+    return {"record_kind": "pace", "contract": "corn_cbot", "driver_or_chain_id": "export_pace",
+            "as_of_date": asof, "provenance": prs.PROV_DAILY_SWEEP,
+            "engine_version": "img:1", "graph_version": "gv1:aaaa"}
+
+
+def test_stale_mirror_detected_when_pg_empty_but_object_exists():
+    s3 = _S3Hit()
+    stale = prs.detect_stale_mirror([], ["2026-07-27", "2026-07-28"], bucket="b", s3_client=s3)
+    assert stale == ["2026-07-27", "2026-07-28"], "a pg-empty asof with a live object IS stale"
+    # the probe addresses the canonical key, not a guess
+    assert s3.heads[0] == f"{prs.S3_PREFIX}/{prs.PARTITION_COL}=2026-07-27/pattern_records.parquet"
+
+
+def test_current_mirror_costs_zero_s3_calls():
+    # every target asof is present in pg -> nothing to disambiguate -> no HEADs, no bucket needed.
+    s3 = _S3Hit()
+    assert prs.detect_stale_mirror([_pg_row("2026-07-28")], ["2026-07-28"],
+                                   bucket=None, s3_client=s3) == []
+    assert s3.heads == []
+
+
+def test_genuinely_empty_asof_is_not_stale():
+    # the daily sweep's normal path: today's asof has no object yet. Must NOT trip the check,
+    # or the nightly sweep aborts every night.
+    s3 = _S3Miss()
+    assert prs.detect_stale_mirror([], ["2026-07-29"], bucket="b", s3_client=s3) == []
+    assert len(s3.heads) == 1
+
+
+def test_stale_check_subsumes_the_missing_table_fail_open():
+    # read_existing_guard_rows returns [] for a positively-identified missing table ("a legitimate
+    # first write"). That is exactly what the deployed loader image produced for MONTHS. When S3
+    # says those asofs are occupied, the fail-open must be caught here.
+    missing_table_read = []
+    assert prs.detect_stale_mirror(missing_table_read, ["2026-07-28"],
+                                   bucket="b", s3_client=_S3Hit()) == ["2026-07-28"]
+
+
+def test_unrunnable_cross_check_is_never_a_passing_one():
+    # no bucket -> the check cannot run. It must RAISE, not return [] (which reads as "clean").
+    with pytest.raises(RuntimeError, match="bucket"):
+        prs.detect_stale_mirror([], ["2026-07-28"], bucket=None)
+
+
+def test_unverifiable_s3_error_propagates():
+    # AccessDenied / throttle / timeout are NOT "the object is absent" -- an unverifiable
+    # occupancy picture must abort rather than pass.
+    class _S3Boom:
+        def head_object(self, **kw):
+            err = Exception("denied")
+            err.response = {"Error": {"Code": "AccessDenied"}}
+            raise err
+
+    with pytest.raises(Exception, match="denied"):
+        prs.detect_stale_mirror([], ["2026-07-28"], bucket="b", s3_client=_S3Boom())
+
+
+def test_cli_aborts_when_the_mirror_is_stale(monkeypatch):
+    """(2026-07-29 incident, end to end) pg says the target asof is empty, S3 says it is OCCUPIED.
+
+    This is the exact shape that let a backfill_grid replay overwrite a certified daily_sweep
+    partition: the mirror's loader had never run for this ledger, so read_existing_guard_rows
+    returned [] and apply_write_guard saw a clean partition. rc 3 (the unreadable-guard class),
+    and the publisher is never reached.
+    """
+    _stub_cli_env(monkeypatch)
+    monkeypatch.setattr(prs, "read_existing_guard_rows", lambda qfn, asofs: [])
+    # re-arm with an S3 that says "occupied" -- the stale branch
+    monkeypatch.setattr(prs, "detect_stale_mirror",
+                        lambda existing, asofs, *, bucket, s3_client=None:
+                        _STALE_DETECT(existing, asofs, bucket=bucket, s3_client=_S3Hit()))
+    assert prs.main(["--dry-run"]) == 3, "a stale mirror must abort, in dry-run too"
+    assert prs.main(["--publish-mode", "canonical"]) == 3

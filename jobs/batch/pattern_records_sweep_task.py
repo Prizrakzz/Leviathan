@@ -654,6 +654,23 @@ class GuardReadError(RuntimeError):
     overwrite. NOT the same as "there is nothing there" -- and the publish MUST abort (W6.i)."""
 
 
+class GuardStaleMirrorError(RuntimeError):
+    """The mirror READ SUCCEEDED and returned nothing, but S3 says those asofs are occupied.
+
+    The third failure mode, and the one that actually bit (2026-07-29): the mirror is READABLE,
+    the table EXISTS, the query is well-formed -- and it is simply BEHIND. The pg loader for this
+    ledger runs on demand, and had not run since 2026-07-24, so every asof written after that
+    date read back as empty. apply_write_guard cannot tell "no rows" from "no rows YET", so a
+    backfill_grid replay was licensed straight over a certified daily_sweep partition, exactly
+    the class of damage the guard exists to prevent -- and every daily partition written since
+    the last load had been silently unprotected the whole time.
+
+    W6.i's failure policy covered unreadable and missing-table. It did not cover STALE, because
+    stale looks identical to empty from inside pg. S3 is the authority on occupancy (the layout
+    is one object per asof), so the cross-check is cheap and exact: if pg claims an asof is empty
+    while its canonical object exists, the guard's picture is WRONG and the publish aborts."""
+
+
 def _is_missing_ledger_table(exc: BaseException) -> bool:
     """Is this pg error 'the ledger table does not exist yet' -- a LEGITIMATE first write / flip day --
     as opposed to 'the read FAILED' (mirror gap, dead connection, timeout, permission, syntax)?
@@ -684,6 +701,45 @@ def _is_missing_ledger_table(exc: BaseException) -> bool:
     if code == "42P01":
         return True
     return "does not exist" in msg or "no such table" in msg
+
+
+def detect_stale_mirror(existing: Iterable[dict], asofs: Iterable[str], *, bucket: Optional[str],
+                        s3_client=None) -> list[str]:
+    """The asofs pg calls EMPTY whose canonical S3 object EXISTS -- i.e. proof the mirror is behind.
+
+    Returns [] when the mirror's picture is consistent with S3, which is the only state in which
+    apply_write_guard's refusals mean anything. See GuardStaleMirrorError for why this is a third,
+    distinct failure mode from unreadable and missing-table.
+
+    Only pg-EMPTY asofs are probed, so a current mirror costs ZERO calls and the worst case is one
+    HEAD per target asof. A missing bucket is NOT silently tolerated: without it the cross-check
+    cannot run at all, and a cross-check that cannot run must not be mistaken for one that passed."""
+    occupied_in_pg = {str(r.get("as_of_date")) for r in (existing or []) if r.get("as_of_date")}
+    candidates = sorted({a for a in asofs if a and str(a) not in occupied_in_pg})
+    if not candidates:
+        return []
+    if not bucket:
+        raise RuntimeError(
+            "stale-mirror cross-check needs a bucket (--bucket or LEVIATHAN_BUCKET) and has none; "
+            "refusing to treat an un-runnable cross-check as a passing one")
+    if s3_client is None:
+        import boto3
+        s3_client = boto3.client("s3", region_name=os.environ.get("AWS_DEFAULT_REGION", "us-east-1"))
+    stale: list[str] = []
+    for asof in candidates:
+        key = f"{S3_PREFIX}/{PARTITION_COL}={asof}/pattern_records.parquet"
+        try:
+            s3_client.head_object(Bucket=bucket, Key=key)
+        except Exception as e:  # noqa: BLE001
+            # 404/NoSuchKey is the GOOD case: pg and S3 agree the asof is empty. Anything else is
+            # an S3 problem, and an unverifiable occupancy picture must abort rather than pass.
+            code = getattr(getattr(e, "response", None), "get", lambda *_a: {})("Error") or {}
+            status = str(code.get("Code", "")) if isinstance(code, dict) else ""
+            if status in ("404", "NoSuchKey", "NotFound"):
+                continue
+            raise
+        stale.append(asof)
+    return stale
 
 
 def read_existing_guard_rows(query_fn, asofs: Iterable[str]) -> list[dict]:
@@ -1080,6 +1136,29 @@ def main(argv=None) -> int:
         existing = read_existing_guard_rows(query_fn, asofs)
     except GuardReadError as e:
         logger.error("ABORT %s", e)
+        return 3
+    # STALE-MIRROR CROSS-CHECK (2026-07-29 incident). A successful read that returns nothing is
+    # ambiguous: the partition may be genuinely empty, or the mirror may simply be behind. S3 is
+    # the authority on occupancy -- one object per asof -- so any asof pg calls empty while its
+    # canonical object EXISTS means the guard is reasoning from a stale picture, and every
+    # refusal it would have raised is silently disarmed. Abort instead (rc 3, same class as an
+    # unreadable guard). Costs one HEAD per pg-empty asof and nothing at all when pg is current.
+    # Runs BEFORE the dry-run branch: a dry-run's whole job is to predict the publish, and a
+    # dry-run that green-lights a write the live run would botch is worse than no dry-run.
+    try:
+        stale = detect_stale_mirror(existing, asofs,
+                                    bucket=args.bucket or os.environ.get("LEVIATHAN_BUCKET"))
+    except Exception as e:  # noqa: BLE001 -- a cross-check that cannot run must not fail open
+        logger.error("ABORT write-guard stale-mirror cross-check could not run: %s: %s",
+                     type(e).__name__, e)
+        return 3
+    if stale:
+        logger.error(
+            "ABORT write-guard STALE MIRROR: pg reports ZERO rows at %d asof(s) whose canonical "
+            "object EXISTS on S3 %s -- the mirror is behind (its loader is on-demand), so every "
+            "guard refusal is silently disarmed and a replay would overwrite certified rows (this "
+            "is the 2026-07-29 incident). Run: python jobs/utils/load_pg_numbers.py --tables %s, "
+            "then re-run.", len(stale), sorted(stale)[:8], TABLE)
         return 3
     guard = apply_write_guard(existing, records)
     refused_n = len(guard.refused)
