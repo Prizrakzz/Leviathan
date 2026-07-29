@@ -473,6 +473,11 @@ def gate4_no_forward_fill(df: pd.DataFrame, *, sample: int = DEFERRED_SAMPLE,
         return [f"(4) frame is missing {sorted(need - set(df.columns))}"], {}
     work = df[["leviathan_slug", "contract_month", "trade_date"]].dropna().copy()
     work["trade_date"] = pd.to_datetime(work["trade_date"])
+    # WEEKDAY dates only (measured 2026-07-29: ZCZ3 carries 70 SUNDAY-dated bars over its life --
+    # the GLBX Sunday-evening session, UTC-bucketed by the vendor into sparse partial bars. Real
+    # data, not fill; but counting them makes distinct-dates exceed the Mon-Fri business span by
+    # construction. A forward-filler fills WEEKDAYS, so excluding weekends keeps the teeth.)
+    work = work[work["trade_date"].dt.dayofweek < 5]
     grp = work.groupby(["leviathan_slug", "contract_month"])["trade_date"]
     agg = grp.agg(first="min", last="max", distinct="nunique").reset_index()
     agg = agg[agg["distinct"] >= min_rows]
