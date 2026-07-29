@@ -34,17 +34,13 @@ from leviathan.transforms.raw_to_bronze.databento_eod import DATASET_SLUGS, ROOT
 
 logger = get_logger(__name__)
 
-# The F010 contract's physical column order, verbatim from configs/silver/tables/
-# silver_futures_eod.yaml (declaration order IS writer order under the INV-2 pinned schema).
-PHYSICAL_COLUMNS: list[str] = [
-    "trade_date", "contract_month", "instrument_kind", "raw_symbol", "settle", "settle_kind",
-    "open", "high", "low", "close", "volume", "open_interest", "unit", "currency",
-    "expiry_date", "source", "dataset",
-]
-# The two registered partition keys, in the contract's declared ORDER (Glue keys partitions
-# positionally, so a transposed pair is silent at write time and unrecoverable afterwards).
-PARTITION_COLUMNS: list[str] = ["leviathan_slug", "trade_year"]
-SILVER_COLUMNS: list[str] = PHYSICAL_COLUMNS + PARTITION_COLUMNS
+# The column shape is TABLE-level, not vendor-level: ten producers land against
+# silver_futures_eod, so the lists live beside the contract map in
+# ``leviathan.silver.futures_eod_contracts`` and are RE-EXPORTED here for the W2 callers that
+# already import them from this module (the task's merge, the W2 tests, the gate).
+PHYSICAL_COLUMNS: list[str] = FC.PHYSICAL_COLUMNS
+PARTITION_COLUMNS: list[str] = FC.PARTITION_COLUMNS
+SILVER_COLUMNS: list[str] = FC.SILVER_COLUMNS
 
 
 def build_databento_eod_silver(bronze: pd.DataFrame) -> pd.DataFrame:

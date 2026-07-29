@@ -14,6 +14,7 @@
     "silver_futures_eod"
   ],
   "gate_baseline_uri": "s3://leviathan-dev-shahem-001/cascade_census/rolling/futures_eod_databento/census.json",
+  "gate_baseline_uri_note": "PER-SCHEDULE BY DECISION, and this SUPERSEDES the W1.0 seed. The rolling-census machinery is per-SCHEDULE (advance_rolling_census advances one baseline per fire, and a shared baseline would make each schedule's --diff read the other schedule's rows as unexplained drift), so silver_futures_eod carries one baseline per schedule: futures_eod_databento (this one) and futures_eod_free (W1a, four free venues). The family-level seed named in plan D6 and in jobs/audit/advance_rolling_census.py -- s3://leviathan-dev-shahem-001/cascade_census/rolling/futures_eod/census.json -- is SUPERSEDED and MUST NOT be consulted, minted or advanced; a diff against it would compare this schedule's rows to the union of both. futures_eod_gate.py gate 8 emits one silver_rebuild_gate command per schedule against its own baseline, deliberately.",
   "gate_jobdef": "leviathan-dev-silver-gate",
   "gate_queue": "leviathan-dev-queue-ondemand",
   "retry": {

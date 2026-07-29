@@ -55,8 +55,17 @@ SOURCES: frozenset[str] = frozenset({
 
 # The unit vocabulary (plan line 141 + the ICE canola CAD leg). Source-faithful strings, never
 # normalized: "US cents/bushel" is what CBOT quotes and what the desk reads.
+# "USD/bushel" is the MIAX (ex-MGEX) HRSW unit and it is NOT a duplicate of "US cents/bushel": the
+# MIAX Public_Daily_Settlement_File CSV publishes DECIMAL DOLLARS per bushel (probed live
+# 2026-07-28: MWEU6 settles 7.0250, MWEZ6 7.2525), while CBOT quotes the same grain in CENTS
+# (corn ~430). The two differ by a factor of 100. The doctrine here is source-faithful units and
+# NEVER a scaled value, exactly as canola widened the vocabulary to CAD/t rather than being FX-ed
+# into USD -- so the vocabulary widens and the numbers stay as the venue published them. A
+# consumer comparing MGEX to CBOT wheat must convert, and the `unit` column is what tells it to.
+# SPELLING: the denominator is spelled OUT ("USD/bushel", not "USD/bu") so the whole vocabulary
+# reads one way -- a consumer string-matching on "bushel" must not silently miss HRSW.
 UNITS: frozenset[str] = frozenset({
-    "US cents/bushel", "US cents/lb", "USD/short ton", "USD/metric ton", "USD/cwt",
+    "US cents/bushel", "US cents/lb", "USD/short ton", "USD/metric ton", "USD/cwt", "USD/bushel",
     "EUR/t", "CNY/t", "MYR/t", "ZAR/t", "BRL/60-kg bag", "CAD/t",
 })
 
@@ -137,7 +146,10 @@ CONTRACT_MAP: dict[str, dict[str, str]] = {
     "malaysian_crude_palm_oil_cme": {"unit": "MYR/t", "currency": "MYR",
                                      "settle_kind": "settlement", "source": "bursa"},
     # -- MIAX Futures (ex-MGEX) daily settlement file (W1b; absent from Databento entirely) -----
-    "hard_red_spring_wheat_mgex": {"unit": "US cents/bushel", "currency": "USD",
+    #    UNIT CORRECTED 2026-07-29 from "US cents/bushel" to "USD/bushel" against the live file: the
+    #    CSV publishes decimal DOLLARS/bushel (MWEU6 = 7.0250), not cents. The value is NEVER
+    #    scaled to match a prior guess -- the label moves to the data. See the UNITS note above.
+    "hard_red_spring_wheat_mgex": {"unit": "USD/bushel", "currency": "USD",
                                    "settle_kind": "settlement", "source": "miax"},
     # -- Euronext / MATIF (W1c browser producer; the SETTL. column after the ~18:30 CET publish) -
     "french_wheat_matif": {"unit": "EUR/t", "currency": "EUR",
@@ -147,6 +159,26 @@ CONTRACT_MAP: dict[str, dict[str, str]] = {
     "french_rapeseed_matif": {"unit": "EUR/t", "currency": "EUR",
                               "settle_kind": "settlement", "source": "euronext_matif"},
 }
+
+# ---------------------------------------------------------------------------
+# THE COLUMN SHAPE. One table, ~ten producers -- so the column lists live HERE, next to the map,
+# and NOT in any one vendor's transform module. They were born in
+# ``transforms/bronze_to_silver/databento_eod.py`` (W2, the only leg that existed then) and
+# ``futures_eod_task.merge_with_canonical`` imported them from there; every free leg would have
+# inherited an import of the Databento module for a list that is not Databento's. Moved verbatim --
+# the values are unchanged and that module re-exports these names.
+# ---------------------------------------------------------------------------
+# The F010 contract's physical column order, verbatim from configs/silver/tables/
+# silver_futures_eod.yaml (declaration order IS writer order under the INV-2 pinned schema).
+PHYSICAL_COLUMNS: list[str] = [
+    "trade_date", "contract_month", "instrument_kind", "raw_symbol", "settle", "settle_kind",
+    "open", "high", "low", "close", "volume", "open_interest", "unit", "currency",
+    "expiry_date", "source", "dataset",
+]
+# The two registered partition keys, in the contract's declared ORDER (Glue keys partitions
+# positionally, so a transposed pair is silent at write time and unrecoverable afterwards).
+PARTITION_COLUMNS: list[str] = ["leviathan_slug", "trade_year"]
+SILVER_COLUMNS: list[str] = PHYSICAL_COLUMNS + PARTITION_COLUMNS
 
 # The card projection: the numbers card's unit_overrides is dict[slug, str], the map is richer, so
 # the bind is a PROJECTION equality (not a dict equality). Derived here so the card, the lint

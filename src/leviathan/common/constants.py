@@ -42,6 +42,11 @@ MIN_RAW_FILE_SIZES: dict[str, int] = {
     "usda_esr": 500,                                  # 500 B — ESR JSON arrays for sparse early years can be small; catches HTML error pages from api.data.gov
     "databento": 200,                                 # 200 B -- a zstd DBN file whose only content is the header is ~150-190 B; the floor catches a truncated/empty batch download without rejecting a legitimately sparse year (KE 2013 = 74 bars)
     "databento_symbology": 200,                       # 200 B -- the two-step resolve artifact always carries the ten symbology.resolve keys plus the per-symbol outright verdict; anything smaller is a truncated write
+    "czce": 5_000,                                    # 5 KB -- the daily FutureDataDaily.txt is 21,982 B on the earliest session (2015-10-08, 17 roots) and 37,747 B in 2026 (26 roots); the floor catches a CZCE WAF 412 challenge body or a truncated read. NOTE check_min_file_size returns SILENTLY for an unknown source, so a MISSING entry is a DISABLED floor, not an error
+    "jse_safex": 40_000,                              # 40 KB -- the agri MTM sheet measures 81,920 B (legacy OLE, 31 contract sections); the floor catches a portal error page served with HTTP 200
+    "cepea_widget": 500,                              # 500 B -- the daily widget is ~1,988 B of document.write() markup carrying ONE value; the Cloudflare cdn-cgi challenge body is ~5,600 B and is BIGGER, so size cannot separate them -- the producer treats a 403 as a HARD failure and this floor is only the truncated-read backstop
+    "cepea_wayback": 50_000,                          # 50 KB -- the one-shot archive recovery measures 136,726 B for cafe.aspx?id=23 @20250608143948 (5,193 rows)
+    "miax": 1_000,                                    # 1 KB -- the daily settlement CSV measures 6,676 B for 75 rows (7 outrights + 68 options); a Drupal 404 page is 63,668 B and is caught by STATUS, never by size, so this floor catches truncation only
 }
 
 ALL_COMMODITIES: tuple[CommodityName, ...] = get_args(CommodityName)

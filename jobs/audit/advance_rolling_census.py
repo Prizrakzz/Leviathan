@@ -46,9 +46,24 @@ jobs/utils/load_pg_numbers.py). Grounds:
   * The matching ``configs/silver/dags/futures_eod.json`` (the ``gate_baseline_uri`` carrier, 27
     families have one) does not exist yet either; it is a W1a authoring item on the same schedule.
 
-SEED IT AT W1a, alongside the first canonical publish, with:
+SUPERSEDED AT W1a -- THE FAMILY-LEVEL SEED IS NOT WHAT GETS MINTED.
+------------------------------------------------------------------
+``silver_futures_eod`` ended up with TWO schedules rather than the one descriptor D6 assumed:
+``configs/silver/dags/futures_eod_databento.json`` (W2, the vendor leg) and
+``configs/silver/dags/futures_eod_free.json`` (W1a, four free venues). This machinery is
+per-SCHEDULE -- one baseline advances per fire -- so a single family-level baseline would make each
+schedule's ``--diff`` read the OTHER schedule's rows as unexplained drift. Each descriptor
+therefore carries its own ``gate_baseline_uri`` and records the supersession in a
+``gate_baseline_uri_note`` beside it.
+
+``s3://leviathan-dev-shahem-001/cascade_census/rolling/futures_eod/census.json`` -- the D6
+family-level URI -- IS SUPERSEDED. Do NOT mint it, advance it, or diff against it.
+
+SEED AT W1a alongside each chain's first canonical publish, ONE PER SCHEDULE:
     python jobs/audit/advance_rolling_census.py --asof <first-publish-date> \
-        --dest-uri s3://leviathan-dev-shahem-001/cascade_census/rolling/futures_eod/census.json
+        --dest-uri s3://leviathan-dev-shahem-001/cascade_census/rolling/futures_eod_free/census.json
+    python jobs/audit/advance_rolling_census.py --asof <first-publish-date> \
+        --dest-uri s3://leviathan-dev-shahem-001/cascade_census/rolling/futures_eod_databento/census.json
 """
 from __future__ import annotations
 

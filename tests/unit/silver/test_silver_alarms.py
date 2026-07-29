@@ -98,28 +98,87 @@ class TestTfvars:
         # (freshness_poller: EMPTY canonical prefix -> no datapoint), and the per-family freshness
         # alarm is treat_missing_data="breaching" -- so declaring it would instant-breach the shared
         # on-call topic on the next apply and page continuously until the producer lands.
+        #
+        # `futures_eod` is STILL here through W1a/W1b, and the reason is the removal TRIGGER: it is
+        # the table's first CANONICAL publish, not the producer code landing. The four free legs +
+        # the Databento leg are code, both chains ship at promote_mode=stop_and_notify (shadow
+        # only), and a shadow publish never resets the freshness clock -- so the canonical prefix is
+        # still empty and arming the alarm would breach on the next apply of any unrelated change.
         tf = sa.build_tfvars()
+        # Non-empty is correct WHILE any registered family is still pre-publish, which today is
+        # futures_eod. It is a coarse stop and it is not the interlock -- the evidence-derived one
+        # is test_pre_publish_membership_is_bound_to_the_canonical_publish_marker below. This line
+        # is deleted in the SAME commit that legitimately empties the set (after the first canonical
+        # publish + the promote_mode=autonomous flip), never before it.
         assert sa.PRE_PUBLISH_FAMILIES, "the exclusion set must stay explicit, not empty-by-accident"
         for fam in sa.PRE_PUBLISH_FAMILIES:
             assert fam not in tf["silver_batch_families"]
             assert fam not in tf["silver_freshness_slas"]
 
-    def test_pre_publish_families_still_have_no_producer(self, sa):
-        # The removal trigger, pinned: an entry may only leave PRE_PUBLISH_FAMILIES once its family
-        # actually publishes. This FAILS the moment a producer transform lands (forcing the entry out
-        # + a tfvars re-emit + an apply), and it FAILS today if someone parks a live family here.
+    def test_pre_publish_membership_is_bound_to_the_canonical_publish_marker(self, sa):
+        """THE REMOVAL TRIGGER, PINNED IN BOTH DIRECTIONS -- and the trigger is the first CANONICAL
+        PUBLISH, not the producer code landing.
+
+        This deliberately does NOT read `producer.transform`. That was the earlier form, and it is
+        the WRONG signal twice over: W1a/W1b landed five futures_eod producer transforms without a
+        single canonical byte, so the assertion only still passed because the generated registry
+        field is stale -- and the moment the registry is regenerated it would have FORCED
+        `futures_eod` out of the exclusion set, arming a treat_missing_data="breaching" freshness
+        alarm on an EMPTY canonical prefix. That is precisely the pager the set exists to prevent.
+
+        The marker used instead is two independent facts in two other files, so this cannot be
+        satisfied by editing silver_alarms.py alone:
+          * every DAG schedule for the family is still `promote_mode: stop_and_notify` -- the
+            machine publishes SHADOW ONLY and a shadow publish never resets the freshness clock, so
+            canonical cannot be advancing; and
+          * readiness_certify.PRE_PUBLISH_PACKAGE still carries one of the family's tables, whose
+            own documented removal condition is first canonical publish AND census.
+
+        FAILS if a family leaves PRE_PUBLISH_FAMILIES while both are still true (removal ahead of
+        the publish -- the W1a hazard), and FAILS if a family lingers here after its chains are
+        flipped to `autonomous` (removal owed, alarms never armed).
+        """
+        import json
+        from jobs.audit.readiness_certify import PRE_PUBLISH_PACKAGE
         from leviathan.silver.dag_catalog import build_catalog
-        from leviathan.silver.registry import load_registry
-        reg = load_registry()
-        catalog = build_catalog(reg)
-        for fam in sa.PRE_PUBLISH_FAMILIES:
+
+        catalog = build_catalog()
+        family_of = {t: fam for fam, f in catalog.items() for t in f.tables}
+
+        promote_modes: dict[str, set] = {}
+        for p in sorted((_REPO / "configs" / "silver" / "dags").glob("*.json")):
+            if p.name.endswith(".schema.json"):
+                continue
+            d = json.loads(p.read_text(encoding="utf-8"))
+            if "family" in d and "promote_mode" in d:
+                promote_modes.setdefault(d["family"], set()).add(d["promote_mode"])
+
+        # A family is SHADOW-ONLY when it has at least one schedule and every one of them is
+        # stop_and_notify. A family with no schedule at all is not evidence either way.
+        shadow_only = {fam for fam, modes in promote_modes.items() if modes == {"stop_and_notify"}}
+        declared_pre_publish = {family_of[t] for t in PRE_PUBLISH_PACKAGE if t in family_of}
+
+        # (1) never remove early: still shadow-only AND still declared pre-publish -> must be here.
+        for fam in sorted(declared_pre_publish & shadow_only):
+            assert fam in sa.PRE_PUBLISH_FAMILIES, (
+                f"{fam!r} has NO canonical publish marker -- every one of its schedules is still "
+                f"promote_mode=stop_and_notify (shadow only) and readiness_certify."
+                f"PRE_PUBLISH_PACKAGE still lists its table -- so it MUST stay in "
+                f"silver_alarms.PRE_PUBLISH_FAMILIES. Removing it here arms a "
+                f"treat_missing_data='breaching' freshness alarm on an EMPTY canonical prefix, "
+                f"which breaches on the next apply of ANY unrelated change in envs/dev. Correct "
+                f"order: backfill -> promote canonical BY HAND -> flip the descriptors to "
+                f"promote_mode=autonomous -> THEN drop it here, re-emit the tfvars, and apply.")
+
+        # (2) never linger: once a schedule is autonomous, canonical advances nightly and the
+        #     exclusion is a hole in the on-call coverage.
+        for fam in sorted(sa.PRE_PUBLISH_FAMILIES):
             assert fam in catalog, f"{fam} is not a DAG family"
-            for table in catalog[fam].tables:
-                transform = (reg.table(table).get("producer") or {}).get("transform")
-                assert transform is None, (
-                    f"{table} now has a producer transform ({transform}) -- drop {fam!r} from "
-                    f"silver_alarms.PRE_PUBLISH_FAMILIES, re-emit the tfvars and apply, so its "
-                    f"batch-failure + freshness alarms actually arm")
+            if fam in promote_modes:
+                assert fam in shadow_only, (
+                    f"{fam!r} now has a schedule at promote_mode={sorted(promote_modes[fam])} -- "
+                    f"canonical advances on its own, so drop {fam!r} from PRE_PUBLISH_FAMILIES, "
+                    f"re-emit the tfvars and apply so its batch-failure + freshness alarms arm")
 
     def test_emitted_tfvars_file_matches_current_registry(self, sa):
         # the checked-in auto.tfvars.json must equal a fresh emit (no drift).

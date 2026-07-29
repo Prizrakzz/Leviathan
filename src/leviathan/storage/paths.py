@@ -2445,3 +2445,173 @@ def silver_conab_key(commodity: str, safra_year: int, survey: int) -> str:
         f"survey={survey:02d}/"
         f"part-000.parquet"
     )
+
+
+# ---------------------------------------------------------------------------
+# PRICE_AND_PLAYBOOKS W1a -- the free-first venues (CZCE first)
+# ---------------------------------------------------------------------------
+CZCE_DAILY_FILENAME = "FutureDataDaily.txt"
+
+
+def raw_czce_key(trade_date: str, filename: str = CZCE_DAILY_FILENAME) -> str:
+    """S3 key for one CZCE daily quotation file (PRICE_AND_PLAYBOOKS W1a / D1).
+
+    Layout::
+
+        raw/production/source=czce/year={YYYY}/trade_date={YYYYMMDD}/FutureDataDaily.txt
+
+    ``source=czce`` is the ``futures_eod_contracts.CONTRACT_MAP`` ``source`` value verbatim, so the
+    raw prefix, the silver ``source`` column and the settle_kind cross-tab stay on ONE vocabulary.
+
+    ``trade_date={YYYYMMDD}`` mirrors the source URL's own ``Future/{YYYY}/{YYYYMMDD}/`` layout, so
+    re-deriving the upstream URL for the plan's post-ship 5-date field diff is a pure string
+    operation. It is ALSO the decade anchor the bronze transform reads for the 3-digit ``YMM``
+    contract code -- which is exactly why it is a path segment and never ``datetime.now()``: a
+    backfill re-run in 2031 over the 2016 raw bytes must decode identically.
+
+    ``year=`` bounds the ~2,600-day backfill LIST to one year at a time (the Jul-2026 26.8M-LIST
+    storm discipline).
+
+    ``raw/`` is not a Glue surface, so the ``key=value`` segments are cosmetic consistency with the
+    rest of the raw estate, not partition projection.
+
+    Args:
+        trade_date: ``YYYY-MM-DD`` or ``YYYYMMDD``; the session the file publishes.
+        filename:   Artifact filename within the prefix.
+    """
+    compact = str(trade_date).replace("-", "")
+    if len(compact) != 8 or not compact.isdigit():
+        raise ValueError(f"trade_date {trade_date!r} is not YYYY-MM-DD or YYYYMMDD")
+    return (
+        f"raw/production/source=czce/year={compact[:4]}/trade_date={compact}/{filename}"
+    )
+
+
+def czce_year_prefix(year: int) -> str:
+    """The LIST prefix holding one calendar year of CZCE daily files."""
+    return f"raw/production/source=czce/year={int(year)}/"
+
+
+def _compact_date(value: str, label: str) -> str:
+    """``YYYY-MM-DD``/``YYYYMMDD`` -> ``YYYYMMDD``. Fail-closed; no wall-clock fallback."""
+    compact = str(value).replace("-", "")
+    if len(compact) != 8 or not compact.isdigit():
+        raise ValueError(f"{label} {value!r} is not YYYY-MM-DD or YYYYMMDD")
+    return compact
+
+
+# ---------------------------------------------------------------------------
+# JSE / SAFEX -- the agri MTM sheet (W1a)
+# ---------------------------------------------------------------------------
+# A space in an S3 key forces URL-encoding through every downstream LIST/GET for no upside, so the
+# upstream ``NEW DAYAGR.xls`` lands under an underscored name. The BYTES are verbatim; only the key
+# is renamed, and the producer records the true source URL in the raw_meta companion.
+JSE_SAFEX_DAILY_FILENAME = "NEW_DAYAGR.xls"
+
+
+def raw_jse_safex_key(as_of_date: str, filename: str = JSE_SAFEX_DAILY_FILENAME) -> str:
+    """S3 key for one JSE/SAFEX agri MTM capture (PRICE_AND_PLAYBOOKS W1a / D1).
+
+    Layout::
+
+        raw/production/source=jse_safex/year={YYYY}/as_of_date={YYYY-MM-DD}/NEW_DAYAGR.xls
+
+    ``as_of_date`` -- the FETCH date -- is not optional and is not interchangeable with
+    ``trade_date``. The upstream object is OVERWRITTEN every day and Wayback holds exactly ONE
+    capture of it ever, so the fetch date is the only immutability this estate will ever have on
+    this leg: a missed run is permanently lost data, and the key has to make that visible.
+
+    ``trade_date`` still comes from the SHEET's own header
+    (``... DOMESTIC FUTURES PRICES 27-Jul-2026``) and never from this key -- the plan's post-ship
+    verification asserts header-date == trade_date on every row of the partition, which is only a
+    real check if the two are independently sourced.
+    """
+    compact = _compact_date(as_of_date, "as_of_date")
+    iso = f"{compact[:4]}-{compact[4:6]}-{compact[6:]}"
+    return f"raw/production/source=jse_safex/year={compact[:4]}/as_of_date={iso}/{filename}"
+
+
+def jse_safex_year_prefix(year: int) -> str:
+    """The LIST prefix holding one calendar year of JSE/SAFEX captures."""
+    return f"raw/production/source=jse_safex/year={int(year)}/"
+
+
+# ---------------------------------------------------------------------------
+# CEPEA -- the two cash references (W1a)
+# ---------------------------------------------------------------------------
+CEPEA_WIDGET_FILENAME = "widget.js"
+
+
+def raw_cepea_widget_key(indicator_id: int, as_of_date: str,
+                         filename: str = CEPEA_WIDGET_FILENAME) -> str:
+    """S3 key for one CEPEA daily widget capture (PRICE_AND_PLAYBOOKS W1a / D1).
+
+    Layout::
+
+        raw/production/source=cepea/indicator={23|77}/as_of_date={YYYY-MM-DD}/widget.js
+
+    ``indicator=`` rather than ``commodity=``: the numeric id IS the vendor's identity, and the
+    leviathan slug is derived from it in the transform rather than asserted here.
+
+    The widget returns the LAST value only, so the capture date and the value's own date are
+    different facts and the transform reads the date out of the payload. On a Brazilian holiday the
+    widget keeps serving the previous session, which is why the ``as_of_date`` key and the payload
+    date must not be conflated -- a stale duplicate is a defect, not a row.
+    """
+    ind = int(indicator_id)
+    compact = _compact_date(as_of_date, "as_of_date")
+    iso = f"{compact[:4]}-{compact[4:6]}-{compact[6:]}"
+    return f"raw/production/source=cepea/indicator={ind}/as_of_date={iso}/{filename}"
+
+
+def raw_cepea_wayback_key(indicator_id: int, snapshot_ts: str) -> str:
+    """S3 key for the ONE-SHOT archive recovery of a CEPEA series.
+
+    Layout::
+
+        raw/production/source=cepea/indicator={23|77}/history/wayback_{TS14}.xls
+
+    Under ``history/`` so the one-shot and the daily captures never collide in a LIST, and keyed on
+    the snapshot timestamp so re-running the recovery is idempotent.
+    """
+    ind = int(indicator_id)
+    ts = str(snapshot_ts).strip()
+    if len(ts) != 14 or not ts.isdigit():
+        raise ValueError(f"snapshot_ts {snapshot_ts!r} is not a 14-digit wayback timestamp")
+    return f"raw/production/source=cepea/indicator={ind}/history/wayback_{ts}.xls"
+
+
+def cepea_indicator_prefix(indicator_id: int) -> str:
+    """The LIST prefix holding every capture of one CEPEA indicator."""
+    return f"raw/production/source=cepea/indicator={int(indicator_id)}/"
+
+
+# ---------------------------------------------------------------------------
+# MIAX Futures (ex-MGEX) -- the daily settlement CSV (W1b, shipped with W1a)
+# ---------------------------------------------------------------------------
+def miax_daily_filename(trade_date: str) -> str:
+    """The upstream filename, verbatim: ``Public_Daily_Settlement_File_{YYYY-MM-DD}.csv``."""
+    compact = _compact_date(trade_date, "trade_date")
+    return f"Public_Daily_Settlement_File_{compact[:4]}-{compact[4:6]}-{compact[6:]}.csv"
+
+
+def raw_miax_key(trade_date: str, filename: str = "") -> str:
+    """S3 key for one MIAX daily settlement CSV (PRICE_AND_PLAYBOOKS W1b / D1).
+
+    Layout::
+
+        raw/production/source=miax/year={YYYY}/trade_date={YYYYMMDD}/
+            Public_Daily_Settlement_File_{YYYY-MM-DD}.csv
+
+    Same doctrine as the CZCE key: the ``trade_date=`` segment mirrors the source URL's own date
+    token, so re-deriving the upstream URL is a pure string operation, and it is the decade anchor
+    for the SINGLE-DIGIT contract year in ``MWEU6`` -- never ``datetime.now()``.
+    """
+    compact = _compact_date(trade_date, "trade_date")
+    name = filename or miax_daily_filename(compact)
+    return f"raw/production/source=miax/year={compact[:4]}/trade_date={compact}/{name}"
+
+
+def miax_year_prefix(year: int) -> str:
+    """The LIST prefix holding one calendar year of MIAX daily settlement files."""
+    return f"raw/production/source=miax/year={int(year)}/"

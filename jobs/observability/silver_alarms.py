@@ -117,10 +117,28 @@ BURNED_TABLE_FRESHNESS: dict[str, tuple[str, int, str]] = {
 # exclusion. This mirrors readiness_certify.PRE_PUBLISH_PACKAGE, which records the same fact for the
 # readiness certificate.
 #
-# REMOVE an entry the moment its table's first canonical publish lands (W1a for futures_eod), then
-# re-emit the tfvars and apply -- tests/unit/silver/test_silver_alarms.py fails if an entry is
-# removed while the family still has no producer transform, and fails if an entry lingers here after
-# the producer lands.
+# THE REMOVAL TRIGGER IS THE FIRST CANONICAL PUBLISH, NOT THE PRODUCER CODE LANDING. Remove an
+# entry the moment its table's first canonical publish lands, then re-emit the tfvars and apply.
+#
+# `futures_eod` STAYS HERE THROUGH W1a/W1b. The four free producers (CZCE + JSE/SAFEX + CEPEA +
+# MIAX) and the W2 Databento leg are code -- but `silver_futures_eod` has never had a canonical
+# publish, so its canonical prefix is EMPTY and the poller emits no datapoint for it. Removing the
+# entry now (and re-emitting the tfvars) arms a treat_missing_data="breaching" freshness alarm on an
+# empty prefix: it breaches on the next dev apply of ANY unrelated change, because the file is an
+# `auto.tfvars.json` that every apply in that env picks up. "The apply is the gated step" is not a
+# gate -- nothing gates it.
+#
+# The sequencing is worse than a one-off breach, because `leviathan.silver.freshness` computes lag
+# from the newest object mtime under the CANONICAL prefix with `/_shadow/` and `/_staging/` EXCLUDED
+# -- a shadow publish deliberately never resets that clock. BOTH futures_eod chains ship at
+# `promote_mode: stop_and_notify` (shadow only; a human promotes), so even after the first manual
+# promote the alarm re-breaches 6 days later and pages the shared topic daily. Correct order:
+#   (a) land the legs (done -- W1a/W1b);
+#   (b) run the backfills and promote canonical BY HAND;
+#   (c) flip both chains to `promote_mode: autonomous` so canonical advances nightly;
+#   (d) THEN drop `futures_eod` from this set, re-emit the tfvars, and apply.
+# Steps (b) and (c) are the W1a/W1b follow-up (backfill + promote + descriptor flip); this constant
+# is the interlock that keeps (d) from happening first.
 PRE_PUBLISH_FAMILIES: frozenset = frozenset({"futures_eod"})
 
 

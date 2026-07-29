@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 """PRICE_AND_PLAYBOOKS W2 -- the eight deterministic gates for the Databento leg.
 
-    1. ``(trade_date, raw_symbol)`` UNIQUENESS across the entire table -- the F2 trap. Any
-       duplicate is a HARD FAIL, never a dedupe: the dedupe already happened in the transform under
-       the named ``ICE_BAR_RULE``, so a survivor means the rule is wrong.
+    1. ``(leviathan_slug, trade_date, raw_symbol)`` UNIQUENESS across the entire table -- the F2
+       trap. Any duplicate is a HARD FAIL, never a dedupe: the dedupe already happened in the
+       transform under the named ``ICE_BAR_RULE``, so a survivor means the rule is wrong. The slug
+       is part of the key because the CEPEA cash rows carry a NULL ``raw_symbol``.
     2. DROPPED-SYMBOL COUNT per root per year, and it must be NON-ZERO for EVERY root, ICE and
        GLBX alike. GLBX drops the spread complex (``ZC``: 943 resolved -> 50 outright); ICE
        additionally drops ``_Z`` TAS suffixes and numeric-id instruments. A ZERO drop count means
@@ -141,7 +142,10 @@ PARITY_ROLL_PCT = 0.05          # |pct change| above this = a detected roll; div
 PARITY_MEDIAN_FLOOR = 0.005     # median |relative diff| away from rolls must be under 0.5%
 
 # --- gate 8 -------------------------------------------------------------------------------------
-_DAG_SCHEDULE = "futures_eod_databento"
+# EVERY chain that publishes silver_futures_eod. One table, one task, one publisher, so gate 8 (d)
+# checks all of them: futures_eod_databento is the W2 paid vendor leg and futures_eod_free carries
+# the four W1a/W1b free venues (CZCE, JSE/SAFEX, CEPEA, MIAX) on one cron.
+_DAG_SCHEDULES: tuple[str, ...] = ("futures_eod_databento", "futures_eod_free")
 _PRODUCER_TASK = "jobs/batch/futures_eod_task.py"
 _ROW_VALIDATOR_TOKEN = "row_validator=FC.lint_frame"
 
@@ -259,23 +263,73 @@ def load_manifests(uri: str, s3=None) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
-# gate 1 -- (trade_date, raw_symbol) uniqueness, table-wide
+# gate 1 -- (leviathan_slug, trade_date, raw_symbol) uniqueness, table-wide
 # ---------------------------------------------------------------------------
+# Sources whose `raw_symbol` is a delivery-MONTH LABEL rather than a vendor instrument id, so the
+# same string is carried by MORE THAN ONE slug on every session BY CONSTRUCTION. JSE/SAFEX writes
+# the sheet's expiry cell verbatim ("Dec-2026") and the white-maize and yellow-maize sections both
+# publish it on the same date -- an unscoped cross-slug advisory would fire ~9 times a day, forever,
+# on perfectly correct data. CEPEA writes raw_symbol NULL and is excluded by the notna() filter.
+_MONTH_LABEL_SYMBOL_SOURCES: frozenset = frozenset({"jse_safex"})
+
+
+def _cross_slug_symbol_advisory(df: pd.DataFrame) -> list[dict]:
+    """ADVISORY, never a failure: one VENDOR symbol carried by two different slugs on one date.
+
+    Widening the F2 key with `leviathan_slug` (futures_eod_task._F2_KEY) made this shape legal, and
+    the widening was necessary -- see the note in gate1_uniqueness. What it gives up is narrow and
+    is NOT reachable from any landed producer: every transform in this family maps one source row to
+    exactly one slug, so none of them can emit it. The reachable path is a MAP CHANGE -- re-point a
+    root in futures_eod_contracts.CONTRACT_MAP and the old canonical partitions keep the old slug
+    while new runs write the new one, so one history exists twice under two names, in two different
+    (leviathan_slug, trade_year) partitions that no uniqueness key spans. That double-count is worth
+    REPORTING; it is not worth failing on, because a deliberate, correct re-map produces the
+    identical shape until the superseded partitions are dropped.
+    """
+    need = {"leviathan_slug", "trade_date", "raw_symbol"}
+    if not need <= set(df.columns):
+        return []
+    sub = df[df["raw_symbol"].notna()]
+    if "source" in sub.columns:
+        sub = sub[~sub["source"].isin(_MONTH_LABEL_SYMBOL_SOURCES)]
+    if sub.empty:
+        return []
+    n_slugs = sub.groupby(["trade_date", "raw_symbol"])["leviathan_slug"].nunique()
+    hits = n_slugs[n_slugs > 1]
+    if not len(hits):
+        return []
+    out: list[dict] = []
+    for k, v in hits.sort_values(ascending=False).head(10).items():
+        rows = sub[(sub["trade_date"] == k[0]) & (sub["raw_symbol"] == k[1])]
+        out.append({"trade_date": str(k[0])[:10], "raw_symbol": str(k[1]), "n_slugs": int(v),
+                    "slugs": sorted(str(s) for s in set(rows["leviathan_slug"]))})
+    return out
+
+
 def gate1_uniqueness(df: pd.DataFrame) -> tuple[list[str], dict]:
     """HARD FAIL on any duplicate. Not a dedupe -- the ICE_BAR_RULE dedupe already ran in the
     transform, so a survivor means the F2 rule is wrong and no registered surface may consume it."""
-    key = ["trade_date", "raw_symbol"]
+    # `leviathan_slug` is part of the key, matching futures_eod_task._F2_KEY. Without it the CEPEA
+    # cash rows -- which have NO vendor symbol and therefore write raw_symbol NULL -- group together
+    # under `dropna=False` on every trade date and false-fail this gate table-wide. No detection
+    # power is lost for the F2 double bar itself: an ICE double bar is two bars of the SAME contract
+    # on one date, so the pair shares its slug and still collides. The ONE shape the widening does
+    # let through -- one vendor symbol under two slugs -- is REPORTED as a non-blocking advisory by
+    # _cross_slug_symbol_advisory rather than failed on; see that docstring for why.
+    key = ["leviathan_slug", "trade_date", "raw_symbol"]
     missing = [c for c in key if c not in df.columns]
     if missing:
         return [f"(1) frame is missing {missing}"], {}
     sizes = df.groupby(key, dropna=False).size()
     dups = sizes[sizes > 1]
     rec = {"rows": int(len(df)), "keys": int(len(sizes)), "duplicate_keys": int(len(dups)),
-           "worst": [{"trade_date": str(k[0])[:10], "raw_symbol": str(k[1]), "rows": int(v)}
-                     for k, v in dups.sort_values(ascending=False).head(10).items()]}
+           "worst": [{"leviathan_slug": str(k[0]), "trade_date": str(k[1])[:10],
+                      "raw_symbol": str(k[2]), "rows": int(v)}
+                     for k, v in dups.sort_values(ascending=False).head(10).items()],
+           "cross_slug_symbol_advisory": _cross_slug_symbol_advisory(df)}
     if len(dups):
-        return [f"(1) {len(dups)} (trade_date, raw_symbol) key(s) carry MULTIPLE rows -- the F2 "
-                f"double bar survived the ICE_BAR_RULE dedupe; this is a hard fail"], rec
+        return [f"(1) {len(dups)} (leviathan_slug, trade_date, raw_symbol) key(s) carry MULTIPLE "
+                f"rows -- the F2 double bar survived the ICE_BAR_RULE dedupe; this is a hard fail"], rec
     return [], rec
 
 
@@ -619,42 +673,60 @@ def gate8_chain_hooks(repo: Path = _REPO) -> tuple[list[str], dict]:
     fails += [f"(8) config_check futures_eod: {e}" for e in eod_errs]
     fails += [f"(8) config_check futures_roll: {e}" for e in roll_errs]
 
-    # (d) the DAG descriptor + its byte-identical render.
-    desc = repo / "configs" / "silver" / "dags" / f"{_DAG_SCHEDULE}.json"
-    rendered = repo / "configs" / "silver" / "dags" / "_rendered" / f"{_DAG_SCHEDULE}.input.json"
-    sched = repo / "configs" / "silver" / "dags" / "_rendered" / f"{_DAG_SCHEDULE}.schedule.json"
-    rec["descriptor"] = desc.exists()
-    rec["rendered_input"] = rendered.exists()
-    rec["rendered_schedule"] = sched.exists()
-    if not desc.exists():
-        fails.append(f"(8) DAG descriptor {desc.name} is missing")
-    else:
+    # (d) EVERY futures_eod DAG descriptor + its byte-identical render. Both chains write to the
+    #     SAME table through the SAME task and the same registered-partition publisher, so a
+    #     descriptor drift on either one is a drift on this table -- checking only the Databento
+    #     chain would leave the four free venues' schedule ungated.
+    rec["descriptors"] = {}
+    rec["crons"] = {}
+    dags = repo / "configs" / "silver" / "dags"
+    for schedule in _DAG_SCHEDULES:
+        desc = dags / f"{schedule}.json"
+        rendered = dags / "_rendered" / f"{schedule}.input.json"
+        sched = dags / "_rendered" / f"{schedule}.schedule.json"
+        per = {"descriptor": desc.exists(), "rendered_input": rendered.exists(),
+               "rendered_schedule": sched.exists()}
+        rec["descriptors"][schedule] = per
+        if not desc.exists():
+            fails.append(f"(8) DAG descriptor {desc.name} is missing")
+            continue
         import importlib.util
         spec = importlib.util.spec_from_file_location(
             "gen_sfn_inputs", repo / "scripts" / "silver" / "gen_sfn_inputs.py")
         gen = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(gen)
         d = json.loads(desc.read_text(encoding="utf-8"))
-        viol = gen.lint_descriptor(d, _DAG_SCHEDULE)
-        rec["descriptor_lint"] = viol
-        fails += [f"(8) descriptor lint: {v}" for v in viol]
-        rec["cron"] = d.get("cron")
+        viol = gen.lint_descriptor(d, schedule)
+        per["descriptor_lint"] = viol
+        fails += [f"(8) {schedule} descriptor lint: {v}" for v in viol]
+        rec["crons"][schedule] = d.get("cron")
         if rendered.exists():
             want = json.dumps(gen.render_input(d), indent=2, ensure_ascii=True, sort_keys=True) + "\n"
             if rendered.read_text(encoding="utf-8") != want:
-                fails.append("(8) rendered .input.json has DRIFTED -- re-run gen_sfn_inputs.py")
+                fails.append(f"(8) {schedule} rendered .input.json has DRIFTED -- re-run "
+                             f"gen_sfn_inputs.py")
         else:
             fails.append(f"(8) rendered input {rendered.name} is missing")
         if not sched.exists():
             fails.append(f"(8) rendered schedule {sched.name} is missing")
+    # The two chains must not fire at the same instant: they publish to the same registered
+    # partitions through the same fixed object keys, so an overlap is a lost-update race that
+    # neither the shrink assertion nor the census would attribute correctly.
+    crons = [c for c in rec["crons"].values() if c]
+    if len(crons) != len(set(crons)):
+        fails.append(f"(8) two futures_eod chains share a cron {sorted(rec['crons'].items())} -- "
+                     f"they write the same partitions through the same object keys")
 
     # (e) the two live-account legs, emitted rather than run.
+    #     One per chain: each descriptor names its OWN census baseline, and the gate diffs against
+    #     whatever the descriptor names, so running only one of them would leave the other chain's
+    #     rows looking like unexplained drift.
     rec["emitted_commands"] = [
-        "python -m jobs.audit.silver_rebuild_gate --tables silver_futures_eod "
-        "--asof <YYYY-MM-DD> --baseline-uri "
-        "s3://leviathan-dev-shahem-001/cascade_census/rolling/futures_eod_databento/census.json",
-        "python -m jobs.utils.numbers_parity --tables silver_futures_eod",
-    ]
+        f"python -m jobs.audit.silver_rebuild_gate --tables silver_futures_eod "
+        f"--asof <YYYY-MM-DD> --baseline-uri "
+        f"s3://leviathan-dev-shahem-001/cascade_census/rolling/{schedule}/census.json"
+        for schedule in _DAG_SCHEDULES
+    ] + ["python -m jobs.utils.numbers_parity --tables silver_futures_eod"]
     return fails, rec
 
 
@@ -710,7 +782,7 @@ def evaluate(*, eod: pd.DataFrame = None, manifests: list[dict] = None,
 
 
 _GATE_TITLES = {
-    1: "(trade_date, raw_symbol) uniqueness, table-wide",
+    1: "(leviathan_slug, trade_date, raw_symbol) uniqueness, table-wide",
     2: "dropped-symbol count NON-ZERO for every root",
     3: "bar-count reconciliation vs the plan table (+/-2%)",
     4: "no forward fill on 20 deferred contracts",
@@ -735,6 +807,17 @@ def render_report(art: dict) -> str:
         L.append(f"[{rec.get('status', 'MISSING'):<7s}] gate {num}: {_GATE_TITLES[num]}")
         for f in rec.get("failures", [])[:5]:
             L.append(f"           - {f}")
+    d1 = (art["gates"].get("1") or {}).get("detail") or {}
+    if d1.get("cross_slug_symbol_advisory"):
+        L.append("")
+        L.append("gate 1 WARN (advisory, NOT a failure): one vendor raw_symbol under MORE THAN ONE "
+                 "leviathan_slug on a date.")
+        L.append("           The usual cause is a CONTRACT_MAP re-point whose superseded "
+                 "(leviathan_slug, trade_year) partitions were never dropped, which double-counts "
+                 "one history under two names.")
+        for r in d1["cross_slug_symbol_advisory"]:
+            L.append(f"  {r['trade_date']}  {r['raw_symbol']:<12s} n_slugs={r['n_slugs']}  "
+                     f"{', '.join(r['slugs'])}")
     d3 = (art["gates"].get("3") or {}).get("detail") or {}
     if d3.get("rows"):
         L.append("")

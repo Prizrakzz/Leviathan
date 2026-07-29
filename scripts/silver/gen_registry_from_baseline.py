@@ -429,6 +429,14 @@ EXTRA_NOTES["silver_futures_eod"] = (
     "the numbers card is registered and linted (config_check.check_futures_eod) but the table is "
     "WHITELIST-ABSENT from serving (numbers.registry.WHITELIST_ABSENT_DEFAULT) for all of "
     "W1.0/W1/W2 -- it vanishes from the agent tool enum and every build_sql lookup raises KeyError."
+    " COVERAGE FACT, W1a JSE/SAFEX (PRICE_AND_PLAYBOOKS_PLAN.md lines 241-245): JSE PRICE HISTORY "
+    "STARTS THE DAY THE PRODUCER FIRST RUNS -- there is no backfill and none can be built. The "
+    "portal serves ONE object (/Safex/amdmtm/NEW DAYAGR.xls) that is OVERWRITTEN IN PLACE, and the "
+    "Wayback CDX holds exactly one capture of it ever (20240714021022), so the house "
+    "wayback-backfill pattern is unavailable; the producer's --mode backfill raises "
+    "NotImplementedError BY DESIGN rather than returning a silent empty result. An absent "
+    "south_african_white_maize_jse / south_african_yellow_maize_jse row before that first-run date "
+    "is NOT a gap in the series -- the series does not exist before it, and no re-run recovers it."
 )
 
 

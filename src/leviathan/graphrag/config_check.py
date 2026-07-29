@@ -1250,7 +1250,9 @@ _FUTURES_EOD_CARD_FIELDS: dict = {
 _FUTURES_EOD_UNIT_OVERRIDES: dict = {
     "corn_cbot": "US cents/bushel", "soybeans_cbot": "US cents/bushel",
     "soft_red_winter_wheat_cbot": "US cents/bushel", "hard_red_winter_wheat_kcbt": "US cents/bushel",
-    "hard_red_spring_wheat_mgex": "US cents/bushel", "soybean_oil_cbot": "US cents/lb",
+    # MIAX publishes decimal DOLLARS/bushel (MWEU6 = 7.0250), not CBOT cents (~430) -- a factor of
+    # 100. Source-faithful wins and the value is never scaled to fit a prior guess (CAD/t precedent).
+    "hard_red_spring_wheat_mgex": "USD/bushel", "soybean_oil_cbot": "US cents/lb",
     "arabica_coffee": "US cents/lb", "cotton": "US cents/lb", "raw_sugar": "US cents/lb",
     "frozen_orange_juice": "US cents/lb", "soybean_meal_cbot": "USD/short ton",
     "cocoa": "USD/metric ton", "robusta_coffee": "USD/metric ton", "white_sugar": "USD/metric ton",

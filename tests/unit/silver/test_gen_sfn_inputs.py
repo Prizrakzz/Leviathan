@@ -20,15 +20,20 @@ _RENDERED = _DAGS / "_rendered"
 _SCHEMA = _DAGS / "dag_descriptor.schema.json"
 
 # The 24 Section-3 schedules (one descriptor each; gold_weather_z folds into weather_daily) PLUS
-# the PRICE_AND_PLAYBOOKS W2 addition. futures_eod_databento is NOT a Section-3 row -- it is the
-# first new-wave class-A registered-partition chain (family futures_eod, wave 3), landed alongside
-# the silver_futures_eod producer.
+# the two PRICE_AND_PLAYBOOKS additions. Neither is a Section-3 row: they are the first new-wave
+# class-A registered-partition chains (family futures_eod, wave 3), landed alongside the
+# silver_futures_eod producers.
+#   futures_eod_databento -- W2, the paid vendor leg, TUE-SAT 08:00 UTC (final settlements are
+#       published the calendar day AFTER the session).
+#   futures_eod_free      -- W1a/W1b, the four FREE venues (CZCE, JSE/SAFEX, CEPEA, MIAX) on ONE
+#       cron at 22:30 UTC MON-FRI, which is after the latest of the four same-day publications.
+#       They share one table and one gate, so one schedule rather than four keeps one census.
 EXPECTED_SCHEDULES = {
     "fx_macro_daily", "enso_monthly", "pink_sheet_monthly", "mpob", "mpoc", "icco_cocoa",
     "ams_cotton_quality", "fnc_colombia", "production_conab", "nass_citrus", "sagis_weekly",
     "wap", "cot", "food_cpi", "futures_prices", "unica", "psd_monthly", "nass_crop_progress",
     "fgis", "modis_biweekly", "weather_daily", "esr_weekly", "wasde_monthly", "production_faostat",
-    "futures_eod_databento",
+    "futures_eod_databento", "futures_eod_free",
 }
 
 # The module-form producers named in A-W6 (invocation form [m] = -m jobs.batch.X).
@@ -60,7 +65,7 @@ def descriptors(gen):
 # ---------------------------------------------------------------------------
 def test_every_section3_schedule_has_a_descriptor(descriptors):
     assert set(descriptors) == EXPECTED_SCHEDULES
-    assert len(descriptors) == 25
+    assert len(descriptors) == 26
 
 
 def test_filename_stem_matches_schedule(descriptors):

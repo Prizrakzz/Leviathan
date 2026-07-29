@@ -96,6 +96,39 @@ class TestGate1Uniqueness:
         fails, _ = G.gate1_uniqueness(pd.DataFrame({"trade_date": [1]}))
         assert fails and "raw_symbol" in fails[0]
 
+    def test_a_clean_frame_carries_no_cross_slug_advisory(self, eod):
+        _, rec = G.gate1_uniqueness(eod)
+        assert rec["cross_slug_symbol_advisory"] == []
+
+    def test_the_cross_slug_advisory_fires_but_does_not_fail_the_gate(self, eod):
+        """The ONE shape the widened F2 key lets through: one VENDOR symbol under two slugs on one
+        date -- what a CONTRACT_MAP re-point leaves behind when the superseded partitions are not
+        dropped. Reported, never failed: a deliberate correct re-map has the same shape."""
+        d = _bdays("2026-01-05", 3)
+        remapped = pd.concat([
+            rows("corn_cbot", "2026-03", d, symbol="ZCH6"),
+            rows("soybeans_cbot", "2026-03", d, symbol="ZCH6"),   # same vendor symbol, other slug
+        ], ignore_index=True)
+        fails, rec = G.gate1_uniqueness(remapped)
+        assert fails == [], "the advisory must NOT fail the gate"
+        adv = rec["cross_slug_symbol_advisory"]
+        assert len(adv) == 3 and all(a["n_slugs"] == 2 for a in adv)
+        assert adv[0]["slugs"] == ["corn_cbot", "soybeans_cbot"]
+        assert "gate 1 WARN" in G.render_report(G.evaluate(eod=remapped, manifests=[], skip={2, 8}))
+
+    def test_the_jse_month_label_shape_is_NOT_advised_on(self):
+        """JSE raw_symbol is the sheet's expiry cell verbatim, so white and yellow maize BOTH carry
+        'Dec-2026' on every session. An unscoped advisory would fire ~9x/day forever on correct
+        data -- the exact alarm-fatigue shape. _MONTH_LABEL_SYMBOL_SOURCES excludes it."""
+        d = _bdays("2026-01-05", 3)
+        jse = pd.concat([
+            rows("south_african_white_maize_jse", "2026-12", d, symbol="Dec-2026"),
+            rows("south_african_yellow_maize_jse", "2026-12", d, symbol="Dec-2026"),
+        ], ignore_index=True)
+        assert set(jse["source"]) == {"jse_safex"}
+        fails, rec = G.gate1_uniqueness(jse)
+        assert fails == [] and rec["cross_slug_symbol_advisory"] == []
+
 
 class TestGate2DroppedSymbols:
     def _manifest(self, root, year, dropped, outrights=5):
@@ -368,7 +401,16 @@ class TestGate8ChainHooks:
         assert fails == [], fails
         assert rec["row_validator_wired"] is True
         assert rec["partition_mode"] == "registered" and rec["projection"] == "forbidden"
-        assert rec["cron"].startswith("cron(0 8 ")   # NOT 23:00 -- see the descriptor notes
+        # Both chains that publish this table are checked, not just the paid vendor one.
+        assert set(rec["descriptors"]) == set(G._DAG_SCHEDULES)
+        assert all(p["descriptor"] and p["rendered_input"] and p["rendered_schedule"]
+                   for p in rec["descriptors"].values())
+        # NOT 23:00 -- that is the yfinance futures_prices slot. See the descriptor notes.
+        assert rec["crons"]["futures_eod_databento"].startswith("cron(0 8 ")
+        assert rec["crons"]["futures_eod_free"].startswith("cron(30 22 ")
+        assert len(set(rec["crons"].values())) == len(rec["crons"]), (
+            "the two chains write the same partitions through the same object keys, so a shared "
+            "cron would be a lost-update race")
         assert rec["emitted_commands"]
 
     def test_fires_when_the_row_validator_is_unwired(self, tmp_path):
@@ -380,8 +422,9 @@ class TestGate8ChainHooks:
             (repo / rel).mkdir(parents=True)
         shutil.copy(_REPO / "configs/silver/tables/silver_futures_eod.yaml",
                     repo / "configs/silver/tables/silver_futures_eod.yaml")
-        shutil.copy(_REPO / "configs/silver/dags/futures_eod_databento.json",
-                    repo / "configs/silver/dags/futures_eod_databento.json")
+        for schedule in G._DAG_SCHEDULES:
+            shutil.copy(_REPO / f"configs/silver/dags/{schedule}.json",
+                        repo / f"configs/silver/dags/{schedule}.json")
         shutil.copy(_REPO / "scripts/silver/gen_sfn_inputs.py",
                     repo / "scripts/silver/gen_sfn_inputs.py")
         (repo / "jobs/batch/futures_eod_task.py").write_text(
