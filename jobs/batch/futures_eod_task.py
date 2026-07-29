@@ -27,10 +27,25 @@ two hang off :data:`_SOURCE_SPECS`; adding a leg is a module plus one entry.
     ``jobs/ingest/fetch_miax_eod.py``. No vendor package, no key; and no volume or open interest,
     which the file simply does not publish.
 
-A leg that is DECLARED but not yet implemented (the next one is ``bursa``, W1c-bound behind a
-Cloudflare JS challenge) raises a ``NotImplementedError`` naming the module to write, and
-``main()`` refuses it before building any AWS client. Declaring ahead of implementing is deliberate:
-it keeps the floors and the source vocabulary in ONE table.
+THE THREE W1c BROWSER LEGS (``dce``, ``euronext``, ``bursa``) ARE DECLARED, NOT YET IMPLEMENTED
+-----------------------------------------------------------------------------------------------
+Their raw -> bronze half is shipped (a headless-Chromium producer under ``jobs/ingest/`` plus a
+transform under ``transforms/raw_to_bronze/``), so their unit readers and bronze loaders are REAL
+and exercised by the parse suites. What is missing is the bronze -> silver projection, and until it
+lands each spec carries ``implemented=False`` with a ``todo`` naming the exact module to write:
+``main()`` refuses the source before building any AWS client, and ``_silver_builder`` raises a
+``NotImplementedError`` carrying the same string. Declaring ahead of implementing is deliberate --
+it keeps the floors, the unit readers and the source vocabulary in ONE table:
+
+``--source dce``
+    Units are per-VARIETY objects of two kinds (the CEPEA shape): the daily quote captures and the
+    per-``(variety, year)`` history workbooks. Five varieties, the whole ``source == "dce"`` set.
+``--source euronext``
+    Units are per-PRODUCT day captures -- the rendered ``future-prices-table`` outerHTML for each of
+    EBM/EMA/ECO. Client-side rendering, no WAF.
+``--source bursa``
+    Units are per-CODE day captures of the ``ses=day`` derivatives-prices API (FCPO). A
+    FORWARD-ACCUMULATION leg: the API takes no date parameter, so there is no backfill to run.
 
 TWO DIFFERENT ROW FLOORS, NEVER CONFLATED
 -----------------------------------------
@@ -122,11 +137,14 @@ from leviathan.silver.flat_producer import authorize_for_contract  # noqa: E402
 from leviathan.silver.partitioned_producer import build_partitioned_publish  # noqa: E402
 from leviathan.silver.registry import load_registry  # noqa: E402
 from leviathan.storage.paths import (  # noqa: E402
+    bursa_code_prefix,
     cepea_indicator_prefix,
     czce_year_prefix,
     databento_payload_filename,
     databento_payload_prefix,
     databento_symbology_filename,
+    dce_variety_prefix,
+    euronext_product_prefix,
     jse_safex_year_prefix,
     miax_year_prefix,
     raw_databento_key,
@@ -162,6 +180,10 @@ from leviathan.transforms.raw_to_bronze.databento_eod import (  # noqa: E402
     root_years,
     statistics_join_diagnostics,
     symbology_from_artifact,
+)
+from leviathan.transforms.raw_to_bronze.dce_eod import (  # noqa: E402
+    DCE_VARIETY_MAP,
+    build_dce_bronze,
 )
 from leviathan.transforms.raw_to_bronze.jse_safex import build_jse_bronze  # noqa: E402
 from leviathan.transforms.raw_to_bronze.miax_eod import (  # noqa: E402
@@ -202,6 +224,29 @@ _MIN_SILVER_ROWS_PER_DAY_CZCE = 10
 _MIN_SILVER_ROWS_PER_DAY_JSE = 14
 _SILVER_ROWS_PER_DAY_CEPEA = 2          # exact equality, not a floor
 _MIN_SILVER_ROWS_PER_DAY_MIAX = 6       # provisional (single observation)
+# ---------------------------------------------------------------------------
+# The W1c browser legs' floors, on the SAME rule: below a MEASURED minimum, never guessed.
+#   EURONEXT  measured 32/day live 2026-07-29 (EBM 12 expiries + EMA 10 + ECO 10) -> floor 24.
+#             24 is not arbitrary: losing ANY ONE of the three products takes the day to 20-22, so
+#             this floor catches a single-product failure, which is the actual failure mode (three
+#             independent page renders, one run).
+#   BURSA     measured 24/day live 2026-07-29 (recordsTotal == 24 delivery months, one product,
+#             per_page=50 so pagination cannot truncate it) -> floor 20.
+#   DCE       NOT SET, and that is the honest state: only ONE of the five varieties was captured
+#             live (p, 12 contracts), so there is no measured whole-day minimum and any number here
+#             would be a guess sitting somewhere between "correct" and "four varieties silently
+#             missing" -- exactly the F-C trap that the JSE floor of 20 was. Arm it after the first
+#             full five-variety capture (probe P10). The producer's own NOT_READY guard, not a row
+#             floor, is what stops a partial DAILY capture from landing.
+# ---------------------------------------------------------------------------
+_MIN_SILVER_ROWS_PER_DAY_EURONEXT = 24
+_MIN_SILVER_ROWS_PER_DAY_BURSA = 20
+
+# The LIST bounds for the two W1c legs whose raw prefix is keyed on a vendor identity rather than a
+# date. Both are enumeration bounds ONLY -- the authoritative product/code -> slug maps live in the
+# transforms (linted against CONTRACT_MAP both ways), exactly as CEPEA_INDICATORS does.
+EURONEXT_PRODUCTS: tuple[str, ...] = ("EBM-DPAR", "EMA-DPAR", "ECO-DPAR")
+BURSA_CODES: tuple[str, ...] = ("FCPO",)
 # The contract's declared natural key. Asserted UNIQUE on the assembled frame before a single byte
 # is staged: `duplicate_check` runs downstream of the write, `lint_frame` checks conditional
 # nullability and per-slug label coherence only, and `build_partitioned_publish` performs no
@@ -290,6 +335,35 @@ _SOURCE_SPECS: dict[str, SourceSpec] = {
     "miax": SourceSpec(
         name="miax", job="futures_eod_miax", publication_sources=("miax",),
         rows_per_day=_MIN_SILVER_ROWS_PER_DAY_MIAX, unit_label="session"),
+    # -- W1c, browser-landed. Raw -> bronze is shipped; bronze -> silver is not (see the docstring).
+    "dce": SourceSpec(
+        name="dce", job="futures_eod_dce", publication_sources=("dce",),
+        # The history workbooks are xlsx. openpyxl is a CORE pyproject dependency, so no image
+        # rebuild is owed -- but the preflight stays, because the yfinance ImportError that wrote
+        # nothing for six weeks was also "obviously installed" until it wasn't.
+        preflight_imports=("openpyxl",),
+        rows_per_day=0,                     # deliberately unarmed -- see the floor block above
+        implemented=False,
+        todo=("src/leviathan/transforms/bronze_to_silver/dce_eod.py::build_dce_eod_silver -- the "
+              "raw->bronze half is shipped (jobs/ingest/fetch_dce_eod.py + "
+              "transforms/raw_to_bronze/dce_eod.py, both parsers fixture-tested)"),
+        unit_label="variety-capture"),
+    "euronext": SourceSpec(
+        name="euronext", job="futures_eod_euronext", publication_sources=("euronext_matif",),
+        rows_per_day=_MIN_SILVER_ROWS_PER_DAY_EURONEXT,
+        implemented=False,
+        todo=("src/leviathan/transforms/bronze_to_silver/euronext_eod.py::"
+              "build_euronext_eod_silver -- the raw->bronze half is "
+              "jobs/ingest/fetch_euronext_eod.py + transforms/raw_to_bronze/euronext_eod.py"),
+        unit_label="product-day"),
+    "bursa": SourceSpec(
+        name="bursa", job="futures_eod_bursa", publication_sources=("bursa",),
+        rows_per_day=_MIN_SILVER_ROWS_PER_DAY_BURSA,
+        implemented=False,
+        todo=("src/leviathan/transforms/bronze_to_silver/bursa_fcpo.py::build_bursa_fcpo_silver "
+              "-- the raw->bronze half is jobs/ingest/fetch_bursa_fcpo.py + "
+              "transforms/raw_to_bronze/bursa_fcpo.py"),
+        unit_label="session"),
 }
 
 
@@ -514,9 +588,17 @@ def load_cepea_capture(s3_client, bucket: str, key: str) -> tuple[pd.DataFrame, 
     if payload is None:
         raise FileNotFoundError(f"no CEPEA object at s3://{bucket}/{key}")
     if "/history/" in key:
+        # Two history stems, two provenances: wayback_ (web.archive.org, 2017 captures) and
+        # live_ (the origin's apex host, user-approved one-shot 2026-07-29). The bronze
+        # payload_kind must say which -- a live workbook wearing "wayback" is exactly the
+        # provenance lie the live_ stem exists to avoid.
         stem = key.rsplit("/", 1)[-1]
-        ts = stem[len("wayback_"):-len(".xls")] if stem.startswith("wayback_") else None
-        return build_cepea_history_bronze(payload, indicator_id=indicator, snapshot_ts=ts)
+        for prefix, kind in (("wayback_", "wayback"), ("live_", "live")):
+            if stem.startswith(prefix):
+                ts = stem[len(prefix):-len(".xls")]
+                return build_cepea_history_bronze(payload, indicator_id=indicator,
+                                                  snapshot_ts=ts, payload_kind=kind)
+        return build_cepea_history_bronze(payload, indicator_id=indicator, snapshot_ts=None)
     return build_cepea_widget_bronze(
         payload, indicator_id=indicator,
         as_of_date=_iso_from_segment(_key_segment(key, "as_of_date")))
@@ -546,6 +628,139 @@ def load_miax_session(s3_client, bucket: str, key: str) -> tuple[pd.DataFrame, d
     if payload is None:
         raise FileNotFoundError(f"no MIAX session object at s3://{bucket}/{key}")
     return build_miax_bronze(payload, trade_date=day)
+
+
+# -- The W1c browser legs (DCE, Euronext, Bursa) -----------------------------
+# Same doctrine as every free leg: units are DISCOVERED by LISTING what actually landed. That the
+# bytes were obtained through a headless browser is entirely the producer's business and leaves no
+# trace here -- a browser-landed object is an ordinary raw object.
+def dce_units(s3_client, bucket: str, *, since: Optional[str] = None,
+              varieties: Optional[list[str]] = None) -> list[str]:
+    """The raw keys of the DCE objects to read: the HISTORY workbooks first, then the daily captures.
+
+    Ordering is load-bearing for the same reason it is on CEPEA: the two payload classes overlap in
+    time by construction (the history workbook covers the whole calendar year INCLUDING days the
+    daily capture has already landed), and the silver step resolves a natural-key collision in
+    favour of the LAST row -- so the daily capture, which is the fresher and post-close observation
+    of any shared session, must arrive last.
+
+    ``since`` filters the DAILY captures by capture date only. The history workbooks are whole-year
+    one-shots, so a bounded incremental run skips them entirely."""
+    letters = sorted(set(varieties or DCE_VARIETY_MAP))
+    history: list[str] = []
+    daily: list[str] = []
+    lo = (since or "0000-01-01")[:10]
+    for variety in letters:
+        for key in _list_keys(s3_client, bucket, dce_variety_prefix(variety)):
+            if "/history/" in key:
+                if since is None:
+                    history.append(key)
+                continue
+            day = _iso_from_segment(_key_segment(key, "as_of_date"))
+            if day is None or day < lo:
+                continue
+            daily.append(key)
+    return sorted(set(history)) + sorted(set(daily))
+
+
+def _dce_variety_of(key: str) -> str:
+    variety = _key_segment(key, "variety")
+    if variety not in DCE_VARIETY_MAP:
+        raise ValueError(f"{key} carries no known variety= segment -- refusing to guess the slug "
+                         f"from the Chinese commodity name inside the payload")
+    return variety
+
+
+def load_dce_capture(s3_client, bucket: str, key: str) -> tuple[pd.DataFrame, dict]:
+    """Read one landed DCE object -- daily capture or history workbook -- and return bronze + stats.
+
+    The payload KIND comes from the key (``history/`` is a path segment), never from sniffing the
+    bytes: a truncated download must fail as a truncated download, not be re-read as the other
+    format."""
+    variety = _dce_variety_of(key)
+    payload = _get(s3_client, bucket, key)
+    if payload is None:
+        raise FileNotFoundError(f"no DCE object at s3://{bucket}/{key}")
+    if "/history/" in key:
+        year = _key_segment(key, "year")
+        return build_dce_bronze(payload, variety=variety, kind="history",
+                                year=int(year) if (year or "").isdigit() else None)
+    return build_dce_bronze(payload, variety=variety, kind="daily",
+                            as_of_date=_iso_from_segment(_key_segment(key, "as_of_date")))
+
+
+def _lazy_bronze(module: str, func: str, payload: bytes, **kwargs) -> tuple[pd.DataFrame, dict]:
+    """Call a W1c raw->bronze builder that landed with the OTHER half of this wave.
+
+    Imported at CALL time rather than at module scope, and that is the only trick here: the two
+    halves of W1c land independently, so this task must import -- and its test suite must COLLECT --
+    whether or not the euronext/bursa transforms are in the tree yet. Everything else is an ordinary
+    call, deliberately: the keyword names are the seam, and passing them straight through means a
+    rename on either side is an immediate TypeError rather than a silently defaulted argument (
+    ``bursa_fcpo.build_bronze`` defaults ``code`` to ``"FCPO"``, so a filtered kwarg there would
+    publish the wrong product's rows instead of failing). The join is exercised end to end against
+    the live captures in tests/unit/silver/test_futures_eod_free_chain.py."""
+    import importlib
+
+    return getattr(importlib.import_module(module), func)(payload, **kwargs)
+
+
+def euronext_units(s3_client, bucket: str, *, since: Optional[str] = None,
+                   products: Optional[list[str]] = None) -> list[str]:
+    """The raw keys of the Euronext product-day captures to read, ascending."""
+    lo = (since or "0000-01-01")[:10]
+    keys: list[str] = []
+    for product in sorted(set(products or EURONEXT_PRODUCTS)):
+        for key in _list_keys(s3_client, bucket, euronext_product_prefix(product)):
+            day = _iso_from_segment(_key_segment(key, "as_of_date"))
+            if day is None or day < lo:
+                continue
+            keys.append(key)
+    return sorted(set(keys))
+
+
+def load_euronext_capture(s3_client, bucket: str, key: str) -> tuple[pd.DataFrame, dict]:
+    """Read one landed Euronext rendered-table capture and return its bronze rows + a stats dict."""
+    product = _key_segment(key, "product")
+    if not product:
+        raise ValueError(f"{key} carries no product= segment -- refusing to guess which MATIF "
+                         f"contract the table belongs to")
+    payload = _get(s3_client, bucket, key)
+    if payload is None:
+        raise FileNotFoundError(f"no Euronext capture at s3://{bucket}/{key}")
+    return _lazy_bronze("leviathan.transforms.raw_to_bronze.euronext_eod", "build_bronze", payload,
+                        product=product,
+                        as_of_date=_iso_from_segment(_key_segment(key, "as_of_date")))
+
+
+def bursa_units(s3_client, bucket: str, *, since: Optional[str] = None,
+                codes: Optional[list[str]] = None) -> list[str]:
+    """The raw keys of the Bursa day-session captures to read, ascending.
+
+    Forward-accumulation: the API takes no date parameter, so every key here is a capture this
+    estate made and there is nothing earlier to walk back to."""
+    lo = (since or "0000-01-01")[:10]
+    keys: list[str] = []
+    for code in sorted(set(codes or BURSA_CODES)):
+        for key in _list_keys(s3_client, bucket, bursa_code_prefix(code)):
+            day = _iso_from_segment(_key_segment(key, "as_of_date"))
+            if day is None or day < lo:
+                continue
+            keys.append(key)
+    return sorted(set(keys))
+
+
+def load_bursa_capture(s3_client, bucket: str, key: str) -> tuple[pd.DataFrame, dict]:
+    """Read one landed Bursa derivatives-prices capture and return its bronze rows + a stats dict."""
+    code = _key_segment(key, "code")
+    if not code:
+        raise ValueError(f"{key} carries no code= segment -- refusing to guess the contract")
+    payload = _get(s3_client, bucket, key)
+    if payload is None:
+        raise FileNotFoundError(f"no Bursa capture at s3://{bucket}/{key}")
+    return _lazy_bronze("leviathan.transforms.raw_to_bronze.bursa_fcpo", "build_bronze", payload,
+                        code=code,
+                        as_of_date=_iso_from_segment(_key_segment(key, "as_of_date")))
 
 
 def _caller_identity(aws_region: str) -> tuple[str, str]:
@@ -917,6 +1132,22 @@ def select_units(args, s3_client, bucket: str, spec: SourceSpec) -> list[tuple[s
         "miax": (lambda: miax_units(s3_client, bucket, since=args.since, years=args.years),
                  load_miax_session,
                  lambda k: _iso_from_segment(_key_segment(k, "trade_date")) or k),
+        # W1c. DCE is bounded by VARIETY (the letter is the vendor identity and the history
+        # workbooks have no date in their key at all) -- the CEPEA shape, for the same reasons.
+        "dce": (lambda: dce_units(s3_client, bucket, since=args.since),
+                load_dce_capture,
+                lambda k: ("history " if "/history/" in k else "")
+                + f"variety={_key_segment(k, 'variety')} "
+                + (_iso_from_segment(_key_segment(k, "as_of_date"))
+                   or f"year={_key_segment(k, 'year')}")),
+        "euronext": (lambda: euronext_units(s3_client, bucket, since=args.since),
+                     load_euronext_capture,
+                     lambda k: f"{_key_segment(k, 'product')} "
+                     + (_iso_from_segment(_key_segment(k, "as_of_date")) or k)),
+        "bursa": (lambda: bursa_units(s3_client, bucket, since=args.since),
+                  load_bursa_capture,
+                  lambda k: f"{_key_segment(k, 'code')} "
+                  + (_iso_from_segment(_key_segment(k, "as_of_date")) or k)),
     }
     if spec.name in readers:
         enumerate_keys, loader, label_of = readers[spec.name]

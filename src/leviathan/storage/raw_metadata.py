@@ -57,6 +57,7 @@ def write_raw_s3_metadata(
     source_url: str,
     content_type: str,
     aws_region: str = "us-east-1",
+    extra: "dict | None" = None,
 ) -> None:
     """Write a companion JSON metadata file next to a raw S3 object.
 
@@ -77,10 +78,14 @@ def write_raw_s3_metadata(
                       the file was manually sourced).
         content_type: MIME content-type string.
         aws_region:   AWS region for the S3 client.
+        extra:        Optional additional fields merged into the record (e.g. a data LICENSE that
+                      must travel with the bytes -- the CEPEA CC BY-NC lesson). Core fields win on
+                      any key collision.
     """
     checksum = hashlib.sha256(raw_bytes).hexdigest()
     meta_key = f"raw_meta/{raw_key}_meta.json"
     record = {
+        **(extra or {}),
         "raw_key": raw_key,
         "source_url": source_url,
         "content_type": content_type,

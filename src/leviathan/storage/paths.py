@@ -2581,6 +2581,26 @@ def raw_cepea_wayback_key(indicator_id: int, snapshot_ts: str) -> str:
     return f"raw/production/source=cepea/indicator={ind}/history/wayback_{ts}.xls"
 
 
+def raw_cepea_live_key(indicator_id: int, fetched_ts: str) -> str:
+    """S3 key for the ONE-SHOT LIVE recovery of a CEPEA series (2026-07-29, user-approved).
+
+    Layout::
+
+        raw/production/source=cepea/indicator={23|77}/history/live_{TS14}.xls
+
+    A separate stem from ``wayback_`` because the provenance is different -- these bytes came from
+    the origin's openly-serving apex host, not from web.archive.org -- and a raw key must never
+    wear a provenance it does not have (the wayback leg's nine-year lesson). ``fetched_ts`` is the
+    UTC download instant, NOT a wayback capture timestamp. ``cepea_units`` picks up any
+    ``/history/`` object, so this lands in the same unit walk as the wayback one-shots.
+    """
+    ind = int(indicator_id)
+    ts = str(fetched_ts).strip()
+    if len(ts) != 14 or not ts.isdigit():
+        raise ValueError(f"fetched_ts {fetched_ts!r} is not a 14-digit UTC timestamp")
+    return f"raw/production/source=cepea/indicator={ind}/history/live_{ts}.xls"
+
+
 def cepea_indicator_prefix(indicator_id: int) -> str:
     """The LIST prefix holding every capture of one CEPEA indicator."""
     return f"raw/production/source=cepea/indicator={int(indicator_id)}/"
@@ -2615,3 +2635,177 @@ def raw_miax_key(trade_date: str, filename: str = "") -> str:
 def miax_year_prefix(year: int) -> str:
     """The LIST prefix holding one calendar year of MIAX daily settlement files."""
     return f"raw/production/source=miax/year={int(year)}/"
+
+
+# ---------------------------------------------------------------------------
+# PRICE_AND_PLAYBOOKS W1c -- the three BROWSER venues (DCE, Euronext/MATIF, Bursa)
+#
+# All three are landed by a headless-Chromium producer (leviathan.ingest.browser_fetch) because
+# plain requests cannot reach them: DCE answers 412 (Ruishu WAF) and Bursa 403 + Cf-Mitigated
+# (Cloudflare) from BOTH residential and datacenter IPs, and Euronext has no WAF but renders its
+# quote table client-side. The KEYS below are ordinary raw keys -- how the bytes were obtained is
+# the producer's business and leaves no trace in the layout.
+#
+# The partition segment is the VENDOR'S OWN identity in every case (variety letter, product slug,
+# contract code), never a leviathan slug: the slug is derived in the transform, from a map that is
+# linted against CONTRACT_MAP both ways, exactly as the CEPEA `indicator=` key does it.
+# ---------------------------------------------------------------------------
+DCE_DAILY_FILENAME = "futureData.json"
+
+
+def _dce_variety(variety: str) -> str:
+    """The DCE variety letter, validated by SHAPE (1-2 lowercase letters).
+
+    Membership is NOT checked here: the curated set lives in
+    ``transforms.raw_to_bronze.dce_eod.DCE_VARIETY_MAP`` where it is linted against CONTRACT_MAP,
+    and this module is deliberately import-free."""
+    token = str(variety).strip()
+    if not (1 <= len(token) <= 2) or not token.isalpha() or not token.islower():
+        raise ValueError(f"variety {variety!r} is not a 1-2 character lowercase DCE variety letter")
+    return token
+
+
+def raw_dce_daily_key(variety: str, as_of_date: str,
+                      filename: str = DCE_DAILY_FILENAME) -> str:
+    """S3 key for one DCE daily quote capture (PRICE_AND_PLAYBOOKS W1c / D1).
+
+    Layout::
+
+        raw/production/source=dce/variety={v}/as_of_date={YYYY-MM-DD}/futureData.json
+
+    ``as_of_date`` is the CAPTURE date, not the session -- the JSE doctrine, for the same reason:
+    the ``/dcereport/quote/delay/futureData`` endpoint serves the CURRENT state of the board and
+    rolls its own ``tradeDate`` to T+1 when the 21:00 Beijing night session opens. The session is
+    read from the payload's own ``tradeDate`` by the transform, so the two dates stay independently
+    sourced and a capture that landed under the wrong clock is visible rather than silent.
+
+    One object per (variety, capture): the endpoint is per-variety, and five varieties in one object
+    would make a partial capture (four varieties settled, one not) unrepresentable.
+    """
+    v = _dce_variety(variety)
+    compact = _compact_date(as_of_date, "as_of_date")
+    iso = f"{compact[:4]}-{compact[4:6]}-{compact[6:]}"
+    return f"raw/production/source=dce/variety={v}/as_of_date={iso}/{filename}"
+
+
+def raw_dce_history_key(variety: str, year: int) -> str:
+    """S3 key for one DCE per-year history workbook (PRICE_AND_PLAYBOOKS W1c / D1).
+
+    Layout::
+
+        raw/production/source=dce/variety={v}/history/year={YYYY}/{v}_ftr.xlsx
+
+    The filename is the vendor's own (``content-disposition: attachment;filename={v}_ftr.xlsx``).
+    Under ``history/`` so the one-shot backfill and the daily captures never collide in a LIST --
+    the CEPEA precedent -- and keyed on the year so a re-run of the 2006-2026 walk is a HEAD per
+    (variety, year) and no download at all.
+    """
+    v = _dce_variety(variety)
+    y = int(year)
+    return f"raw/production/source=dce/variety={v}/history/year={y}/{v}_ftr.xlsx"
+
+
+def dce_variety_prefix(variety: str) -> str:
+    """The LIST prefix holding every capture of one DCE variety (daily + history)."""
+    return f"raw/production/source=dce/variety={_dce_variety(variety)}/"
+
+
+# ---------------------------------------------------------------------------
+# Euronext / MATIF -- the BROWSER-RENDERED quote table (W1c)
+# ---------------------------------------------------------------------------
+# THE RAW SOURCE SEGMENT IS THE VENUE, NOT THE PUBLICATION SOURCE, AND THAT IS DELIBERATE.
+# Every other free leg names its raw prefix after its `CONTRACT_MAP` source value verbatim
+# (`source=czce`, `source=miax`) because those legs are one venue == one source == one object. This
+# one is not: a SINGLE browser session over live.euronext.com lands THREE products that map to three
+# slugs, and the publication source is `euronext_matif` for all of them. `source=euronext` names the
+# thing the prefix actually partitions -- the venue fetch -- and `product=` names the instrument,
+# which is what the transform maps to a slug. The silver `source` column still reads
+# `euronext_matif`, from CONTRACT_MAP, exactly as on every other leg.
+EURONEXT_RAW_SOURCE = "euronext"
+EURONEXT_TABLE_FILENAME = "table.html"
+
+def _is_upper_alnum(token: str, lo: int, hi: int) -> bool:
+    """``lo <= len(token) <= hi`` and every character is A-Z or 0-9. Stdlib only -- ``paths`` has no
+    imports at all and gains none for this."""
+    if not lo <= len(token) <= hi:
+        return False
+    return all(("A" <= c <= "Z") or ("0" <= c <= "9") for c in token)
+
+
+def _euronext_product(product: str) -> str:
+    """``'EBM-DPAR'`` -> the same, validated. Uppercase alnum in one or two dash-joined parts, so a
+    product token can never inject a path segment."""
+    token = str(product or "").strip().upper()
+    parts = token.split("-")
+    if not (1 <= len(parts) <= 2 and all(_is_upper_alnum(p, 2, 8) for p in parts)):
+        raise ValueError(
+            f"euronext product {product!r} is not a live.euronext.com product slug "
+            f"(EBM-DPAR / EMA-DPAR / ECO-DPAR)"
+        )
+    return token
+
+
+def raw_euronext_key(product: str, as_of_date: str,
+                     filename: str = EURONEXT_TABLE_FILENAME) -> str:
+    """S3 key for one Euronext product's rendered quote table (PRICE_AND_PLAYBOOKS W1c).
+
+    Layout::
+
+        raw/production/source=euronext/product={SLUG}/as_of_date={YYYY-MM-DD}/table.html
+
+    ``as_of_date`` is the FETCH date and -- unlike JSE, where the sheet carries its own header date
+    -- it is ALSO the only trade-date authority this leg will ever have: the rendered table
+    publishes a ``Time`` column (``18:31``) and NO date anywhere in the DOM. The producer therefore
+    has to fire after the ~18:30 CET settlement publish and before the local midnight, and the
+    transform reads the session out of this segment. That is a genuinely weaker guarantee than the
+    JSE one and it is recorded here rather than hidden inside the parser.
+    """
+    compact = _compact_date(as_of_date, "as_of_date")
+    iso = f"{compact[:4]}-{compact[4:6]}-{compact[6:]}"
+    return (f"raw/production/source={EURONEXT_RAW_SOURCE}/product={_euronext_product(product)}/"
+            f"as_of_date={iso}/{filename}")
+
+
+def euronext_product_prefix(product: str) -> str:
+    """The LIST prefix holding every capture of ONE Euronext product."""
+    return f"raw/production/source={EURONEXT_RAW_SOURCE}/product={_euronext_product(product)}/"
+
+
+# ---------------------------------------------------------------------------
+# Bursa Malaysia -- the FCPO derivatives-prices API capture (W1c)
+# ---------------------------------------------------------------------------
+BURSA_RAW_SOURCE = "bursa"
+BURSA_DAY_FILENAME = "derivatives_day.json"
+
+def _bursa_code(code: str) -> str:
+    token = str(code or "").strip().upper()
+    if not _is_upper_alnum(token, 3, 8):
+        raise ValueError(f"bursa code {code!r} is not a derivatives product code (FCPO, FPKO, ...)")
+    return token
+
+
+def raw_bursa_key(code: str, as_of_date: str, filename: str = BURSA_DAY_FILENAME) -> str:
+    """S3 key for one Bursa Malaysia derivatives-prices capture (PRICE_AND_PLAYBOOKS W1c).
+
+    Layout::
+
+        raw/production/source=bursa/code=FCPO/as_of_date={YYYY-MM-DD}/derivatives_day.json
+
+    ``code=`` is the venue's own product selector value (``FCPO``, and later ``FPKO``/``FSOY``/...),
+    so one prefix per product and one object per session.
+
+    ``as_of_date`` is the FETCH date and, as on Euronext, the ONLY trade-date authority: the API
+    body carries no date field at all and serves current prices only (no date parameter exists), so
+    this leg is FORWARD-ACCUMULATION -- there is no backfill and a missed session is unrecoverable.
+    The date must be the MALAYSIAN calendar day of the ``ses=day`` (T) session; a post-close
+    (>= 18:00 MYT == 10:00 UTC) fire makes the UTC and MYT dates agree.
+    """
+    compact = _compact_date(as_of_date, "as_of_date")
+    iso = f"{compact[:4]}-{compact[4:6]}-{compact[6:]}"
+    return (f"raw/production/source={BURSA_RAW_SOURCE}/code={_bursa_code(code)}/"
+            f"as_of_date={iso}/{filename}")
+
+
+def bursa_code_prefix(code: str) -> str:
+    """The LIST prefix holding every capture of ONE Bursa derivatives product."""
+    return f"raw/production/source={BURSA_RAW_SOURCE}/code={_bursa_code(code)}/"

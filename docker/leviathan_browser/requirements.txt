@@ -1,0 +1,13 @@
+# PRICE_AND_PLAYBOOKS W1c -- the BROWSER image's one dependency beyond the leviathan core.
+#
+# PINNED, not floored, and the pin is evidence rather than taste: 1.60.0 is the version whose
+# bundled Chromium build actually CLEARED the two challenges during the live W1c capture on
+# 2026-07-29 (DCE's Ruishu WAF and Bursa's Cloudflare mitigation), and the bundled browser build is
+# part of what a WAF fingerprints. `playwright>=1.40` in pyproject's [biweekly] extra is the UNICA
+# discovery walk's requirement against a site with no WAF at all; it is not this leg's, and a
+# floating pin here would let an image rebuild silently change the browser that has to pass a bot
+# check. Move it deliberately, and re-probe the two venues when you do.
+#
+# `playwright install --with-deps chromium` in the Dockerfile installs the driver's matching browser
+# build, so this pin and that layer must move together.
+playwright==1.60.0

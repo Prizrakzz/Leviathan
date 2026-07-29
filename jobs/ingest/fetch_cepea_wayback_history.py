@@ -5,20 +5,43 @@ WHY AN ARCHIVE ROUTE AT ALL
 ---------------------------
 CEPEA's own series pages are ``.aspx`` and they are Cloudflare-403 to plain ``requests``, to a FULL
 Chrome header set (``sec-ch-ua``, ``Sec-Fetch-*``, ``Upgrade-Insecure-Requests``) and via WebFetch.
+As of 2026-07-29 the origin serves an **interactive Turnstile challenge**, which we do not and will
+not defeat -- that route is closed, permanently, by policy and not by capability.
 **Only the ``.php`` widget is open**, and it returns the last value only. So the series cannot be
 read from the origin at all -- but web.archive.org holds snapshots of the ``.aspx`` downloads, and
-ONE snapshot per indicator carries the ENTIRE series to its capture date::
+one snapshot per indicator carries the whole series *to its capture date*::
 
-    id 23 arabica  cafe.aspx?id=23  @20250608143948   136,726 B   1996-09-02 .. 2025-06-08 (5,193+ rows)
-    id 77 corn     milho.aspx?id=77 @20250614163045               2004-08-02 .. 2025-06-14 (5,200 rows)
+    id 23 arabica  cafe.aspx?id=23  @20170708153249   386,048 B   1996-09-02 .. 2017-07-07 (5,189 rows)
+    id 77 corn     milho.aspx?id=77 @20171027074000   246,784 B   2004-08-02 .. 2017-10-26 (3,296 rows)
+
+Those spans are MEASURED off the landed bytes, not inferred from the capture date -- see the next
+section for why that distinction cost us a nine-year hole.
 
 This job is a ONE-SHOT: two GETs, two objects, done. It is not a walk and it is not scheduled.
 
-THE RESIDUAL GAP IS ACCEPTED, NOT ENGINEERED AROUND
----------------------------------------------------
-Between the snapshot dates and the first daily run there is a **~13-month hole** (2025-06 -> today).
-That is documented and accepted in the plan; the daily widget accumulates forward from first run.
-Nothing here fabricates a value to fill it, and nothing should.
+A WAYBACK TIMESTAMP IS A REQUEST, NOT A GUARANTEE
+--------------------------------------------------
+``/web/{ts}id_/{url}`` does not fail when ``ts`` has no capture: it **silently 200s with the
+NEAREST capture**. The first cut of this job asked for ``20250608143948`` / ``20250614163045``,
+timestamps that do not exist in the CDX index, and Wayback served the 2017 captures -- which then
+landed under 2025-shaped keys and were described in this docstring as 2025 data. The row counts
+looked plausible (5,193 / 3,300 raw rows) so nothing tripped. The CDX index is unambiguous: the
+newest captures of these two export URLs that exist AT ALL are from 2017 (2 distinct digests for
+id=23, 3 for id=77). We had a nine-year hole and a docstring that claimed thirteen months.
+
+So :func:`fetch_snapshot` now returns the SERVED capture timestamp (parsed off the redirect URL,
+cross-checked against ``Memento-Datetime``) and :func:`main` refuses to land bytes whose served
+capture is not the pinned one. Provenance in the key is now a fact rather than a hope.
+
+THE RESIDUAL GAP IS ~9 YEARS, AND IT IS ACCEPTED, NOT ENGINEERED AROUND
+-----------------------------------------------------------------------
+Between the 2017 captures and the daily widget's first run (2026-07-28) there is a **~9-year hole**
+in both series. It is a hole in the MIDDLE, not a stale tail, so it breaks continuity for any
+recent-basis work -- treat CEPEA history as 1996/2004-2017 plus forward accumulation, and check
+:data:`CEPEA_SNAPSHOTS` spans before reaching for a window inside the gap. Filling it needs a
+different, legitimately-accessible republisher of the two indicators; IPEADATA was swept and
+carries none (3,585-series catalog, zero CEPEA/ESALQ). Nothing here fabricates a value to fill it,
+and nothing should.
 
 THE PARSE GOTCHA LIVES IN THE TRANSFORM, NOT HERE
 --------------------------------------------------
@@ -45,8 +68,11 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import re
 import sys
 import time
+from datetime import timezone
+from email.utils import parsedate_to_datetime
 from typing import Optional
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -63,15 +89,18 @@ logger = get_logger("fetch_cepea_wayback_history")
 # banner -- mandatory when the artifact is a binary workbook.
 _WAYBACK_FMT = "https://web.archive.org/web/{ts}id_/{target}"
 
-# The two curated snapshots. Each carries the whole series to its capture date; the timestamp is
-# part of the raw key, so re-running lands the same object rather than a second copy.
+# The two curated snapshots: the NEWEST captures that exist in the CDX index for each export URL
+# (enumerated 2026-07-29 with collapse=digest, filter=statuscode:200). The timestamp is part of the
+# raw key, so re-running lands the same object rather than a second copy -- which is exactly why it
+# has to be the SERVED capture and not a wished-for date. ``last_row`` is measured off the landed
+# bytes; the pair (first_row, last_row) is this leg's honest coverage claim.
 CEPEA_SNAPSHOTS: dict[int, dict[str, str]] = {
-    23: {"ts": "20250608143948",
+    23: {"ts": "20170708153249",
          "target": "https://www.cepea.esalq.usp.br/br/indicador/series/cafe.aspx?id=23",
-         "first_row": "1996-09-02"},
-    77: {"ts": "20250614163045",
+         "first_row": "1996-09-02", "last_row": "2017-07-07"},
+    77: {"ts": "20171027074000",
          "target": "https://www.cepea.esalq.usp.br/br/indicador/series/milho.aspx?id=77",
-         "first_row": "2004-08-02"},
+         "first_row": "2004-08-02", "last_row": "2017-10-26"},
 }
 
 _SOURCE_LABEL = "cepea_wayback"
@@ -99,7 +128,50 @@ def looks_like_a_series_workbook(payload: bytes) -> Optional[str]:
     return None
 
 
-def fetch_snapshot(indicator_id: int, *, timeout: int = _TIMEOUT) -> bytes:
+def wrong_capture(indicator_id: int, served: Optional[str]) -> Optional[str]:
+    """None when the served capture is the pinned one, else why the bytes must not be landed.
+
+    This is the guard the first cut lacked. An unmatched timestamp does not 404 -- it 200s with the
+    nearest capture, and those bytes then wear the requested timestamp in the raw key forever.
+    """
+    wanted = CEPEA_SNAPSHOTS[int(indicator_id)]["ts"]
+    if served is None:
+        return ("the response carries neither a capture timestamp in its URL nor a "
+                "Memento-Datetime header, so the capture it came from cannot be established")
+    if served != wanted:
+        return (f"wayback served capture {served}, not the pinned {wanted} -- an unmatched "
+                f"timestamp silently redirects to the NEAREST capture, so these bytes are some "
+                f"other day's series. Re-pin CEPEA_SNAPSHOTS from the CDX index rather than "
+                f"landing them under the wrong provenance")
+    return None
+
+
+def served_capture_ts(resp: "requests.Response") -> Optional[str]:
+    """The capture Wayback ACTUALLY served, or None if the response does not say.
+
+    Wayback redirects an unmatched timestamp to the nearest capture, so the served timestamp lives
+    in the final URL (``/web/{ts}id_/``). ``Memento-Datetime`` carries the same instant in RFC-1123
+    and is used as a cross-check: if the two disagree the response is not trustworthy at all.
+    """
+    served = None
+    match = re.search(r"/web/(\d{14})(?:id_)?/", resp.url or "")
+    if match:
+        served = match.group(1)
+    memento = resp.headers.get("Memento-Datetime")
+    if memento:
+        try:
+            stamp = parsedate_to_datetime(memento).astimezone(timezone.utc).strftime("%Y%m%d%H%M%S")
+        except (TypeError, ValueError):
+            stamp = None
+        if stamp and served and stamp != served:
+            raise ValueError(f"wayback disagrees with itself: URL says capture {served}, "
+                             f"Memento-Datetime says {stamp}")
+        served = served or stamp
+    return served
+
+
+def fetch_snapshot(indicator_id: int, *, timeout: int = _TIMEOUT) -> tuple[bytes, Optional[str]]:
+    """The archived bytes AND the capture timestamp Wayback actually served."""
     url = snapshot_url(indicator_id)
     backoff = _BACKOFF_SECONDS
     last_error: Exception | None = None
@@ -111,7 +183,7 @@ def fetch_snapshot(indicator_id: int, *, timeout: int = _TIMEOUT) -> bytes:
                                indicator_id, resp.status_code, attempt, _MAX_ATTEMPTS, backoff)
             else:
                 resp.raise_for_status()
-                return resp.content
+                return resp.content, served_capture_ts(resp)
         except requests.RequestException as exc:
             last_error = exc
             if attempt >= _MAX_ATTEMPTS:
@@ -165,12 +237,15 @@ def main(argv: Optional[list[str]] = None) -> int:
     if args.dry_run:
         for ind in indicators:
             snap = CEPEA_SNAPSHOTS[ind]
-            print(f"id {ind} ({CEPEA_INDICATORS[ind]}), series from {snap['first_row']}")
+            print(f"id {ind} ({CEPEA_INDICATORS[ind]}), "
+                  f"series {snap['first_row']} .. {snap['last_row']}")
             print(f"  url : {snapshot_url(ind)}")
             print(f"  key : {raw_cepea_wayback_key(ind, snap['ts'])}")
         print("(dry-run -- no HTTP, no writes)")
-        print("NOTE the ~13-month residual gap (snapshot -> today) is ACCEPTED and is covered by "
-              "forward accumulation from the daily widget's first run")
+        print("NOTE the residual gap is ~9 YEARS (2017 capture -> the daily widget's first run, "
+              "2026-07-28), it is a hole in the MIDDLE of the series, and it is ACCEPTED: the "
+              "origin is Turnstile-fenced and no republisher has been found. Do not read a window "
+              "inside the gap and do not fabricate one.")
         return 0
 
     bucket = args.bucket or get_required_env("LEVIATHAN_BUCKET")
@@ -186,10 +261,10 @@ def main(argv: Optional[list[str]] = None) -> int:
         if i:
             time.sleep(_SLEEP_SECONDS)
         try:
-            payload = fetch_snapshot(ind)
-            bad = looks_like_a_series_workbook(payload)
-            if bad:
-                raise ValueError(f"{snapshot_url(ind)}: {bad}")
+            payload, served = fetch_snapshot(ind)
+            for bad in (looks_like_a_series_workbook(payload), wrong_capture(ind, served)):
+                if bad:
+                    raise ValueError(f"{snapshot_url(ind)}: {bad}")
             land_bytes(bucket, key, payload, source_url=snapshot_url(ind), region=aws_region)
             landed += 1
         except Exception as exc:  # noqa: BLE001

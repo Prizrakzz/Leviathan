@@ -14,8 +14,12 @@ from pathlib import Path
 import pytest
 from leviathan.silver import futures_eod_contracts as FC
 from leviathan.storage.paths import (
+    raw_bursa_key,
     raw_cepea_wayback_key,
     raw_cepea_widget_key,
+    raw_dce_daily_key,
+    raw_dce_history_key,
+    raw_euronext_key,
     raw_jse_safex_key,
     raw_miax_key,
 )
@@ -92,8 +96,8 @@ class TestUnitDiscovery:
         objects = {
             raw_cepea_widget_key(23, "2026-07-28"): b"",
             raw_cepea_widget_key(77, "2026-07-28"): b"",
-            raw_cepea_wayback_key(23, "20250608143948"): b"",
-            raw_cepea_wayback_key(77, "20250614163045"): b"",
+            raw_cepea_wayback_key(23, "20170708153249"): b"",
+            raw_cepea_wayback_key(77, "20171027074000"): b"",
         }
         got = TASK.cepea_units(FakeS3(objects), "b")
         assert all("/history/" in k for k in got[:2])
@@ -102,7 +106,7 @@ class TestUnitDiscovery:
     def test_a_bounded_incremental_run_skips_the_whole_series_snapshots(self):
         objects = {
             raw_cepea_widget_key(23, "2026-07-28"): b"",
-            raw_cepea_wayback_key(23, "20250608143948"): b"",
+            raw_cepea_wayback_key(23, "20170708153249"): b"",
         }
         got = TASK.cepea_units(FakeS3(objects), "b", since="2026-07-01")
         assert got == [raw_cepea_widget_key(23, "2026-07-28")]
@@ -118,6 +122,57 @@ class TestUnitDiscovery:
                             (TASK.load_miax_session, raw_miax_key("2026-07-28"))):
             with pytest.raises(FileNotFoundError):
                 loader(s3, "b", key)
+
+
+# ---------------------------------------------------------------------------
+class TestW1cBrowserLegSeams:
+    """W1c's three legs landed their raw -> bronze half only, and the read side of the host is
+    where the two halves of that wave MEET: the unit readers and the DCE parser are one
+    implementer's, the euronext/bursa builders the other's. Nothing else in the estate exercises
+    that join, so a rename on either side would otherwise surface for the first time on Fargate.
+
+    Nothing here launches a browser. The captures under ``tests/fixtures/w1c/`` are the real bytes
+    the live 2026-07-29 session pulled."""
+
+    _W1C = _REPO / "tests" / "fixtures" / "w1c"
+
+    @staticmethod
+    def _objects():
+        return {
+            raw_dce_history_key("p", 2016): b"",
+            raw_dce_daily_key("p", "2026-07-29"): b"",
+            raw_euronext_key("EBM-DPAR", "2026-07-29"): b"",
+            raw_bursa_key("FCPO", "2026-07-29"): b"",
+        }
+
+    def test_each_reader_sees_only_its_own_prefix(self):
+        s3 = FakeS3(self._objects())
+        assert TASK.dce_units(s3, "b") == [raw_dce_history_key("p", 2016),
+                                           raw_dce_daily_key("p", "2026-07-29")]
+        assert TASK.euronext_units(s3, "b") == [raw_euronext_key("EBM-DPAR", "2026-07-29")]
+        assert TASK.bursa_units(s3, "b") == [raw_bursa_key("FCPO", "2026-07-29")]
+
+    def test_the_euronext_loader_reaches_the_other_halves_builder(self):
+        key = raw_euronext_key("EBM-DPAR", "2026-07-29")
+        s3 = FakeS3({key: (self._W1C / "euronext_ebm_table.html").read_bytes()})
+        bronze, stats = TASK.load_euronext_capture(s3, "b", key)
+        assert len(bronze) == 12                       # the 12 rendered EBM expiries
+        assert set(bronze["leviathan_slug"]) == {"french_wheat_matif"}
+        assert stats
+
+    def test_the_bursa_loader_reaches_the_other_halves_builder(self):
+        key = raw_bursa_key("FCPO", "2026-07-29")
+        s3 = FakeS3({key: (self._W1C / "bursa_fcpo_api_sample.json").read_bytes()})
+        bronze, stats = TASK.load_bursa_capture(s3, "b", key)
+        assert len(bronze) == 24                       # the 24 listed delivery months
+        assert set(bronze["leviathan_slug"]) == {"malaysian_crude_palm_oil_cme"}
+        assert stats
+
+    def test_a_key_missing_its_identity_segment_refuses_to_guess(self):
+        for loader, key in ((TASK.load_euronext_capture, "raw/production/source=euronext/x.html"),
+                            (TASK.load_bursa_capture, "raw/production/source=bursa/x.json")):
+            with pytest.raises(ValueError, match="product=|code="):
+                loader(FakeS3(), "b", key)
 
 
 # ---------------------------------------------------------------------------
@@ -167,11 +222,29 @@ class TestHostEndToEnd:
         for source in ("jse", "cepea", "miax"):
             assert self._run(monkeypatch, {}, "--source", source, "--mode", "backfill") == 1
 
-    def test_every_source_is_implemented_and_none_is_left_declared_only(self):
-        assert set(TASK._SOURCE_SPECS) == {"databento", "czce", "jse", "cepea", "miax"}
-        for name, spec in TASK._SOURCE_SPECS.items():
+    # The legs whose bronze -> silver projection exists, and the W1c legs whose raw -> bronze half
+    # has landed while theirs has not. The split is PINNED rather than tolerated: a declared-only
+    # leg is legal exactly while it refuses to run and names the module still to be written.
+    _SILVER_COMPLETE = {"databento", "czce", "jse", "cepea", "miax"}
+    _W1C_DECLARED = {"dce", "euronext", "bursa"}
+
+    def test_every_shipped_source_is_implemented_and_the_rest_declare_it(self):
+        assert set(TASK._SOURCE_SPECS) == self._SILVER_COMPLETE | self._W1C_DECLARED
+        for name in sorted(self._SILVER_COMPLETE):
+            spec = TASK._SOURCE_SPECS[name]
             assert spec.implemented, f"{name} is still declared-only"
             assert TASK._silver_builder(name) is not None
+        for name in sorted(self._W1C_DECLARED):
+            spec = TASK._SOURCE_SPECS[name]
+            assert not spec.implemented, f"{name} claims to be implemented -- wire its builder"
+            assert "bronze_to_silver" in spec.todo, f"{name}'s todo must name the module to write"
+            with pytest.raises(NotImplementedError, match="bronze_to_silver"):
+                TASK._silver_builder(name)
+
+    def test_a_declared_only_source_refuses_before_any_aws_call(self, monkeypatch):
+        """The yfinance lesson: a leg that is not wired must FAIL, never write nothing quietly."""
+        for source in sorted(self._W1C_DECLARED):
+            assert self._run(monkeypatch, {}, "--source", source, "--mode", "backfill") == 1
 
     def test_each_leg_writes_only_its_own_publication_source(self):
         """The floor scopes rows by source EQUALITY, so a leg that wrote a foreign source value

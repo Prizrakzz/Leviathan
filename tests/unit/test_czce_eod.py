@@ -301,12 +301,19 @@ class TestHostDispatch:
     proof it stayed byte-compatible; these are the new seams."""
 
     def test_every_declared_source_has_a_spec_and_a_floor_story(self):
-        assert set(TASK._SOURCE_SPECS) == {"databento", "czce", "jse", "cepea", "miax"}
+        assert set(TASK._SOURCE_SPECS) == {"databento", "czce", "jse", "cepea", "miax",
+                                           "dce", "euronext", "bursa"}
         assert TASK._SOURCE_SPECS["czce"].rows_per_day == 10
         assert TASK._SOURCE_SPECS["jse"].rows_per_day == 14
         assert TASK._SOURCE_SPECS["cepea"].rows_per_day == 2
         assert TASK._SOURCE_SPECS["cepea"].rows_per_day_exact is True
         assert TASK._SOURCE_SPECS["miax"].rows_per_day == 6
+        # W1c. Euronext and Bursa carry MEASURED floors (32 and 24 rows observed live, floored at
+        # 24 and 20); DCE deliberately carries NONE, because only one of its five varieties was
+        # ever captured and a guessed whole-day floor is the F-C trap.
+        assert TASK._SOURCE_SPECS["euronext"].rows_per_day == 24
+        assert TASK._SOURCE_SPECS["bursa"].rows_per_day == 20
+        assert TASK._SOURCE_SPECS["dce"].rows_per_day == 0
         # The Databento unit floor is a DIFFERENT measurement and must not have leaked across.
         assert TASK._SOURCE_SPECS["databento"].rows_per_day == 0
         assert TASK._SOURCE_SPECS["databento"].min_rows_per_unit == TASK._MIN_ROWS_PER_UNIT == 25
@@ -331,29 +338,27 @@ class TestHostDispatch:
         from leviathan.transforms.bronze_to_silver.databento_eod import build_databento_eod_silver
         assert TASK._silver_builder("databento") is build_databento_eod_silver
 
-    def test_all_five_declared_legs_are_now_implemented(self):
+    def test_the_five_free_legs_are_implemented_and_the_w1c_three_are_not_yet(self):
         """jse / cepea / miax were declared-but-unimplemented when the CZCE leg landed and are
         implemented now (W1a + W1b). Their parse suites are tests/unit/test_{jse_safex,cepea,
-        miax}_eod.py; what this pins is that the DISPATCH has no declared-only holes left."""
-        for source in sorted(TASK._SOURCE_SPECS):
+        miax}_eod.py. W1c's three (dce / euronext / bursa) landed their raw->bronze half only, so
+        what this pins is that the dispatch has no ACCIDENTAL holes -- every leg is either wired
+        end to end or explicitly declared-only."""
+        for source in ("databento", "czce", "jse", "cepea", "miax"):
             assert TASK._SOURCE_SPECS[source].implemented is True, source
             assert TASK._silver_builder(source) is not None
+        for source in ("dce", "euronext", "bursa"):
+            assert TASK._SOURCE_SPECS[source].implemented is False, source
+            assert "bronze_to_silver" in TASK._SOURCE_SPECS[source].todo
 
     def test_an_undeclared_leg_names_what_is_missing(self):
-        """The declared-but-unimplemented path still exists for the next leg (bursa is W1c-bound
-        behind a Cloudflare JS challenge), so the error that names the missing module is exercised
-        against a synthetic spec rather than left untested until someone needs it."""
+        """Two different refusals, and they must not be confused: a source that is not in the table
+        at all is a ValueError, while a source that IS declared but has no silver projection yet
+        raises a NotImplementedError carrying the module to write."""
         with pytest.raises(ValueError, match="unknown --source"):
-            TASK.source_spec("bursa")
-        pending = TASK._SOURCE_SPECS["czce"]._replace(
-            name="bursa", job="futures_eod_bursa", implemented=False,
-            todo="a browser producer on Fargate -- the zone is behind a Cloudflare JS challenge")
-        try:
-            TASK._SOURCE_SPECS["bursa"] = pending
-            with pytest.raises(NotImplementedError, match="not implemented|Still needed"):
-                TASK._silver_builder("bursa")
-        finally:
-            TASK._SOURCE_SPECS.pop("bursa", None)
+            TASK.source_spec("shfe")
+        with pytest.raises(NotImplementedError, match="not implemented|Still needed"):
+            TASK._silver_builder("bursa")
 
     def test_build_silver_still_defaults_to_databento(self):
         """--source's default keeps every landed W2 invocation byte-identical."""
@@ -582,9 +587,19 @@ class TestHostEndToEnd:
         pending = TASK._SOURCE_SPECS["czce"]._replace(
             name="bursa", job="futures_eod_bursa", publication_sources=("bursa",),
             implemented=False, todo="a browser producer on Fargate (W1c)")
-        try:
-            TASK._SOURCE_SPECS["bursa"] = pending
-            assert TASK.main(["--source", "bursa", "--bucket", "b",
-                              "--aws-region", "us-east-1"]) == 1
-        finally:
-            TASK._SOURCE_SPECS.pop("bursa", None)
+        # setitem, NOT try/finally + pop. bursa is a REAL spec now that W1c has landed it, so the
+        # pop DELETED the leg instead of restoring it -- harmless only because this happens to be
+        # the last test in the file and each test module loads the task under its own
+        # spec_from_file_location name. Appending any test here, or unifying those loader names,
+        # would break every set(_SOURCE_SPECS) assertion downstream of it.
+        monkeypatch.setitem(TASK._SOURCE_SPECS, "bursa", pending)
+        assert TASK.main(["--source", "bursa", "--bucket", "b",
+                          "--aws-region", "us-east-1"]) == 1
+        assert TASK._SOURCE_SPECS["bursa"] is pending
+
+    def test_the_real_bursa_spec_survives_the_synthetic_injection_above(self):
+        """The teardown regression, pinned: this must see the SHIPPED bursa spec, not a hole and
+        not the synthetic one. It is deliberately the test that runs after it."""
+        spec = TASK.source_spec("bursa")
+        assert spec.publication_sources == ("bursa",)
+        assert not spec.implemented and "bursa_fcpo" in spec.todo

@@ -9,12 +9,17 @@ this module parses both:
     a one-row HTML table with the LAST published value only. Parsed by
     :func:`build_cepea_widget_bronze`;
   * the ONE-SHOT history recovery -- a legacy ``.xls`` pulled from web.archive.org, one snapshot of
-    which carries an entire series (arabica 1996-09-02 .. 2025-06-08, 5,193+ rows; Campinas corn
-    2004-08-02 .. 2025-06-14, 5,200 rows). Parsed by :func:`build_cepea_history_bronze`.
+    which carries the series to its CAPTURE date. The newest captures that exist are **2017**
+    (arabica 1996-09-02 .. 2017-07-07, 5,189 data rows; Campinas corn 2004-08-02 .. 2017-10-26,
+    3,296 data rows -- spans MEASURED off the landed bytes, corrected 2026-07-29; the earlier
+    2025-coverage claim here came from trusting a requested wayback timestamp that had no capture
+    behind it). Parsed by :func:`build_cepea_history_bronze`.
 
-Between the archive snapshot and the first daily run there is a ~13-month hole. That gap is
-DOCUMENTED and ACCEPTED (plan W1a), covered by forward accumulation from the first run -- it is not
-a defect to engineer around, and nothing here fabricates a value to fill it.
+Between the 2017 archive captures and the first daily run (2026-07-28) there is a **~9-year hole
+in the MIDDLE of both series**. That gap is DOCUMENTED and ACCEPTED (plan W1a, corrected entry),
+covered going forward by daily accumulation -- it is not a defect to engineer around, and nothing
+here fabricates a value to fill it. Consumers must check spans before reading a window inside it;
+see fetch_cepea_wayback_history.py for the full story and the served-capture guard.
 
 Pure: pandas + xlrd + the house logger. No boto3, no S3, no network, no requests.
 
@@ -295,18 +300,20 @@ def _history_date(value) -> Optional[str]:
 
 
 def build_cepea_history_bronze(payload: bytes, *, indicator_id: int,
-                               snapshot_ts: Optional[str] = None) -> tuple[pd.DataFrame, dict]:
+                               snapshot_ts: Optional[str] = None,
+                               payload_kind: str = "wayback") -> tuple[pd.DataFrame, dict]:
     """One archived CEPEA series workbook -> the whole series as bronze rows + a stats dict.
 
     Reads column 0 (``Data``) and column 1 (``A vista R$``) ONLY. Column 2 is ``A vista US$`` and
     is DISCARDED: it is neither converted nor stored as a second row, because a currency is not a
     mutation of this metric -- if the USD series is ever wanted it is a separate metric."""
     return build_cepea_history_from_grid(_history_grid(payload), indicator_id=indicator_id,
-                                         snapshot_ts=snapshot_ts)
+                                         snapshot_ts=snapshot_ts, payload_kind=payload_kind)
 
 
 def build_cepea_history_from_grid(grid: list[list], *, indicator_id: int,
-                                  snapshot_ts: Optional[str] = None) -> tuple[pd.DataFrame, dict]:
+                                  snapshot_ts: Optional[str] = None,
+                                  payload_kind: str = "wayback") -> tuple[pd.DataFrame, dict]:
     """The archive parse proper, over an already-read cell grid.
 
     Split from :func:`build_cepea_history_bronze` at the OLE boundary so the header resolve, the
@@ -332,13 +339,22 @@ def build_cepea_history_from_grid(grid: list[list], *, indicator_id: int,
             except ValueError:
                 skipped += 1
                 continue
+        if value <= 0.0:
+            # A zero "price" in a cash-reference series is an upstream placeholder, not a print.
+            # Measured 2026-07-29: the 2017 corn export carries 30/12/2004 = 0.0/0.0 where CEPEA's
+            # current record prints 17.37 (curve-consistent between 17.36 and 17.03) -- the one
+            # row, out of 8,487 overlapping days, on which the archive and the live export
+            # disagreed. Keeping the zero would either publish a fake price or (with both
+            # payloads landed) trip F2 uniqueness on a placeholder. Absence is absence.
+            skipped += 1
+            continue
         rows.append({
             "trade_date": day,
             "leviathan_slug": slug,
             "indicator_id": int(indicator_id),
             "value_brl": value,
             "unit_text": "",
-            "payload_kind": "wayback",
+            "payload_kind": payload_kind,
         })
     if not rows:
         raise ValueError(
@@ -349,7 +365,7 @@ def build_cepea_history_from_grid(grid: list[list], *, indicator_id: int,
     stats = {
         "indicator_id": int(indicator_id),
         "leviathan_slug": slug,
-        "payload_kind": "wayback",
+        "payload_kind": payload_kind,
         "snapshot_ts": snapshot_ts,
         "header_row": start - 1,
         "rows_kept": int(len(df)),

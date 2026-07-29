@@ -40,6 +40,7 @@ def _load(rel: str, name: str):
 TASK = _load("jobs/batch/futures_eod_task.py", "futures_eod_task_cepea")
 FETCH = _load("jobs/ingest/fetch_cepea_daily.py", "fetch_cepea_daily")
 WAYBACK = _load("jobs/ingest/fetch_cepea_wayback_history.py", "fetch_cepea_wayback_history")
+LIVE = _load("jobs/ingest/fetch_cepea_live_history.py", "fetch_cepea_live_history")
 
 # The live markup, verbatim in shape. The product name is accented Portuguese in the real payload;
 # the escapes below ARE those characters, and the fact that the parser must fold them rather than
@@ -144,7 +145,7 @@ class TestWidget:
 class TestHistory:
     def test_the_series_parses_and_the_usd_column_is_discarded(self):
         bronze, stats = T.build_cepea_history_from_grid(history_grid(), indicator_id=23,
-                                                        snapshot_ts="20250608143948")
+                                                        snapshot_ts="20170708153249")
         assert stats["rows_kept"] == 4 and stats["first_trade_date"] == "1996-09-02"
         assert stats["last_trade_date"] == "2025-06-06"
         # The plan's post-ship check: the arabica series' first row is 02/09/1996 123.09.
@@ -343,24 +344,130 @@ class TestProducers:
 
     def test_the_raw_keys_separate_the_two_artifact_classes(self):
         daily = raw_cepea_widget_key(23, "2026-07-29")
-        history = raw_cepea_wayback_key(23, "20250608143948")
+        history = raw_cepea_wayback_key(23, "20170708153249")
         assert daily.endswith("as_of_date=2026-07-29/widget.js")
-        assert history.endswith("history/wayback_20250608143948.xls")
+        assert history.endswith("history/wayback_20170708153249.xls")
         assert daily.startswith(cepea_indicator_prefix(23))
         assert history.startswith(cepea_indicator_prefix(23))
         assert "/history/" not in daily
         with pytest.raises(ValueError, match="14-digit"):
             raw_cepea_wayback_key(23, "2025")
 
-    def test_the_wayback_snapshots_are_the_probed_ones(self):
+    def test_the_wayback_snapshots_are_the_captures_that_actually_exist(self):
+        # These are the newest captures in the CDX index for the two export URLs (enumerated
+        # 2026-07-29). The first cut pinned 2025-shaped timestamps that have no capture at all;
+        # Wayback served the 2017 captures anyway and the lie lived in this very test.
         assert set(WAYBACK.CEPEA_SNAPSHOTS) == set(T.CEPEA_INDICATORS)
-        assert WAYBACK.CEPEA_SNAPSHOTS[23]["ts"] == "20250608143948"
-        assert WAYBACK.CEPEA_SNAPSHOTS[77]["ts"] == "20250614163045"
+        assert WAYBACK.CEPEA_SNAPSHOTS[23]["ts"] == "20170708153249"
+        assert WAYBACK.CEPEA_SNAPSHOTS[77]["ts"] == "20171027074000"
         assert "id_/" in WAYBACK.snapshot_url(23), "the id_ suffix asks for the ORIGINAL bytes"
+
+    def test_the_coverage_claim_is_the_measured_span(self):
+        # Measured off the landed bytes, not inferred from the capture date. If either of these
+        # ever reads like a recent year again, something re-introduced the wish-for-a-date bug.
+        assert WAYBACK.CEPEA_SNAPSHOTS[23]["last_row"] == "2017-07-07"
+        assert WAYBACK.CEPEA_SNAPSHOTS[77]["last_row"] == "2017-10-26"
 
     def test_a_wayback_placeholder_page_is_not_a_workbook(self):
         why = WAYBACK.looks_like_a_series_workbook(b"<html>not archived</html>")
         assert why and "not a legacy OLE workbook" in why
+
+    def test_a_nearest_capture_redirect_is_refused(self):
+        # THE defect: /web/{ts}id_/ does not 404 on an unmatched timestamp, it 200s with the
+        # NEAREST capture. Landing those bytes stamps the wrong provenance into the raw key.
+        why = WAYBACK.wrong_capture(23, "20250608143948")
+        assert why and "not the pinned" in why and "NEAREST" in why
+        assert WAYBACK.wrong_capture(23, WAYBACK.CEPEA_SNAPSHOTS[23]["ts"]) is None
+
+    def test_a_response_that_names_no_capture_is_refused(self):
+        why = WAYBACK.wrong_capture(77, None)
+        assert why and "cannot be established" in why
+
+    def test_a_zero_value_history_row_is_a_placeholder_not_a_price(self):
+        # Measured 2026-07-29: the 2017 corn export prints 30/12/2004 = 0.0/0.0 where CEPEA's
+        # current record prints 17.37 (between 17.36 and 17.03). Keeping the zero either publishes
+        # a fake price or trips F2 uniqueness against the live series. Absence is absence.
+        grid = history_grid(rows=[
+            ["29/12/2004", "17,36", "6,46"],
+            ["30/12/2004", 0.0, 0.0],
+            ["03/01/2005", "17,03", "6,37"],
+        ])
+        bronze, stats = T.build_cepea_history_from_grid(grid, indicator_id=77)
+        assert stats["rows_kept"] == 2 and stats["rows_skipped"] == 1
+        assert "2004-12-30" not in {str(d)[:10] for d in bronze["trade_date"]}
+
+    def test_history_payload_kind_is_parameterized_for_the_live_leg(self):
+        # A live workbook's bronze rows must not wear "wayback" -- provenance travels in the data.
+        grid = history_grid()
+        bronze, stats = T.build_cepea_history_from_grid(grid, indicator_id=23,
+                                                        payload_kind="live")
+        assert stats["payload_kind"] == "live"
+        assert set(bronze["payload_kind"]) == {"live"}
+        bronze2, stats2 = T.build_cepea_history_from_grid(grid, indicator_id=23)
+        assert stats2["payload_kind"] == "wayback"
+
+    def test_the_live_leg_lands_under_its_own_stem_and_key(self):
+        # live_ vs wayback_: a raw key must never wear a provenance it does not have.
+        from leviathan.storage.paths import raw_cepea_live_key
+
+        key = raw_cepea_live_key(23, "20260729190000")
+        assert key.endswith("history/live_20260729190000.xls")
+        assert "/history/" in key
+        with pytest.raises(ValueError, match="14-digit"):
+            raw_cepea_live_key(23, "2026")
+
+    def test_the_live_leg_refuses_a_stale_or_foreign_series(self):
+        # (d) a series that does not reach past the hole is a stale export wearing a live_ stem;
+        # (e) a join-row mismatch means it is not the same series at all. Both must refuse.
+        def workbook_rows(last_iso, join_value):
+            rows = [["irrelevant banner"], ["Data", "À vista R$", "À vista US$"],
+                    ["02/09/1996", "123.09", "121.15"],
+                    ["07/07/2017", join_value, "136.18"]]
+            d = last_iso.split("-")
+            rows.append([f"{d[2]}/{d[1]}/{d[0]}", "1782.18", "348.22"])
+            return rows
+
+        real_grid = LIVE._grid  # noqa: SLF001 -- swap the OLE reader for a grid stub
+        try:
+            LIVE._grid = lambda payload: workbook_rows("2017-08-01", "447.23")
+            payload = LIVE._OLE_MAGIC + b"\x00" * LIVE._MIN_BYTES
+            why = LIVE.refuse_reason(23, payload)
+            assert why and "does not reach past the hole" in why
+
+            LIVE._grid = lambda payload: workbook_rows("2026-07-28", "999.99")
+            why = LIVE.refuse_reason(23, payload)
+            assert why and "not the same series" in why
+
+            LIVE._grid = lambda payload: workbook_rows("2026-07-28", "447.23")
+            assert LIVE.refuse_reason(23, payload) is None
+        finally:
+            LIVE._grid = real_grid
+
+    def test_the_live_leg_carries_its_license_and_its_never_schedule_posture(self):
+        # The CC BY-NC grant and the one-shot posture are part of the LEG, not tribal knowledge.
+        assert "CC BY-NC 4.0" in LIVE._LICENSE
+        assert "CEPEA" in LIVE._ATTRIBUTION
+        assert "cepea.org.br" in LIVE.live_url(23) and "www." not in LIVE.live_url(23)
+        assert set(LIVE.CEPEA_LIVE_SERIES) == set(T.CEPEA_INDICATORS)
+        from leviathan.common.constants import MIN_RAW_FILE_SIZES
+
+        assert MIN_RAW_FILE_SIZES["cepea_live"] == 100_000
+
+    def test_the_served_capture_is_read_off_the_redirect_and_cross_checked(self):
+        class Resp:
+            def __init__(self, url, headers):
+                self.url, self.headers = url, headers
+
+        target = "http://www.cepea.esalq.usp.br/br/indicador/series/cafe.aspx?id=23"
+        agreeing = Resp(f"https://web.archive.org/web/20170708153249id_/{target}",
+                        {"Memento-Datetime": "Sat, 08 Jul 2017 15:32:49 GMT"})
+        assert WAYBACK.served_capture_ts(agreeing) == "20170708153249"
+        # No Memento header: the URL alone still establishes the capture.
+        assert WAYBACK.served_capture_ts(Resp(agreeing.url, {})) == "20170708153249"
+        # Header and URL disagreeing means the response cannot be trusted at all.
+        conflicted = Resp(agreeing.url, {"Memento-Datetime": "Mon, 08 Jun 2025 14:39:48 GMT"})
+        with pytest.raises(ValueError, match="disagrees with itself"):
+            WAYBACK.served_capture_ts(conflicted)
 
     def test_the_size_floors_are_wired(self):
         from leviathan.common.constants import MIN_RAW_FILE_SIZES
