@@ -637,7 +637,7 @@ def gate7_front_month_parity(eod: pd.DataFrame, flat: pd.DataFrame, *,
     SELECTION + FLOORS (measured 2026-07-29, four-way corn comparison): the reference lane rolls
     BY VOLUME and its "close" is the settlement print -- front-by-volume x settle reproduced it
     with median 0.00000 (exact), while the D8 front-by-OI choice sits ~2.1% away (a calendar
-    spread, not an error). The parity selection is therefore FR.legacy_volume_front -- emulate
+    spread, not an error). The parity selection is therefore FR.legacy_lane_front (nearest eligible month) -- emulate
     the lane being retired, not the serving rule. Floors are per-lane: GLBX carries real
     settlements and must match near-exactly (0.005); ICE settlements were NOT purchased
     ($1,960), our ICE settle IS the venue close, and the reference prints settlements -- the
@@ -646,7 +646,7 @@ def gate7_front_month_parity(eod: pd.DataFrame, flat: pd.DataFrame, *,
     later increment)."""
     if flat is None or flat.empty:
         return ["(7) silver_futures_prices frame is empty"], {}
-    front = FR.legacy_volume_front(eod)
+    front = FR.legacy_lane_front(eod)
     if front.empty:
         return ["(7) the D8 front-month rule selected NO contracts"], {}
     flat = flat.copy()

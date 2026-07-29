@@ -197,6 +197,6 @@ class TestFLFence:
         # (measured: yfinance rolls by volume and prints settlements; front-by-volume x settle
         # reproduced it exactly, front-by-OI sits ~2.1% away as a calendar spread). The fence's
         # intent is unchanged -- the selection lives in the roll MODULE, never re-derived inline.
-        assert "FR.legacy_volume_front(" in text
+        assert "FR.legacy_lane_front(" in text
         for tok in cc._ROLL_RULE_FORBIDDEN_TOKENS:
             assert tok not in text

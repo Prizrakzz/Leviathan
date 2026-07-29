@@ -329,30 +329,37 @@ class TestGate6CrossTab:
 
 
 def _parity_dates() -> list[pd.Timestamp]:
-    """30 quoted dates spread over a 40-business-day span -- sparse, so the same fixture also
-    satisfies gate 4's no-forward-fill assertion."""
-    return [x for i, x in enumerate(_bdays("2026-01-05", 40)) if i % 4]
+    """30 quoted dates spanning FEBRUARY-APRIL 2026 -- sparse (gate 4's no-forward-fill also
+    feeds on this fixture), and deliberately CROSSING the March delivery month so the nearest
+    eligible month genuinely changes: the legacy lane (measured 2026-07-29) holds the NEAREST
+    contract until it leaves eligibility, so the fixture's roll must come from the calendar,
+    not from an activity flip."""
+    return [x for i, x in enumerate(_bdays("2026-02-02", 40)) if i % 4]
 
 
 def _parity_pair(*, drift: float = 0.0):
-    """A 12-slug eod frame + the matching flat silver_futures_prices frame."""
+    """A 12-slug eod frame + the matching flat silver_futures_prices frame.
+
+    The flat lane follows the NEAREST eligible month (the measured yfinance convention) and
+    splices when March-2026 leaves eligibility in April. Activity (volume AND open interest)
+    deliberately sits on the WRONG (far) contract for the first half -- the measured
+    soyoil/soymeal case, where the volume leader migrates early while the lane stays on the
+    near month -- so this fixture FAILS under any activity-based emulation and passes only
+    under nearest-eligible-month."""
     d = _parity_dates()
     n = len(d)
-    half = n // 2
+    half = sum(1 for x in d if x < pd.Timestamp("2026-04-01"))
     eod_frames, flat_rows = [], []
     for slug in G.PARITY_SLUGS:
         near = np.linspace(100.0, 110.0, n)
         far = near * 1.10                      # the next delivery month sits 10% higher
-        # BOTH activity metrics move together: the GLBX slugs roll by open interest and the ICE
-        # ones by volume, so a fixture that only populated one would silently degrade half the set
-        # to the nearest-month tie-break (exactly the F-L failure this gate exists to catch).
-        front_first = [9000] * half + [10] * (n - half)
-        front_second = [10] * half + [9000] * (n - half)
-        eod_frames.append(rows(slug, "2026-03", d, settle=near, oi=front_first,
-                               volume=front_first, symbol=f"{slug}-H"))
-        eod_frames.append(rows(slug, "2026-05", d, settle=far, oi=front_second,
-                               volume=front_second, symbol=f"{slug}-K"))
-        # The flat continuous series follows the front contract and SPLICES at the roll.
+        activity_far = [9000] * n              # activity leads on the FAR month throughout
+        activity_near = [10] * n
+        eod_frames.append(rows(slug, "2026-03", d, settle=near, oi=activity_near,
+                               volume=activity_near, symbol=f"{slug}-H"))
+        eod_frames.append(rows(slug, "2026-05", d, settle=far, oi=activity_far,
+                               volume=activity_far, symbol=f"{slug}-K"))
+        # The flat continuous follows the NEAREST month and SPLICES when March expires.
         flat_close = list(near[:half] * (1 + drift)) + list(far[half:] * (1 + drift))
         flat_rows.append(pd.DataFrame({"date": d, "leviathan_slug": slug, "close": flat_close}))
     eod = pd.concat(eod_frames, ignore_index=True)
