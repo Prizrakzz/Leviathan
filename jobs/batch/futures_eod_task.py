@@ -159,7 +159,6 @@ from leviathan.transforms.raw_to_bronze.databento_eod import (  # noqa: E402
     decode_dbn,
     glbx_settle_coverage,
     join_glbx_statistics,
-    probe_ice_bar_rule,
     root_years,
     statistics_join_diagnostics,
     symbology_from_artifact,
@@ -661,7 +660,8 @@ def load_unit_bronze(s3_client, bucket: str, *, dataset: str, root: str, year: i
         bronze = join_glbx_statistics(bronze, stat_df)
         stats["glbx_settle_coverage"] = glbx_settle_coverage(bronze)
     else:
-        stats["ice_probe"] = probe_ice_bar_rule(bronze)
+        # stats["ice_probe"] arrives from build_ohlcv_bronze, measured PRE-dedupe -- re-probing
+        # the deduped bronze here is self-blinding (dup_keys 0 by construction; shipped once).
         bronze = apply_ice_settle(bronze)
     return bronze, stats
 

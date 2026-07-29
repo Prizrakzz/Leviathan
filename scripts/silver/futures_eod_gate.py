@@ -69,6 +69,7 @@ from leviathan.silver import futures_roll as FR  # noqa: E402
 from leviathan.transforms.raw_to_bronze.databento_eod import ICE_BAR_RULE, ROOT_MAP  # noqa: E402
 
 SLUG_TO_ROOT: dict[str, str] = {slug: root for root, (_ds, slug) in ROOT_MAP.items()}
+from leviathan.transforms.raw_to_bronze.databento_eod import ICE_DATASETS  # noqa: E402
 
 # --- gate 3: the plan's measured outright ohlcv-1d bar counts (lines 574-589) -------------------
 # Spot-check years only -- that is what the plan measured. Encoded as a CONSTANT so a drift in the
@@ -381,27 +382,76 @@ def gate2_dropped_symbols(manifests: list[dict]) -> tuple[list[str], dict]:
 # ---------------------------------------------------------------------------
 # gate 3 -- bar-count reconciliation vs the plan's table
 # ---------------------------------------------------------------------------
-def gate3_bar_counts(df: pd.DataFrame, *, tolerance: float = BAR_TOLERANCE) -> tuple[list[str], dict]:
+def gate3_bar_counts(df: pd.DataFrame, *, tolerance: float = BAR_TOLERANCE,
+                     ice_raw_counts: Optional[dict] = None) -> tuple[list[str], dict]:
+    """BASIS (corrected 2026-07-29): EXPECTED_BARS is the plan's per-year table of RAW ohlcv
+    bars -- measured pre-dedupe (CC/2019 raw file: 3,887 rows vs the table's 3,871, +0.4%).
+    For ICE roots the silver row count is POST-dedupe (~35-46% lower: the F2 double bar is
+    real in batch files), so comparing silver rows against the raw table failed every ICE
+    unit by construction. ICE roots therefore compare on ``ice_raw_counts`` -- pre-dedupe
+    row counts read from the raw payloads -- and GLBX (no doubles: silver == raw) stays on
+    the silver frame. A gated ICE unit with no raw count FAILS: an unmeasurable basis must
+    never read as a passing one."""
     if "leviathan_slug" not in df.columns:
         return ["(3) frame is missing leviathan_slug"], {}
     work = df.copy()
     work["root"] = work["leviathan_slug"].map(SLUG_TO_ROOT)
     work["year"] = pd.to_datetime(work["trade_date"], errors="coerce").dt.year
     observed = work.groupby(["root", "year"]).size()
+    ice_roots = {r for r, (ds, _s) in ROOT_MAP.items() if ds in ICE_DATASETS}
     rows, fails = [], []
     for (root, year), expected in sorted(EXPECTED_BARS.items()):
-        got = int(observed.get((root, year), 0))
-        rel = (got - expected) / expected if expected else None
+        basis = "raw" if root in ice_roots else "silver"
+        if basis == "raw":
+            got = (ice_raw_counts or {}).get((root, year))
+        else:
+            got = int(observed.get((root, year), 0))
+        rel = ((got - expected) / expected) if (expected and got is not None) else None
         gated = year not in PARTIAL_YEARS and (root, year) not in RECORDED_NOT_GATED
         rec = {"root": root, "year": year, "expected": expected, "observed": got,
-               "rel_diff": round(rel, 4) if rel is not None else None, "gated": gated}
+               "basis": basis, "rel_diff": round(rel, 4) if rel is not None else None,
+               "gated": gated}
         rows.append(rec)
-        if gated and (rel is None or abs(rel) > tolerance):
+        if gated and got is None:
+            fails.append(f"(3) {root}/{year}: NO raw bar count available for the ICE basis "
+                         f"(supply --manifest-uri; an unmeasurable basis is not a pass)")
+        elif gated and (rel is None or abs(rel) > tolerance):
             fails.append(f"(3) {root}/{year}: {got} bars vs expected {expected} "
-                         f"({(rel or 0) * 100:+.1f}%, tolerance +/-{tolerance * 100:.0f}%)")
+                         f"({(rel or 0) * 100:+.1f}%, tolerance +/-{tolerance * 100:.0f}%, "
+                         f"basis={basis})")
     return fails, {"rows": rows, "tolerance": tolerance,
                    "partial_years_recorded_not_gated": sorted(PARTIAL_YEARS),
                    "pairs_recorded_not_gated": sorted(f"{r}/{y}" for r, y in RECORDED_NOT_GATED)}
+
+
+def load_ice_raw_bar_counts(s3, bucket: str, manifest_prefix: str) -> dict:
+    """Pre-dedupe row counts per ICE ``(root, year)``, decoded from the raw ohlcv payloads.
+
+    The gate's ONLY use of the vendor package; S3-direct, no Athena. Fails loudly if the
+    package is unavailable -- gate 3's ICE basis would silently vanish otherwise."""
+    from leviathan.transforms.raw_to_bronze.databento_eod import DATASET_SLUGS as _DS
+    try:
+        from databento import DBNStore
+    except ImportError as exc:
+        raise RuntimeError("gate 3's ICE raw basis needs the databento package") from exc
+    counts: dict = {}
+    pfx = manifest_prefix.rstrip("/") + "/"
+    paginator = s3.get_paginator("list_objects_v2")
+    ice_slugs = {_DS[ds] for ds in ICE_DATASETS}
+    for page in paginator.paginate(Bucket=bucket, Prefix=pfx):
+        for obj in page.get("Contents", []):
+            k = obj["Key"]
+            if not k.endswith(".dbn.zst") or "ohlcv-1d_" not in k:
+                continue
+            parts = dict(seg.split("=", 1) for seg in k.split("/") if "=" in seg)
+            if parts.get("dataset") not in ice_slugs:
+                continue
+            root, year = parts.get("root"), parts.get("year")
+            if not root or not year:
+                continue
+            body = s3.get_object(Bucket=bucket, Key=k)["Body"].read()
+            counts[(root, int(year))] = len(DBNStore.from_bytes(body).to_df())
+    return counts
 
 
 # ---------------------------------------------------------------------------
@@ -771,7 +821,14 @@ def evaluate(*, eod: pd.DataFrame = None, manifests: list[dict] = None,
     has_eod = eod is not None and len(eod) > 0
     _run(1, lambda: gate1_uniqueness(eod), has_eod)
     _run(2, lambda: gate2_dropped_symbols(manifests or []), manifests is not None)
-    _run(3, lambda: gate3_bar_counts(eod), has_eod)
+    ice_raw_counts = None
+    if manifest_uri:
+        try:
+            _b, _k = split_s3_uri(manifest_uri)
+            ice_raw_counts = load_ice_raw_bar_counts(s3, _b, _k)
+        except Exception as e:  # noqa: BLE001 -- gate 3 then fails per-unit with the reason
+            print(f"WARN: ICE raw bar counts unavailable ({type(e).__name__}: {e})")
+    _run(3, lambda: gate3_bar_counts(eod, ice_raw_counts=ice_raw_counts), has_eod)
     _run(4, lambda: gate4_no_forward_fill(eod), has_eod)
     _run(5, lambda: gate5_ifeu_sanity(eod), has_eod)
     _run(6, lambda: gate6_settle_kind_cross_tab(eod), has_eod)
@@ -837,8 +894,10 @@ def render_report(art: dict) -> str:
         L.append("gate 3 detail (root/year expected vs observed):")
         for r in d3["rows"]:
             tag = "gated" if r["gated"] else "recorded"
-            L.append(f"  {r['root']:<4s} {r['year']}  exp={r['expected']:<6d} obs={r['observed']:<6d} "
-                     f"rel={0 if r['rel_diff'] is None else r['rel_diff'] * 100:+.1f}%  [{tag}]")
+            obs = "MISSING" if r["observed"] is None else str(r["observed"])
+            rel = 0 if r["rel_diff"] is None else r["rel_diff"] * 100
+            L.append(f"  {r['root']:<4s} {r['year']}  exp={r['expected']:<6d} obs={obs:<7s} "
+                     f"rel={rel:+.1f}%  basis={r.get('basis', 'silver')}  [{tag}]")
     d5 = (art["gates"].get("5") or {}).get("detail") or {}
     if d5.get("degenerate_clause2"):
         L.append("")

@@ -324,14 +324,18 @@ MAX_DBN_VERSION = 3
 # off-exchange XOFF feed (IFEU 57/84, IFUS 97/98) -- which would also explain the observed
 # VARIABILITY (RC FMX0026! = 1,2,2,1,1: an off-exchange bar exists only on days with block prints).
 #
-# ***  PROBE P3 ON REAL PURCHASED DATA CONFIRMS OR FLIPS THIS CONSTANT.  ***
-# Run P3 (see the gate's `--probe-ice-rule` output) on the shadow bars BEFORE any registered
-# publish: if the duplicate pair splits 57/84 or 97/98, set ICE_BAR_RULE to
-# "prefer_on_venue_publisher" -- deterministic, needs no timestamp heuristic, and an XOFF bar is a
-# real but DIFFERENT market (block/EFP), so dropping it is a modelling choice rather than a dedupe.
-# Either way gate 1 asserts POST-dedupe (trade_date, raw_symbol) uniqueness table-wide and any
-# surviving duplicate is a hard fail, never a silent dedupe.
-ICE_BAR_RULE = "keep_last_by_ts_event"
+# ***  PROBE P3 RESOLVED ON REAL PURCHASED DATA (2026-07-29): FLIPPED.  ***
+# Measured on KC/2025 raw batch bars: 3,350 of 4,700 rows sit in (raw_symbol, trade_date)
+# duplicate pairs, EVERY pair splits by publisher (venue 97 vs XOFF 98), and under the
+# provisional keep_last_by_ts_event the kept side was a 62/38 RANDOM MIX (XOFF printed later
+# 1,037 times, venue later 638) -- worse than either pure rule. The venue-vs-XOFF close
+# divergence is 0.72% MEDIAN with some XOFF closes zero/undefined sentinels, which is exactly
+# gate 7's measured 0.8-5% parity drift vs the yfinance venue closes and gate 5's bar-internal
+# inconsistencies. prefer_on_venue_publisher is deterministic, needs no timestamp heuristic,
+# and an XOFF bar is a real but DIFFERENT market (block/EFP), so dropping it is a modelling
+# choice rather than a dedupe. Either way gate 1 asserts POST-dedupe uniqueness table-wide and
+# any surviving duplicate is a hard fail, never a silent dedupe.
+ICE_BAR_RULE = "prefer_on_venue_publisher"
 ICE_BAR_RULES: tuple[str, ...] = ("keep_last_by_ts_event", "prefer_on_venue_publisher")
 # databento.common.publishers, verified numerically: the on-venue and off-exchange publisher ids.
 ICE_ON_VENUE_PUBLISHER_IDS: frozenset[int] = frozenset({57, 97})    # IFEU_IMPACT_IFEU, IFUS_IMPACT_IFUS
@@ -512,15 +516,21 @@ def build_ohlcv_bronze(
     work["settle_flags"] = pd.Series([pd.NA] * len(work), dtype="Int64")
 
     dedupe_stats = None
+    ice_probe = None
     if dataset in ICE_DATASETS:
+        # PROBE P3 runs on the PRE-dedupe frame -- probing the deduped output is self-blinding
+        # (dup_keys is 0 by construction after the collapse; that exact mistake shipped and
+        # reported "no double bars in batch files" on 2026-07-29 while the dedupe was quietly
+        # collapsing ~40% of ICE rows).
+        ice_probe = probe_ice_bar_rule(work)
         work, dedupe_stats = dedupe_ice_bars(work, rule=ice_bar_rule)
 
     out = work[BRONZE_COLUMNS].sort_values(["raw_symbol", "trade_date"], kind="mergesort")
     out = out.reset_index(drop=True)
     stats = {"rows_in": int(len(df)), "rows_out": int(len(out)),
              "outright_symbols": len(keep), "dropped_symbols": len(drop),
-             "ice_dedupe": dedupe_stats, "root": root, "dataset": dataset,
-             "year": int(request_year)}
+             "ice_dedupe": dedupe_stats, "ice_probe": ice_probe, "root": root,
+             "dataset": dataset, "year": int(request_year)}
     logger.info("databento ohlcv %s/%s: %d rows, %d outright symbols, %d dropped",
                 root, request_year, len(out), len(keep), len(drop))
     return out, stats
