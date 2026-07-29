@@ -513,3 +513,39 @@ class TestLoaders:
         low = src.lower()
         assert "boto3.client(\"athena\"" not in low and "start_query_execution" not in low
         assert "pyarrow" in low
+
+
+class TestShadowPrefixListing:
+    """(2026-07-29, measured) the lister excluded /_shadow/ ABSOLUTELY, so pointing --eod-uri at
+    the shadow tree read as empty (187 real objects invisible) while the whole point of the
+    shadow phase is to gate THAT tree. Exclusion must be relative to the requested prefix."""
+
+    class _FakeS3:
+        def __init__(self, keys):
+            self._keys = keys
+
+        def get_paginator(self, _op):
+            keys = self._keys
+
+            class _P:
+                def paginate(self, Bucket, Prefix):
+                    yield {"Contents": [{"Key": k} for k in keys if k.startswith(Prefix)]}
+
+            return _P()
+
+    def _keys(self):
+        return [
+            "silver/futures_eod/leviathan_slug=corn_cbot/trade_year=2016/part-000.parquet",
+            "silver/futures_eod/_shadow/leviathan_slug=corn_cbot/trade_year=2016/part-000.parquet",
+            "silver/futures_eod/_staging/leviathan_slug=corn_cbot/trade_year=2016/part-000.parquet",
+        ]
+
+    def test_canonical_prefix_still_excludes_nested_shadow_and_staging(self):
+        keys = self._keys()
+        got = G.collect_parquet_keys(self._FakeS3(keys), "b", "silver/futures_eod")
+        assert got == [keys[0]]
+
+    def test_shadow_prefix_reads_the_shadow_tree(self):
+        keys = self._keys()
+        got = G.collect_parquet_keys(self._FakeS3(keys), "b", "silver/futures_eod/_shadow")
+        assert got == [keys[1]]

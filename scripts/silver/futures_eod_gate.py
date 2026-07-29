@@ -197,6 +197,25 @@ def _read_parquet_bytes(body: bytes) -> pd.DataFrame:
     return pq.read_table(io.BytesIO(body)).to_pandas()
 
 
+def collect_parquet_keys(s3, bucket: str, prefix: str) -> list[str]:
+    """Every ``.parquet`` key under ``prefix``, excluding ``_shadow``/``_staging`` subtrees
+    RELATIVE to the requested prefix -- not absolutely. The absolute form made
+    ``--eod-uri .../_shadow`` self-defeating: every key under it contains the marker, so the
+    shadow tree read as empty (measured 2026-07-29: 187 real objects invisible) while the whole
+    point of the shadow phase is to gate THAT tree. A canonical-prefix read still excludes its
+    nested shadow/staging subtrees via the relative path."""
+    keys: list[str] = []
+    pfx = prefix.rstrip("/") + "/"
+    paginator = s3.get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=bucket, Prefix=pfx):
+        for obj in page.get("Contents", []):
+            k = obj["Key"]
+            rel = "/" + k[len(pfx):]
+            if k.endswith(".parquet") and "/_shadow/" not in rel and "/_staging/" not in rel:
+                keys.append(k)
+    return keys
+
+
 def load_eod_frame(uri: str, s3=None) -> pd.DataFrame:
     """Read ``silver_futures_eod`` from a registered-partition tree (or a local dir / file).
 
@@ -216,13 +235,7 @@ def load_eod_frame(uri: str, s3=None) -> pd.DataFrame:
         if key.endswith(".parquet"):
             keys = [key]
         else:
-            keys = []
-            paginator = s3.get_paginator("list_objects_v2")
-            for page in paginator.paginate(Bucket=bucket, Prefix=key.rstrip("/") + "/"):
-                for obj in page.get("Contents", []):
-                    k = obj["Key"]
-                    if k.endswith(".parquet") and "/_shadow/" not in k and "/_staging/" not in k:
-                        keys.append(k)
+            keys = collect_parquet_keys(s3, bucket, key)
         for k in sorted(keys):
             df = _read_parquet_bytes(s3.get_object(Bucket=bucket, Key=k)["Body"].read())
             for pk, pv in _hive_values(k).items():
