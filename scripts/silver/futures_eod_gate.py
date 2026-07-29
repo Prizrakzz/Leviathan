@@ -103,6 +103,12 @@ BAR_TOLERANCE = 0.02
 # assertion against it would fail purely with the calendar. Recorded, never gated. Every FULL year
 # in the table above IS gated -- the gate can and must be able to fire.
 PARTIAL_YEARS = frozenset({2026})
+# Gate 7 per-lane floors (measured 2026-07-29): GLBX = real settlements, must be near-exact;
+# ICE = our settle IS the venue close (settlements unpurchased, $1,960) while the reference
+# lane prints settlements, so 0.005 is unattainable by construction. 0.02 is the measured
+# venue-close-vs-settlement envelope; retire it when the free ICE settlement source lands.
+PARITY_MEDIAN_FLOOR_ICE = 0.02
+_ICE_ROOTS = frozenset(r for r, (ds, _s) in ROOT_MAP.items() if ds in ICE_DATASETS)
 # (root, year) pairs that are RECORDED but NOT gated because the pipeline deliberately never fetches
 # them. ('KE', 2013) is the whole set: the plan measured 74 bars there and says "usable from 2014"
 # (KCBT -> CME migration), so ROOT_FIRST_DATE['KE'] is 2014-01-01, root_years('KE', ...) starts at
@@ -626,10 +632,21 @@ def gate7_front_month_parity(eod: pd.DataFrame, flat: pd.DataFrame, *,
     """Apply the D8 rule to ``silver_futures_eod`` and compare to ``silver_futures_prices.close``.
 
     Divergence AT rolls is the point and is only reported. The assertion is on the away-from-roll
-    median absolute relative difference."""
+    median absolute relative difference.
+
+    SELECTION + FLOORS (measured 2026-07-29, four-way corn comparison): the reference lane rolls
+    BY VOLUME and its "close" is the settlement print -- front-by-volume x settle reproduced it
+    with median 0.00000 (exact), while the D8 front-by-OI choice sits ~2.1% away (a calendar
+    spread, not an error). The parity selection is therefore FR.legacy_volume_front -- emulate
+    the lane being retired, not the serving rule. Floors are per-lane: GLBX carries real
+    settlements and must match near-exactly (0.005); ICE settlements were NOT purchased
+    ($1,960), our ICE settle IS the venue close, and the reference prints settlements -- the
+    measured venue-close-vs-settlement gap makes 0.005 unattainable there by construction, so
+    ICE gates at 0.02 until the free ICE Report Center settlement source lands (the plan's own
+    later increment)."""
     if flat is None or flat.empty:
         return ["(7) silver_futures_prices frame is empty"], {}
-    front = FR.front_month(eod)
+    front = FR.legacy_volume_front(eod)
     if front.empty:
         return ["(7) the D8 front-month rule selected NO contracts"], {}
     flat = flat.copy()
@@ -671,12 +688,14 @@ def gate7_front_month_parity(eod: pd.DataFrame, flat: pd.DataFrame, *,
                                        if int(rolled.sum()) else None,
                "status": "OK"}
         per_slug.append(rec)
+        slug_floor = median_floor if SLUG_TO_ROOT.get(slug) not in _ICE_ROOTS else PARITY_MEDIAN_FLOOR_ICE
+        rec["floor"] = slug_floor
         if med is None:
             fails.append(f"(7) {slug}: every compared day was a detected roll -- no away-from-roll "
                          f"sample to assert on")
-        elif med >= median_floor:
+        elif med >= slug_floor:
             fails.append(f"(7) {slug}: away-from-roll median |rel diff| {med:.5f} >= floor "
-                         f"{median_floor}")
+                         f"{slug_floor}")
     covered = {r["leviathan_slug"] for r in per_slug if r["status"] == "OK"}
     if len(covered) != len(PARITY_SLUGS):
         fails.append(f"(7) parity covered {len(covered)}/12 slugs; missing "
@@ -798,7 +817,8 @@ def gate8_chain_hooks(repo: Path = _REPO) -> tuple[list[str], dict]:
 # ---------------------------------------------------------------------------
 def evaluate(*, eod: pd.DataFrame = None, manifests: list[dict] = None,
              flat: pd.DataFrame = None, skip: set = frozenset(), repo: Path = _REPO,
-             eod_uri: str = "", manifest_uri: str = "", flat_uri: str = "") -> dict:
+             eod_uri: str = "", manifest_uri: str = "", flat_uri: str = "",
+             ice_raw_counts: dict = None) -> dict:
     """Run all eight gates and build the artifact. PURE apart from the generated_at stamp and
     gate 8's repo reads."""
     results: dict = {}
@@ -821,13 +841,6 @@ def evaluate(*, eod: pd.DataFrame = None, manifests: list[dict] = None,
     has_eod = eod is not None and len(eod) > 0
     _run(1, lambda: gate1_uniqueness(eod), has_eod)
     _run(2, lambda: gate2_dropped_symbols(manifests or []), manifests is not None)
-    ice_raw_counts = None
-    if manifest_uri:
-        try:
-            _b, _k = split_s3_uri(manifest_uri)
-            ice_raw_counts = load_ice_raw_bar_counts(s3, _b, _k)
-        except Exception as e:  # noqa: BLE001 -- gate 3 then fails per-unit with the reason
-            print(f"WARN: ICE raw bar counts unavailable ({type(e).__name__}: {e})")
     _run(3, lambda: gate3_bar_counts(eod, ice_raw_counts=ice_raw_counts), has_eod)
     _run(4, lambda: gate4_no_forward_fill(eod), has_eod)
     _run(5, lambda: gate5_ifeu_sanity(eod), has_eod)
@@ -963,10 +976,18 @@ def main(argv: list[str] | None = None) -> int:
     eod = load_eod_frame(args.eod_uri, s3) if args.eod_uri else None
     manifests = load_manifests(args.manifest_uri, s3) if args.manifest_uri else None
     flat = load_flat_frame(args.futures_prices_uri, s3) if args.futures_prices_uri else None
+    ice_raw_counts = None
+    if args.manifest_uri and s3 is not None:
+        # gate 3's ICE basis: PRE-dedupe row counts from the raw payloads (see gate3_bar_counts).
+        try:
+            _b, _k = split_s3_uri(args.manifest_uri)
+            ice_raw_counts = load_ice_raw_bar_counts(s3, _b, _k)
+        except Exception as e:  # noqa: BLE001 -- gate 3 then fails per-unit with the reason
+            print(f"WARN: ICE raw bar counts unavailable ({type(e).__name__}: {e})")
 
     art = evaluate(eod=eod, manifests=manifests, flat=flat, skip=set(args.skip or []),
                    eod_uri=args.eod_uri or "", manifest_uri=args.manifest_uri or "",
-                   flat_uri=args.futures_prices_uri or "")
+                   flat_uri=args.futures_prices_uri or "", ice_raw_counts=ice_raw_counts)
     print(render_report(art))
     if args.report_s3:
         print(f"report artifact -> {_put_report(args.report_s3, art, args.aws_region)}")

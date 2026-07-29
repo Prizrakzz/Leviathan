@@ -220,6 +220,58 @@ def front_month(df: pd.DataFrame, *, rule_version: str = ROLL_RULE_VERSION) -> p
         ["leviathan_slug", "trade_date"], kind="mergesort").reset_index(drop=True)
 
 
+def legacy_volume_front(df: pd.DataFrame) -> pd.DataFrame:
+    """FRONT-BY-VOLUME selection for the RETIREMENT-SOAK PARITY comparison ONLY. Not the D8 rule.
+
+    MEASURED 2026-07-29 (corn, last 250 sessions, four-way comparison): the yfinance continuous
+    lane ROLLS BY VOLUME and its daily "close" is the SETTLEMENT print --
+    front-by-volume x settle reproduced silver_futures_prices.close with median |rel diff|
+    0.00000 (exact), while the D8 front-by-OI choice sits ~2.1% away because the OI leader
+    shifts to the next month days before the volume leader follows. A parity gate comparing
+    the new table against that lane must therefore EMULATE THE LANE'S OWN SELECTION, or it
+    measures a calendar spread instead of decode fidelity.
+
+    Lives in THIS module -- the single home for roll selection (skeptic F-L: inline copies are
+    the failure mode) -- and shares front_month's eligibility exactly (futures rows only, not
+    yet in delivery). The serving rule remains front_month/ROLL_RULE_VERSION; this function is
+    pinned to the legacy lane and RETIRES WITH IT."""
+    cols = ["leviathan_slug", "trade_date", "contract_month"]
+    if df is None or len(df) == 0:
+        return pd.DataFrame(columns=FRONT_MONTH_COLUMNS)
+    missing = [c for c in cols if c not in df.columns]
+    if missing:
+        raise ValueError(f"legacy_volume_front: frame is missing {missing}")
+    work = df.copy()
+    for opt in ("settle", "close", "volume", "open_interest", "raw_symbol",
+                "unit", "currency", "settle_kind", "source"):
+        if opt not in work.columns:
+            work[opt] = pd.NA
+    work["trade_date"] = pd.to_datetime(work["trade_date"], errors="coerce")
+    work = work[work["trade_date"].notna()]
+    work["_month"] = _month_start(work["contract_month"])
+    work = work[work["_month"].notna()]
+    # same category guard as front_month: a cash reference has no front month
+    work["roll_method"] = work["leviathan_slug"].map(
+        {s: roll_method_for(s) for s in sorted(set(work["leviathan_slug"]))})
+    work = work[work["roll_method"] != METHOD_NONE]
+    if work.empty:
+        return pd.DataFrame(columns=FRONT_MONTH_COLUMNS)
+    work["_trade_month"] = work["trade_date"].values.astype("datetime64[M]")
+    work = work[work["_month"] >= pd.to_datetime(work["_trade_month"])]
+    if work.empty:
+        return pd.DataFrame(columns=FRONT_MONTH_COLUMNS)
+    vol = pd.to_numeric(work["volume"], errors="coerce")
+    work["_metric"] = vol.fillna(-1.0)
+    work["roll_method"] = "legacy_volume"
+    work = work.sort_values(
+        ["leviathan_slug", "trade_date", "_metric", "_month", "contract_month"],
+        ascending=[True, True, False, True, True], kind="mergesort")
+    out = work.drop_duplicates(subset=["leviathan_slug", "trade_date"], keep="first").copy()
+    out["roll_rule_version"] = ROLL_RULE_VERSION
+    return out[FRONT_MONTH_COLUMNS].sort_values(
+        ["leviathan_slug", "trade_date"], kind="mergesort").reset_index(drop=True)
+
+
 def lint_roll_rule() -> list[str]:
     """Structural problems with the rule tables (pure; the config_check bind calls this).
 
