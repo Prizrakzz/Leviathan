@@ -158,13 +158,22 @@ class TestOhlcvBronze:
         with pytest.raises(ValueError, match="does not belong"):
             T.build_ohlcv_bronze(_ohlcv([]), dataset=IFUS, root="ZC", request_year=2016)
 
-    def test_fa_violation_is_a_hard_fail(self):
-        # F-A: within one (root, year) a raw_symbol must map to exactly ONE instrument_id. F2's
-        # "the double bar is not a symbology artifact" and the statistics join key both rest on it.
+    def test_fa_same_date_ambiguity_is_a_hard_fail(self):
+        # F-A, per-date form: one symbol on two ids on the SAME date is genuinely ambiguous --
+        # the ohlcv/statistics join and F2's falsification test both key on it.
         df = _ohlcv([_bar("2016-03-01T00:00:00Z", 1, "ZCH6", 3.5),
-                     _bar("2016-03-02T00:00:00Z", 2, "ZCH6", 3.6)])
+                     _bar("2016-03-01T12:00:00Z", 2, "ZCH6", 3.6)])
         with pytest.raises(ValueError, match="F-A violated"):
             T.build_ohlcv_bronze(df, dataset=GLBX, root="ZC", request_year=2016)
+
+    def test_fa_disjoint_relisting_is_decodable_and_passes(self):
+        # AMENDED 2026-07-29, measured on ZCN4/ZC-2010 (the transform-side twin of the fetch-side
+        # KEN4 amendment): GLBX recycles instrument_ids, so one symbol on two ids on DISJOINT
+        # dates is a re-listing, not ambiguity -- every (symbol, date) still has exactly one id.
+        df = _ohlcv([_bar("2016-03-01T00:00:00Z", 1, "ZCH6", 3.5),
+                     _bar("2016-03-02T00:00:00Z", 2, "ZCH6", 3.6)])
+        out, _meta = T.build_ohlcv_bronze(df, dataset=GLBX, root="ZC", request_year=2016)
+        assert len(out) == 2
 
     def test_fa_check_is_a_no_op_on_a_clean_frame(self):
         T.assert_symbol_instrument_1to1(

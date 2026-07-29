@@ -345,26 +345,48 @@ BRONZE_COLUMNS: list[str] = [
 
 
 # ---------------------------------------------------------------------------
-# F-A: raw_symbol -> exactly ONE instrument_id within a (root, year)
+# F-A: raw_symbol -> exactly ONE instrument_id PER DATE within a (root, year)
 # ---------------------------------------------------------------------------
-def assert_symbol_instrument_1to1(df: pd.DataFrame, *, label: str) -> None:
-    """HARD FAIL if any ``raw_symbol`` maps to more than one ``instrument_id`` (skeptic F-A).
+def assert_symbol_instrument_1to1(df: pd.DataFrame, *, label: str,
+                                  ts_col: str = "ts_event") -> None:
+    """HARD FAIL if any ``(raw_symbol, date)`` maps to more than one ``instrument_id``.
 
-    F2's falsification test rests on this ("each raw_symbol maps to exactly one instrument_id, so
-    the double bar is not a symbology artifact"). If it is ever false, the ICE dedupe rule is
-    reasoning about the wrong thing and the ohlcv/statistics join keys on an ambiguous symbol --
-    so it is checked, per ``(root, year)``, at both resolve time and transform time."""
+    AMENDED 2026-07-29, the transform-side twin of the fetch-side F-A amendment (25bc746d):
+    GLBX RECYCLES instrument_ids across products, so one symbol may be carried by TWO ids on
+    DISJOINT date ranges inside a year -- measured at resolve time on KEN4/KE-2021, then again
+    HERE on ZCN4/ZC-2010 when the global 1:1 form of this check refused four roots' bronze.
+    A disjoint re-listing is fully decodable: every ``(raw_symbol, date)`` still has exactly one
+    id, the DBNStore symbology map is interval-scoped, and the ohlcv/statistics join keys on
+    ``(instrument_id, date)``. What genuinely breaks F2's falsification test and the join is one
+    symbol on two ids on the SAME date -- so that, exactly, is what is refused. Without a usable
+    ``ts_col`` the check falls back to the strict global form (fail-closed when dates are
+    unknowable). Disjoint re-listings are logged, never refused."""
     if df.empty or "raw_symbol" not in df.columns or "instrument_id" not in df.columns:
         return
-    pairs = df[["raw_symbol", "instrument_id"]].dropna().drop_duplicates()
-    counts = pairs.groupby("raw_symbol")["instrument_id"].nunique()
+    work = df[["raw_symbol", "instrument_id"]].copy()
+    if ts_col in df.columns:
+        ts = pd.to_datetime(df[ts_col], utc=True, errors="coerce")
+        work["_d"] = ts.dt.tz_localize(None).dt.normalize()
+    else:
+        work["_d"] = pd.NaT  # no timestamp -> one NaT group == the strict global check
+    pairs = work.dropna(subset=["raw_symbol", "instrument_id"]).drop_duplicates()
+    counts = pairs.groupby(["raw_symbol", "_d"], dropna=False)["instrument_id"].nunique()
     bad = counts[counts > 1]
     if len(bad):
-        detail = ", ".join(f"{sym}->{int(n)} ids" for sym, n in bad.head(10).items())
+        detail = ", ".join(f"{sym}@{str(d)[:10]}->{int(n)} ids"
+                           for (sym, d), n in bad.head(10).items())
         raise ValueError(
-            f"{label}: {len(bad)} raw_symbol(s) map to MULTIPLE instrument_ids ({detail}) -- F-A "
-            f"violated; the ohlcv/statistics join key and the F2 dedupe rule are both ambiguous"
+            f"{label}: {len(bad)} (raw_symbol, date) pair(s) map to MULTIPLE instrument_ids "
+            f"({detail}) -- F-A violated; the ohlcv/statistics join key and the F2 dedupe rule "
+            f"are both ambiguous"
         )
+    global_counts = pairs.groupby("raw_symbol")["instrument_id"].nunique()
+    recycled = global_counts[global_counts > 1]
+    if len(recycled):
+        logger.info(
+            "%s: %d symbol(s) re-listed under a new instrument_id on disjoint dates (GLBX id "
+            "recycling, decodable): %s", label, len(recycled),
+            ", ".join(str(s) for s in recycled.index[:5]))
 
 
 def dedupe_ice_bars(df: pd.DataFrame, *, rule: str = ICE_BAR_RULE) -> tuple[pd.DataFrame, dict]:
