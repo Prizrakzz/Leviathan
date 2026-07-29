@@ -937,10 +937,14 @@ def render_report(art: dict) -> str:
         L.append("")
         L.append("gate 7 distribution (away-from-roll |rel diff|):")
         for r in d7["per_slug"]:
-            L.append(f"  {r['leviathan_slug']:<28s} n={r['n']:<4d} away={r.get('n_away', 0):<4d} "
-                     f"rolls={r.get('roll_days', 0):<3d} median="
-                     f"{'n/a' if r['median_abs_rel'] is None else format(r['median_abs_rel'], '.5f')}"
-                     f"  [{r['status']}]")
+            # every numeric field is None-safe: a NO_DATA slug (e.g. a root awaiting its last
+            # vendor file) carries None counts, and the report must render, not crash
+            n = r.get("n") or 0
+            away = r.get("n_away") or 0
+            rolls = r.get("roll_days") or 0
+            med = "n/a" if r.get("median_abs_rel") is None else format(r["median_abs_rel"], ".5f")
+            L.append(f"  {r['leviathan_slug']:<28s} n={n:<4d} away={away:<4d} "
+                     f"rolls={rolls:<3d} median={med}  [{r['status']}]")
     d8 = (art["gates"].get("8") or {}).get("detail") or {}
     if d8.get("emitted_commands"):
         L.append("")
