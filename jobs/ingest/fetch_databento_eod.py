@@ -517,16 +517,64 @@ def submit_unit(client, artifact: dict, schema: str) -> dict:
     if not symbols:
         raise ValueError(f"{artifact['root']}/{artifact['year']}: refusing to submit with NO "
                          f"symbols -- an empty/None symbol set means ALL_SYMBOLS to Databento")
-    job = call_with_backoff(
-        client.batch.submit_job,
+    kwargs = dict(
         dataset=artifact["dataset"], symbols=symbols, schema=schema,
         start=artifact["window"]["start"], end=artifact["window"]["end_exclusive"],
         encoding="dbn", compression="zstd",
         stype_in="raw_symbol", stype_out="instrument_id",
         split_duration="none", split_symbols=False, delivery="download")
+
+    # IDEMPOTENT SUBMIT (measured defect, 2026-07-29). submit_job is BILLABLE and the vendor has
+    # no cancel endpoint, so a blind retry is a second charge. If the request reaches Databento
+    # but the RESPONSE is lost -- a timeout, a dropped connection, a 5xx after acceptance -- the
+    # retry creates a duplicate job for the same window. That is not hypothetical: the serial
+    # backfill produced 3 duplicates (ZR/2024 statistics, SB/2021 + SB/2024 ohlcv-1d, each pair
+    # ~30s apart, ~$2.25) and the nightly incremental would repeat the mechanism daily.
+    # So: submit ONCE, and on failure ASK the vendor whether the job actually landed before
+    # retrying. list_jobs is free.
+    try:
+        job = client.batch.submit_job(**kwargs)
+    except Exception as first_error:  # noqa: BLE001
+        logger.warning("submit %s %s/%s %s failed (%s) -- checking whether it landed before retry",
+                       artifact["dataset"], artifact["root"], artifact["year"], schema,
+                       type(first_error).__name__)
+        existing = find_submitted_job(client, artifact, schema)
+        if existing:
+            logger.warning("submit ALREADY LANDED as job_id=%s -- reusing it instead of paying "
+                           "for a duplicate", existing.get("id"))
+            return existing
+        job = call_with_backoff(client.batch.submit_job, **kwargs)
     logger.info("submitted %s %s/%s %s -> job_id=%s", artifact["dataset"], artifact["root"],
                 artifact["year"], schema, job.get("id"))
     return job
+
+
+def find_submitted_job(client, artifact: dict, schema: str) -> Optional[dict]:
+    """A live, non-expired batch job already covering this exact (dataset, root, year, schema).
+
+    The reconciliation key is the one the vendor echoes back: dataset + schema + start + the
+    first requested symbol (which pins the root). Returns None on ANY lookup failure -- the
+    caller then retries the submit, which is the safe direction: a duplicate costs money, but a
+    missing payload costs the wave."""
+    try:
+        jobs = call_with_backoff(client.batch.list_jobs)
+    except Exception:  # noqa: BLE001
+        return None
+    want_start = str(artifact["window"]["start"])[:10]
+    want_syms = set(artifact["outright_symbols"])
+    for j in jobs or []:
+        if str(j.get("state", "")).lower() == "expired":
+            continue
+        if j.get("dataset") != artifact["dataset"] or j.get("schema") != schema:
+            continue
+        if str(j.get("start") or "")[:10] != want_start:
+            continue
+        syms = j.get("symbols")
+        if isinstance(syms, str):
+            syms = [s for s in syms.split(",") if s]
+        if syms and set(syms) & want_syms:
+            return j
+    return None
 
 
 def download_job_files(client, job_id: str, out_dir: str) -> list[str]:

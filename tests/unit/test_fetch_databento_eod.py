@@ -538,3 +538,91 @@ class TestCli:
             F.load_api_key()
         assert "len=" not in caplog.text
         assert str(len("db-secret-value-xyz")) not in caplog.text
+
+
+class TestIdempotentSubmit:
+    """(2026-07-29, measured) submit_job is BILLABLE and the vendor has no cancel endpoint, so a
+    blind retry after a lost RESPONSE is a second charge. The serial backfill produced 3 such
+    duplicates (~$2.25) and the nightly incremental would repeat it daily."""
+
+    @staticmethod
+    def _art():
+        return {"dataset": "GLBX.MDP3", "root": "ZC", "year": 2016,
+                "window": {"start": "2016-01-01", "end_exclusive": "2017-01-01"},
+                "outright_symbols": ["ZCH6", "ZCZ6"]}
+
+    def test_lost_response_reuses_the_job_instead_of_paying_twice(self):
+        """The exact failure: the vendor ACCEPTED the submit, the response never arrived."""
+        landed = {"id": "GLBX-X", "state": "queued", "dataset": "GLBX.MDP3",
+                  "schema": "ohlcv-1d", "start": "2016-01-01", "symbols": ["ZCH6", "ZCZ6"]}
+
+        class C:
+            def __init__(self):
+                self.submits = 0
+
+            class _B:
+                pass
+
+            batch = None
+
+        c = C()
+        b = C._B()
+        def submit(**kw):
+            c.submits += 1
+            raise TimeoutError("response lost after the server accepted it")
+        b.submit_job = submit
+        b.list_jobs = lambda *a, **k: [landed]
+        c.batch = b
+        got = F.submit_unit(c, self._art(), "ohlcv-1d")
+        assert got["id"] == "GLBX-X", "must reuse the job the vendor already created"
+        assert c.submits == 1, "must NOT re-submit -- that is the second charge"
+
+    def test_genuine_failure_still_retries(self):
+        """If the job truly did not land, the submit must be retried -- a missing payload costs
+        the wave, which is worse than a duplicate."""
+        class C:
+            pass
+
+        c, b = C(), C()
+        state = {"n": 0}
+
+        def submit(**kw):
+            state["n"] += 1
+            if state["n"] == 1:
+                raise TimeoutError("nothing landed")
+            return {"id": "GLBX-NEW"}
+
+        b.submit_job = submit
+        b.list_jobs = lambda *a, **k: []          # the vendor has no such job
+        c.batch = b
+        got = F.submit_unit(c, self._art(), "ohlcv-1d")
+        assert got["id"] == "GLBX-NEW" and state["n"] == 2
+
+    def test_reconciliation_does_not_match_a_different_unit(self):
+        other = {"id": "GLBX-OTHER", "state": "queued", "dataset": "GLBX.MDP3",
+                 "schema": "ohlcv-1d", "start": "2017-01-01", "symbols": ["ZCH7"]}
+        expired = {"id": "GLBX-OLD", "state": "expired", "dataset": "GLBX.MDP3",
+                   "schema": "ohlcv-1d", "start": "2016-01-01", "symbols": ["ZCH6"]}
+
+        class C:
+            pass
+
+        c, b = C(), C()
+        b.list_jobs = lambda *a, **k: [other, expired]
+        c.batch = b
+        # different year -> no match; expired -> never reused (its window has closed)
+        assert F.find_submitted_job(c, self._art(), "ohlcv-1d") is None
+        # a different SCHEMA at the same window is also a different unit
+        same_window_other_schema = dict(other, start="2016-01-01", schema="statistics",
+                                        symbols=["ZCH6"])
+        b.list_jobs = lambda *a, **k: [same_window_other_schema]
+        assert F.find_submitted_job(c, self._art(), "ohlcv-1d") is None
+
+    def test_lookup_failure_falls_back_to_retry(self):
+        class C:
+            pass
+
+        c, b = C(), C()
+        b.list_jobs = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("list_jobs down"))
+        c.batch = b
+        assert F.find_submitted_job(c, self._art(), "ohlcv-1d") is None
