@@ -520,6 +520,20 @@ def gate5_ifeu_sanity(df: pd.DataFrame, *, ok_frac: float = IFEU_OK_FRAC
     work = df[df["leviathan_slug"].isin(IFEU_SLUGS)].copy()
     if work.empty:
         return ["(5) no robusta / white-sugar rows present"], {"rows": 0}
+    # NO-PRINT ROWS (measured 2026-07-29): 4.35% of IFEU rows carry volume > 0 with EVERY price
+    # field NULL -- the F4 class, outright volume attributed from spread/strategy trades with no
+    # standalone print. They are REAL venue records (their volume feeds the ICE roll metric), the
+    # schema permits NULL prices, and F5's doctrine is that a missing print is ABSENCE -- so they
+    # stay in silver. But a price-sanity clause evaluated on a priceless row is vacuously FALSE
+    # (NaN comparisons), which mislabels honest absence as corruption: the three clauses below
+    # quantify over PRICED rows only, and the no-print count is REPORTED per slug instead.
+    price_cols = ["open", "high", "low", "close", "settle"]
+    have_price = work[[c for c in price_cols if c in work.columns]].notna().any(axis=1)
+    no_print_by_slug = {s: int(v) for s, v in
+                        work.loc[~have_price, "leviathan_slug"].value_counts().items()}
+    work = work[have_price].copy()
+    if work.empty:
+        return ["(5) every robusta / white-sugar row is a no-print row -- nothing priced to check"],                {"rows": 0, "no_print_rows": no_print_by_slug}
     settle = pd.to_numeric(work["settle"], errors="coerce")
     low = pd.to_numeric(work["low"], errors="coerce")
     high = pd.to_numeric(work["high"], errors="coerce")
@@ -532,6 +546,7 @@ def gate5_ifeu_sanity(df: pd.DataFrame, *, ok_frac: float = IFEU_OK_FRAC
     bar_ok = (high >= low) & (close >= low) & (close <= high) & (opn >= low) & (opn <= high)
     n = int(len(work))
     rec = {
+        "no_print_rows": no_print_by_slug,
         "rows": n,
         "in_band_frac": round(float(in_band.mean()), 4),
         "close_settle_frac": round(float(close_ok.mean()), 4),

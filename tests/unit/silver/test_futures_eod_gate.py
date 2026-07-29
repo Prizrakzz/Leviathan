@@ -556,3 +556,32 @@ class TestShadowPrefixListing:
         keys = self._keys()
         got = G.collect_parquet_keys(self._FakeS3(keys), "b", "silver/futures_eod/_shadow")
         assert got == [keys[1]]
+
+
+class TestGate5NoPrintRows:
+    """(2026-07-29, measured) 4.35% of IFEU rows carry volume>0 with EVERY price NULL -- the F4
+    spread-attributed-volume class. F5: absence is absence; they stay in silver, but a price
+    clause evaluated on a priceless row is vacuously FALSE and mislabeled honest NULLs as
+    corruption. Gate 5 quantifies over PRICED rows and reports the no-print count."""
+
+    def test_no_print_rows_do_not_fail_the_gate_and_are_reported(self):
+        d = _bdays("2026-03-02", 10)
+        good = rows("robusta_coffee", "2026-05", d, settle=[100.0] * 10, close=[100.0] * 10,
+                    low=[99.0] * 10, high=[101.0] * 10, symbol="RC-K")
+        empty = rows("robusta_coffee", "2026-07", d, settle=[None] * 10, close=[None] * 10,
+                     low=[None] * 10, high=[None] * 10, volume=500, symbol="RC-N")
+        eod = pd.concat([good, empty], ignore_index=True)
+        eod["source"] = FC.CONTRACT_MAP["robusta_coffee"]["source"]
+        eod["settle_kind"] = FC.CONTRACT_MAP["robusta_coffee"]["settle_kind"]
+        fails, rec = G.gate5_ifeu_sanity(eod)
+        assert fails == [], fails
+        assert rec["no_print_rows"] == {"robusta_coffee": 10}
+
+    def test_a_real_price_violation_still_fires(self):
+        d = _bdays("2026-03-02", 10)
+        bad = rows("white_sugar", "2026-05", d, settle=[100.0] * 10, close=[200.0] * 10,
+                   low=[99.0] * 10, high=[101.0] * 10, symbol="W-K")   # close far outside range
+        bad["source"] = FC.CONTRACT_MAP["white_sugar"]["source"]
+        bad["settle_kind"] = FC.CONTRACT_MAP["white_sugar"]["settle_kind"]
+        fails, _rec = G.gate5_ifeu_sanity(bad)
+        assert fails, "a genuinely inconsistent PRICED bar must still fail"
