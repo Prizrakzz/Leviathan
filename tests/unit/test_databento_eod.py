@@ -554,7 +554,7 @@ class TestDbnDecodeLane:
         meta = dbn.Metadata(dataset="GLBX.MDP3", start=0, stype_in=dbn.SType.RAW_SYMBOL,
                             stype_out=dbn.SType.INSTRUMENT_ID, schema=dbn.Schema.OHLCV_1D,
                             symbols=["ZCZ6"], partial=[], not_found=[], mappings=[])
-        assert meta.version == T.EXPECTED_DBN_VERSION
+        assert meta.version == T.MAX_DBN_VERSION
         msg = dbn.OHLCVMsg(rtype=dbn.RType.OHLCV_1D, publisher_id=1, instrument_id=42,
                            ts_event=int(pd.Timestamp("2026-07-24", tz="UTC").value),
                            open=3552500000, high=3600000000, low=3500000000,
@@ -578,14 +578,29 @@ class TestDbnDecodeLane:
         with pytest.raises(ValueError, match="no symbol mappings"):
             T.decode_dbn(bytes(meta.encode()), schema="ohlcv-1d")
 
-    def test_decode_refuses_an_unexpected_dbn_version(self):
+    def test_decode_version_gate_is_a_ceiling_not_an_equality(self):
+        # AMENDED 2026-07-29 on real purchased data: the vendor rendered every GLBX payload as
+        # DBN v1 and every IFUS/IFEU payload as v3 in the SAME buy, and the installed client
+        # NORMALIZES old versions on read (verified live: ZC/2016 v1 decoded to the plan's
+        # measured bar count to the row, sane settlements and OI). So OLDER-than-max must
+        # decode; NEWER-than-max must fail closed (a future struct layout is unknowable).
         pytest.importorskip("databento")
         dbn = pytest.importorskip("databento_dbn")
         meta = dbn.Metadata(dataset="GLBX.MDP3", start=0, stype_in=dbn.SType.RAW_SYMBOL,
                             stype_out=dbn.SType.INSTRUMENT_ID, schema=dbn.Schema.OHLCV_1D,
                             symbols=["ZCZ6"], partial=[], not_found=[], mappings=[])
-        # StatMsg.quantity is i4 in v1 and i8 in v3, and to_df follows the FILE's version as-is.
-        with pytest.raises(ValueError, match="DBN version"):
-            T.decode_dbn(bytes(meta.encode()), schema="ohlcv-1d",
+        msg = dbn.OHLCVMsg(rtype=dbn.RType.OHLCV_1D, publisher_id=1, instrument_id=42,
+                           ts_event=int(pd.Timestamp("2026-07-24", tz="UTC").value),
+                           open=3552500000, high=3600000000, low=3500000000,
+                           close=3575000000, volume=1234)
+        # this file is v3; a ceiling of 1 makes it NEWER-than-max -> refused
+        with pytest.raises(ValueError, match="NEWER than the installed client"):
+            T.decode_dbn(bytes(meta.encode()) + bytes(msg), schema="ohlcv-1d",
                          symbology_json=self._symbology_json("42", "ZCZ6"),
-                         expected_version=1)
+                         max_version=1)
+        # ...while the SAME bytes decode under a ceiling >= the file's version (the production
+        # v1-under-v3 case, exercised here as v3-under-v5: older-or-equal always passes).
+        raw = T.decode_dbn(bytes(meta.encode()) + bytes(msg), schema="ohlcv-1d",
+                           symbology_json=self._symbology_json("42", "ZCZ6"),
+                           max_version=5)
+        assert len(raw) == 1

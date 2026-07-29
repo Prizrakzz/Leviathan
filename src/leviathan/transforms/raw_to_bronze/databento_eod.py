@@ -300,10 +300,17 @@ STAT_UPDATE_ACTION_DELETE = 2
 # final" is decided by (ts_ref, ts_recv) ordering below. Do not guess bit positions.
 STAT_FLAGS_COL = "stat_flags"
 
-# The DBN version this transform is written against. `to_df` picks its struct map from the FILE's
-# metadata version AS-IS while `__iter__` upgrades to v3, so a v1 statistics file silently yields a
-# 32-bit quantity. Asserted at decode time.
-EXPECTED_DBN_VERSION = 3
+# DBN version handling, MEASURED against real purchased data (2026-07-29). The vendor's batch
+# renderer is per-dataset inconsistent: every GLBX.MDP3 payload from the W2 buy arrived as DBN v1
+# while every IFUS/IFEU payload arrived v3. The original guard here refused anything != 3 on the
+# premise that `to_df` follows the FILE's struct layout as-is (i4 StatMsg.quantity in v1) -- that
+# premise is FALSE for the installed client: databento-dbn 0.63 NORMALIZES old versions on read.
+# Verified live on ZC/2016: ohlcv v1 -> 2,852 rows (the plan's measured bar count TO THE ROW),
+# statistics v1 -> settlements 408-415c agreeing with same-year closes, OI quantities sane
+# (median 5,257, max 812,073, none negative -- no truncated-struct garbage). So: accept every
+# version the installed client demonstrably normalizes (1..MAX), FAIL CLOSED only on versions
+# NEWER than the client knows, which it genuinely cannot decode.
+MAX_DBN_VERSION = 3
 
 
 # ---------------------------------------------------------------------------
@@ -753,7 +760,7 @@ def symbology_from_artifact(artifact: Optional[dict]) -> Optional[dict]:
 
 def decode_dbn(raw_bytes: bytes, *, schema: str,
                symbology_json: Optional[dict] = None,
-               expected_version: Optional[int] = EXPECTED_DBN_VERSION) -> pd.DataFrame:
+               max_version: Optional[int] = MAX_DBN_VERSION) -> pd.DataFrame:
     """``.dbn.zst`` bytes -> a decoded DataFrame with RAW fixed-point prices and a ``symbol`` column.
 
     ``databento`` is imported lazily so every rule above stays testable with no vendor dependency.
@@ -762,9 +769,12 @@ def decode_dbn(raw_bytes: bytes, *, schema: str,
     masking (``to_df`` masks UNDEF_PRICE but never UNDEF_STAT_QUANTITY, so half-trusting it is
     worse than not trusting it at all).
 
-    ``expected_version`` is asserted because ``to_df`` selects its struct map from the FILE's DBN
-    version AS-IS while ``__iter__`` upgrades to v3 -- and ``StatMsg`` is NOT layout-stable
-    (``quantity`` is i4 in v1, i8 in v3), so a v1 file would silently yield 32-bit open interest."""
+    ``max_version`` is a CEILING, not an equality (amended 2026-07-29 on real purchased data --
+    the vendor rendered every GLBX payload as DBN v1 and every IFUS/IFEU payload as v3 in the
+    same buy). The installed client NORMALIZES old versions on read -- verified live on ZC/2016
+    v1: 2,852 ohlcv rows matching the plan's measured bar count exactly, settlements agreeing
+    with same-year closes, OI quantities sane -- so old versions decode correctly; a version
+    NEWER than the client's max genuinely cannot, and fails closed."""
     try:
         from databento import DBNStore
     except ImportError as exc:  # pragma: no cover -- exercised by the batch task preflight
@@ -775,11 +785,12 @@ def decode_dbn(raw_bytes: bytes, *, schema: str,
 
     store = DBNStore.from_bytes(raw_bytes)
     version = getattr(store.metadata, "version", None)
-    if expected_version is not None and version is not None and int(version) != int(expected_version):
+    if max_version is not None and version is not None and int(version) > int(max_version):
         raise ValueError(
-            f"DBN version {version} != expected {expected_version}: to_df follows the FILE's "
-            f"version as-is, and StatMsg.quantity is i4 in v1 vs i8 in v3 -- refusing to decode "
-            f"open interest against the wrong struct layout"
+            f"DBN version {version} is NEWER than the installed client's max {max_version}: "
+            f"databento-dbn normalizes OLD versions on read (v1 verified live on ZC/2016, "
+            f"2026-07-29) but cannot know a future struct layout -- refusing to decode. "
+            f"Upgrade the databento/databento-dbn packages and re-run."
         )
     if symbology_json:
         # FAIL CLOSED on the step-1 shape. A `parent -> instrument_id` mapping inserts the literal
