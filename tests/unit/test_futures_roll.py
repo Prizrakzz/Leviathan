@@ -33,7 +33,22 @@ def _rows(slug, trade_date, months, *, oi=None, vol=None, settle=None):
 
 class TestRuleTables:
     def test_version_is_pinned(self):
-        assert FR.ROLL_RULE_VERSION == "front_month_v1"
+        # v2 (2026-07-30): DCE moved delivery_cycle -> volume once W1c proved the volume column.
+        # The bump is not cosmetic -- a stored parity result under v1 must never be compared with
+        # a v2 result, which is why front_month() rejects a mismatched rule_version outright.
+        assert FR.ROLL_RULE_VERSION == "front_month_v2"
+
+    def test_dce_uses_the_measured_rule_not_a_curated_calendar(self):
+        """The W1c precondition, discharged: /dcereport JSON and the year workbook BOTH carry
+        volume, and bronze_to_silver writes it, so the five DCE slugs are selected by measured
+        activity instead of the old PROVISIONAL (1, 5, 9) curation."""
+        assert FR.ROLL_METHOD_BY_SOURCE["dce"] == FR.METHOD_VOLUME
+        dce_slugs = [s for s, c in FC.CONTRACT_MAP.items() if c["source"] == "dce"]
+        assert len(dce_slugs) == 5
+        for slug in dce_slugs:
+            assert FR.roll_method_for(slug) == FR.METHOD_VOLUME
+            # and the forbidden half: a volume slug carrying a cycle is a lint failure
+            assert slug not in FR.DELIVERY_CYCLES
 
     def test_lint_is_clean(self):
         assert FR.lint_roll_rule() == []

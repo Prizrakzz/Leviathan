@@ -7,7 +7,7 @@ adversarial multi-expiry fixture -- two dates x three expiries -- where the naiv
 delta deltas two EXPIRIES and comes out UP (+5.0) while the whole curve actually fell (-2.0 on the
 front month). Without the collapse that inverted number rides a real minted [N] handle that the
 all-numbers guard validates as correct; with it, the front expiry is selected by the ONE named
-query-time rule (leviathan.silver.futures_roll, front_month_v1) first and the delta is taken across
+query-time rule (leviathan.silver.futures_roll, front_month_v2) first and the delta is taken across
 DATES after.
 
 Nothing here wires silver_futures_eod into PACE_TABLES -- that is W3.3 item 16, gated on the parity
@@ -124,7 +124,7 @@ def test_front_by_open_interest_beats_the_nearest_month_when_oi_is_present():
 def test_front_by_oi_slug_declines_when_the_rules_own_input_is_absent():
     """The card is settle-ONLY, so a served row carries no open_interest today. front_month would
     fill the missing metric with -1 and fall through to its nearest-month tie-break -- a DIFFERENT
-    rule wearing front_month_v1's name. Honest absence instead."""
+    rule wearing front_month_v2's name. Honest absence instead."""
     rows = [(r[0], r[1], r[2], None) for r in _INVERSION_ROWS]
     vals, collapsed = cq._pace_series(_eod_rec(rows, commodity="corn_cbot"), "silver_futures_eod")
     assert vals == [] and collapsed is None
@@ -137,7 +137,7 @@ _PARTIAL_OI_ROWS = [(420.0, "2026-06-01", "2026-09", None), (430.0, "2026-06-01"
 def test_front_by_oi_slug_declines_when_its_input_is_present_on_only_SOME_rows(monkeypatch):
     """THE PARTIAL CASE -- the one a 'decline only when the metric is missing EVERYWHERE' guard waves
     through. OI prints on the Dec row of each session and is absent on Sep, so front_month's -1 fill
-    makes Dec win by DEFAULT rather than by open interest: a nearest-print rule wearing front_month_v1's
+    makes Dec win by DEFAULT rather than by open interest: a nearest-print rule wearing front_month_v2's
     name, the same substitution the all-missing case declines on. Unreachable while the card is
     settle-ONLY; live the moment open_interest is surfaced as a selection-only alias.
 

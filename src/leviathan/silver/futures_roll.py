@@ -41,7 +41,7 @@ from leviathan.silver import futures_eod_contracts as FC
 
 # BUMP THIS when the rule's behaviour changes -- a consumer that stored a parity result under one
 # version must not compare it against another. Never reuse a version for a changed rule.
-ROLL_RULE_VERSION = "front_month_v1"
+ROLL_RULE_VERSION = "front_month_v2"
 
 # The four methods. "none" is not an absence of a rule; it is the ASSERTION that the question does
 # not apply (cash references), which is why it is a first-class value rather than a missing key.
@@ -80,13 +80,19 @@ ROLL_METHOD_BY_SOURCE: dict[str, str] = {
     # PRIMARY rule is unavailable by construction and the fallback is the rule, not a degradation.
     "databento_ifus_impact": METHOD_VOLUME,
     "databento_ifeu_impact": METHOD_VOLUME,
+    # DCE publishes volume on BOTH payload kinds, so it uses the measured rule rather than a
+    # curated calendar. PRECONDITION DISCHARGED 2026-07-30 (front_month_v2): the W1c producer
+    # landed and proved it -- raw_to_bronze/dce_eod.py parses volume from the /dcereport quote JSON
+    # (fixture: p2609 volume 127,012 on the live 2026-07-29 capture) AND from the year workbook
+    # (fixture: p1601 volume 2,626 in the real 2016 file), and bronze_to_silver/dce_eod.py writes it
+    # into the silver volume column. That retired the (1, 5, 9) curation this table used to carry
+    # for the five DCE slugs, which was its weakest entry and always labelled PROVISIONAL.
+    "dce": METHOD_VOLUME,
     # Settle-only bulletins: neither OI nor volume survives the publication, so the front month is
-    # a curated calendar fact. DCE sits here for now -- the /dcereport JSON does carry volume, so
-    # when the W1c producer lands and proves it, move DCE to METHOD_VOLUME (and bump the version).
+    # a curated calendar fact.
     "bursa": METHOD_DELIVERY_CYCLE,
     "miax": METHOD_DELIVERY_CYCLE,
     "euronext_matif": METHOD_DELIVERY_CYCLE,
-    "dce": METHOD_DELIVERY_CYCLE,
     # The two CEPEA cash references have no delivery month at all.
     "cepea": METHOD_NONE,
 }
@@ -103,15 +109,9 @@ DELIVERY_CYCLES: dict[str, tuple[int, ...]] = {
     "french_wheat_matif": (3, 5, 9, 12),
     "french_maize_matif": (3, 6, 8, 11),
     "french_rapeseed_matif": (2, 5, 8, 11),
-    # DCE lists all twelve months but liquidity concentrates in the Jan/May/Sep "main" contracts;
-    # a nearest-calendar-month rule would name a near-dead contract most of the year. This is the
-    # weakest curation in the table and is explicitly PROVISIONAL -- it goes away when the W1c DCE
-    # producer lands volume and the source moves to METHOD_VOLUME.
-    "palm_olein_dce": (1, 5, 9),
-    "soybean_meal_dce": (1, 5, 9),
-    "soybean_oil_dce": (1, 5, 9),
-    "soybeans_no_1_dce": (1, 5, 9),
-    "soybeans_no_2_dce": (1, 5, 9),
+    # (The five DCE slugs lived here under a PROVISIONAL (1, 5, 9) curation until 2026-07-30. They
+    # are gone because DCE moved to METHOD_VOLUME once W1c proved the volume column -- and
+    # check_futures_roll asserts BOTH directions, so leaving them would now be a hard failure.)
 }
 
 FRONT_MONTH_COLUMNS: list[str] = [
@@ -166,7 +166,7 @@ def front_month_inputs_present(df: pd.DataFrame) -> bool:
     ``front_month`` fills a missing activity metric with -1 so it can never outrank a real print. That
     is correct INSIDE the rule (a deterministic tie-break), but it means a frame carrying the metric on
     only SOME rows still returns a contract -- chosen by the nearest-month tie-break, i.e. a DIFFERENT,
-    unnamed rule (precisely ``legacy_lane_front``'s convention) wearing ``front_month_v1``'s name. An
+    unnamed rule (precisely ``legacy_lane_front``'s convention) wearing ``front_month_v2``'s name. An
     ALL-missing frame is the obvious case; the PARTIAL frame is the dangerous one, because whichever
     expiry happened to carry a print wins by default and nothing about that is visible downstream. A
     caller that must not serve a degraded selection asks this first and declines when it is False.

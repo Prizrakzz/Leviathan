@@ -450,7 +450,7 @@ PACE_TABLES = {
 # a curve needs is a SELECTION KEYED ON ANOTHER COLUMN, not an aggregation over the period's values:
 # select the FRONT expiry by the named, versioned query-time rule FIRST, then delta across DATES. That
 # rule lives in exactly one place (leviathan.silver.futures_roll.front_month, ROLL_RULE_VERSION
-# front_month_v1, fenced by config_check.check_futures_roll) and is CALLED here, never re-derived.
+# front_month_v2, fenced by config_check.check_futures_roll) and is CALLED here, never re-derived.
 _PACE_COLLAPSE = {"silver_esr": "sum", "gold_weather_z": "mean", "silver_futures_eod": "front_expiry"}
 _PACE_COLLAPSE_KINDS: frozenset[str] = frozenset({"sum", "mean", "front_expiry"})
 # PRICE TABLES (F-E lint): a table whose served value IS a price. `sum`/`mean` are FORBIDDEN as the
@@ -1025,7 +1025,7 @@ def _pace_row_date(rr: dict) -> str | None:
 
 def _pace_front_expiry(r: dict, expiry_col, commodity) -> tuple[list[float], str | None]:
     """W3.3 item 17 / F-E: ONE value per TRADE DATE, taken from the FRONT expiry as named by
-    futures_roll.front_month (ROLL_RULE_VERSION front_month_v1) -- selection first, delta across dates
+    futures_roll.front_month (ROLL_RULE_VERSION front_month_v2) -- selection first, delta across dates
     after. Returns ([], None) on ANY incompleteness, which declines the pace leg whole.
 
     It declines rather than approximating in six cases, all of them the same principle -- the named rule
@@ -1038,7 +1038,7 @@ def _pace_front_expiry(r: dict, expiry_col, commodity) -> tuple[list[float], str
       * the rule's OWN INPUT is absent ON ANY CANDIDATE ROW -- front-by-OI/volume slugs whose rows carry
         no open_interest / volume value. front_month would fill the missing metric with -1 and silently
         fall through to its nearest-month tie-break, i.e. a DIFFERENT, unnamed rule (precisely the
-        legacy_lane_front convention) wearing front_month_v1's name. BOTH-SIDED on purpose: an
+        legacy_lane_front convention) wearing front_month_v2's name. BOTH-SIDED on purpose: an
         all-missing frame is the obvious case, but a PARTIAL one is the dangerous one -- with OI printed
         on some expiries and not others, whichever expiry happened to carry a print wins by default.
         The precondition is ASKED of futures_roll.front_month_inputs_present rather than restated here:

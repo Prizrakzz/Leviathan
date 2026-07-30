@@ -277,7 +277,7 @@ class TestModelReachability:
             assert not re.search(r"\bpass\s+`?contract_month", notes, re.I), notes
 
     def test_the_notes_state_what_an_UNNAMED_expiry_read_returns(self):
-        # nearest-listed-expiry is a deterministic ORDER BY tie-break, NOT front_month_v1 (front-by-OI
+        # nearest-listed-expiry is a deterministic ORDER BY tie-break, NOT front_month_v2 (front-by-OI
         # on GLBX/CZCE/JSE) -- the serving default and the ratified roll rule name different contracts
         # for much of the year, so the card says so rather than leaving it to be inferred.
         notes = str(_card().get("notes") or "")
