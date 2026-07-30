@@ -442,7 +442,42 @@ PACE_TABLES = {
 # regional-average anomaly (the silver_nasa_power v1 aggregate-across-regions precedent). A multi-row
 # period on a table NOT declared here declines the pace leg whole (honest absence, the E-STREAK-NODATA
 # idiom) -- never a cross-sectional delta. Every other pace table is one-row-per-period by grain.
-_PACE_COLLAPSE = {"silver_esr": "sum", "gold_weather_z": "mean"}
+#
+# PRICE_AND_PLAYBOOKS W3.3 item 17 / skeptic F-E: a THIRD kind, "front_expiry". A per-delivery-month
+# price table is multi-row-per-period BY CONSTRUCTION (one row per listed expiry per session), and BOTH
+# existing kinds are actively WRONG on a curve -- summing Dec+Mar+May settles is meaningless, and the mean
+# across a curve is a different, unnamed series that would look entirely plausible in prose. The collapse
+# a curve needs is a SELECTION KEYED ON ANOTHER COLUMN, not an aggregation over the period's values:
+# select the FRONT expiry by the named, versioned query-time rule FIRST, then delta across DATES. That
+# rule lives in exactly one place (leviathan.silver.futures_roll.front_month, ROLL_RULE_VERSION
+# front_month_v1, fenced by config_check.check_futures_roll) and is CALLED here, never re-derived.
+_PACE_COLLAPSE = {"silver_esr": "sum", "gold_weather_z": "mean", "silver_futures_eod": "front_expiry"}
+_PACE_COLLAPSE_KINDS: frozenset[str] = frozenset({"sum", "mean", "front_expiry"})
+# PRICE TABLES (F-E lint): a table whose served value IS a price. `sum`/`mean` are FORBIDDEN as the
+# collapse kind for any of these -- the aggregate of a price cross-section is not a price anyone quotes.
+# An EXPLICIT documented set rather than a registry derivation, for three reasons, all load-bearing:
+#   (1) load_registry() DROPS whitelist-absent tables (registry.WHITELIST_ABSENT_DEFAULT), so
+#       silver_futures_eod -- the exact table F-E is about -- is INVISIBLE to a registry-derived set
+#       today: the fence would fail OPEN for the whole pre-flip window it exists to cover;
+#   (2) config_check.PRICE_TABLES (the R4 "never feeds an engine" set) cannot be reused -- importing
+#       config_check from here is a cycle, and its semantics are the opposite of this fence's (a pace
+#       leg REQUIRES a cascade_map row, which R4 forbids for its members);
+#   (3) price-ness is not a registry field -- there is no clean per-table signal to read.
+# lint_pace_collapse() adds a registry-derived DRIFT BELT on top, so a price table nobody added here
+# still cannot acquire a sum/mean collapse.
+_PRICE_TABLES: frozenset[str] = frozenset({
+    "silver_futures_eod",       # per-delivery-month EOD settles (W1.0)
+    "silver_futures_prices",    # the yfinance continuous front-month close (levels_only, retiring)
+    "silver_pink_sheet",        # World Bank monthly commodity prices (config_check.PRICE_TABLES' member)
+})
+_PRICE_COLLAPSE_BANNED: frozenset[str] = frozenset({"sum", "mean"})
+# MULTI-EXPIRY tables: table -> the ROW ALIAS carrying the delivery month ('YYYY-MM'). Membership is the
+# assertion "rows on this table are per delivery month", which has two consequences, both enforced:
+# the front_expiry collapse is MANDATORY here (a declaration of any other kind, or none, declines the
+# pace leg whole), and the selection needs this column threaded down to it. NOTE the alias is the QUERY
+# alias, not the silver column: query._extras does not surface contract_month yet (W3.1 item 3), so the
+# selection fails CLOSED -- honest absence -- until that lands.
+_PACE_EXPIRY_COL = {"silver_futures_eod": "contract_month"}
 _PACE_WINDOW_DAYS = {"day": 21, "week": 70, "month": 220}         # enough points for a run; never a year-crawl
 _PACE_GRAIN_NOUN = {"day": "daily", "week": "weekly", "month": "monthly"}
 # The T2a register fence for ENGINE-emitted pace prose: the present-continuous/momentum class is BANNED on
@@ -456,6 +491,82 @@ _PACE_BANNED_RX = re.compile(
 def pace_register_ok(text: str) -> bool:
     """True when a pace line carries none of the banned momentum-class words (past-tense observed only)."""
     return not _PACE_BANNED_RX.search(text or "")
+
+
+# A metric NAME that is a price, and a unit shaped like CURRENCY-per-quantity ("USD/metric ton",
+# "US cents/bushel", "CNY/t", "$/bu"). Together they are the registry-derived DRIFT BELT under
+# lint_pace_collapse -- deliberately conservative, and only ever consulted for tables that already
+# declare a collapse kind, so the scan is bounded by _PACE_COLLAPSE and can never fail a table that
+# has no pace collapse at all.
+_PRICE_METRIC_RX = re.compile(r"(?:^|_)(price|prices|settle|settlement|close|quote)(?:$|_)", re.I)
+_PRICE_UNIT_RX = re.compile(
+    r"(?:\bUSD|\bEUR|\bCNY|\bBRL|\bZAR|\bMYR|\bCAD|\bGBP|\bJPY|\bCHF|\bAUD|\bINR|cents|\$)\s*/", re.I)
+
+
+def _looks_like_price_table(ts) -> bool:
+    """Registry-derived price-ness for the drift belt: a served metric NAMED like a price, or carrying a
+    currency-per-quantity unit (card unit or any per-commodity unit_override). Never raises."""
+    try:
+        for mname, m in (getattr(ts, "metrics", None) or {}).items():
+            if _PRICE_METRIC_RX.search(str(mname)):
+                return True
+            units = [getattr(m, "unit", None) or ""]
+            units += list((getattr(m, "unit_overrides", None) or {}).values())
+            if any(_PRICE_UNIT_RX.search(str(u)) for u in units):
+                return True
+    except Exception:  # noqa: BLE001 -- a lint belt must never raise on an odd card
+        return False
+    return False
+
+
+def lint_pace_collapse() -> list[str]:
+    """Structural problems with the pace-collapse declarations (pure; config_check.check_pace_collapse
+    binds it). Skeptic F-E, W3.3 item 17 -- four clauses:
+
+      (1) every declared kind is one of _PACE_COLLAPSE_KINDS;
+      (2) THE F-E LINT -- no PRICE table declares `sum` or `mean`. Summing Dec+Mar+May settles is
+          meaningless and the mean across a curve is a different, unnamed series that reads as plausible
+          prose; both would ride a real minted [N] handle the all-numbers guard validates as correct;
+      (3) the same, for a table the REGISTRY says looks like a price table but that nobody added to
+          _PRICE_TABLES (the drift belt -- note it cannot see whitelist-absent cards, which is exactly
+          why clause (2) works off an explicit set);
+      (4) front_expiry <-> _PACE_EXPIRY_COL is a BOTH-WAYS bind: the selection needs the delivery-month
+          alias threaded to it, and a table declared per-expiry must not collapse any other way."""
+    errs: list[str] = []
+    for table, kind in sorted(_PACE_COLLAPSE.items()):
+        if kind not in _PACE_COLLAPSE_KINDS:
+            errs.append(f"_PACE_COLLAPSE {table!r}: unknown collapse kind {kind!r} "
+                        f"(legal: {sorted(_PACE_COLLAPSE_KINDS)})")
+            continue
+        if kind in _PRICE_COLLAPSE_BANNED and table in _PRICE_TABLES:
+            errs.append(f"_PACE_COLLAPSE {table!r}: {kind!r} is FORBIDDEN on a price table (F-E) -- the "
+                        f"sum of a curve is meaningless and its mean is an unnamed series; a per-expiry "
+                        f"price table collapses by 'front_expiry' (select the front expiry by the named "
+                        f"query-time rule FIRST, then delta across dates)")
+        if kind == "front_expiry" and not str(_PACE_EXPIRY_COL.get(table) or "").strip():
+            errs.append(f"_PACE_COLLAPSE {table!r}: 'front_expiry' but no delivery-month alias in "
+                        f"_PACE_EXPIRY_COL -- the selection has no column to key on and would decline "
+                        f"every leg silently")
+    # (3) the registry drift belt -- bounded by _PACE_COLLAPSE, never a whole-registry scan.
+    try:
+        from leviathan.graphrag.numbers.registry import load_registry
+        tables = load_registry().tables
+    except Exception:  # noqa: BLE001 -- a registry problem is another lint's failure, not this one's
+        tables = {}
+    for table, kind in sorted(_PACE_COLLAPSE.items()):
+        if kind not in _PRICE_COLLAPSE_BANNED or table in _PRICE_TABLES:
+            continue
+        ts = tables.get(table)
+        if ts is not None and _looks_like_price_table(ts):
+            errs.append(f"_PACE_COLLAPSE {table!r}: {kind!r} on a table the registry card reads as a PRICE "
+                        f"table (priced metric or currency-per-quantity unit) -- either it is not a price "
+                        f"table and the card is wrong, or it is and F-E forbids {kind!r} here")
+    for table in sorted(_PACE_EXPIRY_COL):
+        if _PACE_COLLAPSE.get(table) != "front_expiry":
+            errs.append(f"_PACE_EXPIRY_COL {table!r}: declared per-delivery-month but its _PACE_COLLAPSE "
+                        f"kind is {_PACE_COLLAPSE.get(table)!r} -- a per-expiry table has exactly one "
+                        f"honest collapse, and any other declaration declines the pace leg whole")
+    return errs
 
 
 def _pace_grain(row) -> str | None:
@@ -882,12 +993,140 @@ def _pace_period_key(rr: dict, idx: int):
     return ("_row", idx)
 
 
-def _pace_series(r: dict, table) -> tuple[list[float], str | None]:
+def _pace_collapse_kind(table) -> str | None:
+    """The LEGAL collapse kind declared for `table`, or None (=> a multi-row period declines the leg).
+
+    The runtime twin of lint_pace_collapse: an illegal declaration -- an unknown kind, or sum/mean on a
+    PRICE table (F-E) -- resolves to None here rather than being applied, so the fence holds even on a
+    build that never ran config_check. Fail-closed: None means honest absence, never a cross-section
+    delta."""
+    kind = _PACE_COLLAPSE.get(table)
+    if kind is None or kind not in _PACE_COLLAPSE_KINDS:
+        return None
+    if table in _PRICE_TABLES and kind in _PRICE_COLLAPSE_BANNED:
+        return None                                           # F-E: the aggregate of a curve is not a price
+    return kind
+
+
+def _pace_row_date(rr: dict) -> str | None:
+    """The row's TRADE/DATA date for the front_expiry selection, or None. Widened past _pace_period_key's
+    aliases by exactly one: `knowledge_date`. silver_futures_eod's date_col IS its knowledge_date_col
+    (trade_date), so query._extras surfaces ONLY `knowledge_date` and _pace_period_key would fall through
+    to its ("_row", idx) legacy branch -- which on a per-expiry table means EVERY ROW ITS OWN PERIOD, i.e.
+    exactly the two-expiries delta F-E describes. Used ONLY on this path; the legacy key is untouched (it
+    is load-bearing for silver_cot / silver_pink_sheet / silver_mpob, whose rows also carry only
+    knowledge_date and ARE one row per period by grain)."""
+    for k in ("data_date", "trade_date", "date", "knowledge_date", "week_ending_date", "report_date"):
+        v = rr.get(k)
+        if v not in (None, ""):
+            return str(v)[:10]
+    return None
+
+
+def _pace_front_expiry(r: dict, expiry_col, commodity) -> tuple[list[float], str | None]:
+    """W3.3 item 17 / F-E: ONE value per TRADE DATE, taken from the FRONT expiry as named by
+    futures_roll.front_month (ROLL_RULE_VERSION front_month_v1) -- selection first, delta across dates
+    after. Returns ([], None) on ANY incompleteness, which declines the pace leg whole.
+
+    It declines rather than approximating in six cases, all of them the same principle -- the named rule
+    must be RUN, never emulated:
+      * no expiry alias threaded, or a row missing its delivery month (an unlabeled curve row is
+        unattributable, and W3.1 item 3 has not surfaced `contract_month` yet);
+      * no resolvable trade date on a row;
+      * an unmapped slug, or a CASH INDEX (roll method 'none'): "front month" is not a question that can
+        be asked of a CEPEA cash reference;
+      * the rule's OWN INPUT is absent ON ANY CANDIDATE ROW -- front-by-OI/volume slugs whose rows carry
+        no open_interest / volume value. front_month would fill the missing metric with -1 and silently
+        fall through to its nearest-month tie-break, i.e. a DIFFERENT, unnamed rule (precisely the
+        legacy_lane_front convention) wearing front_month_v1's name. BOTH-SIDED on purpose: an
+        all-missing frame is the obvious case, but a PARTIAL one is the dangerous one -- with OI printed
+        on some expiries and not others, whichever expiry happened to carry a print wins by default.
+        The precondition is ASKED of futures_roll.front_month_inputs_present rather than restated here:
+        which column a method reads is the rule module's contract (METHOD_METRIC_COL), and a second
+        copy of it here would drift the moment DCE moves to front-by-volume -- F-L in miniature, and
+        invisible to the config_check source fence, which only scans for a second IMPLEMENTATION.
+        The served card is settle-ONLY, so the all-missing case is the live state today for every
+        GLBX / CZCE / JSE / ICE slug; the delivery-cycle slugs (Bursa, MIAX, Euronext/MATIF, DCE) need
+        no metric and select honestly now;
+      * the selection returning nothing (every candidate expiry already in delivery / off-cycle);
+      * the selection naming MORE THAN ONE delivery month across the window -- i.e. the front month
+        ROLLED inside it. "Front expiry first, then delta across dates" is only PIT-safe while both
+        endpoints are the SAME contract: a delta spanning a roll is a SPLICE, which is the exact
+        contamination `levels_only` fences on the continuous sibling table, and it is also the
+        remaining route by which a missing print on the true front month (that row skipped, the next
+        expiry selected for that date alone) could still produce a cross-expiry delta. Roll/continuous
+        are out of scope for this table by ratified design -- an adjusted series would be a separate
+        gold_futures_continuous carrying its own roll_policy_version -- so the honest answer across a
+        roll is no pace leg, not a spliced one.
+
+    The value rides the frame's `settle` column: front_month never interprets it, it only carries it
+    through the selection, and silver_futures_eod's served metric IS settle."""
+    rows = r.get("rows") or []
+    slug = commodity or (r.get("query") or {}).get("commodity")
+    if not rows or not expiry_col or not slug:
+        return [], None
+    recs: list[dict] = []
+    for rr in rows:
+        cm = rr.get(expiry_col)
+        dt = _pace_row_date(rr)
+        if cm in (None, "") or not dt:
+            return [], None                                   # unlabeled expiry / undated row: decline whole
+        try:
+            v = float(str(rr.get("value")).replace(",", ""))
+        except (TypeError, ValueError):
+            continue                                          # no numeric observation -> not a candidate
+        if v != v:                                            # NaN is not an observation either
+            continue
+        recs.append({"leviathan_slug": str(slug), "trade_date": dt, "contract_month": str(cm)[:7],
+                     "settle": v, "volume": rr.get("volume"), "open_interest": rr.get("open_interest")})
+    if not recs:
+        return [], None
+    try:
+        import pandas as pd
+
+        from leviathan.silver import futures_roll as FR
+        method = FR.roll_method_for(str(slug))                 # the ONE rule module -- never re-derived here
+        if method == FR.METHOD_NONE:
+            return [], None                                   # cash reference: no delivery-month axis at all
+        frame = pd.DataFrame(recs)
+        if not FR.front_month_inputs_present(frame):           # the rule's OWN input contract, asked of
+            return [], None                                    # the rule module -- never restated here
+        out = FR.front_month(frame)
+    except Exception:  # noqa: BLE001 -- a pace leg must NEVER kill the reasoning turn (R6)
+        return [], None
+    if out is None or len(out) == 0:
+        return [], None
+    if len(set(out["contract_month"].tolist())) != 1:
+        return [], None                                        # the front month ROLLED: a splice, not a delta
+    vals: list[float] = []
+    for v in out["settle"].tolist():                           # front_month sorts (slug, trade_date) ASC
+        try:
+            f = float(v)
+        except (TypeError, ValueError):
+            return [], None                                    # a selected row with no value: decline whole
+        if f != f:
+            return [], None
+        vals.append(f)
+    return vals, "front_expiry"
+
+
+def _pace_series(r: dict, table, *, expiry_col=None, commodity=None) -> tuple[list[float], str | None]:
     """(one value per PERIOD in row order, collapse-mode-used-or-None) for a pace record. Rows arrive
     period-ascending (_total_order sorts the chronological alias first). Cross-sectional rows (>1 row in
-    one period) collapse per _PACE_COLLAPSE -- sum (flow across ESR destinations) or mean (z across
-    weather regions); a multi-row period on an UNDECLARED table returns ([], None): the caller declines
-    the leg whole rather than ever delta-ing two cross-section rows."""
+    one period) collapse per _PACE_COLLAPSE -- sum (flow across ESR destinations), mean (z across
+    weather regions), or, on a per-delivery-month PRICE table, the front_expiry SELECTION (W3.3 item 17);
+    a multi-row period on an UNDECLARED table returns ([], None): the caller declines the leg whole rather
+    than ever delta-ing two cross-section rows.
+
+    `expiry_col` / `commodity` are the front_expiry SELECTION's two inputs, threaded here because the
+    collapse cannot be expressed over the period's values alone (F-E: it is a selection keyed on another
+    column). Both DEFAULT to what every caller would pass anyway -- the table's declared delivery-month
+    alias and the record's own query commodity -- so a positional two-arg call behaves identically."""
+    collapse = _pace_collapse_kind(table)
+    if table in _PACE_EXPIRY_COL and collapse != "front_expiry":
+        return [], None                                       # a per-expiry table has ONE honest collapse
+    if collapse == "front_expiry":
+        return _pace_front_expiry(r, expiry_col or _PACE_EXPIRY_COL.get(table), commodity)
     order: list = []
     periods: dict = {}
     for i, rr in enumerate(r.get("rows") or []):
@@ -900,7 +1139,6 @@ def _pace_series(r: dict, table) -> tuple[list[float], str | None]:
             order.append(k)
             periods[k] = []
         periods[k].append(v)
-    collapse = _PACE_COLLAPSE.get(table)
     multi = any(len(periods[k]) > 1 for k in order)
     if multi and collapse is None:
         return [], None                                       # undeclared cross-section: honest decline
@@ -937,9 +1175,14 @@ def _pace_legs(records: list, kept: list, base: int, calls: list) -> tuple:
         grain = _pace_grain(row) if row else None
         if grain is None:
             continue
-        # PER-PERIOD collapse FIRST (the cross-section fold): ESR destinations sum, weather regions mean;
-        # an undeclared multi-row period returns ([], None) and the leg declines whole -- vals[-1]-vals[-2]
-        # below is only ever a PERIOD-over-PERIOD delta, never destinationB-destinationA.
+        # PER-PERIOD collapse FIRST (the cross-section fold): ESR destinations sum, weather regions mean,
+        # a per-delivery-month price table's FRONT-EXPIRY selection (W3.3 item 17, keyed on the table's
+        # declared delivery-month alias and the record's own commodity); an undeclared multi-row period
+        # returns ([], None) and the leg declines whole -- vals[-1]-vals[-2] below is only ever a
+        # PERIOD-over-PERIOD delta on ONE series, never destinationB-destinationA and never DecB-MarA.
+        # Called POSITIONALLY on purpose: _pace_series' two selection kwargs default to exactly what this
+        # site would pass, so pattern_records_sweep_task.classify_pace_decline -- which replays this gate
+        # positionally and cannot drift-check what it does not pass -- agrees by construction (F6).
         vals, collapsed = _pace_series(r, row.get("table"))
         if len(vals) < st.MIN_STREAK_N:
             continue                                              # <2 periods: no pace claim, no fabricated row

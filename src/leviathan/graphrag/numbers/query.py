@@ -32,6 +32,13 @@ class NumberQuery(BaseModel):
     period: Optional[str] = None                     # marketing_year / year value (per the table's period format)
     period_start: Optional[str] = None               # date-grained window start (weather / exports)
     period_end: Optional[str] = None                 # date-grained window end
+    contract_month: Optional[str] = None             # W3.1: DELIVERY MONTH 'YYYY-MM' for a per-expiry price table
+    #                                                  (silver_futures_eod). ONE value = a named-contract read
+    #                                                  ('2026-12' -> "the December corn settle"); a COMMA-SEPARATED
+    #                                                  list = a CURVE / term-structure read across expiries
+    #                                                  ('2026-12,2027-03,2027-05'). Ignored-by-construction on
+    #                                                  tables with no contract_month_col -- build_sql RAISES there
+    #                                                  rather than serving a continuous series as an expiry.
     agg: Literal["latest", "series", "sum", "mean", "max", "min"] = "latest"
     limit: int = 5000
 
@@ -184,6 +191,32 @@ def _metric_commodity_filters(spec: NumberQuery, ts: TableSpec) -> dict[str, lis
     return {col: list(vals) for col, vals in (rf.get(spec.commodity) or {}).items()}
 
 
+def _contract_months(spec: NumberQuery) -> list[str]:
+    """W3.1: the requested DELIVERY MONTH(S), parsed in ONE place so the SQL emitter and the pure-Python
+    oracle (apply_pit_filter) can never disagree. ``contract_month`` is a single scalar field carrying either
+    one expiry ('2026-12') or a COMMA-SEPARATED curve read across expiries ('2026-12,2027-03,2027-05') -- the
+    same comma idiom GRAPHRAG_NUMBERS_DISABLE uses, so a term-structure ask needs no second schema knob on the
+    model-facing tool. DEDUPED and SORTED: 'YYYY-MM' sorts lexically == chronologically, so two orderings of
+    the same curve ask compile to the SAME SQL string (the session SQL-keyed result cache hits) and the
+    emitted IN list is deterministic. Blank/whitespace-only entries are dropped -> [] == "no month named"."""
+    return sorted({m.strip() for m in str(spec.contract_month or "").split(",") if m.strip()})
+
+
+def _contract_month_filter(spec: NumberQuery, ts: TableSpec) -> list[str]:
+    """W3.1 delivery-month scope for a per-expiry price table. ONE month -> a plain equality (the named
+    contract); MANY -> ``col IN (...)``, which is what makes a CURVE read (Dec/Mar/May at a single asof)
+    expressible at all -- today it is not expressible, which is why every curve ask declines. EMPTY when no
+    month is named (the whole-curve default: every expiry the window covers) or the table declares no
+    ``contract_month_col``, so every other table's SQL is byte-identical."""
+    months = _contract_months(spec)
+    if not (ts.contract_month_col and months):
+        return []
+    col = ts.contract_month_col
+    if len(months) == 1:
+        return [f"{col} = {_q(months[0])}"]
+    return [f"{col} IN ({', '.join(_q(m) for m in months)})"]
+
+
 def _value_expr(spec: NumberQuery, ts: TableSpec) -> str:
     return spec.metric if ts.shape == "wide" else (ts.value_col or "value")
 
@@ -256,7 +289,14 @@ def _partition_filters(spec: NumberQuery, ts: TableSpec) -> list[str]:
     region defaults to the commodity's primary station; the country partition value comes from
     _resolved_country (explicit-region country wins, else explicit country in the snake_case partition form,
     else the geo default — the D-W0.1 fix, replacing the old geo-default-clobbers-caller behavior); commodity
-    must be given."""
+    must be given.
+
+    W3.1: a partition column that IS the table's declared ``year_col`` (silver_futures_eod.trade_year) is
+    pinned by the SARGABLE YEAR BOUNDS _filters emits from the query's date window, not by an equality — a
+    price window legitimately spans years, so a `trade_year = <asof year>` equality would silently return
+    ZERO rows for every historical read, and `trade_year` is not a NumberQuery field a caller could pass.
+    The bounds are implied by the date/as-of predicates (they exist for catalog pruning), so scoping is
+    unchanged and no partition axis is left unconstrained."""
     geo = _geo(spec.commodity) if spec.commodity else {}
     w: list[str] = []
     region = spec.region or (geo.get("_primary") or (None, None))[1]
@@ -265,6 +305,8 @@ def _partition_filters(spec: NumberQuery, ts: TableSpec) -> list[str]:
             if not spec.commodity:
                 raise ValueError(f"table {ts.id} requires commodity (partition column)")
             continue                                          # emitted by the regular commodity filter
+        if ts.year_col and col == ts.year_col:
+            continue                                          # emitted as sargable BOUNDS by the year_col branch
         if col == ts.country_col:
             val = _resolved_country(spec, ts)
         elif col == "region":
@@ -292,6 +334,7 @@ def _filters(spec: NumberQuery, ts: TableSpec) -> list[str]:
         w += _esr_country_codes(spec, ts)                    # [] when no spec.country -> national path unchanged
     elif spec.country and ts.country_col and ts.country_col not in ts.partition_cols and ts.country_col not in cf:
         w.append(f"{ts.country_col} = {_q(spec.country)}")
+    w += _contract_month_filter(spec, ts)                    # W3.1: named-expiry equality / curve IN(...) list
     if ts.shape == "tall" and ts.metric_col:
         w.append(f"{ts.metric_col} = {_q(spec.metric)}")
     if spec.period and ts.period_col:
@@ -391,6 +434,17 @@ def _extras(ts: TableSpec) -> list[tuple[str, str]]:
         out.append((ts.month_col, "month"))
     if ts.unit_col:
         out.append((ts.unit_col, "unit"))
+    # W3.1 (per-expiry price tables): the three labels that make a curve row self-identifying. A settle
+    # WITHOUT its delivery month is unattributable -- under a multi-expiry read every row carries the same
+    # slug and the same trade date, so the number alone cannot be tied to an expiry; WITHOUT settle_kind an
+    # ICE session close gets cited as an official settlement; WITHOUT currency ten currencies share one
+    # column and nothing is FX-converted. Absent cols -> byte-identical SQL for every other table.
+    if ts.contract_month_col:
+        out.append((ts.contract_month_col, "contract_month"))
+    if ts.settle_kind_col:
+        out.append((ts.settle_kind_col, "settle_kind"))
+    if ts.currency_col:
+        out.append((ts.currency_col, "currency"))
     if ts.shape == "tall" and ts.metric_col:
         out.append((ts.metric_col, "metric"))
     return out
@@ -503,9 +557,18 @@ def _total_order(extras: list[tuple[str, str]], include_country: bool = True) ->
     the ``agg=latest`` vintage branch (the LIVE esr_exports cascade leg, country_rule=none) and silently
     flip the freshest-week pick to the lexicographically-smallest ``country_code`` row — a different value
     for the national leg. Dropping ``country`` on the no-country path keeps that leg's value byte-stable;
-    when a destination IS named the alias participates (a single scoped row anyway)."""
+    when a destination IS named the alias participates (a single scoped row anyway).
+
+    W3.1: ``contract_month`` sits AHEAD of ``unit`` (and of the bare ``value`` fallback). A per-expiry price
+    table returns MANY rows per trading date, identical on every earlier tiebreak column, so without the
+    delivery month in the order a multi-expiry result under LIMIT is ENGINE-ARBITRARY -- Athena and the pg
+    mirror would legitimately return different expiries for the same curve SQL, and the ``agg=latest``
+    branch (ORDER BY date DESC, ... LIMIT 1) would pick a different EXPIRY on each backend. This is the
+    documented Athena-vs-pg divergence class the parity gate found in 2026-07. 'YYYY-MM' sorts lexically ==
+    chronologically, so the tiebreak resolves to the NEAREST delivery month, deterministically."""
     have = [a for _, a in extras]
-    pri = ["data_date", "period", "year", "month", "country", "metric", "knowledge_date", "unit"]
+    pri = ["data_date", "period", "year", "month", "country", "metric", "knowledge_date",
+           "contract_month", "unit"]
     if not include_country:
         pri = [p for p in pri if p != "country"]
     return ", ".join([a for a in pri if a in have] + ["value"])
@@ -524,6 +587,16 @@ def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = AT
         raise ValueError(f"table {spec.table} is levels-only (roll-spliced continuous front-month settle): "
                          f"only agg=latest single-date levels are served; a change/window/series/curve read "
                          f"is not point-in-time-safe across roll boundaries")
+    # W3.1 DELIVERY-MONTH GUARD: a contract_month ask against a card with NO contract_month_col would be
+    # SILENTLY WIDENED to whatever that table serves. On silver_futures_prices that is the ROLL-SPLICED
+    # CONTINUOUS front month -- "what is the December corn settle" answered with a number that is not
+    # December's, which the card's own notes forbid presenting as a specific delivery month. RAISE
+    # deterministically instead (mirroring the DP-1 guard below): a dimension the table cannot express is a
+    # decline, never a quiet substitution. Ordered AFTER the levels_only raise so that guard keeps priority.
+    if spec.contract_month and not ts.contract_month_col:
+        raise ValueError(f"table {spec.table} carries no delivery-month column, so a contract_month "
+                         f"({spec.contract_month!r}) read is not expressible against it -- the served series "
+                         f"is not that expiry (silver_futures_prices is the CONTINUOUS front month)")
     # DP-1 GUARD: a metric carrying unit_overrides is keyed by commodity for its unit (avg_farm_price). A
     # commodity-less query would serve unattributable blank-unit rows -- RAISE deterministically (the
     # Conventions bullet is discipline; this is enforcement).
@@ -597,6 +670,8 @@ def apply_pit_filter(rows: list[dict], spec: NumberQuery, ts: TableSpec) -> list
                     if ts.country_col and ts.country_col in ts.partition_cols else None)  # SAME way as build_sql
     cf = _metric_commodity_filters(spec, ts)                             # A3 per-commodity row constraints (mirror
     cf_sets = {col: {str(v) for v in vals} for col, vals in cf.items()}  # of build_sql's `col IN (...)` emit)
+    months = set(_contract_months(spec))                                 # W3.1 delivery-month scope: mirrors
+    #                                                                      _contract_month_filter's equality/IN emit
     esr_codes: Optional[set[str]] = None                                 # ESR destination: resolved str codes for
     if ts.country_name_ref and spec.country:                             # spec.country (mirrors _esr_country_codes;
         from leviathan.graphrag.numbers.esr_destinations import load_esr_destinations  # EMPTY set == unresolved ->
@@ -625,6 +700,9 @@ def apply_pit_filter(rows: list[dict], spec: NumberQuery, ts: TableSpec) -> list
                 continue
             if str(r.get(col)) not in allowed:
                 return False
+        if months and ts.contract_month_col:                            # W3.1: named expiry / curve membership
+            if str(r.get(ts.contract_month_col)) not in months:          # (a NULL cash-index month never matches
+                return False                                             #  a named month -- fail CLOSED, as in SQL)
         if ts.shape == "tall" and ts.metric_col and str(r.get(ts.metric_col)) != str(spec.metric):
             return False
         if spec.period and ts.period_col:

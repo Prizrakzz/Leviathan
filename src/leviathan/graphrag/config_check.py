@@ -942,7 +942,12 @@ def check_numbers_schema_pins() -> list[str]:
         text = ddl.read_text(encoding="utf-8")
         refs = {ts.commodity_col, ts.country_col, ts.period_col, ts.date_col, ts.knowledge_date_col,
                 ts.year_col, ts.month_col, ts.provenance_col, ts.vintage_partition_col,
-                getattr(ts, "metric_col", None), getattr(ts, "value_col", None), getattr(ts, "unit_col", None)}
+                getattr(ts, "metric_col", None), getattr(ts, "value_col", None), getattr(ts, "unit_col", None),
+                # W3.1: the per-expiry price dimensions ride the same card-vs-DDL pin as unit_col -- a
+                # renamed contract_month/settle_kind/currency column would otherwise only surface as a
+                # live COLUMN_NOT_FOUND (the silver_nasa_power incident this lint was born from).
+                getattr(ts, "contract_month_col", None), getattr(ts, "settle_kind_col", None),
+                getattr(ts, "currency_col", None)}
         if ts.shape == "wide":
             refs |= set(ts.metrics)
         for col in sorted(c for c in refs if c):
@@ -1244,6 +1249,20 @@ _FUTURES_EOD_CARD_FIELDS: dict = {
     # lints compare hops on, so an unpinned value could drift to month/annual without failing a build.
     "period_type": "date",
     "grain_cols": ["leviathan_slug", "contract_month", "trade_date"],
+    # W3.1 SERVED DIMENSIONS + the physical partition layout. Pinned HERE because this is the ONLY lint
+    # that reads the RAW card while the table is registry-fenced: check_numbers_schema_pins iterates
+    # load_registry().tables, from which WHITELIST_ABSENT_DEFAULT drops silver_futures_eod, so its
+    # card-vs-DDL pin on these columns is INERT until the W3 whitelist flip. Without these five keys an
+    # edit that dropped settle_kind_col would leave every lint green while an ICE ohlcv-1d session CLOSE
+    # started being cited as an official settlement -- the card's own notes call that label "not
+    # decorative". partition_cols/year_col are pinned for the same reason on the other side: they decide
+    # whether trade_year compiles as a sargable BOUND or (wrongly) as a static equality that would zero
+    # out every historical read.
+    "contract_month_col": "contract_month",
+    "settle_kind_col": "settle_kind",
+    "currency_col": "currency",
+    "partition_cols": ["leviathan_slug", "trade_year"],
+    "year_col": "trade_year",
 }
 # The tracked copy of the serving unit contract: 31 contract slugs -> exchange-convention unit string.
 # Bound to CONTRACT_MAP and to the card by check_futures_eod (drift any direction fails the build).
@@ -1434,13 +1453,17 @@ _ROLL_RULE_ALLOWED = frozenset({
     "src/leviathan/graphrag/config_check.py",
 })
 # Tokens that only a second IMPLEMENTATION would carry (not a mere mention): a competing version
-# constant, a competing rule table, or a competing front-month entry point.
+# constant, a competing rule table, a competing INPUT CONTRACT (which method reads which column -- a
+# second copy of THAT drifts silently when DCE moves from delivery-cycle to volume, and it is the kind
+# of copy an implementation-only scan misses), or a competing front-month entry point.
 _ROLL_RULE_FORBIDDEN_TOKENS = (
     "ROLL_RULE_VERSION =",
     "ROLL_METHOD_BY_SOURCE =",
     "DELIVERY_CYCLES =",
+    "METHOD_METRIC_COL =",
     "def front_month(",
     "def _front_month(",
+    "def front_month_inputs_present(",
 )
 _ROLL_RULE_SCAN_DIRS = ("src", "jobs", "scripts", "tests")
 
@@ -1486,6 +1509,22 @@ def check_futures_roll() -> list[str]:
     return errs
 
 
+def check_pace_collapse() -> list[str]:
+    """W3.3 item 17 / skeptic F-E: the T2a pace-collapse declarations are coherent AND no PRICE table
+    collapses by `sum` / `mean` (AWS-free, pure -- the futures_roll lint_roll_rule + bind idiom).
+
+    F-E is not a style complaint. `_PACE_COLLAPSE` maps a table to an AGGREGATION OVER THE VALUES IN A
+    PERIOD, and a per-delivery-month price table is multi-row-per-period by construction: summing
+    Dec+Mar+May settles is meaningless, the mean across a curve is a different unnamed series that reads
+    as entirely plausible prose, and an UNCOLLAPSED vals[-1]-vals[-2] deltas two EXPIRIES rather than two
+    dates -- a direction-inverted number riding a real [N] handle the all-numbers guard validates as
+    correct (the class that already shipped once as the ESR '+565' probe). The honest collapse for a
+    curve is a SELECTION -- `front_expiry`, keyed on the delivery-month column via the one named
+    query-time rule (futures_roll.front_month) -- and this lint is what keeps the two wrong kinds out."""
+    from leviathan.graphrag.numbers.cascade import lint_pace_collapse
+    return [f"pace_collapse: {e}" for e in lint_pace_collapse()]
+
+
 def main() -> int:
     failures = 0
     for label, errs in (("vocab", lint_vocab()), ("node_silver_map", check_node_silver_map()),
@@ -1507,7 +1546,8 @@ def main() -> int:
                         ("stats_registry", check_stats_registry()),
                         ("futures_lite", check_futures_lite()),
                         ("futures_eod", check_futures_eod()),
-                        ("futures_roll", check_futures_roll())):
+                        ("futures_roll", check_futures_roll()),
+                        ("pace_collapse", check_pace_collapse())):
         if errs:
             failures += len(errs)
             print(f"FAIL {label}:")

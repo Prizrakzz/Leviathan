@@ -89,6 +89,75 @@ class TestRuleTables:
         assert any("non-month value" in e for e in FR.lint_roll_rule())
 
 
+class TestInputContract:
+    """METHOD_METRIC_COL + front_month_inputs_present -- the rule's INPUT contract, exported so that a
+    caller which must decide "can this rule even RUN on these rows?" never re-declares which column each
+    method reads. A second INPUT contract is F-L in miniature and worse than a second implementation:
+    the source fence scans for a competing IMPLEMENTATION and would never see it, so when DCE moves from
+    the delivery cycle to front-by-volume the stale copy either declines wrongly or waves a degraded
+    selection through."""
+
+    def test_every_method_declares_the_column_it_reads(self):
+        assert set(FR.METHOD_METRIC_COL) == set(FR.ROLL_METHODS)
+        assert FR.METHOD_METRIC_COL[FR.METHOD_OPEN_INTEREST] == "open_interest"
+        assert FR.METHOD_METRIC_COL[FR.METHOD_VOLUME] == "volume"
+        assert FR.METHOD_METRIC_COL[FR.METHOD_DELIVERY_CYCLE] is None    # a curated calendar fact
+        assert FR.METHOD_METRIC_COL[FR.METHOD_NONE] is None              # no delivery-month axis at all
+
+    def test_lint_fires_when_a_method_loses_its_declared_column(self, monkeypatch):
+        broken = {k: v for k, v in FR.METHOD_METRIC_COL.items() if k != FR.METHOD_VOLUME}
+        monkeypatch.setattr(FR, "METHOD_METRIC_COL", broken)
+        assert any("METHOD_METRIC_COL" in e for e in FR.lint_roll_rule())
+
+    def test_the_metric_on_every_row_is_present(self):
+        df = _rows("corn_cbot", "2026-03-10", ["2026-05", "2026-07"], oi=[1, 2])
+        assert FR.front_month_inputs_present(df) is True
+
+    def test_the_metric_on_only_SOME_rows_is_NOT_present(self):
+        """THE PARTIAL CASE. front_month fills the gap with -1, so it still ANSWERS -- and the expiry
+        that happened to carry a print wins by DEFAULT, i.e. the nearest-month tie-break wearing
+        front_month_v1's name. The predicate is what lets a caller refuse that."""
+        df = _rows("corn_cbot", "2026-03-10", ["2026-05", "2026-07"], oi=[None, 3])
+        assert FR.front_month_inputs_present(df) is False
+        assert FR.front_month(df)["contract_month"].iloc[0] == "2026-07"   # it WOULD have answered
+
+    def test_blank_and_nan_both_count_as_absent(self):
+        for bad in ("", float("nan")):
+            df = _rows("corn_cbot", "2026-03-10", ["2026-05", "2026-07"], oi=[bad, 3])
+            assert FR.front_month_inputs_present(df) is False
+
+    def test_a_delivery_cycle_slug_needs_no_metric_at_all(self):
+        df = _rows("french_wheat_matif", "2026-03-10", ["2026-05", "2026-09"])
+        assert FR.front_month_inputs_present(df) is True
+
+    def test_an_ice_slug_is_asked_for_VOLUME_not_open_interest(self):
+        # ICE carries no OI by construction ($1,960 statistics schema, excluded) -- volume IS the rule
+        # there, so an OI-only frame is a frame the rule cannot read.
+        assert FR.front_month_inputs_present(
+            _rows("arabica_coffee", "2026-03-10", ["2026-05", "2026-07"], vol=[10, 20])) is True
+        assert FR.front_month_inputs_present(
+            _rows("arabica_coffee", "2026-03-10", ["2026-05", "2026-07"], oi=[10, 20])) is False
+
+    def test_missing_column_and_empty_frame_fail_closed(self):
+        df = _rows("corn_cbot", "2026-03-10", ["2026-05"], oi=[5]).drop(columns=["open_interest"])
+        assert FR.front_month_inputs_present(df) is False
+        assert FR.front_month_inputs_present(pd.DataFrame()) is False
+        assert FR.front_month_inputs_present(pd.DataFrame({"x": [1]})) is False
+
+    def test_an_unmapped_slug_raises_exactly_like_roll_method_for(self):
+        df = _rows("corn_cbot", "2026-03-10", ["2026-05"], oi=[5])
+        df["leviathan_slug"] = "not_a_contract"
+        with pytest.raises(ValueError):
+            FR.front_month_inputs_present(df)
+
+    def test_a_mixed_frame_is_judged_PER_SLUG(self):
+        oi_ok = _rows("corn_cbot", "2026-03-10", ["2026-05", "2026-07"], oi=[1, 2])
+        cycle = _rows("french_wheat_matif", "2026-03-10", ["2026-05", "2026-09"])
+        assert FR.front_month_inputs_present(pd.concat([oi_ok, cycle], ignore_index=True)) is True
+        vol_missing = _rows("arabica_coffee", "2026-03-10", ["2026-05"], vol=[None])
+        assert FR.front_month_inputs_present(pd.concat([oi_ok, vol_missing], ignore_index=True)) is False
+
+
 class TestFrontMonth:
     def test_front_by_open_interest(self):
         df = _rows("corn_cbot", "2026-03-10", ["2026-05", "2026-07", "2026-09"],

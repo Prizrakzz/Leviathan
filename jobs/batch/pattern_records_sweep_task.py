@@ -452,6 +452,18 @@ def classify_pace_decline(pace_rec: Optional[dict], row: Optional[dict], *,
       grain is None         -> annual_grain        (MY / event-flag; ~L798-800, cascade._pace_grain)
       _pace_series ([],None) -> cross_section_undeclared (undeclared multi-row period; ~L766-767)
       len(vals) < MIN_STREAK_N -> thin_history     (< 2 collapsed periods; ~L805-806)
+
+    OWED AT W3.3 ITEM 16 (do NOT wire before silver_futures_eod joins cascade.PACE_TABLES -- inert
+    until then, since a table outside that inventory declines at the annual_grain gate above): the
+    `front_expiry` collapse makes ([], None) AMBIGUOUS. On a per-delivery-month price table an empty
+    return means any of: the front month ROLLED inside the window, the rule's own input was absent on a
+    candidate row, the slug is a cash index, the expiry alias was missing, the slug was unmapped, or
+    nothing was eligible -- six reasons this function would report as `cross_section_undeclared`, a
+    vocabulary word that asserts something else. The census is precisely the artifact that would have to
+    explain WHY the price pace leg never fires, so it must not answer confidently and wrongly: add a
+    `front_expiry_unselectable` member to PACE_DECLINE_REASONS and branch on
+    `(row or {}).get('table') in cascade._PACE_EXPIRY_COL` before falling through to the cross-section
+    label (better: have the selection expose the reason it declined, so the sweep reads it).
     """
     from leviathan.graphrag.numbers import cascade as casc
     from leviathan.graphrag.numbers import stats as st

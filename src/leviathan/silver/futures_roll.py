@@ -53,6 +53,22 @@ ROLL_METHODS: tuple[str, ...] = (
     METHOD_OPEN_INTEREST, METHOD_VOLUME, METHOD_DELIVERY_CYCLE, METHOD_NONE,
 )
 
+# THE RULE'S INPUT CONTRACT: which COLUMN each method actually READS. Exported because a caller that
+# must decide "can the rule even RUN on these rows?" would otherwise re-declare this mapping inline --
+# a second INPUT CONTRACT. That is F-L in miniature and it is worse than a second implementation,
+# because the config_check source fence only scans for a competing IMPLEMENTATION and would never see
+# it: when a method's column changes (the DCE entry above moves from METHOD_DELIVERY_CYCLE to
+# METHOD_VOLUME the moment the W1c producer proves its volume field), the stale inline copy either
+# declines wrongly or waves through a degraded selection, silently.
+# None = the method reads NO activity metric: a delivery-cycle front month is a curated calendar fact,
+# and a cash reference has no delivery-month axis at all. Bound to ROLL_METHODS by lint_roll_rule.
+METHOD_METRIC_COL: dict[str, str | None] = {
+    METHOD_OPEN_INTEREST: "open_interest",
+    METHOD_VOLUME: "volume",
+    METHOD_DELIVERY_CYCLE: None,
+    METHOD_NONE: None,
+}
+
 # Per PUBLICATION SOURCE, not per slug: the method is a property of what the feed CARRIES.
 # check_futures_roll asserts this covers exactly futures_eod_contracts.SOURCES.
 ROLL_METHOD_BY_SOURCE: dict[str, str] = {
@@ -140,6 +156,40 @@ def _month_start(series: pd.Series) -> pd.Series:
 def _cycle_eligible(slug: str, months: pd.Series) -> pd.Series:
     cycle = set(delivery_cycle_for(slug))
     return months.dt.month.isin(cycle)
+
+
+def front_month_inputs_present(df: pd.DataFrame) -> bool:
+    """True when EVERY candidate row carries the input ITS OWN slug's method reads -- the precondition
+    :func:`front_month` deliberately cannot express, asked HERE so no caller re-declares the method ->
+    column contract (:data:`METHOD_METRIC_COL`).
+
+    ``front_month`` fills a missing activity metric with -1 so it can never outrank a real print. That
+    is correct INSIDE the rule (a deterministic tie-break), but it means a frame carrying the metric on
+    only SOME rows still returns a contract -- chosen by the nearest-month tie-break, i.e. a DIFFERENT,
+    unnamed rule (precisely ``legacy_lane_front``'s convention) wearing ``front_month_v1``'s name. An
+    ALL-missing frame is the obvious case; the PARTIAL frame is the dangerous one, because whichever
+    expiry happened to carry a print wins by default and nothing about that is visible downstream. A
+    caller that must not serve a degraded selection asks this first and declines when it is False.
+
+    Rows whose method needs no metric (the delivery-cycle sources, and the cash references
+    ``front_month`` drops outright) are vacuously present -- "is this even a front-month question?" is
+    :func:`roll_method_for`'s job, not this one's. FAIL CLOSED: an unmapped slug raises (as
+    ``roll_method_for`` does), a frame with no ``leviathan_slug`` column is False, and an empty frame is
+    False (nothing to select from is not a satisfied precondition). Blank strings and NaN both count as
+    ABSENT -- a row whose open interest arrived as '' is a row the rule cannot read."""
+    if df is None or len(df) == 0 or "leviathan_slug" not in list(getattr(df, "columns", [])):
+        return False
+    for slug in sorted({str(s) for s in df["leviathan_slug"].dropna().tolist()}):
+        need = METHOD_METRIC_COL[roll_method_for(slug)]    # KeyError on an unknown method: fail closed
+        if need is None:
+            continue
+        if need not in df.columns:
+            return False
+        vals = pd.to_numeric(df.loc[df["leviathan_slug"].astype("string") == slug, need],
+                             errors="coerce")
+        if len(vals) == 0 or vals.isna().any():
+            return False
+    return True
 
 
 def front_month(df: pd.DataFrame, *, rule_version: str = ROLL_RULE_VERSION) -> pd.DataFrame:
@@ -287,6 +337,12 @@ def lint_roll_rule() -> list[str]:
     bad = sorted({m for m in ROLL_METHOD_BY_SOURCE.values() if m not in ROLL_METHODS})
     if bad:
         errs.append(f"unknown roll method(s) {bad} (legal: {list(ROLL_METHODS)})")
+    # The INPUT CONTRACT covers exactly the methods -- a new method with no declared column would make
+    # front_month_inputs_present raise (fail-closed) instead of answering, and a column declared for a
+    # method that no longer exists is a stale contract nobody reads.
+    if set(METHOD_METRIC_COL) != set(ROLL_METHODS):
+        errs.append(f"METHOD_METRIC_COL keys {sorted(METHOD_METRIC_COL)} != the declared methods "
+                    f"{sorted(ROLL_METHODS)} -- every method must name the column it READS (or None)")
 
     # The TABLE itself must agree with the cash-index short-circuit in roll_method_for. Without
     # this the 'cepea' entry could drift to 'volume' and nothing would notice, because

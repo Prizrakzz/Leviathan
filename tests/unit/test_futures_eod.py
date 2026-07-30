@@ -150,6 +150,19 @@ class TestThreeWayDriftFails:
         monkeypatch.setattr(R, "WHITELIST_ABSENT_DEFAULT", frozenset())
         assert any("WHITELIST_ABSENT_DEFAULT" in e for e in cc.check_futures_eod())
 
+    def test_dropping_a_served_dimension_or_the_partition_layout_fails(self, monkeypatch):
+        # check_futures_eod is the ONLY lint that reads the RAW card while the table is registry-fenced
+        # (check_numbers_schema_pins iterates load_registry(), which DROPS a whitelist-absent table), so
+        # these five keys can only be pinned here pre-flip. Dropping settle_kind_col would otherwise
+        # leave every lint green while an ICE session CLOSE started being cited as a settlement.
+        for key in ("contract_month_col", "settle_kind_col", "currency_col", "partition_cols",
+                    "year_col"):
+            doc = cc._load("numbers/tables.yaml")
+            doc["tables"][TABLE].pop(key)
+            monkeypatch.setattr(cc, "_load", lambda name, _d=doc: _d)
+            assert any(key in e for e in cc.check_futures_eod()), key
+            monkeypatch.undo()
+
     def test_settle_kind_vocabulary_drift_fails(self, monkeypatch):
         bad = copy.deepcopy(FC.CONTRACT_MAP)
         bad["corn_cbot"]["settle_kind"] = "official"

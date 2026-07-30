@@ -155,6 +155,13 @@ class TableSpec(BaseModel):
     partition_cols: list[str] = []                           # injected-projection partitions: every query MUST carry
     #                                                          a static equality on EACH (silver_nasa_power:
     #                                                          commodity/country/region, mirroring the S3 layout)
+    #                                                          ONE EXCEPTION (W3.1, silver_futures_eod's
+    #                                                          trade_year): a partition col that is ALSO the
+    #                                                          declared year_col is pinned by the SARGABLE YEAR
+    #                                                          BOUNDS _filters already emits, not by an equality
+    #                                                          -- a date-window read legitimately spans years, so
+    #                                                          an equality would silently return ZERO rows, and
+    #                                                          `year` is not a NumberQuery field to pass by hand.
     # ── projection-enumeration guards (Jul-2026 S3 LIST storm: silver_esr projects as_of_date over
     #    1990->NOW x market_year x commodity_code ~ 6.1M candidate prefixes; every query WITHOUT sargable
     #    predicates on those columns made Athena LIST ~130-600K S3 prefixes — $134 in two days) ──────────
@@ -172,6 +179,30 @@ class TableSpec(BaseModel):
     metric_col: Optional[str] = None                         # tall: column holding the metric NAME
     value_col: Optional[str] = None                          # tall: column holding the numeric VALUE
     unit_col: Optional[str] = None
+    contract_month_col: Optional[str] = None                 # W3.1 (PRICE_AND_PLAYBOOKS): the DELIVERY-MONTH
+    #                                                          column of a per-expiry price table
+    #                                                          (silver_futures_eod.contract_month, 'YYYY-MM').
+    #                                                          Set -> NumberQuery.contract_month becomes
+    #                                                          expressible: build_sql emits an equality for one
+    #                                                          expiry and `col IN (...)` for a CURVE read across
+    #                                                          expiries, apply_pit_filter mirrors it, and _extras
+    #                                                          surfaces the alias `contract_month` -- a curve row
+    #                                                          without its expiry label is UNATTRIBUTABLE. None
+    #                                                          (every other table) -> byte-identical SQL, and a
+    #                                                          contract_month ask RAISES rather than being
+    #                                                          silently widened to a continuous/front-month series.
+    settle_kind_col: Optional[str] = None                    # W3.1: the PROVENANCE-of-the-number column
+    #                                                          (settlement | close | mark_to_market | cash_index)
+    #                                                          surfaced by _extras as alias `settle_kind`. An ICE
+    #                                                          row is a session CLOSE, never an official
+    #                                                          settlement; the label travels ON the row so the
+    #                                                          citation cannot round it up to "the settlement".
+    currency_col: Optional[str] = None                       # W3.1: the row's ISO-4217 currency, surfaced by
+    #                                                          _extras as alias `currency`. Ten currencies live in
+    #                                                          one table and NOTHING is FX-converted at ingest or
+    #                                                          at serving, so a bare number is unattributable
+    #                                                          without it (mirrors unit_col exactly: declare the
+    #                                                          column, get the alias, no other behavior).
     metrics: dict[str, Metric] = {}                          # wide: column->Metric ; tall: metric-value->Metric
     grain_cols: list[str] = []                               # explicit unique-observation identity (else inferred)
     vintage_tiebreak: list[VintageTiebreakTerm] = []         # optional per-grain tiebreak for latest-vintage
@@ -234,6 +265,20 @@ class NumbersRegistry(BaseModel):
 # the post-whitelist rollback lever is then the ordinary GRAPHRAG_NUMBERS_DISABLE=silver_futures_eod env
 # idiom. The set stays DISJOINT from _disabled_tables() (env-only) so the env-parse kill-switch tests
 # stay byte-identical; the union happens once, in load_registry.
+#
+# THE FLIP IS NOT A ONE-LINE DELETION (W3.1 item 7). Deleting the entry makes the card visible to the
+# agent's TOOL SCHEMA and system-prompt card, so the SAME change must carry:
+#   (a) `contract_month` declared in numbers.agent.tool_schema's input properties. The model can only
+#       emit parameters the schema NAMES; the field is already a NumberQuery/TableSpec dimension and
+#       _forced_spec honours it, so the omission is silent rather than loud -- a December ask that
+#       never emits the parameter is WIDENED to the whole curve, and agg=latest then answers it with
+#       the nearest listed expiry. That is exactly the failure build_sql's delivery-month guard exists
+#       to prevent, arriving by a different route. tests/unit/test_futures_eod_curve.py holds this as
+#       a BUILD FENCE: the test fails the moment the card is served without the parameter.
+#   (b) numbers.dispatch ToolSpec.purpose naming term structure / the curve (W3.1 item 8) --
+#       family_names() derives the router enum from it.
+#   (c) config_check.check_futures_eod clause (c) inverted, plus the ~4 tests that pin the fence
+#       (test_futures_eod.py, test_futures_eod_curve.py::TestFenceUnchanged).
 WHITELIST_ABSENT_DEFAULT: frozenset[str] = frozenset({
     "silver_futures_eod",   # W1.0: registered + linted, FENCED from serving until the W3 whitelist flip
 })
