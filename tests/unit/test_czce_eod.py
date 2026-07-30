@@ -338,27 +338,40 @@ class TestHostDispatch:
         from leviathan.transforms.bronze_to_silver.databento_eod import build_databento_eod_silver
         assert TASK._silver_builder("databento") is build_databento_eod_silver
 
-    def test_the_five_free_legs_are_implemented_and_the_w1c_three_are_not_yet(self):
+    def test_all_eight_legs_are_implemented_and_the_dispatch_has_no_holes(self):
         """jse / cepea / miax were declared-but-unimplemented when the CZCE leg landed and are
-        implemented now (W1a + W1b). Their parse suites are tests/unit/test_{jse_safex,cepea,
-        miax}_eod.py. W1c's three (dce / euronext / bursa) landed their raw->bronze half only, so
-        what this pins is that the dispatch has no ACCIDENTAL holes -- every leg is either wired
-        end to end or explicitly declared-only."""
-        for source in ("databento", "czce", "jse", "cepea", "miax"):
-            assert TASK._SOURCE_SPECS[source].implemented is True, source
-            assert TASK._silver_builder(source) is not None
-        for source in ("dce", "euronext", "bursa"):
-            assert TASK._SOURCE_SPECS[source].implemented is False, source
-            assert "bronze_to_silver" in TASK._SOURCE_SPECS[source].todo
+        implemented now (W1a + W1b); W1c's three (dce / euronext / bursa) followed the same path --
+        raw->bronze first, then the silver projection, which is what flipped them. Their parse
+        suites are tests/unit/test_{jse_safex,cepea,miax,dce,euronext}_eod.py +
+        test_bursa_fcpo.py, their projection suites the *_silver.py files beside them.
 
-    def test_an_undeclared_leg_names_what_is_missing(self):
+        What this pins is that the dispatch has no ACCIDENTAL holes: every leg in the table is
+        either wired end to end or EXPLICITLY declared-only (todo naming the module to write), and
+        an implemented leg carries no leftover todo."""
+        assert sorted(TASK._SOURCE_SPECS) == ["bursa", "cepea", "czce", "databento", "dce",
+                                              "euronext", "jse", "miax"]
+        for source, spec in TASK._SOURCE_SPECS.items():
+            assert spec.implemented is True, source
+            assert spec.todo == "", f"{source} is implemented but still carries a todo"
+            assert TASK._silver_builder(source) is not None
+
+    def test_an_undeclared_leg_names_what_is_missing(self, monkeypatch):
         """Two different refusals, and they must not be confused: a source that is not in the table
         at all is a ValueError, while a source that IS declared but has no silver projection yet
-        raises a NotImplementedError carrying the module to write."""
+        raises a NotImplementedError carrying the module to write.
+
+        Every real leg is wired now, so the second half runs against a SYNTHETIC declared-only spec
+        -- the refusal path has to keep working for whatever lands next (the yfinance lesson: a leg
+        that is not wired must FAIL, never write nothing quietly)."""
         with pytest.raises(ValueError, match="unknown --source"):
             TASK.source_spec("shfe")
+        pending = TASK._SOURCE_SPECS["czce"]._replace(
+            name="shfe", job="futures_eod_shfe", publication_sources=("shfe",),
+            implemented=False,
+            todo="src/leviathan/transforms/bronze_to_silver/shfe_eod.py::build_shfe_eod_silver")
+        monkeypatch.setitem(TASK._SOURCE_SPECS, "shfe", pending)
         with pytest.raises(NotImplementedError, match="not implemented|Still needed"):
-            TASK._silver_builder("bursa")
+            TASK._silver_builder("shfe")
 
     def test_build_silver_still_defaults_to_databento(self):
         """--source's default keeps every landed W2 invocation byte-identical."""
@@ -578,8 +591,8 @@ class TestHostEndToEnd:
         assert self._run(monkeypatch, {}) == 1
 
     def test_an_unimplemented_leg_refuses_before_any_aws_call(self, monkeypatch):
-        """All five declared legs are implemented now, so the guard is exercised against a
-        synthetic declared-only spec -- it still has to fire for the NEXT leg (bursa, W1c)."""
+        """Every declared leg is implemented now (W1a + W1b + W1c), so the guard is exercised
+        against a synthetic declared-only spec -- it still has to fire for whatever lands next."""
         def _boom(region):
             raise AssertionError("must not build an S3 client for an unimplemented leg")
 
@@ -600,6 +613,9 @@ class TestHostEndToEnd:
     def test_the_real_bursa_spec_survives_the_synthetic_injection_above(self):
         """The teardown regression, pinned: this must see the SHIPPED bursa spec, not a hole and
         not the synthetic one. It is deliberately the test that runs after it."""
+        from leviathan.transforms.bronze_to_silver.bursa_fcpo import build_bursa_fcpo_silver
+
         spec = TASK.source_spec("bursa")
         assert spec.publication_sources == ("bursa",)
-        assert not spec.implemented and "bursa_fcpo" in spec.todo
+        assert spec.implemented and spec.todo == ""
+        assert TASK._silver_builder("bursa") is build_bursa_fcpo_silver

@@ -386,11 +386,20 @@ class TestTaskWiring:
         with pytest.raises(FileNotFoundError):
             TASK.load_dce_capture(FakeS3(), "b", raw_dce_daily_key("p", "2026-07-29"))
 
-    def test_the_leg_is_declared_with_its_own_floor_state(self):
+    def test_the_leg_is_wired_end_to_end_with_its_own_floor_state(self):
+        """IMPLEMENTED is not ARMED, and the two must not be conflated. The bronze -> silver half
+        landed (``transforms/bronze_to_silver/dce_eod.py``, exercised by
+        ``tests/unit/test_dce_eod_silver.py``), so the spec no longer refuses the source -- but the
+        per-day row floor stays 0 because only ONE of the five varieties has ever been captured
+        live. Any number there would sit somewhere between 'correct' and 'four varieties silently
+        missing', which is the F-C trap the JSE floor of 20 was."""
+        from leviathan.transforms.bronze_to_silver.dce_eod import build_dce_eod_silver
+
         spec = TASK.source_spec("dce")
         assert spec.publication_sources == ("dce",)
         assert spec.rows_per_day == 0, "the DCE day floor is unmeasured -- do not guess one"
-        assert not spec.implemented and "bronze_to_silver" in spec.todo
+        assert spec.implemented and spec.todo == ""
+        assert TASK._silver_builder("dce") is build_dce_eod_silver
 
     def test_the_raw_prefixes_are_the_curated_layout(self):
         assert dce_variety_prefix("p") == "raw/production/source=dce/variety=p/"

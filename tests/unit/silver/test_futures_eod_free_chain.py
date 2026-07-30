@@ -42,6 +42,10 @@ TASK = _load("jobs/batch/futures_eod_task.py", "futures_eod_task_free")
 _JSE_SUITE = _load("tests/unit/test_jse_safex_eod.py", "jse_suite")
 _CEPEA_SUITE = _load("tests/unit/test_cepea_eod.py", "cepea_suite")
 _MIAX_SUITE = _load("tests/unit/test_miax_eod.py", "miax_suite")
+# W1c's live captures, and the DCE suite's settled_daily() -- the landed fixture is the NOT_READY
+# night-session shape, which the producer refuses to land and the parser refuses to read.
+_W1C_FIXTURES = _REPO / "tests" / "fixtures" / "w1c"
+_DCE_SUITE = _load("tests/unit/test_dce_eod.py", "dce_suite")
 
 
 class FakeS3:
@@ -126,10 +130,12 @@ class TestUnitDiscovery:
 
 # ---------------------------------------------------------------------------
 class TestW1cBrowserLegSeams:
-    """W1c's three legs landed their raw -> bronze half only, and the read side of the host is
+    """W1c's three legs landed their raw -> bronze half FIRST, and the read side of the host is
     where the two halves of that wave MEET: the unit readers and the DCE parser are one
     implementer's, the euronext/bursa builders the other's. Nothing else in the estate exercises
     that join, so a rename on either side would otherwise surface for the first time on Fargate.
+    (The bronze -> silver half has since landed too -- see TestHostEndToEnd -- and the lazy import
+    in ``_lazy_bronze`` stays exactly as it was: it is what let the halves land independently.)
 
     Nothing here launches a browser. The captures under ``tests/fixtures/w1c/`` are the real bytes
     the live 2026-07-29 session pulled."""
@@ -219,32 +225,100 @@ class TestHostEndToEnd:
         assert self._run(monkeypatch, objects, "--source", "jse", "--mode", "backfill") == 0
 
     def test_no_landed_object_is_an_honest_failure_not_an_empty_publish(self, monkeypatch):
-        for source in ("jse", "cepea", "miax"):
+        for source in ("jse", "cepea", "miax", "dce", "euronext", "bursa"):
             assert self._run(monkeypatch, {}, "--source", source, "--mode", "backfill") == 1
 
-    # The legs whose bronze -> silver projection exists, and the W1c legs whose raw -> bronze half
-    # has landed while theirs has not. The split is PINNED rather than tolerated: a declared-only
-    # leg is legal exactly while it refuses to run and names the module still to be written.
-    _SILVER_COMPLETE = {"databento", "czce", "jse", "cepea", "miax"}
-    _W1C_DECLARED = {"dce", "euronext", "bursa"}
+    # -- W1c, end to end. The three browser legs run the SAME spine as the four W1a/W1b venues:
+    # units from the landed prefix -> bronze -> the projection -> the two uniqueness assertions ->
+    # gate 5 -> the dry-run publish. Nothing here launches a browser; the bytes are the live
+    # 2026-07-29 captures.
+    def test_dce_backfill_is_green(self, monkeypatch):
+        """One settled variety-capture. The per-day floor is 0 BY DESIGN on this leg (only one of
+        the five varieties has ever been captured live), so what is green here is the chain, not a
+        completeness claim."""
+        objects = {raw_dce_daily_key("p", "2026-07-29"): _DCE_SUITE.settled_daily()}
+        assert self._run(monkeypatch, objects, "--source", "dce", "--mode", "backfill") == 0
 
-    def test_every_shipped_source_is_implemented_and_the_rest_declare_it(self):
-        assert set(TASK._SOURCE_SPECS) == self._SILVER_COMPLETE | self._W1C_DECLARED
+    def test_a_dce_night_capture_never_becomes_a_board_of_zero_prices(self, monkeypatch):
+        """The landed fixture verbatim: tradeDate already rolled to T+1 with every settle 0.0. The
+        parser refuses it, the unit fails, and with no other unit the run exits 1 -- a whole
+        zero-price board dated into the FUTURE is what an unguarded parse would publish."""
+        objects = {raw_dce_daily_key("p", "2026-07-29"): _DCE_SUITE.DAILY_RAW}
+        assert self._run(monkeypatch, objects, "--source", "dce", "--mode", "backfill") == 1
+
+    def test_euronext_backfill_is_green_across_the_three_products(self, monkeypatch):
+        """All three MATIF products render the identical table (same id, same 12-column thead), so
+        the one landed EBM capture models the day; the slug comes from the KEY's product segment,
+        never from the page, which is exactly what makes that modelling legal here."""
+        html = (_W1C_FIXTURES / "euronext_ebm_table.html").read_bytes()
+        objects = {raw_euronext_key(p, "2026-07-29"): html for p in TASK.EURONEXT_PRODUCTS}
+        assert self._run(monkeypatch, objects, "--source", "euronext", "--mode", "backfill") == 0
+
+    def test_a_single_product_euronext_day_trips_the_floor(self, monkeypatch):
+        """THE failure mode this leg's floor exists for: three independent page renders in one run,
+        and one of them silently not arriving. 12 rows is under the 24-row day floor."""
+        html = (_W1C_FIXTURES / "euronext_ebm_table.html").read_bytes()
+        objects = {raw_euronext_key("EBM-DPAR", "2026-07-29"): html}
+        assert self._run(monkeypatch, objects, "--source", "euronext", "--mode", "backfill") == 1
+        assert self._run(monkeypatch, objects, "--source", "euronext", "--mode", "backfill",
+                         "--row-floor", "report") == 0
+
+    def test_bursa_backfill_is_green(self, monkeypatch):
+        objects = {raw_bursa_key("FCPO", "2026-07-29"):
+                   (_W1C_FIXTURES / "bursa_fcpo_api_sample.json").read_bytes()}
+        assert self._run(monkeypatch, objects, "--source", "bursa", "--mode", "backfill") == 0
+
+    def test_a_bursa_night_capture_never_publishes_as_the_daily_settlement(self, monkeypatch):
+        """The after-hours body is a COMPLETE, plausible 24-month table with different prices, so
+        the refusal has to be a hard error all the way out to the exit code."""
+        objects = {raw_bursa_key("FCPO", "2026-07-29"):
+                   (_W1C_FIXTURES / "bursa_fcpo_api_night_sample.json").read_bytes()}
+        assert self._run(monkeypatch, objects, "--source", "bursa", "--mode", "backfill") == 1
+
+    # Every leg in the table, and the W1c three that were the last to arrive. The split is PINNED
+    # rather than tolerated: a leg is legal either wired end to end, or declared-only while it
+    # refuses to run and names the module still to be written. Both halves of W1c have landed, so
+    # all eight are wired -- and the refusal path is still exercised, below, on a synthetic spec.
+    _SILVER_COMPLETE = {"databento", "czce", "jse", "cepea", "miax", "dce", "euronext", "bursa"}
+    _W1C = {"dce", "euronext", "bursa"}
+
+    def test_every_declared_source_is_implemented_and_wired(self):
+        assert set(TASK._SOURCE_SPECS) == self._SILVER_COMPLETE
         for name in sorted(self._SILVER_COMPLETE):
             spec = TASK._SOURCE_SPECS[name]
             assert spec.implemented, f"{name} is still declared-only"
+            assert spec.todo == "", f"{name} is implemented but still carries a todo"
             assert TASK._silver_builder(name) is not None
-        for name in sorted(self._W1C_DECLARED):
-            spec = TASK._SOURCE_SPECS[name]
-            assert not spec.implemented, f"{name} claims to be implemented -- wire its builder"
-            assert "bronze_to_silver" in spec.todo, f"{name}'s todo must name the module to write"
-            with pytest.raises(NotImplementedError, match="bronze_to_silver"):
-                TASK._silver_builder(name)
+
+    def test_the_w1c_builders_are_the_modules_the_todo_strings_named(self):
+        """The two halves of W1c landed independently and the todo strings were the contract
+        between them: module path + entry point, verbatim. This is that contract, discharged."""
+        from leviathan.transforms.bronze_to_silver.bursa_fcpo import build_bursa_fcpo_silver
+        from leviathan.transforms.bronze_to_silver.dce_eod import build_dce_eod_silver
+        from leviathan.transforms.bronze_to_silver.euronext_eod import build_euronext_eod_silver
+
+        assert TASK._silver_builder("dce") is build_dce_eod_silver
+        assert TASK._silver_builder("euronext") is build_euronext_eod_silver
+        assert TASK._silver_builder("bursa") is build_bursa_fcpo_silver
 
     def test_a_declared_only_source_refuses_before_any_aws_call(self, monkeypatch):
-        """The yfinance lesson: a leg that is not wired must FAIL, never write nothing quietly."""
-        for source in sorted(self._W1C_DECLARED):
-            assert self._run(monkeypatch, {}, "--source", source, "--mode", "backfill") == 1
+        """The yfinance lesson: a leg that is not wired must FAIL, never write nothing quietly.
+
+        Every real leg is wired now, so this runs against a SYNTHETIC declared-only spec -- the
+        guard has to keep working for whatever lands next, and it must refuse BEFORE any AWS
+        client is built (which is why the S3 factory raises here)."""
+        def _boom(region):
+            raise AssertionError("must not build an S3 client for an unimplemented leg")
+
+        monkeypatch.setattr(TASK, "get_thread_local_s3_client", _boom)
+        pending = TASK._SOURCE_SPECS["czce"]._replace(
+            name="shfe", job="futures_eod_shfe", publication_sources=("shfe",),
+            implemented=False,
+            todo="src/leviathan/transforms/bronze_to_silver/shfe_eod.py::build_shfe_eod_silver")
+        monkeypatch.setitem(TASK._SOURCE_SPECS, "shfe", pending)
+        assert TASK.main(["--source", "shfe", "--bucket", "b", "--aws-region", "us-east-1"]) == 1
+        with pytest.raises(NotImplementedError, match="bronze_to_silver"):
+            TASK._silver_builder("shfe")
 
     def test_each_leg_writes_only_its_own_publication_source(self):
         """The floor scopes rows by source EQUALITY, so a leg that wrote a foreign source value

@@ -27,15 +27,22 @@ two hang off :data:`_SOURCE_SPECS`; adding a leg is a module plus one entry.
     ``jobs/ingest/fetch_miax_eod.py``. No vendor package, no key; and no volume or open interest,
     which the file simply does not publish.
 
-THE THREE W1c BROWSER LEGS (``dce``, ``euronext``, ``bursa``) ARE DECLARED, NOT YET IMPLEMENTED
------------------------------------------------------------------------------------------------
-Their raw -> bronze half is shipped (a headless-Chromium producer under ``jobs/ingest/`` plus a
-transform under ``transforms/raw_to_bronze/``), so their unit readers and bronze loaders are REAL
-and exercised by the parse suites. What is missing is the bronze -> silver projection, and until it
-lands each spec carries ``implemented=False`` with a ``todo`` naming the exact module to write:
-``main()`` refuses the source before building any AWS client, and ``_silver_builder`` raises a
-``NotImplementedError`` carrying the same string. Declaring ahead of implementing is deliberate --
-it keeps the floors, the unit readers and the source vocabulary in ONE table:
+THE THREE W1c BROWSER LEGS (``dce``, ``euronext``, ``bursa``) ARE COMPLETE
+--------------------------------------------------------------------------
+They landed in two waves and the seam is worth remembering, because the machinery it left behind is
+still load-bearing for the NEXT leg. First half: a headless-Chromium producer under ``jobs/ingest/``
+plus a transform under ``transforms/raw_to_bronze/`` -- during which each spec carried
+``implemented=False`` and a ``todo`` naming the exact module still to be written, so ``main()``
+refused the source before building any AWS client and ``_silver_builder`` raised a
+``NotImplementedError`` carrying the same string. Second half: the bronze -> silver projections
+(``transforms/bronze_to_silver/{dce_eod,euronext_eod,bursa_fcpo}.py``), which is what flipped these
+three to ``implemented=True``. Declaring ahead of implementing kept the floors, the unit readers and
+the source vocabulary in ONE table throughout, and the refusal path stays wired for whatever lands
+next -- an unimplemented leg must FAIL, never write nothing quietly (the yfinance lesson).
+
+That a leg is implemented is NOT that it is scheduled: ``configs/silver/dags/futures_eod_free.json``
+still carries the four W1a/W1b venues only, and arming these three is a separate decision behind
+probe P10 (and, for DCE, behind a full five-variety live capture -- its per-day floor is 0).
 
 ``--source dce``
     Units are per-VARIETY objects of two kinds (the CEPEA shape): the daily quote captures and the
@@ -52,7 +59,8 @@ TWO DIFFERENT ROW FLOORS, NEVER CONFLATED
 :data:`_MIN_ROWS_PER_UNIT` (25) is DATABENTO'S: a per-``(root, year)`` BRONZE floor, whose
 justification is that the thinnest legitimate full vendor year is 750 bars. The free legs' floor is
 a different measurement entirely -- plan gate 5, a per-SOURCE per-DAY floor on the rows WRITTEN TO
-SILVER for that leg's slugs (CZCE >= 10, JSE >= 14, CEPEA == 2, MIAX >= 6). A CEPEA day is two rows
+SILVER for that leg's slugs (CZCE >= 10, JSE >= 14, CEPEA == 2, MIAX >= 6, EURONEXT >= 24,
+BURSA >= 20, and DCE deliberately unarmed at 0). A CEPEA day is two rows
 and would trip a 25-row unit floor; a CZCE raw file has 269 LINES and 13 kept rows, so a
 line-counting floor would pass a leg that wrote nothing.
 
@@ -150,10 +158,17 @@ from leviathan.storage.paths import (  # noqa: E402
     raw_databento_key,
 )
 from leviathan.storage.s3 import get_thread_local_s3_client  # noqa: E402
+from leviathan.transforms.bronze_to_silver.bursa_fcpo import (  # noqa: E402
+    build_bursa_fcpo_silver,
+)
 from leviathan.transforms.bronze_to_silver.cepea import build_cepea_silver  # noqa: E402
 from leviathan.transforms.bronze_to_silver.czce_eod import build_czce_eod_silver  # noqa: E402
 from leviathan.transforms.bronze_to_silver.databento_eod import (  # noqa: E402
     build_databento_eod_silver,
+)
+from leviathan.transforms.bronze_to_silver.dce_eod import build_dce_eod_silver  # noqa: E402
+from leviathan.transforms.bronze_to_silver.euronext_eod import (  # noqa: E402
+    build_euronext_eod_silver,
 )
 from leviathan.transforms.bronze_to_silver.jse_safex import build_jse_safex_silver  # noqa: E402
 from leviathan.transforms.bronze_to_silver.miax_eod import build_miax_eod_silver  # noqa: E402
@@ -335,7 +350,9 @@ _SOURCE_SPECS: dict[str, SourceSpec] = {
     "miax": SourceSpec(
         name="miax", job="futures_eod_miax", publication_sources=("miax",),
         rows_per_day=_MIN_SILVER_ROWS_PER_DAY_MIAX, unit_label="session"),
-    # -- W1c, browser-landed. Raw -> bronze is shipped; bronze -> silver is not (see the docstring).
+    # -- W1c, browser-landed. BOTH halves shipped: the producers + raw -> bronze landed first, the
+    #    bronze -> silver projections followed (transforms/bronze_to_silver/{dce_eod,euronext_eod,
+    #    bursa_fcpo}.py). The floors below are unchanged by that flip -- see the floor block above.
     "dce": SourceSpec(
         name="dce", job="futures_eod_dce", publication_sources=("dce",),
         # The history workbooks are xlsx. openpyxl is a CORE pyproject dependency, so no image
@@ -343,26 +360,14 @@ _SOURCE_SPECS: dict[str, SourceSpec] = {
         # nothing for six weeks was also "obviously installed" until it wasn't.
         preflight_imports=("openpyxl",),
         rows_per_day=0,                     # deliberately unarmed -- see the floor block above
-        implemented=False,
-        todo=("src/leviathan/transforms/bronze_to_silver/dce_eod.py::build_dce_eod_silver -- the "
-              "raw->bronze half is shipped (jobs/ingest/fetch_dce_eod.py + "
-              "transforms/raw_to_bronze/dce_eod.py, both parsers fixture-tested)"),
         unit_label="variety-capture"),
     "euronext": SourceSpec(
         name="euronext", job="futures_eod_euronext", publication_sources=("euronext_matif",),
         rows_per_day=_MIN_SILVER_ROWS_PER_DAY_EURONEXT,
-        implemented=False,
-        todo=("src/leviathan/transforms/bronze_to_silver/euronext_eod.py::"
-              "build_euronext_eod_silver -- the raw->bronze half is "
-              "jobs/ingest/fetch_euronext_eod.py + transforms/raw_to_bronze/euronext_eod.py"),
         unit_label="product-day"),
     "bursa": SourceSpec(
         name="bursa", job="futures_eod_bursa", publication_sources=("bursa",),
         rows_per_day=_MIN_SILVER_ROWS_PER_DAY_BURSA,
-        implemented=False,
-        todo=("src/leviathan/transforms/bronze_to_silver/bursa_fcpo.py::build_bursa_fcpo_silver "
-              "-- the raw->bronze half is jobs/ingest/fetch_bursa_fcpo.py + "
-              "transforms/raw_to_bronze/bursa_fcpo.py"),
         unit_label="session"),
 }
 
@@ -694,7 +699,11 @@ def _lazy_bronze(module: str, func: str, payload: bytes, **kwargs) -> tuple[pd.D
 
     Imported at CALL time rather than at module scope, and that is the only trick here: the two
     halves of W1c land independently, so this task must import -- and its test suite must COLLECT --
-    whether or not the euronext/bursa transforms are in the tree yet. Everything else is an ordinary
+    whether or not the euronext/bursa transforms are in the tree yet. (Both halves have since
+    landed, and the bronze -> silver modules import their raw -> bronze counterparts at module
+    scope, so the laziness no longer buys anything for THESE two legs. It stays because it is the
+    seam the NEXT leg lands through, and because deleting it would re-introduce exactly the
+    wave-order dependency it exists to remove.) Everything else is an ordinary
     call, deliberately: the keyword names are the seam, and passing them straight through means a
     rename on either side is an immediate TypeError rather than a silently defaulted argument (
     ``bursa_fcpo.build_bronze`` defaults ``code`` to ``"FCPO"``, so a filtered kwarg there would
@@ -892,6 +901,10 @@ def _silver_builder(source: str):
         "jse": build_jse_safex_silver,
         "cepea": build_cepea_silver,
         "miax": build_miax_eod_silver,
+        # -- W1c, both halves landed.
+        "dce": build_dce_eod_silver,
+        "euronext": build_euronext_eod_silver,
+        "bursa": build_bursa_fcpo_silver,
     }
     if source in builders:
         return builders[source]
