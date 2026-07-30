@@ -1273,8 +1273,7 @@ resource "aws_scheduler_schedule" "freshness_poller" {
         # leviathan.silver.freshness, which IS in the image; this is only the thin emit loop from
         # scripts/silver/freshness_poller.py. If the Dockerfile ever gains COPY scripts/, replace
         # this with the script path and delete the inline form.
-        Command = ["-c", join("
-", [
+        Command = ["-c", join("\n", [
           "import boto3, datetime as dt",
           "from leviathan.silver.freshness import poll_targets, newest_last_modified, lag_days, metric_data_for, METRIC_NAMESPACE",
           "now = dt.datetime.now(dt.timezone.utc)",
