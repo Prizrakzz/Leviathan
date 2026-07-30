@@ -1281,7 +1281,7 @@ resource "aws_scheduler_schedule" "freshness_poller" {
           "md = []",
           "for t in sorted(poll_targets(), key=lambda x: x.table):",
           "    pages = s3.get_paginator('list_objects_v2').paginate(Bucket=t.bucket, Prefix=t.prefix)",
-          "    objs = (o for page in pages for o in page.get('Contents', []) or [])",
+          "    objs = ((o['Key'], o['LastModified']) for page in pages for o in page.get('Contents', []) or [])",
           "    lag = lag_days(newest_last_modified(objs), now)",
           "    if lag is None:",
           "        print('EMPTY ' + t.table)",
