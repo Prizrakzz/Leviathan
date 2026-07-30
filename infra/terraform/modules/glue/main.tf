@@ -32,7 +32,12 @@ module "raw_to_bronze_nasa_power" {
   environment       = var.environment
 
   extra_default_args = {
-    "--ingest_date" = formatdate("YYYY-MM-DD", timestamp())
+  # NO --ingest_date default (2026-07-30). It was formatdate("YYYY-MM-DD", timestamp()), which
+  # bakes the APPLY date into the job definition: the stamp ROTS between applies (it sat at
+  # 2026-06-13 for weeks until an apply moved it to 2026-07-30), and because timestamp() cannot
+  # be known at plan time these three jobs diffed on EVERY plan, so no plan here came back clean.
+  # Both scripts now resolve ingest_date to TODAY AT RUN TIME and still honour an explicit
+  # --ingest_date override, which is what a backfill passes.
   }
 }
 
@@ -52,7 +57,12 @@ module "raw_to_bronze_faostat" {
   environment       = var.environment
 
   extra_default_args = {
-    "--ingest_date" = formatdate("YYYY-MM-DD", timestamp())
+  # NO --ingest_date default (2026-07-30). It was formatdate("YYYY-MM-DD", timestamp()), which
+  # bakes the APPLY date into the job definition: the stamp ROTS between applies (it sat at
+  # 2026-06-13 for weeks until an apply moved it to 2026-07-30), and because timestamp() cannot
+  # be known at plan time these three jobs diffed on EVERY plan, so no plan here came back clean.
+  # Both scripts now resolve ingest_date to TODAY AT RUN TIME and still honour an explicit
+  # --ingest_date override, which is what a backfill passes.
     "--s3_raw_key"  = "raw/production/source=faostat/commodity=cocoa/Production_Crops_Livestock_E_All_Data_Normalized.zip"
   }
 }
@@ -105,7 +115,12 @@ module "raw_to_bronze_usda_esr" {
   environment       = var.environment
 
   extra_default_args = {
-    "--ingest_date" = formatdate("YYYY-MM-DD", timestamp())
+  # NO --ingest_date default (2026-07-30). It was formatdate("YYYY-MM-DD", timestamp()), which
+  # bakes the APPLY date into the job definition: the stamp ROTS between applies (it sat at
+  # 2026-06-13 for weeks until an apply moved it to 2026-07-30), and because timestamp() cannot
+  # be known at plan time these three jobs diffed on EVERY plan, so no plan here came back clean.
+  # Both scripts now resolve ingest_date to TODAY AT RUN TIME and still honour an explicit
+  # --ingest_date override, which is what a backfill passes.
   }
 }
 

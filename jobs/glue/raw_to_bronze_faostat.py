@@ -23,15 +23,33 @@ from bootstrap import run_bootstrap
 
 run_bootstrap()
 
+from datetime import date as _dt_date
+
 from leviathan.common.logging import get_logger
 from leviathan.storage.s3 import upload_file_to_s3
 from leviathan.transforms.raw_to_bronze.faostat_qcl import transform_faostat_qcl_zip_to_bronze
 
 logger = get_logger(__name__)
 
-REQUIRED_ARGS = ["commodity", "fao_item_name", "bucket", "aws_region", "ingest_date", "s3_raw_key"]
+REQUIRED_ARGS = ["commodity", "fao_item_name", "bucket", "aws_region", "s3_raw_key"]
 
+# ingest_date is OPTIONAL and resolves to TODAY AT RUN TIME. It used to be required and was
+# supplied by a baked Glue default argument built with formatdate(timestamp()) -- i.e. the date of
+# the last `terraform apply`. That value ROTS: every run after the apply stamped bronze with a date
+# that grew staler by the day (it read 2026-06-13 until an apply on 2026-07-30 moved it), and it
+# also made three Glue jobs diff on EVERY terraform plan, because timestamp() is unknowable at plan
+# time. Defaulting here -- the same shape raw_to_bronze_nasa_power already used -- fixes both: the
+# stamp is the real run date, and the terraform default_arguments no longer carry a moving value.
 args = getResolvedOptions(sys.argv, REQUIRED_ARGS)
+_ingest_override = next(
+    (a.split("=", 1)[1] for a in sys.argv if a.startswith("--ingest_date=")),
+    None,
+) or next(
+    (sys.argv[i + 1] for i, a in enumerate(sys.argv)
+     if a == "--ingest_date" and i + 1 < len(sys.argv)),
+    None,
+)
+args["ingest_date"] = _ingest_override or _dt_date.today().isoformat()
 
 COMMODITY:      str = args["commodity"]
 FAO_ITEM_NAME:  str = args["fao_item_name"]
