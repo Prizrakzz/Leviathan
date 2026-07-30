@@ -256,32 +256,40 @@ class NumbersRegistry(BaseModel):
 # it: it enters the agent tool enum + system-prompt cards. The runtime kill-switch is now the ordinary
 # GRAPHRAG_NUMBERS_DISABLE env idiom (single-table rollback, no redeploy).
 #
-# PRICE_AND_PLAYBOOKS W1.0 (2026-07-28): the set is no longer empty. ``silver_futures_eod`` -- the
-# per-delivery-month EOD table -- is REGISTERED (F010 contract, numbers card, three-way unit lint) but
-# FENCED OUT OF SERVING for all of W1.0 / W1 / W2, because no producer has written a single row yet.
-# The fence is the whole gate for those waves: a whitelist-absent table vanishes from the agent's tool
-# enum AND its system-prompt card, and every ``build_sql`` lookup raises ``KeyError`` -- fail-CLOSED.
-# Whitelisting = deleting it from this set (W3, once the producers and their deterministic gates pass);
-# the post-whitelist rollback lever is then the ordinary GRAPHRAG_NUMBERS_DISABLE=silver_futures_eod env
-# idiom. The set stays DISJOINT from _disabled_tables() (env-only) so the env-parse kill-switch tests
-# stay byte-identical; the union happens once, in load_registry.
+# PRICE_AND_PLAYBOOKS W1.0 (2026-07-28) -> W3 (2026-07-30): ``silver_futures_eod`` -- the
+# per-delivery-month EOD table -- sat in this set for all of W1.0 / W1 / W2, because no producer had
+# written a single row yet. The fence was the whole gate for those waves: a whitelist-absent table
+# vanishes from the agent's tool enum AND its system-prompt card, and every ``build_sql`` lookup raises
+# ``KeyError`` -- fail-CLOSED.
 #
-# THE FLIP IS NOT A ONE-LINE DELETION (W3.1 item 7). Deleting the entry makes the card visible to the
-# agent's TOOL SCHEMA and system-prompt card, so the SAME change must carry:
-#   (a) `contract_month` declared in numbers.agent.tool_schema's input properties. The model can only
-#       emit parameters the schema NAMES; the field is already a NumberQuery/TableSpec dimension and
-#       _forced_spec honours it, so the omission is silent rather than loud -- a December ask that
-#       never emits the parameter is WIDENED to the whole curve, and agg=latest then answers it with
-#       the nearest listed expiry. That is exactly the failure build_sql's delivery-month guard exists
-#       to prevent, arriving by a different route. tests/unit/test_futures_eod_curve.py holds this as
-#       a BUILD FENCE: the test fails the moment the card is served without the parameter.
-#   (b) numbers.dispatch ToolSpec.purpose naming term structure / the curve (W3.1 item 8) --
-#       family_names() derives the router enum from it.
-#   (c) config_check.check_futures_eod clause (c) inverted, plus the ~4 tests that pin the fence
-#       (test_futures_eod.py, test_futures_eod_curve.py::TestFenceUnchanged).
-WHITELIST_ABSENT_DEFAULT: frozenset[str] = frozenset({
-    "silver_futures_eod",   # W1.0: registered + linted, FENCED from serving until the W3 whitelist flip
-})
+# THE FLIP LANDED 2026-07-30 (W3.1 item 7) and the entry is GONE. What made it safe, all in the one
+# change (the flip was never a one-line deletion -- deleting the entry makes the card visible to the
+# agent's TOOL SCHEMA and system-prompt card):
+#   (a) `contract_month` is declared in numbers.agent.tool_schema's input properties. The model can only
+#       emit parameters the schema NAMES; the field was already a NumberQuery/TableSpec dimension and
+#       _forced_spec honoured it, so the omission would have been silent rather than loud -- a December
+#       ask that never emits the parameter is WIDENED to the whole curve, and agg=latest then answers it
+#       with the nearest listed expiry. That is exactly the failure build_sql's delivery-month guard
+#       exists to prevent, arriving by a different route. tests/unit/test_futures_eod_curve.py holds
+#       this as a BUILD FENCE: the test fails the moment the card is served without the parameter.
+#   (b) numbers.dispatch ToolSpec.purpose names TERM STRUCTURE / the curve (W3.1 item 8) --
+#       family_names() derives the router enum from the registry, so the family arrived automatically.
+#   (c) config_check.check_futures_eod clause (c) is INVERTED: it now errors unless the table IS served
+#       AND the reachability trio holds (schema parameter + dispatch purpose + the card's declared
+#       dimensions), and the ~4 tests that pinned the fence were re-pointed at that invariant.
+#   (d) THE COVERAGE GUARD (W3.2, futures_eod_contracts.covers): the served path routes every window
+#       against the MEASURED per-contract floor -- serve / legacy level with a provenance sentence /
+#       DECLINE a straddle -- so a whitelisted card cannot answer a pre-coverage era by splicing a
+#       per-expiry series onto the roll-spliced continuous one.
+# The rollback lever is now the ordinary GRAPHRAG_NUMBERS_DISABLE=silver_futures_eod env idiom
+# (single-table, config-only, no redeploy).
+#
+# THE SET STAYS (deliberately empty, not deleted): the next table registered ahead of its producer needs
+# exactly this fence, and re-deriving it later loses the (a)-(d) checklist above -- which is the part
+# that made the flip an atomic change rather than four separable ones. It also stays DISJOINT from
+# _disabled_tables() (env-only) so the env-parse kill-switch tests are byte-identical; the union happens
+# once, in load_registry.
+WHITELIST_ABSENT_DEFAULT: frozenset[str] = frozenset()
 
 
 def _disabled_tables() -> frozenset[str]:

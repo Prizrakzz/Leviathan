@@ -1330,11 +1330,17 @@ def check_futures_lite() -> list[str]:
     return errs
 
 
-# PRICE_AND_PLAYBOOKS W1.0 (2026-07-28) -- silver_futures_eod, the per-delivery-month futures EOD table.
-# Structural descendant of check_futures_lite, with clause (c) INVERTED: this table is REGISTERED (F010
-# contract + numbers card) but deliberately FENCED OUT of serving for all of W1.0/W1/W2, so the lint pins
-# the FENCED state (in WHITELIST_ABSENT_DEFAULT, absent from the served registry) -- a whitelist flip can
-# then never happen by accident, only by editing this lint and the fence together at W3.
+# PRICE_AND_PLAYBOOKS W1.0 (2026-07-28) -> W3 (2026-07-30) -- silver_futures_eod, the per-delivery-month
+# futures EOD table. Structural descendant of check_futures_lite. Clause (c) was the FENCE for all of
+# W1.0/W1/W2 (the table had to be whitelist-absent and absent from the served registry, so a whitelist
+# flip could never happen by accident -- only by editing the lint and the fence together). At the W3 flip
+# it was INVERTED IN PLACE rather than deleted: it now pins the table as SERVED plus the REACHABILITY
+# TRIO, because "served" on its own is the weaker claim. A card sitting in the tool enum whose
+# delivery-month parameter the SCHEMA never declares answers every December ask with the nearest listed
+# expiry, silently; a router whose purpose string never names the curve leaves the capability
+# unreachable; a card that stops declaring settle_kind_col lets an ICE session close be cited as an
+# official settlement. Those three plus the flip are ONE change, and this clause is what holds them
+# together.
 #
 # The core is the THREE-WAY unit bind, generalized from the v1.5 lesson. The single source is
 # leviathan.silver.futures_eod_contracts.CONTRACT_MAP, which is dict[slug, {unit, currency, settle_kind,
@@ -1399,9 +1405,12 @@ def check_futures_eod() -> list[str]:
     """W1.0 per-delivery-month EOD lint (AWS-free, pure). Card shape + settle-only metrics + the THREE-WAY
     unit bind (CONTRACT_MAP projection == tracked constant == card unit_overrides) + the settle_kind /
     source / currency vocabularies + the 31-slug completeness check against configs/commodities/ + the
-    FENCED gate state (whitelist-absent AND absent from the served registry) + the F010 registry contract
-    pins (registered, projection forbidden, registered-partition write mode, the declared column order and
-    the four contract-non-null label columns, and NO roll/continuous column ever)."""
+    SERVED gate state and its REACHABILITY TRIO (W3 flip 2026-07-30: whitelist-present, loaded into the
+    served registry, `contract_month` declared in the numbers tool schema describing BOTH forms, the
+    dispatch `numbers` purpose naming the term structure / curve, and the card declaring the three served
+    dimensions) + the F010 registry contract pins (registered, projection forbidden, registered-partition
+    write mode, the declared column order and the four contract-non-null label columns, and NO
+    roll/continuous column ever)."""
     from leviathan.graphrag.numbers import registry as R
     from leviathan.silver import futures_eod_contracts as FC
     errs: list[str] = []
@@ -1476,15 +1485,83 @@ def check_futures_eod() -> list[str]:
         errs.append(f"futures_eod: cash_index slugs {sorted(FC.CASH_INDEX_SLUGS)} != the two CEPEA cash "
                     f"references -- only those rows may carry contract_month IS NULL")
 
-    # (c) THE FENCE, inverted from check_futures_lite: this table must be whitelist-absent AND absent
-    # from the served registry for all of W1.0/W1/W2. Nothing has been produced; serving it would serve
-    # an empty table. Flipping this pin and the fence together IS the W3 whitelist step.
-    if _FUTURES_EOD_TABLE not in R.WHITELIST_ABSENT_DEFAULT:
-        errs.append(f"futures_eod: {_FUTURES_EOD_TABLE} is NOT in registry.WHITELIST_ABSENT_DEFAULT -- the "
-                    f"W1.0/W1/W2 serving fence has been lifted without the W3 gate (whitelist regression)")
-    if _FUTURES_EOD_TABLE in R.load_registry().tables:
-        errs.append(f"futures_eod: {_FUTURES_EOD_TABLE} is PRESENT in the served registry (agent tool enum) "
-                    f"-- the card must stay dropped at load while the table is fenced")
+    # (c) THE SERVED STATE + THE REACHABILITY TRIO (W3 flip, 2026-07-30 -- this clause used to pin the
+    # inverse). Whitelisted means: NOT in WHITELIST_ABSENT_DEFAULT and PRESENT in the loaded registry
+    # (the agent tool enum + system-prompt cards). Re-adding the entry now would force-drop a table whose
+    # producers, gates and coverage guard are all live -- a whitelist regression, failed here.
+    if _FUTURES_EOD_TABLE in R.WHITELIST_ABSENT_DEFAULT:
+        errs.append(f"futures_eod: {_FUTURES_EOD_TABLE} is whitelisted but STILL in "
+                    f"registry.WHITELIST_ABSENT_DEFAULT -- it would be force-dropped from serving "
+                    f"(whitelist regression; the W3 flip landed 2026-07-30)")
+    if _FUTURES_EOD_TABLE not in R.load_registry().tables:
+        errs.append(f"futures_eod: {_FUTURES_EOD_TABLE} is whitelisted but ABSENT from the SERVED registry "
+                    f"(agent tool enum) -- the card must load once whitelist-absent is cleared")
+    else:
+        # (c1) THE TOOL SCHEMA declares contract_month. The model can only emit parameters the schema
+        # NAMES, so an undeclared delivery month is a SILENT widening: a December ask never carries the
+        # month, the whole curve is read, and agg=latest answers with the NEAREST listed expiry -- a
+        # number that is not December's, wearing December's label. The description must carry BOTH forms
+        # (one 'YYYY-MM' vs a comma-separated curve read) and the never-quote-a-bare-level-as-"the price"
+        # rule, because a declared-but-unexplained parameter reintroduces the same miss one level down.
+        try:
+            from leviathan.graphrag.numbers import agent as _na
+            _props = _na.tool_schema(R.load_registry())["input_schema"]["properties"]
+        except Exception as exc:  # noqa: BLE001 -- an unreadable tool schema is a lint failure, not a crash
+            _props = {}
+            errs.append(f"futures_eod: cannot read the numbers tool schema ({exc})")
+        if _props and "contract_month" not in _props:
+            errs.append(f"futures_eod: {_FUTURES_EOD_TABLE} is SERVED but numbers.agent.tool_schema "
+                        f"declares no `contract_month` property -- every named-expiry ask is silently "
+                        f"widened to the whole curve and answered with the nearest listed expiry "
+                        f"(W3.1 items 1-8 land TOGETHER)")
+        elif _props:
+            _desc = str((_props.get("contract_month") or {}).get("description") or "")
+            for _tok, _why in (("YYYY-MM", "the single-expiry form"),
+                               ("comma-separated", "the comma-separated CURVE form"),
+                               ("the price", "the never-quote-a-bare-level-as-'the price' rule")):
+                if _tok.lower() not in _desc.lower():
+                    errs.append(f"futures_eod: the tool schema's contract_month description omits {_tok!r} "
+                                f"-- {_why} must be stated, or the parameter is declared but unusable")
+        # (c2) THE ROUTER knows the capability exists. dispatch.REGISTRY's `numbers` purpose is the ONLY
+        # place the planner learns what the numbers agent can do; while a curve ask was unservable it
+        # correctly routed elsewhere, and a purpose that never names the term structure keeps routing it
+        # elsewhere forever. family_names() DERIVES the data_families enum from the registry, so the
+        # family is asserted (never hardcoded anywhere) as proof the derivation actually tracked the flip.
+        try:
+            from leviathan.graphrag import dispatch as _dp
+            _purpose = next((t.purpose for t in _dp.REGISTRY if t.name == "numbers"), "")
+            _fams = _dp.family_names()
+        except Exception as exc:  # noqa: BLE001
+            _purpose, _fams = "", ()
+            errs.append(f"futures_eod: cannot read the dispatch registry ({exc})")
+        # ABSENT is an ERROR, not a pass -- the (b3) 'Empty is an ERROR' reasoning applied here. The
+        # truthiness short-circuits these two checks used to carry made the leg fail OPEN on REMOVAL and
+        # catch only REWORDING: deleting the 'numbers' ToolSpec from dispatch.REGISTRY (purpose -> '') and
+        # family_names() returning () both yielded ZERO errors, while the capability they assert is
+        # reachable would be exactly as unreachable as a reworded purpose. Proven both directions.
+        if not _purpose:
+            errs.append("futures_eod: dispatch.REGISTRY carries no ToolSpec('numbers') -- the served "
+                        "per-delivery-month capability has no router entry at all (W3.1 item 8)")
+        elif not (re.search(r"(?i)term structure", _purpose) and re.search(r"(?i)curve", _purpose)):
+            errs.append(f"futures_eod: dispatch ToolSpec('numbers').purpose names neither the term "
+                        f"structure nor the curve -- the served per-delivery-month capability is "
+                        f"unreachable from the router (W3.1 item 8)")
+        if not _fams:
+            errs.append("futures_eod: dispatch.family_names() is EMPTY -- the registry-DERIVED family "
+                        "enum resolves to nothing, so no data family (futures_eod included) is routable")
+        elif "futures_eod" not in _fams:
+            errs.append(f"futures_eod: dispatch.family_names() {sorted(_fams)} lacks 'futures_eod' -- the "
+                        f"registry-DERIVED family enum did not track the whitelist flip")
+        # (c3) THE CARD still declares the three served dimensions. Pinned in (a) as card shape, and again
+        # HERE as the third leg of reachability: an expiry label that stops riding the row makes a curve
+        # row unattributable, and a dropped settle_kind lets an ICE session close be cited as a settlement.
+        _missing_dims = [k for k, want in (("contract_month_col", "contract_month"),
+                                           ("settle_kind_col", "settle_kind"),
+                                           ("currency_col", "currency")) if card.get(k) != want]
+        if _missing_dims:
+            errs.append(f"futures_eod: the card is SERVED but does not declare {_missing_dims} -- a served "
+                        f"per-expiry row without its expiry / settle_kind / currency label is "
+                        f"unattributable (reachability trio, leg 3)")
 
     # (e) the F010 registry contract: the storm-safe layout + the INV-2 column contract, verbatim.
     _reg_path = _REPO / "configs" / "silver" / "tables" / "silver_futures_eod.yaml"

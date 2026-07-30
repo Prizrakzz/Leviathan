@@ -461,13 +461,44 @@ def test_levels_only_window_straddling_known_corn_roll_raises(kw):
         Q.build_sql(_spec(**kw), _ts())
 
 
-# -- W3.3 / acceptance 6: the two decline deck rows STILL pin price_cited=false (no overreach) ----------
-def test_decline_deck_rows_still_pin_no_price():
-    deck = _yaml.safe_load((_REPO / "configs" / "graphrag" / "eval_queries_v34_combined.yaml")
-                           .read_text(encoding="utf-8"))
+# -- The futures decline rows: the PHRASING guard still fires, and no pin outlives its data -------------
+# REPLACES test_decline_deck_rows_still_pin_no_price (2026-07-31). That test asserted the pin TEXT
+# (price_cited is False) and the futures_scope class -- both of which stayed GREEN through the whole W3
+# flip while the pin itself went STALE: silver_futures_eod joined eval.py's price-table filter set the day
+# it was whitelisted, corn_cbot's measured floor (2010-06-06) sits well before these rows' 2026-07-21
+# as-of, and the ask is now SERVED. Six shipped rows across three decks would have RED-ed on correct
+# behaviour with nothing in the suite to catch it. The invariant worth fencing is not the pin text, it is
+# the AGREEMENT between the pin and the measured coverage route.
+_DECLINE_DECK_ROWS = (
+    ("eval_queries_v34_combined.yaml", "futures_corn_change_decline", "change"),
+    ("eval_queries_v34_combined.yaml", "futures_corn_named_decline", "named"),
+    ("eval_queries_v4_cascade.yaml", "futures_corn_change_decline", "change"),
+    ("eval_queries_v4_cascade.yaml", "futures_corn_named_decline", "named"),
+    ("eval_queries_newcap30.yaml", "ncap_fut_corn_change_decline", "change"),
+    ("eval_queries_newcap30.yaml", "ncap_fut_corn_curve_decline", "named"),
+)
+
+
+@pytest.mark.parametrize("deck_name,rid,want_cls", _DECLINE_DECK_ROWS)
+def test_decline_deck_rows_track_the_measured_coverage_route(deck_name, rid, want_cls):
+    """A row may pin `price_cited: false` ONLY while the per-delivery-month table cannot serve its ask.
+
+    The guard is the MEASURED floor, read through the same futures_eod_route the engine uses -- so the day
+    a slug's canonical bytes reach a deck row's as-of, a stale no-price pin fails the BUILD instead of
+    failing the run. The phrasing assertion is kept: futures_scope is a separate, still-live guard (the
+    continuous card's caveat rides on it regardless of what the EOD table serves)."""
+    deck = _yaml.safe_load((_REPO / "configs" / "graphrag" / deck_name).read_text(encoding="utf-8"))
     rows = {r["id"]: r for r in (deck.get("queries") or []) if isinstance(r, dict) and "id" in r}
-    for rid, want_cls in (("futures_corn_change_decline", "change"),
-                          ("futures_corn_named_decline", "named")):
-        row = rows[rid]                                       # the PERMANENT-decline negatives (W3.3)
-        assert row["expect"]["price_cited"] is False
-        assert na.futures_scope(row["question"]) == want_cls  # the guard still fires on the deck phrasing
+    row = rows[rid]
+    assert na.futures_scope(row["question"]) == want_cls   # the phrasing guard still fires on the deck text
+    spec = Q.NumberQuery(table="silver_futures_eod", metric="settle", asof=str(row["asof"]),
+                         commodity="corn_cbot")
+    route = na.futures_eod_route(spec)[0]
+    if row["expect"].get("price_cited") is False:
+        assert route != "serve", (
+            f"{deck_name}:{rid} pins price_cited:false but silver_futures_eod routes {route!r} at "
+            f"asof {row['asof']} -- the ask is SERVED and the pin is stale (re-pin or retire it)")
+    else:                                                  # a served row must actually be servable
+        assert route == "serve", (
+            f"{deck_name}:{rid} does not pin price_cited:false but the slug routes {route!r} -- a served "
+            f"pin on an unservable ask is the mirror-image staleness")

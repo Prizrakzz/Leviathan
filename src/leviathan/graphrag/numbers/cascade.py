@@ -475,8 +475,10 @@ _PRICE_COLLAPSE_BANNED: frozenset[str] = frozenset({"sum", "mean"})
 # assertion "rows on this table are per delivery month", which has two consequences, both enforced:
 # the front_expiry collapse is MANDATORY here (a declaration of any other kind, or none, declines the
 # pace leg whole), and the selection needs this column threaded down to it. NOTE the alias is the QUERY
-# alias, not the silver column: query._extras does not surface contract_month yet (W3.1 item 3), so the
-# selection fails CLOSED -- honest absence -- until that lands.
+# alias, not the silver column: query._extras surfaces `contract_month` as of W3.1 item 3 (landed
+# 2026-07-29), so a row that carries no expiry alias at all is a genuinely unlabelled row and the
+# selection fails CLOSED -- honest absence -- rather than picking an arbitrary one. Nothing here puts
+# silver_futures_eod into PACE_TABLES: that is item 16, still gated on the parity soak.
 _PACE_EXPIRY_COL = {"silver_futures_eod": "contract_month"}
 _PACE_WINDOW_DAYS = {"day": 21, "week": 70, "month": 220}         # enough points for a run; never a year-crawl
 _PACE_GRAIN_NOUN = {"day": "daily", "week": "weekly", "month": "monthly"}

@@ -272,6 +272,187 @@ def _episode_lines(out: dict) -> list[str]:
             if _EPISODE_BULLET_RX.match(ln) and _EPISODE_YEAR_RX.search(ln)]
 
 
+# ── W3 CURVE / TERM-STRUCTURE pins (PRICE_AND_PLAYBOOKS item 23, plan :1014) ──────────────────────────
+# silver_futures_eod is the PER-DELIVERY-MONTH table whitelisted 2026-07-30. Every pin below reads the
+# ROWS the model was actually handed plus the PROSE it wrote about them -- never out['answer']'s '##
+# Sources' footer, whose citation labels re-render figures the verifier may have stripped.
+#
+# WHERE THE ROWS COME FROM, and why it is two sources. `citations[].payload.rows` is TRUNCATED to the
+# first three rows (citations.from_number:129); `out['number_calls']` is the FULL, untruncated list, and
+# BOTH orchestrator lanes attach it (run_numbers_only:91, run_hybrid:296) -- but answer.answer()'s own
+# return dict does NOT (answer.py:1045/1370), so a non-orchestrator consumer has only the slice. Reading
+# both surfaces means the pins mean the same thing however the turn was produced, and the truncation
+# cannot under-count a curve: `_total_order` sorts data_date first and contract_month ahead of unit, so
+# the first three rows of a multi-expiry read at one as-of are three DIFFERENT expiries, while a
+# single-expiry read across three dates is correctly NOT a curve.
+_EOD_TABLE = "silver_futures_eod"
+_EOD_MONTH_RX = re.compile(r"^\d{4}-(?:0[1-9]|1[0-2])$")
+
+
+def _eod_rows(out: dict) -> list[dict]:
+    """Every VALUED silver_futures_eod row this turn (citation payloads + number_calls, deduped by the
+    (contract_month, date, value) triple). A row with no value is a declined/errored probe, never a read."""
+    seen: list[dict] = []
+    for c in _num_citations(out):
+        if (c.get("locator") or {}).get("table") == _EOD_TABLE:
+            seen += [r for r in ((c.get("payload") or {}).get("rows") or []) if isinstance(r, dict)]
+    for call in (out.get("number_calls") or []):
+        if isinstance(call, dict) and ((call.get("query") or {}).get("table")) == _EOD_TABLE:
+            seen += [r for r in (call.get("rows") or []) if isinstance(r, dict)]
+    rows, keys = [], set()
+    for r in seen:
+        if r.get("value") in (None, ""):
+            continue
+        k = (str(r.get("contract_month") or ""), str(r.get("data_date") or r.get("knowledge_date") or ""),
+             str(r.get("value")))
+        if k not in keys:
+            keys.add(k)
+            rows.append(r)
+    return rows
+
+
+def _eod_months(out: dict) -> set[str]:
+    """The DELIVERY MONTHS ('YYYY-MM') actually served this turn. Empty for the two CEPEA cash references
+    (contract_month is NULL there by design -- `instrument_kind` makes that legal) and for every declined
+    or coverage-routed turn, which is exactly what the `false` pins assert."""
+    return {str(r.get("contract_month") or "")[:7] for r in _eod_rows(out)
+            if _EOD_MONTH_RX.match(str(r.get("contract_month") or "")[:7])}
+
+
+def _eod_requested(out: dict) -> set[str]:
+    """The delivery months the recorded QUERIES named ('2026-12' or the comma-separated curve form). Served
+    is what came back; requested is what was asked for -- and on the hybrid lane the two can differ purely
+    because the citation payload is truncated, which is why the invention check reads their union."""
+    out_set: set[str] = set()
+    specs = [((c.get("payload") or {}).get("query") or {}) for c in _num_citations(out)]
+    specs += [(c.get("query") or {}) for c in (out.get("number_calls") or []) if isinstance(c, dict)]
+    for q in specs:
+        if q.get("table") != _EOD_TABLE:
+            continue
+        for m in str(q.get("contract_month") or "").split(","):
+            if _EOD_MONTH_RX.match(m.strip()):
+                out_set.add(m.strip())
+    return out_set
+
+
+def _eod_rows_truncated(out: dict) -> bool:
+    """True when the ONLY row surface is the citation payload's three-row slice and that slice is FULL --
+    the point past which `served` may be a strict subset of what the engine actually returned. A turn
+    produced by answer.answer() directly is in that state for any curve of four or more expiries, so the
+    invention half of expiry_labeled is stood down there rather than convicting a correct answer for
+    naming the fifth expiry of a curve whose payload stopped at three. On a --via-orchestrator run (how
+    this deck is scored) BOTH lanes attach the full list, so the check stays live where it matters."""
+    if out.get("number_calls"):
+        return False
+    return any(len(((c.get("payload") or {}).get("rows") or [])) >= 3
+               for c in _num_citations(out) if (c.get("locator") or {}).get("table") == _EOD_TABLE)
+
+
+def _eod_kinds(out: dict) -> set[str]:
+    return {str(r.get("settle_kind") or "").strip() for r in _eod_rows(out)} - {""}
+
+
+def _prose(out: dict) -> str:
+    """The text these pins scan: STRUCTURED tldr+mechanism when the turn rendered one (hybrid/reasoning),
+    else out['answer'] with the '## Sources' footer CUT. numbers_only turns have structured=None, so a
+    structured-only scan would be silent on the whole numbers lane -- and the footer is cut because it
+    re-renders every ledgered citation label (the primary-gate trap, _cascade_stats)."""
+    st = out.get("structured") or {}
+    if st:
+        return f"{st.get('tldr') or ''}\n{st.get('mechanism') or ''}"
+    return re.split(r"\n#{2,6}\s+Sources\b", str(out.get("answer") or ""))[0]
+
+
+_MONTH_NUM = {"jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
+              "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12}
+_MONTH_ALT = "jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec"
+# HARD forms -- a delivery-month label and nothing else, in any prose: the ISO month ('2026-12', never the
+# '2014-01-02' inside a full date) and the ticker form ('Dec-26', 'Dec-2026', "Dec '26"). The bare-space
+# variant ('Dec 26') is DELIBERATELY EXCLUDED: it collides with a day-of-month ('May 26').
+_EXPIRY_ISO_RX = re.compile(r"(?<!\d)(20\d{2})-(0[1-9]|1[0-2])(?!-?\d)")
+_EXPIRY_TICKER_RX = re.compile(rf"\b({_MONTH_ALT})[a-z]*\.?\s?(?:[-–]\s?|['’])(\d{{2}}|\d{{4}})(?!\d)", re.I)
+# CUE form -- a month, an OPTIONAL 4-digit year, then a contract/price cue IMMEDIATELY after ('December
+# 2026 corn', 'the December contract', 'December 2026 settlement'). Adjacency is what keeps it honest:
+# 'in June 2012 the continuous close was 738.50' has 'the' in the slot and does NOT match.
+_EXPIRY_CUE_RX = re.compile(
+    rf"\b({_MONTH_ALT})[a-z]*\.?\s+(?:(20\d{{2}})\s+)?"
+    r"(?:corn|soybeans?|soybean|beans|wheat|coffee|cocoa|sugar|cotton|rice|canola|maize|"
+    r"orange juice|palm|rapeseed|meal|oil|contract|contracts|expiry|expiries|expiration|delivery|"
+    r"futures|board|settle|settles|settled|settlement|close)\b", re.I)
+
+
+def _expiry_tokens(text: str) -> tuple[set[str], set[int], set[str]]:
+    """(hard, bare, soft) delivery-month labels found in `text`.
+
+    hard -- 'YYYY-MM' from the two UNAMBIGUOUS forms. These are the only ones the `false` branch reads,
+            because they never occur in narrative prose except as an expiry label.
+    bare -- month NUMBERS from a yearless named-contract form ('the December contract'), also unambiguous.
+    soft -- 'YYYY-MM' from the year-carrying cue form. Read ONLY on the `true` branch. A four-digit year
+            beside a month is genuinely ambiguous between a calendar date and an expiry ('December 2010
+            corn was 629' vs 'between December 2009 and December 2010'), so it can CREDIT an answer that
+            named its expiry but must never CONVICT one that merely dated a sentence. Say it plainly: on
+            the `false` branch this pin cannot see an invented 'December 2010 corn' -- that half is the
+            judge's, and the numbers_mismatched counter's."""
+    hard: set[str] = set()
+    bare: set[int] = set()
+    soft: set[str] = set()
+    for y, m in _EXPIRY_ISO_RX.findall(text or ""):
+        hard.add(f"{y}-{m}")
+    for mon, yy in _EXPIRY_TICKER_RX.findall(text or ""):
+        yr = yy if len(yy) == 4 else f"20{yy}"
+        hard.add(f"{yr}-{_MONTH_NUM[mon.lower()[:3]]:02d}")
+    for mon, yr in _EXPIRY_CUE_RX.findall(text or ""):
+        n = _MONTH_NUM[mon.lower()[:3]]
+        if yr:
+            soft.add(f"{yr}-{n:02d}")
+        elif n != 5:
+            bare.add(n)          # 'May' is also a modal verb: 'prices may close higher' is not an expiry.
+            #                      With a year beside it ('May 2027 corn') the ambiguity is gone, so the
+            #                      soft branch above keeps May; only the YEARLESS form drops it.
+    return hard, bare, soft
+
+
+# The settle_kind vocabulary a served row must be NARRATED with (the card: "ALWAYS cite it together with
+# the row's settle_kind"). The MISLABEL half is the ICE trap the card names in as many words -- ohlcv-1d
+# session closes must never be called an official settlement (the `statistics` settlement schema was
+# deliberately not purchased) -- and it is scoped to that one high-precision phrase on purpose.
+_SETTLE_KIND_PHRASES = {
+    "settlement": (r"settlement", r"\bsettled\b", r"\bsettles\b"),
+    "close": (r"session close", r"closing price", r"\bclose[sd]?\b"),
+    # CEPEA's own published name for the series is the *Indicador*, so 'indicator' is the natural English
+    # rendering and a five-phrase list made two of twelve deck rows ride on the model echoing the
+    # settle_kind token verbatim: "the CEPEA arabica indicator ... a physical-market benchmark, not a
+    # futures contract" and "a daily spot reference ... a physical quotation" both FAILED while being
+    # exactly right. Widened 2026-07-31; every added form still excludes the futures vocabulary, which is
+    # the only separation this pin needs.
+    "cash_index": (r"cash index", r"cash[- ]market index", r"cash reference", r"spot index", r"physical cash",
+                   r"\bindicator\b", r"spot (?:reference|quotation|price)",
+                   r"physical(?:-| )market (?:reference|benchmark|quotation)"),
+    "mark_to_market": (r"mark[- ]to[- ]market", r"\bMTM\b"),
+}
+_SETTLE_MISLABEL_RX = re.compile(r"official (?:exchange )?settlement|exchange settlement", re.I)
+# An ABSENCE / negation cue. The mislabel test is a CLAIM test, not a keyword scan: the deck's ICE
+# provenance row literally ASKS for "the official settlement price", so the most correct possible answer
+# has to say those words in order to deny them ("there is no official settlement series for ICE cocoa in
+# this data; what it carries is the ohlcv-1d session close"). A bare keyword scan convicted THAT answer
+# and passed the evasive one that never says them -- the row rewarded evasion and punished the honest
+# denial, on the deck's designated provenance trap. Scoped to the SENTENCE carrying the phrase, so a
+# denial and a claim in the same answer are judged separately.
+_SETTLE_NEGATION_RX = re.compile(
+    r"(?:\bno\b|\bnot\b|n't|\bnever\b|\bnone\b|\bnothing\b|\bneither\b|\bnor\b|rather than|instead of|"
+    r"as opposed to|\bunavailable\b|\babsent\b|\blacks?\b|\blacking\b|\bwithout\b|\bunpurchased\b|"
+    r"\bisn\b|\baren\b|\bwasn\b|\bweren\b|\bdoesn\b|\bdon\b|\bcannot\b)", re.I)
+
+
+def _settle_mislabeled(text: str) -> bool:
+    """True only when an 'official/exchange settlement' phrase is ASSERTED of the served figure -- i.e. it
+    appears in a sentence carrying no negation/absence cue."""
+    for sent in re.split(r"(?<=[.;:!?])\s+|\n+", text or ""):
+        if _SETTLE_MISLABEL_RX.search(sent) and not _SETTLE_NEGATION_RX.search(sent):
+            return True
+    return False
+
+
 _CASCADE_EXPECT = ("cascade_fired", "min_cascade_cited", "delta_row", "fork", "absence",
                    "pit_clean", "su_prescaled", "ok_era_leg", "reroute_fired",
                    "opposite_country_legs", "two_countries_cited", "no_unbacked_fork",
@@ -314,7 +495,17 @@ _CASCADE_EXPECT = ("cascade_fired", "min_cascade_cited", "delta_row", "fork", "a
                    # shape there -- but "permitted" must not mean "free", so the deck caps them instead.
                    # The existing zero-pins keep their equality semantics for every non-outlook deck.
                    "price_target_backed", "banned_exec", "directional_claim_backed", "outlook_rendered",
-                   "max_banned_valuation", "max_banned_flow")
+                   "max_banned_valuation", "max_banned_flow",
+                   # W3 CURVE / TERM STRUCTURE (item 23). curve_cited = >=2 DISTINCT delivery months were
+                   # served this turn (a term-structure read, not a level); expiry_labeled = the answer says
+                   # WHICH expiry its number is -- the card's "never quote a bare level as 'the price'" --
+                   # and its FALSE branch is the anti-invention half a cash-index or pre-coverage turn needs;
+                   # settle_kind_stated = the served row's own settle_kind is narrated (and an ICE session
+                   # close is never called an official settlement). futures_coverage_route is the W3.2
+                   # decline-matrix teeth: trace-key equality (the price_decline_guard idiom) on the
+                   # coverage verdict BOTH lanes stamp -- 'legacy' | 'straddle' | 'uncovered', list-tolerant
+                   # like chain_decline_reason, with 'absent' accepting an un-routed (fully covered) turn.
+                   "curve_cited", "expiry_labeled", "settle_kind_stated", "futures_coverage_route")
 
 
 def _cascade_asserts(q: dict, out: dict) -> dict | None:
@@ -491,7 +682,11 @@ def _cascade_asserts(q: dict, out: dict) -> dict | None:
             # surfaced as a kind=number citation with value=None + empty unit ('(lookup error)'), and
             # counting those failed unit_present on SERVED-correct rows and scored a correct futures
             # decline as a price leak (3 flagship-futures rows). Rejected probes are not price citations.
-            pc = [c for c in cits if (c.get("locator") or {}).get("table") in ("silver_pink_sheet", "silver_wasde", "silver_futures_prices")
+            # W3 FLIP (2026-07-30): silver_futures_eod joins the set the day it is whitelisted. It is a
+            # price table with GOVERNED units (unit_overrides, three-way lint-bound to CONTRACT_MAP), so a
+            # served per-expiry settle satisfies price_cited, and unit_present becomes the exchange-unit
+            # discipline on ten currencies (c/bu, USD/mt, BRL/60-kg bag, ...) with no FX conversion anywhere.
+            pc = [c for c in cits if (c.get("locator") or {}).get("table") in ("silver_pink_sheet", "silver_wasde", "silver_futures_prices", "silver_futures_eod")
                   and c.get("value") is not None]
             if k == "price_cited":
                 res[k] = bool(pc) == bool(want)
@@ -499,6 +694,59 @@ def _cascade_asserts(q: dict, out: dict) -> dict | None:
                 res[k] = (bool(pc) and all((c.get("unit") or "").strip() for c in pc)) == bool(want)
         elif k == "price_decline_guard":                              # NONE-tier decline: trace-key equality to
             res[k] = ((out.get("trace") or {}).get("price_decline_guard")) == want   # the guard slug (agent.py:412)
+        elif k == "curve_cited":
+            # W3 item 23. A TERM-STRUCTURE read: >= 2 DISTINCT delivery months came back VALUED this turn.
+            # Row-based, not prose-based, for the same reason price_cited is: it asserts the engine actually
+            # served a curve, which is the thing the flip made possible and the thing a decline must NOT do.
+            # The FALSE branch is the load-bearing half -- a straddling window, an uncovered contract, a
+            # pre-coverage legacy level and a CEPEA cash index must every one of them fail to produce two
+            # expiries, and if one ever does, the coverage guard has been bypassed.
+            res[k] = (len(_eod_months(out)) >= 2) == bool(want)
+        elif k == "expiry_labeled":
+            # W3 item 23, the card's "never quote a bare level as 'the price'" rendered deterministic.
+            # TRUE  -- at least one expiry was SERVED and the prose NAMES one of the served months, and no
+            #          UNAMBIGUOUS label (ISO / 'Dec-26' / 'the December contract') points at a month that
+            #          was not served. Nearest-listed-expiry is a tie-break, not the front month: an answer
+            #          that quotes the level without saying which delivery month it is fails here.
+            # FALSE -- no unambiguous delivery-month label appears at all. This is the anti-invention half
+            #          for the two CEPEA cash references (contract_month IS NULL), for a pre-coverage level
+            #          off the roll-spliced continuous series, and for a declined curve. See _expiry_tokens
+            #          for the one thing it cannot see (a year-carrying 'December 2010 corn' invention).
+            served = _eod_months(out)
+            hard, bare, soft = _expiry_tokens(_prose(out))
+            served_nums = {int(m[5:7]) for m in served}
+            if want:
+                named = bool(((hard | soft) & served) or (bare & served_nums))
+                # INVENTION reference = served UNION requested, and stood down entirely when the row
+                # surface is a full three-row payload slice (see _eod_rows_truncated). The POSITIVE half
+                # never relaxes: a served month must still be named.
+                known = served | _eod_requested(out)
+                known_nums = {int(m[5:7]) for m in known}
+                invented = (bool(hard - known) or bool(bare - known_nums)) and not _eod_rows_truncated(out)
+                res[k] = bool(served) and named and not invented
+            else:
+                res[k] = not hard and not bare
+        elif k == "settle_kind_stated":
+            # W3 item 23. Every DISTINCT settle_kind served this turn is narrated in the answer's own words
+            # (settlement / session close / cash index / mark-to-market), AND the ICE mislabel is absent:
+            # an ohlcv-1d session close called an "official settlement" fails even if the word 'close' also
+            # appears, because that sentence is the exact provenance claim the card forbids.
+            kinds = _eod_kinds(out)
+            txt = _prose(out)
+            said = bool(kinds) and all(any(re.search(p, txt, re.I) for p in _SETTLE_KIND_PHRASES.get(kd, ()))
+                                       for kd in kinds)
+            mislabel = "settlement" not in kinds and _settle_mislabeled(txt)
+            res[k] = (said and not mislabel) == bool(want)
+        elif k == "futures_coverage_route":
+            # W3.2 decline matrix, live-lane teeth. Trace-key equality on the coverage verdict (the
+            # price_decline_guard idiom), list-tolerant with an 'absent' token (the chain_decline_reason
+            # idiom): BOTH lanes stamp trace.futures_coverage_guard -- run_numbers_only copies it off the
+            # agent's return dict, run_hybrid reads it off the payload the reasoner consumes (#144). The
+            # value is the ROUTE, decided before any SQL compiled, so this pin says which of serve/legacy/
+            # straddle/uncovered the measured floor actually produced -- not what the prose claims.
+            allowed = list(want) if isinstance(want, (list, tuple)) else [want]
+            got = (out.get("trace") or {}).get("futures_coverage_guard")
+            res[k] = (got in allowed) or (got is None and ("absent" in allowed or None in allowed))
         elif k == "banned_valuation":                                 # RAW DP-6 counter (pre-sanitize), the bait/
             res[k] = int((out.get("trace") or {}).get("banned_valuation_words") or 0) == int(want)   # honesty gate
         elif k == "banned_flow":                                      # RAW DP-6 counter (pre-sanitize)

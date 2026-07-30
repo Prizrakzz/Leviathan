@@ -16,9 +16,9 @@ these tests pin:
   * FAIL-CLOSED on a table that has no delivery month -- a contract_month ask against the roll-spliced
     continuous silver_futures_prices RAISES instead of quietly answering with a number that is not that
     expiry's, and the levels_only guard keeps priority over it;
-  * the FENCE IS UNTOUCHED -- silver_futures_eod is still whitelist-absent, still absent from the served
-    registry, and check_futures_eod is still green. W3.1 makes the dimension expressible; the W3 whitelist
-    flip is a separate, gated step.
+  * the WHITELIST FLIP (2026-07-30) -- W3.1 made the dimension EXPRESSIBLE; serving the card was a
+    separate, gated step, and TestWhitelistFlipLanded at the foot of this file is that step's pin (it
+    held the inverse, "the fence is untouched", for the whole of W3.1).
 """
 from __future__ import annotations
 
@@ -35,9 +35,10 @@ FLAT = "silver_futures_prices"
 
 
 def _card() -> dict:
-    """The LIVE card out of the raw tables.yaml. The table is fenced out of the loaded registry, so the
-    only honest way to compile its SQL is to build the TableSpec from the card itself -- which also proves
-    the card still parses under the registry's extra='forbid' schema."""
+    """The LIVE card out of the raw tables.yaml. Read RAW (not via load_registry) deliberately: these tests
+    were written while the table was fenced out of the loaded registry, and reading the card directly is
+    what proves it still parses under the registry's extra='forbid' schema rather than proving the loader
+    happens to be configured a particular way today."""
     return dict(cc._load("numbers/tables.yaml")["tables"][TABLE])
 
 
@@ -262,12 +263,15 @@ class TestModelReachability:
         return A.tool_schema(R.load_registry())["input_schema"]["properties"]
 
     def test_serving_the_card_and_declaring_the_parameter_move_together(self):
+        # THE BUILD FENCE, and it has now fired in the affirmative: the flip landed 2026-07-30 and the
+        # parameter landed with it. The branch is KEPT so the invariant survives a rollback (re-fencing
+        # the card via WHITELIST_ABSENT_DEFAULT still passes; serving it bare still fails).
         if TABLE in R.load_registry().tables:                 # the whitelist flip has landed
             assert "contract_month" in self._schema_props(), (
                 "silver_futures_eod is SERVED but tool_schema declares no contract_month -- every "
                 "named-expiry ask is silently widened to the whole curve (W3.1 items 1-8 land TOGETHER)")
         else:
-            assert TABLE in R.WHITELIST_ABSENT_DEFAULT         # pre-flip: the fence is the reason
+            assert TABLE in R.WHITELIST_ABSENT_DEFAULT         # rolled back: the fence is the reason
 
     def test_the_card_notes_never_instruct_a_parameter_the_schema_omits(self):
         # the other half of the bind: while the parameter is undeclared, the card must not tell the
@@ -286,16 +290,94 @@ class TestModelReachability:
         assert "ORDER BY trade_date DESC, year, knowledge_date, contract_month, value LIMIT 1" in sql
 
 
-# -- the fence is NOT part of this wave -------------------------------------------------------------
-class TestFenceUnchanged:
-    def test_still_whitelist_absent_and_unserved(self):
-        assert TABLE in R.WHITELIST_ABSENT_DEFAULT
-        assert TABLE not in R.load_registry().tables
+# -- the CURVE the schema PROMISES must actually COMPILE as a curve (fold 2026-07-31) --------------
+class TestLatestIsPerExpiryWhenMonthsAreNamed:
+    """The tool schema tells the model that a comma-separated contract_month "reads the CURVE across
+    those expiries at one as-of, one row per expiry" -- and `agg` DEFAULTS to 'latest'. Through the plain
+    latest branch that promise was FALSE: `ORDER BY trade_date DESC, ... LIMIT 1` returned the NEAREST
+    listed expiry, and the answer narrated one number as the curve. That is the exact failure the
+    delivery-month dimension exists to prevent, arriving through the new parameter -- and the deck's four
+    headline rows pin curve_cited (>= 2 distinct served months), so the judged gate's affirmative half was
+    uninterpretable. agg='series' is not the escape: it returns EVERY session in the window (LIMIT 5000),
+    not the curve at one as-of."""
 
-    def test_registry_routed_build_sql_still_fails_closed(self):
-        with pytest.raises(KeyError):
-            Q.build_sql(Q.NumberQuery(table=TABLE, metric="settle", asof="2026-07-15",
-                                      commodity="corn_cbot", contract_month="2026-12"))
+    def test_a_named_curve_read_dedups_PER_EXPIRY_not_to_one_row(self):
+        sql = Q.build_sql(_spec(contract_month="2026-07,2026-09,2026-12"), _ts())
+        assert "ROW_NUMBER() OVER (PARTITION BY contract_month ORDER BY trade_date DESC)" in sql
+        assert "_rn = 1" in sql
+        assert not sql.rstrip().endswith("LIMIT 1")            # one row per expiry, never one row overall
+        assert "contract_month IN ('2026-07', '2026-09', '2026-12')" in sql
+
+    def test_a_single_named_expiry_takes_the_same_per_expiry_shape(self):
+        sql = Q.build_sql(_spec(contract_month="2026-12"), _ts())
+        assert "PARTITION BY contract_month" in sql and "contract_month = '2026-12'" in sql
+
+    def test_an_UNNAMED_read_keeps_the_documented_nearest_expiry_tiebreak(self):
+        # the card's own trap and the curve_corn_nearest_not_front deck row: with NO month named a latest
+        # read is still ONE row -- the nearest listed expiry, a deterministic tie-break and NOT the front
+        # month. Byte-identical to before the fix, which is why the fix is scoped to a NAMED month.
+        sql = Q.build_sql(_spec(), _ts())
+        assert "PARTITION BY contract_month" not in sql
+        assert "ORDER BY trade_date DESC, year, knowledge_date, contract_month, value LIMIT 1" in sql
+
+    def test_every_row_still_carries_its_own_expiry_settle_kind_and_currency(self):
+        # the dedup subquery exposes ALIASES only, so the outer scope must RE-PROJECT the three labels --
+        # a curve row that loses its expiry / settle_kind / currency is unattributable.
+        sql = Q.build_sql(_spec(contract_month="2026-07,2026-12"), _ts())
+        outer_cols = sql.split(" FROM (", 1)[0]
+        for alias in ("contract_month", "settle_kind", "currency"):
+            assert f"AS {alias}" in sql                        # surfaced inside the dedup...
+            assert alias in outer_cols                         # ...and re-projected outside it
+
+    def test_the_leakage_guard_and_the_partition_bounds_survive_the_rewrite(self):
+        sql = Q.build_sql(_spec(contract_month="2026-07,2026-12"), _ts())
+        assert "leviathan_slug = 'corn_cbot'" in sql
+        assert "trade_year" in sql                             # sargable year bounds still present
+        assert "2026-07-14" in sql                             # as-of minus the 1-day publication lag
+
+    def test_a_table_with_no_delivery_month_is_byte_identical(self):
+        ts = R.TableSpec(id="silver_fred_fx", description="", shape="wide", period_type="date",
+                         date_col="date", knowledge_semantics="data_date")
+        sql = Q.build_sql(Q.NumberQuery(table="silver_fred_fx", metric="usd_brl", asof="2026-07-15"), ts)
+        assert "ROW_NUMBER()" not in sql and sql.rstrip().endswith("LIMIT 1")
+
+    def test_the_other_aggs_are_untouched(self):
+        assert "ROW_NUMBER()" not in Q.build_sql(_spec(agg="series", contract_month="2026-12,2027-03"),
+                                                 _ts())
+        assert "ROW_NUMBER()" not in Q.build_sql(
+            _spec(agg="mean", period_start="2026-01-01", period_end="2026-06-30",
+                  contract_month="2026-12"), _ts())
+
+    def test_the_agg_parameter_is_DESCRIBED_in_the_tool_schema(self):
+        # `agg` had NO description at all, which is how the curve form stayed unreachable in practice:
+        # the model was told the parameter reads a curve and never told which agg makes that true.
+        from leviathan.graphrag.numbers import agent as A
+        desc = str((A.tool_schema(R.load_registry())["input_schema"]["properties"]["agg"]
+                    ).get("description") or "").lower()
+        assert desc and "each" in desc and "expiry" in desc
+
+    def test_the_card_notes_state_the_per_expiry_latest_rule(self):
+        notes = str(_card().get("notes") or "")
+        assert "FOR EACH named expiry" in notes
+
+
+# -- the fence was a SEPARATE, gated step -- and it landed 2026-07-30 -------------------------------
+# This class pinned "the fence is untouched" for the whole of W3.1. It was INVERTED at the flip rather
+# than deleted: the same three facts, each pointing at its post-flip form. The dimension being
+# EXPRESSIBLE (everything above) and the card being SERVED are still two different claims -- these are
+# the ones about serving.
+class TestWhitelistFlipLanded:
+    def test_whitelisted_and_served(self):
+        assert TABLE not in R.WHITELIST_ABSENT_DEFAULT
+        assert TABLE in R.load_registry().tables
+
+    def test_registry_routed_build_sql_now_compiles_the_named_expiry(self):
+        # the whole point of the flip: the same call that raised KeyError through W1/W2 now compiles,
+        # WITH the delivery-month equality on it (never widened to the whole curve).
+        sql = Q.build_sql(Q.NumberQuery(table=TABLE, metric="settle", asof="2026-07-15",
+                                        commodity="corn_cbot", contract_month="2026-12"))
+        assert "contract_month = '2026-12'" in sql
+        assert "leviathan_slug = 'corn_cbot'" in sql
 
     def test_the_card_lint_is_still_green_with_the_new_dimensions(self):
         assert cc.check_futures_eod() == []

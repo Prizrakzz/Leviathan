@@ -8,6 +8,7 @@ lever to see the future. Returns the model's answer plus the exact (query, rows)
 """
 from __future__ import annotations
 
+import datetime as _dt
 import json
 import os
 import re
@@ -535,16 +536,305 @@ def futures_hybrid_decline(cls: Optional[str], calls: list[dict]) -> tuple[list[
     prompt states -- so no front-month level can be minted, prompted or cited as the curve/named quote; the
     preface rides back for a deterministic prepend (never prompt discipline). Every other class (None and
     the servable 'change'/level asks) returns the SAME list object and an empty preface: byte-identical."""
-    if cls not in FUTURES_UNSERVABLE_CLASSES:
+    if cls not in FUTURES_UNSERVABLE_CLASSES or futures_eod_served(calls):
         return calls, ""
     note = FUTURES_DECLINE_TEMPLATES[cls]
     out: list[dict] = []
     for c in (calls or []):
-        if isinstance(c, dict) and ((c.get("query") or {}).get("table")) == FUTURES_TABLE:
+        # A COVERAGE-ROUTED call is EXEMPT (2026-07-31). The W3.2 guard REWRITES a pre-coverage
+        # per-expiry ask into a continuous LEVEL -- whose table is silver_futures_prices, exactly what
+        # this loop neuters. On a curve/named-phrased pre-coverage ask the two collided: the rewritten
+        # level was dropped, its status flipped to 'declined', and its scope_note (the coverage
+        # provenance sentence the reader NEEDS -- "from the roll-spliced continuous series; a
+        # per-contract curve does not exist before <floor>") was OVERWRITTEN with the SEAM-C template.
+        # run_hybrid then prepended "the figure below is from the roll-spliced continuous series" to an
+        # answer with no figure below it. The neuter's #144 intent is intact: it exists so no BARE
+        # front-month level is minted for a curve ask, and a coverage-routed level is not bare -- it is
+        # labelled, provenance-carrying, and IS the legacy route's whole point. The SEAM-C preface still
+        # rides back, so the reader keeps the honest "this is the continuous front month" framing.
+        if isinstance(c, dict) and not c.get("coverage_route") \
+                and ((c.get("query") or {}).get("table")) == FUTURES_TABLE:
             out.append({**c, "rows": [], "status": "declined", "scope_note": note})
         else:
             out.append(c)
     return out, _futures_decline_preface(cls)
+
+
+# -- W3.2 COVERAGE-AWARE ROUTING for the per-delivery-month EOD table -----------------------------------
+# silver_futures_eod was whitelisted 2026-07-30, and a whitelisted table answers whatever window it is
+# handed -- including one that begins BEFORE its first per-contract row exists. This is the guard that
+# makes the flip safe. The measured floors live in ONE place (leviathan.silver.futures_eod_contracts.
+# PRICE_COVERAGE_START -- min(trade_date) per slug over the canonical bytes, not the plan's per-source
+# prose) and the verdict comes from ONE function, ``covers()``, which is CALLED here and never
+# re-derived (the futures_roll F-L discipline applied to coverage):
+#
+#   serve     -- the whole window sits on or after the floor: the per-expiry table answers it, untouched.
+#   legacy    -- the whole window predates the floor: no per-contract record exists at all, so the only
+#                honest number is a LEVEL from the roll-spliced continuous card, carrying the provenance
+#                sentence VERBATIM. The lookup is REWRITTEN rather than declined -- the reader gets a
+#                real number, labelled as what it is.
+#   straddle  -- the window crosses the floor: DECLINE. Splicing a per-expiry series onto a roll-spliced
+#                continuous one produces a series that means neither thing, and the join is invisible in
+#                the output (the same class of error as an event-study magnitude measured across a roll).
+#   uncovered -- the contract has no floor at all (a venue whose canonical bytes never landed), or its
+#                pre-coverage era has no legacy level either (the continuous card carries 12 of the 31
+#                contracts): DECLINE. coverage_start_for() RAISES rather than defaulting, so a missing
+#                entry can never be read as "covered since forever".
+#
+# The decline is VERBATIM and lands in BOTH lanes: the payload's scope_note (which is what the hybrid
+# reasoner consumes -- it never reads the agent's prose, defect #144) and a deterministic preface on the
+# finished answer. Every other table returns ("serve", None) before any of this runs, so the guard is a
+# no-op -- byte-identical -- everywhere else.
+FUTURES_EOD_TABLE = "silver_futures_eod"
+FUTURES_EOD_COVERAGE_TEMPLATES: dict[str, str] = {
+    "straddle": ("the window asked about crosses the date the per-delivery-month record begins "
+                 "({floor}) -- before that date only the roll-spliced continuous series exists here, and "
+                 "reading one window across that join would give a series that is neither of them; I can "
+                 "read a window sitting entirely on or after {floor} from the per-delivery-month data, or "
+                 "a level from the continuous series for a window entirely before it, but not one that "
+                 "spans the two"),
+    "uncovered": ("there is no per-delivery-month record for that contract here at all, so there is no "
+                  "named-expiry level and no curve to read for it -- nothing below should be read as "
+                  "that contract's own delivery-month price"),
+}
+FUTURES_EOD_COVERAGE_CLASSES: tuple[str, ...] = ("straddle", "uncovered")
+
+
+def _cov_date(text, *, end: bool):
+    """'YYYY-MM-DD' (or a bare 'YYYY-MM', widened to the month's first/last day) -> a date; None when the
+    value is missing or unparseable. None is never treated as "covered" -- the callers fail closed."""
+    t = str(text or "").strip()[:10]
+    if not t:
+        return None
+    try:
+        if len(t) == 7:                                  # 'YYYY-MM' -- the month-card form, tolerated
+            y, m = int(t[:4]), int(t[5:7])
+            if not end:
+                return _dt.date(y, m, 1)
+            nxt = _dt.date(y + 1, 1, 1) if m == 12 else _dt.date(y, m + 1, 1)
+            return nxt - _dt.timedelta(days=1)
+        return _dt.date.fromisoformat(t)
+    except (TypeError, ValueError):
+        return None
+
+
+def futures_eod_window(spec) -> Optional[tuple]:
+    """(lo, hi) -- the date window a silver_futures_eod lookup actually reads, or None when the as-of is
+    unreadable.
+
+    period_start/period_end when given; otherwise the read is a POINT at the as-of (a latest-value read
+    returns the newest row on or before it). An absent period_start with a period_end present is a point
+    at period_end, NOT an open-ended history: that is the ambiguity-fails-toward-not-firing discipline
+    every other guard in this file follows -- the question named no pre-coverage era, and a read that
+    simply starts at the table's own first row splices nothing onto anything. `hi` is capped at the
+    as-of, because the leakage guard caps it anyway and a coverage verdict must describe the read that
+    will actually run.
+
+    ABSENT and UNPARSEABLE are kept apart on purpose. Absent means "no bound was asked for" and narrows
+    to a point; a bound that was SUPPLIED but cannot be read returns None, which the caller turns into a
+    decline. Collapsing the two would make a malformed period_start ('2005-1-3') look like an unwindowed
+    latest read and quietly route a pre-coverage question to 'serve'."""
+    asof = _cov_date(getattr(spec, "asof", None), end=True)
+    if asof is None:
+        return None
+    ps_raw = str(getattr(spec, "period_start", None) or "").strip()
+    pe_raw = str(getattr(spec, "period_end", None) or "").strip()
+    pe = _cov_date(pe_raw, end=True) if pe_raw else None
+    ps = _cov_date(ps_raw, end=False) if ps_raw else None
+    if (pe_raw and pe is None) or (ps_raw and ps is None):
+        return None                                      # a supplied-but-unreadable bound -> fail closed
+    hi = min(pe or asof, asof)
+    lo = ps or hi
+    return (min(lo, hi), hi)
+
+
+def _ym_bounds(ask_win: tuple) -> tuple:
+    """(first day of the start month, last day of the end month) for an asked_month_window YYYYMM pair."""
+    s, e = int(ask_win[0]), int(ask_win[1])
+    lo = _dt.date(s // 100, s % 100, 1)
+    ey, em = e // 100, e % 100
+    nxt = _dt.date(ey + 1, 1, 1) if em == 12 else _dt.date(ey, em + 1, 1)
+    return (lo, nxt - _dt.timedelta(days=1))
+
+
+def futures_eod_read_window(spec, floor=None, ask_win: Optional[tuple] = None) -> Optional[tuple]:
+    """The window the coverage verdict is taken on -- futures_eod_window(spec), NARROWED to the era the
+    QUESTION names when the model expressed no window at all and that era ends before the table's floor.
+
+    THE REACH GAP this closes (2026-07-31). futures_eod_window collapses an absent period_start/period_end
+    to a POINT at the harness as-of, so with serving's as-of = today "what was corn trading at back in May
+    2005", emitted as {commodity: corn_cbot, agg: latest}, routed 'serve', compiled real SQL and returned
+    TODAY's nearest-expiry settle carrying no coverage stamp and no preface. That is precisely the failure
+    _legacy_level_spec was written to prevent -- "a 2005 question at today's as-of returns TODAY's level
+    wearing 2005's label" -- reachable on the serve path, where nothing equivalent existed. The guard was
+    driven by the window the model EXPRESSED, never by the era the question NAMED.
+
+    The rule is deliberately narrow and fails toward today's behaviour in every ambiguous direction:
+      * a model-EXPRESSED window wins outright (it is the read that will actually run);
+      * an ask naming no month (asked_month_window -> None) changes nothing;
+      * an era that REACHES the floor changes nothing -- only an era ending strictly before the first
+        per-contract row is unambiguously pre-coverage, and only then is the point read overridden.
+    ``hi`` is capped at the as-of exactly as futures_eod_window caps it, so the narrowed window still
+    describes a read the leakage guard would permit."""
+    win = futures_eod_window(spec)
+    if win is None or ask_win is None or floor is None:
+        return win
+    if str(getattr(spec, "period_start", None) or "").strip() or \
+            str(getattr(spec, "period_end", None) or "").strip():
+        return win                                       # the model expressed the window -> that IS the read
+    lo, hi = _ym_bounds(ask_win)
+    if hi >= floor:                                      # the named era reaches coverage -> point read stands
+        return win
+    asof = _cov_date(getattr(spec, "asof", None), end=True)
+    if asof is not None and hi > asof:
+        hi = asof
+    return (min(lo, hi), hi)
+
+
+def _legacy_serves(slug: str, reg: Optional[NumbersRegistry] = None) -> bool:
+    """True when the retiring continuous card can serve `slug` at all. Its unit_overrides ARE its served
+    set (12 of the 31 contracts), so a pre-coverage ask for a CZCE / JSE / CEPEA / MATIF contract has no
+    legacy level to fall back on and must DECLINE instead of quietly answering with nothing."""
+    try:
+        ts = (reg or load_registry()).get(FUTURES_TABLE)
+    except Exception:  # noqa: BLE001 -- an absent/disabled continuous card means no legacy lane, not a crash
+        return False
+    m = (ts.metrics or {}).get("close")
+    return bool(m and slug in (m.unit_overrides or {}))
+
+
+def futures_eod_route(spec, reg: Optional[NumbersRegistry] = None,
+                      ask_win: Optional[tuple] = None) -> tuple:
+    """(route, floor_iso) for ONE lookup: 'serve' | 'legacy' | 'straddle' | 'uncovered'.
+
+    Every table other than silver_futures_eod -- and a commodity-less lookup, which build_sql's own
+    unit_overrides / partition guards already refuse -- returns ('serve', None) before any coverage work
+    happens, so this is a no-op for the rest of the registry.
+
+    ``ask_win`` is answer_numbers' asked_month_window(question) -- the era the QUESTION names. It only
+    ever narrows an UNWINDOWED read whose named era ends before the floor; see futures_eod_read_window."""
+    if getattr(spec, "table", None) != FUTURES_EOD_TABLE:
+        return ("serve", None)
+    slug = str(getattr(spec, "commodity", None) or "").strip()
+    if not slug:
+        return ("serve", None)
+    from leviathan.silver import futures_eod_contracts as FC
+    try:
+        floor = FC.coverage_start_for(slug)
+    except ValueError:                                   # no measured floor -> NOT SERVED, never permissive
+        return ("uncovered", None)
+    win = futures_eod_read_window(spec, floor, ask_win)
+    if win is None:                                      # an unreadable as-of cannot be routed -> decline
+        return ("uncovered", floor.isoformat())
+    route = FC.covers(slug, win[0], win[1])
+    if route == "legacy" and not _legacy_serves(slug, reg):
+        return ("uncovered", floor.isoformat())
+    return (route, floor.isoformat())
+
+
+def _legacy_level_spec(spec, hi) -> "Q.NumberQuery":
+    """The continuous-card LEVEL that answers a PRE-COVERAGE ask, built from the declined per-expiry one.
+
+    Two deliberate rewrites. (1) The table/metric become the roll-spliced continuous close and any
+    contract_month is DROPPED -- there is no delivery month to attach, and the recorded query must not
+    imply one. (2) The as-of is narrowed to the END of the window asked about (never raised: it is
+    min(window end, harness as-of), and the window's own hi is already capped at the as-of). Narrowing an
+    as-of can only ever REMOVE rows, so it is PIT-safe by construction; it is also the only lever
+    available, because the continuous card is levels_only -- build_sql RAISES on any windowed read, so a
+    2005 question answered at today's as-of would otherwise come back with today's level wearing 2005's
+    label. The provenance sentence rides the payload either way."""
+    asof = _cov_date(getattr(spec, "asof", None), end=True)
+    eff = min(hi, asof) if asof is not None else hi
+    return Q.NumberQuery(table=FUTURES_TABLE, metric="close", asof=eff.isoformat(),
+                         commodity=spec.commodity, agg="latest")
+
+
+def futures_eod_legacy_provenance(floor_iso: Optional[str]) -> str:
+    """The VERBATIM provenance sentence a pre-coverage LEVEL must carry (plan W3.2). It states both
+    halves at once: which series the number is from, and the date before which no per-contract curve
+    exists -- so the level can never be read as an expiry's settle."""
+    return (f"from the roll-spliced continuous series; a per-contract curve does not exist before "
+            f"{floor_iso}")
+
+
+def futures_eod_coverage_template(route: str, floor_iso: Optional[str]) -> str:
+    """The verbatim decline text for a straddling window / an uncovered contract."""
+    t = FUTURES_EOD_COVERAGE_TEMPLATES[route]
+    return t.format(floor=floor_iso) if floor_iso else t
+
+
+def futures_eod_coverage_note(route: str, floor_iso: Optional[str]) -> str:
+    """The MODEL-facing note stamped on the payload itself -- the half of the guard that survives the
+    hybrid lane, which consumes `calls` and throws the agent's prose away (defect #144)."""
+    if route == "legacy":
+        return ("COVERAGE ROUTE -- this number is " + futures_eod_legacy_provenance(floor_iso) + ". "
+                "State it as a level on its own date; never as a named delivery month, a specific "
+                "expiry's settlement, or a curve read.")
+    if route in FUTURES_EOD_COVERAGE_CLASSES:
+        return "COVERAGE DECLINE -- " + futures_eod_coverage_template(route, floor_iso) + "."
+    return ""
+
+
+def futures_eod_coverage_preface(route: str, floor_iso: Optional[str]) -> str:
+    """Reader-facing line (mentor register -- no internal slugs), PREPENDED deterministically so a
+    pre-coverage level can never pose as a delivery-month quote and a straddling window can never be
+    answered at all."""
+    if route == "legacy":
+        return ("One provenance note before the numbers: the figure below is "
+                + futures_eod_legacy_provenance(floor_iso) + ". Read it as a level on its own date, not "
+                "as a specific delivery month.\n\n")
+    if route in FUTURES_EOD_COVERAGE_CLASSES:
+        return ("One limitation to flag before the numbers: "
+                + futures_eod_coverage_template(route, floor_iso) + ".\n\n")
+    return ""
+
+
+def _is_eod_call(c: dict) -> bool:
+    return isinstance(c, dict) and ((c.get("query") or {}).get("table")) == FUTURES_EOD_TABLE
+
+
+def futures_eod_served(calls: Optional[list]) -> bool:
+    """True when a per-delivery-month lookup actually RETURNED rows this turn.
+
+    This is what keeps the flip coherent. FUTURES_DECLINE_TEMPLATES say the curve / a named expiry is
+    "not in this lookup" -- true of the continuous card, and FALSE the moment silver_futures_eod serves
+    the same ask. Without this escape a served curve would arrive under a verbatim caveat denying it
+    exists. The escape is deliberately narrow: a coverage-routed (legacy / declined) EOD call has NOT
+    served the curve, so those turns keep the honest continuous-card caveat."""
+    for c in (calls or []):
+        if _is_eod_call(c) and (c.get("status") == "ok") and (c.get("rows") or []):
+            return True
+    return False
+
+
+def futures_eod_seam_c_muted(calls: Optional[list], reg: Optional[NumbersRegistry] = None) -> bool:
+    """True when the SEAM-C continuous-card caveat must be SUPPRESSED because the fallback it OFFERS does
+    not exist.
+
+    Every FUTURES_DECLINE_TEMPLATE ends by offering the continuous front-month level ("I can give the
+    front-month close level on a date, not a curve read"). On an UNCOVERED venue that offer is false: the
+    retiring card serves 12 of the 31 contracts, so for french_wheat_matif / palm_olein_dce / the rest of
+    the W1c browser slugs the reader was told a fallback is available that would raise if asked for --
+    stacked immediately in front of the coverage decline saying there is no record for that contract AT
+    ALL. The coverage template alone is the honest, complete statement. Narrow by construction: only an
+    'uncovered' route on a slug the continuous card cannot serve mutes anything; a covered turn, a
+    straddle, a legacy rewrite and every non-futures turn are byte-identical."""
+    for c in (calls or []):
+        if isinstance(c, dict) and c.get("coverage_route") == "uncovered":
+            slug = str(((c.get("query") or {}).get("commodity")) or "").strip()
+            if slug and not _legacy_serves(slug, reg):
+                return True
+    return False
+
+
+def futures_eod_coverage_guard(calls: Optional[list]) -> Optional[tuple]:
+    """(route, floor_iso) of the FIRST coverage-routed lookup in `calls`, else None. The verdict rides
+    the CALLS (stamped in answer_numbers' executor), which is why both lanes can read it."""
+    for c in (calls or []):
+        r = (c or {}).get("coverage_route") if isinstance(c, dict) else None
+        if r and r != "serve":
+            return (r, c.get("coverage_floor"))
+    return None
 
 
 # -- year_month PERIOD-SCOPING honesty guard (task #142) ------------------------------------------------
@@ -694,8 +984,36 @@ def tool_schema(reg: NumbersRegistry) -> dict:
                 "period": {"type": "string", "description": "marketing year or year (per the table's period format)"},
                 "period_start": {"type": "string", "description": "YYYY-MM-DD window start (date-grained tables)"},
                 "period_end": {"type": "string", "description": "YYYY-MM-DD window end (date-grained tables)"},
+                # W3.1 item 2 -- the DELIVERY-MONTH dimension, declared the day silver_futures_eod was
+                # whitelisted. The model can only emit parameters the schema NAMES: while this was absent
+                # a "December corn" ask simply never named an expiry, was widened to the whole curve, and
+                # agg=latest answered it with the NEAREST LISTED expiry -- a number that is not December's,
+                # wearing December's label. Both forms are described because they are the two different
+                # reads: ONE month is a named-contract level, SEVERAL are a term-structure/curve read at a
+                # single as-of.
+                "contract_month": {"type": "string", "description":
+                                   "delivery month(s) of a per-expiry futures table (silver_futures_eod). "
+                                   "One month as 'YYYY-MM' (e.g. '2026-12') reads THAT contract; a "
+                                   "comma-separated list ('2026-12,2027-03,2027-05') reads the CURVE "
+                                   "across those expiries at one as-of, one row per expiry. Omit only if "
+                                   "the question is not about a particular delivery month -- an omitted "
+                                   "month returns every listed expiry in the window, and a latest-value "
+                                   "read then returns the NEAREST listed expiry, which is NOT 'the front "
+                                   "month' and NOT 'the price'. Never quote a bare level as 'the price': "
+                                   "say which expiry it is (every row carries its own contract_month, "
+                                   "settle_kind and currency), or read several and describe the curve."},
+                # The default is 'latest' and it was previously UNDESCRIBED, which is how the curve read
+                # above stayed unreachable in practice: 'latest' means the newest observation, and on a
+                # per-expiry table with delivery months NAMED that is the newest session FOR EACH named
+                # expiry (one row per expiry). Said plainly here so the curve form is callable as written.
                 "agg": {"type": "string", "enum": ["latest", "series", "sum", "mean", "max", "min"],
-                        "default": "latest"},
+                        "default": "latest",
+                        "description": "how to read the window. 'latest' = the newest observation on or "
+                                       "before the as-of -- on a per-expiry futures table with "
+                                       "contract_month(s) named it returns the newest session FOR EACH "
+                                       "named expiry (that is the curve at one as-of, one row per "
+                                       "expiry); 'series' = every observation in the window, oldest -> "
+                                       "newest; sum/mean/max/min collapse the window to one number."},
             },
             "required": ["table", "metric"],
         },
@@ -1048,12 +1366,26 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                 # what the model wrote, so an uncaveated proxy can never pose as the asked-for series.
                 preface += _price_decline_preface(price_scope)
                 result["price_decline_guard"] = price_scope
-            if fut_scope:
+            if fut_scope and not futures_eod_served(calls) and not futures_eod_seam_c_muted(calls, reg):
                 # SEAM-C: deterministic decline of an unservable futures ask class (change/curve/named): the
                 # front-month-only caveat is PREPENDED regardless of what the model wrote, so a change/curve/
                 # named-contract read can never pose as served off the roll-spliced series.
+                # W3 flip (2026-07-30): SKIPPED when the per-delivery-month table actually served rows this
+                # turn. The templates say the curve / a named expiry is "not in this lookup" -- true of the
+                # continuous card, false once silver_futures_eod answers the same ask -- so prepending it to
+                # a served curve would be a verbatim denial of the number underneath it.
+                # 2026-07-31: ALSO skipped on an UNCOVERED venue with no continuous-card fallback -- the
+                # template's closing offer ("I can give the front-month close level on a date") is a
+                # promise the engine cannot keep there. See futures_eod_seam_c_muted.
                 preface += _futures_decline_preface(fut_scope)
                 result["futures_decline_guard"] = fut_scope
+            _cov = futures_eod_coverage_guard(calls)
+            if _cov:
+                # W3.2: the coverage verdict was decided per-lookup (before any SQL compiled) and stamped on
+                # the payload; here it becomes the reader-facing half. A straddling window or an uncovered
+                # contract declines VERBATIM; a pre-coverage window states which series its level came from.
+                preface += futures_eod_coverage_preface(*_cov)
+                result["futures_coverage_guard"] = _cov[0]
             if dest and any(_is_esr_call(c) for c in calls):
                 result["esr_destination_guard"] = dest
                 if dest == _ESR_DEST_GENERIC:
@@ -1130,6 +1462,31 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
             loop OR its batch-mates."""
             try:
                 spec = _forced_spec(asof, dict(b.input))
+                # W3.2 COVERAGE ROUTING (silver_futures_eod only; ('serve', None) for every other table,
+                # so this is byte-identical elsewhere). A straddling window or an uncovered contract is
+                # DECLINED here -- before any SQL is compiled -- with the verbatim template stamped on the
+                # payload the hybrid reasoner reads. A pre-coverage window is REWRITTEN to a level from
+                # the retiring continuous card, carrying the provenance sentence.
+                # ask_win (the era the QUESTION names) is passed so the guard REACHES an unwindowed
+                # pre-coverage ask -- "what was corn trading at back in May 2005" emitted with no
+                # period bounds, which otherwise routed 'serve' and returned TODAY's nearest expiry
+                # wearing 2005's label. See futures_eod_read_window.
+                _route, _floor = futures_eod_route(spec, reg, ask_win)
+                if _route in FUTURES_EOD_COVERAGE_CLASSES:
+                    return {"query": spec.model_dump(exclude_none=True), "rows": [], "status": "declined",
+                            "scope_note": futures_eod_coverage_note(_route, _floor),
+                            "coverage_route": _route, "coverage_floor": _floor}
+                if _route == "legacy":
+                    # the SAME window the verdict was taken on (era-narrowed when the question named an
+                    # era the model never expressed) -- so the legacy level lands in the era ASKED
+                    # ABOUT, not at the harness as-of.
+                    _win = futures_eod_read_window(spec, _cov_date(_floor, end=False), ask_win)
+                    legacy = _legacy_level_spec(spec, _win[1])
+                    _lrows = [r for r in Q.run(legacy, query_fn=query_fn) if r.get("value") not in (None, "")]
+                    return {"query": legacy.model_dump(exclude_none=True), "rows": _lrows,
+                            "status": "ok" if _lrows else "no_rows",
+                            "scope_note": futures_eod_coverage_note(_route, _floor),
+                            "coverage_route": _route, "coverage_floor": _floor}
                 rows = Q.run(spec, query_fn=query_fn)
                 # An aggregate over zero matched rows returns ONE row with a NULL value (the July-3 eval's
                 # b_weather_2012: country='us' matched no partition, sum() -> [{'value': None}], and the

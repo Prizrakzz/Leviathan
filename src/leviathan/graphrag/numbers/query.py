@@ -649,6 +649,24 @@ def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = AT
     if spec.agg in ("sum", "mean", "max", "min"):
         return _agg(base) + f" LIMIT {int(spec.limit)}"
     if spec.agg == "latest" and order:                        # the single most-recent observation on/before asof
+        # W3 CURVE FIX (2026-07-31): on a PER-EXPIRY table with delivery months NAMED, 'latest' means the
+        # newest session PER EXPIRY -- one row per contract_month -- not one row overall. The tool schema
+        # promises exactly that ("a comma-separated list reads the CURVE across those expiries at one
+        # as-of, one row per expiry") and `agg` DEFAULTS to latest, so the bare `LIMIT 1` below compiled
+        # the documented curve call into the NEAREST listed expiry and the answer narrated one number as
+        # the curve -- the precise failure the delivery-month dimension exists to prevent, arriving
+        # through the new parameter. The dedup mirrors the vintage ROW_NUMBER shape above (PARTITION BY
+        # the identity, ORDER BY the chronological axis DESC, keep _rn = 1), so both backends agree.
+        # DELIBERATELY scoped to a NAMED contract_month: with no month named the read is the whole curve
+        # and 'latest' keeps its documented nearest-listed-expiry tie-break (the card's own trap, and the
+        # curve_corn_nearest_not_front deck row). Every other table names no month -> byte-identical SQL.
+        months = _contract_months(spec)
+        if ts.contract_month_col and months:
+            inner = (f"SELECT {sel}, ROW_NUMBER() OVER (PARTITION BY {ts.contract_month_col} "
+                     f"ORDER BY {order} DESC) AS _rn FROM {db}.{table} WHERE {where}")
+            outcols = "value" + "".join(f", {a}" for _, a in extras)
+            return (f"SELECT {outcols} FROM ({inner}) AS _v WHERE _rn = 1"
+                    f" ORDER BY {_total_order(extras, inc_country)} LIMIT {int(spec.limit)}")
         return base + f" ORDER BY {order} DESC, {_total_order(extras, inc_country)} LIMIT 1"
     base += f" ORDER BY {_total_order(extras, inc_country)}"  # series/default: chronological + total tiebreak
     return base + f" LIMIT {int(spec.limit)}"

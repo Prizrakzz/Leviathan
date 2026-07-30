@@ -51,11 +51,19 @@ class ToolSpec:
 REGISTRY: tuple[ToolSpec, ...] = (
     ToolSpec(
         name="numbers",
+        # W3.1 item 8 (2026-07-30, the silver_futures_eod whitelist flip): TERM STRUCTURE / the CURVE is
+        # named here because this string is the ONLY place the router learns what the numbers agent can
+        # do. Until the per-delivery-month EOD table was served a curve or named-expiry ask was
+        # structurally unservable and correctly routed away; now it is a lookup, and a purpose that does
+        # not say so leaves the new capability unreachable from the planner. family_names() derives the
+        # data_families enum from the registry itself -- never hardcode a family in this string.
         purpose=("leakage-safe SQL over OBSERVED values (USDA PSD S&D vintages, ESR export sales AND "
                  "their PACE vs the year-ago week/marketing year, CFTC managed-money POSITIONING levels "
-                 "-- net length, net long/short, how stretched vs its own history -- weather aggregates, "
-                 "FX, ONI)."),
-        when_to_use="a figure, level, quantity, \"what was X\".",
+                 "-- net length, net long/short, how stretched vs its own history -- daily futures "
+                 "settles BY DELIVERY MONTH, including the TERM STRUCTURE / forward CURVE across "
+                 "expiries and named-contract levels, weather aggregates, FX, ONI)."),
+        when_to_use=("a figure, level, quantity, \"what was X\"; also a named delivery month "
+                     "(\"December corn\") or the shape of the curve across expiries."),
         hard_rules=("it only sees data published on or before the as-of. If the user asks about a "
                     "report dated AFTER the as-of, still route here — the agent answers \"not "
                     "published\" honestly. Never re-date or 'fix' the user's request to make data "

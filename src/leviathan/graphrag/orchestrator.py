@@ -83,7 +83,8 @@ def run_numbers_only(query: str, asof: str, *, client=None, model: str = na.HAIK
     # it IS the critical path. The `intent` EMF dimension separates them -- never pool the two.
     _trace = {"numbers_verifier": nv, "banned_valuation_words": _banned_val, "banned_flow_words": _banned_flow,
               "ms_numbers": _ms_numbers}
-    for _gk in ("esr_destination_guard", "price_decline_guard", "pattern_records", "period_mismatch_guard"):
+    for _gk in ("esr_destination_guard", "price_decline_guard", "pattern_records", "period_mismatch_guard",
+                "futures_coverage_guard"):     # W3.2: the silver_futures_eod coverage verdict (legacy/decline)
         if out.get(_gk) is not None:
             _trace[_gk] = out[_gk]
     return {"answer": body, "intent": "numbers_only",
@@ -262,6 +263,14 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
         calls, _fpref = na.futures_hybrid_decline(_fcls, calls)
         if _fpref:
             holder["futures_decline"], holder["futures_preface"] = _fcls, _fpref
+        # W3.2 silver_futures_eod COVERAGE routing on the hybrid lane -- BOTH lanes or neither (#144). The
+        # verdict was stamped ON THE CALLS by the agent's executor (payload scope_note + coverage_route),
+        # so it survives the path that discards the agent's prose; only the reader-facing preface has to be
+        # re-derived here. Absent (every non-EOD turn, and every covered window) -> byte-identical.
+        _cov = na.futures_eod_coverage_guard(calls)
+        if _cov:
+            holder["coverage_route"] = _cov[0]
+            holder["coverage_preface"] = na.futures_eod_coverage_preface(*_cov)
         holder["calls"], holder["resolved"] = calls, True
         # T2b D2 (pattern-records deck skeptic, 2026-07-25): run_numbers_only copies `pattern_records`
         # onto its trace (:77) but the hybrid join never did -- so a persistence question routed hybrid
@@ -285,6 +294,11 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
         _resolve()                      # still surface the numbers the agent found, as before
     out["intent"] = "hybrid"
     out["number_calls"] = holder["calls"]
+    if holder.get("coverage_preface"):
+        # W3.2: prepended BEFORE the SEAM-C caveat below so the two land in the same order as the
+        # numbers_only lane (levels-only caveat first, coverage note second).
+        out["answer"] = holder["coverage_preface"] + (out.get("answer") or "")
+        out.setdefault("trace", {})["futures_coverage_guard"] = holder["coverage_route"]
     if holder.get("futures_preface"):
         # the DETERMINISTIC half of the SEAM-C hybrid decline (task #144): the caveat is prepended whatever
         # the writer produced, exactly as the numbers_only lane does — the honesty never rides on the prompt.
