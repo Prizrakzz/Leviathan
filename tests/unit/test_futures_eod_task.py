@@ -314,18 +314,25 @@ class TestLoadUnitBronze:
 
 # ---------------------------------------------------------------------------
 class TestChainWiring:
-    def test_the_descriptor_does_not_self_promote_to_canonical(self):
-        """F2: no registered surface consumes ICE bars until the uniqueness assertion passes on
-        PURCHASED data, and ICE_BAR_RULE is provisional pending probe P3. Autonomous promotion
-        would publish canonically on the first fire."""
+    def test_the_descriptor_promotes_behind_the_gate_and_never_from_silver(self):
+        """ARMED 2026-07-29. The F2 condition this test used to hold the line on is DISCHARGED:
+        the uniqueness assertion passed on PURCHASED data (15/15 roots, 187 partitions) and P3
+        resolved ICE_BAR_RULE to prefer_on_venue_publisher against measured double bars.
+
+        The invariant that outlives the flip: the SILVER phase stages shadow, and canonical is
+        reached only through the PROMOTE phase, which runs after the gate. Autonomous populates
+        promote; it must never turn a silver task canonical."""
         desc = json.loads((_REPO / "configs" / "silver" / "dags"
                            / "futures_eod_databento.json").read_text(encoding="utf-8"))
-        assert desc["promote_mode"] != "autonomous"
+        assert desc["promote_mode"] == "autonomous"
         rendered = json.loads((_REPO / "configs" / "silver" / "dags" / "_rendered"
                                / "futures_eod_databento.input.json").read_text(encoding="utf-8"))
-        assert rendered["promote"]["tasks"] == []
         silver = rendered["phases"]["silver"]["tasks"][0]["command"]
         assert "--publish-mode" in silver and silver[silver.index("--publish-mode") + 1] == "shadow"
+        promote = rendered["promote"]["tasks"]
+        assert len(promote) == 1
+        pcmd = promote[0]["command"]
+        assert pcmd[pcmd.index("--publish-mode") + 1] == "canonical"
 
     def test_the_task_merges_before_an_incremental_publish(self):
         src = (_REPO / "jobs" / "batch" / "futures_eod_task.py").read_text(encoding="utf-8")

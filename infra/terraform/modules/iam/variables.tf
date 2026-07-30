@@ -41,6 +41,12 @@ variable "numbers_pg_dsn_secret_arn" {
   default     = ""
 }
 
+variable "databento_api_key_secret_arn" {
+  type        = string
+  description = "PRICE_AND_PLAYBOOKS W2: Secrets Manager ARN (name-based) for the Databento key mounted as DATABENTO_API_KEY on the databento fetch jobdef. Grants the batch EXECUTION role GetSecretValue so the ECS agent can inject it (never the job role -- the producer prefers the env mount precisely so no job role needs secretsmanager). The secret is user-gated; empty = no grant."
+  default     = ""
+}
+
 # SILVER-F014 (R1) — two fail-closed flags on the gated publisher role. Both DEFAULT
 # to the safe posture (canonical silver/ denied, repair off). Flipping either is a
 # governed, signed-approval action (see reports/silver_readiness/R1_F014_iam_gate.md).

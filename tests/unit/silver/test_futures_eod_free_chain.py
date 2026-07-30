@@ -290,15 +290,28 @@ class TestDescriptor:
         dbn = json.loads((_DAGS / "futures_eod_databento.json").read_text(encoding="utf-8"))
         assert d["gate_baseline_uri"] != dbn["gate_baseline_uri"]
 
-    def test_it_does_not_self_promote_to_canonical(self):
-        """Nothing has been published canonically on this table yet, the floors are PROVISIONAL
-        until probe P10 recalibrates them, and the MIAX floor rests on a single observation."""
-        assert self._desc()["promote_mode"] == "stop_and_notify"
+    def test_it_promotes_behind_the_gate_and_never_from_the_silver_phase(self):
+        """ARMED 2026-07-29: canonical was hand-published for all four venues first (czce 34,164 /
+        miax 1,554 / cepea 12,922 / jse 18), union gates PASSED, and the P10 question this test
+        used to guard closed itself -- the floors held across the whole 2,628-file CZCE backfill.
+
+        What still must hold, and is the reason this test survives the flip: the SILVER phase
+        stages shadow for every venue, and canonical happens only in the PROMOTE phase, which the
+        state machine runs after the gate. One promote task per venue, so one venue's bad day
+        cannot promote another's rows."""
+        assert self._desc()["promote_mode"] == "autonomous"
         rendered = self._rendered()
-        assert rendered["promote"]["tasks"] == []
         for task in rendered["phases"]["silver"]["tasks"]:
             cmd = task["command"]
             assert cmd[cmd.index("--publish-mode") + 1] == "shadow"
+        promote = rendered["promote"]["tasks"]
+        assert len(promote) == 4
+        sources = []
+        for task in promote:
+            cmd = task["command"]
+            assert cmd[cmd.index("--publish-mode") + 1] == "canonical"
+            sources.append(cmd[cmd.index("--source") + 1])
+        assert sorted(sources) == ["cepea", "czce", "jse", "miax"]
 
     def test_one_fetch_and_one_silver_task_per_venue(self):
         rendered = self._rendered()

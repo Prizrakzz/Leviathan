@@ -88,3 +88,42 @@ variable "fas_api_key_secret_arn" {
   description = "Secrets Manager ARN (name-based) for the USDA FAS key mounted as FAS_API_KEY on the weekly ESR fetch job. Empty = the fetch jobdef is not created (user-gated secret, D-W1)."
   default     = ""
 }
+
+# --- PRICE_AND_PLAYBOOKS W1a + W2: the two futures_eod chains ---------------
+
+variable "futures_eod_image_digest" {
+  # The sha256 digest of the WORKER image the futures_eod jobdefs run, assembled in
+  # the module against var.ecr_repository_url (same repo, unlike pattern_records'
+  # embedder). NOT a tag: `databento` and `xlrd` are the two runtime deps whose
+  # absence is SILENT at ingest (the yfinance ImportError wrote nothing for six weeks
+  # under no freshness alarm), so the pin is what certifies which build carries them.
+  # Empty count-gates ALL THREE futures_eod jobdefs out of existence.
+  type        = string
+  description = "sha256 digest of the worker image the futures_eod fetch + silver jobdefs run, e.g. 'sha256:abc...'. Empty = none of the three futures_eod jobdefs are created."
+  default     = ""
+
+  validation {
+    condition     = var.futures_eod_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.futures_eod_image_digest))
+    error_message = "futures_eod_image_digest must be empty or a full 'sha256:<64 hex>' digest -- a TAG is not accepted (the silent-missing-dependency class of failure this pin exists to prevent is exactly what a moving tag reintroduces)."
+  }
+}
+
+variable "silver_publisher_job_role_arn" {
+  # module.iam.silver_publisher_role_arn -- the SILVER-F014 gated writer. Required by
+  # the futures_eod silver jobdef because silver_futures_eod is a class-A REGISTERED-
+  # partition table: publishing calls glue:CreatePartition/BatchCreatePartition, which
+  # lives on silver_publisher_base and NOT on the shared batch_job_role.
+  type        = string
+  description = "ARN of the SILVER-F014 silver-publisher role (the gated writer) used as jobRoleArn by the futures_eod silver jobdef. Empty = that jobdef is not created."
+  default     = ""
+}
+
+variable "databento_api_key_secret_arn" {
+  # Secrets Manager ARN (name-based) for leviathan/dev/databento-api-key, mounted as
+  # DATABENTO_API_KEY on the Databento fetch job. The secret's creation is USER-GATED
+  # (futures_eod_databento.json precondition (c)); count-gated so the jobdef does not
+  # exist -- and therefore cannot fail at container START -- until the ARN is wired.
+  type        = string
+  description = "Secrets Manager ARN (name-based) for the Databento key mounted as DATABENTO_API_KEY on the databento fetch job. Empty = that fetch jobdef is not created (user-gated secret)."
+  default     = ""
+}

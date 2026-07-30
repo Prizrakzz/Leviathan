@@ -122,3 +122,42 @@ output "pattern_records_sweep_job_definition_name" {
   value       = "${var.project_name}-${var.environment}-pattern-records-sweep"
   description = "NAME of the T2B pattern-records sweep jobdef. Deliberately NOT derived from the count-gated resource: the schedule + the submit wrapper reference the jobdef BY NAME (so a re-registration tracks the latest ACTIVE revision), and the name is stable whether or not the digest is pinned yet."
 }
+
+# --- PRICE_AND_PLAYBOOKS W1a + W2: the two futures_eod chains ---------------
+# The NAME outputs are what the DAG descriptors + dag_schedules.auto.tfvars.json
+# consume (gen_sfn_inputs._unversion strips the descriptors' ":1" so the schedule
+# tracks the latest ACTIVE revision). They are rendered from the two root variables
+# rather than from the count-gated resources on purpose: the name a schedule must
+# reference is stable whether or not the image digest / secret is pinned yet, and a
+# null there would make the tfvars unrenderable exactly when it is being authored.
+# The ARN outputs are null until their lane is gated in.
+
+output "futures_eod_free_fetch_job_definition_name" {
+  value       = "${var.project_name}-${var.environment}-futures-eod-free-fetch"
+  description = "NAME of the futures_eod free-venue fetch jobdef (czce/jse/cepea/miax; referenced by configs/silver/dags/futures_eod_free.json)."
+}
+
+output "futures_eod_free_fetch_job_definition_arn" {
+  value       = one(aws_batch_job_definition.futures_eod_free_fetch[*].arn)
+  description = "ARN of the futures_eod free-venue fetch jobdef. null until futures_eod_image_digest is pinned."
+}
+
+output "databento_fetch_job_definition_name" {
+  value       = "${var.project_name}-${var.environment}-databento-fetch"
+  description = "NAME of the Databento raw-DBN fetch jobdef (referenced by configs/silver/dags/futures_eod_databento.json)."
+}
+
+output "databento_fetch_job_definition_arn" {
+  value       = one(aws_batch_job_definition.databento_fetch[*].arn)
+  description = "ARN of the Databento fetch jobdef. null until BOTH futures_eod_image_digest and databento_api_key_secret_arn are wired."
+}
+
+output "futures_eod_silver_job_definition_name" {
+  value       = "${var.project_name}-${var.environment}-futures-eod-silver"
+  description = "NAME of the shared silver_futures_eod producer jobdef -- referenced by BOTH futures_eod descriptors' silver phases."
+}
+
+output "futures_eod_silver_job_definition_arn" {
+  value       = one(aws_batch_job_definition.futures_eod_silver[*].arn)
+  description = "ARN of the shared silver_futures_eod producer jobdef. null until BOTH futures_eod_image_digest and silver_publisher_job_role_arn are wired."
+}

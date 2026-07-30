@@ -40,6 +40,17 @@ locals {
     ? ""
     : "${data.aws_ecr_repository.embedder.repository_url}@${var.pattern_records_image_digest}"
   )
+
+  # PRICE_AND_PLAYBOOKS W2: name-based ARN for the Databento key mounted as
+  # DATABENTO_API_KEY on the databento fetch job. The secret
+  # leviathan/dev/databento-api-key is created OUT-OF-BAND (USER-GATED --
+  # futures_eod_databento.json precondition (c); the value is a vendor API key), so
+  # this is CONSTRUCTED, not looked up: a data source on an absent secret fails at
+  # PLAN time and would block every unrelated apply. ECS/Batch valueFrom resolves the
+  # name-based ARN for a same-region secret; the iam GetSecretValue grant widens it
+  # with a trailing -* for the Secrets Manager random suffix. Same shape as
+  # fas_api_key_secret_arn above.
+  databento_api_key_secret_arn = "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:leviathan/dev/databento-api-key"
 }
 
 module "s3" {
@@ -67,6 +78,8 @@ module "iam" {
   # T2B: execution-role GetSecretValue for the pattern-records sweep's EVIDENCE_PG_DSN mount
   # (the sweep is a pg-only engine replay and refuses to run without it).
   numbers_pg_dsn_secret_arn = data.aws_secretsmanager_secret.pg_dsn.arn
+  # W2: execution-role GetSecretValue for the databento fetch's DATABENTO_API_KEY mount.
+  databento_api_key_secret_arn = local.databento_api_key_secret_arn
   # SILVER-F014 latch: flipped TRUE under the signed A1-A2 G1+G5.0 grants (2026-07-16) --
   # canonical authority now rests on kms:Sign + gate-first + shadow-first, not the deny.
   silver_canonical_publish_approved = true
@@ -156,6 +169,17 @@ module "batch" {
   pattern_records_job_role_arn = module.iam.pattern_records_job_role_arn
   numbers_pg_dsn_secret_arn    = data.aws_secretsmanager_secret.pg_dsn.arn
   publish_signer_kms_key_arn   = aws_kms_key.publish_signer.arn
+
+  # PRICE_AND_PLAYBOOKS W1a + W2 -- the two futures_eod chains' three jobdefs
+  # (futures-eod-free-fetch, databento-fetch, futures-eod-silver). Registering them
+  # only makes the chains RUNNABLE; what ARMS a nightly fire is the
+  # dag_schedules.auto.tfvars.json entry, and both descriptors are
+  # promote_mode=stop_and_notify (shadow only, empty promote.tasks).
+  futures_eod_image_digest = var.futures_eod_image_digest
+  # The SILVER-F014 gated writer: silver_futures_eod is class-A REGISTERED, so its
+  # producer needs glue:CreatePartition, which only this role carries.
+  silver_publisher_job_role_arn = module.iam.silver_publisher_role_arn
+  databento_api_key_secret_arn  = local.databento_api_key_secret_arn
 }
 
 module "glue" {

@@ -2648,3 +2648,338 @@ resource "aws_batch_job_definition" "pattern_records_sweep" {
     ManagedBy   = "terraform"
   }
 }
+
+# ===========================================================================
+# PRICE_AND_PLAYBOOKS W1a + W2 -- the two futures_eod chains' job definitions.
+#
+# configs/silver/dags/futures_eod_free.json     -> fetch: futures-eod-free-fetch
+#                                                  silver: futures-eod-silver
+# configs/silver/dags/futures_eod_databento.json-> fetch: databento-fetch
+#                                                  silver: futures-eod-silver  (SHARED)
+#
+# THE IMAGE IS PINNED BY DIGEST, NOT :latest. Every other jobdef in this module
+# still rides "${var.ecr_repository_url}:latest" for historical reasons; these three
+# do not, and the reason is specific to this family: `databento` and `xlrd` are the
+# two runtime dependencies whose ABSENCE is SILENT (the yfinance ImportError wrote
+# nothing for six weeks with no freshness alarm, and fetch_databento_eod.make_client
+# turns that class of failure into an explicit "rebuild + repin" SystemExit). A digest
+# says exactly which build was verified to carry them. It is the same discipline as
+# pattern_records_sweep above, and the SILVER-F085 datestamp-tag rule
+# (scripts/build_push_worker.ps1) is what keeps the pinned digest from being GC'd.
+#
+# ALL THREE ARE COUNT-GATED so an unpinned/unprovisioned lane is a terraform no-op
+# rather than a jobdef that fails at 22:30 UTC on the first armed cron.
+#
+# NOT ARMED BY THIS FILE. Registering a jobdef only makes the chain RUNNABLE; what
+# actually fires it is the dag_schedules.auto.tfvars.json entry (implementer B).
+# Both descriptors also carry promote_mode = stop_and_notify, so the machine
+# publishes SHADOW ONLY and promote.tasks renders EMPTY -- nothing here can write a
+# canonical partition on a schedule.
+# ===========================================================================
+
+locals {
+  # "<worker repo>@sha256:..." -- assembled here rather than passed in whole (the
+  # pattern_records shape) because these three run the WORKER image the module is
+  # already wired to, so there is exactly one source of truth for the repo URL.
+  futures_eod_image = (
+    var.futures_eod_image_digest == ""
+    ? ""
+    : "${var.ecr_repository_url}@${var.futures_eod_image_digest}"
+  )
+
+  # The publish-signer CMK by ALIAS, not ARN. This is the string every ARMED chain's
+  # promote task already sends (dag_schedules.auto.tfvars.json: LEVIATHAN_KMS_KEY_ID =
+  # "alias/leviathan-dev-publish-signer"), and it is identical to
+  # aws_kms_alias.publish_signer.name in envs/dev. Alias over ARN so a CMK
+  # re-key does not silently strand every baked jobdef. kms:Sign resolves an
+  # "alias/<name>" KeyId natively.
+  publish_signer_alias = "alias/${var.project_name}-${var.environment}-publish-signer"
+}
+
+# ---------------------------------------------------------------------------
+# Job definition: futures_eod FREE-venue fetch (raw landing, four producers)
+#
+# ONE jobdef, FOUR legs. czce / jse / cepea / miax all land raw/ + raw_meta/ with
+# the same shape, the same role and the same sizing, and the state machine supplies
+# each leg's own containerOverrides.command -- so four jobdefs would be four copies
+# of one thing that drift apart.
+#
+# NO SECRETS BLOCK, DELIBERATELY. All four venues are unauthenticated public GETs
+# (futures_eod_free.json: "NO SECRETS: every one of these four venues is an
+# unauthenticated public GET"). A secrets block here would be an inert lie that the
+# next reader has to disprove.
+#
+# ROLE = batch_job_role, the raw-landing role every other fetch-family jobdef uses
+# (sagis_cec_raw_backfill, usda_wasde_raw_backfill, cpc_soil_to_raw, usda_esr_fetch).
+# These producers write raw/ and raw_meta/ and NOTHING under silver/ -- the publisher
+# role is for the silver leg below and would be a needless widening here.
+#
+# Sizing 1 vCPU / 2048 MB: the legs are network-bound, but JSE and the CEPEA archive
+# both open .xls through xlrd in memory (xlrd>=2.0 is a CORE pyproject dependency, NOT
+# a [batch] extra, so it needs no rebuild -- futures_eod_free.json precondition (c)).
+#
+# The BAKED command is the CZCE leg (the flagship, and the only one whose
+# --mode/--lookback-days shape is the generic one). Every scheduled invocation
+# overrides it; a bare re-fire of the jobdef therefore re-runs an idempotent
+# 5-day CZCE incremental, which is the least surprising possible default.
+# ---------------------------------------------------------------------------
+resource "aws_batch_job_definition" "futures_eod_free_fetch" {
+  count = local.futures_eod_image != "" ? 1 : 0
+
+  name = "${var.project_name}-${var.environment}-futures-eod-free-fetch"
+  type = "container"
+
+  platform_capabilities = ["FARGATE"]
+
+  container_properties = jsonencode({
+    image = local.futures_eod_image
+
+    command = [
+      "jobs/ingest/fetch_czce_eod.py",
+      "--mode", "incremental",
+      "--lookback-days", "5"
+    ]
+
+    environment = [
+      { name = "LEVIATHAN_BUCKET", value = var.leviathan_bucket },
+      { name = "AWS_REGION", value = var.aws_region },
+      { name = "LEVIATHAN_ENV", value = var.environment }
+    ]
+
+    resourceRequirements = [
+      { type = "VCPU", value = "1" },
+      { type = "MEMORY", value = "2048" }
+    ]
+
+    executionRoleArn = var.batch_execution_role_arn
+    jobRoleArn       = var.batch_job_role_arn
+
+    networkConfiguration = {
+      assignPublicIp = "ENABLED"
+    }
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = "/aws/batch/${var.project_name}-${var.environment}"
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "futures-eod-free-fetch"
+      }
+    }
+  })
+
+  timeout {
+    # 1 h ceiling. The longest leg is a 5-session CZCE incremental (5 small GETs +
+    # polite sleeps); JSE/CEPEA are single objects. A leg that has not finished in an
+    # hour is stuck on a venue, not slow.
+    attempt_duration_seconds = 3600
+  }
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Job definition: futures_eod DATABENTO fetch (raw DBN landing)
+#
+# Separate from the free-venue jobdef for exactly one reason: this leg carries a
+# SECRET. Folding it into futures-eod-free-fetch would mount DATABENTO_API_KEY into
+# four containers that have no use for it.
+#
+# DATABENTO_API_KEY is injected by the ECS agent from Secrets Manager under the
+# EXECUTION role (the usda_esr_fetch shape). The producer reads env FIRST and only
+# falls back to a boto3 get_secret_value under the JOB role, so the valueFrom mount is
+# what keeps the job role free of any secretsmanager grant. count-gated on the ARN:
+# futures_eod_databento.json precondition (c) -- "provision the
+# leviathan/dev/databento-api-key secret + the execution-role GetSecretValue grant" --
+# is USER-GATED, and a jobdef that exists before the secret does would fail at
+# container START (a much less legible failure than not existing).
+#
+# The vendor `databento` package lives in pyproject's [batch] extra, which the worker
+# image installs. That is precisely what the digest pin above certifies: the pinned
+# build is a post-databento-pin image, so precondition (d) is discharged BY THE PIN.
+#
+# Sizing 1 vCPU / 2048 MB -- submit, poll, download, land. The DBN payloads stream to
+# a temp dir and are landed per file; nothing is held whole in memory.
+# ---------------------------------------------------------------------------
+resource "aws_batch_job_definition" "databento_fetch" {
+  count = local.futures_eod_image != "" && var.databento_api_key_secret_arn != "" ? 1 : 0
+
+  name = "${var.project_name}-${var.environment}-databento-fetch"
+  type = "container"
+
+  platform_capabilities = ["FARGATE"]
+
+  container_properties = jsonencode({
+    image = local.futures_eod_image
+
+    # --mode is REQUIRED by the producer's parser, so it is baked (an unparameterized
+    # re-fire must not die in argparse). The scheduled invocation sends the same
+    # command via containerOverrides.
+    command = [
+      "jobs/ingest/fetch_databento_eod.py",
+      "--mode", "incremental",
+      "--lookback-days", "5"
+    ]
+
+    environment = [
+      { name = "LEVIATHAN_BUCKET", value = var.leviathan_bucket },
+      { name = "AWS_REGION", value = var.aws_region },
+      { name = "LEVIATHAN_ENV", value = var.environment }
+    ]
+
+    # Never a plaintext env, never in the task def, never in the log stream (the
+    # producer logs "present", not the value, and never its length).
+    secrets = [
+      { name = "DATABENTO_API_KEY", valueFrom = var.databento_api_key_secret_arn }
+    ]
+
+    resourceRequirements = [
+      { type = "VCPU", value = "1" },
+      { type = "MEMORY", value = "2048" }
+    ]
+
+    executionRoleArn = var.batch_execution_role_arn
+    jobRoleArn       = var.batch_job_role_arn
+
+    networkConfiguration = {
+      assignPublicIp = "ENABLED"
+    }
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = "/aws/batch/${var.project_name}-${var.environment}"
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "databento-fetch"
+      }
+    }
+  })
+
+  timeout {
+    # 4 h ceiling, chosen ABOVE the producer's own per-unit wait so the in-process
+    # TimeoutError ("job <id> did not reach 'done' within 7200s") is what an operator
+    # sees, not an opaque Batch kill. wait_and_download's max_wait_seconds default is
+    # 7200 PER submitted batch job; 14400 leaves room for a couple of units.
+    attempt_duration_seconds = 14400
+  }
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Job definition: silver_futures_eod producer -- SHARED BY BOTH CHAINS
+#
+# jobs/batch/futures_eod_task.py is ONE --source-dispatched task over ONE table with
+# ONE contract, one partition scheme and one merge rule, so it is ONE jobdef: the free
+# chain sends --source czce|jse|cepea|miax and the Databento chain sends the default.
+#
+# ROLE = silver-publisher, and this is NOT optional. silver_futures_eod is a class-A
+# REGISTERED-partition table: publishing it calls glue:CreatePartition/
+# BatchCreatePartition, which lives on silver_publisher_base and NOT on
+# batch_job_role. The shadow leg writes silver/<table>/_shadow/... -- still under the
+# publisher's silver/* grant -- and leviathan.silver.freshness excludes "/_shadow/"
+# from the canonical clock by design, so a shadow write neither needs nor gets any
+# extra authority.
+#
+# THE KMS PAIR IS PRESENT BUT INERT UNDER THE SCHEDULE. Both descriptors declare
+# auth_mode=kms; publish_guard mints its short-lived PublishApproval from
+# LEVIATHAN_APPROVAL_MODE + LEVIATHAN_KMS_KEY_ID. Baking them means a HUMAN promote --
+# the whole point of promote_mode=stop_and_notify, which renders promote.tasks EMPTY --
+# can re-run the identical command with --publish-mode canonical on this jobdef and
+# needs no env plumbing at the console. It changes nothing about a scheduled fire:
+# the baked command below is --publish-mode shadow, and the state machine's silver
+# phase always overrides with --publish-mode shadow too.
+#
+#   NOTE FOR THE PROMOTE FLIP: when either chain flips to promote_mode=autonomous,
+#   scripts/silver/gen_sfn_inputs.py renders the canonical re-run against
+#   PROMOTE_RUNNER_JOBDEF = "leviathan-dev-silver-publisher-runner", NOT this jobdef,
+#   and carries the KMS pair in task.env. So the runner must also be able to run
+#   futures_eod_task.py. The pair baked here is the manual-promote path, not the
+#   machine's.
+#
+# Sizing 1 vCPU / 4096 MB: an incremental run holds five days of one source but stages
+# the whole (leviathan_slug, trade_year) object and UNIONS it with the existing
+# canonical partition before publishing -- a trade_year, not a lookback window, is the
+# in-memory unit. Same shape as fgis_silver / mpob_annual_silver.
+#
+# NO retry_strategy: a publishing job must never be silently re-attempted into a
+# partial second publish. A failed silver task is re-fired deliberately (the run is
+# idempotent under skip_existing=false + the canonical union).
+# ---------------------------------------------------------------------------
+resource "aws_batch_job_definition" "futures_eod_silver" {
+  count = local.futures_eod_image != "" && var.silver_publisher_job_role_arn != "" ? 1 : 0
+
+  name = "${var.project_name}-${var.environment}-futures-eod-silver"
+  type = "container"
+
+  platform_capabilities = ["FARGATE"]
+
+  container_properties = jsonencode({
+    image = local.futures_eod_image
+
+    # The Databento chain's silver command verbatim (--source defaults to databento).
+    # --publish-mode shadow is baked ON PURPOSE: an un-overridden fire must never be
+    # able to touch canonical. The free chain overrides with --source czce|jse|cepea|miax.
+    command = [
+      "jobs/batch/futures_eod_task.py",
+      "--mode", "incremental",
+      "--lookback-days", "5",
+      "--publish-mode", "shadow"
+    ]
+
+    environment = [
+      { name = "LEVIATHAN_BUCKET", value = var.leviathan_bucket },
+      { name = "AWS_REGION", value = var.aws_region },
+      { name = "LEVIATHAN_ENV", value = var.environment },
+      # auth_mode=kms (both descriptors). Inert unless the job is run with
+      # --publish-mode canonical AND the role holds kms:Sign -- deleting the
+      # silver_publisher_kms_sign grant in envs/dev is the kill-switch.
+      { name = "LEVIATHAN_APPROVAL_MODE", value = "kms" },
+      { name = "LEVIATHAN_KMS_KEY_ID", value = local.publish_signer_alias }
+    ]
+
+    resourceRequirements = [
+      { type = "VCPU", value = "1" },
+      { type = "MEMORY", value = "4096" }
+    ]
+
+    executionRoleArn = var.batch_execution_role_arn
+    # The GATED writer (SILVER-F014). NOT batch_job_role: that role is reused by the
+    # internet-facing serving task and holds no Glue partition authority anyway.
+    jobRoleArn = var.silver_publisher_job_role_arn
+
+    networkConfiguration = {
+      assignPublicIp = "ENABLED"
+    }
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = "/aws/batch/${var.project_name}-${var.environment}"
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "futures-eod-silver"
+      }
+    }
+  })
+
+  timeout {
+    # 2 h ceiling. A five-day incremental for one source is minutes; the ceiling is
+    # sized for the trade_year union + registered-partition publish on the widest
+    # source (databento, ~10 roots), with margin.
+    attempt_duration_seconds = 7200
+  }
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}

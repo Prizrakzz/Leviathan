@@ -148,7 +148,112 @@
     }
   },
   "promote": {
-    "mode": "stop_and_notify",
-    "tasks": []
+    "mode": "autonomous",
+    "tasks": [
+      {
+        "command": [
+          "jobs/batch/futures_eod_task.py",
+          "--source",
+          "czce",
+          "--mode",
+          "incremental",
+          "--lookback-days",
+          "5",
+          "--publish-mode",
+          "canonical"
+        ],
+        "env": [
+          {
+            "Name": "LEVIATHAN_APPROVAL_MODE",
+            "Value": "kms"
+          },
+          {
+            "Name": "LEVIATHAN_KMS_KEY_ID",
+            "Value": "alias/leviathan-dev-publish-signer"
+          }
+        ],
+        "integration": "batch",
+        "jobdef": "leviathan-dev-silver-publisher-runner",
+        "queue": "leviathan-dev-queue-ondemand"
+      },
+      {
+        "command": [
+          "jobs/batch/futures_eod_task.py",
+          "--source",
+          "jse",
+          "--mode",
+          "incremental",
+          "--lookback-days",
+          "5",
+          "--publish-mode",
+          "canonical"
+        ],
+        "env": [
+          {
+            "Name": "LEVIATHAN_APPROVAL_MODE",
+            "Value": "kms"
+          },
+          {
+            "Name": "LEVIATHAN_KMS_KEY_ID",
+            "Value": "alias/leviathan-dev-publish-signer"
+          }
+        ],
+        "integration": "batch",
+        "jobdef": "leviathan-dev-silver-publisher-runner",
+        "queue": "leviathan-dev-queue-ondemand"
+      },
+      {
+        "command": [
+          "jobs/batch/futures_eod_task.py",
+          "--source",
+          "cepea",
+          "--mode",
+          "incremental",
+          "--lookback-days",
+          "5",
+          "--publish-mode",
+          "canonical"
+        ],
+        "env": [
+          {
+            "Name": "LEVIATHAN_APPROVAL_MODE",
+            "Value": "kms"
+          },
+          {
+            "Name": "LEVIATHAN_KMS_KEY_ID",
+            "Value": "alias/leviathan-dev-publish-signer"
+          }
+        ],
+        "integration": "batch",
+        "jobdef": "leviathan-dev-silver-publisher-runner",
+        "queue": "leviathan-dev-queue-ondemand"
+      },
+      {
+        "command": [
+          "jobs/batch/futures_eod_task.py",
+          "--source",
+          "miax",
+          "--mode",
+          "incremental",
+          "--lookback-days",
+          "5",
+          "--publish-mode",
+          "canonical"
+        ],
+        "env": [
+          {
+            "Name": "LEVIATHAN_APPROVAL_MODE",
+            "Value": "kms"
+          },
+          {
+            "Name": "LEVIATHAN_KMS_KEY_ID",
+            "Value": "alias/leviathan-dev-publish-signer"
+          }
+        ],
+        "integration": "batch",
+        "jobdef": "leviathan-dev-silver-publisher-runner",
+        "queue": "leviathan-dev-queue-ondemand"
+      }
+    ]
   }
 }

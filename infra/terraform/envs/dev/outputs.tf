@@ -167,3 +167,41 @@ output "pattern_records_sweep_schedule_name" {
   value       = one(aws_scheduler_schedule.pattern_records_sweep[*].name)
   description = "Daily sweep schedule (created DISABLED; ENABLE only after the day-0 manual run is reviewed). null until the digest is pinned."
 }
+
+# --- PRICE_AND_PLAYBOOKS W1a + W2: the two futures_eod chains ---------------
+# The three jobdef NAMES the descriptors reference. Exposed as outputs so the
+# dag_schedules.auto.tfvars.json entry (the thing that actually ARMS a chain) can be
+# checked against what terraform renders instead of against a hopeful literal -- a
+# mismatched name dies at SubmitJob with ClientException on the first armed cron.
+# gen_sfn_inputs._unversion strips the descriptors' ":1", so the schedule tracks the
+# latest ACTIVE revision of each of these names.
+
+output "futures_eod_free_fetch_job_definition_name" {
+  value       = module.batch.futures_eod_free_fetch_job_definition_name
+  description = "NAME of the free-venue (czce/jse/cepea/miax) fetch jobdef referenced by configs/silver/dags/futures_eod_free.json."
+}
+
+output "databento_fetch_job_definition_name" {
+  value       = module.batch.databento_fetch_job_definition_name
+  description = "NAME of the Databento raw-DBN fetch jobdef referenced by configs/silver/dags/futures_eod_databento.json."
+}
+
+output "futures_eod_silver_job_definition_name" {
+  value       = module.batch.futures_eod_silver_job_definition_name
+  description = "NAME of the shared silver_futures_eod producer jobdef -- referenced by BOTH futures_eod descriptors' silver phases."
+}
+
+output "futures_eod_free_fetch_job_definition_arn" {
+  value       = module.batch.futures_eod_free_fetch_job_definition_arn
+  description = "ARN of the free-venue fetch jobdef. null until futures_eod_image_digest is pinned."
+}
+
+output "databento_fetch_job_definition_arn" {
+  value       = module.batch.databento_fetch_job_definition_arn
+  description = "ARN of the Databento fetch jobdef. null until the databento secret is provisioned (leviathan/dev/databento-api-key) as well as the digest pinned."
+}
+
+output "futures_eod_silver_job_definition_arn" {
+  value       = module.batch.futures_eod_silver_job_definition_arn
+  description = "ARN of the shared silver producer jobdef. null until the digest is pinned (the silver-publisher role is always wired)."
+}

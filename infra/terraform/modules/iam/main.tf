@@ -101,6 +101,40 @@ resource "aws_iam_role_policy_attachment" "batch_execution_role_fas_secret" {
 }
 
 # ---------------------------------------------------------------------------
+# Secrets Manager read for the execution role (PRICE_AND_PLAYBOOKS W2). The
+# Databento fetch job (batch module databento_fetch) mounts DATABENTO_API_KEY via
+# secrets/valueFrom; the ECS agent that injects it runs under the EXECUTION role, so
+# the grant lands here and NOT on the job role. That split is the point: the producer
+# reads the env FIRST and only falls back to boto3 get_secret_value, so with this
+# mount in place NO job role ever needs a secretsmanager grant for the vendor key.
+# Scoped to the one secret ARN (trailing -* matches the Secrets Manager random 6-char
+# suffix). count-gated + USER-GATED: leviathan/dev/databento-api-key is created
+# out-of-band (futures_eod_databento.json precondition (c)); until the ARN is wired
+# there is no grant AND no jobdef.
+# ---------------------------------------------------------------------------
+data "aws_iam_policy_document" "batch_execution_databento_secret" {
+  count = var.databento_api_key_secret_arn != "" ? 1 : 0
+  statement {
+    sid       = "ReadDatabentoApiKeySecret"
+    actions   = ["secretsmanager:GetSecretValue"]
+    resources = ["${var.databento_api_key_secret_arn}-*"]
+  }
+}
+
+resource "aws_iam_policy" "batch_execution_databento_secret" {
+  count       = var.databento_api_key_secret_arn != "" ? 1 : 0
+  name        = "${var.project_name}-${var.environment}-batch-execution-databento-secret"
+  description = "Lets the Batch/ECS execution role inject the DATABENTO_API_KEY secret into the futures_eod databento fetch task."
+  policy      = data.aws_iam_policy_document.batch_execution_databento_secret[0].json
+}
+
+resource "aws_iam_role_policy_attachment" "batch_execution_role_databento_secret" {
+  count      = var.databento_api_key_secret_arn != "" ? 1 : 0
+  role       = aws_iam_role.batch_execution_role.name
+  policy_arn = aws_iam_policy.batch_execution_databento_secret[0].arn
+}
+
+# ---------------------------------------------------------------------------
 # Batch job role — assumed by the container code to write to S3
 # ---------------------------------------------------------------------------
 

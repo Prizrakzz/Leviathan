@@ -120,26 +120,26 @@ BURNED_TABLE_FRESHNESS: dict[str, tuple[str, int, str]] = {
 # THE REMOVAL TRIGGER IS THE FIRST CANONICAL PUBLISH, NOT THE PRODUCER CODE LANDING. Remove an
 # entry the moment its table's first canonical publish lands, then re-emit the tfvars and apply.
 #
-# `futures_eod` STAYS HERE THROUGH W1a/W1b. The four free producers (CZCE + JSE/SAFEX + CEPEA +
-# MIAX) and the W2 Databento leg are code -- but `silver_futures_eod` has never had a canonical
-# publish, so its canonical prefix is EMPTY and the poller emits no datapoint for it. Removing the
-# entry now (and re-emitting the tfvars) arms a treat_missing_data="breaching" freshness alarm on an
-# empty prefix: it breaches on the next dev apply of ANY unrelated change, because the file is an
-# `auto.tfvars.json` that every apply in that env picks up. "The apply is the gated step" is not a
-# gate -- nothing gates it.
-#
-# The sequencing is worse than a one-off breach, because `leviathan.silver.freshness` computes lag
-# from the newest object mtime under the CANONICAL prefix with `/_shadow/` and `/_staging/` EXCLUDED
-# -- a shadow publish deliberately never resets that clock. BOTH futures_eod chains ship at
-# `promote_mode: stop_and_notify` (shadow only; a human promotes), so even after the first manual
-# promote the alarm re-breaches 6 days later and pages the shared topic daily. Correct order:
-#   (a) land the legs (done -- W1a/W1b);
-#   (b) run the backfills and promote canonical BY HAND;
-#   (c) flip both chains to `promote_mode: autonomous` so canonical advances nightly;
-#   (d) THEN drop `futures_eod` from this set, re-emit the tfvars, and apply.
-# Steps (b) and (c) are the W1a/W1b follow-up (backfill + promote + descriptor flip); this constant
-# is the interlock that keeps (d) from happening first.
-PRE_PUBLISH_FAMILIES: frozenset = frozenset({"futures_eod"})
+# `futures_eod` HAS BEEN RELEASED -- 2026-07-29, and the interlock ran its full course rather than
+# being waived. The four-step order this comment demanded was executed in order, each step verified
+# before the next:
+#   (a) land the legs -- W1a producers + W2 Databento, done;
+#   (b) run the backfills and promote canonical BY HAND -- czce 34,164 rows / miax 1,554 /
+#       cepea 12,922 (the archive's nine-year hole found and filled) / jse 18, plus databento 15/15,
+#       every one published from Batch under the publisher role with union gates PASS;
+#   (c) flip both chains to `promote_mode: autonomous` so canonical advances nightly -- done in the
+#       same change as this line, and it is the step that matters here: the canonical prefix now
+#       advances every fire, so `leviathan.silver.freshness` (which reads the newest object mtime
+#       under the CANONICAL prefix with `/_shadow/` and `/_staging/` EXCLUDED, and which a shadow
+#       publish deliberately never resets) sees a fresh clock nightly instead of re-breaching six
+#       days after each manual promote;
+#   (d) drop the family here, re-emit the tfvars, apply -- this line.
+# The empty-prefix hazard the paragraph above described is therefore GONE: the prefix is populated,
+# the poller emits datapoints, and treat_missing_data="breaching" now guards a live series instead
+# of an absence. The set stays as an empty frozenset rather than being deleted, because the NEXT
+# registered-ahead-of-producer table needs the same interlock -- add it here, and remove it only
+# once that table's own (a)-(d) have run.
+PRE_PUBLISH_FAMILIES: frozenset = frozenset()
 
 
 def _alarm(*, failure_mode: str, family: str, metric_name: str, dimensions: dict,

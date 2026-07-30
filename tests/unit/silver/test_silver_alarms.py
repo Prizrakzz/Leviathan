@@ -99,21 +99,25 @@ class TestTfvars:
         # alarm is treat_missing_data="breaching" -- so declaring it would instant-breach the shared
         # on-call topic on the next apply and page continuously until the producer lands.
         #
-        # `futures_eod` is STILL here through W1a/W1b, and the reason is the removal TRIGGER: it is
-        # the table's first CANONICAL publish, not the producer code landing. The four free legs +
-        # the Databento leg are code, both chains ship at promote_mode=stop_and_notify (shadow
-        # only), and a shadow publish never resets the freshness clock -- so the canonical prefix is
-        # still empty and arming the alarm would breach on the next apply of any unrelated change.
+        # THE SET IS EMPTY AS OF 2026-07-29 and that is EARNED, not drift: `futures_eod` was its one
+        # member and it left through the front door -- canonical hand-published for all five legs,
+        # union gates PASS, both chains flipped to promote_mode=autonomous so the canonical prefix
+        # now advances nightly. The old `assert sa.PRE_PUBLISH_FAMILIES` guard was deleted here in
+        # that same commit, exactly as its own comment instructed; keeping it would have made the
+        # legitimate emptying impossible to express.
+        #
+        # What is asserted now is the RULE rather than a census of its members, so this test keeps
+        # working for the next table registered ahead of its producer: whatever is in the set is out
+        # of the tfvars. The evidence-derived interlock (which fails BOTH ways) is
+        # test_pre_publish_membership_is_bound_to_the_canonical_publish_marker below.
         tf = sa.build_tfvars()
-        # Non-empty is correct WHILE any registered family is still pre-publish, which today is
-        # futures_eod. It is a coarse stop and it is not the interlock -- the evidence-derived one
-        # is test_pre_publish_membership_is_bound_to_the_canonical_publish_marker below. This line
-        # is deleted in the SAME commit that legitimately empties the set (after the first canonical
-        # publish + the promote_mode=autonomous flip), never before it.
-        assert sa.PRE_PUBLISH_FAMILIES, "the exclusion set must stay explicit, not empty-by-accident"
         for fam in sa.PRE_PUBLISH_FAMILIES:
             assert fam not in tf["silver_batch_families"]
             assert fam not in tf["silver_freshness_slas"]
+        # And the released family is now genuinely armed -- the other half of the same fact.
+        assert "futures_eod" not in sa.PRE_PUBLISH_FAMILIES
+        assert "futures_eod" in tf["silver_batch_families"]
+        assert tf["silver_freshness_slas"]["futures_eod"] > 0
 
     def test_pre_publish_membership_is_bound_to_the_canonical_publish_marker(self, sa):
         """THE REMOVAL TRIGGER, PINNED IN BOTH DIRECTIONS -- and the trigger is the first CANONICAL

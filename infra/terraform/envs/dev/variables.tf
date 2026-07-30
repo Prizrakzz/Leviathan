@@ -182,6 +182,34 @@ variable "pattern_records_image_digest" {
   }
 }
 
+# --- PRICE_AND_PLAYBOOKS W1a + W2: the two futures_eod chains ---------------
+
+variable "futures_eod_image_digest" {
+  # The WORKER image the three futures_eod jobdefs run, pinned BY DIGEST.
+  #
+  # DEFAULTED IN THE REPO, not left to the gitignored tfvars, for the same reason
+  # mlflow_enabled's default lives here: a fresh checkout must reproduce the wiring
+  # that is actually live. The value is the 20260729w1c build (worker repo
+  # leviathan-dev-leviathan-worker; commit 50a2ec3d), which is the build that carries
+  # BOTH pyproject deps this family fails silently without -- `databento` from the
+  # [batch] extra (futures_eod_databento.json precondition (d)) and core `xlrd>=2.0`
+  # for the JSE / CEPEA-archive .xls readers (futures_eod_free.json precondition (c)).
+  # Pinning the digest is what discharges precondition (d): the pin IS the repin.
+  #
+  # Re-pin whenever the worker image is rebuilt for this family; SILVER-F085
+  # (scripts/build_push_worker.ps1 never pushes :latest-only) is what keeps the
+  # referenced digest from being untagged and GC'd out from under the jobdefs.
+  # Empty count-gates all three jobdefs out of existence.
+  type        = string
+  description = "sha256 digest of the worker image the futures_eod fetch + silver jobdefs run. Empty = none of the three futures_eod jobdefs are created."
+  default     = "sha256:2f3efb7caf513541eabbe671b2d2ff7028292459190bf4e093c3d4da0a79a0a7"
+
+  validation {
+    condition     = var.futures_eod_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.futures_eod_image_digest))
+    error_message = "futures_eod_image_digest must be empty or a full 'sha256:<64 hex>' digest (a TAG is not accepted)."
+  }
+}
+
 # MLflow tracking server (module.mlflow_fargate). DEFAULT FALSE since 2026-07-26: the server was
 # decommissioned for cost (see the module block in main.tf). The default lives HERE, in the repo, rather
 # than in the gitignored tfvars -- otherwise a fresh checkout would default it back ON and quietly restart
