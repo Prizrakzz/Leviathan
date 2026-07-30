@@ -616,6 +616,17 @@ resource "aws_iam_role" "notifications_scheduler" {
   })
 }
 
+# USER DIRECTIVE 2026-07-30: every SCHEDULED job submits to the ON-DEMAND queue, never spot.
+# leviathan-dev-queue is FARGATE_SPOT -- fine for interruptible backfills, unprofessional for
+# anything user-visible or publishing (a spot reclaim mid-run means a missed morning brief or a
+# half-fired chain). Name-constructed rather than module.batch.ondemand_job_queue_arn because the
+# ondemand queue resource is LIVE but UNIMPORTED (drift task): referencing the module resource
+# from a -target'ed apply would force terraform to try to CREATE the already-existing queue.
+# Swap to the module output once the drift reconciliation imports it.
+locals {
+  ondemand_job_queue_arn = "arn:aws:batch:${var.aws_region}:${data.aws_caller_identity.current.account_id}:job-queue/${var.project_name}-${var.environment}-queue-ondemand"
+}
+
 resource "aws_iam_role_policy" "notifications_scheduler" {
   name = "${var.project_name}-${var.environment}-notifications-scheduler-submit"
   role = aws_iam_role.notifications_scheduler.id
@@ -626,7 +637,7 @@ resource "aws_iam_role_policy" "notifications_scheduler" {
         Effect = "Allow"
         Action = "batch:SubmitJob"
         Resource = [
-          module.batch.job_queue_arn,
+          local.ondemand_job_queue_arn,
           "arn:aws:batch:${var.aws_region}:${data.aws_caller_identity.current.account_id}:job-definition/${var.project_name}-${var.environment}-notifications:*",
           # 2026-07-28 INCIDENT FIX (U2) -- the SAME unversioned-jobdef-ARN defect that killed the
           # pattern-records sweep (see the twin comment on the sweep policy below) has been killing the
@@ -708,7 +719,7 @@ resource "aws_scheduler_schedule" "notifications" {
     role_arn = aws_iam_role.notifications_scheduler.arn
     input = jsonencode({
       JobName       = "build-notifications"
-      JobQueue      = module.batch.job_queue_arn
+      JobQueue      = local.ondemand_job_queue_arn
       JobDefinition = "${var.project_name}-${var.environment}-notifications"
       # Redundant safety — the dedicated jobdef already bakes these as its defaults:
       ContainerOverrides = {
@@ -765,7 +776,7 @@ resource "aws_iam_role_policy" "esr_ingest_scheduler" {
       Effect = "Allow"
       Action = "batch:SubmitJob"
       Resource = [
-        module.batch.job_queue_arn,
+        local.ondemand_job_queue_arn,
         "arn:aws:batch:${var.aws_region}:${data.aws_caller_identity.current.account_id}:job-definition/${var.project_name}-${var.environment}-usda-esr-fetch:*",
       ]
     }]
@@ -786,7 +797,7 @@ resource "aws_scheduler_schedule" "esr_weekly_ingest" {
     role_arn = aws_iam_role.esr_ingest_scheduler.arn
     input = jsonencode({
       JobName       = "usda-esr-fetch"
-      JobQueue      = module.batch.job_queue_arn
+      JobQueue      = local.ondemand_job_queue_arn
       JobDefinition = "${var.project_name}-${var.environment}-usda-esr-fetch"
       # Redundant safety -- the usda_esr_fetch jobdef already bakes this command + sizing:
       ContainerOverrides = {
@@ -854,7 +865,7 @@ resource "aws_iam_role_policy" "pattern_records_scheduler" {
         Effect = "Allow"
         Action = "batch:SubmitJob"
         Resource = [
-          module.batch.job_queue_arn,
+          local.ondemand_job_queue_arn,
           "arn:aws:batch:${var.aws_region}:${data.aws_caller_identity.current.account_id}:job-definition/${module.batch.pattern_records_sweep_job_definition_name}:*",
           # 2026-07-28 INCIDENT FIX -- the sweep was ARMED AND SILENTLY DEAD for 3 nights. The schedule
           # submits with the UNVERSIONED jobdef name, and Batch then authorizes against the ARN WITHOUT a
@@ -955,7 +966,7 @@ resource "aws_scheduler_schedule" "pattern_records_sweep" {
     role_arn = aws_iam_role.pattern_records_scheduler[0].arn
     input = jsonencode({
       JobName       = "pattern-records-sweep"
-      JobQueue      = module.batch.job_queue_arn
+      JobQueue      = local.ondemand_job_queue_arn
       JobDefinition = module.batch.pattern_records_sweep_job_definition_name
       # Redundant safety -- the jobdef already bakes this command + sizing. NOTE the
       # deliberate absence of --asof: the task defaults to today UTC (a baked date rots).
@@ -1226,7 +1237,7 @@ resource "aws_iam_role_policy" "freshness_poller_scheduler" {
       Effect   = "Allow"
       Action   = "batch:SubmitJob"
       Resource = [
-        module.batch.job_queue_arn,
+        local.ondemand_job_queue_arn,
         "arn:aws:batch:${var.aws_region}:*:job-definition/${var.project_name}-${var.environment}-raw-ingest-runner*",
       ]
     }]
@@ -1263,7 +1274,7 @@ resource "aws_scheduler_schedule" "freshness_poller" {
     role_arn = aws_iam_role.freshness_poller_scheduler.arn
     input = jsonencode({
       JobName       = "freshness-poller"
-      JobQueue      = module.batch.job_queue_arn
+      JobQueue      = local.ondemand_job_queue_arn
       JobDefinition = "${var.project_name}-${var.environment}-raw-ingest-runner"
       ContainerOverrides = {
         # INLINE, deliberately: the worker image copies src/ + jobs/ + configs/ + sql/ but NOT
