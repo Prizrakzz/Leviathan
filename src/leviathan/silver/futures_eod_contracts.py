@@ -40,6 +40,8 @@ Pure, import-free (stdlib only), AWS-free.
 """
 from __future__ import annotations
 
+from datetime import date
+
 # The four settle_kind values the schema permits (plan line 124). ``settlement`` is a true exchange
 # settlement price; ``mark_to_market`` is the JSE MTM; ``cash_index`` is a CEPEA cash reference
 # (instrument_kind=cash_index, contract_month NULL); ``close`` is an honest stand-in where the
@@ -190,6 +192,88 @@ UNIT_MAP: dict[str, str] = {slug: rec["unit"] for slug, rec in CONTRACT_MAP.item
 CASH_INDEX_SLUGS: frozenset[str] = frozenset(
     slug for slug, rec in CONTRACT_MAP.items() if rec["settle_kind"] == "cash_index"
 )
+
+# ---------------------------------------------------------------------------
+# W2b-D2 -- PRICE_COVERAGE_START: the per-contract floor of silver_futures_eod.
+#
+# MEASURED FROM THE CANONICAL BYTES on 2026-07-30 (min(trade_date) per leviathan_slug over the
+# registered partitions), NOT copied from the plan's per-source prose -- and measuring caught two
+# errors that prose would have shipped:
+#   * the plan gives GLBX a blanket 2010-06-06, but hard_red_winter_wheat_kcbt actually begins
+#     2014-01-02 (KCBT joined GLBX later). A blanket floor would have claimed 3.5 years of coverage
+#     that does not exist -- the exact shape of the CEPEA nine-year hole.
+#   * the ICE floor is 2018-12-24, not the plan's 2018-12-23; rough_rice_cbot is 2010-06-07, a day
+#     after its GLBX siblings.
+# Regenerate with scratchpad/measure_coverage_floors.py after any backfill that extends history.
+#
+# WHAT READS THIS (W2b-D3/D4): the coverage-aware decline guard and the event-study floor. The
+# routing rule is deterministic -- a window entirely >= the floor serves from silver_futures_eod;
+# entirely before it serves a LEVEL from the legacy continuous card with an explicit provenance
+# sentence; STRADDLING declines rather than silently splicing two different series.
+#
+# ABSENT slug == NOT SERVED: a slug with no entry has no per-contract record at all (the three W1c
+# browser venues are absent because their canonical data has not landed). Callers must treat a
+# missing key as "no coverage", never as "covered since forever" -- coverage_start_for() below
+# fails closed so that distinction cannot be fudged.
+# ---------------------------------------------------------------------------
+PRICE_COVERAGE_START: dict[str, date] = {
+    "arabica_coffee": date(2018, 12, 24),                 # databento_ifus_impact
+    "brazilian_arabica_coffee": date(1996, 9, 2),         # cepea
+    "campinas_corn_reference_bmf": date(2004, 8, 2),      # cepea
+    "canola_ice": date(2018, 12, 24),                     # databento_ifus_impact
+    "cocoa": date(2018, 12, 24),                          # databento_ifus_impact
+    "corn_cbot": date(2010, 6, 6),                        # databento_glbx_mdp3
+    "cotton": date(2018, 12, 24),                         # databento_ifus_impact
+    "frozen_orange_juice": date(2018, 12, 24),            # databento_ifus_impact
+    "hard_red_spring_wheat_mgex": date(2025, 9, 9),       # miax
+    "hard_red_winter_wheat_kcbt": date(2014, 1, 2),       # databento_glbx_mdp3
+    "rapeseed_meal_zce": date(2015, 10, 8),               # czce
+    "rapeseed_oil_zce": date(2015, 10, 8),                # czce
+    "raw_sugar": date(2018, 12, 24),                      # databento_ifus_impact
+    "robusta_coffee": date(2018, 12, 24),                 # databento_ifeu_impact
+    "rough_rice_cbot": date(2010, 6, 7),                  # databento_glbx_mdp3
+    "soft_red_winter_wheat_cbot": date(2010, 6, 6),       # databento_glbx_mdp3
+    "south_african_white_maize_jse": date(2026, 7, 29),   # jse_safex
+    "south_african_yellow_maize_jse": date(2026, 7, 29),  # jse_safex
+    "soybean_meal_cbot": date(2010, 6, 6),                # databento_glbx_mdp3
+    "soybean_oil_cbot": date(2010, 6, 6),                 # databento_glbx_mdp3
+    "soybeans_cbot": date(2010, 6, 6),                    # databento_glbx_mdp3
+    "white_sugar": date(2018, 12, 24),                    # databento_ifeu_impact
+}
+
+
+def coverage_start_for(slug: str) -> date:
+    """The first date ``slug`` has a per-contract price record. FAIL CLOSED on an unmapped slug.
+
+    Never returns a permissive default: an unknown slug raises rather than implying coverage, so a
+    caller cannot accidentally serve a curve for a venue whose data has not landed."""
+    got = PRICE_COVERAGE_START.get(slug)
+    if got is None:
+        raise ValueError(
+            f"leviathan_slug {slug!r} has no PRICE_COVERAGE_START entry -- it has no per-contract "
+            f"price record in silver_futures_eod. Do NOT infer coverage; land the data and "
+            f"regenerate the map (scratchpad/measure_coverage_floors.py)"
+        )
+    return got
+
+
+def covers(slug: str, start, end) -> str:
+    """Route one date window against the coverage floor (W2b-D3), as one of three verdicts.
+
+    ``"serve"``   -- the whole window is at or after the floor: silver_futures_eod answers it.
+    ``"legacy"``  -- the whole window predates the floor: only a LEVEL from the roll-spliced
+                     continuous card is honest, and it must carry the provenance sentence.
+    ``"straddle"`` -- the window crosses the floor: DECLINE. Splicing a per-contract series onto a
+                     roll-spliced continuous one produces a number that means neither thing, which
+                     is why the plan bans it by lint rather than leaving it to judgement."""
+    floor = coverage_start_for(slug)
+    lo, hi = (start.date() if hasattr(start, "date") else start), (end.date() if hasattr(end, "date") else end)
+    if lo >= floor:
+        return "serve"
+    if hi < floor:
+        return "legacy"
+    return "straddle"
+
 
 _REQUIRED_FIELDS = ("unit", "currency", "settle_kind", "source")
 
