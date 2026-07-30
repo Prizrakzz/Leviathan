@@ -134,6 +134,18 @@ module "ecr_eda" {
 # pushed by scripts/build_push_mlflow.ps1). Produces leviathan-dev-mlflow -- the default
 # container_image of module.mlflow_fargate. Apply this FIRST (-target=module.ecr_mlflow) so the
 # image can be pushed before the ECS service pulls it.
+# W1c: repo for the browser-producer image (docker/leviathan_browser -- playwright + chromium;
+# DCE/Euronext/Bursa producers). Built by scripts/build_push_browser.ps1; the browser jobdef is
+# CLI-registered first (publisher-runner precedent) and adopted into terraform with the drift
+# reconciliation.
+module "ecr_browser" {
+  source = "../../modules/ecr"
+
+  project_name    = var.project_name
+  environment     = var.environment
+  repository_name = "leviathan-browser"
+}
+
 module "ecr_mlflow" {
   source = "../../modules/ecr"
 
