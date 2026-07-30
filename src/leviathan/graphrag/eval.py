@@ -12,6 +12,7 @@ with an Opus judge. The rubric is approximate — the report + a human read are 
 from __future__ import annotations
 
 import argparse
+import re
 
 import yaml
 
@@ -39,6 +40,44 @@ _DARK_STATUSES = ("not_known", "record_silent", "future_unpublished")
 # hop-citation counter reads the ENGINE's own row shape and can never count a per-country cascade su_ratio
 # row as a transmission leg.
 _XMIT_LEG_METRIC = "su_ratio_world"
+
+# ── W4 event playbooks: the '## Episodes' surface (D6 + skeptic F-J + W2b-D5) ────────────────────────
+# The reserved heading the W4 D3 register paragraph renders, injected-only, in the _SYSTEM_CASCADE
+# '## Cross-commodity' / '## Complex-wide move' shape. Heading TEXT only -- answer._sectionize strips
+# the '## ' marker before the kind lookup, so these pins compare against the clean text.
+_EPISODE_HEADING = "Episodes"
+# Episode-CLASS separation for clustering CITED evidence dates. Serving's timeline default is 90 days
+# (a within-season split); an episode CLASS -- "the 1994 frost" vs "the 2021 frost" -- is a year apart.
+_EPISODE_GAP_DAYS = 365
+# THE ENUMERATION CONTRACT, and the W4 D3 paragraph MUST instruct it: the '## Episodes' section is ONE
+# BULLET (or numbered item) PER EPISODE, each carrying a 4-digit year. Prose sentences that merely
+# mention a year are NOT episode lines -- counting them would inflate the count and destroy the
+# confabulation half of min_episode_lines, which is an EQUALITY-shaped test.
+_EPISODE_BULLET_RX = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+\S")
+_EPISODE_YEAR_RX = re.compile(r"(?<!\d)(?:1[6-9]\d{2}|20\d{2})(?!\d)")
+_N_HANDLE_RX = re.compile(r"\[N\d+\]")
+# F-I, prose side. What an honestly-enumerated episode says when the retrieved top-K carried NO citable
+# item inside its window -- timeline._NO_RECEIPT is the marker the reasoner is SHOWN, these are the
+# phrasings it writes back. Lower-cased substring match (the register/sanitize passes never touch these).
+# NB 'not in the record' was DELIBERATELY narrowed to 'not in this record' (fold-pass 2026-07-30): the
+# broad form earned a min_episode_lines absence allowance on any line that used it loosely.
+_NO_CITABLE = ("no citable item", "no cited item", "no citable source", "no dated item",
+               "no dated source", "no citable evidence", "corpus is silent", "record is silent",
+               "no source in this window", "not in this corpus", "not in the corpus",
+               "not in this record")
+# W2b-D5. The no-PRICE-record marker, DISTINCT from _NO_CITABLE: text evidence can exist while the
+# per-contract price record does not, which is exactly the 1994 Brazil frost (11 text props;
+# silver_futures_eod will never cover 1994 under this plan -- W2b.2). An episode enumerated with no
+# magnitude AND no statement that the price record does not reach it is F-I in price form.
+_NO_PRICE_RECORD = ("no price record", "not in the price record", "no per-contract price record",
+                    "no price data", "no priced move", "price record does not", "price record is silent",
+                    "not in the price data", "no magnitude", "no observed magnitude",
+                    "outside the price coverage", "before the price record")
+
+
+def _has_any(text: str, tokens) -> bool:
+    low = str(text or "").lower()
+    return any(t in low for t in tokens)
 
 
 def _num_citations(out: dict) -> list[dict]:
@@ -168,6 +207,71 @@ def _pit_clean(out: dict, asof) -> bool:
     return True
 
 
+def _cited_evidence(out: dict) -> list[dict]:
+    """The kind=evidence citations the model actually CITED in its structured prose.
+
+    Deliberately the _cascade_stats prose-scan idiom, NOT the structured.sources `ref` join the W4 plan
+    sketches. The ledger `ref` is a BARE INTEGER matching the handle digit (answer.py:293-295), so [E1]
+    and [N1] both reduce to ref 1 -- a ref join would credit an evidence citation on a turn where the
+    model only ever wrote [N1], which is a false-pass on the exact axis these pins gate. And NEVER scan
+    out['answer']: the '## Sources' footer re-renders every ledgered handle INCLUDING ones verify just
+    stripped from prose (the primary-gate trap, _cascade_stats docstring)."""
+    st = out.get("structured") or {}
+    prose = f"{st.get('tldr') or ''} {st.get('mechanism') or ''}"
+    return [c for c in (out.get("citations") or [])
+            if c.get("kind") == "evidence" and f"[{c.get('id')}]" in prose]
+
+
+def _cited_episode_clusters(out: dict) -> list[dict]:
+    """Episode CLASSES implied by the dates of the cited evidence citations, via the shipped clustering
+    primitive timeline.cluster() at episode-class grain. This is a CITATION-DATE SPREAD and nothing
+    more -- see min_episodes_cited for what it can and cannot see."""
+    from leviathan.graphrag import timeline as tl
+    return tl.cluster([c.get("date") for c in _cited_evidence(out) if c.get("date")],
+                      gap_days=_EPISODE_GAP_DAYS)
+
+
+def _episode_section(mech: str) -> str | None:
+    """The body of the reserved Episodes section, or None when it was not rendered.
+
+    Fence-aware exactly as answer._sectionize is (a '## Episodes' inside a ```mermaid block is CONTENT),
+    but two deliberate widenings over `_sectionize`'s exact-'## '-match (fold-pass 2026-07-30): the
+    heading level may be `##`..`######`, and the heading text is matched on a NORMALISED PREFIX. The
+    exact-match form scored zero lines for '## Episodes (3)', '## Episodes -- dated' and '### Episodes',
+    reding min_episode_lines and episode_magnitude_or_absence on a correctly enumerated answer -- and the
+    D3 register paragraph that would fix the shape at source is not written yet."""
+    body: list[str] | None = None
+    in_fence = False
+    for line in (mech or "").split("\n"):
+        if line.lstrip().startswith("```"):
+            in_fence = not in_fence
+            if body is not None:
+                body.append(line)
+            continue
+        m = None if in_fence else re.match(r"^\s*#{2,6}\s+(.*)$", line)
+        if m:
+            if str(m.group(1)).strip().lower().startswith(_EPISODE_HEADING.lower()):
+                body = []                                 # entering the section
+            elif body is not None:
+                break                                     # the next heading closes it
+        elif body is not None:
+            body.append(line)
+    return "\n".join(body) if body is not None else None
+
+
+def _episode_lines(out: dict) -> list[str]:
+    """The dated-episode ENUMERATION lines of the reserved '## Episodes' section of structured.mechanism.
+
+    Empty when the section was not rendered at all, which is why every pin built on this requires a
+    NON-EMPTY list before it can pass -- `all([])` is vacuously true and an un-rendered section would
+    otherwise false-green. Reads structured.mechanism (post-verify, post-sanitize), never out['answer']."""
+    body = _episode_section(str((out.get("structured") or {}).get("mechanism") or ""))
+    if body is None:
+        return []
+    return [ln for ln in body.split("\n")
+            if _EPISODE_BULLET_RX.match(ln) and _EPISODE_YEAR_RX.search(ln)]
+
+
 _CASCADE_EXPECT = ("cascade_fired", "min_cascade_cited", "delta_row", "fork", "absence",
                    "pit_clean", "su_prescaled", "ok_era_leg", "reroute_fired",
                    "opposite_country_legs", "two_countries_cited", "no_unbacked_fork",
@@ -193,7 +297,24 @@ _CASCADE_EXPECT = ("cascade_fired", "min_cascade_cited", "delta_row", "fork", "a
                    # [N] was injected + a real firing count cited), pattern_zero_cited (the F8 mechanism -- a
                    # materialized 0-count leg was injected and cited; FAILS if the card injects NOTHING), and
                    # pattern_register_clean (no signal/set-up/regime/trend/breakout/persistent on the answer).
-                   "pattern_cited", "pattern_zero_cited", "pattern_register_clean")
+                   "pattern_cited", "pattern_zero_cited", "pattern_register_clean",
+                   # W4 EVENT PLAYBOOKS (D6 + skeptic F-J + W2b-D5). min_episodes_cited /
+                   # min_episode_sources / episode_absence_stated are the D6 three; min_episode_lines is
+                   # the F-J deterministic complement (enumeration is otherwise judge-only) and
+                   # episode_magnitude_or_absence is the W2b-D5 price-side twin of F-I.
+                   "min_episodes_cited", "min_episode_sources", "episode_absence_stated",
+                   "min_episode_lines", "episode_magnitude_or_absence",
+                   # W5 OUTLOOK (D5b + D7 + the A2 fence). price_target_backed is the wave's PRIMARY
+                   # deterministic teeth and REPLACES `banned_valuation: 0` as the outlook gate: every
+                   # emitted level traces to a cited surface with its arithmetic shown. banned_exec is the
+                   # A2 pin -- 0 on EVERY row, outlook included, because nothing can back an execution
+                   # instruction. directional_claim_backed is the D7 companion on any row carrying a lean.
+                   # max_banned_valuation / max_banned_flow are CEILINGS, not equalities: on an outlook row
+                   # A1 and flow vocabulary are permitted BY DESIGN, so `banned_valuation: 0` is the wrong
+                   # shape there -- but "permitted" must not mean "free", so the deck caps them instead.
+                   # The existing zero-pins keep their equality semantics for every non-outlook deck.
+                   "price_target_backed", "banned_exec", "directional_claim_backed", "outlook_rendered",
+                   "max_banned_valuation", "max_banned_flow")
 
 
 def _cascade_asserts(q: dict, out: dict) -> dict | None:
@@ -393,6 +514,124 @@ def _cascade_asserts(q: dict, out: dict) -> dict | None:
             from leviathan.graphrag.numbers import pattern_records as _pr
             _txt = f"{(out.get('structured') or {}).get('tldr') or ''} {mech} {out.get('answer') or ''}"
             res[k] = (len(_pr.pr_register_leaks(_txt)) == 0) == bool(want)
+        elif k == "price_target_backed":
+            # W5.0, the wave's PRIMARY deterministic teeth. Reads the RAW pre-sanitize counter stamped at
+            # answer.py, exactly like banned_valuation/banned_flow -- so it asserts the model never EMITTED
+            # an unbacked level, which is strictly stronger than asserting the strip removed one. A level is
+            # BACKED when it is cited, or when the unit shows spot -> moves -> implied levels with every
+            # INPUT cited (register.outlook_derivation_ok). This REPLACES `banned_valuation: 0` as the
+            # outlook gate and has teeth the lexicon never had: it catches the fabricated number
+            # ('$4.85' with nothing behind it), which is the class this platform exists to refuse.
+            res[k] = (int((out.get("trace") or {}).get("unbacked_levels") or 0) == 0) == bool(want)
+        elif k == "banned_exec":
+            # W5: A2 EXECUTION/ADVICE raw count. Pinned 0 on EVERY row including outlook -- the platform has
+            # no position, no sizing and no risk model, so "go long here" is unbacked BY CONSTRUCTION, which
+            # is the same test the now-permitted A1 passes and A2 cannot.
+            res[k] = int((out.get("trace") or {}).get("banned_exec_words") or 0) == int(want)
+        elif k == "outlook_rendered":                                 # the three-leg gate actually fired
+            res[k] = bool((out.get("trace") or {}).get("outlook_mode")) == bool(want)
+        elif k in ("max_banned_valuation", "max_banned_flow"):        # CEILINGS on the raw DP-6 counters
+            _key = ("banned_valuation_words" if k == "max_banned_valuation" else "banned_flow_words")
+            res[k] = int((out.get("trace") or {}).get(_key) or 0) <= int(want)
+        elif k == "directional_claim_backed":
+            # W5 D7. PLANNER-AWARE (the plan's version was L2-only): `fired_regimes` is stamped ONLY by
+            # _answer_l2; the one-hop trace carries `regimes` instead, so a GRAPHRAG_PLANNER=onehop run --
+            # the documented L2 rollback path -- would silently degrade this pin to its cascade disjunct.
+            # Read BOTH keys plus the cited-cascade count, so the pin means the same thing on either planner.
+            _tr = out.get("trace") or {}
+            _fired = _tr.get("fired_regimes") or _tr.get("regimes") or []
+            res[k] = (bool(_fired) or cs["n_cited"] > 0) == bool(want)
+        elif k == "min_episodes_cited":
+            # W4 D6. SAY IT PLAINLY (skeptic F-J): this is a CITATION-DATE-SPREAD pin and it CANNOT SEE
+            # ENUMERATION. It clusters the DATES of the evidence citations the model actually cited and
+            # asserts >= N distinct episode classes. An answer that smooths every episode into one
+            # "usually" while citing items dated 1994, 2010 and 2022 PASSES this pin -- enumeration is a
+            # property of the PROSE SHAPE and on that axis this key is silent. Enumeration is therefore
+            # JUDGE-ONLY (the episode_enumeration axis) plus the deterministic complement
+            # min_episode_lines below; do not describe this key alone as "the deterministic teeth".
+            # What it DOES buy: filtering to CITED citations makes it a CITATION pin rather than a
+            # RETRIEVAL pin -- the doctrine distinction the RV2 pins draw at reroute_v2_expected.
+            #
+            # F-K, RECORDED HERE SO THE D8 DECK AUTHOR CANNOT MISS IT. Row P3 (pb_coffee_frost_honest,
+            # the honesty flagship) must NOT pin min_episodes_cited: 2. That silently requires a
+            # 1994-DATED citation to survive top-K, and the census says 1994 Brazil frost is 11 props,
+            # single-source (wb_cmo_outlook) -- so P3 would fail on a CORRECT answer, the same failure
+            # the plan explicitly anticipates for P6 and explicitly warns the judge about ("never
+            # penalize honest thinness"). RESOLUTION: lower it, do not relabel it conditional. P6 is
+            # allowed to be conditional because P6 is EXPECTED TO FAIL and that failure IS its finding;
+            # P3 is the flagship and must PASS on the honest answer or the wave has no green flagship.
+            # P3 pins: min_episodes_cited: 1, episode_absence_stated: true, min_episode_lines: 2,
+            # episode_magnitude_or_absence: true -- the two-episode expectation moves to min_episode_lines
+            # (which the honesty allowance below makes retrieval-ROBUST) and to the judge axis.
+            res[k] = len(_cited_episode_clusters(out)) >= int(want)
+        elif k == "min_episode_sources":
+            # W4 D6. DISTINCT sources across the cited evidence citations -- the deterministic teeth
+            # behind "show where the episodes disagree" (two sources that agree is still two sources,
+            # but ONE source cannot disagree with itself). This is what would have failed the 1994-frost
+            # row: 11 of 11 props are wb_cmo_outlook.
+            srcs = {str(c.get("source") or "").strip() for c in _cited_evidence(out)} - {""}
+            res[k] = len(srcs) >= int(want)
+        elif k == "episode_absence_stated":
+            # W4 D6. The honesty leg: the answer SAYS the record is thin / an episode is not in the
+            # corpus / not in the price record, rather than quietly enumerating fewer episodes. Reuses
+            # the shipped _NOT_KNOWN token scan (score():leakage_ok) widened by the two W4 marker
+            # vocabularies. Scans STRUCTURED prose, not out['answer'] (the footer trap).
+            _txt = f"{(out.get('structured') or {}).get('tldr') or ''} {mech}"
+            got = _has_any(_txt, _NOT_KNOWN + _NO_CITABLE + _NO_PRICE_RECORD)
+            res[k] = got == bool(want)
+        elif k == "min_episode_lines":
+            # SKEPTIC F-J's deterministic complement to min_episodes_cited: count the dated-episode
+            # lines the '## Episodes' section actually enumerates and bound them by the cited episode
+            # classes. Catches BOTH failure directions with no new engine:
+            #   smoothing      -- fewer lines than cited episode classes (the "usually" answer)
+            #   confabulation  -- more lines than cited episode classes (episodes minted from nothing)
+            #
+            # DELIBERATE DEVIATION from F-J's literal `episode_lines == len(clusters)`. Strict equality
+            # FAILS THE HONESTY LEG BY CONSTRUCTION and would ship the very defect W4 exists to fix: an
+            # episode whose window the semantic top-K missed (F-I: 1994 frost, USSR 1972-79, grain deal
+            # 2023) contributes an enumeration LINE but no cited citation and therefore no cluster, so
+            # the correct honest answer -- enumerate it and state it has no citable item -- would be
+            # scored as confabulation.
+            #
+            # AND the AGGREGATE cluster bound is gone entirely (fold-pass 2026-07-30). `_n_cl` counts
+            # CITATION-DATE clusters and `len(_lines)` counts PROSE lines; they are not the same quantity
+            # and the old `_n_cl <= len(_lines) <= _n_cl + _n_abs` red a CORRECT answer in both
+            # directions -- 3 correctly enumerated episodes that ALSO cite today's balance sheet and a
+            # background item yield 5 clusters vs 3 lines and failed, and two cited items inside one
+            # episode window yield 2 clusters vs 3 lines and failed. Citing extra context evidence is
+            # desirable behaviour, not confabulation, and the lower bound had no honesty rationale at all
+            # (smoothing is already caught by `len(_lines) >= want`).
+            #
+            # The replacement is PER LINE, which is what "confabulation" actually means and is immune to
+            # how many unrelated items the answer cites. A line is BACKED when it (a) declares its own
+            # absence, (b) names a year some CITED evidence item is dated in, or (c) carries the handle of
+            # a citation the model actually cited. A minted episode has none of the three.
+            _lines = _episode_lines(out)
+            _cited = _cited_evidence(out)
+            _cyears = {str(c.get("date") or "")[:4] for c in _cited} - {""}
+            _cids = {str(c.get("id") or "") for c in _cited} - {""}
+
+            def _line_backed(ln: str) -> bool:
+                if _has_any(ln, _NO_CITABLE):
+                    return True
+                if set(_EPISODE_YEAR_RX.findall(ln)) & _cyears:
+                    return True
+                return any(f"[{i}]" in ln for i in _cids)
+            res[k] = len(_lines) >= int(want) and all(_line_backed(ln) for ln in _lines)
+        elif k == "episode_magnitude_or_absence":
+            # W2b-D5, the PRICE-side twin of F-I: an episode counted without a receipt was the original
+            # +10-hallucination mode; an episode ENUMERATED without a magnitude and WITHOUT SAYING SO is
+            # the same failure in price form. Every dated-episode line must carry either a magnitude or
+            # an explicit no-price-record marker.
+            # A magnitude here is an [N] HANDLE, not a numeral. Handle discipline (_SYSTEM_CASCADE) says
+            # an OBSERVED number carries ONLY its [N] handle -- an uncited numeral on an episode line is
+            # a fabrication wearing a magnitude, which is precisely what W2b.2 refuses. A bare 4-digit
+            # year is not a magnitude either, and the [N]-handle rule excludes it for free.
+            # Requires a non-empty section: `all([])` is vacuously true, so an answer that never renders
+            # '## Episodes' must not pass a true-pin.
+            _lines = _episode_lines(out)
+            _ok = all(_N_HANDLE_RX.search(ln) or _has_any(ln, _NO_PRICE_RECORD) for ln in _lines)
+            res[k] = (bool(_lines) and _ok) == bool(want)
     return res
 
 
@@ -489,8 +728,12 @@ def _per_answer_record(r: dict, run_kind: str) -> dict:
             # clean one and the transient-error policy is un-enforceable (set at answer.py:663,960; a
             # watchdog fire sets '(watchdog_timeout)'). Single highest-leverage gate-ENABLING line.
             "degraded_model": (out.get("trace") or {}).get("degraded_model"),
+            # W5-D6: `directional_traceability` MUST be listed here -- this projection is a hard whitelist,
+            # so an axis absent from the tuple is silently dropped from every baseline JSON and the deck
+            # scores an axis nobody can read back.
             "judge": {k: j[k] for k in ("usefulness", "convexity", "point_in_time", "grounding",
-                                        "source_diversity", "continuity", "mechanism_voice")
+                                        "source_diversity", "continuity", "mechanism_voice",
+                                        "directional_traceability")
                       if k in j} or None}
 
 
@@ -705,6 +948,10 @@ def _judge_tool(continuity: bool = False) -> dict:
     arr = {"type": "array", "items": {"type": "string"}}
     props = {"usefulness": n, "convexity": n, "point_in_time": n, "grounding": n, "source_diversity": n,
              "mechanism_voice": n,
+             # W5-D6: OPTIONAL, never required. The axis only means something on a turn that carries a
+             # directional lean, and adding it to `required` would force the judge to invent a score on
+             # every existing deck row -- which would move those decks' baselines for no reason.
+             "directional_traceability": n,
              "hallucinations": arr, "gaps": arr, "improvements": arr, "verdict": {"type": "string"}}
     required = ["usefulness", "convexity", "point_in_time", "grounding", "source_diversity", "mechanism_voice",
                 "gaps", "verdict"]
@@ -739,12 +986,34 @@ _JUDGE_SYS = (
     "trust-ordered, disagreements flagged? Only high if multiple sources were actually AVAILABLE.\n"
     "- mechanism_voice (1-5): does it name WHAT tightens or loosens the balance sheet and WHY (5), or emit "
     "sign/mood labels and trading-bot verdicts (1)? Penalize 'bullish'/'bearish', price targets, position "
-    "sizing. 5 = names the mechanism and its price direction; 1 = a mood/sign label with no mechanism.\n"
+    "sizing. 5 = names the mechanism and its price direction; 1 = a mood/sign label with no mechanism. "
+    "(See the OUTLOOK EXCEPTION below -- it is the ONLY case where a price level is not a penalty.)\n"
+    "- directional_traceability (1-5): score this ONLY when the answer carries a DIRECTIONAL LEAN or a "
+    "level; omit it otherwise. Did EVERY directional claim trace to a fired surface -- a cited regime, a "
+    "cited [N] buffer, a cited COT positioning row, or a cited dated episode? 5 = every leg of the lean is "
+    "attached to something the record actually shows, and the disagreeing cases are named rather than "
+    "smoothed away; 3 = the direction is right but one leg rests on assertion; 1 = a confident lean sourced "
+    "from nothing shown. A lean that is HONESTLY THIN ('the record is silent for this era, so the read is "
+    "mechanism-only') scores HIGH -- naming the thinness is traceability, not a gap.\n"
     "- hallucinations: any claim/number/sign/date supported by NEITHER the graph, the evidence, NOR the looked-up "
     "numbers.\n"
     "- gaps: what a researcher would still need — a missing propagation channel, no dated evidence, convexity "
     "asserted without a threshold, a missed regime or cross-commodity leg. Concrete.\n"
     "- improvements: concrete changes.\n- verdict: one blunt sentence.\n"
+    "\n"
+    "OUTLOOK EXCEPTION -- applies IF AND ONLY IF the ANSWER renders a '## Outlook' section. On those turns "
+    "the user EXPLICITLY asked where prices go from here, and a DERIVED PRICE RANGE is IN SCOPE. Do not "
+    "penalize it for existing. Judge it on its DERIVATION instead: a level is good when the spot anchor and "
+    "each episode move carry their [N]/[E] handles, the arithmetic from spot to implied levels is visible, "
+    "and the DISAGREEMENT among the episodes is named rather than smoothed into one number. A BARE LEVEL "
+    "WITH NO DERIVATION IS A SERIOUS GROUNDING AND TRACEABILITY FAILURE -- score it 1-2 on both axes and "
+    "list it under hallucinations, because a number that came from the model's prior rather than from the "
+    "record is exactly the failure this tool exists to refuse. On these turns 'bullish'/'bearish' and "
+    "valuation words are NOT penalties either; the derivation is what you are grading. What stays OUT OF "
+    "SCOPE even here, and IS a penalty: entry/exit levels, stops, take-profit, position sizing, "
+    "risk/reward framing, and any 'go long / is this a buy' verdict -- this tool holds no position and no "
+    "risk model, so an execution instruction is unbacked by construction. If the answer has no "
+    "'## Outlook' section, ignore this paragraph entirely and apply the rules above unchanged.\n"
     "Emit via score_answer.")
 
 
@@ -889,6 +1158,13 @@ def _metrics(r: dict) -> dict:
             "trust_ordered": len(cited_tiers) > 1 and cited_tiers == sorted(cited_tiers),  # most-trusted first
             "disagreement": any(w in ans_l for w in ("disagree", "conflict", "at odds", "contradict", "diverg")),
             "banned_mood_words": _mood, "mechanism_scaffold_ok": _scaffold_ok(out),
+            # W5: the outlook row record. banned_exec is pinned 0 on EVERY row; unbacked_levels is the
+            # derivation gate's raw count (0 == price_target_backed); outlook_mode says whether the
+            # three-leg gate actually fired, so a soak can split outlook from non-outlook turns.
+            "banned_exec_words": int(tr.get("banned_exec_words") or 0),
+            "unbacked_levels": int(tr.get("unbacked_levels") or 0),
+            "outlook_mode": bool(tr.get("outlook_mode")),
+            "dir_trace": j.get("directional_traceability"),
             "src_div": j.get("source_diversity"), "mech_voice": j.get("mechanism_voice"),
             "usefulness": j.get("usefulness"), "convexity": j.get("convexity"),
             "point_in_time": j.get("point_in_time"), "grounding": j.get("grounding"),
@@ -1384,6 +1660,25 @@ def _convo_mechanics(spec: dict, out: dict, prev_out: dict | None) -> dict:
         checks["not_known_ok"] = any(p in (out.get("answer") or "").lower() for p in _NOT_KNOWN)
     if spec.get("uses_state"):
         checks["resolved_ok"] = bool(routed)
+    # ── W5 F-H: the SESSION-CARRY gate, the one seam a stateless deck structurally cannot see ─────────
+    # An outlook turn's permitted A1/flow/mood vocabulary rides into turn N+1 through TurnRecord.answer_tldr
+    # (state_block) and roll_summary's durable state. The orchestrator now re-fences both unconditionally,
+    # and THIS is where that fix is proven end-to-end: put a non-outlook turn AFTER an outlook turn and
+    # assert the follow-up shows no market-register vocabulary and no leaks. `fenced_follow_up: true` is
+    # meaningless on turn 1 -- it is only a gate when a PREVIOUS turn relaxed the register.
+    tr = out.get("trace") or {}
+    if spec.get("outlook_rendered") is not None:
+        checks["outlook_mode_ok"] = bool(tr.get("outlook_mode")) == bool(spec["outlook_rendered"])
+    if spec.get("fenced_follow_up"):
+        ans = out.get("answer") or ""
+        checks["follow_up_fenced_ok"] = (
+            not tr.get("outlook_mode")                                # this turn did NOT relax, and ...
+            and int(tr.get("banned_flow_words") or 0) == 0            # ... carried none of the prior turn's
+            and int(tr.get("banned_valuation_words") or 0) == 0       #     permitted vocabulary forward,
+            and int(tr.get("banned_exec_words") or 0) == 0            #     nor any execution idiom,
+            and not reg.register_leaks(ans))                          #     nor any register leak.
+    if spec.get("banned_exec_zero"):                                  # assertable on ANY turn, outlook or not
+        checks["banned_exec_ok"] = int(tr.get("banned_exec_words") or 0) == 0
     return checks
 
 

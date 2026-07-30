@@ -23,6 +23,14 @@ MAX_PER_NODE = int(_pr.get("serving.timeline.max_per_node", 4))
 _ARTIFACT = "timeline/episodes.json"
 _CACHE: dict | None = None
 
+# W4 / skeptic F-I. The marker rendered IN PLACE of a receipt for an episode the retrieved top-K
+# carried no in-window prop for. It is the whole F-I mitigation: the episode is NOT dropped (its `n`
+# is a PIT recount of real prop dates, so dropping would make the corpus look THINNER than it is and
+# would silently delete exactly the old/thin/single-source episodes W4's honesty leg exists to
+# enumerate), it is STATED. Absence stated beats absence hidden. The wording is deliberately an
+# instruction, not a label -- it is the last thing the reasoner reads about that episode.
+_NO_RECEIPT = "NO CITABLE ITEM IN THIS WINDOW -- state that and do not narrate what happened"
+
 
 def _parse(d) -> _dt.date | None:
     try:
@@ -116,7 +124,19 @@ def episodes_for(node: str, asof, *, max_n: int = MAX_PER_NODE, evidence: list |
     the reasoner narrated "what happened" in an episode it had no text for; +10 halluc on 19 turns
     while citation-integrity strips stayed flat). Set GRAPHRAG_TIMELINE=on to enable the RECEIPTED
     path: `evidence` (the dated props ground() already fetched for this node) supplies one in-window
-    prop per episode as a citable RECEIPT, so the reasoner has text to cite instead of invent."""
+    prop per episode as a citable RECEIPT, so the reasoner has text to cite instead of invent.
+
+    THE RECEIPT IS BEST-EFFORT, AND IT FAILS ASYMMETRICALLY (skeptic F-I, 2026-07-29). `evidence` is a
+    semantic top-K over the QUERY, so the episodes least likely to contain an in-window prop are the
+    old, thin, single-source ones -- Brazil frost 1994 (11 props, wb_cmo_outlook only), USSR 1972-79
+    (33), grain-deal suspension 2023 (14). Those are precisely the episodes W4's honesty leg is built
+    around, and a counted-but-unreceipted episode IS the original +10-hallucination mode rather than
+    the fix for it. MITIGATION CHOSEN: state the absence (`_NO_RECEIPT` in render_line), do NOT drop
+    the episode. Dropping was rejected because `n` is a PIT RECOUNT of real prop dates, not a
+    retrieval result -- a receipt-less 1994 frost would vanish from the count and the answer's own
+    "the record holds N episodes" headline would understate the corpus it is meant to be honest
+    about. Every emitted episode therefore carries a receipt OR a rendered statement that it has
+    none; nothing is emitted silently."""
     if os.environ.get("GRAPHRAG_TIMELINE", "off") != "on":
         return []
     asof_d = _parse(asof)
@@ -140,11 +160,13 @@ def episodes_for(node: str, asof, *, max_n: int = MAX_PER_NODE, evidence: list |
 
 
 def render_line(label: str, eps: list[dict]) -> str:
+    """One prompt line per node. Every episode renders EITHER its citable receipt OR `_NO_RECEIPT` --
+    a bare count is never emitted (F-I: the bare count with no marker was the confabulation invitation)."""
     parts = []
     for e in eps:
         span = f"{e['start'][:7]}..{e['end'][:7]} ({e['n']} reports"
         r = e.get("receipt")
-        span += f'; e.g. {r["date"]}: "{r["text"]}")' if r else ")"
+        span += f'; e.g. {r["date"]}: "{r["text"]}")' if r else f"; {_NO_RECEIPT})"
         parts.append(span)
     return "DATED EPISODES for " + label + " (report TIMESTAMPS, not descriptions): " + ", ".join(parts)
 

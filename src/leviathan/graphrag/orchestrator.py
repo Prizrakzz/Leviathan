@@ -188,13 +188,17 @@ def _emit_numbers(on_stage, calls) -> None:
 def run_reasoning(query: str, asof: str, *, graph, call=None, retrieve=None, model: str = an.SONNET,
                   planner: str | None = None, extra_context: str | None = None, route_fn=None,
                   near: str | None = None, silver_lookup=None, on_stage=None,
-                  focus_driver: str | None = None, qfn=None, xc_request: dict | None = None) -> dict:
+                  focus_driver: str | None = None, qfn=None, xc_request: dict | None = None,
+                  outlook: bool = False) -> dict:
     # reroute v2: xc_request rides down to the cascade quantify seam (lane C) ONLY when the gate produced one
     # (flag on + explicit ask). None -> the kwarg is omitted so the answer() call is byte-identical to today.
     _xc = {"xc_request": xc_request} if xc_request is not None else {}
+    # W5-D4: the outlook kwarg is OMITTED when False (the `_xc` omit-when-None idiom), so a non-outlook turn's
+    # answer() call is byte-identical to pre-W5 and injected answer fakes with the older signature stay valid.
+    _ol = {"outlook": True} if outlook else {}
     out = an.answer(query, graph=graph, asof=asof, call=call, retrieve=retrieve, model=model, planner=planner,
                     extra_context=extra_context, route_fn=route_fn, near=near, silver_lookup=silver_lookup,
-                    on_stage=on_stage, focus_driver=focus_driver, numbers_lookup=qfn, **_xc)
+                    on_stage=on_stage, focus_driver=focus_driver, numbers_lookup=qfn, **_xc, **_ol)
     out["intent"] = "reasoning"
     out.setdefault("number_calls", [])
     out["asof"] = asof
@@ -205,7 +209,7 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
                client=None, numbers_model: str = na.HAIKU, query_fn=None, planner: str | None = None,
                extra_context: str | None = None, route_fn=None, near: str | None = None,
                silver_lookup=None, on_stage=None, focus_driver: str | None = None,
-               xc_request: dict | None = None) -> dict:
+               xc_request: dict | None = None, outlook: bool = False) -> dict:
     """Hybrid = numbers ∥ walk. The numbers agent has ZERO dependency on the walk (its output is consumed
     only at synthesis: the prompt block + citation unify/verify), so it runs in a worker thread while
     answer() grounds the subgraph; the two join via `extra_resolver` right before prompt assembly —
@@ -269,11 +273,12 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
         return "\n\n".join(x for x in (extra_context, _numbers_block(calls)) if x), calls
 
     _xc = {"xc_request": xc_request} if xc_request is not None else {}   # reroute v2: omit when None (byte-identical)
+    _ol = {"outlook": True} if outlook else {}                           # W5-D4: same omit-when-off idiom
     try:
         out = an.answer(query, graph=graph, asof=asof, call=call, retrieve=retrieve, model=model,
                         extra_resolver=_resolve, planner=planner, route_fn=route_fn,
                         near=near, silver_lookup=silver_lookup, on_stage=on_stage,
-                        focus_driver=focus_driver, numbers_lookup=query_fn, **_xc)
+                        focus_driver=focus_driver, numbers_lookup=query_fn, **_xc, **_ol)
     finally:
         pool.shutdown(wait=False)
     if not holder.get("resolved"):      # early-return paths (e.g. no contract match) skip synthesis —
@@ -1251,6 +1256,22 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
                                                    "target_span": _xc_span}}
         if _reroute_v2_on():
             xc_request = _xc_request(query, graph=graph, state=state, detect=_xc_det)
+    # ── W5-D4: the outlook gate, TWO-TIER and FAIL-CLOSED ────────────────────────────────────────────────
+    # outlook fires IFF plan.answer_mode_outlook (the LLM detection) AND intent.is_outlook_explicit(query)
+    # (a deterministic regex NECESSARY condition) -- the RV2 `_xc_request` shape, which requires both tiers
+    # and returns nothing on any failure. The third leg, the GRAPHRAG_OUTLOOK kill-switch, is ANDed at the
+    # answer.py seam so the engine is gated by the ARGUMENT, never by a flag read deep in the stack.
+    #
+    # Why this one inverts the usual asymmetry: every other misroute here is fail-OPEN and that is correct
+    # -- a numbers question misrouted to reasoning still gets a grounded answer. If a plain mechanism
+    # question landed in outlook, the market register would relax on a turn that never asked for it, which
+    # is the exact failure the fence exists to prevent. A MISSED outlook ask degrades to today's answer.
+    # Restricted to reasoning/hybrid: outlook is a rendering mode over the REASONER's output, so a
+    # numbers_only/live/trivial turn (plan is None on the guardrail paths) can never carry it.
+    outlook_mode = False
+    if kind in ("reasoning", "hybrid") and plan is not None and plan.answer_mode_outlook:
+        outlook_mode = it.is_outlook_explicit(query)
+        decided = (decided or {}) | {"outlook_gate": {"plan": True, "regex": outlook_mode}}
     try:
         if kind == "live":
             # Thread coreference reaches the news SEARCH ("any news related to that?"): the plan's
@@ -1282,12 +1303,14 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
             res = run_hybrid(query, asof, graph=graph, call=call, retrieve=retrieve, model=model,
                              client=numbers_client, numbers_model=numbers_model, query_fn=qfn, planner=planner,
                              extra_context=sblock, route_fn=route_fn, near=near, silver_lookup=silver_lookup,
-                             on_stage=on_stage, focus_driver=att["focus_driver"], xc_request=xc_request)
+                             on_stage=on_stage, focus_driver=att["focus_driver"], xc_request=xc_request,
+                             outlook=outlook_mode)
         else:
             res = run_reasoning(query, asof, graph=graph, call=call, retrieve=retrieve, model=model,
                                 planner=planner, extra_context=sblock, route_fn=route_fn, near=near,
                                 silver_lookup=silver_lookup, on_stage=on_stage,
-                                focus_driver=att["focus_driver"], qfn=qfn, xc_request=xc_request)
+                                focus_driver=att["focus_driver"], qfn=qfn, xc_request=xc_request,
+                                outlook=outlook_mode)
     except Exception as e:  # noqa: BLE001 — deterministic floor: a UI turn must never 500
         # The floor's CAUSE must be visible in logs: the 2026-07-19 incident spent hours attributing
         # an Anthropic-tier outage to a feature flag because the swallowed exception was never logged
@@ -1383,9 +1406,17 @@ def _session_writeback(res: dict, query: str, asof: str, session_id, store, stat
 
     from leviathan.graphrag import session as ss
     try:
+        # W5 F-H (the session-carry seam). The tl;dr is CONTINUITY CONTEXT, not the answer: session.py
+        # renders it into the next turn's state block and roll_summary() bakes it into durable state. An
+        # outlook turn's permitted A1/flow/mood vocabulary would therefore be carried into turn N+1 -- a
+        # plain mechanism question running the FENCED register -- as prompt context, and a stateless
+        # regression deck structurally cannot see it. So this is sanitized market_register="fenced"
+        # UNCONDITIONALLY, whatever register produced the turn. The served answer keeps its own register;
+        # only what CROSSES INTO THE NEXT TURN is re-fenced.
+        _tldr = str((res.get("structured") or {}).get("tldr") or res.get("answer") or "")
         turn = ss.TurnRecord(
             turn=(state.turn_count if state else 0), query=query[:300],
-            answer_tldr=str((res.get("structured") or {}).get("tldr") or res.get("answer") or "")[:200],
+            answer_tldr=reg.sanitize(_tldr, market_register=reg.FENCED)[:200],
             contracts=[c for c in (res.get("contracts") or [res.get("contract")]) if c],
             focus_driver=tr.get("focus_driver"), asof=asof,
             fired_regime_names=[r.get("name") for r in tr.get("fired_regimes") or []],

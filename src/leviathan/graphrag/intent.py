@@ -65,6 +65,63 @@ def is_news_explicit(query: str) -> bool:
     return bool(_NEWS_EXPLICIT.search(query or ""))
 
 
+# ── EXPLICIT price-OUTLOOK ask detector (W5-D4) ───────────────────────────────────────────────────────
+# Mirrors _NEWS_EXPLICIT and is_cross_commodity_explicit: a NARROW, deterministic matcher that is a
+# NECESSARY condition for the outlook rendering mode, NEVER sufficient. The gate is
+#
+#     outlook fires IFF plan.answer_mode_outlook AND is_outlook_explicit(query) AND _outlook_on()
+#
+# and OUTLOOK IS THE ONE MODE THAT MUST FAIL CLOSED. Every other misroute in this system is fail-open by
+# design and that is correct -- a numbers question misrouted to reasoning still gets a grounded answer.
+# Outlook inverts the asymmetry: a normal question landing in outlook relaxes the market register on a turn
+# that never asked for it, which is the exact failure the fence exists to prevent. A MISSED outlook ask
+# merely degrades to today's answer (harmless); a FALSE POSITIVE cannot be allowed to relax anything.
+#
+# So every alternative below requires BOTH a forward-looking cue AND a price/level noun in the same shape.
+# Deliberately NOT matched: "why did prices rally in 2010" (backward), "what was the price" (observed
+# lookup), "how does the ban affect palm prices" (mechanism -- the register that answers it is unchanged),
+# "where were prices in 2010" (historical). When in doubt the regex declines.
+# FOLD-PASS 2026-07-30. Four of the six outlook-POSITIVE deck rows red their own `outlook_rendered: true`
+# pin BY CONSTRUCTION because the shipped alternations had no slot for a COMMODITY WORD between the modal
+# and the price noun ("where do CORN prices go from here", "how high can WHEAT prices go") and because
+# `(price|prices)\s+from\s+here` demanded adjacency, which "prices GO from here" breaks. Both are widened
+# below: up to three intervening words before the price noun, and a bounded gap before "from here". The
+# widening stays narrow enough to keep every declined shape declined (see the unit test's negative list).
+_OUTLOOK_LEAD = r"(?:[a-z][\w-]*\s+){0,3}"
+_OUTLOOK_EXPLICIT = re.compile(
+    r"\b(price|market)s?\s+(outlook|forecast|trajectory|path)\b"
+    r"|\boutlook\s+for\s+(the\s+)?(price|prices|market)\b"
+    r"|\bwhere\s+(do|does|will|would|might|could)\s+(you\s+|we\s+)?(see\s+)?(the\s+)?" + _OUTLOOK_LEAD +
+    r"(price|prices|it|they|things)\b[\w\s]{0,20}?\b(go|going|head|heading|end\s+up|trade|land|settle|be)\b"
+    r"|\bwhere\s+(are|is)\s+(the\s+)?" + _OUTLOOK_LEAD + r"(price|prices|this|it|they)\s+(going|headed|heading)\b"
+    r"|\bwhat'?s?\s+your\s+(view|call|take)\s+on\s+(the\s+)?" + _OUTLOOK_LEAD + r"(price|prices)\b"
+    r"|\bhow\s+(high|low|far)\s+(can|could|might|will|would|do\s+you\s+see)\s+"
+    r"(the\s+)?" + _OUTLOOK_LEAD + r"(price|prices|it|they)\b"
+    r"|\b(price|prices)\b[\w\s,]{0,25}\bfrom\s+here\b"
+    r"|\bwhere\s+(do|does)\s+(this|that|it)\s+leave\s+(the\s+)?" + _OUTLOOK_LEAD + r"(price|prices)\b"
+    r"|\b(forward|price)\s+(view|risk)s?\s+from\s+here\b",
+    re.I)
+# The one alternative that must be CONDITION-AWARE. "what will happen to the price of wheat IF Russia bans
+# exports again" is a conditional MECHANISM ask -- the module docstring already lists that class as
+# deliberately-not-matched, and PLANNER_SYS's own negative example is the same shape, so the planner leg is
+# not a reliable backstop. Split out so a conditional clause declines it without touching the other legs.
+_OUTLOOK_HAPPEN = re.compile(
+    r"\bwhat\s+(will|would|could|might)\s+happen\s+to\s+(the\s+)?(price|prices)\b", re.I)
+_OUTLOOK_CONDITIONAL = re.compile(
+    r"\b(if|under|when|should|assuming|in\s+the\s+event|were\s+\w+\s+to|suppose)\b", re.I)
+
+
+def is_outlook_explicit(query: str) -> bool:
+    """Did the user EXPLICITLY ask where PRICES GO FROM HERE (not why they moved, not what they were)?
+
+    NECESSARY, not sufficient -- the answer.py seam ANDs this with the planner's `answer_mode_outlook` and
+    the `_outlook_on()` kill-switch, and any leg false runs the turn on the DEFAULT FENCED register."""
+    q = query or ""
+    if _OUTLOOK_EXPLICIT.search(q):
+        return True
+    return bool(_OUTLOOK_HAPPEN.search(q)) and not _OUTLOOK_CONDITIONAL.search(q)
+
+
 # ── cross-commodity RV explicit-ask detector (reroute v2, RV-W1.1) ────────────────────────────────────
 # Mirrors _NEWS_EXPLICIT: a NARROW, deterministic matcher that is a NECESSARY condition for the v2
 # cross-commodity relative-value fork, NEVER sufficient. The orchestrator LAW (RV-W1.3) binds the captured

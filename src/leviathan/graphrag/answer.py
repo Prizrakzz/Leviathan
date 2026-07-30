@@ -426,6 +426,28 @@ def _count_banned_flow(structured: dict) -> int:
     return reg.count_flow_words(_structured_prose(structured))
 
 
+def _count_banned_exec(structured: dict) -> int:
+    """W5-D2: raw pre-sanitize A2 EXECUTION/ADVICE count (mirror _count_banned_valuation). Measured on
+    EVERY turn -- there is no register scope in which A2 is permitted, so the deck pins it to 0 everywhere,
+    outlook rows included. Measuring the RAW output means the pin asserts the model never EMITTED an
+    execution instruction, which is strictly stronger than asserting the strip removed one."""
+    return reg.count_exec_words(_structured_prose(structured))
+
+
+def _count_unbacked_levels(structured: dict) -> int:
+    """W5.0 derivation gate, RAW pre-sanitize: how many price LEVELS did the model state with nothing behind
+    them -- an uncited number in a sentence with no handle, on prose whose derivation is not complete? This
+    is the deterministic teeth behind the deck's `price_target_backed` pin, and it replaces
+    `banned_valuation: 0` as the outlook gate: it catches the FABRICATED number the lexicon never could.
+
+    Scored on tldr and mechanism SEPARATELY and summed, never on the concatenation (fold-pass 2026-07-30).
+    Concatenated, a derivation living under '## Outlook' in the MECHANISM silently backed a minted level in
+    the TL;DR ('Our objective is 268.') -- the pin then read 0 and `price_target_backed` passed on a
+    fabricated number, which is the exact class W5.0 exists to refuse."""
+    return (reg.unbacked_level_count(str(structured.get("tldr") or ""))
+            + reg.unbacked_level_count(str(structured.get("mechanism") or "")))
+
+
 def _comove_on() -> bool:
     """SEAM-A co-move kill-switch (GRAPHRAG_COMOVE), read at the answer.py quantify SEAM and threaded as the
     `comove` kwarg down quantify()->_run_xc()->_reroute_xc ([SKEPTIC F3] -- NEVER an os.environ read inside
@@ -496,10 +518,64 @@ def _pattern_records_on() -> bool:
     return os.environ.get("GRAPHRAG_PATTERN_RECORDS", "").strip().lower() in ("on", "1", "true")
 
 
-def _system() -> str:
+def _outlook_on() -> bool:
+    """W5 outlook kill-switch (GRAPHRAG_OUTLOOK), read at the answer.py seam and threaded DOWN as the
+    `market_register` argument to reg.sanitize -- NEVER an os.environ read inside register.py, so a
+    mis-plumbed enable can never relax the suggester chip guard or the numbers/news/live bodies. It is one
+    of THREE legs: the planner's plan.answer_mode_outlook and intent.is_outlook_explicit(query) must ALSO
+    hold (fail-CLOSED, W5.2). DEFAULT-OFF: with the flag off every sanitize call keeps market_register
+    "fenced" and the system is byte-identical to pre-W5 -- the whole wave rolls back on ONE env var. Read
+    PER CALL (never memoized) so the env-flip rollback is live -> no redeploy (the _chain_on idiom)."""
+    return os.environ.get("GRAPHRAG_OUTLOOK", "").strip().lower() in ("on", "1", "true")
+
+
+# W5-D5: the '## Outlook' RESERVED HEADING -- injected-only, exactly the '## Cross-commodity' /
+# '## Complex-wide move' / '## Recorded history' shape. Appended to the persona ONLY on a turn where all
+# three outlook legs held, so with the flag off _system() is BYTE-IDENTICAL to pre-W5.
+#
+# The load-bearing half is the DERIVATION GATE (W5.0). A price level may be stated only when the arithmetic
+# that produces it is shown and every input is cited; a bare number is a refusal. That is enforced in CODE
+# (register.unbacked_levels strips an uncited level sentence, register.exec_leaks fences A2 unconditionally)
+# -- this paragraph exists so the model produces the SHAPE the code permits, not so the model polices itself.
+# A prompt-only fence is one paraphrase away from failing.
+_SYSTEM_OUTLOOK = (
+    "\nOUTLOOK MODE. This turn EXPLICITLY asked where prices go from here, so render a dedicated "
+    "'## Outlook' section as a BALANCE OF RISKS -- never a single-point prediction. Render '## Outlook' "
+    "ONLY on a turn that asked for it; never volunteer a forward price view from prose. Structure it as "
+    "legs, each with its own citation:\n"
+    "- which regimes are FIRING and which way they lean, named in plain words and cited;\n"
+    "- the BUFFER: where the balance sheet sits versus its own history, with the [N] handle;\n"
+    "- POSITIONING from the managed-money record, with its [N] handle, as HISTORICAL CONTEXT;\n"
+    "- the HISTORICAL EPISODES from similar states, enumerated with dates and cited;\n"
+    "- WHAT WOULD FLIP EACH LEG -- the observable that would reverse it. A leg with no falsifier is not a "
+    "risk leg, it is an opinion; state the falsifier or drop the leg.\n"
+    "A DERIVED PRICE RANGE IS PERMITTED, and ONLY under this discipline: show the arithmetic and cite every "
+    "input. The shape is spot -> per-episode moves -> implied levels -> median, with the DISAGREEMENT NAMED. "
+    "For example: 'Spot 227.25 EUR/t (Sep-26 settle) [N1]. Three comparable episodes from a similar buffer "
+    "and ENSO state moved +18% / +7% / -3% over 90 days [E2] -> 268 / 243 / 220; median 243. The -3% case is "
+    "2010, where the export ban reversed inside the window.' Every number that is an INPUT (the spot, each "
+    "episode move) carries its [N] or [E] handle; the OUTPUTS you compute may be uncited because they are "
+    "arithmetic on cited inputs, shown in the same section. A LEVEL WITHOUT ITS DERIVATION IS A REFUSAL: if "
+    "you cannot show the spot, the episode moves and the arithmetic, DO NOT STATE A NUMBER -- say plainly "
+    "that the record does not support a level and give the direction and the mechanism instead. Never carry "
+    "a bare level into the tl;dr: either restate it with its derivation or cite the handle it rests on. "
+    "Never present a range as a forecast of what WILL happen -- it is what comparable episodes DID, applied "
+    "to today's level, and you must say so.\n"
+    "WHAT THIS TOOL WILL NOT DO, on an outlook turn as on every other. It has no position, no sizing, no "
+    "risk model and no account, so an execution instruction is unbacked BY CONSTRUCTION and is refused: no "
+    "entry or exit levels, no stops, no take-profit, no position sizing, no risk/reward framing, no 'go "
+    "long/short', no 'is this a buy', no 'accumulate here'. If the user asks for one, say plainly that this "
+    "is a fundamental research tool with no position and no risk model, then answer the FUNDAMENTAL question "
+    "underneath it -- the balance of risks and what would flip it. Fundamental relative value (which balance "
+    "sheet is tighter, and why) is in scope; a trade instruction is not.")
+
+
+def _system(*, outlook: bool = False) -> str:
     """The active reader-facing persona. GRAPHRAG_MENTOR_VOICE default on -> mentor; =off -> the prior string.
     GRAPHRAG_CASCADE_QUANT on -> append the OBSERVED CASCADE NUMBERS addendum (P9-B: the loop supplies the
     [N] rows). GRAPHRAG_PATTERN_RECORDS on -> append the OBSERVATION-register RECORDED HISTORY directive (T2B).
+    `outlook` (W5-D5, the three-leg gate already resolved by the caller) -> append the '## Outlook' balance-of-
+    risks + derivation-gate directive; DEFAULT FALSE so every existing caller is byte-identical.
     Read PER CALL, never memoized: a serving process is long-lived, so a once-at-import read would
     make the env-flip rollback a silent no-op until a redeploy — defeating the gate's purpose."""
     if os.environ.get("GRAPHRAG_MENTOR_VOICE", "on") == "off":
@@ -514,6 +590,8 @@ def _system() -> str:
     if _pattern_records_on():
         from leviathan.graphrag.numbers import pattern_records as _pr   # lazy: avoid an import cycle
         base = base + _pr.RECORDED_HISTORY_ADDENDUM
+    if outlook:                                                    # W5-D5: the reserved '## Outlook' heading
+        base = base + _SYSTEM_OUTLOOK
     return base
 
 
@@ -803,7 +881,8 @@ def _emit_chains(on_stage, sg) -> None:
 def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, retrieve, routed,
                extra_context: str | None = None, extra_number_calls: list | None = None,
                extra_resolver=None, focus_driver: str | None = None, use_blocks: bool = False,
-               silver_lookup=None, on_stage=None, numbers_lookup=None, xc_request: dict | None = None) -> dict:
+               silver_lookup=None, on_stage=None, numbers_lookup=None, xc_request: dict | None = None,
+               outlook: bool = False) -> dict:
     """L2 serving path: walk + ground the subgraph, hand it to the reasoner, and OVERRIDE the diagram with the
     graph-derived cascade. Reuses the shared render + unified footer + sanitizer. The hybrid branch's silver
     numbers ride in exactly as on the one-hop path: extra_context as a prompt block, extra_number_calls into
@@ -914,11 +993,19 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     _emit(on_stage, "synthesizing")                               # prompt assembled; the model call starts NOW
     _emit(on_stage, "drafting")                                   # F7: the engine feed is CLOSED — prose mode
     _t_synth = time.perf_counter()                                # W6.1-0 stage timer (MsSynthLLM)
-    structured = call(_system(), _pack(sp, vp, use_blocks), model=model, tool=_answer_tool(), **call_kw)
+    # W5-D3/D5: the outlook legs were resolved by the caller (plan.answer_mode_outlook AND
+    # is_outlook_explicit); the kill-switch is ANDed HERE, at the seam. `_mr` is the ONLY thing that ever
+    # relaxes the register, and it is passed DOWN as an argument -- register.py reads no environment.
+    _outlook = bool(outlook) and _outlook_on()
+    _mr = reg.OUTLOOK if _outlook else reg.FENCED
+    structured = call(_system(outlook=_outlook), _pack(sp, vp, use_blocks), model=model,
+                      tool=_answer_tool(), **call_kw)
     sg.trace["ms_synth_llm"] = int((time.perf_counter() - _t_synth) * 1000)
     _banned_mood = _count_banned_mood(structured)                 # P9-A: RAW output, pre-sanitize (see helper)
     _banned_val = _count_banned_valuation(structured)             # DP-6: valuation/flow raw counts, pre-sanitize
     _banned_flow = _count_banned_flow(structured)
+    _banned_exec = _count_banned_exec(structured)                 # W5: A2 execution idioms, RAW (pinned 0 always)
+    _unbacked = _count_unbacked_levels(structured)                # W5.0: bare price levels, RAW (derivation gate)
     degraded = _pop_degraded(structured)
     if sg.mermaid and _valid_mermaid(sg.mermaid):
         structured["diagram_mermaid"] = sg.mermaid                # deterministic diagram overrides the LLM's
@@ -940,17 +1027,18 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # PRE-verifier, and strips run p50 1 / p90 7 / max 16, so a handle activated earlier could disappear).
     _emit(on_stage, "verified", strips=int(verifier.get("stripped", 0) or 0))
     _attach_provenance(structured, verifier)                     # stamp source_key for durable chip join (6.4)
-    _humanize_structured(structured)                              # clean the fields the UI renders directly (6.1)
+    _humanize_structured(structured, market_register=_mr)         # clean the fields the UI renders directly (6.1)
     if os.environ.get("GRAPHRAG_ANSWER_V2", "off") == "on":       # P9-C typed sections: a DERIVED view of the
         secs = _sectionize(structured.get("mechanism") or "")     # FINAL prose (post-verify+humanize); read per
         if secs:                                                  # call so the env-flip rollback stays live
             structured["sections"] = secs
     if verifier.get("enabled"):                                   # ONE validated source list, model-numbered
         body = reg.sanitize(render(structured, include_ledger=False)
-                            + _cited_sources_block(structured, verifier, extra_number_calls))
+                            + _cited_sources_block(structured, verifier, extra_number_calls),
+                            market_register=_mr)
     else:                                                         # verifier off -> legacy two-list rendering
         footer = ("\n\n## Sources\n" + cit.render(ev_cits)) if ev_cits else ""
-        body = reg.sanitize(render(structured) + footer)
+        body = reg.sanitize(render(structured) + footer, market_register=_mr)
     if degraded:
         body = _DEGRADED_BANNER.format(m=degraded) + body
     return {"answer": body, "structured": structured, "contract": contracts[0] if contracts else None,
@@ -958,6 +1046,8 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
             "model": model, "trace": {"planner": "l2", "fired_regimes": sg.fired_regimes,
                                       "citation_verifier": verifier, "banned_mood_words": _banned_mood,
                                       "banned_valuation_words": _banned_val, "banned_flow_words": _banned_flow,
+                                      "banned_exec_words": _banned_exec, "unbacked_levels": _unbacked,
+                                      "outlook_mode": _outlook, "market_register": _mr,
                                       **({"degraded_model": degraded} if degraded else {}),
                                       "has_diagram": _valid_mermaid(structured.get("diagram_mermaid")), **sg.trace}}
 
@@ -1031,18 +1121,23 @@ def _attach_provenance(structured: dict, verifier: dict) -> None:
             s["source_key"] = r["source_key"]
 
 
-def _humanize_structured(d: dict) -> None:
+def _humanize_structured(d: dict, *, market_register: str = reg.FENCED) -> None:
     """Sanitize the structured fields the UI renders DIRECTLY into reader register (6.1). The frontend
     shows `structured.{tldr,mechanism,sources}`, NOT the flattened body, so this is where leaked internal
     tokens, raw regime ids, and internal source ids are removed for the live AND persisted note. Runs
     AFTER verify (which mutates tldr/mechanism to strip fabricated citations) and mutates in place, so
-    the object returned + persisted is already clean."""
+    the object returned + persisted is already clean.
+
+    W5-D3: `market_register` is keyword-only and DEFAULTS TO FENCED. This function is SHARED by both answer
+    bodies (the L2 planner path and the one-hop legacy path), so a default of anything else would relax the
+    one-hop path for free -- the default is the fence. `sources[].note` stays FENCED unconditionally: a
+    ledger note is provenance metadata, never the outlook argument, so it has no derivation to show."""
     if not isinstance(d, dict):
         return
     for fld in ("tldr", "mechanism"):
         v = d.get(fld)
         if isinstance(v, str) and v:
-            d[fld] = reg.sanitize(v)
+            d[fld] = reg.sanitize(v, market_register=market_register)
     srcs = d.get("sources")
     if isinstance(srcs, list):
         from leviathan.graphrag import display as dp
@@ -1052,7 +1147,7 @@ def _humanize_structured(d: dict) -> None:
             if s.get("source"):
                 s["source"] = dp.source_name(str(s["source"]))
             if isinstance(s.get("note"), str) and s["note"]:
-                s["note"] = reg.sanitize(s["note"])
+                s["note"] = reg.sanitize(s["note"])              # provenance note: ALWAYS fenced
 
 
 # P9-C kind map: pins to eval._FIXED_SCAFFOLD's headings stripped of the '## ' marker. answer cannot
@@ -1169,11 +1264,17 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
            near: str | None = None, max_contracts: int = 2, retrieve=None, call=None, route_fn=None,
            driver_retrieve=None, extra_context: str | None = None, extra_number_calls: list | None = None,
            extra_resolver=None, planner: str | None = None, focus_driver: str | None = None,
-           silver_lookup=None, on_stage=None, numbers_lookup=None, xc_request: dict | None = None) -> dict:
+           silver_lookup=None, on_stage=None, numbers_lookup=None, xc_request: dict | None = None,
+           outlook: bool = False) -> dict:
     """Answer grounded in the graph(s) + dated evidence, structured for a reader. Routes (tiered lexical->semantic->
     LLM) to up to `max_contracts` (a soy<->corn question synthesizes both). Also pulls CROSS-CUTTING DRIVER evidence
     (WS-MS6 — B40/freight/FX/El Nino cascade triggers). Returns {answer (markdown), structured, contract(s),
-    evidence, trace}."""
+    evidence, trace}.
+
+    `outlook` (W5-D4) is the caller's TWO resolved legs -- plan.answer_mode_outlook AND
+    is_outlook_explicit(query). It is ANDed with the _outlook_on() kill-switch INSIDE each body, so a
+    caller that never heard of W5 (every test, the eval harness, the probe paths) gets the fenced register
+    by default and the flag alone can never relax anything."""
     raw_retrieve = retrieve                                        # the CALLER's arg (None on serving) — _answer_l2
     retrieve = retrieve or functools.partial(ev.retrieve, **_RETRIEVAL)         # needs it raw so its cheap no-rerank
     driver_retrieve = driver_retrieve or functools.partial(ev.retrieve, **_RETRIEVAL)   # probe path actually engages
@@ -1189,7 +1290,7 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
                           routed=routed, extra_context=extra_context, extra_number_calls=extra_number_calls,
                           extra_resolver=extra_resolver, focus_driver=focus_driver, use_blocks=use_blocks,
                           silver_lookup=silver_lookup, on_stage=on_stage, numbers_lookup=numbers_lookup,
-                          xc_request=xc_request)
+                          xc_request=xc_request, outlook=outlook)
     if extra_resolver is not None:      # one-hop path: no walk to overlap — degenerate to resolving up front
         extra_context, extra_number_calls = extra_resolver()
     # node-diverse selection: siblings share an evidence shard, so a 2nd slot should add a DIFFERENT commodity
@@ -1223,10 +1324,17 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     sp, vp = _prompt_parts(query, contracts, stable_blocks, volatile_blocks)
     _emit(on_stage, "synthesizing")                               # prompt assembled; the model call starts NOW
     _emit(on_stage, "drafting")                                   # F7: the engine feed is CLOSED — prose mode
-    structured = call(_system(), _pack(sp, vp, use_blocks), model=model, tool=_answer_tool())
+    # W5-D3: the ONE-HOP legacy body (planner != "l2"). It gets the identical seam as _answer_l2 -- the
+    # kill-switch ANDed here, the mode threaded DOWN as an argument -- so a GRAPHRAG_PLANNER=onehop
+    # rollback cannot silently leave outlook turns on a different register from the L2 default.
+    _outlook = bool(outlook) and _outlook_on()
+    _mr = reg.OUTLOOK if _outlook else reg.FENCED
+    structured = call(_system(outlook=_outlook), _pack(sp, vp, use_blocks), model=model, tool=_answer_tool())
     _banned_mood = _count_banned_mood(structured)                 # P9-A: RAW output, pre-sanitize
     _banned_val = _count_banned_valuation(structured)             # DP-6: valuation/flow raw counts, pre-sanitize
     _banned_flow = _count_banned_flow(structured)
+    _banned_exec = _count_banned_exec(structured)                 # W5: A2 execution idioms, RAW (pinned 0 always)
+    _unbacked = _count_unbacked_levels(structured)                # W5.0: bare price levels, RAW (derivation gate)
     degraded = _pop_degraded(structured)
     # unified provenance footer (Phase 4): document-level, deduped by source_key. Numbers citations join here in
     # the Phase-5 hybrid path; the per-prop page/char slots ride along for the page-citation recovery.
@@ -1244,17 +1352,18 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
           stripped=int(verifier.get("stripped", 0) or 0))
     _emit(on_stage, "verified", strips=int(verifier.get("stripped", 0) or 0))   # F7: handles may ACTIVATE now
     _attach_provenance(structured, verifier)                     # stamp source_key for durable chip join (6.4)
-    _humanize_structured(structured)                              # clean the fields the UI renders directly (6.1)
+    _humanize_structured(structured, market_register=_mr)         # clean the fields the UI renders directly (6.1)
     if os.environ.get("GRAPHRAG_ANSWER_V2", "off") == "on":       # P9-C typed sections -- the one-hop twin of
         secs = _sectionize(structured.get("mechanism") or "")     # the L2 seam: same post-verify+humanize
         if secs:                                                  # ordering, same per-call flag read
             structured["sections"] = secs
     if verifier.get("enabled"):                                   # ONE validated source list, model-numbered
         body = reg.sanitize(render(structured, include_ledger=False)
-                            + _cited_sources_block(structured, verifier, extra_number_calls))
+                            + _cited_sources_block(structured, verifier, extra_number_calls),
+                            market_register=_mr)
     else:                                                         # verifier off -> legacy two-list rendering
         footer = ("\n\n## Sources\n" + cit.render(ev_cits)) if ev_cits else ""
-        body = reg.sanitize(render(structured) + footer)          # sanitizer strips leaked internal tokens
+        body = reg.sanitize(render(structured) + footer, market_register=_mr)   # strips leaked internal tokens
     if degraded:
         body = _DEGRADED_BANNER.format(m=degraded) + body
     return {"answer": body, "structured": structured, "contract": contracts[0],
@@ -1262,6 +1371,8 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
             "evidence": evidence, "model": model,
             "trace": {"routed": routed, "contracts": contracts, "banned_mood_words": _banned_mood,
                       "banned_valuation_words": _banned_val, "banned_flow_words": _banned_flow,
+                      "banned_exec_words": _banned_exec, "unbacked_levels": _unbacked,
+                      "outlook_mode": _outlook, "market_register": _mr,
                       "n_drivers": sum(len(graph.contracts[c].drivers) for c in contracts), "regimes": regimes,
                       "drivers": drivers, "n_driver_evidence": len(driver_hits),
                       "evidence_ids": ev_ids, "has_diagram": _valid_mermaid(structured.get("diagram_mermaid")),

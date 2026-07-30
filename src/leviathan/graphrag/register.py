@@ -145,6 +145,331 @@ _FLOW_PHRASES = re.compile(
     r"|\bstretched positioning\b"
     r"|\bif funds (cover|liquidate|unwind)\b",
     re.I)
+
+# ── W5.0 DERIVATION GATE: the A1/A2 partition of detector A ────────────────────────────────────────────
+# User decision 2026-07-28 (supersedes "NO PRICE TARGET, EVER"): the fence gates on DERIVATION, not on
+# vocabulary. A price LEVEL is legal iff it is computed from a cited surface and rendered with its
+# arithmetic visible; a BARE number is a refusal. Detector A therefore splits in two:
+#
+#   A1  targets / levels / valuation (`price target`, `fair value`, `cheap/rich`, `undervalued`, ...)
+#       -> PERMITTED on an outlook turn, under the derivation gate below.
+#   A2  EXECUTION / ADVICE idioms (`go long`, `stop-loss`, `take-profit`, `is a buy`, `load up`,
+#       `entry point`, sizing, risk/reward)
+#       -> FENCED UNCONDITIONALLY, on every turn including outlook. Nothing can back it: the platform
+#          holds no position, no sizing and no risk model, so "go long here" is unbacked BY CONSTRUCTION
+#          -- the same test A1 now passes and A2 cannot.
+#
+# `_EXEC_PHRASES` is a STRICT SUBSET of `_VALUATION_PHRASES` (verbatim alternatives, same relative order),
+# so today's fenced behaviour is byte-identical: on a fenced turn the superset already banned every one of
+# these. It exists so the OUTLOOK relaxation can keep them fenced while releasing A1.
+_EXEC_PHRASES = re.compile(
+    r"\btake[- ]profits?\b"
+    r"|\bstop[- ]loss(es)?\b"
+    r"|\b(go|get|stay|add to) (long|short)s?\b"
+    r"|\bbuy the dip\b"
+    r"|\b(fade|fading) the (move|rally|spread|breakout)\b"
+    r"|\bworth fading\b"
+    r"|\brelative value trade\b"
+    r"|\bat attractive levels\b"
+    r"|\b(good|great|nice|solid|attractive|cheap|decent|compelling)\s+(level|zone|area|spot|price|point)s?\s+to\s+(buy|accumulate|enter|add|get\s+long|load\s+up)\b"
+    r"|\bgood\s+(time|point|spot|opportunity)\s+to\s+(buy|accumulate|enter|add)\b"
+    r"|\battractive\s+entry\b"
+    r"|\bentry\s+point\b"
+    r"|\b(good|great|nice|solid|attractive|compelling)\s+entry\b"
+    r"|\bbuying\s+opportunit(y|ies)\b"
+    r"|\b(is|are|remains?|looks?|screens?|seems?|appears?)\s+a\s+(buy|sell)\b"
+    r"|\ba\s+(buy|sell)\s+at\b"
+    r"|\bload\s+up\b"
+    r"|\baccumulate\s+here\b",
+    re.I)
+# A2, part two: execution idioms the pre-W5 lexicon never carried (sizing, risk/reward, entry/exit LEVELS,
+# scaling). These are NOT members of `_VALUATION_PHRASES` and are deliberately NOT added to
+# `register_leaks` -- adding them would change what a FENCED (non-outlook) turn strips, and W5's
+# blast-radius gate is "every non-outlook answer byte-identical". They are enforced two ways instead:
+# (1) `_is_banned_sentence` strips them on an OUTLOOK turn, where A1 relaxes and the coverage is needed;
+# (2) `exec_leaks()` reports them on EVERY turn, so the deck pin `banned_exec: 0` catches them everywhere
+# even where the strip does not reach. Widen (1)+(2) freely; touching `register_leaks` is the blast radius.
+#
+# FOLD-PASS 2026-07-30, two measured defects fixed together:
+#   (a) A COMPLETE trade plan survived BOTH registers and PASSED both pins -- 'Buy at 240. Stop at 218.
+#       First target is 268. Size at 2% of NAV. Risk 22 points to make 28. I'd be a buyer.' None of those
+#       shapes was in the lexicon. They are added below, each bound to a NUMBER or an ordinal.
+#   (b) `_EXEC_EXTRA` fired UNCONDITIONALLY on every turn and its looser alternations ate honest ag prose:
+#       'Crushers cut exposure to Argentine beans', 'The mill will exit the position of a net exporter',
+#       'Traders had time to buy before the ban', 'The entry price for the tender was set by COFCO',
+#       'Position sizing of the state reserve auctions was unclear' -- 6 of 12 realistic sentences DELETED
+#       on non-outlook turns. So the alternation splits in three:
+#         _EXEC_EXTRA  -- unambiguous execution idioms, fire on their own;
+#         _EXEC_AMBIG  -- shapes that collide with market-mechanics prose, fire ONLY inside an advisory /
+#                         first-or-second-person frame or an IMPERATIVE sentence opening;
+#         _POSITION_SIZING -- fires only beside a trading noun ('3 lots'), never beside 'auctions'.
+_EXEC_EXTRA = re.compile(
+    r"\bsiz(e|ing) (the |your |a )?(trade|position)\b"
+    r"|\brisk[/ -]rewards?\b|\brisk[- ]to[- ]reward\b|\breward[/ -]to[- ]risk\b"
+    # NB: bare 'target' is deliberately ABSENT -- 'target price' is a real USDA farm-policy term (Price Loss
+    # Coverage) AND is the A1 vocabulary W5.0 releases under the derivation gate. Only the ORDER shapes
+    # below ('target at 268', 'first target is 268') are fenced, and each requires a number.
+    r"|\b(stop|entry|exit)s?\s+(at|of|around|near)\s+\d"
+    r"|\btargets?\s+(at|around|near)\s+\d"
+    r"|\b(first|second|third|next|final|initial)\s+targets?\s+(is|are|at|near|around|of)?\s*\d"
+    r"|\brisk(ing)?\s+\d+(\.\d+)?\s*(points?|ticks?|cents?|bps|handles?|%)\b"
+    # 'economies of scale in the crush' is honest ag prose -- the lookbehind drops it while keeping the
+    # trading idiom 'scale in below 240'.
+    r"|(?<!of )\bscal(e|ing) (in|out)\b"
+    r"|\b(initiate|put on|leg into) (a |an |the )?(long|short|position|trade)s?\b"
+    # ADVISORY FRAMES only. A bare 'buy now' is NOT fenced: 'China may buy now rather than wait' is honest
+    # commentary about a physical buyer. What is fenced is advice ADDRESSED TO THE READER.
+    r"|\b(you|we|one) (should|could|might|ought to|want to) (buy|sell|short|go long|accumulate)\b"
+    r"|\b(should|would) (you|we|i) (buy|sell|short)\b"
+    # 'time to buy' NARROWED to the advisory shape. The bare form deleted 'Traders had time to buy before
+    # the ban took effect.' and 'Reasons to buy Brazilian arabica included the frost.' -- both descriptive.
+    r"|\b(now|today|this|it'?s|its)\s+(is\s+)?(the\s+)?time\s+to\s+(buy|sell|short|accumulate)\b"
+    r"|\bi'?d (buy|sell|be (long|short))\b"
+    r"|\b(i|we)\s?[’']d\s+(be\s+)?(a\s+)?(buyer|seller)s?\b"
+    r"|\b(i|we)\s+(would\s+be|am|are|remain|stay)\s+(a\s+)?(buyer|seller)s?\b"
+    r"|\b(we|i)\s+(like|love)\s+(it|this|them)\s+(here|at)\b"
+    r"|\brecommend\w* (buying|selling|shorting|going (long|short))\b",
+    re.I)
+# The AMBIGUOUS half: identical vocabulary, but every one of these also has an honest market-mechanics
+# reading, so each fires only when the sentence carries an advisory frame or opens on an imperative.
+_EXEC_AMBIG = re.compile(
+    r"\b(entry|exit|stop) (level|price|zone)s?\b"
+    # 'cut' pairs ONLY with a trading noun -- "Crushers cut exposure to Argentine beans" is honest prose
+    # and must survive, while "cut your longs" is an instruction.
+    r"|\b(trim|reduce|cut) (the |your )?(longs?|shorts?|exposure)\b"
+    r"|\b(trim|exit|add to) (the |your )?position\b"
+    r"|\b(buy|sell|short|long)(ing)?\s+(it\s+|them\s+)?(at|from|near|around|below|above)\s+\d"
+    r"|\bsiz(e|ing)\s+(at|to)\s+\d",
+    re.I)
+_POSITION_SIZING = re.compile(r"\bposition siz\w*\b", re.I)
+_TRADING_NOUN = re.compile(
+    r"\b(lots?|contracts?|nav|book|risk|trade|trades|longs?|shorts?|equity|capital|notional|percent|%)\b", re.I)
+# First/second-person address -- the frame that turns market description into advice. NB 'us' is
+# DELIBERATELY absent: `\bus\b` is case-insensitive and would match "US corn ending stocks" on essentially
+# every row in this corpus, handing the ambiguous alternations a frame they must not have.
+_ADVISORY_FRAME = re.compile(r"\b(you|your|yours|we|our|ours|i|me|my|mine)\b", re.I)
+# An IMPERATIVE opening: the sentence (after a bullet marker and an optional discourse conjunction) starts
+# on a trading verb. 'Buy at 240.' / '- Trim the position into strength.' are instructions; 'The mill will
+# exit the position of a net exporter this year.' is not.
+_EXEC_IMPERATIVE = re.compile(
+    r"^\s*(?:[-*+•]\s*|\d+[.)]\s*)?(?:so\s+|and\s+|then\s+|but\s+|now\s+|also\s+)?"
+    r"(buy|sell|short|long|add|trim|cut|reduce|exit|enter|size|scale|initiate|accumulate|stop|target|risk)\b",
+    re.I)
+# The C-FAMILY reversion idioms that live inside `_VALUATION_PHRASES` for historical reasons. Detector C
+# (forward convergence) stays fenced on outlook turns -- "the premium should narrow" is a SPREAD FORECAST,
+# and an outlook leans on regimes, buffers and episodes, not on convergence. Also a strict subset.
+_REVERSION_PHRASES = re.compile(
+    r"\bdue for a (correction|pullback|reversal|bounce|snapback|reversion)\b"
+    r"|\bmean[- ]reversion\b",
+    re.I)
+
+# The two register scopes. `sanitize`/`_strip_banned_sentences`/`_is_banned_sentence` take this as a
+# keyword-only argument DEFAULTED TO `FENCED`, so every existing call site keeps today's behaviour and the
+# relaxation can only reach a seam that opted in explicitly. There is deliberately NO os.environ read in
+# this module: the mode is decided at the answer.py seam and passed DOWN as an argument, so a mis-plumbed
+# enable can never relax the suggester chip guard or the numbers/news/live bodies.
+FENCED = "fenced"
+OUTLOOK = "outlook"
+
+# -- the derivation gate itself -------------------------------------------------------------------------
+# A level is BACKED when the unit that carries it shows the arithmetic and cites every input:
+#   (a) an ANCHOR  -- a sentence naming a spot/settle level, carrying a number AND a citation handle;
+#   (b) MOVES      -- a sentence carrying signed percentage move(s) AND a citation handle (the episode set);
+#   (c) an OPERATOR-- an explicit '->' / 'implies' linking the anchor and the moves to the outputs.
+# All three -> derived outputs may be rendered uncited (they are computed, not observed). Any one missing
+# -> every sentence carrying an uncited level token is STRIPPED. Fail-closed: the default is NOT backed.
+_OUTLOOK_HEADING = re.compile(r"^#{1,6}\s*Outlook\b.*$", re.I | re.M)
+_NEXT_HEADING = re.compile(r"^#{1,6}\s+\S", re.M)
+_CIT_HANDLE = re.compile(r"\[[EN]\d+\]")
+_MOVE_TOKEN = re.compile(r"[+\-−]\s?\d+(?:\.\d+)?\s*%")
+_DERIV_OP = re.compile(r"->|→|\bimplie[sd]\b|\bimplying\b|\bworks out to\b|\bgives\b")
+# A sentence carrying one of these is stating a DERIVED OUTPUT, not quoting an observed row. It is held to
+# the derivation standard EVEN WHEN IT CARRIES A HANDLE -- otherwise a model laundered an unbacked target
+# by attaching the episode citation to the sentence that stated the levels ("episodes moved +18% [E2] ->
+# 268 / 243 / 220"), which cites the MOVES but never the SPOT the arithmetic started from.
+_DERIV_OUTPUT = re.compile(
+    r"->|→|\bimplie[sd]\b|\bimplying\b|\bworks out to\b|\bgives\b|\bmedian\b|\bmidpoint\b|\btargets?\b",
+    re.I)
+_ANCHOR_WORD = re.compile(
+    r"\b(spot|settle[sd]?|settlement|front[- ]month|last trade|last settle|current level|currently trad\w+|"
+    r"trading at|closed at)\b", re.I)
+# Numeric noise that is never a price level: citation handles, ISO/partial dates, marketing years,
+# percentages, and bare calendar years.
+_NUM_NOISE = re.compile(
+    r"\[[EN]\d+\]"                                   # citation handles
+    r"|\b\d{4}-\d{2}(-\d{2})?\b"                     # 2024-01 / 2024-01-10
+    r"|\b\d{4}/\d{2,4}\b"                            # 2023/24 marketing year
+    r"|\b\d{1,2}/\d{1,2}(/\d{2,4})?\b"               # 3/15 or 3/15/24
+    r"|[+\-−]?\s?\d+(?:\.\d+)?\s*%"             # percentages (a MOVE, not a level)
+    r"|\bQ[1-4]\b", re.I)
+# FOLD-PASS 2026-07-30. The old token regex was `\d{1,3}(?:,\d{3})*(?:\.\d+)?(?![\w%])` -- it capped the
+# integer run at THREE digits and could only extend it through a comma, and the `(?![\w%])` tail made it
+# fail to match ANY prefix of a longer run. Measured consequence: `_level_tokens('target 1450 here') == []`
+# and `sanitize('Soybeans should reach 1450 ...', OUTLOOK)` served the number VERBATIM. That is the
+# MAJORITY of this platform's quote conventions -- soybeans/rough rice ~1000-1800 cents, cocoa 2000-12000
+# USD/t, MCPO ~3500-4500 MYR/t, palm olein ~7000-9000 CNY/t. The plan's own worked example (227.25 ->
+# 268/243/220) is 3-digit, which is exactly why every test and every lint probe missed it.
+_NUM_TOKEN = re.compile(
+    r"(?<![\w.])\d{1,3}(?:,\d{3})+(?:\.\d+)?(?![\w%])"   # thousands-separated FIRST (ordered alternation)
+    r"|(?<![\w.])\d+(?:\.\d+)?(?![\w%])")                # ... else a bare run of any length
+# A bare 4-digit integer is a CALENDAR YEAR only when it is plausibly one (1900-2035) AND the sentence
+# frames it temporally. The old `^(1[89]|20)\d\d$` discarded 1800-2099 unconditionally -- so 'cocoa at
+# 2050' and even '1,850' were silently years and never levels. A separator or a decimal point is never a
+# year, so '1,850' and '2010.5' are levels regardless of frame.
+_YEAR_SHAPE = re.compile(r"^(?:19\d\d|20[0-2]\d|203[0-5])$")
+_YEAR_LEAD = re.compile(                                  # 'in 2010', 'since mid-2014', 'back in 1994'
+    r"\b(?:in|since|during|throughout|through|until|till|from|after|before|around|circa|by|as\s+of|"
+    r"back\s+in|between|versus|vs\.?)\s+(?:(?:early|mid|late)[-\s])?$", re.I)
+_YEAR_DET = re.compile(r"\b(?:the|that|this|its|our)\s+(?:(?:early|mid|late)[-\s])?$", re.I)
+_YEAR_START = re.compile(r"(?:^|[(\[,;]\s*)$")            # clause-initial '2022 saw prices double'
+_YEAR_NOUN = re.compile(r"^\s*[-–—/]?\s*[a-z]", re.I)   # '... 2010 case', '... 1994 frost'
+
+
+def _is_year_token(scrubbed: str, m) -> bool:
+    """Is this `_NUM_TOKEN` match a calendar year rather than a price level? See `_YEAR_SHAPE` above."""
+    tok = m.group(0)
+    core = tok.replace(",", "")
+    if "," in tok or "." in core or not _YEAR_SHAPE.match(core):
+        return False
+    before, after = scrubbed[:m.start()], scrubbed[m.end():]
+    if _YEAR_LEAD.search(before):
+        return True
+    return bool((_YEAR_DET.search(before) or _YEAR_START.search(before)) and _YEAR_NOUN.match(after))
+
+
+def _level_tokens(sent: str) -> list[str]:
+    """Candidate PRICE-LEVEL tokens in one sentence. Deliberately narrow: handles, dates, marketing years,
+    percentages and TEMPORALLY-FRAMED calendar years are scrubbed first, and a token must carry a decimal
+    point or at least two integer digits -- so 'three episodes', 'the 8th percentile' and 'in 2010' are
+    never levels while '227.25', '4.85', '268', '1,240', '1450' and '8500' are."""
+    scrubbed = _NUM_NOISE.sub(" ", sent or "")
+    out: list[str] = []
+    for m in _NUM_TOKEN.finditer(scrubbed):
+        tok = m.group(0)
+        core = tok.replace(",", "")
+        if _is_year_token(scrubbed, m):
+            continue
+        if "." in core or len(core.split(".")[0]) >= 2:
+            out.append(tok)
+    return out
+
+
+def _outlook_span(text: str) -> tuple[int, int]:
+    """(start, end) of the DERIVATION UNIT inside `text`: the '## Outlook' section when one is rendered,
+    else the whole text. Callers use the SPAN, not the substring, so the derivation verdict can be applied
+    PER SENTENCE POSITION -- one complete derivation under '## Outlook' must not exempt a level minted
+    three sections away (which is exactly what a text-wide flag did before the 2026-07-30 fold-pass)."""
+    t = text or ""
+    m = _OUTLOOK_HEADING.search(t)
+    if not m:
+        return (0, len(t))
+    start = m.end()
+    nxt = _NEXT_HEADING.search(t, start)
+    return (start, nxt.start() if nxt else len(t))
+
+
+def _iter_sentences(text: str):
+    """(offset, sentence) pairs on the SAME boundaries `_SENT_ITER.split` produces, but carrying the
+    offset so a sentence can be tested for membership of the derivation unit."""
+    pos = 0
+    for m in _SENT_ITER.finditer(text or ""):
+        yield pos, (text or "")[pos:m.start()]
+        pos = m.end()
+    yield pos, (text or "")[pos:]
+
+
+def outlook_unit(text: str) -> str:
+    """The DERIVATION UNIT for a piece of prose: the '## Outlook' section when one is rendered, else the
+    whole text. Scoping to the section keeps a derivation shown under '## Outlook' from silently backing a
+    level minted three sections away."""
+    lo, hi = _outlook_span(text)
+    return (text or "")[lo:hi]
+
+
+def outlook_derivation_ok(text: str) -> bool:
+    """Is the arithmetic SHOWN and every input CITED in this text's derivation unit? Fail-closed."""
+    unit = outlook_unit(text)
+    if not unit.strip():
+        return False
+    anchor = moves = False
+    for sent in _SENT_ITER.split(unit):
+        cited = bool(_CIT_HANDLE.search(sent))
+        if cited and _ANCHOR_WORD.search(sent) and _level_tokens(sent):
+            anchor = True
+        if cited and _MOVE_TOKEN.search(sent):
+            moves = True
+    return bool(anchor and moves and _DERIV_OP.search(unit))
+
+
+def unbacked_levels(text: str, *, derivation_ok: bool | None = None) -> list[tuple[str, str]]:
+    """(level-token, short-context) for every price level stated WITHOUT backing -- an uncited number in a
+    sentence that carries no citation handle, on prose whose derivation is not complete. This is the
+    deterministic teeth behind `price_target_backed`: it catches the FABRICATED number the lexicon never
+    could ('$4.85' with nothing behind it), which is the failure mode this platform exists to refuse.
+
+    SCOPED (fold-pass 2026-07-30): a complete derivation exempts ONLY the sentences that live inside the
+    derivation unit -- `outlook_unit`'s own span. Before this the verdict was text-wide, so one worked
+    example under '## Outlook' laundered every bare level in every other section, which is precisely the
+    laundering `outlook_unit` exists to prevent. When no '## Outlook' heading is rendered the whole text
+    IS the unit, so single-section prose behaves exactly as it did."""
+    prose = _strip_mermaid(text)
+    if derivation_ok is None:
+        derivation_ok = outlook_derivation_ok(prose)
+    lo, hi = _outlook_span(prose)
+    hits: list[tuple[str, str]] = []
+    for off, sent in _iter_sentences(prose):
+        if derivation_ok and lo <= off < hi:
+            continue
+        # A cited number traces to a row and is backed BY the citation -- unless the sentence is stating a
+        # DERIVED output, which no single handle can back (the arithmetic needs its anchor too).
+        if _CIT_HANDLE.search(sent) and not _DERIV_OUTPUT.search(sent):
+            continue
+        for tok in _level_tokens(sent):
+            hits.append((tok, sent.strip()[:60]))
+    return hits
+
+
+def unbacked_level_count(text: str) -> int:
+    """RAW pre-sanitize unbacked-level count (the DP-6 counter idiom): measured on EVERY turn, enforced by
+    the strip only where the register relaxed. Pinned by the deck as `price_target_backed`."""
+    return len(unbacked_levels(text))
+
+
+def _exec_extra_hits(sent: str) -> list:
+    """A2-EXTRA matches in ONE sentence. The unconditional idioms always fire; the AMBIGUOUS alternations
+    (entry/exit/stop LEVEL, trim/cut exposure, add-to/exit the position, buy/sell at <n>, size at <n>)
+    fire only when the sentence carries a first-or-second-person advisory frame or OPENS on an imperative
+    trading verb -- otherwise 'The mill will exit the position of a net exporter this year.' is deleted.
+    'position sizing' needs a trading noun beside it, so the state reserve's auctions survive."""
+    hits = list(_EXEC_EXTRA.finditer(sent))
+    if _ADVISORY_FRAME.search(sent) or _EXEC_IMPERATIVE.match(sent):
+        hits += list(_EXEC_AMBIG.finditer(sent))
+    if _TRADING_NOUN.search(sent):
+        hits += list(_POSITION_SIZING.finditer(sent))
+    return hits
+
+
+def exec_leaks(text: str) -> list[tuple[str, str]]:
+    """(token, short-context) for each A2 EXECUTION/ADVICE idiom. Unconditional -- there is no register
+    scope in which this is permitted, so the deck pins it to 0 on every row, outlook included.
+
+    SENTENCE-SCOPED for the EXTRA half (fold-pass 2026-07-30): the ambiguous alternations need the
+    sentence's frame to decide, and reporting must agree with what `_is_banned_sentence` strips."""
+    prose = _strip_mermaid(text)
+    hits: list[tuple[str, str]] = []
+    for m in _EXEC_PHRASES.finditer(prose):
+        hits.append((m.group(0).strip(), _ctx(prose, m)))
+    for _off, sent in _iter_sentences(prose):
+        for m in _exec_extra_hits(sent):
+            hits.append((m.group(0).strip(), _ctx(sent, m)))
+    return hits
+
+
+def count_exec_words(text: str) -> int:
+    """RAW pre-sanitize A2 count (mirrors count_valuation_words/count_flow_words)."""
+    return len(exec_leaks(text))
+
+
 # CLASS rule members (both pure regex): a spread-noun + a convergence verb + a modal/futurity marker in ONE
 # sentence is a forward-convergence claim; a persistence-denial word beside a price/spread noun is the mirror.
 # Past-tense dated facts ("the spread narrowed through 2016 [N2]") carry no futurity marker and stay legal.
@@ -228,41 +553,90 @@ def lane_b_hits(text: str) -> int:
     return n
 
 
-def _is_banned_sentence(sent: str) -> bool:
-    if _VALUATION_PHRASES.search(sent) or _FLOW_PHRASES.search(sent):
+def _is_banned_sentence(sent: str, *, market_register: str = FENCED, derivation_ok: bool = False) -> bool:
+    """Is this ONE sentence banned under `market_register`?
+
+    FENCED (the default, today's behaviour byte-for-byte): A or B or C or D or E.
+    OUTLOOK (W5.0): A2 execution idioms, the C-family reversion idioms and the C forward-convergence class
+    rule stay banned; A1 / B / D / E are PERMITTED and the DERIVATION GATE takes over -- a sentence stating
+    an uncited price level is banned unless the unit's arithmetic is shown and its inputs cited."""
+    outlook = (market_register == OUTLOOK)
+    # A2 EXECUTION / ADVICE -- unconditional, no register scope permits it (W5.0 + the user's ratified
+    # decision: no entry/exit levels, no stops, no sizing, no risk/reward framing, no buy/sell/long/short
+    # advice). `_EXEC_PHRASES` is a subset of A so on a fenced turn it changes nothing. `_EXEC_EXTRA` /
+    # `_EXEC_AMBIG` are the ONE deliberate exception to "every non-outlook answer byte-identical": they
+    # strip sizing/risk-reward/entry-level prose on EVERY turn, because the fence is a user decision about
+    # what this tool will say, not a property of the outlook mode. `_EXEC_AMBIG` is frame-gated so the
+    # exception costs no honest market-mechanics prose (see `_exec_extra_hits`). All of it stays out of
+    # `register_leaks` so the chip guard, the eval `register_leaks` metric and the R2/R8 lints are
+    # numerically unchanged; only the strip tightens.
+    if _EXEC_PHRASES.search(sent) or _exec_extra_hits(sent):
+        return True
+    # C-family: the reversion idioms and the forward-convergence class rule -- unconditional.
+    if _REVERSION_PHRASES.search(sent):
         return True
     if _SPREAD_NOUN.search(sent) and _CONVERGE_VERB.search(sent) and _FUTURITY.search(sent):
         return True
-    if _PERSISTENCE.search(sent) and _PRICE_SPREAD_NOUN.search(sent):
-        return True
-    return bool(_lane_b_in_sentence(sent, _LANE_B_VAL_RX) or _lane_b_in_sentence(sent, _LANE_B_FLOW_RX))
+    if not outlook:
+        if _VALUATION_PHRASES.search(sent) or _FLOW_PHRASES.search(sent):
+            return True
+        if _PERSISTENCE.search(sent) and _PRICE_SPREAD_NOUN.search(sent):
+            return True
+        return bool(_lane_b_in_sentence(sent, _LANE_B_VAL_RX) or _lane_b_in_sentence(sent, _LANE_B_FLOW_RX))
+    # OUTLOOK: the vocabulary ban is replaced by the derivation gate. A BARE number is a refusal, and so is
+    # a DERIVED output whose anchor was never cited -- see unbacked_levels for why a handle is not enough.
+    if derivation_ok:
+        return False
+    if _CIT_HANDLE.search(sent) and not _DERIV_OUTPUT.search(sent):
+        return False
+    return bool(_level_tokens(sent))
 
 
-def _strip_banned_sentences(seg: str) -> str:
+def _strip_banned_sentences(seg: str, *, market_register: str = FENCED,
+                            derivation_ok: bool | None = None,
+                            unit_span: tuple[int, int] | None = None) -> str:
     """Drop each sentence carrying a Lane A / class-rule / Lane B leak (the verify.py strip precedent). Never
-    a paraphrase. Superset of register_leaks' new-lane conditions, so register_leaks(sanitize(x)) == [] holds."""
-    if not (_VALUATION_PHRASES.search(seg) or _FLOW_PHRASES.search(seg) or _LANE_B_ADJ.search(seg)
-            or _PERSISTENCE.search(seg) or (_SPREAD_NOUN.search(seg) and _CONVERGE_VERB.search(seg))):
+    a paraphrase. Superset of register_leaks' new-lane conditions, so register_leaks(sanitize(x)) == [] holds.
+    Under `market_register=OUTLOOK` the fast path is skipped (the derivation gate fires on plain numbers that
+    carry no fence vocabulary at all) and `derivation_ok` is computed once for the segment when not supplied.
+
+    `unit_span` is the DERIVATION UNIT's (start, end) inside `seg`; a complete derivation exempts only the
+    sentences whose offset falls inside it. Default: computed from `seg` (whole seg when no '## Outlook'
+    heading is rendered, so single-section prose is unchanged)."""
+    outlook = (market_register == OUTLOOK)
+    if not outlook and not (_VALUATION_PHRASES.search(seg) or _FLOW_PHRASES.search(seg) or _LANE_B_ADJ.search(seg)
+                            or _PERSISTENCE.search(seg) or _EXEC_EXTRA.search(seg) or _EXEC_AMBIG.search(seg)
+                            or _POSITION_SIZING.search(seg)
+                            or (_SPREAD_NOUN.search(seg) and _CONVERGE_VERB.search(seg))):
         return seg
+    if outlook and derivation_ok is None:
+        derivation_ok = outlook_derivation_ok(seg)
+    lo, hi = unit_span if unit_span is not None else _outlook_span(seg)
     toks = _SENT_KEEP.split(seg)
     out: list[str] = []
+    pos = 0
     for i in range(0, len(toks), 2):
         text = toks[i]
         delim = toks[i + 1] if i + 1 < len(toks) else ""
-        if text and _is_banned_sentence(text):
+        start, pos = pos, pos + len(text) + len(delim)
+        if text and _is_banned_sentence(text, market_register=market_register,
+                                        derivation_ok=bool(derivation_ok) and lo <= start < hi):
             continue
         out.append(text + delim)
     return "".join(out)
 
 
-def register_leaks(text: str) -> list[tuple[str, str]]:
-    """(token, short-context) for each internal-representation leak in the reader prose. Empty list = clean."""
+def internal_leaks(text: str) -> list[tuple[str, str]]:
+    """INTERNAL-REPRESENTATION leaks only: markers, bare signs, graph jargon, internal-architecture prose,
+    raw contract slugs, raw regime ids, underscored SAGIS crop codes.
+
+    NEVER RELAXABLE. A slug or a `conf=` in reader prose is a BUG, not a register question -- no intent, no
+    flag and no market_register scope may permit it. W5's relaxation applies to `market_leaks` alone."""
     prose = _strip_mermaid(text)
     hits: list[tuple[str, str]] = []
-    for rx in (_MARKERS, _SIGN, _JARGON, _PROSE_PHRASES, _VALUATION_PHRASES, _FLOW_PHRASES):
+    for rx in (_MARKERS, _SIGN, _JARGON, _PROSE_PHRASES):
         for m in rx.finditer(prose):
             hits.append((m.group(0).strip(), _ctx(prose, m)))
-    hits += _class_rule_hits(prose)
     for slug in _slugs():
         for m in re.finditer(r"\b" + re.escape(slug) + r"\b", prose):
             hits.append((slug, _ctx(prose, m)))
@@ -272,6 +646,29 @@ def register_leaks(text: str) -> list[tuple[str, str]]:
     for m in _SAGIS_CROP_RX.finditer(prose):                             # underscored SAGIS crop code in prose
         hits.append((m.group(0), _ctx(prose, m)))
     return hits
+
+
+def market_leaks(text: str) -> list[tuple[str, str]]:
+    """MARKET-REGISTER leaks: Lane A valuation (A1+A2) + Lane A flow, plus the two structural class rules
+    (forward convergence, persistence denial). This is the RELAXABLE subset -- on an outlook turn A1/B/D are
+    permitted and the derivation gate replaces them. It is still measured on every turn."""
+    prose = _strip_mermaid(text)
+    hits: list[tuple[str, str]] = []
+    for rx in (_VALUATION_PHRASES, _FLOW_PHRASES):
+        for m in rx.finditer(prose):
+            hits.append((m.group(0).strip(), _ctx(prose, m)))
+    return hits + _class_rule_hits(prose)
+
+
+def register_leaks(text: str) -> list[tuple[str, str]]:
+    """(token, short-context) for each internal-representation leak in the reader prose. Empty list = clean.
+
+    W5-D1: now the CONCATENATION of the two halves -- `internal_leaks` (never relaxable) and `market_leaks`
+    (the intent-scoped subset). Behaviour-identical to the pre-split detector on every input; only the ORDER
+    of the returned pairs changed (internal tokens first, market phrases last), and no consumer reads order
+    -- eval takes len(), the chip guard and the lints take truthiness. Kept as the single public entry point
+    so the suggester chip guard (server.py) and the config lints need no edit and CANNOT be relaxed."""
+    return internal_leaks(text) + market_leaks(text)
 
 
 # ── sanitizer: rewrite the internal tokens into reader register (prompt discipline alone did not hold) ─────────
@@ -348,14 +745,33 @@ def _display_map() -> dict[str, str]:
     return out
 
 
-def sanitize(text: str) -> str:
+def sanitize(text: str, *, market_register: str = FENCED) -> str:
     """Rewrite internal tokens into a commodity researcher's register: `conf=high`->"high confidence",
     `sign=+`->"points to higher prices", `(+)`->"(upward price pressure)", any residual "bullish"/"bearish"
     ->"price-supportive"/"price-pressuring", raw contract slugs->spelled-out names, structural markers stripped.
     Leaves the ```mermaid block untouched (the diagram may carry signs), and preserves citation markers
-    ([E1]/[N2]), numbers, and dates. Idempotent, and register_leaks(sanitize(x)) == []."""
+    ([E1]/[N2]), numbers, and dates. Idempotent.
+
+    INVARIANTS (W5-D2 Step 4):
+        internal_leaks(sanitize(x, market_register=ANY))     == []   # unconditional -- a leak is a bug
+        exec_leaks(sanitize(x, market_register=ANY))         == []   # A2 execution idioms, unconditional
+        market_leaks(sanitize(x, market_register=FENCED))    == []   # today's invariant, unchanged
+        unbacked_levels(sanitize(x, market_register=OUTLOOK)) == []  # W5.0: a bare number is a refusal
+
+    `market_register` is KEYWORD-ONLY and defaults to FENCED, so the twelve existing call sites are
+    byte-identical and the relaxation reaches only a seam that opted in by name. On OUTLOOK the mood words
+    (bullish/bearish) also survive, per W5.0 -- they are a directional read, and the derivation gate, not
+    the lexicon, is what keeps that read honest."""
     if not text:
         return text
+    outlook = (market_register == OUTLOOK)
+    # ONE derivation verdict for the whole text -- but it is APPLIED per sentence position, only inside the
+    # derivation unit (`_outlook_span`). Computed before the mermaid split so a fenced diagram cannot
+    # change it. `_has_unit` records whether a '## Outlook' heading was rendered at all: if one was and
+    # THIS segment does not carry it, the segment sits outside the unit and gets NO exemption (fail-closed
+    # -- a mermaid fence between the heading and its prose must never widen the gate).
+    deriv_ok = outlook_derivation_ok(_strip_mermaid(text)) if outlook else False
+    _has_unit = bool(_OUTLOOK_HEADING.search(_strip_mermaid(text))) if outlook else False
     disp = _display_map()
     parts = re.split(r"(```mermaid.*?```)", text, flags=re.S)             # keep the diagram fenced-off
     for i, seg in enumerate(parts):
@@ -373,7 +789,13 @@ def sanitize(text: str) -> str:
         for rid in _regime_ids():                                        # longest-first -> humanize regime ids
             seg = re.sub(r"\b" + re.escape(rid) + r"\b", _regime_label(rid), seg)
         seg = _SAGIS_CROP_RX.sub(lambda m: m.group(1).replace("_", " "), seg)   # SAGIS crop code -> friendly
-        seg = _MOOD.sub(_mood_word, seg)                                 # neutralize any residual mood word
-        seg = _strip_banned_sentences(seg)                               # LAST: strip valuation/flow/Lane-B sentences
+        if not outlook:                                                  # W5.0: _MOOD permitted on outlook turns
+            seg = _MOOD.sub(_mood_word, seg)                             # neutralize any residual mood word
+        _span = None
+        if outlook:
+            _span = _outlook_span(seg) if (not _has_unit or _OUTLOOK_HEADING.search(seg)) else (0, 0)
+        seg = _strip_banned_sentences(seg, market_register=market_register,   # LAST: strip valuation/flow/
+                                      derivation_ok=deriv_ok,                 #  Lane-B / A2 / unbacked-level
+                                      unit_span=_span)
         parts[i] = seg                                                   #   (never a paraphrase -- DP-6 strip)
     return "".join(parts)

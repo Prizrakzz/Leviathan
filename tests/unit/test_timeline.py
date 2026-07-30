@@ -55,9 +55,13 @@ def test_receipt_attaches_in_window_prop_and_renders(monkeypatch, tmp_path):
     assert r and r["date"] == "2021-07-10" and "Minas Gerais" in r["text"]   # in-window prop is the receipt
     line = tl.render_line("frost", eps)
     assert "report TIMESTAMPS, not descriptions" in line and '2021-07-10: "A damaging frost' in line
-    # no evidence -> count only, no receipt (still renders honestly)
+    # F-I: no evidence -> the episode is KEPT (its n is a PIT recount, not a retrieval result) and the
+    # missing receipt is STATED. A bare "(2 reports)" with no marker was the confabulation invitation.
     bare = tl.episodes_for("drivers/frost", "2021-08-01", evidence=[])
-    assert bare[0]["receipt"] is None and "reports)" in tl.render_line("frost", bare)
+    assert bare[0]["receipt"] is None and bare[0]["n"] == 2
+    bare_line = tl.render_line("frost", bare)
+    assert tl._NO_RECEIPT in bare_line and "do not narrate" in bare_line
+    assert "(2 reports)" not in bare_line                            # never a naked count
     monkeypatch.delenv("GRAPHRAG_TIMELINE")
     monkeypatch.delenv("GRAPHRAG_TIMELINE_PATH")
     tl.reset_cache()
@@ -69,7 +73,8 @@ def test_derive_with_fake_query_fn_and_render():
         {"node": "arabica_coffee", "d": "1994-06-10"}])
     assert set(eps) == {"drivers/frost", "arabica_coffee"} and len(eps["drivers/frost"]) == 1
     line = tl.render_line("frost", [{"start": "2021-06-01", "end": "2021-07-01", "n": 2, "receipt": None}])
-    assert "DATED EPISODES for frost" in line and "2021-06..2021-07 (2 reports)" in line
+    assert "DATED EPISODES for frost" in line and "2021-06..2021-07 (2 reports; " in line
+    assert tl._NO_RECEIPT in line                                    # F-I marker, never a naked count
 
 
 def test_ground_attaches_pit_episodes(tmp_path, monkeypatch):

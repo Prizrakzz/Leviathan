@@ -184,8 +184,15 @@ def roll_summary(state: SessionState, turn: TurnRecord, *, graph=None, call=None
                    user, model=model, tool=_summary_tool()) or {}
         known = set(getattr(graph, "contracts", {}) or {})
         ents = [e for e in (out.get("entities") or []) if not known or e in known][:8]
-        state.summary = {"entities": ents, "thesis": str(out.get("thesis") or "")[:400],
-                         "open_threads": [str(x)[:160] for x in (out.get("open_threads") or [])[:5]]}
+        # W5 F-H: the durable summary is injected into EVERY later turn's prompt, including plain mechanism
+        # turns running the FENCED register -- so it is sanitized market_register="fenced" UNCONDITIONALLY.
+        # The turn tl;dr feeding this call is already fenced at the orchestrator seam; this fences the
+        # compactor's OWN paraphrase, which is the half a fenced input cannot cover.
+        from leviathan.graphrag import register as _reg                # lazy: session is imported very early
+        state.summary = {"entities": ents,
+                         "thesis": _reg.sanitize(str(out.get("thesis") or ""), market_register=_reg.FENCED)[:400],
+                         "open_threads": [_reg.sanitize(str(x), market_register=_reg.FENCED)[:160]
+                                          for x in (out.get("open_threads") or [])[:5]]}
     except Exception:  # noqa: BLE001 — compaction must never break the turn
         pass
     return state

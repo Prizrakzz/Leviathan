@@ -815,6 +815,113 @@ def _check_register_detector() -> list[str]:
     return errs
 
 
+# W5.0 outlook-fence probes. The A1/A2 partition of detector A is the load-bearing decision of the wave, so
+# it is asserted at BUILD TIME rather than trusted to a prompt paragraph -- a prompt-only fence is one
+# paraphrase from failing. Every probe below is a real sentence a model could emit on an outlook turn.
+_OUTLOOK_A2 = (                                        # EXECUTION/ADVICE -- refused under EVERY register
+    "take-profit here", "a stop-loss below 240", "go long soyoil", "buy the dip", "fade the rally",
+    "worth fading", "a relative value trade", "at attractive levels", "this is a good level to buy",
+    "a good time to buy", "attractive entry", "the entry point is 240", "buying opportunity",
+    "coffee is a buy", "a buy at 240", "load up", "accumulate here",
+    "size the position at 2% risk", "position sizing of 3 lots", "the risk/reward is 3:1",
+    "set your exit level at 300", "scale in below 240", "trim the position into strength",
+    "initiate a long here", "you should buy soybeans", "should you buy here",
+    "now is the time to buy", "i'd be long here", "we recommend going long",
+    # (c) THE CORPUS WRITTEN BY SOMEONE WHO DID NOT READ THE LEXICON (fold-pass 2026-07-30). Every probe
+    # above was a verbatim member of `_EXEC_PHRASES`, so the lint only ever proved the regex matched
+    # itself. These are the shapes a COMPLETE trade plan actually uses, and a measured run of all seven
+    # through the real path returned banned_exec == 0 and served the plan VERBATIM under OUTLOOK.
+    "buy at 240", "stop at 218", "first target is 268", "size at 2% of nav",
+    "risk 22 points to make 28", "i'd be a buyer here", "we like it here and would add")
+_OUTLOOK_A1 = (                                        # VALUATION -- fenced today, PERMITTED under outlook
+    "raise the price target", "the spread looks cheap", "undervalued", "overvalued", "mispriced",
+    "dislocated", "overdone", "overshot", "fair value", "it screens rich")
+_OUTLOOK_C = (                                         # forward-convergence -- fenced under BOTH registers
+    "the premium should converge next quarter", "the discount has room to normalize",
+    "due for a correction", "mean reversion favors the discount narrowing")
+# A COMPLETE derivation: spot anchor cited, episode moves cited, arithmetic shown. Levels are legal here.
+_OUTLOOK_DERIVED = (
+    "Spot 227.25 EUR/t (Sep-26 settle) [N1]. Three comparable episodes moved +18% / +7% / -3% over 90 "
+    "days [E2] -> 268 / 243 / 220; median 243. The 2010 case reversed inside the window.")
+# The SAME claim with the derivation removed -- a bare number. Under W5.0 this is a REFUSAL, and it is the
+# single probe that proves the gate is about DERIVATION and not about vocabulary.
+_OUTLOOK_BARE = "Coffee should reach 268 by year end. We see 243 as the base case."
+# (a) FOUR-DIGIT BARE TARGETS, one per quote convention. Every level in the two probes above is 3-digit or
+# decimal, which is exactly why the old `\d{1,3}(?:,\d{3})*` token regex passed this lint while being blind
+# to soybeans/rough rice (cents ~1000-1800), cocoa (USD/t 2000-12000), MCPO (MYR/t ~3500-4500) and palm
+# olein (CNY/t ~7000-9000) -- the MAJORITY of the platform's contracts.
+_OUTLOOK_BARE_4D = (
+    ("Soybeans should reach 1450 by January.", "1450"),
+    ("Cocoa prints 8500 on any further Ivorian shortfall.", "8500"),
+    ("Palm olein trades up to 7200 into the seasonal low.", "7200"),
+    ("MCPO settles at 4250 once stocks draw.", "4250"),
+    ("Rough rice works back to 1,850 on the export ban.", "1,850"),
+    ("Coffee holds 1015.5 through the harvest.", "1015.5"))
+# (b) A TWO-SECTION probe: a COMPLETE derivation under '## Outlook' beside a BARE level in '## Mechanism'.
+# The derivation must not back the other section -- the laundering `outlook_unit`'s own docstring forbids.
+_OUTLOOK_CROSS_SECTION = (
+    "## Mechanism\nOur fair value is 310.5 on the current balance sheet.\n\n"
+    "## Outlook\nSpot 227.25 EUR/t (Sep-26 settle) [N1]. Three episodes moved +18% / +7% / -3% "
+    "[E2] -> 268 / 243 / 220; median 243.")
+
+
+def _check_outlook_fence() -> list[str]:
+    """W5.0 derivation gate + the A1/A2 partition, asserted deterministically at build time.
+
+    Four properties, each of which would silently rot if only the prompt enforced it:
+      1. A2 execution idioms are refused under BOTH registers (nothing can back an execution instruction).
+      2. A1 valuation is fenced by default and PERMITTED under outlook (the relaxation actually happened).
+      3. Detector C stays fenced under both (an outlook leans on regimes and buffers, not convergence).
+      4. A derived level survives WITH its derivation and is REFUSED without it."""
+    from leviathan.graphrag import register as reg
+    errs: list[str] = []
+    for probe in _OUTLOOK_A2:
+        if not reg.exec_leaks(probe):
+            errs.append(f"W5 A2: execution probe not detected: {probe!r}")
+        for mr in (reg.FENCED, reg.OUTLOOK):
+            if probe in reg.sanitize(probe + ". Ending stocks fell [N1].", market_register=mr):
+                errs.append(f"W5 A2: execution probe SURVIVED sanitize(market_register={mr!r}): {probe!r}")
+    for probe in _OUTLOOK_A1:
+        if not reg.register_leaks(probe):
+            errs.append(f"W5 A1: valuation probe not detected at all: {probe!r}")
+        if probe in reg.sanitize(probe + ".", market_register=reg.FENCED):
+            errs.append(f"W5 A1: valuation probe survived the FENCED strip: {probe!r}")
+        if probe not in reg.sanitize(probe + " [E1].", market_register=reg.OUTLOOK):
+            errs.append(f"W5 A1: valuation probe was NOT released under outlook: {probe!r}")
+    for probe in _OUTLOOK_C:
+        for mr in (reg.FENCED, reg.OUTLOOK):
+            if probe in reg.sanitize(probe + ".", market_register=mr):
+                errs.append(f"W5 C: convergence probe survived sanitize(market_register={mr!r}): {probe!r}")
+    if not reg.outlook_derivation_ok(_OUTLOOK_DERIVED):
+        errs.append("W5 derivation gate: the COMPLETE worked example did not register as derived")
+    if "268" not in reg.sanitize(_OUTLOOK_DERIVED, market_register=reg.OUTLOOK):
+        errs.append("W5 derivation gate: a level with its derivation shown was WRONGLY stripped")
+    if reg.unbacked_level_count(_OUTLOOK_DERIVED):
+        errs.append("W5 derivation gate: a fully derived level counted as unbacked")
+    if reg.outlook_derivation_ok(_OUTLOOK_BARE):
+        errs.append("W5 derivation gate: a BARE level registered as derived (the gate fails OPEN)")
+    if "268" in reg.sanitize(_OUTLOOK_BARE, market_register=reg.OUTLOOK):
+        errs.append("W5 derivation gate: a BARE level survived the outlook strip -- a refusal was expected")
+    if reg.unbacked_level_count(_OUTLOOK_BARE) < 1:
+        errs.append("W5 derivation gate: a BARE level was not counted (price_target_backed would false-pass)")
+    for probe, level in _OUTLOOK_BARE_4D:              # (a) the 4-digit blind spot, per quote convention
+        if not reg.unbacked_level_count(probe):
+            errs.append(f"W5 derivation gate: 4-digit bare level NOT counted: {probe!r}")
+        if level in reg.sanitize(probe, market_register=reg.OUTLOOK):
+            errs.append(f"W5 derivation gate: 4-digit bare level SURVIVED the outlook strip: {probe!r}")
+    # (b) a complete derivation under '## Outlook' must NOT back a level minted in another section
+    if not reg.outlook_derivation_ok(_OUTLOOK_CROSS_SECTION):
+        errs.append("W5 derivation gate: the cross-section probe's '## Outlook' derivation did not register")
+    _cross = reg.sanitize(_OUTLOOK_CROSS_SECTION, market_register=reg.OUTLOOK)
+    if "310.5" in _cross:
+        errs.append("W5 derivation gate: an out-of-unit bare level was LAUNDERED by the '## Outlook' unit")
+    if "268" not in _cross:
+        errs.append("W5 derivation gate: the in-unit derived level was wrongly stripped")
+    if not reg.unbacked_level_count(_OUTLOOK_CROSS_SECTION):
+        errs.append("W5 derivation gate: an out-of-unit bare level was not COUNTED (pin would false-pass)")
+    return errs
+
+
 def _check_no_engine_ref(cmap, tables, rule: str, label: str) -> list[str]:
     """R4/R9: no cascade_map ref may point at a fenced table. complex_map sides carry cascade refs (side.ref),
     so they inherit this check for free -- a price/positioning leg can never resolve through the engine map."""
@@ -902,6 +1009,9 @@ def check_price_register() -> list[str]:
                             f"curated coverage {sorted(_FARM_PRICE_COMMODITIES)}")
     # R2/R8: the lexicon provably ships before any flag.
     errs += _check_register_detector()
+    # W5.0: the A1/A2 partition + the derivation gate, likewise before any flag. The outlook relaxation is
+    # only ever as safe as this check -- it is what proves A2 is still refused on the turn where A1 opened.
+    errs += _check_outlook_fence()
     # R3: avg_farm_price (once whitelisted) demands estimate_role-first vintage_tiebreak + provenance_col.
     wasde = tables.get("silver_wasde")
     if wasde is not None and "avg_farm_price" in wasde.metrics and getattr(
