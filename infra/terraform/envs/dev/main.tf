@@ -219,19 +219,15 @@ module "cloudwatch" {
   ecs_service_name = module.serving.service_name
   waf_web_acl_name = "${var.project_name}-${var.environment}-serving"
 }
+# REMOVED 2026-07-30 (drift reconciliation): module "mlflow_server" -- the EC2 MLflow.
+# MLflow moved to Fargate (module.mlflow_fargate) and the EC2 stack was RETIRED, but the module
+# declaration lingered in config while NOTHING of it existed live: verified across the account --
+# no instance in any state, no IAM role, no instance profile, no security group, neither managed
+# policy. A blanket apply would therefore have RESURRECTED the retired server (9 resources).
+# Nothing referenced its outputs (instance_id / private_ip / tracking_uri / airflow_ui_uri);
+# envs/dev/outputs.tf reads module.mlflow_fargate[0].tracking_uri instead. var.mlflow_ami_id and
+# var.mlflow_root_volume_size_gib are now unused and were removed with it.
 
-module "mlflow_server" {
-  source = "../../modules/mlflow_server"
-
-  project_name = var.project_name
-  environment  = var.environment
-  aws_region   = var.aws_region
-  bucket_name  = var.bucket_name
-  # Reuse the first Batch subnet — same VPC, same routing to S3 and SageMaker.
-  subnet_id            = var.batch_subnet_ids[0]
-  ami_id               = var.mlflow_ami_id
-  root_volume_size_gib = var.mlflow_root_volume_size_gib
-}
 
 # ---------------------------------------------------------------------------
 # Phase 4.1 — GraphRAG serving on ECS Fargate + ALB (EVIDENCE_BACKEND=pg,
@@ -247,6 +243,12 @@ data "aws_subnet" "serving" {
 # pg DSN secret (created out-of-band with the RDS in the pgvector migration).
 data "aws_secretsmanager_secret" "pg_dsn" {
   name = "leviathan/dev/evidence-pg-dsn"
+}
+
+# Anthropic API key for the serving task (created out of band; mounted on the running service
+# since before the 2026-07-30 drift reconciliation wrote it back into config).
+data "aws_secretsmanager_secret" "anthropic_api_key" {
+  name = "leviathan-dev-anthropic-api-key"
 }
 
 # The serving image repo (created outside Terraform; image pushed by
@@ -434,6 +436,20 @@ module "serving" {
   target_group_arn      = module.serving_alb.target_group_arn
 
   container_image    = "${data.aws_ecr_repository.embedder.repository_url}:${var.serving_image_tag}"
+
+  # RECONCILED TO LIVE 2026-07-30 (drift). State was pinned at task-def rev 23 while the service
+  # ran rev 67, so config had drifted three ways that a blanket apply would have SHIPPED:
+  #  - sizing: config set neither cpu nor memory, so the module defaults (2048 / 8192) would have
+  #    HALVED the running task and reverted the latency-RCA Phase-0 fix. Live is 4096 / 16384.
+  #  - secrets: the task mounts ANTHROPIC_API_KEY alongside EVIDENCE_PG_DSN; without it the
+  #    serving container loses its Anthropic credential outright.
+  # (The 16 missing env keys + 2 reverted values are reconciled in extra_environment below.)
+  cpu    = 4096
+  memory = 16384
+
+  extra_secrets = {
+    ANTHROPIC_API_KEY = data.aws_secretsmanager_secret.anthropic_api_key.arn
+  }
   task_role_arn      = module.iam.batch_job_role_arn
   execution_role_arn = module.iam.batch_execution_role_arn
 
@@ -483,8 +499,8 @@ module "serving" {
 
     # Stage 5.0/5.4 latency: tighten the rerank coalescer (default 4.0/0.8) — the exact eligible-count already
     # short-circuits, so this only trims the empty-retrieval straggler wait. env-tunable, no rebuild.
-    GRAPHRAG_COALESCE_WINDOW     = "1.5"
-    GRAPHRAG_COALESCE_QUIESCENCE = "0.3"
+    GRAPHRAG_COALESCE_WINDOW     = "4.0"
+    GRAPHRAG_COALESCE_QUIESCENCE = "2.5"
 
     # Stage 5.3 R1 (+ speed follow-up): cold-start cache. On startup the task syncs the bge models from S3 in
     # parallel instead of downloading from HuggingFace; the first task self-seeds. The /v2 prefix holds the
@@ -509,6 +525,35 @@ module "serving" {
     # register-clean 100%). Needs GRAPHRAG_CONVERGENCE_WARM=on (catalog reads the warm cache only; cold -> base
     # prompt). Fail-open to the byte-identical base prompt on any error. Rollback = remove the key.
     GRAPHRAG_SUGGEST_CATALOG = "on"
+    # ------------------------------------------------------------------------------------------
+    # RECONCILED TO LIVE 2026-07-30 (drift). These 16 keys were SET ON THE RUNNING SERVICE (task
+    # definition rev 67) but had never been written back into config -- every one arrived through a
+    # manual `update-service`, which terraform cannot see because aws_ecs_task_definition re-reads
+    # only the revision it created (state was pinned at rev 23). A blanket apply would therefore
+    # have registered a task def WITHOUT them and turned off most of the shipped product:
+    # co-move, the three cascade legs + transmission, reroute v2, notifications, context attach,
+    # convergence intensity, the family facet, the trivial router, cross-commodity LLM detect --
+    # plus the two pg settings from the latency RCA (pool 8, the 300s statement timeout that fixed
+    # the floor) and the provider pin. GRAPHRAG_COALESCE_{WINDOW,QUIESCENCE} above were likewise
+    # corrected 1.5/0.3 -> 4.0/2.5 to match live.
+    # ------------------------------------------------------------------------------------------
+    EVIDENCE_PG_POOL                 = "8"
+    EVIDENCE_PG_STATEMENT_TIMEOUT_MS = "300000"
+    GRAPHRAG_PROVIDER                = "anthropic"
+    GRAPHRAG_COMOVE                  = "on"
+    GRAPHRAG_CONTEXT_ATTACH          = "on"
+    GRAPHRAG_CASCADE_CHAIN           = "on"
+    GRAPHRAG_CASCADE_PACE_LEG        = "on"
+    GRAPHRAG_CASCADE_PRICE_LEG       = "on"
+    GRAPHRAG_CASCADE_TRANSMISSION    = "on"
+    GRAPHRAG_CONVERGENCE_INTENSITY   = "on"
+    GRAPHRAG_FAMILY_FACET            = "on"
+    GRAPHRAG_NOTIFICATIONS           = "on"
+    GRAPHRAG_REROUTE_V2              = "on"
+    GRAPHRAG_ROLLUP_ASYNC            = "off"
+    GRAPHRAG_TRIVIAL_ROUTER          = "on"
+    GRAPHRAG_XC_LLM_DETECT           = "on"
+
   }
 
   # Stage 1: guardrail on, auth off, CORS = localhost (defaults in the module).
@@ -517,59 +562,22 @@ module "serving" {
   depends_on = [module.serving_alb] # listener must exist before the service registers
 }
 
-# ---------------------------------------------------------------------------
-# A-W8 -- MLflow tracking server relocated to ECS Fargate on the existing
-# serving cluster, backed by a new `mlflow` database on leviathan-dev-pg,
-# reachable at mlflow.leviathan.local:5000 (Cloud Map). Artifacts stay on S3.
-# Apply ONLY via `-target=module.mlflow_fargate` AFTER the out-of-band cutover
-# steps (pg db + secret + `mlflow db upgrade`). Wire into A-W9 (EC2 retire).
-# ---------------------------------------------------------------------------
-module "mlflow_fargate" {
-  source = "../../modules/mlflow_fargate"
+# REMOVED 2026-07-30 (user-directed: "destroy it, we don't need it"): module "mlflow_fargate".
+# It was already count-gated OFF since the 2026-07-26 cost decommission, so it created nothing and
+# this removal changes NOTHING live -- state carries no mlflow_fargate resources. It is deleted
+# rather than left gated because the gate was a reversible pause and the decision is now permanent.
+#
+# WHAT THIS GIVES UP, recorded so a future restore is not a surprise: the old block WAS the restore
+# path (flip mlflow_enabled -> true and apply). Bringing MLflow back now means restoring this block
+# from git history -- modules/mlflow_fargate/ still exists on disk, so it is a revert, not a
+# rewrite. The ALB it owned is the reason the module had to be gated rather than partially deleted.
+#
+# DEPENDENCY WORTH KNOWING: the three training/certification jobdefs talk to MLflow over Cloud Map
+# (http://mlflow.leviathan.local:5000), NOT through the deleted ALB. They have had no server to
+# reach since 2026-07-26, so this changes nothing for them today -- but if MLflow tracking is ever
+# wanted again, they are the consumers that care. The separate module.ecr_mlflow (which still holds
+# 6 images) is intentionally NOT touched here.
 
-  # DECOMMISSIONED 2026-07-26 (user-directed, cost). The tracking server was scaled to desiredCount=0 and
-  # this module then gated off. What it was costing: the internet-facing ALB bills ~$16-18/mo whether or
-  # not a target is healthy, and it had ZERO healthy targets once the service stopped -- a front door to
-  # nothing. The ALB cannot be removed on its own: it lives in this module beside the service, listeners,
-  # target group, Route53 record and Cognito client, so an out-of-band delete would drift state and the
-  # next apply would silently resurrect it (and the bill). Gating the module is the only DURABLE off.
-  # Nothing in the pipeline breaks: the three training/certification jobdefs reach MLflow over Cloud Map
-  # (http://mlflow.leviathan.local:5000), never through this ALB -- the ALB served only the human web UI
-  # at mlflow.leviathanconvexity.com. The ECR repo (module.ecr_mlflow) is a SEPARATE module and is
-  # untouched, so the image survives and a restore is fast.
-  # TO RESTORE: flip mlflow_enabled back to true and `terraform apply -target=module.mlflow_fargate`.
-  # The ALB returns with a NEW DNS name; the module's own Route53 record repoints automatically.
-  count = var.mlflow_enabled ? 1 : 0
-
-  project_name = var.project_name
-  environment  = var.environment
-  aws_region   = var.aws_region
-  bucket_name  = var.bucket_name
-
-  vpc_id     = data.aws_subnet.serving.vpc_id
-  subnet_ids = var.batch_subnet_ids
-
-  # Runs on the existing serving cluster (no second cluster).
-  cluster_arn = module.serving.cluster_arn
-
-  # Same RDS SG the serving task already sources from; adds the one 5432 rule.
-  rds_security_group_id  = tolist(data.aws_db_instance.pg.vpc_security_groups)[0]
-  backend_dsn_secret_arn = local.mlflow_backend_dsn_secret_arn
-
-  # Problem 2: internet-facing authenticated endpoint at https://mlflow.leviathanconvexity.com,
-  # reusing the serving *.leviathanconvexity.com wildcard cert + the public Route53 zone + the
-  # EXISTING Cognito pool (a dedicated ALB app client is minted in it). The user signs in with their
-  # existing Google account and lands on MLflow. Kill-switch: set mlflow_public_https=false to fall
-  # back to an HTTP:80 ALB locked to mlflow_admin_cidrs (the dormant serving_admin_cidrs).
-  mlflow_public_https      = true
-  public_domain            = var.public_domain
-  public_zone_id           = var.public_zone_id
-  certificate_arn          = var.serving_certificate_arn
-  cognito_user_pool_id     = module.cognito.user_pool_id
-  cognito_user_pool_arn    = "arn:aws:cognito-idp:${var.aws_region}:${data.aws_caller_identity.current.account_id}:userpool/${module.cognito.user_pool_id}"
-  cognito_user_pool_domain = module.cognito.domain_prefix
-  mlflow_admin_cidrs       = var.serving_admin_cidrs
-}
 
 # ---------------------------------------------------------------------------
 # Monthly cost budget — alerts at 80 % actual and 100 % forecasted.

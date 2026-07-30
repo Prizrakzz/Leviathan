@@ -69,7 +69,12 @@ variable "serving_admin_cidrs" {
 variable "serving_image_tag" {
   type        = string
   description = "Tag of the leviathan-dev-leviathan-embedder serving image the task runs."
-  default     = "latest"
+  # PINNED 2026-07-30 (drift reconciliation), was "latest". The running service is on digest
+  # sha256:00fcd043... = tag 20260725rev72, while :latest had moved on to sha256:6717f599...
+  # (tag 20260728d785af30). A default of "latest" therefore meant any apply touching the task
+  # definition would have silently DEPLOYED A DIFFERENT, UNVALIDATED IMAGE. A serving image is
+  # promoted deliberately, so the default now names the promoted build; bump it when you promote.
+  default     = "20260725rev72"
 }
 
 # Stage 2: the ACM wildcard cert (leviathanconvexity.com + *) created in the console. us-east-1.

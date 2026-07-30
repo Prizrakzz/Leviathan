@@ -131,9 +131,10 @@ resource "aws_ecs_task_definition" "this" {
 
       environment = local.environment_list
 
-      secrets = [
-        { name = "EVIDENCE_PG_DSN", valueFrom = var.pg_dsn_secret_arn }
-      ]
+      secrets = concat(
+        [{ name = "EVIDENCE_PG_DSN", valueFrom = var.pg_dsn_secret_arn }],
+        [for k, v in var.extra_secrets : { name = k, valueFrom = v }],
+      )
 
       logConfiguration = {
         logDriver = "awslogs"

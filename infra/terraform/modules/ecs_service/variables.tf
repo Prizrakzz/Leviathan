@@ -152,3 +152,13 @@ variable "tags" {
   type    = map(string)
   default = {}
 }
+
+# The serving task mounts a SECOND secret in dev (the Anthropic key, added out of band via
+# update-service and only written back into config during the 2026-07-30 drift reconciliation).
+# Optional so any other caller of this module is unaffected: empty = the original single-secret
+# shape, byte for byte.
+variable "extra_secrets" {
+  type        = map(string)
+  description = "Additional container secrets as {ENV_NAME = secret_arn}. Empty by default."
+  default     = {}
+}
