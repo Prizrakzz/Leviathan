@@ -1192,3 +1192,112 @@ module "eventbridge" {
     }
   }
 }
+
+# ---------------------------------------------------------------------------
+# SILVER-F082 addendum (2026-07-30, user-approved): the freshness POLLER schedule.
+# Discovery that forced this: FreshnessLagDays had ZERO datapoints for ANY family in the 7 days
+# before 2026-07-30 -- scripts/silver/freshness_poller.py existed but NOTHING scheduled it, so all
+# 26 freshness alarms (treat_missing_data=breaching, by design) had been evaluating an absent
+# metric since they were applied. The first manual emit moved 22 families to OK and exposed 4
+# genuinely stale ones, which is exactly the signal the layer was built to carry. Daily at 12:30
+# UTC; a MISSED day surfaces as missing-data breaching on every family, which is honest -- so no
+# DLQ and no retries beyond the scheduler's one delivery (mirrors the sweep's 0-retry reasoning,
+# with the opposite conclusion on DLQ because a poller miss self-announces).
+# ---------------------------------------------------------------------------
+resource "aws_iam_role" "freshness_poller_scheduler" {
+  name = "${var.project_name}-${var.environment}-freshness-poller-scheduler"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "scheduler.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+  tags = { Project = var.project_name, Environment = var.environment, ManagedBy = "terraform" }
+}
+
+resource "aws_iam_role_policy" "freshness_poller_scheduler" {
+  name = "${var.project_name}-${var.environment}-freshness-poller-scheduler"
+  role = aws_iam_role.freshness_poller_scheduler.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = "batch:SubmitJob"
+      Resource = [
+        module.batch.job_queue_arn,
+        "arn:aws:batch:${var.aws_region}:*:job-definition/${var.project_name}-${var.environment}-raw-ingest-runner*",
+      ]
+    }]
+  })
+}
+
+# cloudwatch:PutMetricData for the poller's emit, on the raw-landing job role it runs under.
+# Namespace-scoped via the condition key -- the poller writes Leviathan/Silver and nothing else.
+resource "aws_iam_role_policy" "batch_job_freshness_put_metric" {
+  name = "${var.project_name}-${var.environment}-freshness-put-metric"
+  role = module.iam.batch_job_role_name
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Action    = "cloudwatch:PutMetricData"
+      Resource  = "*"
+      Condition = { StringEquals = { "cloudwatch:namespace" = "Leviathan/Silver" } }
+    }]
+  })
+}
+
+resource "aws_scheduler_schedule" "freshness_poller" {
+  name  = "${var.project_name}-${var.environment}-freshness-poller"
+  state = "ENABLED"
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+  schedule_expression = "cron(30 12 * * ? *)" # 12:30 UTC daily, after the overnight publish wave
+
+  target {
+    arn      = "arn:aws:scheduler:::aws-sdk:batch:submitJob"
+    role_arn = aws_iam_role.freshness_poller_scheduler.arn
+    input = jsonencode({
+      JobName       = "freshness-poller"
+      JobQueue      = module.batch.job_queue_arn
+      JobDefinition = "${var.project_name}-${var.environment}-raw-ingest-runner"
+      ContainerOverrides = {
+        # INLINE, deliberately: the worker image copies src/ + jobs/ + configs/ + sql/ but NOT
+        # scripts/, so ["scripts/silver/freshness_poller.py"] would die at container start -- the
+        # exact silently-dead failure the 2026-07-28 sweep incident documents above. The shared
+        # logic (poll_targets / newest_last_modified / lag_days / metric_data_for) lives in
+        # leviathan.silver.freshness, which IS in the image; this is only the thin emit loop from
+        # scripts/silver/freshness_poller.py. If the Dockerfile ever gains COPY scripts/, replace
+        # this with the script path and delete the inline form.
+        Command = ["-c", join("
+", [
+          "import boto3, datetime as dt",
+          "from leviathan.silver.freshness import poll_targets, newest_last_modified, lag_days, metric_data_for, METRIC_NAMESPACE",
+          "now = dt.datetime.now(dt.timezone.utc)",
+          "s3 = boto3.client('s3'); cw = boto3.client('cloudwatch')",
+          "md = []",
+          "for t in sorted(poll_targets(), key=lambda x: x.table):",
+          "    pages = s3.get_paginator('list_objects_v2').paginate(Bucket=t.bucket, Prefix=t.prefix)",
+          "    objs = (o for page in pages for o in page.get('Contents', []) or [])",
+          "    lag = lag_days(newest_last_modified(objs), now)",
+          "    if lag is None:",
+          "        print('EMPTY ' + t.table)",
+          "        continue",
+          "    print('%-42s lag_days=%.2f' % (t.table, lag))",
+          "    md.extend(metric_data_for(t.table, t.family, lag, timestamp=now))",
+          "for i in range(0, len(md), 20):",
+          "    cw.put_metric_data(Namespace=METRIC_NAMESPACE, MetricData=md[i:i+20])",
+          "print('put %d datapoints' % len(md))",
+        ])]
+      }
+    })
+    retry_policy {
+      maximum_retry_attempts       = 1
+      maximum_event_age_in_seconds = 3600
+    }
+  }
+}
