@@ -80,27 +80,34 @@ P1_TABLES = ["silver_psd", "silver_wasde", "silver_production", "silver_esr", "s
              # so _numeric_cols routes it to TEXT COLLATE "C" automatically; NO loader change, just a
              # re-run after the canonical schema widen.
              "silver_futures_prices",
-             # PRICE_AND_PLAYBOOKS W1.0 / D7 (probe P8) -- silver_futures_eod is DELIBERATELY ABSENT.
-             # There is no named exclusion set in this loader: absence from P1_TABLES plus a comment IS
-             # the mechanism (the silver_nasa_power precedent in the module docstring), so the deferral
-             # is recorded HERE rather than implied by silence. Grounds: it is the first numbers table
-             # that can plausibly exceed the t4g.micro envelope -- ~29 contracts x EVERY delivery month x
-             # daily back to 2010-06 (Databento GLBX), versus silver_futures_prices's 12 slugs x one
-             # daily `close`; that is two-to-three orders of magnitude more rows for the same commodity
-             # coverage. ADD IT ONLY AFTER the W2 backfill has been MEASURED and a row/byte count decides
-             # pruning (e.g. mirror only near-dated expiries) versus an RDS bump. Adding it early is also
-             # inert-to-harmful today: the table is whitelist-absent from the numbers registry, so
-             # `reg.get(tid)` raises KeyError, load_table records a per-table failure and the run ends
-             # SystemExit(1) -- a red nightly loader for a table with zero rows. When it IS added, the
-             # type doctrine routes settle/open/high/low/close/volume/open_interest to numeric and keeps
-             # trade_date (physical TIMESTAMP) / contract_month / raw_symbol / instrument_kind /
-             # settle_kind / unit / currency / source / dataset as TEXT COLLATE "C"; trade_year (an int
-             # partition key) mirrors numeric via meta["partitions"].
-             # SEQUENCING, enforced rather than merely documented: numbers_parity carries the D8
-             # SAMPLE_COMMODITY entry for this table, and its table loop now SKIPs (loudly, as
-             # SKIP-UNMIRRORED) any sampled table absent from THIS list -- it imports P1_TABLES, so the
-             # two cannot drift. The W3 whitelist flip may therefore land BEFORE this addition without
-             # turning the whole pg-parity gate red; the parity entry activates when the mirror does.
+             # PRICE_AND_PLAYBOOKS W1.0 / D7 (probe P8) -- silver_futures_eod, ADDED 2026-07-31.
+             # It was deliberately absent and the deferral named THREE conditions. All three are now
+             # discharged, each by measurement rather than assertion:
+             #   (1) SIZE. The old rationale was that this table "can plausibly exceed the t4g.micro
+             #       envelope" -- ~29 contracts x every delivery month x daily back to 2010-06, two to
+             #       three orders of magnitude more rows than silver_futures_prices. MEASURED after the
+             #       W2 backfill: 269 canonical parquet objects, 12.5 MB total. Not a capacity question.
+             #   (2) THAT ENVELOPE NO LONGER EXISTS. The sentence reasoned about a db.t4g.micro; the
+             #       instance is db.m7g.large (2 vCPU / 8 GB, 20 GB storage), upgraded during the latency
+             #       RCA that also found the starved DB and set the 300 s statement timeout. The
+             #       "pruning versus an RDS bump" choice this comment asked for was settled independently
+             #       -- the bump already happened, so the question it poses is stale, not open.
+             #   (3) WHITELIST. Adding it early used to be inert-to-harmful: the table was whitelist-absent
+             #       from the numbers registry, so reg.get(tid) raised KeyError, load_table recorded a
+             #       per-table failure and the run ended SystemExit(1) -- a red nightly loader for a table
+             #       with zero rows. The W3 flip (2026-07-30) emptied WHITELIST_ABSENT_DEFAULT.
+             # WHAT FORCED THE ISSUE: served but unmirrored, GRAPHRAG_NUMBERS_BACKEND=pg raises
+             # UndefinedTable per query and SILENTLY FALLS BACK TO ATHENA -- the partition-projection path
+             # behind the 26.8M-request LIST storm. A served numbers table must be mirrored.
+             # TYPE DOCTRINE (unchanged): settle/open/high/low/close/volume/open_interest mirror numeric;
+             # trade_date (physical TIMESTAMP), contract_month, raw_symbol, instrument_kind, settle_kind,
+             # unit, currency, source, dataset stay TEXT COLLATE "C"; trade_year (an int partition key)
+             # mirrors numeric via meta["partitions"].
+             # SEQUENCING, enforced rather than documented: numbers_parity carries the D8 SAMPLE_COMMODITY
+             # entry for this table and SKIPs (loudly, SKIP-UNMIRRORED) any sampled table absent from THIS
+             # list -- it imports P1_TABLES, so the two cannot drift. That skip now deactivates and the
+             # parity entry goes live with the mirror.
+             "silver_futures_eod",
              # WIRING WAVE-1 (2026-07-23): two freshly wired WIDE tables. silver_noaa_iod (year_month, 2
              # served metrics dmi_value/iod_dmi_3month_avg mirror numeric; year/month mirror numeric; the
              # producer trims the trailing NaN tail so latest is a real reading). silver_conab_coffee
