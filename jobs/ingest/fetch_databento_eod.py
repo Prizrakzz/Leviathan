@@ -216,6 +216,43 @@ def dataset_available_end(client, dataset: str) -> date:
     return _DATASET_END_CACHE[dataset]
 
 
+def incremental_window(client, dataset: str, since: date, today: date
+                       ) -> Optional[tuple[str, str]]:
+    """The ONLY constructor for an incremental ``[start, end)`` window.
+
+    ``end`` is EXCLUSIVE and is clamped to ``metadata.get_dataset_range``'s end -- the exact
+    quantity the 422 ``data_end_after_available_end`` names, so ``end_exclusive == avail_end``
+    is LEGAL (do NOT add a day to it; that reproduces the rejected value).
+
+    WHY THIS EXISTS (2026-07-31). :func:`resolve_outrights` already clamped correctly at the
+    symbology step, and then the incremental branch in :func:`main` OVERWROTE the artifact
+    window with a bare ``today + 1`` -- throwing the clamp away on the only path that submits.
+    The vendor's available end LAGS the calendar day (measured 08:00Z: GLBX.MDP3 and
+    IFUS.IMPACT both "available up to 2026-07-31" while the query asked for 2026-08-01), so
+    the overshoot was exactly one day on EVERY run and the leg 422'd 15/15 units from the day
+    it was armed. Not a weekend or holiday edge case -- a structural off-by-one.
+
+    Returns None when the clamped window is empty or inverted: there is simply no new vendor
+    data, which is a SKIP (exit 0), never a failure.
+    """
+    end = min(today + timedelta(days=1), dataset_available_end(client, dataset))
+    if since >= end:
+        return None
+    return since.isoformat(), end.isoformat()
+
+
+def _assert_sane_window(artifact: dict) -> None:
+    """Fail-closed at the two BILLABLE chokepoints (``cost_for_unit`` / ``submit_unit``).
+
+    Both read ``artifact["window"]`` verbatim, so any future code path that builds a window
+    without going through :func:`incremental_window` gets caught HERE rather than as a vendor
+    422 fifteen units later. ``end`` is EXCLUSIVE, so ``start == end`` is already degenerate."""
+    w0 = str(artifact["window"]["start"])
+    w1 = str(artifact["window"]["end_exclusive"])
+    if w0 >= w1:
+        raise ValueError(f"refusing a degenerate window {w0}..{w1} -- end is EXCLUSIVE")
+
+
 def _is_server_error(exc: Exception) -> bool:
     status = getattr(exc, "http_status", None)
     return isinstance(status, int) and status >= 500
@@ -407,6 +444,7 @@ def cost_for_unit(client, artifact: dict, schema: str) -> float:
     symbols = list(artifact["outright_symbols"])
     if not symbols:
         return 0.0
+    _assert_sane_window(artifact)
     return float(call_with_backoff(
         client.metadata.get_cost,
         dataset=artifact["dataset"], symbols=symbols, schema=schema, stype_in="raw_symbol",
@@ -432,7 +470,11 @@ def build_cost_table(client, units: list[tuple[str, str, int]], *,
     for dataset, root, year in units:
         art = resolve_outrights(client, dataset=dataset, root=root, year=year, through=through)
         if window_override is not None:
-            art["window"] = {"start": window_override[0], "end_exclusive": window_override[1]}
+            # Clamp INSIDE the loop: one override tuple spans several datasets and each carries
+            # its own available end, so a single pre-computed end would be wrong for all but one.
+            cap = dataset_available_end(client, dataset)          # cached + free
+            end = min(date.fromisoformat(window_override[1]), cap).isoformat()
+            art["window"] = {"start": window_override[0], "end_exclusive": end}
         ohlcv = cost_for_unit(client, art, OHLCV_SCHEMA)
         stats = (cost_for_unit(client, art, STATISTICS_SCHEMA)
                  if with_statistics and dataset in STATISTICS_DATASETS else 0.0)
@@ -517,6 +559,7 @@ def submit_unit(client, artifact: dict, schema: str) -> dict:
     if not symbols:
         raise ValueError(f"{artifact['root']}/{artifact['year']}: refusing to submit with NO "
                          f"symbols -- an empty/None symbol set means ALL_SYMBOLS to Databento")
+    _assert_sane_window(artifact)
     kwargs = dict(
         dataset=artifact["dataset"], symbols=symbols, schema=schema,
         start=artifact["window"]["start"], end=artifact["window"]["end_exclusive"],
@@ -757,8 +800,18 @@ def main(argv: Optional[list[str]] = None) -> int:
             art = resolve_outrights(client, dataset=dataset, root=root, year=year)
             if args.mode == "incremental":
                 since = datetime.strptime(args.since, "%Y-%m-%d").date()
-                art["window"] = {"start": since.isoformat(),
-                                 "end_exclusive": (today + timedelta(days=1)).isoformat()}
+                win = incremental_window(client, dataset, since, today)
+                if win is None:
+                    # SKIP, not a failure: `since` is at or past the vendor's available end, so
+                    # there is nothing new to buy. Deliberately BEFORE the symbology land_bytes
+                    # below -- an empty window must never overwrite a good artifact -- and it
+                    # does NOT touch `failures`, so the run still exits 0.
+                    logger.warning("%s %s/%s: SKIP -- since=%s is at or past the dataset "
+                                   "available end %s; no new vendor data to buy",
+                                   dataset, root, year, since.isoformat(),
+                                   dataset_available_end(client, dataset).isoformat())
+                    continue
+                art["window"] = {"start": win[0], "end_exclusive": win[1]}
                 art["mode"] = "incremental"
             as_of = today.strftime("%Y%m%d") if args.mode == "incremental" else None
 

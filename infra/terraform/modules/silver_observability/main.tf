@@ -22,8 +22,14 @@ locals {
   name_prefix = "${var.project_name}-${var.environment}"
   # Effective alarm destination: this module's own silver-pipeline topic (preferred) else the shared
   # module.alerting topic passed in. compact() drops empties so an unset topic == no action (safe).
+  # 2026-07-31 RCA (D-D): silver_pipeline was REMOVED from this list. The topic has ZERO
+  # subscriptions AND its access policy denies cloudwatch.amazonaws.com, so every alarm action
+  # targeting it failed silently -- 79 of 79 publishes across 55 alarms in 15 days. Alarms looked
+  # wired and delivered nothing. The topic resource is retained (it is the documented placeholder
+  # for a future confirmed silver-pipeline endpoint), it is simply no longer an alarm ACTION.
+  # NOT fixed by granting cloudwatch + subscribing: alert_topic_arn already reaches the same
+  # inbox, so that would double-deliver every alarm.
   alarm_actions = compact([
-    aws_sns_topic.silver_pipeline.arn,
     var.alert_topic_arn,
   ])
 }
@@ -137,21 +143,42 @@ resource "aws_cloudwatch_metric_alarm" "batch_failed_backstop" {
   comparison_operator = "GreaterThanThreshold"
   threshold           = 0
   treat_missing_data  = "notBreaching"
-  alarm_actions       = local.alarm_actions
+  # 2026-07-31 RCA (D-C): DEMOTED TO METRIC-ONLY. This filter is undimensioned -- it matches EVERY
+  # FAILED Batch job in the account, so ad-hoc probes, one-shot backfills and judged eval runs paged
+  # the owner exactly as loudly as a broken schedule (275 events / 79 alarm actions in 15 days).
+  # Job-level paging at ACCOUNT scope is the wrong altitude. Scheduled work now pages via
+  # batch_failed_scheduled below; the raw metric and the 90-day log group are retained for forensics.
+  alarm_actions       = []
   tags                = { Project = var.project_name, Environment = var.environment, ManagedBy = "terraform" }
 }
 
 # ---------------------------------------------------------------------------
-# Per-family Batch-job-failed alarms (app-emitted EMF metric BatchJobFailed{Family}).
+# SCHEDULED-WORK-ONLY failure alarm (2026-07-31 RCA, D-C).
+# SFN-launched jobs carry MANAGED_BY_AWS=STARTED_BY_STEP_FUNCTIONS, injected by batch:submitJob.sync.
+# The four schedules that target Batch DIRECTLY produce no SFN execution and therefore no such env,
+# so they are named explicitly -- without them those four would have NO live alerting at all, since
+# their per-family alarms are hollow. Ad-hoc probes and evals match neither arm, which is the point.
+# NB: $.detail.startedBy does NOT exist on the Batch Job State Change event (verified by key
+# enumeration + test-metric-filter); a filter built on it silences everything.
 # ---------------------------------------------------------------------------
-resource "aws_cloudwatch_metric_alarm" "batch_job_failed" {
-  for_each = toset(var.silver_batch_families)
+resource "aws_cloudwatch_log_metric_filter" "batch_failed_scheduled" {
+  name           = "${local.name_prefix}-batch-failed-scheduled"
+  log_group_name = aws_cloudwatch_log_group.batch_failures.name
+  pattern        = "{ ($.detail.status = \"FAILED\") && (($.detail.container.environment[*].name = \"MANAGED_BY_AWS\") || ($.detail.jobName = \"build-notifications*\") || ($.detail.jobName = \"pattern-records-sweep*\") || ($.detail.jobName = \"freshness-poller*\") || ($.detail.jobName = \"usda-esr-fetch*\")) }"
 
-  alarm_name          = "${local.name_prefix}-batch-job-failed-${replace(each.key, "_", "-")}"
-  alarm_description   = "A Batch job in the '${each.key}' family reached FAILED. Runbook: R4_incident_runbooks.md#batch-job-failed."
+  metric_transformation {
+    name          = "BatchJobFailedScheduled"
+    namespace     = var.silver_metric_namespace
+    value         = "1"
+    default_value = "0"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "batch_failed_scheduled" {
+  alarm_name          = "${local.name_prefix}-batch-job-failed-scheduled"
+  alarm_description   = "A SCHEDULED Batch job reached FAILED. Ad-hoc probes and evals are excluded BY CONSTRUCTION. Runbook: R4_incident_runbooks.md#batch-job-failed."
   namespace           = var.silver_metric_namespace
-  metric_name         = "BatchJobFailed"
-  dimensions          = { Family = each.key }
+  metric_name         = "BatchJobFailedScheduled"
   statistic           = "Sum"
   period              = 300
   evaluation_periods  = 1
@@ -161,6 +188,19 @@ resource "aws_cloudwatch_metric_alarm" "batch_job_failed" {
   alarm_actions       = local.alarm_actions
   tags                = { Project = var.project_name, Environment = var.environment, ManagedBy = "terraform" }
 }
+
+# ---------------------------------------------------------------------------
+# 2026-07-31 RCA (D-E): the 22 per-family `batch_job_failed` alarms were DELETED.
+# They watched the EMF metric BatchJobFailed{Family}, which NOTHING PUBLISHES -- `list-metrics
+# --namespace Leviathan/Silver` returns only [BatchJobFailedBackstop, FreshnessLagDays]. With
+# treat_missing_data=notBreaching they sat permanently OK, which is worse than absent: it reads as
+# coverage. leviathan-dev-batch-job-failed-futures-eod stayed green through all three futures_eod
+# failures on 2026-07-30/31 while the family had a 0% success rate.
+# NOT replaced with per-family filters: $.detail.jobName is "<family>-<uuid>", so a JSON-selector
+# dimension yields UUID-level cardinality, and a real per-family split would need 22 filters with 22
+# distinct metric names -- which is not what these alarms watched. batch_failed_scheduled above
+# supersedes them at the altitude that actually has a live metric.
+# ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
 # Per-family freshness-SLA-breach alarms (poller metric FreshnessLagDays{Family}).

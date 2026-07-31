@@ -74,7 +74,10 @@ variable "serving_image_tag" {
   # (tag 20260728d785af30). A default of "latest" therefore meant any apply touching the task
   # definition would have silently DEPLOYED A DIFFERENT, UNVALIDATED IMAGE. A serving image is
   # promoted deliberately, so the default now names the promoted build; bump it when you promote.
-  default     = "20260725rev72"
+  # DEPLOYED 2026-07-31: the W3 flip build (commit d5aa7353 + the D7 pg mirror). Previous pin was
+  # 20260725rev72 = digest 00fcd043, which predates the whitelist flip -- serving could not answer a
+  # delivery-month or curve ask on that image no matter what the config said.
+  default     = "20260731w3flip"
 }
 
 # Stage 2: the ACM wildcard cert (leviathanconvexity.com + *) created in the console. us-east-1.
@@ -207,7 +210,11 @@ variable "futures_eod_image_digest" {
   # Empty count-gates all three jobdefs out of existence.
   type        = string
   description = "sha256 digest of the worker image the futures_eod fetch + silver jobdefs run. Empty = none of the three futures_eod jobdefs are created."
-  default     = "sha256:2f3efb7caf513541eabbe671b2d2ff7028292459190bf4e093c3d4da0a79a0a7"
+  # 2026-07-31: repinned to tag 20260731T130318, which carries the databento incremental-window
+  # clamp. The previous digest (2f3efb7c, tag 20260729w1c) 422'd 15/15 units on every fire --
+  # fetch_databento_eod.py overwrote the clamped window with `today + 1`, one day past the vendor's
+  # available end, on the only path that submits.
+  default     = "sha256:5f0f2aacd23dbcc1dcb05056b6dc9b6d3fd84f0b8720d8a99500085b1e37e4cb"
 
   validation {
     condition     = var.futures_eod_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.futures_eod_image_digest))

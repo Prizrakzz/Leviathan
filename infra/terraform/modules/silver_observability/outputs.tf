@@ -9,8 +9,11 @@ output "batch_job_failed_rule_arn" {
 }
 
 output "batch_failed_alarm_names" {
-  value       = [for a in aws_cloudwatch_metric_alarm.batch_job_failed : a.alarm_name]
-  description = "Per-family Batch-job-failed alarm names."
+  # 2026-07-31 RCA (D-E): the 22 per-family alarms this listed were deleted -- they watched a metric
+  # nothing publishes and sat permanently OK. The scheduled-work alarm replaces them at the altitude
+  # that has a live metric, so this output now names the one alarm that can actually fire.
+  value       = [aws_cloudwatch_metric_alarm.batch_failed_scheduled.alarm_name]
+  description = "Batch-job-failed alarm names that have a live backing metric."
 }
 
 output "freshness_alarm_names" {
