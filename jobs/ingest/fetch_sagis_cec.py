@@ -47,19 +47,35 @@ Successfully uploaded files are appended to
 ``configs/sources/sagis_cec_manifest.yaml`` so future runs can skip
 already-seen URLs without a round-trip to S3.
 
+CAVEAT -- under AWS Batch/Fargate this file is CONTAINER-LOCAL and dies with
+the task, so it only ever contains the 3 entries baked into the image.  It
+does NOT provide cross-run skipping in the scheduled deployment; that job is
+done by ``--skip-existing-s3``, which the sagis_weekly DAG passes.
+
 Idempotency
 -----------
-  --skip-existing-s3   Skip keys already present in S3 (combine with manifest
-                       check for fastest re-runs).
+  --skip-existing-s3   Skip keys already present in S3 (safe for re-runs, and
+                       the ONLY working cross-run skip under Batch -- see the
+                       manifest caveat above).  The weekly schedule passes it,
+                       which collapses ~438 sequential downloads into ~438
+                       cheap S3 HEADs plus the 1-2 genuinely new reports.
   --dry-run            Print candidate URLs without downloading anything.
   --limit N            Process at most N files - use 3 for a smoke test.
   --newest-first       Sort newest reports first (default: True).  Keeps
                        routine monthly runs fast by processing recent files
                        before the long tail of the 1999 archive.
 
-Rate limiting
--------------
+Rate limiting / transport resilience
+------------------------------------
 1.0 s between downloads.  All downloads are sequential; no threading.
+
+www.sagis.org.za intermittently closes the TCP connection mid-transfer on a
+handful of a long sequential run (observed 2026-07-31: 2-4 of ~440 GETs died
+with ``('Connection aborted.', RemoteDisconnected(...))``, different files on
+each attempt).  A single dropped connection used to fail the whole 25-minute
+fetch, because ``_exit_reason`` fails the run on ANY non-404 error.  The
+session therefore mounts a urllib3 ``Retry`` adapter (see ``_build_session``)
+so a drop is retried in-process; only a residual error after retries is red.
 """
 from __future__ import annotations
 
@@ -72,6 +88,8 @@ from urllib.parse import unquote
 
 import requests
 import yaml
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 from leviathan.common.config import get_required_env, load_env
 from leviathan.common.logging import get_logger
@@ -114,12 +132,62 @@ _MANIFEST_PATH = (
 
 _DEFAULT_SLEEP = 1.0
 
+# Transport retry (see the module docstring's "transport resilience" section).
+# 4 retries with a 1.5 backoff factor -> ~0/3/6/12 s of sleep, worst case ~21 s
+# added latency for one pathological file.  Nothing here retries a 404: 404 is
+# absent from the forcelist, so a pruned link still reaches _is_permanent_404 on
+# the first response and is tallied as `missing`, unchanged.
+_RETRY_TOTAL = 4
+_RETRY_BACKOFF = 1.5
+# Transient server-side statuses only.  4xx (except 429) is never retried.
+_RETRY_STATUS_FORCELIST = (429, 500, 502, 503, 504)
+
 # Content-type by lowercase file extension
 _CONTENT_TYPES: dict[str, str] = {
     "pdf": "application/pdf",
     "doc": "application/msword",
     "xls": "application/vnd.ms-excel",
 }
+
+
+# ---------------------------------------------------------------------------
+# Session
+# ---------------------------------------------------------------------------
+
+def _build_session() -> requests.Session:
+    """A :class:`requests.Session` with the SAGIS UA and a urllib3 retry adapter.
+
+    Without the adapter every GET gets exactly one shot, so a single mid-transfer
+    connection drop (``RemoteDisconnected``) out of ~440 sequential downloads
+    increments ``errors`` and ``_exit_reason`` fails the whole 25-minute run --
+    the exact failure observed on 2026-07-31 (2 attempts red, the 3rd clean).
+
+    urllib3 classifies ``RemoteDisconnected`` as a *read* error, and GET is in
+    urllib3's default ``allowed_methods`` (idempotent methods), so the connect/
+    read counters below cover both a refused connection and a dropped response.
+    ``allowed_methods`` is deliberately left at its default rather than passed
+    explicitly, so this works on both urllib3 1.26.x and 2.x.
+
+    ``raise_on_status=False`` keeps status handling in requests: once the status
+    retries are exhausted the response is returned and ``raise_for_status()``
+    raises an :class:`requests.HTTPError` with the response attached, which is
+    what ``_is_permanent_404`` inspects.
+    """
+    session = requests.Session()
+    session.headers["User-Agent"] = _UA
+    retry = Retry(
+        total=_RETRY_TOTAL,
+        connect=_RETRY_TOTAL,
+        read=_RETRY_TOTAL,
+        status=_RETRY_TOTAL,
+        backoff_factor=_RETRY_BACKOFF,
+        status_forcelist=_RETRY_STATUS_FORCELIST,
+        raise_on_status=False,
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+    return session
 
 
 # ---------------------------------------------------------------------------
@@ -318,8 +386,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    session = requests.Session()
-    session.headers["User-Agent"] = _UA
+    session = _build_session()
 
     # -----------------------------------------------------------------------
     # Discover

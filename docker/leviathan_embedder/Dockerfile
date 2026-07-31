@@ -9,6 +9,12 @@
 # image — and the runtime download is fast + in-region. (A future hardening can cache the model in S3.)
 FROM python:3.11-slim
 
+# FENCE (incident I-1): build provenance, injected as ARGs because .dockerignore excludes .git.
+# This image matters to the fence specifically because the MANUAL gate path
+# (jobs/submit/submit_batch_silver_rebuild_gate.py:34) targets leviathan-dev-evidence-build.
+ARG BUILD_GIT_COMMIT=unknown
+ARG BUILD_TIME=unknown
+
 WORKDIR /app
 
 # libgomp1 for torch/sentence-transformers OpenMP; libcurl4 for the curl-cffi core dep; libexpat1 is cheap.
@@ -44,5 +50,9 @@ COPY scripts/ ./scripts/
 # sql/ carries the generated Athena DDLs: the silver_rebuild_gate's config_check stage lints the
 # node_silver_map against them IN-VPC (DDL-not-found false-RED at the first Branch-A fire without it).
 COPY sql/ ./sql/
+
+# FENCE (incident I-1): stamp AFTER `COPY configs/` (stamping earlier fingerprints an empty dir).
+RUN BUILD_GIT_COMMIT="$BUILD_GIT_COMMIT" BUILD_TIME="$BUILD_TIME" \
+    python -m leviathan.common.image_stamp --write /app/IMAGE_MANIFEST.json
 
 ENTRYPOINT ["python"]

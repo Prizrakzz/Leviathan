@@ -238,8 +238,12 @@ def _episode_section(mech: str) -> str | None:
     but two deliberate widenings over `_sectionize`'s exact-'## '-match (fold-pass 2026-07-30): the
     heading level may be `##`..`######`, and the heading text is matched on a NORMALISED PREFIX. The
     exact-match form scored zero lines for '## Episodes (3)', '## Episodes -- dated' and '### Episodes',
-    reding min_episode_lines and episode_magnitude_or_absence on a correctly enumerated answer -- and the
-    D3 register paragraph that would fix the shape at source is not written yet."""
+    reding min_episode_lines and episode_magnitude_or_absence on a correctly enumerated answer.
+
+    The D3 producer LANDED 2026-07-31: answer._SYSTEM_EPISODES now fixes the shape at source (exactly
+    '## Episodes', level two, one bullet per injected episode), gated on GRAPHRAG_TIMELINE. These two
+    widenings STAY -- they are the fail-soft margin around a prompt-fixed shape, not a substitute for it,
+    and a model that drifts to '### Episodes (3)' must still be scored on the episodes it enumerated."""
     body: list[str] | None = None
     in_fence = False
     for line in (mech or "").split("\n"):
@@ -270,6 +274,109 @@ def _episode_lines(out: dict) -> list[str]:
         return []
     return [ln for ln in body.split("\n")
             if _EPISODE_BULLET_RX.match(ln) and _EPISODE_YEAR_RX.search(ln)]
+
+
+# ── W4-N1 / D-4: THE INJECTED-EPISODE GROUND TRUTH ───────────────────────────────────────────────────
+# The set of episodes the engine ACTUALLY PUT IN THE PROMPT on this turn, stamped by answer._l2_blocks
+# into trace['episodes_injected'] (records of {node, line, spans}). Before it existed, NOTHING downstream
+# of the prompt could distinguish an ENUMERATED window from a MINTED one -- measured 2026-07-31: three
+# wholly invented windows ("1873/1911/1962 pepper panics"), each saying only "no citable item in this
+# window; no price record", greened ALL FIVE episode pins, and the same bullet repeated three times
+# greened min_episode_lines: 3. Both exploits ran through _line_backed's absence branch, which is the
+# 2026-07-30 fold-pass and MUST STAY (deleting it reds the HONEST receipt-less answer -- the exact
+# behaviour W4 exists to reward). The fix is therefore not to remove the allowance but to require, on top
+# of it, that the bullet's window is one the engine actually showed the model.
+_YM_RX = re.compile(r"(?<!\d)((?:1[6-9]\d{2}|20\d{2}))-(0[1-9]|1[0-2])(?!\d)")
+_SPAN_YEARS_CAP = 60                                      # a sane bound on year-fallback widening
+
+
+def _injected_episodes(out: dict) -> list[dict]:
+    """The dated episodes this turn's prompt actually carried, flattened across nodes.
+
+    Reads the EXISTING trace plumbing (answer._l2_blocks -> sg.trace -> out['trace']); it never
+    re-derives episodes from the artifact, because what must be graded is what the model was SHOWN, not
+    what the artifact holds. Empty on the OFF arm by construction (timeline.episodes_for returns [] with
+    the kill-switch off, so no line is rendered and no record is stamped) and empty on any turn whose
+    trace was not captured -- which is FAIL-CLOSED for the pins below: a bullet can then match nothing."""
+    eps: list[dict] = []
+    for rec in ((out.get("trace") or {}).get("episodes_injected") or []):
+        node = str((rec or {}).get("node") or "")
+        for sp in (rec or {}).get("spans") or []:
+            start, _, end = str(sp).partition("..")
+            if len(start) >= 7:
+                eps.append({"node": node, "span": str(sp), "start": start[:7], "end": (end or start)[:7]})
+    return eps
+
+
+def _span_years(ep: dict) -> set[str]:
+    """Every calendar year an injected episode spans (inclusive), as strings."""
+    try:
+        y0, y1 = int(ep["start"][:4]), int(ep["end"][:4])
+    except (KeyError, TypeError, ValueError):
+        return set()
+    if y1 < y0 or (y1 - y0) > _SPAN_YEARS_CAP:
+        return {str(y0)}
+    return {str(y) for y in range(y0, y1 + 1)}
+
+
+def _line_targets(line: str, injected: list[dict]) -> set[int]:
+    """Indices of the injected episodes a bullet could be enumerating; EMPTY = the window was minted.
+
+    TWO-TIER, and WHICH TIER APPLIES IS DECIDED BY THE BULLET, not by whether tier 1 happened to hit.
+
+    TIER 1 -- the bullet renders at least one YEAR-MONTH token. Then it must name an ENDPOINT of an
+    injected span. That is the shape _SYSTEM_EPISODES instructs ('<YYYY-MM>..<YYYY-MM>', full four-digit
+    years on both ends, read off the injected line, which renders the same e['start'][:7]/e['end'][:7]
+    strings this record stamps), so a bullet precise enough to write year-months has no excuse for writing
+    year-months the engine never showed it.
+    TIER 2 -- the bullet renders NO year-month at all ('- 1994 Brazil frost: ...'). That is correct
+    enumeration in a coarser hand, and reding it would manufacture the A-7 false-red class, so a
+    YEAR-level overlap with the injected span is accepted.
+
+    THE TIER-1 STRICTNESS IS DELIBERATE AND IT CLOSES A RESIDUAL. If tier 2 were a FALLBACK reached
+    whenever tier 1 missed, a bullet could mint a narrower window INSIDE a real injected span --
+    '2002-06..2002-09 -- the great drought: no citable item ...' against an injected 2001-11..2003-04 --
+    and be scored as an enumeration of it. That is precisely the confabulation shape P3 exists to catch
+    (a narrated event in a window the timeline does not carry), so it must red. The cost is a bullet that
+    writes an interior month instead of the span it was shown; that is a departure from the instructed
+    shape, and a false RED on a deterministic pin is visible in the row table while a false GREEN is not."""
+    yms = {f"{y}-{m}" for y, m in _YM_RX.findall(line or "")}
+    if yms:
+        return {i for i, e in enumerate(injected) if yms & {e["start"], e["end"]}}
+    years = set(_EPISODE_YEAR_RX.findall(line or ""))
+    return {i for i, e in enumerate(injected) if years & _span_years(e)}
+
+
+def _max_matching(adj: list[set[int]]) -> int:
+    """Max bipartite matching lines -> injected episodes (Kuhn's). The DISTINCTNESS half of the fix.
+
+    Counting `len(set().union(*adj))` would be wrong in the permissive direction and picking one 'best'
+    target per line would be wrong in the restrictive one: three copies of ONE bullet must count as ONE
+    enumerated episode (the repeat exploit), while two honest bullets whose year-fallback sets overlap
+    (adjacent injected windows sharing a calendar year) must still count as TWO. A matching is the exact
+    answer to 'how many DISTINCT injected episodes did this section enumerate'. Sizes are tiny (<= a
+    handful of bullets, <= timeline.MAX_PER_NODE per node), so the O(V*E) form is free."""
+    match_r: dict[int, int] = {}
+
+    def _augment(u: int, seen: set[int]) -> bool:
+        for v in sorted(adj[u]):
+            if v in seen:
+                continue
+            seen.add(v)
+            if v not in match_r or _augment(match_r[v], seen):
+                match_r[v] = u
+                return True
+        return False
+
+    return sum(1 for u in range(len(adj)) if _augment(u, set()))
+
+
+def _episode_enumeration(out: dict) -> tuple[list[str], list[set[int]], int]:
+    """(bullets, per-bullet injected-episode candidates, DISTINCT injected episodes enumerated)."""
+    lines = _episode_lines(out)
+    injected = _injected_episodes(out)
+    adj = [_line_targets(ln, injected) for ln in lines]
+    return lines, adj, _max_matching(adj)
 
 
 # ── W3 CURVE / TERM-STRUCTURE pins (PRICE_AND_PLAYBOOKS item 23, plan :1014) ──────────────────────────
@@ -795,7 +902,9 @@ def _cascade_asserts(q: dict, out: dict) -> dict | None:
             # asserts >= N distinct episode classes. An answer that smooths every episode into one
             # "usually" while citing items dated 1994, 2010 and 2022 PASSES this pin -- enumeration is a
             # property of the PROSE SHAPE and on that axis this key is silent. Enumeration is therefore
-            # JUDGE-ONLY (the episode_enumeration axis) plus the deterministic complement
+            # JUDGE-ONLY (the episode_enumeration axis -- which as of 2026-07-31 actually EXISTS in
+            # _judge_tool and _JUDGE_SYS; until then this sentence, the deck's :497 and its :1498 all
+            # deferred to an axis that was never built) plus the deterministic complement
             # min_episode_lines below; do not describe this key alone as "the deterministic teeth".
             # What it DOES buy: filtering to CITED citations makes it a CITATION pin rather than a
             # RETRIEVAL pin -- the doctrine distinction the RV2 pins draw at reroute_v2_expected.
@@ -853,8 +962,24 @@ def _cascade_asserts(q: dict, out: dict) -> dict | None:
             # The replacement is PER LINE, which is what "confabulation" actually means and is immune to
             # how many unrelated items the answer cites. A line is BACKED when it (a) declares its own
             # absence, (b) names a year some CITED evidence item is dated in, or (c) carries the handle of
-            # a citation the model actually cited. A minted episode has none of the three.
-            _lines = _episode_lines(out)
+            # a citation the model actually cited.
+            #
+            # D-4, THE VACUITY FIX (2026-07-31). Backing alone is NOT enough, and the (a) branch is why:
+            # a wholly INVENTED window that merely SAYS "no citable item in this window" satisfies (a), so
+            # three minted "pepper panics" greened this pin and the same bullet repeated three times
+            # greened `min_episode_lines: 3` -- MEASURED, not hypothesised. The absence branch cannot be
+            # deleted (it is the 2026-07-30 fold-pass; without it the HONEST receipt-less enumeration --
+            # the behaviour this wave exists to reward -- reds). So the pin now asserts TWO things about
+            # every bullet, and the second one is the ground truth the scorer never had:
+            #   BACKED    -- unchanged, `_line_backed` below;
+            #   INJECTED  -- its window matches an episode the ENGINE ACTUALLY PUT IN THE PROMPT this turn
+            #                (trace['episodes_injected'], stamped at answer._l2_blocks).
+            # plus a DISTINCTNESS bound: `want` DISTINCT injected episodes must be enumerated, so N copies
+            # of one bullet count once. An answer can no longer reach a count by minting windows or by
+            # repeating one. Note this makes the pin fail-CLOSED on a turn with no injected record (OFF
+            # arm, one-hop, dead artifact): those turns render no '## Episodes' section anyway, and a
+            # false RED on a deterministic pin is visible in the row table while a false GREEN is not.
+            _lines, _adj, _distinct = _episode_enumeration(out)
             _cited = _cited_evidence(out)
             _cyears = {str(c.get("date") or "")[:4] for c in _cited} - {""}
             _cids = {str(c.get("id") or "") for c in _cited} - {""}
@@ -865,7 +990,8 @@ def _cascade_asserts(q: dict, out: dict) -> dict | None:
                 if set(_EPISODE_YEAR_RX.findall(ln)) & _cyears:
                     return True
                 return any(f"[{i}]" in ln for i in _cids)
-            res[k] = len(_lines) >= int(want) and all(_line_backed(ln) for ln in _lines)
+            res[k] = (len(_lines) >= int(want) and _distinct >= int(want)
+                      and all(_adj) and all(_line_backed(ln) for ln in _lines))
         elif k == "episode_magnitude_or_absence":
             # W2b-D5, the PRICE-side twin of F-I: an episode counted without a receipt was the original
             # +10-hallucination mode; an episode ENUMERATED without a magnitude and WITHOUT SAYING SO is
@@ -877,8 +1003,15 @@ def _cascade_asserts(q: dict, out: dict) -> dict | None:
             # year is not a magnitude either, and the [N]-handle rule excludes it for free.
             # Requires a non-empty section: `all([])` is vacuously true, so an answer that never renders
             # '## Episodes' must not pass a true-pin.
-            _lines = _episode_lines(out)
-            _ok = all(_N_HANDLE_RX.search(ln) or _has_any(ln, _NO_PRICE_RECORD) for ln in _lines)
+            # D-4 (2026-07-31): and the same INJECTED-WINDOW requirement as min_episode_lines. Measured
+            # exploit `pb_covid_demand_shock`: four invented windows with ZERO citations passed this pin on
+            # the _NO_PRICE_RECORD branch alone -- "no price record" is trivially true of a window that
+            # never existed. A magnitude-or-absence claim is only meaningful ABOUT AN EPISODE THE ENGINE
+            # SHOWED; `all(_adj)` is that requirement, and it is the same expression both pins use so they
+            # can never disagree about which bullets are real.
+            _lines, _adj, _ = _episode_enumeration(out)
+            _ok = all(_adj) and all(_N_HANDLE_RX.search(ln) or _has_any(ln, _NO_PRICE_RECORD)
+                                    for ln in _lines)
             res[k] = (bool(_lines) and _ok) == bool(want)
     return res
 
@@ -981,7 +1114,7 @@ def _per_answer_record(r: dict, run_kind: str) -> dict:
             # scores an axis nobody can read back.
             "judge": {k: j[k] for k in ("usefulness", "convexity", "point_in_time", "grounding",
                                         "source_diversity", "continuity", "mechanism_voice",
-                                        "directional_traceability")
+                                        "directional_traceability", "episode_enumeration")
                       if k in j} or None}
 
 
@@ -1200,6 +1333,12 @@ def _judge_tool(continuity: bool = False) -> dict:
              # directional lean, and adding it to `required` would force the judge to invent a score on
              # every existing deck row -- which would move those decks' baselines for no reason.
              "directional_traceability": n,
+             # W4-N1: OPTIONAL for the same reason, and it finally EXISTS. eval.py:802 and the playbooks
+             # deck both deferred enumeration quality to "the judge's episode_enumeration axis" while no
+             # such axis was in this schema or in _JUDGE_SYS -- so enumeration honesty had no grader on any
+             # surface: not here, and not on the deterministic pins (which the D-4 vacuity exploit greened
+             # on invented windows). Scored ONLY on a turn whose DATED EPISODES block is non-empty.
+             "episode_enumeration": n,
              "hallucinations": arr, "gaps": arr, "improvements": arr, "verdict": {"type": "string"}}
     required = ["usefulness", "convexity", "point_in_time", "grounding", "source_diversity", "mechanism_voice",
                 "gaps", "verdict"]
@@ -1243,8 +1382,24 @@ _JUDGE_SYS = (
     "smoothed away; 3 = the direction is right but one leg rests on assertion; 1 = a confident lean sourced "
     "from nothing shown. A lean that is HONESTLY THIN ('the record is silent for this era, so the read is "
     "mechanism-only') scores HIGH -- naming the thinness is traceability, not a gap.\n"
-    "- hallucinations: any claim/number/sign/date supported by NEITHER the graph, the evidence, NOR the looked-up "
-    "numbers.\n"
+    "- episode_enumeration (1-5): score this ONLY when the DATED EPISODES block is non-empty; omit it "
+    "otherwise. Did the answer ENUMERATE the windows it was shown -- each one as its own dated item, "
+    "including the thin ones -- rather than smoothing them into a confident 'usually'? 5 = every shown "
+    "window is listed, in its own words, with the ones carrying NO CITABLE ITEM stated as such and NOT "
+    "narrated; 3 = some listed, some smoothed away; 1 = the windows were shown and the answer generalised "
+    "over them, dropped the thin ones, or listed a window it was never shown. Stating that a window has no "
+    "citable item and no priced move is the CORRECT answer for that window and scores HIGH -- it is the "
+    "record, not a hedge. Listing a window absent from the DATED EPISODES block is the worst case here and "
+    "is also a hallucination.\n"
+    "- hallucinations: any claim/number/sign/date supported by NEITHER the graph, the evidence, the DATED "
+    "EPISODES block, NOR the looked-up numbers. THE DATED EPISODES BLOCK IS GROUND TRUTH, exactly like the "
+    "graph: a window, span or report-count the answer states that appears in that block is SUPPORTED and is "
+    "NOT a hallucination, even when no evidence item is dated inside it -- those windows are derived from "
+    "the tool's own dated prop store, and the tool was instructed to enumerate them and to say plainly that "
+    "it has no citable item for them. Do NOT list an enumerated window under hallucinations merely because "
+    "the evidence panel carries nothing in its date range; that absence is the very thing the answer is "
+    "reporting. A dated window in NONE of the four sources IS a hallucination, and so is a narrated "
+    "severity/outcome/magnitude attached to a window the block shows only as a timestamp span.\n"
     "- gaps: what a researcher would still need — a missing propagation channel, no dated evidence, convexity "
     "asserted without a threshold, a missed regime or cross-commodity leg. Concrete.\n"
     "- improvements: concrete changes.\n- verdict: one blunt sentence.\n"
@@ -1324,6 +1479,31 @@ def _judge_numbers_panel(out: dict, max_rows_per_call: int = 8) -> str:
     return "\n".join(lines) + ("\n" if lines else "")
 
 
+def _judge_episodes_panel(out: dict) -> str:
+    """The judge's DATED-EPISODES panel: the episode lines the ENGINE actually injected into this turn's
+    prompt, read straight off trace['episodes_injected'] (answer._l2_blocks).
+
+    WHY IT EXISTS -- the same reason _judge_numbers_panel does, and a strictly worse version of the same
+    bug. The judge is shown the graph, the evidence, the looked-up numbers and the answer; the injected
+    episode lines were in NONE of them. And a receipt-less episode is BY CONSTRUCTION one with no evidence
+    prop inside its window (timeline.episodes_for sets `receipt` only from an in-window prop), so on the
+    live artifact -- 3,735 episodes, 2,070 of them single-date -- the normal case was an answer that
+    correctly enumerated a real window and a judge with nothing to check it against. Under _JUDGE_SYS's
+    own definition ("supported by NEITHER the graph, the evidence, NOR the looked-up numbers") that is a
+    hallucination, so turning W4 ON RAISED the hallucination count mechanically, on the exact metric the
+    A/B acceptance rule reads, worst on the honest-thinness rows the wave exists to reward.
+
+    SYMMETRY -- the point that makes this a fix and not a new bias. The block is rendered on EVERY judged
+    turn of BOTH arms and the rubric text is one shared constant, so the two arms are graded by the same
+    instrument. On the OFF arm (and on every non-W4 deck) it renders '(none)', which is TRUE: no episode
+    line was injected, so any dated window the answer invents there is still unsupported and still a
+    hallucination. What changes is not the standard, only whether the judge can see the ground truth the
+    standard already referred to."""
+    lines = [str((rec or {}).get("line") or "").strip()
+             for rec in ((out.get("trace") or {}).get("episodes_injected") or [])]
+    return "\n".join(f"- {ln}" for ln in lines if ln)
+
+
 def judge(query: dict, out: dict, *, graph=None, client=None, model: str = "claude-opus-4-8", call=None,
           convo_history: str | None = None) -> dict:
     """The quant-researcher persona scores the answer — shown the SAME graph + evidence + looked-up NUMBERS the tool
@@ -1337,6 +1517,7 @@ def judge(query: dict, out: dict, *, graph=None, client=None, model: str = "clau
         ctx = "\n\n".join(an._context_block(graph, c) for c in (out.get("contracts") or [out.get("contract")]) if c)
     ev_text = "\n".join(f"- ({e['source']}, {e['date']}) {e.get('text', '')}" for e in out.get("evidence") or [])
     num_text = _judge_numbers_panel(out)
+    ep_text = _judge_episodes_panel(out)                              # W4-N1: the injected episode ground truth
     convo = ""
     if convo_history is not None:
         convo = (f"=== CONVERSATION SO FAR (prior turns; the current question may be vague/pronoun-based and "
@@ -1350,6 +1531,15 @@ def judge(query: dict, out: dict, *, graph=None, client=None, model: str = "clau
             f"{out.get('contracts') or out.get('contract')})\n\n"
             f"=== CAUSAL GRAPH THE TOOL COULD CITE (drivers/signs/regimes here are authoritative) ===\n{ctx}\n\n"
             f"=== DATED EVIDENCE THE TOOL WAS SHOWN ===\n{ev_text or '(none retrieved)'}\n\n"
+            # W4-N1. ALWAYS RENDERED, on both arms and every deck -- '(none)' is the true statement for a
+            # turn with no injected episodes, and an OPTIONAL block would grade the two A/B arms with two
+            # different instruments, which is the bias this fix exists to remove rather than relocate.
+            f"=== DATED EPISODES THE TOOL WAS SHOWN (report TIMESTAMPS derived from the prop store; a "
+            f"window/date the ANSWER enumerates that appears HERE is GROUNDED even when no evidence item "
+            f"is dated inside it -- 'NO CITABLE ITEM IN THIS WINDOW' means the tool was told to say so, "
+            f"and saying it is CORRECT behaviour, not a gap. A dated window the answer states that appears "
+            f"in NEITHER this block NOR the evidence/numbers above IS a hallucination) ==="
+            f"\n{ep_text or '(none -- no dated-episode lines were injected on this turn)'}\n\n"
             f"=== OBSERVED NUMBERS THE TOOL LOOKED UP (as-known at asof; multi-row calls list ALL retrieved "
             f"rows — a narrated figure that matches ANY listed row at its stated period is GROUNDED, not a "
             f"hallucination) ===\n{num_text or '(none)'}\n\n"

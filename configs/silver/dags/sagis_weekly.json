@@ -8,7 +8,7 @@
   "retrofit_landed": true,
   "promote_mode": "autonomous",
   "auth_mode": "kms",
-  "skip_existing": false,
+  "skip_existing": true,
   "asof": "<aws.scheduler.scheduled-time>",
   "gate_tables": [
     "silver_sagis_cec",
@@ -36,7 +36,8 @@
           "jobdef": "leviathan-dev-sagis-cec-raw-backfill:2",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
-            "jobs/ingest/fetch_sagis_cec.py"
+            "jobs/ingest/fetch_sagis_cec.py",
+            "--skip-existing-s3"
           ],
           "env": {},
           "publishes": false
@@ -102,5 +103,5 @@
       ]
     }
   ],
-  "notes": "discover+skip self-heals. sagis_deliveries is module form [m]. fetch_sagis_cec runs on the named cec raw-backfill jobdef, weekly on the shared runner. fetch_sagis_swb DROPPED 2026-07-17 (user decision): ~780 bulletin PDFs had NO downstream consumer (no silver producer, not in the evidence corpus) and it was the slowest/flakiest fetch in the family; re-add only when a consumer exists. sagis_cec_silver DEFERRED 2026-07-17 (user decision): the cec BRONZE is systemically mislabeled across doc-layout eras (61 equal-key value conflicts spanning 2006/2007/2017/2018/2024 -- developing/total rows tagged commercial) and transform_sagis_cec correctly fails closed on it; canonical silver_sagis_cec stays FROZEN at last-good (still census-gated via gate_tables) and the cec raw FETCH stays for archive continuity. Re-add the silver+promote task after the CEC parser-repair wave re-parses bronze. | 2026-07-18: sagis_cec_silver RESTORED (task #118 closed): era-aware raw->silver-direct producer (D6a), canonical replaced under approval cec-118-season-repair-20260718; gate table silver_sagis_cec no longer vacuous."
+  "notes": "discover+skip self-heals. sagis_deliveries is module form [m]. fetch_sagis_cec runs on the named cec raw-backfill jobdef, weekly on the shared runner. fetch_sagis_swb DROPPED 2026-07-17 (user decision): ~780 bulletin PDFs had NO downstream consumer (no silver producer, not in the evidence corpus) and it was the slowest/flakiest fetch in the family; re-add only when a consumer exists. sagis_cec_silver DEFERRED 2026-07-17 (user decision): the cec BRONZE is systemically mislabeled across doc-layout eras (61 equal-key value conflicts spanning 2006/2007/2017/2018/2024 -- developing/total rows tagged commercial) and transform_sagis_cec correctly fails closed on it; canonical silver_sagis_cec stays FROZEN at last-good (still census-gated via gate_tables) and the cec raw FETCH stays for archive continuity. Re-add the silver+promote task after the CEC parser-repair wave re-parses bronze. | 2026-07-18: sagis_cec_silver RESTORED (task #118 closed): era-aware raw->silver-direct producer (D6a), canonical replaced under approval cec-118-season-repair-20260718; gate table silver_sagis_cec no longer vacuous. | 2026-07-31: fetch_sagis_cec now passes --skip-existing-s3. The in-image manifest at configs/sources/sagis_cec_manifest.yaml is container-local under Fargate and dies with the task (it has 3 entries, hence the eternal 'skipped=3'), so WITHOUT this flag every weekly run re-downloaded the whole 1999-2026 archive: ~438 sequential GETs, 20-30 min, and ~438 independent chances to hit a dropped connection. The 2026-07-31 run went red twice on exactly that (RemoteDisconnected on 2-4 random files) before the SFN retry ladder's third attempt came back clean. The flag turns the steady-state run into ~438 cheap S3 HEADs plus the 1-2 genuinely new reports. NOTE the semantics change: a report REPUBLISHED upstream under an existing filename is no longer re-fetched -- run the job manually with --no-... (i.e. drop the flag) for a deliberate full re-pull."
 }

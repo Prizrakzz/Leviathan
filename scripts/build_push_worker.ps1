@@ -78,10 +78,21 @@ if ($ForceAmd64Platform -or $DockerPlatform.Trim() -ne "linux/amd64") {
 } else {
     Write-Host "    Docker server is already linux/amd64; omitting --platform." -ForegroundColor DarkGray
 }
+# FENCE (incident I-1): inject the build provenance. .dockerignore excludes .git, so the image can
+# NEVER read its own commit at runtime -- it has to be told at build time. Without this every
+# container is anonymous, which is why the 2026-07-24 gate log could not say "I am e0a33bf2".
+$BuildCommit = (git -C $RepoRoot rev-parse HEAD)
+if ($LASTEXITCODE -ne 0 -or -not $BuildCommit) { throw "git rev-parse HEAD failed -- refusing to build an anonymous image" }
+$BuildCommit = $BuildCommit.Trim()
+$BuildTime   = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+$StampArgs   = @("--build-arg", "BUILD_GIT_COMMIT=$BuildCommit", "--build-arg", "BUILD_TIME=$BuildTime")
+Write-Host "    Stamping image: commit=$BuildCommit built=$BuildTime" -ForegroundColor DarkGray
+
 $prevEAP = $ErrorActionPreference
 $ErrorActionPreference = "SilentlyContinue"
 docker build `
     @PlatformArgs `
+    @StampArgs `
     --tag $LatestImage `
     --file (Join-Path $RepoRoot "docker/leviathan_worker/Dockerfile") `
     $RepoRoot 2>&1
@@ -100,6 +111,21 @@ if ($buildExit -ne 0) { throw "docker build failed (exit $buildExit)" }
 Write-Host "==> Runtime-closure smoke (psycopg + sql/ + gate imports)..." -ForegroundColor Cyan
 docker run --rm --entrypoint python $LatestImage -c "import os, psycopg; assert os.path.isdir('sql/athena/ddl') and os.listdir('sql/athena/ddl'), 'sql/athena/ddl missing/empty'; assert os.path.isdir('configs/silver/tables'), 'configs missing'; import importlib; importlib.import_module('jobs.audit.silver_rebuild_gate'); importlib.import_module('jobs.audit.value_census'); print('closure smoke OK: psycopg', psycopg.__version__)"
 if ($LASTEXITCODE -ne 0) { throw "runtime-closure smoke FAILED (exit $LASTEXITCODE) -- image would break the scheduled silver-gate; NOT pushing" }
+
+# ---------------------------------------------------------------------------
+# Step 3b: IMAGE-MANIFEST SMOKE (FENCE, incident I-1). An image that would be
+# pushed UNSTAMPED, or stamped against a different tree than it actually
+# COPYed, is refused here -- it would be an anonymous container all over again,
+# and the fleet auditor (check_ecr_pinned_digests.py --config-drift) would have
+# no sidecar to read. Asserts the manifest EXISTS and that its
+# silver_tables_fp equals a fingerprint computed on the HOST tree.
+# ---------------------------------------------------------------------------
+Write-Host "==> IMAGE_MANIFEST smoke (provenance stamp + host-vs-container fingerprint)..." -ForegroundColor Cyan
+$HostFp = python -c "import sys; sys.path.insert(0, sys.argv[1]); from leviathan.common.image_stamp import fingerprint_dir; import os; print(fingerprint_dir(os.path.join(sys.argv[2],'configs','silver','tables'))[1])" (Join-Path $RepoRoot "src") $RepoRoot
+if ($LASTEXITCODE -ne 0 -or -not $HostFp) { throw "host fingerprint failed -- cannot verify IMAGE_MANIFEST" }
+$HostFp = $HostFp.Trim()
+docker run --rm --entrypoint python $LatestImage -c "import json,sys; m=json.load(open('/app/IMAGE_MANIFEST.json')); assert m.get('git_commit') and m['git_commit']!='unknown', 'IMAGE_MANIFEST git_commit is unknown -- build-arg not injected'; assert m['silver_tables_fp']==sys.argv[1], 'baked fp %s != host fp %s -- the image COPYed a different tree than was stamped' % (m['silver_tables_fp'], sys.argv[1]); print('manifest OK commit=%s built=%s silver_tables=%d fp=%s' % (m['git_commit'][:8], m['build_time_utc'], m['silver_tables_count'], m['silver_tables_fp']))" $HostFp
+if ($LASTEXITCODE -ne 0) { throw "IMAGE_MANIFEST smoke FAILED (exit $LASTEXITCODE) -- image is unstamped or stamped against the wrong tree; NOT pushing" }
 
 # ---------------------------------------------------------------------------
 # Step 3: Tag with the extra label if one was requested
@@ -129,6 +155,33 @@ if ($Tag -ne "latest") {
     $pushTagExit = $LASTEXITCODE
     $ErrorActionPreference = $prevEAP
     if ($pushTagExit -ne 0) { throw "docker push :$Tag failed (exit $pushTagExit)" }
+}
+
+# ---------------------------------------------------------------------------
+# Step 5: MANIFEST SIDECAR (FENCE, incident I-1). Publish this image's baked
+# provenance to S3 keyed by its PUSHED DIGEST, so the fleet auditor
+# (scripts/ops/check_ecr_pinned_digests.py --config-drift) can answer "what
+# configs did the digest this jobdef is pinned to actually bake?" WITHOUT
+# pulling layers. One ~4 KB PUT. Non-fatal: the image is already live and the
+# in-container preflight does not depend on this -- a missing sidecar is
+# reported by the auditor as UNKNOWN PROVENANCE (treated as stale), never as OK.
+# ---------------------------------------------------------------------------
+$PushedDigest = docker inspect --format '{{index .RepoDigests 0}}' $LatestImage
+if ($LASTEXITCODE -eq 0 -and $PushedDigest -and $PushedDigest.Contains("@sha256:")) {
+    $Digest = "sha256:" + $PushedDigest.Split("@sha256:")[-1]
+    $SidecarKey = "image_manifests/${RepoName}/" + $Digest.Replace(":", "_") + ".json"
+    $TmpManifest = Join-Path $env:TEMP "IMAGE_MANIFEST_$Tag.json"
+    docker run --rm --entrypoint cat $LatestImage /app/IMAGE_MANIFEST.json | Out-File -FilePath $TmpManifest -Encoding utf8
+    if ($LASTEXITCODE -eq 0) {
+        aws s3 cp $TmpManifest "s3://leviathan-dev-shahem-001/$SidecarKey" --region $Region
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "==> Manifest sidecar: s3://leviathan-dev-shahem-001/$SidecarKey" -ForegroundColor Green
+        } else {
+            Write-Host "WARN: manifest sidecar PUT failed -- the auditor will treat $Digest as UNKNOWN PROVENANCE" -ForegroundColor Yellow
+        }
+    }
+} else {
+    Write-Host "WARN: could not resolve pushed digest -- no manifest sidecar written" -ForegroundColor Yellow
 }
 
 Write-Host ""

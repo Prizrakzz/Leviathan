@@ -77,16 +77,42 @@ if ($ForceAmd64Platform -or $DockerPlatform.Trim() -ne "linux/amd64") {
 } else {
     Write-Host "    Docker server is already linux/amd64; omitting --platform." -ForegroundColor DarkGray
 }
+# FENCE (incident I-1): inject the build provenance. .dockerignore excludes .git, so the image can
+# NEVER read its own commit at runtime. This image runs the MANUAL silver-gate path
+# (jobs/submit/submit_batch_silver_rebuild_gate.py:34 -> leviathan-dev-evidence-build).
+$BuildCommit = (git -C $RepoRoot rev-parse HEAD)
+if ($LASTEXITCODE -ne 0 -or -not $BuildCommit) { throw "git rev-parse HEAD failed -- refusing to build an anonymous image" }
+$BuildCommit = $BuildCommit.Trim()
+$BuildTime   = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+$StampArgs   = @("--build-arg", "BUILD_GIT_COMMIT=$BuildCommit", "--build-arg", "BUILD_TIME=$BuildTime")
+Write-Host "    Stamping image: commit=$BuildCommit built=$BuildTime" -ForegroundColor DarkGray
+
 $prevEAP = $ErrorActionPreference
 $ErrorActionPreference = "SilentlyContinue"
 docker build `
     @PlatformArgs `
+    @StampArgs `
     --tag $LatestImage `
     --file (Join-Path $RepoRoot "docker/leviathan_embedder/Dockerfile") `
     $RepoRoot 2>&1
 $buildExit = $LASTEXITCODE
 $ErrorActionPreference = $prevEAP
 if ($buildExit -ne 0) { throw "docker build failed (exit $buildExit)" }
+
+# ---------------------------------------------------------------------------
+# IMAGE-MANIFEST smoke (FENCE, incident I-1). Same contract as the worker
+# script: refuse to push an UNSTAMPED image, or one stamped against a tree it
+# did not actually COPY. Kept identical on purpose -- the two build scripts
+# drifting is exactly how half a fence ends up shipping, which is why
+# tests/unit/test_image_config_fence.py::test_build_scripts_assert_manifest
+# regexes BOTH files.
+# ---------------------------------------------------------------------------
+Write-Host "==> IMAGE_MANIFEST smoke (provenance stamp + host-vs-container fingerprint)..." -ForegroundColor Cyan
+$HostFp = python -c "import sys; sys.path.insert(0, sys.argv[1]); from leviathan.common.image_stamp import fingerprint_dir; import os; print(fingerprint_dir(os.path.join(sys.argv[2],'configs','silver','tables'))[1])" (Join-Path $RepoRoot "src") $RepoRoot
+if ($LASTEXITCODE -ne 0 -or -not $HostFp) { throw "host fingerprint failed -- cannot verify IMAGE_MANIFEST" }
+$HostFp = $HostFp.Trim()
+docker run --rm --entrypoint python $LatestImage -c "import json,sys; m=json.load(open('/app/IMAGE_MANIFEST.json')); assert m.get('git_commit') and m['git_commit']!='unknown', 'IMAGE_MANIFEST git_commit is unknown -- build-arg not injected'; assert m['silver_tables_fp']==sys.argv[1], 'baked fp %s != host fp %s -- the image COPYed a different tree than was stamped' % (m['silver_tables_fp'], sys.argv[1]); print('manifest OK commit=%s built=%s silver_tables=%d fp=%s' % (m['git_commit'][:8], m['build_time_utc'], m['silver_tables_count'], m['silver_tables_fp']))" $HostFp
+if ($LASTEXITCODE -ne 0) { throw "IMAGE_MANIFEST smoke FAILED (exit $LASTEXITCODE) -- image is unstamped or stamped against the wrong tree; NOT pushing" }
 
 # ---------------------------------------------------------------------------
 # Step 3: Tag with the extra label if one was requested
@@ -116,6 +142,27 @@ if ($Tag -ne "latest") {
     $pushTagExit = $LASTEXITCODE
     $ErrorActionPreference = $prevEAP
     if ($pushTagExit -ne 0) { throw "docker push :$Tag failed (exit $pushTagExit)" }
+}
+
+# ---------------------------------------------------------------------------
+# MANIFEST SIDECAR (FENCE, incident I-1) -- see build_push_worker.ps1 Step 5.
+# ---------------------------------------------------------------------------
+$PushedDigest = docker inspect --format '{{index .RepoDigests 0}}' $LatestImage
+if ($LASTEXITCODE -eq 0 -and $PushedDigest -and $PushedDigest.Contains("@sha256:")) {
+    $Digest = "sha256:" + $PushedDigest.Split("@sha256:")[-1]
+    $SidecarKey = "image_manifests/${RepoName}/" + $Digest.Replace(":", "_") + ".json"
+    $TmpManifest = Join-Path $env:TEMP "IMAGE_MANIFEST_$Tag.json"
+    docker run --rm --entrypoint cat $LatestImage /app/IMAGE_MANIFEST.json | Out-File -FilePath $TmpManifest -Encoding utf8
+    if ($LASTEXITCODE -eq 0) {
+        aws s3 cp $TmpManifest "s3://leviathan-dev-shahem-001/$SidecarKey" --region $Region
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "==> Manifest sidecar: s3://leviathan-dev-shahem-001/$SidecarKey" -ForegroundColor Green
+        } else {
+            Write-Host "WARN: manifest sidecar PUT failed -- the auditor will treat $Digest as UNKNOWN PROVENANCE" -ForegroundColor Yellow
+        }
+    }
+} else {
+    Write-Host "WARN: could not resolve pushed digest -- no manifest sidecar written" -ForegroundColor Yellow
 }
 
 Write-Host ""

@@ -47,9 +47,12 @@ class TestUsdaNassCorrection:
 
 class TestPerTableAlarms:
     def test_one_alarm_per_burned_table(self, sa, doc):
+        # FENCE 2 leg 3 widens this from the four burned tables to burned + non-registry ARTIFACTS.
+        # BURNED_TABLE_FRESHNESS itself is left untouched so the historical four keep meaning what
+        # they say; the artifact map is a separate dict merged into the same loop.
         table_alarms = [a for a in doc["alarms"] if a["failure_mode"] == "freshness_sla_breach_table"]
-        assert {a["table"] for a in table_alarms} == set(sa.BURNED_TABLE_FRESHNESS)
-        assert len(table_alarms) == 4
+        assert {a["table"] for a in table_alarms} == set(sa.BURNED_TABLE_FRESHNESS) | set(sa.ARTIFACT_FRESHNESS)
+        assert len(table_alarms) == 5
 
     def test_thresholds_and_dimensions(self, sa, doc):
         by_table = {a["table"]: a for a in doc["alarms"] if a["failure_mode"] == "freshness_sla_breach_table"}
@@ -88,14 +91,73 @@ class TestPerTableAlarms:
         assert len({a["alarm_name"] for a in nass}) == 2
 
 
+class TestTimelineArtifactAlarm:
+    """FENCE 2 leg 3 (incident I-2): the graphrag timeline artifact gets a DAILY freshness clock on
+    the EXISTING per-table alarm resource -- no parallel observability system, no module change.
+
+    Every assertion here fails if ARTIFACT_FRESHNESS is dropped or its shape drifts away from what
+    `aws_cloudwatch_metric_alarm.freshness_sla_breach_table` (modules/silver_observability/main.tf)
+    actually renders. The artifact was built 2026-07-04 and nothing measured its age for 27 days.
+    """
+
+    ARTIFACT = "graphrag_timeline_episodes"
+
+    def test_artifact_is_registered_for_freshness(self, sa):
+        assert sa.ARTIFACT_FRESHNESS[self.ARTIFACT][0] == "graphrag_evidence"
+        assert sa.ARTIFACT_FRESHNESS[self.ARTIFACT][1] == 10          # weekly rebuild + 3d grace
+        # The artifact is NOT a burned registry table -- the two maps must stay disjoint, or the
+        # historical four stop meaning "the four the 2026-07-23 audit found stale-green".
+        assert not set(sa.ARTIFACT_FRESHNESS) & set(sa.BURNED_TABLE_FRESHNESS)
+
+    def test_alarm_exists_with_the_poller_dimension_contract(self, sa, doc):
+        by_table = {a["table"]: a for a in doc["alarms"]
+                    if a["failure_mode"] == "freshness_sla_breach_table"}
+        a = by_table[self.ARTIFACT]
+        # Single-dim {Table}: freshness.metric_data_for emits {Table} and {Family} SEPARATELY, so a
+        # composite dimension would receive no data and, under breaching, page forever.
+        assert a["dimensions"] == {"Table": self.ARTIFACT}
+        assert a["metric_name"] == "FreshnessLagDays"
+        assert a["metric_namespace"] == "Leviathan/Silver"    # == freshness.METRIC_NAMESPACE
+        assert a["threshold"] == 10
+        assert a["family"] == "graphrag_evidence"
+        # An ABSENT artifact makes the poller emit NO datapoint at all; "breaching" is what turns
+        # that silence into a page after one day, which is the I-2 fail-open half.
+        assert a["treat_missing_data"] == "breaching"
+        assert not [k for k in sa.REQUIRED_ALARM_KEYS if k not in a]
+
+    def test_alarm_name_keys_on_the_table_and_is_unique(self, sa, doc):
+        names = [a["alarm_name"] for a in doc["alarms"]]
+        assert len(names) == len(set(names))
+        by_table = {a["table"]: a for a in doc["alarms"]
+                    if a["failure_mode"] == "freshness_sla_breach_table"}
+        assert "graphrag-timeline-episodes" in by_table[self.ARTIFACT]["alarm_name"]
+
+    def test_tfvars_carry_the_artifact(self, sa):
+        tfm = sa.build_tfvars()["silver_table_freshness_slas"]
+        assert tfm[self.ARTIFACT] == {
+            "family": "graphrag_evidence",
+            "threshold": 10,
+            "basis": sa.ARTIFACT_FRESHNESS[self.ARTIFACT][2],
+        }
+
+    def test_alarm_matches_the_poll_target(self, sa, doc):
+        # The alarm's Table dimension MUST equal the poller's target name, or the alarm watches a
+        # metric nothing writes -- hollow-alarm mode, which is the whole reason F082 exists.
+        from leviathan.silver.freshness import all_poll_targets, poll_targets
+        emitted = {t.table for t in all_poll_targets()}
+        assert self.ARTIFACT in emitted
+        assert self.ARTIFACT not in {t.table for t in poll_targets()}
+
+
 class TestTfvars:
     def test_family_ceiling_corrected_in_tfvars(self, sa):
         assert sa.build_tfvars()["silver_freshness_slas"]["usda_nass"] == 14
 
     def test_table_freshness_map_present(self, sa):
         tfm = sa.build_tfvars()["silver_table_freshness_slas"]
-        assert set(tfm) == set(sa.BURNED_TABLE_FRESHNESS)
-        for table, (family, threshold, basis) in sa.BURNED_TABLE_FRESHNESS.items():
+        assert set(tfm) == set(sa.BURNED_TABLE_FRESHNESS) | set(sa.ARTIFACT_FRESHNESS)
+        for table, (family, threshold, basis) in {**sa.BURNED_TABLE_FRESHNESS,
+                                                  **sa.ARTIFACT_FRESHNESS}.items():
             assert tfm[table] == {"family": family, "threshold": threshold, "basis": basis}
 
     def test_emitted_tfvars_file_matches(self, sa):

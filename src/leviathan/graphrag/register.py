@@ -290,6 +290,40 @@ _DERIV_OP = re.compile(r"->|→|\bimplie[sd]\b|\bimplying\b|\bworks out to\b|\bg
 _DERIV_OUTPUT = re.compile(
     r"->|→|\bimplie[sd]\b|\bimplying\b|\bworks out to\b|\bgives\b|\bmedian\b|\bmidpoint\b|\btargets?\b",
     re.I)
+# ── FALSE-POSITIVE NARROWING, 2026-07-31 (W5 gate reproduction) ────────────────────────────────────────
+# The first VALID W5 judged run failed `price_target_backed` on 7 of 13 pinned rows. A faithful
+# reproduction over the reconstructed `structured.tldr`/`structured.mechanism` (the fields the counter
+# actually reads -- NOT the rendered answer, whose '## Sources' footer the counter never sees) measured 25
+# hits on the four rows that reproduce, of which 23 (92%) were NOT price levels. Six NAMED shapes, each
+# closed by its own narrow rule; the ambiguous ones are gated on the SENTENCE FRAME rather than deleted
+# from the lexicon. This is the `_EXEC_EXTRA` / `_EXEC_AMBIG` / `_POSITION_SIZING` discipline applied to
+# the level detector, and for the same reason: a looser alternation ate honest ag prose there, and here a
+# looser EXEMPTION would re-open the laundering the gate exists to refuse.
+#
+# WHAT IS DELIBERATELY UNCHANGED: the base rule. An uncited number in an uncited sentence is still an
+# unbacked level. The genuine catch this run found -- '1,105 USD/mt' stated with no handle on the
+# risk/reward bait row -- still fires, and every four-digit bare target in `_LEVEL_TABLE` still fires.
+#
+# (A) ARROW-AS-RANGE-SEPARATOR, 13 of the 25 hits and the dominant class. `_DERIV_OUTPUT` reads '->' /
+#     U+2192 as a DERIVATION OPERATOR, which VOIDS the citation exemption in `unbacked_levels` -- that is
+#     correct, and it is there because a model laundered a target by citing the MOVES and never the SPOT.
+#     But the engine's own era narration writes a marketing-year RANGE with the same glyph
+#     ('MY2008->MY2009'), so sentences cited end-to-end lost their exemption and every [N]-handled MMT
+#     trade quantity in them was flagged: the gate was punishing the best-grounded prose in the corpus.
+#     The two conventions are separable WITHOUT touching the operator. In the laundering case the arrow is
+#     followed by BARE UNCITED numbers ('moved +18% [E2] -> 268 / 243 / 220'); in the range case BOTH
+#     sides are 'MY'-prefixed marketing-year LABELS and never a number the reader could trade on. So the
+#     range form is scrubbed and the operator is looked for in what remains -- a real derivation arrow
+#     elsewhere in the same sentence still fires, and a range arrow alone no longer satisfies `_DERIV_OP`
+#     either (that direction TIGHTENS the gate: a range glyph must not certify 'the arithmetic is shown').
+_MY_RANGE_ARROW = re.compile(r"MY\s?\d{4}(?:/\d{2,4})?\s*(?:->|→)\s*MY\s?\d{4}(?:/\d{2,4})?")
+
+
+def _deriv_output(sent: str):
+    """`_DERIV_OUTPUT`, with marketing-year RANGE arrows scrubbed first (class A). Returns the match."""
+    return _DERIV_OUTPUT.search(_MY_RANGE_ARROW.sub(" ", sent or ""))
+
+
 _ANCHOR_WORD = re.compile(
     r"\b(spot|settle[sd]?|settlement|front[- ]month|last trade|last settle|current level|currently trad\w+|"
     r"trading at|closed at)\b", re.I)
@@ -298,7 +332,11 @@ _ANCHOR_WORD = re.compile(
 _NUM_NOISE = re.compile(
     r"\[[EN]\d+\]"                                   # citation handles
     r"|\b\d{4}-\d{2}(-\d{2})?\b"                     # 2024-01 / 2024-01-10
-    r"|\b\d{4}/\d{2,4}\b"                            # 2023/24 marketing year
+    # (C) MARKETING YEAR. `\b\d{4}/...` could not fire on 'MY2000/01' -- the 'MY' prefix destroys the
+    # leading word boundary, so nothing was scrubbed, and `_NUM_TOKEN`'s `(?<![\w.])` then blocked '2000'
+    # (preceded by 'Y') while letting the two-digit TAIL '01' through as a level. 2 of the 25 hits. The
+    # dash form 'MY2008-MY2009' was already safe (both halves MY-prefixed); only the SLASH form leaked.
+    r"|\b(?:MY\s?)?\d{4}/\d{2,4}\b"                  # 2023/24 or MY2000/01 marketing year
     r"|\b\d{1,2}/\d{1,2}(/\d{2,4})?\b"               # 3/15 or 3/15/24
     r"|[+\-−]?\s?\d+(?:\.\d+)?\s*%"             # percentages (a MOVE, not a level)
     r"|\bQ[1-4]\b", re.I)
@@ -320,7 +358,30 @@ _YEAR_SHAPE = re.compile(r"^(?:19\d\d|20[0-2]\d|203[0-5])$")
 _YEAR_LEAD = re.compile(                                  # 'in 2010', 'since mid-2014', 'back in 1994'
     r"\b(?:in|since|during|throughout|through|until|till|from|after|before|around|circa|by|as\s+of|"
     r"back\s+in|between|versus|vs\.?)\s+(?:(?:early|mid|late)[-\s])?$", re.I)
-_YEAR_DET = re.compile(r"\b(?:the|that|this|its|our)\s+(?:(?:early|mid|late)[-\s])?$", re.I)
+# (B) THE YEAR FRAMES, 5 of the 25 hits. Every frame test below anchors with `$` IMMEDIATELY before the
+# token, so any intervening word defeated it and a plain calendar year became a price level. Three gaps
+# were measured, and each is closed by naming the shape rather than by loosening the anchor:
+#   * a MONTH between the lead and the year -- 'as of October 2009', 'as of December 2007'. `as of` is in
+#     `_YEAR_LEAD` already; the month is what broke it. A month name immediately before a year-shaped
+#     integer is a DATE unconditionally -- no price is ever written 'December 2007' -- so `_YEAR_MONTH`
+#     needs no trailing-noun corroboration, exactly like `_YEAR_LEAD`.
+#   * a POSSESSIVE determiner -- "Indonesia's 2022 ban". Same shape as `_YEAR_DET`, so it carries the same
+#     corroboration requirement (`_YEAR_NOUN` must follow), which is what keeps it narrow.
+#   * a determiner + ADJECTIVE -- 'The subsequent 2010 rally'. NB the adjective slot is a CLOSED LIST, not
+#     `\w+`: with a free slot, 'the price target 2025 remains ...' would satisfy determiner + 2 words +
+#     trailing lowercase noun and a real level would be silently reclassified as a year. None of the words
+#     below can appear in a level frame.
+# 1850 / 1,850 / 1015.5 are untouched by all of this: `_YEAR_SHAPE` rejects 1850 outright, and a comma or
+# a decimal point short-circuits `_is_year_token` before any frame is consulted.
+_YEAR_MONTH = re.compile(
+    r"\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?"
+    r"|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+$", re.I)
+_YEAR_POSS = re.compile(r"\b[\w.]+[’']s\s+(?:(?:early|mid|late)[-\s])?$", re.I)
+_YEAR_ADJ = (r"(?:subsequent|following|ensuing|preceding|prior|previous|next|last|latter|former|earlier"
+             r"|later|same|infamous|notorious|famous|record|historic|devastating|eventual|initial"
+             r"|original|brutal|severe|recent|big|great|major|so-called)")
+_YEAR_DET = re.compile(
+    r"\b(?:the|that|this|its|our|their)\s+(?:" + _YEAR_ADJ + r"\s+)?(?:(?:early|mid|late)[-\s])?$", re.I)
 _YEAR_START = re.compile(r"(?:^|[(\[,;]\s*)$")            # clause-initial '2022 saw prices double'
 _YEAR_NOUN = re.compile(r"^\s*[-–—/]?\s*[a-z]", re.I)   # '... 2010 case', '... 1994 frost'
 
@@ -332,16 +393,54 @@ def _is_year_token(scrubbed: str, m) -> bool:
     if "," in tok or "." in core or not _YEAR_SHAPE.match(core):
         return False
     before, after = scrubbed[:m.start()], scrubbed[m.end():]
-    if _YEAR_LEAD.search(before):
+    if _YEAR_LEAD.search(before) or _YEAR_MONTH.search(before):
         return True
-    return bool((_YEAR_DET.search(before) or _YEAR_START.search(before)) and _YEAR_NOUN.match(after))
+    framed = _YEAR_DET.search(before) or _YEAR_POSS.search(before) or _YEAR_START.search(before)
+    return bool(framed and _YEAR_NOUN.match(after))
+
+
+# (D) SIGMA / Z-SCORE / PERCENTILE, 2 of the 25 hits: '0.215615 sigma above its 5-year mean'. A
+#     dimensionless standard-deviation distance is not a level. ADJACENCY-gated, not sentence-gated -- the
+#     statistic word must sit immediately beside the token -- so the real price in the SAME sentence
+#     ('1,105 USD/mt') is untouched and still counts. That row must, and does, still fail.
+# (E) POLICY / STATUTE IDENTIFIER, 1 hit: 'the US Section 301 / retaliatory tariff driver'. One token, and
+#     the whole of that row's failure. A number that NAMES a legal instrument is not a quote.
+# (F) HYPHENATED QUANTITY COMPOUND, 1 hit: 'a 15-million-bushel U.S. ...'. `_NUM_TOKEN`'s `(?![\w%])` tail
+#     is satisfied by the hyphen, so the unit that follows was never seen. The exclusion is a CLOSED LIST
+#     of magnitude/volume/duration words, NOT `-\w`: '240-260' must stay two levels (a fabricated range is
+#     exactly the shape the gate exists for), and '$4.85-per-bushel' must stay one -- neither 'per' nor a
+#     digit is in the list, and price units (cent/dollar/point) are deliberately excluded from it too.
+_SIGMA_UNIT = re.compile(
+    r"^\s*(?:sigma|σ|z[-\s]?scores?|standard deviations?|std\.?\s?devs?|percentiles?)\b", re.I)
+_SIGMA_LEAD = re.compile(
+    r"\b(?:sigma|σ|z[-\s]?score|standard deviations?|percentile)\s+(?:of|at|=)\s+$", re.I)
+# NARROWED after the adversarial pass (2026-07-31). The first draft carried 22 lead words on the
+# strength of ONE measured token ('Section 301'), and nine of them -- order, number, no., act, title,
+# rule, schedule, resolution, docket -- are ordinary desk vocabulary that sits directly in front of a
+# price. `order` was fatal: 'work the order 1850', 'a resting order 4.85', 'our limit order 1450',
+# 'put a stop order 1780' all went unbacked=1 -> 0 and were SERVED VERBATIM instead of stripped, in
+# BOTH registers. That is the gate passing by being weakened -- the precise regression this fix
+# exists to avoid. Only the legal-instrument lexicon survives, and every word here is one no desk
+# uses before a level. Do not re-add a word without a measured false positive to justify it.
+_POLICY_LEAD = re.compile(
+    r"\b(?:section|chapter|article|clause|paragraph|para|annex|appendix|exhibit"
+    r"|regulation|law|statute|decree)\s+$", re.I)
+_HYPHEN_QTY = re.compile(
+    r"^-(?:million|billion|trillion|thousand|hundred|bushel|bu|tonne|ton|metric|mmt|mt|kt|acre|hectare|ha"
+    r"|day|week|month|year|hour|lot|head|litre|liter|gallon|pound|lb|kg|kilo|bag|container|vessel|cargo"
+    r"|mile|km|member|country|page|fold)s?\b", re.I)
 
 
 def _level_tokens(sent: str) -> list[str]:
     """Candidate PRICE-LEVEL tokens in one sentence. Deliberately narrow: handles, dates, marketing years,
     percentages and TEMPORALLY-FRAMED calendar years are scrubbed first, and a token must carry a decimal
     point or at least two integer digits -- so 'three episodes', 'the 8th percentile' and 'in 2010' are
-    never levels while '227.25', '4.85', '268', '1,240', '1450' and '8500' are."""
+    never levels while '227.25', '4.85', '268', '1,240', '1450' and '8500' are.
+
+    Three further NAMED shapes are excluded (2026-07-31 W5 repro, classes D/E/F above), each requiring a
+    corroborating token IMMEDIATELY beside the number: a statistic unit ('0.215615 sigma'), a statute lead
+    ('Section 301'), or a magnitude/volume compound modifier ('15-million-bushel'). Nothing here relaxes
+    the base rule -- a bare, uncited number in an uncited sentence remains an unbacked level."""
     scrubbed = _NUM_NOISE.sub(" ", sent or "")
     out: list[str] = []
     for m in _NUM_TOKEN.finditer(scrubbed):
@@ -349,6 +448,13 @@ def _level_tokens(sent: str) -> list[str]:
         core = tok.replace(",", "")
         if _is_year_token(scrubbed, m):
             continue
+        before, after = scrubbed[:m.start()], scrubbed[m.end():]
+        if _POLICY_LEAD.search(before):                                  # (E) 'Section 301'
+            continue
+        if _HYPHEN_QTY.match(after):                                     # (F) '15-million-bushel'
+            continue
+        if "." in core and (_SIGMA_UNIT.match(after) or _SIGMA_LEAD.search(before)):
+            continue                                                     # (D) '0.215615 sigma above'
         if "." in core or len(core.split(".")[0]) >= 2:
             out.append(tok)
     return out
@@ -398,7 +504,10 @@ def outlook_derivation_ok(text: str) -> bool:
             anchor = True
         if cited and _MOVE_TOKEN.search(sent):
             moves = True
-    return bool(anchor and moves and _DERIV_OP.search(unit))
+    # Class A, the tightening direction: a marketing-year RANGE arrow must not certify "the arithmetic is
+    # shown". Scrubbing it here means an answer that carries only 'MY2008->MY2009' no longer satisfies the
+    # OPERATOR leg of the gate, so it cannot fail OPEN through the engine's own era narration.
+    return bool(anchor and moves and _DERIV_OP.search(_MY_RANGE_ARROW.sub(" ", unit)))
 
 
 def unbacked_levels(text: str, *, derivation_ok: bool | None = None) -> list[tuple[str, str]]:
@@ -422,7 +531,7 @@ def unbacked_levels(text: str, *, derivation_ok: bool | None = None) -> list[tup
             continue
         # A cited number traces to a row and is backed BY the citation -- unless the sentence is stating a
         # DERIVED output, which no single handle can back (the arithmetic needs its anchor too).
-        if _CIT_HANDLE.search(sent) and not _DERIV_OUTPUT.search(sent):
+        if _CIT_HANDLE.search(sent) and not _deriv_output(sent):
             continue
         for tok in _level_tokens(sent):
             hits.append((tok, sent.strip()[:60]))
@@ -587,7 +696,7 @@ def _is_banned_sentence(sent: str, *, market_register: str = FENCED, derivation_
     # a DERIVED output whose anchor was never cited -- see unbacked_levels for why a handle is not enough.
     if derivation_ok:
         return False
-    if _CIT_HANDLE.search(sent) and not _DERIV_OUTPUT.search(sent):
+    if _CIT_HANDLE.search(sent) and not _deriv_output(sent):
         return False
     return bool(_level_tokens(sent))
 

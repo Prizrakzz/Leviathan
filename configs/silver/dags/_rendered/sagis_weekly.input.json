@@ -30,7 +30,8 @@
       "tasks": [
         {
           "command": [
-            "jobs/ingest/fetch_sagis_cec.py"
+            "jobs/ingest/fetch_sagis_cec.py",
+            "--skip-existing-s3"
           ],
           "env": [],
           "integration": "batch",

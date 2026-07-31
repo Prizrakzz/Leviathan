@@ -19,6 +19,7 @@ from leviathan.graphrag import graph as gph
 from leviathan.graphrag import harvest as hv
 from leviathan.graphrag import params as _prm
 from leviathan.graphrag import register as reg
+from leviathan.graphrag import timeline as _tl   # W4-D3: LINE_PREFIX only (module imports params alone -> no cycle)
 
 # Production retrieval stack — the arm that won the free k=3 A/B (hybrid doubled exact-token recall 2/6->4/6;
 # rerank sharpened rank; MMR kept the best source-diversity, guarding against narrowing). Serving uses this by
@@ -362,8 +363,11 @@ _SYSTEM_CASCADE = (
     "stripped-down figure matches no row and is discarded). A magnitude you DERIVE yourself -- a ratio, "
     "share, sum, or shortfall computed across rows (e.g. a stocks-to-use ratio from a stocks level and a "
     "use level) -- has NO row: state it WITHOUT ANY NUMERAL (\"a razor-thin buffer\", \"a far larger "
-    "cushion\"), and NEVER place a derived or rounded number in the same sentence as a row citation, or it "
-    "strips the good handle with it. NAME EACH ERA BY ITS MARKETING YEAR OR PERIOD (\"the 2016/17 season\", "
+    "cushion\"), and NEVER place a DERIVED or ROUNDED number in the same sentence as a row citation, or it "
+    "strips the good handle with it. That warning is about numbers you derived or rounded ONLY: an "
+    "OBSERVED row figure MUST carry its [N] handle in the SAME SENTENCE as the number (a ';' ends a "
+    "sentence too) -- citing the row in a later sentence does NOT back it. "
+    "NAME EACH ERA BY ITS MARKETING YEAR OR PERIOD (\"the 2016/17 season\", "
     "\"the 2018/19 drought\"), NEVER as \"era 0\"/\"era 1\" -- the bare index reads as an uncited magnitude and "
     "a reader must never see an internal label. Name each leg by the COUNTRY shown in its row, exactly. "
     "And in the record as everywhere else: never 'bullish' or 'bearish' -- direction is prose ('fell', "
@@ -529,6 +533,58 @@ def _outlook_on() -> bool:
     return os.environ.get("GRAPHRAG_OUTLOOK", "").strip().lower() in ("on", "1", "true")
 
 
+def _timeline_on() -> bool:
+    """W4-D3 event-timeline kill-switch (GRAPHRAG_TIMELINE), read at the answer.py seam and threaded DOWN
+    as the `episodes` argument to _system() -- never an os.environ read inside the persona builder.
+    When on, the persona gains the reserved '## Episodes' enumeration directive (_SYSTEM_EPISODES), which
+    is the PRODUCER half of eval's min_episode_lines / episode_magnitude_or_absence pins. DEFAULT-OFF,
+    fail-closed: with the flag off _system() is BYTE-IDENTICAL to pre-W4-D3.
+    Read PER CALL (never memoized) so the env-flip rollback is live -> no redeploy (the _chain_on idiom).
+
+    SPELLING IS DELIBERATELY NARROWER THAN THE HOUSE on/1/true IDIOM, and this is load-bearing. The ENGINE
+    gate is `os.environ.get("GRAPHRAG_TIMELINE", "off") != "on"` (timeline.episodes_for, timeline.py:140)
+    -- an EXACT "on" match. If this helper accepted "1"/"true", then GRAPHRAG_TIMELINE=1 would ship the
+    paragraph while episodes_for() still returned [], so the model would be told to render '## Episodes' on
+    a turn carrying NO 'DATED EPISODES' line -- a confabulation surface born of a two-gate spelling
+    mismatch, and precisely the +10-hallucination mode the layer was defaulted off for on 2026-07-04.
+    The two gates must agree character for character; do not "harmonize" this with _chain_on.
+
+    THIS FLAG IS NECESSARY AND NOT SUFFICIENT, and the earlier revision of this docstring was WRONG to
+    imply otherwise (verifier blocker 2, 2026-07-31). Matching the spelling closes only the =1/=true case.
+    THREE states leave the flag exactly "on" with ZERO episode lines in the prompt:
+      (a) ARTIFACT FAIL-OPEN -- timeline._load() ends in a bare `except Exception: _CACHE = {}`
+          (timeline.py:109-110), so a missing or unreadable timeline/episodes.json yields [] silently;
+      (b) NO AS-OF -- episodes_for() returns [] when the turn has no anchor date (timeline.py:143-144);
+      (c) ONE-HOP -- `tl.render_line` has exactly ONE call site (_l2_blocks), so the GRAPHRAG_PLANNER=onehop
+          rollback body produces no episode line at all.
+    The second gate is therefore MEASURED IN CODE at both seams: `_timeline_on() and _tl.LINE_PREFIX in vp`,
+    read off the ASSEMBLED volatile prompt. A prompt sentence ("render it only when a line is present") is
+    not a gate -- it is one paraphrase away from failing, which is the same reasoning that put the outlook
+    derivation fence in register.py rather than in the persona."""
+    return os.environ.get("GRAPHRAG_TIMELINE", "off") == "on"
+
+
+def _episodes_on(volatile_prompt: str | None) -> bool:
+    """THE W4-D3 SEAM GATE, one spelling, used by BOTH serving bodies (_answer_l2 and the one-hop legacy
+    body). The '## Episodes' persona paragraph ships iff BOTH legs hold:
+
+      leg 1  the kill-switch  -- _timeline_on(), exact "on", character-for-character with timeline.py:140;
+      leg 2  the EVIDENCE     -- the assembled VOLATILE prompt actually carries an injected episode line.
+
+    Leg 2 is the one the first revision was missing, and it is not redundant: the flag can be exactly "on"
+    with zero lines injected whenever the artifact fails to load (timeline._load fails OPEN to {}), the
+    turn has no as-of, the walk grounded no node with dated props, or the planner is one-hop (which has no
+    episode producer at all). In each of those states a flag-only gate hands the model a paragraph
+    demanding a section it has no episodes for -- and in an A/B that state is invisible in the OFF arm, so
+    it yields a FALSE reading rather than a noisy one.
+
+    It reads the VOLATILE prompt, never sg.nodes, because the volatile prompt is what the model is
+    actually sent: it stays correct if _l2_blocks changes which nodes it renders, and it cannot be fooled
+    by a node whose episodes were populated but whose line was not emitted. tl.LINE_PREFIX is the shared
+    constant render_line itself builds from, so producer and gate cannot drift apart."""
+    return _timeline_on() and _tl.LINE_PREFIX in (volatile_prompt or "")
+
+
 # W5-D5: the '## Outlook' RESERVED HEADING -- injected-only, exactly the '## Cross-commodity' /
 # '## Complex-wide move' / '## Recorded history' shape. Appended to the persona ONLY on a turn where all
 # three outlook legs held, so with the flag off _system() is BYTE-IDENTICAL to pre-W5.
@@ -557,7 +613,29 @@ _SYSTEM_OUTLOOK = (
     "episode move) carries its [N] or [E] handle; the OUTPUTS you compute may be uncited because they are "
     "arithmetic on cited inputs, shown in the same section. A LEVEL WITHOUT ITS DERIVATION IS A REFUSAL: if "
     "you cannot show the spot, the episode moves and the arithmetic, DO NOT STATE A NUMBER -- say plainly "
-    "that the record does not support a level and give the direction and the mechanism instead. Never carry "
+    "that the record does not support a level and give the direction and the mechanism instead.\n"
+    "AN OBSERVED LEVEL IS A DIFFERENT SHAPE FROM A DERIVED ONE. It needs no arithmetic at all -- only its "
+    "OWN HANDLE, IN THE SAME SENTENCE AS THE NUMBER. Write 'the World Bank pink-sheet CPO reference price "
+    "is 1,105 USD/mt [N3]'. Do NOT write 'the CPO price is 1,105 USD/mt, 0.22 sigma above its 5-year mean' "
+    "and disclose [N3] in a later sentence, a closing scope note, a bullet further down or the sources "
+    "ledger: each sentence is read ALONE, so a handle anywhere else in the note does not reach it. A "
+    "sentence ends at a full stop, a question mark or a SEMICOLON, and NEVER at a line break -- so every "
+    "bullet, every parenthetical aside and every clause after a semicolon that states a level carries its "
+    "own handle inside it, and RESTATING a level (under '## The record', in a summary bullet, in the tl;dr) "
+    "is stating it again and needs the handle again. This binds the buffer leg, the positioning leg and any "
+    "'where the level sits versus its own history' remark.\n"
+    "PUT EACH HANDLE IN ITS OWN BRACKETS -- '[N3] [N4]', or '[N3], [N4]', NEVER '[N3, N4]'. A comma-joined "
+    "list inside one bracket is not a handle: the sentence reads as UNCITED and every number in it is "
+    "refused, however many rows you meant to name.\n"
+    "KEEP DERIVATION WORDS OUT OF A SENTENCE THAT ONLY QUOTES A ROW. The arrow '->' and the words "
+    "'implies', 'implied', 'implying', 'works out to', 'gives', 'median', 'midpoint' and 'target' mark a "
+    "sentence as COMPUTED OUTPUT, which no single handle can back -- an observed row quoted alongside one "
+    "of them is read as arithmetic and refused DESPITE its handle. Quote the observed rows plainly, each in "
+    "its own sentence, and put the arithmetic in sentences of its own.\n"
+    "A LEVEL WITH NEITHER ITS OWN IN-SENTENCE HANDLE NOR A SHOWN DERIVATION IS A REFUSAL, not a rounding "
+    "error. The honest move is to describe it QUALITATIVELY -- 'modestly above its five-year average' -- or "
+    "to say the record carries no citable level for it and give the direction and the mechanism instead. "
+    "Never carry "
     "a bare level into the tl;dr: either restate it with its derivation or cite the handle it rests on. "
     "Never present a range as a forecast of what WILL happen -- it is what comparable episodes DID, applied "
     "to today's level, and you must say so.\n"
@@ -570,12 +648,133 @@ _SYSTEM_OUTLOOK = (
     "sheet is tighter, and why) is in scope; a trade instruction is not.")
 
 
-def _system(*, outlook: bool = False) -> str:
+# W4-D3: the '## Episodes' RESERVED HEADING -- injected-only, exactly the '## Cross-commodity' /
+# '## Complex-wide move' / '## Recorded history' shape. Appended to the persona ONLY on a turn that BOTH
+# has GRAPHRAG_TIMELINE on AND actually carries an injected 'DATED EPISODES' line (see the gate below), so
+# with the flag off _system() is BYTE-IDENTICAL to pre-W4-D3.
+#
+# WHY IT EXISTS. eval's two W4 deck pins (min_episode_lines, episode_magnitude_or_absence) both read a
+# rendered '## Episodes' section via eval._episode_section / _episode_lines. NOTHING in the codebase ever
+# rendered one -- _episode_lines() returned [] on every turn, so both pins were red BY CONSTRUCTION on
+# every row that pinned them. This paragraph is the missing PRODUCER half; the consumer needed no change.
+#
+# GATED ON TWO CONDITIONS, BOTH IN CODE, BOTH AT THE SEAM (revised 2026-07-31, verifier blocker 2):
+#     _episodes_on(vp)  ==  _timeline_on() and _tl.LINE_PREFIX in vp
+# i.e. the kill-switch AND an actual 'DATED EPISODES' line in the assembled volatile prompt. The earlier
+# revision gated on the FLAG ALONE and justified it as "the injected-only clause forbids the section" --
+# that clause is PROSE, and the flag can be exactly "on" with zero lines injected in at least three
+# states (dead artifact, no as-of, one-hop planner; see _timeline_on's docstring). In each of those the
+# flag-only gate hands the model a paragraph demanding a section it has no episodes for, which is the
+# confabulation mode this layer was defaulted off for -- and in an A/B it is invisible in the OFF arm, so
+# it produces a FALSE result rather than a noisy one. Correctness beats the cache here.
+# COST: the paragraph is appended LAST (after mentor/cascade/pattern-records), so the cached prefix -- the
+# stable head of the system string plus the stable graph block -- is byte-identical either way; only the
+# tail varies per turn, exactly as _SYSTEM_OUTLOOK already does.
+#
+# THE TWO-SLOT BULLET, and why NEITHER slot is optional (both facts read from eval.py, not remembered):
+#   SLOT 1, BACKING. eval._line_backed (eval.py:862-867) accepts a line when it (a) carries a _NO_CITABLE
+#     phrase, (b) names a year some CITED evidence item is dated in, or (c) carries a cited citation's
+#     handle. _NO_PRICE_RECORD IS NOT IN _line_backed -- a line whose only marker is "no price record"
+#     is UNBACKED and reds min_episode_lines. And _cited_evidence (eval.py:210-222) filters
+#     kind == "evidence", so an [N] handle NEVER backs a line either. Hence slot 1 is mandatory even on
+#     the rare priced bullet, which is exactly the trap a "[N2] and nothing else" line would fall into.
+#   SLOT 2, MAGNITUDE. There is NO per-episode price engine. The only historical price surface a turn
+#     injects is the SEAM-B WASDE avg_farm_price marketing-year pair (numbers/cascade.py ~2020-2075): at
+#     most ONE pair per turn, on ONE derived focus window, declined outright on a market-price or non-US
+#     slug. So the ABSENCE MARKER IS THE DEFAULT and the [N] branch is the exception -- and because the
+#     _NO_PRICE_RECORD vocabulary is TURN-scoped ("no observed magnitude"), not coverage-scoped, it is
+#     legitimate on an IN-FLOOR episode too, not only on a pre-price-floor one.
+# Both pins carry an ALL-LINES quantifier (`all(...)` over every bullet), so ONE sloppy bullet reds the row
+# however many good ones precede it. The paragraph therefore forbids an empty slot outright rather than
+# trusting the model to fill both, and makes the absence branch the default rather than the exception.
+#
+# THREE MECHANICAL RULES, each measured against a real strip path (this is why the shape is this shape):
+#   (i)   THE SPAN GLYPH IS '..', NEVER AN ARROW. register._DERIV_OUTPUT (register.py:290-292) reads '->'
+#         as a derived-output marker, which VOIDS the citation exemption in unbacked_levels (register.py:
+#         534) -- on an OUTLOOK-register turn an arrowed bullet is stripped DESPITE carrying its handle.
+#   (ii)  NO BARE NUMERAL ON A BULLET EXCEPT THE ISO SPAN. register._NUM_NOISE (332-342) scrubs \d{4}-\d{2}
+#         so the span is safe, but _level_tokens (434-460) classifies any >=2-digit bare integer as a price
+#         level, so a rendered report count -- "(11 reports)" -- is an unbacked level on an uncited bullet
+#         and is STRIPPED under market_register=OUTLOOK, deleting the whole line and reding BOTH pins.
+#   (iii) THE CITATION CLAUSE MUST SHARE VOCABULARY WITH THE RECEIPT. verify._verify_field drops the whole
+#         SENTENCE on no_lexical_overlap / quote_mismatch / fabricated_citation, and _episode_lines reads
+#         structured.mechanism POST-verify -- a bullet whose [E] clause is free prose sharing nothing with
+#         the receipt is deleted before the scorer ever sees it.
+# The price-absence rule lives HERE and only here: timeline.render_line cannot know whether a SEAM-B [N]
+# pair covers a window, so a clause appended there would be unconditional and would forbid the one
+# legitimate [N] line. One instruction, one file.
+_SYSTEM_EPISODES = (
+    "\nDATED EPISODES -- THE '## Episodes' SECTION. When one or more 'DATED EPISODES' lines are present, "
+    "ENUMERATE them in a dedicated '## Episodes' section. Render '## Episodes' ONLY when a 'DATED "
+    "EPISODES' line is present -- the section exists solely when the prompt supplies the episodes; never "
+    "volunteer an episode list from prose, and never add an episode the lines do not carry. The DATED "
+    "EPISODES rule above still holds in full: those lines are REPORT TIMESTAMPS, not descriptions, so do "
+    "NOT manufacture severity, outcomes, or magnitudes from a bare count or date -- enumerating a window "
+    "is not narrating it.\n"
+    "HEADING: exactly '## Episodes' -- level two, that word alone, no count suffix and no dash suffix, "
+    "never inside a code fence. Place it AFTER '## The record' and BEFORE '## What to watch'. The section "
+    "holds ONE '- ' bullet per injected episode and NOTHING else: no lead-in sentence, no closing prose.\n"
+    "EVERY INJECTED EPISODE GETS ITS OWN BULLET, including the ones with no citable item. Never drop an "
+    "episode for being thin, never merge two into one bullet, and never invent one to round out the list.\n"
+    "EACH BULLET HAS THIS SHAPE, and BOTH slots are REQUIRED:\n"
+    "  - <YYYY-MM>..<YYYY-MM> -- <plain-words label>: <BACKING>; <MAGNITUDE>.\n"
+    "Write the span with FULL four-digit years on BOTH ends, joined by the two-dot glyph '..' -- NEVER an "
+    "arrow, which this system reads as derived arithmetic and strips.\n"
+    "ONE BULLET IS ONE PHYSICAL LINE. Keep the span, the label, the backing and the magnitude on the SAME "
+    "line, however long it runs -- never wrap a bullet onto a continuation line and never break one across "
+    "two '- ' items. A bullet is read line by line, so anything pushed onto a second line is not read as "
+    "part of that episode.\n"
+    "BACKING (first slot) is EITHER one clause restating what a cited dated item inside that window "
+    "actually says, carrying that item's [E] handle, OR -- when the injected episode says NO CITABLE ITEM "
+    "IN THIS WINDOW -- the absence itself, in these words: 'no citable item', 'no dated source', or 'the "
+    "corpus is silent'. An [N] handle does NOT fill this slot. Restate a TERM FROM THE RECEIPT the "
+    "injected line showed you; a clause that shares no wording with the item it cites is dropped as "
+    "unverifiable.\n"
+    "MAGNITUDE (second slot) is EITHER the price move with its [N] handle, when an injected number row "
+    "actually covers that window, OR an explicit statement that none does, in these words: 'no observed "
+    "magnitude for this window', 'no priced move', or 'no price record for this window'. THE ABSENCE IS "
+    "THE NORMAL CASE -- no per-episode price history is served here, so most episodes have no magnitude "
+    "and saying so plainly IS the correct answer; an invented move, or an empty slot, is not. A magnitude "
+    "is an [N] HANDLE, never a bare numeral.\n"
+    "THE TWO VOCABULARIES ARE DIFFERENT and answer different questions: 'no citable item' means the "
+    "corpus holds no text for that window; 'no observed magnitude' means the price record holds no move "
+    "for it. A window with NEITHER states BOTH, in that order -- one does not imply the other.\n"
+    "NO BARE NUMBER anywhere on a bullet except the two years of the span. Do NOT render the episode's "
+    "report count as a numeral (say 'a handful of reports', or omit it), and never state a level, "
+    "percentage, or threshold without its handle -- an uncited number on a bullet gets the whole line "
+    "stripped.\n"
+    "WORKED EXAMPLES, one per case that actually occurs. THESE ARE SCHEMATIC. 'YYYY' is a literal "
+    "placeholder and is NOT a date; every angle-bracket slot is a placeholder for what THIS turn's "
+    "injected line says. Substitute the real span, the real label and the real handles. An answer that "
+    "emits 'YYYY', emits an angle bracket, or reproduces one of these lines as though it were an "
+    "episode has enumerated NOTHING -- an episode you did not read off an injected 'DATED EPISODES' "
+    "line does not exist, and writing one down is the single worst failure available here.\n"
+    "CASE 1 -- no citable item and no price row (the common case, both slots ABSENT):\n"
+    "- YYYY-MM..YYYY-MM -- <what the window is, in plain words>: no citable item in this window, so what "
+    "happened is not narrated; no price record for this window.\n"
+    "CASE 2 -- receipted but unpriced (backing from the receipt, magnitude absent):\n"
+    "- YYYY-MM..YYYY-MM -- <what the window is, in plain words>: <one clause restating what the cited "
+    "in-window item actually says, reusing its wording> [E<k>]; no observed magnitude for this window.\n"
+    "CASE 3 -- receipted AND priced (rare; only when an injected number row really covers the window):\n"
+    "- YYYY-MM..YYYY-MM -- <what the window is, in plain words>: <one clause restating the cited item> "
+    "[E<k>], with the season-average farm price across those marketing years at [N<k>].\n"
+    "Stating an absence is the record, not a hedge -- and having enumerated these windows honestly, do "
+    "NOT smooth the same episodes into a confident generalisation ('frosts usually ...') elsewhere in "
+    "the note.")
+
+
+def _system(*, outlook: bool = False, episodes: bool | None = None) -> str:
     """The active reader-facing persona. GRAPHRAG_MENTOR_VOICE default on -> mentor; =off -> the prior string.
     GRAPHRAG_CASCADE_QUANT on -> append the OBSERVED CASCADE NUMBERS addendum (P9-B: the loop supplies the
     [N] rows). GRAPHRAG_PATTERN_RECORDS on -> append the OBSERVATION-register RECORDED HISTORY directive (T2B).
     `outlook` (W5-D5, the three-leg gate already resolved by the caller) -> append the '## Outlook' balance-of-
     risks + derivation-gate directive; DEFAULT FALSE so every existing caller is byte-identical.
+    `episodes` (W4-D3) -> append the reserved '## Episodes' enumeration directive. The SEAM resolves it as
+    `_timeline_on() and _tl.LINE_PREFIX in vp` -- kill-switch AND an actually-injected 'DATED EPISODES'
+    line -- and threads the bool DOWN; both serving bodies pass it explicitly. DEFAULT None falls back to
+    the FLAG ALONE, which is the weaker half: it cannot see the prompt, so it is right only for a caller
+    that has no prompt to inspect (tests, ad-hoc persona dumps). It is a floor, NOT the invariant; a new
+    serving path must resolve both legs at its own seam rather than lean on this default.
     Read PER CALL, never memoized: a serving process is long-lived, so a once-at-import read would
     make the env-flip rollback a silent no-op until a redeploy — defeating the gate's purpose."""
     if os.environ.get("GRAPHRAG_MENTOR_VOICE", "on") == "off":
@@ -590,6 +789,10 @@ def _system(*, outlook: bool = False) -> str:
     if _pattern_records_on():
         from leviathan.graphrag.numbers import pattern_records as _pr   # lazy: avoid an import cycle
         base = base + _pr.RECORDED_HISTORY_ADDENDUM
+    if episodes is None:                                           # no prompt to inspect -> the FLAG leg only
+        episodes = _timeline_on()                                  #   (a floor, not the seam invariant)
+    if episodes:                                                   # W4-D3: the reserved '## Episodes' heading
+        base = base + _SYSTEM_EPISODES
     if outlook:                                                    # W5-D5: the reserved '## Outlook' heading
         base = base + _SYSTEM_OUTLOOK
     return base
@@ -824,7 +1027,31 @@ def _l2_blocks(sg, graph: gph.CausalGraph, asof: str | None = None) -> list[str]
                 vlines.append(f"--- DATED EVIDENCE for driver {n.id} ---\n" + _ev_block(n.evidence))
             if n.episodes:                                         # timeline layer: dated occurrences <= asof
                 from leviathan.graphrag import timeline as tl
-                vlines.append(tl.render_line(n.id, n.episodes))
+                _ep_line = tl.render_line(n.id, n.episodes)
+                vlines.append(_ep_line)
+                # W4-N1 (2026-07-31, adversarial gate): EXPORT what was injected. Until now the rendered
+                # episode line lived ONLY in the volatile prompt -- `n.episodes` is never copied into
+                # _answer_l2's return dict -- so nothing downstream could tell an ENUMERATED window from a
+                # MINTED one. Two graders depended on exactly that and could not have it:
+                #   * eval.judge() builds its user block from graph + evidence + numbers + the answer, and
+                #     NONE of those is dated inside a receipt-less window (timeline.episodes_for sets
+                #     `receipt` only from an in-window evidence prop, so receipt is None <=> the judge is
+                #     shown nothing dated there). A correctly enumerated receipt-less episode therefore read
+                #     to the judge as an unsupported date claim -- i.e. turning W4 ON raised the
+                #     hallucination count BY CONSTRUCTION, on the exact metric the A/B acceptance rule uses,
+                #     worst on the honest-thinness rows W4 exists to reward.
+                #   * eval's min_episode_lines / episode_magnitude_or_absence could not check a bullet's
+                #     window against anything, so three wholly invented windows greened all five episode
+                #     pins (the D-4 vacuity exploit).
+                # The record rides the EXISTING trace plumbing (`sg.trace` is spread into out['trace'] at
+                # _answer_l2's return), so no new return key, no new plumbing, no re-derivation in the judge.
+                # `spans` is rendered from the SAME `e['start'][:7]..e['end'][:7]` shape render_line writes,
+                # so the scorer compares the model's bullet against the literal string the model was shown.
+                # FLAG-OFF: n.episodes is [] on every node (timeline.episodes_for returns [] unless
+                # GRAPHRAG_TIMELINE == "on"), so this block never runs and the key never appears.
+                sg.trace.setdefault("episodes_injected", []).append(
+                    {"node": n.id, "line": _ep_line,
+                     "spans": [f"{e['start'][:7]}..{e['end'][:7]}" for e in n.episodes]})
             if n.kind == "driver" and n.silver and n.silver.get("live"):
                 vlines.append(f"OBSERVED for {n.id}: {n.silver.get('value')} {n.silver.get('unit', '')} "
                               f"[{n.silver.get('knowledge_date', '')}]")
@@ -998,7 +1225,8 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # relaxes the register, and it is passed DOWN as an argument -- register.py reads no environment.
     _outlook = bool(outlook) and _outlook_on()
     _mr = reg.OUTLOOK if _outlook else reg.FENCED
-    structured = call(_system(outlook=_outlook), _pack(sp, vp, use_blocks), model=model,
+    _episodes = _episodes_on(vp)                                  # W4-D3: BOTH legs, and both in CODE
+    structured = call(_system(outlook=_outlook, episodes=_episodes), _pack(sp, vp, use_blocks), model=model,
                       tool=_answer_tool(), **call_kw)
     sg.trace["ms_synth_llm"] = int((time.perf_counter() - _t_synth) * 1000)
     _banned_mood = _count_banned_mood(structured)                 # P9-A: RAW output, pre-sanitize (see helper)
@@ -1329,7 +1557,14 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     # rollback cannot silently leave outlook turns on a different register from the L2 default.
     _outlook = bool(outlook) and _outlook_on()
     _mr = reg.OUTLOOK if _outlook else reg.FENCED
-    structured = call(_system(outlook=_outlook), _pack(sp, vp, use_blocks), model=model, tool=_answer_tool())
+    # W4-D3 (verifier blocker 2): the IDENTICAL two-gate expression as the L2 body. It is not hard-coded
+    # False even though this body has no episode producer today -- `tl.render_line` has exactly ONE call
+    # site (_l2_blocks) -- because the invariant being enforced is "the paragraph ships iff the prompt
+    # carries an injected episode line", and spelling it the same way in both bodies means a future one-hop
+    # producer is correct for free and cannot silently diverge. Today it evaluates False on every turn.
+    _episodes = _episodes_on(vp)
+    structured = call(_system(outlook=_outlook, episodes=_episodes),
+                      _pack(sp, vp, use_blocks), model=model, tool=_answer_tool())
     _banned_mood = _count_banned_mood(structured)                 # P9-A: RAW output, pre-sanitize
     _banned_val = _count_banned_valuation(structured)             # DP-6: valuation/flow raw counts, pre-sanitize
     _banned_flow = _count_banned_flow(structured)

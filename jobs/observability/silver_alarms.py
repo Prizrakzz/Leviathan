@@ -99,6 +99,30 @@ BURNED_TABLE_FRESHNESS: dict[str, tuple[str, int, str]] = {
 }
 
 # ---------------------------------------------------------------------------
+# NON-REGISTRY ARTIFACT freshness alarms (FENCE 2 leg 3, incident I-2, 2026-07-31).
+# Same failure_mode / metric / dimension shape as BURNED_TABLE_FRESHNESS above -- deliberately, so
+# the emitted alarm_name matches what the EXISTING
+# `aws_cloudwatch_metric_alarm.freshness_sla_breach_table` for_each resource renders and NO module
+# change is needed. These are NOT registry tables (see leviathan.silver.freshness.EXTRA_TARGETS for
+# why putting a GraphRAG serving artifact in the SILVER-F010 registry is a category error); the
+# poller reaches them via `all_poll_targets()`.
+#   graphrag_timeline_episodes  10  the timeline artifact serving reads. It was built 2026-07-04 and
+#                                   nothing measured its age while the prop store it is derived from
+#                                   grew ~74%; meanwhile timeline._load() failed OPEN, so an absent
+#                                   artifact was indistinguishable from "no episodes". Ceiling is the
+#                                   weekly rebuild cadence (cron 0 3 ? * SUN *) + a 3d grace, so ONE
+#                                   missed rebuild breaches. treat_missing_data="breaching" means a
+#                                   DELETED artifact (empty prefix -> the poller emits no datapoint)
+#                                   fires the same alarm after one day.
+# Value: (family, max_lag_days, basis-justification).
+ARTIFACT_FRESHNESS: dict[str, tuple[str, int, str]] = {
+    "graphrag_timeline_episodes": (
+        "graphrag_evidence", 10,
+        "weekly timeline rebuild (cron 0 3 ? * SUN *) + 3d grace; one missed run breaches",
+    ),
+}
+
+# ---------------------------------------------------------------------------
 # FAMILIES REGISTERED AHEAD OF THEIR PRODUCERS -- excluded from the TFVARS (never from the alarm
 # DOCUMENT, which keeps describing the target state).
 #
@@ -239,8 +263,12 @@ def build_alarms(registry=None) -> list[dict]:
     # 2b. Per-TABLE freshness alarms for the audit's four burned tables (freshness-poller lane).
     # The family alarm above reads the family's stalest member against its tightest ceiling, so a
     # mixed-cadence family hides a stalled fast member; these give a precise per-table ceiling.
-    for table, (family, max_lag, basis) in sorted(BURNED_TABLE_FRESHNESS.items()):
-        fam = catalog.get(family)
+    # ARTIFACT_FRESHNESS rides the SAME loop and the same failure_mode on purpose: the emitted
+    # alarm_name then matches what the existing for_each terraform resource renders, so leg 3 needs
+    # no module change -- the map just gains a key.
+    for table, (family, max_lag, basis) in sorted(
+            {**BURNED_TABLE_FRESHNESS, **ARTIFACT_FRESHNESS}.items()):
+        fam = catalog.get(family)          # tolerates a family absent from the DAG catalog
         owner = fam.owner if fam else "silver-platform"
         label = fam.label if fam else family
         alarms.append(_alarm(
@@ -263,9 +291,11 @@ def build_alarms(registry=None) -> list[dict]:
             retention_days=90,
             description=(
                 f"Table {table} ({label}) exceeded its per-table freshness ceiling "
-                f"({max_lag}d, basis={basis}). Ran stale-green 6-10wk pre-audit; emitted by "
-                f"scripts/silver/freshness_poller.py (FreshnessLagDays, dim Table). Runbook: "
-                f"R4_incident_runbooks.md#freshness-sla-breach."
+                f"({max_lag}d, basis={basis}). "
+                + ("Ran stale-green 6-10wk pre-audit; " if table in BURNED_TABLE_FRESHNESS
+                   else "Non-registry artifact (freshness.EXTRA_TARGETS); ")
+                + "emitted by scripts/silver/freshness_poller.py (FreshnessLagDays, dim Table). "
+                  "Runbook: R4_incident_runbooks.md#freshness-sla-breach."
             ),
         ))
 
@@ -339,7 +369,8 @@ def build_tfvars(registry=None) -> dict:
         "silver_freshness_slas": {k: catalog[k].max_sla_lag_days for k in families},
         "silver_table_freshness_slas": {
             table: {"family": family, "threshold": max_lag, "basis": basis}
-            for table, (family, max_lag, basis) in sorted(BURNED_TABLE_FRESHNESS.items())
+            for table, (family, max_lag, basis) in sorted(
+                {**BURNED_TABLE_FRESHNESS, **ARTIFACT_FRESHNESS}.items())
         },
     }
 

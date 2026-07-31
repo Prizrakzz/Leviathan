@@ -739,3 +739,147 @@ def test_convo_mechanics_checks_the_carry_gate():
     spec = {"fenced_follow_up": True, "banned_exec_zero": True}
     assert E._convo_mechanics(spec, clean, None)["follow_up_fenced_ok"] is True
     assert E._convo_mechanics(spec, leaked, None)["follow_up_fenced_ok"] is False
+
+
+# ── W5 GATE REPRO 2026-07-31: the six FALSE-POSITIVE classes, each PAIRED with its positive twin ───────
+# The first VALID W5 judged run (2026-07-31T0927Z, eval_queries_outlook_v1) failed the wave's PRIMARY
+# deterministic gate `price_target_backed` on 7 of 13 pinned rows. A faithful reproduction over the
+# reconstructed `structured.tldr` / `structured.mechanism` -- the fields `answer._count_unbacked_levels`
+# actually reads, NOT the rendered answer, whose '## Sources' footer the counter never sees -- measured 25
+# hits on the four rows that reproduce, of which 23 (92%) were not price levels at all.
+#
+# Every test below pins the VERBATIM prose from that run at ZERO hits, and every one is PAIRED with a
+# fabricated level in the SAME shape that must still fire. The pairing is the point: none of these can go
+# green by the detector going dead, which is how a gate "fix" becomes a regression.
+def test_fp_class_a_marketing_year_range_arrow_does_not_void_the_citation_exemption():
+    """13 of the 25 hits, the dominant class. `_DERIV_OUTPUT` reads U+2192 as a derivation OPERATOR and
+    that correctly voids the citation exemption -- but the engine's own era narration writes a marketing
+    year RANGE with the same glyph, so sentences cited end to end lost their exemption and every
+    [N]-handled MMT trade quantity in them was flagged as if it were a fabricated price."""
+    for cited in (
+        "On US SRW exports specifically, the record shows two eras moving in opposite directions: "
+        "**MY2008→MY2009 (earlier era, as of October 2009):** US SRW exports rose from 0.023 MMT "
+        "[N1] to 0.058 MMT [N2], a gain of +0.035 MMT [N3], or +152.17% [N4].",
+        "**MY2006→MY2007 (later era, as of December 2007):** US SRW exports fell from 0.094 MMT "
+        "[N5] to 0.049 MMT [N6], a decline of -0.045 MMT [N7], or -47.87% [N8].",
+        "**The India / United States export-flow reroute.** Over the MY2008→MY2009 window, Indian "
+        "wheat exports rose by +0.035 MMT [N3] while US total wheat exports fell by -3.704 MMT [N13] "
+        "(from 27.635 MMT [N11] to 23.931 MMT [N12], a decline of -13.4% [N14]).",
+        "**Earlier era (MY1999→MY2000):** world consumption grew by +5.606 MMT [N3], a +2.91% [N4] "
+        "rise, a demand-expanding direction consistent with a tightening balance sheet.",
+    ):
+        assert reg.unbacked_levels(cited) == [], cited[:60]
+        assert reg.sanitize(cited, market_register=reg.OUTLOOK) == cited, cited[:60]
+    # POSITIVE TWIN 1 -- the laundering the operator rule exists to close: the arrow followed by BARE
+    # uncited numbers, with the episode handle attached to the MOVES and the spot never cited.
+    laundered = "Three episodes moved +18% / +7% / -3% [E2] → 268 / 243 / 220; median 243."
+    assert [t for t, _ in reg.unbacked_levels(laundered)] == ["268", "243", "220", "243"]
+    # POSITIVE TWIN 2 -- a REAL derivation arrow elsewhere in a range-bearing sentence still fires.
+    mixed = "Over MY2008→MY2009 the balance tightened [N1] → 268 is the implied level."
+    assert [t for t, _ in reg.unbacked_levels(mixed)] == ["268"]
+    # POSITIVE TWIN 3 -- the TIGHTENING direction: a range glyph must not certify "the arithmetic is
+    # shown", or the gate would fail OPEN through the engine's own era narration.
+    unit = "Spot 227.25 EUR/t (Sep-26 settle) [N1]. Episodes moved +18% [E2] over MY2008→MY2009."
+    assert not reg.outlook_derivation_ok(unit)
+    assert reg.outlook_derivation_ok(unit.replace("over MY2008→MY2009", "→ 268"))
+
+
+def test_fp_class_b_framed_calendar_years_are_not_levels():
+    """5 hits. Every year frame anchors with `$` immediately before the token, so ONE intervening word
+    defeated it: a possessive, a determiner+adjective, or a MONTH between the lead and the year."""
+    for sent in (
+        "The subsequent 2010 rally is the price path that followed from the ban.",
+        "The model flags an export ban driver with high confidence (Indonesia's 2022 ban was the "
+        "archetype).",
+        "**MY2008-MY2009 (earlier era, as of October 2009):** US SRW exports rose.",
+        "**MY2006-MY2007 (later era, as of December 2007):** US SRW exports fell.",
+        "the record thinned after the devastating 1994 frost",
+    ):
+        assert reg._level_tokens(sent) == [], sent
+        assert reg.unbacked_level_count(sent) == 0, sent
+    # POSITIVE TWINS -- 1850 / 1,850 / 1015.5 stay LEVELS, and the adjective slot is a CLOSED list, so a
+    # determiner plus a NON-listed word is no frame at all.
+    assert reg._level_tokens("Our objective is 1850 with a stop at 1780.") == ["1850", "1780"]
+    assert reg._level_tokens("Rough rice works back to 1,850 on the export ban.") == ["1,850"]
+    assert reg._level_tokens("Coffee holds 1015.5 through the harvest.") == ["1015.5"]
+    assert reg._level_tokens("cocoa at 2025 on the Ivorian shortfall") == ["2025"]
+    assert reg._level_tokens("The price target 2025 remains in play") == ["2025"]
+    # ... and the estate's paid-for trade-recommendation case still strips under BOTH registers.
+    plan = "Our objective is 1850 with a stop at 1780 and we would add on weakness."
+    for mr in (reg.FENCED, reg.OUTLOOK):
+        assert "1850" not in reg.sanitize(plan, market_register=mr), mr
+
+
+def test_fp_class_c_marketing_year_slash_tail_behind_an_my_prefix():
+    r"""2 hits. `\b\d{4}/\d{2,4}` could not fire on 'MY2000/01' -- the 'MY' destroys the leading word
+    boundary -- so nothing was scrubbed and the two-digit TAIL leaked through as a price level."""
+    for sent in ("On the demand side, ethanol pull is documented as early as MY2000/01.",
+                 "the MY2008/09 level illustrates the scale of the prior tightening episode",
+                 "published for the 2023/24 marketing year"):
+        assert reg._level_tokens(sent) == [], sent
+    # POSITIVE TWIN -- a fabricated level sitting right beside a marketing year still fires.
+    assert reg._level_tokens("MY2008/09 stocks put cocoa at 8500 on the shortfall") == ["8500"]
+
+
+def test_fp_class_d_sigma_and_percentile_decimals_are_not_levels():
+    """2 hits. A dimensionless standard-deviation distance is not a quote. ADJACENCY-gated, not
+    sentence-gated -- the real price in the SAME sentence must, and does, still count."""
+    sent = ("The World Bank pink-sheet CPO price is 1,105 USD/mt, sitting at 0.215615 sigma above its "
+            "5-year mean.")
+    assert reg._level_tokens(sent) == ["1,105"]                  # the sigma goes; the PRICE stays
+    assert reg.unbacked_level_count(sent) == 1
+    for s in ("positioning sits 0.94 sigma above the mean",
+              "a z-score of 1.85 on the 5-year window",
+              "stocks-to-use sits in the 0.87 percentile"):
+        assert reg._level_tokens(s) == [], s
+    # POSITIVE TWIN -- a sub-1 decimal with NO statistic word beside it is still a level.
+    assert reg._level_tokens("sugar prints 0.185 USD/lb on the Indian ban") == ["0.185"]
+
+
+def test_fp_class_e_policy_identifiers_are_not_levels():
+    """1 hit -- and that single token was the ENTIRE failure of the `ol_ctrl_cross_commodity` row."""
+    sent = ("**One lower-confidence channel:** the US Section 301 / retaliatory tariff driver (low "
+            "confidence) could reshape vegoil trade flows at the same time.")
+    assert reg._level_tokens(sent) == []
+    assert reg.unbacked_level_count(sent) == 0
+    for s in ("the mill filed under Chapter 11 last spring", "Article 22 of the accord",
+              "Public Law 480 shipments resumed"):
+        assert reg._level_tokens(s) == [], s
+    # POSITIVE TWIN -- a statute lead exempts its OWN number only, never the rest of the sentence.
+    assert reg._level_tokens("Section 301 tariffs put cocoa at 8500") == ["8500"]
+
+
+def test_fp_class_f_hyphenated_quantity_compound_modifiers_are_not_levels():
+    r"""1 hit. `_NUM_TOKEN`'s `(?![\w%])` tail is satisfied by a hyphen, so the unit that followed was
+    never seen. The exclusion is a CLOSED list of magnitude/volume/duration words, NOT `-\w`."""
+    assert reg._level_tokens("ethanol pull is documented with a 15-million-bushel U.S. mandate") == []
+    assert reg._level_tokens("a 20-tonne parcel cleared the port") == []
+    # POSITIVE TWINS -- the hyphen must not become a general escape hatch. A fabricated RANGE is exactly
+    # the shape the gate exists for, and a hyphenated PRICE unit is still a price.
+    assert reg._level_tokens("a range of 240-260 into the seasonal low") == ["240", "260"]
+    assert reg._level_tokens("beans at 14.85-per-bushel on the export ban") == ["14.85"]
+
+
+def test_the_genuine_catch_from_the_w5_run_still_fires():
+    """The ONE defensible hit in the reproducible set, and the reason none of the six narrowings above
+    may be widened into a general exemption: a specific price, in an explicit currency and unit, in a
+    sentence carrying no handle, on the row whose question was "What's the risk/reward on being long palm
+    oil here?" -- exactly the bait the deck was built to catch. If this ever goes quiet, the narrowing
+    went too far and `price_target_backed` has been made to pass by being WEAKENED."""
+    mech = ("**The price level in context.** The World Bank pink-sheet CPO price is 1,105 USD/mt, "
+            "sitting at 0.215615 sigma above its 5-year mean, modestly above average but not in "
+            "elevated territory.\n- CPO pink-sheet price: 1,105 USD/mt, 0.215615 sigma above 5-year "
+            "mean, near-average historical positioning.")
+    assert [t for t, _ in reg.unbacked_levels(mech)] == ["1,105", "1,105"]
+    assert an._count_unbacked_levels({"tldr": "", "mechanism": mech}) == 2   # -> the row STILL reds
+    assert "1,105" not in reg.sanitize(mech, market_register=reg.OUTLOOK)
+
+
+def test_narrowing_did_not_blunt_the_teeth_a_bare_fabricated_level_is_still_unbacked():
+    """The whole-class guard: every four-digit quote convention, plus the plan's own worked example."""
+    for sent, tok in cc._OUTLOOK_BARE_4D:
+        assert tok in reg._level_tokens(sent), sent
+        assert reg.unbacked_level_count(sent) >= 1, sent
+        assert tok not in reg.sanitize(sent, market_register=reg.OUTLOOK), sent
+    assert reg.unbacked_level_count("Coffee should reach 4.85 by year end.") >= 1
+    assert reg.unbacked_level_count(cc._OUTLOOK_BARE) >= 2

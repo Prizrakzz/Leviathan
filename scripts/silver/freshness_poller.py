@@ -40,10 +40,10 @@ if str(_REPO / "src") not in sys.path:
 
 from leviathan.silver.freshness import (  # noqa: E402
     METRIC_NAMESPACE,
+    all_poll_targets,
     lag_days,
     metric_data_for,
     newest_last_modified,
-    poll_targets,
 )
 
 # CloudWatch caps PutMetricData at 1000 MetricDatum/request; 20 is the classic conservative batch
@@ -75,7 +75,7 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
 
     now = datetime.now(timezone.utc)
-    targets = poll_targets()
+    targets = all_poll_targets()   # registry tables + the non-registry artifacts (FENCE 2 leg 3)
     if args.tables:
         want = {t.strip() for t in args.tables.split(",") if t.strip()}
         targets = [t for t in targets if t.table in want]

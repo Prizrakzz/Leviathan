@@ -34,6 +34,8 @@ __all__ = [
     "lag_days",
     "PollTarget",
     "poll_targets",
+    "EXTRA_TARGETS",
+    "all_poll_targets",
     "metric_data_for",
 ]
 
@@ -115,6 +117,43 @@ def poll_targets(registry: Optional[SilverRegistry] = None) -> list[PollTarget]:
             )
         )
     return targets
+
+
+# ---------------------------------------------------------------------------
+# FENCE 2 leg 3 (incident I-2, 2026-07-31): NON-REGISTRY artifacts that still deserve a freshness
+# clock. graphrag_evidence/timeline/episodes.json was built 2026-07-04 and nothing measured its age
+# while the store it describes grew ~74%; the feature stayed on and shipped zero episodes silently.
+#
+# WHY NOT JUST REGISTER IT IN THE SILVER-F010 REGISTRY (the obvious "reuse the machinery" move):
+# that is a CATEGORY ERROR. ``load_registry()`` also feeds ``build_catalog`` (which would mint a
+# phantom DAG family and a phantom ``batch_job_failed`` alarm for a family with no Batch DAG), DDL
+# generation, the value census, projection validation and readiness certification -- a GraphRAG
+# serving artifact would start appearing in silver readiness certificates. It would also break
+# tests/unit/silver/test_freshness_poller.py:123-127 (`len(targets) == len(reg.names())`).
+#
+# So ``poll_targets`` stays REGISTRY-PURE and the extras ride alongside. What IS reused is
+# everything that matters: the metric contract (Leviathan/Silver :: FreshnessLagDays{Table}), the
+# per-table alarm resource (modules/silver_observability/main.tf:253-270), the SNS topic, and the
+# existing daily schedule -- no parallel freshness system is invented.
+#
+# bucket/prefix mirror jobs/utils/register_evidence_jobdef.py:22-24
+# (EVIDENCE_S3 = s3://leviathan-dev-shahem-001/graphrag_evidence).
+EXTRA_TARGETS: tuple[PollTarget, ...] = (
+    PollTarget(
+        table="graphrag_timeline_episodes",
+        family="graphrag_evidence",
+        bucket="leviathan-dev-shahem-001",
+        prefix="graphrag_evidence/timeline/",
+    ),
+)
+
+
+def all_poll_targets(registry: Optional[SilverRegistry] = None) -> list[PollTarget]:
+    """Every registry poll target PLUS the non-registry artifacts of :data:`EXTRA_TARGETS`.
+
+    This is what the poller runs. ``poll_targets`` is left untouched and registry-pure so the
+    registry-coverage pin (test_freshness_poller.py:123) keeps meaning what it says."""
+    return poll_targets(registry) + list(EXTRA_TARGETS)
 
 
 def metric_data_for(

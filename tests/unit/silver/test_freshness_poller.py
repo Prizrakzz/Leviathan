@@ -10,8 +10,10 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from leviathan.silver.freshness import (
+    EXTRA_TARGETS,
     METRIC_NAME,
     METRIC_NAMESPACE,
+    all_poll_targets,
     is_excluded_key,
     lag_days,
     metric_data_for,
@@ -129,3 +131,69 @@ class TestPollTargets:
 
     def test_namespace_constant(self):
         assert METRIC_NAMESPACE == "Leviathan/Silver"
+
+
+class TestExtraTargets:
+    """FENCE 2 leg 3 (incident I-2, 2026-07-31).
+
+    s3://leviathan-dev-shahem-001/graphrag_evidence/timeline/episodes.json was built 2026-07-04 and
+    NOTHING measured its age for 27 days while the prop store it is derived from grew ~74%. It is
+    not a registry table, so ``poll_targets`` could never see it -- and registering it in the
+    SILVER-F010 registry would be a category error (``load_registry`` also feeds build_catalog, DDL
+    generation, the value census and readiness certification). It rides alongside instead, on the
+    SAME metric/alarm/schedule machinery.
+    """
+
+    ARTIFACT = "graphrag_timeline_episodes"
+
+    def test_timeline_artifact_is_an_extra_target(self):
+        by_table = {t.table: t for t in all_poll_targets()}
+        assert self.ARTIFACT in by_table
+        t = by_table[self.ARTIFACT]
+        assert t.family == "graphrag_evidence"
+        assert t.prefix.endswith("/")
+
+    def test_bucket_and_prefix_match_the_evidence_jobdef(self):
+        # The single source of truth for where the artifact actually lands: the evidence-build job
+        # definition's EVIDENCE_S3, which timeline.write_artifact reads. If that constant moves and
+        # EXTRA_TARGETS does not, the poller lists an empty prefix and pages forever -- so pin them
+        # to each other rather than to a hand-copied literal.
+        import importlib.util
+        from pathlib import Path
+        repo = Path(__file__).resolve().parents[3]
+        spec = importlib.util.spec_from_file_location(
+            "register_evidence_jobdef", repo / "jobs" / "utils" / "register_evidence_jobdef.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        bucket, _, prefix = mod._EVIDENCE_S3[len("s3://"):].partition("/")
+
+        t = {x.table: x for x in all_poll_targets()}[self.ARTIFACT]
+        assert t.bucket == bucket
+        assert t.prefix == prefix.rstrip("/") + "/timeline/"
+
+        # ...and that prefix is exactly where write_artifact puts the object.
+        from leviathan.graphrag import timeline as tl
+        assert (prefix.rstrip("/") + "/" + tl._ARTIFACT).startswith(t.prefix)
+
+    def test_poll_targets_stays_registry_pure(self):
+        # The registry-coverage pin above (len(targets) == len(reg.names())) must keep meaning what
+        # it says, so the extras are NEVER folded into poll_targets itself.
+        assert self.ARTIFACT not in {t.table for t in poll_targets()}
+        reg = load_registry()
+        assert len(poll_targets(reg)) == len(reg.names())
+        assert len(all_poll_targets(reg)) == len(poll_targets(reg)) + len(EXTRA_TARGETS)
+
+    def test_extra_targets_emit_the_same_metric_contract(self):
+        t = {x.table: x for x in all_poll_targets()}[self.ARTIFACT]
+        data = metric_data_for(t.table, t.family, 27.4, timestamp=NOW)
+        by_dim = {d["Dimensions"][0]["Name"]: d for d in data}
+        assert by_dim["Table"]["Dimensions"][0]["Value"] == self.ARTIFACT
+        assert by_dim["Table"]["MetricName"] == METRIC_NAME
+
+    def test_poller_polls_all_targets_not_just_the_registry(self):
+        # The whole leg is dead if the SCRIPT still calls poll_targets(). Read the source rather
+        # than importing it (the module takes argv/boto3 at import-adjacent scope).
+        from pathlib import Path
+        repo = Path(__file__).resolve().parents[3]
+        src = (repo / "scripts" / "silver" / "freshness_poller.py").read_text(encoding="utf-8")
+        assert "targets = all_poll_targets()" in src

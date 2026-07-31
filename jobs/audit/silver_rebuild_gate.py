@@ -66,6 +66,11 @@ if str(_REPO_ROOT) not in sys.path:
 # lazily-safe at module load because jobs.utils.load_pg_numbers is AWS-free at import time.
 from jobs.utils.load_pg_numbers import P1_TABLES as _PG_MIRROR_LIST
 
+# FENCE (incident I-1): the image-vs-config preflight. stdlib-only at import time -- boto3/glue is
+# imported lazily inside image_stamp.glue_probe, which runs ONLY on the already-failing path, so
+# this module stays AWS-free at import exactly as before.
+from leviathan.common import image_stamp
+
 PG_MIRROR_TABLES = frozenset(_PG_MIRROR_LIST)
 # The F010 consumer classes that make a table numbers-served. silver_nasa_power is `both` BUT a PROJECTION
 # table excluded from the mirror (size + INV-3), so it is caught by the `table in PG_MIRROR_TABLES` half and
@@ -349,8 +354,12 @@ def run_table(table: str, ctx: GateContext, *, branch_a_stages=_BRANCH_A_STAGES,
     """Dispatch ONE table down its branch. Branch B never references load_pg_numbers/numbers_parity."""
     branch = select_branch(table, silver_reg=ctx.silver_reg)
     if branch == BRANCH_UNKNOWN:
+        # FENCE (I-1), belt-and-braces. The old detail was "table not in the F010 silver registry",
+        # which names the CONFIG and sent the whole 2026-07-24..31 RCA to a file that was fine. Any
+        # caller that reaches run_gate() without going through main()'s preflight still gets the
+        # honest sentence: it names the IMAGE, its provenance and the remedy.
         return TableResult(table, branch,
-                           [StageResult("dispatch", RED, "table not in the F010 silver registry")])
+                           [StageResult("dispatch", RED, image_stamp.dispatch_detail(table))])
     stages = branch_a_stages if branch == BRANCH_A else branch_b_stages
     return TableResult(table, branch, [st(table, ctx) for st in stages])
 
@@ -385,7 +394,66 @@ def run_gate(tables: list[str], ctx: GateContext, *, branch_a_stages=_BRANCH_A_S
         "tables": tables,
         "results": [r.to_dict() for r in results],
         "banner": banner,
+        # FENCE (I-1): every artifact bundle now records WHICH CONTAINER produced it. The 2026-07-24
+        # bundles could not answer that question, so nobody could tell a config fault from an image
+        # fault by reading them.
+        "image": _image_block(),
         "verdict": "PASS" if ok else "FAIL",
+        "in_vpc_submit_command": _submit_command(tables),
+    }
+
+
+def _image_block(facts: Optional[dict] = None) -> dict:
+    """The provenance block embedded in every artifact bundle (never raises)."""
+    try:
+        f = facts if facts is not None else image_stamp.image_facts()
+    except Exception as e:  # noqa: BLE001
+        return {"manifest_present": False, "error": f"{type(e).__name__}: {str(e)[:120]}"}
+    return {"manifest_present": f["manifest_present"], "git_commit": f["git_commit"],
+            "build_time_utc": f["build_time_utc"], "age_days": f["age_days"],
+            "silver_tables_count": f["silver_tables_count"],
+            "silver_tables_fp": f["silver_tables_fp"]}
+
+
+def _preflight_image_config(tables: list[str], **kw) -> dict:
+    """FENCE (I-1). Can THIS CONTAINER honour THIS ask at all?
+
+    Thin seam over ``image_stamp.preflight`` so tests can inject a registry loader / manifest
+    loader / Glue probe with no AWS and no filesystem surgery. Never raises: a fence that can
+    crash is a fence that can be argued away."""
+    return image_stamp.preflight(tables, **kw)
+
+
+def _preflight_bundle(tables: list[str], census_asof: str, pre: dict) -> dict:
+    """The artifact bundle for a run that never got past the preflight.
+
+    Deliberately the SAME SHAPE run_gate() emits (gate/package/run_id/results/banner/verdict), so
+    every existing reader -- the SFN, the reports/ tree, any dashboard -- keeps working. What is
+    ADDED is the pair of facts the 2026-07-24 bundles could not answer: which container produced
+    this, and WHY it refused (``verdict_reason``)."""
+    results = [TableResult(t, BRANCH_UNKNOWN, [StageResult("dispatch", RED, detail)])
+               for t, detail in pre["red_tables"]]
+    banner = {
+        "tables": len(results),
+        "branch_a": 0,
+        "branch_b": 0,
+        "unknown": len(results),
+        "red_tables": len(results),
+    }
+    return {
+        "gate": "silver_rebuild_gate",
+        "package": "SILVER-C001",
+        "run_id": _run_id(),
+        "as_of_census": census_asof,
+        "tables": tables,
+        "results": [r.to_dict() for r in results],
+        "banner": banner,
+        "image": _image_block(pre.get("image")),
+        "verdict": "FAIL",
+        "verdict_reason": pre.get("reason", "preflight_failed"),
+        "preflight": {"ok": False, "reason": pre.get("reason"),
+                      "lines": list(pre.get("lines") or []),
+                      "glue_probes": pre.get("probes") or {}},
         "in_vpc_submit_command": _submit_command(tables),
     }
 
@@ -496,8 +564,36 @@ def main(argv=None) -> int:
         print("FAIL silver_rebuild_gate: no --tables given")
         return 1
 
+    # -----------------------------------------------------------------------------------------
+    # FENCE (incident I-1) -- IMAGE-AGE PREFLIGHT, at the EARLIEST possible moment.
+    # This sits BEFORE baseline_uri resolution and BEFORE _build_live_context(), i.e. before the
+    # S3 baseline GET (_load_census_from_s3) and before the psycopg connect. On 2026-07-24 the ask
+    # (silver_futures_eod, terraform-applied and current) was newer than the container's baked
+    # configs/silver/tables/ (43 files from commit e0a33bf2), and the only line the operator got
+    # named the REGISTRY -- so the week was spent staring at a config file that was correct.
+    # The banner prints on EVERY run, pass or fail: the cheap permanent record.
+    # -----------------------------------------------------------------------------------------
+    facts = image_stamp.image_facts()
+    for line in image_stamp.banner("silver_rebuild_gate", facts):
+        print(line)
+    pre = _preflight_image_config(tables)
+    if not pre["ok"]:
+        for line in pre["lines"]:
+            print(line)
+        bundle = _preflight_bundle(tables, a.asof, pre)
+        dest = Path(a.out) if a.out else _artifact_path(bundle["run_id"])
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(json.dumps(bundle, indent=1), encoding="utf-8")
+        b = bundle["banner"]
+        print(f"silver_rebuild_gate {bundle['run_id']} -> {dest}")
+        print(f"  tables={b['tables']} branchA={b['branch_a']} branchB={b['branch_b']} "
+              f"unknown={b['unknown']} red={b['red_tables']}  verdict={bundle['verdict']}")
+        return 1
+
     # CLI --baseline-uri wins; CENSUS_BASELINE_S3 is the env fallback; empty/whitespace -> unset.
     baseline_uri = (a.baseline_uri or os.environ.get("CENSUS_BASELINE_S3") or "").strip() or None
+
+    from leviathan.silver.registry import RegistryError  # already imported by the preflight above
 
     try:
         ctx = _build_live_context(tables, census_asof=a.asof, baseline_uri=baseline_uri)
@@ -505,9 +601,31 @@ def main(argv=None) -> int:
         # Fail closed: a scheduled gate never runs against a stale/absent baseline (no image-baked fallback).
         print(f"FAIL silver_rebuild_gate: {e}")
         return 1
+    except RegistryError as e:
+        # FENCE (I-1), the OTHER half of the discrimination. A malformed yaml BAKED INTO THIS
+        # IMAGE is a CONFIG fault, not an age fault -- and until now it left the job as a raw
+        # traceback out of _build_live_context, which names no cause at all. The preflight's cheap
+        # path deliberately does not parse the registry (2.2s), so this is where that class lands.
+        pre_bad = {"ok": False, "reason": "baked_registry_unloadable",
+                   "lines": image_stamp.explain_bad_registry(
+                       "%s: %s" % (type(e).__name__, e), facts=facts),
+                   "red_tables": [(t, "baked F010 registry in this image does not load: %s: %s"
+                                   % (type(e).__name__, str(e)[:160])) for t in tables],
+                   "image": facts}
+        for line in pre_bad["lines"]:
+            print(line)
+        bundle = _preflight_bundle(tables, a.asof, pre_bad)
+        dest = Path(a.out) if a.out else _artifact_path(bundle["run_id"])
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(json.dumps(bundle, indent=1), encoding="utf-8")
+        print(f"silver_rebuild_gate {bundle['run_id']} -> {dest}")
+        return 1
     bundle = run_gate(tables, ctx)
 
-    from pathlib import Path
+    # NOTE: `Path` comes from the MODULE-level import (line 53). The old function-local
+    # `from pathlib import Path` here made `Path` a local name for the whole of main(), which
+    # would UnboundLocalError the moment anything earlier in main() used it (the I-1 preflight
+    # does). Removed deliberately -- behaviour is identical.
     dest = Path(a.out) if a.out else _artifact_path(bundle["run_id"])
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(json.dumps(bundle, indent=1), encoding="utf-8")
