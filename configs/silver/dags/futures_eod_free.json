@@ -31,7 +31,7 @@
           "id": "fetch_czce_eod",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-futures-eod-free-fetch:1",
+          "jobdef": "leviathan-dev-futures-eod-free-fetch",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/ingest/fetch_czce_eod.py",
@@ -47,7 +47,7 @@
           "id": "fetch_jse_safex_daily",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-futures-eod-free-fetch:1",
+          "jobdef": "leviathan-dev-futures-eod-free-fetch",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/ingest/fetch_jse_safex_daily.py",
@@ -61,7 +61,7 @@
           "id": "fetch_cepea_daily",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-futures-eod-free-fetch:1",
+          "jobdef": "leviathan-dev-futures-eod-free-fetch",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/ingest/fetch_cepea_daily.py"
@@ -73,7 +73,7 @@
           "id": "fetch_miax_eod",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-futures-eod-free-fetch:1",
+          "jobdef": "leviathan-dev-futures-eod-free-fetch",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/ingest/fetch_miax_eod.py",
@@ -94,7 +94,7 @@
           "id": "futures_eod_silver_czce",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-futures-eod-silver:1",
+          "jobdef": "leviathan-dev-futures-eod-silver",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/batch/futures_eod_task.py",
@@ -113,7 +113,7 @@
           "id": "futures_eod_silver_jse",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-futures-eod-silver:1",
+          "jobdef": "leviathan-dev-futures-eod-silver",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/batch/futures_eod_task.py",
@@ -132,7 +132,7 @@
           "id": "futures_eod_silver_cepea",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-futures-eod-silver:1",
+          "jobdef": "leviathan-dev-futures-eod-silver",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/batch/futures_eod_task.py",
@@ -151,7 +151,7 @@
           "id": "futures_eod_silver_miax",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-futures-eod-silver:1",
+          "jobdef": "leviathan-dev-futures-eod-silver",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/batch/futures_eod_task.py",

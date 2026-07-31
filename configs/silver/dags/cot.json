@@ -16,7 +16,7 @@
   "gate_baseline_uri": "s3://leviathan-dev-shahem-001/cascade_census/rolling/cot/census.json",
   "gate_jobdef": "leviathan-dev-silver-gate",
   "gate_queue": "leviathan-dev-queue-ondemand",
-  "shared_silver_jobdef": "leviathan-dev-b3-flat-silver:4",
+  "shared_silver_jobdef": "leviathan-dev-b3-flat-silver",
   "retry": {
     "maximum_retry_attempts": 3,
     "maximum_event_age_in_seconds": 86400
@@ -31,7 +31,7 @@
           "id": "fetch_cftc_cot",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "jobdef": "leviathan-dev-b3-flat-silver",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/ingest/fetch_cftc_cot.py",
@@ -50,7 +50,7 @@
           "id": "cftc_cot_bronze",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "jobdef": "leviathan-dev-b3-flat-silver",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/batch/cftc_cot_bronze_task.py"
@@ -67,7 +67,7 @@
           "id": "cftc_cot_silver",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "jobdef": "leviathan-dev-b3-flat-silver",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/batch/cftc_cot_silver_task.py"

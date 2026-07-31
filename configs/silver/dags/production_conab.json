@@ -16,7 +16,7 @@
   "gate_baseline_uri": "s3://leviathan-dev-shahem-001/cascade_census/rolling/production_conab/census.json",
   "gate_jobdef": "leviathan-dev-silver-gate",
   "gate_queue": "leviathan-dev-queue-ondemand",
-  "shared_silver_jobdef": "leviathan-dev-b3-flat-silver:4",
+  "shared_silver_jobdef": "leviathan-dev-b3-flat-silver",
   "retry": {
     "maximum_retry_attempts": 3,
     "maximum_event_age_in_seconds": 86400
@@ -31,7 +31,7 @@
           "id": "discover_conab_bulletin_xls",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "jobdef": "leviathan-dev-b3-flat-silver",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/ingest/discover_conab_bulletin_xls.py"
@@ -43,7 +43,7 @@
           "id": "fetch_conab",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "jobdef": "leviathan-dev-b3-flat-silver",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/ingest/fetch_conab_bulletin_xls.py",
@@ -61,7 +61,7 @@
           "id": "conab_xls_bronze",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-conab-xls-bronze:1",
+          "jobdef": "leviathan-dev-conab-xls-bronze",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/batch/conab_xls_task.py"
@@ -78,7 +78,7 @@
           "id": "conab_coffee_silver",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "jobdef": "leviathan-dev-b3-flat-silver",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/batch/conab_coffee_silver_task.py"

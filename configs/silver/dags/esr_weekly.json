@@ -17,7 +17,7 @@
   "gate_baseline_uri": "s3://leviathan-dev-shahem-001/cascade_census/rolling/esr_weekly/census.json",
   "gate_jobdef": "leviathan-dev-silver-gate",
   "gate_queue": "leviathan-dev-queue-ondemand",
-  "shared_silver_jobdef": "leviathan-dev-b3-flat-silver:4",
+  "shared_silver_jobdef": "leviathan-dev-b3-flat-silver",
   "retry": {
     "maximum_retry_attempts": 3,
     "maximum_event_age_in_seconds": 86400
@@ -32,7 +32,7 @@
           "id": "fetch_usda_esr",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-usda-esr-fetch:1",
+          "jobdef": "leviathan-dev-usda-esr-fetch",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/ingest/fetch_usda_esr.py",
@@ -52,7 +52,7 @@
           "id": "esr_bronze",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-usda-esr-bronze:2",
+          "jobdef": "leviathan-dev-usda-esr-bronze",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/batch/esr_task.py"
@@ -69,7 +69,7 @@
           "id": "esr_bronze_to_silver",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-esr-bronze-to-silver:3",
+          "jobdef": "leviathan-dev-esr-bronze-to-silver",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/batch/bronze_to_silver_esr_task.py",

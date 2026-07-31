@@ -16,7 +16,7 @@
   "gate_baseline_uri": "s3://leviathan-dev-shahem-001/cascade_census/rolling/food_cpi/census.json",
   "gate_jobdef": "leviathan-dev-silver-gate",
   "gate_queue": "leviathan-dev-queue-ondemand",
-  "shared_silver_jobdef": "leviathan-dev-b3-flat-silver:4",
+  "shared_silver_jobdef": "leviathan-dev-b3-flat-silver",
   "retry": {
     "maximum_retry_attempts": 3,
     "maximum_event_age_in_seconds": 86400
@@ -31,7 +31,7 @@
           "id": "fetch_world_bank_food_cpi",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "jobdef": "leviathan-dev-b3-flat-silver",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/ingest/fetch_world_bank_food_cpi.py"
@@ -48,7 +48,7 @@
           "id": "food_cpi",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "jobdef": "leviathan-dev-b3-flat-silver",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/batch/food_cpi_task.py"

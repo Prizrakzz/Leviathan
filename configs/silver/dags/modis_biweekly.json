@@ -16,7 +16,7 @@
   "gate_baseline_uri": "s3://leviathan-dev-shahem-001/cascade_census/rolling/modis_biweekly/census.json",
   "gate_jobdef": "leviathan-dev-silver-gate",
   "gate_queue": "leviathan-dev-queue-ondemand",
-  "shared_silver_jobdef": "leviathan-dev-b3-flat-silver:4",
+  "shared_silver_jobdef": "leviathan-dev-b3-flat-silver",
   "retry": {
     "maximum_retry_attempts": 3,
     "maximum_event_age_in_seconds": 86400
@@ -31,7 +31,7 @@
           "id": "fetch_modis_ndvi",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-modis-fetch:1",
+          "jobdef": "leviathan-dev-modis-fetch",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/ingest/fetch_modis_ndvi.py"
@@ -48,7 +48,7 @@
           "id": "modis_ndvi_raw_to_bronze",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-modis-ndvi-raw-to-bronze:1",
+          "jobdef": "leviathan-dev-modis-ndvi-raw-to-bronze",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/batch/modis_ndvi_raw_to_bronze_task.py"
@@ -65,7 +65,7 @@
           "id": "modis_ndvi_bronze_to_silver",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-modis-ndvi-bronze-to-silver:1",
+          "jobdef": "leviathan-dev-modis-ndvi-bronze-to-silver",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/batch/modis_ndvi_bronze_to_silver_task.py"

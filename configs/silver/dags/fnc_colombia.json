@@ -18,7 +18,7 @@
   "gate_baseline_uri": "s3://leviathan-dev-shahem-001/cascade_census/rolling/fnc_colombia/census.json",
   "gate_jobdef": "leviathan-dev-silver-gate",
   "gate_queue": "leviathan-dev-queue-ondemand",
-  "shared_silver_jobdef": "leviathan-dev-b3-flat-silver:4",
+  "shared_silver_jobdef": "leviathan-dev-b3-flat-silver",
   "retry": {
     "maximum_retry_attempts": 3,
     "maximum_event_age_in_seconds": 86400
@@ -33,7 +33,7 @@
           "id": "fetch_fnc_excel",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "jobdef": "leviathan-dev-b3-flat-silver",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/ingest/fetch_fnc_excel.py"
@@ -50,7 +50,7 @@
           "id": "fnc_excel_bronze",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-fnc-excel-bronze:3",
+          "jobdef": "leviathan-dev-fnc-excel-bronze",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/batch/fnc_excel_task.py"
@@ -67,7 +67,7 @@
           "id": "fnc_colombia_silver",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "jobdef": "leviathan-dev-b3-flat-silver",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/batch/fnc_colombia_silver_task.py"

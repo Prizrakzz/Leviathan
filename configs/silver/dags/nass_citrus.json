@@ -16,7 +16,7 @@
   "gate_baseline_uri": "s3://leviathan-dev-shahem-001/cascade_census/rolling/nass_citrus/census.json",
   "gate_jobdef": "leviathan-dev-silver-gate",
   "gate_queue": "leviathan-dev-queue-ondemand",
-  "shared_silver_jobdef": "leviathan-dev-b3-flat-silver:4",
+  "shared_silver_jobdef": "leviathan-dev-b3-flat-silver",
   "retry": {
     "maximum_retry_attempts": 3,
     "maximum_event_age_in_seconds": 86400
@@ -31,7 +31,7 @@
           "id": "fetch_usda_nass_citrus",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "jobdef": "leviathan-dev-b3-flat-silver",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/ingest/fetch_usda_nass_citrus.py",
@@ -52,7 +52,7 @@
           "id": "nass_citrus_bronze",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "jobdef": "leviathan-dev-b3-flat-silver",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/batch/nass_citrus_bronze_task.py",
@@ -71,7 +71,7 @@
           "id": "nass_citrus",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "jobdef": "leviathan-dev-b3-flat-silver",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/batch/nass_citrus_task.py"

@@ -20,7 +20,7 @@
   "gate_baseline_uri": "s3://leviathan-dev-shahem-001/cascade_census/rolling/weather_daily/census.json",
   "gate_jobdef": "leviathan-dev-silver-gate",
   "gate_queue": "leviathan-dev-queue-ondemand",
-  "shared_silver_jobdef": "leviathan-dev-b3-flat-silver:4",
+  "shared_silver_jobdef": "leviathan-dev-b3-flat-silver",
   "retry": {
     "maximum_retry_attempts": 3,
     "maximum_event_age_in_seconds": 86400
@@ -35,7 +35,7 @@
           "id": "nasa_power_fetch",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-nasa-power-backfill:3",
+          "jobdef": "leviathan-dev-nasa-power-backfill",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/ingest/fetch_nasa_power.py",
@@ -50,7 +50,7 @@
           "id": "chirps_to_bronze",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-chirps-to-bronze-backfill:1",
+          "jobdef": "leviathan-dev-chirps-to-bronze-backfill",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/batch/chirps_to_bronze_task.py"
@@ -62,7 +62,7 @@
           "id": "cpc_soil_to_raw",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-cpc-soil-to-raw:1",
+          "jobdef": "leviathan-dev-cpc-soil-to-raw",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/batch/cpc_soil_to_raw_task.py"
@@ -88,7 +88,7 @@
           "id": "cpc_soil_raw_to_bronze",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-cpc-soil-raw-to-bronze:2",
+          "jobdef": "leviathan-dev-cpc-soil-raw-to-bronze",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/batch/cpc_raw_to_bronze_task.py"
@@ -115,7 +115,7 @@
           "id": "chirps_bronze_to_silver",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-chirps-bronze-to-silver:2",
+          "jobdef": "leviathan-dev-chirps-bronze-to-silver",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/batch/bronze_to_silver_chirps_task.py"
@@ -128,7 +128,7 @@
           "id": "cpc_bronze_to_silver",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-cpc-soil-bronze-to-silver:1",
+          "jobdef": "leviathan-dev-cpc-soil-bronze-to-silver",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/batch/cpc_bronze_to_silver_task.py"
@@ -141,7 +141,7 @@
           "id": "compact_weather_silver_nasa_power",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-weather-compact:4",
+          "jobdef": "leviathan-dev-weather-compact",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/batch/compact_weather_silver_task.py",
@@ -159,7 +159,7 @@
           "id": "compact_weather_silver_chirps",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-weather-compact:4",
+          "jobdef": "leviathan-dev-weather-compact",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/batch/compact_weather_silver_task.py",
@@ -177,7 +177,7 @@
           "id": "compact_weather_silver_cpc_soil",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-weather-compact:4",
+          "jobdef": "leviathan-dev-weather-compact",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/batch/compact_weather_silver_task.py",
@@ -200,7 +200,7 @@
           "id": "gold_weather_z",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-gold-weather-z:5",
+          "jobdef": "leviathan-dev-gold-weather-z",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/batch/gold_weather_z_task.py",

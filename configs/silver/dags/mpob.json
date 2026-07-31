@@ -17,7 +17,7 @@
   "gate_baseline_uri": "s3://leviathan-dev-shahem-001/cascade_census/rolling/mpob/census.json",
   "gate_jobdef": "leviathan-dev-silver-gate",
   "gate_queue": "leviathan-dev-queue-ondemand",
-  "shared_silver_jobdef": "leviathan-dev-b3-flat-silver:4",
+  "shared_silver_jobdef": "leviathan-dev-b3-flat-silver",
   "retry": {
     "maximum_retry_attempts": 3,
     "maximum_event_age_in_seconds": 86400
@@ -32,7 +32,7 @@
           "id": "fetch_mpob",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "jobdef": "leviathan-dev-b3-flat-silver",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/ingest/fetch_mpob.py"
@@ -49,7 +49,7 @@
           "id": "mpob_bronze",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-mpob-bronze:1",
+          "jobdef": "leviathan-dev-mpob-bronze",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/batch/mpob_task.py"
@@ -61,7 +61,7 @@
           "id": "mpob_overview_bronze",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-mpob-overview-bronze:1",
+          "jobdef": "leviathan-dev-mpob-overview-bronze",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/batch/mpob_overview_bronze_task.py"
@@ -73,7 +73,7 @@
           "id": "mpob_overview_text",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-mpob-overview-text:1",
+          "jobdef": "leviathan-dev-mpob-overview-text",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/batch/mpob_overview_text_task.py"
@@ -90,7 +90,7 @@
           "id": "mpob_silver",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-mpob-silver:1",
+          "jobdef": "leviathan-dev-mpob-silver",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/batch/mpob_silver_task.py"
@@ -103,7 +103,7 @@
           "id": "mpob_annual_silver",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-mpob-annual-silver:1",
+          "jobdef": "leviathan-dev-mpob-annual-silver",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/batch/mpob_annual_silver_task.py"

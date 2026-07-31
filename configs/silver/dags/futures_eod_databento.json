@@ -31,7 +31,7 @@
           "id": "fetch_databento_eod",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-databento-fetch:1",
+          "jobdef": "leviathan-dev-databento-fetch",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/ingest/fetch_databento_eod.py",
@@ -52,7 +52,7 @@
           "id": "futures_eod_silver",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-futures-eod-silver:1",
+          "jobdef": "leviathan-dev-futures-eod-silver",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/batch/futures_eod_task.py",

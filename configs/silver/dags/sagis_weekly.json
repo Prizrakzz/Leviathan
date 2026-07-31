@@ -18,7 +18,7 @@
   "gate_baseline_uri": "s3://leviathan-dev-shahem-001/cascade_census/rolling/sagis_weekly/census.json",
   "gate_jobdef": "leviathan-dev-silver-gate",
   "gate_queue": "leviathan-dev-queue-ondemand",
-  "shared_silver_jobdef": "leviathan-dev-b3-flat-silver:4",
+  "shared_silver_jobdef": "leviathan-dev-b3-flat-silver",
   "retry": {
     "maximum_retry_attempts": 3,
     "maximum_event_age_in_seconds": 86400
@@ -33,7 +33,7 @@
           "id": "fetch_sagis_cec",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-sagis-cec-raw-backfill:2",
+          "jobdef": "leviathan-dev-sagis-cec-raw-backfill",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/ingest/fetch_sagis_cec.py",
@@ -46,7 +46,7 @@
           "id": "fetch_sagis_weekly",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "jobdef": "leviathan-dev-b3-flat-silver",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/ingest/fetch_sagis_weekly.py"
@@ -63,7 +63,7 @@
           "id": "sagis_weekly_exports_silver",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "jobdef": "leviathan-dev-b3-flat-silver",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/batch/sagis_weekly_exports_silver_task.py"
@@ -76,7 +76,7 @@
           "id": "sagis_deliveries",
           "invocation_form": "m",
           "integration": "batch",
-          "jobdef": "leviathan-dev-b3-flat-silver:4",
+          "jobdef": "leviathan-dev-b3-flat-silver",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "-m",
