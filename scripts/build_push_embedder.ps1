@@ -149,7 +149,9 @@ if ($Tag -ne "latest") {
 # ---------------------------------------------------------------------------
 $PushedDigest = docker inspect --format '{{index .RepoDigests 0}}' $LatestImage
 if ($LASTEXITCODE -eq 0 -and $PushedDigest -and $PushedDigest.Contains("@sha256:")) {
-    $Digest = "sha256:" + $PushedDigest.Split("@sha256:")[-1]
+    # .Split(string) treats the arg as a CHAR SET (this mangled every sidecar key until 2026-08-02);
+    # split on the single '@' -- the tail is already "sha256:<64hex>".
+    $Digest = $PushedDigest.Split('@')[-1]
     $SidecarKey = "image_manifests/${RepoName}/" + $Digest.Replace(":", "_") + ".json"
     $TmpManifest = Join-Path $env:TEMP "IMAGE_MANIFEST_$Tag.json"
     docker run --rm --entrypoint cat $LatestImage /app/IMAGE_MANIFEST.json | Out-File -FilePath $TmpManifest -Encoding utf8
