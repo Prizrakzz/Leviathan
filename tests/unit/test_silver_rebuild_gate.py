@@ -37,6 +37,26 @@ def _ctx(silver_reg, **kw):
 # ---------------------------------------------------------------------------
 # (1) branch selection for all 45 tables from the F010 consumers field
 # ---------------------------------------------------------------------------
+# THE BRANCH-A ROSTER, PINNED BY NAME. This used to be an integer (`len(branch_a) == 17`) with a
+# changelog of counts above it, and an integer pin fails as "18 == 17": it says a table moved, never
+# WHICH, and the changelog only tells you what the count meant on some past date. Two of the entries
+# below were added by waves that shipped a P1_TABLES edit without bumping the pin, and the 2026-08-01
+# Branch-A ratification of silver_futures_eod tripped four separate count assertions at once. So the
+# roster is the assertion now: the next addition or removal fails with the table's NAME in the diff.
+_EXPECTED_BRANCH_A = frozenset({
+    "silver_psd", "silver_wasde", "silver_production", "silver_esr", "silver_fred_fx",
+    "silver_noaa_oni", "gold_weather_z",                       # the original 7
+    "silver_icco_cocoa", "silver_mpob", "silver_sagis_cec",    # numbers-depth wave
+    "silver_pink_sheet",                                       # PRICE_OBSERVABILITY W3.3
+    "silver_cot",                                              # PRICE_OBSERVABILITY W4.2
+    "silver_futures_prices",                                   # SEAM C (2026-07-23)
+    "silver_noaa_iod", "silver_conab_coffee",                  # WIRING WAVE-1 (2026-07-23)
+    "silver_sagis_weekly_exports",                             # WIRING WAVE-1 Card C (2026-07-24)
+    "gold_pattern_records",                                    # T2b (2026-07-24)
+    "silver_futures_eod",                                      # BRANCH-A RATIFICATION (2026-08-01)
+})
+
+
 def test_branch_selection_all_45_tables():
     from leviathan.silver import registry as sreg
     silver = sreg.load_registry()
@@ -47,21 +67,33 @@ def test_branch_selection_all_45_tables():
     branch_b = {t for t in names if g.select_branch(t, silver_reg=silver) == g.BRANCH_B}
 
     # Branch A == exactly the pg-mirror tables (== load_pg_numbers.P1_TABLES); every other table -> B.
-    # 10 after the numbers-depth wave wired ICCO/MPOB/SAGIS into P1_TABLES (was 7);
-    # 11 after PRICE_OBSERVABILITY W3.3 wired silver_pink_sheet;
-    # 12 after PRICE_OBSERVABILITY W4.2 wired silver_cot;
-    # 13 after SEAM C whitelisted silver_futures_prices (2026-07-23);
-    # 15 after WIRING WAVE-1 wired silver_noaa_iod + silver_conab_coffee (2026-07-23) -- the wave
-    # landed the P1_TABLES additions without bumping this pin (caught by the FUTURES v1.5 battery);
-    # 16 after WIRING WAVE-1 Card C wired silver_sagis_weekly_exports once its catalog ALTER landed;
-    # 17 after T2b wired gold_pattern_records (44th contract; ledger mirror rides the same P1 loader).
-    # PRICE_AND_PLAYBOOKS W1.0 added the 45th contract (silver_futures_eod) as a Branch-B table:
-    # it is DEFERRED from the pg mirror until the W2 backfill is size-measured (D7 / probe P8), so
-    # Branch A is unchanged at 17.
     assert branch_a == g.PG_MIRROR_TABLES, branch_a
-    assert len(branch_a) == 17
+    assert branch_a == _EXPECTED_BRANCH_A, {
+        "added_to_branch_a": sorted(branch_a - _EXPECTED_BRANCH_A),
+        "removed_from_branch_a": sorted(_EXPECTED_BRANCH_A - branch_a),
+        "why_this_matters": "a table entering Branch A gains the pg reload + parity + the V001 floor; "
+                            "a table LEAVING it loses its only mirror refresh path while staying "
+                            "served -- update this roster deliberately, never to make a test pass"}
+    assert len(branch_a) == 18
     assert branch_a | branch_b == set(names)          # partition: no table is UNKNOWN in the real registry
     assert not (branch_a & branch_b)
+
+
+def test_futures_eod_routes_branch_a_after_the_ratification():
+    """PRICE_AND_PLAYBOOKS: silver_futures_eod was the 45th F010 contract and rode Branch B through
+    W1/W2 -- the pg mirror was DEFERRED (D7 / probe P8) pending a measured size check. RATIFIED
+    2026-08-01 on measurement, not assertion: pg load 455,334 rows / 12.1s, numbers_parity 6/6
+    exact-match, partitions 269 == 269. select_branch reaches Branch A only when BOTH halves hold --
+    numbers-served by the F010 `consumers` field AND actually in the mirror allowlist -- so both are
+    pinned here rather than inferred from the roster set above."""
+    from leviathan.silver import registry as sreg
+    silver = sreg.load_registry()
+    assert silver.table("silver_futures_eod")["consumers"] == "both"
+    assert "silver_futures_eod" in g.PG_MIRROR_TABLES, (
+        "silver_futures_eod is SERVED from pg and the Branch-A reload is its ONLY refresh path: "
+        "removing it from load_pg_numbers.P1_TABLES freezes the mirror while the canonical table "
+        "grows ~2,500 rows/week, and a missing relation falls back to Athena rather than failing")
+    assert g.select_branch("silver_futures_eod", silver_reg=silver) == g.BRANCH_A
 
 
 def test_nasa_power_is_branch_b_despite_numbers_consumer():
@@ -185,15 +217,45 @@ def test_census_diff_flags_nonzero_athena():
 
 
 # ---------------------------------------------------------------------------
+# BRANCH-A RATIFICATION (2026-08-01): the SILVER-V001 populatedness floor rides Branch A too.
+# ---------------------------------------------------------------------------
+def test_branch_a_carries_the_v001_populatedness_floor():
+    """Ratifying a table into Branch A must not silently DELETE its populatedness assertion.
+
+    Branch B was the ONLY pipeline that ever ran the SILVER-V001 floor (stage_value_census); Branch A
+    had none at all. Nothing else in Branch A substitutes for it: pg_reload counts ROWS, parity
+    compares pg against Athena (identically-wrong on BOTH backends is a clean PASS -- it proves the
+    mirror, not the data), and contract_check is the C002 vocabulary check over the numbers registry's
+    declared metrics, not the F010 min_nonnull_frac floor. Without this stage a promoted table could
+    reload 455,334 rows, diff 6/6 exact against Athena, and still be a wall of NULL values with every
+    stage green -- which is precisely what promotion out of Branch B would have bought."""
+    assert g.stage_value_census in g._BRANCH_A_STAGES, (
+        "the V001 floor was dropped from Branch A: every table ratified into the pg mirror now has "
+        "NO populatedness assertion anywhere in its rebuild gate (silver_futures_eod measured "
+        "settle non-null 445,888/455,882 = 0.9781 against a min_nonnull_frac of 0.5 on 2026-08-01)")
+    assert g.stage_value_census in g._BRANCH_B_STAGES, "shared, not moved: Branch B still needs it"
+
+    # ORDERING, pinned because the reason is not recoverable from the tuple: the census sits inside
+    # the PER-TABLE block -- after the reload+parity that establish which bytes are under test, ahead
+    # of the three cross-table stages -- which is the widening-scope convention the whole pipeline is
+    # written in (this table -> the numbers vocabulary -> the cascade -> the repo lints -> the deck).
+    # A cheap table-specific red must not be paid for behind a full cascade census.
+    order = [s.__name__ for s in g._BRANCH_A_STAGES]
+    assert order == ["stage_pg_reload", "stage_parity", "stage_value_census", "stage_contract_check",
+                     "stage_cascade_census_diff", "stage_config_check", "stage_eval_subset"], order
+
+
+# ---------------------------------------------------------------------------
 # offline posture: a Branch-A table with no pg backend SKIPS pg stages (never crashes)
 # ---------------------------------------------------------------------------
 def test_branch_a_offline_skips_pg_stages(monkeypatch):
     silver = _SilverReg({"silver_wasde": {"consumers": "both"}})
     monkeypatch.setattr(g, "PG_MIRROR_TABLES", frozenset({"silver_wasde"}))
     numbers_reg = types.SimpleNamespace(get=lambda t: types.SimpleNamespace(id=t))
-    ctx = _ctx(silver, numbers_reg=numbers_reg, query_fn=None, conn=None)
     # real Branch-A stages, but no pg backend -> pg_reload/parity/contract_check/census skip, config_check
     # still runs. Assert no crash and the pg stages are skipped (not red).
+    ctx = _ctx(silver, numbers_reg=numbers_reg, query_fn=None, conn=None,
+               value_census_fn=lambda t, reg: {"ok": True})
     monkeypatch.setattr(g, "_run_config_check", lambda: [])
     res = g.run_table("silver_wasde", ctx)
     by = {s.name: s.status for s in res.stages}
@@ -202,6 +264,10 @@ def test_branch_a_offline_skips_pg_stages(monkeypatch):
     assert by["contract_check"] == g.SKIPPED
     assert by["cascade_census_diff"] == g.SKIPPED
     assert by["config_check"] == g.GREEN
+    # ...and the V001 floor is NOT one of them. It reads S3 footers off the F010 contract, never the
+    # mirror, so it stays live on exactly the runs where pg wiring is absent or incomplete -- which is
+    # when a silently-deleted floor would be hardest to notice.
+    assert by["value_census"] == g.GREEN
 
 
 # ---------------------------------------------------------------------------

@@ -237,11 +237,23 @@ def test_cot_is_branch_a_twelfth_pg_mirror_table():
     silver = SR.load_registry()
     assert TID in g.PG_MIRROR_TABLES
     assert g.select_branch(TID, silver_reg=silver) == g.BRANCH_A
-    # cot is the 12th pg-mirror table; silver_futures_prices (SEAM-C) is the 13th; WIRING WAVE-1 added
-    # silver_noaa_iod + silver_conab_coffee (2026-07-23) as the 14th/15th, Card C
-    # silver_sagis_weekly_exports as the 16th once its catalog ALTER landed (P1_TABLES wired it in),
-    # and T2b gold_pattern_records (2026-07-24) as the 17th (ledger mirror, flag-off serving).
-    assert len(g.PG_MIRROR_TABLES) == 17
+    # THIS test owns one fact -- silver_cot is on the roster and routes Branch A -- so the roster
+    # itself is asserted BY NAME, not by an ordinal. cot is the 12th pg-mirror table; silver_futures_
+    # prices (SEAM-C) is the 13th; WIRING WAVE-1 added silver_noaa_iod + silver_conab_coffee
+    # (2026-07-23) as the 14th/15th, Card C silver_sagis_weekly_exports as the 16th once its catalog
+    # ALTER landed (P1_TABLES wired it in), T2b gold_pattern_records (2026-07-24) as the 17th (ledger
+    # mirror, flag-off serving), and the BRANCH-A RATIFICATION (2026-08-01) silver_futures_eod as the
+    # 18th -- pg load 455,334 rows/12.1s, parity 6/6 exact-match, partitions 269 == 269.
+    assert "silver_futures_eod" in g.PG_MIRROR_TABLES, (
+        "the 18th pg-mirror table vanished. silver_futures_eod is SERVED from pg and the Branch-A "
+        "reload is its ONLY refresh path: removing it freezes the mirror while the canonical table "
+        "grows ~2,500 rows/week, and the served lane falls back to Athena instead of failing")
+    # The count is the BACKSTOP, and it names what it cannot diff: the roster is pinned name-by-name
+    # in tests/unit/test_silver_rebuild_gate.py::test_branch_selection_all_45_tables, which fails with
+    # the added/removed table in the message. Read that one first when this trips.
+    assert len(g.PG_MIRROR_TABLES) == 18, (
+        "pg-mirror roster changed; the by-NAME pin lives in tests/unit/test_silver_rebuild_gate.py::"
+        "test_branch_selection_all_45_tables. Roster now: " + str(sorted(g.PG_MIRROR_TABLES)))
 
 
 # ======================================================================================================

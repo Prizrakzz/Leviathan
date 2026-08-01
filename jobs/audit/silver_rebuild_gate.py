@@ -14,14 +14,16 @@ WHY A DISPATCHER, NOT A FIXED CHAIN (Attack 3, finding #1 -- CONFIRMED-BROKEN):
     CONSUMER CLASS (from the F010 registry `consumers` field) and NEVER routes a feature-only table through
     load_pg_numbers/numbers_parity.
 
-    Branch A -- numbers / pg-served tables (the 7 in the pg mirror: psd, wasde, production, esr->esr_compact,
-                fred_fx, noaa_oni, gold_weather_z):
+    Branch A -- numbers / pg-served tables (EXACTLY load_pg_numbers.P1_TABLES, imported below and never
+                re-listed here -- a hand-copied roster in this docstring drifted silently from 7 to 18):
         1. pg reload (load_pg_numbers -- DROP+CREATE-in-transaction atomic swap)
         2. numbers_parity --parity (Athena-vs-pg grid, must diff clean)
-        3. contract_check (SILVER-C002 -- DISTINCT vocabulary + value-nonnull on the mirror)
-        4. cascade_census --diff vs the prior census.json (no NEW un-waived DARK; ATHENA_CALLS==0)
-        5. config_check (all 10 lints)
-        6. eval-subset -- v4 cascade pins (GATED/judged -> deferred hook unless a runner is injected)
+        3. value census V001 (footer-derived null-fraction vs value_columns/min_nonnull_frac -- SILVER-V001;
+           SHARED with Branch B, see the ordering note at _BRANCH_A_STAGES)
+        4. contract_check (SILVER-C002 -- DISTINCT vocabulary + value-nonnull on the mirror)
+        5. cascade_census --diff vs the prior census.json (no NEW un-waived DARK; ATHENA_CALLS==0)
+        6. config_check (all 10 lints)
+        7. eval-subset -- v4 cascade pins (GATED/judged -> deferred hook unless a runner is injected)
 
     Branch B -- feature-only tables (the ~34 consumed solely by extractors.py; incl. the projection trio,
                 which is footer-checked, NEVER Athena-DISTINCT'd -- INV-3):
@@ -282,6 +284,14 @@ def stage_eval_subset(table: str, ctx: GateContext) -> StageResult:
 
 # ---------------------------------------------------------------------------
 # Branch-B stages (feature-only tables -- NEVER load_pg_numbers/numbers_parity).
+#
+# stage_value_census is the one SHARED stage: since the 2026-08-01 Branch-A ratification it runs on BOTH
+# branches (see the ordering note at _BRANCH_A_STAGES). Nothing in it is Branch-B-specific -- it consumes
+# `table` plus the F010 contract from ctx.silver_reg and reads S3 parquet FOOTERS; it never touches
+# ctx.conn, ctx.query_fn or ctx.numbers_reg, and value_census.sample_groups already handles every
+# partition_mode (flat / projected / registered / partitioned), which is what a Branch-A table like
+# silver_futures_eod (partition_mode: registered, keys leviathan_slug + trade_year) needs. Verified before
+# the append; NO adaptation was required.
 # ---------------------------------------------------------------------------
 def stage_feature_probe(table: str, ctx: GateContext) -> StageResult:
     """Footer-only feature-extractor probe on the table's OWN S3 prefix (the path extractors.py reads):
@@ -321,7 +331,11 @@ def stage_value_census(table: str, ctx: GateContext) -> StageResult:
     + vintage adequacy (waiver-aware). Wired to the REAL V001 runner (jobs.audit.value_census.
     census_one_table) -- the old fallback referenced a `census_table` symbol that never existed, so
     every Branch-B run silently SKIPPED this stage (B3 phase-0 finding B3-03; the floor was only ever
-    enforced by the standalone runner). Inject `value_census_fn` to override (tests/offline)."""
+    enforced by the standalone runner). Inject `value_census_fn` to override (tests/offline).
+
+    RUNS ON BOTH BRANCHES since 2026-08-01 (the silver_futures_eod Branch-A ratification). Reads the
+    F010 contract + S3 footers only, so it is deliberately NOT gated on ctx.query_fn/ctx.conn the way
+    the pg stages are: an offline Branch-A run skips every mirror stage and still measures the floor."""
     fn = ctx.value_census_fn
     if fn is None:
         try:
@@ -344,7 +358,28 @@ def stage_value_census(table: str, ctx: GateContext) -> StageResult:
 
 
 # --- the two branch pipelines ----------------------------------------------------------------------------
-_BRANCH_A_STAGES = (stage_pg_reload, stage_parity, stage_contract_check,
+# BRANCH-A STAGE ORDER, and why the V001 census sits THIRD.
+#
+# The list is ordered by WIDENING SCOPE -- the convention the module docstring's own numbering already
+# encodes. pg_reload and parity speak about THIS TABLE; contract_check is cross-table (the whole numbers
+# vocabulary on the mirror -- "the whole numbers vocabulary is cheap"); cascade_census_diff is the whole
+# cascade; config_check is all 10 repo lints; eval_subset is the judged deck. Branch B is the same shape
+# at its own scale: feature_probe (this table's bytes exist and carry its columns) -> value_census (this
+# table's bytes are POPULATED) -> config_check. So the census belongs in the per-table block, after the
+# reload+parity that establish WHICH bytes are under test and ahead of the three cross-table stages --
+# and a cheap, table-specific red should not be paid for behind a full cascade census.
+#
+# WHY IT IS HERE AT ALL (BRANCH-A RATIFICATION, 2026-08-01). Ratifying silver_futures_eod into Branch A
+# moved it OFF the Branch-B pipeline -- and Branch B held the only populatedness assertion in either
+# branch, because Branch A had none. Nothing else in Branch A can stand in for it: pg_reload counts ROWS,
+# parity compares pg against Athena (identically-wrong on both backends is a clean PASS -- it proves the
+# mirror, not the data), and contract_check's value-nonnull is the C002 check over the numbers registry's
+# declared metrics, not the F010 min_nonnull_frac floor. Without this line, ratification would have
+# silently DELETED the V001 floor for every table it promotes. Appending it discharges the memo's Step 3.
+#
+# MEASURED for silver_futures_eod, 2026-08-01: settle non-null 445,888 / 455,882 = 0.9781 against the
+# contract's min_nonnull_frac 0.5 (configs/silver/tables/silver_futures_eod.yaml).
+_BRANCH_A_STAGES = (stage_pg_reload, stage_parity, stage_value_census, stage_contract_check,
                     stage_cascade_census_diff, stage_config_check, stage_eval_subset)
 _BRANCH_B_STAGES = (stage_feature_probe, stage_value_census, stage_config_check)
 

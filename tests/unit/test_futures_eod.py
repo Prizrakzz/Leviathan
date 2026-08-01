@@ -770,18 +770,38 @@ class TestRegistryContract:
         assert sch.field("unit").nullable is False
 
 
-# -- D7 / D8 wiring -------------------------------------------------------------------------------
-def test_pg_mirror_deferral_is_recorded_not_implied():
-    # D7 / probe P8: absence from P1_TABLES IS the exclusion mechanism (there is no named exclusion
-    # set), so the deferral has to be WRITTEN DOWN or it reads as an oversight. Load the module by
-    # path (jobs/ is not an importable package) and assert both halves.
+# -- D7 / D8 wiring, RATIFIED into the pg mirror 2026-08-01 ---------------------------------------
+# These two pinned the DEFERRAL (absent from P1_TABLES, the parity leg skipping) for as long as the
+# exclusion was live. They were INVERTED rather than deleted -- the same arming-pin precedent the
+# serving-state block above used at the W3 flip -- so the protective intent survives pointing at the
+# post-ratification invariant. What must stay true is not "the table is out of the mirror" but "the
+# table is never SERVED FROM a mirror that nothing refreshes", and a removal is exactly that.
+_MIRROR_DRIFT = (
+    "MIRROR DRIFT: silver_futures_eod is SERVED from pg, and the Branch-A reload "
+    "(load_pg_numbers) is its ONLY refresh path -- no other job writes this mirror. Drop it from "
+    "P1_TABLES and the mirror FREEZES while the canonical table keeps growing ~2,500 rows/week, "
+    "served silently as stale numbers; worse, a missing relation does not fail loudly -- pg raises "
+    "UndefinedTable per query and the lane FALLS BACK TO ATHENA, the partition-projection path "
+    "behind the 26.8M-request LIST storm. Restore the entry; do not re-pin this test.")
+
+
+def test_pg_mirror_membership_is_ratified_not_deferred():
+    """RATIFIED 2026-08-01 (Branch A). The inverse of the W1.0 / D7-probe-P8 tripwire this replaces:
+    PRESENCE in P1_TABLES is the mirror mechanism exactly as absence was the exclusion mechanism --
+    there is no named inclusion set either -- so the ratification has to be WRITTEN DOWN at the site
+    or the next reader re-derives the stale D7 deferral from the surrounding comment.
+
+    RECEIPT (measured, not asserted): pg load proven 455,334 rows in 12.1s; numbers_parity 6/6
+    exact-match on 2026-08-01; partitions 269 == 269. WHY it is not optional: the W3 flip (2026-07-30)
+    made this a served-from-pg table, and a served table absent from the mirror is the failure named
+    in _MIRROR_DRIFT. Load the module by path (jobs/ is not an importable package)."""
     import importlib.util
     from pathlib import Path
     path = Path(__file__).resolve().parents[2] / "jobs" / "utils" / "load_pg_numbers.py"
     spec = importlib.util.spec_from_file_location("load_pg_numbers_probe", path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    assert TABLE not in mod.P1_TABLES                       # DEFERRED until the W2 size check
+    assert TABLE in mod.P1_TABLES, _MIRROR_DRIFT            # RATIFIED: the reload is the refresh path
     assert TABLE in path.read_text(encoding="utf-8")        # ...and the reason is recorded there
 
 
@@ -796,24 +816,37 @@ def test_parity_sample_entry_present_and_fence_guarded():
     assert "if tid not in reg.tables:" in src
 
 
-def test_parity_skips_a_sampled_table_that_has_no_pg_mirror():
-    # The D7/D8 SEQUENCING guard: the W3 whitelist flip is a one-line registry edit, while the
-    # P1_TABLES addition is a separate decision gated on a measured size check. Without this branch
-    # the flip alone would point every leg at a pg relation that was never created -- _cmp books each
-    # as a PG-ERR MISMATCH and main() returns 1, i.e. one deferred table reddens the WHOLE gate.
+def test_parity_leg_is_live_not_skipped_as_unmirrored():
+    """RATIFIED 2026-08-01. The D7/D8 SEQUENCING guard fired for exactly as long as the sequence was
+    open: the W3 whitelist flip was a one-line registry edit while the P1_TABLES addition was a
+    separate decision, and in between, every leg for this table would have hit a pg relation that was
+    never created -- _cmp books each as a PG-ERR MISMATCH and main() returns 1, so one deferred table
+    reddened the WHOLE gate. The sequence is now CLOSED (6/6 exact-match measured 2026-08-01), so the
+    assertion inverts: the leg RUNS.
+
+    Two things are pinned separately and must not be conflated. (1) The MACHINERY stays -- the
+    SKIP-UNMIRRORED branch protects the NEXT table registered ahead of its mirror, and deleting it
+    would re-arm the whole-gate-red failure for that table; it must survive this ratification. (2) The
+    VERDICT flips -- silver_futures_eod no longer takes that branch, and no other sampled table does
+    either."""
     import importlib.util
     from pathlib import Path
     p = Path(__file__).resolve().parents[2] / "jobs" / "utils" / "numbers_parity.py"
     src = p.read_text(encoding="utf-8")
+    # (1) the guard itself is UNCHANGED and still reachable for the next deferred table
     assert "SKIP-UNMIRRORED" in src
     assert "if tid not in PG_MIRROR_TABLES:" in src
     spec = importlib.util.spec_from_file_location("numbers_parity_probe", p)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    # imported from load_pg_numbers, so the allowlist and the guard can never drift...
-    assert TABLE in mod.SAMPLE_COMMODITY and TABLE not in mod.PG_MIRROR_TABLES
-    # ...and every OTHER sampled table IS mirrored, so the guard changes nothing else today.
-    assert set(mod.SAMPLE_COMMODITY) - mod.PG_MIRROR_TABLES == {TABLE}
+    # (2) ...but this table no longer takes it. PG_MIRROR_TABLES is IMPORTED from load_pg_numbers, so
+    # this is the same fact as the P1_TABLES pin above, asserted at the consumer that would go blind:
+    # drop the entry and the parity panel stops comparing the served table at all -- SKIP-UNMIRRORED
+    # is a report line, NOT a mismatch, so the gate would stay GREEN while the mirror rots.
+    assert TABLE in mod.SAMPLE_COMMODITY, "the D8 sample entry is what makes the panel non-vacuous"
+    assert TABLE in mod.PG_MIRROR_TABLES, _MIRROR_DRIFT
+    # ...and EVERY sampled table is now mirrored, so the guard skips nothing at all today.
+    assert set(mod.SAMPLE_COMMODITY) - mod.PG_MIRROR_TABLES == set(), _MIRROR_DRIFT
 
 
 def test_gate_baseline_seed_d6_is_deferred_in_writing():
