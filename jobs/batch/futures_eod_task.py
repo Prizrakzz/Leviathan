@@ -216,11 +216,48 @@ _PARTITION_COLS = ["leviathan_slug", "trade_year"]
 # vendor's transform -- a free leg importing the Databento module for this list would be a fake
 # dependency (the bronze_to_silver modules re-export the same names for their own callers).
 SILVER_COLUMNS = FC.SILVER_COLUMNS
-# DATABENTO'S floor, per (root, year) BRONZE unit: the thinnest legitimate full year in the plan's
-# table is ZR 2019 at 750 bars, and the thinnest legitimate STUB is the ICE 2018 six-session opener
-# at 32-66. A unit landing under this is a truncated download, not a thin market. It is NOT the
-# free legs' floor -- see the per-source per-day silver floors below and the module docstring.
+# DATABENTO'S floor, per (root, year) BRONZE unit -- BACKFILL-SHAPED UNITS ONLY: the thinnest
+# legitimate full year in the plan's table is ZR 2019 at 750 bars, and the thinnest legitimate STUB
+# is the ICE 2018 six-session opener at 32-66. A unit landing under this is a truncated download,
+# not a thin market. It is NOT the free legs' floor -- see the per-source per-day silver floors
+# below and the module docstring.
+#
+# 2026-08-01 RCA (the first-ever incremental databento fire): this flat floor was MODE-BLIND and it
+# failed that fire. A --lookback-days 5 unit for a thin root is ~3-4 outrights x 5 sessions -- ZR
+# delivered 17 rows with a COMPLETE 17/17 settlement join and OJ 14, both healthy, both under 25,
+# both charged as truncated. Worse, the flat floor is simultaneously TOO WEAK for dense roots in
+# incremental (corn truncated to 2 of 5 days still clears 25). Vendor truncation cuts WHOLE DAYS
+# off a window; it does not thin a complete book -- so the incremental check is DAY COVERAGE per
+# unit (every expected weekday session present, one-holiday margin), and this flat floor now
+# applies only to backfill/full-year units. See _truncation_error.
 _MIN_ROWS_PER_UNIT = 25
+
+
+def _truncation_error(bronze, spec, *, mode: str, since: str | None) -> str | None:
+    """The truncated-download verdict for ONE bronze unit, or None when the unit is healthy.
+
+    backfill: the flat per-unit floor (full-year semantics, unchanged).
+    incremental: DAY COVERAGE -- distinct trade dates in the unit vs the weekday sessions in
+    [since, yesterday-UTC], one-holiday margin. Pure, so tests feed it frames directly."""
+    if not spec.min_rows_per_unit:
+        return None
+    if mode != "incremental":
+        if len(bronze) < spec.min_rows_per_unit:
+            return (f"only {len(bronze)} bronze rows (floor {spec.min_rows_per_unit}) -- "
+                    f"treating as a truncated download, not a thin market")
+        return None
+    if not since:                                       # incremental always computes since; belt only
+        return None
+    window_end = datetime.now(tz=timezone.utc).date() - timedelta(days=1)
+    expected = len(pd.bdate_range(since, window_end.isoformat()))
+    if expected <= 0:
+        return None
+    present = int(bronze["trade_date"].nunique()) if len(bronze) else 0
+    if present < expected - 1:                          # one-holiday margin; venue calendars differ
+        return (f"only {present} of {expected} expected session(s) present "
+                f"(window {since}..{window_end.isoformat()}) -- treating as a truncated "
+                f"download, not a thin market")
+    return None
 
 # ---------------------------------------------------------------------------
 # PLAN GATE 5 -- the per-SOURCE per-DAY floors, on rows WRITTEN TO SILVER for that leg's slugs.
@@ -1259,10 +1296,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     for label, loader in units:
         try:
             bronze, stats = loader()
-            if spec.min_rows_per_unit and len(bronze) < spec.min_rows_per_unit:
-                logger.error("%s: only %d bronze rows (floor %d) -- treating as a truncated "
-                             "download, not a thin market", label, len(bronze),
-                             spec.min_rows_per_unit)
+            trunc = _truncation_error(bronze, spec, mode=args.mode, since=args.since)
+            if trunc:
+                logger.error("%s: %s", label, trunc)
                 failures += 1
                 continue
             logger.info("unit %s: %s", label, json.dumps(
