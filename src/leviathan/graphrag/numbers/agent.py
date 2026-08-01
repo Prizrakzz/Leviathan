@@ -1861,6 +1861,17 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                             "scope_note": futures_eod_coverage_note(_route, _floor),
                             "coverage_route": _route, "coverage_floor": _floor}
                 rows = Q.run(spec, query_fn=query_fn)
+                # D-OJ-8 -- THE ENGINE-SIDE TRUNCATION SENTINEL, taken at the row count THE QUERY
+                # RETURNED. The render-side `series_truncated` can only count the rows that survive the
+                # null drop below, so a read that came back AT the cap and contained nulls arrives under
+                # the cap and the warning is silently lost. Stamped here, before anything is dropped,
+                # the sentinel is exact. Scoped to `agg='series'` for the reason that function states:
+                # `agg='latest'` compiles `... DESC LIMIT 1` and cannot truncate, and the named-month
+                # curve branch dedups per expiry and lands far under the cap -- an unscoped sentinel
+                # would mark every latest read as truncated.
+                _lim = int(getattr(spec, "limit", 0) or 0)
+                _trunc = (str(getattr(spec, "agg", None) or "latest") == "series"
+                          and _lim > 0 and len(rows) >= _lim)
                 # An aggregate over zero matched rows returns ONE row with a NULL value (the July-3 eval's
                 # b_weather_2012: country='us' matched no partition, sum() -> [{'value': None}], and the
                 # null sailed through as status=ok). Null-valued rows are never usable values.
@@ -1877,7 +1888,8 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                     except KeyError:
                         ksem = ""
                     status = "not_known" if ksem == "vintage" else "no_rows"
-                return {"query": spec.model_dump(exclude_none=True), "rows": vals, "status": status}
+                return {"query": spec.model_dump(exclude_none=True), "rows": vals, "status": status,
+                        "truncated": _trunc}
             except Exception as e:  # noqa: BLE001 — a bad lookup must not kill the loop
                 return {"query": dict(b.input), "error": str(e)[:200], "rows": [], "status": "error"}
 
@@ -1988,6 +2000,171 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
     return {"answer": "(stopped: max tool calls reached)", "calls": calls}
 
 
+# --- J3: DATED ROW RENDERING (OUTCOMES_JOIN_PLAN items 54-60a, 91) ----------------------------------
+# THE DEFECT. A silver_futures_eod series read renders as `settle=511.75@? (latest of 5000 rows)` -- a
+# price with NO date on it. Root cause: the renderers read the `period` key, and that card never emits one.
+# `query._extras` surfaces `data_date` only when `date_col != knowledge_date_col`, and `period` only when
+# `period_col` is set AND differs from both; silver_futures_eod is `date_col == knowledge_date_col ==
+# trade_date` with `period_col` unset, so the ONLY date alias it can ever carry is `knowledge_date` -- and
+# it carries it on every row. This is a RENDER defect, not a data defect: for this table the data axis and
+# the knowledge axis ARE the same physical column by ratified design (`knowledge_semantics: data_date`,
+# `publication_lag_days: 1`). There is no second date to project. Nothing is missing; the renderers looked
+# in the wrong slot.
+#
+# WHY THE FIX IS NOT IN query.py. Relaxing `_extras` to emit `data_date` when the two columns are equal
+# hands SEVEN tables a new alias, and `data_date` sits FIRST in `_total_order`'s priority list -- so the
+# ORDER BY changes on all seven, which changes the pg-vs-Athena row sample under LIMIT, the exact
+# divergence `_total_order` exists to pin, mid-parity-soak. Declaring `period_col: trade_date` is a
+# guaranteed no-op (query.py excludes a period_col equal to date_col/knowledge_date_col) that would also
+# start failing config_check.check_futures_eod's card-drift clauses. Both rejected with measured reasons
+# (plan item 58); query.py is deliberately untouched by this fix, and nothing here reads or writes SQL.
+#
+# TWO ORDERS, ON PURPOSE -- this is the part that is easy to get wrong (plan item 56a).
+#   * PERIOD/OBSERVATION slots (`_num_line`'s `@`, `_row_line`'s `period=`) take
+#     `period or data_date or knowledge_date`  -> `row_date_label` / `row_date_token`.
+#   * KNOWLEDGE slots (a provenance line's "when was this known", `Citation.date` and the
+#     "latest available X; as-of Y" staleness clause at citations.py:110-125) take
+#     `knowledge_date or data_date`            -> `row_known_label`.
+# The two orders agree on every card in the registry today and stop agreeing the moment a card separates
+# the axes -- which is exactly what the outcomes table will do (`period_col: event_date`,
+# `knowledge_date_col: endpoint_date`). Under the knowledge-first order a judge panel would print the
+# ENDPOINT date in a slot labelled `period`, beside a `known=` saying something else; under the
+# period-first order a provenance line would print the EVENT date where a PIT reader is checking the
+# publication date. Neither slot may borrow the other's order.
+#
+# THE LABEL IS PART OF THE FIX, IN BOTH SLOTS. A date rendered bare -- or worse, rendered under `period=`
+# when it is not a period -- is a date the reader and the model can narrate as something it is not:
+# "settle 511.75, published 2026-07-27" turns an exchange SESSION date into a publication date, and the PIT
+# clamp then reads as satisfied when it is not. Every date these helpers emit therefore names the axis it
+# actually came from, resolved to the CARD'S OWN physical column (`trade_date=2026-07-27`,
+# `report_date=2025-12-30`, `written_at=2026-01-05`, `date=2026-07-27`), and says `period=` only when the
+# row genuinely carries a period.
+#
+# REACH (re-derived card by card against `query._extras`, plan item 57): eleven of nineteen cards emit no
+# `period`; this dates EIGHT of them -- six via `knowledge_date` (silver_futures_eod, silver_futures_prices,
+# silver_cot, silver_mpob, silver_pink_sheet, silver_sagis_weekly_exports) and two via `data_date`
+# (silver_nasa_power, silver_fred_fx). The other three (silver_noaa_oni, silver_noaa_iod, gold_weather_z)
+# are `year_month` cards carrying only year_col/month_col and NO date_col at all, so `_extras` emits
+# neither alias and NO date fallback can reach them: they keep rendering `?`. That is a KNOWN, pinned
+# residue, not an unnoticed miss -- dating them wants a separate `year*100+month` render, out of scope here.
+ROW_DATE_ALIASES = ("period", "data_date", "knowledge_date")     # PERIOD-semantics order (plan item 56a)
+ROW_KNOWN_ALIASES = ("knowledge_date", "data_date")              # KNOWLEDGE-semantics order (citations.py:110)
+
+
+def _axis_col(table: Optional[str], axis: str) -> str:
+    """The card's own physical column name behind a date alias -- `knowledge_date` -> `trade_date` for
+    silver_futures_eod, `written_at` for gold_pattern_records, `date` for silver_fred_fx. Read straight off
+    the (already lru_cached) registry rather than re-cached here: a second cache layer would go stale
+    against the GRAPHRAG_NUMBERS_DISABLE kill-switch, which drops whole tables from `load_registry().tables`.
+    An unknown table or a registry failure degrades to the ALIAS name, which is cosmetic-only -- the date
+    still renders, still labelled, just with the generic axis name."""
+    try:
+        ts = load_registry().tables.get(str(table or ""))
+    except Exception:  # noqa: BLE001 -- a registry problem must never break a render
+        return axis
+    if ts is None:
+        return axis
+    col = ts.knowledge_date_col if axis == "knowledge_date" else ts.date_col
+    return str(col) if col else axis
+
+
+def _first_alias(row, aliases) -> Optional[str]:
+    for a in aliases:
+        v = (row or {}).get(a)
+        if v not in (None, ""):
+            return a
+    return None
+
+
+def row_date_axis(row) -> Optional[str]:
+    """Which alias this row can be dated by, in PERIOD-semantics order -- or None when it carries none.
+    None is a real answer, not a failure: the three `year_month` cards genuinely have no date to render."""
+    return _first_alias(row, ROW_DATE_ALIASES)
+
+
+def row_date(row) -> Optional[str]:
+    """The row's OWN observation value -- the period when it has one, else the date it was observed on.
+    The bare value, unlabelled: prefer `row_date_label` anywhere a reader will see it."""
+    a = row_date_axis(row)
+    return None if a is None else str((row or {}).get(a))
+
+
+def row_date_label(row, table: Optional[str] = None, *, missing: str = "?") -> str:
+    """PERIOD-slot render, always labelled: `period=2023/24`, `trade_date=2026-07-27`, `date=2026-07-27`.
+    A row with no date at all renders `period=?` -- byte-identical to the legacy
+    `period={r.get('period','?')}` render, so the three year_month cards keep exactly the shape they have
+    today and the residue stays visible (plan item 60(iv))."""
+    axis = row_date_axis(row)
+    if axis is None:
+        return f"period={missing}"
+    if axis == "period":
+        return f"period={(row or {}).get('period')}"
+    return f"{_axis_col(table, axis)}={(row or {}).get(axis)}"
+
+
+def row_date_token(row, table: Optional[str] = None, *, missing: str = "?") -> str:
+    """The `@`-slot token, for renders shaped `metric=<value>@<token>`: `settle=511.75@trade_date=2026-07-27`
+    instead of `settle=511.75@?`. Labelled for the same reason `row_date_label` is -- an `@2026-07-27` on a
+    settle is exactly the bare date the PIT reader mistakes for a publication date.
+
+    TWO DIFFERENCES FROM `row_date_label`, and both exist to keep plan item 60(ii)'s byte-identity:
+      * a row with no date at all yields a bare `?`, so a silver_noaa_oni read still renders `@?`;
+      * a row carrying a real PERIOD yields the BARE period value (`@2023/24`), never `@period=2023/24`.
+        The legacy `_num_line` render was `f"{value}@{row.get('period','?')}"`, so labelling the period
+        axis here changed the render of EVERY period-bearing card -- which item 60(ii) forbids, and
+        which the label buys nothing anyway: `2023/24` is not a date a reader can mistake for a
+        publication date. The label is for the DATE axes, which had no token at all before J3."""
+    axis = row_date_axis(row)
+    if axis is None:
+        return missing
+    if axis == "period":
+        return f"{(row or {}).get('period')}"
+    return row_date_label(row, table)
+
+
+def row_known_label(row, table: Optional[str] = None) -> Optional[str]:
+    """KNOWLEDGE-slot render, always labelled: `trade_date=2026-07-27`, `written_at=2026-01-05`,
+    `release_date=2025-12-30`. Mirrors citations.py:110's `knowledge_date or data_date` order because it
+    answers WHEN THIS WAS KNOWN -- never the period-first order, which would answer a different question in
+    the same slot the moment a card splits its axes. None when the row carries neither alias, so a caller
+    omits the bracket entirely rather than printing an empty one."""
+    axis = _first_alias(row, ROW_KNOWN_ALIASES)
+    return None if axis is None else f"{_axis_col(table, axis)}={(row or {}).get(axis)}"
+
+
+def series_truncated(call) -> bool:
+    """J3b (plan items 61-64): did this read come back at its own row cap, so the newest prints were
+    silently discarded? The series/default branch compiles `ORDER BY <total order> LIMIT <limit>` --
+    ASCENDING, no DESC -- and `NumberQuery.limit` defaults to 5000 with no lever in the tool schema, so an
+    unwindowed per-slug read of corn_cbot (49,255 rows) keeps the OLDEST 5,000 and drops ~44,000 newer ones.
+    A renderer that then headlines "the latest" is honest-looking and wrong.
+
+    SCOPED TO `agg='series'`, which is the sharpening the skeptic pass confirmed and this must not overstate:
+    `agg='latest'` compiles `ORDER BY <order> DESC, ... LIMIT 1` and cannot truncate, and the named-month
+    curve branch dedups through `ROW_NUMBER() PARTITION BY contract_month` and returns one row per expiry,
+    far under the cap. This is a real but BOUNDED defect, not a universal one.
+
+    THE ENGINE STAMP WINS WHERE IT EXISTS (D-OJ-8). `_exec` now records `truncated` at the row count the
+    QUERY returned, before null-valued rows are dropped; this function reads that stamp first and falls
+    back to counting the surviving rows only for calls minted elsewhere (cascade's synthetic records,
+    fixtures, citation payloads). The fallback is ONE-SIDED and deliberately so: a read that truncated at
+    the cap AND contained nulls arrives under the cap, so the fallback returns False -- a missed warning,
+    never a false one. The standing remedy stays WINDOWING the read (`period_start`/`period_end`), never
+    raising the cap -- raising it re-opens the scan surface the S3 LIST-storm work closed."""
+    stamp = (call or {}).get("truncated")
+    if stamp is not None:
+        return bool(stamp)
+    q = (call or {}).get("query") or {}
+    if str(q.get("agg") or "latest") != "series":
+        return False
+    lim = q.get("limit")
+    try:
+        lim = int(lim)
+    except (TypeError, ValueError):
+        return False
+    return lim > 0 and len((call or {}).get("rows") or []) >= lim
+
+
 def to_citations(calls: list[dict], evidence_rows: Optional[list[dict]] = None):
     """Unified Citation objects (numbers + optional document evidence) — the Phase-4 provenance seam that the
     synthesizer/UI consumes. See leviathan.graphrag.citations."""
@@ -1996,15 +2173,36 @@ def to_citations(calls: list[dict], evidence_rows: Optional[list[dict]] = None):
 
 
 def format_provenance(calls: list[dict]) -> list[str]:
-    """One human citation per executed lookup — for the synthesizer / UI."""
+    """One human citation per executed lookup — for the synthesizer / UI.
+
+    J3, ONE change, render-only: the bracketed date is LABELLED with the card's own column
+    (`[trade_date=2026-07-27]`, never a bare `[2026-07-27]`). This is a KNOWLEDGE slot, so it keeps
+    citations.py:110's `knowledge_date or data_date` order and only stops being a date a reader can mistake
+    for a publication date on a card -- like silver_futures_eod -- where the knowledge axis IS the trading
+    session. J3b: when the read came back at its row cap the line says so instead of implying the value is
+    current (the engine stamp from `_exec`, via `series_truncated`).
+
+    WHAT IS DELIBERATELY *NOT* CHANGED HERE, and it is a real defect left standing on purpose: the
+    headline row is still `rows[0]`. A series arrives chronological ASCENDING, so `rows[0]` is the OLDEST
+    print -- the judged-30 RCA (b) class, already fixed in `citations.from_number`. Picking by chronology
+    here would be a VALUE change (a different displayed number on every multi-row call) on every card, and
+    J3 is scoped to RENDER (plan item 56: `eval._num_line` + `_row_line`). Changing a displayed value
+    mid-parity-soak, inside a render fix, is how an unrelated regression gets attributed to the wrong
+    wave. It belongs in its own item with its own soak (adversarial finding 10)."""
     out = []
     for c in calls:
         q = c.get("query", {})
         rows = c.get("rows") or []
-        val = (rows[0].get("value") if rows else
+        head = rows[0] if rows else {}
+        val = (head.get("value") if rows else
                "(lookup error)" if c.get("status") == "error" else
                "(no matching data)" if c.get("status") == "no_rows" else "(not known at asof)")
-        kd = rows[0].get("knowledge_date") or rows[0].get("data_date") if rows else ""
         scope = "/".join(str(q.get(k)) for k in ("commodity", "country", "period") if q.get(k))
-        out.append(f"{q.get('table')}.{q.get('metric')} {scope} = {val}" + (f" [{kd}]" if kd else ""))
+        line = f"{q.get('table')}.{q.get('metric')} {scope} = {val}"
+        known = row_known_label(head, q.get("table")) if rows else None
+        if known:
+            line += f" [{known}]"
+        if series_truncated(c):
+            line += f" (row cap {q.get('limit')} reached -- OLDEST rows kept, so this is NOT the latest print)"
+        out.append(line)
     return out

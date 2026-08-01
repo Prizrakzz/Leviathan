@@ -289,7 +289,37 @@ class NumbersRegistry(BaseModel):
 # that made the flip an atomic change rather than four separable ones. It also stays DISJOINT from
 # _disabled_tables() (env-only) so the env-parse kill-switch tests are byte-identical; the union happens
 # once, in load_registry.
-WHITELIST_ABSENT_DEFAULT: frozenset[str] = frozenset()
+#
+# AND THE NEXT TABLE IS ON ITS WAY (OUTCOMES_JOIN J1/J2, 2026-08-01): ``gold_futures_outcomes``. Its
+# card -- which IS the PIT clamp (D-OJ-13), so it is written with the rule module rather than after it
+# -- is STAGED at configs/graphrag/numbers/cards/gold_futures_outcomes.yaml and lands in tables.yaml
+# together with its SILVER-F010 contract (the two registries are bound by
+# silver/reconcile.NUMBERS_TABLES). Its producer (jobs/batch/gold_futures_outcomes_task.py) has not run
+# and no Glue table exists. The fence entry is ARMED AHEAD OF THE PASTE deliberately, so that landing
+# the card cannot by itself change serving: whitelist-absent is exactly the state silver_futures_eod
+# held through W1/W2 --
+# card is dropped at load, so it is absent from the agent tool enum AND the system-prompt card, and
+# every build_sql lookup raises KeyError -- fail CLOSED, serving byte-identical. The flip is the
+# consumer wave's step and repeats the (a)-(d) checklist above: the first build lands, the card's
+# dimensions are reachable from the tool schema + dispatch purpose, and the coverage/PIT lints
+# (outcomes.lint_outcome_card, config_check.check_futures_outcomes) are green.
+#
+# AND THE OTHER TWO IDS OF THE SAME WAVE, ARMED ON THE SAME ARGUMENT (adversarial finding 14):
+#   * ``gold_pattern_outcomes`` -- the fence is not merely prudent here, it is REQUIRED, and
+#     ``pattern_records.lint_pattern_outcome_card`` says why in its own docstring: the ledger carries a
+#     SECOND PIT axis (``ledger_written_at``, the ingest date -- a backfill_grid verdict for a 2023 asof
+#     was written in 2026) and ``TableSpec.knowledge_col()`` yields exactly ONE column, so a
+#     registry-compiled read of this table CANNOT express it. The engine leg applies both axes by hand.
+#     A paste without this entry is therefore a live PIT hole, not a scheduling detail.
+#   * ``gold_cot_outcomes`` -- in both ``POSITIONING_TABLES`` constants and in no whitelist until now.
+#     Its producer does not exist either, and the J6 leg is fail-closed on an unregistered card.
+# THE FLIP REMOVES THE ID, per table, exactly as it does for silver_futures_eod: the (a)-(d) checklist
+# above, plus the card's own lint green. NOTE while the entries stand: ``config_check`` reads these
+# cards through the RAW registry file rather than ``load_registry()`` precisely so that whitelisting
+# them does not also blind their lints -- a fence that disarms the check that guards it is not a fence.
+WHITELIST_ABSENT_DEFAULT: frozenset[str] = frozenset({
+    "gold_futures_outcomes", "gold_pattern_outcomes", "gold_cot_outcomes",
+})
 
 
 def _disabled_tables() -> frozenset[str]:

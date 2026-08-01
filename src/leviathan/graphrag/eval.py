@@ -201,7 +201,18 @@ def _pit_clean(out: dict, asof) -> bool:
                 return False
         rows = (c.get("payload") or {}).get("rows") or []
         prov = (rows[0] or {}).get("_provenance") if rows else None
-        rd = str((prov or {}).get("release_date") or "")
+        # D-OJ-7(b): read the FIRST PRESENT guard-column stamp, not `release_date` alone. Only the
+        # vintage tables carry `release_date`, so the backtest was a no-op on every data_date card --
+        # including both new outcome legs, which stamp `_provenance` under the `date` key precisely so
+        # this check has a day-grained value to read instead of the bare `year` a futures row carries.
+        # The order is the guard-column order: the more specific publication axis wins where a row has
+        # more than one.
+        rd = ""
+        for _k in ("release_date", "knowledge_date", "data_date", "week_ending_date", "date"):
+            _v = str((prov or {}).get(_k) or "")
+            if _v:
+                rd = _v
+                break
         if rd and leg_asof and rd > leg_asof:
             return False
     return True
@@ -1517,9 +1528,12 @@ def _judge_numbers_panel(out: dict, max_rows_per_call: int = 8) -> str:
         else:
             lines.append(head + f" -> {len(rws)} rows retrieved (a figure matching ANY row at its period is grounded):")
 
-            def _row_line(r: dict) -> str:
+            def _row_line(r: dict, _tbl=qy.get("table")) -> str:
+                # J3: label the row's real date axis (trade_date for futures_eod) instead of a bare
+                # period=? -- the judge panel must never show a dated series as dateless.
+                from leviathan.graphrag.numbers import agent as _na
                 kd = r.get("knowledge_date")
-                return (f"    period={r.get('period', '?')} value={r.get('value')}"
+                return (f"    {_na.row_date_label(r, _tbl)} value={r.get('value')}"
                         + (f" known={kd}" if kd else ""))
 
             if len(rws) <= max_rows_per_call:
@@ -1997,7 +2011,16 @@ def _num_line(out: dict) -> str:
             # LATEST row, labeled — the old rows[0] render showed a series' oldest year as THE value
             # and seeded the cocoa false-fabrication mis-triage (RCA 2026-07-24)
             last = rws[-1]
-            val = f"{last.get('value')}@{last.get('period', '?')} (latest of {len(rws)} rows)"
+            # J3: the date axis comes from the card (trade_date for futures_eod), labeled -- the bare
+            # "@?" shape rendered settles dateless, and a settle without its date cannot anchor a
+            # PIT-safe claim (OUTCOMES_JOIN_PLAN J3; token primitive lives beside the agent's render).
+            from leviathan.graphrag.numbers import agent as _na
+            val = f"{last.get('value')}@{_na.row_date_token(last, qy.get('table'))} (latest of {len(rws)} rows)"
+            # J3b/D-OJ-8: an `agg='series'` read that came back AT its row cap kept the OLDEST rows and
+            # dropped the newest, so "latest of N rows" is honest-looking and wrong. The sentinel is the
+            # ENGINE's (`_exec` stamps it at the count the query returned, before nulls are dropped).
+            if _na.series_truncated(c):
+                val += f" [TRUNCATED at row cap {qy.get('limit')}: OLDEST kept, NOT the latest print]"
         parts.append(f"{qy.get('table','?')}.{qy.get('metric','?')}={val}")
     return ", ".join(parts)
 

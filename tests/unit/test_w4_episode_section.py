@@ -491,10 +491,23 @@ def test_l2_blocks_exports_the_injected_episode_record(monkeypatch):
     assert any(line in b for b in volatile)                        # the model is sent it ...
     rec = sg.trace["episodes_injected"]                            # ... and the trace now carries it
     assert rec == [{"node": "drivers/frost", "line": line,
-                    "spans": ["1994-06..1994-08", "2021-06..2021-08"]}]
+                    "spans": ["1994-06..1994-08", "2021-06..2021-08"],
+                    # OUTCOMES_JOIN D-OJ-16 (2026-08-01): `windows` was ADDED BESIDE `spans`, which is
+                    # unchanged and still the only thing eval._line_targets reads. The month token is
+                    # the MATCHING label; the day-grain pair is what a price move may be measured over,
+                    # and expanding the `[:7]` end to month-end would price up to 30 days past the
+                    # as-of. Both on the record, index for index, or a correctly-measured bullet and a
+                    # month-expanded one are indistinguishable downstream.
+                    "windows": [{"start": "1994-06-10", "end": "1994-08-01",
+                                 "span": "1994-06..1994-08", "n": 11},
+                                {"start": "2021-06-01", "end": "2021-08-20",
+                                 "span": "2021-06..2021-08", "n": 3}]}]
     # the recorded spans are exactly what render_line writes into the prompt line, not a parallel format
     for sp in rec[0]["spans"]:
         assert sp in line
+    # ... and the day-grain end is the episode's OWN last visible prop date, never the month's end.
+    assert [w["end"] for w in rec[0]["windows"]] == [e["end"] for e in eps]
+    assert [w["span"] for w in rec[0]["windows"]] == rec[0]["spans"]
 
 
 def test_no_episodes_no_record(monkeypatch):

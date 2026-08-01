@@ -309,12 +309,39 @@ def episodes_for(node: str, asof, *, max_n: int = MAX_PER_NODE, evidence: list |
     return out[:max_n]
 
 
+def month_span(e: dict) -> str:
+    """The `YYYY-MM..YYYY-MM` token for an episode -- ITS LABEL, NEVER AN INTERVAL (OUTCOMES_JOIN
+    D-OJ-16).
+
+    ONE definition, three readers, and the reason it is one: `render_line` shows this string to the
+    model, `answer._l2_blocks` stamps the same string into `trace['episodes_injected']['spans']`, and
+    `eval._line_targets` matches a rendered bullet to an injected episode by ENDPOINT STRING EQUALITY on
+    exactly these tokens. Three copies of an f-string is how those three drift apart, and a drift here
+    reds `episode_magnitude_or_absence` and `min_episode_lines` together on correctly enumerated prose.
+
+    WHAT IT IS NOT. It is not a window to measure over. Expanding the `[:7]` end token to month-end
+    prices up to 30 days past the as-of, and `episodes_for` has already clamped the DAY-GRAIN `end` to
+    `<= asof` -- so the day-grain pair is the measurable window and this token is the label pinned
+    beside it. Any consumer that measures a price move over an episode reads `e['start']` / `e['end']`,
+    never this."""
+    return f"{str(e.get('start') or '')[:7]}..{str(e.get('end') or '')[:7]}"
+
+
+def day_window(e: dict) -> tuple[str, str]:
+    """The DAY-GRAIN `(start, end)` an episode was recounted over -- the pair a magnitude is measured on.
+
+    Already as-of clamped at source (`episodes_for` keeps only prop dates `<= asof`, so `end` can never
+    postdate the as-of); the outcomes clamp still applies its own `+ survive_days` margin on top, because
+    a window whose end is inside that margin was selected against tape the reader does not have."""
+    return str(e.get("start") or "")[:10], str(e.get("end") or "")[:10]
+
+
 def render_line(label: str, eps: list[dict]) -> str:
     """One prompt line per node. Every episode renders EITHER its citable receipt OR `_NO_RECEIPT` --
     a bare count is never emitted (F-I: the bare count with no marker was the confabulation invitation)."""
     parts = []
     for e in eps:
-        span = f"{e['start'][:7]}..{e['end'][:7]} ({e['n']} reports"
+        span = f"{month_span(e)} ({e['n']} reports"
         r = e.get("receipt")
         span += f'; e.g. {r["date"]}: "{r["text"]}")' if r else f"; {_NO_RECEIPT})"
         parts.append(span)

@@ -607,7 +607,14 @@ def _pace_grain(row) -> str | None:
 # amended R9 at BUILD time (the lint_pace_collapse/check_pace_collapse bind idiom), so the lint and the
 # runtime can never disagree about what "context" means. The chain/complex/transmission half of R9 is
 # the lint's alone: those maps name a cascade_map ref BY NAME, which is a name-level ban, not a shape.
-POSITIONING_TABLES: frozenset[str] = frozenset({"silver_cot"})
+# OUTCOMES_JOIN D-OJ-18: `gold_cot_outcomes` joins the fence the day its lane exists, not the day its
+# rows do. It is the J6 card -- the COT-keyed subset of the outcomes builder's output -- and it is in
+# here for one reason: every leg of this fence keys on the TABLE ID, so a positioning-derived number
+# served from a table OUTSIDE the set satisfies R9's letter while vacating the context-shape rule, the
+# never-a-chain-hop ban and the never-a-relative-value-leg ban at once (skeptic F11). The id is defined
+# below beside the leg that reads it; it is named as a literal here so this constant stays a plain
+# frozenset of ids, which is what config_check's drift pin compares.
+POSITIONING_TABLES: frozenset[str] = frozenset({"silver_cot", "gold_cot_outcomes"})
 # The narration addendum the block carries when a context leg actually rendered. Phrased POSITIVELY and
 # MEASURED: it names no flow idiom, because the surest way to put "crowded"/"stretched" into a draft is
 # to write it into the prompt as a prohibition -- the r3 arm already emitted a residual flow idiom on
@@ -811,10 +818,36 @@ def _pair_units(groups: list) -> tuple:
 
 
 # ── the orchestration (B-S3) ─────────────────────────────────────────────────────────────────────────
+# The block's one header string, extracted so the two return paths below cannot render it differently.
+# BYTE-IDENTICAL to the literal it replaced -- the prompt prefix is a cached surface.
+_BLOCK_HEADER = "OBSERVED CASCADE NUMBERS (as-known at each leg's asof; the record then vs now):\n"
+
+
+def _episode_leg_or_nothing(sg, qfn, asof, calls: list) -> tuple:
+    """Run the J4 episode leg and write its trace; `([], [])` on any failure. R6 belt at the ONE place
+    both `quantify` return paths reach it, so an outcomes failure degrades to the absence branch the
+    episodes persona already treats as normal, and never to a broken turn.
+
+    The trace key is written whenever the leg produced ANY record -- including a turn where every window
+    declined. That is deliberate: for this leg a decline is the expected answer, so `fired == bool(key)`
+    would be the wrong reading and an absent key must mean "the leg did not run"."""
+    try:
+        lines, trace = _episode_outcome_legs(sg, qfn, asof, calls, len(calls))
+    except Exception:  # noqa: BLE001 -- R6: never break the v1 answer
+        return [], []
+    if trace:
+        try:
+            sg.trace["quantify_episode_outcomes"] = trace
+        except Exception:  # noqa: BLE001 -- a traceless sg must never break the v1 answer
+            pass
+    return lines, trace
+
+
 def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request: dict | None = None,
              comove: bool = False, price_request: dict | None = None, pace: bool = False,
              chain: bool = False, transmission: bool = False, outlook: bool = False,
-             headline: bool = False) -> tuple:
+             headline: bool = False, episode_outcomes: bool = False,
+             cot_outcomes: bool = False) -> tuple:
     """Select grounded nodes with mapped refs, derive analogue-era windows from their dated props, build
     per-node leg GROUPS (era legs + a current rhyme leg), detect cross-country REROUTE pairs (RF-3:
     natural two-node pairs + the synthesized primary-country beneficiary), cap on WHOLE pair-atomic
@@ -824,7 +857,8 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
 
     `outlook` and `headline` are the two flags read at the answer.py quantify SEAM and threaded here as
     ARGUMENTS (the pace/price_request discipline -- NEVER an env read inside cascade.py), see the R9 gate
-    and _set_headline below.
+    and _set_headline below. `episode_outcomes` (OUTCOMES_JOIN J4) and `cot_outcomes` (J6) follow the
+    same omit-when-off idiom: both default False, so a call that does not pass them is byte-identical.
     Never raises (R6 -- the seam also belts it)."""
     _set_headline(headline)
     groups = []
@@ -883,6 +917,16 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
     except Exception:  # noqa: BLE001 -- a traceless sg must never break the v1 answer
         pass
     if not groups and not chain and not transmission:
+        # OUTCOMES_JOIN J4: the episode leg owns NO groups -- its windows come from the trace
+        # answer._l2_blocks already stamped -- so it must not die on this early return. That would kill it
+        # on exactly the turns it serves: a thin walk with dated episodes and no mapped silver ref is the
+        # modal episodes turn, and a leg that only ran when the cascade also fired would be a leg whose
+        # coverage tracked something unrelated to episodes. Flag off -> the kwarg is absent -> this branch
+        # is byte-identical to today (no read, no line, no trace key).
+        if episode_outcomes:
+            e_lines, e_trace = _episode_leg_or_nothing(sg, qfn, asof, extra_number_calls)
+            if e_lines:
+                return _BLOCK_HEADER + "\n".join(e_lines), [], []
         return None, [], []                                       # both flags False -> byte-identical early
         #                                                           return; either chain engine runs over empty
         #                                                           groups (their grounding checks are their own:
@@ -1019,6 +1063,36 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
             except Exception:  # noqa: BLE001
                 pass
         block_lines = block_lines + c_lines
+    # OUTCOMES JOIN J4 -- the EPISODE MAGNITUDE leg. Gated ONLY by the answer.py-threaded
+    # `episode_outcomes` kwarg (GRAPHRAG_EPISODE_OUTCOMES is read at that seam, never here -- the
+    # pace/price_request discipline). Flag off -> the kwarg is absent -> no read, no line, no trace key,
+    # byte-identical. It runs AFTER every other engine so each existing line keeps its byte position, and
+    # it needs no groups of its own: its windows come from `sg.trace['episodes_injected']`, which
+    # answer._l2_blocks stamped BEFORE this call. On FIRE the engine writes its own trace key (the
+    # xc/pace idiom: fired == bool(key)); a turn where every window declined still writes the key,
+    # because a recorded decline is the whole point of a leg whose normal answer is an absence.
+    if episode_outcomes:
+        block_lines = block_lines + _episode_leg_or_nothing(sg, qfn, asof, extra_number_calls)[0]
+    # OUTCOMES JOIN J6 -- the COT OUTCOME PAIRING, CONTEXT LANE ONLY (D-OJ-17/18). Gated on the threaded
+    # `cot_outcomes` kwarg AND on `not outlook` AND on a positioning context leg having actually
+    # rendered. All three, because D1's ratified text is a SPLIT and the half most easily dropped is the
+    # OUTLOOK carve-out: under OUTLOOK register.py releases the flow fence by design, so a cited,
+    # arrow-free conditional-performance sentence returns False from `_is_banned_sentence` -- which is
+    # why D-OJ-17 picks option (a) and holds the ref out of outlook turns ENTIRELY rather than trying to
+    # phrase its way past a fence that is down.
+    if cot_outcomes and not outlook:
+        try:
+            c_lines, c_trace = _cot_outcome_legs(records, kept, len(extra_number_calls),
+                                                 extra_number_calls, qfn=qfn, asof=asof)
+            if c_trace:
+                try:
+                    sg.trace["quantify_cot_outcomes"] = c_trace
+                except Exception:  # noqa: BLE001 -- a traceless sg must never break the v1 answer
+                    pass
+            if c_lines:
+                block_lines = block_lines + c_lines + [COT_OUTCOME_ADDENDUM]
+        except Exception:  # noqa: BLE001 -- R6: never break the v1 answer
+            pass
     # R9 CONTEXT-LANE ADDENDUM (D1): when a positioning context leg actually rendered, ONE narration line
     # rides the block so the prose stays what the leg is -- dated observed history. Appended LAST, after
     # every engine's lines: it says "the managed-money rows above", and at its old position (right after
@@ -1026,8 +1100,7 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
     # reader could not delimit. Only ever appended on a leg that actually produced a row.
     if _positioning_rendered(records, kept):
         block_lines = block_lines + [POSITIONING_CONTEXT_ADDENDUM]
-    block = ("OBSERVED CASCADE NUMBERS (as-known at each leg's asof; the record then vs now):\n"
-             + "\n".join(block_lines)) if block_lines else None
+    block = (_BLOCK_HEADER + "\n".join(block_lines)) if block_lines else None
     return block, trace, r_trace
 
 
@@ -1591,9 +1664,41 @@ def _table_label(table) -> str:
         return str(table).replace("silver_", "").replace("gold_", "").replace("_", " ").upper()
 
 
+def _contract_seg(contract_month) -> str:
+    """The delivery-month segment of the series tag, in the NON-year-month render form ('2024M03').
+
+    Fail-soft to "" -- an unresolvable month drops its own segment and every other segment is unchanged,
+    which is the same degradation `_table_label` takes. One call site for the format (`outcomes.
+    contract_token`), so the tag and any other renderer of a delivery month cannot disagree."""
+    if contract_month in (None, ""):
+        return ""
+    try:
+        from leviathan.graphrag.numbers import outcomes as OC
+        return OC.contract_token(str(contract_month)) or ""
+    except Exception:  # noqa: BLE001 -- a tag segment must degrade, never break the panel
+        return ""
+
+
 def _series_tag(q: dict | None, row: dict | None = None) -> str:
     """The SCOPE suffix every reader-facing [N] row line ends with:
-    ' [series: <commodity>; country: <country>; table: <SOURCE LABEL>]'.
+    ' [series: <commodity>; country: <country>; contract: <DELIVERY MONTH>; table: <SOURCE LABEL>]'.
+
+    OUTCOMES_JOIN D-OJ-5: the CONTRACT segment is the fourth, and it is reader-facing rather than debug.
+    The outcomes join measures a move on ONE surviving delivery month, and that contract is the FRONT
+    month in only 25.5-31.7% of anchors (per-anchor divergence from the front chain: median 1.2-2.5pp,
+    p90 4.6-7.2pp -- the same order as the move being claimed), so a survivor-basis move rendered without
+    its delivery month is a scope mis-attribution of exactly the class this tag exists to stop. It sits
+    in the TAG rather than in the line body because answer.py's SCOPE paragraph trains the reader that
+    the tag names what the figure was measured on -- and that paragraph is amended in the same edit.
+
+    IT IS SOURCED FROM A KEY NO OTHER TABLE CARRIES, so every existing line is byte-identical: the
+    comprehension below drops any segment whose value is None/"", and only a contract-scoped query dict
+    ever sets `contract_month`. The token is rendered through `outcomes.contract_token` -- '2024-03'
+    becomes '2024M03' -- because `eval._YM_RX` matches a bare year-month and `eval._line_targets` is
+    two-tier with NO fallback by design: an episode bullet that leaked 'contract: 2024-03' would be
+    scored as enumerating a window the engine never injected, redding `episode_magnitude_or_absence`
+    and `min_episode_lines` together. The M form cannot match that regex at all, so the class is removed
+    rather than bounded.
 
     W4 A/B (2026-07-31): the rendered line named the metric, the period and the as-of but never the SERIES the
     figure was measured on, so rows keyed to a contract slug (soft_red_winter_wheat_cbot) came back narrated as
@@ -1611,6 +1716,7 @@ def _series_tag(q: dict | None, row: dict | None = None) -> str:
     q = q or {}
     parts = [f"{lbl}: {v}" for lbl, v in (("series", q.get("commodity")),
                                           ("country", q.get("country")),
+                                          ("contract", _contract_seg(q.get("contract_month"))),
                                           ("table", _table_label((row or {}).get("table") or q.get("table"))))
              if v not in (None, "")]
     return f" [{'; '.join(parts)}]" if parts else ""
@@ -3104,3 +3210,597 @@ def _transmission_legs(sg, graph, groups: list, xc_request: dict | None, qfn, as
     except Exception as e:  # noqa: BLE001 -- fail-closed: never break the v1 answer
         return [], None, ({"chain_id": selected_id, "reason": "error", "detail": type(e).__name__[:40]}
                           if selected_id else None)
+
+
+# == OUTCOMES JOIN -- THE TWO SERVING CONSUMERS (J4 episode magnitude, J6 COT outcome pairing) =======
+#
+# Both legs read the SAME computation -- `numbers.outcomes`, which owns the survivor basis, the PIT
+# clamp and the decline vocabulary. Nothing here re-derives a move, a basis or a boundary; this file
+# owns only the SEAM (which windows to ask about, how many reads that is worth, and what the rendered
+# line says). That split is the F-L discipline `futures_roll` exists to enforce, one level up again.
+#
+# WHY J4 COMPUTES AT QUERY TIME AND J5's TABLE DOES NOT (plan item 40b / 98(d)). Episode windows are
+# derived from the timeline artifact, and the artifact is REBUILT -- so a stored episode-span row is
+# stale the moment it is, and a deck pin naming a literal span goes red for the right reason at the
+# wrong time. `gold_futures_outcomes` therefore stores NO episode-derived row, and this leg asks the
+# tape live. The 5,000-row `agg='series'` cap does not bind here because the deep read is
+# DELIVERY-MONTH SCOPED (~1 row/session); an unscoped curve read is 3.7-12.9 rows/session (max 19 on
+# soymeal) and WOULD truncate silently on a multi-year span -- so the reads below are scoped, capped,
+# and a saturated read DECLINES rather than measuring across a hole.
+_TAPE_TABLE = "silver_futures_eod"
+_TAPE_METRIC = "settle"
+
+# THE PER-TURN BUDGET, and every number in it is a bound rather than a preference.
+EPISODE_OUTCOME_MAX_WINDOWS = 3      # priced windows ATTEMPTED per turn (2 reads each, so <= 6 reads).
+#                                      timeline.MAX_PER_NODE is 4 and a walk grounds several nodes, so
+#                                      an unbudgeted leg would fan tens of reads onto the serve path.
+EPISODE_OUTCOME_CANDIDATES = 3       # delivery months carried into the deep read. Chosen as the nearest
+#                                      eligible expiries whose month is at or after the span end, which
+#                                      is where a surviving contract must live (a contract's last print
+#                                      lands only 7-20 days into its own delivery month).
+EPISODE_TAPE_ROW_CAP = 2500          # per read. Saturation DECLINES: `agg='series'` truncates the
+#                                      NEWEST rows, i.e. exactly the endpoint, so a full read is the
+#                                      only honest one (J3b).
+EPISODE_SPAN_MAX_DAYS = 1460         # 4 years. Beyond the measured maximum forward tenor (3.96y on
+#                                      GLBX, 0.96y on CZCE) NO single contract can span the window, so
+#                                      the decline is arithmetic and costs zero reads.
+
+# The decline reasons this SEAM owns. Everything else comes back from `outcomes` itself, so the two
+# vocabularies never overlap: a reason here means "the seam would not ask", a reason there means "the
+# join was asked and answered no".
+EP_DECLINE_UNRESOLVED_NODE = "unresolved_node"       # a driver node has no price series at all
+EP_DECLINE_SPAN_TOO_LONG = "span_exceeds_contract_life"
+EP_DECLINE_NO_TAPE = "no_tape_rows"
+EP_DECLINE_READ_TRUNCATED = "read_truncated"
+EP_DECLINE_BUDGET = "budget_exhausted"
+
+
+def _iso_days(iso) -> int:
+    """An ISO date as a day ordinal -- span arithmetic without a datetime import at every call site."""
+    import datetime as _dt
+    return _dt.date.fromisoformat(str(iso)[:10]).toordinal()
+
+
+def _iso_shift(iso, days: int) -> str:
+    import datetime as _dt
+    return (_dt.date.fromisoformat(str(iso)[:10]) + _dt.timedelta(days=int(days))).isoformat()
+
+
+def _episode_slug(node) -> str | None:
+    """An episode NODE -> a tape slug, or None. RESOLVE-OR-DECLINE, never a guess (plan item 68).
+
+    Episode nodes are graph names -- `arabica_coffee`, `corn`, `cotton`, `drivers/african_swine_fever`
+    -- and only some are tape slugs. `futures_eod_contracts.coverage_start_for` RAISES on an unmapped
+    slug and never returns a permissive default, so a driver node must be turned away HERE, with the
+    absence phrase the episodes persona already specifies, rather than reaching the join as an error.
+
+    Order: an exact contract slug wins, then the curated bare-name table (`complex_map`, which is where
+    `corn -> corn_cbot` is already decided once, including the ambiguous names it deliberately refuses).
+    The loaded set handed to that resolver is the CONTRACT MAP itself, so this never loads the causal
+    graph and never resolves to a name the tape has no record for."""
+    n = str(node or "").strip().lower().split("/")[-1]
+    if not n:
+        return None
+    try:
+        from leviathan.silver import futures_eod_contracts as FC
+        if n in FC.CONTRACT_MAP:
+            return n
+        from leviathan.graphrag import complex_map as cxm
+        got = cxm.resolve_bare_commodity(n, loaded=frozenset(FC.CONTRACT_MAP))
+        return got if got in FC.CONTRACT_MAP else None
+    except Exception:  # noqa: BLE001 -- an unresolvable node is a DECLINE, never an exception
+        return None
+
+
+def _tape_read(qfn, *, slug: str, t1: str, t2: str, asof, contract_months=None) -> tuple:
+    """ONE bounded `silver_futures_eod` read -> `(rows, saturated)`. NEVER raises.
+
+    `contract_months` compiles to the card's delivery-month IN(...) filter, which is what keeps the deep
+    read at ~1 row/session/expiry. `saturated` is True when the read came back at the row cap: the
+    compile is `ORDER BY <chronological ASC> ... LIMIT n`, so a truncated read loses the NEWEST sessions
+    -- the endpoint half of every move -- and the caller must decline rather than measure."""
+    try:
+        spec = Q.NumberQuery(table=_TAPE_TABLE, metric=_TAPE_METRIC, asof=asof, commodity=str(slug),
+                             country=None, agg="series", period_start=t1, period_end=t2,
+                             limit=EPISODE_TAPE_ROW_CAP,
+                             contract_month=(",".join(contract_months) if contract_months else None))
+        rows = Q.run(spec, query_fn=qfn) or []
+    except Exception:  # noqa: BLE001 -- a bad/slow lookup must NEVER kill the reasoning turn (R6)
+        return [], False
+    return rows, len(rows) >= EPISODE_TAPE_ROW_CAP
+
+
+def _tape_frame(slug: str, *row_sets):
+    """The fetched rows as the frame `numbers.outcomes` consumes: `leviathan_slug, trade_date,
+    contract_month, settle, unit, currency, settle_kind`.
+
+    The serving alias is `knowledge_date` (physically `trade_date`, DP-5-normalized by `query._sel_date`)
+    -- code written against `data_date`, `period` or `date` reads None here and would measure nothing
+    while looking like it measured something. De-duplicated on the natural key because the two reads
+    OVERLAP by construction (both cover the anchor window)."""
+    import pandas as pd
+
+    cols = ["leviathan_slug", "trade_date", "contract_month", "settle", "unit", "currency",
+            "settle_kind"]
+    recs = []
+    for rows in row_sets:
+        for r in rows or []:
+            kd = (r or {}).get("knowledge_date")
+            if not kd:
+                continue
+            cm = (r or {}).get("contract_month")
+            recs.append({"leviathan_slug": str(slug), "trade_date": str(kd)[:10],
+                         "contract_month": (None if cm in (None, "") else str(cm)),
+                         "settle": (r or {}).get("value"), "unit": (r or {}).get("unit"),
+                         "currency": (r or {}).get("currency"),
+                         "settle_kind": (r or {}).get("settle_kind")})
+    if not recs:
+        return pd.DataFrame(columns=cols)
+    frame = pd.DataFrame(recs, columns=cols)
+    return frame.drop_duplicates(subset=["leviathan_slug", "trade_date", "contract_month"],
+                                 keep="last").reset_index(drop=True)
+
+
+def _episode_candidates(rows: list, span_end) -> list:
+    """The delivery months the deep read is scoped to: the nearest expiries at or after the span end.
+
+    A contract's last print lands 7-20 days into its OWN delivery month, so a contract that survives
+    `t2 + survive_days` has a delivery month at or after `t2`'s. Taking the nearest few of those, rather
+    than the whole curve, is what keeps the deep read inside the row cap on a long span.
+
+    THE COST, STATED: if all of them fail the survival test while a FARTHER expiry would have passed,
+    this window declines where the tape held an answer. Option D selects the NEAREST surviving contract,
+    so a farther one can never change a window that DOES resolve -- the bound only ever costs coverage,
+    never correctness, and the decline is visible in the trace."""
+    want = str(span_end)[:7]
+    months = sorted({str((r or {}).get("contract_month"))
+                     for r in rows or [] if (r or {}).get("contract_month")})
+    return [m for m in months if m >= want][:EPISODE_OUTCOME_CANDIDATES]
+
+
+def _episode_outcome_call(slug: str, res: dict, span: str, asof) -> dict:
+    """The synthetic call-record the [N] handle indexes -- a real row value, so the figure is citable and
+    value-checkable by the all-numbers guard exactly like every other engine row.
+
+    `query.period` is the MONTH-token span the model was shown (the label eval matches on), never the
+    day-grain window (which is what was MEASURED and which the trace carries). `contract_month` on the
+    query is what raises the fourth `_series_tag` segment. `_provenance` carries the ENDPOINT date under
+    the `date` guard-column key so the pinned-asof leakage backtest has a day-grained stamp to read
+    instead of the bare `year` a futures row would otherwise carry -- and that stamp is now actually
+    READ: `eval._pit_clean` takes the first present of
+    `release_date | knowledge_date | data_date | week_ending_date | date` (D-OJ-7(b)), where it
+    previously read `release_date` alone and was therefore a no-op on every non-vintage card."""
+    end = res.get("endpoint_date")
+    row = {"value": round(float(res.get("move_pct")), 4), "unit": "%",
+           "knowledge_date": end, "contract_month": res.get("contract_month_used"),
+           "settle_kind": res.get("settle_kind"), "currency": res.get("currency")}
+    if end:
+        row["_provenance"] = {"date": end}
+    return {"query": {"table": _TAPE_TABLE, "metric": "settle_change_pct", "commodity": slug,
+                      "country": None, "period": span, "asof": asof,
+                      "contract_month": res.get("contract_month_used")},
+            "rows": [row], "status": "ok"}
+
+
+def _episode_outcome_line(n: int, slug: str, res: dict, span: str, asof) -> str:
+    """The injected line. ONE figure, on ONE physical line, with its handle and its scope tag.
+
+    It states a CHANGE ACROSS THE WINDOW on ONE named contract and nothing else -- no direction word, no
+    cause, no adjective. The episode bullet the model writes pairs it with a receipt clause, and the
+    persona paragraph forbids joining the two with a causal verb; a line that already implied the link
+    would make that instruction unenforceable."""
+    pct = round(float(res.get("move_pct")), 4)
+    q = {"commodity": slug, "country": None, "contract_month": res.get("contract_month_used"),
+         "table": _TAPE_TABLE}
+    return (f"- [N{n}] {slug} settle change across the episode window {span} "
+            f"(one delivery month held at both ends, as-of {asof}): {pct:+g} %" + _series_tag(q))
+
+
+def _episode_outcome_legs(sg, qfn, asof, calls: list, base: int) -> tuple:
+    """J4 -- price the injected episode windows. Returns `(lines, trace)`; NEVER raises.
+
+    THE WINDOWS ARE READ LIVE, from `sg.trace['episodes_injected']` as `_l2_blocks` stamped it this
+    turn. Nothing is cached and no span is baked anywhere: the artifact-wave interlock is that episode
+    windows MOVE when the timeline artifact is rebuilt, so a leg holding its own copy of a window would
+    price a window the model was never shown. The MATCHING label is the `[:7]` month token (what
+    `eval._line_targets` compares); the MEASURED window is the DAY-GRAIN pair beside it (D-OJ-16) --
+    expanding the month token to month-end would price up to 30 days past the as-of.
+
+    EVERY DECLINE IS RECORDED, and most cost no read at all: an unresolved node, a span longer than any
+    contract lives, a window below the per-slug coverage floor, a window whose end is inside the
+    survival margin. That is the point -- `answer._SYSTEM_EPISODES` calls the absence the NORMAL case,
+    so a leg that never declined would be a leg that fabricated.
+
+    THE PER-SLUG HALF OF THE CLAMP IS MEASURED FROM THE FETCHED FRAME, and that is conservative on
+    purpose. The deep read runs to `t2 + survive_days + lookback`, so the frame's own max trade_date
+    stands in for the slug's tape edge: a slug whose tape genuinely stops inside the survival margin
+    yields a PENDING verdict, which is the correct per-slug answer (a global edge would push the 15
+    Databento slugs, which end 2026-07-27, onto four sessions the 7 free legs have and they do not).
+    The failure direction is a FALSE pending, and it needs a tape gap wider than the 14-day read tail --
+    beyond the measured maximum gap of 11 days (CZCE, Chinese New Year / Golden Week)."""
+    from leviathan.graphrag.numbers import outcomes as OC
+
+    lines: list = []
+    trace: list = []
+    try:
+        recs = list((getattr(sg, "trace", None) or {}).get("episodes_injected") or [])
+    except Exception:  # noqa: BLE001 -- a traceless sg simply has no episodes to price
+        return [], []
+    if not recs or not asof:
+        return [], []
+    empty = _tape_frame("", [])
+    budget = EPISODE_OUTCOME_MAX_WINDOWS
+    n = base
+    for rec in recs:
+        node = str((rec or {}).get("node") or "")
+        slug = _episode_slug(node)
+        for w in ((rec or {}).get("windows") or []):
+            span = str((w or {}).get("span") or "")
+            t1, t2 = str((w or {}).get("start") or ""), str((w or {}).get("end") or "")
+            entry = {"node": node, "slug": slug, "span": span, "start": t1, "end": t2,
+                     "status": None, "reason": None}
+            try:
+                span_days = _iso_days(t2) - _iso_days(t1)
+            except (TypeError, ValueError):
+                # A window with no readable day grain is not a window. RECORDED rather than skipped:
+                # this leg's whole discipline is that an absence has a reason, and a silently dropped
+                # window is indistinguishable from one that was measured and came back empty.
+                entry.update(status="declined", reason="unparseable_window")
+                trace.append(entry)
+                continue
+            if slug is None:
+                entry.update(status="declined", reason=EP_DECLINE_UNRESOLVED_NODE)
+                trace.append(entry)
+                continue
+            if span_days > EPISODE_SPAN_MAX_DAYS:
+                entry.update(status="declined", reason=EP_DECLINE_SPAN_TOO_LONG)
+                trace.append(entry)
+                continue
+            # THE DRY RUN. `span_outcome` over an EMPTY frame answers every question that does not need
+            # the tape -- inversion, the per-contract coverage floor, and the as-of half of the clamp --
+            # and it answers them through the SAME engine, so this pre-check can never disagree with the
+            # real one. Only a window that gets past it is worth two reads.
+            dry = OC.span_outcome(empty, slug=slug, span_start=t1, span_end=t2, asof=asof,
+                                  event_key=node, tape_edge=None)
+            dry_status = str(dry.get("status") or "")
+            dry_reason = dry.get("decline_reason")
+            if dry_status == OC.STATUS_PENDING:
+                entry.update(status="pending", reason="horizon_open",
+                             readable_on=_iso_shift(t2, OC.SURVIVE_DAYS))
+                trace.append(entry)
+                continue
+            if dry_reason and dry_reason != OC.DECLINE_NO_ANCHOR_SESSION:
+                entry.update(status="declined", reason=dry_reason)
+                trace.append(entry)
+                continue
+            if budget <= 0:
+                entry.update(status="declined", reason=EP_DECLINE_BUDGET)
+                trace.append(entry)
+                continue
+            budget -= 1
+            lo = _iso_shift(t1, -OC.OUTCOME_LOOKBACK_DAYS)
+            hi = _iso_shift(t2, OC.SURVIVE_DAYS + OC.OUTCOME_LOOKBACK_DAYS)
+            curve, sat_a = _tape_read(qfn, slug=slug, t1=lo, t2=t1, asof=asof)
+            months = _episode_candidates(curve, t2)
+            deep, sat_b = _tape_read(qfn, slug=slug, t1=lo, t2=hi, asof=asof,
+                                     contract_months=months or None)
+            if sat_a or sat_b:
+                entry.update(status="declined", reason=EP_DECLINE_READ_TRUNCATED)
+                trace.append(entry)
+                continue
+            tape = _tape_frame(slug, curve, deep)
+            if not len(tape):
+                entry.update(status="declined", reason=EP_DECLINE_NO_TAPE)
+                trace.append(entry)
+                continue
+            res = OC.span_outcome(tape, slug=slug, span_start=t1, span_end=t2, asof=asof,
+                                  event_key=node)
+            status = str(res.get("status") or "")
+            if status == OC.STATUS_PENDING:
+                # THE EDGE MEASURED FROM THIS FRAME IS DELIVERY-MONTH-SCOPED, and that conflates two
+                # different facts. The dry run above already cleared the AS-OF half of the clamp
+                # (`t2 + survive_days <= asof - lag`), so a PENDING verdict here can come from ONE place
+                # only: the per-slug tape edge, which `tape_edges` measured over rows restricted to the
+                # <=3 candidate delivery months. If every candidate's last print falls before
+                # `t2 + survive_days` while the SLUG's tape runs on, the honest answer is
+                # `no_spanning_contract` -- a COVERAGE fact -- and "pending" states a TIMING one
+                # instead. Same conflation class as the guard inversion, one layer up.
+                # So measure the slug's real edge and ask again. The read is UNSCOPED but tiny
+                # (`[t2, hi]` is survive_days + lookback = 19 days, ~3.7-12.9 rows/session, an order
+                # under the cap) and it is LAZY -- it fires only in the ambiguous branch, which needs
+                # every candidate month to have stopped printing. A saturated or empty edge read leaves
+                # the conservative PENDING verdict exactly as it was.
+                edge_rows, sat_c = _tape_read(qfn, slug=slug, t1=t2, t2=hi, asof=asof)
+                edge_frame = _tape_frame(slug, edge_rows)
+                edge = (OC.tape_edges(edge_frame) or {}).get(str(slug)) if len(edge_frame) else None
+                entry["slug_tape_edge"] = str(edge) if edge else None
+                if edge is not None and not sat_c:
+                    res = OC.span_outcome(tape, slug=slug, span_start=t1, span_end=t2, asof=asof,
+                                          event_key=node, tape_edge=edge)
+                    status = str(res.get("status") or "")
+            if status != OC.STATUS_CLOSED or res.get("move_pct") is None:
+                entry.update(status=("pending" if status == OC.STATUS_PENDING else "declined"),
+                             reason=res.get("decline_reason") or status or "no_move")
+                trace.append(entry)
+                continue
+            n += 1
+            pct = round(float(res["move_pct"]), 4)
+            calls.append(_shown(_episode_outcome_call(slug, res, span, asof), pct))
+            lines.append(_episode_outcome_line(n, slug, res, span, asof))
+            entry.update(status="closed", reason=None, move_pct=pct,
+                         contract_month=res.get("contract_month_used"), basis=res.get("basis"),
+                         anchor_date=res.get("anchor_date"), endpoint_date=res.get("endpoint_date"),
+                         realized_sessions=res.get("realized_sessions"), handle=f"N{n}")
+            trace.append(entry)
+    return lines, trace
+
+
+# -- J6: THE COT OUTCOME PAIRING, CONTEXT LANE ONLY (D-OJ-17 / D-OJ-18) -----------------------------
+#
+# WHAT IT IS. "What positioning did, and what price did after" -- PAST TENSE, BOTH CLAUSES, two dated
+# records placed side by side. It never renders forward guidance and it never feeds an engine.
+#
+# WHY IT IS ITS OWN TABLE ID, AND WHY THAT ID IS IN THE FENCE (D-OJ-18, skeptic F11 -- the most
+# consequential finding of that pass). Every leg of the positioning fence keys on the TABLE ID:
+# `positioning_context_violations` at lint AND at runtime, the chain_map/complex_map/transmission_map
+# bans, the R7b unit whitelist. R7b (config_check.py) requires every `silver_cot` metric's unit to be a
+# contracts/pct-of-OI level or a z family, so a "% move over N days" unit CANNOT hang off the silver_cot
+# card -- true, and the conclusion the first draft drew from it was the dangerous one. Routing the
+# outcome to a table OUTSIDE `POSITIONING_TABLES` would satisfy R9's letter while vacating the
+# context-shape rule, the never-a-chain-hop ban and the never-a-relative-value-leg ban all at once.
+# "Registers nothing new under silver_cot" is not a fence, it is an EXIT from one. So the lane gets its
+# own registered id and that id goes INTO the fence, in BOTH constants -- config_check's drift pin fails
+# the build if only one moves, which is the cheapest available proof the fence actually grips it.
+#
+# WHY THE OUTLOOK CARVE-OUT IS A GATE AND NOT A SENTENCE (D-OJ-17). Under OUTLOOK, register.py places
+# `_VALUATION_PHRASES`, `_FLOW_PHRASES`, `_PERSISTENCE` and both Lane-B arms inside `if not outlook:`,
+# so a cited, arrow-free sentence -- "across the 47 times managed-money net length exceeded +1.5z,
+# front-month corn rose a median 8.2% over the next 90 days [N7]" -- returns False from
+# `_is_banned_sentence` and ships as a setup. That sentence is a conditional PERFORMANCE statistic, and
+# no phrasing rule inside it can be load-bearing on a lane where the fence around it is down. D1's own
+# text offers two options; this picks (a): the ref is not reached at all on an outlook turn. (b) --
+# restoring a flow bound under OUTLOOK for positioning sentences -- is a register-doctrine change that
+# D1 says needs its own decision, and this is not the place to smuggle it in.
+COT_OUTCOME_TABLE = "gold_cot_outcomes"
+COT_OUTCOME_METRIC = "move_pct"
+COT_OUTCOME_MAX_ROWS = 4             # one turn, one slug's horizon family at most
+COT_OUTCOME_ENDPOINT_MARGIN_DAYS = 21   # the read window's right slack: the horizon CLOSE is the data
+#                                         axis and the realized endpoint is the last session on or
+#                                         before it, so the window must reach past the nominal close.
+
+# The narration line the block carries when a pairing actually rendered. It is the J6 twin of
+# POSITIONING_CONTEXT_ADDENDUM and it is written to the same standard: PHRASED POSITIVELY, naming no
+# flow idiom, because the surest way to put "crowded"/"stretched" into a draft is to write it into the
+# prompt as a prohibition. What it adds over C1's addendum is the ONE thing this leg makes possible and
+# therefore the one thing it must refuse: a causal or performance reading of two records that merely sit
+# beside each other. tests/unit/test_register_corpus.py pins this exact object -- not a copy of it -- at
+# zero raw flow hits, with forward-looking rewrites of it pinned as MUST_FLAG.
+COT_OUTCOME_ADDENDUM = (
+    "POSITIONING AND PRICE, AS TWO SEPARATE RECORDS: the rows above place a dated managed-money "
+    "observation beside what ONE delivery month's settle did across the window that followed it. Both "
+    "are past-tense record. Narrate them as two dated facts on their own [N] handles, each on the "
+    "series and delivery month its tag names. This engine holds NO measurement that one of them "
+    "produced the other, so do not write the second as an outcome of the first, do not describe either "
+    "as having worked or paid, and state nothing about what either will do next.")
+
+
+def _cot_event_date(rec: dict):
+    """The dated report the pairing is anchored on -- the NEWEST observation the positioning leg read.
+
+    The serving alias is `knowledge_date` (silver_cot's `_extras` is exactly that one key). The raw
+    column names are read as fallbacks for the same reason `_pace_period_key` reads them: fixtures and
+    guard-column frames carry the physical name, and a leg that silently found None here would anchor
+    the pairing on nothing while looking anchored."""
+    rows = (rec or {}).get("rows") or []
+    best = None
+    for r in rows:
+        for k in ("knowledge_date", "report_date", "data_date", "date"):
+            v = (r or {}).get(k)
+            if v not in (None, ""):
+                s = str(v)[:10]
+                if best is None or s > best:
+                    best = s
+                break
+    return best
+
+
+def _cot_outcome_read(qfn, *, slug: str, event_date: str, horizon_days: int, asof) -> list:
+    """The ONE read site for the J6 card. Returns the matching outcome ROWS, or [] -- never raises.
+
+    THE READ IS AGAINST `gold_cot_outcomes`, DELIBERATELY, and it is the whole of D-OJ-18: the fence
+    grips a table id, so the row a reader sees paired with positioning must come from a card that is
+    inside the fence. Reading the same move off `silver_futures_eod` and rendering it beside a
+    positioning line would be the fence EXIT this item exists to refuse, however identical the number.
+
+    IT IS FAIL-CLOSED IN THREE PLACES, and each is a precondition rather than a bug:
+      * the card is not registered until the builder wave lands, so `fetch_window` returns `error` and
+        this returns [] -- the leg is inert, not wrong;
+      * a row is kept only when its PERIOD equals the event date. The card's `period_col` is
+        `event_date` while its guard/data axis is the row's readable date, so the window below is on the
+        CLOSE axis and the event is matched on the period alias, never inferred from the window;
+      * a row is kept only when it names THIS horizon. A card that does not surface `horizon_days`
+        yields no rows at all, which is the correct direction: three horizons collapsed into one line
+        would be a distribution wearing a single number's clothes.
+
+    AND IT IS CENSUS-SHAPED, WHICH IS THE POINT OF THIS PARAGRAPH (adversarial finding 3). The compiled
+    guard (`readable_date <= asof - 6`) is D-OJ-14-safe only when the reader's asof EQUALS the build's:
+    the builder writes `pending` only for horizons open at ITS asof, so at any earlier pinned asof a row
+    the build wrote `closed` is dropped by the guard and no pending row exists in its place -- and an
+    empty guarded read is `record_silent`, i.e. `citations._empty_label`'s COVERAGE-GAP string, for what
+    is purely a TIMING fact. That is the judged-30 RCA inversion item 48a exists to close, arriving
+    through the guard. So this site never lets the guard's silence speak:
+      (1) it ASKS THE CLAMP FIRST (`OC.pending_state` at the reader's asof) and returns [] with the
+          pending verdict already established by the caller's dry run -- no read is even issued;
+      (2) every row it does get back is RE-CLAMPED (`OC.clamp_row`) against the reader's asof from the
+          row's own stored tape edge, so a row materialized `closed` by a later build cannot be read as
+          a number here; a re-clamped row carries `status='pending'` and no move, and the caller's
+          closed-only filter then reports `not_closed` rather than rendering a stale magnitude.
+    `pattern_records.po_census_sql` is the same discipline in SQL (the boundary is a CASE, not a WHERE,
+    so pending rows stay in the denominator). Any future agent-facing read of these tables inherits it."""
+    from leviathan.graphrag.numbers import outcomes as OC
+
+    if OC.pending_state(str(event_date)[:10], int(horizon_days), asof, None):
+        # A TIMING fact, decided by the clamp rather than by an empty result set.
+        return []
+    hi = _iso_shift(event_date, int(horizon_days) + COT_OUTCOME_ENDPOINT_MARGIN_DAYS)
+    rec = fetch_window(qfn, table=COT_OUTCOME_TABLE, metric=COT_OUTCOME_METRIC, commodity=str(slug),
+                       country=None, t1=str(event_date)[:10], t2=hi, asof=asof, agg="series",
+                       period=None, period_type="date")
+    if (rec or {}).get("status") != "ok":
+        return []
+    out = []
+    for r in (rec.get("rows") or []):
+        if str((r or {}).get("period") or "")[:10] != str(event_date)[:10]:
+            continue
+        try:
+            if int((r or {}).get("horizon_days")) != int(horizon_days):
+                continue
+        except (TypeError, ValueError):
+            continue
+        row = dict(r)
+        row.setdefault("event_date", str(event_date)[:10])
+        row.setdefault("status", OC.STATUS_CLOSED)
+        try:
+            row = OC.clamp_row(row, asof, row.get("tape_edge_date"))
+        except (TypeError, ValueError):
+            # An unparseable event date/horizon on the row is not a licence to serve it unclamped.
+            continue
+        out.append(row)
+    return out
+
+
+def _cot_coverage_start(slug: str):
+    """The per-slug price-coverage floor, as an ISO string or None. Item 89: EVERY J6 output states its
+    own start date, because the two series start in different places -- MGEX positioning runs from
+    2014-03-25 while its tape starts 2025-09-09, so eleven years of its COT history has no priced
+    outcome at all and a reader shown one number and no floor cannot tell that."""
+    try:
+        from leviathan.silver import futures_eod_contracts as FC
+        return FC.coverage_start_for(str(slug)).isoformat()
+    except Exception:  # noqa: BLE001 -- an unmapped slug has no floor to state; the caller declines
+        return None
+
+
+def _cot_outcome_call(slug: str, row: dict, *, event_date: str, horizon_days: int, asof,
+                      value: float) -> dict:
+    """The synthetic call-record behind a J6 [N] handle. `period` is the EVENT..CLOSE span in the
+    engine's own `a..b` glyph (never an arrow: `register._DERIV_OUTPUT` reads '->' as derived output and
+    voids the citation exemption under OUTLOOK -- and although this leg never runs on an outlook turn,
+    the label travels into the Sources ledger, which does)."""
+    end = (row or {}).get("knowledge_date") or (row or {}).get("endpoint_date")
+    r = {"value": round(float(value), 4), "unit": "%", "knowledge_date": end,
+         "contract_month": (row or {}).get("contract_month_used") or (row or {}).get("contract_month"),
+         "currency": (row or {}).get("currency"), "settle_kind": (row or {}).get("settle_kind")}
+    if end:
+        r["_provenance"] = {"date": str(end)[:10]}
+    return {"query": {"table": COT_OUTCOME_TABLE, "metric": f"settle_change_pct_{int(horizon_days)}d",
+                      "commodity": slug, "country": None,
+                      "period": f"{str(event_date)[:10]}..{_iso_shift(event_date, horizon_days)}",
+                      "asof": asof, "contract_month": r["contract_month"]},
+            "rows": [r], "status": "ok"}
+
+
+def cot_outcome_line(n: int, slug: str, *, event_date: str, horizon_days: int, value: float,
+                     contract_month=None, coverage_start=None) -> str:
+    """The rendered pairing line. PUBLIC because the standing register corpus pins it directly: a line
+    the corpus can only reach through a live engine run is a line the corpus stops pinning the day the
+    engine changes shape.
+
+    THE PHRASING RULE, and it is the item's whole point: this states a LEVEL OF RECORD and a MOVE OF
+    RECORD, in the past tense, joined by nothing. "the regime made +12%" is forbidden -- and so is every
+    quieter form of it ("delivered", "returned", "was followed by a rally", "worked"), because each one
+    turns a coincidence of dates into a performance claim the record does not carry. What the line says
+    is: on this report date, and across the window that followed, this one contract's settle changed by
+    this much."""
+    q = {"commodity": slug, "country": None, "contract_month": contract_month,
+         "table": COT_OUTCOME_TABLE}
+    floor = f", record begins {coverage_start}" if coverage_start else ""
+    return (f"- [N{n}] {slug} settle change across the {int(horizon_days)} days after the "
+            f"{str(event_date)[:10]} positioning report date (one delivery month held at both ends"
+            f"{floor}): {round(float(value), 4):+g} %" + _series_tag(q))
+
+
+def _cot_outcome_legs(records: list, kept: list, base: int, calls: list, *, qfn, asof) -> tuple:
+    """J6 -- pair the rendered positioning context with what the tape did after. `(lines, trace)`.
+
+    THE LANE IS THE ONE C1 BUILT, not a new one. The leg runs only when a positioning context leg
+    ACTUALLY RENDERED this turn (`_positioning_rendered`), which means the row passed
+    `positioning_context_violations` at the engine gate and passed the amended R9 at build time. An
+    honest positioning absence renders no line, so it earns no pairing either -- the E-STREAK-NODATA
+    idiom, and the reason this leg can never introduce positioning to a turn that had none.
+
+    The OUTLOOK half of the gate is the CALLER's (`quantify` runs this only on a fenced turn) AND is
+    structurally guaranteed here anyway: on an outlook turn `quantify` drops every POSITIONING_TABLES
+    node before it ever reaches a spec, so `_positioning_rendered` is False and this returns empty. Two
+    independent reasons for the same refusal, which is what D-OJ-17 asked for."""
+    from leviathan.graphrag.numbers import outcomes as OC
+
+    if not _positioning_rendered(records, kept):
+        return [], []
+    lines: list = []
+    trace: list = []
+    n = base
+    empty = _tape_frame("", [])
+    by_key = {g["key"]: g for g in kept if (g.get("row") or {}).get("table") in POSITIONING_TABLES}
+    seen: set = set()
+    for rec in records:
+        g = by_key.get(rec.get("node_key"))
+        if g is None or rec.get("status") != "ok" or not (rec.get("rows") or []):
+            continue
+        slug = str(g.get("commodity") or "")
+        if not slug or slug in seen:
+            continue
+        seen.add(slug)
+        event_date = _cot_event_date(rec)
+        if not event_date:
+            trace.append({"slug": slug, "status": "declined", "reason": "undated_positioning_row"})
+            continue
+        floor = _cot_coverage_start(slug)
+        for h in OC.HORIZON_DAYS:
+            if len(lines) >= COT_OUTCOME_MAX_ROWS:
+                break
+            entry = {"slug": slug, "event_date": event_date, "horizon_days": int(h),
+                     "coverage_start": floor, "status": None, "reason": None}
+            # THE DRY RUN, the same shape J4 uses: `anchored_outcome` over an EMPTY frame answers every
+            # question that does not need the tape -- the horizon family, the per-contract coverage
+            # floor, and the as-of half of the clamp -- through the SAME engine, so the pre-check and
+            # the real read can never disagree. This is where a pre-2025 MGEX anchor declines on
+            # coverage rather than coming back as a number: its tape floor is 2025-09-09 while its COT
+            # history starts 2014-03-25, so `covers()` returns legacy/straddle for eleven years of it.
+            dry = OC.anchored_outcome(empty, slug=slug, event_key="cot", event_date=event_date,
+                                      horizon_days=int(h), asof=asof, tape_edge=None)
+            d_status, d_reason = str(dry.get("status") or ""), dry.get("decline_reason")
+            if d_status == OC.STATUS_PENDING:
+                entry.update(status="pending", reason="horizon_open",
+                             horizon_close_date=dry.get("horizon_close_date"))
+                trace.append(entry)
+                continue
+            if d_reason and d_reason != OC.DECLINE_NO_ANCHOR_SESSION:
+                entry.update(status="declined", reason=d_reason)
+                trace.append(entry)
+                continue
+            rows = _cot_outcome_read(qfn, slug=slug, event_date=event_date, horizon_days=int(h),
+                                     asof=asof)
+            row = next((r for r in rows if str((r or {}).get("status") or "closed")
+                        == OC.STATUS_CLOSED), None)
+            if row is None:
+                entry.update(status="declined",
+                             reason=("no_outcome_row" if not rows else "not_closed"))
+                trace.append(entry)
+                continue
+            try:
+                val = float(str(row.get("value")).replace(",", ""))
+            except (TypeError, ValueError):
+                entry.update(status="declined", reason="unreadable_value")
+                trace.append(entry)
+                continue
+            cm = row.get("contract_month_used") or row.get("contract_month")
+            n += 1
+            calls.append(_shown(_cot_outcome_call(slug, row, event_date=event_date, horizon_days=int(h),
+                                                  asof=asof, value=val), round(val, 4)))
+            lines.append(cot_outcome_line(n, slug, event_date=event_date, horizon_days=int(h),
+                                          value=val, contract_month=cm, coverage_start=floor))
+            entry.update(status="closed", reason=None, move_pct=round(val, 4),
+                         contract_month=cm, handle=f"N{n}")
+            trace.append(entry)
+    return lines, trace

@@ -96,10 +96,17 @@ class TestServedAndReachable:
             R.load_registry.cache_clear()
 
     def test_the_fence_set_survives_the_flip_empty(self):
-        # the set is EMPTIED, not deleted: the next table registered ahead of its producer needs it,
+        # the set was EMPTIED, not deleted: the next table registered ahead of its producer needs it,
         # and the (a)-(d) flip checklist recorded at that site is the part worth keeping. It also
         # stays DISJOINT from the env kill-switch -- the union happens once, in load_registry.
-        assert R.WHITELIST_ABSENT_DEFAULT == frozenset()
+        # 2026-08-01 (OUTCOMES_JOIN J1/J2): that next table arrived -- gold_futures_outcomes is
+        # registered ahead of its producer and is fenced here. What this test pins is unchanged in
+        # substance: THIS table is flipped and stays flipped, and the fence set never overlaps the env
+        # kill-switch. It deliberately does NOT pin the set's exact contents, or every table that ever
+        # uses the fence correctly would have to edit this assertion.
+        assert TABLE not in R.WHITELIST_ABSENT_DEFAULT
+        assert TABLE in R.load_registry().tables
+        assert not (R.WHITELIST_ABSENT_DEFAULT & R._disabled_tables())
         assert TABLE not in R._disabled_tables()
 
 

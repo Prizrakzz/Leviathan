@@ -372,10 +372,20 @@ _SYSTEM_CASCADE = (
     "a reader must never see an internal label. Name each leg by the COUNTRY shown in its row, exactly. "
     # W4 A/B (2026-07-31): four scope mis-attributions in one turn -- contract-slug rows narrated as
     # "Russia"/"Ukraine"/"US total" -- because the rendered line never said whose series it was.
+    # OUTCOMES_JOIN D-OJ-5(b): the tag grew a FOURTH segment and this enumeration is amended in the SAME
+    # edit as the render (cascade._series_tag). A prompt that under-describes the tag the rows carry is the
+    # mirror image of one describing a tag they do not. The segment is CONDITIONAL -- only a figure measured
+    # on ONE delivery month carries it -- and it is named that way, because the survivor contract is the
+    # front month in only about a quarter to a third of anchors, so an unnamed delivery month is a scope
+    # mis-attribution of exactly the class this tag was built to stop.
     "SCOPE: every [N] row line ends with a '[series: ...; country: ...; table: ...]' tag naming EXACTLY what "
-    "that figure was measured on -- read it, never print it. Narrating an [N] figure as any other country, "
+    "that figure was measured on -- read it, never print it. A figure measured on ONE futures delivery month "
+    "carries a fourth 'contract: ...' segment (written '2024M03', the March 2024 delivery); that figure is "
+    "that ONE contract's, never 'the price'. Narrating an [N] figure as any other country, "
     "region, contract, or as a world/total aggregate is fabrication, however the question was phrased. When "
     "the series shown is not the one the question asks about, name the series it IS for and say so. "
+    "If you name a delivery month in prose at all, write it in that same '2024M03' form and never as "
+    "'2024-03' -- a bare year-month reads as a date window here and is scored as one. "
     "And in the record as everywhere else: never 'bullish' or 'bearish' -- direction is prose ('fell', "
     "'rose to fill the gap'), magnitude is the [N] row.\n")
 
@@ -609,6 +619,35 @@ def _timeline_on() -> bool:
     return os.environ.get("GRAPHRAG_TIMELINE", "off") == "on"
 
 
+def _episode_outcomes_on() -> bool:
+    """OUTCOMES_JOIN J4 kill-switch (GRAPHRAG_EPISODE_OUTCOMES), read HERE at the quantify seam and
+    threaded DOWN as the omit-when-off `episode_outcomes` kwarg -- never an os.environ read inside
+    cascade.py (the pace/price_request/xc discipline). DEFAULT-OFF: with the flag off the kwarg is
+    ABSENT, quantify performs no tape read, injects no [N] row and writes no trace key, so the turn is
+    byte-identical -- which is exactly the measurement the plan's item 108 asks for and gets for free
+    from this idiom rather than from a promise.
+
+    IT IS A SECOND GATE, NOT A REPLACEMENT FOR THE FIRST. The leg prices the windows in
+    `trace['episodes_injected']`, and that key exists only when GRAPHRAG_TIMELINE is exactly "on" and a
+    node actually carried episodes -- so with the timeline off this flag alone renders nothing. Two
+    independent flags is the point: it keeps the J4 rows out of an A/B whose only intended variable is
+    GRAPHRAG_TIMELINE.
+    Read PER CALL (never memoized) so the env-flip rollback is live -> no redeploy (the _chain_on idiom)."""
+    return os.environ.get("GRAPHRAG_EPISODE_OUTCOMES", "").strip().lower() in ("on", "1", "true")
+
+
+def _cot_outcomes_on() -> bool:
+    """OUTCOMES_JOIN J6 kill-switch (GRAPHRAG_COT_OUTCOMES), same seam, same omit-when-off idiom.
+
+    The flag is the OUTERMOST of three gates and the weakest of them. Inside, `quantify` runs the leg
+    only on a FENCED turn (D-OJ-17 option (a): the outcome ref is held out of outlook turns entirely,
+    because under OUTLOOK register.py releases the flow fence by design and no phrasing rule inside a
+    released fence is load-bearing), and the leg itself runs only where a positioning CONTEXT leg
+    actually rendered. A flag cannot substitute for either; it only makes them reachable.
+    Read PER CALL (never memoized) so the env-flip rollback is live -> no redeploy."""
+    return os.environ.get("GRAPHRAG_COT_OUTCOMES", "").strip().lower() in ("on", "1", "true")
+
+
 def _episodes_on(volatile_prompt: str | None) -> bool:
     """THE W4-D3 SEAM GATE, one spelling, used by BOTH serving bodies (_answer_l2 and the one-hop legacy
     body). The '## Episodes' persona paragraph ships iff BOTH legs hold:
@@ -723,12 +762,18 @@ _SYSTEM_OUTLOOK = (
 #     is UNBACKED and reds min_episode_lines. And _cited_evidence (eval.py:210-222) filters
 #     kind == "evidence", so an [N] handle NEVER backs a line either. Hence slot 1 is mandatory even on
 #     the rare priced bullet, which is exactly the trap a "[N2] and nothing else" line would fall into.
-#   SLOT 2, MAGNITUDE. There is NO per-episode price engine. The only historical price surface a turn
-#     injects is the SEAM-B WASDE avg_farm_price marketing-year pair (numbers/cascade.py ~2020-2075): at
-#     most ONE pair per turn, on ONE derived focus window, declined outright on a market-price or non-US
-#     slug. So the ABSENCE MARKER IS THE DEFAULT and the [N] branch is the exception -- and because the
-#     _NO_PRICE_RECORD vocabulary is TURN-scoped ("no observed magnitude"), not coverage-scoped, it is
-#     legitimate on an IN-FLOOR episode too, not only on a pre-price-floor one.
+#   SLOT 2, MAGNITUDE. OUTCOMES_JOIN J4 (2026-08-01) made the priced branch REACHABLE and changed nothing
+#     else here: cascade._episode_outcome_legs prices an injected episode's own day-grain window on ONE
+#     surviving delivery month and injects it as an ordinary [N] row. The ABSENCE MARKER IS STILL THE
+#     DEFAULT, and now for a MEASURED reason rather than for want of an engine -- contract life is 396-587
+#     sessions, so a multi-year episode span has no single contract to measure on and DECLINES; a driver
+#     node has no price series at all; the per-slug coverage floor declines a window that predates it; and
+#     the outcomes clamp declines a window whose end sits inside the survival margin. The other priced
+#     surface, the SEAM-B WASDE avg_farm_price marketing-year pair (numbers/cascade.py ~2020-2075), is
+#     unchanged: at most ONE pair per turn, on ONE derived focus window, declined outright on a
+#     market-price or non-US slug. And because the _NO_PRICE_RECORD vocabulary is TURN-scoped ("no
+#     observed magnitude"), not coverage-scoped, it is legitimate on an IN-FLOOR episode too, not only on
+#     a pre-price-floor one.
 # Both pins carry an ALL-LINES quantifier (`all(...)` over every bullet), so ONE sloppy bullet reds the row
 # however many good ones precede it. The paragraph therefore forbids an empty slot outright rather than
 # trusting the model to fill both, and makes the absence branch the default rather than the exception.
@@ -794,9 +839,11 @@ _SYSTEM_EPISODES = (
     "MAGNITUDE (second slot) is EITHER the price move with its [N] handle, when an injected number row "
     "actually covers that window, OR an explicit statement that none does, in these words: 'no observed "
     "magnitude for this window', 'no priced move', or 'no price record for this window'. THE ABSENCE IS "
-    "THE NORMAL CASE -- no per-episode price history is served here, so most episodes have no magnitude "
-    "and saying so plainly IS the correct answer; an invented move, or an empty slot, is not. A magnitude "
-    "is an [N] HANDLE, never a bare numeral.\n"
+    "THE NORMAL CASE -- most episode windows have no single-contract price record that covers them, so "
+    "most episodes have no magnitude and saying so plainly IS the correct answer; an invented move, or an "
+    "empty slot, is not. A magnitude is an [N] HANDLE, never a bare numeral. A number row covers a window "
+    "only when the row's OWN window is that episode's span: never carry a magnitude from one episode's "
+    "bullet onto another's, and never read a level from elsewhere in the prompt as this window's move.\n"
     "THE TWO VOCABULARIES ARE DIFFERENT and answer different questions: 'no citable item' means the "
     "corpus holds no text for that window; 'no observed magnitude' means the price record holds no move "
     "for it. A window with NEITHER states BOTH, in that order -- one does not imply the other.\n"
@@ -817,9 +864,20 @@ _SYSTEM_EPISODES = (
     "CASE 2 -- receipted but unpriced (backing from the receipt, magnitude absent):\n"
     "- YYYY-MM..YYYY-MM -- <what the window is, in plain words>: <one clause restating what the cited "
     "in-window item actually says, reusing its wording> [E<k>]; no observed magnitude for this window.\n"
-    "CASE 3 -- receipted AND priced (rare; only when an injected number row really covers the window):\n"
+    # OUTCOMES_JOIN J4 item 66(ii): the old worked example was the SEAM-B WASDE marketing-year pair, which
+    # is at most one pair per turn on a derived focus window and is declined outright on a market-price or
+    # non-US slug -- i.e. an example of the one priced path that almost never covers an episode. The priced
+    # path now IS an episode-window row, so the example is the shape the engine actually injects: a change
+    # ACROSS the window, measured on the delivery month the row names, stated as a record and not as a
+    # consequence of the receipt beside it.
+    "CASE 3 -- receipted AND priced (only when an injected number row's own window IS this episode's "
+    "span):\n"
     "- YYYY-MM..YYYY-MM -- <what the window is, in plain words>: <one clause restating the cited item> "
-    "[E<k>], with the season-average farm price across those marketing years at [N<k>].\n"
+    "[E<k>], and across that window the settle change on the delivery month the row names was [N<k>].\n"
+    "In CASE 3 the two slots are TWO SEPARATE RECORDS placed side by side -- what a dated item said, and "
+    "what one contract's settle did across the same window. Do not write the second as a consequence of "
+    "the first ('which drove', 'sending prices', 'in response'): the record holds no such link and stating "
+    "one is invention.\n"
     "Stating an absence is the record, not a hedge -- and having enumerated these windows honestly, do "
     "NOT smooth the same episodes into a confident generalisation ('frosts usually ...') elsewhere in "
     "the note.")
@@ -1111,9 +1169,19 @@ def _l2_blocks(sg, graph: gph.CausalGraph, asof: str | None = None) -> list[str]
                 # so the scorer compares the model's bullet against the literal string the model was shown.
                 # FLAG-OFF: n.episodes is [] on every node (timeline.episodes_for returns [] unless
                 # GRAPHRAG_TIMELINE == "on"), so this block never runs and the key never appears.
+                # OUTCOMES_JOIN D-OJ-16: `spans` (the `[:7]` MONTH tokens) is what eval._line_targets
+                # compares, and it does not change. `windows` is added BESIDE it and carries the
+                # DAY-GRAIN pair the same episode was recounted over -- the pair a price move is
+                # measured on. The split is the whole of D-OJ-16: MATCHING is month-grain because that
+                # is the string the model was shown; MEASUREMENT is day-grain because expanding a
+                # `YYYY-MM` end to month-end prices up to 30 days past the as-of. Without both on the
+                # record, a correctly-measured bullet and a month-expanded one are indistinguishable
+                # downstream. Same order as `spans`, index for index, so a reader can zip them.
                 sg.trace.setdefault("episodes_injected", []).append(
                     {"node": n.id, "line": _ep_line,
-                     "spans": [f"{e['start'][:7]}..{e['end'][:7]}" for e in n.episodes]})
+                     "spans": [tl.month_span(e) for e in n.episodes],
+                     "windows": [{"start": tl.day_window(e)[0], "end": tl.day_window(e)[1],
+                                  "span": tl.month_span(e), "n": e.get("n")} for e in n.episodes]})
             if n.kind == "driver" and n.silver and n.silver.get("live"):
                 vlines.append(f"OBSERVED for {n.id}: {n.silver.get('value')} {n.silver.get('unit', '')} "
                               f"[{n.silver.get('knowledge_date', '')}]")
@@ -1252,13 +1320,20 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
             # R9 CONTEXT LANE (D1): the already-resolved outlook bool goes DOWN as an argument. Omitted on
             # a fenced turn -> byte-identical call.
             _ol_kw = {"outlook": True} if _outlook else {}
+            # OUTCOMES_JOIN J4/J6: the same omit-when-off idiom, for the same two reasons -- the flag-off
+            # call is byte-identical (item 108's measurement, for free), and an injected quantify fake
+            # with the older signature stays valid. The episode leg reads windows out of
+            # `sg.trace['episodes_injected']`, which _l2_blocks stamped ABOVE this seam, so no window is
+            # cached anywhere and a rebuilt artifact changes what is priced on the very next turn.
+            _epo_kw = {"episode_outcomes": True} if _episode_outcomes_on() else {}
+            _cto_kw = {"cot_outcomes": True} if _cot_outcomes_on() else {}
             _cblock, _quant_trace, _reroute_trace = cq.quantify(sg, graph, qfn=numbers_lookup, asof=asof,
                                                                 near=near,
                                                                 extra_number_calls=extra_number_calls,
                                                                 xc_request=xc_request, comove=_comove_on(),
                                                                 price_request=_price_request,
                                                                 **_pace_kw, **_chain_kw, **_xmit_kw,
-                                                                **_hl_kw, **_ol_kw)
+                                                                **_hl_kw, **_ol_kw, **_epo_kw, **_cto_kw)
             sg.trace["ms_quantify"] = int((time.perf_counter() - _t_quant) * 1000)
             _emit_chains(on_stage, sg)                            # F7 `chain`: the composer has just decided
             if _cblock:

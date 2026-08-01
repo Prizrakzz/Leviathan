@@ -371,6 +371,27 @@ def test_pit_clean_my_label_uses_covering_my_not_window_end():
     assert not gev._pit_clean(prov_leak, asof)                      # published after the leg's own asof
 
 
+def test_pit_clean_reads_every_guard_column_stamp_not_release_date_alone():
+    """D-OJ-7(b). Only the VINTAGE tables carry `release_date`, so a check that read that key alone was
+    a no-op on every data_date card -- including both OUTCOMES_JOIN legs, which stamp `_provenance`
+    under the `date` key precisely so the pinned-asof backtest has a day-grained value to read instead
+    of the bare `year` a futures row carries. The comment at `cascade._episode_outcome_call` claimed
+    this was already happening; it was not (adversarial finding 4)."""
+    asof = "2011-06-01"
+
+    def _stamped(**prov):
+        cit = _num_cit(1, period="MY2011", asof="2011-06-01")
+        cit["payload"]["rows"] = [{"value": "3.9", "_provenance": prov}]
+        return _out_with([cit])
+
+    for key in ("release_date", "knowledge_date", "data_date", "week_ending_date", "date"):
+        assert not gev._pit_clean(_stamped(**{key: "2011-06-15"}), asof), key   # past the leg's asof
+        assert gev._pit_clean(_stamped(**{key: "2011-05-15"}), asof), key
+    assert gev._pit_clean(_stamped(year="2011"), asof)          # a bare year is not a day-grain stamp
+    # the ORDER is the guard-column order: the more specific publication axis wins where both are there
+    assert not gev._pit_clean(_stamped(release_date="2011-06-15", date="2011-05-01"), asof)
+
+
 def _reroute_pair(**kw):
     base = {"contract": "soft_red_winter_wheat_cbot", "metric": "exports_mt", "countryA": "Russia",
             "dA": -14.573, "countryB": "United States", "dB": 11.216, "window": "MY2009-MY2010",

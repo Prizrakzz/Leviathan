@@ -71,7 +71,14 @@ def _run(row=_COT_ROW, *, pace=True, qfn=_qfn, monkeypatch=None):
 # -- the shape rule: one definition, every clause tied to a code path --------------------------------
 def test_the_ratified_context_shape_is_admitted():
     assert cq.positioning_context_violations(_COT_ROW) == []
-    assert cq.POSITIONING_TABLES == frozenset({"silver_cot"})
+    # OUTCOMES_JOIN D-OJ-18 (2026-08-01): the fence GREW by one id. `gold_cot_outcomes` is the J6 card --
+    # the COT-keyed outcome rows -- and it is in here rather than outside because every leg of this fence
+    # keys on the table id, so serving a positioning-derived number from a table outside the set would
+    # satisfy R9's letter while vacating the context-shape rule, the never-a-chain-hop ban and the
+    # never-a-relative-value-leg ban together. Pinned as an EQUALITY, not a membership, so a third id
+    # cannot arrive here unnoticed; config_check.POSITIONING_TABLES must move in the same edit or the
+    # drift pin fails the build.
+    assert cq.POSITIONING_TABLES == frozenset({"silver_cot", "gold_cot_outcomes"})
 
 
 def test_every_engine_shape_is_refused_with_a_reason():

@@ -51,12 +51,32 @@ AWS-free + engine-agnostic: every SQL string is ANSI (COUNT / CASE / MIN / subst
 byte-identically on the pg mirror (serving), Athena, and sqlite (tests). The as-of guard is
 substr(cast(col as varchar),1,10) <= asof -- the DP-5 timestamp normalization so a physical
 `written_at` timestamp and its TEXT pg mirror compare identically at date grain.
+
+J5 -- THE OUTCOME AXIS (OUTCOMES_JOIN plan sec 5 / item 76-85), the second half of this module.
+    The ledger records a VERDICT and nothing else: 19 physical columns, no price, no forward return.
+    Re-censused over 162 partitions the per-pair (fired, evaluable) takes exactly three CONSTANT values
+    and the pairs with `0 < fired < evaluable` -- the only shape that HAS a rate -- number ZERO. So the
+    firing rate is not thin, it is DEGENERATE, and no floor height and no forward-return column changes
+    that: `pr_rate_gate` tests NO_VARIANCE before VINTAGE and a return column moves neither `recorded`
+    nor `evaluable` (D-OJ-12). J5 therefore closes NONE of the six suppressions and states a SEPARATE,
+    SEPARATELY GATED sentence over a DIFFERENT quantity -- "across the N times this pair fired, price
+    did Y over the next 30/60/90 days" -- which has real variance by construction because it is a
+    continuous measure rather than a constant binary verdict.
+
+    Everything measured lives in `gold_pattern_outcomes`, a SEPARATE derived table (D-OJ-11: the grain
+    differs 3:1, and widening the registered ledger touches regenerated DDL + reconcile + the pg mirror,
+    which is the T2b failure path). This module owns the READ, the GATE and the RENDER; the join itself
+    is `numbers.outcomes` (one engine, one basis, one clamp) and the build is
+    jobs/batch/gold_pattern_outcomes_task.py.
 """
 from __future__ import annotations
 
+import datetime as _dt
 import os
 import re
-from typing import Optional
+from typing import Optional, Sequence
+
+from leviathan.graphrag.numbers import stats as st
 
 # ── the ledger's own vocabulary (MUST mirror jobs/batch/pattern_records_sweep_task.py; a drift test
 #    pins the equality so the serving read can never diverge from what the sweep wrote) ──────────────
@@ -784,14 +804,12 @@ _BACKFILL_INTENT = re.compile(
     r"base[- ]?rate|how often|over the (?:years|replay|history)|historical(?:ly)?|replay|track record", re.I)
 
 
-def pattern_records_scope(question: str, *, contracts: Optional[list] = None) -> Optional[dict]:
-    """Detect a persistence/history question about a (driver, contract) pair and return the scope dict
-    {contract, driver_or_chain_id, kind, provenance}, or None. The backfill ENGINE base-rate path
-    (provenance=backfill_grid) is chosen for a 'how often / base rate / over the replay history' ask; the
-    daily_sweep presence path (which materializes a citable 0 for a pair with no firing) otherwise."""
-    q = question or ""
-    if not _PERSIST_INTENT.search(q):
-        return None
+def _pr_pair(q: str, contracts: Optional[list]) -> Optional[tuple]:
+    """The (contract, driver_or_chain_id, kind) a question resolves to, or None.
+
+    Extracted VERBATIM from pattern_records_scope so the J5 outcome detector resolves the pair through
+    the SAME code rather than a second copy: the two detectors differ in INTENT (a ledger question vs a
+    price-outcome question) and must not be allowed to drift in which pair they resolve to."""
     driver = kind = None
     for rx, d, k in _DRIVER_KEYWORDS:
         if rx.search(q):
@@ -809,6 +827,21 @@ def pattern_records_scope(question: str, *, contracts: Optional[list] = None) ->
         contract = contracts[0]
     if not contract:
         return None
+    return contract, driver, kind
+
+
+def pattern_records_scope(question: str, *, contracts: Optional[list] = None) -> Optional[dict]:
+    """Detect a persistence/history question about a (driver, contract) pair and return the scope dict
+    {contract, driver_or_chain_id, kind, provenance}, or None. The backfill ENGINE base-rate path
+    (provenance=backfill_grid) is chosen for a 'how often / base rate / over the replay history' ask; the
+    daily_sweep presence path (which materializes a citable 0 for a pair with no firing) otherwise."""
+    q = question or ""
+    if not _PERSIST_INTENT.search(q):
+        return None
+    pair = _pr_pair(q, contracts)
+    if not pair:
+        return None
+    contract, driver, kind = pair
     provenance = PROV_BACKFILL_GRID if _BACKFILL_INTENT.search(q) else PROV_DAILY_SWEEP
     return {"contract": contract, "driver_or_chain_id": driver, "kind": kind, "provenance": provenance}
 
@@ -852,3 +885,1037 @@ AGENT_CONVENTIONS_BULLET = (
     "SEPARATE labelled engine base rate over vintaged replay asofs (phrase it 'weekly replay asofs', "
     "not recent daily firing). If no firing is recorded for the pair, say so plainly -- do NOT infer a "
     "run length.\n")
+
+
+# ===================================================================================================
+# J5 -- THE OUTCOME AXIS: gold_pattern_outcomes (OUTCOMES_JOIN plan items 76-85, D-OJ-11/12)
+#
+# WHAT THIS ADDS, AND WHAT IT DELIBERATELY DOES NOT.
+#   It does NOT fix the firing rate. `pr_rate_gate` is ORDERED and NO_VARIANCE is tested before
+#   VINTAGE; a forward-return column changes neither `recorded` nor `evaluable`, so all 163 constant
+#   cascade pairs still return NO_VARIANCE, the 9+9 pace pairs still return TOO_THIN and the 79 empty
+#   pairs still return NOTHING_EVALUABLE. Every one of the six suppressions above stays exactly as it
+#   is, byte for byte (D-OJ-12, and an acceptance leg pins it). What J5 adds is a SECOND, SEPARATELY
+#   GATED sentence about a DIFFERENT quantity: not "this pair fires X% of the time" but "across the N
+#   times it fired, price did Y over the next 30 / 60 / 90 days".
+#
+# WHY THAT ONE HAS A GATE OF ITS OWN. A firing rate over a constant is degenerate; an outcome
+# distribution over eight overlapping windows is something worse -- it LOOKS non-degenerate. Its four
+# failure modes are different from the rate's and each gets its own suppression slug: too few closed
+# horizons (the floor, INHERITED from stats.py rather than declared here), too few NON-OVERLAPPING
+# windows behind those horizons (the outcome axis's own version of the vintage-depth defect: a daily
+# sweep firing 90 days running measures ONE stretch of tape ninety times), too large a share of
+# firings still pending (a distribution over what has closed describes the OLDEST firings -- the
+# survivorship-in-the-denominator failure item 49 names), and nothing measurable at all.
+#
+# THE PIT CLAMP IS THE JOIN'S, NOT A SECOND ONE. Every horizon is clamped per (event, horizon) by
+# `numbers.outcomes`: a horizon whose close postdates the reader's boundary is EXCLUDED from the
+# closed statistics and renders as pending WITH ITS CLOSE DATE. The clamp is applied twice on purpose
+# -- compiled into the aggregate SQL below (so no post-boundary move ever leaves the database) and
+# re-applied per row in Python from the row's own stored tape edge (so a pinned-asof replay of a
+# table built LATER cannot inherit a `closed` row that had not closed at its own asof).
+#
+# ONE CALCULATOR. Every quantile / spread / percentile computes through `numbers.stats` and inherits
+# its refusal floor; below the floor the answer is a thin-coverage decline carrying COUNTS ONLY, under
+# the SAME `too_thin` slug this module already uses. There is no second floor constant anywhere here.
+# ===================================================================================================
+PO_TABLE = "gold_pattern_outcomes"
+
+# The horizon family J5 measures. A STRICT SUBSET of the AM-1 anchored family {5, 30, 60, 90}: the
+# 5-day leg exists on `gold_futures_outcomes` for the single-event lane, but a week is shorter than the
+# weekly sweep grid itself, so a pattern-outcome distribution over 5-day horizons would be dominated by
+# the grid's own cadence rather than by the pairs' behaviour. A YEAR horizon does not exist under this
+# basis at all and is declined honestly rather than rounded to 90 (AM-1; po_horizon_decline).
+PO_HORIZONS: tuple[int, ...] = (30, 60, 90)
+
+# The ledger key the outcome row must carry back, verbatim, so an outcome can always be traced to the
+# verdict it was measured from. `provenance` is part of the KEY, not a label: daily_sweep and
+# backfill_grid are different populations and mixing them is the F5 defect one layer down.
+PO_KEY_COLUMNS: tuple[str, ...] = (
+    "record_kind", "contract", "driver_or_chain_id", "provenance", "as_of_date")
+PO_KEY_COLUMN_TYPES: dict[str, str] = {
+    "record_kind": "string", "contract": "string", "driver_or_chain_id": "string",
+    "provenance": "string", "as_of_date": "string",
+}
+# THE SECOND PIT AXIS, carried forward from the ledger and guarded exactly as `presence_sql` guards it.
+# Not in the plan's column list, and it is not optional: a backfill_grid verdict for as_of 2023 was
+# WRITTEN in 2026, so an outcome row guarded only on `as_of_date` would be readable at a pinned 2023
+# asof at which the verdict did not exist. The ingest axis is the ledger's, so it travels with the row.
+PO_EXTRA_COLUMNS: tuple[str, ...] = ("ledger_written_at",)
+PO_EXTRA_COLUMN_TYPES: dict[str, str] = {"ledger_written_at": "timestamp"}
+
+PO_PARTITIONS: tuple[str, ...] = ("leviathan_slug", "as_of_year")
+PO_PARTITION_TYPES: dict[str, str] = {"leviathan_slug": "string", "as_of_year": "int"}
+
+# The distribution actually published: a CENTRAL statistic and a DISPERSION statistic beside it (item
+# 78). A median with no spread beside it is the shape that reads as a point forecast.
+PO_PROBS: tuple[float, ...] = (0.1, 0.5, 0.9)
+
+# The pending-share ceiling. Above it the closed set is a minority AND is systematically the OLDEST
+# firings, so a distribution over it is a statement about 2019 dressed as a statement about the pair.
+# The count and the pending count are still published -- they always are (item 49).
+PO_MAX_PENDING_SHARE = 0.5
+
+PO_ROUND_PCT = 1          # the published precision of a move: one decimal, on the ROW and in the
+#                           prose, so the figure a reader sees IS the figure the verifier checks.
+
+
+def _oc():
+    """The join engine, imported LAZILY and only here.
+
+    `numbers.outcomes` imports `PR_SUP_TOO_THIN` from this module at import time (one floor family, one
+    vocabulary), so a module-level import in this direction is a cycle. Deferring it to call time is
+    the whole fix: by the time any of these functions runs, both modules are fully initialised. The
+    alternative -- re-declaring the statuses, the decline vocabulary and the clamp here -- is exactly
+    the second copy of a rule that this codebase's F-L discipline exists to prevent."""
+    from leviathan.graphrag.numbers import outcomes as OC
+    return OC
+
+
+def po_min_closed() -> int:
+    """The coverage floor for an outcome distribution: `stats.MIN_QUANTILE_N`, INHERITED, never a
+    second constant. A spread over a handful of firings fakes precisely the precision a rank over the
+    same handful fakes, and the outcome axis has no claim to a laxer floor than the calculator that
+    computes it (AM-3 / the standing stats-tools directive)."""
+    return int(st.MIN_QUANTILE_N)
+
+
+def po_min_independent_windows() -> int:
+    """The floor on NON-OVERLAPPING windows. Deliberately the SAME constant as the count floor, for the
+    same reason PR_MIN_DISTINCT_VINTAGES equals PR_MIN_EVALUABLE_SWEEPS: the floor's justification was
+    always an argument about INDEPENDENT OBSERVATIONS, and rows were only ever a proxy for those."""
+    return int(st.MIN_QUANTILE_N)
+
+
+def po_columns() -> tuple[str, ...]:
+    """The physical columns of `gold_pattern_outcomes`: the ledger key + the ingest axis + the outcome
+    contract VERBATIM. The outcome half is not re-declared here -- it is `outcomes.OUTCOME_COLUMNS`, so
+    a column added to the join arrives on this table without a second edit and cannot drift from it."""
+    return PO_KEY_COLUMNS + PO_EXTRA_COLUMNS + tuple(_oc().OUTCOME_COLUMNS)
+
+
+def po_column_types() -> dict[str, str]:
+    """The single schema authority the F010 contract + the generated DDL are derived FROM."""
+    return {**PO_KEY_COLUMN_TYPES, **PO_EXTRA_COLUMN_TYPES, **dict(_oc().OUTCOME_COLUMN_TYPES)}
+
+
+def po_horizon_decline(horizon_days: int) -> dict:
+    """The honest refusal for a horizon this axis does not serve -- AM-1's year exclusion first among
+    them. Never rounded to the nearest supported horizon: a year read is a NEW basis decision
+    (calendar-spread-adjusted or index-style), not a quiet extension of this one."""
+    OC = _oc()
+    base = OC.horizon_decline(horizon_days)
+    return {**base, "supported_horizons": list(PO_HORIZONS), "table": PO_TABLE}
+
+
+def po_resolve_slug(contract: Optional[str]) -> Optional[str]:
+    """The ledger's `contract` -> a PRICE-TAPE slug, or None. RESOLVE OR SKIP; never guess (item 81).
+
+    The ledger holds BOTH shapes -- the measured pace pairs include `(corn, export_pace)` AND
+    `(corn_cbot, export_pace)`, where `corn` is a graph node and `corn_cbot` is a tape slug. Only the
+    slug shape maps to a tape, and `futures_eod_contracts.coverage_start_for` RAISES on the rest. The
+    tempting repair is an alias table (`corn` -> `corn_cbot`), and it is exactly the mis-attribution
+    class D-OJ-1's labelling obligation is about: `corn` could as honestly resolve to MATIF maize or to
+    the CEPEA Campinas cash reference, and a silently chosen one would put a US move under a Brazilian
+    question. So an unresolvable contract is SKIPPED and COUNTED -- the builder publishes the count and
+    reconciles `resolved + skipped == ledger pairs`, or the table quietly covers half the ledger while
+    looking complete."""
+    from leviathan.silver import futures_eod_contracts as FC
+    key = str(contract or "").strip()
+    return key if key in FC.CONTRACT_MAP else None
+
+
+def po_anchor_key(record_kind: str, contract: str, driver_or_chain_id: str, provenance: str,
+                  as_of_date) -> str:
+    """The stable `event_key` an outcome row carries: the ledger's natural key, pipe-joined. Stable
+    across rebuilds (the fingerprint depends on it) and reversible by split, so the outcome table can
+    always be joined back to the verdict it measures."""
+    return "|".join(str(x) for x in (record_kind, contract, driver_or_chain_id, provenance,
+                                     str(as_of_date)[:10]))
+
+
+def po_ledger_anchors(ledger_rows: Sequence[dict], *, kinds: Optional[Sequence[str]] = None,
+                      provenance: Optional[str] = None) -> dict:
+    """FIRED ledger rows -> join anchors, plus the skip census that has to reconcile (acceptance (i)).
+
+    Returns `{anchors, meta, skipped, skipped_by_reason, pairs, resolved_pairs}`:
+      * `anchors`   -- `[{leviathan_slug, event_key, event_date}]`, the shape `outcomes.build_outcomes`
+                       consumes. NOTHING else is passed to the engine: the join must not be able to see
+                       the verdict it is measuring.
+      * `meta`      -- `event_key -> the ledger key columns + ledger_written_at`, re-attached after the
+                       build so the outcome row carries its provenance back.
+      * `skipped_*` -- counted by reason, never dropped silently.
+
+    Only `verdict='fired'` rows produce an anchor: a decline records that the engine could not judge,
+    and a forward move measured from a non-event would put price history under a question about
+    firings. The leakage fence is applied HERE as well as at the read seam -- cascade x backfill_grid
+    verdicts were replayed against a synthesized as-of axis, and a price move joined to a leaked
+    verdict is a leaked row however clean the price side is."""
+    want_kinds = frozenset(kinds) if kinds else V1_KINDS
+    anchors: list[dict] = []
+    meta: dict[str, dict] = {}
+    skipped: dict[str, int] = {}
+    pairs: set[tuple] = set()
+    resolved_pairs: set[tuple] = set()
+
+    def _skip(reason: str) -> None:
+        skipped[reason] = skipped.get(reason, 0) + 1
+
+    for row in ledger_rows or []:
+        kind = str(row.get("record_kind") or "")
+        contract = str(row.get("contract") or "")
+        driver = str(row.get("driver_or_chain_id") or "")
+        prov = str(row.get("provenance") or "")
+        asof_d = str(row.get("as_of_date") or "")[:10]
+        pair = (kind, contract, driver, prov)
+        pairs.add(pair)
+        if kind not in want_kinds:
+            _skip("kind_not_requested")
+            continue
+        if provenance is not None and prov != provenance:
+            _skip("provenance_not_requested")
+            continue
+        if pr_read_fenced(kind, prov):
+            _skip("fenced_leaky_asof")
+            continue
+        if str(row.get("verdict") or "") != VERDICT_FIRED:
+            _skip("not_a_firing")
+            continue
+        if not asof_d:
+            _skip("no_as_of_date")
+            continue
+        slug = po_resolve_slug(contract)
+        if not slug:
+            _skip("slug_unresolved")
+            continue
+        key = po_anchor_key(kind, contract, driver, prov, asof_d)
+        if key in meta:
+            _skip("duplicate_key")            # the ledger's natural key forbids it; count, never merge
+            continue
+        anchors.append({"leviathan_slug": slug, "event_key": key, "event_date": asof_d})
+        meta[key] = {"record_kind": kind, "contract": contract, "driver_or_chain_id": driver,
+                     "provenance": prov, "as_of_date": asof_d, "leviathan_slug": slug,
+                     "ledger_written_at": row.get("written_at")}
+        resolved_pairs.add(pair)
+    return {"anchors": anchors, "meta": meta, "skipped": sum(skipped.values()),
+            "skipped_by_reason": dict(sorted(skipped.items())),
+            "pairs": len(pairs), "resolved_pairs": len(resolved_pairs)}
+
+
+def independent_windows(anchor_dates: Sequence, horizon_days: int) -> int:
+    """How many NON-OVERLAPPING `horizon_days` windows the anchors actually stand on (greedy from the
+    earliest). This is the outcome axis's independence measure and it is the one a row count cannot
+    see: the daily sweep writes one row per pair per day, so a condition that holds for three months
+    produces ~90 firings whose 90-day windows are ~90 re-measurements of ONE stretch of tape. Counting
+    those as 90 observations overstates the evidence by the overlap factor -- the identical failure the
+    vintage denominator catches on the rate side, in the time domain instead of the source domain.
+
+    Unparseable dates are DROPPED rather than defaulted (a date that cannot be read cannot be shown to
+    be independent of anything), which is the fail-closed direction."""
+    days: list[_dt.date] = []
+    for value in anchor_dates or []:
+        try:
+            days.append(_dt.date.fromisoformat(str(value)[:10]))
+        except (TypeError, ValueError):
+            continue
+    if not days:
+        return 0
+    days.sort()
+    count, cursor = 0, None
+    for d in days:
+        if cursor is None or (d - cursor).days >= int(horizon_days):
+            count += 1
+            cursor = d
+    return count
+
+
+# -- the SEVENTH suppression-or-statement render, and its own vocabulary ----------------------------
+# Same doctrine as the six above (pattern_records.py: collapsing any two suppression slugs would let a
+# reader mistake "never looked" for "always true"), applied to a different question. `too_thin` is
+# DELIBERATELY SHARED with the rate side rather than duplicated: it names the identical fact (measured
+# history shorter than the floor) about the identical floor constant, and a second slug for it would
+# split one fact across two vocabularies.
+PO_SUP_UNSUPPORTED_HORIZON = "outcome_horizon_unsupported"   # AM-1: the year ask lands here
+PO_SUP_SLUG_UNRESOLVED = "outcome_slug_unresolved"       # ledger key is a node, not a tape slug
+PO_SUP_NOT_JOINED = "outcome_not_joined"                 # the pair has no outcome row at all
+PO_SUP_UNMEASURABLE = "outcome_unmeasurable"             # joined, but every firing declined
+PO_SUP_ALL_PENDING = "outcome_all_pending"               # joined, and no horizon has closed yet
+PO_SUP_TOO_THIN = PR_SUP_TOO_THIN                        # below the INHERITED stats floor
+PO_SUP_OVERLAP = "outcome_windows_overlap"               # too few non-overlapping windows
+PO_SUP_PENDING_HEAVY = "outcome_pending_heavy"           # closed set is a minority, and it is the old half
+PO_SUP_OUTLOOK_HELD = "outcome_outlook_held"             # D-OJ-17 option (a): not reached on an outlook turn
+PO_SUPPRESSIONS: tuple[str, ...] = (
+    PO_SUP_UNSUPPORTED_HORIZON, PO_SUP_SLUG_UNRESOLVED, PO_SUP_NOT_JOINED, PO_SUP_UNMEASURABLE,
+    PO_SUP_ALL_PENDING, PO_SUP_TOO_THIN, PO_SUP_OVERLAP, PO_SUP_PENDING_HEAVY, PO_SUP_OUTLOOK_HELD,
+)
+
+
+def po_outcome_gate(*, joined: int, n_closed: int, n_pending: int, n_declined: int,
+                    n_independent: Optional[int]) -> Optional[str]:
+    """None when an outcome DISTRIBUTION may honestly be stated, else the slug naming what forbids it.
+
+    ORDER IS MEANINGFUL, and it is the same principle `pr_rate_gate` uses: the most informative fact
+    about the pair wins. Nothing joined outranks nothing measurable outranks nothing closed outranks
+    too few closed; only then does independence, and only then the pending share -- because "you have
+    eight outcomes" is a more useful thing to be told than "your eight outcomes overlap", and both are
+    more useful than a share.
+
+    `n_independent=None` means the window independence was NOT established (the values probe was never
+    run, or it failed) and it SUPPRESSES. An unknown denominator is not a permissive one -- that
+    inversion is the 9-of-156 defect in yet another costume."""
+    if joined <= 0:
+        return PO_SUP_NOT_JOINED
+    if n_closed <= 0 and n_pending <= 0:
+        return PO_SUP_UNMEASURABLE
+    if n_closed <= 0:
+        return PO_SUP_ALL_PENDING
+    if n_closed < po_min_closed():
+        return PO_SUP_TOO_THIN
+    if n_independent is None or int(n_independent) < po_min_independent_windows():
+        return PO_SUP_OVERLAP
+    if (n_closed + n_pending) > 0 and n_pending / float(n_closed + n_pending) > PO_MAX_PENDING_SHARE:
+        return PO_SUP_PENDING_HEAVY
+    return None
+
+
+# -- the reads: ANSI, scalar-presence shaped, and PIT-clamped on THREE axes -------------------------
+def po_readable_asof(asof: str) -> str:
+    """The as-of the HORIZON-CLOSE axis is compared against: `asof - (survive_days + tape_lag)`.
+
+    This is `query._pub_lagged_asof` done by hand, and the hand version is the point: that helper
+    shifts the RHS LITERAL of a compiled guard, and these queries are hand-built ANSI (the pg-mirror
+    lane), so the shift has to happen here or the clamp is simply absent. The lag is not this module's
+    number -- it is `outcomes.OUTCOME_PUBLICATION_LAG_DAYS`, which is `OUTCOME_SURVIVE_DAYS + 1` and is
+    lint-bound to the card. `survive_days` is inside it because the contract was SELECTED by asking
+    whether it still printed five calendar days past the close: for any asof in [t1+1, t1+5) that
+    selection
+    used tape the reader does not have, and selection determines px0 and px1 and therefore the whole
+    move (plan item 46)."""
+    lag = int(_oc().OUTCOME_PUBLICATION_LAG_DAYS)
+    try:
+        return (_dt.date.fromisoformat(str(asof)[:10]) - _dt.timedelta(days=lag)).isoformat()
+    except (TypeError, ValueError):
+        # An unparseable asof must never widen the window. '' compares below every ISO date on every
+        # backend, so the guard admits NOTHING -- fail closed, and visibly (the census returns zeros).
+        return ""
+
+
+def _po_where(contract: str, driver_or_chain_id: str, *, kind: str, asof: str, horizon_days: int,
+              provenance: str) -> list[str]:
+    """The key + the three PIT axes every read of this table carries.
+
+      as_of_date        <= asof            the FIRING must be knowable (the ledger's data axis)
+      ledger_written_at <= asof            the VERDICT must have been written (the ledger's ingest
+                                           axis -- a backfill_grid row for 2023 was written in 2026)
+      readable_date     <= asof - lag      the horizon CLOSE (applied per aggregate below, not here,
+                                           because a row past it must still COUNT as pending)
+
+    `built_at` is NOT among them: under a full rebuild every row carries the same stamp, so
+    `built_at <= asof` is all-pass or all-fail and cannot bind (D-OJ-15). It is provenance."""
+    return [
+        f"record_kind = {_q(kind)}",
+        f"contract = {_q(contract)}",
+        f"driver_or_chain_id = {_q(driver_or_chain_id)}",
+        f"provenance = {_q(provenance)}",
+        f"horizon_days = {int(horizon_days)}",
+        f"{_date_at('as_of_date')} <= {_q(asof)}",
+        f"{_date_at('ledger_written_at')} <= {_q(asof)}",
+    ]
+
+
+def po_census_sql(contract: str, driver_or_chain_id: str, *, kind: str, asof: str,
+                  horizon_days: int, provenance: str = PROV_DAILY_SWEEP) -> str:
+    """The SCALAR outcome census for one (pair, horizon). Returns EXACTLY ONE row, always -- the same
+    F8 presence property the rate side rests on: over zero matched rows COUNT is 0 and MIN is NULL, so
+    a pair with no joined outcome yields a citable `joined=0` instead of an empty result the model
+    would fill in from its own head.
+
+    THE CLAMP IS COMPILED INTO THE AGGREGATE, and that is what keeps the denominator honest. A row the
+    builder wrote `closed` is counted CLOSED only if its horizon close is at or before the reader's
+    lagged boundary; otherwise it counts PENDING. Filtering those rows out instead -- the obvious
+    reading of "guard the data axis" -- would delete them from the denominator as well, which is
+    precisely the survivorship bias toward OLD firings that publishing `n_pending` exists to prevent
+    (item 49). Nothing about the move leaks either way: the VALUES read below applies the same boundary
+    as a hard filter, so a post-boundary move never leaves the database at all."""
+    where = _po_where(contract, driver_or_chain_id, kind=kind, asof=asof, horizon_days=horizon_days,
+                      provenance=provenance)
+    readable = f"{_date_at('readable_date')} <= {_q(po_readable_asof(asof))}"
+    closed = f"(status = 'closed' AND {readable})"
+    # PENDING = written pending, OR written closed but not yet readable at THIS asof. An unrecognised
+    # status falls in NEITHER arm and lands in declined below -- the fail-closed direction.
+    pending = f"(status = 'pending' OR (status = 'closed' AND NOT ({readable})))"
+    return (
+        "SELECT "
+        "COUNT(*) AS joined, "
+        f"COUNT(CASE WHEN {closed} THEN 1 END) AS n_closed, "
+        f"COUNT(CASE WHEN {pending} THEN 1 END) AS n_pending, "
+        "COUNT(CASE WHEN status NOT IN ('closed', 'pending') THEN 1 END) AS n_declined, "
+        "MIN(as_of_date) AS first_firing, "
+        "MAX(as_of_date) AS last_firing, "
+        f"MIN(CASE WHEN {closed} THEN as_of_date END) AS first_closed_firing, "
+        f"MAX(CASE WHEN {closed} THEN as_of_date END) AS last_closed_firing, "
+        f"MIN(CASE WHEN {pending} THEN horizon_close_date END) AS first_pending_close, "
+        f"MAX(CASE WHEN {pending} THEN horizon_close_date END) AS last_pending_close "
+        f"FROM {PO_TABLE} WHERE " + " AND ".join(where)
+    )
+
+
+def po_values_sql(contract: str, driver_or_chain_id: str, *, kind: str, asof: str,
+                  horizon_days: int, provenance: str = PROV_DAILY_SWEEP) -> str:
+    """The CLOSED outcome rows of one (pair, horizon) -- the input the distribution is computed FROM.
+
+    Scoped to one pair, one horizon and the readable side of the boundary, so the result is one row per
+    firing (a few hundred at the very most) and the row-cap class the plan flags for `agg='series'`
+    reads cannot arise. The evaluable predicate is `outcomes.evaluable_pred`, reused rather than
+    re-derived: it is stated POSITIVELY, so a status this build has never heard of falls outside it and
+    SHRINKS coverage toward the floor instead of swelling a denominator.
+
+    The selected columns are exactly what the Python-side re-clamp needs (`event_date`, `horizon_days`,
+    `status`, `tape_edge_date`) plus what the render and the audit need. `move_pct` is the measured
+    quantity; `contract_month_used` rides so the basis of every measured move is inspectable."""
+    where = _po_where(contract, driver_or_chain_id, kind=kind, asof=asof, horizon_days=horizon_days,
+                      provenance=provenance)
+    where.append(_oc().evaluable_pred("status"))
+    where.append(f"{_date_at('readable_date')} <= {_q(po_readable_asof(asof))}")
+    return (
+        "SELECT as_of_date, event_date, horizon_days, status, move_pct, move_abs, px0, px1, "
+        "endpoint_date, horizon_close_date, readable_date, realized_sessions, contract_month_used, "
+        "basis, leviathan_slug, tape_edge_date, unit, currency "
+        f"FROM {PO_TABLE} WHERE " + " AND ".join(where) + " ORDER BY as_of_date"
+    )
+
+
+# -- serving dispatch: an outcome question -> ONE injected [N] leg + ONE deterministic line --------
+def _po_round(value) -> Optional[float]:
+    """The PUBLISHED precision of a move. Rounded ONCE, here, and the rounded number is what goes on
+    the row AND into the prose -- so the figure the reader sees is the figure the verifier checks,
+    with no 1%-tolerance gap between them. `-0.0` is normalised away (a reader shown '-0.0%' learns
+    nothing true that '0.0%' does not)."""
+    try:
+        out = round(float(value), PO_ROUND_PCT)
+    except (TypeError, ValueError):
+        return None
+    return 0.0 if out == 0 else out
+
+
+def pattern_outcome_legs(scope: dict, asof: str, query_fn, *,
+                         outlook: bool = False) -> tuple[list[dict], dict]:
+    """Run the outcome census / distribution for one (pair, horizon) and return (legs, signal).
+
+    THE OUTLOOK GATE IS THE FIRST THING IT ASKS, and it is the `_cot_outcomes_on`/`not outlook` idiom
+    J6 uses one module over (cascade.py: `if cot_outcomes and not outlook`). The statement branch below
+    ships a median, a p10/p90 spread and "N of them closed higher" -- a CITED, ARROW-FREE CONDITIONAL
+    PERFORMANCE sentence. Under OUTLOOK, `register.py` places `_VALUATION_PHRASES`, `_FLOW_PHRASES`,
+    `_PERSISTENCE` and both Lane-B arms inside `if not outlook:`, so exactly that sentence returns False
+    from `_is_banned_sentence` and ships as a setup: item 90b's argument, verbatim, one table over. J6's
+    three remedies do not reach here -- `gold_pattern_outcomes` is (correctly) not in
+    `POSITIONING_TABLES`, so the `quantify` node-drop that fences J6 structurally never touches this
+    leg. So the gate is HERE, at the leg, ahead of every read: on an outlook turn the outcome ref is not
+    reached at all (D-OJ-17 option (a)), and the wiring commit cannot forget to add it because the
+    parameter is already in the signature.
+
+    The leg is the SAME shape the pattern-records presence leg is (`query` + `rows` whose `value` is a
+    citable magnitude), so the existing append site mints a real [N] handle over it with no new
+    machinery. It carries ONE ROW PER FIGURE THE LINE PRINTS -- the median, the two decile bounds, the
+    closed count, the pending count, the up-count and the independent-window count -- because
+    `orchestrator._verify_numbers_answer` grounds a stated number only against row `value`s (plus the
+    `sweeps_total` slot), and an engine sentence whose own figures are ungrounded wears the
+    false-caution banner. That is the D1/D1b class this module already paid for once.
+
+    THE DISTRIBUTION IS NOT COMPUTED HERE. It is `outcomes.outcome_distribution` over
+    `stats.quantiles` / `stats.extrema`, so the refusal floor is the calculator's and the answer below
+    the floor is a thin-coverage decline carrying COUNTS ONLY. No quantile is ever put on a row that
+    the gate then suppresses -- a suppressed distribution that still shipped its numbers would be the
+    suppression doing nothing.
+
+    THE VALUES PROBE IS LAZY, exactly as the vintage-depth probe is: the cheap scalar census decides
+    every gate it can decide, and the row-returning query is issued ONLY when a distribution is
+    actually about to be stated. On today's ledger -- where the reachable pairs are pace pairs with
+    nine weekly firings -- it is issued zero times."""
+    OC = _oc()
+    contract = scope.get("contract")
+    driver = scope.get("driver_or_chain_id")
+    kind = scope.get("kind", KIND_PACE)
+    provenance = scope.get("provenance", PROV_DAILY_SWEEP)
+    horizon = int(scope.get("horizon_days") or PO_HORIZONS[0])
+    _dead = {"injected": 0, "table": PO_TABLE, "horizon_days": horizon,
+             "horizon_label": OC.horizon_label(horizon), "leviathan_slug": None, "basis": None,
+             "provenance": provenance, "joined": 0, "n_closed": 0, "n_pending": 0, "n_declined": 0,
+             "n_unusable": 0, "n_independent": None, "pending_share": None,
+             "outcome_stated": False, "outcome_suppressed": PO_SUP_NOT_JOINED, "fenced": None,
+             "first_firing": None, "last_firing": None, "first_closed_firing": None,
+             "last_closed_firing": None, "first_pending_close": None, "last_pending_close": None,
+             "median": None, "p10": None, "p90": None, "n_up": None, "n_down": None}
+    if outlook:
+        # No leg, no read, no sentence: `pattern_outcome_answer` returns None for a gate it has no
+        # no-leg render for, so the model's own narration stands and this axis contributes nothing.
+        return [], dict(_dead, outcome_suppressed=PO_SUP_OUTLOOK_HELD)
+    if not (contract and driver and kind in V1_KINDS):
+        return [], dict(_dead)
+    # THE LEAKAGE FENCE IS TESTED FIRST, ahead of the horizon and the slug, because it is a fact about
+    # the DATA rather than about the question: a fenced pair has no citable outcome at any horizon, so
+    # answering "that horizon is unsupported" would name the smaller of two reasons and imply the
+    # bigger one away. The W4 fence carries to the outcome axis unchanged -- a price move joined to a
+    # verdict replayed against a synthesized as-of axis is a leaked row however clean the price side
+    # is -- and refusing BEFORE any query is built keeps the refusal independent of what the table
+    # happens to hold. The builder applies the identical fence, so such a row should not exist; this
+    # is the second lock on the same door, at the seam where a citable [N] reaches a reader.
+    fenced = pr_read_fenced(kind, provenance)
+    if fenced:
+        return [], dict(_dead, fenced=fenced)
+    if horizon not in PO_HORIZONS:
+        # AM-1, rendered rather than rounded: a year read forces the spliced basis this join rejects.
+        return [], dict(_dead, outcome_suppressed=PO_SUP_UNSUPPORTED_HORIZON,
+                        horizon_detail=po_horizon_decline(horizon)["detail"])
+    slug = po_resolve_slug(contract)
+    if not slug:
+        # item 81: the ledger holds BOTH node names and tape slugs, and only the slug shape maps to a
+        # series. Never guessed -- a guessed slug puts one exchange's move under another's question.
+        return [], dict(_dead, outcome_suppressed=PO_SUP_SLUG_UNRESOLVED)
+    try:
+        rows = query_fn(po_census_sql(contract, driver, kind=kind, asof=asof, horizon_days=horizon,
+                                      provenance=provenance))
+    except Exception:  # noqa: BLE001 -- a mirror gap is a probe error, NEVER a fabricated outcome
+        return [], dict(_dead)
+    row = (rows[0] if rows else {}) or {}
+    joined = _as_int(row.get("joined"))
+    n_closed = _as_int(row.get("n_closed"))
+    n_pending = _as_int(row.get("n_pending"))
+    n_declined = _as_int(row.get("n_declined"))
+
+    dist: Optional[dict] = None
+    n_independent: Optional[int] = None
+    n_unusable = 0
+    # THE PRE-GATE decides everything the cheap counts can decide, by handing the gate a PASSING
+    # independence count purely to ask "is anything ELSE already suppressing?". Its verdict is FINAL
+    # when it is not None -- and that is not an optimisation, it is what keeps the stated reason true:
+    # a pair suppressed on its pending share never had its windows measured, so re-running the gate
+    # afterwards with an unmeasured (=None) independence would report OVERLAP, i.e. blame a fact
+    # nobody looked at for a suppression something else caused.
+    pre = po_outcome_gate(joined=joined, n_closed=n_closed, n_pending=n_pending,
+                          n_declined=n_declined, n_independent=po_min_independent_windows())
+    suppressed = pre
+    if pre is None:
+        try:
+            values = query_fn(po_values_sql(contract, driver, kind=kind, asof=asof,
+                                            horizon_days=horizon, provenance=provenance))
+        except Exception:  # noqa: BLE001 -- an unanswerable values probe costs the DISTRIBUTION only
+            values = []
+        # DEFENCE IN DEPTH, and it is not redundant: this table is a FULL REBUILD at the current tape
+        # edge, so a pinned-asof replay reads rows materialized `closed` by a LATER build. The SQL
+        # boundary above already excludes them; re-clamping each row against the reader's asof from the
+        # row's OWN stored tape edge makes "pending" a function of the reader rather than of the build,
+        # and strips px1/move on the way. A row that flips here is counted pending, never dropped.
+        clamped = [OC.clamp_row(v, asof, v.get("tape_edge_date")) for v in (values or [])]
+        dist = OC.outcome_distribution(clamped, probs=PO_PROBS)
+        n_independent = independent_windows(
+            [c.get("as_of_date") for c in clamped if c.get("status") == OC.STATUS_CLOSED], horizon)
+        flipped = _as_int(dist.get("n_pending"))
+        n_unusable = max(len(clamped) - _as_int(dist.get("n_closed")) - flipped
+                         - _as_int(dist.get("n_declined")), 0)
+        n_closed = _as_int(dist.get("n_closed"))
+        n_pending += flipped
+        n_declined += n_unusable
+        # The real gate, over the MEASURED independence and over counts the re-clamp may have moved.
+        suppressed = po_outcome_gate(joined=joined, n_closed=n_closed, n_pending=n_pending,
+                                     n_declined=n_declined, n_independent=n_independent)
+
+    total = n_closed + n_pending
+    share = (n_pending / float(total)) if total else None
+    med = p10 = p90 = n_up = n_down = None
+    if suppressed is None and dist and not dist.get("declined"):
+        qs = dist.get("quantiles") or {}
+        med, p10, p90 = (_po_round(qs.get("0.5")), _po_round(qs.get("0.1")), _po_round(qs.get("0.9")))
+        n_up, n_down = _as_int(dist.get("n_up")), _as_int(dist.get("n_down"))
+        if med is None or p10 is None or p90 is None:
+            suppressed = PO_SUP_TOO_THIN            # a distribution that will not render is not one
+
+    head = {"horizon_days": horizon, "knowledge_date": asof, "in_catalog": joined > 0,
+            "provenance": provenance, "basis": None, "unit": None}
+    if suppressed is None:
+        head["basis"] = OC.BASIS_CASH if slug in _po_cash_slugs() else OC.BASIS_SURVIVOR
+        leg_rows = [
+            {**head, "value": med, "measure": "move_pct_median", "unit": "%",
+             "first_closed_firing": row.get("first_closed_firing"),
+             "last_closed_firing": row.get("last_closed_firing")},
+            {**head, "value": n_closed, "measure": "closed_firings"},
+            {**head, "value": n_pending, "measure": "pending_firings"},
+            {**head, "value": p10, "measure": "move_pct_p10", "unit": "%"},
+            {**head, "value": p90, "measure": "move_pct_p90", "unit": "%"},
+            {**head, "value": n_up, "measure": "closed_higher"},
+            {**head, "value": n_independent, "measure": "independent_windows"},
+        ]
+    else:
+        # THE SUPPRESSED LEG STILL SHIPS, and it ships COUNTS ONLY. The count and the window are
+        # observations; the distribution is what the gate refused. Dropping the leg entirely would
+        # hand the model back the empty-ledger state in which it mints the number itself -- which is
+        # the failure the whole pattern-records card exists to close.
+        leg_rows = [
+            {**head, "value": n_closed, "measure": "closed_firings"},
+            {**head, "value": n_pending, "measure": "pending_firings"},
+            {**head, "value": joined, "measure": "joined_firings"},
+            {**head, "value": n_declined, "measure": "unmeasurable_firings"},
+        ]
+        if n_independent is not None:
+            # The overlap sentence STATES this count, so it has to be citable -- an engine sentence
+            # whose own figure is ungrounded wears the false-caution banner, which is the D1/D1b class
+            # this module has already paid for once. (Caught by the grounding test, not by review.)
+            leg_rows.append({**head, "value": n_independent, "measure": "independent_windows"})
+    leg = {"query": {"table": PO_TABLE, "commodity": slug, "metric": "move_pct",
+                     "record_kind": kind, "contract": contract, "driver_or_chain_id": driver,
+                     "provenance": provenance, "horizon_days": horizon, "asof": asof},
+           "rows": leg_rows, "status": "ok", "pattern_provenance": provenance,
+           "outcome_horizon_days": horizon}
+    signal = {"injected": 1, "table": PO_TABLE, "horizon_days": horizon,
+              "horizon_label": OC.horizon_label(horizon), "leviathan_slug": slug,
+              "basis": head["basis"], "provenance": provenance,
+              "joined": joined, "n_closed": n_closed, "n_pending": n_pending,
+              "n_declined": n_declined, "n_unusable": n_unusable, "n_independent": n_independent,
+              "pending_share": share, "outcome_stated": suppressed is None,
+              "outcome_suppressed": suppressed, "fenced": None,
+              "first_firing": row.get("first_firing"), "last_firing": row.get("last_firing"),
+              "first_closed_firing": row.get("first_closed_firing"),
+              "last_closed_firing": row.get("last_closed_firing"),
+              "first_pending_close": row.get("first_pending_close"),
+              "last_pending_close": row.get("last_pending_close"),
+              "median": med, "p10": p10, "p90": p90, "n_up": n_up, "n_down": n_down}
+    return [leg], signal
+
+
+def _po_cash_slugs() -> frozenset:
+    from leviathan.silver import futures_eod_contracts as FC
+    return FC.CASH_INDEX_SLUGS
+
+
+class _Fig:
+    """The one place a figure is turned into text, and the SAME expression records that it was shown.
+
+    `cascade._shown` binds the magnitudes a reader LINE printed to the call its [N] handle indexes, so
+    the verifier checks a citation against what was displayed rather than against the whole row pool.
+    Building the sentence through this object makes the printed string and the bound list the same
+    act: there is no second list to keep in step, so they cannot drift the way a hand-maintained
+    `shown=[...]` beside a hand-written f-string eventually does."""
+
+    def __init__(self) -> None:
+        self.values: list[float] = []
+
+    def n(self, value) -> str:
+        """A count, printed as an integer and recorded as one."""
+        v = _as_int(value)
+        self.values.append(float(v))
+        return str(v)
+
+    def pct(self, value) -> str:
+        """A move, printed SIGNED to one decimal -- the same rounded number that is on the row."""
+        v = _po_round(value)
+        v = 0.0 if v is None else v
+        self.values.append(float(v))
+        return f"{v:+.1f}"
+
+
+def pattern_outcome_answer(scope: dict, indexed_leg: Optional[tuple], signal: dict,
+                           asof: Optional[str] = None) -> Optional[str]:
+    """The SEVENTH suppression-or-statement render (item 83), beside the six the rate side owns.
+
+    EIGHT FACTS, EIGHT SENTENCES, and the wording never lets two of them blur -- the same doctrine the
+    rate side spends five slugs on, applied to the outcome axis:
+      horizon_unsupported  a year is not servable on this basis   -> the exclusion, stated (AM-1)
+      slug_unresolved      the ledger key is a node, not a series -> no outcome exists to measure
+      not_joined           the pair has no outcome row at all     -> a citable, materialized zero
+      unmeasurable         joined, and every firing declined      -> a COVERAGE gap, said as one
+      all_pending          joined, and no horizon has closed yet  -> a TIMING fact, with the date
+      too_thin             fewer closed horizons than the floor   -> the counts, never a spread
+      windows_overlap      the closed horizons re-measure one span-> counts, and why they repeat
+      pending_heavy        the closed half is the OLD half        -> counts, and the bias named
+    `all_pending` and `too_thin` are deliberately NOT collapsed: one says the measurement has not
+    happened yet, the other says it happened too few times, and a reader who is told the wrong one
+    forms the wrong expectation about whether waiting helps.
+
+    EVERY FIGURE THIS FUNCTION PRINTS IS A `value` ON THE INJECTED LEG, and the ones it prints are
+    bound to the leg as `shown`. Dates are free (the verifier scrubs ISO dates before extracting
+    stated figures) and the horizon is written hyphen-glued (`30-day`), which the same scrubber drops
+    as a unit descriptor rather than reading as a claim.
+
+    Returns None only when there is nothing honest to say (no leg AND no named suppression) -- the
+    caller then leaves the model's own narration to stand."""
+    OC = _oc()
+    driver = scope.get("driver_or_chain_id", "this driver")
+    contract = scope.get("contract", "this contract")
+    horizon = _as_int(signal.get("horizon_days") or PO_HORIZONS[0])
+    gate = signal.get("outcome_suppressed")
+    asof = asof or scope.get("asof") or signal.get("asof")
+
+    # -- the three no-leg refusals: they state no figure, so they need no [N] ----------------------
+    if signal.get("fenced"):
+        return (f"For {driver} on {contract}, the recorded verdicts available for this pair come from "
+                f"the replay grid whose as-of axis is synthesized, so they are not citable history and "
+                f"no forward price move is measured from them.")
+    if gate == PO_SUP_UNSUPPORTED_HORIZON:
+        if horizon >= 180:
+            return ("A one-year forward move is not servable on this basis: no agricultural contract "
+                    "prints for a full year past an arbitrary anchor, so a year read would have to "
+                    "splice across delivery months -- the contaminated basis this join rejects. The "
+                    "horizons measured here are one month, two months and a quarter.")
+        return (f"A {horizon}-day horizon is not one this axis measures. The horizons measured here "
+                f"are one month, two months and a quarter.")
+    if gate == PO_SUP_SLUG_UNRESOLVED:
+        return (f"For {driver} on {contract}, the ledger's contract key is a graph node rather than a "
+                f"price-tape slug, so there is no single series a forward move could be measured on. "
+                f"The recorded firing history for this pair is citable; a price outcome is not.")
+    if not indexed_leg:
+        return None
+
+    idx, leg = indexed_leg
+    fig = _Fig()
+    joined = signal.get("joined")
+    n_closed, n_pending = signal.get("n_closed"), signal.get("n_pending")
+    win = _window(signal.get("first_closed_firing"), signal.get("last_closed_firing"))
+    pend_from = signal.get("first_pending_close")
+
+    def _bind(text: str) -> str:
+        leg["shown"] = list(fig.values)     # what the LINE printed, recorded by the panel itself
+        return text
+
+    if gate == PO_SUP_NOT_JOINED:
+        return _bind(
+            f"For {driver} on {contract}, the outcome table records {fig.n(joined)} joined firings for "
+            f"this pair [N{idx}], so I cannot state what price did after them.")
+    if gate == PO_SUP_UNMEASURABLE:
+        # THE REASONS ARE NOT ENUMERATED, because this branch never asked for them. `po_census_sql`
+        # counts declines as ONE bucket (`status NOT IN ('closed','pending')`) and never selects
+        # `decline_reason`, while the vocabulary has ten members (outcomes.DECLINE_REASONS) --
+        # `no_anchor_session`, `bad_endpoint_price` and `span_inverted` among them. Naming two causes
+        # the query did not look for is the same class of error as naming a rate nobody measured, so
+        # the sentence states what IS known: joined, unmeasurable, and therefore a coverage gap.
+        return _bind(
+            f"For {driver} on {contract}, all {fig.n(joined)} recorded firings were joined to the "
+            f"price tape and none of them could be measured [N{idx}]. That is a coverage gap, not a "
+            f"zero move.")
+    if gate == PO_SUP_ALL_PENDING:
+        tail = f" the earliest closes {pend_from}." if pend_from else "."
+        return _bind(
+            f"For {driver} on {contract}, all {fig.n(n_pending)} recorded firings still have an open "
+            f"{horizon}-day horizon as of {asof} [N{idx}];{tail} No forward move has closed yet, so "
+            f"there is nothing measured to state.")
+    if gate == PO_SUP_TOO_THIN:
+        return _bind(
+            f"For {driver} on {contract}, {fig.n(n_closed)} of the {fig.n(joined)} recorded firings "
+            f"have a closed {horizon}-day horizon{win}; {fig.n(n_pending)} are still open [N{idx}]. "
+            f"That is too few measured outcomes to state a distribution over, so the count and the "
+            f"window are the whole of what I can say.")
+    if gate == PO_SUP_OVERLAP:
+        n_ind = _as_int(signal.get("n_independent"))
+        return _bind(
+            f"For {driver} on {contract}, the {fig.n(n_closed)} closed {horizon}-day outcomes stand on "
+            f"only {fig.n(n_ind)} non-overlapping window{'' if n_ind == 1 else 's'} [N{idx}], so they "
+            f"re-measure the same stretch of tape rather than standing as separate observations, and I "
+            f"am not stating a distribution over them.")
+    if gate == PO_SUP_PENDING_HEAVY:
+        return _bind(
+            f"For {driver} on {contract}, {fig.n(n_pending)} of the {fig.n(joined)} recorded firings "
+            f"still have an open {horizon}-day horizon and only {fig.n(n_closed)} have closed [N{idx}]. "
+            f"A distribution over the closed ones would describe the oldest firings only, so I am not "
+            f"stating one.")
+    if gate:                                  # an unrecognised slug suppresses and says so plainly
+        return _bind(f"For {driver} on {contract}, the {horizon}-day outcome distribution is "
+                     f"suppressed ({gate}); the recorded counts stand [N{idx}].")
+
+    # -- the STATEMENT branch ---------------------------------------------------------------------
+    basis_clause = ("Each move is measured on the cash reference itself, which has no delivery month"
+                    if signal.get("basis") == OC.BASIS_CASH else
+                    "Each move is measured on the single delivery month that still printed five "
+                    "calendar days past that firing's own horizon, so no roll splice is priced into it")
+    line = (f"For {driver} on {contract}, across the {fig.n(n_closed)} recorded firings whose "
+            f"{horizon}-day horizon had closed by {asof}{win}, the settle moved a median "
+            f"{fig.pct(signal.get('median'))}% [N{idx}]; the low-decile to high-decile spread ran "
+            f"{fig.pct(signal.get('p10'))}% to {fig.pct(signal.get('p90'))}%, and "
+            f"{fig.n(signal.get('n_up'))} of them closed higher. Those firings stand on "
+            f"{fig.n(signal.get('n_independent'))} non-overlapping {horizon}-day windows. "
+            f"{basis_clause}.")
+    if _as_int(n_pending) > 0:
+        tail = f" (the earliest closes {pend_from})" if pend_from else ""
+        line += (f" A further {fig.n(n_pending)} recorded firings have a {horizon}-day horizon that "
+                 f"has not closed yet{tail}.")
+    return _bind(line + " This is what price did after those firings; it is neither a firing rate nor "
+                        "a statement about the next one.")
+
+
+# -- outcome-question detection (the pattern_records_scope idiom: detect ONCE, fail CLOSED) ---------
+# Requires an OUTCOME phrase on top of everything pattern_records_scope requires. The persistence
+# detector is deliberately NOT reused as a sufficient condition: "how many times has it fired" is a
+# question about the ledger and must keep getting the ledger's answer, not a price distribution.
+_OUTCOME_INTENT = re.compile(
+    r"what (?:did|has|does) .{0,30}\bprices?\b"
+    r"|prices? (?:did|do|does|has done|moved|move|reacted|behaved)\b"
+    r"|\bforward (?:move|return|price)\b"
+    r"|\b(?:after|following) (?:it|they|these|those|the pair)? ?(?:fired|fires|firing)\b"
+    r"|\bwhat (?:happened|follows|followed)\b.{0,40}\b(?:fired|firing|firings)\b"
+    r"|\bwhat (?:usually |typically )?(?:happens|follows)\b"
+    r"|\boutcome[sd]?\b", re.I)
+# The horizon tokens, longest-first so 'two-month' never matches the bare 'month' arm. A YEAR token
+# resolves to a horizon this axis does not serve, ON PURPOSE: it must reach the AM-1 decline render
+# rather than be silently rounded down to the quarter.
+_HORIZON_TOKENS: tuple[tuple, ...] = (
+    (re.compile(r"\b(?:year|twelve months|12 months|annual|12[- ]month)\b", re.I), 365),
+    (re.compile(r"\b(?:quarter|90[- ]days?|three months|3 months)\b", re.I), 90),
+    (re.compile(r"\b(?:two months|2 months|60[- ]days?|two[- ]month)\b", re.I), 60),
+    (re.compile(r"\b(?:month|30[- ]days?|four weeks)\b", re.I), 30),
+)
+
+
+def pattern_outcome_horizon(question: str) -> int:
+    """The horizon a question asks for, defaulting to the SHORTEST member of the family.
+
+    The default is named in every rendered sentence ('whose 30-day horizon had closed'), so a reader
+    is never left to assume which window a distribution covers -- which is the only thing that makes a
+    default acceptable here at all."""
+    for rx, days in _HORIZON_TOKENS:
+        if rx.search(question or ""):
+            return days
+    return PO_HORIZONS[0]
+
+
+def pattern_outcome_scope(question: str, *, contracts: Optional[list] = None) -> Optional[dict]:
+    """Detect an OUTCOME question about a (driver, contract) pair -> the scope dict, or None.
+
+    Fail-CLOSED: an outcome phrase AND a resolvable driver AND a contract must all be present. It is
+    NOT a sub-case of `pattern_records_scope` -- "how many times has it fired" is a question about the
+    ledger and must keep getting the ledger's answer -- so the persistence phrase is not required and
+    the outcome phrase is. Both detectors resolve the pair through `_pr_pair`, so they can never
+    disagree about WHICH pair a question is about, only about which question it is.
+
+    The returned scope carries `horizon_days`, which may be a horizon this axis does not serve (a
+    year) -- that is deliberate, so the refusal is rendered from the same path as every other answer
+    instead of being swallowed by the detector."""
+    q = question or ""
+    if not _OUTCOME_INTENT.search(q):
+        return None
+    pair = _pr_pair(q, contracts)
+    if not pair:
+        return None
+    contract, driver, kind = pair
+    return {"contract": contract, "driver_or_chain_id": driver, "kind": kind,
+            "provenance": PROV_BACKFILL_GRID if _BACKFILL_INTENT.search(q) else PROV_DAILY_SWEEP,
+            "horizon_days": pattern_outcome_horizon(q)}
+
+
+# -- the card + the row invariants (the two lints that keep the clamp compiled and the table honest) -
+PO_CARD_FIELDS: dict[str, object] = {
+    "shape": "wide",
+    "commodity_col": "leviathan_slug",
+    "period_col": "as_of_date",           # the reader-facing PERIOD is the FIRING date
+    "period_type": "date",
+    "date_col": "readable_date",          # the DATA axis the as-of guard compiles on
+    "knowledge_date_col": "readable_date",
+    "knowledge_semantics": "data_date",
+    "year_col": "as_of_year",
+    "contract_month_col": "contract_month_used",
+    "settle_kind_col": "settle_kind",
+    "currency_col": "currency",
+}
+
+
+def lint_pattern_outcome_card(card: Optional[dict] = None) -> list[str]:
+    """The `gold_pattern_outcomes` card is coherent with THIS module's constants, or the clamp is prose.
+
+    Identical in force to `outcomes.lint_outcome_card`, and the load-bearing pin is the same one:
+    `publication_lag_days == survive_days + tape_lag`. The guard compiles from exactly one column and
+    `_pub_lagged_asof` shifts the RHS literal, so those two numbers ARE the clamp once the card is
+    served; if `survive_days` moved and the card did not, the compiled predicate would admit rows whose
+    CONTRACT SELECTION used tape past the boundary.
+
+    ONE THING THE CARD CANNOT EXPRESS, stated here because a lint that pretends otherwise is worse than
+    none: the LEDGER's ingest axis (`ledger_written_at`). `TableSpec.knowledge_col()` yields a single
+    column, so a registry-compiled read of this table would guard the horizon close and NOT the date
+    the verdict was written -- and a backfill_grid verdict for a 2023 asof was written in 2026. The
+    engine leg above applies both axes by hand. Until a second axis exists, this table must stay
+    WHITELIST-fenced out of the agent tool enum, so the leg is the only path to it. The lint says so
+    rather than leaving it to a reviewer to notice."""
+    errs: list[str] = []
+    if card is None:
+        card, source = _po_read_card()
+        if source == "none":
+            return [f"pattern-outcome card: {PO_TABLE} is ABSENT from both the numbers registry and "
+                    f"the staged card path -- the card is where the PIT clamp compiles; without it a "
+                    f"guard would fall on whatever column the schema implies, and with as_of_date that "
+                    f"is the WHOLE forward move of a firing that happened yesterday"]
+    if not card:
+        return [f"pattern-outcome card: {PO_TABLE} is EMPTY"]
+    for field, want in sorted(PO_CARD_FIELDS.items()):
+        got = card.get(field)
+        if got != want:
+            errs.append(f"pattern-outcome card: {field} is {got!r}, expected {want!r}")
+    want_lag = int(_oc().OUTCOME_PUBLICATION_LAG_DAYS)
+    if card.get("publication_lag_days") != want_lag:
+        errs.append(
+            f"pattern-outcome card: publication_lag_days {card.get('publication_lag_days')!r} != "
+            f"{want_lag} (outcomes.OUTCOME_SURVIVE_DAYS + the tape lag) -- the survival margin is HALF "
+            f"the PIT boundary and the card is the only place it compiles into SQL")
+    parts = list(card.get("partitions") or []) or list(card.get("partition_cols") or [])
+    if tuple(parts) != PO_PARTITIONS:
+        errs.append(f"pattern-outcome card: partitions {parts} != {list(PO_PARTITIONS)} (registered "
+                    f"partitions, projection FORBIDDEN -- the S3 LIST-storm class)")
+    if card.get("levels_only"):
+        errs.append("pattern-outcome card: levels_only must be false -- every metric on this table IS "
+                    "a cross-date delta, computed on ONE contract so no splice exists to fence")
+    metrics = set(card.get("metrics") or {})
+    for m in ("move_pct", "move_abs"):
+        if m not in metrics:
+            errs.append(f"pattern-outcome card: metric {m!r} is not declared")
+    for m in sorted(metrics):
+        if st.is_banned_name(m):
+            errs.append(f"pattern-outcome card: metric {m!r} matches the forward-looking ban "
+                        f"(fit|trend|forecast|project|extrapolat|predict) -- this axis is descriptive "
+                        f"history and nothing else")
+    declared = set(po_columns()) | set(PO_PARTITIONS)
+    for field in ("commodity_col", "period_col", "date_col", "knowledge_date_col", "year_col",
+                  "contract_month_col", "settle_kind_col", "currency_col"):
+        if card.get(field) and card[field] not in declared:
+            errs.append(f"pattern-outcome card: {field}={card[field]!r} is not a column the builder "
+                        f"writes")
+    return errs
+
+
+def _po_read_card() -> tuple[Optional[dict], str]:
+    """`(card, source)` where source is 'served' | 'staged' | 'none'. The SERVED registry wins the
+    moment the card is pasted into it, so nothing has to be un-wired at that point."""
+    try:
+        import yaml
+
+        from leviathan.graphrag import extract as ex
+        served = ex._CFG / "numbers" / "tables.yaml"
+        if served.exists():
+            doc = yaml.safe_load(served.read_text(encoding="utf-8")) or {}
+            got = (doc.get("tables") or {}).get(PO_TABLE)
+            if got:
+                return got, "served"
+        staged = ex._CFG / "numbers" / "cards" / f"{PO_TABLE}.yaml"
+        if staged.exists():
+            doc = yaml.safe_load(staged.read_text(encoding="utf-8")) or {}
+            got = (doc.get("tables") or {}).get(PO_TABLE)
+            if got:
+                return got, "staged"
+    except Exception:  # noqa: BLE001 -- an unreadable config is a lint error, not a crash
+        return None, "none"
+    return None, "none"
+
+
+def po_reconcile(rows: Sequence[dict]) -> dict:
+    """The build census, per (pair, horizon), with the identity acceptance leg (ii) asks for.
+
+    The plan states it as `n_pending + n_closed == n_firings`. That is true only where nothing
+    declined, and declines are structural here (a firing before the contract's coverage floor, a
+    horizon no single delivery month survives), so the identity is carried with its THIRD TERM NAMED:
+    `n_closed + n_pending + n_declined == n_firings`. Dropping the declined term instead would make
+    the check pass by shrinking the denominator -- which is the failure the check exists to catch."""
+    per: dict[tuple, dict] = {}
+    for r in rows or []:
+        key = tuple(str(r.get(c) or "") for c in PO_KEY_COLUMNS[:4]) + (_as_int(r.get("horizon_days")),)
+        cell = per.setdefault(key, {"n_firings": 0, "n_closed": 0, "n_pending": 0, "n_declined": 0,
+                                    "n_unknown": 0})
+        cell["n_firings"] += 1
+        status = str(r.get("status") or "")
+        if status == "closed":
+            cell["n_closed"] += 1
+        elif status == "pending":
+            cell["n_pending"] += 1
+        elif status.startswith("declined_"):
+            cell["n_declined"] += 1
+        else:
+            cell["n_unknown"] += 1
+    return {"pairs": len(per), "per_pair": per,
+            "n_firings": sum(c["n_firings"] for c in per.values()),
+            "n_closed": sum(c["n_closed"] for c in per.values()),
+            "n_pending": sum(c["n_pending"] for c in per.values()),
+            "n_declined": sum(c["n_declined"] for c in per.values()),
+            "n_unknown": sum(c["n_unknown"] for c in per.values())}
+
+
+def lint_pattern_outcome_rows(rows: Sequence[dict]) -> list[str]:
+    """The write-time invariants of `gold_pattern_outcomes`. The builder runs this over its own output
+    and a publish refuses on any violation; a test runs it over fixtures.
+
+    It is the join's own row lint (`outcomes.lint_outcome_row_invariants` -- a move is never readable
+    before its horizon closes; a pending row carries no measurement; a survivor-basis row names its
+    contract) PLUS the four things only this table can get wrong: a key that does not trace back to a
+    ledger verdict, an anchor that is not the firing date, a horizon outside the family, and a row
+    built from a FENCED (leaked-as-of) verdict."""
+    OC = _oc()
+    errs: list[str] = list(OC.lint_outcome_row_invariants(rows))
+    seen: set[tuple] = set()
+    for i, r in enumerate(rows or []):
+        missing = [c for c in PO_KEY_COLUMNS if not str(r.get(c) or "").strip()]
+        if missing:
+            errs.append(f"row {i}: missing ledger key column(s) {missing} -- an outcome that cannot be "
+                        f"traced back to the verdict it measures is not a ledger outcome")
+            continue
+        if not str(r.get("ledger_written_at") or "").strip():
+            errs.append(f"row {i}: no ledger_written_at -- the verdict's INGEST axis is the second PIT "
+                        f"guard on this table (a 2023-asof backfill verdict was written in 2026)")
+        horizon = _as_int(r.get("horizon_days"))
+        if horizon not in PO_HORIZONS:
+            errs.append(f"row {i}: horizon_days {horizon} is outside the family {list(PO_HORIZONS)}")
+        if pr_read_fenced(str(r.get("record_kind")), str(r.get("provenance"))):
+            errs.append(f"row {i}: built from a FENCED (record_kind, provenance) pair -- those verdicts "
+                        f"were replayed against a synthesized as-of axis and are not citable history")
+        want_key = po_anchor_key(r.get("record_kind"), r.get("contract"), r.get("driver_or_chain_id"),
+                                 r.get("provenance"), r.get("as_of_date"))
+        if str(r.get("event_key") or "") != want_key:
+            errs.append(f"row {i}: event_key {r.get('event_key')!r} != {want_key!r}")
+        if str(r.get("event_date") or "")[:10] != str(r.get("as_of_date") or "")[:10]:
+            errs.append(f"row {i}: event_date {r.get('event_date')!r} != as_of_date "
+                        f"{r.get('as_of_date')!r} -- the anchor of a pattern outcome IS the firing")
+        if not po_resolve_slug(r.get("leviathan_slug")):
+            errs.append(f"row {i}: leviathan_slug {r.get('leviathan_slug')!r} is not a mapped price "
+                        f"slug -- unresolvable contracts are SKIPPED and counted, never written")
+        key = (want_key, horizon)
+        if key in seen:
+            errs.append(f"row {i}: duplicate (ledger key, horizon) {key} -- the grain is one row per "
+                        f"firing per horizon")
+        seen.add(key)
+    census = po_reconcile(rows)
+    if census["n_unknown"]:
+        errs.append(f"{census['n_unknown']} row(s) carry a status outside "
+                    f"closed|pending|declined_<reason>")
+    for key, cell in sorted(census["per_pair"].items()):
+        got = cell["n_closed"] + cell["n_pending"] + cell["n_declined"]
+        if got != cell["n_firings"]:
+            errs.append(f"{key}: closed({cell['n_closed']}) + pending({cell['n_pending']}) + "
+                        f"declined({cell['n_declined']}) = {got} != {cell['n_firings']} firings")
+    return errs
+
+
+# The reader-facing [N]-rendering directive for the OUTCOME line, and the numbers-agent conventions
+# bullet for the outcome table. BOTH ARE DECLARED AND NOT YET WIRED, deliberately: their edit sites
+# (answer.py `_system`, agent.py `system_prompt`, and the leg-append site at the pattern-records
+# branch) are files the in-flight wave owns, and the plan's own sequencing rule is that no J-item is
+# authored against a file another item is editing (item 95a). Wiring them is a one-commit change after
+# the wave's confirmation run: append these two strings beside their pattern-records twins under the
+# same flag, and append `pattern_outcome_legs` beside `pattern_records_legs`. Until then the outcome
+# surface is engine-testable and reader-invisible, which is the omit-when-off property the flag parity
+# smoke depends on.
+OUTCOME_HISTORY_ADDENDUM = (
+    "\nRECORDED OUTCOMES. When a 'RECORDED OUTCOMES' [N] row is injected, it is a DESCRIPTIVE record of "
+    "what price did over a fixed forward window after past firings of one (driver, contract) pair -- "
+    "measured, not modelled. State the figures and the dates EXACTLY as the [N] row prints them, "
+    "including the horizon, the number of firings the distribution covers and the number whose horizon "
+    "has NOT closed yet; never drop the pending count, because a distribution over what has closed "
+    "describes the OLDEST firings only. If the injected line states no distribution -- because too few "
+    "horizons have closed, because the closed ones re-measure the same stretch of tape, or because the "
+    "pair could not be measured against the price tape at all -- carry that clause through verbatim and "
+    "do NOT compute a central tendency yourself. NEVER restate an outcome distribution as a "
+    "probability, an expectation, or a claim about what will happen after the next firing: it is a "
+    "record of what happened, and the reader draws any conclusion.\n")
+
+PO_AGENT_CONVENTIONS_BULLET = (
+    "- gold_pattern_outcomes records what PRICE DID after each recorded firing in gold_pattern_records: "
+    "one row per (record_kind, contract, driver_or_chain_id, as_of_date, horizon_days) for the 30 / 60 "
+    "/ 90-day horizons, measured on ONE delivery month per firing (the nearest expiry that still "
+    "printed five calendar days past the horizon close), so no roll splice is priced into the move. "
+    "`status` "
+    "is the whole point-in-time story: 'closed' = measured; 'pending' = that horizon has not closed yet "
+    "at this as-of and the row carries NO move, only the date it closes; 'declined_<reason>' = it could "
+    "not be measured. Report closed and pending counts TOGETHER -- dropping pending firings biases "
+    "every summary toward the oldest ones. There is no year horizon on this table and there will not "
+    "be one: no contract prints that long past an anchor. Descriptive history only -- no rate, no "
+    "expectation, no forward statement.\n")

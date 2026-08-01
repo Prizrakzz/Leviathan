@@ -43,6 +43,21 @@ from leviathan.silver import futures_eod_contracts as FC
 # version must not compare it against another. Never reuse a version for a changed rule.
 ROLL_RULE_VERSION = "front_month_v2"
 
+# OUTCOMES_JOIN J1.b -- the SECOND, SEPARATELY VERSIONED selection rule (survival-selected single
+# contract, plan Option D / D-OJ-1). It is NOT front_month under another name: measured agreement with
+# the front chain is 25.5-31.7% of anchors, so reusing ROLL_RULE_VERSION would make two DIFFERENT
+# selections indistinguishable in provenance (plan item 32). It lives HERE because it reuses the D8
+# eligibility predicate (_month_start / _cycle_eligible) verbatim, and a second copy of that predicate
+# is exactly the F-L drift this module exists to prevent.
+OUTCOME_CONTRACT_RULE_VERSION = "survivor_nearest_v1"
+
+# The survival test's margin, in CALENDAR days past the horizon close. It is part of the PIT BOUNDARY,
+# not only of the selection (plan item 46): a contract chosen by asking "does it still print five
+# sessions past the endpoint?" was chosen with tape the asof may not have. Anything that clamps an
+# outcome reads this constant -- the numbers card's publication_lag_days is lint-bound to it + the
+# tape's own 1-day lag (leviathan.graphrag.numbers.outcomes.lint_outcome_card).
+OUTCOME_SURVIVE_DAYS = 5
+
 # The four methods. "none" is not an absence of a rule; it is the ASSERTION that the question does
 # not apply (cash references), which is why it is a first-class value rather than a missing key.
 METHOD_OPEN_INTEREST = "open_interest"
@@ -118,6 +133,15 @@ FRONT_MONTH_COLUMNS: list[str] = [
     "leviathan_slug", "trade_date", "contract_month", "raw_symbol", "settle", "close",
     "volume", "open_interest", "unit", "currency", "settle_kind", "source",
     "roll_method", "roll_rule_version",
+]
+
+# What outcome_contract returns per ANCHOR. `last_print_date` and `horizon_end` ride on the row because
+# the survival test is the whole rule: a reader (or the PIT clamp) that cannot see which contract-life
+# fact the selection turned on cannot audit it.
+OUTCOME_CONTRACT_COLUMNS: list[str] = [
+    "leviathan_slug", "trade_date", "contract_month", "raw_symbol", "settle",
+    "unit", "currency", "settle_kind", "source",
+    "horizon_end", "survive_days", "last_print_date", "outcome_rule_version",
 ]
 
 
@@ -320,6 +344,180 @@ def legacy_lane_front(df: pd.DataFrame) -> pd.DataFrame:
         ["leviathan_slug", "trade_date"], kind="mergesort").reset_index(drop=True)
 
 
+def contract_last_print(df: pd.DataFrame) -> pd.DataFrame:
+    """``max(trade_date)`` per ``(leviathan_slug, contract_month)`` -- THE one derived input Option D
+    needs, and the reason it needs one: ``expiry_date`` is NULL on all 455,421 tape rows (author-
+    verified), so contract LIFE is inferable and nothing else.
+
+    Returns ``[leviathan_slug, contract_month, last_print_date]`` (datetimes), one row per contract.
+    Cash-index rows (NULL ``contract_month``) carry no delivery-month axis and are dropped -- Option E
+    routes those slugs around the contract path entirely."""
+    cols = ["leviathan_slug", "trade_date", "contract_month"]
+    out_cols = ["leviathan_slug", "contract_month", "last_print_date"]
+    if df is None or len(df) == 0:
+        return pd.DataFrame(columns=out_cols)
+    missing = [c for c in cols if c not in df.columns]
+    if missing:
+        raise ValueError(f"contract_last_print: frame is missing {missing}")
+    work = df[cols].copy()
+    work["trade_date"] = pd.to_datetime(work["trade_date"], errors="coerce")
+    work["contract_month"] = work["contract_month"].astype("string")
+    work = work[work["trade_date"].notna() & work["contract_month"].notna()]
+    if work.empty:
+        return pd.DataFrame(columns=out_cols)
+    agg = (work.groupby(["leviathan_slug", "contract_month"], as_index=False)["trade_date"].max()
+           .rename(columns={"trade_date": "last_print_date"}))
+    return agg.sort_values(["leviathan_slug", "contract_month"], kind="mergesort").reset_index(drop=True)
+
+
+def _resolve_horizon_end(work: pd.DataFrame, horizon_end) -> pd.Series:
+    """Per-anchor nominal horizon close, as datetimes. Accepts a SCALAR (one close for the whole call)
+    or a mapping keyed by the anchor date ``'YYYY-MM-DD'`` or by ``(slug, 'YYYY-MM-DD')``.
+
+    FAIL CLOSED: an anchor with no entry RAISES. Silently dropping it would shrink the anchor set
+    invisibly, and silently defaulting it would select a contract against the wrong horizon."""
+    if isinstance(horizon_end, dict):
+        keys_slug = list(zip(work["leviathan_slug"].astype("string"),
+                             work["trade_date"].dt.strftime("%Y-%m-%d")))
+        vals = []
+        for slug, day in keys_slug:
+            if (slug, day) in horizon_end:
+                vals.append(horizon_end[(slug, day)])
+            elif day in horizon_end:
+                vals.append(horizon_end[day])
+            else:
+                raise ValueError(
+                    f"outcome_contract: no horizon_end for anchor ({slug!r}, {day}) -- the survival "
+                    f"test IS the rule, so an anchor with no horizon close cannot be selected for"
+                )
+        return pd.to_datetime(pd.Series(vals, index=work.index), errors="coerce")
+    return pd.Series(pd.to_datetime(horizon_end), index=work.index)
+
+
+def outcome_contract(df: pd.DataFrame, *, horizon_end, survive_days: int = OUTCOME_SURVIVE_DAYS,
+                     last_print: pd.DataFrame | None = None,
+                     rule_version: str = OUTCOME_CONTRACT_RULE_VERSION) -> pd.DataFrame:
+    """OUTCOMES_JOIN J1 Option D -- pick the NEAREST ELIGIBLE expiry that still prints ``survive_days``
+    past the horizon close, per ``(leviathan_slug, trade_date)`` anchor. ONE contract, TWO endpoints,
+    so the splice is structurally zero rather than merely bounded.
+
+    ``df`` carries the silver rows AT THE ANCHOR SESSIONS (one row per candidate delivery month per
+    anchor). ``last_print`` is :func:`contract_last_print` over the FULL tape and is MANDATORY: deriving
+    it from ``df`` would ask the anchor session whether a contract survives the horizon, which it can
+    never answer, and the failure would look like "no contract qualified" rather than like a bug.
+
+    ``horizon_end`` is the NOMINAL close ``t0 + H`` (calendar), never the realized endpoint. That is
+    deliberate and it is the conservative direction: the realized ``t1`` is the last session at or
+    before ``t0 + H`` (J1.c), so ``max(trade_date) >= horizon_end + survive_days`` IMPLIES the plan's
+    ``>= t1 + survive_days`` -- and it breaks the circularity of choosing the contract from an endpoint
+    that can only be found ON that contract. The same nominal term is what the PIT clamp compiles
+    (``E + H + survive_days``, plan item 46), so selection and boundary read the SAME knob.
+
+    THE THREE FILTERS, each a measured hazard:
+      * **price fence** -- ``settle IS NOT NULL AND settle > 0`` at the anchor (10,200 unusable tape
+        rows: 9,983 NULL + 217 exact zeros on high-volume front contracts; a zero denominator
+        fabricates a -100% move).
+      * **D8 eligibility** -- the contract month is not already in delivery, and for a delivery-cycle
+        slug it is a LISTED month. Shared with ``front_month`` through ``_month_start`` /
+        ``_cycle_eligible``; never re-stated.
+      * **survival** -- ``last_print_date >= horizon_end + survive_days``. A contract with NO
+        ``last_print`` entry is DROPPED (an unknown contract life is not a survival).
+
+    Cash-index slugs (``METHOD_NONE``) are dropped exactly as ``front_month`` drops them: they have no
+    delivery-month axis, and Option E (a straight self-join on ``(slug, trade_date)``) is their path.
+
+    Ties break on the NEAREST delivery month then the lexical month string, so two runs over the same
+    rows always name the same contract. Returns :data:`OUTCOME_CONTRACT_COLUMNS`, one row per anchor
+    that had a qualifying contract; an anchor with none is simply ABSENT (its caller renders the
+    decline -- this function never invents a fallback selection)."""
+    if rule_version != OUTCOME_CONTRACT_RULE_VERSION:
+        raise ValueError(
+            f"requested outcome rule_version {rule_version!r} != this module's "
+            f"{OUTCOME_CONTRACT_RULE_VERSION!r} -- there is exactly one implementation; a caller "
+            f"pinning an old version must pin the MODULE, not ask this one to behave differently"
+        )
+    if isinstance(survive_days, bool) or not isinstance(survive_days, int) or survive_days < 0:
+        raise ValueError(f"survive_days must be a non-negative int, got {survive_days!r}")
+    cols = ["leviathan_slug", "trade_date", "contract_month", "settle"]
+    if df is None or len(df) == 0:
+        return pd.DataFrame(columns=OUTCOME_CONTRACT_COLUMNS)
+    missing = [c for c in cols if c not in df.columns]
+    if missing:
+        raise ValueError(f"outcome_contract: frame is missing {missing}")
+    if last_print is None:
+        raise ValueError(
+            "outcome_contract: last_print is REQUIRED -- pass contract_last_print(<full tape>). The "
+            "survival test is the rule; deriving contract life from the anchor frame would silently "
+            "select the nearest ELIGIBLE month instead (a different, unnamed rule)"
+        )
+
+    work = df.copy()
+    for opt in ("raw_symbol", "unit", "currency", "settle_kind", "source"):
+        if opt not in work.columns:
+            work[opt] = pd.NA
+    work["trade_date"] = pd.to_datetime(work["trade_date"], errors="coerce")
+    work = work[work["trade_date"].notna()]
+    work["contract_month"] = work["contract_month"].astype("string")
+    work["_month"] = _month_start(work["contract_month"])
+    work = work[work["_month"].notna()]
+    if work.empty:
+        return pd.DataFrame(columns=OUTCOME_CONTRACT_COLUMNS)
+
+    # Category guard, identical to front_month's: a cash reference has no delivery month to select.
+    work["_roll_method"] = work["leviathan_slug"].map(
+        {s: roll_method_for(s) for s in sorted(set(work["leviathan_slug"]))})
+    work = work[work["_roll_method"] != METHOD_NONE]
+    if work.empty:
+        return pd.DataFrame(columns=OUTCOME_CONTRACT_COLUMNS)
+
+    # THE PRICE FENCE -- both endpoints need a usable settle, and this is the t0 half.
+    settle = pd.to_numeric(work["settle"], errors="coerce")
+    work = work[settle.notna() & (settle > 0)]
+    if work.empty:
+        return pd.DataFrame(columns=OUTCOME_CONTRACT_COLUMNS)
+
+    # D8 eligibility -- SHARED with front_month, never re-derived.
+    work["_trade_month"] = work["trade_date"].values.astype("datetime64[M]")
+    work = work[work["_month"] >= pd.to_datetime(work["_trade_month"])]
+    cyc = work["_roll_method"] == METHOD_DELIVERY_CYCLE
+    if cyc.any():
+        keep = pd.Series(True, index=work.index)
+        for slug in sorted(set(work.loc[cyc, "leviathan_slug"])):
+            sel = cyc & (work["leviathan_slug"] == slug)
+            keep.loc[sel[sel].index] = _cycle_eligible(slug, work.loc[sel, "_month"])
+        work = work[keep]
+    if work.empty:
+        return pd.DataFrame(columns=OUTCOME_CONTRACT_COLUMNS)
+
+    work["horizon_end"] = _resolve_horizon_end(work, horizon_end)
+    if work["horizon_end"].isna().any():
+        raise ValueError("outcome_contract: horizon_end did not parse as a date for every anchor")
+
+    lp = last_print.copy()
+    if len(lp):
+        lp["contract_month"] = lp["contract_month"].astype("string")
+        lp["last_print_date"] = pd.to_datetime(lp["last_print_date"], errors="coerce")
+    else:
+        lp = pd.DataFrame(columns=["leviathan_slug", "contract_month", "last_print_date"])
+    work = work.merge(lp, on=["leviathan_slug", "contract_month"], how="left")
+    # THE SURVIVAL TEST. An unknown contract life is NOT a survival (notna() below is the fail-closed
+    # half): the merge leaves NaT for a contract the tape never printed, and NaT >= x is False anyway,
+    # but stating it makes the direction unmistakable to the next reader.
+    need = work["horizon_end"] + pd.to_timedelta(int(survive_days), unit="D")
+    work = work[work["last_print_date"].notna() & (work["last_print_date"] >= need)]
+    if work.empty:
+        return pd.DataFrame(columns=OUTCOME_CONTRACT_COLUMNS)
+
+    work = work.sort_values(
+        ["leviathan_slug", "trade_date", "_month", "contract_month"],
+        ascending=[True, True, True, True], kind="mergesort")
+    out = work.drop_duplicates(subset=["leviathan_slug", "trade_date"], keep="first").copy()
+    out["survive_days"] = int(survive_days)
+    out["outcome_rule_version"] = OUTCOME_CONTRACT_RULE_VERSION
+    return out[OUTCOME_CONTRACT_COLUMNS].sort_values(
+        ["leviathan_slug", "trade_date"], kind="mergesort").reset_index(drop=True)
+
+
 def lint_roll_rule() -> list[str]:
     """Structural problems with the rule tables (pure; the config_check bind calls this).
 
@@ -389,6 +587,20 @@ def lint_roll_rule() -> list[str]:
             errs.append(f"{slug}: delivery cycle carries non-month value(s) {outside}")
     if not ROLL_RULE_VERSION or not isinstance(ROLL_RULE_VERSION, str):
         errs.append("ROLL_RULE_VERSION must be a non-empty string")
+
+    # OUTCOMES_JOIN J1.32: the survivor rule is a SECOND rule in this module and its provenance must be
+    # distinguishable from the front-month rule's. Measured agreement between the two selections is only
+    # 25.5-31.7% of anchors, so a shared version string would make two different answers look like one.
+    if not OUTCOME_CONTRACT_RULE_VERSION or not isinstance(OUTCOME_CONTRACT_RULE_VERSION, str):
+        errs.append("OUTCOME_CONTRACT_RULE_VERSION must be a non-empty string")
+    if OUTCOME_CONTRACT_RULE_VERSION == ROLL_RULE_VERSION:
+        errs.append(f"OUTCOME_CONTRACT_RULE_VERSION and ROLL_RULE_VERSION are both "
+                    f"{ROLL_RULE_VERSION!r} -- the survivor selection is NOT front_month (measured "
+                    f"agreement 25.5-31.7%); two rules, two version strings")
+    if (isinstance(OUTCOME_SURVIVE_DAYS, bool) or not isinstance(OUTCOME_SURVIVE_DAYS, int)
+            or OUTCOME_SURVIVE_DAYS < 1):
+        errs.append(f"OUTCOME_SURVIVE_DAYS must be an int >= 1, got {OUTCOME_SURVIVE_DAYS!r} -- it is "
+                    f"the survival MARGIN and it is half of the outcome PIT boundary")
     return errs
 
 

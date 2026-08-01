@@ -79,6 +79,8 @@ import pytest
 from leviathan.graphrag import answer, config_check, register
 from leviathan.graphrag.numbers import agent as agent_mod
 from leviathan.graphrag.numbers import cascade
+from leviathan.graphrag.numbers import outcomes
+from leviathan.graphrag.numbers import pattern_records
 
 MUST_FLAG = "MUST_FLAG"
 MUST_NOT_FLAG = "MUST_NOT_FLAG"
@@ -112,6 +114,28 @@ class Case(NamedTuple):
     expect: tuple
     note: str
 
+
+# J6 / OUTCOMES_JOIN D-OJ-18. The pairing line's pinned arguments, and the line itself rendered from
+# the LIVE renderer at import. Kept as a named constant so `test_every_j6_rendered_line_is_pinned` can
+# re-render and compare rather than restate: a corpus case that is a COPY of a render stops pinning the
+# render the day the render moves, which is the one thing this file is for.
+J6_LINE_ARGS = dict(event_date="2024-03-12", horizon_days=90, value=8.2431,
+                    contract_month="2024-07", coverage_start="2010-06-06")
+J6_LINE = cascade.cot_outcome_line(7, "corn_cbot", **J6_LINE_ARGS)
+
+# J5 / OUTCOMES_JOIN item 83. The SAME discipline, applied to the other conditional-performance
+# sentence this wave adds: a median, a decile spread and "N of them closed higher" over past firings of
+# one (driver, contract) pair. It carries no arrow and a citation handle, so on an OUTLOOK turn
+# `register._is_banned_sentence` returns False for it and it ships as a setup -- which is why the leg
+# now holds itself out of outlook turns entirely (D-OJ-17 option (a), `pattern_outcome_legs(outlook=)`)
+# and why the sentence is pinned HERE, to the live renderer, on the FENCED lane it does run on.
+J5_SCOPE = {"driver_or_chain_id": "export_pace", "contract": "corn_cbot"}
+J5_SIGNAL = {"horizon_days": 30, "outcome_suppressed": None, "basis": outcomes.BASIS_SURVIVOR,
+             "joined": 9, "n_closed": 8, "n_pending": 1, "median": 2.4, "p10": -3.1, "p90": 7.8,
+             "n_up": 5, "n_independent": 8, "first_closed_firing": "2024-01-03",
+             "last_closed_firing": "2025-02-11", "first_pending_close": "2026-08-20"}
+J5_LINE = pattern_records.pattern_outcome_answer(J5_SCOPE, (7, {}), dict(J5_SIGNAL),
+                                                 asof="2026-07-31")
 
 MIXED_SIGMA_NOTE = (
     "I-3 over-fire AND the run's one genuine catch: sigma value exempt (register.py:402-405 is "
@@ -392,6 +416,51 @@ CORPUS: tuple[Case, ...] = (
          "stretched all the same.", MUST_FLAG, FLOW, ("stretched",),
          "C2/D3 teeth 2026-08-01: the r3 render's own shape (rep_outlook_r3.md:413) -- an absence "
          "clause with a flow verdict bolted on"),
+
+    # -- J6 / D-OJ-17+18, THE COT OUTCOME PAIRING. MUST_NOT_FLAG half: the pairing as the engine
+    #    renders it, its narration addendum, and the honest desk sentence the two rows support. This
+    #    leg is the one that puts a POSITIONING observation and a PRICE MOVE in the same block, so it
+    #    is the one most likely to be edited into a performance claim later -- which is why the line
+    #    is pinned to the LIVE renderer (test_every_j6_rendered_line_is_pinned) and the addendum to the
+    #    LIVE object, not to copies of either. ---------------------------------------------------
+    Case(J6_LINE, MUST_NOT_FLAG, FLOW, (),
+         "J6/D-OJ-18, rendered verbatim by cascade.cot_outcome_line 2026-08-01: a level of record and "
+         "a move of record, joined by nothing -- and the per-slug coverage start stated on the line"),
+    Case(cascade.COT_OUTCOME_ADDENDUM, MUST_NOT_FLAG, FLOW, (),
+         "J6/D-OJ-18 acceptance bound, measured 2026-08-01: the pairing's narration addendum names no "
+         "flow idiom and refuses the causal reading the pairing invites, without naming one either"),
+    Case(J5_LINE, MUST_NOT_FLAG, FLOW, (),
+         "J5/item 83, rendered verbatim by pattern_records.pattern_outcome_answer 2026-08-01: the "
+         "OTHER conditional-performance sentence of this wave -- a median, a decile spread and a count "
+         "that closed higher, all past tense, with the pending count never dropped and the basis "
+         "stated. It is arrow-free and cited, which is exactly why the leg holds itself out of OUTLOOK "
+         "turns rather than relying on a phrasing rule (adversarial finding 9)"),
+    Case("Managed money net length was 118432 contracts on the 2024-03-12 report date [N1], and across "
+         "the 90 days that followed, the July delivery settle changed by 8.2431% [N7].",
+         MUST_NOT_FLAG, FLOW, (),
+         "J6/D-OJ-18, measured 2026-08-01: the honest two-record narration the leg exists to enable -- "
+         "two dated facts, each on its own handle, with no verb joining them"),
+
+    # -- J6 / D-OJ-17+18, THE TEETH. Each is the pairing rewritten forward, which is the edit this leg
+    #    makes tempting: it hands a draft a positioning level and a realized move in the same block, and
+    #    the step from "and then" to "and therefore" is one word. NOTE WHAT THESE DO AND DO NOT PROVE --
+    #    see test_the_performance_framing_is_not_caught_by_any_register_detector in
+    #    tests/unit/test_outcomes_serving_legs.py: the flow lexicon catches the POSITIONING idioms, and
+    #    it does NOT catch a bare conditional-performance claim. That is skeptic F13, and it is why J6's
+    #    real fences are structural (outlook-held-out, POSITIONING_TABLES membership, the unit
+    #    whitelist) rather than a word list. -----------------------------------------------------
+    Case("With managed money crowded long on the report date, the following quarter looks like the "
+         "last one.", MUST_FLAG, FLOW, ("crowded long",),
+         "J6 teeth 2026-08-01: the pairing turned into a setup -- the same idiom rep_outlook_r3.md:413 "
+         "produced with ZERO cot rows in the panel, now with two real rows beside it"),
+    Case("If funds unwind from here, the next 90-day window repeats that move.", MUST_FLAG, FLOW,
+         ("If funds unwind",),
+         "J6 teeth 2026-08-01: the conditional-unwind shape, which is what a realized forward move "
+         "beside a positioning level invites most directly"),
+    Case("POSITIONING AND PRICE: net length is crowded relative to the record, so the window ahead "
+         "should rhyme.", MUST_FLAG, FLOW, ("crowded",),
+         "J6 teeth 2026-08-01: the ADDENDUM itself, rewritten forward -- the exact edit this corpus "
+         "exists to refuse, in the J6 lane as well as the C1 one"),
 )
 
 LEVEL_CASES = tuple(c for c in CORPUS if c.gate == LEVEL)
@@ -730,6 +799,45 @@ def test_the_pinned_addendum_is_the_engines_own_object() -> None:
     pinned = [c for c in FLOW_CASES if c.text == cascade.POSITIONING_CONTEXT_ADDENDUM]
     assert len(pinned) == 1, "the R9 context-lane addendum is no longer pinned by this corpus"
     assert pinned[0].label == MUST_NOT_FLAG and pinned[0].expect == ()
+
+
+def test_every_j6_rendered_line_is_pinned() -> None:
+    """J6's rendered pairing is pinned to the LIVE renderer, the addendum discipline applied to the one
+    line that carries BOTH a positioning observation and a realized forward move. Any edit to
+    `cascade.cot_outcome_line` -- a joining verb, a direction word, a dropped coverage start -- fails
+    HERE, in the file that may not be edited to make a change pass, rather than in production."""
+    texts = {c.text for c in CORPUS}
+    assert cascade.cot_outcome_line(7, "corn_cbot", **J6_LINE_ARGS) in texts, (
+        "the J6 pairing line is no longer pinned by this corpus -- add the new render as a case (with "
+        "the measurement that justifies the new wording) rather than deleting the old one")
+    pinned = [c for c in FLOW_CASES if c.text == cascade.COT_OUTCOME_ADDENDUM]
+    assert len(pinned) == 1 and pinned[0].label == MUST_NOT_FLAG and pinned[0].expect == ()
+    # The line states its own coverage floor: item 89's "every J6 output states its own per-slug start
+    # date", because MGEX positioning runs from 2014 while its tape starts 2025 and a reader shown one
+    # number and no floor cannot tell which part of the record was measurable at all.
+    assert "record begins 2010-06-06" in J6_LINE
+
+
+def test_every_j5_rendered_statement_line_is_pinned() -> None:
+    """J5's statement branch is pinned to its LIVE renderer for the same reason J6's is: it is a CITED,
+    ARROW-FREE CONDITIONAL PERFORMANCE sentence, the one shape `register._is_banned_sentence` returns
+    False for under OUTLOOK. Until this pass the corpus pinned only `cascade.cot_outcome_line` and the
+    J6 addendum, so an edit to this sentence -- a joining verb, a hit-rate framing, a dropped pending
+    clause -- shipped unseen (adversarial finding 9)."""
+    texts = {c.text for c in CORPUS}
+    live = pattern_records.pattern_outcome_answer(J5_SCOPE, (7, {}), dict(J5_SIGNAL), asof="2026-07-31")
+    assert live in texts, (
+        "the J5 outcome STATEMENT line is no longer pinned by this corpus -- add the new render as a "
+        "case (with the measurement that justifies the new wording) rather than deleting the old one")
+    # the three properties the sentence may never lose: past tense with no joining verb, the pending
+    # count carried beside the closed one, and the basis stated (the survivor is the front contract in
+    # only 25.5-31.7% of anchors, so an unnamed basis is a scope mis-attribution).
+    assert "has not closed yet" in live and "neither a firing rate nor" in live
+    assert "five calendar days" in live         # NOT "five sessions": the constant is timedelta(days=5)
+    # and the OUTLOOK lane never reaches it at all -- the structural half of the same finding
+    legs, sig = pattern_records.pattern_outcome_legs(
+        {**J5_SCOPE, "kind": "pace"}, "2026-07-31", lambda sql: [], outlook=True)
+    assert legs == [] and sig["outcome_suppressed"] == pattern_records.PO_SUP_OUTLOOK_HELD
 
 
 def test_every_c2_decline_line_is_pinned() -> None:

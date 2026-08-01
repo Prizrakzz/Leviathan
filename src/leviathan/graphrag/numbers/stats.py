@@ -50,6 +50,10 @@ MIN_WINDOW_CHANGE_N = 2   # need both endpoints
 MIN_REVISION_N = 2        # need >=2 vintages to observe one revision
 MIN_EXTREMA_N = 1         # a single point trivially is its own min and max
 MIN_YOY_N = 2             # need the point `periods` back plus the latest
+MIN_QUANTILE_N = MIN_PERCENTILE_N   # OUTCOMES_JOIN AM-3: ONE floor family. A spread over a handful of
+#                                     firings fakes the same precision a rank over them does, so the
+#                                     outcome join's coverage floor IS this module's refusal floor --
+#                                     never a second, laxer constant declared next to the consumer.
 
 DIRECTIONS = ("up", "down")
 
@@ -224,6 +228,40 @@ def yoy_delta(series: Sequence, periods: int = 1) -> dict:
     pct = None if prior == 0.0 else 100.0 * delta / prior
     return {"stat": "yoy_delta", "declined": False, "value": delta, "n": n,
             "latest": latest, "prior": prior, "pct_change": pct, "periods": periods}
+
+
+def quantiles(series: Sequence, probs: Sequence = (0.5,)) -> dict:
+    """Linear-interpolated quantiles of `series` (order-independent). OUTCOMES_JOIN AM-3: the outcome
+    join's distributions are DESCRIPTIVE spreads over already-fetched, PIT-clamped rows, and every one
+    of them computes here rather than in a caller -- one calculator, one floor family.
+
+    REFUSES below MIN_QUANTILE_N, which is MIN_PERCENTILE_N by definition and not a second number: a
+    spread over a handful of firings fakes exactly the precision a rank over the same points fakes.
+
+    DELIBERATELY ABSENT FROM STAT_REGISTRY. That registry is the AGENT TOOL ENUM; this is an ENGINE
+    calculator on a deterministic scored path. New agent-callable stats are gated by their own doctrine
+    review (AM-3), so widening the enum is never a side effect of adding an engine function. `probs` are
+    fractions in [0, 1]; `value` carries the FIRST requested probability so the standard
+    {"value": ...} contract still holds, and the full map rides in "quantiles"."""
+    vals = _floats(series)
+    n = len(vals)
+    ps = [float(p) for p in probs]
+    if not ps:
+        return _decline("quantiles", n, "no probabilities requested", probs=[])
+    bad = [p for p in ps if not 0.0 <= p <= 1.0]
+    if bad:
+        return _decline("quantiles", n, f"probabilities must be in [0, 1], got {bad}", probs=ps)
+    if n < MIN_QUANTILE_N:
+        return _decline("quantiles", n, f"need >={MIN_QUANTILE_N} points, got {n}", probs=ps)
+    ordered = sorted(vals)
+    out: dict[str, float] = {}
+    for p in ps:
+        pos = p * (n - 1)
+        lo = int(math.floor(pos))
+        hi = int(math.ceil(pos))
+        out[f"{p:g}"] = ordered[lo] if lo == hi else ordered[lo] + (ordered[hi] - ordered[lo]) * (pos - lo)
+    return {"stat": "quantiles", "declined": False, "value": out[f"{ps[0]:g}"], "n": n,
+            "quantiles": out, "probs": ps}
 
 
 # ---------------------------------------------------------------------------------------------------

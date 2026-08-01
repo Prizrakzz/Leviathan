@@ -27,7 +27,15 @@ _DDL = _REPO / "sql" / "athena" / "ddl"
 # it carries fundamentals cascade legitimately consumes; the avg_farm_price price-leg is a section-6 follow-on,
 # fenced at the metric level, not here.
 PRICE_TABLES = ("silver_pink_sheet",)
-POSITIONING_TABLES = ("silver_cot",)
+# OUTCOMES_JOIN D-OJ-18 (2026-08-01): `gold_cot_outcomes` -- the J6 COT-keyed outcome card -- is fenced
+# from the day the lane exists, not from the day its rows do. This edit is ATOMIC with the same id
+# joining `cascade.POSITIONING_TABLES`: the drift pin in `_check_positioning_lane` fails the build if
+# only one of the two moves, which is deliberate, and is the cheapest proof the fence grips the new
+# table. Fencing it is the point of giving it a separate id at all -- R7b bars a "% move over N days"
+# unit from the `silver_cot` card, and the tempting conclusion (serve it from a table outside the set)
+# would satisfy R9's letter while vacating the context-shape rule, the never-a-chain-hop ban and the
+# never-a-relative-value-leg ban together (skeptic F11).
+POSITIONING_TABLES = ("silver_cot", "gold_cot_outcomes")
 # The curated avg_farm_price coverage set. PRICE_OBSERVABILITY A3 re-whitelist (2026-07-22): after the
 # silver_wasde rebuild + promote (canonical CERTIFIED, 373 releases 1995+, pg parity PASS) the probes resolved
 # the provisional set to the 10 commodities with a live, unit-clean farm/market price. R1 BINDS -- the metric's
@@ -1213,21 +1221,86 @@ def _check_positioning_lane() -> list[str]:
     return errs
 
 
+# OUTCOMES_JOIN D-OJ-18. The J6 card id, and the ONE unit family admitted on it. Percent only, and the
+# omission is deliberate: `move_abs` is a change in the exchange's own price units, and a level in price
+# units rendered beside a positioning row is a price quote on the positioning lane -- which is what R4
+# fences `silver_pink_sheet` for. The percent move is scale-free and reads as a record; the absolute one
+# reads as a quote. If the absolute move is ever wanted here it arrives with its own decision.
+_COT_OUTCOME_TABLE = "gold_cot_outcomes"
+_COT_OUTCOME_UNITS = frozenset({"%"})
+
+
+def _raw_card_spec(table_id: str):
+    """The card as a `TableSpec`, read from the RAW registry file (or the staged card path), or None.
+
+    NOT `load_registry()`. That call drops every id in `registry.WHITELIST_ABSENT_DEFAULT`, which is
+    where a table registered ahead of its producer lives -- so reading the lint's subject through it
+    would make the fence disarm the check that guards it (adversarial finding 14). The card's fields
+    are what compile into SQL whether or not the id is currently served, so the lint reads the file.
+    An unreadable/partial card yields None: this helper never turns a config problem into a crash."""
+    try:
+        from leviathan.graphrag.numbers.registry import TableSpec
+        served = _CFG / "numbers" / "tables.yaml"
+        raw = None
+        if served.exists():
+            doc = yaml.safe_load(served.read_text(encoding="utf-8")) or {}
+            raw = (doc.get("tables") or {}).get(table_id)
+        if raw is None:
+            staged = _CFG / "numbers" / "cards" / f"{table_id}.yaml"
+            if staged.exists():
+                doc = yaml.safe_load(staged.read_text(encoding="utf-8")) or {}
+                raw = (doc.get("tables") or {}).get(table_id)
+        if not raw:
+            return None
+        return TableSpec(id=table_id, **raw)
+    except Exception:  # noqa: BLE001 -- an unreadable card is a lint miss, never a build crash
+        return None
+
+
+def _check_cot_outcome_metrics(card, reg, st) -> list[str]:
+    """R7b as extended to the J6 card. Vacuous (and says nothing) until the card EXISTS -- read from the
+    raw registry file by `_raw_card_spec`, so the whitelist-absent fence cannot blind it."""
+    if card is None:
+        return []
+    errs: list[str] = []
+    for mname, m in (card.metrics or {}).items():
+        if reg.count_valuation_words(m.desc) or reg.count_flow_words(m.desc):
+            errs.append(f"R7 {_COT_OUTCOME_TABLE}.{mname}: metric desc carries a banned "
+                        f"valuation/flow word")
+        if st.is_banned_name(mname):
+            errs.append(f"R7 {_COT_OUTCOME_TABLE}.{mname}: metric name is forward-looking "
+                        f"(fit|trend|forecast|project|extrapolat|predict) -- an outcome table is the one "
+                        f"surface where a forecast-shaped column would look natural, and it is not")
+        if m.unit not in _COT_OUTCOME_UNITS:
+            errs.append(f"R7 {_COT_OUTCOME_TABLE}.{mname}: unit {m.unit!r} is not in the admitted set "
+                        f"{sorted(_COT_OUTCOME_UNITS)} -- the positioning lane serves the SCALE-FREE "
+                        f"move; a change in exchange price units is a quote, which R4 fences")
+    return errs
+
+
 def check_cot_register() -> list[str]:
     """PRICE_OBSERVABILITY W0.2 (the W4 gate) -- positioning-table fence. R9 (AMENDED by D1, see
     `_check_positioning_lane`): a positioning ref may enter cascade_map ONLY as the narrow past-tense
     context leg, and may never enter chain_map / complex_map / transmission_map. R7: silver_cot metric
     descs register-clean AND every metric limited to a dated level/z family (no forward-looking name).
     R10: the suggester's answerable-fundamentals catalog source (server._SUGGEST_METRICS) names no
-    positioning-table metric. R7/R10 go NON-VACUOUS once silver_cot is registered."""
+    positioning-table metric. R7/R10 go NON-VACUOUS once silver_cot is registered.
+
+    R7b-OUTCOMES (OUTCOMES_JOIN D-OJ-18): the J6 card `gold_cot_outcomes` carries a unit R7b's level/z
+    families cannot admit, and the whole reason it is a separate card is that R7b is right to refuse a
+    "% move over N days" on the silver_cot card. So the unit is admitted BY NAME, on THIS card only, and
+    the forward-looking-name ban still applies -- an admitted unit that was never written down is the
+    same fail-open in a different costume. Checked BEFORE the silver_cot early return, so it is not
+    silently skipped on a build where silver_cot is unregistered."""
+    from leviathan.graphrag import register as reg
     from leviathan.graphrag.numbers import stats as st
     from leviathan.graphrag.numbers.registry import load_registry
     errs: list[str] = _check_positioning_lane()
     tables = load_registry().tables
+    errs += _check_cot_outcome_metrics(_raw_card_spec(_COT_OUTCOME_TABLE), reg, st)
     cot = tables.get("silver_cot")
     if cot is None:
         return errs   # R7/R10 vacuous until W4 registers silver_cot
-    from leviathan.graphrag import register as reg
     # R7a: desc register-cleanliness (a metric desc must carry no valuation/flow word).
     for mname, m in cot.metrics.items():
         if reg.count_valuation_words(m.desc) or reg.count_flow_words(m.desc):
@@ -1726,6 +1799,11 @@ _ROLL_RULE_OWNER = "src/leviathan/silver/futures_roll.py"
 _ROLL_RULE_ALLOWED = frozenset({
     _ROLL_RULE_OWNER,
     "tests/unit/test_futures_roll.py",
+    # OUTCOMES_JOIN: the survivor rule's own test file. It PINS the fence (it asserts the token list
+    # covers the new rule) and it names the version constant, so it cannot help matching -- the same
+    # reason test_futures_roll.py is here. A test file is where a second implementation would be least
+    # useful and most visible; the owner-file scan below is what actually stops one.
+    "tests/unit/test_outcomes_join.py",
     "src/leviathan/graphrag/config_check.py",
 })
 # Tokens that only a second IMPLEMENTATION would carry (not a mere mention): a competing version
@@ -1740,6 +1818,15 @@ _ROLL_RULE_FORBIDDEN_TOKENS = (
     "def front_month(",
     "def _front_month(",
     "def front_month_inputs_present(",
+    # OUTCOMES_JOIN J1.b: the SURVIVOR rule is the module's second selection rule and gets the same
+    # fence. Item 31 notes this scan would NOT have tripped on a differently-named function, so
+    # co-location was a design choice and not a compliance one -- these three tokens make it both. The
+    # survival margin is listed because it is HALF THE PIT BOUNDARY (item 46): a second copy of the
+    # constant is a second clamp, and the one that drifts loses silently.
+    "OUTCOME_CONTRACT_RULE_VERSION =",
+    "OUTCOME_SURVIVE_DAYS =",
+    "def outcome_contract(",
+    "def contract_last_print(",
 )
 _ROLL_RULE_SCAN_DIRS = ("src", "jobs", "scripts", "tests")
 
@@ -1783,6 +1870,51 @@ def check_futures_roll() -> list[str]:
                     f"lives ONLY in {_ROLL_RULE_OWNER}; import it (skeptic F-L: three inline copies)"
                 )
     return errs
+
+
+def check_futures_outcomes() -> list[str]:
+    """OUTCOMES_JOIN D-OJ-13 -- the `gold_futures_outcomes` card IS the PIT clamp, linted as such
+    (AWS-free, pure; the check_futures_roll / check_pace_collapse bind idiom).
+
+    The plan's own doctrine (item 45) is that a leak must be UNREPRESENTABLE IN THE DATA STRUCTURE, and
+    in this codebase that structure is a `TableSpec`: `query._guard` compiles from EXACTLY ONE column
+    (`TableSpec.knowledge_col()`) and `_pub_lagged_asof` shifts the RHS literal. So the whole clamp is
+    two card fields plus one arithmetic identity, and this is where they are pinned:
+
+      * the guard column is the row's READABLE date, never `event_date`. With the column the
+        partitioning silently implies (`event_date`, default `data_date` semantics) the compiled guard
+        is `event_date <= asof - lag` -- and the ENTIRE forward move of an event ten days before the
+        asof is readable.
+      * `publication_lag_days == OUTCOME_SURVIVE_DAYS + 1`. `survive_days` is part of the BOUNDARY, not
+        only of the selection: Option D chooses the contract by asking whether it still prints five
+        sessions past the endpoint, so any asof in [t1+1, t1+5) would admit a row whose
+        `contract_month_used` -- and therefore px0, px1 and the whole move -- was chosen with tape the
+        reader does not have. Two knobs that are one knob, and this lint is what keeps them so.
+
+    It also fails if the card ever declares a forward-looking metric name: an outcome table is the one
+    surface where a `forecast_*` column would look natural."""
+    from leviathan.graphrag.numbers import outcomes as OC
+    return [f"futures_outcomes: {e}" for e in OC.lint_outcome_card()]
+
+
+def check_pattern_outcomes() -> list[str]:
+    """OUTCOMES_JOIN J5 -- the `gold_pattern_outcomes` card, bound into the build the same way
+    `check_futures_outcomes` binds its twin (adversarial finding 14: the lint existed and nothing ran it).
+
+    Same load-bearing pin, same reason: `publication_lag_days == OUTCOME_SURVIVE_DAYS + the tape lag`,
+    because the survival margin is half the PIT boundary and the card is the only place it compiles into
+    SQL. PLUS the one thing this table alone can get wrong -- it carries a SECOND PIT axis
+    (`ledger_written_at`) that `TableSpec.knowledge_col()` cannot express, which is why the id is
+    whitelist-fenced out of the agent tool enum and the engine leg applies both axes by hand.
+
+    Vacuous until a card exists at either path (`lint_pattern_outcome_card` returns the absence as its
+    own error only once there is something to lint), so a clone without the gitignored configs is not
+    red on a file it was never given."""
+    from leviathan.graphrag.numbers import pattern_records as PR
+    card, source = PR._po_read_card()
+    if source == "none":
+        return []
+    return [f"pattern_outcomes: {e}" for e in PR.lint_pattern_outcome_card(card)]
 
 
 def check_pace_collapse() -> list[str]:
@@ -1992,6 +2124,8 @@ def main() -> int:
                         ("futures_lite", check_futures_lite()),
                         ("futures_eod", check_futures_eod()),
                         ("futures_roll", check_futures_roll()),
+                        ("futures_outcomes", check_futures_outcomes()),
+                        ("pattern_outcomes", check_pattern_outcomes()),
                         ("pace_collapse", check_pace_collapse()),
                         ("question_shapes", check_question_shapes())):
         if errs:
