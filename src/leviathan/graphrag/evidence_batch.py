@@ -125,16 +125,99 @@ def _cached_hashes() -> set:
     return {p.stem for p in d.glob("*.jsonl")} if d.exists() else set()
 
 
-def _write_doc_cache(props_by_doc: dict) -> int:
+def _write_doc_cache(props_by_doc: dict, *, chunk_version: str | None = None,
+                     allow_rechunk: bool = False, manifest=None) -> int:
     """Write chunks/<hash>.jsonl once per doc, deduping props by text (collapses a doc chunked under several
-    nodes). Doc-keyed + unembedded — a future build reuses these instead of re-paying Haiku."""
-    n = 0
+    nodes). Doc-keyed + unembedded — a future build reuses these instead of re-paying Haiku.
+
+    G1a -- THE DOC-CACHE OVERWRITE GUARD. This is seam C3 and it is the highest-volume staler of the three,
+    because rebuild_slices re-derives EVERY slice from the whole cache (:396, :412): overwriting ONE document
+    silently re-rolls every driver slice that document feeds. On 2026-07-19T22:00Z, 614 objects were
+    rewritten here -- at least 352 of them over documents already in the cache -- and the next day's promote
+    moved 24,439 driver rows and 48 span endpoints with not one term changing and no run record anywhere.
+
+    The guard: refuse to overwrite a cached document whose props carry a DIFFERENT chunk_version than this
+    pass's, unless the caller passes --rechunk. A re-chunk is a legitimate act; a SILENT re-chunk is not.
+    Refusal is evaluated over the whole pass and raised BEFORE any object is written, so a refused pass
+    leaves the cache byte-identical.
+
+    F11 -- THE SAME-DAY HOLE, CLOSED. `chunk_version` is `<corpus_fingerprint>-<UTC date>`
+    (evidence.py:296-306), so TWO PASSES ON THE SAME UTC DAY carry the SAME vintage and the version
+    comparison above is silent even though prop ids, text and offsets all move -- and a retried `--retrieve`
+    on the day of a re-chunk is the likeliest real instance. The second leg therefore compares the prior TEXT
+    SET, which `_read_doc_cache` has already put in hand for free, and refuses when a same-vintage overwrite
+    would LOSE prior texts. Losing texts is the re-chunk signature; a pure ADDITION is a top-up (a doc
+    re-harvested under another node contributing more props) and stays silent, which is the behaviour
+    test_doc_cache_same_vintage_and_new_documents_are_never_refusals pins. `--rechunk` is the same escape
+    hatch, so no new threshold and no new flag enter the law.
+
+    Cost, honestly: one LIST of chunks/ (already taken by _cached_hashes elsewhere) plus one GET per
+    OVERWRITTEN document -- the vintage lives in the object, not in its metadata, so a head-object cannot
+    answer the question the guard asks. At the measured cache size (2,815 objects / 155 MB, ~55 KB per doc)
+    the 2026-07-19 pass would have paid ~34 MB of GETs against a Haiku-billed chunking run. Untouched
+    documents cost nothing.
+
+    Alternative B in the plan (copy the prior object to chunks/_prior/<hash>.jsonl before overwriting) is the
+    only thing that would have made 2026-07-19 REVERSIBLE, and it is recommended for the Wave-R rebuild
+    specifically rather than as standing behaviour -- it is not implemented here, and its absence is why
+    --rechunk should be paired with a copy-prefix step by whoever passes it."""
+    planned: dict[str, list] = {}
     for source_key, props in props_by_doc.items():
         seen, uniq = set(), []
         for p in props:
             if p["text"] in seen:
                 continue
             seen.add(p["text"]); uniq.append(p)
+        planned[source_key] = uniq
+    cached = _cached_hashes()
+    refusals: list[str] = []
+    transitions: dict[str, int] = {}
+    deltas: dict[str, int] = {}
+    n_over = 0
+    for source_key, uniq in sorted(planned.items()):
+        if _doc_cache_node(source_key).split("/")[-1] not in cached:
+            continue                                            # a NEW document: a fill, never a re-chunk
+        n_over += 1
+        prior = _read_doc_cache(source_key)
+        deltas[source_key] = len(uniq) - len(prior)
+        prior_v = {p.get("chunk_version") for p in prior}
+        for pv in sorted(prior_v, key=lambda x: (x is None, str(x))):
+            transitions[f"{pv} -> {chunk_version}"] = transitions.get(f"{pv} -> {chunk_version}", 0) + 1
+        safe = str(source_key).encode("ascii", "backslashreplace").decode("ascii")
+        if prior and prior_v != {chunk_version}:
+            refusals.append(f"chunks/{_doc_cache_node(source_key).split('/')[-1]} ({safe}): cached props "
+                            f"carry vintage(s) {sorted(str(v) for v in prior_v)} but this pass stamps "
+                            f"{chunk_version!r} -- that is a RE-CHUNK of an already-cached document "
+                            f"({len(prior)} -> {len(uniq)} props), and rebuild_slices re-derives every "
+                            f"driver slice that document feeds")
+        elif prior:                                             # F11: same vintage -- compare the TEXT SET
+            lost = {p["text"] for p in prior} - {p["text"] for p in uniq}
+            if lost:
+                refusals.append(f"chunks/{_doc_cache_node(source_key).split('/')[-1]} ({safe}): same vintage "
+                                f"{chunk_version!r} on BOTH sides, but this pass DROPS {len(lost)} of "
+                                f"{len(prior)} cached prop texts ({len(prior)} -> {len(uniq)} props). A "
+                                f"vintage is <fingerprint>-<UTC date>, so two passes on one day share it -- "
+                                f"an unchanged vintage does NOT mean unchanged text. Losing cached texts is "
+                                f"a RE-CHUNK, and rebuild_slices re-derives every driver slice this document "
+                                f"feeds. A pure ADDITION would not be flagged.")
+    if manifest is not None:
+        manifest.record_docs(written=len(planned), overwritten=n_over, vintage_transitions=transitions,
+                             per_doc_delta=deltas)
+    if refusals and not allow_rechunk:
+        from leviathan.graphrag import write_guard as wg
+        head = refusals[:10]
+        raise wg.WriteRefused(head + ([f"... and {len(refusals) - 10} more re-chunked documents"]
+                                      if len(refusals) > 10 else []) +
+                              ["nothing was written. Pass --rechunk to take the re-chunk deliberately -- and "
+                               "copy the chunks/ prefix first: this pass is not reversible and bucket "
+                               "versioning is Suspended.",
+                               "the parsed batch is NOT lost: Anthropic retains batch results for 29 days, so "
+                               "`--retrieve <bid> --rechunk` re-runs this pass with no new Haiku spend."])
+    if refusals:
+        print(f"  NOTE doc-cache: --rechunk set, taking {len(refusals)} deliberate re-chunk(s) "
+              f"(vintages {sorted(transitions)[:3]}...)")
+    n = 0
+    for source_key, uniq in planned.items():
         ev._evid_write(_doc_cache_node(source_key), "\n".join(json.dumps(p) for p in uniq))
         n += len(uniq)
     return n
@@ -297,45 +380,145 @@ def _flush_dark_tally(tally: "DarkTally") -> str:
     return str(out)
 
 
+def _plan_raw_write(raw_by_node: dict, *, manifest=None, allow_churn: float | None = None):
+    """F2 -- the `_raw/<node>` archive as a GUARDED LAYER of its own. Returns a write_guard.WritePlan.
+
+    `_raw/` was the fourth wholesale seam and the least visible one: it was written inside
+    _route_and_write's node loop, AHEAD of every other guard in the pass, with no churn ratio, no span tuple,
+    no empty guard, no manifest line -- and it SURVIVED a refusal, so a refused pass left the store in a
+    state where the next `--reroute` derived every commodity and driver slice from new inputs. That is
+    structurally C3 one layer up: overwrite one upstream object, silently re-roll everything downstream.
+    24 objects / 79,974,491 B, and `reroute` reads exactly it (`ev.load_index(f"_raw/{n}")`).
+
+    span_tuple and resolve_prior work on it unmodified -- a _raw record carries the same date / event_date
+    fields as a slice record (it is the slice record minus the vector). The empty-node SKIP matches the
+    commodity path exactly: a node that archived nothing keeps its prior archive."""
+    from leviathan.graphrag import write_guard as wg
+    records = {n: recs for n, recs in raw_by_node.items() if recs}
+    skipped = sorted(n for n, recs in raw_by_node.items() if not recs)
+    if skipped and manifest is not None:
+        manifest.warnings.append(f"_raw: routed 0 props for {skipped} -- prior _raw archive left intact, "
+                                 f"NOT rewritten empty (the reroute derivation source)")
+
+    def _payload(node: str):
+        def _mk() -> str:                                      # serialize lazily: a refused pass pays nothing
+            return "\n".join(json.dumps(r) for r in records[node])
+        return _mk
+
+    return wg.plan_write("_raw", "_raw/", {n: _payload(n) for n in records}, records=records,
+                         manifest=manifest, allow_churn=allow_churn, write_fn=ev._evid_write,
+                         node_of=lambda n: f"_raw/{n}")
+
+
+def _plan_commodity_write(kept_by_node: dict, *, backend: str, manifest=None,
+                          allow_churn: float | None = None):
+    """G1d's plan half -- everything _commodity_guarded_write does except the write. Returns a WritePlan.
+
+    F1: _route_and_write and rebuild_slices both write more than one layer, so they must plan every layer
+    before committing any of them; this is the commodity plan they union."""
+    from leviathan.graphrag import write_guard as wg
+    records = {n: recs for n, recs in kept_by_node.items() if recs}
+    skipped = sorted(n for n, recs in kept_by_node.items() if not recs)
+    if skipped and manifest is not None:
+        manifest.warnings.append(f"commodity: routed 0 props for {skipped} -- prior slice files left intact "
+                                 f"(the evidence_batch.py:433 empty guard), NOT rewritten empty")
+
+    def _payload(node: str):
+        def _mk() -> str:                                      # embed LAZILY: a refused pass pays no embed
+            recs = records[node]
+            for r, v in zip(recs, ev.embed([r["text"] for r in recs], backend=backend)):
+                r["vector"], r["backend"] = v, backend
+            return "\n".join(json.dumps(r) for r in recs)
+        return _mk
+
+    return wg.plan_write("commodity", "", {n: _payload(n) for n in records}, records=records,
+                         manifest=manifest, allow_churn=allow_churn, write_fn=ev._evid_write,
+                         node_of=lambda n: n)
+
+
+def _commodity_guarded_write(kept_by_node: dict, *, backend: str, manifest=None,
+                             allow_churn: float | None = None) -> int:
+    """G1d -- the COMMODITY wholesale write, guarded. Shared by _route_and_write and rebuild_slices.
+
+    Revision 1 of the wave plan cited evidence_batch.py:433's `if not recs: continue` as the TEMPLATE for the
+    driver-slice empty guard and never proposed coverage FOR the commodity path itself. The gap is not small:
+    those 24 top-level slices are 11,119,127,224 bytes -- LARGER than the entire drivers/ layer (1.361 GB) --
+    and they contribute 24 of the artifact's 125 nodes, including `arabica_coffee`, `robusta_coffee` and
+    `cocoa`, which carry the three sentinel episodes and ground both of the deck's MUST re-probe rows. After
+    the driver-side guard landed, a --rebuild-slices pass could still have silently re-rolled all of them.
+
+    The empty-node SKIP is preserved exactly (a node that routed nothing is omitted, so its prior file
+    survives -- refusing the whole pass over one empty node would be a regression); every other leg of the
+    driver guard applies. Prior population comes from ONE non-recursive LIST of the top-level *.jsonl.
+
+    SINGLE-LAYER entry point, retained for callers that write only the commodity layer. The two multi-layer
+    callers plan through _plan_commodity_write instead (F1)."""
+    from leviathan.graphrag import write_guard as wg
+    plan = _plan_commodity_write(kept_by_node, backend=backend, manifest=manifest, allow_churn=allow_churn)
+    wg.raise_if_refused(plan)
+    return wg.commit_write(plan)
+
+
 def _route_and_write(by_node: dict, *, backend: str | None = None, drivers: bool = True,
-                     tally: "DarkTally | None" = None) -> int:
+                     tally: "DarkTally | None" = None, manifest=None,
+                     allow_churn: float | None = None) -> int:
     """Write the _raw/<node> archive (EVERY prop, unembedded) + route to commodity & driver slices (embed the
     routed). Shared by retrieve (props from the batch) and reroute (props from the persisted _raw archive). The
     archive is the future-proofing: re-deriving slices after the driver YAML grows NEVER re-chunks — chunk once,
     route forever. Pure-driver props (B40/freight/FX/El Nino/metals) are routed to driver slices, not dropped.
     When a `tally` is passed (W1.2, opt-in), each prop is also classified into the four dark-at-birth states and
-    a manifest is written at the end — the routing output itself is byte-identical either way."""
+    a manifest is written at the end — the routing output itself is byte-identical either way.
+
+    F1/F2 — ALL THREE LAYERS ARE PLANNED BEFORE ANY OF THEM COMMITS. The `_raw/` archive used to be written
+    inside this loop, ahead of every guard; the commodity layer used to complete all 24 writes before the
+    driver guard was ever evaluated. Both are gone: the loop only ROUTES now, then the three layers are
+    planned, their refusals are unioned and raised once by write_guard.raise_if_refused, and only then do the
+    commit loops run. A refusal anywhere leaves _raw/, the 24 commodity slices AND the 101 driver slices
+    byte-identical -- which is what the module docstring always claimed and what the 2026-07-20 shape
+    (commodity fine, drivers collapse) would otherwise land in."""
+    from leviathan.graphrag import write_guard as wg
     backend = backend or ev.DEFAULT_BACKEND
     driver_sink: dict[str, list[dict]] | None = {} if drivers else None
-    total = 0
+    kept_by_node: dict[str, list[dict]] = {}
+    raw_by_node: dict[str, list[dict]] = {}
     for node, recs in by_node.items():
         raw = [{k: v for k, v in r.items() if k != "vector"} for r in recs]    # archive: text+date+source+event_date, no vector
-        ev._evid_write(f"_raw/{node}", "\n".join(json.dumps(r) for r in raw))
+        raw_by_node[node] = raw                                                # written below, past the guard
         if driver_sink is not None:                                            # multi-label, independent of the commodity filter
             for r in raw:
                 for dn in ev.driver_slices_for(r["text"]):
                     driver_sink.setdefault(dn, []).append({**r, "driver": dn})
         matcher = hv.build_matcher(ev.match_forms(node))
         kept = [dict(r) for r in raw if matcher.search(r["text"])]             # commodity slice: on-topic props
-        for r, v in zip(kept, ev.embed([r["text"] for r in kept], backend=backend)):
-            r["vector"], r["backend"] = v, backend
-        ev._evid_write(node, "\n".join(json.dumps(r) for r in kept))
-        print(f"  {node}: {len(kept)} props -> evidence/{node}.jsonl  ({len(raw)} archived to _raw/)")
-        total += len(kept)
+        kept_by_node[node] = kept                                              # embed+write below, past the guard
+        dest = f"evidence/{node}.jsonl" if kept else "SKIPPED (empty -- prior slice left intact)"
+        print(f"  {node}: {len(kept)} props -> {dest}  ({len(raw)} to archive in _raw/)")
         if tally is not None:                                                  # in-memory reclassification (no S3)
             for r in raw:
                 tally.add(r["source_key"], r["text"], commodity_hit=bool(matcher.search(r["text"])),
                           driver_hit=bool(ev.driver_slices_for(r["text"])))
+    plans = [_plan_raw_write(raw_by_node, manifest=manifest, allow_churn=allow_churn),                # F2
+             _plan_commodity_write(kept_by_node, backend=backend, manifest=manifest,                  # G1d
+                                   allow_churn=allow_churn)]
     if driver_sink:
-        dtotal = ev.write_driver_slices(driver_sink, backend=backend)
-        print(f"  drivers: {dtotal} props across {len(driver_sink)} slices -> evidence/drivers/*.jsonl")
+        plans.append(ev.plan_driver_slices(driver_sink, backend=backend, manifest=manifest,           # C2
+                                           allow_churn=allow_churn))
+    wg.raise_if_refused(*plans)                                                # ONE raise, nothing written yet
+    written = wg.commit_all(*plans)
+    total = written.get("commodity", 0)
+    print(f"  _raw: {written.get('_raw', 0)} props archived across "
+          f"{len(plans[0].records)} nodes -> evidence/_raw/*.jsonl")
+    if driver_sink:
+        print(f"  drivers: {written.get('drivers', 0)} props across {len(driver_sink)} slices "
+              f"-> evidence/drivers/*.jsonl")
     if tally is not None:
         _flush_dark_tally(tally)
     return total
 
 
 def retrieve(s3, client, bid: str, *, backend: str | None = None, poll_s: int = 20, drivers: bool = True,
-             tally: bool = False) -> int:
+             tally: bool = False, manifest=None, allow_churn: float | None = None,
+             rechunk: bool = False) -> int:
     """Poll the batch, parse every prop (with event_date + W2.1 char offsets + chunk_version), write the
     doc-keyed chunk cache (chunks/<doc>), then route via _route_and_write (_raw archive + commodity + driver
     slices). Pure-driver props are KEPT. With a cache-aware `sampling` manifest, each node's props are gathered
@@ -343,7 +526,9 @@ def retrieve(s3, client, bid: str, *, backend: str | None = None, poll_s: int = 
     fields ride the `base` dict, so they propagate into the cache AND every slice via **base for free. `tally`
     (opt-in) runs the W1.2 dark-at-birth classification over the routed props."""
     payload = _load_manifest_full(bid)
-    manifest, sampling, doclist = payload["manifest"], payload.get("sampling"), payload.get("doclist", False)
+    # NB `blocks` is the BATCH block manifest (custom_id -> block meta); `manifest` is the G1c RunManifest
+    # kwarg. Two different manifests, deliberately disambiguated after the names collided.
+    blocks, sampling, doclist = payload["manifest"], payload.get("sampling"), payload.get("doclist", False)
     while client.messages.batches.retrieve(bid).processing_status != "ended":
         print(f"  batch {bid}: still processing ...")
         time.sleep(poll_s)
@@ -351,9 +536,9 @@ def retrieve(s3, client, bid: str, *, backend: str | None = None, poll_s: int = 
     props_by_doc: dict[str, list[dict]] = {}                          # source_key -> props (for the doc cache)
     by_node: dict[str, list[dict]] = {}                              # contract -> props (old-manifest path)
     for r in client.messages.batches.results(bid):
-        if getattr(r.result, "type", None) != "succeeded" or r.custom_id not in manifest:
+        if getattr(r.result, "type", None) != "succeeded" or r.custom_id not in blocks:
             continue
-        m = manifest[r.custom_id]
+        m = blocks[r.custom_id]
         block_text, block_start, block_end = m.get("block_text"), m.get("block_start"), m.get("block_end")
         cursor = 0                                                   # per-block find cursor (props arrive in block order)
         for i, item in enumerate(ch._parse_json_array(_text_of(r))):
@@ -369,7 +554,8 @@ def retrieve(s3, client, bid: str, *, backend: str | None = None, poll_s: int = 
             rid = f"{r.custom_id}#{i}"
             props_by_doc.setdefault(m["source_key"], []).append({"id": rid, **base})
             by_node.setdefault(m["contract"], []).append({"id": rid, "contract": m["contract"], **base})
-    ncache = _write_doc_cache(props_by_doc)                           # doc-keyed cache: chunk once, reuse forever
+    ncache = _write_doc_cache(props_by_doc, chunk_version=cv, allow_rechunk=rechunk,   # G1a
+                              manifest=manifest)                     # doc-keyed cache: chunk once, reuse forever
     print(f"  doc cache: {ncache} props over {len(props_by_doc)} docs -> chunks/")
     if doclist:                                                      # a targeted fill: only grow the cache; route later
         print(f"  doc-list fill cached -- run --rebuild-slices to route these {len(props_by_doc)} docs into slices")
@@ -378,10 +564,12 @@ def retrieve(s3, client, bid: str, *, backend: str | None = None, poll_s: int = 
         by_node = {node: [{**p, "contract": node} for key in docs for p in _read_doc_cache(key)]
                    for node, docs in sampling.items()}
     dt = DarkTally(label="retrieve") if tally else None
-    return _route_and_write(by_node, backend=backend, drivers=drivers, tally=dt)
+    return _route_and_write(by_node, backend=backend, drivers=drivers, tally=dt, manifest=manifest,
+                            allow_churn=allow_churn)
 
 
-def reroute(*, nodes=None, backend: str | None = None, drivers: bool = True, tally: bool = False) -> int:
+def reroute(*, nodes=None, backend: str | None = None, drivers: bool = True, tally: bool = False,
+            manifest=None, allow_churn: float | None = None) -> int:
     """Re-derive commodity + driver slices from the persisted _raw archive — NO re-chunk, NO Anthropic call.
     Run after expanding driver_slices.yaml (or commodity terms) to capture newly-defined nodes for free.
     `tally` (opt-in) runs the W1.2 dark-at-birth classification over the rerouted props."""
@@ -390,10 +578,12 @@ def reroute(*, nodes=None, backend: str | None = None, drivers: bool = True, tal
     if not by_node:
         raise SystemExit("no _raw/ archive found — run --retrieve first (it writes the _raw archive).")
     dt = DarkTally(label="reroute") if tally else None
-    return _route_and_write(by_node, backend=backend, drivers=drivers, tally=dt)
+    return _route_and_write(by_node, backend=backend, drivers=drivers, tally=dt, manifest=manifest,
+                            allow_churn=allow_churn)
 
 
-def rebuild_slices(*, backend: str | None = None, drivers: bool = True, tally: bool = False) -> int:
+def rebuild_slices(*, backend: str | None = None, drivers: bool = True, tally: bool = False,
+                   manifest=None, allow_churn: float | None = None, dry_run: bool = False) -> int:
     """Re-derive ALL slices from the whole chunks/ doc-cache (WS-MS7) — the doc-cache is the master. Routes each
     prop to EVERY matching commodity slice (all 24 matchers) AND, independently over the WHOLE cache, to its
     driver slices — so multi-commodity docs (a WASDE) land in each commodity and pure-driver props (B40/freight)
@@ -401,7 +591,19 @@ def rebuild_slices(*, backend: str | None = None, drivers: bool = True, tally: b
     it, and _raw is keyed per contract (pure-driver props live under a doc's contract there). Free: no Anthropic.
     `tally` (opt-in) runs the W1.2 dark-at-birth classification GLOBALLY (commodity_hit = ANY matcher fires) --
     the `neither` bucket here is the genuinely dark-at-birth queue. The chunks/ cache holds no full_text, so the
-    60k-truncation count is 0 on a pure rebuild (it is measured at chunk time; see _build_requests_from_docs)."""
+    60k-truncation count is 0 on a pure rebuild (it is measured at chunk time; see _build_requests_from_docs).
+
+    G3a -- `dry_run` ROUTES AND CLASSIFIES BUT WRITES NOTHING. This is the code change the wave plan asks for
+    ahead of ever arming --dark-tally, and it exists because the flag was mis-classified as read-only. Its
+    own help text says it "applies to --retrieve/--reroute/--rebuild-slices"; there is no standalone read
+    mode; and `_flush_dark_tally` runs AFTER the writes, so arming it on a rebuild means re-embedding ~107K
+    vectors, clobbering all 24 commodity slices and re-rolling all 125 -- which, with PYTHONHASHSEED unset
+    (5,809 of 16,000 capped-slice rows swapped at the last pass), is a POPULATION CHANGE and therefore inside
+    the sequencing law that says such changes stale timeline/episodes.json and ride ONE bundle. The booleans
+    the tally needs are already computed before any write (:426-427); only the flush coupled it to a pass.
+    With `dry_run` the baseline manifest -- and there has never been one, `eval/dark_tally*` returns zero
+    objects -- can be established for free. Nothing to compare it against: the first armed run ESTABLISHES
+    the baseline, it does not check one."""
     backend = backend or ev.DEFAULT_BACKEND
     nodes = ev.all_nodes()
     matchers = {n: hv.build_matcher(ev.match_forms(n)) for n in nodes}
@@ -428,18 +630,41 @@ def rebuild_slices(*, backend: str | None = None, drivers: bool = True, tally: b
     if not ndocs:
         raise SystemExit("chunks/ doc-cache is empty — run a --retrieve first.")
     print(f"rebuild-slices: routing props from {ndocs} cached docs into commodity + driver slices")
-    total = 0
+    if dry_run:                                                    # G3a: route + classify, write NOTHING
+        total = sum(len(recs) for recs in by_node.values())
+        # F14 -- the banner used to say "NOTHING WRITTEN" while _flush_dark_tally put an object on the LIVE
+        # prefix. No SLICE moves and nothing is embedded, which is the property that matters for the
+        # sequencing law, but "nothing written" was not literally true and the one artifact it does write
+        # goes unnamed. Both are stated now.
+        print(f"DRY-RUN rebuild-slices: routed {total} commodity props across "
+              f"{sum(1 for r in by_node.values() if r)} nodes and "
+              f"{sum(len(v) for v in (driver_sink or {}).values())} props across "
+              f"{len(driver_sink or {})} driver slices. NO SLICE WRITTEN, NOTHING EMBEDDED, no _raw and no "
+              f"doc-cache object touched -- no population change, so this pass is outside the sequencing "
+              f"law." + (" The ONE object it writes is the tally manifest named below "
+                         "(configs/graphrag/eval/ + <EVIDENCE_S3>/eval/dark_tally_rebuild_*.json)."
+                         if dt is not None else ""))
+        if dt is not None:
+            _flush_dark_tally(dt)
+        return total
     for n, recs in by_node.items():
-        if not recs:                                               # don't clobber a node's slice with an empty file
-            continue
-        for r, v in zip(recs, ev.embed([r["text"] for r in recs], backend=backend)):
-            r["vector"], r["backend"] = v, backend
-        ev._evid_write(n, "\n".join(json.dumps(r) for r in recs))
-        print(f"  {n}: {len(recs)} props -> evidence/{n}.jsonl")
-        total += len(recs)
+        if recs:
+            print(f"  {n}: {len(recs)} props -> evidence/{n}.jsonl")
+    # F1 -- plan BOTH layers, union the refusals, raise once, then commit. Before this, the 24 commodity
+    # slices (11,119,127,224 B, larger than the whole drivers/ layer) were fully rewritten before the driver
+    # guard was ever consulted, so a driver-layer refusal was a refusal of nothing.
+    from leviathan.graphrag import write_guard as wg
+    plans = [_plan_commodity_write(by_node, backend=backend, manifest=manifest,    # G1d (empty nodes skipped)
+                                   allow_churn=allow_churn)]
     if driver_sink:
-        dtotal = ev.write_driver_slices(driver_sink, backend=backend)
-        print(f"  drivers: {dtotal} props across {len(driver_sink)} slices -> evidence/drivers/*.jsonl")
+        plans.append(ev.plan_driver_slices(driver_sink, backend=backend, manifest=manifest,
+                                           allow_churn=allow_churn))
+    wg.raise_if_refused(*plans)
+    written = wg.commit_all(*plans)
+    total = written.get("commodity", 0)
+    if driver_sink:
+        print(f"  drivers: {written.get('drivers', 0)} props across {len(driver_sink)} slices "
+              f"-> evidence/drivers/*.jsonl")
     if dt is not None:
         _flush_dark_tally(dt)
     return total
@@ -578,8 +803,10 @@ def measure_orphan_drivers(s3, sources, *, n: int = 60, seed: int = 0) -> dict:
     return {"sampled": total, "orphan_driver_docs": orphan, "examples": examples}
 
 
-def run(s3, client, *, nodes, n_docs, seed: int = 0) -> int:
-    return retrieve(s3, client, submit(s3, client, nodes=nodes, n_docs=n_docs, seed=seed))
+def run(s3, client, *, nodes, n_docs, seed: int = 0, manifest=None, allow_churn: float | None = None,
+        rechunk: bool = False) -> int:
+    return retrieve(s3, client, submit(s3, client, nodes=nodes, n_docs=n_docs, seed=seed),
+                    manifest=manifest, allow_churn=allow_churn, rechunk=rechunk)
 
 
 def main() -> int:
@@ -606,7 +833,44 @@ def main() -> int:
                          "a manifest (opt-in; applies to --retrieve/--reroute/--rebuild-slices)")
     ap.add_argument("--novelty", action="store_true",
                     help="W2.3: near-dup gate on a --fill (skip docs already covered; every skip logged)")
+    ap.add_argument("--dark-tally-dry-run", action="store_true",
+                    help="G3a: route the whole chunks/ cache and write the dark-tally manifest WITHOUT "
+                         "writing a single slice (no embed, no population change). This is how the tally "
+                         "baseline gets established without riding a routing pass -- arming --dark-tally on "
+                         "a real --rebuild-slices is a population change and rides the artifact bundle.")
+    ap.add_argument("--allow-churn", type=float, default=None, metavar="PCT",
+                    help="G1b escape hatch: permit a per-slice population DROP up to PCT percent (e.g. "
+                         "--allow-churn 25). REQUIRES a magnitude on purpose -- 'I expect churn' is not a "
+                         "claim anyone can be wrong about, 'I expect up to 25%%' is. Without it any drop at "
+                         "or over 10%% REFUSES the pass with nothing written.")
+    ap.add_argument("--rechunk", action="store_true",
+                    help="G1a escape hatch: permit overwriting cached chunks/<doc>.jsonl objects whose props "
+                         "carry a DIFFERENT chunk_version than this pass (a re-chunk). Copy the chunks/ "
+                         "prefix first -- this is not reversible and bucket versioning is Suspended.")
+    ap.add_argument("--run-manifest", action="store_true", default=True,
+                    help="G1c: emit the per-pass write manifest to configs/graphrag/eval/ and "
+                         "<EVIDENCE_S3>/eval/ (default ON; --no-run-manifest to suppress)")
+    ap.add_argument("--no-run-manifest", dest="run_manifest", action="store_false")
+    ap.add_argument("--seed-manifest", metavar="LAYERS", nargs="?", const="drivers", default=None,
+                    help="F4/G1b leg 2 BOOTSTRAP, READ-ONLY: stream the slices already in the store and "
+                         "emit the write_manifest_seed_*.json the span guard needs as its baseline. Without "
+                         "it, resolve_prior has no exact prior and no prior SPAN on the first guarded pass "
+                         "-- which is the Wave-R rebuild -- so the endpoint leg (potash -25y, "
+                         "mississippi_river_levels -3y) cannot fire on the one pass the wave is built "
+                         "around. Comma-separated layers from {drivers,commodity,_raw} or 'all'; default "
+                         "'drivers' (~1.361 GB; commodity adds ~11.1 GB). Writes NO slice -- the only "
+                         "object it creates is its own manifest under eval/. Idempotent: rerun it and the "
+                         "same store yields the same numbers.")
     args = ap.parse_args()
+    if args.allow_churn is not None and float(args.allow_churn) <= 0:
+        # F15 -- `--allow-churn 0` used to leave the drop line armed while silently downgrading EVERY span
+        # contraction to a warn: the opposite of what the caller meant, with no message saying so. The
+        # verdict now gates both legs on a nonzero magnitude, and the flag itself refuses the value rather
+        # than quietly meaning "no declaration".
+        ap.error("--allow-churn 0 declares no churn at all -- OMIT the flag instead. The flag exists to "
+                 "name a drop you EXPECT (e.g. --allow-churn 25); zero is not such a claim, and passing it "
+                 "used to disarm the span-contraction guard silently.")
+    allow_churn = None if args.allow_churn is None else max(0.0, float(args.allow_churn)) / 100.0
     if args.nodes == "all":
         nodes = ev.all_nodes()
     elif args.nodes == "new":
@@ -619,14 +883,53 @@ def main() -> int:
     config.load_env()
     s3 = boto3.client("s3")
     srcs = [s for s in args.sources.split(",") if s]
-    # ── free modes (no Anthropic call) ────────────────────────────────────────────
-    if args.rebuild_slices:                                            # route the whole chunks/ cache -> slices
-        rebuild_slices(tally=args.dark_tally)
+
+    from leviathan.graphrag import write_guard as wg
+
+    def _manifest(label: str):                                         # G1c: one manifest per write pass
+        if not args.run_manifest:
+            return None
+        return wg.RunManifest(label, chunk_version=_chunk_version(), allow_churn=allow_churn)
+
+    def _guarded(label: str, fn):
+        """Run a write pass under its manifest; a guard refusal is a clean nonzero exit, not a traceback."""
+        mf = _manifest(label)
+        try:
+            fn(mf)
+        except wg.WriteRefused as exc:
+            print("REFUSED: the write guard stopped this pass before anything was written.")
+            for line in exc.lines:
+                print(f"  - {line}")
+            if mf is not None:
+                mf.warnings.append("REFUSED: " + " | ".join(exc.lines))
+                mf.flush()
+            return 2
+        if mf is not None:
+            mf.flush()
         return 0
+
+    # ── free modes (no Anthropic call) ────────────────────────────────────────────
+    if args.seed_manifest:                                             # F4: READ-ONLY baseline bootstrap
+        layers = (tuple(wg.SEED_LAYERS) if str(args.seed_manifest).strip().lower() == "all"
+                  else tuple(x.strip() for x in str(args.seed_manifest).split(",") if x.strip()))
+        unknown = [x for x in layers if x not in wg.SEED_LAYERS]
+        if unknown:
+            print(f"--seed-manifest: unknown layer(s) {unknown}; known: {sorted(wg.SEED_LAYERS)}")
+            return 2
+        print(f"seed-manifest: streaming layer(s) {list(layers)} READ-ONLY to establish the span-guard "
+              f"baseline. No slice is written; the only object created is the manifest below.")
+        print(f"  seed-manifest -> {wg.seed_manifest(layers)}")
+        return 0
+    if args.dark_tally_dry_run:                                        # G3a: routing DRY-RUN, zero writes
+        rebuild_slices(tally=True, dry_run=True)
+        return 0
+    if args.rebuild_slices:                                            # route the whole chunks/ cache -> slices
+        return _guarded("rebuild", lambda mf: rebuild_slices(tally=args.dark_tally, manifest=mf,
+                                                             allow_churn=allow_churn))
     if args.reroute:                                                   # re-derive from the _raw archive
         print(f"reroute {len(nodes)} node(s) from _raw archive -> commodity + driver slices")
-        reroute(nodes=nodes, tally=args.dark_tally)
-        return 0
+        return _guarded("reroute", lambda mf: reroute(nodes=nodes, tally=args.dark_tally, manifest=mf,
+                                                      allow_churn=allow_churn))
     if args.measure_orphan_drivers:                                    # Gap-2 sizing
         print("orphan-driver measurement:", measure_orphan_drivers(s3, srcs))
         return 0
@@ -666,11 +969,14 @@ def main() -> int:
     from leviathan.graphrag import batch_extract as bx
     client = anthropic.Anthropic(api_key=bx._api_key())
     if args.retrieve:
-        retrieve(s3, client, args.retrieve, tally=args.dark_tally)
+        return _guarded("retrieve", lambda mf: retrieve(s3, client, args.retrieve, tally=args.dark_tally,
+                                                        manifest=mf, allow_churn=allow_churn,
+                                                        rechunk=args.rechunk))
     elif args.submit:
         submit(s3, client, nodes=nodes, n_docs=args.n_docs)
     elif args.run:
-        run(s3, client, nodes=nodes, n_docs=args.n_docs)
+        return _guarded("run", lambda mf: run(s3, client, nodes=nodes, n_docs=args.n_docs, manifest=mf,
+                                              allow_churn=allow_churn, rechunk=args.rechunk))
     else:
         print("specify --dry-run / --submit / --retrieve <bid> / --run / --fill / --rebuild-slices")
     return 0

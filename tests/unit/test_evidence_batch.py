@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import types
+from pathlib import Path
 
 from leviathan.graphrag import evidence as ev
 from leviathan.graphrag import evidence_batch as eb
@@ -469,3 +470,234 @@ def test_select_docs_era_filter_on_wb_cmo(monkeypatch):
                                          "text/source=wb_cmo_outlook/release=2005-10/document.json"])
     assert eb.select_docs(["wb_cmo_outlook"], before_year=2000, exclude_cached=False) == \
         ["text/source=wb_cmo_outlook/release=1999-05/document.json"]
+
+
+# ── G1a: the doc-cache overwrite guard (seam C3, the highest-volume staler) ────────────────────────────
+# On 2026-07-19T22:00Z, 614 chunks/<md5>.jsonl objects were rewritten -- at least 352 over documents already
+# in the cache -- and because rebuild_slices re-derives EVERY slice from the whole cache, the next day's
+# promote moved 24,439 driver rows and 48 span endpoints with not one term changing and no run record
+# anywhere. A silent re-chunk is the defect; a declared one is not.
+def _seed_cache(tmp_path, hash_name, recs):
+    (tmp_path / "chunks").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "chunks" / f"{hash_name}.jsonl").write_text(
+        "\n".join(json.dumps(r) for r in recs), encoding="utf-8")
+
+
+def _cached_prop(text, cv):
+    return {"id": "x", "date": "2024-01-01", "source": "GAIN", "source_key": "s3://doc-a", "text": text,
+            "event_date": None, "chunk_version": cv}
+
+
+def test_doc_cache_refuses_a_silent_rechunk_and_writes_nothing(tmp_path, monkeypatch):
+    import pytest
+    from leviathan.graphrag import write_guard as wg
+    monkeypatch.setattr(ev, "_EVID_DIR", tmp_path)
+    monkeypatch.setattr(ev, "_evid_s3", lambda: None)
+    h = hashlib.md5(b"s3://doc-a").hexdigest()
+    _seed_cache(tmp_path, h, [_cached_prop("old text one", "5228db6450c4-20260709"),
+                              _cached_prop("old text two", "5228db6450c4-20260709")])
+    before = (tmp_path / "chunks" / f"{h}.jsonl").read_bytes()
+    new = {"s3://doc-a": [_cached_prop("rewritten text", "e4b681f37a06-20260719")]}
+
+    with pytest.raises(wg.WriteRefused) as exc:
+        eb._write_doc_cache(new, chunk_version="e4b681f37a06-20260719")
+    assert (tmp_path / "chunks" / f"{h}.jsonl").read_bytes() == before          # atomic: nothing written
+    joined = " ".join(exc.value.lines)
+    assert "RE-CHUNK of an already-cached document" in joined and "5228db6450c4-20260709" in joined
+    assert "--rechunk" in joined and "versioning is Suspended" in joined        # names the fix AND the risk
+
+
+def test_doc_cache_rechunk_is_permitted_when_declared_and_is_recorded(tmp_path, monkeypatch):
+    from leviathan.graphrag import write_guard as wg
+    monkeypatch.setattr(ev, "_EVID_DIR", tmp_path)
+    monkeypatch.setattr(ev, "_evid_s3", lambda: None)
+    h = hashlib.md5(b"s3://doc-a").hexdigest()
+    _seed_cache(tmp_path, h, [_cached_prop("old one", None), _cached_prop("old two", None)])
+    mf = wg.RunManifest("unit")
+    n = eb._write_doc_cache({"s3://doc-a": [_cached_prop("new", "e4b681f37a06-20260719")]},
+                            chunk_version="e4b681f37a06-20260719", allow_rechunk=True, manifest=mf)
+    assert n == 1 and len(eb._read_doc_cache("s3://doc-a")) == 1
+    assert mf.docs["overwritten"] == 1 and mf.docs["per_doc_delta"]["s3://doc-a"] == -1
+    assert mf.docs["vintage_transitions"] == {"None -> e4b681f37a06-20260719": 1}
+
+
+def test_doc_cache_same_vintage_and_new_documents_are_never_refusals(tmp_path, monkeypatch):
+    monkeypatch.setattr(ev, "_EVID_DIR", tmp_path)
+    monkeypatch.setattr(ev, "_evid_s3", lambda: None)
+    cv = "e4b681f37a06-20260719"
+    h = hashlib.md5(b"s3://doc-a").hexdigest()
+    _seed_cache(tmp_path, h, [_cached_prop("a", cv)])
+    # same vintage over the same doc = a top-up, not a re-chunk; a doc absent from the cache = a fill
+    fresh = {"id": "y", "date": "2024-01-01", "source": "GAIN", "source_key": "s3://doc-b", "text": "b",
+             "event_date": None, "chunk_version": cv}
+    assert eb._write_doc_cache({"s3://doc-a": [_cached_prop("a", cv), _cached_prop("a2", cv)],
+                                "s3://doc-b": [fresh]}, chunk_version=cv) == 3
+
+
+# ── G1d: the COMMODITY wholesale write, and G3a: the routing dry-run ───────────────────────────────────
+def _wire_rebuild(tmp_path, monkeypatch):
+    monkeypatch.setattr(ev, "_EVID_DIR", tmp_path)
+    monkeypatch.setattr(ev, "_evid_s3", lambda: None)
+    monkeypatch.setattr(ex, "_CFG", tmp_path / "cfg")
+    monkeypatch.setattr(ev, "embed", lambda texts, **k: [[0.1, 0.2] for _ in texts])
+    monkeypatch.setattr(ev, "all_nodes", lambda: ["corn", "soybeans"])
+    monkeypatch.setattr(ev, "match_forms",
+                        lambda n: {"corn": ["corn", "maize"], "soybeans": ["soybean", "soy"]}[n])
+    (tmp_path / "chunks").mkdir(parents=True, exist_ok=True)
+
+
+def _seed_corn(tmp_path, n, hash_name="aaa"):
+    recs = [{"id": f"{hash_name}#{i}", "date": "2024-01-01", "source": "WASDE", "source_key": f"D{i}",
+             "text": f"US corn note {i}", "event_date": None, "event_date_precision": None}
+            for i in range(n)]
+    (tmp_path / "chunks" / f"{hash_name}.jsonl").write_text(
+        "\n".join(json.dumps(r) for r in recs), encoding="utf-8")
+
+
+def test_commodity_write_is_guarded_and_a_collapse_is_refused(tmp_path, monkeypatch):
+    """G1d: the 24 top-level commodity slices are 11.1 GB -- LARGER than the whole drivers/ layer -- and
+    supply 24 of the artifact's 125 nodes (arabica_coffee, robusta_coffee, cocoa among them). The plan cited
+    their empty guard as the TEMPLATE for the driver one and never gave them coverage of their own."""
+    import pytest
+    from leviathan.graphrag import write_guard as wg
+    _wire_rebuild(tmp_path, monkeypatch)
+    _seed_corn(tmp_path, 40)
+    assert eb.rebuild_slices() == 40
+    before = (tmp_path / "corn.jsonl").read_bytes()
+    _seed_corn(tmp_path, 20)                                    # the cache halves -> the slice would halve
+    with pytest.raises(wg.WriteRefused):
+        eb.rebuild_slices()
+    assert (tmp_path / "corn.jsonl").read_bytes() == before      # atomic: the 40-prop slice survives intact
+    assert eb.rebuild_slices(allow_churn=0.60) == 20             # declared magnitude lets it through
+
+
+def test_empty_node_is_skipped_not_clobbered(tmp_path, monkeypatch):
+    # The evidence_batch.py:433 behaviour is PRESERVED exactly: a node that routes nothing keeps its prior
+    # file. Refusing a whole rebuild over one empty node would be a regression, not a guard.
+    _wire_rebuild(tmp_path, monkeypatch)
+    _seed_corn(tmp_path, 5)
+    assert eb.rebuild_slices() == 5
+    assert not (tmp_path / "soybeans.jsonl").exists()            # never written empty
+    (tmp_path / "soybeans.jsonl").write_text(json.dumps({"id": "keep", "text": "soy"}), encoding="utf-8")
+    eb.rebuild_slices()
+    assert json.loads((tmp_path / "soybeans.jsonl").read_text(encoding="utf-8"))["id"] == "keep"
+
+
+def test_dark_tally_dry_run_routes_classifies_and_writes_nothing(tmp_path, monkeypatch):
+    """G3a: --dark-tally is NOT a read-only flag -- its own help text says it applies to
+    --retrieve/--reroute/--rebuild-slices, _flush_dark_tally runs AFTER the writes, and on --rebuild-slices
+    that means re-embedding ~107K vectors and re-rolling all 125 slices, which (PYTHONHASHSEED unset) is a
+    POPULATION CHANGE inside the sequencing law. The dry-run is how the baseline gets established for free:
+    there has never been one -- eval/dark_tally* returns zero objects."""
+    _wire_rebuild(tmp_path, monkeypatch)
+    _seed_corn(tmp_path, 3)
+    n = eb.rebuild_slices(tally=True, dry_run=True)
+    assert n == 3                                               # routing happened
+    assert not (tmp_path / "corn.jsonl").exists()               # ... and NOTHING was written
+    assert not (tmp_path / "drivers").exists()
+    tallies = list((tmp_path / "cfg" / "eval").glob("dark_tally_rebuild_*.json"))
+    assert len(tallies) == 1                                    # the manifest is the whole point
+    assert json.loads(tallies[0].read_text(encoding="utf-8"))["n_props"] == 3
+
+
+# ── F1 + F2: EVERY layer of a pass is planned before ANY of them commits ───────────────────────────────
+def _rt_rec(node, i, text=None):
+    return {"id": f"{node}-{i}", "date": f"2024-01-{(i % 28) + 1:02d}", "source": "WASDE",
+            "source_key": f"D{node}{i}", "text": text or f"US corn note {i} and freight rates",
+            "event_date": None, "event_date_precision": None}
+
+
+def _wire_route(tmp_path, monkeypatch, driver_terms=("freight",)):
+    from leviathan.graphrag import display as dp
+    monkeypatch.setattr(ev, "_EVID_DIR", tmp_path)
+    monkeypatch.setattr(ev, "_evid_s3", lambda: None)
+    monkeypatch.setattr(ex, "_CFG", tmp_path / "cfg")
+    monkeypatch.setattr(ev, "embed", lambda texts, **k: [[0.1, 0.2] for _ in texts])
+    monkeypatch.setattr(ev, "all_nodes", lambda: ["corn"])
+    monkeypatch.setattr(ev, "match_forms", lambda n: ["corn", "maize"])
+    monkeypatch.setattr(ev, "_driver_raw", lambda: {
+        "drivers": {"freight": {"category": "logistics", "terms": list(driver_terms)}},
+        "dag_alias": {"freight": ["ocean_freight"]}})
+    monkeypatch.setattr(dp, "all_driver_ids", lambda: frozenset({"ocean_freight"}))
+    ev._reset()
+
+
+def test_raw_archive_is_a_guarded_layer_and_a_refusal_leaves_ALL_THREE_byte_identical(tmp_path, monkeypatch):
+    """F2 + F1, driven live the way the reviewer drove them.
+
+    F2: `_raw/` was the FOURTH wholesale seam -- 24 objects / 79,974,491 B written inside the node loop
+    AHEAD of every guard, with no churn ratio, no span tuple, no empty guard and no manifest line. It also
+    SURVIVED a refusal, so a refused pass left the store in a state where the next `--reroute` (which reads
+    exactly `_raw/`) derived every downstream slice from new inputs.
+
+    F1: the commodity layer completed all its writes before the driver guard was ever evaluated.
+
+    Synthetic churn: a healthy seed pass, then a pass whose populations collapse. A refusal must now leave
+    _raw/, the commodity slice AND the driver slice byte-identical -- all three layers, one raise."""
+    import pytest
+    from leviathan.graphrag import write_guard as wg
+    _wire_route(tmp_path, monkeypatch)
+    try:
+        by_node = {"corn": [_rt_rec("corn", i) for i in range(40)]}
+        assert eb._route_and_write(by_node) == 40
+        before = {str(p.relative_to(tmp_path)): p.read_bytes() for p in tmp_path.rglob("*.jsonl")}
+        assert set(before) == {"corn.jsonl", str(Path("_raw/corn.jsonl")), str(Path("drivers/freight.jsonl"))}
+
+        collapsed = {"corn": [_rt_rec("corn", i) for i in range(10)]}     # -75% in every layer at once
+        with pytest.raises(wg.WriteRefused) as exc:
+            eb._route_and_write(collapsed)
+        after = {str(p.relative_to(tmp_path)): p.read_bytes() for p in tmp_path.rglob("*.jsonl")}
+        assert after == before                                  # NOT ONE of the three layers moved
+        joined = " ".join(exc.value.lines)
+        assert "nothing was written in ANY layer" in joined
+        assert "_raw/corn" in joined                            # the archive is guarded in its own right
+        assert "commodity/corn" in joined and "drivers/freight" in joined
+        # ... and the declared magnitude lets the whole pass through, all three layers together
+        assert eb._route_and_write(collapsed, allow_churn=0.80) == 10
+        assert len(ev.load_index("_raw/corn")) == 10 and len(ev.load_index("drivers/freight")) == 10
+    finally:
+        ev._reset()
+
+
+def test_route_and_write_raw_is_never_clobbered_empty(tmp_path, monkeypatch):
+    """The _raw empty-node SKIP, matching the commodity path exactly: a node that archived nothing keeps its
+    prior archive rather than being overwritten with an empty object. `by_node` from --retrieve can legally
+    carry a node whose sampling gathered nothing, and that used to write `_raw/<node>` empty -- destroying
+    the reroute derivation source for that node with no guard anywhere."""
+    _wire_route(tmp_path, monkeypatch)
+    try:
+        assert eb._route_and_write({"corn": [_rt_rec("corn", i) for i in range(5)]}) == 5
+        keep = (tmp_path / "_raw" / "corn.jsonl").read_bytes()
+        eb._route_and_write({"corn": []})
+        assert (tmp_path / "_raw" / "corn.jsonl").read_bytes() == keep
+    finally:
+        ev._reset()
+
+
+# ── F11: a SAME-DAY re-chunk carries the same vintage, so the vintage check is blind to it ─────────────
+def test_same_vintage_text_LOSS_is_refused_but_a_topup_is_not(tmp_path, monkeypatch):
+    """G1a refused only when `prior_v != {chunk_version}`, and chunk_version is
+    <corpus_fingerprint>-<UTC date> -- so two passes on ONE UTC day share a vintage and the guard was silent
+    while prop ids, text and offsets all moved. A retried --retrieve on the day of a re-chunk is the
+    likeliest real instance."""
+    import pytest
+    from leviathan.graphrag import write_guard as wg
+    monkeypatch.setattr(ev, "_EVID_DIR", tmp_path)
+    monkeypatch.setattr(ev, "_evid_s3", lambda: None)
+    cv = "e4b681f37a06-20260719"
+    h = hashlib.md5(b"s3://doc-a").hexdigest()
+    _seed_cache(tmp_path, h, [_cached_prop("old one", cv), _cached_prop("old two", cv)])
+    before = (tmp_path / "chunks" / f"{h}.jsonl").read_bytes()
+
+    with pytest.raises(wg.WriteRefused) as exc:                 # same vintage, but the prior texts are GONE
+        eb._write_doc_cache({"s3://doc-a": [_cached_prop("rewritten", cv)]}, chunk_version=cv)
+    assert (tmp_path / "chunks" / f"{h}.jsonl").read_bytes() == before
+    joined = " ".join(exc.value.lines)
+    assert "same vintage" in joined and "DROPS 2 of 2" in joined and "--rechunk" in joined
+
+    # a pure ADDITION is a top-up, not a re-chunk -- unchanged behaviour, still silent
+    assert eb._write_doc_cache({"s3://doc-a": [_cached_prop("old one", cv), _cached_prop("old two", cv),
+                                               _cached_prop("brand new", cv)]}, chunk_version=cv) == 3
+    # ... and --rechunk still takes the deliberate loss
+    assert eb._write_doc_cache({"s3://doc-a": [_cached_prop("rewritten", cv)]},
+                               chunk_version=cv, allow_rechunk=True) == 1

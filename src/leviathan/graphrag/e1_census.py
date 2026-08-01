@@ -362,6 +362,41 @@ def write(doc: dict, *, upload: bool = True, archive: bool = True) -> Path:
 
 
 # ── W1.3 standing gate: --diff + baseline resolution ──────────────────────────────────────────────────
+# G3b(1) -- THE POPULATION-DELTA FAIL CONDITION. Before this, `--census-gate` was population-blind and
+# arming it shipped a false sense of coverage: `consumed = n_ids >= 1 and n_props >= 1` (:197) stays True
+# whatever the count does, and the verdict at :391 failed ONLY on a consumed->orphan transition or a grown
+# retire count. RECEIPT: the live 2026-07-09 census records `coffee_rust_crop n_routed_props=505,
+# n_dag_ids=1, consumed=True`; the file on S3 today holds 20 props. The armed gate would have passed that
+# 96% wipe silently, and it would have passed all 40 shrinking slices at the 2026-07-20 promote. The
+# per-slice n_routed_props was ALREADY in the artifact (:206-208) -- only the verdict ignored it.
+#
+# Both lines are FIRST TRIP LINES (D-EI-7's calibration, same 10% as the write-path guard so the two agree):
+POP_DROP_REFUSE = 0.10        # fractional drop in a slice's n_routed_props that fails the gate
+POP_DROP_MIN_ABS = 5          # ... and it must also be >= this many props, so 10 -> 9 on a tiny slice is
+#                               noise, not a regression. coffee_rust_crop was -485; `metals` was -263.
+
+
+def population_drops(baseline: dict, current: dict) -> list[dict]:
+    """Slices present in BOTH censuses whose n_routed_props fell past both trip lines. Pure function of two
+    census dicts. A slice that VANISHED is not counted here (rename/retire is a curation act -- the same
+    doctrine diff_census already applies to consumed->orphan)."""
+    b_by = {r["slice"]: r for r in baseline.get("slices", [])}
+    out = []
+    for r in current.get("slices", []):
+        b = b_by.get(r["slice"])
+        if not b:
+            continue
+        before, after = int(b.get("n_routed_props") or 0), int(r.get("n_routed_props") or 0)
+        lost = before - after
+        if before <= 0 or lost < POP_DROP_MIN_ABS:
+            continue
+        frac = lost / before
+        if frac >= POP_DROP_REFUSE:
+            out.append({"slice": r["slice"], "before": before, "after": after,
+                        "lost": lost, "frac": round(frac, 4)})
+    return sorted(out, key=lambda d: (-d["lost"], d["slice"]))
+
+
 def diff_census(baseline: dict, current: dict) -> dict:
     """Delta between two census artifacts (current - baseline) for the regression gate. Pure function of two
     census dicts (the shape `census()` returns) — no config/IO — so both the CLI and the wrappers share one
@@ -371,8 +406,10 @@ def diff_census(baseline: dict, current: dict) -> dict:
       by_reason_delta                -- {reason: signed delta} across the union of both reason maps
       consumed_to_orphan             -- sorted slices that were CONSUMED in baseline but are orphan now AND
                                         still present (a slice reachable-and-fed that lost its evidence/route)
-      regressed                      -- True iff consumed_to_orphan is non-empty OR the retire count grew;
-                                        these are the fail conditions (a slice went dark, or dead corpus grew)
+      population_drops               -- G3b: slices whose n_routed_props fell >= POP_DROP_REFUSE and
+                                        >= POP_DROP_MIN_ABS props (the leg that makes the gate see a wipe)
+      regressed                      -- True iff consumed_to_orphan is non-empty OR the retire count grew OR
+                                        any slice's population dropped past the trip lines
 
     A slice that vanished entirely from `current` is NOT a consumed->orphan transition (rename/retire is a
     curation act, not a silent stranding); the gate only fires on a slice that is still declared but slipped."""
@@ -388,8 +425,10 @@ def diff_census(baseline: dict, current: dict) -> dict:
     reasons = set(bi.get("by_reason", {})) | set(ci.get("by_reason", {}))
     by_reason_delta = {r: ci.get("by_reason", {}).get(r, 0) - bi.get("by_reason", {}).get(r, 0)
                        for r in sorted(reasons)}
-    regressed = bool(consumed_to_orphan) or c_retire > b_retire
+    drops = population_drops(baseline, current)
+    regressed = bool(consumed_to_orphan) or c_retire > b_retire or bool(drops)
     return {
+        "population_drops": drops,
         "d_dark": ci["n_dark"] - bi["n_dark"],
         "d_consumed": cs["n_consumed"] - bs["n_consumed"],
         "d_retire": c_retire - b_retire,
@@ -401,6 +440,131 @@ def diff_census(baseline: dict, current: dict) -> dict:
         "consumed_to_orphan": consumed_to_orphan,
         "regressed": regressed,
     }
+
+
+# ── G8 item 1: the TERM census (dead terms + the cross-claim matrix) ───────────────────────────────────────
+def term_census(*, sample: int | None = None) -> dict:
+    """G8 item 1 (F13) -- the corpus-wide term census: which driver TERMS claim nothing, and which props are
+    claimed by more than one slice. READ-ONLY over the chunks/ doc-cache; writes no slice, embeds nothing,
+    calls no model, costs no Haiku.
+
+    WHY IT IS HERE AND NOT IN A SCRATCHPAD. G8 asked for two artifact-free items. Item 2
+    (`evidence.term_collision_warnings`, the STATIC config-vs-config detector) landed; item 1 -- "run it at
+    full corpus, write the cross-claim matrix and the dead-term list beside the E1 census" -- did not, and
+    the numbers standing in for it (310 of 638 terms dead, 1,319 multiply-claimed props) came from a 20%
+    sample in a session scratchpad with no committed harness. A screening result with no standing baseline
+    reads exactly like a measurement, which is the class of confusion this whole wave exists to remove. The
+    static lint by construction cannot produce either number: it compares terms to terms and never touches a
+    prop.
+
+    WHAT IT MEASURES, per driver term:
+      * `n_props` -- props in the cache whose text matches this term on a word boundary, under the SAME
+        normalization harvest._Matcher applies (ex._normalize: NFKD -> ASCII, casefold, collapse ws/_/-), so
+        an accent or case difference never manufactures a dead term. `n_props == 0` is a DEAD term: it is in
+        the routing vocabulary, it is in the manifest mirror's digest, and it claims nothing.
+      * per slice, how many of its props ONLY that slice claims (`n_props_sole`) versus how many at least one
+        other slice also claims -- the cross-claim matrix, keyed by the unordered slice pair.
+
+    COST/SPEED. One pass over the cache. Per prop the text is normalized ONCE, then each term is screened by
+    a plain substring test before its word-boundary regex is compiled/run at all -- 638 substring tests are
+    microseconds; 638 regexes per prop would not be. `sample` takes the first N cached documents (sorted, so
+    a sample is reproducible) for a screening run; None is the full corpus, which is what a BASELINE needs.
+
+    Returns the document; `write_term_census` persists it beside the other eval artifacts."""
+    import re as _re
+
+    from leviathan.graphrag import evidence_batch as eb
+    specs = ev.driver_specs()
+    # (normalized term, original term, slice) -- same normalization as _Matcher, same skip of 1-char forms.
+    terms: list[tuple[str, str, str]] = []
+    for name in sorted(specs):
+        for t in (specs[name].get("terms") or []):
+            nf = ex._normalize(str(t))
+            if nf and len(nf) > 1:
+                terms.append((nf, str(t), name))
+    rxs = [_re.compile(r"\b" + _re.escape(nf) + r"\b") for nf, _, _ in terms]
+    hits = [0] * len(terms)
+    slice_props: dict[str, int] = {n: 0 for n in specs}
+    slice_sole: dict[str, int] = {n: 0 for n in specs}
+    pairs: dict[str, int] = {}
+    n_props = n_multi = 0
+
+    hashes = sorted(eb._cached_hashes())
+    if sample:
+        hashes = hashes[:sample]
+    for h in hashes:
+        for p in ev.load_index(f"chunks/{h}"):
+            text_nf = ex._normalize(p.get("text") or "")
+            if not text_nf:
+                continue
+            n_props += 1
+            claimed: set[str] = set()
+            for i, (nf, _orig, sl) in enumerate(terms):
+                if nf in text_nf and rxs[i].search(text_nf):    # substring screen, THEN the boundary regex
+                    hits[i] += 1
+                    claimed.add(sl)
+            for sl in claimed:
+                slice_props[sl] += 1
+            if len(claimed) == 1:
+                slice_sole[next(iter(claimed))] += 1
+            elif len(claimed) > 1:
+                n_multi += 1
+                ordered = sorted(claimed)
+                for a in range(len(ordered)):
+                    for b in range(a + 1, len(ordered)):
+                        key = f"{ordered[a]}|{ordered[b]}"
+                        pairs[key] = pairs.get(key, 0) + 1
+
+    per_term = [{"slice": sl, "term": orig, "n_props": hits[i]}
+                for i, (_nf, orig, sl) in enumerate(terms)]
+    dead = sorted(((t["slice"], t["term"]) for t in per_term if t["n_props"] == 0))
+    return {
+        "census": "term_census", "version": 1,
+        "generated_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "scope": {"n_docs": len(hashes), "n_props": n_props, "sample": sample,
+                  "n_slices": len(specs), "n_terms": len(terms)},
+        "dead_terms": [{"slice": s, "term": t} for s, t in dead],
+        "n_dead_terms": len(dead),
+        "per_term": sorted(per_term, key=lambda r: (r["n_props"], r["slice"], r["term"])),
+        "n_multi_claimed_props": n_multi,
+        "cross_claim_matrix": dict(sorted(pairs.items(), key=lambda kv: (-kv[1], kv[0]))),
+        "per_slice": {n: {"n_props_claimed": slice_props[n], "n_props_sole": slice_sole[n]}
+                      for n in sorted(specs)},
+        # Stated so a reader never infers routing intent from a count: multi-label routing is DESIGNED
+        # (driver_slices_for returns every matching slice). A pair in this matrix is a routing FACT, not a
+        # defect; deleting a term is a population change and therefore a Wave-R act, never a census's call.
+        "note": ("multi-label routing is by design -- a cross-claim pair is a fact to review, not an error. "
+                 "A dead term claims nothing in the CHUNKED corpus; it may still be live vocabulary for a "
+                 "corpus that has not been chunked (60.1% of the corpus has not, per D-EI-6)."),
+    }
+
+
+def write_term_census(doc: dict, *, upload: bool = True) -> Path:
+    """Persist a term census beside the other eval artifacts, UTC-stamped so a rerun never overwrites the
+    prior baseline (the census BEFORE-overwrite lesson). Local always; <EVIDENCE_S3>/eval/ when set."""
+    _OUT.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    out = _OUT / f"term_census_{stamp}.json"
+    out.write_text(json.dumps(doc, indent=2), encoding="utf-8")
+    base = ev._evid_s3()
+    if upload and base:
+        import boto3
+        b, k = ev._parse_s3(base.rstrip("/") + f"/eval/{out.name}")
+        boto3.client("s3").put_object(Bucket=b, Key=k, Body=json.dumps(doc).encode("utf-8"))
+    return out
+
+
+def _term_census_lines(doc: dict) -> list[str]:
+    """ASCII stdout summary (cp1252-safe console law)."""
+    sc = doc["scope"]
+    top = list(doc["cross_claim_matrix"].items())[:10]
+    lines = [f"term-census: {sc['n_terms']} terms across {sc['n_slices']} slices over {sc['n_props']} props "
+             f"in {sc['n_docs']} cached docs" + (f" (SAMPLE of {sc['sample']} docs)" if sc["sample"] else ""),
+             f"  dead terms (claim 0 props): {doc['n_dead_terms']} of {sc['n_terms']}",
+             f"  multiply-claimed props: {doc['n_multi_claimed_props']} of {sc['n_props']}"]
+    for k, v in top:
+        lines.append(f"  cross-claim {k}: {v} props")
+    return lines
 
 
 def _diff_lines(d: dict) -> list[str]:
@@ -419,6 +583,9 @@ def _diff_lines(d: dict) -> list[str]:
         lines.append("REGRESSION consumed->orphan: " + ", ".join(d["consumed_to_orphan"]))
     if d["d_retire"] > 0:
         lines.append(f"REGRESSION retire count grew by {d['d_retire']}")
+    for drop in d.get("population_drops") or []:
+        lines.append(f"REGRESSION population {drop['slice']}: {drop['before']} -> {drop['after']} props "
+                     f"(-{drop['lost']}, {drop['frac'] * 100:.1f}%)")
     lines.append("VERDICT " + ("REGRESSED (exit 1)" if d["regressed"] else "ok (exit 0)"))
     return lines
 
@@ -462,22 +629,59 @@ def _newest_s3_archive() -> tuple[dict, str] | None:  # pragma: no cover — nee
     return json.loads(body.decode("utf-8")), f"s3://{b}/{newest}"
 
 
-def load_baseline(explicit: str | None = None) -> tuple[dict | None, str]:
-    """Resolve the --diff baseline census dict + a human label. Priority: an explicit --baseline path, then
-    the newest LOCAL archive, then (S3 mode) the newest eval/ S3 archive. Returns (None, reason) when nothing
-    resolves — the caller decides whether a missing baseline is a soft skip (first run) or a hard stop."""
+def _read_explicit_baseline(explicit: str) -> dict:
+    """Read an explicit --baseline that is EITHER a local path OR an s3:// URI.
+
+    G3b(2) -- the s3:// form is what makes the flag usable at all in the container. `configs/graphrag/eval/`
+    is in `.dockerignore`, so no local archive exists in-image; and a shadow-prefix rebuild resolves its
+    fallback under `<EVIDENCE_S3>/eval/`, which for `graphrag_evidence/shadow_ndw/` does not exist (that
+    prefix holds only chunks/, drivers/ and the 24 top-level .jsonl). Both fallbacks therefore return None
+    and the gate prints "skipping". The only working baseline for a shadow rebuild is an explicit pointer at
+    the LIVE census, which lives on S3 -- so the flag has to accept one. Raises FileNotFoundError when it
+    does not resolve; an EXPLICIT baseline that cannot be read is never a soft skip."""
+    if str(explicit).startswith("s3://"):
+        import boto3
+        from botocore.exceptions import ClientError
+        b, k = ev._parse_s3(str(explicit))
+        try:
+            body = boto3.client("s3").get_object(Bucket=b, Key=k)["Body"].read()
+        except ClientError as exc:                             # pragma: no cover -- needs live S3
+            raise FileNotFoundError(f"--baseline {explicit} not readable: {exc}") from exc
+        return json.loads(body.decode("utf-8"))
+    p = Path(explicit)
+    if not p.exists():
+        raise FileNotFoundError(f"--baseline {explicit} not found")
+    return json.loads(p.read_text(encoding="utf-8"))
+
+
+def resolve_baseline(explicit: str | None = None) -> tuple[dict | None, str, bool]:
+    """(baseline_dict | None, label, hard) — the baseline resolver the gates should use.
+
+    `hard` is True when an EXPLICIT baseline was named and could not be read. That case must FAIL the gate,
+    not skip it: a gate whose baseline silently evaporates is exactly the "armed and inert" shape G3b exists
+    to remove. A missing baseline with NO explicit pointer stays a soft skip (a genuine first run).
+
+    Priority: explicit (local path or s3:// URI) -> newest LOCAL archive -> newest S3 eval/ archive."""
     if explicit:
-        p = Path(explicit)
-        if not p.exists():
-            return None, f"--baseline {explicit} not found"
-        return json.loads(p.read_text(encoding="utf-8")), str(p)
+        try:
+            return _read_explicit_baseline(explicit), str(explicit), False
+        except (FileNotFoundError, OSError, ValueError) as exc:
+            return None, f"{exc}", True
     local = _newest_archive()
     if local is not None:
-        return json.loads(local.read_text(encoding="utf-8")), str(local)
+        return json.loads(local.read_text(encoding="utf-8")), str(local), False
     remote = _newest_s3_archive()
     if remote is not None:
-        return remote
-    return None, "no baseline (no --baseline, no local archive, no S3 eval/ archive)"
+        return remote[0], remote[1], False
+    return None, "no baseline (no --baseline, no local archive, no S3 eval/ archive)", False
+
+
+def load_baseline(explicit: str | None = None) -> tuple[dict | None, str]:
+    """Back-compatible 2-tuple wrapper over resolve_baseline() — same priority, same labels. Callers that
+    must distinguish "no baseline at all" (soft skip) from "the baseline you NAMED is gone" (hard fail)
+    should call resolve_baseline() directly."""
+    doc, label, _hard = resolve_baseline(explicit)
+    return doc, label
 
 
 def main() -> int:  # pragma: no cover — CLI glue; census()/write() are unit-tested
@@ -490,14 +694,36 @@ def main() -> int:  # pragma: no cover — CLI glue; census()/write() are unit-t
                     help="W1.3 gate: re-derive the CURRENT census and diff it against a prior copy; exit "
                          "NONZERO on a stranding regression (consumed->orphan transition or retire growth). "
                          "Does NOT write/archive (a read-only gate).")
-    ap.add_argument("--baseline", default=None, metavar="PATH",
-                    help="--diff only: the prior e1_census.json to diff against (default: newest archived copy, "
-                         "then the newest S3 eval/ archive)")
+    ap.add_argument("--baseline", default=None, metavar="PATH_OR_S3URI",
+                    help="--diff only: the prior e1_census.json to diff against -- a local path OR an "
+                         "s3://bucket/key URI (the container has no local archive: configs/graphrag/eval/ is "
+                         "in .dockerignore). Default: newest archived copy, then the newest S3 eval/ archive. "
+                         "A baseline named here that cannot be read FAILS the gate; it is never skipped.")
+    ap.add_argument("--term-census", action="store_true",
+                    help="G8 item 1 (F13): READ-ONLY term census over the chunks/ doc-cache -- the DEAD-TERM "
+                         "list (terms claiming zero props) and the CROSS-CLAIM matrix (props claimed by 2+ "
+                         "slices), written to eval/term_census_<UTC>.json. Writes no slice, embeds nothing, "
+                         "calls no model. This is the standing baseline the 310-dead / 1,319-multiply-claimed "
+                         "screening numbers never had.")
+    ap.add_argument("--term-census-sample", type=int, default=None, metavar="N",
+                    help="--term-census only: screen the first N cached docs (sorted, reproducible) instead "
+                         "of the full corpus. A sample is a SCREENING result, never a baseline.")
     args = ap.parse_args()
     config.load_env()
 
+    if args.term_census:
+        doc = term_census(sample=args.term_census_sample)
+        path = write_term_census(doc, upload=not args.local_only)
+        for line in _term_census_lines(doc):
+            print(line)
+        print(f"term-census -> {path}")
+        return 0
+
     if args.diff:
-        baseline, label = load_baseline(args.baseline)
+        baseline, label, hard = resolve_baseline(args.baseline)
+        if baseline is None and hard:                          # an EXPLICIT baseline that vanished is a failure
+            print(f"census --diff: {label} -- REFUSING to pass a gate with no baseline you asked for")
+            return 1
         if baseline is None:
             print(f"census --diff: {label}; skipping the gate (nothing to compare)")
             return 0                                           # no prior -> soft skip (first run), not a regression

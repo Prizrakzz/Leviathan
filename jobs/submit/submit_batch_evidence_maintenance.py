@@ -38,41 +38,76 @@ from leviathan.storage.metadata import utc_now_iso
 logger = get_logger("submit_evidence_maintenance")
 
 
-def build_command(*, mode: str, nodes: str | None = None) -> list[str]:
+def build_command(*, mode: str, nodes: str | None = None, allow_churn: float | None = None) -> list[str]:
     """The container command (the image ENTRYPOINT is `python`, so this is the arg list to it).
 
     `mode` is EXACTLY one of the two free evidence_batch maintenance modes — `rebuild-slices` (no args) or
     `reroute` (honours `--nodes n1,n2`; evidence_batch defaults that to "all" when omitted). We deliberately
     surface only these two: the billed modes (--submit/--run/--fill) have their own gated wrapper
     (submit_batch_evidence) and must not be reachable through a "maintenance" verb.
+
+    `allow_churn` (G1b) threads the write-guard escape hatch into the cloud path, because that is where the
+    writes actually happen: without it a legitimate large re-route would be REFUSED in-job with no way to
+    declare the drop it expects. It is a MAGNITUDE, never a boolean.
     """
     if mode not in ("rebuild-slices", "reroute"):
         raise ValueError(f"unknown maintenance mode: {mode!r} (expected 'rebuild-slices' or 'reroute')")
     cmd = ["-m", "leviathan.graphrag.evidence_batch", f"--{mode}"]
     if mode == "reroute" and nodes:                          # rebuild-slices takes no --nodes (whole-cache route)
         cmd += ["--nodes", nodes]
+    if allow_churn is not None:
+        cmd += ["--allow-churn", str(allow_churn)]
     return cmd
 
 
 # The E1 darkness census --diff invocation the census-gate chains AFTER the maintenance module in-job.
+# FLAG-NAME NOTE (the wave plan's own correction): this leg invokes `e1_census`, whose argparse exposes
+# `--baseline`. `--census-baseline` is load_pg_evidence's OWN flag for the POST-PG-LOAD gate. Two distinct
+# gates, two distinct baseline flags — passing the wrong one here fails the job on an unrecognized argument.
 _CENSUS_GATE_CMD = ["-m", "leviathan.graphrag.e1_census", "--diff"]
 
+# G2 / D-EI-1 — the driver-slice manifest-mirror lint. Chained AHEAD of the maintenance module, because it is
+# the only guard in the wave that fires BEFORE any compute is spent: a term edit that never reached the
+# tracked mirror re-routes the whole driver layer, and catching it after a ~3-4h re-embed is catching it too
+# late. config_check is a manual CLI today and there is no CI and no pre-commit, so this chain IS its runner.
+_MANIFEST_LINT_CMD = ["-m", "leviathan.graphrag.driver_slices_manifest", "--check"]
 
-def build_gated_command(base_cmd: list[str]) -> list[str]:
-    """Wrap a maintenance command (from `build_command`) so the SAME Batch job runs the E1 census --diff
-    standing gate AFTER the rebuild/reroute and EXITS NONZERO if the census regressed (a consumed->orphan
-    transition or a grown retire count — W1.3). The image ENTRYPOINT is `python`, so a container command is
-    exactly one python invocation; we therefore return a `python -c` chain that shells the maintenance module
-    first and, ONLY on its success (rc == 0), the census gate — propagating whichever exit code is nonzero
-    (`rc or <gate>`), so a failed rebuild is never masked by a clean census, nor vice-versa.
 
-    OPT-IN + additive: reached only via --census-gate. The ungated path returns build_command() byte-for-byte,
-    so a default maintenance submit is unchanged. The gate resolves its baseline the same way the CLI does
-    (newest local archive, else the newest S3 eval/ archive under the job's EVIDENCE_S3 shadow prefix)."""
+def build_gated_command(base_cmd: list[str], *, census_gate: bool = True,
+                        manifest_lint: bool = True, census_baseline: str | None = None) -> list[str]:
+    """Wrap a maintenance command (from `build_command`) into ONE python invocation that runs, in order:
+
+        1. the driver-slice manifest lint (G2)          -- BEFORE the pass; a config drift costs nothing here
+        2. the maintenance module itself                -- the rebuild/reroute
+        3. the E1 census --diff standing gate (W1.3)    -- AFTER the pass
+
+    Each step runs only if every earlier step exited 0, and the chain exits with the FIRST nonzero code, so a
+    failed rebuild is never masked by a clean census nor vice-versa. The image ENTRYPOINT is `python`, so a
+    container command is exactly one python invocation — hence the `python -c` chain.
+
+    Both wrappers are individually switchable. `manifest_lint` defaults ON: the lint is pure config
+    arithmetic (milliseconds, no S3, no network) and turning it off is the thing that needs a flag, not
+    turning it on. `census_gate` stays caller-driven (--census-gate).
+
+    `census_baseline` threads an EXPLICIT baseline into step 3 — the fix for the gate being inert on the flow
+    it was built for: `configs/graphrag/eval/` is in `.dockerignore` so there is no local archive in-image,
+    and a shadow rebuild's `<EVIDENCE_S3>/eval/` prefix does not exist, so both fallbacks resolve to None and
+    the gate prints "skipping the gate" and exits 0. It accepts an `s3://` URI pointing at the LIVE census."""
+    steps: list[list[str]] = []
+    if manifest_lint:
+        steps.append(list(_MANIFEST_LINT_CMD))
+    steps.append(list(base_cmd))
+    if census_gate:
+        steps.append(list(_CENSUS_GATE_CMD) + (["--baseline", census_baseline] if census_baseline else []))
+    if len(steps) == 1:
+        return steps[0]
     script = (
-        "import subprocess, sys; "
-        f"rc = subprocess.call([sys.executable, *{list(base_cmd)!r}]); "
-        f"sys.exit(rc or subprocess.call([sys.executable, *{_CENSUS_GATE_CMD!r}]))"
+        "import subprocess, sys; rc = 0\n"
+        f"for step in {steps!r}:\n"
+        "    rc = subprocess.call([sys.executable, *step])\n"
+        "    if rc:\n"
+        "        break\n"
+        "sys.exit(rc)"
     )
     return ["-c", script]
 
@@ -152,8 +187,22 @@ def main() -> None:
                     help="override the Batch queue (default: on-demand for --rebuild-slices, shared for --reroute)")
     ap.add_argument("--census-gate", action="store_true",
                     help="opt-in W1.3 standing gate: after the rebuild/reroute, run the E1 darkness census "
-                         "--diff in the SAME job and FAIL it (nonzero exit) on a consumed->orphan transition or "
-                         "retire-count growth. Default off -> the container command is byte-identical.")
+                         "--diff in the SAME job and FAIL it (nonzero exit) on a consumed->orphan transition, "
+                         "retire-count growth, or a per-slice population drop past the trip lines (G3b).")
+    ap.add_argument("--census-baseline", default=None, metavar="PATH_OR_S3URI",
+                    help="--census-gate only: the EXPLICIT prior e1_census.json the in-job gate diffs "
+                         "against, as a container path or an s3:// URI. Without it the gate resolves NO "
+                         "baseline on the shadow-rebuild flow (no local archive in-image, no eval/ prefix "
+                         "under a shadow) and passes silently. Note this becomes `--baseline` on the "
+                         "e1_census leg; --census-baseline is load_pg_evidence's own flag for a different "
+                         "gate.")
+    ap.add_argument("--allow-churn", type=float, default=None, metavar="PCT",
+                    help="G1b: permit a per-slice population DROP of up to PCT percent in-job. Without it "
+                         "the write guard REFUSES any drop >= 10%% with nothing written. Requires a "
+                         "magnitude -- state the churn you expect.")
+    ap.add_argument("--no-manifest-lint", dest="manifest_lint", action="store_false", default=True,
+                    help="skip the G2 driver-slice manifest-mirror lint that otherwise runs BEFORE the pass "
+                         "(escape hatch for a tree that deliberately has no mirror)")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
@@ -169,9 +218,11 @@ def main() -> None:
         assert_not_live_rebuild(evidence_s3=args.evidence_s3, job_definition=job_definition,
                                 aws_region=aws_region, override=args.i_know_this_is_live)
 
-    command = build_command(mode=mode, nodes=args.nodes)
-    if args.census_gate:                                     # opt-in: chain the census --diff gate in-job (W1.3)
-        command = build_gated_command(command)
+    command = build_command(mode=mode, nodes=args.nodes, allow_churn=args.allow_churn)
+    if args.census_gate or args.manifest_lint:               # G2 lint (default on) + opt-in W1.3 census gate
+        command = build_gated_command(command, census_gate=args.census_gate,
+                                      manifest_lint=args.manifest_lint,
+                                      census_baseline=args.census_baseline)
     overrides: dict = {
         "command": command,
         "environment": [{"name": "EVIDENCE_S3", "value": args.evidence_s3}],

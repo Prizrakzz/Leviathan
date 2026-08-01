@@ -503,3 +503,115 @@ def test_s3_mode_lists_drivers_prefix_once(tmp_path, monkeypatch):
         ev._DRIVER_CACHE = None
         ev._DRIVER_ALIAS = None
         ev._DRIVER_MATCHERS = None
+
+
+# ── G3b: the census gate was ARMED AND INERT on two independent counts ─────────────────────────────────
+def _pop_doc(pairs) -> dict:
+    """A census-shaped artifact where each slice carries an explicit n_routed_props."""
+    sl = [{"slice": name, "n_dag_ids": 1, "n_routed_props": n, "consumed": n >= 1, "orphan_kind": None}
+          for name, n in pairs]
+    return {"census": "E1_darkness", "basis": "synthetic",
+            "id_totals": {"n_ids": 10, "n_backed": 10, "n_dark": 0, "by_reason": {}, "n_fold_recoverable": 0},
+            "slice_totals": {"n_slices": len(sl), "n_consumed": len(sl), "n_orphan": 0,
+                             "orphan_by_kind": {}},
+            "ids": [], "slices": sl}
+
+
+def test_the_coffee_rust_wipe_now_fails_the_gate():
+    """THE RECEIPT. The live 2026-07-09 census records `coffee_rust_crop n_routed_props=505, n_dag_ids=1,
+    consumed=True`; the file on S3 today holds 20 props. Because `consumed = n_ids >= 1 and n_props >= 1`
+    stays True whatever the count does, and the verdict failed ONLY on consumed->orphan or a grown retire
+    count, the armed gate would have passed that 96% wipe silently -- and all 40 shrinking slices at the
+    2026-07-20 promote with it."""
+    base, cur = _pop_doc([("coffee_rust_crop", 505)]), _pop_doc([("coffee_rust_crop", 20)])
+    d = ec.diff_census(base, cur)
+    assert d["regressed"] is True
+    assert d["population_drops"] == [{"slice": "coffee_rust_crop", "before": 505, "after": 20,
+                                      "lost": 485, "frac": 0.9604}]
+    assert d["consumed_to_orphan"] == [] and d["d_retire"] == 0     # neither old signal fires: that was the bug
+    code, lines = ec.run_diff(cur, base)
+    assert code == 1 and any("REGRESSION population coffee_rust_crop: 505 -> 20 props" in x for x in lines)
+
+
+def test_population_trip_lines_need_both_a_fraction_and_a_magnitude():
+    # 10 -> 9 is a 10% drop on a tiny slice: noise, not a regression (POP_DROP_MIN_ABS). -263 of 1,238 is
+    # `metals` at the promote: -21%, over both lines.
+    assert ec.population_drops(_pop_doc([("x", 10)]), _pop_doc([("x", 9)])) == []
+    assert ec.population_drops(_pop_doc([("x", 1000)]), _pop_doc([("x", 960)])) == []      # -4%: under
+    assert [d["slice"] for d in ec.population_drops(_pop_doc([("metals", 1238)]),
+                                                    _pop_doc([("metals", 975)]))] == ["metals"]
+    # growth never trips, and a VANISHED slice is a curation act (the same doctrine consumed_to_orphan uses)
+    assert ec.population_drops(_pop_doc([("x", 100)]), _pop_doc([("x", 400)])) == []
+    assert ec.population_drops(_pop_doc([("x", 100)]), _pop_doc([("y", 100)])) == []
+
+
+def test_an_explicit_baseline_that_vanishes_is_a_hard_failure_not_a_skip(tmp_path, monkeypatch):
+    """G3b(2): `configs/graphrag/eval/` is in .dockerignore so there is no local archive in-image, and a
+    shadow rebuild's <EVIDENCE_S3>/eval/ prefix does not exist -- both fallbacks return None and the gate
+    prints "skipping the gate" and exits 0. Arming it on the shadow flow was a guaranteed silent pass."""
+    monkeypatch.setattr(ec, "_OUT", tmp_path / "empty")
+    monkeypatch.delenv("EVIDENCE_S3", raising=False)
+    doc, label, hard = ec.resolve_baseline(str(tmp_path / "nope.json"))
+    assert doc is None and hard is True and "not found" in label
+    # a genuine first run (nothing NAMED, nothing found) stays a soft skip
+    doc, label, hard = ec.resolve_baseline(None)
+    assert doc is None and hard is False and "no baseline" in label
+    # the 2-tuple wrapper is preserved for existing callers
+    assert ec.load_baseline(None) == (None, label)
+
+
+def test_explicit_baseline_reads_a_local_path(tmp_path, monkeypatch):
+    import json
+    monkeypatch.setattr(ec, "_OUT", tmp_path / "empty")
+    p = tmp_path / "base.json"
+    p.write_text(json.dumps(_pop_doc([("x", 5)])), encoding="utf-8")
+    doc, label, hard = ec.resolve_baseline(str(p))
+    assert hard is False and doc["slices"][0]["slice"] == "x" and label == str(p)
+
+
+# ── G8 item 1 (F13): the TERM census -- dead terms + the cross-claim matrix ────────────────────────────
+def _seed_chunk(tmp_path, name, texts):
+    import hashlib
+    import json
+    d = tmp_path / "chunks"
+    d.mkdir(parents=True, exist_ok=True)
+    h = hashlib.md5(name.encode()).hexdigest()
+    (d / f"{h}.jsonl").write_text("\n".join(json.dumps(
+        {"id": f"{h}#{i}", "date": "2024-01-01", "source": "WB", "source_key": name, "text": t,
+         "event_date": None}) for i, t in enumerate(texts)), encoding="utf-8")
+
+
+def test_term_census_names_dead_terms_and_builds_the_cross_claim_matrix(tmp_path, monkeypatch):
+    """G8 asked for TWO artifact-free items; only item 2 (the static config-vs-config collision lint) landed.
+    Item 1 -- run it at full corpus, write the cross-claim matrix and the dead-term list beside the E1 census
+    -- had no code and no committed harness, so "310 of 638 dead terms" and "1,319 multiply-claimed props"
+    stayed a 20%-sample screening result with no standing baseline. The static lint by construction cannot
+    produce either number: it compares terms to terms and never reads a prop."""
+    monkeypatch.setattr(ev, "_EVID_DIR", tmp_path)
+    monkeypatch.setattr(ev, "_evid_s3", lambda: None)
+    monkeypatch.setattr(ev, "_driver_raw", lambda: {"drivers": {
+        "freight": {"category": "logistics", "terms": ["freight", "unobtainium shipping"]},
+        "rust": {"category": "disease", "terms": ["leaf rust"]},
+        "coffee_rust": {"category": "disease", "terms": ["coffee leaf rust"]}}})
+    _reset()
+    try:
+        _seed_chunk(tmp_path, "doc-a", ["Pacific freight rates doubled",
+                                        "Coffee leaf rust spread across Minas Gerais",
+                                        "an unrelated macro note"])
+        doc = ec.term_census()
+        assert doc["scope"]["n_props"] == 3 and doc["scope"]["n_terms"] == 4
+        # the dead term is in the vocabulary, in the manifest digest, and claims NOTHING
+        assert doc["dead_terms"] == [{"slice": "freight", "term": "unobtainium shipping"}]
+        # "leaf rust" is a word-boundary substring of "coffee leaf rust", so ONE prop is claimed by BOTH --
+        # the exact shape term_collision_warnings predicts statically, measured here against real props.
+        assert doc["n_multi_claimed_props"] == 1
+        assert doc["cross_claim_matrix"] == {"coffee_rust|rust": 1}
+        assert doc["per_slice"]["freight"] == {"n_props_claimed": 1, "n_props_sole": 1}
+        assert doc["per_slice"]["rust"] == {"n_props_claimed": 1, "n_props_sole": 0}
+        # it is READ-ONLY over chunks/: no slice appears, nothing is embedded, nothing is written until asked
+        assert not (tmp_path / "drivers").exists() and list(tmp_path.glob("*.jsonl")) == []
+        out = ec.write_term_census(doc, upload=False)
+        assert out.name.startswith("term_census_") and out.exists()
+        assert any("dead terms (claim 0 props): 1 of 4" in ln for ln in ec._term_census_lines(doc))
+    finally:
+        _reset()

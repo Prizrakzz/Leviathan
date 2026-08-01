@@ -192,11 +192,13 @@ class TestCensusGateCommand:
         assert cmd[0] == "-c"
         script = cmd[1]
         compile(script, "<gate>", "exec")                    # the chain must be valid python
-        # the maintenance module runs first, the census gate after it
+        # G2: the manifest-mirror lint runs BEFORE the pass; the maintenance module; then the census gate.
         assert "leviathan.graphrag.evidence_batch" in script and "--rebuild-slices" in script
         assert "leviathan.graphrag.e1_census" in script and "--diff" in script
-        # the gate runs ONLY on rebuild success and its exit code propagates (rc or <gate>)
-        assert "rc or" in script and "sys.exit" in script
+        assert "leviathan.graphrag.driver_slices_manifest" in script and "--check" in script
+        assert script.index("driver_slices_manifest") < script.index("evidence_batch") < script.index("e1_census")
+        # each step runs only after a clean predecessor, and the FIRST nonzero code propagates
+        assert "if rc:" in script and "break" in script and "sys.exit(rc)" in script
 
     def test_gate_preserves_reroute_nodes(self) -> None:
         base = maint.build_command(mode="reroute", nodes="corn,soybeans")
@@ -204,9 +206,28 @@ class TestCensusGateCommand:
 
         assert "--reroute" in script and "corn,soybeans" in script
 
+    def test_explicit_census_baseline_is_threaded_into_the_e1_leg(self) -> None:
+        # G3b(2): without an explicit baseline the in-job gate resolves NOTHING on the shadow-rebuild flow
+        # (no local archive in-image, no eval/ prefix under a shadow) and passes silently. The flag on the
+        # e1_census leg is `--baseline` -- NOT `--census-baseline`, which belongs to load_pg_evidence.
+        script = maint.build_gated_command(maint.build_command(mode="rebuild-slices"),
+                                           census_baseline="s3://bkt/graphrag_evidence/eval/e1_census.json")[1]
+
+        assert "'--baseline', 's3://bkt/graphrag_evidence/eval/e1_census.json'" in script
+        assert "--census-baseline" not in script
+
+    def test_allow_churn_is_threaded_as_a_magnitude(self) -> None:
+        # G1b: the write-guard escape hatch has to be reachable from the cloud path, and it is a NUMBER.
+        assert maint.build_command(mode="rebuild-slices", allow_churn=25.0)[-2:] == ["--allow-churn", "25.0"]
+        assert "--allow-churn" not in maint.build_command(mode="rebuild-slices")
+
     def test_ungated_command_is_byte_identical(self) -> None:
-        # Opt-in: without --census-gate the command is exactly build_command()'s output (default unchanged).
+        # build_command() itself is unchanged when no knob is passed (the wrappers are what add steps).
         assert maint.build_command(mode="reroute") == [
+            "-m", "leviathan.graphrag.evidence_batch", "--reroute"]
+        # ... and a chain of exactly one step degenerates back to that bare command, no `python -c` wrapper.
+        assert maint.build_gated_command(maint.build_command(mode="reroute"), census_gate=False,
+                                         manifest_lint=False) == [
             "-m", "leviathan.graphrag.evidence_batch", "--reroute"]
 
 
@@ -218,20 +239,28 @@ class TestPgLoadCensusGate:
     def test_soft_skips_without_baseline(self, monkeypatch) -> None:
         # First opt-in load has nothing to diff -> a soft skip (exit 0), never a false failure.
         from leviathan.graphrag import e1_census as ec
-        monkeypatch.setattr(ec, "load_baseline", lambda b=None: (None, "no baseline"))
+        monkeypatch.setattr(ec, "resolve_baseline", lambda b=None: (None, "no baseline", False))
         assert pgutil._run_census_gate(None) == 0
+
+    def test_hard_fails_when_an_EXPLICIT_baseline_is_unreadable(self, monkeypatch) -> None:
+        # G3b: "the gate ran and found nothing" and "the gate never ran" must not share an exit code. A
+        # baseline the caller NAMED and that cannot be read fails; only a genuine first run skips.
+        from leviathan.graphrag import e1_census as ec
+        monkeypatch.setattr(ec, "resolve_baseline",
+                            lambda b=None: (None, "--baseline s3://x/y not found", True))
+        assert pgutil._run_census_gate("s3://x/y") == 1
 
     def test_returns_diff_exit_code_on_regression(self, monkeypatch) -> None:
         # A regression from run_diff (exit 1) must propagate out of the gate so the load fails.
         from leviathan.graphrag import e1_census as ec
-        monkeypatch.setattr(ec, "load_baseline", lambda b=None: ({"baseline": 1}, "base.json"))
+        monkeypatch.setattr(ec, "resolve_baseline", lambda b=None: ({"baseline": 1}, "base.json", False))
         monkeypatch.setattr(ec, "census", lambda: {"current": 1})
         monkeypatch.setattr(ec, "run_diff", lambda cur, base: (1, ["REGRESSION retire count grew by 2"]))
         assert pgutil._run_census_gate(None) == 1
 
     def test_returns_zero_when_clean(self, monkeypatch) -> None:
         from leviathan.graphrag import e1_census as ec
-        monkeypatch.setattr(ec, "load_baseline", lambda b=None: ({"baseline": 1}, "base.json"))
+        monkeypatch.setattr(ec, "resolve_baseline", lambda b=None: ({"baseline": 1}, "base.json", False))
         monkeypatch.setattr(ec, "census", lambda: {"current": 1})
         monkeypatch.setattr(ec, "run_diff", lambda cur, base: (0, ["VERDICT ok (exit 0)"]))
         assert pgutil._run_census_gate(None) == 0

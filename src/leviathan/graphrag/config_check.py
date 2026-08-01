@@ -2149,6 +2149,29 @@ def main() -> int:
         print(f"WARN bare_name ({len(bare)} nodes miss their own head-commodity word -- non-fatal):")
         for w in bare:
             print(f"  - {w}")
+    # Advisory (non-fatal): G8 CROSS-FIRE -- one slice's term is a word-boundary substring of another's, so
+    # every prop the longer term claims is also claimed by the shorter one ("leaf rust" inside "coffee leaf
+    # rust"). Neither of check_driver_slices' hard checks can see this (both read the dag_alias ID map) and
+    # the G2 manifest hashes term SETS, so it detects edits, never collisions. Pure config arithmetic over
+    # ~638 terms. REPORTS ONLY: deleting a term is a routing change and belongs in the artifact-staling
+    # bundle, never in a lint.
+    from leviathan.graphrag.evidence import (never_written_slice_warnings, read_dark_slice_warnings,
+                                             term_collision_warnings)
+    cross = term_collision_warnings()
+    if cross:
+        print(f"WARN term_cross_fire ({len(cross)} word-boundary term collisions across slices -- "
+              f"non-fatal; deletion is a routing change, not a lint's call):")
+        for w in cross:
+            print(f"  - {w}")
+    # Advisory (non-fatal): G7.2 READ-DARK census -- configured slices no REAL DAG id reaches, so
+    # planner._fill can never reach them and no episode line can ever render for them.
+    for w in read_dark_slice_warnings():
+        print(f"NOTE {w}")
+    # Advisory (non-fatal): G7.4 NEVER-WRITTEN census -- configured slices with no S3 object at all. A
+    # DIFFERENT set from read-darkness, and deliberately advisory: write-darkness is store state, and a
+    # config lint that cannot see the store must never fail a build on it.
+    for w in never_written_slice_warnings():
+        print(f"NOTE {w}")
     # Advisory (non-fatal): un-blurbed edges — hover falls back to mechanism; count-only to keep output sane.
     missing_blurbs = blurb_presence_warnings()
     if missing_blurbs:

@@ -13,12 +13,17 @@ from __future__ import annotations
 import pytest
 from leviathan.graphrag import config_check as cc
 from leviathan.graphrag import display as dp
+from leviathan.graphrag import driver_slices_manifest as dsm
 from leviathan.graphrag import evidence as ev
 
 
-def _wire(monkeypatch, tmp_path, *, causal_yaml: str, driver_yaml: str):
+def _wire(monkeypatch, tmp_path, *, causal_yaml: str, driver_yaml: str, mirror: bool = True):
     """Point display at a synthetic causal dir and evidence at a synthetic driver_slices.yaml, caches cleared.
-    Caller MUST reset in a finally (see the try/finally in each test)."""
+    Caller MUST reset in a finally (see the try/finally in each test).
+
+    G2: check_driver_slices now also lints the TRACKED manifest mirror (driver_slices_manifest), which lives
+    beside its source — so a synthetic config gets a synthetic mirror generated from it. `mirror=False`
+    leaves it absent, which is itself a hard failure (the tracked-config-went-missing class)."""
     causal = tmp_path / "causal"
     causal.mkdir()
     (causal / "fixture.yaml").write_text(causal_yaml, encoding="utf-8")
@@ -28,6 +33,8 @@ def _wire(monkeypatch, tmp_path, *, causal_yaml: str, driver_yaml: str):
     monkeypatch.setattr(ev, "_DRIVER_PATH", drv)
     ev._reset()
     dp.all_driver_ids.cache_clear()
+    if mirror:
+        dsm.write()                                           # manifest_path() derives from _DRIVER_PATH.parent
 
 
 def _reset():
@@ -432,3 +439,113 @@ def test_numbers_schema_pins_flag_a_missing_column(monkeypatch, tmp_path):
     monkeypatch.setattr(R, "load_registry", lambda path=None: reg)
     errs = cc.check_numbers_schema_pins()
     assert any("countryy_typo" in e and "silver_nasa_power" in e for e in errs)
+
+
+# ── G8: the cross-fire class had NO standing detector ──────────────────────────────────────────────────
+# check_driver_slices' two hard checks read the dag_alias ID map, so neither can see a TERM substring
+# collision; G2's mirror hashes term SETS, so it detects that an edit happened, never that two slices claim
+# the same prop. A 20% deterministic sample over all 109 slices found 1,319 props claimed by 2+ slices and
+# at least 15 slice pairs cross-claiming MORE than coffee/cereal. This lint REPORTS: deleting a term is a
+# routing change and belongs in the artifact-staling bundle, never in a lint.
+_CROSS_CAUSAL = "contract: c\ndrivers:\n- id: cereal_rust_complex\n- id: coffee_rust_crop\n"
+
+
+def test_cross_fire_lint_finds_the_leaf_rust_shape(tmp_path, monkeypatch):
+    drivers = (
+        "drivers:\n"
+        "  cereal_rust_complex: {category: disease, terms: [leaf rust, stripe rust]}\n"
+        "  coffee_rust_crop: {category: disease, terms: [coffee leaf rust, ferrugem do cafeeiro]}\n"
+    )
+    _wire(monkeypatch, tmp_path, causal_yaml=_CROSS_CAUSAL, driver_yaml=drivers)
+    try:
+        warns = ev.term_collision_warnings()
+        assert len(warns) == 1
+        assert "cereal_rust_complex:'leaf rust'" in warns[0]
+        assert "coffee_rust_crop:'coffee leaf rust'" in warns[0]
+        assert ev.check_driver_slices() == []                 # REPORTS ONLY -- never a hard failure
+    finally:
+        _reset()
+
+
+def test_cross_fire_lint_ignores_same_slice_and_equal_terms(tmp_path, monkeypatch):
+    drivers = (
+        "drivers:\n"
+        "  cereal_rust_complex: {category: disease, terms: [rust, leaf rust, LEAF RUST]}\n"
+        "  coffee_rust_crop: {category: disease, terms: [leaf rust]}\n"
+    )
+    _wire(monkeypatch, tmp_path, causal_yaml=_CROSS_CAUSAL, driver_yaml=drivers)
+    try:
+        warns = ev.term_collision_warnings()
+        # 'rust' inside the OTHER slice's 'leaf rust' is the only cross-slice proper substring; the
+        # same-slice pair and the case-variant duplicate are both skipped (normalization is the matcher's).
+        assert len(warns) == 1 and "cereal_rust_complex:'rust'" in warns[0]
+        assert "coffee_rust_crop:'leaf rust'" in warns[0]
+    finally:
+        _reset()
+
+
+def test_cross_fire_requires_a_word_boundary(tmp_path, monkeypatch):
+    # 'india' must NOT collide with 'indiana' -- the same law geography.py's docstring states, and the
+    # reason harvest._Matcher escapes and word-bounds every term in the first place.
+    drivers = (
+        "drivers:\n"
+        "  a_slice: {category: x, terms: [india]}\n"
+        "  b_slice: {category: x, terms: [indiana corn]}\n"
+    )
+    _wire(monkeypatch, tmp_path, causal_yaml="contract: c\ndrivers:\n- id: a_slice\n- id: b_slice\n",
+          driver_yaml=drivers)
+    try:
+        assert ev.term_collision_warnings() == []
+    finally:
+        _reset()
+
+
+# ── G7.2: the read-dark census, pinned ─────────────────────────────────────────────────────────────────
+def test_a_new_unaccounted_read_dark_slice_is_a_hard_error(tmp_path, monkeypatch):
+    causal = "contract: c\ndrivers:\n- id: frost\n"
+    drivers = (
+        "drivers:\n"
+        "  frost: {category: hazard, terms: [freeze]}\n"
+        "  orphan_slice: {category: hazard, terms: [nothing reaches me]}\n"
+    )
+    _wire(monkeypatch, tmp_path, causal_yaml=causal, driver_yaml=drivers)
+    try:
+        assert ev.read_dark_slices() == {"orphan_slice"}
+        errs = ev.check_driver_slices()
+        assert any("read-dark slice orphan_slice" in e for e in errs)
+        assert any("planner._fill can never reach it" in e for e in errs)
+    finally:
+        _reset()
+
+
+def test_a_waived_read_dark_slice_is_accounted_for(tmp_path, monkeypatch):
+    """D-EI-4's ratified IOD disposition, in miniature: WAIVING is artifact-free AND render-free, where
+    REGISTERING would change the render surface on four contracts and carry the artifact bundle's gate."""
+    causal = "contract: c\ndrivers:\n- id: frost\n"
+    drivers = (
+        "drivers:\n"
+        "  frost: {category: hazard, terms: [freeze]}\n"
+        "  indian_ocean_dipole: {category: weather_regime, terms: [indian ocean dipole]}\n"
+        "waivers:\n"
+        "  indian_ocean_dipole: {category: deferred, note: honestly-deferred read-path gap}\n"
+    )
+    _wire(monkeypatch, tmp_path, causal_yaml=causal, driver_yaml=drivers)
+    try:
+        assert ev.read_dark_slices() == {"indian_ocean_dipole"}
+        assert ev.check_driver_slices() == []                 # waived == accounted for, not hidden
+        warns = ev.read_dark_slice_warnings()
+        assert any("WAIVED (honestly-deferred gaps): indian_ocean_dipole" in w for w in warns)
+        assert any("can never render an episode line" in w for w in warns)
+    finally:
+        _reset()
+
+
+def test_the_live_pin_still_matches_the_live_wiring():
+    """The 29 read-dark slices are PINNED (READ_DARK_SLICES_PIN) so nobody re-derives a subset by hand
+    again -- the deck author had already measured five of them at eval_queries_playbooks_v1.yaml:1130-1140.
+    Skipped on a tree with no private causal configs."""
+    import pytest
+    from leviathan.graphrag import display as dp
+    if not dp.all_driver_ids():
+        pytest.skip("no causal configs in this tree -- the pin is vacuous")
+    assert ev.read_dark_slices() == set(ev.READ_DARK_SLICES_PIN)

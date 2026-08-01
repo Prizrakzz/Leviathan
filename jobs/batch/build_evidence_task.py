@@ -26,6 +26,7 @@ import boto3
 
 from leviathan.common.config import load_env
 from leviathan.graphrag import evidence as ev
+from leviathan.graphrag import write_guard as wg
 
 logger = logging.getLogger("build_evidence_task")
 
@@ -57,7 +58,23 @@ def main() -> None:
                          "FREE from the same pass; 'false' = commodity slices only")
     ap.add_argument("--chunk-provider", default="bedrock",   # 'anthropic' bills Haiku to the Anthropic account
                     help="'bedrock' (task IAM role) or 'anthropic' (Anthropic API, ANTHROPIC_API_KEY from secret)")
+    ap.add_argument("--allow-churn", type=float, default=None, metavar="PCT",
+                    help="G1b escape hatch (F10): permit a population DROP up to PCT percent on this build "
+                         "(e.g. --allow-churn 25). A legitimately PARTIAL build -- '--nodes corn "
+                         "--drivers true' populates driver_sink from one contract, so every other driver "
+                         "slice shrinks -- otherwise hard-refuses with no declared-magnitude route out. "
+                         "REQUIRES a magnitude on purpose: 'I expect churn' is not a claim anyone can be "
+                         "wrong about, 'I expect up to 25%%' is. Omit the flag to declare no churn; 0 is "
+                         "rejected because it used to disarm the span guard silently.")
+    ap.add_argument("--run-manifest", action="store_true", default=True,
+                    help="G1c: emit the per-pass write manifest to configs/graphrag/eval/ and "
+                         "<EVIDENCE_S3>/eval/ (default ON; --no-run-manifest to suppress). Without it this "
+                         "-- the only BILLED driver-write path -- left no run record at all.")
+    ap.add_argument("--no-run-manifest", dest="run_manifest", action="store_false")
     args = ap.parse_args()
+    if args.allow_churn is not None and float(args.allow_churn) <= 0:
+        ap.error("--allow-churn 0 declares no churn at all -- OMIT the flag instead.")
+    allow_churn = None if args.allow_churn is None else max(0.0, float(args.allow_churn)) / 100.0
 
     load_env()
     if not ev._evid_s3():                                 # never write the IP slices to a container-local disk
@@ -90,23 +107,48 @@ def main() -> None:
     driver_sink: dict = {} if capture_drivers else None   # accumulated ACROSS nodes -> run drivers in ONE job
     logger.info("chunk provider=%s", provider)
     start = datetime.now(timezone.utc)
-    total, errors = 0, 0
-    for node in nodes:
-        try:
-            n = ev.build_index(s3, node=node, aliases=ev._aliases(node), year_windows=ev.windows_for(node),
-                               n_docs=ev.n_docs_for(node, args.n_docs), backend=args.backend, bedrock=bedrock,
-                               max_props=None, workers=args.workers, aws_region=args.aws_region,
-                               driver_sink=driver_sink, provider=provider, anthropic_client=anthropic_client)
-            logger.info("  %s: %d dated props -> evidence/%s.jsonl", node, n, node)
-            total += n
-        except Exception as exc:                          # one bad node shouldn't abandon the rest of the group
-            logger.exception("  %s FAILED: %s", node, exc)
-            errors += 1
+    total, errors, dtotal = 0, 0, 0
+    # F10 -- the ONLY BILLED driver-write path had no manifest and no escape hatch. G1c says every write pass
+    # emits one manifest; this pass emitted none, so the one run that actually costs money was the one run
+    # with no record. The manifest is flushed in a `finally` so a refusal, a node failure and a clean finish
+    # all leave the same artifact behind -- a pass that dies without a record is the 2026-07-19 shape.
+    mf = wg.RunManifest("cloud_build", chunk_version=ev.current_chunk_version(),
+                        allow_churn=allow_churn) if args.run_manifest else None
+    try:
+        for node in nodes:
+            try:
+                n = ev.build_index(s3, node=node, aliases=ev._aliases(node),
+                                   year_windows=ev.windows_for(node),
+                                   n_docs=ev.n_docs_for(node, args.n_docs), backend=args.backend,
+                                   bedrock=bedrock, max_props=None, workers=args.workers,
+                                   aws_region=args.aws_region, driver_sink=driver_sink, provider=provider,
+                                   anthropic_client=anthropic_client, manifest=mf, allow_churn=allow_churn)
+                logger.info("  %s: %d dated props -> evidence/%s.jsonl", node, n, node)
+                total += n
+            except wg.WriteRefused:                       # a guard refusal is NEVER "one bad node": re-raise
+                raise
+            except Exception as exc:                      # one bad node shouldn't abandon the rest of the group
+                logger.exception("  %s FAILED: %s", node, exc)
+                errors += 1
 
-    dtotal = 0
-    if capture_drivers and driver_sink:                   # embed + write the cross-cutting driver slices once
-        dtotal = ev.write_driver_slices(driver_sink, backend=args.backend, bedrock=bedrock)
-        logger.info("  drivers: %d props across %d slices -> evidence/drivers/*.jsonl", dtotal, len(driver_sink))
+        if capture_drivers and driver_sink:               # embed + write the cross-cutting driver slices once
+            dtotal = ev.write_driver_slices(driver_sink, backend=args.backend, bedrock=bedrock,
+                                            manifest=mf, allow_churn=allow_churn)
+            logger.info("  drivers: %d props across %d slices -> evidence/drivers/*.jsonl",
+                        dtotal, len(driver_sink))
+    except wg.WriteRefused as exc:
+        logger.error("REFUSED: the write guard stopped this build before the refused layer was written.")
+        for line in exc.lines:
+            logger.error("  - %s", line)
+        if mf is not None:
+            mf.warnings.append("REFUSED: " + " | ".join(exc.lines))
+        raise SystemExit(2) from exc
+    finally:
+        if mf is not None:
+            try:
+                mf.flush()
+            except Exception:                             # noqa: BLE001 -- losing the record must not mask the cause
+                logger.exception("  run-manifest flush FAILED (the pass result above still stands)")
 
     elapsed = (datetime.now(timezone.utc) - start).total_seconds()
     logger.info("Done  nodes=%d  commodity_props=%d  driver_props=%d  errors=%d  elapsed=%.1fs",

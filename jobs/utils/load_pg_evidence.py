@@ -60,10 +60,16 @@ def _run_census_gate(baseline: str | None) -> int:
     stranding regression. The baseline is a `--census-baseline` path, else the newest local/S3 archive.
 
     A missing baseline is a SOFT skip (returns 0) -- the first opt-in load has nothing to compare and must
-    not false-fail. LIST discipline: census() lists the drivers/ prefix exactly once (its own guarantee) and
-    the S3 baseline fallback is a single eval/ LIST -- no per-slice probe, no LIST inside a loop."""
+    not false-fail. But a baseline the caller NAMED and that cannot be read is a HARD fail (G3b): "the gate
+    ran and found nothing wrong" and "the gate never ran" were indistinguishable in the exit code, which is
+    the same armed-but-inert shape the census gate itself had. LIST discipline: census() lists the drivers/
+    prefix exactly once (its own guarantee) and the S3 baseline fallback is a single eval/ LIST -- no
+    per-slice probe, no LIST inside a loop."""
     from leviathan.graphrag import e1_census as ec
-    doc, label = ec.load_baseline(baseline)
+    doc, label, hard = ec.resolve_baseline(baseline)
+    if doc is None and hard:                                   # G3b: an EXPLICIT --census-baseline that
+        print(f"census-gate: {label} -- REFUSING to pass a gate whose named baseline is unreadable")
+        return 1                                               # cannot be read must FAIL, never skip
     if doc is None:
         print(f"census-gate: {label}; skipping the gate (first load?)")
         return 0

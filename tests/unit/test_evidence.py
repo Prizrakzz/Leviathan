@@ -404,23 +404,33 @@ def test_fold_importable_from_both_modules():
 
 
 # ── W1.1 write-time orphan guard + W2.2 chunk_version plumbing (Phase 7 P3) ───────────────────────────
-# The guard inverts driver_alias() into the set of slice names >=1 DAG id reaches; a sink slice outside that
-# set is WARNED (ASCII line + optional collector) but STILL written (soft, never refuses -- the E1b flow).
-# Hermetic: a synthetic _driver_raw so backed_slice_names() is fully determined by the fixture, every driver
-# cache reset in try/finally (a leaked _DRIVER_ALIAS would poison unrelated tests).
+# G7.1 REPAIRED THE PREDICATE. The guard used to test backed_slice_names(), which is driver_alias() inverted
+# -- and driver_alias() seeds `{name: name for name in specs}`, so EVERY configured slice is in it by
+# construction (measured at HEAD: 109 specs, 109 "backed", empty difference). The guard could therefore never
+# fire for anything and read as coverage in every review. It now tests dag_backed_slice_names(), which
+# INTERSECTS that inversion with the real causal driver ids -- so the fixture must supply a causal registry
+# too, or the test is measuring the repo's live DAG instead of itself. It still WARNS and never refuses.
 _ORPHAN_DRIVERS = {
     "drivers": {"freight": {"category": "logistics", "terms": ["freight"]}},
     "dag_alias": {"freight": ["ocean_freight"]},              # freight backed by identity + an aliased dag id
 }
 
 
+def _wire_orphan_fixture(monkeypatch, *, real_ids=("ocean_freight",)):
+    """Synthetic driver config + synthetic causal driver-id registry, both fully determining the guard."""
+    from leviathan.graphrag import display as dp
+    monkeypatch.setattr(ev, "_driver_raw", lambda: _ORPHAN_DRIVERS)
+    monkeypatch.setattr(dp, "all_driver_ids", lambda: frozenset(real_ids))
+    ev._reset()
+
+
 def test_write_driver_slices_warns_on_orphan_but_still_writes(tmp_path, monkeypatch):
     monkeypatch.setattr(ev, "_EVID_DIR", tmp_path)
     monkeypatch.setattr(ev, "embed", _bow_embed)
-    monkeypatch.setattr(ev, "_driver_raw", lambda: _ORPHAN_DRIVERS)
-    ev._reset()
+    _wire_orphan_fixture(monkeypatch)
     try:
-        assert ev.backed_slice_names() == {"freight"}         # inversion of driver_alias(): only the backed slice
+        assert ev.backed_slice_names() == {"freight"}         # identity-seeded inversion: every spec name
+        assert ev.dag_backed_slice_names() == {"freight"}     # ... intersected with the ONE real dag id
         rec = lambda drv: {"id": "x", "driver": drv, "date": "2023-01-01", "source": "WB", "source_key": "k1",
                            "text": "freight rates doubled", "event_date": None, "event_date_precision": None}
         sink = {"freight": [rec("freight")], "ghost_slice": [rec("ghost_slice")]}
@@ -435,12 +445,42 @@ def test_write_driver_slices_warns_on_orphan_but_still_writes(tmp_path, monkeypa
         ev._reset()
 
 
+def test_orphan_guard_fires_when_no_real_dag_id_reaches_the_slice(tmp_path, monkeypatch):
+    """G7.1 -- the regression the old predicate could not express: a slice that IS in the alias map (by
+    identity) but that no REAL causal driver id reaches. Under backed_slice_names() 'freight' was 'backed'
+    and silent; under dag_backed_slice_names() it is correctly named as unreachable."""
+    monkeypatch.setattr(ev, "_EVID_DIR", tmp_path)
+    monkeypatch.setattr(ev, "embed", _bow_embed)
+    _wire_orphan_fixture(monkeypatch, real_ids=("some_other_driver",))
+    try:
+        assert "freight" in ev.backed_slice_names()           # the old predicate: silent, by construction
+        assert ev.dag_backed_slice_names() == set()           # the repaired one: nothing is reachable
+        assert ev.read_dark_slices() == {"freight"}
+        rec = {"id": "x", "driver": "freight", "date": "2023-01-01", "source": "WB", "source_key": "k1",
+               "text": "freight rates doubled", "event_date": None, "event_date_precision": None}
+        warns: list = []
+        assert ev.write_driver_slices({"freight": [rec]}, warnings=warns) == 1     # still written
+        assert len(warns) == 1 and "freight" in warns[0] and "no backing DAG id" in warns[0]
+    finally:
+        ev._reset()
+
+
+def test_dag_backed_slice_names_is_vacuous_without_a_causal_dir(monkeypatch):
+    """A clean checkout with no private causal configs has an empty all_driver_ids(); declaring all 109
+    slices dark there would be 109 spurious warnings per pass, so it falls back to the identity inversion."""
+    _wire_orphan_fixture(monkeypatch, real_ids=())
+    try:
+        assert ev.dag_backed_slice_names() == {"freight"} == ev.backed_slice_names()
+        assert ev.read_dark_slices() == set()
+    finally:
+        ev._reset()
+
+
 def test_write_driver_slices_no_warn_collector_still_writes(tmp_path, monkeypatch):
     # warnings=None (the default, unchanged call sites) must not raise and must still write the orphan.
     monkeypatch.setattr(ev, "_EVID_DIR", tmp_path)
     monkeypatch.setattr(ev, "embed", _bow_embed)
-    monkeypatch.setattr(ev, "_driver_raw", lambda: _ORPHAN_DRIVERS)
-    ev._reset()
+    _wire_orphan_fixture(monkeypatch)
     try:
         rec = {"id": "x", "driver": "ghost_slice", "date": "2023-01-01", "source": "WB", "source_key": "k1",
                "text": "freight rates doubled", "event_date": None, "event_date_precision": None}
@@ -501,3 +541,236 @@ def test_out_projection_carries_event_date():
     assert out[0]["event_date"] == "2010-08-05" and out[0]["event_date_precision"] == "day"
     assert out[1]["event_date"] is None and out[1]["event_date_precision"] is None
     assert set(out[0]) == {"date", "source", "source_key", "text", "event_date", "event_date_precision"}
+
+
+# ── G5 (max_per honest fix) + G1b (the C2 wholesale-write guard) ───────────────────────────────────────
+# The value 4000 existed at exactly ONE place in the repo (the default arg) and was applied as a bare
+# `uniq = uniq[:max_per]` -- no print, no warning, no count. rebuild_slices iterates `for h in
+# _cached_hashes()` over a SET of md5 hex strings with PYTHONHASHSEED unset anywhere, so the surviving 4,000
+# differed on every run: MEASURED at the 2026-07-20 promote, 5,809 of the 16,000 rows in the four capped
+# slices were swapped for a different 5,809 with all four counts frozen at exactly 4000. No counts-based or
+# bytes-based guard can see that; determinism is the only thing that closes it.
+_G5_DRIVERS = {
+    "drivers": {"freight": {"category": "logistics", "terms": ["freight"], "max_props": 3},
+                "tariff": {"category": "policy", "terms": ["tariff"]}},
+    "dag_alias": {"freight": ["ocean_freight"], "tariff": ["import_tariff"]},
+}
+
+
+def _g5_wire(monkeypatch, tmp_path):
+    from leviathan.graphrag import display as dp
+    from leviathan.graphrag import extract as ex
+    monkeypatch.setattr(ev, "_EVID_DIR", tmp_path)
+    monkeypatch.setattr(ex, "_CFG", tmp_path / "cfg")
+    monkeypatch.setattr(ev, "embed", _bow_embed)
+    monkeypatch.setattr(ev, "_driver_raw", lambda: _G5_DRIVERS)
+    monkeypatch.setattr(dp, "all_driver_ids", lambda: frozenset({"ocean_freight", "import_tariff"}))
+    ev._reset()
+
+
+def _g5_rec(day, key, rid):
+    return {"id": rid, "date": f"2024-01-{day:02d}", "source": "WB", "source_key": key,
+            "text": f"freight {rid}", "event_date": None, "event_date_precision": None}
+
+
+def test_truncation_order_is_deterministic_and_keeps_the_most_recent(tmp_path, monkeypatch):
+    _g5_wire(monkeypatch, tmp_path)
+    try:
+        recs = [_g5_rec(5, "kb", "b"), _g5_rec(9, "ka", "a"), _g5_rec(1, "kc", "c"), _g5_rec(9, "ka", "z")]
+        ordered = [r["id"] for r in ev._truncation_order(recs)]
+        assert ordered == ["a", "z", "b", "c"]                # date DESC, then source_key/id ASC
+        # the SAME records in any input order produce the SAME survivors -- this is the whole fix
+        assert ev._truncation_order(list(reversed(recs))) == ev._truncation_order(recs)
+    finally:
+        ev._reset()
+
+
+def test_per_slice_max_props_truncates_deterministically_and_records_it(tmp_path, monkeypatch):
+    _g5_wire(monkeypatch, tmp_path)
+    try:
+        from leviathan.graphrag import write_guard as wg
+        sink = {"freight": [_g5_rec(d, f"k{d}", f"i{d}") for d in (2, 8, 4, 6, 9)]}   # 5 props, cap 3
+        warns, mf = [], wg.RunManifest("unit")
+        n = ev.write_driver_slices(sink, warnings=warns, manifest=mf)
+        kept = [r["id"] for r in ev.load_index("drivers/freight")]
+        assert n == 3 and kept == ["i9", "i8", "i6"]          # the three most recent, in order
+        assert any("TRUNCATED 2 props at max_props=3" in w for w in warns)
+        assert mf.slices["drivers"]["freight"]["truncated_n"] == 2
+        # G5c: the declared cap wins over the pass default, and an undeclared slice inherits it
+        assert ev.slice_cap("freight", 4000) == 3 and ev.slice_cap("tariff", 4000) == 4000
+        assert ev.slice_cap("unknown_slice", 4000) == 4000
+    finally:
+        ev._reset()
+
+
+def test_declared_null_max_props_means_uncapped(tmp_path, monkeypatch):
+    _g5_wire(monkeypatch, tmp_path)
+    try:
+        _G5_DRIVERS["drivers"]["freight"]["max_props"] = None
+        assert ev.slice_cap("freight", 4000) is None
+    finally:
+        _G5_DRIVERS["drivers"]["freight"]["max_props"] = 3
+        ev._reset()
+
+
+def test_write_driver_slices_refuses_a_ten_percent_drop_and_writes_nothing(tmp_path, monkeypatch):
+    """G1b/C2 end to end: the seam that overwrote each slice wholesale with no read, no merge, no delta and
+    no empty guard now refuses a population drop past the trip line -- BEFORE any byte is written."""
+    import pytest
+    _g5_wire(monkeypatch, tmp_path)
+    try:
+        from leviathan.graphrag import write_guard as wg
+        seed = {"tariff": [_g5_rec(1, f"k{i}", f"i{i}") for i in range(40)]}
+        assert ev.write_driver_slices(seed) == 40
+        before = (tmp_path / "drivers" / "tariff.jsonl").read_bytes()
+        shrunk = {"tariff": [_g5_rec(1, f"k{i}", f"i{i}") for i in range(20)]}      # -50%
+        with pytest.raises(wg.WriteRefused) as exc:
+            ev.write_driver_slices(shrunk)
+        assert (tmp_path / "drivers" / "tariff.jsonl").read_bytes() == before       # untouched
+        assert any("50.0% drop" in line for line in exc.value.lines)
+        # ... and the declared-magnitude escape hatch lets it through, still recorded
+        warns: list = []
+        assert ev.write_driver_slices(shrunk, warnings=warns, allow_churn=0.60) == 20
+        assert any("50.0% drop" in w for w in warns)
+        assert len(ev.load_index("drivers/tariff")) == 20
+    finally:
+        ev._reset()
+
+
+# ── F3: build_index is the LIVE cloud commodity write, and it was unguarded ────────────────────────────
+def _bi_props(n, day=lambda i: 1):
+    return [_Prop(f"c{i}", f"Arabica coffee note {i}", date(2021, 7, day(i))) for i in range(n)]
+
+
+def _wire_build_index(tmp_path, monkeypatch, props):
+    from leviathan.graphrag import extract as ex
+    monkeypatch.setattr(ev, "_EVID_DIR", tmp_path)
+    monkeypatch.setattr(ex, "_CFG", tmp_path / "cfg")
+    monkeypatch.setattr(ev, "_evid_s3", lambda: None)
+    monkeypatch.setattr(ev, "embed", _bow_embed)
+    monkeypatch.setattr(ev, "sample_keys", lambda *a, **k: ["text/coffee/2021/x/document.json"])
+    body = types.SimpleNamespace(read=lambda: json.dumps(
+        {"full_text": "Brazil frost hit arabica coffee hard in 2021."}).encode())
+    return types.SimpleNamespace(get_object=lambda **kw: {"Body": body}), (lambda **kw: props)
+
+
+def test_build_index_write_is_guarded_and_a_collapse_is_refused(tmp_path, monkeypatch):
+    """F3 -- the FIFTH seam. `evidence.build_index`'s final `_evid_write(node, ...)` is the PRODUCTION cloud
+    commodity write (jobs/batch/build_evidence_task.py -> jobdef leviathan-dev-evidence-build), writing the
+    same 24 top-level slices `_commodity_guarded_write` protects, and it had no churn ratio, no span tuple,
+    no empty guard and no manifest line. The wave shipped a store where one path refused a collapse and
+    another rewrote the same object silently."""
+    import pytest
+    from leviathan.graphrag import write_guard as wg
+    s3, chunker = _wire_build_index(tmp_path, monkeypatch, _bi_props(40))
+    assert ev.build_index(s3, node="arabica_coffee", aliases=["arabica"], year_windows=[(2021, 2021)],
+                          n_docs=1, bedrock=object(), chunker=chunker, max_props=None) == 40
+    before = (tmp_path / "arabica_coffee.jsonl").read_bytes()
+
+    s3, chunker = _wire_build_index(tmp_path, monkeypatch, _bi_props(10))          # -75%
+    with pytest.raises(wg.WriteRefused) as exc:
+        ev.build_index(s3, node="arabica_coffee", aliases=["arabica"], year_windows=[(2021, 2021)],
+                       n_docs=1, bedrock=object(), chunker=chunker, max_props=None)
+    assert (tmp_path / "arabica_coffee.jsonl").read_bytes() == before              # atomic
+    assert any("commodity/arabica_coffee" in line and "drop" in line for line in exc.value.lines)
+    assert ev.build_index(s3, node="arabica_coffee", aliases=["arabica"], year_windows=[(2021, 2021)],
+                          n_docs=1, bedrock=object(), chunker=chunker, max_props=None,
+                          allow_churn=0.80) == 10                                  # declared magnitude
+
+
+def test_build_index_truncation_is_deterministic_and_recorded(tmp_path, monkeypatch):
+    """F3's second half. `records[:max_props]` was applied to a list assembled by ThreadPoolExecutor.map --
+    an unrecorded, ORDER-NONDETERMINISTIC cut on the commodity side, the exact defect G5a closed for the
+    driver side and nothing more."""
+    from leviathan.graphrag import write_guard as wg
+    props = [_Prop(f"c{i}", f"Arabica coffee note {i}", date(2021, 7, (i % 20) + 1)) for i in range(20)]
+    s3, chunker = _wire_build_index(tmp_path, monkeypatch, props)
+    mf = wg.RunManifest("unit")
+    n = ev.build_index(s3, node="arabica_coffee", aliases=["arabica"], year_windows=[(2021, 2021)],
+                       n_docs=1, bedrock=object(), chunker=chunker, max_props=5, manifest=mf)
+    kept = [r["date"] for r in ev.load_index("arabica_coffee")]
+    assert n == 5 and kept == ["2021-07-20", "2021-07-19", "2021-07-18", "2021-07-17", "2021-07-16"]
+    assert mf.slices["commodity"]["arabica_coffee"]["truncated_n"] == 15
+    assert any("TRUNCATED 15 props at max_props=5" in w for w in mf.warnings)
+
+
+def test_a_multi_node_build_accumulates_one_manifest_and_never_calls_a_written_slice_unwritten(
+        tmp_path, monkeypatch):
+    """build_index is called ONCE PER NODE against the SHARED commodity layer, so one pass plans that layer
+    many times. Two things must not happen: the last node's verdict silently replacing the previous ones
+    (the manifest would read as a record of the pass while holding one node), and a slice an EARLIER node in
+    this same pass wrote being reported as "present in the store but not written by this pass"."""
+    from leviathan.graphrag import write_guard as wg
+    mf = wg.RunManifest("cloud_build")
+    for node, props in (("arabica_coffee", _bi_props(6)), ("robusta_coffee", _bi_props(4))):
+        s3, chunker = _wire_build_index(tmp_path, monkeypatch, props)
+        ev.build_index(s3, node=node, aliases=[node.split("_")[0]], year_windows=[(2021, 2021)], n_docs=1,
+                       bedrock=object(), chunker=chunker, max_props=None, manifest=mf)
+    assert set(mf.slices["commodity"]) == {"arabica_coffee", "robusta_coffee"}   # BOTH nodes recorded
+    assert mf.guard["commodity"]["n_plans"] == 2                                 # both verdicts, not the last
+    assert mf.unwritten.get("commodity", {}) == {}          # arabica is not "unwritten" when robusta runs
+
+
+def test_build_index_never_clobbers_a_slice_with_an_empty_write(tmp_path, monkeypatch):
+    s3, chunker = _wire_build_index(tmp_path, monkeypatch, _bi_props(4))
+    ev.build_index(s3, node="arabica_coffee", aliases=["arabica"], year_windows=[(2021, 2021)],
+                   n_docs=1, bedrock=object(), chunker=chunker, max_props=None)
+    keep = (tmp_path / "arabica_coffee.jsonl").read_bytes()
+    s3, chunker = _wire_build_index(tmp_path, monkeypatch, [])
+    assert ev.build_index(s3, node="arabica_coffee", aliases=["arabica"], year_windows=[(2021, 2021)],
+                          n_docs=1, bedrock=object(), chunker=chunker, max_props=None) == 0
+    assert (tmp_path / "arabica_coffee.jsonl").read_bytes() == keep
+
+
+# ── F6: a local slice's bytes must EQUAL what the manifest recorded ────────────────────────────────────
+def test_local_slice_bytes_equal_the_manifest_after_bytes_no_crlf_drift(tmp_path, monkeypatch):
+    """Path.write_text translated "\\n" -> "\\r\\n" on Windows, so a local slice was ALWAYS larger than the
+    recorded after_bytes by exactly its newline count (measured: 3201 recorded, 3220 on disk, delta 19 = the
+    19 newlines). resolve_prior's stale-mirror fence compares those two for EQUALITY, so on the laptop the
+    exact branch never matched: every span went None and the manifest stamped "prior manifest STALE (bytes
+    moved since)" -- claiming an unguarded write had invalidated a baseline when nothing had written."""
+    from leviathan.graphrag import extract as ex
+    from leviathan.graphrag import write_guard as wg
+    monkeypatch.setattr(ev, "_EVID_DIR", tmp_path)
+    monkeypatch.setattr(ex, "_CFG", tmp_path / "cfg")
+    monkeypatch.setattr(ev, "_evid_s3", lambda: None)
+    monkeypatch.setattr(ev, "embed", _bow_embed)
+    monkeypatch.setattr(ev, "_driver_raw", lambda: _G5_DRIVERS)
+    ev._reset()
+    try:
+        mf = wg.RunManifest("unit")
+        ev.write_driver_slices({"tariff": [_g5_rec(d, f"k{d}", f"i{d}") for d in range(1, 21)]},
+                               manifest=mf)
+        on_disk = (tmp_path / "drivers" / "tariff.jsonl").stat().st_size
+        assert mf.slices["drivers"]["tariff"]["after_bytes"] == on_disk       # was off by 19 newlines
+        # ... so the very next pass takes the EXACT branch instead of the size estimate + STALE stamp
+        mf.flush()
+        prior = wg.resolve_prior("drivers/", ["tariff"], layer="drivers")["tariff"]
+        assert prior["exact"] is True and prior["n"] == 20 and "STALE" not in prior["source"]
+    finally:
+        ev._reset()
+
+
+# ── F12: the G7.4 never-written census pin ─────────────────────────────────────────────────────────────
+def test_never_written_pin_names_the_eight_and_is_advisory_only(tmp_path, monkeypatch):
+    """G7.4's "8 never-written slices (census pin)" had no pin: grep over src/ returned nothing. The
+    109-specs-vs-101-files gap stayed a hand-derived number in a document, which is the thing a census pin
+    exists to stop. It is ADVISORY on purpose -- write-darkness is STORE state, and a config lint that
+    cannot see the store must never fail a build on it."""
+    assert len(ev.NEVER_WRITTEN_SLICES_PIN) == 8
+    assert {"corn_tar_spot", "managed_money_positioning", "india_import_duty"} <= ev.NEVER_WRITTEN_SLICES_PIN
+    assert ev.NEVER_WRITTEN_SLICES_PIN != ev.READ_DARK_SLICES_PIN          # a DIFFERENT darkness
+    monkeypatch.setattr(ev, "_driver_raw", lambda: {"drivers": {n: {"terms": ["t"]} for n in
+                                                                ev.NEVER_WRITTEN_SLICES_PIN}})
+    ev._reset()
+    try:
+        lines = ev.never_written_slice_warnings()
+        assert lines and "8 of 8" in lines[0] and "corn_tar_spot" in lines[0]
+        assert not any("STALE" in ln for ln in lines)
+        monkeypatch.setattr(ev, "_driver_raw", lambda: {"drivers": {"corn_tar_spot": {"terms": ["t"]}}})
+        ev._reset()
+        stale = ev.never_written_slice_warnings()
+        assert any("STALE" in ln and "managed_money_positioning" in ln for ln in stale)
+    finally:
+        ev._reset()
+    assert ev.check_driver_slices.__doc__                                   # the pin is NOT a hard-lint leg

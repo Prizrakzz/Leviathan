@@ -56,7 +56,16 @@ def _evid_write(node: str, text: str) -> None:
     else:
         p = _EVID_DIR / f"{node}.jsonl"
         p.parent.mkdir(parents=True, exist_ok=True)            # node may be "drivers/<x>" (a subdir)
-        p.write_text(text, encoding="utf-8")
+        # write_BYTES, not write_text (F6). Path.write_text translates "\n" -> "\r\n" on Windows, so a local
+        # slice was ALWAYS larger than the manifest's recorded after_bytes by exactly its newline count
+        # (measured: manifest 3201, on disk 3220, delta 19 = the 19 newlines). resolve_prior's stale-mirror
+        # fence compares those two numbers for equality, so on the laptop the exact branch NEVER matched:
+        # every slice fell to the size estimate, every span went None, and the manifest stamped "-- prior
+        # manifest STALE (bytes moved since)" -- telling an operator a later UNGUARDED write invalidated the
+        # baseline when in fact nothing had written. The S3 branch already encodes to utf-8 before the PUT,
+        # so it was never affected, which is exactly why this hid from cloud testing and bit every dev run.
+        # It also removes a silent CRLF/LF difference between the local and S3 stores generally.
+        p.write_bytes(text.encode("utf-8"))
 
 
 def _evid_read(node: str) -> str:
@@ -317,13 +326,22 @@ def current_chunk_version() -> str | None:
 def build_index(s3, *, node: str, aliases, year_windows, n_docs: int, backend: str | None = None,
                 bedrock=None, chunker=None, max_props: int | None = 400, workers: int = 1,
                 aws_region: str | None = None, driver_sink: dict | None = None,
-                provider: str = "bedrock", anthropic_client=None) -> int:
+                provider: str = "bedrock", anthropic_client=None,
+                manifest=None, allow_churn: float | None = None) -> int:
     """Sample -> chunk -> keep on-topic props -> embed -> write configs/graphrag/evidence/<node>.jsonl. Billed.
 
     workers>1 parallelizes the per-doc Bedrock-Haiku chunking over thread-local S3 clients — the cloud-build
     path (build_evidence_task on Fargate); workers=1 is the sequential laptop path. max_props=None lifts the cap.
     driver_sink (WS-MS6): when given, every chunked prop is ALSO routed to driver slices (driver -> [records])
-    in-place — the cross-cutting cascade props (B40, freight, FX, El Nino) harvested FREE from the same pass."""
+    in-place — the cross-cutting cascade props (B40, freight, FX, El Nino) harvested FREE from the same pass.
+
+    F3 — THIS IS THE LIVE PRODUCTION COMMODITY WRITE, and until this fix it was the one wholesale seam with
+    no guard at all. `jobs/batch/build_evidence_task.py` calls it per node against jobdef
+    `leviathan-dev-evidence-build` on the LIVE prefix, writing the same 24 top-level slices
+    `_commodity_guarded_write` protects — so the wave shipped a store where one path refused a collapse and
+    another rewrote the same object silently. It now goes through write_guard, and its `records[:max_props]`
+    cut is deterministic and recorded (see the G5a note at the cut). `manifest` / `allow_churn` are
+    keyword-only with defaults, so every existing call site is unchanged."""
     from leviathan.graphrag import chunking as ch
     from leviathan.graphrag.corpus_recon import BUCKET, _source_of
     backend = backend or DEFAULT_BACKEND
@@ -373,12 +391,47 @@ def build_index(s3, *, node: str, aliases, year_windows, n_docs: int, backend: s
             _absorb(crecs, drecs)
             if max_props and len(records) >= max_props:
                 break
-    if max_props:
+    # F3 -- the truncation gets the G5a treatment. `records[:max_props]` was an unrecorded cut over a list
+    # whose order is whatever `sample_keys` + the per-doc chunker produced -- the exact defect G5a closed for
+    # the driver side and nothing more. Order deterministically (most recent `date` first, ties by
+    # source_key/id), THEN cut, THEN say so. The ordering is applied whether or not the cap bites, so the
+    # slice body is byte-deterministic for a given record set: that is what makes the manifest's after_bytes
+    # a usable fence rather than a number that churns on re-derivation. Like every other G5a effect, the
+    # code lands in Wave G and the bytes only move at the ONE Wave-R rebuild.
+    truncated_n = 0
+    records = _truncation_order(records)                     # ALWAYS, cap or no cap (see below)
+    if max_props and len(records) > max_props:
+        truncated_n = len(records) - max_props
         records = records[:max_props]
-    for r, v in zip(records, embed([r["text"] for r in records], backend=backend, bedrock=bedrock)):
-        r["vector"], r["backend"] = v, backend       # stamp backend so retrieve() embeds queries the same way
-    _evid_write(node, "\n".join(json.dumps(r) for r in records))
-    return len(records)
+        msg = (f"WARN build_index: node '{node}' TRUNCATED {truncated_n} props at max_props={max_props} "
+               f"(kept the {max_props} most recent by date, ties by source_key/id)")
+        print(msg)
+        if manifest is not None:
+            manifest.warnings.append(msg)
+    if not records:
+        # The empty-node SKIP, matching evidence_batch's commodity guard exactly: a node that routed nothing
+        # keeps its prior file rather than being clobbered with an empty object. Refusing a whole multi-node
+        # build over one empty node would be a regression, not a guard.
+        msg = f"build_index: node '{node}' routed 0 props -- prior slice left intact, NOT rewritten empty"
+        print(f"  {msg}")
+        if manifest is not None:
+            manifest.warnings.append(msg)
+        return 0
+
+    def _payload() -> str:                                   # embed LAZILY: a refused pass pays no embed
+        for r, v in zip(records, embed([r["text"] for r in records], backend=backend, bedrock=bedrock)):
+            r["vector"], r["backend"] = v, backend   # stamp backend so retrieve() embeds queries the same way
+        return "\n".join(json.dumps(r) for r in records)
+
+    # F3 -- the LIVE cloud commodity write goes through the guard. This is the seam
+    # jobs/batch/build_evidence_task.py drives against jobdef leviathan-dev-evidence-build: the same 24
+    # top-level slices _commodity_guarded_write protects, previously with no churn ratio, no span tuple, no
+    # empty guard and no manifest line. One slice per call is fine -- the layer line then measures this node
+    # against the store's other 23, which is what a per-node build actually is.
+    from leviathan.graphrag import write_guard as wg
+    return wg.guarded_write("commodity", "", {node: _payload}, records={node: records}, manifest=manifest,
+                            allow_churn=allow_churn, write_fn=_evid_write, node_of=lambda n: n,
+                            truncated={node: truncated_n})
 
 
 CACHE_INDEX = os.environ.get("EVIDENCE_INDEX_CACHE") == "1"   # eval sets ev.CACHE_INDEX=True so big slices load once
@@ -655,10 +708,110 @@ def backed_dag_ids() -> set:
 def backed_slice_names() -> set:
     """The INVERSE of backed_dag_ids(): slice names that >=1 backing DAG id resolves to — every value in
     driver_alias() (the identity self-maps for exact-name slices + the curated dag_alias targets + accent-
-    folded ids). A driver slice ABSENT from this set is a write-time orphan: no DAG id (exact-name or aliased)
-    reaches it, so props written there are unreachable by slice_for_driver()/ground(). Pure config read
-    (driver_slices.yaml, cached), non-circular — deliberately does NOT touch display.all_driver_ids()."""
+    folded ids). Pure config read (driver_slices.yaml, cached), non-circular — deliberately does NOT touch
+    display.all_driver_ids().
+
+    G7.1 CORRECTION -- this set is NOT a reachability test and must not be used as one. driver_alias() seeds
+    `alias = {name: name for name in specs}` (:612, "exact-name matches resolve by identity"), so EVERY
+    configured slice name is a value by construction: measured at HEAD, set(driver_specs()) -
+    backed_slice_names() == [] over 109 slices. The W1.1 write-time orphan guard tested against this set and
+    was therefore structurally unfireable -- it read as coverage in every review and could never trigger for
+    any slice, because driver_sink's keys come only from driver_matchers() built off driver_specs(). The
+    write guard now tests dag_backed_slice_names() instead. Kept because it is still the honest answer to
+    "which slice names appear in the alias map" (e1_census inverts the map itself)."""
     return set(driver_alias().values())
+
+
+def dag_backed_slice_names() -> set:
+    """Slice names a REAL causal-DAG driver id reaches — driver_alias() inverted and INTERSECTED with
+    display.all_driver_ids(), which is what makes it a reachability test rather than an identity restatement
+    (G7.1). This is the set planner._fill can actually reach: an id must be in all_driver_ids() to be in
+    backed_dag_ids() at planner.py:320, which gates the n.episodes assignment at :334.
+
+    The intersection is exactly the one e1_census.slice_census already performs (`if dag_id in real`) for its
+    n_dag_ids column — the two now agree by construction. display is imported LAZILY and guarded, matching
+    driver_alias()/check_driver_slices(): a clean checkout with no causal dir has an empty all_driver_ids(),
+    and rather than declaring every slice dark we fall back to backed_slice_names() so a config-less tree
+    keeps the old vacuous-pass behaviour instead of emitting 109 spurious orphan warnings."""
+    alias = driver_alias()
+    try:
+        from leviathan.graphrag import display as _dp
+        real = set(_dp.all_driver_ids())
+    except Exception:                                          # noqa: BLE001 — display gone
+        real = set()
+    if not real:                                               # no causal dir -> vacuous, not "all dark"
+        return set(alias.values())
+    return {slice_name for did, slice_name in alias.items() if did in real}
+
+
+# G7.2 -- the 29 configured driver slices no REAL DAG id reaches, so planner._fill can never reach them and
+# no episode line can ever be injected for them on any contract. MEASURED at plan time over 109 configured
+# specs against display.all_driver_ids() (361 ids). Pinned here as a standing census number so nobody
+# re-derives a subset by hand again -- the deck author had already measured five of them
+# (suez/panama/baltic/mississippi/vessel_lineups) at eval_queries_playbooks_v1.yaml:1130-1140.
+# Drift from this pin is a lint finding, not a silent fact: check_driver_slices() hard-fails on a NEW
+# read-dark slice and advises when a pinned one has since been wired up.
+READ_DARK_SLICES_PIN = frozenset({
+    "baltic_dry_freight", "barley_yellow_dwarf_virus", "cattle_cycle_herd_size", "cattle_on_feed", "dap",
+    "diesel", "egypt_gasc_tenders", "global_rice_export_policy", "idr_fx", "index_roll_flows",
+    "indian_ocean_dipole", "inr_fx", "madden_julian_oscillation", "metals", "mississippi_river_levels",
+    "myr_fx", "natural_rubber", "panama_canal_constraints", "potash", "real_yields_rates", "subsidy",
+    "suez_redsea_disruption", "sunflower_oil_balance", "sustainable_aviation_fuel", "urea",
+    "veg_oil_substitution_spreads", "vessel_lineups_export_basis", "west_africa_weather", "wheat_blast",
+})
+
+
+# G7.4 -- the 8 configured driver slices that were NEVER WRITTEN to S3 at all (109 configured specs, 101
+# objects under drivers/). MEASURED at plan time by joining yaml.safe_load(driver_slices.yaml) against one
+# LIST of the drivers/ prefix. Pinned here for the same reason READ_DARK_SLICES_PIN is: the handoff's "101
+# slices" is the S3 FILE count, not the config count, and the 8-slice gap was a hand-derived number in a
+# document with nothing in code holding it. This is a DIFFERENT set from READ_DARK_SLICES_PIN, which is
+# read-darkness (no real DAG id reaches it); a slice can be write-dark, read-dark, both or neither. Overlap
+# as pinned: barley_yellow_dwarf_virus, index_roll_flows, madden_julian_oscillation,
+# veg_oil_substitution_spreads are in both.
+#
+# ADVISORY ONLY, and that is load-bearing (F12): write-darkness is STORE state, not config state, and a
+# config lint that cannot see the store must never fail on it. The only thing checkable without S3 is that
+# every pinned name still EXISTS as a configured spec -- a pinned name that has since been deleted from the
+# config makes the pin stale, and a stale census pin is how "101 vs 109" became folklore in the first place.
+NEVER_WRITTEN_SLICES_PIN = frozenset({
+    "barley_yellow_dwarf_virus", "corn_southern_rust", "corn_tar_spot", "index_roll_flows",
+    "india_import_duty", "madden_julian_oscillation", "managed_money_positioning",
+    "veg_oil_substitution_spreads",
+})
+
+
+def never_written_slice_warnings() -> list[str]:
+    """ADVISORY (non-fatal) G7.4 census pin: the 8 configured slices that have never been written to S3.
+
+    Two lines, both cheap and both config-only:
+      * the standing census number itself, so the 109-specs-vs-101-files gap is stated in code rather than
+        re-derived by hand from a plan document;
+      * a staleness check -- a pinned name that is no longer a configured spec means the pin has drifted
+        and must be re-measured against a LIST of drivers/.
+
+    It deliberately does NOT check the store. Verifying write-darkness needs one list_objects_v2 of
+    <EVIDENCE_S3>/drivers/, which is exactly what e1_census already does on its own schedule; a $0 config
+    lint that reaches for the network to answer a census question is how a lint becomes a thing people
+    disable. Empty on a clean checkout with no private vocabulary (vacuous)."""
+    specs = driver_specs()
+    if not specs:
+        return []
+    out = [f"never-written census (G7.4): {len(NEVER_WRITTEN_SLICES_PIN)} of {len(specs)} configured slices "
+           f"have no object under drivers/ at all -- the handoff's \"101 slices\" is the S3 FILE count, not "
+           f"the config count: " + ", ".join(sorted(NEVER_WRITTEN_SLICES_PIN))]
+    gone = sorted(NEVER_WRITTEN_SLICES_PIN - set(specs))
+    if gone:
+        out.append(f"never-written pin STALE: {', '.join(gone)} no longer configured -- re-measure the pin "
+                   f"against one LIST of <EVIDENCE_S3>/drivers/ and shrink it (advisory)")
+    return out
+
+
+def read_dark_slices() -> set:
+    """Configured driver slices that NO real DAG id resolves to — computed live, the complement of
+    dag_backed_slice_names() over driver_specs(). Empty on a clean checkout with no causal dir (vacuous)."""
+    backed = dag_backed_slice_names()
+    return {name for name in driver_specs() if name not in backed}
 
 
 def check_driver_slices() -> list[str]:
@@ -674,6 +827,18 @@ def check_driver_slices() -> list[str]:
                         regression). An RHS entry whose id EQUALS its own slice name (export_ban, frost) is a
                         benign self-alias — driver_alias()'s setdefault makes it a no-op identity entry, not a
                         second owner — so it is skipped, never flagged.
+      (c) READ-DARK DRIFT (G7.2) -- a configured slice no REAL DAG id reaches can never have an episode line
+                        injected (planner.py:320/:334). 29 such slices were MEASURED and pinned in
+                        READ_DARK_SLICES_PIN. A slice that is read-dark and is neither pinned nor named by a
+                        `waivers:` entry is a NEW unaccounted gap -> hard error. A pinned slice that has
+                        since been wired up is an advisory line telling you to shrink the pin (an
+                        improvement must not fail a build). Vacuous when there is no causal dir.
+      (d) MANIFEST MIRROR (G2 / D-EI-1) -- driver_slices.yaml is gitignored whole-directory
+                        (.gitignore:49) with an EMPTY git log, so a term edit leaves no reviewable diff
+                        anywhere. The tracked mirror configs/graphrag/driver_slices_manifest.yaml carries a
+                        per-slice sha256 of the sorted term list (never a term), and a drift between the
+                        live config and the mirror is a LINT-TIME failure instead of a post-rebuild
+                        discovery. This is the only guard in the wave that fires BEFORE any compute is spent.
 
     The topical-token quality heuristic is deliberately NOT a hard error — see driver_slice_alias_warnings().
     A dag_alias remap is authored under adversarial human review (the curation pass), and a legitimate concept
@@ -708,6 +873,23 @@ def check_driver_slices() -> list[str]:
         if len(slices) >= 2:
             errs.append(f"duplicate id {did}: routed to {sorted(slices)}")
 
+    # (c) read-dark drift against the pinned census (G7.2). Only meaningful when a causal DAG exists.
+    if dp.all_driver_ids():
+        dark = read_dark_slices()
+        for name in sorted(dark - READ_DARK_SLICES_PIN - set(waivers)):
+            errs.append(f"read-dark slice {name}: no REAL DAG id resolves to it, so planner._fill can never "
+                        f"reach it and no episode line can ever be injected -- and it is neither in "
+                        f"READ_DARK_SLICES_PIN nor named by a waivers: entry. Wire it to a DAG id, or "
+                        f"waive it as an honestly-deferred gap, or add it to the pin.")
+        for name in sorted(READ_DARK_SLICES_PIN - dark):
+            if name in driver_specs():                        # a pinned slice that is now reachable: good news,
+                print(f"NOTE read-dark pin: {name} now resolves from a real DAG id -- shrink "   # never a failure
+                      f"READ_DARK_SLICES_PIN (advisory)")
+
+    # (d) manifest mirror (G2 / D-EI-1) -- delegated to the generator so `--check` and the lint agree.
+    from leviathan.graphrag import driver_slices_manifest as dsm
+    errs += dsm.check_manifest()
+
     return errs
 
 
@@ -732,6 +914,72 @@ def driver_slice_alias_warnings() -> list[str]:
             if not (id_tokens & slice_tokens):
                 warns.append(f"alias {did} -> {slice_name}: no shared topical token (review)")
     return warns
+
+
+def term_collision_warnings() -> list[str]:
+    """ADVISORY (non-fatal) CROSS-FIRE detector over the driver term lists (G8) — the class that had no
+    standing detector at all.
+
+    The shape: one slice's term is a proper substring of another slice's term ON A WORD BOUNDARY, so every
+    prop the longer term claims is ALSO claimed by the shorter one. "leaf rust" inside "coffee leaf rust"
+    is the instance Wave R repairs; "ferrugem" inside "ferrugem asiatica" is the same shape in Portuguese.
+    driver_slices_for() is multi-label (`[d for d, m in driver_matchers().items() if m.search(text)]`), so a
+    collision is not an error by itself — it is a routing fact somebody chose or did not notice.
+
+    Why check_driver_slices' two hard checks cannot see this: (a) darkness and (b) duplicate-ownership both
+    read the dag_alias ID map, and a term collision lives in the TERM lists, which that map never touches.
+    G2's manifest lint hashes term SETS, so it detects that an edit HAPPENED, never that two slices claim the
+    same prop.
+
+    Deliberately STATIC and O(terms^2) over ~638 terms — pure config arithmetic, milliseconds, zero S3. It
+    would have caught both the R1 and the R2 defects before either was authored. It REPORTS ONLY: the term
+    deletion itself is a routing change and therefore a Wave-R act, never a lint's to make. Self-pairs and
+    same-slice pairs are skipped; comparison is over ex._normalize'd forms, the same normalization
+    harvest._Matcher applies, so an accent or case difference never hides a collision."""
+    import re as _re
+    specs = driver_specs()
+    norm: list[tuple[str, str, str]] = []                      # (normalized term, original term, slice)
+    for name in sorted(specs):
+        for t in (specs[name].get("terms") or []):
+            nf = ex._normalize(str(t))
+            if nf and len(nf) > 1:
+                norm.append((nf, str(t), name))
+    warns: list[str] = []
+    for short_nf, short_t, short_s in norm:
+        rx = _re.compile(r"\b" + _re.escape(short_nf) + r"\b")
+        for long_nf, long_t, long_s in norm:
+            if long_s == short_s or long_nf == short_nf or len(long_nf) <= len(short_nf):
+                continue
+            if rx.search(long_nf):
+                warns.append(f"cross-fire {short_s}:{short_t!r} is a word-boundary substring of "
+                             f"{long_s}:{long_t!r} -- every prop {long_s} claims via that term is ALSO "
+                             f"claimed by {short_s} (review: intended multi-label, or a silent collision?)")
+    return sorted(warns)
+
+
+def read_dark_slice_warnings() -> list[str]:
+    """ADVISORY (non-fatal) roll-up of the G7.2 read-dark census: how many configured slices no real DAG id
+    reaches, and which of those are explicitly WAIVED as honestly-deferred gaps versus merely pinned.
+
+    The distinction is the whole point of D-EI-4's ratified disposition for `indian_ocean_dipole`: a waiver
+    is a curator saying "known, deferred, on purpose"; the pin is only a measurement saying "this is how the
+    wiring stands". Note honestly what a waiver does and does not do here — `waivers:` is keyed by DAG ID and
+    the hard darkness check at (a) iterates display.all_driver_ids(), so an entry naming a slice that is not
+    a DAG id (which is exactly the IOD case) is inert in THAT check. It is load-bearing in check (c) and it
+    is what this advisory reads, and it becomes load-bearing in (a) the moment the id is ever registered."""
+    dark = read_dark_slices()
+    if not dark:
+        return []
+    waivers = _driver_raw().get("waivers") or {}
+    waived = sorted(n for n in dark if n in waivers)
+    unwaived = sorted(n for n in dark if n not in waivers)
+    out = [f"read-dark census: {len(dark)} of {len(driver_specs())} configured slices have NO real DAG id "
+           f"and can never render an episode line (pin={len(READ_DARK_SLICES_PIN)})"]
+    if waived:
+        out.append("read-dark WAIVED (honestly-deferred gaps): " + ", ".join(waived))
+    if unwaived:
+        out.append("read-dark unwaived (measured, pinned): " + ", ".join(unwaived))
+    return out
 
 
 # Bare tokens that are NOT commodity head-words: a node's matcher legitimately fails to fire on these and it
@@ -785,30 +1033,72 @@ def driver_slices_for(text: str) -> list[str]:
     return [d for d, m in driver_matchers().items() if m.search(text)]
 
 
-def write_driver_slices(driver_sink: dict, *, backend: str | None = None, bedrock=None,
-                        max_per: int = 4000, warnings: list | None = None) -> int:
-    """Embed + write the accumulated driver props to evidence/drivers/<driver>.jsonl. Dedups the re-chunk
-    artifact (same prop harvested from the same doc under multiple commodity builds) by (source_key, text),
-    KEEPING cross-source / cross-date instances (the persistence + corroboration signal). Returns props written.
+def slice_cap(driver: str, default: int) -> int | None:
+    """The prop cap for one driver slice: its declared `max_props` (G5c / D-EI-3) else the pass default.
 
-    W1.1 write-time orphan guard (P7-P3): before writing, invert backed_dag_ids()/driver_alias() once
-    (backed_slice_names() — a cached, non-circular config read, NO per-slice S3 LIST) into the set of slice
-    names >=1 DAG id reaches. A sink slice OUTSIDE that set is a stranded write — no DAG id resolves to it, so
-    its props would be invisible to slice_for_driver(). The guard RECORDS it (an ASCII WARN line to stdout +
-    an append to the optional `warnings` collector) but NEVER refuses: a legitimate E1b flow authors a slice
-    before its alias lands, and the doctrine keeps pure-driver props — hard-refusing would clobber a build in
-    progress. Pass `warnings=[]` to surface the orphan list to a caller/manifest; write behavior is unchanged."""
+    D-EI-3 ratified: KEEP 4,000 as the default and declare it explicitly, per slice, for the four slices that
+    are actually at the cap (`tariff`, `feed_grain_substitution`, `textile_apparel_demand`,
+    `wasde_stocks_to_use`) — because a cap nobody declared and nobody printed is how 5,809 rows swapped
+    behind four frozen `4000` counts. Raising the cap was priced and rejected: at 20,000 those four slices
+    alone go to ~465 MB each and roughly double the 1.361 GB driver layer. `max_props: null` in a spec means
+    UNCAPPED and is honoured. The spec dict already carried {category, priority, terms}, so this is a new
+    optional field, not a schema change."""
+    spec = driver_specs().get(driver) or {}
+    if "max_props" in spec:
+        raw = spec.get("max_props")
+        return None if raw is None else int(raw)
+    return default
+
+
+def _truncation_order(recs: list[dict]) -> list[dict]:
+    """G5a — the deterministic selection order applied BEFORE the cap. Most recent `date` first; ties broken
+    by (source_key, id) ascending. Two stable sorts, so the result is a total order with no dependence on
+    dict/set iteration order.
+
+    WHY this is not cosmetic. `rebuild_slices` iterates `for h in _cached_hashes()` and `_cached_hashes()`
+    returns a SET of md5 hex strings; PYTHONHASHSEED is set nowhere in docker/, jobs/, src/, infra/, scripts/
+    or in the production jobdef environment, so str hashing is per-process randomized and the surviving
+    `max_per` props differed on EVERY run. Measured at the 2026-07-20 promote: 5,809 of the 16,000 rows in
+    the four capped slices (36%) were swapped for a different 5,809 with both counts frozen at exactly 4000 —
+    `feed_grain_substitution` replaced 2,127, `tariff` 1,971, `wasde_stocks_to_use` 1,454,
+    `textile_apparel_demand` 257. No delta guard built on counts or bytes can see that; only determinism
+    closes it. Sorting by date also repairs the meaningless spans those slices carried, because the survivors
+    become the N most recent rather than an arbitrary sample.
+
+    SEQUENCING (section 3.2 of the wave plan, and it is a law, not a preference): this changes WHICH props
+    survive in the four capped slices, which is a population change, which stales timeline/episodes.json.
+    The CODE lands in Wave G; its EFFECT materializes at the ONE Wave-R rebuild. Nothing here triggers a
+    rebuild, and until that rebuild runs, no deck pin grounded on the four capped slices is reproducible."""
+    out = sorted(recs, key=lambda r: (str(r.get("source_key") or ""), str(r.get("id") or "")))
+    out.sort(key=lambda r: str(r.get("date") or ""), reverse=True)
+    return out
+
+
+def plan_driver_slices(driver_sink: dict, *, backend: str | None = None, bedrock=None,
+                       max_per: int = 4000, warnings: list | None = None,
+                       manifest=None, allow_churn: float | None = None):
+    """Everything write_driver_slices does EXCEPT the write: dedup, deterministic order, per-slice cap,
+    prior census, guard verdict. Returns a write_guard.WritePlan.
+
+    F1: a multi-layer caller (_route_and_write, rebuild_slices, build_evidence_task) must evaluate EVERY
+    layer before committing ANY of them, or a driver refusal lands after the 11.1 GB commodity layer has
+    already been rewritten. Those callers plan through here; single-layer callers keep using
+    write_driver_slices, which is this plus raise + commit."""
+    from leviathan.graphrag import write_guard as wg
     backend = backend or DEFAULT_BACKEND
-    backed = backed_slice_names()                            # slice names a DAG id reaches (computed once, cached)
-    total = 0
+    backed = dag_backed_slice_names()                        # G7.1: reachability, not identity
+    records: dict[str, list] = {}
+    truncated: dict[str, int] = {}
     for driver, recs in driver_sink.items():
+        safe = str(driver).encode("ascii", "backslashreplace").decode("ascii")       # cp1252-safe stdout
         if driver not in backed:                            # stranded-at-write: soft WARN, still written (W1.1)
-            safe = str(driver).encode("ascii", "backslashreplace").decode("ascii")   # cp1252-safe stdout
             msg = (f"WARN write_driver_slices: driver slice '{safe}' has no backing DAG id "
-                   f"(orphan -- no exact-name/alias resolves to it); writing anyway")
+                   f"(orphan -- no REAL causal driver id resolves to it); writing anyway")
             print(msg)
             if warnings is not None:
                 warnings.append(msg)
+            if manifest is not None:
+                manifest.warnings.append(msg)
         seen, uniq = set(), []
         for r in recs:
             k = (r.get("source_key"), r["text"])
@@ -816,12 +1106,70 @@ def write_driver_slices(driver_sink: dict, *, backend: str | None = None, bedroc
                 continue
             seen.add(k)
             uniq.append(r)
-        uniq = uniq[:max_per]
-        for r, v in zip(uniq, embed([r["text"] for r in uniq], backend=backend, bedrock=bedrock)):
-            r["vector"], r["backend"] = v, backend
-        _evid_write(f"drivers/{driver}", "\n".join(json.dumps(r) for r in uniq))
-        total += len(uniq)
-    return total
+        uniq = _truncation_order(uniq)                       # G5a: deterministic BEFORE the cap
+        cap = slice_cap(driver, max_per)
+        if cap is not None and len(uniq) > cap:
+            dropped = len(uniq) - cap                        # G5b: the truncation is never silent again
+            uniq = uniq[:cap]
+            truncated[driver] = dropped
+            msg = (f"WARN write_driver_slices: slice '{safe}' TRUNCATED {dropped} props at max_props={cap} "
+                   f"(kept the {cap} most recent by date, ties by source_key/id)")
+            print(msg)
+            if warnings is not None:
+                warnings.append(msg)
+            if manifest is not None:
+                manifest.warnings.append(msg)
+        records[driver] = uniq
+
+    def _payload(name: str):
+        def _mk() -> str:                                    # embed LAZILY: a refused pass pays no embed
+            recs = records[name]
+            for r, v in zip(recs, embed([r["text"] for r in recs], backend=backend, bedrock=bedrock)):
+                r["vector"], r["backend"] = v, backend
+            return "\n".join(json.dumps(r) for r in recs)
+        return _mk
+
+    return wg.plan_write("drivers", "drivers/", {n: _payload(n) for n in records}, records=records,
+                         manifest=manifest, allow_churn=allow_churn, write_fn=_evid_write,
+                         node_of=lambda n: f"drivers/{n}", truncated=truncated, warnings=warnings)
+
+
+def write_driver_slices(driver_sink: dict, *, backend: str | None = None, bedrock=None,
+                        max_per: int = 4000, warnings: list | None = None,
+                        manifest=None, allow_churn: float | None = None) -> int:
+    """Embed + write the accumulated driver props to evidence/drivers/<driver>.jsonl. Dedups the re-chunk
+    artifact (same prop harvested from the same doc under multiple commodity builds) by (source_key, text),
+    KEEPING cross-source / cross-date instances (the persistence + corroboration signal). Returns props written.
+
+    W1.1 write-time orphan guard (P7-P3), REPAIRED in G7.1: the predicate now tests dag_backed_slice_names()
+    — driver_alias() inverted and intersected with the REAL causal driver ids — instead of
+    backed_slice_names(), which is identity-seeded and therefore contains every configured slice by
+    construction, which is why the guard could never fire for anything. It still RECORDS (an ASCII WARN line
+    + an append to the optional `warnings` collector) and still NEVER refuses: a legitimate E1b flow authors
+    a slice before its alias lands, and hard-refusing would clobber a build in progress. Expect it to be
+    LOUD now — 29 configured slices are read-dark (READ_DARK_SLICES_PIN); that is the true state, and a
+    guard that says so is worth more than one that reads green because it cannot speak.
+
+    G1b/G1c/G5b, the wholesale-write guard (this is C2, one of the FIVE silent seams): the pass is
+    now computed IN FULL — dedup, deterministic order, per-slice cap — before ANY byte is written, the
+    before/after census is straddled across the single write, and a population drop past
+    write_guard.SLICE_DROP_REFUSE refuses the whole pass with nothing written and nothing embedded. Delta,
+    truncation counts and span endpoints ride the `warnings` collector and the run manifest; the `int` return
+    and all three call sites are unchanged.
+
+    THIS ENTRY POINT IS SINGLE-LAYER (F1). It plans, raises on its own refusals, and commits. A caller that
+    also writes the commodity or _raw layer in the same pass must NOT use it — plan every layer through
+    plan_driver_slices / _plan_commodity_write / _plan_raw_write, union the refusals with
+    write_guard.raise_if_refused, and only then commit. Two guarded entry points in sequence is exactly the
+    defect where a driver refusal landed after 11.1 GB of commodity slices had already been rewritten.
+
+    `manifest` (a write_guard.RunManifest) and `allow_churn` (a FRACTION naming the drop you expect) are
+    keyword-only with defaults, so the call sites need no edit."""
+    from leviathan.graphrag import write_guard as wg
+    plan = plan_driver_slices(driver_sink, backend=backend, bedrock=bedrock, max_per=max_per,
+                              warnings=warnings, manifest=manifest, allow_churn=allow_churn)
+    wg.raise_if_refused(plan)
+    return wg.commit_write(plan)
 
 
 def main() -> int:
