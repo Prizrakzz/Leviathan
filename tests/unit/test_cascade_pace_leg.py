@@ -125,9 +125,9 @@ def test_pace_streak_and_window_change_rows_on_synthetic_weekly_series():
     assert chg["shown"] == [50.0] and stk["shown"] == [3.0]
     # W4: every reader-facing [N] line ends with the SERIES scope tag (contract, country, table)
     assert lines[0] == ("- [N1] change in weekly_exports_1000mt from the prior week (weekly pace): "
-                        "+50 1000 MT [series: corn_cbot; table: silver_esr]")
+                        "+50 1000 MT [series: corn_cbot; table: USDA FAS Export Sales (ESR)]")
     assert lines[1] == ("- [N2] weekly_exports_1000mt rose in each of the last 3 weeks "
-                        "[series: corn_cbot; table: silver_esr]")
+                        "[series: corn_cbot; table: USDA FAS Export Sales (ESR)]")
     assert trace == [{"node_key": ["corn_cbot", "us_export_pace"], "table": "silver_esr",
                       "metric": "weekly_exports_1000mt", "grain": "week", "n_points": 4,
                       "streak": 3, "window_change": 50.0, "streak_direction": "up"}]
@@ -140,7 +140,7 @@ def test_pace_declining_series_says_fell():
     assert lines[0].startswith("- [N5] change in weekly_exports_1000mt from the prior week")
     assert "-40" in lines[0]
     assert lines[1] == ("- [N6] weekly_exports_1000mt fell in each of the last 2 weeks "
-                        "[series: corn_cbot; table: silver_esr]")
+                        "[series: corn_cbot; table: USDA FAS Export Sales (ESR)]")
     assert trace[0]["streak_direction"] == "down"
 
 
@@ -213,7 +213,7 @@ def test_pace_esr_streak_runs_on_weekly_totals():
     lines, trace = cq._pace_legs([rec], _kept(), 0, calls)
     assert trace[0]["window_change"] == 60.0 and trace[0]["streak"] == 2       # totals rose 2 weeks
     assert lines[1] == ("- [N2] weekly_exports_1000mt rose in each of the last 2 weeks "
-                        "[series: corn_cbot; table: silver_esr]")
+                        "[series: corn_cbot; table: USDA FAS Export Sales (ESR)]")
 
 
 def test_pace_weather_collapses_regions_per_month_mean():

@@ -458,6 +458,34 @@ def _count_unbacked_levels(structured: dict) -> int:
             + reg.unbacked_level_count(str(structured.get("mechanism") or "")))
 
 
+def raw_draft_snapshot(**parts) -> dict | None:
+    """A4: the RAW model draft, captured BEFORE the verifier destroys it -- or None when the run is not
+    being audited.
+
+    Every raw red is measured pre-sanitize on purpose (see _count_banned_mood: "measuring after would read
+    0 forever"), which is an admission that the RENDERED surface cannot answer "what did the model actually
+    write?". Only the COUNTS survived into the trace, so a non-zero red named a RULE and never the sentence
+    that broke it -- strip_audit was null on every W5 row and the reds were unauditable. This is the other
+    half: the counts say how many, the snapshot says which.
+
+    Gated on GRAPHRAG_STRIP_AUDIT, read exactly the way verify.py reads it (anything but 'off' is on,
+    default off) -- ONE flag, ONE meaning: "this run is being audited". Off -> None -> every trace is
+    byte-identical and no answer changes.
+
+    NOT truncated, deliberately: a cap is precisely what would hide the offending sentence this exists to
+    surface. Callers name their own fields, because the two lanes' drafts differ in shape (the reasoner
+    emits tldr+mechanism; the numbers agent emits one prose answer).
+
+    DIAGNOSTIC ONLY. This is raw prose the sanitizer would have cleaned. It rides `trace` and nothing else:
+    never rendered to a reader, never joined into the answer payload. The FLAG is the whole containment --
+    /v1/respond returns the full result dict including trace, so GRAPHRAG_STRIP_AUDIT must never be set in
+    the serving taskdef (it is not; it rides submit_eval's per-run container overrides)."""
+    if os.environ.get("GRAPHRAG_STRIP_AUDIT", "off") == "off":
+        return None
+    snap = {k: str(v) for k, v in parts.items() if v}
+    return snap or None
+
+
 def _comove_on() -> bool:
     """SEAM-A co-move kill-switch (GRAPHRAG_COMOVE), read at the answer.py quantify SEAM and threaded as the
     `comove` kwarg down quantify()->_run_xc()->_reroute_xc ([SKEPTIC F3] -- NEVER an os.environ read inside
@@ -493,6 +521,17 @@ def _pace_leg_on() -> bool:
     fail-closed. When off, no pace spec exists and the cascade is byte-identical to today. Read PER CALL
     (never memoized) so the env-flip rollback is live -> serving rev 52, no redeploy."""
     return os.environ.get("GRAPHRAG_CASCADE_PACE_LEG", "").strip().lower() in ("on", "1", "true")
+
+
+def _headline_on() -> bool:
+    """A2b headline-row kill-switch (GRAPHRAG_CASCADE_HEADLINE), read at the answer.py quantify SEAM and
+    threaded as the `headline` kwarg down quantify()->cascade._set_headline (the _pace_leg_on idiom --
+    NEVER an os.environ read inside cascade.py, so the ENGINE is gated by the ARGUMENT). DEFAULT-OFF,
+    fail-closed, because A2b's own plan text requires it: "Ship behind its own flag, defaulting to
+    today's behaviour ... it must be independently revertible from A2a." When off, every windowed level
+    line, `shown` binding, pre-scale and cross-era delta reads rows[0] exactly as today. Read PER CALL
+    (never memoized) so the env-flip rollback is live -> no redeploy."""
+    return os.environ.get("GRAPHRAG_CASCADE_HEADLINE", "").strip().lower() in ("on", "1", "true")
 
 
 def _chain_on() -> bool:
@@ -722,8 +761,15 @@ _SYSTEM_EPISODES = (
     "holds ONE '- ' bullet per injected episode and NOTHING else: no lead-in sentence, no closing prose.\n"
     "EVERY INJECTED EPISODE GETS ITS OWN BULLET, including the ones with no citable item. Never drop an "
     "episode for being thin, never merge two into one bullet, and never invent one to round out the list.\n"
-    "EACH BULLET HAS THIS SHAPE, and BOTH slots are REQUIRED:\n"
-    "  - <YYYY-MM>..<YYYY-MM> -- <plain-words label>: <BACKING>; <MAGNITUDE>.\n"
+    # A5 (SKEPTIC F23): the shape line used to declare a UNIVERSAL '<plain-words label>' slot, which CASE 1
+    # below then contradicts -- on a receipt-less window the label is the injected line's own, copied, and
+    # a model reading the universal rule first is being told to write words the record cannot support.
+    # BOTH SLOTS still means BACKING and MAGNITUDE, which CASE 1 fills with its two absence statements.
+    "EACH BULLET HAS THIS SHAPE. BOTH slots -- BACKING and MAGNITUDE -- are REQUIRED on every bullet; on a "
+    "NO CITABLE ITEM window they are filled by the two absence statements below, never left empty:\n"
+    "  - <YYYY-MM>..<YYYY-MM> -- <label>: <BACKING>; <MAGNITUDE>.\n"
+    "The LABEL slot is a plain-words label EXCEPT in CASE 1 (no citable item in the window), where it is "
+    "the injected line's OWN label copied verbatim and nothing else -- see LABEL below.\n"
     "Write the span with FULL four-digit years on BOTH ends, joined by the two-dot glyph '..' -- NEVER an "
     "arrow, which this system reads as derived arithmetic and strips.\n"
     "ONE BULLET IS ONE PHYSICAL LINE. Keep the span, the label, the backing and the magnitude on the SAME "
@@ -1166,6 +1212,12 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
         extra_context, extra_number_calls = extra_resolver()      # done — collect the numbers thread's output now
     if extra_context:                                             # hybrid numbers / conversation state (volatile)
         volatile_blocks = volatile_blocks + [extra_context]
+    # W5-D3/D5: the outlook legs were resolved by the CALLER (plan.answer_mode_outlook AND
+    # is_outlook_explicit); the kill-switch is ANDed HERE. Resolved BEFORE the cascade seam because the R9
+    # context lane needs it: D1 admits the positioning leg under FENCED only ("do NOT proceed on the
+    # outlook lane"), so `_outlook` is threaded into quantify() as well as selecting the register below.
+    # ONE resolution, read twice -- the gate and the register can never disagree about which lane a turn is.
+    _outlook = bool(outlook) and _outlook_on()
     # P9-B quantified cascade (GRAPHRAG_CASCADE_QUANT): derive analogue-era windows from the walk's dated
     # props, fetch the metric at the era window AND the session asof, inject citable [N] rows into the
     # VOLATILE tail (cache-safe). BREAKER: if the pg numbers backend is not live, SKIP the cascade rather
@@ -1194,12 +1246,19 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
             # detector's own xc_request (threaded above) to fire at all -- flag on + no cross-commodity ask =
             # no attempt, so the fork is never volunteered.
             _xmit_kw = {"transmission": True} if _transmission_on() else {}
+            # A2b headline rule: same omit-when-off idiom, so the flag-off call is byte-identical and an
+            # injected quantify fake with the older signature stays valid.
+            _hl_kw = {"headline": True} if _headline_on() else {}
+            # R9 CONTEXT LANE (D1): the already-resolved outlook bool goes DOWN as an argument. Omitted on
+            # a fenced turn -> byte-identical call.
+            _ol_kw = {"outlook": True} if _outlook else {}
             _cblock, _quant_trace, _reroute_trace = cq.quantify(sg, graph, qfn=numbers_lookup, asof=asof,
                                                                 near=near,
                                                                 extra_number_calls=extra_number_calls,
                                                                 xc_request=xc_request, comove=_comove_on(),
                                                                 price_request=_price_request,
-                                                                **_pace_kw, **_chain_kw, **_xmit_kw)
+                                                                **_pace_kw, **_chain_kw, **_xmit_kw,
+                                                                **_hl_kw, **_ol_kw)
             sg.trace["ms_quantify"] = int((time.perf_counter() - _t_quant) * 1000)
             _emit_chains(on_stage, sg)                            # F7 `chain`: the composer has just decided
             if _cblock:
@@ -1236,10 +1295,10 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     _emit(on_stage, "synthesizing")                               # prompt assembled; the model call starts NOW
     _emit(on_stage, "drafting")                                   # F7: the engine feed is CLOSED — prose mode
     _t_synth = time.perf_counter()                                # W6.1-0 stage timer (MsSynthLLM)
-    # W5-D3/D5: the outlook legs were resolved by the caller (plan.answer_mode_outlook AND
-    # is_outlook_explicit); the kill-switch is ANDed HERE, at the seam. `_mr` is the ONLY thing that ever
-    # relaxes the register, and it is passed DOWN as an argument -- register.py reads no environment.
-    _outlook = bool(outlook) and _outlook_on()
+    # W5-D3/D5: `_outlook` was resolved ONCE at the cascade seam above (the R9 context lane reads the same
+    # bool -- D1 fences the positioning leg out of the outlook lane, so the gate and the register must be
+    # the same decision). `_mr` is the ONLY thing that ever relaxes the register, and it is passed DOWN as
+    # an argument -- register.py reads no environment.
     _mr = reg.OUTLOOK if _outlook else reg.FENCED
     _episodes = _episodes_on(vp)                                  # W4-D3: BOTH legs, and both in CODE
     structured = call(_system(outlook=_outlook, episodes=_episodes), _pack(sp, vp, use_blocks), model=model,
@@ -1250,6 +1309,10 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     _banned_flow = _count_banned_flow(structured)
     _banned_exec = _count_banned_exec(structured)                 # W5: A2 execution idioms, RAW (pinned 0 always)
     _unbacked = _count_unbacked_levels(structured)                # W5.0: bare price levels, RAW (derivation gate)
+    # A4: the counters above are computed HERE and the draft they were computed on is destroyed BELOW --
+    # verify_citations mutates `structured` in place, _humanize_structured rewrites it, sanitize cleans the
+    # render. Snapshot it while it still exists (flag-gated; None -> the key is absent, not null).
+    _raw_draft = raw_draft_snapshot(tldr=structured.get("tldr"), mechanism=structured.get("mechanism"))
     degraded = _pop_degraded(structured)
     if sg.mermaid and _valid_mermaid(sg.mermaid):
         structured["diagram_mermaid"] = sg.mermaid                # deterministic diagram overrides the LLM's
@@ -1293,6 +1356,7 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                                       "banned_exec_words": _banned_exec, "unbacked_levels": _unbacked,
                                       "outlook_mode": _outlook, "market_register": _mr,
                                       **({"degraded_model": degraded} if degraded else {}),
+                                      **({"raw_draft": _raw_draft} if _raw_draft else {}),   # A4, audited runs only
                                       "has_diagram": _valid_mermaid(structured.get("diagram_mermaid")), **sg.trace}}
 
 
@@ -1586,6 +1650,11 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     _banned_flow = _count_banned_flow(structured)
     _banned_exec = _count_banned_exec(structured)                 # W5: A2 execution idioms, RAW (pinned 0 always)
     _unbacked = _count_unbacked_levels(structured)                # W5.0: bare price levels, RAW (derivation gate)
+    # A4 on the SECOND synthesis path. There is no single choke point -- verify_citations is called from
+    # _answer_l2 AND from here, and this is the documented GRAPHRAG_PLANNER=onehop rollback lane. Snapshotting
+    # only the L2 body would leave the fallback with no raw draft, i.e. a silent hole in the audit exactly on
+    # the path a rollback puts every turn on.
+    _raw_draft = raw_draft_snapshot(tldr=structured.get("tldr"), mechanism=structured.get("mechanism"))
     degraded = _pop_degraded(structured)
     # unified provenance footer (Phase 4): document-level, deduped by source_key. Numbers citations join here in
     # the Phase-5 hybrid path; the per-prop page/char slots ride along for the page-citation recovery.
@@ -1628,4 +1697,5 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
                       "drivers": drivers, "n_driver_evidence": len(driver_hits),
                       "evidence_ids": ev_ids, "has_diagram": _valid_mermaid(structured.get("diagram_mermaid")),
                       **({"degraded_model": degraded} if degraded else {}),
+                      **({"raw_draft": _raw_draft} if _raw_draft else {}),   # A4, audited runs only
                       "citation_verifier": verifier, "model": model}}

@@ -426,6 +426,9 @@ def _scope(n, row) -> tuple:
 # levels_only -- build_sql RAISES on any series/window read (PIT-unsafe across roll splices), so a pace
 # spec there could only ever produce status=error, never a row. Re-add only if v1.5 lifts levels_only.
 PACE_TABLES = {
+    # silver_cot's door is the R9 CONTEXT LANE further down (D1, 2026-08-01) -- a fetched past-tense
+    # context leg, never an engine lane. positioning_context_violations() is the shape that reaches
+    # this grain at all; before D1 the entry below had no door and the weekly-COT pace leg never ran.
     "silver_cot": "week", "silver_esr": "week",
     "silver_pink_sheet": "month", "silver_mpob": "month", "gold_weather_z": "month",
     "silver_noaa_oni": "month",
@@ -579,6 +582,75 @@ def _pace_grain(row) -> str | None:
     if (row or {}).get("narrate_unit") == "flag":
         return None                                               # event flag: recency is T2b, not pace
     return PACE_TABLES.get((row or {}).get("table"))
+
+
+# -- R9 CONTEXT LANE (D1, ratified 2026-08-01): the positioning door, deliberately narrow ------------
+# PACE_TABLES["silver_cot"] above was built with NO DOOR. R9 banned silver_cot from cascade_map outright
+# and quantify() drops any node whose map_row() is None, so the weekly-COT pace engine has never been
+# reachable. D1 splits the two things that blanket ban conflated -- positioning FETCHED and narrated
+# past-tense as CONTEXT (admitted) and positioning as an ENGINE ref that may drive a fork or a regime
+# (still banned, still build-failing) -- which is the split the registry's own prose already drew
+# (tables.yaml: "levels + z, past tense; it NEVER drives a forecast or a fork").
+#
+# The lane is decided STRUCTURALLY, off fields a map row already carries. No new config surface, no
+# marker anyone can forget to write, and every clause names the code path it closes:
+#   * leg_mode: current -- an era-legged node reaches _era_delta -> _divergence, which IS the cross-era
+#     fork. A positioning ref with era legs is a fork ref by construction.
+#   * period_type: date -- the marketing-year fan (_my_span) is that same fork's window machinery, and
+#     positioning is a dated weekly observation, never a marketing-year quantity.
+#   * metric outside _TRADE_METRICS -- a trade metric is what seeds an RF-3 reroute PAIR (the OTHER
+#     fork; see _pairable, defined with the pairing block below).
+#   * narrate_unit != "flag" -- a 0/1 flag row is a REGIME MARKER (el_nino_flag/la_nina_flag), not an
+#     observed level.
+#   * a sub-annual pace grain -- without one the leg is structurally dead and the door is decorative.
+# ONE definition, read twice: the fail-closed engine gate in quantify() below, and config_check's
+# amended R9 at BUILD time (the lint_pace_collapse/check_pace_collapse bind idiom), so the lint and the
+# runtime can never disagree about what "context" means. The chain/complex/transmission half of R9 is
+# the lint's alone: those maps name a cascade_map ref BY NAME, which is a name-level ban, not a shape.
+POSITIONING_TABLES: frozenset[str] = frozenset({"silver_cot"})
+# The narration addendum the block carries when a context leg actually rendered. Phrased POSITIVELY and
+# MEASURED: it names no flow idiom, because the surest way to put "crowded"/"stretched" into a draft is
+# to write it into the prompt as a prohibition -- the r3 arm already emitted a residual flow idiom on
+# the positioning row with ZERO cot rows in the panel, so this leg must not hand that sentence a
+# vocabulary as well as a number. tests/unit/test_register_corpus.py pins count_flow_words() == 0 on
+# this exact string, so an edit that smuggles the register back in fails the standing corpus.
+POSITIONING_CONTEXT_ADDENDUM = (
+    "POSITIONING CONTEXT: the managed-money rows above are OBSERVED weekly figures, each dated by its "
+    "own report date. Narrate them as history in the past tense, keep every figure on the [N] handle "
+    "and the series it was measured on, and state nothing about what positioning will do next -- this "
+    "record holds no forward positioning claim and none may be read out of it.")
+
+
+def positioning_context_violations(row: dict) -> list[str]:
+    """Why `row` is NOT the narrow past-tense CONTEXT leg R9 admits -- an EMPTY list means it is. Only
+    ever consulted for a POSITIONING_TABLES row; every other table is none of this rule's business.
+    Pure and never raises: an unreadable row reads as a violation (fail-closed), never as an exception."""
+    try:
+        bad: list[str] = []
+        if (row or {}).get("leg_mode") != "current":
+            bad.append("leg_mode is not 'current' -- era legs are the cross-era FORK backbone")
+        if (row or {}).get("period_type") != "date":
+            bad.append(f"period_type {(row or {}).get('period_type')!r} is not 'date' -- positioning is a "
+                       f"dated weekly observation, never a marketing-year fork window")
+        if (row or {}).get("metric") in _TRADE_METRICS:
+            bad.append(f"metric {(row or {}).get('metric')!r} seeds an RF-3 reroute PAIR (the other fork)")
+        if (row or {}).get("narrate_unit") == "flag":
+            bad.append("narrate_unit 'flag' is a REGIME MARKER, not an observed level")
+        if _pace_grain(row) is None:
+            bad.append("no sub-annual pace grain -- the context leg would be structurally dead")
+        return bad
+    except Exception:  # noqa: BLE001 -- a gate/lint predicate must never raise on an odd row
+        return ["unreadable map row"]
+
+
+def _positioning_rendered(records: list, kept: list) -> bool:
+    """True when at least one POSITIONING context leg actually produced a row this turn. An honest
+    absence renders no line, so it earns no addendum either (the E-STREAK-NODATA idiom)."""
+    keys = {g["key"] for g in kept if ((g or {}).get("row") or {}).get("table") in POSITIONING_TABLES}
+    if not keys:
+        return False
+    return any(r.get("node_key") in keys and r.get("status") == "ok" and (r.get("rows") or [])
+               for r in records)
 
 
 def _node_specs(n, row, commodity, country, eras, asof, *, pace: bool = False) -> list[dict]:
@@ -741,19 +813,47 @@ def _pair_units(groups: list) -> tuple:
 # ── the orchestration (B-S3) ─────────────────────────────────────────────────────────────────────────
 def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request: dict | None = None,
              comove: bool = False, price_request: dict | None = None, pace: bool = False,
-             chain: bool = False, transmission: bool = False) -> tuple:
+             chain: bool = False, transmission: bool = False, outlook: bool = False,
+             headline: bool = False) -> tuple:
     """Select grounded nodes with mapped refs, derive analogue-era windows from their dated props, build
     per-node leg GROUPS (era legs + a current rhyme leg), detect cross-country REROUTE pairs (RF-3:
     natural two-node pairs + the synthesized primary-country beneficiary), cap on WHOLE pair-atomic
     UNITS, fan the specs concurrently over the pg pool, PRE-SCALE + inject citable [N] rows (continuing
     the N-count), compute CROSS-ERA deltas + the divergence flag + the cross-country REROUTE (RF-4), and
     return (prompt_block, trace_list, reroute_trace). extra_number_calls is appended IN PLACE.
+
+    `outlook` and `headline` are the two flags read at the answer.py quantify SEAM and threaded here as
+    ARGUMENTS (the pace/price_request discipline -- NEVER an env read inside cascade.py), see the R9 gate
+    and _set_headline below.
     Never raises (R6 -- the seam also belts it)."""
+    _set_headline(headline)
     groups = []
+    dark = 0                                                      # A6 DarkRefNodes: grounded, ref unmapped
     for n in _select_nodes(sg, graph):
-        row = map_row(_silver_ref(n))
+        ref = _silver_ref(n)
+        row = map_row(ref)
         if row is None:
+            # A6: THE metric this whole lane exists to measure -- the walk grounded a driver that DECLARES
+            # a series and the map had none for it (160 dark refs against 16 mapped). Counted at the ONE
+            # drop site that means "dark ref". Two things deliberately excluded: a node with NO silver_ref
+            # at all (a contract node, or a driver that never claimed a series -- there is nothing to be
+            # dark ABOUT, and counting them would make the metric a walk-size proxy), and the chain-hop
+            # map_row miss in _chain_resolve_hop, which is CONFIG DRIFT on an authored chain that
+            # check_chain_map already fails the build on.
+            if ref:
+                dark += 1
             continue                                              # unmapped OR deferred -> stays qualitative
+        # R9 CONTEXT LANE (D1), BOTH halves. (a) a positioning table enters the engine ONLY through the
+        # narrow past-tense context door -- config_check fails the BUILD on a mis-shaped row and this is
+        # the runtime belt, so a hand-edited or monkeypatched map can never widen the door either.
+        # (b) D1's OUTLOOK CARVE-OUT, which is not a shape rule and cannot be one: "do NOT proceed on the
+        # outlook lane". register.py:689-694 releases the FLOW fence by design under OUTLOOK, and
+        # rep_outlook_r3.md:397 measured a residual "crowded long" on the target row with ZERO cot rows in
+        # the panel -- handing that sentence a dated number is exactly what D1 refused. The context leg is
+        # therefore FENCED-lane only. Fail-closed on both: any violation, or an outlook turn, and the node
+        # stays qualitative, exactly as it does today.
+        if row.get("table") in POSITIONING_TABLES and (outlook or positioning_context_violations(row)):
+            continue
         eras = _derive_windows(n, near, asof)
         # T2a P4 (live-wiring fix): a `leg_mode: current` pace-capable node (esr_exports) never USES era
         # windows, yet the gate below demanded them -- and its driver (export_pace) is a WAIVERED
@@ -773,6 +873,15 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
             groups.append({"node": n, "row": row, "specs": specs, "key": specs[0]["node_key"],
                            "commodity": commodity, "contract": getattr(n, "contract", None),
                            "country": country, "eras": eras})
+    # A6 (F3): stamped on EVERY quantifying turn, zero included -- the reader
+    # (orchestrator._emf -> DarkRefNodes) treats an ABSENT key as "this turn never quantified" and a 0 as a
+    # real measurement, so the write must happen BEFORE the all-dark early return below. A turn with 6
+    # grounded drivers and 6 unmapped refs is the exact shape the counter exists to make visible, and it
+    # takes that early return.
+    try:
+        sg.trace["quantify_dark_refs"] = dark
+    except Exception:  # noqa: BLE001 -- a traceless sg must never break the v1 answer
+        pass
     if not groups and not chain and not transmission:
         return None, [], []                                       # both flags False -> byte-identical early
         #                                                           return; either chain engine runs over empty
@@ -910,19 +1019,81 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
             except Exception:  # noqa: BLE001
                 pass
         block_lines = block_lines + c_lines
+    # R9 CONTEXT-LANE ADDENDUM (D1): when a positioning context leg actually rendered, ONE narration line
+    # rides the block so the prose stays what the leg is -- dated observed history. Appended LAST, after
+    # every engine's lines: it says "the managed-money rows above", and at its old position (right after
+    # the pace block) the reroute/xc/price-leg/chain rows still followed it, so "above" named a set the
+    # reader could not delimit. Only ever appended on a leg that actually produced a row.
+    if _positioning_rendered(records, kept):
+        block_lines = block_lines + [POSITIONING_CONTEXT_ADDENDUM]
     block = ("OBSERVED CASCADE NUMBERS (as-known at each leg's asof; the record then vs now):\n"
              + "\n".join(block_lines)) if block_lines else None
     return block, trace, r_trace
 
 
 # ── fork engine + ratio normalizer (B-S4) ────────────────────────────────────────────────────────────
-def _float_val(rec) -> float | None:
-    """FLOAT-CAST a row value (R9: Q.run returns values as STRINGS -- '0.36'*100 repeats the string)."""
-    rows = rec.get("rows") or []
+# A2b FLAG (GRAPHRAG_CASCADE_HEADLINE). A2b's own rule: "Ship behind its own flag, defaulting to today's
+# behaviour ... A detector loosening/tightening moves strip_rate on every deck, so it must be
+# independently revertible from A2a." OFF (the default) is byte-identical to pre-A2b: every level line,
+# every `shown` binding, every pre-scale and EVERY cross-era delta/divergence magnitude reads rows[0].
+#
+# WHY A MODULE FLAG AND NOT A KWARG. `_headline_row` is reached from `_float_val` / `_scaled_val` /
+# `_prescaled` and thence from ~10 formatters and the era/divergence engines; threading a bool through
+# all of them would be a signature change per formatter for a value that is CONSTANT within a process
+# (it is env-derived at the answer.py seam, so two concurrent turns can never disagree about it).
+# This module still performs NO env read of any kind -- test_transmission_chain's
+# `test_engine_never_reads_the_env_and_never_mints_a_threshold` scans this file's SOURCE for the tokens,
+# so even naming them in a comment reds it, and that strictness is the point. quantify() sets this from
+# its `headline` kwarg, so the ENGINE is gated by the ARGUMENT and a mis-plumbed enable cannot fire it.
+# Every fetch runs on the pool BEFORE any formatter, so no worker thread ever reads it.
+_HEADLINE_ON = False
+
+
+def _set_headline(on: bool) -> None:
+    """Bind the A2b headline rule for this process from quantify()'s threaded `headline` kwarg."""
+    global _HEADLINE_ON
+    _HEADLINE_ON = bool(on)
+
+
+def _headline_row(rec) -> dict | None:
+    """The ONE row a level line stands for: the FRESHEST observation on the record, picked with the SAME
+    chronology key the CITATION side uses (citations._row_order_key) -- never rows[0].
+
+    A2b RESIDUAL RCA (2026-08-01). A marketing-year leg fetches agg='latest' (one row), but a
+    date/year_month ERA leg fetches agg='series' (_node_specs:609) -- a Jan-Jun ONI leg carries six
+    monthly rows -- and rows[0] is the OLDEST print. The panel line headlined rows[0] while EVERY
+    citation-side projection of that same call headlines max(rows) instead: the reader's `## Sources`
+    block (answer.py:1313 -> :1480 -> citations.from_number:104) and the judge's OBSERVED-NUMBERS panel,
+    which sees cascade rows ONLY as kind=number citations (eval.py:1464-1476). On pb_seasonality_aware
+    the panel printed the Jan-2012 ONI (-0.72) and the Jun-2012 ONI (0.06) went to the judge under the
+    SAME handle, so a FAITHFUL transcription was scored as a fabricated figure -- and `shown`, bound to
+    the printed value, agreed with the model and correctly did not charge it. The leak was never an
+    unbound append site: it was two headlines for one handle. Single-row records (every MY leg, every
+    synthetic) are untouched by construction.
+
+    FLAG-OFF (the default) returns rows[0] -- today's behaviour, byte-identical -- so A2b is revertible
+    without touching A2a. See _HEADLINE_ON above."""
+    rows = (rec or {}).get("rows") or []
     if not rows:
         return None
+    if not _HEADLINE_ON:
+        return rows[0]
     try:
-        return float(str(rows[0].get("value")).replace(",", ""))
+        from leviathan.graphrag.citations import _row_order_key
+        return max(rows, key=_row_order_key)
+    except Exception:  # noqa: BLE001 -- an unorderable row must degrade, never break the cascade
+        return rows[0]
+
+
+def _float_val(rec) -> float | None:
+    """FLOAT-CAST the HEADLINE row's value (R9: Q.run returns values as STRINGS -- '0.36'*100 repeats the
+    string). Reading the headline row rather than rows[0] is what keeps the printed figure, the `shown`
+    binding, the injected row and the citation label on ONE observation (_headline_row)."""
+    src = _headline_row(rec)
+    if src is None:
+        return None
+    try:
+        return float(str(src.get("value")).replace(",", ""))
     except (TypeError, ValueError):
         return None
 
@@ -931,7 +1102,7 @@ _GUARD_COLS = ("release_date", "week_ending_date", "data_date", "date", "year", 
 
 
 def _scaled_val(rec: dict, row: dict) -> float | None:
-    """rows[0] PRE-SCALED to narrate_unit -- the ONE magnitude a level line prints. Shared by the
+    """The HEADLINE row PRE-SCALED to narrate_unit -- the ONE magnitude a level line prints. Shared by the
     formatters and by the `shown` binding so the printed figure and the recorded figure cannot drift."""
     v = _float_val(rec)
     return None if v is None else v * float(row.get("scale", 1) or 1)
@@ -946,7 +1117,9 @@ def _shown(call: dict, *values) -> dict:
     that quoted a member row -- -0.693675 is a real row value, not an invention -- and narrated it as the
     window's headline stat matched the pool and cleared: all four measured fabrications on
     pb_seasonality_aware were never charged. `shown` is the panel's own testimony about what it displayed.
-    Values only, never strings; ONE physical line's magnitudes, including a rendered integer count."""
+    Values only, never strings; ONE physical line's magnitudes, including a rendered integer count.
+    WHICH endpoint a windowed line prints is _headline_row's contract -- binding here is only honest while
+    the line, the injected row and the citation label all name that same observation."""
     vals = [float(v) for v in values if v is not None]
     if vals:
         call["shown"] = vals
@@ -954,20 +1127,24 @@ def _shown(call: dict, *values) -> dict:
 
 
 def _prescaled(rec: dict, row: dict, n: int) -> dict:
-    """Deep-copy the call-record with rows[0] PRE-SCALED to narrate_unit (the ratio normalizer: su_ratio
-    0.36 -> 36.0/'%'), carrying the source row's PIT guard-column provenance forward (R10) so the
-    pinned-asof backtest can check it."""
+    """Deep-copy the call-record with the HEADLINE row PRE-SCALED to narrate_unit (the ratio normalizer:
+    su_ratio 0.36 -> 36.0/'%'), carrying that row's PIT guard-column provenance forward (R10) so the
+    pinned-asof backtest can check it. The scaled row is the one _headline_row picks -- i.e. the one
+    citations.from_number will headline -- so a windowed leg can never publish a SCALED figure on the
+    line and a RAW one in the Sources block. Position is preserved: the window stays chronological."""
     import copy
     out = copy.deepcopy(rec)
     v = _float_val(rec)
     scale = float(row.get("scale", 1) or 1)
-    if v is not None and out.get("rows"):
-        out["rows"][0]["value"] = v * scale
-        out["rows"][0]["unit"] = row.get("narrate_unit") or out["rows"][0].get("unit")
-        src = (rec.get("rows") or [{}])[0]
+    src = _headline_row(rec)
+    if v is not None and src is not None and out.get("rows"):
+        i = next((k for k, r in enumerate(rec.get("rows") or []) if r is src), 0)
+        tgt = out["rows"][i]
+        tgt["value"] = v * scale
+        tgt["unit"] = row.get("narrate_unit") or tgt.get("unit")
         prov = {k: src.get(k) for k in _GUARD_COLS if src.get(k) is not None}
         if prov:
-            out["rows"][0]["_provenance"] = prov
+            tgt["_provenance"] = prov
     out.pop("node_key", None)
     out.pop("leg", None)
     out.pop("era_idx", None)
@@ -1401,19 +1578,40 @@ def _era_label(era, row: dict | None = None) -> str:
     return "earlier era" if idx == 0 else "later era"
 
 
+def _table_label(table) -> str:
+    """display.table_label, fail-soft (A1). Imported lazily and belted so a display-registry problem can
+    never take the cascade down -- an unresolvable label degrades to the de-underscored id, never to a
+    raise and never to the raw `silver_*` token."""
+    if not table:
+        return ""
+    try:
+        from leviathan.graphrag import display as dp
+        return dp.table_label(str(table)) or ""
+    except Exception:  # noqa: BLE001 -- a label lookup must degrade, never break the panel
+        return str(table).replace("silver_", "").replace("gold_", "").replace("_", " ").upper()
+
+
 def _series_tag(q: dict | None, row: dict | None = None) -> str:
     """The SCOPE suffix every reader-facing [N] row line ends with:
-    ' [series: <commodity>; country: <country>; table: <table>]'.
+    ' [series: <commodity>; country: <country>; table: <SOURCE LABEL>]'.
 
     W4 A/B (2026-07-31): the rendered line named the metric, the period and the as-of but never the SERIES the
     figure was measured on, so rows keyed to a contract slug (soft_red_winter_wheat_cbot) came back narrated as
     "Russia", "Ukraine" and "US total" -- four scope mis-attributions the citation verifier cannot catch,
     because every FIGURE was transcribed correctly. Country comes off the query _scope() already resolved.
-    An absent field drops its own segment (never the literal "None"); all absent -> no tag."""
+    An absent field drops its own segment (never the literal "None"); all absent -> no tag.
+
+    A1's ONE non-optional constraint (SKEPTIC F21): the source is emitted as `dp.table_label` ('USDA PSD',
+    'COT', 'NOAA IOD'), NEVER the raw `silver_*` id. _fmt_line feeds _prompt_parts, i.e. the MODEL's
+    copy-surface, and executed against HEAD `reg.internal_leaks` does not match `silver_psd` while the
+    sibling markers `silver_ref`/`silver_status` ARE fenced -- so a bare table id is an internal identifier
+    on a transcribable surface with no detector behind it. The reader-facing ledger
+    (citations.from_number) has always rendered the source label; this closes the gap between what the
+    MODEL sees and what the LEDGER already knew."""
     q = q or {}
     parts = [f"{lbl}: {v}" for lbl, v in (("series", q.get("commodity")),
                                           ("country", q.get("country")),
-                                          ("table", (row or {}).get("table") or q.get("table")))
+                                          ("table", _table_label((row or {}).get("table") or q.get("table"))))
              if v not in (None, "")]
     return f" [{'; '.join(parts)}]" if parts else ""
 
@@ -2097,8 +2295,11 @@ def _price_pair(price_request: dict, sg, graph, groups: list, qfn, asof, near, c
         p_a, p_b = _float_val(recs[0]), _float_val(recs[1])
         if p_a is None or p_b is None:
             return [], None
-        u_a = ((recs[0].get("rows") or [{}])[0].get("unit")) or ""   # the _apply_unit_overrides fetched unit (F6)
-        u_b = ((recs[1].get("rows") or [{}])[0].get("unit")) or ""
+        # the _apply_unit_overrides fetched unit (F6), read off the SAME row _float_val took the level from
+        # (agg='latest' makes these single-row today; keeping value and unit on one row is what stops a
+        # future multi-row WASDE fetch from printing one MY's number under another MY's unit)
+        u_a = ((_headline_row(recs[0]) or {}).get("unit")) or ""
+        u_b = ((_headline_row(recs[1]) or {}).get("unit")) or ""
         lab_a, lab_b = _my_slash(my_a), _my_slash(my_b)
         reg_a, reg_b = _farm_region(commodity, my_a), _farm_region(commodity, my_b)
         n = base
@@ -2112,7 +2313,16 @@ def _price_pair(price_request: dict, sg, graph, groups: list, qfn, asof, near, c
         c_b = _shown(_price_call(commodity, reg_b, p_b, lab_b, asof, unit=u_b),   # [N{h_b}] event-MY level
                      p_b)
         calls.append(c_b)
-        label = "US wheat farm price (all classes)" if commodity == "wheat" else f"US {commodity} farm price"
+        # A3: the discipline rides the READER-FACING handle, not only the model directive below. The
+        # PRICE-RESPONSE tail already said "survey-based ... NOT a futures settle" -- but that is an
+        # instruction to the synthesizer, text the reader never sees, and 7 measured row-runs (notably
+        # ol_ctrl_mechanism_backward, pb_wheat_blacksea_shock) read the pair as an UNDISCLOSED substitute
+        # for the CBOT level the question asked about. Every line that prints the level now says what the
+        # level IS. SUPPRESSION stays DEFERRED: hiding the pair on a front-month ask returns those rows to
+        # silence, and it waits on a working futures anchor (P1).
+        label = (f"US {commodity} USDA season-average farm price"
+                 + (" (all classes)" if commodity == "wheat" else "")
+                 + ", marketing-year (survey actual; not a futures settle)")
         verb = "rose from" if p_b >= p_a else "fell from"         # direction is prose; the level is the [N] row
         lines = [
             f"- [N{h_a}] {label} MY{lab_a}: {_fmt_price(p_a, u_a)}" + _series_tag(c_a["query"]),

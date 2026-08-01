@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
+
 from leviathan.graphrag.numbers import cascade as cq
 
 
@@ -541,6 +543,39 @@ def test_cascade_map_lint_clean():
     assert check_cascade_map() == []
 
 
+# ── C3 hand-authored rows + the refs C3 deliberately REFUSED to bind (D4) ────────────────────────────
+def test_iod_climate_row_shape_and_scope():
+    """The C3 iod_climate row is ACTIVE and shaped like its ONI sibling: global year_month, no country,
+    degC at scale 1. country_rule MUST stay `none` -- every IOD driver's region token names the
+    teleconnection TARGET, not a slice of the one global DMI series, so a `region` rule would either skip
+    the node or mislabel the index."""
+    row = cq.load_map().get("iod_climate")
+    assert row is not None and row["table"] == "silver_noaa_iod"
+    assert row["metric"] == "dmi_value"                              # the observation, not the 3-month mean
+    assert row["period_type"] == "year_month" and row.get("agg") == "latest"
+    assert row["native_unit"] == "degC" and row["narrate_unit"] == "degC"
+    assert float(row["scale"]) == 1                                  # an SST-anomaly gradient: no ratio trap
+    assert row["country_rule"] == "none"
+    # an unresolvable region token still scopes cleanly (country=None), never SKIP_NODE
+    n = _node(contract="raw_sugar", ref="iod_climate", region="India / East Africa")
+    assert cq._scope(n, row) == ("raw_sugar", None)
+
+
+def test_c3_unbindable_refs_stay_unmapped():
+    """D4 as a test: the three C3 candidates with no honest target stay DARK. stage_precip_z has no
+    precip-z metric (gold_weather_z serves five metrics, none of them precip), crush_margin_z has no
+    crush series in any registered card, and `spread` is arithmetic the map cannot express. Binding any
+    of them to a near-neighbour is the silent wrong-metric failure D4 rejected the resolver over -- so
+    the refusal is pinned here rather than left to the next reader's judgement."""
+    m = cq.load_map()
+    for ref in ("stage_precip_z", "crush_margin_z", "spread"):
+        assert ref not in m, f"{ref} was bound without a proven target (see the C3 SKIPS block)"
+    assert cq.map_row("stage_precip_z") is None                      # unmapped -> the node stays qualitative
+    from leviathan.graphrag.numbers.registry import load_registry
+    gwz = load_registry().get("gold_weather_z").metrics
+    assert not [k for k in gwz if "precip" in k], "a precip-z metric now exists -- revisit the C3 skip"
+
+
 def test_cascade_map_lint_catches_uncertified_active(monkeypatch):
     # the MECHANISM, pinned against a synthetic uncertified set: live UNCERTIFIED_TABLES is
     # EMPTY post-BF-W1 (the weather trio is deprojected + census-green), so the lint must be
@@ -715,14 +750,17 @@ def test_series_tag_carries_the_bound_country_and_omits_an_absent_one(monkeypatc
     monkeypatch.setattr(slv, "_primary_country", lambda c: "united_states")
     row = {"table": "silver_psd", "country_rule": "primary"}
     commodity, country = cq._scope(SimpleNamespace(contract="soft_red_winter_wheat_cbot"), row)
+    # A1 (SKEPTIC F21): the SOURCE segment is dp.table_label, never the raw `silver_*` id -- _fmt_line
+    # feeds the MODEL's copy-surface and reg.internal_leaks does not match a bare table id.
     assert cq._series_tag({"commodity": commodity, "country": country}, row) == (
-        " [series: soft_red_winter_wheat_cbot; country: United States; table: silver_psd]")
+        " [series: soft_red_winter_wheat_cbot; country: United States; table: USDA PSD]")
     # country_rule=none binds nothing: the segment DROPS -- never the literal "None"
     none_row = {"table": "silver_noaa_oni", "country_rule": "none"}
     _c2, country2 = cq._scope(SimpleNamespace(contract="corn"), none_row)
     assert country2 is None
     tag = cq._series_tag({"commodity": "corn_cbot", "country": country2}, none_row)
-    assert tag == " [series: corn_cbot; table: silver_noaa_oni]" and "None" not in tag
+    assert tag == " [series: corn_cbot; table: NOAA ONI]" and "None" not in tag
+    assert "silver_" not in tag                                      # A1: no internal id on the panel
     assert cq._series_tag({}, {}) == ""                              # nothing to say -> no tag at all
 
 
@@ -748,13 +786,113 @@ def test_assemble_binds_shown_to_the_magnitude_each_line_prints():
     assert [2.0] in shown                                  # _fmt_era_diff (MY2021->MY2025)
 
 
+# -- A2b RESIDUAL (2026-08-01): ONE headline row per handle ------------------------------------------
+# The pb_seasonality_aware re-run still lost two ONI sentences ("-0.72 degC [N12]" over Jan-Jun 2012,
+# "2.47 degC [N1]" over Oct-Dec 2015) to the judge as fabricated figures, and the verifier charged
+# NEITHER. It could not: a date/year_month ERA leg fetches agg='series' (_node_specs), so ONE call carries
+# the whole window, the panel line headlined rows[0] -- the OLDEST print -- and `shown`, bound to what the
+# line printed, agreed with a FAITHFUL transcription. Meanwhile every citation-side projection of that
+# same call headlines max(rows): the reader's `## Sources` block (answer.py -> citations.from_number) and
+# the judge's OBSERVED-NUMBERS panel, which sees cascade rows ONLY as kind=number citations (eval.py).
+# Two headlines, one handle. These pin the single headline.
+def _wrec(points, period="2012-01-01..2012-06-30", asof="2012-06-30", key=("soybeans_cbot", "el_nino")):
+    """A WINDOWED era-leg record -- one call holding the whole window, rows chronological ASCENDING (the
+    series SQL's own total order). `points` is [(YYYY-MM, value), ...] oldest first."""
+    return {"query": {"commodity": "soybeans_cbot", "country": None, "period": period,
+                      "metric": "oni_anom", "asof": asof},
+            "rows": [{"value": v, "unit": "degC", "period": m, "data_date": f"{m}-01"} for m, v in points],
+            "status": "ok", "node_key": key, "leg": ("era", 0), "era_idx": 0, "my": None}
+
+
+def _kept_oni(key=("soybeans_cbot", "el_nino")):
+    row = {"table": "silver_noaa_oni", "metric": "oni_anom", "scale": 1, "narrate_unit": "degC",
+           "period_type": "year_month", "country_rule": "none"}
+    return [{"specs": [{"node_key": key}], "row": row}]
+
+
+_ONI_2012 = [("2012-01", -0.72), ("2012-03", -0.45), ("2012-06", 0.06)]
+
+
+@pytest.fixture()
+def headline_on(monkeypatch):
+    """A2b ships behind GRAPHRAG_CASCADE_HEADLINE, DEFAULT-OFF (the plan's own flag discipline: "Ship
+    behind its own flag, defaulting to today's behaviour ... independently revertible from A2a"). The flag
+    is read at the answer.py quantify seam and threaded as quantify()'s `headline` kwarg, which calls
+    cascade._set_headline; these fixtures exercise _assemble directly, so they bind it here."""
+    monkeypatch.setattr(cq, "_HEADLINE_ON", True)
+    return True
+
+
+def test_headline_rule_is_OFF_by_default_and_reads_the_oldest_print():
+    """The flag-OFF contract, pinned so a default flip cannot happen by accident: with the flag off every
+    windowed level line, `shown` binding and pre-scale reads rows[0] -- byte-identical to pre-A2b."""
+    assert cq._HEADLINE_ON is False                      # the module default, not a test artefact
+    calls: list = []
+    lines, _trace, _dk = cq._assemble([_wrec(_ONI_2012)], _kept_oni(), 0, calls)
+    assert lines[0].endswith(": -0.72 degC [series: soybeans_cbot; table: NOAA ONI]")
+    assert calls[0]["shown"] == [-0.72]                  # the OLDEST print, exactly as today
+    assert cq._headline_row({"rows": [{"value": 1}, {"value": 2}]}) == {"value": 1}
+
+
+def test_window_leg_headline_row_is_the_one_the_citation_side_shows(headline_on):
+    """The rendered line, the `shown` binding and the citation label must name ONE observation. Before the
+    fix the line said -0.72 (Jan) while the Sources block and the judge said 0.06 (Jun)."""
+    from leviathan.graphrag import citations as ci
+    calls: list = []
+    lines, _trace, _dk = cq._assemble([_wrec(_ONI_2012)], _kept_oni(), 0, calls)
+    assert len(lines) == 1 and len(calls) == 1             # one windowed record -> exactly ONE level row
+    assert lines[0].endswith(": 0.06 degC [series: soybeans_cbot; table: NOAA ONI]")
+    assert calls[0]["shown"] == [0.06]                     # ... the binding rides the printed figure ...
+    assert ci.from_number(calls[0], 1).value == "0.06"     # ... and the citation headlines the same row
+    # the older members stay ON the record: number_unbacked's loose all-rows backstop is unchanged
+    assert [r["value"] for r in calls[0]["rows"]] == [-0.72, -0.45, 0.06]
+
+
+def test_quoting_a_window_member_row_is_charged_against_the_headline(headline_on):
+    """The measured escape shape, end to end: a single-claim-number sentence quoting a NON-headline member
+    of the cited window. It is a real row value, not an invention -- and it is not what the reader was
+    shown, so it charges."""
+    from leviathan.graphrag import verify as vf
+    calls: list = []
+    cq._assemble([_wrec(_ONI_2012)], _kept_oni(), 0, calls)
+    decoy = "The ONI anomaly measured -0.72 degC [N1] over the January-June 2012 anchor window."
+    assert vf._check_number_handle(decoy, 1, calls) == "number_mismatch"
+    honest = "The ONI anomaly measured 0.06 degC [N1] over the January-June 2012 anchor window."
+    assert vf._check_number_handle(honest, 1, calls) is None
+
+
+def test_prescale_lands_on_the_headline_row_not_the_oldest(headline_on):
+    """The ratio normalizer must hit the SAME row the citation headlines, or a windowed ratio leg would
+    publish a SCALED figure on the line and a RAW one in the Sources block."""
+    from leviathan.graphrag import citations as ci
+    kept = _kept_oni()
+    kept[0]["row"] = {**kept[0]["row"], "narrate_unit": "%", "scale": 100}
+    calls: list = []
+    lines, _trace, _dk = cq._assemble([_wrec([("2012-01", 0.31), ("2012-06", 0.36)])], kept, 0, calls)
+    assert lines[0].endswith(": 36 % [series: soybeans_cbot; table: NOAA ONI]")
+    rows = calls[0]["rows"]
+    assert rows[-1]["value"] == 36.0 and rows[-1]["unit"] == "%"   # the headline row, pre-scaled in place
+    assert rows[0]["value"] == 0.31                               # position preserved: still chronological
+    assert ci.from_number(calls[0], 1).value == "36.0"
+
+
+def test_single_row_legs_are_untouched_by_the_headline_rule(headline_on):
+    """Every marketing-year leg fetches agg='latest' (one row) and every synthetic delta row is one row, so
+    the headline rule is a no-op there -- the guard that this fix cannot move a PSD deck."""
+    rec = _erec(12.5, 2021, 0)
+    assert cq._float_val(rec) == 12.5
+    assert cq._scaled_val(rec, _kept_wheat()[0]["row"]) == 12.5
+    assert cq._prescaled(rec, _kept_wheat()[0]["row"], 1)["rows"][0]["value"] == 12.5
+    assert cq._float_val({"rows": []}) is None and cq._headline_row({"rows": []}) is None
+
+
 def test_every_row_formatter_pins_the_full_scoped_line():
     """The exact reader-facing shape, one PHYSICAL line per row, tag last."""
     row = {"table": "silver_psd", "metric": "exports_mt", "narrate_unit": "MMT", "scale": 1}
     q = {"commodity": "wheat", "country": "United States", "period": "MY2010",
          "metric": "exports_mt", "asof": "2010-06-01"}
     rec = {"query": q, "rows": [{"value": "3.9"}]}
-    tag = " [series: wheat; country: United States; table: silver_psd]"
+    tag = " [series: wheat; country: United States; table: USDA PSD]"
     lines = [
         cq._fmt_line(rec, row, 4, era=0),
         cq._fmt_delta(row, -5.058, 5, era=0, q=q),

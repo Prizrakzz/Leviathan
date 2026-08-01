@@ -77,11 +77,21 @@ from typing import NamedTuple
 import pytest
 
 from leviathan.graphrag import answer, config_check, register
+from leviathan.graphrag.numbers import agent as agent_mod
+from leviathan.graphrag.numbers import cascade
 
 MUST_FLAG = "MUST_FLAG"
 MUST_NOT_FLAG = "MUST_NOT_FLAG"
 LEVEL = "level"
 EXEC = "exec"
+# C1/D1, 2026-08-01: the THIRD gate this corpus pins -- the RAW flow/positioning register
+# (`register.count_flow_words`, which `answer._count_banned_flow` is), added when the R9 context lane
+# opened a deterministic COT leg. C1's acceptance bound is that the leg's rendered lines and its
+# narration addendum add ZERO raw flow hits, and the teeth are the forward-looking rewrites that MUST
+# still fire if anyone turns the leg into guidance. Note what this gate does NOT claim: under OUTLOOK
+# the flow fence is RELEASED by design (register.py `if not outlook:`), so a MUST_FLAG flow case is
+# COUNTED on every turn but STRIPPED only on a fenced one -- pinned below rather than assumed.
+FLOW = "flow"
 
 
 class Case(NamedTuple):
@@ -89,7 +99,8 @@ class Case(NamedTuple):
 
     text   -- the prose, verbatim as measured.
     label  -- MUST_FLAG / MUST_NOT_FLAG. Derived from `expect` and cross-checked, never decorative.
-    gate   -- which detector decides it: LEVEL (`unbacked_levels`) or EXEC (`exec_leaks`).
+    gate   -- which detector decides it: LEVEL (`unbacked_levels`), EXEC (`exec_leaks`) or FLOW
+              (`count_flow_words`, surfaced token-wise by `_flows`).
     expect -- the EXACT token tuple the gate must return. Exact, never a superset: an over-fire is
               as much a bug as an under-fire, and this incident was both.
     note   -- one line of provenance. Which incident, or which measurement on which date.
@@ -279,10 +290,113 @@ CORPUS: tuple[Case, ...] = (
          "backfill 2026-07-31 for _YEAR_ADJ 'major' (T6 found it unjustified)"),
     Case("The so-called 2018 trade war rerouted soybeans.", MUST_NOT_FLAG, LEVEL, (),
          "backfill 2026-07-31 for _YEAR_ADJ 'so-called' (T6 found it unjustified)"),
+
+    # -- C1 / D1, THE R9 CONTEXT LANE. MUST_NOT_FLAG half: the deterministic COT context leg as the
+    #    engine actually renders it, plus the narration addendum that closes it. This is C1's
+    #    acceptance bound -- "the leg adds ZERO raw flow-register hits" -- written as cases so it
+    #    survives every later edit to the leg. Rendered verbatim 2026-08-01 from cascade.quantify
+    #    (pace on, silver_cot mapped as the context leg); the live-render half, which follows the
+    #    engine wherever the render goes, is tests/unit/test_cascade_cot_context.py. -------------
+    Case("- [N1] corn_cbot mm_net 2025-07-31..2026-07-31 (current, as-of 2026-07-31): 118432 "
+         "contracts [series: corn_cbot; table: silver_cot]", MUST_NOT_FLAG, FLOW, (),
+         "C1/D1 context leg, rendered verbatim by cascade.quantify 2026-08-01: the dated level"),
+    Case("- [N2] change in mm_net from the prior week (weekly pace): +2400 contracts "
+         "[series: corn_cbot; table: silver_cot]", MUST_NOT_FLAG, FLOW, (),
+         "C1/D1 context leg, rendered verbatim 2026-08-01: the weekly window_change row"),
+    Case("- [N3] mm_net rose in each of the last 3 weeks [series: corn_cbot; table: silver_cot]",
+         MUST_NOT_FLAG, FLOW, (),
+         "C1/D1 context leg, rendered verbatim 2026-08-01: the streak row, past tense"),
+    # The addendum is read from the ENGINE, never restated: an edit that smuggles the flow register
+    # back into the prompt fails right here, which is the point of pinning the object and not a copy.
+    Case(cascade.POSITIONING_CONTEXT_ADDENDUM, MUST_NOT_FLAG, FLOW, (),
+         "C1/D1 acceptance bound, measured 2026-08-01: the narration addendum names no flow idiom, "
+         "because writing the prohibition into the prompt is how the idiom reaches the draft"),
+    Case("Managed money net length was 118432 contracts on the 2026-07-28 report date [N1].",
+         MUST_NOT_FLAG, FLOW, (),
+         "C1/D1, measured 2026-08-01: the honest past-tense narration the leg exists to enable"),
+
+    # -- C1 / D1, THE TEETH. Each is a forward-looking rewrite of a line above, and each MUST still
+    #    fire. The first is not hypothetical: rep_outlook_r3.md:397 recorded `register leaks (1):
+    #    crowded long` on the exact row C1 targets, with ZERO cot rows in the panel -- the model
+    #    reaches for this register whether or not a number exists, which is why the leg must not
+    #    hand it one AND a vocabulary. ------------------------------------------------------------
+    Case("A crowded long here unwinds sharply if the catalyst pauses.", MUST_FLAG, FLOW,
+         ("crowded long",),
+         "MEASURED post-sanitize residual on ol_soyoil_positioning_leg, rep_outlook_r3.md:413, "
+         "2026-07-31 -- the leak that made D1 a decision rather than a formality"),
+    Case("- [N5] corn_cbot managed-money net length is stretched at +1.8 sigma vs the 3-yr mean "
+         "[series: corn_cbot; table: COT]", MUST_FLAG, FLOW, ("stretched",),
+         "C1/D1 teeth 2026-08-01: the context leg's own line turned into a verdict (the tag carries "
+         "dp.table_label per A1, so this mirrors the shipped render)"),
+    Case("This is one-sided positioning heading into the December expiry.", MUST_FLAG, FLOW,
+         ("one-sided positioning",),
+         "C1/D1 teeth 2026-08-01: the idiom eval_queries_outlook_v1 names as DELETED on a fenced turn"),
+    Case("If funds liquidate, the nearby could fall.", MUST_FLAG, FLOW, ("If funds liquidate",),
+         "C1/D1 teeth 2026-08-01: the conditional-unwind shape, the leg's most direct forward reading"),
+    Case("POSITIONING CONTEXT: net length is crowded relative to the 3-yr window, so watch for a "
+         "squeeze.", MUST_FLAG, FLOW, ("crowded",),
+         "C1/D1 teeth 2026-08-01: the ADDENDUM itself, rewritten forward -- the exact edit this "
+         "corpus exists to refuse"),
+
+    # -- C2 / D3, THE HONEST DECLINE LINE. The four shapes' rendered sentences, verbatim from
+    #    agent.shape_decline_line 2026-08-01. They are pinned here and NOT only in the C2 lint
+    #    because a decline is prose the reader is served on a turn that produced no number: it is
+    #    the sentence most likely to be edited later for tone, and tone is exactly how a positioning
+    #    ABSENCE turns into a positioning READ. test_every_c2_decline_line_is_pinned re-renders them
+    #    off the live template + config, so an edit to either fails here rather than in production.
+    Case("One limitation to flag before the numbers: the record holds no managed-money positioning "
+         "reading for that window, so positioning is not narrated here.", MUST_NOT_FLAG, FLOW, (),
+         "C2/D3 decline line, rendered verbatim by agent.shape_decline_line 2026-08-01: the "
+         "positioning shape -- absence stated about the RECORD, with no idiom to attach to"),
+    Case("One limitation to flag before the numbers: the record holds no ENSO reading and no "
+         "drought-index reading for that window, so the seasonal signal is not quantified here.",
+         MUST_NOT_FLAG, FLOW, (),
+         "C2/D3 decline line, rendered verbatim 2026-08-01: the seasonality shape, both subjects "
+         "empty -- the multi-subject join is pinned too, not just the single"),
+    Case("One limitation to flag before the numbers: the record holds no weekly export-sales "
+         "reading for that window, so export pace is not quantified here.", MUST_NOT_FLAG, FLOW, (),
+         "C2/D3 decline line, rendered verbatim 2026-08-01: the pace shape"),
+    Case("One limitation to flag before the numbers: the record holds no stocks-to-use reading for "
+         "that window, so the balance-sheet anchor is not quantified here.", MUST_NOT_FLAG, FLOW, (),
+         "C2/D3 decline line, rendered verbatim 2026-08-01: the outlook shape -- the s/u miss the "
+         "judge named on 37 of 58 rows, now stated instead of silent"),
+
+    # -- C2 / F4, THE SCOPED FORM -- the sentence the reader ACTUALLY gets. The four above are the
+    #    unscoped renders, kept because they are the register baseline; but "the record holds no X for
+    #    that window" is a claim about THE RECORD on the strength of a fetch that only proved the
+    #    MODEL'S QUERY matched nothing (agent._exec's own comment: "filter/scope mismatch OR a lake
+    #    gap"). shape_decline now always names the read -- slug, window, as-of -- and the slug renders
+    #    through display._contract_label so sanitize is a no-op on it. Pinned with the canonical
+    #    agent.SHAPE_SCOPE_PROBE, which the C2 build lint censuses with too.
+    Case("One limitation to flag before the numbers: the record holds no managed-money positioning "
+         "reading for CBOT corn over 2026-01-01..2026-07-31, so positioning is not narrated here.",
+         MUST_NOT_FLAG, FLOW, (),
+         "C2/F4 scoped decline line, rendered verbatim 2026-08-01: naming the contract and the window "
+         "adds no idiom -- the absence is still about a READ and still has nothing to attach to"),
+    Case("One limitation to flag before the numbers: the record holds no ENSO reading for CBOT corn over "
+         "2026-01-01..2026-07-31 and no drought-index reading for CBOT corn over 2026-01-01..2026-07-31, "
+         "so the seasonal signal is not quantified here.", MUST_NOT_FLAG, FLOW, (),
+         "C2/F4 scoped decline line, rendered verbatim 2026-08-01: the multi-subject join, each subject carrying its OWN scope"),
+    Case("One limitation to flag before the numbers: the record holds no weekly export-sales reading for "
+         "CBOT corn over 2026-01-01..2026-07-31, so export pace is not quantified here.",
+         MUST_NOT_FLAG, FLOW, (), "C2/F4 scoped decline line, rendered verbatim 2026-08-01: the pace shape"),
+    Case("One limitation to flag before the numbers: the record holds no stocks-to-use reading for CBOT "
+         "corn over 2026-01-01..2026-07-31, so the balance-sheet anchor is not quantified here.",
+         MUST_NOT_FLAG, FLOW, (), "C2/F4 scoped decline line, rendered verbatim 2026-08-01: the outlook shape"),
+
+    # -- C2 / D3, THE TEETH. The decline rewritten to editorialize past its own absence. This is the
+    #    live failure mode, not a hypothetical one: rep_outlook_r3.md:413 put "a crowded long
+    #    unwinds sharply" in the SAME paragraph as "the current state of managed-money length is not
+    #    in the record here". A decline sentence that acquires a flow clause is that render exactly.
+    Case("The record holds no managed-money positioning reading for that window, but positioning is "
+         "stretched all the same.", MUST_FLAG, FLOW, ("stretched",),
+         "C2/D3 teeth 2026-08-01: the r3 render's own shape (rep_outlook_r3.md:413) -- an absence "
+         "clause with a flow verdict bolted on"),
 )
 
 LEVEL_CASES = tuple(c for c in CORPUS if c.gate == LEVEL)
 EXEC_CASES = tuple(c for c in CORPUS if c.gate == EXEC)
+FLOW_CASES = tuple(c for c in CORPUS if c.gate == FLOW)
 # The NON-FLAGGING half of the level gate: every case asserting that at least one number in it is
 # NOT a price level. This is the set an exemption word has to earn its place against.
 NON_FLAGGING_LEVEL_CASES = tuple(
@@ -300,8 +414,26 @@ def _execs(text: str) -> tuple[str, ...]:
     return tuple(tok for tok, _ctx in register.exec_leaks(text))
 
 
+def _flows(text: str) -> tuple[str, ...]:
+    """The RAW flow-register surfaces `register.count_flow_words` counts, returned as the matched TEXT
+    so a case can pin exactly WHICH idiom fired rather than a bare integer. It re-walks the counter's
+    own two halves (the Lane A `_FLOW_PHRASES` alternation and the Lane B windowed triad) off the live
+    objects -- and `test_flow_surfaces_agree_with_the_counter` asserts `len()` of this equals
+    `count_flow_words` on every case, so this mirror can never drift from the number the decks pin."""
+    prose = register._strip_mermaid(text)
+    hits = [m.group(0) for m in register._FLOW_PHRASES.finditer(prose)]
+    for sent in register._SENT_ITER.split(prose):
+        if register._EXCLUDED_NOUN.search(sent):
+            continue
+        if register._WINDOW_NOUN.search(sent) or register._WINDOW_COMPARISON.search(sent):
+            hits += register._LANE_B_FLOW_RX.findall(sent)
+    return tuple(hits)
+
+
 def _observed(case: Case) -> tuple[str, ...]:
-    return _levels(case.text) if case.gate == LEVEL else _execs(case.text)
+    if case.gate == LEVEL:
+        return _levels(case.text)
+    return _flows(case.text) if case.gate == FLOW else _execs(case.text)
 
 
 # --------------------------------------------------------------------------------------------------
@@ -508,8 +640,8 @@ def test_every_corpus_case_behaves_as_labelled(case: Case) -> None:
 
 
 def test_corpus_is_two_sided_on_both_gates() -> None:
-    """A one-sided corpus is how the pendulum swings. Both gates must carry both labels."""
-    for gate in (LEVEL, EXEC):
+    """A one-sided corpus is how the pendulum swings. Every gate must carry both labels."""
+    for gate in (LEVEL, EXEC, FLOW):
         for label in (MUST_FLAG, MUST_NOT_FLAG):
             n = sum(1 for c in CORPUS if c.gate == gate and c.label == label)
             assert n >= 3, f"only {n} {label} case(s) on the {gate} gate -- the corpus is one-sided"
@@ -543,6 +675,87 @@ def test_must_flag_exec_is_refused_under_every_register(case: Case) -> None:
         assert case.text not in served, (
             f"execution instruction SURVIVED sanitize(market_register={mr!r}): {case.text!r}")
     assert answer._count_banned_exec({"tldr": case.text, "mechanism": ""}) >= 1
+
+
+# ==================================================================================================
+# T2b (C1/D1) -- the RAW flow gate reaches the deck, and the OUTLOOK asymmetry is pinned, not assumed.
+# ==================================================================================================
+@pytest.mark.parametrize("case", CORPUS, ids=lambda c: c.text[:48])
+def test_flow_surfaces_agree_with_the_counter(case: Case) -> None:
+    """`_flows` is a mirror of `count_flow_words`, and a mirror that drifts is worse than none: the
+    corpus would pin tokens the deck's counter never charged. Asserted on EVERY case, not just the
+    flow ones, so a register.py edit that moves a phrase between the two halves is caught here."""
+    assert len(_flows(case.text)) == register.count_flow_words(case.text), (
+        f"the corpus flow mirror drifted from register.count_flow_words :: {case.text!r}")
+
+
+@pytest.mark.parametrize("case", [c for c in FLOW_CASES if c.label == MUST_NOT_FLAG],
+                         ids=lambda c: c.text[:48])
+def test_context_lane_lines_bound_raw_banned_flow_at_zero(case: Case) -> None:
+    """C1's acceptance bound, end to end: the deterministic COT context leg -- its rendered lines AND
+    its narration addendum -- adds nothing to the RAW counter the decks pin (`banned_flow: 0` on the
+    four fenced positioning rows, `max_banned_flow` on the outlook row). A leg that shipped and moved
+    this number would have passed every OTHER check C1 lists, which is exactly why the bound exists."""
+    assert answer._count_banned_flow({"tldr": case.text, "mechanism": ""}) == 0, (
+        f"the context leg added raw flow register: {_flows(case.text)!r} :: {case.text!r}")
+
+
+@pytest.mark.parametrize("case", [c for c in FLOW_CASES if c.label == MUST_FLAG],
+                         ids=lambda c: c.text[:48])
+def test_must_flag_flow_is_counted_everywhere_but_stripped_only_when_fenced(case: Case) -> None:
+    """The teeth, and the fence correction D1 turns on, as ONE measurement.
+
+    COUNTED on every turn: `_count_banned_flow` reads the RAW draft, so the deck sees the idiom
+    whatever register the answer was written in. STRIPPED only under FENCED: `register.py`'s
+    `_FLOW_PHRASES` / Lane B arms sit inside `if not outlook:`, so the OUTLOOK register releases the
+    vocabulary BY DESIGN (eval_queries_outlook_v1 ratifies it with `max_banned_flow: 6`). That
+    asymmetry is the whole of D1's "FENCED lane: proceed / OUTLOOK lane: do NOT proceed on C1 alone",
+    and it is pinned here so nobody has to take the plan's word for it."""
+    assert answer._count_banned_flow({"tldr": case.text, "mechanism": ""}) == len(case.expect)
+    # Asserted on the SURFACE, not the whole string: sanitize also humanizes internal slugs
+    # (corn_cbot -> "CBOT corn"), so a whole-text compare would read a display rewrite as a strip.
+    fenced = register.sanitize(case.text, market_register=register.FENCED)
+    outlook = register.sanitize(case.text, market_register=register.OUTLOOK)
+    for tok in case.expect:
+        assert tok not in fenced, (
+            f"the FENCED flow fence went quiet on {tok!r} -- C1 rests on this strip :: {case.text!r}")
+        assert tok in outlook, (
+            f"the OUTLOOK register now strips flow vocabulary {tok!r}. That is a WELCOME change, but "
+            f"it is a register-doctrine change -- update D1's outlook clause, not this line")
+
+
+def test_the_pinned_addendum_is_the_engines_own_object() -> None:
+    """The addendum case must read the LIVE constant, not a copy of it: a copy would let an edit to
+    the engine's prompt line ship past this corpus, which is the one thing this file is for."""
+    pinned = [c for c in FLOW_CASES if c.text == cascade.POSITIONING_CONTEXT_ADDENDUM]
+    assert len(pinned) == 1, "the R9 context-lane addendum is no longer pinned by this corpus"
+    assert pinned[0].label == MUST_NOT_FLAG and pinned[0].expect == ()
+
+
+def test_every_c2_decline_line_is_pinned() -> None:
+    """C2's reader-facing sentences are pinned to the LIVE renderer, the addendum discipline applied
+    to prose that comes from a CONFIG as well as from code. Two things can move it -- the template in
+    agent.shape_decline_line and the `subject`/`omission` strings in question_shapes.yaml -- and a
+    config edit is exactly the kind that ships without anyone re-reading the register rule. Rendering
+    every shape's ALL-subjects sentence here means either edit fails in this file.
+
+    BOTH FORMS (F4, 2026-08-01). The SCOPED render is the one a reader actually receives -- shape_decline
+    always supplies scopes now -- so pinning only the unscoped form would lint a sentence nobody ships."""
+    texts = {c.text for c in CORPUS}
+    table = agent_mod.load_shape_table()
+    assert table, "the C2 shape table did not load -- the corpus below would be vacuous"
+    for shape in sorted(table):
+        subjects = [str(r.get("subject")) for r in (table[shape].get("requires") or [])
+                    if str(r.get("subject") or "").strip()]
+        if not subjects:
+            continue
+        for scopes in (None, [agent_mod.SHAPE_SCOPE_PROBE] * len(subjects)):
+            line = agent_mod.shape_decline_line(shape, subjects, scopes)
+            assert line in texts, (
+                f"the C2 decline line for shape {shape!r} (scoped={scopes is not None}) is no longer "
+                f"pinned by this corpus:\n  {line!r}\nAdd it as a case (with the measurement that "
+                f"justifies the new wording) rather than deleting the old one -- D3's register "
+                f"constraint is what this pins")
 
 
 # ==================================================================================================
@@ -742,7 +955,7 @@ def test_every_case_carries_provenance(case: Case) -> None:
     assert _PROVENANCE.search(case.note), (
         f"provenance must name an incident (I-1/I-2/I-3) or a measurement date :: "
         f"{case.note!r} for {case.text!r}")
-    assert case.gate in (LEVEL, EXEC), f"unknown gate {case.gate!r}"
+    assert case.gate in (LEVEL, EXEC, FLOW), f"unknown gate {case.gate!r}"
 
 
 def test_corpus_has_no_duplicate_texts() -> None:

@@ -87,7 +87,7 @@ freshness_sla:
   max_lag_days: 45
 consumers: both
 numbers_ref: configs/graphrag/numbers/tables.yaml#silver_noaa_iod
-cascade_ref: null
+cascade_ref: configs/graphrag/numbers/cascade_map.yaml#iod_climate
 source_contract_ref: configs/datasets/source_contracts.yaml#iod
 serving_table: null
 producer:

@@ -11,6 +11,7 @@ Public code; it reads the git-ignored ``configs/graphrag/`` IP at runtime. Two c
 """
 from __future__ import annotations
 
+import os
 import re
 import sys
 from pathlib import Path
@@ -741,7 +742,23 @@ def check_pin_realizability() -> list[str]:
     Every cascade_fired-pinned query MUST declare `cascade_drivers: [...]` (the driver ids the question
     grounds). FAIL-CLOSED: with no declaration query_realizable returns None and the
     lint ERRORS -- the contract-rollup fallback it replaced was exactly the granularity hole that would
-    have greenlit q6's original undeclared pin (soybean_oil_cbot rolls up TRUE via export/stock/oni/fx)."""
+    have greenlit q6's original undeclared pin (soybean_oil_cbot rolls up TRUE via export/stock/oni/fx).
+
+    C1 item 4(b) (2026-08-01), THE FAIL-OPEN THIS LINT SHIPPED WITH. A declared id that resolves to NO
+    driver on the contract read as "not fireable" and therefore silently GREENED every `cascade_fired:
+    false` pin -- `driver_fireable` returns False at the `_driver(...) is None` gate, before map_row is
+    ever consulted. `positioning_corn_no_fork` declared `cot_mm_positioning`, which is a SILVER_REF and not
+    a driver id (corn's driver is `managed_money_positioning`, carrying that ref), and the mis-declaration
+    survived for the whole life of the pin. An unresolvable id is now an ERROR: the lint this plan leans on
+    as its safety mechanism must not be able to pass by not understanding the question.
+
+    LANE AWARENESS, and it is narrow. The stale-negative arm compares pure TOPOLOGY against an OUTCOME pin,
+    which is only a valid comparison on a lane where the cascade engine can run at all. It cannot on
+    `expected_intent: numbers_only` -- run_numbers_only calls the agent and never reaches _answer_l2, so
+    `cascade_fired` is false there whatever the map holds. Without this, D1's context ref (which makes
+    corn's positioning driver topologically fireable) would red a pin that is correct by construction. The
+    stale-POSITIVE arm is unaffected: a numbers_only row pinning `cascade_fired: true` is still an error,
+    and the more so."""
     from leviathan.graphrag.numbers import cascade_census as cc
     doc = _load("eval_queries_v4_cascade.yaml") or {}
     errs: list[str] = []
@@ -750,12 +767,23 @@ def check_pin_realizability() -> list[str]:
         if "cascade_fired" not in exp:
             continue
         pin = bool(exp["cascade_fired"])
+        contract = q.get("contract") or ""
+        for did in (q.get("cascade_drivers") or []):
+            if cc._driver(contract, str(did)) is None:
+                errs.append(f"pin_realizability {q.get('id')!r} ({contract}): declared cascade_driver "
+                            f"{str(did)!r} resolves to NO driver on that contract -- a silver_ref or a "
+                            f"typo, not a driver id. driver_fireable returns False at the _driver gate, so "
+                            f"the pin would read 'not fireable' for a reason that has nothing to do with "
+                            f"the map (C1 4b: the fail-OPEN in this lint)")
+        engine_lane = str(q.get("expected_intent") or "") != "numbers_only"
         realizable = cc.query_realizable(q)
         if realizable is None:
             errs.append(f"pin_realizability {q.get('id')!r} ({q.get('contract')}): pins cascade_fired but "
                         f"declares no `cascade_drivers` -- the per-query grounded set is unknown and the "
                         f"contract rollup is not a substitute (fail-closed); declare the driver ids the "
                         f"question grounds")
+        elif (not pin) and realizable and not engine_lane:
+            pass                    # numbers_only: the engine cannot run, so topology cannot contradict it
         elif pin and not realizable:
             errs.append(f"pin_realizability {q.get('id')!r} ({q.get('contract')}): pins cascade_fired:true "
                         f"but no grounded leg is realizable per-query (unmapped refs / unresolved regions) "
@@ -1124,16 +1152,77 @@ def _suggest_catalog_metric_text() -> "str | None":
     return None
 
 
+def _check_positioning_lane() -> list[str]:
+    """R9 AS AMENDED (D1, ratified 2026-08-01) -- the context/engine SPLIT, not a blanket ban.
+
+    R9 used to be `_check_no_engine_ref(load_map(), POSITIONING_TABLES, ...)`: ANY cascade_map ref at a
+    positioning table failed the build. That conflated two things the registry's own prose already
+    distinguished -- positioning narrated past-tense as CONTEXT, and positioning driving a forecast or a
+    fork -- and it left `cascade.PACE_TABLES["silver_cot"]` with no door at all. R9 now bans the ENGINE
+    lanes precisely and admits the CONTEXT lane, still fail-closed on both halves:
+
+      (a) cascade_map -- a positioning ref is admitted ONLY as the narrow past-tense context leg. The
+          shape rule is `cascade.positioning_context_violations` (ONE definition, which the engine's own
+          runtime gate reads too), so the lint and the engine can never disagree about what "context"
+          means. Every clause of it closes a named fork/regime code path, not a style preference.
+      (b) chain_map / complex_map / transmission_map -- no positioning ref, ever. Those maps name a
+          cascade_map ref BY NAME, so the ban is on the NAME: a hop or a relative-value leg is an engine
+          position whatever shape the underlying row has.
+
+    R4 (pink sheet, :1029), R7 and R10 are UNTOUCHED. What R9 no longer does is fail the build merely
+    because the ref exists. NOTE, so a future reader does not read more into this than it says: the
+    causal DAGs' positioning drivers are convergence-regime members TODAY (e.g. arabica_coffee's
+    `cot_mm_positioning` sits in a `convergence[].drivers` list), and they stay that way -- `graph.regimes`
+    fires on ACTIVE DRIVER IDS and never reads any numbers map, so that membership is invisible to R9 in
+    both directions. "Never a regime driver" here means the numbers-map REGIME-MARKER lane (a
+    `narrate_unit: flag` row), which is the only regime surface a cascade_map ref can occupy."""
+    from leviathan.graphrag import complex_map as cxm
+    from leviathan.graphrag.numbers import cascade as csc
+    errs: list[str] = []
+    # ONE fenced set. The engine gate cannot import config_check (a cycle -- cascade's own _PRICE_TABLES
+    # note documents why), so the constant is mirrored there and pinned HERE: a table in one and not the other is
+    # a build failure, not a silent half-fence. Mirrors orchestrator._positioning_tables' drift pin.
+    if frozenset(POSITIONING_TABLES) != csc.POSITIONING_TABLES:
+        errs.append(f"R9 drift: config_check.POSITIONING_TABLES {tuple(POSITIONING_TABLES)!r} != "
+                    f"cascade.POSITIONING_TABLES {tuple(sorted(csc.POSITIONING_TABLES))!r} -- the build "
+                    f"fence and the engine gate must fence the SAME tables")
+    cmap = csc.load_map() or {}
+    pos_refs = {ref for ref, row in cmap.items() if (row or {}).get("table") in POSITIONING_TABLES}
+    for ref in sorted(pos_refs):
+        for why in csc.positioning_context_violations(cmap[ref]):
+            errs.append(f"R9 cascade_map {ref!r}: positioning is admitted ONLY as a fetched past-tense "
+                        f"context leg -- {why}")
+    for chain in (csc.load_chain_map() or []):
+        for hop in ((chain or {}).get("hops") or []):
+            if (hop or {}).get("ref") in pos_refs:
+                errs.append(f"R9 chain_map {(chain or {}).get('id')!r}: hop ref {(hop or {}).get('ref')!r} "
+                            f"is a positioning ref -- positioning is never a chain hop")
+    pos_pairs: set = set()
+    for p in cxm.iter_all_pairs():                        # ALL authored pairs, material or not: a parked
+        for lbl, side in (("sideA", p.side_a), ("sideB", p.side_b)):   # row must not ship pre-loaded either
+            if (side or {}).get("ref") in pos_refs:
+                pos_pairs.add(p.id)
+                errs.append(f"R9 complex_map {p.id!r}: {lbl} ref {(side or {}).get('ref')!r} is a "
+                            f"positioning ref -- positioning is never a relative-value leg")
+    for chain in (csc.load_transmission_map() or []):
+        for lk in ((chain or {}).get("links") or []):
+            if (lk or {}).get("pair_id") in pos_pairs:
+                errs.append(f"R9 transmission_map {(chain or {}).get('id')!r}: link pair "
+                            f"{(lk or {}).get('pair_id')!r} carries a positioning leg -- positioning is "
+                            f"never a transmission hop")
+    return errs
+
+
 def check_cot_register() -> list[str]:
-    """PRICE_OBSERVABILITY W0.2 (the W4 gate) -- positioning-table fence. R9: no engine ref points at a
-    POSITIONING_TABLE (active now). R7: silver_cot metric descs register-clean AND every metric limited to a
-    dated level/z family (no forward-looking name). R10: the suggester's answerable-fundamentals catalog
-    source (server._SUGGEST_METRICS) names no positioning-table metric. R7/R10 go NON-VACUOUS once silver_cot
-    is registered."""
+    """PRICE_OBSERVABILITY W0.2 (the W4 gate) -- positioning-table fence. R9 (AMENDED by D1, see
+    `_check_positioning_lane`): a positioning ref may enter cascade_map ONLY as the narrow past-tense
+    context leg, and may never enter chain_map / complex_map / transmission_map. R7: silver_cot metric
+    descs register-clean AND every metric limited to a dated level/z family (no forward-looking name).
+    R10: the suggester's answerable-fundamentals catalog source (server._SUGGEST_METRICS) names no
+    positioning-table metric. R7/R10 go NON-VACUOUS once silver_cot is registered."""
     from leviathan.graphrag.numbers import stats as st
-    from leviathan.graphrag.numbers.cascade import load_map
     from leviathan.graphrag.numbers.registry import load_registry
-    errs: list[str] = _check_no_engine_ref(load_map(), POSITIONING_TABLES, "R9", "positioning")
+    errs: list[str] = _check_positioning_lane()
     tables = load_registry().tables
     cot = tables.get("silver_cot")
     if cot is None:
@@ -1712,6 +1801,175 @@ def check_pace_collapse() -> list[str]:
     return [f"pace_collapse: {e}" for e in lint_pace_collapse()]
 
 
+def check_question_shapes() -> list[str]:
+    """C2 (D3, ratified 2026-08-01): the question-shape -> required-metric table is coherent, doctrine-fenced
+    and register-clean. AWS-free and pure (the check_pace_collapse / check_futures_lite bind idiom).
+
+    Five halves, and the middle three are the ones that matter:
+      (a) COVERAGE -- the config's shape keys and the agent's detection patterns are the SAME set. A shape
+          detected with no requirements records nothing; a shape with requirements and no detector never
+          fires. Either way the table would be silently half-live, which is the failure mode the
+          `_NONE_TIER_DECLINE` census (R5) exists to prevent for the price templates.
+      (b) REALIZABILITY -- every requirement names registered tables and metrics that are actually
+          WHITELISTED on at least one of them. An unwhitelisted metric can never be fetched, so its
+          requirement would be permanently 'not_attempted' and would read as a dispatch miss forever.
+      (c) DOCTRINE, mechanically. R4 is untouched by D1: a LIVE requirement at a PRICE_TABLES table is an
+          error, and the pink-sheet spot anchor stays `deferred: true` until R4 is decided on its own
+          merits. R9 as amended admits positioning as CONTEXT, so a POSITIONING_TABLES requirement is
+          allowed but must SAY SO (`doctrine: r9_context`) -- the fence is then a diff, not a memory.
+      (d) THE THREE-CONDITION GUARD, at build time. `agent.SHAPE_DECLINE_STATE` must be reachable from
+          EXACTLY ONE executor status, and that status must be the one that means "the query matched no
+          data". If 'not_known' or 'error' ever mapped to it, the line would claim data absence where the
+          executor only recorded a publication gap or a malformed call -- D3's stated flip condition, and
+          the reason the decline is worth having at all.
+      (e) REGISTER -- the rendered sentence, through the SAME renderer the reader gets, on all five
+          surfaces and under BOTH registers. D3 requires a narrower register than the shipped capability
+          framing, so this is censused rather than assumed."""
+    from leviathan.graphrag import register as reg
+    try:
+        from leviathan.graphrag.numbers import agent as na
+    except Exception as e:  # noqa: BLE001 -- agent import must never break the lint
+        return [f"C2 question_shapes: the numbers agent did not import ({str(e)[:120]})"]
+    from leviathan.graphrag.numbers.registry import load_registry
+
+    p = _CFG / "numbers" / "question_shapes.yaml"
+    if not p.exists():
+        # F10 (adversarial review): this used to print a NOTE and return [] -- a GREEN lint for a silently
+        # dead C2 lane. configs/graphrag/ is gitignored, so a fresh clone, CI, or any image built from a
+        # clean checkout gets exactly that unless the file is `git add -f`-ed, and "the file vanished" and
+        # "the feature is off" were indistinguishable. They are distinguishable now: only an EXPLICIT
+        # GRAPHRAG_QUESTION_SHAPES=off buys the vacuous pass.
+        if os.environ.get("GRAPHRAG_QUESTION_SHAPES", "").strip().lower() in ("off", "0", "false"):
+            print("NOTE question_shapes: GRAPHRAG_QUESTION_SHAPES=off -- the C2 lane is deliberately "
+                  "disabled, vacuous pass")
+            return []
+        return [f"C2 question_shapes: {p} is MISSING. The C2 shape table is a tracked config (it must be "
+                f"`git add -f`-ed past .gitignore:49 like cascade_map.yaml); without it agent."
+                f"load_shape_table returns {{}}, every question is shapeless and the whole lane is dead "
+                f"while this lint reads green. Set GRAPHRAG_QUESTION_SHAPES=off to declare the lane "
+                f"deliberately disabled."]
+    doc = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+    raw = doc.get("shapes") or {}
+    live = na.load_shape_table()
+    errs: list[str] = []
+
+    # (a) coverage: config keys == detector keys, exactly.
+    detected = {s for s, _rx in na._SHAPE_PATTERNS}
+    for s in sorted(detected - set(raw)):
+        errs.append(f"C2 question_shapes: shape {s!r} is DETECTED by agent._SHAPE_PATTERNS but the table "
+                    f"declares no requirement for it -- it would match and record nothing")
+    for s in sorted(set(raw) - detected):
+        errs.append(f"C2 question_shapes: shape {s!r} is declared in the table but agent._SHAPE_PATTERNS "
+                    f"has no detector for it -- it can never fire")
+
+    tables = load_registry().tables
+    for shape in sorted(raw):
+        spec = raw[shape] or {}
+        if not str(spec.get("omission") or "").strip():
+            errs.append(f"C2 question_shapes {shape!r}: no `omission` clause -- the decline would state an "
+                        f"absence without saying what it costs the answer")
+        reqs = spec.get("requires") or []
+        if not reqs:
+            errs.append(f"C2 question_shapes {shape!r}: no requirements declared")
+        seen_ids: set = set()
+        for req in reqs:
+            req = req or {}
+            rid = str(req.get("id") or "")
+            if not rid:
+                errs.append(f"C2 question_shapes {shape!r}: a requirement carries no id")
+                continue
+            if rid in seen_ids:
+                errs.append(f"C2 question_shapes {shape!r}: duplicate requirement id {rid!r}")
+            seen_ids.add(rid)
+            deferred = bool(req.get("deferred"))
+            if deferred and not str(req.get("deferred_reason") or "").strip():
+                errs.append(f"C2 question_shapes {shape}.{rid}: deferred with no `deferred_reason` -- a "
+                            f"parked requirement without its doctrine is indistinguishable from a mistake")
+            if not str(req.get("subject") or "").strip():
+                errs.append(f"C2 question_shapes {shape}.{rid}: no `subject` -- there is no sentence to say")
+            rtables = list(req.get("tables") or [])
+            rmetrics = list(req.get("metrics") or [])
+            if not rtables or not rmetrics:
+                errs.append(f"C2 question_shapes {shape}.{rid}: tables/metrics must both be non-empty")
+                continue
+            # (c) doctrine, before realizability -- a fenced table is an error whether or not it resolves.
+            for t in rtables:
+                if t in PRICE_TABLES and not deferred:
+                    errs.append(f"C2 question_shapes {shape}.{rid}: requires the R4-fenced price table "
+                                f"{t!r} -- R4 is UNTOUCHED by D1, so a spot/settle anchor stays "
+                                f"`deferred: true` until it is decided on its own merits")
+                if t in POSITIONING_TABLES and not deferred and req.get("doctrine") != "r9_context":
+                    errs.append(f"C2 question_shapes {shape}.{rid}: requires positioning table {t!r} "
+                                f"without `doctrine: r9_context` -- R9 as amended admits positioning ONLY "
+                                f"as a past-tense context read, and the row must say so")
+            if deferred:
+                continue                                   # parked rows are inert; nothing below can fire
+            for t in rtables:
+                if t not in tables:
+                    errs.append(f"C2 question_shapes {shape}.{rid}: table {t!r} is not in the registry")
+            # (b) realizability: each metric must be WHITELISTED on at least one of the row's tables.
+            for m in rmetrics:
+                if not any(m in (tables[t].metrics if t in tables else {}) for t in rtables):
+                    errs.append(f"C2 question_shapes {shape}.{rid}: metric {m!r} is whitelisted on none of "
+                                f"{sorted(rtables)} -- the requirement could never be satisfied")
+            # (b2) CONTEXT_REF RESOLVABILITY (F5). A `context_ref` names the cascade_map row that serves
+            # this requirement through the ENGINE lane. Unvalidated it is a dangling pointer: C2 shipped
+            # `context_ref: cot_mm_positioning` while cascade_map held no such row, so the config asserted
+            # an engine lane that did not exist and nothing said so. Now that is a BUILD error, and the
+            # ref's table must be one the requirement actually declares -- a context leg on some other
+            # table would satisfy nothing.
+            cref = str(req.get("context_ref") or "").strip()
+            if cref:
+                from leviathan.graphrag.numbers import cascade as _csc
+                crow = (_csc.load_map() or {}).get(cref)
+                if crow is None:
+                    errs.append(f"C2 question_shapes {shape}.{rid}: context_ref {cref!r} is not a live "
+                                f"cascade_map ref -- a dangling engine-lane pointer (an unmapped OR "
+                                f"`deferred: true` row reads the same to the engine: it never fires)")
+                elif (crow or {}).get("table") not in rtables:
+                    errs.append(f"C2 question_shapes {shape}.{rid}: context_ref {cref!r} serves table "
+                                f"{(crow or {}).get('table')!r}, which the requirement does not declare "
+                                f"({sorted(rtables)}) -- the engine lane would satisfy a different ask")
+
+    # (d) the three-condition guard, bound at build time rather than trusted to the docstring.
+    origins = sorted(k for k, v in na._STATUS_STATE.items() if v == na.SHAPE_DECLINE_STATE)
+    if origins != ["no_rows"]:
+        errs.append(f"C2 question_shapes: the decline state {na.SHAPE_DECLINE_STATE!r} is reachable from "
+                    f"executor status(es) {origins} -- it must be reachable from 'no_rows' and NOTHING "
+                    f"else, or the line claims data absence where _exec recorded a publication gap "
+                    f"('not_known'), a coverage decline or a malformed call ('error')")
+
+    # (e) register census, through the live renderer.
+    for shape in sorted(live):
+        subjects = [str(r.get("subject")) for r in (live[shape].get("requires") or [])
+                    if str(r.get("subject") or "").strip()]
+        if not subjects:
+            continue
+        probes = [[s] for s in subjects] + ([subjects] if len(subjects) > 1 else [])
+        # F4: the SCOPED form is the one the reader actually gets (shape_decline always supplies scopes),
+        # so it is censused too -- both forms, every shape, or the lint would bless a sentence nobody ships.
+        for probe_subjects, probe_scopes in ([(ps, None) for ps in probes]
+                                             + [(ps, [na.SHAPE_SCOPE_PROBE] * len(ps)) for ps in probes]):
+            try:
+                sent = na.shape_decline_line(shape, probe_subjects, probe_scopes)
+            except Exception as e:  # noqa: BLE001 -- an unrenderable template is itself the failure
+                errs.append(f"C2 question_shapes {shape!r}: the decline line did not render ({str(e)[:80]})")
+                continue
+            if reg.register_leaks(sent):
+                errs.append(f"C2 decline census {shape!r}: register leak {reg.register_leaks(sent)!r}")
+            if reg.exec_leaks(sent):
+                errs.append(f"C2 decline census {shape!r}: execution leak {reg.exec_leaks(sent)!r}")
+            if reg.count_valuation_words(sent) or reg.count_flow_words(sent):
+                errs.append(f"C2 decline census {shape!r}: valuation/flow vocabulary in the decline line")
+            for mr in (reg.FENCED, reg.OUTLOOK):
+                if reg._is_banned_sentence(sent, market_register=mr):
+                    errs.append(f"C2 decline census {shape!r}: the decline line is BANNED under {mr!r}")
+                if sent not in reg.sanitize(sent, market_register=mr):
+                    errs.append(f"C2 decline census {shape!r}: the decline line does not survive "
+                                f"sanitize(market_register={mr!r}) -- the reader would get a fragment")
+    return errs
+
+
 def main() -> int:
     failures = 0
     for label, errs in (("vocab", lint_vocab()), ("node_silver_map", check_node_silver_map()),
@@ -1734,7 +1992,8 @@ def main() -> int:
                         ("futures_lite", check_futures_lite()),
                         ("futures_eod", check_futures_eod()),
                         ("futures_roll", check_futures_roll()),
-                        ("pace_collapse", check_pace_collapse())):
+                        ("pace_collapse", check_pace_collapse()),
+                        ("question_shapes", check_question_shapes())):
         if errs:
             failures += len(errs)
             print(f"FAIL {label}:")

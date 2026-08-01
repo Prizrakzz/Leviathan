@@ -76,7 +76,13 @@ def test_price_observability_tables_in_exact_numbers_set(reg):
     assert cot["knowledge_semantics"] == "data_date" and cot["knowledge_date_col"] == "report_date"
     assert cot["publication_lag_days"] == 6
     assert cot["freshness_sla"]["max_lag_days"] == 10          # the staleness alarm ceiling (W4.0)
-    assert cot["cascade_ref"] is None                          # positioning enters NO engine map (R9)
+    # R9 AS AMENDED (D1, ratified 2026-08-01). This used to assert `is None` with the reason "positioning
+    # enters NO engine map". D1 split that rule: silver_cot may enter cascade_map as the narrow past-tense
+    # CONTEXT leg (and only that -- config_check._check_positioning_lane is build-failing on every other
+    # shape and on any chain/complex/transmission reference). So the back-pointer is now REQUIRED, and it
+    # is required to name the context ref specifically: a back-pointer to some other ref would mean a
+    # second, unratified positioning row exists.
+    assert cot["cascade_ref"] == "configs/graphrag/numbers/cascade_map.yaml#cot_mm_positioning"
 
 
 def test_cascade_refs_all_resolve(reg):

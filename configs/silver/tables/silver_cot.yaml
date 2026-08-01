@@ -111,7 +111,7 @@ freshness_sla:
   max_lag_days: 10
 consumers: both
 numbers_ref: configs/graphrag/numbers/tables.yaml#silver_cot
-cascade_ref: null
+cascade_ref: configs/graphrag/numbers/cascade_map.yaml#cot_mm_positioning
 source_contract_ref: configs/datasets/source_contracts.yaml#cot
 serving_table: null
 producer:

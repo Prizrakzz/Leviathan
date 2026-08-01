@@ -149,3 +149,92 @@ def test_live_path_flag_on_injects_exactly_three_extra_rows(monkeypatch):
     monkeypatch.setenv("GRAPHRAG_CASCADE_PACE_LEG", "on")
     n_on = _run()["trace"]["injected_n"]
     assert n_on == n_off + 3
+
+
+# ── A6 / F3 -- DarkRefNodes gets a WRITER ────────────────────────────────────────────────────────────
+# `orchestrator.py` reads `trace['quantify_dark_refs']` and emits DarkRefNodes -- "the metric this entire
+# plan is about" -- and the cascade stamped nothing, so the counter was permanently None and absent from
+# every EMF line while the orchestrator test pinned the READER against a hand-authored trace. This drives
+# the real seam with an UNMAPPED silver_ref and asserts the key.
+def _dark_graph() -> g.CausalGraph:
+    corn = cs.CausalContract(
+        contract="corn_cbot", aliases=["corn"],
+        drivers=[
+            # `stage_precip_z` is one of the plan's own dark refs: 38 driver instances and NO gold metric
+            # exists to bind it (C3 refused it with an Athena probe). A grounded node on it is exactly the
+            # shape the counter is for -- the walk had a driver and the record had no series.
+            cs.Driver(id="excess_rain", type="weather", sign="+", region="US",
+                      silver_ref="stage_precip_z", silver_status="available",
+                      mechanism="Excess rain at a critical stage cuts yield and supports price."),
+            cs.Driver(id="export_ban", type="policy_event", sign="+", region="US",
+                      silver_ref="export", silver_status="available",
+                      mechanism="Export restrictions elsewhere shift world demand to US supply."),
+        ])
+    return g.CausalGraph({"corn_cbot": corn}, silver=set())
+
+
+def _dark_embed(texts, **k):
+    return [[1.0, 0.0] if "export" in (t or "").lower() else [0.9, 0.1] for t in texts]
+
+
+def test_live_path_stamps_quantify_dark_refs_for_an_unmapped_grounded_ref(monkeypatch):
+    _wire(monkeypatch)
+    monkeypatch.setattr(ev, "embed", _dark_embed)
+    monkeypatch.setattr(ev, "backed_dag_ids", lambda: {"export_ban", "excess_rain"})
+    monkeypatch.setattr(ev, "slice_for_driver", lambda did: did)
+    out = an.answer(QUESTION, graph=_dark_graph(), planner="l2", asof=ASOF, retrieve=_fake_retrieve,
+                    call=_fake_call, numbers_lookup=_qfn, route_fn=lambda q, gr: ["corn_cbot"])
+    tr = out["trace"]
+    assert tr.get("quantify_dark_refs") == 1                 # the unmapped stage_precip_z node
+    qkeys = [tuple(t["node_key"]) for t in (tr.get("quantify") or [])]
+    assert ("corn_cbot", "export_ban") in qkeys               # ... and the mapped leg still fired
+    assert ("corn_cbot", "excess_rain") not in qkeys
+
+
+def test_a_fully_mapped_turn_stamps_zero_rather_than_omitting_the_key(monkeypatch):
+    """0 is a MEASUREMENT, not an absence: the orchestrator distinguishes 'this turn quantified and found
+    no dark ref' (0) from 'this turn never quantified' (key absent, metric omitted). Stamping only
+    non-zero counts would make every healthy turn look like a numbers_only turn."""
+    _wire(monkeypatch)
+    monkeypatch.setenv("GRAPHRAG_CASCADE_PACE_LEG", "on")
+    assert _run()["trace"].get("quantify_dark_refs") == 0
+
+
+def test_the_dark_count_survives_the_all_dark_early_return(monkeypatch):
+    """THE shape the counter exists for -- a turn where EVERY grounded ref is dark -- takes quantify's
+    `not groups` early return. Stamping after that return would blind the metric on exactly the turns it
+    was built to see."""
+    _wire(monkeypatch)
+    monkeypatch.setattr(ev, "embed", _dark_embed)
+    monkeypatch.setattr(ev, "backed_dag_ids", lambda: {"export_ban", "excess_rain"})
+    monkeypatch.setattr(ev, "slice_for_driver", lambda did: did)
+    monkeypatch.setattr("leviathan.graphrag.numbers.cascade.load_map", lambda: {})
+    out = an.answer(QUESTION, graph=_dark_graph(), planner="l2", asof=ASOF, retrieve=_fake_retrieve,
+                    call=_fake_call, numbers_lookup=_qfn, route_fn=lambda q, gr: ["corn_cbot"])
+    tr = out["trace"]
+    assert tr.get("quantify_dark_refs") == 2                 # both grounded refs, none mapped
+    assert not tr.get("quantify")                            # and nothing quantified
+
+
+# ── A2b / F6 -- the headline rule is FLAGGED and threaded from the seam ──────────────────────────────
+def test_headline_flag_is_read_at_the_seam_and_threaded_not_env_read(monkeypatch):
+    """The flag lives at the answer.py quantify seam and reaches the engine as an ARGUMENT (the
+    _pace_leg_on / price_request discipline): cascade.py reads no environment, so a mis-plumbed enable
+    cannot fire it. Default OFF -- A2b's own rule is "defaulting to today's behaviour"."""
+    from leviathan.graphrag.numbers import cascade as cq
+    _wire(monkeypatch)
+    seen: dict = {}
+    real = cq.quantify
+
+    def _spy(*a, **kw):
+        seen.update(kw)
+        return real(*a, **kw)
+
+    monkeypatch.setattr(cq, "quantify", _spy)
+    monkeypatch.delenv("GRAPHRAG_CASCADE_HEADLINE", raising=False)
+    _run()
+    assert "headline" not in seen and cq._HEADLINE_ON is False        # omit-when-off, and OFF is OFF
+    monkeypatch.setenv("GRAPHRAG_CASCADE_HEADLINE", "on")
+    _run()
+    assert seen.get("headline") is True and cq._HEADLINE_ON is True
+    cq._set_headline(False)                                          # leave the module as we found it

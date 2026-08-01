@@ -9,6 +9,10 @@
 # An UNCERTIFIED/empty table (silver_esr, silver_nasa_power at the 2026-06-24 certification) may appear ONLY
 # with `deferred: true` (loaded-but-inert; the loader skips it, config_check errors on an ACTIVE row).
 # Every table.metric below verified against the live registry (load_registry) on 2026-07-10.
+# C3 (2026-08-01): every row added by the C3 wave is verified the SAME way PLUS a live read of the served
+# metric on the source of truth (Athena) -- a row whose value/unit/scale could not be PROVEN against real
+# data was SKIPPED, never bound to a plausible neighbour (D4: a silent wrong-metric binding is worse than
+# an honestly dark ref). The skipped refs and their evidence are recorded at the bottom of this block.
 
 refs:
   # ── PSD family (silver_psd, vintage, marketing-year) - the D3 core ─────────────────────────────────
@@ -191,6 +195,43 @@ refs:
       118 instances. Quantifies ENSO analogues to 1950 (1997/98 vs 2015/16 El Nino contrast). Corpus is
       structurally thin pre-2000 for ENSO evidence -- silver is deep but the anchor may be absent;
       degrade to qualitative.
+  # -- C3 (2026-08-01) -- the ONI sibling, same shape, same windowing ---------------------------------
+  # SUPERSEDES the wiring-wave-1 card comment on silver_noaa_iod (tables.yaml: "enters NO cascade_map"),
+  # which recorded that wave's SCOPE, not a doctrine: the table is the exact structural twin of
+  # silver_noaa_oni (global, monthly, year+month keyed, no commodity/country column), and oni_climate has
+  # been a mapped_supporting row since P9-B. That comment is now stale and lives in a file this wave does
+  # not own -- flagged for the tables.yaml owner, not edited here.
+  iod_climate:
+    table: silver_noaa_iod
+    metric: dmi_value              # the OBSERVED monthly index; iod_dmi_3month_avg is its smoothed sibling
+    #                                (the oni_anom-not-oni_lag3 precedent: map the observation, not a filter)
+    agg: latest
+    period_type: year_month        # windows via (year*100+month) bounds -- the ONI machinery wholesale
+    window_granularity: monthly
+    country_rule: none             # global IOD state; the table has NO commodity/country column. NOT
+    #                                `region`: every IOD driver's region token names the TELECONNECTION
+    #                                TARGET ('Indian Ocean/Australia', 'India / East Africa'), never a
+    #                                country slice of the index -- there is only ONE DMI series to serve,
+    #                                so a region rule could only ever mislabel it.
+    keying: "NO commodity/country column (global IOD state); asof compares (year*100+month) <= asof YM"
+    native_unit: degC
+    narrate_unit: degC
+    scale: 1                       # an SST-anomaly gradient in degC; no ratio trap, no pre-scale
+    coverage_start: 1950
+    status: mapped_supporting
+    notes: >
+      21 instances, 2 ids (IOD_positive / IOD_negative), 15 contracts -- the highest-instance UNFENCED
+      dark ref that a registered metric can honestly serve. Positive DMI = warm west (India/East Africa) /
+      cool east (Indonesia-Australia); negative reverses it. PROBE (Athena, 2026-08-01): 918 rows spanning
+      1950-01..2026-06, dmi_value non-null on all 918, range -1.19..+1.78 degC, and 1997-11 = 1.55 --
+      the exact figure the registry card cites for the ERSSTv5 basis, so the served basis is confirmed
+      live, not assumed. BASIS TRAP: magnitudes are ERSSTv5 vs the FIXED 1991-2020 climatology and are
+      NOT comparable with pre-2026 HadISST-basis figures quoted elsewhere (1997 reads 1.55 here, 1.28 on
+      the retired basis) -- never contrast a served value against a remembered one. The source publishes a
+      completed month ~30-45d after month end, so the freshest reading normally trails today by about a
+      month: cite the reading's OWN month, never call it current. NO pace leg: silver_noaa_iod is absent
+      from cascade.PACE_TABLES (its ONI sibling is present), so this ref serves era + current rhyme legs
+      only. That is a code file this wave does not own -- adding it there is a separate, deliberate change.
 
   # ── DEFERRED (uncertified/empty at the 2026-06-24 certification; un-defer gate = a live W0 probe) ──
   esr_exports:
@@ -281,6 +322,92 @@ refs:
     metric: tmax_anomaly               # driver ref keeps its historical name; the gold column is tmax_anomaly
     notes: >
       Monthly mean-tmax anomaly z vs the same-month prior-year baseline.
+
+  # -- C1 (2026-08-01) -- THE R9 CONTEXT LANE, ratified under D1 -------------------------------------
+  # R9 used to ban this row outright. D1 (ratified 2026-08-01) split the rule: positioning may enter the
+  # cascade map ONLY as a fetched PAST-TENSE CONTEXT leg -- never a fork ref, never a regime-MARKER ref,
+  # never a chain/complex/transmission hop. config_check._check_positioning_lane is build-failing on any
+  # other shape, reading cascade.positioning_context_violations -- the SAME predicate quantify()'s runtime
+  # gate reads, so the lint and the engine can never disagree about what "context" means. Every field
+  # below is load-bearing to that predicate:
+  #   leg_mode: current  -> _node_specs skips era legs, so era_deltas is empty and _divergence can never
+  #                         return True: the cross-era FORK path is structurally closed, not merely unused.
+  #   period_type: date  -> a dated weekly observation, never a marketing-year fork window.
+  #   metric mm_net      -> outside _TRADE_METRICS, so it can never seed an RF-3 reroute PAIR.
+  #   narrate_unit       -> not 'flag', so it is an observed LEVEL and not a regime marker.
+  #   PACE_TABLES        -> silver_cot carries a 'week' grain, without which the leg is structurally dead.
+  #
+  # TWO PRECONDITIONS, both named because a silent one is how this ships as decoration:
+  #   (1) GRAPHRAG_CASCADE_PACE_LEG must be ON in the measured lane. cascade.py's selection gate drops an
+  #       era-less `leg_mode: current` node unless `pace` is True, and the era-less case IS the live
+  #       positioning shape. Verify it in the eval jobdef env before crediting any C1 result.
+  #   (2) FENCED turns only. quantify() refuses this table on an OUTLOOK turn (D1's carve-out) because
+  #       register.py releases the flow fence there by design.
+  cot_mm_positioning:
+    table: silver_cot
+    metric: mm_net                 # managed-money NET position (mm_long - mm_short). mm_net_z_3yr is the
+    #                                sibling standardization and is DELIBERATELY not mapped: one ref binds
+    #                                ONE (table, metric) pair, and the LEVEL is the observation -- a z is a
+    #                                derived comparison against a 3-yr window that reads as a verdict
+    #                                ("stretched") the moment it is narrated. The level plus its own dated
+    #                                history is the context lane; the z is not needed to state it.
+    agg: latest                    # the single FRESHEST report on/before the asof (the esr_exports idiom;
+    #                                a `series` leg over a trailing window is ORDER BY ASC and rows[0] is
+    #                                the OLDEST print -- the A2b defect this wave measured)
+    period_type: date              # weekly report_date; period_start/period_end bind it
+    leg_mode: current              # CURRENT rhyme leg ONLY -- never an era leg (closes the fork path)
+    country_rule: none             # no country column; commodity_col is leviathan_slug (CONTRACT slugs)
+    keying: "commodity=CONTRACT slug (corn_cbot, ...); a bare base name matches ZERO rows (tables.yaml:699)"
+    native_unit: contracts
+    narrate_unit: contracts        # a signed position COUNT; scale 1, no ratio trap
+    scale: 1
+    coverage_start: 2006           # 12 slugs live 2006+; the wheat series start ~2014 (W4b legacy-name gap)
+    status: mapped_supporting
+    notes: >
+      31 driver instances, the highest-instance FENCED dark ref and the one finding 2.4(a) is about: the
+      agent reached silver_cot on the two execution-BAIT rows and on ZERO of the three purely-positioning
+      rows, so discretion here is ANTI-CORRELATED with the ask and only determinism closes the class.
+      HISTORICAL CONTEXT ONLY. Narrate the level in the PAST TENSE, dated by its own report date, and
+      state nothing about what positioning will do next -- cascade.POSITIONING_CONTEXT_ADDENDUM rides the
+      block whenever this leg renders, and tests/unit/test_register_corpus.py pins that string flow-clean.
+      Positioning is UNREVISED, so latest-only is genuinely point-in-time-clean; publication_lag_days=6
+      covers the Tuesday-data / Friday-release gap and the holiday slips. The table was ~6 weeks stale at
+      the 2026-07-18 census, so an honest leg may serve a reading several weeks old WITH its date -- which
+      is the correct behaviour, and the reason the report date belongs in the narration.
+
+# -- C3 SKIPS (2026-08-01) -- dark refs this wave REFUSED to bind, with the evidence -------------------
+# C3 authored the top UNFENCED dark refs by hand (D4: no generic fallback resolver). Three of the four
+# candidates have NO honest target, and each is recorded here rather than bound to a near-neighbour --
+# the skip IS the deliverable for these, and re-deriving the same dead end later is the waste this block
+# prevents. None of them is a lint waiver: an unmapped ref simply stays qualitative (see the file header).
+#
+#   stage_precip_z (38 instances, 3 ids, 24 contracts) -- NO PRECIP-Z METRIC EXISTS.
+#     Athena probe of gold_weather_z (2026-08-01) returns exactly five metrics: drought_z (119,286 rows),
+#     frost_event_flag (229,590), gdd_z (175,823), heat_stress_z (70,090), tmax_anomaly (178,950). The
+#     D-W5 header above already predicted this ("stage_precip_z has NO gold metric yet"); the probe
+#     confirms the gold rebuild did not add one. The two near-neighbours were REFUSED on purpose:
+#     drought_z is the longest consecutive DRY-DAY RUN, so binding it would invert the sign of the
+#     `excess_rain` driver that supplies most of the 38 instances (a real, cited, unit-clean number about
+#     the opposite phenomenon -- exactly D4's silent wrong-metric binding); and silver_nasa_power's
+#     precipitation_mm is a raw daily mm LEVEL on the PROJECTED table the D-W4 gold decoupling
+#     deliberately moved the weather legs OFF. Un-skip gate: a real precip-z family in gold_weather_z
+#     (registered in tables.yaml), then one row here, stage-windowing left to the gold transform.
+#
+#   crush_margin_z (28 instances, 12 ids, 13 contracts) -- NO CRUSH SERIES IN THE NUMBERS REGISTRY.
+#     No loaded table carries a crush margin, a board crush, or an oil share (checked across all 19
+#     registered cards). A crush margin is DERIVED arithmetic over three separate futures legs
+#     (meal + oil - beans, with per-contract unit conversions), and this map binds ONE (table, metric)
+#     pair per ref with no arithmetic anywhere -- so there is no shape of row that could express it, even
+#     if a source existed. Un-skip gate: a produced crush-margin series (its own ingest + silver/gold
+#     table + registry card), which is a wave, not a map edit. Binding it to a soybean_meal settle LEVEL
+#     would narrate a price where the driver claims a margin.
+#
+#   spread (26 instances, 14 ids, 17 contracts) -- NOT EXPRESSIBLE (the plan's own caveat, confirmed).
+#     Every served futures metric is a single-leg level: silver_futures_prices is close-only AND
+#     levels_only (build_sql RAISES on any window/series/spread read), and silver_futures_eod serves
+#     `settle` only. A calendar spread additionally needs a front-expiry selection rule, and a
+#     cross-commodity spread needs two contracts in one leg; the map has neither knob. This is engine
+#     work (the premium/spread engine the tables.yaml futures block defers), not a mapping gap.
 
 # ── region_map (RF-2) -- driver region token -> table scope, for country_rule=region refs ──────────────
 # TOP-LEVEL sibling of refs (load_map returns refs only; cascade.load_region_map reads this block).

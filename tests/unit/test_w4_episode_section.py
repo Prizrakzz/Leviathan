@@ -531,3 +531,90 @@ def test_episodes_is_not_a_section_kind_and_not_in_the_fixed_scaffold():
     secs = {s["heading"]: s["kind"] for s in an._sectionize(_MECH)}
     assert secs["Episodes"] == "other"
     assert ev._scaffold_ok(_out(_MECH)) is True                    # an extra heading is invisible to it
+
+
+# == A5 -- episode_absence_label_fixed: the LABEL slot, scored deterministically ======================
+# The shape line used to declare a UNIVERSAL '<plain-words label>' slot, which CASE 1 then contradicts.
+# A model reading the universal rule first was being told to write words the record cannot support --
+# and it did: "earlier Black Sea disruption window", "post-ban window", "early corpus window", all three
+# observed in the W4 ON arm on windows whose two ABSENCE slots were stated correctly underneath. The
+# prompt half is the carve-out below; the harness half is the pin, so the change is scored by the
+# harness rather than by the panel (plan section 12's "five reader-facing changes, zero new pins").
+def test_the_shape_line_carves_out_case_1():
+    s = an._SYSTEM_EPISODES
+    assert "BOTH slots -- BACKING and MAGNITUDE -- are REQUIRED" in s      # still both, named
+    assert "EXCEPT in CASE 1" in s                                          # ... and the label carve-out
+    assert "and BOTH slots are REQUIRED:" not in s                          # the old universal claim is gone
+    # the two absence statements are what FILL those slots on a receipt-less window -- the carve-out is
+    # about the LABEL, never a licence to leave a slot empty
+    assert "never left empty" in s
+
+
+_ABSENCE_SECTION = (
+    "## Episodes\n"
+    "- 1994-06..1994-08 -- drivers/frost: no citable item in this window, so what happened is not "
+    "narrated; no price record for this window.\n")
+
+
+def _absence_out(label: str):
+    mech = ("## Mechanism\nm\n## The record\nr\n"
+            + _ABSENCE_SECTION.replace("drivers/frost", label)
+            + "## What to watch\nw\n")
+    return _out(mech, cits=[])
+
+
+def test_the_injected_label_copied_verbatim_passes():
+    assert _pins({"episode_absence_label_fixed": True}, _absence_out("drivers/frost")) == \
+        {"episode_absence_label_fixed": True}
+
+
+def test_a_shortened_label_still_passes():
+    """Containment, not equality: dropping a word is a shortening, not an invention, and equality would
+    red an honest bullet. Every observed leak ADDED a word."""
+    assert _pins({"episode_absence_label_fixed": True}, _absence_out("frost"))["episode_absence_label_fixed"]
+
+
+def test_an_invented_characterisation_reds_the_pin():
+    """The measured shape: the label acquires a word the injected line never carried."""
+    for bad in ("earlier frost crisis window", "drivers/frost collapse", "catastrophic frost"):
+        assert _pins({"episode_absence_label_fixed": True},
+                     _absence_out(bad)) == {"episode_absence_label_fixed": False}, bad
+
+
+def test_a_receipted_bullet_is_none_of_this_pins_business():
+    """CASE 2/3 keep their plain-words label -- there the label IS read off a cited receipt, so the pin
+    scores ONLY bullets that declare no citable item."""
+    receipted = ("## Mechanism\nm\n## The record\nr\n## Episodes\n"
+                 "- 2021-06..2021-08 -- Brazil frost: the corpus documents frost damage in southern "
+                 "Minas Gerais reported through that window [E3]; no observed magnitude for this "
+                 "window.\n## What to watch\nw\n")
+    assert _pins({"episode_absence_label_fixed": True}, _out(receipted))["episode_absence_label_fixed"]
+
+
+def test_a_plain_words_label_on_a_receiptless_bullet_reds_the_pin():
+    """THE STRICTNESS, stated rather than discovered. `_MECH` above -- this file's own model of an
+    honest render -- labels its receipt-less 1994 window 'Brazil frost' while the injected node is
+    'drivers/frost'. That predates the verbatim rule (7dcdc918) and the pin reds it, deliberately: on a
+    window with no citable item there is no receipt to read 'Brazil' off, and "the label may add a word
+    the record does not carry" is exactly the licence the four measured leaks used. A false RED on a
+    deterministic pin is visible in the row table; a false GREEN is not."""
+    assert _pins({"episode_absence_label_fixed": True}, _out(_MECH)) ==         {"episode_absence_label_fixed": False}
+    # ... and it is the LABEL alone that reds it: the same answer passes the two shipped enumeration pins
+    assert _pins({"min_episode_lines": 3, "episode_magnitude_or_absence": True}, _out(_MECH)) ==         {"min_episode_lines": True, "episode_magnitude_or_absence": True}
+
+
+def test_an_unrendered_section_cannot_pass_a_true_pin():
+    """Anti-vacuity, the episode_magnitude_or_absence rule: `all([])` is true, so a turn that never
+    rendered '## Episodes' must not green a true-pin."""
+    mech = "## Mechanism\nm\n## The record\nr\n## What to watch\nw\n"
+    assert _pins({"episode_absence_label_fixed": True}, _out(mech, cits=[])) == \
+        {"episode_absence_label_fixed": False}
+
+
+def test_a_minted_window_cannot_pass_the_label_pin():
+    """A bullet that matches NO injected episode has no label it could have copied. Same refusal the
+    other two enumeration pins make with `all(_adj)`, reached independently here."""
+    out = _absence_out("drivers/frost")
+    out["structured"]["mechanism"] = out["structured"]["mechanism"].replace("1994-06..1994-08",
+                                                                            "1873-01..1873-04")
+    assert _pins({"episode_absence_label_fixed": True}, out) == {"episode_absence_label_fixed": False}

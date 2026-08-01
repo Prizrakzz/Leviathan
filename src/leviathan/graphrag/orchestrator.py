@@ -49,15 +49,21 @@ def _footer(cits) -> str:
 
 
 def run_numbers_only(query: str, asof: str, *, client=None, model: str = na.HAIKU, query_fn=None,
-                     graph=None, contracts=None) -> dict:
+                     graph=None, contracts=None, families=None) -> dict:
     import time as _time
     _tn = _time.perf_counter()                                      # F0: MsNumbers on the numbers_only route
-    out = na.answer_numbers(query, asof, client=client, model=model, query_fn=query_fn)
+    # B1: `families` is the planner's data_families, already kill-switch-gated by the caller (None when off).
+    out = na.answer_numbers(query, asof, client=client, model=model, query_fn=query_fn, families=families)
     _ms_numbers = int((_time.perf_counter() - _tn) * 1000)
     cits = cit.unify(None, out.get("calls"))
     _raw = out.get("answer", "")                                    # DP-6: raw pre-sanitize agent text
     _banned_val = reg.count_valuation_words(_raw)                   # the price-serving lane -- counts must ride trace
     _banned_flow = reg.count_flow_words(_raw)
+    # A4, third site: this lane computes the same raw counters on `_raw` and then DISCARDS the text one line
+    # below (sanitize returns a new string; nothing holds the original). Same flag, same meaning, same
+    # absent-when-off contract as the two answer.py synthesis paths. The field is `answer`, not tldr/mechanism
+    # -- the numbers agent writes one prose block, and naming it anything else would misreport what was read.
+    _raw_draft = an.raw_draft_snapshot(answer=_raw)
     body = reg.sanitize((_raw + _footer(cits)).strip())            # strip leaked slugs/tokens from the numbers footer
     nv = _verify_numbers_answer(out.get("answer", ""), out.get("calls") or [])
     if nv.get("mismatched"):                                       # the citv2b 0.107-vs-0.3636 fabrication class:
@@ -83,8 +89,15 @@ def run_numbers_only(query: str, asof: str, *, client=None, model: str = na.HAIK
     # it IS the critical path. The `intent` EMF dimension separates them -- never pool the two.
     _trace = {"numbers_verifier": nv, "banned_valuation_words": _banned_val, "banned_flow_words": _banned_flow,
               "ms_numbers": _ms_numbers}
+    if _raw_draft:
+        _trace["raw_draft"] = _raw_draft                            # A4: audited runs only (absent, not null)
+    # C2 (F5): question_shape / shape_metric_states / shape_decline_guard live on answer_numbers' return
+    # dict and were dropped here, so "the record the four miss states need" was written to a dict nobody
+    # read -- no eval pin, no EMF counter, no baseline column. They ride this SAME whitelist; absent (a
+    # shapeless question, the common case) -> the trace is byte-identical.
     for _gk in ("esr_destination_guard", "price_decline_guard", "pattern_records", "period_mismatch_guard",
-                "futures_coverage_guard"):     # W3.2: the silver_futures_eod coverage verdict (legacy/decline)
+                "futures_coverage_guard",      # W3.2: the silver_futures_eod coverage verdict (legacy/decline)
+                "question_shape", "shape_metric_states", "shape_decline_guard"):
         if out.get(_gk) is not None:
             _trace[_gk] = out[_gk]
     return {"answer": body, "intent": "numbers_only",
@@ -210,13 +223,21 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
                client=None, numbers_model: str = na.HAIKU, query_fn=None, planner: str | None = None,
                extra_context: str | None = None, route_fn=None, near: str | None = None,
                silver_lookup=None, on_stage=None, focus_driver: str | None = None,
-               xc_request: dict | None = None, outlook: bool = False) -> dict:
+               xc_request: dict | None = None, outlook: bool = False,
+               numbers_query: str | None = None, families=None) -> dict:
     """Hybrid = numbers ∥ walk. The numbers agent has ZERO dependency on the walk (its output is consumed
     only at synthesis: the prompt block + citation unify/verify), so it runs in a worker thread while
     answer() grounds the subgraph; the two join via `extra_resolver` right before prompt assembly —
     pre-synthesis latency = max(numbers, walk), not the sum. Thread-safety: `client` is None in serving,
     so answer_numbers builds its OWN provider client inside the thread (the shared Anthropic client is not
-    thread-safe); session state is read-only until the post-answer writeback."""
+    thread-safe); session state is read-only until the post-answer writeback.
+
+    B1 handoff parity. `numbers_query` (default None -> the bare `query`, byte-identical) is the
+    coreference-ENRICHED question run_numbers_only has always built and this lane never did: "And exports?"
+    reached the agent with no commodity attached on hybrid while the same words on numbers_only arrived
+    carrying the thread's contracts. Only the NUMBERS leg sees it -- `query` still routes the walk, because
+    route_fn's short-follow-up coreference gate keys on len(query) and an enriched string is past the bound.
+    `families` is the planner's data_families steering hint, kill-switch-gated by the caller."""
     import concurrent.futures as cf
 
     def _numbers() -> dict:
@@ -227,8 +248,8 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
         import time as _time
         _tn = _time.perf_counter()                                # W6.1-0: numbers-agent duration (MsNumbers)
         try:
-            nums = na.answer_numbers(query, asof, client=client, model=numbers_model, query_fn=query_fn,
-                                     on_call=on_call)
+            nums = na.answer_numbers(numbers_query or query, asof, client=client, model=numbers_model,
+                                     query_fn=query_fn, on_call=on_call, families=families)
         except Exception as e:  # noqa: BLE001 — numbers must never take the note down with it
             nums = {"calls": [], "error": str(e)[:200]}
         nums["_ms_numbers"] = int((_time.perf_counter() - _tn) * 1000)
@@ -278,6 +299,14 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
         # observability: no eval pin could read it and no soak telemetry could count it. Same lane
         # asymmetry as the futures decline (#144) and the period guard (#142); carried the same way.
         holder["pattern_records"] = nums.get("pattern_records")
+        # C2 (F5), same lane asymmetry as the three above: the shape RECORD is lane-independent -- it says
+        # what the question required and what the turn did about it, which is exactly as true on hybrid as
+        # on numbers_only. Only the reader-facing DECLINE PREFACE is numbers_only-only (it rides
+        # nums['answer'], which this path never reads); the record must not be, or the miss states are
+        # unobservable on the very lane §2.4(a) measured them on (all three positioning rows pin
+        # expected_intent: [reasoning, hybrid]).
+        for _sk in ("question_shape", "shape_metric_states", "shape_decline_guard"):
+            holder[_sk] = nums.get(_sk)
         holder["ms_numbers"] = nums.get("_ms_numbers")            # W6.1-0: numbers-agent duration (MsNumbers)
         return "\n\n".join(x for x in (extra_context, _numbers_block(calls)) if x), calls
 
@@ -307,6 +336,9 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
         out.setdefault("trace", {})["futures_decline_guard"] = holder["futures_decline"]
     if holder.get("pattern_records") is not None:
         out.setdefault("trace", {})["pattern_records"] = holder["pattern_records"]   # T2b D2, see _resolve
+    for _sk in ("question_shape", "shape_metric_states", "shape_decline_guard"):     # C2 (F5), see _resolve
+        if holder.get(_sk) is not None:
+            out.setdefault("trace", {})[_sk] = holder[_sk]
     if holder.get("ms_numbers") is not None:
         out.setdefault("trace", {})["ms_numbers"] = holder["ms_numbers"]   # W6.1-0: surface for the EMF block
     out["asof"] = asof
@@ -516,6 +548,20 @@ def _family_facet_on() -> bool:
     is byte-identical to today. Consumption is PROMOTION-ONLY (reasoning->hybrid, never a demotion). Rollback =
     drop the env var (single flag, instant, no redeploy)."""
     return os.environ.get("GRAPHRAG_FAMILY_FACET", "off").lower() == "on"
+
+
+def _numbers_families_on() -> bool:
+    """B1 numbers-steering kill-switch. DEFAULT-OFF, case-insensitive, fail-closed -- copies the
+    _family_facet_on / _reroute_v2_on idiom exactly. Gates BOTH halves of B1: the planner's data_families
+    reaching the numbers agent as a steering hint, and the hybrid lane's coreference-enriched question. OFF ->
+    neither is passed -> both numbers lanes are byte-identical to today. The agent itself reads NO environment
+    for this: it is gated by the ARGUMENT, so a mis-plumbed enable cannot steer a turn the orchestrator did
+    not steer. Rollback = drop the env var (single flag, instant, no redeploy).
+
+    B1 is a fix for GRAPH-BLINDNESS, not for the positioning defect: GRAPHRAG_FAMILY_FACET was already on in
+    all four measured arms and the promotion fired 118 times while the agent still declined. Steering moves a
+    probability; it does not guarantee a row."""
+    return os.environ.get("GRAPHRAG_NUMBERS_FAMILIES", "off").lower() == "on"
 
 
 def _xc_llm_detect_on() -> bool:
@@ -931,6 +977,65 @@ def _evidence_only(query: str, asof: str, *, graph, kind: str, exc: Exception,
             "trace": {"floor": "evidence_only", "error": f"{type(exc).__name__}: {str(exc)[:200]}"}}
 
 
+# -- A6 not-firing counters ---------------------------------------------------------------------------
+# The dashboard could see everything the engine DID and nothing it declined to do. CascadeFired=0 was one
+# undifferentiated bucket -- "no driver was grounded" and "a driver was grounded but its silver ref is dark"
+# are the same number, and the second is the entire subject of the numbers-firing work. These read the trace
+# the branches already stamp; none of them can compute anything the engine did not already decide.
+_POSITIONING_FALLBACK = ("silver_cot",)
+
+
+def _positioning_tables() -> tuple:
+    """The register-fence positioning set, from its ONE definition (config_check) so this can never drift
+    from what R9/R10 lint. Fail-soft to the literal: telemetry must never break a turn, and a stale-but-right
+    tuple beats a dropped metric."""
+    try:
+        from leviathan.graphrag.config_check import POSITIONING_TABLES
+        return tuple(POSITIONING_TABLES)
+    except Exception:  # noqa: BLE001 — a lint-module import failure can never cost a metric
+        return _POSITIONING_FALLBACK
+
+
+def _positioning_fired(res: dict, tr: dict) -> int:
+    """A6 PositioningFired: 1 iff a positioning row REACHED THE PANEL this turn -- an agent lookup that came
+    back with rows, or a cascade leg whose trace names the table. Both lanes, because either one can put a
+    CFTC number in front of a reader and the judged gap ("no positioning number was looked up") does not
+    care which produced it.
+
+    KNOWN BLIND SPOT, stated rather than papered over: the main per-node quantify trace entry carries
+    node_key/metric but NO table, so an era-legged positioning node would be counted only through its
+    pace/chain entry. Every positioning ref reaching the cascade today is `leg_mode: current`, which is a
+    pace entry by construction -- but if that ever stops being true this counter under-reports rather than
+    over-reports, which is the correct direction for a not-firing metric."""
+    tabs = _positioning_tables()
+    for c in (res.get("number_calls") or []):
+        if not isinstance(c, dict) or c.get("status") == "error":
+            continue
+        if str((c.get("query") or {}).get("table") or "") in tabs and (c.get("rows") or []):
+            return 1
+    # list() the items on purpose: the async roll_summary daemon writes tr['ms_rollup'] into THIS dict while
+    # this block runs (_spawn_rollup fires before the EMF emit), and a dict that grows mid-iteration raises.
+    # The whole block is fail-open, so the cost would be a silently dropped EMF line -- the hardest kind of
+    # telemetry gap to notice, on the metric this lane exists to produce.
+    for k, v in list(tr.items()):                # quantify / quantify_pace / quantify_chain hops / ...
+        if not (isinstance(k, str) and k.startswith("quantify") and isinstance(v, list)):
+            continue
+        if any(isinstance(e, dict) and str(e.get("table") or "") in tabs for e in v):
+            return 1
+    return 0
+
+
+def _agent_zero_call_turns(res: dict, tr: dict):
+    """A6 AgentZeroCallTurns: 1 when the numbers agent RAN and looked nothing up, 0 when it ran and looked
+    something up, None (ABSENT, the FloorTurns precedent) when it never ran at all. MsNumbers cannot make
+    that split: a missing MsNumbers and a zero-call agent are both "no numbers", and only the second is a
+    DECLINE. `ms_numbers` is stamped by both numbers-carrying lanes on every path including the error path,
+    so it is exactly the 'the agent ran' predicate."""
+    if tr.get("ms_numbers") is None:
+        return None
+    return 0 if (res.get("number_calls") or []) else 1
+
+
 def respond(*args, **kwargs) -> dict:
     """Per-turn TIMING wrapper (Stage 5.0/5.4 latency diagnostic): times `_respond`, stamps
     `trace.timing_ms` = {total, fill, rest}, and logs one INFO line so the warm-turn phase breakdown is
@@ -988,7 +1093,15 @@ def respond(*args, **kwargs) -> dict:
             _tgt = str(dec.get("xc_target") or "").encode("ascii", "replace").decode()
             print(f"XC_DETECT_DARK turn={_tid} target={_tgt}", flush=True)
         from leviathan.graphrag import emf
-        # Stage timers (Ms*) pass None when the stage did not run; emf.emit drops None -> NO zero-fill.
+        # A6 not-firing counters. DarkRefNodes is the metric this whole lane is about: grounded nodes whose
+        # silver ref mapped to nothing, i.e. the walk had a driver and the record had no series for it. It is
+        # ENGINE-written (cascade stamps `quantify_dark_refs` at the drop site) and read here, so a turn that
+        # never quantified passes None and the metric is ABSENT rather than a fake 0 -- without that, every
+        # numbers_only and social turn would dilute the rate this exists to measure.
+        dark_refs = tr.get("quantify_dark_refs")
+        # The pace/chain/transmission/price-leg/co-move keys were readable ONLY through the eval harness
+        # (eval.py bools them per row), so a production firing rate for five engines did not exist. Same
+        # 0-semantics as CascadeFired: always present, ENGINE-written, present-iff-fired.
         emf.emit({"TurnLatencyMs": total, "MsFill": gm.get("fill"), "MsRest": gm.get("rest"),
                   "MsDispatch": tr.get("ms_dispatch"), "MsNumbers": tr.get("ms_numbers"),
                   "MsSynthLLM": tr.get("ms_synth_llm"), "MsQuantify": tr.get("ms_quantify"),
@@ -1003,7 +1116,15 @@ def respond(*args, **kwargs) -> dict:
                   # bucket that never pollutes the reasoning/hybrid/numbers strip metrics (0-semantics, like
                   # CascadeFired). Always 0 when GRAPHRAG_TRIVIAL_ROUTER is off (no turn stamps trace.trivial).
                   "TrivialShortCircuit": 1 if tr.get("trivial") else 0,
-                  "XcLlmWouldFire": xc_would, "PlannerFallback": planner_fb},
+                  "XcLlmWouldFire": xc_would, "PlannerFallback": planner_fb,
+                  "DarkRefNodes": dark_refs,
+                  "AgentZeroCallTurns": _agent_zero_call_turns(res, tr),
+                  "PositioningFired": _positioning_fired(res, tr),
+                  "PaceFired": 1 if tr.get("quantify_pace") else 0,
+                  "ChainFired": 1 if tr.get("quantify_chain") else 0,
+                  "TransmissionFired": 1 if tr.get("quantify_transmission") else 0,
+                  "PriceLegFired": 1 if tr.get("quantify_price_leg") else 0,
+                  "ComoveFired": 1 if tr.get("quantify_comove") else 0},
                  dimensions={"intent": res.get("intent"), "model": res.get("model")},
                  units={"TurnLatencyMs": "Milliseconds", "MsFill": "Milliseconds",
                         "MsRest": "Milliseconds", "MsDispatch": "Milliseconds", "MsNumbers": "Milliseconds",
@@ -1012,7 +1133,10 @@ def respond(*args, **kwargs) -> dict:
                         "CascadeNodes": "Count", "DivergenceNodes": "Count", "RerouteFired": "Count",
                         "MultiCountryTurn": "Count", "CitedN": "Count", "InjectedN": "Count",
                         "AnswerChars": "Count", "TrivialShortCircuit": "Count",
-                        "XcLlmWouldFire": "Count", "PlannerFallback": "Count"})
+                        "XcLlmWouldFire": "Count", "PlannerFallback": "Count",
+                        "DarkRefNodes": "Count", "AgentZeroCallTurns": "Count",
+                        "PositioningFired": "Count", "PaceFired": "Count", "ChainFired": "Count",
+                        "TransmissionFired": "Count", "PriceLegFired": "Count", "ComoveFired": "Count"})
         if tr.get("floor"):
             # F4a: floor turns are COUNTED, split by the bounded cause slug. A SEPARATE EMF line on purpose:
             # folding `cause` into the block above would re-dimension every metric in it and fork the
@@ -1286,6 +1410,19 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
     if kind in ("reasoning", "hybrid") and plan is not None and plan.answer_mode_outlook:
         outlook_mode = it.is_outlook_explicit(query)
         decided = (decided or {}) | {"outlook_gate": {"plan": True, "regex": outlook_mode}}
+    # -- B1: the two things a numbers lane gets from the plan, resolved ONCE for BOTH lanes ----------------
+    # `_nq` is the coreference-enriched question. It was built inside the numbers_only branch and nowhere
+    # else, so the hybrid lane's agent saw a bare "And exports?" while numbers_only's saw the contracts --
+    # the same words, a different amount of context, decided by a routing outcome the reader never chose.
+    # `_families` is the planner's data_families, which the family-facet promotion has been reading and
+    # THROWING AWAY (it stamps the list on the decision and passes nothing down). Both are flag-gated and
+    # both are None/bare when off, so the whole of B1 rolls back on one env var.
+    _fam_on = _numbers_families_on()
+    _families = list(plan.data_families) if (_fam_on and plan is not None and plan.data_families) else None
+    _hints = list(plan.contracts) if plan else []
+    if plan and plan.country:
+        _hints.append(plan.country)                                # "And exports?" after Brazil = BRAZIL exports
+    _nq = query if not _hints else f"{query}\n(conversation context: this refers to {', '.join(_hints)})"
     try:
         if kind == "live":
             # Thread coreference reaches the news SEARCH ("any news related to that?"): the plan's
@@ -1295,10 +1432,6 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
             res = run_live(query, asof, graph=graph, call=call, retrieve=retrieve, model=model, planner=planner,
                            on_stage=on_stage, context_contracts=_ctx, route_fn=route_fn, qfn=qfn)
         elif kind == "numbers_only":
-            hints = list(plan.contracts) if plan else []
-            if plan and plan.country:
-                hints.append(plan.country)                         # "And exports?" after Brazil = BRAZIL exports
-            nq = query if not hints else f"{query}\n(conversation context: this refers to {', '.join(hints)})"
             # G12: mount the cascade map on numeric turns too. Key it off the SAME routing the reasoning
             # branch uses (planner pc / session coreference via route_fn), NOT a fresh lexical route —
             # a coreference numeric turn ("and its exports?") lexically routes to nothing. RAW `query` on
@@ -1309,8 +1442,8 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
                 _mc = []
             if not _mc and plan is not None:
                 _mc = [c for c in plan.contracts if c in graph.contracts]
-            res = run_numbers_only(nq, asof, client=numbers_client, model=numbers_model, query_fn=qfn,
-                                   graph=graph, contracts=_mc)
+            res = run_numbers_only(_nq, asof, client=numbers_client, model=numbers_model, query_fn=qfn,
+                                   graph=graph, contracts=_mc, families=_families)
             an._emit(on_stage, "numbers", calls=len(res.get("number_calls", [])))
             _emit_numbers(on_stage, res.get("number_calls"))       # F7 `number`: the numbers-only lane's twin
         elif kind == "hybrid":
@@ -1318,7 +1451,12 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
                              client=numbers_client, numbers_model=numbers_model, query_fn=qfn, planner=planner,
                              extra_context=sblock, route_fn=route_fn, near=near, silver_lookup=silver_lookup,
                              on_stage=on_stage, focus_driver=att["focus_driver"], xc_request=xc_request,
-                             outlook=outlook_mode)
+                             outlook=outlook_mode,
+                             # B1 handoff parity: the NUMBERS leg gets the enriched question, the walk keeps
+                             # the raw `query` (route_fn's <=80-char coreference gate). Flag off -> both None
+                             # -> this call is byte-identical to today.
+                             numbers_query=(_nq if _fam_on else None),
+                             families=_families)
         else:
             res = run_reasoning(query, asof, graph=graph, call=call, retrieve=retrieve, model=model,
                                 planner=planner, extra_context=sblock, route_fn=route_fn, near=near,

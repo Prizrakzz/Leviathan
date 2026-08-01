@@ -1,0 +1,111 @@
+# C2 question-shape -> required-metric table (NUMBERS_FIRING_PLAN C2, gated on D3 -- ratified 2026-08-01).
+#
+# WHAT THIS IS. The sixth member of the agent's "detect the question shape ONCE, up front" family
+# (esr_destination_scope, price_coverage_scope, futures_scope, asked_month_window, pattern_records_scope).
+# It answers ONE question the walk cannot: for a question of shape S, WHICH observed metric does an honest
+# answer require? That is evaluated INDEPENDENTLY of what the model chose to look up, which is the whole
+# point -- finding 2.4(a) measured the agent's discretion as anti-correlated with the ask (silver_cot was
+# reached on the two execution-BAIT rows and on none of the three pure positioning rows).
+#
+# WHAT IT IS NOT. It does not dispatch a lookup and it does not bind a metric to a driver. It RECORDS what
+# the shape required and what the turn actually did with it, and on exactly one of those outcomes it emits a
+# deterministic reader-facing decline (D3). The shape table never makes a number appear.
+#
+# THE THREE CONDITIONS (D3, and they are structural, not conventional). The decline line is emitted ONLY when
+#   (a) a shape matched and it declares this requirement, AND
+#   (b) a lookup for it ACTUALLY RAN, AND
+#   (c) that lookup came back with status 'no_rows' -- the executor's own verdict for "the query matched no
+#       data" (agent._exec), which no other outcome can forge.
+# 'not_known' (the vintage tables' empty result) is DELIBERATELY not a decline: agent._exec assigns it when
+# knowledge_semantics == 'vintage', where an empty result conflates "not published at the as-of" with "scope
+# mismatch". Claiming "the record holds no X" there would be a claim the executor never made. 'error' is not
+# a decline either -- a malformed tool call is not data absence, and finding 2.4(b) measured that class at 21
+# ERRORs in 24 agent calls on one table. See agent.SHAPE_DECLINE_STATE.
+#
+# REGISTER. Every shape's rendered decline sentence is censused at build time by
+# config_check.check_question_shapes: register_leaks, exec_leaks, count_valuation_words, count_flow_words and
+# _is_banned_sentence under BOTH FENCED and OUTLOOK must all come back clean. The phrasing is DATA-ABSENCE
+# ("the record holds no X"), never an effort narrative ("we looked and could not find") -- D3(iii). Note that
+# this is a NARROWER register than the shipped DECLINE_TEMPLATES / FUTURES_DECLINE_TEMPLATES (agent.py:321,
+# :428), which use capability framing ("the daily futures data I can pull here"). D3 picked this one; those
+# two are an inconsistency to reconcile, not a precedent to copy.
+#
+# DOCTRINE. A requirement at a fenced table is checked mechanically, not by comment:
+#   * POSITIONING_TABLES (silver_cot) -- admitted, and ONLY with an explicit `doctrine: r9_context`. R9 as
+#     amended (D1, 2026-08-01) is a context/engine SPLIT; requiring a past-tense managed-money READ is the
+#     context lane. When C1's cascade context leg is live the engine serves this shape and the agent-side
+#     record simply says the agent itself never fetched it -- the two lanes are independent and neither
+#     silences the other.
+#   * PRICE_TABLES (silver_pink_sheet) -- R4 is UNTOUCHED by D1. Any requirement there must be
+#     `deferred: true`, which drops it from the runtime table entirely (the cascade_map `deferred` idiom).
+#
+# TRACKED for the same reason cascade_map.yaml is: nothing here is secret beyond what tables.yaml exposes.
+# Every table.metric below was verified against the live registry (load_registry) on 2026-08-01.
+version: 1
+
+shapes:
+
+  # -- POSITIONING -------------------------------------------------------------------------------------
+  # "what is managed money doing in corn", "are the funds net long". The class finding 2.4(a) is about.
+  positioning:
+    omission: "so positioning is not narrated here"
+    requires:
+      - id: cot_managed_money
+        doctrine: r9_context          # D1 SPLIT: a past-tense managed-money READ is the admitted lane
+        context_ref: cot_mm_positioning   # C1's cascade_map context leg, when it is live (engine lane)
+        subject: "managed-money positioning reading"
+        tables: [silver_cot]
+        # The managed-money family only. open_interest is deliberately OUT: it is a market-wide figure, so
+        # an open-interest row would satisfy a managed-money requirement that it does not answer.
+        metrics: [mm_net, mm_net_z_3yr, mm_long, mm_short, mm_pct_oi, mm_pct_oi_z_3yr, mm_spread]
+
+  # -- SEASONALITY -------------------------------------------------------------------------------------
+  # "how does El Nino change the Brazilian crop", "is the dry spell unusual". Two requirements, scored
+  # independently: an ONI read that lands and a drought read that comes back empty declines the second only.
+  seasonality:
+    omission: "so the seasonal signal is not quantified here"
+    requires:
+      - id: oni_climate
+        subject: "ENSO reading"
+        tables: [silver_noaa_oni]
+        metrics: [oni_anom, oni_lag3, oni_lag6, el_nino_flag, la_nina_flag]
+      - id: drought_z
+        subject: "drought-index reading"
+        tables: [gold_weather_z]
+        metrics: [drought_z]
+
+  # -- PACE --------------------------------------------------------------------------------------------
+  # "is the export programme running ahead of last year". silver_esr is VINTAGE, so its empty result is
+  # 'not_known' and the decline is unreachable in practice -- the record here is the observability half.
+  pace:
+    omission: "so export pace is not quantified here"
+    requires:
+      - id: esr_exports
+        subject: "weekly export-sales reading"
+        tables: [silver_esr]
+        metrics: [weekly_exports_1000mt, outstanding_sales_1000mt, gross_new_sales_1000mt, changes_1000mt]
+
+  # -- OUTLOOK -----------------------------------------------------------------------------------------
+  # "how high can wheat go", "what does the balance sheet say". The judge named stocks-to-use on 37 of 58
+  # rows (section 2.3, miss state 1), which is why the s/u leg is the one that carries this shape.
+  outlook:
+    omission: "so the balance-sheet anchor is not quantified here"
+    requires:
+      - id: su_ratio
+        subject: "stocks-to-use reading"
+        # Three homes for the SAME metric name -- PSD for the row-crop complex, ICCO for cocoa, MPOB for
+        # palm. A cocoa outlook ask is served by silver_icco_cocoa and must not read as an s/u miss.
+        tables: [silver_psd, silver_icco_cocoa, silver_mpob]
+        metrics: [su_ratio]
+      - id: spot_anchor
+        deferred: true
+        deferred_reason: >
+          C2's spot/settle anchor is NOT ratified. D1 decided positioning and left R4 (the pink-sheet price
+          fence, config_check.py:1029) entirely unchanged, and the plan's own C2 staleness note requires the
+          shape table to be doctrine-checked against R4 BEFORE it may request spot. Parked here, inert
+          (load_shape_table drops it), so the requirement is recorded rather than rediscovered -- and so the
+          lint has something to assert the fence against.
+        subject: "spot price anchor"
+        tables: [silver_pink_sheet]
+        metrics: [soybeans_usd_t, soybean_oil_usd_t, palm_oil_cpo_usd_t, wheat_us_hrw_usd_t,
+                  wheat_us_srw_usd_t, raw_sugar_world_usd_t]

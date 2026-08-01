@@ -107,11 +107,16 @@ def test_price_pair_renders_two_my_pair_with_handles():
     lines, fired = cq._price_pair({"focus_contract": "corn_cbot"}, _sg([n]), None, [], _wasde_qfn(
         {"2011/12": "3.60", "2012/13": "6.89"}), "2013-06-01", "2012", calls, len(calls))
     assert fired and fired["price_leg"] is True and fired["commodity"] == "corn"
-    # two reader lines + one PRICE-RESPONSE marker line; W4: each row line ends with its SERIES scope
-    assert lines[0] == ("- [N1] US corn farm price MY2011/12: $3.60/bu "
-                        "[series: corn; country: united_states; table: silver_wasde]")
-    assert lines[1] == ("- [N2] US corn farm price MY2012/13: $6.89/bu "
-                        "[series: corn; country: united_states; table: silver_wasde]")
+    # two reader lines + one PRICE-RESPONSE marker line; W4: each row line ends with its SERIES scope.
+    # A3 (2026-08-01): the handle itself now states WHAT the level is -- the judged gap on 7 row-runs was
+    # that the pair read as an undisclosed stand-in for the CBOT level the question asked about, and the
+    # only place the discipline lived was the model-facing PRICE-RESPONSE tail.
+    assert lines[0] == ("- [N1] US corn USDA season-average farm price, marketing-year "
+                        "(survey actual; not a futures settle) MY2011/12: $3.60/bu "
+                        "[series: corn; country: united_states; table: USDA WASDE]")
+    assert lines[1] == ("- [N2] US corn USDA season-average farm price, marketing-year "
+                        "(survey actual; not a futures settle) MY2012/13: $6.89/bu "
+                        "[series: corn; country: united_states; table: USDA WASDE]")
     assert any(ln.startswith("PRICE-RESPONSE on avg_farm_price:") for ln in lines)
     body = "\n".join(lines)
     assert "$3.60/bu" in body and "$6.89/bu" in body
@@ -126,6 +131,20 @@ def test_price_pair_renders_two_my_pair_with_handles():
     # the marker cites BOTH handles, direction is prose ('rose')
     marker = [ln for ln in lines if ln.startswith("PRICE-RESPONSE")][0]
     assert "[N1]" in marker and "[N2]" in marker and "rose from" in marker
+
+
+def test_price_label_keeps_the_all_classes_qualifier_on_wheat():
+    """A3: the wheat branch carries BOTH disciplines -- the WASDE US wheat farm price is an all-class
+    average, and it is a survey actual rather than a futures settle. Neither may drop when the other lands.
+    Asserted on the label expression itself so the pin does not need a second full-render fixture."""
+    n = _node("soft_red_winter_wheat_cbot", ["2012-06-15", "2012-08-01"])
+    calls: list = []
+    lines, fired = cq._price_pair({"focus_contract": "soft_red_winter_wheat_cbot"}, _sg([n]), None, [],
+                                  _wasde_qfn({"2011/12": "7.24", "2012/13": "7.77"}),
+                                  "2013-06-01", "2012", calls, len(calls))
+    assert fired and fired["commodity"] == "wheat"
+    assert lines[0].startswith("- [N1] US wheat USDA season-average farm price (all classes), "
+                               "marketing-year (survey actual; not a futures settle) MY2011/12: ")
 
 
 def test_price_pair_direction_falls_when_price_declines():

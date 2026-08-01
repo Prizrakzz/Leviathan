@@ -196,6 +196,157 @@ def test_cited_vs_injected_counting(monkeypatch):
     assert captured["InjectedN"] == 12                     # denominator = rows injected into the prompt
 
 
+# -- A6: the NOT-firing counters (NUMBERS_FIRING_PLAN section 3) -------------------------------------
+# The dashboard could see everything the engine DID and nothing it declined to do. CascadeFired=0 was one
+# undifferentiated bucket; these split it and make the decline lanes queryable outside the eval harness.
+def _emf_via(monkeypatch, canned) -> dict:
+    captured = _capture_emf(monkeypatch)
+    monkeypatch.setattr(orch, "_respond", lambda *a, **k: canned)
+    orch.respond("q", graph=None)
+    return captured
+
+
+def test_dark_ref_nodes_rides_the_engine_written_trace(monkeypatch):
+    """DarkRefNodes is ENGINE-written (cascade counts nodes whose silver ref mapped to nothing) and only
+    READ here -- the orchestrator can never invent a number the walk did not produce."""
+    captured = _emf_via(monkeypatch, {"intent": "reasoning", "model": "m", "answer": "a",
+                                      "trace": {"quantify_dark_refs": 3}})
+    assert captured["DarkRefNodes"] == 3
+
+
+def test_dark_ref_nodes_absent_when_the_walk_never_quantified(monkeypatch):
+    """A turn with no quantify seam passes None -> the metric is ABSENT (the FloorTurns precedent). Zero-
+    filling it would let every numbers_only and social turn dilute the very rate it exists to measure."""
+    captured = _emf_via(monkeypatch, {"intent": "numbers_only", "model": "m", "answer": "a", "trace": {}})
+    assert captured["DarkRefNodes"] is None
+
+
+def test_dark_ref_nodes_zero_is_emitted_not_dropped(monkeypatch):
+    """0 dark refs on a turn that DID quantify is a real measurement (the walk grounded and every ref
+    mapped) and must survive -- only the absent key means 'not measured'."""
+    captured = _emf_via(monkeypatch, {"intent": "hybrid", "model": "m", "answer": "a",
+                                      "trace": {"quantify_dark_refs": 0}})
+    assert captured["DarkRefNodes"] == 0
+
+
+def test_agent_zero_call_turns_splits_declined_from_never_ran(monkeypatch):
+    """The split MsNumbers cannot make: the agent RAN and looked nothing up (1) vs the agent ran and looked
+    something up (0) vs the agent never ran at all (absent)."""
+    declined = _emf_via(monkeypatch, {"intent": "hybrid", "model": "m", "answer": "a", "number_calls": [],
+                                      "trace": {"ms_numbers": 900}})
+    assert declined["AgentZeroCallTurns"] == 1
+    fired = _emf_via(monkeypatch, {"intent": "hybrid", "model": "m", "answer": "a",
+                                   "number_calls": [{"query": {"table": "silver_psd"}, "rows": [{"value": 1}]}],
+                                   "trace": {"ms_numbers": 900}})
+    assert fired["AgentZeroCallTurns"] == 0
+    never = _emf_via(monkeypatch, {"intent": "reasoning", "model": "m", "answer": "a", "trace": {}})
+    assert never["AgentZeroCallTurns"] is None
+
+
+def test_positioning_fired_on_an_agent_lookup(monkeypatch):
+    captured = _emf_via(monkeypatch, {
+        "intent": "numbers_only", "model": "m", "answer": "a",
+        "number_calls": [{"query": {"table": "silver_cot", "metric": "mm_net"},
+                          "rows": [{"value": "12345"}], "status": "ok"}],
+        "trace": {"ms_numbers": 10}})
+    assert captured["PositioningFired"] == 1
+
+
+def test_positioning_not_fired_on_an_errored_or_empty_cot_lookup(monkeypatch):
+    """'Reached the panel' means ROWS reached the panel. An errored or empty lookup put no number in front
+    of a reader, and counting it would report the anti-correlation as fixed while nothing changed."""
+    for call in ({"query": {"table": "silver_cot"}, "rows": [], "status": "ok"},
+                 {"query": {"table": "silver_cot"}, "rows": [{"value": "1"}], "status": "error"}):
+        captured = _emf_via(monkeypatch, {"intent": "numbers_only", "model": "m", "answer": "a",
+                                          "number_calls": [call], "trace": {"ms_numbers": 10}})
+        assert captured["PositioningFired"] == 0
+
+
+def test_positioning_fired_on_a_cascade_leg(monkeypatch):
+    """The cascade lane counts too: a positioning ref that reaches the panel as a pace leg is a CFTC number
+    in front of a reader whether or not the agent ever looked one up."""
+    captured = _emf_via(monkeypatch, {
+        "intent": "reasoning", "model": "m", "answer": "a",
+        "trace": {"quantify_pace": [{"table": "silver_cot", "metric": "mm_net", "grain": "week"}]}})
+    assert captured["PositioningFired"] == 1
+
+
+def test_positioning_tables_come_from_the_lint_definition():
+    """One definition, so the counter can never drift from what R9/R10 actually fence."""
+    from leviathan.graphrag import config_check as cc
+    assert orch._positioning_tables() == tuple(cc.POSITIONING_TABLES)
+    assert "silver_cot" in orch._positioning_tables()
+
+
+def test_engine_firing_booleans_promoted_from_the_trace(monkeypatch):
+    """pace / chain / transmission / price-leg / co-move were readable ONLY through the eval harness, so
+    five engines had no production firing rate. ENGINE-written, present-iff-fired, bool'd here."""
+    captured = _emf_via(monkeypatch, {"intent": "reasoning", "model": "m", "answer": "a",
+                                      "trace": {"quantify_pace": [{"table": "silver_esr"}],
+                                                "quantify_chain": {"hops": [1]},
+                                                "quantify_transmission": {"links": [1]},
+                                                "quantify_price_leg": {"commodity": "corn"},
+                                                "quantify_comove": {"pair": "x"}}})
+    assert captured["PaceFired"] == 1 and captured["ChainFired"] == 1
+    assert captured["TransmissionFired"] == 1 and captured["PriceLegFired"] == 1
+    assert captured["ComoveFired"] == 1
+
+
+def test_engine_firing_booleans_zero_semantics(monkeypatch):
+    """Absent trace key -> 0, never absent: these are firing RATES (the CascadeFired precedent), so the
+    denominator has to be every turn."""
+    captured = _emf_via(monkeypatch, {"intent": "reasoning", "model": "m", "answer": "a", "trace": {}})
+    for k in ("PaceFired", "ChainFired", "TransmissionFired", "PriceLegFired", "ComoveFired",
+              "PositioningFired"):
+        assert captured[k] == 0
+
+
+def test_a6_counters_reach_the_real_emf_json_line(monkeypatch, capsys):
+    """End-to-end through the REAL emf.emit: the units map covers every new metric and the absent ones are
+    dropped rather than zero-filled."""
+    canned = {"intent": "hybrid", "model": "m", "answer": "a",
+              "number_calls": [{"query": {"table": "silver_cot"}, "rows": [{"value": "1"}], "status": "ok"}],
+              "trace": {"ms_numbers": 10, "quantify_dark_refs": 2, "quantify_pace": [{"table": "silver_cot"}]}}
+    monkeypatch.setattr(orch, "_respond", lambda *a, **k: canned)
+    orch.respond("q", graph=None)
+    lines = [ln for ln in capsys.readouterr().out.splitlines() if ln.startswith("{")]
+    doc = json.loads(lines[-1])
+    assert doc["DarkRefNodes"] == 2 and doc["PositioningFired"] == 1 and doc["PaceFired"] == 1
+    assert doc["AgentZeroCallTurns"] == 0
+    names = {m["Name"]: m["Unit"] for m in doc["_aws"]["CloudWatchMetrics"][0]["Metrics"]}
+    for k in ("DarkRefNodes", "AgentZeroCallTurns", "PositioningFired", "PaceFired", "ChainFired",
+              "TransmissionFired", "PriceLegFired", "ComoveFired"):
+        assert names[k] == "Count"                              # every new metric carries a unit
+
+
+def test_positioning_scan_survives_a_trace_mutated_concurrently(monkeypatch):
+    """The async roll_summary daemon writes tr['ms_rollup'] into the SAME dict this scan walks. A dict that
+    grows mid-iteration raises, and the whole EMF block is fail-open -- so the cost would be a silently
+    dropped metric line rather than a visible error."""
+    captured = _capture_emf(monkeypatch)
+    tr = {"quantify_pace": [{"table": "silver_cot"}]}
+
+    class _Growing(dict):
+        def items(self):                                        # a stand-in for the racing rollup writer
+            self["ms_rollup"] = 7
+            return super().items()
+
+    canned = {"intent": "reasoning", "model": "m", "answer": "a", "trace": _Growing(tr)}
+    monkeypatch.setattr(orch, "_respond", lambda *a, **k: canned)
+    orch.respond("q", graph=None)
+    assert captured["PositioningFired"] == 1                    # scanned to completion, metric intact
+
+
+def test_a6_counters_never_break_a_turn(monkeypatch):
+    """Telemetry is fail-open by construction: a malformed number_calls / trace shape must cost the metric,
+    never the answer."""
+    canned = {"intent": "hybrid", "model": "m", "answer": "a", "number_calls": ["not-a-dict", None],
+              "trace": {"ms_numbers": 1, "quantify_pace": "not-a-list"}}
+    monkeypatch.setattr(orch, "_respond", lambda *a, **k: canned)
+    res = orch.respond("q", graph=None)
+    assert res["answer"] == "a"
+
+
 # ── W6.1-1: async roll_summary ──────────────────────────────────────────────────────────────────────
 def _summary_ok(thesis="t"):
     def call(system, user, *, model, tool, **_kw):

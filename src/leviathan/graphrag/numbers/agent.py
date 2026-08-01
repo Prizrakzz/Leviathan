@@ -9,6 +9,7 @@ lever to see the future. Returns the model's answer plus the exact (query, rows)
 from __future__ import annotations
 
 import datetime as _dt
+import functools
 import json
 import os
 import re
@@ -955,6 +956,308 @@ def _period_mismatch_preface(win: tuple[int, int], row_ym: int) -> str:
             f"unpublished.\n\n")
 
 
+# -- C2 question-shape -> required-metric table + the honest decline line (D3, ratified 2026-08-01) -----
+# The SIXTH member of the "detect the question shape ONCE, up front" family above. The other five each ask
+# "is this ask servable?"; this one asks the question none of them do -- "for a question of THIS shape, which
+# observed metric does an honest answer require?" -- and it answers INDEPENDENTLY of what the model chose to
+# look up. That independence is the whole point: finding 2.4(a) measured the agent's discretion as
+# ANTI-CORRELATED with the ask (silver_cot reached on the two execution-BAIT rows and on none of the three
+# pure positioning rows), so a record derived from the calls the model happened to make cannot see the miss.
+#
+# It dispatches NOTHING. It records what the shape required and what the turn did with it, and on exactly one
+# of those outcomes it emits a deterministic decline. See configs/graphrag/numbers/question_shapes.yaml for
+# the table itself, the doctrine gates and the register rule; config_check.check_question_shapes is the lint.
+
+
+@functools.lru_cache(maxsize=1)
+def load_shape_table() -> dict:
+    """{shape: {omission, requires: [{id, subject, tables, metrics, ...}]}} from question_shapes.yaml.
+    lru_cached (the cascade.load_map idiom). A requirement flagged `deferred: true` is DROPPED here and is
+    therefore inert everywhere below -- the same mechanism cascade_map uses to park a row that exists on
+    paper but is not doctrine-cleared to fire (today: the outlook shape's R4-fenced spot anchor)."""
+    import yaml
+
+    from leviathan.graphrag import extract as ex  # ex._CFG = configs/graphrag (registry convention)
+    p = ex._CFG / "numbers" / "question_shapes.yaml"
+    doc = yaml.safe_load(p.read_text(encoding="utf-8")) if p.exists() else {}
+    out: dict = {}
+    for shape, spec in ((doc or {}).get("shapes") or {}).items():
+        live = [r for r in ((spec or {}).get("requires") or []) if not (r or {}).get("deferred")]
+        out[shape] = {**(spec or {}), "requires": live}
+    return out
+
+
+# F4 (adversarial review, 2026-08-01): the state a 'no_rows' read is DOWNGRADED to when the query that
+# produced it could not have matched a row under ANY data -- see _scope_resolves. It is deliberately NOT
+# in _STATUS_STATE: no executor status maps to it, so the build-time one-status bind on the decline state
+# (config_check.check_question_shapes half (d)) is unchanged.
+SHAPE_SCOPE_UNRESOLVED = "scope_unresolved"
+# The requirement states, in PRECEDENCE order -- which is the only ordering that matters here. A requirement
+# can be probed by several calls; it takes the FIRST state in this tuple that any of them produced. 'served'
+# leads deliberately: one row anywhere outranks an empty read elsewhere, so a decline can never contradict a
+# figure the same turn is about to print. 'empty' outranks 'scope_unresolved' for the same reason in the
+# other direction: one CORRECTLY scoped empty read is a real absence, whatever else the model mis-keyed.
+_SHAPE_STATES: tuple[str, ...] = ("served", "empty", SHAPE_SCOPE_UNRESOLVED, "not_known", "declined",
+                                  "error", "not_attempted")
+# _exec's own status taxonomy -> the requirement state. _exec is the ONLY writer of those strings, which is
+# what makes condition (c) of D3 structural rather than conventional: nothing else in this module can mint
+# 'no_rows', so nothing else can mint a decline.
+#   ok         -> the lookup returned at least one non-null value.
+#   no_rows    -> "the query matched no data" for a data_date/year_month/ingest table. THE decline state.
+#   not_known  -> the VINTAGE tables' empty result, which _exec assigns without distinguishing "not yet
+#                 published at the as-of" from "scope mismatch". "The record holds no X" is a claim the
+#                 executor never made there, so it is NOT a decline (D3's wrong-decline flip condition).
+#   declined   -> a coverage decline (silver_futures_eod); that class owns its own reader-facing template.
+#   error      -> a malformed/failed call. Finding 2.4(b) measured this at 21 of 24 calls on one table; an
+#                 error is not data absence and must never be narrated as any.
+SHAPE_DECLINE_STATE = "empty"
+_STATUS_STATE: dict[str, str] = {"ok": "served", "no_rows": SHAPE_DECLINE_STATE, "not_known": "not_known",
+                                 "declined": "declined", "error": "error"}
+
+SHAPE_DECLINE_LEAD = "One limitation to flag before the numbers: "
+# The canonical SCOPE phrase the build-time register census and the standing corpus render with, so the
+# scoped form of every decline sentence is linted and pinned exactly like the unscoped one was.
+SHAPE_SCOPE_PROBE = "CBOT corn over 2026-01-01..2026-07-31"
+
+# Detection, in PRIORITY order (first match wins -- one shape per turn, the futures_scope precedent). Each
+# pattern is deliberately narrow on the vocabulary that makes the ask THAT shape; a question matching none of
+# them is shapeless and every line below is a no-op, so an unmatched turn is byte-identical to pre-C2.
+_SHAPE_PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
+    # positioning: the DATA words for a managed-money read. 'open interest' is deliberately absent -- it is
+    # a market-wide figure and the requirement's metric list excludes it, so detecting on it would demand a
+    # managed-money row for a question that never asked for one.
+    ("positioning", re.compile(
+        r"\b(?:managed[- ]money|commitments? of traders|cot report|cot data|\bcot\b|"
+        r"net long|net short|net length|spec(?:ulative)?\s+length|positioning|"
+        r"(?:funds?|specs?|speculators?)\s+(?:are\s+|were\s+|have\s+|remain\w*\s+)?(?:net\s+)?(?:long|short))\b")),
+    # seasonality: the ENSO/oscillation names and the moisture vocabulary a seasonal ask is made of.
+    ("seasonality", re.compile(
+        # The n-tilde is written as a \u escape, not a literal: this file is ASCII-only, and "El Nino"
+        # reaches us both ways (the FE posts NFC, a desk analyst types the ASCII form).
+        r"\b(?:seasonal|seasonality|seasonally|el\s*ni(?:n|\u00f1)o|la\s*ni(?:n|\u00f1)a|enso|oni|"
+        r"southern oscillation|drought|dryness|monsoon|rainfall|precipitation)\b")),
+    # pace: a RATE-of-programme ask, never a stock or a total. 'export sales' is the ESR card's own name.
+    ("pace", re.compile(
+        r"\b(?:export pace|sales pace|shipment pace|shipping pace|pace of (?:exports?|sales|shipments)|"
+        r"export sales|weekly sales|outstanding sales|export commitments?|export programme|export program|"
+        r"(?:ahead of|behind|running against)\s+(?:last year|the (?:five|5)[- ]year))\b")),
+    # outlook: FORWARD framing, plus the s/u metric named outright (the judge named it on 37 of 58 rows).
+    # The bare balance-sheet nouns -- 'ending stocks', 'carryout', 'balance sheet' -- are DELIBERATELY
+    # absent: "what were Argentina corn ending stocks in 2019" is a historical LEVEL ask that the ordinary
+    # lookup path serves, and demanding a stocks-to-use anchor of it would record a miss that is not one.
+    # Measured while authoring, 2026-08-01 -- the first draft of this pattern fired on exactly that ask.
+    ("outlook", re.compile(
+        r"\b(?:outlook|forecast|how high|how low|price target|upside|downside|"
+        r"stocks[- ]to[- ]use|stocks to use|"
+        r"where\s+(?:do|does|will|would|could|might|are)\s+(?:prices?|it|the market|things))\b")),
+)
+
+
+def question_shape_scope(question: str) -> Optional[str]:
+    """The question's SHAPE (positioning / seasonality / pace / outlook), or None when it has none. First
+    match in _SHAPE_PATTERNS order wins -- a positioning ask that also says 'outlook' is a positioning ask,
+    because the more specific vocabulary is the one that names a required metric. None (the common case) is
+    a no-op everywhere below."""
+    q = re.sub(r"\s+", " ", (question or "").lower())
+    for shape, rx in _SHAPE_PATTERNS:
+        if rx.search(q):
+            return shape
+    return None
+
+
+@functools.lru_cache(maxsize=1)
+def _slug_keyed_tables() -> frozenset[str]:
+    """Registry tables whose commodity column is `leviathan_slug`, i.e. whose vocabulary is CONTRACT slugs
+    (silver_cot, silver_psd). tables.yaml:699 records the consequence in as many words: a bare base name
+    ('corn') matches ZERO rows. Deliberately NOT every table with a commodity column -- gold_weather_z and
+    silver_mpob key on a different vocabulary this module cannot enumerate offline, and a validator that
+    guesses would manufacture the false downgrade it exists to prevent."""
+    try:
+        from leviathan.graphrag.numbers.registry import load_registry
+        return frozenset(t for t, s in load_registry().tables.items()
+                         if getattr(s, "commodity_col", None) == "leviathan_slug")
+    except Exception:  # noqa: BLE001 -- a registry problem must never break the agent loop
+        return frozenset()
+
+
+@functools.lru_cache(maxsize=1)
+def _contract_slugs() -> frozenset[str]:
+    """The CONTRACT-slug vocabulary the rest of the stack already carries (evidence hierarchy contracts):
+    corn_cbot, soybean_oil_cbot, arabica_coffee, ... Note 'corn' and 'soybeans' are NOT members -- they are
+    causal-DAG contract ids that cascade._scope aliases to `*_cbot` before it ever queries."""
+    try:
+        from leviathan.graphrag import evidence as ev
+        return frozenset(str(k) for k in ((ev._hier().get("contracts") or {})))
+    except Exception:  # noqa: BLE001 -- no hierarchy -> _scope_resolves fails closed (see below)
+        return frozenset()
+
+
+def _scope_resolves(table, commodity) -> bool:
+    """Could this query have matched a row AT ALL, given how the table is keyed? F4 (adversarial review).
+
+    `_exec` assigns 'no_rows' to every non-vintage empty result, and its own comment says that means "the
+    query matched no data (filter/scope mismatch OR a lake gap)". C2 promoted that into a reader-facing
+    assertion about THE RECORD, and the acute case is the exact table C2 targets: silver_cot's
+    commodity_col is `leviathan_slug`, so a model that passes 'corn' instead of 'corn_cbot' gets 'no_rows'
+    while 12 slugs of weekly data sit in the table -- D3's stated flip condition ("a wrong decline")
+    reachable through the front door. A query whose commodity cannot key the table is therefore NOT
+    evidence of absence; the requirement is downgraded to SHAPE_SCOPE_UNRESOLVED and no line is emitted.
+
+    FAIL-CLOSED means NO DECLINE, in every uncertainty: an unknown table, a missing commodity on a
+    slug-keyed table, or an unavailable vocabulary all return False. A wrong decline is worse than silence
+    (D3), so the untrusted branch is always the quiet one."""
+    tid = str(table or "")
+    if not tid:
+        return False
+    if tid not in _slug_keyed_tables():
+        return True                       # not slug-keyed: nothing this function can honestly claim
+    com = str(commodity or "").strip()
+    if not com:
+        return False                      # a per-contract table read with NO contract never scoped the ask
+    slugs = _contract_slugs()
+    return bool(slugs) and com in slugs
+
+
+def _scope_phrase(q: dict | None) -> str:
+    """What the query ACTUALLY asked for, as a reader-facing noun phrase -- 'CBOT corn over
+    2011-01-01..2012-06-30', 'the 2026-07-31 as-of'. F4(c): the decline names its own scope, so the
+    sentence is a statement about a NAMED read rather than about 'the record' in the abstract.
+
+    The commodity renders through display._contract_label ('corn_cbot' -> 'CBOT corn') rather than raw:
+    reg.sanitize would rewrite the slug on the way out anyway, and rendering it pre-rewritten keeps the
+    build-time 'survives sanitize' census meaningful. Never returns '' -- the as-of is always present
+    (the harness forces it), so there is always something true to name."""
+    q = q or {}
+    com = str(q.get("commodity") or "").strip()
+    label = ""
+    if com:
+        try:
+            from leviathan.graphrag import display as dp
+            label = dp._contract_label(com) or com.replace("_", " ")
+        except Exception:  # noqa: BLE001 -- a label lookup must degrade, never break a decline
+            label = com.replace("_", " ")
+    per = str(q.get("period") or "").strip()
+    p0, p1 = str(q.get("period_start") or "").strip(), str(q.get("period_end") or "").strip()
+    window = per or (f"{p0}..{p1}" if p0 and p1 else (p0 or p1))
+    asof = str(q.get("asof") or "").strip()
+    if label and window:
+        return f"{label} over {window}"
+    if label:
+        return f"{label} as of {asof}" if asof else label
+    if window:
+        return f"the {window} window"
+    return f"the {asof} as-of" if asof else "that window"
+
+
+def _shape_requirement_probe(req: dict, calls: Optional[list]) -> tuple[str, str]:
+    """(this requirement's state, the SCOPE PHRASE of the call that decided it). Matching is TABLE-first:
+      * table matches AND metric is one the requirement accepts -> _exec's status decides;
+      * table matches, status 'error', ANY metric (including none at all) -> 'error'. Finding 2.4(b): a
+        malformed tool call carries the model's RAW input as its query, so the metric key can be missing
+        entirely. That is still an ATTEMPT at the table, and reading it as 'never attempted' would hide the
+        one class that is 87.5% of the calls on silver_futures_prices;
+      * anything else -> not this requirement's business.
+    A 'no_rows' whose query could not have keyed the table is DOWNGRADED to SHAPE_SCOPE_UNRESOLVED (F4).
+    'not_attempted' when nothing matched, which is the miss state (2.3 #1) the whole plan is about."""
+    tables = set(req.get("tables") or ())
+    metrics = set(req.get("metrics") or ())
+    seen: dict[str, str] = {}                      # state -> scope phrase of the FIRST call that produced it
+    for c in (calls or []):
+        if not isinstance(c, dict):
+            continue
+        q = c.get("query") or {}
+        if not isinstance(q, dict) or q.get("table") not in tables:
+            continue
+        status = str(c.get("status") or "")
+        if status == "error":
+            seen.setdefault("error", _scope_phrase(q))
+        elif q.get("metric") in metrics:
+            st = _STATUS_STATE.get(status, "error")
+            if st == SHAPE_DECLINE_STATE and not _scope_resolves(q.get("table"), q.get("commodity")):
+                st = SHAPE_SCOPE_UNRESOLVED
+            seen.setdefault(st, _scope_phrase(q))
+    for state in _SHAPE_STATES:
+        if state in seen:
+            return state, seen[state]
+    return "not_attempted", ""
+
+
+def _shape_requirement_state(req: dict, calls: Optional[list]) -> str:
+    """This requirement's state across every executed call (the state half of _shape_requirement_probe)."""
+    return _shape_requirement_probe(req, calls)[0]
+
+
+def shape_requirement_states(shape: Optional[str], calls: Optional[list]) -> dict[str, str]:
+    """{requirement id: state} for the matched shape -- the record the four miss states (section 2.3) need
+    and that no counter emits today. Empty dict when the question had no shape."""
+    spec = load_shape_table().get(shape or "") or {}
+    return {str(r.get("id")): _shape_requirement_state(r, calls) for r in (spec.get("requires") or [])}
+
+
+def _join_subjects(subjects: list[str], scopes: Optional[list[str]] = None) -> str:
+    """'no A', 'no A and no B', 'no A, no B and no C' -- each subject carries its OWN 'no' so the sentence
+    stays a statement about the RECORD rather than about a list. With `scopes` (F4) each subject also
+    carries its OWN 'for <what was queried>', because two requirements are two different reads and one
+    shared window clause would mis-state at least one of them."""
+    if scopes:
+        parts = [f"no {s} for {sc}" if sc else f"no {s}" for s, sc in zip(subjects, scopes)]
+    else:
+        parts = [f"no {s}" for s in subjects]
+    if len(parts) <= 1:
+        return "".join(parts)
+    return ", ".join(parts[:-1]) + " and " + parts[-1]
+
+
+def shape_decline_line(shape: str, subjects: list[str], scopes: Optional[list[str]] = None) -> str:
+    """The deterministic decline SENTENCE (no trailing blank line). D3(iii): data-absence phrasing about the
+    record, never an effort narrative -- there is no 'we looked', no 'I tried', no 'could not find'. The
+    register census in config_check.check_question_shapes runs this exact renderer, so what is linted is the
+    string the reader gets.
+
+    `scopes` (F4, parallel to `subjects`) names WHAT WAS QUERIED for each absence -- the contract, the
+    window, the as-of. The runtime path ALWAYS supplies it (shape_decline builds it from the empty call
+    itself), so the bare 'for that window' form below survives only for the build-time census and the
+    standing corpus, which render both forms. The reader is never told "the record holds no X" about a
+    scope nobody named."""
+    omission = str((load_shape_table().get(shape) or {}).get("omission") or "").strip()
+    body = _join_subjects(subjects, scopes)
+    line = f"{SHAPE_DECLINE_LEAD}the record holds {body}"
+    if not scopes:
+        line += " for that window"
+    return f"{line}, {omission}." if omission else f"{line}."
+
+
+def shape_decline(shape: Optional[str], calls: Optional[list]) -> tuple[str, list[str], dict[str, str]]:
+    """(preface, declined requirement ids, per-requirement states) -- the WHOLE of C2's reader-facing half,
+    as one pure function of (shape, calls) so the D3 guard is testable in isolation.
+
+    The three conditions of D3 are the three lines of this function and nothing else can satisfy them: the
+    shape must have matched (else `spec` is empty), the requirement must be declared (else it is not in
+    `states`), and its state must be SHAPE_DECLINE_STATE -- which only _exec's 'no_rows' produces. A wrong
+    decline (claiming absence where the data exists) is therefore not a discipline question: there is no
+    path through this function that reaches the preface without a recorded empty fetch.
+
+    F4 adds the FOURTH condition, and it is what makes the sentence's claim match the fetch's evidence:
+    the empty fetch must have been SCOPED to something the table can key (_scope_resolves), and the
+    rendered line NAMES that scope. An empty read under a key the table never serves ('corn' where
+    silver_cot holds 'corn_cbot') is not a fact about the record and no longer produces a line."""
+    spec = load_shape_table().get(shape or "") or {}
+    probes = {str(r.get("id")): _shape_requirement_probe(r, calls) for r in (spec.get("requires") or [])}
+    states = {rid: st for rid, (st, _scope) in probes.items()}
+    declined = [str(r.get("id")) for r in (spec.get("requires") or [])
+                if states.get(str(r.get("id"))) == SHAPE_DECLINE_STATE]
+    if not declined:
+        return "", [], states
+    pairs = [(str(r.get("subject")), probes[str(r.get("id"))][1])
+             for r in (spec.get("requires") or [])
+             if str(r.get("id")) in declined and (r.get("subject") or "").strip()]
+    if not pairs:                                      # a requirement with no subject has no sentence to say
+        return "", [], states
+    subjects = [s for s, _sc in pairs]
+    scopes = [sc for _s, sc in pairs]
+    return shape_decline_line(str(shape), subjects, scopes) + "\n\n", declined, states
+
+
 def _visible_tables(reg: NumbersRegistry) -> list[str]:
     """The registry tables EXPOSED to the agent this call: sorted(reg.tables), MINUS the flag-gated
     pattern-records card when GRAPHRAG_PATTERN_RECORDS is OFF. Read per-call so the kill-switch rollback is
@@ -964,6 +1267,46 @@ def _visible_tables(reg: NumbersRegistry) -> list[str]:
     if PR.PR_TABLE in tables and not PR.pattern_records_on():
         tables = [t for t in tables if t != PR.PR_TABLE]
     return tables
+
+
+# B1: MIRRORS dispatch._FAMILY_PREFIX -- the family enum is DERIVED by stripping this prefix off every
+# registered table id, so resolving a family back to its table means undoing exactly that substitution. The
+# two patterns are pinned equal by a unit test rather than imported, so the numbers agent keeps no dependency
+# on the planner module (the enum is registry-derived on both sides; the planner is not its owner).
+_FAMILY_PREFIX = re.compile(r"^(?:silver|gold|bronze)_")
+
+
+def _families_line(reg: NumbersRegistry, families) -> str:
+    """B1 steering hint: the planner's `data_families` as ONE line of the user turn, or "" when there is
+    nothing honest to say.
+
+    The family enum is registry-derived (silver_cot -> cot), so this generalizes to every registered family
+    with nothing hardcoded -- and it is resolved back to the TABLE ID the agent's own tool enum uses, because
+    a hint naming something the model cannot pass to `lookup_number` is worse than no hint. Resolved against
+    _visible_tables, not reg.tables: the same kill-switch parity the system prompt keeps, so the model is
+    never steered at a card it does not have.
+
+    A HINT, not an instruction to produce a number: it moves a probability, and the plan says so. The closing
+    clause exists because the failure mode of steering is a fabricated row -- an agent told a family is
+    'implicated' can read that as 'a value must exist'. Unknown/garbage families resolve to nothing and the
+    line disappears, so a mis-plumbed enum degrades to today's turn rather than to a lie."""
+    if not families:
+        return ""
+    by_family: dict[str, str] = {}
+    for tid in _visible_tables(reg):
+        by_family.setdefault(_FAMILY_PREFIX.sub("", str(tid)).strip(), str(tid))
+    named: list[str] = []
+    for f in (families or []):
+        t = by_family.get(str(f).strip())
+        if t and t not in named:
+            named.append(t)
+    if not named:
+        return ""
+    return ("\n\nROUTING HINT (from the routing planner, about WHERE TO LOOK -- not evidence, and not a "
+            "claim that a row exists): these observed-data families were flagged as implicated in this "
+            "question: " + ", ".join(named) + ". Look them up unless the question makes them irrelevant. "
+            "A lookup that returns no_rows or not_known is reported as such; never invent a figure to "
+            "satisfy the hint.")
 
 
 def tool_schema(reg: NumbersRegistry) -> dict:
@@ -1293,11 +1636,17 @@ def _forced_spec(asof: str, inp: dict) -> Q.NumberQuery:
 
 
 def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU, reg: Optional[NumbersRegistry] = None,
-                   query_fn=None, max_calls: int = 6, max_tokens: int = 1500, on_call=None) -> dict:
+                   query_fn=None, max_calls: int = 6, max_tokens: int = 1500, on_call=None,
+                   families: Optional[list] = None) -> dict:
     """Run the agent loop. `client` = an anthropic.Anthropic (real = billed); `query_fn(sql)->rows` overrides Athena
     (tests). Returns {answer, calls:[{query, rows}]} — calls carry the exact provenance behind every number.
     `on_call(n_calls, table)` (default None = byte-identical) fires after each executed lookup — the SSE
-    progress hook (5.6 W5); errors are swallowed."""
+    progress hook (5.6 W5); errors are swallowed.
+
+    `families` (B1, default None = byte-identical) are the planner's data_families: a steering HINT appended
+    to the user turn naming which observed-data tables were flagged as implicated. The orchestrator reads the
+    kill-switch and passes the list or nothing — this function reads no environment for it, so the engine is
+    gated by the ARGUMENT and a mis-plumbed enable can never steer an unasked turn."""
     reg = reg or load_registry()
     if client is None:                             # real serving path -> provider-routed + retried
         from leviathan.graphrag import providers as pv
@@ -1309,7 +1658,13 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
     tools = [tool_schema(reg)] + ([stats_tool_schema()] if stats_on else [])   # kill-switch removes the tool
     system = [{"type": "text", "text": system_prompt(reg, stats_tool=stats_on),
                "cache_control": {"type": "ephemeral"}}]                        # cached; prompt matches the schema
-    convo: list[dict] = [{"role": "user", "content": f"As-of date (fixed): {asof}\n\nQuestion: {question}"}]
+    # B1: the hint rides the USER turn, never the system block -- `system` carries cache_control ephemeral and
+    # is byte-stable per (registry, flags), so a per-turn families line there would invalidate the prompt cache
+    # on every turn. QUESTION stays last (the recency slot it has always held); absent families -> the string
+    # is byte-identical to pre-B1.
+    convo: list[dict] = [{"role": "user", "content": f"As-of date (fixed): {asof}"
+                                                     + _families_line(reg, families)
+                                                     + f"\n\nQuestion: {question}"}]
     calls: list[dict] = []
     # W3.5 turn-scoped handle registry: {handle -> {series, kd, unit}}. A lookup mints a handle the model can
     # feed to compute_stat; the registry lives for THIS turn only, so a cross-turn handle can never resolve.
@@ -1339,6 +1694,10 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
     # ONLY when the card flag is on -> flag-off never even computes the scope, so the loop is byte-identical
     # to pre-feature. None (the common case, and always when off) is a no-op everywhere below.
     pr_scope = PR.pattern_records_scope(question, contracts=None) if PR.pattern_records_on() else None
+    # C2 question-shape scope: which observed metric an honest answer to THIS shape of question requires,
+    # resolved ONCE up front and independently of what the model looks up. None (a shapeless ask) is a no-op
+    # everywhere below. It dispatches nothing -- the verdict is taken against the finished call list.
+    shape = question_shape_scope(question)
 
     for _ in range(max_calls):
         def _one():
@@ -1452,6 +1811,20 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                 if pr_line:
                     preface += pr_line + "\n\n"
                 result["pattern_records"] = pr_signal          # surfaced to out['trace'] by run_numbers_only
+            if shape:
+                # C2 (D3): the shape verdict, taken LAST and against the FINAL call list -- the ESR aggregate
+                # and pattern-records branches above append real legs, and a decline that could not see them
+                # would be exactly the wrong decline D3 forbids. (The ESR generic-breakdown branch REPLACES
+                # the answer and returns early, so a turn that served the national aggregate never reaches
+                # here: it served the number, so there is nothing to decline.) The states ride the result
+                # whether or not a line was emitted -- the never-fetched miss (2.3 #1) is the one this plan
+                # is about, and it is silent by construction.
+                shape_preface, shape_declined, shape_states = shape_decline(shape, calls)
+                result["question_shape"] = shape
+                result["shape_metric_states"] = shape_states
+                if shape_declined:
+                    preface += shape_preface
+                    result["shape_decline_guard"] = shape_declined
             if preface:
                 result["answer"] = (preface + text).strip()
             return result

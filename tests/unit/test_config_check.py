@@ -10,6 +10,7 @@ every test so a synthetic lint never leaks into another test (the register-cache
 """
 from __future__ import annotations
 
+import pytest
 from leviathan.graphrag import config_check as cc
 from leviathan.graphrag import display as dp
 from leviathan.graphrag import evidence as ev
@@ -279,6 +280,80 @@ def test_no_engine_ref_flags_and_passes():
     assert cc._check_no_engine_ref({"r1": {"table": "silver_cot"}}, cc.POSITIONING_TABLES, "R9", "positioning")
     assert cc._check_no_engine_ref({"r1": {"table": "silver_wasde"}}, cc.PRICE_TABLES, "R4", "price") == []
     assert cc._check_no_engine_ref({}, cc.PRICE_TABLES, "R4", "price") == []
+
+
+# -- C1 / D1: R9 AS AMENDED -- the positioning CONTEXT/ENGINE split (was a blanket cascade_map ban) ---------
+_COT_CONTEXT_ROW = {"table": "silver_cot", "metric": "mm_net", "agg": "latest", "period_type": "date",
+                    "leg_mode": "current", "country_rule": "none", "native_unit": "contracts",
+                    "narrate_unit": "contracts", "scale": 1}
+
+
+def _with_cot_map(monkeypatch, row=None):
+    from leviathan.graphrag.numbers import cascade as csc
+    real = csc.load_map()
+    monkeypatch.setattr(csc, "load_map",
+                        lambda: {**real, "cot_mm_positioning": row or _COT_CONTEXT_ROW})
+
+
+def test_positioning_lane_admits_the_ratified_context_shape(monkeypatch):
+    # the whole point of D1: the ref EXISTING is no longer a build failure -- only the wrong SHAPE is.
+    _with_cot_map(monkeypatch)
+    assert cc._check_positioning_lane() == []
+    assert cc.check_cot_register() == []                       # R7/R10 still fire and stay clean
+
+
+@pytest.mark.parametrize("tweak,needle", [
+    ({"leg_mode": "era"}, "FORK backbone"),                    # era legs ARE the cross-era fork
+    ({"period_type": "marketing_year"}, "marketing-year fork window"),
+    ({"metric": "exports_mt"}, "reroute PAIR"),                # the RF-3 fork
+    ({"narrate_unit": "flag"}, "REGIME MARKER"),
+])
+def test_positioning_lane_refuses_every_engine_shape(monkeypatch, tweak, needle):
+    _with_cot_map(monkeypatch, {**_COT_CONTEXT_ROW, **tweak})
+    errs = cc._check_positioning_lane()
+    assert errs and any(needle in e for e in errs), errs
+    assert all(e.startswith("R9 cascade_map 'cot_mm_positioning'") for e in errs)
+
+
+def test_positioning_lane_bans_the_engine_maps_by_NAME(monkeypatch):
+    # a hop/leg is an engine position whatever shape the underlying row has, so the chain/complex/
+    # transmission half bans the REF NAME, never the row shape.
+    from leviathan.graphrag.numbers import cascade as csc
+    _with_cot_map(monkeypatch)
+    monkeypatch.setattr(csc, "load_chain_map",
+                        lambda: [{"id": "c1", "hops": [{"node": "n", "ref": "cot_mm_positioning"}]}])
+    errs = cc._check_positioning_lane()
+    assert any("chain_map 'c1'" in e and "never a chain hop" in e for e in errs), errs
+
+
+def test_positioning_lane_pins_the_fenced_set_against_the_engine(monkeypatch):
+    # ONE fenced set: cascade cannot import config_check (cycle), so the mirror is pinned at build time.
+    from leviathan.graphrag.numbers import cascade as csc
+    assert csc.POSITIONING_TABLES == frozenset(cc.POSITIONING_TABLES)
+    monkeypatch.setattr(csc, "POSITIONING_TABLES", frozenset({"silver_cot", "silver_drifted"}))
+    assert any("R9 drift" in e for e in cc._check_positioning_lane())
+
+
+def test_r4_pink_sheet_fence_is_untouched_by_the_r9_amendment():
+    # D1 moved R9 ONLY. The price fence stays a blanket engine ban, and R4 must still be the thing
+    # that refuses a pink-sheet ref no matter how "context-shaped" the row looks.
+    assert cc._check_no_engine_ref({"p": {**_COT_CONTEXT_ROW, "table": "silver_pink_sheet"}},
+                                   cc.PRICE_TABLES, "R4", "price")
+
+
+def test_positioning_corn_no_fork_deck_pin_still_holds_with_the_ref_mapped(monkeypatch):
+    """The v4_cascade pin `positioning_corn_no_fork` asserts `cascade_fired: false` on a positioning
+    ask, and C1 must not flip it. It does not: the pin declares `cascade_drivers: [cot_mm_positioning]`,
+    which is a silver_ref and NOT a corn driver id (corn's driver is `managed_money_positioning`
+    CARRYING that ref), so `_driver(...)` returns None and `driver_fireable` is False at that gate --
+    before `map_row` is ever consulted. Executed with the ref mapped, which is the only way to know."""
+    from leviathan.graphrag.numbers import cascade_census as cen
+    _with_cot_map(monkeypatch)
+    assert cen.driver_fireable("corn", "cot_mm_positioning") is False
+    assert cen.query_realizable({"contract": "corn",
+                                 "cascade_drivers": ["cot_mm_positioning"]}) is False
+    # ... and the driver id it SHOULD have declared is the one the mapping actually enables.
+    assert cen.driver_fireable("corn", "managed_money_positioning") is True
 
 
 def test_decline_census_vacuous_until_template_registry():

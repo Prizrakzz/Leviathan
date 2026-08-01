@@ -379,6 +379,52 @@ def _episode_enumeration(out: dict) -> tuple[list[str], list[set[int]], int]:
     return lines, adj, _max_matching(adj)
 
 
+# ── A5: THE RECEIPT-LESS EPISODE LABEL ───────────────────────────────────────────────────────────────
+# W4 A/B (2026-07-31) measured the leak: on a window with NO citable item the model dressed the label slot
+# into an event narrative -- "earlier Black Sea disruption window", "post-ban window" -- which the record
+# cannot support, while the two ABSENCE slots underneath it were both stated correctly. `_SYSTEM_EPISODES`
+# now says the CASE 1 label is the injected line's OWN label (the node name) copied verbatim; this is the
+# deterministic reading of that rule, so the change is scored by the harness rather than by the panel.
+#
+# THE RULE, and why it is containment rather than equality: the label's tokens must be a SUBSET of the
+# injected node id's tokens. Dropping a token ('black sea disruption' for `black_sea_export_disruption`)
+# is a shortening, not an invention; ADDING one is exactly the failure -- every observed leak added a
+# characterisation word. Equality would red an honest bullet for a dropped word, and a false RED on a
+# deterministic pin is cheap only when it is rare.
+_LABEL_SPLIT_RX = re.compile(r"\s+--\s+|\s+—\s+|\s+–\s+")
+_LABEL_TOKEN_RX = re.compile(r"[a-z0-9]+")
+# Structural words a label may carry without naming anything the record does not hold.
+_LABEL_STOPWORDS = frozenset({"the", "a", "an", "of", "in", "for", "and", "to", "on", "window", "episode",
+                              "period", "era"})
+
+
+def _label_tokens(text: str) -> set[str]:
+    return {t for t in _LABEL_TOKEN_RX.findall((text or "").lower())
+            if t not in _LABEL_STOPWORDS and not t.isdigit()}
+
+
+def _episode_label_of(line: str) -> str | None:
+    """The LABEL slot of a bullet: the text between the span separator ('--') and the first ':'. None when
+    the bullet does not carry the instructed shape at all (no separator or no colon) -- that is a shape
+    failure the other episode pins already own, so this one declines to double-charge it."""
+    body = _LABEL_SPLIT_RX.split(line or "", maxsplit=1)
+    if len(body) < 2:
+        return None
+    head, sep, _rest = body[1].partition(":")
+    return head.strip() if sep else None
+
+
+def _absence_label_ok(line: str, targets: set[int], injected: list[dict]) -> bool:
+    """One receipt-less bullet's label names one of the injected episodes it enumerates, and nothing else."""
+    label = _episode_label_of(line)
+    if label is None:
+        return True                      # not the instructed bullet shape -- other pins own that failure
+    toks = _label_tokens(label)
+    if not toks:
+        return True                      # an empty/structural label invents nothing
+    return any(toks <= _label_tokens(str(injected[i].get("node") or "")) for i in sorted(targets))
+
+
 # ── W3 CURVE / TERM-STRUCTURE pins (PRICE_AND_PLAYBOOKS item 23, plan :1014) ──────────────────────────
 # silver_futures_eod is the PER-DELIVERY-MONTH table whitelisted 2026-07-30. Every pin below reads the
 # ROWS the model was actually handed plus the PROSE it wrote about them -- never out['answer']'s '##
@@ -592,6 +638,9 @@ _CASCADE_EXPECT = ("cascade_fired", "min_cascade_cited", "delta_row", "fork", "a
                    # episode_magnitude_or_absence is the W2b-D5 price-side twin of F-I.
                    "min_episodes_cited", "min_episode_sources", "episode_absence_stated",
                    "min_episode_lines", "episode_magnitude_or_absence",
+                   # A5's deterministic pin: on a receipt-less bullet the LABEL must be the injected
+                   # line's own node label, never a characterisation the record cannot support.
+                   "episode_absence_label_fixed",
                    # W5 OUTLOOK (D5b + D7 + the A2 fence). price_target_backed is the wave's PRIMARY
                    # deterministic teeth and REPLACES `banned_valuation: 0` as the outlook gate: every
                    # emitted level traces to a cited surface with its arithmetic shown. banned_exec is the
@@ -1013,6 +1062,18 @@ def _cascade_asserts(q: dict, out: dict) -> dict | None:
             _ok = all(_adj) and all(_N_HANDLE_RX.search(ln) or _has_any(ln, _NO_PRICE_RECORD)
                                     for ln in _lines)
             res[k] = (bool(_lines) and _ok) == bool(want)
+        elif k == "episode_absence_label_fixed":
+            # A5's deterministic teeth (the one wave-A reader-facing change cheap enough to pin). Every
+            # bullet that declares NO CITABLE ITEM must carry the injected line's OWN label -- see
+            # _absence_label_ok. Requires a NON-EMPTY '## Episodes' section, the same anti-vacuity rule
+            # episode_magnitude_or_absence uses: `all([])` is true and an un-rendered section must not
+            # pass a true-pin. A bullet that targets NO injected episode fails by construction (there is
+            # no label it could have copied), which is the same minted-window refusal as `all(_adj)`.
+            _lines, _adj, _ = _episode_enumeration(out)
+            _inj = _injected_episodes(out)
+            _abs_lines = [(ln, tg) for ln, tg in zip(_lines, _adj) if _has_any(ln, _NO_CITABLE)]
+            _ok = all(_absence_label_ok(ln, tg, _inj) for ln, tg in _abs_lines)
+            res[k] = (bool(_lines) and _ok) == bool(want)
     return res
 
 
@@ -1078,6 +1139,20 @@ def _per_answer_record(r: dict, run_kind: str) -> dict:
             # W3 RCA: stripped-sentence audit rides the baseline ONLY when GRAPHRAG_STRIP_AUDIT is on
             # (verify omits the key when off) -- the per-turn text the by_rule counts can't give.
             "strip_audit": v.get("strip_audit") or None,
+            # A4 (F9): the RAW PRE-SANITIZE draft, same flag, same absent-when-off contract. This
+            # projection is a hard whitelist and is the SINGLE source of truth for both the partial JSONL
+            # and _baseline_json, so a trace key not named here reaches no artifact -- A4's acceptance
+            # check ("for every non-zero raw red, the exact offending sentence") was unreachable without
+            # it even with the flag on. TRACE-ONLY / EVAL-ONLY discipline (answer.raw_draft_snapshot's
+            # docstring): this is a diagnostic surface, never rendered to a reader.
+            "raw_draft": (out.get("trace") or {}).get("raw_draft"),
+            # C2 (F5): the question-shape record -- what an honest answer of this shape REQUIRED, what
+            # state each requirement reached, and whether the deterministic decline fired. Written by the
+            # agent, copied onto the trace by BOTH orchestrator lanes, and read back here: without this
+            # line the four miss states (section 2.3) are unreadable from any artifact.
+            "question_shape": (out.get("trace") or {}).get("question_shape"),
+            "shape_metric_states": (out.get("trace") or {}).get("shape_metric_states"),
+            "shape_decline_guard": (out.get("trace") or {}).get("shape_decline_guard"),
             "register_leaks": len(reg.register_leaks(str(out.get("answer") or ""))),
             "banned_mood_words": (out.get("trace") or {}).get("banned_mood_words", 0),
             "mechanism_scaffold_ok": _scaffold_ok(out),
@@ -1767,7 +1842,13 @@ def verifier_panel(traces: list[dict]) -> list[str]:
             "",
             f"- handles checked: **{total_handles}** | "
             f"stripped: **{total_strips}** | "
-            f"ledger dates corrected: {sum(v.get('corrected', 0) for v in vs)}",
+            # `corrected` is NO LONGER dates-only. It counted ledger-date repairs inside
+            # structured['sources'] metadata; A2a's fail-closed enforcement added NUMBER repairs -- a
+            # single-magnitude, single-handle, non-comparative sentence whose figure mismatches its row has
+            # the row's value substituted into the PROSE and is counted here too. Reading this line as
+            # "dates" would under-report the one number the new enforcement lane exists to move, and the
+            # by_rule breakdown below separates them (`number_mismatch_repaired`, verify.py:531).
+            f"ledger dates + number repairs corrected: {sum(v.get('corrected', 0) for v in vs)}",
             f"- **strip RATE: {total_strips / max(1, total_claims):.4f}** "
             f"(strips / {total_claims} sentence-claims; handle-rate "
             f"{total_strips / max(1, total_handles):.4f}) — the baseline-v0 comparison metric",

@@ -283,9 +283,14 @@ def test_reroute_xc_sign_oppose_fires(monkeypatch):
     assert len(calls) == 6
     # W4: each leg line ends with its SERIES scope -- World is a SYNTHESIS of per-country silver_psd rows,
     # so the tag says so and the ratio cannot be narrated as any one country's
+    # A1 (2026-08-01): the SOURCE segment renders dp.table_label ("USDA PSD"), never the raw silver_* id --
+    # _fmt_line feeds the MODEL's copy-surface and reg.internal_leaks does not match a bare table id.
     assert lines[0] == ("- [N1] world soybean oil stocks-to-use MY2025: 8.1% (vs MY2024 9.4%, -1.3pp over "
-                        "the window) [series: soybean_oil_cbot; country: World; table: silver_psd]")
-    assert lines[1].endswith("[series: malaysian_crude_palm_oil_cme; country: World; table: silver_psd]")
+                        "the window) [series: soybean_oil_cbot; country: World; table: USDA PSD]")
+    assert lines[1] == ("- [N4] world malaysian crude palm oil stocks-to-use MY2025: 12.6% (vs MY2024 11%, "
+                        "+1.6pp over the window) [series: malaysian_crude_palm_oil_cme; country: World; "
+                        "table: USDA PSD]")
+    assert not any("silver_" in ln for ln in lines)
     # W4 A/B RCA (2026-08-01): ONE line prints endpoint + baseline + delta, so the [N] endpoint call is
     # bound to all three; the baseline/delta calls have no line of their own and stay unbound (their single
     # row is already exact). Three shown values = no unambiguous repair source, so a mismatch here drops
