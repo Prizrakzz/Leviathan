@@ -14,7 +14,9 @@ they get exact value checks.
 
 Policy: a violation NEVER triggers a paid retry — the handle is STRIPPED (an uncited model claim is
 more honest than a fabricated attribution) and counted in the report the trace carries; ledger dates
-that merely mistype a real item are corrected in place.
+that merely mistype a real item are corrected in place. ONE exception, and it is why the handle-only
+strip is not universal: a fabricated NUMBER survives the loss of its handle, so number_mismatch is
+fail-closed -- the figure is rewritten from the cited row, or the whole sentence goes.
 """
 from __future__ import annotations
 
@@ -24,6 +26,9 @@ import re
 # The optional trailing letter consumes model-minted variants like [E1b]: unmatched they LEAK to the
 # reader as literal text (Stage-1 RCA q7); matched they resolve by idx and strip like any other handle.
 _HANDLE = re.compile(r"\[(?P<kind>[NE]?)(?P<idx>\d+)(?:[a-z])?\]")
+# Denomination words that make a prose numeral scale-relative ('31.4 million MT'): a repair may not splice
+# a row value next to one -- the row may be raw while the numeral is denominated (see _num_repair).
+_SCALE_WORD = re.compile(r"\b(?:thousand|million|billion|trillion)\b", re.IGNORECASE)
 _QUOTE = re.compile(r"[\"“”]([^\"“”]{15,})[\"“”]")
 _NUM = re.compile(r"\d[\d,]*\.?\d*")
 _SENT_SPLIT = re.compile(r"(?<=[.!?;])\s+")
@@ -103,14 +108,16 @@ _MONTH_AFTER = re.compile(r"\s+(?:" + _MONTHS + r")\b", re.I)             # '25 
 _MONTH_BEFORE = re.compile(r"\b(?:" + _MONTHS + r")\s+\Z", re.I)          # 'July 25, 2026'
 
 
-def _claim_numbers_in(s: str) -> list[float]:
-    """Magnitudes only. EXEMPT (never a claim): (a) a bare 4-digit calendar year 1900-2099 with no
-    decimal/comma ('2,021' and '2010.5' keep their punctuation and stay magnitudes) -- UNLESS a unit
-    token follows ('exports hit 1950 MMT' IS a claim); (b) the 1-2 digit tail of a YEAR
-    range ('1998-99' -> the '99'); (c) any digit run immediately preceded by a letter (B40, T2, MY2021,
-    CO2), handled by _CLAIM_NUM's lookbehind; (d) the 1-2 digit DAY of a date, ISO ('2026-05-30') or
-    long-form on either side of the month name ('25 July 2026', 'July 25, 2026'). A fabricated magnitude
-    ('23.5 MMT' with no such row) is untouched by all four rules and still strips."""
+def _claim_number_spans(s: str) -> list[tuple[int, int, float]]:
+    """(start, end, value) per claim magnitude, positions into `s`. EXEMPT (never a claim): (a) a bare
+    4-digit calendar year 1900-2099 with no decimal/comma ('2,021' and '2010.5' keep their punctuation and
+    stay magnitudes) -- UNLESS a unit token follows ('exports hit 1950 MMT' IS a claim); (b) the 1-2 digit
+    tail of a YEAR range ('1998-99' -> the '99'); (c) any digit run immediately preceded by a letter (B40,
+    T2, MY2021, CO2), handled by _CLAIM_NUM's lookbehind; (d) the 1-2 digit DAY of a date, ISO
+    ('2026-05-30') or long-form on either side of the month name ('25 July 2026', 'July 25, 2026'). A
+    fabricated magnitude ('23.5 MMT' with no such row) is untouched by all four rules and still strips.
+    The span ENDS at the token core, so the sentence punctuation _CLAIM_NUM sweeps up is never part of it
+    (a repair rewrites the numeral, never the full stop after it)."""
     s = s or ""
     out = []
     for m in _CLAIM_NUM.finditer(s):
@@ -136,7 +143,66 @@ def _claim_numbers_in(s: str) -> list[float]:
             if (_DATE_DAY_TAIL.search(before) or _MONTH_BEFORE.search(before)
                     or (_MONTH_AFTER.match(after) and not _UNIT_AFTER.match(after))):
                 continue                                        # (d) the DAY of a date
-        out.append(v)
+        out.append((m.start(), m.start() + len(core), v))
+    return out
+
+
+def _claim_numbers_in(s: str) -> list[float]:
+    """The claim magnitudes, values only -- the historical extractor, now a thin view on the span core."""
+    return [v for _a, _b, v in _claim_number_spans(s)]
+
+
+def _mask_handles(s: str) -> str:
+    """Blank every citation handle to SPACES of its own length. The callers that only need the VALUES use
+    _HANDLE.sub("", ...), but a repair needs the numeral's position in the sentence AS WRITTEN, so the
+    handle digits have to stop being claim numbers without any offset moving."""
+    return _HANDLE.sub(lambda m: " " * (m.end() - m.start()), s or "")
+
+
+def _num_repair(sent: str, idx: int, number_calls: list[dict]) -> tuple[int, int, str] | None:
+    """The UNAMBIGUOUS rewrite for a number_mismatch: sentence-relative (start, end, replacement) when the
+    sentence carries EXACTLY ONE claim number AND the cited call EXACTLY ONE parseable row value; None
+    (-> the whole sentence goes) for every other shape, because a rewrite that has to GUESS which numeral
+    belongs to which row is a second fabrication. The row value lands as a MAGNITUDE:
+    _CLAIM_NUM cannot see a minus, so direction stays wherever the prose already put it.
+    TWO REFUSALS beyond ambiguity: (a) a scale word (million/billion/...) in the sentence means the prose
+    numeral is denominated and the row value may not be -- splicing a raw row value next to 'million'
+    manufactures a new figure, so the sentence goes instead; (b) the replacement must read as prose --
+    a large integer lands comma-grouped, and any value {:g} would render in scientific notation is
+    refused (an analyst note never says 8.85e+07)."""
+    if not (1 <= idx <= len(number_calls)):
+        return None
+    if _SCALE_WORD.search(sent):
+        return None
+    vals = []
+    for r in (number_calls[idx - 1].get("rows") or []):
+        try:
+            vals.append(float(str(r.get("value")).replace(",", "")))
+        except (TypeError, ValueError):
+            continue
+    spans = _claim_number_spans(_mask_handles(sent))
+    if len(vals) != 1 or len(spans) != 1:
+        return None
+    av = abs(vals[0])
+    repl = f"{av:g}"
+    if "e" in repl or "E" in repl:
+        if av == int(av):
+            repl = f"{int(av):,}"
+        else:
+            return None
+    return spans[0][0], spans[0][1], repl
+
+
+def _coalesce(spans: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    """Absorb any drop span contained in a larger one and merge the overlaps. The historical
+    `sorted(set(drops), reverse=True)` removal corrupted the text the moment two spans overlapped -- which a
+    whole-sentence drop swallowing the handle drops inside it does by construction."""
+    out: list[tuple[int, int]] = []
+    for a, b in sorted(set(spans)):
+        if out and a <= out[-1][1]:
+            out[-1] = (out[-1][0], max(out[-1][1], b))
+        else:
+            out.append((a, b))
     return out
 
 
@@ -269,6 +335,13 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
         if _audit_on:
             report["strip_audit"] = []
 
+        # W4 A/B RCA (2026-07-31): a number_mismatch dropped the HANDLE only, so the fabricated FIGURE stayed
+        # on the page -- now uncited, which reads as the analyst's own number (the judge scored 4 of these on
+        # one row, e.g. "-0.72 degC [N12]" against rows of +0.06). Fail-closed by DEFAULT: rewrite the figure
+        # from the cited row when that is unambiguous, else delete the whole sentence. =handle restores the
+        # legacy handle-only strip byte for byte; ANY other value (absent included) is the new behaviour.
+        _failclosed = os.environ.get("GRAPHRAG_VERIFY_NUM_MODE", "") != "handle"
+
         evidence = evidence or []
         number_calls = number_calls or []
 
@@ -328,7 +401,7 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
         # 2) sentence-scoped prose checks; strip violating handles BY POSITION (formatting untouched)
         _BOUND = re.compile(r"[.!?;](?=\s|$)|\n")         # never a decimal point (needs trailing space/EOL)
 
-        def _sentence_at(text: str, pos: int) -> str:
+        def _sentence_span(text: str, pos: int) -> tuple[int, int]:
             start = 0
             end = len(text)
             for b in _BOUND.finditer(text):
@@ -337,7 +410,20 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
                 elif b.start() >= pos:
                     end = b.end()
                     break
-            return text[start:end]
+            return start, end
+
+        def _sentence_at(text: str, pos: int) -> str:
+            a, b = _sentence_span(text, pos)
+            return text[a:b]
+
+        def _drop_span(text: str, s0: int, s1: int) -> tuple[int, int]:
+            """The span a WHOLE-SENTENCE drop deletes. A sentence starts AFTER the previous terminator, so it
+            already owns its leading space ('A. B. C.' minus B reads 'A. C.'); the first sentence has none, so
+            it takes the following space instead and the field never opens on an indent."""
+            if s0 == 0:
+                while s1 < len(text) and text[s1] == " ":
+                    s1 += 1
+            return s0, s1
 
         foreign = re.compile(r"\b(" + "|".join(re.escape(n) for n in sorted(foreign_names)) + r")\b") \
             if foreign_names else None
@@ -353,10 +439,15 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
                      "numbers": _claim_numbers_in(_HANDLE.sub("", sent))})
 
         def _verify_field(text: str, field: str = "") -> str:
+            # PASS 1 -- every verdict is read against the ORIGINAL text (positions must all stay comparable);
+            # nothing is applied until pass 3. A fail-closed number_mismatch is DEFERRED because its remedy
+            # (repair vs whole-sentence drop) depends on the other handles sharing its sentence.
             drops: list[tuple[int, int]] = []
+            pending: list[tuple[int, int, str, int]] = []
             for m in _HANDLE.finditer(text):
                 report["checked"] += 1
-                sent = _sentence_at(text, m.start())
+                s0, s1 = _sentence_span(text, m.start())
+                sent = text[s0:s1]
                 if m.group("kind") == "N":
                     rule = _check_number_handle(sent, int(m.group("idx")), number_calls)
                 else:
@@ -366,6 +457,9 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
                     else:                                 # handle never declared in the ledger: keep it only
                         rule = ("undeclared_unsupported"  # if SOME provided item supports the sentence
                                 if _check_evidence_handle(sent, evidence) else None)
+                if rule == "number_mismatch" and _failclosed:
+                    pending.append((s0, s1, sent, int(m.group("idx"))))
+                    continue
                 if rule:
                     drops.append((m.start(), m.end()))
                     report["stripped"] += 1
@@ -377,8 +471,43 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
                     report["stripped"] += 1
                     report["by_rule"]["foreign_regime_name"] = report["by_rule"].get("foreign_regime_name", 0) + 1
                     _audit("foreign_regime_name", field, _sentence_at(text, m.start()))
-            for a, b in sorted(set(drops), reverse=True):
-                text = text[:a] + text[b:]
+
+            # PASS 2 -- resolve the deferred mismatches. A sentence is REPAIRABLE only if every mismatched
+            # handle in it agrees on the same one-numeral/one-row rewrite; anything else kills the sentence,
+            # and one killed handle kills it for all of them (the drop wins over any repair inside it).
+            per_sent: dict[tuple[int, int], dict[tuple[int, int], str]] = {}
+            killed: set[tuple[int, int]] = set()
+            for s0, s1, sent, idx in pending:
+                rep = _num_repair(sent, idx, number_calls)
+                slot = per_sent.setdefault((s0, s1), {})
+                if rep is None or slot.get((s0 + rep[0], s0 + rep[1]), rep[2]) != rep[2]:
+                    killed.add((s0, s1))
+                else:
+                    slot[(s0 + rep[0], s0 + rep[1])] = rep[2]
+            edits: dict[tuple[int, int], str] = {}
+            for span, slot in per_sent.items():
+                if span not in killed:
+                    edits.update(slot)
+            for s0, s1, sent, _idx in pending:            # counted per OFFENDING handle, as every rule is
+                if (s0, s1) in killed:
+                    drops.append(_drop_span(text, s0, s1))
+                    report["stripped"] += 1
+                    report["by_rule"]["number_mismatch"] = report["by_rule"].get("number_mismatch", 0) + 1
+                    _audit("number_mismatch", field, sent)
+                else:                                     # the handle SURVIVES -- it now points at its row
+                    report["corrected"] += 1
+                    report["by_rule"]["number_mismatch_repaired"] = \
+                        report["by_rule"].get("number_mismatch_repaired", 0) + 1
+                    _audit("number_mismatch_repaired", field, sent)
+
+            # PASS 3 -- apply. Coalesce the drops first so a sentence span ABSORBS the handle spans inside it
+            # (no double-drop, no corrupted slice), then rewrite in reverse position order.
+            spans = _coalesce(drops)
+            ops = [(a, b, "") for a, b in spans]
+            ops += [(a, b, v) for (a, b), v in edits.items()
+                    if not any(x < b and a < y for x, y in spans)]
+            for a, b, v in sorted(ops, reverse=True):
+                text = text[:a] + v + text[b:]
             return re.sub(r" +([.,;])", r"\1", re.sub(r"  +", " ", text))
 
         for fld in ("tldr", "mechanism"):

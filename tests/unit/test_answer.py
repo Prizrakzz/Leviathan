@@ -414,6 +414,12 @@ def test_thin_turn_honesty_prompt_clauses_present():
     assert 'NEVER as "era 0"/"era 1"' in casc
     # Clause B stale-example fix: the rounded handle-carrying figure is gone, replaced by a verbatim level
     assert "rose ~18%" not in casc and "were 12.549 MMT" in casc
+    # W4 A/B (2026-07-31) SCOPE clause: the producer half of cascade._series_tag. Four scope
+    # mis-attributions in one measured turn (contract-slug rows narrated as Russia / Ukraine / US total)
+    # -- correct figures every time, so the citation verifier could not see any of them.
+    assert "[series: ...; country: ...; table: ...]" in casc
+    assert "read it, never print it" in casc                          # the tag is engine metadata
+    assert "world/total aggregate is fabrication" in casc
 
 
 def _fake_answer_call(captured):

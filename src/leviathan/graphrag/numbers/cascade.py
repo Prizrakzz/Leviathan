@@ -1205,7 +1205,7 @@ def _pace_legs(records: list, kept: list, base: int, calls: list) -> tuple:
             n += 1
             calls.append(_pace_synth(r, row, d, n, kind="pace_change", unit=unit))
             lines.append(f"- [N{n}] change in {row.get('metric')} from the prior {grain} "
-                         f"({gnoun} pace): {d:+g} {unit}".rstrip())
+                         f"({gnoun} pace): {d:+g} {unit}".rstrip() + _series_tag(r.get("query"), row))
             emitted = True
         last_delta = vals[-1] - vals[-2]
         if last_delta != 0:
@@ -1218,7 +1218,8 @@ def _pace_legs(records: list, kept: list, base: int, calls: list) -> tuple:
                 n += 1
                 calls.append(_pace_synth(r, row, run, n, kind="pace_streak", unit=f"{grain}s"))
                 word = "rose" if direction == "up" else "fell"
-                lines.append(f"- [N{n}] {row.get('metric')} {word} in each of the last {run} {grain}s")
+                lines.append(f"- [N{n}] {row.get('metric')} {word} in each of the last {run} {grain}s"
+                             + _series_tag(r.get("query"), row))
                 emitted = True
         if emitted:
             trace.append(entry)
@@ -1325,9 +1326,9 @@ def _cross_era_diff(era_deltas: dict, eras: dict, cur: dict | None, row: dict) -
     return (vb - va) * scale, f"{_endpoint_label(ea)}->{_endpoint_label(eb)}", eb
 
 
-def _fmt_era_diff(row: dict, d: float, n: int, *, period: str) -> str:
+def _fmt_era_diff(row: dict, d: float, n: int, *, period: str, q: dict | None = None) -> str:
     return (f"- [N{n}] cross-era change in {row.get('metric')} ({period}): "
-            f"{d:+g} {row.get('narrate_unit') or ''}".rstrip())
+            f"{d:+g} {row.get('narrate_unit') or ''}".rstrip() + _series_tag(q, row))
 
 
 def _group_by_node(records: list, kept: list) -> dict:
@@ -1376,6 +1377,23 @@ def _era_label(era, row: dict | None = None) -> str:
     return "earlier era" if idx == 0 else "later era"
 
 
+def _series_tag(q: dict | None, row: dict | None = None) -> str:
+    """The SCOPE suffix every reader-facing [N] row line ends with:
+    ' [series: <commodity>; country: <country>; table: <table>]'.
+
+    W4 A/B (2026-07-31): the rendered line named the metric, the period and the as-of but never the SERIES the
+    figure was measured on, so rows keyed to a contract slug (soft_red_winter_wheat_cbot) came back narrated as
+    "Russia", "Ukraine" and "US total" -- four scope mis-attributions the citation verifier cannot catch,
+    because every FIGURE was transcribed correctly. Country comes off the query _scope() already resolved.
+    An absent field drops its own segment (never the literal "None"); all absent -> no tag."""
+    q = q or {}
+    parts = [f"{lbl}: {v}" for lbl, v in (("series", q.get("commodity")),
+                                          ("country", q.get("country")),
+                                          ("table", (row or {}).get("table") or q.get("table")))
+             if v not in (None, "")]
+    return f" [{'; '.join(parts)}]" if parts else ""
+
+
 def _fmt_line(rec: dict, row: dict, n: int, *, era) -> str:
     v = _float_val(rec)
     scale = float(row.get("scale", 1) or 1)
@@ -1384,16 +1402,17 @@ def _fmt_line(rec: dict, row: dict, n: int, *, era) -> str:
     q = rec.get("query") or {}
     tag = _era_label(era, row)
     return (f"- [N{n}] {q.get('commodity')} {row.get('metric')} {q.get('period') or ''} ({tag}, "
-            f"as-of {q.get('asof')}): {val} {unit}".rstrip())
+            f"as-of {q.get('asof')}): {val} {unit}".rstrip() + _series_tag(q, row))
 
 
-def _fmt_delta(row: dict, d: float, n: int, *, era) -> str:
+def _fmt_delta(row: dict, d: float, n: int, *, era, q: dict | None = None) -> str:
     return (f"- [N{n}] change within the {_era_label(era, row)} in {row.get('metric')}: "
-            f"{d:+g} {row.get('narrate_unit') or ''}".rstrip())
+            f"{d:+g} {row.get('narrate_unit') or ''}".rstrip() + _series_tag(q, row))
 
 
-def _fmt_pct(row: dict, pct: float, n: int, *, era) -> str:
-    return f"- [N{n}] change within the {_era_label(era, row)} in {row.get('metric')}: {pct:+g} %"
+def _fmt_pct(row: dict, pct: float, n: int, *, era, q: dict | None = None) -> str:
+    return (f"- [N{n}] change within the {_era_label(era, row)} in {row.get('metric')}: {pct:+g} %"
+            + _series_tag(q, row))
 
 
 def _fmt_absence(rec: dict) -> str:
@@ -1438,12 +1457,12 @@ def _assemble(records: list, kept: list, base: int, calls: list) -> tuple:
                 era_deltas[i] = d
                 n += 1
                 calls.append(_delta_call(oks[-1], row, d, n, kind="delta"))
-                lines.append(_fmt_delta(row, d, n, era=i))
+                lines.append(_fmt_delta(row, d, n, era=i, q=oks[-1].get("query")))
                 pct = _pct_change(oks, row)
                 if pct is not None:
                     n += 1
                     calls.append(_delta_call(oks[-1], row, pct, n, kind="pct"))
-                    lines.append(_fmt_pct(row, pct, n, era=i))
+                    lines.append(_fmt_pct(row, pct, n, era=i, q=oks[-1].get("query")))
         if cur and cur.get("status") == "ok" and (cur.get("rows") or []):
             n += 1
             calls.append(_prescaled(cur, row, n))
@@ -1464,7 +1483,7 @@ def _assemble(records: list, kept: list, base: int, calls: list) -> tuple:
                 diff, period_lbl, later_rec = ced
                 n += 1
                 calls.append(_delta_call(later_rec, row, diff, n, kind="era_diff", period=period_lbl))
-                lines.append(_fmt_era_diff(row, diff, n, period=period_lbl))
+                lines.append(_fmt_era_diff(row, diff, n, period=period_lbl, q=later_rec.get("query")))
             lines.append(f"DIVERGENCE on {row.get('metric')}: {a:+g} vs {b:+g} "
                          f"({row.get('narrate_unit') or ''}) "
                          f"-- render '## Where the record disagrees' and show BOTH eras; do not blend.")
@@ -1800,8 +1819,11 @@ def _xc_leg_lines(la, source, A, lb, target, B, calls: list, base: int, asof) ->
         calls.append(_xc_call(cmdty, p_lo, my_lo, asof))        # the baseline (backs the '(vs MY.. ..%)' term)
         n += 1
         calls.append(_xc_call(cmdty, d, my_hi, asof, unit="pp"))    # the delta (backs the '..pp' term)
+        # World is SYNTHESIZED from per-country silver_psd rows (_world_su_ratio), so the scope tag states the
+        # basis explicitly -- a World ratio narrated as one country is the exact mis-attribution class.
         lines.append(f"- [N{handle}] {lbl} stocks-to-use MY{my_hi}: {p_hi:g}% "
-                     f"(vs MY{my_lo} {p_lo:g}%, {d:+g}pp over the window)")
+                     f"(vs MY{my_lo} {p_lo:g}%, {d:+g}pp over the window)"
+                     + _series_tag({"commodity": cmdty, "country": "World", "table": "silver_psd"}))
     return lines, ((mya0, pa0, mya1, pa1), (myb0, pb0, myb1, pb1))
 
 
@@ -2055,15 +2077,17 @@ def _price_pair(price_request: dict, sg, graph, groups: list, qfn, asof, near, c
         n = base
         n += 1
         h_a = n
-        calls.append(_price_call(commodity, reg_a, p_a, lab_a, asof, unit=u_a))   # [N{h_a}] baseline-MY level
+        c_a = _price_call(commodity, reg_a, p_a, lab_a, asof, unit=u_a)           # [N{h_a}] baseline-MY level
+        calls.append(c_a)
         n += 1
         h_b = n
-        calls.append(_price_call(commodity, reg_b, p_b, lab_b, asof, unit=u_b))   # [N{h_b}] event-MY level
+        c_b = _price_call(commodity, reg_b, p_b, lab_b, asof, unit=u_b)           # [N{h_b}] event-MY level
+        calls.append(c_b)
         label = "US wheat farm price (all classes)" if commodity == "wheat" else f"US {commodity} farm price"
         verb = "rose from" if p_b >= p_a else "fell from"         # direction is prose; the level is the [N] row
         lines = [
-            f"- [N{h_a}] {label} MY{lab_a}: {_fmt_price(p_a, u_a)}",
-            f"- [N{h_b}] {label} MY{lab_b}: {_fmt_price(p_b, u_b)}",
+            f"- [N{h_a}] {label} MY{lab_a}: {_fmt_price(p_a, u_a)}" + _series_tag(c_a["query"]),
+            f"- [N{h_b}] {label} MY{lab_b}: {_fmt_price(p_b, u_b)}" + _series_tag(c_b["query"]),
             (f"PRICE-RESPONSE on avg_farm_price: {label} {verb} {_fmt_price(p_a, u_a)} [N{h_a}] (MY{lab_a}) "
              f"to {_fmt_price(p_b, u_b)} [N{h_b}] (MY{lab_b}) -- the settled USDA season-average farm price "
              f"(survey-based, revision_stamp actual at the session as-of; NOT a futures settle, NOT a forecast); "
@@ -2229,16 +2253,17 @@ def _chain_fmt_line(rec: dict, row: dict, n: int, *, label: str, current: bool =
     q = rec.get("query") or {}
     period = "current" if current else (q.get("period") or "")
     return (f"- [N{n}] {label} {q.get('commodity') or ''} {row.get('metric')} {period} "
-            f"(as-of {q.get('asof')}): {val} {unit}".rstrip())
+            f"(as-of {q.get('asof')}): {val} {unit}".rstrip() + _series_tag(q, row))
 
 
-def _chain_fmt_delta(row: dict, d: float, n: int, *, label: str) -> str:
+def _chain_fmt_delta(row: dict, d: float, n: int, *, label: str, q: dict | None = None) -> str:
     return (f"- [N{n}] {label} change within the anchor window in {row.get('metric')}: "
-            f"{d:+g} {row.get('narrate_unit') or ''}".rstrip())
+            f"{d:+g} {row.get('narrate_unit') or ''}".rstrip() + _series_tag(q, row))
 
 
-def _chain_fmt_pct(row: dict, pct: float, n: int, *, label: str) -> str:
-    return f"- [N{n}] {label} change within the anchor window in {row.get('metric')}: {pct:+g} %"
+def _chain_fmt_pct(row: dict, pct: float, n: int, *, label: str, q: dict | None = None) -> str:
+    return (f"- [N{n}] {label} change within the anchor window in {row.get('metric')}: {pct:+g} %"
+            + _series_tag(q, row))
 
 
 def _chain_register_fence(lines: list, calls: list, base: int) -> list:
@@ -2464,12 +2489,12 @@ def _chain_legs(sg, graph, kept: list, records: list, qfn, asof, near, calls: li
                     delta_val = dlt
                     n += 1
                     calls.append(_delta_call(oks[-1], row, dlt, n, kind="delta"))
-                    lines.append(_chain_fmt_delta(row, dlt, n, label=label))
+                    lines.append(_chain_fmt_delta(row, dlt, n, label=label, q=oks[-1].get("query")))
                     pct = _pct_change(oks, row)
                     if pct is not None:
                         n += 1
                         calls.append(_delta_call(oks[-1], row, pct, n, kind="pct"))
-                        lines.append(_chain_fmt_pct(row, pct, n, label=label))
+                        lines.append(_chain_fmt_pct(row, pct, n, label=label, q=oks[-1].get("query")))
             if cur is not None and cur.get("status") == "ok" and (cur.get("rows") or []):
                 statuses["current"] = "ok"
                 n += 1

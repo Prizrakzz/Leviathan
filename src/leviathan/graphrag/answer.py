@@ -370,6 +370,12 @@ _SYSTEM_CASCADE = (
     "NAME EACH ERA BY ITS MARKETING YEAR OR PERIOD (\"the 2016/17 season\", "
     "\"the 2018/19 drought\"), NEVER as \"era 0\"/\"era 1\" -- the bare index reads as an uncited magnitude and "
     "a reader must never see an internal label. Name each leg by the COUNTRY shown in its row, exactly. "
+    # W4 A/B (2026-07-31): four scope mis-attributions in one turn -- contract-slug rows narrated as
+    # "Russia"/"Ukraine"/"US total" -- because the rendered line never said whose series it was.
+    "SCOPE: every [N] row line ends with a '[series: ...; country: ...; table: ...]' tag naming EXACTLY what "
+    "that figure was measured on -- read it, never print it. Narrating an [N] figure as any other country, "
+    "region, contract, or as a world/total aggregate is fabrication, however the question was phrased. When "
+    "the series shown is not the one the question asks about, name the series it IS for and say so. "
     "And in the record as everywhere else: never 'bullish' or 'bearish' -- direction is prose ('fell', "
     "'rose to fill the gap'), magnitude is the [N] row.\n")
 
@@ -724,6 +730,15 @@ _SYSTEM_EPISODES = (
     "line, however long it runs -- never wrap a bullet onto a continuation line and never break one across "
     "two '- ' items. A bullet is read line by line, so anything pushed onto a second line is not read as "
     "part of that episode.\n"
+    # W4 A/B (2026-07-31): the label slot was the leak. On a NO CITABLE ITEM window the model dressed
+    # '<what the window is, in plain words>' into an event narrative ("Black Sea export disruption episode")
+    # the record cannot support -- the two absence slots were both stated correctly underneath it.
+    "LABEL (between the span and the colon): when the injected episode says NO CITABLE ITEM IN THIS "
+    "WINDOW, the label is that line's OWN label -- the node name the 'DATED EPISODES' line carries -- "
+    "copied verbatim and NOTHING else. Do not characterise what happened there: no disruption, crisis, "
+    "shock, collapse, squeeze or rally, and no cause, severity or outcome word of your own. An "
+    "unreceipted window records WHEN reports clustered, not WHAT happened, so any characterisation of it "
+    "is invented. A window that DOES carry a citable item may name itself from that receipt.\n"
     "BACKING (first slot) is EITHER one clause restating what a cited dated item inside that window "
     "actually says, carrying that item's [E] handle, OR -- when the injected episode says NO CITABLE ITEM "
     "IN THIS WINDOW -- the absence itself, in these words: 'no citable item', 'no dated source', or 'the "
@@ -749,9 +764,10 @@ _SYSTEM_EPISODES = (
     "emits 'YYYY', emits an angle bracket, or reproduces one of these lines as though it were an "
     "episode has enumerated NOTHING -- an episode you did not read off an injected 'DATED EPISODES' "
     "line does not exist, and writing one down is the single worst failure available here.\n"
-    "CASE 1 -- no citable item and no price row (the common case, both slots ABSENT):\n"
-    "- YYYY-MM..YYYY-MM -- <what the window is, in plain words>: no citable item in this window, so what "
-    "happened is not narrated; no price record for this window.\n"
+    "CASE 1 -- no citable item and no price row (the common case, both slots ABSENT; the label is the "
+    "injected line's own, NOT a description of the window):\n"
+    "- YYYY-MM..YYYY-MM -- <the node name the injected line carries, verbatim>: no citable item in this "
+    "window, so what happened is not narrated; no price record for this window.\n"
     "CASE 2 -- receipted but unpriced (backing from the receipt, magnitude absent):\n"
     "- YYYY-MM..YYYY-MM -- <what the window is, in plain words>: <one clause restating what the cited "
     "in-window item actually says, reusing its wording> [E<k>]; no observed magnitude for this window.\n"

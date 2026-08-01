@@ -102,7 +102,8 @@ def test_pace_leg_end_to_end_emits_the_front_month_change_row(monkeypatch):
     assert len(calls) == 1 and len(lines) == 1                           # one move: change row, no streak
     assert calls[0]["rows"][0]["value"] == pytest.approx(-2.0)           # NEVER +5 (Mar-2027 - Dec-2026)
     assert calls[0]["query"]["metric"] == "settle_pace_change"
-    assert lines[0] == "- [N1] change in settle from the prior day (daily pace): -2 EUR/t"
+    assert lines[0] == ("- [N1] change in settle from the prior day (daily pace): -2 EUR/t "
+                        "[series: french_wheat_matif; table: silver_futures_eod]")
     assert trace[0]["collapse"] == "front_expiry"
     assert trace[0]["n_points"] == 2                                     # TRADE DATES, not curve rows
     assert cq.pace_register_ok(lines[0])

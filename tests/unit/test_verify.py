@@ -63,9 +63,13 @@ def test_quote_must_substring_match():
     assert "[1]" not in s["tldr"] and rep["by_rule"].get("quote_mismatch") == 1
 
 
-def test_number_handle_scale_match_and_mismatch():
+def test_number_handle_scale_match_and_mismatch(monkeypatch):
     ok = _structured("Ending stocks were 31.4 million MT [N1].", [])
     assert vf.verify_citations(ok, EV, NUMS)["stripped"] == 0 and "[N1]" in ok["tldr"]
+    # the MISMATCH half is pinned in legacy mode: under the default the sentence is repairable (one claim
+    # number, one row value), so the handle-only strip it asserts is exactly what GRAPHRAG_VERIFY_NUM_MODE
+    # =handle preserves. The default behaviour on this same input is pinned below.
+    monkeypatch.setenv("GRAPHRAG_VERIFY_NUM_MODE", "handle")
     bad = _structured("Ending stocks were 48.2 million MT [N1].", [])
     rep = vf.verify_citations(bad, EV, NUMS)
     assert "[N1]" not in bad["tldr"] and rep["by_rule"].get("number_mismatch") == 1
@@ -466,3 +470,139 @@ def test_pattern_records_preface_only_the_denominator_is_unbacked():
     sent = ("The engine has recorded export_pace on CBOT corn firing on 9 of 156 weekly replay "
             "asofs [N1], first recorded 2026-05-30.")
     assert vf._claim_numbers_in(sent) == [9.0, 156.0]
+
+
+# -- W4 A/B RCA (2026-07-31): number_mismatch is FAIL-CLOSED --------------------------------------------
+# The handle-only strip removed the CITATION and left the FABRICATED FIGURE on the page, now reading as the
+# analyst's own number. The eval judge scored four such fabrications on ONE row while by_rule already carried
+# number_mismatch=3 -- the verifier SAW them and published them anyway. Default policy now: rewrite the
+# figure from the cited row when the sentence is unambiguous, delete the whole sentence otherwise.
+def _calls(rows: dict) -> list:
+    """number_calls long enough for the highest cited [N] index; a listed index carries exactly ONE row."""
+    return [{"query": {"metric": "m"}, "rows": ([{"value": rows[i]}] if i in rows else [])}
+            for i in range(1, max(rows) + 1)]
+
+
+def test_judge_fixture_transcription_fabrications_are_repaired_in_place():
+    """The four figures the judge caught, each a single-number/single-row sentence -> the TRUE value lands in
+    the prose and the handle stays (it is no longer a mis-citation once the figure is the row's)."""
+    cases = [
+        ("Anomalies ran -0.72 degC [N12][N4].", _calls({4: 0.06, 12: 0.06}),
+         "Anomalies ran -0.06 degC [N12][N4].", 2),
+        ("The index sat at -0.693675 z [N14].", _calls({14: -2.1035}),
+         "The index sat at -2.1035 z [N14].", 1),
+        ("The index sat at -1.78323 z [N15].", _calls({15: -1.4097}),
+         "The index sat at -1.4097 z [N15].", 1),
+        ("It peaked at +2.47 degC [N1].", _calls({1: 2.75}),
+         "It peaked at +2.75 degC [N1].", 1),
+    ]
+    for prose, calls, want, n_handles in cases:
+        s = _structured(prose, [])
+        rep = vf.verify_citations(s, [], calls)
+        assert s["tldr"] == want, prose
+        assert rep["stripped"] == 0, prose                     # a repair is NOT a strip
+        assert rep["corrected"] == n_handles, prose
+        assert rep["by_rule"].get("number_mismatch_repaired") == n_handles, prose
+        assert "number_mismatch" not in rep["by_rule"], prose  # the rule key is not double-charged
+
+
+def test_repair_direction_stays_in_the_prose_sign():
+    """_CLAIM_NUM cannot see a minus, so the row's MAGNITUDE goes in and the sign already on the page stays
+    put -- the repair fixes the transcription, it never re-argues the direction."""
+    s = _structured("The anomaly read -0.693675 z [N1].", [])
+    vf.verify_citations(s, [], _calls({1: -2.1035}))
+    assert s["tldr"] == "The anomaly read -2.1035 z [N1]."     # magnitude from the row, minus untouched
+
+
+def test_repair_audit_entry_names_the_repaired_rule(monkeypatch):
+    monkeypatch.setenv("GRAPHRAG_STRIP_AUDIT", "on")
+    s = _structured("It peaked at +2.47 degC [N1].", [])
+    rep = vf.verify_citations(s, [], _calls({1: 2.75}))
+    assert [e["rule"] for e in rep["strip_audit"]] == ["number_mismatch_repaired"]
+    assert rep["strip_audit"][0]["field"] == "tldr" and "2.47" in rep["strip_audit"][0]["text"]
+
+
+def test_ambiguous_multi_number_sentence_is_deleted_whole_with_its_other_handles():
+    """TWO claim numbers -> no rewrite can be made without guessing which numeral is the fabrication, so the
+    sentence goes. The innocent [N2] rides out with it: dropped ONCE, counted ZERO times."""
+    calls = _calls({1: 9.9, 2: 2.2, 3: 5.5})                   # N3 backs the 5.5 so N2 is otherwise clean
+    s = _structured("Stocks held steady. Exports ran 5.5 MMT [N1] against a 2.2 MMT [N2] baseline. "
+                    "Prices firmed.", [])
+    rep = vf.verify_citations(s, [], calls)
+    assert s["tldr"] == "Stocks held steady. Prices firmed."   # no doubled space, no orphan punctuation
+    assert rep["checked"] == 2 and rep["stripped"] == 1        # ONE offending handle charged, not two
+    assert rep["by_rule"] == {"number_mismatch": 1}            # the existing rule key, so by_rule compares
+    # the same sentence FIRST in the field: it takes the following space, never leaving a leading indent
+    s2 = _structured("Exports ran 5.5 MMT [N1] against a 2.2 MMT [N2] baseline. Prices firmed.", [])
+    vf.verify_citations(s2, [], calls)
+    assert s2["tldr"] == "Prices firmed."
+
+
+def test_repair_leaves_a_matching_sibling_handle_alone():
+    """One claim number, one mismatched handle and one MATCHING handle in the same sentence: the figure is
+    repaired and nothing is dropped -- a clean handle never drags its sentence down."""
+    s = _structured("The anomaly reached -0.72 degC [N1][N2].", [])
+    rep = vf.verify_citations(s, [], _calls({1: 0.06, 2: 0.72}))
+    assert s["tldr"] == "The anomaly reached -0.06 degC [N1][N2]."
+    assert rep["stripped"] == 0 and rep["corrected"] == 1
+    assert rep["by_rule"] == {"number_mismatch_repaired": 1}
+
+
+def test_no_repair_when_the_cited_call_carries_several_rows():
+    """Two row values = no single TRUE figure to write, so the sentence is deleted rather than guessed."""
+    calls = [{"query": {"metric": "m"}, "rows": [{"value": 0.06}, {"value": 0.09}]}]
+    s = _structured("Anomalies ran -0.72 degC [N1].", [])
+    rep = vf.verify_citations(s, [], calls)
+    assert s["tldr"] == "" and rep["by_rule"] == {"number_mismatch": 1}
+
+
+def test_legacy_handle_mode_restores_the_handle_only_strip(monkeypatch):
+    """GRAPHRAG_VERIFY_NUM_MODE=handle: the citation goes, the figure stays -- exactly the pre-fix behaviour
+    (kept as the rollback, not as a recommendation: the fabricated 2.47 is what the reader still sees)."""
+    monkeypatch.setenv("GRAPHRAG_VERIFY_NUM_MODE", "handle")
+    s = _structured("It peaked at +2.47 degC [N1].", [])
+    rep = vf.verify_citations(s, [], _calls({1: 2.75}))
+    assert s["tldr"] == "It peaked at +2.47 degC." and rep["stripped"] == 1
+    assert rep["by_rule"] == {"number_mismatch": 1} and rep["corrected"] == 0
+
+
+def test_any_other_value_of_the_knob_is_fail_closed(monkeypatch):
+    """Only the literal 'handle' opts out; a typo, an empty string or an unset var all get the new default."""
+    for val in ("failclosed", "on", "", "Handle"):
+        monkeypatch.setenv("GRAPHRAG_VERIFY_NUM_MODE", val)
+        s = _structured("It peaked at +2.47 degC [N1].", [])
+        rep = vf.verify_citations(s, [], _calls({1: 2.75}))
+        assert s["tldr"] == "It peaked at +2.75 degC [N1].", val
+        assert rep["corrected"] == 1, val
+
+
+def test_scale_word_refuses_the_repair_and_the_sentence_goes():
+    """'48.2 million MT' citing a raw 31400000 row: the numeral is denominated, the row may not be, and
+    splicing '31,400,000' next to 'million' would manufacture a THIRD figure -- so no rewrite is attempted
+    and the fail-closed default deletes the sentence instead."""
+    calls = [{"query": {"metric": "m"}, "rows": [{"value": 31400000}]}]
+    s = _structured("Ending stocks were 48.2 million MT [N1]. Prices firmed.", [])
+    rep = vf.verify_citations(s, [], calls)
+    assert s["tldr"] == "Prices firmed."
+    assert rep["by_rule"] == {"number_mismatch": 1} and rep["corrected"] == 0
+
+
+def test_large_integer_repairs_comma_grouped_never_scientific():
+    """A raw production-scale row (88,500,000) repairs as prose, not as 8.85e+07; a large NON-integer value
+    that {:g} would render scientifically is refused and the sentence goes."""
+    s = _structured("Output reached 92000000 MT [N1].", [])
+    rep = vf.verify_citations(s, [], [{"query": {"metric": "m"}, "rows": [{"value": 88500000}]}])
+    assert s["tldr"] == "Output reached 88,500,000 MT [N1]."
+    assert rep["corrected"] == 1 and rep["by_rule"] == {"number_mismatch_repaired": 1}
+    s2 = _structured("Output reached 92000000 MT [N1].", [])
+    rep2 = vf.verify_citations(s2, [], [{"query": {"metric": "m"}, "rows": [{"value": 88500000.5}]}])
+    assert s2["tldr"] == "" and rep2["by_rule"] == {"number_mismatch": 1}
+
+
+def test_claim_number_spans_locate_the_token_core_not_its_punctuation():
+    """The span-yielding core the repair indexes through: positions are the NUMERAL's, never the sentence
+    punctuation _CLAIM_NUM sweeps into the match, and the values agree with the wrapper exactly."""
+    s = "exports rose 12. Stocks fell 8."
+    assert vf._claim_number_spans(s) == [(13, 15, 12.0), (29, 30, 8.0)]
+    assert [v for _a, _b, v in vf._claim_number_spans(s)] == vf._claim_numbers_in(s)
+    assert vf._mask_handles("held 5 [N12] MMT") == "held 5       MMT"   # same length, digits neutralised

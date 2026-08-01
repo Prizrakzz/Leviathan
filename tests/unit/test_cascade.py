@@ -704,3 +704,47 @@ def test_psd_unserved_slugs_skip_at_scope():
 
     _, country3 = _scope(n2, {"table": "silver_esr", "country_rule": "none"})
     assert country3 is not SKIP_NODE                  # only silver_psd is declared-unserved
+
+
+# -- W4 A/B (2026-07-31): every [N] row line carries its SERIES scope ---------------------------------
+# Four scope mis-attributions in one measured turn -- rows keyed to a contract slug (soft_red_winter_
+# wheat_cbot) narrated as "Russia", "Ukraine" and "US total". Every FIGURE was transcribed correctly, so
+# the citation verifier saw nothing: the rendered line simply never said whose series it was.
+def test_series_tag_carries_the_bound_country_and_omits_an_absent_one(monkeypatch):
+    from leviathan.graphrag import silverleg as slv
+    monkeypatch.setattr(slv, "_primary_country", lambda c: "united_states")
+    row = {"table": "silver_psd", "country_rule": "primary"}
+    commodity, country = cq._scope(SimpleNamespace(contract="soft_red_winter_wheat_cbot"), row)
+    assert cq._series_tag({"commodity": commodity, "country": country}, row) == (
+        " [series: soft_red_winter_wheat_cbot; country: United States; table: silver_psd]")
+    # country_rule=none binds nothing: the segment DROPS -- never the literal "None"
+    none_row = {"table": "silver_noaa_oni", "country_rule": "none"}
+    _c2, country2 = cq._scope(SimpleNamespace(contract="corn"), none_row)
+    assert country2 is None
+    tag = cq._series_tag({"commodity": "corn_cbot", "country": country2}, none_row)
+    assert tag == " [series: corn_cbot; table: silver_noaa_oni]" and "None" not in tag
+    assert cq._series_tag({}, {}) == ""                              # nothing to say -> no tag at all
+
+
+def test_every_row_formatter_pins_the_full_scoped_line():
+    """The exact reader-facing shape, one PHYSICAL line per row, tag last."""
+    row = {"table": "silver_psd", "metric": "exports_mt", "narrate_unit": "MMT", "scale": 1}
+    q = {"commodity": "wheat", "country": "United States", "period": "MY2010",
+         "metric": "exports_mt", "asof": "2010-06-01"}
+    rec = {"query": q, "rows": [{"value": "3.9"}]}
+    tag = " [series: wheat; country: United States; table: silver_psd]"
+    lines = [
+        cq._fmt_line(rec, row, 4, era=0),
+        cq._fmt_delta(row, -5.058, 5, era=0, q=q),
+        cq._fmt_pct(row, -3.36, 6, era=1, q=q),
+        cq._fmt_era_diff(row, 2.0, 7, period="MY2021->MY2025", q=q),
+        cq._chain_fmt_line(rec, row, 8, label="(chain hop 1/2: area -> United States exports_mt)"),
+    ]
+    assert lines[0] == "- [N4] wheat exports_mt MY2010 (earlier era, as-of 2010-06-01): 3.9 MMT" + tag
+    assert lines[1] == "- [N5] change within the earlier era in exports_mt: -5.058 MMT" + tag
+    assert lines[2] == "- [N6] change within the later era in exports_mt: -3.36 %" + tag
+    assert lines[3] == "- [N7] cross-era change in exports_mt (MY2021->MY2025): +2 MMT" + tag
+    assert lines[4] == ("- [N8] (chain hop 1/2: area -> United States exports_mt) wheat exports_mt MY2010 "
+                        "(as-of 2010-06-01): 3.9 MMT" + tag)
+    for ln in lines:
+        assert "\n" not in ln and ln.endswith("]")

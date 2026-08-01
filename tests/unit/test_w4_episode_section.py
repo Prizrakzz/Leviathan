@@ -288,6 +288,22 @@ def test_persona_examples_are_schematic_and_score_zero_lines():
     assert res == {"min_episode_lines": False, "episode_magnitude_or_absence": False}
 
 
+def test_persona_forbids_characterising_a_receiptless_window():
+    """W4 A/B (2026-07-31): a NO-CITABLE-ITEM window came back labelled 'Black Sea export disruption
+    episode'. Both absence slots underneath it were stated correctly -- the LABEL slot was the leak, and
+    '<what the window is, in plain words>' invited exactly that. The label of an unreceipted window is now
+    the injected line's own, verbatim, and the event vocabulary is named and banned."""
+    s = an._SYSTEM_EPISODES
+    assert "LABEL (between the span and the colon)" in s
+    assert "the node name the injected line carries, verbatim" in s        # the CASE 1 slot
+    assert "<what the window is, in plain words>" not in s.split("CASE 1")[1].split("CASE 2")[0]
+    for w in ("disruption", "crisis", "shock", "collapse", "squeeze", "rally"):
+        assert w in s, w                                                   # each characterisation banned
+    assert "records WHEN reports clustered, not WHAT happened" in s        # the stated ground
+    # CASE 2 and CASE 3 are untouched: a receipted window may still restate its receipt
+    assert s.count("<what the window is, in plain words>") == 2
+
+
 def test_persona_states_the_one_physical_line_rule():
     """Advisory A-7's producer half. eval._EPISODE_BULLET_RX never matches a continuation line, so a
     soft-wrapped bullet whose magnitude marker lands on line two reds episode_magnitude_or_absence on a

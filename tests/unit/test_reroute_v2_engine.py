@@ -281,6 +281,11 @@ def test_reroute_xc_sign_oppose_fires(monkeypatch):
     assert "labeled BY COMMODITY" in body
     # every narrated magnitude is injected (all-numbers guard): 3 rows per leg
     assert len(calls) == 6
+    # W4: each leg line ends with its SERIES scope -- World is a SYNTHESIS of per-country silver_psd rows,
+    # so the tag says so and the ratio cannot be narrated as any one country's
+    assert lines[0] == ("- [N1] world soybean oil stocks-to-use MY2025: 8.1% (vs MY2024 9.4%, -1.3pp over "
+                        "the window) [series: soybean_oil_cbot; country: World; table: silver_psd]")
+    assert lines[1].endswith("[series: malaysian_crude_palm_oil_cme; country: World; table: silver_psd]")
 
 
 def test_reroute_xc_same_sign_declines(monkeypatch):

@@ -107,8 +107,11 @@ def test_price_pair_renders_two_my_pair_with_handles():
     lines, fired = cq._price_pair({"focus_contract": "corn_cbot"}, _sg([n]), None, [], _wasde_qfn(
         {"2011/12": "3.60", "2012/13": "6.89"}), "2013-06-01", "2012", calls, len(calls))
     assert fired and fired["price_leg"] is True and fired["commodity"] == "corn"
-    # two reader lines + one PRICE-RESPONSE marker line
-    assert lines[0].startswith("- [N1]") and lines[1].startswith("- [N2]")
+    # two reader lines + one PRICE-RESPONSE marker line; W4: each row line ends with its SERIES scope
+    assert lines[0] == ("- [N1] US corn farm price MY2011/12: $3.60/bu "
+                        "[series: corn; country: united_states; table: silver_wasde]")
+    assert lines[1] == ("- [N2] US corn farm price MY2012/13: $6.89/bu "
+                        "[series: corn; country: united_states; table: silver_wasde]")
     assert any(ln.startswith("PRICE-RESPONSE on avg_farm_price:") for ln in lines)
     body = "\n".join(lines)
     assert "$3.60/bu" in body and "$6.89/bu" in body
