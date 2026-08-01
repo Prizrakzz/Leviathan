@@ -29,6 +29,30 @@ _HANDLE = re.compile(r"\[(?P<kind>[NE]?)(?P<idx>\d+)(?:[a-z])?\]")
 # Denomination words that make a prose numeral scale-relative ('31.4 million MT'): a repair may not splice
 # a row value next to one -- the row may be raw while the numeral is denominated (see _num_repair).
 _SCALE_WORD = re.compile(r"\b(?:thousand|million|billion|trillion)\b", re.IGNORECASE)
+# r5 RCA (2026-08-01): UNIT CLASSES for the repair guard. The measured defect was a TEMPERATURE rewritten
+# from a RUN COUNT -- cascade._pace_legs binds a pace_streak call's `shown` to the streak length (5) with
+# unit 'months' (cascade.py:1420), so a sentence citing the streak beside an ONI level repaired
+# "+0.98 degC" to "+5 degC": a physically impossible anomaly, minted by the verifier itself. A repair may
+# only splice a value whose unit belongs to the same class as the numeral it replaces. Unrecognized tokens
+# resolve to None and NEVER refuse -- the guard fires on KNOWN disagreement only, so every legacy/agent-lane
+# call (no `unit` key at all) repairs exactly as before.
+_UNIT_CLASSES = {
+    "count": ("day", "days", "week", "weeks", "month", "months", "quarter", "quarters",
+              "year", "years", "period", "periods", "observation", "observations", "obs",
+              "count", "counts", "times", "readings"),
+    "pct": ("%", "percent", "percentage", "pct", "pp", "ppt", "bps"),
+    "temp": ("c", "f", "k", "degc", "degf", "celsius", "fahrenheit", "kelvin"),
+    "mass": ("mt", "mmt", "kt", "tonne", "tonnes", "ton", "tons", "kg", "lb", "lbs",
+             "pound", "pounds", "bu", "mmbu", "bushel", "bushels", "bale", "bales", "cwt"),
+    "area": ("ha", "hectare", "hectares", "acre", "acres"),
+    "money": ("usd", "us$", "$", "eur", "brl", "myr", "cny", "cent", "cents", "usc"),
+    "index": ("z", "sigma", "index", "points", "pts", "idx"),
+}
+_UNIT_OF = {tok: cls for cls, toks in _UNIT_CLASSES.items() for tok in toks}
+# The synthetic metric suffix a streak call carries (cascade._pace_synth stamps
+# query.metric = '<metric>_pace_streak'): the same COUNT tell as the unit, surviving a call whose row lost
+# its unit key. A run length is never a magnitude, whatever else the record says.
+_COUNT_METRIC = re.compile(r"_pace_streak\Z")
 _QUOTE = re.compile(r"[\"“”]([^\"“”]{15,})[\"“”]")
 _NUM = re.compile(r"\d[\d,]*\.?\d*")
 _SENT_SPLIT = re.compile(r"(?<=[.!?;])\s+")
@@ -193,6 +217,77 @@ def _mismatch_pool(call: dict, row_vals: list[float]) -> list[float]:
     return shown or row_vals
 
 
+def _unit_class(tok: str) -> str | None:
+    """The unit CLASS of one prose/row token, or None when it is not a unit this guard recognizes. The
+    degree sign is stripped so a draft's 'degC' and its '°C' twin land on the same class -- the r5 drafts
+    write both, and the guard must not depend on which one the model reached for."""
+    t = (tok or "").strip().strip(".,;:!?()[]'\"").replace("°", "").lower()
+    return _UNIT_OF.get(t) if t else None
+
+
+def _call_unit_class(call: dict, val: float) -> str | None:
+    """The unit class the cited call would splice IN: the unit of the row carrying the repair value (a
+    synthetic delta/pace record has exactly one row; a windowed level record is matched by value), plus the
+    metric-suffix tell for a streak. None = the call declares no unit -- the agent lane and every legacy
+    fixture, which must keep repairing."""
+    if _COUNT_METRIC.search(str(((call or {}).get("query") or {}).get("metric") or "")):
+        return "count"
+    rows = (call or {}).get("rows") or []
+    src = None
+    for r in rows:
+        try:
+            if abs(float(str(r.get("value")).replace(",", "")) - val) <= 1e-9:
+                src = r
+                break
+        except (TypeError, ValueError):
+            continue
+    return _unit_class(str((src if src is not None else (rows[0] if rows else {})).get("unit") or ""))
+
+
+def _sentence_unit_class(masked: str, a: int, b: int) -> str | None:
+    """The unit class governing the numeral at [a, b) of an already-handle-masked sentence: the token that
+    FOLLOWS it ('+0.98 degC', '7.2%'), else the token that PRECEDES it (a currency prefix, '$4.20'). Read
+    off the MASKED text so a trailing '[N3]' can never be mistaken for a unit."""
+    m = re.match(r"\s*(\S+)", masked[b:])
+    cls = _unit_class(m.group(1)) if m else None
+    if cls is None:
+        m = re.search(r"(\S+)\s*\Z", masked[:a])
+        cls = _unit_class(m.group(1)) if m else None
+    return cls
+
+
+def _sibling_backed(sent: str, idx: int, number_calls: list[dict]) -> bool:
+    """True when the sentence carries EXACTLY ONE claim numeral and ANOTHER [N] handle in it BACKS that
+    numeral against its own mismatch pool.
+
+    r5 RCA (2026-08-01). The verifier checks a handle against every numeral in its SENTENCE, so a handle
+    cited for a qualitative clause is charged by a numeral it was never quoting: "the anomaly is at
+    +0.98 degC and accelerating [N3] [N4]" charges [N4] (the +0.47 monthly step) because 0.98 is not 0.47.
+    The fail-closed remedy then rewrote 0.98 -> 0.47 and left [N3] -- which DOES back 0.98 -- pointing at a
+    figure that is no longer its own. Measured on both r5 renders: ol_cocoa_thin_record published
+    "+0.47 degC ... [N3] [N4]" and ol_bait_bare_target_demanded published "+5 degC [N3]", the same [N3]
+    contradicting itself across two rows of ONE deck.
+    The number is NOT fabricated here -- a sibling handle materializes it -- so the fail-closed rationale
+    ("a fabricated NUMBER survives the loss of its handle") does not apply, and the precise remedy is the
+    ORIGINAL one: strip the mis-citing HANDLE and leave the corroborated figure standing. Scoped to the
+    one-numeral shape on purpose: with two numerals nobody can say which one the charged handle meant, and
+    that ambiguity keeps the whole-sentence drop."""
+    spans = _claim_number_spans(_mask_handles(sent))
+    if len(spans) != 1:
+        return False
+    v = spans[0][2]
+    for m in _HANDLE.finditer(sent):
+        if m.group("kind") != "N":
+            continue
+        j = int(m.group("idx"))
+        if j == idx or not (1 <= j <= len(number_calls)):
+            continue
+        sib = number_calls[j - 1]
+        if _num_matches([v], _mismatch_pool(sib, _row_vals(sib))):
+            return True
+    return False
+
+
 def _num_repair(sent: str, idx: int, number_calls: list[dict]) -> tuple[int, int, str] | None:
     """The UNAMBIGUOUS rewrite for a number_mismatch: sentence-relative (start, end, replacement) when the
     sentence carries EXACTLY ONE claim number AND the cited call's MISMATCH POOL holds exactly one value;
@@ -202,20 +297,34 @@ def _num_repair(sent: str, idx: int, number_calls: list[dict]) -> tuple[int, int
     six member rows -- charging on `shown` and repairing from `rows` would splice in a figure the reader was
     never given. The value lands as a MAGNITUDE:
     _CLAIM_NUM cannot see a minus, so direction stays wherever the prose already put it.
-    TWO REFUSALS beyond ambiguity: (a) a scale word (million/billion/...) in the sentence means the prose
+    FOUR REFUSALS beyond ambiguity: (a) a scale word (million/billion/...) in the sentence means the prose
     numeral is denominated and the row value may not be -- splicing a raw row value next to 'million'
     manufactures a new figure, so the sentence goes instead; (b) the replacement must read as prose --
     a large integer lands comma-grouped, and any value {:g} would render in scientific notation is
-    refused (an analyst note never says 8.85e+07)."""
+    refused (an analyst note never says 8.85e+07); (c) a COUNT source (a pace_streak run length, unit
+    'months'/'weeks'/'days') may never land anywhere but a count context -- r5 published "+5 degC" for a
+    +0.98 degC ONI anomaly because the streak's shown value is 5 and nothing checked that 5 was a number of
+    MONTHS; (d) more generally, when BOTH the row's unit and the numeral's prose unit are recognized and
+    they disagree (a '%' delta row into a degC sentence, a tonnage into a price), the replacement is
+    unit-foreign and is refused. Both unit refusals fall through to the fail-closed default: the sentence
+    goes, which is the existing answer to every ambiguity. A call that declares NO unit -- the agent lane,
+    every legacy fixture -- is unconstrained by (d) and repairs exactly as it did before."""
     if not (1 <= idx <= len(number_calls)):
         return None
     if _SCALE_WORD.search(sent):
         return None
     call = number_calls[idx - 1]
     vals = _mismatch_pool(call, _row_vals(call))
-    spans = _claim_number_spans(_mask_handles(sent))
+    masked = _mask_handles(sent)
+    spans = _claim_number_spans(masked)
     if len(vals) != 1 or len(spans) != 1:
         return None
+    src_cls = _call_unit_class(call, vals[0])
+    tgt_cls = _sentence_unit_class(masked, spans[0][0], spans[0][1])
+    if src_cls == "count" and tgt_cls != "count":
+        return None                                       # (c) a run length is not a magnitude
+    if src_cls and tgt_cls and src_cls != tgt_cls:
+        return None                                       # (d) unit-foreign replacement
     av = abs(vals[0])
     repl = f"{av:g}"
     if "e" in repl or "E" in repl:
@@ -491,7 +600,7 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
                         rule = ("undeclared_unsupported"  # if SOME provided item supports the sentence
                                 if _check_evidence_handle(sent, evidence) else None)
                 if rule == "number_mismatch" and _failclosed:
-                    pending.append((s0, s1, sent, int(m.group("idx"))))
+                    pending.append((m.start(), m.end(), s0, s1, sent, int(m.group("idx"))))
                     continue
                 if rule:
                     drops.append((m.start(), m.end()))
@@ -505,26 +614,43 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
                     report["by_rule"]["foreign_regime_name"] = report["by_rule"].get("foreign_regime_name", 0) + 1
                     _audit("foreign_regime_name", field, _sentence_at(text, m.start()))
 
-            # PASS 2 -- resolve the deferred mismatches. A sentence is REPAIRABLE only if every mismatched
-            # handle in it agrees on the same one-numeral/one-row rewrite; anything else kills the sentence,
-            # and one killed handle kills it for all of them (the drop wins over any repair inside it).
+            # PASS 2 -- resolve the deferred mismatches. THREE outcomes per offending handle:
+            #   * SIBLING-BACKED (r5 RCA): another [N] in the sentence materializes the lone numeral, so the
+            #     figure is not a fabrication and only the mis-citing HANDLE goes -- the pre-fix remedy,
+            #     correctly scoped at last. Decided FIRST, and it also forbids the rewrite: leaving the
+            #     numeral alone is the whole point, so the sentence is never also an edit site.
+            #   * REPAIRABLE: every mismatched handle in the sentence agrees on the same one-numeral/one-row
+            #     rewrite (and it survives the unit guard) -- the figure is rewritten, the handles stay.
+            #   * KILLED: anything else. One killed handle kills the sentence for all of them (the drop wins
+            #     over any repair inside it).
             per_sent: dict[tuple[int, int], dict[tuple[int, int], str]] = {}
             killed: set[tuple[int, int]] = set()
-            for s0, s1, sent, idx in pending:
+            backed: list[tuple[int, int, int, int, str]] = []
+            for h0, h1, s0, s1, sent, idx in pending:
+                if _sibling_backed(sent, idx, number_calls):
+                    backed.append((h0, h1, s0, s1, sent))
+                    continue
                 rep = _num_repair(sent, idx, number_calls)
                 slot = per_sent.setdefault((s0, s1), {})
                 if rep is None or slot.get((s0 + rep[0], s0 + rep[1]), rep[2]) != rep[2]:
                     killed.add((s0, s1))
                 else:
                     slot[(s0 + rep[0], s0 + rep[1])] = rep[2]
+            for _h0, _h1, s0, s1, _sent in backed:        # a corroborated numeral is never rewritten
+                per_sent.pop((s0, s1), None)
             edits: dict[tuple[int, int], str] = {}
             for span, slot in per_sent.items():
                 if span not in killed:
                     edits.update(slot)
-            for s0, s1, sent, _idx in pending:            # counted per OFFENDING handle, as every rule is
+            for h0, h1, s0, s1, sent, _idx in pending:    # counted per OFFENDING handle, as every rule is
                 if (s0, s1) in killed:
                     drops.append(_drop_span(text, s0, s1))
                     report["stripped"] += 1
+                    report["by_rule"]["number_mismatch"] = report["by_rule"].get("number_mismatch", 0) + 1
+                    _audit("number_mismatch", field, sent)
+                elif any(b[0] == h0 and b[1] == h1 for b in backed):
+                    drops.append((h0, h1))                # the FIGURE stands (a sibling backs it); the
+                    report["stripped"] += 1               # mis-citation alone is removed
                     report["by_rule"]["number_mismatch"] = report["by_rule"].get("number_mismatch", 0) + 1
                     _audit("number_mismatch", field, sent)
                 else:                                     # the handle SURVIVES -- it now points at its row

@@ -632,14 +632,115 @@ def test_ambiguous_multi_number_sentence_is_deleted_whole_with_its_other_handles
     assert s2["tldr"] == "Prices firmed."
 
 
-def test_repair_leaves_a_matching_sibling_handle_alone():
-    """One claim number, one mismatched handle and one MATCHING handle in the same sentence: the figure is
-    repaired and nothing is dropped -- a clean handle never drags its sentence down."""
+def test_a_sibling_backed_figure_is_never_rewritten_only_the_miscitation_goes():
+    """One claim number, one mismatched handle and one MATCHING handle in the same sentence. The matching
+    handle MATERIALIZES the figure, so the figure is not a fabrication and the fail-closed rewrite must not
+    touch it -- the mis-citing handle alone is stripped and the sentence survives intact.
+
+    r5 RCA (2026-08-01). This case previously repaired: -0.72 was rewritten to [N1]'s 0.06 while [N2] --
+    which backs 0.72 -- stayed attached to a figure that was no longer its own. Rendered, that shipped a
+    handle contradicting itself inside ONE deck (ol_cocoa_thin_record '+0.47 degC ... [N3] [N4]' against
+    ol_bait_bare_target_demanded '+5 degC [N3]', both citing the same +0.98 degC ONI call). A clean handle
+    still never drags its sentence down -- it now PROTECTS the figure instead of being dragged along."""
     s = _structured("The anomaly reached -0.72 degC [N1][N2].", [])
     rep = vf.verify_citations(s, [], _calls({1: 0.06, 2: 0.72}))
-    assert s["tldr"] == "The anomaly reached -0.06 degC [N1][N2]."
-    assert rep["stripped"] == 0 and rep["corrected"] == 1
+    assert s["tldr"] == "The anomaly reached -0.72 degC [N2]."   # figure kept, only [N1] removed
+    assert rep["stripped"] == 1 and rep["corrected"] == 0
+    assert rep["by_rule"] == {"number_mismatch": 1}
+
+
+def test_sibling_backing_needs_a_real_backer_not_just_a_second_handle():
+    """The guard reads the sibling's POOL, not its presence: two handles that both miss the numeral leave it
+    unbacked, so the four judge fixtures' shape (N12/N4 both on 0.06, prose says -0.72) still repairs."""
+    assert vf._sibling_backed("Anomalies ran -0.72 degC [N12][N4].", 12, _calls({4: 0.06, 12: 0.06})) is False
+    assert vf._sibling_backed("The anomaly reached -0.72 degC [N1][N2].", 1, _calls({1: 0.06, 2: 0.72})) is True
+    # two claim numerals -> nobody can say which one the charged handle meant: the drop keeps the sentence
+    assert vf._sibling_backed("Exports ran 5.5 MMT [N1] against 2.2 MMT [N2].", 1,
+                              _calls({1: 9.9, 2: 2.2})) is False
+
+
+# -- r5 RCA (2026-08-01): the UNIT guard on the repair source ------------------------------------------
+# The verifier MINTED a hallucination. cascade._pace_legs binds a pace_streak call's `shown` to the streak
+# RUN LENGTH with unit '<grain>s' (cascade.py:1420), so a sentence citing the streak next to an ONI level
+# charged the level's numeral against a pool of [5] and rewrote "+0.98 degC" to "+5 degC" -- a physically
+# impossible anomaly, published in ol_bait_bare_target_demanded and caught by the judge, not the verifier.
+def _streak_call(run: int, grain: str = "month", metric: str = "oni_anomaly") -> dict:
+    """The RUN-TIME shape cascade._pace_synth(kind='pace_streak') emits: one row, the count, a grain unit."""
+    return {"query": {"table": "gold_weather_z", "metric": f"{metric}_pace_streak"},
+            "rows": [{"value": run, "unit": f"{grain}s"}], "shown": [float(run)]}
+
+
+def test_a_run_count_never_repairs_a_temperature_the_r5_plus5_degc():
+    """The measured defect in miniature, with NO sibling to fall back on: the streak is the only handle, the
+    charge is real, and the remedy must be the fail-closed DROP -- never '+5 degC'."""
+    calls = [_streak_call(5)]
+    s = _structured("The ONI anomaly reached +0.98 degC over the run [N1].", [])
+    rep = vf.verify_citations(s, [], calls)
+    assert "+5" not in s["tldr"] and s["tldr"] == ""            # the sentence goes, the count never lands
+    assert rep["by_rule"] == {"number_mismatch": 1} and rep["corrected"] == 0
+    assert vf._num_repair("The ONI anomaly reached +0.98 degC over the run [N1].", 1, calls) is None
+
+
+def test_the_count_refusal_survives_a_call_that_lost_its_unit():
+    """Belt and braces: the '_pace_streak' metric suffix is the same COUNT tell as the unit, so a record
+    whose row carries no unit is still refused."""
+    calls = [{"query": {"metric": "oni_anomaly_pace_streak"}, "rows": [{"value": 5}], "shown": [5.0]}]
+    assert vf._call_unit_class(calls[0], 5.0) == "count"
+    assert vf._num_repair("The anomaly reached +0.98 degC [N1].", 1, calls) is None
+
+
+def test_a_count_still_repairs_a_count_the_guard_is_not_a_blanket_ban():
+    """The refusal is unit-RELATIVE, not a ban on streak calls: a miscounted run in a count sentence is
+    exactly the transcription error the repair exists for, and it still lands."""
+    s = _structured("The metric rose in each of the last 4 months [N1].", [])
+    rep = vf.verify_citations(s, [], [_streak_call(5)])
+    assert s["tldr"] == "The metric rose in each of the last 5 months [N1]."
     assert rep["by_rule"] == {"number_mismatch_repaired": 1}
+
+
+def test_unit_foreign_replacement_is_refused_percent_row_into_a_degc_sentence():
+    """The general class: cascade._delta_call(kind='pct') stamps unit '%'. Splicing it beside 'degC' would
+    manufacture a figure in the wrong dimension, so the sentence goes instead."""
+    pct = [{"query": {"metric": "oni_anomaly_pct"}, "rows": [{"value": 18.0, "unit": "%"}], "shown": [18.0]}]
+    assert vf._num_repair("The anomaly reached +0.98 degC [N1].", 1, pct) is None
+    s = _structured("The anomaly reached +0.98 degC [N1].", [])
+    assert vf.verify_citations(s, [], pct)["by_rule"] == {"number_mismatch": 1}
+    assert s["tldr"] == ""
+    # ... and a tonnage row never repairs a price
+    mass = [{"rows": [{"value": 31.4, "unit": "MMT"}], "shown": [31.4]}]
+    assert vf._num_repair("Cash traded at $4.20 [N1].", 1, mass) is None
+
+
+def test_unit_compatible_replacement_still_repairs_when_both_units_are_known():
+    """The guard fires on DISAGREEMENT only: same class in, repair out -- including the degree-sign twin of
+    the same unit, so a draft writing 'degC' and one writing the symbol behave identically."""
+    degc = [{"rows": [{"value": 2.75, "unit": "degC"}], "shown": [2.75]}]
+    for prose, want in (("It peaked at +2.47 degC [N1].", "It peaked at +2.75 degC [N1]."),
+                        ("It peaked at +2.47 °C [N1].", "It peaked at +2.75 °C [N1].")):
+        s = _structured(prose, [])
+        rep = vf.verify_citations(s, [], degc)
+        assert s["tldr"] == want, prose
+        assert rep["by_rule"] == {"number_mismatch_repaired": 1}, prose
+
+
+def test_an_unknown_unit_on_either_side_never_refuses():
+    """The legacy contract: the agent lane and every fixture emit rows with NO unit key, and prose units the
+    table does not know ('z') must not start stripping. Unknown -> no opinion -> repair as before."""
+    assert vf._unit_class("furlongs") is None and vf._unit_class("") is None
+    assert vf._call_unit_class({"rows": [{"value": 2.75}]}, 2.75) is None
+    s = _structured("The index sat at -0.693675 z [N1].", [])
+    vf.verify_citations(s, [], _calls({1: -2.1035}))
+    assert s["tldr"] == "The index sat at -2.1035 z [N1]."
+
+
+def test_sentence_unit_is_read_off_the_masked_text_not_a_trailing_handle():
+    """A handle sitting where the unit would be is masked to spaces first, so '[N1]' is never read as a
+    unit token; a currency PREFIX is picked up from the other side."""
+    masked = vf._mask_handles("It reached 0.98 [N1] degC.")
+    assert vf._sentence_unit_class(masked, 11, 15) == "temp"
+    m2 = vf._mask_handles("Cash traded at $4.20 [N1].")
+    a, b, _v = vf._claim_number_spans(m2)[0]                    # the span EXCLUDES the '$' prefix
+    assert vf._sentence_unit_class(m2, a, b) == "money"
 
 
 def test_no_repair_when_the_cited_call_carries_several_rows():
