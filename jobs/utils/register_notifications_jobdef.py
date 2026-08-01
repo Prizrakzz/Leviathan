@@ -32,8 +32,15 @@ _NAME = "leviathan-dev-notifications"
 _BUCKET = "leviathan-dev-shahem-001"
 _EVIDENCE_S3 = f"s3://{_BUCKET}/graphrag_evidence"   # nf.snapshot audit -> live_events/<date>/
 
+# DIGEST-PINNED (2026-08-01): this jobdef rode ":latest" for its whole life, which silently repointed the
+# 12:00Z brief at every embedder push -- including pushes made for the EVAL lane that no brief-side check
+# ever vetted. Pin = the digest ":latest" resolved to when the pin landed (tag 20260731T210959, commit
+# 6b0b8ff7, the image the 2026-07-31 judged eval pass exercised), so the pin itself changed no behavior.
+# Advance DELIBERATELY: rebuild -> verify the brief-relevant surface -> update this digest -> re-register.
+_IMAGE_DIGEST = "sha256:ba11ce86378e2e7e3bad2955ca003b12e036a23952a0598db5e8735a18ac8e4b"
+
 _CONTAINER = {
-    "image": f"{_ACCOUNT}.dkr.ecr.{_REGION}.amazonaws.com/{_REPO}:latest",
+    "image": f"{_ACCOUNT}.dkr.ecr.{_REGION}.amazonaws.com/{_REPO}@{_IMAGE_DIGEST}",
     "command": ["jobs/batch/build_notifications_task.py"],       # the DEFAULT command IS the right task
     "jobRoleArn": f"arn:aws:iam::{_ACCOUNT}:role/leviathan-dev-notifications-job-role",  # Scan-scoped (Track C)
     "executionRoleArn": f"arn:aws:iam::{_ACCOUNT}:role/leviathan-dev-batch-execution-role",
