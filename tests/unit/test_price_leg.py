@@ -119,6 +119,10 @@ def test_price_pair_renders_two_my_pair_with_handles():
     assert len(calls) == 2
     row_vals = [c["rows"][0]["value"] for c in calls]
     assert row_vals == [3.6, 6.89]
+    # W4 A/B RCA (2026-08-01): each price call records the level its OWN line printed, so a citation is
+    # checked against the displayed figure. _fmt_price renders 2 dp over the 4-dp store; the verifier's
+    # 1pct tolerance covers that, so `shown` carries the unrounded float the f-string formatted.
+    assert [c["shown"] for c in calls] == [[3.6], [6.89]]
     # the marker cites BOTH handles, direction is prose ('rose')
     marker = [ln for ln in lines if ln.startswith("PRICE-RESPONSE")][0]
     assert "[N1]" in marker and "[N2]" in marker and "rose from" in marker

@@ -483,6 +483,17 @@ def _calls(rows: dict) -> list:
             for i in range(1, max(rows) + 1)]
 
 
+def _window_calls(spec: dict) -> list:
+    """THE RUN-TIME SHAPE that escaped (2026-08-01 RCA). A cascade era-window call carries the WHOLE
+    window's rows while its rendered line prints ONE endpoint: spec maps [N] index -> (shown, decoy), so
+    `rows` holds both the endpoint and the member row the model quoted, and `shown` holds the endpoint
+    alone. Under the all-rows pool the decoy cleared the citation; under shown-binding it cannot."""
+    return [{"query": {"metric": "m"},
+             "rows": ([{"value": spec[i][0]}, {"value": spec[i][1]}] if i in spec else []),
+             **({"shown": [spec[i][0]]} if i in spec else {})}
+            for i in range(1, max(spec) + 1)]
+
+
 def test_judge_fixture_transcription_fabrications_are_repaired_in_place():
     """The four figures the judge caught, each a single-number/single-row sentence -> the TRUE value lands in
     the prose and the handle stays (it is no longer a mis-citation once the figure is the row's)."""
@@ -504,6 +515,89 @@ def test_judge_fixture_transcription_fabrications_are_repaired_in_place():
         assert rep["corrected"] == n_handles, prose
         assert rep["by_rule"].get("number_mismatch_repaired") == n_handles, prose
         assert "number_mismatch" not in rep["by_rule"], prose  # the rule key is not double-charged
+
+
+def test_judge_fixtures_are_charged_even_when_the_call_carries_the_member_row():
+    """(d) The SAME four figures in the shape they actually shipped in: the cited call carries the true
+    endpoint AND the member row the model lifted, and only the endpoint was displayed. Under the old
+    all-rows pool every one of these cleared uncharged (measured: rep_w4_on.md renders all four with
+    handles intact); bound to `shown` they charge and repair to the displayed value."""
+    cases = [
+        ("Anomalies ran -0.72 degC [N12][N4].", _window_calls({4: (0.06, -0.72), 12: (0.06, -0.72)}),
+         "Anomalies ran -0.06 degC [N12][N4].", 2),
+        ("The index sat at -0.693675 z [N14].", _window_calls({14: (-2.1035, -0.693675)}),
+         "The index sat at -2.1035 z [N14].", 1),
+        ("The index sat at -1.78323 z [N15].", _window_calls({15: (-1.4097, -1.78323)}),
+         "The index sat at -1.4097 z [N15].", 1),
+        ("It peaked at +2.47 degC [N1].", _window_calls({1: (2.75, 2.47)}),
+         "It peaked at +2.75 degC [N1].", 1),
+    ]
+    for prose, calls, want, n_handles in cases:
+        s = _structured(prose, [])
+        rep = vf.verify_citations(s, [], calls)
+        assert s["tldr"] == want, prose
+        assert rep["by_rule"].get("number_mismatch_repaired") == n_handles, prose
+        assert rep["stripped"] == 0, prose
+    # and the proof it is the POOL that changed: the same fixtures go silent on the legacy pool
+    import os as _os
+    _os.environ["GRAPHRAG_VERIFY_NUM_POOL"] = "all"
+    try:
+        for prose, calls, _want, _n in cases:
+            s = _structured(prose, [])
+            rep = vf.verify_citations(s, [], calls)
+            assert s["tldr"] == prose and rep["by_rule"] == {}, prose   # the escape, reproduced
+    finally:
+        _os.environ.pop("GRAPHRAG_VERIFY_NUM_POOL", None)
+
+
+# -- the DILUTION fixture: one call, a whole window of rows, one displayed endpoint --------------------
+_DILUTION = [{"query": {"table": "gold_weather_z", "metric": "oni_anomaly"},
+              "rows": [{"value": 0.06}, {"value": -0.72}, {"value": 0.31}],   # the Jan-Jun window series
+              "shown": [0.06]}]                                                # what the [N1] line printed
+
+
+def test_window_row_dilution_is_charged_and_repaired_to_the_shown_value():
+    """(a) The measured escape in miniature. -0.72 IS a row on the cited call -- it is the January member
+    of a Jan-Jun window -- but the panel line printed 0.06, so narrating -0.72 as the window's reading is a
+    fabrication the reader was never shown. One shown value = an unambiguous repair source even though
+    `rows` holds three."""
+    s = _structured("The window read -0.72 degC [N1].", [])
+    rep = vf.verify_citations(s, [], _DILUTION)
+    assert s["tldr"] == "The window read -0.06 degC [N1]."
+    assert rep["by_rule"].get("number_mismatch_repaired") == 1
+    assert rep["corrected"] == 1 and rep["stripped"] == 0
+
+
+def test_window_row_dilution_clears_under_the_legacy_pool(monkeypatch):
+    """(b) GRAPHRAG_VERIFY_NUM_POOL=all reproduces the escape exactly -- pinned so the rollback is proven
+    to be a rollback, and so the regression can never be re-introduced silently."""
+    monkeypatch.setenv("GRAPHRAG_VERIFY_NUM_POOL", "all")
+    s = _structured("The window read -0.72 degC [N1].", [])
+    rep = vf.verify_citations(s, [], _DILUTION)
+    assert s["tldr"] == "The window read -0.72 degC [N1]."      # untouched: -0.72 matched a member row
+    assert rep["by_rule"] == {} and rep["stripped"] == 0 and rep["corrected"] == 0
+
+
+def test_call_without_shown_keeps_the_all_rows_behaviour():
+    """(c) The agent lane and every legacy fixture emit calls with NO `shown` key -- they fall back to the
+    full row list, so a figure matching any row still clears and a figure matching none still charges."""
+    agent = [{"query": {"metric": "m"}, "rows": [{"value": 0.06}, {"value": -0.72}, {"value": 0.31}]}]
+    ok = _structured("The window read -0.72 degC [N1].", [])
+    assert vf.verify_citations(ok, [], agent)["by_rule"] == {}          # no shown -> all rows -> clears
+    bad = _structured("The window read -9.9 degC [N1].", [])
+    rep = vf.verify_citations(bad, [], agent)
+    assert rep["by_rule"].get("number_mismatch") == 1                   # 3 pool values -> no repair, drop
+    assert bad["tldr"] == ""
+
+
+def test_shown_pool_drives_the_repair_source_not_just_the_charge():
+    """The charge and the rewrite read ONE pool. Repairing from `rows` while charging on `shown` would
+    splice in a figure the reader was never given -- here that would be the decoy itself."""
+    assert vf._mismatch_pool(_DILUTION[0], vf._row_vals(_DILUTION[0])) == [0.06]
+    assert vf._num_repair("The window read -0.72 degC [N1].", 1, _DILUTION)[2] == "0.06"
+    # >1 shown value (the su_ratio line prints endpoint + baseline + delta) -> no unambiguous source
+    multi = [{"rows": [{"value": 8.1}], "shown": [8.1, 9.4, -1.3]}]
+    assert vf._num_repair("Stocks-to-use eased to 7.2% [N1].", 1, multi) is None
 
 
 def test_repair_direction_stays_in_the_prose_sign():

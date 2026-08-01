@@ -930,6 +930,29 @@ def _float_val(rec) -> float | None:
 _GUARD_COLS = ("release_date", "week_ending_date", "data_date", "date", "year", "month")
 
 
+def _scaled_val(rec: dict, row: dict) -> float | None:
+    """rows[0] PRE-SCALED to narrate_unit -- the ONE magnitude a level line prints. Shared by the
+    formatters and by the `shown` binding so the printed figure and the recorded figure cannot drift."""
+    v = _float_val(rec)
+    return None if v is None else v * float(row.get("scale", 1) or 1)
+
+
+def _shown(call: dict, *values) -> dict:
+    """Bind the magnitudes a reader LINE actually prints to the call record its [N] handle indexes, and
+    return the call (so an append site stays one expression).
+
+    W4 A/B RCA (2026-08-01): the verifier pooled EVERY row of the cited call, but an era-window call holds
+    the whole window (a Jan-Jun ONI leg carries ~6 monthly rows) while its line prints ONE endpoint. A model
+    that quoted a member row -- -0.693675 is a real row value, not an invention -- and narrated it as the
+    window's headline stat matched the pool and cleared: all four measured fabrications on
+    pb_seasonality_aware were never charged. `shown` is the panel's own testimony about what it displayed.
+    Values only, never strings; ONE physical line's magnitudes, including a rendered integer count."""
+    vals = [float(v) for v in values if v is not None]
+    if vals:
+        call["shown"] = vals
+    return call
+
+
 def _prescaled(rec: dict, row: dict, n: int) -> dict:
     """Deep-copy the call-record with rows[0] PRE-SCALED to narrate_unit (the ratio normalizer: su_ratio
     0.36 -> 36.0/'%'), carrying the source row's PIT guard-column provenance forward (R10) so the
@@ -1203,7 +1226,7 @@ def _pace_legs(records: list, kept: list, base: int, calls: list) -> tuple:
             d = round(wc["value"] * scale, 4)
             entry["window_change"] = d
             n += 1
-            calls.append(_pace_synth(r, row, d, n, kind="pace_change", unit=unit))
+            calls.append(_shown(_pace_synth(r, row, d, n, kind="pace_change", unit=unit), d))
             lines.append(f"- [N{n}] change in {row.get('metric')} from the prior {grain} "
                          f"({gnoun} pace): {d:+g} {unit}".rstrip() + _series_tag(r.get("query"), row))
             emitted = True
@@ -1216,7 +1239,8 @@ def _pace_legs(records: list, kept: list, base: int, calls: list) -> tuple:
                 entry["streak"] = run
                 entry["streak_direction"] = direction
                 n += 1
-                calls.append(_pace_synth(r, row, run, n, kind="pace_streak", unit=f"{grain}s"))
+                # the streak line renders the run as a DIGIT ("in each of the last 3 weeks") -> a magnitude
+                calls.append(_shown(_pace_synth(r, row, run, n, kind="pace_streak", unit=f"{grain}s"), run))
                 word = "rose" if direction == "up" else "fell"
                 lines.append(f"- [N{n}] {row.get('metric')} {word} in each of the last {run} {grain}s"
                              + _series_tag(r.get("query"), row))
@@ -1395,9 +1419,8 @@ def _series_tag(q: dict | None, row: dict | None = None) -> str:
 
 
 def _fmt_line(rec: dict, row: dict, n: int, *, era) -> str:
-    v = _float_val(rec)
-    scale = float(row.get("scale", 1) or 1)
-    val = f"{v * scale:g}" if v is not None else "?"
+    sv = _scaled_val(rec, row)                            # the SAME float the append site binds as `shown`
+    val = f"{sv:g}" if sv is not None else "?"
     unit = row.get("narrate_unit") or ""
     q = rec.get("query") or {}
     tag = _era_label(era, row)
@@ -1447,7 +1470,7 @@ def _assemble(records: list, kept: list, base: int, calls: list) -> tuple:
             oks = [r for r in recs if r.get("status") == "ok" and (r.get("rows") or [])]
             for r in oks:                                         # inject each MY endpoint level (pre-scaled)
                 n += 1
-                calls.append(_prescaled(r, row, n))
+                calls.append(_shown(_prescaled(r, row, n), _scaled_val(r, row)))
                 lines.append(_fmt_line(r, row, n, era=i))
             for r in recs:
                 if r.get("status") and r["status"] != "ok":
@@ -1456,16 +1479,16 @@ def _assemble(records: list, kept: list, base: int, calls: list) -> tuple:
             if d is not None:
                 era_deltas[i] = d
                 n += 1
-                calls.append(_delta_call(oks[-1], row, d, n, kind="delta"))
+                calls.append(_shown(_delta_call(oks[-1], row, d, n, kind="delta"), d))
                 lines.append(_fmt_delta(row, d, n, era=i, q=oks[-1].get("query")))
                 pct = _pct_change(oks, row)
                 if pct is not None:
                     n += 1
-                    calls.append(_delta_call(oks[-1], row, pct, n, kind="pct"))
+                    calls.append(_shown(_delta_call(oks[-1], row, pct, n, kind="pct"), pct))
                     lines.append(_fmt_pct(row, pct, n, era=i, q=oks[-1].get("query")))
         if cur and cur.get("status") == "ok" and (cur.get("rows") or []):
             n += 1
-            calls.append(_prescaled(cur, row, n))
+            calls.append(_shown(_prescaled(cur, row, n), _scaled_val(cur, row)))
             lines.append(_fmt_line(cur, row, n, era="current"))
         elif cur:
             lines.append(_fmt_absence(cur))
@@ -1482,7 +1505,8 @@ def _assemble(records: list, kept: list, base: int, calls: list) -> tuple:
             if ced is not None:
                 diff, period_lbl, later_rec = ced
                 n += 1
-                calls.append(_delta_call(later_rec, row, diff, n, kind="era_diff", period=period_lbl))
+                calls.append(_shown(_delta_call(later_rec, row, diff, n, kind="era_diff",
+                                                period=period_lbl), diff))
                 lines.append(_fmt_era_diff(row, diff, n, period=period_lbl, q=later_rec.get("query")))
             lines.append(f"DIVERGENCE on {row.get('metric')}: {a:+g} vs {b:+g} "
                          f"({row.get('narrate_unit') or ''}) "
@@ -1814,7 +1838,10 @@ def _xc_leg_lines(la, source, A, lb, target, B, calls: list, base: int, asof) ->
             (lb, target, myb0, pb0, myb1, pb1, B["d"])):
         n += 1
         handle = n
-        calls.append(_xc_call(cmdty, p_hi, my_hi, asof))        # the endpoint the [N{handle}] line cites
+        # ONE line carries all three magnitudes, so the [N{handle}] endpoint call is `shown` all three; the
+        # baseline/delta calls are single-row synthetics (no line of their own) and need no binding.
+        calls.append(_shown(_xc_call(cmdty, p_hi, my_hi, asof),   # the endpoint the [N{handle}] line cites
+                            p_hi, p_lo, d))
         n += 1
         calls.append(_xc_call(cmdty, p_lo, my_lo, asof))        # the baseline (backs the '(vs MY.. ..%)' term)
         n += 1
@@ -2077,11 +2104,13 @@ def _price_pair(price_request: dict, sg, graph, groups: list, qfn, asof, near, c
         n = base
         n += 1
         h_a = n
-        c_a = _price_call(commodity, reg_a, p_a, lab_a, asof, unit=u_a)           # [N{h_a}] baseline-MY level
-        calls.append(c_a)
+        c_a = _shown(_price_call(commodity, reg_a, p_a, lab_a, asof, unit=u_a),   # [N{h_a}] baseline-MY level
+                     p_a)                                  # the line prints _fmt_price(p_a) at 2 dp; the
+        calls.append(c_a)                                  # verifier's 1pct tolerance covers the rounding
         n += 1
         h_b = n
-        c_b = _price_call(commodity, reg_b, p_b, lab_b, asof, unit=u_b)           # [N{h_b}] event-MY level
+        c_b = _shown(_price_call(commodity, reg_b, p_b, lab_b, asof, unit=u_b),   # [N{h_b}] event-MY level
+                     p_b)
         calls.append(c_b)
         label = "US wheat farm price (all classes)" if commodity == "wheat" else f"US {commodity} farm price"
         verb = "rose from" if p_b >= p_a else "fell from"         # direction is prose; the level is the [N] row
@@ -2246,9 +2275,8 @@ def _chain_fmt_line(rec: dict, row: dict, n: int, *, label: str, current: bool =
     """Endpoint LEVEL line, hop-marked (the _fmt_line shape prefixed with the hop ordinal, sec 3.3); one figure
     per line (the handle discipline). The value re-scales the RAW record (narrate_unit), matching the injected
     _prescaled row exactly (the _assemble contract)."""
-    v = _float_val(rec)
-    scale = float(row.get("scale", 1) or 1)
-    val = f"{v * scale:g}" if v is not None else "?"
+    sv = _scaled_val(rec, row)                            # the SAME float the append site binds as `shown`
+    val = f"{sv:g}" if sv is not None else "?"
     unit = row.get("narrate_unit") or ""
     q = rec.get("query") or {}
     period = "current" if current else (q.get("period") or "")
@@ -2482,23 +2510,23 @@ def _chain_legs(sg, graph, kept: list, records: list, qfn, asof, near, calls: li
                 oks = [r for (_s, r) in pairs if r.get("status") == "ok" and (r.get("rows") or [])]
                 for r in oks:                                      # each MY endpoint LEVEL (pre-scaled, R10 prov)
                     n += 1
-                    calls.append(_prescaled(r, row, n))
+                    calls.append(_shown(_prescaled(r, row, n), _scaled_val(r, row)))
                     lines.append(_chain_fmt_line(r, row, n, label=label))
                 dlt = _era_delta(oks, row)                         # WITHIN-hop delta ONLY (no cross-hop math, 4.1)
                 if dlt is not None:
                     delta_val = dlt
                     n += 1
-                    calls.append(_delta_call(oks[-1], row, dlt, n, kind="delta"))
+                    calls.append(_shown(_delta_call(oks[-1], row, dlt, n, kind="delta"), dlt))
                     lines.append(_chain_fmt_delta(row, dlt, n, label=label, q=oks[-1].get("query")))
                     pct = _pct_change(oks, row)
                     if pct is not None:
                         n += 1
-                        calls.append(_delta_call(oks[-1], row, pct, n, kind="pct"))
+                        calls.append(_shown(_delta_call(oks[-1], row, pct, n, kind="pct"), pct))
                         lines.append(_chain_fmt_pct(row, pct, n, label=label, q=oks[-1].get("query")))
             if cur is not None and cur.get("status") == "ok" and (cur.get("rows") or []):
                 statuses["current"] = "ok"
                 n += 1
-                calls.append(_prescaled(cur, row, n))
+                calls.append(_shown(_prescaled(cur, row, n), _scaled_val(cur, row)))
                 lines.append(_chain_fmt_line(cur, row, n, label=label, current=True))
             elif cur is not None:
                 statuses["current"] = cur.get("status")

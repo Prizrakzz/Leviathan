@@ -120,6 +120,9 @@ def test_pace_streak_and_window_change_rows_on_synthetic_weekly_series():
     assert chg["rows"][0]["_provenance"]["week_ending_date"] == "2026-06-28"   # as-known at the LATEST point
     assert stk["query"]["metric"] == "weekly_exports_1000mt_pace_streak"
     assert stk["rows"][0]["value"] == 3 and stk["rows"][0]["unit"] == "weeks"
+    # W4 A/B RCA (2026-08-01): each line binds the magnitude it prints. The streak line renders its run as
+    # a DIGIT ("in each of the last 3 weeks"), so 3 is a magnitude a citation may legitimately quote.
+    assert chg["shown"] == [50.0] and stk["shown"] == [3.0]
     # W4: every reader-facing [N] line ends with the SERIES scope tag (contract, country, table)
     assert lines[0] == ("- [N1] change in weekly_exports_1000mt from the prior week (weekly pace): "
                         "+50 1000 MT [series: corn_cbot; table: silver_esr]")

@@ -286,6 +286,13 @@ def test_reroute_xc_sign_oppose_fires(monkeypatch):
     assert lines[0] == ("- [N1] world soybean oil stocks-to-use MY2025: 8.1% (vs MY2024 9.4%, -1.3pp over "
                         "the window) [series: soybean_oil_cbot; country: World; table: silver_psd]")
     assert lines[1].endswith("[series: malaysian_crude_palm_oil_cme; country: World; table: silver_psd]")
+    # W4 A/B RCA (2026-08-01): ONE line prints endpoint + baseline + delta, so the [N] endpoint call is
+    # bound to all three; the baseline/delta calls have no line of their own and stay unbound (their single
+    # row is already exact). Three shown values = no unambiguous repair source, so a mismatch here drops
+    # the sentence rather than guessing which of the three the prose meant.
+    assert calls[0]["shown"] == [8.1, 9.4, pytest.approx(-1.3)]
+    assert "shown" not in calls[1] and "shown" not in calls[2]
+    assert calls[3]["shown"] == [12.6, 11.0, pytest.approx(1.6)]
 
 
 def test_reroute_xc_same_sign_declines(monkeypatch):

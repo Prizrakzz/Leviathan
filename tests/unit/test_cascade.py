@@ -726,6 +726,28 @@ def test_series_tag_carries_the_bound_country_and_omits_an_absent_one(monkeypatc
     assert cq._series_tag({}, {}) == ""                              # nothing to say -> no tag at all
 
 
+def test_assemble_binds_shown_to_the_magnitude_each_line_prints():
+    """W4 A/B RCA (2026-08-01): every reader line records the magnitude it PRINTED onto the call its [N]
+    handle indexes, because the verifier now checks a citation against that and not against the whole
+    window the leg fetched. Parsed back OUT of each rendered line, so the pin cannot pass on a value the
+    line does not actually carry."""
+    import re as _re
+    records = [_erec(10, 2020, 0), _erec(14, 2021, 0), _erec(20, 2024, 1), _erec(16, 2025, 1)]
+    calls: list = []
+    lines, _trace, _dk = cq._assemble(records, _kept_wheat(), 0, calls)
+    assert len(calls) == len(lines) - 1                    # every line but the DIVERGENCE prose has a call
+    for ln, call in zip(lines, calls):
+        printed = [float(x) for x in _re.findall(r"[-+]?\d+\.?\d*", ln.split("]", 1)[1].split("[series")[0])
+                   if not _re.fullmatch(r"(?:19|20)\d{2}", x.lstrip("+-"))]
+        assert call["shown"] == printed[-1:], ln           # the trailing magnitude is the line's figure
+    # and the values themselves: 4 endpoint LEVELS, 2 within-era deltas, 2 pct changes, 1 cross-era diff
+    shown = [c["shown"] for c in calls]
+    assert [10.0] in shown and [16.0] in shown             # _fmt_line endpoints (pre-scaled)
+    assert [4.0] in shown and [-4.0] in shown              # _fmt_delta within-era changes
+    assert [40.0] in shown and [-20.0] in shown            # _fmt_pct
+    assert [2.0] in shown                                  # _fmt_era_diff (MY2021->MY2025)
+
+
 def test_every_row_formatter_pins_the_full_scoped_line():
     """The exact reader-facing shape, one PHYSICAL line per row, tag last."""
     row = {"table": "silver_psd", "metric": "exports_mt", "narrate_unit": "MMT", "scale": 1}

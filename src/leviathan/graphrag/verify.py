@@ -159,11 +159,48 @@ def _mask_handles(s: str) -> str:
     return _HANDLE.sub(lambda m: " " * (m.end() - m.start()), s or "")
 
 
+def _row_vals(call: dict) -> list[float]:
+    """Every parseable row value on ONE call record."""
+    out = []
+    for r in ((call or {}).get("rows") or []):
+        try:
+            out.append(float(str(r.get("value")).replace(",", "")))
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
+def _mismatch_pool(call: dict, row_vals: list[float]) -> list[float]:
+    """What a cited [N] figure is checked AGAINST: the magnitudes the panel LINE printed, when the engine
+    recorded them (cascade._shown), else every row on the call.
+
+    W4 A/B RCA (2026-08-01): pooling all rows was the hole. A cascade era-window call carries the WHOLE
+    window -- a Jan-Jun ONI leg holds ~6 monthly rows -- while its rendered line prints ONE endpoint, so a
+    prose figure matching ANY member row cleared. Jan-2012 ONI is ~-0.72; the model quoted member rows
+    (-0.693675 is a real row value, not an invention) and narrated them as the window's headline stat, and
+    all four measured fabrications on pb_seasonality_aware were never charged at all. Binding the check to
+    the SHOWN value is the fix: what the reader was given is what a citation may claim.
+    GRAPHRAG_VERIFY_NUM_POOL=all restores the all-rows pool exactly; anything else, unset included, is
+    shown-when-present. The fallback keeps agent-lane calls and legacy fixtures (no `shown` key) working."""
+    if os.environ.get("GRAPHRAG_VERIFY_NUM_POOL", "") == "all":
+        return row_vals
+    shown = []
+    for v in ((call or {}).get("shown") or []):
+        try:
+            shown.append(float(str(v).replace(",", "")))
+        except (TypeError, ValueError):
+            continue
+    return shown or row_vals
+
+
 def _num_repair(sent: str, idx: int, number_calls: list[dict]) -> tuple[int, int, str] | None:
     """The UNAMBIGUOUS rewrite for a number_mismatch: sentence-relative (start, end, replacement) when the
-    sentence carries EXACTLY ONE claim number AND the cited call EXACTLY ONE parseable row value; None
-    (-> the whole sentence goes) for every other shape, because a rewrite that has to GUESS which numeral
-    belongs to which row is a second fabrication. The row value lands as a MAGNITUDE:
+    sentence carries EXACTLY ONE claim number AND the cited call's MISMATCH POOL holds exactly one value;
+    None (-> the whole sentence goes) for every other shape, because a rewrite that has to GUESS which
+    numeral belongs to which row is a second fabrication. The pool is the same one the CHARGE used
+    (_mismatch_pool), so a window call showing one endpoint repairs to that endpoint even though it carries
+    six member rows -- charging on `shown` and repairing from `rows` would splice in a figure the reader was
+    never given. The value lands as a MAGNITUDE:
     _CLAIM_NUM cannot see a minus, so direction stays wherever the prose already put it.
     TWO REFUSALS beyond ambiguity: (a) a scale word (million/billion/...) in the sentence means the prose
     numeral is denominated and the row value may not be -- splicing a raw row value next to 'million'
@@ -174,12 +211,8 @@ def _num_repair(sent: str, idx: int, number_calls: list[dict]) -> tuple[int, int
         return None
     if _SCALE_WORD.search(sent):
         return None
-    vals = []
-    for r in (number_calls[idx - 1].get("rows") or []):
-        try:
-            vals.append(float(str(r.get("value")).replace(",", "")))
-        except (TypeError, ValueError):
-            continue
+    call = number_calls[idx - 1]
+    vals = _mismatch_pool(call, _row_vals(call))
     spans = _claim_number_spans(_mask_handles(sent))
     if len(vals) != 1 or len(spans) != 1:
         return None
@@ -279,19 +312,19 @@ def _num_backed(v: float, allv: list[float], tol: float = 0.01) -> bool:
 def _check_number_handle(sent: str, idx: int, number_calls: list[dict]) -> str | None:
     if not (1 <= idx <= len(number_calls)):
         return "index_out_of_range"
-    row_vals = []
-    for r in (number_calls[idx - 1].get("rows") or []):
-        try:
-            row_vals.append(float(str(r.get("value")).replace(",", "")))
-        except (TypeError, ValueError):
-            continue
+    row_vals = _row_vals(number_calls[idx - 1])
+    # the HEADLINE check runs against what the cited LINE printed (`shown`), not the whole window it fetched
+    pool = _mismatch_pool(number_calls[idx - 1], row_vals)
     sent_nums = _claim_numbers_in(_HANDLE.sub("", sent))         # time/name tokens are NOT claims
-    if sent_nums and row_vals and not _num_matches(sent_nums, row_vals):
+    if sent_nums and pool and not _num_matches(sent_nums, pool):
         return "number_mismatch"
     # P9-B all-numbers guard: EVERY magnitude in a handled sentence (years/range-tails/letter-codes exempt
     # at the extractor) must match SOME injected row across the merged calls -- else "rose to 5900 [N3],
     # up 18%" lets 18 ride UNVERIFIED. Reads ONLY GRAPHRAG_CASCADE_QUANT (the single feature flag): =off
     # fully reverts the stricter verifier.
+    # DELIBERATE ASYMMETRY: allv (and the own-row bridge below) stay ALL ROWS even under shown-binding --
+    # number_mismatch is the headline check and must be tight, number_unbacked is the loose backstop, and
+    # narrowing both would strip every legitimate second figure a window call genuinely supports.
     if os.environ.get("GRAPHRAG_CASCADE_QUANT", "on") != "off":
         allv = _all_row_vals(number_calls)
         guard_nums = _claim_numbers_in(_HANDLE.sub("", sent))     # exemptions live in the extractor now
