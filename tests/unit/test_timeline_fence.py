@@ -62,6 +62,12 @@ def _stamp(**over) -> dict:
         "built_at": _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "source_table": "evidence_props",
         "gap_days": tl.GAP_DAYS,
+        # R3 / D-EI-8 (2026-08-01): the corroboration floor and the render cap joined gap_days in the
+        # stamp, and check_artifact asserts all three the same way -- a schema-2 stamp MISSING either
+        # fails exactly like a mismatch (no back-compat shim: no schema-2 artifact exists in production
+        # yet). A well-formed stamp therefore has to carry them, or T9's green is unreachable.
+        "min_props": tl.MIN_PROPS,
+        "max_per_node": tl.MAX_PER_NODE,
         "n_nodes": INCIDENT_NODES,
         "n_episodes": 1462,
         "n_prop_dates": INCIDENT_STAMPED_PROPS,

@@ -8,13 +8,15 @@ were ``treat_missing_data = "missing"`` -- so a stalled producer never breached.
 (``silver_nass_crop_progress``, ``silver_unica_biweekly_season_history``, ``silver_fgis``,
 ``silver_nass_citrus``) ran stale-green for 6-10 weeks undetected. This module is the emitter's
 pure core: given the canonical S3 listing for a registry table it computes the data AGE in days
-(newest ``LastModified`` under the CANONICAL prefix, excluding the shadow/staging soak areas), and
-builds the CloudWatch ``PutMetricData`` items dimensioned by both ``Table`` and ``Family``.
+(newest ``LastModified`` under the CANONICAL prefix, excluding the shadow/staging soak areas and
+the backup areas), and builds the CloudWatch ``PutMetricData`` items dimensioned by both ``Table``
+and ``Family``.
 
-Design mirrors ``scripts/silver/day0_heartbeat.py``'s ``freshness_delta`` canonical-only exclusion
-rule exactly (a shadow publish never advances canonical, so shadow keys must not masquerade as
-fresh data). Pure + AWS-free + deterministic so the age computation, the shadow exclusion, and the
-empty-prefix behaviour are all unit-testable against a fake S3 listing. The thin boto3 wrapper that
+Design follows ``scripts/silver/day0_heartbeat.py``'s ``freshness_delta`` canonical-only exclusion
+rule (a shadow publish never advances canonical, so shadow keys must not masquerade as fresh data),
+extended with ``/_backup/`` per R7.2 below. Pure + AWS-free + deterministic so the age computation,
+the non-canonical exclusions, and the empty-prefix behaviour are all unit-testable against a fake
+S3 listing. The thin boto3 wrapper that
 actually lists S3 and calls ``put_metric_data`` lives in ``scripts/silver/freshness_poller.py``.
 """
 from __future__ import annotations
@@ -42,15 +44,24 @@ __all__ = [
 METRIC_NAMESPACE = "Leviathan/Silver"
 METRIC_NAME = "FreshnessLagDays"
 
-# Canonical-only: the shadow/staging soak areas and the tasks manifest are NOT canonical data, so
-# a shadow-published table (which by SFN doctrine never advances canonical) can never look fresh.
-# Mirrors day0_heartbeat.freshness_delta's exclusion set exactly.
-_EXCLUDE_SEGMENTS = ("/_shadow/", "/_staging/")
+# Canonical-only: the shadow/staging soak areas, the BACKUP areas and the tasks manifest are NOT
+# canonical data, so a shadow-published table (which by SFN doctrine never advances canonical) can
+# never look fresh.
+#
+# ``/_backup/`` added 2026-08-01 (EVIDENCE_INTEGRITY_WAVE_PLAN R7.2, ratified D-EI-12). MEASURED:
+# the EXTRA_TARGETS prefix ``graphrag_evidence/timeline/`` already held
+# ``_backup/episodes_20260704_prerebuild.json``, so a pre-rebuild BACKUP copy -- written by the
+# copy-prefix discipline, not by a rebuild -- was resetting the artifact's measured age and would
+# have made the FreshnessLagDays fence fail OPEN in exactly the direction it was built to close
+# (and kept a datapoint flowing after a DELETED artifact, contra silver_alarms.py's
+# treat_missing_data='breaching' design note). Excluded as a SEGMENT rather than by narrowing any
+# one poll prefix so it generalises to every future backup convention, anywhere in the tree.
+_EXCLUDE_SEGMENTS = ("/_shadow/", "/_staging/", "/_backup/")
 _EXCLUDE_SUFFIXES = ("_tasks.json",)
 
 
 def is_excluded_key(key: str) -> bool:
-    """True for a key that is NOT canonical data (shadow / staging soak area or the tasks manifest)."""
+    """True for a key that is NOT canonical data (shadow / staging / backup area or the tasks manifest)."""
     if any(seg in key for seg in _EXCLUDE_SEGMENTS):
         return True
     return any(key.endswith(sfx) for sfx in _EXCLUDE_SUFFIXES)
@@ -63,7 +74,8 @@ def newest_last_modified(
     """Newest ``LastModified`` across the canonical objects, or ``None`` for an empty/all-excluded prefix.
 
     ``objects`` is an iterable of ``(key, last_modified)`` pairs (exactly what an S3 ``list_objects_v2``
-    page yields). Excluded keys never count toward the age -- a shadow write must not reset the clock."""
+    page yields). Excluded keys never count toward the age -- neither a shadow write nor a BACKUP copy
+    may reset the clock, however new it is and even when it is the only recent object under the prefix."""
     newest: Optional[datetime] = None
     for key, last_modified in objects:
         if exclude(key):

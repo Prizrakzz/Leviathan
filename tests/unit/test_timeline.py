@@ -73,7 +73,10 @@ def test_derive_with_fake_query_fn_and_render():
         {"node": "arabica_coffee", "d": "1994-06-10"}])
     assert set(eps) == {"drivers/frost", "arabica_coffee"} and len(eps["drivers/frost"]) == 1
     line = tl.render_line("frost", [{"start": "2021-06-01", "end": "2021-07-01", "n": 2, "receipt": None}])
-    assert "DATED EPISODES for frost" in line and "2021-06..2021-07 (2 reports; " in line
+    # R3.1: the noun is "report dates", not "reports" -- `n` counts DISTINCT PROP DATES (cluster() builds
+    # each episode from a set of dates), and the corroboration floor is a threshold on this very number,
+    # so a wrong noun has the prompt and the threshold disagreeing about what was counted.
+    assert "DATED EPISODES for frost" in line and "2021-06..2021-07 (2 report dates; " in line
     assert tl._NO_RECEIPT in line                                    # F-I marker, never a naked count
 
 
@@ -82,8 +85,13 @@ def test_ground_attaches_pit_episodes(tmp_path, monkeypatch):
     from leviathan.graphrag import graph as g
     from leviathan.graphrag import planner as pl
     art = tmp_path / "episodes.json"
+    # THREE dates, two of them pre-asof. R3 (2026-08-01) added the corroboration floor
+    # (serving.timeline.min_props, default 2), so the old two-date fixture recounted to n=1 at this
+    # as-of and was suppressed -- which tested the floor, not the attachment this test is about. The
+    # PIT assertion is unchanged in kind: the 2021-08-20 prop is still invisible at asof 2021-07-01.
     art.write_text(json.dumps({"drivers/frost": [
-        {"start": "2021-06-01", "end": "2021-08-20", "dates": ["2021-06-01", "2021-08-20"]}]}), encoding="utf-8")
+        {"start": "2021-06-01", "end": "2021-08-20",
+         "dates": ["2021-06-01", "2021-06-20", "2021-08-20"]}]}), encoding="utf-8")
     monkeypatch.setenv("GRAPHRAG_TIMELINE_PATH", str(art))
     monkeypatch.setenv("GRAPHRAG_TIMELINE", "on")
     tl.reset_cache()
@@ -96,7 +104,8 @@ def test_ground_attaches_pit_episodes(tmp_path, monkeypatch):
     pl.ground(sg, "frost coffee", graph, retrieve=lambda q, node, *, k, asof=None, near=None: list(ev),
               asof="2021-07-01", driver_slices={"frost"})
     frost = next(n for n in sg.nodes if n.id == "frost")
-    assert frost.episodes and frost.episodes[0]["n"] == 1        # only the pre-asof prop counts
+    assert frost.episodes and frost.episodes[0]["n"] == 2        # only the pre-asof props count
+    assert frost.episodes[0]["end"] == "2021-06-20"              # span recomputed from visible dates
     # GATE: a node with NO evidence gets NO episode line even though the artifact has episodes
     sg2 = pl.grounded_subgraph("frost coffee", graph, embed=lambda xs: [[1.0, 0.0] for _ in xs],
                                route_fn=lambda q, gr: ["arabica_coffee"])

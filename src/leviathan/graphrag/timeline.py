@@ -22,6 +22,21 @@ from leviathan.graphrag import params as _pr
 
 GAP_DAYS = int(_pr.get("serving.timeline.gap_days", 90))
 MAX_PER_NODE = int(_pr.get("serving.timeline.max_per_node", 4))
+
+# R3 / D-EI-8 (2026-08-01). THE CORROBORATION FLOOR: an episode must be built from at least this many
+# DISTINCT PROP DATES -- distinct dated documents, not props (see cluster(): `ds = sorted({...})`) -- to
+# be shown. Measured on the live 638,644-byte artifact: 2,070 of 3,735 episodes (55.4%) are single-date,
+# and at 1.17-2.75 props/date a single-date episode is ONE dated document. N>=2 is therefore the
+# threshold at which "episode" starts to mean corroborated; it costs 71 of 484 rendered lines (-14.7%)
+# and is as-of invariant across all three deck cohorts. N>=3 was REJECTED on a collision, not on taste
+# (it darkens coffee_rust_crop, cancelling the rust repair shipped in the same bundle); N>=5 takes 37.8%
+# of rendered lines. Set to 0 or 1 to disable.
+#
+# THE FLOOR IS A READ-TIME KNOB, applied in episodes_for AFTER the PIT recount and never in derive() /
+# write_artifact (R3.5): `n` is as-of dependent, so a build-time floor would cut on pre-as-of counts and
+# drift with every asof; and keeping the artifact COMPLETE lets the threshold be lowered without a
+# rebuild.
+MIN_PROPS = int(_pr.get("serving.timeline.min_props", 2))
 _ARTIFACT = "timeline/episodes.json"
 _CACHE: dict | None = None
 _LOG = logging.getLogger(__name__)
@@ -115,7 +130,17 @@ def build_stamp(episodes: dict, *, now: _dt.datetime | None = None) -> dict:
 
     ``gap_days`` rides along as an I-1-class fence for free: if ``serving.timeline.gap_days`` is
     edited in params, the artifact's clustering silently stops matching what serving expects, and
-    :func:`check_artifact` fails on the mismatch instead of serving episodes cut at the wrong gap."""
+    :func:`check_artifact` fails on the mismatch instead of serving episodes cut at the wrong gap.
+
+    ``min_props`` and ``max_per_node`` join it under D-EI-8 (ratified 2026-08-01). Neither shapes the
+    STORED bytes -- both are applied in :func:`episodes_for` at read time -- so unlike ``gap_days``
+    a mismatch cannot mean the artifact was cut wrong. What it CAN mean is the thing the fence is for:
+    the artifact in front of you was written under a different rendering contract than the one serving
+    now applies, so every count quoted about "what the reader sees" (the R3.2 calibration, a deck's
+    ``min_episode_lines``, an A/B baseline) was measured against a different threshold. ``gap_days``
+    is in the stamp precisely so a silent params edit FAILS :func:`check_artifact` rather than serving
+    a surprise; a floor knob outside the stamp reopens that exact class for the new parameter, and
+    ``max_per_node`` was already an existing, smaller instance of the same gap."""
     body = json.dumps(episodes, sort_keys=True)
     ts = (now or _dt.datetime.now(_dt.timezone.utc)).strftime("%Y-%m-%dT%H:%M:%SZ")
     return {
@@ -125,6 +150,8 @@ def build_stamp(episodes: dict, *, now: _dt.datetime | None = None) -> dict:
         # here rather than silently fixed -- fixing it is an adjacent lane's call.
         "source_table": "evidence_props",
         "gap_days": GAP_DAYS,
+        "min_props": MIN_PROPS,
+        "max_per_node": MAX_PER_NODE,
         "n_nodes": len(episodes),
         "n_episodes": sum(len(v) for v in episodes.values()),
         "n_prop_dates": sum(len(ep.get("dates") or [])
@@ -266,7 +293,36 @@ def reset_cache() -> None:
     _STATUS = {"state": "unread", "source": None, "err": None, "stamp": None, "n_nodes": 0}
 
 
-def episodes_for(node: str, asof, *, max_n: int = MAX_PER_NODE, evidence: list | None = None) -> list[dict]:
+class _Episodes(list):
+    """The episode list, plus the floor's suppression meta -- a `list` in every way that matters.
+
+    WHY A SUBCLASS AND NOT A TUPLE RETURN. The floor's emitter (R3.4) needs `n_suppressed` at
+    `answer._l2_blocks`, but the ONLY production producer of episodes is `planner._fill`
+    (planner.py:334, `n.episodes = tl.episodes_for(...)`) and the only consumer is answer.py -- two
+    files with an unowned intermediary between them (`GroundedNode.episodes`, planner.py:76) that
+    would otherwise have to grow a parallel field to carry the count. Riding the returned list keeps
+    the meta ATTACHED TO THE EPISODES IT DESCRIBES rather than beside them, so the two cannot drift.
+
+    It is a `list`: `== []` holds, `bool()` is falsy when empty, `json.dumps` serialises it, slicing
+    and `list(x)` degrade to a plain list. Every existing call site is byte-identical. A caller that
+    wants the meta EXPLICITLY passes `with_meta=True` and gets `(episodes, meta)`; a caller handed an
+    arbitrary list asks :func:`suppression`, which answers None for a list nothing floored.
+    """
+    __slots__ = ("meta",)
+
+
+def suppression(eps) -> dict | None:
+    """The floor meta ``{n_rendered, n_suppressed, floor}`` for an episode list, or None.
+
+    None means "this list did not come from :func:`episodes_for`" (a hand-built fixture, a future
+    producer), NOT "nothing was suppressed" -- those are different facts and the emitter must not
+    conflate them: the first has no suppression to report, the second reports zero."""
+    m = getattr(eps, "meta", None)
+    return dict(m) if isinstance(m, dict) else None
+
+
+def episodes_for(node: str, asof, *, max_n: int = MAX_PER_NODE, evidence: list | None = None,
+                 min_props: int | None = None, with_meta: bool = False):
     """PIT-filtered episodes for a slice: recount from prop dates <= asof, drop empty, biggest first.
     No asof -> nothing (an undated 'now' cannot anchor a timeline honestly).
 
@@ -286,12 +342,34 @@ def episodes_for(node: str, asof, *, max_n: int = MAX_PER_NODE, evidence: list |
     retrieval result -- a receipt-less 1994 frost would vanish from the count and the answer's own
     "the record holds N episodes" headline would understate the corpus it is meant to be honest
     about. Every emitted episode therefore carries a receipt OR a rendered statement that it has
-    none; nothing is emitted silently."""
+    none; nothing is emitted silently.
+
+    THE CORROBORATION FLOOR (R3, ratified D-EI-8). An episode recounted to fewer than ``min_props``
+    DISTINCT PROP DATES (default :data:`MIN_PROPS`) is dropped here -- after the PIT recount, so the
+    threshold is applied to the count the reader would actually have been shown, and before ``max_n``,
+    so a suppressed window does not consume one of the four rendered slots. The floor runs at READ
+    time and never at build time: `n` is as-of dependent, and a complete artifact lets the threshold
+    move without a rebuild (R3.5).
+
+    A DROPPED EPISODE IS NOT A SILENT ONE. `n_suppressed` rides back on the returned list (see
+    :class:`_Episodes` / :func:`suppression`, or pass ``with_meta=True`` for an explicit
+    ``(episodes, meta)`` pair) precisely because a floor with no emitter is absence HIDDEN -- a
+    fully-floored node would inject nothing at all and be byte-identical to a dead artifact for that
+    node, which is exactly the incident I-2 indistinguishability the fences were built to kill.
+    answer._l2_blocks turns the count into a stated line (fully floored) or a stated suffix (partially
+    floored); see :func:`floored_line` and :func:`floor_suffix`."""
+    floor = MIN_PROPS if min_props is None else int(min_props)
+
+    def _done(eps: list, n_suppressed: int):
+        out = _Episodes(eps)
+        out.meta = {"n_rendered": len(out), "n_suppressed": int(n_suppressed), "floor": floor}
+        return (out, dict(out.meta)) if with_meta else out
+
     if os.environ.get("GRAPHRAG_TIMELINE", "off") != "on":
-        return []
+        return _done([], 0)
     asof_d = _parse(asof)
     if asof_d is None:
-        return []
+        return _done([], 0)
     ev_by_date = sorted(((str(h.get("date") or "")[:10], (h.get("text") or "")) for h in (evidence or [])
                          if _parse(h.get("date"))), key=lambda x: x[0])
     out = []
@@ -305,8 +383,16 @@ def episodes_for(node: str, asof, *, max_n: int = MAX_PER_NODE, evidence: list |
             if start <= d <= end and txt:
                 receipt = {"date": d, "text": txt[:180]}
         out.append({"start": start, "end": end, "n": len(vis), "receipt": receipt})
+    n_suppressed = 0
+    if floor > 1:                                                  # 0 and 1 are the DISABLED settings:
+        kept = [e for e in out if e["n"] >= floor]                 # every surviving episode has n >= 1
+        n_suppressed = len(out) - len(kept)
+        out = kept
     out.sort(key=lambda e: -e["n"])
-    return out[:max_n]
+    # n_suppressed counts what THE FLOOR took, never what `max_n` truncated -- the emitter's sentence
+    # says "below the corroboration floor", and a count that quietly folded in the max_per_node tail
+    # would make that sentence false for the 5th-biggest window of a node that has six.
+    return _done(out[:max_n], n_suppressed)
 
 
 def month_span(e: dict) -> str:
@@ -336,16 +422,55 @@ def day_window(e: dict) -> tuple[str, str]:
     return str(e.get("start") or "")[:10], str(e.get("end") or "")[:10]
 
 
+def _head(label: str) -> str:
+    """The opening of EVERY episode line, floored or not -- one spelling, so the `## Episodes` gate
+    (`answer._episodes_on`: LINE_PREFIX in the assembled volatile prompt) sees the same marker on both."""
+    return LINE_PREFIX + label + " (report TIMESTAMPS, not descriptions): "
+
+
 def render_line(label: str, eps: list[dict]) -> str:
     """One prompt line per node. Every episode renders EITHER its citable receipt OR `_NO_RECEIPT` --
-    a bare count is never emitted (F-I: the bare count with no marker was the confabulation invitation)."""
+    a bare count is never emitted (F-I: the bare count with no marker was the confabulation invitation).
+
+    R3.1 -- THE NOUN. `e['n']` is DISTINCT PROP DATES, not props and not reports: cluster() builds each
+    episode from `sorted({...})` over the dates, so `n` counts dated DOCUMENTS. This line used to print
+    "(3 reports)", which is a different quantity (measured 1.17-2.75 props per date across seven live
+    driver slices), and the floor is a threshold ON THIS NUMBER -- so a wrong noun here would have the
+    prompt and the threshold disagreeing about what was counted. "report dates" is used invariantly for
+    every n: one string, no pluralisation branch to drift."""
     parts = []
     for e in eps:
-        span = f"{month_span(e)} ({e['n']} reports"
+        span = f"{month_span(e)} ({e['n']} report dates"
         r = e.get("receipt")
         span += f'; e.g. {r["date"]}: "{r["text"]}")' if r else f"; {_NO_RECEIPT})"
         parts.append(span)
-    return LINE_PREFIX + label + " (report TIMESTAMPS, not descriptions): " + ", ".join(parts)
+    return _head(label) + ", ".join(parts)
+
+
+# R3.4 leg 2 -- PARTIAL suppression. The node's block already renders, so the suppression fact is a
+# string append at the same seam: zero new gate, zero new paragraph. It is the LARGER half of the floor's
+# cost (measured at N>=2 on the live artifact: 8 nodes go fully dark, but 22 more fall from 4 rendered
+# lines to 1-3 with no marker of any kind -- including black_sea_corridor, the slice behind six deck rows).
+_FLOOR_SUFFIX = ("; {n} further window(s) below the corroboration floor of {floor} report dates and "
+                 "NOT shown -- do not enumerate or narrate them")
+
+# R3.4 leg 1 -- FULL suppression. Carries LINE_PREFIX so the '## Episodes' persona gate still fires and
+# the reader is told the windows were THIN rather than absent. Phrased as an instruction, not a label,
+# for the same reason _NO_RECEIPT is: it is the last thing the reasoner reads about this node.
+_FLOOR_ABSENCE = ("every dated window for this node -- {n} of them -- fell below the corroboration floor "
+                  "of {floor} report dates, so NONE is shown. The record here is thin and uncorroborated: "
+                  "say so plainly. This line carries NO window, so write no bullet for it, and never "
+                  "narrate or date an episode for this node.")
+
+
+def floor_suffix(n_suppressed: int, floor: int = MIN_PROPS) -> str:
+    """The suffix appended to a PARTIALLY floored node's existing episode line."""
+    return _FLOOR_SUFFIX.format(n=int(n_suppressed), floor=int(floor))
+
+
+def floored_line(label: str, n_suppressed: int, floor: int = MIN_PROPS) -> str:
+    """The whole prompt line for a FULLY floored node -- the one that had windows and shows none."""
+    return _head(label) + _FLOOR_ABSENCE.format(n=int(n_suppressed), floor=int(floor))
 
 
 def check_artifact(*, stamp: dict | None = None, state: str | None = None,
@@ -358,7 +483,9 @@ def check_artifact(*, stamp: dict | None = None, state: str | None = None,
       L-a  STAMP     -- an unstamped (legacy) artifact FAILS. Not "probably fine": unknowable.
       L-b  AGE       -- built_at older than ``age_sla_days``. The LIVENESS backstop ("is anything
                         still building this?"), deliberately NOT the primary leg.
-      L-c  GAP_DAYS  -- the artifact was clustered at a different gap than serving now expects.
+      L-c  KNOBS     -- gap_days / min_props / max_per_node: the artifact was clustered, or is being
+                        rendered, under a different contract than serving now expects. A MISSING key
+                        on a schema-2 stamp fails identically to a mismatched one.
       L-d  DRIFT     -- |live - stamped| / stamped over ``drift_ceiling``, on n_prop_dates AND
                         n_nodes. THE PRIMARY LEG. Incident I-2 was 74% CONTENT growth against a
                         clock that a generous SLA would have called fine (27.4d vs a 30d SLA), and
@@ -408,9 +535,16 @@ def check_artifact(*, stamp: dict | None = None, state: str | None = None,
         _leg("age", age <= age_sla_days,
              f"built_at {built_raw}  age {age:.1f}d  SLA {age_sla_days:.1f}d")
 
-    gap = stamp.get("gap_days")
-    _leg("gap_days", gap == GAP_DAYS,
-         f"stamp gap_days {gap} vs serving GAP_DAYS {GAP_DAYS}")
+    # L-c, all three render/cluster knobs. D-EI-8: min_props and max_per_node are asserted THE SAME WAY
+    # gap_days is, and a schema-2 stamp MISSING either fails exactly like a mismatch -- there is no
+    # back-compat shim, because no schema-2 artifact has been written in production yet, so a tolerated
+    # absence would only ever mean "written by a build that predates this fence", which is the unknowable
+    # state leg L-a already refuses. A legacy (schema-1) artifact never reaches here: it fails at L-a.
+    for field, expect in (("gap_days", GAP_DAYS), ("min_props", MIN_PROPS),
+                          ("max_per_node", MAX_PER_NODE)):
+        got = stamp.get(field)
+        _leg(field, got == expect,
+             f"stamp {field} {got} vs serving {field.upper()} {expect}")
 
     for field, live in (("n_prop_dates", live_prop_dates), ("n_nodes", live_nodes)):
         stamped = stamp.get(field)

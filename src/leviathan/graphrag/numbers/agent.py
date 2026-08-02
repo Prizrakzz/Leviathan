@@ -1258,6 +1258,34 @@ def shape_decline(shape: Optional[str], calls: Optional[list]) -> tuple[str, lis
     return shape_decline_line(str(shape), subjects, scopes) + "\n\n", declined, states
 
 
+# -- F14 / R8: DECLINE-REGISTER SUPPRESS-ON-OVERLAP (ratified 2026-08-01, wave-plan addendum 2) ---------
+# Two decline REGISTERS can co-occur in one answer preface: C2's question-shape line beside a legacy
+# template -- the R5 price-coverage decline (DECLINE_TEMPLATES), the SEAM-C futures levels-only decline
+# (FUTURES_DECLINE_TEMPLATES), the ESR destination decline, the W3.2 coverage decline. The reader then
+# gets two "One limitation to flag before the numbers:" sentences stacked in front of one answer, each
+# refusing a different thing.
+#
+# RATIFIED AS SUPPRESS-ON-OVERLAP: when any OTHER decline template already fired for the turn, the C2
+# line stays silent -- one preface, one decline. The RECONCILE alternative (harmonize the wordings into a
+# single sentence) was REJECTED at ratification because it re-pins strings the R5 / futures-lite censuses
+# and the judged decks assert verbatim, forcing a re-measurement for a wording harmonization. Nothing in
+# this change touches the TEXT of any template, C2's included.
+#
+# The test is the SHARED LEAD, which is what makes it structural rather than a list to maintain: every
+# reader-facing DECLINE in this module opens with SHAPE_DECLINE_LEAD verbatim (_esr_destination_preface,
+# _price_decline_preface, _futures_decline_preface, futures_eod_coverage_preface's decline classes), and
+# every non-decline preface deliberately does not -- the period-mismatch line ("One scope note before the
+# numbers: "), the ESR bloc caveat ("One note on scope before the number: "), the W3.2 legacy-provenance
+# note ("One provenance note before the numbers: ") and the pattern-records observation line. That split
+# is the right one to suppress on: a scope / provenance / bloc note is a statement ABOUT a figure the
+# turn is serving, not a second refusal, so a turn carrying one still gets its C2 decline. The two-sided
+# census in tests/unit/test_decline_overlap.py pins both halves, so a future decline template that
+# invents its own lead fails there rather than silently re-opening the double preface.
+def other_decline_fired(preface: Optional[str]) -> bool:
+    """True when a decline template OTHER than C2's has already landed in this turn's preface (F14/R8)."""
+    return SHAPE_DECLINE_LEAD in (preface or "")
+
+
 def _visible_tables(reg: NumbersRegistry) -> list[str]:
     """The registry tables EXPOSED to the agent this call: sorted(reg.tables), MINUS the flag-gated
     pattern-records card when GRAPHRAG_PATTERN_RECORDS is OFF. Read per-call so the kill-switch rollback is
@@ -1823,8 +1851,37 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                 result["question_shape"] = shape
                 result["shape_metric_states"] = shape_states
                 if shape_declined:
-                    preface += shape_preface
+                    # THE VERDICT RIDES WHETHER OR NOT THE LINE RENDERED (R8 fold, 2026-08-02). R8's first
+                    # cut read `shape_decline_guard` as a RENDER RECEIPT and dropped it on the suppressed
+                    # turn. It is not one, and the code base says so in two places: orchestrator.py:302-307
+                    # ("the shape RECORD is lane-independent ... Only the reader-facing DECLINE PREFACE is
+                    # numbers_only-only ... the record must not be, or the miss states are unobservable on
+                    # the very lane 2.4(a) measured them on") and eval.py:1160-1163 ("without this line the
+                    # four miss states are unreadable from any artifact"). Dropping it therefore did not
+                    # move a fact from one key to another -- it DELETED the C2 miss from every artifact on
+                    # exactly the overlap turns, worst on HYBRID, where the C2 line is discarded before a
+                    # reader ever sees it and the record was the only observable half in the first place.
+                    # The two keys now split the two questions cleanly:
+                    #   shape_decline_guard      -- WHAT THE SHAPE VERDICT WAS (lane-independent record,
+                    #                               carried onto the trace by both orchestrator lanes and
+                    #                               into eval's row projection). Present exactly when the
+                    #                               C2 register declined, which is what it meant pre-R8,
+                    #                               so no corpus count of C2 misses shifts under R8.
+                    #   shape_decline_suppressed -- WHETHER THE LINE WAS WITHHELD as a duplicate refusal.
+                    # NOTE FOR THE TRACE OWNERS: `shape_decline_suppressed` is numbers-lane-local until it
+                    # is added to the three fixed key tuples in orchestrator.py (:100, :308, :339) and
+                    # eval.py's row projection (:1166); until then the guard is what makes the miss
+                    # observable and the suppression is visible only on answer_numbers' own return.
                     result["shape_decline_guard"] = shape_declined
+                    if other_decline_fired(preface):
+                        # F14 / R8 SUPPRESS-ON-OVERLAP. A legacy decline template already refused something
+                        # in this preface; C2's line would be a SECOND refusal in the same register, stacked
+                        # in front of the same answer. The legacy line wins (it is already written, and it
+                        # names the ask the reader actually made), and the shape verdict survives as a
+                        # RECORD only -- the guard above, plus this key naming the withheld line.
+                        result["shape_decline_suppressed"] = shape_declined
+                    else:
+                        preface += shape_preface
             if preface:
                 result["answer"] = (preface + text).strip()
             return result

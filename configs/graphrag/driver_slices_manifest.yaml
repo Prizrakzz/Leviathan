@@ -22,12 +22,12 @@
 manifest_version: 1
 generated_by: "python -m leviathan.graphrag.driver_slices_manifest --write"
 source: "configs/graphrag/driver_slices.yaml"
-file_sha256: "59a73a5a3f8e660290ffcad7a08515405d13c7e017e3eb0629aa063c18363194"
+file_sha256: "fedf143932a865ddf53ead324edba0a3fbff20b033e60f0afa75d58c62d7c287"
 counts:
   specs: 109
   dag_aliases: 68
   waivers: 143
-  terms: 638
+  terms: 635
 slices:
   african_swine_fever: {category: "livestock_disease_demand", priority: null, n_terms: 5, terms_sha256: "51277c987b5ca2f0a660175de8f0257b82d1cb7c3adc5ff2cf6af886ef4a6a41"}
   animal_disease_demand_shock: {category: "livestock", priority: null, n_terms: 7, terms_sha256: "a8e1d12f3ad206fe949b5cf46826954d3c9d9d009fb39ec94ad8087612aeef09"}
@@ -44,7 +44,7 @@ slices:
   broiler_economics: {category: "livestock_feed_demand", priority: null, n_terms: 6, terms_sha256: "9881cf984b271f1c9aafd73c294073c6c7b20bdb563e85ae123ea87ab60d6a03"}
   cattle_cycle_herd_size: {category: "livestock_feed_demand", priority: null, n_terms: 5, terms_sha256: "1ab1084994bf382e69b0611ce3d3e0f8114e6a6ffe4d37af40836f440fedfbe9"}
   cattle_on_feed: {category: "livestock_feed_demand", priority: null, n_terms: 6, terms_sha256: "9ca1aaeeddf0fa1553ec244ae1eccc420c587b1b5464600df35ace2bf7b824d6"}
-  cereal_rust_complex: {category: "crop_disease", priority: null, n_terms: 9, terms_sha256: "979d09845874c8f5df2865b45db8b1a8f791c5630c6a3fa330e60f2c6bc9436e"}
+  cereal_rust_complex: {category: "crop_disease", priority: null, n_terms: 4, terms_sha256: "a70037263332baa3d10db7e0ee5ae0bb54464851aa7cc45570b21387c6d029e1"}
   cftc_positioning: {category: "positioning", priority: null, n_terms: 8, terms_sha256: "3c50404a41cacf7d0ee0ad8516a14b06f8f466547dd64d8c678b05472b33d008"}
   china_buying_pace: {category: "demand_center", priority: null, n_terms: 6, terms_sha256: "06b9a3def4c2f2a3f0512d4bde51cd9b990af154a2c295a974d10fafd855d4cf"}
   china_crush_demand: {category: "demand_center", priority: null, n_terms: 5, terms_sha256: "66edd1e84a64aa34dede3de9bce643d8d7d7f204e87d24e59fcadbb9aba5961a"}
@@ -55,7 +55,7 @@ slices:
   cocoa_swollen_shoot_virus: {category: "crop_disease", priority: null, n_terms: 4, terms_sha256: "acd9673ac644ccf471ea0820e2d351945bde7406af6e1984685e76dbcf4be459"}
   coffee_leaf_miner_borer: {category: "crop_pest", priority: null, n_terms: 5, terms_sha256: "33b1e4841593825b90ed61e1f42c5586e14bcbb7e0f67db59de9a684dd7914f9"}
   coffee_price_benchmark: {category: "price_benchmark", priority: null, n_terms: 11, terms_sha256: "fffadf837ef1dc06b7d653573329dde620fc156ec60a962dcdfdb800b5cb0c36"}
-  coffee_rust_crop: {category: "crop_disease", priority: null, n_terms: 4, terms_sha256: "fc289809b4a4370607b7771ae37ff3acbdad5250cb6cb21ab68be9627d9181a6"}
+  coffee_rust_crop: {category: "crop_disease", priority: null, n_terms: 6, terms_sha256: "073cbc22a9019dd2663ca339e638faa60273e4a90302b03023cb57e825924965"}
   corn_southern_rust: {category: "crop_disease", priority: null, n_terms: 3, terms_sha256: "7c4fbd0db63f370763c6363548aa3bb2ddef81df38a8cce4b467e663df46249a"}
   corn_tar_spot: {category: "crop_disease", priority: null, n_terms: 3, terms_sha256: "6499be3fad6f3da62277021598427145415eb9232085123dc445992e2d1b8763"}
   cotton_pest_complex: {category: "crop_pest", priority: null, n_terms: 6, terms_sha256: "ce085d8168c2c0511aeecc517ab21f58bf48ce1744a9dde177cc9f4fecd55c54"}

@@ -42,6 +42,18 @@ class TestExclusion:
     def test_tasks_manifest_excluded(self):
         assert is_excluded_key("silver/fgis/_tasks.json") is True
 
+    def test_backup_key_excluded(self):
+        # R7.2 (D-EI-12): a backup copy is not canonical data, anywhere in the tree.
+        assert is_excluded_key("silver/fgis/_backup/2026/part.parquet") is True
+        assert is_excluded_key(
+            "graphrag_evidence/timeline/_backup/episodes_20260704_prerebuild.json"
+        ) is True
+
+    def test_backup_substring_in_a_filename_is_still_canonical(self):
+        # Segment-scoped, not substring-scoped: only a real ``_backup/`` DIRECTORY is excluded.
+        assert is_excluded_key("silver/fgis/backup_notes.parquet") is False
+        assert is_excluded_key("silver/fgis/_backup_2026.parquet") is False
+
 
 class TestNewestLastModified:
     def test_picks_max_canonical(self):
@@ -59,6 +71,25 @@ class TestNewestLastModified:
             ("silver/fgis/_shadow/fresh.parquet", _dt(22)),
         ]
         assert newest_last_modified(objs) == _dt(5)
+
+    def test_backup_does_not_reset_the_clock(self):
+        # R7.2 (D-EI-12), MEASURED incident: the polled prefix graphrag_evidence/timeline/ already
+        # held _backup/episodes_20260704_prerebuild.json, so a pre-rebuild BACKUP copy -- newer than
+        # every live key and written WITHOUT any rebuild -- was resetting the artifact's measured
+        # age and made the FreshnessLagDays fence fail OPEN. The live key still sets the age.
+        objs = [
+            ("graphrag_evidence/timeline/episodes.json", _dt(4)),
+            ("graphrag_evidence/timeline/stamp.json", _dt(3)),
+            ("graphrag_evidence/timeline/_backup/episodes_20260704_prerebuild.json", _dt(31)),
+        ]
+        assert newest_last_modified(objs) == _dt(4)
+
+    def test_backup_only_prefix_reads_as_no_canonical_data(self):
+        # The other half of the same fence: once the live artifact is DELETED, a lingering backup
+        # must NOT keep a datapoint flowing (silver_alarms.py relies on the empty-prefix -> no
+        # datapoint -> treat_missing_data='breaching' path to fire on a deleted artifact).
+        objs = [("graphrag_evidence/timeline/_backup/episodes_20260704_prerebuild.json", _dt(31))]
+        assert newest_last_modified(objs) is None
 
     def test_empty_or_all_excluded_is_none(self):
         assert newest_last_modified([]) is None

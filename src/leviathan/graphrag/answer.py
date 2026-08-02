@@ -794,18 +794,42 @@ _SYSTEM_OUTLOOK = (
 # pair covers a window, so a clause appended there would be unconditional and would forbid the one
 # legitimate [N] line. One instruction, one file.
 _SYSTEM_EPISODES = (
-    "\nDATED EPISODES -- THE '## Episodes' SECTION. When one or more 'DATED EPISODES' lines are present, "
-    "ENUMERATE them in a dedicated '## Episodes' section. Render '## Episodes' ONLY when a 'DATED "
-    "EPISODES' line is present -- the section exists solely when the prompt supplies the episodes; never "
-    "volunteer an episode list from prose, and never add an episode the lines do not carry. The DATED "
-    "EPISODES rule above still holds in full: those lines are REPORT TIMESTAMPS, not descriptions, so do "
-    "NOT manufacture severity, outcomes, or magnitudes from a bare count or date -- enumerating a window "
-    "is not narrating it.\n"
+    "\nDATED EPISODES -- THE '## Episodes' SECTION. When one or more 'DATED EPISODES' lines CARRY A "
+    "WINDOW, ENUMERATE those windows in a dedicated '## Episodes' section. Render '## Episodes' ONLY when "
+    "an injected line carries at least one window -- the section exists solely when the prompt supplies "
+    "the episodes; never volunteer an episode list from prose, and never add an episode the lines do not "
+    "carry. The DATED EPISODES rule above still holds in full: those lines are REPORT TIMESTAMPS, not "
+    "descriptions, so do NOT manufacture severity, outcomes, or magnitudes from a bare count or date -- "
+    "enumerating a window is not narrating it.\n"
+    # R3 leg 1 fold (2026-08-02, adversarial finding). The corroboration floor made a line with ZERO
+    # enumerable windows REACHABLE: timeline.floored_line carries LINE_PREFIX by design, so this persona
+    # block still ships (that is the I-2 fix -- a floored node must speak rather than vanish), but the
+    # line it ships beside says "This line carries NO window, so write no bullet for it". Every other rule
+    # in this section -- "ENUMERATE them", "ONE '- ' bullet per injected episode", "EVERY INJECTED EPISODE
+    # GETS ITS OWN BULLET ... Never drop an episode for being thin" -- then instructed the opposite, in the
+    # same system prompt. The two outcomes of that contradiction are both defects: an EMPTY '## Episodes'
+    # heading (violating the shape rule below, and scoring zero lines -- min_episode_lines and
+    # episode_magnitude_or_absence both red), or a bullet minted from a bare count, which is the
+    # +10-hallucination mode the whole timeline layer exists to close. The mitigation shipped inside the
+    # injected string only; it belongs here too, because the persona is what the model reads first.
+    "A 'DATED EPISODES' LINE THAT CARRIES NO WINDOW IS NOT AN EPISODE. A line reporting that every dated "
+    "window for that node fell below the corroboration floor, and that NONE is shown, hands you nothing "
+    "to enumerate: write NO bullet for it, give it no span, no date and no label, and never turn its "
+    "count of suppressed windows into an episode -- that count is the number of windows you were NOT "
+    "shown. If NO injected line carries a window -- every one of them is a floor line -- then OMIT the "
+    "'## Episodes' section ENTIRELY: an empty heading is a defect, and a bullet minted to fill it is the "
+    "invention this section exists to prevent. Say the thing the floor line actually tells you instead, "
+    "in prose in '## The record': the dated record for that node is thin and uncorroborated. Stating that "
+    "IS the answer. The rules below govern the windows the prompt SHOWS you -- 'never drop an episode for "
+    "being thin' is about a window with no citable item, never about one the floor withheld.\n"
     "HEADING: exactly '## Episodes' -- level two, that word alone, no count suffix and no dash suffix, "
     "never inside a code fence. Place it AFTER '## The record' and BEFORE '## What to watch'. The section "
-    "holds ONE '- ' bullet per injected episode and NOTHING else: no lead-in sentence, no closing prose.\n"
-    "EVERY INJECTED EPISODE GETS ITS OWN BULLET, including the ones with no citable item. Never drop an "
-    "episode for being thin, never merge two into one bullet, and never invent one to round out the list.\n"
+    "holds ONE '- ' bullet per injected episode WINDOW and NOTHING else: no lead-in sentence, no closing "
+    "prose.\n"
+    "EVERY INJECTED EPISODE WINDOW GETS ITS OWN BULLET, including the ones with no citable item. Never "
+    "drop a window for being thin -- thin means the corpus holds no citable item inside it, never a "
+    "window the floor withheld and did not show you -- never merge two into one bullet, and never invent "
+    "one to round out the list.\n"
     # A5 (SKEPTIC F23): the shape line used to declare a UNIVERSAL '<plain-words label>' slot, which CASE 1
     # below then contradicts -- on a receipt-less window the label is the injected line's own, copied, and
     # a model reading the universal rule first is being told to write words the record cannot support.
@@ -1145,9 +1169,24 @@ def _l2_blocks(sg, graph: gph.CausalGraph, asof: str | None = None) -> list[str]
                 vlines.append(f"--- DATED EVIDENCE for {cid} ---\n" + _ev_block(n.evidence))
             elif n.kind == "driver" and n.evidence:
                 vlines.append(f"--- DATED EVIDENCE for driver {n.id} ---\n" + _ev_block(n.evidence))
+            # R3.4 (D-EI-8): the corroboration floor's SUPPRESSION META, or None when this node's
+            # episodes did not come from timeline.episodes_for (a hand-built fixture, a future producer).
+            # None and {"n_suppressed": 0} are DIFFERENT facts and are kept different: the first has no
+            # suppression to report, the second reports zero -- so a record's suppression keys appear iff
+            # a floor actually ran, and every pre-R3 call site is byte-identical.
+            _ep_sup = _tl.suppression(n.episodes)
+            _ep_cut = int((_ep_sup or {}).get("n_suppressed") or 0)
+            _ep_floor = int((_ep_sup or {}).get("floor") or 0)
             if n.episodes:                                         # timeline layer: dated occurrences <= asof
                 from leviathan.graphrag import timeline as tl
                 _ep_line = tl.render_line(n.id, n.episodes)
+                if _ep_cut:
+                    # LEG 2 -- PARTIALLY floored. A string append at the SAME seam: the block already
+                    # renders, so this needs no new gate and no new paragraph. Without it the floor's
+                    # most-cited casualty (black_sea_corridor, six deck rows, [6,5,2,1] -> [6,5,2]) is
+                    # silent by construction, and a reader cannot tell "this node has 3 windows" from
+                    # "its 4th was thin" -- the same indistinguishability one notch below fully-dark.
+                    _ep_line += tl.floor_suffix(_ep_cut, _ep_floor)
                 vlines.append(_ep_line)
                 # W4-N1 (2026-07-31, adversarial gate): EXPORT what was injected. Until now the rendered
                 # episode line lived ONLY in the volatile prompt -- `n.episodes` is never copied into
@@ -1181,7 +1220,28 @@ def _l2_blocks(sg, graph: gph.CausalGraph, asof: str | None = None) -> list[str]
                     {"node": n.id, "line": _ep_line,
                      "spans": [tl.month_span(e) for e in n.episodes],
                      "windows": [{"start": tl.day_window(e)[0], "end": tl.day_window(e)[1],
-                                  "span": tl.month_span(e), "n": e.get("n")} for e in n.episodes]})
+                                  "span": tl.month_span(e), "n": e.get("n")} for e in n.episodes],
+                     # R3.4 leg 3: the PAIR, so an eval asserts on {rendered, suppressed} rather than
+                     # inferring suppression from a line count that has two causes (a thin node and a
+                     # floored one produce the same count). Keys omitted entirely when no floor ran.
+                     **(_ep_sup or {})})
+            elif _ep_cut:
+                # LEG 1 -- FULLY floored: this node HAD windows and every one of them was below the
+                # floor. `if n.episodes:` alone injects nothing here, which makes a floored slice
+                # byte-identical to a dead artifact for that node -- exactly the I-2 indistinguishability
+                # the fences exist to kill. The line carries _tl.LINE_PREFIX so the '## Episodes' persona
+                # gate (_episodes_on, which tests that constant in the assembled volatile prompt) still
+                # fires and the reader is told the windows were THIN rather than absent.
+                _ep_line = _tl.floored_line(n.id, _ep_cut, _ep_floor)
+                vlines.append(_ep_line)
+                sg.trace.setdefault("episodes_injected", []).append(
+                    {"node": n.id, "line": _ep_line, "spans": [], "windows": [],
+                     # `floored` is the machine flag eval._injected_episodes' consumers need to tell
+                     # "floored" from "never had any": both carry zero spans, and only this key
+                     # separates them. spans/windows stay PRESENT-AND-EMPTY so every existing reader
+                     # (eval._injected_episodes, eval._judge_episodes_panel, cascade's outcome leg)
+                     # iterates nothing instead of meeting a missing key.
+                     "floored": True, **(_ep_sup or {})})
             if n.kind == "driver" and n.silver and n.silver.get("live"):
                 vlines.append(f"OBSERVED for {n.id}: {n.silver.get('value')} {n.silver.get('unit', '')} "
                               f"[{n.silver.get('knowledge_date', '')}]")

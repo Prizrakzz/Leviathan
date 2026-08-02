@@ -108,6 +108,21 @@ serving:
     # receipts invited confabulation); the receipted+evidence-gated path is what =on now exercises.
     gap_days: 90                # consecutive props further apart than this start a new episode
     max_per_node: 4             # episodes shown per grounded node (biggest first)
+    min_props: 2                # R3 / D-EI-8 CORROBORATION FLOOR: minimum DISTINCT PROP DATES (= distinct
+                                # dated documents, not props) an episode needs to be RENDERED. Applied at
+                                # READ time in timeline.episodes_for, after the PIT recount and before
+                                # max_per_node, so the artifact stays complete and this can move without a
+                                # rebuild. Measured on the live artifact: 2,070 of 3,735 episodes are
+                                # single-date; N>=2 costs 71 of 484 rendered lines (-14.7%), darkens 8 of
+                                # 125 slices, and is as-of invariant across all three deck cohorts. N>=3
+                                # was REJECTED on a collision (it darkens coffee_rust_crop, cancelling the
+                                # R1 rust repair); N>=5 takes 37.8% of rendered lines. 0 or 1 = disabled.
+                                # SUPPRESSION IS NEVER SILENT: a floored node still emits a stated line
+                                # (answer._l2_blocks + timeline.floored_line/floor_suffix) -- without that
+                                # emitter the floor is absence HIDDEN and re-opens incident I-2.
+                                # Stamped into the artifact (timeline.build_stamp) and asserted by
+                                # check_artifact, so editing this without a rebuild goes RED rather than
+                                # silently re-cutting what the reader sees.
   cascade:                      # P9-B quantified-cascade loop (GRAPHRAG_CASCADE_QUANT)
     cap: 12                     # max windowed lookups per answer (own budget, separate from silver.cap)
   silver:                       # silverleg (WS-4) — the observed-value leg
