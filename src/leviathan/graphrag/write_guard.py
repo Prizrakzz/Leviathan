@@ -586,7 +586,8 @@ def plan_write(layer: str, subprefix: str, payloads: dict, *, records: dict,
     `payloads` {slice -> the serialized body} -- may be a lazy callable per slice to keep 1.3 GB of bodies
                out of memory at once, and so that a refused pass pays no embed;
     `write_fn(node, body)` performs the single wholesale write; `node_of(name)` maps a slice name to its
-    store node ("drivers/x" or "x").
+    store node ("drivers/x" or "x"). A write_fn marked with `bytes_writer` is handed the ALREADY-ENCODED
+    utf-8 bytes instead of the str -- see commit_write, and BYTES_WRITER_ATTR for why the marker exists.
 
     Warns are printed and recorded HERE (at plan time), because a warn is information about the pass whether
     or not the pass proceeds -- a refused pass's warns are the diagnosis."""
@@ -632,17 +633,80 @@ def raise_if_refused(*plans: WritePlan) -> None:
         f"(e.g. --allow-churn 25) if this population change is intended."])
 
 
+# ── the bytes contract for write_fn (the 2026-08-02 OOM) ─────────────────────────────────────────────────
+# A write_fn is CALLER-SUPPLIED, so commit_write cannot simply assume it takes bytes: a test double or a
+# future caller may only handle str, and handing it bytes would break it -- or, worse, a try-bytes/retry-str
+# fallback would re-run a write_fn that may already have put half its object before raising. So the bytes
+# path is OPT-IN and explicit: a write_fn that carries this attribute is handed the pre-encoded utf-8 bytes;
+# anything else is handed the str exactly as before. The four shipped callers all pass evidence._evid_write,
+# which sets the marker, so production takes the zero-copy path and nothing else changes behaviour.
+#
+# The marker is a plain attribute, so ANY wrapper that does not copy it -- a functools.partial, a lambda, a
+# decorator, a monkeypatch -- silently lands on the str branch. That branch must therefore be no worse than
+# the pre-fix loop, which is why commit_write DROPS its own bytes (`blob = None`) before calling a str-only
+# write_fn: otherwise our bytes would still be live while write_fn encodes its own, i.e. 3.00x the body at
+# the sink -- WORSE than the 2.00x that OOM-killed the pass, and in exactly the configuration that dies
+# (measured on a 256 MB body: 3.00x without the drop, 2.00x with it, which is today's peak). Degradation is
+# then strictly "slower, never wrong": one extra encode, never an extra live copy.
+BYTES_WRITER_ATTR = "accepts_bytes"
+
+
+def bytes_writer(fn):
+    """Mark a `write_fn(node, body)` as accepting BYTES as well as str. Returns fn (usable as a decorator)."""
+    setattr(fn, BYTES_WRITER_ATTR, True)
+    return fn
+
+
+def _accepts_bytes(fn) -> bool:
+    return bool(getattr(fn, BYTES_WRITER_ATTR, False))
+
+
 def commit_write(plan: WritePlan) -> int:
     """Run one planned layer's write loop. Call ONLY after raise_if_refused over every plan in the pass.
-    Returns the number of records written."""
+    Returns the number of records written.
+
+    ONE ENCODE PER SLICE, and the str released before the write. The 2026-08-02 Wave-R routing pass was
+    OOM-killed (exit 137, 8 vCPU / 16 GB) mid commit_all on graphrag_evidence/soybeans.jsonl -- the largest
+    object in the store at 1.03 GB -- after landing 19 of 24 commodity slices and zero driver slices, leaving
+    the store TORN. This loop paid for that body THREE times: the materialized str; the bytes `_evid_write`
+    encoded from it, which put 2.00x the body live at the moment of the PUT, i.e. exactly where boto3 then
+    layers its own request buffers (tracemalloc, 40 MB stand-in); and then, after the write, a SECOND full
+    encode of the same str whose only purpose was `len(...)` for the manifest, taking it back to 2.00x. Now
+    the payload is encoded exactly once here, the str is released BEFORE the write (measured: 1.00x live at
+    the PUT), the SAME bytes object is both written and measured, and both are dropped before the next slice
+    materializes -- so a 24-slice commit_all never carries one slice's body into the next slice's.
+
+    WHAT THIS DOES AND DOES NOT LOWER (measured, 256 MB body). Copies alive AT THE SINK: 2 -> 1, which is the
+    point -- that window is the whole 1.03 GB S3 PUT, where boto3 layers its own request buffers on top, and
+    it is where exit 137 landed. Full-size 2.00x windows per slice: 2 -> 1 (the post-write len() encode is
+    gone). The absolute in-process PEAK is UNCHANGED at 2.00x: str and bytes necessarily coexist during the
+    encode itself, and no rearrangement of this loop can avoid that without streaming the serialization. So
+    the 2.00x moment MOVED -- from a network-bound PUT to a ~0.2s memcpy with no other allocator active --
+    it did not halve. Do not describe this as "peak memory dropped"; it dropped AT THE SINK.
+
+    INVARIANT (a): `set_after_bytes` still records the TRUE utf-8 byte length of the body that was written --
+    it is now `len()` of the very bytes handed to write_fn rather than a second encode of the same str, which
+    is the same number by construction. resolve_prior compares it for EQUALITY against the stored object size
+    as its stale-mirror fence, so a wrong value here silently downgrades every slice to a size estimate and
+    blanks its span."""
     total = 0
+    wants_bytes = _accepts_bytes(plan.write_fn)
     for name in sorted(plan.records):
         body = plan.payloads[name]
-        body = body() if callable(body) else body
-        plan.write_fn(plan.node_of(name), body)
+        body = body() if callable(body) else body              # materialize (up to 1.03 GB)
+        blob = body if isinstance(body, (bytes, bytearray)) else body.encode("utf-8")   # the ONLY encode
+        nbytes = len(blob)
+        if wants_bytes:
+            target = blob                                      # zero-copy: the SAME object is written+measured
+        else:
+            target, blob = body, None                          # str-only write_fn: drop OUR bytes first, or it
+                                                               # re-encodes a THIRD copy alongside them (3.00x)
+        del body                                               # release the str before the write ...
+        plan.write_fn(plan.node_of(name), target)
         total += len(plan.records[name])
         if plan.manifest is not None:
-            plan.manifest.set_after_bytes(plan.layer, name, len(body.encode("utf-8")))
+            plan.manifest.set_after_bytes(plan.layer, name, nbytes)
+        del target, blob                                       # ... and before the next slice materializes
     return total
 
 

@@ -47,16 +47,25 @@ def _parse_s3(uri: str):
     return b, k
 
 
-def _evid_write(node: str, text: str) -> None:
+def _evid_write(node: str, text: str | bytes) -> None:
+    """Write one slice object. Accepts a str OR the utf-8 bytes of one.
+
+    The bytes form is the guarded write path (write_guard.commit_write encodes each payload exactly once and
+    hands the SAME bytes object here and to the manifest's after_bytes). Re-encoding it would put a second
+    full-size copy of the body alongside the first -- on the 1.03 GB `soybeans` slice that is what OOM-killed
+    the 2026-08-02 routing pass. A str is still accepted and encoded here, once, for the direct callers
+    (restamp, the doc-cache writer) whose bodies are small."""
+    blob = text if isinstance(text, (bytes, bytearray)) else text.encode("utf-8")
     base = _evid_s3()
     if base:
         import boto3
         bkt, key = _parse_s3(base.rstrip("/") + f"/{node}.jsonl")
-        boto3.client("s3").put_object(Bucket=bkt, Key=key, Body=text.encode("utf-8"))
+        boto3.client("s3").put_object(Bucket=bkt, Key=key, Body=blob)
     else:
         p = _EVID_DIR / f"{node}.jsonl"
         p.parent.mkdir(parents=True, exist_ok=True)            # node may be "drivers/<x>" (a subdir)
-        # write_BYTES, not write_text (F6). Path.write_text translates "\n" -> "\r\n" on Windows, so a local
+        # write_BYTES, not write_text (F6) -- and that is why this function encodes ONCE, up front, and both
+        # branches write the SAME `blob`. Path.write_text translates "\n" -> "\r\n" on Windows, so a local
         # slice was ALWAYS larger than the manifest's recorded after_bytes by exactly its newline count
         # (measured: manifest 3201, on disk 3220, delta 19 = the 19 newlines). resolve_prior's stale-mirror
         # fence compares those two numbers for equality, so on the laptop the exact branch NEVER matched:
@@ -64,8 +73,16 @@ def _evid_write(node: str, text: str) -> None:
         # manifest STALE (bytes moved since)" -- telling an operator a later UNGUARDED write invalidated the
         # baseline when in fact nothing had written. The S3 branch already encodes to utf-8 before the PUT,
         # so it was never affected, which is exactly why this hid from cloud testing and bit every dev run.
-        # It also removes a silent CRLF/LF difference between the local and S3 stores generally.
-        p.write_bytes(text.encode("utf-8"))
+        # It also removes a silent CRLF/LF difference between the local and S3 stores generally. A bytes
+        # argument NEVER goes near write_text either: there is exactly one sink here, and it is bytes.
+        p.write_bytes(blob)
+
+
+# write_guard.commit_write hands a marked write_fn the pre-encoded bytes instead of the str, so the guarded
+# path encodes each slice body exactly once (write_guard.BYTES_WRITER_ATTR). Set as a plain attribute rather
+# than via write_guard.bytes_writer so this module keeps its lazy, cycle-free import of write_guard; the
+# wiring is pinned by test_evidence.test_evid_write_is_marked_as_a_bytes_writer.
+_evid_write.accepts_bytes = True
 
 
 def _evid_read(node: str) -> str:

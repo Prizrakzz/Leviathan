@@ -251,6 +251,214 @@ def test_a_refusal_in_ANY_planned_layer_leaves_EVERY_layer_unwritten(tmp_path, m
     assert any("commodity" in line and "drivers" in line for line in exc.value.lines)
 
 
+# ── F17: commit_write encodes ONCE per slice (the 2026-08-02 OOM kill) ─────────────────────────────────
+# The Wave-R routing pass was OOM-killed (exit 137, 8 vCPU / 16 GB) mid commit_all on the 1.03 GB
+# `soybeans` slice, after landing 19 of 24 commodity slices and ZERO driver slices -- a torn store restored
+# from a copy-prefix backup. The loop paid for that body three times: the materialized str, the bytes
+# _evid_write encoded for the PUT (2.00x the body live AT the PUT, measured), and a SECOND full encode
+# after the write existing only to measure len(...) for the manifest. These tests pin the fix as a PROPERTY
+# (one encode, bytes handed straight through, the same bytes measured) rather than as a comment that a
+# later edit can quietly falsify -- run against the pre-fix loop, the encode counter below reads 2.
+_MULTIBYTE = "El Niño — café ☕\n"          # 17 chars, 23 utf-8 bytes: len(str) and len(bytes) DIFFER
+_ENCODES = {"n": 0}
+
+
+class _CountingStr(str):
+    """A str that counts its own .encode() calls -- how "encoded exactly once" stops being a comment and
+    becomes a measurement. Reset _ENCODES["n"] at the top of every test that uses it."""
+
+    def encode(self, *a, **kw):
+        _ENCODES["n"] += 1
+        return str.encode(self, *a, **kw)
+
+
+# Encode COUNT is only half the story: the OOM was about how many full-size copies are alive AT THE SAME
+# MOMENT, and specifically at the sink, where boto3 then layers its own request buffers on a 1.03 GB body.
+# The helpers below make that a deterministic assertion rather than a tracemalloc guess. CPython frees an
+# object the instant its last strong reference goes, and calls __del__ there, so a flag flipped in __del__
+# lets a test ask "is that full-size copy still alive?" from INSIDE write_fn while allocating nothing
+# itself. (Neither bytes nor str subclasses can be weak-referenced -- both are variable-size builtins.)
+_LIVE: dict = {"str": False, "bytes": False, "blob_id": None}
+
+
+class _TrackedBytes(bytes):
+    """Encoded blob whose death is observable."""
+
+    def __del__(self):
+        _LIVE["bytes"] = False
+
+
+class _TrackingStr(_CountingStr):
+    """_CountingStr whose own death is observable too, and whose encodes hand back a _TrackedBytes -- so the
+    memory SHAPE at the sink (which copies are still live when write_fn runs) is testable."""
+
+    def __del__(self):
+        _LIVE["str"] = False
+
+    def encode(self, *a, **kw):
+        blob = _TrackedBytes(_CountingStr.encode(self, *a, **kw))
+        _LIVE["bytes"], _LIVE["blob_id"] = True, id(blob)
+        return blob
+
+
+def _tracked_payload(raw):
+    """A lazy payload -- what every shipped caller passes -- that keeps NO strong reference of its own, so
+    the only references to the body during the commit are the ones commit_write itself holds. That is the
+    whole point of the measurement."""
+
+    def _mk():
+        s = _TrackingStr(raw)
+        _LIVE["str"] = True
+        return s
+
+    return _mk
+
+
+def _reset_tracking():
+    _ENCODES["n"] = 0
+    _LIVE.update(str=False, bytes=False, blob_id=None)
+
+
+def _commit_one(tmp_path, monkeypatch, payload, *, write_fn):
+    """plan + commit ONE non-refusing driver slice through the REAL guard. Returns the run manifest."""
+    monkeypatch.setattr(ev, "_EVID_DIR", tmp_path)
+    monkeypatch.setattr(ex, "_CFG", tmp_path / "cfg")
+    monkeypatch.delenv("EVIDENCE_S3", raising=False)
+    mf = wg.RunManifest("unit")
+    records = {"freight": [_rec("2020-01-01", rid=f"i{i}") for i in range(3)]}
+    plan = wg.plan_write("drivers", "drivers/", {"freight": payload}, records=records, manifest=mf,
+                         allow_churn=None, write_fn=write_fn, node_of=lambda n: f"drivers/{n}")
+    wg.raise_if_refused(plan)
+    assert wg.commit_write(plan) == 3                          # the record count is unchanged by any of this
+    return mf
+
+
+def test_after_bytes_is_the_exact_utf8_length_never_the_character_count(tmp_path, monkeypatch):
+    """INVARIANT (a). resolve_prior compares after_bytes for EQUALITY against the stored object's size as its
+    stale-mirror fence, so a len(str) regression would not fail loudly -- it would silently downgrade every
+    slice to a size estimate, blank its span, and stamp "prior manifest STALE" at the next pass. The body is
+    deliberately multi-byte so that len(str) != len(utf-8 bytes) and the two are distinguishable at all."""
+    body = _MULTIBYTE * 5
+    assert len(body) != len(body.encode("utf-8"))              # the regression this test can actually see
+    seen: dict = {}
+    mf = _commit_one(tmp_path, monkeypatch, lambda: body,
+                     write_fn=wg.bytes_writer(lambda node, b: seen.__setitem__(node, bytes(b))))
+    assert mf.slices["drivers"]["freight"]["after_bytes"] == len(body.encode("utf-8"))
+    assert seen["drivers/freight"] == body.encode("utf-8")     # ... and it measured what it WROTE
+    # the str (unmarked write_fn) path records the SAME number -- the value is a property of the body, not
+    # of which hand-off the caller opted into.
+    mf2 = _commit_one(tmp_path, monkeypatch, lambda: body, write_fn=lambda node, b: None)
+    assert mf2.slices["drivers"]["freight"]["after_bytes"] == len(body.encode("utf-8"))
+
+
+def test_the_body_is_encoded_EXACTLY_ONCE_and_the_shipped_write_fn_gets_those_bytes(tmp_path, monkeypatch):
+    """THE MEMORY PIN. A str subclass counts its own .encode calls: one per slice, not two. The marked
+    write_fn (every shipped caller is evidence._evid_write, which sets the marker) receives the already
+    encoded bytes and must never re-encode them -- that second copy is what died at 1.03 GB. Measured
+    against the pre-fix loop this counter reads 2."""
+    _ENCODES["n"] = 0
+    raw, got = _MULTIBYTE * 4, {}
+
+    @wg.bytes_writer
+    def _write(node, blob):
+        assert isinstance(blob, (bytes, bytearray))            # handed through, not re-encoded downstream
+        got[node] = bytes(blob)
+
+    mf = _commit_one(tmp_path, monkeypatch, lambda: _CountingStr(raw), write_fn=_write)
+    assert _ENCODES["n"] == 1                                  # ONE encode for the whole slice body
+    assert got["drivers/freight"] == raw.encode("utf-8")       # byte-identical to today's write
+    assert mf.slices["drivers"]["freight"]["after_bytes"] == len(raw.encode("utf-8"))
+
+
+def test_the_SHIPPED_chain_encodes_once_and_the_file_matches_after_bytes(tmp_path, monkeypatch):
+    """The same pin through the REAL production write_fn: all four plan_write call sites pass
+    evidence._evid_write. End to end -- one encode for the slice, the bytes land unchanged, and the
+    manifest's after_bytes equals the object's size, which is the equality resolve_prior's stale-mirror
+    fence tests on the next pass (F6)."""
+    monkeypatch.setattr(ev, "_evid_s3", lambda: None)
+    _ENCODES["n"] = 0
+    raw = _MULTIBYTE * 3
+    mf = _commit_one(tmp_path, monkeypatch, lambda: _CountingStr(raw), write_fn=ev._evid_write)
+    on_disk = (tmp_path / "drivers" / "freight.jsonl").read_bytes()
+    assert _ENCODES["n"] == 1                                  # ONE, through the shipped write_fn
+    assert on_disk == raw.encode("utf-8") and b"\r\n" not in on_disk
+    assert mf.slices["drivers"]["freight"]["after_bytes"] == len(on_disk)
+
+
+def test_an_unmarked_write_fn_still_receives_a_str(tmp_path, monkeypatch):
+    """write_fn is CALLER-supplied, so the bytes hand-off is opt-in (wg.bytes_writer). An out-of-tree caller
+    or a test double that only handles str keeps working unchanged -- and nothing ever retries a write_fn on
+    a TypeError, which would re-run a write that may already have landed half an object."""
+    seen: list = []
+    mf = _commit_one(tmp_path, monkeypatch, lambda: _MULTIBYTE, write_fn=lambda node, b: seen.append(b))
+    assert len(seen) == 1 and type(seen[0]) is str and seen[0] == _MULTIBYTE
+    assert mf.slices["drivers"]["freight"]["after_bytes"] == len(_MULTIBYTE.encode("utf-8"))
+
+
+def test_the_unmarked_str_path_does_not_ALSO_hold_our_bytes_at_the_write(tmp_path, monkeypatch):
+    """MEMORY SHAPE of the opt-OUT path -- the fallback must not be worse than what it falls back FROM.
+
+    commit_write encodes here to measure after_bytes; a str-only write_fn then encodes its own copy. If OUR
+    bytes were still live at that moment the unmarked path would peak at 3.00x the body at the sink -- worse
+    than the 2.00x of the pre-fix loop, i.e. the marker degrading in the exact direction that OOM-killed the
+    pass. And the marker is a plain attribute: any functools.partial / lambda / decorator / monkeypatch
+    wrapper around a shipped write_fn lands here silently, so this is not a test-double-only path.
+    MEASURED on a 256 MB body through the real commit_write: 3.00x live at the sink without the drop, 2.00x
+    with it -- which is exactly today's peak for a caller that never had the problem."""
+    _reset_tracking()
+    raw, at_sink = _MULTIBYTE * 4, {}
+
+    def _write(node, b):                                       # UNMARKED: the str hand-off, as before
+        at_sink["is_str"] = isinstance(b, str)
+        at_sink["str_alive"] = _LIVE["str"]                    # ... it still gets its body ...
+        at_sink["our_bytes_alive"] = _LIVE["bytes"]
+
+    mf = _commit_one(tmp_path, monkeypatch, _tracked_payload(raw), write_fn=_write)
+    assert at_sink["is_str"] and at_sink["str_alive"] is True
+    assert at_sink["our_bytes_alive"] is False                 # ... and NOT a redundant second copy of it
+    assert _ENCODES["n"] == 1                                  # commit_write still encoded exactly once
+    assert mf.slices["drivers"]["freight"]["after_bytes"] == len(raw.encode("utf-8"))
+
+
+def test_the_marked_bytes_path_has_released_the_str_by_the_time_the_write_runs(tmp_path, monkeypatch):
+    """MEMORY SHAPE of the SHIPPED path, stated as liveness rather than as a comment. At the moment write_fn
+    runs -- on production that is the whole S3 PUT, with boto3's request buffers on top of a 1.03 GB body --
+    exactly ONE full-size copy exists: the bytes being written. The str is already gone (measured: 2.00x ->
+    1.00x live at the sink).
+
+    NOTE what this does NOT claim. The in-process PEAK is unchanged at 2.00x, because str and bytes coexist
+    during the encode itself; that window just moved off the network-bound write onto a short memcpy, and the
+    second 2.00x window (the post-write len() encode) is gone. "Peak halved" would be false."""
+    _reset_tracking()
+    raw, at_sink = _MULTIBYTE * 4, {}
+
+    @wg.bytes_writer
+    def _write(node, b):
+        at_sink["is_bytes"] = isinstance(b, (bytes, bytearray))
+        at_sink["is_our_blob"] = id(b) == _LIVE["blob_id"]     # the object written IS the object measured
+        at_sink["str_alive"] = _LIVE["str"]
+
+    mf = _commit_one(tmp_path, monkeypatch, _tracked_payload(raw), write_fn=_write)
+    assert at_sink["is_bytes"] and at_sink["is_our_blob"] is True
+    assert at_sink["str_alive"] is False                       # released BEFORE the write, not after it
+    assert _ENCODES["n"] == 1
+    assert mf.slices["drivers"]["freight"]["after_bytes"] == len(raw.encode("utf-8"))
+
+
+def test_a_lazy_payload_is_called_exactly_once_per_slice(tmp_path, monkeypatch):
+    """The payload closure is where the EMBED happens (evidence._plan_driver_writes / build_index). Calling
+    it twice would double a real pass's embed bill and re-stamp every record's vector."""
+    calls: list = []
+
+    def _mk():
+        calls.append("payload")
+        return _MULTIBYTE * 2
+
+    mf = _commit_one(tmp_path, monkeypatch, _mk, write_fn=wg.bytes_writer(lambda node, b: None))
+    assert calls == ["payload"]
+    assert mf.slices["drivers"]["freight"]["after_bytes"] == len((_MULTIBYTE * 2).encode("utf-8"))
+
+
 # ── F7: the newest manifest is the newest STAMP, not the highest LABEL ─────────────────────────────────
 def test_newest_run_manifest_sorts_on_the_stamp_not_the_label(tmp_path, monkeypatch):
     """`sorted(...)[-1]` / `max(keys)` sort the LABEL first, so over retrieve_...T120000Z,

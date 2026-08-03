@@ -295,6 +295,51 @@ def test_evidence_store_s3_mode(monkeypatch):
     assert ev.load_index("cocoa") == [{"x": 1}, {"x": 2}]                   # reads back from S3
 
 
+def test_evid_write_accepts_str_or_bytes_and_writes_identical_content(tmp_path, monkeypatch):
+    """The local (F6) branch. write_guard.commit_write encodes each slice body exactly once and hands the
+    resulting BYTES here; a str stays accepted for the direct callers (restamp, the doc-cache writer). Both
+    forms must land the SAME bytes on disk -- and both must go through write_BYTES, never write_text, or the
+    Windows "\\n" -> "\\r\\n" translation puts the on-disk size above the manifest's after_bytes again."""
+    monkeypatch.setattr(ev, "_EVID_DIR", tmp_path)
+    monkeypatch.setattr(ev, "_evid_s3", lambda: None)
+    body = (json.dumps({"x": "café"}, ensure_ascii=False) + "\n"
+            + json.dumps({"y": "El Niño"}, ensure_ascii=False))
+    assert len(body) != len(body.encode("utf-8"))              # genuinely multi-byte
+
+    ev._evid_write("drivers/multibyte", body)                              # str in
+    from_str = (tmp_path / "drivers" / "multibyte.jsonl").read_bytes()
+    ev._evid_write("drivers/multibyte", body.encode("utf-8"))              # bytes in
+    from_bytes = (tmp_path / "drivers" / "multibyte.jsonl").read_bytes()
+
+    assert from_str == from_bytes == body.encode("utf-8")      # byte-identical, and to today's bytes
+    assert b"\r\n" not in from_bytes                           # F6: one bytes sink, no newline translation
+    assert ev.load_index("drivers/multibyte") == [{"x": "café"}, {"y": "El Niño"}]
+
+
+def test_evid_write_s3_branch_puts_identical_bytes_for_str_and_bytes(monkeypatch):
+    """The cloud branch -- the one the 1.03 GB soybeans PUT runs on. A bytes body is PUT as-is (that
+    re-encode is the copy that OOM-killed the 2026-08-02 pass); a str body is encoded once, here."""
+    monkeypatch.setattr(ev, "_evid_s3", lambda: "s3://mybucket/graphrag/evidence/")
+    puts: list = []
+
+    class _S3:
+        def put_object(self, *, Bucket, Key, Body):
+            puts.append((Bucket, Key, bytes(Body)))
+    monkeypatch.setattr("boto3.client", lambda svc, *a, **k: _S3(), raising=False)
+    body = json.dumps({"x": "café"}, ensure_ascii=False)
+    ev._evid_write("cocoa", body)
+    ev._evid_write("cocoa", body.encode("utf-8"))
+    assert puts[0] == puts[1] == ("mybucket", "graphrag/evidence/cocoa.jsonl", body.encode("utf-8"))
+
+
+def test_evid_write_is_marked_as_a_bytes_writer():
+    """The zero-copy hand-off is opt-in PER write_fn, so this pins that the four shipped plan_write call
+    sites -- all of which pass _evid_write -- actually take it. An unmarked callable keeps the str path."""
+    from leviathan.graphrag import write_guard as wg
+    assert getattr(ev._evid_write, wg.BYTES_WRITER_ATTR, False) is True
+    assert wg._accepts_bytes(ev._evid_write) and not wg._accepts_bytes(lambda node, body: None)
+
+
 def test_embed_memoizes_single_text_calls(monkeypatch):
     # WS-0 profiling: the L2 walk re-embedded the SAME query for every node it grounded (26% of wall time).
     # Single-text calls memoize; bulk (build-time) calls never do.
