@@ -1,0 +1,90 @@
+{
+  "schedule": "futures_eod_browser",
+  "family": "futures_eod",
+  "kind": "declared_unarmed",
+  "armed": false,
+  "state": "NO SCHEDULE INTENDED",
+  "decision": "D-PR-23 Option E -- formalize the status quo. docs/private/PIPELINE_RELIABILITY_WAVE_PLAN.md sec 3 workstream (a) 'MATIF: arm or remove', and the D-PR-23 row of the decision table.",
+  "declared_on": "2026-08-04",
+  "what_this_file_is": "THE DECLARATION THAT AN ABSENCE IS DELIBERATE. There is no top-level configs/silver/dags/futures_eod_browser.json, no rendered input, no _DAG_SCHEDULES entry and no dag_schedules.auto.tfvars.json entry for the Euronext/MATIF browser leg -- and none of that is an oversight or an unfinished wiring task. The leg is BUILT and LINT-BOUND (producer, both transform halves, CONTRACT_MAP entries, task spec, storage paths, row floors, roll bindings, serving unit card) and it publishes ZERO rows because nothing fires it. Without this file that state reads as a gap: any future 'raw present, silver absent' detector, any descriptor-set audit, any reader counting futures_eod chains sees a leg that stalled. With it, the absence is a DECLARED state with a named gate and a named owner decision.",
+  "glob_note": "Lives under dags/unarmed/ ON PURPOSE. scripts/silver/gen_sfn_inputs.load_descriptors globs configs/silver/dags/*.json NON-RECURSIVELY and lints every hit as a chain descriptor, so a marker sitting at the top level would either fail that lint or -- worse -- be rendered and armed. Same construction as dags/observability/pattern_records_daily.json. This file is NEVER rendered, NEVER validated as a descriptor, and NEVER arms anything.",
+
+  "arming_gate": {
+    "probe": "S3",
+    "name": "Euronext SETTL. semantics",
+    "blocks": "the ARM (Option A). Nothing else in this repo is waiting on it.",
+    "question": "does the rendered live.euronext.com quote table's SETTL. column carry TODAY's settlement after the ~18:30 CET publish, or the PREVIOUS session's?",
+    "method": "two live captures of EBM-DPAR on the SAME day -- one intraday, one post-19:00 CET -- diffed against the next morning's capture. Plan sec 10, open question 1.",
+    "why_it_blocks": "CONTRACT_MAP pins settle_kind='settlement' for all three MATIF slugs on the strength of a probe that has never been run, while the plan record states the intraday SETTL. column carries the PREVIOUS settlement. The rendered table publishes NO DATE anywhere in its DOM (src/leviathan/storage/paths.py raw_euronext_key), so trade_date comes only from the raw key's as_of_date -- the fetch date. If SETTL. is T-1 at capture time the whole leg is silently off by one session and NO downstream check can detect it: not the row floors, not the census diff, not freshness, not the gate. Arming a leg with an undetectable off-by-one is the opposite of this wave's zero-repeat-offender standard.",
+    "on_resolution": "probe S3 clearing does NOT arm anything by itself. It clears ONE of the arm preconditions below; the arm remains a separate, separately-approved decision."
+  },
+
+  "leg": {
+    "publication_source": "euronext_matif",
+    "raw_source_segment": "euronext",
+    "raw_prefix": "raw/production/source=euronext/product={EBM-DPAR|EMA-DPAR|ECO-DPAR}/as_of_date={YYYY-MM-DD}/table.html",
+    "producer": "jobs/ingest/fetch_euronext_eod.py (headless Chromium, leviathan.ingest.browser_fetch)",
+    "transforms": [
+      "src/leviathan/transforms/raw_to_bronze/euronext_eod.py",
+      "src/leviathan/transforms/bronze_to_silver/euronext_eod.py"
+    ],
+    "silver_task": "jobs/batch/futures_eod_task.py --source euronext",
+    "jobdef": "leviathan-dev-browser-runner",
+    "jobdef_note": "EXISTS in AWS at revision 1 but is UNTRACKED BY TERRAFORM and carries NEITHER retryStrategy NOR attemptDurationSeconds (both null). Adopting it into terraform WITH those two is the other half of D-PR-23 and rides the POST-FREEZE TERRAFORM BATCH (plan sec 5.2). This file does not arm it, register it, or modify it.",
+    "slugs": ["french_wheat_matif", "french_maize_matif", "french_rapeseed_matif"],
+    "silver_rows_today": 0,
+    "silver_rows_note": "ZERO. The 22 leviathan_slug= prefixes under silver/futures_eod/ contain no MATIF slug."
+  },
+
+  "orphan_raw_objects": {
+    "disposition": "RETAIN. Do not delete, do not run through build_bronze, do not treat as a stalled leg.",
+    "count": 3,
+    "as_of_date": "2026-07-29",
+    "written_at": "2026-07-30T18:36Z",
+    "what_they_are": "the W1c one-shot proof capture -- one rendered table.html per product (EBM-DPAR / EMA-DPAR / ECO-DPAR). They are the ONLY objects under the source=euronext prefix, and they are the measurement the EURONEXT row floors were counted from (tests/fixtures/w1c/capture_notes.md).",
+    "why_retain": "they are evidence, not backlog. Deleting them would destroy the provenance of the row floors; promoting them to silver would land three MATIF slugs' worth of rows dated by a fetch date whose settlement semantics probe S3 has not yet resolved -- exactly the off-by-one this declaration exists to prevent.",
+    "detector_note": "a future 'raw present, silver absent' detector MUST read this declaration before flagging the source=euronext prefix. Raw-without-silver here is the declared state, not a stall."
+  },
+
+  "serving_disposition": {
+    "summary": "every MATIF lookup DECLINES honestly, and it declines rather than errors.",
+    "mechanism": "PRICE_COVERAGE_START (src/leviathan/silver/futures_eod_contracts.py) has NO entry for any MATIF slug -- ABSENT slug == NOT SERVED. coverage_start_for() raises ValueError rather than defaulting; leviathan.graphrag.numbers.agent.futures_eod_route catches that ValueError and returns ('uncovered', None); the executor sees a route in FUTURES_EOD_COVERAGE_CLASSES and returns status='declined' with the verbatim scope_note BEFORE ANY SQL COMPILES. The raise never reaches a caller.",
+    "separability": "this is why arm and flip are two independently gateable decisions. MATIF rows can land in silver_futures_eod and every MATIF answer stays BYTE-IDENTICAL until PRICE_COVERAGE_START gains an entry. silver_futures_eod is also not in cascade_map.yaml, so landing rows cannot perturb the gate's vocabulary checks either.",
+    "flip_is_a_separate_decision": "adding a PRICE_COVERAGE_START entry is D-PR-24, DEFERRED and gated after R6. It is NOT unlocked by probe S3 and NOT unlocked by arming the ingest. Two eval rows and four unit-test assertions encode the decline as current truth."
+  },
+
+  "freshness_blindspot": {
+    "statement": "family-level freshness CANNOT see a MATIF-only stall, under this declaration or under a future arm.",
+    "why": "silver_freshness_slas['futures_eod'] is the ONLY SLA for the family and freshness reads the newest canonical object across the whole family. Four healthy legs keep the clock fresh regardless of what MATIF does.",
+    "under_a_future_arm": "rows would land that NOTHING READS (the flip is separate), so a leg that stops writing is invisible to every consumer-side check; the per-source row floor and the gate census would be the only detectors.",
+    "owner": "per-leg freshness granularity is D-EI-12 / R7's. Reference it; do not fork it here."
+  },
+
+  "row_floors_if_armed": {
+    "per_product_bronze": {"EBM-DPAR": 12, "EMA-DPAR": 10, "ECO-DPAR": 10},
+    "per_day_silver": 24,
+    "source_of_truth": "EURONEXT_MIN_ROWS in src/leviathan/transforms/raw_to_bronze/euronext_eod.py and _MIN_SILVER_ROWS_PER_DAY_EURONEXT in jobs/batch/futures_eod_task.py. The numbers above are a MIRROR for readability and are pinned to those two by test.",
+    "hazard": "three independent hard-fail surfaces per fire, all alarming. A legitimate venue delisting of a single expiry (which the code correctly treats as a code change) REDS the leg until a human re-counts and re-pins -- a plausible repeat-offender shape. Its runbook must be decided BEFORE the arm, not discovered after."
+  },
+
+  "arm_preconditions": {
+    "note": "ALL of these are non-negotiable and NONE of them is discharged by this file. Listed so a future arm is a checklist rather than a rediscovery. Plan sec 3 workstream (a), Option A.",
+    "items": [
+      "probe S3 run and settle_kind corrected or confirmed (see arming_gate above)",
+      "a route-discovery probe for any Euronext downloadable price history endpoint; the repo documents none, but that is an absence-of-evidence read, not a measured negative",
+      "SEED s3://leviathan-dev-shahem-001/cascade_census/rolling/futures_eod_browser/census.json via jobs/audit/advance_rolling_census.py BEFORE the first fire. silver_rebuild_gate raises BaselineFetchError and FAILS CLOSED on an absent baseline, so an unseeded new schedule REDS on its very first fire -- a guaranteed self-inflicted alert. Do NOT point it at the SUPERSEDED family-level rolling/futures_eod/census.json that futures_eod_free.json's own gate_baseline_uri_note forbids.",
+      "its OWN descriptor and its OWN cron. Folding it into futures_eod_free would violate this leg's cadence contract for ~7 months of the year: the contract is stated in CET-local terms (fire AFTER the ~18:30 CET publish and BEFORE local midnight) while the default as_of_date is UTC-today, and a 22:30Z fire is 00:30 CEST in summer. That is a design decision, not a wiring task.",
+      "scripts/silver/futures_eod_gate.py _DAG_SCHEDULES gains the third entry, or gate 8 never emits this chain's silver_rebuild_gate command at all",
+      "leviathan-dev-browser-runner adopted into terraform WITH retryStrategy and attemptDurationSeconds (post-freeze batch, plan sec 5.2)",
+      "the dag_schedules.auto.tfvars.json entry -- which is what actually arms the fire -- authored and reviewed in the batch, never hand-fired",
+      "the smoke test of the EXACT scheduled command before the first cron fire (standing rule: a new schedule is smoke-tested before it is armed)"
+    ]
+  },
+
+  "rejected_alternatives": {
+    "remove_from_price_vocabulary": "NOT POSSIBLE as the code stands. config_check asserts CONTRACT_MAP covers EXACTLY the configs/commodities/*.yaml stems; taking it would mean relaxing that equality to a subset rule and retiring the '31 auditable rather than aspirational' invariant.",
+    "full_removal": "REJECTED with citation. 72 tracked files, three causal DAGs, four Athena DDLs, feature/training configs; zero precedent (git log --diff-filter=D over configs/commodities/*.yaml returns no deletions in repo history); and it would delete a contract the REASONING lane actively serves -- four eval rows use french_wheat_matif and test_cascade.py pins its primary title."
+  },
+
+  "rollback": "none owed. This declaration changes no runtime behaviour: it adds no schedule, no descriptor, no coverage entry, no alarm and no AWS resource."
+}

@@ -489,11 +489,62 @@ def raw_draft_snapshot(**parts) -> dict | None:
     DIAGNOSTIC ONLY. This is raw prose the sanitizer would have cleaned. It rides `trace` and nothing else:
     never rendered to a reader, never joined into the answer payload. The FLAG is the whole containment --
     /v1/respond returns the full result dict including trace, so GRAPHRAG_STRIP_AUDIT must never be set in
-    the serving taskdef (it is not; it rides submit_eval's per-run container overrides)."""
+    the serving taskdef.
+
+    MEASURED FALSE 2026-08-04, and the sentence above used to end "(it is not; it rides submit_eval's
+    per-run container overrides)": `leviathan-dev-serving:73` carries GRAPHRAG_STRIP_AUDIT=on (it was
+    copied into rev 71 for measured-config parity with the W5 flip run). So this snapshot IS on the wire
+    on every live /v1/respond today. That is a standing config finding for the serving env, NOT a licence
+    to widen the payload on the same switch -- which is exactly why `sanitize_input_snapshot` below has
+    its OWN default-off flag rather than riding this one."""
     if os.environ.get("GRAPHRAG_STRIP_AUDIT", "off") == "off":
         return None
     snap = {k: str(v) for k, v in parts.items() if v}
     return snap or None
+
+
+def sanitize_input_snapshot(**parts) -> dict | None:
+    """A4b: the text handed to a `reg.sanitize` pass, captured on its way IN -- or None when the run is
+    not auditing draft bodies.
+
+    WHY THIS IS NOT `raw_draft_snapshot` WITH ANOTHER KWARG, on two independent grounds:
+
+    1. COST CLASS. `raw_draft_snapshot` carries two short model fields. These parts are whole rendered
+       BODIES (mean 9,006 chars on the 2026-08-04 deck, max 16,317), and GRAPHRAG_STRIP_AUDIT is ON in
+       serving rev 73 (see above), so folding them into that flag would roughly double the trace on every
+       live answer. `GRAPHRAG_DRAFT_BODY_AUDIT` is DEFAULT-OFF and fail-closed (the house `_chain_on`
+       spelling: only on/1/true), so until a run opts in, every payload -- serving and eval alike -- is
+       byte-identical to today.
+    2. IT ANSWERS A DIFFERENT QUESTION. The raw draft says what the model WROTE. This says what each
+       cleaning pass was GIVEN, which is the only way to attribute a scar to the pass that made it.
+
+    THE RENDER PATH HAS TWO SANITIZE PASSES, and this is the whole point of the field names:
+      * `_humanize_structured` sanitizes `tldr`/`mechanism` FIELD BY FIELD (answer.py:1649), BEFORE
+        `render`. Its input is captured as `verified_{tldr,mechanism}` (post-verify_citations).
+      * the render seam sanitizes the ASSEMBLED body (prose already humanized + the cited-sources block
+        + the numbers footer). Its input is captured as `body_pre_sanitize`.
+    Measured on the three 2026-08-04 `banned_valuation` reds (pb_ussr_import_era / pb_watch_horizons /
+    pb_cot_amplifier): the FIRST pass drops 341 / 319 / 150 chars and takes the count 1/2/1 -> 0, and the
+    SECOND pass drops ZERO bytes on all three. A snapshot of `body_pre_sanitize` ALONE would therefore
+    have handed the adjudicator text that already reads count_valuation_words == 0 -- the offending
+    sentence dies one pass earlier. Both seams or neither.
+
+    Same absent-when-off / falsy-dropped contract as `raw_draft_snapshot`, and the parts land INSIDE the
+    `raw_draft` dict on the trace: `eval._per_answer_record` is a hard whitelist, so a new top-level trace
+    key would reach no artifact at all (that is the F9 lesson this file already paid for once).
+
+    DIAGNOSTIC ONLY -- trace-borne, never rendered, never joined into the answer payload."""
+    if os.environ.get("GRAPHRAG_DRAFT_BODY_AUDIT", "").strip().lower() not in ("on", "1", "true"):
+        return None
+    snap = {k: str(v) for k, v in parts.items() if v}
+    return snap or None
+
+
+def _fold_draft(snap: dict | None, later: dict | None) -> dict | None:
+    """Merge a LATER-captured draft part into an earlier snapshot. Either side may be None, because the two
+    captures ride independent flags: off/off -> None (the key stays ABSENT, not null), and a body-only run
+    still yields a dict. Returns a NEW dict, never mutating the caller's."""
+    return {**(snap or {}), **later} if later else snap
 
 
 def _comove_on() -> bool:
@@ -800,7 +851,20 @@ _SYSTEM_EPISODES = (
     "line also reports floored windows beside it, and even when a windowless floor line sits alongside. "
     "Rendering those windows as prose inside '## The record' or any other section is a DEFECT, not a "
     "substitute: the prose-instead path exists ONLY for the all-floored case below, where there is no "
-    "window to enumerate at all. Render '## Episodes' ONLY when "
+    "window to enumerate at all. "
+    # R6 residual fold (2026-08-04, second re-probe): the mandate alone did not cure four rows, and the
+    # measured mechanism split two ways. (1) DISPLACEMENT: every persistently-omitting row but one
+    # rendered '## Where the record disagrees' INSTEAD of '## Episodes' -- the model treated the two
+    # sections as alternatives (freight proved they coexist). (2) BAIT: the smoothing-bait row's drafts
+    # contain the word 'episode' ZERO times across three runs -- the question's own ask-for-a-tendency
+    # framing out-competed the mandate. Both get named explicitly; vague mandates lose to shaped questions.
+    "'## Where the record disagrees' NEVER substitutes for '## Episodes': the two sections COEXIST, and "
+    "rendering the disagreement section does not discharge this one -- omit '## Episodes' beside it and "
+    "the answer is DEFECTIVE. The QUESTION'S OWN FRAMING never waives the section either: a question "
+    "asking for the general tendency, the 'usual' response, or a smoothed synthesis still gets the "
+    "enumerated '## Episodes' its injected lines carry -- the enumeration IS the honest form of "
+    "'usually', and answering the framing while dropping the enumeration is the smoothing this section "
+    "exists to prevent. Render '## Episodes' ONLY when "
     "an injected line carries at least one window -- the section exists solely when the prompt supplies "
     "the episodes; never volunteer an episode list from prose, and never add an episode the lines do not "
     "carry. The DATED EPISODES rule above still holds in full: those lines are REPORT TIMESTAMPS, not "
@@ -1474,18 +1538,28 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # PRE-verifier, and strips run p50 1 / p90 7 / max 16, so a handle activated earlier could disappear).
     _emit(on_stage, "verified", strips=int(verifier.get("stripped", 0) or 0))
     _attach_provenance(structured, verifier)                     # stamp source_key for durable chip join (6.4)
+    # A4b SEAM 1: `_humanize_structured` is the FIRST reg.sanitize pass on the prose (per field). Capture
+    # its INPUT -- post-verify, pre-sanitize -- because that is the last state in which a banned sentence
+    # is still attributable to sanitize rather than to the verifier's strips.
+    _raw_draft = _fold_draft(_raw_draft, sanitize_input_snapshot(
+        verified_tldr=structured.get("tldr"), verified_mechanism=structured.get("mechanism")))
     _humanize_structured(structured, market_register=_mr)         # clean the fields the UI renders directly (6.1)
     if os.environ.get("GRAPHRAG_ANSWER_V2", "off") == "on":       # P9-C typed sections: a DERIVED view of the
         secs = _sectionize(structured.get("mechanism") or "")     # FINAL prose (post-verify+humanize); read per
         if secs:                                                  # call so the env-flip rollback stays live
             structured["sections"] = secs
     if verifier.get("enabled"):                                   # ONE validated source list, model-numbered
-        body = reg.sanitize(render(structured, include_ledger=False)
-                            + _cited_sources_block(structured, verifier, extra_number_calls),
-                            market_register=_mr)
+        _pre_sanitize = (render(structured, include_ledger=False)
+                         + _cited_sources_block(structured, verifier, extra_number_calls))
     else:                                                         # verifier off -> legacy two-list rendering
         footer = ("\n\n## Sources\n" + cit.render(ev_cits)) if ev_cits else ""
-        body = reg.sanitize(render(structured) + footer, market_register=_mr)
+        _pre_sanitize = render(structured) + footer
+    # A4b SEAM 2: the assembled body on its way INTO the render-seam sanitize. Both branches now name the
+    # same local and ONE sanitize call consumes it -- same arguments, same register, same output bytes.
+    # This pass is the only one that ever sees the cited-sources block and the numbers footer, so it is
+    # the only place a leak living OUTSIDE tldr/mechanism (which the raw counters never scan) can be seen.
+    body = reg.sanitize(_pre_sanitize, market_register=_mr)
+    _raw_draft = _fold_draft(_raw_draft, sanitize_input_snapshot(body_pre_sanitize=_pre_sanitize))
     if degraded:
         body = _DEGRADED_BANNER.format(m=degraded) + body
     return {"answer": body, "structured": structured, "contract": contracts[0] if contracts else None,
@@ -1812,18 +1886,24 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
           stripped=int(verifier.get("stripped", 0) or 0))
     _emit(on_stage, "verified", strips=int(verifier.get("stripped", 0) or 0))   # F7: handles may ACTIVATE now
     _attach_provenance(structured, verifier)                     # stamp source_key for durable chip join (6.4)
+    # A4b on the SECOND synthesis path, for the SAME reason A4 is here: GRAPHRAG_PLANNER=onehop is a
+    # documented rollback, and instrumenting only _answer_l2 would blind the audit on the exact path a
+    # rollback puts every turn on. Identical two seams, identical field names.
+    _raw_draft = _fold_draft(_raw_draft, sanitize_input_snapshot(
+        verified_tldr=structured.get("tldr"), verified_mechanism=structured.get("mechanism")))
     _humanize_structured(structured, market_register=_mr)         # clean the fields the UI renders directly (6.1)
     if os.environ.get("GRAPHRAG_ANSWER_V2", "off") == "on":       # P9-C typed sections -- the one-hop twin of
         secs = _sectionize(structured.get("mechanism") or "")     # the L2 seam: same post-verify+humanize
         if secs:                                                  # ordering, same per-call flag read
             structured["sections"] = secs
     if verifier.get("enabled"):                                   # ONE validated source list, model-numbered
-        body = reg.sanitize(render(structured, include_ledger=False)
-                            + _cited_sources_block(structured, verifier, extra_number_calls),
-                            market_register=_mr)
+        _pre_sanitize = (render(structured, include_ledger=False)
+                         + _cited_sources_block(structured, verifier, extra_number_calls))
     else:                                                         # verifier off -> legacy two-list rendering
         footer = ("\n\n## Sources\n" + cit.render(ev_cits)) if ev_cits else ""
-        body = reg.sanitize(render(structured) + footer, market_register=_mr)   # strips leaked internal tokens
+        _pre_sanitize = render(structured) + footer
+    body = reg.sanitize(_pre_sanitize, market_register=_mr)       # strips leaked internal tokens
+    _raw_draft = _fold_draft(_raw_draft, sanitize_input_snapshot(body_pre_sanitize=_pre_sanitize))
     if degraded:
         body = _DEGRADED_BANNER.format(m=degraded) + body
     return {"answer": body, "structured": structured, "contract": contracts[0],

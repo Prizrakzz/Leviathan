@@ -92,6 +92,11 @@
     "shared_silver_jobdef": {
       "type": "string"
     },
+    "promote_jobdef": {
+      "type": "string",
+      "minLength": 1,
+      "description": "OPTIONAL self-promotion override for the promote leg's Batch job definition. Omitted, the promote leg runs on the shared platform runner leviathan-dev-silver-publisher-runner, which tracks the worker repo's floating :latest. A family whose own silver jobdef is DIGEST-PINNED must set this to that same jobdef, or the machine promotes a shadow built by one image using another (the 2026-08-01 databento promote: 13/15 certified, then exit 1 on ZR/OJ under the older image's mode-blind row floor). gen_sfn_inputs.lint_descriptor rejects any value that is not the platform runner or THE single jobdef this descriptor's shadow_canonical publishers run on -- role and image parity must be re-proven by the silver phase on every fire, never asserted here."
+    },
     "queue": {
       "type": "string"
     },

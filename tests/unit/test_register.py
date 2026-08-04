@@ -229,6 +229,12 @@ def test_lane_b_windowed_words_and_excluded_nouns():
     assert reg.lane_b_hits("the crop is vulnerable to frost") == 0
     assert reg.lane_b_hits("a crowded export lineup") == 0
     assert reg.lane_b_hits("coffee is cheap this year") == 0         # no window noun -> not Lane B
+    # SINGULAR "supply" excludes like its plural (the 2026-08-04 one-token defect: the pattern
+    # carried "supplies" only, so honest FX/cost statements about supply counted as valuation --
+    # all three of that day's banned_valuation deck reds traced to this token)
+    assert reg.lane_b_hits("a strong dollar makes US wheat expensive for buyers who lost Black Sea supply") == 0
+    assert reg.lane_b_hits("supplies are stretched into the new crop year") == 0
+    assert reg.lane_b_hits("the supply picture is vulnerable to a second failure") == 0
 
 
 def test_raw_counters_split_valuation_from_flow():

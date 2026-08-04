@@ -474,3 +474,234 @@ class TestProducers:
 
         assert MIN_RAW_FILE_SIZES["cepea_widget"] == 500
         assert MIN_RAW_FILE_SIZES["cepea_wayback"] == 50_000
+
+
+# ---------------------------------------------------------------------------
+# D-PR-19 -- the served-date verdict. The 2026-07-29 hole in one class.
+# ---------------------------------------------------------------------------
+class TestServedDate:
+    def test_the_served_date_is_the_cell_the_transform_reads(self):
+        """The verdict must be taken on the SAME fact the row will carry, or the producer and the
+        transform can disagree about which session landed."""
+        payload = widget(23, date="28/07/2026")
+        served = T.served_date_from_widget(payload)
+        bronze, _ = T.build_cepea_widget_bronze(payload, indicator_id=23)
+        assert served == "2026-07-28" == str(bronze["trade_date"].iloc[0])[:10]
+
+    def test_a_payload_that_cannot_name_its_session_is_refused(self):
+        with pytest.raises(ValueError, match="no <tbody>"):
+            T.served_date_from_widget(b"<html>Just a moment...</html>")
+        undated = _WIDGET_FMT.format(date="", product=_CORN, basis="sc de 60kg",
+                                     currency="R$", value="65,22").encode("utf-8")
+        with pytest.raises(ValueError, match="no dated row"):
+            T.served_date_from_widget(undated)
+
+    def test_the_three_way_verdict(self):
+        # Wednesday 2026-07-29 is the measured session. Tuesday 07-28 is one business day behind.
+        assert T.classify_served_date("2026-07-29", "2026-07-29") == (T.SERVED_FRESH, 0)
+        assert T.classify_served_date("2026-07-28", "2026-07-29") == (T.SERVED_STALE, 1)
+        # A Monday judged against the previous Friday: the weekend is not two lost sessions.
+        assert T.classify_served_date("2026-07-24", "2026-07-27") == (T.SERVED_STALE, 1)
+        # A session that has not happened means the SESSION MODEL is wrong, not the venue.
+        verdict, lag = T.classify_served_date("2026-07-30", "2026-07-29")
+        assert verdict == T.SERVED_AHEAD and lag == -1
+
+    def test_business_days_skip_the_weekend_in_both_directions(self):
+        assert T.business_days_between("2026-07-24", "2026-07-27") == 1     # Fri -> Mon
+        assert T.business_days_between("2026-07-27", "2026-07-24") == -1
+        assert T.business_days_between("2026-07-29", "2026-07-29") == 0
+
+    def test_the_expected_session_is_read_in_brazil_and_rolls_off_the_weekend(self):
+        from datetime import datetime as _dt, timezone as _tz
+
+        # The scheduled fire: 22:30Z Wednesday is 19:30 BRT the SAME day.
+        assert T.session_for_capture(_dt(2026, 7, 29, 22, 30, tzinfo=_tz.utc)) == "2026-07-29"
+        # A hand-run just after midnight UTC is still the PREVIOUS Brazilian day.
+        assert T.session_for_capture(_dt(2026, 7, 30, 1, 0, tzinfo=_tz.utc)) == "2026-07-29"
+        # Saturday is not a session anywhere; roll back to Friday. This is a weekend rule, not a
+        # holiday calendar -- which day Brazil trades is exactly what this leg refuses to curate.
+        assert T.session_for_capture(_dt(2026, 8, 1, 22, 30, tzinfo=_tz.utc)) == "2026-07-31"
+        assert T.previous_business_day("2026-08-02") == "2026-07-31"
+
+
+class TestProducerServedDateGate:
+    """The producer half. Everything here is the 2026-07-29 sequence replayed hermetically."""
+
+    @staticmethod
+    def _captures(served: dict[int, str], expected: str) -> dict[int, dict]:
+        out = {}
+        for ind, day in served.items():
+            verdict, lag = T.classify_served_date(day, expected)
+            out[ind] = {"key": f"k{ind}", "payload": b"", "served_date": day,
+                        "verdict": verdict, "lag": lag}
+        return out
+
+    def test_a_fresh_group_lands(self):
+        caps = self._captures({23: "2026-07-29", 77: "2026-07-29"}, "2026-07-29")
+        land, disp, _ = FETCH.group_verdict(caps, expected_session="2026-07-29")
+        assert land is True and disp == "land"
+
+    def test_a_stale_re_serve_is_withheld_and_that_is_the_2026_07_29_defect(self):
+        """MEASURED: the 17:00Z manual run served 28/07/2026 against session 2026-07-29 and landed
+        anyway -- which is what made the 22:30Z scheduled fire a no-op (raw_exists short-circuits on
+        the CAPTURE-date key). Withholding leaves the key free for that fire."""
+        caps = self._captures({23: "2026-07-28", 77: "2026-07-28"}, "2026-07-29")
+        land, disp, why = FETCH.group_verdict(caps, expected_session="2026-07-29")
+        assert land is False and disp == "withhold_stale"
+        assert "2026-07-28" in why and "2026-07-29" in why
+
+    def test_the_withhold_is_both_indicators_or_neither(self):
+        """Trap (ii): the per-day silver floor is an EQUALITY. A rule that withheld one cash
+        reference and landed the other would turn a clean day into a floor violation."""
+        caps = self._captures({23: "2026-07-29", 77: "2026-07-28"}, "2026-07-29")
+        land, disp, why = FETCH.group_verdict(caps, expected_session="2026-07-29")
+        assert land is False and disp == "refuse_split", "a split capture must never half-land"
+        assert "disagree" in why
+
+    def test_a_session_that_has_not_happened_is_a_hard_refusal(self):
+        caps = self._captures({23: "2026-07-30", 77: "2026-07-30"}, "2026-07-29")
+        land, disp, _ = FETCH.group_verdict(caps, expected_session="2026-07-29")
+        assert land is False and disp == "refuse_ahead"
+
+    def test_land_and_declare_remains_available_as_the_fallback(self):
+        """The ratified B2 shape: land the re-serve, but say so in raw_meta."""
+        caps = self._captures({23: "2026-07-28", 77: "2026-07-28"}, "2026-07-29")
+        land, disp, _ = FETCH.group_verdict(caps, expected_session="2026-07-29",
+                                            on_stale="land")
+        assert land is True and disp == "land_declared_stale"
+
+    def test_a_holiday_takes_the_withhold_path_not_a_failure(self, monkeypatch):
+        """A hard fail on served != expected would red ~10 Brazilian holidays a year. The exit code
+        is what separates 'nothing was owed' from 'something broke'."""
+        rc, landed = self._run(monkeypatch, served="27/07/2026", expected="2026-07-28")
+        assert rc == 0, "a holiday must not fail the leg"
+        assert landed == [], "a re-serve carries no new session, so nothing is landed"
+
+    def test_an_early_capture_lands_nothing_and_exits_clean(self, monkeypatch):
+        rc, landed = self._run(monkeypatch, served="28/07/2026", expected="2026-07-29")
+        assert rc == 0 and landed == []
+
+    def test_a_fresh_capture_lands_both_with_the_licence_and_the_declaration(self, monkeypatch):
+        """D-PR-20 + D-PR-19 in one record: the CC BY-NC grant travels with the bytes on the DAILY
+        route, and the object states which session it serves."""
+        rc, landed = self._run(monkeypatch, served="29/07/2026", expected="2026-07-29")
+        assert rc == 0 and len(landed) == 2
+        for _key, extra in landed:
+            assert extra["license"] == FETCH._LICENSE and "CC BY-NC 4.0" in extra["license"]
+            assert extra["attribution"] == FETCH._ATTRIBUTION
+            assert extra["served_date"] == "2026-07-29"
+            assert extra["expected_session"] == "2026-07-29"
+            assert extra["served_lag_business_days"] == 0
+            assert extra["served_verdict"] == T.SERVED_FRESH
+            assert "NEVER schedule" not in extra["posture"], \
+                "this IS the scheduled route; the one-shot posture belongs to the apex leg"
+
+    def test_the_ahead_case_lands_nothing_and_FAILS(self, monkeypatch):
+        rc, landed = self._run(monkeypatch, served="30/07/2026", expected="2026-07-29")
+        assert rc == 1 and landed == []
+
+    def test_the_daily_licence_string_is_the_same_object_as_the_one_shot_s(self):
+        """Same data, same licence, two routes. The asymmetry D-PR-20 closes was that only one of
+        them recorded it -- this pins them so they cannot drift apart again."""
+        assert FETCH._LICENSE == LIVE._LICENSE
+        assert FETCH._ATTRIBUTION == LIVE._ATTRIBUTION
+        assert FETCH._LICENSE == T.CEPEA_LICENSE
+
+    @staticmethod
+    def _run(monkeypatch, *, served: str, expected: str, on_stale: str = "withhold"):
+        """Drive ``main()`` with S3 and HTTP stubbed. Returns ``(exit_code, [(key, extra), ...])``."""
+        landed: list[tuple[str, dict]] = []
+
+        monkeypatch.setattr(FETCH, "raw_exists", lambda *a, **k: False)
+        monkeypatch.setattr(FETCH, "fetch_indicator",
+                            lambda ind, **k: widget(ind, date=served,
+                                                    value="1.782,18" if ind == 23 else "65,22"))
+        monkeypatch.setattr(FETCH, "land_bytes",
+                            lambda bucket, key, data, **kw: landed.append((key, kw.get("extra"))))
+        monkeypatch.setattr(FETCH.time, "sleep", lambda *_a, **_k: None)
+        rc = FETCH.main(["--bucket", "b", "--aws-region", "us-east-1", "--sleep", "0",
+                         "--expected-session", expected, "--on-stale", on_stale])
+        return rc, landed
+
+
+# ---------------------------------------------------------------------------
+# D-PR-19 / D-PR-46 / D-PR-48 -- the silver-side session-gap assertion
+# ---------------------------------------------------------------------------
+class TestSessionGap:
+    @staticmethod
+    def _frame(days_by_slug: dict[str, list[str]]) -> pd.DataFrame:
+        frames = []
+        for ind, slug in T.CEPEA_INDICATORS.items():
+            for day in days_by_slug.get(slug, []):
+                d, m, y = day[8:10], day[5:7], day[:4]
+                frames.append(T.build_cepea_widget_bronze(
+                    widget(ind, date=f"{d}/{m}/{y}",
+                           value="1.782,18" if ind == 23 else "65,22"), indicator_id=ind)[0])
+        return S.build_cepea_silver(pd.concat(frames, ignore_index=True))
+
+    @staticmethod
+    def _both(days: list[str]) -> pd.DataFrame:
+        return TestSessionGap._frame({slug: days for slug in T.CEPEA_INDICATORS.values()})
+
+    def test_a_lost_session_is_named(self):
+        """The 07-29 shape: the venue traded Wednesday, CEPEA published nothing."""
+        week = ["2026-07-27", "2026-07-28", "2026-07-29", "2026-07-30"]
+        df = self._both(["2026-07-27", "2026-07-28", "2026-07-30"])
+        gaps = S.cepea_session_gaps(df, venue_sessions=week, waived=frozenset())
+        assert len(gaps) == 1 and gaps[0].startswith("2026-07-29")
+        assert "lost session" in gaps[0]
+
+    def test_a_holiday_does_not_false_fire(self):
+        """THE acceptance case. On a Brazilian holiday the venue does not trade either, so the day
+        is simply absent from the session set and there is no hole to report. This is why the
+        assertion is defined against venue sessions and not against business days."""
+        df = self._both(["2026-07-27", "2026-07-28", "2026-07-30"])
+        sessions_without_the_holiday = ["2026-07-27", "2026-07-28", "2026-07-30"]
+        assert S.cepea_session_gaps(df, venue_sessions=sessions_without_the_holiday) == []
+
+    def test_a_bare_business_day_calendar_is_what_would_have_false_fired(self):
+        """Kept as the counter-example the design turns on: 2026-07-29 is a Wednesday, so a
+        business-day contiguity test cannot tell the holiday case from the lost-session case."""
+        df = self._both(["2026-07-27", "2026-07-28", "2026-07-30"])
+        business_days = [str(d)[:10] for d in pd.bdate_range("2026-07-27", "2026-07-30")]
+        assert S.cepea_session_gaps(df, venue_sessions=business_days, waived=frozenset())
+
+    def test_the_known_hole_is_waived_so_the_wave_ships_no_permanent_red(self):
+        """D-PR-48. 2026-07-29 is measured, declared and irrecoverable from the scheduled route;
+        without the waiver every fire whose window touches July would red forever."""
+        assert "2026-07-29" in S.CEPEA_WAIVED_SESSIONS
+        df = self._both(["2026-07-27", "2026-07-28", "2026-07-30"])
+        week = ["2026-07-27", "2026-07-28", "2026-07-29", "2026-07-30"]
+        assert S.cepea_session_gaps(df, venue_sessions=week) == []
+
+    def test_the_check_is_window_only_and_never_reaches_behind_the_frame(self):
+        """A frontier-relative check cannot be reddened by history it did not load."""
+        df = self._both(["2026-07-30", "2026-07-31"])
+        july = [str(d)[:10] for d in pd.bdate_range("2026-07-01", "2026-07-31")]
+        assert S.cepea_session_gaps(df, venue_sessions=july, waived=frozenset()) == []
+
+    def test_a_half_day_names_the_missing_indicator(self):
+        """Trap (ii) from the other side: the equality floor knows the day is short, not which
+        cash reference vanished."""
+        df = self._frame({"brazilian_arabica_coffee": ["2026-07-30", "2026-07-31"],
+                          "campinas_corn_reference_bmf": ["2026-07-30"]})
+        gaps = S.cepea_session_gaps(df, venue_sessions=["2026-07-30", "2026-07-31"])
+        assert len(gaps) == 1 and gaps[0].startswith("2026-07-31")
+        assert "HALF day" in gaps[0] and "campinas_corn_reference_bmf" in gaps[0]
+
+    def test_without_a_session_calendar_the_assertion_is_inert_and_says_so(self, caplog):
+        """Refusing to guess is a no-op. A no-op that announces itself is recoverable; ten false
+        reds a year is not."""
+        df = self._both(["2026-07-27", "2026-07-30"])
+        with caplog.at_level("WARNING"):
+            assert S.cepea_session_gaps(df, venue_sessions=None) == []
+        assert any("INERT" in r.message for r in caplog.records)
+
+    def test_the_ratified_calendar_slug_is_this_leg_s_own_output(self):
+        """D-PR-46 names silver_futures_prices / campinas_corn_reference_bmf as the session
+        calendar. That slug IS CEPEA indicator 77, so a day CEPEA lost is missing from both sides
+        of the comparison and cancels out. Pinned here so a GREEN report is never read as coverage
+        until an independent Brazilian venue series names the calendar."""
+        conflicts = S.session_calendar_conflicts()
+        assert conflicts and "cancels out" in conflicts[0]
+        assert S.session_calendar_conflicts("some_independent_b3_series") == []

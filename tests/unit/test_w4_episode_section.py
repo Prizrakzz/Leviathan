@@ -641,6 +641,19 @@ def test_a_minted_window_cannot_pass_the_label_pin():
 # floor suffix's old tail ("do not enumerate or narrate them") rode 116/125 lines and read as a
 # section-level ban. These pins make both fixes load-bearing: weaken either string and they FAIL.
 # ---------------------------------------------------------------------------
+def test_persona_names_the_displacement_and_bait_escapes():
+    """R6 residual fold: the two measured omission mechanisms the plain mandate lost to -- the
+    disagreement section treated as a substitute, and tendency-shaped questions out-competing the
+    enumeration -- are named explicitly. Weaken either string and this FAILS."""
+    import leviathan.graphrag.answer as an
+
+    p = an._SYSTEM_EPISODES
+    assert "NEVER substitutes for '## Episodes'" in p
+    assert "the two sections COEXIST" in p
+    assert "QUESTION'S OWN FRAMING never waives the section" in p
+    assert "the enumeration IS the honest form of" in p
+
+
 def test_persona_mandates_the_section_when_any_window_is_dated():
     import leviathan.graphrag.answer as an
 

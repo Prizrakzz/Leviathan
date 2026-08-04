@@ -342,9 +342,12 @@ def test_gate_block_present_and_correct_for_every_family(gen, descriptors):
 
 def test_shadow_canonical_publishers_promote_via_runner_with_kms(gen, descriptors):
     """An autonomous family's promote re-runs every shadow_canonical silver/gold publisher
-    --publish-mode canonical under the silver-publisher-runner jobdef with the KMS approval env pair
-    (no role field -- the runner jobdef binds the publisher role). A held/audit family promotes
-    nothing."""
+    --publish-mode canonical under the PROMOTE JOBDEF with the KMS approval env pair (no role field --
+    both legal promote jobdefs bind the publisher role). A held/audit family promotes nothing.
+
+    The promote jobdef is the shared silver-publisher-runner UNLESS the descriptor declares a
+    ``promote_jobdef`` self-promotion override, in which case it is that jobdef -- and the override is
+    only ever THE jobdef this descriptor's own shadow_canonical publishers run on."""
     kms_env = [
         {"Name": "LEVIATHAN_APPROVAL_MODE", "Value": "kms"},
         {"Name": "LEVIATHAN_KMS_KEY_ID", "Value": "alias/leviathan-dev-publish-signer"},
@@ -364,12 +367,176 @@ def test_shadow_canonical_publishers_promote_via_runner_with_kms(gen, descriptor
             and t.get("publishes")
         )
         assert len(promote["tasks"]) == n_shadow, f"{stem}: promote task count"
+        want_jobdef = d.get("promote_jobdef", "leviathan-dev-silver-publisher-runner")
         for t in promote["tasks"]:
-            assert t["jobdef"] == "leviathan-dev-silver-publisher-runner", f"{stem}: promote jobdef"
+            assert t["jobdef"] == want_jobdef, f"{stem}: promote jobdef"
             assert t["queue"] == "leviathan-dev-queue-ondemand", f"{stem}: promote queue"
             assert "role" not in t, f"{stem}: promote task must not carry a role field"
             assert t["env"] == kms_env, f"{stem}: promote env must carry the KMS pair"
             assert t["command"][-2:] == ["--publish-mode", "canonical"], f"{stem}: canonical arg"
+
+
+# ---------------------------------------------------------------------------
+# The promote-jobdef descriptor defect (W4/W5 leftover).
+#
+# THE DEFECT: gen_sfn_inputs rendered EVERY promote leg onto the shared platform runner
+# leviathan-dev-silver-publisher-runner, which tracks the worker repo's floating :latest. The two
+# futures_eod chains' silver jobdef leviathan-dev-futures-eod-silver is DIGEST-PINNED in terraform
+# (modules/batch/main.tf, var.futures_eod_image_digest) because `databento` and `xlrd` are dependencies
+# whose ABSENCE is silent -- so the machine promoted a shadow built by one image using another, and the
+# digest pin bought nothing on the only leg that writes canonical.
+#
+# THE FAILURE IT PRODUCED, 2026-08-01 08:00Z: silver ran the floor-fix image and published a clean
+# shadow; promote re-derived silver on the shared runner's older image, CERTIFIED 13/15 partitions and
+# then exit-1'd on the healthy-thin ZR and OJ under the mode-blind row floor that image still carried.
+# That run was completed by hand-swapping one execution's promote jobdef; these tests pin the durable
+# fix so the next render cannot put it back.
+# ---------------------------------------------------------------------------
+FUTURES_EOD_SCHEDULES = ("futures_eod_databento", "futures_eod_free")
+FUTURES_EOD_SILVER_JOBDEF = "leviathan-dev-futures-eod-silver"
+
+
+def test_futures_eod_chains_self_promote_on_the_digest_pinned_jobdef(gen, descriptors):
+    """Both futures_eod chains promote on leviathan-dev-futures-eod-silver, never on the shared runner
+    -- in the descriptor, in the rendered input, and in the checked-in rendered tree."""
+    for stem in FUTURES_EOD_SCHEDULES:
+        d = descriptors[stem]
+        assert d.get("promote_jobdef") == FUTURES_EOD_SILVER_JOBDEF, f"{stem}: descriptor promote_jobdef"
+        promote = gen.render_input(d)["promote"]
+        assert promote["mode"] == "autonomous", f"{stem}: expected an autonomous promote"
+        assert promote["tasks"], f"{stem}: autonomous futures_eod chain must promote something"
+        for t in promote["tasks"]:
+            assert t["jobdef"] == FUTURES_EOD_SILVER_JOBDEF, f"{stem}: rendered promote jobdef"
+            assert t["jobdef"] != "leviathan-dev-silver-publisher-runner", f"{stem}: shared runner back"
+        on_disk = json.loads((_RENDERED / f"{stem}.input.json").read_text(encoding="utf-8"))
+        assert [t["jobdef"] for t in on_disk["promote"]["tasks"]] == \
+            [FUTURES_EOD_SILVER_JOBDEF] * len(promote["tasks"]), f"{stem}: checked-in tree"
+
+
+def test_promote_runs_the_same_jobdef_the_shadow_ran(gen, descriptors):
+    """THE INVARIANT, for every family: a promote task either runs on the shared platform runner or on
+    THE jobdef the shadow it is promoting was produced by. Nothing else -- any third jobdef would be an
+    unverified claim about a role (glue:CreatePartition + kms:Sign) and an image."""
+    for stem, d in descriptors.items():
+        own = gen._shadow_canonical_jobdefs(d)
+        for t in gen.render_input(d)["promote"]["tasks"]:
+            assert t["jobdef"] == "leviathan-dev-silver-publisher-runner" or t["jobdef"] in own, \
+                f"{stem}: promote jobdef {t['jobdef']!r} is neither the runner nor one of {sorted(own)}"
+
+
+def test_promote_jobdef_default_is_the_shared_runner(gen, descriptors):
+    """Every family that does NOT declare the override still promotes on the shared runner -- the fix is
+    opt-in per descriptor and changed nothing for the other 24 schedules."""
+    plain = [s for s, d in descriptors.items()
+             if "promote_jobdef" not in d and d.get("promote_mode") == "autonomous"]
+    assert plain, "expected autonomous families without the override"
+    assert set(descriptors) - set(plain) >= set(FUTURES_EOD_SCHEDULES)
+    for stem in plain:
+        for t in gen.render_input(descriptors[stem])["promote"]["tasks"]:
+            assert t["jobdef"] == "leviathan-dev-silver-publisher-runner", f"{stem}: default runner"
+
+
+def test_render_honours_a_promote_jobdef_override(gen, descriptors):
+    """Mechanism, on a synthetic edit: flipping promote_jobdef moves every promote task."""
+    d = copy.deepcopy(descriptors["futures_eod_free"])
+    del d["promote_jobdef"]
+    assert {t["jobdef"] for t in gen.render_input(d)["promote"]["tasks"]} == \
+        {"leviathan-dev-silver-publisher-runner"}
+    d["promote_jobdef"] = FUTURES_EOD_SILVER_JOBDEF
+    assert {t["jobdef"] for t in gen.render_input(d)["promote"]["tasks"]} == {FUTURES_EOD_SILVER_JOBDEF}
+
+
+def test_lint_rejects_a_foreign_promote_jobdef(gen, descriptors):
+    """A promote_jobdef that is neither the platform runner nor this descriptor's own silver publisher
+    is rejected: the whole safety argument is that the silver phase re-proves role + image on that
+    jobdef every fire, and a third jobdef proves nothing."""
+    d = copy.deepcopy(descriptors["futures_eod_databento"])
+    d["promote_jobdef"] = "leviathan-dev-b3-flat-silver"
+    viol = gen.lint_descriptor(d, "futures_eod_databento")
+    assert any("promote_jobdef" in v for v in viol), viol
+
+
+def test_lint_rejects_a_versioned_promote_jobdef(gen, descriptors):
+    """A :N revision would freeze the promote leg on one Batch revision while the silver leg tracks the
+    latest ACTIVE one -- the same image-parity defect wearing a different hat."""
+    d = copy.deepcopy(descriptors["futures_eod_databento"])
+    d["promote_jobdef"] = FUTURES_EOD_SILVER_JOBDEF + ":3"
+    viol = gen.lint_descriptor(d, "futures_eod_databento")
+    assert any("':N' revision" in v for v in viol), viol
+
+
+def test_lint_rejects_promote_jobdef_with_no_shadow_publisher(gen, descriptors):
+    """Dead config: an override on a descriptor whose silver leg never promotes."""
+    d = copy.deepcopy(descriptors["futures_eod_databento"])
+    for phase in d["phases"]:
+        for t in phase["tasks"]:
+            t.pop("publish_mode", None)
+            t["publishes"] = False
+    viol = gen.lint_descriptor(d, "futures_eod_databento")
+    assert any("dead config" in v for v in viol), viol
+
+
+def test_lint_accepts_the_explicit_platform_runner(gen, descriptors):
+    """Writing the platform default out longhand stays legal (an unambiguous descriptor is not a
+    violation)."""
+    d = copy.deepcopy(descriptors["futures_eod_databento"])
+    d["promote_jobdef"] = "leviathan-dev-silver-publisher-runner"
+    assert gen.lint_descriptor(d, "futures_eod_databento") == []
+
+
+# ---------------------------------------------------------------------------
+# The GENERAL rule, derived from terraform rather than restated here: a producer whose jobdef is
+# digest-pinned must promote on that same jobdef. Written this way it self-extends -- the day someone
+# pins a second producer by digest, this test tells them the promote leg is owed the same treatment,
+# which is precisely the step that was missed for futures_eod.
+# ---------------------------------------------------------------------------
+_BATCH_TF = _REPO / "infra" / "terraform" / "modules" / "batch" / "main.tf"
+
+
+def _digest_pinned_jobdef_names() -> set[str]:
+    """Names of aws_batch_job_definition resources whose image is NOT the floating worker :latest.
+
+    Read-only parse of the module. A jobdef on "${var.ecr_repository_url}:latest" moves with every
+    worker push (so the shared promote runner is image-equivalent to it); anything else is pinned to a
+    build somebody verified, and that pin is only honoured end-to-end if the promote leg rides it too."""
+    import re
+
+    text = _BATCH_TF.read_text(encoding="utf-8")
+    parts = re.split(r'^resource\s+"aws_batch_job_definition"\s+', text, flags=re.M)[1:]
+    pinned: set[str] = set()
+    for part in parts:
+        block = re.split(r"^(?:resource|module|data|locals)\s", part, flags=re.M)[0]
+        m_name = re.search(
+            r'^\s*name\s*=\s*"\$\{var\.project_name\}-\$\{var\.environment\}-([a-z0-9_-]+)"',
+            block, re.M)
+        m_img = re.search(r"^\s*image\s*=\s*(\S.*?)\s*$", block, re.M)
+        if not m_name or not m_img:
+            continue
+        if m_img.group(1) == '"${var.ecr_repository_url}:latest"':
+            continue
+        pinned.add(f"leviathan-dev-{m_name.group(1)}")
+    return pinned
+
+
+def test_digest_pinned_producers_must_self_promote(gen, descriptors):
+    """Any descriptor whose shadow_canonical publisher runs on a DIGEST-PINNED jobdef must declare that
+    jobdef as its promote_jobdef. Otherwise the promote leg re-derives silver on the shared runner's
+    floating :latest and the pin protects only the throwaway shadow, never the canonical write."""
+    pinned = _digest_pinned_jobdef_names()
+    # Guard the parse itself: a refactor that stops matching must go RED, not silently green.
+    assert FUTURES_EOD_SILVER_JOBDEF in pinned, (
+        f"parse of {_BATCH_TF.name} found pinned jobdefs {sorted(pinned)} -- expected "
+        f"{FUTURES_EOD_SILVER_JOBDEF} (pinned to var.futures_eod_image_digest)"
+    )
+    for stem, d in descriptors.items():
+        exposed = sorted(gen._shadow_canonical_jobdefs(d) & pinned)
+        if not exposed:
+            continue
+        assert d.get("promote_jobdef") in exposed, (
+            f"{stem}: silver publishes on digest-pinned {exposed} but promotes on "
+            f"{d.get('promote_jobdef', 'the shared runner (floating :latest)')!r} -- the promote leg "
+            f"would re-derive silver with a different build than the shadow it promotes"
+        )
 
 
 def test_every_autonomous_family_promote_carries_kms_pair(gen, descriptors):

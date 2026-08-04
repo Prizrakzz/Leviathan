@@ -173,7 +173,7 @@
           }
         ],
         "integration": "batch",
-        "jobdef": "leviathan-dev-silver-publisher-runner",
+        "jobdef": "leviathan-dev-futures-eod-silver",
         "queue": "leviathan-dev-queue-ondemand"
       },
       {
@@ -199,7 +199,7 @@
           }
         ],
         "integration": "batch",
-        "jobdef": "leviathan-dev-silver-publisher-runner",
+        "jobdef": "leviathan-dev-futures-eod-silver",
         "queue": "leviathan-dev-queue-ondemand"
       },
       {
@@ -225,7 +225,7 @@
           }
         ],
         "integration": "batch",
-        "jobdef": "leviathan-dev-silver-publisher-runner",
+        "jobdef": "leviathan-dev-futures-eod-silver",
         "queue": "leviathan-dev-queue-ondemand"
       },
       {
@@ -251,7 +251,7 @@
           }
         ],
         "integration": "batch",
-        "jobdef": "leviathan-dev-silver-publisher-runner",
+        "jobdef": "leviathan-dev-futures-eod-silver",
         "queue": "leviathan-dev-queue-ondemand"
       }
     ]

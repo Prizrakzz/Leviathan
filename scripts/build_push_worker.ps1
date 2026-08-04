@@ -194,3 +194,57 @@ if ($Tag -ne "latest") {
 }
 Write-Host ""
 Write-Host "New Batch tasks will pull :latest automatically on next run." -ForegroundColor DarkGray
+
+# ---------------------------------------------------------------------------
+# Step 6: POST-PUSH FLEET AUDIT (D-PR-4). The push above just moved every digest
+# in this repository THREE positions closer to its lifecycle cap: one `docker
+# push` lands THREE manifests (an OCI image index plus its two untagged
+# children), measured from push timestamps on 2026-08-01T13:12:30,
+# 2026-08-02T01:05:16 and 2026-08-04T06:52:14 -- which is how sha256:3590b188
+# travelled from newest-first position 22 to 25 inside ONE session with nothing
+# printed anywhere. This is the only moment the estate is guaranteed to have an
+# operator watching, so the audit runs here.
+#
+# PLAIN MODE ONLY -- NEVER --config-drift. That pass goes RED on every pinned
+# digest with no S3 manifest sidecar, and "no sidecar" is the expected BOOTSTRAP
+# state (no image in ECR carries one until it is rebuilt through this script);
+# it would therefore fail every build on a perfectly healthy estate, and a step
+# that always fails is a step operators learn to skip. --config-drift belongs to
+# the human/weekly pass, not to the build.
+#
+# The build-horizon flags are passed EXPLICITLY (D-PR-30): headroom is quoted in
+# BUILDS, never in a raw image margin, and this fence keeps its declared
+# contract even if the script's defaults are retuned later.
+#
+# NO -Skip SWITCH, DELIBERATELY. This runs AFTER the push and AFTER the sidecar,
+# so it cannot block a hotfix -- the image above is already live. A non-zero exit
+# here is an ALARM about the FLEET, not a gate on this build.
+# ---------------------------------------------------------------------------
+Write-Host ""
+Write-Host "==> Post-push ECR fleet audit (D-PR-4, plain mode)..." -ForegroundColor Cyan
+$Auditor = Join-Path $RepoRoot "scripts/ops/check_ecr_pinned_digests.py"
+if (-not (Test-Path $Auditor)) { throw "post-push ECR audit MISSING: $Auditor not found -- half a fence is how a whole fence disappears" }
+$prevEAP = $ErrorActionPreference
+$ErrorActionPreference = "SilentlyContinue"
+python $Auditor --region $Region --warn-builds 3 --fail-builds 1 2>&1
+$auditRan  = $?
+$auditExit = $LASTEXITCODE
+$ErrorActionPreference = $prevEAP
+if (-not $auditRan -and $auditExit -eq 0) {
+    throw "post-push ECR audit did NOT RUN (python not invokable) -- a fence that silently does not run is worse than no fence"
+}
+if ($auditExit -eq 1) {
+    throw ("POST-PUSH ECR AUDIT FAILED (exit 1). The image above IS pushed and live -- this is about the FLEET, not about this build. " +
+           "Exit 1 now means one of TWO things and the report above says which: " +
+           "(a) BROKEN -- a TOP-revision jobdef/taskdef references an image ECR PROVED is gone, i.e. a CannotPullContainerError already scheduled for that family's next fire; or " +
+           "(b) IMMINENT (D-PR-30) -- a TOP-revision pin now sits within ONE BUILD (3 manifests) of its repository's LIVE lifecycle cap, i.e. THE NEXT PUSH EVICTS IT. " +
+           "IMMINENT is not a warning: nothing recovers a digest once the lifecycle sweep runs. " +
+           "Act before the next push: re-register every family the report names onto a live image, or raise that repo's lifecycle countNumber (infra/terraform/modules/ecr/main.tf).")
+}
+if ($auditExit -ne 0) {
+    throw ("POST-PUSH ECR AUDIT COULD NOT DECIDE (exit $auditExit). The image above IS pushed and live. " +
+           "Exit 2 means an ECR/Batch call FAILED, or a lifecycle policy could not be read as a listing-wide count cap -- so this run has NOT shown the estate is healthy, " +
+           "and it is NOT evidence of an outage either. Do NOT repin anything on the strength of it. " +
+           "Clear the cause (throttling, credentials, an age-only policy) and re-run: python scripts/ops/check_ecr_pinned_digests.py --region $Region")
+}
+Write-Host "Post-push ECR audit CLEAN: every reference resolves, nothing within 1 build of a cap." -ForegroundColor Green

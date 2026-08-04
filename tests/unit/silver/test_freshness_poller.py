@@ -2,6 +2,11 @@
 
 The age computation, the canonical-only (shadow/staging) exclusion, the empty-prefix behaviour, and
 the poll-target derivation must all be correct against a FAKE S3 listing -- no boto3, no network.
+
+D-PR-14 adds the normalized companion metric ``FreshnessLagRatio = lag / declared ceiling``. Its
+tests use a FAKE ceiling wherever the maths is under test, so they pin the arithmetic rather than
+today's registry values; the two places that must track the live estate (the per-table declared
+ceilings, and the poller actually passing the denominator) are pinned separately and explicitly.
 """
 from __future__ import annotations
 
@@ -13,9 +18,13 @@ from leviathan.silver.freshness import (
     EXTRA_TARGETS,
     METRIC_NAME,
     METRIC_NAMESPACE,
+    RATIO_METRIC_NAME,
+    TABLE_CEILING_OVERRIDES,
     all_poll_targets,
+    declared_ceiling_days,
     is_excluded_key,
     lag_days,
+    lag_ratio,
     metric_data_for,
     newest_last_modified,
     poll_targets,
@@ -119,6 +128,192 @@ class TestMetricData:
             assert d["MetricName"] == METRIC_NAME
             assert d["Value"] == 9.0
             assert d["Timestamp"] == NOW
+
+
+# ---------------------------------------------------------------------------
+# D-PR-14: FreshnessLagRatio
+# ---------------------------------------------------------------------------
+class TestLagRatio:
+    """The arithmetic, against a FAKE ceiling -- 1.0 is the universal threshold.
+
+    Five family alarms were permanently ALARM because silver_alarms thresholds a family at
+    ``min()`` over its members' ceilings and evaluates it with ``Maximum`` over their lags. The
+    ratio normalizes each member against ITS OWN ceiling first, so one threshold serves an annual
+    table and a daily one alike.
+    """
+
+    FAKE_CEILING = 14.0
+
+    def test_below_ceiling_is_under_one(self):
+        assert lag_ratio(7.0, self.FAKE_CEILING) == pytest.approx(0.5)
+
+    def test_exactly_at_ceiling_is_one_and_does_not_breach(self):
+        # The threshold is "> 1.0", so a table sitting EXACTLY on its declared ceiling is not a
+        # breach -- the ceiling is the last acceptable value, not the first bad one.
+        assert lag_ratio(14.0, self.FAKE_CEILING) == 1.0
+
+    def test_over_ceiling_breaches(self):
+        assert lag_ratio(21.0, self.FAKE_CEILING) == pytest.approx(1.5)
+
+    def test_one_threshold_serves_every_cadence(self):
+        # The whole point: a 64.83d ANNUAL table (ceiling 400) is healthy and a 7.85d table on a
+        # 3d ceiling is not -- and the SAME > 1.0 test says so. Under FreshnessLagDays those two
+        # need different thresholds, which is why a mixed-cadence family cannot have one.
+        assert lag_ratio(64.83, 400.0) < 1.0
+        assert lag_ratio(7.85, 3.0) > 1.0
+
+    def test_no_data_yields_no_ratio(self):
+        assert lag_ratio(None, self.FAKE_CEILING) is None
+
+    def test_no_declared_ceiling_yields_no_ratio(self):
+        assert lag_ratio(9.0, None) is None
+
+    def test_non_positive_ceiling_is_refused_not_divided_by(self):
+        # A ZeroDivisionError here would abort the whole poll cycle, and all 26 day-based alarms are
+        # treat_missing_data='breaching' -- one bad denominator would page 21 owners at once.
+        assert lag_ratio(9.0, 0) is None
+        assert lag_ratio(9.0, -3) is None
+
+    def test_zero_lag_is_zero_ratio_not_none(self):
+        # A perfectly fresh table must emit 0.0, not fall through the None path (which would look
+        # like "no datapoint" -> breaching).
+        assert lag_ratio(0.0, self.FAKE_CEILING) == 0.0
+
+
+class TestDeclaredCeiling:
+    """The DENOMINATOR: the table's OWN ceiling, never the family's tightest one."""
+
+    def test_registry_max_lag_days_wins_with_publication_grace(self):
+        c = {"table_name": "t_fake", "freshness_sla": {"max_lag_days": 30, "cadence": "weekly"},
+             "publication_lag_days": 7}
+        assert declared_ceiling_days(c) == 37.0
+
+    def test_cadence_default_when_no_explicit_ceiling(self):
+        assert declared_ceiling_days(
+            {"table_name": "t_fake", "freshness_sla": {"cadence": "annual"}}) == 400.0
+        assert declared_ceiling_days(
+            {"table_name": "t_fake", "freshness_sla": {"cadence": "daily"}}) == 3.0
+
+    def test_fallback_when_cadence_unrecorded(self):
+        assert declared_ceiling_days({"table_name": "t_fake"}) == 45.0
+
+    def test_audit_override_tightens(self):
+        # silver_nass_crop_progress carried registry max_lag_days=170 (~24 weeks), the MASK that let
+        # a weekly producer sit stale-green for 6-10 weeks. dag_catalog.FRESHNESS_LAG_OVERRIDES
+        # corrects it to 14, and the ratio's denominator must inherit that correction -- otherwise
+        # the new metric reintroduces the exact hole the old one had.
+        c = {"table_name": "silver_nass_crop_progress",
+             "freshness_sla": {"max_lag_days": 170, "cadence": "weekly"}}
+        assert declared_ceiling_days(c) == 14.0
+
+    def test_per_table_override_loosens_a_miscalibrated_cadence(self):
+        # The fortnightly series the registry records as cadence=weekly. Deriving 14 would score a
+        # NORMAL 16-day-old drop at ratio 1.14 and fire the > 1.0 threshold -- the false red D-PR-14
+        # exists to remove, reintroduced by its own denominator.
+        c = {"table_name": "silver_unica_biweekly_season_history",
+             "freshness_sla": {"cadence": "weekly"}}
+        assert declared_ceiling_days(c) == 21.0
+        assert lag_ratio(16.0, declared_ceiling_days(c)) < 1.0
+
+    def test_every_real_table_gets_a_positive_finite_ceiling(self):
+        # No table may reach the emitter without a usable denominator -- a missing one silently
+        # demotes that table back to day-only.
+        for t in all_poll_targets():
+            assert t.expected_lag_days is not None, t.table
+            assert t.expected_lag_days > 0, t.table
+
+    def test_declared_ceilings_match_the_per_table_alarms(self):
+        # THE LINT for the TABLE_CEILING_OVERRIDES mirror. src/leviathan imports nothing from jobs/
+        # (which is not even a package), so the emitter cannot read silver_alarms at run time. This
+        # test is the seam instead: silver_alarms is the direction of truth and every per-table /
+        # per-artifact declared ceiling must be exactly what the emitter divides by. If either side
+        # moves, this is red rather than the denominator being quietly wrong.
+        import importlib.util
+        from pathlib import Path
+        repo = Path(__file__).resolve().parents[3]
+        spec = importlib.util.spec_from_file_location(
+            "silver_alarms_for_ceilings", repo / "jobs" / "observability" / "silver_alarms.py")
+        alarms = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(alarms)
+
+        declared = {**alarms.BURNED_TABLE_FRESHNESS, **alarms.ARTIFACT_FRESHNESS}
+        assert declared, "silver_alarms declares no per-table ceilings -- the lint would be vacuous"
+        by_table = {t.table: t for t in all_poll_targets()}
+        for table, (_family, ceiling, _basis) in declared.items():
+            assert table in by_table, f"{table} has a per-table alarm but is not polled"
+            assert by_table[table].expected_lag_days == float(ceiling), table
+
+        # ...and no override may exist that the alarm side does not declare (a mirror entry with no
+        # counterpart is a second source of truth for nothing).
+        assert set(TABLE_CEILING_OVERRIDES) <= set(declared)
+
+
+class TestRatioMetricData:
+    """Rule 1 of the decision: ALONGSIDE, never INSTEAD OF."""
+
+    def test_ratio_is_appended_not_substituted(self):
+        data = metric_data_for("silver_fgis", "usda_fgis", 21.0, timestamp=NOW, expected=14.0)
+        assert len(data) == 4
+        days = [d for d in data if d["MetricName"] == METRIC_NAME]
+        ratios = [d for d in data if d["MetricName"] == RATIO_METRIC_NAME]
+        assert len(days) == 2 and len(ratios) == 2
+        # The day datums are byte-identical to the no-ratio call: a rename or a value change here
+        # orphans / moves all 26 live FreshnessLagDays alarms at once.
+        assert days == metric_data_for("silver_fgis", "usda_fgis", 21.0, timestamp=NOW)
+        assert {d["Dimensions"][0]["Name"] for d in ratios} == {"Table", "Family"}
+        for d in ratios:
+            assert d["Value"] == pytest.approx(1.5)
+            assert d["Timestamp"] == NOW
+            assert d["Unit"] == "None"
+
+    def test_ratio_rides_both_dimensions(self):
+        # The family datum is the one that matters: it is what statistic=Maximum reads, and it is
+        # now a NORMALIZED maximum.
+        data = metric_data_for("silver_modis_ndvi", "weather", 7.85, timestamp=NOW, expected=8.0)
+        ratios = {d["Dimensions"][0]["Value"]: d
+                  for d in data if d["MetricName"] == RATIO_METRIC_NAME}
+        assert set(ratios) == {"silver_modis_ndvi", "weather"}
+        assert ratios["weather"]["Value"] == pytest.approx(0.98125)
+
+    def test_absent_expected_emits_exactly_the_legacy_payload(self):
+        assert metric_data_for("silver_fgis", "usda_fgis", 9.0, timestamp=NOW, expected=None) == \
+            metric_data_for("silver_fgis", "usda_fgis", 9.0, timestamp=NOW)
+
+    def test_bad_ceiling_degrades_to_day_only_never_raises(self):
+        data = metric_data_for("silver_fgis", "usda_fgis", 9.0, timestamp=NOW, expected=0)
+        assert len(data) == 2
+        assert all(d["MetricName"] == METRIC_NAME for d in data)
+
+    def test_metric_names_are_distinct(self):
+        assert RATIO_METRIC_NAME == "FreshnessLagRatio"
+        assert RATIO_METRIC_NAME != METRIC_NAME
+
+
+class TestPollerPassesTheDenominator:
+    """The emitter half is dead if the SCRIPT never passes ``expected``."""
+
+    @staticmethod
+    def _src() -> str:
+        from pathlib import Path
+        repo = Path(__file__).resolve().parents[3]
+        return (repo / "scripts" / "silver" / "freshness_poller.py").read_text(encoding="utf-8")
+
+    def test_script_passes_expected_to_metric_data_for(self):
+        assert "expected=expected" in self._src()
+
+    def test_script_reads_the_targets_own_ceiling(self):
+        assert "t.expected_lag_days" in self._src()
+
+    def test_script_has_a_rollback_switch(self):
+        # Rollback for an ADDITIVE metric is "stop emitting it" -- available without a redeploy.
+        assert "--no-ratio" in self._src()
+
+    def test_script_creates_no_alarm(self):
+        # Emitter-side ONLY (D-EI-12-adjacent): the poller must never touch an alarm resource.
+        src = self._src()
+        for forbidden in ("put_metric_alarm", "delete_alarms", "set_alarm_state",
+                          "describe_alarms", "put_composite_alarm"):
+            assert forbidden not in src
 
 
 class TestPollTargets:

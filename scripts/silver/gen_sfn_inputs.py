@@ -35,7 +35,8 @@ PLATFORM CONSTANTS (not descriptor-driven -- see the constants below): the sched
 runs on the on-demand Fargate queue ``leviathan-dev-queue-ondemand`` (NOT the interruptible
 FARGATE_SPOT ``leviathan-dev-queue``, which must never carry a mid-canonical-publish task); the gate
 jobdef is ``leviathan-dev-silver-gate``; the promote leg runs under ``leviathan-dev-silver-publisher-
-runner`` (which carries the silver-publisher role + kms:Sign) with the KMS approval env pair.
+runner`` (which carries the silver-publisher role + kms:Sign) with the KMS approval env pair -- UNLESS
+the descriptor sets the optional ``promote_jobdef`` self-promotion override (see below).
 
 The scheduler's ``Input=`` is thus reproducible from the descriptors, never hand-typed. Rendered
 inputs are written under ``configs/silver/dags/_rendered/{schedule}.input.json``.
@@ -109,10 +110,34 @@ ONDEMAND_QUEUE = "leviathan-dev-queue-ondemand"
 # The silver_rebuild_gate task (one gate jobdef for every family), invoked module-form.
 GATE_JOBDEF = "leviathan-dev-silver-gate"
 GATE_MODULE = "jobs.audit.silver_rebuild_gate"
-# The promote leg's runner jobdef -- carries the silver-publisher role (jobRoleArn) + kms:Sign, so the
-# rendered promote task needs no role field; the KMS approval mode + key travel in task.env.
+# The promote leg's DEFAULT runner jobdef -- carries the silver-publisher role (jobRoleArn) + kms:Sign,
+# so the rendered promote task needs no role field; the KMS approval mode + key travel in task.env.
 PROMOTE_RUNNER_JOBDEF = "leviathan-dev-silver-publisher-runner"
 KMS_KEY_ALIAS = "alias/leviathan-dev-publish-signer"
+
+# OPTIONAL per-descriptor override of the promote runner. Read it as the answer to one question: does
+# the promote leg run the SAME BUILD of the producer that the silver leg just ran?
+#
+# For every family whose producer lives in the shared b3-flat image, yes by construction -- the shared
+# runner and the shared silver jobdef ride the same floating worker tag. For a family whose OWN silver
+# jobdef is DIGEST-PINNED it is NO, and silently so: infra/terraform/modules/batch/main.tf pins
+# futures-eod-silver to var.futures_eod_image_digest precisely because `databento` and `xlrd` are
+# dependencies whose ABSENCE is silent, while leviathan-dev-silver-publisher-runner tracks whatever the
+# last worker push produced. The machine re-running the identical command on the shared runner therefore
+# promotes a shadow built by image A using image B.
+#
+# THE 2026-08-01 08:00Z DATABENTO PROMOTE IS THE PROOF: the silver phase ran the floor-fix image and
+# published a clean shadow; the promote phase re-derived silver on the shared runner's OLDER image,
+# certified 13/15 partitions and then exit-1'd on the two healthy-thin slugs (ZR, OJ) under the
+# mode-blind row floor that image still carried. Certified-then-failed, after the write.
+#
+# THE ONLY LEGAL OVERRIDE IS SELF-PROMOTION: the value must be THE jobdef every shadow_canonical
+# silver/gold publisher in this same descriptor already runs on. That is what keeps the two properties
+# the shared runner otherwise supplies for free -- jobRoleArn=silver-publisher (glue:CreatePartition +
+# kms:Sign) and a runnable copy of the producer -- because the silver phase re-proves both on that
+# jobdef on every single fire. Naming any OTHER jobdef would be an unverified role/image claim, so
+# lint_descriptor rejects it fail-closed.
+PROMOTE_JOBDEF_FIELD = "promote_jobdef"
 
 # Placeholders the scheduler / terraform substitute (never expanded here).
 ASOF_PLACEHOLDER = "<aws.scheduler.scheduled-time>"          # the gate truncates the ISO to a date
@@ -246,6 +271,31 @@ def lint_descriptor(desc: dict, stem: str) -> list[str]:
                 if pm not in PUBLISH_MODES:
                     e.append(f"{stem}: publishing task {tid!r} has unknown publish_mode {pm!r}")
 
+    # promote_jobdef override: SELF-PROMOTION ONLY (see the constant's rationale).
+    if PROMOTE_JOBDEF_FIELD in desc:
+        pj = desc.get(PROMOTE_JOBDEF_FIELD)
+        if not isinstance(pj, str) or not pj:
+            e.append(f"{stem}: '{PROMOTE_JOBDEF_FIELD}' must be a non-empty string, got {pj!r}")
+        elif _is_versioned(pj):
+            e.append(
+                f"{stem}: '{PROMOTE_JOBDEF_FIELD}' {pj!r} carries a ':N' revision -- the promote leg "
+                f"tracks the latest ACTIVE revision like every other rendered jobdef"
+            )
+        else:
+            own = _shadow_canonical_jobdefs(desc)
+            if not own:
+                e.append(
+                    f"{stem}: '{PROMOTE_JOBDEF_FIELD}' is set but the descriptor has no "
+                    f"shadow_canonical publisher -- nothing promotes, so the override is dead config"
+                )
+            elif pj != PROMOTE_RUNNER_JOBDEF and own != {pj}:
+                e.append(
+                    f"{stem}: '{PROMOTE_JOBDEF_FIELD}' {pj!r} is neither the platform runner "
+                    f"{PROMOTE_RUNNER_JOBDEF!r} nor THE single jobdef this descriptor's "
+                    f"shadow_canonical publishers run on ({sorted(own)}) -- a promote may only re-run "
+                    f"on the jobdef that produced the shadow (role + image parity)"
+                )
+
     # CLASS-B autonomous-promote-before-retrofit (the A-W4 guard)
     if desc.get("retrofit_required") and not desc.get("retrofit_landed") \
             and desc.get("promote_mode") == "autonomous":
@@ -267,6 +317,12 @@ def lint_all(descriptors: dict[str, dict]) -> list[str]:
 # ---------------------------------------------------------------------------
 # Render
 # ---------------------------------------------------------------------------
+def _is_versioned(jobdef: str) -> bool:
+    """True when ``jobdef`` carries a trailing ``:N`` Batch revision suffix."""
+    _head, sep, tail = str(jobdef).rpartition(":")
+    return bool(sep and tail.isdigit())
+
+
 def _unversion(jobdef: str) -> str:
     """Strip a trailing ``:N`` revision so the schedule tracks the latest ACTIVE jobdef revision.
 
@@ -277,6 +333,28 @@ def _unversion(jobdef: str) -> str:
         return jobdef
     head, sep, tail = jobdef.rpartition(":")
     return head if (sep and tail.isdigit()) else jobdef
+
+
+def _shadow_canonical_jobdefs(desc: dict) -> set[str]:
+    """The UNVERSIONED jobdefs this descriptor's shadow_canonical silver/gold publishers run on.
+
+    These are exactly the tasks the promote leg re-runs, so this set is the allowlist a
+    ``promote_jobdef`` self-promotion override is checked against."""
+    out: set[str] = set()
+    for phase in desc.get("phases", []) or []:
+        if phase.get("name") not in ("silver", "gold"):
+            continue
+        for t in phase.get("tasks", []) or []:
+            if t.get("publishes") and t.get("publish_mode") == "shadow_canonical" and t.get("jobdef"):
+                out.add(_unversion(t["jobdef"]))
+    return out
+
+
+def promote_jobdef(desc: dict) -> str:
+    """The jobdef the promote leg runs on: the descriptor's self-promotion override, else the shared
+    platform runner. ``lint_descriptor`` has already fenced the override to a jobdef this descriptor's
+    own shadow_canonical publishers run on, so an unlinted descriptor can never reach here."""
+    return _unversion(desc.get(PROMOTE_JOBDEF_FIELD) or PROMOTE_RUNNER_JOBDEF)
 
 
 def _env_list(env) -> list[dict]:
@@ -318,11 +396,12 @@ def _render_task(t: dict, *, publish_stage: str | None = None) -> dict:
 
 def _render_promote_task(desc: dict, t: dict) -> dict:
     """A shadow_canonical publisher's canonical re-run: the same command + ``--publish-mode canonical``
-    under the silver-publisher-runner jobdef, carrying the KMS approval env pair. No ``role`` field --
-    the runner jobdef already binds jobRoleArn=silver-publisher (the machine reads no $.task.role)."""
+    under the promote jobdef (the shared silver-publisher-runner, or the descriptor's ``promote_jobdef``
+    self-promotion override), carrying the KMS approval env pair. No ``role`` field -- both legal promote
+    jobdefs bind jobRoleArn=silver-publisher (the machine reads no $.task.role)."""
     return {
         "integration": "batch",
-        "jobdef": PROMOTE_RUNNER_JOBDEF,
+        "jobdef": promote_jobdef(desc),
         "queue": ONDEMAND_QUEUE,
         "command": list(t.get("command", [])) + ["--publish-mode", "canonical"],
         "env": [

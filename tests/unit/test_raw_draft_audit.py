@@ -231,3 +231,203 @@ def test_the_baseline_record_carries_none_on_an_unaudited_row():
     from leviathan.graphrag import eval as gev
     rec = gev._per_answer_record({"q": {"id": "r2"}, "out": {"answer": "a"}, "rubric": {}}, "single")
     assert rec["raw_draft"] is None
+
+
+# =====================================================================================================
+# A4b -- the SANITIZE-INPUT snapshot: what each cleaning pass was GIVEN
+#
+# A4 recovered what the model WROTE. That was not enough to adjudicate the 2026-08-04 R6 report's three
+# `banned_valuation` reds, because `register.count_valuation_words` over all 15 RENDERED answers was 0
+# and nothing in the artifact said which pass ate the sentence. The render path runs reg.sanitize TWICE
+# (per-field in `_humanize_structured`, then on the assembled body at the render seam), so the input to
+# EACH pass is the evidence that attributes a scar to it.
+# =====================================================================================================
+
+# A Lane-B valuation slip: a windowed adjective ("expensive") in a sentence carrying a window noun
+# ("spread"). Counted RAW by `answer._count_banned_valuation`; destroyed before the reader sees it.
+VAL_TLDR = "Frost cut the Sul de Minas crop [1]."
+VAL_MECH = ("A July frost hit Sul de Minas [1]. The spread makes Brazilian coffee expensive versus "
+            "Vietnamese robusta [1]. Arrivals slowed into August [1].")
+
+
+def _body(monkeypatch, val):
+    if val is None:
+        monkeypatch.delenv("GRAPHRAG_DRAFT_BODY_AUDIT", raising=False)
+    else:
+        monkeypatch.setenv("GRAPHRAG_DRAFT_BODY_AUDIT", val)
+
+
+def _val_synth(system, user, *, model, tool, **_kw):
+    return {"tldr": VAL_TLDR, "mechanism": VAL_MECH, "diagram_mermaid": "",
+            "sources": [{"ref": 1, "source": "GAIN", "date": "2021-07-20", "note": "frost"}]}
+
+
+def _l2_val(monkeypatch):
+    monkeypatch.setattr(ev, "embed", lambda texts, **k: [[1.0] for _ in texts])
+    return an.answer("trace how a coffee frost spikes price", graph=_graph(), planner="l2",
+                     asof="2021-08-01", retrieve=_retrieve, call=_val_synth,
+                     route_fn=lambda q, gr: ["arabica_coffee"])
+
+
+# -- the helper: its OWN flag, default off ------------------------------------------------------------
+def test_sanitize_input_snapshot_absent_when_flag_unset(monkeypatch):
+    _body(monkeypatch, None)
+    assert an.sanitize_input_snapshot(body_pre_sanitize="rendered body") is None
+
+
+@pytest.mark.parametrize("val", ["off", "0", "false", "", "garbage"])
+def test_sanitize_input_snapshot_is_fail_closed(monkeypatch, val):
+    """The house `_chain_on` spelling: ONLY on/1/true arms it. Anything else -- including a typo -- is
+    OFF, because this field is whole rendered bodies and the failure mode of a permissive read is a
+    silently fattened payload on every live answer."""
+    _body(monkeypatch, val)
+    assert an.sanitize_input_snapshot(body_pre_sanitize="rendered body") is None
+
+
+@pytest.mark.parametrize("val", ["on", "1", "true", "ON", "  True  "])
+def test_sanitize_input_snapshot_captures_verbatim_when_on(monkeypatch, val):
+    _body(monkeypatch, val)
+    assert an.sanitize_input_snapshot(body_pre_sanitize="rendered body") == {"body_pre_sanitize": "rendered body"}
+
+
+def test_sanitize_input_snapshot_is_none_when_every_part_is_empty(monkeypatch):
+    _body(monkeypatch, "on")
+    assert an.sanitize_input_snapshot(body_pre_sanitize="", verified_tldr=None) is None
+
+
+def test_sanitize_input_snapshot_does_not_ride_the_strip_audit_flag(monkeypatch):
+    """The two flags are INDEPENDENT and this is the containment. GRAPHRAG_STRIP_AUDIT is ON in serving
+    (leviathan-dev-serving:73 -- measured 2026-08-04), so a shared switch would have put a full rendered
+    body on the wire of every live /v1/respond."""
+    _audit(monkeypatch, "on")
+    _body(monkeypatch, None)
+    assert an.raw_draft_snapshot(tldr=RAW_TLDR) is not None       # A4 armed
+    assert an.sanitize_input_snapshot(body_pre_sanitize="b") is None   # A4b NOT armed
+
+
+# -- _fold_draft: absent-when-off survives the merge ---------------------------------------------------
+def test_fold_draft_keeps_the_key_absent_when_both_halves_are_off():
+    assert an._fold_draft(None, None) is None
+
+
+def test_fold_draft_merges_without_mutating_the_earlier_snapshot():
+    early = {"tldr": "t"}
+    out = an._fold_draft(early, {"body_pre_sanitize": "b"})
+    assert out == {"tldr": "t", "body_pre_sanitize": "b"}
+    assert early == {"tldr": "t"}                                # a NEW dict, the caller's is untouched
+
+
+def test_fold_draft_returns_the_earlier_snapshot_when_the_later_part_is_off():
+    assert an._fold_draft({"tldr": "t"}, None) == {"tldr": "t"}
+
+
+def test_fold_draft_yields_a_dict_when_only_the_later_part_is_on():
+    assert an._fold_draft(None, {"body_pre_sanitize": "b"}) == {"body_pre_sanitize": "b"}
+
+
+# -- the seams, on BOTH synthesis paths ----------------------------------------------------------------
+def test_l2_path_carries_both_sanitize_inputs(monkeypatch):
+    _audit(monkeypatch, "on")
+    _body(monkeypatch, "on")
+    draft = _l2_val(monkeypatch)["trace"]["raw_draft"]
+    assert set(draft) == {"tldr", "mechanism", "verified_tldr", "verified_mechanism", "body_pre_sanitize"}
+    assert draft["body_pre_sanitize"].startswith("**TL;DR.**")   # the ASSEMBLED body, not a field
+
+
+def test_onehop_path_carries_both_sanitize_inputs(monkeypatch):
+    """The GRAPHRAG_PLANNER=onehop rollback lane gets the identical seams -- an audit that goes blind on
+    the rollback path is an audit that goes blind exactly when it is needed."""
+    _audit(monkeypatch, "on")
+    _body(monkeypatch, "on")
+    draft = an.answer("arabica coffee frost", graph=_graph(), retrieve=_retrieve,
+                      call=_val_synth)["trace"]["raw_draft"]
+    assert set(draft) == {"tldr", "mechanism", "verified_tldr", "verified_mechanism", "body_pre_sanitize"}
+
+
+def test_the_body_snapshot_is_the_exact_string_the_sanitizer_consumed(monkeypatch):
+    """`body_pre_sanitize` must be the sanitizer's INPUT, not a re-render: `reg.sanitize` applied to it
+    must reproduce the served answer byte for byte, or the diff the adjudicator reads is fiction."""
+    from leviathan.graphrag import register as reg
+    _audit(monkeypatch, "on")
+    _body(monkeypatch, "on")
+    out = _l2_val(monkeypatch)
+    assert reg.sanitize(out["trace"]["raw_draft"]["body_pre_sanitize"]) == out["answer"]
+
+
+# -- the regression this exists to close: attribute a banned_valuation red to a PASS ------------------
+def test_the_snapshot_attributes_a_valuation_slip_the_rendered_answer_reads_zero_on(monkeypatch):
+    """R6 finding F5, reproduced end to end. The pin charges a RAW red; the reader's answer scores 0; the
+    two intermediate captures say which pass closed the gap and hand over the exact sentence."""
+    from leviathan.graphrag import register as reg
+    _audit(monkeypatch, "on")
+    _body(monkeypatch, "on")
+    out = _l2_val(monkeypatch)
+    draft = out["trace"]["raw_draft"]
+    assert out["trace"]["banned_valuation_words"] == 1           # the counter: HOW MANY
+    assert reg.count_valuation_words(out["answer"]) == 0         # the reader's surface: nothing to see
+    # WHICH: the slip is still countable on the raw draft and on the humanize pass's input ...
+    assert reg.count_valuation_words(draft["mechanism"]) == 1
+    assert reg.count_valuation_words(draft["verified_mechanism"]) == 1
+    assert "expensive" in draft["verified_mechanism"]
+    # ... and gone from the render seam's input, which localises the kill to _humanize_structured.
+    assert reg.count_valuation_words(draft["body_pre_sanitize"]) == 0
+    assert "expensive" not in draft["body_pre_sanitize"]
+
+
+def test_the_body_seam_still_sees_leaks_that_live_outside_tldr_and_mechanism(monkeypatch):
+    """Seam 2 is not redundant: the render-seam pass is the ONLY one that sees the cited-sources block and
+    the numbers footer, which the raw counters (tldr+mechanism only) never scan."""
+    _audit(monkeypatch, "on")
+    _body(monkeypatch, "on")
+    body = _l2_val(monkeypatch)["trace"]["raw_draft"]["body_pre_sanitize"]
+    assert "## Sources" in body or "Sources" in body
+
+
+# -- containment: the serving payload is untouched unless a run opts in -------------------------------
+def test_serving_shape_is_unchanged_when_only_strip_audit_is_on(monkeypatch):
+    """Serving rev 73's exact env: GRAPHRAG_STRIP_AUDIT=on, no body flag. The trace must carry the A4
+    draft and NOTHING new -- this is the byte-for-byte no-op that lets A4b ship without a serving cost."""
+    _audit(monkeypatch, "on")
+    _body(monkeypatch, None)
+    draft = _l2_val(monkeypatch)["trace"]["raw_draft"]
+    assert set(draft) == {"tldr", "mechanism"}                   # exactly A4, nothing added
+
+
+def test_nothing_is_snapshotted_when_neither_flag_is_on(monkeypatch):
+    _audit(monkeypatch, None)
+    _body(monkeypatch, None)
+    assert "raw_draft" not in _l2_val(monkeypatch)["trace"]      # absent, not null
+
+
+def test_the_body_flag_alone_still_yields_a_draft(monkeypatch):
+    """The flags are independent in BOTH directions: a body-only run is a legal audit configuration and
+    must not silently produce nothing."""
+    _audit(monkeypatch, None)
+    _body(monkeypatch, "on")
+    draft = _l2_val(monkeypatch)["trace"]["raw_draft"]
+    assert set(draft) == {"verified_tldr", "verified_mechanism", "body_pre_sanitize"}
+
+
+def test_the_served_answer_is_byte_identical_with_the_flag_on_and_off(monkeypatch):
+    """A diagnostic that changes the product is not a diagnostic. The two-branch render refactor that
+    hoisted `_pre_sanitize` out of the sanitize call is pinned here, not just asserted in review."""
+    _audit(monkeypatch, "on")
+    _body(monkeypatch, None)
+    off = _l2_val(monkeypatch)
+    _body(monkeypatch, "on")
+    on = _l2_val(monkeypatch)
+    assert on["answer"] == off["answer"]
+    assert on["structured"] == off["structured"]
+
+
+# -- and it must REACH the artifact (the F9 lesson: eval's projection is a hard whitelist) ------------
+def test_the_sanitize_inputs_reach_the_eval_record_inside_raw_draft(monkeypatch):
+    """The parts land INSIDE `raw_draft` deliberately. `eval._per_answer_record` names that key already,
+    so the whole dict rides through; a NEW top-level trace key would have reached no artifact at all."""
+    from leviathan.graphrag import eval as gev
+    _audit(monkeypatch, "on")
+    _body(monkeypatch, "on")
+    out = _l2_val(monkeypatch)
+    rec = gev._per_answer_record({"q": {"id": "r3"}, "out": out, "rubric": {}}, "single")
+    assert rec["raw_draft"]["body_pre_sanitize"] == out["trace"]["raw_draft"]["body_pre_sanitize"]
+    assert rec["raw_draft"]["verified_mechanism"] == out["trace"]["raw_draft"]["verified_mechanism"]

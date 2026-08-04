@@ -43,10 +43,46 @@ different facts. This job lands the capture under ``as_of_date=``; the transform
 date out of the payload and the silver leg dedupes identical values, so a holiday re-serve becomes
 a no-op rather than a stale duplicate row.
 
+THE SERVED-DATE VERDICT (D-PR-19)
+---------------------------------
+**Measured, 2026-07-29:** a MANUAL 17:00Z run -- 14:00 BRT, ~4 h before publication -- landed a
+payload whose own date was ``28/07/2026``. The transform did not lie (silver holds 07-28), but
+session 2026-07-29 was never captured by anything, and both CEPEA slugs are missing it to this day
+while every other business day in that week is present. Nothing detected it: the per-day floor is
+an equality on rows PRESENT, a stale re-serve collapses in the silver dedupe, and the day still
+showed exactly 2 rows.
+
+So every capture now asserts the session it is serving BEFORE anything is written:
+
+  * the served date is read out of the payload (``served_date_from_widget``), the same cell the
+    transform turns into ``trade_date``;
+  * it is classified against the EXPECTED session (``fresh`` / ``stale_reserve`` /
+    ``ahead_of_session``);
+  * ``served_date``, ``served_lag_business_days`` and ``served_verdict`` ride into ``raw_meta``
+    alongside the licence, so a landed object states what it is.
+
+**The decision is taken over ALL indicators at once, and it is BOTH OR NEITHER.** The per-day
+silver floor for this leg is an EQUALITY (``== 2``, one row per cash reference), so withholding one
+indicator while landing the other would turn a clean day into a floor violation -- the withhold
+must never be able to manufacture a 1-row day.
+
+**Why withholding a stale re-serve is safe and is the point.** A stale payload carries a session
+that is already landed; the silver dedupe collapses it to nothing, so refusing it loses exactly
+zero data. What it BUYS is the thing the 07-29 hole turned on: :func:`raw_exists` short-circuits on
+the CAPTURE-date key, so once a pre-publication payload is landed, the 22:30Z scheduled fire finds
+the key present and does nothing at all. Withholding leaves no key -- and the scheduled fire lands
+the real session. On the 07-29 sequence this job would have written nothing at 17:00Z and captured
+2026-07-29 at 22:30Z.
+
+A holiday takes the same withhold path (no new session exists, so nothing is owed) and exits 0 with
+a declaration in the log, NOT a failure: a hard-fail on ``served != capture`` would red roughly ten
+Brazilian holidays a year, which is the trade this wave exists to refuse. ``--on-stale land``
+restores the pure land-and-declare behaviour if the declaration alone is ever wanted.
+
 S3 LAYOUT
 ---------
     raw/production/source=cepea/indicator={23|77}/as_of_date={YYYY-MM-DD}/widget.js
-    raw_meta/<that key>_meta.json
+    raw_meta/<that key>_meta.json   (licence + attribution + the served-date declaration)
 
 Usage
 -----
@@ -56,6 +92,7 @@ Usage
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import os
 import sys
@@ -69,7 +106,18 @@ import requests  # noqa: E402
 from leviathan.common.config import get_required_env, load_env  # noqa: E402
 from leviathan.common.logging import get_logger  # noqa: E402
 from leviathan.storage.paths import raw_cepea_widget_key  # noqa: E402
-from leviathan.transforms.raw_to_bronze.cepea import CEPEA_INDICATORS  # noqa: E402
+from leviathan.transforms.raw_to_bronze.cepea import (  # noqa: E402
+    CEPEA_ATTRIBUTION,
+    CEPEA_INDICATORS,
+    CEPEA_LICENSE,
+    SERVED_AHEAD,
+    SERVED_FRESH,
+    SERVED_STALE,
+    classify_served_date,
+    previous_business_day,
+    served_date_from_widget,
+    session_for_capture,
+)
 
 logger = get_logger("fetch_cepea_daily")
 
@@ -89,6 +137,14 @@ CEPEA_USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.3
 
 _SOURCE_LABEL = "cepea_widget"
 _CONTENT_TYPE = "application/javascript"
+
+# D-PR-20. The apex one-shot has recorded these in raw_meta since 2026-07-29; this route did not,
+# so the SAME CEPEA/ESALQ data under the SAME CC BY-NC licence was documented on one route only.
+# Defined once in the transform module and imported by both producers -- a unit test pins the two
+# strings equal so they cannot drift.
+_LICENSE = CEPEA_LICENSE
+_ATTRIBUTION = CEPEA_ATTRIBUTION
+
 _TIMEOUT = 30
 # Measured: the origin resets the connection after ~4 rapid requests.
 _DEFAULT_SLEEP_SECONDS = 2.5
@@ -149,7 +205,29 @@ def fetch_indicator(indicator_id: int, *, timeout: int = _TIMEOUT) -> bytes:
     raise RuntimeError(f"failed to fetch {url} after {_MAX_ATTEMPTS} attempts")
 
 
-def land_bytes(bucket: str, key: str, data: bytes, *, source_url: str, region: str) -> None:
+def raw_meta_extra(*, served_date: str, verdict: str, lag: int, expected_session: str) -> dict:
+    """The ``extra=`` record every landed daily capture carries.
+
+    Two D-decisions in one dict. **D-PR-20**: the CC BY-NC grant and its attribution travel with
+    the bytes on THIS route too, closing the asymmetry with the apex one-shot -- ``raw_metadata.py``
+    documents ``extra`` as existing for precisely this. **D-PR-19**: the object states the session
+    it serves, so "which session is this?" is answerable from ``raw_meta`` alone rather than by
+    re-parsing the payload. ``posture`` is the counterpart of the one-shot's ``NEVER schedule``:
+    this route IS the scheduled one and says so."""
+    return {
+        "license": _LICENSE,
+        "attribution": _ATTRIBUTION,
+        "posture": "scheduled daily widget capture (cron 30 22 ? * MON-FRI); "
+                   "the apex-host series export is a separate ONE-SHOT and stays one-shot",
+        "served_date": served_date,
+        "expected_session": expected_session,
+        "served_lag_business_days": int(lag),
+        "served_verdict": verdict,
+    }
+
+
+def land_bytes(bucket: str, key: str, data: bytes, *, source_url: str, region: str,
+               extra: Optional[dict] = None) -> None:
     """Upload one raw artifact + its ``write_raw_s3_metadata`` companion, after the size floor.
 
     The floor is a BACKSTOP only on this leg: the Cloudflare challenge body is ~5,600 B and the
@@ -160,7 +238,7 @@ def land_bytes(bucket: str, key: str, data: bytes, *, source_url: str, region: s
 
     check_min_file_size(data, _SOURCE_LABEL, context=key)
     upload_bytes_to_s3(data, bucket, key, region)
-    write_raw_s3_metadata(bucket, key, data, source_url, _CONTENT_TYPE, region)
+    write_raw_s3_metadata(bucket, key, data, source_url, _CONTENT_TYPE, region, extra=extra)
     logger.info("raw written -> s3://%s/%s (%d bytes)", bucket, key, len(data))
 
 
@@ -171,6 +249,63 @@ def raw_exists(bucket: str, key: str, region: str) -> bool:
         return True
     except Exception:  # noqa: BLE001
         return False
+
+
+def group_verdict(captures: dict[int, dict], *, expected_session: str,
+                  on_stale: str = "withhold") -> tuple[bool, str, str]:
+    """``(land, disposition, why)`` for the WHOLE run. Both indicators or neither -- D-PR-19.
+
+    The per-day silver floor for this leg is an EQUALITY (``== 2``), so any rule that could land
+    one cash reference and withhold the other converts a clean day into a floor violation. That
+    makes this a GROUP decision by construction, not by preference. Four dispositions:
+
+      ``land``                 every fetched capture is fresh;
+      ``refuse_ahead``         some capture serves a session LATER than the expected one -- the
+                               session model is wrong and landing would mislabel real numbers;
+      ``refuse_split``         the indicators disagree on the served date. They are one publication
+                               on one host at one instant, so a split means the run is not
+                               observing a single session and neither half can be trusted;
+      ``withhold_stale``       every non-fresh capture is a re-serve of an older session. Nothing
+                               new is on offer; landing it can only duplicate a landed row.
+
+    Only ``land`` writes. ``withhold_stale`` is exit 0 by design -- a holiday must not red the leg
+    -- while both refusals are hard failures.
+    """
+    if not captures:
+        return False, "nothing_fetched", "no capture was taken"
+    served = {c["served_date"] for c in captures.values()}
+    if len(served) > 1:
+        detail = ", ".join(f"id {i} -> {c['served_date']}" for i, c in sorted(captures.items()))
+        return False, "refuse_split", (
+            f"the indicators disagree on the served session ({detail}) -- one host, one "
+            f"publication, one instant, so a split capture cannot be reconciled here")
+    ahead = sorted(i for i, c in captures.items() if c["verdict"] == SERVED_AHEAD)
+    if ahead:
+        return False, "refuse_ahead", (
+            f"indicator(s) {ahead} serve {sorted(served)[0]}, which is LATER than the expected "
+            f"session {expected_session} -- the venue cannot publish a session that has not "
+            f"happened, so the expected session (--as-of / --expected-session / the clock) is "
+            f"wrong and nothing may be landed against it")
+    unknown = sorted(i for i, c in captures.items()
+                     if c["verdict"] not in (SERVED_FRESH, SERVED_STALE, SERVED_AHEAD))
+    if unknown:
+        # FAIL CLOSED. A verdict this function does not recognise must never fall through to the
+        # land branch by default -- that is how a new classification silently becomes "land".
+        return False, "refuse_unknown_verdict", (
+            f"indicator(s) {unknown} carry an unrecognised served-date verdict "
+            f"{sorted({captures[i]['verdict'] for i in unknown})}")
+    stale = sorted(i for i, c in captures.items() if c["verdict"] == SERVED_STALE)
+    if stale and on_stale == "withhold":
+        return False, "withhold_stale", (
+            f"the widget is re-serving {sorted(served)[0]}, not the expected session "
+            f"{expected_session} -- either a Brazilian holiday (no session exists) or a capture "
+            f"taken before publication, which one capture cannot distinguish. Nothing new is on "
+            f"offer, so nothing is landed and the key stays free for a later fire")
+    if stale:
+        return True, "land_declared_stale", (
+            f"--on-stale land: landing a re-serve of {sorted(served)[0]} against expected session "
+            f"{expected_session}, declared in raw_meta")
+    return True, "land", f"every capture serves the expected session {expected_session}"
 
 
 def main(argv: Optional[list[str]] = None) -> int:
@@ -186,6 +321,17 @@ def main(argv: Optional[list[str]] = None) -> int:
                     help="the FETCH date used in the raw key (default: today, UTC). The VALUE's "
                          "own date is read from the payload by the transform")
     ap.add_argument("--force", action="store_true", help="re-fetch and overwrite today's capture")
+    ap.add_argument("--expected-session", default=None, dest="expected_session",
+                    help="the session the capture must be serving (YYYY-MM-DD). Default: the "
+                         "Brazilian calendar day of the capture instant, rolled back over "
+                         "weekends. A capture serving anything else is not landed -- see D-PR-19")
+    ap.add_argument("--on-stale", choices=("withhold", "land"), default="withhold",
+                    dest="on_stale",
+                    help="what to do when the widget re-serves an OLDER session (a holiday, or a "
+                         "capture taken before publication). 'withhold' (default) writes nothing "
+                         "and leaves the key free for a later fire; 'land' is the pure "
+                         "land-and-declare fallback -- it writes the row with the verdict in "
+                         "raw_meta, which is what the 2026-07-29 run did silently")
     ap.add_argument("--sleep", type=float, default=_DEFAULT_SLEEP_SECONDS,
                     help="seconds between GETs; the origin resets after ~4 rapid requests")
     ap.add_argument("--bucket", default=None)
@@ -195,43 +341,104 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     indicators = args.indicators or sorted(CEPEA_INDICATORS)
     as_of = args.as_of or datetime.now(tz=timezone.utc).date().isoformat()
+    # The session the capture is judged against. --expected-session wins; otherwise an explicit
+    # --as-of names the day being recovered (weekend-rolled, because Saturday is not a session
+    # anywhere); otherwise the clock, read in Brazil.
+    if args.expected_session:
+        expected_session = args.expected_session
+    elif args.as_of:
+        expected_session = previous_business_day(as_of)
+    else:
+        expected_session = session_for_capture()
 
     if args.dry_run:
-        print(f"as_of : {as_of}")
+        print(f"as_of            : {as_of}")
+        print(f"expected session : {expected_session}")
+        print(f"on stale         : {args.on_stale}")
         for ind in indicators:
             print(f"id {ind} ({CEPEA_INDICATORS[ind]})")
             print(f"  url : {cepea_url(ind)}")
             print(f"  key : {raw_cepea_widget_key(ind, as_of)}")
         print("(dry-run -- no HTTP, no writes)")
+        print(f"license recorded per object: {_LICENSE}")
         return 0
 
     bucket = args.bucket or get_required_env("LEVIATHAN_BUCKET")
     aws_region = args.aws_region or get_required_env("AWS_REGION")
 
-    landed = skipped = 0
+    # PHASE 1 -- fetch and JUDGE every indicator. Nothing is written in this loop: the land/withhold
+    # call is a GROUP decision (the silver floor is an equality, so a half-landed day is a
+    # violation), and a group decision cannot be taken one indicator at a time.
+    captures: dict[int, dict] = {}
+    skipped = 0
     failures: list[str] = []
-    for i, ind in enumerate(indicators):
+    fetched = 0
+    for ind in indicators:
         key = raw_cepea_widget_key(ind, as_of)
         if not args.force and raw_exists(bucket, key, aws_region):
             skipped += 1
             continue
-        if i:
+        if fetched:
             time.sleep(max(0.0, args.sleep))
         try:
             payload = fetch_indicator(ind)
+            fetched += 1
             bad = looks_like_a_widget(payload)
             if bad:
                 raise ValueError(f"{cepea_url(ind)}: {bad}")
-            land_bytes(bucket, key, payload, source_url=cepea_url(ind), region=aws_region)
-            landed += 1
+            served = served_date_from_widget(payload)
+            verdict, lag = classify_served_date(served, expected_session)
+            captures[ind] = {"key": key, "payload": payload, "served_date": served,
+                             "verdict": verdict, "lag": lag}
         except Exception as exc:  # noqa: BLE001 -- one id's failure must not abort the other
             logger.exception("FAILED CEPEA indicator %s", ind)
             failures.append(f"{ind}: {type(exc).__name__}")
 
-    logger.info("CEPEA %s done: landed=%d skipped_existing=%d failed=%d",
-                as_of, landed, skipped, len(failures))
+    land, disposition, why = group_verdict(captures, expected_session=expected_session,
+                                           on_stale=args.on_stale)
+
+    # THE DECLARATION. One greppable line, whichever way the verdict went -- a withhold that left
+    # no raw_meta behind must still be visible in the job log.
+    declaration = {
+        "as_of": as_of,
+        "expected_session": expected_session,
+        "disposition": disposition,
+        "on_stale": args.on_stale,
+        "fetched": sorted(captures),
+        "skipped_existing": skipped,
+        "failed": len(failures),
+        "served": {str(i): c["served_date"] for i, c in sorted(captures.items())},
+        "verdict": {str(i): c["verdict"] for i, c in sorted(captures.items())},
+        "served_lag_business_days": {str(i): int(c["lag"]) for i, c in sorted(captures.items())},
+    }
+    logger.info("cepea served-date declaration: %s", json.dumps(declaration, sort_keys=True))
+
+    landed = 0
+    if land:
+        # PHASE 2 -- write. Reached only when the whole group may land.
+        for ind, cap in sorted(captures.items()):
+            try:
+                land_bytes(bucket, cap["key"], cap["payload"], source_url=cepea_url(ind),
+                           region=aws_region,
+                           extra=raw_meta_extra(served_date=cap["served_date"],
+                                                verdict=cap["verdict"], lag=cap["lag"],
+                                                expected_session=expected_session))
+                landed += 1
+            except Exception as exc:  # noqa: BLE001
+                logger.exception("FAILED to land CEPEA indicator %s", ind)
+                failures.append(f"{ind}: {type(exc).__name__}")
+    elif captures:
+        logger.warning("CEPEA %s: NOTHING LANDED (%s) -- %s", as_of, disposition, why)
+
+    logger.info("CEPEA %s done: landed=%d skipped_existing=%d withheld=%d failed=%d",
+                as_of, landed, skipped, 0 if land else len(captures), len(failures))
     if failures:
         logger.error("failed indicator(s): %s", ", ".join(failures))
+        return 1
+    if disposition in ("refuse_ahead", "refuse_split", "refuse_unknown_verdict"):
+        # A hard refusal: the session model and the payload disagree, and landing would mislabel
+        # real numbers. Never the holiday path -- that is `withhold_stale`, which exits 0.
+        logger.error("CEPEA %s REFUSED: %s", as_of, why)
         return 1
     return 0
 

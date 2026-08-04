@@ -604,7 +604,10 @@ _WINDOW_NOUN = re.compile(
     r"|book|longs|shorts)\b", re.I)
 _WINDOW_COMPARISON = re.compile(
     r"\b(vs\.?|versus|relative to|compared (to|with)|cheaper than|richer than)\b", re.I)
-_EXCLUDED_NOUN = re.compile(r"\b(stocks?|supplies|crop|soil|lineup)\b", re.I)   # honest ag fundamentals -> not Lane B
+# "suppl(y|ies)": the pattern carried the plural only, so "expensive ... supply" statements (honest
+# FX/cost fundamentals) counted as Lane-B valuation -- one token explained all three 2026-08-04
+# banned_valuation deck reds (verified in code and reproduced across runs by two independent passes).
+_EXCLUDED_NOUN = re.compile(r"\b(stocks?|suppl(?:y|ies)|crop|soil|lineup)\b", re.I)   # honest ag fundamentals -> not Lane B
 _SENT_ITER = re.compile(r"(?<=[.!?;])\s+")                                      # sentence boundaries (counter/scan)
 # The strip MUST segment identically to the scanner (S1.F2/W0-1): the scanner (_SENT_ITER) does NOT break on a
 # bare `\n` lacking terminal punctuation, so a line-wrapped/bulleted class-rule triple is ONE sentence and IS

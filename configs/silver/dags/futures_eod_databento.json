@@ -7,6 +7,8 @@
   "retrofit_required": false,
   "retrofit_landed": true,
   "promote_mode": "autonomous",
+  "promote_jobdef": "leviathan-dev-futures-eod-silver",
+  "promote_jobdef_note": "SELF-PROMOTION, and it is NOT cosmetic. The default promote runner leviathan-dev-silver-publisher-runner tracks the worker repo's floating :latest, while leviathan-dev-futures-eod-silver is DIGEST-PINNED in terraform (modules/batch/main.tf, var.futures_eod_image_digest) exactly because a missing `databento` or `xlrd` fails SILENTLY. Leaving the promote leg on the shared runner therefore re-derives silver with a DIFFERENT build than the shadow it is promoting, and the digest pin buys nothing on the only leg that writes canonical. That is the 2026-08-01 08:00Z failure verbatim: silver ran the floor-fix image and published a clean shadow, promote re-derived on the shared runner's older image, certified 13/15 partitions and exit-1'd on the healthy-thin ZR and OJ under the mode-blind row floor that image still carried -- a post-write failure, alarms and all. The surgical completion that day swapped only that one execution's input; this field is the durable fix. SAFE BY THE SAME PROOF EVERY FIRE: this jobdef binds jobRoleArn=silver-publisher (glue:CreatePartition + kms:Sign, main.tf 'ROLE = silver-publisher, and this is NOT optional') and the silver phase runs the identical producer on it minutes earlier, so role and image are re-proven, never asserted. ARMING: the rendered promote jobdef reaches the scheduler only through infra/terraform/envs/dev/dag_schedules.auto.tfvars.json (hand-authored, co-tenant discipline) -- regenerating _rendered/ does NOT re-arm the fire.",
   "auth_mode": "kms",
   "skip_existing": false,
   "asof": "<aws.scheduler.scheduled-time>",

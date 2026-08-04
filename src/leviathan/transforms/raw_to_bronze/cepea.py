@@ -53,6 +53,7 @@ raise ``CompDocError: Workbook corruption: seen[2] == 4`` on them. They open onl
 from __future__ import annotations
 
 import re
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 import pandas as pd
@@ -106,6 +107,144 @@ _HISTORY_BRL_TOKENS = ("a vista r", "avista r", "vista r")
 BRONZE_COLUMNS: list[str] = [
     "trade_date", "leviathan_slug", "indicator_id", "value_brl", "unit_text", "payload_kind",
 ]
+
+# ---------------------------------------------------------------------------
+# D-PR-20 -- the LICENCE that must travel with the bytes, on BOTH routes
+# ---------------------------------------------------------------------------
+# CEPEA licenses the indicator data CC BY-NC 4.0. The apex-host one-shot
+# (fetch_cepea_live_history.py) has recorded this in raw_meta since 2026-07-29; the DAILY widget
+# route did not, so the same data under the same licence was documented on one route only. These
+# constants are the single definition; both producers pass them through
+# ``write_raw_s3_metadata(extra=...)``, and a unit test pins them equal so the two routes cannot
+# drift apart again. raw_metadata.py:81-83 documents ``extra`` as existing for exactly this.
+CEPEA_LICENSE = ("CC BY-NC 4.0 (CEPEA 'Licenca de uso de dados'; non-commercial use with "
+                 "attribution)")
+CEPEA_ATTRIBUTION = "Data: CEPEA/ESALQ (cepea.org.br)"
+
+# ---------------------------------------------------------------------------
+# D-PR-19 -- the SERVED-DATE verdict (the producer half of land-and-declare)
+# ---------------------------------------------------------------------------
+# The widget serves the LAST PUBLISHED value only -- there is no window parameter and no series.
+# So the one fact a capture can assert about itself is the date the vendor printed NEXT TO the
+# value. Three outcomes, and they are not symmetric:
+#
+#   fresh            served == the expected session. The capture holds a session nobody has.
+#   stale_reserve    served <  the expected session. The widget is re-serving an OLDER session.
+#                    From ONE capture this is genuinely ambiguous -- a Brazilian holiday and a
+#                    capture taken before publication produce byte-identical payloads (the plan
+#                    says so, and it is why B3, a curated BR holiday calendar, was rejected on
+#                    doctrine). What is NOT ambiguous is that the payload carries no new session,
+#                    so landing it can only ever produce a row that already exists.
+#   ahead_of_session served >  the expected session. The venue cannot publish a session that has
+#                    not happened, so this means the SESSION MODEL is wrong (a bad --as-of, a
+#                    timezone slip, a vendor date-format change). Hard failure, never landed.
+#
+# Business days here are Mon-Fri ONLY. That is not a holiday calendar and does not pretend to be
+# one: a weekend is not a session at any venue on earth, whereas which weekdays Brazil trades is
+# precisely the question this module refuses to answer from a curated list.
+SERVED_FRESH = "fresh"
+SERVED_STALE = "stale_reserve"
+SERVED_AHEAD = "ahead_of_session"
+
+# CEPEA publishes on Brazil time. Brazil abolished DST in 2019, so America/Sao_Paulo is a FIXED
+# UTC-3 -- and if it were ever reinstated (UTC-2) the publication moves EARLIER in UTC, which is
+# the harmless direction. A fixed offset here needs no tz database in the worker image.
+BRT_UTC_OFFSET_HOURS = -3
+
+
+def served_date_from_widget(payload) -> str:
+    """The date the widget PRINTS NEXT TO the value it is serving, as ``YYYY-MM-DD``.
+
+    This is the same cell :func:`build_cepea_widget_bronze` turns into ``trade_date`` -- the first
+    ``<td>`` of the value row -- read here without the semantic assertions so the PRODUCER can
+    decide whether to land at all before the transform ever runs. When a payload carries more than
+    one dated row the LATEST is the served session, matching the ``trade_date.max()`` the bronze
+    stats report.
+
+    Raises rather than returning None: on this leg an undated payload is a hard failure, never a
+    quiet no-op (the same rule as a Cloudflare challenge body)."""
+    text = payload.decode("utf-8", errors="replace") if isinstance(payload, bytes) else str(payload)
+    body = _TBODY_RE.search(text)
+    if not body:
+        raise ValueError(
+            "cepea: the payload carries no <tbody> -- there is no served date to assert. A "
+            "Cloudflare challenge body lands here too and must stay a hard failure"
+        )
+    dates: list[str] = []
+    for tr in _TR_RE.findall(body.group(1)):
+        cells = [_text(td) for td in _TD_RE.findall(tr)]
+        if not cells:
+            continue
+        m = _DATE_RE.search(cells[0])
+        if m:
+            dates.append(f"{m.group(3)}-{m.group(2)}-{m.group(1)}")
+    if not dates:
+        raise ValueError(
+            "cepea: the widget table carried no dated row -- the served session cannot be "
+            "established, and a capture that cannot name its own session must not be landed"
+        )
+    return max(dates)
+
+
+def _as_date(value) -> date:
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return value
+    if isinstance(value, datetime):
+        return value.date()
+    return date.fromisoformat(str(value)[:10])
+
+
+def previous_business_day(day) -> str:
+    """The latest Mon-Fri day at or before ``day``, as ``YYYY-MM-DD``. Weekends only."""
+    d = _as_date(day)
+    while d.weekday() >= 5:
+        d -= timedelta(days=1)
+    return d.isoformat()
+
+
+def session_for_capture(capture_instant: Optional[datetime] = None) -> str:
+    """The session a capture taken at ``capture_instant`` (UTC) is expected to serve.
+
+    The scheduled fire is ``cron(30 22 ? * MON-FRI *)`` -- 22:30Z is 19:30 BRT on the SAME calendar
+    day, ~90 min after the descriptor's stated ~21:00Z publication -- so in production this is just
+    "today in Brazil". It is computed from the BRT instant rather than the UTC date anyway, because
+    a hand-run at 01:00Z is a different Brazilian day and would otherwise be judged against a
+    session that has not happened."""
+    now = capture_instant or datetime.now(tz=timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    brt = now.astimezone(timezone.utc) + timedelta(hours=BRT_UTC_OFFSET_HOURS)
+    return previous_business_day(brt.date())
+
+
+def business_days_between(start, end) -> int:
+    """Mon-Fri days in ``(start, end]``. Negative when ``end`` precedes ``start``. 0 when equal."""
+    lo, hi = _as_date(start), _as_date(end)
+    if lo == hi:
+        return 0
+    sign, a, b = (1, lo, hi) if lo < hi else (-1, hi, lo)
+    count = 0
+    cur = a + timedelta(days=1)
+    while cur <= b:
+        if cur.weekday() < 5:
+            count += 1
+        cur += timedelta(days=1)
+    return sign * count
+
+
+def classify_served_date(served_date: str, expected_session: str) -> tuple[str, int]:
+    """``(verdict, served_lag_business_days)`` for one capture. See the verdict block above.
+
+    The lag is business days from the SERVED session to the EXPECTED one, so a clean scheduled
+    capture reports 0 and a capture taken before publication on a normal Wednesday reports 1. It is
+    NEGATIVE in the ``ahead_of_session`` case, which is the shape that makes a bad ``--as-of``
+    obvious in ``raw_meta`` rather than merely absent."""
+    lag = business_days_between(served_date, expected_session)
+    if lag == 0 and _as_date(served_date) == _as_date(expected_session):
+        return SERVED_FRESH, 0
+    if _as_date(served_date) > _as_date(expected_session):
+        return SERVED_AHEAD, lag
+    return SERVED_STALE, max(lag, 1)
 
 
 def _lint_indicator_map() -> list[str]:
