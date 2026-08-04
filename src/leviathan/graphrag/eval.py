@@ -71,6 +71,10 @@ _NO_CITABLE = ("no citable item", "no cited item", "no citable source", "no date
 # magnitude AND no statement that the price record does not reach it is F-I in price form.
 _NO_PRICE_RECORD = ("no price record", "not in the price record", "no per-contract price record",
                     "no price data", "no priced move", "price record does not", "price record is silent",
+                    # R6 fold (2026-08-04): P2's honest absence bullet read "no single priced move for
+                    # this full window" and the interposed word defeated the bare substring -- an
+                    # eval-brittleness red, not a model defect. Accept the natural interposers.
+                    "no single priced move", "no one priced move", "without a priced move",
                     "not in the price data", "no magnitude", "no observed magnitude",
                     "outside the price coverage", "before the price record")
 

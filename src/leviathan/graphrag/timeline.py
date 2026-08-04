@@ -451,8 +451,15 @@ def render_line(label: str, eps: list[dict]) -> str:
 # string append at the same seam: zero new gate, zero new paragraph. It is the LARGER half of the floor's
 # cost (measured at N>=2 on the live artifact: 8 nodes go fully dark, but 22 more fall from 4 rendered
 # lines to 1-3 with no marker of any kind -- including black_sea_corridor, the slice behind six deck rows).
+# R6 fold (2026-08-04, adjudicated finding): the old trailing imperative -- "do not enumerate or
+# narrate them" -- rode 116 of 125 injected lines and read as a SECTION-level ban: five deck rows
+# with live dated windows omitted '## Episodes' entirely (artifact exonerated on all five; P12
+# enumerated its windows correctly in prose in the wrong section). The suffix now bans ONLY the
+# hidden windows and re-affirms the shown ones in the same breath, so no line can be read as
+# permission to skip the section it appears in.
 _FLOOR_SUFFIX = ("; {n} further window(s) below the corroboration floor of {floor} report dates and "
-                 "NOT shown -- do not enumerate or narrate them")
+                 "NOT shown -- never name or count those hidden windows, and still render every "
+                 "window shown on this line as its own bullet")
 
 # R3.4 leg 1 -- FULL suppression. Carries LINE_PREFIX so the '## Episodes' persona gate still fires and
 # the reader is told the windows were THIN rather than absent. Phrased as an instruction, not a label,

@@ -795,7 +795,12 @@ _SYSTEM_OUTLOOK = (
 # legitimate [N] line. One instruction, one file.
 _SYSTEM_EPISODES = (
     "\nDATED EPISODES -- THE '## Episodes' SECTION. When one or more 'DATED EPISODES' lines CARRY A "
-    "WINDOW, ENUMERATE those windows in a dedicated '## Episodes' section. Render '## Episodes' ONLY when "
+    "WINDOW, ENUMERATE those windows in a dedicated '## Episodes' section. THE SECTION IS MANDATORY the "
+    "moment ANY injected line carries a dated window -- even one window on one line, even when every "
+    "line also reports floored windows beside it, and even when a windowless floor line sits alongside. "
+    "Rendering those windows as prose inside '## The record' or any other section is a DEFECT, not a "
+    "substitute: the prose-instead path exists ONLY for the all-floored case below, where there is no "
+    "window to enumerate at all. Render '## Episodes' ONLY when "
     "an injected line carries at least one window -- the section exists solely when the prompt supplies "
     "the episodes; never volunteer an episode list from prose, and never add an episode the lines do not "
     "carry. The DATED EPISODES rule above still holds in full: those lines are REPORT TIMESTAMPS, not "

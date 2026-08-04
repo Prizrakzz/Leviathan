@@ -631,3 +631,36 @@ def test_a_minted_window_cannot_pass_the_label_pin():
     out["structured"]["mechanism"] = out["structured"]["mechanism"].replace("1994-06..1994-08",
                                                                             "1873-01..1873-04")
     assert _pins({"episode_absence_label_fixed": True}, out) == {"episode_absence_label_fixed": False}
+
+
+# ---------------------------------------------------------------------------
+# R6 fold (2026-08-04, adjudication record): the persona mandate + suffix scoping. Five deck rows
+# with LIVE dated windows omitted '## Episodes' entirely at the 0804 re-probe (artifact exonerated
+# on all five; P12 enumerated its windows correctly in prose in '## The record'). The persona said
+# "ENUMERATE" but never said MANDATORY, and offered a prose-instead path the model generalized; the
+# floor suffix's old tail ("do not enumerate or narrate them") rode 116/125 lines and read as a
+# section-level ban. These pins make both fixes load-bearing: weaken either string and they FAIL.
+# ---------------------------------------------------------------------------
+def test_persona_mandates_the_section_when_any_window_is_dated():
+    import leviathan.graphrag.answer as an
+
+    p = an._SYSTEM_EPISODES
+    assert "THE SECTION IS MANDATORY" in p
+    assert "even when a windowless floor line sits alongside" in p
+    # the prose escape hatch is explicitly scoped to the all-floored case, in the same sentence
+    # that names prose-rendering a defect
+    assert "prose inside '## The record' or any other section is a DEFECT" in p
+    assert "ONLY for the all-floored case" in p
+    # the all-floored OMIT clause survives untouched -- the fix narrows the escape, never the guard
+    assert "If NO injected line carries a window" in p and "OMIT the" in p
+
+
+def test_floor_suffix_bans_hidden_windows_and_reaffirms_shown_ones():
+    from leviathan.graphrag import timeline as tl
+
+    s = tl.floor_suffix(9, 2)
+    assert "9 further window(s) below the corroboration floor of 2 report dates" in s
+    assert "never name or count those hidden windows" in s
+    assert s.endswith("still render every window shown on this line as its own bullet")
+    # the old section-level-ban reading is impossible: the words are gone
+    assert "do not enumerate or narrate" not in s

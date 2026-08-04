@@ -256,7 +256,12 @@ class TestEmitterLeg2Partial:
 
         rec, = sg.trace["episodes_injected"]
         assert rec["n_rendered"] == 3 and rec["n_suppressed"] == 1 and rec["floor"] == 2
-        assert rec["line"] in vp and rec["line"].endswith("do not enumerate or narrate them")
+        # R6 fold: the suffix's imperative is scoped to the HIDDEN windows and re-affirms the shown
+        # ones -- the old "do not enumerate or narrate them" tail read as a section-level ban and
+        # cost five deck rows their '## Episodes' section (adjudication record, 2026-08-04).
+        assert rec["line"] in vp and rec["line"].endswith(
+            "still render every window shown on this line as its own bullet")
+        assert "never name or count those hidden windows" in rec["line"]
         assert "floored" not in rec                              # partial is NOT the fully-dark case
         assert rec["spans"] == ["2010-08..2011-09", "2022-02..2022-07", "2023-07..2023-08"]
         assert [w["n"] for w in rec["windows"]] == [6, 5, 2]
