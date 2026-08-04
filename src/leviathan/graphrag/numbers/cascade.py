@@ -336,6 +336,22 @@ PSD_SLUG_ALIAS = {"corn": "corn_cbot", "soybeans": "soybeans_cbot"}
 # honestly at _scope and the C002 slug check reads it as KNOWN-UNSERVED rather than drift.
 PSD_UNSERVED_SLUGS = frozenset({"cocoa", "frozen_orange_juice"})
 
+# Contracts with NO series in silver_cot AT ALL: CFTC covers only US-cleared contracts, and
+# configs/sources/cftc_cot.yaml `not_covered:` is the authoritative declaration (MATIF/DCE/ZCE/JSE/
+# BMF/ICE-Canada venues). The D1 context lane (2026-08-01) made cot legs live estate-wide, and the
+# first Branch-A gate fire (2026-08-03) red EVERY family on the six such legs that exist -- mapped,
+# forever zero-row. Same treatment as PSD_UNSERVED_SLUGS above: the leg SKIPs honestly at _scope
+# (identical rendered outcome to the zero-row decline it produced anyway) and the slug check reads
+# it as KNOWN-UNSERVED rather than drift. A lint pins this set to the YAML's not_covered list.
+COT_UNSERVED_SLUGS = frozenset({
+    "french_wheat_matif", "french_rapeseed_matif", "french_maize_matif",
+    "canola_ice",
+    "soybeans_no_1_dce", "soybeans_no_2_dce", "soybean_meal_dce", "soybean_oil_dce", "palm_olein_dce",
+    "rapeseed_meal_zce", "rapeseed_oil_zce",
+    "south_african_white_maize_jse", "south_african_yellow_maize_jse",
+    "campinas_corn_reference_bmf", "brazilian_arabica_coffee",
+})
+
 
 # _scope's country slot for a region-ruled leg that CANNOT honestly resolve to one table country
 # (compound/prose/missing region token): quantify must SKIP the node whole -- country=None on a PSD trade
@@ -402,6 +418,8 @@ def _scope(n, row) -> tuple:
     commodity = PSD_SLUG_ALIAS.get(commodity, commodity)
     if (row or {}).get("table") == "silver_psd" and commodity in PSD_UNSERVED_SLUGS:
         return commodity, SKIP_NODE          # declared-unserved: PSD has no series for this contract
+    if (row or {}).get("table") == "silver_cot" and commodity in COT_UNSERVED_SLUGS:
+        return commodity, SKIP_NODE          # declared-unserved: cftc_cot.yaml lists it not_covered
     rule = (row or {}).get("country_rule", "primary")
     if rule == "none":
         return commodity, None

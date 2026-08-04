@@ -223,3 +223,80 @@ def test_psd_unserved_slugs_are_known_not_drift(monkeypatch):
     errs = ck.check_commodity_slug_vocabulary(_Reg(), query_fn=lambda sql: [])
     assert not any("cocoa" in e for e in errs)         # declared-unserved: silent-known
     assert any("unmapped_slug" in e for e in errs)     # a real miss still fails
+
+
+def test_cot_unserved_slugs_are_known_not_drift(monkeypatch):
+    """The slug check treats cascade.COT_UNSERVED_SLUGS as declared-unserved: no drift error for a
+    CFTC-uncovered contract's cot leg on silver_cot (the runtime SKIPs those legs at _scope), while
+    any OTHER missing slug still fails. Pins the 2026-08-03 incident class: gate rev 11's first
+    Branch-A fire red EVERY family on six not_covered slugs whose cot legs D1 had just made live."""
+    import leviathan.graphrag.numbers.contract_check as ck
+
+    legs = [("brazilian_arabica_coffee", "cot_mm_positioning", {"table": "silver_cot"}, None,
+             "brazilian_arabica_coffee", None),
+            ("french_wheat_matif", "cot_mm_positioning", {"table": "silver_cot"}, None,
+             "french_wheat_matif", None),
+            ("wheat", "cot_mm_positioning", {"table": "silver_cot"}, None,
+             "unmapped_slug", None)]
+    monkeypatch.setattr(ck, "_mapped_legs", lambda: legs)
+
+    class _Reg:
+        def get(self, tid):
+            from leviathan.graphrag.numbers.registry import TableSpec
+            return TableSpec(id=tid, description="", shape="wide", commodity_col="leviathan_slug",
+                             country_col="country", knowledge_date_col="release_date",
+                             knowledge_semantics="vintage")
+
+    def fake_distinct(table, col, query_fn):
+        return {"corn_cbot", "arabica_coffee"}          # what silver_cot actually carries
+
+    monkeypatch.setattr(ck.cc, "_distinct_set", fake_distinct)
+    errs = ck.check_commodity_slug_vocabulary(_Reg(), query_fn=lambda sql: [])
+    assert not any("brazilian_arabica_coffee" in e for e in errs)   # declared-unserved: silent-known
+    assert not any("french_wheat_matif" in e for e in errs)
+    assert any("unmapped_slug" in e for e in errs)                  # a real miss still fails
+
+
+def test_cot_unserved_slugs_pin_the_yaml_not_covered_list():
+    """cascade.COT_UNSERVED_SLUGS is a mirror of configs/sources/cftc_cot.yaml `not_covered:` -- the
+    authoritative vendor-coverage declaration. A slug added to either side without the other is drift
+    in the fence itself; this lint makes the two lists one fact. Line-scan, not safe_load: the file's
+    CSV schema block carries `key:{...}` flow tokens the YAML scanner rejects, so the whole document
+    does not parse -- the not_covered block itself is plain `- slug  # comment` lines."""
+    from pathlib import Path
+
+    from leviathan.graphrag.numbers import cascade as casc
+
+    root = Path(__file__).resolve().parents[2]
+    text = (root / "configs" / "sources" / "cftc_cot.yaml").read_text(encoding="utf-8")
+    slugs, in_block = set(), False
+    for line in text.splitlines():
+        if line.startswith("not_covered:"):
+            in_block = True
+            continue
+        if in_block:
+            stripped = line.strip()
+            if stripped.startswith("- "):
+                slugs.add(stripped[2:].split("#", 1)[0].strip())
+            elif stripped and not stripped.startswith("#"):
+                break                                   # next top-level key ends the block
+    assert slugs, "not_covered block not found -- the fence lost its authority"
+    assert slugs == set(casc.COT_UNSERVED_SLUGS)
+
+
+def test_scope_skips_cot_unserved_leg():
+    """_scope returns SKIP_NODE for a silver_cot leg on a CFTC-uncovered contract, so quantify drops
+    it (same rendered outcome as the zero-row decline it always produced) and the census records it
+    as declines-honestly, never DARK -- which is what keeps the gate's census diff clean."""
+    from types import SimpleNamespace
+
+    from leviathan.graphrag.numbers import cascade as casc
+
+    commodity, country = casc._scope(SimpleNamespace(contract="brazilian_arabica_coffee"),
+                                     {"table": "silver_cot"})
+    assert commodity == "brazilian_arabica_coffee"
+    assert country is casc.SKIP_NODE
+    # a covered contract keeps its normal scoping path
+    commodity, country = casc._scope(SimpleNamespace(contract="cotton"),
+                                     {"table": "silver_cot", "country_rule": "none"})
+    assert (commodity, country) == ("cotton", None)

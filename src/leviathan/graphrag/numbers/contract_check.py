@@ -194,6 +194,8 @@ def check_commodity_slug_vocabulary(reg, *, query_fn, caches=None) -> list[str]:
         commodity = str(commodity)
         if table == "silver_psd" and commodity in casc.PSD_UNSERVED_SLUGS:
             continue                          # declared-unserved (cascade SKIPs these legs at _scope)
+        if table == "silver_cot" and commodity in casc.COT_UNSERVED_SLUGS:
+            continue                          # declared-unserved (cftc_cot.yaml not_covered; SKIPped at _scope)
         key = (table, scol, commodity)
         if key in seen:
             continue
