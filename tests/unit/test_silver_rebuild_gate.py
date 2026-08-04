@@ -364,11 +364,13 @@ def _capture_build_live_context(store, *, raise_after_capture=True):
 
 def test_main_baseline_fetch_error_is_nonzero_exit(monkeypatch, capsys):
     """main() catches BaselineFetchError, prints a clean ASCII FAIL line, and returns nonzero (fail closed).
-    Also proves --baseline-uri is threaded through to _build_live_context."""
+    Also proves --baseline-uri is threaded through to _build_live_context.
+
+    D-PR-8: the code is now EXIT_BASELINE_FETCH (72), the ONE retryable outcome -- not 1."""
     store = {}
     monkeypatch.setattr(g, "_build_live_context", _capture_build_live_context(store))
     rc = g.main(["--tables", "silver_wasde", "--baseline-uri", "s3://b/k/census.json"])
-    assert rc == 1
+    assert rc == g.EXIT_BASELINE_FETCH
     assert store["baseline_uri"] == "s3://b/k/census.json"
     out = capsys.readouterr().out
     assert "FAIL silver_rebuild_gate" in out and "baseline" in out.lower()
@@ -381,7 +383,7 @@ def test_main_baseline_uri_env_fallback(monkeypatch):
     monkeypatch.setenv("CENSUS_BASELINE_S3", "s3://env-bucket/rolling/census.json")
     monkeypatch.setattr(g, "_build_live_context", _capture_build_live_context(store))
     rc = g.main(["--tables", "silver_wasde"])
-    assert rc == 1
+    assert rc == g.EXIT_BASELINE_FETCH
     assert store["baseline_uri"] == "s3://env-bucket/rolling/census.json"
 
 
@@ -391,7 +393,7 @@ def test_main_cli_baseline_uri_overrides_env(monkeypatch):
     monkeypatch.setenv("CENSUS_BASELINE_S3", "s3://env-bucket/census.json")
     monkeypatch.setattr(g, "_build_live_context", _capture_build_live_context(store))
     rc = g.main(["--tables", "silver_wasde", "--baseline-uri", "s3://cli-bucket/census.json"])
-    assert rc == 1
+    assert rc == g.EXIT_BASELINE_FETCH
     assert store["baseline_uri"] == "s3://cli-bucket/census.json"
 
 

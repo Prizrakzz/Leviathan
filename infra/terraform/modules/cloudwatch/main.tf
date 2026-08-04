@@ -74,6 +74,55 @@ resource "aws_cloudwatch_event_target" "glue_failed_to_logs" {
 }
 
 # ---------------------------------------------------------------------------
+# D-PR-40 / D-PR-12, 2026-08-04 -- THE THIRD UN-INSTRUMENTED ARCHIVE GETS ITS METRIC.
+#
+# /leviathan/dev/glue-job-failures has existed with 90-day retention and a live EventBridge feed and
+# ZERO metric filters and ZERO SNS since it was created: the rule above wrote failures into a log
+# group nothing ever read. Verified live 2026-08-04: describe-metric-filters on that group returns
+# []. Nothing was missed only because the group also holds 0 events in the measured window.
+#
+# WHY IT LANDS IN THE SAME BATCH AS THE D-PR-12 DEMOTION, not later: the silver machine runs
+# `GlueSync{phase}` producer states (weather_daily), and a Glue producer failure produces NO Batch
+# Job State Change event -- so it was reaching the owner ONLY through the AWS/States ExecutionsFailed
+# alarm that this batch demotes to metric-only. Without this filter the demotion would trade one
+# duplicate notification for one NEW class of silence, which is the opposite of the wave's standard.
+#
+# Account-scope caveat, stated rather than discovered later: like the Batch backstop, the rule
+# carries no jobName filter, so ANY Glue job reaching FAILED in the account counts. There are four
+# Glue jobs in this estate and all four are pipeline jobs (locals.job_names above), so the scope
+# question the Batch backstop demotion was about does not arise here at today's inventory. Add a
+# jobName arm here the day an ad-hoc Glue job exists.
+# ---------------------------------------------------------------------------
+resource "aws_cloudwatch_log_metric_filter" "glue_job_failed" {
+  name           = "${var.project_name}-${var.environment}-glue-job-failed"
+  log_group_name = aws_cloudwatch_log_group.glue_failures.name
+  pattern        = "{ $.detail.state = \"FAILED\" }"
+
+  metric_transformation {
+    name          = "GlueJobFailed"
+    namespace     = "Leviathan/${var.environment}"
+    value         = "1"
+    default_value = "0"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "glue_job_failed" {
+  alarm_name          = "${var.project_name}-${var.environment}-glue-job-failed"
+  alarm_description   = "A Glue job run reached FAILED. This is the ONLY notifier for a GlueSync producer failure in the silver state machine after the D-PR-12 demotion of sfn-executions-failed. Runbook: R4_incident_runbooks.md#glue-job-failed."
+  namespace           = "Leviathan/${var.environment}"
+  metric_name         = "GlueJobFailed"
+  statistic           = "Sum"
+  period              = 300
+  evaluation_periods  = 1
+  comparison_operator = "GreaterThanThreshold"
+  threshold           = 0
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = compact([var.alert_topic_arn])
+
+  tags = { Project = var.project_name, Environment = var.environment, ManagedBy = "terraform" }
+}
+
+# ---------------------------------------------------------------------------
 # Dead-letter metric filter + alarm
 # Matches logger.warning("Dead-lettered %s → %s", ...) in dead_letter.py.
 # A Glue job can exit SUCCEEDED while having dead-lettered individual files,

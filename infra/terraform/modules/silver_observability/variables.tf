@@ -44,6 +44,21 @@ variable "silver_freshness_slas" {
   default     = {}
 }
 
+variable "silver_extra_family_slas" {
+  type        = map(number)
+  description = <<-EOT
+    D-PR-15(ii). family_key -> freshness ceiling (days) for families the poller EMITS but the
+    generated `silver_freshness_slas` map does not cover, because they are not registry BATCH
+    families. HAND-WIRED FROM THE ROOT, deliberately NOT written into
+    silver_observability.auto.tfvars.json -- that file is generated and is under the D-EI-12 hold.
+    Merged over `silver_freshness_slas` in the freshness_sla_breach for_each, so a key that later
+    appears in the generated map simply takes the generated value.
+    ONLY add a family here whose datapoints you have verified EXIST: these alarms are
+    treat_missing_data = "breaching", so a family that emits nothing pages on creation forever.
+  EOT
+  default     = {}
+}
+
 variable "silver_table_freshness_slas" {
   type = map(object({
     family    = string

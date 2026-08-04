@@ -282,6 +282,174 @@ variable "pink_sheet_image_digest" {
   }
 }
 
+# --- D-PR-7/D-PR-11 PRECONDITION: the ten-family worker fleet pin ----------
+
+variable "worker_fleet_image_digest" {
+  # THE REVERT THIS EXISTS TO PREVENT (post-freeze run sheet section 8, verbatim):
+  # "any change that re-registers them -- D-PR-11 touches exactly four of them and
+  # D-PR-7 touches 39 of 40 -- will mint a new latest-ACTIVE from terraform's stale
+  # definition and revert worker@sha256:e11d45fb... -> worker:latest on all ten."
+  #
+  # Ten jobdef families are pinned in state BY REVISION ARN at revisions 1-3, so they
+  # emit no plan line while nothing re-registers them. Live latest-ACTIVE has moved
+  # 3-5 revisions ahead on every one, onto a single shared digest. The retry-matrix
+  # and timeout work re-registers all ten, which is precisely the trigger section 8
+  # warned about. Adopting the live pin BEFORE that change lands is the E6/D-PR-22
+  # template.
+  #
+  # VALUE = what all ten latest-ACTIVE revisions run, read live 2026-08-04:
+  #   chirps-bronze-to-silver rev 6, chirps-to-bronze-backfill rev 4,
+  #   conab-xls-bronze rev 4, cpc-soil-bronze-to-silver rev 4,
+  #   cpc-soil-raw-to-bronze rev 5, cpc-soil-to-raw rev 4,
+  #   modis-ndvi-bronze-to-silver rev 4, modis-ndvi-raw-to-bronze rev 4,
+  #   nasa-power-backfill rev 6, usda-esr-bronze rev 5
+  # -- all ten on sha256:e11d45fb..., tag 20260802T004739, pushed 2026-08-02T01:05Z,
+  # verified still present via ecr:BatchGetImage (39 of 100 manifests in the repo).
+  #
+  # THIS IS DELIBERATELY *NOT* ':latest'. As of 2026-08-04T~13:21Z ':latest' resolves
+  # to sha256:e8aa7857... (the pink-sheet pin). Moving these ten onto it would be an
+  # unreviewed image bump of ten producers riding inside a reliability batch --
+  # exactly the class of silent change this wave exists to stop. Bump the fleet
+  # deliberately, in its own change, after the auditor has run.
+  type        = string
+  description = "sha256 digest of the worker image the ten weather/ingest jobdef families run. Empty = fall back to ':latest' (which would REVERT all ten -- see the comment)."
+  default     = "sha256:e11d45fbcb14e5bafcef36cf2c4e3bba61ae08385d2ebb163519c275d791f304"
+
+  validation {
+    condition     = var.worker_fleet_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.worker_fleet_image_digest))
+    error_message = "worker_fleet_image_digest must be empty or a full 'sha256:<64 hex>' digest (a TAG is not accepted -- a tag is the mutability this pin removes)."
+  }
+}
+
+# --- D-PR-8/D-PR-37: the silver-gate jobdef ADOPTION ----------------------
+
+variable "silver_gate_image_digest" {
+  # THE WORKER IMAGE `leviathan-dev-silver-gate` RUNS -- and, by being non-empty,
+  # THE SWITCH THAT MAKES TERRAFORM MANAGE THAT JOBDEF FOR THE FIRST TIME.
+  #
+  # READ THIS BEFORE APPLYING. The gate jobdef is not in state and never has been:
+  # 14 live revisions, every one hand-registered with `aws batch
+  # register-job-definition`, no committed script (register_evidence_jobdef.py is a
+  # different family). Applying `module.batch.aws_batch_job_definition.silver_gate`
+  # REGISTERS REVISION 15, and because the DAG inputs name the family unversioned,
+  # rev 15 is what every family's [Gate] and [Reconcile] submits on the next fire.
+  # The resource body is a field-by-field transcription of live rev 14 plus exactly
+  # three additions -- the D-PR-8 retry matrix, a 3600 s per-attempt timeout, and
+  # three tags. Read modules/batch/silver_gate.tf top-to-bottom before applying, and
+  # diff the planned container_properties against live rev 14; the whole design
+  # rests on rev 15 being rev 14 in every field that runs.
+  #
+  # VALUE = what live rev 14 runs TODAY (tag 20260804T132111, pushed 2026-08-04T10:21Z),
+  # which is also var.pink_sheet_image_digest and the digest b3-flat-silver rev 24 and
+  # silver-publisher-runner rev 24 run. Alignment to live, NOT a repin: this variable
+  # must never be used to bump the gate's image as a side effect of a retry change.
+  #   aws batch describe-job-definitions --job-definition-name leviathan-dev-silver-gate \
+  #     --status ACTIVE --query 'reverse(sort_by(jobDefinitions,&revision))[0].containerProperties.image'
+  #
+  # EMPTY = terraform does not manage the gate jobdef at all (count 0, no plan line).
+  # There is deliberately no ':latest' fallback: the gate is the job whose entire
+  # purpose is to refuse a rebuild, so "which image judged this promote?" must always
+  # have an answer (incident I-1).
+  type        = string
+  description = "sha256 digest of the worker image the silver-gate jobdef runs. Empty = terraform does not manage the gate jobdef (no ':latest' fallback for the gate)."
+  default     = "sha256:e8aa7857a2e1b3b0258fa7258803a60d608a1209cf3b02042220da2094bf4b7f"
+
+  validation {
+    condition     = var.silver_gate_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.silver_gate_image_digest))
+    error_message = "silver_gate_image_digest must be empty or a full 'sha256:<64 hex>' digest -- a TAG is never accepted for the gate."
+  }
+}
+
+# --- D-PR-4 (lane A arming): the weekly ECR pin auditor -------------------
+
+variable "ecr_pin_audit_image_digest" {
+  # The EMBEDDER image the weekly fleet audit runs, pinned BY DIGEST.
+  #
+  # WHY THE EMBEDDER AND NOT THE WORKER (plan precondition P1, re-verified 2026-08-04):
+  # docker/leviathan_worker/Dockerfile COPYs src/ jobs/ configs/ sql/ and NOT scripts/.
+  # docker/leviathan_embedder/Dockerfile:43 is the only one with `COPY scripts/ ./scripts/`,
+  # so scripts/ops/check_ecr_pinned_digests.py exists ONLY in the embedder image. A weekly
+  # schedule on any worker-image jobdef could not run this script at all.
+  #
+  # WHY BY DIGEST AND NOT ':latest': the digest must be at or after fc2e1a32 (the D-PR-3
+  # auditor rebuild) or the schedule quietly runs the PRE-REPAIR auditor, which reports
+  # "FAIL: 1" for a 19-family outage -- worse than no schedule at all.
+  #
+  # VALUE = what ':latest' resolved to at 2026-08-04T14:15Z (tag 20260804T171437, pushed
+  # 2026-08-04T14:15:23Z). Its S3 manifest sidecar carries
+  # git_commit dbdf41c81420d7f7be42d076db381a6c7baa9a75, and `git merge-base --is-ancestor`
+  # confirms dbdf41c8 CONTAINS fc2e1a32 (auditor rebuild) and 24fe0f53. The plan text names
+  # the older 5247cf77 digest; :latest moved at 14:15Z and this pin follows live rather than
+  # the document -- both carry the repaired auditor, this one is the current build.
+  #
+  # Re-pin deliberately after an embedder rebuild:
+  #   aws ecr describe-images --repository-name leviathan-dev-leviathan-embedder \
+  #     --image-ids imageTag=latest --query 'imageDetails[0].imageDigest'
+  # Empty = the whole weekly-audit unit (role, jobdef, scheduler role, DLQ, alarm, schedule)
+  # count-gates out of existence. That is the kill-switch and the bootstrap state.
+  type        = string
+  description = "sha256 digest of the EMBEDDER image the weekly ECR pin audit runs. Empty = the whole D-PR-4 weekly unit is not created."
+  default     = "sha256:4c71250b1b6115751a6aeb263460f979391d66f48930f996ce3f8895e989748f"
+
+  validation {
+    condition     = var.ecr_pin_audit_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.ecr_pin_audit_image_digest))
+    error_message = "ecr_pin_audit_image_digest must be empty or a full 'sha256:<64 hex>' digest (a TAG is not accepted -- a tag would let a later push swap the auditor under the schedule)."
+  }
+}
+
+variable "ecr_pin_audit_scheduled_marker" {
+  # DELIVERY, OR THE WEEKLY FIRE IS SILENT (plan precondition P4).
+  #
+  # A FAILED Batch job pages the owner only through the metric filter
+  # leviathan-dev-batch-failed-scheduled on /leviathan/dev/batch-job-failures. Re-read live
+  # 2026-08-04, its pattern is:
+  #   { ($.detail.status = "FAILED") && (($.detail.container.environment[*].name = "MANAGED_BY_AWS")
+  #     || ($.detail.jobName = "build-notifications*") || ($.detail.jobName = "pattern-records-sweep*")
+  #     || ($.detail.jobName = "freshness-poller*") || ($.detail.jobName = "usda-esr-fetch*")) }
+  # The account-wide batch-job-failed rule is NOT a delivery path -- it targets
+  # silver-pipeline-alerts, which has ZERO subscriptions. So a jobdef named ecr-pin-audit with
+  # no marker alarms NOWHERE: D-PR-28's "no delivery mechanism" defect, repeated.
+  #
+  # This variable exists so the marker NAME is a single declared value rather than a string
+  # buried in a jobdef. If D-PR-13 lands and renames the marker to LEVIATHAN_SCHEDULED, change
+  # it HERE and both new jobdefs follow. Verify against live before enabling either schedule:
+  #   aws logs describe-metric-filters --log-group-name /leviathan/dev/batch-job-failures \
+  #     --query "metricFilters[].filterPattern"
+  type        = string
+  description = "Environment-variable NAME that the live batch-failed-scheduled metric filter matches. Changing this must be done in lockstep with that filter."
+  default     = "MANAGED_BY_AWS"
+}
+
+# --- R7b: the weekly timeline rebuild ---------------------------------------
+
+variable "timeline_rebuild_image_digest" {
+  # The WORKER image the weekly graphrag timeline rebuild runs, pinned BY DIGEST.
+  #
+  # PROVEN, NOT CHOSEN. `python -m leviathan.graphrag.timeline --run` was run to completion on
+  # 2026-08-04 as Batch job `r5-timeline-derive` (638b80cb-cd2f-43a2-8337-743b534692a2) on
+  # leviathan-dev-silver-gate:12 / leviathan-dev-queue-ondemand: exit 0 in 26 seconds, argv
+  # exactly ["-m","leviathan.graphrag.timeline","--run"], with EVIDENCE_PG_DSN mounted from
+  # Secrets Manager. This unit reproduces that run as a schedule.
+  #
+  # VALUE = the worker digest that is BOTH ':latest' today AND what the live latest-ACTIVE
+  # leviathan-dev-silver-gate (rev 14), b3-flat-silver (rev 24) and silver-publisher-runner
+  # (rev 24) all run -- i.e. the same image the post-freeze batch pinned the pink-sheet chain
+  # to. The rebuild therefore runs the same build as the gate that audits everything else.
+  # (The proven run's image was the older 51f6b670; e8aa7857 is strictly newer on the same
+  # branch and is what the estate runs now, so this is alignment-to-live, not a repin.)
+  #
+  # Empty = the whole R7b unit (jobdef, scheduler role, DLQ, alarm, schedule) count-gates out
+  # of existence.
+  type        = string
+  description = "sha256 digest of the worker image the weekly timeline rebuild runs. Empty = the whole R7b unit is not created."
+  default     = "sha256:e8aa7857a2e1b3b0258fa7258803a60d608a1209cf3b02042220da2094bf4b7f"
+
+  validation {
+    condition     = var.timeline_rebuild_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.timeline_rebuild_image_digest))
+    error_message = "timeline_rebuild_image_digest must be empty or a full 'sha256:<64 hex>' digest (a TAG is not accepted)."
+  }
+}
+
 # MLflow tracking server (module.mlflow_fargate). DEFAULT FALSE since 2026-07-26: the server was
 # decommissioned for cost (see the module block in main.tf). The default lives HERE, in the repo, rather
 # than in the gitignored tfvars -- otherwise a fresh checkout would default it back ON and quietly restart

@@ -1,3 +1,112 @@
+# ===========================================================================
+# D-PR-7 / D-PR-37 -- THE PRODUCER RETRY MATRIX, declared ONCE and stamped into
+# every job definition below via `dynamic "evaluate_on_exit"`.
+#
+# WHY A MATRIX AT ALL. Measured 2026-08-04 over 393 Batch jobs on both queues:
+# of 67 live jobdef families exactly THREE carried a retryStrategy, and two of
+# the three were aimed at the wrong class -- `silver-gate` retried
+# CannotPullContainerError (a PERMANENT digest eviction in this estate: 26/26
+# samples in 21 days were evictions, and a 3x backoff cannot resurrect a deleted
+# manifest -- it only triples the alarm datapoints), and `gain_backfill` (below)
+# retried exit 137, i.e. OOM, which is deterministic and needs a RESOURCE change,
+# not another attempt.
+#
+# THE 5-OBJECT HARD CAP IS REAL AND IS WHY THIS LIST IS FIVE LONG. Read from the
+# live botocore Batch service model (`batch/2016-08-10/service-2.json.gz`,
+# `RetryStrategy` shape): "evaluateOnExit: Array of up to 5 objects ...
+# **If none of the listed conditions match, then the job is retried.**"
+# RegisterJobDefinition REJECTS a sixth entry outright. Two consequences:
+#
+#   1. The terminal { on_reason = "*", action = "EXIT" } is MANDATORY and spends
+#      one of the five. The documented no-match fallback is RETRY, not exit, so
+#      dropping the catch-all INVERTS the posture of everything above it. It is
+#      also what caps a `attemptDurationSeconds` timeout at ONE attempt --
+#      attemptDurationSeconds is PER ATTEMPT, so without the catch-all a hung
+#      producer under attempts=3 would hold the 16-vCPU ondemand CE for 3x its
+#      timeout, and `leviathan-dev-batch-queued-job-age` watches QUEUE age, not
+#      RUN age, so nothing would see it. NEVER TRIM THIS RULE.
+#   2. 'Host EC2*' and '*Spot*' are NOT here on purpose. Every schedule is
+#      verified on leviathan-dev-queue-ondemand and the standing rule forbids
+#      spot, so both are dead weight that would cost two of the five slots.
+#
+# ResourceInitializationError = RETRY, and the ASM caveat that gates it is
+# DISCHARGED FOR THIS MODULE'S BLAST RADIUS BY EVIDENCE, not by assumption. The
+# single ResourceInitializationError sample in the estate (modis-fetch, 2026-07-17,
+# "unable to retrieve secret from asm: invalid character E ...") is a Secrets
+# Manager JSON-parse failure -- deterministic, and it belongs to a jobdef this
+# module does not own (modis-fetch is hand-registered, not terraform). The only
+# three ASM mounts terraform registers are FAS_API_KEY (usda_esr_fetch),
+# EVIDENCE_PG_DSN (pattern_records_sweep) and DATABENTO_API_KEY (databento_fetch),
+# and each has SUCCEEDED runs in the current window -- i.e. all three secrets
+# provably parse. The caveat therefore remains OPEN only for modis-fetch, which
+# is outside this file.
+#
+# EXIT-1 = EXIT is the load-bearing half of the wave's standard: exit 1 is a
+# DECISION (a gate refusal, a floor breach) or a data fault. Re-running it cannot
+# change the answer; it can only turn one email into three.
+#
+# ORDER IS SEMANTIC: AWS evaluates top-down and the FIRST match wins.
+# ===========================================================================
+locals {
+  # attempts is the CEILING, not a promise -- evaluate_on_exit decides. With the
+  # matrix below, only ResourceInitializationError ever consumes a second attempt.
+  producer_retry_attempts = 3
+
+  # Every rule carries all four keys (null where unused) so the list has ONE
+  # object type and `dynamic` can address the fields directly.
+  producer_retry_rules = [
+    # PERMANENT in this estate -- digest eviction. Never retry. (Class A.)
+    { on_exit_code = null, on_reason = null, on_status_reason = "CannotPullContainer*", action = "EXIT" },
+    # The one genuinely transient container-start class. (Class B / ENI + ASM init.)
+    { on_exit_code = null, on_reason = null, on_status_reason = "ResourceInitializationError*", action = "RETRY" },
+    # Deterministic: the job needs more memory, not another attempt. (Class J.)
+    #
+    # NOTE THE ABSENT LEADING ASTERISK. The ratified matrix wrote this as
+    # "*OutOfMemory*", which the API REJECTS -- on_reason/on_status_reason accept
+    # "letters, numbers, periods, colons, and white space, and can optionally END
+    # with an asterisk". A LEADING wildcard is not a legal glob here (measured:
+    # `terraform validate` fails all 40 registrations on it). The anchored form is
+    # exact against what AWS actually returns -- live sample, evidence-build rev 32
+    # on 2026-08-02: "OutOfMemoryError: container killed due to memory usage".
+    # This rule is also fail-SAFE: if the reason text ever changed, the job falls
+    # through to the terminal catch-all, which is EXIT anyway.
+    { on_exit_code = null, on_reason = "OutOfMemoryError*", on_status_reason = null, action = "EXIT" },
+    # A decision or a data fault. (Class D.)
+    { on_exit_code = "1", on_reason = null, on_status_reason = null, action = "EXIT" },
+    # MANDATORY TERMINAL RULE -- no-match defaults to RETRY. Do not remove.
+    { on_exit_code = null, on_reason = "*", on_status_reason = null, action = "EXIT" },
+  ]
+
+  # --- The weather/ingest worker FLEET pin (post-freeze batch, run sheet section 8) ---
+  #
+  # Ten jobdef families are held in terraform state at revisions 1-3 on the mutable
+  # "${var.ecr_repository_url}:latest" while LIVE latest-ACTIVE sits 3-5 revisions
+  # ahead on ONE shared digest. Because state pins them by revision ARN they produce
+  # no plan line UNTIL something re-registers them -- and D-PR-7 (retry_strategy) and
+  # D-PR-11 (timeouts) re-register every one. Without this pin, the reliability batch
+  # would be the thing that silently reverts ten producers to a mutable tag.
+  #
+  #   chirps-bronze-to-silver, chirps-to-bronze-backfill, conab-xls-bronze,
+  #   cpc-soil-bronze-to-silver, cpc-soil-raw-to-bronze, cpc-soil-to-raw,
+  #   modis-ndvi-bronze-to-silver, modis-ndvi-raw-to-bronze, nasa-power-backfill,
+  #   usda-esr-bronze
+  #
+  # ONE variable rather than ten: all ten were measured on the IDENTICAL digest
+  # (2026-08-04), they were repinned as a fleet by one out-of-band operation, and a
+  # ten-way split would add surface with no operational difference today. If a single
+  # leg ever needs to diverge, layer a per-jobdef override on top exactly the way
+  # var.futures_eod_silver_image_digest does over var.futures_eod_image_digest --
+  # without touching the other nine.
+  #
+  # Empty (default) restores the historical ":latest" behaviour, so no other
+  # environment changes shape by adopting this module.
+  worker_fleet_image = (
+    var.worker_fleet_image_digest == ""
+    ? "${var.ecr_repository_url}:latest"
+    : "${var.ecr_repository_url}@${var.worker_fleet_image_digest}"
+  )
+}
+
 resource "aws_batch_compute_environment" "this" {
   compute_environment_name = "${var.project_name}-${var.environment}-fargate"
   type                     = "MANAGED"
@@ -96,7 +205,7 @@ resource "aws_batch_job_definition" "nasa_power_backfill" {
   }
 
   container_properties = jsonencode({
-    image = "${var.ecr_repository_url}:latest"
+    image = local.worker_fleet_image
 
     command = [
       "jobs/ingest/fetch_nasa_power.py",
@@ -137,6 +246,26 @@ resource "aws_batch_job_definition" "nasa_power_backfill" {
     }
   })
 
+  # D-PR-11: attemptDurationSeconds -- PER ATTEMPT, so the mandatory terminal
+  # catch-all in the retry matrix below is what keeps a hung job to ONE attempt.
+  timeout {
+    attempt_duration_seconds = 3600 # 1 h ceiling; 5 measured runs 312-871 s (2026-07-29..08-04), 4x the max
+  }
+
+  # D-PR-7 / D-PR-37: the shared producer retry matrix (5 rules = the API cap).
+  # Declared once at the top of this file; see that comment before changing anything.
+  retry_strategy {
+    attempts = local.producer_retry_attempts
+    dynamic "evaluate_on_exit" {
+      for_each = local.producer_retry_rules
+      content {
+        action    = evaluate_on_exit.value.action
+        on_reason = lookup(evaluate_on_exit.value, "on_reason", null)
+        on_exit_code = lookup(evaluate_on_exit.value, "on_exit_code", null)
+      }
+    }
+  }
+
   tags = {
     Project     = var.project_name
     Environment = var.environment
@@ -164,7 +293,7 @@ resource "aws_batch_job_definition" "chirps_to_bronze_backfill" {
   }
 
   container_properties = jsonencode({
-    image = "${var.ecr_repository_url}:latest"
+    image = local.worker_fleet_image
 
     command = [
       "jobs/batch/chirps_to_bronze_task.py",
@@ -201,6 +330,26 @@ resource "aws_batch_job_definition" "chirps_to_bronze_backfill" {
       }
     }
   })
+
+  # D-PR-11: attemptDurationSeconds -- PER ATTEMPT, so the mandatory terminal
+  # catch-all in the retry matrix below is what keeps a hung job to ONE attempt.
+  timeout {
+    attempt_duration_seconds = 7200 # 2 h ceiling; 5 measured runs 1349-1397 s, 4x the max is 5588 s so 3600 would be only 2.6x
+  }
+
+  # D-PR-7 / D-PR-37: the shared producer retry matrix (5 rules = the API cap).
+  # Declared once at the top of this file; see that comment before changing anything.
+  retry_strategy {
+    attempts = local.producer_retry_attempts
+    dynamic "evaluate_on_exit" {
+      for_each = local.producer_retry_rules
+      content {
+        action    = evaluate_on_exit.value.action
+        on_reason = lookup(evaluate_on_exit.value, "on_reason", null)
+        on_exit_code = lookup(evaluate_on_exit.value, "on_exit_code", null)
+      }
+    }
+  }
 
   tags = {
     Project     = var.project_name
@@ -270,6 +419,22 @@ resource "aws_batch_job_definition" "backfill_orchestrator" {
     attempt_duration_seconds = 57600 # 16 h ceiling; actual runtime ~36 min
   }
 
+  # D-PR-7 / D-PR-37: the shared producer retry matrix (5 rules = the API cap).
+  # Declared once at the top of this file; see that comment before changing anything.
+  retry_strategy {
+    attempts = local.producer_retry_attempts
+
+    dynamic "evaluate_on_exit" {
+      for_each = local.producer_retry_rules
+      content {
+        action           = evaluate_on_exit.value.action
+        on_exit_code     = evaluate_on_exit.value.on_exit_code
+        on_reason        = evaluate_on_exit.value.on_reason
+        on_status_reason = evaluate_on_exit.value.on_status_reason
+      }
+    }
+  }
+
   tags = {
     Project     = var.project_name
     Environment = var.environment
@@ -290,20 +455,32 @@ resource "aws_batch_job_definition" "chirps_bronze_to_silver" {
 
   platform_capabilities = ["FARGATE"]
 
+  # ALIGNMENT TO LIVE rev 6, not a new choice. Live carries a fourth pair
+  # (`--force_overwrite Ref::force_overwrite`) that terraform state (rev 1) did
+  # not; re-registering from the stale definition would have dropped it. Live
+  # declares NO parameters at all, so today its Ref::force_overwrite arrives at
+  # the container UNRESOLVED, as the literal string "Ref::force_overwrite" --
+  # which base_jobs parses as `(...).lower() == "true"` -> False. Declaring the
+  # default explicitly reproduces exactly that effective value while removing the
+  # unresolved-token footgun. The SCHEDULED path is unaffected either way:
+  # weather_daily's SFN task passes command=["jobs/batch/bronze_to_silver_chirps_task.py"]
+  # as a ContainerOverride, which REPLACES the jobdef command.
   parameters = {
-    commodity  = "corn_cbot"
-    bucket     = var.leviathan_bucket
-    aws_region = var.aws_region
+    commodity       = "corn_cbot"
+    bucket          = var.leviathan_bucket
+    aws_region      = var.aws_region
+    force_overwrite = "false"
   }
 
   container_properties = jsonencode({
-    image = "${var.ecr_repository_url}:latest"
+    image = local.worker_fleet_image
 
     command = [
       "jobs/batch/bronze_to_silver_chirps_task.py",
       "--commodity", "Ref::commodity",
       "--bucket", "Ref::bucket",
-      "--aws_region", "Ref::aws_region"
+      "--aws_region", "Ref::aws_region",
+      "--force_overwrite", "Ref::force_overwrite"
     ]
 
     environment = [
@@ -333,6 +510,28 @@ resource "aws_batch_job_definition" "chirps_bronze_to_silver" {
       }
     }
   })
+
+  # D-PR-11: attemptDurationSeconds -- PER ATTEMPT, so the mandatory terminal
+  # catch-all in the retry matrix below is what keeps a hung job to ONE attempt.
+  timeout {
+    attempt_duration_seconds = 3600 # 1 h ceiling; 5 measured runs 218-318 s, 4x the max
+  }
+
+  # D-PR-7 / D-PR-37: the shared producer retry matrix (5 rules = the API cap).
+  # Declared once at the top of this file; see that comment before changing anything.
+  retry_strategy {
+    attempts = local.producer_retry_attempts
+
+    dynamic "evaluate_on_exit" {
+      for_each = local.producer_retry_rules
+      content {
+        action           = evaluate_on_exit.value.action
+        on_exit_code     = evaluate_on_exit.value.on_exit_code
+        on_reason        = evaluate_on_exit.value.on_reason
+        on_status_reason = evaluate_on_exit.value.on_status_reason
+      }
+    }
+  }
 
   tags = {
     Project     = var.project_name
@@ -394,6 +593,22 @@ resource "aws_batch_job_definition" "sagis_cec_raw_backfill" {
 
   timeout {
     attempt_duration_seconds = 3600 # 1 h ceiling; each ~80-120-file chunk runs in ~5-8 min
+  }
+
+  # D-PR-7 / D-PR-37: the shared producer retry matrix (5 rules = the API cap).
+  # Declared once at the top of this file; see that comment before changing anything.
+  retry_strategy {
+    attempts = local.producer_retry_attempts
+
+    dynamic "evaluate_on_exit" {
+      for_each = local.producer_retry_rules
+      content {
+        action           = evaluate_on_exit.value.action
+        on_exit_code     = evaluate_on_exit.value.on_exit_code
+        on_reason        = evaluate_on_exit.value.on_reason
+        on_status_reason = evaluate_on_exit.value.on_status_reason
+      }
+    }
   }
 
   tags = {
@@ -461,6 +676,22 @@ resource "aws_batch_job_definition" "usda_wasde_raw_backfill" {
     attempt_duration_seconds = 3600 # 1 h ceiling; each chunk ~5-8 min
   }
 
+  # D-PR-7 / D-PR-37: the shared producer retry matrix (5 rules = the API cap).
+  # Declared once at the top of this file; see that comment before changing anything.
+  retry_strategy {
+    attempts = local.producer_retry_attempts
+
+    dynamic "evaluate_on_exit" {
+      for_each = local.producer_retry_rules
+      content {
+        action           = evaluate_on_exit.value.action
+        on_exit_code     = evaluate_on_exit.value.on_exit_code
+        on_reason        = evaluate_on_exit.value.on_reason
+        on_status_reason = evaluate_on_exit.value.on_status_reason
+      }
+    }
+  }
+
   tags = {
     Project     = var.project_name
     Environment = var.environment
@@ -488,6 +719,17 @@ resource "aws_cloudwatch_log_group" "batch" {
 # Sizing: 1 vCPU / 2 GB — curl_cffi is single-threaded; memory covers BS4 +
 # in-memory PDF bytes (largest GAIN PDFs ~5 MB, 500 records max per commodity).
 # Timeout: 6 h ceiling — a full commodity crawl + download is typically 1-3 h.
+#
+# D-PR-7 BEHAVIOUR CHANGE, stated because it is the one family whose retry posture
+# gets STRICTER rather than merely explicit. This jobdef used to carry
+# `{attempts: 3, evaluate_on_exit: [{on_exit_code = "137", action = "RETRY"}]}` --
+# i.e. it retried OUT-OF-MEMORY kills three times. Exit 137 is deterministic: the
+# container asked for more memory than the task had, and the next attempt asks for
+# exactly the same amount. Retrying it burns three Fargate slots to reach the same
+# answer and triples the alarm datapoints. The fix for an OOM is a resourceRequirements
+# change (the evidence-build 8vCPU/16GB tear on 2026-08-02 is the estate's worked
+# example), so the shared matrix classifies *OutOfMemory* as EXIT and this family
+# now inherits it like every other producer.
 # ---------------------------------------------------------------------------
 
 resource "aws_batch_job_definition" "gain_backfill" {
@@ -545,12 +787,19 @@ resource "aws_batch_job_definition" "gain_backfill" {
     attempt_duration_seconds = 21600 # 6 h ceiling
   }
 
+  # D-PR-7 / D-PR-37: the shared producer retry matrix (5 rules = the API cap).
+  # Declared once at the top of this file; see that comment before changing anything.
   retry_strategy {
-    attempts = 3
+    attempts = local.producer_retry_attempts
 
-    evaluate_on_exit {
-      on_exit_code = "137"
-      action       = "RETRY"
+    dynamic "evaluate_on_exit" {
+      for_each = local.producer_retry_rules
+      content {
+        action           = evaluate_on_exit.value.action
+        on_exit_code     = evaluate_on_exit.value.on_exit_code
+        on_reason        = evaluate_on_exit.value.on_reason
+        on_status_reason = evaluate_on_exit.value.on_status_reason
+      }
     }
   }
 
@@ -620,6 +869,22 @@ resource "aws_batch_job_definition" "usda_wap_raw_backfill" {
     attempt_duration_seconds = 3600 # 1 h ceiling; each chunk ≈ 3 min
   }
 
+  # D-PR-7 / D-PR-37: the shared producer retry matrix (5 rules = the API cap).
+  # Declared once at the top of this file; see that comment before changing anything.
+  retry_strategy {
+    attempts = local.producer_retry_attempts
+
+    dynamic "evaluate_on_exit" {
+      for_each = local.producer_retry_rules
+      content {
+        action           = evaluate_on_exit.value.action
+        on_exit_code     = evaluate_on_exit.value.on_exit_code
+        on_reason        = evaluate_on_exit.value.on_reason
+        on_status_reason = evaluate_on_exit.value.on_status_reason
+      }
+    }
+  }
+
   tags = {
     Project     = var.project_name
     Environment = var.environment
@@ -651,7 +916,7 @@ resource "aws_batch_job_definition" "cpc_soil_to_raw" {
   }
 
   container_properties = jsonencode({
-    image = "${var.ecr_repository_url}:latest"
+    image = local.worker_fleet_image
 
     command = [
       "jobs/batch/cpc_soil_to_raw_task.py",
@@ -693,6 +958,22 @@ resource "aws_batch_job_definition" "cpc_soil_to_raw" {
     attempt_duration_seconds = 7200 # 2 h ceiling; normal run ~5–10 min
   }
 
+  # D-PR-7 / D-PR-37: the shared producer retry matrix (5 rules = the API cap).
+  # Declared once at the top of this file; see that comment before changing anything.
+  retry_strategy {
+    attempts = local.producer_retry_attempts
+
+    dynamic "evaluate_on_exit" {
+      for_each = local.producer_retry_rules
+      content {
+        action           = evaluate_on_exit.value.action
+        on_exit_code     = evaluate_on_exit.value.on_exit_code
+        on_reason        = evaluate_on_exit.value.on_reason
+        on_status_reason = evaluate_on_exit.value.on_status_reason
+      }
+    }
+  }
+
   tags = {
     Project     = var.project_name
     Environment = var.environment
@@ -723,7 +1004,7 @@ resource "aws_batch_job_definition" "cpc_soil_raw_to_bronze" {
   }
 
   container_properties = jsonencode({
-    image = "${var.ecr_repository_url}:latest"
+    image = local.worker_fleet_image
 
     command = [
       "jobs/batch/cpc_raw_to_bronze_task.py",
@@ -765,6 +1046,22 @@ resource "aws_batch_job_definition" "cpc_soil_raw_to_bronze" {
     attempt_duration_seconds = 7200 # 2 h ceiling; normal run ~5–15 min
   }
 
+  # D-PR-7 / D-PR-37: the shared producer retry matrix (5 rules = the API cap).
+  # Declared once at the top of this file; see that comment before changing anything.
+  retry_strategy {
+    attempts = local.producer_retry_attempts
+
+    dynamic "evaluate_on_exit" {
+      for_each = local.producer_retry_rules
+      content {
+        action           = evaluate_on_exit.value.action
+        on_exit_code     = evaluate_on_exit.value.on_exit_code
+        on_reason        = evaluate_on_exit.value.on_reason
+        on_status_reason = evaluate_on_exit.value.on_status_reason
+      }
+    }
+  }
+
   tags = {
     Project     = var.project_name
     Environment = var.environment
@@ -792,7 +1089,7 @@ resource "aws_batch_job_definition" "cpc_soil_bronze_to_silver" {
   }
 
   container_properties = jsonencode({
-    image = "${var.ecr_repository_url}:latest"
+    image = local.worker_fleet_image
 
     command = [
       "jobs/batch/cpc_bronze_to_silver_task.py",
@@ -829,6 +1126,28 @@ resource "aws_batch_job_definition" "cpc_soil_bronze_to_silver" {
     }
   })
 
+  # D-PR-11: attemptDurationSeconds -- PER ATTEMPT, so the mandatory terminal
+  # catch-all in the retry matrix below is what keeps a hung job to ONE attempt.
+  timeout {
+    attempt_duration_seconds = 3600 # 1 h ceiling; 5 measured runs 206-249 s, 4x the max
+  }
+
+  # D-PR-7 / D-PR-37: the shared producer retry matrix (5 rules = the API cap).
+  # Declared once at the top of this file; see that comment before changing anything.
+  retry_strategy {
+    attempts = local.producer_retry_attempts
+
+    dynamic "evaluate_on_exit" {
+      for_each = local.producer_retry_rules
+      content {
+        action           = evaluate_on_exit.value.action
+        on_exit_code     = evaluate_on_exit.value.on_exit_code
+        on_reason        = evaluate_on_exit.value.on_reason
+        on_status_reason = evaluate_on_exit.value.on_status_reason
+      }
+    }
+  }
+
   tags = {
     Project     = var.project_name
     Environment = var.environment
@@ -861,7 +1180,7 @@ resource "aws_batch_job_definition" "modis_ndvi_raw_to_bronze" {
   }
 
   container_properties = jsonencode({
-    image = "${var.ecr_repository_url}:latest"
+    image = local.worker_fleet_image
 
     command = [
       "jobs/batch/modis_ndvi_raw_to_bronze_task.py",
@@ -903,6 +1222,22 @@ resource "aws_batch_job_definition" "modis_ndvi_raw_to_bronze" {
     attempt_duration_seconds = 7200 # 2 h ceiling; normal run < 5 min
   }
 
+  # D-PR-7 / D-PR-37: the shared producer retry matrix (5 rules = the API cap).
+  # Declared once at the top of this file; see that comment before changing anything.
+  retry_strategy {
+    attempts = local.producer_retry_attempts
+
+    dynamic "evaluate_on_exit" {
+      for_each = local.producer_retry_rules
+      content {
+        action           = evaluate_on_exit.value.action
+        on_exit_code     = evaluate_on_exit.value.on_exit_code
+        on_reason        = evaluate_on_exit.value.on_reason
+        on_status_reason = evaluate_on_exit.value.on_status_reason
+      }
+    }
+  }
+
   tags = {
     Project     = var.project_name
     Environment = var.environment
@@ -934,7 +1269,7 @@ resource "aws_batch_job_definition" "modis_ndvi_bronze_to_silver" {
   }
 
   container_properties = jsonencode({
-    image = "${var.ecr_repository_url}:latest"
+    image = local.worker_fleet_image
 
     command = [
       "jobs/batch/modis_ndvi_bronze_to_silver_task.py",
@@ -973,6 +1308,22 @@ resource "aws_batch_job_definition" "modis_ndvi_bronze_to_silver" {
 
   timeout {
     attempt_duration_seconds = 3600 # 1 h ceiling; normal run < 5 min
+  }
+
+  # D-PR-7 / D-PR-37: the shared producer retry matrix (5 rules = the API cap).
+  # Declared once at the top of this file; see that comment before changing anything.
+  retry_strategy {
+    attempts = local.producer_retry_attempts
+
+    dynamic "evaluate_on_exit" {
+      for_each = local.producer_retry_rules
+      content {
+        action           = evaluate_on_exit.value.action
+        on_exit_code     = evaluate_on_exit.value.on_exit_code
+        on_reason        = evaluate_on_exit.value.on_reason
+        on_status_reason = evaluate_on_exit.value.on_status_reason
+      }
+    }
   }
 
   tags = {
@@ -1032,6 +1383,22 @@ resource "aws_batch_job_definition" "usda_psd_bronze" {
     attempt_duration_seconds = 3600
   }
 
+  # D-PR-7 / D-PR-37: the shared producer retry matrix (5 rules = the API cap).
+  # Declared once at the top of this file; see that comment before changing anything.
+  retry_strategy {
+    attempts = local.producer_retry_attempts
+
+    dynamic "evaluate_on_exit" {
+      for_each = local.producer_retry_rules
+      content {
+        action           = evaluate_on_exit.value.action
+        on_exit_code     = evaluate_on_exit.value.on_exit_code
+        on_reason        = evaluate_on_exit.value.on_reason
+        on_status_reason = evaluate_on_exit.value.on_status_reason
+      }
+    }
+  }
+
   tags = {
     Project     = var.project_name
     Environment = var.environment
@@ -1087,6 +1454,22 @@ resource "aws_batch_job_definition" "usda_fgis_bronze" {
 
   timeout {
     attempt_duration_seconds = 3600
+  }
+
+  # D-PR-7 / D-PR-37: the shared producer retry matrix (5 rules = the API cap).
+  # Declared once at the top of this file; see that comment before changing anything.
+  retry_strategy {
+    attempts = local.producer_retry_attempts
+
+    dynamic "evaluate_on_exit" {
+      for_each = local.producer_retry_rules
+      content {
+        action           = evaluate_on_exit.value.action
+        on_exit_code     = evaluate_on_exit.value.on_exit_code
+        on_reason        = evaluate_on_exit.value.on_reason
+        on_status_reason = evaluate_on_exit.value.on_status_reason
+      }
+    }
   }
 
   tags = {
@@ -1162,6 +1545,22 @@ resource "aws_batch_job_definition" "world_bank_pink_sheet_bronze" {
     attempt_duration_seconds = 3600
   }
 
+  # D-PR-7 / D-PR-37: the shared producer retry matrix (5 rules = the API cap).
+  # Declared once at the top of this file; see that comment before changing anything.
+  retry_strategy {
+    attempts = local.producer_retry_attempts
+
+    dynamic "evaluate_on_exit" {
+      for_each = local.producer_retry_rules
+      content {
+        action           = evaluate_on_exit.value.action
+        on_exit_code     = evaluate_on_exit.value.on_exit_code
+        on_reason        = evaluate_on_exit.value.on_reason
+        on_status_reason = evaluate_on_exit.value.on_status_reason
+      }
+    }
+  }
+
   tags = {
     Project     = var.project_name
     Environment = var.environment
@@ -1220,6 +1619,22 @@ resource "aws_batch_job_definition" "usda_nass_bronze" {
 
   timeout {
     attempt_duration_seconds = 3600
+  }
+
+  # D-PR-7 / D-PR-37: the shared producer retry matrix (5 rules = the API cap).
+  # Declared once at the top of this file; see that comment before changing anything.
+  retry_strategy {
+    attempts = local.producer_retry_attempts
+
+    dynamic "evaluate_on_exit" {
+      for_each = local.producer_retry_rules
+      content {
+        action           = evaluate_on_exit.value.action
+        on_exit_code     = evaluate_on_exit.value.on_exit_code
+        on_reason        = evaluate_on_exit.value.on_reason
+        on_status_reason = evaluate_on_exit.value.on_status_reason
+      }
+    }
   }
 
   tags = {
@@ -1297,6 +1712,22 @@ resource "aws_batch_job_definition" "usda_nass_annual_silver" {
     attempt_duration_seconds = 3600
   }
 
+  # D-PR-7 / D-PR-37: the shared producer retry matrix (5 rules = the API cap).
+  # Declared once at the top of this file; see that comment before changing anything.
+  retry_strategy {
+    attempts = local.producer_retry_attempts
+
+    dynamic "evaluate_on_exit" {
+      for_each = local.producer_retry_rules
+      content {
+        action           = evaluate_on_exit.value.action
+        on_exit_code     = evaluate_on_exit.value.on_exit_code
+        on_reason        = evaluate_on_exit.value.on_reason
+        on_status_reason = evaluate_on_exit.value.on_status_reason
+      }
+    }
+  }
+
   tags = {
     Project     = var.project_name
     Environment = var.environment
@@ -1371,6 +1802,22 @@ resource "aws_batch_job_definition" "usda_nass_crop_progress_silver" {
     attempt_duration_seconds = 3600
   }
 
+  # D-PR-7 / D-PR-37: the shared producer retry matrix (5 rules = the API cap).
+  # Declared once at the top of this file; see that comment before changing anything.
+  retry_strategy {
+    attempts = local.producer_retry_attempts
+
+    dynamic "evaluate_on_exit" {
+      for_each = local.producer_retry_rules
+      content {
+        action           = evaluate_on_exit.value.action
+        on_exit_code     = evaluate_on_exit.value.on_exit_code
+        on_reason        = evaluate_on_exit.value.on_reason
+        on_status_reason = evaluate_on_exit.value.on_status_reason
+      }
+    }
+  }
+
   tags = {
     Project     = var.project_name
     Environment = var.environment
@@ -1392,7 +1839,7 @@ resource "aws_batch_job_definition" "conab_xls_bronze" {
   platform_capabilities = ["FARGATE"]
 
   container_properties = jsonencode({
-    image = "${var.ecr_repository_url}:latest"
+    image = local.worker_fleet_image
 
     command = ["jobs/batch/conab_xls_task.py"]
 
@@ -1426,6 +1873,22 @@ resource "aws_batch_job_definition" "conab_xls_bronze" {
 
   timeout {
     attempt_duration_seconds = 3600
+  }
+
+  # D-PR-7 / D-PR-37: the shared producer retry matrix (5 rules = the API cap).
+  # Declared once at the top of this file; see that comment before changing anything.
+  retry_strategy {
+    attempts = local.producer_retry_attempts
+
+    dynamic "evaluate_on_exit" {
+      for_each = local.producer_retry_rules
+      content {
+        action           = evaluate_on_exit.value.action
+        on_exit_code     = evaluate_on_exit.value.on_exit_code
+        on_reason        = evaluate_on_exit.value.on_reason
+        on_status_reason = evaluate_on_exit.value.on_status_reason
+      }
+    }
   }
 
   tags = {
@@ -1506,6 +1969,22 @@ resource "aws_batch_job_definition" "conab_coffee_silver" {
     attempt_duration_seconds = 1800
   }
 
+  # D-PR-7 / D-PR-37: the shared producer retry matrix (5 rules = the API cap).
+  # Declared once at the top of this file; see that comment before changing anything.
+  retry_strategy {
+    attempts = local.producer_retry_attempts
+
+    dynamic "evaluate_on_exit" {
+      for_each = local.producer_retry_rules
+      content {
+        action           = evaluate_on_exit.value.action
+        on_exit_code     = evaluate_on_exit.value.on_exit_code
+        on_reason        = evaluate_on_exit.value.on_reason
+        on_status_reason = evaluate_on_exit.value.on_status_reason
+      }
+    }
+  }
+
   tags = {
     Project     = var.project_name
     Environment = var.environment
@@ -1557,6 +2036,22 @@ resource "aws_batch_job_definition" "fnc_excel_bronze" {
 
   timeout {
     attempt_duration_seconds = 3600
+  }
+
+  # D-PR-7 / D-PR-37: the shared producer retry matrix (5 rules = the API cap).
+  # Declared once at the top of this file; see that comment before changing anything.
+  retry_strategy {
+    attempts = local.producer_retry_attempts
+
+    dynamic "evaluate_on_exit" {
+      for_each = local.producer_retry_rules
+      content {
+        action           = evaluate_on_exit.value.action
+        on_exit_code     = evaluate_on_exit.value.on_exit_code
+        on_reason        = evaluate_on_exit.value.on_reason
+        on_status_reason = evaluate_on_exit.value.on_status_reason
+      }
+    }
   }
 
   tags = {
@@ -1629,6 +2124,22 @@ resource "aws_batch_job_definition" "fnc_colombia_silver" {
     attempt_duration_seconds = 1800
   }
 
+  # D-PR-7 / D-PR-37: the shared producer retry matrix (5 rules = the API cap).
+  # Declared once at the top of this file; see that comment before changing anything.
+  retry_strategy {
+    attempts = local.producer_retry_attempts
+
+    dynamic "evaluate_on_exit" {
+      for_each = local.producer_retry_rules
+      content {
+        action           = evaluate_on_exit.value.action
+        on_exit_code     = evaluate_on_exit.value.on_exit_code
+        on_reason        = evaluate_on_exit.value.on_reason
+        on_status_reason = evaluate_on_exit.value.on_status_reason
+      }
+    }
+  }
+
   tags = {
     Project     = var.project_name
     Environment = var.environment
@@ -1684,6 +2195,22 @@ resource "aws_batch_job_definition" "mpob_bronze" {
 
   timeout {
     attempt_duration_seconds = 3600
+  }
+
+  # D-PR-7 / D-PR-37: the shared producer retry matrix (5 rules = the API cap).
+  # Declared once at the top of this file; see that comment before changing anything.
+  retry_strategy {
+    attempts = local.producer_retry_attempts
+
+    dynamic "evaluate_on_exit" {
+      for_each = local.producer_retry_rules
+      content {
+        action           = evaluate_on_exit.value.action
+        on_exit_code     = evaluate_on_exit.value.on_exit_code
+        on_reason        = evaluate_on_exit.value.on_reason
+        on_status_reason = evaluate_on_exit.value.on_status_reason
+      }
+    }
   }
 
   tags = {
@@ -1743,6 +2270,22 @@ resource "aws_batch_job_definition" "unica_bronze" {
     attempt_duration_seconds = 3600
   }
 
+  # D-PR-7 / D-PR-37: the shared producer retry matrix (5 rules = the API cap).
+  # Declared once at the top of this file; see that comment before changing anything.
+  retry_strategy {
+    attempts = local.producer_retry_attempts
+
+    dynamic "evaluate_on_exit" {
+      for_each = local.producer_retry_rules
+      content {
+        action           = evaluate_on_exit.value.action
+        on_exit_code     = evaluate_on_exit.value.on_exit_code
+        on_reason        = evaluate_on_exit.value.on_reason
+        on_status_reason = evaluate_on_exit.value.on_status_reason
+      }
+    }
+  }
+
   tags = {
     Project     = var.project_name
     Environment = var.environment
@@ -1763,10 +2306,22 @@ resource "aws_batch_job_definition" "usda_esr_bronze" {
 
   platform_capabilities = ["FARGATE"]
 
-  container_properties = jsonencode({
-    image = "${var.ecr_repository_url}:latest"
+  # ALIGNMENT TO LIVE rev 5, not a new choice. Terraform state held rev 1
+  # (`esr_task.py` bare, 1 vCPU / 2048 MB); the live latest-ACTIVE this family has
+  # been running carries `--backfill-as-of` plus 2 vCPU / 4096 MB. Re-registering
+  # from the stale definition would have been a silent downgrade of both, so the
+  # newer live shape is adopted verbatim. The SCHEDULED path is unaffected either
+  # way -- esr_weekly's SFN task passes command=["jobs/batch/esr_task.py"] as a
+  # ContainerOverride, which REPLACES the jobdef command; this matters only to
+  # ad-hoc submissions that rely on the jobdef's own command + Ref:: parameters.
+  parameters = {
+    backfill_as_of = "20260524"
+  }
 
-    command = ["jobs/batch/esr_task.py"]
+  container_properties = jsonencode({
+    image = local.worker_fleet_image
+
+    command = ["jobs/batch/esr_task.py", "--backfill-as-of", "Ref::backfill_as_of"]
 
     environment = [
       { name = "LEVIATHAN_BUCKET", value = var.leviathan_bucket },
@@ -1775,8 +2330,8 @@ resource "aws_batch_job_definition" "usda_esr_bronze" {
     ]
 
     resourceRequirements = [
-      { type = "VCPU", value = "1" },
-      { type = "MEMORY", value = "2048" }
+      { type = "VCPU", value = "2" },
+      { type = "MEMORY", value = "4096" }
     ]
 
     executionRoleArn = var.batch_execution_role_arn
@@ -1798,6 +2353,22 @@ resource "aws_batch_job_definition" "usda_esr_bronze" {
 
   timeout {
     attempt_duration_seconds = 7200 # 2 h ceiling; 370 JSON files
+  }
+
+  # D-PR-7 / D-PR-37: the shared producer retry matrix (5 rules = the API cap).
+  # Declared once at the top of this file; see that comment before changing anything.
+  retry_strategy {
+    attempts = local.producer_retry_attempts
+
+    dynamic "evaluate_on_exit" {
+      for_each = local.producer_retry_rules
+      content {
+        action           = evaluate_on_exit.value.action
+        on_exit_code     = evaluate_on_exit.value.on_exit_code
+        on_reason        = evaluate_on_exit.value.on_reason
+        on_status_reason = evaluate_on_exit.value.on_status_reason
+      }
+    }
   }
 
   tags = {
@@ -1888,6 +2459,22 @@ resource "aws_batch_job_definition" "usda_esr_fetch" {
     attempt_duration_seconds = 3600 # 1 h ceiling; a weekly run is ~20 sequential requests (~1 min)
   }
 
+  # D-PR-7 / D-PR-37: the shared producer retry matrix (5 rules = the API cap).
+  # Declared once at the top of this file; see that comment before changing anything.
+  retry_strategy {
+    attempts = local.producer_retry_attempts
+
+    dynamic "evaluate_on_exit" {
+      for_each = local.producer_retry_rules
+      content {
+        action           = evaluate_on_exit.value.action
+        on_exit_code     = evaluate_on_exit.value.on_exit_code
+        on_reason        = evaluate_on_exit.value.on_reason
+        on_status_reason = evaluate_on_exit.value.on_status_reason
+      }
+    }
+  }
+
   tags = {
     Project     = var.project_name
     Environment = var.environment
@@ -1958,6 +2545,22 @@ resource "aws_batch_job_definition" "text_to_graphrag" {
 
   timeout {
     attempt_duration_seconds = 14400 # 4 h ceiling
+  }
+
+  # D-PR-7 / D-PR-37: the shared producer retry matrix (5 rules = the API cap).
+  # Declared once at the top of this file; see that comment before changing anything.
+  retry_strategy {
+    attempts = local.producer_retry_attempts
+
+    dynamic "evaluate_on_exit" {
+      for_each = local.producer_retry_rules
+      content {
+        action           = evaluate_on_exit.value.action
+        on_exit_code     = evaluate_on_exit.value.on_exit_code
+        on_reason        = evaluate_on_exit.value.on_reason
+        on_status_reason = evaluate_on_exit.value.on_status_reason
+      }
+    }
   }
 
   tags = {
@@ -2034,6 +2637,22 @@ resource "aws_batch_job_definition" "fgis_silver" {
     attempt_duration_seconds = 3600
   }
 
+  # D-PR-7 / D-PR-37: the shared producer retry matrix (5 rules = the API cap).
+  # Declared once at the top of this file; see that comment before changing anything.
+  retry_strategy {
+    attempts = local.producer_retry_attempts
+
+    dynamic "evaluate_on_exit" {
+      for_each = local.producer_retry_rules
+      content {
+        action           = evaluate_on_exit.value.action
+        on_exit_code     = evaluate_on_exit.value.on_exit_code
+        on_reason        = evaluate_on_exit.value.on_reason
+        on_status_reason = evaluate_on_exit.value.on_status_reason
+      }
+    }
+  }
+
   tags = {
     Project     = var.project_name
     Environment = var.environment
@@ -2093,6 +2712,22 @@ resource "aws_batch_job_definition" "mpob_silver" {
 
   timeout {
     attempt_duration_seconds = 1800
+  }
+
+  # D-PR-7 / D-PR-37: the shared producer retry matrix (5 rules = the API cap).
+  # Declared once at the top of this file; see that comment before changing anything.
+  retry_strategy {
+    attempts = local.producer_retry_attempts
+
+    dynamic "evaluate_on_exit" {
+      for_each = local.producer_retry_rules
+      content {
+        action           = evaluate_on_exit.value.action
+        on_exit_code     = evaluate_on_exit.value.on_exit_code
+        on_reason        = evaluate_on_exit.value.on_reason
+        on_status_reason = evaluate_on_exit.value.on_status_reason
+      }
+    }
   }
 
   tags = {
@@ -2160,6 +2795,22 @@ resource "aws_batch_job_definition" "mpob_overview_text" {
     attempt_duration_seconds = 600
   }
 
+  # D-PR-7 / D-PR-37: the shared producer retry matrix (5 rules = the API cap).
+  # Declared once at the top of this file; see that comment before changing anything.
+  retry_strategy {
+    attempts = local.producer_retry_attempts
+
+    dynamic "evaluate_on_exit" {
+      for_each = local.producer_retry_rules
+      content {
+        action           = evaluate_on_exit.value.action
+        on_exit_code     = evaluate_on_exit.value.on_exit_code
+        on_reason        = evaluate_on_exit.value.on_reason
+        on_status_reason = evaluate_on_exit.value.on_status_reason
+      }
+    }
+  }
+
   tags = {
     Project     = var.project_name
     Environment = var.environment
@@ -2225,6 +2876,22 @@ resource "aws_batch_job_definition" "mpob_overview_bronze" {
     attempt_duration_seconds = 600
   }
 
+  # D-PR-7 / D-PR-37: the shared producer retry matrix (5 rules = the API cap).
+  # Declared once at the top of this file; see that comment before changing anything.
+  retry_strategy {
+    attempts = local.producer_retry_attempts
+
+    dynamic "evaluate_on_exit" {
+      for_each = local.producer_retry_rules
+      content {
+        action           = evaluate_on_exit.value.action
+        on_exit_code     = evaluate_on_exit.value.on_exit_code
+        on_reason        = evaluate_on_exit.value.on_reason
+        on_status_reason = evaluate_on_exit.value.on_status_reason
+      }
+    }
+  }
+
   tags = {
     Project     = var.project_name
     Environment = var.environment
@@ -2288,6 +2955,22 @@ resource "aws_batch_job_definition" "mpob_annual_silver" {
 
   timeout {
     attempt_duration_seconds = 900
+  }
+
+  # D-PR-7 / D-PR-37: the shared producer retry matrix (5 rules = the API cap).
+  # Declared once at the top of this file; see that comment before changing anything.
+  retry_strategy {
+    attempts = local.producer_retry_attempts
+
+    dynamic "evaluate_on_exit" {
+      for_each = local.producer_retry_rules
+      content {
+        action           = evaluate_on_exit.value.action
+        on_exit_code     = evaluate_on_exit.value.on_exit_code
+        on_reason        = evaluate_on_exit.value.on_reason
+        on_status_reason = evaluate_on_exit.value.on_status_reason
+      }
+    }
   }
 
   tags = {
@@ -2386,6 +3069,22 @@ resource "aws_batch_job_definition" "feature_spine" {
     attempt_duration_seconds = 7200 # 2 h ceiling
   }
 
+  # D-PR-7 / D-PR-37: the shared producer retry matrix (5 rules = the API cap).
+  # Declared once at the top of this file; see that comment before changing anything.
+  retry_strategy {
+    attempts = local.producer_retry_attempts
+
+    dynamic "evaluate_on_exit" {
+      for_each = local.producer_retry_rules
+      content {
+        action           = evaluate_on_exit.value.action
+        on_exit_code     = evaluate_on_exit.value.on_exit_code
+        on_reason        = evaluate_on_exit.value.on_reason
+        on_status_reason = evaluate_on_exit.value.on_status_reason
+      }
+    }
+  }
+
   tags = {
     Project     = var.project_name
     Environment = var.environment
@@ -2474,6 +3173,22 @@ resource "aws_batch_job_definition" "model_ready_datasets" {
     attempt_duration_seconds = 3600
   }
 
+  # D-PR-7 / D-PR-37: the shared producer retry matrix (5 rules = the API cap).
+  # Declared once at the top of this file; see that comment before changing anything.
+  retry_strategy {
+    attempts = local.producer_retry_attempts
+
+    dynamic "evaluate_on_exit" {
+      for_each = local.producer_retry_rules
+      content {
+        action           = evaluate_on_exit.value.action
+        on_exit_code     = evaluate_on_exit.value.on_exit_code
+        on_reason        = evaluate_on_exit.value.on_reason
+        on_status_reason = evaluate_on_exit.value.on_status_reason
+      }
+    }
+  }
+
   tags = {
     Project     = var.project_name
     Environment = var.environment
@@ -2535,6 +3250,22 @@ resource "aws_batch_job_definition" "unica_annual_state" {
     attempt_duration_seconds = 900
   }
 
+  # D-PR-7 / D-PR-37: the shared producer retry matrix (5 rules = the API cap).
+  # Declared once at the top of this file; see that comment before changing anything.
+  retry_strategy {
+    attempts = local.producer_retry_attempts
+
+    dynamic "evaluate_on_exit" {
+      for_each = local.producer_retry_rules
+      content {
+        action           = evaluate_on_exit.value.action
+        on_exit_code     = evaluate_on_exit.value.on_exit_code
+        on_reason        = evaluate_on_exit.value.on_reason
+        on_status_reason = evaluate_on_exit.value.on_status_reason
+      }
+    }
+  }
+
   tags = {
     Project     = var.project_name
     Environment = var.environment
@@ -2588,9 +3319,14 @@ resource "aws_batch_job_definition" "unica_annual_state" {
 # same shape the submit wrapper has always sized for. Timeout 3 h covers the
 # daily sweep with a wide margin; the one-time backfill grid (~156 asofs) passes
 # a longer per-attempt timeout at submit time rather than inflating the daily
-# ceiling. NO retry_strategy: a publishing job must not be silently re-attempted
-# into a partial second publish -- a failed sweep is re-fired deliberately (the
-# same-asof re-run is idempotent under the write-guard).
+# ceiling. NO RE-ATTEMPT ON A PUBLISHING JOB: a publisher must not be silently
+# re-attempted into a partial second publish -- a failed sweep is re-fired
+# deliberately (the same-asof re-run is idempotent under the write-guard).
+# D-PR-7 UPDATE: this jobdef now carries the shared retry matrix, and the
+# invariant is UNCHANGED by it. Every rule in that matrix is EXIT except
+# ResourceInitializationError, which by definition means the CONTAINER NEVER
+# STARTED -- so no publish, partial or otherwise, can have happened. Exit 1, OOM,
+# CannotPull and the terminal catch-all all still terminate on the first attempt.
 # ---------------------------------------------------------------------------
 resource "aws_batch_job_definition" "pattern_records_sweep" {
   count = var.pattern_records_image != "" ? 1 : 0
@@ -2657,6 +3393,15 @@ resource "aws_batch_job_definition" "pattern_records_sweep" {
   timeout {
     attempt_duration_seconds = 10800 # 3 h ceiling; a daily sweep is ~600 pg probes
   }
+
+  # D-PR-7 / D-PR-37: the shared producer retry matrix (5 rules = the API cap).
+  # Declared once at the top of this file; see that comment before changing anything.
+  # T2b DOCTRINE EXCLUSION (sitting-2 skeptic, 2026-08-04): this jobdef PUBLISHES. The
+  # D-PR-7 matrix is deliberately NOT stamped here -- a retried publisher re-runs its
+  # write path, and the write-guard doctrine wants refusals surfaced, never re-driven.
+  # (ResourceInitializationError precedes any write and WOULD be retry-safe; ratify that
+  # nuance separately before narrowing this exclusion.) Pinned by the no-retry-on-a-
+  # publishing-job doctrine test in test_futures_eod_cloud_legs.py.
 
   tags = {
     Project     = var.project_name
@@ -2801,6 +3546,22 @@ resource "aws_batch_job_definition" "futures_eod_free_fetch" {
     attempt_duration_seconds = 3600
   }
 
+  # D-PR-7 / D-PR-37: the shared producer retry matrix (5 rules = the API cap).
+  # Declared once at the top of this file; see that comment before changing anything.
+  retry_strategy {
+    attempts = local.producer_retry_attempts
+
+    dynamic "evaluate_on_exit" {
+      for_each = local.producer_retry_rules
+      content {
+        action           = evaluate_on_exit.value.action
+        on_exit_code     = evaluate_on_exit.value.on_exit_code
+        on_reason        = evaluate_on_exit.value.on_reason
+        on_status_reason = evaluate_on_exit.value.on_status_reason
+      }
+    }
+  }
+
   tags = {
     Project     = var.project_name
     Environment = var.environment
@@ -2893,6 +3654,22 @@ resource "aws_batch_job_definition" "databento_fetch" {
     attempt_duration_seconds = 14400
   }
 
+  # D-PR-7 / D-PR-37: the shared producer retry matrix (5 rules = the API cap).
+  # Declared once at the top of this file; see that comment before changing anything.
+  retry_strategy {
+    attempts = local.producer_retry_attempts
+
+    dynamic "evaluate_on_exit" {
+      for_each = local.producer_retry_rules
+      content {
+        action           = evaluate_on_exit.value.action
+        on_exit_code     = evaluate_on_exit.value.on_exit_code
+        on_reason        = evaluate_on_exit.value.on_reason
+        on_status_reason = evaluate_on_exit.value.on_status_reason
+      }
+    }
+  }
+
   tags = {
     Project     = var.project_name
     Environment = var.environment
@@ -2936,9 +3713,12 @@ resource "aws_batch_job_definition" "databento_fetch" {
 # canonical partition before publishing -- a trade_year, not a lookback window, is the
 # in-memory unit. Same shape as fgis_silver / mpob_annual_silver.
 #
-# NO retry_strategy: a publishing job must never be silently re-attempted into a
-# partial second publish. A failed silver task is re-fired deliberately (the run is
-# idempotent under skip_existing=false + the canonical union).
+# NO RE-ATTEMPT ON A PUBLISHING JOB: a publisher must never be silently re-attempted
+# into a partial second publish. A failed silver task is re-fired deliberately (the run
+# is idempotent under skip_existing=false + the canonical union).
+# D-PR-7 UPDATE: this jobdef now carries the shared retry matrix, and the invariant is
+# UNCHANGED by it -- every rule is EXIT except ResourceInitializationError, which means
+# the container never started, so there is no partial publish to compound.
 # ---------------------------------------------------------------------------
 resource "aws_batch_job_definition" "futures_eod_silver" {
   count = local.futures_eod_image != "" && var.silver_publisher_job_role_arn != "" ? 1 : 0
@@ -3008,6 +3788,15 @@ resource "aws_batch_job_definition" "futures_eod_silver" {
     # source (databento, ~10 roots), with margin.
     attempt_duration_seconds = 7200
   }
+
+  # D-PR-7 / D-PR-37: the shared producer retry matrix (5 rules = the API cap).
+  # Declared once at the top of this file; see that comment before changing anything.
+  # T2b DOCTRINE EXCLUSION (sitting-2 skeptic, 2026-08-04): this jobdef PUBLISHES. The
+  # D-PR-7 matrix is deliberately NOT stamped here -- a retried publisher re-runs its
+  # write path, and the write-guard doctrine wants refusals surfaced, never re-driven.
+  # (ResourceInitializationError precedes any write and WOULD be retry-safe; ratify that
+  # nuance separately before narrowing this exclusion.) Pinned by the no-retry-on-a-
+  # publishing-job doctrine test in test_futures_eod_cloud_legs.py.
 
   tags = {
     Project     = var.project_name

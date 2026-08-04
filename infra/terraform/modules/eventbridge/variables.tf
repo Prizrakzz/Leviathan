@@ -20,6 +20,16 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
+variable "alert_topic_arn" {
+  type        = string
+  description = <<-EOT
+    SNS topic that receives the fleet DLQ depth alarm (module.alerting). Empty (default) = the DLQ
+    and the dead_letter_config are still created -- the dropped event is still DURABLE and still
+    attributable -- but nobody is told, so leave it empty only for a standalone/apply-order run.
+  EOT
+  default     = ""
+}
+
 variable "state_machine_arn" {
   type        = string
   description = "ARN of the silver thin-contract state machine. Grants states:StartExecution to the scheduler role."

@@ -84,6 +84,32 @@ BRANCH_A = "A"
 BRANCH_B = "B"
 BRANCH_UNKNOWN = "unknown"
 
+# --- D-PR-8: the gate EXIT-CODE VOCABULARY -----------------------------------------------------------------
+# Before this split, main() returned 1 for FIVE semantically different outcomes (empty --tables; the I-1
+# image/config preflight; a BaselineFetchError; an unloadable baked F010 registry; and a genuine verdict
+# FAIL) -- and an unhandled exception exited 1 as well, via the interpreter. So "the gate REFUSED" and "the
+# gate NEVER PRODUCED A VERDICT" were the same observable, which is why the 2026-07 `ModuleNotFoundError:
+# psycopg` image fault (census class D-iii) read to the operator exactly like a data refusal.
+#
+# ONLY 72 IS RETRYABLE, and that is a CONTRACT with two consumers outside this file:
+#   * the `leviathan-dev-silver-gate` jobdef's retryStrategy (D-PR-37's trimmed 3-object matrix:
+#     {onExitCode:'72' -> retry}, {onStatusReason:'ResourceInitializationError*' -> retry},
+#     {onReason:'*' -> exit}; attempts 2). A no-match in `evaluateOnExit` defaults to RETRY, which is why
+#     the terminal catch-all is mandatory there and why NO new exit code may be minted here on the
+#     assumption that "unknown == never retried".
+#   * the state machine's Gate Catch classifier (D-PR-10), which reads the Batch failure Cause and routes
+#     EXIT_REFUSAL to FailNotify and every other code to InfraFailNotify.
+# Adding a code, or changing what one means, changes retry behaviour and failure attribution in AWS.
+# Codes follow BSD sysexits.h where it has an opinion (64 EX_USAGE, 70 EX_SOFTWARE).
+EXIT_PASS = 0             # verdict PASS
+EXIT_REFUSAL = 1          # verdict FAIL -- a DECISION about data. NEVER retried, never re-run to green.
+EXIT_USAGE = 64           # bad invocation (no --tables, argparse rejection). Not a verdict.
+EXIT_INTERNAL = 70        # unhandled exception inside the gate -- a crash, not a verdict.
+EXIT_PREFLIGHT = 71       # image/config fence refused to run: preflight drift, or an unloadable baked
+                          # F010 registry. The image is wrong; the gate never reached a stage.
+EXIT_BASELINE_FETCH = 72  # BaselineFetchError -- a transient S3 GET of the rolling baseline. THE ONLY
+                          # RETRYABLE CODE.
+
 
 def select_branch(table: str, *, silver_reg, pg_mirror=PG_MIRROR_TABLES) -> str:
     """Pick the consumer-sync branch for one table from the F010 registry `consumers` field.
@@ -930,6 +956,37 @@ def _print_stage_errors(label: str, table: str, stage: dict) -> None:
 
 
 def main(argv=None) -> int:
+    """D-PR-8 exit-code wrapper around the gate body. See the vocabulary block at the top of this module.
+
+    Two classes are converted here rather than inside `_main`, because both are raised by machinery that
+    predates the split and neither can be handled at the point of failure:
+
+      * `SystemExit` -- argparse exits 2 on a rejected command line and 0 on `--help`. 2 is a USAGE error
+        in every sense the vocabulary cares about, and it must not be left to collide with the interpreter's
+        generic non-zero.
+      * any other `Exception` -- an unhandled crash. Python would exit 1, i.e. the gate would claim to have
+        REFUSED a rebuild it never evaluated, and (worse) the jobdef's `evaluateOnExit` would score it as a
+        decision. The traceback is printed first: on the scheduled path the container's stdout is the only
+        durable record, so swallowing it would trade one lost signal for another.
+
+    `BaseException` (KeyboardInterrupt, SystemExit's non-Exception siblings) deliberately propagates."""
+    try:
+        return _main(argv)
+    except SystemExit as e:  # argparse: 2 == usage, 0 == --help
+        code = e.code
+        if code is None or code == 0:
+            return EXIT_PASS
+        return EXIT_USAGE
+    except Exception as e:  # noqa: BLE001 -- the whole point is that NOTHING crashes out as exit 1
+        import traceback
+        traceback.print_exc()
+        print(f"FAIL silver_rebuild_gate: INTERNAL ERROR ({type(e).__name__}: {str(e)[:300]}) -- "
+              f"the gate CRASHED and produced NO VERDICT. This is exit {EXIT_INTERNAL}, not a refusal: "
+              f"nothing was decided about the data and canonical was never touched.")
+        return EXIT_INTERNAL
+
+
+def _main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="silver_rebuild_gate (SILVER-C001): consumer-sync dispatcher")
     ap.add_argument("--tables", required=True, help="comma-separated table ids that were rebuilt")
     ap.add_argument("--asof", default="2026-02-15", help="census as-of (for the --diff baseline); full ISO timestamps are truncated to the date so scheduler context attributes work")
@@ -942,8 +999,9 @@ def main(argv=None) -> int:
     a.asof = str(a.asof)[:10]  # scheduler passes <aws.scheduler.scheduled-time> (full ISO)
     tables = [t.strip() for t in a.tables.split(",") if t.strip()]
     if not tables:
+        # D-PR-8: a USAGE fault (the caller passed --tables "" or only separators), not a verdict.
         print("FAIL silver_rebuild_gate: no --tables given")
-        return 1
+        return EXIT_USAGE
 
     # -----------------------------------------------------------------------------------------
     # FENCE (incident I-1) -- IMAGE-AGE PREFLIGHT, at the EARLIEST possible moment.
@@ -969,7 +1027,9 @@ def main(argv=None) -> int:
         print(f"silver_rebuild_gate {bundle['run_id']} -> {dest}")
         print(f"  tables={b['tables']} branchA={b['branch_a']} branchB={b['branch_b']} "
               f"unknown={b['unknown']} red={b['red_tables']}  verdict={bundle['verdict']}")
-        return 1
+        # D-PR-8: the I-1 image/config fence REFUSED TO RUN. The bundle's verdict is FAIL, but the gate
+        # never evaluated a stage -- this is an IMAGE fault (exit 71), never a decision about the data.
+        return EXIT_PREFLIGHT
 
     # CLI --baseline-uri wins; CENSUS_BASELINE_S3 is the env fallback; empty/whitespace -> unset.
     baseline_uri = (a.baseline_uri or os.environ.get("CENSUS_BASELINE_S3") or "").strip() or None
@@ -980,8 +1040,12 @@ def main(argv=None) -> int:
         ctx = _build_live_context(tables, census_asof=a.asof, baseline_uri=baseline_uri)
     except BaselineFetchError as e:
         # Fail closed: a scheduled gate never runs against a stale/absent baseline (no image-baked fallback).
+        # D-PR-8: exit 72 -- THE ONLY RETRYABLE CODE. Fail-closed is unchanged (no fallback, no verdict);
+        # what changes is that the jobdef may take a second attempt at a transient S3 GET instead of
+        # presenting a bad-luck fetch as a rebuild refusal. A malformed URI lands here too and will burn
+        # the second attempt deterministically -- accepted: 2 attempts, not 3, and the message names it.
         print(f"FAIL silver_rebuild_gate: {e}")
-        return 1
+        return EXIT_BASELINE_FETCH
     except RegistryError as e:
         # FENCE (I-1), the OTHER half of the discrimination. A malformed yaml BAKED INTO THIS
         # IMAGE is a CONFIG fault, not an age fault -- and until now it left the job as a raw
@@ -1000,7 +1064,9 @@ def main(argv=None) -> int:
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(json.dumps(bundle, indent=1), encoding="utf-8")
         print(f"silver_rebuild_gate {bundle['run_id']} -> {dest}")
-        return 1
+        # D-PR-8: the OTHER half of the I-1 fence -- the F010 registry BAKED INTO THIS IMAGE does not
+        # load. Same class as the preflight above (the image is wrong), so the same code: 71.
+        return EXIT_PREFLIGHT
     bundle = run_gate(tables, ctx)
 
     # NOTE: `Path` comes from the MODULE-level import (line 53). The old function-local
@@ -1033,7 +1099,10 @@ def main(argv=None) -> int:
                   + "; ".join(f"{s['name']}={s['detail']}" for s in reds))
             for s in reds:
                 _print_stage_errors("FAIL", r["table"], s)
-    return 0 if bundle["verdict"] == "PASS" else 1
+    # D-PR-8: the ONLY path that may return EXIT_REFUSAL. Everything above this line is a fault in the
+    # gate's own inputs or image and carries its own code, so exit 1 now means exactly one thing:
+    # the gate RAN, evaluated the stages, and REFUSED. It is never retried.
+    return EXIT_PASS if bundle["verdict"] == "PASS" else EXIT_REFUSAL
 
 
 if __name__ == "__main__":

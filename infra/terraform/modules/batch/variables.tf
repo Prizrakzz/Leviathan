@@ -75,6 +75,34 @@ variable "pink_sheet_image_digest" {
   }
 }
 
+variable "worker_fleet_image_digest" {
+  # D-PR-7 / D-PR-11 PRECONDITION (post-freeze run sheet section 8, "Latent
+  # MUST-NOT-APPLY register"). The sha256 digest of the WORKER image the ten
+  # jobdef families listed at local.worker_fleet_image actually run TODAY.
+  #
+  # Those ten are pinned in terraform state by revision ARN at revisions 1-3, so
+  # they emit NO plan line while nothing re-registers them -- which is exactly why
+  # they drifted unnoticed. The retry-matrix and timeout work re-registers all ten.
+  # Terraform would then mint a new latest-ACTIVE from its own stale definition and
+  # revert every one of them from the live digest back to the mutable ":latest",
+  # and because the DAGs resolve UNVERSIONED family names to latest-ACTIVE the
+  # revert goes live on the very next fire. Adopting the live pin BEFORE the
+  # re-registering change lands is the same discipline D-PR-22 applied to Pink
+  # Sheet and E6 applied to futures-eod-silver.
+  #
+  # Re-pin deliberately: read the live digest, confirm all ten agree, then move
+  # this default. `python scripts/ops/check_ecr_pinned_digests.py` is the auditor
+  # that catches a pin whose manifest has been evicted.
+  type        = string
+  description = "sha256 digest of the worker image the ten weather/ingest jobdef families run, e.g. 'sha256:abc...'. Empty = fall back to the mutable ':latest' tag (historical behaviour)."
+  default     = ""
+
+  validation {
+    condition     = var.worker_fleet_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.worker_fleet_image_digest))
+    error_message = "worker_fleet_image_digest must be empty or a full 'sha256:<64 hex>' digest -- a TAG is not accepted, since a mutable tag is exactly the revert this pin exists to prevent."
+  }
+}
+
 variable "pattern_records_image" {
   # T2B (plan sec 7 step 3/5): the EMBEDDER image pinned BY DIGEST
   # ("<repo>@sha256:..."), CONTENT-CHECKED before pinning -- never a tag, never

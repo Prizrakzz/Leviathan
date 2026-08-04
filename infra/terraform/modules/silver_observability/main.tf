@@ -96,13 +96,27 @@ resource "aws_cloudwatch_event_target" "batch_failed_to_logs" {
   arn       = aws_cloudwatch_log_group.batch_failures.arn
 }
 
-resource "aws_cloudwatch_event_target" "batch_failed_to_sns" {
-  rule      = aws_cloudwatch_event_rule.batch_job_failed.name
-  target_id = "batch-failures-sns"
-  arn       = aws_sns_topic.silver_pipeline.arn
-}
+# ---------------------------------------------------------------------------
+# D-PR-15(i), 2026-08-04 -- THE SNS TARGET INTO THE VOID IS REMOVED.
+#
+# `leviathan-dev-silver-pipeline-alerts` has ZERO subscriptions (verified live 2026-08-04:
+# list-subscriptions-by-topic returns []) and, per the 2026-07-31 D-D RCA in `local.alarm_actions`
+# above, its access policy was never reachable by cloudwatch either. This rule's SNS target and the
+# `sfn_execution_failed` rule's SNS target were therefore publishing into a void -- which is worse
+# than not publishing, because a rule with an SNS target READS AS COVERAGE in the console while
+# delivering nothing (the same defect that got the 22 hollow per-family alarms deleted at :192-203).
+#
+# `batch_failed_to_logs` below is UNTOUCHED and is the live path: it feeds
+# /leviathan/dev/batch-job-failures, which both metric filters read. Deleting the SNS target changes
+# no metric and no alarm.
+#
+# The TOPIC and its policy are retained deliberately: they are the ready-made seam for D-ALARM-2
+# (incident-key suppression) named in PIPELINE_RELIABILITY_WAVE_PLAN.md section 3(h). To resurrect
+# the path, re-add an `aws_cloudwatch_event_target` here AND give the topic a confirmed subscriber
+# in the same change -- never one without the other.
+# ---------------------------------------------------------------------------
 
-# SNS topic policy so EventBridge may publish the Batch-failed event.
+# SNS topic policy so EventBridge may publish (retained with the topic as the D-ALARM-2 seam).
 resource "aws_sns_topic_policy" "silver_pipeline" {
   arn = aws_sns_topic.silver_pipeline.arn
   policy = jsonencode({
@@ -160,11 +174,45 @@ resource "aws_cloudwatch_metric_alarm" "batch_failed_backstop" {
 # their per-family alarms are hollow. Ad-hoc probes and evals match neither arm, which is the point.
 # NB: $.detail.startedBy does NOT exist on the Batch Job State Change event (verified by key
 # enumeration + test-metric-filter); a filter built on it silences everything.
+#
+# ---------------------------------------------------------------------------
+# D-PR-13, 2026-08-04 -- THE FOUR PREFIX WILDCARDS ARE GONE, AND THE ESR CLAUSE WITH THEM.
+#
+# The four jobName clauses were PREFIX WILDCARDS (`build-notifications*`, `pattern-records-sweep*`,
+# `freshness-poller*`, `usda-esr-fetch*`), so any hand-submitted run named with those prefixes paged
+# the owner as though a schedule had failed. Measured in the live 30-day archive, FIVE such names
+# already exist: pattern-records-sweep-catchup-2026-07-26, pattern-records-sweep-catchup-2026-07-27,
+# pattern-records-acceptance-dryrun-20260728, pattern-records-backfill-today, freshness-poller-smoke.
+# They escaped only because the filter was created 2026-07-31, after them.
+#
+# ROUTE CHOSEN: EXACT NAMES, not a LEVIATHAN_SCHEDULED=1 marker env. Both are supported by the live
+# filter grammar; exact names win on three measured grounds:
+#   1. The schedule payloads use EXACT JobNames with no UUID suffix -- read live from the schedule
+#      inputs (`build-notifications`, `freshness-poller`, `pattern-records-sweep`), so anchoring is
+#      sufficient and needs no jobdef or schedule surface at all.
+#   2. The marker route's failure mode is FAIL-OPEN. The marker would have to ride
+#      ContainerOverrides.Environment on the schedule target, and a mis-cased/dropped
+#      ContainerOverrides key is silent (the estate has that comment on the morning-brief schedule
+#      for exactly this reason) -- a dropped marker means a REAL scheduled failure stops counting.
+#      A wrong exact name fails CLOSED and only for a job we ourselves renamed.
+#   3. It is verifiable read-only, today, with `aws logs test-metric-filter`. Done: the three manual
+#      probes above and `usda-esr-fetch-backfill` all go from MATCH to NO-MATCH, while the three
+#      scheduled names, the MANAGED_BY_AWS arm and six real archived events all still MATCH.
+#
+# THE `usda-esr-fetch*` CLAUSE IS DELETED, NOT ANCHORED. Its only producer was the direct-submitJob
+# schedule `leviathan-dev-esr-weekly-ingest`, removed in the same batch as the duplicate 14:00Z THU
+# fire (D-PR-15(iii), see envs/dev/main.tf). ESR now runs only through the SFN family chain, whose
+# jobs carry MANAGED_BY_AWS and are matched by the first arm.
+#
+# STILL OPEN, DELIBERATELY (D-PR-42): the MANAGED_BY_AWS arm matches EVERY job the state machine
+# submits, including a hand-started refire execution. Closing that needs the scheduler to inject a
+# marker into the SFN input and the machine to pass it into every submitJob container environment --
+# generator + step_functions surface, not this filter.
 # ---------------------------------------------------------------------------
 resource "aws_cloudwatch_log_metric_filter" "batch_failed_scheduled" {
   name           = "${local.name_prefix}-batch-failed-scheduled"
   log_group_name = aws_cloudwatch_log_group.batch_failures.name
-  pattern        = "{ ($.detail.status = \"FAILED\") && (($.detail.container.environment[*].name = \"MANAGED_BY_AWS\") || ($.detail.jobName = \"build-notifications*\") || ($.detail.jobName = \"pattern-records-sweep*\") || ($.detail.jobName = \"freshness-poller*\") || ($.detail.jobName = \"usda-esr-fetch*\")) }"
+  pattern        = "{ ($.detail.status = \"FAILED\") && (($.detail.container.environment[*].name = \"MANAGED_BY_AWS\") || ($.detail.jobName = \"build-notifications\") || ($.detail.jobName = \"pattern-records-sweep\") || ($.detail.jobName = \"freshness-poller\")) }"
 
   metric_transformation {
     name          = "BatchJobFailedScheduled"
@@ -185,8 +233,17 @@ resource "aws_cloudwatch_metric_alarm" "batch_failed_scheduled" {
   comparison_operator = "GreaterThanThreshold"
   threshold           = 0
   treat_missing_data  = "notBreaching"
-  alarm_actions       = local.alarm_actions
-  tags                = { Project = var.project_name, Environment = var.environment, ManagedBy = "terraform" }
+  # D-PR-12 / D-PR-44, 2026-08-04: THIS ONE STAYS ARMED, ON PURPOSE.
+  # D-PR-12 demotes both notifier paths to leave `FailNotify` as the single notifier, but FailNotify
+  # is reached from Gate and Reconcile ONLY -- the four producer Map states (Fetch/Bronze/Silver/
+  # Promote) carry `Retry` and NO `Catch` (modules/step_functions/main.tf). Until those Catch arms
+  # are live AND one real producer failure has been observed producing exactly one email, this alarm
+  # is the ONLY path by which a class-A/E1/F producer failure reaches the owner. Demoting it now
+  # would make the majority of the failure census silent.
+  # THE COMPLETING EDIT, when D-PR-44's proof lands: replace the line below with `alarm_actions = []`
+  # and nothing else. Section 5.4 of PIPELINE_RELIABILITY_WAVE_PLAN.md forbids doing it before then.
+  alarm_actions = local.alarm_actions
+  tags          = { Project = var.project_name, Environment = var.environment, ManagedBy = "terraform" }
 }
 
 # ---------------------------------------------------------------------------
@@ -217,8 +274,29 @@ resource "aws_cloudwatch_metric_alarm" "batch_failed_scheduled" {
 # at least one datapoint per family (freshness_poller.tf.prepared), else the pre-emit families
 # instant-breach the shared topic -- the same reason A-W5 first set "missing".
 # ---------------------------------------------------------------------------
+#
+# D-PR-15(ii), 2026-08-04 -- THE UNWATCHED EMITTERS. The poller publishes FreshnessLagDays for 24
+# families (live list-metrics) but this map, generated from the SILVER-F010 registry's BATCH
+# families, covers only 22. `model_output` and `pattern_records` emitted daily with NO watcher at
+# all. They are added through `var.silver_extra_family_slas` -- a SEPARATE map merged here -- so the
+# generated `silver_observability.auto.tfvars.json` is not edited (D-EI-12 holds that file).
+# Thresholds are the tables' own declared ceilings from `leviathan.silver.freshness`, read live, not
+# invented: model_output/silver_model_predictions = 45d, pattern_records/gold_pattern_records = 3d.
+# Measured lag at authoring: 18.79d and 0.56d -> BOTH alarms are green on arrival.
+#
+# THE THIRD FAMILY, `graphrag_evidence`, IS DELIBERATELY WITHHELD, and the reason is mechanical.
+# It emits ZERO datapoints -- verified live 2026-08-04 over a 21-day window on BOTH dimensions
+# (Family=graphrag_evidence and Table=graphrag_timeline_episodes). Not a stall: THE POLLER NEVER
+# LOOKS AT IT. `graphrag_timeline_episodes` is an `EXTRA_TARGETS` entry in
+# `leviathan.silver.freshness`, reachable only through `all_poll_targets()`, and the live poller
+# command (the INLINE ContainerOverrides in envs/dev/main.tf) iterates `poll_targets()` --
+# registry-pure, EXTRA_TARGETS excluded. With treat_missing_data = "breaching" a family alarm here
+# would page on creation and never clear, which is exactly the D-EI-12 hold on
+# `silver_table_freshness_slas["graphrag_timeline_episodes"]`; adding the FAMILY alarm would smuggle
+# the same permanently-red alarm in through the other map. Arm it when the emitter emits, not before
+# -- and note that making it emit is a change to the poller command, not to this module.
 resource "aws_cloudwatch_metric_alarm" "freshness_sla_breach" {
-  for_each = var.silver_freshness_slas
+  for_each = merge(var.silver_freshness_slas, var.silver_extra_family_slas)
 
   alarm_name          = "${local.name_prefix}-freshness-sla-breach-${replace(each.key, "_", "-")}"
   alarm_description   = "Family '${each.key}' exceeded its interim freshness ceiling (${each.value}d). Emitted by scripts/silver/freshness_poller.py. Runbook: R4_incident_runbooks.md#freshness-sla-breach."
@@ -309,8 +387,29 @@ resource "aws_cloudwatch_metric_alarm" "sfn_executions_failed" {
   comparison_operator = "GreaterThanThreshold"
   threshold           = 0
   treat_missing_data  = "notBreaching"
-  alarm_actions       = local.alarm_actions
-  tags                = { Project = var.project_name, Environment = var.environment, ManagedBy = "terraform" }
+  # 2026-08-04 (D-PR-12, D-ALARM-1): DEMOTED TO METRIC-ONLY. Precedent and reasoning are the D-C
+  # backstop demotion at :146-151 above. This alarm fired on the SAME failures as the in-machine
+  # `FailNotify` publish (modules/step_functions/main.tf) but carried NEITHER the family name NOR the
+  # execution id -- it is a strictly less informative duplicate of a notification the owner already
+  # gets. Measured: 24 alarm-path emails since 2026-08-01 against 8 distinct causes.
+  # It also double-counts a MANUAL refire execution, which is not a schedule failure at all.
+  # WHAT STILL REACHES THE OWNER after this demotion, verified path by path:
+  #   * Gate / Reconcile failure         -> Catch States.ALL -> FailNotify -> leviathan-dev-alerts.
+  #   * Producer (Batch) failure         -> batch-job-failed-scheduled, deliberately still ARMED.
+  #   * Producer (Glue) failure          -> the glue-job-failed alarm added in modules/cloudwatch in
+  #                                         this same batch (it had NO metric filter before, so this
+  #                                         demotion would otherwise have opened a new silence).
+  #   * Execution never STARTS           -> scheduler-target-errors + scheduler-invocations-dropped
+  #                                         (both armed) for the fact, and the per-schedule DLQs
+  #                                         added in this batch for the attribution.
+  #   * TIMED_OUT / ABORTED              -> their own alarms below, deliberately left ARMED (neither
+  #                                         reaches FailNotify).
+  # RESIDUAL, STATED HONESTLY: an execution that fails BEFORE reaching any Catch and without a Batch
+  # or Glue task failure (malformed input, a States.Runtime fault) is now silent. That class is
+  # closed by D-PR-44's producer Catch arms, not by this alarm. Rollback = restore
+  # `alarm_actions = local.alarm_actions`.
+  alarm_actions = []
+  tags          = { Project = var.project_name, Environment = var.environment, ManagedBy = "terraform" }
 }
 
 resource "aws_cloudwatch_metric_alarm" "sfn_executions_aborted" {
@@ -385,9 +484,14 @@ resource "aws_cloudwatch_metric_alarm" "batch_queued_job_age" {
   tags                = { Project = var.project_name, Environment = var.environment, ManagedBy = "terraform" }
 }
 
-# --- aws.states execution-status rule: FAILED/TIMED_OUT/ABORTED on THIS machine -> silver-pipeline topic.
-# Belt-and-suspenders alongside the AWS/States alarms; the topic policy already allows
-# events.amazonaws.com:Publish (aws_sns_topic_policy.silver_pipeline above). ---
+# --- aws.states execution-status rule: FAILED/TIMED_OUT/ABORTED on THIS machine.
+#
+# D-PR-15(i), 2026-08-04: its SNS target is REMOVED (it published into the zero-subscription
+# silver-pipeline topic -- see the note at the batch rule above). THE RULE IS RETAINED ON PURPOSE and
+# now has ZERO targets: it is the declared seam for D-ALARM-2, and a rule with no targets delivers
+# nothing and CLAIMS nothing. Read it as an empty socket, not as coverage -- a target here is what
+# would make it a path, and adding one without a confirmed subscriber on the destination is the
+# exact defect this change removes. ---
 resource "aws_cloudwatch_event_rule" "sfn_execution_failed" {
   count       = var.state_machine_arn == "" ? 0 : 1
   name        = "${local.name_prefix}-sfn-execution-failed"
@@ -405,9 +509,3 @@ resource "aws_cloudwatch_event_rule" "sfn_execution_failed" {
   tags = { Project = var.project_name, Environment = var.environment, ManagedBy = "terraform" }
 }
 
-resource "aws_cloudwatch_event_target" "sfn_execution_failed_to_sns" {
-  count     = var.state_machine_arn == "" ? 0 : 1
-  rule      = aws_cloudwatch_event_rule.sfn_execution_failed[0].name
-  target_id = "sfn-execution-failed-sns"
-  arn       = aws_sns_topic.silver_pipeline.arn
-}
