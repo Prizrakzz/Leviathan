@@ -707,14 +707,34 @@ def _futures_newest_first_on() -> bool:
     env var IS the rollback, live on a flip with no redeploy (read PER CALL, never memoized -- the _chain_on
     idiom). DEFAULT-OFF, fail-closed: only a case-insensitive on/1/true enables it.
 
-    THREADING STATUS, STATED RATHER THAN IMPLIED. The compiler half (query.py) and this seam are landed.
-    The kwarg must still be threaded at the sites that actually call the read, none of which are in this
-    file: numbers/agent.py:276/:1915/:1920 and numbers/cascade.py:254/:3463 (both via Q.run), and
-    server.py:485 (/v1/series -- the one UNPINNED user-facing surface). numbers_parity.py:189 and
+    THREADING STATUS, STATED RATHER THAN IMPLIED. The compiler half (query.py), this seam, AND the caller
+    graph are landed. The bool is computed ONCE per turn at each lane's top and threaded down as a kwarg:
+
+      * THIS FILE -> `cascade.quantify(**_fnf_kw)` at the cascade seam below, in the omit-when-off shape
+        `_epo_kw`/`_cto_kw` use, and from there to the leg wave (_run_one -> fetch_window), the price
+        pair, the vertical chain engine and the J4 tape reads (_tape_read);
+      * orchestrator.py -> `agent.answer_numbers` on BOTH lanes (run_numbers_only and run_hybrid's worker
+        thread), and from there to the executor's lookup, the W3.2 legacy-level rewrite and the ESR
+        aggregate legs;
+      * server.py's /v1/series imports this seam and passes it to Q.run directly -- it sits ABOVE answer,
+        so there is nothing to thread it through.
+
+    WHAT IS DELIBERATELY NOT THREADED, so the gaps are read as decisions. (a) numbers_parity.py:189 and
     cascade_census.py:190/:391/:396 compile with build_sql and execute the raw string themselves BY DESIGN,
     so if either is ever given the flag it must also call query.resort_rows_chronological on the rows, or it
-    is measuring the un-re-sorted DESC surface. Until those sites pass it, this flag is inert in serving --
-    which is the correct state for an un-promoted canary, not an accident."""
+    is measuring the un-re-sorted DESC surface. (b) THE CONSTANT-TABLE READS -- cascade's
+    `_psd_component_rows` (silver_psd, reached five deep through the RV2/transmission engines),
+    cascade's `_cot_outcome_read` (gold_cot_outcomes), and silverleg's `_rows` (whose three callers pass
+    silver_psd / silver_fred_fx / silver_noaa_oni as literals). Every one of those names its table as a
+    literal and no such card declares `contract_month_col`, so `_newest_first_applies` is structurally
+    False there and a threaded flag could not move one byte of their SQL. All of it is pinned in
+    test_futures_readpath_pins, so each omission stays MEASURED rather than assumed: the day one of those
+    cards grows a delivery-month axis, the pin reds and this paragraph is what gets read.
+
+    silverleg is the one worth naming explicitly, because it is the site an audit of "which Q.run calls
+    were threaded" would flag first: it is the only serving Q.run outside agent/cascade/server, and it
+    was NOT on the wave's mapped-sites list. It is a firing-leg helper, not a series reader.
+    The flag is therefore LIVE in serving on a flip, and inert until one."""
     return os.environ.get("GRAPHRAG_FUTURES_NEWEST_FIRST", "").strip().lower() in ("on", "1", "true")
 
 
@@ -1487,13 +1507,21 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
             # cached anywhere and a rebuilt artifact changes what is priced on the very next turn.
             _epo_kw = {"episode_outcomes": True} if _episode_outcomes_on() else {}
             _cto_kw = {"cot_outcomes": True} if _cot_outcomes_on() else {}
+            # FUTURES_READPATH S1 canary (D-FR-10): the SAME omit-when-off idiom, and it earns it twice
+            # over. The kwarg absent -> quantify compiles the pre-wave ASC total order on every leg, so
+            # the flag-off turn is byte-identical by construction rather than by promise; and an injected
+            # quantify fake written against the older signature stays valid, which is how every cascade
+            # fixture in the suites is built. This is the turn's ONE read of the env for this flag -- it
+            # then rides down as an argument, so no engine under this seam can disagree about it.
+            _fnf_kw = {"futures_newest_first": True} if _futures_newest_first_on() else {}
             _cblock, _quant_trace, _reroute_trace = cq.quantify(sg, graph, qfn=numbers_lookup, asof=asof,
                                                                 near=near,
                                                                 extra_number_calls=extra_number_calls,
                                                                 xc_request=xc_request, comove=_comove_on(),
                                                                 price_request=_price_request,
                                                                 **_pace_kw, **_chain_kw, **_xmit_kw,
-                                                                **_hl_kw, **_ol_kw, **_epo_kw, **_cto_kw)
+                                                                **_hl_kw, **_ol_kw, **_epo_kw, **_cto_kw,
+                                                                **_fnf_kw)
             sg.trace["ms_quantify"] = int((time.perf_counter() - _t_quant) * 1000)
             _emit_chains(on_stage, sg)                            # F7 `chain`: the composer has just decided
             if _cblock:

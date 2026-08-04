@@ -34,9 +34,12 @@ into that narration, on both sides:
 
 WHAT IS NOT HERE, AND WHY -- so nobody reads this file as covering more than it does
 ------------------------------------------------------------------------------------
-* **U3's trace key** (`unit_mismatch_guard` on both orchestrator lanes + `eval.py`'s row). Not landed at
-  the time of writing; its non-vacuity twin (present WITH the two units on a mismatch turn, ABSENT on a
-  matched-unit turn) belongs beside `test_decline_overlap.py:150`'s exact-key-set idiom.
+* **U3's trace key**, PARTLY. The orchestrator half landed with the S1 threading wave: `unit_mismatch_guard`
+  is now in all three fixed tuples (numbers_only + both hybrid sites) and section 7.5 pins that COUPLING.
+  The behavioural non-vacuity twin -- present WITH the two units on a mismatch turn, ABSENT on a
+  matched-unit turn, on BOTH lanes -- lives in `test_numbers_stats.py` beside the live guard that mints it,
+  where the cross-unit fixture already exists. `eval.py`'s row projection is still NOT landed, so the key
+  reaches a trace but not yet an eval column.
 * **S5's sentinel re-wording.** `agent.py` and `eval.py` still say "OLDEST rows kept" and three docstrings
   still describe the ASC read; those strings become factually false the moment S1 is promoted. The
   negative half cannot be written green today and pinning the CURRENT wording would pin the defect.
@@ -536,3 +539,398 @@ class TestS1ResortPlacement:
         spec = _series_spec(WASDE, "avg_farm_price", commodity="corn", country="united_states")
         got = Q.run(spec, query_fn=lambda _sql: [dict(r) for r in self.ROWS])
         assert {r["unit"] for r in got} == {_units(WASDE, "avg_farm_price")["corn"]} == {"$/bu"}
+
+
+# ==================================================================================================
+# 7. S1's CALLER GRAPH -- the half a compiled flip is worthless without
+# ==================================================================================================
+# THE DEFECT THIS SECTION EXISTS FOR. Section 6 proves the COMPILER moves when it is told to. It proves
+# nothing about whether anything ever tells it. Before this wave the canary was landed at `query.py` and
+# at `answer._futures_newest_first_on`, and NO CALLER passed it -- so every assertion in section 6 was
+# green while GRAPHRAG_FUTURES_NEWEST_FIRST=on changed not one byte of any served turn. A flag whose
+# enable path is a promise is indistinguishable, from the outside, from a flag that is off.
+#
+# So the pins below are about REACHABILITY, in the two halves the rest of this file uses:
+#   * the ON half -- the seam's bool arrives AT `build_sql` through each chain that can compile a futures
+#     series (the cascade legs, the J4 tape, the numbers agent, /v1/series);
+#   * the OFF half -- every new signature defaults False, so the env var is the rollback rather than a
+#     redeploy, and an omitted kwarg compiles the pre-wave string.
+#
+# THE DELIBERATE GAPS ARE PINNED TOO, because "unflagged by design" and "forgotten" look identical in a
+# diff. Each is pinned by the FACT that makes it structural, never by a comment claiming it is.
+from types import SimpleNamespace as _SNS  # noqa: E402
+
+from leviathan.graphrag.numbers import cascade as CQ  # noqa: E402
+
+_THREADED: tuple = (
+    ("cascade.quantify", CQ.quantify),
+    ("cascade.fetch_window", CQ.fetch_window),
+    ("cascade._run_one", CQ._run_one),
+    ("cascade._tape_read", CQ._tape_read),
+    ("cascade._episode_leg_or_nothing", CQ._episode_leg_or_nothing),
+    ("cascade._episode_outcome_legs", CQ._episode_outcome_legs),
+    ("cascade._price_pair", CQ._price_pair),
+    ("cascade._chain_legs", CQ._chain_legs),
+    ("agent.answer_numbers", NA.answer_numbers),
+    ("agent._esr_aggregate_legs", NA._esr_aggregate_legs),
+    ("query.build_sql", Q.build_sql),
+    ("query.run", Q.run),
+)
+
+_EOD_SPEC_DICT = {"table": EOD, "metric": "settle", "commodity": "corn_cbot", "country": None,
+                  "t1": "2011-01-01", "t2": "2011-12-31", "asof": "2026-06-08", "agg": "series",
+                  "period": None, "period_type": "date", "node_key": None, "leg": None,
+                  "era_idx": None, "my": None}
+
+
+def _sql_spy(monkeypatch) -> list:
+    """Wrap `query.build_sql` and record the canary each compile was ACTUALLY given.
+
+    The spy sits AT THE COMPILER, not at an intermediate signature, deliberately: an intermediate spy
+    proves a parameter was accepted, and the failure this section exists to catch is a parameter that is
+    accepted and then dropped one frame lower. It delegates to the real compiler so the SQL a caller
+    receives is unchanged and a spec that would raise still raises."""
+    seen: list = []
+    real = Q.build_sql
+
+    def _spy(spec, ts=None, *, db=Q.ATHENA_DB, futures_newest_first=False):
+        seen.append(futures_newest_first)
+        return real(spec, ts, db=db, futures_newest_first=futures_newest_first)
+
+    monkeypatch.setattr(Q, "build_sql", _spy)
+    return seen
+
+
+def _cascade_node(contract: str = "wheat", ref: str = "export"):
+    """The test_cascade.py node shape: an id-based GroundedNode stand-in whose `prior` carries a MAPPED
+    silver_ref and whose evidence is dated, which is what `_derive_windows` needs to build era legs."""
+    ev = [{"date": d, "source": "usda_gain", "source_key": f"k{i}", "text": "t", "event_date": None}
+          for i, d in enumerate(("2010-08-05", "2010-11-20"))]
+    return _SNS(contract=contract, id=ref, prior={"silver_ref": ref, "region": "US"}, evidence=ev)
+
+
+def _cascade_sg(nodes):
+    return _SNS(nodes=nodes, trace={}, fired_regimes=[])
+
+
+class _AgentMsgs:
+    def __init__(self, outer):
+        self.outer = outer
+
+    def create(self, **kw):
+        self.outer.sent.append(kw)
+        return self.outer.queue.pop(0)
+
+
+class _FakeAgentClient:
+    """The test_question_shapes fake-client idiom: an INJECTED client takes no provider and no backoff,
+    so `answer_numbers` runs its real loop with zero network."""
+
+    def __init__(self, tool_input: dict, text: str = "ok"):
+        self.queue = [
+            _SNS(content=[_SNS(type="tool_use", name=NA.TOOL_NAME, input=dict(tool_input), id="t1")],
+                 stop_reason="tool_use"),
+            _SNS(content=[_SNS(type="text", text=text)], stop_reason="end_turn")]
+        self.sent: list = []
+        self.messages = _AgentMsgs(self)
+
+
+# A table with no coverage router in front of it, so the lookup ALWAYS reaches the compiler: what these
+# tests measure is that the agent THREADS the canary, not which card it happened to be pointed at.
+_PLAIN_LOOKUP = {"table": "silver_pink_sheet", "metric": "palm_oil_cpo_usd_t", "agg": "series"}
+
+
+# -- 7.1 the OFF half: every new signature defaults False, keyword-only ------------------------------
+class TestS1ThreadingDefaultsOff:
+    def test_every_threaded_signature_defaults_False_and_is_keyword_only(self):
+        """The rollback IS the default, so it is pinned as one. Keyword-only matters as much as the
+        default: these are long positional signatures (`fetch_window` alone takes ten), and a positional
+        bool threaded through them would eventually land in the wrong slot from a caller that never meant
+        to enable anything."""
+        import inspect
+        for name, fn in _THREADED:
+            p = inspect.signature(fn).parameters.get("futures_newest_first")
+            assert p is not None, f"{name} lost the canary kwarg"
+            assert p.default is False, f"{name} defaults ON -- the env var is no longer the rollback"
+            assert p.kind is inspect.Parameter.KEYWORD_ONLY, f"{name} takes the canary positionally"
+
+    def test_omitting_the_kwarg_compiles_the_pre_wave_sql_through_a_real_caller(self, monkeypatch):
+        """The idiom's whole claim, measured at a CALLER rather than at build_sql: a fetch_window that
+        never mentions the canary compiles the byte-identical ASC string."""
+        seen = _sql_spy(monkeypatch)
+        CQ.fetch_window(lambda _sql: [], table=EOD, metric="settle", commodity="corn_cbot",
+                        country=None, t1="2011-01-01", t2="2011-12-31", asof="2026-06-08", agg="series")
+        CQ._run_one(lambda _sql: [], dict(_EOD_SPEC_DICT))
+        CQ._tape_read(lambda _sql: [], slug="corn_cbot", t1="2021-02-15", t2="2021-08-15",
+                      asof="2026-06-08")
+        NA.answer_numbers("palm?", asof="2024-07-01", client=_FakeAgentClient(_PLAIN_LOOKUP),
+                          query_fn=lambda _sql: [])
+        assert seen == [False, False, False, False]
+
+
+# -- 7.2 the ON half, chain by chain -----------------------------------------------------------------
+class TestS1ReachesTheCompiler:
+    """Each test drives ONE mapped chain and reads the canary off the compiler at the far end."""
+
+    def test_the_cascade_leg_chain_through_fetch_window(self, monkeypatch):
+        seen = _sql_spy(monkeypatch)
+        for flag in (False, True):
+            CQ.fetch_window(lambda _sql: [], table=EOD, metric="settle", commodity="corn_cbot",
+                            country=None, t1="2011-01-01", t2="2011-12-31", asof="2026-06-08",
+                            agg="series", futures_newest_first=flag)
+        assert seen == [False, True]
+
+    def test_the_cascade_leg_chain_through_run_one(self, monkeypatch):
+        # `_run_one` is the frame both pool.map waves call, and it UNPACKS a dict spec -- exactly the
+        # shape where a dropped kwarg leaves no trace at the call site.
+        seen = _sql_spy(monkeypatch)
+        CQ._run_one(lambda _sql: [], dict(_EOD_SPEC_DICT), futures_newest_first=True)
+        assert seen == [True]
+
+    def test_the_J4_tape_chain_through_tape_read(self, monkeypatch):
+        # The one read in cascade.py that is UNCONDITIONALLY futures: table and agg are both module
+        # constants, so `_newest_first_applies` is True the moment the canary is.
+        assert CQ._TAPE_TABLE == EOD
+        seen = _sql_spy(monkeypatch)
+        for flag in (False, True):
+            CQ._tape_read(lambda _sql: [], slug="corn_cbot", t1="2021-02-15", t2="2021-08-15",
+                          asof="2026-06-08", futures_newest_first=flag)
+        assert seen == [False, True]
+
+    def test_quantify_hands_the_canary_to_EVERY_leg_helper(self, monkeypatch):
+        """The fan-out frame, and the one worth a dedicated test. `quantify` reaches four read helpers;
+        a partial thread here is worse than no thread at all, because the cascade block would then mix
+        two read shapes inside a single answer with nothing on the page saying so."""
+        got: dict = {}
+        for name in ("_run_one", "_price_pair", "_chain_legs", "_episode_leg_or_nothing"):
+            def _rec(*_a, _n=name, futures_newest_first=False, **_kw):
+                got[_n] = futures_newest_first
+                if _n == "_run_one":
+                    return {"query": {}, "rows": [], "status": "error"}
+                return ([], None, None) if _n == "_chain_legs" else ([], None)
+            monkeypatch.setattr(CQ, name, _rec)
+        CQ.quantify(_cascade_sg([_cascade_node()]), None, qfn=lambda _sql: [], asof="2011-06-01",
+                    near="2010", extra_number_calls=[], price_request={"focus_contract": "wheat"},
+                    chain=True, episode_outcomes=True, futures_newest_first=True)
+        for helper in ("_run_one", "_price_pair", "_chain_legs", "_episode_leg_or_nothing"):
+            assert got.get(helper) is True, f"quantify dropped the canary on the way to {helper}"
+
+    def test_quantify_flag_off_hands_the_same_helper_False(self, monkeypatch):
+        got: dict = {}
+
+        def _rec(_qfn, _spec, *, futures_newest_first=False):
+            got["_run_one"] = futures_newest_first
+            return {"query": {}, "rows": [], "status": "error"}
+
+        monkeypatch.setattr(CQ, "_run_one", _rec)
+        CQ.quantify(_cascade_sg([_cascade_node()]), None, qfn=lambda _sql: [], asof="2011-06-01",
+                    near="2010", extra_number_calls=[])
+        assert got.get("_run_one") is False
+
+    def test_the_episode_leg_carries_it_to_all_THREE_tape_reads(self):
+        """All three or none. The lazy EDGE read exists to re-measure the slug's tape edge with the SAME
+        shape the deep read used; a canary reaching two of the three would compare a newest-first frame
+        against an oldest-first edge and could flip a PENDING verdict on ordering alone."""
+        import inspect
+        src = inspect.getsource(CQ._episode_outcome_legs)
+        assert src.count("_tape_read(") == 3
+        assert src.count("futures_newest_first=futures_newest_first") == 3
+
+    def test_the_numbers_agent_chain_through_answer_numbers(self, monkeypatch):
+        seen = _sql_spy(monkeypatch)
+        for flag in (False, True):
+            NA.answer_numbers("palm?", asof="2024-07-01", client=_FakeAgentClient(_PLAIN_LOOKUP),
+                              query_fn=lambda _sql: [], futures_newest_first=flag)
+        assert seen == [False, True]
+
+    def test_the_esr_aggregate_legs_carry_it_too(self, monkeypatch):
+        # The ESR decline-WITH-aggregate branch mints REAL [N] handles through its own Q.run calls, so it
+        # is a read site like any other even though agg='sum' can never move under the futures scope.
+        seen = _sql_spy(monkeypatch)
+        NA._esr_aggregate_legs({"commodity": "corn", "metric": "gross_new_sales_1000mt",
+                                "period": "2025"}, "2026-06-08", lambda _sql: [],
+                               futures_newest_first=True)
+        assert seen and all(s is True for s in seen)
+
+
+# -- 7.3 the top of each chain: ONE env read, threaded omit-when-off ---------------------------------
+class TestS1SeamIsTheOnlyEnvRead:
+    """D-FR-10's core claim, kept as a census rather than as a docstring."""
+
+    _BELOW_THE_SEAM = ("leviathan.graphrag.numbers.query", "leviathan.graphrag.numbers.cascade",
+                       "leviathan.graphrag.numbers.agent", "leviathan.graphrag.orchestrator",
+                       "leviathan.graphrag.server")
+
+    def test_no_module_below_the_seam_names_the_env_var(self):
+        import importlib
+        import inspect
+        for mod in self._BELOW_THE_SEAM:
+            src = inspect.getsource(importlib.import_module(mod))
+            assert "GRAPHRAG_FUTURES_NEWEST_FIRST" not in src, \
+                f"{mod} names the flag itself -- the seam is no longer the ONE env read"
+
+    def test_every_lane_above_the_seam_reaches_it_BY_NAME(self):
+        # A rename that orphaned one lane would leave that lane permanently off with nothing red.
+        import inspect
+
+        from leviathan.graphrag import answer as AN
+        from leviathan.graphrag import orchestrator as ORCH
+        from leviathan.graphrag import server as SV
+        assert "GRAPHRAG_FUTURES_NEWEST_FIRST" in inspect.getsource(AN._futures_newest_first_on)
+        assert inspect.getsource(ORCH).count("_futures_newest_first_on()") == 2   # numbers_only + hybrid
+        assert "_futures_newest_first_on()" in inspect.getsource(SV.series_route)
+
+    def test_the_orchestrator_threads_it_OMIT_WHEN_OFF(self, monkeypatch):
+        """Mirrors answer.py's `_epo_kw` exactly. Flag off -> the kwarg is ABSENT, not False: that is what
+        keeps the off-turn byte-identical AND keeps an injected answer_numbers fake with the pre-wave
+        signature valid, which is how most of this estate's numbers fixtures are built."""
+        from leviathan.graphrag import orchestrator as ORCH
+        seen: list = []
+
+        def _fake(question, asof, **kw):
+            seen.append(kw.get("futures_newest_first", "ABSENT"))
+            return {"answer": "x", "calls": []}
+
+        monkeypatch.setattr(ORCH.na, "answer_numbers", _fake)
+        monkeypatch.delenv("GRAPHRAG_FUTURES_NEWEST_FIRST", raising=False)
+        ORCH.run_numbers_only("q", "2026-06-08", query_fn=lambda _sql: [])
+        monkeypatch.setenv("GRAPHRAG_FUTURES_NEWEST_FIRST", "on")
+        ORCH.run_numbers_only("q", "2026-06-08", query_fn=lambda _sql: [])
+        assert seen == ["ABSENT", True]
+
+    def test_the_hybrid_lane_reads_the_seam_on_the_CALLING_thread(self):
+        """Not a style point. `_numbers` runs on a worker thread; an env read inside it would let the
+        numbers lane and the walk lane disagree about the read shape within one turn, and would make the
+        rollback racy against an in-flight turn. Pinned by position: the read is above the closure."""
+        import inspect
+        src = inspect.getsource(__import__("leviathan.graphrag.orchestrator",
+                                           fromlist=["x"]).run_hybrid)
+        assert src.index("_futures_newest_first_on()") < src.index("def _numbers()")
+
+    def test_answer_computes_it_ONCE_at_the_quantify_seam(self):
+        """The cascade seam, read off SOURCE: the body is behind `_pgnumbers_live()`, so a live-path
+        harness here would pin the pg breaker rather than the threading."""
+        import inspect
+        import re
+
+        from leviathan.graphrag import answer as AN
+        src = inspect.getsource(AN)
+        assert re.search(r'_fnf_kw\s*=\s*\{"futures_newest_first":\s*True\}\s*'
+                         r'if\s*_futures_newest_first_on\(\)\s*else\s*\{\}', src), \
+            "answer no longer computes the canary once, omit-when-off, at the quantify seam"
+        # The DEFINITION plus exactly ONE call site. A second call site inside this file would be a second
+        # env read per turn, and two reads can disagree -- which is the whole reason the flag has a seam.
+        assert src.count("_futures_newest_first_on()") == 2, \
+            "answer gained (or lost) a seam call site -- expected the def plus exactly one read"
+        assert "**_fnf_kw" in src, "the computed kwarg never reaches cq.quantify"
+
+
+# -- 7.4 the DELIBERATE gaps, pinned so they stay decisions ------------------------------------------
+class TestS1UnflaggedByDesign:
+    """Three CONSTANT-TABLE read sites and two offline tools are NOT threaded. Every omission is pinned by
+    the fact that makes it structural, so the day that fact changes this reds instead of going quietly
+    wrong. `silverleg._rows` is on this list and was NOT on the wave's mapped-sites list -- it is the only
+    serving `Q.run` outside agent/cascade/server, so an audit would flag it first and should find it
+    classified here rather than unexplained."""
+
+    # (site, the tables its callers can actually pass). Every one is a LITERAL at the call site.
+    _CONSTANT_TABLE_SITES = {
+        "cascade._psd_component_rows": ("silver_psd",),
+        "cascade._cot_outcome_read": ("gold_cot_outcomes",),
+        "silverleg._rows": ("silver_psd", "silver_fred_fx", "silver_noaa_oni"),
+    }
+
+    def test_the_constant_table_read_sites_cannot_compile_a_futures_series(self):
+        """`_newest_first_applies` keys on `contract_month_col`. None of the cards these sites can reach
+        declares one, so a threaded canary could not move one byte of their SQL. If any of them grows a
+        delivery-month axis, thread it."""
+        reg = R.load_registry()
+        checked = 0
+        for site, tables in sorted(self._CONSTANT_TABLE_SITES.items()):
+            for table in tables:
+                ts = reg.get(table) if table in reg.tables else None
+                if ts is None:
+                    continue          # gold_cot_outcomes is unregistered until the builder wave lands
+                checked += 1
+                assert getattr(ts, "contract_month_col", None) is None, \
+                    f"{table} now carries a delivery-month axis -- thread the canary to {site}"
+        assert checked >= 3, "the constant-table cards did not resolve -- the pin measured nothing"
+
+    def test_silverleg_really_does_only_read_those_three_tables(self):
+        """ANTI-VACUITY for silverleg's entry above. `_rows` takes `table` as a PARAMETER, so the pin is
+        only true while every caller passes one of the three literals. A fourth caller handing it a
+        futures card would make the pin above vacuously green while the site silently needed the kwarg."""
+        import inspect
+        import re
+
+        from leviathan.graphrag import silverleg as SL
+        src = inspect.getsource(SL)
+        passed = set(re.findall(r'_rows\(query_fn,\s*"([a-z_]+)"', src))
+        assert passed == set(self._CONSTANT_TABLE_SITES["silverleg._rows"]), passed
+        # ...and it really is a single read site, so the census above covers the whole module.
+        assert src.count("Q.run(") == 1
+
+    def test_those_are_the_only_unthreaded_fetch_window_callers(self):
+        """ANTI-VACUITY for the pin above: it is a complete statement of the gap only while no OTHER
+        caller quietly joins it. Every `fetch_window(` call site either passes the canary or is one of
+        the two named constant-table reads."""
+        import inspect
+        src = inspect.getsource(CQ)
+        calls = src.count("fetch_window(qfn,") - 1        # minus the `def fetch_window(qfn, *, ...)` line
+        assert calls == 3, f"a new fetch_window call site appeared ({calls} now) -- classify it"
+        # ...and the two that skip the canary are exactly the two constant-table reads named above.
+        assert 'table="silver_psd"' in src and "table=COT_OUTCOME_TABLE" in src
+
+    def test_the_serving_Q_run_census_is_complete(self):
+        """THE PIN THAT WOULD HAVE CAUGHT silverleg. Every `Q.run(` in the serving tree is either threaded
+        or on the classified list -- counted from SOURCE, so a new read site anywhere reds this until
+        someone decides which it is. That is the whole difference between 'unflagged' and 'forgotten'."""
+        import inspect
+
+        from leviathan.graphrag import server as SV
+        from leviathan.graphrag import silverleg as SL
+        threaded, unthreaded = [], []
+        for name, mod in (("agent", NA), ("cascade", CQ), ("server", SV), ("silverleg", SL)):
+            src = inspect.getsource(mod)
+            i = 0
+            while (i := src.find("Q.run(", i)) != -1:
+                # Balanced-paren scan to the end of the CALL, so a wrapped argument list is read whole --
+                # a line-based census would misread agent.py's wrapped legacy-level read as unthreaded.
+                j, depth = i + len("Q.run("), 1
+                while j < len(src) and depth:
+                    depth += (src[j] == "(") - (src[j] == ")")
+                    j += 1
+                (threaded if "futures_newest_first" in src[i:j] else unthreaded).append(name)
+                i = j
+        assert sorted(threaded) == ["agent", "agent", "agent", "cascade", "cascade", "server"], threaded
+        assert unthreaded == ["silverleg"], (f"an UNCLASSIFIED serving Q.run site exists ({unthreaded}) "
+                                             f"-- thread it, or classify it in 7.4 as silverleg is")
+
+    def test_the_raw_build_sql_tools_stay_unflagged_and_the_contract_says_why(self):
+        """numbers_parity / cascade_census compile with `build_sql` and execute the raw string
+        themselves, so they never reach `run()`'s re-sort. Flagging either without also calling
+        `resort_rows_chronological` would measure the un-re-sorted DESC surface -- which is why the
+        obligation is written into the re-sorter's own docstring rather than into a plan."""
+        doc = Q.resort_rows_chronological.__doc__ or ""
+        assert "numbers_parity" in doc and "cascade_census" in doc
+
+
+# -- 7.5 U3's trace key: the COUPLING half ----------------------------------------------------------
+class TestU3TraceKeyReachesTheWhitelists:
+    """6.1's U3 row. The per-turn behaviour (PRESENT with the two units on a mismatch, ABSENT on a
+    matched-unit turn) is pinned in test_numbers_stats.py against the live guard. What belongs HERE is
+    the coupling: the key reaches an artifact only because three fixed tuples in orchestrator.py name it,
+    and those tuples live in a file this lane does not own -- the exact shape of the C2 defect one wave
+    earlier, where a record was written to a dict nobody read."""
+
+    def test_all_three_orchestrator_whitelists_carry_the_key(self):
+        import inspect
+
+        from leviathan.graphrag import orchestrator as ORCH
+        src = inspect.getsource(ORCH)
+        assert src.count('"unit_mismatch_guard"') == 3, \
+            "an orchestrator whitelist dropped U3's key -- the guard is dark in every artifact again"
+
+    def test_the_key_is_the_one_the_agent_actually_stamps(self):
+        # A whitelist naming a key the engine never writes measures nothing at all.
+        assert NA.UNIT_MISMATCH_TRACE_KEY == "unit_mismatch_guard"

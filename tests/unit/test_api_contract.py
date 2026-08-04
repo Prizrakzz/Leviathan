@@ -87,10 +87,46 @@ def test_series_validation_and_shape(monkeypatch):
     table = next(t for t in reg.tables if reg.get(t).metrics)              # any real table with metrics
     metric = next(iter(reg.get(table).metrics))
     assert c.get(f"/v1/series/{table}/definitely_not_a_metric").status_code == 400   # unknown metric
-    monkeypatch.setattr(Q, "run", lambda spec, query_fn=None: [{"value": "0.09", "period": "2021",
-                                                                "knowledge_date": "2021-07-10"}])
+    # FUTURES_READPATH S1: the route now hands Q.run the canary bool (read at answer's ONE env seam), so
+    # the stub takes it. RECORDED rather than swallowed -- a `**_` here would have let the route drop the
+    # kwarg and still pass, which is the failure mode the whole threading wave exists to prevent.
+    seen: list = []
+
+    def _run(spec, query_fn=None, *, futures_newest_first=False):
+        seen.append(futures_newest_first)
+        return [{"value": "0.09", "period": "2021", "knowledge_date": "2021-07-10"}]
+
+    monkeypatch.setattr(Q, "run", _run)
     body = c.get(f"/v1/series/{table}/{metric}", params={"asof": "2024-01-01"}).json()
     assert body["table"] == table and body["metric"] == metric and body["points"][0]["value"] == "0.09"
+    assert seen == [False], "the /v1/series canary is not threaded (or defaulted ON)"
+
+
+def test_series_route_threads_the_futures_newest_first_canary(monkeypatch):
+    """S1 (D-FR-10) at the ONE user-facing surface that compiles an UNBOUNDED agg='series' read.
+
+    /v1/series sits ABOVE answer.py, so it imports the env seam and passes the bool straight to the
+    compiler -- there is no chain to thread it through. Both sides pinned: with the env off the route
+    passes False (the byte-identical pre-wave compile), with it on the route passes True. Without the
+    ON half a route that hard-coded False would pass the OFF half forever."""
+    from leviathan.graphrag.numbers import query as Q
+    from leviathan.graphrag.numbers.registry import load_registry
+    c = _client(monkeypatch)
+    reg = load_registry()
+    table = next(t for t in reg.tables if reg.get(t).metrics)
+    metric = next(iter(reg.get(table).metrics))
+    seen: list = []
+
+    def _run(spec, query_fn=None, *, futures_newest_first=False):
+        seen.append(futures_newest_first)
+        return []
+
+    monkeypatch.setattr(Q, "run", _run)
+    monkeypatch.delenv("GRAPHRAG_FUTURES_NEWEST_FIRST", raising=False)
+    assert c.get(f"/v1/series/{table}/{metric}").status_code == 200
+    monkeypatch.setenv("GRAPHRAG_FUTURES_NEWEST_FIRST", "on")
+    assert c.get(f"/v1/series/{table}/{metric}").status_code == 200
+    assert seen == [False, True]
 
 
 # ── 1.6 events (PIT kill-switch) ─────────────────────────────────────────────────────────────────────

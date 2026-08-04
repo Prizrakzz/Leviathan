@@ -96,6 +96,16 @@ def _z(latest: float, history: list[float]) -> float | None:
 
 def _rows(query_fn, table: str, metric: str, asof: str, *, commodity=None, country=None, agg="series",
           period_start=None, limit=400) -> list[dict]:
+    """One PIT-safe read for the firing legs.
+
+    FUTURES_READPATH S1 canary (D-FR-10): UNFLAGGED BY DESIGN, and named here so it reads as a decision
+    rather than as a site the threading wave missed. `table` looks caller-supplied but this module has
+    exactly THREE callers and each passes a LITERAL -- silver_psd (_su_ratio, twice), silver_fred_fx
+    (_fx) and silver_noaa_oni (_oni). None of those cards declares `contract_month_col`, and
+    `query._newest_first_applies` keys on exactly that, so the canary could not change one byte of the
+    SQL compiled here. Threading it would add a parameter to a firing-leg helper that can never use it.
+    Pinned in tests/unit/test_futures_readpath_pins.py: if a fourth caller ever hands this a futures
+    card, that pin reds and the kwarg becomes required."""
     from leviathan.graphrag.numbers import query as Q
     spec = Q.NumberQuery(table=table, metric=metric, asof=asof, commodity=commodity, country=country,
                          agg=agg, period_start=period_start, limit=limit)

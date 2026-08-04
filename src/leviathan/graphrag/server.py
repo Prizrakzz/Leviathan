@@ -468,6 +468,7 @@ def regimes_route(contract: str, asof: Optional[str] = Query(None),
 def series_route(table: str, metric: str, commodity: Optional[str] = Query(None),
                  country: Optional[str] = Query(None), asof: Optional[str] = Query(None),
                  ident: dict = Depends(_require_identity)) -> dict:
+    from leviathan.graphrag import answer as an
     from leviathan.graphrag.numbers import query as Q
     from leviathan.graphrag.numbers.registry import load_registry
     asof = asof or _today()
@@ -481,8 +482,19 @@ def series_route(table: str, metric: str, commodity: Optional[str] = Query(None)
     if ts.metrics and metric not in ts.metrics:                   # registry-validated -> never an open query hole
         raise HTTPException(status_code=400, detail=f"unknown metric {metric!r} for {table!r}")
     spec = Q.NumberQuery(table=table, metric=metric, asof=asof, commodity=commodity, country=country, agg="series")
+    # FUTURES_READPATH S1 (D-FR-10). This route sits ABOVE answer.py, so there is nothing to thread the
+    # canary through -- it imports the ONE env seam and hands the bool straight to the compiler. That is the
+    # seam doctrine rather than an exception to it: the flag is still read in exactly one function estate-
+    # wide, and this route never spells the variable's name. Threaded here because /v1/series is the ONE
+    # user-facing surface that compiles an UNBOUNDED agg='series' read with no eval pin behind it -- the
+    # exact shape whose LIMIT 5000 keeps the OLDEST rows and stops an unbounded corn settle series in 2011.
+    # Flag off -> the byte-identical ASC compile this route has always issued.
+    #
+    # Read ABOVE the try, deliberately: inside it, a seam failure would be reported to the UI as
+    # "series query failed", which is the one thing it would not have been.
+    _nf = an._futures_newest_first_on()
     try:
-        rows = Q.run(spec, query_fn=_STATE.get("query_fn"))
+        rows = Q.run(spec, query_fn=_STATE.get("query_fn"), futures_newest_first=_nf)
     except Exception as e:  # noqa: BLE001 — a query failure is a 502, never a 500 stacktrace to the UI
         raise HTTPException(status_code=502, detail=f"series query failed: {type(e).__name__}")
     unit = ts.metrics[metric].unit if (ts.metrics and metric in ts.metrics) else ""

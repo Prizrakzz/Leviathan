@@ -510,10 +510,15 @@ def test_numbers_agent_batch_parallel_preserves_order_and_errors(monkeypatch):
             return types.SimpleNamespace(content=[types.SimpleNamespace(type="text", text="done")])
 
     seen: list[str] = []
+    canary: list = []
 
-    def fake_run(spec, query_fn=None):
+    # FUTURES_READPATH S1: the agent now hands Q.run the threaded `futures_newest_first` bool, so the stub
+    # takes it. RECORDED rather than swallowed with `**_`: the batch path is the one place a threaded kwarg
+    # could be dropped per-worker instead of per-call, and a stub that ignored it would never say so.
+    def fake_run(spec, query_fn=None, *, futures_newest_first=False):
         time.sleep(0.2)                                        # concurrent: wall ~0.2s, serial would be ~0.6s
         seen.append(spec.table)
+        canary.append(futures_newest_first)
         if spec.table == "t1":
             raise RuntimeError("athena hiccup")
         return [{"value": 42, "knowledge_date": "2024-01-01"}]
@@ -533,6 +538,7 @@ def test_numbers_agent_batch_parallel_preserves_order_and_errors(monkeypatch):
     assert [c["status"] for c in calls] == ["ok", "error", "ok"]            # per-call error taxonomy intact
     assert "athena hiccup" in calls[1]["error"]
     assert wall < 0.5                                                       # batch overlapped, not serial
+    assert canary == [False, False, False]      # S1 threaded to EVERY worker in the batch, defaulting off
 
 
 # ── Stage 1.6 WS-A: numbers ∥ walk via the lazy resolver ────────────────────────────────────────────

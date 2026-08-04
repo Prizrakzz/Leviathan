@@ -229,7 +229,8 @@ def _is_vintage(table: str) -> bool:
 
 
 def fetch_window(qfn, *, table, metric, commodity, country, t1, t2, asof,
-                 agg="series", period=None, period_type="date") -> dict:
+                 agg="series", period=None, period_type="date",
+                 futures_newest_first: bool = False) -> dict:
     """One deterministic PIT-safe windowed lookup -> a call-record {query, rows, status}.
 
     PER-LEG asof pinning is the CALLER's responsibility (quantify): a historical/era leg passes
@@ -239,7 +240,16 @@ def fetch_window(qfn, *, table, metric, commodity, country, t1, t2, asof,
     GRACEFUL DEGRADATION (R6): EVERY failure path -- a NumberQuery/build_sql validation error (bad metric,
     malformed MY, a country that fails _canon_country), a pg/Athena outage, a timeout -- returns a
     call-record with status='error' and rows=[]. It NEVER raises, so _run_one / pool.map / the seam cannot
-    unwind the reasoning turn."""
+    unwind the reasoning turn.
+
+    `futures_newest_first` is the FUTURES_READPATH S1 canary (D-FR-10), threaded from
+    `answer._futures_newest_first_on()` down quantify -> _run_one -> here as an ARGUMENT -- NEVER an env
+    read inside cascade.py (the pace/price_request/episode_outcomes discipline). That discipline is
+    ENFORCED, not merely written down: test_transmission_chain scans this file's SOURCE for the env-access
+    tokens, so even naming one in a comment reds the suite -- which is why this paragraph says "env read"
+    and not the call it is naming. Default False -> Q.run compiles the byte-identical ASC total order it
+    compiled before the wave. This is the GENERIC seam: `table` is a caller-supplied value, so a node whose
+    silver_ref maps to silver_futures_eod reaches the futures series branch through THIS function."""
     # window clamp: SECONDARY belt only (R3). The PRIMARY future-guidance clamp lives in _derive_windows,
     # which bounds window_end to min(episode_end, session_asof) BEFORE it becomes this leg's asof.
     t2c = min(t2, asof) if (t2 and asof) else t2
@@ -251,7 +261,7 @@ def fetch_window(qfn, *, table, metric, commodity, country, t1, t2, asof,
         kw = _window_kwargs(period_type, t1, t2c, period)
         spec = Q.NumberQuery(table=table, metric=metric, asof=asof, commodity=commodity,
                              country=country, agg=agg, **kw)
-        rows = Q.run(spec, query_fn=qfn)
+        rows = Q.run(spec, query_fn=qfn, futures_newest_first=futures_newest_first)
     except Exception as e:  # noqa: BLE001 -- a bad/slow lookup must NEVER kill the reasoning turn
         return {"query": q, "rows": [], "status": "error", "error": str(e)[:200]}
     return {"query": q, "rows": rows, "status": _status(rows, vintage=vintage)}
@@ -863,12 +873,16 @@ def _node_specs(n, row, commodity, country, eras, asof, *, pace: bool = False) -
     return specs
 
 
-def _run_one(qfn, spec: dict) -> dict:
-    """Unpack a spec and fetch; NEVER raises (a malformed spec returns an error record, R6)."""
+def _run_one(qfn, spec: dict, *, futures_newest_first: bool = False) -> dict:
+    """Unpack a spec and fetch; NEVER raises (a malformed spec returns an error record, R6).
+
+    `futures_newest_first` (S1 canary) rides straight through to fetch_window; default False keeps every
+    existing call byte-identical, including the two-positional-arg lambdas in the pool.map waves."""
     try:
         rec = fetch_window(qfn, table=spec["table"], metric=spec["metric"], commodity=spec["commodity"],
                            country=spec["country"], t1=spec["t1"], t2=spec["t2"], asof=spec["asof"],
-                           agg=spec["agg"], period=spec["period"], period_type=spec["period_type"])
+                           agg=spec["agg"], period=spec["period"], period_type=spec["period_type"],
+                           futures_newest_first=futures_newest_first)
     except Exception as e:  # noqa: BLE001
         rec = {"query": {}, "rows": [], "status": "error", "error": str(e)[:200]}
     rec["node_key"] = spec.get("node_key")
@@ -979,16 +993,22 @@ def _pair_units(groups: list) -> tuple:
 _BLOCK_HEADER = "OBSERVED CASCADE NUMBERS (as-known at each leg's asof; the record then vs now):\n"
 
 
-def _episode_leg_or_nothing(sg, qfn, asof, calls: list) -> tuple:
+def _episode_leg_or_nothing(sg, qfn, asof, calls: list, *, futures_newest_first: bool = False) -> tuple:
     """Run the J4 episode leg and write its trace; `([], [])` on any failure. R6 belt at the ONE place
     both `quantify` return paths reach it, so an outcomes failure degrades to the absence branch the
     episodes persona already treats as normal, and never to a broken turn.
 
     The trace key is written whenever the leg produced ANY record -- including a turn where every window
     declined. That is deliberate: for this leg a decline is the expected answer, so `fired == bool(key)`
-    would be the wrong reading and an absent key must mean "the leg did not run"."""
+    would be the wrong reading and an absent key must mean "the leg did not run".
+
+    `futures_newest_first` (S1 canary) rides through to the tape reads. It is threaded HERE rather than
+    read here for the same reason the flag itself exists at ONE seam: this helper has two call sites in
+    quantify (the all-dark early return and the post-engine append) and a flag read at each would be two
+    reads that can disagree within one turn."""
     try:
-        lines, trace = _episode_outcome_legs(sg, qfn, asof, calls, len(calls))
+        lines, trace = _episode_outcome_legs(sg, qfn, asof, calls, len(calls),
+                                             futures_newest_first=futures_newest_first)
     except Exception:  # noqa: BLE001 -- R6: never break the v1 answer
         return [], []
     if trace:
@@ -1003,7 +1023,7 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
              comove: bool = False, price_request: dict | None = None, pace: bool = False,
              chain: bool = False, transmission: bool = False, outlook: bool = False,
              headline: bool = False, episode_outcomes: bool = False,
-             cot_outcomes: bool = False) -> tuple:
+             cot_outcomes: bool = False, futures_newest_first: bool = False) -> tuple:
     """Select grounded nodes with mapped refs, derive analogue-era windows from their dated props, build
     per-node leg GROUPS (era legs + a current rhyme leg), detect cross-country REROUTE pairs (RF-3:
     natural two-node pairs + the synthesized primary-country beneficiary), cap on WHOLE pair-atomic
@@ -1015,6 +1035,23 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
     ARGUMENTS (the pace/price_request discipline -- NEVER an env read inside cascade.py), see the R9 gate
     and _set_headline below. `episode_outcomes` (OUTCOMES_JOIN J4) and `cot_outcomes` (J6) follow the
     same omit-when-off idiom: both default False, so a call that does not pass them is byte-identical.
+
+    `futures_newest_first` (FUTURES_READPATH S1, D-FR-10) is the SAME idiom for the SAME reason, one layer
+    lower: read at `answer._futures_newest_first_on()` and threaded here, so this module still performs no
+    env read of any kind. It reaches every read below that can compile a FUTURES SERIES -- the cascade leg
+    wave (_run_one -> fetch_window), the price pair, the vertical chain engine, and the J4 tape reads --
+    and, by construction, NOT the reads whose table is a compile-time constant with no `contract_month_col`:
+
+      * `_psd_component_rows` -> fetch_window(table="silver_psd"), reached through _world_su_ratio /
+        _leg_world_deltas from the RV2 + transmission engines;
+      * `_cot_outcome_read`  -> fetch_window(table=COT_OUTCOME_TABLE = "gold_cot_outcomes").
+
+    Those two are UNFLAGGED BY DESIGN, on the same footing as numbers_parity/cascade_census: their table is
+    a literal in this file, `_newest_first_applies` keys on `ts.contract_month_col`, and neither card
+    declares one -- so a threaded flag could not change one byte of their SQL, and a five-deep signature
+    change through the PSD chain would buy churn instead of coverage. It is a MEASURED omission, not an
+    assumed one: test_futures_readpath_pins pins that both tables' cards carry no contract_month_col, so
+    the day either one grows a delivery-month axis the pin reds and this paragraph is what gets read.
     Never raises (R6 -- the seam also belts it)."""
     _set_headline(headline)
     groups = []
@@ -1080,7 +1117,8 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
         # coverage tracked something unrelated to episodes. Flag off -> the kwarg is absent -> this branch
         # is byte-identical to today (no read, no line, no trace key).
         if episode_outcomes:
-            e_lines, e_trace = _episode_leg_or_nothing(sg, qfn, asof, extra_number_calls)
+            e_lines, e_trace = _episode_leg_or_nothing(sg, qfn, asof, extra_number_calls,
+                                                       futures_newest_first=futures_newest_first)
             if e_lines:
                 return _BLOCK_HEADER + "\n".join(e_lines), [], []
         return None, [], []                                       # both flags False -> byte-identical early
@@ -1109,7 +1147,8 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
     from leviathan.graphrag.pgstore import _POOL_SIZE
     width = max(1, min(_POOL_SIZE, len(flat)))
     with ThreadPoolExecutor(max_workers=width) as pool:
-        records = list(pool.map(lambda s: _run_one(qfn, s), flat))   # order preserved; _run_one never raises
+        records = list(pool.map(                                     # order preserved; _run_one never raises
+            lambda s: _run_one(qfn, s, futures_newest_first=futures_newest_first), flat))
     base = len(extra_number_calls)
     block_lines, trace, era_deltas = _assemble(records, kept, base, extra_number_calls)
     # T2a pace legs (CONVERGENCE_TIER1): gated ONLY by the answer.py-threaded `pace` kwarg
@@ -1176,7 +1215,8 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
     # FIRE the engine WRITES quantify_price_leg itself (twin of the xc seam) and appends its '## The record' block.
     if price_request:
         p_lines, p_trace = _price_pair(price_request, sg, graph, groups, qfn, asof, near,
-                                       extra_number_calls, len(extra_number_calls))
+                                       extra_number_calls, len(extra_number_calls),
+                                       futures_newest_first=futures_newest_first)
         if p_trace:
             try:
                 sg.trace["quantify_price_leg"] = p_trace
@@ -1207,7 +1247,9 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
     # BOTH keys absent (zero-cost turns stay zero-trace).
     block_lines = block_lines + _xmit_lines
     if chain and not _xmit_fired:                                 # D11: at most ONE chain engine per turn
-        c_lines, c_trace, c_decline = _chain_legs(sg, graph, kept, records, qfn, asof, near, extra_number_calls)
+        c_lines, c_trace, c_decline = _chain_legs(sg, graph, kept, records, qfn, asof, near,
+                                                  extra_number_calls,
+                                                  futures_newest_first=futures_newest_first)
         if c_trace:
             try:
                 sg.trace["quantify_chain"] = c_trace
@@ -1228,7 +1270,8 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
     # xc/pace idiom: fired == bool(key)); a turn where every window declined still writes the key,
     # because a recorded decline is the whole point of a leg whose normal answer is an absence.
     if episode_outcomes:
-        block_lines = block_lines + _episode_leg_or_nothing(sg, qfn, asof, extra_number_calls)[0]
+        block_lines = block_lines + _episode_leg_or_nothing(
+            sg, qfn, asof, extra_number_calls, futures_newest_first=futures_newest_first)[0]
     # OUTCOMES JOIN J6 -- the COT OUTCOME PAIRING, CONTEXT LANE ONLY (D-OJ-17/18). Gated on the threaded
     # `cot_outcomes` kwarg AND on `not outlook` AND on a positioning context leg having actually
     # rendered. All three, because D1's ratified text is a SPLIT and the half most easily dropped is the
@@ -2111,7 +2154,12 @@ def _release_of(row: dict) -> str | None:
 def _psd_component_rows(qfn, slug: str, metric: str, my: int, asof) -> list:
     """PIT-safe per-country rows for a WIDE-PSD component metric at (slug, MY), as-known at asof: country=None
     -> every country's latest vintage <= asof, via the SAME keyed fetch_window path a cascade leg uses (same
-    as-of guard, same sargable-partition discipline). Never raises (fetch_window degrades to rows=[])."""
+    as-of guard, same sargable-partition discipline). Never raises (fetch_window degrades to rows=[]).
+
+    S1 canary: UNFLAGGED BY DESIGN (see quantify's docstring). `table` is the literal "silver_psd" below,
+    whose card declares no `contract_month_col`, so `_newest_first_applies` is False for every spec this
+    function can build -- passing the canary down the five-deep PSD chain could not change one byte of SQL.
+    Pinned in test_futures_readpath_pins, so the omission is measured rather than assumed."""
     rec = fetch_window(qfn, table="silver_psd", metric=metric, commodity=slug, country=None,
                        t1=None, t2=None, asof=asof, agg="series", period=my, period_type="marketing_year")
     return rec.get("rows") or []
@@ -2523,7 +2571,8 @@ def _price_call(commodity: str, region: str, value: float, my_label: str, asof, 
             "rows": [{"value": round(float(value), 4), "unit": unit}], "status": "ok"}
 
 
-def _price_pair(price_request: dict, sg, graph, groups: list, qfn, asof, near, calls: list, base: int) -> tuple:
+def _price_pair(price_request: dict, sg, graph, groups: list, qfn, asof, near, calls: list, base: int,
+                *, futures_newest_first: bool = False) -> tuple:
     """SEAM B synthesis. The settled US farm-price consequence pair for the FOCUS contract over its nearest
     analogue-era window's MY span. Returns (block_lines, fired) -- ([], None) on ANY honest decline: no map
     (market-price/non-US slug), no derived focus window, <2 MYs, or either endpoint not status=='ok' (PAIR-
@@ -2551,7 +2600,8 @@ def _price_pair(price_request: dict, sg, graph, groups: list, qfn, asof, near, c
                           "country": _farm_region(commodity, my), "period_type": "marketing_year", "my": my,
                           "period": _my_slash(my), "agg": "latest", "asof": asof, "t1": None, "t2": None,
                           "node_key": None, "leg": ("price", None), "era_idx": None})
-        recs = [_run_one(qfn, s) for s in specs]                  # 2 fetches at SESSION asof (settled actual)
+        recs = [_run_one(qfn, s, futures_newest_first=futures_newest_first)   # 2 fetches at SESSION asof
+                for s in specs]                                              # (settled actual)
         if any(r.get("status") != "ok" for r in recs):
             return [], None                                       # pair-atomic: both settle or the pair declines
         p_a, p_b = _float_val(recs[0]), _float_val(recs[1])
@@ -2825,7 +2875,8 @@ def _chain_marker(path: str, window: str) -> str:
             f"record -- direction, attribution, and any price read are the analyst's interpretation.")
 
 
-def _chain_legs(sg, graph, kept: list, records: list, qfn, asof, near, calls: list) -> tuple:
+def _chain_legs(sg, graph, kept: list, records: list, qfn, asof, near, calls: list,
+                *, futures_newest_first: bool = False) -> tuple:
     """The chain engine (secs 2-4). Returns (lines, fired_trace, decline_trace):
       * (lines, {...}, None) -> quantify writes sg.trace['quantify_chain'] (fired == bool(trace key));
       * ([], None, {...})    -> quantify writes sg.trace['quantify_chain_decline'] (attempted-and-declined, D7);
@@ -2932,7 +2983,8 @@ def _chain_legs(sg, graph, kept: list, records: list, qfn, asof, near, calls: li
             from leviathan.graphrag.pgstore import _POOL_SIZE
             width = max(1, min(_POOL_SIZE, len(need)))
             with ThreadPoolExecutor(max_workers=width) as pool:
-                for s, rec in zip(need, pool.map(lambda sp: _run_one(qfn, sp), need)):
+                for s, rec in zip(need, pool.map(
+                        lambda sp: _run_one(qfn, sp, futures_newest_first=futures_newest_first), need)):
                     fetched[id(s)] = rec
 
         def _rec_for(spec):
@@ -3448,19 +3500,29 @@ def _episode_slug(node) -> str | None:
         return None
 
 
-def _tape_read(qfn, *, slug: str, t1: str, t2: str, asof, contract_months=None) -> tuple:
+def _tape_read(qfn, *, slug: str, t1: str, t2: str, asof, contract_months=None,
+               futures_newest_first: bool = False) -> tuple:
     """ONE bounded `silver_futures_eod` read -> `(rows, saturated)`. NEVER raises.
 
     `contract_months` compiles to the card's delivery-month IN(...) filter, which is what keeps the deep
     read at ~1 row/session/expiry. `saturated` is True when the read came back at the row cap: the
     compile is `ORDER BY <chronological ASC> ... LIMIT n`, so a truncated read loses the NEWEST sessions
-    -- the endpoint half of every move -- and the caller must decline rather than measure."""
+    -- the endpoint half of every move -- and the caller must decline rather than measure.
+
+    `futures_newest_first` is the S1 canary (D-FR-10), threaded from `answer._futures_newest_first_on()`
+    down quantify -> _episode_leg_or_nothing -> _episode_outcome_legs -> here. THIS IS THE ONE READ IN
+    THIS FILE THAT IS UNCONDITIONALLY FUTURES: `_TAPE_TABLE` is silver_futures_eod, `agg='series'`, so
+    `_newest_first_applies` is True the moment the kwarg is True and the truncation direction above
+    INVERTS -- a saturated read then loses the OLDEST sessions instead. `saturated` is unchanged as a
+    decline either way (Q.run re-sorts the rows back to ascending before the caller sees them, so the
+    frame builder and the `>= EPISODE_TAPE_ROW_CAP` compare are both flag-agnostic), which is why the
+    canary can flip here without moving what a truncated window is allowed to claim."""
     try:
         spec = Q.NumberQuery(table=_TAPE_TABLE, metric=_TAPE_METRIC, asof=asof, commodity=str(slug),
                              country=None, agg="series", period_start=t1, period_end=t2,
                              limit=EPISODE_TAPE_ROW_CAP,
                              contract_month=(",".join(contract_months) if contract_months else None))
-        rows = Q.run(spec, query_fn=qfn) or []
+        rows = Q.run(spec, query_fn=qfn, futures_newest_first=futures_newest_first) or []
     except Exception:  # noqa: BLE001 -- a bad/slow lookup must NEVER kill the reasoning turn (R6)
         return [], False
     return rows, len(rows) >= EPISODE_TAPE_ROW_CAP
@@ -3552,8 +3614,15 @@ def _episode_outcome_line(n: int, slug: str, res: dict, span: str, asof) -> str:
             f"(one delivery month held at both ends, as-of {asof}): {pct:+g} %" + _series_tag(q))
 
 
-def _episode_outcome_legs(sg, qfn, asof, calls: list, base: int) -> tuple:
+def _episode_outcome_legs(sg, qfn, asof, calls: list, base: int, *,
+                          futures_newest_first: bool = False) -> tuple:
     """J4 -- price the injected episode windows. Returns `(lines, trace)`; NEVER raises.
+
+    `futures_newest_first` is the S1 canary, threaded from `answer._futures_newest_first_on()` and passed
+    to ALL THREE `_tape_read` calls below -- the curve read, the deep read and the LAZY edge read. All
+    three or none: the edge read exists to re-measure the slug's tape edge with the SAME shape the deep
+    read used, so a flag that reached two of the three would compare a newest-first frame against an
+    oldest-first edge and could flip a PENDING verdict on ordering alone.
 
     THE WINDOWS ARE READ LIVE, from `sg.trace['episodes_injected']` as `_l2_blocks` stamped it this
     turn. Nothing is cached and no span is baked anywhere: the artifact-wave interlock is that episode
@@ -3636,10 +3705,12 @@ def _episode_outcome_legs(sg, qfn, asof, calls: list, base: int) -> tuple:
             budget -= 1
             lo = _iso_shift(t1, -OC.OUTCOME_LOOKBACK_DAYS)
             hi = _iso_shift(t2, OC.SURVIVE_DAYS + OC.OUTCOME_LOOKBACK_DAYS)
-            curve, sat_a = _tape_read(qfn, slug=slug, t1=lo, t2=t1, asof=asof)
+            curve, sat_a = _tape_read(qfn, slug=slug, t1=lo, t2=t1, asof=asof,
+                                      futures_newest_first=futures_newest_first)
             months = _episode_candidates(curve, t2)
             deep, sat_b = _tape_read(qfn, slug=slug, t1=lo, t2=hi, asof=asof,
-                                     contract_months=months or None)
+                                     contract_months=months or None,
+                                     futures_newest_first=futures_newest_first)
             if sat_a or sat_b:
                 entry.update(status="declined", reason=EP_DECLINE_READ_TRUNCATED)
                 trace.append(entry)
@@ -3666,7 +3737,8 @@ def _episode_outcome_legs(sg, qfn, asof, calls: list, base: int) -> tuple:
                 # under the cap) and it is LAZY -- it fires only in the ambiguous branch, which needs
                 # every candidate month to have stopped printing. A saturated or empty edge read leaves
                 # the conservative PENDING verdict exactly as it was.
-                edge_rows, sat_c = _tape_read(qfn, slug=slug, t1=t2, t2=hi, asof=asof)
+                edge_rows, sat_c = _tape_read(qfn, slug=slug, t1=t2, t2=hi, asof=asof,
+                                              futures_newest_first=futures_newest_first)
                 edge_frame = _tape_frame(slug, edge_rows)
                 edge = (OC.tape_edges(edge_frame) or {}).get(str(slug)) if len(edge_frame) else None
                 entry["slug_tape_edge"] = str(edge) if edge else None
@@ -3799,6 +3871,10 @@ def _cot_outcome_read(qfn, *, slug: str, event_date: str, horizon_days: int, aso
         # A TIMING fact, decided by the clamp rather than by an empty result set.
         return []
     hi = _iso_shift(event_date, int(horizon_days) + COT_OUTCOME_ENDPOINT_MARGIN_DAYS)
+    # S1 canary: UNFLAGGED BY DESIGN (see quantify's docstring). COT_OUTCOME_TABLE is a module constant
+    # ('gold_cot_outcomes') whose card declares no `contract_month_col` -- and per the paragraph above,
+    # this site reading silver_futures_eod would be the D-OJ-18 fence exit, not a threading gap. So the
+    # canary is structurally inapplicable here, and test_futures_readpath_pins pins that it stays so.
     rec = fetch_window(qfn, table=COT_OUTCOME_TABLE, metric=COT_OUTCOME_METRIC, commodity=str(slug),
                        country=None, t1=str(event_date)[:10], t2=hi, asof=asof, agg="series",
                        period=None, period_type="date")

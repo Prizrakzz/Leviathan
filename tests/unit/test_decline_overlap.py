@@ -164,6 +164,10 @@ def test_the_record_keys_are_still_the_ones_the_trace_whitelists_carry():
     from leviathan.graphrag import orchestrator as orch
 
     tup = '"question_shape", "shape_metric_states", "shape_decline_guard"'
+    # STILL 3, and deliberately so. The FUTURES_READPATH U3 wiring appended `"unit_mismatch_guard"` to all
+    # three tuples, which leaves this substring intact as their prefix -- a whitelist may GROW without
+    # touching what C2 depends on. What the count still catches is the thing it was written for: a tuple
+    # that drops, reorders or re-spells one of C2's three keys.
     assert inspect.getsource(orch).count(tup) == 3, "an orchestrator C2 whitelist moved -- see :100/:308/:339"
     assert '(out.get("trace") or {}).get("shape_decline_guard")' in inspect.getsource(ev)
 

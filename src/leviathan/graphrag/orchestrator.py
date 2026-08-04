@@ -52,8 +52,14 @@ def run_numbers_only(query: str, asof: str, *, client=None, model: str = na.HAIK
                      graph=None, contracts=None, families=None) -> dict:
     import time as _time
     _tn = _time.perf_counter()                                      # F0: MsNumbers on the numbers_only route
+    # FUTURES_READPATH S1 (D-FR-10): the env is read at answer's ONE seam and threaded DOWN as the
+    # omit-when-off kwarg (the `_xc`/`_ol` idiom this file already uses). Read ONCE here so a turn cannot
+    # disagree with itself, and OMITTED when off so the flag-off call is byte-identical and an injected
+    # answer_numbers fake with the older signature stays valid.
+    _fnf = {"futures_newest_first": True} if an._futures_newest_first_on() else {}
     # B1: `families` is the planner's data_families, already kill-switch-gated by the caller (None when off).
-    out = na.answer_numbers(query, asof, client=client, model=model, query_fn=query_fn, families=families)
+    out = na.answer_numbers(query, asof, client=client, model=model, query_fn=query_fn, families=families,
+                            **_fnf)
     _ms_numbers = int((_time.perf_counter() - _tn) * 1000)
     cits = cit.unify(None, out.get("calls"))
     _raw = out.get("answer", "")                                    # DP-6: raw pre-sanitize agent text
@@ -95,9 +101,15 @@ def run_numbers_only(query: str, asof: str, *, client=None, model: str = na.HAIK
     # dict and were dropped here, so "the record the four miss states need" was written to a dict nobody
     # read -- no eval pin, no EMF counter, no baseline column. They ride this SAME whitelist; absent (a
     # shapeless question, the common case) -> the trace is byte-identical.
+    #
+    # U3 (FUTURES_READPATH): `unit_mismatch_guard` joins the SAME whitelist and for the sharpest version of
+    # the same reason. The unit guard's refusal is MODEL-FACING ONLY -- it never enters `calls`, so it
+    # reaches no citation, no footer and no reader. agent.py:1812 stamps the key precisely because that
+    # makes it the only observable half; until this line it was written to a dict nobody read, which is the
+    # C2 defect one wave later. Absent on every turn the guard did not fire -> byte-identical.
     for _gk in ("esr_destination_guard", "price_decline_guard", "pattern_records", "period_mismatch_guard",
                 "futures_coverage_guard",      # W3.2: the silver_futures_eod coverage verdict (legacy/decline)
-                "question_shape", "shape_metric_states", "shape_decline_guard"):
+                "question_shape", "shape_metric_states", "shape_decline_guard", "unit_mismatch_guard"):
         if out.get(_gk) is not None:
             _trace[_gk] = out[_gk]
     return {"answer": body, "intent": "numbers_only",
@@ -240,6 +252,13 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
     `families` is the planner's data_families steering hint, kill-switch-gated by the caller."""
     import concurrent.futures as cf
 
+    # FUTURES_READPATH S1 (D-FR-10): read at answer's ONE seam, ONCE, on the CALLING thread -- before the
+    # worker below is submitted. Deliberately not inside `_numbers`: that body runs on a pool thread, and a
+    # per-thread env read would let the numbers lane and the walk lane disagree about the read shape within
+    # a single turn (and would make the flip's rollback racy against an in-flight turn). Omit-when-off, so
+    # the flag-off submit is byte-identical and an injected answer_numbers fake keeps its old signature.
+    _fnf = {"futures_newest_first": True} if an._futures_newest_first_on() else {}
+
     def _numbers() -> dict:
         # Per-lookup progress ticks (5.6 W5): {calls, running, table} while the agent works, then the
         # final completion event below. on_call stays None on non-streamed callers -> byte-identical.
@@ -249,7 +268,7 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
         _tn = _time.perf_counter()                                # W6.1-0: numbers-agent duration (MsNumbers)
         try:
             nums = na.answer_numbers(numbers_query or query, asof, client=client, model=numbers_model,
-                                     query_fn=query_fn, on_call=on_call, families=families)
+                                     query_fn=query_fn, on_call=on_call, families=families, **_fnf)
         except Exception as e:  # noqa: BLE001 — numbers must never take the note down with it
             nums = {"calls": [], "error": str(e)[:200]}
         nums["_ms_numbers"] = int((_time.perf_counter() - _tn) * 1000)
@@ -305,7 +324,10 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
         # nums['answer'], which this path never reads); the record must not be, or the miss states are
         # unobservable on the very lane §2.4(a) measured them on (all three positioning rows pin
         # expected_intent: [reasoning, hybrid]).
-        for _sk in ("question_shape", "shape_metric_states", "shape_decline_guard"):
+        # U3 rides this tuple too: the unit guard is lane-independent (it fires inside answer_numbers,
+        # which BOTH lanes call), and on hybrid its refusal is even less reachable than C2's -- the
+        # agent's prose is discarded here, so the trace key is the ONLY place the fire is visible.
+        for _sk in ("question_shape", "shape_metric_states", "shape_decline_guard", "unit_mismatch_guard"):
             holder[_sk] = nums.get(_sk)
         holder["ms_numbers"] = nums.get("_ms_numbers")            # W6.1-0: numbers-agent duration (MsNumbers)
         return "\n\n".join(x for x in (extra_context, _numbers_block(calls)) if x), calls
@@ -336,7 +358,8 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
         out.setdefault("trace", {})["futures_decline_guard"] = holder["futures_decline"]
     if holder.get("pattern_records") is not None:
         out.setdefault("trace", {})["pattern_records"] = holder["pattern_records"]   # T2b D2, see _resolve
-    for _sk in ("question_shape", "shape_metric_states", "shape_decline_guard"):     # C2 (F5), see _resolve
+    for _sk in ("question_shape", "shape_metric_states", "shape_decline_guard",      # C2 (F5), see _resolve
+                "unit_mismatch_guard"):                                              # U3, see _resolve
         if holder.get(_sk) is not None:
             out.setdefault("trace", {})[_sk] = holder[_sk]
     if holder.get("ms_numbers") is not None:

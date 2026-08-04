@@ -248,7 +248,8 @@ def _fmt_esr_num(v) -> Optional[str]:
     return f"{f:,.1f}"
 
 
-def _esr_aggregate_legs(esr_query: dict, asof: str, query_fn) -> list[dict]:
+def _esr_aggregate_legs(esr_query: dict, asof: str, query_fn, *,
+                        futures_newest_first: bool = False) -> list[dict]:
     """The two SUPPORTED aggregate ESR reads for the generic destination-breakdown decline: total
     marketing-year export sales (agg=sum over the MY, across all destinations) and the prior-MY
     same-metric read (the pace-vs-prior-year comparison the tool already supports). Commodity + metric +
@@ -256,7 +257,13 @@ def _esr_aggregate_legs(esr_query: dict, asof: str, query_fn) -> list[dict]:
     to the as-of calendar year; an unrecognized metric falls back to gross_new_sales). Each leg runs
     through the normal query path so its rows carry real provenance. A leg that errors (e.g. no commodity
     to scope the partition) or yields no value is DROPPED -- never fabricated -- so [] means fall back to
-    the plain preface decline."""
+    the plain preface decline.
+
+    `futures_newest_first` is the FUTURES_READPATH S1 canary (D-FR-10), threaded from
+    `answer._futures_newest_first_on()` via answer_numbers -- NEVER an os.environ read here. Both legs
+    below are agg='sum' on silver_esr, so `_newest_first_applies` is False for either spec whatever the
+    flag says; it is threaded anyway because these are Q.run calls on the numbers lane and the doctrine
+    is that the seam reaches every one of them, not only the ones that can move today."""
     commodity = esr_query.get("commodity")
     metric = esr_query.get("metric")
     if metric not in _ESR_METRICS:
@@ -273,7 +280,7 @@ def _esr_aggregate_legs(esr_query: dict, asof: str, query_fn) -> list[dict]:
             inp["commodity"] = commodity
         try:
             spec = _forced_spec(asof, inp)
-            rows = Q.run(spec, query_fn=query_fn)
+            rows = Q.run(spec, query_fn=query_fn, futures_newest_first=futures_newest_first)
         except Exception:  # noqa: BLE001 -- a failed aggregate leg is dropped, not fatal
             continue
         vals = [r for r in rows if r.get("value") not in (None, "")]
@@ -1725,7 +1732,7 @@ def _forced_spec(asof: str, inp: dict) -> Q.NumberQuery:
 
 def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU, reg: Optional[NumbersRegistry] = None,
                    query_fn=None, max_calls: int = 6, max_tokens: int = 1500, on_call=None,
-                   families: Optional[list] = None) -> dict:
+                   families: Optional[list] = None, futures_newest_first: bool = False) -> dict:
     """Run the agent loop. `client` = an anthropic.Anthropic (real = billed); `query_fn(sql)->rows` overrides Athena
     (tests). Returns {answer, calls:[{query, rows}]} — calls carry the exact provenance behind every number.
     `on_call(n_calls, table)` (default None = byte-identical) fires after each executed lookup — the SSE
@@ -1734,7 +1741,15 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
     `families` (B1, default None = byte-identical) are the planner's data_families: a steering HINT appended
     to the user turn naming which observed-data tables were flagged as implicated. The orchestrator reads the
     kill-switch and passes the list or nothing — this function reads no environment for it, so the engine is
-    gated by the ARGUMENT and a mis-plumbed enable can never steer an unasked turn."""
+    gated by the ARGUMENT and a mis-plumbed enable can never steer an unasked turn.
+
+    `futures_newest_first` (FUTURES_READPATH S1, D-FR-10) follows the SAME contract, for the same reason:
+    the env is read at ONE seam, `answer._futures_newest_first_on()`, and the orchestrator threads the bool
+    down to both of this lane's entry points (run_numbers_only and run_hybrid's worker thread). This
+    function reads no environment for it either, so a mis-plumbed enable cannot flip the read shape on a
+    turn nobody asked for. DEFAULT FALSE -> every Q.run below compiles the byte-identical ASC total order,
+    which is the rollback. It reaches all THREE reads on this lane: the executor's main lookup, the W3.2
+    legacy-level rewrite beside it, and the ESR aggregate legs."""
     reg = reg or load_registry()
     if client is None:                             # real serving path -> provider-routed + retried
         from leviathan.graphrag import providers as pv
@@ -1855,7 +1870,8 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                     # through the normal lookup path so the citation verifier accepts them. This REPLACES
                     # the model's prose (which declines to zero numbers) with a deterministic answer.
                     esr_q = next((c.get("query") or {} for c in calls if _is_esr_call(c)), {})
-                    legs = _esr_aggregate_legs(esr_q, asof, query_fn)
+                    legs = _esr_aggregate_legs(esr_q, asof, query_fn,
+                                               futures_newest_first=futures_newest_first)
                     indexed: list[tuple[int, dict]] = []
                     for leg in legs:
                         calls.append(leg)                          # real provenance appended in call order
@@ -1986,12 +2002,14 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                     # ABOUT, not at the harness as-of.
                     _win = futures_eod_read_window(spec, _cov_date(_floor, end=False), ask_win)
                     legacy = _legacy_level_spec(spec, _win[1])
-                    _lrows = [r for r in Q.run(legacy, query_fn=query_fn) if r.get("value") not in (None, "")]
+                    _lrows = [r for r in Q.run(legacy, query_fn=query_fn,
+                                               futures_newest_first=futures_newest_first)
+                              if r.get("value") not in (None, "")]
                     return {"query": legacy.model_dump(exclude_none=True), "rows": _lrows,
                             "status": "ok" if _lrows else "no_rows",
                             "scope_note": futures_eod_coverage_note(_route, _floor),
                             "coverage_route": _route, "coverage_floor": _floor}
-                rows = Q.run(spec, query_fn=query_fn)
+                rows = Q.run(spec, query_fn=query_fn, futures_newest_first=futures_newest_first)
                 # D-OJ-8 -- THE ENGINE-SIDE TRUNCATION SENTINEL, taken at the row count THE QUERY
                 # RETURNED. The render-side `series_truncated` can only count the rows that survive the
                 # null drop below, so a read that came back AT the cap and contained nulls arrives under

@@ -741,3 +741,72 @@ def test_case_three_no_longer_points_at_the_marketing_year_farm_price():
     assert "no price record for this window" in an._SYSTEM_EPISODES
     # ... and the two slots stay two records, never cause and effect
     assert "TWO SEPARATE RECORDS placed side by side" in an._SYSTEM_EPISODES
+
+
+# ══ S1 -- the canary reaches the J4 tape, END TO END through quantify ═══════════════════════════════
+#
+# WHY THIS LIVES HERE AND NOT ONLY IN THE PINS FILE. The J4 tape is the one read in cascade.py that is
+# UNCONDITIONALLY futures -- `_TAPE_TABLE` is silver_futures_eod and `agg` is the literal 'series', so
+# `_newest_first_applies` is True the instant the canary is. The pins file proves each LINK of the chain
+# in isolation; what this fixture can prove that a link test cannot is that a REAL priced window, with the
+# whole leg running (dry run, curve read, candidate months, deep read, join), compiles all of its reads
+# on the same side of the flip -- and still produces the same measurement.
+#
+# The second half is the one that would be easy to skip. `run()` re-sorts DESC rows back to ascending
+# before any consumer sees them, so the flipped read must be MEASUREMENT-NEUTRAL here: same move, same
+# survivor, same anchor. If it were not, the canary would be changing what an episode is worth rather than
+# which end of an over-long window survives the row cap, and that is a different (unratified) change.
+
+
+def _sql_flags(monkeypatch) -> list:
+    """Record the canary every compile in this leg was actually handed, at the compiler itself."""
+    from leviathan.graphrag.numbers import query as Q
+    seen: list = []
+    real = Q.build_sql
+
+    def _spy(spec, ts=None, *, db=Q.ATHENA_DB, futures_newest_first=False):
+        seen.append(futures_newest_first)
+        return real(spec, ts, db=db, futures_newest_first=futures_newest_first)
+
+    monkeypatch.setattr(Q, "build_sql", _spy)
+    return seen
+
+
+def test_quantify_carries_the_canary_into_every_tape_read(monkeypatch):
+    """The J4 chain end to end: quantify -> _episode_leg_or_nothing -> _episode_outcome_legs ->
+    _tape_read -> build_sql. EVERY compile on the turn carries the flag; a leg that flipped its deep read
+    and not its curve read would select candidate delivery months off one ordering and measure on another."""
+    seen = _sql_flags(monkeypatch)
+    calls: list = []
+    block, _t, _r = cq.quantify(_sg([_episode_rec()]), None, qfn=_Tape(), asof=ASOF, near=None,
+                                extra_number_calls=calls, episode_outcomes=True,
+                                futures_newest_first=True)
+    assert block, "the fixture stopped pricing the window -- the flag assertion would be vacuous"
+    assert len(seen) >= 2, seen                    # curve read + deep read at minimum
+    assert all(seen), "a tape read compiled on the pre-wave ordering while its sibling flipped"
+
+
+def test_the_same_turn_with_the_canary_OFF_compiles_the_pre_wave_ordering(monkeypatch):
+    """The rollback half, on the same fixture: omit the kwarg and every compile is the ASC read."""
+    seen = _sql_flags(monkeypatch)
+    calls: list = []
+    block, _t, _r = cq.quantify(_sg([_episode_rec()]), None, qfn=_Tape(), asof=ASOF, near=None,
+                                extra_number_calls=calls, episode_outcomes=True)
+    assert block and seen and not any(seen)
+
+
+def test_the_flip_is_MEASUREMENT_NEUTRAL_on_a_priced_window():
+    """`run()` re-sorts the rows back to ascending before the frame is built, so flipping the read shape
+    must not move the number. Same move, same survivor, same anchor, same endpoint -- byte for byte on
+    the injected [N] row. If this ever diverges, the canary is no longer 'which end of the cap survives'."""
+    off_calls: list = []
+    on_calls: list = []
+    off_lines, off_trace = cq._episode_outcome_legs(_sg([_episode_rec()]), _Tape(), ASOF, off_calls,
+                                                    len(off_calls))
+    on_lines, on_trace = cq._episode_outcome_legs(_sg([_episode_rec()]), _Tape(), ASOF, on_calls,
+                                                  len(on_calls), futures_newest_first=True)
+    assert off_lines == on_lines
+    assert off_calls == on_calls
+    assert [e["status"] for e in off_trace] == [e["status"] for e in on_trace] == ["closed"]
+    # NON-VACUITY: the window really was priced, so "identical" is not two empty results agreeing.
+    assert off_calls and off_calls[0]["shown"] == [15.0]

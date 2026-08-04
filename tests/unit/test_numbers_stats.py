@@ -852,3 +852,100 @@ def test_loop_chained_window_change_handle_still_computes_the_level_vs_delta_per
     assert stat_rows[0]["value"] == 70.0                       # 510 - 440, a DELTA
     assert stat_rows[1]["unit"] == "percentile" and stat_rows[1]["value"] == 0.0   # ...at the 0th pct
     assert _A.UNIT_MISMATCH_TRACE_KEY not in out
+
+
+# -- U3's trace key, ON THE LANES THAT PRODUCE AN ARTIFACT (the wiring half) --------------------------
+#
+# The two tests above pin the key on `answer_numbers`' OWN return, which is where the guard writes it and
+# where nothing downstream reads it. agent.py:1812 said so in writing: the key "stays numbers-lane-local
+# until it is added to the fixed whitelist tuples in orchestrator.py". Those tuples are a copy-list -- the
+# orchestrator drops every key not named in them -- so until this wave the U3 record reached NO artifact
+# on EITHER lane, which is exactly the C2 defect one wave earlier (a record written to a dict nobody read).
+#
+# Both lanes are tested, and both sides on each lane. Presence alone would be satisfied by a whitelist
+# that copied everything; absence alone would be satisfied by a whitelist that copied nothing.
+
+
+def _mismatch_client():
+    """The cross-unit turn: KCBT series + MGEX level, then a percentile across the two. The units are
+    minted by the card's unit_overrides post-fetch, never by the fixture rows."""
+    return _FakeClient([
+        _rp([_eod_use("hard_red_winter_wheat_kcbt", "series", "t1")]),
+        _rp([_eod_use("hard_red_spring_wheat_mgex", "latest", "t2")]),
+        _rp([_tu(_A.STATS_TOOL_NAME,
+                 {"stat": "percentile", "series_handle": "L1", "value_handle": "L2"}, "t3")]),
+        _rp([_txt("Those two contracts are quoted on different scales.")]),
+    ])
+
+
+def _matched_client():
+    """The SAME three-call shape with both handles on ONE card -- the stat computes and no guard fires."""
+    return _FakeClient([
+        _rp([_eod_use("hard_red_winter_wheat_kcbt", "series", "t1")]),
+        _rp([_eod_use("hard_red_winter_wheat_kcbt", "latest", "t2")]),
+        _rp([_tu(_A.STATS_TOOL_NAME,
+                 {"stat": "percentile", "series_handle": "L1", "value_handle": "L2"}, "t3")]),
+        _rp([_txt("It sits in the 87.5th percentile of its own history [N].")]),
+    ])
+
+
+def _u3_pair() -> list:
+    """The recorded value, rebuilt from the LIVE cards -- presence alone cannot tell a wired key from a
+    dead one, so every assertion below checks the pair it carries."""
+    return [_fut_unit("hard_red_winter_wheat_kcbt") + " vs " + _fut_unit("hard_red_spring_wheat_mgex")]
+
+
+def test_U3_key_reaches_the_numbers_only_ARTIFACT_when_the_guard_fires():
+    """U3 wiring, numbers_only. The refusal is MODEL-FACING ONLY -- it never enters `calls`, so it reaches
+    no citation, no footer and no reader. The trace key is therefore the only observable half, and it is
+    observable only because run_numbers_only's fixed tuple now names it."""
+    out = _O.run_numbers_only(_Q_WHEAT, asof="2026-01-15", client=_mismatch_client(),
+                              query_fn=_eod_qf)
+    assert out["trace"][_A.UNIT_MISMATCH_TRACE_KEY] == _u3_pair()
+    # ...and the answer itself is untouched: no preface, no [N] row for the refused stat.
+    assert "different scales" in out["answer"]
+    assert not [c for c in out["number_calls"]
+                if (c.get("query") or {}).get("table") == _A.STATS_TOOL_NAME]
+
+
+def test_U3_key_is_ABSENT_from_the_numbers_only_artifact_on_a_matched_unit_turn():
+    """The non-vacuity twin. A key that is always present measures nothing -- and a whitelist that copied
+    everything would pass the test above while telling a reader nothing about whether U3 is wired."""
+    out = _O.run_numbers_only(_Q_WHEAT, asof="2026-01-15", client=_matched_client(),
+                              query_fn=lambda sql: _eod_rows(_HIST, "2026-01-14"))
+    assert _A.UNIT_MISMATCH_TRACE_KEY not in out["trace"]
+    # NON-VACUITY for the absence: the stat really did compute on this turn, so the guard had a chance
+    # to fire and did not. Without this line the assertion above would also pass on a turn that never
+    # ran a stat at all.
+    assert [c for c in out["number_calls"]
+            if (c.get("query") or {}).get("table") == _A.STATS_TOOL_NAME]
+
+
+def _hybrid(monkeypatch, client, query_fn):
+    """Drive run_hybrid with `answer` stubbed. The stub calls `extra_resolver()` -- the synthesis-time
+    join -- because that is what populates the holder the post-answer trace copy reads; a stub that
+    skipped it would exercise neither hybrid site. Everything the walk would do is irrelevant here: the
+    numbers thread and the two trace copies are the whole subject."""
+    def _fake_answer(query, **kw):
+        kw["extra_resolver"]()
+        return {"answer": "note", "trace": {}, "citations": [], "evidence": []}
+
+    monkeypatch.setattr(_O.an, "answer", _fake_answer)
+    return _O.run_hybrid(_Q_WHEAT, asof="2026-01-15", graph=None, client=client, query_fn=query_fn)
+
+
+def test_U3_key_reaches_the_HYBRID_artifact_when_the_guard_fires(monkeypatch):
+    """The lane asymmetry that made this worth wiring twice. On hybrid the agent's PROSE is discarded
+    before a reader ever sees it, so the trace key is not merely the best observable half -- it is the
+    only one that exists. Both hybrid sites are exercised: the `_resolve` holder copy and the
+    post-answer trace copy."""
+    out = _hybrid(monkeypatch, _mismatch_client(), _eod_qf)
+    assert out["intent"] == "hybrid"
+    assert out["trace"][_A.UNIT_MISMATCH_TRACE_KEY] == _u3_pair()
+
+
+def test_U3_key_is_ABSENT_from_the_hybrid_artifact_on_a_matched_unit_turn(monkeypatch):
+    out = _hybrid(monkeypatch, _matched_client(), lambda sql: _eod_rows(_HIST, "2026-01-14"))
+    assert _A.UNIT_MISMATCH_TRACE_KEY not in out["trace"]
+    assert [c for c in out["number_calls"]
+            if (c.get("query") or {}).get("table") == _A.STATS_TOOL_NAME]

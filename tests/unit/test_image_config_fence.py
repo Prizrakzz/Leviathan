@@ -123,7 +123,10 @@ def test_incident_replay_e0a33bf2(tmp_path, capsys, monkeypatch):
     rc, out, bundle = _run_gate_main(tmp_path, capsys, monkeypatch, baked=BAKED_43,
                                      manifest=_manifest_e0a33bf2(), probe=_glue_present())
 
-    assert rc == 1, "the gate must still FAIL CLOSED -- canonical promote never runs"
+    # D-PR-8: the fence exit is EXIT_PREFLIGHT (71), NOT 1. Fail-closed is unchanged -- what changed is
+    # that "the image is wrong" is no longer spelled the same way as "the gate refused the data".
+    assert rc == gate.EXIT_PREFLIGHT, "the gate must still FAIL CLOSED -- canonical promote never runs"
+    assert rc != gate.EXIT_REFUSAL, "an image fault must never be reported as a refusal (D-PR-8)"
 
     # It names the TABLE, the IMAGE COMMIT, the BAKED COUNT, the BUILD DATE and the REMEDY.
     for needle in ["silver_futures_eod", "e0a33bf2", "43", "2026-07-24", "rebuild", "repin"]:
@@ -166,7 +169,7 @@ def test_missing_manifest_is_stale_evidence_not_silence(tmp_path, capsys, monkey
     verdict is unchanged."""
     rc, out, bundle = _run_gate_main(tmp_path, capsys, monkeypatch, baked=BAKED_43,
                                      manifest=_no_manifest(), probe=_glue_present())
-    assert rc == 1, "an unstamped image must NOT fail open"
+    assert rc == gate.EXIT_PREFLIGHT, "an unstamped image must NOT fail open"
     assert "manifest ABSENT" in out
     assert "treated as OLD" in out
     assert "silver_futures_eod" in out and "43" in out
@@ -198,7 +201,7 @@ def test_glue_corroboration_ranks_the_hypotheses(tmp_path, capsys, monkeypatch):
     rc, out_typo, _ = _run_gate_main(tmp_path, capsys, monkeypatch, baked=BAKED_43 + ["silver_futures_eod"],
                                      manifest=_manifest_e0a33bf2(), probe=_glue_absent(),
                                      tables="silver_futres_eod")
-    assert rc == 1, "a typo'd ask must still fail closed"
+    assert rc == gate.EXIT_PREFLIGHT, "a typo'd ask must still fail closed"
     assert "suspect the ASK" in out_typo
     assert "did you mean silver_futures_eod" in out_typo
 
@@ -206,7 +209,7 @@ def test_glue_corroboration_ranks_the_hypotheses(tmp_path, capsys, monkeypatch):
     #     allowed to soften the verdict.
     rc_err, out_err, _ = _run_gate_main(tmp_path, capsys, monkeypatch, baked=BAKED_43,
                                         manifest=_manifest_e0a33bf2(), probe=_glue_error())
-    assert rc_err == 1
+    assert rc_err == gate.EXIT_PREFLIGHT
     assert "could not corroborate" in out_err
     assert "EndpointConnectionError" in out_err
 
@@ -238,10 +241,11 @@ def test_malformed_baked_yaml_says_config_not_image(tmp_path, capsys, monkeypatc
 
 def test_main_renders_a_malformed_baked_registry_instead_of_tracebacking(tmp_path, capsys,
                                                                         monkeypatch):
-    """End-to-end: a broken BAKED yaml must exit 1 with a NAMED cause, not a raw traceback.
+    """End-to-end: a broken BAKED yaml must exit EXIT_PREFLIGHT with a NAMED cause, not a raw traceback.
 
     Before the fence, a RegistryError propagated uncaught out of _build_live_context() and the
-    operator got a stack trace with no statement of what was wrong or what to do."""
+    operator got a stack trace with no statement of what was wrong or what to do. D-PR-8 then moved
+    this off exit 1: the yaml is broken INSIDE THE IMAGE, which is the same class as the preflight."""
     from leviathan.silver import registry as sreg
 
     def boom(*a, **k):
@@ -252,7 +256,8 @@ def test_main_renders_a_malformed_baked_registry_instead_of_tracebacking(tmp_pat
     out = tmp_path / "b.json"
     rc = gate.main(["--tables", "silver_cot", "--asof", "2026-07-28", "--json", str(out)])
     text = capsys.readouterr().out
-    assert rc == 1
+    assert rc == gate.EXIT_PREFLIGHT
+    assert rc != gate.EXIT_REFUSAL
     assert "CONFIG PROBLEM IN THIS IMAGE" in text
     assert "silver_cot.yaml" in text
     assert "Traceback" not in text
