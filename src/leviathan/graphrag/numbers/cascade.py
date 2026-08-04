@@ -350,6 +350,10 @@ COT_UNSERVED_SLUGS = frozenset({
     "rapeseed_meal_zce", "rapeseed_oil_zce",
     "south_african_white_maize_jse", "south_african_yellow_maize_jse",
     "campinas_corn_reference_bmf", "brazilian_arabica_coffee",
+    # The SECOND Branch-A fire (2026-08-04, gate rev 12) found the list above incomplete by three:
+    # the yaml had forgotten the LONDON legs (IFEU is not CFTC territory), and frozen_orange_juice
+    # was claimed-covered with an oi_approx of "verify" that nobody ever verified -- zero rows landed.
+    "robusta_coffee", "white_sugar", "frozen_orange_juice",
 })
 
 

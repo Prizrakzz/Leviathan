@@ -86,7 +86,6 @@ target_contracts:
   malaysian_crude_palm_oil_cme: {code: "037021", exchange: CME,   oi_approx: "48K"}
   rough_rice_cbot:              {code: "039601", exchange: CBOT,  oi_approx: "13K",  note: "thin — expect null tokens"}
   raw_sugar:                    {code: "080732", exchange: ICUS,  oi_approx: "verify"}
-  frozen_orange_juice:          {code: "040701", exchange: ICUS,  oi_approx: "verify"}
 
 # Contracts NOT covered by CFTC (non-US/non-CME exchanges).
 # Relevant for documentation — no COT signal available for these.
@@ -106,6 +105,11 @@ not_covered:
   - south_african_yellow_maize_jse # JSE (South Africa)
   - campinas_corn_reference_bmf  # BMF (Brazil)
   - brazilian_arabica_coffee     # BMF (Brazil)
+  - robusta_coffee               # ICE Futures Europe (London) -- outside CFTC jurisdiction
+  - white_sugar                  # ICE Futures Europe (London) white sugar No.5 -- outside CFTC jurisdiction
+  - frozen_orange_juice          # ICUS 040701 was mapped but NEVER landed a row (its oi_approx said "verify" and
+  #                                nobody ever did) -- declared unserved 2026-08-04 at the second Branch-A gate
+  #                                fire; re-arm by moving it back to `contracts:` after a VERIFIED backfill
 
 ml_priority: P8
 graphrag_priority: P5
