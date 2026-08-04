@@ -193,13 +193,25 @@ class TestNamesMatchTheDescriptors:
 class TestImageIsDigestPinned:
     def test_all_three_run_the_digest_pinned_local_never_a_tag(self, free_fetch, databento_fetch,
                                                                silver):
-        for jobdef in (free_fetch, databento_fetch, silver):
+        # The 2026-08-04 tf batch split the SILVER leg onto its own local (per-leg pin: the live
+        # estate had the silver leg one image vintage AHEAD of the fetchers, and the shared
+        # variable could only express reverting one side). Fetchers keep the shared local; the
+        # silver leg's local FALLS BACK to it when the override is empty -- pinned either way.
+        for jobdef in (free_fetch, databento_fetch):
             assert "image = local.futures_eod_image" in jobdef
             assert ":latest" not in jobdef
+        assert "image = local.futures_eod_silver_image" in silver
+        assert ":latest" not in silver
 
     def test_the_local_is_repo_at_digest(self, batch_tf):
-        loc = _block(batch_tf, "locals {")
-        assert '"${var.ecr_repository_url}@${var.futures_eod_image_digest}"' in loc
+        # _block(text, "locals {") grabs the FIRST locals block; the pink-sheet pin added an
+        # earlier one, so anchor on the futures locals by content instead of position.
+        assert '"${var.ecr_repository_url}@${var.futures_eod_image_digest}"' in batch_tf
+        assert '"${var.ecr_repository_url}@${var.futures_eod_silver_image_digest}"' in batch_tf
+        # the silver local must fall back to the shared pin, never to a tag
+        assert re.search(r'futures_eod_silver_image\s*=\s*\(\s*var\.futures_eod_silver_image_digest\s*==\s*""'
+                         r'\s*\?\s*local\.futures_eod_image', batch_tf), \
+            "silver local must fall back to local.futures_eod_image when the override is empty"
 
     def test_module_variable_refuses_a_tag(self):
         var = _block(_BATCH_VARS_TF.read_text(encoding="utf-8"),
@@ -295,9 +307,9 @@ class TestSilverJobdef:
         assert '{ name = "LEVIATHAN_KMS_KEY_ID", value = local.publish_signer_alias }' in silver
 
     def test_the_alias_is_the_one_every_armed_promote_task_already_sends(self, batch_tf):
-        loc = _block(batch_tf, "locals {")
+        # anchor on the whole file, not the FIRST locals block (the pink-sheet pin added one)
         declared = 'publish_signer_alias = "alias/${var.project_name}-${var.environment}-publish-signer"'
-        assert declared in loc
+        assert declared in batch_tf
         assert _render(declared).split('"')[1] == "alias/leviathan-dev-publish-signer"
 
     def test_sizing(self, silver):
