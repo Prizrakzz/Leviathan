@@ -313,7 +313,7 @@ variable "worker_fleet_image_digest" {
   # deliberately, in its own change, after the auditor has run.
   type        = string
   description = "sha256 digest of the worker image the ten weather/ingest jobdef families run. Empty = fall back to ':latest' (which would REVERT all ten -- see the comment)."
-  default     = "sha256:e11d45fbcb14e5bafcef36cf2c4e3bba61ae08385d2ebb163519c275d791f304"
+  default     = "sha256:e8aa7857a2e1b3b0258fa7258803a60d608a1209cf3b02042220da2094bf4b7f"
 
   validation {
     condition     = var.worker_fleet_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.worker_fleet_image_digest))

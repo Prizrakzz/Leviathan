@@ -378,7 +378,7 @@ resource "aws_batch_job_definition" "backfill_orchestrator" {
   }
 
   container_properties = jsonencode({
-    image = "${var.ecr_repository_url}:latest"
+    image = local.worker_fleet_image
 
     command = [
       "jobs/orchestrate/orchestrate_backfill.py",
@@ -556,7 +556,7 @@ resource "aws_batch_job_definition" "sagis_cec_raw_backfill" {
   platform_capabilities = ["FARGATE"]
 
   container_properties = jsonencode({
-    image = "${var.ecr_repository_url}:latest"
+    image = local.worker_fleet_image
 
     command = [
       "jobs/ingest/fetch_sagis_cec.py",
@@ -634,7 +634,7 @@ resource "aws_batch_job_definition" "usda_wasde_raw_backfill" {
   platform_capabilities = ["FARGATE"]
 
   container_properties = jsonencode({
-    image = "${var.ecr_repository_url}:latest"
+    image = local.worker_fleet_image
 
     # Default command — overridden per-task via containerOverrides at submit time.
     command = [
@@ -741,7 +741,7 @@ resource "aws_batch_job_definition" "gain_backfill" {
   parameters = {}
 
   container_properties = jsonencode({
-    image = "${var.ecr_repository_url}:latest"
+    image = local.worker_fleet_image
 
     # Default command — overridden per-task via containerOverrides at submit time.
     command = [
@@ -826,7 +826,7 @@ resource "aws_batch_job_definition" "usda_wap_raw_backfill" {
   platform_capabilities = ["FARGATE"]
 
   container_properties = jsonencode({
-    image = "${var.ecr_repository_url}:latest"
+    image = local.worker_fleet_image
 
     # Default command — overridden per-task via containerOverrides at submit time.
     command = [
@@ -1347,7 +1347,7 @@ resource "aws_batch_job_definition" "usda_psd_bronze" {
   platform_capabilities = ["FARGATE"]
 
   container_properties = jsonencode({
-    image = "${var.ecr_repository_url}:latest"
+    image = local.worker_fleet_image
 
     command = ["jobs/batch/psd_task.py"]
 
@@ -1420,7 +1420,7 @@ resource "aws_batch_job_definition" "usda_fgis_bronze" {
   platform_capabilities = ["FARGATE"]
 
   container_properties = jsonencode({
-    image = "${var.ecr_repository_url}:latest"
+    image = local.worker_fleet_image
 
     command = ["jobs/batch/fgis_task.py"]
 
@@ -1582,7 +1582,7 @@ resource "aws_batch_job_definition" "usda_nass_bronze" {
   platform_capabilities = ["FARGATE"]
 
   container_properties = jsonencode({
-    image = "${var.ecr_repository_url}:latest"
+    image = local.worker_fleet_image
 
     command = ["jobs/batch/nass_task.py", "--series", "all"]
 
@@ -1668,7 +1668,7 @@ resource "aws_batch_job_definition" "usda_nass_annual_silver" {
   }
 
   container_properties = jsonencode({
-    image = "${var.ecr_repository_url}:latest"
+    image = local.worker_fleet_image
 
     command = [
       "jobs/batch/nass_annual_silver_task.py",
@@ -1758,7 +1758,7 @@ resource "aws_batch_job_definition" "usda_nass_crop_progress_silver" {
   }
 
   container_properties = jsonencode({
-    image = "${var.ecr_repository_url}:latest"
+    image = local.worker_fleet_image
 
     command = [
       "jobs/batch/nass_crop_progress_silver_task.py",
@@ -1927,7 +1927,7 @@ resource "aws_batch_job_definition" "conab_coffee_silver" {
   }
 
   container_properties = jsonencode({
-    image = "${var.ecr_repository_url}:latest"
+    image = local.worker_fleet_image
 
     command = [
       "jobs/batch/conab_coffee_silver_task.py",
@@ -1999,7 +1999,7 @@ resource "aws_batch_job_definition" "fnc_excel_bronze" {
   platform_capabilities = ["FARGATE"]
 
   container_properties = jsonencode({
-    image = "${var.ecr_repository_url}:latest"
+    image = local.worker_fleet_image
 
     command = ["jobs/batch/fnc_excel_task.py"]
 
@@ -2082,7 +2082,7 @@ resource "aws_batch_job_definition" "fnc_colombia_silver" {
   }
 
   container_properties = jsonencode({
-    image = "${var.ecr_repository_url}:latest"
+    image = local.worker_fleet_image
 
     command = [
       "jobs/batch/fnc_colombia_silver_task.py",
@@ -2161,7 +2161,7 @@ resource "aws_batch_job_definition" "mpob_bronze" {
   platform_capabilities = ["FARGATE"]
 
   container_properties = jsonencode({
-    image = "${var.ecr_repository_url}:latest"
+    image = local.worker_fleet_image
 
     command = ["jobs/batch/mpob_task.py", "--release-type", "all"]
 
@@ -2234,7 +2234,7 @@ resource "aws_batch_job_definition" "unica_bronze" {
   platform_capabilities = ["FARGATE"]
 
   container_properties = jsonencode({
-    image = "${var.ecr_repository_url}:latest"
+    image = local.worker_fleet_image
 
     command = ["jobs/batch/unica_task.py"]
 
@@ -2411,7 +2411,7 @@ resource "aws_batch_job_definition" "usda_esr_fetch" {
   platform_capabilities = ["FARGATE"]
 
   container_properties = jsonencode({
-    image = "${var.ecr_repository_url}:latest"
+    image = local.worker_fleet_image
 
     # Weekly snapshot: --as-of defaults to today at runtime (the as_of partition
     # key). --skip-existing-s3 makes a re-fire idempotent. Sequential by design.
@@ -2505,7 +2505,7 @@ resource "aws_batch_job_definition" "text_to_graphrag" {
   }
 
   container_properties = jsonencode({
-    image = "${var.ecr_repository_url}:latest"
+    image = local.worker_fleet_image
 
     command = [
       "jobs/batch/text_to_graphrag_task.py",
@@ -2593,7 +2593,7 @@ resource "aws_batch_job_definition" "fgis_silver" {
   }
 
   container_properties = jsonencode({
-    image = "${var.ecr_repository_url}:latest"
+    image = local.worker_fleet_image
 
     command = [
       "jobs/batch/fgis_silver_task.py",
@@ -2673,7 +2673,7 @@ resource "aws_batch_job_definition" "mpob_silver" {
   }
 
   container_properties = jsonencode({
-    image = "${var.ecr_repository_url}:latest"
+    image = local.worker_fleet_image
 
     command = [
       "jobs/batch/mpob_silver_task.py",
@@ -2754,7 +2754,7 @@ resource "aws_batch_job_definition" "mpob_overview_text" {
   }
 
   container_properties = jsonencode({
-    image = "${var.ecr_repository_url}:latest"
+    image = local.worker_fleet_image
 
     command = [
       "jobs/batch/mpob_overview_text_task.py",
@@ -2835,7 +2835,7 @@ resource "aws_batch_job_definition" "mpob_overview_bronze" {
   }
 
   container_properties = jsonencode({
-    image = "${var.ecr_repository_url}:latest"
+    image = local.worker_fleet_image
 
     command = [
       "jobs/batch/mpob_overview_bronze_task.py",
@@ -2916,7 +2916,7 @@ resource "aws_batch_job_definition" "mpob_annual_silver" {
   }
 
   container_properties = jsonencode({
-    image = "${var.ecr_repository_url}:latest"
+    image = local.worker_fleet_image
 
     command = [
       "jobs/batch/mpob_annual_silver_task.py",
@@ -3016,7 +3016,7 @@ resource "aws_batch_job_definition" "feature_spine" {
   }
 
   container_properties = jsonencode({
-    image = "${var.ecr_repository_url}:latest"
+    image = local.worker_fleet_image
 
     command = [
       "jobs/batch/feature_spine_task.py",
@@ -3120,7 +3120,7 @@ resource "aws_batch_job_definition" "model_ready_datasets" {
   }
 
   container_properties = jsonencode({
-    image = "${var.ecr_repository_url}:latest"
+    image = local.worker_fleet_image
 
     command = [
       "jobs/batch/build_model_ready_datasets.py",
@@ -3209,7 +3209,7 @@ resource "aws_batch_job_definition" "unica_annual_state" {
   }
 
   container_properties = jsonencode({
-    image = "${var.ecr_repository_url}:latest"
+    image = local.worker_fleet_image
 
     command = [
       "jobs/batch/unica_annual_state_task.py",
