@@ -49,6 +49,32 @@ variable "leviathan_bucket" {
   description = "S3 bucket name for the data lake."
 }
 
+variable "pink_sheet_image_digest" {
+  # D-PR-22: the sha256 digest of the WORKER image the world_bank_pink_sheet_bronze
+  # jobdef runs. Empty (default) keeps the historical "${var.ecr_repository_url}:latest"
+  # behaviour, so no other environment changes shape by adopting this module.
+  #
+  # WHY THIS FAMILY GETS THE PIN FIRST: pink_sheet_monthly is a promote_mode=AUTONOMOUS
+  # chain -- its promote leg re-runs pink_sheet_silver_task.py with --publish-mode
+  # canonical under a KMS approval, unattended. Its other three legs (fetch, silver,
+  # gate) already run digest-pinned jobdefs, so the bronze leg riding a mutable tag was
+  # the one place where "which code published this canonical partition?" had no answer
+  # after the fact: :latest is re-pointed by every worker push, including pushes that
+  # land BETWEEN the schedule firing and the bronze task starting.
+  #
+  # Re-pin deliberately (read the digest live, verify the sibling jobdefs agree), the
+  # same discipline as futures_eod_image_digest. SILVER-F085 (no :latest-only pushes)
+  # is what keeps a pinned digest from being untagged and GC'd out from under this.
+  type        = string
+  description = "sha256 digest of the worker image the world_bank_pink_sheet_bronze jobdef runs, e.g. 'sha256:abc...'. Empty = fall back to the mutable ':latest' tag (historical behaviour)."
+  default     = ""
+
+  validation {
+    condition     = var.pink_sheet_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.pink_sheet_image_digest))
+    error_message = "pink_sheet_image_digest must be empty or a full 'sha256:<64 hex>' digest -- a TAG is not accepted, since a tag is exactly the mutability this pin exists to remove."
+  }
+}
+
 variable "pattern_records_image" {
   # T2B (plan sec 7 step 3/5): the EMBEDDER image pinned BY DIGEST
   # ("<repo>@sha256:..."), CONTENT-CHECKED before pinning -- never a tag, never
@@ -105,6 +131,32 @@ variable "futures_eod_image_digest" {
   validation {
     condition     = var.futures_eod_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.futures_eod_image_digest))
     error_message = "futures_eod_image_digest must be empty or a full 'sha256:<64 hex>' digest -- a TAG is not accepted (the silent-missing-dependency class of failure this pin exists to prevent is exactly what a moving tag reintroduces)."
+  }
+}
+
+variable "futures_eod_silver_image_digest" {
+  # THE SILVER LEG'S OWN PIN. Empty (default) = it rides var.futures_eod_image_digest
+  # with the two fetch jobdefs, which is the original one-pin-for-the-family shape.
+  #
+  # It exists because the three jobdefs are NOT always repinned together. Measured
+  # 2026-08-04: the two fetch jobdefs were legitimately on 5f0f2aac (tag
+  # 20260731T130318 -- the databento incremental-window clamp), while the LIVE
+  # futures-eod-silver rev 3 had been moved forward out of band to ea0f9d18 (tag
+  # 20260801T131152). With one shared variable, terraform could not describe that
+  # reality: any apply would have re-registered the silver jobdef from the fetch
+  # digest, minting a new LATEST-ACTIVE revision one image vintage BEHIND live -- and
+  # because the DAG resolves the unversioned family name to latest-ACTIVE, that is a
+  # silent rollback of the publishing leg, not of a fetch.
+  #
+  # Family gating is unchanged: futures_eod_image_digest = "" still count-gates all
+  # three jobdefs out of existence, whatever this holds.
+  type        = string
+  description = "sha256 digest override for the futures_eod SILVER jobdef only (the two fetch jobdefs keep futures_eod_image_digest). Empty = share the family digest."
+  default     = ""
+
+  validation {
+    condition     = var.futures_eod_silver_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.futures_eod_silver_image_digest))
+    error_message = "futures_eod_silver_image_digest must be empty or a full 'sha256:<64 hex>' digest -- a TAG is not accepted (same silent-missing-dependency rationale as futures_eod_image_digest)."
   }
 }
 

@@ -177,8 +177,31 @@ resource "aws_ecs_service" "this" {
   }
 
   # Autoscaling owns desired_count after creation.
+  #
+  # task_definition: THE PROMOTE PATH OWNS IT, NOT TERRAFORM. Serving is promoted
+  # out of band -- register-task-definition + `aws ecs update-service
+  # --force-new-deployment` -- because a promote carries an embedder DIGEST PIN and a
+  # set of GRAPHRAG_* flags that are flipped and canaried far faster than this state
+  # is refreshed. aws_ecs_task_definition.this therefore lags the live service by
+  # however many revisions have been promoted since the last apply, and without this
+  # ignore every unrelated apply silently proposes
+  # `task_definition = ...:<live> -> ...:<stale>` -- a full serving ROLLBACK riding
+  # along inside an ECR-cap or job-definition batch.
+  #
+  # Measured 2026-08-04: the plan proposed serving :74 -> :69, which would have
+  # reverted the embedder image from its sha256 pin back to a MUTABLE tag and dropped
+  # five env flags that are live in 74 (GRAPHRAG_TIMELINE, GRAPHRAG_CASCADE_HEADLINE,
+  # GRAPHRAG_OUTLOOK, GRAPHRAG_STRIP_AUDIT, EVIDENCE_S3) -- un-shipping the whole
+  # R5.5/R6 serving state as a side effect of an unrelated batch. A -target exclusion
+  # only disarms it for one apply; this disarms it permanently.
+  #
+  # CONSEQUENCE, STATED PLAINLY: terraform can no longer roll serving forward either.
+  # Deploying serving is scripts/flip_*_serving.ps1 / register-taskdef +
+  # --force-new-deployment, and the rollout must be verified by NEW TASK ARN + fresh
+  # boot log (rolloutState alone lies). If terraform ever needs the wheel back,
+  # delete `task_definition` from this list in a dedicated, separately-planned change.
   lifecycle {
-    ignore_changes = [desired_count]
+    ignore_changes = [desired_count, task_definition]
   }
 
   tags = merge(var.tags, {

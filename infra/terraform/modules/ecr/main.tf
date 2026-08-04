@@ -32,11 +32,15 @@ resource "aws_ecr_lifecycle_policy" "this" {
         # the pre-30 hard cap (any, >5) evicted tagged digests during an 8-rebuild day and
         # broke 8 jobdefs the same way. Jobdefs/taskdefs pin digests for immutability; run
         # scripts/ops/check_ecr_pinned_digests.py before ANY lifecycle tightening.
-        description  = "Cap images at 30, oldest first (digest pins must survive rebuild bursts; no untagged rule -- see RCA comment)"
+        # D-PR-2: the cap is var.image_count_cap (worker 100, eda 60, everything else
+        # the 30 default) and the description RENDERS it -- the live policies were
+        # raised out of band on countNumber alone and have been describing themselves
+        # as "Cap images at 30" while capping at 100/60 ever since.
+        description = "Cap images at ${var.image_count_cap}, oldest first (digest pins must survive rebuild bursts; no untagged rule -- see RCA comment)"
         selection = {
           tagStatus   = "any"
           countType   = "imageCountMoreThan"
-          countNumber = 30
+          countNumber = var.image_count_cap
         }
         action = {
           type = "expire"

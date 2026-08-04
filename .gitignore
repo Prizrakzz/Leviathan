@@ -56,6 +56,10 @@ docs/graphrag/corpus_profile/
 **/.terraform/
 *.tfstate
 *.tfstate.backup
+# Any suffixed state copy (.backup, .pre_batch_YYYYMMDD, terraform's own .NNNN.backup).
+# `*.tfstate` does NOT match these, and the state carries the Google OAuth client secret,
+# 15 Secrets Manager ARNs and the RDS endpoint. This repo is PUBLIC.
+*.tfstate.*
 *.tfvars
 !*.tfvars.example
 .terraform.lock.hcl

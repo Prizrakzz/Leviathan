@@ -1102,7 +1102,23 @@ resource "aws_batch_job_definition" "usda_fgis_bronze" {
 # raw/production/source=world_bank_pink_sheet/ and writes per-release Parquet.
 # Sizing: 0.25 vCPU / 512 MB — single multi-sheet Excel file per release.
 # Timeout: 1 h ceiling; normal run < 5 min.
+#
+# D-PR-22: THIS ONE IS DIGEST-PINNED (local.pink_sheet_image), unlike its :latest
+# neighbours. pink_sheet_monthly is an AUTONOMOUS-promote chain and its other three
+# legs (fetch + silver on b3-flat-silver, gate on silver-gate) are already pinned, so
+# the bronze leg was the single mutable-tag hop in a path that writes canonical.
 # ---------------------------------------------------------------------------
+locals {
+  # Digest when pinned, ":latest" when not -- so an unpinned environment keeps the
+  # historical behaviour instead of losing the jobdef to a count gate. Same assembly
+  # shape as local.futures_eod_image below: the repo URL has one source of truth.
+  pink_sheet_image = (
+    var.pink_sheet_image_digest == ""
+    ? "${var.ecr_repository_url}:latest"
+    : "${var.ecr_repository_url}@${var.pink_sheet_image_digest}"
+  )
+}
+
 resource "aws_batch_job_definition" "world_bank_pink_sheet_bronze" {
   name = "${var.project_name}-${var.environment}-world-bank-pink-sheet-bronze"
   type = "container"
@@ -1110,7 +1126,7 @@ resource "aws_batch_job_definition" "world_bank_pink_sheet_bronze" {
   platform_capabilities = ["FARGATE"]
 
   container_properties = jsonencode({
-    image = "${var.ecr_repository_url}:latest"
+    image = local.pink_sheet_image
 
     command = ["jobs/batch/pink_sheet_task.py"]
 
@@ -2687,6 +2703,16 @@ locals {
     : "${var.ecr_repository_url}@${var.futures_eod_image_digest}"
   )
 
+  # The SILVER leg may be pinned one build ahead of (or behind) the fetch legs -- see
+  # var.futures_eod_silver_image_digest. Empty override = share the family digest, so
+  # the default shape is still one pin for all three. The FAMILY gate stays
+  # local.futures_eod_image: an empty family digest still means "none of the three".
+  futures_eod_silver_image = (
+    var.futures_eod_silver_image_digest == ""
+    ? local.futures_eod_image
+    : "${var.ecr_repository_url}@${var.futures_eod_silver_image_digest}"
+  )
+
   # The publish-signer CMK by ALIAS, not ARN. This is the string every ARMED chain's
   # promote task already sends (dag_schedules.auto.tfvars.json: LEVIATHAN_KMS_KEY_ID =
   # "alias/leviathan-dev-publish-signer"), and it is identical to
@@ -2923,7 +2949,13 @@ resource "aws_batch_job_definition" "futures_eod_silver" {
   platform_capabilities = ["FARGATE"]
 
   container_properties = jsonencode({
-    image = local.futures_eod_image
+    # NOT local.futures_eod_image -- this leg carries its own pin (the fetch legs and
+    # the publisher have been repinned independently more than once). ALIGNMENT RULE:
+    # this value must equal the image on the LIVE latest-ACTIVE revision of
+    # leviathan-dev-futures-eod-silver unless the repin is the deliberate point of the
+    # change; terraform re-registering it from a stale digest is a rollback of the
+    # publishing leg that nothing else in the plan would name.
+    image = local.futures_eod_silver_image
 
     # The Databento chain's silver command verbatim (--source defaults to databento).
     # --publish-mode shadow is baked ON PURPOSE: an un-overridden fire must never be

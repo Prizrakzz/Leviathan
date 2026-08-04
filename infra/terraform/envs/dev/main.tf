@@ -110,6 +110,15 @@ module "ecr" {
   project_name    = var.project_name
   environment     = var.environment
   repository_name = "leviathan-worker"
+
+  # D-PR-2, ADOPTING A LIVE OUT-OF-BAND VALUE (raised 2026-08-04, not by terraform).
+  # This is the repo every Batch jobdef family runs, so it takes the whole estate's
+  # rebuild burst: 40 jobdef families pin worker digests and a single wave day pushes
+  # 8-10 images. At cap 30 the oldest-first rule was eating digests that ACTIVE
+  # revisions still pinned (measured 2026-08-04: 39 images held, 47 digests pinned by
+  # ACTIVE jobdefs, 3 pinned digests inside the would-be evict set). 100 is ~10 wave
+  # days of headroom. Until this line existed, every plan proposed 100 -> 30.
+  image_count_cap = 100
 }
 
 module "ecr_trainer" {
@@ -128,6 +137,12 @@ module "ecr_eda" {
   project_name    = var.project_name
   environment     = var.environment
   repository_name = "leviathan-eda"
+
+  # D-PR-2, same adoption as module.ecr. The EDA image is rebuilt per analysis run
+  # rather than per deploy, so it burns through revisions faster than the worker per
+  # active day; it sat at exactly 30/30 when the cap was raised, i.e. every next push
+  # was evicting. Until this line existed, every plan proposed 60 -> 30.
+  image_count_cap = 60
 }
 
 # A-W8 MLflow relocation: ECR repo for the baked MLflow server image (docker/mlflow/Dockerfile,
@@ -188,10 +203,17 @@ module "batch" {
   # dag_schedules.auto.tfvars.json entry, and both descriptors are
   # promote_mode=stop_and_notify (shadow only, empty promote.tasks).
   futures_eod_image_digest = var.futures_eod_image_digest
+  # The silver leg is pinned SEPARATELY (live latest-ACTIVE is one build ahead of the
+  # fetch legs -- see the variable's comment). Sharing one digest would have
+  # re-registered the publishing leg from the older fetch pin.
+  futures_eod_silver_image_digest = var.futures_eod_silver_image_digest
   # The SILVER-F014 gated writer: silver_futures_eod is class-A REGISTERED, so its
   # producer needs glue:CreatePartition, which only this role carries.
   silver_publisher_job_role_arn = module.iam.silver_publisher_role_arn
   databento_api_key_secret_arn  = local.databento_api_key_secret_arn
+
+  # D-PR-22: the pink-sheet bronze leg comes off the mutable :latest tag.
+  pink_sheet_image_digest = var.pink_sheet_image_digest
 }
 
 module "glue" {

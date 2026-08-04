@@ -222,6 +222,66 @@ variable "futures_eod_image_digest" {
   }
 }
 
+variable "futures_eod_silver_image_digest" {
+  # THE SILVER LEG ONLY. The two FETCH jobdefs stay on futures_eod_image_digest above.
+  #
+  # RECONCILED TO LIVE 2026-08-04. leviathan-dev-futures-eod-silver's latest-ACTIVE
+  # revision (rev 3) runs tag 20260801T131152, one build NEWER than the 20260731T130318
+  # the fetch legs are pinned to; the silver leg was repinned out of band and the fetch
+  # legs deliberately were not. Terraform holds the three jobdefs as phantom-creates
+  # (absent from state, present in AWS), so with a single shared digest the next apply
+  # would have registered a new latest-ACTIVE silver revision carrying the OLDER image
+  # -- and the DAG resolves the family name to latest-ACTIVE, so the publishing leg
+  # would have rolled back one vintage with nothing in the plan saying so.
+  #
+  # Empty = share futures_eod_image_digest. Keep this equal to the live latest-ACTIVE
+  # image unless a repin is the deliberate point of the change:
+  #   aws batch describe-job-definitions --job-definition-name leviathan-dev-futures-eod-silver \
+  #     --status ACTIVE --query 'reverse(sort_by(jobDefinitions,&revision))[0].containerProperties.image'
+  type        = string
+  description = "sha256 digest override for the futures_eod SILVER jobdef only. Empty = share futures_eod_image_digest with the two fetch jobdefs."
+  default     = "sha256:ea0f9d1815d6226c25f1bc0ca99f5fc78f5efa8b7512c2d7c7b113c29eec6a30"
+
+  validation {
+    condition     = var.futures_eod_silver_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.futures_eod_silver_image_digest))
+    error_message = "futures_eod_silver_image_digest must be empty or a full 'sha256:<64 hex>' digest (a TAG is not accepted)."
+  }
+}
+
+# --- D-PR-22: the pink-sheet bronze leg comes off :latest -------------------
+
+variable "pink_sheet_image_digest" {
+  # The WORKER image leviathan-dev-world-bank-pink-sheet-bronze runs, pinned BY DIGEST.
+  #
+  # pink_sheet_monthly (cron(0 16 4 * ? *)) is a promote_mode=AUTONOMOUS chain: its
+  # promote leg re-runs pink_sheet_silver_task.py with --publish-mode canonical under a
+  # KMS approval, unattended. Its fetch and silver legs run leviathan-dev-b3-flat-silver
+  # and its gate runs leviathan-dev-silver-gate -- BOTH already digest-pinned. The
+  # bronze leg's ":latest" was therefore the only mutable hop in a path that writes a
+  # canonical partition without a human in the loop, and ":latest" is re-pointed by
+  # every worker push -- including a push that lands between the schedule firing and
+  # the bronze task pulling.
+  #
+  # VALUE = what ':latest' resolved to at 2026-08-04T11:40Z: tag 20260804T132111,
+  # pushed 2026-08-04T10:21Z. Verified byte-consistent with the rest of the chain --
+  # b3-flat-silver rev 24, silver-gate rev 14 and silver-publisher-runner rev 24 all
+  # run this exact digest -- so pinning here makes all four legs of the chain one image
+  # instead of three-plus-a-coin-flip.
+  #
+  # Re-pin deliberately after a worker rebuild the pink-sheet path needs:
+  #   aws ecr describe-images --repository-name leviathan-dev-leviathan-worker \
+  #     --image-ids imageTag=latest --query 'imageDetails[0].imageDigest'
+  # Empty = fall back to the mutable ':latest' (historical behaviour).
+  type        = string
+  description = "sha256 digest of the worker image the world_bank_pink_sheet_bronze jobdef runs. Empty = the mutable ':latest' tag."
+  default     = "sha256:e8aa7857a2e1b3b0258fa7258803a60d608a1209cf3b02042220da2094bf4b7f"
+
+  validation {
+    condition     = var.pink_sheet_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.pink_sheet_image_digest))
+    error_message = "pink_sheet_image_digest must be empty or a full 'sha256:<64 hex>' digest (a TAG is not accepted -- a tag is the mutability this pin removes)."
+  }
+}
+
 # MLflow tracking server (module.mlflow_fargate). DEFAULT FALSE since 2026-07-26: the server was
 # decommissioned for cost (see the module block in main.tf). The default lives HERE, in the repo, rather
 # than in the gitignored tfvars -- otherwise a fresh checkout would default it back ON and quietly restart
