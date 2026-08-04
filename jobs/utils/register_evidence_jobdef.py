@@ -43,18 +43,24 @@ _PARAMETERS = {
     "chunk_provider": "anthropic",             # use the prepaid Anthropic credit by default
 }
 
-# The Anthropic API key is injected from Secrets Manager (the execution role has GetSecretValue on it). The
-# ARN is resolved by name at registration so the random suffix stays out of this (public) repo.
+# Secrets are injected from Secrets Manager (the execution role has GetSecretValue on them). ARNs are
+# resolved by NAME at registration so the random suffixes stay out of this (public) repo.
 _SECRET_NAME = "leviathan-dev-anthropic-api-key"
+_PG_DSN_SECRET_NAME = "leviathan/dev/evidence-pg-dsn"          # load_pg_evidence.py / pg_evidence_swap.py exit 1 without it
 
 _CONTAINER = {
+    # Image is pinned to the digest :latest resolves to AT REGISTRATION (matching the live revision's digest
+    # pin) — a mutable tag on the jobdef would re-resolve at every pull and defeat provenance.
     "image": f"{_ACCOUNT}.dkr.ecr.{_REGION}.amazonaws.com/{_REPO}:latest",
     "command": _COMMAND,
     "jobRoleArn": f"arn:aws:iam::{_ACCOUNT}:role/leviathan-dev-batch-job-role",          # has Bedrock + S3
     "executionRoleArn": f"arn:aws:iam::{_ACCOUNT}:role/leviathan-dev-batch-execution-role",
     "resourceRequirements": [
-        {"type": "VCPU", "value": "8"},        # 16 network-bound Haiku threads + CPU bge-m3 embedding
-        {"type": "MEMORY", "value": "16384"},  # bge-m3 weights (~2.5 GB) + working set
+        # DO NOT DOWNSIZE. 8 vCPU / 16 GB was OOM-killed (exit 137) mid-write on the 1.03 GB soybeans slice,
+        # tearing the evidence store (2026-08-02; see commit 480253ff). rebuild-slices holds the full prop
+        # routing in memory; 16/120 GB is the measured-safe envelope.
+        {"type": "VCPU", "value": "16"},
+        {"type": "MEMORY", "value": "122880"},
     ],
     "networkConfiguration": {"assignPublicIp": "ENABLED"},
     "fargatePlatformConfiguration": {"platformVersion": "LATEST"},
@@ -64,6 +70,8 @@ _CONTAINER = {
         {"name": "LEVIATHAN_ENV", "value": "dev"},
         {"name": "EVIDENCE_S3", "value": _EVIDENCE_S3},        # write evidence/<node>.jsonl here (not local disk)
         {"name": "EVIDENCE_EMBED_BACKEND", "value": "bge_local"},
+        {"name": "EVIDENCE_BACKEND", "value": "pg"},           # prop reads/loads target the pgvector store
+        {"name": "GRAPHRAG_SESSIONS_TABLE", "value": "leviathan-dev-graphrag-sessions"},
         {"name": "EVIDENCE_WORKERS", "value": "16"},
         {"name": "PYTHONIOENCODING", "value": "utf-8"},
     ],
@@ -75,9 +83,21 @@ def main() -> None:
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
-    container = dict(_CONTAINER)                            # inject ANTHROPIC_API_KEY from Secrets Manager
-    secret_arn = boto3.client("secretsmanager", region_name=_REGION).describe_secret(SecretId=_SECRET_NAME)["ARN"]
-    container["secrets"] = [{"name": "ANTHROPIC_API_KEY", "valueFrom": secret_arn}]
+    container = dict(_CONTAINER)
+
+    # Pin the image to the digest :latest resolves to right now (live revisions are digest-pinned).
+    ecr = boto3.client("ecr", region_name=_REGION)
+    digest = ecr.describe_images(repositoryName=_REPO, imageIds=[{"imageTag": "latest"}])["imageDetails"][0][
+        "imageDigest"
+    ]
+    container["image"] = f"{_ACCOUNT}.dkr.ecr.{_REGION}.amazonaws.com/{_REPO}@{digest}"
+
+    # Inject both secrets from Secrets Manager, ARNs resolved by name.
+    sm = boto3.client("secretsmanager", region_name=_REGION)
+    container["secrets"] = [
+        {"name": "ANTHROPIC_API_KEY", "valueFrom": sm.describe_secret(SecretId=_SECRET_NAME)["ARN"]},
+        {"name": "EVIDENCE_PG_DSN", "valueFrom": sm.describe_secret(SecretId=_PG_DSN_SECRET_NAME)["ARN"]},
+    ]
 
     payload = dict(
         jobDefinitionName=_NAME,
@@ -88,8 +108,8 @@ def main() -> None:
     )
 
     if args.dry_run:
-        print(json.dumps({**payload, "containerProperties": {**container, "secrets": "[ANTHROPIC_API_KEY <- secret]"}},
-                         indent=2))
+        masked = [{"name": s["name"], "valueFrom": "[resolved by name]"} for s in container["secrets"]]
+        print(json.dumps({**payload, "containerProperties": {**container, "secrets": masked}}, indent=2))
         return
 
     batch = boto3.client("batch", region_name=_REGION)
