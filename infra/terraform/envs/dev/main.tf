@@ -1775,7 +1775,10 @@ resource "aws_scheduler_schedule" "ecr_pin_audit" {
   #   3. the LAST line is the green "OK: every reference resolves, none within the
   #      declared build horizon" -- not merely the absence of a FAIL;
   #   4. the numbers match a laptop run of the same command in the same hour.
-  state = "DISABLED"
+  # ENABLED 2026-08-04 after the smoke accept test passed all four points (job 4b25b43b:
+  # SUCCEEDED, exit 0, 101 digest pairs across 5 repos, zero MISSING[TOP]/UNPROVEN/IMMINENT,
+  # agreement with the same-hour laptop run). First fire MON 05:30Z.
+  state = "ENABLED"
 
   flexible_time_window {
     mode = "OFF"
