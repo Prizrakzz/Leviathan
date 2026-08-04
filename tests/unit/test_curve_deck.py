@@ -16,6 +16,13 @@ The rest pins the pins themselves: what curve_cited / expiry_labeled / settle_ki
 futures_coverage_route actually assert, in both directions, including the two failure classes the wave
 exists to refuse (an expiry label invented for a cash index that has none, and an ICE session close
 narrated as an official exchange settlement).
+
+EXTENDED 2026-08-04 (FUTURES_READPATH D-FR-13, plan 6.2 run B): the deck grew from twelve rows to
+fifteen with the U1 unit-compatibility block. The realizability rule is inherited, not forked -- a
+unit-guard row's REALIZABILITY is the pair of unit strings the LIVE registry actually serves for its two
+legs, so `TestUnitGuardRowsRealizable` reads `unit_overrides` off the cards and asserts through
+`stats.unit_compatible` itself. A row that claims to probe a mismatch the config does not produce is the
+same failure class as a pre-coverage row that turns out to be covered: green, and testing nothing.
 """
 from __future__ import annotations
 
@@ -25,7 +32,9 @@ from pathlib import Path
 import pytest
 import yaml as _yaml
 
+from leviathan.graphrag import config_check as CC
 from leviathan.graphrag import eval as EV
+from leviathan.graphrag.numbers import stats as ST
 from leviathan.silver import futures_eod_contracts as FC
 
 _REPO = Path(__file__).resolve().parents[2]
@@ -84,11 +93,15 @@ def _assert(expect: dict, out: dict, asof: str = "2026-06-08") -> dict:
 
 # ── 1. the deck: shape, realizability, and the typo fence ─────────────────────────────────────────────
 class TestDeckShape:
-    def test_twelve_rows_unique_ids_and_the_newcap30_row_shape(self):
+    def test_fifteen_rows_unique_ids_and_the_newcap30_row_shape(self):
+        # 12 W3 rows + the 3 U1 unit-compatibility rows (D-FR-13 run B). The count is asserted, not
+        # inferred: the wave's own precondition census (plan 6.1) reads a PIN COUNT off this file and
+        # treats an unexplained move as evidence that a deck shifted underneath the analysis, so the
+        # deck's size has to be a pinned fact somewhere.
         rows = _deck()
-        assert len(rows) == 12
+        assert len(rows) == 15
         ids = [r["id"] for r in rows]
-        assert len(set(ids)) == 12
+        assert len(set(ids)) == 15
         for r in rows:
             assert set(("id", "contract", "category", "expected_intent", "asof", "question", "expect")) <= set(r)
             assert r["expected_intent"] in ("numbers_only", "hybrid")
@@ -116,6 +129,12 @@ class TestDeckShape:
         # score the primary gate against an empty panel.
         hybrid = [r["id"] for r in _deck() if r["expected_intent"] == "hybrid"]
         assert len(hybrid) >= 4, f"only {len(hybrid)} structured turns -- strip rate would be noise"
+        # D-FR-13 / 6.2, non-optional: "any rows added must include hybrid ones as the denominator".
+        # A unit-mismatch row is naturally numbers_only, so a U1 block added entirely on that lane would
+        # have grown the deck by 25% while contributing NOTHING to the metric the wave is judged on.
+        assert any(r["expected_intent"] == "hybrid" for r in _deck()
+                   if r["category"] == "futures_unit_guard"), (
+            "the U1 block is all numbers_only -- it adds rows to the deck and nothing to the strip panel")
 
     def test_coverage_negatives_and_cash_refs_are_all_represented(self):
         rows = _rows()
@@ -201,6 +220,80 @@ class TestDeckRealizable:
             asof = dt.date.fromisoformat(row["asof"])
             assert FC.covers(row["contract"], asof, asof) == "serve"
             assert row["expect"].get("futures_coverage_route") == "absent"   # covered -> nothing routed
+
+
+def _card_units(table: str, metric: str) -> dict:
+    """The LIVE per-commodity unit vocabulary a card actually serves, read RAW out of tables.yaml -- the
+    same discipline test_futures_eod_curve.py uses. These strings ARE the deck rows' realizability: a
+    unit-guard row is only probing a mismatch if the registry still spells the two legs differently."""
+    return dict(CC._load("numbers/tables.yaml")["tables"][table]["metrics"][metric]["unit_overrides"])
+
+
+class TestUnitGuardRowsRealizable:
+    """The U1 block (D-FR-13 run B) gets the same treatment the coverage rows get: its premise is checked
+    against the LIVE config, not against the plan's prose. The premise here is a UNIT PAIR, and the oracle
+    is `stats.unit_compatible` itself -- not a re-implementation of the three-state rule, which would let
+    the deck and the guard drift apart and still agree with each other."""
+
+    IDS = ("unit_cross_card_corn_board_vs_farm", "unit_false_decline_cotton_cents",
+           "unit_matched_dec26_corn_own_history")
+
+    def test_the_block_is_present_and_categorised(self):
+        rows = _rows()
+        for rid in self.IDS:
+            assert rows[rid]["category"] == "futures_unit_guard"
+
+    def test_the_genuine_mismatch_row_really_is_a_mismatch(self):
+        # corn: the WASDE farm price is DOLLARS per bushel and the board is CENTS per bushel -- a real
+        # factor of 100. This is the audit's defect, and if the registry ever normalizes these two the
+        # row stops probing anything and must be re-authored rather than left green.
+        wasde, eod = _card_units("silver_wasde", "avg_farm_price"), _card_units("silver_futures_eod", "settle")
+        a, b = wasde["corn"], eod["corn_cbot"]
+        assert (a, b) == ("$/bu", "US cents/bushel")
+        assert ST.unit_compatible(a, b) is False
+
+    def test_the_false_decline_row_really_is_the_ratified_FALSE_one(self):
+        # cotton: both legs are cents per pound. The guard refuses it anyway (strip+casefold and nothing
+        # else), and D-FR-16(a) ratified ACCEPTING that cost this wave. The row is pinned as a decline
+        # DELIBERATELY -- so the day the card vocabulary is normalized under a lint, this assertion is
+        # the thing that goes red and forces the deck comment to be rewritten instead of the row
+        # silently flipping meaning.
+        wasde, eod = _card_units("silver_wasde", "avg_farm_price"), _card_units("silver_futures_eod", "settle")
+        a, b = wasde["cotton"], eod["cotton"]
+        assert (a, b) == ("c/lb", "US cents/lb")
+        assert "lb" in a and "lb" in b, "the pair is no longer dimensionally identical -- re-author the row"
+        assert ST.unit_compatible(a, b) is False
+
+    def test_the_anti_vacuity_row_really_does_compute(self):
+        # Both handles come off ONE card and ONE slug, so the known==known branch must stay COMPATIBLE.
+        # Without this the other two rows cannot distinguish a working guard from a broken percentile.
+        eod = _card_units("silver_futures_eod", "settle")
+        assert ST.unit_compatible(eod["corn_cbot"], eod["corn_cbot"]) is True
+
+    def test_the_lanes_are_assigned_so_no_pin_is_vacuous(self):
+        # numbers_mismatched reads trace.numbers_verifier, stamped by run_numbers_only ONLY. The two
+        # REFUSAL rows carry it and are numbers_only (the turn returns rows, so _verify_numbers_answer
+        # does not short-circuit and the counter is live); the COMPUTE row is the hybrid strip-count
+        # denominator and does not carry it.
+        rows = _rows()
+        for rid in ("unit_cross_card_corn_board_vs_farm", "unit_false_decline_cotton_cents"):
+            assert rows[rid]["expected_intent"] == "numbers_only"
+            assert rows[rid]["expect"]["numbers_mismatched"] == 0
+        compute = rows["unit_matched_dec26_corn_own_history"]
+        assert compute["expected_intent"] == "hybrid"
+        assert "numbers_mismatched" not in compute["expect"]
+        assert compute["expect"]["curve_cited"] is False    # single-expiry: the S4 twin this row carries
+
+    def test_every_unit_guard_row_is_inside_coverage(self):
+        # None of the three is a coverage probe: a coverage decline returns zero rows, which the guard
+        # refuses for EMPTINESS (a different reason, checked first) -- so a U1 row that accidentally sat
+        # outside coverage would be measuring the wrong refusal entirely.
+        rows = _rows()
+        for rid in self.IDS:
+            r = rows[rid]
+            asof = dt.date.fromisoformat(r["asof"])
+            assert FC.covers(r["contract"], asof, asof) == "serve"
+            assert r["expect"]["futures_coverage_route"] == "absent"
 
 
 # ── 2. curve_cited ────────────────────────────────────────────────────────────────────────────────────

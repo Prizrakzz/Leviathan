@@ -33,6 +33,16 @@ RETURN CONTRACT
     Decline: {"stat": <name>, "declined": True,  "value": None,              "n": <int>, "reason": str}
     (extrema is the one shape exception: it carries "min"/"max" instead of a single "value", because it
     yields two magnitudes -- the integrator injects two [N] rows.)
+
+ONE DELIBERATE EXCEPTION TO THE Sequence[float] SIGNATURE CONVENTION (D-FR-8, FUTURES_READPATH wave)
+    `unit_compatible()` and its decline builders below take two `str | None` unit labels, not a numeric
+    series. That is a knowing departure from "every function here takes Sequence[float]" and it is named
+    rather than smuggled. What it does NOT touch is the PURITY claim above: a two-string predicate reads
+    no filesystem, no network, no clock and no global state, so "PIT is inherited" stays structurally
+    true. The reason it lives HERE and not next to its one caller is AM-3's one-floor-family rule
+    (MIN_QUANTILE_N below, and stats.py:53-56's "never a second, laxer constant declared next to the
+    consumer"): the unit-compatibility POLICY is a refusal floor, and a second consumer must inherit it
+    rather than fork it.
 """
 from __future__ import annotations
 
@@ -96,6 +106,122 @@ def _norm_direction(direction: str) -> str:
 
 def _decline(stat: str, n: int, reason: str, **params) -> dict:
     return {"stat": stat, "declined": True, "value": None, "n": n, "reason": reason, **params}
+
+
+# ---------------------------------------------------------------------------------------------------
+# UNIT COMPATIBILITY (U1 / D-FR-4..8) -- the two-string policy the agent's two-handle stats inherit.
+#
+# THE DEFECT IT REFUSES. `percentile`/`zscore` take a value from ONE handle and a history from ANOTHER.
+# Nothing downstream ever compared their units, so a hard-red-SPRING quote in USD/bushel scored against a
+# hard-red-WINTER history in US cents/bushel produced a cited [N] percentile off by a factor of 100 --
+# silently, because _STAT_UNIT overwrites the OUTPUT unit to "percentile"/"sigma" before any renderer
+# sees it. tables.yaml:970-972 forbids the only mechanism that would make such a comparison right
+# ("NEVER FX-converted at ingest or at serving"), so REFUSING is the sole honest completion: this module
+# NEVER maps, aliases or converts a unit. Normalization here is strip() + casefold() and nothing else.
+#
+# THE THREE-STATE RULE (D-FR-5), not an equality test:
+#     known vs known, equal      -> COMPATIBLE   (byte-identical to pre-guard behaviour)
+#     known vs known, different  -> INCOMPATIBLE (the measured defect)
+#     known vs unknown (or "")   -> INCOMPATIBLE (one side proves a unit dimension is in play and the
+#                                                 other cannot be shown compatible with it)
+#     unknown vs unknown         -> COMPATIBLE   (no unit dimension in play at all -- ~17 of 19 cards
+#                                                 declare no unit source, so fail-closed here would be a
+#                                                 large unmeasured behaviour change shipped to fix a
+#                                                 futures defect)
+# A NAIVE EQUALITY TEST IS THE OTHER FAILURE: query.py:779 writes "" on an unresolvable commodity and the
+# pattern-records mint hardcodes None, so `"" == ""` and `None == None` would read as compatible and pass
+# two unrelated quantities.
+#
+# SCOPE IS `unit` ONLY THIS WAVE (D-FR-6), and the gap is named, not papered over: `currency` is present
+# on every silver_futures_eod row but is NOT carried onto the stat handles. For that table the currency is
+# embedded in the override string ("CNY/t" vs "US cents/lb"), so unit equality already catches every
+# cross-currency case on the one table where the defect is live. KNOWN LIMITATION: a table that ever
+# serves the SAME unit string under two currencies is uncovered until `currency` is lifted onto the four
+# handle mint sites (deferred item X2).
+#
+# TWO CLASSES THIS POLICY STRUCTURALLY CANNOT REACH (D-FR-17; pinned as UNCOVERED, never described as
+# closed): (i) a ONE-handle read over mixed-unit rows -- the caller only consults this on a two-handle
+# stat, and a unit_col card's mixed rows are sampled from rows[0] alone; (ii) LEVEL vs DELTA -- a
+# window_change handle inherits the RAW price unit, so ranking a +5c delta inside a distribution of ~430c
+# levels is known == known and COMPUTES. Unit equality is the wrong instrument for (ii).
+# ---------------------------------------------------------------------------------------------------
+# The decline PROSE, declared as constants so it is registrable and linted rather than an ad-hoc f-string
+# built at the call site (D-FR-14 exit (1)). The agent registers these in STAT_DECLINE_TEMPLATES; the
+# config_check futures_lite census lints that dict the way it lints FUTURES_DECLINE_TEMPLATES. Every
+# string must stay register_leaks / exec_leaks / valuation / flow clean under BOTH the fenced and outlook
+# registers, survive sanitize() unchanged, and never call a futures value a "settle".
+UNIT_MISMATCH_DECLINE = (
+    "the two series are quoted in different units ({a} against {b}), and this lookup never converts "
+    "between them -- a rank or z-score across them would compare two different quantities as if they "
+    "were one, so no figure is computed")
+# The asymmetric leg gets its OWN wording rather than rendering the missing side as "None": the guard
+# established that one side cannot be SHOWN compatible, which is a weaker claim than "different units",
+# and handing the model the stronger claim would be a false explanation it then narrates.
+UNIT_UNKNOWN_DECLINE = (
+    "one of the two series is quoted in {known} and the other carries no unit label at all, so they "
+    "cannot be shown to be the same quantity, and this lookup never converts between units -- a rank or "
+    "z-score across them could put two different quantities on one scale, so no figure is computed")
+# EMPTINESS IS A DIFFERENT CONDITION AND IS CHECKED FIRST (see unit_decline's caller). A lookup that
+# returned no rows mints unit=None, and a coverage-declined futures read is EXACTLY that shape -- on the
+# very path this guard exists to fix. Under the three-state rule known-vs-unknown declines, so without
+# the ordering an empty read would be narrated to the reader as a unit mismatch.
+EMPTY_SERIES_DECLINE = (
+    "the {which} came back with no rows at all, so there is nothing to compute over -- an empty read "
+    "(a coverage gap in this lookup), so no figure is computed")
+
+UNIT_UNLABELLED = "unlabelled"          # how an absent unit is rendered in a TRACE label, never in prose
+
+# Guard tags stamped on the decline dict so the caller can tell the two conditions apart without matching
+# on prose (the trace key rides the unit one ONLY -- an empty read is a coverage gap, not a unit event).
+UNIT_GUARD = "unit_mismatch"
+EMPTY_GUARD = "empty_series"
+
+
+def _norm_unit(unit) -> str:
+    """strip() + casefold(), and NOTHING else. Never a mapping, an alias table or a conversion: see 4.4 /
+    tables.yaml:970-972. An absent unit and a blank unit normalize to the same empty string."""
+    return (unit or "").strip().casefold()
+
+
+def unit_compatible(a, b) -> bool:
+    """The three-state rule over two `str | None` unit labels. True = the stat may compute.
+
+    ACCEPTED COST, MEASURED AND RATIFIED (D-FR-16): the estate's unit VOCABULARY is not normalized across
+    cards, so four dimensionally identical pairs are refused today -- `$/bu` vs `USD/bushel`, `c/lb` vs
+    `US cents/lb`, `$/s.t.` vs `USD/short ton`, `$/cwt` vs `USD/cwt` (silver_wasde spellings against
+    silver_futures_eod spellings). Those are FALSE declines and they are pinned as such. The fix, if it is
+    ever taken, is one spelling per (currency, physical unit) in the CARD CONFIG under a lint -- never a
+    runtime alias here."""
+    na, nb = _norm_unit(a), _norm_unit(b)
+    if not na and not nb:
+        return True                     # no unit dimension in play at all
+    if not na or not nb:
+        return False                    # asymmetric: one side cannot be shown compatible with the other
+    return na == nb
+
+
+def unit_pair_label(a, b) -> str:
+    """The two units as ONE trace-safe token. Raw (not normalized) -- a triager needs the spellings that
+    were actually minted; an absent unit renders as the UNIT_UNLABELLED word, never as `None`."""
+    return f"{a or UNIT_UNLABELLED} vs {b or UNIT_UNLABELLED}"
+
+
+def unit_decline(stat: str, n: int, a, b) -> dict:
+    """The unit-incompatibility refusal, on the SAME _decline contract every other floor in this module
+    uses -- so it reaches the model as an honest `declined`, never as an `error` (a malformed call) and
+    never as a raise. `n` is the SERIES handle's own length (the sample the stat WOULD have run over):
+    this refusal is about the comparison, not about thinness, so `n` must never be read as a floor
+    failure -- the reason string carries the cause."""
+    known = a if _norm_unit(a) else b
+    reason = (UNIT_MISMATCH_DECLINE.format(a=a, b=b) if (_norm_unit(a) and _norm_unit(b))
+              else UNIT_UNKNOWN_DECLINE.format(known=known))
+    return _decline(stat, n, reason, guard=UNIT_GUARD, units=unit_pair_label(a, b))
+
+
+def empty_series_decline(stat: str, n: int, which: str) -> dict:
+    """The EMPTY-read refusal, which outranks the unit check. `which` names the side that came back
+    empty, in reader-facing words."""
+    return _decline(stat, n, EMPTY_SERIES_DECLINE.format(which=which), guard=EMPTY_GUARD)
 
 
 def _trailing_run(values: list[float], direction: str) -> int:

@@ -565,18 +565,104 @@ def _total_order(extras: list[tuple[str, str]], include_country: bool = True) ->
     mirror would legitimately return different expiries for the same curve SQL, and the ``agg=latest``
     branch (ORDER BY date DESC, ... LIMIT 1) would pick a different EXPIRY on each backend. This is the
     documented Athena-vs-pg divergence class the parity gate found in 2026-07. 'YYYY-MM' sorts lexically ==
-    chronologically, so the tiebreak resolves to the NEAREST delivery month, deterministically."""
+    chronologically, so the tiebreak resolves to the NEAREST delivery month, deterministically.
+
+    FUTURES_READPATH D-FR-18: the alias list is factored out into ``_order_aliases`` so the Python re-sort
+    (``resort_rows_chronological``) EXTENDS this one key function instead of minting a third copy. There is
+    already a second, INCOMPLETE copy in ``citations._row_order_key`` (it omits ``contract_month``, X3,
+    deferred-and-named); a third would be the drift this docstring exists to prevent."""
+    return ", ".join(_order_aliases(extras, include_country) + ["value"])
+
+
+def _order_aliases(extras: list[tuple[str, str]], include_country: bool = True) -> list[str]:
+    """``_total_order``'s alias list, WITHOUT its final bare ``value`` term -- the one key function shared by
+    the SQL emitter and the Python re-sort (D-FR-18). ``value`` is deliberately excluded here and appended by
+    ``_total_order`` alone: both backends hand ``run()`` STRINGS in different textual forms for the same float
+    (Athena prints large doubles in Java E-notation, 1.5461095E7; psycopg prints 15461095.0 --
+    ``numbers_parity._norm_value`` documents the divergence), so a Python string-compare on ``value`` would
+    break ties differently on the two backends AND differently from the SQL, re-introducing exactly the
+    Athena-vs-pg divergence ``_total_order`` exists to prevent."""
     have = [a for _, a in extras]
     pri = ["data_date", "period", "year", "month", "country", "metric", "knowledge_date",
            "contract_month", "unit"]
     if not include_country:
         pri = [p for p in pri if p != "country"]
-    return ", ".join([a for a in pri if a in have] + ["value"])
+    return [a for a in pri if a in have]
 
 
-def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = ATHENA_DB) -> str:
+def _series_order(extras: list[tuple[str, str]], include_country: bool, *, newest_first: bool) -> str:
+    """The SERIES branch's ORDER BY. Byte-identical to ``_total_order`` unless ``newest_first`` -- which is
+    the S1 canary (D-FR-1 option (c), D-FR-2 futures-scoped, D-FR-10 flag-gated), never a default.
+
+    WHY THE FLIP EXISTS. The series branch compiles ``ORDER BY <total order> LIMIT 5000`` ascending on every
+    term, so when a read exceeds the cap the rows that survive are the OLDEST ones: an unbounded corn_cbot
+    settle series stops in 2011 and the answer narrates a fifteen-year-old price wearing today's as-of. The
+    cap is not the lever (raising it re-opens the scan surface the S3 LIST-storm work closed, and it only
+    moves the silent truncation point); WHICH END the cap keeps is.
+
+    WHY EVERY TERM CARRIES AN EXPLICIT ``NULLS LAST``. Presto defaults NULLS LAST regardless of direction;
+    Postgres defaults NULLS LAST on ASC and NULLS FIRST on DESC. ``value`` is the last term of every total
+    order and settle is NULL on ~10k rows, and ``contract_month`` is legally NULL on the two CEPEA cash slugs
+    -- so a bare DESC would place NULLs differently on the two backends for the same SQL. Today's all-ASC
+    order agrees on both engines by accident; this one agrees by construction. (Same remedy pattern as
+    ``_vintage_tiebreak_order``.)
+
+    WHY ``value`` FLIPS TOO. The flipped order must be the exact reverse of the ASC one or "keep the newest
+    N" is only approximately true. On silver_futures_eod the grain (leviathan_slug, contract_month,
+    trade_date) makes the earlier terms unique, so ``value`` never breaks a tie there -- but the reversal is
+    stated, not assumed."""
+    if not newest_first:
+        return _total_order(extras, include_country)
+    return ", ".join(f"{a} DESC NULLS LAST" for a in _order_aliases(extras, include_country) + ["value"])
+
+
+def _is_series_branch(spec: NumberQuery, ts: TableSpec) -> bool:
+    """Does this spec compile through the SERIES/default arm (``ORDER BY <total order> LIMIT <limit>``)?
+    Mirrors build_sql's own control flow, so the re-sort in ``run()`` can never disagree with the SQL it is
+    undoing: the four scalar aggs collapse to one row, and ``agg='latest'`` on a table WITH a chronological
+    axis compiles either ``... DESC LIMIT 1`` or the per-expiry ROW_NUMBER curve dedup -- neither is a series
+    and neither can truncate. A table with NO order column falls through to the series arm even at
+    ``agg='latest'``, which is why the test is on ``_order_col`` and not on the agg alone."""
+    if spec.agg in ("sum", "mean", "max", "min"):
+        return False
+    if spec.agg == "latest":
+        return not _order_col(ts)
+    return True
+
+
+def _newest_first_applies(spec: NumberQuery, ts: Optional[TableSpec], newest_first: bool) -> bool:
+    """The S1 scope guard, in ONE place so build_sql and run() cannot drift apart (a flipped SQL whose rows
+    were not re-sorted is the partial failure that leaves every consumer looking right while the cap keeps
+    the wrong end).
+
+    D-FR-2 ratified the change FUTURES-SCOPED, keyed on ``ts.contract_month_col``: the per-expiry price card
+    is the only one where a session returns ~13 rows, so it is the only one where the cap bites inside a
+    couple of years. Estate-wide is cleaner code and re-opens the pg-parity soak; scoped keeps that off the
+    table, at the cost -- named here rather than discovered -- of two orderings coexisting in one function.
+
+    It also keeps ``resort_rows_chronological``'s TEXT compare exact. The Python key mirrors the SQL only
+    where the aliases sort the same way as text: ``year`` is 4-digit, ``knowledge_date``/``data_date`` are
+    ISO dates and ``contract_month`` is 'YYYY-MM', all of which sort lexically == chronologically == the way
+    Presto varchar and pg TEXT COLLATE "C" sort them. ``month`` (an int alias, where '10' < '9' as text but
+    9 < 10 as SQL) is the one alias where they diverge -- it exists only on nasa_power, which declares no
+    ``contract_month_col``, so under this scope the divergence is structurally unreachable. It becomes LIVE
+    the instant D-FR-2's estate-wide alternative is taken."""
+    return (bool(newest_first) and ts is not None
+            and bool(getattr(ts, "contract_month_col", None)) and _is_series_branch(spec, ts))
+
+
+def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = ATHENA_DB,
+              futures_newest_first: bool = False) -> str:
     """Compile a NumberQuery to leakage-safe Athena SQL. The as-of guard is injected unconditionally; for
-    `vintage` tables it also collapses to the LATEST vintage published on/before asof (as-known-at-asof)."""
+    `vintage` tables it also collapses to the LATEST vintage published on/before asof (as-known-at-asof).
+
+    ``futures_newest_first`` is the S1 canary (D-FR-10), an OMIT-WHEN-OFF kwarg cloned from the
+    ``_episode_outcomes_on`` idiom: the env is read at ONE seam (``answer._futures_newest_first_on``) and
+    threaded DOWN, so the ENGINE is gated by the ARGUMENT and no ``os.environ`` read exists in this compiler.
+    DEFAULT-OFF and fail-closed: with it absent every table -- including silver_futures_eod -- compiles the
+    byte-identical SQL it compiled before this wave, which is the rollback, from the idiom rather than from
+    a promise. When on, ONLY the series branch of a card declaring ``contract_month_col`` moves
+    (``_newest_first_applies``)."""
     ts = ts or load_registry().get(spec.table)
     # SEAM-C LEVELS-ONLY GUARD: a roll-spliced continuous FRONT-MONTH settle series (silver_futures_prices)
     # has NO PIT-safe cross-date delta -- the splice between expiries contaminates any change/window/curve
@@ -608,6 +694,7 @@ def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = AT
     extras = _extras(ts)
     inc_country = spec.country is not None            # ESR S1: country enters _total_order only when a
     #                                                   destination filter is active (national path stays stable)
+    nf = _newest_first_applies(spec, ts, futures_newest_first)   # S1 canary, futures-scoped (D-FR-2)
     where = " AND ".join(_filters(spec, ts) + [_guard(spec, ts)])
     sel = f"{val} AS value" + "".join(f", {e} AS {a}" for e, a in extras)
     order = _order_col(ts)
@@ -641,7 +728,7 @@ def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = AT
             order_alias = alias[ts.date_col] if ts.date_col else "(year * 100 + month)"
             return base + f" ORDER BY {order_alias} DESC, {_total_order(extras, inc_country)} LIMIT 1"
         else:
-            base += f" ORDER BY {_total_order(extras, inc_country)}"
+            base += f" ORDER BY {_series_order(extras, inc_country, newest_first=nf)}"
         return base + f" LIMIT {int(spec.limit)}"
 
     # non-vintage (ingest / data_date / year_month)
@@ -668,7 +755,12 @@ def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = AT
             return (f"SELECT {outcols} FROM ({inner}) AS _v WHERE _rn = 1"
                     f" ORDER BY {_total_order(extras, inc_country)} LIMIT {int(spec.limit)}")
         return base + f" ORDER BY {order} DESC, {_total_order(extras, inc_country)} LIMIT 1"
-    base += f" ORDER BY {_total_order(extras, inc_country)}"  # series/default: chronological + total tiebreak
+    # series/default: chronological + total tiebreak. Under the S1 canary (futures cards only) this is the
+    # REVERSE of that order with an explicit NULLS LAST on every term, so the LIMIT keeps the NEWEST rows;
+    # run() then re-sorts back to ASC before any consumer sees them, which is what keeps _series_from_rows,
+    # streak/window_change/yoy_delta, _val()'s series[-1], _pace_synth's rows[-1] and eval._num_line's
+    # rws[-1] byte-identical instead of silently sign-flipped.
+    base += f" ORDER BY {_series_order(extras, inc_country, newest_first=nf)}"
     return base + f" LIMIT {int(spec.limit)}"
 
 
@@ -800,16 +892,158 @@ def _apply_country_names(rows: list[dict], spec: NumberQuery, ts: TableSpec) -> 
     return rows
 
 
-def run(spec: NumberQuery, *, query_fn=None, db: str = ATHENA_DB) -> list[dict]:
+def _sort_cell(v) -> tuple[int, str]:
+    """One re-sort cell, as a NULLS-LAST-in-ASC text key -- the Python mirror of what both SQL engines do to
+    a NULL under an ASC order (Presto: NULLS LAST always; Postgres: NULLS LAST on ASC). Both backends hand
+    this layer STRINGS and both render NULL as the EMPTY STRING (Athena omits VarCharValue,
+    ``pgnumbers._stringify`` returns "" for None), so "" and None are the same absence and must sort LAST --
+    not first, which is where a naive text compare would put them and which would flip the two CEPEA cash
+    slugs' NULL contract_month to the head of the read. TEXT compare, deliberately: byte order == pg TEXT
+    COLLATE "C" == Presto varchar comparison, the same equivalence ``_vintage_cmp`` documents."""
+    s = "" if v is None else (v if isinstance(v, str) else str(v))
+    return (1, "") if s == "" else (0, s)
+
+
+def resort_rows_chronological(rows: list[dict], spec: NumberQuery, ts: TableSpec) -> list[dict]:
+    """Undo the S1 canary's DESC fetch, restoring the ASCENDING presentation every downstream consumer was
+    written against (D-FR-1 option (c)). The flip changes WHICH ROWS survive the cap; this restores the ORDER
+    they are handed on in, so nothing downstream changes shape: ``_series_from_rows`` still appends oldest ->
+    newest, ``stats.streak``/``window_change``/``yoy_delta``/``revision_count`` still index oldest->newest,
+    ``_val()``'s ``series[-1]``, ``cascade._pace_synth``'s ``rows[-1]`` and ``eval._num_line``'s ``rws[-1]``
+    still mean the last term of the ascending order, and ``test_cascade_front_expiry``'s adversarial fixture
+    still describes the rows it is given.
+
+    THE KEY IS ``_total_order`` MINUS ITS FINAL ``value`` TERM (D-FR-18), not a new key: see
+    ``_order_aliases`` for why ``value`` is dropped rather than string-compared. ``sorted`` is stable, so
+    rows that tie on every remaining alias keep the executor's order -- which under the flip is ``value
+    DESC`` where today's ASC SQL would have given ``value ASC``. On silver_futures_eod that is unreachable
+    (grain_cols = [leviathan_slug, contract_month, trade_date] makes the earlier terms unique, pinned at
+    test_futures_eod_curve.py), and it is stated here rather than left to be discovered on the card that
+    first breaks that assumption.
+
+    Public, and deliberately so. ``run()`` is NOT the universal choke point -- ``numbers_parity.py`` and
+    ``cascade_census.py`` compile with ``build_sql`` and execute the raw string themselves, by design. Any
+    caller that passes ``futures_newest_first`` without routing through ``run()`` must call THIS function on
+    the rows, or it is measuring the un-re-sorted DESC surface. It must not re-derive the key."""
+    keys = _order_aliases(_extras(ts), spec.country is not None)
+    if not keys:
+        return rows
+    return sorted(rows, key=lambda r: tuple(_sort_cell(r.get(a)) for a in keys))
+
+
+def run(spec: NumberQuery, *, query_fn=None, db: str = ATHENA_DB,
+        futures_newest_first: bool = False) -> list[dict]:
     """Execute on the active backend (or an injected query_fn(sql)->rows for tests/session-cache wrappers).
     Returns rows as list[dict]. The pg mirror's schema is NAMED like the Athena db, so the compiled SQL is
     backend-agnostic -- routing is purely a choice of executor. POST-FETCH: apply DP-1 unit_overrides so every
-    returned row (agg-shaped rows included) carries the correct per-commodity unit."""
+    returned row (agg-shaped rows included) carries the correct per-commodity unit.
+
+    ``futures_newest_first`` is the S1 canary, threaded from ``answer._futures_newest_first_on`` and passed
+    straight down to ``build_sql``; DEFAULT-OFF -> byte-identical rows AND byte-identical SQL.
+
+    THE RE-SORT RUNS BETWEEN THE EXECUTOR AND ``_apply_unit_overrides``, ON THE RAW ROWS, AND THE ORDER OF
+    THESE THREE LINES IS LOAD-BEARING. ``unit`` is a real total-order term (priority 9) and
+    ``_apply_unit_overrides`` CLOBBERS ``r["unit"]`` on every row of a metric carrying unit_overrides --
+    silver_wasde declares BOTH ``unit_col`` and ``unit_overrides`` on avg_farm_price. A re-sort placed after
+    the override would sort on a unit string the SQL never ordered by, producing an order that is neither the
+    DESC SQL's nor today's ASC."""
     ts = load_registry().get(spec.table)
-    sql = build_sql(spec, ts, db=db)
+    sql = build_sql(spec, ts, db=db, futures_newest_first=futures_newest_first)
     rows = query_fn(sql) if query_fn is not None else default_query_fn(db=db)(sql)
+    if _newest_first_applies(spec, ts, futures_newest_first):
+        rows = resort_rows_chronological(rows, spec, ts)     # S1: DESC fetch -> ASC presentation (raw rows)
     rows = _apply_unit_overrides(rows, spec, ts)
     return _apply_country_names(rows, spec, ts)              # ESR: raw country_code -> display name (post-fetch)
+
+
+# -- S3 / S7 / S4: the shape of a series read, and the one shape no positional stat may be computed over --
+#
+# These live HERE, next to `_extras`, because query.py MINTS the aliases they read (`contract_month`,
+# `knowledge_date`, `data_date`) -- this is the vocabulary's home, not a copy of it. They are pure functions
+# over already-fetched rows: no I/O, no clock, no global state, so the PIT-is-inherited property of the
+# callers is untouched.
+
+_SESSION_ALIASES = ("data_date", "knowledge_date")   # the chronological axis, in `_total_order`'s priority
+_CURVE_SHAPE_KEYS = ("n_rows", "n_expiries", "n_sessions", "first_date", "last_date")
+
+
+def _cells(rows: list[dict], alias: str) -> list[str]:
+    """Every non-absent value of one alias, as text. "" IS absence on both backends (Athena omits
+    VarCharValue for NULL, pgnumbers._stringify returns "" for None) -- so an all-NULL column counts ZERO
+    distinct values, never one. That distinction is what stops the two CEPEA cash slugs (contract_month NULL
+    by design) from being read as a one-expiry curve."""
+    out = []
+    for r in rows:
+        v = r.get(alias)
+        s = "" if v is None else (v if isinstance(v, str) else str(v))
+        if s != "":
+            out.append(s)
+    return out
+
+
+def series_shape(rows: list[dict]) -> dict:
+    """S3 + S7: the measurable shape of a series read -- row count, distinct expiries, distinct sessions, and
+    the span's endpoints -- so the stat side stops being structurally blind to what it was handed.
+
+    Today a `window_change` over a capped or interleaved series is computed with no signal anywhere in the
+    stat result: the handle is {series, kd, unit} and the row count, the span and the expiry multiplicity are
+    all discarded at the mint. `n_rows` + `first_date`/`last_date` are the span S7 exists to surface (an
+    endpoint check ALONE cannot tell a full history from the newest ~1.5 years, which is the residual
+    truncation this wave names and does not fix); `n_expiries` + `n_sessions` are the two counts S4's
+    discriminator needs, and neither exists anywhere else.
+
+    Dates are ISO text on both backends, so min/max IS chronological. Returns zeros/None on an empty read
+    rather than raising -- an empty read is already declined upstream for emptiness, and this must not
+    become a second, competing reason."""
+    months = set(_cells(rows, "contract_month"))
+    dates: list[str] = []
+    for alias in _SESSION_ALIASES:                   # data_date first, mirroring _total_order's priority
+        dates = _cells(rows, alias)
+        if dates:
+            break
+    return {"n_rows": len(rows), "n_expiries": len(months), "n_sessions": len(set(dates)),
+            "first_date": min(dates) if dates else None, "last_date": max(dates) if dates else None}
+
+
+def curve_as_calendar(shape: dict) -> bool:
+    """S4's DISCRIMINATOR, and it is a CONJUNCTION -- more than one distinct expiry AND more than one distinct
+    session. It is the whole item, so it is written once:
+
+        multi-expiry + SINGLE session  = a CURVE (a term structure at one as-of). COMPUTE -- `extrema` over
+                                         it ("the high and low of the corn curve") and a percentile of one
+                                         expiry within it are legitimate curve statistics. This is exactly
+                                         the read the tool schema documents (agg='latest' + a comma-separated
+                                         contract_month) and exactly what five curve12 deck rows exercise.
+        SINGLE expiry + multi-session  = a CALENDAR (one contract through time). COMPUTE.
+        multi-expiry + multi-session   = the INTERLEAVED read. DECLINE.
+
+    The bare ">1 distinct contract_month" test the first draft proposed OVER-DECLINES: it refuses the
+    single-session curve, which is not a calendar at all.
+
+    Why the third case is a decline and not a quiet auto-scope to the nearest expiry: a whole-curve series
+    interleaves ~13 delivery months per session, so EVERY positional index a stat computes is off by the
+    expiry multiplicity -- `window_change(t1=-21, t2=-1)` over a 22-session corn curve spans 21 ROWS, i.e.
+    ~1.6 sessions, and returns a wrong cited [N] with nothing truncated and no sentinel available to fire.
+    Auto-scoping would answer with an expiry the question never named, wearing the series' label -- the quiet
+    substitution build_sql's own delivery-month guard exists to refuse ("a dimension the table cannot express
+    is a decline, never a quiet substitution")."""
+    return int(shape.get("n_expiries") or 0) > 1 and int(shape.get("n_sessions") or 0) > 1
+
+
+CURVE_AS_CALENDAR_DECLINE = (
+    "the series read spans {n_expiries} delivery months across {n_sessions} sessions, so its rows interleave "
+    "the curve with the calendar -- a positional statistic over them counts ROWS, not trading days, and the "
+    "figure would be wrong by the expiry multiplicity. Ask for one delivery month (contract_month) for a "
+    "calendar read, or for one as-of for a curve read"
+)
+
+
+def curve_as_calendar_reason(shape: dict) -> str:
+    """The decline's reason string, rendered from the MEASURED shape so the reader is told which two counts
+    triggered it. Register: this is a tool-result `reason`, not a reader-facing preface -- it does not join
+    the decline register and does not silence a co-occurring C2 line."""
+    return CURVE_AS_CALENDAR_DECLINE.format(n_expiries=int(shape.get("n_expiries") or 0),
+                                            n_sessions=int(shape.get("n_sessions") or 0))
 
 
 def default_query_fn(db: str = ATHENA_DB):
@@ -905,7 +1139,37 @@ def _athena(client, sql: str, db: str) -> list[dict]:
     STATS.append({"planning_ms": s.get("QueryPlanningTimeInMillis", 0),
                   "total_ms": s.get("TotalExecutionTimeInMillis", 0),
                   "scanned_bytes": s.get("DataScannedInBytes", 0)})
-    res = _retry(lambda: client.get_query_results(QueryExecutionId=qid, MaxResults=1000))
-    hdr = [c["Name"] for c in res["ResultSet"]["ResultSetMetadata"]["ColumnInfo"]]
-    return [{hdr[i]: c.get("VarCharValue", "") for i, c in enumerate(row["Data"])}
-            for row in res["ResultSet"]["Rows"][1:]]
+    # NextToken pagination (D-FR-12 / S0), CLONED from the house idiom at jobs/utils/athena_utils.py:70-103
+    # rather than re-derived. Before this loop the executor made ONE GetQueryResults call at the API's
+    # MaxResults=1000 ceiling and threw the rest away: since page 1 spends one of those 1000 slots on the
+    # header row, EVERY read here silently capped at 999 rows (MEASURED 2026-08-04: corn_cbot trade_year
+    # 2025 is 2,760 rows and this returned 999, stopping at 2025-05-09 with no error and no sentinel).
+    # That made the 5,000-row `limit` lane-dependent -- pg returned 5,000, Athena 999 -- and made
+    # `_trunc` (`len(rows) >= 5000`, agent.py:1929) structurally unreachable wherever Athena serves,
+    # so `series_truncated` and its provenance warning could never fire on this lane.
+    #
+    # THE RULE A FRESH IMPLEMENTATION GETS WRONG: the header row is present on page 1 ONLY
+    # (athena_utils.py:91-92). Skipping row 0 of every page silently eats one real row per page.
+    # ResultSetMetadata is on every page, so headers are lifted once and reused.
+    #
+    # _retry wraps EACH page, not the loop: a throttle on page 7 must not replay pages 1-6.
+    rows: list[dict] = []
+    hdr: list[str] | None = None
+    first_page = True
+    next_token: str | None = None
+    while True:
+        req: dict = {"QueryExecutionId": qid, "MaxResults": 1000}
+        if next_token:
+            req["NextToken"] = next_token
+        res = _retry(lambda: client.get_query_results(**req))  # noqa: B023 -- consumed before rebind
+        if hdr is None:
+            hdr = [c["Name"] for c in res["ResultSet"]["ResultSetMetadata"]["ColumnInfo"]]
+        page = res["ResultSet"]["Rows"]
+        start = 1 if first_page else 0
+        first_page = False
+        for row in page[start:]:
+            rows.append({hdr[i]: c.get("VarCharValue", "") for i, c in enumerate(row["Data"])})
+        next_token = res.get("NextToken")
+        if not next_token:
+            break
+    return rows

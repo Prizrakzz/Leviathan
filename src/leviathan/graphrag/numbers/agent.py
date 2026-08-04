@@ -443,6 +443,34 @@ FUTURES_DECLINE_TEMPLATES: dict[str, str] = {
 }
 _FUTURES_DECLINE_CLASSES: tuple[str, ...] = ("change", "curve", "named")
 
+# -- U2: the compute_stat GUARD templates, REGISTERED so they are linted rather than trusted -----------
+# These are the model-facing reason strings the two-handle stat guard hands back (see _dispatch_stat).
+# They are NOT SEAM-C classes and must never enter FUTURES_DECLINE_TEMPLATES: that dict's keys are bound
+# equal to _FUTURES_DECLINE_CLASSES by config_check AND by test_futures_lite, and every one of its
+# templates must contain "front-month" -- neither is true of a unit-compatibility refusal.
+#
+# WHY A DICT AND NOT AN f-STRING AT THE CALL SITE (D-FR-14 exit (1)): an arbitrary string built inside
+# _dispatch_stat is enumerated by NOTHING. config_check's futures_lite census iterates
+# FUTURES_DECLINE_TEMPLATES by name, and the C2 census iterates question SHAPES; a call-site f-string is
+# in neither, so a register leak in prose the model then narrates would be invisible to a green
+# config_check. Declared here, ONE census line covers it by construction.
+#
+# HANDOFF, STATED SO IT IS NOT DISCOVERED: the census line itself lives in
+# src/leviathan/graphrag/config_check.py (beside the FUTURES_DECLINE_TEMPLATES loop at check_futures_lite)
+# and is OUT of this lane's files. Until it lands, these strings are linted by the pins in
+# tests/unit/test_numbers_stats.py ONLY, and 6.1's "config_check full run" row does not yet count as U2
+# evidence. The strings are held to the same bar the futures templates are: register_leaks / exec_leaks /
+# count_valuation_words / count_flow_words clean under BOTH registers, sanitize()-stable, and never the
+# word "settle".
+STAT_DECLINE_TEMPLATES: dict[str, str] = {
+    "unit_mismatch": ST.UNIT_MISMATCH_DECLINE,
+    "unit_unknown": ST.UNIT_UNKNOWN_DECLINE,
+    "empty_series": ST.EMPTY_SERIES_DECLINE,
+}
+# The trace key U3 puts on answer_numbers' return when the unit guard fires. Named once so the engine,
+# the tests and (when it is wired) the orchestrator's fixed key tuple cannot drift.
+UNIT_MISMATCH_TRACE_KEY = "unit_mismatch_guard"
+
 # FUTURES-covered commodity surface forms (the 12 contracts a desk names in prose). Longest-first at
 # compile so 'soybean oil' wins over 'soybean'. Deliberately broad on the bare head words (wheat/sugar/
 # coffee/rice/cotton/cocoa) because the CLASS cue -- not the name -- is what makes an ask futures-specific.
@@ -1462,6 +1490,38 @@ def _dispatch_stat(stat: str, inp: dict, handles: dict) -> dict:
     for h in (sh, vh):
         if h is not None and h not in handles:
             raise KeyError(h)
+    # -- U1 THE UNIT-COMPATIBILITY GUARD (FUTURES_READPATH D-FR-4..8). ---------------------------------
+    # THIS is the only function in the module that resolves BOTH handles, which is why the guard sits
+    # here and not in _exec_stat (which would have to duplicate the resolution). It fires ONLY on a
+    # two-handle stat -- `value_handle is not None` -- because a one-handle stat has nothing to compare
+    # a unit against; the trigger deliberately says nothing about the OUTPUT unit, since _STAT_UNIT
+    # below overwrites percentile's and zscore's unit to "percentile"/"sigma" before anything downstream
+    # can see the inputs disagreed.
+    #
+    # ORDERING IS LOAD-BEARING, NOT COSMETIC: emptiness is checked BEFORE units. A lookup that returned
+    # no rows mints {"series": [], "unit": None} (the mint at the bottom of the loop reads rows[0]), and
+    # a COVERAGE-DECLINED silver_futures_eod read returns exactly `"rows": []` -- i.e. this shape arrives
+    # on the very path this wave exists to fix. Under the three-state rule known-vs-None declines, so a
+    # unit-first order would hand the model "quoted in different units (US cents/bushel against None)"
+    # as the explanation for an EMPTY READ, and the model would narrate it. Emptiness first also upgrades
+    # today's behaviour: an empty value handle currently raises IndexError inside _val() and is classed
+    # `status: "error"`, which _STATUS_STATE routes to a different C2 state than `declined`.
+    #
+    # The refusal routes through stats' own _decline contract (via ST.unit_decline / ST.empty_series_decline)
+    # so it reaches the model as `status: "declined"` with NO [N] row injected, and mints no preface: the
+    # *_preface register is census-pinned and joining it would silence the C2 question-shape line on every
+    # co-occurring turn. `n` is the SERIES handle's own length -- the sample the stat WOULD have run over --
+    # never a fabricated 0 a reader could mistake for "no data".
+    if vh is not None:
+        _sh_series = handles[sh].get("series") or []
+        _n = len(_sh_series)
+        if not _sh_series:
+            return ST.empty_series_decline(stat, _n, "history series")
+        if not (handles[vh].get("series") or []):
+            return ST.empty_series_decline(stat, _n, "series being compared against that history")
+        _ua, _ub = handles[sh].get("unit"), handles[vh].get("unit")
+        if not ST.unit_compatible(_ua, _ub):
+            return ST.unit_decline(stat, _n, _ua, _ub)
     series = handles[sh]["series"]
 
     def _val():
@@ -1698,6 +1758,11 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
     # feed to compute_stat; the registry lives for THIS turn only, so a cross-turn handle can never resolve.
     handles: dict[str, dict] = {}
     hseq = 0
+    # U3: every unit-guard FIRE this turn, as "<unit a> vs <unit b>" labels. Turn-scoped like `handles`
+    # because the guard fires deep inside the tool loop while the result dict is built only on the final
+    # (text) response. Stays [] on every turn the guard does not fire, and an empty list is never written
+    # onto the result -- so a matched-unit turn is byte-identical and the key's PRESENCE means a fire.
+    unit_guard_fires: list[str] = []
     # ESR destination-scope honesty guard: detect a named buyer/destination ONCE, up front. Only applied
     # when an ESR lookup actually executes — a destination-worded question that never touches export
     # sales stays byte-identical. None (the common case) is a no-op everywhere below.
@@ -1736,6 +1801,15 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
         if not uses:
             text = "".join(getattr(b, "text", "") for b in resp.content if getattr(b, "type", None) == "text").strip()
             result: dict = {"answer": text, "calls": calls}
+            if unit_guard_fires:
+                # U3: the unit guard's refusal is MODEL-FACING ONLY -- it never enters `calls`, so it
+                # reaches no citation and no reader directly. This key is therefore the only way to see
+                # that it fired at all. NOT YET WIRED END-TO-END: it stays numbers-lane-local until it is
+                # added to the fixed whitelist tuples in orchestrator.py (numbers_only + both hybrid
+                # sites) and to eval.py's row projection -- the same trap documented for
+                # `shape_decline_suppressed` below. Those four files are outside this lane; until they
+                # move, this key is observable on answer_numbers' own return and nowhere else.
+                result[UNIT_MISMATCH_TRACE_KEY] = list(unit_guard_fires)
             preface = ""
             if ask_win:
                 # year_month period-scoping guard, closing tooth: the question NAMED a month and no
@@ -1998,6 +2072,11 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
             except Exception as e:  # noqa: BLE001 — a bad stat request must not kill the loop
                 return ({"stat": stat, "declined": True, "status": "error", "error": str(e)[:200]}, [])
             if res.get("declined"):                                # honest decline: no value row minted
+                if res.get("guard") == ST.UNIT_GUARD:
+                    # U3: record the FIRE (with both units) so the guard is observable in an artifact.
+                    # Only the unit condition rides this key -- an EMPTY read is a coverage gap and
+                    # counting it here would inflate every unit-mismatch census.
+                    unit_guard_fires.append(str(res.get("units")))
                 return ({**res, "status": "declined"}, [])
             prov = _stat_provenance(stat, inp, handles)
             sh = handles.get(inp.get("series_handle")) or {}

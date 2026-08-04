@@ -687,6 +687,37 @@ def _episode_outcomes_on() -> bool:
     return os.environ.get("GRAPHRAG_EPISODE_OUTCOMES", "").strip().lower() in ("on", "1", "true")
 
 
+def _futures_newest_first_on() -> bool:
+    """FUTURES_READPATH S1 canary (GRAPHRAG_FUTURES_NEWEST_FIRST), D-FR-10. THE ONE ENV SEAM for the series
+    read-shape flip, cloned from _episode_outcomes_on and threaded DOWN as the omit-when-off
+    `futures_newest_first` kwarg to numbers.query.build_sql / .run -- NEVER an os.environ read inside
+    query.py, which carries zero flag surface today (it reads exactly LEVIATHAN_BUCKET and
+    ATHENA_QUERY_TIMEOUT_S). The ENGINE is gated by the ARGUMENT, so a mis-plumbed enable cannot fire the
+    flip on an unasked read, and the flag-off surface is byte-identical FROM THE IDIOM rather than from a
+    promise: with the kwarg absent, build_sql emits the same ASC total order it emitted before the wave and
+    run() performs no re-sort.
+
+    WHAT IT FLIPS. The series branch of a card declaring contract_month_col (silver_futures_eod only,
+    D-FR-2's futures-scoped ratification) compiles its ORDER BY as the exact reverse of the total order with
+    an explicit NULLS LAST on every term, so `LIMIT 5000` keeps the NEWEST rows instead of the oldest; run()
+    re-sorts back to ascending before any consumer sees a row. Today an unbounded corn_cbot settle series
+    stops in 2011 and the answer narrates a fifteen-year-old price at today's as-of.
+
+    IT IS ANSWER-CHANGING, WHICH IS WHY IT IS A FLAG. At desiredCount=1 there is no service-level canary; the
+    env var IS the rollback, live on a flip with no redeploy (read PER CALL, never memoized -- the _chain_on
+    idiom). DEFAULT-OFF, fail-closed: only a case-insensitive on/1/true enables it.
+
+    THREADING STATUS, STATED RATHER THAN IMPLIED. The compiler half (query.py) and this seam are landed.
+    The kwarg must still be threaded at the sites that actually call the read, none of which are in this
+    file: numbers/agent.py:276/:1915/:1920 and numbers/cascade.py:254/:3463 (both via Q.run), and
+    server.py:485 (/v1/series -- the one UNPINNED user-facing surface). numbers_parity.py:189 and
+    cascade_census.py:190/:391/:396 compile with build_sql and execute the raw string themselves BY DESIGN,
+    so if either is ever given the flag it must also call query.resort_rows_chronological on the rows, or it
+    is measuring the un-re-sorted DESC surface. Until those sites pass it, this flag is inert in serving --
+    which is the correct state for an un-promoted canary, not an accident."""
+    return os.environ.get("GRAPHRAG_FUTURES_NEWEST_FIRST", "").strip().lower() in ("on", "1", "true")
+
+
 def _cot_outcomes_on() -> bool:
     """OUTCOMES_JOIN J6 kill-switch (GRAPHRAG_COT_OUTCOMES), same seam, same omit-when-off idiom.
 

@@ -353,6 +353,157 @@ def test_athena_timeout_cancels_the_query(monkeypatch):
     assert stopped == ["qid-1"]
 
 
+# ---------------------------------------------------------------------------------------------
+# S0 (D-FR-12) -- Athena NextToken pagination on the numbers executor.
+#
+# Before S0 the executor made ONE GetQueryResults call at MaxResults=1000 and dropped the rest.
+# Page 1 spends one of those 1000 slots on the header row, so every read capped at 999 rows
+# (MEASURED 2026-08-04: corn_cbot trade_year 2025 is 2,760 rows and _athena returned 999,
+# stopping at 2025-05-09 with no error). These pins clone the coverage the house idiom at
+# jobs/utils/athena_utils.py:70-103 earns: three pages, header on page 1 ONLY, token exhaustion.
+# ---------------------------------------------------------------------------------------------
+
+_PAGE_COLS = ("trade_date", "settle")
+
+
+def _fake_athena(pages, *, fail_on_call=None):
+    """An Athena stub that SUCCEEDS immediately and serves `pages` from get_query_results.
+
+    `pages` is [(rows, next_token), ...] where rows are (trade_date, settle) tuples. Page 1 MUST
+    carry the header row at index 0, exactly as the service returns it; later pages must NOT --
+    that asymmetry is the whole defect surface. A NextToken of "tok-<i>" selects pages[i].
+
+    `fail_on_call=(n, exc)` raises `exc` on the n-th get_query_results call so per-page _retry
+    semantics can be pinned (a throttle on page 2 must replay page 2 ONLY).
+    """
+    from types import SimpleNamespace
+    calls: list[dict] = []
+
+    def get_query_results(**kw):
+        calls.append(dict(kw))
+        if fail_on_call and len(calls) == fail_on_call[0]:
+            raise fail_on_call[1]
+        idx = int(kw["NextToken"].split("-")[1]) if "NextToken" in kw else 0
+        rows, nxt = pages[idx]
+        out = {"ResultSet": {
+            "ResultSetMetadata": {"ColumnInfo": [{"Name": c} for c in _PAGE_COLS]},
+            "Rows": [{"Data": [{"VarCharValue": v} for v in r]} for r in rows]}}
+        if nxt:
+            out["NextToken"] = nxt
+        return out
+
+    client = SimpleNamespace(
+        start_query_execution=lambda **kw: {"QueryExecutionId": "qid-1"},
+        get_query_execution=lambda **kw: {"QueryExecution": {
+            "Status": {"State": "SUCCEEDED"},
+            "Statistics": {"QueryPlanningTimeInMillis": 11, "TotalExecutionTimeInMillis": 22,
+                           "DataScannedInBytes": 33}}},
+        get_query_results=get_query_results,
+    )
+    return client, calls
+
+
+def _three_pages():
+    """Page 1: header + 2 rows. Page 2: 2 rows, NO header. Page 3: 1 row, NO header, no token."""
+    return [([_PAGE_COLS, ("2025-01-02", "459.5"), ("2025-01-03", "460.0")], "tok-1"),
+            ([("2025-01-06", "461.0"), ("2025-01-07", "462.0")], "tok-2"),
+            ([("2025-01-08", "463.0")], None)]
+
+
+def test_athena_paginates_three_pages_and_skips_the_header_on_page_1_only():
+    """Every real row from every page, in order, exactly once -- and the header never leaks.
+
+    The bug a fresh implementation gets wrong is skipping row 0 of EVERY page, which silently eats
+    one real row per page. Page 2 opens on 2025-01-06 and page 3 on 2025-01-08; both must survive.
+    """
+    from leviathan.graphrag.numbers import query as Q
+    client, calls = _fake_athena(_three_pages())
+    rows = Q._athena(client, "SELECT trade_date, settle FROM t", "db")
+    assert [r["trade_date"] for r in rows] == ["2025-01-02", "2025-01-03", "2025-01-06",
+                                               "2025-01-07", "2025-01-08"]
+    assert [r["settle"] for r in rows] == ["459.5", "460.0", "461.0", "462.0", "463.0"]
+    # the header row is DATA on the wire; if it leaked it would appear as a row of column names
+    assert not any(r["trade_date"] == "trade_date" for r in rows)
+    assert len(rows) == 5                                    # 5 real rows, not 3 (pre-S0) and not 6
+    assert len(calls) == 3
+
+
+def test_athena_pagination_token_exhaustion_stops_the_loop():
+    """The loop ends when a page carries NO NextToken -- and pages 2..N carry the PREVIOUS page's."""
+    from leviathan.graphrag.numbers import query as Q
+    client, calls = _fake_athena(_three_pages())
+    Q._athena(client, "SELECT 1", "db")
+    assert len(calls) == 3                                   # exactly one call per page, no extra
+    assert "NextToken" not in calls[0]                       # page 1 asks without a token
+    assert [c.get("NextToken") for c in calls[1:]] == ["tok-1", "tok-2"]
+    assert all(c["MaxResults"] == 1000 for c in calls)        # the API ceiling is still requested
+    assert all(c["QueryExecutionId"] == "qid-1" for c in calls)
+
+
+def test_athena_single_page_is_unchanged_by_pagination():
+    """A one-page result is byte-identical to the pre-S0 behaviour: header dropped, one call."""
+    from leviathan.graphrag.numbers import query as Q
+    client, calls = _fake_athena([([_PAGE_COLS, ("2025-01-02", "459.5")], None)])
+    rows = Q._athena(client, "SELECT 1", "db")
+    assert rows == [{"trade_date": "2025-01-02", "settle": "459.5"}]
+    assert len(calls) == 1
+
+
+def test_athena_empty_result_set_returns_no_rows():
+    """A header-only page yields [], not a row of column names."""
+    from leviathan.graphrag.numbers import query as Q
+    client, _ = _fake_athena([([_PAGE_COLS], None)])
+    assert Q._athena(client, "SELECT 1", "db") == []
+
+
+def test_athena_pagination_retries_the_FAILING_PAGE_ONLY(monkeypatch):
+    """_retry wraps each page, not the loop: a throttle on page 2 must not replay page 1.
+
+    Replaying the loop would duplicate page 1's rows; replaying the page returns them once.
+    """
+    import time as _time
+
+    from botocore.exceptions import ClientError
+    from leviathan.graphrag.numbers import query as Q
+    monkeypatch.setattr(_time, "sleep", lambda *_a, **_k: None)
+    throttle = ClientError({"Error": {"Code": "ThrottlingException"}}, "GetQueryResults")
+    client, calls = _fake_athena(_three_pages(), fail_on_call=(2, throttle))
+    rows = Q._athena(client, "SELECT 1", "db")
+    assert [r["trade_date"] for r in rows] == ["2025-01-02", "2025-01-03", "2025-01-06",
+                                               "2025-01-07", "2025-01-08"]
+    assert len(calls) == 4                                   # 3 pages + 1 replay of page 2
+    # the replay carried page 2's token, i.e. page 1 was NOT re-fetched
+    assert calls[1].get("NextToken") == "tok-1" and calls[2].get("NextToken") == "tok-1"
+
+
+def test_athena_pagination_preserves_stats_telemetry():
+    """STATS is the S3-LIST-storm tripwire; it is stamped ONCE per query, not once per page."""
+    from leviathan.graphrag.numbers import query as Q
+    Q.reset_stats()
+    client, _ = _fake_athena(_three_pages())
+    Q._athena(client, "SELECT 1", "db")
+    assert len(Q.STATS) == 1
+    assert Q.STATS[0] == {"planning_ms": 11, "total_ms": 22, "scanned_bytes": 33}
+    assert Q.stats_summary()["n"] == 1
+    Q.reset_stats()
+
+
+def test_athena_pagination_lifts_the_row_cap_past_999():
+    """The regression pin for the defect itself: 1,500 rows across two pages must ALL return.
+
+    Pre-S0 this returned 999 (page 1 minus the header) and the engine's `_trunc` sentinel
+    (`len(rows) >= 5000`, agent.py:1929) was structurally unreachable on the Athena lane.
+    """
+    from leviathan.graphrag.numbers import query as Q
+    p1 = [_PAGE_COLS] + [(f"d{i}", str(i)) for i in range(999)]
+    p2 = [(f"d{i}", str(i)) for i in range(999, 1500)]
+    client, calls = _fake_athena([(p1, "tok-1"), (p2, None)])
+    rows = Q._athena(client, "SELECT 1", "db")
+    assert len(rows) == 1500                                 # was 999
+    assert rows[998]["trade_date"] == "d998" and rows[999]["trade_date"] == "d999"
+    assert len(calls) == 2
+
+
 def _wasde_projected() -> TableSpec:
     """silver_wasde: release_date is a PROJECTED string partition holding REAL monthly publication
     dates (461 real vs 19.5K daily candidates) — native guard + period lower bound are the pruning."""
