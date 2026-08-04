@@ -78,6 +78,26 @@ _NO_PRICE_RECORD = ("no price record", "not in the price record", "no per-contra
                     "not in the price data", "no magnitude", "no observed magnitude",
                     "outside the price coverage", "before the price record")
 
+# R6 residual fold (2026-08-04): the tuple above is a synonym treadmill -- P2 dodged the first fold
+# with "no single priced move", then the next run minted yet another interposer. Normalize instead:
+# an honest-absence marker is "no/without ... priced <noun>" or "price record/coverage ... <negation>"
+# with a BOUNDED gap that never crosses a sentence boundary. The tuple stays for the fixed legacy
+# phrases (and for the decline-detection site, which keeps tuple-only semantics on purpose); this
+# regex serves ONLY the episode magnitude-or-absence pin, where D-4's injected-window requirement
+# (`all(_adj)`) already guarantees the bullet is about a REAL window.
+_NO_PRICE_RX = re.compile(
+    r"\bno\b[^.;!?]{0,40}?\bpriced?\s+(?:move|record|data|magnitude|response|change)\b"
+    r"|\bwithout\b[^.;!?]{0,30}?\bpriced?\s+(?:move|record|magnitude|response)\b"
+    r"|\bprice\s+(?:record|coverage|data)\b[^.;!?]{0,30}?"
+    r"\b(?:does\s+not|doesn'?t|is\s+silent|never|cannot|can'?t|stops?|ends?)\b"
+    r"|\b(?:outside|before|beyond|predates?)\b[^.;!?]{0,30}?\bprice\s+(?:coverage|record|data)\b",
+    re.I)
+
+
+def _absence_marked(line: str) -> bool:
+    """True when an episode bullet honestly declares the price record does not reach it."""
+    return _has_any(line, _NO_PRICE_RECORD) or bool(_NO_PRICE_RX.search(line))
+
 
 def _has_any(text: str, tokens) -> bool:
     low = str(text or "").lower()
@@ -1074,7 +1094,7 @@ def _cascade_asserts(q: dict, out: dict) -> dict | None:
             # SHOWED; `all(_adj)` is that requirement, and it is the same expression both pins use so they
             # can never disagree about which bullets are real.
             _lines, _adj, _ = _episode_enumeration(out)
-            _ok = all(_adj) and all(_N_HANDLE_RX.search(ln) or _has_any(ln, _NO_PRICE_RECORD)
+            _ok = all(_adj) and all(_N_HANDLE_RX.search(ln) or _absence_marked(ln)
                                     for ln in _lines)
             res[k] = (bool(_lines) and _ok) == bool(want)
         elif k == "episode_absence_label_fixed":

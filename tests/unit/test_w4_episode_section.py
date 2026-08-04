@@ -677,3 +677,22 @@ def test_floor_suffix_bans_hidden_windows_and_reaffirms_shown_ones():
     assert s.endswith("still render every window shown on this line as its own bullet")
     # the old section-level-ban reading is impossible: the words are gone
     assert "do not enumerate or narrate" not in s
+
+
+def test_absence_marker_is_normalized_not_a_synonym_list():
+    """R6 residual fold: P2 dodged the tuple twice with fresh interposers ("no single priced move",
+    then another). The marker is now a bounded-gap regex -- interposers and morphology match, while
+    a bullet with neither handle nor absence still fails, and the gap never crosses a sentence."""
+    from leviathan.graphrag import eval as ev
+
+    # interposers + morphology all match
+    assert ev._absence_marked("- 1994-06..1994-08 -- frost: no single priced move for this window")
+    assert ev._absence_marked("- 2006-10..2026-05 -- corn: no concurrent priced move in the record")
+    assert ev._absence_marked("- 1980-01..1981-02 -- no cleanly priced response survives")
+    assert ev._absence_marked("- 1975-03 -- the price record does not reach this window")
+    assert ev._absence_marked("- 1969-01 -- this window predates the price coverage entirely")
+    assert ev._absence_marked("- 1994-06 -- without any priced magnitude in the corpus")
+    # a bare enumeration with neither handle nor absence stays UNMARKED
+    assert not ev._absence_marked("- 2010-08..2011-09 -- the corridor closed and exports fell")
+    # the gap is sentence-bounded: negation in one sentence, price noun in the next, no match
+    assert not ev._absence_marked("- 2020-01 -- no exports moved. The priced move was large [N9]")
