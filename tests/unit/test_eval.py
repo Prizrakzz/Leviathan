@@ -635,3 +635,70 @@ def test_from_number_period_label_no_double_prefix():
                                              "commodity": None, "period": "2010-01-01..2010-03-01",
                                              "asof": "2010-03-01"}}, 3)
     assert "2010-01-01..2010-03-01" in win.label and "MY2010-01-01" not in win.label
+
+
+# -- LANE C: every persisted baseline names the CODE that produced it -----------------------------------
+# The artifact already pins the DATA (corpus_fingerprint, graph_version) and the ARM (model, provider,
+# mentor_voice/cascade_quant/answer_v2). It pinned nothing about the source, so two baselines straddling a
+# prompt change -- the c160bece episodes-omission shape exactly -- were distinguishable only by wall clock.
+def _baseline_doc(**over):
+    doc = {"kind": "baseline_single", "ts": "2026-08-04T09:00:00Z", "eval_set": "v4", "provider": "anthropic",
+           "strip_rate": 0.0, "total_claims": 3, "register_leaks_total": 0, "banned_mood_words_total": 0,
+           "scaffold_violations": 0, "intent_ok": 1, "intent_n": 1, "per_answer": []}
+    doc.update(over)
+    return doc
+
+
+def _written(tmp_path):
+    import json
+    files = list(tmp_path.glob("baseline_*.json"))
+    assert len(files) == 1, files
+    return json.loads(files[0].read_text(encoding="utf-8"))
+
+
+def test_write_baseline_stamps_the_git_commit(tmp_path, monkeypatch):
+    from leviathan.graphrag import evidence as ev
+    monkeypatch.setattr(gev, "_OUT", tmp_path)
+    monkeypatch.setattr(ev, "_evid_s3", lambda: None)          # local twin only, no S3 in a unit test
+    gev._write_baseline(_baseline_doc())
+    commit = _written(tmp_path)["git_commit"]
+    assert commit == "unknown" or (1 <= len(commit) <= 40 and all(c in "0123456789abcdef" for c in commit))
+
+
+def test_baseline_git_commit_prefers_the_baked_image_manifest(monkeypatch):
+    """In a container there is no .git (docker/ copies src/, not the repo), so image_stamp's baked manifest
+    is the ONLY honest source -- and it must win over any git that happens to be on PATH."""
+    from leviathan.common import image_stamp
+    monkeypatch.setattr(image_stamp, "load_manifest", lambda *a, **k: {"git_commit": "abc123def456"})
+    assert gev._baseline_git_commit() == "abc123def456"
+
+
+def test_baseline_git_commit_falls_back_to_rev_parse_then_to_unknown(monkeypatch):
+    import subprocess
+    import types
+    from leviathan.common import image_stamp
+    monkeypatch.setattr(image_stamp, "load_manifest", lambda *a, **k: None)   # no baked manifest
+    calls = {}
+
+    def fake_run(cmd, **kw):
+        calls["cmd"] = list(cmd)
+        return types.SimpleNamespace(returncode=0, stdout="deadbeefcafe1234\n", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    assert gev._baseline_git_commit() == "deadbeefcafe1234"
+    assert calls["cmd"] == ["git", "rev-parse", "HEAD"]
+
+    def boom(*a, **k):                                          # no git binary / no .git / timeout
+        raise OSError("git not found")
+
+    monkeypatch.setattr(subprocess, "run", boom)
+    assert gev._baseline_git_commit() == "unknown"              # graceful, never a raise, never a lost run
+
+
+def test_write_baseline_honours_a_commit_the_caller_already_set(tmp_path, monkeypatch):
+    from leviathan.graphrag import evidence as ev
+    monkeypatch.setattr(gev, "_OUT", tmp_path)
+    monkeypatch.setattr(ev, "_evid_s3", lambda: None)
+    monkeypatch.setattr(gev, "_baseline_git_commit", lambda: "should-not-be-used")
+    gev._write_baseline(_baseline_doc(git_commit="1234abcd"))
+    assert _written(tmp_path)["git_commit"] == "1234abcd"

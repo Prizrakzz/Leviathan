@@ -701,3 +701,55 @@ def test_same_vintage_text_LOSS_is_refused_but_a_topup_is_not(tmp_path, monkeypa
     # ... and --rechunk still takes the deliberate loss
     assert eb._write_doc_cache({"s3://doc-a": [_cached_prop("rewritten", cv)]},
                                chunk_version=cv, allow_rechunk=True) == 1
+
+
+# -- LANE C: the commodity layer's row order (the twin of G5a) -------------------------------------------
+# rebuild_slices iterates `for h in _cached_hashes()` over a SET of md5 hex strings and PYTHONHASHSEED is
+# set nowhere in docker/, jobs/, src/, infra/, scripts/ or the production jobdef env, so the ROW ORDER of
+# all 24 commodity slices (11,119,127,224 B) was per-process randomized. The driver layer stopped being
+# order-dependent at G5a (plan_driver_slices -> ev._truncation_order); the commodity layer serialized
+# whatever the set handed it. These pin the same doctrine on this side.
+def _lane_c_rec(day, key, rid):
+    return {"id": rid, "date": f"2024-03-{day:02d}", "source": "WASDE", "source_key": key,
+            "text": f"US corn note {rid}", "event_date": None, "event_date_precision": None}
+
+
+def test_commodity_payload_is_byte_identical_across_shuffled_input_order(tmp_path, monkeypatch):
+    """Two SHUFFLED input orders produce byte-identical serialized output -- and the order is
+    ev._truncation_order's, not a private copy of it, so the two layers share one convention."""
+    import copy
+    _wire_rebuild(tmp_path, monkeypatch)
+    recs = [_lane_c_rec(5, "kb", "b"), _lane_c_rec(9, "ka", "a"),
+            _lane_c_rec(1, "kc", "c"), _lane_c_rec(9, "ka", "z")]
+
+    def _payload(order):
+        plan = eb._plan_commodity_write({"corn": copy.deepcopy(order)}, backend="bow")
+        return plan.payloads["corn"]()
+
+    forward = _payload(recs)
+    reversed_ = _payload(list(reversed(recs)))
+    rotated = _payload(recs[2:] + recs[:2])
+    assert forward == reversed_ == rotated                       # THE fix, stated as bytes
+    ids = [json.loads(line)["id"] for line in forward.splitlines()]
+    assert ids == ["a", "z", "b", "c"]                           # date DESC, ties by (source_key, id) ASC
+    assert ids == [r["id"] for r in ev._truncation_order(recs)]  # ... i.e. exactly the driver-layer order
+
+
+def test_rebuild_slices_is_byte_reproducible_across_cached_hash_iteration_order(tmp_path, monkeypatch):
+    """End to end through the real seam: the same doc-cache visited in two different orders -- which is what
+    an unseeded str hash does to _cached_hashes() between processes -- must write the same corn.jsonl."""
+    _wire_rebuild(tmp_path, monkeypatch)
+    docs = {"aaa": [_lane_c_rec(2, "D1", "aaa#0")], "bbb": [_lane_c_rec(7, "D2", "bbb#0")],
+            "ccc": [_lane_c_rec(4, "D3", "ccc#0")]}
+    for h, recs in docs.items():
+        (tmp_path / "chunks" / f"{h}.jsonl").write_text("\n".join(json.dumps(r) for r in recs),
+                                                        encoding="utf-8")
+    order = list(docs)
+    monkeypatch.setattr(eb, "_cached_hashes", lambda: list(order))
+    assert eb.rebuild_slices() == 3
+    first = (tmp_path / "corn.jsonl").read_bytes()
+    order.reverse()                                              # a different set-iteration order
+    assert eb.rebuild_slices() == 3
+    assert (tmp_path / "corn.jsonl").read_bytes() == first
+    # and the rows are the most-recent-first order the driver layer already used
+    assert [json.loads(x)["id"] for x in first.decode("utf-8").splitlines()] == ["bbb#0", "ccc#0", "aaa#0"]

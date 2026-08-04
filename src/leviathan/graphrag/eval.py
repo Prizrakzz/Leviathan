@@ -1975,10 +1975,58 @@ def _baseline_json(rows: list[dict], *, run_kind: str, model: str, judged: bool,
             "per_answer": per}
 
 
+def _baseline_git_commit() -> str:
+    """The commit that produced this baseline, or "unknown". NEVER raises.
+
+    Every other reproducibility key a baseline carries names the DATA (corpus_fingerprint, graph_version) or
+    the ARM (model, provider, the three flag fields). None of them names the CODE, so two baselines taken
+    across a serving revision are indistinguishable in the artifact -- which is exactly the shape of the
+    c160bece episodes-omission regression, where the prompt moved and the only way to say which baselines
+    predate it was the wall clock.
+
+    THE FALLBACK CHAIN IS image_stamp's, not a new one. leviathan.common.image_stamp already solved "name my
+    own commit from inside a container": the build bakes $BUILD_GIT_COMMIT into /app/IMAGE_MANIFEST.json
+    (build_manifest), image_facts() reads it back, and an absent or corrupt manifest degrades to
+    image_stamp.UNKNOWN == "unknown" instead of raising (load_manifest returns None on ANY exception).
+
+      1. image_facts()["git_commit"] -- the CONTAINER's answer, and the only honest one there: docker/ copies
+         src/, not the repo, so an eval running in-image has no .git and `git rev-parse` would say nothing.
+      2. `git rev-parse HEAD` -- the WORKING TREE's answer. The eval lane runs on the laptop today, where
+         there is no baked manifest, so this is the branch that actually fires in practice.
+      3. "unknown" -- a plain string, and the fallback is graceful ON PURPOSE. A baseline that cannot name
+         its code is still a valid baseline; refusing to write one would trade a provenance gap for a lost
+         (and billed) run.
+
+    image_stamp is imported lazily and inside try/except so eval.py gains no hard dependency on the silver
+    stack (image_facts -> baked_silver_tables -> leviathan.silver.registry) merely to stamp a JSON field."""
+    try:
+        from leviathan.common import image_stamp as _stamp
+        commit = str(_stamp.image_facts().get("git_commit") or "").strip()
+        if commit and commit != _stamp.UNKNOWN:
+            return commit[:40]
+    except Exception:  # noqa: BLE001 -- provenance is never worth a failed eval run
+        pass
+    try:
+        import subprocess as _sp
+        from pathlib import Path as _Path
+        root = _Path(__file__).resolve().parents[3]        # src/leviathan/graphrag/eval.py -> repo root
+        r = _sp.run(["git", "rev-parse", "HEAD"], cwd=str(root), capture_output=True, text=True, timeout=10)
+        if r.returncode == 0 and r.stdout.strip():
+            return r.stdout.strip()[:40]
+    except Exception:  # noqa: BLE001 -- no git binary, no .git, or a timeout: all mean "unknown"
+        pass
+    return "unknown"
+
+
 def _write_baseline(doc: dict) -> None:
     """Persist the baseline artifact locally (gitignored configs/graphrag/eval/) and — when EVIDENCE_S3 is
-    set — to s3://<EVIDENCE_S3>/eval/ (the durable copy; the local twin never reaches the public repo)."""
+    set — to s3://<EVIDENCE_S3>/eval/ (the durable copy; the local twin never reaches the public repo).
+
+    The `git_commit` stamp is added HERE, not in _baseline_json, so it lands on EVERY persisted baseline
+    (both call sites, convos and single) without a second field to keep in sync -- and an explicit value a
+    caller already put in `doc` is honoured rather than overwritten."""
     import json as _json
+    doc = {**doc, "git_commit": doc.get("git_commit") or _baseline_git_commit()}
     name = (f"baseline_{doc['eval_set']}_{doc['provider']}_"
             f"{doc['ts'].replace('-', '').replace(':', '')}.json")
     _OUT.mkdir(parents=True, exist_ok=True)
@@ -1990,7 +2038,8 @@ def _write_baseline(doc: dict) -> None:
         b, k = ev._parse_s3(s3uri.rstrip("/") + f"/eval/{name}")
         boto3.client("s3").put_object(Bucket=b, Key=k, Body=p.read_bytes())
         print(f"  baseline -> s3://{b}/{k}")
-    print(f"  baseline json -> {p} (strip_rate {doc['strip_rate']}, {doc['total_claims']} claims, "
+    print(f"  baseline json -> {p} (commit {doc['git_commit'][:12]}, "
+          f"strip_rate {doc['strip_rate']}, {doc['total_claims']} claims, "
           f"leaks {doc['register_leaks_total']}, mood {doc.get('banned_mood_words_total', 0)}, "
           f"scaffold_viol {doc.get('scaffold_violations', 0)}, intent {doc['intent_ok']}/{doc['intent_n']})")
 

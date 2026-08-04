@@ -60,6 +60,29 @@ _STATUS: dict = {"state": "unread", "source": None, "err": None, "stamp": None, 
 _TOK_DEAD = "TIMELINE_ARTIFACT_DEAD"
 _TOK_UNSTAMPED = "TIMELINE_ARTIFACT_UNSTAMPED"
 
+# R7.1 (2026-08-04) -- THE FINGERPRINT-COMPARE TOKENS, and the law they keep alive.
+#
+# THE LAW: ONE rebuild = ONE full deck re-probe. Every deck "# PROBE" note is an assertion about the
+# episodes the artifact carried when the probe ran; when the episodes MOVE, those notes are stale and
+# a human must re-probe. R7b puts the rebuild on a weekly cron, and that is exactly what would have
+# retired the law silently: build_stamp embeds `built_at`, so a naive weekly `--run` rewrites the
+# artifact's BYTES every Sunday even when the episode CONTENT is byte-identical. Bytes-moved would
+# then stop meaning content-moved, "every rebuild needs a re-probe" would fire 52 times a year on
+# nothing, and a signal that fires on nothing is a signal that gets ignored -- which is how the law
+# dies without anyone deciding to kill it.
+#
+# THE COMPARE IS ON `stamp.fingerprint`, WHICH IS CONTENT-ONLY BY CONSTRUCTION: build_stamp hashes
+# `json.dumps(episodes, sort_keys=True)` and NOTHING else -- not built_at, not the counts, not the
+# knobs. sort_keys makes it order-invariant, so a dict-iteration reshuffle in derive() cannot forge a
+# change. If that hash ever grows a non-content input, `--run-if-changed` silently degrades to
+# `--run` and this whole leg is theatre; test_r7_fingerprint_excludes_built_at pins it.
+#
+# UNKNOWN IS NEVER "UNCHANGED". A legacy/absent/unreadable artifact carries no fingerprint to compare
+# against, so it is treated as CHANGED: it writes and it demands a re-probe. Same fail-closed posture
+# as check_artifact -- "could not measure" is not evidence of sameness.
+_TOK_UNCHANGED = "TIMELINE_UNCHANGED_SKIP"
+_TOK_REPROBE = "TIMELINE_REBUILT_REPROBE_REQUIRED"
+
 # W4 / skeptic F-I. The marker rendered IN PLACE of a receipt for an episode the retrieved top-K
 # carried no in-window prop for. It is the whole F-I mitigation: the episode is NOT dropped (its `n`
 # is a PIT recount of real prop dates, so dropping would make the corpus look THINNER than it is and
@@ -608,17 +631,92 @@ def _print_check(res: dict, source: str, live: tuple[int, int] | None) -> None:
         print("  rebuild: python -m leviathan.graphrag.timeline --run")
 
 
+def _fingerprint_of(stamp) -> str:
+    """The CONTENT fingerprint carried by a stamp, or "" when there is none to compare.
+
+    "" is the UNKNOWN sentinel and it is never equal to a fresh fingerprint (which always starts
+    "sha256:"), so an artifact that is legacy, absent or unreadable falls to the CHANGED branch by
+    construction rather than by a branch someone has to remember to write."""
+    if not isinstance(stamp, dict):
+        return ""
+    fp = stamp.get("fingerprint")
+    return str(fp) if isinstance(fp, str) and fp else ""
+
+
+def _run(args, *, only_if_changed: bool) -> int:
+    """`--run` and `--run-if-changed` share EVERY step except the one that differs: whether an
+    unchanged fingerprint suppresses the write.
+
+    One function on purpose. The weekly (`--run-if-changed`) and hand-run (`--run`) paths must derive
+    from the same SQL, stamp with the same builder and write the same bytes -- a forked implementation
+    is how the scheduled path and the smoked path stop being the same configuration, which is the
+    failure mode the jobdef's own comments are written around."""
+    # Report the drift the OLD artifact had carried before overwriting it, so a rebuild says out loud
+    # how far gone the thing it replaced was rather than erasing the evidence.
+    reset_cache()
+    _load()
+    old = load_status()
+    old_fp = _fingerprint_of(old.get("stamp"))
+    eps = derive()
+    fresh = build_stamp(eps)
+    new_fp = str(fresh["fingerprint"])
+    unchanged = bool(old_fp) and old_fp == new_fp
+    shape = (f"n_nodes={fresh['n_nodes']} n_episodes={fresh['n_episodes']} "
+             f"n_prop_dates={fresh['n_prop_dates']}")
+
+    if only_if_changed and unchanged:
+        # NO WRITE. Not "a cheap write", not "a write with the old built_at" -- none. The artifact in
+        # S3 keeps its original built_at and its original bytes, so `bytes moved` continues to mean
+        # `episodes moved`, which is the only reason the re-probe token below is worth acting on.
+        print(f"{_TOK_UNCHANGED} old={old_fp} new={new_fp} {shape}")
+        print("  episode CONTENT is identical to the live artifact; it was NOT rewritten and NO deck "
+              "re-probe is required.")
+        # STATED, not silent: the freshness poller reads S3 LastModified, which a skipped write does
+        # not move. A run of unchanged weeks therefore ages the object past the FreshnessLagDays
+        # expectation while the pipeline is perfectly healthy. That is a calibration question for the
+        # lane that owns the alarm, and this line is the evidence it needs.
+        print("  NOTE the artifact's S3 LastModified did NOT move -- a skipped rebuild does not "
+              "refresh the freshness signal.")
+        return 0
+
+    pre = check_artifact(stamp=old.get("stamp"), state=old.get("state"),
+                         live_prop_dates=fresh["n_prop_dates"], live_nodes=fresh["n_nodes"],
+                         age_sla_days=args.age_sla_days, drift_ceiling=args.drift_ceiling)
+    print("--- pre-rebuild state of the artifact being replaced ---")
+    _print_check(pre, str(old.get("source")), (fresh["n_prop_dates"], fresh["n_nodes"]))
+    reset_cache()
+    dest = write_artifact(eps)
+    print(f"derived {fresh['n_episodes']} episodes across {fresh['n_nodes']} slices "
+          f"({fresh['n_prop_dates']} dated pairs) -> {dest}")
+    if unchanged:
+        # `--run` only: it rewrote the artifact (built_at moved) over identical episodes. Emitting the
+        # re-probe token here would be a false alarm on a bytes-only change -- the precise conflation
+        # this leg exists to prevent -- so it says what happened and names the mode that avoids it.
+        print(f"  content UNCHANGED (fingerprint {new_fp}) -- bytes were rewritten anyway because "
+              "this is --run; use --run-if-changed for the scheduled cadence. No re-probe.")
+        return 0
+    print(f"{_TOK_REPROBE} old={old_fp or 'none'} new={new_fp} {shape}")
+    print("  episode CONTENT moved: every deck '# PROBE' note now describes an artifact that no "
+          "longer exists. Re-probe the full deck before quoting any of them.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     import argparse
     ap = argparse.ArgumentParser(description="Derive the prop-store event timeline (free, no LLM)")
     ap.add_argument("--run", action="store_true")
+    ap.add_argument("--run-if-changed", action="store_true",
+                    help="THE SCHEDULED MODE: derive, compare the CONTENT fingerprint against the "
+                         "live artifact's, and write ONLY when it moved -- so one rebuild still "
+                         "means one deck re-probe")
     ap.add_argument("--check", action="store_true",
                     help="read-only: FAIL-CLOSED staleness/drift check of the live artifact (rc=2)")
     ap.add_argument("--age-sla-days", type=float, default=10.0)
     ap.add_argument("--drift-ceiling", type=float, default=0.05)
     args = ap.parse_args(argv)
-    if not args.run and not args.check:
-        print("dry: pass --run to derive + write the artifact, or --check to verify it")
+    if not args.run and not args.check and not args.run_if_changed:
+        print("dry: pass --run to derive + write the artifact, --run-if-changed to write only when "
+              "the episode content moved, or --check to verify it")
         return 0
     from leviathan.common import config
     config.load_env()
@@ -639,23 +737,9 @@ def main(argv: list[str] | None = None) -> int:
         _print_check(res, str(st.get("source")), live)
         return 0 if res["ok"] else 2
 
-    # --run: report the drift the OLD artifact had carried before overwriting it, so a rebuild says
-    # out loud how far gone the thing it replaced was rather than erasing the evidence.
-    reset_cache()
-    _load()
-    old = load_status()
-    eps = derive()
-    fresh = build_stamp(eps)
-    pre = check_artifact(stamp=old.get("stamp"), state=old.get("state"),
-                         live_prop_dates=fresh["n_prop_dates"], live_nodes=fresh["n_nodes"],
-                         age_sla_days=args.age_sla_days, drift_ceiling=args.drift_ceiling)
-    print("--- pre-rebuild state of the artifact being replaced ---")
-    _print_check(pre, str(old.get("source")), (fresh["n_prop_dates"], fresh["n_nodes"]))
-    reset_cache()
-    dest = write_artifact(eps)
-    print(f"derived {fresh['n_episodes']} episodes across {fresh['n_nodes']} slices "
-          f"({fresh['n_prop_dates']} dated pairs) -> {dest}")
-    return 0
+    # --run-if-changed wins when both are passed: it is the strictly safer of the two (it can only
+    # write LESS), so an ambiguous invocation degrades toward the law rather than away from it.
+    return _run(args, only_if_changed=bool(args.run_if_changed))
 
 
 if __name__ == "__main__":

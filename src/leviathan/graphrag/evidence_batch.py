@@ -415,9 +415,32 @@ def _plan_commodity_write(kept_by_node: dict, *, backend: str, manifest=None,
     """G1d's plan half -- everything _commodity_guarded_write does except the write. Returns a WritePlan.
 
     F1: _route_and_write and rebuild_slices both write more than one layer, so they must plan every layer
-    before committing any of them; this is the commodity plan they union."""
+    before committing any of them; this is the commodity plan they union.
+
+    LANE-C DETERMINISM -- THE COMMODITY TWIN OF G5a. rebuild_slices builds `kept_by_node` by iterating
+    `for h in _cached_hashes()` (:614) and _cached_hashes returns a SET of md5 hex strings. PYTHONHASHSEED
+    is set nowhere in docker/, jobs/, src/, infra/, scripts/ or in the production jobdef environment, so str
+    hashing is per-process randomized and the ROW ORDER this function serialized moved on every run -- the
+    24 top-level slices are 11,119,127,224 bytes and NONE of them was byte-reproducible. The driver layer
+    has been immune since G5a because plan_driver_slices runs every slice through ev._truncation_order
+    before serializing (evidence.py:1126); this layer serialized whatever order the set handed it.
+
+    ONE DOCTRINE, ONE CALL: ev._truncation_order itself -- date DESC, ties by (source_key, id) ASC -- and
+    deliberately the function, not a re-typed copy of its key, so the two layers cannot drift apart. The
+    commodity layer has no cap, so this is ORDERING ONLY. The population is identical and the quantities the
+    guard actually trips on are order-invariant: write_guard.span_tuple's n and its min/max endpoints, and
+    the object's TOTAL byte size, which permuting whole JSONL lines conserves exactly. Because the bytes are
+    conserved, resolve_prior's manifest branch still matches on after_bytes, so the prior census is read from
+    the manifest and not re-estimated. (The one order-sensitive read in the store is resolve_prior's FALLBACK
+    `nbytes / first-line length` estimate, reached only when no manifest entry matches -- and it is an
+    estimate that already moves with any content change, not a guard input this reorder newly disturbs.)
+
+    What DOES move is the byte SEQUENCE inside each slice object, so the next --rebuild-slices pass rewrites
+    all 24 commodity slices with their rows in the new order and RE-BASELINES the write-guard manifests.
+    That is BY DESIGN and it is one-time: from that pass onward two runs over the same doc-cache produce
+    byte-identical commodity slices, which is the property the manifests are supposed to be asserting."""
     from leviathan.graphrag import write_guard as wg
-    records = {n: recs for n, recs in kept_by_node.items() if recs}
+    records = {n: ev._truncation_order(recs) for n, recs in kept_by_node.items() if recs}
     skipped = sorted(n for n, recs in kept_by_node.items() if not recs)
     if skipped and manifest is not None:
         manifest.warnings.append(f"commodity: routed 0 props for {skipped} -- prior slice files left intact "

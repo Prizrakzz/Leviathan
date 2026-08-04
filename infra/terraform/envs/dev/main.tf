@@ -804,7 +804,30 @@ resource "aws_scheduler_schedule" "notifications" {
           { Type = "MEMORY", Value = "2048" },
         ]
       }
-      RetryStrategy = { Attempts = 2 }
+      # D-PR-38, 2026-08-04 -- THE SUBMIT-TIME `RetryStrategy` OVERRIDE IS REMOVED.
+      #
+      # It used to read `RetryStrategy = { Attempts = 2 }`. A submit-time RetryStrategy does NOT
+      # merge with the job definition's -- SubmitJob REPLACES the jobdef's retryStrategy object
+      # wholesale. So this key silently guaranteed that ANY `evaluateOnExit` matrix ever armed on
+      # `leviathan-dev-notifications` (D-PR-7/D-PR-37) would never apply on the 12:00Z fire, while
+      # D-PR-7's acceptance test (`describe-job-definitions` shows a retryStrategy) still reported
+      # GREEN. That is a green-acceptance-over-a-dead-mechanism -- the same shape as the T2b
+      # write-guard incident, and the reason the class is worth removing rather than editing.
+      #
+      # REMOVING IT CHANGES NOTHING TODAY, which is what makes it safe to land unsmoked. Live read
+      # 2026-08-04: `leviathan-dev-notifications:2` bakes `{attempts: 2, evaluateOnExit: []}`
+      # (jobs/utils/register_notifications_jobdef.py:80), byte-identical in effect to the override
+      # it replaced. With the key gone the jobdef's own strategy governs -- so the retry posture is
+      # unchanged now, and it becomes CORRECTABLE at the jobdef, which is where D-PR-7/D-PR-39 aim.
+      #
+      # DO NOT RE-ADD IT to change retry behavior. The knob is the jobdef (that registrar), never
+      # the schedule payload. Same rule for the ContainerOverrides above -- those are deliberate
+      # redundant safety that mirrors the baked defaults, not a divergent configuration.
+      #
+      # `leviathan-dev-esr-weekly-ingest`, the OTHER schedule D-PR-38 names, needs no edit: the
+      # whole schedule was deleted by D-PR-15(iii) (see the block below) and `list-schedules` at
+      # 2026-08-04 confirms it is gone. `leviathan-dev-esr_weekly` (the surviving SFN chain) targets
+      # `aws-sdk:sfn:startExecution` and carries no RetryStrategy key at all. This was the last one.
     })
 
     # A dropped invocation now lands somewhere DURABLE. Scheduler treats an AccessDenied from the target
@@ -1843,9 +1866,17 @@ resource "aws_scheduler_schedule" "ecr_pin_audit" {
 # (638b80cb-cd2f-43a2-8337-743b534692a2, 2026-08-04) ran argv
 # ["-m","leviathan.graphrag.timeline","--run"] on leviathan-dev-silver-gate:12 /
 # leviathan-dev-queue-ondemand to exit 0 in 26 seconds. Everything below
-# reproduces that run: same argv, same queue, same env set, same EVIDENCE_PG_DSN
-# secret mount, same sizing. The ONE deliberate delta is that ANTHROPIC_API_KEY is
-# NOT mounted -- derive() is documented "free, no LLM", timeline.py imports only
+# reproduces that run: same queue, same env set, same EVIDENCE_PG_DSN secret
+# mount, same sizing. TWO deliberate deltas, both stated rather than implied:
+#   (1) ANTHROPIC_API_KEY is NOT mounted -- derive() is documented "free, no LLM",
+#       and the import argument below holds;
+#   (2) the argv is --run-if-changed, NOT the smoked --run (R7.1; see the command
+#       local). The two modes share one code path and differ only in whether an
+#       UNCHANGED fingerprint suppresses the write, so the derive/stamp/write
+#       behaviour proven by that run is the behaviour this argv reaches -- but the
+#       argv itself is UNSMOKED, and precondition (a) below is therefore not yet
+#       satisfied by the 08-04 job. Re-smoke on --run-if-changed before arming.
+# On (1): timeline.py imports only
 # leviathan.graphrag.params at module level and lazily imports
 # leviathan.graphrag.pgstore inside derive(), so no Anthropic client is ever
 # constructed on this path.
@@ -1881,7 +1912,35 @@ locals {
 
   # ONE definition, read by the jobdef's baked command AND the schedule override
   # AND the pre-arm smoke -- the same three-way identity as the audit unit above.
-  timeline_rebuild_command = ["-m", "leviathan.graphrag.timeline", "--run"]
+  #
+  # --run-if-changed, NOT --run (R7.1, landed 2026-08-04). This is the leg
+  # precondition (b) below names, and the reason it is a flag rather than a
+  # separate entrypoint is that the scheduled path and the smoked path must remain
+  # the SAME command string. The mode derives, compares the artifact's CONTENT
+  # fingerprint (build_stamp hashes the episodes body alone -- built_at is outside
+  # it) against the live artifact's, and:
+  #   UNCHANGED -> prints TIMELINE_UNCHANGED_SKIP with both fingerprints, writes
+  #                NOTHING, exits 0. The artifact keeps its original bytes and its
+  #                original built_at, so "bytes moved" still means "episodes moved".
+  #   CHANGED   -> writes, then prints TIMELINE_REBUILT_REPROBE_REQUIRED with the
+  #                old and new fingerprints -- the deck's "# PROBE" notes are stale
+  #                and a human must re-probe.
+  # A legacy/absent/unreadable artifact has no fingerprint to compare and is
+  # treated as CHANGED, so the first scheduled run against today's unstamped
+  # artifact rebuilds rather than skipping forever.
+  #
+  # Bare `--run` still exists and still always writes; it is the hand-run mode. Had
+  # this schedule been armed on it, the weekly rewrite would have moved the bytes
+  # every Sunday over identical episodes and retired the ONE-rebuild-ONE-re-probe
+  # law by making its signal fire 52 times a year on nothing.
+  #
+  # OPEN, for the lane that owns the R7c alarm: a SKIPPED rebuild does not move the
+  # object's S3 LastModified, which is what the freshness poller measures. Two
+  # consecutive unchanged weeks age graphrag_timeline_episodes past the
+  # expected_lag_days 10 the held alarm is calibrated to, on a perfectly healthy
+  # pipeline. The skip prints that consequence in its own log line; the calibration
+  # decision is D-EI-12's to make before the alarm is unheld, not this unit's.
+  timeline_rebuild_command = ["-m", "leviathan.graphrag.timeline", "--run-if-changed"]
 
   timeline_rebuild_job_definition_name = "${var.project_name}-${var.environment}-timeline-rebuild"
 

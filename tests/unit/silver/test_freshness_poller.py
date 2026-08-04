@@ -290,7 +290,13 @@ class TestRatioMetricData:
 
 
 class TestPollerPassesTheDenominator:
-    """The emitter half is dead if the SCRIPT never passes ``expected``."""
+    """The emitter half is dead if the SCRIPT never passes ``expected``.
+
+    These are TEXT pins on the source, and text pins are exactly as strong as the string they
+    match -- ``"expected=expected" in src`` stays green for a call that is dead, mis-scoped, or
+    never reached. They are kept because they name the requirement in one line, but the load-bearing
+    coverage is :class:`TestPollerEndToEnd` below, which runs ``main()`` against a fake S3 + a fake
+    CloudWatch and reads the datums that ACTUALLY arrive at ``put_metric_data``."""
 
     @staticmethod
     def _src() -> str:
@@ -423,3 +429,205 @@ class TestExtraTargets:
         repo = Path(__file__).resolve().parents[3]
         src = (repo / "scripts" / "silver" / "freshness_poller.py").read_text(encoding="utf-8")
         assert "targets = all_poll_targets()" in src
+
+
+# ---------------------------------------------------------------------------
+# THE SCRIPT, END TO END (D-PR-14 lane B, 2026-08-04)
+#
+# WHY THIS EXISTS ON TOP OF EVERYTHING ABOVE. The pure core was fully tested and the poller's use of
+# it was pinned only by grepping the script's own text for "expected=expected". That pair proves the
+# ratio CAN be computed and that a literal appears in a file -- neither one proves a ratio datum ever
+# reaches CloudWatch. The estate's recurring failure is precisely this shape: a fence that reads as
+# armed (T2b's write-guard, the freshness alarms themselves, the R7a inline copy) while the emitting
+# half is dark. So these tests drive ``main()`` -- real argv, real target derivation, real chunking --
+# against a fake S3 listing and a fake CloudWatch, and assert on the datums that ACTUALLY arrive.
+# ---------------------------------------------------------------------------
+class _FakeS3:
+    """A ``list_objects_v2`` paginator over a canned ``{prefix: [(key, last_modified)]}`` listing.
+
+    ``default`` (a ``(suffix, last_modified)`` pair) answers any prefix the test did not name, so a
+    whole-estate run can be driven without enumerating 46 prefixes."""
+
+    def __init__(self, listing=None, default=None):
+        self._listing = listing or {}
+        self._default = default
+        self.listed: list[tuple[str, str]] = []
+
+    def get_paginator(self, name):
+        assert name == "list_objects_v2", name
+        return self
+
+    def paginate(self, Bucket, Prefix):  # noqa: N803 - boto3 kwarg casing
+        self.listed.append((Bucket, Prefix))
+        objs = self._listing.get(Prefix)
+        if objs is None:
+            objs = [] if self._default is None else [(Prefix + self._default[0], self._default[1])]
+        yield {"Contents": [{"Key": k, "LastModified": lm} for k, lm in objs]}
+
+
+class _FakeCloudWatch:
+    def __init__(self):
+        self.puts: list[list[dict]] = []
+        self.namespaces: list[str] = []
+
+    def put_metric_data(self, Namespace, MetricData):  # noqa: N803 - boto3 kwarg casing
+        self.namespaces.append(Namespace)
+        self.puts.append(list(MetricData))
+
+    @property
+    def datums(self) -> list[dict]:
+        return [d for chunk in self.puts for d in chunk]
+
+
+class _FakeBoto3:
+    def __init__(self, s3, cw):
+        self._s3, self._cw = s3, cw
+        self.built: list[str] = []
+
+    def client(self, service, **_kw):
+        self.built.append(service)
+        if service == "s3":
+            return self._s3
+        if service == "cloudwatch":
+            return self._cw
+        raise AssertionError(f"poller built an unexpected client: {service}")
+
+
+@pytest.fixture(scope="module")
+def poller():
+    """The script, loaded as a module. It is under scripts/ (not a package), so importlib by path."""
+    import importlib.util
+    from pathlib import Path
+    repo = Path(__file__).resolve().parents[3]
+    spec = importlib.util.spec_from_file_location(
+        "freshness_poller_under_test", repo / "scripts" / "silver" / "freshness_poller.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _run(poller, monkeypatch, argv, listing=None, default=None):
+    """Run ``main(argv)`` with boto3 replaced INSIDE the poller module only. Returns (rc, s3, cw)."""
+    s3, cw = _FakeS3(listing, default), _FakeCloudWatch()
+    monkeypatch.setattr(poller, "boto3", _FakeBoto3(s3, cw))
+    rc = poller.main(argv)
+    return rc, s3, cw
+
+
+def _ago(days: float) -> datetime:
+    return datetime.now(timezone.utc) - timedelta(days=days)
+
+
+class TestPollerEndToEnd:
+    # The two ceilings under test are the live declared ones, pinned to silver_alarms by
+    # TestDeclaredCeiling.test_declared_ceilings_match_the_per_table_alarms above.
+    FGIS_PREFIX = "silver/fgis/"
+    EPISODES_PREFIX = "graphrag_evidence/timeline/"
+
+    def test_ratio_datums_actually_reach_put_metric_data(self, poller, monkeypatch):
+        # THE LANE-B ASSERTION. A table WITH a declared ceiling emits FOUR datums, two of them
+        # FreshnessLagRatio -- measured at the CloudWatch boundary, not by reading the script.
+        rc, _s3, cw = _run(
+            poller, monkeypatch, ["--tables", "silver_fgis"],
+            listing={self.FGIS_PREFIX: [(self.FGIS_PREFIX + "part.parquet", _ago(7.0))]})
+        assert rc == 0
+        ratios = [d for d in cw.datums if d["MetricName"] == RATIO_METRIC_NAME]
+        days = [d for d in cw.datums if d["MetricName"] == METRIC_NAME]
+        assert len(cw.datums) == 4 and len(ratios) == 2 and len(days) == 2
+        assert {d["Dimensions"][0]["Value"] for d in ratios} == {"silver_fgis", "usda_fgis"}
+        for d in ratios:
+            assert d["Value"] == pytest.approx(7.0 / 14.0, abs=1e-3)   # ceiling 14
+        for d in days:
+            assert d["Value"] == pytest.approx(7.0, abs=1e-3)
+        assert cw.namespaces == [METRIC_NAMESPACE]
+
+    def test_each_table_is_normalized_by_its_OWN_ceiling(self, poller, monkeypatch):
+        # D-PR-14 in one run: two targets with DIFFERENT ages (7d and 5d) and DIFFERENT ceilings
+        # (14 and 10) land on the SAME 0.5 ratio. That equality is the property the family-level
+        # statistic=Maximum needs and that FreshnessLagDays cannot give it.
+        rc, _s3, cw = _run(
+            poller, monkeypatch,
+            ["--tables", "silver_fgis,graphrag_timeline_episodes"],
+            listing={
+                self.FGIS_PREFIX: [(self.FGIS_PREFIX + "part.parquet", _ago(7.0))],
+                self.EPISODES_PREFIX: [(self.EPISODES_PREFIX + "episodes.json", _ago(5.0))],
+            })
+        assert rc == 0
+        ratios = {d["Dimensions"][0]["Value"]: d["Value"]
+                  for d in cw.datums if d["MetricName"] == RATIO_METRIC_NAME}
+        days = {d["Dimensions"][0]["Value"]: d["Value"]
+                for d in cw.datums if d["MetricName"] == METRIC_NAME}
+        assert set(ratios) == {"silver_fgis", "usda_fgis",
+                               "graphrag_timeline_episodes", "graphrag_evidence"}
+        assert ratios["silver_fgis"] == pytest.approx(0.5, abs=1e-3)
+        assert ratios["graphrag_timeline_episodes"] == pytest.approx(0.5, abs=1e-3)   # 5 / 10
+        assert days["silver_fgis"] == pytest.approx(7.0, abs=1e-3)
+        assert days["graphrag_timeline_episodes"] == pytest.approx(5.0, abs=1e-3)
+
+    def test_the_non_registry_artifact_is_actually_polled(self, poller, monkeypatch):
+        # FENCE 2 leg 3, behaviourally: if the script had kept calling the registry-pure
+        # poll_targets(), this --tables filter would select nothing and NOTHING would be listed.
+        # This is the R7a datapoint precondition D-EI-12 wants -- the METRIC, never the alarm.
+        rc, s3, cw = _run(
+            poller, monkeypatch, ["--tables", "graphrag_timeline_episodes"],
+            listing={self.EPISODES_PREFIX: [(self.EPISODES_PREFIX + "episodes.json", _ago(2.0))]})
+        assert rc == 0
+        assert s3.listed == [("leviathan-dev-shahem-001", self.EPISODES_PREFIX)]
+        assert {d["Dimensions"][0]["Value"] for d in cw.datums} == {
+            "graphrag_timeline_episodes", "graphrag_evidence"}
+
+    def test_no_ratio_flag_emits_exactly_the_legacy_payload(self, poller, monkeypatch):
+        # The rollback switch is real: two datums, day metric only, no ratio anywhere.
+        rc, _s3, cw = _run(
+            poller, monkeypatch, ["--tables", "silver_fgis", "--no-ratio"],
+            listing={self.FGIS_PREFIX: [(self.FGIS_PREFIX + "part.parquet", _ago(7.0))]})
+        assert rc == 0
+        assert len(cw.datums) == 2
+        assert {d["MetricName"] for d in cw.datums} == {METRIC_NAME}
+
+    def test_dry_run_builds_no_cloudwatch_client_and_puts_nothing(self, poller, monkeypatch):
+        rc, _s3, cw = _run(
+            poller, monkeypatch, ["--tables", "silver_fgis", "--dry-run"],
+            listing={self.FGIS_PREFIX: [(self.FGIS_PREFIX + "part.parquet", _ago(7.0))]})
+        assert rc == 0
+        assert cw.puts == []
+
+    def test_empty_prefix_emits_no_datapoint(self, poller, monkeypatch):
+        # The "canonical surface has no data" path: no datum -> treat_missing_data='breaching'.
+        rc, _s3, cw = _run(poller, monkeypatch, ["--tables", "silver_fgis"], listing={})
+        assert rc == 0
+        assert cw.datums == []
+
+    def test_a_shadow_only_prefix_emits_no_datapoint(self, poller, monkeypatch):
+        # The canonical-only rule survives the script's generator plumbing, not just the core's.
+        rc, _s3, cw = _run(
+            poller, monkeypatch, ["--tables", "silver_fgis"],
+            listing={self.FGIS_PREFIX: [(self.FGIS_PREFIX + "_shadow/fresh.parquet", _ago(0.1))]})
+        assert rc == 0
+        assert cw.datums == []
+
+    def test_every_live_target_emits_a_ratio_and_the_chunking_holds(self, poller, monkeypatch):
+        # Whole-estate sweep: no target may silently degrade to day-only (which is what a missing
+        # denominator looks like from CloudWatch -- indistinguishable from "this table has no
+        # ceiling"). 4 datums x every target, and every request stays inside the put chunk.
+        n = len(all_poll_targets())
+        rc, s3, cw = _run(poller, monkeypatch, [], default=("part.parquet", _ago(1.0)))
+        assert rc == 0
+        assert len(s3.listed) == n
+        assert len(cw.datums) == 4 * n
+        assert len([d for d in cw.datums if d["MetricName"] == RATIO_METRIC_NAME]) == 2 * n
+        assert all(0 < len(chunk) <= poller._PUT_CHUNK for chunk in cw.puts)
+        assert set(cw.namespaces) == {METRIC_NAMESPACE}
+
+    def test_dry_run_reports_the_denominator_and_flags_the_breach(self, poller, monkeypatch, capsys):
+        # The operator-visible half: the printed line must name the ceiling it divided by and mark
+        # a > 1.0 ratio, because --dry-run is how this is verified before an alarm ever reads it.
+        rc, _s3, _cw = _run(
+            poller, monkeypatch, ["--tables", "silver_fgis", "--dry-run"],
+            listing={self.FGIS_PREFIX: [(self.FGIS_PREFIX + "part.parquet", _ago(28.0))]})
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "expected=14d" in out
+        assert "ratio=2.0" in out
+        assert "BREACH" in out
+        assert "1 table(s) over 1.0: ['silver_fgis']" in out
