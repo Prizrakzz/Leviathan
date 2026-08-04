@@ -1,11 +1,5 @@
 FROM python:3.11-slim
 
-# FENCE (incident I-1): build provenance. .dockerignore excludes .git, so NO image can ever run
-# `git rev-parse` on itself (this is exactly why jobs/batch/pattern_records_sweep_task.py:219-225
-# falls back to "unknown"). The commit MUST be injected as a build ARG by the build script.
-ARG BUILD_GIT_COMMIT=unknown
-ARG BUILD_TIME=unknown
-
 WORKDIR /app
 
 # System libraries required by rasterio's manylinux wheel (bundles GDAL but
@@ -37,7 +31,26 @@ COPY configs/ ./configs/
 # (refire3 gate FAIL "DDL silver_psd.sql not found", 2026-07-24).
 COPY sql/ ./sql/
 
-# FENCE (incident I-1): stamp the image with what it was BUILT FROM. This RUN must come AFTER
+# FENCE (incident I-1): build provenance. .dockerignore excludes .git, so NO image can ever run
+# `git rev-parse` on itself (this is exactly why jobs/batch/pattern_records_sweep_task.py:219-225
+# falls back to "unknown"). The commit MUST be injected as a build ARG by the build script.
+#
+# CACHE FENCE (2026-08-04): these two ARGs are declared HERE, immediately above their ONLY
+# consumer, and must never be hoisted back to the top of the file. Docker scopes an ARG to every
+# instruction that FOLLOWS it and treats a following RUN as though the arg were in that command's
+# environment -- so the RUN's cache key moves whenever the arg's value moves, even when the
+# command never mentions the name. BUILD_GIT_COMMIT is a NEW VALUE ON EVERY COMMIT. Declared at
+# the top, it therefore invalidated the pip-install layer (863 MB) and the `playwright install`
+# layer (1.03 GB) on every single build, and every push then had to move ~2 GB through the Docker
+# Desktop proxy that breaks the pipe on GB PUTs. Below those layers, their cache keys depend only
+# on their real inputs: the base image, the apt set, pyproject.toml and the playwright version.
+# This paragraph is NOT the fence -- the fence is
+# tests/unit/test_image_config_fence.py::test_provenance_args_stay_below_the_heavy_layers, which
+# fails if either ARG is moved above the pip or `playwright install` RUN.
+ARG BUILD_GIT_COMMIT=unknown
+ARG BUILD_TIME=unknown
+
+# Stamp the image with what it was BUILT FROM. This RUN must come AFTER
 # `COPY configs/` -- stamping earlier would fingerprint an empty directory and the manifest would
 # lie. tests/unit/test_image_config_fence.py::test_dockerfiles_stamp_after_configs_copy pins that
 # ordering. On 2026-07-24 this container could not say it was built from e0a33bf2, so a week was

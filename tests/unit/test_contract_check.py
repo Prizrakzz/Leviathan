@@ -257,12 +257,13 @@ def test_cot_unserved_slugs_are_known_not_drift(monkeypatch):
     assert any("unmapped_slug" in e for e in errs)                  # a real miss still fails
 
 
-def test_cot_unserved_slugs_pin_the_yaml_not_covered_list():
-    """cascade.COT_UNSERVED_SLUGS is a mirror of configs/sources/cftc_cot.yaml `not_covered:` -- the
-    authoritative vendor-coverage declaration. A slug added to either side without the other is drift
-    in the fence itself; this lint makes the two lists one fact. Line-scan, not safe_load: the file's
-    CSV schema block carries `key:{...}` flow tokens the YAML scanner rejects, so the whole document
-    does not parse -- the not_covered block itself is plain `- slug  # comment` lines."""
+def test_cot_unserved_slugs_derive_from_the_yaml_not_covered_list():
+    """cascade.COT_UNSERVED_SLUGS IS configs/sources/cftc_cot.yaml `not_covered:` -- the authoritative
+    vendor-coverage declaration -- read at first use (D-PR-6), not transcribed. This test re-scans the
+    file with its OWN parser rather than calling cascade's, so a bug in `_scan_not_covered` cannot make
+    the assertion vacuous. Line-scan, not safe_load: the file's CSV schema block carries `key:{...}` flow
+    tokens the YAML scanner rejects, so the whole document does not parse -- the not_covered block itself
+    is plain `- slug  # comment` lines."""
     from pathlib import Path
 
     from leviathan.graphrag.numbers import cascade as casc
@@ -282,6 +283,48 @@ def test_cot_unserved_slugs_pin_the_yaml_not_covered_list():
                 break                                   # next top-level key ends the block
     assert slugs, "not_covered block not found -- the fence lost its authority"
     assert slugs == set(casc.COT_UNSERVED_SLUGS)
+    # The module attribute and the accessor are ONE value, not two that happen to agree: the name is
+    # served by cascade's PEP-562 __getattr__ hook, so it cannot be an import-time copy while it is
+    # absent from the module __dict__. (The staleness properties this implies -- one read per
+    # process, re-derivation after cache_clear, fallback on an unreadable file -- are pinned in
+    # tests/unit/test_unserved_fence_lint.py:207-251, NOT here.)
+    assert set(casc.cot_unserved_slugs()) == slugs
+    assert "COT_UNSERVED_SLUGS" not in casc.__dict__, \
+        "a module-level copy has appeared -- it would shadow __getattr__ and freeze the fence"
+
+
+def test_patching_the_cot_fence_moves_both_readers_together(monkeypatch):
+    """THE SPLIT-BRAIN SEAM. `COT_UNSERVED_SLUGS` is served by a module `__getattr__`, and a module
+    `__getattr__` is NOT consulted for a bare global read inside cascade itself -- so patching the
+    module attribute used to move contract_check's reader (`casc.COT_UNSERVED_SLUGS`, contract_check
+    .py:197) while `_scope` went on reading the yaml. Measured before the fix: 1 slug for
+    contract_check, 18 for `_scope`, same interpreter, same instant. That is a test that passes for
+    the wrong reason, and it is one `monkeypatch.setattr` away for the next author fencing a venue --
+    this file already patches `ck._mapped_legs` and `ck.cc._distinct_set` in exactly that style."""
+    from types import SimpleNamespace
+
+    from leviathan.graphrag.numbers import cascade as casc
+
+    real = set(casc.COT_UNSERVED_SLUGS)
+    assert "french_wheat_matif" in real, "fixture assumption: a real fenced venue"
+
+    for patch_target in ("COT_UNSERVED_SLUGS", "_COT_UNSERVED_OVERRIDE"):
+        monkeypatch.setattr(casc, patch_target, frozenset({"dutch_barley_matif"}))
+        try:
+            assert set(casc.COT_UNSERVED_SLUGS) == {"dutch_barley_matif"}, patch_target
+            assert set(casc.cot_unserved_slugs()) == {"dutch_barley_matif"}, patch_target
+            # ...and the runtime reader agrees: the patched-in venue fences, the real one does not.
+            assert casc._scope(SimpleNamespace(contract="dutch_barley_matif"),
+                               {"table": "silver_cot"})[1] is casc.SKIP_NODE
+            assert casc._scope(SimpleNamespace(contract="french_wheat_matif"),
+                               {"table": "silver_cot"})[1] is not casc.SKIP_NODE
+        finally:
+            monkeypatch.undo()
+            casc.reset_cot_fence()
+    assert set(casc.COT_UNSERVED_SLUGS) == real
+    assert set(casc.cot_unserved_slugs()) == real
+    assert "COT_UNSERVED_SLUGS" not in casc.__dict__, \
+        "reset_cot_fence must clear the shadow monkeypatch's undo writes into cascade.__dict__"
 
 
 def test_scope_skips_cot_unserved_leg():

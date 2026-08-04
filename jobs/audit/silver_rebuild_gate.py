@@ -49,6 +49,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -98,17 +99,37 @@ def select_branch(table: str, *, silver_reg, pg_mirror=PG_MIRROR_TABLES) -> str:
 
 
 # --- stage result model ----------------------------------------------------------------------------------
-GREEN, RED, SKIPPED = "green", "red", "skipped"
+# WARN is D-PR-5's third status (the plan calls it YELLOW). It exists so a GLOBAL stage -- one whose walk
+# covers the whole estate, not just the table under gate -- can report a drift that implicates OTHER tables
+# without blocking THIS family's promote. It is deliberately NOT a pass either: `TableResult.ok` needs at
+# least one GREEN, so a WARN can never be the only thing a table proved.
+GREEN, RED, SKIPPED, WARN = "green", "red", "skipped", "warn"
 
 
 @dataclass
 class StageResult:
     name: str
-    status: str            # GREEN | RED | SKIPPED
+    status: str            # GREEN | RED | SKIPPED | WARN
     detail: str = ""
+    # D-PR-32 (a PRECONDITION of D-PR-5, not a companion). `detail` has always been a truncated summary
+    # (`errs[:5]`) and the bundle carried nothing else -- so an error past the fifth was invisible in every
+    # downstream reader. Under the split that would be strictly worse than before, because a truncated
+    # WARN rides a PASS instead of a promote-blocking RED. `errors` is the FULL, untruncated list;
+    # `global_errors` is the subset the split moved off this family's verdict. Nothing is ever dropped.
+    errors: list = field(default_factory=list)          # every error the stage produced (untruncated)
+    global_errors: list = field(default_factory=list)   # the subset implicating only OTHER tables (WARN)
 
     def to_dict(self) -> dict:
-        return {"name": self.name, "status": self.status, "detail": self.detail}
+        # Emitted CONDITIONALLY: a green/skipped stage serializes to exactly the three keys it always did,
+        # so every existing bundle reader (the SFN, reports/, dashboards) is untouched by this wave.
+        d = {"name": self.name, "status": self.status, "detail": self.detail}
+        if self.errors:
+            d["error_count"] = len(self.errors)
+            d["errors"] = list(self.errors)
+        if self.global_errors:
+            d["global_error_count"] = len(self.global_errors)
+            d["global_errors"] = list(self.global_errors)
+        return d
 
 
 @dataclass
@@ -121,14 +142,21 @@ class TableResult:
     def ok(self) -> bool:
         # Fail-closed: a known branch, NO red stage, and at least one stage that actually passed green (an
         # all-skipped table proves nothing and is not a pass). BRANCH_UNKNOWN is never ok.
+        # WARN passes through UNTOUCHED here -- that is the whole D-PR-5 invariant: the split changes which
+        # errors are RED, never what RED means, so a table with a red stage of its own keeps its verdict.
         if self.branch not in (BRANCH_A, BRANCH_B):
             return False
         if any(s.status == RED for s in self.stages):
             return False
         return any(s.status == GREEN for s in self.stages)
 
+    @property
+    def warned(self) -> bool:
+        """This table promoted OVER a global drift that implicates some other table (D-PR-5)."""
+        return any(s.status == WARN for s in self.stages)
+
     def to_dict(self) -> dict:
-        return {"table": self.table, "branch": self.branch, "ok": self.ok,
+        return {"table": self.table, "branch": self.branch, "ok": self.ok, "warn": self.warned,
                 "stages": [s.to_dict() for s in self.stages]}
 
 
@@ -143,6 +171,249 @@ class GateContext:
     prior_census: Optional[dict] = None       # the baseline census.json to --diff against
     eval_runner: Optional[Callable] = None    # inject to actually run the judged eval-subset (else deferred)
     value_census_fn: Optional[Callable] = None  # inject the V001 footer census (else deferred hook)
+    # D-PR-5 rollback lever. False == the pre-split behaviour EXACTLY (every error of a global stage is
+    # RED for every family). Kept as a field, not a constant, so a rollback is an env flip on the existing
+    # jobdef rather than an image rebuild -- and so the invariant test can run the same input both ways.
+    severity_split: bool = True
+
+
+# ---------------------------------------------------------------------------
+# D-PR-5 -- THE GATE BLAST-RADIUS SEVERITY SPLIT.
+#
+# THE INCIDENT (2026-08-03, exhibit A). ONE cot vocabulary drift on `brazilian_arabica_coffee` legs redded
+# THREE unrelated family gates in one morning. The mechanism is structural, not a tuning miss:
+# `contract_check()` (`contract_check.py:215+`) walks the WHOLE estate and returns one flat error list with
+# no table parameter anywhere in it; `stage_cascade_census_diff` censuses the whole cascade. Because
+# `TableResult.ok` requires "no red stage" and `main()` exits 1 unless the whole bundle is PASS, one global
+# drift produces N independent exit-1 gate jobs across N family executions.
+#
+# WHAT IS RATIFIED (Option 2, NOT Option 1 -- plan Section 3g + decision D-PR-5). The checks still RUN
+# globally; only the VERDICT BINDING is partitioned. An error that implicates the family's own gate table
+# stays RED exactly as today. An error implicating only OTHER tables becomes WARN, with its full text
+# preserved in the bundle. The family that OWNS a drift still goes RED, so a drift is never promoted over
+# silently -- it is merely not charged to 24 bystanders.
+#
+# THE DEFAULT FOR UNATTRIBUTABLE ERRORS IS RED (ratified). The split's purpose is to remove FALSE breadth,
+# not to invent narrowness the parser cannot justify. Fail-closed on ambiguity is this estate's doctrine
+# everywhere else (BaselineFetchError below; the empty-glob-is-an-ERROR rule at `config_check.py:1614-1621`).
+# Stated honestly: every one of the 10 `config_check` lints is unattributable today, so class C's
+# `config_check` half is UNKILLED by this item -- see `_config_implicated` and D-PR-29.
+#
+# TWO FENCES THE FIRST CUT OF THIS ITEM DID NOT HAVE (both fail-closed, both measured 2026-08-04):
+#
+#   (A) THE ORPHAN FENCE (`gated_tables` / the `owned` arm of `split_by_blast_radius`). "Charge the drift
+#       to the family that owns it" is only a safe narrowing WHILE SOME FAMILY OWNS IT. The set the checks
+#       WALK is not the set the schedules GATE: `contract_check` walks the numbers registry (19 tables minus
+#       the projection trio), while ownership comes from the 26 `configs/silver/dags/*.json` descriptors'
+#       `gate_tables` (41 tables). The difference is not empty -- `gold_pattern_records` is in the walk and
+#       in NOBODY's `gate_tables`. Without this fence its drift WARNs on all 41 gated tables and reds none:
+#       every family promotes over it, exit 0, no alarm, and the only trace is a stdout line in 26 separate
+#       container logs. So an error whose implicated tables are ALL unowned is charged to EVERY family.
+#
+#   (B) THE PROMOTE-BLOCKING FENCE (`blocking=` on `_split_verdict`, used by `stage_cascade_census_diff`).
+#       The SFN reads the gate's EXIT CODE and nothing else (`step_functions/main.tf:38-40`), and
+#       `Gate.Next = "Promote"` is unconditional -- so exit 0 PUBLISHES CANONICAL. The state machine then
+#       runs [Reconcile] = `advance_rolling_census`, which re-runs `cascade_census.main` whose criterion is
+#       the ABSOLUTE un-waived DARK count (`cascade_census.py:623`, `return 1 if dark else 0`), NOT the
+#       baseline diff this gate applies. A census WARN therefore promoted canonical and THEN failed the
+#       execution -- alerting with "Canonical left untouched (INV-6)" about canonical it had just touched.
+#       The exit code and the promote decision must come from the SAME verdict, so a census drift that the
+#       Reconcile step will refuse is RED here, on every family, even when it names another table.
+# ---------------------------------------------------------------------------
+_TABLE_TOKEN = r"[a-z][a-z0-9_]*"
+# `{tid}: ...` -- check_metric_vocabulary's prefix (`contract_check.py:96,100,106`). The country/slug
+# families prefix `{contract}/{did}: ` instead, and the `/` makes this pattern miss them by construction:
+# a leg id is not a table id and must never be read as one.
+_ERR_TABLE_PREFIX_RE = re.compile(r"^(%s):\s" % _TABLE_TOKEN)
+# `... of {table}` -- every C002 family names its implicated table this way: `of {phys}` for the metric
+# families (`:96,106`), `of {table}` for the country/slug families (`:166,207`).
+_ERR_TABLE_OF_RE = re.compile(r"\bof (%s)\b" % _TABLE_TOKEN)
+# `[table=silver_x]` / `[table=silver_x,silver_y]` -- the OPT-IN marker a config_check lint may emit to make
+# itself attributable. Nothing emits it today (see _config_implicated).
+_ERR_TABLE_MARKER_RE = re.compile(r"\[table=(%s(?:,%s)*)\]" % (_TABLE_TOKEN, _TABLE_TOKEN))
+
+
+def implicated_tables(error: str) -> frozenset:
+    """The table id(s) a contract_check error string implicates. Empty == unattributable (-> RED).
+
+    Parses the two shapes `contract_check` actually emits rather than guessing: the `{tid}: ` prefix and
+    every `of {table}`. Over-matching here is SAFE BY DIRECTION -- a spurious extra table can only widen
+    the implicated set, i.e. make more families RED, which is the pre-split behaviour. Under-matching is
+    the dangerous direction and is why the fallback for "no token found" is RED, not WARN."""
+    out = set()
+    m = _ERR_TABLE_PREFIX_RE.match(error or "")
+    if m:
+        out.add(m.group(1))
+    out.update(_ERR_TABLE_OF_RE.findall(error or ""))
+    return frozenset(out)
+
+
+def _config_implicated(error: str) -> frozenset:
+    """The table(s) a `_run_config_check` lint error implicates -- EMPTY for every lint shipping today.
+
+    RATIFIED (D-PR-5): `_run_config_check` emits `f"{label}: {e}"` and several lints (`vocab`, `hierarchy`,
+    `display_names`, `edge_blurbs`) may not reference a silver table at all. Reusing `implicated_tables`
+    here would read the LINT LABEL as a table id ("vocab: ...") and silently demote a real estate-wide
+    failure to WARN -- the exact false narrowness the ratified decision forbids. So attribution here is
+    OPT-IN ONLY: a lint that wants to be table-scoped must say so with an explicit `[table=...]` marker.
+
+    This is the seam D-PR-29 names, and it deliberately does NOT resolve D-PR-29: until a lint emits the
+    marker, the D-PR-6 unfenced-`not_covered` detector -- landing in `_run_config_check` -- reds every
+    family, so class C's config half stays UNKILLED and the plan's census table says so."""
+    out = set()
+    for group in _ERR_TABLE_MARKER_RE.findall(error or ""):
+        out.update(t for t in group.split(",") if t)
+    return frozenset(out)
+
+
+def _gate_table_aliases(table: str, numbers_reg=None) -> frozenset:
+    """Every id an error string may legitimately use for THIS gate table.
+
+    The numbers stack carries agent-facing ids and physical ids for the same table (`silver_esr` serves
+    from `silver_esr_compact` -- `contract_check._physical`, `:48-50`), and the checks do NOT agree on
+    which to print: the metric families print the physical table (`contract_check.py:96,106`), the
+    cascade families print the mapped agent id off the cascade_map row (`:166,207`).
+
+    Measured, so the fence is not oversold: today every metric-family error ALSO carries the agent id in
+    its `{tid}: ` prefix and every `cascade_map` row names an agent id (`cascade_map.yaml:238` is
+    `table: silver_esr`), so attribution would survive on the prefix alone. This exists for the emit that
+    has only the physical name -- which would otherwise resolve to nobody and CLEAR the one family that
+    owns the drift. A false clear is the only direction of this split that can hurt. Never raises: a
+    registry shim or a mid-edit registry degrades to the identity alias, which errs toward RED."""
+    out = {table}
+    try:
+        ts = numbers_reg.get(table)
+        phys = getattr(ts, "athena_table", None) or getattr(ts, "id", None)
+        if phys:
+            out.add(str(phys))
+    except Exception:  # noqa: BLE001 -- not a numbers table (Branch B), a shim, or a mid-edit registry
+        pass
+    try:
+        for tid in (getattr(numbers_reg, "tables", None) or ()):
+            spec = numbers_reg.get(tid)
+            if (getattr(spec, "athena_table", None) or tid) == table:
+                out.add(str(tid))
+    except Exception:  # noqa: BLE001
+        pass
+    return frozenset(out)
+
+
+# The family dag descriptors -- the ONLY place ownership is declared. A table is "owned" iff some
+# schedule's `gate_tables` lists it, because that is exactly the set of tables for which SOME family's
+# gate can go RED. `_rendered/` is deliberately out of reach: `glob` here is non-recursive, so the
+# rendered `*.input.json` execution payloads are never mistaken for descriptors.
+_DAG_DESCRIPTOR_DIR = _REPO_ROOT / "configs" / "silver" / "dags"
+_GATED_CACHE: list = []   # one-slot memo for the DEFAULT dir only (a gate run is a one-shot process)
+
+
+def gated_tables(descriptor_dir=None) -> Optional[frozenset]:
+    """Every table that SOME family's gate would go RED for: the union of `gate_tables` over the dag
+    descriptors. Returns None when ownership cannot be established at all (see fence (A) above).
+
+    None is NOT "no orphans" -- it is "nobody owns anything", which `split_by_blast_radius` reads as
+    fail-closed and charges every error to the table under gate. An individually unreadable descriptor
+    is SKIPPED rather than voiding the whole map: skipping only makes ITS tables look orphaned, which
+    errs toward RED for those tables alone instead of redding the estate over one mid-edit file.
+    Never raises -- an ownership fence that can crash is a fence that can be argued away."""
+    if descriptor_dir is None and _GATED_CACHE:
+        return _GATED_CACHE[0]
+    d = Path(descriptor_dir) if descriptor_dir else _DAG_DESCRIPTOR_DIR
+    out: set = set()
+    try:
+        paths = sorted(d.glob("*.json"))
+    except Exception:  # noqa: BLE001 -- unreadable/absent configs tree -> ownership unknown
+        return None
+    for p in paths:
+        if p.name.endswith(".schema.json"):   # the descriptor SCHEMA, not a descriptor
+            continue
+        try:
+            doc = json.loads(p.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001 -- mid-edit/truncated descriptor: its tables read as orphans
+            continue
+        for t in (doc.get("gate_tables") or ()):
+            if t:
+                out.add(str(t))
+    owned = frozenset(out) or None
+    if descriptor_dir is None:
+        _GATED_CACHE.append(owned)
+    return owned
+
+
+def _owned_tables(ctx) -> Optional[frozenset]:
+    """`gated_tables()` widened by every alias each gated table answers to.
+
+    Same reason `_gate_table_aliases` exists on the other side of the comparison: one table carries an
+    agent id and a physical id (`silver_esr` serves from `silver_esr_compact`) and the checks do not
+    agree on which they print. Widening the OWNED set can only make FEWER errors look orphaned, i.e. it
+    can only avoid a false estate-wide RED -- it can never clear a real orphan."""
+    gated = gated_tables()
+    if not gated:
+        return None
+    reg = getattr(ctx, "numbers_reg", None)
+    out = set(gated)
+    for t in gated:
+        out |= _gate_table_aliases(t, reg)
+    return frozenset(out)
+
+
+def split_by_blast_radius(items, aliases, owned=None) -> tuple:
+    """Partition `(error_text, implicated_tables)` pairs into (mine, others_only).
+
+    `mine` (-> RED) is every error that
+      * implicates one of THIS table's aliases, or
+      * implicates NOTHING parseable (the ratified fail-closed default for unattributable errors), or
+      * implicates ONLY ORPHANS -- tables no family's `gate_tables` lists, so no family would ever red
+        for it and moving it off this verdict moves it onto nobody's (fence (A) above).
+
+    `owned` is the ownership map from `_owned_tables`; None means it could not be read, which is read as
+    "nobody owns anything" and charges every error to this table. An error naming an owned table AND an
+    orphan is NOT orphaned: the owning family still reds, so the drift is not promoted over silently."""
+    alias_set = set(aliases)
+    own = None if owned is None else set(owned)
+    mine, others = [], []
+    for text, implicated in items:
+        imp = set(implicated or ())
+        orphan = (own is None) or not (imp & own)
+        (mine if (not imp or (imp & alias_set) or orphan) else others).append(text)
+    return mine, others
+
+
+def _split_verdict(name: str, table: str, ctx: GateContext, items, *, noun: str,
+                   blocking: bool = False) -> StageResult:
+    """Build the StageResult for a GLOBAL stage that produced at least one error, applying D-PR-5.
+
+    INVARIANT: this function can only ever turn a RED into a WARN, and only when NO error implicates
+    `table`. It never turns anything into a GREEN, and it is never reached when `items` is empty -- so a
+    table whose own stages are red keeps a bit-identical verdict with the split on or off.
+
+    `blocking=True` marks a stage whose drift a LATER state of the SAME SFN execution will refuse on an
+    ABSOLUTE criterion (fence (B) above). For such a stage the others-only case stays RED: the exit code
+    and the promote decision must come from ONE verdict, so the gate never publishes canonical into a
+    pipeline that is about to fail. The attribution is not lost -- `global_errors` and the detail still
+    say the drift belongs to another table -- only the VERDICT stays fail-closed."""
+    texts = [t for t, _ in items]
+    if not getattr(ctx, "severity_split", True):
+        # ROLLBACK PATH: the pre-split VERDICT exactly -- every error RED for every family. The detail
+        # string is not byte-identical to the old one for cascade_census_diff (which had no count prefix
+        # and truncated at 6, `:230` pre-wave); all three global stages now share one summary shape, and
+        # the untruncated truth lives in `errors` either way.
+        return StageResult(name, RED, f"{len(texts)} {noun}: " + "; ".join(texts[:5]), errors=texts)
+    aliases = _gate_table_aliases(table, getattr(ctx, "numbers_reg", None))
+    mine, others = split_by_blast_radius(items, aliases, _owned_tables(ctx))
+    if mine:
+        detail = f"{len(mine)} {noun}: " + "; ".join(mine[:5])
+        if others:
+            detail += f" (+{len(others)} global_drift on other tables)"
+        return StageResult(name, RED, detail, errors=texts, global_errors=others)
+    if blocking:
+        detail = (f"global_drift (PROMOTE-BLOCKING): {len(others)} {noun} on other tables, none "
+                  f"implicating {table}, but [Reconcile] refuses this run on an ABSOLUTE criterion -- "
+                  f"promoting would publish canonical into a failing execution: "
+                  + "; ".join(others[:5]))
+        return StageResult(name, RED, detail, errors=texts, global_errors=others)
+    detail = (f"global_drift: {len(others)} {noun} on other tables, none implicating {table}: "
+              + "; ".join(others[:5]))
+    return StageResult(name, WARN, detail, errors=texts, global_errors=others)
 
 
 # ---------------------------------------------------------------------------
@@ -185,32 +456,54 @@ def stage_parity(table: str, ctx: GateContext) -> StageResult:
 
 def stage_contract_check(table: str, ctx: GateContext) -> StageResult:
     """SILVER-C002 vocabulary + value-nonnull on the reloaded mirror (cross-table; the whole numbers
-    vocabulary is cheap). RED on any drift."""
+    vocabulary is cheap). RED on a drift implicating THIS table, on an unattributable one, or on one
+    naming only tables NO family gates (fence (A)); WARN on one implicating only other OWNED tables
+    (D-PR-5). The walk itself is unchanged -- global as before -- so nothing stops being detected."""
     try:
         from leviathan.graphrag.numbers import contract_check as cch
         if ctx.query_fn is None:
             return StageResult("contract_check", SKIPPED, "no pg query_fn (offline/dry)")
         errs = cch.contract_check(ctx.numbers_reg, query_fn=ctx.query_fn)
-        if errs:
-            return StageResult("contract_check", RED, f"{len(errs)} vocab drift(s): " + "; ".join(errs[:5]))
-        return StageResult("contract_check", GREEN, "vocabulary consistent")
+        if not errs:
+            return StageResult("contract_check", GREEN, "vocabulary consistent")
+        return _split_verdict("contract_check", table, ctx,
+                              [(e, implicated_tables(e)) for e in errs], noun="vocab drift(s)")
     except Exception as e:  # noqa: BLE001
-        return StageResult("contract_check", RED, f"{type(e).__name__}: {str(e)[:200]}")
+        # UNATTRIBUTABLE BY CONSTRUCTION: an exception is not an error STRING, so there is no leg and no
+        # table to charge it to -- and a check that crashed proved nothing about ANY table. RED (ratified).
+        detail = f"{type(e).__name__}: {str(e)[:200]}"
+        return StageResult("contract_check", RED, detail, errors=[detail])
 
 
-def _census_diff(prior: Optional[dict], current: dict) -> list[str]:
-    """New un-waived DARK legs (present-and-dark now, not dark in the prior baseline) + a non-zero
-    ATHENA_CALLS banner. Reused by the stage + directly testable."""
-    problems: list[str] = []
+def _census_diff_attributed(prior: Optional[dict], current: dict) -> list:
+    """`_census_diff` with each problem paired to the table(s) it implicates (D-PR-5).
+
+    Attribution is read straight off the leg record (`cascade_census._leg_record`, `:224-228` -- the leg
+    carries its own `table`), never re-parsed out of the formatted string. The ATHENA_CALLS banner is a
+    property of the census RUN, not of any leg, so it is deliberately unattributable -> RED everywhere.
+
+    WHY THIS STAGE IS NOT OPTIONAL (plan Section 2.5). `prior_dark` is EMPTY estate-wide today: ten monthly
+    families still carry a 2026-07-16..18 baseline vintage with `dark: 0`. So the FIRST dark leg introduced
+    anywhere reds EVERY family at once -- exhibit A's blast radius reproduced in a second stage."""
+    problems: list = []
     if current.get("banner", {}).get("athena_calls", 0) != 0:
-        problems.append(f"ATHENA_CALLS={current['banner']['athena_calls']} (must be 0 -- pg-only census)")
+        problems.append((f"ATHENA_CALLS={current['banner']['athena_calls']} (must be 0 -- pg-only census)",
+                         frozenset()))
     prior_dark = {(l["contract"], l["node_id"]) for l in (prior or {}).get("legs", [])
                   if l.get("verdict") == "DARK-WITH-REASON"}
     for leg in current.get("legs", []):
         if leg.get("verdict") == "DARK-WITH-REASON" and (leg["contract"], leg["node_id"]) not in prior_dark:
-            problems.append(f"NEW dark leg {leg['contract']}/{leg['node_id']} "
-                            f"{leg.get('table')}.{leg.get('metric')} -> {leg.get('reason')}")
+            tbl = leg.get("table")
+            problems.append((f"NEW dark leg {leg['contract']}/{leg['node_id']} "
+                             f"{tbl}.{leg.get('metric')} -> {leg.get('reason')}",
+                             frozenset({str(tbl)}) if tbl else frozenset()))
     return problems
+
+
+def _census_diff(prior: Optional[dict], current: dict) -> list[str]:
+    """New un-waived DARK legs (present-and-dark now, not dark in the prior baseline) + a non-zero
+    ATHENA_CALLS banner. The text-only view of `_census_diff_attributed` (unchanged contract)."""
+    return [text for text, _ in _census_diff_attributed(prior, current)]
 
 
 def stage_cascade_census_diff(table: str, ctx: GateContext) -> StageResult:
@@ -225,13 +518,27 @@ def stage_cascade_census_diff(table: str, ctx: GateContext) -> StageResult:
         # THIS stage only -- the pg-only property the diff asserts.
         Q.reset_stats()
         art = cc.census(asof=ctx.census_asof, query_fn=ctx.query_fn)
-        problems = _census_diff(ctx.prior_census, art)
-        if problems:
-            return StageResult("cascade_census_diff", RED, "; ".join(problems[:6]))
-        return StageResult("cascade_census_diff", GREEN,
-                           f"no new dark ({art['banner']['dark']} dark total, ATHENA_CALLS=0)")
+        problems = _census_diff_attributed(ctx.prior_census, art)
+        if not problems:
+            return StageResult("cascade_census_diff", GREEN,
+                               f"no new dark ({art['banner']['dark']} dark total, ATHENA_CALLS=0)")
+        # PROMOTE-BLOCKING (fence (B)). This is the ONE global stage whose finding the same execution
+        # re-judges downstream, and on a WIDER criterion: [Reconcile] runs advance_rolling_census ->
+        # cascade_census.main, which exits 1 on the ABSOLUTE un-waived DARK count while this stage only
+        # diffs against the baseline. On the scheduled path the two criteria coincide exactly, because
+        # advance_rolling_census refuses to enshrine a dirty census as a rolling baseline
+        # (advance_rolling_census.py: `if rc != 0: return rc`, BEFORE the upload) -- so every
+        # --baseline-uri baseline is dark-free, every dark leg is a NEW dark leg, and "this stage fires"
+        # is precisely "Reconcile will fail". Demoting it to WARN bought exit 0 -> [Promote] ->
+        # canonical published -> [Reconcile] fails -> FailNotify, i.e. the alarm still fires, the
+        # baseline still does not advance, and the loss is the fail-closed protection plus the truth of
+        # the alert's own "Canonical left untouched (INV-6)". So it stays RED for everyone.
+        return _split_verdict("cascade_census_diff", table, ctx, problems, noun="census problem(s)",
+                              blocking=True)
     except Exception as e:  # noqa: BLE001
-        return StageResult("cascade_census_diff", RED, f"{type(e).__name__}: {str(e)[:200]}")
+        # Unattributable (see stage_contract_check) -> RED.
+        detail = f"{type(e).__name__}: {str(e)[:200]}"
+        return StageResult("cascade_census_diff", RED, detail, errors=[detail])
 
 
 def _run_config_check() -> list[str]:
@@ -256,13 +563,18 @@ def _run_config_check() -> list[str]:
 
 
 def stage_config_check(table: str, ctx: GateContext) -> StageResult:
+    """All 10 repo lints. Runs through the SAME D-PR-5 partitioner as the other two global stages, but with
+    the strict `_config_implicated` attributor -- so with today's lint strings every error is unattributable
+    and this stage stays RED estate-wide, exactly as the ratified decision states."""
     try:
         errs = _run_config_check()
-        if errs:
-            return StageResult("config_check", RED, f"{len(errs)} lint failure(s): " + "; ".join(errs[:5]))
-        return StageResult("config_check", GREEN, "all 10 lints pass")
+        if not errs:
+            return StageResult("config_check", GREEN, "all 10 lints pass")
+        return _split_verdict("config_check", table, ctx,
+                              [(e, _config_implicated(e)) for e in errs], noun="lint failure(s)")
     except Exception as e:  # noqa: BLE001
-        return StageResult("config_check", RED, f"{type(e).__name__}: {str(e)[:200]}")
+        detail = f"{type(e).__name__}: {str(e)[:200]}"
+        return StageResult("config_check", RED, detail, errors=[detail])
 
 
 def stage_eval_subset(table: str, ctx: GateContext) -> StageResult:
@@ -419,6 +731,10 @@ def run_gate(tables: list[str], ctx: GateContext, *, branch_a_stages=_BRANCH_A_S
         "branch_b": sum(1 for r in results if r.branch == BRANCH_B),
         "unknown": sum(1 for r in results if r.branch == BRANCH_UNKNOWN),
         "red_tables": sum(1 for r in results if not r.ok),
+        # D-PR-5 acceptance: a PASSing run that rode over somebody else's drift must SAY SO in the bundle.
+        # `global_drift` counts WARN stages (the drift events), `warn_tables` the tables that carry one.
+        "warn_tables": sum(1 for r in results if r.warned),
+        "global_drift": sum(1 for r in results for s in r.stages if s.status == WARN),
     }
     ok = all(r.ok for r in results) and len(results) > 0
     return {
@@ -474,6 +790,9 @@ def _preflight_bundle(tables: list[str], census_asof: str, pre: dict) -> dict:
         "branch_b": 0,
         "unknown": len(results),
         "red_tables": len(results),
+        # Same keys run_gate() emits, so a reader never has to branch on which path built the bundle.
+        "warn_tables": 0,
+        "global_drift": 0,
     }
     return {
         "gate": "silver_rebuild_gate",
@@ -523,7 +842,15 @@ def _build_live_context(tables: list[str], *, census_asof: str,
 
     prior = _load_prior_census(census_asof, baseline_uri=baseline_uri)
     return GateContext(numbers_reg=numbers_reg, silver_reg=silver_reg, query_fn=query_fn, conn=conn,
-                       census_asof=census_asof, prior_census=prior)
+                       census_asof=census_asof, prior_census=prior,
+                       severity_split=_severity_split_enabled())
+
+
+def _severity_split_enabled() -> bool:
+    """D-PR-5's rollback lever, read from the environment so a rollback is a jobdef env flip -- NOT an
+    image rebuild. Unset == ON (the ratified behaviour); `0/off/false/no` == the pre-split "every global
+    error is RED for every family"."""
+    return os.environ.get("GATE_SEVERITY_SPLIT", "1").strip().lower() not in ("0", "off", "false", "no")
 
 
 class BaselineFetchError(RuntimeError):
@@ -581,6 +908,25 @@ def _load_prior_census(asof: str, baseline_uri: Optional[str] = None) -> Optiona
         except Exception:  # noqa: BLE001
             return None
     return None
+
+
+def _print_stage_errors(label: str, table: str, stage: dict) -> None:
+    """Print EVERY error a stage produced, one per line, to stdout.
+
+    D-PR-32 says the full text is "preserved, never silently dropped" -- but on the SCHEDULED path the
+    bundle is not a delivery mechanism. All 26 rendered gate commands
+    (`configs/silver/dags/_rendered/*.input.json`) invoke the gate with NO `--json`, so the bundle is
+    written to `reports/silver_readiness/...` INSIDE the Batch container and nothing uploads it; the
+    container's stdout is the only durable record. `detail` truncates at five (`_split_verdict`), so
+    without this the sixth drift onward was unrecoverable in production -- and under the split that now
+    happens on an exit-0 PASS run, where before it at least rode an exit-1 that paged. Printed for WARN
+    and RED alike, on every path that produces a bundle. ASCII-only (cp1252 console)."""
+    errs = stage.get("errors") or []
+    if len(errs) <= 1:
+        return          # the single error is already the whole of `detail`
+    n = len(errs)
+    for i, e in enumerate(errs, 1):
+        print(f"    {label} {table} {stage['name']} error {i}/{n}: {e}")
 
 
 def main(argv=None) -> int:
@@ -668,12 +1014,25 @@ def main(argv=None) -> int:
     b = bundle["banner"]
     print(f"silver_rebuild_gate {bundle['run_id']} -> {dest}")
     print(f"  tables={b['tables']} branchA={b['branch_a']} branchB={b['branch_b']} "
-          f"unknown={b['unknown']} red={b['red_tables']}  verdict={bundle['verdict']}")
+          f"unknown={b['unknown']} red={b['red_tables']} global_drift={b['global_drift']} "
+          f" verdict={bundle['verdict']}")
+    # D-PR-5: a WARN is exit 0, so the container log is the ONLY place it appears today. Print it above
+    # the FAIL block, never inside it -- a promote that rode over another table's drift is a fact the
+    # operator must be able to grep for. (The metric+alarm half is D-PR-28 and is NOT in this item.)
+    # The summary line is followed by the UNTRUNCATED error list (`_print_stage_errors`): on the
+    # scheduled path stdout is the only artifact that survives the container, and `detail` stops at five.
+    for r in bundle["results"]:
+        for s in r["stages"]:
+            if s["status"] == WARN:
+                print(f"  WARN {r['table']} (branch {r['branch']}): {s['name']}={s['detail']}")
+                _print_stage_errors("WARN", r["table"], s)
     for r in bundle["results"]:
         if not r["ok"]:
             reds = [s for s in r["stages"] if s["status"] == "red"]
             print(f"  FAIL {r['table']} (branch {r['branch']}): "
                   + "; ".join(f"{s['name']}={s['detail']}" for s in reds))
+            for s in reds:
+                _print_stage_errors("FAIL", r["table"], s)
     return 0 if bundle["verdict"] == "PASS" else 1
 
 

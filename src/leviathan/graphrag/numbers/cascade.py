@@ -338,23 +338,157 @@ PSD_UNSERVED_SLUGS = frozenset({"cocoa", "frozen_orange_juice"})
 
 # Contracts with NO series in silver_cot AT ALL: CFTC covers only US-cleared contracts, and
 # configs/sources/cftc_cot.yaml `not_covered:` is the authoritative declaration (MATIF/DCE/ZCE/JSE/
-# BMF/ICE-Canada venues). The D1 context lane (2026-08-01) made cot legs live estate-wide, and the
+# BMF/ICE-Canada/IFEU venues). The D1 context lane (2026-08-01) made cot legs live estate-wide, and the
 # first Branch-A gate fire (2026-08-03) red EVERY family on the six such legs that exist -- mapped,
 # forever zero-row. Same treatment as PSD_UNSERVED_SLUGS above: the leg SKIPs honestly at _scope
 # (identical rendered outcome to the zero-row decline it produced anyway) and the slug check reads
-# it as KNOWN-UNSERVED rather than drift. A lint pins this set to the YAML's not_covered list.
-COT_UNSERVED_SLUGS = frozenset({
+# it as KNOWN-UNSERVED rather than drift.
+#
+# D-PR-6: the set is DERIVED from that yaml, never transcribed. The two fences have DIFFERENT kinds of
+# truth and must not be given one mechanism -- PSD's source of truth is the TABLE (a DISTINCT
+# leviathan_slug probe, C002-verified), so it stays a frozenset above; COT's source of truth is a config
+# file that already exists, so a second hand-kept copy of it is pure drift surface. It drifted inside two
+# days: the SECOND Branch-A fire (2026-08-04, gate rev 12) found the transcription short by three -- the
+# LONDON legs (IFEU is outside CFTC jurisdiction) and frozen_orange_juice, which was claimed-covered with
+# an oi_approx of "verify" that nobody ever verified and which never landed a row.
+#
+# The FALLBACK below is used ONLY when the yaml is missing or unreadable, and it fails OPEN to the last
+# MEASURED set rather than to an empty fence: an empty fence un-SKIPs every cot leg at once and hands the
+# gate a fresh estate-wide red, which is the exact incident this fence exists to end. It is a disaster
+# floor, never a second source of truth -- tests/unit/test_unserved_fence_lint.py pins it to the yaml.
+_COT_NOT_COVERED_FALLBACK = frozenset({
     "french_wheat_matif", "french_rapeseed_matif", "french_maize_matif",
     "canola_ice",
     "soybeans_no_1_dce", "soybeans_no_2_dce", "soybean_meal_dce", "soybean_oil_dce", "palm_olein_dce",
     "rapeseed_meal_zce", "rapeseed_oil_zce",
     "south_african_white_maize_jse", "south_african_yellow_maize_jse",
     "campinas_corn_reference_bmf", "brazilian_arabica_coffee",
-    # The SECOND Branch-A fire (2026-08-04, gate rev 12) found the list above incomplete by three:
-    # the yaml had forgotten the LONDON legs (IFEU is not CFTC territory), and frozen_orange_juice
-    # was claimed-covered with an oi_approx of "verify" that nobody ever verified -- zero rows landed.
     "robusta_coffee", "white_sugar", "frozen_orange_juice",
 })
+
+
+def _cot_yaml_path():
+    """configs/sources/cftc_cot.yaml, resolved off the SAME repo root load_map() uses (`ex._CFG` is
+    configs/graphrag) so the image layout is described in exactly one place. Its own function so a test
+    can point the reader at a missing/mangled file and exercise the fallback."""
+    from leviathan.graphrag import extract as ex
+
+    return ex._CFG.parent / "sources" / "cftc_cot.yaml"
+
+
+def _scan_not_covered(text: str) -> frozenset[str]:
+    """The `not_covered:` block of cftc_cot.yaml as a slug set, by LINE SCAN rather than safe_load: the
+    file's CSV `schema:` block carries `Key:{type: int, ...}` flow tokens the YAML scanner rejects, so
+    the whole document does NOT parse (verified 2026-08-04: ScannerError at :127, "mapping values are
+    not allowed here"). The block itself is plain `- slug  # comment` lines; a comment-only line stays
+    inside the block (the frozen_orange_juice entry wraps its rationale onto two of them) and the next
+    non-comment, non-item line -- the following top-level key -- ends it."""
+    slugs, in_block = set(), False
+    for line in text.splitlines():
+        if line.startswith("not_covered:"):
+            in_block = True
+            continue
+        if not in_block:
+            continue
+        stripped = line.strip()
+        if stripped.startswith("- "):
+            slugs.add(stripped[2:].split("#", 1)[0].strip())
+        elif stripped and not stripped.startswith("#"):
+            break
+    return frozenset(s for s in slugs if s)
+
+
+@functools.lru_cache(maxsize=1)
+def _cot_unserved_derived() -> frozenset[str]:
+    """The yaml read itself, cached for the process (the load_map idiom): one file read at FIRST USE,
+    never at import. Any read failure -- absent configs/, truncated file, an empty block -- falls back
+    to `_COT_NOT_COVERED_FALLBACK` and says so at WARNING (stderr by default, so it is visible in a
+    serving log and in the gate's job log without any logging config).
+
+    Callers use `cot_unserved_slugs()`, which is this plus the override seam below."""
+    import logging
+
+    try:
+        p = _cot_yaml_path()
+        slugs = _scan_not_covered(p.read_text(encoding="utf-8"))
+        if slugs:
+            return slugs
+        why = f"{p}: not_covered block absent or empty"
+    except Exception as e:  # noqa: BLE001 -- a fence that raises is worse than a fence that is stale
+        why = f"{type(e).__name__}: {e}"
+    logging.getLogger(__name__).warning(
+        "cot unserved fence: cftc_cot.yaml unreadable (%s) -- FALLING BACK to the frozen %d-slug set "
+        "measured 2026-08-04; a cot venue added to the yaml since then is NOT fenced",
+        why, len(_COT_NOT_COVERED_FALLBACK))
+    return _COT_NOT_COVERED_FALLBACK
+
+
+# The documented test seam: set this (monkeypatch-friendly -- it is a REAL global, so the undo
+# restores None and leaves no shadow entry) to force the fence for one test.
+_COT_UNSERVED_OVERRIDE = None
+
+
+def cot_unserved_slugs() -> frozenset[str]:
+    """THE ONE READER of the fence -- for `_scope` below, for `contract_check.py:197` (through the
+    module attribute), and for tests.
+
+    WHY THE `globals()` LOOKUP, WHICH IS OTHERWISE ODD-LOOKING. `COT_UNSERVED_SLUGS` is served by the
+    PEP-562 `__getattr__` hook below, and a module `__getattr__` is consulted ONLY when normal lookup
+    fails -- it is NOT consulted for a bare global read inside this module. So the obvious test move,
+    `monkeypatch.setattr(cascade, "COT_UNSERVED_SLUGS", {...})` (the same style
+    tests/unit/test_contract_check.py already uses on `_mapped_legs` and `_distinct_set`), used to put
+    the estate in a SPLIT BRAIN: contract_check saw the patched set, `_scope` saw the yaml's, and the
+    resulting test passed for the wrong reason. Measured before this seam existed: 1 slug for
+    contract_check, 18 for `_scope`, on the same interpreter at the same moment.
+
+    Reading `globals()` here makes an explicitly-SET module attribute win for EVERY reader, so the two
+    can no longer disagree. It weakens nothing about the derivation: the name is absent from
+    `__dict__` unless somebody assigned it, so the normal path is the yaml read, once, cached.
+
+    The SANCTIONED patch point is `_COT_UNSERVED_OVERRIDE` (a real module global, so monkeypatch's
+    undo restores None cleanly and leaves no shadow). Patching `COT_UNSERVED_SLUGS` directly also
+    works, but note what monkeypatch's undo does: it `setattr`s the pre-patch VALUE back, which
+    writes a real `__dict__` entry that shadows `__getattr__` for the rest of the interpreter. The
+    value is correct, so nothing goes wrong -- but a later `cache_clear()` or repointed
+    `_cot_yaml_path` will not be picked up. Call `reset_cot_fence()` if you need that.
+    """
+    override = _COT_UNSERVED_OVERRIDE
+    if override is None:
+        override = globals().get("COT_UNSERVED_SLUGS")
+    if override is not None:
+        return override if isinstance(override, frozenset) else frozenset(override)
+    return _cot_unserved_derived()
+
+
+# `cot_unserved_slugs.cache_clear()` is the idiom callers and tests already use; keep it working now
+# that the cache lives one level down.
+cot_unserved_slugs.cache_clear = _cot_unserved_derived.cache_clear
+cot_unserved_slugs.cache_info = _cot_unserved_derived.cache_info
+
+
+def reset_cot_fence() -> None:
+    """Drop every override AND the cached read, returning the fence to "derive from the yaml".
+
+    Exists because a module attribute, once assigned, shadows `__getattr__` permanently -- including
+    the assignment pytest's monkeypatch makes when it UNDOES a patch of `COT_UNSERVED_SLUGS`. Calling
+    this in a teardown makes the fence honest again for the rest of the process.
+    """
+    globals().pop("COT_UNSERVED_SLUGS", None)
+    globals()["_COT_UNSERVED_OVERRIDE"] = None
+    _cot_unserved_derived.cache_clear()
+
+
+def __getattr__(name: str):
+    """PEP-562 module hook so `cascade.COT_UNSERVED_SLUGS` keeps working as a plain frozenset for its
+    readers (contract_check.py:197 and the tests) while the VALUE is derived lazily. A module-level
+    assignment would have to read the file at import time, and cascade is imported by serving, by every
+    gate stage and by the test collector -- the read belongs at first use, behind the cache.
+
+    This hook is only reached while nobody has ASSIGNED the name; once assigned, normal lookup wins and
+    `cot_unserved_slugs()` honours the same assignment, so both readers stay in agreement either way."""
+    if name == "COT_UNSERVED_SLUGS":
+        return cot_unserved_slugs()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 # _scope's country slot for a region-ruled leg that CANNOT honestly resolve to one table country
@@ -422,7 +556,7 @@ def _scope(n, row) -> tuple:
     commodity = PSD_SLUG_ALIAS.get(commodity, commodity)
     if (row or {}).get("table") == "silver_psd" and commodity in PSD_UNSERVED_SLUGS:
         return commodity, SKIP_NODE          # declared-unserved: PSD has no series for this contract
-    if (row or {}).get("table") == "silver_cot" and commodity in COT_UNSERVED_SLUGS:
+    if (row or {}).get("table") == "silver_cot" and commodity in cot_unserved_slugs():
         return commodity, SKIP_NODE          # declared-unserved: cftc_cot.yaml lists it not_covered
     rule = (row or {}).get("country_rule", "primary")
     if rule == "none":

@@ -351,8 +351,197 @@ def test_e0a33bf2_fixture_is_the_real_incident_input():
 # ===========================================================================
 # 7. THE DOCKERFILE HALF
 # ===========================================================================
-@pytest.mark.parametrize("dockerfile", ["docker/leviathan_worker/Dockerfile",
-                                        "docker/leviathan_embedder/Dockerfile"])
+# The two images that carry the fence (ARGs + the stamp RUN).
+FENCED_DOCKERFILES = ["docker/leviathan_worker/Dockerfile",
+                      "docker/leviathan_embedder/Dockerfile"]
+
+# EVERY image in the repo, discovered rather than listed, so a new one is covered the day it lands.
+ALL_DOCKERFILES = sorted(str(p.relative_to(_REPO_ROOT)).replace("\\", "/")
+                         for p in (_REPO_ROOT / "docker").glob("*/Dockerfile"))
+
+# The two build ARGs whose VALUE changes on every commit.
+PROVENANCE_ARGS = ("BUILD_GIT_COMMIT", "BUILD_TIME")
+
+
+def _parse_dockerfile(text):
+    """[(start_line_index, folded_instruction_text)] -- backslash continuations folded into one.
+
+    The index is the line the instruction STARTS on, which is the line an author actually moves
+    when they hoist one. Folding matters: the worker's pip layer is
+    ``RUN mkdir ... && \\`` / ``    pip install ...``, so a naive per-line scan would anchor the
+    heavy layer to the CONTINUATION line and quietly tolerate an ARG wedged above the RUN.
+    """
+    lines = text.splitlines()
+    out, i = [], 0
+    while i < len(lines):
+        if not lines[i].strip() or lines[i].strip().startswith("#"):
+            i += 1
+            continue
+        start, parts = i, []
+        while i < len(lines):
+            body = lines[i].strip()
+            i += 1
+            if body.startswith("#"):          # a comment INSIDE a continuation
+                continue
+            cont = body.endswith("\\")
+            parts.append(body[:-1].strip() if cont else body)
+            if not cont:
+                break
+        out.append((start, " ".join(p for p in parts if p)))
+    return out
+
+
+def _dockerfile_instructions(dockerfile):
+    return _parse_dockerfile((_REPO_ROOT / dockerfile).read_text(encoding="utf-8"))
+
+
+def _heavy_runs(instrs):
+    """RUN layers whose cache key is worth hundreds of MB, identified STRUCTURALLY.
+
+    ``pip install`` and ``playwright install`` are the two that dominate: 863 MB and 1.03 GB in
+    the worker, the ~2 GB torch/[embed] layer in the embedder.
+    """
+    return [i for i, text in instrs
+            if re.match(r"(?i)RUN\s", text)
+            and ("pip install" in text or "playwright install" in text)]
+
+
+def _provenance_args(instrs):
+    """Indices of `ARG BUILD_GIT_COMMIT` / `ARG BUILD_TIME` declarations (with or without =default)."""
+    out = []
+    for i, text in instrs:
+        m = re.match(r"(?i)ARG\s+(.*)$", text)
+        if m and any(tok.split("=", 1)[0] in PROVENANCE_ARGS for tok in m.group(1).split()):
+            out.append(i)
+    return out
+
+
+def _stamp_runs(instrs):
+    return [i for i, text in instrs
+            if "leviathan.common.image_stamp" in text and "--write" in text]
+
+
+def _first_from(instrs):
+    return next((i for i, text in instrs if re.match(r"(?i)FROM\s", text)), -1)
+
+
+@pytest.mark.parametrize("dockerfile", FENCED_DOCKERFILES)
+def test_provenance_args_stay_below_the_heavy_layers(dockerfile):
+    """CACHE FENCE (2026-08-04). The ARGs must be SANDWICHED: below every heavy RUN, above the stamp.
+
+    An ARG is in scope for every instruction that FOLLOWS it, and Docker keys a following RUN as
+    though the arg were in that command's environment -- so BUILD_GIT_COMMIT, which is a new value
+    on every commit, invalidates every heavy layer beneath it even though no command names it.
+    Declared at the top of the file (the HEAD state) that cost a full pip + `playwright install`
+    rebuild and a ~2 GB re-upload through the Docker Desktop proxy that breaks the pipe on GB PUTs.
+
+    Both Dockerfiles carry a prose comment saying the ARGs "must never be hoisted back to the top
+    of the file". A comment is not a fence. THIS is the fence: a hoist fails here.
+    """
+    instrs = _dockerfile_instructions(dockerfile)
+    args, heavy, stamp = _provenance_args(instrs), _heavy_runs(instrs), _stamp_runs(instrs)
+
+    assert args, "%s declares neither %s -- the fence is gone" % (dockerfile, " nor ".join(PROVENANCE_ARGS))
+    assert heavy, "%s has no pip/playwright RUN -- the heavy-layer detector matched nothing" % dockerfile
+    assert stamp, "%s does not stamp an IMAGE_MANIFEST" % dockerfile
+
+    # Every heavy RUN is anchored to its own `RUN` line, never to a folded continuation.
+    src = (_REPO_ROOT / dockerfile).read_text(encoding="utf-8").splitlines()
+    for h in heavy:
+        assert re.match(r"(?i)\s*RUN\s", src[h]), \
+            "%s:%d is not a RUN line -- the continuation folding is wrong" % (dockerfile, h + 1)
+
+    assert min(args) > max(heavy), (
+        "%s declares a provenance ARG at line %d, ABOVE the heavy RUN at line %d. That ARG's value "
+        "changes on every commit, so it re-keys that layer on every build and forces a ~2 GB "
+        "re-upload. Move the ARG block back down, immediately above the image_stamp RUN."
+        % (dockerfile, min(args) + 1, max(heavy) + 1))
+
+    assert max(args) < min(stamp), (
+        "%s declares a provenance ARG at line %d, BELOW the stamp RUN at line %d -- the stamp would "
+        "read the unset value and the manifest would say 'unknown'."
+        % (dockerfile, max(args) + 1, min(stamp) + 1))
+
+
+@pytest.mark.parametrize("dockerfile", ALL_DOCKERFILES)
+def test_no_image_declares_a_provenance_arg_above_a_heavy_layer(dockerfile):
+    """The same rule, swept across EVERY image -- including the ones not fenced yet.
+
+    leviathan_browser has the identical heavy pair (a pip layer and `playwright install --with-deps
+    chromium`) and carries configs/ + sql/, so it is the next image someone will stamp. Whoever does
+    that must not reach for the top of the file. Only in-stage ARGs are considered: a declaration
+    above the first FROM is global scope and does not key a stage's layers.
+    """
+    instrs = _dockerfile_instructions(dockerfile)
+    heavy = _heavy_runs(instrs)
+    for a in [i for i in _provenance_args(instrs) if i > _first_from(instrs)]:
+        below = [h for h in heavy if h > a]
+        assert not below, (
+            "%s:%d declares a provenance ARG above the heavy RUN at line %d -- see "
+            "test_provenance_args_stay_below_the_heavy_layers for why that is a ~2 GB re-upload"
+            % (dockerfile, a + 1, below[0] + 1))
+
+
+def test_dockerfile_discovery_is_not_empty():
+    """A glob that silently matches nothing turns the sweep above into a no-op."""
+    assert set(FENCED_DOCKERFILES) <= set(ALL_DOCKERFILES)
+    assert "docker/leviathan_browser/Dockerfile" in ALL_DOCKERFILES, \
+        "the browser image (pip + playwright layers) dropped out of the sweep"
+    assert len(ALL_DOCKERFILES) >= 3
+
+
+def test_the_hoist_guard_is_not_vacuous():
+    """Prove the assertion fires: replay the pre-fix shape and show the helpers see the violation.
+
+    Without this, `min(args) > max(heavy)` could pass because the detectors match nothing.
+    """
+    hoisted = "\n".join([
+        "FROM python:3.11-slim",
+        "",
+        "ARG BUILD_GIT_COMMIT=unknown",
+        "ARG BUILD_TIME=unknown",
+        "",
+        "COPY pyproject.toml ./",
+        "RUN mkdir -p src/leviathan && touch src/leviathan/__init__.py && \\",
+        '    pip install --no-cache-dir -e ".[batch,biweekly,pg]"',
+        "RUN playwright install --with-deps chromium",
+        "COPY configs/ ./configs/",
+        'RUN BUILD_GIT_COMMIT="$BUILD_GIT_COMMIT" \\',
+        "    python -m leviathan.common.image_stamp --write /app/IMAGE_MANIFEST.json",
+    ])
+    instrs = _parse_dockerfile(hoisted)
+    args, heavy, stamp = _provenance_args(instrs), _heavy_runs(instrs), _stamp_runs(instrs)
+    assert args == [2, 3]
+    assert heavy == [6, 8], "the folded pip RUN must anchor to line 7, not to its continuation"
+    assert stamp == [10]
+    assert min(args) < max(heavy), "the hoisted fixture must TRIP the fence"
+
+    # ...and the same file with the ARG block moved down passes.
+    fixed = "\n".join([
+        "FROM python:3.11-slim",
+        "COPY pyproject.toml ./",
+        "RUN mkdir -p src/leviathan && \\",
+        '    pip install --no-cache-dir -e "."',
+        "RUN playwright install --with-deps chromium",
+        "COPY configs/ ./configs/",
+        "ARG BUILD_GIT_COMMIT=unknown",
+        "ARG BUILD_TIME=unknown",
+        'RUN BUILD_GIT_COMMIT="$BUILD_GIT_COMMIT" python -m leviathan.common.image_stamp --write /x',
+    ])
+    f = _parse_dockerfile(fixed)
+    assert min(_provenance_args(f)) > max(_heavy_runs(f))
+    assert max(_provenance_args(f)) < min(_stamp_runs(f))
+
+
+def test_instruction_parser_skips_comments_and_blanks():
+    """A comment BETWEEN the heavy RUN and the ARG block (both Dockerfiles have a 10-line one) must
+    not shift either index, and a comment must never be mistaken for an instruction."""
+    instrs = _parse_dockerfile("FROM x\n\n# ARG BUILD_GIT_COMMIT=hoisted-in-a-comment\nARG BUILD_TIME=unknown\n")
+    assert [i for i, _ in instrs] == [0, 3]
+    assert _provenance_args(instrs) == [3], "a commented-out ARG must not count as a declaration"
+
+
+@pytest.mark.parametrize("dockerfile", FENCED_DOCKERFILES)
 def test_dockerfiles_stamp_after_configs_copy(dockerfile):
     """The stamp RUN must exist AND come after `COPY configs/`.
 

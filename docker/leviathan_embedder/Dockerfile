@@ -9,12 +9,6 @@
 # image — and the runtime download is fast + in-region. (A future hardening can cache the model in S3.)
 FROM python:3.11-slim
 
-# FENCE (incident I-1): build provenance, injected as ARGs because .dockerignore excludes .git.
-# This image matters to the fence specifically because the MANUAL gate path
-# (jobs/submit/submit_batch_silver_rebuild_gate.py:34) targets leviathan-dev-evidence-build.
-ARG BUILD_GIT_COMMIT=unknown
-ARG BUILD_TIME=unknown
-
 WORKDIR /app
 
 # libgomp1 for torch/sentence-transformers OpenMP; libcurl4 for the curl-cffi core dep; libexpat1 is cheap.
@@ -51,7 +45,26 @@ COPY scripts/ ./scripts/
 # node_silver_map against them IN-VPC (DDL-not-found false-RED at the first Branch-A fire without it).
 COPY sql/ ./sql/
 
-# FENCE (incident I-1): stamp AFTER `COPY configs/` (stamping earlier fingerprints an empty dir).
+# FENCE (incident I-1): build provenance, injected as ARGs because .dockerignore excludes .git.
+# This image matters to the fence specifically because the MANUAL gate path
+# (jobs/submit/submit_batch_silver_rebuild_gate.py:34) targets leviathan-dev-evidence-build.
+#
+# CACHE FENCE (2026-08-04): declared HERE, immediately above their ONLY consumer, and never at the
+# top of the file. An ARG is in scope for every instruction that FOLLOWS it, and Docker keys a
+# following RUN as though the arg were in that command's environment -- so a value that changes
+# every commit (BUILD_GIT_COMMIT does) invalidates that RUN even though the command never names
+# it. At the top of the file these two sat above the torch-CPU + [embed,pg,serve] pip layer, which
+# is the ~2 GB bulk of this image (see the header note on why the model is NOT baked in), and
+# forced it to rebuild and re-upload on every commit through the proxy that breaks the pipe on GB
+# PUTs. Below it, that layer's cache key depends only on the base image, the apt set and
+# pyproject.toml.
+# This paragraph is NOT the fence -- the fence is
+# tests/unit/test_image_config_fence.py::test_provenance_args_stay_below_the_heavy_layers, which
+# fails if either ARG is moved above the torch/[embed] pip RUN.
+ARG BUILD_GIT_COMMIT=unknown
+ARG BUILD_TIME=unknown
+
+# Stamp AFTER `COPY configs/` (stamping earlier fingerprints an empty dir).
 RUN BUILD_GIT_COMMIT="$BUILD_GIT_COMMIT" BUILD_TIME="$BUILD_TIME" \
     python -m leviathan.common.image_stamp --write /app/IMAGE_MANIFEST.json
 

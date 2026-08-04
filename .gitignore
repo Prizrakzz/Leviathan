@@ -66,6 +66,7 @@ docs/private/
 
 # terraform saved plans (may embed sensitive values) + plan text dumps
 infra/terraform/**/tfplan*
+infra/terraform/**/*.tfplan
 
 # F2 pre-flight (public repo hardening): approval secrets + identity-bearing evidence artifacts
 scratch/

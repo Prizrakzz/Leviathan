@@ -874,6 +874,16 @@ CURATION_OVERRIDES: dict = {
     # Calibrated floor 0.25 keeps the gate live: an all-null regression still hard-fails
     # (KIND_ALL_NAN), and a fall below 0.25 (losing the 2018+ populated seasons) still trips.
     "silver_ams_cotton_quality": {"min_nonnull_frac_overrides": {"samples_classed": 0.25}},
+    # ── Pink Sheet first-fire calibration (2026-08-04, world_bank-firstfire-smoke): the WB CMO
+    # rapeseed-oil series starts mid-history, so its all-time non-null fraction can never reach the
+    # uniform provisional 0.5 -- MEASURED at the first real fetch: rapeseed_oil_usd_t 0.3672, its 5yr
+    # zscore 0.3233 (warmup on top). Floors set measured-minus-margin per the ams-cotton precedent
+    # above: a REAL coverage regression (losing populated years) still refuses the publish, and
+    # KIND_ALL_NAN still hard-fails an all-null column. Every other column stays at the table floor.
+    "silver_pink_sheet": {"min_nonnull_frac_overrides": {
+        "rapeseed_oil_usd_t": 0.30,
+        "rapeseed_oil_usd_t_zscore_5yr": 0.26,
+    }},
     # ── ESR changes_1000mt UPSTREAM TERMINATION (2026-07-23 gate FAIL triage): the FAS ESR
     # /allCountries response DROPPED the `changes` field entirely between the 20260524 and
     # 20260712 fetches -- immutable raw proof: every record of as_of=20260712/17/23 for

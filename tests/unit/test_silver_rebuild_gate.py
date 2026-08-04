@@ -395,6 +395,629 @@ def test_main_cli_baseline_uri_overrides_env(monkeypatch):
     assert store["baseline_uri"] == "s3://cli-bucket/census.json"
 
 
+# =========================================================================================================
+# D-PR-5 -- THE GATE BLAST-RADIUS SEVERITY SPLIT.
+#
+# Exhibit A (2026-08-03): ONE cot vocabulary drift on `brazilian_arabica_coffee` legs redded THREE
+# unrelated family gates in one morning, because `contract_check()` walks the whole estate and returns one
+# flat error list while `TableResult.ok` reds on ANY red stage. The split partitions the VERDICT BINDING
+# only -- the walk stays global, every error stays in the bundle -- so the family that OWNS a drift still
+# reds and the bystanders WARN.
+#
+# The error strings below are the REAL emit formats, quoted from their source lines:
+#   contract_check.py:207-208  commodity-slug family  ('{contract}/{did}: ... of {table} (...)')
+#   contract_check.py:96-97    wide-metric family     ('{tid}: ... of {phys} (...)')
+#   contract_check.py:106-107  tall-metric family     ('{tid}: ... of {phys} (...)')
+#   contract_check.py:166-167  country family         ('{contract}/{did}: ... of {table} (...)')
+# A test written against invented strings would pass while the live parser reads nothing.
+# =========================================================================================================
+# The 2026-08-03 incident, byte-faithful: brazilian_arabica_coffee is `not_covered` in cftc_cot.yaml:107
+# and its cot leg is `cot_mm_positioning` (configs/graphrag/causal/brazilian_arabica_coffee.yaml:462), so
+# with the COT_UNSERVED_SLUGS fence removed this is exactly what check_commodity_slug_vocabulary emits.
+_COT_DRIFT = ("brazilian_arabica_coffee/cot_mm_positioning: commodity slug 'brazilian_arabica_coffee' "
+              "not in DISTINCT leviathan_slug of silver_cot "
+              "(commodity-slug-miss -- the PSD_SLUG_ALIAS class)")
+_WASDE_DRIFT = ("silver_wasde: metric column 'Ending Stocks' is not a physical column of silver_wasde "
+                "(declared wide metric absent -- the WASDE Title-Case drift class)")
+# silver_esr is `shape: wide` with `athena_table: silver_esr_compact` (tables.yaml:262,301), so its
+# wide-metric error is the one shipped emit that names a PHYSICAL table -- alongside the agent id in its
+# own prefix. Both names must land on the same family.
+_ESR_DRIFT = ("silver_esr: metric column 'weekly_exports_1000mt' is not a physical column of "
+              "silver_esr_compact (declared wide metric absent -- the WASDE Title-Case drift class)")
+
+
+class _NumbersReg:
+    """Numbers-registry shim carrying the ONE property the split depends on: agent id -> physical table
+    (`silver_esr` serves from `silver_esr_compact`). `.get` raises for an unknown id, like the real
+    Registry (`registry.py:246-249`)."""
+
+    def __init__(self, specs):
+        self.tables = {tid: types.SimpleNamespace(id=tid, athena_table=phys)
+                       for tid, phys in specs.items()}
+
+    def get(self, tid):
+        if tid not in self.tables:
+            raise KeyError(tid)
+        return self.tables[tid]
+
+
+_NUMBERS = _NumbersReg({"silver_cot": None, "silver_wasde": None, "silver_fred_fx": None,
+                        "silver_esr": "silver_esr_compact", "silver_psd": None})
+
+
+def _drift_ctx(gate_table, errs, monkeypatch, **kw):
+    """A Branch-A context whose contract_check returns `errs`. query_fn is non-None so the stage runs.
+
+    Every `gate_table` used below is a REAL member of `load_pg_numbers.P1_TABLES`, so `select_branch`
+    routes it to Branch A off the live allowlist -- `select_branch`'s `pg_mirror` default binds at
+    definition, so monkeypatching `g.PG_MIRROR_TABLES` would not move a table anyway."""
+    import leviathan.graphrag.numbers.contract_check as cch
+    assert gate_table in g.PG_MIRROR_TABLES, gate_table
+    monkeypatch.setattr(cch, "contract_check", lambda reg=None, **k: list(errs))
+    silver = _SilverReg({gate_table: {"consumers": "both"}})
+    return silver, _ctx(silver, numbers_reg=_NUMBERS, query_fn=lambda *a, **k: [], **kw)
+
+
+# ---------------------------------------------------------------------------
+# (1) THE INCIDENT FIXTURE: one cot drift -> the fred family PASSES, the cot family FAILS.
+# ---------------------------------------------------------------------------
+def test_incident_20260803_cot_drift_warns_the_fred_family_and_reds_the_cot_family(monkeypatch):
+    """D-PR-5 acceptance, replayed: the 2026-08-03 input with the fence removed yields PASS + a
+    `global_drift` banner for silver_fred_fx and FAIL for a silver_cot-gating run.
+
+    This is the whole item. Before the split BOTH runs exited 1 and BOTH paged, so the operator got three
+    emails naming three innocent families and none of them named the table that actually drifted."""
+    # -- the bystander: fx_macro_daily gates silver_fred_fx, which the cot drift does not implicate.
+    _s, ctx = _drift_ctx("silver_fred_fx", [_COT_DRIFT], monkeypatch)
+    bundle = g.run_gate(["silver_fred_fx"], ctx,
+                        branch_a_stages=(_green("pg_reload"), g.stage_contract_check))
+    assert bundle["verdict"] == "PASS", bundle["results"]
+    assert bundle["banner"]["global_drift"] == 1 and bundle["banner"]["warn_tables"] == 1
+    assert bundle["banner"]["red_tables"] == 0
+    stage = [s for s in bundle["results"][0]["stages"] if s["name"] == "contract_check"][0]
+    assert stage["status"] == g.WARN
+    # NEVER SILENTLY DROPPED: the full text rides the bundle even though it no longer binds the verdict.
+    assert stage["errors"] == [_COT_DRIFT] and stage["global_errors"] == [_COT_DRIFT]
+    assert "silver_cot" in stage["detail"] and "global_drift" in stage["detail"]
+
+    # -- the owner: the SAME error, on the family whose own table it names, is RED exactly as before.
+    _s2, ctx2 = _drift_ctx("silver_cot", [_COT_DRIFT], monkeypatch)
+    bundle2 = g.run_gate(["silver_cot"], ctx2,
+                         branch_a_stages=(_green("pg_reload"), g.stage_contract_check))
+    assert bundle2["verdict"] == "FAIL"
+    assert bundle2["banner"]["global_drift"] == 0 and bundle2["banner"]["red_tables"] == 1
+    stage2 = [s for s in bundle2["results"][0]["stages"] if s["name"] == "contract_check"][0]
+    assert stage2["status"] == g.RED and stage2["errors"] == [_COT_DRIFT]
+
+
+def test_incident_drift_is_red_for_every_family_when_the_split_is_rolled_back(monkeypatch):
+    """The rollback lever is real: severity_split=False restores the pre-split verdict for the SAME input,
+    so a rollback is an env flip on the jobdef (GATE_SEVERITY_SPLIT=0), not an image rebuild."""
+    _s, ctx = _drift_ctx("silver_fred_fx", [_COT_DRIFT], monkeypatch, severity_split=False)
+    bundle = g.run_gate(["silver_fred_fx"], ctx,
+                        branch_a_stages=(_green("pg_reload"), g.stage_contract_check))
+    assert bundle["verdict"] == "FAIL" and bundle["banner"]["global_drift"] == 0
+    monkeypatch.delenv("GATE_SEVERITY_SPLIT", raising=False)
+    assert g._severity_split_enabled() is True                       # unset -> ON (the ratified default)
+    monkeypatch.setenv("GATE_SEVERITY_SPLIT", "0")
+    assert g._severity_split_enabled() is False
+
+
+def test_split_scopes_by_the_owning_table_not_by_the_contract(monkeypatch):
+    """Attribution is by the TABLE the leg implicates, not by the contract that names the leg. The
+    2026-08-03 drift rode `brazilian_arabica_coffee` legs, so scoping by contract would have redded the
+    coffee families and cleared the cot family -- the exact inversion of what the gate must do."""
+    for gate_table, expect in (("silver_cot", g.RED), ("silver_fred_fx", g.WARN),
+                               ("silver_psd", g.WARN)):
+        _s, ctx = _drift_ctx(gate_table, [_COT_DRIFT], monkeypatch)
+        assert g.stage_contract_check(gate_table, ctx).status == expect, gate_table
+
+
+def test_agent_id_and_physical_table_are_the_same_family(monkeypatch):
+    """`silver_esr` serves from `silver_esr_compact` (contract_check._physical, :48-50), so ONE table has
+    TWO names in the error stream and both must bind to the one family that owns it.
+
+    Measured scope, so the fence is not oversold: no shipped emit carries the physical name ALONE today --
+    the wide-metric family prints `{tid}: ... of {phys}` (`:96-97`) and every cascade_map row names an
+    agent id (`cascade_map.yaml:238` is `table: silver_esr`), so the prefix would carry attribution by
+    itself. The alias map is the fence for the emit that does not: a physical-only string must never
+    false-clear the owning family, because a false CLEAR is the only direction of this split that can
+    hurt. Both are pinned below."""
+    assert g._gate_table_aliases("silver_esr", _NUMBERS) == frozenset({"silver_esr",
+                                                                       "silver_esr_compact"})
+    _s, ctx = _drift_ctx("silver_esr", [_ESR_DRIFT], monkeypatch)
+    assert g.stage_contract_check("silver_esr", ctx).status == g.RED
+    _s2, ctx2 = _drift_ctx("silver_cot", [_ESR_DRIFT], monkeypatch)
+    assert g.stage_contract_check("silver_cot", ctx2).status == g.WARN
+
+    # SYNTHETIC (no lint emits this shape today): the physical name with no agent-id prefix to fall back
+    # on. Without the alias map this reds nobody and clears the owner.
+    phys_only = ("wheat_cbot/esr_commitments: region-resolved country 'EU' not in DISTINCT country_code "
+                 "of silver_esr_compact (region_map resolve target absent -- the France->EU class)")
+    assert g.implicated_tables(phys_only) == frozenset({"silver_esr_compact"})
+    _s3, ctx3 = _drift_ctx("silver_esr", [phys_only], monkeypatch)
+    assert g.stage_contract_check("silver_esr", ctx3).status == g.RED
+
+
+def test_mixed_drift_reds_on_its_own_error_and_still_carries_the_others(monkeypatch):
+    """A family implicated by ONE of three errors is RED -- and the two it does not own are still counted
+    and still printed in full. A red verdict must never cost the operator the rest of the evidence."""
+    errs = [_COT_DRIFT, _WASDE_DRIFT, _ESR_DRIFT]
+    _s, ctx = _drift_ctx("silver_wasde", errs, monkeypatch)
+    res = g.stage_contract_check("silver_wasde", ctx)
+    assert res.status == g.RED
+    assert res.errors == errs                      # all three, untruncated
+    assert sorted(res.global_errors) == sorted([_COT_DRIFT, _ESR_DRIFT])
+    assert "+2 global_drift on other tables" in res.detail
+
+
+# ---------------------------------------------------------------------------
+# (2) THE INVARIANT: the split may NEVER change the verdict of a table whose OWN stages are red.
+# ---------------------------------------------------------------------------
+def test_invariant_own_red_stage_verdict_is_identical_with_and_without_the_split(monkeypatch):
+    """The ratified invariant (D-PR-5). A table with a red stage of its own PLUS an unrelated global drift
+    must produce the same verdict either way -- the split changes which errors are RED, never what RED
+    means. Asserted on the whole bundle verdict AND on the per-table ok, both directions."""
+    def _bundle(split):
+        _s, ctx = _drift_ctx("silver_fred_fx", [_COT_DRIFT], monkeypatch, severity_split=split)
+        return g.run_gate(["silver_fred_fx"], ctx,
+                          branch_a_stages=(_green("pg_reload"), _red("parity"), g.stage_contract_check))
+
+    with_split, without_split = _bundle(True), _bundle(False)
+    assert with_split["verdict"] == without_split["verdict"] == "FAIL"
+    assert with_split["results"][0]["ok"] is without_split["results"][0]["ok"] is False
+    assert with_split["banner"]["red_tables"] == without_split["banner"]["red_tables"] == 1
+    # ...and the table's OWN red stage is byte-identical under both, so the operator's first line is too.
+    own = [[s for s in b["results"][0]["stages"] if s["name"] == "parity"][0]
+           for b in (with_split, without_split)]
+    assert json.dumps(own[0], sort_keys=True) == json.dumps(own[1], sort_keys=True)
+
+
+def test_invariant_holds_when_the_drift_implicates_the_red_table_itself(monkeypatch):
+    """The other half of the invariant: when the global drift DOES name this table, the split is a no-op on
+    every stage, not just on the verdict."""
+    def _stages(split):
+        _s, ctx = _drift_ctx("silver_cot", [_COT_DRIFT], monkeypatch, severity_split=split)
+        b = g.run_gate(["silver_cot"], ctx,
+                       branch_a_stages=(_green("pg_reload"), _red("parity"), g.stage_contract_check))
+        assert b["verdict"] == "FAIL"
+        return {s["name"]: s["status"] for s in b["results"][0]["stages"]}
+
+    assert _stages(True) == _stages(False)
+    assert _stages(True)["contract_check"] == g.RED
+
+
+def test_warn_alone_is_not_a_pass():
+    """WARN is not a green. A table whose only non-skipped stage WARNed proved nothing about itself, so
+    `ok` stays False -- the split must not become a back door around the all-skipped fail-closed rule."""
+    silver = _SilverReg({"silver_cot": {"consumers": "feature_layer"}})
+    res = g.run_table("silver_cot", _ctx(silver), branch_b_stages=(
+        _skip("feature_probe"), _skip("value_census"),
+        lambda t, c: g.StageResult("config_check", g.WARN, "elsewhere", errors=["x"],
+                                   global_errors=["x"])))
+    assert res.warned is True and res.ok is False
+
+
+# ---------------------------------------------------------------------------
+# (3) UNATTRIBUTABLE -> RED (the ratified fail-closed default).
+# ---------------------------------------------------------------------------
+def test_unattributable_contract_error_is_red_everywhere(monkeypatch):
+    """An error string carrying no parseable table name cannot be charged to anyone, so it is charged to
+    everyone. Fail-closed on ambiguity is this estate's doctrine (BaselineFetchError, and the
+    empty-glob-is-an-ERROR rule at config_check.py:1614-1621); the split removes FALSE breadth, it does
+    not invent narrowness the parser cannot justify."""
+    opaque = "vocabulary drift detected during the mirror walk"
+    assert g.implicated_tables(opaque) == frozenset()
+    for gate_table in ("silver_cot", "silver_fred_fx", "silver_wasde"):
+        _s, ctx = _drift_ctx(gate_table, [opaque], monkeypatch)
+        res = g.stage_contract_check(gate_table, ctx)
+        assert res.status == g.RED, gate_table
+        assert res.errors == [opaque] and res.global_errors == []
+
+
+def test_config_check_lint_label_is_never_read_as_a_table(monkeypatch):
+    """`_run_config_check` emits `f"{label}: {e}"` (`:237-255`), which is prefix-shaped exactly like the
+    wide-metric family. Reusing the contract parser here would read the LINT LABEL as a table id and
+    demote a real estate-wide failure to WARN on 24 families. So config errors attribute ONLY through an
+    explicit opt-in marker, and no lint emits one today -- class C's config half stays UNKILLED (D-PR-29),
+    which is stated, not hidden."""
+    err = "vocab: 3 slugs in entity_vocabulary.yaml have no hierarchy node"
+    assert g.implicated_tables(err) == frozenset({"vocab"})     # the trap the strict attributor avoids
+    assert g._config_implicated(err) == frozenset()             # ...and it does avoid it
+    silver = _SilverReg({"silver_fred_fx": {"consumers": "both"}})
+    monkeypatch.setattr(g, "_run_config_check", lambda: [err])
+    res = g.stage_config_check("silver_fred_fx", _ctx(silver, numbers_reg=_NUMBERS))
+    assert res.status == g.RED and res.errors == [err]
+
+
+def test_config_check_marker_is_the_declared_opt_in_seam(monkeypatch):
+    """The seam D-PR-29 needs: a lint that CAN name its table becomes attributable by saying so. Pinned so
+    the convention cannot be silently changed by a later wave, and so the opt-in stays opt-in."""
+    marked = "cascade_map: leg brazilian_arabica_coffee/cot_mm_positioning is not_covered [table=silver_cot]"
+    assert g._config_implicated(marked) == frozenset({"silver_cot"})
+    silver = _SilverReg({"silver_fred_fx": {"consumers": "both"}})
+    monkeypatch.setattr(g, "_run_config_check", lambda: [marked])
+    assert g.stage_config_check("silver_fred_fx", _ctx(silver, numbers_reg=_NUMBERS)).status == g.WARN
+    assert g.stage_config_check("silver_cot", _ctx(silver, numbers_reg=_NUMBERS)).status == g.RED
+
+
+def test_stage_exception_is_unattributable_and_stays_red(monkeypatch):
+    """An exception is not an error STRING -- there is no leg, no table, and a check that crashed proved
+    nothing about ANY table. All three global stages keep the fail-closed exception arm."""
+    import leviathan.graphrag.numbers.contract_check as cch
+
+    def _boom(*a, **k):
+        raise RuntimeError("pg mirror relation does not exist")
+
+    monkeypatch.setattr(cch, "contract_check", _boom)
+    silver = _SilverReg({"silver_fred_fx": {"consumers": "both"}})
+    ctx = _ctx(silver, numbers_reg=_NUMBERS, query_fn=lambda *a, **k: [])
+    res = g.stage_contract_check("silver_fred_fx", ctx)
+    assert res.status == g.RED and "RuntimeError" in res.detail and res.errors
+
+
+# ---------------------------------------------------------------------------
+# The census-diff partition (plan Section 2.5: NOT optional -- prior_dark is empty estate-wide, so the
+# first dark leg introduced anywhere would otherwise red every family at once).
+# ---------------------------------------------------------------------------
+def _census_ctx(gate_table, current, monkeypatch, prior=None):
+    import leviathan.graphrag.numbers.cascade_census as cc
+    monkeypatch.setattr(cc, "census", lambda **k: current)
+    silver = _SilverReg({gate_table: {"consumers": "both"}})
+    return _ctx(silver, numbers_reg=_NUMBERS, query_fn=lambda *a, **k: [], prior_census=prior)
+
+
+def test_census_new_dark_leg_is_attributed_but_stays_promote_blocking(monkeypatch):
+    """ATTRIBUTION happens; the VERDICT does not move. See fence (B) and the blocking test block below:
+    a census drift is the one global finding the SAME execution re-judges downstream, on a criterion
+    (the ABSOLUTE dark count) that this stage's baseline diff cannot pass either. So the bystander gets
+    the drift ATTRIBUTED to silver_psd in `global_errors` and in the detail -- and still goes RED, because
+    exit 0 here would publish canonical into an execution that [Reconcile] then fails."""
+    current = {"banner": {"athena_calls": 0, "dark": 1},
+               "legs": [{"contract": "wheat_cbot", "node_id": "eu", "verdict": "DARK-WITH-REASON",
+                         "table": "silver_psd", "metric": "exports", "reason": "country-not-a-psd-title"}]}
+    owner = g.stage_cascade_census_diff("silver_psd", _census_ctx("silver_psd", current, monkeypatch))
+    assert owner.status == g.RED and not owner.global_errors     # its own drift: never "somebody else's"
+    bystander = g.stage_cascade_census_diff(
+        "silver_fred_fx", _census_ctx("silver_fred_fx", current, monkeypatch))
+    assert bystander.status == g.RED
+    assert bystander.global_errors and "silver_psd" in bystander.global_errors[0]
+    assert "PROMOTE-BLOCKING" in bystander.detail and "silver_psd" in bystander.detail
+
+
+def test_census_athena_banner_is_unattributable_and_reds_everywhere(monkeypatch):
+    """ATHENA_CALLS is a property of the census RUN, not of any leg's table: a leaked Athena scan is the
+    LIST-storm class and must never be demoted to somebody else's problem."""
+    current = {"banner": {"athena_calls": 3, "dark": 0}, "legs": []}
+    for t in ("silver_psd", "silver_fred_fx"):
+        res = g.stage_cascade_census_diff(t, _census_ctx(t, current, monkeypatch))
+        assert res.status == g.RED and "ATHENA_CALLS=3" in res.detail, t
+
+
+def test_census_dark_leg_without_a_table_is_unattributable(monkeypatch):
+    current = {"banner": {"athena_calls": 0, "dark": 1},
+               "legs": [{"contract": "cocoa", "node_id": "grind", "verdict": "DARK-WITH-REASON",
+                         "reason": "no table on the row"}]}
+    assert g.stage_cascade_census_diff(
+        "silver_fred_fx", _census_ctx("silver_fred_fx", current, monkeypatch)).status == g.RED
+
+
+def test_census_diff_text_view_is_unchanged():
+    """`_census_diff` keeps its list[str] contract -- the attributed form is a strictly additive view."""
+    current = {"banner": {"athena_calls": 0},
+               "legs": [{"contract": "wheat_cbot", "node_id": "eu", "verdict": "DARK-WITH-REASON",
+                         "table": "silver_psd", "metric": "exports", "reason": "r"}]}
+    texts = g._census_diff(None, current)
+    assert texts == [t for t, _ in g._census_diff_attributed(None, current)]
+    assert all(isinstance(t, str) for t in texts)
+
+
+# ---------------------------------------------------------------------------
+# D-PR-32 (the PRECONDITION): the bundle carries every error, untruncated.
+# ---------------------------------------------------------------------------
+def test_full_error_list_survives_the_five_error_detail_truncation(monkeypatch):
+    """`detail` has always summarised at `errs[:5]`. Under the split a truncated WARN would ride a PASS
+    instead of a promote-blocking RED, so an error past the fifth would vanish from every downstream
+    reader. The bundle now carries the untruncated list and a count."""
+    errs = [_COT_DRIFT.replace("cot_mm_positioning", f"leg_{i}") for i in range(7)]
+    _s, ctx = _drift_ctx("silver_fred_fx", errs, monkeypatch)
+    bundle = g.run_gate(["silver_fred_fx"], ctx,
+                        branch_a_stages=(_green("pg_reload"), g.stage_contract_check))
+    stage = [s for s in bundle["results"][0]["stages"] if s["name"] == "contract_check"][0]
+    assert stage["error_count"] == 7 and stage["errors"] == errs
+    assert stage["detail"].count("leg_") == 5           # the human summary is still capped at five
+    assert json.loads(json.dumps(bundle))["banner"]["global_drift"] == 1   # bundle stays JSON-serializable
+
+
+def test_clean_stage_dict_keeps_exactly_the_legacy_keys():
+    """Backward compatibility, pinned: a green/skipped stage serializes to the same three keys it always
+    did, so the SFN, reports/ tree and any dashboard reading these bundles are untouched by this wave."""
+    assert set(g.StageResult("parity", g.GREEN, "clean").to_dict()) == {"name", "status", "detail"}
+    assert set(g.StageResult("x", g.RED, "d", errors=["e"]).to_dict()) == {
+        "name", "status", "detail", "error_count", "errors"}
+
+
+def test_main_exits_zero_and_prints_a_grepable_warn_line(monkeypatch, capsys, tmp_path):
+    """END TO END through main(), on the REAL Branch-A stage tuple: the fred family promotes (exit 0) over
+    the cot drift, and the drift is still on stdout.
+
+    A WARN is exit 0 -> no SFN failure -> no FailNotify -> no alarm, so the container log is its ONLY
+    delivery mechanism today. The metric + alarm half is D-PR-28 and is explicitly NOT in this item; this
+    test pins the one channel that does exist so the split cannot become silent."""
+    import leviathan.graphrag.numbers.cascade_census as cc
+
+    _s, ctx = _drift_ctx("silver_fred_fx", [_COT_DRIFT], monkeypatch,
+                         value_census_fn=lambda t, reg: {"ok": True})
+    monkeypatch.setattr(cc, "census", lambda **k: {"banner": {"athena_calls": 0, "dark": 0}, "legs": []})
+    monkeypatch.setattr(g, "_run_config_check", lambda: [])
+    monkeypatch.setattr(g, "_preflight_image_config", lambda tables, **k: {"ok": True})
+    monkeypatch.setattr(g, "_build_live_context", lambda tables, **k: ctx)
+
+    out_path = tmp_path / "bundle.json"
+    rc = g.main(["--tables", "silver_fred_fx", "--json", str(out_path)])
+    out = capsys.readouterr().out
+    assert rc == 0, out
+    assert out.isascii()                                    # cp1252 console -- ASCII-only stdout
+    assert "WARN silver_fred_fx" in out and "global_drift=1" in out
+    bundle = json.loads(out_path.read_text(encoding="utf-8"))
+    assert bundle["verdict"] == "PASS" and bundle["banner"]["global_drift"] == 1
+    stage = [s for s in bundle["results"][0]["stages"] if s["name"] == "contract_check"][0]
+    assert stage["status"] == g.WARN and stage["errors"] == [_COT_DRIFT]
+    # pg_reload/parity SKIP without a conn; the V001 floor is the GREEN that makes the pass a real pass.
+    by = {s["name"]: s["status"] for s in bundle["results"][0]["stages"]}
+    assert by["value_census"] == g.GREEN and by["pg_reload"] == g.SKIPPED
+
+
+# =========================================================================================================
+# FENCE (A) -- THE ORPHAN FENCE. A drift implicating a table NO family gates goes RED estate-wide.
+#
+# The set the checks WALK is not the set the schedules GATE. `contract_check` walks the numbers registry
+# (`contract_check._numbers_table_ids` -- every registry table minus the projection trio); ownership is
+# declared only by the 26 `configs/silver/dags/*.json` descriptors' `gate_tables`. The difference is not
+# empty, so "charge the drift to the family that owns it" had a hole: a drift on an UNOWNED table is
+# charged to nobody -- WARN on all 41 gated tables, RED on none, exit 0 everywhere, no alarm.
+# =========================================================================================================
+# The measured orphan roster, pinned BY NAME (the estate's convention: an integer pin says a table moved,
+# never WHICH). gold_pattern_records is in the C002 walk and in nobody's gate_tables.
+_EXPECTED_ORPHANS = frozenset({"gold_pattern_records"})
+
+
+def test_the_c002_walk_set_is_wider_than_the_owned_set_and_the_orphan_is_named():
+    """The measurement the fence exists for -- asserted against the LIVE registry and the LIVE descriptors,
+    so it re-measures on every run rather than trusting a number written down on 2026-08-04."""
+    from leviathan.graphrag.numbers import contract_check as cch
+    from leviathan.graphrag.numbers.registry import load_registry
+
+    walked = set(cch._numbers_table_ids(load_registry()))
+    owned = g.gated_tables()
+    assert owned is not None, "the dag descriptors must be readable from the repo/image tree"
+    assert len(owned) >= 40, len(owned)     # a partial read would show up as invented orphans below
+    assert walked - owned == set(_EXPECTED_ORPHANS), {
+        "new_orphans": sorted(walked - owned - _EXPECTED_ORPHANS),
+        "orphans_that_gained_an_owner": sorted(_EXPECTED_ORPHANS - (walked - owned)),
+        "why_this_matters": "a C002-walked table absent from every family's gate_tables is checked by "
+                            "26 gate runs and OWNED by none of them -- under the severity split its "
+                            "drift would WARN on all 41 gated tables and red nobody. Adding it to a "
+                            "family's gate_tables is the fix; widening this roster is not"}
+
+
+def test_gated_tables_reads_the_descriptors_and_ignores_the_schema_and_rendered_payloads(tmp_path):
+    """`gate_tables` comes from the DESCRIPTORS only. The rendered execution payloads live in
+    `_rendered/` (a non-recursive glob never reaches them) and `dag_descriptor.schema.json` is the
+    schema, not a family -- reading either as a descriptor would invent ownership that does not exist."""
+    owned = g.gated_tables()
+    assert {"silver_fred_fx", "silver_cot", "silver_wasde", "silver_psd"} <= owned
+    assert "gold_pattern_records" not in owned
+
+    (tmp_path / "_rendered").mkdir()
+    (tmp_path / "_rendered" / "a.input.json").write_text(
+        json.dumps({"gate_tables": ["silver_never_owned"]}), encoding="utf-8")
+    (tmp_path / "dag_descriptor.schema.json").write_text(
+        json.dumps({"gate_tables": ["silver_from_the_schema"]}), encoding="utf-8")
+    (tmp_path / "fam.json").write_text(json.dumps({"gate_tables": ["silver_a", "silver_b"]}),
+                                       encoding="utf-8")
+    (tmp_path / "broken.json").write_text("{ not json", encoding="utf-8")   # skipped, never raises
+    assert g.gated_tables(tmp_path) == frozenset({"silver_a", "silver_b"})
+
+
+def test_gated_tables_is_none_when_ownership_cannot_be_established(tmp_path):
+    """None is 'nobody owns anything', not 'no orphans' -- an empty/absent descriptor tree must not read
+    as a clean bill of health."""
+    assert g.gated_tables(tmp_path / "does-not-exist") is None
+    (tmp_path / "no_gate_tables.json").write_text(json.dumps({"family": "x"}), encoding="utf-8")
+    assert g.gated_tables(tmp_path) is None
+
+
+# The shape contract_check's wide-metric family emits (`contract_check.py:96-97`), pointed at the one
+# table the measurement above proves is unowned. gold_pattern_records declares zero metrics TODAY, so
+# this exact string cannot fire yet -- the T2b writer upgrade (graded quantified firings) is what adds
+# them, and the fence must already be standing when it does. The STRUCTURAL gap is what is pinned above;
+# this is the emit that would ride it.
+_ORPHAN_DRIFT = ("gold_pattern_records: metric column 'firing_rate' is not a physical column of "
+                 "gold_pattern_records (declared wide metric absent -- the WASDE Title-Case drift class)")
+
+
+def test_drift_on_an_unowned_table_is_red_for_every_gated_family(monkeypatch):
+    """THE FENCE. No family's gate_tables lists gold_pattern_records, so no family would ever red for it:
+    moving the error off this family's verdict moves it onto NOBODY's. Fail-closed -- RED everywhere."""
+    assert g.implicated_tables(_ORPHAN_DRIFT) == frozenset({"gold_pattern_records"})
+    for gate_table in ("silver_cot", "silver_fred_fx", "silver_wasde", "silver_psd"):
+        _s, ctx = _drift_ctx(gate_table, [_ORPHAN_DRIFT], monkeypatch)
+        res = g.stage_contract_check(gate_table, ctx)
+        assert res.status == g.RED, gate_table
+        assert res.errors == [_ORPHAN_DRIFT] and res.global_errors == []
+
+
+def test_an_owned_table_in_the_same_error_defeats_the_orphan_rule(monkeypatch):
+    """Precision, not a blunt instrument: an error naming an orphan AND an owned table is NOT orphaned --
+    the owning family still reds, so the drift is not promoted over silently and the bystanders keep the
+    split's benefit. Over-redding here would quietly undo the whole item."""
+    mixed = ("gold_pattern_records: commodity slug 'x' not in DISTINCT leviathan_slug of silver_cot "
+             "(commodity-slug-miss -- the PSD_SLUG_ALIAS class)")
+    assert g.implicated_tables(mixed) == frozenset({"gold_pattern_records", "silver_cot"})
+    _s, ctx = _drift_ctx("silver_fred_fx", [mixed], monkeypatch)
+    assert g.stage_contract_check("silver_fred_fx", ctx).status == g.WARN
+    _s2, ctx2 = _drift_ctx("silver_cot", [mixed], monkeypatch)
+    assert g.stage_contract_check("silver_cot", ctx2).status == g.RED
+
+
+def test_unreadable_ownership_map_charges_every_error_to_this_table(monkeypatch):
+    """If the gate cannot read WHO OWNS WHAT it cannot narrow anything, so it narrows nothing. An image
+    built without configs/silver/dags (the gitignored-configs class that has bitten this estate before)
+    degrades to the pre-split verdict -- loud -- rather than to a silent estate-wide WARN."""
+    monkeypatch.setattr(g, "gated_tables", lambda *a, **k: None)
+    _s, ctx = _drift_ctx("silver_fred_fx", [_COT_DRIFT], monkeypatch)
+    res = g.stage_contract_check("silver_fred_fx", ctx)
+    assert res.status == g.RED and res.errors == [_COT_DRIFT] and res.global_errors == []
+
+
+def test_split_by_blast_radius_orphan_arm_is_directly_pinned():
+    """The partitioner's three RED arms in one place: mine / unattributable / orphan-only."""
+    items = [("mine", frozenset({"silver_cot"})), ("bystander", frozenset({"silver_wasde"})),
+             ("opaque", frozenset()), ("orphan", frozenset({"gold_pattern_records"}))]
+    owned = frozenset({"silver_cot", "silver_wasde"})
+    mine, others = g.split_by_blast_radius(items, {"silver_cot"}, owned)
+    assert mine == ["mine", "opaque", "orphan"] and others == ["bystander"]
+    # owned=None -> nobody owns anything -> everything is this table's problem.
+    assert g.split_by_blast_radius(items, {"silver_cot"}, None)[1] == []
+
+
+# =========================================================================================================
+# FENCE (B) -- THE EXIT CODE AND THE PROMOTE DECISION ARE ONE VERDICT.
+#
+# The SFN reads the gate's EXIT CODE only (`step_functions/main.tf:38-40`) and `Gate.Next = "Promote"` is
+# unconditional (`:176`), so exit 0 PUBLISHES CANONICAL. [Reconcile] then runs advance_rolling_census ->
+# `cascade_census.main`, whose criterion is the ABSOLUTE un-waived DARK count (`cascade_census.py:623`),
+# not this gate's baseline diff -- so a demoted census drift published canonical and THEN failed the
+# execution, while [FailNotify] said "Canonical left untouched (INV-6)".
+# =========================================================================================================
+def _main_run(monkeypatch, tmp_path, *, gate_table, contract_errs=(), census=None, name="bundle.json"):
+    """Drive main() end-to-end on the REAL Branch-A stage tuple with pg/S3/Batch fully mocked."""
+    import leviathan.graphrag.numbers.cascade_census as cc
+
+    _s, ctx = _drift_ctx(gate_table, list(contract_errs), monkeypatch,
+                         value_census_fn=lambda t, reg: {"ok": True})
+    monkeypatch.setattr(cc, "census",
+                        lambda **k: census or {"banner": {"athena_calls": 0, "dark": 0}, "legs": []})
+    monkeypatch.setattr(g, "_run_config_check", lambda: [])
+    monkeypatch.setattr(g, "_preflight_image_config", lambda tables, **k: {"ok": True})
+    monkeypatch.setattr(g, "_build_live_context", lambda tables, **k: ctx)
+    out_path = tmp_path / name
+    rc = g.main(["--tables", gate_table, "--json", str(out_path)])
+    return rc, json.loads(out_path.read_text(encoding="utf-8"))
+
+
+_PSD_DARK_CENSUS = {"banner": {"athena_calls": 0, "dark": 1},
+                    "legs": [{"contract": "wheat_cbot", "node_id": "eu",
+                              "verdict": "DARK-WITH-REASON", "table": "silver_psd",
+                              "metric": "exports", "reason": "country-not-a-psd-title"}]}
+
+
+def test_a_census_drift_on_another_table_never_promotes_canonical(monkeypatch, tmp_path, capsys):
+    """The HIGH, end to end. A NEW un-waived dark leg on silver_psd while fx_macro_daily's gate runs:
+    the gate exits NONZERO, so [Gate] raises States.TaskFailed -> Catch -> [FailNotify] and [Promote] is
+    never entered (INV-6). The alert's "Canonical left untouched" is true again."""
+    rc, bundle = _main_run(monkeypatch, tmp_path, gate_table="silver_fred_fx",
+                           census=_PSD_DARK_CENSUS)
+    assert rc == 1
+    assert bundle["verdict"] == "FAIL" and bundle["banner"]["red_tables"] == 1
+    assert bundle["banner"]["global_drift"] == 0 and bundle["banner"]["warn_tables"] == 0
+    stage = [s for s in bundle["results"][0]["stages"] if s["name"] == "cascade_census_diff"][0]
+    assert stage["status"] == g.RED
+    # ...and the operator is still told WHOSE drift it is, on stdout, without opening a bundle.
+    out = capsys.readouterr().out
+    assert "FAIL silver_fred_fx" in out and "silver_psd" in out and "PROMOTE-BLOCKING" in out
+    assert out.isascii()
+
+
+def test_exit_code_and_bundle_verdict_are_the_same_verdict_on_every_arm(monkeypatch, tmp_path):
+    """The invariant the fix must hold: rc==0 IFF the bundle says PASS. There is no arm where the gate
+    exits 0 (-> canonical publishes) while the run's own verdict, or the execution's, is a failure."""
+    for i, (errs, census, want_rc) in enumerate((
+            ((), None, 0),                                   # clean
+            (( _COT_DRIFT,), None, 0),                       # somebody else's VOCAB drift -> promotes
+            ((), _PSD_DARK_CENSUS, 1),                       # somebody else's CENSUS drift -> blocks
+            ((_COT_DRIFT,), _PSD_DARK_CENSUS, 1),            # both
+    )):
+        rc, bundle = _main_run(monkeypatch, tmp_path, gate_table="silver_fred_fx",
+                               contract_errs=errs, census=census, name=f"b{i}.json")
+        assert rc == want_rc, (i, bundle["results"])
+        assert (rc == 0) is (bundle["verdict"] == "PASS"), (i, rc, bundle["verdict"])
+
+
+def test_a_vocabulary_warn_still_promotes_because_reconcile_does_not_recheck_it(monkeypatch, tmp_path):
+    """The split's benefit is NOT thrown away. [Reconcile] runs the census and only the census, so a
+    contract_check drift on another table has no downstream re-judgement to contradict -- it stays a WARN
+    and the bystander family still promotes. Only the stage the execution re-judges is blocking."""
+    rc, bundle = _main_run(monkeypatch, tmp_path, gate_table="silver_fred_fx",
+                           contract_errs=[_COT_DRIFT])
+    assert rc == 0 and bundle["verdict"] == "PASS"
+    assert bundle["banner"]["global_drift"] == 1 and bundle["banner"]["warn_tables"] == 1
+    assert [s for s in bundle["results"][0]["stages"]
+            if s["name"] == "contract_check"][0]["status"] == g.WARN
+
+
+def test_census_blocking_survives_the_rollback_lever(monkeypatch, tmp_path):
+    """GATE_SEVERITY_SPLIT=0 restores the pre-split verdict, which was ALSO red here -- so the rollback
+    lever cannot be used to reopen the publish-then-fail window in either direction."""
+    import leviathan.graphrag.numbers.cascade_census as cc
+    monkeypatch.setattr(cc, "census", lambda **k: _PSD_DARK_CENSUS)
+    for split in (True, False):
+        _s, ctx = _drift_ctx("silver_fred_fx", [], monkeypatch, severity_split=split)
+        assert g.stage_cascade_census_diff("silver_fred_fx", ctx).status == g.RED, split
+
+
+# =========================================================================================================
+# D-PR-32 ON THE SCHEDULED PATH -- the bundle is not a delivery mechanism; stdout is.
+# =========================================================================================================
+def test_no_scheduled_gate_command_carries_json_so_stdout_is_the_only_record():
+    """WHY the stdout rule exists, measured against the rendered execution payloads that actually run.
+    None of them passes --json, so the bundle is written INSIDE the Batch container to
+    reports/silver_readiness/... and nothing uploads it. If a drift is not on stdout it is not anywhere."""
+    rendered = sorted((g._REPO_ROOT / "configs" / "silver" / "dags" / "_rendered")
+                      .glob("*.input.json"))
+    assert len(rendered) == 26, len(rendered)
+    with_json = [p.name for p in rendered
+                 if "--json" in json.loads(p.read_text(encoding="utf-8"))["gate"]["command"]]
+    assert with_json == [], with_json
+
+
+def test_every_warn_error_reaches_stdout_untruncated(monkeypatch, tmp_path, capsys):
+    """`detail` stops at five. With seven drifts the sixth and seventh existed ONLY in a bundle nobody
+    uploads -- on an exit-0 PASS run, where before the split the same content at least rode an exit-1
+    that paged. Every error must be on stdout, one per line, on the WARN path."""
+    errs = [_COT_DRIFT.replace("cot_mm_positioning", f"leg_{i}") for i in range(7)]
+    rc, bundle = _main_run(monkeypatch, tmp_path, gate_table="silver_fred_fx", contract_errs=errs)
+    out = capsys.readouterr().out
+    assert rc == 0 and bundle["verdict"] == "PASS"
+    assert out.isascii()
+    for i, e in enumerate(errs):
+        assert e in out, f"drift {i} never reached the job log"
+        assert f"error {i + 1}/7" in out
+    assert out.count("leg_6") >= 1                      # the one `detail` truncation always dropped
+
+
+def test_every_red_error_reaches_stdout_untruncated(monkeypatch, tmp_path, capsys):
+    """Same guarantee on the RED path: the FAIL summary line is also an `errs[:5]` join, and a paging
+    failure whose sixth cause is invisible is the same defect wearing a louder hat."""
+    errs = [_WASDE_DRIFT.replace("Ending Stocks", f"Metric {i}") for i in range(7)]
+    rc, bundle = _main_run(monkeypatch, tmp_path, gate_table="silver_wasde", contract_errs=errs)
+    out = capsys.readouterr().out
+    assert rc == 1 and bundle["verdict"] == "FAIL"
+    for i, e in enumerate(errs):
+        assert e in out, f"drift {i} never reached the job log"
+        assert f"error {i + 1}/7" in out
+
+
+def test_a_single_error_is_not_printed_twice(monkeypatch, tmp_path, capsys):
+    """The common case stays quiet: one error is already the whole of `detail`, so the per-error lines
+    only appear when `detail` actually dropped something."""
+    rc, _b = _main_run(monkeypatch, tmp_path, gate_table="silver_fred_fx", contract_errs=[_COT_DRIFT])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert out.count(_COT_DRIFT) == 1 and "error 1/1" not in out
+
+
 def test_main_no_baseline_is_unset_not_empty_string(monkeypatch):
     """With neither the flag nor the env var, _build_live_context receives baseline_uri=None (unset),
     so the legacy image-baked path is taken. Use raise_after_capture to short-circuit before run_gate."""
