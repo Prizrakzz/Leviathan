@@ -142,12 +142,50 @@ def _tasks(desc: dict, phase: str) -> list[dict]:
 # ---------------------------------------------------------------------------
 class TestNamesMatchTheDescriptors:
     def test_free_fetch_name(self, free_fetch, free_desc):
+        """The four W1a/W1b captures share ONE fetch jobdef; the W1c Euronext capture cannot join
+        them and rides leviathan-dev-browser-runner instead.
+
+        That second jobdef is NOT a naming choice. The MATIF quote table is decrypted and rendered
+        by the page's own JS, so the producer drives headless Chromium -- and playwright + Chromium
+        are in docker/leviathan_browser, deliberately not in the worker image this jobdef pins
+        (a leg whose dependency is a browser version must be able to move it without re-qualifying
+        the silver estate). This assertion is written as an exact partition rather than a
+        membership test so BOTH failures are caught: a fifth W1a-style leg quietly landing on the
+        browser jobdef, and the Euronext capture quietly moving onto the worker image, where it
+        would fail at import on every fire.
+
+        NOTE what is NOT split: the Euronext SILVER task rides the shared
+        leviathan-dev-futures-eod-silver like every other leg (see
+        test_silver_name_is_shared_by_both_chains), which is what keeps the descriptor's
+        self-promotion override legal."""
         declared = 'name = "${var.project_name}-${var.environment}-futures-eod-free-fetch"'
         assert declared in free_fetch
         rendered = _render(declared).split('"')[1]
         assert rendered == "leviathan-dev-futures-eod-free-fetch"
-        pins = {_unversion(t["jobdef"]) for t in _tasks(free_desc, "fetch")}
-        assert pins == {rendered}, "all four free legs share ONE fetch jobdef"
+        by_jobdef: dict[str, set[str]] = {}
+        for t in _tasks(free_desc, "fetch"):
+            by_jobdef.setdefault(_unversion(t["jobdef"]), set()).add(t["command"][0])
+        assert by_jobdef == {
+            rendered: {"jobs/ingest/fetch_czce_eod.py", "jobs/ingest/fetch_jse_safex_daily.py",
+                       "jobs/ingest/fetch_cepea_daily.py", "jobs/ingest/fetch_miax_eod.py"},
+            "leviathan-dev-browser-runner": {"jobs/ingest/fetch_euronext_eod.py"},
+        }
+
+    def test_the_browser_runner_is_the_one_jobdef_terraform_does_not_yet_track(self, batch_tf,
+                                                                               free_desc):
+        """D-PR-23's other half, still open and therefore still asserted: leviathan-dev-browser-runner
+        exists in AWS at revision 1, was created out of band, and carries NEITHER retryStrategy NOR
+        attemptDurationSeconds. Adopting it into terraform WITH those two rides the post-freeze
+        batch. Until then this test is the record that the chain depends on a jobdef no plan
+        reproduces -- and the day it IS adopted, this test goes red and gets replaced by the
+        ordinary name/image/role assertions its siblings carry."""
+        browser = {_unversion(t["jobdef"]) for t in _tasks(free_desc, "fetch")
+                   if t["command"][0].endswith("fetch_euronext_eod.py")}
+        assert browser == {"leviathan-dev-browser-runner"}
+        assert "browser-runner" not in batch_tf, (
+            "leviathan-dev-browser-runner appears in modules/batch/main.tf -- if it has been "
+            "adopted, retire this test and assert its image pin, jobRoleArn, retry_strategy and "
+            "attemptDurationSeconds the way the other three jobdefs are asserted above")
 
     def test_databento_fetch_name(self, databento_fetch, databento_desc):
         declared = 'name = "${var.project_name}-${var.environment}-databento-fetch"'

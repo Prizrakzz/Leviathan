@@ -2,8 +2,15 @@
 ``futures_eod_free`` DAG descriptor. Hermetic: no network, no AWS, no .xls writer.
 
 The per-leg parse suites live next door (``tests/unit/test_{jse_safex,cepea,miax}_eod.py``); this
-file is about the seams BETWEEN them -- that four venues share one task, one contract, one floor
+file is about the seams BETWEEN them -- that the venues share one task, one contract, one floor
 mechanism and one schedule without contaminating each other.
+
+W1c's Euronext/MATIF leg joined the same descriptor on 2026-08-05 (D-PR-24), which makes it FIVE
+venues on one cron. It is the only one whose CAPTURE leaves the shared fetch jobdef -- a
+client-rendered quote table needs headless Chromium, which the worker image does not carry -- and
+the only one whose silver leg was already implemented and floor-bound for a year before anything
+fired it. Its declaration record lives at ``configs/silver/dags/unarmed/futures_eod_browser.json``
+and is pinned by ``tests/unit/silver/test_matif_arm_declaration.py``.
 """
 from __future__ import annotations
 
@@ -350,13 +357,21 @@ class TestDescriptor:
         assert d["family"] == "futures_eod" and d["schedule"] == "futures_eod_free"
         assert d["wave"] == 3 and d["publish_class"] == "A (registered)"
 
-    def test_one_cron_after_the_latest_of_the_four_publications(self):
-        """CZCE 07:00 UTC, JSE ~15:00, MIAX ~19:35, CEPEA ~21:00. 22:30 clears all four, and it is
-        deliberately NOT 23:00 -- that is the yfinance futures_prices chain's slot."""
+    def test_one_cron_after_the_latest_of_the_five_publications(self):
+        """CZCE 07:00 UTC, JSE ~15:00, EURONEXT ~16:30 (18:30 Paris, CEST; 17:30Z under CET),
+        MIAX ~19:35, CEPEA ~21:00. 22:30 clears all five, and it is deliberately NOT 23:00 -- that
+        is the yfinance futures_prices chain's slot.
+
+        The Euronext leg is the one with a CEILING as well as a floor: its rendered table carries
+        no date, so the capture is filed under the fetch process's own UTC date and the fire must
+        also sit BEFORE 00:00Z. 22:30Z is 5-6 hours after the publish and 90 minutes before the
+        date rolls, in both halves of the year."""
         d = self._desc()
         assert d["cron"] == "cron(30 22 ? * MON-FRI *)"
         other = json.loads((_DAGS / "futures_prices.json").read_text(encoding="utf-8"))
         assert d["cron"] != other["cron"]
+        # the UTC-midnight ceiling is the reasoning the descriptor must carry, not folklore
+        assert "00:00Z" in d["euronext_capture_window_note"]
 
     def test_its_own_census_baseline(self):
         d = self._desc()
@@ -364,42 +379,83 @@ class TestDescriptor:
         dbn = json.loads((_DAGS / "futures_eod_databento.json").read_text(encoding="utf-8"))
         assert d["gate_baseline_uri"] != dbn["gate_baseline_uri"]
 
+    # The five venues this chain carries: the four W1a/W1b legs plus the W1c Euronext/MATIF leg
+    # armed 2026-08-05 (D-PR-24). Stated once, so a sixth leg fails in one place.
+    _VENUES = ["cepea", "czce", "euronext", "jse", "miax"]
+
     def test_it_promotes_behind_the_gate_and_never_from_the_silver_phase(self):
-        """ARMED 2026-07-29: canonical was hand-published for all four venues first (czce 34,164 /
-        miax 1,554 / cepea 12,922 / jse 18), union gates PASSED, and the P10 question this test
-        used to guard closed itself -- the floors held across the whole 2,628-file CZCE backfill.
+        """ARMED 2026-07-29: canonical was hand-published for all four W1a/W1b venues first (czce
+        34,164 / miax 1,554 / cepea 12,922 / jse 18), union gates PASSED, and the P10 question this
+        test used to guard closed itself -- the floors held across the whole 2,628-file CZCE
+        backfill.
 
         What still must hold, and is the reason this test survives the flip: the SILVER phase
         stages shadow for every venue, and canonical happens only in the PROMOTE phase, which the
         state machine runs after the gate. One promote task per venue, so one venue's bad day
-        cannot promote another's rows."""
+        cannot promote another's rows -- which is exactly why arming a FIFTH venue (euronext,
+        2026-08-05) adds a fifth promote task rather than widening an existing one."""
         assert self._desc()["promote_mode"] == "autonomous"
         rendered = self._rendered()
         for task in rendered["phases"]["silver"]["tasks"]:
             cmd = task["command"]
             assert cmd[cmd.index("--publish-mode") + 1] == "shadow"
         promote = rendered["promote"]["tasks"]
-        assert len(promote) == 4
+        assert len(promote) == len(self._VENUES)
         sources = []
         for task in promote:
             cmd = task["command"]
             assert cmd[cmd.index("--publish-mode") + 1] == "canonical"
             sources.append(cmd[cmd.index("--source") + 1])
-        assert sorted(sources) == ["cepea", "czce", "jse", "miax"]
+        assert sorted(sources) == self._VENUES
 
     def test_one_fetch_and_one_silver_task_per_venue(self):
         rendered = self._rendered()
         fetches = {t["command"][0] for t in rendered["phases"]["fetch"]["tasks"]}
         assert fetches == {
             "jobs/ingest/fetch_czce_eod.py", "jobs/ingest/fetch_jse_safex_daily.py",
-            "jobs/ingest/fetch_cepea_daily.py", "jobs/ingest/fetch_miax_eod.py"}
+            "jobs/ingest/fetch_cepea_daily.py", "jobs/ingest/fetch_miax_eod.py",
+            "jobs/ingest/fetch_euronext_eod.py"}
         sources = []
         for task in rendered["phases"]["silver"]["tasks"]:
             cmd = task["command"]
             assert cmd[0] == "jobs/batch/futures_eod_task.py"
             sources.append(cmd[cmd.index("--source") + 1])
-        assert sorted(sources) == ["cepea", "czce", "jse", "miax"]
+        assert sorted(sources) == self._VENUES
         assert all(s in TASK._SOURCE_SPECS for s in sources)
+
+    def test_only_the_euronext_capture_leaves_the_shared_fetch_jobdef(self):
+        """FOUR venues share leviathan-dev-futures-eod-free-fetch; the Euronext capture cannot.
+        Its quote table is decrypted and rendered by the page's own JS, so the producer drives
+        headless Chromium -- and playwright + Chromium live in docker/leviathan_browser, not in the
+        worker image the shared fetch jobdef runs. A move back to the shared jobdef would fail on
+        Fargate at import time on every single fire, so the split is asserted rather than assumed.
+
+        The SILVER side does NOT split: raw -> bronze -> silver happens inside futures_eod_task.py
+        on the one shared publisher, which is what keeps the self-promotion override legal."""
+        rendered = self._rendered()
+        by_jobdef = {}
+        for t in rendered["phases"]["fetch"]["tasks"]:
+            by_jobdef.setdefault(t["jobdef"], set()).add(t["command"][0])
+        assert by_jobdef == {
+            "leviathan-dev-futures-eod-free-fetch": {
+                "jobs/ingest/fetch_czce_eod.py", "jobs/ingest/fetch_jse_safex_daily.py",
+                "jobs/ingest/fetch_cepea_daily.py", "jobs/ingest/fetch_miax_eod.py"},
+            "leviathan-dev-browser-runner": {"jobs/ingest/fetch_euronext_eod.py"},
+        }
+        assert {t["jobdef"] for t in rendered["phases"]["silver"]["tasks"]} == \
+            {"leviathan-dev-futures-eod-silver"}
+
+    def test_the_euronext_capture_carries_no_window(self):
+        """Like CEPEA's, and for a stronger reason: the rendered page serves TODAY's quotes and
+        publishes no date at all, so the raw key's as_of_date is the session's only authority and a
+        lookback window would be meaningless. --skip-existing is the producer's default, so a
+        re-fire inside the same UTC day costs no browser launch."""
+        rendered = self._rendered()
+        euronext = [t for t in rendered["phases"]["fetch"]["tasks"]
+                    if t["command"][0].endswith("fetch_euronext_eod.py")][0]
+        assert euronext["command"] == ["jobs/ingest/fetch_euronext_eod.py"]
+        assert euronext["queue"] == "leviathan-dev-queue-ondemand"   # never the SPOT queue
+        assert euronext["env"] == []
 
     def test_the_jse_fetch_carries_no_lookback_window(self):
         """Its --mode backfill raises NotImplementedError by design (plan gate 8): the portal object

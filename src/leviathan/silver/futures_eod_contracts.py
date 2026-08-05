@@ -216,18 +216,18 @@ CASH_INDEX_SLUGS: frozenset[str] = frozenset(
 # missing key as "no coverage", never as "covered since forever" -- coverage_start_for() below
 # fails closed so that distinction cannot be fudged.
 #
-# D-PR-23 (Option E) -- THE MATIF ABSENCE IS DECLARED, NOT PENDING. The three euronext_matif slugs
-# are absent here because the Euronext browser leg is BUILT but deliberately UNARMED: there is no
-# futures_eod_browser schedule and none is intended. The declaration -- what the leg is, why the
-# absence is a state rather than a gap, and the full arm checklist -- lives at
-# configs/silver/dags/unarmed/futures_eod_browser.json and is pinned by
-# tests/unit/silver/test_matif_declared_unarmed.py.
-# THE ARMING GATE IS PROBE S3 (Euronext SETTL. semantics): the rendered quote table publishes no
-# date, so trade_date comes only from the raw key, and if SETTL. carries the PREVIOUS settlement at
-# capture time the leg is off by one session with no downstream check able to see it.
-# TWO GATES, NOT ONE. Probe S3 gates the ARM (landing rows). Adding an entry to this dict is the
-# separate FLIP (D-PR-24, deferred and gated after R6) -- rows can land here and every MATIF answer
-# stays byte-identical until this dict changes, which is exactly what makes them separable.
+# D-PR-24 (2026-08-05) -- THE MATIF LEG IS ARMED; THE SERVING FLIP IS NOT. Probe S3 resolved the
+# SETTL. semantics (three captures, 08-04/08-05: intra-session the column shows the PRIOR completed
+# settlement and the +/- computes against it; it rolls to the finished session's own settlement at
+# the ~18:30 Paris evening publication, so the 22:30Z capture is same-day -- no T-1 risk). The
+# euronext capture+silver legs now ride futures_eod_free; the arm declaration, the probe record and
+# the delisting runbook live at configs/silver/dags/unarmed/futures_eod_browser.json, pinned by
+# tests/unit/silver/test_matif_arm_declaration.py.
+# TWO GATES, NOT ONE -- and only the FIRST is discharged. Rows may now land in silver, but the
+# three euronext_matif slugs stay ABSENT from this dict, so every MATIF lookup still declines
+# before any SQL compiles. Adding their entries here is the separate serving FLIP: it happens only
+# after landed canonical rows are measured (coverage start = first landed trade_date), which is
+# exactly what makes arm and flip separable.
 # ---------------------------------------------------------------------------
 PRICE_COVERAGE_START: dict[str, date] = {
     "arabica_coffee": date(2018, 12, 24),                 # databento_ifus_impact
