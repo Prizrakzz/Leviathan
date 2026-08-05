@@ -205,6 +205,48 @@ def write_artifact(episodes: dict) -> str:
     return path
 
 
+_HEARTBEAT = "timeline/last_run.json"
+
+
+def write_heartbeat(outcome: str, old_fp: str, new_fp: str, shape: str) -> str:
+    """Record that a scheduled run HAPPENED, beside the artifact it audited.
+
+    THE CALIBRATION GAP THIS CLOSES (the skip branch used to state it and leave it): the freshness
+    poller reads max LastModified over ``graphrag_evidence/timeline/``, and a healthy
+    ``--run-if-changed`` week writes NOTHING -- so stable episode content ages the measured signal
+    past the 10-day SLA while the schedule is perfectly alive, and the R7c alarm becomes a false-alarm
+    generator on quiet corpora. This object moves LastModified on EVERY successful run (skip or
+    rebuild), which changes the measured semantic to 'the weekly run happened' -- the thing the
+    alarm's basis string actually promises ('one missed run breaches'). A dead schedule stops the
+    heartbeat and the age grows honestly. The artifact itself keeps the no-write guarantee the skip
+    branch documents: built_at and bytes move ONLY on a content change.
+
+    Lives INSIDE the polled prefix on purpose; it is not excluded by freshness._EXCLUDE_SEGMENTS
+    (those fence off /_shadow/ /_staging/ /_backup/) nor by the _tasks.json suffix. Failure is
+    non-fatal: a run that rebuilt the artifact already refreshed the signal, and a skipped run that
+    cannot write the heartbeat should not turn a healthy week into exit 1."""
+    body = json.dumps({
+        "ran_at": _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "outcome": outcome, "old_fingerprint": old_fp, "new_fingerprint": new_fp, "shape": shape,
+    })
+    base = os.environ.get("EVIDENCE_S3", "")
+    try:
+        if base.startswith("s3://"):
+            import boto3
+            bucket, _, prefix = base[5:].partition("/")
+            key = f"{prefix.rstrip('/')}/{_HEARTBEAT}"
+            boto3.client("s3").put_object(Bucket=bucket, Key=key, Body=body.encode("utf-8"))
+            return f"s3://{bucket}/{key}"
+        path = os.path.join(base or ".", _HEARTBEAT)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(body)
+        return path
+    except Exception as exc:  # noqa: BLE001 -- see docstring: never fail a healthy run over the beat
+        print(f"  heartbeat write FAILED ({_err_token(exc)}) -- freshness signal not refreshed")
+        return ""
+
+
 def _err_token(exc: BaseException) -> str:
     """Short ASCII token for the failure: the botocore error code when there is one, else the type."""
     resp = getattr(exc, "response", None)
@@ -671,12 +713,12 @@ def _run(args, *, only_if_changed: bool) -> int:
         print(f"{_TOK_UNCHANGED} old={old_fp} new={new_fp} {shape}")
         print("  episode CONTENT is identical to the live artifact; it was NOT rewritten and NO deck "
               "re-probe is required.")
-        # STATED, not silent: the freshness poller reads S3 LastModified, which a skipped write does
-        # not move. A run of unchanged weeks therefore ages the object past the FreshnessLagDays
-        # expectation while the pipeline is perfectly healthy. That is a calibration question for the
-        # lane that owns the alarm, and this line is the evidence it needs.
-        print("  NOTE the artifact's S3 LastModified did NOT move -- a skipped rebuild does not "
-              "refresh the freshness signal.")
+        # The artifact's LastModified deliberately does NOT move on a skip -- but the freshness
+        # poller must still see that the RUN happened, or stable content ages the signal into the
+        # R7c alarm while the schedule is healthy. The heartbeat closes that gap (see its docstring).
+        print("  artifact untouched; writing the run heartbeat so the freshness signal reflects "
+              "schedule liveness, not content churn.")
+        write_heartbeat(_TOK_UNCHANGED, old_fp, new_fp, shape)
         return 0
 
     pre = check_artifact(stamp=old.get("stamp"), state=old.get("state"),
@@ -698,6 +740,7 @@ def _run(args, *, only_if_changed: bool) -> int:
     print(f"{_TOK_REPROBE} old={old_fp or 'none'} new={new_fp} {shape}")
     print("  episode CONTENT moved: every deck '# PROBE' note now describes an artifact that no "
           "longer exists. Re-probe the full deck before quoting any of them.")
+    write_heartbeat(_TOK_REPROBE, old_fp, new_fp, shape)
     return 0
 
 

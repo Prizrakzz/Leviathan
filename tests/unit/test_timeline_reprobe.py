@@ -190,14 +190,29 @@ class TestUnchangedBranch:
         assert "pre-rebuild state" not in out
         assert "FAIL" not in out
 
-    def test_r7_unchanged_states_the_freshness_consequence(self, tmp_path, monkeypatch, capsys):
-        """A skipped write does not move S3 LastModified, which is what the freshness poller reads.
-        The consequence is STATED rather than left for someone to rediscover from a breaching alarm."""
+    def test_r7_unchanged_closes_the_freshness_consequence_with_a_heartbeat(self, tmp_path, monkeypatch, capsys):
+        """A skipped write does not move the ARTIFACT's LastModified -- which is correct (bytes moved
+        must keep meaning episodes moved) -- but the run must still refresh the freshness signal, or
+        stable content ages the poller's measured max-LastModified into the R7c alarm while the
+        schedule is healthy. The skip branch therefore writes timeline/last_run.json INSIDE the
+        polled prefix (not excluded by freshness._EXCLUDE_SEGMENTS) on every healthy skip, and the
+        artifact itself stays byte-untouched -- both halves asserted here."""
+        import json as _json
         _seed(tmp_path, _EPS_A)
         monkeypatch.setenv("EVIDENCE_S3", str(tmp_path))
         monkeypatch.setattr(tl, "derive", lambda **k: _EPS_A)
+        artifact = tmp_path / "timeline" / "episodes.json"
+        before = artifact.read_bytes()
         assert tl.main(["--run-if-changed"]) == 0
-        assert "LastModified" in capsys.readouterr().out
+        out = capsys.readouterr().out
+        assert "heartbeat" in out
+        assert artifact.read_bytes() == before, "the skip branch must never rewrite the artifact"
+        beat = _json.loads((tmp_path / "timeline" / "last_run.json").read_text(encoding="utf-8"))
+        assert beat["outcome"] == tl._TOK_UNCHANGED
+        assert beat["old_fingerprint"] == beat["new_fingerprint"]
+        # the beat lives INSIDE the polled prefix and is not excluded by the freshness fences
+        from leviathan.silver import freshness as fr
+        assert not fr.is_excluded_key("graphrag_evidence/timeline/last_run.json")
 
 
 # =============================================================================================
