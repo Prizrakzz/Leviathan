@@ -1244,6 +1244,12 @@ def _per_answer_record(r: dict, run_kind: str) -> dict:
             # silent fallback, which is exactly what an A/B must not be reading without knowing. Absent
             # on the OFF arm and on any non-susceptible turn, so it adds no column there.
             "episodes_scaffolded": (out.get("trace") or {}).get("episodes_scaffolded"),
+            # D-RC-12/13: the hard-whitelist registrations, made the same day as the trace keys (the
+            # C2/U3 defect class: a trace key not named here reaches NO artifact). tldr_direction is
+            # absent when GRAPHRAG_TLDR_COHERENCE is off; record_through is observational on every
+            # reasoning/hybrid row (the record's edge -- max usable reported evidence date).
+            "tldr_direction": (out.get("trace") or {}).get("tldr_direction"),
+            "record_through": (out.get("trace") or {}).get("record_through"),
             # RV2 W2 (D15): the v2 fork count + the detecting tier ride every record so a soak/eval readout
             # can attribute fires per tier post-run; None on non-orchestrator rows (no intent_decision).
             "reroute_v2_pairs": cs["reroute_v2_pairs"],

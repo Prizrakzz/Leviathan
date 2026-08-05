@@ -802,6 +802,89 @@ def _episodes_relevant(query: str | None) -> bool:
     return _it.is_episodic_explicit(q)
 
 
+def _tldr_coherence_on() -> bool:
+    """D-RC-12 kill-switch (GRAPHRAG_TLDR_COHERENCE), the _episode_scaffold_on idiom: DEFAULT-OFF,
+    house on/1/true spelling, read PER CALL. Gates an OBSERVATIONAL trace stamp only -- no strip, no
+    rewrite, zero delta to checked/stripped -- so the strip rate stays comparable across any A/B."""
+    return os.environ.get("GRAPHRAG_TLDR_COHERENCE", "").strip().lower() in ("on", "1", "true")
+
+
+def _direction_basis(graph, contracts: list[str] | None) -> dict:
+    """D-RC-12: a DETERMINISTIC net-direction read off the routed contracts' driver signs -- the
+    _driver_conflict read, counted instead of bucketed. Pure graph read, zero LLM, computable before
+    one token of prose exists (the fork_basis circularity discipline: it structurally CANNOT see the
+    answer). HONESTLY WEAK, stated: this reads the model's PRIOR (which way the graph's drivers
+    lean), never the OBSERVED state -- the Malaysia probe's contradiction turned on observed rows
+    (elevated stocks, lagging exports) resolving one edge, which a sign count cannot see. It exists
+    to make the tldr-vs-body divergence class VISIBLE and measurable, not to adjudicate it; the
+    remedy is a v2 decision taken from the measured disagreement rate."""
+    n_plus = n_minus = 0
+    for cid in (contracts or []):
+        c = ((getattr(graph, "contracts", None) or {}) or {}).get(cid)
+        if c is None:
+            continue
+        for d in c.drivers:
+            if d.sign == "+":
+                n_plus += 1
+            elif d.sign == "-":
+                n_minus += 1
+    net = "two_sided" if (n_plus and n_minus) else "higher" if n_plus else "lower" if n_minus else "none"
+    return {"n_plus": n_plus, "n_minus": n_minus, "net": net}
+
+
+# The CLOSED direction lexicon the prompts mandate (banned: bullish/bearish, except the OUTLOOK lane
+# re-permits them -- register.py sanitize). Classifying the tldr FIELD against this closed vocabulary
+# is deterministic; classifying free prose would not be.
+_DIR_HIGHER = re.compile(r"points?\s+toward\s+higher\s+prices|price[-\s]supportive|\bbullish\b", re.I)
+_DIR_LOWER = re.compile(r"points?\s+toward\s+lower\s+prices|price[-\s]pressuring|\bbearish\b", re.I)
+
+
+def _tldr_direction_trace(structured: dict | None, graph, contracts: list[str] | None) -> dict:
+    """D-RC-12: the post-verify reconcile. Reads structured['tldr'] -- a FIELD, never the assembled
+    body (the item-2 law: no structure re-discovery on assembled prose) -- classifies its direction
+    against the closed lexicon, and compares to the pre-model _direction_basis. Returns the trace
+    update ({} when the flag is off: no key, no read, byte-identical trace). `agree` is False ONLY
+    on a hard sign clash (basis says higher, tldr says lower, or the reverse); a two_sided/none
+    basis and a mixed/none tldr are compatible by construction."""
+    if not _tldr_coherence_on():
+        return {}
+    tldr = str((structured or {}).get("tldr") or "")
+    hi, lo = bool(_DIR_HIGHER.search(tldr)), bool(_DIR_LOWER.search(tldr))
+    read = "mixed" if (hi and lo) else "higher" if hi else "lower" if lo else "none"
+    basis = _direction_basis(graph, contracts)
+    clash = {basis["net"], read} == {"higher", "lower"}
+    return {"tldr_direction": {"basis": basis["net"], "tldr": read, "agree": not clash}}
+
+
+def _recency_stamp_on() -> bool:
+    """D-RC-13 kill-switch (GRAPHRAG_RECENCY_STAMP), the same idiom: DEFAULT-OFF, house spelling,
+    per-call read. Gates the prompt-side additions ONLY (the GROUNDING-LEDGER record-edge sentence
+    and the _SYSTEM_RECENCY dating directive); the trace stamp `record_through` is observational and
+    unconditional (the fork_basis scoped-promise precedent: the flag's byte-identity promise covers
+    the ANSWER BODY; trace is exempt and the exemption is stated here, not discovered mid-A/B)."""
+    return os.environ.get("GRAPHRAG_RECENCY_STAMP", "").strip().lower() in ("on", "1", "true")
+
+
+def _record_through(evidence: list | None) -> str | None:
+    """D-RC-13: the newest USABLE reported date across this turn's evidence -- the record's edge.
+    Reported dates only, deliberately: observed number rows carry their own knowledge-date axis and
+    the turn's as-of is a third axis; conflating the three is the mapped landmine, so this stamp
+    names exactly one of them and the ledger sentence says which."""
+    dates = [d for d in (_usable_date((h or {}).get("date")) for h in (evidence or []) if isinstance(h, dict)) if d]
+    return max(dates) if dates else None
+
+
+def _recency_ledger_suffix(record_through: str | None) -> str:
+    """The per-turn VOLATILE record-edge sentence (flag-gated; '' when off or dateless -- the caller
+    concatenates unconditionally so the seam stays one line). Rides the GROUNDING LEDGER, never the
+    cached stable prefix."""
+    if not _recency_stamp_on() or not record_through:
+        return ""
+    return (f" The dated evidence record for this question runs through {record_through} (reported "
+            f"dates; observed [N] number rows carry their own knowledge dates; the as-of date is this "
+            f"question's 'today').")
+
+
 def _episodes_on(volatile_prompt: str | None) -> bool:
     """THE W4-D3 SEAM GATE, one spelling, used by BOTH serving bodies (_answer_l2 and the one-hop legacy
     body). The '## Episodes' persona paragraph ships iff BOTH legs hold:
@@ -1079,7 +1162,21 @@ _SYSTEM_EPISODES = (
     "the note.")
 
 
-def _system(*, outlook: bool = False, episodes: bool | None = None) -> str:
+# D-RC-13: the dating discipline (the recency half of the desk-probe findings: the equities and
+# Arabic answers led with MY2020-22 facts in PRESENT tense, and Malaysia's MPOB read never said its
+# newest month was three months old). STATIC text -- the per-turn DATE rides the volatile GROUNDING
+# LEDGER sentence (_recency_ledger_suffix), never this cached persona suffix.
+_SYSTEM_RECENCY = (
+    "\n\nRECENCY & DATING DISCIPLINE: the dated record has an EDGE, and the reader must always be able "
+    "to see it. When you cite an item reported more than ~18 months before the as-of, DATE the claim in "
+    "prose ('in MY 2021/22...', 'as of April 2026...') and keep it in the PAST tense -- present-tensing "
+    "a stale fact ('stocks are tight' on a years-old report) misleads a desk. When the newest support "
+    "for your central claim sits well behind the as-of, say so plainly in the body: 'the record here "
+    "runs through <month year>'. The GROUNDING LEDGER states this turn's record edge; the as-of is the "
+    "question's 'today'. Dating a claim is never optional where the reader could mistake it for current.")
+
+
+def _system(*, outlook: bool = False, episodes: bool | None = None, recency: bool = False) -> str:
     """The active reader-facing persona. GRAPHRAG_MENTOR_VOICE default on -> mentor; =off -> the prior string.
     GRAPHRAG_CASCADE_QUANT on -> append the OBSERVED CASCADE NUMBERS addendum (P9-B: the loop supplies the
     [N] rows). GRAPHRAG_PATTERN_RECORDS on -> append the OBSERVATION-register RECORDED HISTORY directive (T2B).
@@ -1111,6 +1208,8 @@ def _system(*, outlook: bool = False, episodes: bool | None = None) -> str:
         base = base + _SYSTEM_EPISODES
     if outlook:                                                    # W5-D5: the reserved '## Outlook' heading
         base = base + _SYSTEM_OUTLOOK
+    if recency:                                                    # D-RC-13: dating discipline (flag resolved
+        base = base + _SYSTEM_RECENCY                              #   by the caller's seam, threaded DOWN)
     return base
 
 
@@ -1600,6 +1699,12 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
         f"available for this question. Cite AT MOST {n_ev} distinct [E] handles, each mapping to one "
         f"item above; " + ("emit NO [N] handles (there are no number rows)."
                            if n_num == 0 else f"[N] handles run [N1]..[N{n_num}]."))
+    # D-RC-13: the record's EDGE, stamped observationally (trace, unconditional -- the fork_basis
+    # scoped-promise precedent) and stated to the model only when the flag is on (the suffix is ''
+    # otherwise, so the ledger line is byte-identical flag-off).
+    _rec_through = _record_through([h for n in sg.nodes for h in (getattr(n, "evidence", None) or [])])
+    sg.trace["record_through"] = _rec_through
+    _ledger_line += _recency_ledger_suffix(_rec_through)
     volatile_blocks = volatile_blocks + [_ledger_line]
     sp, vp = _prompt_parts(query, contracts, stable_blocks, volatile_blocks)
     # Stream the note when the caller wired an SSE progress channel (real serving call only; injected fakes
@@ -1627,8 +1732,8 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     sg.trace["fork_basis"] = _fork_basis(graph, contracts,
                                          [h for n in sg.nodes for h in (getattr(n, "evidence", None) or [])],
                                          sg.trace)
-    structured = call(_system(outlook=_outlook, episodes=_episodes), _pack(sp, vp, use_blocks), model=model,
-                      tool=_answer_tool(), **call_kw)
+    structured = call(_system(outlook=_outlook, episodes=_episodes, recency=_recency_stamp_on()),
+                      _pack(sp, vp, use_blocks), model=model, tool=_answer_tool(), **call_kw)
     sg.trace["ms_synth_llm"] = int((time.perf_counter() - _t_synth) * 1000)
     _banned_mood = _count_banned_mood(structured)                 # P9-A: RAW output, pre-sanitize (see helper)
     _banned_val = _count_banned_valuation(structured)             # DP-6: valuation/flow raw counts, pre-sanitize
@@ -1674,6 +1779,9 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
         structured, verifier, injected=sg.trace.get("episodes_injected"), nodes=sg.nodes,
         evidence=evidence, n_positional=len(uniq), market_register=_mr, relevant=_ep_rel))
     _humanize_structured(structured, market_register=_mr)         # clean the fields the UI renders directly (6.1)
+    # D-RC-12: the tldr-vs-basis reconcile reads the FINAL tldr (post-verify, post-humanize = what the
+    # reader sees) against the pre-model driver-sign basis. {} when the flag is off; stamp-only always.
+    sg.trace.update(_tldr_direction_trace(structured, graph, contracts))
     if os.environ.get("GRAPHRAG_ANSWER_V2", "off") == "on":       # P9-C typed sections: a DERIVED view of the
         secs = _sectionize(structured.get("mechanism") or "")     # FINAL prose (post-verify+humanize); read per
         if secs:                                                  # call so the env-flip rollback stays live
@@ -2910,6 +3018,12 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
         evidence += [{**h, "contract": "(driver)"} for h in driver_hits]
     if extra_context:                                              # hybrid numbers / conversation state (volatile)
         volatile_blocks.append(extra_context)
+    # D-RC-13 on the one-hop body: this body has no GROUNDING LEDGER line, so the record-edge sentence
+    # rides its own volatile block (same text, same flag, '' when off -> byte-identical assembly).
+    _rec_through = _record_through(evidence)
+    _rec_suffix = _recency_ledger_suffix(_rec_through)
+    if _rec_suffix:
+        volatile_blocks.append(_rec_suffix.strip())
     _emit(on_stage, "retrieving", props=len(evidence))
     sp, vp = _prompt_parts(query, contracts, stable_blocks, volatile_blocks)
     _emit(on_stage, "synthesizing")                               # prompt assembled; the model call starts NOW
@@ -2935,7 +3049,7 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     # are structurally False here today; the other two legs are real, and a future one-hop producer is
     # correct for free. `{}` IS this body's engine trace: it writes none before the model call.
     _fork_basis_v = _fork_basis(graph, contracts, evidence, {})
-    structured = call(_system(outlook=_outlook, episodes=_episodes),
+    structured = call(_system(outlook=_outlook, episodes=_episodes, recency=_recency_stamp_on()),
                       _pack(sp, vp, use_blocks), model=model, tool=_answer_tool())
     _banned_mood = _count_banned_mood(structured)                 # P9-A: RAW output, pre-sanitize
     _banned_val = _count_banned_valuation(structured)             # DP-6: valuation/flow raw counts, pre-sanitize
@@ -2978,6 +3092,8 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
                                            evidence=evidence, n_positional=len(uniq),
                                            market_register=_mr, relevant=_ep_rel)
     _humanize_structured(structured, market_register=_mr)         # clean the fields the UI renders directly (6.1)
+    # D-RC-12 on the one-hop body: identical reconcile, identical position (post-verify, post-humanize).
+    _tldr_dir = _tldr_direction_trace(structured, graph, contracts)
     if os.environ.get("GRAPHRAG_ANSWER_V2", "off") == "on":       # P9-C typed sections -- the one-hop twin of
         secs = _sectionize(structured.get("mechanism") or "")     # the L2 seam: same post-verify+humanize
         if secs:                                                  # ordering, same per-call flag read
@@ -2999,6 +3115,8 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
                       "banned_valuation_words": _banned_val, "banned_flow_words": _banned_flow,
                       "banned_exec_words": _banned_exec, "unbacked_levels": _unbacked,
                       "outlook_mode": _outlook, "market_register": _mr,
+                      "record_through": _rec_through,              # D-RC-13: observational, both bodies
+                      **_tldr_dir,                                 # D-RC-12: absent when the flag is off
                       "fork_basis": _fork_basis_v,                 # D-DT-2 c1 (V-9): the SECOND mint site
                       "n_drivers": sum(len(graph.contracts[c].drivers) for c in contracts), "regimes": regimes,
                       "drivers": drivers, "n_driver_evidence": len(driver_hits),

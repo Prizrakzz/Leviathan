@@ -425,6 +425,47 @@ def _attachment_block(node_edge_lines: list[str], events: list) -> str | None:
     return "\n\n".join(parts) if parts else None
 
 
+def _profile_context_on() -> bool:
+    """D-RC-14 kill-switch (GRAPHRAG_PROFILE_CONTEXT). DEFAULT-OFF, case-insensitive, fail-closed --
+    copies the _family_facet_on idiom exactly. When OFF the server never even reads the profile store
+    on the turn path (no DDB round-trip) and _respond's profile_facts stays None, so every turn is
+    byte-identical to today. Rollback = drop the env var (single flag, instant, no redeploy)."""
+    return os.environ.get("GRAPHRAG_PROFILE_CONTEXT", "off").lower() == "on"
+
+
+_HANDLE_TOKEN = re.compile(r"\[[EN]?\d+[a-z]?\]")     # handle-shaped tokens never enter from user text
+
+
+def _profile_block(facts) -> str | None:
+    """D-RC-14: the signed-in user's profile facts as a labeled NON-CITABLE preference block.
+    PREFERENCES, never evidence -- the PIT firewall is untouched by construction: the block rides the
+    VOLATILE tail via `sblock`/extra_context (never the cached stable prefix), it is labeled so the
+    model treats it as SCOPE (which commodity an ambiguous 'what should I watch' means), and the
+    verifier strips any citation aimed at it as fabricated (handles only resolve to real items).
+    User-authored free text is a prompt-injection surface: server._sanitize_facts already bounds
+    keys/lengths at WRITE time; this read seam adds handle-token stripping, reg.sanitize, and a hard
+    total cap as defense-in-depth. Reaches reasoning+hybrid ONLY (numbers_only and live take no
+    extra_context) -- declared, and pinned by test."""
+    if not isinstance(facts, dict) or not facts:
+        return None
+    lines = []
+    for key in ("seat", "markets", "regions", "notes"):
+        v = facts.get(key)
+        if isinstance(v, list):
+            v = ", ".join(str(x)[:140] for x in v[:12] if str(x).strip())
+        elif v is not None:
+            v = str(v)[:140]
+        if v:
+            lines.append(f"- {key}: {v}")
+    if not lines:
+        return None
+    txt = reg.sanitize(_HANDLE_TOKEN.sub("", "\n".join(lines))[:1200], market_register=reg.FENCED)
+    return ("=== RESEARCHER PROFILE (the signed-in user's own stated preferences; use ONLY to scope or "
+            "prioritize the analysis -- e.g. which commodity an ambiguous question means, which regions "
+            "matter to this desk. NOT evidence, NOT market data: never cite it, never treat it as an "
+            "observation about any market) ===\n" + txt)
+
+
 def _resolve_attachments(context, graph, asof: str) -> dict:
     """Validate typed FE gestures -> {contracts, focus_driver, block, near, suppressed_note}. The client is
     never trusted for ids/mechanisms (driver_id/mechanism are re-derived server-side; unknown ids are
@@ -1195,7 +1236,7 @@ def respond(*args, **kwargs) -> dict:
 def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrieve=None, model: str = an.SONNET,
              numbers_client=None, numbers_model: str = na.HAIKU, query_fn=None, classify=None,
              planner: str | None = None, session_id: Optional[str] = None, session_store=None,
-             on_stage=None, context=None) -> dict:
+             on_stage=None, context=None, profile_facts: dict | None = None) -> dict:
     """Classify the query's intent, run the matching branch, and return one fused answer + unified citations.
     `asof` defaults to today. The reasoning/hybrid branches default to the L2 deterministic grounded-subgraph
     walk (v1.1 reached judge parity with one-hop at 0/30 register leaks, and the roadmap — driver-slice
@@ -1404,6 +1445,15 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
         decided = (decided or {}) | {"intent": kind,
                                      "attachments": {"contracts": att["contracts"],
                                                      "focus_driver": att["focus_driver"]}}
+    # D-RC-14: profile facts join sblock at the SAME documented multiplex the attachment block uses
+    # (run_reasoning/run_hybrid forward only `extra_context`; a competing param is silently dropped).
+    # Both legs required: the caller passed facts AND the flag is on -- the server gates its store read
+    # on the same flag, so flag-off turns carry profile_facts=None and this line reads nothing.
+    if profile_facts and _profile_context_on():
+        _pb = _profile_block(profile_facts)
+        if _pb:
+            sblock = "\n\n".join(x for x in (sblock, _pb) if x)
+            decided = (decided or {}) | {"profile_context": True}
 
     # 5.8: a live turn re-routes off the news event and ignores plan.contracts, so don't display the
     # carried contracts on its planning tick (the misleading soybeans/wheat under an India question).

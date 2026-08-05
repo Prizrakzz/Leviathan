@@ -306,13 +306,29 @@ def healthz() -> dict:
             "graph_version": getattr(_graph(), "version", None)}
 
 
+def _turn_profile_facts(ident: dict) -> Optional[dict]:
+    """D-RC-14: the signed-in user's profile facts for the ANSWER path -- read ONLY when
+    GRAPHRAG_PROFILE_CONTEXT is on (flag off = zero DDB round-trips on the turn path), fail-OPEN on
+    any store error (the suggest_route idiom: a store glitch must never fail a billed turn). The
+    orchestrator re-checks the same flag and builds the labeled non-citable block; facts are
+    PREFERENCES, never evidence (PIT firewall untouched)."""
+    from leviathan.graphrag import orchestrator as orch
+    if not orch._profile_context_on():
+        return None
+    try:
+        facts = (_store().get_profile(ident.get("sub") or "") or {}).get("facts")
+    except Exception:  # noqa: BLE001
+        return None
+    return facts if isinstance(facts, dict) and facts else None
+
+
 @app.post("/v1/respond")
 def respond_route(body: Ask, ident: dict = Depends(_require_identity_quota)) -> dict:
     # Auth + per-user daily quota gated (Stage 4/5): a turn is Bedrock spend, so only signed-in users within
     # their daily cap may run it. When GRAPHRAG_AUTH is off (dev/eval) this is a no-op.
     from leviathan.graphrag import orchestrator as orch
     result = orch.respond(body.question, graph=_graph(), asof=body.asof, session_id=body.session_id,
-                          context=body.context)
+                          context=body.context, profile_facts=_turn_profile_facts(ident))
     _save_turn(ident, body.session_id, result, question=body.question)   # durable history (PIT-safe, fail-open)
     return result
 
@@ -338,10 +354,13 @@ def respond_stream(question: str, session_id: Optional[str] = None, asof: Option
             # which is the whole point of F7: the feed shows what landed, when it landed.
             out.put(("stage", {"stage": stage, **(info or {})}))
 
+        _pf = _turn_profile_facts(ident)                  # D-RC-14: read on the request thread, before the worker
+
         def work() -> None:
             try:
                 result = orch.respond(question, graph=_graph(), asof=asof, session_id=session_id,
-                                      on_stage=on_stage, context=_decode_context(context))
+                                      on_stage=on_stage, context=_decode_context(context),
+                                      profile_facts=_pf)
                 out.put(("result", result))               # deliver the note FIRST — the user isn't waiting on persistence
                 _save_turn(ident, session_id, result, question=question)  # then durable history (fail-open, off the perceived path)
             except Exception as e:  # noqa: BLE001 — the floor makes this near-impossible; belt + braces
