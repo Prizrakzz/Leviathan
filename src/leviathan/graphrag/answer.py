@@ -20,6 +20,7 @@ from leviathan.graphrag import harvest as hv
 from leviathan.graphrag import params as _prm
 from leviathan.graphrag import register as reg
 from leviathan.graphrag import intent as _it     # D-RC-11: is_episodic_explicit only (pure regex, no cycle)
+from leviathan.graphrag import response_contracts as _rc   # D-RC Phase B: LEAF module (pure data, no cycle)
 from leviathan.graphrag import timeline as _tl   # W4-D3: LINE_PREFIX only (module imports params alone -> no cycle)
 
 # Production retrieval stack — the arm that won the free k=3 A/B (hybrid doubled exact-token recall 2/6->4/6;
@@ -802,6 +803,21 @@ def _episodes_relevant(query: str | None) -> bool:
     return _it.is_episodic_explicit(q)
 
 
+def _response_contracts_enabled() -> frozenset:
+    """D-RC-7: the serving flag GRAPHRAG_RESPONSE_CONTRACT, read PER CALL. Value grammar:
+    absent/''/'off' -> frozenset() (OFF, the default); 'on'/'1'/'true' -> ALL contract names;
+    anything else -> a comma-separated ALLOWLIST of contract names (unknown names ignored -- linted
+    by config_check, never fatal here). The allowlist IS the staged-flip mechanism: per-contract
+    flip and per-contract rollback on one env var, no redeploy. A selected contract not in the set
+    resolves to None at the seam = `default` = zero rewrite, zero directive (fail-open)."""
+    v = os.environ.get("GRAPHRAG_RESPONSE_CONTRACT", "").strip().lower()
+    if not v or v == "off":
+        return frozenset()
+    if v in ("on", "1", "true"):
+        return _rc.valid_names()
+    return frozenset(x.strip() for x in v.split(",") if x.strip()) & _rc.valid_names()
+
+
 def _tldr_coherence_on() -> bool:
     """D-RC-12 kill-switch (GRAPHRAG_TLDR_COHERENCE), the _episode_scaffold_on idiom: DEFAULT-OFF,
     house on/1/true spelling, read PER CALL. Gates an OBSERVATIONAL trace stamp only -- no strip, no
@@ -1176,7 +1192,8 @@ _SYSTEM_RECENCY = (
     "question's 'today'. Dating a claim is never optional where the reader could mistake it for current.")
 
 
-def _system(*, outlook: bool = False, episodes: bool | None = None, recency: bool = False) -> str:
+def _system(*, outlook: bool = False, episodes: bool | None = None, recency: bool = False,
+            response_contract: str | None = None) -> str:
     """The active reader-facing persona. GRAPHRAG_MENTOR_VOICE default on -> mentor; =off -> the prior string.
     GRAPHRAG_CASCADE_QUANT on -> append the OBSERVED CASCADE NUMBERS addendum (P9-B: the loop supplies the
     [N] rows). GRAPHRAG_PATTERN_RECORDS on -> append the OBSERVATION-register RECORDED HISTORY directive (T2B).
@@ -1192,7 +1209,9 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
     make the env-flip rollback a silent no-op until a redeploy — defeating the gate's purpose."""
     if os.environ.get("GRAPHRAG_MENTOR_VOICE", "on") == "off":
         return _SYSTEM_LEGACY
-    base = _SYSTEM_MENTOR
+    # D-RC-8: the contract REWRITES the three mandate sites (needle-verified replacement, identity
+    # for None/default/passthrough) -- never an appended contradiction of the fixed-four mandate.
+    base = _rc.apply(_SYSTEM_MENTOR, response_contract)
     if os.environ.get("GRAPHRAG_CASCADE_QUANT", "on") != "off":
         base = base + _SYSTEM_CASCADE
         if _chain_on():                                            # chain paragraph rides the cascade block
@@ -1210,7 +1229,8 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
         base = base + _SYSTEM_OUTLOOK
     if recency:                                                    # D-RC-13: dating discipline (flag resolved
         base = base + _SYSTEM_RECENCY                              #   by the caller's seam, threaded DOWN)
-    return base
+    base = base + _rc.directive(response_contract)                 # D-RC Phase B: emphasis LAST ('' for
+    return base                                                    #   default/None -- the fail-open pin)
 
 
 _SYSTEM = _SYSTEM_MENTOR                                              # module-level default (importers/tests)
@@ -1570,7 +1590,7 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                extra_context: str | None = None, extra_number_calls: list | None = None,
                extra_resolver=None, focus_driver: str | None = None, use_blocks: bool = False,
                silver_lookup=None, on_stage=None, numbers_lookup=None, xc_request: dict | None = None,
-               outlook: bool = False) -> dict:
+               outlook: bool = False, response_contract: str | None = None) -> dict:
     """L2 serving path: walk + ground the subgraph, hand it to the reasoner, and OVERRIDE the diagram with the
     graph-derived cascade. Reuses the shared render + unified footer + sanitizer. The hybrid branch's silver
     numbers ride in exactly as on the one-hop path: extra_context as a prompt block, extra_number_calls into
@@ -1720,10 +1740,17 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # the same decision). `_mr` is the ONLY thing that ever relaxes the register, and it is passed DOWN as
     # an argument -- register.py reads no environment.
     _mr = reg.OUTLOOK if _outlook else reg.FENCED
+    # D-RC Phase B: the caller's selection re-ANDed with the allowlist AT THE SEAM (the _outlook_on
+    # idiom) -- env-flip rollback live per turn, no redeploy. None -> default -> zero rewrite.
+    _rc_active = response_contract if response_contract in _response_contracts_enabled() else None
     # D-RC-11: the relevance bool is resolved ONCE and consumed by BOTH producers (the persona AND below
     # the scaffold seam) -- gating only one of the two inverse decision points inverts the outcome.
-    _ep_rel = _episodes_relevant(query)
+    # When a contract is ACTIVE its episodes license is the ONE authority (the interim lexical gate
+    # stands down for the turn -- one gate, never two); Phase D retires the interim entirely.
+    _ep_rel = _rc.licenses_episodes(_rc_active) if _rc_active else _episodes_relevant(query)
     _episodes = _episodes_on(vp) and _ep_rel                      # W4-D3: BOTH legs, and both in CODE
+    if _rc_active:                                                # pre-model stamp (circularity fence);
+        sg.trace["response_contract"] = _rc_active                # absent when inactive -- OFF-arm clean
     # D-DT-2 c1: the license inventory is minted HERE, BEFORE the model call, in both serving bodies. The
     # position IS the circularity fence (V.4 X3): every flag reads engine inputs assembled before
     # synthesis, and at this line no answer prose exists to read -- so the check can never become
@@ -1732,7 +1759,8 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     sg.trace["fork_basis"] = _fork_basis(graph, contracts,
                                          [h for n in sg.nodes for h in (getattr(n, "evidence", None) or [])],
                                          sg.trace)
-    structured = call(_system(outlook=_outlook, episodes=_episodes, recency=_recency_stamp_on()),
+    structured = call(_system(outlook=_outlook, episodes=_episodes, recency=_recency_stamp_on(),
+                              response_contract=_rc_active),
                       _pack(sp, vp, use_blocks), model=model, tool=_answer_tool(), **call_kw)
     sg.trace["ms_synth_llm"] = int((time.perf_counter() - _t_synth) * 1000)
     _banned_mood = _count_banned_mood(structured)                 # P9-A: RAW output, pre-sanitize (see helper)
@@ -2963,7 +2991,7 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
            driver_retrieve=None, extra_context: str | None = None, extra_number_calls: list | None = None,
            extra_resolver=None, planner: str | None = None, focus_driver: str | None = None,
            silver_lookup=None, on_stage=None, numbers_lookup=None, xc_request: dict | None = None,
-           outlook: bool = False) -> dict:
+           outlook: bool = False, response_contract: str | None = None) -> dict:
     """Answer grounded in the graph(s) + dated evidence, structured for a reader. Routes (tiered lexical->semantic->
     LLM) to up to `max_contracts` (a soy<->corn question synthesizes both). Also pulls CROSS-CUTTING DRIVER evidence
     (WS-MS6 — B40/freight/FX/El Nino cascade triggers). Returns {answer (markdown), structured, contract(s),
@@ -2988,7 +3016,7 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
                           routed=routed, extra_context=extra_context, extra_number_calls=extra_number_calls,
                           extra_resolver=extra_resolver, focus_driver=focus_driver, use_blocks=use_blocks,
                           silver_lookup=silver_lookup, on_stage=on_stage, numbers_lookup=numbers_lookup,
-                          xc_request=xc_request, outlook=outlook)
+                          xc_request=xc_request, outlook=outlook, response_contract=response_contract)
     if extra_resolver is not None:      # one-hop path: no walk to overlap — degenerate to resolving up front
         extra_context, extra_number_calls = extra_resolver()
     # node-diverse selection: siblings share an evidence shard, so a 2nd slot should add a DIFFERENT commodity
@@ -3038,8 +3066,9 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     # site (_l2_blocks) -- because the invariant being enforced is "the paragraph ships iff the prompt
     # carries an injected episode line", and spelling it the same way in both bodies means a future one-hop
     # producer is correct for free and cannot silently diverge. Today it evaluates False on every turn.
-    # D-RC-11: the identical relevance resolution as the L2 body, for the identical reason.
-    _ep_rel = _episodes_relevant(query)
+    # D-RC Phase B + D-RC-11: the IDENTICAL contract/relevance resolution as the L2 body.
+    _rc_active = response_contract if response_contract in _response_contracts_enabled() else None
+    _ep_rel = _rc.licenses_episodes(_rc_active) if _rc_active else _episodes_relevant(query)
     _episodes = _episodes_on(vp) and _ep_rel
     # D-DT-2 c1, V-9: the SECOND mint site. Stamped in BOTH bodies with the identical expression (the
     # W4-D3 discipline the gate above already follows). Minting only in _answer_l2 would leave a one-hop
@@ -3049,7 +3078,8 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     # are structurally False here today; the other two legs are real, and a future one-hop producer is
     # correct for free. `{}` IS this body's engine trace: it writes none before the model call.
     _fork_basis_v = _fork_basis(graph, contracts, evidence, {})
-    structured = call(_system(outlook=_outlook, episodes=_episodes, recency=_recency_stamp_on()),
+    structured = call(_system(outlook=_outlook, episodes=_episodes, recency=_recency_stamp_on(),
+                              response_contract=_rc_active),
                       _pack(sp, vp, use_blocks), model=model, tool=_answer_tool())
     _banned_mood = _count_banned_mood(structured)                 # P9-A: RAW output, pre-sanitize
     _banned_val = _count_banned_valuation(structured)             # DP-6: valuation/flow raw counts, pre-sanitize
@@ -3116,6 +3146,7 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
                       "banned_exec_words": _banned_exec, "unbacked_levels": _unbacked,
                       "outlook_mode": _outlook, "market_register": _mr,
                       "record_through": _rec_through,              # D-RC-13: observational, both bodies
+                      **({"response_contract": _rc_active} if _rc_active else {}),   # Phase B twin stamp
                       **_tldr_dir,                                 # D-RC-12: absent when the flag is off
                       "fork_basis": _fork_basis_v,                 # D-DT-2 c1 (V-9): the SECOND mint site
                       "n_drivers": sum(len(graph.contracts[c].drivers) for c in contracts), "regimes": regimes,

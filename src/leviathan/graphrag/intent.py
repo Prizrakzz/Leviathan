@@ -163,6 +163,51 @@ def is_episodic_explicit(query: str) -> bool:
     return bool(_EPISODIC.search(query or ""))
 
 
+# ── response-contract selector, tier 1 (D-RC-6) ───────────────────────────────────────────────────────
+# PRIORITY-ORDERED, first match wins, None when nothing matches (fail-open to `default` downstream).
+# Deliberately NARROW per family — a miss costs nothing (default = today's shape), a wrong hit costs a
+# mis-shaped answer — and deliberately NOT numbers/agent._SHAPE_PATTERNS (its `outlook` regex matches
+# 'stocks-to-use', and it never runs on a pure reasoning turn). `outlook` is ABSENT from this tuple on
+# purpose: the register-affecting outlook gate keeps sole authority (tier 0 preempts). Ordering
+# rationale: an asserted-premise check must not fall through to `compare` because it names two markets
+# (verification first); 'what if X banned exports again' carries export-ban vocabulary but is a
+# hypothetical (counterfactual before enumeration); `compare` beats `recency` so 'compare X and Y
+# right now' keeps the comparison shape.
+_RC_PATTERNS = (
+    ("verification", re.compile(
+        r"\bis (?:this|that|it) documented\b|\bcan we (?:only )?infer\b|\bfact[- ]check\b"
+        r"|\bis (?:this|that) (?:actually |really )?(?:true|right|correct|the case)\b"
+        r"|\bdid \w+(?: \w+){0,4} actually\b|,\s*right\?|\bisn'?t it\?", re.I)),
+    ("counterfactual", re.compile(
+        r"\bwhat if\b|\bsuppose\b|\bhypothetically\b|\bwhat would happen if\b"
+        r"|\bhow would (?:that|this|it) play out\b|\bwere \w+ to\b", re.I)),
+    ("enumeration", _EPISODIC),
+    ("ranking", re.compile(
+        r"\b(?:largest|biggest|top \d+)\b.{0,60}\b(?:producer|exporter|importer|consumer|grower)s?\b"
+        r"|\brank(?:s|ed|ing)?\b", re.I)),
+    ("compare", re.compile(
+        r"\bcompare\b|\bversus\b|\bvs\.?\b|\bside by side\b|\bstack up\b"
+        r"|\bwhich is (?:tighter|cheaper|richer|stronger|weaker|more exposed)\b", re.I)),
+    ("recency", re.compile(
+        r"\bright now\b|\bpast \d+ (?:day|week|month)s?\b|\bcurrently\b|\bas of (?:today|now)\b"
+        r"|\blatest\b|\brecent(?:ly)?\b|\bthis (?:week|month)\b", re.I)),
+    ("context_node", re.compile(
+        r"\bdoes \w+(?: \w+){0,3} (?:affect|matter|impact|influence|move)\b|\bwhat role does\b", re.I)),
+)
+
+
+def select_response_contract(query: str) -> str | None:
+    """Tier-1 deterministic response-contract selection: the priority-ordered narrow cue tuple, first
+    match wins, None on no match OR a non-Latin query (the cue list is English; downstream fails open
+    to `default`). Pure regex, no I/O, no LLM. Runs DARK on every eligible turn (the xc_detect
+    precedent) — the flag decides only whether the value is passed down, never whether it is stamped."""
+    q = query or ""
+    for name, rx in _RC_PATTERNS:
+        if rx.search(q):
+            return name
+    return None
+
+
 # ── cross-commodity RV explicit-ask detector (reroute v2, RV-W1.1) ────────────────────────────────────
 # Mirrors _NEWS_EXPLICIT: a NARROW, deterministic matcher that is a NECESSARY condition for the v2
 # cross-commodity relative-value fork, NEVER sufficient. The orchestrator LAW (RV-W1.3) binds the captured

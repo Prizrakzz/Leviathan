@@ -1250,6 +1250,11 @@ def _per_answer_record(r: dict, run_kind: str) -> dict:
             # reasoning/hybrid row (the record's edge -- max usable reported evidence date).
             "tldr_direction": (out.get("trace") or {}).get("tldr_direction"),
             "record_through": (out.get("trace") or {}).get("record_through"),
+            # D-RC Phase B: the ACTIVE contract (answer-seam stamp, absent when inactive) and the
+            # DARK selector attribution (intent_decision, stamped on every reasoning/hybrid turn
+            # regardless of the flag -- the free OFF-arm tally the A/B reads).
+            "response_contract": (out.get("trace") or {}).get("response_contract"),
+            "response_contract_decision": ((out.get("intent_decision") or {}) or {}).get("response_contract"),
             # RV2 W2 (D15): the v2 fork count + the detecting tier ride every record so a soak/eval readout
             # can attribute fires per tier post-run; None on non-orchestrator rows (no intent_decision).
             "reroute_v2_pairs": cs["reroute_v2_pairs"],

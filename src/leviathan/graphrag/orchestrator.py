@@ -228,16 +228,17 @@ def run_reasoning(query: str, asof: str, *, graph, call=None, retrieve=None, mod
                   planner: str | None = None, extra_context: str | None = None, route_fn=None,
                   near: str | None = None, silver_lookup=None, on_stage=None,
                   focus_driver: str | None = None, qfn=None, xc_request: dict | None = None,
-                  outlook: bool = False) -> dict:
+                  outlook: bool = False, response_contract: str | None = None) -> dict:
     # reroute v2: xc_request rides down to the cascade quantify seam (lane C) ONLY when the gate produced one
     # (flag on + explicit ask). None -> the kwarg is omitted so the answer() call is byte-identical to today.
     _xc = {"xc_request": xc_request} if xc_request is not None else {}
     # W5-D4: the outlook kwarg is OMITTED when False (the `_xc` omit-when-None idiom), so a non-outlook turn's
     # answer() call is byte-identical to pre-W5 and injected answer fakes with the older signature stay valid.
     _ol = {"outlook": True} if outlook else {}
+    _rck = {"response_contract": response_contract} if response_contract else {}   # D-RC: same idiom
     out = an.answer(query, graph=graph, asof=asof, call=call, retrieve=retrieve, model=model, planner=planner,
                     extra_context=extra_context, route_fn=route_fn, near=near, silver_lookup=silver_lookup,
-                    on_stage=on_stage, focus_driver=focus_driver, numbers_lookup=qfn, **_xc, **_ol)
+                    on_stage=on_stage, focus_driver=focus_driver, numbers_lookup=qfn, **_xc, **_ol, **_rck)
     out["intent"] = "reasoning"
     out.setdefault("number_calls", [])
     out["asof"] = asof
@@ -249,7 +250,8 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
                extra_context: str | None = None, route_fn=None, near: str | None = None,
                silver_lookup=None, on_stage=None, focus_driver: str | None = None,
                xc_request: dict | None = None, outlook: bool = False,
-               numbers_query: str | None = None, families=None) -> dict:
+               numbers_query: str | None = None, families=None,
+               response_contract: str | None = None) -> dict:
     """Hybrid = numbers ∥ walk. The numbers agent has ZERO dependency on the walk (its output is consumed
     only at synthesis: the prompt block + citation unify/verify), so it runs in a worker thread while
     answer() grounds the subgraph; the two join via `extra_resolver` right before prompt assembly —
@@ -352,11 +354,12 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
 
     _xc = {"xc_request": xc_request} if xc_request is not None else {}   # reroute v2: omit when None (byte-identical)
     _ol = {"outlook": True} if outlook else {}                           # W5-D4: same omit-when-off idiom
+    _rck = {"response_contract": response_contract} if response_contract else {}   # D-RC: same idiom
     try:
         out = an.answer(query, graph=graph, asof=asof, call=call, retrieve=retrieve, model=model,
                         extra_resolver=_resolve, planner=planner, route_fn=route_fn,
                         near=near, silver_lookup=silver_lookup, on_stage=on_stage,
-                        focus_driver=focus_driver, numbers_lookup=query_fn, **_xc, **_ol)
+                        focus_driver=focus_driver, numbers_lookup=query_fn, **_xc, **_ol, **_rck)
     finally:
         pool.shutdown(wait=False)
     if not holder.get("resolved"):      # early-return paths (e.g. no contract match) skip synthesis —
@@ -1502,6 +1505,22 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
     if kind in ("reasoning", "hybrid") and plan is not None and plan.answer_mode_outlook:
         outlook_mode = it.is_outlook_explicit(query)
         decided = (decided or {}) | {"outlook_gate": {"plan": True, "regex": outlook_mode}}
+    # D-RC-6: response-contract selection -- ONE decision point, AFTER the outlook gate (kind is FINAL
+    # here: post PIT/news/price-tiebreak/family-facet/attachment mutations). Tier 0 structural:
+    # outlook_mode preempts (the register-affecting gate keeps sole authority; the `outlook` entry is
+    # passthrough so the persona stays byte-identical to today's outlook path); numbers_only and live
+    # are EXEMPT lanes (numbers has no answer.py seam and a cache_control'd byte-stable system block;
+    # live builds its own kw and its legacy path returns above this line) -- pinned by test, not
+    # discovered. Tier 1 lexical runs DARK on every eligible turn (the xc_detect precedent): the
+    # attribution is stamped on `decided` unconditionally; the FLAG decides only whether the name is
+    # passed down (answer.py re-ANDs the allowlist at its seam). The selector never touches `query`.
+    _rc_sel = it.select_response_contract(query) if kind in ("reasoning", "hybrid") else None
+    _rc_name = "outlook" if outlook_mode else _rc_sel
+    decided = (decided or {}) | {"response_contract": {
+        "selected": _rc_sel, "resolved": _rc_name,
+        "outlook_preempt": bool(outlook_mode), "tier": "lexical" if _rc_sel else "none"}}
+    _rck = {"response_contract": _rc_name} \
+        if (_rc_name and _rc_name in an._response_contracts_enabled()) else {}
     # -- B1: the two things a numbers lane gets from the plan, resolved ONCE for BOTH lanes ----------------
     # `_nq` is the coreference-enriched question. It was built inside the numbers_only branch and nowhere
     # else, so the hybrid lane's agent saw a bare "And exports?" while numbers_only's saw the contracts --
@@ -1548,13 +1567,13 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
                              # the raw `query` (route_fn's <=80-char coreference gate). Flag off -> both None
                              # -> this call is byte-identical to today.
                              numbers_query=(_nq if _fam_on else None),
-                             families=_families)
+                             families=_families, **_rck)
         else:
             res = run_reasoning(query, asof, graph=graph, call=call, retrieve=retrieve, model=model,
                                 planner=planner, extra_context=sblock, route_fn=route_fn, near=near,
                                 silver_lookup=silver_lookup, on_stage=on_stage,
                                 focus_driver=att["focus_driver"], qfn=qfn, xc_request=xc_request,
-                                outlook=outlook_mode)
+                                outlook=outlook_mode, **_rck)
     except Exception as e:  # noqa: BLE001 — deterministic floor: a UI turn must never 500
         # The floor's CAUSE must be visible in logs: the 2026-07-19 incident spent hours attributing
         # an Anthropic-tier outage to a feature flag because the swallowed exception was never logged
