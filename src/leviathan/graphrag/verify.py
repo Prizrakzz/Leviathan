@@ -67,6 +67,14 @@ def _tokens(s: str) -> set[str]:
     return {t for t in re.findall(r"[a-z]{5,}", (s or "").lower()) if t not in _STOP}
 
 
+def _non_latin(s: str) -> bool:
+    """True when the string carries letters outside the Latin repertoire (Arabic, CJK, Cyrillic, ...).
+    Latin-Extended accents (Cote d'Ivoire, Sao Paulo) stay False -- the gate is for scripts where a
+    shared [a-z]{5,} token with English evidence is impossible BY CONSTRUCTION, never a looser bar for
+    accented European text. 0x024F is the end of Latin Extended-B."""
+    return any(ch.isalpha() and ord(ch) > 0x024F for ch in s or "")
+
+
 def _norm(s: str) -> str:
     return re.sub(r"\s+", " ", (s or "").lower()).strip()
 
@@ -385,6 +393,21 @@ def _check_evidence_handle(sent: str, matched: list[dict]) -> str | None:
         if _norm(q) not in _norm(texts):
             return "quote_mismatch"
     if not (_tokens(sent) & _tokens(texts)) and not (set(_NUM.findall(sent)) & set(_NUM.findall(texts))):
+        # D-RC-15a script gate: a non-Latin sentence (non-Latin letters present AND zero usable
+        # [a-z]{5,} tokens) can never share a lexical token with Latin evidence -- for it the overlap
+        # test is VACUOUS, not failed, and the digit-STRING intersection above can never equate
+        # Arabic-Indic digits with the source's ASCII ones. Fall back to VALUE-level verification:
+        # the sentence survives when it makes no numeric claim (source/date attribution already
+        # passed upstream), when its numbers are [N]-handle territory (_check_number_handle owns
+        # their truth), or when a claim value matches the source's (float-normalized, scale-1 --
+        # float() parses Arabic-Indic digit runs). An unbacked pure-[E] magnitude still strips.
+        # Latin sentences are untouched by construction: _non_latin is False for them.
+        if _non_latin(sent) and not _tokens(sent):
+            claim_vals = _claim_numbers_in(_HANDLE.sub("", sent))
+            if not claim_vals or re.search(r"\[N\d+", sent):
+                return None
+            if any(_num_backed(v, _numbers_in(texts)) for v in claim_vals):
+                return None
         return "no_lexical_overlap"                       # the claim shares NOTHING with its source
     return None
 

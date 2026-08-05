@@ -801,3 +801,79 @@ def test_claim_number_spans_locate_the_token_core_not_its_punctuation():
     assert vf._claim_number_spans(s) == [(13, 15, 12.0), (29, 30, 8.0)]
     assert [v for _a, _b, v in vf._claim_number_spans(s)] == vf._claim_numbers_in(s)
     assert vf._mask_handles("held 5 [N12] MMT") == "held 5       MMT"   # same length, digits neutralised
+
+
+# ── D-RC-15a: the script gate on no_lexical_overlap ────────────────────────────────────────────────
+# A non-Latin sentence can never share a [a-z]{5,} token with Latin evidence, and its Arabic-Indic
+# digits never string-equal ASCII ones -- for those sentences the lexical test is VACUOUS, not
+# failed, and verification falls back to value-level checks. Latin sentences are untouched.
+
+AR_EV = [
+    {"source": "usda_wasde", "date": "2012-08-10",
+     "text": "Record soybean and corn prices occurred in 2012; prices rose 12.5 percent on the drought."},
+]
+
+
+def test_script_gate_non_latin_no_numbers_kept():
+    """The probe defect: a correct Arabic sentence citing a resolved item was stripped for sharing
+    no lexical token -- impossible by script, not by falsehood."""
+    s = _structured("سجلت أسعار الذرة مستويات قياسية بسبب الجفاف [1].",
+                    [{"ref": "1", "source": "usda_wasde", "date": "2012-08-10", "note": ""}])
+    rep = vf.verify_citations(s, AR_EV, [])
+    assert "[1]" in s["tldr"] and rep["stripped"] == 0
+
+
+def test_script_gate_arabic_indic_value_matches_ascii_source():
+    """١٢.٥ (12.5 in Arabic-Indic digits) must compare as a VALUE against the source's
+    ASCII 12.5 -- the digit-STRING intersection can never equate them."""
+    s = _structured("ارتفعت الأسعار ١٢.٥ بالمئة [1].",
+                    [{"ref": "1", "source": "usda_wasde", "date": "2012-08-10", "note": ""}])
+    rep = vf.verify_citations(s, AR_EV, [])
+    assert "[1]" in s["tldr"] and rep["stripped"] == 0
+
+
+def test_script_gate_unbacked_magnitude_still_strips():
+    """The gate is not an amnesty: a pure-[E] Arabic sentence claiming a magnitude its cited source
+    does not carry still strips as no_lexical_overlap."""
+    s = _structured("ارتفع الإنتاج 87.3 بالمئة [1].",
+                    [{"ref": "1", "source": "usda_wasde", "date": "2012-08-10", "note": ""}])
+    rep = vf.verify_citations(s, AR_EV, [])
+    assert "[1]" not in s["tldr"]
+    assert rep["by_rule"].get("no_lexical_overlap") == 1
+
+
+def test_script_gate_n_handle_numbers_are_not_e_handle_business():
+    """The probe's stripped TL;DR shape: Arabic sentence carrying an [N] figure plus an [E]
+    attribution. The number's truth belongs to _check_number_handle; the E-handle must not strip
+    the sentence for lacking lexical overlap it cannot have."""
+    s = _structured("بلغت المخزونات 31400000 [N1] وفقا للتقرير [1].",
+                    [{"ref": "1", "source": "usda_wasde", "date": "2012-08-10", "note": ""}])
+    rep = vf.verify_citations(s, AR_EV, NUMS)
+    assert "[1]" in s["tldr"] and "[N1]" in s["tldr"] and rep["stripped"] == 0
+
+
+def test_script_gate_closed_for_latin_short_words():
+    """An all-ASCII sentence of short words also yields zero _tokens -- the gate must NOT open for
+    it (that would weaken the verifier on English), so it still strips."""
+    s = _structured("It was up a lot [1].",
+                    [{"ref": "1", "source": "usda_wasde", "date": "2012-08-10", "note": ""}])
+    rep = vf.verify_citations(s, AR_EV, [])
+    assert "[1]" not in s["tldr"]
+    assert rep["by_rule"].get("no_lexical_overlap") == 1
+
+
+def test_script_gate_closed_for_accented_latin():
+    """Latin-Extended accents (Cote d'Ivoire, cafe with an accent) are still Latin -- no fallback."""
+    s = _structured("Côte d'Ivoire cocoa bénéfice [1].",
+                    [{"ref": "1", "source": "usda_wasde", "date": "2012-08-10", "note": ""}])
+    rep = vf.verify_citations(s, AR_EV, [])
+    assert "[1]" not in s["tldr"]
+    assert rep["by_rule"].get("no_lexical_overlap") == 1
+
+
+def test_non_latin_predicate():
+    assert vf._non_latin("ما الذي يحدث")          # Arabic
+    assert vf._non_latin("экспорт")                                  # Cyrillic
+    assert not vf._non_latin("Côte d'Ivoire, São Paulo")                                           # accents stay Latin
+    assert not vf._non_latin("plain english 12.5%")
+    assert not vf._non_latin("")

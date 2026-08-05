@@ -2121,7 +2121,17 @@ def _num_line(out: dict) -> str:
     for c in out.get("number_calls") or []:
         qy, rws = c.get("query", {}), (c.get("rows") or [])
         if not rws:
-            val = "ERROR" if c.get("status") == "error" else "(not known)"
+            if c.get("status") == "error":
+                # D-RC-15b: the error TEXT used to be dropped entirely, so a malformed model tool
+                # call (metric omitted -> pydantic ValidationError) rendered as an unexplainable
+                # 'table.?=ERROR'. Surface the truncated cause; when the metric key is absent,
+                # echo the raw input keys so the omission is visible as the model's, not ours.
+                err = re.sub(r"\s+", " ", str(c.get("error") or ""))[:120]
+                val = f"ERROR[{err}]" if err else "ERROR"
+                if "metric" not in qy:
+                    val += f" (input keys: {sorted(qy)})"
+            else:
+                val = "(not known)"
         elif len(rws) == 1:
             val = rws[0].get("value")
         else:

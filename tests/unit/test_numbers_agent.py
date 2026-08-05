@@ -325,3 +325,25 @@ def test_format_provenance_leaves_dateless_and_empty_calls_alone():
     assert line == "silver_noaa_oni.oni_anomaly  = -0.4"
     assert A.format_provenance([{"query": {"table": "t", "metric": "m"}, "rows": [],
                                  "status": "no_rows"}])[0].endswith("(no matching data)")
+
+
+def test_num_line_error_renders_cause_and_missing_metric_keys():
+    """D-RC-15b: an error record's cause text reaches the report, and a model tool call that
+    omitted the required `metric` key echoes its raw input keys -- the desk-probe defect rendered
+    an unexplainable 'silver_futures_prices.?=ERROR' with the pydantic message dropped."""
+    from leviathan.graphrag import eval as _ev
+    line = _ev._num_line({"number_calls": [
+        {"query": {"table": "silver_futures_prices", "commodity": "corn_cbot"},
+         "error": "1 validation error for NumberQuery metric Field required", "rows": [],
+         "status": "error"}]})
+    assert line.startswith("silver_futures_prices.?=ERROR[")
+    assert "Field required" in line
+    assert "input keys: ['commodity', 'table']" in line
+
+
+def test_num_line_error_with_metric_present_no_keys_echo():
+    from leviathan.graphrag import eval as _ev
+    line = _ev._num_line({"number_calls": [
+        {"query": {"table": "silver_futures_prices", "metric": "close"},
+         "error": "levels_only", "rows": [], "status": "error"}]})
+    assert line == "silver_futures_prices.close=ERROR[levels_only]"
