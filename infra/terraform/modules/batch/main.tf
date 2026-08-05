@@ -259,9 +259,10 @@ resource "aws_batch_job_definition" "nasa_power_backfill" {
     dynamic "evaluate_on_exit" {
       for_each = local.producer_retry_rules
       content {
-        action    = evaluate_on_exit.value.action
-        on_reason = lookup(evaluate_on_exit.value, "on_reason", null)
-        on_exit_code = lookup(evaluate_on_exit.value, "on_exit_code", null)
+        action           = evaluate_on_exit.value.action
+        on_exit_code     = evaluate_on_exit.value.on_exit_code
+        on_reason        = evaluate_on_exit.value.on_reason
+        on_status_reason = evaluate_on_exit.value.on_status_reason
       }
     }
   }
@@ -344,9 +345,10 @@ resource "aws_batch_job_definition" "chirps_to_bronze_backfill" {
     dynamic "evaluate_on_exit" {
       for_each = local.producer_retry_rules
       content {
-        action    = evaluate_on_exit.value.action
-        on_reason = lookup(evaluate_on_exit.value, "on_reason", null)
-        on_exit_code = lookup(evaluate_on_exit.value, "on_exit_code", null)
+        action           = evaluate_on_exit.value.action
+        on_exit_code     = evaluate_on_exit.value.on_exit_code
+        on_reason        = evaluate_on_exit.value.on_reason
+        on_status_reason = evaluate_on_exit.value.on_status_reason
       }
     }
   }
