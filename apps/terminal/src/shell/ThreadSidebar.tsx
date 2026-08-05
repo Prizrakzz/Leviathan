@@ -7,6 +7,9 @@ import { useSession } from '@/store/session';
 import { useThread } from '@/store/thread';
 import { useUI } from '@/store/ui';
 
+/** How long a "sure?" stays armed (D-TW-8). Exported so the test drives the real constant, not a copy. */
+export const DELETE_ARM_MS = 3_000;
+
 /**
  * The thread sidebar (5.6 W2) — a full-height, ChatGPT-style list of the user's saved threads (newest
  * first, from GET /v1/threads; the server registers threads itself on every saved turn). Click opens a
@@ -44,7 +47,6 @@ export function ThreadSidebar({ turn }: { turn: TurnState }) {
 
   const openIt = (t: ThreadItem) => {
     openThread(t.id, t.title ?? null);
-    useUI.getState().setView('answer');
   };
 
   return (
@@ -63,10 +65,7 @@ export function ThreadSidebar({ turn }: { turn: TurnState }) {
         </div>
         <button
           className="shrink-0 rounded-chip border border-line px-1.5 font-mono text-11 text-cyan hover:bg-bg-1"
-          onClick={() => {
-            newThread();
-            useUI.getState().setView('answer');
-          }}
+          onClick={() => newThread()}
           aria-label="new thread"
         >
           + new
@@ -98,15 +97,23 @@ export function ThreadSidebar({ turn }: { turn: TurnState }) {
           />
         ))}
 
-        {ready && !threadsQ.isLoading && items.length === 0 && activeSaved === false && (
-          <div className="px-2 py-1 font-sans text-12 text-text-faint">
-            no saved threads yet — ask a question to start one.
-          </div>
+        {/* D-TW-12: the list gets exactly ONE state line. A failed fetch ALSO has zero items, so the two
+            conditions below used to be true at once -- real Chrome rendered "no saved threads yet" directly
+            above "couldn't load threads", i.e. one line asserting the user has nothing and one admitting we
+            do not know. The error WINS: it is the only one of the two that is true. */}
+        {threadsQ.isError ? (
+          <div className="px-2 py-1 font-mono text-11 text-neg">couldn't load threads — retrying</div>
+        ) : (
+          ready &&
+          !threadsQ.isLoading &&
+          items.length === 0 &&
+          activeSaved === false && (
+            <div className="px-2 py-1 font-sans text-12 text-text-faint">
+              no saved threads yet — ask a question to start one.
+            </div>
+          )
         )}
         {!ready && <div className="px-2 py-1 font-mono text-11 text-text-faint">signing in…</div>}
-        {threadsQ.isError && (
-          <div className="px-2 py-1 font-mono text-11 text-neg">couldn't load threads — retrying</div>
-        )}
       </div>
     </aside>
   );
@@ -129,8 +136,23 @@ function ThreadRow({
 }) {
   const [mode, setMode] = useState<'idle' | 'renaming' | 'confirm-delete'>('idle');
   const inputRef = useRef<HTMLInputElement>(null);
+  const confirmRef = useRef<HTMLButtonElement>(null);
+  // Focus follows the mode. The rename box already did this; D-TW-8 gives the armed "sure?" the same
+  // treatment, which is what makes its Escape handler reachable and its onBlur meaningful (an armed
+  // button nobody focused can only be disarmed by clicking elsewhere on it).
   useEffect(() => {
     if (mode === 'renaming') inputRef.current?.focus();
+    if (mode === 'confirm-delete') confirmRef.current?.focus();
+  }, [mode]);
+
+  // D-TW-8: the armed delete disarms ITSELF. Observed still armed minutes later, surviving viewport
+  // changes and scrolls -- by then the "sure?" sits under a row the user has no memory of arming, and one
+  // stray click destroys a thread plus its durable turns. Arming is a momentary intent, so it gets a
+  // momentary lifetime: 3s, re-armed only by a fresh click on the delete affordance.
+  useEffect(() => {
+    if (mode !== 'confirm-delete') return;
+    const t = setTimeout(() => setMode('idle'), DELETE_ARM_MS);
+    return () => clearTimeout(t);
   }, [mode]);
 
   const rename = useMutation({
@@ -184,9 +206,13 @@ function ThreadRow({
       </button>
       {mode === 'confirm-delete' ? (
         <button
+          ref={confirmRef}
           aria-label="confirm delete"
           className="shrink-0 rounded-chip border border-neg px-1.5 font-mono text-11 text-neg"
           onClick={() => del.mutate()}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') setMode('idle'); // same escape hatch as the rename box
+          }}
           onBlur={() => setMode('idle')}
         >
           sure?

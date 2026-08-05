@@ -10,6 +10,13 @@ export interface ResolvedCite {
 }
 export type ResolvedMap = Record<string, ResolvedCite>;
 
+/** D-TW-23: the open-receipts handler a citation chip fires, or NULL when this render has no receipts to
+ *  open (a durable turn reopened from the thread store: TurnRecord is PIT-firewalled, so the drawer's
+ *  evidence tiers do not exist client-side). NULL is the DECLARED "no receipts here" state -- chips render
+ *  visibly inert and say why. It exists so the dead affordance can never come back as a silent `noop`,
+ *  which is exactly how D-TW-23 shipped: the type could not tell a wired handler from a stub. */
+export type CiteOpen = ((ref: string) => void) | null;
+
 type Src = { ref?: unknown; source?: unknown; date?: unknown; source_key?: unknown; char_start?: unknown; offset_kind?: unknown };
 type Cit = { id?: unknown; kind?: unknown; locator?: { source_key?: unknown; snippet?: unknown; kind?: unknown } };
 

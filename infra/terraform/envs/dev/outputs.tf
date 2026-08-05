@@ -15,6 +15,21 @@ output "cognito_hosted_domain" {
   value = module.cognito.hosted_domain
 }
 
+# D-TW-21 -- the Terminal SPA deploy target, re-exported from module.spa_hosting so
+# apps/terminal/scripts/deploy.ps1 can read it instead of carrying hand-copied constants (hand-copies are
+# how config drifts). DELIBERATELY NOT named `bucket_name`: that output above is the DATA-LAKE bucket, and
+# an `aws s3 sync --delete` aimed at it would prune lake objects. deploy.ps1 additionally refuses any
+# resolved bucket that does not end in `-terminal-spa`.
+output "terminal_spa_bucket_name" {
+  value       = module.spa_hosting.bucket_name
+  description = "SPA origin bucket (NOT the data lake) -- deploy target for `aws s3 sync dist/`."
+}
+
+output "terminal_spa_distribution_id" {
+  value       = module.spa_hosting.distribution_id
+  description = "CloudFront distribution id for the SPA -- post-deploy invalidation target."
+}
+
 output "terminal_store_table" {
   value = module.dynamodb.table_name
 }

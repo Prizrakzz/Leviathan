@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { mockGraph, mockListThreads, mockRespondStream, mockSuggest, mockThreadTurns } from './mock';
+import { afterEach, describe, expect, it } from 'vitest';
+import { mockGetProfile, mockGraph, mockListThreads, mockRespondStream, mockSuggest, mockThreadTurns } from './mock';
 import type { RespondResult, StageEvent } from './schema';
 
 describe('mockRespondStream', () => {
@@ -64,6 +64,27 @@ describe('mockSuggest (6.2)', () => {
     expect(follow.suggestions.length).toBeGreaterThan(0);
     expect(start.suggestions.length).toBeGreaterThan(0);
     expect(follow.suggestions).not.toEqual(start.suggestions); // distinct sets exercise both surfaces
+  });
+});
+
+describe('mock profile onboarding seed (D-TW-19)', () => {
+  afterEach(() => localStorage.removeItem('lv-mock-onboarded'));
+
+  it('reports onboarded ONLY while the e2e seed key is set', async () => {
+    // Default = first-run, which is what makes VITE_MOCK=1 demo the onboarding flow.
+    expect((await mockGetProfile()).onboarded).toBe(false);
+    // The e2e gate sets this before the app boots so the modal (a focus-trapping Radix dialog) never mounts.
+    localStorage.setItem('lv-mock-onboarded', '1');
+    expect((await mockGetProfile()).onboarded).toBe(true);
+    // Read per call and NOT written back: unseeding restores first-run, so the seed cannot leak into a
+    // later session/spec that means to exercise onboarding.
+    localStorage.removeItem('lv-mock-onboarded');
+    expect((await mockGetProfile()).onboarded).toBe(false);
+  });
+
+  it('ignores any value other than the exact seed', async () => {
+    localStorage.setItem('lv-mock-onboarded', 'true');
+    expect((await mockGetProfile()).onboarded).toBe(false);
   });
 });
 

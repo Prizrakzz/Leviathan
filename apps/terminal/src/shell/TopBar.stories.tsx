@@ -10,7 +10,7 @@ export const Default: StoryObj<typeof TopBar> = {
     const [cmd, setCmd] = useState('KC frost 2021');
     return (
       <div className="w-[900px]">
-        <TopBar cmd={cmd} setCmd={setCmd} onSubmit={() => {}} onPalette={() => {}} />
+        <TopBar cmd={cmd} setCmd={setCmd} onSubmit={() => {}} streaming={false} />
       </div>
     );
   },

@@ -1,6 +1,10 @@
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { useUI } from '@/store/ui';
-import type { ResolvedCite } from './citations';
+import type { CiteOpen, ResolvedCite } from './citations';
+
+/** D-TW-23: what a chip says when this render carries no receipts (a durable turn: the drawer's evidence
+ *  tiers live only on the LIVE turn's result). Exported so the fix and its regression assert one string. */
+export const NO_RECEIPTS_TITLE = 'receipts available on live turns only';
 
 /** The number citation's query provenance line (6.4): "{table} · {metric} · {scope} · asof {asof}". */
 function numberProvenance(loc: Record<string, unknown>): string {
@@ -13,7 +17,12 @@ function numberProvenance(loc: Record<string, unknown>): string {
 
 /** An inline `[1]` / `[N1]` citation chip: hover → the official source + dated snippet (or a number's query
  *  provenance); click → opens the Receipts drawer PINNED to that item (design §4.1, 6.4). Amber = evidence,
- *  cyan = a number citation. */
+ *  cyan = a number citation.
+ *
+ *  D-TW-23: `onOpen === null` = this render has no receipts drawer to open (a durable turn). The chip then
+ *  renders VISIBLY inert -- dimmed, aria-disabled, and titled with the reason -- instead of looking live and
+ *  swallowing the click. The Radix tooltip is deliberately KEPT in that state: the durable receipt (official
+ *  name + date + 140-char snippet + open-PDF) is exactly what a past-turn chip still has to give. */
 export function CitationChip({
   refId,
   resolved,
@@ -21,7 +30,7 @@ export function CitationChip({
 }: {
   refId: string;
   resolved: ResolvedCite;
-  onOpen: (ref: string) => void;
+  onOpen: CiteOpen;
 }) {
   const isNumber = /^N/i.test(refId); // N4 = number (cyan); E3 / bare 3 = evidence (amber) -- the P9
   //                                     typed-handle contract: any-letter matching turned [E] chips cyan
@@ -33,10 +42,15 @@ export function CitationChip({
       <Tooltip.Trigger asChild>
         <button
           type="button"
-          onClick={() => onOpen(refId)}
-          className={`mx-0.5 rounded-chip border px-1 align-baseline font-mono text-11 hover:bg-bg-2 ${
-            isNumber ? 'border-cyan text-cyan' : 'border-amber text-amber'
-          }`}
+          data-testid="cite-chip"
+          // Not the `disabled` ATTRIBUTE: a disabled button stops firing pointer events, which would take
+          // the hover tooltip (the past turn's only receipt) down with the click.
+          aria-disabled={onOpen ? undefined : true}
+          title={onOpen ? undefined : NO_RECEIPTS_TITLE}
+          onClick={onOpen ? () => onOpen(refId) : undefined}
+          className={`mx-0.5 rounded-chip border px-1 align-baseline font-mono text-11 ${
+            onOpen ? 'hover:bg-bg-2' : 'cursor-default opacity-50'
+          } ${isNumber ? 'border-cyan text-cyan' : 'border-amber text-amber'}`}
         >
           [{refId}]
         </button>

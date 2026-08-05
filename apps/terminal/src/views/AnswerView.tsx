@@ -16,7 +16,7 @@ import { EmptyState } from './answer/EmptyState';
 import { FindingsFeed } from './answer/FindingsFeed';
 import { SuggestionChips } from './answer/SuggestionChips';
 import { Banners } from './note/Banners';
-import { resolvedFor } from './note/citations';
+import { type CiteOpen, resolvedFor } from './note/citations';
 import { FormattedNote, renderInline } from './note/inlineFormat';
 import { IntegrityStrip } from './note/IntegrityStrip';
 import { Note } from './note/Note';
@@ -28,8 +28,6 @@ import { Numbers } from './numbers/Numbers';
 import { ReceiptsDrawer } from './receipts/ReceiptsDrawer';
 
 type TurnRecord = components['schemas']['TurnRecord'];
-
-const noop = () => {};
 
 // A caught render error inside a finalized answer degrades to a readable line instead of blanking the app.
 const answerErrorFallback = (
@@ -53,8 +51,23 @@ const SHOW_INTEGRITY = typeof localStorage !== 'undefined' && localStorage.getIt
 /** One past (durable) turn of the active thread — full answer, ChatGPT-style (5.6 decision). Renders from
  *  the persisted `structured` (backend-sanitized in 6.1, so clean prose — no raw markup or internal ids).
  *  6.4: chips HOVER their official name + durable snippet via the durable resolved map (structured.sources
- *  + citation locator snippet); click is a noop on past turns (the receipts drawer is a live-turn surface). */
-export function PastTurn({ t }: { t: TurnRecord }) {
+ *  + citation locator snippet).
+ *
+ *  D-TW-23 -- `onOpenReceipts`. This component renders TWO different things:
+ *   (a) genuinely past turns, whose receipts do NOT exist client-side. `TurnRecord` is PIT-firewalled by
+ *       construction (api_models.py: "NEVER carries retrieved evidence"; the server's `_trim_citation_
+ *       provenance` keeps refs + locator pointers and drops the evidence text, and no `trace` is persisted
+ *       at all). So a durable turn can populate ONLY the drawer's cited tier -- the retrieved-but-uncited
+ *       tier and the whole verifier line ("N stripped / all <= as-of") would be fabricated from absent
+ *       data, and the cited tier alone shows strictly LESS than the chip's own hover already does (official
+ *       name + date + 140-char snippet + open-PDF). So: no drawer, and the chip SAYS so (inert + title).
+ *   (b) the LIVE turn, moments after it settles: ThreadSidebar invalidates `thread-turns` on
+ *       status==='done', the completed turn lands in `past`, `showLive` goes false -- and the answer on
+ *       screen becomes a PastTurn render while `turn.result` is still in hand. That is the measured
+ *       defect: every chip mid-session was dead while `e` still worked (the drawer hangs off the result,
+ *       which survives). AnswerView passes the REAL handler for that one turn. */
+export function PastTurn({ t, onOpenReceipts }: { t: TurnRecord; onOpenReceipts?: (ref?: string) => void }) {
+  const onOpen: CiteOpen = onOpenReceipts ?? null;
   const s = (t.structured ?? null) as { tldr?: string; mechanism?: string; sections?: Section[] } | null;
   const tldr = s?.tldr ?? '';
   const mechanism = s?.mechanism ?? '';
@@ -76,7 +89,7 @@ export function PastTurn({ t }: { t: TurnRecord }) {
         <div className="font-mono text-12 text-cyan">▸ {t.question}</div>
         {tldr && (
           <p className="mt-2 font-sans text-14 font-semibold leading-snug text-text">
-            {renderInline(tldr, resolved, noop)}
+            {renderInline(tldr, resolved, onOpen)}
           </p>
         )}
         {/* S5: reuse the LIVE mapSlot's exact openTab call + data-testid so a durable turn can open the
@@ -101,18 +114,18 @@ export function PastTurn({ t }: { t: TurnRecord }) {
             (no sources row, no numbers). */}
         {sections.length > 0 ? (
           <div className="mt-1 font-sans text-13 leading-relaxed text-text-dim">
-            <Sections sections={sections} resolved={resolved} onOpen={noop} />
+            <Sections sections={sections} resolved={resolved} onOpen={onOpen} />
           </div>
         ) : (
           mechanism && (
             <div className="mt-1 font-sans text-13 leading-relaxed text-text-dim">
-              <FormattedNote text={mechanism} resolved={resolved} onOpen={noop} />
+              <FormattedNote text={mechanism} resolved={resolved} onOpen={onOpen} />
             </div>
           )
         )}
         {legacy && (
           <div className="mt-1 font-sans text-13 leading-relaxed text-text-dim">
-            <FormattedNote text={legacy} resolved={resolved} onOpen={noop} />
+            <FormattedNote text={legacy} resolved={resolved} onOpen={onOpen} />
           </div>
         )}
         {t.asof && <div className="mt-1 font-mono text-11 text-text-faint">as of {t.asof}</div>}
@@ -164,6 +177,16 @@ export function AnswerView({
     (turn.status === 'streaming' ||
       turn.status === 'error' ||
       ((turn.status === 'done' || !settled) && lastPastQ !== question));
+
+  // D-TW-23. `showLive` going false is exactly the handover: the refetch pulled THIS turn into `past`, so
+  // the answer the reader is looking at is now the LAST PastTurn -- rendered from the durable copy while
+  // `turn.result` is still held right here. That index (and only that one) gets the real open-receipts
+  // handler, so a Sections/FormattedNote/TL;DR chip stays clickable across the settle instead of going
+  // dead the instant the answer finishes arriving. Every earlier turn keeps `undefined` -> inert chips.
+  const liveSettledIdx =
+    !showLive && turn.status === 'done' && !!r && !!question && lastPastQ === question
+      ? past.length - 1
+      : -1;
 
   const contract = r?.contract ?? r?.contracts?.[0] ?? null;
   const asof = r?.asof ?? '';
@@ -247,7 +270,7 @@ export function AnswerView({
       <div ref={scrollRef} className="flex-1 space-y-4 overflow-auto p-4" data-testid="conversation">
         {past.map((t, i) => (
           <ErrorBoundary key={t.ts ?? i} fallback={pastTurnErrorFallback} resetKeys={[t.ts ?? i]}>
-            <PastTurn t={t} />
+            <PastTurn t={t} onOpenReceipts={i === liveSettledIdx ? openReceipts : undefined} />
           </ErrorBoundary>
         ))}
 

@@ -5,6 +5,32 @@
  *  composer via `onPrefill` -- a watch item is a mentor sentence, not a query; auto-submitting it through
  *  `onAsk` degrades retrieval (the NotificationBell prefill contract). Callers dedupe watch items against
  *  `items` before passing: chips key by text. */
+
+/** `**`/`*` emphasis runs and code backticks. Deliberately NOT `_`: a watch sentence can carry a snake_case
+ *  table/driver id (`silver_psd`, `sugar_ethanol_parity`) and underscore-stripping would corrupt it. */
+const EMPHASIS = /[*`]+/g;
+/** The measured D-TW-24 shape: a bolded item NAME, then `:`, then the mentor sentence --
+ *  `**BRL/USD trajectory**: a further weakening real strengthens ...`. Anchored at the start and requiring
+ *  the closing marker immediately before the colon, so a mid-sentence colon can never truncate a chip. */
+const TITLED = /^\s*\*\*(.+?)\*\*\s*:\s*\S/;
+
+/** D-TW-24 -- the chip LABEL boundary. Watch items are raw mentor-bullet text: markdown emphasis markers
+ *  reach the DOM literally here (SuggestionChips renders `{q}` as a text child, so nothing strips them the
+ *  way inlineFormat does for note prose), and the whole sentence is dumped into a chip. So at the boundary:
+ *  strip emphasis, and when the item is the `**name**: sentence` shape, show just the NAME. The full text
+ *  is preserved for the tooltip and for the prefill. Server data is untouched -- this is render-side only. */
+export function watchChipLabel(raw: string): string {
+  const titled = raw.match(TITLED);
+  return watchChipText(titled?.[1] ?? raw);
+}
+
+/** The same item with emphasis markers stripped -- what the tooltip shows and what the composer prefills.
+ *  Prefilling the raw string would put literal `**` into the query box: the identical defect, one step on. */
+export function watchChipText(raw: string): string {
+  return raw.replace(EMPHASIS, '').replace(/\s+/g, ' ').trim();
+}
+
+/** The "follow up" row itself (see the module note above). */
 export function SuggestionChips({
   items,
   onAsk,
@@ -26,14 +52,18 @@ export function SuggestionChips({
     <div data-testid="suggestion-chips">
       <div className="font-mono text-11 uppercase tracking-wider text-text-faint">follow up</div>
       <div className="mt-1.5 flex flex-wrap gap-2">
+        {/* D-TW-24: `key` stays the RAW item (two watch bullets can share a title; the raw text is what the
+            caller already deduped on), while the visible label is the cleaned title and the full cleaned
+            sentence rides the tooltip. */}
         {watchItems.map((q) => (
           <button
             key={q}
             data-testid="watch-chip"
-            onClick={() => onPrefill?.(q)}
+            title={watchChipText(q)}
+            onClick={() => onPrefill?.(watchChipText(q))}
             className="rounded-chip border border-line px-2.5 py-1 text-left font-sans text-12 text-text-dim hover:border-amber hover:text-text"
           >
-            {q}
+            {watchChipLabel(q)}
           </button>
         ))}
         {suggesters.map((q) => (

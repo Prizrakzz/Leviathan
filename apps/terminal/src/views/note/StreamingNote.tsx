@@ -12,11 +12,10 @@
  *  nothing a user could click ever disappears. */
 
 import * as Tooltip from '@radix-ui/react-tooltip';
-import type { ResolvedMap } from './citations';
+import type { CiteOpen, ResolvedMap } from './citations';
 import { FormattedNote, renderInline } from './inlineFormat';
 
 const NO_CHIPS: ResolvedMap = {}; // pre-verify: nothing is resolvable, so nothing is clickable
-const noop = () => {};
 
 function unescapeJson(s: string): string {
   return s.replace(/\\n/g, '\n').replace(/\\t/g, '  ').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
@@ -59,7 +58,9 @@ export function StreamingNote({
   // would produce chips pointing at nothing, which is the very failure this rule exists to prevent.
   const chips = live && resolved && Object.keys(resolved).length > 0;
   const map = chips ? (resolved as ResolvedMap) : NO_CHIPS;
-  const open = chips ? (onOpen ?? noop) : noop;
+  // D-TW-23: NULL, never a noop. The inert path renders no chip at all so it is unreachable either way, but
+  // a live chip handed a stub is precisely the bug this wave is deleting -- make it declare itself instead.
+  const open: CiteOpen = chips ? (onOpen ?? null) : null;
   const label = 'font-mono text-11 uppercase tracking-wider text-text-dim';
   const caret = <span className="ml-0.5 animate-pulse text-amber">▍</span>;
   const body = (

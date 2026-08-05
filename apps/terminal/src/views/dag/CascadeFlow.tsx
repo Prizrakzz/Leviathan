@@ -2,7 +2,6 @@ import {
   Background,
   Controls,
   Handle,
-  MiniMap,
   type NodeProps,
   Position,
   ReactFlow,
@@ -78,24 +77,20 @@ function CascadeInner({
   topo,
   firedRegimes,
   drivers,
-  onNodeClick,
   onSwap,
   height,
   fullSurface,
   focus,
-  showMinimap,
   onNodeAttach,
   onEdgeAttach,
 }: {
   topo: Topo;
   firedRegimes?: { matched?: string[] }[];
   drivers?: string[];
-  onNodeClick?: (id: string) => void;
   onSwap?: (id: string) => void;
   height: number;
   fullSurface?: boolean;
   focus?: string;
-  showMinimap?: boolean;
   onNodeAttach?: (a: { driver_id: string; label: string }) => void;
   onEdgeAttach?: (a: { source: string; target: string; sourceLabel: string; targetLabel: string; blurb: string | null }) => void;
 }) {
@@ -173,7 +168,6 @@ function CascadeInner({
         maxZoom={2.5}
         proOptions={{ hideAttribution: true }}
         onNodeClick={(_, n) => {
-          onNodeClick?.(n.id); // preserve the legacy hook
           if (!attachEnabled) return;
           setSel((cur) =>
             cur?.kind === 'node' && cur.id === n.id
@@ -197,7 +191,6 @@ function CascadeInner({
       >
         <Background gap={16} color="var(--line)" />
         {fullSurface && <Controls showInteractive={false} className="border border-line" />}
-        {fullSurface && showMinimap && <MiniMap pannable zoomable className="!bg-bg-1" />}
       </ReactFlow>
       {(hover?.blurb ?? hover?.mechanism) && (
         <div className="pointer-events-none absolute left-2 top-2 z-10 max-w-sm rounded-chip border border-line bg-bg-0/90 p-2 font-sans text-12 text-text-dim">
@@ -236,31 +229,33 @@ function CascadeInner({
 }
 
 /** The interactive causal map (6.3) — React Flow, seeded with this answer's cited drivers, click to expand
- *  upstream. LAZY-loaded (this module pulls @xyflow/react + dagre + its CSS into an async chunk). */
+ *  upstream. LAZY-loaded (this module pulls @xyflow/react + dagre + its CSS into an async chunk).
+ *  D-TW-16 deleted two never-reached props: `onNodeClick` (a legacy hook — no call site passed it since the
+ *  attach bar took over node clicks) and `showMinimap` (default false, never set, so the MiniMap import was
+ *  pure chunk weight). `focus` is the survivor of that audit and now has a real caller: the receipts
+ *  drawer's driver chips (ReceiptsDrawer -> openTab). */
 export default function CascadeFlow({
   topo,
   firedRegimes,
   drivers,
-  onNodeClick,
   onSwap,
   height = 300,
   fullSurface = false,
   focus,
-  showMinimap = false,
   onNodeAttach,
   onEdgeAttach,
 }: {
   topo: Topo;
   firedRegimes?: { matched?: string[] }[];
   drivers?: string[];
-  onNodeClick?: (id: string) => void;
   onSwap?: (id: string) => void;
   height?: number;
   /** W1.3 full-surface mode (P1.5 GraphTab / deep-link): h-full container + zoom Controls + focus centering.
    *  The ANCESTOR must provide a resolved height — a bare mount collapses to 0. */
   fullSurface?: boolean;
+  /** Node id to centre on (full-surface only). Unknown/absent ids degrade to the whole-graph fit — see
+   *  seedWithFocus, which no-ops rather than inventing a node. */
   focus?: string;
-  showMinimap?: boolean;
   /** P2 attach-from-graph (opt-in): fired by the floating action bar; the store write lives in the caller. */
   onNodeAttach?: (a: { driver_id: string; label: string }) => void;
   onEdgeAttach?: (a: { source: string; target: string; sourceLabel: string; targetLabel: string; blurb: string | null }) => void;
@@ -271,12 +266,10 @@ export default function CascadeFlow({
         topo={topo}
         firedRegimes={firedRegimes}
         drivers={drivers}
-        onNodeClick={onNodeClick}
         onSwap={onSwap}
         height={height}
         fullSurface={fullSurface}
         focus={focus}
-        showMinimap={showMinimap}
         onNodeAttach={onNodeAttach}
         onEdgeAttach={onEdgeAttach}
       />

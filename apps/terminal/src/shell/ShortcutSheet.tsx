@@ -1,10 +1,10 @@
 import { OVERLAY_SCRIM } from '@/tokens/tokens';
 
+// D-TW-14b/15: the sheet advertises only bindings that EXIST. Removed with their implementations: `1-4`
+// (focus panels — the store field nothing read), the `g a / g c / g d` view leader (retired in the 5.6
+// view-prune, still listed for two waves), and `⌘K` (the zero-command palette).
 const KEYS: [string, string][] = [
   ['‹ / ›  ( , . )', 'nudge as-of (Shift = larger)'],
-  ['1–4', 'focus panels'],
-  ['g a / g c / g d', 'switch view (answer / convergence / deep-dive)'],
-  ['⌘K', 'command palette'],
   ['⌘↵', 'submit'],
   ['⌘\\', 'toggle thread'],
   ['y', 'copy note as markdown'],

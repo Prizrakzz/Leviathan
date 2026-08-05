@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Link, Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from 'react-oidc-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { authEnabled } from './auth/oidc';
@@ -64,7 +64,18 @@ function AuthedApp() {
         <Route path="/" element={<Landing />} />
         <Route
           path="/auth/callback"
-          element={auth.isAuthenticated ? <CallbackLanding /> : loading}
+          element={
+            // D-TW-7: a failed code exchange (expired/replayed code, clock skew, a revoked client) left
+            // this route on "loading terminal…" FOREVER — the one state a user cannot get out of and
+            // cannot report. Read the error the provider already holds and offer the way back.
+            auth.error ? (
+              <CallbackError message={auth.error.message} />
+            ) : auth.isAuthenticated ? (
+              <CallbackLanding />
+            ) : (
+              loading
+            )
+          }
         />
         <Route path="/app" element={<TerminalGate authed={auth.isAuthenticated} />} />
         <Route path="*" element={<Navigate to="/" replace />} />
@@ -81,6 +92,23 @@ function CallbackLanding() {
     useThread.getState().newThread();
   }, []);
   return <Navigate to="/app" replace />;
+}
+
+/** The dead end of the sign-in flow, made survivable (D-TW-7): the provider's own message (it names the
+ *  OAuth failure) plus the one action that can help — go back and start the redirect again. */
+function CallbackError({ message }: { message: string }) {
+  return (
+    <div
+      className="flex h-screen flex-col items-center justify-center gap-3 bg-bg-0 px-6 text-center"
+      data-testid="auth-error"
+    >
+      <div className="font-mono text-11 uppercase tracking-wider text-neg">sign-in failed</div>
+      <p className="max-w-md font-sans text-13 text-text-dim">{message}</p>
+      <Link to="/" className="font-mono text-12 text-cyan hover:text-amber">
+        back to sign in
+      </Link>
+    </div>
+  );
 }
 
 /** Local/mock builds (no VITE_COGNITO_* env): the shell is open so it runs without a backend. Renders

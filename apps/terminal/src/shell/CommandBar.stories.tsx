@@ -10,7 +10,7 @@ export const Default: StoryObj<typeof CommandBar> = {
     const [v, setV] = useState('');
     return (
       <div className="w-[560px]">
-        <CommandBar value={v} onChange={setV} onSubmit={(x) => alert(`submit: ${x}`)} />
+        <CommandBar value={v} onChange={setV} onSubmit={(x) => alert(`submit: ${x}`)} disabled={false} />
         <div className="mt-2 font-mono text-11 text-text-dim">value: {v || '—'}</div>
       </div>
     );

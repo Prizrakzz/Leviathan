@@ -36,6 +36,14 @@ resource "aws_cloudfront_origin_access_control" "spa" {
   signing_protocol                  = "sigv4"
 }
 
+# D-TW-22: the app keeps OIDC ID tokens in localStorage; the page previously shipped with ZERO
+# security headers. The AWS managed policy adds HSTS, X-Content-Type-Options, X-Frame-Options,
+# Referrer-Policy and XSS-Protection. (A real CSP is a separate, deliberately-authored change --
+# the managed policy carries none.)
+data "aws_cloudfront_response_headers_policy" "security" {
+  name = "Managed-SecurityHeadersPolicy"
+}
+
 resource "aws_cloudfront_distribution" "spa" {
   enabled             = true
   is_ipv6_enabled     = true
@@ -58,7 +66,8 @@ resource "aws_cloudfront_distribution" "spa" {
     compress               = true
     # AWS managed CachingOptimized policy (hashed assets are immutable; index.html gets a no-cache header
     # at upload time so new deploys surface immediately).
-    cache_policy_id = "658327ea-f89d-4fab-a63d-7e88639e58f6"
+    cache_policy_id            = "658327ea-f89d-4fab-a63d-7e88639e58f6"
+    response_headers_policy_id = data.aws_cloudfront_response_headers_policy.security.id
   }
 
   # SPA deep links: S3 returns 403 (private) / 404 for unknown keys -> serve the app shell with 200.

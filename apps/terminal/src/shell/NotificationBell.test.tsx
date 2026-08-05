@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { NotificationItem } from '@/api/schema';
@@ -118,6 +118,40 @@ describe('NotificationBell (P3 Track D)', () => {
     expect(useUI.getState().attachedChips).toHaveLength(0);
     expect(h.markNotificationSeen).not.toHaveBeenCalled();
     expect(screen.getByText(/move the as-of forward/i)).toBeInTheDocument();
+  });
+
+  it('D-TW-11: the seen-write is AWAITED before the refetch it triggers', async () => {
+    h.listNotifications.mockResolvedValue([item()]);
+    let markDone!: () => void;
+    h.markNotificationSeen.mockReturnValue(
+      new Promise<{ ok: boolean }>((res) => {
+        markDone = () => res({ ok: true });
+      }),
+    );
+    mount();
+    await userEvent.click(bell());
+    await userEvent.click(await screen.findByRole('button', { name: /export ban/i }));
+
+    expect(h.markNotificationSeen).toHaveBeenCalledWith('n1');
+    // The bug: the invalidate fired alongside the POST, its refetch usually won the race, the row came back
+    // still-unseen and the badge kept its count until the 5-minute poll. One list read so far = no refetch.
+    expect(h.listNotifications).toHaveBeenCalledTimes(1);
+
+    markDone();
+    await waitFor(() => expect(h.listNotifications).toHaveBeenCalledTimes(2));
+  });
+
+  it('D-TW-11: a rejected mark-seen is logged, never silent', async () => {
+    const err = new Error('502');
+    h.listNotifications.mockResolvedValue([item()]);
+    h.markNotificationSeen.mockRejectedValue(err);
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mount();
+    await userEvent.click(bell());
+    await userEvent.click(await screen.findByRole('button', { name: /export ban/i }));
+
+    await waitFor(() => expect(log).toHaveBeenCalledWith('[notifications] mark-seen failed:', err));
+    log.mockRestore();
   });
 
   it('renders nothing when unauthenticated', () => {

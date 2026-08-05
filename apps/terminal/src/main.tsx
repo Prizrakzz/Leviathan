@@ -1,17 +1,16 @@
-import '@fontsource/ibm-plex-mono/400.css';
-import '@fontsource/ibm-plex-mono/500.css';
-import '@fontsource/ibm-plex-mono/600.css';
-import '@fontsource/ibm-plex-sans/400.css';
-import '@fontsource/ibm-plex-sans/600.css';
+// D-TW-18 font diet: the five @fontsource entrypoint imports (which pulled 5 subsets x 2 formats each)
+// collapse into ONE stylesheet declaring latin/woff2 only — see styles/fonts.css for the arithmetic.
+import './styles/fonts.css';
 import './styles/global.css';
 
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import React, { type ReactNode } from 'react';
 import ReactDOM from 'react-dom/client';
 import { AuthProvider } from 'react-oidc-context';
 import { BrowserRouter } from 'react-router-dom';
 import { App } from './App';
 import { authEnabled, userManager } from './auth/oidc';
+import { createQueryClient } from './lib/queryClient';
 import { ErrorBoundary } from './shell/ErrorBoundary';
 import { useUI } from './store/ui';
 import { applyAccent, injectTokens } from './tokens/tokens';
@@ -19,7 +18,8 @@ import { applyAccent, injectTokens } from './tokens/tokens';
 injectTokens(); // set the design-token CSS var values on :root before first paint
 applyAccent(useUI.getState().accent); // then the user's persisted accent (6.6), also pre-paint (no flash)
 
-const qc = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000, retry: 1 } } });
+// Config + the failed-query breadcrumb live in lib/queryClient (D-TW-6) so both are testable.
+const qc = createQueryClient();
 
 // After the OAuth redirect, strip ?code/?state but stay on /auth/callback so the router stays consistent;
 // the callback route then <Navigate>s to /app once the session is established.

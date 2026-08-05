@@ -67,7 +67,12 @@ export function Composer({
           className="w-full resize-none rounded-panel border border-line bg-bg-1 px-3 py-2 pr-14 font-sans text-14 text-text placeholder:text-text-faint focus:border-cyan disabled:opacity-60"
           onInput={grow}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
+            // D-TW-5(a): Enter submits, Shift+Enter is a newline -- and a MODIFIED Enter is not ours at
+            // all. Cmd/Ctrl+Enter is the global submit hotkey (useHotkeys), so without this guard one
+            // keystroke fired BOTH handlers: this box's text and whatever sat in the top command bar
+            // went out as two turns, burning two of the 50 a user gets per day. CommandBar:22 is the
+            // guard this mirrors.
+            if (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
               e.preventDefault();
               submit();
             }

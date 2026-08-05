@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import type { RespondResult } from '@/api/schema';
 import { MOCK_RESULT } from '@/api/mock';
-import { partitionReceipts } from './partition';
+import { citedDrivers, partitionReceipts } from './partition';
 
 describe('partitionReceipts', () => {
   it('splits cited / retrieved-but-uncited / stripped', () => {
@@ -23,5 +24,29 @@ describe('partitionReceipts', () => {
     expect(r.cited[0]?.source).not.toContain('_');
     // the pin key is present
     expect(r.cited[0]?.sourceKey).toBe('s3://gain/kc-2021-07-20');
+  });
+});
+
+describe('citedDrivers (D-TW-16)', () => {
+  it('unions the fired-regime matches with trace.drivers, regime order first, deduped', () => {
+    const r = {
+      trace: {
+        fired_regimes: [{ matched: ['frost', 'low_stocks'] }, { matched: ['frost'] }],
+        drivers: ['low_stocks', 'biennial_off_year'],
+      },
+    } as unknown as RespondResult;
+    expect(citedDrivers(r)).toEqual(['frost', 'low_stocks', 'biennial_off_year']);
+  });
+
+  it('reads the mock turn (the ids the map lights) and survives a trace-less turn', () => {
+    expect(citedDrivers(MOCK_RESULT)).toEqual(['frost', 'low_stocks']);
+    expect(citedDrivers({ answer: '' } as RespondResult)).toEqual([]);
+  });
+
+  it('drops non-string / blank entries — trace is untrusted wire JSON', () => {
+    const r = {
+      trace: { fired_regimes: [{ matched: [1, '', 'frost', null] }, {}, 'nope'], drivers: [{ id: 'x' }, 'dry'] },
+    } as unknown as RespondResult;
+    expect(citedDrivers(r)).toEqual(['frost', 'dry']);
   });
 });

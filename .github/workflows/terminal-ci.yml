@@ -1,0 +1,73 @@
+# Leviathan Terminal CI (D-TW-20).
+#
+# The terminal's gate, run in the open: typecheck + lint + unit + the mock-driven e2e smoke, on every PR
+# and every push to main that touches apps/terminal. It exists because nothing ran these suites -- the e2e
+# specs had been red since 6.6 and every defect the D-TW wave fixed walked straight past them. The same
+# four legs run in apps/terminal/scripts/deploy.ps1 as the HARD stop before a build; this job is the
+# VISIBLE one, so a broken PR is broken publicly rather than at deploy time.
+#
+# PUBLIC REPO: this workflow takes NO secrets, touches NO AWS, and requests no write scope. Every step runs
+# offline against the in-repo mock (VITE_MOCK=1, injected by playwright.config.ts's webServer). Keep it
+# that way -- a credential referenced here is a credential exposed to every fork PR that can trigger it.
+name: terminal-ci
+
+on:
+  pull_request:
+    paths:
+      - 'apps/terminal/**'
+      - '.github/workflows/terminal-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/terminal/**'
+      - '.github/workflows/terminal-ci.yml'
+
+# Read-only. Nothing here writes to the repo, publishes anything, or comments on a PR.
+permissions:
+  contents: read
+
+# One run per ref: a new push supersedes the run already in flight.
+concurrency:
+  group: terminal-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: apps/terminal
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: apps/terminal/package-lock.json
+
+      - run: npm ci
+
+      # These three are exactly `npm run ci`, kept as separate steps so the Actions UI names WHICH leg
+      # failed instead of one opaque red block. Anything added to that script belongs here too.
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run test
+
+      # The browser is not a node_modules dependency. Only chromium is installed -- it is the single
+      # project in playwright.config.ts, and --with-deps supplies the system libs the runner image lacks.
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test
+
+      # Traces are written only on a retry (trace: 'on-first-retry'), i.e. exactly the failing runs where
+      # a trace is worth having. Nothing is uploaded on green.
+      - name: upload e2e artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: apps/terminal/test-results/
+          retention-days: 7
+          if-no-files-found: ignore

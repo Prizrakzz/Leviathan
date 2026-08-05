@@ -39,6 +39,26 @@ export interface Receipts {
 
 const key = (s?: string, d?: string) => `${s}|${d}`;
 
+/** D-TW-16: the driver NODE IDS this turn's cascade actually fired on — the fired-regime `matched` sets
+ *  first (a regime names the drivers that tripped it), then the trace `drivers` list, deduped in that
+ *  order. This is exactly the union CascadeFlow's `firingActiveSet` lights on the map, which is what makes
+ *  each id a legal `focus` target for the graph tab. Defensive by design: `trace` is untrusted wire JSON,
+ *  so every entry is string-checked and blanks are dropped — an id the topology does not know still costs
+ *  nothing (seedWithFocus no-ops and the tab opens whole-graph). Pure — unit-tested. */
+export function citedDrivers(r: RespondResult): string[] {
+  const t = (r.trace ?? {}) as { fired_regimes?: unknown[]; drivers?: unknown[] };
+  const seen = new Set<string>();
+  const add = (v: unknown) => {
+    if (typeof v === 'string' && v && !seen.has(v)) seen.add(v);
+  };
+  for (const g of Array.isArray(t.fired_regimes) ? t.fired_regimes : []) {
+    const m = (g as { matched?: unknown }).matched;
+    for (const d of Array.isArray(m) ? m : []) add(d);
+  }
+  for (const d of Array.isArray(t.drivers) ? t.drivers : []) add(d);
+  return [...seen];
+}
+
 /** Partition a turn's provenance into the three receipt tiers (design §4.3): the model's CITED items, the
  *  retrieved-but-uncited machine evidence, and any verifier STRIPS (normally 0). CITED rows carry the
  *  OFFICIAL source name (joined from structured.sources by ref/source_key) + the durable 140-char snippet

@@ -8,7 +8,6 @@ import { useThread } from '@/store/thread';
 import { useUI } from '@/store/ui';
 import { noteToMarkdown } from '@/views/note/markdown';
 import { useUrlSync } from './useUrlSync';
-import { CommandPalette } from './CommandPalette';
 import { ErrorBoundary } from './ErrorBoundary';
 import { ShortcutSheet } from './ShortcutSheet';
 import { ThreadSidebar } from './ThreadSidebar';
@@ -18,10 +17,9 @@ import Onboarding from '@/views/onboarding/Onboarding';
 import SettingsModal from '@/views/settings/SettingsModal';
 
 /** The terminal shell (design §3.1): the fixed top bar, the thread sidebar, the view container (answer =
- *  conversation column + composer), the command palette, and the full hotkey system. Owns the active turn. */
+ *  conversation column + composer), and the full hotkey system. Owns the active turn. */
 export function Shell() {
   const turn = useTurn();
-  const paletteOpen = useUI((s) => s.paletteOpen);
   const threadCollapsed = useUI((s) => s.threadCollapsed);
   const asofStep = useAsOf((s) => s.step);
   const [cmd, setCmd] = useState('');
@@ -30,12 +28,16 @@ export function Shell() {
   useUrlSync();
 
   const submit = (input: string) => {
+    // D-TW-5(c): ONE chokepoint for every submit path (command bar, ⌘↵, composer, suggestion chips).
+    // A submit mid-turn aborts the live stream and starts a different question — with no stop button
+    // (deliberate) and a disabled composer, the user never asked for that. The command bar is disabled
+    // while streaming too; this catches the keyboard route into the same function.
+    if (turn.status === 'streaming') return;
     setCmd('');
     const p = parseCommand(input);
     const ui = useUI.getState();
     const q = p.kind === 'numbers' ? `${p.contract} ${p.metric}` : p.question;
     setQuestion(q);
-    ui.setView('answer');
     // Thread the turn: session_id = the current thread id. The BACKEND registers the thread index +
     // auto-titles it on the first saved turn (5.6 W2) — no client-side putThread race anymore.
     const thread = useThread.getState();
@@ -55,19 +57,16 @@ export function Shell() {
   const ask = (q: string) => submit(q);
 
   useHotkeys({
-    onPalette: () => useUI.getState().setPalette(true),
     onSubmit: () => {
       const v = cmd.trim();
       if (v) submit(v);
     },
     onToggleThread: () => useUI.getState().toggleThread(),
     onEscape: () => {
-      useUI.getState().setPalette(false);
       useUI.getState().setReceipts(false);
       setHelpOpen(false);
     },
     onAsOfStep: (dir, large) => asofStep(dir, large),
-    onPanel: (n) => useUI.getState().focusPanel(n),
     onReceipts: () => useUI.getState().toggleReceipts(),
     onCopy: () => {
       if (turn.result) void navigator.clipboard?.writeText(noteToMarkdown(turn.result));
@@ -77,7 +76,7 @@ export function Shell() {
 
   return (
     <div className="flex h-screen flex-col bg-bg-0 text-text">
-      <TopBar cmd={cmd} setCmd={setCmd} onSubmit={submit} onPalette={() => useUI.getState().setPalette(true)} />
+      <TopBar cmd={cmd} setCmd={setCmd} onSubmit={submit} streaming={turn.status === 'streaming'} />
       <div className="flex flex-1 overflow-hidden">
         {threadCollapsed ? (
           // W1.6: collapsed → a slim expand rail, never NOTHING (the old branch rendered no affordance;
@@ -97,7 +96,6 @@ export function Shell() {
         {/* P9-E1a: watch chips prefill the top command bar through the SAME setCmd the bell uses. */}
         <Workspace turn={turn} question={question} onAsk={ask} onPrefill={setCmd} />
       </div>
-      <CommandPalette open={paletteOpen} onClose={() => useUI.getState().setPalette(false)} />
       {helpOpen && <ShortcutSheet onClose={() => setHelpOpen(false)} />}
       {/* Settings + onboarding (6.6) — always mounted, self-gated on open/profile state. Wrapped so a
           fault in either can never blank the terminal (S2.x lesson). */}

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { CitationChip } from './CitationChip';
-import type { ResolvedCite, ResolvedMap } from './citations';
+import type { CiteOpen, ResolvedCite, ResolvedMap } from './citations';
 import { InertCite } from './InertCite';
 
 /** Phase 6.1 — a tiny, streaming-safe formatter for the research note. Renders a SAFE markdown subset
@@ -91,7 +91,7 @@ export function parseInline(text: string, resolved: ResolvedMap, opts: InlineOpt
   return out;
 }
 
-function renderToks(toks: Tok[], onOpen: (r: string) => void, kp: string): ReactNode[] {
+function renderToks(toks: Tok[], onOpen: CiteOpen, kp: string): ReactNode[] {
   return toks.map((t, i) => {
     const key = `${kp}.${i}`;
     if (t.k === 'text') return <span key={key}>{t.v}</span>;
@@ -102,11 +102,13 @@ function renderToks(toks: Tok[], onOpen: (r: string) => void, kp: string): React
   });
 }
 
-/** Inline-only render (bold/italic/citations) — for the TL;DR, which is a single short paragraph. */
+/** Inline-only render (bold/italic/citations) — for the TL;DR, which is a single short paragraph.
+ *  D-TW-23: `onOpen` is nullable ON PURPOSE -- `null` renders chips visibly inert (see CitationChip) so a
+ *  caller can never hand the chips a silent stub. */
 export function renderInline(
   text: string,
   resolved: ResolvedMap,
-  onOpen: (r: string) => void,
+  onOpen: CiteOpen,
   opts: InlineOpts = {},
 ): ReactNode {
   return <>{renderToks(parseInline(text ?? '', resolved, opts), onOpen, 'i')}</>;
@@ -123,7 +125,7 @@ export function FormattedNote({
 }: {
   text: string;
   resolved: ResolvedMap;
-  onOpen: (r: string) => void;
+  onOpen: CiteOpen;
   /** F7: render `[n]` handles INERT (the pre-verifier streaming draft). Default false = verified chips. */
   inert?: boolean;
 }): ReactNode {

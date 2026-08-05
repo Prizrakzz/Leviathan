@@ -29,6 +29,12 @@ describe('Onboarding (6.6)', () => {
     expect(screen.queryByTestId('onboarding')).toBeNull();
   });
 
+  it('D-TW-13: a FAILED profile fetch fails open — the flow still shows', async () => {
+    getProfile.mockRejectedValue(new Error('502')); // the real-Chrome case: profile died, onboarding never came
+    wrap(<Onboarding />);
+    expect(await screen.findByTestId('onboarding')).toBeInTheDocument();
+  });
+
   it('shows for a fresh user and "Skip all" finishes with onboarded=true', async () => {
     getProfile.mockResolvedValue({ onboarded: false, facts: {} });
     wrap(<Onboarding />);

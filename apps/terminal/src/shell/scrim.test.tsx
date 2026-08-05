@@ -1,32 +1,24 @@
 import { render, screen } from '@testing-library/react';
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { OVERLAY_SCRIM } from '@/tokens/tokens';
-import { CommandPalette } from './CommandPalette';
 import { ShortcutSheet } from './ShortcutSheet';
 
-// cmdk observes its list element on mount; jsdom has no ResizeObserver (vitest.setup leaves it out
-// because app code guards on it) -- stub it per-file, the CascadeFlow test convention.
-beforeAll(() => {
-  vi.stubGlobal(
-    'ResizeObserver',
-    class {
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-    },
-  );
-});
-
 /** P9-E2: every full-screen overlay dims through the ONE shared scrim constant — the hand-rolled
- *  surfaces are asserted here; the Radix Dialog.Overlay sites are asserted in their own modal tests. */
+ *  surfaces are asserted here; the Radix Dialog.Overlay sites are asserted in their own modal tests.
+ *  (D-TW-14b: the command palette was the other hand-rolled surface; it and its cmdk-driven
+ *  ResizeObserver stub left with it.) */
 describe('overlay scrim consistency (P9-E2)', () => {
   it('the shortcut sheet backdrop carries OVERLAY_SCRIM', () => {
     render(<ShortcutSheet onClose={() => {}} />);
     expect(screen.getByTestId('shortcuts').className).toContain(OVERLAY_SCRIM);
   });
 
-  it('the command palette backdrop carries OVERLAY_SCRIM', () => {
-    render(<CommandPalette open onClose={() => {}} />);
-    expect(screen.getByTestId('palette').className).toContain(OVERLAY_SCRIM);
+  it('D-TW-14b/15: the sheet lists no binding the hotkey system dropped', () => {
+    render(<ShortcutSheet onClose={() => {}} />);
+    const sheet = screen.getByTestId('shortcuts');
+    expect(sheet.textContent).not.toContain('⌘K'); // the palette is gone
+    expect(sheet.textContent).not.toContain('1–4'); // focusedPanel is gone
+    expect(sheet.textContent).not.toContain('g a'); // the view leader was retired in 5.6
+    expect(sheet.textContent).toContain('⌘↵'); // the surviving bindings still render
   });
 });

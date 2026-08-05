@@ -1,10 +1,16 @@
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Mark } from '@/tokens/Mark';
 import { authEnabled, userManager } from '../auth/oidc';
 
 /** The landing gate (design §8) — one page, not a marketing site. Near-black canvas, the convex mark, one
- *  line, a one-sentence descriptor, and two actions. Token-driven, so it shares the terminal's skin. */
+ *  line, a one-sentence descriptor, and two actions. Token-driven, so it shares the terminal's skin.
+ *
+ *  D-TW-7: honors `?signin=1`. TerminalGate has always written that param when it bounces an
+ *  unauthenticated /app visit here (App.tsx:35) and NOTHING read it — so a user who followed a deep link
+ *  landed on the marketing copy with no hint of why, and no reason to press the button. */
 export function Landing() {
+  const [params] = useSearchParams();
+  const bounced = params.get('signin') === '1';
   return (
     <div className="flex h-screen flex-col items-center justify-center bg-bg-0 px-6 text-center text-text">
       <Mark size={48} className="text-amber" />
@@ -12,6 +18,11 @@ export function Landing() {
       <p className="mt-3 max-w-md font-sans text-14 text-text-dim">
         A point-in-time research terminal for fundamental convexity in agricultural commodities.
       </p>
+      {bounced && (
+        <p className="mt-4 font-mono text-12 text-amber" data-testid="signin-note">
+          please sign in to continue
+        </p>
+      )}
       <div className="mt-8 flex gap-3 font-mono text-13">
         <a
           href="mailto:access@leviathanconvexity.com"

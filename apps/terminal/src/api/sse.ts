@@ -1,4 +1,5 @@
 import { fetchWithAuth } from '../auth/oidc';
+import { httpErrorMessage } from './errors';
 import type { ContextAttachment, RespondResult, StageEvent } from './schema';
 import { MAX_ATTACH } from '@/store/chips';
 
@@ -8,27 +9,70 @@ export interface StreamHandlers {
   onError?: (err: { error: string }) => void;
 }
 
+/** No-bytes watchdog (D-TW-4). The backend emits `: keepalive` after every 10s of silence (server.py),
+ *  so 90s without a single BYTE is ~9 missed keepalives: the connection is DEAD, not slow -- an ALB idle
+ *  drop or an ECS task replaced mid-turn, with the reader politely waiting forever. The margin is
+ *  deliberately generous; this is a last-resort unstick, not a latency SLO. */
+export const SSE_IDLE_MS = 90_000;
+
 /**
  * Parse an SSE byte stream (design §7). Blocks are separated by a blank line; each has an `event:` and one
  * or more `data:` lines; a line starting with `:` is a keepalive comment (ignored — the backend sends
- * `: keepalive` across the 30–90s turn). Resolves on the terminal `result`/`error`, or when the stream ends.
+ * `: keepalive` across the 30-90s turn). Resolves on the terminal `result`/`error`.
+ *
+ * D-TW-4: a stream that ends (or stalls) WITHOUT a terminal event is a failure, and is now reported as one.
+ * Before this it resolved silently: useTurn stayed at status 'streaming' forever, the composer stayed
+ * disabled, the pipeline sat at "—", and only a reload recovered — which lost the question. The idle
+ * watchdog is what turns the second, quieter shape of that hang (bytes simply stop arriving) into the
+ * same honest error.
  */
-export async function parseSSE(stream: ReadableStream<Uint8Array>, h: StreamHandlers): Promise<void> {
+export async function parseSSE(
+  stream: ReadableStream<Uint8Array>,
+  h: StreamHandlers,
+  idleMs: number = SSE_IDLE_MS,
+): Promise<void> {
   const reader = stream.getReader();
   const dec = new TextDecoder();
   let buf = '';
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buf += dec.decode(value, { stream: true });
-    let idx: number;
-    while ((idx = buf.indexOf('\n\n')) >= 0) {
-      const block = buf.slice(0, idx);
-      buf = buf.slice(idx + 2);
-      if (dispatchBlock(block, h)) return; // terminal event
+  let stalled = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  // Re-armed on every chunk. On fire we CANCEL the reader, which resolves the pending read as `done` --
+  // so the stall exits through the same path as a real end-of-stream (no dangling read, no second code
+  // path to keep correct) and the socket is released instead of leaking for the tab's lifetime.
+  const arm = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      stalled = true;
+      void reader.cancel();
+    }, idleMs);
+  };
+  try {
+    arm();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      arm();
+      buf += dec.decode(value, { stream: true });
+      let idx: number;
+      while ((idx = buf.indexOf('\n\n')) >= 0) {
+        const block = buf.slice(0, idx);
+        buf = buf.slice(idx + 2);
+        if (dispatchBlock(block, h)) return; // terminal event -- the ONLY clean end of a turn
+      }
     }
+    // Flush the decoder: `stream: true` holds back a multi-byte character split across chunk boundaries,
+    // and the final chunk's tail is only released by a decode() with no argument.
+    buf += dec.decode();
+    // A stalled stream's leftover is a HALF block by definition -- dispatching it would invent an event.
+    if (!stalled && buf.trim() && dispatchBlock(buf, h)) return;
+  } finally {
+    clearTimeout(timer);
   }
-  if (buf.trim()) dispatchBlock(buf, h);
+  h.onError?.({
+    error: stalled
+      ? `stream stalled — nothing received for ${Math.round(idleMs / 1000)}s, retry`
+      : 'stream ended without a result — retry',
+  });
 }
 
 function dispatchBlock(block: string, h: StreamHandlers): boolean {
@@ -80,7 +124,9 @@ export async function openRespondStream(
     signal,
   });
   if (!res.ok || !res.body) {
-    h.onError?.({ error: `HTTP ${res.status}` });
+    // D-TW-6: the server's own sentence (FastAPI `detail`) — the 50-turn daily cap is the one users hit,
+    // and it used to render as `error: HTTP 429`. No route context appended: this string goes ON SCREEN.
+    h.onError?.({ error: res.ok ? 'stream did not open — retry' : await httpErrorMessage(res) });
     return;
   }
   await parseSSE(res.body, h);

@@ -24,6 +24,17 @@ describe('Composer', () => {
     expect(document.activeElement).toBe(ta);
   });
 
+  it('D-TW-5a: a MODIFIED Enter is left to the global hotkey — one keystroke, one turn', () => {
+    const onSubmit = vi.fn();
+    render(<Composer onSubmit={onSubmit} streaming={false} />);
+    const ta = screen.getByTestId('composer') as HTMLTextAreaElement;
+    fireEvent.change(ta, { target: { value: 'why is wheat tight?' } });
+    fireEvent.keyDown(ta, { key: 'Enter', metaKey: true });
+    fireEvent.keyDown(ta, { key: 'Enter', ctrlKey: true });
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(ta.value).toBe('why is wheat tight?'); // and nothing was cleared out from under the user
+  });
+
   it('ignores empty submissions', () => {
     const onSubmit = vi.fn();
     render(<Composer onSubmit={onSubmit} streaming={false} />);

@@ -10,13 +10,14 @@ const STEPS = 3;
 
 /**
  * First-run onboarding (6.6): three skippable questions that seed the user's `facts` (which personalize the
- * query suggester). Shows when the profile is loaded and NOT onboarded, or when "Redo onboarding" forces it.
+ * query suggester). Shows when the profile is loaded and NOT onboarded, when the profile read FAILED (D-TW-13
+ * fails open -- an unknown onboarding state is not a "yes"), or when "Redo onboarding" forces it.
  * Never blocks — every step is optional, Esc / overlay-click / "Skip all" all finish with whatever's captured
  * and set `onboarded=true`. Mounted inside the (authed) shell behind an ErrorBoundary, so a render fault here
  * can never blank the terminal.
  */
 export default function Onboarding() {
-  const { data: profile } = useProfile();
+  const { data: profile, isError: profileFailed } = useProfile();
   const update = useUpdateProfile();
   const forceOnboarding = useSettings((s) => s.forceOnboarding);
   const setForceOnboarding = useSettings((s) => s.setForceOnboarding);
@@ -30,7 +31,15 @@ export default function Onboarding() {
   // `finished` is a local dismissal flag: once the user finishes/skips, the modal closes REGARDLESS of whether
   // the PUT succeeds, so a failing write (500 / expired token) can never trap a first-run user (never-block
   // contract). A "Redo onboarding" request re-arms it.
-  const show = !!profile && !finished && (!profile.onboarded || forceOnboarding);
+  //
+  // D-TW-13: a failed GET /v1/profile FAILS OPEN. `!!profile` alone made a dead read indistinguishable from
+  // "already onboarded" -- observed in real Chrome, where the profile fetch failed silently and the user was
+  // never offered onboarding at all, with nothing on screen to say why. The asymmetry decides it: showing
+  // the flow to someone who did not need it costs one Esc (every step is optional and it writes only
+  // preferences), while hiding it costs a first-run user the whole thing, permanently and invisibly. A
+  // profile that LOADS with onboarded=true still suppresses it -- that gate is untouched.
+  const show =
+    !finished && (profileFailed || (!!profile && (!profile.onboarded || forceOnboarding)));
   useEffect(() => {
     if (forceOnboarding) setFinished(false);
   }, [forceOnboarding]);

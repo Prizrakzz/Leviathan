@@ -507,8 +507,28 @@ let _mockProfile: Schemas['Profile'] = {
   last_seen: '2026-07-04T18:30:00Z',
 };
 
+/**
+ * D-TW-19 e2e seed: with `localStorage['lv-mock-onboarded'] = '1'` set BEFORE the app boots (Playwright's
+ * addInitScript), the mock profile reports itself already onboarded.
+ *
+ * WHY state and not a click: onboarding is a Radix MODAL dialog -- scrim, focus trap, aria-hidden on
+ * everything behind it -- and it mounts ~120ms after load, when this fetch resolves. That is precisely late
+ * enough to race a "click Skip all first" step, and while it is up the command bar is unreachable, so every
+ * assertion in the gate would flake on it. Seeding the state the modal gates on removes the race entirely.
+ * Mock-only (nothing imports this without VITE_MOCK=1). Read PER CALL, not at module init, so a seeded
+ * session can still exercise the flow through "Redo onboarding" (which goes via forceOnboarding).
+ */
+function seededOnboarded(): boolean {
+  try {
+    return typeof localStorage !== 'undefined' && localStorage.getItem('lv-mock-onboarded') === '1';
+  } catch {
+    return false; // storage can throw (blocked cookies / partitioned contexts) -- never break the mock over it
+  }
+}
+
 export function mockGetProfile(): Promise<Schemas['Profile']> {
-  return new Promise((resolve) => setTimeout(() => resolve({ ..._mockProfile }), 120));
+  const p = { ..._mockProfile, onboarded: _mockProfile.onboarded || seededOnboarded() };
+  return new Promise((resolve) => setTimeout(() => resolve(p), 120));
 }
 
 export function mockPutProfile(update: Schemas['ProfileUpdate']): Promise<Schemas['Profile']> {

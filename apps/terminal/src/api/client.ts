@@ -1,4 +1,5 @@
 import { fetchWithAuth } from '../auth/oidc';
+import { httpError } from './errors';
 import { MOCK_SERIES, mockGraph, mockRespondStream } from './mock';
 import type { ContextAttachment, NotificationItem, PdfPage } from './schema';
 import { openRespondStream, type StreamHandlers } from './sse';
@@ -19,10 +20,12 @@ export function respondStream(
 }
 
 // All four helpers below route through fetchWithAuth (oidc.ts) so the bearer header AND the shared
-// 401-retry-after-forced-refresh (D-W6.2) live in ONE place — never re-implemented per verb.
+// 401-retry-after-forced-refresh (D-W6.2) live in ONE place — never re-implemented per verb. They also
+// share ONE failure shape (httpError, D-TW-6) so the server's own `detail` sentence reaches the caller
+// instead of a bare status code.
 async function getJSON<T>(path: string): Promise<T> {
   const res = await fetchWithAuth(`${BASE}${path}`);
-  if (!res.ok) throw new Error(`HTTP ${res.status} on ${path}`);
+  if (!res.ok) throw await httpError(res, path);
   return (await res.json()) as T;
 }
 
@@ -32,7 +35,7 @@ async function postJSON<T>(path: string, body: unknown): Promise<T> {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status} on ${path}`);
+  if (!res.ok) throw await httpError(res, path);
   return (await res.json()) as T;
 }
 
@@ -42,7 +45,7 @@ async function putJSON<T>(path: string, body: unknown): Promise<T> {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status} on ${path}`);
+  if (!res.ok) throw await httpError(res, path);
   return (await res.json()) as T;
 }
 
@@ -53,14 +56,19 @@ export function getGraph(contract: string, asof?: string): Promise<Schemas['Grap
   return getJSON(`/v1/graph/${encodeURIComponent(contract)}${q(asof)}`);
 }
 
+/** The vintage-aware series behind a NUMBERS row's sparkline. `country` is NOT optional decoration: the
+ *  number call that produced the row may have been country-scoped (silver_psd, exports, weather), and
+ *  GET /v1/series takes the same filter -- omitting it returned a DIFFERENT, unscoped series under the same
+ *  `[N#]` label (D-TW-9). It is part of the query identity for the cache too; see Numbers.tsx's key. */
 export function getSeries(
   table: string,
   metric: string,
-  opts: { commodity?: string; asof?: string } = {},
+  opts: { commodity?: string; country?: string; asof?: string } = {},
 ): Promise<Schemas['Series']> {
   if (MOCK) return Promise.resolve(MOCK_SERIES);
   const p = new URLSearchParams();
   if (opts.commodity) p.set('commodity', opts.commodity);
+  if (opts.country) p.set('country', opts.country);
   if (opts.asof) p.set('asof', opts.asof);
   const qs = p.toString();
   return getJSON(
@@ -164,5 +172,5 @@ export async function deleteThread(id: string): Promise<void> {
   if (MOCK) return;
   const path = `/v1/threads/${encodeURIComponent(id)}`;
   const res = await fetchWithAuth(`${BASE}${path}`, { method: 'DELETE' });
-  if (!res.ok) throw new Error(`HTTP ${res.status} on DELETE ${path}`);
+  if (!res.ok) throw await httpError(res, `DELETE ${path}`);
 }

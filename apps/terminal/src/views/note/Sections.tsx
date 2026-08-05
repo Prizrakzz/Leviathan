@@ -1,5 +1,5 @@
 import type { Section } from '@/api/schema';
-import type { ResolvedMap } from './citations';
+import type { CiteOpen, ResolvedMap } from './citations';
 import { FormattedNote, renderInline } from './inlineFormat';
 
 /** P9-C per-kind note body — renders `structured.sections`, the backend-DERIVED view of `mechanism`
@@ -19,7 +19,7 @@ function Heading({
   text: string;
   tone?: 'amber';
   resolved: ResolvedMap;
-  onOpen: (r: string) => void;
+  onOpen: CiteOpen;
 }) {
   if (!text) return null; // pre-prose section (empty heading): body only
   return (
@@ -36,7 +36,10 @@ export function Sections({
 }: {
   sections: Section[];
   resolved: ResolvedMap;
-  onOpen: (r: string) => void;
+  /** D-TW-23: NULL = no receipts drawer behind this render (durable turn) -> chips render visibly inert.
+   *  This is the path the live turn's answer takes once it settles into `past`, so it must carry the REAL
+   *  handler there: a Sections-rendered chip is the exact surface that shipped dead. */
+  onOpen: CiteOpen;
 }) {
   return (
     <div className="space-y-2" data-testid="sections">

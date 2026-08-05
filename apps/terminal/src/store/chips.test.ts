@@ -36,10 +36,10 @@ describe('context chips slice (P2 — ephemeral, capped, thread-scoped)', () => 
     expect(useUI.getState().attachedChips).toHaveLength(0);
   });
 
-  it('chips are NOT persisted (absent from the lv-ui blob; v4 untouched)', () => {
+  it('chips are NOT persisted (absent from the lv-ui blob; v5 untouched)', () => {
     useUI.getState().addChip(node('drought'));
     const blob = JSON.parse(localStorage.getItem('lv-ui') ?? '{}');
-    expect(blob.version).toBe(4);
+    expect(blob.version).toBe(5); // D-TW-15 bumped it to drop the dead `view` key
     expect('attachedChips' in (blob.state ?? {})).toBe(false);
   });
 });

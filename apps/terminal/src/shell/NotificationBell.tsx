@@ -82,7 +82,7 @@ function BellPopover({ setCmd }: Props) {
     return () => document.removeEventListener('mousedown', onDown);
   }, [open]);
 
-  const onRow = (n: NotificationItem) => {
+  const onRow = async (n: NotificationItem) => {
     // PIT guard: a future-dated event can't be attached at the current knowledge horizon — nudge the as-of
     // forward instead of silently attaching something the model can't yet see. DO NOT attach/prefill/mark.
     if (asof && n.date && n.date > asof) {
@@ -101,10 +101,21 @@ function BellPopover({ setCmd }: Props) {
       label: n.label,
     });
     setCmd(n.query); // PREFILL the composer — never submit
-    void markNotificationSeen(n.notif_id);
-    void qc.invalidateQueries({ queryKey: ['notifications'] }); // drop it from the unseen badge
     setPitBlocked(null);
-    setOpen(false);
+    setOpen(false); // close FIRST: the visible response to the click must not wait on the network
+
+    // D-TW-11: AWAIT the write, THEN invalidate. Fire-and-forget raced the refetch it triggered -- the
+    // refetch usually won, re-read the row as still-unseen, and the badge kept its count until the next
+    // 5-minute poll. Never silent either: a rejected mark-seen is exactly how a badge sticks with nothing
+    // on screen to explain it (D-TW-6 breadcrumb).
+    try {
+      await markNotificationSeen(n.notif_id);
+    } catch (e: unknown) {
+      console.error('[notifications] mark-seen failed:', e);
+    }
+    // Invalidate on BOTH paths: on success it drops the item from the unseen badge, and on failure it
+    // reconciles against what the server actually recorded (a lost response is not a lost write).
+    void qc.invalidateQueries({ queryKey: ['notifications'] });
   };
 
   return (
@@ -135,7 +146,7 @@ function BellPopover({ setCmd }: Props) {
             sorted.map((n) => (
               <button
                 key={n.notif_id}
-                onClick={() => onRow(n)}
+                onClick={() => void onRow(n)}
                 className="mt-1 w-full rounded-chip border border-line px-2 py-1.5 text-left hover:border-cyan"
               >
                 <div className="flex items-center gap-2">

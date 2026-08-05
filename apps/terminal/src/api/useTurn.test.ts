@@ -4,13 +4,18 @@ import type { RespondResult, StageEvent } from './schema';
 import type { StreamHandlers } from './sse';
 import { useTurn } from './useTurn';
 
-// The hook is driven by hand: `respondStream` captures the handlers and never resolves, so each test
-// pushes the exact SSE sequence it wants to assert about (ordering included).
-const hoisted = vi.hoisted(() => ({ h: null as StreamHandlers | null }));
+// The hook is driven by hand: `respondStream` captures the handlers and never resolves on its own, so
+// each test pushes the exact SSE sequence it wants to assert about (ordering included). Each call's
+// `reject` is kept in order too, so the abort tests can fail turn A's stream AFTER turn B has started —
+// the real sequence, since an abort rejects asynchronously.
+const hoisted = vi.hoisted(() => ({
+  h: null as StreamHandlers | null,
+  rejects: [] as ((e: unknown) => void)[],
+}));
 vi.mock('./client', () => ({
   respondStream: (_p: unknown, h: StreamHandlers) => {
     hoisted.h = h;
-    return new Promise<void>(() => {});
+    return new Promise<void>((_resolve, reject) => hoisted.rejects.push(reject));
   },
 }));
 
@@ -44,6 +49,7 @@ const EVIDENCE: StageEvent = { stage: 'evidence', node: 'export_pace', kept: 12 
 describe('useTurn — F7 structured accumulation', () => {
   beforeEach(() => {
     hoisted.h = null;
+    hoisted.rejects = [];
   });
 
   it('accumulates each content kind into structured state', () => {
@@ -156,5 +162,40 @@ describe('useTurn — F7 structured accumulation', () => {
     expect(s.strips).toBeNull();
     expect(s.stages).toEqual([]);
     expect(s.draft).toBe('');
+  });
+});
+
+describe('useTurn — the turn ends honestly (D-TW-4/5d/6)', () => {
+  beforeEach(() => {
+    hoisted.h = null;
+    hoisted.rejects = [];
+  });
+
+  it('a terminal onError ends the turn — this is the watchdog`s landing spot (D-TW-4)', () => {
+    const t = turn();
+    act(() => hoisted.h?.onError?.({ error: 'stream ended without a result — retry' }));
+    expect(t.state().status).toBe('error');
+    expect(t.state().error).toBe('stream ended without a result — retry');
+  });
+
+  it('D-TW-5d: turn A`s abort rejection can NEVER poison turn B', async () => {
+    const t = turn(); // turn A
+    act(() => t.state().start('and soybeans?')); // turn B -- aborts A's controller
+    expect(t.state().status).toBe('streaming');
+    // A's stream rejects only now, long after B installed its own state.
+    await act(async () => {
+      hoisted.rejects[0]!(new DOMException('The user aborted a request.', 'AbortError'));
+    });
+    expect(t.state().status).toBe('streaming'); // B is still streaming, not 'error'
+    expect(t.state().error).toBeUndefined();
+  });
+
+  it('the CURRENT turn`s rejection still lands, carrying the message alone (D-TW-6)', async () => {
+    const t = turn();
+    await act(async () => {
+      hoisted.rejects[0]!(new Error('daily limit of 50 turns reached — try again tomorrow'));
+    });
+    expect(t.state().status).toBe('error');
+    expect(t.state().error).toBe('daily limit of 50 turns reached — try again tomorrow'); // no "Error: " prefix
   });
 });

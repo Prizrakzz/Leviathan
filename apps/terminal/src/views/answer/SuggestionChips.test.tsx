@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { SuggestionChips } from './SuggestionChips';
+import { SuggestionChips, watchChipLabel, watchChipText } from './SuggestionChips';
 
 describe('SuggestionChips (6.2)', () => {
   it('renders chips and click fires onAsk with the question', () => {
@@ -58,5 +58,73 @@ describe('SuggestionChips (6.2)', () => {
     expect(suggesters).toHaveLength(3);
     // watch chips stay their own visually-distinct class, unclamped by the suggester clamp
     expect(row.querySelectorAll('[data-testid="watch-chip"]')).toHaveLength(2);
+  });
+});
+
+/** D-TW-24 -- MEASURED in authed prod: watch-suggestion chips rendered raw markdown. The label literally
+ *  read `**BRL/USD trajectory**: a further weakening real strengthens the …` — unrendered bold markers plus
+ *  the wholesale bullet sentence, because SuggestionChips renders `{q}` as a plain text child (nothing here
+ *  goes through inlineFormat, which is what strips markers for note prose). Fixed at the label boundary. */
+describe('D-TW-24: watch-chip labels (render boundary -- server data untouched)', () => {
+  // The exact string measured on screen, including the 90-char clip deriveWatchChips already applied.
+  const MEASURED =
+    '**BRL/USD trajectory**: a further weakening real strengthens the incentive to sell…';
+
+  it('the measured label: bold markers gone, truncated to the watch-item TITLE', () => {
+    expect(watchChipLabel(MEASURED)).toBe('BRL/USD trajectory');
+  });
+
+  it('the rendered chip shows the title; the FULL (de-marked) sentence rides the tooltip', () => {
+    render(<SuggestionChips items={[]} onAsk={() => {}} watchItems={[MEASURED]} onPrefill={() => {}} />);
+    const chip = screen.getByTestId('watch-chip');
+    expect(chip.textContent).toBe('BRL/USD trajectory');
+    expect(chip.textContent).not.toContain('**'); // the literal defect
+    expect(chip.getAttribute('title')).toBe(
+      'BRL/USD trajectory: a further weakening real strengthens the incentive to sell…',
+    );
+  });
+
+  it('prefill carries the sentence WITHOUT markers -- the composer must never receive raw `**`', () => {
+    const onPrefill = vi.fn();
+    render(<SuggestionChips items={[]} onAsk={() => {}} watchItems={[MEASURED]} onPrefill={onPrefill} />);
+    fireEvent.click(screen.getByTestId('watch-chip'));
+    expect(onPrefill).toHaveBeenCalledWith(
+      'BRL/USD trajectory: a further weakening real strengthens the incentive to sell…',
+    );
+  });
+
+  it('an untitled bullet keeps its whole sentence -- only markers are stripped', () => {
+    const plain = 'Certified/tenderable *stocks* through the July frost window';
+    expect(watchChipLabel(plain)).toBe('Certified/tenderable stocks through the July frost window');
+  });
+
+  it('a mid-sentence colon does NOT truncate: the title rule needs the `**name**:` shape', () => {
+    const colon = 'Watch the crush margin: it is the transmission channel to soymeal';
+    expect(watchChipLabel(colon)).toBe(colon);
+  });
+
+  it('snake_case ids survive -- `_` is NOT treated as an emphasis marker', () => {
+    expect(watchChipText('Watch silver_psd su_ratio prints')).toBe('Watch silver_psd su_ratio prints');
+  });
+
+  it('a bullet clipped MID-bold degrades to stripped prose, never a mangled title', () => {
+    // deriveWatchChips caps at 90 chars, so a long item can lose its closing `**`.
+    expect(watchChipLabel('**An unusually long watch item name that ran past the cap')).toBe(
+      'An unusually long watch item name that ran past the cap',
+    );
+  });
+
+  it('two items sharing a title still render two chips (React keys stay on the RAW text)', () => {
+    render(
+      <SuggestionChips
+        items={[]}
+        onAsk={() => {}}
+        watchItems={['**Basis**: Paranagua premiums', '**Basis**: Gulf premiums']}
+        onPrefill={() => {}}
+      />,
+    );
+    const chips = screen.getAllByTestId('watch-chip');
+    expect(chips).toHaveLength(2);
+    expect(chips.map((c) => c.textContent)).toEqual(['Basis', 'Basis']);
   });
 });

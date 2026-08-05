@@ -1,0 +1,66 @@
+/* D-TW-18 font diet — the ONLY @font-face declarations in the app.
+ *
+ * WHY hand-authored instead of importing @fontsource's own CSS: the package ships one entrypoint per
+ * (subset, weight), and EVERY one of them lists two sources — `.woff2` first, `.woff` second. Vite emits
+ * every file a stylesheet references, so the `.woff` half lands in dist/ (and then in the never-pruned
+ * hashed-asset prefix on S3) despite being unreachable: woff2 has been universally supported for a decade,
+ * so the browser stops at the first source and the `.woff` is downloaded by nobody, ever. Importing
+ * `latin-400.css` fixes the SUBSET half of the waste (5 subsets -> 1) but not the FORMAT half; these five
+ * blocks fix both. Before: 54 font files / 609 KB of dist. After: 5 / 90 KB.
+ *
+ * The declarations are copied from @fontsource 5.2's own latin blocks (family/style/display/weight and the
+ * latin unicode-range), minus the legacy source. `url()` resolves through Vite's asset pipeline, so each
+ * file is emitted content-hashed exactly as the package's own CSS would have emitted it — and a rename in
+ * a future @fontsource breaks the BUILD (loud) rather than the fonts (silent).
+ *
+ * Adding a weight = add a block here AND make sure tailwind.config.ts actually maps a utility to it. */
+
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url('@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-400-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308,
+    U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url('@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-500-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308,
+    U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url('@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-600-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308,
+    U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url('@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-400-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308,
+    U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url('@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-600-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308,
+    U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}

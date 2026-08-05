@@ -4,17 +4,20 @@ import { CommandBar } from './CommandBar';
 import { NotificationBell } from './NotificationBell';
 import { UserMenu } from './UserMenu';
 
-/** The fixed top bar (design §3.1): mark · command bar · as-of time machine · ⌘K · user menu. */
+/** The fixed top bar (design §3.1): mark · command bar · as-of time machine · notifications · user menu.
+ *  D-TW-14b: the ⌘K button is gone with the palette it opened — the palette had zero commands, and a
+ *  flagship-looking dead control is worse than absence. Phase 3 rebuilds it (affordance included). */
 export function TopBar({
   cmd,
   setCmd,
   onSubmit,
-  onPalette,
+  streaming,
 }: {
   cmd: string;
   setCmd: (v: string) => void;
   onSubmit: (v: string) => void;
-  onPalette: () => void;
+  /** D-TW-5(c): a streaming turn locks the command bar, exactly as it locks the composer. */
+  streaming: boolean;
 }) {
   return (
     <header className="flex items-center gap-4 border-b border-line bg-bg-0 px-4 py-2">
@@ -23,16 +26,9 @@ export function TopBar({
         <span className="font-mono text-13 font-semibold tracking-wide text-text">LEVIATHAN</span>
       </div>
       <div className="flex-1">
-        <CommandBar value={cmd} onChange={setCmd} onSubmit={onSubmit} />
+        <CommandBar value={cmd} onChange={setCmd} onSubmit={onSubmit} disabled={streaming} />
       </div>
       <AsOfMachine />
-      <button
-        aria-label="open command palette"
-        className="rounded-chip border border-line px-1.5 py-0.5 font-mono text-11 text-text-faint hover:border-cyan hover:text-cyan"
-        onClick={onPalette}
-      >
-        ⌘K
-      </button>
       <NotificationBell setCmd={setCmd} />
       <UserMenu />
     </header>

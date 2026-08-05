@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 import type { RespondResult } from '@/api/schema';
 import { useUI } from '@/store/ui';
 import { OVERLAY_SCRIM } from '@/tokens/tokens';
-import { partitionReceipts, type ReceiptRow } from './partition';
+import { citedDrivers, partitionReceipts, type ReceiptRow } from './partition';
 
 function Row({ r, highlight, rowRef }: { r: ReceiptRow; highlight?: boolean; rowRef?: (el: HTMLDivElement | null) => void }) {
   const isNum = r.kind === 'number';
@@ -40,8 +40,9 @@ function Row({ r, highlight, rowRef }: { r: ReceiptRow; highlight?: boolean; row
 }
 
 /** The receipts drawer (design §4.3): the trust layer made explicit — cited first, then retrieved-but-
- *  uncited, then verifier strips (normally 0). Opened by `e` or a citation/node click; a click on `[n]`
- *  PINS it (6.4) — the cited list filters to that source's document, the row is ringed + scrolled to. */
+ *  uncited, then verifier strips (normally 0). Opened by `e` or a citation click; a click on `[n]` PINS it
+ *  (6.4) — the cited list filters to that source's document, the row is ringed + scrolled to. D-TW-16 adds
+ *  the outbound leg: a driver chip re-centres the causal map on the driver that fired. */
 export function ReceiptsDrawer({
   result,
   open,
@@ -56,7 +57,45 @@ export function ReceiptsDrawer({
   onClearPin?: () => void;
 }) {
   const r = partitionReceipts(result);
-  const pinnedKey = pinnedRef ? r.cited.find((row) => row.ref === pinnedRef)?.sourceKey : undefined;
+  // D-TW-16: the drawer is where a reader asks "what is this answer standing on" — so it is also where
+  // "show me that driver on the map" belongs. Each chip opens the graph tab FOCUSED on one fired driver.
+  // The tab key is `graph:<contract>:<asof>`, IDENTICAL to the answer's "open causal graph" chip, so this
+  // never opens a second tab: openTab focuses the existing one and refreshes its params — i.e. re-centres
+  // the map already on screen. Gated on a contract because GraphTab cannot render without one.
+  const graphContract = result.contract ?? result.contracts?.[0] ?? null;
+  const drivers = citedDrivers(result);
+  const openDriver = (driver: string) => {
+    if (!graphContract) return; // unreachable (the chips are gated on it) — this is the type narrowing
+    useUI.getState().openTab({
+      kind: 'graph',
+      title: graphContract.replace(/_/g, ' '),
+      params: {
+        contract: graphContract,
+        asof: r.asof,
+        focus: driver,
+        firedRegimes: (result.trace?.fired_regimes ?? []) as { matched?: string[] }[],
+        drivers,
+      },
+    });
+    // Close on the way out. The drawer is a MODAL dialog with a full-viewport scrim: leaving it open would
+    // put the map the user just asked to see behind a dimmed, inert layer — a live affordance that looks
+    // like a dead one, which is the exact class this wave is deleting.
+    onClose();
+  };
+  // D-TW-23: resolve the clicked chip's handle to a receipt row across BOTH ref conventions on the wire.
+  // A prose chip fires its TYPED display handle ('E5', 'N1', or a legacy bare '5'); a row's ref is
+  // `citation.ref ?? citation.id`, and the serving Citation model (citations.py) carries only `id` -- the
+  // typed form -- while `structured.sources` numbers its refs as bare integers. So: exact id first, then,
+  // for an EVIDENCE handle only, the bare ledger digit. Never the reverse -- digit-matching a number handle
+  // would let [N1] pin evidence row [1] (the same E4/N4 collision citations.ts keeps two maps to avoid).
+  const digits = (s?: string) => (s ?? '').replace(/^[A-Za-z]+/, '');
+  const rowFor = (ref: string) =>
+    r.cited.find((x) => x.ref === ref) ??
+    (/^N/i.test(ref)
+      ? undefined
+      : r.cited.find((x) => x.kind !== 'number' && !!x.ref && digits(x.ref) === digits(ref)));
+  const pinnedRow = pinnedRef ? rowFor(pinnedRef) : undefined;
+  const pinnedKey = pinnedRow?.sourceKey;
   const cited = pinnedKey ? r.cited.filter((row) => row.sourceKey === pinnedKey) : r.cited;
   const pinRow = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -90,14 +129,34 @@ export function ReceiptsDrawer({
               </button>
             )}
           </div>
+          {graphContract && drivers.length > 0 && (
+            <div
+              className="flex flex-wrap items-center gap-1 border-b border-line px-3 pb-2 font-mono text-11"
+              data-testid="receipts-drivers"
+            >
+              <span className="uppercase tracking-wider text-text-faint">drivers</span>
+              {drivers.map((d) => (
+                <button
+                  key={d}
+                  onClick={() => openDriver(d)}
+                  title={`centre the causal map on ${d.replace(/_/g, ' ')}`}
+                  className="rounded-chip border border-line px-1.5 text-text-dim hover:border-cyan hover:text-cyan"
+                >
+                  {d.replace(/_/g, ' ')} ↗
+                </button>
+              ))}
+            </div>
+          )}
           <ScrollArea.Root className="min-h-0 flex-1">
             <ScrollArea.Viewport className="h-full px-3 pb-4">
               {cited.map((row, i) => (
                 <Row
                   key={`c${i}`}
                   r={row}
-                  highlight={!!pinnedRef && row.ref === pinnedRef}
-                  rowRef={row.ref === pinnedRef ? (el) => (pinRow.current = el) : undefined}
+                  // Identity against the RESOLVED row (rows come from the same `r.cited` array), so the
+                  // highlight follows the same ref convention the pin filter just used.
+                  highlight={!!pinnedRow && row === pinnedRow}
+                  rowRef={row === pinnedRow ? (el) => (pinRow.current = el) : undefined}
                 />
               ))}
               {!pinnedKey && r.uncited.length > 0 && (

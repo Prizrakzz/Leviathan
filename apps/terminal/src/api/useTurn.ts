@@ -72,7 +72,17 @@ export function useTurn() {
         onError: (er) => setState((s) => ({ ...s, status: 'error', error: er.error })),
       },
       ac.signal,
-    ).catch((e: unknown) => setState((s) => ({ ...s, status: 'error', error: String(e) })));
+    ).catch((e: unknown) => {
+      // D-TW-5(d): this rejection may belong to a turn WE aborted when `start` ran again. An abort rejects the
+      // in-flight stream asynchronously — after `start` has already installed the successor's fresh
+      // state — so writing 'error' unconditionally marked the LIVE turn failed because its predecessor
+      // was cancelled (the ⌘↵ double-submit made that a routine event). Only the controller that is
+      // still the current one owns this state.
+      if (abortRef.current !== ac) return;
+      // `e.message` (not String(e)): with D-TW-6 that message IS the server's sentence, and the view
+      // renders it verbatim — "Error: " in front of it is noise.
+      setState((s) => ({ ...s, status: 'error', error: e instanceof Error ? e.message : String(e) }));
+    });
   }, []);
 
   return { ...state, start };

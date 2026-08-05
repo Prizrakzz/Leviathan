@@ -4,28 +4,21 @@ import { type ChipsSlice, createChipsSlice } from '@/store/chips';
 import { createTabsSlice, DEFAULT_PANEL_PX, type TabsSlice } from '@/store/tabs';
 import { type AccentName, applyAccent } from '@/tokens/tokens';
 
-export type ViewName = 'answer';
-
-/** Terminal UI state (design §7): active view, thread visibility, palette/receipts drawers.
- *  `view` + `accent` persist across reloads (localStorage `lv-ui`); URL params still win on a shared link via
- *  useUrlSync's mount read. Answer is the only view after the 5.6 view-prune (the Convergence heatmap +
- *  per-contract Deep-Dive were removed), so `view` is a single-member enum kept for the URL/hotkey plumbing.
- *  The accent (6.6 Appearance) is client-only + instant — setAccent re-applies the CSS vars synchronously so
- *  the swap has no round-trip. */
+/** Terminal UI state (design §7): thread visibility, the receipts drawer, the accent. `accent` +
+ *  `threadCollapsed` persist across reloads (localStorage `lv-ui`); the as-of still rides the URL via
+ *  useUrlSync. The accent (6.6 Appearance) is client-only + instant — setAccent re-applies the CSS vars
+ *  synchronously so the swap has no round-trip.
+ *  D-TW-15 removed `view`/`setView` (a single-member enum since the 5.6 view-prune: Answer is the only
+ *  view, so every write set it to the value it already held) and `focusedPanel`/`focusPanel` (written by
+ *  the 1-4 hotkeys, read by nothing). D-TW-14b removed `paletteOpen`/`setPalette` with the palette. */
 export interface UIState extends TabsSlice, ChipsSlice {
-  view: ViewName;
   accent: AccentName;
   threadCollapsed: boolean;
-  paletteOpen: boolean;
   receiptsOpen: boolean;
-  focusedPanel: number; // 1..4
-  setView: (v: ViewName) => void;
   setAccent: (a: AccentName) => void;
   toggleThread: () => void;
-  setPalette: (open: boolean) => void;
   setReceipts: (open: boolean) => void;
   toggleReceipts: () => void;
-  focusPanel: (n: number) => void;
 }
 
 export const useUI = create<UIState>()(
@@ -33,38 +26,32 @@ export const useUI = create<UIState>()(
     (set) => ({
       ...createTabsSlice(set), // P1.5 workspace tabs + panelPx (persisted via partialize below)
       ...createChipsSlice(set), // P2 context chips — EPHEMERAL (absent from partialize; thread-switch clears)
-      view: 'answer', // the only view after the 5.6 view-prune
       accent: 'cyan', // the design default; 'amber' = a monochrome amber terminal (6.6)
       threadCollapsed: false,
-      paletteOpen: false,
       receiptsOpen: false,
-      focusedPanel: 1,
-      setView: (v) => set({ view: v }),
       setAccent: (a) => {
         applyAccent(a); // instant, before the store notifies subscribers — no flash
         set({ accent: a });
       },
       toggleThread: () => set((s) => ({ threadCollapsed: !s.threadCollapsed })),
-      setPalette: (open) => set({ paletteOpen: open }),
       setReceipts: (open) => set({ receiptsOpen: open }),
       toggleReceipts: () => set((s) => ({ receiptsOpen: !s.receiptsOpen })),
-      focusPanel: (n) => set({ focusedPanel: n }),
     }),
     {
       name: 'lv-ui',
       // v2 (5.6 view-prune): a returning user's localStorage may hold view:'convergence'/'deep' or a stale
-      // `contract` — both removed. Coerce any persisted view to 'answer' and drop `contract` so the store
-      // never boots into a now-deleted view (which would render an empty <main>).
-      // v3 (P1 W1.6): threadCollapsed becomes persisted — a pre-v3 blob lacks it; backfill false.
-      // v4 (P1.5 workspace): tabs/activeTabId/panelPx become persisted (locator-only params — a rehydrated
-      // tab refetches by contract/sourceKey, never replays a url). THE bump is spent; next addition = v5.
-      version: 4,
+      // `contract` — both removed. v3 (P1 W1.6): threadCollapsed becomes persisted — a pre-v3 blob lacks
+      // it; backfill false. v4 (P1.5 workspace): tabs/activeTabId/panelPx become persisted (locator-only
+      // params — a rehydrated tab refetches by contract/sourceKey, never replays a url).
+      // v5 (D-TW-15 view-prune finished): `view` leaves the store shape entirely. persist SHALLOW-MERGES
+      // the stored blob into the live state, so a v1-v4 blob would otherwise graft a dead `view` key back
+      // onto the store on every boot — migrate drops it (and `contract`) instead.
+      version: 5,
       migrate: (s: unknown) => {
         const prev = (s ?? {}) as Record<string, unknown>;
-        const { contract: _contract, ...rest } = prev;
+        const { contract: _contract, view: _view, ...rest } = prev;
         return {
           ...rest,
-          view: 'answer' as ViewName,
           threadCollapsed: typeof rest.threadCollapsed === 'boolean' ? rest.threadCollapsed : false,
           tabs: Array.isArray(rest.tabs) ? rest.tabs : [],
           activeTabId: typeof rest.activeTabId === 'string' ? rest.activeTabId : null,
@@ -72,7 +59,6 @@ export const useUI = create<UIState>()(
         };
       },
       partialize: (s) => ({
-        view: s.view,
         accent: s.accent,
         threadCollapsed: s.threadCollapsed,
         tabs: s.tabs,

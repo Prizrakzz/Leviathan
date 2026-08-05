@@ -6,7 +6,7 @@ import { isAnomaly, parsePoints, sparkPath, vintageIndex, xOf } from './scale';
 
 interface NumCall {
   ref?: string;
-  query?: { table?: string; metric?: string; commodity?: string };
+  query?: { table?: string; metric?: string; commodity?: string; country?: string };
   rows?: { value?: unknown; z?: unknown }[];
   status?: string;
 }
@@ -15,10 +15,15 @@ function NumberRow({ call, asof }: { call: NumCall; asof: string }) {
   const [open, setOpen] = useState(false);
   const table = call.query?.table;
   const metric = call.query?.metric;
+  const country = call.query?.country;
   const notYet = call.status === 'not_yet_pub';
+  // D-TW-9: `country` rides in BOTH halves and must ride in both. In the request, because the row's value
+  // came from a country-scoped read and an unscoped series is a different series under the same [N#]. In
+  // the KEY, because two calls differing only by country (Brazil vs Argentina soybean exports -- the shape
+  // every trade question takes) otherwise share one cache entry and the second row draws the first's line.
   const q = useQuery({
-    queryKey: ['series', table, metric, call.query?.commodity, asof],
-    queryFn: () => getSeries(table!, metric!, { commodity: call.query?.commodity, asof }),
+    queryKey: ['series', table, metric, call.query?.commodity, country, asof],
+    queryFn: () => getSeries(table!, metric!, { commodity: call.query?.commodity, country, asof }),
     enabled: !!table && !!metric && !notYet && open,
     staleTime: 60_000,
   });
@@ -64,7 +69,27 @@ function NumberRow({ call, asof }: { call: NumCall; asof: string }) {
           </span>
         )}
       </button>
-      {open && q.data && <SeriesChart series={q.data} asof={asof} />}
+      {/* D-TW-9: the expansion is state-complete. It used to render the chart or NOTHING, so an in-flight
+          fetch and a dead one were the same thing on screen -- the row opened and nothing happened, with no
+          way to tell waiting from broken and no way to retry. The last branch covers the third silent case:
+          a fetch that SUCCEEDED with too few points, since SeriesChart draws nothing below two (the same
+          threshold that gates the row's own sparkline above). `isLoading` rather than `!q.data` so a call
+          the query is DISABLED for can never sit on "loading…" that will never arrive. */}
+      {open &&
+        (q.isError ? (
+          <div className="py-0.5 font-mono text-11 text-text-faint">
+            couldn't load this series —{' '}
+            <button onClick={() => void q.refetch()} className="text-cyan hover:text-amber">
+              retry
+            </button>
+          </div>
+        ) : q.isLoading ? (
+          <div className="py-0.5 font-mono text-11 text-text-faint">loading series…</div>
+        ) : !q.data || pts.length < 2 ? (
+          <div className="py-0.5 font-mono text-11 text-text-faint">no series to plot at this as-of</div>
+        ) : (
+          <SeriesChart series={q.data} asof={asof} />
+        ))}
     </div>
   );
 }

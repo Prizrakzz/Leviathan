@@ -2,12 +2,12 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { DEFAULT_PANEL_PX } from './tabs';
 import { useUI } from './ui';
 
-describe('ui store (persist migration — 5.6 view-prune)', () => {
+describe('ui store (persist migration — 5.6 view-prune, finished in D-TW-15)', () => {
   beforeEach(() => {
     localStorage.clear();
   });
 
-  it('coerces a v1 persisted view (deep/convergence) to answer and drops contract on boot', async () => {
+  it('drops a v1 persisted view (deep/convergence) and contract on boot', async () => {
     // A returning user whose localStorage still holds a now-deleted view + a stale contract.
     localStorage.setItem(
       'lv-ui',
@@ -18,18 +18,20 @@ describe('ui store (persist migration — 5.6 view-prune)', () => {
     await useUI.persist.rehydrate();
 
     const s = useUI.getState();
-    expect(s.view).toBe('answer'); // migrated away from the deleted 'deep' view
     expect(s.accent).toBe('amber'); // an unrelated persisted field survives the migration
-    expect('contract' in s).toBe(false); // the dead `contract` field is gone from the store shape
+    // Both dead fields are gone from the store SHAPE — persist shallow-merges, so a migrate that only
+    // coerced `view` would still graft the key back on for every pre-v5 user.
+    expect('view' in s).toBe(false);
+    expect('contract' in s).toBe(false);
   });
 
-  it('migrates a persisted convergence view to answer too', async () => {
+  it('drops a v4 persisted view too (the value was always the single-member `answer`)', async () => {
     localStorage.setItem(
       'lv-ui',
-      JSON.stringify({ state: { view: 'convergence', accent: 'cyan' }, version: 1 }),
+      JSON.stringify({ state: { view: 'answer', accent: 'cyan' }, version: 4 }),
     );
     await useUI.persist.rehydrate();
-    expect(useUI.getState().view).toBe('answer');
+    expect('view' in useUI.getState()).toBe(false);
   });
 
   it('v2→3: backfills threadCollapsed=false for a pre-v3 blob (W1.6)', async () => {
@@ -63,13 +65,13 @@ describe('ui store (persist migration — 5.6 view-prune)', () => {
     expect(s.threadCollapsed).toBe(true); // v3 backfill still intact through the v4 migrate
   });
 
-  it('v4: a persisted workspace (tabs + active + panel) survives reload (P1.5)', async () => {
+  it('v5: a persisted workspace (tabs + active + panel) survives reload (P1.5)', async () => {
     const tab = { id: 'graph:corn:', kind: 'graph', title: 'corn', params: { contract: 'corn' } };
     localStorage.setItem(
       'lv-ui',
       JSON.stringify({
-        state: { view: 'answer', accent: 'cyan', threadCollapsed: false, tabs: [tab], activeTabId: tab.id, panelPx: 480 },
-        version: 4,
+        state: { accent: 'cyan', threadCollapsed: false, tabs: [tab], activeTabId: tab.id, panelPx: 480 },
+        version: 5,
       }),
     );
     await useUI.persist.rehydrate();

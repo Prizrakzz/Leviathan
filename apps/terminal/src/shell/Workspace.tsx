@@ -29,7 +29,6 @@ export function Workspace({
   /** P9-E1a: threaded Shell -> AnswerView so watch chips can PREFILL the command bar (never submit). */
   onPrefill?: (q: string) => void;
 }) {
-  const view = useUI((s) => s.view);
   const tabs = useUI((s) => s.tabs);
   const activeTabId = useUI((s) => s.activeTabId);
   const containerRef = useRef<HTMLElement | null>(null);
@@ -43,7 +42,6 @@ export function Workspace({
       ref={containerRef}
       className="flex min-h-0 flex-1 flex-col overflow-hidden bg-bg-0"
       data-testid="view"
-      data-view={view}
     >
       {/* S2: the drag-dock is present in EVERY state so a zero-tab workspace is not a dead end. With tabs
           it's the strip + active document (usePanelDrag owns the chat height, enabled=hasTabs). With none,

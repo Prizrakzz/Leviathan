@@ -3,8 +3,14 @@
 #
 #   pwsh apps/terminal/scripts/deploy.ps1
 #   pwsh apps/terminal/scripts/deploy.ps1 -ApiBase https://api.leviathanconvexity.com
+#   pwsh apps/terminal/scripts/deploy.ps1 -SkipGate      # EMERGENCY ONLY - see the banner it prints
 #
 # VITE_API_BASE is inlined at BUILD time (Vite), so it must be set before `vite build`.
+#
+# D-TW-20: the local gate (typecheck + lint + unit + e2e) runs BEFORE the build. A red tree must never
+#          reach `vite build`, let alone S3.
+# D-TW-21: bucket / distribution / Cognito config is READ FROM TERRAFORM OUTPUTS when they are available;
+#          the parameter defaults below are the fallback, not the source of truth.
 param(
     [string]$ApiBase   = "https://api.leviathanconvexity.com",
     [string]$Bucket    = "leviathan-dev-terminal-spa",
@@ -14,13 +20,176 @@ param(
     # domain = the hosted-UI domain (5.6: enables full hosted-UI sign-out).
     [string]$CognitoAuthority = "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_H4Fv4Leik",
     [string]$CognitoClientId  = "2paur1lbb8c8fs2d15s2so5u50",
-    [string]$CognitoDomain    = "leviathan-terminal.auth.us-east-1.amazoncognito.com"
+    [string]$CognitoDomain    = "leviathan-terminal.auth.us-east-1.amazoncognito.com",
+    # Empty = resolve it (terraform output first, then the CloudFront alias lookup).
+    [string]$DistributionId = "",
+    # Empty = infra/terraform/envs/dev relative to this script.
+    [string]$TerraformDir = "",
+    # D-TW-20 emergency escape. Loudly logged; never the default path.
+    [switch]$SkipGate
 )
 $ErrorActionPreference = "Stop"
 
 # Resolve apps/terminal relative to this script.
-$AppDir = Split-Path -Parent (Split-Path -Parent $PSCommandPath)
+$AppDir   = Split-Path -Parent (Split-Path -Parent $PSCommandPath)
+$RepoRoot = Split-Path -Parent (Split-Path -Parent $AppDir)
+if ([string]::IsNullOrWhiteSpace($TerraformDir)) {
+    $TerraformDir = Join-Path $RepoRoot "infra\terraform\envs\dev"
+}
 Write-Host "[deploy] app dir: $AppDir"
+
+# ---------------------------------------------------------------------------------------------------
+# 0) D-TW-20 GATE. The e2e specs and the unit suite exist; nothing ran them, so they were red for weeks
+#    and every defect this wave fixed shipped past them. A gate that only runs in CI is advisory - this
+#    one is the hard stop, at the one moment that matters: before anything is built or uploaded.
+# ---------------------------------------------------------------------------------------------------
+if ($SkipGate) {
+    Write-Host ""
+    Write-Host "[deploy] *****************************************************************************"
+    Write-Host "[deploy] *** GATE SKIPPED (-SkipGate). This build is UNVERIFIED: no typecheck, no    ***"
+    Write-Host "[deploy] *** lint, no unit tests, no e2e. Emergency path only - the next deploy      ***"
+    Write-Host "[deploy] *** MUST run the gate, and whatever this ships is unproven until it does.   ***"
+    Write-Host "[deploy] *****************************************************************************"
+    Write-Host ""
+} else {
+    Push-Location $AppDir
+    try {
+        Write-Host "[deploy] gate 1/2: npm run ci (typecheck + lint + unit)"
+        npm run ci
+        if ($LASTEXITCODE -ne 0) { throw "GATE FAILED: npm run ci (typecheck / lint / unit) - REFUSING to build" }
+        # The e2e webServer starts its OWN mock dev server on :5173 - except that playwright REUSES a server
+        # already listening there. A hand-started `npm run dev` is not VITE_MOCK=1, so the specs would drive
+        # a real backend and fail; stop it and re-run rather than reading the failure as a product defect.
+        Write-Host "[deploy] gate 2/2: npx playwright test (mock-driven shell smoke)"
+        npx playwright test
+        if ($LASTEXITCODE -ne 0) {
+            throw "GATE FAILED: playwright e2e - REFUSING to build. (missing browser -> npx playwright install --with-deps chromium; a non-mock dev server already on :5173 is reused and will fail the specs)"
+        }
+    } finally {
+        Pop-Location
+    }
+    Write-Host "[deploy] gate PASS (typecheck + lint + unit + e2e)"
+}
+
+# ---------------------------------------------------------------------------------------------------
+# 0b) D-TW-21 CONFIG FROM TERRAFORM. Every hand-pinned constant above is a second source of truth, and
+#     its failure mode is not a broken deploy - it is a SUCCESSFUL deploy of the wrong config (a stale
+#     Cognito client id fails only at a user's sign-in, hours later). So read the outputs terraform
+#     already exposes, and fall back to the pins with a WARNING that names the risk.
+#
+#     Rules, in order:
+#       - terraform is READ ONLY here (`output`), never plan/apply. Any failure is non-fatal.
+#       - an EXPLICIT parameter always wins: -Bucket on the command line is an operator overriding this
+#         on purpose, and terraform must not silently undo it.
+#       - every resolved value must pass a shape check before it is used. A value that fails is treated
+#         as drift and DISCARDED - notably the bucket, which must end in `-terminal-spa`: the root
+#         `bucket_name` output is the DATA LAKE, and the `--delete` sync below aimed at it would prune it.
+# ---------------------------------------------------------------------------------------------------
+function Get-TfOutput {
+    param([string]$Dir, [string]$Name)
+    # Best-effort by contract: a missing output, an empty/locked state, or a terraform that errors all
+    # return "". $ErrorActionPreference is relaxed INSIDE the call because PS 5.1 turns a native command's
+    # redirected stderr into a terminating NativeCommandError under "Stop".
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $out = & terraform "-chdir=$Dir" output -raw $Name 2>$null
+        if ($LASTEXITCODE -ne 0) { return "" }
+        $val = ($out | Select-Object -First 1)
+        if ($null -eq $val) { return "" }
+        return ([string]$val).Trim()
+    } catch {
+        return ""
+    } finally {
+        $ErrorActionPreference = $prev
+    }
+}
+
+function Resolve-TfValue {
+    param(
+        [string]$Dir,
+        [string]$OutputName,
+        [string]$Pattern,      # shape guard: a value that fails it is drift, not truth
+        [string]$Fallback,     # the pinned constant
+        [string]$Label,
+        [switch]$StripScheme   # the cognito domain output is a URL; consumers want it bare
+    )
+    $shown = $Fallback
+    if ([string]::IsNullOrWhiteSpace($shown)) { $shown = "(none pinned)" }
+    $v = Get-TfOutput -Dir $Dir -Name $OutputName
+    if ($StripScheme -and $v) {
+        # module.cognito emits https://<prefix>.auth.<region>.amazoncognito.com, but VITE_COGNITO_DOMAIN is
+        # consumed BARE (UserMenu builds `https://${domain}/logout`) - leaving the scheme on would produce
+        # https://https://... and break sign-out only, silently, for signed-in users.
+        $v = ($v -replace '^https?://', '').TrimEnd('/')
+    }
+    if ([string]::IsNullOrWhiteSpace($v)) {
+        Write-Host "[deploy]   WARNING: terraform output '$OutputName' unreadable - keeping the pinned $Label ($shown). DRIFT RISK: if terraform moved this value, the deploy ships the OLD one."
+        return $Fallback
+    }
+    if ($v -notmatch $Pattern) {
+        Write-Host "[deploy]   WARNING: terraform '$OutputName' = '$v' fails its shape check ($Pattern) - DISCARDED, keeping $Label ($shown)."
+        return $Fallback
+    }
+    if ($v -ne $Fallback) {
+        Write-Host "[deploy]   $Label <- terraform: $v   [pinned default was $shown - DRIFT, terraform wins]"
+    } else {
+        Write-Host "[deploy]   $Label <- terraform: $v"
+    }
+    return $v
+}
+
+$tfWhy = ""
+if (-not (Get-Command terraform -ErrorAction SilentlyContinue)) {
+    $tfWhy = "terraform is not on PATH"
+} elseif (-not (Test-Path $TerraformDir)) {
+    $tfWhy = "no terraform env dir at $TerraformDir"
+} elseif (-not (Test-Path (Join-Path $TerraformDir "terraform.tfstate"))) {
+    # State is LOCAL-ONLY in this repo (the 2026-08-01 truncation incident), so no local file = nothing to read.
+    $tfWhy = "no local terraform.tfstate in $TerraformDir"
+}
+
+if ($tfWhy) {
+    Write-Host "[deploy] WARNING: config NOT read from terraform ($tfWhy). Using the hand-pinned defaults in this script's param block."
+    Write-Host "[deploy] WARNING: DRIFT RISK - if the SPA bucket, the distribution, or the Cognito pool/client/domain changed in terraform, this deploy ships stale config and the failure surfaces at a user's sign-in, not here."
+} else {
+    Write-Host "[deploy] reading config from terraform outputs ($TerraformDir)"
+    if (-not $PSBoundParameters.ContainsKey("Bucket")) {
+        $Bucket = Resolve-TfValue -Dir $TerraformDir -OutputName "terminal_spa_bucket_name" `
+            -Pattern '\-terminal\-spa$' -Fallback $Bucket -Label "bucket"
+    }
+    if (-not $PSBoundParameters.ContainsKey("DistributionId")) {
+        $DistributionId = Resolve-TfValue -Dir $TerraformDir -OutputName "terminal_spa_distribution_id" `
+            -Pattern '^[A-Z0-9]{8,20}$' -Fallback $DistributionId -Label "distribution id"
+    }
+    if (-not $PSBoundParameters.ContainsKey("CognitoClientId")) {
+        $CognitoClientId = Resolve-TfValue -Dir $TerraformDir -OutputName "cognito_app_client_id" `
+            -Pattern '^[a-z0-9]{16,64}$' -Fallback $CognitoClientId -Label "cognito client id"
+    }
+    if (-not $PSBoundParameters.ContainsKey("CognitoDomain")) {
+        $CognitoDomain = Resolve-TfValue -Dir $TerraformDir -OutputName "cognito_hosted_domain" -StripScheme `
+            -Pattern '^[A-Za-z0-9][A-Za-z0-9\.\-]*\.[A-Za-z]{2,}$' -Fallback $CognitoDomain -Label "cognito domain"
+    }
+    if (-not $PSBoundParameters.ContainsKey("CognitoAuthority")) {
+        # There is no `authority` output - it is the pool's OIDC issuer, DERIVED from the pool id. The
+        # region embedded in the pool id must match -Region, else the issuer we build would name a pool
+        # that does not exist in the region we are deploying to (an unsignable-in prod).
+        $pool = Get-TfOutput -Dir $TerraformDir -Name "cognito_user_pool_id"
+        if ($pool -match '^[a-z]{2}-[a-z]+-\d_[A-Za-z0-9]+$' -and $pool.Split("_")[0] -eq $Region) {
+            $authority = "https://cognito-idp.$Region.amazonaws.com/$pool"
+            if ($authority -ne $CognitoAuthority) {
+                Write-Host "[deploy]   cognito authority <- terraform: $authority   [pinned default was $CognitoAuthority - DRIFT, terraform wins]"
+            } else {
+                Write-Host "[deploy]   cognito authority <- terraform: $authority"
+            }
+            $CognitoAuthority = $authority
+        } elseif ($pool) {
+            Write-Host "[deploy]   WARNING: terraform 'cognito_user_pool_id' = '$pool' is not a $Region pool id - DISCARDED, keeping $CognitoAuthority."
+        } else {
+            Write-Host "[deploy]   WARNING: terraform output 'cognito_user_pool_id' unreadable - keeping the pinned authority ($CognitoAuthority). DRIFT RISK as above."
+        }
+    }
+}
 Write-Host "[deploy] API base: $ApiBase   bucket: $Bucket"
 
 # 1) Production build (real backend, no mock). VITE_* are inlined at build time.
@@ -85,9 +254,15 @@ Write-Host "[deploy] flipping shell (no-cache, --delete, excluding assets)"
     --cache-control "no-cache" --region $Region
 if ($LASTEXITCODE -ne 0) { throw "s3 sync (root) failed" }
 
-# 3) Invalidate the entrypoint on CloudFront (assets are immutable, so only the shell needs it).
-$DistId = (& aws cloudfront list-distributions --region $Region `
-    --query "DistributionList.Items[?contains(Aliases.Items, '$Alias')].Id | [0]" --output text)
+# 3) Invalidate the entrypoint on CloudFront (assets are immutable, so only the shell needs it). D-TW-21:
+#    the id comes from terraform (or -DistributionId); the alias scan is the fallback for when it does not.
+if (-not [string]::IsNullOrWhiteSpace($DistributionId)) {
+    $DistId = $DistributionId
+} else {
+    Write-Host "[deploy] no distribution id from terraform/param - falling back to the CloudFront alias scan"
+    $DistId = (& aws cloudfront list-distributions --region $Region `
+        --query "DistributionList.Items[?contains(Aliases.Items, '$Alias')].Id | [0]" --output text)
+}
 if ([string]::IsNullOrWhiteSpace($DistId) -or $DistId -eq "None") {
     throw "could not find CloudFront distribution for alias $Alias"
 }
