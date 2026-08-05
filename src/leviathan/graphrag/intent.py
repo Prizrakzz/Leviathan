@@ -149,7 +149,10 @@ _EPISODIC = re.compile(
     r"|\bhas\s+\w+(?:\s+\w+){0,3}\s+ever\b"
     r"|\bhistor(?:y|ically|ical)\b"
     r"|\bprecedents?\b"
-    r"|\bwalk\s+me\s+through\b"
+    # 'walk me through' alone is a MECHANISM idiom too ('walk me through how the crush works') --
+    # require the enumerable object (the playbook rows all carry one: 'the episodes', 'each episode',
+    # 'the individual episodes').
+    r"|\bwalk\s+me\s+through\s+(?:the|each|those|every)\b[^.?!]{0,40}?\b(?:episod|record|histor|time)"
     r"|\bplayed\s+out\b"                                    # past tense ONLY: 'how would that play out'
     r"|\bevery\s+time\b"                                    # is a counterfactual, not an enumeration
     r"|\bwatch\s+over\b",                                   # 'what should I watch over weeks, months...'
@@ -186,7 +189,10 @@ _RC_PATTERNS = (
         r"\b(?:largest|biggest|top \d+)\b.{0,60}\b(?:producer|exporter|importer|consumer|grower)s?\b"
         r"|\brank(?:s|ed|ing)?\b", re.I)),
     ("compare", re.compile(
-        r"\bcompare\b|\bversus\b|\bvs\.?\b|\bside by side\b|\bstack up\b"
+        # 'versus normal/average/history' is a BASELINE comparison (recency/mechanism shape), not a
+        # two-market compare -- the lookahead keeps those out.
+        r"\bcompare\b|\b(?:versus|vs\.?)\s+(?!normal\b|average\b|usual\b|histor|seasonal|last\b|typical\b)"
+        r"|\bside by side\b|\bstack up\b"
         r"|\bwhich is (?:tighter|cheaper|richer|stronger|weaker|more exposed)\b", re.I)),
     ("recency", re.compile(
         r"\bright now\b|\bpast \d+ (?:day|week|month)s?\b|\bcurrently\b|\bas of (?:today|now)\b"
