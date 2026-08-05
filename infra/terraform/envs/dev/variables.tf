@@ -274,7 +274,7 @@ variable "pink_sheet_image_digest" {
   # Empty = fall back to the mutable ':latest' (historical behaviour).
   type        = string
   description = "sha256 digest of the worker image the world_bank_pink_sheet_bronze jobdef runs. Empty = the mutable ':latest' tag."
-  default     = "sha256:e8aa7857a2e1b3b0258fa7258803a60d608a1209cf3b02042220da2094bf4b7f"
+  default     = "sha256:02e1fde47acd054512abfc33306d5a7d070ebe6c5e3c3f3a4cd9dfbd05545c53"
 
   validation {
     condition     = var.pink_sheet_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.pink_sheet_image_digest))
@@ -313,7 +313,7 @@ variable "worker_fleet_image_digest" {
   # deliberately, in its own change, after the auditor has run.
   type        = string
   description = "sha256 digest of the worker image the ten weather/ingest jobdef families run. Empty = fall back to ':latest' (which would REVERT all ten -- see the comment)."
-  default     = "sha256:e8aa7857a2e1b3b0258fa7258803a60d608a1209cf3b02042220da2094bf4b7f"
+  default     = "sha256:02e1fde47acd054512abfc33306d5a7d070ebe6c5e3c3f3a4cd9dfbd05545c53"
 
   validation {
     condition     = var.worker_fleet_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.worker_fleet_image_digest))
@@ -352,7 +352,7 @@ variable "silver_gate_image_digest" {
   # have an answer (incident I-1).
   type        = string
   description = "sha256 digest of the worker image the silver-gate jobdef runs. Empty = terraform does not manage the gate jobdef (no ':latest' fallback for the gate)."
-  default     = "sha256:e8aa7857a2e1b3b0258fa7258803a60d608a1209cf3b02042220da2094bf4b7f"
+  default     = "sha256:02e1fde47acd054512abfc33306d5a7d070ebe6c5e3c3f3a4cd9dfbd05545c53"
 
   validation {
     condition     = var.silver_gate_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.silver_gate_image_digest))
@@ -442,7 +442,7 @@ variable "timeline_rebuild_image_digest" {
   # of existence.
   type        = string
   description = "sha256 digest of the worker image the weekly timeline rebuild runs. Empty = the whole R7b unit is not created."
-  default     = "sha256:e8aa7857a2e1b3b0258fa7258803a60d608a1209cf3b02042220da2094bf4b7f"
+  default     = "sha256:02e1fde47acd054512abfc33306d5a7d070ebe6c5e3c3f3a4cd9dfbd05545c53"
 
   validation {
     condition     = var.timeline_rebuild_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.timeline_rebuild_image_digest))

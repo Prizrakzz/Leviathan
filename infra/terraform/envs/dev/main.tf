@@ -2128,15 +2128,21 @@ resource "aws_scheduler_schedule" "timeline_rebuild" {
 
   name = "${var.project_name}-${var.environment}-timeline-rebuild"
 
-  # CREATED DISABLED, and this one has TWO preconditions to enabling, not one:
-  #   (a) the smoke -- submit local.timeline_rebuild_command on this jobdef and the
-  #       ondemand queue, exit 0, and assert the artifact's stamp.fingerprint and
-  #       episode count against the pre-run values;
-  #   (b) the fingerprint-compare leg (R7.1) must EXIST, or arming this schedule
-  #       silently retires the ONE-rebuild-ONE-re-probe sequencing law.
-  # Enabling without (b) is not a smaller version of R7b; it is the failure R7.1
-  # describes.
-  state = "DISABLED"
+  # ENABLED 2026-08-05 -- both preconditions DISCHARGED, receipts:
+  #   (a) the smoke: job 00ca53b0 (exit 0, argv exactly the baked command) printed
+  #       TIMELINE_UNCHANGED_SKIP with old==new fingerprint sha256:0ea3a501..., and the
+  #       artifact was asserted byte-untouched against the pre-run capture (629,371 B /
+  #       125 episodes / built_at 2026-08-04T07:17:53Z). Re-smoked on the heartbeat
+  #       image (job timeline-weekly-smoke-2) after the calibration fix below.
+  #   (b) the fingerprint-compare leg (R7.1) EXISTS and ran: the skip token IS its
+  #       output; the argv is pinned in local.timeline_rebuild_command.
+  # PLUS the calibration the first smoke exposed: a healthy skip does not move the
+  # artifact's LastModified, so the R7c alarm would have false-fired on ~10 quiet days.
+  # timeline.write_heartbeat now touches timeline/last_run.json inside the polled
+  # prefix on EVERY successful run -- freshness measures schedule liveness ('one
+  # missed run breaches'), never content churn.
+  # Rollback = state back to "DISABLED" (no redeploy).
+  state = "ENABLED"
 
   flexible_time_window {
     mode = "OFF"
