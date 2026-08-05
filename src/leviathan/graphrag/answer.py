@@ -1909,6 +1909,135 @@ _SCAFFOLD_QUOTE_RX = re.compile(
     r'["\u201C\u201D\u00AB\u00BB\u201E\u201A\u300C-\u300F]'   # never an apostrophe -> a delimiter
     r"|(?<!\w)['\u2018\u2019]|['\u2018\u2019](?!\w)")         # single family: UNFLANKED == delimiter
 
+# \u2500\u2500 THE UNSPACED-DELIMITER CORNER, CLOSED (round-3 LOW, 2026-08-05) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+# `_SCAFFOLD_QUOTE_RX` alone reads a single-quote glyph flanked by word characters on BOTH sides as an
+# apostrophe. That is right for `don't` and wrong for an UNSPACED delimiter: in `said'we are outright
+# bullish'after` both glyphs are word-flanked, so both survived as text and `reg.sanitize` then rewrote
+# `bullish` -> `price-supportive` BETWEEN them -- defect (a), the misquote, at rung 1. MEASURED UNREACHABLE
+# on the current corpus (no receipt carries the shape); closed anyway, because "no source writes that today"
+# is a property of the corpus and not of the engine.
+#
+# THE RULE, IN THREE PARTS, AND EACH PART IS A DIFFERENT KIND OF CERTAINTY:
+#
+#   1. A PROVABLE APOSTROPHE IS NEVER TOUCHED, and it is provable in two shapes, both CLOSED GRAMMATICAL
+#      CLASSES rather than vocabularies that grow -- which is what makes a lexicon admissible here where a
+#      synonym list would not be:
+#        (a) CLITIC SUFFIX -- the right-hand word-run is one of English's possessive/contraction endings
+#            (s, t, d, m, ll, ve, re): `Brazil's`, `don't`, `we've`, `it'll`.
+#        (b) ELISION PREFIX -- the left-hand word-run is one or two characters: `Cote d'Ivoire`, `O'Brien`,
+#            `o'clock`, `l'annee`, `qu'`. THIS LIMB IS NOT OPTIONAL AND IT IS NOT THEORETICAL: `Cote
+#            d'Ivoire` is the single most common proper noun in this platform's cocoa corpus, and a rule
+#            without (b) refuses it -- degrading essentially EVERY cocoa receipt to rung 2, which is an off
+#            switch wearing a fence's clothes. MEASURED before it shipped.
+#      Part (a) is also what makes the pair scan safe: `Brazil's roasters don't` carries two word-flanked
+#      glyphs enclosing three words, and a pair scan without it would demote both and corrupt both words.
+#   2. A BALANCED PAIR OF UNPROVABLE GLYPHS == DELIMITERS. The remaining word-flanked glyphs are CANDIDATES;
+#      they pair off in document order (1st with 2nd, 3rd with 4th, ...) and a pair is demoted to delimiters
+#      iff the text strictly between them holds >= 2 whitespace-separated words. Two glyphs that ENCLOSE a
+#      phrase are a quotation; one glyph is punctuation inside a word.
+#   3. EVERYTHING LEFT OVER COSTS A RUNG, NOT A LIE. An UNPAIRED candidate (`said'we are bullish` with no
+#      closer) and a pair enclosing fewer than two words are not provably delimiters, so the DROP leaves
+#      them alone -- deleting a glyph the engine cannot classify is how `Cote d'Ivoire` becomes `Cote d
+#      Ivoire`. The FENCE in `_scaffold_survives` is deliberately STRICTER than the drop and refuses any
+#      glyph that is not a provable apostrophe, so such a bullet lands on rung 2: restatement dropped,
+#      engine-authored text only, and IT STILL CITES. That asymmetry is the whole design. A drop that is
+#      too eager corrupts a word the reader can see; a fence that is too eager costs one quieter bullet.
+#
+# WHY LIMB (b) DOES NOT REOPEN THE CORNER, which is the obvious objection to it. It can only misread an
+# OPENING delimiter, and only after a one-or-two-letter token (`a'we are bullish'`). The CLOSING delimiter
+# of the same quotation sits after the last word of the quoted phrase, which is almost never <= 2
+# characters -- so it stays a candidate, is left unpaired, and the FENCE refuses the line. The misquote
+# still cannot ship; what changes is that it costs a rung instead of a clean drop. Pinned in both
+# directions rather than argued.
+#
+# THE RESIDUAL, STATED AND PINNED: a word-internal glyph that is neither limb -- `rock'n'roll`'s first
+# glyph, a crop-year `2021'22` -- is a CANDIDATE. Alone it survives the drop and costs the bullet a rung;
+# two of them enclosing >= 2 words are demoted and lose their glyphs. Both directions are a degrade or a
+# cosmetic loss on corpus text the engine is RESTATING, never a misquote -- and the misquote is the only
+# defect class this rule exists to make unreachable.
+_QUOTE_CLITICS = frozenset({"s", "t", "d", "m", "ll", "ve", "re"})    # limb (a), the closed class
+_QUOTE_ELISION_MAX = 2                                        # limb (b): `d'`, `O'`, `qu'` -- never `said'`
+_QUOTE_FLANKED_RX = re.compile(r"(?<=\w)['\u2018\u2019](?=\w)")            # every word-flanked single glyph
+_QUOTE_RUN_RX = re.compile(r"\w+")                            # the word-run on either side of one
+_QUOTE_LEFT_RUN_RX = re.compile(r"\w+\Z")
+_QUOTE_PAIR_MIN_WORDS = 2                                     # a pair encloses a PHRASE, or it is not a pair
+
+
+def _quote_is_apostrophe(text: str, p: int) -> bool:
+    """Is the word-flanked glyph at `text[p]` a PROVABLE apostrophe -- rule part 1, both limbs?"""
+    right = _QUOTE_RUN_RX.match(text, p + 1)
+    if right is not None and right.group(0).lower() in _QUOTE_CLITICS:
+        return True                                           # (a) possessive / contraction suffix
+    left = _QUOTE_LEFT_RUN_RX.search(text[:p])                # sliced, so \Z means what it says
+    return left is not None and len(left.group(0)) <= _QUOTE_ELISION_MAX      # (b) elision prefix
+
+
+def _quote_candidates(text: str) -> list[int]:
+    """Offsets of the word-flanked single-quote glyphs that are NOT provable apostrophes (rule part 2's
+    input). Only word-flanked glyphs are considered -- an unflanked one is already unconditionally a
+    delimiter to `_SCAFFOLD_QUOTE_RX`, and asking this question about it twice could only disagree."""
+    return [m.start() for m in _QUOTE_FLANKED_RX.finditer(text)
+            if not _quote_is_apostrophe(text, m.start())]
+
+
+def _quote_delimiter_offsets(text: str) -> list[int]:
+    """Every offset this normalization is willing to CALL a delimiter: `_SCAFFOLD_QUOTE_RX`'s unconditional
+    and unflanked matches, plus each member of a balanced candidate pair enclosing >= 2 words.
+
+    ONE PRODUCER FOR THE DROP AND THE FENCE, for the reason the derivation leg reuses register's own
+    function: two definitions of what a quotation mark is would drift, and the two halves would then
+    disagree about the one thing the reader can see. Reads `_SCAFFOLD_QUOTE_RX` through the module global
+    at call time so a test can neutralise the drop by name and watch the LADDER hold instead."""
+    cuts = {m.start() for m in _SCAFFOLD_QUOTE_RX.finditer(text)}
+    cand = _quote_candidates(text)
+    for a, b in zip(cand[0::2], cand[1::2]):                  # ODD/EVEN pairing, in document order
+        if len(text[a + 1:b].split()) >= _QUOTE_PAIR_MIN_WORDS:
+            cuts |= {a, b}
+    return sorted(cuts)
+
+
+def _drop_quote_delimiters(text: str) -> str:
+    """`text` with every delimiter offset removed, replaced by a SPACE exactly where removing it outright
+    would MERGE its two neighbours into one token (`dry"wet"mix` must never become `drywetmix`).
+
+    A blanket space would be safe too and is what the scaffold's own normalization used to rely on, since
+    it collapses whitespace immediately afterwards. The footer does NOT collapse, so a blanket space put
+    `said  the crop is gone  after` -- two stray double spaces -- in front of the reader on every row whose
+    source used spaced delimiters. Deciding per glyph costs one lookup and leaves BOTH call sites right:
+    the scaffold's output is byte-identical either way (the collapse absorbs the difference), and the
+    footer row reads as ordinary prose. A neighbour that is ITSELF being dropped is looked through, so a
+    doubled delimiter does not reintroduce the gap by the back door."""
+    cuts = _quote_delimiter_offsets(text)
+    if not cuts:
+        return text
+    cutset = set(cuts)
+
+    def _spacer(p: int) -> str:
+        lo, hi = p - 1, p + 1
+        while lo >= 0 and lo in cutset:
+            lo -= 1
+        while hi < len(text) and hi in cutset:
+            hi += 1
+        left = text[lo] if lo >= 0 else " "                   # a string edge merges nothing
+        right = text[hi] if hi < len(text) else " "
+        return "" if (left.isspace() or right.isspace()) else " "
+    out, prev = [], 0
+    for p in cuts:                                            # every match above is exactly one character
+        out.append(text[prev:p])
+        out.append(_spacer(p))
+        prev = p + 1
+    out.append(text[prev:])
+    return "".join(out)
+
+
+def _quote_delimiter_residue(text: str) -> bool:
+    """Does `text` still carry a single-quote glyph that is NOT a provable apostrophe, or any member of the
+    unconditional family? THE FENCE'S QUESTION, and it is deliberately WIDER than the drop's (rule part 3):
+    the drop must be sure before it edits a word, the fence only has to be sure before it trusts a line."""
+    if _SCAFFOLD_QUOTE_RX.search(text):
+        return True
+    return bool(_quote_candidates(text))
+
 # ── THE SCORER'S ABSENCE VOCABULARY, MIRRORED (round-2 MEDIUM, 2026-08-05) ────────────────────────────
 # A receipted bullet may never READ as an absence, and the engine's own CASE-1 string is not the only way
 # to say it: restated CORPUS text can carry 'not available' / 'not published' / 'no data' / 'record is
@@ -2127,7 +2256,8 @@ def _scaffold_restatement(receipt: dict | None, market_register: str) -> str:
     physical line (a bullet is read line by line), foreign handle-shaped tokens dropped, markdown heading
     tokens dropped (round-2 LOW-3 -- see _SCAFFOLD_MD_HEADING_RX; the collapse makes them mid-line, so they
     were never a second section, only a stray '##' in the reader's face), QUOTATION DELIMITERS dropped
-    (round-3 BLOCKER -- see _SCAFFOLD_QUOTE_RX for the full statement and for why an apostrophe is not one),
+    (round-3 BLOCKER + the round-3 LOW unspaced corner -- see _SCAFFOLD_QUOTE_RX and
+    _quote_delimiter_offsets for the full statement and for why an apostrophe is not one),
     and the same visible '...' marker verify.py uses on a cut so a fragment is never passed off as the whole
     item.
 
@@ -2144,7 +2274,7 @@ def _scaffold_restatement(receipt: dict | None, market_register: str) -> str:
         return ""
     raw = " ".join(_SCAFFOLD_FOREIGN_HANDLE_RX.sub(" ", raw).split())
     raw = " ".join(_SCAFFOLD_MD_HEADING_RX.sub(" ", raw).split())
-    raw = " ".join(_SCAFFOLD_QUOTE_RX.sub(" ", raw).split())   # a space, never '': two words never merge
+    raw = " ".join(_drop_quote_delimiters(raw).split())        # a space, never '': two words never merge
     san = " ".join(reg.sanitize(raw, market_register=market_register).split()).strip(" .;:,!?").strip()
     if not san:
         return ""
@@ -2244,9 +2374,14 @@ def _scaffold_survives(section: str, plan: list[tuple]) -> list[str] | None:
         the engine's constants (see _SCAFFOLD_ABSENCE_MARKERS). The QUOTATION leg is the round-3 BLOCKER
         and it is the POST-sanitize half of the drop `_scaffold_restatement` performs at mint: the drop is
         what makes rung 1 honest, this leg is what keeps the promise true if the drop is ever weakened,
-        narrowed or reordered behind sanitize. Same regex, not a second copy, for the reason the
+        narrowed or reordered behind sanitize. ONE PRODUCER, not a second copy, for the reason the
         derivation leg reuses register's -- two lists of what a quotation mark is would drift, and the
-        two halves would then disagree about the one thing the reader can see.
+        two halves would then disagree about the one thing the reader can see. It is the one leg where
+        the fence is deliberately WIDER than the drop: `_quote_delimiter_residue` refuses any glyph that
+        is not a PROVABLE apostrophe, while the drop edits only what it can prove is a delimiter, so the
+        unspaced corner's leftovers (round-3 LOW -- see `_quote_delimiter_offsets` part 3) land on rung 2
+        instead of shipping. A drop that is too eager corrupts a word; a fence that is too eager costs a
+        rung, and only one of those is visible to the reader as a lie.
 
     THE CONSEQUENCE OF THESE CORPUS-HALF LEGS IS A RUNG, NOT A REFUSAL, and that is the whole reason they
     belong HERE rather than in the composer. `_scaffold_survives` is what the ladder in
@@ -2276,7 +2411,7 @@ def _scaffold_survives(section: str, plan: list[tuple]) -> list[str] | None:
         low = corpus.lower()
         if any(t in low for t in _SCAFFOLD_ABSENCE_MARKERS) or _SCAFFOLD_ABSENCE_RX.search(corpus):
             return None                                # an absence a SOURCE asserted, on a receipted window
-        if _SCAFFOLD_QUOTE_RX.search(corpus):
+        if _quote_delimiter_residue(corpus):
             return None                                # a delimiter a SOURCE wrote, on a line the ENGINE signs
     return lines
 

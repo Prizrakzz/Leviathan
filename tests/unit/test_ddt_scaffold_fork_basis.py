@@ -1566,3 +1566,196 @@ def test_the_format_fence_legs_are_registers_own_vocabulary_and_not_a_second_cop
     from leviathan.graphrag import register as reg
     assert reg._deriv_output("a -> b") is not None
     assert reg._deriv_output("2021-06..2021-08 -- n") is None
+
+
+# == N -- ROUND-3 LOW: the UNSPACED delimiter, and why the drop and the fence are not the same width ====
+# The positional rule ("word-flanked on BOTH sides == apostrophe") is right for `don't` and wrong for an
+# UNSPACED delimiter: in `said'we are outright bullish'after` BOTH glyphs are word-flanked, so both used to
+# survive the drop as text and reg.sanitize then rewrote `bullish` -> `price-supportive` BETWEEN them --
+# the round-3 BLOCKER's misquote, reproduced at rung 1 through the one shape the rule could not see. It was
+# MEASURED UNREACHABLE on the current corpus; it is closed anyway, because "no source writes that today" is
+# a property of the corpus and not of the engine.
+#
+# THE CLOSE IS A THREE-PART RULE (answer._quote_delimiter_offsets): a clitic suffix is always an
+# apostrophe; a BALANCED PAIR of non-clitic word-flanked glyphs enclosing >= 2 words is a pair of
+# delimiters; everything left over is refused by the FENCE rather than edited by the DROP. The last part is
+# the design and not a shortfall -- a drop that is too eager corrupts a word the reader can see, a fence
+# that is too eager costs one quieter honest bullet, and this file pins BOTH directions.
+_UNSPACED_RECEIPTS = (
+    ("ascii, unspaced both sides",
+     "Roasters said'we are outright bullish'after touring Sul de Minas in July."),
+    ("typographic, unspaced both sides",
+     "Roasters said‘we are outright bullish’after touring Sul de Minas in July."),
+    ("mixed glyph forms, unspaced",
+     "The co-op said'no relief before September’and the tally was closed."),
+    ("clitics in the SAME receipt as an unspaced pair",
+     "Brazil's roasters said'no relief is coming'and they don't expect it before September."),
+    ("two unspaced pairs in one receipt",
+     "He said'the crop is gone'and she said'the belt is fine'about the July window."),
+)
+
+
+@pytest.mark.parametrize("why,text", _UNSPACED_RECEIPTS)
+def test_an_unspaced_delimiter_pair_is_dropped_and_the_bullet_still_ships_in_full(tmp_path, monkeypatch,
+                                                                                  why, text):
+    """THE ROUND-3 LOW, on the SHIPPED mechanism, end to end through an.answer().
+
+    The acceptance is RUNG 1 -- not a degrade. An unspaced pair is provably a pair of delimiters (part 2 of
+    the rule), so the drop takes them at mint and the restatement ships in full: the corpus text is on the
+    page, in the house register, attributed to nobody. A fix that answered this class with a rung would be
+    indistinguishable from deleting the restatement branch for any source that writes without spaces."""
+    out = _receipt_turn(tmp_path, monkeypatch, text)
+    assert _rung(out) == "1-full", why
+    bullet = [b for b in _episode_bullets(out) if an._SCAFFOLD_CASE2_REPORTS in b]
+    assert len(bullet) == 1, why                                     # the corpus text really is on the page
+    bullet = bullet[0]
+    for ch in _ALWAYS_DELIMITERS:
+        assert ch not in bullet, (why, hex(ord(ch)))
+    corpus = an._scaffold_corpus_half(bullet)
+    assert an._SCAFFOLD_QUOTE_RX.search(corpus) is None, why         # the old leg, still clean...
+    assert not an._quote_delimiter_residue(corpus), why              # ...and the new one, which is wider
+    assert bullet.endswith(f"{an._SCAFFOLD_CASE2_MAGNITUDE}.")       # nothing was left hanging open
+
+
+def test_the_unspaced_misquote_recipe_never_reaches_the_reader_and_the_pre_fix_shape_is_named(monkeypatch):
+    """THE VERIFIER'S OWN UNSPACED RECIPE, verbatim, with the pre-fix bytes spelled out so the regression
+    is recognisable on sight. The rewrite still happens -- all reader prose is sanitized -- and what may
+    not survive is the ATTRIBUTION."""
+    st, _vf, trace = _hostile(monkeypatch,
+                              "Roasters said'we are outright bullish'after the July frost.")
+    assert not trace["episodes_scaffolded"].get("restatement_dropped")        # rung 1, end to end
+    bullet = [ln for ln in ev._episode_section(st["mechanism"]).split("\n") if ln.startswith("- ")][0]
+    assert "price-supportive" in bullet and "bullish" not in bullet          # sanitized, as always
+    assert "'" not in bullet and '"' not in bullet                           # but attributed to nobody
+    assert an._SCAFFOLD_CASE2_REPORTS in bullet
+    assert "said we are outright price-supportive after" in bullet           # an open restatement
+    # the pre-fix shape, which is the WHOLE defect: the house register inside the source's own marks
+    assert "said'we are outright price-supportive'after" not in st["mechanism"]
+
+
+def _no_pairs(monkeypatch):
+    """Neutralise PART 2 of the rule only -- the balanced-pair scan -- by raising the enclosure threshold
+    out of reach. This is the exact pre-fix drop: `_SCAFFOLD_QUOTE_RX`'s unconditional and unflanked legs
+    still fire, and a word-flanked glyph is once again read as an apostrophe no matter what it encloses.
+    Scoped to the ONE knob so the other two parts of the rule are left standing and the test proves which
+    part is load-bearing."""
+    monkeypatch.setattr(an, "_QUOTE_PAIR_MIN_WORDS", 10 ** 6)
+
+
+def test_the_pair_scan_is_what_closes_it_and_the_fence_catches_it_if_that_is_weakened(tmp_path,
+                                                                                      monkeypatch):
+    """THE LADDER HALF, in the three-half acceptance shape this file uses for every corpus-borne class.
+
+    ARMED: rung 1, quote-free, restated (the parametrization above, restated here as the control).
+    PAIR SCAN NEUTRALISED: the glyphs reach the composed section and the FENCE -- not the normalization --
+    keeps them off the page, so the bullet lands on rung 2 and STILL CITES. This is what makes the fence's
+    extra width a mechanism rather than a comment.
+    BOTH NEUTRALISED: the misquote SHIPS, which is what makes the two assertions above a test rather than
+    a restatement of the code -- it reproduces the round-3 LOW end to end."""
+    text = "Roasters said'we are outright bullish'after the July frost."
+    armed = _receipt_turn(tmp_path, monkeypatch, text)
+    assert _rung(armed) == "1-full"
+    assert "'" not in armed["structured"]["mechanism"]
+
+    _no_pairs(monkeypatch)
+    loose = _receipt_turn(tmp_path, monkeypatch, text)
+    assert _rung(loose) == "2-degraded"                              # the leak became a rung, not a lie
+    assert "'" not in loose["structured"]["mechanism"]
+    receipted = [b for b in _episode_bullets(loose) if an._SCAFFOLD_CASE2_MAGNITUDE in b]
+    assert len(receipted) == 1 and re.search(r"\[E\d+\]", receipted[0])          # ...and it STILL CITES
+    assert an._SCAFFOLD_CASE2_REPORTS not in receipted[0]                        # no corpus byte survived
+
+    monkeypatch.setattr(an, "_scaffold_survives", _always_accept)
+    shipped = _receipt_turn(tmp_path, monkeypatch, text)
+    assert _rung(shipped) == "1-full"
+    bullet = [b for b in _episode_bullets(shipped) if an._SCAFFOLD_CASE2_REPORTS in b][0]
+    assert "'we are outright price-supportive'" in bullet            # THE MISQUOTE, on the page, pre-fix
+
+
+# THE RESIDUAL, PINNED RATHER THAN HAND-WAVED. These three shapes are NOT provably delimiter pairs, so the
+# DROP leaves them alone by design (deleting a glyph the engine cannot classify is how `o'clock` becomes
+# `o clock`). The FENCE refuses them, so the ACCEPTANCE FOR THE WHOLE CLASS IS RUNG 2: restatement dropped,
+# engine-authored text only, the citation intact -- a quieter honest bullet, never a misquote. Naming them
+# here is the point: they are the price of a conservative drop, and the day someone widens the drop to
+# cover one of them, this test is the thing that has to be edited.
+_UNPAIRED_RESIDUALS = (
+    ("unbalanced -- an opener with no closer anywhere",
+     "Roasters said'we are outright bullish into 2022 and the trade has not priced it."),
+    ("half-spaced -- the closer is unflanked, so only the opener is a candidate",
+     "Roasters said'we are outright bullish' after the July frost."),
+    ("a pair enclosing ONE word -- an enclosure, but not a phrase",
+     "He said'no'again when the July tally was read out."),
+)
+
+
+@pytest.mark.parametrize("why,text", _UNPAIRED_RESIDUALS)
+def test_an_unprovable_glyph_costs_a_rung_and_never_a_misquote(tmp_path, monkeypatch, why, text):
+    """THE ACCEPTANCE FOR THE RESIDUAL, NAMED. Rung 2, the citation intact, and -- the part that matters --
+    NO source's word survives to be rewritten between marks, because rung 2 carries no corpus byte at
+    all."""
+    out = _receipt_turn(tmp_path, monkeypatch, text)
+    assert _rung(out) == "2-degraded", why
+    receipted = [b for b in _episode_bullets(out) if an._SCAFFOLD_CASE2_MAGNITUDE in b]
+    assert len(receipted) == 1 and re.search(r"\[E\d+\]", receipted[0]), why      # it STILL CITES
+    assert an._SCAFFOLD_CASE2_REPORTS not in receipted[0], why
+    assert "'" not in receipted[0] and "bullish" not in receipted[0], why
+    assert not ev._has_any(receipted[0], ev._NO_CITABLE), why                     # never a false absence
+
+
+def test_a_provable_apostrophe_survives_on_both_limbs_and_the_drop_is_byte_inert_on_it():
+    """PART 1 OF THE RULE, as a unit, on BOTH limbs. Byte-identity is the assertion -- an apostrophe must
+    reach the reader untouched, because deleting it corrupts the very restatement the drop exists to keep
+    honest -- and the FENCE must agree, or the same word costs a rung instead."""
+    clitics = ("Brazil's crop", "they don't expect it", "the co-op's own tally", "we've seen it",
+               "they're short", "it'll hold", "he'd sold", "I'm told", "it doesn't reach the survey",
+               "Brazil’s crop and Colombia’s crop", "we’ve seen Brazil’s crop")
+    # LIMB (b) IS LOAD-BEARING ON THIS CORPUS, not a courtesy: `Cote d'Ivoire` is the most common proper
+    # noun in the cocoa slices, and a rule without it degrades essentially every cocoa receipt to rung 2.
+    elisions = ("Cocoa arrivals from Cote d'Ivoire slowed", "O'Brien toured the belt",
+                "the six o'clock bulletin", "l'annee derniere the crop was short",
+                "Cote d’Ivoire port arrivals")
+    for keep in clitics + elisions:
+        assert an._drop_quote_delimiters(keep) == keep, keep         # byte-identical: nothing was touched
+        assert not an._quote_delimiter_residue(keep), keep           # ...and the FENCE agrees it is clean
+    assert len(an._QUOTE_CLITICS) == 7 and an._QUOTE_ELISION_MAX == 2         # both classes stay CLOSED
+    # ...and neither limb swallows the corner: an elision in the SAME receipt as an unspaced pair keeps
+    # its glyph while the pair loses both, which is the one interaction that could have gone wrong.
+    mixed = "Cote d'Ivoire officials said'the crop is gone'after the tour."
+    assert an._drop_quote_delimiters(mixed) == "Cote d'Ivoire officials said the crop is gone after the tour."
+    # a glyph that is NEITHER limb is a CANDIDATE, not a silent apostrophe: the drop stays its hand and
+    # the fence refuses, which is the residual this rule is willing to pay a rung for
+    for candidate in ("the 2021'22 crop year was short", "a rock'n roll year"):
+        assert an._drop_quote_delimiters(candidate) == candidate, candidate      # the drop stays its hand
+        assert an._quote_delimiter_residue(candidate), candidate                 # the fence does not
+
+
+def test_limb_b_cannot_reopen_the_corner_because_the_CLOSING_glyph_is_still_a_candidate():
+    """THE OBVIOUS OBJECTION TO LIMB (b), answered as a test rather than as a paragraph. The elision limb
+    can only misread an OPENING delimiter, and only after a one-or-two-letter token. The CLOSING delimiter
+    of the same quotation sits after the last word of the quoted phrase, which is not <= 2 characters --
+    so it stays a candidate, is left unpaired, and the fence refuses the line. The misquote cannot ship;
+    it costs a rung instead of a clean drop."""
+    hostile = "a'we are outright bullish'b"
+    assert an._quote_is_apostrophe(hostile, 1) is True               # limb (b) really does misread it...
+    assert an._quote_candidates(hostile) == [25]                     # ...and the CLOSER is still unproved
+    assert an._drop_quote_delimiters(hostile) == hostile             # so the drop declines to guess
+    assert an._quote_delimiter_residue(hostile)                      # and the FENCE refuses the line
+
+
+def test_the_fence_is_strictly_wider_than_the_drop_and_that_asymmetry_is_the_design():
+    """THE ASYMMETRY, stated as its invariant and swept over every row this file carries. After the drop
+    has run, a text is either FENCE-CLEAN (rung 1) or it still carries a glyph the drop could not prove --
+    and there is no third state in which the unconditional family survives a drop, which is what ONE
+    PRODUCER buys. Direction matters: fence-refuses-what-drop-kept is a rung; drop-edits-what-fence-would-
+    allow would be a corrupted word."""
+    rows = [t for _w, t, _s in _QUOTED_RECEIPTS] + [t for _w, t in _UNSPACED_RECEIPTS] \
+        + [t for _w, t in _UNPAIRED_RESIDUALS] + ["Brazil's roasters don't expect relief", "plain text"]
+    for text in rows:
+        dropped = an._drop_quote_delimiters(text)
+        assert len(dropped) <= len(text), text                   # the drop only ever REMOVES...
+        assert set(dropped) <= set(text) | {" "}, text            # ...and invents nothing but a space
+        assert len(dropped.split()) >= len(text.split()), text    # two words are never merged into one
+        # whatever the fence still refuses AFTER the drop, the drop provably could not classify
+        if an._quote_delimiter_residue(dropped):
+            assert an._quote_candidates(dropped), text               # ...and it is always an unproved glyph
+            assert not an._SCAFFOLD_QUOTE_RX.search(dropped), text   # never the unconditional family
