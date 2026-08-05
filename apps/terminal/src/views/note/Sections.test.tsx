@@ -117,3 +117,27 @@ describe('Note fallback matrix (P9-C: sections win, mechanism stays the fallback
     expect(container.firstChild).toBeNull();
   });
 });
+
+describe('D-RC response-contract shapes (flat mechanism branch, ANSWER_V2 off = serving reality)', () => {
+  // A contract reshapes WHICH ## headings the mechanism string carries -- never the schema. The
+  // flat FormattedNote branch must render every v1 plan subset without error and without blanks.
+  const NL = String.fromCharCode(10);
+  const mk = (...lines: string[]) => lines.join(NL);
+  const SHAPES: Array<[string, string]> = [
+    ['context_node (2 sections)', mk('## Mechanism', 'barley competes in feed.', '## What to watch', 'rations.')],
+    ['ranking (3 sections)', mk('## Mechanism', 'metric: exports_mt MY2026 (PSD).', '## The record', 'Russia 47.5 MMT', '## What to watch', 'weather.')],
+    ['enumeration (5 sections incl. Episodes)', mk('## Mechanism', 'channel.', '## The record', 'dated items.', '## Episodes', '- 2010: ban [E1]', '## Where the record disagrees', 'eras diverge.', '## What to watch', 'next ban.')],
+    ['outlook (5 sections incl. Outlook)', mk('## Mechanism', 'chain.', '## The record', 'rows.', '## Where the record disagrees', 'fork.', '## What to watch', 'signals.', '## Outlook', 'balance of risks.')],
+  ];
+  for (const [label, mech] of SHAPES) {
+    it(`renders ${label} without error, all headings present`, () => {
+      const r = noteResult({ tldr: 'Headline.', mechanism: mech });
+      render(<Note result={r} onOpenReceipts={noop} />);
+      const note = screen.getByTestId('note');
+      const heads = Array.from(note.querySelectorAll('h5')).map((h) => h.textContent);
+      const expected = mech.split(NL).filter((l) => l.startsWith('## ')).map((l) => l.slice(3));
+      expect(heads).toEqual(expected);
+      expect(note.textContent && note.textContent.length > 0).toBe(true);
+    });
+  }
+});
