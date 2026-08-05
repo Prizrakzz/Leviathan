@@ -47,8 +47,21 @@ async function askAndSettle(page: Page) {
   // (useHotkeys.ts:24), the drawer never opened, and the spec failed on the `receipts` assert -- about 1
   // run in 8 locally, and far more often under load (a traced 2-worker stress failed 6 of 12). The
   // composer is disabled for exactly the streaming window, so waiting for it to be ENABLED is the
-  // turn-complete signal; after it, focus is settled and the click->keypress sequence is deterministic.
+  // turn-complete signal. But enabled is NOT settled: the refocus is an EFFECT queued on that same
+  // transition, so a click issued between the enable and the effect still gets its focus stolen a
+  // tick later (the 2026-08-05 gate refusal -- the 1-in-8 race survived the enabled-wait at lower
+  // probability). The refocus itself is the completion signal, so wait for FOCUS, not enablement.
   await expect(page.getByTestId('composer')).toBeEnabled();
+  await expect(page.getByTestId('composer')).toBeFocused();
+}
+
+/** Blur the command bar/composer so single-key hotkeys are live, deterministically: the refocus
+ *  effect has already fired (askAndSettle waited for it), so after this click nothing steals focus
+ *  back -- and the not-focused assert makes a future regression fail HERE, named, instead of as a
+ *  mystery timeout on whatever hotkey assert comes next. */
+async function blurIntoNote(page: Page) {
+  await page.getByTestId('note').click();
+  await expect(page.getByTestId('composer')).not.toBeFocused();
 }
 
 // The Phase-2 gate: the shell is fully keyboard-operable, driven by the mock (VITE_MOCK=1 in the webServer).
@@ -59,7 +72,7 @@ test('shell is keyboard-operable and streams a mocked turn', async ({ page }) =>
   await expect(page.getByTestId('integrity')).toContainText('INTEGRITY');
 
   // blur the command bar, then `e` opens the receipts drawer, Escape closes it
-  await page.getByTestId('note').click();
+  await blurIntoNote(page);
   await page.keyboard.press('e');
   await expect(page.getByTestId('receipts')).toBeVisible();
   await expect(page.getByText('cited', { exact: false }).first()).toBeVisible();
@@ -91,7 +104,7 @@ test('shell is keyboard-operable and streams a mocked turn', async ({ page }) =>
 // a browser concern, not part of this smoke.
 test('a receipts row opens the source PDF as a workspace tab', async ({ page }) => {
   await askAndSettle(page);
-  await page.getByTestId('note').click(); // blur the command bar so `e` is a hotkey
+  await blurIntoNote(page); // blur the command bar so `e` is a hotkey
   await page.keyboard.press('e');
   await expect(page.getByTestId('receipts')).toBeVisible();
 
