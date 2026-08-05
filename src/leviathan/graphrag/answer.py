@@ -750,6 +750,25 @@ def _cot_outcomes_on() -> bool:
     return os.environ.get("GRAPHRAG_COT_OUTCOMES", "").strip().lower() in ("on", "1", "true")
 
 
+def _episode_scaffold_on() -> bool:
+    """D-DT-1 kill-switch (GRAPHRAG_EPISODE_SCAFFOLD), cloned from `_episode_outcomes_on` -- THE ONE ENV
+    SEAM for the render-side '## Episodes' scaffold. DEFAULT-OFF, fail-closed: only a case-insensitive
+    on/1/true enables it, and with the flag off `_maybe_scaffold_episodes` returns an EMPTY trace-update
+    dict before it reads anything, so no trace key is written, `structured` and `verifier` are untouched
+    and the turn's ANSWER BODY is byte-identical to rev 75.
+
+    THE BYTE-IDENTITY PROMISE IS SCOPED, deliberately (V.4 X2). D-DT-2's `fork_basis` is observational by
+    design and is minted UNCONDITIONALLY on the same image, so the OFF arm of this flag's A/B carries one
+    new TRACE key. The promise this flag makes is therefore over the ANSWER BODY (`answer` + `structured`
+    + `verifier`), which is what a reader and every deterministic pin see; `trace` is exempt and the
+    exemption is stated here rather than discovered mid-A/B. Nothing in `_CASCADE_EXPECT` reads
+    `fork_basis` except the NEW `fork_licensed` key, which no cascade/pace row carries.
+
+    Read PER CALL (never memoized) so the env-flip rollback is live -> no redeploy (the _chain_on idiom).
+    That is what makes the A/B one variable on a FROZEN artifact rather than two deploys."""
+    return os.environ.get("GRAPHRAG_EPISODE_SCAFFOLD", "").strip().lower() in ("on", "1", "true")
+
+
 def _episodes_on(volatile_prompt: str | None) -> bool:
     """THE W4-D3 SEAM GATE, one spelling, used by BOTH serving bodies (_answer_l2 and the one-hop legacy
     body). The '## Episodes' persona paragraph ships iff BOTH legs hold:
@@ -1564,6 +1583,14 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # an argument -- register.py reads no environment.
     _mr = reg.OUTLOOK if _outlook else reg.FENCED
     _episodes = _episodes_on(vp)                                  # W4-D3: BOTH legs, and both in CODE
+    # D-DT-2 c1: the license inventory is minted HERE, BEFORE the model call, in both serving bodies. The
+    # position IS the circularity fence (V.4 X3): every flag reads engine inputs assembled before
+    # synthesis, and at this line no answer prose exists to read -- so the check can never become
+    # "heading => licensed => pass". It is stamped UNCONDITIONALLY (observational by design, no flag), so
+    # the census accrues on both arms of D-DT-1's A/B for free.
+    sg.trace["fork_basis"] = _fork_basis(graph, contracts,
+                                         [h for n in sg.nodes for h in (getattr(n, "evidence", None) or [])],
+                                         sg.trace)
     structured = call(_system(outlook=_outlook, episodes=_episodes), _pack(sp, vp, use_blocks), model=model,
                       tool=_answer_tool(), **call_kw)
     sg.trace["ms_synth_llm"] = int((time.perf_counter() - _t_synth) * 1000)
@@ -1602,6 +1629,14 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # is still attributable to sanitize rather than to the verifier's strips.
     _raw_draft = _fold_draft(_raw_draft, sanitize_input_snapshot(
         verified_tldr=structured.get("tldr"), verified_mechanism=structured.get("mechanism")))
+    # D-DT-1 THE SEAM -- the ONE point satisfying all four constraints (see _maybe_scaffold_episodes).
+    # Flag off -> returns {} having read nothing: no trace key, no mutation, byte-identical body.
+    # `market_register` is the SAME `_mr` _humanize_structured is about to run with, and passing it is
+    # load-bearing: the scaffold sanitizes its own text at mint time and reconciles against what that pass
+    # will produce, so a different register here would prove the wrong thing.
+    sg.trace.update(_maybe_scaffold_episodes(
+        structured, verifier, injected=sg.trace.get("episodes_injected"), nodes=sg.nodes,
+        evidence=evidence, n_positional=len(uniq), market_register=_mr))
     _humanize_structured(structured, market_register=_mr)         # clean the fields the UI renders directly (6.1)
     if os.environ.get("GRAPHRAG_ANSWER_V2", "off") == "on":       # P9-C typed sections: a DERIVED view of the
         secs = _sectionize(structured.get("mechanism") or "")     # FINAL prose (post-verify+humanize); read per
@@ -1767,6 +1802,769 @@ def _sectionize(mech: str) -> list[dict]:
             for h, lines in segs]
 
 
+# ══ D-DT-1: the render-side '## Episodes' scaffold (Option A, RATIFIED 2026-08-04) ═══════════════════
+# THE DEFECT, MEASURED (EVIDENCE_INTEGRITY_WAVE_PLAN.md:2450-2466). '## Episodes' is 100% MODEL PROSE:
+# render() emits exactly **TL;DR.**, **Why.**, an optional mermaid block and an optional **Sources**
+# list and NEVER a '##' heading, so every reserved heading in a shipped answer lives inside the
+# model-authored string structured['mechanism']. The persona mandate has been hardened twice (the R6
+# fold at _SYSTEM_EPISODES, commit 24fe0f53; persona v2, dbdf41c8) and still leaks on ~23% of
+# susceptible turns UNDER IDENTICAL CODE. Option A stops presence being a sampling outcome by
+# synthesizing the section from what the engine ALREADY PUT IN THE PROMPT.
+#
+# THE SEAM IS PINNED BY FOUR CONSTRAINTS AND EXACTLY ONE POINT SATISFIES ALL FOUR (D-DT-1 M7). At this
+# tree that point is between the A4b `sanitize_input_snapshot(verified_*)` capture and
+# `_humanize_structured`, and the call is spelled the SAME WAY in both serving bodies:
+#   * AFTER the A4b snapshot   -- the raw-draft audit must keep attributing only MODEL text, so the
+#                                 last state attributable to the model has to be captured first;
+#   * BEFORE _humanize_structured -- LOAD-BEARING, not cosmetic: a CASE-1 label is a RAW NODE ID
+#                                 ('arabica_coffee', 'drivers/frost') and register.sanitize is what
+#                                 humanizes slice/regime ids into prose (register.py:901);
+#   * AFTER verify_citations   -- claim_count is captured at verify.py:470-471 before any mutation and
+#                                 checked/stripped are already final, so the STRIP RATE (the primary
+#                                 judge-free metric) keeps its denominators;
+#   * BEFORE render()          -- the reader's body must carry the section.
+# Anywhere else breaks one of the four. A refactor that moves this call must re-satisfy all four.
+_EPISODE_HEADING_RX = re.compile(r"^\s*#{2,6}\s+(.*)$")
+_EPISODE_HEADING_TEXT = "episodes"
+# Headings that must come AFTER '## Episodes' when the model rendered them (the persona's own placement
+# rule: after '## The record', before '## What to watch'). '## Outlook' is the W5-D5 reserved heading and
+# is always last when it fires. No match -> the section is appended, which keeps _FIXED_SCAFFOLD's
+# relative order intact either way (an extra heading is invisible to eval._scaffold_ok).
+_SCAFFOLD_BEFORE = ("what to watch", "outlook")
+
+# The CASE-1 clauses, VERBATIM from _SYSTEM_EPISODES' own CASE 1 worked example -- one producer for the
+# instruction and the synthesis, cross-checked by a unit test so a persona edit cannot silently leave the
+# engine writing vocabulary the deck no longer scores. `_NO_CITABLE[0]` and `_NO_PRICE_RECORD[0]` both
+# match, so eval.episode_absence_stated / episode_magnitude_or_absence read the same tokens either way.
+_SCAFFOLD_CASE1_BACKING = "no citable item in this window, so what happened is not narrated"
+_SCAFFOLD_CASE1_MAGNITUDE = "no price record for this window"
+# The CASE-2 magnitude clause. The synthesizer mints NO [N] handle, so the magnitude slot is always the
+# absence -- stated in the persona's own permitted vocabulary (_NO_PRICE_RECORD carries 'no observed
+# magnitude'). RESIDUAL, STATED: unlike the receipt clause this one is NOT branched on engine state --
+# the scaffold does not consult the injected number rows -- so on a turn where a [N] row does cover the
+# window the clause understates the record. That is the doc's own CASE-1/CASE-2 vocabulary and the J4
+# episode-pricing leg is out of scope here; it is recorded so it is a decision, not an oversight.
+_SCAFFOLD_CASE2_MAGNITUDE = "no observed magnitude for this window"
+# THE CASE-2 BACKING CLAUSE CARRIES NO QUOTATION MARKS, and that is a correctness rule rather than a
+# style preference (D-DT-1 fold, 2026-08-05). The doc's CASE-2 shape is a RESTATEMENT -- _SYSTEM_EPISODES'
+# own BACKING slot is "one clause RESTATING what a cited dated item inside that window actually says,
+# carrying that item's [E] handle" -- and the quote delimiters were never in it. They made the engine a
+# MISQUOTER: reg.sanitize rewrites mood words and humanizes contract slugs inside whatever it is handed,
+# so `bullish` -> `price-supportive` and `arabica_coffee` -> `ICE arabica coffee` shipped BETWEEN
+# QUOTATION MARKS as the source's own words (reproduced end to end). An engine may restate a source in
+# its own register; it may never put words in that source's mouth. `reports` is the restatement verb.
+# THAT FOLD CLOSED THE ENGINE'S OWN DELIMITERS ONLY; the corpus-borne half is _SCAFFOLD_QUOTE_RX below.
+_SCAFFOLD_CASE2_REPORTS = " reports "
+# The handle SHARES ITS SENTENCE with the restatement, deliberately -- the clause is made sanitize-STABLE
+# at mint time (see _scaffold_section), so the later _humanize_structured pass is a no-op on it and cannot
+# delete the clause, taking the handle with it.
+#
+# WHAT SHARING THE SENTENCE DOES **NOT** BUY, corrected 2026-08-05 (round-2 BLOCKER). This comment used to
+# claim that co-location BACKED any price level inside the restatement, because `register.unbacked_levels`
+# exempts a sentence carrying a citation handle (register.py:534). That is false twice over, and both ways
+# are MEASURED: `register._SENT_ITER` is `(?<=[.!?;])\s+` (register.py:611), so the exemption is
+# CLAUSE-scoped and a handle in the lead clause does not reach a level in a later clause of the SAME
+# bullet; and the exemption is voided outright when the clause carries a derivation-output marker. There
+# is therefore NO structural guarantee here, and the guarantee is not restored by rewording this comment:
+# it is enforced in `_scaffold_survives`, on the rendered line, with register's own counter, and a bullet
+# that fails it degrades to the cite-only rung rather than shipping the level.
+_SCAFFOLD_RESTATE_CAP = 160
+# A handle-shaped token inside corpus text is NOT this turn's handle. Dropped from the restatement so the
+# engine can never import an [E7]/[N3] from a source's own prose into its own citation namespace.
+_SCAFFOLD_FOREIGN_HANDLE_RX = re.compile(r"\[\s*[ENen]?\s*\d+\s*\]")
+# MARKDOWN HEADING TOKENS inside corpus text (round-2 LOW-3, 2026-08-05). A receipt whose own text carries
+# '## Episodes' restates INLINE: the whitespace collapse above puts it mid-sentence, so it opens no second
+# section and the rendered heading count stays exactly ONE -- MEASURED, and pinned by a test rather than
+# argued. What the reader still saw was a stray '##' in the middle of a sentence, so the marker is dropped
+# in the restatement normalization. WHOLE TOKENS ONLY -- a run of one to six '#' delimited by whitespace or
+# the string ends -- so '#3', 'C#' and a mid-word '#' are untouched.
+_SCAFFOLD_MD_HEADING_RX = re.compile(r"(?:(?<=\s)|\A)#{1,6}(?=\s|\Z)")
+# QUOTATION DELIMITERS inside corpus text (round-3 BLOCKER, 2026-08-05). The fold above stopped the ENGINE
+# from minting delimiters; the SOURCE's own rode straight through it, and they reproduce BOTH halves of the
+# defect that fold exists to prevent, end to end at rung 1:
+#   (a) MISQUOTE. `reg.sanitize` rewrites mood words and humanizes contract slugs INSIDE whatever it is
+#       handed, and it cannot see a quotation mark. A receipt reading `Roasters said "we are outright
+#       bullish into 2022"` shipped `..."we are outright price-supportive into 2022"...` -- the source's own
+#       delimiters wrapped around a word the source never wrote. Restating a source in the house register is
+#       honest; putting the house register between that source's quotation marks is not.
+#   (b) UNTERMINATED QUOTATION. `_SCAFFOLD_RESTATE_CAP` cuts between an opening delimiter and its closer,
+#       so the bullet ships an open quotation that reads as swallowing the engine's own magnitude clause --
+#       the same reader-visible shape the mint-time sanitize fix closed once, arriving through the corpus
+#       instead of through the strip. MEASURED: 135 of 168 cut points on one probe receipt.
+#
+# DELIMITER USAGE ONLY, AND THE DISTINCTION IS THE WHOLE DESIGN. The DOUBLE family (ASCII '"', typographic
+# U+201C/U+201D, guillemets U+00AB/U+00BB, low-9 U+201E/U+201A, CJK corner brackets U+300C..U+300F) is never
+# anything but a delimiter, so it goes unconditionally. The SINGLE family (ASCII "'", U+2018, U+2019) is two
+# different characters wearing one glyph: in `don't` and `Brazil's` it is an APOSTROPHE -- part of the word,
+# and deleting it would corrupt the very restatement this normalization exists to keep honest -- while in
+# `the co-op said 'no relief'` it is a delimiter. The test is POSITIONAL and needs no lexicon: a single-quote
+# glyph FLANKED BY WORD CHARACTERS ON BOTH SIDES is an apostrophe and SURVIVES; every other occurrence is
+# delimiter usage and is dropped. (U+2019 is the typographic apostrophe as well as a closing quote, which is
+# exactly why the rule cannot be a character list.)
+# THE RESIDUAL, STATED: a trailing plural possessive (`roasters' margins`) is not flanked, so it loses its
+# apostrophe -- one glyph out of a line that is already a restatement rather than a quotation. That is the
+# direction to be wrong in: the alternative rule ("keep it when the word ends in s") would let
+# `said 'the frost is bullish for roasters'` ship an UNTERMINATED delimiter, which is defect (b) itself.
+_SCAFFOLD_QUOTE_RX = re.compile(
+    r'["\u201C\u201D\u00AB\u00BB\u201E\u201A\u300C-\u300F]'   # never an apostrophe -> a delimiter
+    r"|(?<!\w)['\u2018\u2019]|['\u2018\u2019](?!\w)")         # single family: UNFLANKED == delimiter
+
+# ── THE SCORER'S ABSENCE VOCABULARY, MIRRORED (round-2 MEDIUM, 2026-08-05) ────────────────────────────
+# A receipted bullet may never READ as an absence, and the engine's own CASE-1 string is not the only way
+# to say it: restated CORPUS text can carry 'not available' / 'not published' / 'no data' / 'record is
+# silent' / 'not in the corpus' all by itself (6 of 6 probe shapes did, MEASURED). The scorer does not read
+# the engine's constants -- `episode_absence_stated` reads `_NOT_KNOWN + _NO_CITABLE + _NO_PRICE_RECORD`
+# (eval.py:1021) and `_absence_marked` reads `_NO_PRICE_RECORD` plus the R6 normalizing regex
+# (eval.py:97-99) -- so a receipted bullet carrying any of them greens an absence pin on a window that HAS
+# a receipt. That is the false-absence class, arriving through the corpus rather than through the engine.
+#
+# THE MIRROR IS THE `_SECTION_KINDS` IDIOM AND NOT A HAND COPY: `answer` cannot import `eval` (circular,
+# and AST-pinned by a test), so the tuple lives here and a cross-import test asserts SET EQUALITY against
+# the three scorer tuples, plus PATTERN equality against the regex. Vocabulary drift fails the suite; it
+# cannot reach production as a silent fork. The regex is mirrored too because the R6 fold's own comment
+# calls the tuple "a synonym treadmill" -- an interposed word ('no single priced move') defeats the
+# substrings and not the regex, and the consequence here is only ever a degrade, never a green.
+_SCAFFOLD_ABSENCE_MARKERS = (
+    "not known", "not yet known", "not yet been", "no data", "not available", "wasn't published",
+    "was not published", "not published", "not been published", "unavailable", "no citable item",
+    "no cited item", "no citable source", "no dated item", "no dated source", "no citable evidence",
+    "corpus is silent", "record is silent", "no source in this window", "not in this corpus",
+    "not in the corpus", "not in this record", "no price record", "not in the price record",
+    "no per-contract price record", "no price data", "no priced move", "price record does not",
+    "price record is silent", "no single priced move", "no one priced move", "without a priced move",
+    "not in the price data", "no magnitude", "no observed magnitude", "outside the price coverage",
+    "before the price record")
+_SCAFFOLD_ABSENCE_RX = re.compile(
+    r"\bno\b[^.;!?]{0,40}?\bpriced?\s+(?:move|record|data|magnitude|response|change)\b"
+    r"|\bwithout\b[^.;!?]{0,30}?\bpriced?\s+(?:move|record|magnitude|response)\b"
+    r"|\bprice\s+(?:record|coverage|data)\b[^.;!?]{0,30}?"
+    r"\b(?:does\s+not|doesn'?t|is\s+silent|never|cannot|can'?t|stops?|ends?)\b"
+    r"|\b(?:outside|before|beyond|predates?)\b[^.;!?]{0,30}?\bprice\s+(?:coverage|record|data)\b",
+    re.I)
+
+
+def _has_episode_section(mech: str) -> bool:
+    """Does this mechanism already carry a rendered Episodes section?
+
+    THIS DETECTOR MUST BE AT LEAST AS WIDE AS `eval._episode_section`, and it is written to be EXACTLY
+    as wide: `_has_episode_section(m)` is `eval._episode_section(m) is not None` for every m. `answer`
+    CANNOT import `eval` (circular -- see _SECTION_KINDS), so the agreement is enforced by a unit test
+    that imports both, the same idiom `_SECTION_KINDS` <-> `_FIXED_SCAFFOLD` already uses.
+
+    WHY WIDTH IS THE LOAD-BEARING PROPERTY (D-DT-1 S1.3). The scorer deliberately accepts '##'..'######'
+    and a NORMALISED heading PREFIX, so it scores '### Episodes', '## Episodes (3)' and
+    '## Episodes -- dated'. A NARROWER detector here judges such an answer section-less, synthesizes a
+    SECOND '## Episodes', and the reader sees two. Worse for scoring: `_episode_section` resets its body
+    on EVERY matching heading, so the LAST section wins and the model's own enumeration is silently
+    discarded -- a narrow detector would therefore replace correct model prose with engine prose and
+    the row table would show nothing. Fence-aware for the same reason `_sectionize` is: a '## Episodes'
+    inside a ```mermaid block is CONTENT, not a heading."""
+    in_fence = False
+    for line in (mech or "").split("\n"):
+        if line.lstrip().startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        m = _EPISODE_HEADING_RX.match(line)
+        if m and str(m.group(1)).strip().lower().startswith(_EPISODE_HEADING_TEXT):
+            return True
+    return False
+
+
+def _episode_section_body(mech: str) -> str:
+    """The rendered Episodes section INCLUDING its heading line, or '' when none was rendered.
+
+    Mirrors `eval._episode_section`'s walk exactly -- fence-aware, `##`..`######`, normalised heading
+    PREFIX, the LAST matching section wins, the next non-matching heading closes it -- and differs from it
+    in one deliberate way: the heading line is KEPT, because `_scaffold_survives` asserts on the heading
+    as well as on the bullets. `_has_episode_section` is the boolean over the same walk (kept as its own
+    loop because it is the detector the cross-import parity test pins, and a detector that can only be
+    read through an extractor is a detector nobody checks).
+
+    WHY THE RECONCILIATION MUST READ THE SECTION AND NOT THE WHOLE MECHANISM: the bullet-count check is
+    what catches two bullets merged onto one physical line, and the model's own prose carries `- ` lines
+    of its own. Counting over the whole mechanism would make that check meaningless in one direction and
+    spuriously fail-closed in the other."""
+    out: list[str] | None = None
+    in_fence = False
+    for line in (mech or "").split("\n"):
+        if line.lstrip().startswith("```"):
+            in_fence = not in_fence
+            if out is not None:
+                out.append(line)
+            continue
+        m = None if in_fence else _EPISODE_HEADING_RX.match(line)
+        if m:
+            if str(m.group(1)).strip().lower().startswith(_EPISODE_HEADING_TEXT):
+                out = [line]                          # entering (or re-entering) the section
+            elif out is not None:
+                break                                 # the next heading closes it
+        elif out is not None:
+            out.append(line)
+    return "\n".join(out) if out is not None else ""
+
+
+def _scaffold_rows(injected: list | None, nodes: list | None) -> list[tuple] | None:
+    """[(node label, injected span, receipt|None)] for every injected WINDOW, or None to DECLINE.
+
+    The spans are the ones `trace['episodes_injected']` stamped -- the SAME `tl.month_span(e)` strings
+    `render_line` showed the model and `eval._line_targets` matches bullets against -- so a synthesized
+    bullet's window cannot be minted and its tier-1 endpoint match holds by construction.
+
+    THE RECEIPT IS NOT ON THE TRACE RECORD, deliberately: adding it would change a record shape that is
+    pinned byte-for-byte by the W4 suites and stamped on EVERY timeline turn, i.e. it would move the OFF
+    arm. It is recovered from the node's own episode dicts, which are the very objects `_l2_blocks` read,
+    and the recovery is VERIFIED index-for-index against the recorded span before it is used.
+
+    FAIL-CLOSED, and this is the false-absence fence: if any window cannot be resolved to its episode
+    dict the whole scaffold declines rather than emit a bullet whose receipt state is unknown. A declined
+    turn is exactly today's behaviour (the omission stands, visibly, in the row table); a guessed one
+    would put the CASE-1 'no citable item in this window' sentence on a window that HAS one -- false,
+    reader-visible and engine-authored, which is the one thing Option A may never do."""
+    by_id: dict[str, list] = {}
+    for n in (nodes or []):
+        nid = str(getattr(n, "id", "") or "")
+        if nid and nid not in by_id:
+            by_id[nid] = list(getattr(n, "episodes", None) or [])
+    rows: list[tuple] = []
+    for rec in (injected or []):
+        spans = [str(s) for s in ((rec or {}).get("spans") or [])]
+        if not spans:
+            continue                       # a FULLY floored node carries no window: _FLOOR_ABSENCE says
+        node = str((rec or {}).get("node") or "")          # "write no bullet for it", so it gets none
+        eps = by_id.get(node)
+        if eps is None or len(eps) != len(spans):
+            return None
+        for sp, e in zip(spans, eps):
+            if not isinstance(e, dict) or _tl.month_span(e) != sp:
+                return None
+            rows.append((node, sp, e.get("receipt")))
+    return rows or None
+
+
+def _receipt_item(receipt: dict | None, evidence: list | None) -> dict | None:
+    """The turn's OWN evidence item a receipt was drawn from, or None.
+
+    `timeline.episodes_for` builds `receipt` as {"date", "text"[:180]} from an in-window evidence prop of
+    the node, so the item is always in this turn's `evidence` -- matching on (date, text prefix) recovers
+    it. THE HALLUCINATION FENCE (D-DT-1 M6/S1.3): the synthesizer may cite ONLY an item already in this
+    turn's evidence, never a new one, so an unmatched receipt DECLINES the whole scaffold rather than
+    minting a handle that resolves to nothing."""
+    d = str((receipt or {}).get("date") or "")[:10]
+    t = str((receipt or {}).get("text") or "")
+    if not d or not t:
+        return None
+    for h in (evidence or []):
+        if not isinstance(h, dict):
+            continue
+        if str(h.get("date") or "")[:10] == d and str(h.get("text") or "").startswith(t):
+            return h
+    return None
+
+
+def _synth_ref_floor(structured: dict, verifier: dict, n_positional: int) -> int:
+    """The first ref a synthesized [E] may take: strictly above every ref already in play AND above the
+    POSITIONAL citation namespace.
+
+    THE DOC'S RULE IS `max(existing model refs) + 1`; the positional term is the fold that makes the
+    rule satisfy the doc's own acceptance. `eval._cited_evidence` joins a prose handle to
+    `out['citations']` POSITIONALLY (citations.unify numbers the deduped evidence E1..En), so a
+    synthesized [E6] minted only above the model's refs would credit the SIXTH retrieved item -- moving
+    `min_episodes_cited` / `min_episode_sources`, the two pins D-DT-1 S1.7 names as the sharpest check
+    the A/B has ("if any of these move, synthesis has leaked into the model's surface"). Minted above
+    `len(uniq)` the handle indexes past the end of that list, so it credits nothing and both pins keep
+    measuring the MODEL exactly. The reader-facing join is unaffected: `_cited_sources_block` renders
+    from verifier['resolved'], which this ref is written into with the receipt item's TRUE metadata."""
+    hi = int(n_positional or 0)
+
+    def _ref_int(x) -> int:
+        s = str(x or "").strip().strip("[]").upper()
+        s = s[1:] if s[:1] in ("E", "N") else s
+        return int(s) if s.isdigit() else 0
+    for s in ((structured or {}).get("sources") or []):
+        if isinstance(s, dict):
+            hi = max(hi, _ref_int(s.get("ref")))
+    for r in (((verifier or {}).get("resolved") or {})):
+        hi = max(hi, _ref_int(r))
+    return hi + 1
+
+
+def _splice_episode_section(mech: str, section: str) -> str:
+    """Place the synthesized section where the persona instructs: after '## The record', before
+    '## What to watch'. Fence-aware; no match -> append (which cannot disturb _FIXED_SCAFFOLD's relative
+    order, so eval._scaffold_ok is unmoved either way)."""
+    lines = (mech or "").split("\n")
+    in_fence, at = False, None
+    for i, line in enumerate(lines):
+        if line.lstrip().startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        m = _EPISODE_HEADING_RX.match(line)
+        if m and any(str(m.group(1)).strip().lower().startswith(h) for h in _SCAFFOLD_BEFORE):
+            at = i
+            break
+    body = section.rstrip("\n")
+    if at is None:
+        return (mech.rstrip("\n") + "\n" + body + "\n") if (mech or "").strip() else body + "\n"
+    return "\n".join(lines[:at] + [body, ""] + lines[at:])
+
+
+def _scaffold_restatement(receipt: dict | None, market_register: str) -> str:
+    """The receipt's own wording, RESTATED on one physical line -- already sanitized, never quoted.
+
+    THE MINT-TIME SANITIZE IS THE FIX (D-DT-1 fold 2026-08-05). `reg.sanitize`'s strip is CLAUSE-scoped
+    (`register._SENT_KEEP` splits on `;` as well as `.!?`), so a receipt carrying an execution or
+    valuation idiom in any clause used to have that clause DELETED by the `_humanize_structured` pass
+    downstream of the seam -- taking the bullet's closing delimiter and its `[E]` handle with it and
+    leaving `structured['sources']` + `verifier['resolved']` + the '## Sources' footer carrying a handle
+    that appeared NOWHERE in the prose. Sanitizing HERE, in the turn's own register, means the text the
+    bullet is composed from is already a fixed point: the later pass finds nothing to take.
+
+    Everything else here is hygiene on corpus text the engine did not write: whitespace collapsed to one
+    physical line (a bullet is read line by line), foreign handle-shaped tokens dropped, markdown heading
+    tokens dropped (round-2 LOW-3 -- see _SCAFFOLD_MD_HEADING_RX; the collapse makes them mid-line, so they
+    were never a second section, only a stray '##' in the reader's face), QUOTATION DELIMITERS dropped
+    (round-3 BLOCKER -- see _SCAFFOLD_QUOTE_RX for the full statement and for why an apostrophe is not one),
+    and the same visible '...' marker verify.py uses on a cut so a fragment is never passed off as the whole
+    item.
+
+    THE THREE DROPS RUN BEFORE `reg.sanitize` AND THAT ORDER IS LOAD-BEARING FOR THE QUOTE ONE. Sanitize
+    rewrites words without ever seeing a delimiter, so a delimiter still present when it runs is a delimiter
+    around text it may rewrite -- the misquote. Dropping first means there is no delimiter left to rewrite
+    inside, and the CAP below then cannot cut an opening delimiter away from a closer that no longer exists.
+    The post-sanitize half of the same fence lives in `_scaffold_survives`, on the rendered line.
+
+    Empty output is a legitimate answer -- it means the receipt was ENTIRELY register-violating, and the
+    bullet then degrades to its cite-only form rather than restating something the reader may not see."""
+    raw = " ".join(str((receipt or {}).get("text") or "").split())
+    if not raw:
+        return ""
+    raw = " ".join(_SCAFFOLD_FOREIGN_HANDLE_RX.sub(" ", raw).split())
+    raw = " ".join(_SCAFFOLD_MD_HEADING_RX.sub(" ", raw).split())
+    raw = " ".join(_SCAFFOLD_QUOTE_RX.sub(" ", raw).split())   # a space, never '': two words never merge
+    san = " ".join(reg.sanitize(raw, market_register=market_register).split()).strip(" .;:,!?").strip()
+    if not san:
+        return ""
+    if len(san) > _SCAFFOLD_RESTATE_CAP:
+        san = san[:_SCAFFOLD_RESTATE_CAP].rstrip().rstrip(".;:,!?").rstrip() + "..."
+    return san
+
+
+def _scaffold_section(plan: list[tuple], market_register: str, *, degraded: bool) -> str:
+    """The whole '## Episodes' section, SANITIZED AT MINT TIME so the seam's own pass is idempotent on it.
+
+    Sanitizing here does not weaken D-DT-1 M7's seam constraint 2 ("synthesized text must inherit
+    reg.sanitize") -- it DISCHARGES it. The call site does not move: the section is still spliced into
+    `structured['mechanism']` BEFORE `_humanize_structured`, which still runs over it with the identical
+    register, so a raw node id is still humanized by `register.sanitize` and nothing about the seam's
+    four constraints changes. What changes is that the engine no longer DEPENDS on that later pass to
+    produce text it has not already inspected: the section it splices is the section the reader gets.
+
+    `degraded=True` is the one-step fallback ladder: it drops every restatement clause and keeps the
+    engine-authored remainder (span, label, handle, date, magnitude), which carries no corpus text at all
+    and therefore cannot be strippable for anything a source said. The bullet STILL CITES -- that is the
+    property that makes degradation an acceptable answer to a failed reconciliation and a decline the
+    answer only when even this form does not survive."""
+    lines = ["## Episodes"]
+    for span, label, ref, date, restatement in plan:
+        if ref is None:
+            lines.append(f"- {span} -- {label}: {_SCAFFOLD_CASE1_BACKING}; {_SCAFFOLD_CASE1_MAGNITUDE}.")
+            continue
+        lead = f"- {span} -- {label}: the dated item [E{ref}] recorded {date}"
+        body = f"{lead}{_SCAFFOLD_CASE2_REPORTS}{restatement}" if (restatement and not degraded) else lead
+        lines.append(f"{body}; {_SCAFFOLD_CASE2_MAGNITUDE}.")
+    return reg.sanitize("\n".join(lines), market_register=market_register)
+
+
+def _scaffold_corpus_half(line: str) -> str:
+    """The CORPUS-DERIVED remainder of a rendered bullet: the line with every engine-authored clause
+    constant removed.
+
+    Subtracting the engine's OWN clauses is what makes the two vocabulary fences below mean what they say.
+    `_SCAFFOLD_CASE2_MAGNITUDE` is itself an absence marker ('no observed magnitude' is in the scorer's
+    `_NO_PRICE_RECORD`), and so is the whole CASE-1 pair -- scanning the raw line for absence vocabulary
+    would therefore refuse every bullet the engine writes, which is an off switch and not a fence.
+
+    SUBTRACT-THE-KNOWN rather than split-on-the-verb, deliberately: a partition on
+    `_SCAFFOLD_CASE2_REPORTS` is silently WRONG in the direction that matters if that verb is ever damaged
+    or shadowed (it would report NO corpus text and pass a leaking bullet), whereas subtraction is
+    over-inclusive -- it leaves the engine lead and the node label in the string -- and over-inclusion here
+    can only cost a rung, never a leak. Returns '' for a CASE-1 bullet and for a degraded CASE-2 bullet,
+    which is the truth about both: neither carries one byte a source wrote."""
+    out = str(line or "")
+    for fixed in (_SCAFFOLD_CASE2_MAGNITUDE, _SCAFFOLD_CASE1_BACKING, _SCAFFOLD_CASE1_MAGNITUDE):
+        out = out.replace(fixed, " ")
+    return out
+
+
+def _scaffold_survives(section: str, plan: list[tuple]) -> list[str] | None:
+    """The section's bullet lines, in order, IFF every planned bullet survived a sanitize pass intact --
+    else None, which is the fail-closed signal.
+
+    THIS IS THE POST-SANITIZE RECONCILIATION, and it is checked twice: once against the mint-time pass and
+    once against the exact text `_humanize_structured` will produce. Six things are asserted per bullet,
+    and each corresponds to a state the verifier proved reachable:
+
+      * the section still has a heading -- '## Episodes' carries no terminal punctuation, so the strip's
+        sentence unit runs THROUGH it into the first bullet and a banned first bullet can take the heading;
+      * the bullet count is unchanged -- the strip's delimiter is `[.!?;]\\s+` and `\\s` matches '\\n', so
+        dropping a clause can drop the NEWLINE that separated two bullets and merge them onto one physical
+        line. A merged line is one line to `eval._episode_lines`, and worse, it can put a CASE-1 absence
+        sentence on the same line as a receipted window's handle;
+      * a receipted bullet still carries ITS OWN handle, its magnitude clause, and NO CASE-1 absence
+        clause -- the red line "a CASE-1 absence clause on an episode whose receipt is set", enforced on
+        the POST-sanitize text rather than only at mint;
+      * a receipt-less bullet still carries both absence clauses, so it stays BACKED for
+        `eval.min_episode_lines`' absence branch instead of degrading into a bare span;
+      * THE FORMAT FENCE, on the rendered line (round-2 BLOCKER, 2026-08-05). Doc 1.3 states it as "no
+        bare numeral except the ISO span" and "the span glyph is never `->`", and it was enforced only at
+        composition, where it could not be enforced at all: the CASE-2 restatement splices CORPUS text and
+        the level it carries reaches the reader without ever passing the PRE-seam `unbacked_levels`
+        counter that `price_target_backed` reads. The round-1 argument -- "the handle shares its sentence,
+        and register.unbacked_levels exempts a cited sentence" -- is FALSE TWICE, and both ways are
+        MEASURED: (a) `register._SENT_ITER` splits on `;` as well as `.!?`, so it is CLAUSE-scoped and a
+        handle in the lead clause does not back a level in a LATER clause of the same physical line
+        ("Frost hit Sul de Minas; cash arabica traded at $2.45/lb ..." shipped a bare 2.45); (b) the
+        exemption at `register.py:534` is VOIDED whenever the clause also carries a derivation-output
+        marker, so "$2.45/lb, the median of the week" leaks even with the handle right there. 5 of 6
+        ordinary-prose probes leaked. So the fence is asserted where the lie would be visible -- on the
+        line -- with `register`'s OWN counter, and `derivation_ok=False` because a bullet is not a
+        derivation unit and the fail-closed reading is the only honest one for engine-authored text;
+      * NO DERIVATION-OUTPUT MARKER, NO ABSENCE MARKER AND NO QUOTATION DELIMITER IN THE CORPUS HALF.
+        `register._deriv_output` is
+        reused rather than re-listed -- a second copy of that vocabulary is a fork waiting to drift, and it
+        is the same function `unbacked_levels` consults, so the two legs cannot disagree about what a
+        derivation looks like. It also subsumes doc 1.3's "the span glyph is never `->`", since `->` and
+        U+2192 are the first two alternatives in that pattern. The absence leg is the round-2 MEDIUM: a
+        receipted bullet whose restated corpus text says 'not available' / 'no data' / 'record is silent'
+        reads as an absence on a window that HAS a receipt, and the scorer reads its own vocabulary, not
+        the engine's constants (see _SCAFFOLD_ABSENCE_MARKERS). The QUOTATION leg is the round-3 BLOCKER
+        and it is the POST-sanitize half of the drop `_scaffold_restatement` performs at mint: the drop is
+        what makes rung 1 honest, this leg is what keeps the promise true if the drop is ever weakened,
+        narrowed or reordered behind sanitize. Same regex, not a second copy, for the reason the
+        derivation leg reuses register's -- two lists of what a quotation mark is would drift, and the
+        two halves would then disagree about the one thing the reader can see.
+
+    THE CONSEQUENCE OF THESE CORPUS-HALF LEGS IS A RUNG, NOT A REFUSAL, and that is the whole reason they
+    belong HERE rather than in the composer. `_scaffold_survives` is what the ladder in
+    `_maybe_scaffold_episodes` consults per rung, so a leaking restatement fails rung 1 and lands on rung 2
+    -- DEGRADED: restatement
+    dropped, engine-authored text only, and THE BULLET STILL CITES. A leak becomes a quieter honest bullet
+    automatically; only a bullet that cannot survive even with every corpus byte removed reaches rung 3."""
+    if not _has_episode_section(section):
+        return None
+    lines = [ln for ln in (section or "").split("\n") if ln.lstrip().startswith("- ")]
+    if len(lines) != len(plan):
+        return None
+    for ln, (span, _label, ref, _date, _rs) in zip(lines, plan):
+        if span not in ln:
+            return None
+        if ref is None:
+            if _SCAFFOLD_CASE1_BACKING not in ln or _SCAFFOLD_CASE1_MAGNITUDE not in ln:
+                return None
+        elif (f"[E{ref}]" not in ln or _SCAFFOLD_CASE2_MAGNITUDE not in ln
+              or _SCAFFOLD_CASE1_BACKING in ln):
+            return None
+        if reg.unbacked_levels(ln, derivation_ok=False):
+            return None                                # a level the PRE-seam counter never saw
+        corpus = _scaffold_corpus_half(ln)
+        if reg._deriv_output(corpus) is not None:      # register's own vocabulary, never a second copy
+            return None
+        low = corpus.lower()
+        if any(t in low for t in _SCAFFOLD_ABSENCE_MARKERS) or _SCAFFOLD_ABSENCE_RX.search(corpus):
+            return None                                # an absence a SOURCE asserted, on a receipted window
+        if _SCAFFOLD_QUOTE_RX.search(corpus):
+            return None                                # a delimiter a SOURCE wrote, on a line the ENGINE signs
+    return lines
+
+
+def _maybe_scaffold_episodes(structured: dict | None, verifier: dict | None, *,
+                             injected: list | None, nodes: list | None,
+                             evidence: list | None, n_positional: int = 0,
+                             market_register: str = reg.FENCED) -> dict:
+    """D-DT-1: synthesize '## Episodes' when the model omitted it. Returns the TRACE UPDATES to stamp.
+
+    THREE-LEG FIRE CONDITION, the `_episodes_on` discipline:
+      1. GRAPHRAG_EPISODE_SCAFFOLD resolves on  -- default OFF; off => this returns {} before reading
+         anything, so no trace key is written, `structured`/`verifier` are untouched and the ANSWER BODY
+         is byte-identical to rev 75 (see _episode_scaffold_on for the scoping of that promise);
+      2. >=1 injected record carries >=1 SPAN     -- the leg that stops a fully-floored turn from getting
+         an empty heading, which is the exact defect timeline._FLOOR_ABSENCE exists to prevent;
+      3. the model's mechanism carries NO Episodes section, by a detector at least as wide as the
+         scorer's (`_has_episode_section`).
+
+    LEG 1 SUBSTITUTES THE FLAG FOR THE DOC'S SEAM-GATE LEG, and the substitution is STATED here rather
+    than left to be inferred (D-DT-1 1.6 component 2 names the three legs as "seam gate true, no Episodes
+    section, and >=1 injected record carrying >=1 span"). This function never evaluates `_episodes_on(vp)`,
+    because leg 2 ALREADY IMPLIES IT: a stamped span exists only where `_l2_blocks` rendered a
+    `tl.render_line`, every such line opens with `timeline._head`'s `LINE_PREFIX`, and `_episodes_on` is
+    exactly `_timeline_on() and LINE_PREFIX in vp` over the volatile prompt that line was written into.
+    So `spans` non-empty => LINE_PREFIX in the prompt => the seam gate held. Re-reading the gate here
+    would also require threading `vp` into a function that has no other use for it. Pinned by a test, in
+    both directions: the mechanical half (`render_line` starts with LINE_PREFIX) and the end-to-end half
+    (on a turn that stamps a span, the assembled volatile prompt satisfies `_episodes_on`).
+
+    RECEIPT-BRANCHING, off `e['receipt']` -- the same test `render_line` uses, so producer and
+    synthesizer cannot drift:
+      * receipt-less -> the CASE-1 shape, node id as label, both absence clauses VERBATIM;
+      * receipted    -> the CASE-2 shape: an open RESTATEMENT (never a quotation -- see
+        _SCAFFOLD_CASE2_REPORTS) carrying an ENGINE-MINTED [E] written to all THREE places a handle must
+        exist in (the bullet, structured['sources'], verifier['resolved']) and recorded in
+        verifier['synthesized_refs'] so an audit can subtract them from `resolved`. A receipted window
+        can NEVER receive the CASE-1 absence sentence: the two branches are disjoint on one boolean and
+        the false-absence path does not exist in code.
+
+    SANITIZE-STABILITY IS PART OF THE THREE-PLACE RULE, not a separate concern (D-DT-1 fold 2026-08-05).
+    Writing a handle to three places and then letting a downstream pass delete the FIRST of them produces
+    exactly the state this function's own comments call impossible: a ref in `sources` + `resolved` + the
+    reader's '## Sources' footer that appears in no prose. The section is therefore composed from
+    ALREADY-SANITIZED text (`_scaffold_restatement`, `_scaffold_section`) and then RECONCILED against the
+    exact bytes `_humanize_structured` will produce (`_scaffold_survives`). The ladder is fail-closed and
+    has three rungs, in this order:
+      1. the full section;
+      2. the DEGRADED section -- every restatement dropped, so each receipted bullet keeps its span,
+         label, handle, date and magnitude and carries no corpus text at all. It still CITES;
+      3. decline, reason `sanitize_would_strip_the_bullet`, committing nothing.
+
+    THE LADDER CARRIES THE FORMAT AND ABSENCE FENCES TOO, and that is why it is the only place they can
+    live (round-2 BLOCKER + MEDIUM, 2026-08-05). Both failures are properties of RESTATED CORPUS TEXT --
+    a price level the pre-seam counter never saw, a derivation-output marker, an absence phrase a source
+    wrote -- and rung 2 removes every corpus byte from the bullet by construction. So a leaking receipt
+    does not decline and does not ship: it renders the quieter honest bullet, and it still cites. The
+    predicate is `_scaffold_survives`; the consequence is the rung it lands on.
+    Nothing is written to `structured` or `verifier` until a rung passes, so a rolled-back ref is a ref
+    that was never committed -- there is no orphan to clean up, on any path. And the false-absence
+    sentence stays unreachable for a receipted window in EVERY rung: rung 1 and 2 both assert its absence
+    on the post-sanitize line, and rung 3 renders no section at all.
+
+    HANDLE REUSE BEFORE MINTING. When the model already declared the receipt's item AND wrote its handle
+    in E-form, the bullet reuses THAT ref: correct attribution at zero cost, because the string was
+    already on the page. A fresh ref is minted only otherwise, and it is minted OUT OF THE POSITIONAL
+    CITATION NAMESPACE (see _synth_ref_floor) so it credits nothing either. Both branches are therefore
+    delta-zero on `min_episodes_cited` / `min_episode_sources`.
+
+    THE LABEL IS THE INJECTED LINE'S OWN, and its exposure is the MODEL'S exposure, neither better nor
+    worse. `reg.sanitize` humanizes a CONTRACT-node id into its display name ('arabica_coffee' ->
+    'ICE arabica coffee'), which can add a token the node id does not carry, and
+    `eval._absence_label_ok` requires the label's tokens to be a SUBSET of the node's. That is equally
+    true of a model bullet copying the same id verbatim, as the persona instructs. It cannot make the
+    pin worse than not firing: with no section at all `episode_absence_label_fixed` reds on its
+    non-empty guard anyway, so a synthesized section weakly dominates an omitted one on that key.
+
+    THE RESIDUAL, STATED. `eval.min_episode_lines` requires every bullet to be BACKED, and its three
+    branches are (a) an absence marker, (b) a year some CITED item is dated in, (c) a cited handle.
+    CASE-1 bullets take (a) unconditionally. A CASE-2 bullet takes (c) on the reuse path and otherwise
+    depends on (b) -- so on a turn where the model cited NOTHING dated in the receipt's year, the pin can
+    still red on a correctly synthesized section. That is a false RED on a deterministic pin, visible in
+    the row table, never a false green, and it is the price of refusing to move the two citation pins
+    D-DT-1 S1.7 names as the A/B's sharpest check. The bullet carries the receipt's OWN date precisely so
+    branch (b) gets the widest honest shot at it.
+
+    DECLINE IS A THIRD STATE and it is stamped as one. `episodes_model_authored` is TRUE only when the
+    MODEL wrote the section; a fail-closed decline reports False with a reason, because reporting the
+    model as the author of a section nobody wrote would be the one lie this record must not carry.
+    The doc writes the column as `not fired`, which is right in the two-state world it describes.
+
+    KNOWN COSMETIC, NOT FIXED HERE, AND THE REASON IS THE POINT (round-2 LOW-2, 2026-08-05). When the
+    citation verifier STRIPS the model's own handle for an item (`no_lexical_overlap`) the item's row
+    survives in `structured['sources']` and in `verifier['resolved']`, so `_cited_sources_block` renders
+    it. If the scaffold then mints a fresh ref for that same document -- and it must, because the reuse
+    test requires the E-form string to be PRESENT IN THE PROSE, which a stripped handle is not -- the
+    reader's '## Sources' list carries the same document under two refs. MEASURED end to end.
+      * The ROOT CAUSE IS PRE-EXISTING AND NOT THE SCAFFOLD'S: "a stripped handle keeps its sources row"
+        reproduces with the flag OFF, where the footer already renders a row for a handle that appears
+        nowhere in the prose. Fixing that half would move the OFF arm and break flag-off byte-identity,
+        which is the one promise this change may not cost.
+      * REUSING THE STRIPPED REF -- the other candidate fix, and the one confined to the mint path -- is
+        NOT provably safe under the three-place rule and is REJECTED on two independent grounds. It would
+        put `[E<n>]` back into the prose for a citation the verifier deliberately REMOVED, i.e. the engine
+        re-asserting a claim the verifier refused; and a newly-present E-form handle is newly COUNTED by
+        `eval._cited_evidence`'s positional join, moving `min_episodes_cited` / `min_episode_sources` --
+        the two pins D-DT-1 S1.7 names as the A/B's sharpest check, and the exact leak `_synth_ref_floor`
+        exists to prevent.
+    So the code is left untouched on both halves and the duplicate is recorded here, with a test that
+    documents the CURRENT behaviour so the day it is fixed the fix is deliberate. It is cosmetic in the
+    strict sense: both rows resolve to the same real document with its true metadata, and no handle in
+    the prose points at anything but the item it names."""
+    if not _episode_scaffold_on():
+        return {}
+    recs = [r for r in (injected or []) if isinstance(r, dict) and (r.get("spans") or [])]
+    if not recs:
+        return {}
+    mech = str((structured or {}).get("mechanism") or "")
+    if _has_episode_section(mech):
+        return {"episodes_scaffolded": {"fired": False, "n_bullets": 0, "n_receipted": 0},
+                "episodes_model_authored": True}
+
+    def _declined(why: str) -> dict:
+        return {"episodes_scaffolded": {"fired": False, "n_bullets": 0, "n_receipted": 0, "declined": why},
+                "episodes_model_authored": False}
+    if not isinstance(structured, dict) or not isinstance(verifier, dict):
+        return _declined("no_write_surface")           # the three-place rule needs both, or it is not three
+    rows = _scaffold_rows(recs, nodes)
+    if rows is None:
+        return _declined("unresolved_window")
+    # A COPY, committed only on success. A decline can happen on the SECOND receipted window after the
+    # first has already allocated a ref, and mutating verifier['resolved'] in place would leave an orphan
+    # entry behind on a turn that rendered no bullet at all -- a resolved handle pointing at nothing,
+    # which is precisely the state the verifier exists to make impossible.
+    resolved = dict(verifier.get("resolved") or {}) if isinstance(verifier.get("resolved"), dict) else {}
+    prose = f"{structured.get('tldr') or ''}\n{mech}"
+    minted: dict[str, int] = {}                       # source_key -> ref (one ref per cited item)
+    next_ref = _synth_ref_floor(structured, verifier, n_positional)
+    new_sources: list[dict] = []
+    synthesized: list[int] = []
+    # PHASE 1 -- resolve every window to (span, label, ref|None, date, restatement). Refs are allocated
+    # on COPIES; the composition and the reconciliation below decide whether any of it is ever committed.
+    plan: list[tuple] = []
+    for node, span, receipt in rows:
+        if not receipt:
+            plan.append((span, node, None, "", ""))
+            continue
+        item = _receipt_item(receipt, evidence)
+        if item is None:
+            return _declined("receipt_not_in_evidence")
+        key = str(item.get("source_key") or f"{item.get('source')}|{item.get('date')}")
+        ref = minted.get(key)
+        if ref is None:
+            for r, meta in resolved.items():          # the model already ledgered AND cited this item
+                rr = str(r).strip().strip("[]")
+                # The reuse test is the E-FORM STRING `eval._cited_evidence` itself joins on, not merely
+                # "the model ledgered it". Reusing a ref the prose carries only as a BARE `[1]` would put
+                # `[E1]` on the page for the first time and make that citation newly COUNTED -- moving
+                # min_episodes_cited / min_episode_sources, which is the leak the ref floor exists to
+                # prevent. Matched this way, reuse is provably delta-zero: the string was already there.
+                if (isinstance(meta, dict) and rr.isdigit() and meta.get("source_key")
+                        and str(meta["source_key"]) == str(item.get("source_key") or "")
+                        and f"[E{rr}]" in prose):
+                    ref = int(rr)
+                    break
+        if ref is None:
+            ref = next_ref
+            next_ref += 1
+            txt = str(item.get("text") or "")
+            resolved[str(ref)] = {"source": item.get("source"), "date": item.get("date"),
+                                  "source_key": item.get("source_key"),
+                                  "snippet": txt[:140] + ("..." if len(txt) > 140 else "")}
+            new_sources.append({"ref": ref, "source": item.get("source"), "date": item.get("date"),
+                                "note": "engine-rendered episode receipt (D-DT-1 scaffold)",
+                                **({"source_key": item["source_key"]} if item.get("source_key") else {})})
+            synthesized.append(ref)
+        minted[key] = ref
+        plan.append((span, node, ref, str(receipt.get("date"))[:10],
+                     _scaffold_restatement(receipt, market_register)))
+    if not plan:
+        return _declined("no_bullets")
+    # PHASE 2 -- compose sanitize-stable, then PROVE it against the exact bytes _humanize_structured will
+    # produce. Rung 1 full, rung 2 degraded, rung 3 decline; nothing is committed until a rung passes.
+    chosen: tuple | None = None
+    for _degraded in (False, True):
+        section = _scaffold_section(plan, market_register, degraded=_degraded)
+        if _scaffold_survives(section, plan) is None:
+            continue                                  # the mint-time pass already took a clause
+        spliced = _splice_episode_section(mech, section)
+        post = reg.sanitize(spliced, market_register=market_register)
+        kept = _scaffold_survives(_episode_section_body(post), plan)
+        # The synthesized-ref check is the three-place rule's own closing leg, asserted on POST-sanitize
+        # prose: a ref that reaches sources/resolved/the footer while its handle reaches no reader is the
+        # orphan this whole ladder exists to make unreachable, so it is tested rather than reasoned about.
+        if kept is None or not all(f"[E{r}]" in post for r in synthesized):
+            continue
+        chosen = (spliced, _degraded)
+        break
+    if chosen is None:
+        return _declined("sanitize_would_strip_the_bullet")
+    spliced, _degraded = chosen
+    if new_sources:                                   # the SECOND and THIRD of the three places
+        structured["sources"] = list(structured.get("sources") or []) + new_sources
+        verifier["resolved"] = resolved
+        verifier["synthesized_refs"] = list(verifier.get("synthesized_refs") or []) + synthesized
+    structured["mechanism"] = spliced
+    stamp = {"fired": True, "n_bullets": len(plan),
+             "n_receipted": sum(1 for p in plan if p[2] is not None)}
+    if _degraded:                                     # the rung is REPORTED, so a silent fallback is not
+        stamp["restatement_dropped"] = True           # a thing the A/B can be reading without knowing
+    return {"episodes_scaffolded": stamp, "episodes_model_authored": False}
+
+
+# ══ D-DT-2 c1: trace['fork_basis'] -- the ENGINE-DERIVED license inventory ════════════════════════════
+# THE ASK. `no_unbacked_fork` fires on TWO NUMERIC trace conditions and nothing else (divergence_nodes /
+# reroute_pairs, both written by the numeric cascade engine alone), while the mentor persona licenses
+# '## Where the record disagrees' at FOUR sites of which only ONE is trace-backed. On the two playbook
+# rows the numeric basis is structurally absent and the QUESTION TEXT demands the section, so the pin is
+# meeting a population it was not written for. c1 mints the inventory that lets a pin tell a licensed
+# fork from a manufactured one -- and it changes no output.
+#
+# THE CIRCULARITY FENCE, AS AN ORDERING INVARIANT (V.4 X3). Every flag is derived from engine inputs
+# assembled BEFORE synthesis -- the cascade trace, `_context_block`'s own driver list, the retrieved
+# evidence and `trace['episodes_injected']` -- and NEVER from `structured`. Both serving bodies therefore
+# mint it BEFORE the model call, which makes the circularity physically unreachable rather than merely
+# forbidden: at the mint site there is no answer prose in existence to read. This matters because
+# D-DT-1's scaffold now WRITES `structured['mechanism']` downstream, so a basis computed at the return
+# statement from `mechanism` would be reading the engine's own output.
+def _driver_conflict(graph, contracts: list[str] | None) -> bool:
+    """L1a: opposing SAME-CONFIDENCE drivers on ONE target metric, read off the exact list
+    `_context_block` renders to the model (`tgt = d.target_metric or tgt0`, same expression). Pure graph
+    read, zero LLM, fully deterministic -- the one L1 clause that is."""
+    buckets: dict[tuple, set] = {}
+    for cid in (contracts or []):
+        c = ((getattr(graph, "contracts", None) or {}) or {}).get(cid)
+        if c is None:
+            continue
+        tgt0 = c.target_metrics[0] if c.target_metrics else "price"
+        for d in c.drivers:
+            buckets.setdefault((cid, d.target_metric or tgt0, d.confidence), set()).add(d.sign)
+    return any({"+", "-"} <= signs for signs in buckets.values())
+
+
+def _fork_basis(graph, contracts: list[str] | None, evidence: list | None, trace: dict | None) -> dict:
+    """The four-flag license inventory stamped as trace['fork_basis'] (D-DT-2 c1).
+
+      numeric         -- a DIVERGENCE or REROUTE actually fired (L3). EXACTLY today's
+                         `divergence_nodes > 0 or reroute_pairs > 0`, so the basis-aware pin is a STRICT
+                         SUPERSET of `no_unbacked_fork` and no turn that passes today can fail tomorrow.
+      driver_conflict -- L1a, above.
+      tier_mixed      -- L1b, and it is HONESTLY WEAK: it detects that the evidence the prompt SHOWED
+                         spans more than one source_tier, never that two sources DISAGREE. Closing the
+                         real clause needs a per-chunk (metric, period, value) claim tuple -- no such
+                         extraction layer exists -- or an LLM judge, which would breach the judge-free
+                         deterministic-pin standard this key was created under. Labelled weak here and
+                         EXCLUDED from any future tightening, the way PHASE9_FIXCYCLE_PLAN.md:323-334
+                         labels the existing dull teeth.
+      episodes        -- L2/L4: >=2 episode WINDOWS were injected, so 'where do they disagree' has
+                         something to disagree about. Nearly always true on a playbook row, which makes
+                         the pin close to vacuous there -- the honest reading of a population whose whole
+                         purpose is to disagree, and better recorded as vacuous than left red.
+
+    ONE FUNCTION, TWO CALL SITES, AND THE ARGUMENTS DIFFER -- stated precisely, because the earlier
+    wording ("spelled identically in both bodies") was not true of the call and reading it as true would
+    mislead the next editor. What is identical is the FUNCTION and its POSITION (before the model call in
+    both bodies, which is the circularity fence). What differs is what each body has to give it:
+
+      | body                      | evidence argument                          | trace argument      |
+      | `_answer_l2`              | the node-evidence flatten across `sg.nodes`| `sg.trace`          |
+      | one-hop legacy (`answer`) | the body's own `evidence` list             | `{}`                |
+
+    Both differences are forced and neither is a divergence to repair. The one-hop body assembles its
+    evidence as one flat list already, so re-flattening would be a no-op; and `{}` IS that body's engine
+    trace at the mint point -- it writes no `quantify` and no `episodes_injected` before the model call,
+    so `numeric` and `episodes` are structurally False there and passing a real dict would not change a
+    single flag. `driver_conflict` and `tier_mixed` are live on both. A future one-hop cascade or episode
+    producer becomes correct by passing its trace here, with no other edit."""
+    tr = trace or {}
+    quant = tr.get("quantify") or []
+    n_windows = sum(len((rec or {}).get("spans") or []) for rec in (tr.get("episodes_injected") or []))
+    return {"numeric": bool(any((t or {}).get("divergence") for t in quant)
+                            or (tr.get("quantify_reroute") or [])),
+            "driver_conflict": _driver_conflict(graph, contracts),
+            "tier_mixed": len({source_tier(str((h or {}).get("source") or ""))
+                               for h in (evidence or []) if isinstance(h, dict)}) > 1,
+            "episodes": n_windows >= 2}
+
+
 def _cited_sources_block(d: dict, vreport: dict, number_calls: list | None) -> str:
     """The single reader-facing `## Sources` list: the model's OWN handles, every entry resolved by the
     verifier to a real item's true metadata. Cited-only — retrieved-but-uncited items stay machine-side
@@ -1916,6 +2714,14 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     # carries an injected episode line", and spelling it the same way in both bodies means a future one-hop
     # producer is correct for free and cannot silently diverge. Today it evaluates False on every turn.
     _episodes = _episodes_on(vp)
+    # D-DT-2 c1, V-9: the SECOND mint site. Stamped in BOTH bodies with the identical expression (the
+    # W4-D3 discipline the gate above already follows). Minting only in _answer_l2 would leave a one-hop
+    # turn with NO basis key at all, so `fork_licensed` would evaluate against a missing dict -- a silent
+    # pass or a silent red depending on the default -- on the one planner where no fork producer exists
+    # in the first place. This body has no cascade and no episode producer, so `numeric` and `episodes`
+    # are structurally False here today; the other two legs are real, and a future one-hop producer is
+    # correct for free. `{}` IS this body's engine trace: it writes none before the model call.
+    _fork_basis_v = _fork_basis(graph, contracts, evidence, {})
     structured = call(_system(outlook=_outlook, episodes=_episodes),
                       _pack(sp, vp, use_blocks), model=model, tool=_answer_tool())
     _banned_mood = _count_banned_mood(structured)                 # P9-A: RAW output, pre-sanitize
@@ -1950,6 +2756,14 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     # rollback puts every turn on. Identical two seams, identical field names.
     _raw_draft = _fold_draft(_raw_draft, sanitize_input_snapshot(
         verified_tldr=structured.get("tldr"), verified_mechanism=structured.get("mechanism")))
+    # D-DT-1 on the SECOND synthesis path, at the IDENTICAL four-constraint seam and spelled identically
+    # (1.8's one-hop row + the W4-D3 rationale above). `tl.render_line` has exactly ONE call site
+    # (_l2_blocks), so this body injects no episode line, `injected` is empty and the scaffold returns {}
+    # on every turn today -- which is the point: a future one-hop episode producer is correct for free
+    # and cannot silently diverge from the L2 body.
+    _scaf_trace = _maybe_scaffold_episodes(structured, verifier, injected=None, nodes=None,
+                                           evidence=evidence, n_positional=len(uniq),
+                                           market_register=_mr)
     _humanize_structured(structured, market_register=_mr)         # clean the fields the UI renders directly (6.1)
     if os.environ.get("GRAPHRAG_ANSWER_V2", "off") == "on":       # P9-C typed sections -- the one-hop twin of
         secs = _sectionize(structured.get("mechanism") or "")     # the L2 seam: same post-verify+humanize
@@ -1972,9 +2786,11 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
                       "banned_valuation_words": _banned_val, "banned_flow_words": _banned_flow,
                       "banned_exec_words": _banned_exec, "unbacked_levels": _unbacked,
                       "outlook_mode": _outlook, "market_register": _mr,
+                      "fork_basis": _fork_basis_v,                 # D-DT-2 c1 (V-9): the SECOND mint site
                       "n_drivers": sum(len(graph.contracts[c].drivers) for c in contracts), "regimes": regimes,
                       "drivers": drivers, "n_driver_evidence": len(driver_hits),
                       "evidence_ids": ev_ids, "has_diagram": _valid_mermaid(structured.get("diagram_mermaid")),
                       **({"degraded_model": degraded} if degraded else {}),
                       **({"raw_draft": _raw_draft} if _raw_draft else {}),   # A4, audited runs only
+                      **_scaf_trace,                               # D-DT-1: absent when the flag is off
                       "citation_verifier": verifier, "model": model}}

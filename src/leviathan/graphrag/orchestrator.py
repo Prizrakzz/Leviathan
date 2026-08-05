@@ -107,9 +107,22 @@ def run_numbers_only(query: str, asof: str, *, client=None, model: str = na.HAIK
     # reaches no citation, no footer and no reader. agent.py:1812 stamps the key precisely because that
     # makes it the only observable half; until this line it was written to a dict nobody read, which is the
     # C2 defect one wave later. Absent on every turn the guard did not fire -> byte-identical.
+    #
+    # D-DT-2 c1: `fork_basis` joins the SAME tuple, APPENDED so the C2 prefix substring is untouched
+    # (test_decline_overlap asserts that three-key substring appears exactly 3 times, and U3's own pin
+    # counts U3's own quoted key 3 times -- both survive an append and neither survives a reorder, and
+    # NEITHER may be re-spelled inside a comment, which is why this sentence names it obliquely).
+    # STATED PLAINLY: on THIS lane the key is INERT today. `answer_numbers` mints no basis, and a
+    # numbers_only turn never reaches _answer_l2 at all, so the lookup is always None and
+    # the trace is byte-identical. It is carried anyway for the reason C2 and U3 were both carried LATE:
+    # the whitelists are fixed tuples in a file the producing lane does not own, and a record written to
+    # a dict nobody reads is the defect this project has now shipped twice. `fork_licensed` is
+    # fail-closed on a missing basis, and a numbers_only turn has no structured mechanism, so no heading
+    # can render and the pin passes on its own terms -- the entry buys future readability, not a gate.
     for _gk in ("esr_destination_guard", "price_decline_guard", "pattern_records", "period_mismatch_guard",
                 "futures_coverage_guard",      # W3.2: the silver_futures_eod coverage verdict (legacy/decline)
-                "question_shape", "shape_metric_states", "shape_decline_guard", "unit_mismatch_guard"):
+                "question_shape", "shape_metric_states", "shape_decline_guard", "unit_mismatch_guard",
+                "fork_basis"):
         if out.get(_gk) is not None:
             _trace[_gk] = out[_gk]
     return {"answer": body, "intent": "numbers_only",
@@ -327,7 +340,12 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
         # U3 rides this tuple too: the unit guard is lane-independent (it fires inside answer_numbers,
         # which BOTH lanes call), and on hybrid its refusal is even less reachable than C2's -- the
         # agent's prose is discarded here, so the trace key is the ONLY place the fire is visible.
-        for _sk in ("question_shape", "shape_metric_states", "shape_decline_guard", "unit_mismatch_guard"):
+        # D-DT-2 c1 appends `fork_basis` here for the same reason and with the same caveat as the
+        # numbers_only tuple: `answer_numbers` mints none, so the value is None on every turn and the
+        # copy-back below (guarded on `is not None`) can never overwrite the basis answer.py already
+        # stamped on this lane's own trace. Appended, so C2's three-key substring and U3's count hold.
+        for _sk in ("question_shape", "shape_metric_states", "shape_decline_guard", "unit_mismatch_guard",
+                    "fork_basis"):
             holder[_sk] = nums.get(_sk)
         holder["ms_numbers"] = nums.get("_ms_numbers")            # W6.1-0: numbers-agent duration (MsNumbers)
         return "\n\n".join(x for x in (extra_context, _numbers_block(calls)) if x), calls
@@ -359,7 +377,8 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
     if holder.get("pattern_records") is not None:
         out.setdefault("trace", {})["pattern_records"] = holder["pattern_records"]   # T2b D2, see _resolve
     for _sk in ("question_shape", "shape_metric_states", "shape_decline_guard",      # C2 (F5), see _resolve
-                "unit_mismatch_guard"):                                              # U3, see _resolve
+                "unit_mismatch_guard",                                               # U3, see _resolve
+                "fork_basis"):                                                       # D-DT-2 c1, see _resolve
         if holder.get(_sk) is not None:
             out.setdefault("trace", {})[_sk] = holder[_sk]
     if holder.get("ms_numbers") is not None:

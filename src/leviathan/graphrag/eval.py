@@ -644,6 +644,11 @@ def _settle_mislabeled(text: str) -> bool:
 _CASCADE_EXPECT = ("cascade_fired", "min_cascade_cited", "delta_row", "fork", "absence",
                    "pit_clean", "su_prescaled", "ok_era_leg", "reroute_fired",
                    "opposite_country_legs", "two_countries_cited", "no_unbacked_fork",
+                   # D-DT-2 c1: the BASIS-AWARE sibling of no_unbacked_fork. A SPLIT, never a loosening --
+                   # no_unbacked_fork keeps byte-identical numeric semantics on the 5 cascade/pace rows it
+                   # was designed for; fork_licensed replaces it on the 2 playbook rows where the numeric
+                   # basis is structurally absent and the QUESTION TEXT demands the heading.
+                   "fork_licensed",
                    "reroute_v2_expected", "detection_tier", "comove_expected", "pace_expected",
                    # CHAIN ENGINE (sec 6.1): multi-hop quantified-cascade pins. chain_fired (boolean; the
                    # negative pin is the realizable teeth -- an engine-dark chain MUST stay false),
@@ -738,6 +743,27 @@ def _cascade_asserts(q: dict, out: dict) -> dict | None:
             fired = cs["divergence_nodes"] > 0 or cs["reroute_pairs"] > 0
             heading = "## Where the record disagrees" in mech
             res[k] = (not (heading and not fired)) if bool(want) else True
+        elif k == "fork_licensed":
+            # D-DT-2 c1. SAME one-directional text rule as no_unbacked_fork, SAME heading test, in the
+            # same place (eval owns the heading, answer owns the basis -- the clean split 2.2(c) draws);
+            # only the LICENSE INVENTORY is wider. FAIL iff the heading rendered and EVERY basis flag is
+            # false. `numeric` is byte-for-byte the old predicate, so this is a STRICT SUPERSET: no turn
+            # that passes no_unbacked_fork today can fail fork_licensed tomorrow.
+            #
+            # WHY THIS EXISTS. The old pin fires on two NUMERIC trace conditions written by the cascade
+            # engine alone, while the persona licenses the heading at FOUR sites of which only one is
+            # trace-backed. On pb_brazil_drought_vs_frost / pb_disagree_eras the numeric basis is
+            # structurally unreachable (the episode layer contributes no fork) and the question asks
+            # "where do the episodes disagree" -- so the red was the pin meeting a population it was not
+            # written for, and it was UNINFORMATIVE rather than false.
+            #
+            # MISSING BASIS => UNLICENSED, deliberately fail-closed. Both answer.py bodies mint the key
+            # (V-9), so an absent basis means the turn came from neither -- a numbers_only lane, which
+            # carries no structured mechanism at all, so `heading` is False and the row passes anyway.
+            basis = ((out.get("trace") or {}).get("fork_basis")) or {}
+            licensed = any(bool(v) for v in basis.values())
+            heading = "## Where the record disagrees" in mech
+            res[k] = (not (heading and not licensed)) if bool(want) else True
         elif k == "reroute_fired":
             res[k] = (cs["reroute_pairs"] > 0) == bool(want)
         elif k == "reroute_v2_expected":
@@ -1200,6 +1226,24 @@ def _per_answer_record(r: dict, run_kind: str) -> dict:
             "n_cascade_cited": cs["n_cited"],
             "divergence_nodes": cs["divergence_nodes"],
             "reroute_pairs": cs["reroute_pairs"],
+            # D-DT-2 c1 acceptance item 5: the census must be readable from the JSONL WITHOUT the report
+            # body -- M7 measured that no artifact on this machine records WHICH headings rendered, so a
+            # use-rate for the qualitative license was unobtainable. This projection is a hard whitelist
+            # (see the raw_draft note above), so the basis reaches no artifact unless it is named here.
+            "fork_basis": (out.get("trace") or {}).get("fork_basis"),
+            # D-DT-1 component 6: a REPORT COLUMN, never a pin. True when the MODEL wrote '## Episodes',
+            # False when the engine synthesized it (or fail-closed declined to). None = the turn was not
+            # susceptible (no injected window) or the scaffold flag was off -- which is what keeps the
+            # A/B readable: `episodes_model_authored` is the model's own compliance rate, and it stays
+            # measurable on the ON arm precisely because the persona mandate is never touched.
+            "episodes_model_authored": (out.get("trace") or {}).get("episodes_model_authored"),
+            # ...and the STAMP beside it, for the same hard-whitelist reason. episodes_model_authored is
+            # a BOOLEAN and it cannot distinguish the three False states the scaffold actually has: fired
+            # normally, fired with every restatement dropped (`restatement_dropped`), or fail-closed
+            # declined with a reason (`declined`). A ladder whose fallback rungs reach no artifact is a
+            # silent fallback, which is exactly what an A/B must not be reading without knowing. Absent
+            # on the OFF arm and on any non-susceptible turn, so it adds no column there.
+            "episodes_scaffolded": (out.get("trace") or {}).get("episodes_scaffolded"),
             # RV2 W2 (D15): the v2 fork count + the detecting tier ride every record so a soak/eval readout
             # can attribute fires per tier post-run; None on non-orchestrator rows (no intent_decision).
             "reroute_v2_pairs": cs["reroute_v2_pairs"],
