@@ -374,9 +374,12 @@ def test_a_receipt_with_no_item_in_this_turns_evidence_declines_the_whole_scaffo
 def test_a_decline_after_a_partial_mint_leaves_the_verifier_untouched(monkeypatch):
     """The decline is ALL-OR-NOTHING. Window 1 resolves and allocates a ref; window 2's receipt is not in
     this turn's evidence. A ref committed before the decline would leave a resolved handle pointing at an
-    item no bullet cites -- exactly the dangling state the verifier exists to make impossible."""
+    item no bullet cites -- exactly the dangling state the verifier exists to make impossible.
+    (D-RC-11 update, deliberate: the two windows must be DISTINCT spans now -- the original spread
+    _EPS[1] twice, and identical (node, span) rows are collapsed by the de-dup defect fix, which would
+    have dropped window 2 before its receipt was ever inspected.)"""
     other = {"date": "2016-02-01", "text": "macro note"}
-    eps = [{**_EPS[1], "receipt": other}, {**_EPS[1], "receipt": {"date": "1900-01-01", "text": "ghost"}}]
+    eps = [{**_EPS[1], "receipt": other}, {**_EPS[0], "receipt": {"date": "1900-01-01", "text": "ghost"}}]
     st, vf = _structured(_MECH_NO_EPISODES.replace("[E1]", "(no handle)")), _verifier()
     vf0 = copy.deepcopy(vf)
     st2, vf2, trace = _scaffold(monkeypatch, structured=st, verifier=vf, eps=eps,

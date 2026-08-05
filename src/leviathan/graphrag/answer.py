@@ -19,6 +19,7 @@ from leviathan.graphrag import graph as gph
 from leviathan.graphrag import harvest as hv
 from leviathan.graphrag import params as _prm
 from leviathan.graphrag import register as reg
+from leviathan.graphrag import intent as _it     # D-RC-11: is_episodic_explicit only (pure regex, no cycle)
 from leviathan.graphrag import timeline as _tl   # W4-D3: LINE_PREFIX only (module imports params alone -> no cycle)
 
 # Production retrieval stack — the arm that won the free k=3 A/B (hybrid doubled exact-token recall 2/6->4/6;
@@ -767,6 +768,38 @@ def _episode_scaffold_on() -> bool:
     Read PER CALL (never memoized) so the env-flip rollback is live -> no redeploy (the _chain_on idiom).
     That is what makes the A/B one variable on a FROZEN artifact rather than two deploys."""
     return os.environ.get("GRAPHRAG_EPISODE_SCAFFOLD", "").strip().lower() in ("on", "1", "true")
+
+
+def _episode_relevance_on() -> bool:
+    """D-RC-11 kill-switch (GRAPHRAG_EPISODE_RELEVANCE), the _episode_scaffold_on idiom exactly:
+    DEFAULT-OFF, house on/1/true spelling, read PER CALL so the env-flip rollback is live. Gates the
+    RELEVANCE leg on the '## Episodes' surface AND the scaffold noise caps -- with the flag off,
+    _episodes_relevant returns True having read nothing further and the caps never run, so the turn
+    is byte-identical to pre-D-RC-11 behaviour."""
+    return os.environ.get("GRAPHRAG_EPISODE_RELEVANCE", "").strip().lower() in ("on", "1", "true")
+
+
+def _episodes_relevant(query: str | None) -> bool:
+    """D-RC-11: is the '## Episodes' surface RELEVANT to this question's shape? ONE bool, resolved once
+    per turn beside the _episodes_on seam and consumed by BOTH producers -- the persona mandate
+    (_SYSTEM_EPISODES) and the render-side scaffold (_maybe_scaffold_episodes) -- because presence is
+    decided in two INVERSE places and gating only one inverts the outcome (suppress only the scaffold
+    and the persona still orders the model to write the section; suppress only the persona and the
+    scaffold synthesizes it).
+
+    FAIL-OPEN by construction: True when the flag is off (byte-identity), True on a non-Latin query
+    (the cue list is English; suppressing a section because the matcher cannot read the language is
+    not a relevance judgment -- the 2026-08-05 Arabic probe keeps today's behaviour), else the
+    deterministic intent.is_episodic_explicit cue match. The gate never strips a section the MODEL
+    chose to author (D-RC-9: no post-synthesis deletion) -- it removes the MANDATE and the SYNTHESIS,
+    never model freedom."""
+    if not _episode_relevance_on():
+        return True
+    q = query or ""
+    from leviathan.graphrag.verify import _non_latin
+    if _non_latin(q):
+        return True
+    return _it.is_episodic_explicit(q)
 
 
 def _episodes_on(volatile_prompt: str | None) -> bool:
@@ -1582,7 +1615,10 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # the same decision). `_mr` is the ONLY thing that ever relaxes the register, and it is passed DOWN as
     # an argument -- register.py reads no environment.
     _mr = reg.OUTLOOK if _outlook else reg.FENCED
-    _episodes = _episodes_on(vp)                                  # W4-D3: BOTH legs, and both in CODE
+    # D-RC-11: the relevance bool is resolved ONCE and consumed by BOTH producers (the persona AND below
+    # the scaffold seam) -- gating only one of the two inverse decision points inverts the outcome.
+    _ep_rel = _episodes_relevant(query)
+    _episodes = _episodes_on(vp) and _ep_rel                      # W4-D3: BOTH legs, and both in CODE
     # D-DT-2 c1: the license inventory is minted HERE, BEFORE the model call, in both serving bodies. The
     # position IS the circularity fence (V.4 X3): every flag reads engine inputs assembled before
     # synthesis, and at this line no answer prose exists to read -- so the check can never become
@@ -1636,7 +1672,7 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # will produce, so a different register here would prove the wrong thing.
     sg.trace.update(_maybe_scaffold_episodes(
         structured, verifier, injected=sg.trace.get("episodes_injected"), nodes=sg.nodes,
-        evidence=evidence, n_positional=len(uniq), market_register=_mr))
+        evidence=evidence, n_positional=len(uniq), market_register=_mr, relevant=_ep_rel))
     _humanize_structured(structured, market_register=_mr)         # clean the fields the UI renders directly (6.1)
     if os.environ.get("GRAPHRAG_ANSWER_V2", "off") == "on":       # P9-C typed sections: a DERIVED view of the
         secs = _sectionize(structured.get("mechanism") or "")     # FINAL prose (post-verify+humanize); read per
@@ -2157,6 +2193,7 @@ def _scaffold_rows(injected: list | None, nodes: list | None) -> list[tuple] | N
         if nid and nid not in by_id:
             by_id[nid] = list(getattr(n, "episodes", None) or [])
     rows: list[tuple] = []
+    seen: set[tuple[str, str]] = set()
     for rec in (injected or []):
         spans = [str(s) for s in ((rec or {}).get("spans") or [])]
         if not spans:
@@ -2168,6 +2205,14 @@ def _scaffold_rows(injected: list | None, nodes: list | None) -> list[tuple] | N
         for sp, e in zip(spans, eps):
             if not isinstance(e, dict) or _tl.month_span(e) != sp:
                 return None
+            # D-RC-11 (node, span) DE-DUP, flagless -- a DEFECT fix, not a feature: `injected` carries
+            # one record per (contract, node) while `by_id` is keyed by node alone, so a driver shared
+            # by two routed contracts emitted every span TWICE (the 2026-08-05 Arabic probe shipped 7
+            # exact duplicate bullets). One bullet per (node, span); the first record wins, matching
+            # by_id's own first-wins key.
+            if (node, sp) in seen:
+                continue
+            seen.add((node, sp))
             rows.append((node, sp, e.get("receipt")))
     return rows or None
 
@@ -2419,7 +2464,7 @@ def _scaffold_survives(section: str, plan: list[tuple]) -> list[str] | None:
 def _maybe_scaffold_episodes(structured: dict | None, verifier: dict | None, *,
                              injected: list | None, nodes: list | None,
                              evidence: list | None, n_positional: int = 0,
-                             market_register: str = reg.FENCED) -> dict:
+                             market_register: str = reg.FENCED, relevant: bool = True) -> dict:
     """D-DT-1: synthesize '## Episodes' when the model omitted it. Returns the TRACE UPDATES to stamp.
 
     THREE-LEG FIRE CONDITION, the `_episodes_on` discipline:
@@ -2537,11 +2582,40 @@ def _maybe_scaffold_episodes(structured: dict | None, verifier: dict | None, *,
     def _declined(why: str) -> dict:
         return {"episodes_scaffolded": {"fired": False, "n_bullets": 0, "n_receipted": 0, "declined": why},
                 "episodes_model_authored": False}
+    # D-RC-11 RELEVANCE LEG -- deliberately AFTER the model-authored check above (a section the MODEL
+    # chose to write on a non-episodic question is model judgment and is never touched; the gate removes
+    # the SYNTHESIS, and its caller-side twin removed the persona MANDATE) and BEFORE any receipt work.
+    # `relevant` arrives resolved from the seam (one bool, both producers); default True = the flag-off
+    # path and every legacy caller, byte-identical by construction.
+    if not relevant:
+        return _declined("not_episodic")
     if not isinstance(structured, dict) or not isinstance(verifier, dict):
         return _declined("no_write_surface")           # the three-place rule needs both, or it is not three
     rows = _scaffold_rows(recs, nodes)
     if rows is None:
         return _declined("unresolved_window")
+    # D-RC-11 NOISE CAPS (flag-gated; flag off -> untouched). The probe's synthesized sections ran
+    # 23-35 bullets, ~68% verbatim absence lines -- bounded enumeration is already the house's accepted
+    # shape (timeline MAX_PER_NODE truncates per node today); these bound the SECTION. Receipted rows
+    # are kept first (they carry the reader value), absence rows fill up to their own cap, and the
+    # final list keeps the original (chronological) order. Drops are stamped on the trace
+    # (n_capped, flag-on only), never silent.
+    n_capped = 0
+    if _episode_relevance_on() and rows:
+        max_b = int(_prm.get("serving.scaffold.max_bullets", 12))
+        max_a = int(_prm.get("serving.scaffold.max_absence", 6))
+        keep: set[int] = set(i for i, r in enumerate(rows) if r[2])
+        if len(keep) > max_b:                          # receipted alone over the cap: first max_b win
+            keep = set(sorted(keep)[:max_b])
+        n_abs = 0
+        for i, r in enumerate(rows):
+            if r[2] or len(keep) >= max_b or n_abs >= max_a:
+                continue
+            keep.add(i)
+            n_abs += 1
+        n_capped = len(rows) - len(keep)
+        if n_capped:
+            rows = [r for i, r in enumerate(rows) if i in keep]
     # A COPY, committed only on success. A decline can happen on the SECOND receipted window after the
     # first has already allocated a ref, and mutating verifier['resolved'] in place would leave an orphan
     # entry behind on a turn that rendered no bullet at all -- a resolved handle pointing at nothing,
@@ -2622,6 +2696,8 @@ def _maybe_scaffold_episodes(structured: dict | None, verifier: dict | None, *,
              "n_receipted": sum(1 for p in plan if p[2] is not None)}
     if _degraded:                                     # the rung is REPORTED, so a silent fallback is not
         stamp["restatement_dropped"] = True           # a thing the A/B can be reading without knowing
+    if n_capped:                                      # D-RC-11: capped rows are REPORTED, never silent;
+        stamp["n_capped"] = n_capped                  # key present only when the caps ran (flag on)
     return {"episodes_scaffolded": stamp, "episodes_model_authored": False}
 
 
@@ -2848,7 +2924,9 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     # site (_l2_blocks) -- because the invariant being enforced is "the paragraph ships iff the prompt
     # carries an injected episode line", and spelling it the same way in both bodies means a future one-hop
     # producer is correct for free and cannot silently diverge. Today it evaluates False on every turn.
-    _episodes = _episodes_on(vp)
+    # D-RC-11: the identical relevance resolution as the L2 body, for the identical reason.
+    _ep_rel = _episodes_relevant(query)
+    _episodes = _episodes_on(vp) and _ep_rel
     # D-DT-2 c1, V-9: the SECOND mint site. Stamped in BOTH bodies with the identical expression (the
     # W4-D3 discipline the gate above already follows). Minting only in _answer_l2 would leave a one-hop
     # turn with NO basis key at all, so `fork_licensed` would evaluate against a missing dict -- a silent
@@ -2898,7 +2976,7 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     # and cannot silently diverge from the L2 body.
     _scaf_trace = _maybe_scaffold_episodes(structured, verifier, injected=None, nodes=None,
                                            evidence=evidence, n_positional=len(uniq),
-                                           market_register=_mr)
+                                           market_register=_mr, relevant=_ep_rel)
     _humanize_structured(structured, market_register=_mr)         # clean the fields the UI renders directly (6.1)
     if os.environ.get("GRAPHRAG_ANSWER_V2", "off") == "on":       # P9-C typed sections -- the one-hop twin of
         secs = _sectionize(structured.get("mechanism") or "")     # the L2 seam: same post-verify+humanize

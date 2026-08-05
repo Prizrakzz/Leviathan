@@ -122,6 +122,47 @@ def is_outlook_explicit(query: str) -> bool:
     return bool(_OUTLOOK_HAPPEN.search(q)) and not _OUTLOOK_CONDITIONAL.search(q)
 
 
+# ── episodic-shape detector (D-RC-11) ─────────────────────────────────────────────────────────────────
+# The RELEVANCE leg for the '## Episodes' surface: does the question's SHAPE call for enumerating the
+# historical record? Cloned from the is_news_explicit / is_outlook_explicit idiom: NARROW, deterministic,
+# regex-only, and consumed at the answer.py seam behind GRAPHRAG_EPISODE_RELEVANCE (default off,
+# fail-OPEN -- a miss keeps today's behaviour; a hit is only ever a *license*, never a mandate).
+# The cue list is CALIBRATED against two fixed corpora and pinned by tests:
+#   * every row of the playbook decks (eval_queries_playbooks_v1 + _r6residual) must fire TRUE -- those
+#     20 rows pin min_episode_lines/min_episodes_cited and a gate that misses one reds a ratified deck;
+#   * the 2026-08-05 desk-probe's non-episodic questions (ranking, S&D-now, recent-weather,
+#     verification, compare, context-node, outlook) must fire FALSE -- those are the five uninvited
+#     24-35-bullet sections the gate exists to suppress.
+# English-only BY DESIGN: the caller fails OPEN on non-Latin queries (suppressing a section because the
+# cue list cannot read the language is not a relevance judgment).
+_EPISODIC = re.compile(
+    r"\beach\s+(?:time|one|occasion|episode)\b"
+    r"|\bepisodes?\b"
+    r"|\bone\s+by\s+one\b"
+    r"|\bone\s+at\s+a\s+time\b"
+    r"|\benumerat\w*"
+    r"|\busually\s+happens?\b"
+    r"|\bwhat\s+did\s+the\s+record\s+show\b"
+    r"|\beras?\b"
+    r"|\bthrough\s+the\s+(?:19|20)\d{2}\b"                  # 'positioning through the 2022 export ban'
+    r"|\bwhen\s+has\b"
+    r"|\bhas\s+\w+(?:\s+\w+){0,3}\s+ever\b"
+    r"|\bhistor(?:y|ically|ical)\b"
+    r"|\bprecedents?\b"
+    r"|\bwalk\s+me\s+through\b"
+    r"|\bplayed\s+out\b"                                    # past tense ONLY: 'how would that play out'
+    r"|\bevery\s+time\b"                                    # is a counterfactual, not an enumeration
+    r"|\bwatch\s+over\b",                                   # 'what should I watch over weeks, months...'
+    re.I)
+
+
+def is_episodic_explicit(query: str) -> bool:
+    """Does the question's shape call for enumerating historical episodes? Deterministic + pure (regex
+    only, no I/O, no LLM). NECESSARY leg for the '## Episodes' surface when GRAPHRAG_EPISODE_RELEVANCE
+    is on; with the flag off the caller never consults it."""
+    return bool(_EPISODIC.search(query or ""))
+
+
 # ── cross-commodity RV explicit-ask detector (reroute v2, RV-W1.1) ────────────────────────────────────
 # Mirrors _NEWS_EXPLICIT: a NARROW, deterministic matcher that is a NECESSARY condition for the v2
 # cross-commodity relative-value fork, NEVER sufficient. The orchestrator LAW (RV-W1.3) binds the captured

@@ -123,6 +123,14 @@ serving:
                                 # Stamped into the artifact (timeline.build_stamp) and asserted by
                                 # check_artifact, so editing this without a rebuild goes RED rather than
                                 # silently re-cutting what the reader sees.
+  scaffold:                     # D-RC-11 noise caps on the synthesized '## Episodes' section. ACTIVE
+    # ONLY when GRAPHRAG_EPISODE_RELEVANCE is on (flag off -> caps never run, byte-identical turn).
+    # Basis: the 2026-08-05 desk probe -- synthesized sections ran 23-35 bullets, ~68% verbatim CASE-1
+    # absence lines. Receipted rows are kept FIRST (reader value), absence rows fill to their own cap,
+    # final order stays chronological; every dropped row is stamped (episodes_scaffolded.n_capped),
+    # never silent -- the same bounded-enumeration class as timeline.max_per_node above.
+    max_bullets: 12             # total bullets in a synthesized section
+    max_absence: 6              # of which CASE-1 'no citable item' absence lines
   cascade:                      # P9-B quantified-cascade loop (GRAPHRAG_CASCADE_QUANT)
     cap: 12                     # max windowed lookups per answer (own budget, separate from silver.cap)
   silver:                       # silverleg (WS-4) — the observed-value leg
