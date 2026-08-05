@@ -3806,3 +3806,76 @@ resource "aws_batch_job_definition" "futures_eod_silver" {
     ManagedBy   = "terraform"
   }
 }
+
+# ---------------------------------------------------------------------------
+# Job definition: browser-runner (playwright/Chromium page captures)
+#
+# ADOPTED 2026-08-05 (D-PR-24 follow-up): hand-registered rev 1 predates this block; the euronext
+# MATIF capture leg of the ARMED futures_eod_free schedule (22:30Z MON-FRI) runs here because the
+# worker image carries no browser. Mirrors rev 1 byte-for-byte (role/env/sizing/network/baked
+# command) so the adoption is an ALIGNMENT, plus the two things rev 1 lacked:
+#   - timeout 900s: captures measure 2-5 min; a hung Chromium render must die inside the fire,
+#     not stall until the SFN gives up.
+#   - the shared producer retry matrix: this is a raw-landing PRODUCER, not a publisher. The
+#     fetch's own exit vocabulary maps cleanly onto it -- exit 7 (ChallengeFailed: the table
+#     never rendered) and exit 1 (per-product failure) both fall to EXIT via the exit-code rule
+#     and the terminal catch-all; only infra-class starts retry.
+# ROLE = batch_job_role (raw landing only -- never the publisher role; the silver leg that
+# follows in the same execution runs on the digest-pinned futures-eod-silver jobdef).
+# ---------------------------------------------------------------------------
+resource "aws_batch_job_definition" "browser_runner" {
+  count = var.browser_runner_image != "" ? 1 : 0
+
+  name = "${var.project_name}-${var.environment}-browser-runner"
+  type = "container"
+
+  platform_capabilities = ["FARGATE"]
+
+  deregister_on_new_revision = true
+
+  container_properties = jsonencode({
+    image = var.browser_runner_image
+
+    command = ["-c", "print('override me')"]
+
+    environment = [
+      { name = "PYTHONPATH", value = "/app/src" },
+      { name = "AWS_REGION", value = var.aws_region },
+      { name = "LEVIATHAN_BUCKET", value = var.leviathan_bucket }
+    ]
+
+    jobRoleArn       = var.batch_job_role_arn
+    executionRoleArn = var.batch_execution_role_arn
+
+    resourceRequirements = [
+      { type = "VCPU", value = "2" },
+      { type = "MEMORY", value = "4096" }
+    ]
+
+    networkConfiguration = { assignPublicIp = "ENABLED" }
+    fargatePlatformConfiguration = { platformVersion = "LATEST" }
+  })
+
+  timeout {
+    attempt_duration_seconds = 900
+  }
+
+  retry_strategy {
+    attempts = local.producer_retry_attempts
+    dynamic "evaluate_on_exit" {
+      for_each = local.producer_retry_rules
+      content {
+        action           = evaluate_on_exit.value.action
+        on_exit_code     = evaluate_on_exit.value.on_exit_code
+        on_reason        = evaluate_on_exit.value.on_reason
+        on_status_reason = evaluate_on_exit.value.on_status_reason
+      }
+    }
+  }
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}

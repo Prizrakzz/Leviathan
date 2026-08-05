@@ -207,3 +207,17 @@ variable "databento_api_key_secret_arn" {
   description = "Secrets Manager ARN (name-based) for the Databento key mounted as DATABENTO_API_KEY on the databento fetch job. Empty = that fetch jobdef is not created (user-gated secret)."
   default     = ""
 }
+
+variable "browser_runner_image" {
+  # D-PR-24 follow-up (2026-08-05): the browser-runner jobdef was hand-registered (rev 1) and
+  # ABSENT from terraform while the armed nightly futures_eod_free schedule runs its euronext
+  # MATIF capture on it -- out-of-band infra on a production path with no timeout and no retry
+  # strategy. Adopted with the image pinned BY DIGEST ("<repo>@sha256:...") exactly like
+  # pattern_records_image: never a tag, never :latest. The default IS the digest rev 1 runs
+  # (b445e016..., verified live before adoption); a rebuild moves this default in the same
+  # change that pushes the image, or the apply re-pins the old build -- which is the safe
+  # failure, not the silent one.
+  type        = string
+  description = "Digest-pinned browser image ref for the browser-runner jobdef (playwright/Chromium captures). Empty = jobdef not created."
+  default     = "668891723125.dkr.ecr.us-east-1.amazonaws.com/leviathan-dev-leviathan-browser@sha256:b445e016b5cef2ec6047e57e8a426fd04a8fd41a864bcf904064c6ec1674ffff"
+}
