@@ -1,0 +1,397 @@
+# D-CC-2 PRE-REGISTERED CHECKLISTS + BEYOND-QUICK SOURCE SETS for the width deck (2026-08-07).
+#
+# WHY THIS FILE EXISTS. D-DV-2 measured both arms at a flat judged 4 on every width row while deep_v2
+# demonstrably REACHED material quick structurally cannot (Russia export-tax prose on dv_xorigin, the
+# corn-side acreage tilt on dv_chain). The 1-5 absolute scale had no room left to say which answer was
+# better, and the judge's own free-text named the reason verbatim: "never delivers the FULL ranked list",
+# "never locates the convexity threshold", "fails to enumerate the dated episodes shown". Those three
+# sentences are the whole design of this file: each row's items turn ONE of them into a binary question a
+# judge can answer item by item, so checklist pass-rate (0-100%, bounded, auditable) can discriminate
+# where a saturated 1-5 could not.
+#
+# PRE-REGISTRATION LAW. Authored ONCE, BEFORE any D-CC-3 arm runs, and frozen from that moment to the
+# decision (the same submission-to-decision freeze verify.py rides). The wording is NEUTRAL: no arm name,
+# no mode name, no "quick"/"deep" anywhere, no item phrased so that one configuration passes by
+# construction. An item added or reworded after arms have run is a new instrument and invalidates the
+# comparison -- append a v2 file instead.
+#
+# ITEM LAW (why every item looks the way it does):
+#   1. BINARY. A judge answers true/false plus one line of evidence. No 1-5, no "partially".
+#   2. REFUSAL-HONEST. Every item that could reward invention carries its "or says the record cannot"
+#      branch INSIDE the question, so a truthful "no dated row exists" answers TRUE, not FALSE. This is
+#      the ordinal-when-thin doctrine written into the grader: a mandate may never manufacture a number,
+#      so the grader may never reward one.
+#   3. BOUND TO WHAT THE TURN WAS SHOWN. Items say "present in its evidence" / "it was shown", never
+#      "present in the world". An arm cannot be marked down for material no arm retrieved.
+#   4. 3-6 PER ROW, ordered: the row's own prereg shape first, then the three named composition gaps
+#      (rank-complete / threshold-locate / episode-coverage) where the row's question admits them.
+#
+# SOURCE OF EVERY ITEM: the row's own `prereg` / `width_floor` / `sources` fields in
+# configs/graphrag/eval_queries_deepv2_width_v1.yaml (the deck IS the authority; this file only
+# restates it as binary questions), plus the D-DV-2 verdict's three verbatim composition gaps.
+#
+# ---------------------------------------------------------------------------------------------------
+# `beyond_quick_sources` -- THE DETERMINISTIC WIDTH-CONVERSION COUNTER'S INPUT, AND ITS HONEST LIMITS.
+#
+# WHAT IT IS. Per row, the source families the deck documents as sitting beyond the lean-width budget
+# (each entry records `width_basis` naming the ceiling from the deck's `width_class`, and `why` quoting
+# the deck's reasoning). "Did the extra coverage CONVERT into the answer?" is counted against THIS set.
+#
+# WHAT THE COUNTER ACTUALLY MEASURES -- READ THIS BEFORE QUOTING ANY NUMBER. Cited source KEYS are NOT
+# recoverable from a stored baseline: eval._per_answer_record (eval.py:1196-1265) is a hard whitelist and
+# carries NO `citations`, NO `structured.sources`, and NO `answer`. The rendered '## Sources' footer
+# carries human labels ("USDA FAS GAIN Report - Wheat (2026-04-02)") plus the cited prop's TEXT, never the
+# slice id. So the counter is a LEXICAL PROXY: `markers` are the vocabulary that family's props actually
+# speak in, matched against the answer's cited-sources footer (primary scope, because that text IS the
+# cited props) and separately against the answer body (secondary scope). A family present in the body but
+# absent from the footer is reported as ASSERTED-UNCITED -- a finding, not a hit.
+#   marker match rule: hit == any(markers) AND (context_markers empty OR any(context_markers)).
+#   matching is done on ex._normalize'd text (NFKD -> ascii -> lower, whitespace/underscore/hyphen
+#   collapsed to single spaces), so markers here are written in that normalized form.
+# Markers are deliberately SPECIFIC (a family's own vocabulary) rather than generic, because a generic
+# token would score a hit for any answer that mentions the commodity at all.
+#
+# TWO MEASURED FACTS ABOUT THAT FOOTER, checked against the STALE D-DV-2 width arms before this file was
+# frozen. This is instrument validation -- "can these markers fire at all", never "which arm do they
+# favour"; no marker was chosen by looking at which arm it helped:
+#   * each footer entry renders the source's HUMAN LABEL plus the cited prop's text TRUNCATED to ~150
+#     chars. Prop vocabulary therefore matches only when it falls in the opening sentence, and the LABEL
+#     is the one fully reliable identity available. So where a beyond-reach family IS a source or an
+#     evidence node ("source:usda_gain_cotton_monthly", "node:corn"), its rendered label rides as a marker
+#     -- the closest thing to a recoverable cited source key this artifact has.
+#   * a turn can render NO footer at all (dv_chain_nitrogen_acres did on the stale deep arm). The counter
+#     reports `has_sources_block` per arm-row and the report totals count those rows, because a zero there
+#     means "there was nothing citable to match against", NOT "the coverage failed to convert".
+checklist_version: deepv2_width_v1
+deck: eval_queries_deepv2_width_v1
+authored: '2026-08-07'
+axes: [usefulness, grounding, composition_completeness]
+rows:
+
+  # -------------------------------------------------------------------------------------------------
+  - id: dv_sub_ddg_floor
+    width_class: W2_per_node
+    items:
+      - id: two_named_origins
+        ask: >-
+          Does the answer name at least two DISTINCT importing origins whose DDGS-for-soymeal switch
+          behaviour differs, with each origin's claim carrying its own citation handle?
+      - id: threshold_as_spread
+        ask: >-
+          Is the switch point given as a spread or a ratio conditioned on those origins (a stated number,
+          discount band, or substitution ratio carried through to a price implication), rather than left
+          as an unconditioned qualitative statement such as "it depends on relative prices"?
+      - id: threshold_locate_or_declare
+        ask: >-
+          Does the answer either locate WHERE the substitution response turns nonlinear (a discount level,
+          ratio, or a maximum-inclusion ceiling, with the handle backing it) or state explicitly that the
+          record it was shown cannot locate that threshold?
+      - id: no_unconditioned_single_point
+        ask: >-
+          Is the answer free of a single fixed switch point asserted for all origins at once with no row
+          behind it?
+      - id: unrankable_declared
+        ask: >-
+          Where an origin appears in the evidence but carries no usable switch-behaviour row, is that
+          named explicitly rather than silently dropped?
+    beyond_quick_sources:
+      - key: driver_slice:protein_meal_substitution
+        width_basis: W2_per_node
+        why: >-
+          the row's answer needs >=4 rows off DDGS_competition alone; a 2-row-per-depth-1-node budget
+          holds two, so the third and later origin floors in this family are the beyond-reach material
+        markers: [ddgs, distillers, dorb, rice bran, inclusion rate, substitution rate, protein meal]
+      - key: driver_slice:livestock_feed_demand
+        width_basis: W2_per_node
+        why: backs soybean_meal_feed_demand -- the ration-demand half the switch point is priced against
+        markers: [feed demand, feed ration, compound feed, feed mill, feed use]
+      - key: driver_slice:broiler_economics
+        width_basis: W2_per_node
+        why: the ration-economics half; a distinct node competing for the same depth-1 slots
+        markers: [broiler, poultry, layer feed, hatchery, swine ration]
+      - key: driver_slice:african_swine_fever
+        width_basis: W2_per_node
+        why: backs ASF_hog_herd -- the demand-side shock that moves the switch point, another slot
+        markers: [african swine fever, asf, hog herd, sow herd, pig herd]
+
+  # -------------------------------------------------------------------------------------------------
+  - id: dv_xorigin_wheat_policy
+    width_class: W1_seed + W3_total
+    items:
+      - id: rank_every_exporter
+        ask: >-
+          Does the answer rank EVERY exporter present in its evidence, one line per exporter with its
+          own position or odds, rather than collapsing any of them into an "other exporters" bucket?
+      - id: dated_instrument_each
+        ask: >-
+          Does each ranked exporter carry a DATED policy instrument (tax, quota, floor price, ban, or
+          licence) attached to a citation handle?
+      - id: unrankable_named
+        ask: >-
+          Is every exporter the answer cannot rank named explicitly as unrankable at the as-of ("no dated
+          row"), rather than omitted?
+      - id: russia_status_explicit
+        ask: >-
+          Is Russia's status stated explicitly -- either a dated Russian export-tax/quota row is cited, or
+          the answer says plainly that Russia's interference carries no dated row in what it was shown?
+      - id: no_unbacked_policy_claim
+        ask: >-
+          Is the answer free of any policy claim with no dated row behind it (for example an
+          export-registration/DJVE-class assertion carried from prior knowledge rather than the record)?
+      - id: threshold_locate_or_declare
+        ask: >-
+          Does the answer state WHERE the interference risk turns nonlinear (how many simultaneous
+          interventions, or which volume share, tips the residual-supplier response) or state explicitly
+          that the record cannot locate that threshold?
+    beyond_quick_sources:
+      - key: driver_slice:russia_export_tax_quota
+        width_basis: W1_seed
+        why: >-
+          routed by exactly one dag id (Russia_export_tax) which exists in exactly one contract
+          (french_wheat_matif) -- structurally unreachable while only one distinct evidence node is seeded
+        markers: [export tax, export duty, floating tax, export quota, damper, indicative price]
+        context_markers: [russia, russian]
+      - key: driver_slice:argentina_export_policy
+        width_basis: W1_seed
+        why: routed only via the soy contracts -- another seed contract entirely
+        markers: [djve, export registration, retention, withholding, export tax, export licence, export license]
+        context_markers: [argentin]
+      - key: driver_slice:export_ban
+        width_basis: W3_total
+        why: 1272 props across srw/hrw/french; the origin-by-origin ban rows are what blows the total cap
+        markers: [export ban, export prohibition, banned exports, ban on exports, suspended exports]
+      - key: driver_slice:former_ussr_import_demand
+        width_basis: W3_total
+        why: present in srw + hrw; a further origin population competing for the same total budget
+        markers: [former soviet, fsu, kazakh, uzbek, black sea import]
+      - key: driver_slice:us_farm_program
+        width_basis: W3_total
+        why: present in srw + hrw + corn + cotton; the US leg of a four-plus-origin ranking
+        markers: [farm bill, loan rate, conservation reserve, crp, arc plc, base acres, program payment]
+      - key: node:french_wheat
+        width_basis: W1_seed
+        why: the second distinct evidence node the Russian population hangs off
+        markers: [matif, french wheat, france wheat, eu wheat, european union wheat, rouen]
+
+  # -------------------------------------------------------------------------------------------------
+  - id: dv_anchor_corn_balance
+    width_class: W4_silver + W5_node_slots
+    items:
+      - id: level_stated
+        ask: >-
+          Does the answer state the stocks/use LEVEL as a number carrying a citation handle, rather than
+          an adjective?
+      - id: normal_window_named
+        ask: >-
+          Does it say what "normal" is and over WHICH window (a named multi-year comparison), rather
+          than asserting "versus normal" with no stated basis?
+      - id: use_leg_attributed
+        ask: >-
+          Is the difference from normal attributed to a NAMED use (ethanol grind, feed and residual, or
+          exports) with that leg separately cited?
+      - id: stocks_not_price_series
+        ask: >-
+          Is the tightness claim read off a stocks or balance-sheet series rather than substituted with a
+          price series?
+      - id: threshold_locate_or_declare
+        ask: >-
+          Does the answer state WHERE the balance turns nonlinear (a stocks/use level or buffer at which
+          the price response tips) or state explicitly that the record cannot locate that threshold?
+    beyond_quick_sources:
+      - key: silver:silver_wasde
+        width_basis: W4_silver
+        why: >-
+          the honest answer needs >=5 distinct silver reads against a 4-read budget; every entry below is
+          one of those reads, so any fifth is beyond reach by construction
+        markers: [wasde, world agricultural supply and demand]
+      - key: silver:silver_psd
+        width_basis: W4_silver
+        why: the multi-year world/US history the z-score or "versus normal" claim rests on
+        markers: [psd, production supply and distribution, world balance sheet]
+      - key: silver:silver_esr
+        width_basis: W4_silver
+        why: the export-commitments leg
+        markers: [export sales, export commitments, outstanding sales, accumulated exports, esr]
+      - key: silver:silver_nass_crop_progress
+        width_basis: W4_silver
+        why: the condition/pace context leg
+        markers: [crop progress, condition rating, good to excellent, good excellent, silking, dented]
+      - key: silver:silver_futures_eod
+        width_basis: W4_silver
+        why: the price the "tight" claim is being read off, which must stay distinct from the stocks leg
+        markers: [futures settle, settlement price, front month, nearby futures, board price]
+      - key: driver_slice:us_ethanol_rfs
+        width_basis: W5_node_slots
+        why: backs ethanol_demand + RFS, the policy trigger the question names, against 5 non-seed slots
+        markers: [ethanol, rfs, renewable fuel standard, blend wall, grind, e15]
+      - key: driver_slice:wasde_stocks_to_use
+        width_basis: W5_node_slots
+        why: backs ending_stocks_su_ratio, competing for the same node slots
+        markers: [stocks to use, ending stocks, carryout, carryover]
+      - key: driver_slice:livestock_feed_demand
+        width_basis: W5_node_slots
+        why: backs feed_demand, one of 42 drivers fanning into corn_cbot
+        markers: [feed and residual, feed use, feed demand, cattle on feed]
+      - key: driver_slice:us_drought_monitor
+        width_basis: W5_node_slots
+        why: a further competing driver slot on the same contract
+        markers: [drought monitor, drought index, abnormally dry, d2 drought, d3 drought]
+
+  # -------------------------------------------------------------------------------------------------
+  - id: dv_chain_nitrogen_acres
+    width_class: W1_seed + W5_node_slots
+    items:
+      - id: chain_end_to_end
+        ask: >-
+          Does the answer carry the chain end to end -- input cost, then the margin or agronomy step, THEN
+          the acreage allocation between the two crops -- with no step skipped?
+      - id: corn_side_cited
+        ask: >-
+          Is the corn-side leg of the allocation backed by a corn-side citation handle rather than
+          asserted, or else explicitly declared unbacked?
+      - id: both_crops_separately
+        ask: >-
+          Are both crops' acreage responses given separately, rather than one crop's response generalised
+          to cover both?
+      - id: threshold_locate_or_declare
+        ask: >-
+          Does the answer state the level or ratio at which the allocation flips (a fertilizer cost, a
+          margin, or a price ratio, with its handle) or state explicitly that the record cannot locate
+          that threshold?
+      - id: no_unbacked_step
+        ask: >-
+          Is every step of the chain either cited or explicitly flagged as an unbacked inference?
+    beyond_quick_sources:
+      - key: node:corn
+        width_basis: W1_seed
+        why: >-
+          the acreage-competition leg needs a SECOND distinct evidence node (hrw_wheat + corn); a
+          single-seed walk cannot hold both, so every corn-side row is beyond reach by construction
+        markers: [usda fas gain report corn, corn acres, corn acreage, corn planted, corn plantings,
+                  switch to corn, corn rotation]
+      - key: driver_slice:crop_insurance_planting_intentions
+        width_basis: W5_node_slots
+        why: aliases planted_area / acreage_competition / soybean_corn_price_ratio -- the response leg
+        markers: [planting intentions, prospective plantings, crop insurance, projected price, acreage competition, price ratio]
+      - key: driver_slice:fertilizer
+        width_basis: W5_node_slots
+        why: 5 dag ids incl. fertilizer_cost -- the input-cost head of the chain
+        markers: [fertilizer, nitrogen, urea, anhydrous, ammonia, dap, potash]
+      - key: driver_slice:crude
+        width_basis: W5_node_slots
+        why: backs crude_oil, the energy cost feeding the nitrogen bill
+        markers: [crude, natural gas, energy cost, diesel, feedstock cost]
+      - key: driver_slice:feed_grain_substitution
+        width_basis: W5_node_slots
+        why: backs wheat_corn_spread on the corn side of the allocation
+        markers: [wheat corn spread, feed wheat, feed grain substitution, substitute wheat for corn]
+      - key: driver_slice:us_farm_program
+        width_basis: W5_node_slots
+        why: the program-payment floor under the planting decision
+        markers: [farm bill, loan rate, arc plc, base acres, program payment, conservation reserve]
+
+  # -------------------------------------------------------------------------------------------------
+  - id: dv_episode_lanina_arg
+    width_class: W3_total + W2_per_node
+    items:
+      - id: episodes_enumerated
+        ask: >-
+          Does the answer enumerate each dated episode window it was shown as its own item with a year,
+          rather than generalising across them?
+      - id: episode_count_accounted
+        ask: >-
+          Does the answer account for EVERY window it was shown -- each one either enumerated or its
+          omission declared -- rather than silently dropping the thin ones?
+      - id: bit_vs_shrugged_separated
+        ask: >-
+          Does it separate the episodes where the Argentine crop was actually cut from the ones where it
+          was not, rather than treating them as one class?
+      - id: each_episode_pinned
+        ask: >-
+          Is each named episode pinned to its own citation handle, or explicitly marked as having no
+          citable item in that window?
+      - id: no_unshown_window
+        ask: >-
+          Is the answer free of any dated window that does not appear in the record it was shown?
+    beyond_quick_sources:
+      - key: driver_slice:la_nina
+        width_basis: W2_per_node
+        why: >-
+          La_Nina is a depth-1 driver, so a 2-row-per-node budget holds two of its episodes; the third and
+          later dated windows off this node are the beyond-reach material
+        markers: [la nina, cold enso, cold phase]
+      - key: driver_slice:el_nino
+        width_basis: W3_total
+        why: the contrast episodes -- a distinct population whose rows compete for the total cap
+        markers: [el nino, warm enso, warm phase]
+      - key: driver_slice:drought
+        width_basis: W3_total
+        why: 9 dag ids -- the did-it-actually-bite leg, a separate node again
+        markers: [drought, rainfall deficit, dryness, moisture deficit, parched]
+      - key: driver_slice:south_american_safrinha
+        width_basis: W3_total
+        why: backs safrinha / brazil_soybean_supply -- the Brazilian half of each episode
+        markers: [safrinha, second crop, second corn crop]
+      - key: driver_slice:argentina_export_policy
+        width_basis: W3_total
+        why: the episodes where policy, not weather, moved the market
+        markers: [djve, export registration, retention, withholding, export tax]
+        context_markers: [argentin]
+      - key: silver:silver_noaa_oni
+        width_basis: W3_total
+        why: the ONI series that DATES the episodes; without it the enumeration has no spine
+        markers: [oni, oceanic nino index, sst anomaly, enso anomaly]
+
+  # -------------------------------------------------------------------------------------------------
+  - id: dv_vintage_india_cotton
+    width_class: W2_per_node
+    items:
+      - id: three_vintages_named
+        ask: >-
+          Does the answer name at least three distinct vintages of the India cotton estimate, each
+          identified by its own release?
+      - id: each_number_dated
+        ask: >-
+          Does every quoted number carry the release it came from, with no figure left undated?
+      - id: supersession_stated
+        ask: >-
+          Does the answer say which vintage supersedes which, and why the revision happened?
+      - id: refuses_to_average
+        ask: >-
+          Does it refuse to average or blend the disagreeing vintages into a single number?
+      - id: quotable_vintage_named
+        ask: >-
+          Is the vintage the reader should quote named explicitly, or is it stated explicitly that the
+          record cannot settle which one to quote?
+      - id: no_vintage_misbind
+        ask: >-
+          Is every number bound to the correct release (no figure attached to a vintage that did not
+          publish it)?
+    beyond_quick_sources:
+      - key: source:usda_gain_cotton
+        width_basis: W2_per_node
+        why: >-
+          every answer-bearing row sits on the SEED node, where a 4-row depth-0 budget holds four; the
+          annual + update vintages past that fourth row are the beyond-reach material
+        markers: [cotton and products annual, annual report, new delhi]
+      - key: source:usda_gain_cotton_monthly
+        width_basis: W2_per_node
+        why: >-
+          the intra-season revisions -- the vintages that create the disagreement. Its rendered label
+          ("USDA FAS GAIN Report - Cotton (monthly)") is a distinct string from the annual source's, so
+          this entry is the row's one directly label-recoverable beyond-reach family. The parentheses
+          survive ex._normalize (which strips accents and collapses separators but keeps punctuation),
+          which is why the label marker is written "cotton (monthly)"
+        markers: ["cotton (monthly)", first update, second update, monthly update, mumbai]
+      - key: silver:silver_psd
+        width_basis: W2_per_node
+        why: the PSD series the corrected-table doc restates
+        markers: [psd, production supply and distribution, corrected table]
+      - key: driver_slice:msp
+        width_basis: W2_per_node
+        why: backs India_MSP -- WHY a print gets revised
+        markers: [msp, minimum support price, procurement price]
+      - key: driver_slice:china_reserve_auctions
+        width_basis: W2_per_node
+        why: backs China_state_reserves -- the demand-side revision driver
+        markers: [state reserve, reserve auction, reserve sales, china reserve]
