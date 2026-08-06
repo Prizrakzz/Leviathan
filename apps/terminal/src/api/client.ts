@@ -18,9 +18,21 @@ type Schemas = components['schemas'];
 const BASE = import.meta.env.VITE_API_BASE ?? '';
 const MOCK = import.meta.env.VITE_MOCK === '1';
 
+/** The transport-independent shape of one turn request. D-AM-14 added `mode`: it is a FREE-FORM string
+ *  here, not the client's `ModeName` union, because the backend never 4xxs an unknown mode (it resolves to
+ *  standard and stamps invalid) and a typed field at this seam would turn a fail-open contract into a
+ *  client-side error. The omit-when-standard rule is applied by the transport, via `store/mode.modeParam`. */
+export interface RespondParams {
+  question: string;
+  asof?: string;
+  sessionId?: string;
+  context?: ContextAttachment[];
+  mode?: string;
+}
+
 /** Stream a turn. `VITE_MOCK=1` routes to the in-repo mock so the whole UI runs without the backend. */
 export function respondStream(
-  params: { question: string; asof?: string; sessionId?: string; context?: ContextAttachment[] },
+  params: RespondParams,
   h: StreamHandlers,
   signal?: AbortSignal,
 ): Promise<void> {

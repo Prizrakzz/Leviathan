@@ -29,10 +29,12 @@ TRACE_RECORD_KEYS: tuple[str, ...] = (
     "record_through",            # D-RC-13: observational on every reasoning/hybrid row
     "response_contract",         # D-RC Phase B: the ACTIVE contract (answer-seam stamp)
     "synth_usage",               # D-AM-4: serving tokens {model,in,out,cache_read,cache_write}
+    "mode_knobs",                # D-AM-11: the RESOLVED knob values a honored non-standard mode ran
 )
 
 # out["intent_decision"][decision_key] -> record[record_column].
 DECISION_RECORD_KEYS: tuple[tuple[str, str], ...] = (
     ("response_contract", "response_contract_decision"),   # the DARK selector attribution (A/B tally)
     ("kind_history", "kind_history"),                      # D-AM-1: ordered routing-transition audit
+    ("mode", "mode_decision"),                             # D-AM-9: {requested, honored, invalid}, every turn
 )

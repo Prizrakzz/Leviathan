@@ -49,7 +49,10 @@ export function useTurn() {
   const [state, setState] = useState<TurnState>(() => fresh('idle'));
   const abortRef = useRef<AbortController | null>(null);
 
-  const start = useCallback((question: string, opts?: { asof?: string; sessionId?: string; context?: ContextAttachment[] }) => {
+  // `mode` (D-AM-14) rides `opts` untouched: this hook shapes no request, it forwards one. The
+  // omit-when-standard rule is the transport's (api/sse.ts via store/mode.modeParam), so there is exactly
+  // one place where "standard means send nothing" is decided.
+  const start = useCallback((question: string, opts?: { asof?: string; sessionId?: string; context?: ContextAttachment[]; mode?: string }) => {
     abortRef.current?.abort();
     const ac = new AbortController();
     abortRef.current = ac;

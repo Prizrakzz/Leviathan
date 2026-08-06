@@ -14,6 +14,7 @@ import { useThread } from '@/store/thread';
 import { useUI } from '@/store/ui';
 import { EmptyState } from './answer/EmptyState';
 import { FindingsFeed } from './answer/FindingsFeed';
+import { ModeChip } from './answer/ModeChip';
 import { SuggestionChips } from './answer/SuggestionChips';
 import { TurnActions } from './answer/TurnActions';
 import { Banners } from './note/Banners';
@@ -347,6 +348,10 @@ export function AnswerView({
                       )}
                     </>
                   )}
+                  {/* D-AM-14: what depth actually ran. Self-gating (it renders nothing unless the turn
+                      carries resolved mode knobs), so it needs no branch here and an older backend's
+                      answer is unchanged. Sits above the actions row: it is provenance, not an action. */}
+                  <ModeChip result={r} />
                   {/* D-AM-15: keep/send this answer. Offered only where there IS an answer to freeze —
                       a refusal or no-match turn (structured null, no numbers prose) gets nothing, since a
                       saved artifact of "I couldn't answer that" is a research note about nothing. */}

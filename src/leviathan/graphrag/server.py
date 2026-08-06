@@ -288,6 +288,11 @@ class Ask(BaseModel):
     session_id: Optional[str] = None
     asof: Optional[str] = None                       # explicit as-of always beats session carry (PIT rule)
     context: list[M.ContextAttachment] = []          # P2 typed graph gestures; resolver caps 4, drops invalid
+    # D-AM-9: the reasoning-scale request field. FREE-FORM str on purpose -- NOT a pydantic Enum: an
+    # unknown value must resolve to `standard` with a mode_invalid stamp, never 422 a desk turn (a
+    # typed enum would reject at the edge, which is exactly the failure mode the fail-open pin
+    # forbids). The orchestrator does the validation, the allowlist and the stamping.
+    mode: Optional[str] = None
 
 
 def _decode_context(raw: Optional[str]) -> list:
@@ -333,16 +338,21 @@ def respond_route(body: Ask, ident: dict = Depends(_require_identity_quota)) -> 
     # their daily cap may run it. When GRAPHRAG_AUTH is off (dev/eval) this is a no-op.
     from leviathan.graphrag import orchestrator as orch
     result = orch.respond(body.question, graph=_graph(), asof=body.asof, session_id=body.session_id,
-                          context=body.context, profile_facts=_turn_profile_facts(ident))
+                          context=body.context, profile_facts=_turn_profile_facts(ident),
+                          mode=body.mode)                       # D-AM-9 (None = absent = standard)
     _save_turn(ident, body.session_id, result, question=body.question)   # durable history (PIT-safe, fail-open)
     return result
 
 
 @app.get("/v1/respond/stream")
 def respond_stream(question: str, session_id: Optional[str] = None, asof: Optional[str] = None,
-                   context: Optional[str] = None, ident: dict = Depends(_require_identity_quota)):
+                   context: Optional[str] = None, mode: Optional[str] = None,
+                   ident: dict = Depends(_require_identity_quota)):
     """SSE wrapper: respond() runs in a worker thread; the stream relays each `on_stage` tick as its own
-    `stage` event, then the single terminal `result` (or `error`)."""
+    `stage` event, then the single terminal `result` (or `error`).
+
+    `mode` (D-AM-9) is the reasoning-scale query param, the GET twin of Ask.mode -- untyped for the
+    same reason (unknown -> standard + stamp, never a 422 on a streamed desk turn)."""
     from leviathan.graphrag import orchestrator as orch
 
     def gen():
@@ -365,7 +375,7 @@ def respond_stream(question: str, session_id: Optional[str] = None, asof: Option
             try:
                 result = orch.respond(question, graph=_graph(), asof=asof, session_id=session_id,
                                       on_stage=on_stage, context=_decode_context(context),
-                                      profile_facts=_pf)
+                                      profile_facts=_pf, mode=mode)     # D-AM-9
                 out.put(("result", result))               # deliver the note FIRST — the user isn't waiting on persistence
                 _save_turn(ident, session_id, result, question=question)  # then durable history (fail-open, off the perceived path)
             except Exception as e:  # noqa: BLE001 — the floor makes this near-impossible; belt + braces

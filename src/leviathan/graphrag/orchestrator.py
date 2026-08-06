@@ -22,6 +22,7 @@ from typing import Optional
 from leviathan.graphrag import answer as an
 from leviathan.graphrag import citations as cit
 from leviathan.graphrag import intent as it
+from leviathan.graphrag import reasoning_modes as rm   # D-AM-9: LEAF module (pure data, no cycle)
 from leviathan.graphrag import register as reg
 from leviathan.graphrag.numbers import agent as na
 
@@ -231,7 +232,8 @@ def run_reasoning(query: str, asof: str, *, graph, call=None, retrieve=None, mod
                   planner: str | None = None, extra_context: str | None = None, route_fn=None,
                   near: str | None = None, silver_lookup=None, on_stage=None,
                   focus_driver: str | None = None, qfn=None, xc_request: dict | None = None,
-                  outlook: bool = False, response_contract: str | None = None) -> dict:
+                  outlook: bool = False, response_contract: str | None = None,
+                  mode_knobs: dict | None = None) -> dict:
     # reroute v2: xc_request rides down to the cascade quantify seam (lane C) ONLY when the gate produced one
     # (flag on + explicit ask). None -> the kwarg is omitted so the answer() call is byte-identical to today.
     _xc = {"xc_request": xc_request} if xc_request is not None else {}
@@ -239,9 +241,11 @@ def run_reasoning(query: str, asof: str, *, graph, call=None, retrieve=None, mod
     # answer() call is byte-identical to pre-W5 and injected answer fakes with the older signature stay valid.
     _ol = {"outlook": True} if outlook else {}
     _rck = {"response_contract": response_contract} if response_contract else {}   # D-RC: same idiom
+    _mk = {"mode_knobs": mode_knobs} if mode_knobs else {}                         # D-AM-10: same idiom
     out = an.answer(query, graph=graph, asof=asof, call=call, retrieve=retrieve, model=model, planner=planner,
                     extra_context=extra_context, route_fn=route_fn, near=near, silver_lookup=silver_lookup,
-                    on_stage=on_stage, focus_driver=focus_driver, numbers_lookup=qfn, **_xc, **_ol, **_rck)
+                    on_stage=on_stage, focus_driver=focus_driver, numbers_lookup=qfn,
+                    **_xc, **_ol, **_rck, **_mk)
     out["intent"] = "reasoning"
     out.setdefault("number_calls", [])
     out["asof"] = asof
@@ -254,7 +258,7 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
                silver_lookup=None, on_stage=None, focus_driver: str | None = None,
                xc_request: dict | None = None, outlook: bool = False,
                numbers_query: str | None = None, families=None,
-               response_contract: str | None = None) -> dict:
+               response_contract: str | None = None, mode_knobs: dict | None = None) -> dict:
     """Hybrid = numbers ∥ walk. The numbers agent has ZERO dependency on the walk (its output is consumed
     only at synthesis: the prompt block + citation unify/verify), so it runs in a worker thread while
     answer() grounds the subgraph; the two join via `extra_resolver` right before prompt assembly —
@@ -361,11 +365,13 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
     _xc = {"xc_request": xc_request} if xc_request is not None else {}   # reroute v2: omit when None (byte-identical)
     _ol = {"outlook": True} if outlook else {}                           # W5-D4: same omit-when-off idiom
     _rck = {"response_contract": response_contract} if response_contract else {}   # D-RC: same idiom
+    _mk = {"mode_knobs": mode_knobs} if mode_knobs else {}                         # D-AM-10: same idiom
     try:
         out = an.answer(query, graph=graph, asof=asof, call=call, retrieve=retrieve, model=model,
                         extra_resolver=_resolve, planner=planner, route_fn=route_fn,
                         near=near, silver_lookup=silver_lookup, on_stage=on_stage,
-                        focus_driver=focus_driver, numbers_lookup=query_fn, **_xc, **_ol, **_rck)
+                        focus_driver=focus_driver, numbers_lookup=query_fn,
+                        **_xc, **_ol, **_rck, **_mk)
     finally:
         pool.shutdown(wait=False)
     if not holder.get("resolved"):      # early-return paths (e.g. no contract match) skip synthesis —
@@ -631,6 +637,22 @@ def _reroute_v2_on() -> bool:
     BYTE-IDENTICAL to today (the engine is gated by the ARGUMENT, never by reading this flag itself).
     Rollback = drop the env var (single flag, instant, no redeploy)."""
     return os.environ.get("GRAPHRAG_REROUTE_V2", "off").lower() == "on"
+
+
+def _modes_enabled() -> frozenset:
+    """D-AM-12: the serving flag GRAPHRAG_MODES, read PER CALL at THIS one seam (no engine ever reads
+    it). Value grammar, copied verbatim from GRAPHRAG_RESPONSE_CONTRACT so the two staged flips are
+    operated identically: absent/''/'off' -> frozenset() (DARK -- a mode is still accepted, resolved
+    and STAMPED, just not honored); 'on'/'1'/'true' -> ALL mode names; anything else -> a
+    comma-separated ALLOWLIST of mode names (unknown names ignored, never fatal). The allowlist IS
+    the staged-honor mechanism: quick first, deep after the eval, per-mode rollback on one env var
+    with no redeploy. `standard` needs no flag -- it is the all-None passthrough and changes nothing."""
+    v = os.environ.get("GRAPHRAG_MODES", "").strip().lower()
+    if not v or v == "off":
+        return frozenset()
+    if v in ("on", "1", "true"):
+        return rm.valid_names()
+    return frozenset(x.strip() for x in v.split(",") if x.strip()) & rm.valid_names()
 
 
 def _family_facet_on() -> bool:
@@ -1228,7 +1250,13 @@ def respond(*args, **kwargs) -> dict:
                   "TransmissionFired": 1 if tr.get("quantify_transmission") else 0,
                   "PriceLegFired": 1 if tr.get("quantify_price_leg") else 0,
                   "ComoveFired": 1 if tr.get("quantify_comove") else 0},
-                 dimensions={"intent": res.get("intent"), "model": res.get("model")},
+                 # D-AM-11: `mode` joins the dimension set. Without it StripCount / TurnLatencyMs mix
+                 # populations the moment stage 1 honors a mode, and every dashboard series becomes
+                 # uninterpretable after the fact. A turn that resolved no mode (guardrail/trivial
+                 # early returns) reports `standard`, which is TRUE by construction: no knobs ran.
+                 dimensions={"intent": res.get("intent"), "model": res.get("model"),
+                             "mode": ((res.get("intent_decision") or {}).get("mode")
+                                      or {}).get("honored") or rm.STANDARD},
                  units={"TurnLatencyMs": "Milliseconds", "MsFill": "Milliseconds",
                         "MsRest": "Milliseconds", "MsDispatch": "Milliseconds", "MsNumbers": "Milliseconds",
                         "MsSynthLLM": "Milliseconds", "MsQuantify": "Milliseconds", "MsRollup": "Milliseconds",
@@ -1258,7 +1286,8 @@ def respond(*args, **kwargs) -> dict:
 def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrieve=None, model: str = an.SONNET,
              numbers_client=None, numbers_model: str = na.HAIKU, query_fn=None, classify=None,
              planner: str | None = None, session_id: Optional[str] = None, session_store=None,
-             on_stage=None, context=None, profile_facts: dict | None = None) -> dict:
+             on_stage=None, context=None, profile_facts: dict | None = None,
+             mode: str | None = None) -> dict:
     """Classify the query's intent, run the matching branch, and return one fused answer + unified citations.
     `asof` defaults to today. The reasoning/hybrid branches default to the L2 deterministic grounded-subgraph
     walk (v1.1 reached judge parity with one-hop at 0/30 register leaks, and the roadmap — driver-slice
@@ -1297,6 +1326,22 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
         if _klass is not None:
             an._emit(on_stage, "social", klass=_klass)   # one stage tick so SSE relays it as a normal turn
             return _trivial_answer(query, _klass)         # never touches session state (returns above load)
+
+    # ── D-AM-9/12: reasoning mode, resolved ONCE ─────────────────────────────────────────────────
+    # The ONE resolution for the turn: the request field + the GRAPHRAG_MODES allowlist in, the
+    # {requested, honored, invalid} stamp and the RESOLVED KNOB DICT out. Nothing below re-reads the
+    # flag and no engine ever reads it -- knobs travel as arguments (the GRAPHRAG_COMOVE discipline).
+    #
+    # WHY HERE and not beside the response-contract selector (where the plan's prose puts it): the
+    # SILVER LEG is built ~200 lines above that selector, so a resolution at the selector could not
+    # reach make_silver_lookup(cap=) without moving the silver build -- a re-ordering that changes
+    # far more than this wave is allowed to. So resolution moves UP to the first point after the two
+    # early-return lanes (guardrail + trivial), and the STAMP still lands beside the contract
+    # decision, on the same `decided` dict, exactly as ratified. Refused and trivial turns return
+    # above this line and resolve nothing -- they run no knobs, which is what standard means.
+    _mode = rm.resolve(mode, _modes_enabled())
+    _mode_knobs = rm.knobs(_mode["honored"])          # {} for standard/dark => every seam byte-identical
+    _mk = {"mode_knobs": _mode_knobs} if _mode_knobs else {}   # the omit-when-default idiom, per seam
 
     # ── session load (Phase 1) ────────────────────────────────────────────────────────────────────
     snap, store, ss = None, None, None
@@ -1346,7 +1391,10 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
         from leviathan.graphrag import silverleg as slv
         # T1: GRAPHRAG_CONVERGENCE_INTENSITY is read at THIS seam and threaded as a kwarg (the
         # GRAPHRAG_COMOVE idiom); silverleg itself never reads the env. Default-off => byte-identical.
-        silver_lookup = slv.make_silver_lookup(graph, qfn, intensity=an._intensity_on())
+        # D-AM-10: the mode's silver cap rides the EXISTING cap= kwarg, omit-when-absent -- with no
+        # honored mode the factory call is byte-identical and silverleg keeps its params default.
+        _sc = {"cap": _mode_knobs["silver_cap"]} if _mode_knobs.get("silver_cap") else {}
+        silver_lookup = slv.make_silver_lookup(graph, qfn, intensity=an._intensity_on(), **_sc)
 
     # ── dispatch tier (planner v1) ────────────────────────────────────────────────────────────────
     # One enum-locked planning call resolves {steps, contracts, asof, near} with the session state in
@@ -1514,7 +1562,14 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
         decided = (decided or {}) | {"xc_detect": {"tier": _xc_det.tier or "none",
                                                    "llm_consulted": bool(_xc_det.llm_consulted),
                                                    "target_span": _xc_span}}
-        if _reroute_v2_on():
+        # D-AM-10 mode override of the reroute-v2 gate. `xc_force` is tri-state and NEVER bypasses
+        # the LAW: False (quick) suppresses only the REQUEST -- the D7 detect attribution above still
+        # stamps, so a declined turn stays attributable; True (deep) merely lets the gate be
+        # CONSULTED on a turn the flag would have skipped, and `_xc_request` itself still decides
+        # realizability (explicit ask + a resolvable pair), so deep can never volunteer a fork.
+        # None (standard/dark) -> the flag alone -> byte-identical.
+        _xcf = _mode_knobs.get("xc_force")
+        if _reroute_v2_on() if _xcf is None else _xcf:
             xc_request = _xc_request(query, graph=graph, state=state, detect=_xc_det)
     # ── W5-D4: the outlook gate, TWO-TIER and FAIL-CLOSED ────────────────────────────────────────────────
     # outlook fires IFF plan.answer_mode_outlook (the LLM detection) AND intent.is_outlook_explicit(query)
@@ -1560,6 +1615,10 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
         "also_matched": list(_rc_all[1:])}}
     _rck = {"response_contract": _rc_name} \
         if (_rc_name and _rc_name in an._response_contracts_enabled()) else {}
+    # D-AM-9: the mode stamp, UNCONDITIONALLY, beside the contract decision (the ratified position).
+    # It rides EVERY turn including dark ones -- that free tally of what users would pick is the
+    # whole point of stage 0 -- and tracekeys lifts it into the eval record as `mode_decision`.
+    decided = (decided or {}) | {"mode": _mode}
     # -- B1: the two things a numbers lane gets from the plan, resolved ONCE for BOTH lanes ----------------
     # `_nq` is the coreference-enriched question. It was built inside the numbers_only branch and nowhere
     # else, so the hybrid lane's agent saw a bare "And exports?" while numbers_only's saw the contracts --
@@ -1579,6 +1638,11 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
             # resolved contracts first, else the session's carried contracts (root-cause fix, part 2).
             _ctx = [c for c in ((list(plan.contracts) if plan else None)
                                 or (state.contracts if state else None) or []) if c in graph.contracts] or None
+            # D-AM-10 EXEMPTION, declared (the run_live-own-kwargs-bag landmine): the live lane is NOT
+            # mode-threaded. It runs no grounded walk, no ground(), no response contract and no episode
+            # scaffold, so every v1 knob is structurally inapplicable; its retrieval is the news fetch,
+            # not evidence.retrieve. The mode is still RESOLVED and STAMPED on a live turn (decided.mode
+            # rides every lane) -- only the knobs have nowhere to land. Same for numbers_only.
             res = run_live(query, asof, graph=graph, call=call, retrieve=retrieve, model=model, planner=planner,
                            on_stage=on_stage, context_contracts=_ctx, route_fn=route_fn, qfn=qfn)
         elif kind == "numbers_only":
@@ -1606,13 +1670,13 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
                              # the raw `query` (route_fn's <=80-char coreference gate). Flag off -> both None
                              # -> this call is byte-identical to today.
                              numbers_query=(_nq if _fam_on else None),
-                             families=_families, **_rck)
+                             families=_families, **_rck, **_mk)
         else:
             res = run_reasoning(query, asof, graph=graph, call=call, retrieve=retrieve, model=model,
                                 planner=planner, extra_context=sblock, route_fn=route_fn, near=near,
                                 silver_lookup=silver_lookup, on_stage=on_stage,
                                 focus_driver=att["focus_driver"], qfn=qfn, xc_request=xc_request,
-                                outlook=outlook_mode, **_rck)
+                                outlook=outlook_mode, **_rck, **_mk)
     except Exception as e:  # noqa: BLE001 — deterministic floor: a UI turn must never 500
         # The floor's CAUSE must be visible in logs: the 2026-07-19 incident spent hours attributing
         # an Anthropic-tier outage to a feature flag because the swallowed exception was never logged
@@ -1637,6 +1701,20 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
             f"as-of (horizon = {asof}). Set the as-of horizon to today for current headlines; the "
             f"analysis above draws on the dated archive only._")
         decided = (decided or {}) | {"live_suppressed_pit": True}
+    # D-AM-11: the RESOLVED knob values on the trace -- what depth ACTUALLY ran, not what was asked
+    # for (the FE chip and the eval artifact read this; registered in tracekeys.TRACE_RECORD_KEYS).
+    # ABSENT on standard/dark turns, deliberately: an empty knob dict is not a decision, and an
+    # always-present key would put a null column on every OFF-arm row (the D-RC OFF-arm-clean rule).
+    # ALSO absent on the two EXEMPT lanes even when a mode is honored: live and numbers_only consume
+    # no knob, and stamping them would make the chip claim a depth that never ran. `decided.mode`
+    # still rides those turns -- what was ASKED FOR and what RAN are different facts, in different
+    # places, on purpose. k_by_depth is listed for JSON/DDB fidelity; the dict is COPIED so no engine
+    # can see the mutation.
+    if _mode_knobs and kind in ("reasoning", "hybrid"):
+        _mkt = dict(_mode_knobs)
+        if isinstance(_mkt.get("k_by_depth"), tuple):
+            _mkt["k_by_depth"] = list(_mkt["k_by_depth"])
+        res.setdefault("trace", {})["mode_knobs"] = _mkt
     res["intent_decision"] = decided
     return _session_writeback(res, query, asof, session_id, store, state, graph, call,
                               ms_dispatch=_ms_dispatch)

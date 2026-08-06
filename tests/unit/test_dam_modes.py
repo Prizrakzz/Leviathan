@@ -1,0 +1,560 @@
+"""D-AM-9..12 (AGENTIC_MODES_WAVE_PLAN, PHASE 2): the reasoning_modes leaf, the `mode` request
+field, the knob threading, and the observability that ships in the same change.
+
+THE ACCEPTANCE BAR, pinned first and hardest: `standard` and every DARK turn (a mode requested but
+not in the GRAPHRAG_MODES allowlist) must produce BYTE-IDENTICAL calls at every threaded seam --
+the walk, the ground, the retrieval partial, the silver factory, the scaffold, the persona and the
+reroute gate. Each of those is asserted by CAPTURING the kwargs an engine actually received, not by
+reading the source, so a future refactor that starts passing `mode_knobs={}` reds here.
+
+Also pinned: fail-open (unknown/absent mode -> standard + a mode_invalid stamp, never a 4xx), the
+flag value grammar, the honored knob values, the budget-scaling arithmetic, the EMF `mode`
+dimension, and the tracekeys registration (which IS the eval registration since D-AM-3).
+
+All offline: no pg, no S3, no LLM, no AWS. ASCII-only output (the Windows console is cp1252)."""
+from __future__ import annotations
+
+import inspect
+import pathlib
+import types
+
+import pytest
+
+from leviathan.causal import schema as cs
+from leviathan.graphrag import answer as an
+from leviathan.graphrag import emf as emfmod
+from leviathan.graphrag import eval as evl
+from leviathan.graphrag import graph as g
+from leviathan.graphrag import orchestrator as orch
+from leviathan.graphrag import planner as pl
+from leviathan.graphrag import reasoning_modes as rm
+from leviathan.graphrag import response_contracts as rc
+from leviathan.graphrag import silverleg as slv
+from leviathan.graphrag import timeline as tl
+from leviathan.graphrag import tracekeys as tk
+
+
+# ══ fixtures ═════════════════════════════════════════════════════════════════════════════════════════
+def _graph() -> g.CausalGraph:
+    corn = cs.CausalContract(contract="corn", aliases=["maize"],
+                             drivers=[cs.Driver(id="drought", type="hazard", sign="+",
+                                                mechanism="dryness cuts yield")])
+    return g.CausalGraph({"corn": corn}, silver=set())
+
+
+def _force(kind):
+    return lambda q, call=None: {"intent": kind, "needs_numbers": kind in ("numbers_only", "hybrid"),
+                                 "needs_reasoning": kind in ("reasoning", "hybrid")}
+
+
+def _reason_call(system, user, *, model, tool, **kw):
+    return {"tldr": "x", "mechanism": "y", "diagram_mermaid": "", "sources": []}
+
+
+def _retrieve(q, node, *, k, asof=None, near=None):
+    return [{"date": "2024-01-01", "source": "usda_wasde", "source_key": f"s3://{node}", "text": "note"}]
+
+
+class _Stop(Exception):
+    """Sentinel: the seam under test has been reached and its kwargs captured; stop the turn."""
+
+
+@pytest.fixture(autouse=True)
+def _clean_env(monkeypatch):
+    """Every mode test states its own flag state -- an inherited GRAPHRAG_MODES would make the
+    dark-passthrough pins vacuously green."""
+    monkeypatch.delenv("GRAPHRAG_MODES", raising=False)
+    monkeypatch.delenv("GRAPHRAG_RESPONSE_CONTRACT", raising=False)
+    monkeypatch.delenv("GRAPHRAG_REROUTE_V2", raising=False)
+
+
+# ══ A -- the leaf module ═════════════════════════════════════════════════════════════════════════════
+def test_reasoning_modes_is_a_leaf_module():
+    """The response_contracts.py discipline: a pure-data table importable from orchestrator, answer,
+    server and eval alike. One leviathan import here re-creates the cycle the leaf exists to avoid."""
+    import ast
+    tree = ast.parse(pathlib.Path(rm.__file__).read_text(encoding="utf-8"))
+    mods = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            mods += [a.name for a in node.names]
+        elif isinstance(node, ast.ImportFrom):
+            mods.append(node.module or "")
+    assert [m for m in mods if m.split(".")[0] == "leviathan"] == [], mods
+    assert set(mods) <= {"__future__", "dataclasses"}, mods
+
+
+def test_the_three_presets_and_nothing_else():
+    assert rm.valid_names() == frozenset({"quick", "standard", "deep"})
+    assert set(rm.MODES) == {rm.QUICK, rm.STANDARD, rm.DEEP}
+
+
+def test_standard_is_the_all_none_passthrough_pin():
+    """LOAD-BEARING: standard carries no knob at all, so `knobs` is empty, every kwarg builder is
+    empty and every call site is byte-identical WITHOUT anyone promising to keep it that way."""
+    std = rm.MODES[rm.STANDARD]
+    assert all(getattr(std, f) is None for f in rm.KNOB_FIELDS)
+    assert rm.knobs(rm.STANDARD) == {}
+    assert rm.walk_kwargs(rm.knobs(rm.STANDARD)) == {}
+    assert rm.ground_kwargs(rm.knobs(rm.STANDARD)) == {}
+
+
+def test_mode_is_frozen():
+    with pytest.raises(Exception):
+        rm.MODES[rm.QUICK].node_budget = 99          # frozen dataclass: the table cannot be mutated
+
+
+def test_v1_knob_table_matches_the_ratified_values():
+    """D-AM-10's table, transcribed. If the eval retunes a number this test is the one place to
+    change it -- and the change is then visible in review, which is the whole point."""
+    assert rm.knobs(rm.QUICK) == {
+        "node_budget": 6, "depth": 1, "max_seeds": 1,
+        "k_by_depth": (4, 2), "evidence_cap": 12, "probe_cap": 12,
+        "fetch_k": 40, "silver_cap": 4,
+        "scaffold_max_bullets": 6, "scaffold_max_absence": 3,
+        "budget_scale": 0.7, "xc_force": False}
+    assert rm.knobs(rm.DEEP) == {
+        "node_budget": 16, "depth": 3, "max_seeds": 3,
+        "k_by_depth": (7, 5, 3), "evidence_cap": 48, "probe_cap": 36,
+        "fetch_k": 120, "silver_cap": 12,
+        "scaffold_max_bullets": 12, "scaffold_max_absence": 6,
+        "budget_scale": 1.5, "xc_force": True}
+
+
+def test_kwarg_builders_name_only_callee_accepted_keywords():
+    """v1 threads, it does not redesign: every walk/ground knob must already be a keyword of its
+    callee. A knob that is not is a seam change and belongs in a different wave."""
+    walk = set(inspect.signature(pl.grounded_subgraph).parameters)
+    ground = set(inspect.signature(pl.ground).parameters)
+    assert set(rm.walk_kwargs(rm.knobs(rm.DEEP))) <= walk
+    assert set(rm.ground_kwargs(rm.knobs(rm.DEEP))) <= ground
+    assert "cap" in inspect.signature(slv.make_silver_lookup).parameters
+    assert "fetch_k" in inspect.signature(an.ev.retrieve).parameters
+
+
+def test_pit_safety_and_the_exclusion_list_are_stated_in_the_module():
+    """The ratification record lives beside the code, not only in the plan doc: PIT safety is
+    STATED (never re-derived at a call site) and every v1 exclusion carries its reason."""
+    doc = rm.__doc__ or ""
+    assert "PIT SAFETY" in doc and "leakage filter runs BEFORE any width slicing" in doc.replace(
+        "as-of leakage filter runs BEFORE any width slicing", "leakage filter runs BEFORE any width slicing")
+    for excluded in ("rerank pool", "coalescer", "timeline floors", "recency_days",
+                     "max_tokens", "cascade_quant"):
+        assert excluded in doc, excluded
+
+
+# ══ B -- resolution: fail-open, dark-by-default, flag grammar ════════════════════════════════════════
+def test_absent_mode_resolves_to_standard_and_is_not_invalid():
+    assert rm.resolve(None, rm.valid_names()) == {"requested": None, "honored": "standard",
+                                                  "invalid": False}
+    assert rm.resolve("", rm.valid_names())["honored"] == "standard"
+
+
+def test_unknown_mode_fails_open_with_the_invalid_stamp():
+    """A desk turn must not die on a typo: unknown -> standard + invalid, NEVER a raise/400."""
+    out = rm.resolve("turbo", rm.valid_names())
+    assert out == {"requested": "turbo", "honored": "standard", "invalid": True}
+
+
+def test_requested_is_normalized_case_and_whitespace():
+    assert rm.resolve("  DEEP ", {"deep"})["requested"] == "deep"
+    assert rm.resolve("  DEEP ", {"deep"})["honored"] == "deep"
+
+
+def test_dark_stage_accepts_and_stamps_but_does_not_honor():
+    """Stage 0: the request is recorded (the free tally of what users would pick) while the knobs
+    stay standard. `requested` survives, `honored` does not."""
+    out = rm.resolve("deep", frozenset())
+    assert out == {"requested": "deep", "honored": "standard", "invalid": False}
+    assert rm.knobs(out["honored"]) == {}
+
+
+def test_standard_never_needs_the_flag():
+    assert rm.resolve("standard", frozenset())["honored"] == "standard"
+
+
+def test_flag_value_grammar_mirrors_the_contracts_flag(monkeypatch):
+    assert orch._modes_enabled() == frozenset()                       # absent
+    monkeypatch.setenv("GRAPHRAG_MODES", "off")
+    assert orch._modes_enabled() == frozenset()
+    for on in ("on", "1", "true", "ON"):
+        monkeypatch.setenv("GRAPHRAG_MODES", on)
+        assert orch._modes_enabled() == rm.valid_names()
+    monkeypatch.setenv("GRAPHRAG_MODES", "quick,bogus")
+    assert orch._modes_enabled() == frozenset({"quick"})              # unknown names ignored, never fatal
+    monkeypatch.setenv("GRAPHRAG_MODES", "quick,deep")
+    assert orch._modes_enabled() == frozenset({"quick", "deep"})
+
+
+# ══ C -- BYTE IDENTITY at every threaded seam (the acceptance bar) ═══════════════════════════════════
+def _capture_l2(monkeypatch, *, mode_knobs=None):
+    """Drive answer(planner='l2') far enough to capture the walk kwargs, the ground kwargs and the
+    retrieval partial the body built, then stop. Nothing downstream of ground() runs."""
+    seen: dict = {}
+
+    def _gs(query, graph, **kw):
+        seen["walk"] = dict(kw)
+        return types.SimpleNamespace(nodes=[], seeds=[], trace={}, fired_regimes=[], mermaid="")
+
+    def _ground(sg, query, graph, **kw):
+        seen["ground"] = dict(kw)
+        raise _Stop
+    monkeypatch.setattr(pl, "grounded_subgraph", _gs)
+    monkeypatch.setattr(pl, "ground", _ground)
+    kw = {"mode_knobs": mode_knobs} if mode_knobs else {}
+    with pytest.raises(_Stop):
+        an.answer("why is corn bid", graph=_graph(), asof="2024-06-01", planner="l2",
+                  call=_reason_call, route_fn=lambda q, gg: ["corn"], **kw)
+    return seen
+
+
+def test_walk_and_ground_kwargs_are_untouched_on_standard_and_dark(monkeypatch):
+    """The passthrough pin, proven by capture: with no honored mode the walk call carries ONLY
+    route_fn and the ground call carries ONLY the pre-existing keywords."""
+    base = _capture_l2(monkeypatch)
+    dark = _capture_l2(monkeypatch, mode_knobs=rm.knobs("standard"))   # dark resolves to {} upstream
+    assert set(base["walk"]) == {"route_fn"}
+    assert set(base["ground"]) == {"retrieve", "silver_lookup", "asof", "near", "probe_retrieve", "on_stage"}
+    assert set(dark["walk"]) == set(base["walk"]) and set(dark["ground"]) == set(base["ground"])
+
+
+def test_honored_mode_threads_walk_and_ground_knobs(monkeypatch):
+    seen = _capture_l2(monkeypatch, mode_knobs=rm.knobs("deep"))
+    assert seen["walk"]["node_budget"] == 16 and seen["walk"]["depth"] == 3
+    assert seen["walk"]["max_seeds"] == 3
+    assert seen["ground"]["k_by_depth"] == (7, 5, 3)
+    assert seen["ground"]["evidence_cap"] == 48 and seen["ground"]["probe_cap"] == 36
+    quick = _capture_l2(monkeypatch, mode_knobs=rm.knobs("quick"))
+    assert quick["walk"]["node_budget"] == 6 and quick["ground"]["k_by_depth"] == (4, 2)
+
+
+def test_fetch_k_rides_a_per_call_partial_rebind(monkeypatch):
+    """Concurrency-safe by construction: the width lives on the LOCAL partial, never on a module
+    global, so two concurrent turns on different modes cannot see each other's fetch_k."""
+    base = _capture_l2(monkeypatch)
+    assert "fetch_k" not in base["ground"]["retrieve"].keywords          # standard: untouched
+    deep = _capture_l2(monkeypatch, mode_knobs=rm.knobs("deep"))
+    assert deep["ground"]["retrieve"].keywords["fetch_k"] == 120
+    quick = _capture_l2(monkeypatch, mode_knobs=rm.knobs("quick"))
+    assert quick["ground"]["retrieve"].keywords["fetch_k"] == 40
+    assert an.ev.retrieve.__module__                                     # the partial still wraps ev.retrieve
+    assert deep["ground"]["retrieve"].func is an.ev.retrieve
+
+
+def _respond_capture(monkeypatch, *, mode=None, flag=None, kind="reasoning", call=_reason_call,
+                     query="why is corn bid on a drought", **extra):
+    """Run a turn with the lane runner replaced by a kwarg recorder."""
+    seen: dict = {}
+    # The flag is set EXPLICITLY on every call (never inherited from an earlier call in the same
+    # test): a leaked allowlist would make the dark-passthrough assertions vacuously green.
+    if flag is None:
+        monkeypatch.delenv("GRAPHRAG_MODES", raising=False)
+    else:
+        monkeypatch.setenv("GRAPHRAG_MODES", flag)
+
+    def _runner(q, asof, **kw):
+        seen.update(kw)
+        return {"answer": "a", "intent": kind, "trace": {}, "citations": [], "evidence": [],
+                "number_calls": [], "structured": None, "contract": None, "contracts": []}
+    monkeypatch.setattr(orch, "run_reasoning", _runner)
+    monkeypatch.setattr(orch, "run_hybrid", _runner)
+    kw = {"mode": mode} if mode is not None else {}
+    out = orch.respond(query, graph=_graph(), asof="2024-06-01", classify=_force(kind),
+                       call=call, retrieve=_retrieve, **kw, **extra)
+    return out, seen
+
+
+def test_orchestrator_omits_the_mode_knobs_kwarg_on_standard_and_dark(monkeypatch):
+    """The omit-when-default idiom at the lane seam: no honored mode => the kwarg is ABSENT, so an
+    injected fake runner with the pre-D-AM signature keeps working and the call is byte-identical."""
+    _o, none_kw = _respond_capture(monkeypatch)
+    assert "mode_knobs" not in none_kw
+    _o, std_kw = _respond_capture(monkeypatch, mode="standard", flag="on")
+    assert "mode_knobs" not in std_kw
+    _o, dark_kw = _respond_capture(monkeypatch, mode="deep")           # requested, NOT allowlisted
+    assert "mode_knobs" not in dark_kw
+    _o, bad_kw = _respond_capture(monkeypatch, mode="turbo", flag="on")
+    assert "mode_knobs" not in bad_kw
+
+
+def test_orchestrator_threads_resolved_knobs_when_honored(monkeypatch):
+    _o, kw = _respond_capture(monkeypatch, mode="quick", flag="quick")
+    assert kw["mode_knobs"] == rm.knobs("quick")
+    _o, kw2 = _respond_capture(monkeypatch, mode="deep", flag="quick")   # deep not yet allowlisted
+    assert "mode_knobs" not in kw2
+
+
+def test_hybrid_lane_threads_the_same_kwarg(monkeypatch):
+    _o, kw = _respond_capture(monkeypatch, mode="deep", flag="on", kind="hybrid")
+    assert kw["mode_knobs"] == rm.knobs("deep")
+
+
+def test_run_reasoning_and_run_hybrid_omit_the_kwarg_downstream(monkeypatch):
+    """One hop lower: the two lane runners use the same idiom into answer()."""
+    seen: dict = {}
+
+    def _answer(q, **kw):
+        seen.clear()
+        seen.update(kw)
+        return {"answer": "a", "trace": {}, "citations": [], "evidence": [], "structured": None,
+                "contract": None, "contracts": [], "model": "m"}
+    monkeypatch.setattr(an, "answer", _answer)
+    orch.run_reasoning("q", "2024-06-01", graph=_graph())
+    assert "mode_knobs" not in seen
+    orch.run_reasoning("q", "2024-06-01", graph=_graph(), mode_knobs={})
+    assert "mode_knobs" not in seen                                   # empty is not a decision
+    orch.run_reasoning("q", "2024-06-01", graph=_graph(), mode_knobs=rm.knobs("deep"))
+    assert seen["mode_knobs"] == rm.knobs("deep")
+
+
+def test_silver_cap_rides_the_existing_kwarg_only_when_honored(monkeypatch):
+    """The silver factory seam sits ABOVE the contract decision point, which is why the mode is
+    resolved at the top of the turn -- captured here so that ordering stays load-bearing."""
+    seen: list = []
+
+    def _mk(graph, query_fn=None, **kw):
+        seen.append(dict(kw))
+        return None
+    monkeypatch.setattr(slv, "make_silver_lookup", _mk)
+    _o, _kw = _respond_capture(monkeypatch, call=None, query_fn=lambda *a, **k: None)
+    assert seen and "cap" not in seen[-1]
+    seen.clear()
+    _o, _kw = _respond_capture(monkeypatch, mode="quick", flag="quick", call=None,
+                               query_fn=lambda *a, **k: None)
+    assert seen[-1]["cap"] == 4
+
+
+def test_xc_gate_force_off_and_force_on(monkeypatch):
+    """quick suppresses the REQUEST only (the detect attribution still stamps); deep merely lets the
+    existing realizability gate be consulted -- it can never manufacture a fork."""
+    calls: list = []
+
+    def _gate(query, **kw):
+        calls.append(query)
+        return {"pair": ["corn", "wheat"]}
+    monkeypatch.setattr(orch, "_xc_request", _gate)
+
+    monkeypatch.setenv("GRAPHRAG_REROUTE_V2", "on")
+    out, kw = _respond_capture(monkeypatch, mode="quick", flag="quick")
+    assert calls == [] and kw.get("xc_request") is None                # force OFF beats the flag
+    assert out["intent_decision"]["xc_detect"]["tier"] == "none"       # attribution still stamped
+
+    calls.clear()
+    monkeypatch.delenv("GRAPHRAG_REROUTE_V2", raising=False)
+    out, kw = _respond_capture(monkeypatch, mode="deep", flag="deep")
+    assert len(calls) == 1 and kw["xc_request"] == {"pair": ["corn", "wheat"]}   # force ON
+
+    calls.clear()
+    out, kw = _respond_capture(monkeypatch)                            # standard + flag off: untouched
+    assert calls == [] and kw.get("xc_request") is None
+
+
+def test_exempt_lanes_never_grow_the_kwarg():
+    """DECLARED, not discovered (the D-RC precedent): live runs no walk/ground/contract/scaffold and
+    numbers_only has no answer.py seam, so no v1 knob can land there."""
+    assert "mode_knobs" not in inspect.signature(orch.run_live).parameters
+    assert "mode_knobs" not in inspect.signature(orch.run_numbers_only).parameters
+    assert "mode_knobs" in inspect.signature(orch.run_reasoning).parameters
+    assert "mode_knobs" in inspect.signature(orch.run_hybrid).parameters
+    assert "mode_knobs" in inspect.signature(an.answer).parameters
+    assert "mode_knobs" in inspect.signature(an._answer_l2).parameters
+
+
+# ══ D -- the contract word budget ════════════════════════════════════════════════════════════════════
+@pytest.mark.parametrize("budget,scale,want", [
+    ("150-220", 0.7, "110-150"), ("150-220", 1.5, "230-330"),
+    ("120-200", 0.7, "80-140"), ("120-200", 1.5, "180-300"),
+    ("90-160", 0.7, "60-110"), ("220-320", 1.5, "330-480"),
+    ("60-120", 0.7, "40-80"),
+])
+def test_budget_scaling_arithmetic(budget, scale, want):
+    """Half-up to the nearest 10 at BOTH ends -- deterministic on purpose (round() is banker's
+    rounding, which would send 105 to 100 and make the two ends round by different rules)."""
+    assert rm.scale_budget(budget, scale) == want
+
+
+def test_budget_scaling_is_fail_open():
+    assert rm.scale_budget("150-220", None) is None                   # no mode -> leave it alone
+    assert rm.scale_budget(None, 0.7) is None
+    assert rm.scale_budget("about two hundred", 0.7) is None          # unparseable -> untouched
+    assert rm.scale_budget("5-8", 0.1) == "10-10"                     # floor 10, hi never below lo
+
+
+def test_mode_budget_needs_an_ACTIVE_contract():
+    """The default persona's own range is a pinned needle of _SYSTEM_MENTOR and is never mode-varied;
+    only the CONTRACT's range scales."""
+    assert an._mode_budget(None, rm.knobs("quick")) is None
+    assert an._mode_budget("ranking", {}) is None
+    assert an._mode_budget("ranking", rm.knobs("standard")) is None
+    assert an._mode_budget("ranking", rm.knobs("quick")) == rm.scale_budget(
+        rc.CONTRACTS["ranking"].budget, 0.7)
+
+
+def test_apply_and_system_carry_the_scaled_budget(monkeypatch):
+    monkeypatch.delenv("GRAPHRAG_MENTOR_VOICE", raising=False)
+    plain = rc.apply(an._SYSTEM_MENTOR, "ranking")
+    scaled = rc.apply(an._SYSTEM_MENTOR, "ranking", budget="60-110")
+    assert "target 90-160 words across the 3 sections" in plain
+    assert "target 60-110 words across the 3 sections" in scaled
+    assert rc.apply(an._SYSTEM_MENTOR, "ranking", budget=None) == plain      # None = untouched
+    # ...and the persona builder threads it (both serving bodies call _system the same way).
+    assert an._system(response_contract="ranking", budget="60-110") != an._system(
+        response_contract="ranking")
+    assert an._system(response_contract="ranking", budget=None) == an._system(
+        response_contract="ranking")
+
+
+def test_budget_override_never_leaks_onto_the_default_persona():
+    base = an._system()
+    assert an._system(budget="10-20") == base                          # no contract -> apply() is identity
+    assert an._system(response_contract="outlook", budget="10-20") == base   # passthrough too
+
+
+# ══ E -- the episode-scaffold caps ═══════════════════════════════════════════════════════════════════
+def test_scaffold_cap_kwargs_omit_when_absent():
+    assert an._scaffold_cap_kwargs(None) == {}
+    assert an._scaffold_cap_kwargs({}) == {}
+    assert an._scaffold_cap_kwargs(rm.knobs("standard")) == {}
+    assert an._scaffold_cap_kwargs(rm.knobs("quick")) == {"max_bullets": 6, "max_absence": 3}
+    assert an._scaffold_cap_kwargs(rm.knobs("deep")) == {"max_bullets": 12, "max_absence": 6}
+
+
+class _Node:
+    def __init__(self, nid, episodes):
+        self.id = nid
+        self.episodes = episodes
+
+
+def _scaffold(monkeypatch, n_eps, **caps):
+    monkeypatch.setenv("GRAPHRAG_EPISODE_SCAFFOLD", "on")
+    eps = [{"start": f"20{10 + i:02d}-06-10", "end": f"20{10 + i:02d}-08-01", "n": 3, "receipt": None}
+           for i in range(n_eps)]
+    injected = [{"node": "drivers/frost", "line": tl.render_line("drivers/frost", eps),
+                 "spans": [tl.month_span(e) for e in eps],
+                 "windows": [{"start": tl.day_window(e)[0], "end": tl.day_window(e)[1],
+                              "span": tl.month_span(e), "n": e.get("n")} for e in eps]}]
+    structured = {"tldr": "t", "mechanism": "## Mechanism\nFrost tightens the sheet.\n"
+                                            "## What to watch\nCold fronts.\n", "sources": []}
+    verifier = {"enabled": True, "checked": 1, "stripped": 0, "corrected": 0, "claim_count": 3,
+                "by_rule": {}, "resolved": {}}
+    return an._maybe_scaffold_episodes(structured, verifier, injected=injected,
+                                       nodes=[_Node("drivers/frost", eps)], evidence=[],
+                                       n_positional=0, **caps)
+
+
+def test_scaffold_caps_default_to_params_and_are_overridden_by_the_mode(monkeypatch):
+    """The params value stays the authority when no override arrives (standard/dark byte-identity);
+    the mode's integers win when they do. Both directions, on the same fixture."""
+    default = _scaffold(monkeypatch, 8)
+    assert default["episodes_scaffolded"]["fired"] is True
+    quick = _scaffold(monkeypatch, 8, **an._scaffold_cap_kwargs(rm.knobs("quick")))
+    assert quick["episodes_scaffolded"]["fired"] is True
+    assert quick["episodes_scaffolded"]["n_bullets"] == 3              # quick's absence cap
+    assert default["episodes_scaffolded"]["n_bullets"] == 6            # the params default
+    assert _scaffold(monkeypatch, 8, **an._scaffold_cap_kwargs(rm.knobs("standard"))) == default
+
+
+# ══ F -- observability, IN THE SAME CHANGE ═══════════════════════════════════════════════════════════
+def test_decided_mode_is_stamped_on_every_turn(monkeypatch):
+    out, _kw = _respond_capture(monkeypatch)
+    assert out["intent_decision"]["mode"] == {"requested": None, "honored": "standard",
+                                              "invalid": False}
+    out, _kw = _respond_capture(monkeypatch, mode="deep")              # DARK: stamped, not honored
+    assert out["intent_decision"]["mode"] == {"requested": "deep", "honored": "standard",
+                                              "invalid": False}
+    out, _kw = _respond_capture(monkeypatch, mode="deep", flag="on")
+    assert out["intent_decision"]["mode"]["honored"] == "deep"
+
+
+def test_decided_mode_rides_the_exempt_lanes_too(monkeypatch):
+    """'Every turn' means EVERY turn: the live lane runs no knobs but still records what was asked
+    for, so the stage-0 tally is not silently blind to a whole lane."""
+    def _fake_live(q, a, **k):
+        return {"answer": "hx", "intent": "live", "trace": {}, "citations": [], "evidence": [],
+                "number_calls": [], "structured": None, "contract": None, "contracts": []}
+    monkeypatch.setattr(orch, "run_live", _fake_live)
+    monkeypatch.setenv("GRAPHRAG_MODES", "deep")
+    out = orch.respond("any news on corn today?", graph=_graph(), mode="deep",
+                       classify=_force("live"))
+    assert out["intent_decision"]["mode"]["requested"] == "deep"
+    assert out["intent_decision"]["mode"]["honored"] == "deep"
+    # ...and the trace does NOT claim a depth that never ran: the live lane consumes no knob, so
+    # `mode_knobs` stays absent. Asked-for and actually-ran are different facts, kept apart.
+    assert "mode_knobs" not in (out.get("trace") or {})
+
+
+def test_invalid_mode_never_raises_and_stamps_the_flag(monkeypatch):
+    out, kw = _respond_capture(monkeypatch, mode="ultra", flag="on")
+    assert out["intent_decision"]["mode"] == {"requested": "ultra", "honored": "standard",
+                                              "invalid": True}
+    assert "mode_knobs" not in kw and out["answer"]                    # the turn ANSWERED
+
+
+def test_trace_carries_the_resolved_knobs_only_when_honored(monkeypatch):
+    out, _kw = _respond_capture(monkeypatch, mode="deep", flag="deep")
+    knobs = out["trace"]["mode_knobs"]
+    assert knobs["fetch_k"] == 120 and knobs["evidence_cap"] == 48
+    assert knobs["k_by_depth"] == [7, 5, 3]                            # listed for JSON/DDB fidelity
+    out, _kw = _respond_capture(monkeypatch, mode="deep")              # dark
+    assert "mode_knobs" not in (out.get("trace") or {})                # OFF-arm clean
+    out, _kw = _respond_capture(monkeypatch)
+    assert "mode_knobs" not in (out.get("trace") or {})
+
+
+def test_tracekeys_registration_is_the_eval_registration():
+    """D-AM-3: registering here IS registering in the eval artifact (eval loops these tuples)."""
+    assert "mode_knobs" in tk.TRACE_RECORD_KEYS
+    assert dict(tk.DECISION_RECORD_KEYS)["mode"] == "mode_decision"
+    assert len(set(tk.TRACE_RECORD_KEYS)) == len(tk.TRACE_RECORD_KEYS)
+    cols = [c for _k, c in tk.DECISION_RECORD_KEYS]
+    assert len(set(cols)) == len(cols)
+
+
+def test_the_eval_record_actually_carries_the_mode_columns():
+    rec = evl._per_answer_record(
+        {"q": {"id": "q1"}, "out": {"answer": "a", "structured": None, "evidence": [],
+                                    "citations": [], "trace": {"mode_knobs": {"fetch_k": 120}},
+                                    "intent_decision": {"mode": {"requested": "deep",
+                                                                 "honored": "deep",
+                                                                 "invalid": False}}}},
+        "single")
+    assert rec["mode_knobs"] == {"fetch_k": 120}
+    assert rec["mode_decision"]["honored"] == "deep"
+
+
+def test_emf_dimensions_carry_mode(monkeypatch):
+    """Without this dimension StripCount/TurnLatencyMs mix populations the moment a mode is honored,
+    and every dashboard series becomes uninterpretable after the fact."""
+    seen: list = []
+    monkeypatch.setattr(emfmod, "emit",
+                        lambda metrics, **kw: seen.append((metrics, kw.get("dimensions") or {})))
+    _respond_capture(monkeypatch, mode="deep", flag="deep")
+    dims = [d for _m, d in seen if "TurnLatencyMs" in _m]
+    assert dims and dims[0]["mode"] == "deep"
+    assert dims[0]["intent"] == "reasoning"                            # the pre-existing keys survive
+    seen.clear()
+    _respond_capture(monkeypatch)
+    dims = [d for _m, d in seen if "TurnLatencyMs" in _m]
+    assert dims and dims[0]["mode"] == "standard"                      # true by construction: no knobs ran
+
+
+def test_eval_arm_identity_learns_the_request_level_mode():
+    """D-AM-11: the arm stamp read PROCESS ENV only, so two mode arms would have been identical in
+    every reproducibility key except ts."""
+    assert "mode" in inspect.signature(evl._baseline_json).parameters
+    assert "mode" in inspect.signature(evl.run).parameters
+    b = evl._baseline_json([], run_kind="single", model="m", judged=False, eval_set="s",
+                           graph_version="v", corpus_fp="f", mode="deep")
+    assert b["mode"] == "deep"
+    assert evl._baseline_json([], run_kind="single", model="m", judged=False, eval_set="s",
+                              graph_version="v", corpus_fp="f")["mode"] is None
+
+
+# ══ G -- the request field ═══════════════════════════════════════════════════════════════════════════
+def test_ask_model_and_sse_query_string_carry_mode():
+    from leviathan.graphrag import server as sv
+    assert "mode" in sv.Ask.model_fields
+    assert sv.Ask(question="q").mode is None
+    assert sv.Ask(question="q", mode="turbo").mode == "turbo"          # NOT an enum: no 422 on a typo
+    assert "mode" in inspect.signature(sv.respond_stream).parameters
+    assert "mode" in inspect.signature(orch._respond).parameters

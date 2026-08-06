@@ -2,6 +2,7 @@ import { fetchWithAuth } from '../auth/oidc';
 import { httpErrorMessage } from './errors';
 import type { ContextAttachment, RespondResult, StageEvent } from './schema';
 import { MAX_ATTACH } from '@/store/chips';
+import { modeParam } from '@/store/mode';
 
 export interface StreamHandlers {
   onStage?: (e: StageEvent) => void;
@@ -108,7 +109,7 @@ function dispatchBlock(block: string, h: StreamHandlers): boolean {
 /** Open the real SSE endpoint and pump it through parseSSE. Mock mode routes elsewhere (client.ts). */
 export async function openRespondStream(
   base: string,
-  params: { question: string; asof?: string; sessionId?: string; context?: ContextAttachment[] },
+  params: { question: string; asof?: string; sessionId?: string; context?: ContextAttachment[]; mode?: string },
   h: StreamHandlers,
   signal?: AbortSignal,
 ): Promise<void> {
@@ -117,6 +118,11 @@ export async function openRespondStream(
   if (params.sessionId) qs.set('session_id', params.sessionId);
   // P2: attachments ride a JSON-encoded param (the stream is GET-only); cap mirrors the store's MAX_ATTACH
   if (params.context?.length) qs.set('context', JSON.stringify(params.context.slice(0, MAX_ATTACH)));
+  // D-AM-14: the reasoning mode, LAST and CONDITIONAL. `modeParam` is the one place the omit rule lives
+  // (standard/absent/unknown -> undefined), so a standard turn's query string is byte-for-byte the one
+  // this route sent before the wave -- which is the client half of the backend's passthrough pin.
+  const mode = modeParam(params.mode);
+  if (mode) qs.set('mode', mode);
   // fetch-based SSE (not EventSource) -> fetchWithAuth attaches the bearer AND does the shared
   // 401-retry-after-forced-refresh (D-W6.2); a still-401 replay falls through to onError below.
   const res = await fetchWithAuth(`${base}/v1/respond/stream?${qs.toString()}`, {

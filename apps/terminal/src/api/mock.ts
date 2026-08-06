@@ -422,17 +422,45 @@ function partialsFor(result: RespondResult): StageEvent[] {
   return [...regimes, ...numbers, ...nodes, ...chain];
 }
 
+/** D-AM-14 mock knobs: FABRICATED stand-ins for the values reasoning_modes.py resolves, present so the
+ *  "what ran" chip is exercisable with `VITE_MOCK=1` (the whole point of the mock: the UI runs with no
+ *  backend). Deliberately a SHORT dict, not a copy of the ratified preset table -- the chip renders
+ *  whatever keys arrive, so a mock that mirrored every knob would only be a second place to go stale. */
+const MOCK_MODE_KNOBS: Record<string, Record<string, unknown>> = {
+  quick: { depth: 1, node_budget: 6, k_by_depth: [4, 2], evidence_cap: 12, fetch_k: 40 },
+  deep: { depth: 3, node_budget: 16, k_by_depth: [7, 5, 3], evidence_cap: 48, fetch_k: 120 },
+};
+
+/** Stamp the mode decision (every turn, like the backend) and — only for a non-standard, knob-consuming
+ *  mock lane — the resolved knobs. Returns the SAME object when there is nothing to stamp, so a standard
+ *  mock turn is byte-identical to the fixture it has always been. */
+function withMockMode(result: RespondResult, mode?: string): RespondResult {
+  const requested = (mode ?? '').trim().toLowerCase() || null;
+  const known = requested != null && ['quick', 'standard', 'deep'].includes(requested);
+  const honored = known && requested ? requested : 'standard';
+  const knobs = MOCK_MODE_KNOBS[honored];
+  if (!requested && !result.intent_decision) return result;
+  return {
+    ...result,
+    intent_decision: {
+      ...(result.intent_decision ?? {}),
+      mode: { requested, honored, invalid: requested != null && !known },
+    },
+    ...(knobs && result.structured ? { trace: { ...(result.trace ?? {}), mode_knobs: knobs } } : {}),
+  };
+}
+
 /** The mock stream (5.6): the full ordered tick sequence the backend emits — early walking, per-node
  *  retrieval progress, per-lookup numbers ticks, synthesizing, then bursty `token` deltas (exercises the
  *  typewriter) and the terminal result. F7: the content-bearing partials ride the same sequence, so
  *  `VITE_MOCK=1` exercises the findings feed + the inert→live citation swap end to end. */
 export async function mockRespondStream(
-  params: { question: string; asof?: string; context?: unknown[] },
+  params: { question: string; asof?: string; context?: unknown[]; mode?: string },
   h: StreamHandlers,
   opts: { delay?: number } = {},
 ): Promise<void> {
   const delay = opts.delay ?? 55;
-  const result = pickResult(params.question, params.asof ?? '2021-07-20');
+  const result = withMockMode(pickResult(params.question, params.asof ?? '2021-07-20'), params.mode);
   const floor = result.trace?.floor;
   const refused = result.intent === 'refused';
   const stages: StageEvent[] = refused

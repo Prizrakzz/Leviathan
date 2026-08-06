@@ -21,6 +21,7 @@ from leviathan.graphrag import params as _prm
 from leviathan.graphrag import register as reg
 from leviathan.graphrag import intent as _it     # D-RC-11: is_episodic_explicit only (pure regex, no cycle)
 from leviathan.graphrag import response_contracts as _rc   # D-RC Phase B: LEAF module (pure data, no cycle)
+from leviathan.graphrag import reasoning_modes as _rm      # D-AM-9: LEAF module (pure data, no cycle)
 from leviathan.graphrag import timeline as _tl   # W4-D3: LINE_PREFIX only (module imports params alone -> no cycle)
 
 # Production retrieval stack — the arm that won the free k=3 A/B (hybrid doubled exact-token recall 2/6->4/6;
@@ -876,6 +877,34 @@ def _response_contracts_enabled() -> frozenset:
     return frozenset(x.strip() for x in v.split(",") if x.strip()) & _rc.valid_names()
 
 
+def _scaffold_cap_kwargs(mode_knobs: dict | None) -> dict:
+    """The episode-scaffold cap overrides a honored mode carries, in the omit-when-absent idiom: {}
+    on every standard/dark turn, so the scaffold call stays byte-identical and any injected fake with
+    the pre-D-AM signature keeps working."""
+    kn = mode_knobs or {}
+    kw = {}
+    if kn.get("scaffold_max_bullets") is not None:
+        kw["max_bullets"] = kn["scaffold_max_bullets"]
+    if kn.get("scaffold_max_absence") is not None:
+        kw["max_absence"] = kn["scaffold_max_absence"]
+    return kw
+
+
+def _mode_budget(rc_active: str | None, mode_knobs: dict | None) -> str | None:
+    """D-AM-10 length lever: the ACTIVE response contract's word range scaled by the honored mode's
+    factor. None -- meaning "leave the budget exactly as it is" -- whenever no contract is active, no
+    mode is honored, or the range is unparseable. The contract must be ACTIVE because the range being
+    scaled is the CONTRACT's: the default persona's own budget is a pinned needle of _SYSTEM_MENTOR
+    and is never mode-varied (scaling it would move the length of every turn, contracts on or off,
+    which is a different decision than this one). Both modules are leaves; the arithmetic lives in
+    reasoning_modes and the substitution in response_contracts, so neither imports the other."""
+    scale = (mode_knobs or {}).get("budget_scale")
+    if not rc_active or not scale:
+        return None
+    c = _rc.CONTRACTS.get(rc_active)
+    return _rm.scale_budget(c.budget, scale) if c else None
+
+
 def _tldr_coherence_on() -> bool:
     """D-RC-12 kill-switch (GRAPHRAG_TLDR_COHERENCE), the _episode_scaffold_on idiom: DEFAULT-OFF,
     house on/1/true spelling, read PER CALL. Gates an OBSERVATIONAL trace stamp only -- no strip, no
@@ -1251,7 +1280,7 @@ _SYSTEM_RECENCY = (
 
 
 def _system(*, outlook: bool = False, episodes: bool | None = None, recency: bool = False,
-            response_contract: str | None = None) -> str:
+            response_contract: str | None = None, budget: str | None = None) -> str:
     """The active reader-facing persona. GRAPHRAG_MENTOR_VOICE default on -> mentor; =off -> the prior string.
     GRAPHRAG_CASCADE_QUANT on -> append the OBSERVED CASCADE NUMBERS addendum (P9-B: the loop supplies the
     [N] rows). GRAPHRAG_PATTERN_RECORDS on -> append the OBSERVATION-register RECORDED HISTORY directive (T2B).
@@ -1269,7 +1298,9 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
         return _SYSTEM_LEGACY
     # D-RC-8: the contract REWRITES the three mandate sites (needle-verified replacement, identity
     # for None/default/passthrough) -- never an appended contradiction of the fixed-four mandate.
-    base = _rc.apply(_SYSTEM_MENTOR, response_contract)
+    # D-AM-10: `budget` is the reasoning mode's ALREADY-SCALED word range for this turn (None on
+    # every standard/dark turn -> apply() uses the contract's own budget -> byte-identical).
+    base = _rc.apply(_SYSTEM_MENTOR, response_contract, budget=budget)
     if os.environ.get("GRAPHRAG_CASCADE_QUANT", "on") != "off":
         base = base + _SYSTEM_CASCADE
         if _chain_on():                                            # chain paragraph rides the cascade block
@@ -1648,16 +1679,27 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                extra_context: str | None = None, extra_number_calls: list | None = None,
                extra_resolver=None, focus_driver: str | None = None, use_blocks: bool = False,
                silver_lookup=None, on_stage=None, numbers_lookup=None, xc_request: dict | None = None,
-               outlook: bool = False, response_contract: str | None = None) -> dict:
+               outlook: bool = False, response_contract: str | None = None,
+               mode_knobs: dict | None = None) -> dict:
     """L2 serving path: walk + ground the subgraph, hand it to the reasoner, and OVERRIDE the diagram with the
     graph-derived cascade. Reuses the shared render + unified footer + sanitizer. The hybrid branch's silver
     numbers ride in exactly as on the one-hop path: extra_context as a prompt block, extra_number_calls into
     the unified footer. `focus_driver` (the live-event cascade root, section 7.1) is force-included in the
     subgraph so the cascade is grounded from the event even when the walk wouldn't have kept it.
-    `use_blocks` (real serving call only) sends (stable, volatile) for prompt-cached content blocks."""
+    `use_blocks` (real serving call only) sends (stable, volatile) for prompt-cached content blocks.
+
+    `mode_knobs` (D-AM-10) is the reasoning mode's RESOLVED knob dict, threaded down as ONE argument
+    (this body reads no environment for it). Empty/None on every standard and every dark turn, and
+    every consumer below uses the omit-when-empty idiom -- so the walk call, the ground call, the
+    retrieval partial, the persona and the scaffold seam are BYTE-IDENTICAL unless a mode is honored."""
     from leviathan.graphrag import planner as pl
-    retr = retrieve or functools.partial(ev.retrieve, **_RETRIEVAL)
-    sg = pl.grounded_subgraph(query, graph, route_fn=lambda q, g: routed)
+    # D-AM-10 retrieval width: rebound PER CALL on the local partial (never a module-global mutation),
+    # so concurrent turns on different modes cannot see each other's fetch_k. Absent -> the kwarg is
+    # not passed at all -> ev.retrieve's own _FETCH_K default, exactly as before.
+    _fk = {"fetch_k": mode_knobs["fetch_k"]} if (mode_knobs or {}).get("fetch_k") else {}
+    retr = retrieve or functools.partial(ev.retrieve, **_RETRIEVAL, **_fk)
+    sg = pl.grounded_subgraph(query, graph, route_fn=lambda q, g: routed,
+                              **_rm.walk_kwargs(mode_knobs))
     if focus_driver and not any(n.kind == "driver" and n.id == focus_driver for n in sg.nodes):
         for cid in sg.seeds:                                       # first seed contract that carries the driver
             if any(d.id == focus_driver for d in graph.contracts[cid].drivers):
@@ -1678,7 +1720,8 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     probe_retr = None if retrieve else functools.partial(ev.retrieve, mode="hybrid", rerank=False)
     _emit(on_stage, "walking")                                    # early tick: the 8-20s ground starts NOW (5.6 W5)
     pl.ground(sg, query, graph, retrieve=retr, silver_lookup=silver_lookup, asof=asof, near=near,
-              probe_retrieve=probe_retr, on_stage=on_stage)       # probes = cheap existence checks, no reranker
+              probe_retrieve=probe_retr, on_stage=on_stage,       # probes = cheap existence checks, no reranker
+              **_rm.ground_kwargs(mode_knobs))                    # D-AM-10: {} unless a mode is honored
     _gm = sg.trace.get("ground_ms") or {}
     _emit(on_stage, "walking", nodes=len(sg.nodes), regimes=len(sg.fired_regimes),
           ms_fill=_gm.get("fill"), ms_rest=_gm.get("rest"))
@@ -1821,7 +1864,7 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                                          [h for n in sg.nodes for h in (getattr(n, "evidence", None) or [])],
                                          sg.trace)
     structured = call(_system(outlook=_outlook, episodes=_episodes, recency=_recency_stamp_on(),
-                              response_contract=_rc_active),
+                              response_contract=_rc_active, budget=_mode_budget(_rc_active, mode_knobs)),
                       _pack(sp, vp, use_blocks), model=model, tool=_answer_tool(), **call_kw)
     sg.trace["ms_synth_llm"] = int((time.perf_counter() - _t_synth) * 1000)
     _banned_mood = _count_banned_mood(structured)                 # P9-A: RAW output, pre-sanitize (see helper)
@@ -1867,7 +1910,8 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # will produce, so a different register here would prove the wrong thing.
     sg.trace.update(_maybe_scaffold_episodes(
         structured, verifier, injected=sg.trace.get("episodes_injected"), nodes=sg.nodes,
-        evidence=evidence, n_positional=len(uniq), market_register=_mr, relevant=_ep_rel))
+        evidence=evidence, n_positional=len(uniq), market_register=_mr, relevant=_ep_rel,
+        **_scaffold_cap_kwargs(mode_knobs)))                      # D-AM-10: {} unless a mode is honored
     _humanize_structured(structured, market_register=_mr)         # clean the fields the UI renders directly (6.1)
     # D-RC-12: the tldr-vs-basis reconcile reads the FINAL tldr (post-verify, post-humanize = what the
     # reader sees) against the pre-model driver-sign basis. {} when the flag is off; stamp-only always.
@@ -2663,7 +2707,8 @@ def _scaffold_survives(section: str, plan: list[tuple]) -> list[str] | None:
 def _maybe_scaffold_episodes(structured: dict | None, verifier: dict | None, *,
                              injected: list | None, nodes: list | None,
                              evidence: list | None, n_positional: int = 0,
-                             market_register: str = reg.FENCED, relevant: bool = True) -> dict:
+                             market_register: str = reg.FENCED, relevant: bool = True,
+                             max_bullets: int | None = None, max_absence: int | None = None) -> dict:
     """D-DT-1: synthesize '## Episodes' when the model omitted it. Returns the TRACE UPDATES to stamp.
 
     THREE-LEG FIRE CONDITION, the `_episodes_on` discipline:
@@ -2801,8 +2846,11 @@ def _maybe_scaffold_episodes(structured: dict | None, verifier: dict | None, *,
     # order. Drops are stamped on the trace (n_capped), never silent.
     n_capped = 0
     if rows:
-        max_b = int(_prm.get("serving.scaffold.max_bullets", 12))
-        max_a = int(_prm.get("serving.scaffold.max_absence", 6))
+        # D-AM-10: the reasoning mode's caps OVERRIDE the params read (the params value is the
+        # standard/dark path and stays the authority when no override arrives -- the D-RC threading
+        # discipline: this function reads no environment and no mode name, only two integers).
+        max_b = int(max_bullets if max_bullets is not None else _prm.get("serving.scaffold.max_bullets", 12))
+        max_a = int(max_absence if max_absence is not None else _prm.get("serving.scaffold.max_absence", 6))
         keep: set[int] = set(i for i, r in enumerate(rows) if r[2])
         if len(keep) > max_b:                          # receipted alone over the cap: first max_b win
             keep = set(sorted(keep)[:max_b])
@@ -3069,7 +3117,8 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
            driver_retrieve=None, extra_context: str | None = None, extra_number_calls: list | None = None,
            extra_resolver=None, planner: str | None = None, focus_driver: str | None = None,
            silver_lookup=None, on_stage=None, numbers_lookup=None, xc_request: dict | None = None,
-           outlook: bool = False, response_contract: str | None = None) -> dict:
+           outlook: bool = False, response_contract: str | None = None,
+           mode_knobs: dict | None = None) -> dict:
     """Answer grounded in the graph(s) + dated evidence, structured for a reader. Routes (tiered lexical->semantic->
     LLM) to up to `max_contracts` (a soy<->corn question synthesizes both). Also pulls CROSS-CUTTING DRIVER evidence
     (WS-MS6 — B40/freight/FX/El Nino cascade triggers). Returns {answer (markdown), structured, contract(s),
@@ -3088,8 +3137,12 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
         model = (_os.environ.get("GRAPHRAG_SYNTH_MODEL")
                  or str(_prm.get("serving.synth_model", "") or "") or model)
     raw_retrieve = retrieve                                        # the CALLER's arg (None on serving) — _answer_l2
-    retrieve = retrieve or functools.partial(ev.retrieve, **_RETRIEVAL)         # needs it raw so its cheap no-rerank
-    driver_retrieve = driver_retrieve or functools.partial(ev.retrieve, **_RETRIEVAL)   # probe path actually engages
+    # D-AM-10: the ONE-HOP body's retrieval width. Same per-call partial rebind as _answer_l2's (no
+    # module-global mutation, so concurrent turns cannot see each other's fetch_k); {} on every
+    # standard/dark turn, so both partials are constructed exactly as before.
+    _fk = {"fetch_k": mode_knobs["fetch_k"]} if (mode_knobs or {}).get("fetch_k") else {}
+    retrieve = retrieve or functools.partial(ev.retrieve, **_RETRIEVAL, **_fk)  # needs it raw so its cheap no-rerank
+    driver_retrieve = driver_retrieve or functools.partial(ev.retrieve, **_RETRIEVAL, **_fk)  # probe path engages
     use_blocks = call is None or call is _call_opus               # real path -> prompt-cached content blocks
     call = call or _call_opus
     route_fn = route_fn or route_smart
@@ -3102,7 +3155,8 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
                           routed=routed, extra_context=extra_context, extra_number_calls=extra_number_calls,
                           extra_resolver=extra_resolver, focus_driver=focus_driver, use_blocks=use_blocks,
                           silver_lookup=silver_lookup, on_stage=on_stage, numbers_lookup=numbers_lookup,
-                          xc_request=xc_request, outlook=outlook, response_contract=response_contract)
+                          xc_request=xc_request, outlook=outlook, response_contract=response_contract,
+                          mode_knobs=mode_knobs)
     if extra_resolver is not None:      # one-hop path: no walk to overlap — degenerate to resolving up front
         extra_context, extra_number_calls = extra_resolver()
     # node-diverse selection: siblings share an evidence shard, so a 2nd slot should add a DIFFERENT commodity
@@ -3165,7 +3219,8 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     # correct for free. `{}` IS this body's engine trace: it writes none before the model call.
     _fork_basis_v = _fork_basis(graph, contracts, evidence, {})
     structured = call(_system(outlook=_outlook, episodes=_episodes, recency=_recency_stamp_on(),
-                              response_contract=_rc_active),
+                              response_contract=_rc_active,
+                              budget=_mode_budget(_rc_active, mode_knobs)),   # D-AM-10, both bodies
                       _pack(sp, vp, use_blocks), model=model, tool=_answer_tool())
     _banned_mood = _count_banned_mood(structured)                 # P9-A: RAW output, pre-sanitize
     _banned_val = _count_banned_valuation(structured)             # DP-6: valuation/flow raw counts, pre-sanitize
@@ -3207,7 +3262,8 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     # and cannot silently diverge from the L2 body.
     _scaf_trace = _maybe_scaffold_episodes(structured, verifier, injected=None, nodes=None,
                                            evidence=evidence, n_positional=len(uniq),
-                                           market_register=_mr, relevant=_ep_rel)
+                                           market_register=_mr, relevant=_ep_rel,
+                                           **_scaffold_cap_kwargs(mode_knobs))   # D-AM-10, both bodies
     _humanize_structured(structured, market_register=_mr)         # clean the fields the UI renders directly (6.1)
     # D-RC-12 on the one-hop body: identical reconcile, identical position (post-verify, post-humanize).
     _tldr_dir = _tldr_direction_trace(structured, graph, contracts)

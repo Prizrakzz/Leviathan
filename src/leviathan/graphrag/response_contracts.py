@@ -236,10 +236,15 @@ def structure_clause(name: str) -> str:
     return " ".join(parts)
 
 
-def apply(base: str, name: str | None) -> str:
+def apply(base: str, name: str | None, *, budget: str | None = None) -> str:
     """Rewrite the persona's three mandate sites for this contract; the base string UNCHANGED for
     None / default / passthrough / unknown (fail-open). Needle presence is asserted — a reworded
-    persona must red loudly (test-pinned), never silently stop rewriting."""
+    persona must red loudly (test-pinned), never silently stop rewriting.
+
+    `budget` (D-AM-10) OVERRIDES this contract's word range for this turn only — the reasoning-mode
+    length lever. It is a pre-computed phrase, not a factor, so this module stays ignorant of modes
+    (both are leaves and neither may import the other). None = the contract's own budget, which is
+    the flag-off/standard path and therefore byte-identical."""
     if not name or name == DEFAULT:
         return base
     c = CONTRACTS.get(name)
@@ -250,7 +255,7 @@ def apply(base: str, name: str | None) -> str:
     n_sec = len(c.sections)
     return (base
             .replace(NEEDLE_STRUCTURE, structure_clause(name))
-            .replace(NEEDLE_BUDGET, f"target {c.budget} words across the {n_sec} sections")
+            .replace(NEEDLE_BUDGET, f"target {budget or c.budget} words across the {n_sec} sections")
             .replace(NEEDLE_FIELDLIST, "structured under the '## ' headings above"))
 
 

@@ -163,12 +163,44 @@ export type PartialStage =
 /** The kinds this bundle understands. Anything else is an unknown kind → ignored (never rendered). */
 export type PartialKind = PartialStage['stage'];
 
+/** D-AM-9 — the reasoning-mode stamp, on EVERY turn (every lane, dark and honored alike).
+ *  `requested` is what the user asked for (null when the field was absent), `honored` is what actually
+ *  governed the turn, `invalid` is true iff a non-empty request named no known mode. The names are plain
+ *  strings, NOT the client's `ModeName` union: a newer backend may honor a mode this bundle has never
+ *  heard of, and that must render as itself rather than crash the reader (the SectionKind posture). */
+export interface ModeDecision {
+  requested?: string | null;
+  honored?: string;
+  invalid?: boolean;
+}
+
+/** D-AM-11 — the RESOLVED knob values a honored non-standard mode actually ran, as stamped on the trace.
+ *  ABSENT on standard turns, on dark turns, and on the exempt lanes (live / numbers_only) even when a mode
+ *  is honored — those consume no knob, so a stamp there would claim a depth that never ran. That absence
+ *  is exactly what gates the "what ran" chip. Open-ended: a newer backend's extra knob renders as a row. */
+export interface ModeKnobs {
+  node_budget?: number;
+  depth?: number;
+  max_seeds?: number;
+  k_by_depth?: number[];
+  evidence_cap?: number;
+  probe_cap?: number;
+  fetch_k?: number;
+  silver_cap?: number;
+  scaffold_max_bullets?: number;
+  scaffold_max_absence?: number;
+  budget_scale?: number;
+  xc_force?: boolean;
+  [k: string]: unknown;
+}
+
 export interface RespondTrace {
   graph_version?: string | null;
   degraded_model?: string;
   floor?: string;
   fired_regimes?: unknown[];
   attachment_note?: string; // P2 resolver: a future-dated @event was PIT-withheld (rendered as a banner)
+  mode_knobs?: ModeKnobs; // D-AM-11 — present ONLY when a non-standard mode ran a knob-consuming lane
   [k: string]: unknown;
 }
 
@@ -268,6 +300,9 @@ export interface RespondResult {
   intent?: string;
   model?: string;
   trace?: RespondTrace;
+  /** The router's own decision record. D-AM-9 hangs the mode stamp off it on every turn; the rest of the
+   *  dict (intent, response_contract, guardrail, …) stays untyped — this bundle reads only `mode`. */
+  intent_decision?: { mode?: ModeDecision; [k: string]: unknown };
   asof?: string;
   [k: string]: unknown;
 }

@@ -1,11 +1,17 @@
 import { useEffect, useRef } from 'react';
 import { AttachedChips } from './AttachedChips';
+import { ModePicker } from './ModePicker';
 
 /**
  * The follow-up composer (5.6 W4) — a ChatGPT-style prompt box pinned under the answer view, so "where do
  * I type next?" is never a question. Enter submits, Shift+Enter inserts a newline; disabled (with an
  * honest hint) while a turn streams — there is deliberately NO stop button (user decision). Refocuses
  * itself when the turn finishes. The top CommandBar stays for codes/power use.
+ *
+ * D-AM-14 docks the reasoning-mode picker here, under the box, in BOTH variants (hero + pinned): depth is
+ * chosen with the question, so the control belongs at the ask bar and nowhere else. It reads its own
+ * selection from the store and Shell reads it back at submit — the composer stays a text box with no
+ * mode prop to thread and no mode state to hold.
  */
 export function Composer({
   onSubmit,
@@ -87,6 +93,9 @@ export function Composer({
         >
           ↵
         </button>
+      </div>
+      <div className="mt-1.5 flex items-center gap-2">
+        <ModePicker disabled={streaming} />
       </div>
     </div>
   );

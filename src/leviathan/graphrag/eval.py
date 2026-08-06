@@ -1389,7 +1389,7 @@ def _drain(futs: dict, started: dict, *, ids: list, n: int, deadline: float, hea
 def run(graph: gph.CausalGraph, queries: list[dict], *, model: str = an.SONNET, k: int = 5, answer_fn=None,
         via_orchestrator: bool = False, numbers_client=None, call=None, planner: str | None = None,
         workers: int = 1, persist=None, deadline: float | None = None,
-        heartbeat_period: float = 90.0) -> list[dict]:
+        heartbeat_period: float = 90.0, mode: str | None = None) -> list[dict]:
     """Run each query through answer() (default) or — with via_orchestrator — the full intent branch
     orchestrator.respond() (numbers_only / reasoning / hybrid), passing each question's point-in-time asof.
     `planner='l2'` routes reasoning/hybrid through the deterministic grounded-subgraph walk (A/B vs one-hop).
@@ -1421,6 +1421,8 @@ def run(graph: gph.CausalGraph, queries: list[dict], *, model: str = an.SONNET, 
                                call=call, query_fn=qfn)
                     if planner:                                       # keep the call identical for injected fake respond()
                         okw["planner"] = planner
+                    if mode:                                          # D-AM-11: the REQUEST-level arm lever;
+                        okw["mode"] = mode                            # omitted when unset (byte-identical call)
                     out = orch.respond(q["question"], **okw)
                 else:
                     kw = dict(graph=graph, model=model, k=k, asof=q.get("asof"), near=q.get("near"))
@@ -1975,7 +1977,8 @@ def corpus_fingerprint() -> str:
 
 
 def _baseline_json(rows: list[dict], *, run_kind: str, model: str, judged: bool, eval_set: str,
-                   graph_version: str | None, corpus_fp: str, via_orchestrator: bool = False) -> dict:
+                   graph_version: str | None, corpus_fp: str, via_orchestrator: bool = False,
+                   mode: str | None = None) -> dict:
     """The machine-readable baseline artifact (P7-P0.1): per-answer strip/claim/leak/intent detail plus the
     run-level reproducibility keys. `register_leaks` here is RESIDUAL (post-sanitize) leakage — the answer
     body was already sanitized at synthesis; do not read it as raw pre-sanitize leakage."""
@@ -2000,6 +2003,12 @@ def _baseline_json(rows: list[dict], *, run_kind: str, model: str, judged: bool,
             "mentor_voice": _os.environ.get("GRAPHRAG_MENTOR_VOICE", "on"),
             "cascade_quant": _os.environ.get("GRAPHRAG_CASCADE_QUANT", "on"),
             "answer_v2": _os.environ.get("GRAPHRAG_ANSWER_V2", "off"),
+            # D-AM-11: the arm identity above reads PROCESS ENV only, so a REQUEST-level arm (the
+            # reasoning mode) was structurally invisible -- two mode arms would have been identical
+            # in every reproducibility key except ts. `mode` is what the run ASKED FOR (None = the
+            # field was never sent, which resolves to standard); what each turn actually RAN is the
+            # per-answer `mode_decision` column, lifted from the decision dict via the tracekeys registry.
+            "mode": mode,
             "n_answers": len(per),
             "total_strips": total_strips, "total_claims": total_claims, "total_handles": total_handles,
             "strip_rate": round(total_strips / max(1, total_claims), 6),
@@ -2615,6 +2624,11 @@ def main() -> int:
     ap.add_argument("--workers", type=int, default=4,
                     help="concurrent questions (answer + judge phases; LLM-network-bound so cost is identical; "
                          "1 = legacy sequential)")
+    ap.add_argument("--mode", default=None,
+                    help="D-AM-9 reasoning scale (quick|standard|deep) sent as the REQUEST field on every "
+                         "turn -- the mode A/B's arm lever. Requires --via-orchestrator (answer() alone has "
+                         "no request), and the serving-side GRAPHRAG_MODES allowlist still decides whether "
+                         "it is honored; the arm stamp records what was ASKED FOR either way")
     ap.add_argument("--convos", default=None,
                     help="conversation yaml -> multi-turn session eval (turns sequential per convo, convos "
                          "parallel; mechanics + continuity judge + cache/speed panels)")
@@ -2672,7 +2686,7 @@ def main() -> int:
     rows = run(graph, queries, model=args.model, k=args.k, via_orchestrator=args.via_orchestrator,
                numbers_client=client if args.via_orchestrator else None,
                call=an._call_opus if args.via_orchestrator else None, planner=args.planner,
-               workers=args.workers, persist=pw, deadline=deadline)
+               workers=args.workers, persist=pw, deadline=deadline, mode=args.mode)
     if args.judge:
         def _judge_row(r: dict) -> None:
             try:                                                      # a judge failure must not lose the whole run
@@ -2735,7 +2749,7 @@ def main() -> int:
     _write_baseline(_baseline_json(rows, run_kind="single", model=args.model, judged=args.judge,
                                    eval_set=(Path(args.queries).stem if args.queries else "default"),
                                    graph_version=graph.version, corpus_fp=corpus_fingerprint(),
-                                   via_orchestrator=args.via_orchestrator))
+                                   via_orchestrator=args.via_orchestrator, mode=args.mode))
     routed = sum(r["rubric"]["routed_right"] for r in rows)
     extra = ""
     if args.judge:

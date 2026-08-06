@@ -4,6 +4,7 @@ import { parseCommand } from '@/command/parser';
 import { useHotkeys } from '@/hotkeys/useHotkeys';
 import { useAsOf } from '@/store/asof';
 import { toContext } from '@/store/chips';
+import { useMode } from '@/store/mode';
 import { useThread } from '@/store/thread';
 import { useUI } from '@/store/ui';
 import { noteToMarkdown } from '@/views/note/markdown';
@@ -45,10 +46,15 @@ export function Shell() {
     // P2: attached context chips ride the turn, then CLEAR — the turn consumed them (leaving them would
     // silently re-attach to the next unrelated question).
     const chips = ui.attachedChips;
+    // D-AM-14: the mode is read at SUBMIT time (getState, not a subscription) for the same reason the
+    // chips and the as-of are -- the selection that governs a turn is the one on screen when the user
+    // pressed send, and Shell must not re-render every time the picker moves. The raw name goes down; the
+    // transport drops it when it is `standard` (store/mode.modeParam), so this call site has no rule in it.
     turn.start(q, {
       asof: p.asofOverride ?? useAsOf.getState().asof,
       sessionId: thread.threadId,
       context: chips.length ? toContext(chips) : undefined,
+      mode: useMode.getState().mode,
     });
     if (chips.length) ui.clearChips();
   };
