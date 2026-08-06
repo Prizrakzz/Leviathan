@@ -905,6 +905,76 @@ def _mode_budget(rc_active: str | None, mode_knobs: dict | None) -> str | None:
     return _rm.scale_budget(c.budget, scale) if c else None
 
 
+def _composition_census_on() -> bool:
+    """D-CC-1 kill-switch (GRAPHRAG_COMPOSITION_CENSUS), the _episode_scaffold_on idiom: DEFAULT-OFF,
+    house on/1/true spelling, read PER CALL. Off -> the seam threads `census=None` -> response_contracts
+    is byte-identical to its pre-D-CC self on every path, so ONE image serves both D-CC-3 arms and the
+    contract-alone control on an env flip with no redeploy (the D-RC Phase C staged-flip discipline).
+    It gates the composition mandates ONLY: which contract was selected, and the base contract shaping
+    that ships today, are unaffected in both positions."""
+    return os.environ.get("GRAPHRAG_COMPOSITION_CENSUS", "").strip().lower() in ("on", "1", "true")
+
+
+def _n_episode_windows(trace: dict | None) -> int:
+    """Dated episode WINDOWS injected into this turn's prompt, counted off `trace['episodes_injected']`
+    as `_l2_blocks` stamped it. ONE producer for two consumers (fork_basis' L2/L4 leg and the D-CC-1
+    episode-coverage census): the mandate that orders N windows enumerated and the flag that licenses
+    the fork over them must never be able to disagree about N. Windows, not LINES -- one injected line
+    carries every window of its node, and the enumeration unit the model is judged on is the window."""
+    return sum(len((rec or {}).get("spans") or [])
+               for rec in ((trace or {}).get("episodes_injected") or []))
+
+
+# The census entity roster is CAPPED before it is stamped or rendered: an ESR-class number call can
+# return hundreds of destinations, and an unbounded roster is both an artifact hazard and prompt bloat.
+# `n_entities` carries the TRUE distinct count regardless, so every stated count is honest and only the
+# spelled-out names are truncated (response_contracts truncates again, harder, at MAX_NAMED_ENTITIES).
+_CENSUS_ENTITY_CAP = 40
+
+
+def _composition_census(*, contracts: list | None, number_calls: list | None,
+                        trace: dict | None, n_evidence: int) -> dict:
+    """D-CC-1: what this turn ACTUALLY HOLDS, counted deterministically, for the composition mandates.
+
+    ZERO LLM, ZERO new retrieval, and no new engine call: every field is a read of a structure that
+    already exists at the contract-apply seam. It inherits the fork_basis CIRCULARITY FENCE by
+    position -- both serving bodies compute it BEFORE the model call, where no answer prose exists to
+    read -- so a mandate can never be derived from the answer it is shaping.
+
+      entities          -- the distinct origins/countries the numbers agent's rows and query scopes
+                           name, then the RENDERED contract ids (what the prompt actually carried a
+                           block for -- the caller supplies the set; see each seam). Countries first
+                           and sorted, contracts in caller order: deterministic, so two identical
+                           turns produce identical prompt bytes (the prompt-cache discipline, which a
+                           set-iteration order would break). The two KINDS are deliberately
+                           one list -- the mandate asks the model to cover the members of the asked-for
+                           list and to drop a non-member silently, which is the only honest way to
+                           handle a roster that spans both kinds without an LLM deciding which is which.
+      n_entities        -- the TRUE distinct count, pre-cap.
+      n_episode_windows -- _n_episode_windows, above.
+      n_evidence        -- the post-cap evidence count already in scope at the seam (planner.ground
+                           dedups and caps before this point; the source_key de-dup that runs AFTER the
+                           model call is a rendering concern and is deliberately not what the model is
+                           told it holds)."""
+    countries, seen = set(), set()
+    for call in (number_calls or []):
+        if not isinstance(call, dict):
+            continue
+        q = call.get("query") or {}
+        for v in [q.get("country") if isinstance(q, dict) else None] + \
+                 [r.get("country") for r in (call.get("rows") or []) if isinstance(r, dict)]:
+            s = str(v).strip() if v is not None else ""
+            if s:
+                countries.add(s)
+    ents = []
+    for e in sorted(countries) + [str(c) for c in (contracts or [])]:
+        if e and e not in seen:
+            seen.add(e)
+            ents.append(e)
+    return {"entities": tuple(ents[:_CENSUS_ENTITY_CAP]), "n_entities": len(ents),
+            "n_episode_windows": _n_episode_windows(trace), "n_evidence": int(n_evidence or 0)}
+
+
 def _tldr_coherence_on() -> bool:
     """D-RC-12 kill-switch (GRAPHRAG_TLDR_COHERENCE), the _episode_scaffold_on idiom: DEFAULT-OFF,
     house on/1/true spelling, read PER CALL. Gates an OBSERVATIONAL trace stamp only -- no strip, no
@@ -1280,7 +1350,8 @@ _SYSTEM_RECENCY = (
 
 
 def _system(*, outlook: bool = False, episodes: bool | None = None, recency: bool = False,
-            response_contract: str | None = None, budget: str | None = None) -> str:
+            response_contract: str | None = None, budget: str | None = None,
+            census: dict | None = None) -> str:
     """The active reader-facing persona. GRAPHRAG_MENTOR_VOICE default on -> mentor; =off -> the prior string.
     GRAPHRAG_CASCADE_QUANT on -> append the OBSERVED CASCADE NUMBERS addendum (P9-B: the loop supplies the
     [N] rows). GRAPHRAG_PATTERN_RECORDS on -> append the OBSERVATION-register RECORDED HISTORY directive (T2B).
@@ -1292,6 +1363,10 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
     the FLAG ALONE, which is the weaker half: it cannot see the prompt, so it is right only for a caller
     that has no prompt to inspect (tests, ad-hoc persona dumps). It is a floor, NOT the invariant; a new
     serving path must resolve both legs at its own seam rather than lean on this default.
+    `census` (D-CC-1) is this turn's DETERMINISTIC composition census (_composition_census), threaded
+    down as one argument exactly like `budget`: this function reads no environment for it and the
+    seam that owns the kill-switch reads it once. None on every dark turn -> both contract seams
+    below are byte-identical -> the whole composition lever has a provable off state.
     Read PER CALL, never memoized: a serving process is long-lived, so a once-at-import read would
     make the env-flip rollback a silent no-op until a redeploy — defeating the gate's purpose."""
     if os.environ.get("GRAPHRAG_MENTOR_VOICE", "on") == "off":
@@ -1300,7 +1375,7 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
     # for None/default/passthrough) -- never an appended contradiction of the fixed-four mandate.
     # D-AM-10: `budget` is the reasoning mode's ALREADY-SCALED word range for this turn (None on
     # every standard/dark turn -> apply() uses the contract's own budget -> byte-identical).
-    base = _rc.apply(_SYSTEM_MENTOR, response_contract, budget=budget)
+    base = _rc.apply(_SYSTEM_MENTOR, response_contract, budget=budget, census=census)
     if os.environ.get("GRAPHRAG_CASCADE_QUANT", "on") != "off":
         base = base + _SYSTEM_CASCADE
         if _chain_on():                                            # chain paragraph rides the cascade block
@@ -1318,7 +1393,7 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
         base = base + _SYSTEM_OUTLOOK
     if recency:                                                    # D-RC-13: dating discipline (flag resolved
         base = base + _SYSTEM_RECENCY                              #   by the caller's seam, threaded DOWN)
-    base = base + _rc.directive(response_contract)                 # D-RC Phase B: emphasis LAST ('' for
+    base = base + _rc.directive(response_contract, census=census)  # D-RC Phase B: emphasis LAST ('' for
     return base                                                    #   default/None -- the fail-open pin)
 
 
@@ -1890,6 +1965,21 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     _episodes = _episodes_on(vp) and _ep_rel                      # W4-D3: BOTH legs, and both in CODE
     if _rc_active:                                                # pre-model stamp (circularity fence);
         sg.trace["response_contract"] = _rc_active                # absent when inactive -- OFF-arm clean
+    # D-CC-1: the composition census. Both legs in CODE and both HERE -- the kill-switch AND an active
+    # contract -- because the mandates ride the contract's own directive and a census on a turn with no
+    # contract could shape nothing anyway. `n_ev` is the same post-cap node-evidence count the GROUNDING
+    # LEDGER states above, so the number the mandate reasons about is the number the model was told it
+    # holds. None (either leg off) -> _system's two contract seams are byte-identical.
+    # The contract argument is the RENDERED set (`sorted({n.contract for n in sg.nodes})`), not
+    # sg.seeds -- the same expression, and the same reason, as the verifier's foreign_names below
+    # (D-DV-1c): _l2_blocks renders a context + evidence block for EVERY walk contract, hops included,
+    # so seeds-only would census a strict subset of what the model was shown. The census law is "bind
+    # to what the turn WAS SHOWN"; on this body that phrase has one correct spelling and it is this one.
+    _census = (_composition_census(contracts=sorted({n.contract for n in sg.nodes}),
+                                   number_calls=extra_number_calls, trace=sg.trace, n_evidence=n_ev)
+               if (_rc_active and _composition_census_on()) else None)
+    if _census is not None:
+        sg.trace["composition_census"] = _census                  # absent when inactive -- OFF-arm clean
     # D-DT-2 c1: the license inventory is minted HERE, BEFORE the model call, in both serving bodies. The
     # position IS the circularity fence (V.4 X3): every flag reads engine inputs assembled before
     # synthesis, and at this line no answer prose exists to read -- so the check can never become
@@ -1899,7 +1989,8 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                                          [h for n in sg.nodes for h in (getattr(n, "evidence", None) or [])],
                                          sg.trace)
     structured = call(_system(outlook=_outlook, episodes=_episodes, recency=_recency_stamp_on(),
-                              response_contract=_rc_active, budget=_mode_budget(_rc_active, mode_knobs)),
+                              response_contract=_rc_active, budget=_mode_budget(_rc_active, mode_knobs),
+                              census=_census),                    # D-CC-1: None on every dark turn
                       _pack(sp, vp, use_blocks), model=model, tool=_answer_tool(), **call_kw)
     sg.trace["ms_synth_llm"] = int((time.perf_counter() - _t_synth) * 1000)
     _banned_mood = _count_banned_mood(structured)                 # P9-A: RAW output, pre-sanitize (see helper)
@@ -3055,7 +3146,7 @@ def _fork_basis(graph, contracts: list[str] | None, evidence: list | None, trace
     producer becomes correct by passing its trace here, with no other edit."""
     tr = trace or {}
     quant = tr.get("quantify") or []
-    n_windows = sum(len((rec or {}).get("spans") or []) for rec in (tr.get("episodes_injected") or []))
+    n_windows = _n_episode_windows(tr)          # D-CC-1: shared with the composition census (one producer)
     return {"numeric": bool(any((t or {}).get("divergence") for t in quant)
                             or (tr.get("quantify_reroute") or [])),
             "driver_conflict": _driver_conflict(graph, contracts),
@@ -3259,9 +3350,21 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     # are structurally False here today; the other two legs are real, and a future one-hop producer is
     # correct for free. `{}` IS this body's engine trace: it writes none before the model call.
     _fork_basis_v = _fork_basis(graph, contracts, evidence, {})
+    # D-CC-1 on the SECOND synthesis path, spelled with the SAME two-leg gate as the L2 body and for
+    # the same reason the fork_basis mint is here (V-9): GRAPHRAG_PLANNER=onehop is a documented
+    # rollback lane, and a lever that shapes every L2 turn but silently vanishes on the rollback path
+    # is a divergence nobody would notice until an A/B read it. The arguments differ where the body
+    # differs, exactly as _fork_basis' own table records: this body's flat `evidence` list is its
+    # post-cap count, and `{}` IS its trace at the mint point (it writes no episodes_injected before
+    # the model call), so n_episode_windows is structurally 0 here today and a future one-hop episode
+    # producer becomes correct by passing its trace, with no other edit.
+    _census = (_composition_census(contracts=contracts, number_calls=extra_number_calls,
+                                   trace={}, n_evidence=len(evidence))
+               if (_rc_active and _composition_census_on()) else None)
     structured = call(_system(outlook=_outlook, episodes=_episodes, recency=_recency_stamp_on(),
                               response_contract=_rc_active,
-                              budget=_mode_budget(_rc_active, mode_knobs)),   # D-AM-10, both bodies
+                              budget=_mode_budget(_rc_active, mode_knobs),    # D-AM-10, both bodies
+                              census=_census),                                # D-CC-1, both bodies
                       _pack(sp, vp, use_blocks), model=model, tool=_answer_tool())
     _banned_mood = _count_banned_mood(structured)                 # P9-A: RAW output, pre-sanitize
     _banned_val = _count_banned_valuation(structured)             # DP-6: valuation/flow raw counts, pre-sanitize
@@ -3331,6 +3434,7 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
                       "outlook_mode": _outlook, "market_register": _mr,
                       "record_through": _rec_through,              # D-RC-13: observational, both bodies
                       **({"response_contract": _rc_active} if _rc_active else {}),   # Phase B twin stamp
+                      **({"composition_census": _census} if _census is not None else {}),   # D-CC-1 twin
                       **_tldr_dir,                                 # D-RC-12: absent when the flag is off
                       "fork_basis": _fork_basis_v,                 # D-DT-2 c1 (V-9): the SECOND mint site
                       "n_drivers": sum(len(graph.contracts[c].drivers) for c in contracts), "regimes": regimes,

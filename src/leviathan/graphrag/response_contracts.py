@@ -29,6 +29,16 @@ selector-miss turns are byte-identical trivially, not by promise (the fail-open 
 `outlook` is REGISTRY-DESCRIBED but PASSTHROUGH (D-RC-5): the register-affecting outlook gate keeps
 sole authority and its persona path (_SYSTEM_OUTLOOK) is already correct; the entry exists so the
 selector can stamp it and pins can scope to it, and apply() returns the base unchanged.
+
+COMPOSITION MANDATES (D-CC-1) ride the SAME two seams and add no third one: apply() widens the word
+budget, directive() appends the mandate paragraphs. They are driven by a CENSUS dict the caller
+computes DETERMINISTICALLY from what the turn actually holds (answer._composition_census) and threads
+in as an additive keyword -- `census=None` is byte-identical to the pre-D-CC module on every path, so
+the composition lever has its own off state independent of which contract was selected. The three
+laws they are built to (from the D-DV-2 judge verdict that named the gaps verbatim): a directive may
+only bind to what the turn WAS SHOWN (hence a census, never an LLM roster); every mandate carries an
+"or say the record can't" branch as a FIRST-CLASS ending, never a failure mode; and no mandate may
+manufacture a number (ordinal-when-thin doctrine).
 """
 from __future__ import annotations
 
@@ -218,6 +228,146 @@ _EPISODES_RULE = (
     "after '## The record' and before '## What to watch'.")
 
 
+# -- D-CC-1 composition mandates: which contract carries which, and the budget arithmetic ------------
+# WHICH CONTRACTS. Cue families, not modes: the mandate's PRESENCE follows the selected contract and
+# its STRENGTH follows the census, so a wide turn and a lean turn on the same question get the same
+# mandate with different counts. `compare` carries BOTH because its two jobs are exactly the two gaps
+# -- it ranks the compared markets (rank-complete) and its own directive is the mechanism-of-linkage
+# directive ("name the actual substitution/transmission channel"), which is where a convexity point
+# lives (threshold-locate).
+#
+# THE MECHANISM-CUE HOLE, RECORDED RATHER THAN PAPERED OVER: the v1 menu has no `mechanism` contract,
+# and the two D-DV-2 width rows that produced the "never locates the convexity threshold" verdict
+# (dv_sub_ddg_floor, dv_chain_nitrogen_acres) both select NOTHING -- they run on `default`, whose
+# directive is the empty string by the D-RC-1 fail-open law. threshold-locate therefore CANNOT reach
+# them without a selector change, which is a separate decision (the selector is unchanged this wave).
+RANK_COMPLETE = frozenset({"ranking", "compare"})
+THRESHOLD_LOCATE = frozenset({"counterfactual", "compare"})
+# episode-coverage needs no set: it rides `licenses_episodes`, so the contract that owns the
+# '## Episodes' surface is the contract that owns the mandate to fill it -- one authority, not two.
+
+MIN_RANK_ENTITIES = 2          # a one-name roster is not a list; below this the mandate says nothing
+MAX_NAMED_ENTITIES = 12        # names spelled INTO the directive; the true count is always stated
+# Budget arithmetic, stated so it can be argued with. A ranked line ("Russia -- export tax raised
+# 2024-09-01, high odds [E4]") runs ~14 words. Every contract that carries rank-complete already
+# budgets a few ranked lines, so the first MIN_RANK_ENTITIES+1 are FREE and only the excess buys
+# words: extra = min(160, 14 * max(0, n - 3)). The +160 cap is deliberate and binds from n = 15 -- past
+# that the answer is a table, and a budget that grows without bound is how a mandate turns into a
+# strip-rate regression (D-CC-3 R1: contracts do no harm).
+BUDGET_FREE_ENTITIES = 3
+BUDGET_WORDS_PER_ENTITY = 14
+BUDGET_MAX_EXTRA = 160
+
+
+def _roster(census: dict | None) -> tuple[tuple[str, ...], int]:
+    """(names to spell out, TRUE distinct count) from a census dict; ((), 0) for None/malformed.
+
+    FAIL-OPEN like every other read in this module: a census the caller built wrong yields no mandate
+    rather than a broken one. The count is the census's own `n_entities` when present -- the roster
+    may be capped upstream and the STATED count must be the truth, never the length of what fit."""
+    if not isinstance(census, dict):
+        return (), 0
+    ents = tuple(str(e) for e in (census.get("entities") or ()) if str(e).strip())
+    try:
+        n = int(census.get("n_entities", len(ents)))
+    except (TypeError, ValueError):
+        n = len(ents)
+    return ents, max(n, len(ents))
+
+
+def _census_int(census: dict | None, key: str) -> int:
+    if not isinstance(census, dict):
+        return 0
+    try:
+        return max(0, int(census.get(key) or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _rank_roster(name: str | None, census: dict | None) -> tuple[tuple[str, ...], int] | None:
+    """The ONE predicate for "does rank-complete fire on this turn", shared by the budget widening in
+    apply() and the directive text in composition(). Two derivations of one condition is how a budget
+    and the mandate it exists to pay for drift apart."""
+    if name not in RANK_COMPLETE:
+        return None
+    ents, n = _roster(census)
+    return (ents, n) if n >= MIN_RANK_ENTITIES else None
+
+
+def widen_budget(budget: str, n_entities: int) -> str:
+    """The rank-complete word-budget widening (arithmetic documented above). Returns `budget`
+    UNCHANGED for anything that is not the `lo-hi` shape -- the reasoning_modes.scale_budget
+    fail-open, re-spelled here rather than imported because both modules are leaves and neither may
+    import the other (the D-AM-10 note on _mode_budget)."""
+    extra = min(BUDGET_MAX_EXTRA, BUDGET_WORDS_PER_ENTITY * max(0, n_entities - BUDGET_FREE_ENTITIES))
+    parts = str(budget or "").split("-")
+    if extra <= 0 or len(parts) != 2:
+        return budget
+    try:
+        lo, hi = int(parts[0].strip()), int(parts[1].strip())
+    except ValueError:
+        return budget
+    return f"{lo + extra}-{hi + extra}"
+
+
+def rank_complete_clause(names: tuple, n: int) -> str:
+    """Gap 1, verbatim from the judge: "never delivers the FULL ranked list"."""
+    shown = list(names)[:MAX_NAMED_ENTITIES]
+    tail = (f", and {n - len(shown)} more named in the evidence above" if n > len(shown) else "")
+    return ("\n\nRANK-COMPLETE (this turn's own census, not a general instruction): the assembled "
+            f"evidence carries {n} candidate names -- {', '.join(shown)}{tail}. Cover EVERY one that "
+            "belongs to the list this question asks for: one line each, carrying its number or its "
+            "odds, ordered. A candidate you cannot place is NAMED anyway, on its own line, with the "
+            "reason stated -- 'no dated row at the as-of' is the standard reason and is a COMPLETE "
+            "line, not an apology. A name that is not a member of the asked-for list (a tracked "
+            "contract id where the question ranks origins, say) is left out silently. Never extend "
+            "the list with a name the evidence does not carry.")
+
+
+def threshold_locate_clause(n_evidence: int) -> str:
+    """Gap 2: "never locates the convexity threshold". Two endings, both first-class."""
+    held = (f"the {n_evidence} evidence item(s) and number row(s) this turn holds"
+            if n_evidence else "the record you were shown")
+    return ("\n\nTHRESHOLD-LOCATE: say WHERE the relationship stops being proportional -- the level, "
+            "ratio or spread at which the response changes character -- and back that point with a "
+            f"handle from {held}. If the record does not locate one, say exactly that ('the record "
+            "does not locate a switch point here') and name what would locate it (which series, "
+            "which observation). Those are the ONLY two endings. A threshold you cannot back is a "
+            "fabrication; an answer that never reaches the question is a miss.")
+
+
+def episode_coverage_clause(n_windows: int) -> str:
+    """Gap 3: "fails to enumerate the dated episodes shown"."""
+    return (f"\n\nEPISODE-COVERAGE: {n_windows} dated episode window(s) were injected into this "
+            "prompt. Enumerate every one -- one entry per window, each carrying its own dates -- or, "
+            "for any window you leave out, say WHICH window and why ('no citable item inside that "
+            "window'). The silent omission is the failure; the declared one is an honest answer.")
+
+
+def composition(name: str | None, census: dict | None = None) -> str:
+    """The census-driven mandate paragraphs for this contract ('' whenever nothing fires).
+
+    Appended AFTER the contract's own directive by the caller, so the mandates read as the specific
+    obligations of a shape the directive has already described. '' for None/default/passthrough/
+    unknown and for census=None, which is what makes the composition lever independently reversible:
+    the same image serves the D-CC-3 arms and the pre-D-CC bytes on one env flip."""
+    if census is None or not name or name == DEFAULT:
+        return ""
+    c = CONTRACTS.get(name)
+    if c is None or c.passthrough:
+        return ""
+    out = []
+    rank = _rank_roster(name, census)
+    if rank:
+        out.append(rank_complete_clause(*rank))
+    if name in THRESHOLD_LOCATE:
+        out.append(threshold_locate_clause(_census_int(census, "n_evidence")))
+    n_win = _census_int(census, "n_episode_windows")
+    if c.licenses_episodes and n_win > 0:
+        out.append(episode_coverage_clause(n_win))
+    return "".join(out)
+
+
 def structure_clause(name: str) -> str:
     """The contract-rendered replacement for NEEDLE_STRUCTURE: the SAME sentence shape, listing this
     contract's plan. Always-include = the non-conditional sections; each conditional section keeps
@@ -236,7 +386,8 @@ def structure_clause(name: str) -> str:
     return " ".join(parts)
 
 
-def apply(base: str, name: str | None, *, budget: str | None = None) -> str:
+def apply(base: str, name: str | None, *, budget: str | None = None,
+          census: dict | None = None) -> str:
     """Rewrite the persona's three mandate sites for this contract; the base string UNCHANGED for
     None / default / passthrough / unknown (fail-open). Needle presence is asserted — a reworded
     persona must red loudly (test-pinned), never silently stop rewriting.
@@ -244,7 +395,12 @@ def apply(base: str, name: str | None, *, budget: str | None = None) -> str:
     `budget` (D-AM-10) OVERRIDES this contract's word range for this turn only — the reasoning-mode
     length lever. It is a pre-computed phrase, not a factor, so this module stays ignorant of modes
     (both are leaves and neither may import the other). None = the contract's own budget, which is
-    the flag-off/standard path and therefore byte-identical."""
+    the flag-off/standard path and therefore byte-identical.
+
+    `census` (D-CC-1) widens that range when rank-complete fires, because the mandate buys LINES and
+    a mandate the budget will not pay for is a mandate that loses. ORDER, stated because it is
+    compounding: the mode scales the range FIRST (answer._mode_budget hands the scaled phrase in),
+    the census widens SECOND -- multiplicative then additive. None = untouched = byte-identical."""
     if not name or name == DEFAULT:
         return base
     c = CONTRACTS.get(name)
@@ -253,16 +409,21 @@ def apply(base: str, name: str | None, *, budget: str | None = None) -> str:
     for needle in (NEEDLE_STRUCTURE, NEEDLE_BUDGET, NEEDLE_FIELDLIST):
         assert needle in base, f"persona needle missing for response contract rewrite: {needle[:60]}..."
     n_sec = len(c.sections)
+    _budget = budget or c.budget
+    rank = _rank_roster(name, census) if census is not None else None
+    if rank:
+        _budget = widen_budget(_budget, rank[1])
     return (base
             .replace(NEEDLE_STRUCTURE, structure_clause(name))
-            .replace(NEEDLE_BUDGET, f"target {budget or c.budget} words across the {n_sec} sections")
+            .replace(NEEDLE_BUDGET, f"target {_budget} words across the {n_sec} sections")
             .replace(NEEDLE_FIELDLIST, "structured under the '## ' headings above"))
 
 
-def directive(name: str | None) -> str:
-    """The emphasis paragraph appended LAST to the persona ('' for None/default/unknown/passthrough)."""
+def directive(name: str | None, *, census: dict | None = None) -> str:
+    """The emphasis paragraph appended LAST to the persona ('' for None/default/unknown/passthrough),
+    followed by this turn's composition mandates ('' unless a census is threaded in -- D-CC-1)."""
     c = CONTRACTS.get(name or DEFAULT)
-    return c.directive if c else ""
+    return (c.directive if c else "") + composition(name, census)
 
 
 def licenses_episodes(name: str | None) -> bool:

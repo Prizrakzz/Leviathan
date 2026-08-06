@@ -30,6 +30,7 @@ TRACE_RECORD_KEYS: tuple[str, ...] = (
     "response_contract",         # D-RC Phase B: the ACTIVE contract (answer-seam stamp)
     "synth_usage",               # D-AM-4: serving tokens {model,in,out,cache_read,cache_write}
     "mode_knobs",                # D-AM-11: the RESOLVED knob values a honored non-standard mode ran
+    "composition_census",        # D-CC-1: {entities,n_entities,n_episode_windows,n_evidence}; absent when dark
 )
 
 # out["intent_decision"][decision_key] -> record[record_column].
