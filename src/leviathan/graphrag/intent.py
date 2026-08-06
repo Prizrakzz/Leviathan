@@ -184,6 +184,16 @@ _RC_PATTERNS = (
     ("counterfactual", re.compile(
         r"\bwhat if\b|\bsuppose\b|\bhypothetically\b|\bwhat would happen if\b"
         r"|\bhow would (?:that|this|it) play out\b|\bwere \w+ to\b", re.I)),
+    # D-AM-19: a MULTI-horizon ask must not fall through to `enumeration` (the pb_watch_horizons
+    # misroute -- episode-by-episode is the wrong shape when the question spans weeks->years).
+    # Narrow on purpose: requires either 'watch over <horizon words>', an explicit two-plus-horizon
+    # enumeration in one clause, or the by-horizon/short-vs-long phrasing. A single 'next 3 months'
+    # stays with recency/default -- one horizon is not a horizon LADDER.
+    ("horizon", re.compile(
+        r"\bwatch\s+(?:over|across)\b.{0,60}\b(?:week|month|quarter|year)s?\b"
+        r"|\bweeks?\b[^.?!]{0,40}\bmonths?\b[^.?!]{0,40}\b(?:quarters?|years?)\b"
+        r"|\bby (?:time\s+)?horizon\b|\bacross horizons\b"
+        r"|\bshort[- ](?:term|run)\b.{0,50}\blong[- ](?:term|run)\b", re.I)),
     ("enumeration", _EPISODIC),
     ("ranking", re.compile(
         r"\b(?:largest|biggest|top \d+)\b.{0,60}\b(?:producer|exporter|importer|consumer|grower)s?\b"

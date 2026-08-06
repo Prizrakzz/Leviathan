@@ -115,9 +115,12 @@ def test_selector_every_playbook_row_is_enumeration():
                      (yaml.safe_load(p.read_text(encoding="utf-8")) or {}).get("queries") or []]
     if not rows:
         pytest.skip("playbook decks are gitignored and absent from this clone")
+    # D-AM-19: the multi-horizon row is the ONE deliberate exception — episode-by-episode was the
+    # measured misroute for a weeks->years ask; it now selects the horizon contract by priority.
+    _HORIZON_ROWS = {"pb_watch_horizons"}
     wrong = [(i, it.select_response_contract(q)) for i, q in rows
-             if it.select_response_contract(q) != "enumeration"]
-    assert not wrong, f"playbook rows must select enumeration: {wrong}"
+             if it.select_response_contract(q) != ("horizon" if i in _HORIZON_ROWS else "enumeration")]
+    assert not wrong, f"playbook rows must select enumeration (horizon rows: horizon): {wrong}"
 
 
 def test_selector_names_are_valid_contracts():

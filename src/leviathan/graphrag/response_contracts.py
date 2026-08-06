@@ -151,6 +151,20 @@ CONTRACTS: dict[str, Contract] = {c.name: c for c in (
             "concision is the contract here."),
     ),
     Contract(
+        name="horizon",
+        sections=(MECHANISM, RECORD, WATCH),
+        conditional=(RECORD,),
+        budget="200-300",
+        directive=(
+            "\n\nHORIZON EMPHASIS (this question asks what to watch across MULTIPLE time horizons): "
+            "'## What to watch' IS the answer and is organized as one short block per horizon — "
+            "weeks, months, quarters, years (only the horizons the question spans) — each block "
+            "naming its trigger or release (scheduled reports and crop-calendar gates for the near "
+            "buckets, structural drivers for the far ones) with the cited playbook precedent or its "
+            "absence stated plainly. Do not smooth horizons into one undated list; a driver that "
+            "matters at every horizon is stated once at the bucket where it BINDS first."),
+    ),
+    Contract(
         name="recency",
         sections=(MECHANISM, RECORD, WATCH),
         conditional=(),
