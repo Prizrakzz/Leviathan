@@ -1,0 +1,297 @@
+# D-DV-2 WIDTH-SENSITIVE HELD-OUT DECK v1 (2026-08-06) -- THE ROWS THE MODES DECK COULD NOT ASK.
+#
+# WHY THIS FILE EXISTS. D-DV-0 check 4 censused the 12-row modes deck and found 3 width-sensitive /
+# 7 insensitive / 2 undetermined, ONE realized judged lift (ab_mech_crush) and ZERO strip lifts. A
+# deck whose rows are answerable inside quick's caps cannot show a deep-v2 win no matter how good
+# deep_v2 is -- the arms differ only where the answer-bearing evidence does not fit in quick. These
+# six rows are the pre-registered instrument for that measurement, authored BEFORE any D-DV-2 arm
+# runs, and HELD OUT: no question here duplicates a row of eval_queries_contracts_ab_v1.yaml (the
+# 25-row no-tautology deck the modes subset was drawn from) or of any other deck in configs/graphrag.
+#
+# WHAT "WIDTH-SENSITIVE" MEANS HERE -- ARITHMETIC, NOT TASTE. From reasoning_modes.py MODES:
+#     quick    node_budget 6   max_seeds 1   k_by_depth (4,2)   evidence_cap 12   silver_cap 4
+#     deep_v2  node_budget 16  max_seeds 3   k_by_depth (7,5)   evidence_cap 24   silver_cap 8
+#                              cap_policy=score  order_policy=relevance
+# A row qualifies only if its answer-bearing evidence PROVABLY exceeds at least one quick ceiling:
+#   (W1) SEED CEILING     -- the population lives behind a DAG node that exists only in a contract
+#                            quick cannot seed (max_seeds 1 keeps one distinct evidence node;
+#                            planner._seed_contracts de-dups siblings via evidence.node_for).
+#   (W2) PER-NODE CEILING -- the answer needs more rows off ONE node than k_by_depth allows
+#                            (4 at depth 0 / 2 at depth 1 under quick; 7 / 5 under deep_v2).
+#   (W3) TOTAL CEILING    -- the union of answer-bearing rows exceeds evidence_cap 12.
+#   (W4) SILVER CEILING   -- the honest answer needs more than 4 distinct silver reads
+#                            (silverleg.make_silver_lookup budget; cap 4 quick / 8 deep_v2).
+#   (W5) NODE-SLOT CEILING-- the required drivers outnumber quick's 5 non-seed node slots against a
+#                            DAG that fans in 28-42 drivers.
+# Each row records its class in `width_class` and its floor in `width_floor`.
+#
+# SCHEMA. Identical to eval_queries_contracts_ab_v1.yaml (id / contract / category / rc_expected /
+# asof / question), which is what eval.py consumes: q["contract"] (routed_right), q["question"],
+# q.get("asof") (PIT), q.get("id"), q.get("category") (census only), q.get("expect") (rubric).
+# `rc_expected`, `width_class`, `width_floor`, `sources` and `prereg` are AUTHOR fields -- eval.py
+# never reads them, exactly as `rc_expected` is author-only on the contracts deck.
+#
+# rc_expected IS THE AUTHOR'S SHAPE EXPECTATION, NOT A PIN, and `default` (null) is a correct
+# outcome. Recorded for the offline selector audit only. The REAL selector was run offline over
+# these six questions at authoring time (intent.select_response_contract, no API, no DB):
+#     dv_sub_ddg_floor null | dv_xorigin_wheat_policy ranking | dv_anchor_corn_balance recency
+#     dv_chain_nitrogen_acres null | dv_episode_lanina_arg null | dv_vintage_india_cotton null
+# So two rows (episode / vintage) are AUTHOR-EXPECTED enumeration+verification and CURRENTLY select
+# default. That disagreement is recorded on purpose and is not a defect of the row -- the deck must
+# never be tuned against the selector (the no-tautology law the contracts deck was built on).
+#
+# `expect.drivers` IS OBSERVATIONAL, NEVER A GATE. It is a plain substring list scored by
+# eval.score() into `drivers_hit n/m` after extract._normalize (NFKD -> ascii -> lower). It is used
+# on exactly the three rows where breadth has crisp semantics -- origins covered, episodes named,
+# vintages dated -- because that count IS the width hypothesis stated deterministically. It never
+# decides anything; the headline stays judged usefulness+grounding plus strips-per-handle.
+# `expected_intent` is deliberately absent (guessing the router lane would mint false intent_ok
+# failures); intent_ok therefore stays None on every row, same as the contracts deck.
+#
+# OFFLINE ANSWERABILITY VALIDATION (no live retrieval, no API, no DB). Every named source was
+# checked against, in order of authority: (1) configs/graphrag/causal/*.yaml -- the node actually
+# exists in the named contract's DAG; (2) configs/graphrag/eval/e1_census.md -- the node id is
+# BACKED and the slice's prop count; (3) configs/graphrag/eval/coverage_node_source.md -- the
+# commodity node's prop/doc/source census; (4) configs/graphrag/driver_slices_manifest.yaml -- the
+# slice exists at all; (5) the local evidence mirrors under configs/graphrag/evidence/ for sample
+# props. CAVEAT, stated once: (2) and (3) are SNAPSHOTS of the 1285-doc chunk cache and the local
+# mirrors are older/partial than the S3 store (corpus is 39.9% chunked), so prop counts are lower
+# bounds and their ABSENCE locally is never evidence of absence in the store. Slices deliberately
+# avoided as unanswerable at authoring time: veg_oil_substitution_spreads (0 props),
+# india_import_duty (0), managed_money_positioning (0), harmattan (6), sugar_ethanol_parity (8),
+# indian_ocean_dipole (4), eu_crop_and_policy (17); and the unbacked ids soyoil_palm_premium,
+# conab_production_revision, IOD_positive, Thailand_production, area, export_pace.
+#
+# PROVISIONAL AT AUTHORING (declared here so the pre-registration is honest, not patched later):
+#   * dv_episode_lanina_arg -- the la_nina slice is 176 props and the local commodity mirrors are
+#     thin on Argentine La Nina episodes; episode BREADTH is expected to come from the era/event
+#     episode layer plus drought (2370) and south_american_safrinha (1795). The count of distinct
+#     dated episodes actually retrievable was NOT confirmed offline. If fewer than ~4 surface in
+#     both arms, the row measures nothing and should be reported as instrument-dead, not as a
+#     deep_v2 loss.
+#   * dv_vintage_india_cotton -- the vintage documents were confirmed directly in the local cotton
+#     mirror (annual New Delhi, two Mumbai updates, and an explicit corrected-PSD-table doc) but
+#     only through 2022-12. Whether the CURRENT-season India cotton vintages are ingested was not
+#     confirmable offline, which is why the question no longer says "this season": the row's W2
+#     arithmetic holds on any set of >=3 disagreeing vintages, current or historical.
+#
+# INVOCATION (there is NO eval_set registry -- eval.py line 2682 derives eval_set from the FILE
+# STEM, so this file's name IS the eval_set: `eval_queries_deepv2_width_v1`):
+#   python -m leviathan.graphrag.eval --run --judge --via-orchestrator --workers 4 \
+#     --queries configs/graphrag/eval_queries_deepv2_width_v1.yaml --mode deep_v2
+# with GRAPHRAG_MODES=deep_v2 on the arm (deep_v2 is DARK: reasoning_modes.DARK_NAMES excludes it
+# from the `on` wildcard, so it must be named). The same-day standard anchor is the same command
+# without --mode. Baselines land as baseline_eval_queries_deepv2_width_v1_<provider>_<ts>.json.
+#
+# 3 arms x 6 rows judged. Read on THESE rows: judged usefulness+grounding, strips-per-handle (never
+# raw strip rate -- covenant amendment 3, the cap-size circularity), cited/retrieved E-rows, and
+# drivers_hit where present.
+queries:
+
+  # ---------------------------------------------------------------------------------------------
+  # (a) SUBSTITUTION-THRESHOLD JOIN -- the [E22] shape: two switch-point floors observed in
+  # DIFFERENT importing origins that only pin a threshold when held TOGETHER. The store carries
+  # origin-specific floors as one-line props scattered across country GAIN reports (mirror samples:
+  # Mexico 2017 "DDGS imports could fall due to more competitive soybean meal prices"; Thailand 2010
+  # "encourage feed millers to increase use of soybean meal at the expense of other protein
+  # ingredients"; China 2023 inclusion rates 15.3% industry / 6.9% Muyuan). No single prop states a
+  # threshold; the threshold is the JOIN. This is the row the modes deck could only gesture at
+  # (ab_ctx_ddg retrieved [E8] and [E22] and never bound them, D-DV-0 forensics).
+  # WIDTH: DDGS_competition exists in exactly ONE DAG (soybean_meal_cbot) and is a depth-1 driver ->
+  # quick reads k_by_depth[1] = 2 rows there. Two origin floors + the domestic baseline + the
+  # inclusion-rate ceiling is >= 4 rows off that one node. deep_v2 reads 5.
+  - id: dv_sub_ddg_floor
+    contract: soybean_meal_cbot
+    category: dv_substitution_threshold
+    rc_expected: null
+    asof: '2026-08-06'
+    width_class: W2_per_node
+    width_floor: ">=4 rows off DDGS_competition alone (quick allows 2 at depth 1)"
+    sources:
+      - driver_slice:protein_meal_substitution   # 3280 props, 6 dag ids incl. DDGS_competition
+      - driver_slice:livestock_feed_demand       # 3751 props, backs soybean_meal_feed_demand
+      - driver_slice:broiler_economics           # 651 props, the ration-economics half
+      - driver_slice:african_swine_fever         # 341 props, backs ASF_hog_herd
+      - node:soybean_meal                        # 5127 props / 468 docs / 13 sources
+    prereg: >-
+      A width-capable arm names at least two DISTINCT importing origins' switch behaviour and states
+      the threshold as a spread/ratio conditioned on them, with each origin separately cited. Quick,
+      holding two rows off this node, is expected to assert a single unconditioned switch point or
+      to answer qualitatively ("it depends on relative prices") -- the pre-registered failure.
+    question: "How much cheaper than soymeal does DDG have to be before feeders actually swap it in, and does that switch point look the same outside the US?"
+
+  # ---------------------------------------------------------------------------------------------
+  # (b) CROSS-ORIGIN COMPARISON -- four-plus origins, each needing its own dated policy rows.
+  # WIDTH, and this one is STRUCTURAL: the Russian export-tax/quota population (russia_export_tax_quota,
+  # 363 props) is routed by exactly ONE dag id, `Russia_export_tax`, and that id exists in exactly ONE
+  # contract, french_wheat_matif (evidence node `french_wheat`). quick's max_seeds=1 keeps a single
+  # distinct evidence node -- a wheat question seeds srw_wheat and the Russia node is UNREACHABLE, at
+  # any evidence_cap. deep_v2's 3 seeds can hold srw_wheat + french_wheat + hrw_wheat. On top of that,
+  # 4 origins x 3 dated policy rows = 12+ rows against evidence_cap 12 (W3).
+  - id: dv_xorigin_wheat_policy
+    contract: soft_red_winter_wheat_cbot
+    category: dv_cross_origin_rank
+    rc_expected: ranking
+    asof: '2026-08-06'
+    width_class: W1_seed + W3_total
+    width_floor: ">=12 rows across >=4 origin populations; Russia's needs a 2nd seed contract"
+    sources:
+      - driver_slice:russia_export_tax_quota     # 363 props; only dag id Russia_export_tax (french_wheat_matif)
+      - driver_slice:export_ban                  # 1272 props; export_ban + India_export_ban in srw/hrw/french
+      - driver_slice:former_ussr_import_demand   # 696 props; node present in srw + hrw
+      - driver_slice:argentina_export_policy     # 580 props; routed only via soy contracts -> another seed
+      - driver_slice:us_farm_program             # 430 props; node present in srw + hrw + corn + cotton
+      - node:srw_wheat                           # 23004 props / 685 docs / 15 sources
+      - node:french_wheat                        # same 685-doc wheat population, distinct seed
+    prereg: >-
+      A width-capable arm ranks four or more named exporters and cites a DATED policy instrument for
+      each (tax, quota, floor price, ban, licence). Quick is expected to cover two or three origins
+      and to carry the Russian leg, if at all, from generic wheat prose rather than the export-tax
+      population. drivers_hit below counts origins REALIZED, not origins asked for.
+    expect:
+      needs_evidence: true
+      drivers: [Russia, India, Argentina, Ukraine]
+    question: "If I rank the major wheat exporters by the odds their own government gets in the way of shipments this season, how does that list come out?"
+
+  # ---------------------------------------------------------------------------------------------
+  # (c) MULTI-SERIES ANCHOR -- a "versus normal" question whose honest answer needs a LEVEL, a
+  # HISTORY to make the level mean anything, and a POLICY TRIGGER that sits on a third series. This
+  # is the shape D-DV-0(1) caught failing: on the degraded stocks row deep fused a PRICE z-score onto
+  # a STOCKS question while quick reached the right series with cap 4. The row is authored so that
+  # cap 4 is NOT enough: stocks/use level, the multi-year history behind the z, the ethanol grind,
+  # feed/residual and export commitments are five distinct silver reads before any policy leg.
+  # WIDTH: W4 (5+ silver reads vs silver_cap 4) plus W5 -- corn_cbot fans in 42 drivers and quick
+  # has 5 non-seed node slots, so ethanol_demand / feed_demand / ending_stocks_su_ratio /
+  # export_pace-side nodes compete for slots the wider walk simply has.
+  - id: dv_anchor_corn_balance
+    contract: corn_cbot
+    category: dv_multi_series_anchor
+    rc_expected: recency
+    asof: '2026-08-06'
+    width_class: W4_silver + W5_node_slots
+    width_floor: ">=5 silver reads (cap 4) and >=4 of corn_cbot's 42 drivers (5 slots)"
+    sources:
+      - silver:silver_wasde                      # US balance sheet, the level
+      - silver:silver_psd                        # world/US history behind the z
+      - silver:silver_esr                        # export commitments leg
+      - silver:silver_nass_crop_progress         # condition/pace context
+      - silver:silver_futures_eod                # the price the "tight" claim is being read off
+      - driver_slice:wasde_stocks_to_use         # 4000 props; backs ending_stocks_su_ratio
+      - driver_slice:us_ethanol_rfs              # 543 props; backs ethanol_demand + RFS (the trigger)
+      - driver_slice:livestock_feed_demand       # 3751 props; backs feed_demand
+      - driver_slice:us_drought_monitor          # 542 props
+      - node:corn                                # 15241 props / 717 docs / 16 sources
+    prereg: >-
+      A width-capable arm separates the three legs -- states the stocks/use LEVEL, says what normal
+      is and over what window, and attributes the difference to a named use (ethanol grind, feed,
+      exports) with the mandate/blending leg cited where it bites. Quick is expected to answer with
+      the level plus an adjective, or to substitute a price series for the stocks series (the
+      recorded D-DV-0 failure); either is a miss on this row.
+    question: "Is the US corn balance actually tight versus normal right now, or is the ethanol grind flattering it?"
+
+  # ---------------------------------------------------------------------------------------------
+  # (d) MECHANISM CHAIN, 2 COMMODITIES + 1 INPUT COST. The nitrogen bill -> acreage allocation ->
+  # two crops. The input-cost population is real and BACKED (fertilizer, 1421 props, aliased by
+  # fertilizer_cost in the wheat DAGs and fertilizer_input_costs in corn_cbot), and the acreage
+  # response has its own slice (crop_insurance_planting_intentions, 289 props, aliases planted_area
+  # / acreage_competition / soybean_corn_price_ratio). The two crops are DISTINCT evidence nodes
+  # (hrw_wheat, corn), so the substitution half of the chain needs a second seed -- quick cannot.
+  # NOTE FOR THE READER, recorded so nobody re-discovers it: the `natural_gas` slice (425 props) is
+  # routed by one dag id, `natural_gas`, which lives ONLY in french_maize_matif -- whose evidence
+  # node IS `corn`, so _seed_contracts de-dups it away whenever corn_cbot routes first. urea / dap /
+  # potash are ORPHAN slices (no dag id routes to them at all). The row is therefore authored to be
+  # answerable from the FERTILIZER + CRUDE narrative populations, and never depends on gas-specific
+  # or Pink-Sheet numbers the router is not told about (plan riders).
+  - id: dv_chain_nitrogen_acres
+    contract: hard_red_winter_wheat_kcbt
+    category: dv_mechanism_chain
+    rc_expected: null
+    asof: '2026-08-06'
+    width_class: W1_seed + W5_node_slots
+    width_floor: "2 distinct evidence nodes (hrw_wheat + corn) for the acreage-competition leg"
+    sources:
+      - driver_slice:fertilizer                  # 1421 props, 5 dag ids incl. fertilizer_cost
+      - driver_slice:crude                       # 1922 props, backs crude_oil
+      - driver_slice:crop_insurance_planting_intentions  # 289 props, the acreage-response leg
+      - driver_slice:us_farm_program             # 430 props, the program-payment floor on the decision
+      - driver_slice:feed_grain_substitution     # 4000 props, backs wheat_corn_spread on the corn side
+      - node:hrw_wheat                           # 23005 props / 685 docs / 15 sources
+      - node:corn                                # 15241 props / 717 docs / 16 sources
+    prereg: >-
+      A width-capable arm carries the chain end to end -- input cost, the margin/agronomy step, THEN
+      the acreage allocation between the two crops -- with the corn side cited from corn-side rows
+      rather than asserted. Quick, seeding one evidence node, is expected to deliver the wheat half
+      with the corn half unbacked (the number_unbacked shape).
+    question: "Take me from the fertilizer bill through to what actually gets planted in the southern Plains -- does wheat hold its acres when nitrogen is expensive, or does corn take them?"
+
+  # ---------------------------------------------------------------------------------------------
+  # (e) EPISODE-ANALOG ENUMERATION -- wide episode context. Every candidate analog needs its OWN
+  # dated row; N episodes cost N rows and there is no compression. This row also exercises the
+  # D-DV-1(b) fix (episodes recomputed AFTER _dedup_and_cap): under the pre-fix planner the episode
+  # window was built from PRE-cap props, so the enumerated episodes were literally uncitable
+  # (episode_enumeration 2/5 on 11/12 deep rows).
+  # WIDTH: W3 -- the union of episodes exceeds evidence_cap 12 outright; W2 -- La_Nina is a depth-1
+  # driver (2 rows under quick, 5 under deep_v2) and the discriminating detail for each episode
+  # (was the Argentine crop actually cut, or did the market shrug) sits in the drought / safrinha
+  # populations, which are separate nodes again.
+  - id: dv_episode_lanina_arg
+    contract: soybeans_cbot
+    category: dv_episode_analog
+    rc_expected: enumeration
+    asof: '2026-08-06'
+    width_class: W3_total + W2_per_node
+    width_floor: ">=6 dated episodes, >=1 row each, vs evidence_cap 12 and 2 rows on La_Nina"
+    sources:
+      - driver_slice:la_nina                     # 176 props, backs La_Nina / La_Nina in soybeans_cbot
+      - driver_slice:el_nino                     # 429 props, the contrast episodes
+      - driver_slice:drought                     # 2370 props, 9 dag ids -- the did-it-actually-bite leg
+      - driver_slice:south_american_safrinha     # 1795 props, backs safrinha / brazil_soybean_supply
+      - driver_slice:argentina_export_policy     # 580 props -- the episodes where policy, not weather, moved it
+      - silver:silver_noaa_oni                   # the ONI series that dates the episodes
+      - node:soybeans                            # 23440 props / 704 docs / 19 sources
+    prereg: >-
+      A width-capable arm names several distinct episodes WITH years and separates the ones that cut
+      the crop from the ones that did not, each pinned to its own row. Quick is expected to name one
+      or two and generalise. drivers_hit counts episodes REALIZED by year token; it is a coverage
+      counter, not a correctness test (an arm that names 2008 and 2011 correctly and stops is a
+      truthful narrow answer, which is exactly the width signal being measured).
+    expect:
+      needs_evidence: true
+      drivers: ['2008', '2011', '2017', '2022']
+    question: "Desks keep reaching for one or two old La Nina years as the template for Argentina -- which of those is actually the right analog for this one, and which were nothing alike?"
+
+  # ---------------------------------------------------------------------------------------------
+  # (f) HARD VERIFICATION ACROSS VINTAGES -- three-plus dated report rows for the SAME quantity that
+  # do not agree, where the correct answer is a reconciliation, not a number. The store carries the
+  # India cotton estimate across many vintages on ONE node: cotton_and_products_annual_new_delhi
+  # (166 props), cotton_and_products_update_new_delhi (86), update_-_january_2022_mumbai (97),
+  # update_-_december_2021_mumbai (58), AND an explicit "corrected_psd_table_for_india_cotton_and_
+  # products_update_-_first_update" doc (23) -- plus the 2010/2011 vintages for the historical
+  # pattern. This is the cleanest arithmetic proof in the deck: every answer-bearing row sits on the
+  # SEED node, where quick reads k_by_depth[0] = 4 rows and deep_v2 reads 7.
+  # It is also the row that tests the ONE genuine misbind D-DV-0(2) found (1/6 quote_mismatch was a
+  # real vintage misbind) and the "vintage labels inverted over correctly-grounded numbers" failure
+  # from D-DV-0(1).
+  - id: dv_vintage_india_cotton
+    contract: cotton
+    category: dv_vintage_reconciliation
+    rc_expected: verification
+    asof: '2026-08-06'
+    width_class: W2_per_node
+    width_floor: ">=5 dated rows off the seed node (quick reads 4 at depth 0, deep_v2 reads 7)"
+    sources:
+      - node:cotton                              # 9366 props / 541 docs / 17 sources
+      - source:usda_gain_cotton                  # 2746 props / 45 docs -- the annual + update vintages
+      - source:usda_gain_cotton_monthly          # 287 props / 8 docs -- the intra-season revisions
+      - silver:silver_psd                        # the PSD series the corrected-table doc restates
+      - driver_slice:msp                         # 1220 props, backs India_MSP (why a print gets revised)
+      - driver_slice:china_reserve_auctions      # 188 props, backs China_state_reserves
+    prereg: >-
+      A width-capable arm names at least three vintages, DATES each number to its own release, says
+      which supersedes which and why, and refuses to average them. Quick, with four rows off the
+      seed node, is expected to quote the newest print alone or to mislabel a vintage -- and a
+      vintage misbind here should show up as a verifier strip, not merely a judge deduction.
+    expect:
+      needs_evidence: true
+      drivers: [annual, update, revis]
+    question: "The India cotton number keeps getting revised and the versions do not agree -- what is the honest read, and which vintage should I be quoting?"
