@@ -488,9 +488,21 @@ def regimes_route(contract: str, asof: Optional[str] = Query(None),
 
 
 # ── 1.5 vintage-aware series ─────────────────────────────────────────────────────────────────────────
+_SERIES_AGGS = ("series", "latest")
+"""D-AM-21: the ONLY two aggs /v1/series compiles, and the pair is deliberately short.
+
+``series`` is the route's pre-wave default and stays it, so an unparameterized call is byte-identical.
+``latest`` exists for exactly ONE shape -- the CURVE read (`contract_month` naming several expiries, one
+row per expiry at one as-of, which is what `agg` DEFAULTS to in the numbers tool schema). The four scalar
+aggs (sum/mean/max/min) are NOT reachable here on purpose: each collapses to a single ``{value}`` row with
+no date, no period and no expiry, i.e. a point the chart cannot place and the [N#] label cannot attribute --
+a new capability behind a chart parameter, which is not what this parameter is for."""
+
+
 @app.get("/v1/series/{table}/{metric}", response_model=M.Series)
 def series_route(table: str, metric: str, commodity: Optional[str] = Query(None),
                  country: Optional[str] = Query(None), asof: Optional[str] = Query(None),
+                 contract_month: Optional[str] = Query(None), agg: str = Query("series"),
                  ident: dict = Depends(_require_identity)) -> dict:
     from leviathan.graphrag import answer as an
     from leviathan.graphrag.numbers import query as Q
@@ -505,7 +517,21 @@ def series_route(table: str, metric: str, commodity: Optional[str] = Query(None)
         raise HTTPException(status_code=404, detail=f"unknown table {table!r}")
     if ts.metrics and metric not in ts.metrics:                   # registry-validated -> never an open query hole
         raise HTTPException(status_code=400, detail=f"unknown metric {metric!r} for {table!r}")
-    spec = Q.NumberQuery(table=table, metric=metric, asof=asof, commodity=commodity, country=country, agg="series")
+    if agg not in _SERIES_AGGS:
+        raise HTTPException(status_code=400, detail=f"unsupported agg {agg!r} for /v1/series")
+    # D-AM-21 CURVE READ. `contract_month` is the SAME single comma-separated field the numbers tool carries
+    # (one value = a named expiry through time, a list = the term structure at one as-of) and it is threaded
+    # VERBATIM -- the route parses nothing, so `_contract_months` stays the one splitter and the SQL emit and
+    # the PIT oracle cannot disagree with the URL. The delivery-month guard below is build_sql's own
+    # (query.py: "a dimension the table cannot express is a decline, never a quiet substitution"), lifted to
+    # a DETERMINISTIC 400 rather than left to surface as the generic 502 this route wraps every query failure
+    # in -- a caller asking a PSD card for a December expiry has made a request error, not met an outage.
+    if contract_month and not ts.contract_month_col:
+        raise HTTPException(status_code=400,
+                            detail=f"table {table!r} carries no delivery-month column, so a contract_month "
+                                   f"read is not expressible against it")
+    spec = Q.NumberQuery(table=table, metric=metric, asof=asof, commodity=commodity, country=country,
+                         contract_month=contract_month, agg=agg)
     # FUTURES_READPATH S1 (D-FR-10). This route sits ABOVE answer.py, so there is nothing to thread the
     # canary through -- it imports the ONE env seam and hands the bool straight to the compiler. That is the
     # seam doctrine rather than an exception to it: the flag is still read in exactly one function estate-

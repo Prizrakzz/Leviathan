@@ -92,6 +92,14 @@ describe('Numbers country scoping (D-TW-9)', () => {
     );
   });
 
+  it('an ordinary row sends NO curve parameters -- the pre-wave request, unchanged', async () => {
+    mount([numCall('N1')]);
+    await userEvent.click(row('N1'));
+    await waitFor(() => expect(h.getSeries).toHaveBeenCalledTimes(1));
+    const opts = h.getSeries.mock.calls[0]![2] as Record<string, unknown>;
+    expect(Object.keys(opts).sort()).toEqual(['asof', 'commodity', 'country']);
+  });
+
   it('two calls differing ONLY by country are two cache entries, not one', async () => {
     mount([numCall('N1', { country: 'Brazil' }), numCall('N2', { country: 'Argentina' })]);
     await userEvent.click(row('N1'));
@@ -103,5 +111,116 @@ describe('Numbers country scoping (D-TW-9)', () => {
       'Brazil',
       'Argentina',
     ]);
+  });
+});
+
+// ── D-AM-21: the curve (carry / backwardation) view ────────────────────────────────────────────────
+const SESSION = '2026-06-05';
+const CURVE = {
+  table: 'silver_futures_eod',
+  metric: 'settle',
+  commodity: 'corn_cbot',
+  asof: ASOF,
+  unit: 'US cents/bushel',
+  points: [
+    { contract_month: '2026-07', value: '417.5', knowledge_date: SESSION },
+    { contract_month: '2026-12', value: '446.0', knowledge_date: SESSION },
+    { contract_month: '2027-03', value: '461.5', knowledge_date: SESSION },
+  ],
+};
+
+/** A futures NUMBERS row: the engine's curve read, with the expiries on the query AND on the rows. */
+function futuresCall(ref: string, query: Record<string, string> = {}) {
+  return {
+    ref,
+    status: 'ok',
+    rows: CURVE.points.map((p) => ({ value: p.value, contract_month: p.contract_month })),
+    query: {
+      table: 'silver_futures_eod',
+      metric: 'settle',
+      commodity: 'corn_cbot',
+      contract_month: '2026-07,2026-12,2027-03',
+      ...query,
+    },
+  };
+}
+
+describe('Numbers curve view (D-AM-21)', () => {
+  beforeEach(() => {
+    h.getSeries.mockReset().mockResolvedValue(CURVE);
+  });
+
+  it('offers the axis switch on a futures row and NOT on an ordinary one', async () => {
+    mount([numCall('N1'), futuresCall('N2')]);
+    await userEvent.click(row('N1'));
+    expect(screen.queryByRole('button', { name: 'curve' })).not.toBeInTheDocument();
+    await userEvent.click(row('N2'));
+    expect(screen.getByRole('button', { name: 'curve' })).toBeInTheDocument();
+  });
+
+  it('hides the switch until the row is expanded, so the collapsed list is unchanged', () => {
+    mount([futuresCall('N1')]);
+    expect(screen.queryByRole('button', { name: 'curve' })).not.toBeInTheDocument();
+  });
+
+  it('fetches the tracked expiries at agg=latest, at the ROW\'S OWN as-of', async () => {
+    mount([futuresCall('N1')]);
+    await userEvent.click(row('N1'));
+    await waitFor(() => expect(h.getSeries).toHaveBeenCalledTimes(1)); // the time series, as before
+    await userEvent.click(screen.getByRole('button', { name: 'curve' }));
+    await waitFor(() => expect(h.getSeries).toHaveBeenCalledTimes(2));
+    expect(h.getSeries.mock.calls[1]).toEqual([
+      'silver_futures_eod',
+      'settle',
+      {
+        commodity: 'corn_cbot',
+        country: undefined,
+        asof: ASOF,               // PIT: the same as-of the view already threads, never a fresher one
+        contractMonth: '2026-07,2026-12,2027-03',
+        agg: 'latest',
+      },
+    ]);
+  });
+
+  it('renders the curve chart, then goes back to the time series', async () => {
+    mount([futuresCall('N1')]);
+    await userEvent.click(row('N1'));
+    await userEvent.click(screen.getByRole('button', { name: 'curve' }));
+    expect(await screen.findByRole('img', { name: /settle curve/i })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'time' }));
+    expect(await screen.findByRole('img', { name: /settle series/i })).toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: /settle curve/i })).not.toBeInTheDocument();
+  });
+
+  it('falls back to the expiries on the ROWS when the call named no month scope', async () => {
+    const call = futuresCall('N1');
+    delete (call.query as Record<string, unknown>).contract_month;
+    mount([call]);
+    await userEvent.click(row('N1'));
+    await userEvent.click(screen.getByRole('button', { name: 'curve' }));
+    await waitFor(() => expect(h.getSeries).toHaveBeenCalledTimes(2));
+    expect((h.getSeries.mock.calls[1]![2] as { contractMonth?: string }).contractMonth).toBe(
+      '2026-07,2026-12,2027-03',
+    );
+  });
+
+  it('a failed curve says so and offers its own retry', async () => {
+    h.getSeries.mockResolvedValueOnce(CURVE).mockRejectedValueOnce(new Error('502'));
+    mount([futuresCall('N1')]);
+    await userEvent.click(row('N1'));
+    await userEvent.click(screen.getByRole('button', { name: 'curve' }));
+    expect(await screen.findByText(/couldn't load this curve/i)).toBeInTheDocument();
+
+    h.getSeries.mockResolvedValue(CURVE);
+    await userEvent.click(screen.getByRole('button', { name: 'retry' }));
+    expect(await screen.findByRole('img', { name: /settle curve/i })).toBeInTheDocument();
+  });
+
+  it('a curve too short to plot says so rather than expanding into a void', async () => {
+    h.getSeries.mockResolvedValue({ ...CURVE, points: [CURVE.points[0]] });
+    mount([futuresCall('N1')]);
+    await userEvent.click(row('N1'));
+    await userEvent.click(screen.getByRole('button', { name: 'curve' }));
+    expect(await screen.findByText(/no curve to plot/i)).toBeInTheDocument();
   });
 });

@@ -2,17 +2,27 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { getSeries } from '@/api/client';
 import { SeriesChart } from './SeriesChart';
-import { isAnomaly, parsePoints, sparkPath, vintageIndex, xOf } from './scale';
+import {
+  type SeriesAxis,
+  curvePoints,
+  isAnomaly,
+  parsePoints,
+  sparkPath,
+  trackedMonths,
+  vintageIndex,
+  xOf,
+} from './scale';
 
 interface NumCall {
   ref?: string;
-  query?: { table?: string; metric?: string; commodity?: string; country?: string };
-  rows?: { value?: unknown; z?: unknown }[];
+  query?: { table?: string; metric?: string; commodity?: string; country?: string; contract_month?: string };
+  rows?: { value?: unknown; z?: unknown; contract_month?: unknown }[];
   status?: string;
 }
 
 function NumberRow({ call, asof }: { call: NumCall; asof: string }) {
   const [open, setOpen] = useState(false);
+  const [axis, setAxis] = useState<SeriesAxis>('time');
   const table = call.query?.table;
   const metric = call.query?.metric;
   const country = call.query?.country;
@@ -27,6 +37,30 @@ function NumberRow({ call, asof }: { call: NumCall; asof: string }) {
     enabled: !!table && !!metric && !notYet && open,
     staleTime: 60_000,
   });
+
+  // D-AM-21 CURVE VIEW. A SECOND query rather than a parameterized first one, deliberately: the time-series
+  // fetch above drives the row's own sparkline and is pinned (D-TW-9) down to its argument object, so the
+  // curve is added BESIDE it and the pre-wave path stays byte-identical -- on a non-futures card `months` is
+  // empty, the affordance never renders, and this query is never enabled.
+  // The months are the ones the CALL already tracked (its own `contract_month` scope, else the expiries its
+  // rows came back on), and the as-of is the row's own -- so the curve is the term structure the answer was
+  // already standing on. No client-side date logic, and nothing invented.
+  const months = trackedMonths(call.query, call.rows);
+  const canCurve = months.length >= 2;
+  const cq = useQuery({
+    queryKey: ['curve', table, metric, call.query?.commodity, country, asof, months.join(',')],
+    queryFn: () =>
+      getSeries(table!, metric!, {
+        commodity: call.query?.commodity,
+        country,
+        asof,
+        contractMonth: months.join(','),
+        agg: 'latest',
+      }),
+    enabled: !!table && !!metric && !notYet && canCurve && open && axis === 'curve',
+    staleTime: 60_000,
+  });
+  const cpts = cq.data ? curvePoints(parsePoints(cq.data.points as Record<string, unknown>[])) : [];
 
   if (notYet) {
     return (
@@ -69,13 +103,46 @@ function NumberRow({ call, asof }: { call: NumCall; asof: string }) {
           </span>
         )}
       </button>
+      {/* D-AM-21: the axis switch renders ONLY on a call that tracks two or more delivery months -- i.e.
+          only on a per-expiry futures card -- so every other row's expansion is exactly what it was. The
+          curve pane mirrors the time pane's state ladder below (loading / failed+retry / too-short), for
+          the same D-TW-9 reason: an expansion that can render nothing is indistinguishable from a dead one. */}
+      {open && canCurve && (
+        <div className="flex gap-2 py-0.5 font-mono text-11" role="group" aria-label="chart axis">
+          {(['time', 'curve'] as SeriesAxis[]).map((a) => (
+            <button
+              key={a}
+              onClick={() => setAxis(a)}
+              aria-pressed={axis === a}
+              className={axis === a ? 'text-cyan' : 'text-text-faint hover:text-text-dim'}
+            >
+              {a}
+            </button>
+          ))}
+        </div>
+      )}
+      {open && axis === 'curve' && canCurve &&
+        (cq.isError ? (
+          <div className="py-0.5 font-mono text-11 text-text-faint">
+            couldn't load this curve —{' '}
+            <button onClick={() => void cq.refetch()} className="text-cyan hover:text-amber">
+              retry
+            </button>
+          </div>
+        ) : cq.isLoading ? (
+          <div className="py-0.5 font-mono text-11 text-text-faint">loading curve…</div>
+        ) : !cq.data || cpts.length < 2 ? (
+          <div className="py-0.5 font-mono text-11 text-text-faint">no curve to plot at this as-of</div>
+        ) : (
+          <SeriesChart series={cq.data} asof={asof} axis="curve" />
+        ))}
       {/* D-TW-9: the expansion is state-complete. It used to render the chart or NOTHING, so an in-flight
           fetch and a dead one were the same thing on screen -- the row opened and nothing happened, with no
           way to tell waiting from broken and no way to retry. The last branch covers the third silent case:
           a fetch that SUCCEEDED with too few points, since SeriesChart draws nothing below two (the same
           threshold that gates the row's own sparkline above). `isLoading` rather than `!q.data` so a call
           the query is DISABLED for can never sit on "loading…" that will never arrive. */}
-      {open &&
+      {open && axis === 'time' &&
         (q.isError ? (
           <div className="py-0.5 font-mono text-11 text-text-faint">
             couldn't load this series —{' '}

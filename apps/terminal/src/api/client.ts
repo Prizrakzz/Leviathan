@@ -67,17 +67,25 @@ export function getGraph(contract: string, asof?: string): Promise<Schemas['Grap
 /** The vintage-aware series behind a NUMBERS row's sparkline. `country` is NOT optional decoration: the
  *  number call that produced the row may have been country-scoped (silver_psd, exports, weather), and
  *  GET /v1/series takes the same filter -- omitting it returned a DIFFERENT, unscoped series under the same
- *  `[N#]` label (D-TW-9). It is part of the query identity for the cache too; see Numbers.tsx's key. */
+ *  `[N#]` label (D-TW-9). It is part of the query identity for the cache too; see Numbers.tsx's key.
+ *
+ *  D-AM-21: `contractMonth` + `agg` are the CURVE read. A comma-separated month list at `agg='latest'`
+ *  returns one row per expiry at ONE as-of -- the term structure -- instead of the interleaved multi-expiry
+ *  series a futures card returns with no month named. Both are OMITTED when absent, so an ordinary sparkline
+ *  fetch sends the exact URL it sent before this wave. `asof` is the caller's OWN as-of either way: a curve
+ *  is read at the same point in time as the row it hangs off, never at a fresher one. */
 export function getSeries(
   table: string,
   metric: string,
-  opts: { commodity?: string; country?: string; asof?: string } = {},
+  opts: { commodity?: string; country?: string; asof?: string; contractMonth?: string; agg?: string } = {},
 ): Promise<Schemas['Series']> {
   if (MOCK) return Promise.resolve(MOCK_SERIES);
   const p = new URLSearchParams();
   if (opts.commodity) p.set('commodity', opts.commodity);
   if (opts.country) p.set('country', opts.country);
   if (opts.asof) p.set('asof', opts.asof);
+  if (opts.contractMonth) p.set('contract_month', opts.contractMonth);
+  if (opts.agg) p.set('agg', opts.agg);
   const qs = p.toString();
   return getJSON(
     `/v1/series/${encodeURIComponent(table)}/${encodeURIComponent(metric)}${qs ? `?${qs}` : ''}`,
