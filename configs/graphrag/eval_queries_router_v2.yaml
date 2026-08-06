@@ -1,0 +1,1036 @@
+# ROUTER MEASUREMENT DECK v2 (D-AM-20) -- the tier-1 response-contract selector, measured.
+#
+# ##########################################################################################################
+# ##  THIS IS A MEASUREMENT DECK, NOT A TUNING DECK.                                                      ##
+# ##########################################################################################################
+# The whole point of these rows is to tell the truth about where intent.select_response_contract MISSES.
+# Do NOT widen _RC_PATTERNS row-by-row until this deck reads 100% -- that is exactly the failure the
+# held-out-probe lesson names: a cue list fitted to its own scoreboard measures the fitting, not the
+# router. The legitimate uses of a miss here are (a) evidence in a decision to change a cue DELIBERATELY,
+# with the change justified on the SHAPE of the ask rather than on this row, and (b) a re-measure after
+# such a change. If a cue is widened, expect the accuracy number to move by less than the miss count --
+# and if it moves by exactly the miss count, suspect fitting.
+#
+# The 13-probe calibration rows already pinned in tests/unit/test_response_contracts.py are the TUNED
+# corpus. These rows are deliberately NOT those rows. Overlap is zero by construction.
+#
+# ── WHAT THE SELECTOR IS ─────────────────────────────────────────────────────────────────────────────────
+# intent._RC_PATTERNS is a PRIORITY-ORDERED tuple of narrow regexes, first match wins:
+#     verification -> counterfactual -> horizon -> enumeration -> ranking -> compare -> recency -> context_node
+# `select_response_contract` returns the winner (None = no match = the `default` contract shape, which is
+# today's answer -- a miss is FAIL-OPEN and costs nothing but the shaping). `select_response_contract_all`
+# (D-AM-20) returns the FULL ordered match set; the orchestrator stamps the non-winners as
+# `also_matched` inside the `response_contract` decision dict so contested turns are visible in eval
+# artifacts. A row with a non-empty also_matched is a row where a priority re-order would change the
+# answer's shape -- watch those, they are where drift lands first.
+#
+# ── ROW FIELDS ───────────────────────────────────────────────────────────────────────────────────────────
+#   id               unique, stable. `st_*` = store row, `sy_*` = synthetic row.
+#   question         the query text, VERBATIM for store rows (typos and all -- a typo is a real router input).
+#   source           store    -> a REAL user question, scanned read-only from the durable DynamoDB stores
+#                               (leviathan-dev-terminal-store turn items + leviathan-dev-graphrag-sessions
+#                               turn items, us-east-1) on 2026-08-06. NEVER invented.
+#                    synthetic -> authored to cover under-represented intents. Clearly marked, never counted
+#                               as evidence about what users actually ask.
+#   expected_intent  numbers_only | reasoning | hybrid | live -- the LANE the turn belongs in.
+#                      numbers_only = only an observed figure/level, no causal reasoning asked.
+#                      reasoning    = why/how/what-if about drivers, cascades, exposure, direction.
+#                      hybrid       = needs a specific number AND the reasoning around it.
+#                      live         = asks for breaking news / what just happened (the live lane).
+#   rc_expected      the contract the selector SHOULD pick, or null when the DEFAULT shape is correct.
+#                    Every non-null value must be a member of response_contracts.valid_names().
+#   ambiguous        true where reasonable readers disagree about rc_expected. FLAGGED, never guessed
+#                    silently. An ambiguous row still carries a label -- the flag says "do not treat this
+#                    miss as a defect without re-reading the question".
+#   note             optional, free text; why a label is what it is.
+#
+# ── LABELLING RULES (applied uniformly; read these before disputing a label) ──────────────────────────────
+# 1. rc_expected describes the SHAPE THE ANSWER SHOULD TAKE, decided from the question alone. It is NOT
+#    "what the regex does". Labelling from the regex would make the deck a tautology.
+# 2. TIER-0 EXEMPT LANES carry rc_expected: null BY RULE, not by judgement:
+#      * numbers_only and live turns -- orchestrator.py runs the selector only for kind in
+#        (reasoning, hybrid), so on those lanes the selector never runs in serving at all;
+#      * outlook asks -- the register-affecting outlook gate (tier 0) preempts, and `outlook` is never a
+#        tier-1 return value.
+#    The audit therefore reports TWO accuracies: over ALL rows, and over ELIGIBLE rows
+#    (expected_intent in {reasoning, hybrid}) -- the second is the serving-relevant number, and a
+#    shadow false-positive on an exempt row is informational only.
+# 3. A conditional MECHANISM ask ("how does the ban affect palm") is NOT counterfactual. A hypothetical
+#    the record may not carry ("what if the ban happened") is.
+# 4. "versus normal / average / seasonal / history" is a BASELINE comparison, not a two-market compare;
+#    those rows are rc_expected: null by design and the compare regex declines them deliberately.
+# 5. Non-English rows are rc_expected: null -- the cue list is English and the caller fails OPEN. That is
+#    a stated contract, not a miss.
+#
+# ── PROVENANCE OF THE STORE ROWS (the true count, stated plainly) ─────────────────────────────────────────
+# A full read-only scan of BOTH durable tables on 2026-08-06 returned 22 items in the terminal store and
+# 2 in the sessions table. Of those, 5 terminal turn items and 1 session turn item carry a user question:
+# SIX raw question records, which dedupe (exact, then casefold+punctuation-normalised) to FIVE distinct
+# real questions -- the sugar crush-pace ask is stored in BOTH tables and is counted once.
+#
+# FIVE IS THE TRUE COUNT. There is no larger pool of real queries in this estate. The deck is topped up to
+# 150 with SYNTHETIC rows so the selector can be measured per-stratum at a usable sample size, and every
+# one of those rows says `source: synthetic`. No invented row is ever labelled `store`. Any future claim
+# about "what users ask" may cite the five store rows and nothing else.
+#
+# Two of the five store rows (st_sugar_crush_pace_a / _b) are a 0.70-similarity NEAR-DUPE pair: the same
+# research question re-asked with different wording three weeks apart. They are KEPT as two rows because
+# they are two distinct real turns with two distinct selector inputs; near-dupe collapsing is applied at
+# exact/casefold level only. Both are noted below so nobody double-counts them as independent evidence.
+#
+# ── SCORER ───────────────────────────────────────────────────────────────────────────────────────────────
+#   python scripts/router_deck_audit.py
+# Offline, deterministic, zero spend: pure-regex selector + the classify-free lexical intent heuristic.
+# No LLM, no Athena, no evidence store.
+version: 2
+deck: router_v2
+authored: '2026-08-06'
+scanned_stores_on: '2026-08-06'
+store_rows_true_count: 5
+rows:
+
+# ══ REAL USER QUESTIONS (source: store) -- verbatim, five rows, the entire real pool ═════════════════════
+- id: st_sugar_crush_pace_a
+  source: store
+  question: "ICE raw sugar ending stock ratio falling -- at what crush pace does Brazil flip to ethanol diversion?"
+  expected_intent: hybrid
+  rc_expected: null
+  ambiguous: false
+  note: "Threshold-in-a-mechanism ask; default shape is right. Near-dupe pair with st_sugar_crush_pace_b."
+- id: st_sugar_crush_pace_b
+  source: store
+  question: "ICE raw sugar ending stocks falling -- at what crush pace does cane diversion to ethanol flip the supply squeeze regime live?"
+  expected_intent: hybrid
+  rc_expected: null
+  ambiguous: false
+  note: "Stored in BOTH tables (terminal + sessions); counted once. Near-dupe of st_sugar_crush_pace_a."
+- id: st_russia_wheat_policy
+  source: store
+  question: "what would a policy restrection from Russia do to the wheat market?"
+  expected_intent: reasoning
+  rc_expected: counterfactual
+  ambiguous: true
+  note: "Typo verbatim. Hypothetical policy shock -- but a reader could call it a plain mechanism ask."
+- id: st_news_followup_week
+  source: store
+  question: "any news related to that from a week or so?"
+  expected_intent: live
+  rc_expected: null
+  ambiguous: false
+  note: "Explicit news ask -> live lane -> tier-0 exempt (rule 2)."
+- id: st_cocoa_civ_cascade
+  source: store
+  question: "let's say production of cocoa in the ivory coast drops, what are the cascading effects?"
+  expected_intent: reasoning
+  rc_expected: counterfactual
+  ambiguous: false
+  note: "'let's say' is the hypothetical framing; the ask is a path the record may not carry."
+
+# ══ SYNTHETIC: verification ══════════════════════════════════════════════════════════════════════════════
+- id: sy_ver_01
+  source: synthetic
+  question: "The 2021 Brazil frost took 20 percent off the arabica crop. Is that documented, or are we inferring it?"
+  expected_intent: reasoning
+  rc_expected: verification
+  ambiguous: false
+- id: sy_ver_02
+  source: synthetic
+  question: "Indonesia's B40 mandate was already in force in January 2025, right?"
+  expected_intent: reasoning
+  rc_expected: verification
+  ambiguous: false
+- id: sy_ver_03
+  source: synthetic
+  question: "I read that China cancelled US soybean cargoes in 2018 -- did they actually cancel, or just defer?"
+  expected_intent: reasoning
+  rc_expected: verification
+  ambiguous: false
+- id: sy_ver_04
+  source: synthetic
+  question: "Is it true that Ivory Coast farmgate prices are set before the season starts?"
+  expected_intent: reasoning
+  rc_expected: verification
+  ambiguous: false
+  note: "Asserted premise in 'is it true' form."
+- id: sy_ver_05
+  source: synthetic
+  question: "The record says the 2010 Russian export ban lifted wheat 60 percent. Fact-check that for me."
+  expected_intent: hybrid
+  rc_expected: verification
+  ambiguous: false
+- id: sy_ver_06
+  source: synthetic
+  question: "My PM claims palm always leads soyoil. Is that actually right?"
+  expected_intent: reasoning
+  rc_expected: verification
+  ambiguous: false
+- id: sy_ver_07
+  source: synthetic
+  question: "Cocoa grindings fell for four straight quarters into 2024 -- can we only infer that, or is it in the record?"
+  expected_intent: hybrid
+  rc_expected: verification
+  ambiguous: false
+- id: sy_ver_08
+  source: synthetic
+  question: "Everyone says the 2012 US drought was the worst since 1988. Does the record support that?"
+  expected_intent: reasoning
+  rc_expected: verification
+  ambiguous: false
+- id: sy_ver_09
+  source: synthetic
+  question: "It is widely believed that Indian sugar export policy is set in October. Confirm or correct."
+  expected_intent: reasoning
+  rc_expected: verification
+  ambiguous: false
+- id: sy_ver_10
+  source: synthetic
+  question: "Did MPOB stocks actually breach 3 million tonnes in late 2022?"
+  expected_intent: hybrid
+  rc_expected: verification
+  ambiguous: true
+  note: "Could read as a pure numbers lookup; the 'actually' carries an asserted premise."
+- id: sy_ver_11
+  source: synthetic
+  question: "Robusta overtook arabica on volume in 2023, isn't it?"
+  expected_intent: reasoning
+  rc_expected: verification
+  ambiguous: false
+- id: sy_ver_12
+  source: synthetic
+  question: "Argentina's export tax on soymeal was cut in 2023 -- is that correct?"
+  expected_intent: reasoning
+  rc_expected: verification
+  ambiguous: false
+- id: sy_ver_13
+  source: synthetic
+  question: "Somebody told me La Nina always means a bigger Brazilian corn crop. True?"
+  expected_intent: reasoning
+  rc_expected: verification
+  ambiguous: true
+  note: "Bare 'True?' -- a reader could route this as a plain mechanism ask."
+- id: sy_ver_14
+  source: synthetic
+  question: "Was the 2008 India rice export ban really about domestic prices, or is that a story told after the fact?"
+  expected_intent: reasoning
+  rc_expected: verification
+  ambiguous: true
+
+# ══ SYNTHETIC: counterfactual ════════════════════════════════════════════════════════════════════════════
+- id: sy_cf_01
+  source: synthetic
+  question: "What if Indonesia raised the CPO export levy by 50 dollars a tonne?"
+  expected_intent: reasoning
+  rc_expected: counterfactual
+  ambiguous: false
+- id: sy_cf_02
+  source: synthetic
+  question: "Suppose Black Sea corridor insurance doubles -- what does that do to landed wheat costs?"
+  expected_intent: reasoning
+  rc_expected: counterfactual
+  ambiguous: false
+- id: sy_cf_03
+  source: synthetic
+  question: "Hypothetically, if the Panama Canal restricted transits again, which ag flows suffer most?"
+  expected_intent: reasoning
+  rc_expected: counterfactual
+  ambiguous: false
+- id: sy_cf_04
+  source: synthetic
+  question: "What would happen if China booked 10 million tonnes of US beans in one month?"
+  expected_intent: reasoning
+  rc_expected: counterfactual
+  ambiguous: false
+- id: sy_cf_05
+  source: synthetic
+  question: "Let us say Ghana defaults on its cocoa forward sales. Then what?"
+  expected_intent: reasoning
+  rc_expected: counterfactual
+  ambiguous: false
+- id: sy_cf_06
+  source: synthetic
+  question: "Were Argentina to drop its soyoil export tax entirely, how much crush shifts?"
+  expected_intent: hybrid
+  rc_expected: counterfactual
+  ambiguous: false
+- id: sy_cf_07
+  source: synthetic
+  question: "Imagine a repeat of the 2016 super El Nino. What breaks first?"
+  expected_intent: reasoning
+  rc_expected: counterfactual
+  ambiguous: false
+- id: sy_cf_08
+  source: synthetic
+  question: "If Russia bans exports again in Q4, how does that transmit to Egyptian import costs?"
+  expected_intent: reasoning
+  rc_expected: counterfactual
+  ambiguous: true
+  note: "Conditional mechanism vs hypothetical -- rule 3 is genuinely close here."
+- id: sy_cf_09
+  source: synthetic
+  question: "What if the ringgit weakened 10 percent -- does that change palm competitiveness?"
+  expected_intent: reasoning
+  rc_expected: counterfactual
+  ambiguous: false
+- id: sy_cf_10
+  source: synthetic
+  question: "How would that play out for the soybean crush spread?"
+  expected_intent: reasoning
+  rc_expected: counterfactual
+  ambiguous: false
+- id: sy_cf_11
+  source: synthetic
+  question: "Assume Brazil plants 2 million fewer hectares of safrinha corn. Consequences?"
+  expected_intent: reasoning
+  rc_expected: counterfactual
+  ambiguous: false
+- id: sy_cf_12
+  source: synthetic
+  question: "Suppose the EUDR deforestation rule slips another year -- what does palm do?"
+  expected_intent: reasoning
+  rc_expected: counterfactual
+  ambiguous: false
+- id: sy_cf_13
+  source: synthetic
+  question: "What if India lifts its sugar export quota to 4 million tonnes?"
+  expected_intent: reasoning
+  rc_expected: counterfactual
+  ambiguous: false
+- id: sy_cf_14
+  source: synthetic
+  question: "Say the US biodiesel blender credit lapses. Where does that leave soyoil demand?"
+  expected_intent: reasoning
+  rc_expected: counterfactual
+  ambiguous: false
+- id: sy_cf_15
+  source: synthetic
+  question: "Were the harmattan to run hot for six weeks, what happens to the mid-crop?"
+  expected_intent: reasoning
+  rc_expected: counterfactual
+  ambiguous: false
+- id: sy_cf_16
+  source: synthetic
+  question: "What would a full Strait of Hormuz closure do to fertilizer, and therefore to corn?"
+  expected_intent: reasoning
+  rc_expected: counterfactual
+  ambiguous: true
+
+# ══ SYNTHETIC: enumeration ═══════════════════════════════════════════════════════════════════════════════
+- id: sy_enum_01
+  source: synthetic
+  question: "When has India restricted rice exports, and what happened each time?"
+  expected_intent: reasoning
+  rc_expected: enumeration
+  ambiguous: false
+- id: sy_enum_02
+  source: synthetic
+  question: "Walk me through the episodes where palm and soyoil decoupled."
+  expected_intent: reasoning
+  rc_expected: enumeration
+  ambiguous: false
+- id: sy_enum_03
+  source: synthetic
+  question: "List every El Nino since 1980 and what it did to Thai cane."
+  expected_intent: reasoning
+  rc_expected: enumeration
+  ambiguous: false
+- id: sy_enum_04
+  source: synthetic
+  question: "Has cocoa ever traded above 10000 dollars before this cycle?"
+  expected_intent: hybrid
+  rc_expected: enumeration
+  ambiguous: true
+  note: "Could read as a numbers lookup; the 'ever' asks the record to be enumerated."
+- id: sy_enum_05
+  source: synthetic
+  question: "What does the historical record show for wheat after a Black Sea disruption?"
+  expected_intent: reasoning
+  rc_expected: enumeration
+  ambiguous: false
+- id: sy_enum_06
+  source: synthetic
+  question: "Enumerate the years when Malaysian palm stocks fell below 1.5 million tonnes."
+  expected_intent: hybrid
+  rc_expected: enumeration
+  ambiguous: false
+- id: sy_enum_07
+  source: synthetic
+  question: "Go through the precedents for an Argentine peso devaluation and farmer selling."
+  expected_intent: reasoning
+  rc_expected: enumeration
+  ambiguous: false
+- id: sy_enum_08
+  source: synthetic
+  question: "What usually happens to sugar when crude falls 20 percent?"
+  expected_intent: reasoning
+  rc_expected: enumeration
+  ambiguous: false
+- id: sy_enum_09
+  source: synthetic
+  question: "Show me each occasion the US corn crop was cut in the September WASDE."
+  expected_intent: hybrid
+  rc_expected: enumeration
+  ambiguous: false
+- id: sy_enum_10
+  source: synthetic
+  question: "Every time the ONI crossed plus 1.5, what did cocoa do?"
+  expected_intent: reasoning
+  rc_expected: enumeration
+  ambiguous: false
+- id: sy_enum_11
+  source: synthetic
+  question: "Give me the case-by-case record of Indian sugar export policy changes."
+  expected_intent: reasoning
+  rc_expected: enumeration
+  ambiguous: false
+- id: sy_enum_12
+  source: synthetic
+  question: "How did the 2008, 2011 and 2022 food price spikes each resolve?"
+  expected_intent: reasoning
+  rc_expected: enumeration
+  ambiguous: false
+- id: sy_enum_13
+  source: synthetic
+  question: "Which eras of the cotton record disagree on the China stockpile effect?"
+  expected_intent: reasoning
+  rc_expected: enumeration
+  ambiguous: true
+  note: "Reads as enumeration-of-eras; a reader could call it a disagreement/default ask."
+- id: sy_enum_14
+  source: synthetic
+  question: "One by one, what did the last five La Ninas do to Argentine soybeans?"
+  expected_intent: reasoning
+  rc_expected: enumeration
+  ambiguous: false
+- id: sy_enum_15
+  source: synthetic
+  question: "Walk me through each episode of Ivorian farmgate price resets."
+  expected_intent: reasoning
+  rc_expected: enumeration
+  ambiguous: false
+- id: sy_enum_16
+  source: synthetic
+  question: "What is the track record for MPOB stock builds ahead of Ramadan?"
+  expected_intent: reasoning
+  rc_expected: enumeration
+  ambiguous: false
+- id: sy_enum_17
+  source: synthetic
+  question: "How has coffee behaved through the 2021 frost and after?"
+  expected_intent: reasoning
+  rc_expected: enumeration
+  ambiguous: true
+- id: sy_enum_18
+  source: synthetic
+  question: "Name the occasions when robusta traded at a premium to arabica."
+  expected_intent: reasoning
+  rc_expected: enumeration
+  ambiguous: false
+
+# ══ SYNTHETIC: ranking ═══════════════════════════════════════════════════════════════════════════════════
+- id: sy_rank_01
+  source: synthetic
+  question: "Who are the largest wheat exporters right now?"
+  expected_intent: numbers_only
+  rc_expected: ranking
+  ambiguous: false
+  note: "Expect also_matched to carry recency -- 'right now' fires too, ranking wins on priority."
+- id: sy_rank_02
+  source: synthetic
+  question: "Rank the top five palm producing countries by 2024 output."
+  expected_intent: numbers_only
+  rc_expected: ranking
+  ambiguous: false
+- id: sy_rank_03
+  source: synthetic
+  question: "Which country is the biggest importer of soybean meal?"
+  expected_intent: numbers_only
+  rc_expected: ranking
+  ambiguous: false
+- id: sy_rank_04
+  source: synthetic
+  question: "Top 3 cocoa grinding origins by volume?"
+  expected_intent: numbers_only
+  rc_expected: ranking
+  ambiguous: false
+- id: sy_rank_05
+  source: synthetic
+  question: "Where does Australia sit in the wheat export league table?"
+  expected_intent: hybrid
+  rc_expected: ranking
+  ambiguous: false
+- id: sy_rank_06
+  source: synthetic
+  question: "Who grows the most robusta?"
+  expected_intent: numbers_only
+  rc_expected: ranking
+  ambiguous: false
+- id: sy_rank_07
+  source: synthetic
+  question: "Give me the ranking of sugar exporters for 2023-24."
+  expected_intent: numbers_only
+  rc_expected: ranking
+  ambiguous: false
+- id: sy_rank_08
+  source: synthetic
+  question: "Which are the largest consumers of palm oil?"
+  expected_intent: numbers_only
+  rc_expected: ranking
+  ambiguous: false
+- id: sy_rank_09
+  source: synthetic
+  question: "Order the corn exporters by share of world trade."
+  expected_intent: numbers_only
+  rc_expected: ranking
+  ambiguous: false
+- id: sy_rank_10
+  source: synthetic
+  question: "Biggest producers of canola, and how has the order changed since 2015?"
+  expected_intent: hybrid
+  rc_expected: ranking
+  ambiguous: false
+- id: sy_rank_11
+  source: synthetic
+  question: "Top 10 importers of Brazilian coffee last year?"
+  expected_intent: numbers_only
+  rc_expected: ranking
+  ambiguous: false
+- id: sy_rank_12
+  source: synthetic
+  question: "Who are the leading exporters of white sugar into West Africa?"
+  expected_intent: numbers_only
+  rc_expected: ranking
+  ambiguous: false
+
+# ══ SYNTHETIC: compare ═══════════════════════════════════════════════════════════════════════════════════
+- id: sy_cmp_01
+  source: synthetic
+  question: "Compare cocoa and coffee balance sheets for 2025-26."
+  expected_intent: hybrid
+  rc_expected: compare
+  ambiguous: false
+- id: sy_cmp_02
+  source: synthetic
+  question: "Palm versus soyoil: which is tighter into Q1?"
+  expected_intent: reasoning
+  rc_expected: compare
+  ambiguous: false
+- id: sy_cmp_03
+  source: synthetic
+  question: "How do Brazilian and Argentine crush margins stack up?"
+  expected_intent: hybrid
+  rc_expected: compare
+  ambiguous: false
+- id: sy_cmp_04
+  source: synthetic
+  question: "Side by side, corn and wheat feed demand."
+  expected_intent: hybrid
+  rc_expected: compare
+  ambiguous: false
+- id: sy_cmp_05
+  source: synthetic
+  question: "Is corn or soybeans more exposed to a Mississippi low water event?"
+  expected_intent: reasoning
+  rc_expected: compare
+  ambiguous: false
+- id: sy_cmp_06
+  source: synthetic
+  question: "Set robusta against arabica on stocks and positioning."
+  expected_intent: hybrid
+  rc_expected: compare
+  ambiguous: false
+- id: sy_cmp_07
+  source: synthetic
+  question: "Which is cheaper on a protein adjusted basis, soymeal or sunmeal?"
+  expected_intent: hybrid
+  rc_expected: compare
+  ambiguous: false
+- id: sy_cmp_08
+  source: synthetic
+  question: "Cotton vs polyester -- how does the substitution work?"
+  expected_intent: reasoning
+  rc_expected: compare
+  ambiguous: true
+  note: "Two-market compare vs single mechanism ask about substitution."
+- id: sy_cmp_09
+  source: synthetic
+  question: "Contrast the Indonesian and Malaysian policy levers on palm."
+  expected_intent: reasoning
+  rc_expected: compare
+  ambiguous: false
+- id: sy_cmp_10
+  source: synthetic
+  question: "Compare how El Nino hits sugar in Brazil versus Thailand."
+  expected_intent: reasoning
+  rc_expected: compare
+  ambiguous: false
+- id: sy_cmp_11
+  source: synthetic
+  question: "Between corn and sorghum, which has more China demand risk?"
+  expected_intent: reasoning
+  rc_expected: compare
+  ambiguous: true
+- id: sy_cmp_12
+  source: synthetic
+  question: "How does the US soybean balance sheet stack up against Brazil's?"
+  expected_intent: hybrid
+  rc_expected: compare
+  ambiguous: false
+- id: sy_cmp_13
+  source: synthetic
+  question: "Which is stronger right now, the meal leg or the oil leg?"
+  expected_intent: reasoning
+  rc_expected: compare
+  ambiguous: true
+  note: "Expect also_matched to carry recency."
+- id: sy_cmp_14
+  source: synthetic
+  question: "Cocoa and coffee share a weather driver but not an outcome -- compare the exposure."
+  expected_intent: reasoning
+  rc_expected: compare
+  ambiguous: false
+
+# ══ SYNTHETIC: recency ═══════════════════════════════════════════════════════════════════════════════════
+- id: sy_rec_01
+  source: synthetic
+  question: "What is the latest on Malaysian palm stocks?"
+  expected_intent: hybrid
+  rc_expected: recency
+  ambiguous: false
+- id: sy_rec_02
+  source: synthetic
+  question: "Where are cocoa arrivals currently versus last year?"
+  expected_intent: hybrid
+  rc_expected: recency
+  ambiguous: false
+- id: sy_rec_03
+  source: synthetic
+  question: "How have coffee differentials moved in the past 4 weeks?"
+  expected_intent: hybrid
+  rc_expected: recency
+  ambiguous: false
+- id: sy_rec_04
+  source: synthetic
+  question: "Recent US export sales for corn -- how do they look?"
+  expected_intent: hybrid
+  rc_expected: recency
+  ambiguous: false
+- id: sy_rec_05
+  source: synthetic
+  question: "What is the state of the Brazilian crush right now?"
+  expected_intent: hybrid
+  rc_expected: recency
+  ambiguous: false
+- id: sy_rec_06
+  source: synthetic
+  question: "As of today, where do wheat stocks-to-use sit?"
+  expected_intent: numbers_only
+  rc_expected: recency
+  ambiguous: false
+- id: sy_rec_07
+  source: synthetic
+  question: "This week's Ivorian port arrivals -- anything unusual?"
+  expected_intent: hybrid
+  rc_expected: recency
+  ambiguous: false
+- id: sy_rec_08
+  source: synthetic
+  question: "How is the monsoon tracking so far this season?"
+  expected_intent: reasoning
+  rc_expected: recency
+  ambiguous: false
+- id: sy_rec_09
+  source: synthetic
+  question: "Give me the freshest read on Argentine farmer selling."
+  expected_intent: reasoning
+  rc_expected: recency
+  ambiguous: false
+- id: sy_rec_10
+  source: synthetic
+  question: "What has changed in the sugar balance over the last month?"
+  expected_intent: hybrid
+  rc_expected: recency
+  ambiguous: false
+- id: sy_rec_11
+  source: synthetic
+  question: "Latest MPOB print -- what did it say?"
+  expected_intent: hybrid
+  rc_expected: recency
+  ambiguous: false
+- id: sy_rec_12
+  source: synthetic
+  question: "Where does the record stand today on Indian wheat procurement?"
+  expected_intent: hybrid
+  rc_expected: recency
+  ambiguous: true
+  note: "Bare 'today' -- a reader could route this live."
+- id: sy_rec_13
+  source: synthetic
+  question: "Recently the cocoa curve flattened. What is driving it now?"
+  expected_intent: reasoning
+  rc_expected: recency
+  ambiguous: false
+- id: sy_rec_14
+  source: synthetic
+  question: "What are we seeing in the past 10 days on Vietnamese robusta shipments?"
+  expected_intent: hybrid
+  rc_expected: recency
+  ambiguous: false
+
+# ══ SYNTHETIC: horizon ═══════════════════════════════════════════════════════════════════════════════════
+- id: sy_hor_01
+  source: synthetic
+  question: "What should I watch over the next few weeks, months and years for cocoa?"
+  expected_intent: reasoning
+  rc_expected: horizon
+  ambiguous: false
+- id: sy_hor_02
+  source: synthetic
+  question: "Give me the corn risks by horizon."
+  expected_intent: reasoning
+  rc_expected: horizon
+  ambiguous: false
+- id: sy_hor_03
+  source: synthetic
+  question: "Short-term the market is tight but long-term supply responds -- how do I frame that for palm?"
+  expected_intent: reasoning
+  rc_expected: horizon
+  ambiguous: false
+- id: sy_hor_04
+  source: synthetic
+  question: "What matters for sugar over weeks, then months, then the next couple of years?"
+  expected_intent: reasoning
+  rc_expected: horizon
+  ambiguous: false
+- id: sy_hor_05
+  source: synthetic
+  question: "Across horizons, what drives the wheat curve?"
+  expected_intent: reasoning
+  rc_expected: horizon
+  ambiguous: false
+- id: sy_hor_06
+  source: synthetic
+  question: "What is the near-term versus structural picture for cotton?"
+  expected_intent: reasoning
+  rc_expected: horizon
+  ambiguous: true
+- id: sy_hor_07
+  source: synthetic
+  question: "Lay out the watch list for coffee across the next quarter and the next three years."
+  expected_intent: reasoning
+  rc_expected: horizon
+  ambiguous: false
+- id: sy_hor_08
+  source: synthetic
+  question: "For soybeans, what binds in the next two weeks, what binds by harvest, and what binds in five years?"
+  expected_intent: reasoning
+  rc_expected: horizon
+  ambiguous: false
+- id: sy_hor_09
+  source: synthetic
+  question: "Tell me what to watch across weeks and quarters for the Black Sea."
+  expected_intent: reasoning
+  rc_expected: horizon
+  ambiguous: false
+- id: sy_hor_10
+  source: synthetic
+  question: "How do the drivers rank short run versus long run for palm?"
+  expected_intent: reasoning
+  rc_expected: horizon
+  ambiguous: true
+  note: "Expect a contested row: ranking and compare cues both fire; horizon wins on priority."
+
+# ══ SYNTHETIC: context_node ══════════════════════════════════════════════════════════════════════════════
+- id: sy_ctx_01
+  source: synthetic
+  question: "Does barley affect any of the tracked commodities?"
+  expected_intent: reasoning
+  rc_expected: context_node
+  ambiguous: false
+- id: sy_ctx_02
+  source: synthetic
+  question: "What role does rubber play in this complex?"
+  expected_intent: reasoning
+  rc_expected: context_node
+  ambiguous: false
+- id: sy_ctx_03
+  source: synthetic
+  question: "Does fertilizer matter for the corn balance?"
+  expected_intent: reasoning
+  rc_expected: context_node
+  ambiguous: false
+- id: sy_ctx_04
+  source: synthetic
+  question: "Is sunflower oil relevant to the palm story?"
+  expected_intent: reasoning
+  rc_expected: context_node
+  ambiguous: false
+- id: sy_ctx_05
+  source: synthetic
+  question: "Does the freight market move ag prices at all?"
+  expected_intent: reasoning
+  rc_expected: context_node
+  ambiguous: false
+- id: sy_ctx_06
+  source: synthetic
+  question: "How much does the peso influence Argentine farmer selling?"
+  expected_intent: reasoning
+  rc_expected: context_node
+  ambiguous: true
+  note: "'How much' reads numeric, but the ask is a linkage question about an untracked node."
+- id: sy_ctx_07
+  source: synthetic
+  question: "Where does urea sit in the driver map?"
+  expected_intent: reasoning
+  rc_expected: context_node
+  ambiguous: false
+- id: sy_ctx_08
+  source: synthetic
+  question: "Does crude oil impact sugar through ethanol?"
+  expected_intent: reasoning
+  rc_expected: context_node
+  ambiguous: true
+  note: "Crude is a tracked driver here, so a reader could call this a plain mechanism ask."
+- id: sy_ctx_09
+  source: synthetic
+  question: "Tell me about tallow as a feedstock -- is it in the model?"
+  expected_intent: reasoning
+  rc_expected: context_node
+  ambiguous: false
+- id: sy_ctx_10
+  source: synthetic
+  question: "What role does the dollar index play for cotton exports?"
+  expected_intent: reasoning
+  rc_expected: context_node
+  ambiguous: false
+
+# ══ SYNTHETIC: default shape (rc_expected null) -- mechanism, lookups, outlook, live, non-English ════════
+- id: sy_def_01
+  source: synthetic
+  question: "Why did cocoa rally in early 2024?"
+  expected_intent: reasoning
+  rc_expected: null
+  ambiguous: false
+- id: sy_def_02
+  source: synthetic
+  question: "How does the palm-soyoil spread transmit to biodiesel demand?"
+  expected_intent: reasoning
+  rc_expected: null
+  ambiguous: false
+- id: sy_def_03
+  source: synthetic
+  question: "What were US corn ending stocks in 2023-24?"
+  expected_intent: numbers_only
+  rc_expected: null
+  ambiguous: false
+- id: sy_def_04
+  source: synthetic
+  question: "How much soybean meal did Argentina export last year?"
+  expected_intent: numbers_only
+  rc_expected: null
+  ambiguous: false
+- id: sy_def_05
+  source: synthetic
+  question: "What is the mechanism from Indonesian levy changes to Rotterdam CPO?"
+  expected_intent: reasoning
+  rc_expected: null
+  ambiguous: false
+- id: sy_def_06
+  source: synthetic
+  question: "Explain the crush margin and why it matters for meal."
+  expected_intent: reasoning
+  rc_expected: null
+  ambiguous: false
+- id: sy_def_07
+  source: synthetic
+  question: "Where do you see cocoa prices going from here?"
+  expected_intent: reasoning
+  rc_expected: null
+  ambiguous: false
+  note: "Outlook ask -- tier-0 gate owns it; tier 1 must decline (rule 2)."
+- id: sy_def_08
+  source: synthetic
+  question: "Any news on the Indian wheat import duty?"
+  expected_intent: live
+  rc_expected: null
+  ambiguous: false
+- id: sy_def_09
+  source: synthetic
+  question: "What just happened in the sugar market?"
+  expected_intent: live
+  rc_expected: null
+  ambiguous: false
+- id: sy_def_10
+  source: synthetic
+  question: "ONI value for the last three months?"
+  expected_intent: numbers_only
+  rc_expected: null
+  ambiguous: false
+- id: sy_def_11
+  source: synthetic
+  question: "What drives the arabica-robusta arb?"
+  expected_intent: reasoning
+  rc_expected: null
+  ambiguous: false
+- id: sy_def_12
+  source: synthetic
+  question: "How exposed is Egypt to a Black Sea disruption?"
+  expected_intent: reasoning
+  rc_expected: null
+  ambiguous: false
+- id: sy_def_13
+  source: synthetic
+  question: "What is Brazil's 2025-26 soybean production estimate?"
+  expected_intent: numbers_only
+  rc_expected: null
+  ambiguous: false
+- id: sy_def_14
+  source: synthetic
+  question: "Why is the wheat curve in carry?"
+  expected_intent: reasoning
+  rc_expected: null
+  ambiguous: false
+- id: sy_def_15
+  source: synthetic
+  question: "How does La Nina change Argentine yields?"
+  expected_intent: reasoning
+  rc_expected: null
+  ambiguous: false
+- id: sy_def_16
+  source: synthetic
+  question: "What is the stocks-to-use ratio for corn this year?"
+  expected_intent: numbers_only
+  rc_expected: null
+  ambiguous: false
+- id: sy_def_17
+  source: synthetic
+  question: "Is the cocoa deficit structural or cyclical?"
+  expected_intent: reasoning
+  rc_expected: null
+  ambiguous: false
+- id: sy_def_18
+  source: synthetic
+  question: "Walk me through how the crush works."
+  expected_intent: reasoning
+  rc_expected: null
+  ambiguous: false
+  note: "Designed negative: 'walk me through' is a MECHANISM idiom without an enumerable object."
+- id: sy_def_19
+  source: synthetic
+  question: "What managed money net length is on ICE cocoa?"
+  expected_intent: numbers_only
+  rc_expected: null
+  ambiguous: false
+- id: sy_def_20
+  source: synthetic
+  question: "Why do Ivorian farmgate prices lag the world price?"
+  expected_intent: reasoning
+  rc_expected: null
+  ambiguous: false
+- id: sy_def_21
+  source: synthetic
+  question: "Wheat versus normal seasonal patterns -- where are we?"
+  expected_intent: reasoning
+  rc_expected: null
+  ambiguous: true
+  note: "Designed negative for rule 4: a baseline comparison, not a two-market compare."
+- id: sy_def_22
+  source: synthetic
+  question: "لماذا ارتفعت أسعار الكاكاو هذا العام؟"
+  expected_intent: reasoning
+  rc_expected: null
+  ambiguous: false
+  note: "Non-Latin (Arabic, 'why did cocoa prices rise this year'): the cue list is English and fails open by contract (rule 5). Deliberately NOT the probe's Arabic row -- this deck shares no text with the tuned corpus."
+- id: sy_def_23
+  source: synthetic
+  question: "Como o clima no Brasil afeta o cafe?"
+  expected_intent: reasoning
+  rc_expected: null
+  ambiguous: false
+  note: "Latin script, non-English: same rule-5 contract."
+- id: sy_def_24
+  source: synthetic
+  question: "What is the Malaysian palm oil export tax schedule?"
+  expected_intent: numbers_only
+  rc_expected: null
+  ambiguous: false
+- id: sy_def_25
+  source: synthetic
+  question: "How do freight rates feed into landed corn costs in Asia?"
+  expected_intent: reasoning
+  rc_expected: null
+  ambiguous: false
+- id: sy_def_26
+  source: synthetic
+  question: "Is there convexity in the palm balance sheet if stocks fall another 200k tonnes?"
+  expected_intent: reasoning
+  rc_expected: null
+  ambiguous: true
+  note: "Borderline counterfactual; the ask is about a property of the balance sheet, not a scenario path."
+- id: sy_def_27
+  source: synthetic
+  question: "Breaking: has anything happened on the Russian wheat export quota?"
+  expected_intent: live
+  rc_expected: null
+  ambiguous: false
+- id: sy_def_28
+  source: synthetic
+  question: "Give me the cocoa grind numbers for Q2."
+  expected_intent: numbers_only
+  rc_expected: null
+  ambiguous: false
+- id: sy_def_29
+  source: synthetic
+  question: "What is driving the sugar rally?"
+  expected_intent: reasoning
+  rc_expected: null
+  ambiguous: false
+- id: sy_def_30
+  source: synthetic
+  question: "How tight is the robusta balance sheet?"
+  expected_intent: hybrid
+  rc_expected: null
+  ambiguous: false
+- id: sy_def_31
+  source: synthetic
+  question: "Why did soybean oil decouple from palm in 2023?"
+  expected_intent: reasoning
+  rc_expected: null
+  ambiguous: false
+- id: sy_def_32
+  source: synthetic
+  question: "What is the current Brazilian real level?"
+  expected_intent: numbers_only
+  rc_expected: null
+  ambiguous: false
+- id: sy_def_33
+  source: synthetic
+  question: "How does the Indian government set the sugar MSP?"
+  expected_intent: reasoning
+  rc_expected: null
+  ambiguous: false
+- id: sy_def_34
+  source: synthetic
+  question: "What are the drivers of the cotton A-index?"
+  expected_intent: reasoning
+  rc_expected: null
+  ambiguous: false
+- id: sy_def_35
+  source: synthetic
+  question: "Explain why the corn basis in the Gulf widened."
+  expected_intent: hybrid
+  rc_expected: null
+  ambiguous: false
+- id: sy_def_36
+  source: synthetic
+  question: "How would a stronger dollar feed through to ag exports?"
+  expected_intent: reasoning
+  rc_expected: null
+  ambiguous: true
+  note: "Conditional mechanism (rule 3), not a hypothetical the record must be searched for."
+- id: sy_def_37
+  source: synthetic
+  question: "What is the ICCO's latest cocoa deficit estimate?"
+  expected_intent: numbers_only
+  rc_expected: null
+  ambiguous: true
+  note: "Tier-0 exempt lane; kept to measure whether 'latest' over-fires on a plain figure lookup."

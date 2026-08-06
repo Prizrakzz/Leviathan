@@ -1541,11 +1541,23 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
     # discovered. Tier 1 lexical runs DARK on every eligible turn (the xc_detect precedent): the
     # attribution is stamped on `decided` unconditionally; the FLAG decides only whether the name is
     # passed down (answer.py re-ANDs the allowlist at its seam). The selector never touches `query`.
-    _rc_sel = it.select_response_contract(query) if kind in ("reasoning", "hybrid") else None
+    #
+    # D-AM-20 SHADOW STAMP: the selector is first-match-wins, so a widened cue or a re-ordered tuple
+    # changes the winner with NO artifact anywhere recording that a second family also matched --
+    # drift is invisible until a judged run happens to notice a mis-shaped answer. `also_matched`
+    # carries the non-winner matches (priority order, [] when the winner was unopposed) so an A/B
+    # tally can see contested turns. It rides INSIDE the existing `response_contract` decision dict,
+    # which tracekeys.DECISION_RECORD_KEYS already lifts WHOLE into the eval record's
+    # `response_contract_decision` column -- so this adds NO eval column and needs no eval edit.
+    # Observational only: `selected`/`resolved`/`_rck` are computed exactly as before (element 0 of
+    # the match tuple IS first-match-wins), so routing is byte-identical.
+    _rc_all = it.select_response_contract_all(query) if kind in ("reasoning", "hybrid") else ()
+    _rc_sel = _rc_all[0] if _rc_all else None
     _rc_name = "outlook" if outlook_mode else _rc_sel
     decided = (decided or {}) | {"response_contract": {
         "selected": _rc_sel, "resolved": _rc_name,
-        "outlook_preempt": bool(outlook_mode), "tier": "lexical" if _rc_sel else "none"}}
+        "outlook_preempt": bool(outlook_mode), "tier": "lexical" if _rc_sel else "none",
+        "also_matched": list(_rc_all[1:])}}
     _rck = {"response_contract": _rc_name} \
         if (_rc_name and _rc_name in an._response_contracts_enabled()) else {}
     # -- B1: the two things a numbers lane gets from the plan, resolved ONCE for BOTH lanes ----------------

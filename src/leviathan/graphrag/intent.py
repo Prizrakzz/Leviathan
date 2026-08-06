@@ -212,16 +212,34 @@ _RC_PATTERNS = (
 )
 
 
+def select_response_contract_all(query: str) -> tuple[str, ...]:
+    """EVERY tier-1 pattern this query matches, in _RC_PATTERNS priority order; () for no match, an
+    empty query, or a non-Latin query (the cue list is English).
+
+    D-AM-20 (the SHADOW stamp): first-match-wins hides its own drift. Only the winner is stamped
+    today, so a cue widening that starts matching an extra family -- or a re-ordering that changes
+    which of two long-standing matches wins -- is invisible in every artifact until a judged run
+    happens to notice the shaped answer. This returns the FULL match set so the orchestrator can
+    stamp the non-winners beside the winner and a deck audit can measure selector drift offline.
+
+    PURELY OBSERVATIONAL: select_response_contract() below delegates to this and returns element 0,
+    so the shipped selection is unchanged by construction (same tuple, same order, same regexes) --
+    the only cost is that all eight patterns are evaluated instead of short-circuiting, which is
+    microseconds of pure-regex work on one query string, off the hot path."""
+    q = query or ""
+    return tuple(name for name, rx in _RC_PATTERNS if rx.search(q))
+
+
 def select_response_contract(query: str) -> str | None:
     """Tier-1 deterministic response-contract selection: the priority-ordered narrow cue tuple, first
     match wins, None on no match OR a non-Latin query (the cue list is English; downstream fails open
     to `default`). Pure regex, no I/O, no LLM. Runs DARK on every eligible turn (the xc_detect
-    precedent) — the flag decides only whether the value is passed down, never whether it is stamped."""
-    q = query or ""
-    for name, rx in _RC_PATTERNS:
-        if rx.search(q):
-            return name
-    return None
+    precedent) — the flag decides only whether the value is passed down, never whether it is stamped.
+
+    Return contract UNTOUCHED by D-AM-20: this is the priority-first element of
+    select_response_contract_all(), which IS first-match-wins over the same tuple."""
+    matches = select_response_contract_all(query)
+    return matches[0] if matches else None
 
 
 # ── cross-commodity RV explicit-ask detector (reroute v2, RV-W1.1) ────────────────────────────────────
