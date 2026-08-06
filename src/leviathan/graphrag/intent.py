@@ -157,7 +157,12 @@ _EPISODIC = re.compile(
     r"|\bwalk\s+me\s+through\s+(?:the|each|those|every)\b[^.?!]{0,40}?\b(?:episod|record|histor|time)"
     r"|\bplayed\s+out\b"                                    # past tense ONLY: 'how would that play out'
     r"|\bevery\s+time\b"                                    # is a counterfactual, not an enumeration
-    r"|\bwatch\s+over\b",                                   # 'what should I watch over weeks, months...'
+    r"|\bwatch\s+over\b"                                    # 'what should I watch over weeks, months...'
+    # D-CC: 'which year is the right ANALOG' is the desk's native episode-enumeration phrasing --
+    # an analog question IS an episode question (compare the candidate windows one by one), and the
+    # D-CC episode-coverage mandate rides the contract this detector licenses. Router-deck validated,
+    # zero drift outside the target stratum.
+    r"|\banalog(?:ue)?s?\b",
     re.I)
 
 
@@ -196,7 +201,14 @@ _RC_PATTERNS = (
     ("verification", re.compile(
         r"\bis (?:this|that|it) documented\b|\bcan we (?:only )?infer\b|\bfact[- ]check\b"
         r"|\bis (?:this|that) (?:actually |really )?(?:true|right|correct|the case)\b"
-        r"|\bdid \w+(?: \w+){0,4} actually\b|,\s*right\?|\bisn'?t it\?", re.I)),
+        r"|\bdid \w+(?: \w+){0,4} actually\b|,\s*right\?|\bisn'?t it\?"
+        # D-CC vintage-reconciliation family: 'the versions/numbers/prints do not agree' and 'which
+        # vintage/version/revision should I quote' are verification asks in the desk's own words --
+        # the answer must reconcile dated prints, which is exactly the verification contract's job.
+        # Router-deck validated, zero drift outside the target stratum.
+        r"|\b(?:numbers?|versions?|vintages?|prints?|revisions?) (?:do not|don'?t|no longer) "
+        r"(?:agree|match|line up|reconcile)\b"
+        r"|\bwhich (?:vintage|version|print|revision)\b", re.I)),
     # D-UX-5: the D-AM-20 router deck measured this family WEAKEST (50%, 9 of 18 rows falling open to
     # default) with named gaps -- "let's say", "assume", "imagine", an imperative "say the ...", a
     # multi-word subjunctive subject ("were the harmattan to"), and the "what would X do to Y" shape
@@ -237,7 +249,18 @@ _RC_PATTERNS = (
         # two-market compare -- the lookahead keeps those out.
         r"\bcompare\b|\b(?:versus|vs\.?)\s+(?!normal\b|average\b|usual\b|histor|seasonal|last\b|typical\b)"
         r"|\bside by side\b|\bstack up\b"
-        r"|\bwhich is (?:tighter|cheaper|richer|stronger|weaker|more exposed)\b", re.I)),
+        r"|\bwhich is (?:tighter|cheaper|richer|stronger|weaker|more exposed)\b"
+        # D-CC threshold family: substitution/switch-point questions are two-market comparisons whose
+        # answer IS the threshold -- `compare` carries both threshold-locate and rank-complete, so this
+        # is where they must land. The D-DV-2 verdict rows ("never locates the convexity threshold")
+        # selected NOTHING and fell to default's empty directive; these cues close that hole. Each cue
+        # is a threshold PHRASING, not topic vocabulary: 'how much cheaper ... before', 'switch point',
+        # 'at what level/ratio/discount', and the chain-walk 'from X through to Y'. Validated against
+        # the 150-row router deck (zero drift outside the target rows) + the 25-row A/B selector pins.
+        r"|\bhow much (?:cheaper|dearer|richer|wider|tighter|higher|lower|more|less)\b[^.?!]{0,60}?\bbefore\b"
+        r"|\bswitch(?:ing)? point\b|\btipping point\b|\bbreak-?even\b"
+        r"|\bat what (?:point|level|price|ratio|discount|premium|spread)\b"
+        r"|\bfrom (?:the |an? )?[^.?!]{0,50}? through to\b", re.I)),
     ("recency", re.compile(
         r"\bright now\b|\bpast \d+ (?:day|week|month)s?\b|\bcurrently\b|\bas of (?:today|now)\b"
         r"|\blatest\b|\brecent(?:ly)?\b|\bthis (?:week|month)\b", re.I)),
