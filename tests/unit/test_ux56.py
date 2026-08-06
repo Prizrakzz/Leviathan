@@ -281,8 +281,12 @@ def test_l2_on_stage_none_is_byte_identical_and_events_ordered(monkeypatch):
     probed = an.answer("trace how a coffee frost spikes price", on_stage=lambda s, i: events.append((s, i)), **kw)
 
     def _strip(res):
+        # Drop EVERY wall-clock trace key (ms_synth_llm, ground_ms, ms_quantify, ...) -- the contract
+        # under test is "on_stage=None is byte-identical apart from timers", and naming timers one by
+        # one is how ms_synth_llm slipped through. Timer keys only; never a subset comparison.
         out = {k: v for k, v in res.items() if k != "trace"}
-        out["trace"] = {k: v for k, v in res["trace"].items() if k != "ground_ms"}   # wall-clock only
+        out["trace"] = {k: v for k, v in res["trace"].items()
+                        if not (k.startswith("ms_") or k.endswith("_ms"))}
         return out
 
     assert _strip(base) == _strip(probed)                            # the load-bearing contract
