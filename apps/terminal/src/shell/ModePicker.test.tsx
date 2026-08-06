@@ -35,10 +35,10 @@ describe('ModePicker (D-AM-14 — docked at the ask bar)', () => {
     expect(screen.getByTestId('mode-option-standard').getAttribute('aria-checked')).toBe('true');
 
     // The per-mode expected-time hint (item 3): relative words, in the app's register.
-    expect(screen.getByTestId('mode-option-quick')).toHaveTextContent('faster');
-    expect(screen.getByTestId('mode-option-quick')).toHaveTextContent('narrower evidence');
+    expect(screen.getByTestId('mode-option-quick')).toHaveTextContent('same speed');
+    expect(screen.getByTestId('mode-option-quick')).toHaveTextContent('leaner evidence');
     expect(screen.getByTestId('mode-option-standard')).toHaveTextContent('baseline');
-    expect(screen.getByTestId('mode-option-deep')).toHaveTextContent('~2-3x slower');
+    expect(screen.getByTestId('mode-option-deep')).toHaveTextContent('~2x slower');
     expect(screen.getByTestId('mode-option-deep')).toHaveTextContent('all cascade legs');
   });
 

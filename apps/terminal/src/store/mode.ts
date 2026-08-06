@@ -35,11 +35,15 @@ export interface ModeCopy {
   detail: string;
 }
 
+// Copy calibrated against the D-AM-13 measurement (2026-08-06): quick's LATENCY matched standard
+// (synthesis dominates turn time) -- its real wins are leaner evidence and a tighter answer, so the
+// hint must not promise speed. deep measured slower AND worse as v1-tuned; it ships dark, and its
+// row says what it does, not what it hopes to earn.
 export const MODE_COPY: Record<ModeName, ModeCopy> = {
-  quick: { time: 'faster', detail: 'narrower evidence, a one-hop walk' },
+  quick: { time: 'same speed', detail: 'leaner evidence, a tighter answer' },
   standard: { time: 'baseline', detail: 'the depth every answer has shipped at' },
   deep: {
-    time: '~2-3x slower',
+    time: '~2x slower',
     detail: 'several times the evidence, a three-hop walk, all cascade legs',
   },
 };
