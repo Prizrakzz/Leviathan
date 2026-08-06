@@ -34,15 +34,19 @@ RETURN CONTRACT
     (extrema is the one shape exception: it carries "min"/"max" instead of a single "value", because it
     yields two magnitudes -- the integrator injects two [N] rows.)
 
-ONE DELIBERATE EXCEPTION TO THE Sequence[float] SIGNATURE CONVENTION (D-FR-8, FUTURES_READPATH wave)
-    `unit_compatible()` and its decline builders below take two `str | None` unit labels, not a numeric
-    series. That is a knowing departure from "every function here takes Sequence[float]" and it is named
-    rather than smuggled. What it does NOT touch is the PURITY claim above: a two-string predicate reads
+TWO DELIBERATE EXCEPTIONS TO THE Sequence[float] SIGNATURE CONVENTION -- both named, neither smuggled
+    (1) D-FR-8 (FUTURES_READPATH wave). `unit_compatible()` and its decline builders below take two
+    `str | None` unit labels, not a numeric series. That is a knowing departure from "every function here
+    takes Sequence[float]". What it does NOT touch is the PURITY claim above: a two-string predicate reads
     no filesystem, no network, no clock and no global state, so "PIT is inherited" stays structurally
     true. The reason it lives HERE and not next to its one caller is AM-3's one-floor-family rule
     (MIN_QUANTILE_N below, and stats.py:53-56's "never a second, laxer constant declared next to the
     consumer"): the unit-compatibility POLICY is a refusal floor, and a second consumer must inherit it
     rather than fork it.
+    (2) D-AM-17. `spread()` takes a second, PARALLEL sequence beside its numeric one -- the delivery-month
+    LABEL axis -- because it is the only stat here whose two operands are selected BY NAME rather than by
+    position. The labels stay strings and are never parsed into dates or ordered: this module holds no
+    expiry vocabulary and no calendar. Purity is untouched for the same structural reason as (1).
 """
 from __future__ import annotations
 
@@ -64,6 +68,11 @@ MIN_QUANTILE_N = MIN_PERCENTILE_N   # OUTCOMES_JOIN AM-3: ONE floor family. A sp
 #                                     firings fakes the same precision a rank over them does, so the
 #                                     outcome join's coverage floor IS this module's refusal floor --
 #                                     never a second, laxer constant declared next to the consumer.
+MIN_SPREAD_N = MIN_WINDOW_CHANGE_N  # D-AM-17: the SAME floor family, not a second number. A calendar
+#                                     spread is a two-ENDPOINT difference across the delivery-month axis
+#                                     exactly as window_change is one across the time axis -- both need
+#                                     both legs and neither needs a third point, so the constant is
+#                                     inherited rather than re-declared one line laxer.
 
 DIRECTIONS = ("up", "down")
 
@@ -175,6 +184,12 @@ UNIT_UNLABELLED = "unlabelled"          # how an absent unit is rendered in a TR
 # on prose (the trace key rides the unit one ONLY -- an empty read is a coverage gap, not a unit event).
 UNIT_GUARD = "unit_mismatch"
 EMPTY_GUARD = "empty_series"
+# D-AM-17 (S4). The third tag joins the SAME family so the caller keeps telling guards apart by tag rather
+# than by prose. Its REASON string is NOT minted here: the shape vocabulary (`contract_month`, session
+# aliases, the curve-vs-calendar discriminator) lives in query.py beside the code that mints those aliases,
+# and copying it into a second home is what that module's own comment forbids. The caller renders the
+# reason there and passes it in, which also keeps this module free of any query import.
+CURVE_GUARD = "curve_as_calendar"
 
 
 def _norm_unit(unit) -> str:
@@ -222,6 +237,13 @@ def empty_series_decline(stat: str, n: int, which: str) -> dict:
     """The EMPTY-read refusal, which outranks the unit check. `which` names the side that came back
     empty, in reader-facing words."""
     return _decline(stat, n, EMPTY_SERIES_DECLINE.format(which=which), guard=EMPTY_GUARD)
+
+
+def curve_as_calendar_decline(stat: str, n: int, reason: str) -> dict:
+    """S4's refusal on the SAME _decline contract as every other floor here, so an interleaved read reaches
+    the model as an honest `declined` (no [N] row minted) rather than as an `error` or a raise. `reason` is
+    rendered by the caller from the MEASURED shape -- see CURVE_GUARD above for why it is not built here."""
+    return _decline(stat, n, reason, guard=CURVE_GUARD)
 
 
 def _trailing_run(values: list[float], direction: str) -> int:
@@ -356,6 +378,60 @@ def yoy_delta(series: Sequence, periods: int = 1) -> dict:
             "latest": latest, "prior": prior, "pct_change": pct, "periods": periods}
 
 
+def spread(series: Sequence, expiries: Sequence, near, far) -> dict:
+    """D-AM-17. The CARRY / calendar spread between two NAMED delivery months of ONE curve read taken at a
+    single as-of: value = series[far] - series[near] (positive = the deferred leg is dearer).
+
+    `expiries` is the delivery-month LABEL axis, parallel to `series` -- index i of one is index i of the
+    other. It exists because this is the one stat whose operands are chosen BY NAME, not by position; the
+    caller builds both axes in a single pass so the two can never drift apart (a misaligned label would
+    subtract the wrong two legs and say nothing).
+
+    NEVER A FRONT-MONTH INFERENCE. The two legs are the ones the caller NAMED, and nothing here derives
+    them. The per-expiry price table stores no front-month flag and publishes no open-interest metric, so
+    "the front month" is not computable from these rows at all -- a nearest-listed-expiry tie-break wearing
+    that name would be the quiet substitution the card's delivery-month doctrine refuses.
+
+    EVERY FAILURE IS A REFUSAL, NEVER A RAISE, because each one is a real thing the model will ask for:
+    a month absent from the read; a month on MORE than one row (the rows span several sessions, so this is
+    not a curve at one as-of and "the" price of that expiry is not a single number); the same month twice;
+    or rows carrying no delivery month at all (a cash reference, or a handle that is itself a derived
+    figure). Each reason names what came back so the next call can be the right one."""
+    vals = _floats(series)
+    labels = [("" if e is None else str(e)).strip() for e in expiries]
+    n = len(vals)
+    a, b = ("" if near is None else str(near)).strip(), ("" if far is None else str(far)).strip()
+    params = {"near": a, "far": b}
+    if len(labels) != n:
+        return _decline("spread", n, f"the delivery-month axis carries {len(labels)} labels for {n} "
+                                     f"values, so a named month cannot be matched to a number", **params)
+    if n < MIN_SPREAD_N:
+        return _decline("spread", n, f"need >={MIN_SPREAD_N} rows (one per named delivery month), got {n}",
+                        **params)
+    if not a or not b:
+        return _decline("spread", n, "both delivery months must be named -- there is no front-month "
+                                     "contract in this lookup to infer one from", **params)
+    if a == b:
+        return _decline("spread", n, f"both legs name the same delivery month ({a}), which is a "
+                                     f"difference of a figure against itself", **params)
+    listed = sorted({m for m in labels if m})
+    if not listed:
+        return _decline("spread", n, "these rows carry no delivery month at all, so this is not a curve "
+                                     "read and there are no two legs to difference", **params)
+    missing = [m for m in (a, b) if m not in listed]
+    if missing:
+        return _decline("spread", n, f"{' and '.join(missing)} is not among the delivery months this read "
+                                     f"returned ({', '.join(listed)})", **params)
+    dupes = [m for m in (a, b) if labels.count(m) > 1]
+    if dupes:
+        return _decline("spread", n, f"{' and '.join(dupes)} appears on more than one row, so these rows "
+                                     f"span several sessions rather than one as-of and each leg has no "
+                                     f"single figure", **params)
+    near_val, far_val = vals[labels.index(a)], vals[labels.index(b)]
+    return {"stat": "spread", "declined": False, "value": far_val - near_val, "n": n,
+            "near": a, "far": b, "near_val": near_val, "far_val": far_val}
+
+
 def quantiles(series: Sequence, probs: Sequence = (0.5,)) -> dict:
     """Linear-interpolated quantiles of `series` (order-independent). OUTCOMES_JOIN AM-3: the outcome
     join's distributions are DESCRIPTIVE spreads over already-fetched, PIT-clamped rows, and every one
@@ -401,6 +477,7 @@ STAT_REGISTRY: dict[str, Callable[..., dict]] = {
     "revision_count": revision_count,
     "extrema": extrema,
     "yoy_delta": yoy_delta,
+    "spread": spread,          # D-AM-17: the one CURVE-axis stat; its two legs are NAMED, never inferred
 }
 
 STAT_NAMES = frozenset(STAT_REGISTRY)

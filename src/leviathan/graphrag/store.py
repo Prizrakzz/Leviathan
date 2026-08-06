@@ -1,6 +1,6 @@
 """Durable per-user persistence + share snapshots for the terminal (build-plan P1.7).
 
-A sibling of `session.py` but PERMANENT (no TTL): saved threads, watchlists, workspaces, and immutable
+A sibling of `session.py` but PERMANENT (no TTL): saved threads, watchlists, workspaces, artifacts, and immutable
 SHARE snapshots. A share = the full `respond()` payload + question + as-of + `graph_version` at a uuid
 permalink, so a research note is forwardable AND reproducible (design §6.7). Same InMemory/Dynamo split as
 session.py: InMemory for tests/local, Dynamo for serving. The DynamoDB table and Cognito enforcement are a

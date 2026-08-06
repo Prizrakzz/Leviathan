@@ -592,7 +592,10 @@ def _order_aliases(extras: list[tuple[str, str]], include_country: bool = True) 
 
 def _series_order(extras: list[tuple[str, str]], include_country: bool, *, newest_first: bool) -> str:
     """The SERIES branch's ORDER BY. Byte-identical to ``_total_order`` unless ``newest_first`` -- which is
-    the S1 canary (D-FR-1 option (c), D-FR-2 futures-scoped, D-FR-10 flag-gated), never a default.
+    the S1 canary (D-FR-1 option (c), D-FR-2 futures-scoped, D-FR-10 flag-gated, D-AM-18 estate-wide on a
+    SECOND flag), never a default. ``newest_first`` here is already the RESOLVED bool
+    (``_newest_first_applies``), not the scope token: whichever scope let the flip through, the flipped
+    order is this one.
 
     WHY THE FLIP EXISTS. The series branch compiles ``ORDER BY <total order> LIMIT 5000`` ascending on every
     term, so when a read exceeds the cap the rows that survive are the OLDEST ones: an unbounded corn_cbot
@@ -630,39 +633,65 @@ def _is_series_branch(spec: NumberQuery, ts: TableSpec) -> bool:
     return True
 
 
-def _newest_first_applies(spec: NumberQuery, ts: Optional[TableSpec], newest_first: bool) -> bool:
+NEWEST_FIRST_ALL = "all"
+"""D-AM-18's ESTATE-WIDE scope token, carried in the SAME threaded slot as the futures canary.
+
+The slot (``futures_newest_first``) is a SCOPE, not a plain bool, and has exactly three values:
+``False`` (off, the pre-wave ASC compile), ``True`` (D-FR-2's futures-scoped flip -- cards declaring a
+``contract_month_col``) and this token (every series read, whatever the card). It is widened IN PLACE
+rather than given a second kwarg because the slot's caller graph is already threaded end to end and
+PINNED as such (test_futures_readpath_pins section 7); a parallel kwarg would have to re-earn that
+proof at every frame, and the failure it would fail at is the one D-FR-10 shipped broken -- a flag
+accepted at the top and dropped one frame lower. The frames between the seam and here FORWARD the
+value and never inspect it, which is why widening it costs them nothing."""
+
+
+def _newest_first_applies(spec: NumberQuery, ts: Optional[TableSpec], newest_first) -> bool:
     """The S1 scope guard, in ONE place so build_sql and run() cannot drift apart (a flipped SQL whose rows
     were not re-sorted is the partial failure that leaves every consumer looking right while the cap keeps
-    the wrong end).
+    the wrong end). ``newest_first`` is the scope token described on ``NEWEST_FIRST_ALL``.
 
-    D-FR-2 ratified the change FUTURES-SCOPED, keyed on ``ts.contract_month_col``: the per-expiry price card
-    is the only one where a session returns ~13 rows, so it is the only one where the cap bites inside a
-    couple of years. Estate-wide is cleaner code and re-opens the pg-parity soak; scoped keeps that off the
-    table, at the cost -- named here rather than discovered -- of two orderings coexisting in one function.
+    D-FR-2 ratified the FIRST flip FUTURES-SCOPED, keyed on ``ts.contract_month_col``: the per-expiry price
+    card is the only one where a session returns ~13 rows, so it is the only one where the cap bites inside
+    a couple of years. That scope is unchanged and stays reachable on its own flag.
 
-    It also keeps ``resort_rows_chronological``'s TEXT compare exact. The Python key mirrors the SQL only
-    where the aliases sort the same way as text: ``year`` is 4-digit, ``knowledge_date``/``data_date`` are
-    ISO dates and ``contract_month`` is 'YYYY-MM', all of which sort lexically == chronologically == the way
-    Presto varchar and pg TEXT COLLATE "C" sort them. ``month`` (an int alias, where '10' < '9' as text but
-    9 < 10 as SQL) is the one alias where they diverge -- it exists only on nasa_power, which declares no
-    ``contract_month_col``, so under this scope the divergence is structurally unreachable. It becomes LIVE
-    the instant D-FR-2's estate-wide alternative is taken."""
-    return (bool(newest_first) and ts is not None
-            and bool(getattr(ts, "contract_month_col", None)) and _is_series_branch(spec, ts))
+    D-AM-18 takes the estate-wide alternative D-FR-2 named and deferred, behind its OWN flag (named at
+    ``answer._series_newest_first_on``, never here): every other series read -- PSD, CEPEA, COT, NASA POWER --
+    still compiles ascending and keeps the OLDEST rows at the 5000 cap, so a z-score over "long history"
+    can window against rows that stop years before the as-of. The two scopes compose rather than stack:
+    a futures card under the estate-wide token takes the SAME single flip (this predicate is a bool, so
+    there is no double-apply), and with the estate-wide flag off the futures flag compiles byte-identically
+    to what it compiled before this wave.
+
+    THE ``month`` DIVERGENCE D-FR-2 PARKED IS NOW LIVE, AND IS FIXED AT THE KEY, NOT HERE. The Python
+    re-sort mirrors the SQL only where an alias sorts the same way as text: ``year`` is fixed-width 4-digit,
+    ``knowledge_date``/``data_date`` are ISO dates and ``contract_month`` is 'YYYY-MM', all of which sort
+    lexically == chronologically == the way Presto varchar and pg TEXT COLLATE "C" sort them. ``month`` is
+    an int alias ('10' < '9' as text, 9 < 10 as SQL) and it leads the order on the three year_month cards
+    with no date axis (silver_noaa_oni, silver_noaa_iod, gold_weather_z), where under this token a text
+    re-sort would hand every consumer September as the last term of a series ending in December.
+    ``_sort_cell(numeric=True)`` is the remedy; ``_NUMERIC_ALIASES`` is the list."""
+    if not newest_first or ts is None or not _is_series_branch(spec, ts):
+        return False
+    if newest_first == NEWEST_FIRST_ALL:
+        return True
+    return bool(getattr(ts, "contract_month_col", None))
 
 
 def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = ATHENA_DB,
-              futures_newest_first: bool = False) -> str:
+              futures_newest_first: bool | str = False) -> str:
     """Compile a NumberQuery to leakage-safe Athena SQL. The as-of guard is injected unconditionally; for
     `vintage` tables it also collapses to the LATEST vintage published on/before asof (as-known-at-asof).
 
     ``futures_newest_first`` is the S1 canary (D-FR-10), an OMIT-WHEN-OFF kwarg cloned from the
-    ``_episode_outcomes_on`` idiom: the env is read at ONE seam (``answer._futures_newest_first_on``) and
-    threaded DOWN, so the ENGINE is gated by the ARGUMENT and no ``os.environ`` read exists in this compiler.
-    DEFAULT-OFF and fail-closed: with it absent every table -- including silver_futures_eod -- compiles the
-    byte-identical SQL it compiled before this wave, which is the rollback, from the idiom rather than from
-    a promise. When on, ONLY the series branch of a card declaring ``contract_month_col`` moves
-    (``_newest_first_applies``)."""
+    ``_episode_outcomes_on`` idiom: the env is read at ONE seam (``answer._futures_newest_first_on``, and
+    D-AM-18's ``_series_newest_first_on`` beside it) and threaded DOWN, so the ENGINE is gated by the
+    ARGUMENT and no ``os.environ`` read exists in this compiler. DEFAULT-OFF and fail-closed: with it absent
+    every table -- including silver_futures_eod -- compiles the byte-identical SQL it compiled before this
+    wave, which is the rollback, from the idiom rather than from a promise. The parameter is the SCOPE TOKEN
+    (``NEWEST_FIRST_ALL``): ``True`` moves ONLY the series branch of a card declaring ``contract_month_col``,
+    ``"all"`` moves the series branch of EVERY card, and either way the move is the single flip
+    ``_newest_first_applies`` decides."""
     ts = ts or load_registry().get(spec.table)
     # SEAM-C LEVELS-ONLY GUARD: a roll-spliced continuous FRONT-MONTH settle series (silver_futures_prices)
     # has NO PIT-safe cross-date delta -- the splice between expiries contaminates any change/window/curve
@@ -694,7 +723,7 @@ def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = AT
     extras = _extras(ts)
     inc_country = spec.country is not None            # ESR S1: country enters _total_order only when a
     #                                                   destination filter is active (national path stays stable)
-    nf = _newest_first_applies(spec, ts, futures_newest_first)   # S1 canary, futures-scoped (D-FR-2)
+    nf = _newest_first_applies(spec, ts, futures_newest_first)   # S1 canary; scope per the token (D-AM-18)
     where = " AND ".join(_filters(spec, ts) + [_guard(spec, ts)])
     sel = f"{val} AS value" + "".join(f", {e} AS {a}" for e, a in extras)
     order = _order_col(ts)
@@ -755,8 +784,9 @@ def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = AT
             return (f"SELECT {outcols} FROM ({inner}) AS _v WHERE _rn = 1"
                     f" ORDER BY {_total_order(extras, inc_country)} LIMIT {int(spec.limit)}")
         return base + f" ORDER BY {order} DESC, {_total_order(extras, inc_country)} LIMIT 1"
-    # series/default: chronological + total tiebreak. Under the S1 canary (futures cards only) this is the
-    # REVERSE of that order with an explicit NULLS LAST on every term, so the LIMIT keeps the NEWEST rows;
+    # series/default: chronological + total tiebreak. Under the S1 canary (futures cards, or every card at
+    # the D-AM-18 token) this is the REVERSE of that order with an explicit NULLS LAST on every term, so the
+    # LIMIT keeps the NEWEST rows;
     # run() then re-sorts back to ASC before any consumer sees them, which is what keeps _series_from_rows,
     # streak/window_change/yoy_delta, _val()'s series[-1], _pace_synth's rows[-1] and eval._num_line's
     # rws[-1] byte-identical instead of silently sign-flipped.
@@ -892,16 +922,40 @@ def _apply_country_names(rows: list[dict], spec: NumberQuery, ts: TableSpec) -> 
     return rows
 
 
-def _sort_cell(v) -> tuple[int, str]:
+_NUMERIC_ALIASES = ("month",)
+"""D-AM-18: the aliases whose SQL column is a NUMBER, so a TEXT re-sort cell would not mirror the SQL.
+
+``month`` is the whole list and the list is short for a reason. Every other order alias is fixed-width or
+ISO text -- ``year`` is 4-digit, ``knowledge_date``/``data_date`` are 'YYYY-MM-DD', ``contract_month`` is
+'YYYY-MM', ``period`` is a marketing-year label -- and for those, byte order IS the SQL's order. ``month``
+is 1..12 unpadded, where '10' < '9' as text but 9 < 10 as SQL. Under the futures scope the divergence was
+unreachable (silver_futures_eod surfaces no ``month`` alias); under the D-AM-18 estate-wide token it leads
+the order on the three year_month cards with no date axis, so it is fixed here rather than parked."""
+
+
+def _sort_cell(v, *, numeric: bool = False) -> tuple[int, str]:
     """One re-sort cell, as a NULLS-LAST-in-ASC text key -- the Python mirror of what both SQL engines do to
     a NULL under an ASC order (Presto: NULLS LAST always; Postgres: NULLS LAST on ASC). Both backends hand
     this layer STRINGS and both render NULL as the EMPTY STRING (Athena omits VarCharValue,
     ``pgnumbers._stringify`` returns "" for None), so "" and None are the same absence and must sort LAST --
     not first, which is where a naive text compare would put them and which would flip the two CEPEA cash
     slugs' NULL contract_month to the head of the read. TEXT compare, deliberately: byte order == pg TEXT
-    COLLATE "C" == Presto varchar comparison, the same equivalence ``_vintage_cmp`` documents."""
+    COLLATE "C" == Presto varchar comparison, the same equivalence ``_vintage_cmp`` documents.
+
+    ``numeric`` (D-AM-18, ``_NUMERIC_ALIASES``) keeps the cell a TEXT compare -- the key stays one
+    comparable type across every alias -- by ZERO-PADDING the parsed integer to a fixed width, which is the
+    one transform that makes byte order and numeric order the same relation. An unparseable cell falls back
+    to its own text rather than raising: a junk cell in a numeric column is a data defect, and sorting it
+    beside the padded ones is a strictly smaller harm than a re-sort that dies mid-answer."""
     s = "" if v is None else (v if isinstance(v, str) else str(v))
-    return (1, "") if s == "" else (0, s)
+    if s == "":
+        return (1, "")
+    if numeric:
+        try:
+            return (0, "%012d" % int(float(s)))
+        except (TypeError, ValueError):
+            return (0, s)
+    return (0, s)
 
 
 def resort_rows_chronological(rows: list[dict], spec: NumberQuery, ts: TableSpec) -> list[dict]:
@@ -921,6 +975,11 @@ def resort_rows_chronological(rows: list[dict], spec: NumberQuery, ts: TableSpec
     test_futures_eod_curve.py), and it is stated here rather than left to be discovered on the card that
     first breaks that assumption.
 
+    D-AM-18: the KEY is the same one, the CELL is not. Under the estate-wide token the flip reaches cards
+    whose order leads with a NUMERIC alias, so each cell is rendered per ``_NUMERIC_ALIASES`` -- see
+    ``_sort_cell``. Nothing about the futures scope moves: silver_futures_eod surfaces no numeric alias, so
+    every cell it sorts on is rendered exactly as before.
+
     Public, and deliberately so. ``run()`` is NOT the universal choke point -- ``numbers_parity.py`` and
     ``cascade_census.py`` compile with ``build_sql`` and execute the raw string themselves, by design. Any
     caller that passes ``futures_newest_first`` without routing through ``run()`` must call THIS function on
@@ -928,18 +987,21 @@ def resort_rows_chronological(rows: list[dict], spec: NumberQuery, ts: TableSpec
     keys = _order_aliases(_extras(ts), spec.country is not None)
     if not keys:
         return rows
-    return sorted(rows, key=lambda r: tuple(_sort_cell(r.get(a)) for a in keys))
+    return sorted(rows, key=lambda r: tuple(_sort_cell(r.get(a), numeric=a in _NUMERIC_ALIASES)
+                                            for a in keys))
 
 
 def run(spec: NumberQuery, *, query_fn=None, db: str = ATHENA_DB,
-        futures_newest_first: bool = False) -> list[dict]:
+        futures_newest_first: bool | str = False) -> list[dict]:
     """Execute on the active backend (or an injected query_fn(sql)->rows for tests/session-cache wrappers).
     Returns rows as list[dict]. The pg mirror's schema is NAMED like the Athena db, so the compiled SQL is
     backend-agnostic -- routing is purely a choice of executor. POST-FETCH: apply DP-1 unit_overrides so every
     returned row (agg-shaped rows included) carries the correct per-commodity unit.
 
-    ``futures_newest_first`` is the S1 canary, threaded from ``answer._futures_newest_first_on`` and passed
-    straight down to ``build_sql``; DEFAULT-OFF -> byte-identical rows AND byte-identical SQL.
+    ``futures_newest_first`` is the S1 canary -- the SCOPE TOKEN (``NEWEST_FIRST_ALL``) threaded from
+    ``answer``'s seam pair and passed straight down to ``build_sql``; DEFAULT-OFF -> byte-identical rows AND
+    byte-identical SQL. The re-sort below is gated by the SAME predicate the compiler used, so a widened
+    scope can never flip the SQL without flipping the rows back.
 
     THE RE-SORT RUNS BETWEEN THE EXECUTOR AND ``_apply_unit_overrides``, ON THE RAW ROWS, AND THE ORDER OF
     THESE THREE LINES IS LOAD-BEARING. ``unit`` is a real total-order term (priority 9) and

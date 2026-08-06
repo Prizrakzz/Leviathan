@@ -2,7 +2,15 @@ import type { PdfPage } from './schema';
 import type { components } from './types.gen';
 import graphArabica from './fixtures/graph.arabica.json';
 import graphSugar from './fixtures/graph.raw_sugar.json';
-import type { NotificationItem, RespondResult, Section, StageEvent } from './schema';
+import type {
+  ArtifactItem,
+  FrozenSnapshot,
+  GalleryItem,
+  NotificationItem,
+  RespondResult,
+  Section,
+  StageEvent,
+} from './schema';
 import type { StreamHandlers } from './sse';
 
 type Schemas = components['schemas'];
@@ -578,6 +586,75 @@ export function mockThreadTurns(threadId: string): Schemas['ThreadTurns'] {
   };
 }
 
+// ── D-AM-15 artifacts + share links (VITE_MOCK) ──────────────────────────────────────────────────────
+// Module-level so a mock save lands in the sidebar and a mock share link RESOLVES on /s/{id} within the
+// session — the whole point of the mock is to walk save -> open -> share without a backend. The freeze is
+// server-side in prod; here it is imitated exactly (make_share's field set), never a different shape.
+let _mockSeq = 0;
+const _mockShares: Record<string, FrozenSnapshot> = {};
+const _mockArtifacts: ArtifactItem[] = [];
+
+function mockFreeze(body: { question?: string; asof?: string | null; payload?: unknown }): FrozenSnapshot {
+  _mockSeq += 1;
+  const payload = (body.payload ?? MOCK_RESULT) as RespondResult;
+  return {
+    id: `mock-frz-${_mockSeq}`,
+    question: body.question ?? '',
+    asof: body.asof ?? null,
+    graph_version: (payload.trace?.graph_version as string | undefined) ?? null,
+    created_at: new Date().toISOString(),
+    payload,
+  };
+}
+
+export function mockListArtifacts(): Promise<{ items: ArtifactItem[] }> {
+  const items = [..._mockArtifacts].sort((a, b) => (b.updated_at ?? '').localeCompare(a.updated_at ?? ''));
+  return new Promise((resolve) => setTimeout(() => resolve({ items }), 80));
+}
+
+export function mockSaveArtifact(body: {
+  name: string;
+  question?: string;
+  asof?: string | null;
+  payload?: unknown;
+}): Promise<{ id: string }> {
+  const snapshot = mockFreeze(body);
+  const item: ArtifactItem = {
+    id: `mock-art-${_mockSeq}`,
+    name: body.name || snapshot.question || 'untitled artifact',
+    snapshot,
+    created_at: snapshot.created_at,
+    updated_at: snapshot.created_at,
+  };
+  _mockArtifacts.push(item);
+  return Promise.resolve({ id: item.id });
+}
+
+export function mockDeleteArtifact(id: string): Promise<void> {
+  const i = _mockArtifacts.findIndex((a) => a.id === id);
+  if (i >= 0) _mockArtifacts.splice(i, 1);
+  return Promise.resolve();
+}
+
+export function mockCreateShare(body: {
+  question?: string;
+  asof?: string | null;
+  payload?: unknown;
+}): Promise<{ id: string; url: string }> {
+  const snap = mockFreeze(body);
+  _mockShares[snap.id] = snap;
+  return Promise.resolve({ id: snap.id, url: `/s/${snap.id}` });
+}
+
+export function mockGetShare(id: string): Promise<FrozenSnapshot> {
+  // An unknown id resolves to the canonical fixture rather than rejecting: a mock reload drops the in-memory
+  // map, and a dead reader page would look like the route is broken instead of the store being ephemeral.
+  const snap =
+    _mockShares[id] ??
+    mockFreeze({ question: 'KC frost 2021 — what happened to the convexity setup?', asof: '2021-07-20', payload: MOCK_RESULT });
+  return new Promise((resolve) => setTimeout(() => resolve(snap), 80));
+}
+
 // ── P3 Track D: notification digest (VITE_MOCK bell + badge) ─────────────────────────────────────────
 /** Two sample items — one unseen (drives the badge), one already seen — dated today-ish so the PIT guard
  *  passes at a live as-of. */
@@ -650,4 +727,30 @@ export function mockSuggest(packet: Schemas['SuggestRequest']): Promise<Schemas[
   ];
   const items = packet.question || packet.tldr ? followups : starters;
   return new Promise((resolve) => setTimeout(() => resolve({ suggestions: items }), 300));
+}
+
+// ── D-AM-16 prompt gallery ──────────────────────────────────────────────────────────────────────────
+/** A warm-catalog gallery: filled questions across the categories the real yaml carries, plus ONE unfilled
+ *  row so the cold-catalog branch (a `{slot}` question, never offered as a one-click starter) is walkable
+ *  in VITE_MOCK=1 without stopping the convergence warmer. */
+export function mockGallery(): Promise<{ items: GalleryItem[] }> {
+  const items: GalleryItem[] = [
+    { id: 'conv_regime_proximity', category: 'convergence', rc_target: 'recency', filled: true,
+      question: 'How close is the Frost Squeeze (price-supportive) regime in arabica coffee to firing right now?' },
+    { id: 'conv_missing_drivers', category: 'convergence', rc_target: 'default', filled: true,
+      question: 'The Ethanol Diversion (price-supportive) regime in raw sugar is short of its threshold -- which drivers still have to fire?' },
+    { id: 'cross_rv_compare', category: 'cross_commodity', rc_target: 'compare', filled: true,
+      question: 'Compare palm oil and soybean oil -- which is more exposed to the shared supply shock?' },
+    { id: 'cascade_walk', category: 'cascade', rc_target: 'default', filled: true,
+      question: 'Walk me through the cascade from a supply shock in corn to the price signal.' },
+    { id: 'verify_premise', category: 'verification', rc_target: 'verification', filled: true,
+      question: 'Stocks in arabica coffee are the tightest in a decade, right?' },
+    { id: 'rank_exporters', category: 'ranking', rc_target: 'ranking', filled: true,
+      question: 'Rank the largest exporters of raw sugar and flag which is most at risk this season.' },
+    { id: 'horizon_ladder', category: 'horizon', rc_target: 'horizon', filled: true,
+      question: 'What should I watch over the next weeks, months, and quarters in corn?' },
+    { id: 'recency_whats_changed', category: 'recency', rc_target: 'recency', filled: false,
+      question: 'What has changed in {contract} fundamentals over the past 30 days?' },
+  ];
+  return new Promise((resolve) => setTimeout(() => resolve({ items }), 200));
 }

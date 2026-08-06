@@ -1,7 +1,15 @@
 import { fetchWithAuth } from '../auth/oidc';
 import { httpError } from './errors';
 import { MOCK_SERIES, mockGraph, mockRespondStream } from './mock';
-import type { ContextAttachment, NotificationItem, PdfPage } from './schema';
+import type {
+  ArtifactItem,
+  ContextAttachment,
+  FrozenSnapshot,
+  GalleryItem,
+  NotificationItem,
+  PdfPage,
+  RespondResult,
+} from './schema';
 import { openRespondStream, type StreamHandlers } from './sse';
 import type { components } from './types.gen';
 
@@ -120,6 +128,19 @@ export function suggest(packet: SuggestPacket): Promise<Schemas['SuggestResponse
   return postJSON(`/v1/suggest`, packet);
 }
 
+// ── D-AM-16 deterministic prompt gallery (the suggester's opposite number) ─────────────────────────
+export type { GalleryItem };
+
+/** Curated starters for the empty state. FREE and deterministic: the server fills authored templates from
+ *  the already-warm convergence catalog, so there is no model call and no quota behind this — unlike
+ *  `suggest`, which spends both and therefore has no business firing on a landing page where nothing has
+ *  been asked yet. Entries with `filled: false` carry unresolved `{slot}` blanks (cold catalog) and are not
+ *  one-click starters; the caller filters them. */
+export function getGallery(): Promise<{ items: GalleryItem[] }> {
+  if (MOCK) return import('./mock').then((m) => m.mockGallery());
+  return getJSON(`/v1/gallery`);
+}
+
 // ── P3 Track D: daily-digest notifications (auth-gated + kill-switched server-side) ─────────────────
 /** The signed-in user's notification digest, newest-first. `VITE_MOCK=1` routes to the in-repo mock so the
  *  bell + badge render without a backend. */
@@ -173,4 +194,48 @@ export async function deleteThread(id: string): Promise<void> {
   const path = `/v1/threads/${encodeURIComponent(id)}`;
   const res = await fetchWithAuth(`${BASE}${path}`, { method: 'DELETE' });
   if (!res.ok) throw await httpError(res, `DELETE ${path}`);
+}
+
+// ── D-AM-15 research artifacts (PRIVATE per-user) + share links (PUBLIC read) ───────────────────────
+// Two deliberately different products off one freeze. An artifact is the user's own saved copy — it rides
+// the per-user collection factory, so it is identity-gated like threads. A share is a public permalink at
+// /s/{id} (ratified: POST /v1/share stays as it is). Both freeze SERVER-side: the client posts the turn it
+// holds and the server mints the snapshot, so a browser can never author a pin.
+export type { ArtifactItem, FrozenSnapshot };
+
+export function listArtifacts(): Promise<{ items: ArtifactItem[] }> {
+  if (MOCK) return import('./mock').then((m) => m.mockListArtifacts());
+  return getJSON(`/v1/artifacts`);
+}
+
+/** Freeze the turn the browser is holding into a named artifact. The whole RespondResult goes over the
+ *  wire — the point of an artifact is that reopening it reproduces THIS answer, not a re-run of the
+ *  question against a graph that has moved on. `question` is passed explicitly rather than read off the
+ *  result: the streamed payload does not always carry it, and it is what both readers title themselves by. */
+export function saveArtifact(name: string, question: string, result: RespondResult): Promise<{ id: string }> {
+  const body = { name, question, asof: result.asof ?? null, payload: result };
+  if (MOCK) return import('./mock').then((m) => m.mockSaveArtifact(body));
+  return postJSON(`/v1/artifacts`, { body });
+}
+
+export async function deleteArtifact(id: string): Promise<void> {
+  if (MOCK) return import('./mock').then((m) => m.mockDeleteArtifact(id));
+  const path = `/v1/artifacts/${encodeURIComponent(id)}`;
+  const res = await fetchWithAuth(`${BASE}${path}`, { method: 'DELETE' });
+  if (!res.ok) throw await httpError(res, `DELETE ${path}`);
+}
+
+/** Mint a PUBLIC permalink for a turn. Returns the server's own `{id, url}` — `url` is already the `/s/{id}`
+ *  path the reader route serves, so callers prefix the origin rather than rebuilding the path. */
+export function createShare(question: string, result: RespondResult): Promise<Schemas['ShareRef']> {
+  const body = { question, asof: result.asof ?? null, payload: result as unknown as Record<string, unknown> };
+  if (MOCK) return import('./mock').then((m) => m.mockCreateShare(body));
+  return postJSON(`/v1/share`, body);
+}
+
+/** Read a share snapshot. PUBLIC (server.py: no auth dependency) — this is the one call the /s/:id reader
+ *  makes, and it must work for a signed-out visitor who followed a forwarded link. */
+export function getShare(id: string): Promise<FrozenSnapshot> {
+  if (MOCK) return import('./mock').then((m) => m.mockGetShare(id));
+  return getJSON(`/v1/share/${encodeURIComponent(id)}`);
 }

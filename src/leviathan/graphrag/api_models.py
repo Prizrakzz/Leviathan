@@ -188,6 +188,28 @@ class SuggestResponse(BaseModel):
     suggestions: list[str] = []
 
 
+# ── D-AM-16 deterministic prompt gallery (GET /v1/gallery) ──────────────────────────────────────────
+class GalleryItem(BaseModel):
+    """One curated starter. `question` is the AUTHORED template with its slots filled from the warm
+    convergence catalog; `filled` is false when the catalog was cold, in which case `question` is the raw
+    template and its `{contract}`/`{regime}`/`{pair}` blanks are the user's to complete. `rc_target` is the
+    response contract the wording selects (pinned by test) — carried on the wire as honest provenance for
+    the eval/debug lane, not read by the UI."""
+    id: str
+    category: str
+    question: str
+    rc_target: str = "default"
+    filled: bool = True
+
+
+class Gallery(BaseModel):
+    """The whole gallery in one free read. `catalog_warm` distinguishes 'filled from live data' from the
+    template fallback, so a blank-slot gallery is legible as a cold cache rather than a bug. Never an error
+    shape: an unreadable config degrades to `items: []` (no starter row), never a 500 on the landing page."""
+    items: list[GalleryItem] = []
+    catalog_warm: bool = False
+
+
 # ── 6.5 click-to-page (GET /v1/citation/pdf) ────────────────────────────────────────────────────────
 class CitationPdf(BaseModel):
     """The 6.5 click-to-page resolver result the PdfModal binds to: a presigned URL to the SOURCE document,

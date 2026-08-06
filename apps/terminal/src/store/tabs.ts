@@ -6,7 +6,7 @@ import type { StoreApi } from 'zustand';
  *  error state, never a crash. Tabs are WORKSPACE-GLOBAL: thread switches never touch them. This module
  *  imports no components (the kind→lazy map lives in shell/tabs/registry.tsx) so the store stays pure. */
 
-export type TabKind = 'graph' | 'pdf';
+export type TabKind = 'graph' | 'pdf' | 'artifact';
 
 export interface GraphTabParams {
   contract: string;
@@ -24,11 +24,19 @@ export interface PdfTabParams {
   offsetKind?: string;
 }
 
+/** D-AM-15: the artifact's ID and nothing else. The frozen payload is emphatically NOT carried here — the
+ *  locator-only rule above is what keeps `lv-ui` a few KB instead of a whole answer per open tab, and it is
+ *  what lets a rehydrated tab show the artifact's CURRENT name (or its deleted-elsewhere state) rather than
+ *  a copy frozen at open time. The tab refetches from the ['artifacts'] list. */
+export interface ArtifactTabParams {
+  artifactId: string;
+}
+
 export interface Tab {
   id: string; // == tabKey(kind, params): stable identity => dedupe-focus on reopen
   kind: TabKind;
   title: string;
-  params: GraphTabParams | PdfTabParams;
+  params: GraphTabParams | PdfTabParams | ArtifactTabParams;
 }
 
 /** Stable identity for dedupe. asof normalizes `?? ''` — MUST match AnswerView's graphQ key family
@@ -38,6 +46,7 @@ export function tabKey(kind: TabKind, params: Tab['params']): string {
     const p = params as GraphTabParams;
     return `graph:${p.contract}:${p.asof ?? ''}`;
   }
+  if (kind === 'artifact') return `artifact:${(params as ArtifactTabParams).artifactId}`;
   const p = params as PdfTabParams;
   return `pdf:${p.sourceKey}`;
 }

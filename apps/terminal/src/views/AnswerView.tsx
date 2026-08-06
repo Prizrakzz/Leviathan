@@ -15,6 +15,7 @@ import { useUI } from '@/store/ui';
 import { EmptyState } from './answer/EmptyState';
 import { FindingsFeed } from './answer/FindingsFeed';
 import { SuggestionChips } from './answer/SuggestionChips';
+import { TurnActions } from './answer/TurnActions';
 import { Banners } from './note/Banners';
 import { type CiteOpen, resolvedFor } from './note/citations';
 import { FormattedNote, renderInline } from './note/inlineFormat';
@@ -345,6 +346,12 @@ export function AnswerView({
                         </button>
                       )}
                     </>
+                  )}
+                  {/* D-AM-15: keep/send this answer. Offered only where there IS an answer to freeze —
+                      a refusal or no-match turn (structured null, no numbers prose) gets nothing, since a
+                      saved artifact of "I couldn't answer that" is a research note about nothing. */}
+                  {(r.structured || (r.intent === 'numbers_only' && r.answer)) && (
+                    <TurnActions result={r} question={question} />
                   )}
                 </div>
               </ErrorBoundary>

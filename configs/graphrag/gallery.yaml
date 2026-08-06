@@ -1,0 +1,96 @@
+# D-AM-16 -- the deterministic prompt gallery: curated fill-in-the-blank starters for the empty state.
+#
+# TRACKED PAST .gitignore:49 BY `git add -f`, like params.yaml and numbers/*.yaml. It is authored IP, but a
+# missing file means every new thread lands on a blank starter row, so it must travel with the code and be
+# reviewable in the diff -- an unreviewed edit here changes the FIRST thing every user reads.
+#
+# WHY TEMPLATES AND NOT THE SUGGESTER. /v1/suggest costs a Haiku call and a slot of the per-user daily
+# suggest quota, and degrades to [] on any failure -- acceptable for a follow-up row that appears after an
+# answer, wrong for the landing page. These rows are FREE: the slots are filled from the already-warm
+# convergence catalog (a dict read), so the gallery is reproducible, quota-free, and identical for two users
+# looking at the same book on the same day.
+#
+# FIELDS
+#   id        stable slug (the FE keys chips by it; renaming one is a user-visible change)
+#   category  grouping shown as the row heading; the FE clamps per category
+#   rc_target the response contract the AUTHORED wording must select through
+#             intent.select_response_contract(filled_question) -- 'default' means "selects nothing", which is
+#             the mechanism shape. This is a CLAIM, and tests/unit/test_dam_gallery.py pins every row of it.
+#   template  the question, with {contract} / {regime} / {pair} slots (that is the whole slot vocabulary)
+#
+# AUTHORING RULE: the response-contract cue must live in the AUTHORED words, never in a slot value. A slot
+# renders live data (a contract phrase, a display-registry regime label, a realizable pair) whose wording we
+# do not control, so a template that depends on the FILL to hit its contract would drift the day the book
+# does. The test pins each row twice for exactly this reason: once filled, once with the slots neutralized.
+#
+# {contract}/{regime} always come from the SAME near-firing row, so the pairing is true. {pair} is drawn only
+# from the census-realizable set -- if that set is empty (RV-v2 off, or nothing realizable) the pair rows are
+# dropped rather than shown blank.
+version: 1
+templates:
+  # -- convergence / regimes near firing ------------------------------------------------------------
+  - id: conv_regime_proximity
+    category: convergence
+    rc_target: recency
+    template: "How close is the {regime} regime in {contract} to firing right now?"
+
+  - id: conv_missing_drivers
+    category: convergence
+    rc_target: default
+    template: "The {regime} regime in {contract} is short of its threshold -- which drivers still have to fire?"
+
+  # -- cross-commodity ------------------------------------------------------------------------------
+  - id: cross_rv_compare
+    category: cross_commodity
+    rc_target: compare
+    template: "Compare {pair} -- which is more exposed to the shared supply shock?"
+
+  - id: cross_readacross
+    category: cross_commodity
+    rc_target: default
+    template: "Trace the read-across between {pair}: which leg moves first, and why?"
+
+  # -- cascade --------------------------------------------------------------------------------------
+  - id: cascade_walk
+    category: cascade
+    rc_target: default
+    template: "Walk me through the cascade from a supply shock in {contract} to the price signal."
+
+  - id: cascade_load_bearing
+    category: cascade
+    rc_target: default
+    template: "Which nodes in the {contract} cascade are actually load-bearing for the {regime} regime?"
+
+  # -- verification ---------------------------------------------------------------------------------
+  - id: verify_premise
+    category: verification
+    rc_target: verification
+    template: "Stocks in {contract} are the tightest in a decade, right?"
+
+  - id: verify_documented
+    category: verification
+    rc_target: verification
+    template: "Is this documented for {contract}, or can we only infer it from the pattern?"
+
+  # -- ranking --------------------------------------------------------------------------------------
+  - id: rank_exporters
+    category: ranking
+    rc_target: ranking
+    template: "Rank the largest exporters of {contract} and flag which is most at risk this season."
+
+  - id: rank_importer_exposure
+    category: ranking
+    rc_target: ranking
+    template: "Which are the biggest importers of {contract}, and how exposed are they to the {regime} regime?"
+
+  # -- horizon --------------------------------------------------------------------------------------
+  - id: horizon_ladder
+    category: horizon
+    rc_target: horizon
+    template: "What should I watch over the next weeks, months, and quarters in {contract}?"
+
+  # -- recency --------------------------------------------------------------------------------------
+  - id: recency_whats_changed
+    category: recency
+    rc_target: recency
+    template: "What has changed in {contract} fundamentals over the past 30 days?"

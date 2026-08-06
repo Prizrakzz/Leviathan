@@ -736,8 +736,74 @@ def _futures_newest_first_on() -> bool:
     silverleg is the one worth naming explicitly, because it is the site an audit of "which Q.run calls
     were threaded" would flag first: it is the only serving Q.run outside agent/cascade/server, and it
     was NOT on the wave's mapped-sites list. It is a firing-leg helper, not a series reader.
-    The flag is therefore LIVE in serving on a flip, and inert until one."""
+    The flag is therefore LIVE in serving on a flip, and inert until one.
+
+    (b) IS FLAG-SPECIFIC, AND D-AM-18 IS WHERE THAT STOPS BEING FREE. The structural argument above rests
+    on `_newest_first_applies` keying on `contract_month_col`, which is true of THIS flag only. Under
+    `_series_newest_first_on`'s estate-wide token those same three sites would move if the token reached
+    them, so they are held out there as DECISIONS with their own bounds -- see that seam's gap paragraph
+    and the site docstrings themselves, which now carry the reason each one is safe to leave."""
     return os.environ.get("GRAPHRAG_FUTURES_NEWEST_FIRST", "").strip().lower() in ("on", "1", "true")
+
+
+def _series_newest_first_on() -> bool:
+    """D-AM-18 (GRAPHRAG_SERIES_NEWEST_FIRST). THE SECOND ENV SEAM for the same read-shape flip, WIDENED to
+    every series read instead of the futures cards `_futures_newest_first_on` scopes it to.
+
+    THE DEFECT. D-FR-2 ratified S1 futures-scoped, so a non-futures series read -- PSD, CEPEA, pink_sheet,
+    COT, NASA POWER -- still compiles its ORDER BY ascending and `LIMIT 5000` keeps the OLDEST rows. On the
+    long cards that is not a corner: a z-score or a percentile asked for "long history" windows against
+    rows that stop years before the as-of, and nothing in the answer says the tail is missing (the
+    truncation sentinel annotates the read, it does not re-aim it).
+
+    WHY A SECOND FLAG RATHER THAN WIDENING THE FIRST. The futures scope is LIVE (rev 76) and its A/B is
+    closed; folding the estate into it would re-open that measurement and would make one rollback lever
+    cover two answer-changing surfaces. Two flags means the estate-wide read shape can be flipped, judged
+    and rolled back on its own, and it means GRAPHRAG_FUTURES_NEWEST_FIRST=on with this one absent compiles
+    the byte-identical SQL it compiles today.
+
+    EXACT-'on', FAIL-CLOSED -- deliberately STRICTER than the futures seam's on/1/true. This one widens the
+    read shape of every card in the estate, so the enable is spelled one way and a stray "1" or "true"
+    inherited from another flag's env block does not turn it on by accident.
+
+    WHAT IT DOES NOT REACH, STATED SO THE GAPS ARE DECISIONS. The token rides the caller graph D-FR-10
+    threaded, so it reaches the cascade legs, the J4 tape, the numbers agent and /v1/series -- and NOT the
+    three sites that wave left unthreaded because the futures scope could never move them: cascade's
+    `_psd_component_rows` and `_cot_outcome_read`, and silverleg's `_rows`. Under this token they COULD
+    move, so each now carries, in its own docstring, the bound that makes leaving it safe: the PSD
+    component read is scoped to a single marketing year, `_cot_outcome_read` is one slug over a
+    horizon-length date window, and silverleg's legs are capped per leg -- with `_su_ratio`'s
+    country-less fallback named as the one that can actually bind. silverleg additionally memoizes
+    behind a SHARED cache whose
+    key carries no read-shape term, so threading it without re-keying that cache would let one turn read
+    an entry computed under the other ordering. That re-key is its own change with its own gate.
+
+    THE VALUE IS A SCOPE, NOT A SECOND KWARG. `_newest_first_scope` folds the two seams into the ONE token
+    (`query.NEWEST_FIRST_ALL`) that already rides the `futures_newest_first` slot down every threaded
+    frame, so this flag inherits the caller graph D-FR-10's wave landed and test_futures_readpath_pins
+    section 7 pins -- rather than minting a parallel thread that would have to re-earn that proof frame by
+    frame, and whose first missed frame would be indistinguishable from the flag being off.
+    Read PER CALL (never memoized) so the env-flip rollback is live -> no redeploy (the _chain_on idiom)."""
+    return os.environ.get("GRAPHRAG_SERIES_NEWEST_FIRST", "").strip().lower() == "on"
+
+
+def _newest_first_scope(futures_on: bool, series_on: bool) -> bool | str:
+    """Fold the two newest-first seams into the ONE scope token threaded down as `futures_newest_first`:
+    False (off), True (D-FR-2 futures-scoped), or `query.NEWEST_FIRST_ALL` (D-AM-18 estate-wide).
+
+    PURE -- it reads no env of its own. Both bools are read AT THE LANE and passed in, so each lane keeps
+    exactly one read per turn per flag (a turn cannot disagree with itself) and the census test that every
+    lane reaches `_futures_newest_first_on` BY NAME still measures what it was written to measure.
+
+    The estate-wide token WINS over the futures bool rather than combining with it: the scopes are nested,
+    not parallel -- everything the futures scope moves, the estate-wide scope moves too -- so with both
+    flags on a futures card takes the same single flip, never a double-apply.
+
+    The token is imported from the compiler that INTERPRETS it (lazily, the numbers-package import idiom
+    this file uses for cascade/pgnumbers): one definition, so a rename cannot leave this seam emitting a
+    string no scope guard recognizes."""
+    from leviathan.graphrag.numbers.query import NEWEST_FIRST_ALL
+    return NEWEST_FIRST_ALL if series_on else bool(futures_on)
 
 
 def _cot_outcomes_on() -> bool:
@@ -1684,7 +1750,10 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
             # quantify fake written against the older signature stays valid, which is how every cascade
             # fixture in the suites is built. This is the turn's ONE read of the env for this flag -- it
             # then rides down as an argument, so no engine under this seam can disagree about it.
-            _fnf_kw = {"futures_newest_first": True} if _futures_newest_first_on() else {}
+            # D-AM-18: the value is the SCOPE token, not a bare True -- False / True (futures) / "all"
+            # (estate-wide). Both env seams are read HERE, once, and folded by `_newest_first_scope`.
+            _nf_scope = _newest_first_scope(_futures_newest_first_on(), _series_newest_first_on())
+            _fnf_kw = {"futures_newest_first": _nf_scope} if _nf_scope else {}
             _cblock, _quant_trace, _reroute_trace = cq.quantify(sg, graph, qfn=numbers_lookup, asof=asof,
                                                                 near=near,
                                                                 extra_number_calls=extra_number_calls,

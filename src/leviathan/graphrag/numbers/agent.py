@@ -249,7 +249,7 @@ def _fmt_esr_num(v) -> Optional[str]:
 
 
 def _esr_aggregate_legs(esr_query: dict, asof: str, query_fn, *,
-                        futures_newest_first: bool = False) -> list[dict]:
+                        futures_newest_first: bool | str = False) -> list[dict]:
     """The two SUPPORTED aggregate ESR reads for the generic destination-breakdown decline: total
     marketing-year export sales (agg=sum over the MY, across all destinations) and the prior-MY
     same-metric read (the pace-vs-prior-year comparison the tool already supports). Commodity + metric +
@@ -1461,25 +1461,51 @@ def stats_tool_schema() -> dict:
                 "t1": {"type": "integer", "description": "start index for window_change (0-based; negatives allowed)"},
                 "t2": {"type": "integer", "description": "end index for window_change"},
                 "periods": {"type": "integer", "description": "lookback periods for yoy_delta (12 for monthly YoY)"},
+                # D-AM-17: the spread arm is SCHEMA-ENFORCED named-expiry. The model can only pass what the
+                # schema declares, so two required-by-the-stat month names here are what make "never a
+                # front-month inference" a structural property instead of a prompt instruction.
+                "near_month": {"type": "string", "description":
+                               "for `spread` ONLY: the NEARBY delivery month, spelled exactly as the rows "
+                               "carry it ('YYYY-MM'). Both legs must be NAMED -- this lookup stores no "
+                               "front-month flag and no open interest, so a spread whose legs you did not "
+                               "name is refused, never guessed at from the nearest listed expiry."},
+                "far_month": {"type": "string", "description":
+                              "for `spread` ONLY: the DEFERRED delivery month ('YYYY-MM'). The computed "
+                              "figure is far minus near, over ONE curve read at a single as-of (agg="
+                              "'latest' with BOTH months in contract_month); rows spanning several "
+                              "sessions are refused, because then neither leg is a single figure."},
             },
             "required": ["stat", "series_handle"],
         },
     }
 
 
-def _series_from_rows(rows: list) -> list[float]:
-    """The numeric series a handle exposes: the value cell of each row that coerces to a finite number
-    (chronological -- the loop appends rows oldest -> newest). Non-numeric / null cells are dropped."""
-    out: list[float] = []
+def _series_axis(rows: list) -> tuple[list[float], list[str]]:
+    """D-AM-17: the handle's numeric series AND its parallel delivery-month label axis, built in ONE pass so
+    the drop rule is written once. `stats.spread` selects its two legs BY NAME from the label axis, so a
+    label list assembled by a second loop over the same rows would silently misalign the moment the two
+    loops disagreed about a droppable cell -- and a misaligned spread subtracts the wrong two contracts
+    while looking exactly like a right answer. `contract_month` is query._extras' alias (that module mints
+    it; this only reads it) and is "" for every card that has no delivery month at all."""
+    vals: list[float] = []
+    exps: list[str] = []
     for r in rows or []:
         v = (r or {}).get("value")
         if v is None or isinstance(v, bool):
             continue
         try:
-            out.append(float(str(v).replace(",", "")))
+            f = float(str(v).replace(",", ""))
         except (TypeError, ValueError):
             continue
-    return out
+        vals.append(f)
+        exps.append(str((r or {}).get("contract_month") or "").strip())
+    return vals, exps
+
+
+def _series_from_rows(rows: list) -> list[float]:
+    """The numeric series a handle exposes: the value cell of each row that coerces to a finite number
+    (chronological -- the loop appends rows oldest -> newest). Non-numeric / null cells are dropped."""
+    return _series_axis(rows)[0]
 
 
 def _handle_kd(rows: list) -> Optional[str]:
@@ -1487,6 +1513,43 @@ def _handle_kd(rows: list) -> Optional[str]:
     input rows, never re-derived)."""
     ds = [d for r in (rows or []) for d in ((r or {}).get("knowledge_date"), (r or {}).get("data_date")) if d]
     return max(ds) if ds else None
+
+
+# D-AM-17: the per-row labels a stat's injected [N] row INHERITS from the rows it was computed over.
+# tables.yaml:954-963 is doctrine for the price card and it cuts BOTH ways: "every row comes back carrying
+# its own contract_month, settle_kind and currency -- state them with the number, never a bare figure" AND
+# "never attach a delivery month to a row that has none". A stat row minted {value, unit, knowledge_date}
+# is the first half's failure -- a derived price figure with no expiry and no provenance kind on it, which
+# is precisely the bare level the card forbids quoting. So the labels ride the injected row, but ONLY when
+# they are UNAMBIGUOUS across the source rows (exactly one distinct non-empty value): a curve read spans
+# many expiries, its derived figure has no single delivery month, and picking one would be the second
+# half's failure. `currency` is deliberately NOT lifted here -- it is the deferred X2 item (D-FR-6), and
+# lifting it as a side effect of this change would silently widen the unit guard's inputs.
+_STAT_ROW_LABELS = ("contract_month", "settle_kind")
+
+
+def _handle_labels(rows: list) -> dict:
+    """The unambiguous subset of _STAT_ROW_LABELS across `rows` -- absent (not blank, not guessed) whenever
+    the rows disagree, or do not carry the label at all."""
+    out: dict = {}
+    for k in _STAT_ROW_LABELS:
+        seen = {str((r or {}).get(k) or "").strip() for r in (rows or [])}
+        seen.discard("")
+        if len(seen) == 1:
+            out[k] = seen.pop()
+    return out
+
+
+# S4 (D-AM-17): the stats whose answer is a claim about the TIME axis of the rows -- a positional walk
+# (streak / window_change / yoy_delta) or a rank inside "its own history" (percentile / zscore). On an
+# INTERLEAVED read the first three are wrong by the expiry multiplicity (21 rows of a 13-expiry curve is
+# ~1.6 sessions, not 21 trading days) and the last two rank a value inside a pool that mixes 13 delivery
+# months with 22 sessions, which is not that value's own history. THREE ARE DELIBERATELY OUT, and it is
+# not an oversight: `extrema` is order-independent and its min/max IS a true high and low of rows actually
+# read; `spread` is a CURVE statistic whose own named-expiry refusals already reject an interleaved read
+# (each named month lands on more than one row); `revision_count` walks the VINTAGE axis, which no
+# per-expiry price card has, so an interleaved shape cannot reach it.
+_TIME_AXIS_STATS = frozenset({"streak", "window_change", "percentile", "zscore", "yoy_delta"})
 
 
 def _dispatch_stat(stat: str, inp: dict, handles: dict) -> dict:
@@ -1529,6 +1592,19 @@ def _dispatch_stat(stat: str, inp: dict, handles: dict) -> dict:
         _ua, _ub = handles[sh].get("unit"), handles[vh].get("unit")
         if not ST.unit_compatible(_ua, _ub):
             return ST.unit_decline(stat, _n, _ua, _ub)
+    # -- S4 THE CURVE-AS-CALENDAR GUARD (D-AM-17). --------------------------------------------------
+    # The discriminator and its reason string are query.py's, unchanged and uncopied -- this is only the
+    # seam that finally CALLS them: they shipped with zero production callers, so an interleaved read (many
+    # delivery months AND many sessions) has until now been walked positionally with no signal anywhere in
+    # the result. `shape` is measured at the lookup mint and carried on the handle; a handle without one
+    # (a chained stat result, a post-answer leg) reads as an empty shape and computes exactly as before,
+    # which is what keeps every pre-wave path byte-identical. `n` follows the unit guard's convention: the
+    # series handle's OWN length, the sample the stat WOULD have run over -- never a fabricated 0.
+    if stat in _TIME_AXIS_STATS:
+        _shape = handles[sh].get("shape") or {}
+        if Q.curve_as_calendar(_shape):
+            return ST.curve_as_calendar_decline(stat, len(handles[sh].get("series") or []),
+                                                Q.curve_as_calendar_reason(_shape))
     series = handles[sh]["series"]
 
     def _val():
@@ -1549,13 +1625,22 @@ def _dispatch_stat(stat: str, inp: dict, handles: dict) -> dict:
     if stat == "yoy_delta":
         p = inp.get("periods")
         return ST.yoy_delta(series, periods=1 if p is None else p)
+    if stat == "spread":
+        # The label axis rides the handle beside the numeric one (_series_axis builds both in one pass).
+        # A handle that never had one -- a chained stat result, an ESR/pattern-records leg -- arrives as []
+        # and stats.spread REFUSES it in the same breath as a cash reference: no delivery months, no two
+        # legs to difference. That is why "the handle is not a single-as-of curve" needs no second shape
+        # verdict here; the label axis IS the evidence, and it names what came back.
+        return ST.spread(series, handles[sh].get("expiries") or [],
+                         inp.get("near_month"), inp.get("far_month"))
     raise ValueError(f"unknown stat {stat!r}")   # unreachable: the enum + STAT_NAMES gate this upstream
 
 
 def _stat_provenance(stat: str, inp: dict, handles: dict) -> dict:
     """{stat, params, input_handles} stamped onto every injected stat [N] row so the guard + citations carry
     the exact derivation (which handles, which scalar params)."""
-    params = {k: inp[k] for k in ("direction", "window", "t1", "t2", "periods", "value_handle")
+    params = {k: inp[k] for k in ("direction", "window", "t1", "t2", "periods", "value_handle",
+                                  "near_month", "far_month")
               if inp.get(k) is not None}
     ins = [h for h in (inp.get("series_handle"), inp.get("value_handle")) if h]
     return {"stat": stat, "params": params, "input_handles": ins}
@@ -1563,17 +1648,35 @@ def _stat_provenance(stat: str, inp: dict, handles: dict) -> dict:
 
 # The result of a percentile/streak/z-score is NOT in the series' unit -- it is its own kind of quantity. Only
 # the magnitude-preserving stats (window/YoY change, extrema) inherit the series unit.
+# D-AM-17 puts `spread` on the SYNTHETIC side, and that is the level-vs-delta hole D-FR-17(ii) named being
+# fenced for the one stat added since: a spread is a DIFFERENCE between two contracts, and inheriting the
+# raw price unit would make it known-vs-known-EQUAL against a distribution of price LEVELS -- so a carry of
+# +12.5 would rank inside a pool of ~430 levels and compute a 0th percentile, exactly the wrong number the
+# unit guard exists to refuse. With its own kind-label the chained handle is known-vs-known-DIFFERENT and
+# the guard declines. The physical unit is not lost to the reader: it stays on the two source rows the
+# spread was computed over, and the injected row names both legs (see _stat_calls).
 _STAT_UNIT = {"streak": "consecutive periods", "revision_count": "consecutive revisions",
-              "percentile": "percentile", "zscore": "sigma"}
+              "percentile": "percentile", "zscore": "sigma", "spread": "spread"}
 
 
-def _stat_calls(stat: str, res: dict, prov: dict, series_unit: Optional[str], kd: Optional[str]) -> list[dict]:
+def _stat_calls(stat: str, res: dict, prov: dict, series_unit: Optional[str], kd: Optional[str],
+                labels: Optional[dict] = None) -> list[dict]:
     """Turn a SUCCESSFUL stats result into one (or, for extrema, two) synthetic lookup call(s) -- each an
-    [N] row carrying the computed value so the all-numbers guard value-checks it. A decline injects nothing."""
+    [N] row carrying the computed value so the all-numbers guard value-checks it. A decline injects nothing.
+
+    `labels` is the unambiguous expiry/settle-kind pair inherited from the source rows (_handle_labels):
+    absent for every card that carries no such column, so those rows are byte-identical to pre-D-AM-17."""
     unit = _STAT_UNIT.get(stat, series_unit)
+    lab = dict(labels or {})
+    if stat == "spread":
+        # A spread spans TWO delivery months, so it can never carry a single `contract_month` (the card's
+        # own rule: never attach a delivery month to a row that has none). It names both legs instead,
+        # under their own keys -- writing a pair into the `contract_month` alias would put a non-month
+        # string in the one field every downstream expiry reader parses as a month.
+        lab["near_month"], lab["far_month"] = res.get("near"), res.get("far")
     def _row(val, metric):
         q = {"table": STATS_TOOL_NAME, "metric": metric}
-        return {"query": q, "rows": [{"value": val, "unit": unit, "knowledge_date": kd}],
+        return {"query": q, "rows": [{"value": val, "unit": unit, "knowledge_date": kd, **lab}],
                 "status": "ok", "stat_provenance": prov}
     if stat == "extrema":
         return [_row(res["min"], "extrema_min"), _row(res["max"], "extrema_max")]
@@ -1609,6 +1712,15 @@ def system_prompt(reg: NumbersRegistry, stats_tool: Optional[bool] = None) -> st
         "tense (e.g. 'the latest reading sits in the 96th percentile of its own history [N]', 'a third "
         "consecutive downward revision [N]'). Percentile / streak / z-score vocabulary is servable ONLY "
         "through the tool, and only over history -- never as a forecast, trend-fit, or extrapolation.\n"
+        # D-AM-17 KILL-SWITCH PARITY: the spread arm's steering rides the SAME `stats_on` string as the
+        # tool schema's `spread` enum member and its near_month/far_month properties, so the model is
+        # never told about an arm it does not have -- and never has one it was not told how to call.
+        "- A CARRY or CALENDAR SPREAD between two delivery months is that same kind of request, not "
+        "arithmetic you do: look up the CURVE at one as-of (agg='latest' with BOTH months in "
+        "contract_month), then REQUEST compute_stat with stat='spread' and near_month / far_month NAMED. "
+        "The difference (far minus near) comes back as an observed [N] figure. You must name BOTH legs -- "
+        "there is no front month in this lookup (no front-month flag, no open interest), so a spread is "
+        "refused rather than guessed, and a read spanning several sessions is refused too.\n"
         if stats_on else "")
     return (
         "You are a data-lookup agent for an agricultural-commodity desk. Answer ONLY with numbers you actually "
@@ -1732,7 +1844,7 @@ def _forced_spec(asof: str, inp: dict) -> Q.NumberQuery:
 
 def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU, reg: Optional[NumbersRegistry] = None,
                    query_fn=None, max_calls: int = 6, max_tokens: int = 1500, on_call=None,
-                   families: Optional[list] = None, futures_newest_first: bool = False) -> dict:
+                   families: Optional[list] = None, futures_newest_first: bool | str = False) -> dict:
     """Run the agent loop. `client` = an anthropic.Anthropic (real = billed); `query_fn(sql)->rows` overrides Athena
     (tests). Returns {answer, calls:[{query, rows}]} — calls carry the exact provenance behind every number.
     `on_call(n_calls, table)` (default None = byte-identical) fires after each executed lookup — the SSE
@@ -2098,7 +2210,7 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                 return ({**res, "status": "declined"}, [])
             prov = _stat_provenance(stat, inp, handles)
             sh = handles.get(inp.get("series_handle")) or {}
-            injected = _stat_calls(stat, res, prov, sh.get("unit"), sh.get("kd"))
+            injected = _stat_calls(stat, res, prov, sh.get("unit"), sh.get("kd"), sh.get("labels"))
             payload = {**res, "status": "ok", "provenance": prov,
                        "note": "This is now an injected observed figure -- state it with its unit and stay "
                                "descriptive (no forecast/extrapolation)."}
@@ -2132,7 +2244,12 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                     content["handle"] = h
                     handles[h] = {"series": [v for p in injected for v in _series_from_rows(p["rows"])],
                                   "kd": injected[0]["rows"][0].get("knowledge_date"),
-                                  "unit": injected[0]["rows"][0].get("unit")}
+                                  "unit": injected[0]["rows"][0].get("unit"),
+                                  # D-AM-17: the labels inherited above ride the CHAINED handle too, so a
+                                  # stat of a stat keeps saying which expiry it came from. No `shape` and
+                                  # no `expiries`: a derived figure is not a curve read, so S4 lets it
+                                  # compute (an empty shape is never interleaved) and `spread` refuses it.
+                                  "labels": _handle_labels(injected[0]["rows"])}
             elif name == TOOL_NAME:
                 content = _stamp_scope(payload_by_id[b.id])
                 calls.append(content)
@@ -2140,8 +2257,15 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                 h = f"L{hseq}"
                 content["handle"] = h
                 _rows = content.get("rows") or []
-                handles[h] = {"series": _series_from_rows(_rows), "kd": _handle_kd(_rows),
-                              "unit": (_rows[0].get("unit") if _rows else None)}
+                # D-AM-17 (S4 + the label carry): the shape verdict is MEASURED HERE, at the mint, on the
+                # rows the lookup actually returned -- the one place both counts exist. Deferring it to
+                # dispatch time would mean re-deriving it per stat call from a handle that had already
+                # discarded the rows, which is precisely how the multiplicity got lost in the first place.
+                _vals, _exps = _series_axis(_rows)
+                handles[h] = {"series": _vals, "kd": _handle_kd(_rows),
+                              "unit": (_rows[0].get("unit") if _rows else None),
+                              "expiries": _exps, "shape": Q.series_shape(_rows),
+                              "labels": _handle_labels(_rows)}
             else:                                                  # unknown tool (or stats off) -> honest error
                 content = {"status": "error", "error": f"unknown tool {name!r}"}
             results.append({"type": "tool_result", "tool_use_id": b.id, "content": json.dumps(content)[:6000]})

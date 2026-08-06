@@ -11,8 +11,19 @@ import { useThread } from './store/thread';
 // The landing gate and terminal are ONE app; the terminal is lazy-loaded behind the auth gate (§7).
 // retryImport heals a transient chunk miss in the just-deployed window (S2.1).
 const Terminal = lazy(() => retryImport(() => import('./shell/Terminal')));
+// D-AM-15: the public share reader. Lazy for the same reason as the terminal — an unauthenticated visitor
+// following a forwarded link must not download the whole terminal to read one frozen note.
+const SharePage = lazy(() => retryImport(() => import('./views/artifact/SharePage')));
 
 const loading = <div className="p-6 font-mono text-12 text-text-dim">loading terminal…</div>;
+const loadingNote = <div className="p-6 font-mono text-12 text-text-dim">loading note…</div>;
+
+/** The /s/:id reader, mounted in BOTH app shapes. It sits OUTSIDE every auth gate on purpose: GET
+ *  /v1/share/{id} is public (ratified), and a share link that bounced a signed-out reader to the landing
+ *  page would not be a share link. */
+const shareRoute = (
+  <Route path="/s/:id" element={<Suspense fallback={loadingNote}>{<SharePage />}</Suspense>} />
+);
 
 function TerminalGate({ authed }: { authed: boolean }) {
   // Before bouncing an unauthenticated visit to the landing, try ONE silent sign-in: a stored refresh
@@ -78,6 +89,7 @@ function AuthedApp() {
           }
         />
         <Route path="/app" element={<TerminalGate authed={auth.isAuthenticated} />} />
+        {shareRoute}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>
@@ -118,6 +130,7 @@ function OpenApp() {
     <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/app" element={<Suspense fallback={loading}>{<Terminal />}</Suspense>} />
+      {shareRoute}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

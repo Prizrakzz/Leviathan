@@ -6,8 +6,10 @@ import { relTime } from '@/lib/time';
 import { useSession } from '@/store/session';
 import { useThread } from '@/store/thread';
 import { useUI } from '@/store/ui';
+import { ArtifactsSection } from './ArtifactsSection';
 
-/** How long a "sure?" stays armed (D-TW-8). Exported so the test drives the real constant, not a copy. */
+/** How long a "sure?" stays armed (D-TW-8). Exported so the test drives the real constant, not a copy —
+ *  and so the artifacts list arms destructively on the SAME clock as the thread list. */
 export const DELETE_ARM_MS = 3_000;
 
 /**
@@ -115,6 +117,10 @@ export function ThreadSidebar({ turn }: { turn: TurnState }) {
         )}
         {!ready && <div className="px-2 py-1 font-mono text-11 text-text-faint">signing in…</div>}
       </div>
+
+      {/* D-AM-15: saved artifacts sit UNDER the threads list, capped in height so a long artifact list can
+          never push the (scrolling, flex-1) thread list out of the sidebar. */}
+      <ArtifactsSection />
     </aside>
   );
 }

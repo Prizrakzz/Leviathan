@@ -15,19 +15,24 @@ Endpoints (build-plan Phase 1 — all additive, deterministic, no new LLM spend 
   GET  /v1/regimes/{contract}?asof=   — one contract's regimes + driver signals for the gauges.       §4.4
   GET  /v1/series/{table}/{metric}    — vintage-aware series <= asof for the sparklines.              §4.5
   GET  /v1/events?contract=&asof=     — live-events feed; empty when asof<today (PIT kill-switch).    §4.7
+  GET  /v1/gallery                    — curated starter prompts, filled from the warm convergence catalog
+                                        (deterministic, no model call, no quota; D-AM-16).
   POST /v1/share , GET /v1/share/{id} — immutable, reproducible note snapshot (pins graph_version).  §6.7
-  GET/POST/DELETE /v1/{threads,watchlists,workspaces} — per-user persistence.
+  GET/POST/DELETE /v1/{threads,watchlists,workspaces,artifacts} — per-user persistence (artifacts =
+                                        a named, PRIVATE freeze of one answer turn; D-AM-15).
 
 Run (image ENTRYPOINT is `python`):  -m uvicorn leviathan.graphrag.server:app --host 0.0.0.0 --port 8080
 Deployment (ECS + ALB, Cognito enforcement, durable table, prod CORS origin) is a Phase-4 gated step."""
 from __future__ import annotations
 
+import functools
 import json
 import os
 import queue
 import re
 import threading
 import time
+from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
@@ -511,7 +516,9 @@ def series_route(table: str, metric: str, commodity: Optional[str] = Query(None)
     #
     # Read ABOVE the try, deliberately: inside it, a seam failure would be reported to the UI as
     # "series query failed", which is the one thing it would not have been.
-    _nf = an._futures_newest_first_on()
+    # D-AM-18: the token, not a bare bool -- this route is the ONE user-facing surface that compiles an
+    # unbounded agg='series' read on ANY card, so it is the surface the estate-wide scope exists for.
+    _nf = an._newest_first_scope(an._futures_newest_first_on(), an._series_newest_first_on())
     try:
         rows = Q.run(spec, query_fn=_STATE.get("query_fn"), futures_newest_first=_nf)
     except Exception as e:  # noqa: BLE001 — a query failure is a 502, never a 500 stacktrace to the UI
@@ -922,6 +929,110 @@ def suggest_route(body: M.SuggestRequest, ident: dict = Depends(_require_identit
         return empty
 
 
+# ── D-AM-16 deterministic prompt gallery — the suggester's opposite number ───────────────────────────
+# /v1/suggest is a per-request Haiku call against a daily quota that degrades to []: right for a follow-up
+# row under a finished answer, wrong for the landing page, where an empty starter row IS the whole screen.
+# The gallery is the deterministic half: AUTHORED templates (configs/graphrag/gallery.yaml) whose slots are
+# filled from the SAME warm catalog `_suggest_catalog` builds — a dict read off the convergence warmer, no
+# model, no quota, no per-request computation. Two users on the same book on the same day see the same
+# gallery, which is what makes it a gallery rather than a feed.
+_GALLERY_PATH = Path(__file__).resolve().parents[3] / "configs" / "graphrag" / "gallery.yaml"
+_GALLERY_SLOT = re.compile(r"\{(\w+)\}")
+
+
+@functools.lru_cache(maxsize=1)
+def _gallery_templates() -> tuple[dict, ...]:
+    """The curated templates, parsed ONCE per process (authored IP, never hot-edited; tests call
+    `_gallery_templates.cache_clear()`). Fail-CLOSED to () on a missing or malformed file — no starter row
+    is a quiet degradation, whereas a half-parsed one puts a broken question in front of every new thread.
+
+    Each row's `rc_target` is a CLAIM about the authored wording: that the filled question selects that
+    response contract through intent.select_response_contract. tests/unit/test_dam_gallery.py pins every
+    row, filled and slot-neutralized, so the cue can never migrate into a slot value."""
+    try:
+        import yaml
+        rows = (yaml.safe_load(_GALLERY_PATH.read_text(encoding="utf-8")) or {}).get("templates") or []
+        out: list[dict] = []
+        for r in rows:
+            if not isinstance(r, dict):
+                continue
+            tid, tpl = str(r.get("id") or "").strip(), str(r.get("template") or "").strip()
+            if not tid or not tpl:
+                continue                                   # a row missing either is unrenderable, not fatal
+            out.append({"id": tid, "category": str(r.get("category") or "general"), "template": tpl,
+                        "rc_target": str(r.get("rc_target") or "default")})
+        return tuple(out)
+    except Exception:  # noqa: BLE001 — unreadable/malformed config must never 500 the landing page
+        return ()
+
+
+def _gallery_slots(cat: Optional[dict], i: int) -> dict:
+    """Deterministic slot values for template index `i`, read straight out of the warm catalog dict.
+
+    `contract` and `regime` come from the SAME near-firing row, so the pairing is TRUE — that regime really
+    is the one closest to tipping for that contract, not an arbitrary cross-product. Only when the near pool
+    is empty does `contract` fall back to the tracked-contract list, and then no regime is offered at all.
+    `pair` is drawn ONLY from the catalog's realizable set (census-gated upstream in `_suggest_pairs`), so
+    the gallery can never advertise a cascade the engine cannot walk.
+
+    Rotating every pool by the template index is what keeps a 12-row gallery from naming one contract twelve
+    times while staying reproducible: same catalog in, same gallery out."""
+    if not cat:
+        return {}
+    out: dict = {}
+    near, contracts, pairs = cat.get("near") or [], cat.get("contracts") or [], cat.get("pairs") or []
+    if near:
+        row = near[i % len(near)]
+        out["contract"] = _leg_word(str(row.get("contract") or ""))
+        regime = str(row.get("regime") or "")
+        if regime:
+            from leviathan.graphrag import display as dsp
+            out["regime"] = dsp.regime_label(regime)       # the authoritative reader label; never a raw id
+    elif contracts:
+        out["contract"] = _leg_word(str(contracts[i % len(contracts)]))
+    if pairs:
+        legs = list((pairs[i % len(pairs)] or {}).get("legs") or ())
+        if len(legs) == 2:
+            a, b = _leg_word(str(legs[0])), _leg_word(str(legs[1]))
+            if a and b:
+                out["pair"] = f"{a} and {b}"
+    return {k: v for k, v in out.items() if v}
+
+
+def _gallery_items(cat: Optional[dict]) -> list[dict]:
+    """Fill each template, or fall back to the raw template. The two miss-cases are deliberately different:
+    a COLD catalog returns every row unfilled (the gallery is the landing page's only content, so it must
+    never be empty — the braces read as the fill-in-the-blank prompt the row already is), while a WARM
+    catalog DROPS a row whose slots it cannot fill (a lone blank next to eleven concrete questions reads as
+    a bug; the commonest case is the pair rows with RV-v2 off)."""
+    items: list[dict] = []
+    for i, t in enumerate(_gallery_templates()):
+        vals = _gallery_slots(cat, i)
+        filled = set(_GALLERY_SLOT.findall(t["template"])) <= set(vals)
+        if cat is not None and not filled:
+            continue
+        q = _GALLERY_SLOT.sub(lambda m: vals[m.group(1)], t["template"]) if filled else t["template"]
+        items.append({"id": t["id"], "category": t["category"], "question": q,
+                      "rc_target": t["rc_target"], "filled": filled})
+    return items
+
+
+@app.get("/v1/gallery", response_model=M.Gallery)
+def gallery_route(ident: dict = Depends(_require_identity)) -> dict:
+    """Curated starters for the empty state. Identity-gated like every other read, and FREE — no model call
+    and NO quota of any kind (unlike /v1/suggest, which spends one per turn). The catalog is the suggester's
+    own `_suggest_catalog` with an empty scope (global top-N closest to firing): reusing it keeps ONE
+    definition of what is answerable, including the per-pair census gate. That also means the catalog flag
+    and the convergence warmer govern here too — with either off the catalog is None and the route serves
+    the unfilled templates, which is a legible fallback rather than a failure."""
+    try:
+        cat = _suggest_catalog([]) or None      # `or None`: an EMPTY catalog is a cold one, not a warm empty
+    except Exception:  # noqa: BLE001 — a catalog hiccup degrades to the template fallback, never a 500
+        cat = None
+    return M.Gallery(items=[M.GalleryItem(**i) for i in _gallery_items(cat)],
+                     catalog_warm=cat is not None).model_dump()
+
+
 # ── 6.6 settings / profile facts / onboarding (auth-gated; prefs, never the answer path) ────────────
 _FACT_KEYS_LIST = ("markets", "regions", "notes")
 _FACTS_MAX_ITEMS = 12
@@ -1049,7 +1160,7 @@ def share_get(share_id: str) -> dict:                             # public read 
     return M.ShareSnapshot(**snap.to_dict()).model_dump()
 
 
-def _register_item_routes(coll: str, kind: str, purge=None, on_list=None) -> None:
+def _register_item_routes(coll: str, kind: str, purge=None, on_list=None, freeze=None) -> None:
     def _list(ident: dict = Depends(_require_identity)) -> dict:
         if on_list is not None:
             try:
@@ -1063,7 +1174,10 @@ def _register_item_routes(coll: str, kind: str, purge=None, on_list=None) -> Non
     def _put(body: ItemIn, user: str = Depends(_require_user)) -> dict:
         from leviathan.graphrag import store as st
         item_id = body.id or st.new_id()
-        _store().put_item(user, kind, item_id, body.body or {})
+        stored = body.body or {}
+        if freeze is not None:
+            stored = freeze(stored)          # server-side normalization; the client cannot author the shape
+        _store().put_item(user, kind, item_id, stored)
         return {"id": item_id}
 
     def _del(item_id: str, user: str = Depends(_require_user)) -> dict:
@@ -1086,12 +1200,39 @@ def _touch_profile_async(ident: dict) -> None:
         daemon=True).start()
 
 
-for _coll, _kind, _purge, _on_list in (
-    ("threads", "thread", lambda u, tid: _store().delete_turns(u, tid), _touch_profile_async),
-    ("watchlists", "watchlist", None, None),
-    ("workspaces", "workspace", None, None),
+def _freeze_artifact(body: dict) -> dict:
+    """D-AM-15: an artifact is a NAMED, PRIVATE freeze of one answer turn (the per-user collection factory's
+    default identity gate is what makes it private — unlike /v1/share, which is public by ratified design).
+
+    The snapshot is minted by `store.make_share`, the SAME freeze the public share link uses — never a second
+    one — so an artifact and a share of the same turn can never pin different (payload, asof, graph_version)
+    triples. The FULL payload is stored rather than a pointer: reopening an artifact must reproduce the exact
+    turn after the graph has moved on, which a re-run by construction cannot. Size therefore rides the same
+    ceiling a share does (one Dynamo item).
+
+    The `_TURN_ALLOWED` PIT firewall does NOT apply here and that is deliberate: it governs THREAD history,
+    which is replayed as context into later turns and must therefore never carry evidence forward in time.
+    An artifact is never replayed into anything — it is a terminal, user-owned copy of a finished answer,
+    the same posture `put_share` has held since 1.7.
+
+    `updated_at` is stamped HERE because the client never re-PUTs an artifact (it is immutable once frozen),
+    so nothing else would give `_list`'s newest-first sort a key to sort on."""
+    from leviathan.graphrag import store as st
+    payload = body.get("payload")
+    snap = st.make_share(str(body.get("question") or ""), body.get("asof"),
+                         payload if isinstance(payload, dict) else {})
+    name = str(body.get("name") or "").strip() or snap.question or "untitled artifact"
+    return {"name": name[:200], "snapshot": snap.to_dict(),
+            "created_at": snap.created_at, "updated_at": snap.created_at}
+
+
+for _coll, _kind, _purge, _on_list, _freeze in (
+    ("threads", "thread", lambda u, tid: _store().delete_turns(u, tid), _touch_profile_async, None),
+    ("watchlists", "watchlist", None, None, None),
+    ("workspaces", "workspace", None, None, None),
+    ("artifacts", "artifact", None, None, _freeze_artifact),
 ):
-    _register_item_routes(_coll, _kind, purge=_purge, on_list=_on_list)
+    _register_item_routes(_coll, _kind, purge=_purge, on_list=_on_list, freeze=_freeze)
 
 
 @app.get("/v1/threads/{thread_id}/turns", response_model=M.ThreadTurns)

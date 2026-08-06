@@ -211,6 +211,46 @@ export interface Section {
   body: string;
 }
 
+/** D-AM-15 — the immutable freeze behind BOTH a saved research artifact and a public share link: one
+ *  server-side `store.make_share` snapshot either way, so the two can never pin different things. `payload`
+ *  is the whole RespondResult the turn produced, which is what lets a reader reproduce the exact answer
+ *  under its own `asof`/`graph_version` instead of re-deriving it against a graph that has since moved.
+ *  Declared here (the leaf schema module) so `mock.ts` can name it without importing `client.ts`. */
+export interface FrozenSnapshot {
+  id: string;
+  question: string;
+  asof?: string | null;
+  graph_version?: string | null;
+  created_at: string;
+  payload: RespondResult;
+}
+
+/** One row of the private artifacts collection (GET /v1/artifacts). Everything past `id` is optional on the
+ *  wire on purpose: a half-written or older item must still render as a row the user can delete, never blank
+ *  the sidebar (the ThreadItem posture). */
+export interface ArtifactItem {
+  id: string;
+  name?: string;
+  snapshot?: FrozenSnapshot;
+  created_at?: string;
+  updated_at?: string;
+}
+
+/** D-AM-16 — one curated starter from GET /v1/gallery. `question` is an AUTHORED template already filled
+ *  server-side from the warm convergence catalog, which is what makes the landing page deterministic and
+ *  free (no model call, no quota — the split from /v1/suggest). `filled: false` means the catalog was cold
+ *  and `question` still carries its `{contract}`/`{regime}`/`{pair}` blanks: readable, but NOT a one-click
+ *  starter, so the renderer drops those. `rc_target` is the response contract the wording selects — server
+ *  provenance for the eval lane, carried on the wire rather than rendered. Declared here (the leaf schema
+ *  module) so `mock.ts` can name it without importing `client.ts`. */
+export interface GalleryItem {
+  id: string;
+  category: string;
+  question: string;
+  rc_target?: string;
+  filled?: boolean;
+}
+
 export interface RespondResult {
   answer: string;
   structured?: {

@@ -809,15 +809,30 @@ class TestS1SeamIsTheOnlyEnvRead:
 
     def test_answer_computes_it_ONCE_at_the_quantify_seam(self):
         """The cascade seam, read off SOURCE: the body is behind `_pgnumbers_live()`, so a live-path
-        harness here would pin the pg breaker rather than the threading."""
+        harness here would pin the pg breaker rather than the threading.
+
+        EDITED BY D-AM-18, AND THE MEASUREMENT IS UNCHANGED -- this file's header requires that be said
+        out loud. The threaded VALUE is no longer the literal `True`; it is the scope token
+        (`answer._newest_first_scope`: False / True futures-scoped / "all" estate-wide), because a second
+        flag now widens the same flip to every card. The two properties this test has always pinned are
+        the ones re-expressed below and they are strictly stronger, not weaker: the value is computed
+        ONCE (one assignment, so a turn cannot disagree with itself) and the kwarg is OMIT-WHEN-OFF (a
+        falsy scope sends nothing, so the flag-off call stays byte-identical and an injected `quantify`
+        fake with the pre-wave signature stays valid). The literal-`True` form could not survive the
+        widening: with only the estate-wide flag on, keying the omit on `_futures_newest_first_on()`
+        would have dropped the kwarg and left the new flag dead on this lane -- the exact D-FR-10 defect
+        section 7 exists to catch."""
         import inspect
         import re
 
         from leviathan.graphrag import answer as AN
         src = inspect.getsource(AN)
-        assert re.search(r'_fnf_kw\s*=\s*\{"futures_newest_first":\s*True\}\s*'
-                         r'if\s*_futures_newest_first_on\(\)\s*else\s*\{\}', src), \
-            "answer no longer computes the canary once, omit-when-off, at the quantify seam"
+        assert re.search(r'_nf_scope\s*=\s*_newest_first_scope\(\s*_futures_newest_first_on\(\)\s*,\s*'
+                         r'_series_newest_first_on\(\)\s*\)', src), \
+            "answer no longer folds the two seams into ONE scope value at the quantify seam"
+        assert re.search(r'_fnf_kw\s*=\s*\{"futures_newest_first":\s*_nf_scope\}\s*'
+                         r'if\s*_nf_scope\s*else\s*\{\}', src), \
+            "answer no longer threads the canary once, omit-when-off, at the quantify seam"
         # The DEFINITION plus exactly ONE call site. A second call site inside this file would be a second
         # env read per turn, and two reads can disagree -- which is the whole reason the flag has a seam.
         assert src.count("_futures_newest_first_on()") == 2, \

@@ -230,7 +230,7 @@ def _is_vintage(table: str) -> bool:
 
 def fetch_window(qfn, *, table, metric, commodity, country, t1, t2, asof,
                  agg="series", period=None, period_type="date",
-                 futures_newest_first: bool = False) -> dict:
+                 futures_newest_first: bool | str = False) -> dict:
     """One deterministic PIT-safe windowed lookup -> a call-record {query, rows, status}.
 
     PER-LEG asof pinning is the CALLER's responsibility (quantify): a historical/era leg passes
@@ -873,7 +873,7 @@ def _node_specs(n, row, commodity, country, eras, asof, *, pace: bool = False) -
     return specs
 
 
-def _run_one(qfn, spec: dict, *, futures_newest_first: bool = False) -> dict:
+def _run_one(qfn, spec: dict, *, futures_newest_first: bool | str = False) -> dict:
     """Unpack a spec and fetch; NEVER raises (a malformed spec returns an error record, R6).
 
     `futures_newest_first` (S1 canary) rides straight through to fetch_window; default False keeps every
@@ -993,7 +993,7 @@ def _pair_units(groups: list) -> tuple:
 _BLOCK_HEADER = "OBSERVED CASCADE NUMBERS (as-known at each leg's asof; the record then vs now):\n"
 
 
-def _episode_leg_or_nothing(sg, qfn, asof, calls: list, *, futures_newest_first: bool = False) -> tuple:
+def _episode_leg_or_nothing(sg, qfn, asof, calls: list, *, futures_newest_first: bool | str = False) -> tuple:
     """Run the J4 episode leg and write its trace; `([], [])` on any failure. R6 belt at the ONE place
     both `quantify` return paths reach it, so an outcomes failure degrades to the absence branch the
     episodes persona already treats as normal, and never to a broken turn.
@@ -1023,7 +1023,7 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
              comove: bool = False, price_request: dict | None = None, pace: bool = False,
              chain: bool = False, transmission: bool = False, outlook: bool = False,
              headline: bool = False, episode_outcomes: bool = False,
-             cot_outcomes: bool = False, futures_newest_first: bool = False) -> tuple:
+             cot_outcomes: bool = False, futures_newest_first: bool | str = False) -> tuple:
     """Select grounded nodes with mapped refs, derive analogue-era windows from their dated props, build
     per-node leg GROUPS (era legs + a current rhyme leg), detect cross-country REROUTE pairs (RF-3:
     natural two-node pairs + the synthesized primary-country beneficiary), cap on WHOLE pair-atomic
@@ -2158,8 +2158,13 @@ def _psd_component_rows(qfn, slug: str, metric: str, my: int, asof) -> list:
 
     S1 canary: UNFLAGGED BY DESIGN (see quantify's docstring). `table` is the literal "silver_psd" below,
     whose card declares no `contract_month_col`, so `_newest_first_applies` is False for every spec this
-    function can build -- passing the canary down the five-deep PSD chain could not change one byte of SQL.
-    Pinned in test_futures_readpath_pins, so the omission is measured rather than assumed."""
+    function can build -- passing the FUTURES canary down the five-deep PSD chain could not change one byte
+    of SQL. Pinned in test_futures_readpath_pins, so the omission is measured rather than assumed.
+
+    D-AM-18: under the ESTATE-WIDE token that structural argument no longer holds (the scope stops keying
+    on `contract_month_col`), so this stays unthreaded as a DECISION. The read is scoped to one marketing
+    year (`period=my`, `period_type='marketing_year'`), which is what bounds it: a single MY across every
+    country is orders of magnitude under the 5000 cap, so which end the cap keeps is unobservable here."""
     rec = fetch_window(qfn, table="silver_psd", metric=metric, commodity=slug, country=None,
                        t1=None, t2=None, asof=asof, agg="series", period=my, period_type="marketing_year")
     return rec.get("rows") or []
@@ -2572,7 +2577,7 @@ def _price_call(commodity: str, region: str, value: float, my_label: str, asof, 
 
 
 def _price_pair(price_request: dict, sg, graph, groups: list, qfn, asof, near, calls: list, base: int,
-                *, futures_newest_first: bool = False) -> tuple:
+                *, futures_newest_first: bool | str = False) -> tuple:
     """SEAM B synthesis. The settled US farm-price consequence pair for the FOCUS contract over its nearest
     analogue-era window's MY span. Returns (block_lines, fired) -- ([], None) on ANY honest decline: no map
     (market-price/non-US slug), no derived focus window, <2 MYs, or either endpoint not status=='ok' (PAIR-
@@ -2876,7 +2881,7 @@ def _chain_marker(path: str, window: str) -> str:
 
 
 def _chain_legs(sg, graph, kept: list, records: list, qfn, asof, near, calls: list,
-                *, futures_newest_first: bool = False) -> tuple:
+                *, futures_newest_first: bool | str = False) -> tuple:
     """The chain engine (secs 2-4). Returns (lines, fired_trace, decline_trace):
       * (lines, {...}, None) -> quantify writes sg.trace['quantify_chain'] (fired == bool(trace key));
       * ([], None, {...})    -> quantify writes sg.trace['quantify_chain_decline'] (attempted-and-declined, D7);
@@ -3501,7 +3506,7 @@ def _episode_slug(node) -> str | None:
 
 
 def _tape_read(qfn, *, slug: str, t1: str, t2: str, asof, contract_months=None,
-               futures_newest_first: bool = False) -> tuple:
+               futures_newest_first: bool | str = False) -> tuple:
     """ONE bounded `silver_futures_eod` read -> `(rows, saturated)`. NEVER raises.
 
     `contract_months` compiles to the card's delivery-month IN(...) filter, which is what keeps the deep
@@ -3615,7 +3620,7 @@ def _episode_outcome_line(n: int, slug: str, res: dict, span: str, asof) -> str:
 
 
 def _episode_outcome_legs(sg, qfn, asof, calls: list, base: int, *,
-                          futures_newest_first: bool = False) -> tuple:
+                          futures_newest_first: bool | str = False) -> tuple:
     """J4 -- price the injected episode windows. Returns `(lines, trace)`; NEVER raises.
 
     `futures_newest_first` is the S1 canary, threaded from `answer._futures_newest_first_on()` and passed
@@ -3875,6 +3880,9 @@ def _cot_outcome_read(qfn, *, slug: str, event_date: str, horizon_days: int, aso
     # ('gold_cot_outcomes') whose card declares no `contract_month_col` -- and per the paragraph above,
     # this site reading silver_futures_eod would be the D-OJ-18 fence exit, not a threading gap. So the
     # canary is structurally inapplicable here, and test_futures_readpath_pins pins that it stays so.
+    # D-AM-18: the estate-wide token drops the `contract_month_col` key, so "inapplicable" becomes a
+    # DECISION here -- bounded by the read itself, which is one slug over a horizon-length date window
+    # (t1..t2 below) and cannot approach the row cap the token exists to re-aim.
     rec = fetch_window(qfn, table=COT_OUTCOME_TABLE, metric=COT_OUTCOME_METRIC, commodity=str(slug),
                        country=None, t1=str(event_date)[:10], t2=hi, asof=asof, agg="series",
                        period=None, period_type="date")

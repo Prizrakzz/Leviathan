@@ -56,7 +56,10 @@ def run_numbers_only(query: str, asof: str, *, client=None, model: str = na.HAIK
     # omit-when-off kwarg (the `_xc`/`_ol` idiom this file already uses). Read ONCE here so a turn cannot
     # disagree with itself, and OMITTED when off so the flag-off call is byte-identical and an injected
     # answer_numbers fake with the older signature stays valid.
-    _fnf = {"futures_newest_first": True} if an._futures_newest_first_on() else {}
+    # D-AM-18: the threaded value is the SCOPE token (False / True futures / "all" estate-wide), folded
+    # from the two seams by `_newest_first_scope`. Omit-when-off is unchanged: a falsy scope sends nothing.
+    _nf = an._newest_first_scope(an._futures_newest_first_on(), an._series_newest_first_on())
+    _fnf = {"futures_newest_first": _nf} if _nf else {}
     # B1: `families` is the planner's data_families, already kill-switch-gated by the caller (None when off).
     out = na.answer_numbers(query, asof, client=client, model=model, query_fn=query_fn, families=families,
                             **_fnf)
@@ -272,7 +275,10 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
     # per-thread env read would let the numbers lane and the walk lane disagree about the read shape within
     # a single turn (and would make the flip's rollback racy against an in-flight turn). Omit-when-off, so
     # the flag-off submit is byte-identical and an injected answer_numbers fake keeps its old signature.
-    _fnf = {"futures_newest_first": True} if an._futures_newest_first_on() else {}
+    # D-AM-18: same fold, same lane discipline -- the SCOPE token (False / True / "all"), both seams read
+    # on the CALLING thread so the numbers lane and the walk lane cannot disagree within one turn.
+    _nf = an._newest_first_scope(an._futures_newest_first_on(), an._series_newest_first_on())
+    _fnf = {"futures_newest_first": _nf} if _nf else {}
 
     def _numbers() -> dict:
         # Per-lookup progress ticks (5.6 W5): {calls, running, table} while the agent works, then the

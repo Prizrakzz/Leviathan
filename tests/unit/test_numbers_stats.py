@@ -268,9 +268,14 @@ def test_module_has_no_io_imports():
 # enum surface + descriptive-only fence
 # ---------------------------------------------------------------------------------------------------
 def test_registry_names_frozen():
+    # D-AM-17 widened this by ONE, deliberately: `spread` is the first curve-axis stat (two NAMED
+    # expiries out of one single-as-of curve), and its own surface -- arithmetic, floors, named-expiry
+    # refusals, the S4 interaction -- is pinned in tests/unit/test_dam_carry_stat.py. This assertion is
+    # the frozen-key-set lint the module docstring names, so a name added without a doctrine review
+    # fails HERE first; that is the point of the list, and it is edited, never relaxed.
     assert set(S.STAT_REGISTRY) == {
         "streak", "percentile", "zscore", "window_change",
-        "revision_count", "extrema", "yoy_delta",
+        "revision_count", "extrema", "yoy_delta", "spread",
     }
     assert S.STAT_NAMES == frozenset(S.STAT_REGISTRY)
 

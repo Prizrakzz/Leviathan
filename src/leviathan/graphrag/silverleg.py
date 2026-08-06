@@ -102,10 +102,22 @@ def _rows(query_fn, table: str, metric: str, asof: str, *, commodity=None, count
     rather than as a site the threading wave missed. `table` looks caller-supplied but this module has
     exactly THREE callers and each passes a LITERAL -- silver_psd (_su_ratio, twice), silver_fred_fx
     (_fx) and silver_noaa_oni (_oni). None of those cards declares `contract_month_col`, and
-    `query._newest_first_applies` keys on exactly that, so the canary could not change one byte of the
-    SQL compiled here. Threading it would add a parameter to a firing-leg helper that can never use it.
+    `query._newest_first_applies` keys on exactly that, so the FUTURES canary could not change one byte of
+    the SQL compiled here. Threading it would add a parameter to a firing-leg helper that can never use it.
     Pinned in tests/unit/test_futures_readpath_pins.py: if a fourth caller ever hands this a futures
-    card, that pin reds and the kwarg becomes required."""
+    card, that pin reds and the kwarg becomes required.
+
+    D-AM-18 CHANGES THE REASON, NOT THE ANSWER, AND THE DIFFERENCE MATTERS. Under the estate-wide token
+    (`answer._series_newest_first_on`) `_newest_first_applies` no longer keys on `contract_month_col`, so
+    these three cards WOULD move if the token reached here -- the omission is no longer structural, it is
+    a scope decision, and each leg's exposure is bounded by its OWN cap rather than by the flag: `_fx`
+    reads ~504 calendar days under a 800 cap and `_oni` is agg='latest' (never the series branch), but
+    `_su_ratio` runs limit=400 on silver_psd and drops its country filter whenever the contract has no
+    primary-country geo -- every country's marketing years then compete for 400 ascending rows, and the
+    recent ones are the ones that lose. It is held out of D-AM-18 because `make_silver_lookup`
+    memoizes these legs behind a SHARED cross-request cache whose key carries no read-shape term: threading
+    the token without re-keying that cache would let a turn read an entry computed under the other
+    ordering. Re-keying is its own change with its own gate, so it is named here instead of half-done."""
     from leviathan.graphrag.numbers import query as Q
     spec = Q.NumberQuery(table=table, metric=metric, asof=asof, commodity=commodity, country=country,
                          agg=agg, period_start=period_start, limit=limit)

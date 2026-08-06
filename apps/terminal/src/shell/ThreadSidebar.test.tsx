@@ -8,11 +8,21 @@ import { useUI } from '@/store/ui';
 
 // Mock the api layer (NotificationBell/Onboarding convention: hoisted spies shared by mock + assertions) so
 // the list renders from fixtures instead of a jsdom fetch. The chevron test below keeps its ready=false gate.
-const h = vi.hoisted(() => ({ listThreads: vi.fn(), deleteThread: vi.fn(), renameThread: vi.fn() }));
+// D-AM-15: the sidebar now also mounts ArtifactsSection, which calls listArtifacts/deleteArtifact off the
+// SAME module -- an explicit vi.mock is exhaustive, so both belong here or every test in this file throws.
+const h = vi.hoisted(() => ({
+  listThreads: vi.fn(),
+  deleteThread: vi.fn(),
+  renameThread: vi.fn(),
+  listArtifacts: vi.fn(),
+  deleteArtifact: vi.fn(),
+}));
 vi.mock('@/api/client', () => ({
   listThreads: h.listThreads,
   deleteThread: h.deleteThread,
   renameThread: h.renameThread,
+  listArtifacts: h.listArtifacts,
+  deleteArtifact: h.deleteArtifact,
 }));
 
 import { DELETE_ARM_MS, ThreadSidebar } from './ThreadSidebar';
@@ -36,6 +46,8 @@ beforeEach(() => {
   h.listThreads.mockReset().mockResolvedValue({ items: [] });
   h.deleteThread.mockReset().mockResolvedValue(undefined);
   h.renameThread.mockReset().mockResolvedValue(undefined);
+  h.listArtifacts.mockReset().mockResolvedValue({ items: [] });
+  h.deleteArtifact.mockReset().mockResolvedValue(undefined);
 });
 
 describe('ThreadSidebar collapse chevron (W1.6)', () => {
