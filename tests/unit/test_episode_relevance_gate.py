@@ -75,21 +75,28 @@ def test_probe_episodic_fires_true():
         "When has China done import restrictions, and what commodities were affected each time?")
 
 
-# ══ _episodes_relevant: flag off -> True, non-Latin -> True, else the cue match ══════════════════════
-def test_relevant_flag_off_is_always_true(monkeypatch):
-    monkeypatch.delenv("GRAPHRAG_EPISODE_RELEVANCE", raising=False)
-    assert an._episodes_relevant("Who are the 3 largest canola producers and exporters?") is True
-    assert an._episodes_relevant("") is True
+# ══ _episodes_relevant: FLAGLESS (D-AM stage 3) -> non-Latin True, else the cue match ═══════════════
+def test_relevance_kill_switch_is_retired(monkeypatch):
+    """D-AM stage 3: the interim GRAPHRAG_EPISODE_RELEVANCE flag is RETIRED -- the env var must be
+    inert in BOTH states. Contracts subsume the gate per turn when active; this lexical check is the
+    sole authority on the unshaped lane, unconditionally."""
+    for state in ("on", None):
+        if state:
+            monkeypatch.setenv("GRAPHRAG_EPISODE_RELEVANCE", state)
+        else:
+            monkeypatch.delenv("GRAPHRAG_EPISODE_RELEVANCE", raising=False)
+        assert an._episodes_relevant("Who are the 3 largest canola producers and exporters?") is False
+        assert an._episodes_relevant("Walk me through the episodes one by one.") is True
+    assert not hasattr(an, "_episode_relevance_on")           # the seam itself is gone, not vestigial
 
 
-def test_relevant_flag_on_gates_by_shape(monkeypatch):
-    monkeypatch.setenv("GRAPHRAG_EPISODE_RELEVANCE", "on")
+def test_relevant_gates_by_shape():
     assert an._episodes_relevant("Walk me through the episodes one by one.") is True
     assert an._episodes_relevant("Who are the 3 largest canola producers and exporters?") is False
+    assert an._episodes_relevant("") is False                 # an empty query asks for no enumeration
 
 
 def test_relevant_non_latin_fails_open(monkeypatch):
-    monkeypatch.setenv("GRAPHRAG_EPISODE_RELEVANCE", "on")
     assert an._episodes_relevant("ما الذي يحدث "
                                  "عادة لأسعار "
                                  "القمح؟") is True
@@ -187,11 +194,15 @@ def test_caps_flag_on_bounds_the_section_receipted_first(monkeypatch):
     assert len(bullets) == 4
 
 
-def test_caps_do_not_run_flag_off(monkeypatch):
+def test_caps_run_flaglessly(monkeypatch):
+    """D-AM stage 3 re-expression of the old flag-off exemption: caps are UNCONDITIONAL now (the
+    interim kill-switch is retired). 9 rows = 2 receipted + 7 absence; the absence cap (6) drops
+    exactly one row with the env var ABSENT -- the capping the old test proved could NOT happen
+    flag-off is now the always-on behavior, receipted-first preserved."""
     st, vf, trace = _run(monkeypatch, eps=_eps(9, receipted=(0, 8)))
     stamp = trace["episodes_scaffolded"]
-    assert stamp["fired"] is True and stamp["n_bullets"] == 9
-    assert "n_capped" not in stamp
+    assert stamp["fired"] is True and stamp["n_bullets"] == 8   # 2 receipted + 6 absence
+    assert stamp["n_capped"] == 1
 
 
 def test_scaffold_rows_dedup_by_node_span():

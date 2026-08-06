@@ -837,15 +837,6 @@ def _episode_scaffold_on() -> bool:
     return os.environ.get("GRAPHRAG_EPISODE_SCAFFOLD", "").strip().lower() in ("on", "1", "true")
 
 
-def _episode_relevance_on() -> bool:
-    """D-RC-11 kill-switch (GRAPHRAG_EPISODE_RELEVANCE), the _episode_scaffold_on idiom exactly:
-    DEFAULT-OFF, house on/1/true spelling, read PER CALL so the env-flip rollback is live. Gates the
-    RELEVANCE leg on the '## Episodes' surface AND the scaffold noise caps -- with the flag off,
-    _episodes_relevant returns True having read nothing further and the caps never run, so the turn
-    is byte-identical to pre-D-RC-11 behaviour."""
-    return os.environ.get("GRAPHRAG_EPISODE_RELEVANCE", "").strip().lower() in ("on", "1", "true")
-
-
 def _episodes_relevant(query: str | None) -> bool:
     """D-RC-11: is the '## Episodes' surface RELEVANT to this question's shape? ONE bool, resolved once
     per turn beside the _episodes_on seam and consumed by BOTH producers -- the persona mandate
@@ -854,14 +845,15 @@ def _episodes_relevant(query: str | None) -> bool:
     and the persona still orders the model to write the section; suppress only the persona and the
     scaffold synthesizes it).
 
-    FAIL-OPEN by construction: True when the flag is off (byte-identity), True on a non-Latin query
-    (the cue list is English; suppressing a section because the matcher cannot read the language is
-    not a relevance judgment -- the 2026-08-05 Arabic probe keeps today's behaviour), else the
-    deterministic intent.is_episodic_explicit cue match. The gate never strips a section the MODEL
-    chose to author (D-RC-9: no post-synthesis deletion) -- it removes the MANDATE and the SYNTHESIS,
-    never model freedom."""
-    if not _episode_relevance_on():
-        return True
+    FLAGLESS since D-AM stage 3 (the GRAPHRAG_EPISODE_RELEVANCE interim kill-switch is RETIRED --
+    it existed only to stage D-RC-11 before response contracts shipped; with contracts live an
+    ACTIVE contract's licenses_episodes subsumes this gate per turn at the _ep_rel seam, and this
+    function is the sole authority ONLY on the unshaped/default lane). FAIL-OPEN by construction:
+    True on a non-Latin query (the cue list is English; suppressing a section because the matcher
+    cannot read the language is not a relevance judgment -- the 2026-08-05 Arabic probe keeps
+    today's behaviour), else the deterministic intent.is_episodic_explicit cue match. The gate never
+    strips a section the MODEL chose to author (D-RC-9: no post-synthesis deletion) -- it removes
+    the MANDATE and the SYNTHESIS, never model freedom."""
     q = query or ""
     from leviathan.graphrag.verify import _non_latin
     if _non_latin(q):
@@ -2801,14 +2793,14 @@ def _maybe_scaffold_episodes(structured: dict | None, verifier: dict | None, *,
     rows = _scaffold_rows(recs, nodes)
     if rows is None:
         return _declined("unresolved_window")
-    # D-RC-11 NOISE CAPS (flag-gated; flag off -> untouched). The probe's synthesized sections ran
-    # 23-35 bullets, ~68% verbatim absence lines -- bounded enumeration is already the house's accepted
-    # shape (timeline MAX_PER_NODE truncates per node today); these bound the SECTION. Receipted rows
-    # are kept first (they carry the reader value), absence rows fill up to their own cap, and the
-    # final list keeps the original (chronological) order. Drops are stamped on the trace
-    # (n_capped, flag-on only), never silent.
+    # D-RC-11 NOISE CAPS (flagless since D-AM stage 3, with the retired relevance kill-switch).
+    # The probe's synthesized sections ran 23-35 bullets, ~68% verbatim absence lines -- bounded
+    # enumeration is already the house's accepted shape (timeline MAX_PER_NODE truncates per node
+    # today); these bound the SECTION. Receipted rows are kept first (they carry the reader value),
+    # absence rows fill up to their own cap, and the final list keeps the original (chronological)
+    # order. Drops are stamped on the trace (n_capped), never silent.
     n_capped = 0
-    if _episode_relevance_on() and rows:
+    if rows:
         max_b = int(_prm.get("serving.scaffold.max_bullets", 12))
         max_a = int(_prm.get("serving.scaffold.max_absence", 6))
         keep: set[int] = set(i for i, r in enumerate(rows) if r[2])

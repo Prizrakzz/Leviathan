@@ -125,8 +125,10 @@ def is_outlook_explicit(query: str) -> bool:
 # ── episodic-shape detector (D-RC-11) ─────────────────────────────────────────────────────────────────
 # The RELEVANCE leg for the '## Episodes' surface: does the question's SHAPE call for enumerating the
 # historical record? Cloned from the is_news_explicit / is_outlook_explicit idiom: NARROW, deterministic,
-# regex-only, and consumed at the answer.py seam behind GRAPHRAG_EPISODE_RELEVANCE (default off,
-# fail-OPEN -- a miss keeps today's behaviour; a hit is only ever a *license*, never a mandate).
+# regex-only, and consumed FLAGLESSLY at the answer.py seam since D-AM stage 3 (the interim
+# GRAPHRAG_EPISODE_RELEVANCE kill-switch is retired; an ACTIVE response contract subsumes this leg
+# per turn, so it is the sole authority only on the unshaped/default lane. Fail-OPEN on non-Latin;
+# a hit is only ever a *license*, never a mandate).
 # The cue list is CALIBRATED against two fixed corpora and pinned by tests:
 #   * every row of the playbook decks (eval_queries_playbooks_v1 + _r6residual) must fire TRUE -- those
 #     20 rows pin min_episode_lines/min_episodes_cited and a gate that misses one reds a ratified deck;
@@ -161,8 +163,8 @@ _EPISODIC = re.compile(
 
 def is_episodic_explicit(query: str) -> bool:
     """Does the question's shape call for enumerating historical episodes? Deterministic + pure (regex
-    only, no I/O, no LLM). NECESSARY leg for the '## Episodes' surface when GRAPHRAG_EPISODE_RELEVANCE
-    is on; with the flag off the caller never consults it."""
+    only, no I/O, no LLM). NECESSARY leg for the '## Episodes' surface on the unshaped/default lane
+    (flagless since D-AM stage 3; an active contract's licenses_episodes preempts per turn)."""
     return bool(_EPISODIC.search(query or ""))
 
 
