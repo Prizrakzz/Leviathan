@@ -129,7 +129,11 @@ def test_pg_retrieve_return_rows_are_key_and_type_identical_across_shapes(no_mod
     assert [set(r) for r in cheap] == [set(r) for r in rich]
     assert ([{k: type(v) for k, v in r.items()} for r in cheap]
             == [{k: type(v) for k, v in r.items()} for r in rich])
-    assert "vector" not in cheap[0] and "score" not in cheap[0]   # the payload never leaks to the caller
+    assert "vector" not in cheap[0]                               # the PAYLOAD never leaks to the caller
+    # D-DV-2: `score` is now a DELIBERATE output key on both shapes -- the FINAL relevance the row was
+    # ranked on (rerank score on the rich arm, fused dense+proximity on the cheap one), not the raw SQL
+    # candidate column it shadows. It is what the planner's score-aware cap reads.
+    assert isinstance(cheap[0]["score"], float) and isinstance(rich[0]["score"], float)
 
 
 @pytest.mark.parametrize("near", [None, "2021-07-01", "2021"])
@@ -199,7 +203,15 @@ def test_pg_retrieve_probe_arm_matches_forced_vector_arm_on_pgvector(seeded, mon
     kw = dict(k=2, asof="2021-08-01", near=near, mode="hybrid", embed=_embed, conn=seeded)
     cheap = pg.pg_retrieve("frost damage", "coffee", **kw)
     monkeypatch.setattr(pg, "needs_vectors", lambda **_: True)
-    assert cheap and cheap == pg.pg_retrieve("frost damage", "coffee", **kw)
+    rich = pg.pg_retrieve("frost damage", "coffee", **kw)
+    # D-DV-2 split the assertion in two, and the split is a REAL property, not a loosened pin: the emitted
+    # `score` is pgvector's float4-accumulated cosine on the scalar arm and ev._cosine's float64 on the
+    # vector arm (the sibling test above already compares those at rel=1e-5). Everything the answer is
+    # built from -- rows, order, dates, text -- is still byte-identical.
+    _bare = [{k: v for k, v in r.items() if k != "score"} for r in cheap]
+    assert cheap and _bare == [{k: v for k, v in r.items() if k != "score"} for r in rich]
+    for c, r in zip(cheap, rich):
+        assert c["score"] == pytest.approx(r["score"], rel=1e-5)
 
 
 def test_relevance_order_is_stable_on_tied_scores(monkeypatch):

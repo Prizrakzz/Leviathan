@@ -83,5 +83,7 @@ def test_dense_fast_path_matches_records_arg(monkeypatch):
     monkeypatch.setattr(ev, "embed", lambda x, **k: [[1.0, 0.0]])
     recs = [_rec("hit", "on target", [1.0, 0.0]), _rec("miss", "off", [0.0, 1.0])]
     out = ev.retrieve("q", "node", k=1, records=recs)
+    # P9-A W0: the projection carries event_date. D-DV-2: ...and `score`, the relevance the row was ranked
+    # on -- the fast path picks the SAME rows in the SAME order, it just says why.
     assert out == [{"date": "2020-01-01", "source": "usda_wasde", "source_key": "k/hit", "text": "on target",
-                    "event_date": None, "event_date_precision": None}]   # P9-A W0: projection carries event_date
+                    "event_date": None, "event_date_precision": None, "score": 1.0}]

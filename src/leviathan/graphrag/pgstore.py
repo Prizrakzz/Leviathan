@@ -332,6 +332,12 @@ def pg_retrieve(query: str, node: str, *, k: int = 5, asof: str | None = None, n
         cand, relevance = [cand[i] for i in order], [relevance[i] for i in order]
     top = (rk.mmr_select(cand, relevance, k, mmr, same_source=same_source, fairness=fairness)
            if (mmr > 0 and len(cand) > k) else cand[:k])
+    # D-DV-2: the same additive `score` key evidence._out emits -- the FINAL relevance (post-rerank when a
+    # reranker ran, else the fused dense+proximity value), keyed by id() so an mmr_select reorder still
+    # pairs each row with its own value. The no-vector SQL shape already carries a raw r["score"]; this
+    # overwrites it in the OUTPUT projection only, so both backends hand the planner one meaning.
+    rel_by = {id(r): s for r, s in zip(cand, relevance)}
     return [{"date": r["date"], "source": r["source"], "source_key": r["source_key"], "text": r["text"],
-             "event_date": r.get("event_date"), "event_date_precision": r.get("event_date_precision")}
+             "event_date": r.get("event_date"), "event_date_precision": r.get("event_date_precision"),
+             "score": rel_by.get(id(r))}
             for r in top]

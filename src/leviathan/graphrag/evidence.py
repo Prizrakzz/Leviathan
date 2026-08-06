@@ -476,11 +476,16 @@ def _proximity(date_str: str, near: str, *, half_life_days: float = 365.0) -> fl
     return 0.5 ** (abs((d - n).days) / half_life_days)
 
 
-def _out(recs: list[dict]) -> list[dict]:
+def _out(recs: list[dict], scores: dict | None = None) -> list[dict]:
     # P9-A: event_date rides along (WS-MS6 stored it; the answer layer's "; event <date>" rendering and
     # Phase-B window derivation both need it). .get() so a prop lacking the field stays None.
+    # D-DV-2: `score` -- the retrieval relevance this row was RANKED on -- crosses the retrieve boundary
+    # too. Purely ADDITIVE: it filters nothing here, and every consumer (_ev_block, citations.unify,
+    # verify) reads named keys, so an extra one is inert. `scores` is keyed by id() of the SAME record
+    # objects, so a row the ranker reordered (mmr_select) still carries its own value.
     return [{"date": r["date"], "source": r["source"], "source_key": r["source_key"], "text": r["text"],
-             "event_date": r.get("event_date"), "event_date_precision": r.get("event_date_precision")}
+             "event_date": r.get("event_date"), "event_date_precision": r.get("event_date_precision"),
+             "score": (scores or {}).get(id(r))}
             for r in recs]
 
 
@@ -515,8 +520,9 @@ def retrieve(query: str, node: str, *, k: int = 5, asof: str | None = None, near
         return _cosine(qv, r["vector"]) + (beta * _proximity(r["date"], near) if near else 0.0)
 
     dense_ranked = sorted(recs, key=_dense, reverse=True)
-    if mode == "dense" and not rerank and mmr <= 0:                # fast path == today's behavior, byte-for-byte
-        return _out(dense_ranked[:k])
+    if mode == "dense" and not rerank and mmr <= 0:                # fast path: same rows, same order (D-DV-2
+        top = dense_ranked[:k]                                    # adds the additive `score` key, nothing else)
+        return _out(top, {id(r): _dense(r) for r in top})
 
     from leviathan.graphrag import rankers as rk
     cand = (rk.hybrid_candidates(query, node, all_records, asof, dense_ranked, fetch_k)   # RECALL
@@ -532,7 +538,7 @@ def retrieve(query: str, node: str, *, k: int = 5, asof: str | None = None, near
         cand, relevance = [cand[i] for i in order], [relevance[i] for i in order]
     top = (rk.mmr_select(cand, relevance, k, mmr, same_source=same_source, fairness=fairness)
            if (mmr > 0 and len(cand) > k) else cand[:k])                       # DIVERSITY (source-aware)
-    return _out(top)
+    return _out(top, {id(r): s for r, s in zip(cand, relevance)})
 
 
 def restamp(node: str) -> int:

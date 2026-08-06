@@ -1,10 +1,14 @@
 """graphdev answer orchestrator — mocked (no S3/Bedrock/Anthropic)."""
 from __future__ import annotations
 
+import pytest
+
 from leviathan.causal import schema as cs
 from leviathan.graphrag import answer as an
+from leviathan.graphrag import citations as cit
 from leviathan.graphrag import evidence as ev
 from leviathan.graphrag import graph as g
+from leviathan.graphrag import planner as pl
 
 
 def _d(id, **o):
@@ -557,3 +561,151 @@ def test_answer_v2_flag_on_l2_seam(monkeypatch):
                     retrieve=fake_retrieve, call=fake_call, route_fn=lambda q, g: ["arabica_coffee"])
     assert out["trace"]["planner"] == "l2"
     assert [s["kind"] for s in out["structured"]["sections"]] == ["mechanism"]
+
+
+# == D-DV: presentation order + the rendered-contract-set foreign-regime fix ========================
+def _ord_graph() -> g.CausalGraph:
+    """Two WALKED contracts (a seed + the contract a tracked hop reaches) and one that never enters the
+    subgraph -- the shape the foreign-regime fix is about."""
+    coffee = cs.CausalContract(
+        contract="arabica_coffee", aliases=["arabica"],
+        drivers=[_d("frost", mechanism="frost kills trees"), _d("rain", mechanism="rain rots cherries")],
+        convergence=[cs.ConvergenceSignal(name="arabica_squeeze", direction="+", requires_any_n_of=1,
+                                          drivers=["frost"])],
+        inter_commodity=[cs.InterCommodityEdge(driver_commodity="robusta_coffee", relation="substitutes_for",
+                                               sign="-", mechanism="substitution")])
+    robusta = cs.CausalContract(
+        contract="robusta_coffee", drivers=[_d("drought", mechanism="drought cuts robusta")],
+        convergence=[cs.ConvergenceSignal(name="robusta_glut", direction="-", requires_any_n_of=1,
+                                          drivers=["drought"])])
+    corn = cs.CausalContract(
+        contract="corn", drivers=[_d("heat", mechanism="heat cuts corn")],
+        convergence=[cs.ConvergenceSignal(name="corn_pollination_burn", direction="+", requires_any_n_of=1,
+                                          drivers=["heat"])])
+    return g.CausalGraph({"arabica_coffee": coffee, "robusta_coffee": robusta, "corn": corn}, silver=set())
+
+
+def _ord_node(kind, cid, nid, depth, rel, n_rows):
+    n = pl.GroundedNode(kind=kind, id=nid, contract=cid, depth=depth, relevance=rel)
+    n.evidence = [{"date": "2021-07-20", "source": "GAIN", "source_key": f"s3://{nid}/{i}",
+                   "text": f"row-{nid}-{i}"} for i in range(n_rows)]
+    return n
+
+
+def _one_contract_sg():
+    """Seed + two drivers, ONE contract: walk order and contract-grouped render order coincide here."""
+    return pl.Subgraph(seeds=["arabica_coffee"], nodes=[
+        _ord_node("contract", "arabica_coffee", "arabica_coffee", 0, 1.0, 2),
+        _ord_node("driver", "arabica_coffee", "frost", 1, 0.9, 2),
+        _ord_node("driver", "arabica_coffee", "rain", 1, 0.3, 2)])
+
+
+def _two_contract_sg():
+    """A seed contract, the contract a tracked hop reached, and drivers of BOTH -- the walk interleaves
+    them (wave 0 = every contract node, wave 1 = the drivers of all of them, ranked together)."""
+    hop = _ord_node("contract", "robusta_coffee", "robusta_coffee", 1, 0.6, 2)
+    hop.via_edge = {"_from": "arabica_coffee", "relation": "substitutes_for", "sign": "-",
+                    "mechanism": "substitution", "category": "market_structure"}
+    return pl.Subgraph(seeds=["arabica_coffee"], nodes=[
+        _ord_node("contract", "arabica_coffee", "arabica_coffee", 0, 1.0, 2),
+        hop,
+        _ord_node("driver", "arabica_coffee", "frost", 1, 0.9, 2),
+        _ord_node("driver", "robusta_coffee", "drought", 1, 0.5, 2),
+        _ord_node("driver", "arabica_coffee", "rain", 1, 0.3, 2)])
+
+
+def _row_positions(volatile: list[str], texts: list[str]) -> list[int]:
+    """Where each evidence row's (unique) text sits in the assembled volatile prompt."""
+    blob = "\n".join(volatile)
+    assert all(blob.count(t) == 1 for t in texts), "fixture texts must be unique to locate them"
+    return [blob.index(t) for t in texts]
+
+
+@pytest.mark.parametrize("policy", [None, "relevance"])
+def test_prompt_row_order_equals_evidence_list_order_equals_e_numbering(policy):
+    """THE INVARIANT. The rows the model reads, the flat `evidence` list the verifier resolves against,
+    and the E1..En numbering citations.unify stamps are THREE VIEWS OF ONE SEQUENCE. If they can drift,
+    a handle points at a different row than the one the reader was shown -- and no strip count would
+    ever say so. Pinned on BOTH policies, because the order knob is exactly what could break it."""
+    sg, gr = _one_contract_sg(), _ord_graph()
+    order = an._render_order(sg.nodes, policy)
+    assert sorted(id(n) for n in order) == sorted(id(n) for n in sg.nodes)   # a permutation, never a filter
+    _stable, volatile = an._l2_blocks(sg, gr, asof="2021-08-01", order=order)
+    evidence = [{**h, "contract": n.contract} for n in order for h in n.evidence]
+    texts = [h["text"] for h in evidence]
+    assert _row_positions(volatile, texts) == sorted(_row_positions(volatile, texts))
+    cits = cit.unify(evidence, None)
+    assert [c.id for c in cits] == [f"E{i}" for i in range(1, len(evidence) + 1)]
+    assert [c.label.split(": ", 1)[1] for c in cits] == texts               # E<i> IS the i-th rendered row
+
+
+def test_relevance_policy_puts_the_strongest_node_last_and_keeps_the_two_views_aligned():
+    """`relevance` sorts (depth, -relevance) then REVERSES: the strongest rows land nearest the ledger
+    and the question (attention basin), the weakest sit in the middle. Contract-contiguous, because the
+    render's unit is a per-contract block -- and the flat list follows the same sequence."""
+    sg, gr = _two_contract_sg(), _ord_graph()
+    order = an._render_order(sg.nodes, "relevance")
+    assert [n.id for n in order] == ["drought", "robusta_coffee", "rain", "frost", "arabica_coffee"]
+    assert order[-1].depth == 0 and order[-1].relevance == 1.0              # strongest node LAST
+    assert [n.contract for n in order] == ["robusta_coffee"] * 2 + ["arabica_coffee"] * 3   # contiguous
+    _stable, volatile = an._l2_blocks(sg, gr, asof="2021-08-01", order=order)
+    texts = [h["text"] for n in order for h in n.evidence]
+    assert _row_positions(volatile, texts) == sorted(_row_positions(volatile, texts))
+    assert an._render_order(sg.nodes, None) == sg.nodes                     # None: the walk order, untouched
+    assert an._render_order(sg.nodes, "") == sg.nodes and an._render_order(sg.nodes, "x") == sg.nodes
+
+
+def test_walk_order_and_contract_grouped_render_already_diverge_across_contracts():
+    """CHARACTERIZATION, not an endorsement. `_l2_blocks` groups by contract; the flat evidence list at
+    the None policy walks sg.nodes, which interleaves contracts. So on a MULTI-contract walk the
+    E-numbering has always followed a different sequence than the prompt. Recorded here rather than
+    fixed inside the D-DV measurement window: changing it would move `citations` numbering on every
+    standard/quick/deep turn and stale the baselines the wave is read against. `relevance` is immune
+    (it renders contract-contiguously, so the two views coincide by construction)."""
+    sg, gr = _two_contract_sg(), _ord_graph()
+    _stable, volatile = an._l2_blocks(sg, gr, asof="2021-08-01", order=None)
+    flat = [h["text"] for n in sg.nodes for h in n.evidence]
+    assert _row_positions(volatile, flat) != sorted(_row_positions(volatile, flat))   # the KNOWN divergence
+    grouped = [h["text"] for cid in dict.fromkeys(n.contract for n in sg.nodes)
+               for n in sg.nodes if n.contract == cid for h in n.evidence]
+    assert _row_positions(volatile, grouped) == sorted(_row_positions(volatile, grouped))
+
+
+def test_foreign_regime_names_read_the_rendered_contract_set_not_just_the_seeds():
+    """D-DV-1c. `_l2_blocks` renders a full context block for EVERY walk contract, hops included, so the
+    hop's regime names are SHOWN to the model as legitimate structure -- and `sg.seeds` alone then had
+    the verifier strip them on sight. The set must be the one the prompt actually rendered."""
+    sg, gr = _two_contract_sg(), _ord_graph()
+    stable, volatile = an._l2_blocks(sg, gr, asof="2021-08-01")
+    shown = "\n".join(stable + volatile)
+    assert "robusta_glut" in shown and "corn_pollination_burn" not in shown
+    seeds_only = an._foreign_regime_names(gr, sg.seeds)
+    rendered = an._foreign_regime_names(gr, sorted({n.contract for n in sg.nodes}))
+    assert "robusta_glut" in seeds_only                                     # the bug: shown, then stripped
+    assert "robusta_glut" not in rendered                                   # the fix
+    assert rendered == {"corn_pollination_burn"}                            # a truly foreign DAG still strips
+
+
+def test_l2_seam_passes_the_rendered_contract_set_to_the_verifier(monkeypatch):
+    """...and the fix is WIRED, not merely available: captured at the real _answer_l2 seam."""
+    from leviathan.graphrag import verify as vf
+    gr = _ord_graph()
+    monkeypatch.setattr(ev, "embed", lambda texts, **k: [[1.0 if "sub" in t.lower() else 0.0] for t in texts])
+    seen: dict = {}
+    _real = vf.verify_citations
+
+    def _spy(structured, evidence, number_calls=None, *, foreign_names=None):
+        seen["foreign"] = set(foreign_names or ())
+        return _real(structured, evidence, number_calls, foreign_names=foreign_names)
+    monkeypatch.setattr(vf, "verify_citations", _spy)
+
+    def fake_call(system, user, *, model, tool):
+        return {"tldr": "t", "mechanism": "m", "diagram_mermaid": "", "sources": []}
+
+    def fake_retrieve(q, node, *, k, asof=None, near=None):
+        return [{"date": "2021-07-20", "source": "GAIN", "source_key": f"s3://{node}", "text": "row"}]
+    out = an.answer("substitution between coffees", graph=gr, planner="l2", asof="2021-08-01",
+                    retrieve=fake_retrieve, call=fake_call, route_fn=lambda q, gg: ["arabica_coffee"])
+    assert out["trace"]["planner"] == "l2"
+    assert "robusta_glut" not in seen["foreign"]           # the hop's regimes were RENDERED -> not foreign
+    assert "corn_pollination_burn" in seen["foreign"]      # an unwalked DAG's regime still is

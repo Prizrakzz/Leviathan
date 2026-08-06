@@ -1464,7 +1464,33 @@ def _driver_evidence(query: str, drivers: list[str], *, k: int, asof, near, retr
     return hits
 
 
-def _l2_blocks(sg, graph: gph.CausalGraph, asof: str | None = None) -> list[str]:
+def _render_order(nodes: list, order_policy: str | None) -> list:
+    """THE node sequence -- the one the evidence render walks AND the one the flat evidence list is built
+    from. They cannot be allowed to disagree: the flat list is what `citations.unify` numbers E1..En, what
+    the verifier matches ledger entries against, and what `_synth_ref_floor` counts.
+
+    `order_policy=None` returns `nodes` unchanged -> every caller is byte-identical to pre-D-DV.
+    `"relevance"` sorts by (depth, -relevance) and REVERSES, so the strongest node's rows land at the END
+    of the evidence block, adjacent to the ledger and the question (the attention-basin result: strongest
+    at the edges, weakest in the middle -- the prompt renders walk order today, which is why deep
+    RESHUFFLED what the model reads first instead of merely appending to it). The result is kept
+    CONTRACT-CONTIGUOUS with the strongest contract last, because the render's unit is a per-contract
+    block; within a contract the strongest node is still last."""
+    if order_policy != "relevance":
+        return list(nodes)
+    ranked = sorted(nodes, key=lambda n: (int(getattr(n, "depth", 0) or 0),
+                                          -float(getattr(n, "relevance", 0.0) or 0.0),
+                                          str(n.contract), str(n.id)))
+    best: dict = {}
+    for i, n in enumerate(ranked):
+        best.setdefault(n.contract, i)                         # a contract ranks by its STRONGEST node
+    out: list = []
+    for cid in sorted(best, key=lambda c: -best[c]):           # weakest contract first, strongest last
+        out.extend(reversed([n for n in ranked if n.contract == cid]))
+    return out
+
+
+def _l2_blocks(sg, graph: gph.CausalGraph, asof: str | None = None, order: list | None = None) -> list[str]:
     """v1.1 ADDITIVE assembly (the A/B fix): the reasoner gets AT LEAST what one-hop gave it — the FULL
     _context_block per contract (all drivers, all regime definitions, inter-commodity edges) — PLUS the walk's
     structure: how each cross-commodity contract was REACHED (edge + category: an accounting identity needs no
@@ -1479,11 +1505,17 @@ def _l2_blocks(sg, graph: gph.CausalGraph, asof: str | None = None) -> list[str]
     cache prefix; everything per-turn (convergence state, active lists, retrieved evidence) is volatile."""
     stable: list[str] = []
     volatile: list[str] = []
+    # `order` (D-DV-2) is the SAME sequence _answer_l2 builds its flat evidence list from. None -> sg.nodes,
+    # and `_by` is then sg.by_contract's own comprehension, so the render is byte-identical.
+    _nodes = sg.nodes if order is None else order
+
+    def _by(cid: str) -> list:
+        return [n for n in _nodes if n.contract == cid]
     fired_by = {}
     for r in sg.fired_regimes:
         fired_by.setdefault(r["contract"], []).append(r)
-    for cid in dict.fromkeys(n.contract for n in sg.nodes):
-        cnode = next((n for n in sg.by_contract(cid) if n.kind == "contract"), None)
+    for cid in dict.fromkeys(n.contract for n in _nodes):
+        cnode = next((n for n in _by(cid) if n.kind == "contract"), None)
         lines = []
         if cnode and cnode.via_edge:                               # how the walk REACHED this contract
             e = cnode.via_edge
@@ -1538,13 +1570,13 @@ def _l2_blocks(sg, graph: gph.CausalGraph, asof: str | None = None) -> list[str]
         else:
             vlines.append("CONVERGENCE: not evaluated (no as-of date to anchor recency); treat the regime "
                           "definitions above as structure, not state.")
-        evidenced = [n.id for n in sg.by_contract(cid) if n.kind == "driver" and n.evidence]
-        named_only = [n.id for n in sg.by_contract(cid) if n.kind == "driver" and n.active and not n.evidence]
+        evidenced = [n.id for n in _by(cid) if n.kind == "driver" and n.evidence]
+        named_only = [n.id for n in _by(cid) if n.kind == "driver" and n.active and not n.evidence]
         if evidenced:
             vlines.append(f"DRIVERS WITH DATED SLICE EVIDENCE: {evidenced}")
         if named_only:
             vlines.append(f"DRIVERS MERELY NAMED IN PASSING (weak signal — no dedicated evidence): {named_only}")
-        for n in sg.by_contract(cid):                              # dated evidence + silver, per grounded node
+        for n in _by(cid):                                         # dated evidence + silver, per grounded node
             if n.kind == "contract" and n.evidence:
                 vlines.append(f"--- DATED EVIDENCE for {cid} ---\n" + _ev_block(n.evidence))
             elif n.kind == "driver" and n.evidence:
@@ -1727,7 +1759,10 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
           ms_fill=_gm.get("fill"), ms_rest=_gm.get("rest"))
     _emit(on_stage, "retrieving", props=int(sg.trace.get("n_evidence", 0) or 0))
     contracts = sg.seeds
-    stable_blocks, volatile_blocks = _l2_blocks(sg, graph, asof=asof)
+    # D-DV-2 presentation order, resolved ONCE and consumed by BOTH the render below and the flat
+    # evidence list further down -- two derivations of the same sequence is how they drift apart.
+    _ev_order = _render_order(sg.nodes, (mode_knobs or {}).get("order_policy"))
+    stable_blocks, volatile_blocks = _l2_blocks(sg, graph, asof=asof, order=_ev_order)
     if extra_resolver is not None:                                # numbers ∥ walk JOIN (run_hybrid): the walk is
         extra_context, extra_number_calls = extra_resolver()      # done — collect the numbers thread's output now
     if extra_context:                                             # hybrid numbers / conversation state (volatile)
@@ -1880,7 +1915,7 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     _synth_usage = _pop_usage(structured)                         # D-AM-4: same pop channel, both bodies
     if sg.mermaid and _valid_mermaid(sg.mermaid):
         structured["diagram_mermaid"] = sg.mermaid                # deterministic diagram overrides the LLM's
-    evidence = [{**h, "contract": n.contract} for n in sg.nodes for h in n.evidence]
+    evidence = [{**h, "contract": n.contract} for n in _ev_order for h in n.evidence]
     seen_docs, uniq = set(), []
     for h in evidence:
         sk = h.get("source_key")
@@ -1889,8 +1924,14 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
             uniq.append(h)
     ev_cits = cit.unify(uniq, extra_number_calls)                 # machine-readable list (UI drill-down)
     from leviathan.graphrag import verify as vf
+    # D-DV-1c: the RENDERED contract set, not sg.seeds. _l2_blocks builds a context block for EVERY walk
+    # contract including cross-commodity hops, so a hop's regime names are SHOWN to the model as legitimate
+    # structure -- and were then stripped on sight as "foreign". A latent bug that deep (3 seeds + tracked
+    # hops) amplifies. `contracts` stays sg.seeds everywhere else: that is the ANSWER's scope, not the
+    # prompt's.
     verifier = vf.verify_citations(structured, evidence, extra_number_calls,
-                                   foreign_names=_foreign_regime_names(graph, contracts))
+                                   foreign_names=_foreign_regime_names(
+                                       graph, sorted({n.contract for n in sg.nodes})))
     _emit(on_stage, "verifying", checked=int(verifier.get("checked", 0) or 0),
           stripped=int(verifier.get("stripped", 0) or 0))
     # F7 `verified`: the verifier is DONE, so the streamed draft's citation handles are now reconcilable —

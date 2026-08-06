@@ -5,10 +5,12 @@ from leviathan.graphrag (pure data + pure functions), so orchestrator.py, answer
 eval.py can all import it without cycles, and the preset table cannot be hand-copied into a second
 module and drift (the COMPAT-9 duplicate-and-pin defect class).
 
-THREE PRESETS -- `quick` / `standard` / `deep`. `standard` is ALL-NONE: `knobs("standard")` is the
-EMPTY DICT, every kwarg builder returns `{}`, and every call site therefore stays byte-identical
-under the omit-when-default idiom. That empty dict IS the fail-open guarantee (the same role the
-`default` response contract's empty directive plays), not a promise anyone has to keep by hand.
+PRESETS -- `quick` / `standard` / `deep`, plus the DARK `deep_v2`. `standard` is ALL-NONE:
+`knobs("standard")` is the EMPTY DICT, every kwarg builder returns `{}`, and every call site therefore
+stays byte-identical under the omit-when-default idiom. That empty dict IS the fail-open guarantee (the
+same role the `default` response contract's empty directive plays), not a promise anyone has to keep by
+hand. `deep_v2` is requestable BY NAME (the eval arm) but is excluded from `serving_names()`, so the
+wildcard `GRAPHRAG_MODES=on` can never honor it -- it stays dark until the D-DV-2 verdict.
 
 FAIL-OPEN, NEVER A 400: an unknown or absent `mode` resolves to `standard` and stamps
 `invalid=True`; a desk turn must not die on a typo. `resolve()` is the ONE place that decides, and
@@ -19,11 +21,13 @@ v1 KNOBS ARE CLASS-1 ONLY -- every one is already an accepted keyword of its cal
 THREADS values, it does not redesign seams:
   walk      node_budget / depth / max_seeds        -> planner.grounded_subgraph
   ground    k_by_depth / evidence_cap / probe_cap  -> planner.ground
+            cap_policy                             -> planner.ground (D-DV-2; None == today's FIFO cap)
   retrieval fetch_k                                -> evidence.retrieve, via a per-call partial rebind
   silver    silver_cap                             -> silverleg.make_silver_lookup(cap=)
   scaffold  scaffold_max_bullets / _max_absence    -> the episode-scaffold caps (params-driven today)
   contract  budget_scale                           -> scales the ACTIVE response contract's word range
   gate      xc_force                               -> the reroute-v2 request gate (force off / force on)
+  render    order_policy                           -> answer._render_order (evidence render + flat list)
 
 EXCLUDED FROM v1, each with its recorded reason (do NOT add these without a new ratification):
   * rerank pool          -- a module-global read at the slice site; per-request mutation bleeds
@@ -50,6 +54,7 @@ from dataclasses import dataclass, fields
 QUICK = "quick"
 STANDARD = "standard"
 DEEP = "deep"
+DEEP_V2 = "deep_v2"
 
 
 @dataclass(frozen=True)
@@ -79,6 +84,15 @@ class Mode:
     # True = force ON *where the existing realizability gate already allows it* (the gate still
     # decides; this only lets it be consulted on a turn the flag would have skipped).
     xc_force: bool | None = None
+    # D-DV-2 explore-wide-cite-narrow. Both None on every pre-D-DV preset, and None is a PROVEN
+    # passthrough at both seams (planner._dedup_and_cap and answer._render_order return the exact
+    # pre-wave sequence), so the byte-identity law survives the two new fields.
+    #   cap_policy   None = the FIFO evidence cap; "score" = per-node relevance-proportional quota.
+    #   order_policy None = walk-order render; "relevance" = (depth,-relevance) REVERSED, strongest
+    #                rows nearest the question (attention basin). Consumed in answer.py, NOT a
+    #                planner keyword -- so it rides mode_knobs directly, like fetch_k.
+    cap_policy: str | None = None
+    order_policy: str | None = None
 
 
 MODES: dict[str, Mode] = {m.name: m for m in (
@@ -89,23 +103,52 @@ MODES: dict[str, Mode] = {m.name: m for m in (
          scaffold_max_bullets=6, scaffold_max_absence=3,
          budget_scale=0.7, xc_force=False),
     Mode(name=STANDARD),          # LOAD-BEARING: all-None IS the byte-identical passthrough guarantee
+    # D-DV-1: four knobs amended on the FORENSICS, not on taste. fetch_k 120 -> 60: RERANK_POOL is 60 and
+    # the pool cut runs AFTER fusion, so at 120 the pool collapsed to ~dense-top-60 and the BM25 leg (the
+    # one that doubled exact-token recall) was mechanically OFF -- 120 was strictly harmful. depth 3 -> 1
+    # and k_by_depth (7,5,3) -> (7,5): DEAD knobs, measured -- node_budget saturated 36/36 turns inside
+    # wave 1 (seed fan-in 21-42 fills it), max depth reached was 1, wave 2 never ran. xc_force True ->
+    # None: forcing the reroute-v2 leg widened the [N] namespace and mis-paired indices (number_mismatch
+    # 2/2/11, clean dose-response off/flag/forced-on). budget_scale 1.5 -> None: H-verbosity KILLED
+    # (realized length ratio 1.14x; the worst-stripped row was SHORTER than its quick twin).
     Mode(name=DEEP,
-         node_budget=16, depth=3, max_seeds=3,
-         k_by_depth=(7, 5, 3), evidence_cap=48, probe_cap=36,
-         fetch_k=120, silver_cap=12,
+         node_budget=16, depth=1, max_seeds=3,
+         k_by_depth=(7, 5), evidence_cap=48, probe_cap=36,
+         fetch_k=60, silver_cap=12,
          scaffold_max_bullets=12, scaffold_max_absence=6,   # == today's params default (deep = today)
-         budget_scale=1.5, xc_force=True),
+         budget_scale=None, xc_force=None),
+    # D-DV-2 THE ARM: explore WIDE (same 16-node walk, same 3 seeds), cite NARROW (cap 48 -> 24) and
+    # spend that narrower cap by relevance rather than by arrival order, with the strongest rows rendered
+    # last. Everything else is deep's, so the A/B moves the cap policy + the order + the cap size only.
+    # DARK: excluded from serving_names(), eval-only until the D-DV-2 verdict.
+    Mode(name=DEEP_V2,
+         node_budget=16, depth=1, max_seeds=3,
+         k_by_depth=(7, 5), evidence_cap=24, probe_cap=36,
+         fetch_k=60, silver_cap=8,
+         cap_policy="score", order_policy="relevance"),
 )}
+
+# Presets that `GRAPHRAG_MODES=on` must NOT sweep into the honored set. A dark preset is still resolvable
+# by NAME (GRAPHRAG_MODES=deep_v2 for the eval arm), which is what keeps the flip a one-env-var decision.
+DARK_NAMES: frozenset = frozenset({DEEP_V2})
 
 # The knob field names, in declaration order (the trace-stamp column order; append, never sort).
 KNOB_FIELDS: tuple[str, ...] = tuple(f.name for f in fields(Mode) if f.name != "name")
 
 _WALK_KNOBS = ("node_budget", "depth", "max_seeds")
-_GROUND_KNOBS = ("k_by_depth", "evidence_cap", "probe_cap")
+_GROUND_KNOBS = ("k_by_depth", "evidence_cap", "probe_cap", "cap_policy")
 
 
 def valid_names() -> frozenset:
+    """Every name `resolve()` accepts -- dark presets included (they are stamped, and honorable when the
+    allowlist names them explicitly)."""
     return frozenset(MODES)
+
+
+def serving_names() -> frozenset:
+    """What the WILDCARD allowlist value ('on') is allowed to mean. A dark preset is deliberately not in
+    here: turning modes on estate-wide must never silently honor an un-adjudicated arm."""
+    return valid_names() - DARK_NAMES
 
 
 def resolve(requested: str | None, allowed) -> dict:

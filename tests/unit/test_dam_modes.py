@@ -27,6 +27,7 @@ from leviathan.graphrag import eval as evl
 from leviathan.graphrag import graph as g
 from leviathan.graphrag import orchestrator as orch
 from leviathan.graphrag import planner as pl
+from leviathan.graphrag import rankers as _rk
 from leviathan.graphrag import reasoning_modes as rm
 from leviathan.graphrag import response_contracts as rc
 from leviathan.graphrag import silverleg as slv
@@ -84,9 +85,25 @@ def test_reasoning_modes_is_a_leaf_module():
     assert set(mods) <= {"__future__", "dataclasses"}, mods
 
 
-def test_the_three_presets_and_nothing_else():
-    assert rm.valid_names() == frozenset({"quick", "standard", "deep"})
-    assert set(rm.MODES) == {rm.QUICK, rm.STANDARD, rm.DEEP}
+def test_the_preset_table_and_nothing_else():
+    assert rm.valid_names() == frozenset({"quick", "standard", "deep", "deep_v2"})
+    assert set(rm.MODES) == {rm.QUICK, rm.STANDARD, rm.DEEP, rm.DEEP_V2}
+
+
+def test_deep_v2_is_dark_and_the_wildcard_can_never_sweep_it_in(monkeypatch):
+    """D-DV-2 ships the arm's preset in the SAME image as the D-DV-1 fixes, so the eval can run it --
+    but an un-adjudicated arm must never become honorable by turning modes on estate-wide. The dark
+    set is named in the leaf (one producer), and the wildcard branch reads serving_names()."""
+    assert rm.DARK_NAMES == frozenset({rm.DEEP_V2})
+    assert rm.serving_names() == frozenset({"quick", "standard", "deep"})
+    assert rm.DEEP_V2 in rm.valid_names()                              # still RESOLVABLE (stamped)
+    for on in ("on", "1", "true"):
+        monkeypatch.setenv("GRAPHRAG_MODES", on)
+        assert rm.DEEP_V2 not in orch._modes_enabled()
+    assert rm.resolve("deep_v2", orch._modes_enabled())["honored"] == "standard"
+    monkeypatch.setenv("GRAPHRAG_MODES", "deep_v2")                    # named EXPLICITLY -> honored
+    assert orch._modes_enabled() == frozenset({"deep_v2"})
+    assert rm.resolve("deep_v2", orch._modes_enabled())["honored"] == "deep_v2"
 
 
 def test_standard_is_the_all_none_passthrough_pin():
@@ -97,6 +114,23 @@ def test_standard_is_the_all_none_passthrough_pin():
     assert rm.knobs(rm.STANDARD) == {}
     assert rm.walk_kwargs(rm.knobs(rm.STANDARD)) == {}
     assert rm.ground_kwargs(rm.knobs(rm.STANDARD)) == {}
+
+
+def test_the_two_new_policy_fields_default_to_none_on_every_pre_ddv_preset():
+    """THE BYTE-IDENTITY LAW for D-DV's two new Mode fields: they exist on every preset and are None
+    on all of them except deep_v2, so `knobs()` cannot mint them, `ground_kwargs()` cannot pass
+    cap_policy, and answer._render_order returns the walk order unchanged. Nothing to promise by hand
+    -- the None default IS the guarantee, exactly as `standard` is for the whole table."""
+    assert ("cap_policy", "order_policy") == rm.KNOB_FIELDS[-2:]        # appended, never sorted in
+    for name in (rm.QUICK, rm.STANDARD, rm.DEEP):
+        m = rm.MODES[name]
+        assert m.cap_policy is None and m.order_policy is None, name
+        assert "cap_policy" not in rm.knobs(name) and "order_policy" not in rm.knobs(name), name
+        assert "cap_policy" not in rm.ground_kwargs(rm.knobs(name)), name
+    assert pl._dedup_and_cap.__defaults__ is None                      # both are KEYWORD-only, defaulting
+    sig = inspect.signature(pl._dedup_and_cap).parameters              # to the pre-wave behavior
+    assert sig["cap_policy"].default is None and sig["k_by_depth"].default is None
+    assert inspect.signature(pl.ground).parameters["cap_policy"].default is None
 
 
 def test_mode_is_frozen():
@@ -113,12 +147,28 @@ def test_v1_knob_table_matches_the_ratified_values():
         "fetch_k": 40, "silver_cap": 4,
         "scaffold_max_bullets": 6, "scaffold_max_absence": 3,
         "budget_scale": 0.7, "xc_force": False}
+    # D-DV-1: deep amended on the forensics. fetch_k 120->60 (>60 deletes the lexical leg outright:
+    # RERANK_POOL is 60 and the cut runs after fusion), depth 3->1 + k_by_depth (7,5,3)->(7,5) (DEAD:
+    # node_budget saturated 36/36 inside wave 1, wave 2 never ran), xc_force True->None (forced
+    # reroute-v2 = number_mismatch dose-response 2/2/11), budget_scale 1.5->None (H-verbosity killed).
     assert rm.knobs(rm.DEEP) == {
-        "node_budget": 16, "depth": 3, "max_seeds": 3,
-        "k_by_depth": (7, 5, 3), "evidence_cap": 48, "probe_cap": 36,
-        "fetch_k": 120, "silver_cap": 12,
-        "scaffold_max_bullets": 12, "scaffold_max_absence": 6,
-        "budget_scale": 1.5, "xc_force": True}
+        "node_budget": 16, "depth": 1, "max_seeds": 3,
+        "k_by_depth": (7, 5), "evidence_cap": 48, "probe_cap": 36,
+        "fetch_k": 60, "silver_cap": 12,
+        "scaffold_max_bullets": 12, "scaffold_max_absence": 6}
+
+
+def test_deep_v2_preset_matches_the_ratified_values():
+    """D-DV-2's arm, transcribed. Same walk as deep (16 nodes, 3 seeds) -- the variables under test are
+    the cap SIZE (48->24), the cap POLICY (FIFO->score) and the render ORDER. scaffold caps are absent
+    on purpose: deep_v2 inherits the params default rather than pinning deep's."""
+    assert rm.knobs(rm.DEEP_V2) == {
+        "node_budget": 16, "depth": 1, "max_seeds": 3,
+        "k_by_depth": (7, 5), "evidence_cap": 24, "probe_cap": 36,
+        "fetch_k": 60, "silver_cap": 8,
+        "cap_policy": "score", "order_policy": "relevance"}
+    assert an._scaffold_cap_kwargs(rm.knobs(rm.DEEP_V2)) == {}          # inherit, not pin
+    assert an._mode_budget("ranking", rm.knobs(rm.DEEP_V2)) is None     # no budget_scale -> untouched
 
 
 def test_kwarg_builders_name_only_callee_accepted_keywords():
@@ -179,7 +229,7 @@ def test_flag_value_grammar_mirrors_the_contracts_flag(monkeypatch):
     assert orch._modes_enabled() == frozenset()
     for on in ("on", "1", "true", "ON"):
         monkeypatch.setenv("GRAPHRAG_MODES", on)
-        assert orch._modes_enabled() == rm.valid_names()
+        assert orch._modes_enabled() == rm.serving_names()             # D-DV: dark presets excluded
     monkeypatch.setenv("GRAPHRAG_MODES", "quick,bogus")
     assert orch._modes_enabled() == frozenset({"quick"})              # unknown names ignored, never fatal
     monkeypatch.setenv("GRAPHRAG_MODES", "quick,deep")
@@ -220,12 +270,23 @@ def test_walk_and_ground_kwargs_are_untouched_on_standard_and_dark(monkeypatch):
 
 def test_honored_mode_threads_walk_and_ground_knobs(monkeypatch):
     seen = _capture_l2(monkeypatch, mode_knobs=rm.knobs("deep"))
-    assert seen["walk"]["node_budget"] == 16 and seen["walk"]["depth"] == 3
+    assert seen["walk"]["node_budget"] == 16 and seen["walk"]["depth"] == 1
     assert seen["walk"]["max_seeds"] == 3
-    assert seen["ground"]["k_by_depth"] == (7, 5, 3)
+    assert seen["ground"]["k_by_depth"] == (7, 5)
     assert seen["ground"]["evidence_cap"] == 48 and seen["ground"]["probe_cap"] == 36
     quick = _capture_l2(monkeypatch, mode_knobs=rm.knobs("quick"))
     assert quick["walk"]["node_budget"] == 6 and quick["ground"]["k_by_depth"] == (4, 2)
+
+
+def test_cap_policy_rides_the_seam_evidence_cap_already_rides(monkeypatch):
+    """cap_policy is a planner.ground KEYWORD, so it threads through ground_kwargs beside evidence_cap
+    -- no new plumbing path. order_policy is NOT: it is consumed in answer.py (like fetch_k and the
+    scaffold caps), so it must stay OFF the ground call or the callee would 400 on it."""
+    deep_v2 = _capture_l2(monkeypatch, mode_knobs=rm.knobs("deep_v2"))
+    assert deep_v2["ground"]["cap_policy"] == "score" and deep_v2["ground"]["evidence_cap"] == 24
+    assert "order_policy" not in deep_v2["ground"] and "order_policy" not in deep_v2["walk"]
+    for name in ("standard", "quick", "deep"):                         # absent, not None -- omit-when-default
+        assert "cap_policy" not in _capture_l2(monkeypatch, mode_knobs=rm.knobs(name))["ground"]
 
 
 def test_fetch_k_rides_a_per_call_partial_rebind(monkeypatch):
@@ -234,7 +295,10 @@ def test_fetch_k_rides_a_per_call_partial_rebind(monkeypatch):
     base = _capture_l2(monkeypatch)
     assert "fetch_k" not in base["ground"]["retrieve"].keywords          # standard: untouched
     deep = _capture_l2(monkeypatch, mode_knobs=rm.knobs("deep"))
-    assert deep["ground"]["retrieve"].keywords["fetch_k"] == 120
+    # D-DV-1a: a fetch_k ABOVE RERANK_POOL deleted the BM25 leg outright (the pool cut runs after fusion),
+    # so this is not a taste pin -- it is the retrieval leg's precondition.
+    assert deep["ground"]["retrieve"].keywords["fetch_k"] == 60
+    assert deep["ground"]["retrieve"].keywords["fetch_k"] <= _rk.RERANK_POOL
     quick = _capture_l2(monkeypatch, mode_knobs=rm.knobs("quick"))
     assert quick["ground"]["retrieve"].keywords["fetch_k"] == 40
     assert an.ev.retrieve.__module__                                     # the partial still wraps ev.retrieve
@@ -324,9 +388,11 @@ def test_silver_cap_rides_the_existing_kwarg_only_when_honored(monkeypatch):
     assert seen[-1]["cap"] == 4
 
 
-def test_xc_gate_force_off_and_force_on(monkeypatch):
-    """quick suppresses the REQUEST only (the detect attribution still stamps); deep merely lets the
-    existing realizability gate be consulted -- it can never manufacture a fork."""
+def test_xc_gate_force_off_and_the_deep_arms_leave_the_flag_alone(monkeypatch):
+    """quick suppresses the REQUEST only (the detect attribution still stamps). deep's xc_force was
+    True and is now None (D-DV-1d): forcing the reroute-v2 leg widened the [N] namespace and mis-paired
+    indices -- number_mismatch 2/2/11 with a clean off/flag/forced-on dose-response. Both deep arms
+    therefore follow the flag exactly as standard does, in BOTH directions."""
     calls: list = []
 
     def _gate(query, **kw):
@@ -339,12 +405,18 @@ def test_xc_gate_force_off_and_force_on(monkeypatch):
     assert calls == [] and kw.get("xc_request") is None                # force OFF beats the flag
     assert out["intent_decision"]["xc_detect"]["tier"] == "none"       # attribution still stamped
 
-    calls.clear()
-    monkeypatch.delenv("GRAPHRAG_REROUTE_V2", raising=False)
-    out, kw = _respond_capture(monkeypatch, mode="deep", flag="deep")
-    assert len(calls) == 1 and kw["xc_request"] == {"pair": ["corn", "wheat"]}   # force ON
+    for mode in ("deep", "deep_v2"):
+        calls.clear()
+        monkeypatch.delenv("GRAPHRAG_REROUTE_V2", raising=False)       # flag OFF -> no request...
+        out, kw = _respond_capture(monkeypatch, mode=mode, flag=mode)
+        assert calls == [] and kw.get("xc_request") is None, mode
+        calls.clear()
+        monkeypatch.setenv("GRAPHRAG_REROUTE_V2", "on")                # ...flag ON -> the gate decides
+        out, kw = _respond_capture(monkeypatch, mode=mode, flag=mode)
+        assert len(calls) == 1 and kw["xc_request"] == {"pair": ["corn", "wheat"]}, mode
 
     calls.clear()
+    monkeypatch.delenv("GRAPHRAG_REROUTE_V2", raising=False)
     out, kw = _respond_capture(monkeypatch)                            # standard + flag off: untouched
     assert calls == [] and kw.get("xc_request") is None
 
@@ -493,8 +565,13 @@ def test_invalid_mode_never_raises_and_stamps_the_flag(monkeypatch):
 def test_trace_carries_the_resolved_knobs_only_when_honored(monkeypatch):
     out, _kw = _respond_capture(monkeypatch, mode="deep", flag="deep")
     knobs = out["trace"]["mode_knobs"]
-    assert knobs["fetch_k"] == 120 and knobs["evidence_cap"] == 48
-    assert knobs["k_by_depth"] == [7, 5, 3]                            # listed for JSON/DDB fidelity
+    assert knobs["fetch_k"] == 60 and knobs["evidence_cap"] == 48
+    assert knobs["k_by_depth"] == [7, 5]                               # listed for JSON/DDB fidelity
+    out, _kw = _respond_capture(monkeypatch, mode="deep_v2", flag="deep_v2")
+    knobs = out["trace"]["mode_knobs"]                                 # the two policy strings must be
+    assert knobs["cap_policy"] == "score" and knobs["order_policy"] == "relevance"   # READABLE in the
+    assert knobs["evidence_cap"] == 24                                 # eval artifact, or no arm is
+                                                                       # attributable after the fact
     out, _kw = _respond_capture(monkeypatch, mode="deep")              # dark
     assert "mode_knobs" not in (out.get("trace") or {})                # OFF-arm clean
     out, _kw = _respond_capture(monkeypatch)

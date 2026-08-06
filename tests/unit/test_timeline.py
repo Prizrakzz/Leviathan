@@ -100,10 +100,18 @@ def test_ground_attaches_pit_episodes(tmp_path, monkeypatch):
     graph = g.CausalGraph({"arabica_coffee": c}, silver=set())
     sg = pl.grounded_subgraph("frost coffee", graph, embed=lambda xs: [[1.0, 0.0] for _ in xs],
                               route_fn=lambda q, gr: ["arabica_coffee"])
-    ev = [{"date": "2021-06-05", "source": "gain", "source_key": "s3://x", "text": "frost report"}]
-    pl.ground(sg, "frost coffee", graph, retrieve=lambda q, node, *, k, asof=None, near=None: list(ev),
+    # D-DV-1b: episodes are stamped AFTER _dedup_and_cap, so this fixture must give each node its OWN
+    # prop. It used to hand every node the same source_key, which the cross-node dedup attributed to the
+    # shallowest (contract) node -- leaving `frost` with zero evidence and episodes anyway. That state IS
+    # the orphaned-receipt bug (an episode line quoting receipts absent from the verifier's evidence
+    # list), and this test was pinning it. The attachment assertion below is unchanged in kind.
+    def _ev_for(node):
+        return [{"date": "2021-06-05", "source": "gain", "source_key": f"s3://{node}",
+                 "text": f"frost report for {node}"}]
+    pl.ground(sg, "frost coffee", graph, retrieve=lambda q, node, *, k, asof=None, near=None: _ev_for(node),
               asof="2021-07-01", driver_slices={"frost"})
     frost = next(n for n in sg.nodes if n.id == "frost")
+    assert frost.evidence                                        # kept its OWN prop through the cap
     assert frost.episodes and frost.episodes[0]["n"] == 2        # only the pre-asof props count
     assert frost.episodes[0]["end"] == "2021-06-20"              # span recomputed from visible dates
     # GATE: a node with NO evidence gets NO episode line even though the artifact has episodes

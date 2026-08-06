@@ -701,7 +701,8 @@ def _modes_enabled() -> frozenset:
     """D-AM-12: the serving flag GRAPHRAG_MODES, read PER CALL at THIS one seam (no engine ever reads
     it). Value grammar, copied verbatim from GRAPHRAG_RESPONSE_CONTRACT so the two staged flips are
     operated identically: absent/''/'off' -> frozenset() (DARK -- a mode is still accepted, resolved
-    and STAMPED, just not honored); 'on'/'1'/'true' -> ALL mode names; anything else -> a
+    and STAMPED, just not honored); 'on'/'1'/'true' -> every SERVING mode name (D-DV: a DARK preset such
+    as deep_v2 is never swept in by the wildcard -- it must be named); anything else -> a
     comma-separated ALLOWLIST of mode names (unknown names ignored, never fatal). The allowlist IS
     the staged-honor mechanism: quick first, deep after the eval, per-mode rollback on one env var
     with no redeploy. `standard` needs no flag -- it is the all-None passthrough and changes nothing."""
@@ -709,7 +710,7 @@ def _modes_enabled() -> frozenset:
     if not v or v == "off":
         return frozenset()
     if v in ("on", "1", "true"):
-        return rm.valid_names()
+        return rm.serving_names()
     return frozenset(x.strip() for x in v.split(",") if x.strip()) & rm.valid_names()
 
 

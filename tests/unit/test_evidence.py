@@ -75,6 +75,9 @@ def test_retrieve_cosine_ranking_and_pit(monkeypatch):
     assert hits[0]["text"] == "frost hit coffee" and all("bonds" not in h["text"] for h in hits)
     pit = ev.retrieve("drought", "arabica_coffee", k=5, asof="2022-01-01", records=recs)
     assert pit and all(h["date"] <= "2022-01-01" for h in pit)             # the 2024 prop excluded
+    # D-DV-2: the DENSE fast path carries the score it ranked on, monotone with the returned order.
+    assert [h["score"] for h in hits] == sorted((h["score"] for h in hits), reverse=True)
+    assert hits[0]["score"] > 0
 
 
 def test_build_index_keeps_on_topic_props_and_writes(tmp_path, monkeypatch):
@@ -585,7 +588,20 @@ def test_out_projection_carries_event_date():
     out = ev._out(recs)
     assert out[0]["event_date"] == "2010-08-05" and out[0]["event_date_precision"] == "day"
     assert out[1]["event_date"] is None and out[1]["event_date_precision"] is None
-    assert set(out[0]) == {"date", "source", "source_key", "text", "event_date", "event_date_precision"}
+    assert set(out[0]) == {"date", "source", "source_key", "text", "event_date", "event_date_precision",
+                           "score"}
+
+
+def test_out_projection_carries_the_retrieval_score():
+    """D-DV-2: `score` crosses the retrieve boundary so the planner's score-aware cap can triage. Keyed
+    by id() of the SAME record objects, so a reordered/subset selection still pairs row to value; a row
+    the caller supplied no score for is None (present-and-null, never a missing key)."""
+    from leviathan.graphrag import evidence as ev
+    a = {"date": "2010-09-01", "source": "s", "source_key": "k1", "text": "t"}
+    b = {"date": "2011-01-01", "source": "s", "source_key": "k2", "text": "u"}
+    out = ev._out([b, a], {id(a): 0.9, id(b): 0.2})
+    assert [o["score"] for o in out] == [0.2, 0.9]
+    assert ev._out([a])[0]["score"] is None
 
 
 # ── G5 (max_per honest fix) + G1b (the C2 wholesale-write guard) ───────────────────────────────────────

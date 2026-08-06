@@ -304,3 +304,128 @@ def test_l2_block_no_asof_renders_structure_not_state():
     text = "\n".join(stable + volatile)
     assert "not evaluated (no as-of date" in text
     assert "FIRED" not in text
+
+
+# -- D-DV-2: the score-aware evidence cap (cap_policy) ---------------------------------------------
+def _cap_node(kind, cid, nid, depth, rel, n_rows, *, dup_of=None):
+    """A grounded node holding `n_rows` distinct props (or restatements of `dup_of`'s), in retriever order."""
+    n = pl.GroundedNode(kind=kind, id=nid, contract=cid, depth=depth, relevance=rel)
+    src = dup_of or nid
+    n.evidence = [{"source_key": f"s3://{src}/{i}", "date": "2021-07-20", "text": f"{src} row {i}",
+                   "score": 1.0 - i / 100.0} for i in range(n_rows)]
+    return n
+
+
+def _cap_sg(nodes):
+    return pl.Subgraph(seeds=[nodes[0].contract], nodes=nodes)
+
+
+def _counts(sg):
+    return [len(n.evidence) for n in sg.nodes]
+
+
+def test_cap_policy_none_is_the_fifo_original():
+    """BYTE IDENTITY: absent cap_policy, the cap is still spend-until-empty in shallowest-first order --
+    the seed eats the whole budget and the two drivers get nothing, whatever their relevance."""
+    nodes = [_cap_node("contract", "arabica", "arabica", 0, 1.0, 10),
+             _cap_node("driver", "arabica", "frost", 1, 0.8, 10),
+             _cap_node("driver", "arabica", "rain", 1, 0.2, 10)]
+    sg = _cap_sg(nodes)
+    pl._dedup_and_cap(sg, 10)
+    assert _counts(sg) == [10, 0, 0]
+    assert [h["text"] for h in nodes[0].evidence[:2]] == ["arabica row 0", "arabica row 1"]
+
+
+def test_cap_policy_score_gives_every_node_a_relevance_proportional_share():
+    """The D-DV-2 replacement, on the SAME fixture: ceil(cap * rel_n / sum_rel) per node. 10/0/0 becomes
+    5/4/1 -- the cap is now spent on what the query asked about instead of on arrival order -- and rows
+    WITHIN a node keep the retriever's order (this SELECTS rows, it never re-ranks them)."""
+    nodes = [_cap_node("contract", "arabica", "arabica", 0, 1.0, 10),
+             _cap_node("driver", "arabica", "frost", 1, 0.8, 10),
+             _cap_node("driver", "arabica", "rain", 1, 0.2, 10)]
+    sg = _cap_sg(nodes)
+    pl._dedup_and_cap(sg, 10, cap_policy="score", k_by_depth=(4, 3))
+    assert _counts(sg) == [5, 4, 1]                                  # ceil(10*.5), ceil(10*.4), ceil(10*.1)
+    assert sum(_counts(sg)) == 10                                    # global cap still binds exactly
+    assert [h["text"] for h in nodes[1].evidence] == [f"frost row {i}" for i in range(4)]
+
+
+def test_cap_policy_score_floors_depth0_seeds_at_their_own_k_and_trims_the_weakest_tail():
+    """Two rules meeting on one fixture. A wide fan-in drives every quota to ceil(10/5)=2, which would
+    starve the ROUTED contract -- so a depth-0 seed is floored at k_by_depth[0]. The floor plus ceil()
+    then overshoots the cap, and the overshoot is paid from the TAIL of the lowest-relevance node
+    first, never from the seed."""
+    nodes = [_cap_node("contract", "arabica", "arabica", 0, 1.0, 8)]
+    nodes += [_cap_node("driver", "arabica", f"d{i}", 1, 1.0, 8) for i in range(4)]
+    sg = _cap_sg(nodes)
+    pl._dedup_and_cap(sg, 10, cap_policy="score", k_by_depth=(7, 5))
+    assert _counts(sg) == [7, 2, 1, 0, 0]                            # seed floored at 7; tail trimmed
+    assert sum(_counts(sg)) == 10
+
+
+def test_cap_policy_score_keeps_the_shallowest_wins_dedup():
+    """Cross-node restatement is still attributed to the SHALLOWEST node, and a row deduped away does
+    not consume the deeper node's quota -- the dedup runs before the quota, exactly as in FIFO."""
+    nodes = [_cap_node("contract", "arabica", "arabica", 0, 1.0, 4),
+             _cap_node("driver", "arabica", "frost", 1, 1.0, 4, dup_of="arabica")]
+    sg = _cap_sg(nodes)
+    pl._dedup_and_cap(sg, 8, cap_policy="score", k_by_depth=(4, 4))
+    assert _counts(sg) == [4, 0]
+    assert sum(_counts(sg)) <= 8
+
+
+def test_cap_policy_score_survives_all_zero_relevance_and_an_empty_subgraph():
+    """Fail-open arithmetic: a zero-relevance population splits the cap equally rather than dividing by
+    zero, and a subgraph with nothing retrieved is a no-op."""
+    nodes = [_cap_node("driver", "arabica", "a", 1, 0.0, 6),
+             _cap_node("driver", "arabica", "b", 1, 0.0, 6)]
+    sg = _cap_sg(nodes)
+    pl._dedup_and_cap(sg, 6, cap_policy="score", k_by_depth=(3, 3))
+    assert _counts(sg) == [3, 3]
+    empty = _cap_sg([_cap_node("contract", "arabica", "arabica", 0, 1.0, 0)])
+    pl._dedup_and_cap(empty, 5, cap_policy="score", k_by_depth=(5, 3))
+    assert _counts(empty) == [0]
+
+
+# -- D-DV-1b: episodes are computed AGAINST POST-CAP EVIDENCE --------------------------------------
+def _timeline_on(monkeypatch, tmp_path, nodes: dict):
+    from leviathan.graphrag import timeline as tl
+    art = tmp_path / "episodes.json"
+    art.write_text(__import__("json").dumps(nodes), encoding="utf-8")
+    monkeypatch.setenv("GRAPHRAG_TIMELINE_PATH", str(art))
+    monkeypatch.setenv("GRAPHRAG_TIMELINE", "on")
+    tl.reset_cache()
+    return tl
+
+
+def test_episodes_are_recomputed_after_the_cap_not_before(monkeypatch, tmp_path):
+    """THE ORPHANED-RECEIPTS BUG. Episodes used to be stamped inside the per-node fill, on the PRE-cap
+    evidence, and _dedup_and_cap then zeroed the very rows the episode line quotes -- so a node capped
+    to nothing still rendered 'the record holds N episodes' with receipts absent from the verifier's
+    evidence list. A node with no post-cap evidence must now carry NO episode line at all."""
+    _timeline_on(monkeypatch, tmp_path, {"drivers/frost": [
+        {"start": "2021-06-01", "end": "2021-08-01", "dates": ["2021-06-01", "2021-07-20", "2021-08-01"]}]})
+    gr, sg = _run(tau=0.35, depth=2)
+    pl.ground(sg, "frost substitute", gr, retrieve=_retrieve, silver_lookup=None, asof="2021-08-01",
+              evidence_cap=1, driver_slices={"frost", "el_nino", "drought"})
+    frost = next(n for n in sg.nodes if n.id == "frost")
+    assert frost.evidence == [] and frost.episodes == []        # capped away -> no orphaned episode line
+    assert sg.trace["n_evidence"] == 1
+    assert all(not n.episodes for n in sg.nodes if not n.evidence)
+
+
+def test_every_episode_receipt_is_still_in_the_nodes_post_cap_evidence(monkeypatch, tmp_path):
+    """The other half: with the cap wide the line still renders, and its receipt is a row the verifier
+    can actually resolve -- receipt and cited row ride or fall together, by construction."""
+    _timeline_on(monkeypatch, tmp_path, {"drivers/frost": [
+        {"start": "2021-06-01", "end": "2021-08-01", "dates": ["2021-06-01", "2021-07-20", "2021-08-01"]}]})
+    gr, sg = _run(tau=0.35, depth=2)
+    pl.ground(sg, "frost substitute", gr, retrieve=_retrieve, silver_lookup=None, asof="2021-08-01",
+              evidence_cap=24, driver_slices={"frost", "el_nino", "drought"})
+    frost = next(n for n in sg.nodes if n.id == "frost")
+    assert frost.evidence and frost.episodes
+    dates = {str(h.get("date"))[:10] for h in frost.evidence}
+    for e in frost.episodes:
+        r = e.get("receipt")
+        if r:
+            assert r["date"] in dates                            # never a receipt the answer cannot cite

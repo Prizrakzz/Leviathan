@@ -209,6 +209,11 @@ def test_pg_retrieve_parity_with_flatfile(seeded, monkeypatch):
     flat = ev.retrieve("frost damage", "coffee", k=3, asof="2021-08-01", records=RECS)
     via_pg = pg.pg_retrieve("frost damage", "coffee", k=3, asof="2021-08-01", embed=fake_embed, conn=seeded)
     assert [r["source_key"] for r in via_pg] == [r["source_key"] for r in flat]
+    # D-DV-2: BOTH backends hand the planner the same additive key with the same meaning (the final
+    # relevance the row was ranked on) -- a score present on one path only would make the score-aware
+    # cap silently backend-dependent.
+    assert set(via_pg[0]) == set(flat[0]) and "score" in via_pg[0]
+    assert [r["score"] for r in via_pg] == sorted((r["score"] for r in via_pg), reverse=True)
 
 
 def test_env_switch_routes_retrieve_through_pg(seeded, monkeypatch):

@@ -14,6 +14,7 @@ WS-1 here = the walk + prior leg + mermaid + trace. The I/O legs (evidence, silv
 `ground()` (WS-2/4/5)."""
 from __future__ import annotations
 
+import math
 import os
 from dataclasses import dataclass, field
 from typing import Optional
@@ -208,20 +209,73 @@ def _slice_of(n: GroundedNode, slice_path) -> Optional[str]:
     return ev.node_for(n.contract) if n.kind == "contract" else slice_path(n.id)
 
 
-def _dedup_and_cap(sg: Subgraph, cap: int) -> None:
+def _dedup_and_cap(sg: Subgraph, cap: int, *, cap_policy: str | None = None, k_by_depth=None) -> None:
     """A prop retrieved under several nodes is attributed to the SHALLOWEST (most-relevant) node only, and the
-    subgraph's total evidence is capped (depth-2 unions explode) — shallow nodes first."""
+    subgraph's total evidence is capped (depth-2 unions explode) — shallow nodes first.
+
+    `cap_policy=None` is the FIFO original, byte for byte: walk the nodes shallowest-first and spend one
+    global budget until it runs out, so a wide walk's last nodes get nothing whatever their relevance.
+    `cap_policy="score"` (D-DV-2 explore-wide-cite-narrow) keeps the same dedup and the same total but
+    SELECTS instead of truncating: every node holding unique rows gets a share of the cap proportional to
+    its own walk relevance (ceil(cap * rel_n / sum_rel)), depth-0 seeds are floored at their own k so a
+    routed contract can never be starved by its fan-in, and the overshoot ceil() creates is trimmed from
+    the tail of the LOWEST-relevance node first. It never rewrites or re-ranks a row (D-DT item-2 law).
+
+    WHY THE QUOTA IS NODE-RELEVANCE-PROPORTIONAL AND NOT ROW-SCORE-THRESHOLDED: verified against
+    rankers._fire (one grouped Bedrock request PER DISTINCT QUERY, and the walk sends the same query
+    string for every node) -- so on the happy path all nodes' docs are scored in ONE request and their
+    scores share a normalization. But that is NOT guaranteed: _parallel_fill's pool can be narrower than
+    the hinted batch (measured floor ceil(n_arrivals/workers) requests per turn), the quiescence closer
+    can split a batch, and the per-caller bge fallback scores each node on its own scale. Cross-node raw
+    scores are therefore comparable only sometimes, and a policy may not depend on "sometimes". Rows
+    keep their retriever order WITHIN a node, where comparability always holds."""
     seen: set = set()
-    budget = cap
-    for n in sorted(sg.nodes, key=lambda x: (x.depth, -x.relevance)):
+    order = sorted(sg.nodes, key=lambda x: (x.depth, -x.relevance))
+    if cap_policy != "score":
+        budget = cap
+        for n in order:
+            keep = []
+            for h in n.evidence:
+                sig = (h.get("source_key"), h.get("date"), (h.get("text") or "")[:80])
+                if sig in seen or budget <= 0:
+                    continue
+                seen.add(sig)
+                keep.append(h)
+                budget -= 1
+            n.evidence = keep
+        return
+
+    uniq: list[list] = []                                     # dedup FIRST, uncapped: same attribution rule
+    for n in order:
         keep = []
         for h in n.evidence:
             sig = (h.get("source_key"), h.get("date"), (h.get("text") or "")[:80])
-            if sig in seen or budget <= 0:
+            if sig in seen:
                 continue
             seen.add(sig)
             keep.append(h)
-            budget -= 1
+        uniq.append(keep)
+    live = [i for i, k in enumerate(uniq) if k]
+    tot_rel = sum(max(float(order[i].relevance or 0.0), 0.0) for i in live)
+    k0 = int((tuple(k_by_depth or ()) or (0,))[0] or 0)
+    for i, keep in enumerate(uniq):
+        if not keep:
+            continue
+        share = ((max(float(order[i].relevance or 0.0), 0.0) / tot_rel) if tot_rel > 0
+                 else 1.0 / len(live))                        # all-zero relevance -> equal split, never /0
+        q = math.ceil(round(cap * share, 9))
+        if order[i].depth == 0:
+            q = max(q, k0)                                    # the routed contract's own k is a floor
+        uniq[i] = keep[:max(q, 0)]
+    over = sum(len(k) for k in uniq) - cap                    # ceil() overshoots; pay it lowest-relevance first
+    for i in range(len(uniq) - 1, -1, -1):
+        if over <= 0:
+            break
+        cut = min(over, len(uniq[i]))
+        if cut:
+            uniq[i] = uniq[i][:len(uniq[i]) - cut]
+            over -= cut
+    for n, keep in zip(order, uniq):
         n.evidence = keep
 
 
@@ -296,7 +350,7 @@ def _emit_stage(on_stage, stage: str, **info) -> None:
 def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, silver_lookup=None,
            asof=None, near=None, k_by_depth=_K_BY_DEPTH, evidence_cap: int = _EVIDENCE_CAP, driver_slices=None,
            probe_cap: int = _PROBE_CAP, recency_days: int = _RECENCY_DAYS, probe_retrieve=None,
-           on_stage=None) -> Subgraph:
+           on_stage=None, cap_policy: str | None = None) -> Subgraph:
     """Fill the evidence + silver legs and fire convergence deterministically. `retrieve`/`silver_lookup` are
     injectable (tests pass fakes; serving passes the real hybrid+rerank+mmr retriever + numbers lookup).
 
@@ -330,9 +384,7 @@ def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, s
             return                                                 # no slice -> prior-only node (no empty fetch)
         k = k_by_depth[min(n.depth, len(k_by_depth) - 1)]
         n.evidence = list(retrieve(query, sp, k=k, asof=asof, near=near))
-        if n.evidence:                                             # RECEIPTED timeline: only for nodes that HAVE
-            n.episodes = tl.episodes_for(sp, asof, evidence=n.evidence)   # dated props (an episode the reasoner
-        # has no text for is what invited confabulation, measured 2026-07-04)
+        # NOTE: episodes are NOT stamped here -- see the episodes_for loop AFTER _dedup_and_cap below.
 
     # The per-node retrieves are INDEPENDENT — each closure mutates only its own node. On pg the fetch is a fast
     # pooled SQL round-trip, but the rerank is a slow MANAGED call: 10 sequential ~4s Cohere calls were ~40s of
@@ -384,7 +436,23 @@ def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, s
         _rt.record(sg.trace["driver_legs"])
     except Exception:  # noqa: BLE001 — telemetry is never allowed to perturb the answer
         pass
-    _dedup_and_cap(sg, evidence_cap)                              # dedup cross-node restatement + cap total
+    _dedup_and_cap(sg, evidence_cap, cap_policy=cap_policy,       # dedup cross-node restatement + cap total
+                   k_by_depth=k_by_depth)
+    # EPISODES ARE COMPUTED AGAINST POST-CAP EVIDENCE (D-DV-1b). They used to be stamped inside _fill, on
+    # the PRE-cap list, and _dedup_and_cap then zeroed the very rows the episode line's receipts quote --
+    # so a node whose evidence was capped away still rendered "the record holds N episodes" with receipts
+    # absent from the verifier's evidence list (measured under deep: ~38 discarded props/turn of uncitable
+    # prompt window, episode_enumeration 2/5 on 11/12 rows). A node with no evidence LEFT now gets no
+    # episode line at all: the receipt and the row it quotes ride or fall together, by construction.
+    # Same episodes_for signature, same `tl` source, same "only nodes that HAVE dated props" rule -- an
+    # episode the reasoner has no text for is what invited confabulation (measured 2026-07-04).
+    for n in sg.nodes:
+        if not n.evidence:
+            continue
+        sp = _slice_of(n, slice_path)
+        if n.kind == "driver" and (n.id not in backed or sp is None):
+            continue
+        n.episodes = tl.episodes_for(sp, asof, evidence=n.evidence)
 
     # ── parallel silver PREFETCH (serving only) ──────────────────────────────────────────────────────────
     # The silver leg + firing both call silver_lookup sequentially; each servable ref is an Athena read
