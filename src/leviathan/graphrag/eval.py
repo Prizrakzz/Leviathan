@@ -21,6 +21,7 @@ from leviathan.graphrag import evidence as ev
 from leviathan.graphrag import extract as ex
 from leviathan.graphrag import graph as gph
 from leviathan.graphrag import register as reg
+from leviathan.graphrag import tracekeys as tk
 
 _QUERIES = ex._CFG / "eval_queries.yaml"
 _OUT = ex._CFG / "eval"
@@ -1230,31 +1231,12 @@ def _per_answer_record(r: dict, run_kind: str) -> dict:
             # body -- M7 measured that no artifact on this machine records WHICH headings rendered, so a
             # use-rate for the qualitative license was unobtainable. This projection is a hard whitelist
             # (see the raw_draft note above), so the basis reaches no artifact unless it is named here.
-            "fork_basis": (out.get("trace") or {}).get("fork_basis"),
-            # D-DT-1 component 6: a REPORT COLUMN, never a pin. True when the MODEL wrote '## Episodes',
-            # False when the engine synthesized it (or fail-closed declined to). None = the turn was not
-            # susceptible (no injected window) or the scaffold flag was off -- which is what keeps the
-            # A/B readable: `episodes_model_authored` is the model's own compliance rate, and it stays
-            # measurable on the ON arm precisely because the persona mandate is never touched.
-            "episodes_model_authored": (out.get("trace") or {}).get("episodes_model_authored"),
-            # ...and the STAMP beside it, for the same hard-whitelist reason. episodes_model_authored is
-            # a BOOLEAN and it cannot distinguish the three False states the scaffold actually has: fired
-            # normally, fired with every restatement dropped (`restatement_dropped`), or fail-closed
-            # declined with a reason (`declined`). A ladder whose fallback rungs reach no artifact is a
-            # silent fallback, which is exactly what an A/B must not be reading without knowing. Absent
-            # on the OFF arm and on any non-susceptible turn, so it adds no column there.
-            "episodes_scaffolded": (out.get("trace") or {}).get("episodes_scaffolded"),
-            # D-RC-12/13: the hard-whitelist registrations, made the same day as the trace keys (the
-            # C2/U3 defect class: a trace key not named here reaches NO artifact). tldr_direction is
-            # absent when GRAPHRAG_TLDR_COHERENCE is off; record_through is observational on every
-            # reasoning/hybrid row (the record's edge -- max usable reported evidence date).
-            "tldr_direction": (out.get("trace") or {}).get("tldr_direction"),
-            "record_through": (out.get("trace") or {}).get("record_through"),
-            # D-RC Phase B: the ACTIVE contract (answer-seam stamp, absent when inactive) and the
-            # DARK selector attribution (intent_decision, stamped on every reasoning/hybrid turn
-            # regardless of the flag -- the free OFF-arm tally the A/B reads).
-            "response_contract": (out.get("trace") or {}).get("response_contract"),
-            "response_contract_decision": ((out.get("intent_decision") or {}) or {}).get("response_contract"),
+            # D-AM-3: the simple-lift columns DERIVE from the tracekeys registry — the C2/U3 class
+            # ("a trace key not named here reaches NO artifact") is now structurally impossible for
+            # this class of key: registering in tracekeys.py IS the artifact registration. Per-key
+            # rationale lives beside each entry in tracekeys.py, not here.
+            **{k: (out.get("trace") or {}).get(k) for k in tk.TRACE_RECORD_KEYS},
+            **{col: (out.get("intent_decision") or {}).get(dk) for dk, col in tk.DECISION_RECORD_KEYS},
             # RV2 W2 (D15): the v2 fork count + the detecting tier ride every record so a soak/eval readout
             # can attribute fires per tier post-run; None on non-orchestrator rows (no intent_decision).
             "reroute_v2_pairs": cs["reroute_v2_pairs"],

@@ -1773,6 +1773,7 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # render. Snapshot it while it still exists (flag-gated; None -> the key is absent, not null).
     _raw_draft = raw_draft_snapshot(tldr=structured.get("tldr"), mechanism=structured.get("mechanism"))
     degraded = _pop_degraded(structured)
+    _synth_usage = _pop_usage(structured)                         # D-AM-4: same pop channel, both bodies
     if sg.mermaid and _valid_mermaid(sg.mermaid):
         structured["diagram_mermaid"] = sg.mermaid                # deterministic diagram overrides the LLM's
     evidence = [{**h, "contract": n.contract} for n in sg.nodes for h in n.evidence]
@@ -1836,6 +1837,7 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                                       "banned_exec_words": _banned_exec, "unbacked_levels": _unbacked,
                                       "outlook_mode": _outlook, "market_register": _mr,
                                       **({"degraded_model": degraded} if degraded else {}),
+                                      **({"synth_usage": _synth_usage} if _synth_usage else {}),   # D-AM-4
                                       **({"raw_draft": _raw_draft} if _raw_draft else {}),   # A4, audited runs only
                                       "has_diagram": _valid_mermaid(structured.get("diagram_mermaid")), **sg.trace}}
 
@@ -2955,6 +2957,12 @@ def _pop_degraded(structured) -> str | None:
     return structured.pop("_degraded_model", None) if isinstance(structured, dict) else None
 
 
+def _pop_usage(structured) -> dict | None:
+    """Lift the D-AM-4 usage tag off the structured dict — observability only, never content. Rides
+    trace.synth_usage in BOTH bodies so the orchestrator's EMF emit can price the turn."""
+    return structured.pop("_usage", None) if isinstance(structured, dict) else None
+
+
 def _call_opus(system: str, user, *, model: str, tool: dict, on_token=None, temperature=None) -> dict:
     """The real serving call — provider-routed (Anthropic API or Bedrock via providers.py) with the
     production fallback chain (backoff retry -> Sonnet->Haiku degradation, tagged). PROMPT CACHING: the
@@ -2973,7 +2981,9 @@ def _call_opus(system: str, user, *, model: str, tool: dict, on_token=None, temp
         stable, volatile = user
         user = [{"type": "text", "text": stable, "cache_control": {"type": "ephemeral"}},
                 {"type": "text", "text": volatile}]
-    kw = dict(model=pv.resolve_model(model), max_tokens=6000, tool=tool, degrade_to=ex.HAIKU)  # answers grew
+    _sink: list = []                               # D-AM-4: the served attempt's Usage lands here
+    kw = dict(model=pv.resolve_model(model), max_tokens=6000, tool=tool, degrade_to=ex.HAIKU,
+              usage_sink=_sink)  # answers grew
     # (sources block + per-hop citations): citv2 lost a turn to truncation at 4096; 6000 is headroom, not spend
     if on_token is not None:
         out, degraded = pv.serving_call_stream(client, sys_blocks, user, on_token=on_token, **kw)
@@ -2983,6 +2993,13 @@ def _call_opus(system: str, user, *, model: str, tool: dict, on_token=None, temp
         out, degraded = pv.serving_call(client, sys_blocks, user, **kw)
     if degraded and isinstance(out, dict):
         out["_degraded_model"] = degraded          # popped by the consumer -> visible caveat + trace
+    if _sink and isinstance(out, dict):
+        # D-AM-4: usage rides the SAME pop-tag channel as _degraded_model (never renders as content).
+        # The model recorded is the one that SERVED: the degraded alias when the fallback answered.
+        _u = _sink[-1]
+        out["_usage"] = {"model": pv.resolve_model(degraded) if degraded else pv.resolve_model(model),
+                         "in": _u.input_tokens, "out": _u.output_tokens,
+                         "cache_read": _u.cache_read, "cache_write": _u.cache_creation}
     return out
 
 
@@ -3001,6 +3018,14 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     is_outlook_explicit(query). It is ANDed with the _outlook_on() kill-switch INSIDE each body, so a
     caller that never heard of W5 (every test, the eval harness, the probe paths) gets the fenced register
     by default and the flag alone can never relax anything."""
+    # D-AM-5: the synthesis-model seam, mirroring GRAPHRAG_DISPATCH_MODEL. env > params fill the
+    # DEFAULT only -- an explicit caller arg (eval --model, a test, a mode override) always wins, so
+    # the eval lever and the env lever can never fight. Serving passes no model, so this line is the
+    # flip: set GRAPHRAG_SYNTH_MODEL on the task env and roll back by unsetting one var.
+    if model == SONNET:
+        import os as _os
+        model = (_os.environ.get("GRAPHRAG_SYNTH_MODEL")
+                 or str(_prm.get("serving.synth_model", "") or "") or model)
     raw_retrieve = retrieve                                        # the CALLER's arg (None on serving) — _answer_l2
     retrieve = retrieve or functools.partial(ev.retrieve, **_RETRIEVAL)         # needs it raw so its cheap no-rerank
     driver_retrieve = driver_retrieve or functools.partial(ev.retrieve, **_RETRIEVAL)   # probe path actually engages
@@ -3092,6 +3117,7 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     # the path a rollback puts every turn on.
     _raw_draft = raw_draft_snapshot(tldr=structured.get("tldr"), mechanism=structured.get("mechanism"))
     degraded = _pop_degraded(structured)
+    _synth_usage = _pop_usage(structured)                         # D-AM-4: same pop channel, both bodies
     # unified provenance footer (Phase 4): document-level, deduped by source_key. Numbers citations join here in
     # the Phase-5 hybrid path; the per-prop page/char slots ride along for the page-citation recovery.
     seen_docs, uniq = set(), []
@@ -3153,6 +3179,7 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
                       "drivers": drivers, "n_driver_evidence": len(driver_hits),
                       "evidence_ids": ev_ids, "has_diagram": _valid_mermaid(structured.get("diagram_mermaid")),
                       **({"degraded_model": degraded} if degraded else {}),
+                      **({"synth_usage": _synth_usage} if _synth_usage else {}),   # D-AM-4
                       **({"raw_draft": _raw_draft} if _raw_draft else {}),   # A4, audited runs only
                       **_scaf_trace,                               # D-DT-1: absent when the flag is off
                       "citation_verifier": verifier, "model": model}}

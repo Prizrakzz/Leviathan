@@ -1159,9 +1159,16 @@ def respond(*args, **kwargs) -> dict:
         # W6.1-0 cited-vs-injected [N]: distinct handles in the FINAL answer vs rows injected into the
         # prompt. If CitedN << InjectedN most cascade rows are injected-but-uncited, so CASCADE_CAP can
         # drop with near-zero loss. Both carry 0-semantics (always present, like CascadeFired).
-        # OutputTokens is NOT available: providers.serving_call DISCARDS usage (`out, _ = ...`), so the
-        # synthesis result exposes no token count without new plumbing -> AnswerChars is the honest proxy.
+        # D-AM-4: synthesis usage rides trace.synth_usage (providers usage_sink -> _call_opus pop-tag ->
+        # both bodies), so tokens + cache-aware CostUsd are first-class metrics; AnswerChars stays as the
+        # long-baseline proxy. Absent usage (faked calls, floors) => None => metrics ABSENT, never 0.
         _ans = res.get("answer") or ""
+        _su = tr.get("synth_usage") or {}
+        _cost = None
+        if _su:
+            from leviathan.graphrag import providers as _pv
+            _cost = _pv.serving_cost_usd(_su.get("model") or "", _su.get("in") or 0, _su.get("out") or 0,
+                                         _su.get("cache_read") or 0, _su.get("cache_write") or 0)
         injected_n = int(tr.get("injected_n") or 0)
         cited_n = len(set(re.findall(r"\[N\d+\]", _ans)))
         # RV2 W2 dark observables (S3-F1, S2-4): XcLlmWouldFire counts planner would-fires REGARDLESS of
@@ -1197,6 +1204,10 @@ def respond(*args, **kwargs) -> dict:
                   "RerouteFired": 1 if rt else 0,
                   "MultiCountryTurn": 1 if len(rt_countries) >= 2 else 0,
                   "CitedN": cited_n, "InjectedN": injected_n, "AnswerChars": len(_ans),
+                  # D-AM-4 (None-safe: emf drops None values, so faked/floored turns emit nothing here)
+                  "InputTokens": _su.get("in"), "OutputTokens": _su.get("out"),
+                  "CacheReadTokens": _su.get("cache_read"), "CacheWriteTokens": _su.get("cache_write"),
+                  "CostUsd": _cost,
                   # F1 counter: 1 on a trivial-router short-circuit (trace.trivial stamped by _trivial_answer),
                   # else 0. Social turns emit under intent="social"/model="(canned)" -- a fresh dimension
                   # bucket that never pollutes the reasoning/hybrid/numbers strip metrics (0-semantics, like
@@ -1219,6 +1230,8 @@ def respond(*args, **kwargs) -> dict:
                         "CascadeNodes": "Count", "DivergenceNodes": "Count", "RerouteFired": "Count",
                         "MultiCountryTurn": "Count", "CitedN": "Count", "InjectedN": "Count",
                         "AnswerChars": "Count", "TrivialShortCircuit": "Count",
+                        "InputTokens": "Count", "OutputTokens": "Count",
+                        "CacheReadTokens": "Count", "CacheWriteTokens": "Count", "CostUsd": "None",
                         "XcLlmWouldFire": "Count", "PlannerFallback": "Count",
                         "DarkRefNodes": "Count", "AgentZeroCallTurns": "Count",
                         "PositioningFired": "Count", "PaceFired": "Count", "ChainFired": "Count",
@@ -1354,14 +1367,17 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
                 return _pc
         near = plan.near
         kind = plan.kind()
+        _kind_hist = [f"plan:None->{kind}"]                            # D-AM-1: transition audit starts here
         if kind == "live" and asof < _today():
             kind = "reasoning"                                         # PIT kill-switch (executor half)
+            _kind_hist.append("pit_killswitch:live->reasoning")
             live_pit_suppressed = it.is_news_explicit(query)           # ...but never SILENTLY (root-cause fix)
         elif kind != "live" and it.is_news_explicit(query) and asof >= _today():
             # Deterministic promotion: an EXPLICIT news ask at a today as-of routes live, full stop — the
             # dispatch prompt already states this rule; this makes it law when the LLM misroutes. Narrow
             # matcher only (is_news_explicit): ambient "today"/"right now" stays routable to numbers/
             # reasoning (a blanket is_live promotion would hijack "corn exports today?").
+            _kind_hist.append(f"news_promotion:{kind}->live")
             kind = "live"
         decided = plan.trace() | {"intent": kind}
     else:
@@ -1369,26 +1385,24 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
         # backtested answers are physically unable to see today's headlines (ISO strings compare safely).
         if it.is_news_explicit(query) and asof < _today():
             live_pit_suppressed = True                                 # explicit ask vetoed by PIT -> note below
-        # P2 (⚠verified): the attachment guard on this EARLY-RETURN is half of the "an attached turn never
-        # triggers the live network fetch" guarantee — run_live would overwrite extra_context and drop the
-        # attachment block. The other half is the kind demotion in the override block below.
+        # P2 (⚠verified): the attachment guard on this legacy-live leg is half of the "an attached turn
+        # never triggers the live network fetch" guarantee — run_live would overwrite extra_context and
+        # drop the attachment block. The other half is the kind demotion in the override block below.
+        # D-AM-2: this leg no longer EARLY-RETURNS above the post-dispatch decisions. It assigns kind
+        # and flows through the SHARED pipeline — every downstream stage is live-exempt (price
+        # tiebreak), plan-gated (family facet / outlook / RC selector, which stamp their None), or
+        # inert here (_att_present is False by this guard) — so the ANSWER path is unchanged while
+        # `decided` now carries the same decision keys as every other lane. The undeclared second
+        # pipeline (which silently skipped tiebreak/facet/attachments/rv2/outlook/contract selection)
+        # is gone; classify is still never consulted on an explicit live ask (same as the old return).
         if it.is_live(query) and asof >= _today() and not _att_present:
-            an._emit(on_stage, "planning", intent="live", contracts=[])
-            an._emit(on_stage, "plan", intent="live", contracts=[])   # F7: the legacy-path twin of the tick above
-            _ctx = [c for c in ((state.contracts if state else None) or []) if c in graph.contracts] or None
-            try:
-                res = run_live(query, asof, graph=graph, call=call, retrieve=retrieve, model=model, planner=planner,
-                               on_stage=on_stage, context_contracts=_ctx, route_fn=route_fn, qfn=qfn)
-            except Exception as e:  # noqa: BLE001 — deterministic floor: a UI turn must never 500
-                _cause = _floor_log("live", e)      # F4a: this seam logged NOTHING at all before
-                an._emit(on_stage, "floor")
-                res = _evidence_only(query, asof, graph=graph, kind="live", exc=e, route_fn=route_fn)
-                res.setdefault("trace", {})["floor_cause"] = _cause   # bounded slug -> FloorTurns dimension
-            res["intent_decision"] = {"intent": res["intent"], "live_checked": True}
-            return _session_writeback(res, query, asof, session_id, store, state, graph, call,
-                                      ms_dispatch=_ms_dispatch)
-        decided = (classify or it.classify_intent)(query, call=call)
-        kind = decided["intent"]
+            kind = "live"
+            decided = {"intent": "live", "live_checked": True}
+            _kind_hist = ["legacy_live:None->live"]                    # D-AM-1
+        else:
+            decided = (classify or it.classify_intent)(query, call=call)
+            kind = decided["intent"]
+            _kind_hist = [f"classify:None->{kind}"]                    # D-AM-1
 
     # W2.5/W3.7 routing tiebreak -- covers BOTH the planner and the classify paths (the first placement
     # sat only on the classify fallback, so every planner-routed turn bypassed it and the W3.7 rerun
@@ -1403,6 +1417,7 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
         try:
             from leviathan.graphrag.numbers.agent import price_coverage_scope
             if price_coverage_scope(query):
+                _kind_hist.append(f"price_tiebreak:{kind}->numbers_only")   # D-AM-1
                 kind = "numbers_only"
                 decided = {**decided, "intent": "numbers_only", "price_decline_reroute": True}
         except Exception:  # noqa: BLE001 -- the tiebreak must never break a turn
@@ -1418,6 +1433,7 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
     # demotion), families are non-empty, and the kill-switch is on. Fail-closed like _reroute_v2_on: flag off
     # => no-op => byte-identical to today. The deterministic _NUM vocab remains the independent floor.
     if (kind == "reasoning" and plan is not None and plan.data_families and _family_facet_on()):
+        _kind_hist.append("family_facet:reasoning->hybrid")             # D-AM-1
         kind = "hybrid"
         decided = (decided or {}) | {"intent": "hybrid", "family_facet_promoted": True,
                                      "family_facet_families": list(plan.data_families)}
@@ -1444,10 +1460,15 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
         if att["block"]:
             sblock = "\n\n".join(x for x in (sblock, att["block"]) if x)
         if kind == "live":
+            _kind_hist.append("attachment_demotion:live->reasoning")    # D-AM-1
             kind = "reasoning"                    # a user-attached event NEVER triggers the live fetch
         decided = (decided or {}) | {"intent": kind,
                                      "attachments": {"contracts": att["contracts"],
                                                      "focus_driver": att["focus_driver"]}}
+    # D-AM-1: the ordered kind-transition audit, stamped ONCE after the last legal write site. Nothing
+    # below this line may mutate `kind` — the D-RC selector's "kind is FINAL here" is now a recorded
+    # fact a test can assert, not prose. Rides intent_decision -> the eval record (tracekeys registry).
+    decided = (decided or {}) | {"kind_history": _kind_hist}
     # D-RC-14: profile facts join sblock at the SAME documented multiplex the attachment block uses
     # (run_reasoning/run_hybrid forward only `extra_context`; a competing param is silently dropped).
     # Both legs required: the caller passed facts AND the flag is on -- the server gates its store read

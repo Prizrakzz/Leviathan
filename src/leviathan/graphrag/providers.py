@@ -102,16 +102,21 @@ def with_retry(fn):
 
 def serving_call(client, system, user, *, model: str, max_tokens: int = 4096, tool: dict,
                  degrade_to: Optional[str] = None,
-                 temperature: Optional[float] = None) -> tuple[dict, Optional[str]]:
+                 temperature: Optional[float] = None,
+                 usage_sink: Optional[list] = None) -> tuple[dict, Optional[str]]:
     """One forced-tool serving call with the full fallback chain. Returns (tool_input, degraded_model)
     where degraded_model is None on the primary path and the ALIAS (e.g. 'claude-haiku-4-5') when the
     degraded attempt served the answer — callers surface that as a visible caveat + trace entry.
     `temperature` is forwarded only when provided (D18: the dispatch planner pins 0; both the primary
-    and the degraded attempt carry it so a degraded dispatch stays deterministic too)."""
+    and the degraded attempt carry it so a degraded dispatch stays deterministic too).
+    `usage_sink` (D-AM-4): when a list is passed, the extract.Usage of the attempt that SERVED the
+    answer is appended — additive, so the return shape and every existing caller stay untouched."""
     _t = {} if temperature is None else {"temperature": temperature}
     try:
-        out, _ = with_retry(lambda: ex.call_opus(client, system, user, model=model,
-                                                 max_tokens=max_tokens, tool=tool, **_t))
+        out, _u = with_retry(lambda: ex.call_opus(client, system, user, model=model,
+                                                  max_tokens=max_tokens, tool=tool, **_t))
+        if usage_sink is not None:
+            usage_sink.append(_u)
         return out, None
     except RETRYABLE:
         fallback = resolve_model(degrade_to) if degrade_to else None
@@ -122,19 +127,25 @@ def serving_call(client, system, user, *, model: str, max_tokens: int = 4096, to
                wait=wait_exponential(multiplier=2, min=2, max=8), stop=stop_after_attempt(2))
         def degraded():
             return ex.call_opus(client, system, user, model=fallback, max_tokens=max_tokens, tool=tool, **_t)
-        out, _ = degraded()
+        out, _u = degraded()
+        if usage_sink is not None:
+            usage_sink.append(_u)
         return out, degrade_to
 
 
 def serving_call_stream(client, system, user, *, model: str, max_tokens: int = 4096, tool: dict,
-                        degrade_to: Optional[str] = None, on_token) -> tuple[dict, Optional[str]]:
+                        degrade_to: Optional[str] = None, on_token,
+                        usage_sink: Optional[list] = None) -> tuple[dict, Optional[str]]:
     """Streaming variant of serving_call: relays the tool's input_json_delta text via `on_token` as the note
     generates, and returns the SAME (tool_input, degraded_model). Robustness is preserved: an availability
     error degrades to the fallback model (buffered — the fast path already failed), and any other stream-path
-    error falls back to the buffered `serving_call` on the primary model. So streaming is pure upside."""
+    error falls back to the buffered `serving_call` on the primary model. So streaming is pure upside.
+    `usage_sink` (D-AM-4): same additive contract as serving_call — the serving attempt's Usage is appended."""
     try:
-        out, _ = with_retry(lambda: ex.call_opus_stream(client, system, user, model=model,
+        out, _u = with_retry(lambda: ex.call_opus_stream(client, system, user, model=model,
                                                          max_tokens=max_tokens, tool=tool, on_token=on_token))
+        if usage_sink is not None:
+            usage_sink.append(_u)
         return out, None
     except RETRYABLE:
         fallback = resolve_model(degrade_to) if degrade_to else None
@@ -145,8 +156,37 @@ def serving_call_stream(client, system, user, *, model: str, max_tokens: int = 4
                wait=wait_exponential(multiplier=2, min=2, max=8), stop=stop_after_attempt(2))
         def degraded():
             return ex.call_opus(client, system, user, model=fallback, max_tokens=max_tokens, tool=tool)
-        out, _ = degraded()
+        out, _u = degraded()
+        if usage_sink is not None:
+            usage_sink.append(_u)
         return out, degrade_to
     except Exception:  # noqa: BLE001 — a streaming-specific failure must never lose the answer
         return serving_call(client, system, user, model=model, max_tokens=max_tokens, tool=tool,
-                            degrade_to=degrade_to)
+                            degrade_to=degrade_to, usage_sink=usage_sink)
+
+
+# ── D-AM-4: serving cost arithmetic ───────────────────────────────────────────────────────────────
+# OUR OWN price table on purpose — third-party tables (LiteLLM et al.) price cached tokens at the
+# full input rate, a measured 3-5x overstatement on cache-heavy serving traffic. Serving prompt
+# caches are 5-minute ephemeral => the write premium is 1.25x input (batch_extract's 2x is the
+# 1-hour-TTL extraction lane, a DIFFERENT premium — don't unify them). Unknown model => None =>
+# the CostUsd metric is ABSENT rather than silently wrong (the DarkRefNodes 0-semantics idiom).
+# NOTE: claude-sonnet-5 is INTRO pricing through 2026-08-31; bump to (3.0, 15.0) on Sep 1.
+SERVING_PRICES: dict[str, tuple[float, float]] = {   # alias -> ($/MTok input, $/MTok output)
+    "claude-sonnet-4-6": (3.0, 15.0),
+    "claude-sonnet-5": (2.0, 10.0),
+    "claude-haiku-4-5": (1.0, 5.0),
+    "claude-opus-4-8": (5.0, 25.0),
+    "claude-opus-5": (5.0, 25.0),
+}
+
+
+def serving_cost_usd(model: str, in_tok: int, out_tok: int,
+                     cache_read: int = 0, cache_write: int = 0) -> Optional[float]:
+    """Cache-aware cost of one serving call in USD, or None for an unpriced model (metric absent,
+    never fabricated). 5-minute-TTL arithmetic: write 1.25x input, read 0.1x input."""
+    p = SERVING_PRICES.get(model)
+    if p is None:
+        return None
+    pi, po = p
+    return (in_tok * pi + cache_write * pi * 1.25 + cache_read * pi * 0.1 + out_tok * po) / 1e6
