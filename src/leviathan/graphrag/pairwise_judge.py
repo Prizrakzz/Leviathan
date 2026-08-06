@@ -290,8 +290,11 @@ def judge_pair(question: str, asof, text_first: str, text_second: str, items: li
     extract.py:499). Returns (verdict_dict, usage)."""
     call = call or ex.call_opus
     sys_blocks = [{"type": "text", "text": _PAIRWISE_SYS, "cache_control": {"type": "ephemeral"}}]
+    # temperature deliberately NOT sent: claude-opus-4-8 rejects the parameter with a 400
+    # (deprecated on 4.8+; measured live 2026-08-07 on all 18 rows). Verdict determinism rests on
+    # the forced-tool schema + the frozen template, same as eval.judge, which also sends none.
     return call(client, sys_blocks, build_prompt(question, asof, text_first, text_second, items),
-                model=model, max_tokens=max_tokens, tool=_pairwise_tool(items), temperature=0)
+                model=model, max_tokens=max_tokens, tool=_pairwise_tool(items))
 
 
 # ---------------------------------------------------------------------------------------------------

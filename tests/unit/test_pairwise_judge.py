@@ -241,7 +241,7 @@ def test_split_sources_block_matches_evals_own_cut():
 
 
 # -- 5. the call shape (still no API) --------------------------------------------------------------
-def test_judge_pair_pins_model_temperature_and_blind_labels():
+def test_judge_pair_pins_model_no_temperature_and_blind_labels():
     seen = {}
 
     def fake_call(client, system, user, *, model, max_tokens, tool, temperature=None):
@@ -250,7 +250,9 @@ def test_judge_pair_pins_model_temperature_and_blind_labels():
 
     items = [{"id": "rank_every_exporter", "ask": "Does it rank every exporter?"}]
     v, _ = pj.judge_pair("Q?", "2026-08-06", "TEXT ONE", "TEXT TWO", items, call=fake_call)
-    assert seen["model"] == pj.MODEL == "claude-opus-4-8" and seen["temperature"] == 0
+    assert seen["model"] == pj.MODEL == "claude-opus-4-8"
+    # temperature must NOT be sent: claude-opus-4-8 rejects it with a 400 (measured 2026-08-07)
+    assert seen["temperature"] is None
     assert seen["system"][0]["cache_control"] == {"type": "ephemeral"}
     assert "QUANTITATIVE RESEARCHER" in seen["system"][0]["text"]
     assert "composition_completeness" in seen["system"][0]["text"]
