@@ -297,9 +297,9 @@ def _load() -> dict:
     :data:`_STATUS`, and logs a fixed grep token at ERROR (dead) or WARNING (unstamped).
 
     IT STILL DOES NOT RAISE, and that is the deliberate tradeoff. This function's only serving call
-    site is episodes_for() (below), which planner.ground() invokes inside a per-node fill that
-    planner.py:337-344 runs CONCURRENTLY across nodes -- a raise here propagates out of the future
-    and kills the WHOLE TURN. Trading a correct answer (the layer is DEFAULT-OFF, experimental, and
+    site is episodes_for() (below), which planner.ground() invokes in the sequential post-cap
+    episode pass (planner.py:441-455, D-DV: episodes are stamped AFTER _dedup_and_cap) -- a raise
+    there still kills the WHOLE TURN. Trading a correct answer (the layer is DEFAULT-OFF, experimental, and
     answer._episodes_on() already suppresses the '## Episodes' paragraph when no line was injected)
     for a 500, purely to be noticed, is a bad trade. Fail-CLOSED lives in check_artifact(), whose
     caller is a CLI/CI preflight where a hard stop costs nothing. Strictness is a property of the
@@ -362,8 +362,10 @@ class _Episodes(list):
     """The episode list, plus the floor's suppression meta -- a `list` in every way that matters.
 
     WHY A SUBCLASS AND NOT A TUPLE RETURN. The floor's emitter (R3.4) needs `n_suppressed` at
-    `answer._l2_blocks`, but the ONLY production producer of episodes is `planner._fill`
-    (planner.py:334, `n.episodes = tl.episodes_for(...)`) and the only consumer is answer.py -- two
+    `answer._l2_blocks`, but the ONLY production producer of episodes is the post-cap episode
+    pass in `planner.ground` (planner.py:441-455, `n.episodes = tl.episodes_for(...)`; moved out
+    of `_fill` by D-DV so receipts are stamped against POST-cap evidence) and the only consumer
+    is answer.py -- two
     files with an unowned intermediary between them (`GroundedNode.episodes`, planner.py:76) that
     would otherwise have to grow a parallel field to carry the count. Riding the returned list keeps
     the meta ATTACHED TO THE EPISODES IT DESCRIBES rather than beside them, so the two cannot drift.

@@ -445,6 +445,32 @@
             }
           },
           {
+            "name": "contract_month",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Contract Month"
+            }
+          },
+          {
+            "name": "agg",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "series",
+              "title": "Agg"
+            }
+          },
+          {
             "name": "authorization",
             "in": "header",
             "required": false,

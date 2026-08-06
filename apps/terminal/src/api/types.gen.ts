@@ -1005,6 +1005,8 @@ export interface operations {
                 commodity?: string | null;
                 country?: string | null;
                 asof?: string | null;
+                contract_month?: string | null;
+                agg?: string;
             };
             header?: {
                 authorization?: string | null;

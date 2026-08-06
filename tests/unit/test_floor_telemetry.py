@@ -123,9 +123,9 @@ def test_floorturns_emits_once_per_class(monkeypatch, capsys, exc, slug):
     assert floors[0]["cause"] == slug and floors[0]["intent"] == "reasoning"
     names = {m["Name"] for m in floors[0]["_aws"]["CloudWatchMetrics"][0]["Metrics"]}
     assert names == {"FloorTurns"}                       # its own record: `cause` never re-dimensions the
-    turn = next(d for d in docs if "TurnLatencyMs" in d)  # turn block, whose (intent, model) series stands
+    turn = next(d for d in docs if "TurnLatencyMs" in d)  # turn block, whose (intent, model, mode) series stands
     assert "cause" not in turn
-    assert ["intent", "model"] in turn["_aws"]["CloudWatchMetrics"][0]["Dimensions"]
+    assert ["intent", "model", "mode"] in turn["_aws"]["CloudWatchMetrics"][0]["Dimensions"]
 
 
 def test_healthy_turn_emits_no_floorturns(monkeypatch, capsys):
