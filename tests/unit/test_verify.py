@@ -877,3 +877,136 @@ def test_non_latin_predicate():
     assert not vf._non_latin("Côte d'Ivoire, São Paulo")                                           # accents stay Latin
     assert not vf._non_latin("plain english 12.5%")
     assert not vf._non_latin("")
+
+
+# -- D-DV-1(i)(ii): the QUOTE-SPAN instrument -----------------------------------------------------------
+# Step-0 forensics on the 2026-08-06 three-mode eval: 5 of deep's 6 quote_mismatch strips were VERIFIER
+# faults, not model faults. Three were spans extracted with the sentence comma captured INSIDE the quote
+# marks (American style) -- comma off, they match their cited row verbatim. Two were correct co-citations:
+# a sentence citing two rows charged BOTH handles for BOTH clauses' quotes, stripping the handle that
+# backed its own clause. Neither fix loosens the match: no fuzzy compare, no extra case folding, and the
+# row-text side is normalized identically so a real mismatch still fires.
+DV_EV = [
+    {"source": "usda_gain_brazil", "date": "2026-03-31",
+     "text": "Widespread crop disease across the northern belt cut deliverable supply in the season."},
+    {"source": "conab_outlook", "date": "2026-04-15",
+     "text": "Planted area expanded by a fifth as producers rotated acreage into the second corn crop."},
+]
+_DV_SRC = [{"ref": "1", "source": "usda_gain_brazil", "date": "2026-03-31"},
+           {"ref": "2", "source": "conab_outlook", "date": "2026-04-15"}]
+
+
+def test_quote_span_trailing_comma_inside_the_marks_is_not_a_mismatch():
+    """(a) The measured extraction fault. The row says '...crop disease across...'; the model writes the
+    span with the clause comma inside the closing mark, which is exactly what the style guide asks for."""
+    s = _structured('The agency flagged "Widespread crop disease," which cut deliverable supply [1].',
+                    [_DV_SRC[0]])
+    rep = vf.verify_citations(s, DV_EV, [])
+    assert "[1]" in s["tldr"] and rep["stripped"] == 0 and rep["by_rule"] == {}
+    # ... and the PRE-FIX comparison is pinned as the defect it was: raw _norm leaves the comma on
+    assert vf._norm("Widespread crop disease,") not in vf._norm(DV_EV[0]["text"])
+    assert vf._norm_quote("Widespread crop disease,") in vf._norm_quote(DV_EV[0]["text"])
+
+
+def test_quote_span_terminal_period_and_quote_marks_are_edge_only():
+    """The same normalization on the other terminal punctuation, and on BOTH sides -- but strictly at the
+    EDGES: an interior comma is still part of the span, so wording and punctuation inside it must match."""
+    for span in ("cut deliverable supply in the season.", "cut deliverable supply in the season"):
+        s = _structured('The report said "%s" [1].' % span, [_DV_SRC[0]])
+        rep = vf.verify_citations(s, DV_EV, [])
+        assert "[1]" in s["tldr"] and rep["by_rule"] == {}, span
+    assert vf._norm_quote("disease, driven") == "disease, driven"      # interior punctuation untouched
+
+
+def test_absent_quote_span_still_strips_normalization_is_not_amnesty():
+    """(b) A span the cited row does not carry -- verbatim or comma-stripped -- still charges, and a span
+    that differs by a WORD is not rescued by the punctuation strip."""
+    s = _structured('The agency flagged "yields collapsed by half across the belt" in the note [1].',
+                    [_DV_SRC[0]])
+    rep = vf.verify_citations(s, DV_EV, [])
+    assert "[1]" not in s["tldr"]
+    assert rep["stripped"] == 1 and rep["by_rule"] == {"quote_mismatch": 1}
+    near = _structured('The agency flagged "Widespread crop failure," which cut supply [1].', [_DV_SRC[0]])
+    assert vf.verify_citations(near, DV_EV, [])["by_rule"] == {"quote_mismatch": 1}
+    # the pools are the CITED handles' -- a span carried only by an item the sentence never cited is still
+    # a mis-attribution (the sentence-level verdict widens the pool set, never the evidence set)
+    other = _structured('The report says "Planted area expanded by a fifth" [1].', [_DV_SRC[0]])
+    assert vf.verify_citations(other, DV_EV, [])["by_rule"] == {"quote_mismatch": 1}
+
+
+def test_co_cited_handles_each_backing_their_own_clause_survive():
+    """(c) The co-citation over-strip. One sentence, two rows, one quoted clause: the span lives in [1]'s
+    row, [2] backs the acreage clause beside it. The old rule charged [2] for a quote it never claimed."""
+    sent = ('The note pairs "Widespread crop disease" [1] with acreage that expanded by a fifth into '
+            'the second corn crop [2].')
+    s = _structured(sent, _DV_SRC)
+    rep = vf.verify_citations(s, DV_EV, [])
+    assert "[1]" in s["tldr"] and "[2]" in s["tldr"]
+    assert rep["checked"] == 2 and rep["stripped"] == 0 and rep["by_rule"] == {}
+    # the mechanism, directly: [2]'s pool ALONE fails the span; the sentence's pools together carry it
+    assert vf._unbacked_quote(sent, [[DV_EV[1]]]) is not None
+    assert vf._unbacked_quote(sent, [[DV_EV[0]], [DV_EV[1]]]) is None
+
+
+def test_span_absent_from_every_cited_handle_charges_exactly_once():
+    """(d) When NO cited pool carries the span the rule still fires -- once for the sentence, with both
+    handles dropped together (the number_mismatch whole-sentence precedent: dropped together, charged
+    once), never once per handle."""
+    s = _structured('The note pairs "yields collapsed by half" [1] with acreage that expanded by a '
+                    'fifth into the second corn crop [2].', _DV_SRC)
+    rep = vf.verify_citations(s, DV_EV, [])
+    assert "[1]" not in s["tldr"] and "[2]" not in s["tldr"]
+    assert rep["checked"] == 2 and rep["stripped"] == 1
+    assert rep["by_rule"] == {"quote_mismatch": 1}
+
+
+def test_quote_verdict_outranks_lexical_overlap_as_it_always_did():
+    """The per-handle rule ORDER is preserved across the move to a sentence-level verdict: a handle that
+    fails both rules is charged quote_mismatch (once), and a handle that fails only the lexical test in a
+    sentence whose quote IS backed is still charged no_lexical_overlap."""
+    both = _structured('Tariff escalation redirected Chinese buying, "yields collapsed by half" [1].',
+                       [_DV_SRC[0]])
+    assert vf.verify_citations(both, DV_EV, [])["by_rule"] == {"quote_mismatch": 1}
+    mixed = _structured('The note quotes "Widespread crop disease" [1]. Tariff escalation redirected '
+                        'Chinese buying toward other origins [2].', _DV_SRC)
+    rep = vf.verify_citations(mixed, DV_EV, [])
+    assert rep["by_rule"] == {"no_lexical_overlap": 1}                # [1] survives on its backed span
+    assert "[1]" in mixed["tldr"] and "[2]" not in mixed["tldr"]
+
+
+# -- D-DV-1(iii): the LEDGER CASCADE gets its own key ---------------------------------------------------
+# One unmatched ledger ref strips its own row AND every prose sentence citing it. The s5 A/B's headline
+# "35 fabricated citations" was ~12 distinct sentences off 6 unmatched rows read through this cascade.
+# The stripping is unchanged; only the ACCOUNTING is: fabricated_citation counts the defect (a cited
+# handle with no such item in the evidence list), ledger_cascade counts its downstream sentences.
+def test_unmatched_ledger_ref_keys_its_downstream_sentences_ledger_cascade():
+    s = _structured("Disease cut deliverable supply [1]. Acreage expanded by a fifth [1].",
+                    [{"ref": "1", "source": "reuters_live_wire", "date": "2026-01-01"}],
+                    mechanism="Producers rotated acreage into the second corn crop [1].")
+    rep = vf.verify_citations(s, DV_EV, [])
+    assert rep["by_rule"].get("fabricated_citation") == 1             # the LEDGER ROW, once
+    assert rep["by_rule"].get("ledger_cascade") == 3                  # the three citing sentences
+    assert rep["stripped"] == 4                                       # stripping itself is unchanged
+    assert s["sources"] == [] and "[1]" not in s["tldr"] and "[1]" not in s["mechanism"]
+
+
+def test_fabricated_citation_again_means_a_handle_no_item_backs():
+    """The rule name is honest again: a resolvable ledger keeps fabricated_citation at zero however many
+    sentences cite it, and an undeclared prose handle keeps its own key."""
+    ok = _structured("Widespread crop disease cut deliverable supply [1]. Acreage expanded [2].", _DV_SRC)
+    rep = vf.verify_citations(ok, DV_EV, [])
+    assert rep["by_rule"] == {} and rep["stripped"] == 0
+    und = _structured("Freight rates spiked on Panama canal restrictions [9].", [])
+    rep2 = vf.verify_citations(und, DV_EV, [])
+    assert rep2["by_rule"] == {"undeclared_unsupported": 1}           # never fabricated_citation
+    assert "ledger_cascade" not in rep2["by_rule"]
+
+
+def test_ledger_cascade_audit_entry_names_the_new_rule(monkeypatch):
+    """An RCA dump can separate the cascade from the defect without re-parsing prose."""
+    monkeypatch.setenv("GRAPHRAG_STRIP_AUDIT", "on")
+    s = _structured("Disease cut deliverable supply [1].",
+                    [{"ref": "1", "source": "reuters_live_wire", "date": "2026-01-01"}])
+    rep = vf.verify_citations(s, DV_EV, [])
+    assert [e["rule"] for e in rep["strip_audit"]] == ["ledger_cascade"]
+    assert rep["strip_audit"][0]["field"] == "tldr"

@@ -54,6 +54,13 @@ _UNIT_OF = {tok: cls for cls, toks in _UNIT_CLASSES.items() for tok in toks}
 # its unit key. A run length is never a magnitude, whatever else the record says.
 _COUNT_METRIC = re.compile(r"_pace_streak\Z")
 _QUOTE = re.compile(r"[\"“”]([^\"“”]{15,})[\"“”]")
+# D-DV-0(2) forensics (2026-08-06): the punctuation American style puts INSIDE the closing quote mark is
+# captured by _QUOTE as part of the SPAN -- '"Widespread crop disease," the report said' quotes a comma the
+# source never wrote. 3 of deep's 6 quote_mismatch strips were spans that match their cited row verbatim
+# once that comma is off. Stripped from BOTH sides of the comparison (span AND row text) so the match stays
+# substantive: interior punctuation, wording and the existing case-folding are untouched.
+# Curly marks as escapes so this addition stays ASCII source (the same rule as _RANGE_TAIL's dashes).
+_QUOTE_EDGE = ",.;:!?" + chr(34) + chr(39) + " " + "\u201c\u201d\u2018\u2019"
 _NUM = re.compile(r"\d[\d,]*\.?\d*")
 _SENT_SPLIT = re.compile(r"(?<=[.!?;])\s+")
 _STOP = {"about", "after", "against", "along", "among", "around", "because", "before", "being",
@@ -77,6 +84,13 @@ def _non_latin(s: str) -> bool:
 
 def _norm(s: str) -> str:
     return re.sub(r"\s+", " ", (s or "").lower()).strip()
+
+
+def _norm_quote(s: str) -> str:
+    """_norm plus the EDGE punctuation strip a quoted span needs (see _QUOTE_EDGE). Applied to the span
+    AND to the row text it is searched in, so the containment test is the same test on both sides -- this
+    is punctuation normalization, never fuzzy matching: nothing inside the span is touched."""
+    return _norm(s).strip(_QUOTE_EDGE)
 
 
 def _match_ledger_entry(entry: dict, evidence: list[dict]) -> list[dict]:
@@ -384,14 +398,30 @@ def _num_matches(sent_nums: list[float], row_vals: list[float]) -> bool:
     return False
 
 
-def _check_evidence_handle(sent: str, matched: list[dict]) -> str | None:
-    """Rule violated by an evidence handle in this sentence, or None."""
+def _unbacked_quote(sent: str, pools: list[list[dict]]) -> str | None:
+    """The first quoted span in `sent` that NO pool carries verbatim, or None -- the CO-CITATION shape.
+    A pool is one cited handle's resolved items; a sentence citing several handles passes all of them, so
+    a span carried by ONE of them is backed for the sentence (D-DV-0(2): 2 of deep's 6 quote_mismatch
+    strips were handles correctly backing their own clause while a co-cited handle carried the quote).
+    Empty after normalization = nothing to check (a span of pure punctuation claims nothing)."""
+    hays = [_norm_quote(" ".join(e.get("text") or "" for e in (p or []))) for p in pools]
+    for q in _QUOTE.findall(sent):
+        nq = _norm_quote(q)
+        if nq and not any(nq in h for h in hays):
+            return q
+    return None
+
+
+def _check_evidence_handle(sent: str, matched: list[dict], *, quotes: bool = True) -> str | None:
+    """Rule violated by an evidence handle in this sentence, or None. `quotes=False` defers the quoted-span
+    verdict to the caller's SENTENCE-level pass (the co-citation rule above), which is what the declared-
+    handle path in _verify_field does; the undeclared path keeps the single-pool check -- its pool is the
+    whole evidence list, a superset of every declared pool, so it can only ever be more permissive."""
     if not matched:
         return "fabricated_citation"                      # ledger names a source/date nobody provided
     texts = " ".join(e.get("text") or "" for e in matched)
-    for q in _QUOTE.findall(sent):
-        if _norm(q) not in _norm(texts):
-            return "quote_mismatch"
+    if quotes and _unbacked_quote(sent, [matched]):
+        return "quote_mismatch"
     if not (_tokens(sent) & _tokens(texts)) and not (set(_NUM.findall(sent)) & set(_NUM.findall(texts))):
         # D-RC-15a script gate: a non-Latin sentence (non-Latin letters present AND zero usable
         # [a-z]{5,} tokens) can never share a lexical token with Latin evidence -- for it the overlap
@@ -535,6 +565,12 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
 
         # 1) resolve the model's ledger to real items; correct mistyped dates; drop fabrications
         resolved: dict[str, list[dict]] = {}
+        # D-DV-1(iii): the refs whose LEDGER entry found no item. Each one strips its own row as
+        # fabricated_citation below AND leaves resolved[ref] = [], which charges every prose sentence citing
+        # it -- the s5 A/B's "35 fabricated citations" were ~12 distinct sentences off 6 unmatched rows. The
+        # cascade strips are re-keyed `ledger_cascade` so fabricated_citation counts DEFECTS (a cited handle
+        # with no such item in the evidence list), not the sentences downstream of one.
+        cascade_refs: set[str] = set()
         kept_sources = []
         for s in (structured.get("sources") or []):
             ref = str(s.get("ref", "")).strip().strip("[]")
@@ -549,6 +585,7 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
                 report["stripped"] += 1
                 report["by_rule"]["fabricated_citation"] = report["by_rule"].get("fabricated_citation", 0) + 1
                 resolved[ref] = []
+                cascade_refs.add(ref)
                 continue
             true_date = matched[0].get("date")
             if s.get("date") and true_date and str(s["date"])[:10] != str(true_date)[:10]:
@@ -609,6 +646,10 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
             # (repair vs whole-sentence drop) depends on the other handles sharing its sentence.
             drops: list[tuple[int, int]] = []
             pending: list[tuple[int, int, str, int]] = []
+            # sentence span -> every DECLARED handle in it that resolved, as (handle span, pool, per-handle
+            # rule). Their verdict is deferred to PASS 1b because the quoted-span question is a SENTENCE
+            # question, and (as in the old per-handle order) it outranks no_lexical_overlap.
+            quoting: dict[tuple[int, int], list[tuple[int, int, list[dict], str | None]]] = {}
             for m in _HANDLE.finditer(text):
                 report["checked"] += 1
                 s0, s1 = _sentence_span(text, m.start())
@@ -617,8 +658,13 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
                     rule = _check_number_handle(sent, int(m.group("idx")), number_calls)
                 else:
                     ref = m.group("idx")
-                    if ref in resolved:
-                        rule = _check_evidence_handle(sent, resolved[ref])
+                    if ref in resolved and ref not in cascade_refs:
+                        quoting.setdefault((s0, s1), []).append(
+                            (m.start(), m.end(), resolved[ref],
+                             _check_evidence_handle(sent, resolved[ref], quotes=False)))
+                        continue                          # verdict AND charge both land in PASS 1b
+                    if ref in cascade_refs:               # downstream of an unmatched ledger row, not a
+                        rule = "ledger_cascade"           # fabrication of its own (D-DV-1 iii)
                     else:                                 # handle never declared in the ledger: keep it only
                         rule = ("undeclared_unsupported"  # if SOME provided item supports the sentence
                                 if _check_evidence_handle(sent, evidence) else None)
@@ -630,6 +676,30 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
                     report["stripped"] += 1
                     report["by_rule"][rule] = report["by_rule"].get(rule, 0) + 1
                     _audit(rule, field, sent)
+
+            # PASS 1b -- the QUOTED-SPAN verdict, taken per SENTENCE over every declared handle in it. The
+            # old per-handle rule made EVERY cited handle carry EVERY span, so a two-source sentence whose
+            # handles each back their own clause stripped the innocent one (D-DV-0(2): 2 of deep's 6). It
+            # fires only when NO cited pool carries the span, and then ONCE: the sentence's handles go
+            # together as a single strip record, the way a number_mismatch whole-sentence drop already
+            # counts (dropped together, charged once). A backed span leaves each handle to answer for its
+            # own rule -- quote_mismatch outranking no_lexical_overlap, as the per-handle order did.
+            for (q0, q1), group in quoting.items():
+                sent = text[q0:q1]
+                if _unbacked_quote(sent, [p for _a, _b, p, _r in group]) is not None:
+                    for h0, h1, _p, _r in group:
+                        drops.append((h0, h1))
+                    report["stripped"] += 1
+                    report["by_rule"]["quote_mismatch"] = report["by_rule"].get("quote_mismatch", 0) + 1
+                    _audit("quote_mismatch", field, sent)
+                    continue
+                for h0, h1, _p, rule in group:
+                    if rule:
+                        drops.append((h0, h1))
+                        report["stripped"] += 1
+                        report["by_rule"][rule] = report["by_rule"].get(rule, 0) + 1
+                        _audit(rule, field, sent)
+
             if foreign:                                   # a regime name from ANOTHER contract's DAG is a
                 for m in foreign.finditer(text):          # cross-contract fabrication, never a citation issue
                     drops.append((m.start(), m.end()))
