@@ -6,7 +6,7 @@ import type { StoreApi } from 'zustand';
  *  error state, never a crash. Tabs are WORKSPACE-GLOBAL: thread switches never touch them. This module
  *  imports no components (the kind→lazy map lives in shell/tabs/registry.tsx) so the store stays pure. */
 
-export type TabKind = 'graph' | 'pdf' | 'artifact';
+export type TabKind = 'graph' | 'pdf' | 'artifact' | 'chart';
 
 export interface GraphTabParams {
   contract: string;
@@ -32,11 +32,31 @@ export interface ArtifactTabParams {
   artifactId: string;
 }
 
+/** D-UX-2: a chart tab is a SERIES LOCATOR and an axis mode -- never fetched points. Exactly the arguments
+ *  /v1/series takes, plus the `axis` that decides which of SeriesChart's two modes draws them, plus the
+ *  as-of the chart is PINNED to. `asof` is not decoration and not optional-by-accident: a chart tab opened
+ *  off a turn must keep showing that turn's vintage after a reload, so it rides the key too (a chart of the
+ *  same metric at a different as-of is a DIFFERENT chart, not a refresh of this one).
+ *
+ *  `commodity` is optional because a chartable card need not have a commodity axis at all -- silver_oni is
+ *  one metric for the whole planet, and the affordance must reach it. `contract_month` carries the comma
+ *  list of delivery months a curve read named (the same string trackedMonths() produces), and is absent on
+ *  every time-axis chart. */
+export interface ChartTabParams {
+  table: string;
+  metric: string;
+  commodity?: string;
+  country?: string;
+  contract_month?: string;
+  axis: 'time' | 'curve';
+  asof: string;
+}
+
 export interface Tab {
   id: string; // == tabKey(kind, params): stable identity => dedupe-focus on reopen
   kind: TabKind;
   title: string;
-  params: GraphTabParams | PdfTabParams | ArtifactTabParams;
+  params: GraphTabParams | PdfTabParams | ArtifactTabParams | ChartTabParams;
 }
 
 /** Stable identity for dedupe. asof normalizes `?? ''` — MUST match AnswerView's graphQ key family
@@ -47,6 +67,15 @@ export function tabKey(kind: TabKind, params: Tab['params']): string {
     return `graph:${p.contract}:${p.asof ?? ''}`;
   }
   if (kind === 'artifact') return `artifact:${(params as ArtifactTabParams).artifactId}`;
+  // D-UX-2: EVERY locator field rides the chart key. This is the D-TW-9 lesson restated at the tab layer --
+  // there, two numbers rows differing only by `country` shared one react-query entry and the second row drew
+  // the first row's line. A chart key that dropped country (or the delivery months, or the axis, or the
+  // as-of) would do the same thing one level up: "Brazil soybean exports" would focus the already-open
+  // "Argentina soybean exports" tab and silently relabel someone else's series with this row's title.
+  if (kind === 'chart') {
+    const c = params as ChartTabParams;
+    return `chart:${c.table}:${c.metric}:${c.commodity ?? ''}:${c.country ?? ''}:${c.contract_month ?? ''}:${c.axis}:${c.asof}`;
+  }
   const p = params as PdfTabParams;
   return `pdf:${p.sourceKey}`;
 }

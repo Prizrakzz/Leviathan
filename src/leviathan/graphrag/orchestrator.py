@@ -425,15 +425,22 @@ def _event_era(date: str | None) -> str | None:
     return d if _ERA_RE.match(d) else None
 
 
-def _attachment_block(node_edge_lines: list[str], events: list) -> str | None:
+def _attachment_block(node_edge_lines: list[str], events: list, series_lines: list[str] | None = None) -> str | None:
     """The labeled, NON-CITABLE block (rides extra_context -> volatile; the verifier strips any citation
     aimed here as fabricated). node/edge = a pointer into the driver model; @event reuses the news
-    external-shock wrapper so its injection framing is identical to run_live's."""
+    external-shock wrapper so its injection framing is identical to run_live's; @series (D-UX-4) is a
+    LOCATOR list -- table/metric/dimension names only, never a reading."""
     parts = []
     if node_edge_lines:
         parts.append("=== USER-ATTACHED FOCUS (the researcher pointed at these tracked driver-model "
                      "elements; CENTER the analysis here. A POINTER into the driver model, NOT new "
                      "evidence -- cite only dated corpus items) ===\n" + "\n".join(node_edge_lines))
+    if series_lines:
+        parts.append("=== USER-ATTACHED CHART FOCUS (the researcher is looking at these series and wants "
+                     "the analysis CENTERED on them. LOCATORS ONLY -- no values, no readings and no "
+                     "vintage ride this attachment. Every number in the answer must come from a fresh "
+                     "deterministic read under THIS turn's as-of; treat nothing here as an observation) "
+                     "===\n" + "\n".join(series_lines))
     if events:
         from leviathan.graphrag.news import extract_live as nx
         parts.append(nx.live_context_block(events, "user-attached (not a live fetch)"))
@@ -481,6 +488,44 @@ def _profile_block(facts) -> str | None:
             "observation about any market) ===\n" + txt)
 
 
+_SERIES_DIMS = ("commodity", "country", "contract_month")
+
+
+def _series_locator(att) -> str | None:
+    """D-UX-4: validate a `series` attachment into ONE steering line, or None to drop it.
+
+    STEERING, NOT DATA -- and structurally so: this function takes no query_fn, no as-of and no registry
+    rows, so there is no path by which a value could enter the turn here. It validates the table and the
+    metric against the numbers registry (the SAME registry /v1/series validates against, so a locator the
+    chart could not have drawn cannot steer either), then renders the locator's own field names.
+
+    PIT POSTURE (inherited from P2, nothing new to ratify): the attachment deliberately carries NO as-of.
+    The numbers agent re-fetches the series under the NEW turn's own as-of, so attaching a chart drawn at
+    an older horizon can never smuggle that horizon's values into a later answer -- and attaching one
+    cannot back-date the turn either. This is also why the series branch never sets `near`: a locator has
+    no vintage to place an analogue-era retrieval on.
+
+    Unknown table / unknown metric / missing registry => None (DROPPED, never raised on): an attachment is
+    additive garnish and must never fail a turn."""
+    from leviathan.graphrag.numbers.registry import load_registry as _load_numbers_registry
+    table = str(getattr(att, "table", "") or "").strip()[:80]
+    metric = str(getattr(att, "metric", "") or "").strip()[:80]
+    if not table or not metric:
+        return None
+    try:
+        ts = _load_numbers_registry().get(table)
+    except Exception:  # noqa: BLE001 -- unknown table, or no registry on this deployment: drop it
+        return None
+    if ts is None or (ts.metrics and metric not in ts.metrics):
+        return None
+    bits = [f"table={table}", f"metric={metric}"]
+    for dim in _SERIES_DIMS:
+        v = reg.sanitize(str(getattr(att, dim, "") or "").strip())[:60].replace("\n", " ")
+        if v:
+            bits.append(f"{dim}={v}")
+    return "- CHART FOCUS: " + " ".join(bits)
+
+
 def _resolve_attachments(context, graph, asof: str) -> dict:
     """Validate typed FE gestures -> {contracts, focus_driver, block, near, suppressed_note}. The client is
     never trusted for ids/mechanisms (driver_id/mechanism are re-derived server-side; unknown ids are
@@ -492,6 +537,7 @@ def _resolve_attachments(context, graph, asof: str) -> dict:
     focus = None
     near = None
     node_edge_lines: list[str] = []
+    series_lines: list[str] = []
     events: list = []
     suppressed: list[str] = []
 
@@ -536,6 +582,18 @@ def _resolve_attachments(context, graph, asof: str) -> dict:
                 continue
             node_edge_lines.append(f"- CASCADE LINK: {src} --> {tgt} [{a.contract}] -- "
                                    f"{reg.sanitize(mech)[:240]}")
+        elif a.type == "series":
+            # D-UX-4 STEERING-ONLY resolution. Two contributions, both non-numeric: the chart's commodity
+            # becomes a context CONTRACT seed (so the walk starts where the desk is looking), and one
+            # LOCATOR line joins the block. No values, no evidence, no as-of -- see _series_locator for the
+            # PIT posture. `focus_driver` is deliberately NOT set: focus is a DRIVER id the walk
+            # force-inserts, and a metric name is not one -- writing a metric there would corrupt the walk.
+            line = _series_locator(a)
+            if line is None:                                                # unknown table/metric -> dropped
+                continue
+            series_lines.append(line)
+            if a.commodity in graph.contracts:                              # untracked commodity: steer only
+                _seed(a.commodity)
         elif a.type == "event":
             if a.event_type not in nc.EVENT_TYPES:                          # enum-lock; a client can't mint a type
                 continue
@@ -559,7 +617,7 @@ def _resolve_attachments(context, graph, asof: str) -> dict:
                 _seed(comm)
             near = near or _event_era(a.date)
     return {"contracts": seeds[:2], "focus_driver": focus,
-            "block": _attachment_block(node_edge_lines, events),
+            "block": _attachment_block(node_edge_lines, events, series_lines),
             "near": near, "suppressed_note": ("; ".join(suppressed)) if suppressed else None}
 
 

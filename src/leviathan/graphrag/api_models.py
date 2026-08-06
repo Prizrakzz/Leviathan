@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 _RICH = ConfigDict(extra="allow")            # wraps a rich underlying dict; pin the core keys, allow the rest
 
@@ -194,12 +194,32 @@ class GalleryItem(BaseModel):
     convergence catalog; `filled` is false when the catalog was cold, in which case `question` is the raw
     template and its `{contract}`/`{regime}`/`{pair}` blanks are the user's to complete. `rc_target` is the
     response contract the wording selects (pinned by test) — carried on the wire as honest provenance for
-    the eval/debug lane, not read by the UI."""
+    the eval/debug lane, not read by the UI.
+
+    D-UX-1 adds the two fields the EDITABLE template library needs, both derived from what the fill already
+    computed (no new server work, no new data): `template` is the raw authored wording WITH its braces, and
+    `slots` are the values this row was filled with. `question` stays the product — and stays derivable:
+    substituting `slots` into `template` reproduces it byte-for-byte (pinned), so an FE that re-fills the
+    template starts from exactly the question the gallery advertises, with the TRUE near-row pairing intact,
+    and only diverges where the analyst edits a slot."""
     id: str
     category: str
     question: str
     rc_target: str = "default"
     filled: bool = True
+    template: str = ""
+    slots: dict[str, str] = {}
+
+
+class GalleryVocab(BaseModel):
+    """D-UX-1 — the raw slot vocabularies behind the filled examples, so the FE's per-slot combobox can offer
+    what the engine can answer instead of the analyst guessing. Same warm-catalog read as the items (no
+    model, no quota); `pairs` carries ONLY the census-realizable set, so the gate that fences the templates
+    fences the dropdown too. Every list is empty on a cold catalog — an empty dropdown that still accepts
+    free typing is the honest degradation."""
+    contracts: list[str] = []
+    regimes: list[str] = []
+    pairs: list[str] = []
 
 
 class Gallery(BaseModel):
@@ -208,6 +228,7 @@ class Gallery(BaseModel):
     shape: an unreadable config degrades to `items: []` (no starter row), never a 500 on the landing page."""
     items: list[GalleryItem] = []
     catalog_warm: bool = False
+    vocab: GalleryVocab = Field(default_factory=GalleryVocab)
 
 
 # ── 6.5 click-to-page (GET /v1/citation/pdf) ────────────────────────────────────────────────────────
@@ -249,21 +270,30 @@ class ProfileUpdate(BaseModel):
 
 # ── P2 typed context attachments (research-UI §II) ────────────────────────────────────────────────────
 class ContextAttachment(BaseModel):
-    """One typed 'point at the graph' gesture attached to a turn (node/edge/event). The SERVER re-derives
-    everything trust-bearing: node/edge ids are validated against the causal graph, the edge mechanism is
-    looked up server-side, and an event's driver_id is CODE-mapped from its enum-locked event_type — the
-    client's driver_id/mechanism strings are ignored by the resolver (injection posture). A future-dated
-    event (date > the final as-of) is fully withheld with a visible note (PIT)."""
-    type: Literal["node", "edge", "event"]
+    """One typed 'point at the graph' gesture attached to a turn (node/edge/event/series). The SERVER
+    re-derives everything trust-bearing: node/edge ids are validated against the causal graph, the edge
+    mechanism is looked up server-side, and an event's driver_id is CODE-mapped from its enum-locked
+    event_type — the client's driver_id/mechanism strings are ignored by the resolver (injection posture).
+    A future-dated event (date > the final as-of) is fully withheld with a visible note (PIT).
+
+    D-UX-4 `series` is a CHART LOCATOR and nothing else — {table, metric, commodity?, country?,
+    contract_month?}, i.e. exactly /v1/series' arguments MINUS the as-of. Carrying no as-of and no points
+    is the whole design: the attachment steers (which series the desk is looking at), the numbers agent
+    re-reads it under the NEW turn's own as-of, so an attached chart can never carry a value read at some
+    other horizon into a later answer."""
+    type: Literal["node", "edge", "event", "series"]
     contract: Optional[str] = None      # node/edge: the tracked contract the element lives in
     driver_id: Optional[str] = None     # node: the focus driver (validated vs the graph); IGNORED for event
     source: Optional[str] = None        # edge: source node id
     target: Optional[str] = None        # edge: target node id
     event_type: Optional[str] = None    # event: enum-checked vs the news EVENT_TYPES
-    commodity: Optional[str] = None     # event: validated vs graph.contracts
-    country: Optional[str] = None       # event: free text -> length-capped + sanitized server-side
+    commodity: Optional[str] = None     # event/series: validated vs graph.contracts
+    country: Optional[str] = None       # event/series: free text -> length-capped + sanitized server-side
     summary: Optional[str] = None       # event: free text -> length-capped + sanitized server-side
     date: Optional[str] = None          # event: ISO date; > asof -> withheld with a visible note
+    table: Optional[str] = None         # series: validated vs the numbers registry; unknown -> DROPPED
+    metric: Optional[str] = None        # series: validated vs the table's declared metrics
+    contract_month: Optional[str] = None  # series: delivery-month locator (the curve read's comma list)
     label: Optional[str] = None         # display-only echo (ignored server-side)
 
 

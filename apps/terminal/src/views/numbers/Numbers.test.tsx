@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const h = vi.hoisted(() => ({ getSeries: vi.fn() }));
 vi.mock('@/api/client', () => ({ getSeries: h.getSeries }));
 
+import { useUI } from '@/store/ui';
 import { Numbers } from './Numbers';
 
 const ASOF = '2024-06-01';
@@ -222,5 +223,83 @@ describe('Numbers curve view (D-AM-21)', () => {
     await userEvent.click(row('N1'));
     await userEvent.click(screen.getByRole('button', { name: 'curve' }));
     expect(await screen.findByText(/no curve to plot/i)).toBeInTheDocument();
+  });
+});
+
+// ── D-UX-2: the ALWAYS-VISIBLE chart entry point ───────────────────────────────────────────────────
+// The defect this fixes: the D-AM-21 curve view was real, shipped and effectively invisible -- reachable
+// only by expanding a row and then noticing a switch that exists on futures cards alone. The rule the
+// tests below pin is the plan's: the AFFORDANCE is never data-gated, the OPTIONS are.
+describe('Numbers chart affordance (D-UX-2)', () => {
+  beforeEach(() => {
+    h.getSeries.mockReset().mockResolvedValue(SERIES);
+    useUI.setState({ tabs: [], activeTabId: null });
+  });
+
+  const chartBtn = (metric = 'exports') => screen.getByRole('button', { name: `open ${metric} chart` });
+
+  it('is visible on a COLLAPSED row -- no expansion required to discover it', () => {
+    mount([numCall('N1')]);
+    expect(screen.getByTestId('chart-affordance')).toBeInTheDocument();
+    expect(chartBtn()).toBeInTheDocument();
+  });
+
+  it('is visible on an ORDINARY (non-futures) row too, and fetches nothing on its own', () => {
+    mount([numCall('N1')]);
+    expect(chartBtn()).toBeInTheDocument();
+    expect(h.getSeries).not.toHaveBeenCalled(); // the affordance is a link, not a read
+  });
+
+  it('opens a chart TAB carrying the row\'s locator, including its country scope', async () => {
+    mount([numCall('N1', { country: 'Brazil' })]);
+    await userEvent.click(chartBtn());
+    const tabs = useUI.getState().tabs;
+    expect(tabs).toHaveLength(1);
+    expect(tabs[0]!.kind).toBe('chart');
+    expect(tabs[0]!.params).toEqual({
+      table: 'silver_psd',
+      metric: 'exports',
+      commodity: 'soybeans',
+      country: 'Brazil', // D-TW-9 again: without it the tab draws a different series under this row's name
+      axis: 'time',
+      asof: ASOF,
+    });
+  });
+
+  it('offers the CURVE option only on a row that tracks two or more delivery months', () => {
+    mount([numCall('N1'), futuresCall('N2')]);
+    expect(screen.queryByRole('button', { name: 'open exports curve chart' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'open settle curve chart' })).toBeInTheDocument();
+    // ...and the plain chart option is on BOTH -- the affordance itself is never data-gated
+    expect(chartBtn()).toBeInTheDocument();
+    expect(chartBtn('settle')).toBeInTheDocument();
+  });
+
+  it('the curve option opens a curve-axis tab naming the months the call already tracked', async () => {
+    mount([futuresCall('N1')]);
+    await userEvent.click(screen.getByRole('button', { name: 'open settle curve chart' }));
+    expect(useUI.getState().tabs[0]!.params).toEqual({
+      table: 'silver_futures_eod',
+      metric: 'settle',
+      commodity: 'corn_cbot',
+      axis: 'curve',
+      asof: ASOF, // the ROW's own as-of -- the curve the answer was standing on
+      contract_month: '2026-07,2026-12,2027-03',
+    });
+  });
+
+  it('a not-yet-published row offers NO chart -- there is no series to draw at this as-of', () => {
+    mount([{ ...numCall('N1'), status: 'not_yet_pub' }]);
+    expect(screen.queryByTestId('chart-affordance')).not.toBeInTheDocument();
+  });
+
+  it('does not collide with the D-AM-21 axis switch inside the expansion', async () => {
+    // Both live on the same row; the switch's buttons are literally named 'time' and 'curve'. The
+    // affordance carries aria-labels so neither control can be selected by the other's name.
+    h.getSeries.mockResolvedValue(CURVE);
+    mount([futuresCall('N1')]);
+    await userEvent.click(row('N1'));
+    expect(screen.getAllByRole('button', { name: 'curve' })).toHaveLength(1); // the switch, only
+    expect(screen.getAllByRole('button', { name: 'open settle curve chart' })).toHaveLength(1);
   });
 });

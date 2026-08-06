@@ -26,6 +26,7 @@ import { Sections } from './note/Sections';
 import { StreamingNote } from './note/StreamingNote';
 import { useTypewriter } from './note/useTypewriter';
 import { deriveWatchChips } from './note/watchChips';
+import { ChartCards } from './numbers/ChartCards';
 import { Numbers } from './numbers/Numbers';
 import { ReceiptsDrawer } from './receipts/ReceiptsDrawer';
 
@@ -348,6 +349,12 @@ export function AnswerView({
                       )}
                     </>
                   )}
+                  {/* D-UX-3: charts that the turn's OWN deterministic legs earned -- a curve the answer
+                      differenced, a co-move pair that fired, a series a window stat walked. Placed ONCE
+                      here so both branches (structured note and numbers_only) get it, and self-gating: no
+                      trigger -> the component returns null and the answer view is byte-identical to what it
+                      rendered before this wave. Nothing here is a model decision; see chartCards.ts. */}
+                  <ChartCards result={r} asof={asof} />
                   {/* D-AM-14: what depth actually ran. Self-gating (it renders nothing unless the turn
                       carries resolved mode knobs), so it needs no branch here and an older backend's
                       answer is unchanged. Sits above the actions row: it is provenance, not an action. */}

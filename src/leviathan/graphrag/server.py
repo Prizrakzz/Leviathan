@@ -1035,6 +1035,46 @@ def _gallery_slots(cat: Optional[dict], i: int) -> dict:
     return {k: v for k, v in out.items() if v}
 
 
+def _gallery_vocab(cat: Optional[dict]) -> dict:
+    """D-UX-1 — the RAW slot vocabularies beside the filled examples: what the FE's per-slot combobox offers
+    when the analyst edits a template. Same warm-catalog dict `_gallery_slots` fills from, so the answerable
+    set has exactly ONE definition on this route (including the per-pair census gate: `cat['pairs']` is
+    already the realizable set, and nothing else may reach `pairs`).
+
+    Order is meaning, not cosmetics: the near-firing contracts lead the contract list (those are the ones a
+    desk has a reason to ask about today), then the rest of the tracked book in catalog order. De-duped,
+    order-preserving, and free of any pairing claim — a dropdown offers VALUES; only `_gallery_slots` pairs
+    a contract with the regime that is truly closest to firing for it. Cold catalog -> three empty lists
+    (the combobox still accepts free typing, which is the honest degradation)."""
+    if not cat:
+        return {"contracts": [], "regimes": [], "pairs": []}
+    near = cat.get("near") or []
+    contracts: list[str] = []
+    regimes: list[str] = []
+    for row in near:
+        c = _leg_word(str(row.get("contract") or ""))
+        if c and c not in contracts:
+            contracts.append(c)
+        regime = str(row.get("regime") or "")
+        if regime:
+            from leviathan.graphrag import display as dsp
+            label = dsp.regime_label(regime)               # reader label, never a raw id (same rule as the fill)
+            if label and label not in regimes:
+                regimes.append(label)
+    for slug in cat.get("contracts") or []:
+        c = _leg_word(str(slug))
+        if c and c not in contracts:
+            contracts.append(c)
+    pairs: list[str] = []
+    for p in cat.get("pairs") or []:
+        legs = list((p or {}).get("legs") or ())
+        if len(legs) == 2:
+            a, b = _leg_word(str(legs[0])), _leg_word(str(legs[1]))
+            if a and b and f"{a} and {b}" not in pairs:
+                pairs.append(f"{a} and {b}")
+    return {"contracts": contracts, "regimes": regimes, "pairs": pairs}
+
+
 def _gallery_items(cat: Optional[dict]) -> list[dict]:
     """Fill each template, or fall back to the raw template. The two miss-cases are deliberately different:
     a COLD catalog returns every row unfilled (the gallery is the landing page's only content, so it must
@@ -1048,8 +1088,14 @@ def _gallery_items(cat: Optional[dict]) -> list[dict]:
         if cat is not None and not filled:
             continue
         q = _GALLERY_SLOT.sub(lambda m: vals[m.group(1)], t["template"]) if filled else t["template"]
+        # D-UX-1: the raw wording and the values it was filled with ride along, so the FE can re-fill the
+        # template under analyst edits. `slots` is narrowed to the template's OWN blanks -- `_gallery_slots`
+        # may compute a value (e.g. `pair`) for a row that has no such blank, and shipping it would invite
+        # the FE to substitute a slot the authored wording never had.
+        used = {k: v for k, v in vals.items() if k in set(_GALLERY_SLOT.findall(t["template"]))} if filled else {}
         items.append({"id": t["id"], "category": t["category"], "question": q,
-                      "rc_target": t["rc_target"], "filled": filled})
+                      "rc_target": t["rc_target"], "filled": filled,
+                      "template": t["template"], "slots": used})
     return items
 
 
@@ -1060,13 +1106,18 @@ def gallery_route(ident: dict = Depends(_require_identity)) -> dict:
     own `_suggest_catalog` with an empty scope (global top-N closest to firing): reusing it keeps ONE
     definition of what is answerable, including the per-pair census gate. That also means the catalog flag
     and the convergence warmer govern here too — with either off the catalog is None and the route serves
-    the unfilled templates, which is a legible fallback rather than a failure."""
+    the unfilled templates, which is a legible fallback rather than a failure.
+
+    D-UX-1 makes the same read serve the EDITABLE library as well as the landing page: each item carries its
+    raw `template` plus the `slots` it was filled with, and the response carries the `vocab` those slots were
+    drawn from. Additive only — `items[].question` and `catalog_warm` are byte-identical to D-AM-16."""
     try:
         cat = _suggest_catalog([]) or None      # `or None`: an EMPTY catalog is a cold one, not a warm empty
     except Exception:  # noqa: BLE001 — a catalog hiccup degrades to the template fallback, never a 500
         cat = None
     return M.Gallery(items=[M.GalleryItem(**i) for i in _gallery_items(cat)],
-                     catalog_warm=cat is not None).model_dump()
+                     catalog_warm=cat is not None,
+                     vocab=M.GalleryVocab(**_gallery_vocab(cat))).model_dump()
 
 
 # ── 6.6 settings / profile facts / onboarding (auth-gated; prefs, never the answer path) ────────────

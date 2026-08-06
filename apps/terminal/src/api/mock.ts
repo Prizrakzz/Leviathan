@@ -6,6 +6,8 @@ import type {
   ArtifactItem,
   FrozenSnapshot,
   GalleryItem,
+  GalleryResponse,
+  GalleryVocab,
   NotificationItem,
   RespondResult,
   Section,
@@ -760,25 +762,49 @@ export function mockSuggest(packet: Schemas['SuggestRequest']): Promise<Schemas[
 // ── D-AM-16 prompt gallery ──────────────────────────────────────────────────────────────────────────
 /** A warm-catalog gallery: filled questions across the categories the real yaml carries, plus ONE unfilled
  *  row so the cold-catalog branch (a `{slot}` question, never offered as a one-click starter) is walkable
- *  in VITE_MOCK=1 without stopping the convergence warmer. */
-export function mockGallery(): Promise<{ items: GalleryItem[] }> {
+ *  in VITE_MOCK=1 without stopping the convergence warmer.
+ *  D-UX-1: every row also carries its raw `template` + the `slots` it was filled with, and the response
+ *  carries the slot `vocab` — the template library and its per-slot comboboxes are walkable in the mock. The
+ *  invariant the server pins holds here too: substituting `slots` into `template` reproduces `question`. */
+export function mockGallery(): Promise<GalleryResponse> {
   const items: GalleryItem[] = [
     { id: 'conv_regime_proximity', category: 'convergence', rc_target: 'recency', filled: true,
+      template: 'How close is the {regime} regime in {contract} to firing right now?',
+      slots: { regime: 'Frost Squeeze (price-supportive)', contract: 'arabica coffee' },
       question: 'How close is the Frost Squeeze (price-supportive) regime in arabica coffee to firing right now?' },
     { id: 'conv_missing_drivers', category: 'convergence', rc_target: 'default', filled: true,
+      template: 'The {regime} regime in {contract} is short of its threshold -- which drivers still have to fire?',
+      slots: { regime: 'Ethanol Diversion (price-supportive)', contract: 'raw sugar' },
       question: 'The Ethanol Diversion (price-supportive) regime in raw sugar is short of its threshold -- which drivers still have to fire?' },
     { id: 'cross_rv_compare', category: 'cross_commodity', rc_target: 'compare', filled: true,
+      template: 'Compare {pair} -- which is more exposed to the shared supply shock?',
+      slots: { pair: 'palm oil and soybean oil' },
       question: 'Compare palm oil and soybean oil -- which is more exposed to the shared supply shock?' },
     { id: 'cascade_walk', category: 'cascade', rc_target: 'default', filled: true,
+      template: 'Walk me through the cascade from a supply shock in {contract} to the price signal.',
+      slots: { contract: 'corn' },
       question: 'Walk me through the cascade from a supply shock in corn to the price signal.' },
     { id: 'verify_premise', category: 'verification', rc_target: 'verification', filled: true,
+      template: 'Stocks in {contract} are the tightest in a decade, right?',
+      slots: { contract: 'arabica coffee' },
       question: 'Stocks in arabica coffee are the tightest in a decade, right?' },
     { id: 'rank_exporters', category: 'ranking', rc_target: 'ranking', filled: true,
+      template: 'Rank the largest exporters of {contract} and flag which is most at risk this season.',
+      slots: { contract: 'raw sugar' },
       question: 'Rank the largest exporters of raw sugar and flag which is most at risk this season.' },
     { id: 'horizon_ladder', category: 'horizon', rc_target: 'horizon', filled: true,
+      template: 'What should I watch over the next weeks, months, and quarters in {contract}?',
+      slots: { contract: 'corn' },
       question: 'What should I watch over the next weeks, months, and quarters in corn?' },
     { id: 'recency_whats_changed', category: 'recency', rc_target: 'recency', filled: false,
+      template: 'What has changed in {contract} fundamentals over the past 30 days?', slots: {},
       question: 'What has changed in {contract} fundamentals over the past 30 days?' },
   ];
-  return new Promise((resolve) => setTimeout(() => resolve({ items }), 200));
+  const vocab: GalleryVocab = {
+    contracts: ['arabica coffee', 'raw sugar', 'corn', 'soybeans', 'palm oil'],
+    regimes: ['Frost Squeeze (price-supportive)', 'Ethanol Diversion (price-supportive)',
+      'Record Supply (price-pressuring)'],
+    pairs: ['palm oil and soybean oil'],
+  };
+  return new Promise((resolve) => setTimeout(() => resolve({ items, catalog_warm: true, vocab }), 200));
 }

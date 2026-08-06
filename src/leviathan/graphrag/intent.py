@@ -178,14 +178,46 @@ def is_episodic_explicit(query: str) -> bool:
 # (verification first); 'what if X banned exports again' carries export-ban vocabulary but is a
 # hypothetical (counterfactual before enumeration); `compare` beats `recency` so 'compare X and Y
 # right now' keeps the comparison shape.
+
+# D-UX-5 counterfactual widening, shared sub-parts. The widened cues are CLAUSE-ANCHORED (string
+# start, after sentence/clause punctuation, or after a leading conjunction/adverb) because bare
+# 'assume' / 'imagine' / 'say the' collide with ordinary desk prose mid-sentence: 'traders say the
+# crop is short', 'what yield does the WASDE assume', 'hard to imagine a bigger crop'. Anchoring is
+# what makes them narrow enough to ship.
+_CF_LEAD = r"(?:^|[.?!;:,-]\s*|\b(?:and|but|or|so|then|now|ok|okay)\s+)"
+# The subjunctive is 'were <subject> to <VERB>'. Without this stop-list the multi-word subject
+# swallows comparative idioms -- 'were the convergence conditions close to the convergence set' is a
+# REAL eval-deck row (eval_queries_v3.yaml::c_coffee_2014_state) that the unguarded widening matched.
+# A determiner/preposition after 'to' means it was never an infinitive.
+_CF_WERE_STOP = (r"(?!the\b|a\b|an\b|its\b|their\b|his\b|her\b|our\b|my\b|this\b|that\b|these\b"
+                 r"|those\b|normal\b|last\b|about\b|around\b|over\b|under\b|within\b)")
+
 _RC_PATTERNS = (
     ("verification", re.compile(
         r"\bis (?:this|that|it) documented\b|\bcan we (?:only )?infer\b|\bfact[- ]check\b"
         r"|\bis (?:this|that) (?:actually |really )?(?:true|right|correct|the case)\b"
         r"|\bdid \w+(?: \w+){0,4} actually\b|,\s*right\?|\bisn'?t it\?", re.I)),
+    # D-UX-5: the D-AM-20 router deck measured this family WEAKEST (50%, 9 of 18 rows falling open to
+    # default) with named gaps -- "let's say", "assume", "imagine", an imperative "say the ...", a
+    # multi-word subjunctive subject ("were the harmattan to"), and the "what would X do to Y" shape
+    # that BOTH real store counterfactual rows use. Every original branch is left BYTE-IDENTICAL and
+    # the new branches are purely ADDITIVE, so no query that selected counterfactual before this
+    # widening can stop selecting it -- the only reachable drift is a new match, which the router
+    # deck + the A/B deck zero-drift pins fence.
     ("counterfactual", re.compile(
         r"\bwhat if\b|\bsuppose\b|\bhypothetically\b|\bwhat would happen if\b"
-        r"|\bhow would (?:that|this|it) play out\b|\bwere \w+ to\b", re.I)),
+        r"|\bhow would (?:that|this|it) play out\b|\bwere \w+ to\b"
+        # "let's say" / "lets say" / "let us say" (and the same frame with 'assume'): unambiguous
+        # enough to stay unanchored. Both apostrophes are accepted (straight + the curly one phones
+        # and word processors substitute), matching the _XC_TERM precedent below.
+        r"|\blet(?:['’]?s| us) (?:say|assume)\b"
+        + r"|" + _CF_LEAD + r"(?:assume|imagine)\b"          # NOT 'assumption' / 'imagined': \b binds
+        + r"|" + _CF_LEAD + r"say\s+(?:the|a|an)\b"          # imperative "Say the blender credit lapses"
+        # bounded, non-greedy multi-word subject (1-4 words incl. the original single-word branch)
+        + r"|" + _CF_LEAD + r"were\s+\w+(?:\s+\w+){1,3}?\s+to\s+" + _CF_WERE_STOP
+        # "what would <hypothetical> do to <market>" -- the store phrasing. 'what would you do to'
+        # is an advice ask, not a scenario, so it is excluded.
+        + r"|\bwhat would\b(?!\s+you\b)[^.?!]{0,60}?\bdo to\b", re.I)),
     # D-AM-19: a MULTI-horizon ask must not fall through to `enumeration` (the pb_watch_horizons
     # misroute -- episode-by-episode is the wrong shape when the question spans weeks->years).
     # Narrow on purpose: requires either 'watch over <horizon words>', an explicit two-plus-horizon

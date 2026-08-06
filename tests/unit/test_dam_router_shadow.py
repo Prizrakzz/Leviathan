@@ -298,3 +298,139 @@ def test_audit_runs_end_to_end_ascii_only(capsys):
     out = capsys.readouterr().out
     assert out.encode("ascii", "strict")                        # cp1252 console safety
     assert "SELECTOR ACCURACY" in out and "CONTESTED ROWS" in out and "MISSES" in out
+
+
+# ══ (5) D-UX-5 -- the counterfactual cue widening ═════════════════════════════════════════════════════
+# The deck measured counterfactual WEAKEST (9/18) with named gaps. The widening adds "let's/let us
+# say", clause-anchored "assume"/"imagine"/"say <det>", a bounded multi-word subjunctive subject, and
+# the "what would X do to Y" phrasing both REAL store counterfactual rows use. What is pinned here:
+# the new cues fire, the near-misses do NOT, the store rows land, the stratum floors do not fall, and
+# the Phase-C A/B deck selects exactly what it selected before the widening (ZERO drift).
+
+_CF_NEW_CUE_POSITIVES = [
+    "Let's say Indonesia doubles the export levy tomorrow.",
+    "Lets say the ringgit weakens 10 percent -- where does palm go?",        # missing apostrophe
+    "Let us say Ghana misses half its forward sales this season.",
+    "Let’s say the Black Sea corridor lapses again.",                   # curly apostrophe
+    "Let's assume the blend mandate is renewed.",
+    "Assume Argentina halves its soybean export tax. What happens to crush?",
+    "Now assume the biodiesel blend mandate lapses.",
+    "Imagine the harmattan runs hot for eight straight weeks.",
+    "Then imagine China books 10 million tonnes in a month.",
+    "Say the blender credit lapses in December.",
+    "Say a frost hits Minas in early July.",
+    "Say an export ban lands mid-harvest.",
+    "Were the Black Sea corridor to close again, how far does wheat run?",   # 3-word subject
+    "Were a second La Nina to land, what breaks first?",
+    "Were the West African crop to fail, where does cocoa trade?",           # 4-word subject (the cap)
+    "Were Argentina to drop its export tax, how much crush shifts?",         # 1 word: the OLD branch
+    "What would a full Hormuz closure do to fertilizer prices?",
+]
+
+_CF_NEAR_MISS_NEGATIVES = [
+    "Assumption of a 5 percent yield loss is baked in already.",             # 'assume' is word-bounded
+    "Assumptions about the levy are doing the work here.",
+    "The imagined shortfall never materialised.",                           # 'imagine' is word-bounded
+    "Traders say the crop is short.",                                       # 'say <det>' is anchored
+    "What do the balance sheets say the market needs?",
+    "What yield does the WASDE assume for Brazil?",                         # 'assume' is anchored
+    "It is hard to imagine palm below 3500 ringgit.",                       # 'imagine' is anchored
+    # the real eval-deck row (eval_queries_v3.yaml::c_coffee_2014_state) the unguarded multi-word
+    # subject matched -- 'close to <determiner>' is a comparison, never a subjunctive
+    "As known in mid-2014, given the observed ENSO state, were the convergence conditions close to "
+    "the convergence set?",
+    "Chinese purchases were the largest ever relative to the 5-year average.",
+    "What would you do to hedge a short gamma book here?",                  # advice, not a scenario
+    "Were all of the west african mid crop cocoa volumes to fall, what then?",   # subject over the cap
+]
+
+
+@pytest.mark.parametrize("q", _CF_NEW_CUE_POSITIVES)
+def test_widened_counterfactual_cues_fire(q):
+    assert it.select_response_contract(q) == "counterfactual"
+
+
+@pytest.mark.parametrize("q", _CF_NEAR_MISS_NEGATIVES)
+def test_counterfactual_near_misses_do_not_fire(q):
+    assert it.select_response_contract(q) != "counterfactual", f"over-wide cue matched: {q!r}"
+
+
+def test_both_real_store_counterfactual_rows_now_select_counterfactual():
+    """The deck's only two REAL user counterfactual questions (source: store). Before D-UX-5 both fell
+    open to default -- 'what would <X> do to <Y>' and a leading \"let's say\" were unmatched cues."""
+    rows = {r["id"]: r for r in _ROWS if r["source"] == "store" and r["rc_expected"] == "counterfactual"}
+    assert set(rows) == {"st_russia_wheat_policy", "st_cocoa_civ_cascade"}
+    for rid, row in sorted(rows.items()):
+        assert it.select_response_contract(row["question"]) == "counterfactual", rid
+
+
+# Per-stratum hit FLOORS measured by scripts/router_deck_audit.py right after the widening. The
+# counterfactual floor is the RISE (9/18 -> 17/18; sy_cf_08 is the deck's flagged-ambiguous
+# conditional-mechanism row and is deliberately still open). Every other floor is the PRE-widening
+# number unchanged -- "no other stratum may fall" is exactly a floor, and a floor never reds on a
+# later legitimate improvement.
+_STRATUM_FLOORS = {
+    "counterfactual": 17, "verification": 9, "horizon": 7, "enumeration": 13,
+    "ranking": 7, "compare": 10, "recency": 10, "context_node": 7, "default": 39,
+}
+
+
+def test_no_stratum_falls_and_counterfactual_rises():
+    aud = _audit()
+    scored = [aud.score_row(r) for r in _ROWS]
+    hits = {name: sum(1 for s in scored if s["stratum"] == name and s["ok"])
+            for name in _STRATUM_FLOORS}
+    low = {n: (hits[n], f) for n, f in _STRATUM_FLOORS.items() if hits[n] < f}
+    assert not low, f"stratum regression (got, floor): {low}"
+    assert hits["counterfactual"] >= 17 > 9                     # the D-UX-5 rise, not just a hold
+
+
+# ── the Phase-C A/B deck: ZERO selector drift ────────────────────────────────────────────────────────
+# The 25-row no-tautology deck the D-RC Phase-C judged A/B ran on lives in S3
+# (leviathan-dev-shahem-001 graphrag_evidence/eval/decks/eval_queries_contracts_ab_v1.yaml) and, when
+# present, at configs/graphrag/ -- which is gitignored, so the deck cannot be a test dependency. The
+# expected column below was captured by running select_response_contract on every row BEFORE the
+# D-UX-5 edit; the pin therefore asserts pre/post identity even in a clone with no deck. When the deck
+# IS present the questions are cross-checked against it, so the pin cannot rot silently.
+_AB_DECK = _CFG / "eval_queries_contracts_ab_v1.yaml"
+_AB_PRE_DUX5 = [
+    ("ab_verif_palm_levy", "Palm's strength this year is mostly down to Indonesia's export levy changes, right?", "verification"),
+    ("ab_verif_cocoa_disease", "I keep hearing swollen shoot virus has already cut Ivorian output by a fifth. Is that documented, or is it trade talk?", "verification"),
+    ("ab_verif_wheat_premise", "Russia's wheat crop failed this year, isn't it? That's what the rally is.", "verification"),
+    ("ab_cf_india_rice", "What if India banned rice exports again tomorrow -- what does that do to CBOT rough rice?", "counterfactual"),
+    ("ab_cf_panama_canal", "Suppose the Panama Canal went down to half capacity for six months. How would US corn exports wear that?", "counterfactual"),
+    ("ab_cf_brl_deval", "What would happen if the real devalued 30% -- does Brazilian selling bury CBOT beans?", "counterfactual"),
+    ("ab_enum_arg_tax", "Has Argentina ever hiked its soybean export tax mid-crisis, and what did the market do?", "enumeration"),
+    ("ab_enum_sugar_brazil", "When has Brazil's ethanol policy pulled cane away from sugar production before?", "enumeration"),
+    ("ab_enum_cotton_china", "Every time China has released state cotton reserves, how did prices react?", "enumeration"),
+    ("ab_rank_cocoa_origin", "Who supplies most of the world's cocoa these days, and by how much?", None),
+    ("ab_rank_wheat_importers", "Which countries are the biggest wheat importers right now?", "ranking"),
+    ("ab_cmp_vegoils", "Soyoil versus palm into year-end -- which one has the tighter story?", "compare"),
+    ("ab_cmp_wheat_classes", "How do KC and Chicago wheat stack up against each other at these levels?", "compare"),
+    ("ab_cmp_coffee", "Compare arabica and robusta fundamentals for me.", "compare"),
+    ("ab_ctx_ddg", "Does DDG pricing matter for corn at all?", "context_node"),
+    ("ab_ctx_sunflower", "Does sunflower oil move the other vegoils, or is it too small to matter?", "context_node"),
+    ("ab_rec_blacksea", "What's the latest on the Black Sea corridor -- anything I should know from the past month?", "recency"),
+    ("ab_rec_malaysia_stocks", "Where are Malaysian palm stocks sitting right now versus normal?", "recency"),
+    ("ab_mech_kc_spread", "Why does the KC-Chicago spread blow out in drought years?", None),
+    ("ab_mech_crush", "Walk me through how the crush margin transmits a meal rally into bean demand.", None),
+    ("ab_mech_frost", "What makes a July frost in Minas so much worse than a September one?", None),
+    ("ab_out_cotton", "Where do cotton prices go from here into Q1?", None),
+    ("ab_amb_elnino", "How worried should I be about this El Nino for my softs book?", None),
+    ("ab_ar_wheat", "ما هي أهم العوامل التي تحرك أسعار القمح حالياً؟", None),
+    ("ab_pt_soy", "Como a seca no Rio Grande do Sul costuma afetar os precos da soja em Chicago?", None),
+]
+
+
+@pytest.mark.parametrize("rid,q,want", _AB_PRE_DUX5, ids=[r[0] for r in _AB_PRE_DUX5])
+def test_ab_deck_selector_zero_drift(rid, q, want):
+    assert it.select_response_contract(q) == want, f"{rid}: A/B deck selection drifted"
+
+
+def test_ab_deck_pin_matches_the_real_deck_when_it_is_present():
+    if not _AB_DECK.exists():
+        pytest.skip("contracts A/B deck is gitignored/S3-side and absent from this clone")
+    rows = (yaml.safe_load(_AB_DECK.read_text(encoding="utf-8")) or {}).get("queries") or []
+    live = {r["id"]: " ".join((r["question"] or "").split()) for r in rows}
+    pinned = {rid: " ".join(q.split()) for rid, q, _w in _AB_PRE_DUX5}
+    assert live == pinned, "the A/B deck moved -- re-capture the pre-change selections, do not retro-fit"

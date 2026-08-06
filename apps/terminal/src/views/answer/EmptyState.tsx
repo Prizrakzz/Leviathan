@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { getGallery, type GalleryItem } from '@/api/client';
 import { Composer } from '@/shell/Composer';
+import { EMPTY_VOCAB, useCompose } from '@/store/compose';
 import { useSession } from '@/store/session';
 
 /** D-AM-16 — the starters now come from the deterministic prompt gallery (GET /v1/gallery: authored
@@ -23,8 +24,10 @@ const MAX_STARTERS = 8;
  *  curation decision and the file is where it is reviewed. Exported for the test. */
 export function pickStarters(items: GalleryItem[], max = MAX_STARTERS): [string, GalleryItem[]][] {
   const byCat = new Map<string, GalleryItem[]>();
-  // An unfilled entry still carries its `{slot}` blanks (cold catalog). It is legible, but a starter CLICK
-  // submits the question as-is, so offering one would fire a turn on a literal placeholder — drop them.
+  // An unfilled entry still carries its `{slot}` blanks (cold catalog). D-UX-1 made the click PREFILL rather
+  // than submit, so a blank is no longer a hazard — but this row is a one-glance menu of questions the book
+  // can answer today, and a fill-in-the-blank belongs in the top-bar template library (where the slot bar
+  // makes the blanks fillable). Unchanged: drop them here.
   for (const it of items.filter((i) => i.filled !== false)) {
     const bucket = byCat.get(it.category);
     if (bucket) bucket.push(it);
@@ -47,7 +50,8 @@ export function pickStarters(items: GalleryItem[], max = MAX_STARTERS): [string,
 }
 
 /** The new-thread landing (5.6 W4): a centered hero composer + starter prompts, ChatGPT-style,
- *  so the first thing a user sees is WHERE TO TYPE — not an empty panel. */
+ *  so the first thing a user sees is WHERE TO TYPE — not an empty panel. D-UX-1: a starter click PREFILLS
+ *  that composer and stops there (`onAsk` is now reached only by pressing Enter in the box). */
 export function EmptyState({ onAsk }: { onAsk: (q: string) => void }) {
   const ready = useSession((s) => s.ready);
   const galleryQ = useQuery({
@@ -60,6 +64,12 @@ export function EmptyState({ onAsk }: { onAsk: (q: string) => void }) {
   // four hardcoded questions the book may not be able to answer. The hero and the composer are what keep
   // the page from being empty — chips are a nicety, never an error state (the SuggestionChips doctrine).
   const groups = pickStarters(galleryQ.data?.items ?? []);
+  const vocab = galleryQ.data?.vocab ?? EMPTY_VOCAB;
+  // D-UX-1 REVERTS the click-submits starter. A starter is a DRAFT, not a decision: it lands in the hero
+  // composer with its slot bar attached, and the analyst edits the contract (or any word of it) and presses
+  // Enter. Same prefill path as the top-bar library, so there is one behaviour to learn and one to test.
+  const choose = (it: GalleryItem) =>
+    useCompose.getState().prefillTemplate(it.template || it.question, it.slots ?? {}, vocab);
   return (
     <div className="flex h-full flex-col items-center justify-center gap-6 p-8" data-testid="empty-state">
       <div className="text-center">
@@ -83,7 +93,7 @@ export function EmptyState({ onAsk }: { onAsk: (q: string) => void }) {
                 {items.map((it) => (
                   <button
                     key={it.id}
-                    onClick={() => onAsk(it.question)}
+                    onClick={() => choose(it)}
                     className="rounded-chip border border-line px-2.5 py-1 text-left font-sans text-12 text-text-dim hover:border-cyan hover:text-text"
                   >
                     {it.question}

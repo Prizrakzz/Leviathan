@@ -207,11 +207,25 @@ export interface RespondTrace {
 /** P2 typed context attachments — the wire shape the GET `context` param carries (hand-typed: the SSE
  *  request isn't in the OpenAPI surface). The event variant deliberately omits driver_id/mechanism:
  *  the backend code-maps the driver from event_type and looks mechanisms up in the graph, IGNORING any
- *  client value (injection posture). */
+ *  client value (injection posture).
+ *
+ *  D-UX-4 `series` is a CHART LOCATOR: the ChartTabParams fields MINUS `axis` and `asof`. Both omissions
+ *  are the design, not an oversight — `axis` is how this reader draws it (not what the next question is
+ *  about), and carrying no `asof` is what makes attaching a chart STEERING instead of data injection: the
+ *  backend re-reads the series under the NEXT turn's own as-of, so an old chart can never drag its
+ *  vintage (or its numbers) into a new answer. No points ever ride this. */
 export type ContextAttachment =
   | { type: 'node'; contract: string; driver_id: string }
   | { type: 'edge'; contract: string; source: string; target: string }
-  | { type: 'event'; event_type: string; commodity: string; date?: string; summary?: string; country?: string };
+  | { type: 'event'; event_type: string; commodity: string; date?: string; summary?: string; country?: string }
+  | {
+      type: 'series';
+      table: string;
+      metric: string;
+      commodity?: string;
+      country?: string;
+      contract_month?: string;
+    };
 
 /** P3 Track D — a daily-digest notification item (GET /v1/notifications). The typed `event_type`/
  *  `commodity`/`date`/`summary`/`country` fields are exactly the projection that becomes a P2 event chip
@@ -281,6 +295,28 @@ export interface GalleryItem {
   question: string;
   rc_target?: string;
   filled?: boolean;
+  /** D-UX-1 — the RAW authored wording, braces intact, and the values this row was filled with.
+   *  `fillTemplate(template, slots) === question` server-side (pinned), which is what lets the template
+   *  library re-fill the SAME sentence under an analyst's slot edit instead of composing a different one.
+   *  Optional because the FE ships independently of the server image: an older backend omits both, and the
+   *  library falls back to treating `question` as the template (a starter with no editable blanks). */
+  template?: string;
+  slots?: Record<string, string>;
+}
+
+/** D-UX-1 — the raw slot vocabularies behind the filled examples: the options each slot's combobox offers.
+ *  `pairs` is the census-realizable set only (the same gate that fences the {pair} templates), and all three
+ *  are empty on a cold catalog — an empty dropdown that still takes free typing, never an error. */
+export interface GalleryVocab {
+  contracts: string[];
+  regimes: string[];
+  pairs: string[];
+}
+
+export interface GalleryResponse {
+  items: GalleryItem[];
+  catalog_warm?: boolean;
+  vocab?: GalleryVocab;
 }
 
 export interface RespondResult {

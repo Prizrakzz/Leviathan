@@ -12,6 +12,11 @@ Three claims, in descending order of how expensive they are to get wrong:
      suggester's Haiku seam and quota counter must be provably untouched.
   3. NEVER BLANK, NEVER WRONG. Cold catalog -> the unfilled templates (the page's only content). Warm
      catalog with an unfillable slot -> that row is dropped, not shown blank. Unreadable config -> [].
+  4. (D-UX-1) EDITABLE BY THE ANALYST. The wire carries the raw `template`, the `slots` it was filled with
+     (so `question` is reproducible from the pair -- the FE re-fills the same sentence, not a different one)
+     and a `vocab` of the raw slot vocabularies for the per-slot combobox. The vocab is the SAME warm read,
+     so the census gate that fences the templates fences the dropdown; and because free typing is allowed by
+     design, claim 1 is re-asserted against a free-typed slot value.
 """
 from __future__ import annotations
 
@@ -76,6 +81,20 @@ def test_the_contract_cue_lives_in_the_authored_words_not_the_fill():
         neutral = sv._GALLERY_SLOT.sub("X", r["template"])
         got = intent.select_response_contract(neutral) or "default"
         assert got == r["rc_target"], f"{r['id']}: neutralized {neutral!r} -> {got}"
+
+
+def test_the_contract_cue_survives_a_FREE_TYPED_slot_value(monkeypatch):
+    # D-UX-1 widens the neutralized pin above to the case the editable library actually creates: the analyst
+    # types their OWN value into a slot combobox (free typing is allowed by design -- the dropdown offers the
+    # answerable set, it does not fence it). A free-typed value is arbitrary prose we never reviewed, so the
+    # authored wording has to carry the contract cue against it too, or editing a starter silently re-routes
+    # the response contract the landing page promised.
+    typed = {"contract": "hard red winter wheat", "regime": "harmattan drought",
+             "pair": "cocoa and robusta coffee"}
+    for r in _rows():
+        q = sv._GALLERY_SLOT.sub(lambda m: typed.get(m.group(1), "X"), r["template"])
+        got = intent.select_response_contract(q) or "default"
+        assert got == r["rc_target"], f"{r['id']}: free-typed {q!r} -> {got}"
 
 
 def test_declared_targets_are_real_contracts_the_selector_can_return():
@@ -154,6 +173,74 @@ def test_pairs_come_only_from_the_realizable_set(monkeypatch):
     assert items, "dropping the pair rows must not empty the gallery"
     assert not any("{pair}" in i["question"] for i in items)
     assert {i["id"] for i in items} == {r["id"] for r in _rows() if "{pair}" not in r["template"]}
+
+
+# -- D-UX-1: the editable-template wire (template + slots + vocab) ------------------------------------
+def test_every_row_carries_its_raw_template_and_the_values_it_was_filled_with(monkeypatch):
+    # The library's whole editing model rests on this: `question` must be REPRODUCIBLE from `template` +
+    # `slots`. If it drifts, an FE that re-fills the template on the first slot edit silently rewrites the
+    # rest of the question too (a different contract, a different regime) -- the analyst edits one blank and
+    # the sentence changes underneath them.
+    c = _client(monkeypatch)
+    items = c.get("/v1/gallery").json()["items"]
+    by_id = {r["id"]: r for r in _rows()}
+    for it in items:
+        src = by_id[it["id"]]["template"]
+        assert it["template"] == src                       # raw wording, braces intact
+        blanks = set(sv._GALLERY_SLOT.findall(src))
+        assert set(it["slots"]) == blanks, it["id"]        # exactly its OWN blanks: no extras, none missing
+        assert sv._GALLERY_SLOT.sub(lambda m: it["slots"][m.group(1)], src) == it["question"]
+
+
+def test_a_cold_row_ships_the_template_as_the_question_with_no_slot_values(monkeypatch):
+    c = _client(monkeypatch, catalog=None)
+    for it in c.get("/v1/gallery").json()["items"]:
+        assert it["filled"] is False and it["slots"] == {} and it["template"] == it["question"]
+
+
+def test_vocab_offers_the_catalogs_own_slot_values_near_firing_first(monkeypatch):
+    # The combobox behind each slot. Contracts lead with the near-firing rows (in catalog order) because
+    # those are the ones a desk has a reason to ask about today; the rest of the tracked book follows.
+    c = _client(monkeypatch)
+    v = c.get("/v1/gallery").json()["vocab"]
+    assert v["contracts"] == ["arabica coffee", "corn", "raw sugar", "soybeans"]
+    assert v["regimes"] == ["Frost Squeeze (price-supportive)", "Record Supply (price-pressuring)",
+                            "Ethanol Diversion (price-supportive)"]
+    assert v["pairs"] == ["palm oil and soybean oil"]
+
+
+def test_vocab_never_leaks_a_raw_id_and_never_repeats_a_value(monkeypatch):
+    # Same humanization rule as the fill: a dropdown is reader-facing, so a raw slug here is the same defect
+    # as a raw slug in a question. Duplicates matter because a contract can be near-firing AND tracked.
+    c = _client(monkeypatch)
+    v = c.get("/v1/gallery").json()["vocab"]
+    flat = [x for k in ("contracts", "regimes", "pairs") for x in v[k]]
+    assert "_" not in "".join(flat)
+    for k in ("contracts", "regimes", "pairs"):
+        assert len(v[k]) == len(set(v[k])), k
+
+
+def test_vocab_pairs_carry_only_the_census_realizable_set(monkeypatch):
+    # The gate that drops the {pair} TEMPLATES must fence the {pair} DROPDOWN too, or the library offers a
+    # cascade the engine cannot walk the moment the analyst edits a different row's slot.
+    c = _client(monkeypatch, catalog={**CATALOG, "pairs": []})
+    assert c.get("/v1/gallery").json()["vocab"]["pairs"] == []
+
+
+def test_vocab_is_empty_on_a_cold_or_degenerate_catalog(monkeypatch):
+    empty = {"contracts": [], "regimes": [], "pairs": []}
+    for catalog in (None, {}):
+        c = _client(monkeypatch, catalog=catalog)
+        assert c.get("/v1/gallery").json()["vocab"] == empty, catalog
+
+
+def test_vocab_falls_back_to_the_tracked_list_when_nothing_is_near_firing(monkeypatch):
+    # No near rows -> no honest regime to offer (the fill drops those templates for the same reason), but the
+    # contract dropdown must still name the tracked book rather than going blank.
+    c = _client(monkeypatch, catalog={**CATALOG, "near": []})
+    v = c.get("/v1/gallery").json()["vocab"]
+    assert v["regimes"] == []
+    assert v["contracts"] == ["arabica coffee", "corn", "raw sugar", "soybeans"]
 
 
 # -- 3. the fallbacks ---------------------------------------------------------------------------------

@@ -1,6 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { getSeries } from '@/api/client';
+import { useUI } from '@/store/ui';
+import { type ChartLocator, chartTitle } from './chartTriggers';
 import { SeriesChart } from './SeriesChart';
 import {
   type SeriesAxis,
@@ -79,30 +81,74 @@ function NumberRow({ call, asof }: { call: NumCall; asof: string }) {
   const pts = q.data ? parsePoints(q.data.points as Record<string, unknown>[]) : [];
   const vidx = pts.length ? vintageIndex(pts, asof) : -1;
 
+  // D-UX-2: the CHART ENTRY POINT. The curve view shipped in D-AM-21 was three levels deep behind a gate
+  // the reader could not see (expand the row -> notice a switch that only exists on futures cards -> click
+  // it), so in practice it did not exist. The affordance below is therefore ALWAYS VISIBLE on every row
+  // that has a chartable series -- collapsed or expanded, futures or not. Only the OPTIONS are data-gated:
+  // `curve` needs the same >=2 tracked months the axis switch needs, because a term structure of one expiry
+  // is not a term structure. That split is the whole point: a reader must be able to SEE that a chart is
+  // available without first performing the action that would reveal it.
+  //
+  // aria-labels rather than bare text: the visible glyphs ('chart ↗' / 'curve ↗') sit next to the D-AM-21
+  // axis switch whose buttons are literally named 'time' and 'curve', and two controls with the same
+  // accessible name in one row is an a11y defect (and would make the existing switch pins ambiguous).
+  const openChart = (axis: 'time' | 'curve') => {
+    const loc: ChartLocator = { table: table!, metric: metric!, axis, asof };
+    if (call.query?.commodity) loc.commodity = call.query.commodity;
+    if (country) loc.country = country;
+    if (axis === 'curve') loc.contract_month = months.join(',');
+    useUI.getState().openTab({ kind: 'chart', title: chartTitle(loc), params: loc });
+  };
+  const chartable = !!table && !!metric;
+
   return (
     <div>
-      <button
-        className="flex w-full items-center gap-3 py-0.5 text-left font-mono text-12 hover:bg-bg-2"
-        onClick={() => setOpen((o) => !o)}
-      >
-        <span className="text-cyan">[{call.ref}]</span>
-        <span className="w-24 shrink-0 text-text-dim">{metric}</span>
-        <span className={`w-14 shrink-0 tabular-nums ${anom ? 'text-amber' : 'text-text'}`}>{val}</span>
-        {pts.length >= 2 && (
-          <svg width={90} height={18} className="shrink-0" aria-hidden>
-            <path d={sparkPath(pts.map((p) => p.value), 90, 18)} fill="none" className="stroke-text-dim" strokeWidth={1} />
-            {vidx >= 0 && (
-              <line x1={xOf(vidx, pts.length, 90)} y1={0} x2={xOf(vidx, pts.length, 90)} y2={18} className="stroke-cyan" strokeWidth={0.8} />
+      {/* The toggle and the chart affordance are SIBLINGS, not nested: the affordance must be clickable
+          without expanding the row, and a button inside a button is invalid markup anyway. */}
+      <div className="flex w-full items-center gap-2">
+        <button
+          className="flex flex-1 items-center gap-3 py-0.5 text-left font-mono text-12 hover:bg-bg-2"
+          onClick={() => setOpen((o) => !o)}
+        >
+          <span className="text-cyan">[{call.ref}]</span>
+          <span className="w-24 shrink-0 text-text-dim">{metric}</span>
+          <span className={`w-14 shrink-0 tabular-nums ${anom ? 'text-amber' : 'text-text'}`}>{val}</span>
+          {pts.length >= 2 && (
+            <svg width={90} height={18} className="shrink-0" aria-hidden>
+              <path d={sparkPath(pts.map((p) => p.value), 90, 18)} fill="none" className="stroke-text-dim" strokeWidth={1} />
+              {vidx >= 0 && (
+                <line x1={xOf(vidx, pts.length, 90)} y1={0} x2={xOf(vidx, pts.length, 90)} y2={18} className="stroke-cyan" strokeWidth={0.8} />
+              )}
+            </svg>
+          )}
+          {z != null && String(z) !== '' && (
+            <span className={`text-11 ${anom ? 'text-amber' : 'text-text-dim'}`}>
+              z={String(z)}
+              {anom ? ' ⚠' : ''}
+            </span>
+          )}
+        </button>
+        {chartable && (
+          <span className="flex shrink-0 items-center gap-1.5 font-mono text-11" data-testid="chart-affordance">
+            <button
+              aria-label={`open ${metric} chart`}
+              onClick={() => openChart('time')}
+              className="text-text-faint hover:text-cyan"
+            >
+              chart ↗
+            </button>
+            {canCurve && (
+              <button
+                aria-label={`open ${metric} curve chart`}
+                onClick={() => openChart('curve')}
+                className="text-text-faint hover:text-cyan"
+              >
+                curve ↗
+              </button>
             )}
-          </svg>
-        )}
-        {z != null && String(z) !== '' && (
-          <span className={`text-11 ${anom ? 'text-amber' : 'text-text-dim'}`}>
-            z={String(z)}
-            {anom ? ' ⚠' : ''}
           </span>
         )}
-      </button>
+      </div>
       {/* D-AM-21: the axis switch renders ONLY on a call that tracks two or more delivery months -- i.e.
           only on a per-expiry futures card -- so every other row's expansion is exactly what it was. The
           curve pane mirrors the time pane's state ladder below (loading / failed+retry / too-short), for

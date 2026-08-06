@@ -6,6 +6,8 @@ import type {
   ContextAttachment,
   FrozenSnapshot,
   GalleryItem,
+  GalleryResponse,
+  GalleryVocab,
   NotificationItem,
   PdfPage,
   RespondResult,
@@ -149,14 +151,16 @@ export function suggest(packet: SuggestPacket): Promise<Schemas['SuggestResponse
 }
 
 // ── D-AM-16 deterministic prompt gallery (the suggester's opposite number) ─────────────────────────
-export type { GalleryItem };
+export type { GalleryItem, GalleryVocab };
 
-/** Curated starters for the empty state. FREE and deterministic: the server fills authored templates from
- *  the already-warm convergence catalog, so there is no model call and no quota behind this — unlike
- *  `suggest`, which spends both and therefore has no business firing on a landing page where nothing has
- *  been asked yet. Entries with `filled: false` carry unresolved `{slot}` blanks (cold catalog) and are not
- *  one-click starters; the caller filters them. */
-export function getGallery(): Promise<{ items: GalleryItem[] }> {
+/** Curated starters for the empty state AND the D-UX-1 template library. FREE and deterministic: the server
+ *  fills authored templates from the already-warm convergence catalog, so there is no model call and no
+ *  quota behind this — unlike `suggest`, which spends both and therefore has no business firing on a landing
+ *  page where nothing has been asked yet. Entries with `filled: false` carry unresolved `{slot}` blanks
+ *  (cold catalog) and are not one-click starters; the caller filters them. `vocab` carries the raw slot
+ *  vocabularies for the library's per-slot comboboxes. ONE query key (`['gallery']`) serves both surfaces —
+ *  the landing page and the always-present top-bar library share the cache, not the request. */
+export function getGallery(): Promise<GalleryResponse> {
   if (MOCK) return import('./mock').then((m) => m.mockGallery());
   return getJSON(`/v1/gallery`);
 }

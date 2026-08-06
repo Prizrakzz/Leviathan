@@ -10,4 +10,5 @@ export const TAB_COMPONENTS: Record<TabKind, ReturnType<typeof lazy>> = {
   graph: lazy(() => retryImport(() => import('./GraphTab'))),
   pdf: lazy(() => retryImport(() => import('./PdfTab'))),
   artifact: lazy(() => retryImport(() => import('./ArtifactTab'))),
+  chart: lazy(() => retryImport(() => import('./ChartTab'))),
 };

@@ -1,13 +1,14 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const galleryMock = vi.fn();
 vi.mock('@/api/client', () => ({ getGallery: () => galleryMock() }));
 
 import { EmptyState, pickStarters } from './EmptyState';
 import type { GalleryItem } from '@/api/schema';
+import { useCompose } from '@/store/compose';
 
 const item = (id: string, category: string, question: string, filled = true): GalleryItem => ({
   id,
@@ -28,6 +29,19 @@ const RANK_1 = item('rank_1', 'ranking', 'Rank the largest exporters of sugar.')
 const HORIZON_1 = item('horizon_1', 'horizon', 'What should I watch over weeks, months, and quarters in corn?');
 const RECENCY_1 = item('recency_1', 'recency', 'What has changed in corn over the past 30 days?');
 const ITEMS: GalleryItem[] = [CONV_1, CONV_2, CROSS_1, CASCADE_1, VERIFY_1, RANK_1, HORIZON_1, RECENCY_1];
+
+beforeEach(() =>
+  useCompose.setState({
+    draft: '',
+    rev: 0,
+    focus: false,
+    template: null,
+    slots: [],
+    values: {},
+    options: {},
+    spans: {},
+  }),
+);
 
 function mount(onAsk: (q: string) => void = () => {}) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -50,18 +64,55 @@ describe('EmptyState prompt gallery (D-AM-16)', () => {
     expect(screen.getByText(RECENCY_1.question)).toBeTruthy();
   });
 
-  it('asks the FILLED question verbatim on click (the chip text is the query)', async () => {
+  it('D-UX-1: a starter PREFILLS the hero composer verbatim and fires NO turn', async () => {
+    // The revert. A starter used to submit on click, which made every landing question a decision taken by
+    // a mouse: no chance to swap the contract, add a clause, or set the reasoning mode first. Now the chip
+    // text lands in the box (byte-identical to what it used to submit) and Enter is what sends it.
     const onAsk = vi.fn();
     galleryMock.mockResolvedValue({ items: ITEMS });
     mount(onAsk);
     const chip = await screen.findByText(VERIFY_1.question);
     await userEvent.click(chip);
+    expect(onAsk).not.toHaveBeenCalled();
+    const box = screen.getByTestId('composer-hero') as HTMLTextAreaElement;
+    await waitFor(() => expect(box.value).toBe(VERIFY_1.question));
+
+    await userEvent.keyboard('{Enter}'); // the prefill focuses the box, so Enter goes to it
     expect(onAsk).toHaveBeenCalledWith(VERIFY_1.question);
   });
 
-  it('never offers an unfilled template as a one-click starter', async () => {
-    // Cold catalog: the server still returns the templates (the wire stays legible) but a click would fire a
-    // turn on a literal `{contract}` placeholder, so the row must not be rendered as a starter at all.
+  it('D-UX-1: a starter with slots prefills the SERVER fill and opens the slot bar for retargeting', async () => {
+    const onAsk = vi.fn();
+    galleryMock.mockResolvedValue({
+      items: [
+        {
+          ...RANK_1,
+          template: 'Rank the largest exporters of {contract}.',
+          slots: { contract: 'sugar' },
+          question: 'Rank the largest exporters of sugar.',
+        },
+      ],
+      vocab: { contracts: ['sugar', 'corn'], regimes: [], pairs: [] },
+    });
+    mount(onAsk);
+    const chip = await screen.findByText('Rank the largest exporters of sugar.');
+    await userEvent.click(chip);
+
+    const box = screen.getByTestId('composer-hero') as HTMLTextAreaElement;
+    await waitFor(() => expect(box.value).toBe('Rank the largest exporters of sugar.'));
+    // the same combobox the top-bar library gets: the landing page and the library share ONE prefill path
+    const slot = screen.getByLabelText('contract slot') as HTMLInputElement;
+    expect(slot.value).toBe('sugar');
+    expect(
+      [...screen.getByTestId('slot-vocab-contract').querySelectorAll('option')].map((o) => o.value),
+    ).toEqual(['sugar', 'corn']);
+    expect(onAsk).not.toHaveBeenCalled();
+  });
+
+  it('never offers an unfilled template as a starter', async () => {
+    // Cold catalog: the server still returns the templates (the wire stays legible), but this row is a
+    // one-glance menu of questions the book can answer TODAY. A fill-in-the-blank belongs in the top-bar
+    // template library, where the slot bar makes the blanks fillable. Unchanged by the D-UX-1 revert.
     galleryMock.mockResolvedValue({
       items: [item('cold', 'recency', 'What has changed in {contract} over the past 30 days?', false)],
     });
