@@ -178,6 +178,34 @@ def _empty_label(status: Optional[str], asof: Optional[str]) -> str:
     return "NO ROWS RETURNED (not known at asof)"
 
 
+# D-PQ EMPTY-2 (2026-08-07, dcw_probe_v1 row `dcw_esr_china_corn`, SECOND cycle). EMPTY-1 closed the
+# ZERO-ROW half: `_empty_label` marks it and the unit is withheld. The ZERO-AGGREGATE half was closed only
+# on the PROMPT side (`agent._ESR_ZERO_AGG_NOTE`), and the measured result is a split answer: the prose
+# refused correctly ("no reported weekly shipments ... the table carries no data rows for that scope") while
+# the reader's own `## Sources` line under it still read
+#     [N1] USDA FAS Export Sales (ESR) weekly_exports_1000mt CBOT corn China MY2025 = 0 1000 MT
+# -- a citation asserting the exact measured quantity the prose had just declined to assert, in the one
+# place a reader goes to check the prose. A zero-sum on this table is produced equally by weeks that
+# reported zero and by a window with no reported weeks; the aggregate collapses them, so `= 0 1000 MT` is
+# not a fact the record supports.
+#
+# THE RULE IS `agent._is_zero_esr_aggregate`, DELEGATED, NEVER COPIED -- the `_series_truncated` discipline
+# exactly: one producer for the class, so the prompt caveat and the reader's citation can never disagree
+# about which reads are in it. Lazy import; any failure reads as "not a zero aggregate", the one-sided
+# direction that can only ever miss a caveat, never invent one.
+_ZERO_AGG_LABEL = ("NO REPORTED FIGURE (the window's rows sum to exactly 0, which this table produces "
+                   "equally for weeks reporting zero and for a window with no reported weeks -- not a "
+                   "measured quantity of zero)")
+
+
+def _zero_aggregate(call: dict) -> bool:
+    try:
+        from leviathan.graphrag.numbers.agent import _is_zero_esr_aggregate
+        return bool(_is_zero_esr_aggregate(call))
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def from_number(call: dict, i: int) -> Citation:
     """Build a Citation from a numbers-agent call record ({query, rows, status})."""
     q = call.get("query", {})
@@ -236,7 +264,16 @@ def from_number(call: dict, i: int) -> Citation:
                                else (next(iter(_geos)) if len(_geos) == 1 else None))
     scope = " ".join(x for x in (q.get("commodity"), geo, per,
                                  (f"delivery {cmonth}" if cmonth else None)) if x)
-    if rows:
+    if rows and _zero_aggregate(call):
+        # D-PQ EMPTY-2: the collapsed-aggregate class renders the MARKER, exactly as the zero-ROW class
+        # does. `value` and `unit` are withheld for the same reason EMPTY-1 withholds them: a unit with no
+        # value behind it reads as a quantity whose digits are missing, and `answer._number_handle_value`
+        # reads `Citation.value` -- leaving "0.0" there would let a stand-in [N] handle splice a measured
+        # zero into the prose, which is the assertion this whole class exists to refuse. The row set is
+        # untouched in `payload`/`locator`, so the drill-down still re-runs the real read.
+        label = f"{src} {metric} {scope} = {_ZERO_AGG_LABEL}".strip()
+        value, unit = None, None
+    elif rows:
         label = f"{src} {metric} {scope} = {_fmt(value)} {unit}".strip()
         # D-PQ RENDER-2, second half: WHAT KIND OF PRINT this is, plus the row's own currency. Both are
         # card-declared columns and neither was reaching the writer. The currency is appended only when it

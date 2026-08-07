@@ -2100,6 +2100,11 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # ABSENT when off, never null -- the OFF-arm-clean rule.
     if verifier.get("enabled"):
         sg.trace["number_handles"] = _resolve_number_handles(structured, extra_number_calls)
+        # D-PQ HANDLE-3, in the SAME gate and immediately after: the frames those removals (and the
+        # verifier's own positional strips) left empty. Stamped only when it changed something, so an
+        # untouched draft writes no key -- the OFF-arm-clean rule, again.
+        if _tidy_handle_debris(structured):
+            sg.trace["prose_debris_tidied"] = True
     # A4b SEAM 1: `_humanize_structured` is the FIRST reg.sanitize pass on the prose (per field). Capture
     # its INPUT -- post-verify, pre-sanitize -- because that is the last state in which a banned sentence
     # is still attributable to sanitize rather than to the verifier's strips.
@@ -3381,7 +3386,48 @@ def _fork_basis(graph, contracts: list[str] | None, evidence: list | None, trace
 # "The MY2025/26 ending stocks projection stands at [N5]" carries 2025 and 26; "As of June 2026 [N1] [N2]"
 # carries a year. Both would have read as 'a number was already stated' and the first is exactly the
 # measured defect. The cue test is blind to all of them by construction.
-_N_HANDLE_RX = re.compile(r"\[N(\d+)\]")
+# D-PQ HANDLE-2: THE TOKEN IS NOT ALWAYS ONE HANDLE. `\[N(\d+)\]` matched a SOLITARY index and nothing
+# else, so every GROUPED citation the model actually writes -- `[N13, N14]`, `[N3, N5]`, `[N1-N6]` with any
+# dash variant -- was invisible to this pass AND to `verify._HANDLE` (same solitary shape), i.e. unchecked,
+# unresolvable and unfootnoted. Measured on the two dcw passes + the covenant deck: 8 comma groups and 1
+# en-dash range across 3 runs. The token is therefore matched WHOLE and its members enumerated, which is
+# the only reading under which the prose <-> `## Sources` join can be total.
+# ASCII SOURCE: the dash variants are built from CODEPOINTS (hyphen-minus plus U+2010..U+2015 and U+2212),
+# the same discipline verify._QUOTE_EDGE states for its curly marks. Separators are the ones the corpus
+# actually produced ("," / ";" / "&" / "and" / "/") plus the dash; anything else is not a group and stays
+# the literal the reader would have seen anyway.
+_N_DASHES = "-" + "".join(chr(c) for c in (0x2010, 0x2011, 0x2012, 0x2013, 0x2014, 0x2015, 0x2212))
+_N_SEP = "(?:,|;|&|/|and|[" + _N_DASHES + "])"
+_N_HANDLE_RX = re.compile(r"\[N\d+(?:\s*" + _N_SEP + r"\s*N?\d+)*\]")
+_N_MEMBER_RX = re.compile(r"N?(\d+)")
+# A RANGE is exactly two indices joined by a dash -- `[N1-N6]` means six handles, `[N13, N14]` means two.
+# Expansion is capped (a runaway "[N1-N400]" is not a citation) and never inverted.
+_N_RANGE_RX = re.compile("\\AN(\\d+)\\s*[" + _N_DASHES + "]\\s*N?(\\d+)\\Z")
+_N_RANGE_MAX = 24
+
+
+def _n_handle_members(token: str) -> list[int]:
+    """The 1-based call indices a `[N...]` token cites, in written order, de-duplicated. A solitary
+    `[N5]` returns `[5]` -- the pre-D-PQ-HANDLE-2 behaviour, byte for byte."""
+    inner = token[1:-1].strip()
+    rng = _N_RANGE_RX.match(inner)
+    if rng:
+        lo, hi = int(rng.group(1)), int(rng.group(2))
+        if 0 < lo < hi <= lo + _N_RANGE_MAX:
+            return list(range(lo, hi + 1))
+    out: list[int] = []
+    for x in _N_MEMBER_RX.findall(inner):
+        i = int(x)
+        if i not in out:
+            out.append(i)
+    return out
+
+
+def _n_handle_token(members: list[int]) -> str:
+    """The canonical rendering of a (possibly narrowed) member list -- the shape the model itself writes."""
+    return "[" + ", ".join(f"N{i}" for i in members) + "]"
+
+
 _HANDLE_VALUE_SLOT_RX = re.compile(
     r"\b(?:at|of|to|from|by|near|around|about|versus|vs\.?|was|were|is|are|be|been|reads?|read|stood|"
     r"stands?|sits?|sat|reached|hit|printed|posted|came in at|carries|carrying|totall?ed|totals?)\s+$",
@@ -3486,7 +3532,20 @@ def _resolve_number_handles(structured: dict | None, number_calls: list | None) 
 
     A SEVERED CLAUSE COUNTS AS `handles_dropped`, and the census keeps its four keys: the shape is pinned
     byte-for-byte by the suites and rides every turn's trace, so the mixed-sentence remedy reports under
-    the drop it is (one handle left the page) rather than minting a fifth counter for it."""
+    the drop it is (one handle left the page) rather than minting a fifth counter for it.
+
+    D-PQ HANDLE-2, A GROUPED TOKEN IS NARROWED, NEVER GUESSED. `[N13, N14]` / `[N1-N6]` are ONE token
+    carrying MANY handles (see `_N_HANDLE_RX`). The verdict is per MEMBER and the remedy is the smallest
+    one that leaves the join total:
+      * every member resolves -> untouched, exactly as a solitary resolved handle is;
+      * SOME resolve          -> the token is REWRITTEN to the surviving members ("[N13, N14]" ->
+                                 "[N13]"), because a group is only ever as good as its worst index and
+                                 the alternative is a marker the footer cannot answer for;
+      * NONE resolve          -> the token takes the solitary-handle path unchanged (drop / sever / kill),
+                                 spanning the whole token.
+    A grouped token NEVER receives the value splice: it stands in for no single figure, so `standin` can
+    only ever kill or narrow it. Each departed member is counted once under `handles_dropped` /
+    `unresolvable` -- the same accounting a solitary handle gets, and no fifth census key."""
     census = {"substituted": 0, "handles_dropped": 0, "sentences_dropped": 0, "unresolvable": 0}
     if not isinstance(structured, dict):
         return census
@@ -3497,24 +3556,35 @@ def _resolve_number_handles(structured: dict | None, number_calls: list | None) 
             continue
         ops: list[tuple[int, int, str]] = []      # (start, end, replacement)
         kills: list[tuple[int, int]] = []         # whole-sentence drops
+        narrowed: dict[tuple[int, int, str], int] = {}   # narrowing op -> members it removed
         # ONE PASS FIRST, so every handle's verdict is known before any of them is acted on: whether a
         # sentence may be killed depends on the OTHER handles standing in it (see _HANDLE_CLAUSE_OPEN_RX).
-        recs = []                                 # (match, value, sentence span, standing-in?)
+        recs = []                                 # (match, value, sentence span, standing-in?, members, live)
         for m in _N_HANDLE_RX.finditer(text):
-            idx = int(m.group(1))
-            call = calls[idx - 1] if 1 <= idx <= len(calls) else None
-            value = _number_handle_value(call, idx)
+            members = _n_handle_members(m.group(0))
+            vals = [_number_handle_value(calls[i - 1] if 1 <= i <= len(calls) else None, i) for i in members]
+            live = [i for i, v in zip(members, vals) if v is not None]
+            # `value` is the SPLICE payload and exists only for a SOLITARY handle; a grouped token resolves
+            # to "still points at something" (True) and nothing more -- it stands in for no single figure.
+            value = vals[0] if len(members) == 1 else (True if live else None)
             s0, s1 = _handle_sentence_span(text, m.start())
-            recs.append((m, value, s0, s1, bool(_HANDLE_VALUE_SLOT_RX.search(text[s0:m.start()]))))
+            recs.append((m, value, s0, s1, bool(_HANDLE_VALUE_SLOT_RX.search(text[s0:m.start()])),
+                         members, live))
         backed = {(r[2], r[3]) for r in recs if r[1] is not None}     # spans that keep a RESOLVED handle
         backed_at = [r[0].start() for r in recs if r[1] is not None]  # ...and where those handles sit
-        for m, value, s0, s1, standin in recs:
+        for m, value, s0, s1, standin, members, live in recs:
             if value is not None:
-                if standin:
+                if standin and len(members) == 1:
                     ops.append((m.start(), m.start(), value + " "))
                     census["substituted"] += 1
+                elif len(live) != len(members):    # a PARTIALLY resolvable group -> keep only what resolves
+                    op = (m.start(), m.end(), _n_handle_token(live))
+                    ops.append(op)
+                    narrowed[op] = len(members) - len(live)
+                    census["handles_dropped"] += narrowed[op]
+                    census["unresolvable"] += narrowed[op]
                 continue
-            census["unresolvable"] += 1
+            census["unresolvable"] += len(members)
             if standin and (s0, s1) in backed:
                 # MIXED: sever the clause instead of the sentence. Falls back to the bare token drop when
                 # the clause would swallow the resolved handle that is the reason to keep the sentence.
@@ -3524,8 +3594,10 @@ def _resolve_number_handles(structured: dict | None, number_calls: list | None) 
                 if a > s0 and text[a - 1] == " " and (m.end() >= len(text)
                                                       or text[m.end()] in " ,.;:)!?"):
                     a -= 1                        # the ONE separating space, as in the bare-drop leg below
-                ops.append((a, m.end(), ""))
-                census["handles_dropped"] += 1
+                op = (a, m.end(), "")
+                ops.append(op)
+                narrowed[op] = len(members)
+                census["handles_dropped"] += len(members)
             elif standin:
                 # a sentence starting the field owns the space AFTER it, so the field never opens on an
                 # indent (verify._drop_span's rule, restated -- answer cannot import a closure)
@@ -3544,15 +3616,19 @@ def _resolve_number_handles(structured: dict | None, number_calls: list | None) 
                 a = m.start()
                 if a and text[a - 1] == " " and (m.end() >= len(text) or text[m.end()] in " ,.;:)!?"):
                     a -= 1
-                ops.append((a, m.end(), ""))
-                census["handles_dropped"] += 1
+                op = (a, m.end(), "")
+                ops.append(op)
+                narrowed[op] = len(members)
+                census["handles_dropped"] += len(members)
         if not ops and not kills:
             continue
         # a substitution inside a killed sentence is moot -- the sentence is going, so the op is dropped
-        # AND uncounted (the census must report what the reader's page actually received).
+        # AND uncounted (the census must report what the reader's page actually received). `narrowed`
+        # carries the MEMBER COUNT each removal op charged, so a grouped token swallowed by a kill gives
+        # back exactly what it took (a solitary handle's entry is 1, which is the pre-HANDLE-2 arithmetic).
         kept = [o for o in ops if not any(k0 <= o[0] < k1 for k0, k1 in kills)]
         census["substituted"] -= sum(1 for o in ops if o not in kept and o[0] == o[1])
-        census["handles_dropped"] -= sum(1 for o in ops if o not in kept and o[0] != o[1])
+        census["handles_dropped"] -= sum(narrowed.get(o, 1) for o in ops if o not in kept and o[0] != o[1])
         merged = sorted(kept + [(k0, k1, "") for k0, k1 in kills], key=lambda o: (o[0], o[1]))
         out, pos = [], 0
         for a, b, repl in merged:
@@ -3580,6 +3656,67 @@ def _resolve_number_handles(structured: dict | None, number_calls: list | None) 
     return census
 
 
+# ══ D-PQ HANDLE-3: the punctuation a removed handle leaves behind ═══════════════════════════════════
+# A STRIP IS POSITIONAL, SO IT LEAVES THE FRAME AROUND IT STANDING. `verify._verify_field` removes handle
+# spans and tidies only ` +([.,;])`; `_resolve_number_handles` eats one separating space. Neither knows
+# about the BRACKET a handle was sitting inside, and the measured residue is exactly that shape:
+#   "(both referenced qualitatively in the dated evidence [E1][E2][E3])" -> "... dated evidence )"
+# 3 rows across the two dcw passes and the covenant deck shipped it (dcw_urea_zscore "GAIN item )",
+# dcw_full_record_range, ab_cf_brl_deval). The dangling-dash form ("the record -- .") is the same failure
+# on a different frame and is included for the same reason.
+#
+# CONSERVATIVE BY CONSTRUCTION, and each clause is a shape no writer produces on purpose:
+#   * a parenthetical emptied to "()" goes entirely (with the space in front of it);
+#   * whitespace INSIDE a bracket, on either side, closes up;
+#   * a dash left standing in front of terminal punctuation goes;
+#   * a space in front of ".,;:!?" closes up (verify does three of these; this is the same rule, complete).
+# NEVER ACROSS A LINE and NEVER INSIDE A ``` FENCE: `[ \t]` not `\s`, and the fence walk is `_sectionize`'s
+# own, so a mermaid block or a code sample in the mechanism is untouched by construction.
+_DEBRIS_RULES = (
+    (re.compile(r"[ \t]*\([ \t]*\)"), ""),               # an emptied parenthetical
+    (re.compile(r"[ \t]*\[[ \t]*\]"), ""),
+    (re.compile(r"([(\[])[ \t]+"), r"\1"),               # "( both" -- the opening half
+    (re.compile(r"[ \t]+([)\]])"), r"\1"),               # "evidence )" -- THE measured shape
+    (re.compile(r"[ \t]+-{2,}[ \t]*(?=[.,;:!?])"), ""),  # "the record --."
+    (re.compile(r"[ \t]+([.,;:!?])"), r"\1"),
+)
+
+
+def _tidy_handle_debris(structured: dict | None) -> int:
+    """Close up the punctuation frames a stripped/removed handle left empty. Returns the number of PROSE
+    FIELDS it changed (0 on a clean draft, which is every turn with no strips). Mutates in place; never
+    raises -- a cosmetic pass must never be the thing that breaks an answer.
+
+    THE FIELD SET IS `render`'s PROSE SET, and that is the whole of it: `render` emits `tldr`, `mechanism`,
+    the mermaid block (a diagram, not prose, and fenced out below anyway) and the `sources` ledger (whose
+    notes are provenance metadata, never argument). The scaffold's sections live INSIDE `mechanism`, so
+    they are covered by covering `mechanism` -- there is no third prose field to reach."""
+    changed = 0
+    if not isinstance(structured, dict):
+        return changed
+    for field in ("tldr", "mechanism"):
+        text = structured.get(field)
+        if not isinstance(text, str) or not text:
+            continue
+        out, in_fence = [], False
+        for line in text.split("\n"):
+            if line.lstrip().startswith("```"):
+                in_fence = not in_fence
+                out.append(line)
+                continue
+            if in_fence:
+                out.append(line)
+                continue
+            for rx, repl in _DEBRIS_RULES:
+                line = rx.sub(repl, line)
+            out.append(line)
+        new = "\n".join(out)
+        if new != text:
+            structured[field] = new
+            changed += 1
+    return changed
+
+
 def _cited_sources_block(d: dict, vreport: dict, number_calls: list | None) -> str:
     """The single reader-facing `## Sources` list: the model's OWN handles, every entry resolved by the
     verifier to a real item's true metadata. Cited-only — retrieved-but-uncited items stay machine-side
@@ -3592,9 +3729,50 @@ def _cited_sources_block(d: dict, vreport: dict, number_calls: list | None) -> s
     verify, after the scaffold, after humanize), so its two prose fields are the reader's page and the
     membership test is exact. SCOPED TO THE [N] NAMESPACE, deliberately: the [E]/positional half has its
     own recorded, deliberately-unfixed duplicate (see `_maybe_scaffold_episodes`' KNOWN COSMETIC note and
-    its test), and widening this prune would move that decision and the OFF arm with it."""
+    its test), and widening this prune would move that decision and the OFF arm with it.
+
+    ══ D-PQ HANDLE-4: THE OTHER HALF OF THE SAME JOIN, AND THE ROOT OF THE MEASURED DEFECT ══
+    The prune answers "a row with no handle". Nothing answered "a HANDLE WITH NO ROW", and that is what
+    the deck actually shipped: 9 of 12 dcw rows in BOTH passes and 22 of 25 covenant rows carried at least
+    one `[N<n>]` in the reader's prose with NO footer entry anywhere -- 8 to 24 dangling markers on a row.
+
+    THE CAUSE IS A NAMESPACE MISMATCH THAT MADE THE OLD LEDGER-SIDE [N] BRANCH UNREACHABLE IN PRODUCTION,
+    and it is the SAME unreachability `verify.py` already found and worked around on its side
+    (verify.py:544-548, `_is_number_declaration`): the ledger `ref` is a BARE INTEGER by tool schema, so a
+    model that correctly declares its cited [N] rows writes `{ref: 7}`, never `{"ref": "N7"}`.
+    `ref.upper().startswith("N")` therefore never fired for a real turn; verify keeps those entries in
+    `sources` but deliberately does NOT put them in `resolved` (a numbers row is not a document), so the
+    document branch skipped them too. Every [N] marker in the prose was dangling BY CONSTRUCTION, on every
+    turn, in both bodies.
+
+    THE FIX IS THE PRUNE'S MIRROR, not a new policy: the reader's PROSE is the authority in both directions.
+    A [N] index the prose still carries GETS its row, sourced from `number_calls` through `cit.from_number`
+    -- the same producer the prune already uses, so a spliced figure and its footer line cannot disagree --
+    and an index the prose no longer carries gets none. Together the two halves make the join TOTAL in the
+    [N] namespace: no dangling marker, no orphan row. Nothing here reads or moves the [E]/positional half.
+
+    SAFE BY CONSTRUCTION AGAINST THE UNRESOLVABLE CLASS: `_resolve_number_handles` runs FIRST and under the
+    SAME `verifier.get("enabled")` gate, and it removes every handle that resolves to nothing -- so an index
+    reaching this scan has already been shown to have a value. `_n_row` still fails closed on a malformed or
+    out-of-range call, because a footer must never be the thing that breaks an answer."""
     resolved = (vreport or {}).get("resolved") or {}
     prose = f"{d.get('tldr') or ''}\n{d.get('mechanism') or ''}"
+    prose_n: list[int] = []                       # every [N] index the READER still sees, in written order
+    for _m in _N_HANDLE_RX.finditer(prose):       # ...grouped tokens enumerated (D-PQ HANDLE-2)
+        for _i in _n_handle_members(_m.group(0)):
+            if _i not in prose_n:
+                prose_n.append(_i)
+
+    def _n_row(idx: int) -> str | None:
+        if idx < 1:
+            # review follow-up (a): [N0]/negative would index calls[-1] and mint a mislabeled row
+            return None
+        try:
+            c = cit.from_number((number_calls or [])[idx - 1], idx)
+        except (ValueError, IndexError, TypeError):
+            return None
+        return f"[N{idx}] {c.label}" + (f"  [known {c.date}]" if c.date else "")
+
     lines, seen = [], set()
     for s in (d.get("sources") or []):
         ref = str(s.get("ref", "")).strip().strip("[]")
@@ -3602,19 +3780,20 @@ def _cited_sources_block(d: dict, vreport: dict, number_calls: list | None) -> s
             continue
         seen.add(ref)
         if ref.upper().startswith("N"):
-            if f"[{ref}]" not in prose and f"[{ref.upper()}]" not in prose:
-                continue                          # the handle no longer reaches the reader: neither does the row
-            try:
-                idx = int(ref[1:])
-                c = cit.from_number((number_calls or [])[idx - 1], idx)
-                lines.append(f"[{ref}] {c.label}" + (f"  [known {c.date}]" if c.date else ""))
-            except (ValueError, IndexError):
-                continue
-        elif ref in resolved:
+            continue                              # the [N] namespace is emitted below, off the PROSE
+        if ref in resolved:
             r = resolved[ref]
             from leviathan.graphrag import display as dp
             lines.append(f"[{ref}] {dp.source_name(str(r.get('source') or ''))} "
                          f"({r.get('date')}): {r.get('snippet')}")
+    # THE [N] BLOCK, off the PROSE and nothing else: ascending index, after the document rows, exactly one
+    # row per index the reader can still see. Emitting it here rather than inside the ledger walk is what
+    # makes the order DETERMINISTIC -- a ledger that declared N2 and not N1 used to interleave them 2,1,3
+    # -- and it is the same authority the prune already uses, read once for both directions.
+    for idx in sorted(prose_n):
+        row = _n_row(idx)
+        if row is not None:
+            lines.append(row)
     return ("\n\n## Sources\n" + "\n".join(lines)) if lines else ""
 
 
@@ -3836,6 +4015,7 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     _attach_provenance(structured, verifier)                     # stamp source_key for durable chip join (6.4)
     _nhandles = (_resolve_number_handles(structured, extra_number_calls)   # D-PQ HANDLE-1, both bodies
                  if verifier.get("enabled") else None)                    # ...and the same verifier gate
+    _debris = bool(verifier.get("enabled") and _tidy_handle_debris(structured))   # D-PQ HANDLE-3, ditto
     # A4b on the SECOND synthesis path, for the SAME reason A4 is here: GRAPHRAG_PLANNER=onehop is a
     # documented rollback, and instrumenting only _answer_l2 would blind the audit on the exact path a
     # rollback puts every turn on. Identical two seams, identical field names.
@@ -3877,6 +4057,7 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
                       "record_through": _rec_through,              # D-RC-13: observational, both bodies
                       **({"number_handles": _nhandles}             # D-PQ HANDLE-1: same census, both bodies
                          if _nhandles is not None else {}),        # ...absent when the verifier is off
+                      **({"prose_debris_tidied": True} if _debris else {}),   # D-PQ HANDLE-3, both bodies
                       **({"response_contract": _rc_active} if _rc_active else {}),   # Phase B twin stamp
                       **({"composition_census": _census} if _census is not None else {}),   # D-CC-1 twin
                       **_tldr_dir,                                 # D-RC-12: absent when the flag is off

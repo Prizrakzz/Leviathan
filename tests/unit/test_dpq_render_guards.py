@@ -12,6 +12,14 @@ actually produced and passes on the input the fix produces. In order:
   CAP-1     absence bullets are capped and are never a majority of an Episodes section
             (`dcw_full_record_range`: 20 of 24 bullets said nothing)
 
+SECOND CYCLE (the triple-gate intersection, PASS1 T171218 / PASS2 T171908 / covenant T172929):
+
+  HANDLE-2  a GROUPED token (`[N13, N14]`, `[N1-N6]`) is many handles, and was invisible to every pass
+  HANDLE-3  a positional strip leaves the BRACKET around it standing ("... dated evidence )")
+  HANDLE-4  a [N] handle in the reader's prose with NO `## Sources` row -- THE ROOT of the measured
+            dangling-marker count (9/12 dcw rows in both passes, 22/25 covenant rows)
+  EMPTY-2   the zero-AGGREGATE class rendered `= 0 1000 MT` in the footer while the prose refused
+
 Pure -- no AWS, no LLM, no network. The registry is read (tables.yaml is tracked).
 """
 from __future__ import annotations
@@ -217,6 +225,179 @@ def test_both_synthesis_bodies_call_the_guard_and_the_key_is_registered():
     assert "number_handles" in tk.TRACE_RECORD_KEYS
 
 
+# ══ HANDLE-2: a grouped token is MANY handles ════════════════════════════════════════════════════════
+_EN_DASH = chr(0x2013)
+
+
+@pytest.mark.parametrize("token,members", [
+    ("[N5]", [5]),                                        # the solitary shape, unmoved
+    ("[N13, N14]", [13, 14]),                             # dcw_gas_nitrogen_squeeze / ab_pt_soy verbatim
+    ("[N3, N5]", [3, 5]),                                 # ab_verif_palm_levy verbatim
+    ("[N1, N2, N3]", [1, 2, 3]),                          # dcw_cocoa_grindings verbatim
+    ("[N1" + _EN_DASH + "N6]", [1, 2, 3, 4, 5, 6]),       # dcw_nass_conditions_split verbatim (en dash)
+    ("[N1-N6]", [1, 2, 3, 4, 5, 6]),                      # ...and every other dash variant
+    ("[N3 and N5]", [3, 5]),
+    ("[N5, N5]", [5]),                                    # de-duplicated
+    ("[N9-N4]", [9, 4]),                                  # inverted -> not a range, just two members
+])
+def test_a_grouped_token_enumerates_its_members(token, members):
+    """`\\[N(\\d+)\\]` matched a SOLITARY index, so none of these were seen by the resolver, by the footer,
+    or by `verify._HANDLE` (same solitary shape). Measured: 8 comma groups + 1 en-dash range across the
+    three runs."""
+    assert an._n_handle_members(token) == members
+
+
+def test_a_runaway_range_is_not_expanded():
+    """A citation cites; `[N1-N400]` is not a range anyone wrote on purpose, so it stays two members."""
+    assert an._n_handle_members("[N1-N400]") == [1, 400]
+
+
+def test_a_group_whose_members_all_resolve_is_left_exactly_as_written():
+    st = {"tldr": "", "mechanism": "Both classes tightened [N1, N2]."}
+    census = an._resolve_number_handles(st, [_call(51.31), _call(336.69)])
+    assert st["mechanism"] == "Both classes tightened [N1, N2]."
+    assert census == {"substituted": 0, "handles_dropped": 0, "sentences_dropped": 0, "unresolvable": 0}
+
+
+def test_a_partially_resolvable_group_is_narrowed_to_what_resolves():
+    """A group is only ever as good as its worst index. Narrowing keeps the attribution that is real and
+    removes the marker the footer could not answer for -- the smallest remedy that leaves the join total."""
+    st = {"tldr": "", "mechanism": "Crush margins widened [N1, N2]."}
+    census = an._resolve_number_handles(st, [_call(51.31), _call(None, status="no_rows")])
+    assert st["mechanism"] == "Crush margins widened [N1]."
+    assert census["handles_dropped"] == 1 and census["unresolvable"] == 1
+    assert census["sentences_dropped"] == 0                  # backed content is never destroyed
+
+
+def test_a_group_with_no_resolvable_member_takes_the_solitary_handle_path():
+    st = {"tldr": "", "mechanism": "Stocks ran tight [N8, N9]. Demand held."}
+    census = an._resolve_number_handles(st, [_call(51.31)])
+    assert st["mechanism"] == "Stocks ran tight. Demand held."
+    assert census["handles_dropped"] == 2 and census["unresolvable"] == 2
+
+
+def test_a_group_never_receives_the_value_splice():
+    """The splice fills a slot where ONE figure belongs. A group stands in for no single figure, so the
+    stand-in cue may kill or narrow it and may never mint a number in front of it."""
+    st = {"tldr": "", "mechanism": "Ending stocks stand at [N1, N2]."}
+    census = an._resolve_number_handles(st, [_call(51.31), _call(336.69)])
+    assert st["mechanism"] == "Ending stocks stand at [N1, N2]."
+    assert census["substituted"] == 0
+
+
+# ══ HANDLE-3: the punctuation a removed handle leaves behind ═════════════════════════════════════════
+@pytest.mark.parametrize("before,after", [
+    # dcw_full_record_range verbatim (the [E1][E2][E3] inside the parenthetical was stripped)
+    ("(both referenced qualitatively in the dated evidence ), but no priced settle exists.",
+     "(both referenced qualitatively in the dated evidence), but no priced settle exists."),
+    # dcw_urea_zscore verbatim
+    ("Watch reports (as flagged in the April 2026 GAIN item ) for signs.",
+     "Watch reports (as flagged in the April 2026 GAIN item) for signs."),
+    ("The window is documented ( ) and closed.", "The window is documented and closed."),
+    ("Prices held ( E4 ) through July.", "Prices held (E4) through July."),
+    ("The record -- .", "The record."),
+    ("Stocks fell , then steadied .", "Stocks fell, then steadied."),
+])
+def test_a_strip_never_leaves_its_frame_standing(before, after):
+    st = {"tldr": "", "mechanism": before}
+    assert an._tidy_handle_debris(st) == 1
+    assert st["mechanism"] == after
+
+
+def test_the_tidy_is_byte_identical_on_a_clean_draft():
+    st = {"tldr": "Urea sits near its five-year average.",
+          "mechanism": "- 2006-10..2026-07 -- CBOT corn: a dated item [E1] recorded it (see the WASDE)."}
+    before = dict(st)
+    assert an._tidy_handle_debris(st) == 0 and st == before
+
+
+def test_the_tidy_never_reaches_inside_a_fence():
+    """A mermaid block or a code sample in the mechanism is content, not prose. The fence walk is
+    `_sectionize`'s own, so the two agree about what a fence is."""
+    mech = "Prices held ( ) firm.\n```mermaid\nflowchart LR\n  a[ \"x\" ] --> b\n```\nDemand held ."
+    st = {"tldr": "", "mechanism": mech}
+    an._tidy_handle_debris(st)
+    assert '  a[ "x" ] --> b' in st["mechanism"]               # untouched, spaces and all
+    assert st["mechanism"].startswith("Prices held firm.")
+    assert st["mechanism"].endswith("Demand held.")
+
+
+# ══ HANDLE-4: a handle in the prose ALWAYS has a row (the prune's mirror) ════════════════════════════
+def test_a_number_handle_declared_as_a_bare_integer_still_gets_its_footer_row():
+    """THE ROOT. The ledger `ref` is an INTEGER by tool schema, so a model that correctly declares its
+    cited [N] rows writes {ref: 1} -- and `ref.upper().startswith('N')` never fired, while verify
+    deliberately keeps numbers refs OUT of `resolved`. Every [N] marker was dangling by construction.
+    (verify.py:544-548 records the same unreachability and works around it on its own side.)"""
+    st = {"tldr": "", "mechanism": "Ending stocks were 51.31 mil bu [N1].",
+          "sources": [{"ref": 1, "source": "silver_wasde", "date": "2026-07-10"}]}
+    block = an._cited_sources_block(st, {"resolved": {}}, [_call(51.31)])
+    assert "[N1] USDA WASDE" in block
+
+
+def test_a_number_handle_the_model_never_declared_at_all_still_gets_its_footer_row():
+    """The measured shape: `dcw_full_record_range` cited [N1]/[N7]/[N8] and declared none of them."""
+    st = {"tldr": "The only settle on hand is 449.25 US cents/bushel [N1].",
+          "mechanism": "The farm price was $3.61/bu [N7] and fell to $3.56/bu [N8].",
+          "sources": []}
+    calls = [_call(float(i)) for i in range(1, 9)]
+    block = an._cited_sources_block(st, {"resolved": {}}, calls)
+    assert "[N1] " in block and "[N7] " in block and "[N8] " in block
+    assert block.index("[N1] ") < block.index("[N7] ") < block.index("[N8] ")   # ascending index
+
+
+def test_every_number_handle_the_reader_sees_has_exactly_one_row():
+    """The join is TOTAL in the [N] namespace: no dangling marker, no orphan row, no duplicate row --
+    including when the model ALSO declared the handle in N-form."""
+    import re as _re
+    st = {"tldr": "Stocks ran tight [N1, N3].",
+          "mechanism": "Use held at 336.69 mil bu [N2]. The prior print was [N1].",
+          "sources": [{"ref": "N2"}, {"ref": 2}]}
+    calls = [_call(float(i)) for i in range(1, 4)]
+    block = an._cited_sources_block(st, {"resolved": {}}, calls)
+    prose = st["tldr"] + "\n" + st["mechanism"]
+    seen = sorted(i for m in an._N_HANDLE_RX.finditer(prose) for i in an._n_handle_members(m.group(0)))
+    rows = [int(x) for x in _re.findall(r"^\[N(\d+)\] ", block, _re.M)]
+    assert rows == sorted(set(seen)) == [1, 2, 3]
+
+
+def test_a_departed_handle_still_gets_no_row():
+    """The prune half is unmoved: the prose is the authority in BOTH directions."""
+    st = {"tldr": "", "mechanism": "Ending stocks were 1,200 [N2] against use of [N4].",
+          "sources": [{"ref": "N2"}, {"ref": "N4"}]}
+    calls = [_call(51.31), _call(1200.0), _call(51.31), _call(None, status="no_rows")]
+    an._resolve_number_handles(st, calls)
+    block = an._cited_sources_block(st, {"resolved": {}}, calls)
+    assert "[N2] " in block and "[N4]" not in block
+
+
+def test_an_out_of_range_handle_never_mints_a_row():
+    """Fail-closed: `_resolve_number_handles` has already removed it, and the footer refuses it anyway."""
+    st = {"tldr": "", "mechanism": "The reading is 4.4 $/bu [N9].", "sources": []}
+    assert an._cited_sources_block(st, {"resolved": {}}, [_call(4.4)]) == ""
+
+
+def test_the_document_namespace_is_untouched_by_the_number_join():
+    """The [E]/positional duplicate is a RECORDED, deliberately-unfixed decision (see
+    `_maybe_scaffold_episodes`' KNOWN COSMETIC note). Nothing here reads or moves it."""
+    st = {"tldr": "", "mechanism": "The GAIN report says so [E1].",
+          "sources": [{"ref": 1, "source": "usda_gain_corn", "date": "2021-03-18"}]}
+    block = an._cited_sources_block(
+        st, {"resolved": {"1": {"source": "usda_gain_corn", "date": "2021-03-18", "snippet": "x"}}}, [])
+    assert block.count("[1] ") == 1 and "[N1]" not in block
+
+
+def test_the_tidy_rides_the_same_verifier_gate_in_both_bodies():
+    """`GRAPHRAG_VERIFY=off` is the documented rollback for the whole citation-truth chain, and debris
+    only ever comes from that chain's strips -- so the tidy rolls back with it. Asserted on the SOURCE,
+    the `_resolve_number_handles` seam test's own idiom."""
+    import pathlib
+    src = pathlib.Path(an.__file__).read_text(encoding="utf-8")
+    assert src.count("_tidy_handle_debris(structured)") == 2
+    assert 'bool(verifier.get("enabled") and _tidy_handle_debris(structured))' in src
+    from leviathan.graphrag import tracekeys as tk
+    assert "prose_debris_tidied" in tk.TRACE_RECORD_KEYS
+
+
 # ══ EMPTY-1: an empty read is an absence of data, never a measured zero ══════════════════════════════
 @pytest.mark.parametrize("status", ["no_rows", "not_known", "error", "declined", "record_silent", None])
 def test_empty_read_label_carries_the_marker_and_no_value_or_unit(status):
@@ -283,6 +464,62 @@ def test_every_unsigned_esr_metric_keeps_the_zero_sum_caveat(metric):
     assert na._is_zero_esr_aggregate(
         {"query": {"table": "silver_esr", "metric": metric, "agg": "sum"},
          "rows": [{"value": 0.0}], "status": "ok"}) is True
+
+
+# ══ EMPTY-2: the zero AGGREGATE renders the marker in the CITATION, not just in the prompt ═══════════
+def _zero_esr(metric="weekly_exports_1000mt"):
+    return {"query": {"table": "silver_esr", "metric": metric, "commodity": "corn_cbot",
+                      "country": "China", "period": "2025", "agg": "sum", "asof": "2026-08-07"},
+            "rows": [{"value": 0.0, "unit": "1000 MT", "knowledge_date": "2026-08-03"}], "status": "ok"}
+
+
+def test_the_zero_aggregate_citation_renders_the_marker_and_never_a_measured_zero():
+    """`dcw_esr_china_corn` verbatim, SECOND cycle. EMPTY-1 closed the zero-ROW half; the zero-AGGREGATE
+    half was closed prompt-side only, so the prose refused ("no reported weekly shipments ... the table
+    carries no data rows for that scope") while the reader's own `## Sources` line under it still read
+    `= 0 1000 MT` -- the exact quantity the prose had declined to assert, in the place a reader checks."""
+    c = cit.from_number(_zero_esr(), 1)
+    tail = c.label.split(" = ", 1)[1]
+    assert tail.startswith("NO REPORTED FIGURE")
+    assert "= 0 " not in c.label and "1000 MT" not in tail
+    assert c.value is None and c.unit is None
+
+
+def test_the_zero_aggregate_marker_reaches_both_readers_of_the_label():
+    """One producer, two readers: the model's prompt panel (`orchestrator._numbers_block`) and the
+    reader's `## Sources` list (`answer._cited_sources_block`). Neither can now show `= 0 <unit>`."""
+    call = _zero_esr()
+    assert "NO REPORTED FIGURE" in orch._numbers_block([call])
+    st = {"tldr": "", "mechanism": "The record shows no reported shipments [N1].", "sources": []}
+    block = an._cited_sources_block(st, {"resolved": {}}, [call])
+    assert "NO REPORTED FIGURE" in block and "= 0 " not in block
+
+
+def test_a_stand_in_handle_can_never_splice_the_collapsed_zero_into_the_prose():
+    """`answer._number_handle_value` reads `Citation.value`. Leaving "0.0" there would let the value slot
+    mint the measured zero this whole class exists to refuse -- so the handle takes the unresolvable path,
+    exactly as the zero-ROW class already does."""
+    st = {"tldr": "", "mechanism": "Corn held. China bought a total of [N1] this year."}
+    census = an._resolve_number_handles(st, [_zero_esr()])
+    assert st["mechanism"] == "Corn held."
+    assert census["sentences_dropped"] == 1 and census["unresolvable"] == 1
+    assert census["substituted"] == 0                        # nothing was minted in the value slot
+
+
+@pytest.mark.parametrize("call", [
+    {"query": {"table": "silver_esr", "metric": "weekly_exports_1000mt", "agg": "sum"},
+     "rows": [{"value": 12.0, "unit": "1000 MT"}], "status": "ok"},
+    {"query": {"table": "silver_esr", "metric": "changes_1000mt", "agg": "sum"},
+     "rows": [{"value": 0.0, "unit": "1000 MT"}], "status": "ok"},
+    {"query": {"table": "silver_cot", "metric": "mm_pct_oi_z_3yr", "agg": "sum"},
+     "rows": [{"value": 0.0, "unit": "sigma"}], "status": "ok"},
+])
+def test_a_real_zero_still_renders_as_the_observation_it_is(call):
+    """A 0.0 z-score, a signed ESR net that cancelled, a non-zero sum: real readings, never caveated.
+    The fence is `agent._is_zero_esr_aggregate` -- DELEGATED here, so the caveat and the citation can
+    never disagree about which reads are in the class."""
+    label = cit.from_number(call, 1).label
+    assert "NO REPORTED FIGURE" not in label and " = " in label
 
 
 def test_the_unsigned_set_is_the_cards_metrics_minus_the_signed_one():
