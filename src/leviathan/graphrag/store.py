@@ -71,6 +71,8 @@ class Store(Protocol):
     def put_item(self, user_id: str, kind: str, item_id: str, body: dict) -> None: ...
     def delete_item(self, user_id: str, kind: str, item_id: str) -> None: ...
     def incr_turn_quota(self, user_id: str, day: str, cap: int) -> None: ...
+    def read_quota(self, user_id: str, period: str) -> int: ...
+    def refund_quota(self, user_id: str, period: str) -> None: ...
     def append_turn(self, user_id: str, thread_id: str, record: dict) -> dict: ...
     def list_turns(self, user_id: str, thread_id: str) -> list[dict]: ...
     def delete_turns(self, user_id: str, thread_id: str) -> int: ...
@@ -100,6 +102,14 @@ class InMemoryStore:
         if n >= cap:
             raise QuotaExceeded(f"daily turn limit {cap} reached")
         self._quota[(user_id, day)] = n + 1
+
+    def read_quota(self, user_id: str, period: str) -> int:
+        return int(self._quota.get((user_id, period), 0))
+
+    def refund_quota(self, user_id: str, period: str) -> None:
+        n = self._quota.get((user_id, period), 0)
+        if n > 0:                                                    # never below zero (Dynamo parity)
+            self._quota[(user_id, period)] = n - 1
 
     def put_share(self, snap: ShareSnapshot) -> None:
         self._shares[snap.id] = snap
@@ -233,6 +243,37 @@ class DynamoStore:
             if e.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
                 raise QuotaExceeded(f"daily turn limit {cap} reached")
             raise  # non-condition Dynamo error -> caller fails open
+
+    def read_quota(self, user_id: str, period: str) -> int:
+        """Current count on ONE quota satellite (D-DR-2: the weekly dossier counter is `dossier#<ISO
+        week>`, the same sk=quota#<period> item shape the daily turn counter and the suggest counter
+        already use -- one convention, no new table and no new key family). Strongly consistent: the
+        remaining-uses badge must never read behind its own decrement. Absent item -> 0."""
+        it = self.db.get_item(TableName=self.table, ConsistentRead=True,
+                              Key={"pk": {"S": f"user#{user_id}"}, "sk": {"S": f"quota#{period}"}}).get("Item")
+        try:
+            return int((it or {}).get("n", {}).get("N", 0))
+        except (TypeError, ValueError):
+            return 0
+
+    def refund_quota(self, user_id: str, period: str) -> None:
+        """Give one unit back (D-DR-2: a dossier that FAILED never spent its slot; a PARTIAL one did).
+        ADD -1 guarded by `n > 0` in the SAME call, so a double refund or a refund racing a reset can
+        never mint a negative counter that would hand the user free slots. ConditionalCheckFailed is a
+        swallowed no-op (nothing to give back); any other Dynamo error propagates to the caller."""
+        from botocore.exceptions import ClientError
+        try:
+            self.db.update_item(
+                TableName=self.table,
+                Key={"pk": {"S": f"user#{user_id}"}, "sk": {"S": f"quota#{period}"}},
+                UpdateExpression="ADD n :neg",
+                ConditionExpression="n > :zero",
+                ExpressionAttributeValues={":neg": {"N": "-1"}, ":zero": {"N": "0"}},
+            )
+        except ClientError as e:
+            if e.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                return
+            raise
 
     def append_turn(self, user_id: str, thread_id: str, record: dict) -> dict:
         """Durable per-thread turn (pk=user#uid, sk=turn#<thread>#<epoch-micros>#<rand> -> chronological).

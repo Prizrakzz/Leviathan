@@ -20,6 +20,9 @@ Endpoints (build-plan Phase 1 — all additive, deterministic, no new LLM spend 
   POST /v1/share , GET /v1/share/{id} — immutable, reproducible note snapshot (pins graph_version).  §6.7
   GET/POST/DELETE /v1/{threads,watchlists,workspaces,artifacts} — per-user persistence (artifacts =
                                         a named, PRIVATE freeze of one answer turn; D-AM-15).
+  POST /v1/dossier , GET /v1/dossier/{id} , /v1/dossier/{id}/events , /v1/dossier/quota — the
+                                        deep-research dossier job (D-DR; dark behind GRAPHRAG_DOSSIER,
+                                        3 per user per UTC week, result lands as a frozen artifact).
 
 Run (image ENTRYPOINT is `python`):  -m uvicorn leviathan.graphrag.server:app --host 0.0.0.0 --port 8080
 Deployment (ECS + ALB, Cognito enforcement, durable table, prod CORS origin) is a Phase-4 gated step."""
@@ -37,7 +40,7 @@ from typing import Any, Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
 from leviathan.graphrag import api_models as M
@@ -1327,3 +1330,130 @@ def thread_turns(thread_id: str, user: str = Depends(_require_user)) -> dict:
     """Durable per-thread history (design §3.1) — the PIT-safe turn records for a thread, oldest-first.
     Conclusions + citation refs only; evidence is never persisted (re-derived on re-run)."""
     return {"thread_id": thread_id, "turns": _store().list_turns(user, thread_id)}
+
+
+# ══ D-DR-1/2/5: the deep-research DOSSIER surface (NEW REGION — nothing above this line changed) ═════
+# Four routes, one flag, one quota. The orchestration lives ENTIRELY in dossier.py (the thin-conductor
+# contract this module opens with): everything here is HTTP translation — gate, auth, 202/404/429, the
+# SSE relay, and the in-process job handoff. `dossier` is imported lazily inside each handler, exactly
+# like `orchestrator`, so importing the app never drags the answer stack in.
+#
+# DARK-FIRST (D-DR-5): GRAPHRAG_DOSSIER absent -> every route 404s, indistinguishable from a build that
+# never had them. A non-wildcard value is an ALLOWLIST of Cognito subs (the internal-only stage), and a
+# principal outside it gets the same 404 — a feature you are not in must not be advertised by a 403.
+_DOSSIER_ASOF_RX = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+class DossierIn(BaseModel):
+    question: str
+    asof: Optional[str] = None
+
+
+def _dossier_gate(ident: dict):
+    """The flag + allowlist gate, applied identically on all four routes. Returns the dossier module so
+    a handler reads `dsr = _dossier_gate(ident)` and is done."""
+    from leviathan.graphrag import dossier as dsr
+    if not dsr.allowed(ident.get("sub")):
+        raise HTTPException(status_code=404, detail="not found")
+    return dsr
+
+
+@app.post("/v1/dossier", status_code=202)
+def dossier_create(body: DossierIn, ident: dict = Depends(_require_identity)) -> dict:
+    """Accept a deep-research dossier -> 202 {dossier_id, plan_pending: true}.
+
+    QUOTA IS CHARGED HERE, at ACCEPTANCE, never at completion: two submissions racing on the last slot
+    must not both pass, and the atomic conditional counter can only guarantee that at the gate. A job
+    that later FAILS refunds; a PARTIAL one does not (it delivered a document and spent real money).
+
+    ONE as-of is stamped now and governs every sub-query (PIT by construction). An unparseable one is
+    rejected loudly rather than silently defaulted — a dossier is 20 minutes and 5-12 turns of spend,
+    which is the one place in this API where a typo must not be absorbed."""
+    dsr = _dossier_gate(ident)
+    from leviathan.graphrag import store as st
+    q = (body.question or "").strip()
+    if not q:
+        raise HTTPException(status_code=422, detail="question is required")
+    asof = (body.asof or "").strip() or _today()
+    if not _DOSSIER_ASOF_RX.match(asof):
+        raise HTTPException(status_code=422, detail="asof must be YYYY-MM-DD")
+    try:
+        period = dsr.consume_quota(_store(), ident)
+    except st.QuotaExceeded:
+        # A JSONResponse, not an HTTPException: the locked contract puts `reset_at` at the TOP level of
+        # the 429 body (the picker renders the date), and HTTPException would bury it under `detail`.
+        state = dsr.quota_state(_store(), ident)
+        return JSONResponse(status_code=429, content={"error": "weekly dossier limit reached",
+                                                      "limit": state["limit"], "remaining": 0,
+                                                      "reset_at": state["reset_at"]})
+    job = dsr.start(_store(), ident, q, asof, graph=_graph(), quota_period=period)
+    return {"dossier_id": job.id, "plan_pending": True}
+
+
+@app.get("/v1/dossier/quota")
+def dossier_quota(ident: dict = Depends(_require_identity)) -> dict:
+    """{remaining, limit, reset_at} — what the mode picker's badge renders. Free, no model call, no
+    turn quota (a read of a counter is not a use of it)."""
+    dsr = _dossier_gate(ident)
+    return dsr.quota_state(_store(), ident)
+
+
+@app.get("/v1/dossier/{dossier_id}")
+def dossier_get(dossier_id: str, ident: dict = Depends(_require_identity)) -> dict:
+    """Job state. Owner-scoped by construction: the record is read out of the caller's OWN partition,
+    so another user's id is simply not there (404) — the artifacts privacy posture, not a new one."""
+    dsr = _dossier_gate(ident)
+    rec = dsr.load(_store(), ident["sub"], dossier_id)
+    if not rec:
+        raise HTTPException(status_code=404, detail="no such dossier")
+    return dsr.wire_snapshot(dsr.reap_orphan(_store(), ident["sub"], rec))
+
+
+@app.get("/v1/dossier/{dossier_id}/events")
+def dossier_events(dossier_id: str, ident: dict = Depends(_require_identity)):
+    """SSE progress stream — the `respond_stream` idiom (queue relay, 10s keepalive comment, terminal
+    event closes), with ONE difference that matters: the job is not owned by this request, so the
+    stream REPLAYS the events already recorded before it attaches. A client that connects after the
+    plan landed still sees the plan; a client that connects after the job finished gets the whole
+    history and an immediate close. Both are the same code path.
+
+    A dossier that is not live in THIS process (a restart, or another task) replays its persisted log
+    and closes — never a stream that hangs forever waiting for a thread that does not exist."""
+    dsr = _dossier_gate(ident)
+    rec = dsr.load(_store(), ident["sub"], dossier_id)
+    if not rec:
+        raise HTTPException(status_code=404, detail="no such dossier")
+    job = dsr.get_job(dossier_id)
+    live = job is not None and job.user == ident["sub"]
+
+    def gen():
+        if not live:
+            for ev in (dsr.reap_orphan(_store(), ident["sub"], rec).get("events") or []):
+                yield f"event: {ev.get('type', 'stage')}\ndata: {json.dumps(ev, default=str)}\n\n"
+            return
+        replay, q = job.subscribe()
+        # Hard stop: the job's own wall-clock cap plus slack. A job thread that dies WITHOUT emitting a
+        # terminal event (a hard kill; execute() itself always emits one) would otherwise keepalive
+        # this stream until the ALB idle timeout, which reads to the client as a job still running.
+        stream_deadline = time.time() + dsr.WALL_CLOCK_S + 60
+        try:
+            for ev in replay:
+                yield f"event: {ev.get('type', 'stage')}\ndata: {json.dumps(ev, default=str)}\n\n"
+                if ev.get("type") in dsr.TERMINAL:
+                    return
+            while True:
+                try:
+                    ev = q.get(timeout=10)
+                except queue.Empty:
+                    if job.status in dsr.TERMINAL or time.time() > stream_deadline:
+                        return                       # terminal landed between the replay and the wait
+                    yield ": keepalive\n\n"          # SSE comment — keeps ALB/proxy from idling out
+                    continue
+                yield f"event: {ev.get('type', 'stage')}\ndata: {json.dumps(ev, default=str)}\n\n"
+                if ev.get("type") in dsr.TERMINAL:
+                    return
+        finally:
+            job.unsubscribe(q)
+
+    return StreamingResponse(gen(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})

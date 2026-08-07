@@ -445,3 +445,95 @@ def spine_ok(name: str) -> bool:
         return False
     canon = [s for s in c.sections if s in CANONICAL]
     return canon == [s for s in CANONICAL if s in canon] and set(c.sections) <= SECTIONS
+
+
+# == D-DR-1: the DOSSIER contract -- ONE document composed from sub-answer NOTES =======================
+# DELIBERATELY NOT AN ENTRY IN `CONTRACTS`, and that is a design decision, not an omission:
+#   * `valid_names()` IS the turn-path allowlist -- answer._response_contracts_enabled() returns exactly
+#     it under GRAPHRAG_RESPONSE_CONTRACT=on (test-pinned) -- so a `dossier` entry would become
+#     selectable by intent.select_response_contract on an ordinary desk turn and would be swept live by
+#     the wildcard flag value. A document contract must never be reachable from a single turn.
+#   * `spine_ok()` is iterated over the whole menu and requires `set(sections) <= SECTIONS`; a dossier
+#     carries CANNOT, a heading the nine-literal turn vocabulary (D-RC-3) deliberately does not have.
+#     Adding it to SECTIONS would move eval._FIXED_SCAFFOLD's neighbourhood and answer._SECTION_KINDS.
+# A dossier is not a turn: it never rides render(), _sectionize, the fixed-four scaffold pins or the
+# strips-per-handle deck. So the SHAPE lives here (one producer for the section names, the budget and
+# the directive -- the leaf law) and stays off the turn menu by construction.
+#
+# WHY THE TWO EXTRA MANDATED SECTIONS. D-DR-1 names them: "a 'where the record disagrees' section, an
+# explicit 'what the record cannot answer' section". At document scale both are UNCONDITIONAL, which
+# INVERTS the turn-path rule that omits DISAGREES when nothing conflicts (_DISAGREES_RULE: "never write
+# a 'no disagreement' line"). The inversion is deliberate and is the product: a dossier holds 5-12
+# independently-grounded sub-answers, so whether they agree is itself a finding, and the honest branch
+# is "these sub-answers do not conflict; here is what they jointly support", never silence. The
+# cannot-answer section is the refusal-honest doctrine given its own surface -- a failed or thin
+# sub-query must land on the page as a declared gap (D-DR-1's honest-partial law), never be smoothed.
+CANNOT = "## What the record cannot answer"
+
+DOSSIER_SECTIONS: tuple = (MECHANISM, RECORD, EPISODES, CROSS, DISAGREES, CANNOT, WATCH)
+
+DOSSIER = Contract(
+    name="dossier",
+    sections=DOSSIER_SECTIONS,
+    conditional=(),                      # every section is MANDATED at document scale (see above)
+    licenses_episodes=True,              # the dossier owns its own '## Episodes' surface
+    budget="900-1500",
+    directive=(
+        "\n\nDOSSIER COMPOSITION (this is a DOCUMENT assembled from the NOTES of several separately "
+        "grounded sub-answers, not a single turn): you are given, per sub-question, its own claims and "
+        "its own citation pairs. Compose ONE document. Every section is REQUIRED, including the two "
+        "that a single answer may omit:\n"
+        "- '## Where the record disagrees' is required even when nothing conflicts -- then say so "
+        "plainly and name what the sub-answers jointly support instead. Where they DO conflict, name "
+        "both sides, cite both, and say which is better backed and why (vintage, source tier, "
+        "coverage), or that the record does not settle it.\n"
+        "- '## What the record cannot answer' is required always: every sub-question that failed, "
+        "returned nothing citable, or was answered only in part goes here BY NAME with the reason. A "
+        "gap you declare is a finding; a gap you paper over is the failure.\n"
+        "CITATIONS: use ONLY the handles listed in the NOTES, exactly as written. Never mint a handle, "
+        "never renumber one, never carry a number that no listed pair backs. A claim you cannot pin to "
+        "a listed pair does not go in the document.\n"
+        "Do not restate the sub-answers one after another -- that is the failure mode. Organize by "
+        "FINDING; a finding that several sub-questions reached independently is stated once and carries "
+        "each of its handles."),
+)
+
+
+def dossier_budget(census: dict | None = None) -> str:
+    """The document word budget, widened by the union roster exactly as `apply()` widens a turn's --
+    same arithmetic, same reason (the mandate buys LINES and an unpaid mandate loses)."""
+    ents, n = _roster(census)
+    return widen_budget(DOSSIER.budget, n) if n >= MIN_RANK_ENTITIES else DOSSIER.budget
+
+
+def dossier_directive(census: dict | None = None) -> str:
+    """DOSSIER.directive + this document's composition mandates ('' census -> base directive only).
+
+    The mandates are the SAME three clause producers the turn path uses (`rank_complete_clause`,
+    `threshold_locate_clause`, `episode_coverage_clause`) -- one producer, so a mandate cannot mean one
+    thing on a turn and another on a document. What changes is the CENSUS they bind to: at synthesis it
+    is the UNION over every sub-answer's notes, which is width by construction. That is the D-CC-3 R1
+    consequence honored: mandates are affordable exactly where width already exists, and the dossier
+    synthesis is the widest surface in the estate.
+
+    threshold-locate is unconditional here (it needs no roster and has an explicit "the record does not
+    locate one" ending); rank-complete needs >= MIN_RANK_ENTITIES names; episode-coverage needs windows."""
+    if census is None:
+        return DOSSIER.directive
+    out = [DOSSIER.directive]
+    ents, n = _roster(census)
+    if n >= MIN_RANK_ENTITIES:
+        out.append(rank_complete_clause(ents, n))
+    out.append(threshold_locate_clause(_census_int(census, "n_evidence")))
+    n_win = _census_int(census, "n_episode_windows")
+    if n_win > 0:
+        out.append(episode_coverage_clause(n_win))
+    return "".join(out)
+
+
+def dossier_structure_clause() -> str:
+    """The section plan as one imperative sentence (the `structure_clause` shape, for a prompt that has
+    no mentor persona to rewrite -- the dossier system prompt is built, not needled)."""
+    quoted = ", ".join(f"'{s}'" for s in DOSSIER_SECTIONS)
+    return (f"Structure the `mechanism` field under these markdown headings, in this exact order and "
+            f"wording: {quoted}. Include EVERY one of them.")

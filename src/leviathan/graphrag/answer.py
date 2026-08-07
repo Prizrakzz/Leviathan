@@ -7,6 +7,8 @@ mechanism, a mermaid cascade/convergence diagram ONLY when the question warrants
 citations. `retrieve`/`call` are injectable so tests run without S3/Bedrock/Anthropic."""
 from __future__ import annotations
 
+import contextlib
+import contextvars
 import functools
 import os
 import re
@@ -905,13 +907,47 @@ def _mode_budget(rc_active: str | None, mode_knobs: dict | None) -> str | None:
     return _rm.scale_budget(c.budget, scale) if c else None
 
 
+# D-DR-1: the PER-CALL override channel for the census gate, and the ONLY one.
+#
+# WHY IT EXISTS. A dossier runs its width-hungry sub-queries with the composition mandates ACTIVE and
+# its quick sub-queries with them OFF (the D-CC-3 R1 consequence: mandates are width-hungry, and at
+# quick's 12-row evidence they mandate enumeration the evidence cannot back -- strips/handle 0.1765 vs
+# 0.1073). That is a PER-CALL decision, so it cannot be an os.environ flip: the environment is
+# process-global and a concurrent desk turn on the same task would silently inherit the dossier's
+# setting. WHY A ContextVar: it is thread-scoped by construction (a new thread starts from an empty
+# context, so nothing leaks to the SSE/answer threads serving other users), and the census is computed
+# on the SAME thread that calls the synthesis seam -- so setting it around one respond() call reaches
+# exactly that call and nothing else. None = "no override" = the env flag decides = byte-identical to
+# the pre-D-DR module on every non-dossier path.
+_CENSUS_OVERRIDE: contextvars.ContextVar = contextvars.ContextVar(
+    "graphrag_composition_census_override", default=None)
+
+
+@contextlib.contextmanager
+def composition_census_override(on: bool | None):
+    """Force `_composition_census_on()` to `on` for the duration of the block, on THIS thread only.
+    `None` restores flag-decides. Token-reset in a finally, so an exception inside the block can never
+    leave a thread pinned."""
+    token = _CENSUS_OVERRIDE.set(None if on is None else bool(on))
+    try:
+        yield
+    finally:
+        _CENSUS_OVERRIDE.reset(token)
+
+
 def _composition_census_on() -> bool:
     """D-CC-1 kill-switch (GRAPHRAG_COMPOSITION_CENSUS), the _episode_scaffold_on idiom: DEFAULT-OFF,
     house on/1/true spelling, read PER CALL. Off -> the seam threads `census=None` -> response_contracts
     is byte-identical to its pre-D-CC self on every path, so ONE image serves both D-CC-3 arms and the
     contract-alone control on an env flip with no redeploy (the D-RC Phase C staged-flip discipline).
     It gates the composition mandates ONLY: which contract was selected, and the base contract shaping
-    that ships today, are unaffected in both positions."""
+    that ships today, are unaffected in both positions.
+
+    D-DR-1: a thread-scoped override (`composition_census_override`) WINS over the env flag when set --
+    it is how a dossier turns the mandates on for one sub-call without moving the process environment."""
+    ov = _CENSUS_OVERRIDE.get()
+    if ov is not None:
+        return bool(ov)
     return os.environ.get("GRAPHRAG_COMPOSITION_CENSUS", "").strip().lower() in ("on", "1", "true")
 
 
