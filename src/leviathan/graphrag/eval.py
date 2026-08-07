@@ -109,13 +109,33 @@ def _num_citations(out: dict) -> list[dict]:
     return [c for c in (out.get("citations") or []) if c.get("kind") == "number"]
 
 
+# ── CYCLE-5 FIX-CYCLE-2 (2026-08-07) ARTIFACT-1b: the CALL-GRAINED citation list ──────────────────────
+# `n_cascade_rows` is an EXISTING baseline column (per-answer record, below) whose meaning has always been
+# "one row per numbers CALL". CYCLE-5's FOOTER-1 mints letter-suffixed sibling rows (N1b, N1c) on the
+# numbers_only lane, and `_cascade_stats` counted `len(_num_citations(out))` -- so the column silently
+# changed meaning to "calls PLUS footer extras" and the motivating row measured 1 PRE / 3 POST. Gate-3
+# could then not be compared with gate-2 on cascade-row attribution: an artifact field that changes
+# meaning without changing name is exactly the comparability failure ARTIFACT-1 exists to prevent.
+# The discriminator is the ID SHAPE, which FOOTER-1 chose precisely because it is unambiguous: an integer
+# id `[N7]`/`[E3]` is a call, a letter-suffixed id `[N7b]` is a sibling ROW of a call already counted.
+# SCOPED TO `_cascade_stats`, deliberately: `_num_citations` is also the row surface for `_eod_rows`, the
+# PIT invariant walk and the expiry pins, and there an extra's payload row is a real served row that those
+# checks SHOULD see. Only the two cascade COUNTERS are call-grained, and only they feed the baseline.
+_INT_CIT_ID_RX = re.compile(r"[NE]?\d+\Z")
+
+
+def _call_grained_citations(out: dict) -> list[dict]:
+    """The kind=number citations that stand for a CALL -- unsuffixed integer ids only."""
+    return [c for c in _num_citations(out) if _INT_CIT_ID_RX.fullmatch(str(c.get("id") or ""))]
+
+
 def _cascade_stats(out: dict) -> dict:
     """Deterministic cascade signals: the quantify trace + kind=number citations + POST-verify STRUCTURED
     prose. NEVER scan out['answer'] for handles — the '## Sources' footer re-renders every ledgered [N]
     line INCLUDING ones the verifier just stripped from prose, so the naive scan false-passes on
     fabrications (the primary-gate trap)."""
     tr = (out.get("trace") or {}).get("quantify") or []
-    cits = _num_citations(out)
+    cits = _call_grained_citations(out)     # ARTIFACT-1b: `n_cascade_rows` keeps its pre-CYCLE-5 meaning
     st = out.get("structured") or {}
     prose = f"{st.get('tldr') or ''} {st.get('mechanism') or ''}"
     cited = [c for c in cits if f"[{c.get('id')}]" in prose]
@@ -1194,6 +1214,64 @@ def _timeout_row(q: dict, deadline: float) -> dict:
     return {"q": q, "out": out, "rubric": score(q, out), "secs": deadline}
 
 
+# ══ CYCLE-5 (2026-08-07) ARTIFACT-1: the SERVED ROWS, persisted ═══════════════════════════════════════
+# WHY THIS EXISTS, precisely. Gate-2 adjudicated `dcw_farm_price_vintage` as a fabrication: the prose cited
+# "$4.15/bu MY2025/26 (estimate)" and "$4.24/bu MY2024/25 (actual)" while the footer showed one row (4.4).
+# It took a live Athena query against `leviathan_dev.silver_wasde` to establish that the agent's lookup had
+# SERVED both figures and the prose had attributed them correctly. NOTHING IN THE ARTIFACT COULD HAVE
+# SETTLED THAT: `_num_line` renders "value@period (latest of N rows)" into the report BODY from in-memory
+# calls, and the per-answer record keeps no row values at all -- so every future adjudication of a
+# multi-row serve is a coin flip between "grounded" and "invented".
+# STRICTLY ADDITIVE, and that is the gate-3 comparability contract: no existing field changes meaning, no
+# scoring or strip path reads these keys, and deleting them from the record leaves every pre-existing
+# column byte-identical. Bounded on both axes (40 rows/call, 5 projected fields) so a 5000-row series read
+# cannot turn a baseline JSON into a data dump; `row_count` carries the truth the cap hides.
+_ROWS_PER_CALL_CAP = 40
+# FIX-CYCLE-2 (review minor 11): the per-CALL cap is not a bound on the RECORD. A hybrid turn carries 20+
+# number calls, so 40 rows/call is ~800 row dicts on one answer and ~72k across a 90-row baseline. The
+# per-record budget is the real bound; `row_count` already carries the truth every capped projection hides,
+# and calls past the budget still record their header (table/metric/status/row_count) with `rows: []`.
+_ROWS_PER_RECORD_CAP = 400
+
+
+def _alias_col(rr: dict, alias: str, raw: str):
+    """A row column read through its provenance ALIAS with the raw column as the fallback. PRESENT-BUT-NONE
+    falls back too (review minor 12): `dict.get(alias, default)` only fires the default when the key is
+    ABSENT, and `query._extras` emits the alias for every card that declares the column -- so a row whose
+    alias is None returned None instead of the raw value that was sitting right beside it."""
+    v = (rr or {}).get(alias)
+    return (rr or {}).get(raw) if v in (None, "") else v
+
+
+def _served_rows(out: dict) -> list[dict]:
+    """Per numbers-call, the bounded (period, estimate_role, value, unit, knowledge_date) projection of the
+    rows the lookup actually returned. Never raises: an audit column must never be the thing that fails a
+    run's serialization."""
+    recs = []
+    budget = _ROWS_PER_RECORD_CAP
+    for c in (out.get("number_calls") or []):
+        try:
+            if not isinstance(c, dict):
+                continue
+            q = c.get("query") or {}
+            rows = c.get("rows") or []
+            take = max(0, min(_ROWS_PER_CALL_CAP, budget))
+            recs.append({
+                "table": q.get("table"), "metric": q.get("metric"),
+                "status": c.get("status"), "row_count": len(rows),
+                # `estimate_role` reaches a row under query._extras' provenance ALIAS (`revision_stamp`);
+                # the raw column name is accepted too so a cascade/fixture-minted row projects the same.
+                "rows": [{"period": rr.get("period"),
+                          "estimate_role": _alias_col(rr, "revision_stamp", "estimate_role"),
+                          "value": rr.get("value"), "unit": rr.get("unit"),
+                          "knowledge_date": _alias_col(rr, "knowledge_date", "data_date")}
+                         for rr in rows[:take] if isinstance(rr, dict)]})
+            budget -= len(recs[-1]["rows"])
+        except Exception:  # noqa: BLE001
+            continue
+    return recs
+
+
 def _per_answer_record(r: dict, run_kind: str) -> dict:
     """The per-answer baseline/JSONL record for ONE row -- the SINGLE source of truth so the incremental
     partial JSONL (_persist_partial) is byte-identical to the final _baseline_json per_answer entries
@@ -1277,7 +1355,14 @@ def _per_answer_record(r: dict, run_kind: str) -> dict:
             "judge": {k: j[k] for k in ("usefulness", "convexity", "point_in_time", "grounding",
                                         "source_diversity", "continuity", "mechanism_voice",
                                         "directional_traceability", "episode_enumeration")
-                      if k in j} or None}
+                      if k in j} or None,
+            # CYCLE-5 ARTIFACT-1 -- APPENDED, never interleaved: the two audit columns that make a stated
+            # figure checkable after the run. `numbers_verifier` is stamped by run_numbers_only ONLY
+            # (orchestrator.py) and until now reached the artifact solely as the derived
+            # `numbers_mismatched` boolean -- the counts behind it (stated / rows / mismatched) were
+            # unreadable from any file, so a mismatch could not be sized without re-running the turn.
+            "served_rows": _served_rows(out),
+            "numbers_verifier": (out.get("trace") or {}).get("numbers_verifier")}
 
 
 def _partial_path(eval_set: str, provider: str, *, judge: bool = False):

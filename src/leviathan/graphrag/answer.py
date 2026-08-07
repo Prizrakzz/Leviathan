@@ -2105,6 +2105,12 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
         # untouched draft writes no key -- the OFF-arm-clean rule, again.
         if _tidy_handle_debris(structured):
             sg.trace["prose_debris_tidied"] = True
+        # CYCLE-5 TIDY-2, in the SAME gate and immediately after the debris pass: the debris rules close
+        # up punctuation frames INSIDE a line, this one closes the paragraph seam a whole-sentence drop
+        # opened. Order matters only in that both run after every removal is final. Stamped only when it
+        # changed something -- the OFF-arm-clean rule, again.
+        if _tidy_strip_orphans(structured, verifier):
+            sg.trace["prose_orphans_tidied"] = True
     # A4b SEAM 1: `_humanize_structured` is the FIRST reg.sanitize pass on the prose (per field). Capture
     # its INPUT -- post-verify, pre-sanitize -- because that is the last state in which a banned sentence
     # is still attributable to sanitize rather than to the verifier's strips.
@@ -2196,7 +2202,14 @@ def render(d: dict, *, include_ledger: bool = True) -> str:
     `include_ledger=False` suppresses the model's own **Sources** lines — used when the verifier ran and
     the answer instead carries ONE validated `## Sources` block (two parallel lists with independent
     numbering read as 'mismatched citations' and inflated the judge's hallucination tally 37->151)."""
-    parts = [f"**TL;DR.** {(d.get('tldr') or '').strip()}", "", f"**Why.** {(d.get('mechanism') or '').strip()}"]
+    # CYCLE-5 TIDY-3: a header with nothing under it is not a summary, it is a promise the page cannot
+    # keep. Measured on gate-2 pass 1 (`dcw_urea_zscore`): the verifier convicted the ONE sentence the
+    # TL;DR contained, and the body shipped the literal line "**TL;DR.** " with the whole section empty.
+    # The mechanism below still carried the answer, so the honest render is to drop the label rather than
+    # advertise a summary that was removed. Scoped to the EMPTY case only: a TL;DR with any content at all
+    # renders byte-identically, which is every turn that did not have its summary stripped to nothing.
+    _tldr = (d.get("tldr") or "").strip()
+    parts = ([f"**TL;DR.** {_tldr}", ""] if _tldr else []) + [f"**Why.** {(d.get('mechanism') or '').strip()}"]
     if _valid_mermaid(d.get("diagram_mermaid")):
         parts += ["", "**Cascade / convergence**", "```mermaid", d["diagram_mermaid"].strip(), "```"]
     srcs = d.get("sources") or []
@@ -3717,6 +3730,199 @@ def _tidy_handle_debris(structured: dict | None) -> int:
     return changed
 
 
+# ══ CYCLE-5 (2026-08-07) TIDY-2: the SENTENCE a strip left standing without its antecedent ════════════
+#
+# THE MEASURED SHAPE (gate-2, BOTH passes, the same two rows). `verify._verify_field` drops a whole
+# sentence by POSITION. When that sentence opened a paragraph that is not the first in its field, the
+# paragraph is left beginning on the space that used to separate the two sentences -- and the sentence now
+# standing first refers backwards to something the reader cannot see:
+#     "  That sits in El Nino territory, not La Nina. The model assigns El Nino ..."
+#     "  if the ONI crosses into strong El Nino territory (above ~1.5 degC), the drought mechanism ..."
+#     "  within recent range (five-year low 9.48 [N8], five-year high 17.91 [N9])."
+# The first is a demonstrative with no antecedent; the other two are literal mid-sentence continuations
+# whose bullet head and subject went with the strip.
+#
+# WHY IT LIVES HERE AND NOT IN verify.py. The strip DECISION is right in every one of these cases -- the
+# figure was unbacked or mismatched and had to go. What is wrong is the SPLICE, which is a rendering
+# concern; verify's rule semantics are frozen and this pass must never be able to change what counts as a
+# strip. It sits beside `_tidy_handle_debris`, runs under the same verifier gate, and reports only how
+# many prose FIELDS it touched.
+#
+# CONSERVATIVE BY CONSTRUCTION -- FOUR INDEPENDENT CONDITIONS, ALL REQUIRED:
+#   1. LINE-LEADING WHITESPACE, 1-3 spaces. A markdown paragraph never opens on a space; 4+ spaces is an
+#      indented code block and a nested list marker ("  - ", "  * ", "  1. ") is a list, so both are
+#      excluded outright.
+#   2. AN ORPHAN OPENER: the line's first word is lower-case, or it is one of a CLOSED list of anaphors
+#      and connectives that can only point backwards. A definite-article subject ("The model tags ...")
+#      is NOT in that list -- see the deliberate non-removal note below.
+#   3. STRIP ADJACENCY: `verify`'s report must carry a seam whose successor text IS this fragment
+#      (normalized prefix equality). Without this, the pass is a prose editor; with it, it can only ever
+#      repair a cut this run made. This is the condition cycle-3's reviewer's over-removal lacked.
+#   4. SENTENCE-SCOPED REMOVAL: only the ORPHANED FIRST SENTENCE goes, and the boundary walk is
+#      `_handle_sentence_span` -- the same abbreviation-aware walk cycle-3 had to build after the naive
+#      splitter cut "U.S." in half. The rest of the paragraph is verified, backed content and stays.
+#
+# DELIBERATELY NOT REMOVED (and this is a recorded deviation from the fix brief, not an oversight): a
+# headless paragraph whose surviving first sentence is ordinary forward-referring prose -- gate-2's
+# " The model tags El Nino (positive ONI) as price-pressuring at medium confidence -- ...". It lost its
+# bold lead-in to a correct strip, but the sentence itself is complete, grounded and cited. Deleting it
+# would destroy verified content because a NEIGHBOUR was convicted, which is exactly the over-removal
+# class cycle-3's reviewer caught. The seam is repaired (the leading space goes) and the prose stays.
+_ORPHAN_ANAPHORS = frozenset((
+    "that", "this", "these", "those", "it", "its", "they", "them", "their", "he", "she", "his", "her",
+    "such", "but", "and", "so", "yet", "however", "meanwhile", "therefore", "thus", "then", "also",
+    "which", "whereas", "while", "either", "neither", "both", "instead", "moreover", "furthermore",
+    "nonetheless", "nevertheless", "conversely", "likewise", "hence", "because",
+))
+# 1-3 leading spaces, then something that is NOT a list marker and NOT more whitespace. The bullet glyph
+# is a CODEPOINT escape (U+2022), the ASCII-source discipline `_N_DASHES` states above.
+_ORPHAN_BULLETS = "-*+" + chr(0x2022)
+_ORPHAN_LINE_RX = re.compile(r"\A[ ]{1,3}(?![" + _ORPHAN_BULLETS + r"]\s|\d+[.)]\s|#|>|\s)"
+                             r"(?P<body>\S.*)\Z")
+_ORPHAN_FIRST_WORD_RX = re.compile(r"[A-Za-z][A-Za-z'" + chr(0x2019) + r"]*")   # ...and the curly one
+
+# ══ FIX-CYCLE-2 (2026-08-07): TWO MEASURED OVER-REMOVALS, both closed by REFUSALS, never by new deletions ═
+#
+# (5) A HEADLESS SENTENCE IS NOT AN UNBACKED SENTENCE. The anaphor list above made deletion unconditional
+#     on the opener, and the measured casualty was
+#         " it fell to 1.32 billion bushels [N3], the tightest carryout since 2013."
+#     -- complete, cited, and LEFT STANDING by the verifier (its figure was checked and passed). Its only
+#     offence was a lower-case pronoun. Deleting it is the cycle-3 over-removal class in a new costume:
+#     verified content destroyed because a NEIGHBOUR was convicted. THE REPAIR IS THE SAME EITHER WAY (the
+#     leading space goes); what differs is whether the words survive, and they must. A fragment is now
+#     deletable ONLY when it is GENUINELY CONTENTLESS -- no citation handle the reader could follow, and no
+#     claim numeral (`verify._claim_numbers_in`, the estate's one extractor for "is this a stated figure",
+#     so its year/date/list-marker exemptions come along and a bare "since 2013" does not count as content).
+#     This deliberately RETIRES one of the four gate-2 fragments the builder listed
+#     (" within recent range (five-year low 9.48 ...)" carries a claim numeral): a repaired seam on a
+#     figure-bearing line is the correct outcome, and the pin was rewritten to say so.
+#
+# (6) A LAZY LIST CONTINUATION IS NOT AN ORPHAN. `_ORPHAN_LINE_RX` excludes a line that IS a list marker
+#     and says nothing about a line that CONTINUES one -- markdown's lazy continuation, where a wrapped
+#     bullet is indented one to three spaces and opens lower-case, is byte-identical to the orphan shape.
+#     Measured: "- The balance sheet tightened materially:" followed by an indented continuation lost the
+#     continuation and left the bullet ending on a colon with nothing after it. A candidate whose PRECEDING
+#     NON-BLANK line is a list item, or ends in a colon, is now skipped outright -- the same structural
+#     fence the fenced-code and nested-list exclusions already are.
+_LIST_ITEM_RX = re.compile(r"\A\s*(?:[" + _ORPHAN_BULLETS + r"]|\d+[.)])\s")
+
+
+def _orphan_has_content(frag: str) -> bool:
+    """True when `frag` carries something a reader would LOSE: a citation handle, or a claim numeral. Fails
+    SAFE -- any doubt (an unavailable extractor, an unparseable fragment) reads as CONTENT PRESENT, so the
+    pass keeps the prose and repairs only the seam."""
+    try:
+        from leviathan.graphrag import verify as _vf   # module-local import: answer<->verify is lazy here
+        if _vf._HANDLE.search(frag or ""):
+            return True
+        return bool(_vf._claim_numbers_in(frag or ""))
+    except Exception:  # noqa: BLE001
+        return True
+
+
+def _seam_key(s: str) -> str:
+    """Whitespace-collapsed, case-folded comparison form. The seam recorded by `verify` is pre-humanize and
+    pre-sanitize text; the fragment on the page has been through both, so the join is on a NORMALIZED
+    prefix rather than on positions (which no downstream pass preserves)."""
+    return re.sub(r"\s+", " ", s or "").strip().lower()
+
+
+def _report_seams(vreport) -> list:
+    """The strip seams for this turn. FIX-CYCLE-2 (review major 7): `verify` no longer ships the seam's raw
+    successor prose on the report dict -- that reached the browser through `trace['citation_verifier']`. The
+    seams ride an INTERNAL attribute on the report object (invisible to every serializer), and a normalized
+    40-char `key` is additionally published under `strip_seams` only when GRAPHRAG_STRIP_AUDIT is on. Read
+    the attribute first, fall back to the dict key so an audited run, a hand-built fixture and a legacy
+    `{"after": ...}` record all still join."""
+    got = getattr(vreport, "strip_seams", None)
+    if got:
+        return list(got)
+    return (vreport or {}).get("strip_seams") or []
+
+
+def _seam_adjacent(seams: list, field: str, frag: str) -> bool:
+    """True when some recorded strip seam in THIS field is immediately followed by `frag`. The prefix
+    compare is capped at 32 chars and floored at 8: shorter than 8 normalized characters is not evidence
+    of anything, and beyond 32 a single sanitize edit inside the fragment would break an honest match.
+    (`key` is verify's normalized 40-char form; `after` is the legacy/fixture raw form. `_seam_key` is
+    idempotent on the former, so one compare serves both.)"""
+    fk = _seam_key(frag)
+    if len(fk) < 8:
+        return False
+    for s in (seams or []):
+        if not isinstance(s, dict) or s.get("field") != field:
+            continue
+        sk = _seam_key(str(s.get("key") or s.get("after") or ""))
+        n = min(len(sk), len(fk), 32)
+        if n >= 8 and sk[:n] == fk[:n]:
+            return True
+    return False
+
+
+def _tidy_strip_orphans(structured: dict | None, vreport: dict | None) -> int:
+    """Repair the paragraph seams a whole-sentence strip left open. Returns the number of prose FIELDS
+    changed (0 on every turn with no strips). Mutates in place; never raises -- a cosmetic pass must never
+    be the thing that breaks an answer.
+
+    STRIP COUNTS ARE NOT TOUCHED, by construction: this function reads `vreport` and writes only
+    `structured`. It cannot create or destroy a strip, and the report it was handed is returned unchanged
+    to whoever else reads it."""
+    changed = 0
+    seams = _report_seams(vreport)
+    if not isinstance(structured, dict) or not seams:
+        return changed
+    for field in ("tldr", "mechanism"):
+        text = structured.get(field)
+        if not isinstance(text, str) or not text:
+            continue
+        out, in_fence, hit, dropped = [], False, False, False
+        prev_nonblank = ""                                # (6): the markdown context the candidate sits in
+        for line in text.split("\n"):
+            if line.lstrip().startswith("```"):           # the `_tidy_handle_debris` fence walk, restated
+                in_fence = not in_fence
+                out.append(line)
+                prev_nonblank = line
+                continue
+            m = None if in_fence else _ORPHAN_LINE_RX.match(line)
+            # (6) LAZY LIST CONTINUATION: a wrapped bullet is indented and opens lower-case, which is the
+            # orphan shape exactly. Structural context is the only discriminator, so a candidate whose
+            # preceding non-blank line is a list item -- or ends on a colon, which is a lead-in either way
+            # -- is skipped before any opener or seam test runs.
+            _cont = bool(_LIST_ITEM_RX.match(prev_nonblank) or prev_nonblank.rstrip().endswith(":"))
+            if m is None or _cont or not _seam_adjacent(seams, field, m.group("body")):
+                out.append(line)
+                if line.strip():
+                    prev_nonblank = line
+                continue
+            body = m.group("body")
+            w = _ORPHAN_FIRST_WORD_RX.match(body)
+            first = (w.group(0).lower() if w else "")
+            orphan = bool(w) and (w.group(0)[0].islower() or first in _ORPHAN_ANAPHORS)
+            _s0, _s1 = _handle_sentence_span(body, 0)     # cycle-3's abbreviation-aware boundary walk
+            # (5) the removal is fenced to a GENUINELY CONTENTLESS first sentence -- see the note above.
+            if not orphan or _orphan_has_content(body[_s0:_s1]):
+                out.append(body)                          # seam repaired, prose kept (see the note above)
+                prev_nonblank = body
+                hit = True
+                continue
+            rest = body[_s1:].lstrip()
+            hit = True
+            if rest:
+                out.append(rest)                          # only the headless sentence goes
+                prev_nonblank = rest
+            else:
+                dropped = True                            # the whole line WAS the fragment
+        if not hit:
+            continue
+        new = "\n".join(out)
+        if dropped:                                       # a removed line leaves its two blank neighbours
+            new = re.sub(r"\n{3,}", "\n\n", new)          # adjacent; markdown wants one paragraph break
+        if new != text:
+            structured[field] = new
+            changed += 1
+    return changed
+
+
 def _cited_sources_block(d: dict, vreport: dict, number_calls: list | None) -> str:
     """The single reader-facing `## Sources` list: the model's OWN handles, every entry resolved by the
     verifier to a real item's true metadata. Cited-only — retrieved-but-uncited items stay machine-side
@@ -4016,6 +4222,8 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     _nhandles = (_resolve_number_handles(structured, extra_number_calls)   # D-PQ HANDLE-1, both bodies
                  if verifier.get("enabled") else None)                    # ...and the same verifier gate
     _debris = bool(verifier.get("enabled") and _tidy_handle_debris(structured))   # D-PQ HANDLE-3, ditto
+    _orphans = bool(verifier.get("enabled")                                       # CYCLE-5 TIDY-2, ditto
+                    and _tidy_strip_orphans(structured, verifier))
     # A4b on the SECOND synthesis path, for the SAME reason A4 is here: GRAPHRAG_PLANNER=onehop is a
     # documented rollback, and instrumenting only _answer_l2 would blind the audit on the exact path a
     # rollback puts every turn on. Identical two seams, identical field names.
@@ -4058,6 +4266,7 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
                       **({"number_handles": _nhandles}             # D-PQ HANDLE-1: same census, both bodies
                          if _nhandles is not None else {}),        # ...absent when the verifier is off
                       **({"prose_debris_tidied": True} if _debris else {}),   # D-PQ HANDLE-3, both bodies
+                      **({"prose_orphans_tidied": True} if _orphans else {}),  # CYCLE-5 TIDY-2, both bodies
                       **({"response_contract": _rc_active} if _rc_active else {}),   # Phase B twin stamp
                       **({"composition_census": _census} if _census is not None else {}),   # D-CC-1 twin
                       **_tldr_dir,                                 # D-RC-12: absent when the flag is off

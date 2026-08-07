@@ -1372,6 +1372,69 @@ def _float_val(rec) -> float | None:
 
 _GUARD_COLS = ("release_date", "week_ending_date", "data_date", "date", "year", "month")
 
+# CYCLE-5 (2026-08-07) VINTAGE-2: the AS-KNOWN columns a SYNTHETIC row must inherit from the row it was
+# derived FROM. `_GUARD_COLS` above is the PIT-backtest's provenance set and rides `_provenance`, a nested
+# key nothing on the render path reads: `citations.from_number` takes its `[known ...]` stamp off the ROW
+# ITSELF (`knowledge_date`/`data_date`, plus the year_month fallback added this cycle). So every derived
+# leg -- PSD `*_delta` / `*_pct` / `*_era_diff`, the T2a pace rows, the SEAM-B farm-price pair -- shipped
+# to the reader with no vintage at all, while the un-suffixed read of the SAME table stamped correctly.
+# Measured on gate-2 (both passes, same families): e.g. "[N15] USDA PSD ending_stocks_mt_delta ... MY2024 =
+# -0.479 MMT" with no stamp, directly under "[N14] ... ending_stocks_mt ... [known 2025-03-10]".
+# THE DATE IS INHERITED, NEVER MINTED: it is copied off the source row whose value produced the derivation,
+# so a synthetic row can only ever be as-known as the observation behind it. `year`/`month` ride too, so a
+# derived leg over a year_month table (ONI/IOD/gold_weather_z) inherits the same fallback identity the
+# fetched row renders with.
+_VINTAGE_COLS = ("knowledge_date", "data_date", "year", "month")
+
+
+def _row_vintage(src: dict | None) -> dict:
+    """The as-known columns present on `src`, as a dict to splat onto a synthetic row ({} when it has
+    none -- then the synthetic row renders exactly as it did before, which is the honest outcome for a
+    source row that carries no date either)."""
+    return {k: (src or {})[k] for k in _VINTAGE_COLS if (src or {}).get(k) not in (None, "")}
+
+
+# ── CYCLE-5 FIX-CYCLE-2 (2026-08-07) VINTAGE-2b: ONE endpoint rule for BOTH synthetic mint sites ───────
+# THE MEASURED DEFECT (fix-cycle-2 review, blocker 3). `_delta_call` read `rows[0]` and `_pace_synth` read
+# `rows[-1]`, i.e. the two synthetic mint sites encoded OPPOSITE answers to the same question -- "which row
+# is the later endpoint this derived value is as-known at". That disagreement was tolerable while the row
+# only fed the machine-side `_provenance`; VINTAGE-2 promotes it to the READER-FACING `[known ...]` stamp,
+# and on a date/year_month ERA leg (agg='series', the six-monthly-row shape `_headline_row`'s own A2b RCA
+# documents) `rows[0]` is the OLDEST print. A Jan..Jun 2012 ONI leg therefore rendered its Jun-minus-Jan
+# delta as `[known 2012-01]` -- a date at which the delta could not have been computed. Previously those
+# rows carried NO stamp (honest silence); a false stamp is the wrong side of the one-sided rule this file
+# states everywhere ("a missed warning, never a false one").
+#
+# WHY THIS IS NOT `_headline_row`, and that distinction is the whole of the fix. `_headline_row` is
+# KILL-SWITCHED (`_HEADLINE_ON` / GRAPHRAG_CASCADE_HEADLINE, DEFAULT-OFF) and returns `rows[0]` when off,
+# so routing the two mint sites through it would have left the false January stamp in place in every
+# production configuration shipped to date -- a no-op dressed as a fix. The A2b switch governs WHICH ROW A
+# LEVEL LINE PRINTS; it has nothing to say about which observation a DERIVED row is as-known at. The
+# ordering rule is `_headline_row`'s (citations._row_order_key, the same key the citation side uses, so the
+# two never disagree about chronology) applied UNCONDITIONALLY here.
+# ONE-SIDED BY CONSTRUCTION: the endpoint is the FRESHEST row of the record the derivation spans, so a
+# synthetic row can only ever claim to be known LATER than its inputs, never earlier -- the direction that
+# can cost a staleness clause, never a PIT leak.
+def _endpoint_row(rec) -> dict:
+    """The LATER endpoint of the window a synthetic row is derived over: the freshest row on the record by
+    `citations._row_order_key`. `{}` for a rowless record (then `_row_vintage` contributes nothing and the
+    synthetic row renders exactly as it did pre-CYCLE-5). Never raises -- an unorderable row set degrades
+    to `_headline_row`'s answer, which is what every other reader of this record already sees."""
+    rows = (rec or {}).get("rows") or []
+    if not rows:
+        return {}
+    try:
+        from leviathan.graphrag.citations import _row_order_key
+        # ROW POSITION IS THE FINAL TIEBREAKER, and it is load-bearing for the pace twin. `_row_order_key`
+        # spans (data_date, year, month, period, knowledge_date) ONLY: a series keyed on `week_ending_date`
+        # alone -- every ESR pace leg -- ties on ALL of them, and bare `max()` returns the FIRST maximal
+        # element, i.e. rows[0]. `_pace_synth` has always read rows[-1] and is right to; folding position in
+        # keeps that answer byte-identical for an un-keyed ASC series while the keyed series (the ONI/IOD era
+        # legs this fix is for) still resolves by chronology.
+        return max(enumerate(rows), key=lambda t: (_row_order_key(t[1]), t[0]))[1]
+    except Exception:  # noqa: BLE001
+        return _headline_row(rec) or rows[0]
+
 
 def _scaled_val(rec: dict, row: dict) -> float | None:
     """The HEADLINE row PRE-SCALED to narrate_unit -- the ONE magnitude a level line prints. Shared by the
@@ -1429,14 +1492,17 @@ def _delta_call(rec: dict, row: dict, delta: float, n: int, *, kind: str, period
     LATER endpoint's guard-column provenance (R10) -- the delta is as-known at the later leg's asof.
     `period` overrides the inherited leg period label (F2: an era_diff row spans TWO eras, so it carries a
     'MY<a>->MY<b>' span label, not the single later-leg period)."""
-    src = (rec.get("rows") or [{}])[0]
+    src = _endpoint_row(rec)                                  # VINTAGE-2b: the LATER endpoint, never rows[0]
     prov = {k: src.get(k) for k in _GUARD_COLS if src.get(k) is not None}
     unit = "%" if kind == "pct" else (row.get("narrate_unit") or "")
     q = {**(rec.get("query") or {}), "metric": f"{row.get('metric')}_{kind}"}
     if period is not None:
         q["period"] = period
     return {"query": q,
-            "rows": [{"value": round(delta, 4), "unit": unit, **({"_provenance": prov} if prov else {})}],
+            # CYCLE-5 VINTAGE-2: the LATER endpoint's own as-known columns ride the ROW, not only the
+            # nested `_provenance` -- that is the key `citations.from_number` reads for the [known] stamp.
+            "rows": [{"value": round(delta, 4), "unit": unit, **_row_vintage(src),
+                      **({"_provenance": prov} if prov else {})}],
             "status": "ok"}
 
 
@@ -1444,11 +1510,13 @@ def _pace_synth(rec: dict, row: dict, value, n: int, *, kind: str, unit: str) ->
     """T2a: a synthetic pace call-record (twin of _delta_call) so a narrated pace fact IS a row value
     (citable + value-checkable by the all-numbers guard). Provenance = the LATEST point's guard columns
     (ASC series -> rows[-1]): the pace fact is as-known at the newest observation."""
-    src = (rec.get("rows") or [{}])[-1]
+    src = _endpoint_row(rec)                                  # VINTAGE-2b: the SAME rule as `_delta_call`
+
     prov = {k: src.get(k) for k in _GUARD_COLS if src.get(k) is not None}
     q = {**(rec.get("query") or {}), "metric": f"{row.get('metric')}_{kind}"}
-    return {"query": q,
-            "rows": [{"value": value, "unit": unit, **({"_provenance": prov} if prov else {})}],
+    return {"query": q,                                       # CYCLE-5 VINTAGE-2, the pace twin
+            "rows": [{"value": value, "unit": unit, **_row_vintage(src),
+                      **({"_provenance": prov} if prov else {})}],
             "status": "ok"}
 
 
@@ -2565,15 +2633,23 @@ def _fmt_price(value: float, unit: str) -> str:
     return f"{s} {u}".strip()
 
 
-def _price_call(commodity: str, region: str, value: float, my_label: str, asof, *, unit: str) -> dict:
+def _price_call(commodity: str, region: str, value: float, my_label: str, asof, *, unit: str,
+                src_row: dict | None = None) -> dict:
     """A synthetic silver_wasde call-record so a narrated farm-price LEVEL IS a citable, value-checkable [N]
     row (the _xc_call discipline). [SKEPTIC F6]: `unit` is an EXPLICIT param sourced from the FETCHED row's
     _apply_unit_overrides value (rows[0]['unit']), NEVER narrate_unit -- confining the unit fallback to the two
     price-leg call sites so _fmt_line/_delta_call stay UNTOUCHED. `table` rides the query so the citation
-    locator carries table=silver_wasde (the eval price_cited / unit_present filter keys on it)."""
+    locator carries table=silver_wasde (the eval price_cited / unit_present filter keys on it).
+
+    CYCLE-5 VINTAGE-2: `src_row` is the FETCHED WASDE row this level was read off (the same row `unit`
+    comes from), and its `release_date` -> `knowledge_date` alias is copied onto the synthetic row. WASDE
+    is a vintage table -- the un-suffixed agent read of it stamps `[known 2026-07-10]` -- so a farm-price
+    pair rendering the SAME table with no vintage at all was the sharpest form of the measured defect: the
+    reader could not tell whether the pair was as-known or as-revised. Omitted -> byte-identical."""
     return {"query": {"table": "silver_wasde", "metric": "avg_farm_price", "commodity": commodity,
                       "country": region, "period": f"MY{my_label}", "asof": asof},
-            "rows": [{"value": round(float(value), 4), "unit": unit}], "status": "ok"}
+            "rows": [{"value": round(float(value), 4), "unit": unit, **_row_vintage(src_row)}],
+            "status": "ok"}
 
 
 def _price_pair(price_request: dict, sg, graph, groups: list, qfn, asof, near, calls: list, base: int,
@@ -2615,19 +2691,24 @@ def _price_pair(price_request: dict, sg, graph, groups: list, qfn, asof, near, c
         # the _apply_unit_overrides fetched unit (F6), read off the SAME row _float_val took the level from
         # (agg='latest' makes these single-row today; keeping value and unit on one row is what stops a
         # future multi-row WASDE fetch from printing one MY's number under another MY's unit)
-        u_a = ((_headline_row(recs[0]) or {}).get("unit")) or ""
-        u_b = ((_headline_row(recs[1]) or {}).get("unit")) or ""
+        # CYCLE-5 VINTAGE-2: the SAME headline rows carry the release_date the citation must stamp, so
+        # they are bound here rather than re-picked -- unit and vintage can then never come off two rows.
+        r_a, r_b = _headline_row(recs[0]) or {}, _headline_row(recs[1]) or {}
+        u_a = r_a.get("unit") or ""
+        u_b = r_b.get("unit") or ""
         lab_a, lab_b = _my_slash(my_a), _my_slash(my_b)
         reg_a, reg_b = _farm_region(commodity, my_a), _farm_region(commodity, my_b)
         n = base
         n += 1
         h_a = n
-        c_a = _shown(_price_call(commodity, reg_a, p_a, lab_a, asof, unit=u_a),   # [N{h_a}] baseline-MY level
+        c_a = _shown(_price_call(commodity, reg_a, p_a, lab_a, asof, unit=u_a,    # [N{h_a}] baseline-MY level
+                                 src_row=r_a),
                      p_a)                                  # the line prints _fmt_price(p_a) at 2 dp; the
         calls.append(c_a)                                  # verifier's 1pct tolerance covers the rounding
         n += 1
         h_b = n
-        c_b = _shown(_price_call(commodity, reg_b, p_b, lab_b, asof, unit=u_b),   # [N{h_b}] event-MY level
+        c_b = _shown(_price_call(commodity, reg_b, p_b, lab_b, asof, unit=u_b,    # [N{h_b}] event-MY level
+                                 src_row=r_b),
                      p_b)
         calls.append(c_b)
         # A3: the discipline rides the READER-FACING handle, not only the model directive below. The

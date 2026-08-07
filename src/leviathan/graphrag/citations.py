@@ -105,6 +105,47 @@ def _row_date_text(r: dict) -> str:
     return str(p) if p not in (None, "") else ""
 
 
+# -- CYCLE-5 (2026-08-07) VINTAGE-1: the AS-KNOWN stamp for a row that carries no date COLUMN ----------
+# MEASURED (gate-2 of the D-CW/D-PQ probe, both passes): 29/74 and 35/86 footer [N] rows rendered with NO
+# `[known ...]` tail at all, and the SAME families both times. Two distinct causes, and only one of them
+# lives here:
+#   (a) a SYNTHETIC row minted by the cascade (`_delta_call`/`_pace_synth`/`_price_call`) that simply never
+#       copied its source row's date -- fixed at those mint sites, where the date exists;
+#   (b) a REAL fetched row from a table whose card declares `knowledge_semantics: year_month` and NO date
+#       column at all (silver_noaa_oni, silver_noaa_iod, gold_weather_z). `query._extras` cannot surface a
+#       `knowledge_date`/`data_date` alias that the table does not have, so `rH.get(...)` was correctly
+#       None and the tail was correctly omitted -- and the reader got an undated climate reading.
+# THIS IS THE (b) HALF. The row DOES carry its own observation identity: `year` and `month` are surfaced
+# aliases (`_extras`), and those cards' as-of rule is literally `(year*100 + month) <= asof year-month`,
+# i.e. THE SERVING CONTRACT ALREADY TREATS THE MONTH AS THE KNOWLEDGE GRAIN. So the stamp is derived from
+# the row's own columns, never from `asof` and never from today.
+# RENDERED AS 'YYYY-MM', NOT AS A SYNTHESISED DAY, and that is deliberate in two directions: a day this
+# source does not publish would be an invention, and `_parse_date` rejects the month form -- so the
+# `(latest available X; as-of Y)` staleness clause stays OFF for these rows. That is the one-sided
+# direction this file already prefers everywhere (a missed warning, never a false one).
+_YM_MONTHS = frozenset(str(i) for i in range(1, 13))
+
+
+def _row_known_date(r: dict) -> Optional[str]:
+    """The row's own as-known stamp: `knowledge_date`, else `data_date`, else its (year, month) identity as
+    'YYYY-MM'. None when the row carries none of the three -- the pre-CYCLE-5 behaviour, byte for byte, for
+    every row that already had a date."""
+    for a in ("knowledge_date", "data_date"):
+        v = (r or {}).get(a)
+        if v not in (None, ""):
+            return v
+    y, m = (r or {}).get("year"), (r or {}).get("month")
+    if y in (None, "") or m in (None, ""):
+        return None
+    try:                                          # a year_month card's aliases arrive as ints OR as strings
+        yi, mi = int(str(y).strip()), int(str(m).strip())
+    except (TypeError, ValueError):
+        return None
+    if not (1900 <= yi <= 2200) or str(mi) not in _YM_MONTHS:
+        return None                               # not a calendar month -> not a date, so say nothing
+    return f"{yi:04d}-{mi:02d}"
+
+
 def _series_truncated(call: dict) -> bool:
     """DELEGATES to `numbers.agent.series_truncated` -- never a second copy of the rule (the engine stamp
     beats the row count, and only `agg='series'` can truncate). Imported lazily so citations.py keeps no
@@ -206,6 +247,20 @@ def _zero_aggregate(call: dict) -> bool:
         return False
 
 
+def _period_label(period) -> Optional[str]:
+    """The reader-facing period token for a scope string, or None.
+
+    Agent calls carry a BARE MY year ("2011" -> render "MY2011"); cascade calls arrive PRE-labeled
+    ("MY2011" / "2010-06-01..2010-09-01") -- re-prefixing those minted "MYMY2011" in the Sources footer and
+    fed the judge malformed provenance (P9-AB P0-6). CYCLE-5: lifted out of `from_number` UNCHANGED so the
+    per-row extra citations (FOOTER-1) label a row's own period through the SAME rule -- a second copy is
+    exactly how the "MYMY" class was born."""
+    per = str(period) if period is not None else None
+    if per and not (per.startswith("MY") or ".." in per):
+        per = f"MY{per}"
+    return per
+
+
 def from_number(call: dict, i: int) -> Citation:
     """Build a Citation from a numbers-agent call record ({query, rows, status})."""
     q = call.get("query", {})
@@ -220,13 +275,8 @@ def from_number(call: dict, i: int) -> Citation:
     asof = q.get("asof")
     value = rH.get("value")
     unit = rH.get("unit") or _metric_unit(table, metric, q.get("commodity"))
-    kd = rH.get("knowledge_date") or rH.get("data_date")
-    # period label: agent calls carry a BARE MY year ("2011" -> render "MY2011"); cascade calls arrive
-    # PRE-labeled ("MY2011" / "2010-06-01..2010-09-01") — re-prefixing those minted "MYMY2011" in the
-    # Sources footer and fed the judge malformed provenance (P9-AB P0-6).
-    per = str(q["period"]) if q.get("period") is not None else None
-    if per and not (per.startswith("MY") or ".." in per):
-        per = f"MY{per}"
+    kd = _row_known_date(rH)                  # CYCLE-5 VINTAGE-1: ...falling back to the row's (year, month)
+    per = _period_label(q.get("period"))
     # D-PQ RENDER-2: the DELIVERY MONTH rides the scope, and it comes off the ROW. On agg='front_expiry'
     # the query names no expiry (the rule selects one), so a query-only scope is silent on the single fact
     # that makes the number attributable.
@@ -329,6 +379,170 @@ def from_number(call: dict, i: int) -> Citation:
                     locator=locator, payload={"query": q, "rows": rows[:3]})
 
 
+# ══ CYCLE-5 (2026-08-07) FOOTER-1: ONE CITATION PER CALL IS NOT ONE CITATION PER STATED FACT ═══════════
+#
+# THE MEASURED FAILURE (gate-2 row `dcw_farm_price_vintage`, BOTH passes). The answer said "$4.15/bu for
+# MY2025/26 (estimate)" and "$4.24/bu for MY2024/25 (actual)". The reader's whole `## Sources` block was:
+#     [N1] USDA WASDE avg_farm_price corn united_states = 4.4 $/bu  [known 2026-07-10]
+# The adjudicator scored it as fabrication. IT WAS NOT. A direct Athena read of `leviathan_dev.silver_wasde`
+# proved the 2026-07-10 release carries exactly those rows -- MY2024/25 actual 4.24, MY2025/26 estimate
+# 4.15, MY2026/27 projection 4.4 -- and the agent's own lookup SERVED all 35 of them under [N1]. The prose
+# was grounded and correctly attributed; the FOOTER was the thing that lied by omission, because
+# `from_number` renders exactly one line per call and that line headlines `max(rows, _row_order_key)`.
+#
+# THE PRINCIPLE IS CYCLE-4's, RESTATED FOR THIS LANE: THE PROSE IS THE AUTHORITY. `_cited_sources_block`
+# already builds the hybrid lane's `## Sources` off what the reader can still SEE (D-PQ HANDLE-4). The
+# numbers_only lane has no handle namespace to walk, so the join is made on VALUES instead: a served row
+# whose value the prose STATES gets its own footer line, labeled with the facts that make it checkable --
+# its own period, its own estimate role, its own vintage.
+#
+# THE MATCH IS THE VERIFIER'S OWN, PER ROW. `orchestrator._verify_numbers_answer` already extracts the
+# answer's stated magnitudes (scrubbing dates / marketing years / [N] handles / prose date forms) and
+# matches them against the POOLED row values with `verify._num_matches` (exact-or-1% at any common
+# reporting scale). Running that same extractor and that same predicate one row at a time is what turns
+# "some row backs this figure" into "THIS row backs this figure" -- no new rule, no second opinion about
+# what counts as a stated number, and by construction nothing here can ever contradict the caution banner.
+#
+# BOUNDED AND ID-STABLE, both load-bearing:
+#   * the headline citation is emitted FIRST and UNCHANGED (`from_number`), so a prose that states only the
+#     headline renders today's footer byte for byte;
+#   * extras carry a LETTER-SUFFIXED id (N1b, N1c, ...) -- the shape `verify._HANDLE` already parses
+#     (`\[(?P<kind>[NE]?)(?P<idx>\d+)(?:[a-z])?\]`) -- so they consume NO index and every later call keeps
+#     the number the model's prose cites. A new integer per extra row would silently renumber the answer;
+#   * <=6 extras per call, de-duped on (value, period): a 35-row serve must not become a 35-row footer, and
+#     the same MY arriving on two vintages is one fact to a reader.
+#
+# ══ FIX-CYCLE-2 (2026-08-07) CORRECTIONS -- two measured inversions of the intent above ═══════════════
+#
+# (A) THE CAP TOOK THE OLDEST MATCHES (review blocker 1). The loop walked `sorted(rows, _row_order_key)`
+#     ASCENDING and stopped at 6, so on the motivating 35-row `dcw_farm_price_vintage` serve six 1990s/2000s
+#     marketing years whose prints happened to land near the stated figure filled the cap first and the two
+#     rows the whole pass exists to surface -- MY2024/25 and MY2025/26 -- never minted. The adjudicator
+#     would have been shown six wrong-decade rows presented as the backing for the prose: the defect
+#     INVERTED, not fixed. CANDIDATES ARE NOW RANKED NEWEST-FIRST AND THE CAP IS APPLIED TO THAT RANKING;
+#     what survives is then RENDERED ascending, so the reader still reads a chronological footer.
+#
+# (B) `verify._num_matches` WAS THE WRONG PREDICATE HERE (review blocker 2). It is the right question for
+#     "is this figure backed by SOME row" -- deliberately unit-blind and rescale-tolerant (1e2/1e3/1e6/1e9
+#     in BOTH directions), so "31.4 million" backs 31400000 and "36.4%" backs 0.3636. An EXTRA FOOTER ROW
+#     IS NOT A BACKING CLAIM, IT IS A CLAIM OF IDENTITY: it asserts THIS row, with THIS period and THIS
+#     estimate role, is the thing the prose named. Under the rescale arms two demonstrated fabrications
+#     minted on the builder's own fixture -- prose "down 2.1% year on year" minted
+#     `MY1994/95 = 2.1 $/bu (actual)` (a percentage manufacturing a price citation), and "near 250 cents
+#     per bushel" minted `MY2002/03 = 2.5 $/bu`. THE EXTRAS PREDICATE IS NOW SCALE-1.0 EQUALITY AT 2 dp,
+#     and the numerals the prose wore a PERCENT sign on are excluded outright (orchestrator._stated_values
+#     records them; see `_stated_magnitudes`). The delegation discipline is intact where it belongs: the
+#     CAUTION BANNER still runs `_num_matches` over the pooled values and is untouched, so nothing about
+#     "is the prose backed" has a second opinion. What changed is a strictly NARROWER question with a
+#     strictly one-sided failure mode -- a missed extra row (today's behaviour) rather than an invented one.
+_MAX_EXTRA_ROWS = 6
+_EXTRA_SUFFIXES = "bcdefghijklmnopqrstuvwxyz"
+_EXTRA_DP = 2
+
+
+def _stated_magnitudes(stated) -> list[float]:
+    """The stated magnitudes an EXTRA row may be minted against: `stated`, less any numeral the prose wore
+    a percent sign on. `orchestrator._stated_values` returns a list SUBCLASS carrying that subset on
+    `.percent`; a plain list (every direct/legacy caller, every fixture) carries none and is used whole."""
+    pct = set()
+    for p in (getattr(stated, "percent", ()) or ()):
+        try:
+            pct.add(round(abs(float(p)), _EXTRA_DP))
+        except (TypeError, ValueError):
+            continue
+    out = []
+    for s in (stated or []):
+        try:
+            v = abs(float(s))
+        except (TypeError, ValueError):
+            continue
+        if round(v, _EXTRA_DP) in pct:
+            continue
+        out.append(v)
+    return out
+
+
+def _row_matches_value(rv, stated) -> bool:
+    """True when the prose states THIS row's value at scale 1.0, to 2 decimal places. See correction (B):
+    an extra footer row is a claim of identity, so no rescale arm and no unit bridge. MAGNITUDE-insensitive
+    to sign only, the one concession the estate's numerals demand (`_num_matches`' own rationale: a prose
+    verb carries the direction, an injected delta row carries the minus). Any failure reads as NO match --
+    an omitted extra row, never an invented one."""
+    try:
+        v = abs(float(str(rv).replace(",", "")))
+    except (TypeError, ValueError):
+        return False
+    tv = round(v, _EXTRA_DP)
+    return any(round(s, _EXTRA_DP) == tv for s in _stated_magnitudes(stated))
+
+
+def extra_number_citations(call: dict, i: int, stated: Optional[list[float]]) -> list[Citation]:
+    """The additional [N{i}b..] rows a call owes the reader: every SERVED row, other than the headline,
+    whose value the prose states. Empty (the common case) -> the footer is byte-identical.
+
+    The label is the headline's shape with the ROW's own period substituted and the row's estimate role
+    appended, so the two lines read as siblings of one lookup rather than as two lookups. `estimate_role`
+    is rendered ONLY here: putting it on the headline would rewrite every existing footer in the estate,
+    and the polarity pin (prose states the headline only -> byte-identical output) is the thing that keeps
+    this whole pass auditable."""
+    out: list[Citation] = []
+    rows = call.get("rows") or []
+    # `len(rows) < 2` is the whole entry fence and it subsumes more than it looks: a zero-row read has no
+    # value to cite, a single-row read IS its headline, and the EMPTY-2 collapsed-zero ESR aggregate is
+    # single-row BY DEFINITION (`agent._is_zero_esr_aggregate` requires exactly one row), so the class that
+    # must assert no value can never reach this pass.
+    if not stated or len(rows) < 2 or call.get("status") not in (None, "ok"):
+        return out
+    q = call.get("query", {}) or {}
+    table, metric = q.get("table", ""), q.get("metric", "")
+    src = _source_label(table)
+    rH = max(rows, key=_row_order_key)
+    mags = _stated_magnitudes(stated)             # percent-numerals dropped once, not once per row
+    if not mags:
+        return out
+
+    def _row_period(r: dict):
+        # the ROW's own period identity, then the query's as the fallback: a tall vintage table surfaces
+        # `period` per row (silver_wasde -> marketing_year), a wide one may only carry the query scope.
+        return r.get("period") if (r or {}).get("period") not in (None, "") else q.get("period")
+    # SEEDED WITH THE HEADLINE'S OWN (value, period): a vintage table legitimately serves the same MY on two
+    # releases, and the headline is already on the page -- re-rendering it as an extra is a duplicate footer
+    # line, not a second fact.
+    seen: set[tuple] = {(str(rH.get("value")), str(_period_label(_row_period(rH))))}
+    # CORRECTION (A): rank NEWEST-first, cap that ranking, render the survivors ascending.
+    cands: list[dict] = []
+    for r in sorted(rows, key=_row_order_key, reverse=True):
+        if len(cands) >= _MAX_EXTRA_ROWS:
+            break
+        if r is rH:
+            continue
+        val = (r or {}).get("value")
+        if val in (None, "") or not _row_matches_value(val, mags):
+            continue
+        key = (str(val), str(_period_label(_row_period(r))))
+        if key in seen:
+            continue                              # one MY on two vintages is ONE fact to a reader
+        seen.add(key)
+        cands.append(r)
+    for r in sorted(cands, key=_row_order_key):
+        val = (r or {}).get("value")
+        per = _period_label(_row_period(r))
+        unit = r.get("unit") or _metric_unit(table, metric, q.get("commodity"))
+        geo = q.get("country") or (str(r.get("country")).strip() if r.get("country") else None)
+        scope = " ".join(x for x in (q.get("commodity"), geo, per) if x)
+        label = f"{src} {metric} {scope} = {_fmt(val)} {unit}".strip()
+        tags = [t for t in (str(r.get("revision_stamp") or "").strip(), _print_kind(r)) if t]
+        if tags:
+            label += " (" + ", ".join(tags) + ")"
+        loc = {"kind": "number",
+               **{k: q.get(k) for k in ("table", "metric", "commodity", "country", "asof")},
+               "period": (r.get("period") if r.get("period") not in (None, "") else q.get("period"))}
+        out.append(Citation(id=f"N{i}{_EXTRA_SUFFIXES[len(out)]}", kind="number", label=label, source=src,
+                            date=_row_known_date(r), value=str(val), unit=(unit or None),
+                            locator=loc, payload={"query": {**q, "period": loc["period"]}, "rows": [r]}))
+    return out
+
+
 def from_evidence(row: dict, i: int) -> Citation:
     """Build a Citation from a retrieve() evidence row. page/char/snippet are forward-compatible slots (null until
     the page-citation recovery populates them) so document citations become click-to-page with no schema change."""
@@ -350,10 +564,20 @@ def from_evidence(row: dict, i: int) -> Citation:
                     locator=locator, payload={"source_key": sk, "text": text})
 
 
-def unify(evidence_rows: Optional[list[dict]] = None, number_calls: Optional[list[dict]] = None) -> list[Citation]:
-    """One numbered citation list spanning document evidence (E1..) and numbers (N1..) for a hybrid answer."""
+def unify(evidence_rows: Optional[list[dict]] = None, number_calls: Optional[list[dict]] = None,
+          stated: Optional[list[float]] = None) -> list[Citation]:
+    """One numbered citation list spanning document evidence (E1..) and numbers (N1..) for a hybrid answer.
+
+    CYCLE-5 FOOTER-1: `stated` = the magnitudes the ANSWER states (orchestrator._stated_values). When it is
+    passed, each call's headline citation is followed by the extra rows that back the prose's other stated
+    figures, BEFORE the next call's citation -- so [N] indexing stays ascending and every existing index
+    keeps its meaning. Omitted (every other caller, and every turn whose prose states only headlines) ->
+    the list is byte-identical to the pre-CYCLE-5 one."""
     cits = [from_evidence(r, i) for i, r in enumerate(evidence_rows or [], 1)]
-    cits += [from_number(c, i) for i, c in enumerate(number_calls or [], 1)]
+    for i, c in enumerate(number_calls or [], 1):
+        cits.append(from_number(c, i))
+        if stated:
+            cits += extra_number_citations(c, i, stated)
     return cits
 
 

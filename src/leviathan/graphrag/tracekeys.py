@@ -33,6 +33,7 @@ TRACE_RECORD_KEYS: tuple[str, ...] = (
     "composition_census",        # D-CC-1: {entities,n_entities,n_episode_windows,n_evidence}; absent when dark
     "number_handles",            # D-PQ HANDLE-1: {substituted,handles_dropped,sentences_dropped,unresolvable}
     "prose_debris_tidied",       # D-PQ HANDLE-3: True when a strip left a bracket/dash frame to close up
+    "prose_orphans_tidied",      # CYCLE-5 TIDY-2: True when a strip left a headless paragraph to repair
 )
 
 # out["intent_decision"][decision_key] -> record[record_column].

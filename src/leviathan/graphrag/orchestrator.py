@@ -89,8 +89,15 @@ def run_numbers_only(query: str, asof: str, *, client=None, model: str = na.HAIK
     out = na.answer_numbers(query, asof, client=client, model=model, query_fn=query_fn, families=families,
                             **_fnf)
     _ms_numbers = int((_time.perf_counter() - _tn) * 1000)
-    cits = cit.unify(None, out.get("calls"))
     _raw = out.get("answer", "")                                    # DP-6: raw pre-sanitize agent text
+    # CYCLE-5 FOOTER-1: the footer is built against WHAT THE PROSE STATES, not against the call list alone.
+    # A multi-row serve renders ONE line (the headline row), so correctly-stated sibling-period values were
+    # unverifiable from the reader's own `## Sources` block -- and gate-2 scored one such answer as
+    # fabrication when Athena proved every figure grounded. `_stated_values` is the verifier's own claim
+    # extractor (shared, never copied); an answer stating only headlines yields no extras and the footer is
+    # byte-identical. Computed BEFORE the footer, off the RAW agent text -- the same text the verifier
+    # reads two lines down, so the caution banner and the footer can never disagree about the prose.
+    cits = cit.unify(None, out.get("calls"), stated=_stated_values(_raw))
     _banned_val = reg.count_valuation_words(_raw)                   # the price-serving lane -- counts must ride trace
     _banned_flow = reg.count_flow_words(_raw)
     # A4, third site: this lane computes the same raw counters on `_raw` and then DISCARDS the text one line
@@ -160,6 +167,73 @@ def run_numbers_only(query: str, asof: str, *, client=None, model: str = na.HAIK
             "trace": _trace}
 
 
+class _StatedValues(list):
+    """A plain list of stated magnitudes, plus ONE non-serialized annotation: `.percent`, the subset the
+    prose wrote with a PERCENT sign on it.
+
+    FIX-CYCLE-2 (2026-08-07), review blocker 2. The caution banner and the footer ask two DIFFERENT
+    questions of the same extraction. The banner asks "is this figure backed by some row", and there a
+    percentage is a first-class claim -- the citv2b 0.107-vs-0.3636 fabrication class is literally a
+    percentage, and `_num_matches`' rescale arms exist to check it. The FOOTER asks "which SERVED ROW is
+    the one the prose named", and there a percentage is poison: prose "down 2.1% year on year" against a
+    35-row WASDE serve minted `MY1994/95 = 2.1 $/bu (actual)` -- a percentage manufacturing a price
+    citation for a marketing year the answer never mentioned. The annotation rides the SAME extraction
+    (one producer, still) and only the narrower consumer reads it; `list` semantics are untouched, so
+    `_verify_numbers_answer` and every existing caller see exactly the list they saw before."""
+
+    __slots__ = ("percent",)
+
+    def __init__(self, values=(), percent=()):
+        super().__init__(values)
+        self.percent = tuple(percent)
+
+
+# Numerals the prose denominates as a RATE rather than a level. Matched on the SCRUBBED text (so a date or
+# an MY label has already shed its fragments) and only where the marker directly follows the numeral.
+_PCT_NUMERAL_RX = re.compile(r"(\d+(?:\.\d+)?)\s*(?:%|percent(?:age)?\b|pct\b|basis points?\b|bps\b)",
+                             re.IGNORECASE)
+
+
+def _stated_values(answer: str) -> _StatedValues:
+    """The magnitudes an answer STATES -- the claim extractor `_verify_numbers_answer` has always used,
+    lifted verbatim so a SECOND reader of "what did the prose assert" cannot disagree with the verifier.
+
+    CYCLE-5 (2026-08-07) FOOTER-1 is that second reader: `citations.unify` needs the same list to decide
+    which SERVED rows the prose actually stated, and a private copy of these scrubs is precisely how the
+    false-caution classes below got fixed twice in two places. One producer, two consumers.
+
+    Non-VALUE tokens are scrubbed before extraction: ISO dates (2026-06-01), WB release stamps (2026M07),
+    marketing years (2024/25) and [N#] handles all shed numeric fragments (06, 07, 25, 1) that read as
+    "stated figures" -- the pink_sheet provenance stamp made this fire for the first time (W3.7: both
+    CORRECT price answers wore a false caution banner and failed their mismatch pins).
+
+    NEWCAP TRIAGE (2026-07-24, false-caution classes; two rounds, both live-serving bugs): non-VALUE
+    numeral shapes fired the banner on CORRECT answers -- (a) prose dates with OR without a year
+    ('published June 1, 2025', 'the June 5 trading session', '2 February 2026') shed a day-of-month;
+    (b) hyphen-glued unit descriptors ('60-kg bags') read as a stated 60; (c) duration arithmetic
+    ('more than 14 months old') is derived, not looked-up; (d) markdown ordered-list markers ('1. ')
+    read as stated 1.0/2.0/3.0. All are labels/derivations, never data figures. The no-year date form
+    subsumes the with-year one (the residual year token is already skipped by the year filter below)."""
+    from leviathan.graphrag import verify as vf
+    scrub = re.sub(r"\d{4}-M\d{2}|\d{4}-\d{2}(?:-\d{2})?|\d{4}M\d{2}|\d{4}/\d{2,4}|\[N\d+\]", " ", answer)
+    _MONTHS = (r"(?:January|February|March|April|May|June|July|August|September|October|November|"
+               r"December)")
+    scrub = re.sub(rf"{_MONTHS}\s+\d{{1,2}}(?:st|nd|rd|th)?\b"
+                   rf"|\b\d{{1,2}}(?:st|nd|rd|th)?\s+{_MONTHS}", " ", scrub)
+    scrub = re.sub(r"\b\d+(?:\.\d+)?-(?=[A-Za-z])", " ", scrub)
+    scrub = re.sub(r"\b\d+(?:\.\d+)?\s+(?:month|week|day|year|hour)s?\b", " ", scrub)
+    scrub = re.sub(r"(?m)^\s*\d{1,2}\.\s+", " ", scrub)
+    vals = [v for v in vf._numbers_in(scrub)
+            if abs(v) >= 0.001 and not (1900 <= v <= 2100 and float(v).is_integer())]   # skip years
+    pct = []
+    for m in _PCT_NUMERAL_RX.finditer(scrub):
+        try:
+            pct.append(float(m.group(1)))
+        except (TypeError, ValueError):
+            continue
+    return _StatedValues(vals, pct)
+
+
 def _verify_numbers_answer(answer: str, calls: list) -> dict:
     """Deterministic check: every number the answer STATES must match some looked-up row value
     (scale-aware — '31.4 million' == 31400000). Numbers agents have no citation ledger, so they
@@ -190,27 +264,9 @@ def _verify_numbers_answer(answer: str, calls: list) -> dict:
                 row_vals.append(float(str(r.get("sweeps_total")).replace(",", "")))
             except (TypeError, ValueError):
                 pass
-    # Non-VALUE tokens are scrubbed before extraction: ISO dates (2026-06-01), WB release stamps
-    # (2026M07), marketing years (2024/25) and [N#] handles all shed numeric fragments (06, 07, 25, 1)
-    # that read as "stated figures" -- the pink_sheet provenance stamp made this fire for the first time
-    # (W3.7: both CORRECT price answers wore a false caution banner and failed their mismatch pins).
-    scrub = re.sub(r"\d{4}-M\d{2}|\d{4}-\d{2}(?:-\d{2})?|\d{4}M\d{2}|\d{4}/\d{2,4}|\[N\d+\]", " ", answer)
-    # NEWCAP TRIAGE (2026-07-24, false-caution classes; two rounds, both live-serving bugs): non-VALUE
-    # numeral shapes fired the banner on CORRECT answers -- (a) prose dates with OR without a year
-    # ('published June 1, 2025', 'the June 5 trading session', '2 February 2026') shed a day-of-month;
-    # (b) hyphen-glued unit descriptors ('60-kg bags') read as a stated 60; (c) duration arithmetic
-    # ('more than 14 months old') is derived, not looked-up; (d) markdown ordered-list markers ('1. ')
-    # read as stated 1.0/2.0/3.0. All are labels/derivations, never data figures. The no-year date form
-    # subsumes the with-year one (the residual year token is already skipped by the year filter below).
-    _MONTHS = (r"(?:January|February|March|April|May|June|July|August|September|October|November|"
-               r"December)")
-    scrub = re.sub(rf"{_MONTHS}\s+\d{{1,2}}(?:st|nd|rd|th)?\b"
-                   rf"|\b\d{{1,2}}(?:st|nd|rd|th)?\s+{_MONTHS}", " ", scrub)
-    scrub = re.sub(r"\b\d+(?:\.\d+)?-(?=[A-Za-z])", " ", scrub)
-    scrub = re.sub(r"\b\d+(?:\.\d+)?\s+(?:month|week|day|year|hour)s?\b", " ", scrub)
-    scrub = re.sub(r"(?m)^\s*\d{1,2}\.\s+", " ", scrub)
-    stated = [v for v in vf._numbers_in(scrub)
-              if abs(v) >= 0.001 and not (1900 <= v <= 2100 and float(v).is_integer())]   # skip years
+    # CYCLE-5: the scrub+extract half now lives in `_stated_values` (its WHY-comments went with it),
+    # because `citations.unify` needs the IDENTICAL list to decide which served rows the prose stated.
+    stated = _stated_values(answer)
     mismatched = [v for v in stated if row_vals and not vf._num_matches([v], row_vals)]
     return {"stated": len(stated), "rows": len(row_vals), "mismatched": len(mismatched),
             "mismatch_values": mismatched[:5]}

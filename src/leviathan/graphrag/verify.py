@@ -26,6 +26,45 @@ import re
 # The optional trailing letter consumes model-minted variants like [E1b]: unmatched they LEAK to the
 # reader as literal text (Stage-1 RCA q7); matched they resolve by idx and strip like any other handle.
 _HANDLE = re.compile(r"\[(?P<kind>[NE]?)(?P<idx>\d+)(?:[a-z])?\]")
+# CYCLE-5 TIDY-1: how much of the text FOLLOWING a strip is read to build the seam key. Long enough that a
+# renderer-side prefix match is unambiguous against ordinary prose, short enough that nothing grows a
+# second copy of the answer.
+_SEAM_LOOKAHEAD = 120
+# FIX-CYCLE-2 (2026-08-07), review major 7. TIDY-1 originally put `{"field", "after"}` -- up to 120 chars of
+# RAW, PRE-SANITIZE prose per strip -- on the returned report, UNCONDITIONALLY. That report is stamped onto
+# `trace["citation_verifier"]` and `/v1/respond` returns `result` whole, so the register-leak / valuation
+# text `reg.sanitize` exists to remove reached the browser through the verifier's own audit key. The file's
+# established precedent for a raw-text carrier is an ENV GATE (`strip_audit` above, `raw_draft` likewise).
+# TWO CHANGES, and both are needed:
+#   * the SERIALIZED form is gated on GRAPHRAG_STRIP_AUDIT, exactly like `strip_audit`; and
+#   * what it carries is a NORMALIZED 40-char KEY (whitespace-collapsed, case-folded), not the prose. The
+#     renderer join was always a normalized-prefix compare capped at 32 chars, so the key is everything the
+#     join can use and nothing it cannot.
+# The tidy pass must still work in PRODUCTION with the gate off, so the seams also ride an INTERNAL,
+# NON-SERIALIZED carrier: `_VerifyReport.strip_seams`, an attribute on the returned dict subclass. It is
+# invisible to json.dumps, to `dict(...)`, to every projection and whitelist -- so no client, artifact or
+# durable record can ever see it -- while `answer._tidy_strip_orphans`, which is handed the report OBJECT
+# two lines after `verify_citations` returns, reads it directly.
+_SEAM_KEY_CHARS = 40
+
+
+def _seam_key(s: str) -> str:
+    """The normalized, bounded comparison form of a seam's successor text. `answer._seam_key` is the same
+    normalization on the renderer side (whitespace-collapsed, case-folded) -- applying it here is what makes
+    the join possible without shipping prose, and re-applying it there is idempotent."""
+    return re.sub(r"\s+", " ", str(s or "")).strip().lower()[:_SEAM_KEY_CHARS]
+
+
+class _VerifyReport(dict):
+    """The verifier report: a plain dict to every consumer, plus ONE attribute (`strip_seams`) that no
+    serializer, projection or whitelist can see. See the seam note above for why the carrier must be
+    off-dict rather than a gated key."""
+
+    __slots__ = ("strip_seams",)
+
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        self.strip_seams: list[dict] = []
 # Denomination words that make a prose numeral scale-relative ('31.4 million MT'): a repair may not splice
 # a row value next to one -- the row may be raw while the numeral is denominated (see _num_repair).
 _SCALE_WORD = re.compile(r"\b(?:thousand|million|billion|trillion)\b", re.IGNORECASE)
@@ -510,8 +549,8 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
     ONE validated source list numbered by the model's own handles (the dual-list mismatch inflated the
     judge's hallucination tally 37->151 while grounding/PIT rose).
     GRAPHRAG_VERIFY=off -> no-op. Never raises: verification must never break an answer."""
-    report = {"enabled": True, "checked": 0, "stripped": 0, "corrected": 0, "claim_count": 0,
-              "by_rule": {}, "resolved": {}}
+    report = _VerifyReport({"enabled": True, "checked": 0, "stripped": 0, "corrected": 0, "claim_count": 0,
+                            "by_rule": {}, "resolved": {}})
     if os.environ.get("GRAPHRAG_VERIFY", "on") == "off" or not structured:
         report["enabled"] = False
         return report
@@ -760,6 +799,34 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
                     if not any(x < b and a < y for x, y in spans)]
             for a, b, v in sorted(ops, reverse=True):
                 text = text[:a] + v + text[b:]
+            # CYCLE-5 (2026-08-07) TIDY-1 -- THE STRIP SEAMS, REPORTED. Purely ADDITIVE: this loop reads
+            # the ops that were just applied and writes ONE new report key. It takes no decision, changes
+            # no span, moves no counter -- the rule semantics above are frozen, and a reader of `stripped`
+            # / `by_rule` / `strip_audit` sees byte-identical values with and without these three lines.
+            #
+            # WHAT IT IS FOR. A whole-sentence drop that removes the FIRST sentence of a non-first
+            # paragraph leaves the rest of that paragraph opening on the space that used to separate the
+            # two (`_drop_span` eats the trailing space only when the sentence started the FIELD). Gate-2
+            # shipped four of these in two passes -- " That sits in El Nino territory, not La Nina.",
+            # " if the ONI crosses into strong El Nino territory ...", " within recent range (...)" -- each
+            # a headless continuation whose antecedent the verifier had correctly removed. The renderer can
+            # only repair that safely if it knows WHERE a strip happened, and the honest carrier is the
+            # text that now FOLLOWS the cut: a position would not survive humanize/scaffold/sanitize, but a
+            # normalized prefix of the successor text does. Absent when nothing was deleted (OFF-arm-clean).
+            #
+            # FIX-CYCLE-2 (major 7): the seam is recorded as a NORMALIZED 40-char KEY and the SERIALIZED
+            # copy is gated on GRAPHRAG_STRIP_AUDIT, the same gate `strip_audit` uses for the same reason.
+            # The tidy pass reads the internal `report.strip_seams` carrier, which is always populated and
+            # which nothing downstream can serialize. See `_VerifyReport` / `_seam_key` above.
+            _shift = 0
+            for a, b, v in sorted(ops):
+                _pos = a + _shift
+                _shift += len(v) - (b - a)
+                if v == "":
+                    _seam = {"field": field, "key": _seam_key(text[_pos:_pos + _SEAM_LOOKAHEAD])}
+                    report.strip_seams.append(_seam)
+                    if _audit_on:
+                        report.setdefault("strip_seams", []).append(_seam)
             return re.sub(r" +([.,;])", r"\1", re.sub(r"  +", " ", text))
 
         for fld in ("tldr", "mechanism"):
