@@ -1,0 +1,606 @@
+# Driver-keyed evidence slices (GraphRAG v2 WS-MS6). PRIVATE IP (gitignored).
+# The commodity-keyed sampler drops props that describe a DRIVER without naming one of our 24 commodities
+# ("Indonesia raised the blend to B40", "Pacific freight doubled", "La Nina intensified"). Those are exactly
+# the cascade/convergence TRIGGERS this project exists to ground. This map routes such props — captured FREE
+# from the same Haiku chunking pass — into driver slices evidence/drivers/<driver>.jsonl, retrieved when a
+# query's subgraph touches that driver. The driver NODES already exist in the causal DAGs (each driver's
+# silver_ref ties the text trigger to its silver number); this gives them their dated text evidence.
+#
+# `terms` feed harvest.build_matcher (word-boundary, case-insensitive). Kept SPECIFIC to avoid over-firing
+# (e.g. "brazilian real"/"brl" not bare "real"; "natural gas" not "gas"; "heat wave" not "heat").
+# category groups slices; priority: context marks the low-value macro_context tail (metals/macro) we capture
+# anyway — the barley/sunflower precedent (cascade endpoints worth seeing, not first-class drivers).
+#
+# `max_props` (OPTIONAL, G5c / D-EI-3) — the per-slice prop cap. Absent means "inherit the pass default"
+# (write_driver_slices' max_per=4000); `null` means UNCAPPED. It is declared explicitly on exactly the four
+# slices that are actually AT the cap, because an undeclared cap is how 5,809 of the 16,000 rows in those
+# four slices (36%) were swapped for a different 5,809 at the 2026-07-20 promote with all four counts frozen
+# at exactly 4000 and nothing printed. Raising the cap was priced and rejected: at 20,000 those four go to
+# ~465 MB each and roughly double the 1.361 GB driver layer. Keep 4,000; the truncation is now recorded in
+# the run manifest, and the survivors are chosen deterministically (evidence._truncation_order: most recent
+# by date, ties by source_key/id) instead of by a PYTHONHASHSEED-randomized set iteration.
+#
+# EVERY EDIT TO THIS FILE MUST BE MIRRORED: `python -m leviathan.graphrag.driver_slices_manifest --write`,
+# then `git add -f configs/graphrag/driver_slices_manifest.yaml`. This file is gitignored whole-directory
+# (.gitignore:49) and has an EMPTY git log, so the tracked manifest is the ONLY reviewable record that a term
+# set changed. config_check and every maintenance Batch job fail on drift.
+drivers:
+  # --- climate (the weather triggers; tie to ONI / soil-moisture / heat silver) ---
+  el_nino:       {category: climate, terms: ["el nino", "el niño", "enso warm phase"]}
+  la_nina:       {category: climate, terms: ["la nina", "la niña", "enso cool phase"]}
+  drought:       {category: climate, terms: ["drought", "dryness", "dry weather", "rainfall deficit", "water stress", "below-normal rainfall"]}
+  frost:         {category: climate, terms: ["frost", "frosts", "freeze", "cold snap", "black frost", "frio"]}
+  flood:         {category: climate, terms: ["flood", "flooding", "excess rain", "waterlogging", "torrential rain"]}
+  heat:          {category: climate, terms: ["heat wave", "heatwave", "heat stress", "excessive heat", "record temperatures"]}
+  monsoon:       {category: climate, terms: ["monsoon"]}
+  harmattan:     {category: climate, terms: ["harmattan"]}
+
+  # --- policy (the announcement triggers; tie to tariff / export-restriction silver) ---
+  export_ban:        {category: policy, terms: ["export ban", "export restriction", "export tax", "export duty", "export quota", "export licen", "embargo"]}
+  biodiesel_mandate: {category: policy, terms: ["biodiesel", "renewable diesel", "blending mandate", "blend mandate", "b20", "b30", "b35", "b40", "rfs", "rin "]}
+  tariff:            {category: policy, max_props: 4000, terms: ["tariff", "import duty", "import tax", "antidumping", "anti-dumping", "wto", "world trade organization", "uruguay round", "tariff-rate quota", "trq", "nafta", "usmca", "mercosur", "eu-mercosur", "canola dispute", "export licence", "export license"]}   # G5c: AT the cap (4,000 props / ~93 MB). Declared, not inherited -- see the max_props note above.
+  msp:               {category: policy, terms: ["minimum support price", "msp"]}
+  subsidy:           {category: policy, terms: ["subsidy", "subsidies", "subsidized"]}
+
+  # --- macro: FX + freight (the cost-of-trade triggers; tie to FRED FX / freight silver) ---
+  brl_fx:        {category: macro, terms: ["brazilian real", "brl", "real depreciat", "real weaken", "real strengthen"]}
+  idr_fx:        {category: macro, terms: ["rupiah", "idr"]}
+  inr_fx:        {category: macro, terms: ["indian rupee", "rupee", "inr"]}
+  myr_fx:        {category: macro, terms: ["ringgit", "myr"]}
+  freight:       {category: macro, terms: ["freight", "ocean freight", "shipping cost", "baltic dry", "vessel availab", "logistics cost", "container rate", "panama canal", "suez"]}
+
+  # --- energy (often the START of a cascade: crude -> biodiesel economics / fertilizer / freight) ---
+  crude:         {category: energy, terms: ["crude oil", "brent", "wti", "petroleum", "oil prices"]}
+  diesel:        {category: energy, terms: ["diesel", "gasoil"]}
+  natural_gas:   {category: energy, terms: ["natural gas", "gas prices"]}
+
+  # --- fertilizer (cost-push; already quantified in your Pink Sheet silver) ---
+  urea:          {category: fertilizer, terms: ["urea"]}
+  dap:           {category: fertilizer, terms: ["dap", "diammonium phosphate"]}
+  potash:        {category: fertilizer, terms: ["potash", "potassium chloride", "muriate of potash"]}
+  fertilizer:    {category: fertilizer, terms: ["fertilizer", "fertiliser", "nutrient cost", "input cost"]}
+
+  # --- macro_context (low-priority cascade endpoints; the barley/sunflower precedent) ---
+  metals:        {category: macro_context, priority: context, terms: ["copper", "aluminium", "aluminum", "iron ore", "steel prices", "zinc", "nickel"]}
+  macro:         {category: macro_context, priority: context, terms: ["interest rate", "inflation", "recession", "gdp growth", "dollar index", "global demand", "covid", "covid-19", "coronavirus", "pandemic", "super cycle", "commodity boom", "financial crisis", "deleveraging"]}
+
+  # ===== WS-MS6+ : Opus-proposed (curated) + added desk drivers =====
+  african_swine_fever: {category: livestock_disease_demand, terms: [african swine fever, asf, asf outbreak,
+    pig cull, hog herd liquidation]}   # Hog herd culls (esp. China) collapse soymeal/corn feed demand then later trigger restocking rebound.  [moves: soybean_meal, soybeans, corn, yellow_maize, rapeseed_meal]
+  avian_influenza: {category: livestock_disease_demand, terms: [avian influenza, bird flu, hpai, h5n1,
+    poultry cull, layer flock]}   # Poultry culls cut broiler/layer feed offtake and shift protein/egg demand, hitting corn and soymeal grind.  [moves: corn, soybean_meal, yellow_maize, soybeans]
+  cattle_on_feed: {category: livestock_feed_demand, terms: [cattle on feed, cattle-on-feed, placements,
+    feedlot placements, marketings, cof report]}   # USDA placements/marketings set forward feedlot feed-grain and protein consumption.  [moves: corn, yellow_maize, soybean_meal, hrw_wheat]
+  cattle_cycle_herd_size: {category: livestock_feed_demand, terms: [herd liquidation, herd rebuilding, cattle
+      inventory, beef cow herd, heifer retention]}   # Liquidation vs rebuild phases swing multi-year feeder/feedlot feed demand for corn and DDGs.  [moves: corn, yellow_maize, soybean_meal]
+  hog_margins_crush: {category: livestock_feed_demand, terms: [hog crush, farrow-to-finish margin, hog
+      margin, pork cutout, sow herd]}   # Negative hog margins force herd contraction, cutting feed demand; positive margins expand it.  [moves: soybean_meal, corn, yellow_maize]
+  broiler_economics: {category: livestock_feed_demand, terms: [broiler, poultry margin, chicken placements,
+    feed conversion ratio, egg sets, chick placements]}   # Poultry expansion is the marginal swing buyer of corn/soymeal given fastest feed-conversion ramp.  [moves: corn, soybean_meal, yellow_maize]
+  managed_money_positioning: {category: speculative_positioning, terms: [managed money, commitments of traders,
+    cot report, net spec length, spec short, funds long]}   # Crowded fund positioning sets squeeze/liquidation risk PMs trade around weekly CFTC prints.  [moves: corn, soybeans, srw_wheat, hrw_wheat, soybean_oil, soybean_meal, raw_sugar, cotton, arabica_coffee, cocoa]
+    # CONTENT DEBT -- D-CW-3d note (2026-08-07 capability-wiring wave, comment-only, no routing change).
+    # This slice is REACHABLE FROM 11 CONTRACTS AND HOLDS ZERO PROPS: it is one of the eight names in
+    # evidence.NEVER_WRITTEN_SLICES_PIN, i.e. it has no object under drivers/ in S3 at all. Its sibling
+    # `cftc_positioning` below is the same class with ONE prop against 20 contracts. So the harm is not
+    # darkness, it is the opposite -- a walk reaches an empty text leg and a positioning question gets a
+    # narrative shrug, while silver_cot (8 metrics, 2006+) sits fully loaded in the numbers registry.
+    # DELIBERATELY NOT FIXED HERE. Populating either slice means a chunking pass over the corpus, which is a
+    # CORPUS wave with its own budget and its own asserted_uncited discipline -- the D-CW plan puts it out of
+    # scope by name. The wiring-side answer ships in D-CW-1a/1b instead (Builder A): the router purpose
+    # string and the suggester route positioning asks to the silver_cot NUMBERS leg rather than to this text
+    # slice. Do not "fix" this by widening terms: more terms over an unwritten slice is still zero props.
+  index_roll_flows: {category: speculative_positioning, terms: [goldman roll, gsci roll, index roll, bcom
+      rebalance, roll period], priority: context}   # Scheduled passive index roll/rebalance flows distort calendar spreads and front-month pressure.  [moves: corn, soybeans, srw_wheat, raw_sugar, cotton]
+  china_reserve_auctions: {category: demand_center, terms: [sinograin, state reserves, reserve auction, cofco,
+    china auction, temporary reserve sales, stockpile release]}   # China state buying/releasing from reserves is a step-change demand/supply shock for grains and oilseeds.  [moves: corn, soybeans, white_maize, yellow_maize, cotton, raw_sugar]
+  china_buying_pace: {category: demand_center, terms: [china soybean imports, daily sales, flash sales,
+    cargo cancellation, china crush margin, customs clearance]}   # Chinese purchase tempo and cancellations are the dominant marginal demand signal for soy complex.  [moves: soybeans, soybean_meal, soybean_oil, corn]
+  india_import_duty: {category: demand_center, terms: [india edible oil duty, import duty cut, india sugar
+      export quota, india tariff, india stock limits, crude palm oil duty, refined oil duty]}   # India veg-oil duty changes and sugar quotas reroute global oilseed and sugar trade flows.  [moves: palm_oil, palm_olein, soybean_oil, rapeseed_oil, raw_sugar, white_sugar]
+  mississippi_river_levels: {category: logistics_chokepoint, terms: [mississippi river, low water, barge freight,
+    draft restrictions, gulf basis, new orleans export]}   # Low river levels spike barge rates and Gulf basis, choking US export competitiveness at harvest.  [moves: corn, soybeans, srw_wheat, yellow_maize]
+  parana_river_levels: {category: logistics_chokepoint, terms: [parana river, rosario, up-river ports, argentina
+      low water, draft limits]}   # Parana lows force lighter cargoes from Rosario, raising Argentine FOB costs for soy products.  [moves: soybean_meal, soybean_oil, soybeans, corn]
+  black_sea_corridor: {category: logistics_chokepoint, terms: [black sea grain initiative, grain corridor,
+    odesa, ukraine ports, danube exports, safe passage]}   # Corridor status gates Ukrainian wheat/corn/sunoil exports, a swing supply for global balances.  [moves: srw_wheat, hrw_wheat, french_wheat, corn, yellow_maize, soybean_oil]
+  panama_canal_constraints: {category: logistics_chokepoint, terms: [panama canal, draft restrictions, transit
+      slots, neopanamax, canal congestion], priority: context}   # Canal draft/slot limits raise PNW-to-Asia and Gulf-to-Asia voyage costs and timing.  [moves: soybeans, corn, soybean_meal]
+  suez_redsea_disruption: {category: logistics_chokepoint, terms: [red sea, houthi, bab el-mandeb, suez canal,
+    cape of good hope reroute], priority: context}   # Red Sea reroutes lengthen voyages for Black Sea/Black Sea-to-Asia ag and lift freight.  [moves: srw_wheat, palm_oil, raw_sugar, robusta_coffee]
+  baltic_dry_freight: {category: freight_rates, terms: [baltic dry index, panamax rates, supramax, handysize,
+    dry bulk freight, time charter]}   # Dry-bulk rates determine landed import parity and origin competitiveness for bulk grains/oilseeds.  [moves: corn, soybeans, soybean_meal, srw_wheat, hrw_wheat]
+  rin_credits: {category: biofuel_policy, terms: [rin, d4 rin, d6 rin, rfs, renewable volume obligation,
+    rvo, blending economics]}   # RIN prices set US biofuel blending incentive, driving soyoil and corn-ethanol grind demand.  [moves: soybean_oil, corn, yellow_maize]
+  renewable_diesel_capacity: {category: biofuel_policy, terms: [renewable diesel, hvo, 45z, blenders tax credit,
+    ' btc', feedstock demand, crush expansion]}   # New RD/HVO capacity is structural new demand for soyoil, canola oil and UCO feedstocks.  [moves: soybean_oil, canola, rapeseed_oil, palm_oil]
+  sustainable_aviation_fuel: {category: biofuel_policy, terms: [sustainable aviation fuel, saf, jet biofuel, saf
+      mandate, refuel eu], priority: context}   # SAF mandates create incremental long-dated veg-oil/fat feedstock demand.  [moves: soybean_oil, rapeseed_oil, palm_oil, canola]
+  ethanol_margins: {category: biofuel_policy, terms: [ethanol margin, ethanol production, crush margin,
+    blend wall, e15, gasoline demand, ddgs]}   # Ethanol grind profitability sets ~40% of US corn demand and DDGS feed co-product supply.  [moves: corn, yellow_maize, soybean_meal]
+  indonesia_b40_palm: {category: biofuel_policy, terms: [b35, b40, indonesia biodiesel mandate, palm diesel
+      mandate, domestic market obligation, dmo, palm export levy]}   # Indonesian palm biodiesel mandate diverts palm oil from export, tightening global veg-oil supply.  [moves: palm_oil, palm_olein, soybean_oil, rapeseed_oil]
+  veg_oil_substitution_spreads: {category: substitution, terms: [palm-soyoil spread, bo-po spread, veg oil spread,
+    oilshare, palm discount, substitution buying]}   # Relative veg-oil pricing reroutes importer demand across palm/soy/rape/sun oils.  [moves: palm_oil, palm_olein, soybean_oil, rapeseed_oil, canola]
+  sunflower_oil_balance: {category: substitution, terms: [sunflower oil, sunoil, sunseed, black sea sunflower,
+    ukraine sunoil]}   # Sunoil availability (Black Sea) sets the marginal substitute in the global veg-oil stack.  [moves: soybean_oil, rapeseed_oil, palm_oil]
+  feed_grain_substitution: {category: substitution, max_props: 4000, terms: [feed wheat, feed barley, sorghum, milo, ddgs feeding,
+    least-cost ration, substitution into wheat]}   # Rationing shifts feeders between corn, feed wheat, barley and sorghum on relative value.  [moves: corn, yellow_maize, srw_wheat, hrw_wheat, soybean_meal]  # G5c: AT the cap; 2,127 of its 4,000 rows swapped at the 2026-07-20 promote behind a frozen count.
+  protein_meal_substitution: {category: substitution, terms: [rapeseed meal, sunflower meal, ddgs, meal substitution,
+    amino acid, feed protein swap], priority: context}   # Rape/sun meal and DDGs substitute for soymeal in rations on relative protein value.  [moves: soybean_meal, rapeseed_meal, corn]
+  natural_rubber: {category: non_contract_soft, terms: [natural rubber, tsr20, ribbed smoked sheet,
+    tire demand, sicom rubber, thailand rubber], priority: context}   # Rubber shares SE-Asia weather and tire-demand cycle, a cross-read for tropical soft sentiment.  [moves: palm_oil, raw_sugar]
+  south_american_safrinha: {category: weather_regime, terms: [safrinha, second crop corn, brazil corn, mato grosso,
+    winter corn, dry season]}   # Brazil's safrinha is the swing global corn export crop; late-season dryness shifts world balance.  [moves: corn, yellow_maize]
+  polar_vortex_winterkill: {category: weather_regime, terms: [winterkill, polar vortex, hard freeze, dormancy,
+    snow cover, wheat winterkill]}   # Winterkill risk to dormant winter wheat (no snow cover + arctic blast) drives wheat risk premium.  [moves: hrw_wheat, srw_wheat, french_wheat]
+  indian_ocean_dipole: {category: weather_regime, terms: [indian ocean dipole, iod, positive iod, negative
+      iod], priority: context}   # IOD phase modulates monsoon and SE-Asia/Australia rainfall beyond ENSO, affecting palm and wheat.  [moves: palm_oil, rice, raw_sugar, french_wheat]
+  madden_julian_oscillation: {category: weather_regime, terms: [madden-julian oscillation, mjo, convective phase,
+    tropical rainfall pulse], priority: context}   # MJO phase times rainfall pulses across SA/SE-Asia, swinging short-term weather risk premia.  [moves: soybeans, corn, palm_oil, raw_sugar]
+  us_drought_monitor: {category: weather_regime, terms: [drought monitor, soil moisture, crop progress,
+    good-to-excellent, crop conditions, topsoil moisture]}   # Weekly condition/soil-moisture ratings recalibrate US yield expectations through the season.  [moves: corn, soybeans, hrw_wheat, srw_wheat, cotton]
+  vessel_lineups_export_basis: {category: logistics_chokepoint, terms: [vessel lineup, export inspections, fob basis,
+    port lineup, loading delays, gulf premium]}   # Port lineups and FOB basis reveal real-time origin demand and shipping pace vs board.  [moves: soybeans, corn, srw_wheat, hrw_wheat, soybean_meal]
+  russia_export_tax_quota: {category: geopolitics_policy, terms: [russia wheat export tax, floating tax, export
+      quota, minimum export price, russia grain]}   # Russian export taxes/quotas/floor prices set the world wheat price floor as top exporter.  [moves: hrw_wheat, srw_wheat, french_wheat]
+  argentina_export_policy: {category: geopolitics_policy, terms: [retenciones, export tax, dolar soja, blue dollar,
+    argentina fx gap, grain dollar]}   # Argentine export taxes and FX schemes govern farmer selling pace of soy products and corn.  [moves: soybean_meal, soybean_oil, soybeans, corn]
+  sanctions_payment_rails: {category: geopolitics_policy, terms: [sanctions, insurance, p&i cover, swift, payment
+      rails, secondary sanctions, shadow fleet], priority: context}   # Sanctions/insurance frictions raise transaction cost and reroute Russian/Iranian ag flows.  [moves: hrw_wheat, srw_wheat, corn]
+  cocoa_grindings: {category: demand_center, terms: [cocoa grindings, grind data, europe grind, asia
+      grind, na grind, demand destruction]}   # Quarterly grind reports gauge chocolate demand destruction vs record cocoa prices.  [moves: cocoa]
+  cocoa_pod_disease: {category: crop_disease, terms: [black pod, swollen shoot, cssvd, west africa cocoa
+      disease, ivory coast harvest, witches broom, "witches' broom", vassoura de bruxa]}   # West African pod disease and swollen-shoot cut structural cocoa output.  [moves: cocoa]
+  coffee_rust_crop: {category: crop_disease, terms: [coffee leaf rust, coffee rust, hemileia, ferrugem
+      do cafeeiro, ferrugem do cafe, roya del cafe]}   # Rust sets arabica/robusta output and the price-defining off-year risk. Bare 'cerrado'/'flowering' removed (over-fire onto safrinha-corn props, cycle-1 flip).  [moves: arabica_coffee, robusta_coffee]
+    # Wave R R1 (2026-08-02, ratified as recommended). ADDED, measured over the 345,870-prop chunked store
+    # via harvest.build_matcher: 'coffee rust' 98 props (usda_gain_coffee 93, usda_fas_coffee_wmt 4,
+    # usda_gain_coffee_semiannual 1); 'hemileia' 2 props -- and NOT 'hemileia vastatrix', which returns the
+    # SAME 2 (the matcher is longest-first, harvest.py:131, so the longer form can never add a hit).
+    # The PT/ES handles 'ferrugem do cafeeiro' / 'ferrugem do cafe' / 'roya del cafe' measure 0 props in the
+    # chunked 39.9% TODAY; they are authored crop-QUALIFIED on purpose. Bare 'ferrugem' is REFUSED: it
+    # word-boundary-matches 'A ferrugem asiatica da soja...' (MEASURED True), i.e. asian_soybean_rust's
+    # concept, and its safety today rests only on which CONAB docs happen to be chunked -- the cerrado
+    # failure mode in miniature. Bare 'roya' is likewise refused (Spanish 'roya' appears as a bare
+    # incidence-table header). The qualified forms are the handle that survives the D-EI-6 re-chunk.
+    # DELETED as dead (0 props each): 'la roya', 'brazil coffee frost', 'robusta vietnam crop' -- 'la roya'
+    # was the wrong surface form for a live Spanish concept, which is why 'roya del cafe' replaces it in the
+    # same edit. MEASURED COST OF THE DELETES: the 2 CONAB props that only bare 'ferrugem' caught are LOST
+    # (neither matches any qualified form); the plan accepts this.
+    # Post-edit replay (gap_days=90): 20 -> 119 props, 11 -> 32 dates, 10 -> 22 episodes, top-4 n [2,1,1,1]
+    # -> [5,4,2,2]. COVERAGE IS "OF THE CHUNKED CORPUS" AND NEVER "COMPLETE": the 4,241 never-chunked
+    # documents hold 738 'coffee rust' occurrences across 137 docs (X2 / D-EI-6, own lane, own budget).
+  orange_greening_disease: {category: crop_disease, terms: [citrus greening, hlb, florida oranges, greening,
+    brazil orange crop]}   # Greening disease and Florida hurricane risk drive structural OJ supply contraction.  [moves: orange_juice]
+  sugar_ethanol_parity: {category: substitution, terms: [sugar-ethanol mix, hydrous ethanol parity, center-south
+      crush, atr, brazil ethanol parity, cana mix, cane to ethanol, cane diversion, hydrous ethanol,
+      cane molasses, molasses to ethanol]}   # Brazilian mills flex cane between sugar and ethanol on relative parity, swinging sugar supply.  [moves: raw_sugar, white_sugar]
+  white_premium_refining: {category: substitution, terms: [white premium, whites premium, refining margin, refined
+      sugar, raws-whites arb], priority: context}   # White-raw refining spread directs flows and refinery run rates across sugar grades.  [moves: white_sugar, raw_sugar]
+  cotton_polyester_competition: {category: substitution, terms: [polyester, staple fiber, cotton-poly spread, mill
+      use, textile demand, yarn margins], priority: context}   # Polyester pricing and mill margins govern cotton's share of fiber demand.  [moves: cotton]
+  us_dollar_index: {category: fx_macro, terms: [dxy, dollar index, broad dollar, greenback strength,
+    dollar weakness, strong dollar, stronger dollar, dollar strength, weak dollar]}   # Broad USD strength reduces foreign buying power, pressuring dollar-denominated ag exports.  [moves: corn, soybeans, srw_wheat, cotton, raw_sugar, arabica_coffee]
+  real_yields_rates: {category: fx_macro, terms: [real yields, fed funds, carry cost, cost of carry, financing
+      rate, front-end rates], priority: context}   # Higher financing raises carry costs, discouraging commercial storage and steepening curves.  [moves: corn, soybeans, srw_wheat, raw_sugar]
+  crop_insurance_planting_intentions: {category: acreage_policy, terms: [prospective plantings, acreage report, planting
+      intentions, prevent plant, spring price, new crop acres]}   # Acreage battle and prevent-plant economics reallocate area between corn, soy, wheat and cotton.  [moves: corn, soybeans, srw_wheat, hrw_wheat, cotton, canola]
+  wasde_stocks_to_use: {category: balance_sheet, max_props: 4000, terms: [wasde, stocks-to-use, ending stocks, quarterly grain
+      stocks, carryout, balance sheet]}   # USDA balance-sheet revisions reset the supply/demand anchor that funds trade around.  [moves: corn, soybeans, soybean_meal, soybean_oil, srw_wheat, hrw_wheat, cotton]  # G5c: AT the cap; 1,454 rows swapped at the promote.
+  basis_and_farmer_selling: {category: cash_market, terms: [cash basis, farmer selling, producer hedging, elevator
+      bids, commercial buying, origination pace]}   # Farmer selling reluctance and firm basis signal tight cash supply ahead of board moves.  [moves: corn, soybeans, hrw_wheat, srw_wheat]
+  australia_crop_conditions: {category: weather_regime, terms: [australia wheat, abares, eastern australia rain,
+    wa crop, frost risk australia]}   # Australian wheat/canola output is the swing high-protein Asia-Pacific supplier.  [moves: french_wheat, hrw_wheat, canola, rapeseed]
+  eu_crop_and_policy: {category: weather_regime, terms: [matif, france soft wheat, strategie grains, eu
+      drought, eu deforestation regulation, eudr]}   # EU conditions and EUDR compliance shift French wheat and rapeseed/palm trade flows.  [moves: french_wheat, rapeseed, rapeseed_oil, palm_oil]
+  vietnam_robusta_weather: {category: weather_regime, terms: [central highlands, vietnam coffee, robusta drought,
+    dak lak, irrigation water]}   # Central Highlands water stress at flowering sets the dominant robusta crop outcome.  [moves: robusta_coffee, arabica_coffee]
+  west_africa_weather: {category: weather_regime, terms: [ivory coast rain, ghana cocoa belt, west africa
+      dry spell, main crop, mid crop]}   # Rainfall timing across the Ivory Coast/Ghana belt drives cocoa main- and mid-crop sizes.  [moves: cocoa]
+  hurricane_gulf_disruption: {category: weather_regime, terms: [hurricane, gulf of mexico, tropical storm, port
+      closure, florida citrus storm], priority: context}   # Gulf hurricanes shut export terminals and damage Florida citrus, spiking near-term risk.  [moves: orange_juice, corn, soybeans]
+  china_crush_demand: {category: demand_center, terms: [china crush, soybean crush margin, hog feed demand
+      china, china meal demand, port stocks china]}   # Chinese crush rates and port inventories drive global soybean and meal pull.  [moves: soybeans, soybean_meal, soybean_oil]
+  global_rice_export_policy: {category: geopolitics_policy, terms: [india rice export ban, non-basmati, parboiled
+      rice levy, vietnam rice, thailand rice, rice tender]}   # Indian rice export curbs reroute global rice trade and ripple into food-security buying.  [moves: rice]
+  egypt_gasc_tenders: {category: demand_center, terms: [gasc, egypt wheat tender, mostakbal, strategic reserves
+      egypt, import tender]}   # Egypt's GASC tenders are the bellwether of global milling-wheat demand and origin competitiveness.  [moves: french_wheat, hrw_wheat, srw_wheat]
+  # --- ADDED in curation (Opus omitted these high-value desk drivers) ---
+  livestock_feed_demand: {category: livestock, terms: [live cattle, feeder cattle, lean hogs, cattle on feed, cattle-on-feed, placements, feedlot, broiler, poultry, feed demand]}
+  animal_disease_demand_shock: {category: livestock, terms: [african swine fever, asf, avian influenza, bird flu, hpai, herd liquidation, culling]}
+  cftc_positioning: {category: positioning, terms: [managed money, commitments of traders, cot report, net long, net short, spec length, fund position, open interest]}
+    # CONTENT DEBT -- D-CW-3d note (2026-08-07, comment-only, no routing change). 1 PROP, reached by 20 of 33
+    # contracts through four aliased ids (cot_mm_positioning / cot_positioning / spec_positioning /
+    # speculative_positioning) -- the widest-reach, emptiest slice in the layer. Same disposition and same
+    # reasoning as `managed_money_positioning` above: chunking is a corpus wave, and the D-CW answer is to
+    # route positioning asks to silver_cot in the numbers lane (D-CW-1a/1b), not to enrich this text leg.
+    # Note the term overlap with that slice is total by construction ('managed money', 'commitments of
+    # traders', 'cot report' appear in both, so evidence.term_collision_warnings() already reports the pair):
+    # whatever a future corpus pass writes will land in BOTH, which is a curation decision to take THEN.
+  us_ethanol_rfs: {category: policy, terms: [ethanol production, ethanol grind, rfs, renewable fuel standard, rin, blend wall, e15, corn for ethanol]}
+
+  # ===== E4 curation (C2/C3): downstream-demand + price-benchmark slices =====
+  textile_apparel_demand: {category: demand, max_props: 4000, terms: [textile, textiles, apparel, yarn, garments,
+    readymade garments, fabric, spinning, technical textiles, home textiles, rodtep, uflpa, cotlook,
+    xinjiang, forced labor, uyghur]}   # G5c: AT the cap (864 props at the 2026-07-09 census -> 4,000 today); 257 rows swapped at the promote.
+    # Downstream fibre-demand cluster (India/China/Bangladesh/Vietnam/Uzbek spinning-weaving-garment
+    # complex + India export-incentive/labour-ban policy). 185 dark cotton props. [moves: cotton]
+  coffee_price_benchmark: {category: price_benchmark, terms: [kc contract, trm, cop/usd, colombian peso,
+    pai mechanism, fepcafe, fepcafé, international coffee agreement, ica quota, export retention,
+    retention scheme]}
+    # Colombian/washed-arabica price context: the ICE 'KC' arabica reference, COP/USD (TRM) FX narrative,
+    # and FNC price-stabilization/incentive policy (FEPCafe, PAI). fnc genuine-dark. [moves: arabica_coffee]
+
+  # ===== Cycle-2 Fix Pack C: era/event gap-fill slices (born consumed via identity DAG entries) =====
+  former_ussr_import_demand: {category: demand_center, terms: [soviet, soviet union, ussr, u.s.s.r.,
+    soviet grain, soviet purchases]}
+    # 1970s-80s grain super-cycle: 613 props (339 dark), routes to nothing today. Over-fire LOW (proper
+    # nouns; bare 'soviet'/'soviet union' catch a few Uzbek-cotton/FSU-OJ props, recorded). [moves: corn,
+    # soybeans, soft_red_winter_wheat_cbot, hard_red_winter_wheat_kcbt, hard_red_spring_wheat_mgex,
+    # south_african_yellow_maize_jse]
+  us_farm_program: {category: acreage_policy, terms: [payment-in-kind, set-aside, acreage reduction program,
+    deficiency payment, target price, loan rate, marketing loan, commodity credit corporation,
+    farmer-owned reserve, export enhancement program, fair act, freedom to farm, decoupled payment]}
+    # US supply-control programs (PIK 1983, EEP 1985-95, FAIR Act 1996). 94 dark / ~155 total. FULL PHRASES
+    # ONLY -- no bare PIK/CCC/loan/ARP. Generic tokens set-aside/target price/acreage reduction program can
+    # catch EU/China policy (recorded over-fire). [moves: corn, soft_red_winter_wheat_cbot,
+    # hard_red_winter_wheat_kcbt, cotton, soybeans]
+
+  # ===== WS-MS6+ : crop disease & pest layer (Opus, corpus-aware) =====
+  cereal_rust_complex: {category: crop_disease, terms: [stem rust, yellow rust, Puccinia graminis, Ug99]}
+    # Wave R R2 / D-EI-9 option (a), 2026-08-02 (ratified). DELETED the bare 'leaf rust' term: it
+    # word-boundary-matches inside 'coffee leaf rust', so 100% of coffee_rust_crop's population was ALSO
+    # claimed here. Source composition of its 34 props, measured over the live slice: usda_gain_coffee 26,
+    # usda_gain_soybeans 4, fnc 2, usda_fas_coffee_wmt 1, usda_gain_corn 1 -- usda_gain_wheat ZERO, i.e.
+    # 33 of 34 = 97% non-cereal. Same doctrine this config already applied to bare 'cerrado', at a HIGHER
+    # contamination rate. Measured cost: exactly 1 genuinely-cereal prop. The negative-lookbehind variant was
+    # REJECTED because it does not compile -- harvest.py:132 re.escape()s every term by contract, so
+    # '(?<!coffee )leaf rust' yields ZERO props under a label that claims 138.
+    # ALSO DELETED, a zero-population change (0 props each, measured): 'stripe rust', 'brown rust',
+    # 'Puccinia striiformis', 'Puccinia triticina'. The `stripe_rust` DAG id remains aliased to this slice
+    # in dag_alias below -- that is an ID, not a term, and its routing is unchanged.
+    # Post-edit replay (gap_days=90): 158 -> 124 props, 45 -> 27 dates, 29 -> 19 episodes. Top-4 SIZES are
+    # unchanged at [4,3,2,2] but the top-4 RENDER SET IS NOT: the n>=2 pool goes 13 -> 5, ranks 1-2
+    # (2011-02-24..2011-04-26 n=4; 2019-01-01..2019-04-19 n=3) hold, and ranks 3-4 change from
+    # 2006-05-01..2006-05-12 / 2007-05-01..2007-05-17 to 2010-01-01..2010-02-17 / 2017-02-23..2017-04-05.
+    # The deck must be re-probed on the rebuild; the "top-4 unchanged" stability claim is NOT available.
+    # Discharges the ambiguity half of waivers.leaf_rust; the OWNERSHIP question stays open there.
+  fusarium_head_blight_mycotoxin: {category: crop_disease, terms: [Fusarium head blight, scab, Fusarium graminearum,
+    DON, deoxynivalenol, vomitoxin, mycotoxin, ergot]}
+  asian_soybean_rust: {category: crop_disease, terms: [Asian soybean rust, soybean rust, Phakopsora pachyrhizi,
+    ferrugem asiática]}
+  corn_tar_spot: {category: crop_disease, terms: [tar spot, Phyllachora maydis, tar spot of corn]}
+  corn_southern_rust: {category: crop_disease, terms: [southern rust, Puccinia polysora, southern corn rust]}
+  fall_armyworm: {category: crop_pest, terms: [fall armyworm, Spodoptera frugiperda, armyworm]}
+  desert_locust_swarm: {category: crop_pest, terms: [desert locust, Schistocerca gregaria, locust swarm,
+    locust outbreak, desert locusts, locust swarms, locust upsurge]}
+  wheat_blast: {category: crop_disease, terms: [wheat blast, Magnaporthe oryzae Triticum, MoT, brusone
+      do trigo]}
+  coffee_leaf_miner_borer: {category: crop_pest, terms: [coffee berry borer, Hypothenemus hampei, broca, leaf
+      miner, Leucoptera coffeella]}
+  citrus_canker_psyllid: {category: crop_disease, terms: [citrus canker, Xanthomonas citri, Asian citrus psyllid,
+    Diaphorina citri, HLB vector]}
+  cocoa_swollen_shoot_virus: {category: crop_disease, terms: [cocoa swollen shoot virus, CSSVD, swollen shoot,
+    swollen shoot virus disease]}
+  sugarcane_disease_pest: {category: crop_disease, terms: [sugarcane mosaic, orange rust, Puccinia kuehnii,
+    ratoon stunting, sugarcane borer, Diatraea saccharalis, Sphenophorus levis]}
+  cotton_pest_complex: {category: crop_pest, terms: [pink bollworm, Pectinophora gossypiella, cotton leaf
+      curl virus, whitefly, Bemisia tabaci, bollworm]}
+  rice_blast_pest_complex: {category: crop_disease, terms: [rice blast, Magnaporthe oryzae, bacterial leaf blight,
+    brown planthopper, Nilaparvata lugens, tungro]}
+  palm_oil_disease_pest: {category: crop_disease, terms: [Ganoderma, basal stem rot, bagworm, rhinoceros beetle,
+    Oryctes rhinoceros, Ganoderma boninense], priority: context}
+  rapeseed_disease_pest: {category: crop_disease, terms: [clubroot, Plasmodiophora brassicae, blackleg, Leptosphaeria
+      maculans, sclerotinia, flea beetle, cabbage stem flea beetle, flea beetles]}
+  barley_yellow_dwarf_virus: {category: crop_disease, terms: [barley yellow dwarf virus, BYDV, aphid-borne virus,
+    wheat streak mosaic, wheat curl mite], priority: context}
+  soybean_cyst_nematode: {category: crop_pest, terms: [soybean cyst nematode, Heterodera glycines, sudden death
+      syndrome, Fusarium virguliforme, white mold, Sclerotinia sclerotiorum], priority: context}
+
+# ── slice -> DAG driver-id alias map (GraphRAG v2 L2 regime-firing fix, 2026-07-03) ──────────────────────────
+# Slice NAMES (keys under `drivers:` above) were curated independently of the causal-DAG driver ids, so of 353
+# distinct DAG driver ids only 13 matched a slice name exactly (4%). ground() read evidence at
+# drivers/<dag_id>, which only ever resolved for those 13 — so convergence regimes fired 0.0 and leg-grounding
+# stuck at 0.2 (the L2 A/B blocker). This block maps each slice to the DAG driver id(s) whose dated text
+# evidence it legitimately carries; the resolver in evidence.py inverts it (dag_id -> slice) so a driver leg
+# reads drivers/<slice_name>.jsonl.  HAND-CURATED from a substring+fuzzy candidate pass — topical matches only
+# (rejected difflib noise like urea->area, cocoa_grindings->RIN, ethanol_margins->hog_margin).  Each dag id is
+# owned by exactly ONE slice.  Genuinely-dark blockers with no topical slice (conab_production_revision,
+# favorable_rainfall, export_pace_lag) are intentionally absent — they need the silver leg (F4) or a new slice.
+# Additive: the 13 exact-name matches keep resolving by identity even if omitted here.
+dag_alias:
+  el_nino: [El_Nino]
+  la_nina: [La_Nina]
+  argentina_export_policy: [Argentina_export_registration, Argentina_export_tax, soy_dollar]
+  asian_soybean_rust: [soybean_rust]
+  australia_crop_conditions: [crop_condition, australia_canola_supply, australia_rapeseed_supply]
+  basis_and_farmer_selling: [basis, sagis_deliveries, withheld_supply]
+  brl_fx: [BRL_FX, BRL_USD_fx, BRL_USD, BRL_weakness]
+  cftc_positioning: [cot_mm_positioning, cot_positioning, spec_positioning, speculative_positioning]
+  china_crush_demand: [china_oil_demand, china_import_demand, China_port_stocks, china_feed_protein_destocking]
+  citrus_canker_psyllid: [citrus_canker]
+  cocoa_swollen_shoot_virus: [swollen_shoot_virus]
+  coffee_leaf_miner_borer: [coffee_berry_borer]
+  corn_southern_rust: [southern_rust]
+  corn_tar_spot: [tar_spot]
+  crude: [crude_oil, crude_oil_input_cost, crude_oil_price]
+  export_ban: [export_ban, India_export_ban, export_tax, Brazil_export_tax, India_white_export_policy, minimum_export_price]
+  fertilizer: [fertilizer_cost, fertilizer_costs, fertilizer_input_cost, fertilizer_input_costs, input_cost_inflation]
+  freight: [freight_cost, freight_costs, freight_rates, freight_disruption, freight_logistics, freight_logistics_disruption, port_closure, port_logistics_disruption, rail_logistics_disruption, rhine_danube_freight]
+  frost: [frost, early_frost, winterkill_frost]
+  fusarium_head_blight_mycotoxin: [fusarium_head_blight]
+  heat: [heat_stress, EU_heat_stress, flowering_heat_stress, terminal_heat, terminal_heat_foreign, flowering_stress]
+  hog_margins_crush: [hog_margin]
+  livestock_feed_demand: [feed_demand, domestic_feed_demand, feed_demand_china, hog_herd_demand, soybean_meal_feed_demand]
+  monsoon: [monsoon_active, monsoon_weak]
+  msp: [India_MSP, MSP, China_min_purchase_price]
+  polar_vortex_winterkill: [polar_vortex, protective_snow_cover]
+  protein_meal_substitution: [soymeal_substitution, imported_bean_substitution, DDGS_competition, rapemeal_demand, rapemeal_feed_demand, rsm_soymeal_spread]
+  rice_blast_pest_complex: [rice_blast, bacterial_leaf_blight_rice, brown_planthopper, sheath_blight]
+  rin_credits: [RIN]
+  russia_export_tax_quota: [Russia_export_tax, BlackSea_export_quota_war]   # D-CW-3c: see the note under `black_sea_corridor` below
+  sanctions_payment_rails: [sanctions]
+  south_american_safrinha: [safrinha, brazil_soybean_supply, soybean_corn_competition]
+  tariff: [China_import_tariff, US_section301_tariffs, import_tariff, section301_tariffs, China_import_quota_VAT, EU_CAP_antidumping, china_antidumping_canola, china_canada_canola_dispute, eu_ukraine_trade_measures, us_china_trade_tension]
+  us_dollar_index: [dollar_index, USD_index, USD_macro, USD_strength]
+  us_ethanol_rfs: [RFS, ethanol_demand]
+  wasde_stocks_to_use: [ending_stocks_su_ratio, psd_ending_stock_su_ratio, ending_stocks, ending_stock_ratio, wasde_direct_revisions]
+  animal_disease_demand_shock: [ASF_demand_shock]
+  african_swine_fever: [ASF_hog_herd, ASF_outbreak, China_hog_herd]
+  black_sea_corridor: [BlackSea_export_competition, black_sea_competition, blacksea_export_disruption, blacksea_rapeseed_supply]
+    # D-CW-3c (2026-08-07, capability-wiring wave). `BlackSea_export_quota_war` MOVED from here to
+    # `russia_export_tax_quota` above. An id is owned by exactly ONE slice (evidence.check_driver_slices leg
+    # (b) hard-errors on two owners), so a de-choke is only honest when the losing slice keeps the SAME
+    # contract reach through another id. MEASURED, by resolving all 33 causal YAMLs: the moved id appears on
+    # french_wheat_matif, hard_red_spring_wheat_mgex, hard_red_winter_wheat_kcbt, soft_red_winter_wheat_cbot
+    # -- the EXACT four contracts `BlackSea_export_competition` already carries here. black_sea_corridor's
+    # reach is therefore unchanged at 9 contracts; russia_export_tax_quota goes 1 -> 4 (it held only
+    # french_wheat_matif via `Russia_export_tax`), un-stranding its 363 props onto the three US wheat boards
+    # the census proved blind to them.
+    # TOPICALLY IT IS THE BETTER OWNER, not merely a free one: the node's own mechanism reads "Russian export
+    # quotas/taxes (floating duty) or Black Sea corridor disruption from war" and its evidence_query is
+    # "Russia wheat export quota floating tax ..." -- and `export`/`quota` are literal tokens of the
+    # russia_export_tax_quota slice, so this ALSO clears one standing driver_slice_alias_warnings() entry
+    # (the old edge shared no token with black_sea_corridor). The D-CW-3c natural_gas alias below adds one
+    # back, so the file's advisory total is UNCHANGED at 23 across the whole wave -- MEASURED, not assumed.
+    # NOT AFFECTED: cascade pin realizability (config_check reads cascade_drivers through
+    # cascade_census._driver, i.e. the causal DAG + silver_ref, never this text alias) and episodes.json (it
+    # is keyed by SLICE, and no slice's population moves -- a dag_alias edit re-points readers, it never
+    # re-routes props, so no artifact is staled).
+  drought: [Brazil_conilon_drought, EU_drought, autumn_drought_establishment, china_drought, eu_rapeseed_drought, flash_drought, prairie_drought, regional_drought]
+  orange_greening_disease: [Brazil_orange_production, HLB]
+  china_buying_pace: [China_import_pace, china_soybean_import, import_arrivals]
+  china_reserve_auctions: [China_reserve_release, China_state_reserves, china_state_reserves, state_reserve_buildup, state_reserve_release]
+  indonesia_b40_palm: [DMO]
+  eu_crop_and_policy: [EUDR, EU_EUDR, EU_production, EU_rapeseed_supply, eudr_deforestation]
+  parana_river_levels: [Parana_low_water]
+  biodiesel_mandate: [RenovaBio, blend_mandate, eu_biodiesel_demand, eu_renewable_biofuel, red_iii_mandate]
+  crop_insurance_planting_intentions: [US_acreage_shift, acreage_competition, canola_area, eu_rapeseed_area, planted_area, soybean_corn_price_ratio]
+  vietnam_robusta_weather: [Vietnam_drought, Vietnam_irrigation_water_stress]
+  cotton_pest_complex: [bacterial_blight_cotton, bollworm, cotton_leaf_curl, verticillium_wilt, whitefly]
+  cocoa_pod_disease: [black_pod, frosty_pod_rot, witches_broom]
+  rapeseed_disease_pest: [blackleg, clubroot, flea_beetle, sclerotinia]
+  renewable_diesel_capacity: [canada_clean_fuel_regs, uco_palm_competition_biodiesel, us_biofuel_tax_credit, us_renewable_diesel_demand]
+  us_drought_monitor: [crop_progress_condition, gdd_accumulation, ndvi_vegetation_health]
+  cocoa_grindings: [demand_destruction, grind_demand]
+  ethanol_margins: [ethanol_demand_BR]
+  flood: [excess_rain, waterlogging]
+  palm_oil_disease_pest: [ganoderma]
+  cotton_polyester_competition: [global_textile_demand, polyester_substitution]
+  hurricane_gulf_disruption: [hurricane_damage]
+  macro: [macro_demand]
+  sugarcane_disease_pest: [orange_rust, ratoon_stunting, red_rot, sugarcane_smut]
+  broiler_economics: [poultry_expansion]
+  cereal_rust_complex: [stem_rust, stripe_rust]
+  feed_grain_substitution: [wheat_corn_spread]
+  white_premium_refining: [white_raw_premium]
+  coffee_rust_crop: [coffee_leaf_rust]     # 445 stranded rust props -> reachable (E4 C4 rename unlock)
+  textile_apparel_demand: [Xinjiang_forced_labor_ban]   # cycle-2: UFLPA cotton labor/import ban un-waived
+
+  # ===== D-CW-3 capability-wiring wave (2026-08-07) -- two WAIVER un-locks =====
+  # Both entries below take an id that was WAIVED (no text slice, so no slice loses anything) and give it the
+  # slice whose text it has always been. That is why they are grouped: each is a pure addition, reviewable and
+  # revertible on its own line, and neither can subtract evidence from any other slice (contrast the ONE
+  # re-own this wave makes, `BlackSea_export_quota_war`, which carries its Pareto proof at its own site above).
+  # Their `waivers:` rows are deleted below in the same edit -- a waiver asserts "grounded by the observed
+  # silver leg, never text", and leaving it standing next to a text alias would make the block lie.
+  #
+  # D-CW-3a -- FERTILIZER/ENERGY ORPHANS. Of the four orphans the wave names (urea 165, dap 88, potash 113,
+  # diesel 497 props) only DIESEL has a landing site. MEASURED over all 33 causal YAMLs: the estate holds NO
+  # nutrient-specific driver id at all -- the whole fertilizer concept is carried by five generic ids
+  # (fertilizer_cost / fertilizer_costs / fertilizer_input_cost / fertilizer_input_costs /
+  # input_cost_inflation, 15 contracts) and all five are already owned by the `fertilizer` slice, whose terms
+  # (fertilizer / fertiliser / nutrient cost / input cost) are DISJOINT from urea's, dap's and potash's. So
+  # urea/dap/potash are SKIPPED here and reported, not smuggled: routing one of those five to `urea` would
+  # not un-strand anything, it would simply take the richer fertilizer narrative away from whichever board
+  # (rough rice, cocoa, canola...) the id lives on. Un-stranding them is a CURATION act (a nutrient-specific
+  # node, or a fertilizer-slice term widening plus a slice rebuild), not a wiring one.
+  diesel: [gasoil_palm_spread]
+    # POGO = the palm-GASOIL spread: "a narrow/negative POGO spread makes biodiesel blending economically
+    # attractive". `gasoil` is a literal term of the diesel slice, so this shares a topical token and adds no
+    # advisory. Reach 0 -> 2 (malaysian_crude_palm_oil_cme, palm_olein_dce): diesel LEAVES the read-dark
+    # census (evidence.READ_DARK_SLICES_PIN 29 -> 28).
+  #
+  # D-CW-3c -- NATURAL_GAS DE-CHOKE. The wave's named target was the corn family; that is SKIPPED and
+  # reported. MEASURED: `natural_gas` is a driver id in exactly ONE DAG (french_maize_matif) and no corn DAG
+  # carries any gas-class id -- corn_cbot/corn/campinas reach the energy stack only through `crude_oil`,
+  # which the `crude` slice owns correctly and which must not be repointed. What DOES exist is white sugar's
+  # refinery energy node, whose mechanism is literally "higher natural gas and energy prices raise the cost
+  # of turning raws into refined sugar" (evidence_query: "natural gas energy prices vs sugar refining margin
+  # white premium"). Reach 1 -> 2; the 425 props stop being french-maize-only. Shares no underscore token
+  # with the slice name, so it adds ONE driver_slice_alias_warnings() advisory -- accepted, and it is the
+  # exact class the heuristic's docstring calls a legitimate concept alias.
+  natural_gas: [refinery_energy_costs]
+
+# ── waivers: dark ids with no text slice, now ACCOUNTED (P2 W1) ──────────────────────────────
+# silver_only = FX crosses / teleconnection indices / computed spreads (grounded by the observed
+# silver leg, never text); deferred = a real corpus gap awaiting E1b/E2 or the paid chunk pass.
+# Additive: no existing reader consults this key; the W2 darkness lint treats a waiver entry as a
+# legitimate resolution so a waivered id is 'accounted' rather than 'dark'.
+waivers:
+  AMO: {category: silver_only, note: "Atlantic Multidecadal Oscillation teleconnection index"}
+  AO: {category: silver_only, note: "Arctic Oscillation teleconnection index"}
+  ARS_FX: {category: silver_only, note: "Argentine peso FX cross"}
+  Algeria_tender_specs: {category: deferred, note: "Algeria OAIC wheat tender specs"}
+  Argentina_crush_capacity: {category: deferred, note: "Argentine crush capacity fundamental"}
+  CAD_FX: {category: silver_only, note: "Canadian dollar FX cross"}
+  CBD: {category: deferred, note: "Coffee berry disease (Colletotrichum kahawae)"}
+  CNY: {category: silver_only, note: "Chinese yuan FX"}
+  CNY_FX: {category: silver_only, note: "Chinese yuan FX cross"}
+  CNY_USD: {category: silver_only, note: "CNY/USD FX cross"}
+  Canada_production: {category: deferred, note: "Canada production fundamental"}
+  China_domestic_crop: {category: deferred, note: "China domestic crop supply"}
+  China_food_demand: {category: deferred, note: "Chinese food/frying vegoil demand"}
+  China_food_use_demand: {category: deferred, note: "Chinese food-use demand"}
+  China_soyoil_stocks: {category: deferred, note: "China soyoil inventory state-marker"}
+  China_soyoil_supply: {category: deferred, note: "China soyoil supply from crush"}
+  China_vegoil_demand: {category: deferred, note: "Chinese vegoil demand"}
+  EUR_USD: {category: silver_only, note: "EUR/USD FX cross"}
+  EUR_USD_FX: {category: silver_only, note: "EUR/USD FX cross"}
+  FUNCAFE: {category: deferred, note: "Coffee crop-financing/retention policy"}
+  Florida_orange_production: {category: deferred, note: "FL orange output fundamental"}
+  GBP_cross: {category: silver_only, note: "GBP/USD FX cross arbitrage"}
+  GMO_phytosanitary_policy: {category: deferred, note: "GMO/phytosanitary trade policy"}
+  GMO_white_policy: {category: deferred, note: "GMO white-sugar policy"}
+  INR_PKR_weakness: {category: silver_only, note: "FX weakness basket"}
+  INR_THB_VND_weakness: {category: silver_only, note: "FX weakness basket"}
+  IOD_negative: {category: silver_only, note: "Indian Ocean Dipole teleconnection index"}
+  IOD_positive: {category: silver_only, note: "Indian Ocean Dipole teleconnection index"}
+  India_ethanol_diversion: {category: deferred, note: "India E20 cane-to-ethanol policy"}
+  MYR_USD: {category: silver_only, note: "MYR/USD FX cross"}
+  NAO: {category: silver_only, note: "North Atlantic Oscillation teleconnection index"}
+  PDO: {category: silver_only, note: "Pacific Decadal Oscillation teleconnection index"}
+  SAM: {category: silver_only, note: "Southern Annular Mode teleconnection index"}
+  Thailand_production: {category: deferred, note: "Thai sugar supply state"}
+  Thailand_white_exports: {category: deferred, note: "Thai white-sugar export supply"}
+  US_export_pace: {category: deferred, note: "US export-sales pace state marker"}
+  VND_USD_fx: {category: silver_only, note: "Vietnamese dong FX cross"}
+  Vietnam_export_tax_policy: {category: deferred, note: "Vietnam coffee export policy"}
+  ZAR_FX: {category: silver_only, note: "South African rand FX cross"}
+  abandonment: {category: deferred, note: "Crop abandonment yield-loss state-marker"}
+  aflatoxin: {category: deferred, note: "Aspergillus aflatoxin in corn"}
+  aphids: {category: deferred, note: "Aphid vector"}
+  aqua_season: {category: deferred, note: "Aquaculture feeding-season marker for RSM"}
+  aquaculture_feed_demand: {category: deferred, note: "Chinese aquaculture RSM feed demand"}
+  arabica_robusta_spread: {category: deferred, note: "Arabica-robusta price spread instrument"}
+  arabica_substitution_into_robusta: {category: deferred, note: "Arabica->robusta substitution instrument"}
+  area: {category: deferred, note: "Bare 'area' is exactly the difflib noise the LAW rejects (urea->area)"}
+  biennial_bearing: {category: deferred, note: "Tree-crop biennial on/off yield cycle (coffee/OJ)"}
+  biennial_low_cycle: {category: deferred, note: "Biennial low-yield year marker"}
+  biennial_off_year: {category: deferred, note: "Biennial off-year marker"}
+  biennial_on_year: {category: deferred, note: "Biennial on-year marker"}
+  blocking_high: {category: deferred, note: "Blocking-high / heat-dome atmospheric pattern (silver blocking_high_z planned)"}
+  board_crush: {category: deferred, note: "Soy board crush spread instrument"}
+  boll_set: {category: deferred, note: "Cotton boll-set phenology weather stage"}
+  buffer_stock_release: {category: deferred, note: "India FCI/Thailand rice reserve release"}
+  buyer_tender_demand: {category: deferred, note: "Generic import-tender demand"}
+  calendar_spread: {category: deferred, note: "Futures calendar-spread instrument"}
+  canada_canola_export_pace: {category: deferred, note: "Canada canola export pace"}
+  canada_rapeseed_import_supply: {category: deferred, note: "Canada->China rapeseed import supply"}
+  canadian_canola_supply: {category: deferred, note: "Canadian canola supply fundamental"}
+  canola_crush_margin: {category: deferred, note: "Canola crush margin instrument"}
+  cbot_arbitrage: {category: deferred, note: "MATIF-CBOT import-parity arbitrage macro link"}
+  cbot_corn_anchor: {category: deferred, note: "JSE-tracks-CBOT parity macro link"}
+  cbot_corn_price: {category: deferred, note: "CBOT corn reference price macro link"}
+  cec_production_revision: {category: deferred, note: "CEC (Mexico) production revision balance-sheet event"}
+  cercospora_beet: {category: deferred, note: "Cercospora leaf spot on EU sugar beet"}
+  certified_stocks_decline: {category: deferred, note: "Exchange certified/deliverable stocks decline"}
+  china_rapeseed_import: {category: deferred, note: "China rapeseed import demand"}
+  china_rapeseed_supply: {category: deferred, note: "China domestic rapeseed supply"}
+  china_rsm_import: {category: deferred, note: "China rapeseed-meal import"}
+  china_rsm_stocks: {category: deferred, note: "China rapeseed-meal inventory"}
+  cny_fx: {category: silver_only, note: "Chinese yuan FX cross (lowercase)"}
+  conab_production_revision: {category: deferred, note: "CONAB Brazil production revision"}
+  consumption: {category: deferred, note: "Bare consumption demand state-marker"}
+  consumption_demand: {category: deferred, note: "Generic consumption demand"}
+  consumption_growth: {category: deferred, note: "Generic consumption-growth demand"}
+  corn_borer: {category: deferred, note: "European corn borer pest"}
+  corn_rootworm: {category: deferred, note: "Corn rootworm pest"}
+  crush_margin: {category: deferred, note: "Chinese rapeseed crush margin instrument"}
+  crush_margin_expansion: {category: deferred, note: "Crush-margin expansion instrument"}
+  domestic_crush_demand: {category: deferred, note: "Canadian domestic crush capacity demand"}
+  ear_rot: {category: deferred, note: "Corn ear rot / aflatoxin quality loss"}
+  eu_crush_demand: {category: deferred, note: "EU rapeseed crush demand"}
+  eu_import_demand: {category: deferred, note: "Generic EU import demand"}
+  eu_neonic_ban: {category: deferred, note: "EU neonicotinoid pesticide ban"}
+  eurusd_fx: {category: silver_only, note: "EUR/USD FX cross (lowercase)"}
+  export_pace: {category: deferred, note: "Generic export shipment pace state-marker"}
+  export_pace_lag: {category: deferred, note: "Export-pace lag"}
+  export_parity: {category: deferred, note: "Export-parity price instrument"}
+  export_parity_floor: {category: deferred, note: "Export-parity floor instrument"}
+  favorable_rainfall: {category: deferred, note: "Census-named dark blocker"}
+  flowering: {category: deferred, note: "Rapeseed/crop flowering phenology state marker"}
+  # gasoil_palm_spread: REMOVED 2026-08-07 (D-CW-3a) -- it now has a text slice (`diesel`) in dag_alias above,
+  # so the silver_only claim ("grounded by the observed silver leg, never text") is no longer true of it.
+  gray_leaf_spot: {category: deferred, note: "Corn foliar disease"}
+  hail: {category: deferred, note: "Convective hail hazard"}
+  hessian_fly: {category: deferred, note: "Winter-wheat pest"}
+  import_crush_margin: {category: deferred, note: "China board crush-margin instrument"}
+  import_demand_destination: {category: deferred, note: "White-sugar destination import demand"}
+  import_parity: {category: deferred, note: "SA white-maize import-parity price anchor"}
+  import_parity_floor: {category: deferred, note: "SA yellow-maize import-parity instrument"}
+  # D-EI-4 (RATIFIED: waive, do not register). `indian_ocean_dipole` is a SLICE that no causal DAG id
+  # reaches: it is not in display.all_driver_ids() (361 ids), no configs/graphrag/causal/*.yaml carries
+  # `id: indian_ocean_dipole`, and no dag_alias RHS mentions it. planner._fill therefore never reaches it
+  # and NO query on ANY contract can render an IOD episode line -- floor or no floor, terms or no terms.
+  # Registering it was measured and rejected: even after a full re-chunk of the never-chunked corpus the
+  # slice ceilings at ~12-15 props over >=5 distinct years, which at gap_days=90 stays overwhelmingly n=1,
+  # and all three of its live episodes already return receipt=None -- so registration buys three lines of
+  # pure absence marker while changing the render surface on four contracts (palm_oil / rice / raw_sugar /
+  # french_wheat), which carries the artifact bundle's gate. Waiving changes nothing anyone reads.
+  # HONEST SCOPE of this entry: `waivers:` is keyed by DAG ID and the darkness check iterates
+  # all_driver_ids(), so this key is INERT in that check today (the id does not exist). It is load-bearing
+  # in check_driver_slices' read-dark leg and in read_dark_slice_warnings(), and it becomes load-bearing in
+  # the darkness check the moment anyone ever registers the id. It is a curator's statement of intent, not a
+  # mechanical fix. The measurement lives in evidence.READ_DARK_SLICES_PIN alongside 28 others.
+  indian_ocean_dipole: {category: deferred, note: "IOD slice: routed props exist but NO DAG id reaches it; honestly-deferred read-path gap (D-EI-4, waive-not-register)"}
+  kc_chi_spread: {category: silver_only, note: "KC-Chicago wheat futures spread instrument"}
+  labor_shortage: {category: deferred, note: "Malaysian palm estate labor shortage"}
+  leaf_rust: {category: deferred, note: "Wheat leaf/brown rust (Puccinia) -- STILL DEFERRED AND UNASSIGNED.
+    The ambiguity this note used to describe is GONE, not resolved: Wave R R2 (D-EI-9 option a, 2026-08-02)
+    DELETED the 'leaf rust' TERM from cereal_rust_complex outright -- 33 of its 34 props were non-cereal
+    (usda_gain_wheat: zero) -- so no live term claims this concept and no slice is its de-facto owner any
+    more. The OWNERSHIP question itself remains OPEN and UNASSIGNED to anyone: slice_for_driver('leaf_rust')
+    is still None while stem_rust and stripe_rust both resolve to cereal_rust_complex. Whoever takes this id
+    inherits a clean term list, which was the point of deleting rather than patching."}
+  lodging: {category: deferred, note: "Crop lodging hazard"}
+  meal_inventory: {category: deferred, note: "China meal-stocks state marker"}
+  oil_share: {category: silver_only, note: "Oil-share-of-crush instrument"}
+  phytosanitary: {category: deferred, note: "Generic phytosanitary trade policy"}
+  pod_fill: {category: deferred, note: "Soybean reproductive-window phenology state marker"}
+  pre_harvest_sprouting: {category: deferred, note: "Wheat rain-at-maturity quality hazard"}
+  protein_premium: {category: deferred, note: "MGEX high-protein wheat price premium"}
+  rand_FX: {category: silver_only, note: "South African rand FX cross"}
+  rapeoil_demand: {category: deferred, note: "Chinese rapeseed oil food demand"}
+  rapeoil_share: {category: deferred, note: "Crush oil-share instrument"}
+  rapeseed_crush_demand: {category: deferred, note: "Chinese rapeseed crush demand"}
+  rapeseed_crush_margin: {category: deferred, note: "Rapeseed crush margin instrument"}
+  # refinery_energy_costs: REMOVED 2026-08-07 (D-CW-3c) -- no longer a deferred corpus gap; it resolves to
+  # the `natural_gas` slice in dag_alias above.
+  refinery_outages: {category: deferred, note: "Refinery outage supply disruption"}
+  regional_export_demand: {category: deferred, note: "SA regional maize export demand"}
+  regional_import_demand: {category: deferred, note: "SADC regional import demand"}
+  replanting_cycle: {category: deferred, note: "Coffee/cocoa aging-tree replanting structural supply"}
+  septoria: {category: deferred, note: "EU wheat septoria foliar disease"}
+  shattering: {category: deferred, note: "Canola pod shattering harvest loss"}
+  soybean_crush_margin: {category: deferred, note: "Soybean crush margin instrument"}
+  soyoil_olein_premium: {category: deferred, note: "Soyoil-olein spread instrument"}
+  soyoil_palm_premium: {category: deferred, note: "Soyoil-palm spread instrument"}
+  stink_bug: {category: deferred, note: "Soybean stink bug pest"}
+  stock: {category: silver_only, note: "Generic ending/certified stocks state"}
+  stockholding_limit: {category: deferred, note: "China anti-hoarding storage policy"}
+  sudden_death_syndrome: {category: deferred, note: "Soybean SDS disease"}
+  tan_spot: {category: deferred, note: "Wheat tan spot foliar disease"}
+  tenderable_collapse: {category: silver_only, note: "ICE certified/exchange stocks collapse"}
+  tenderable_quality_squeeze: {category: deferred, note: "Deliverable-grade quality squeeze state"}
+  us_export_competition: {category: deferred, note: "US corn export competition vs Brazil"}
+  us_export_pace: {category: deferred, note: "US ESR weekly export-pace state marker; inert until D-W5 esr_exports flip"}
+  usdcad_fx: {category: silver_only, note: "USD/CAD FX cross"}
+  usdcny_fx: {category: silver_only, note: "USD/CNY FX cross"}
+  vernalization_failure: {category: deferred, note: "SRW mild-winter vernalization failure"}
+  wheat_midge: {category: deferred, note: "Wheat midge pest"}
+  wheat_streak_mosaic: {category: deferred, note: "Wheat streak mosaic virus"}
+  white_food_demand: {category: deferred, note: "White maize human food demand"}
+  white_mold: {category: deferred, note: "Soybean white mold (sclerotinia)"}
+  white_yellow_premium: {category: deferred, note: "White-yellow maize price premium"}

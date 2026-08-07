@@ -251,7 +251,9 @@ def test_cot_is_branch_a_twelfth_pg_mirror_table():
     # The count is the BACKSTOP, and it names what it cannot diff: the roster is pinned name-by-name
     # in tests/unit/test_silver_rebuild_gate.py::test_branch_selection_all_45_tables, which fails with
     # the added/removed table in the message. Read that one first when this trips.
-    assert len(g.PG_MIRROR_TABLES) == 18, (
+    # D-CW-2a (2026-08-07) added silver_nass_crop_progress as the 19th (weekly NASS crop progress: the
+    # card landed, so the table is SERVED, so it must be MIRRORED).
+    assert len(g.PG_MIRROR_TABLES) == 19, (
         "pg-mirror roster changed; the by-NAME pin lives in tests/unit/test_silver_rebuild_gate.py::"
         "test_branch_selection_all_45_tables. Roster now: " + str(sorted(g.PG_MIRROR_TABLES)))
 

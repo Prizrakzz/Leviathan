@@ -40,7 +40,15 @@ class NumberQuery(BaseModel):
     #                                                  tables with no contract_month_col -- build_sql RAISES there
     #                                                  rather than serving a continuous series as an expiry.
     agg: Literal["latest", "series", "sum", "mean", "max", "min"] = "latest"
-    limit: int = 5000
+    limit: int = 5000                                # the SERIES row cap. D-CW-1c (DARK CAPABILITY CENSUS):
+    #                                                  this field is now DECLARED in the model-facing tool
+    #                                                  schema (agent.tool_schema) so a long-history read can
+    #                                                  be WINDOWED deliberately instead of silently hitting
+    #                                                  the cap. The cap itself is unchanged and the agent may
+    #                                                  only NARROW it (agent._clamp_limit) -- the scan surface
+    #                                                  the S3 LIST-storm work closed stays closed. WHICH END
+    #                                                  the cap keeps is the newest_first scope's business
+    #                                                  (see _series_order), never this number's.
 
 
 def _q(v) -> str:                                    # single-quote-safe SQL literal

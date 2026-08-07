@@ -22,11 +22,11 @@
 manifest_version: 1
 generated_by: "python -m leviathan.graphrag.driver_slices_manifest --write"
 source: "configs/graphrag/driver_slices.yaml"
-file_sha256: "fedf143932a865ddf53ead324edba0a3fbff20b033e60f0afa75d58c62d7c287"
+file_sha256: "5fcebfd5a139935820c296c704efdc1e7522459d1d705223c4a10e0c88cdcaed"
 counts:
   specs: 109
-  dag_aliases: 68
-  waivers: 143
+  dag_aliases: 70
+  waivers: 141
   terms: 635
 slices:
   african_swine_fever: {category: "livestock_disease_demand", priority: null, n_terms: 5, terms_sha256: "51277c987b5ca2f0a660175de8f0257b82d1cb7c3adc5ff2cf6af886ef4a6a41"}

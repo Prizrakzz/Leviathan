@@ -338,6 +338,31 @@ def _disabled_tables() -> frozenset[str]:
         return frozenset()
 
 
+def visible_tables(reg: NumbersRegistry) -> list[str]:
+    """THE ONE derivation of "which registered tables are actually exposed this call": ``sorted(reg.tables)``
+    MINUS the flag-gated pattern-records card when ``GRAPHRAG_PATTERN_RECORDS`` is OFF. Read PER CALL so the
+    kill-switch rollback stays live (never memoize this, and never memoize anything derived from it).
+
+    D-CW-1d (2026-08-07, the DARK CAPABILITY CENSUS enum leak). This used to live only in
+    ``numbers.agent._visible_tables``, while ``dispatch.family_names()`` derived the planner's
+    ``data_families`` enum from ``load_registry().tables`` -- the UNFILTERED set. With the flag off the
+    router could therefore emit ``pattern_records``, a family whose table is absent from the agent's tool
+    enum and its system-prompt card: the steering hint resolved to nothing (fail-soft, so it was invisible),
+    but the planner was being told a capability existed that the agent could not reach. The two derivations
+    are now ONE function, here in the registry module rather than in either consumer, because the numbers
+    agent must keep no dependency on the planner and the planner is not the owner of the registry's
+    visibility rule. Both callers are thin wrappers over this.
+
+    The pattern-records import is LOCAL: ``pattern_records`` imports the numbers stack, and a module-level
+    import here would make the registry -- which every numbers module loads -- the bottom of an import
+    cycle. It is a pure-python module with no AWS/IO at import, so the call is cheap."""
+    tables = sorted(reg.tables)
+    from leviathan.graphrag.numbers import pattern_records as PR
+    if PR.PR_TABLE in tables and not PR.pattern_records_on():
+        tables = [t for t in tables if t != PR.PR_TABLE]
+    return tables
+
+
 @functools.lru_cache(maxsize=4)
 def load_registry(path: Optional[str] = None) -> NumbersRegistry:
     p = Path(path) if path else (ex._CFG / "numbers" / "tables.yaml")

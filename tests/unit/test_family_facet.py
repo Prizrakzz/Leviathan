@@ -48,13 +48,44 @@ def test_family_names_derived_from_registry_prefix_stripped():
     assert all(not f.startswith(("silver_", "gold_", "bronze_")) for f in fams)
 
 
-def test_family_names_tracks_the_live_registry_ids():
+def test_family_names_tracks_the_live_visible_registry_ids():
+    """D-CW-1d: a bijection modulo the layer prefix against the VISIBLE tables -- the same set the numbers
+    agent's tool enum is built from -- not against the raw registry. It used to read `load_registry().tables`,
+    which is precisely the enum leak the DARK CAPABILITY CENSUS found: a flag-gated card the agent cannot see
+    still minted a routable family."""
     from leviathan.graphrag.numbers import registry as nreg
-    ids = set(nreg.load_registry().tables)
+    ids = set(nreg.visible_tables(nreg.load_registry()))
     fams = set(dp.family_names())
-    # a bijection modulo the layer prefix: exactly one family per registered table id, nothing invented
     stripped = {dp._FAMILY_PREFIX.sub("", tid) for tid in ids}
     assert fams == stripped and len(fams) == len(ids)
+
+
+def test_family_enum_never_offers_a_family_the_agent_cannot_see(monkeypatch):
+    """THE LEAK, both directions (D-CW-1d). With GRAPHRAG_PATTERN_RECORDS off the gold_pattern_records card
+    is absent from the agent's tool enum, so its family must be absent from the planner's enum too; with the
+    flag on both carry it. The failure this closes was FAIL-SOFT -- the steering hint resolved to nothing and
+    the turn looked normal -- which is why it needs a test rather than a runtime symptom."""
+    from leviathan.graphrag.numbers import agent as na
+    from leviathan.graphrag.numbers import pattern_records as PR
+    from leviathan.graphrag.numbers import registry as nreg
+    reg = nreg.load_registry()
+    fam = dp._FAMILY_PREFIX.sub("", PR.PR_TABLE)
+    monkeypatch.setenv("GRAPHRAG_PATTERN_RECORDS", "off")
+    assert PR.PR_TABLE not in na._visible_tables(reg)
+    assert fam not in dp.family_names()                  # the enum tracks the kill-switch, per call
+    monkeypatch.setenv("GRAPHRAG_PATTERN_RECORDS", "on")
+    assert PR.PR_TABLE in na._visible_tables(reg)
+    assert fam in dp.family_names()                      # ...and comes back with it (never memoized)
+
+
+def test_agent_and_planner_share_one_visibility_derivation():
+    """ONE function, not two copies that agree today: the agent's _visible_tables IS registry.visible_tables,
+    and family_names() is that same list with the layer prefix stripped."""
+    from leviathan.graphrag.numbers import agent as na
+    from leviathan.graphrag.numbers import registry as nreg
+    reg = nreg.load_registry()
+    assert na._visible_tables(reg) == nreg.visible_tables(reg)
+    assert list(dp.family_names()) == [dp._FAMILY_PREFIX.sub("", t) for t in nreg.visible_tables(reg)]
 
 
 # ════════════════════════════════════════════════════════════════════════════════════════════════════

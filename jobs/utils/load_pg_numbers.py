@@ -127,7 +127,24 @@ P1_TABLES = ["silver_psd", "silver_wasde", "silver_production", "silver_esr", "s
              # TIMESTAMP) / as_of_date stringify to the Athena render (DP-5 substr-normalized in the presence
              # SQL, so both backends compare identically). Mirrored so the SQL-lane presence/base-rate
              # aggregations serve warm from pg; the serving CARD is independently gated by GRAPHRAG_PATTERN_RECORDS.
-             "gold_pattern_records"]
+             "gold_pattern_records",
+             # D-CW-2a (2026-08-07): silver_nass_crop_progress joins the mirror in the SAME change that
+             # gives it a numbers card, for the reason stated three entries up and MEASURED there --
+             # served but unmirrored means GRAPHRAG_NUMBERS_BACKEND=pg raises UndefinedTable per query and
+             # SILENTLY FALLS BACK TO ATHENA. Here that fallback lands on a PARTITION-PROJECTED table
+             # (commodity enum x year 1979-2035), i.e. the LIST-storm class -- small (~342 candidates,
+             # and build_sql pins the commodity equality plus sargable year bounds), but the doctrine is
+             # not about the size: a served numbers table must be mirrored.
+             # TYPE DOCTRINE: the five pct_* metric columns mirror numeric (wide metrics); `year` (an int
+             # partition key) mirrors numeric via meta["partitions"]; leviathan_slug / state / commodity /
+             # source stay TEXT COLLATE "C", and `date` (a physical DATE) stringifies to the Athena ISO
+             # render, which is what build_sql's CAST-as-varchar compare expects on both backends.
+             # SEQUENCING: this entry defines the mirror; the LOAD still has to run in-VPC before the
+             # serving flip. numbers_parity deliberately carries NO SAMPLE_COMMODITY row for it yet -- a
+             # sample entry is what makes a panel non-vacuous, and choosing that commodity/as-of pair is
+             # worth doing against the first real mirror rather than guessing here (the reverse drift,
+             # a sampled-but-unmirrored table, is the one the futures_eod pin forbids).
+             "silver_nass_crop_progress"]
 SCHEMA = "leviathan_dev"                       # == numbers.pgnumbers.SCHEMA == query.ATHENA_DB
 GLUE_DB = "leviathan_dev"
 

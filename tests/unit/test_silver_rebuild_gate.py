@@ -54,6 +54,13 @@ _EXPECTED_BRANCH_A = frozenset({
     "silver_sagis_weekly_exports",                             # WIRING WAVE-1 Card C (2026-07-24)
     "gold_pattern_records",                                    # T2b (2026-07-24)
     "silver_futures_eod",                                      # BRANCH-A RATIFICATION (2026-08-01)
+    # D-CW-2a (2026-08-07): the weekly NASS crop-progress card. It enters Branch A because BOTH halves
+    # of select_branch now hold -- the F010 `consumers` field went to "both" when the numbers card
+    # landed, and it is in P1_TABLES because a SERVED numbers table must be MIRRORED (unmirrored + pg
+    # backend = UndefinedTable -> silent Athena fallback, here onto a PARTITION-PROJECTED table).
+    # Distinct from silver_nasa_power, the other projected numbers table, which stays Branch B on a
+    # measured SIZE exclusion (tens of millions of rows); this one is ~142K.
+    "silver_nass_crop_progress",
 })
 
 
@@ -74,7 +81,7 @@ def test_branch_selection_all_45_tables():
         "why_this_matters": "a table entering Branch A gains the pg reload + parity + the V001 floor; "
                             "a table LEAVING it loses its only mirror refresh path while staying "
                             "served -- update this roster deliberately, never to make a test pass"}
-    assert len(branch_a) == 18
+    assert len(branch_a) == 19                        # 18 + D-CW-2a's silver_nass_crop_progress
     assert branch_a | branch_b == set(names)          # partition: no table is UNKNOWN in the real registry
     assert not (branch_a & branch_b)
 

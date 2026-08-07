@@ -767,16 +767,23 @@ def dag_backed_slice_names() -> set:
     return {slice_name for did, slice_name in alias.items() if did in real}
 
 
-# G7.2 -- the 29 configured driver slices no REAL DAG id reaches, so planner._fill can never reach them and
+# G7.2 -- the 28 configured driver slices no REAL DAG id reaches, so planner._fill can never reach them and
 # no episode line can ever be injected for them on any contract. MEASURED at plan time over 109 configured
 # specs against display.all_driver_ids() (361 ids). Pinned here as a standing census number so nobody
 # re-derives a subset by hand again -- the deck author had already measured five of them
 # (suez/panama/baltic/mississippi/vessel_lineups) at eval_queries_playbooks_v1.yaml:1130-1140.
 # Drift from this pin is a lint finding, not a silent fact: check_driver_slices() hard-fails on a NEW
 # read-dark slice and advises when a pinned one has since been wired up.
+#
+# D-CW-3a, 2026-08-07 (capability-wiring wave): 29 -> 28. `diesel` LEFT the read-dark census -- driver_slices
+# .yaml now aliases the previously-waivered DAG id `gasoil_palm_spread` (the palm-gasoil/POGO spread node on
+# malaysian_crude_palm_oil_cme and palm_olein_dce) to it, so its 497 props are reachable from two contracts.
+# It is the ONLY member this wave could remove: `urea`, `dap` and `potash` STAY read-dark because the estate
+# holds no nutrient-specific driver id anywhere in the 33 causal DAGs (the fertilizer concept is five generic
+# ids, all correctly owned by the `fertilizer` slice), and un-stranding them needs curation, not wiring.
 READ_DARK_SLICES_PIN = frozenset({
     "baltic_dry_freight", "barley_yellow_dwarf_virus", "cattle_cycle_herd_size", "cattle_on_feed", "dap",
-    "diesel", "egypt_gasc_tenders", "global_rice_export_policy", "idr_fx", "index_roll_flows",
+    "egypt_gasc_tenders", "global_rice_export_policy", "idr_fx", "index_roll_flows",
     "indian_ocean_dipole", "inr_fx", "madden_julian_oscillation", "metals", "mississippi_river_levels",
     "myr_fx", "natural_rubber", "panama_canal_constraints", "potash", "real_yields_rates", "subsidy",
     "suez_redsea_disruption", "sunflower_oil_balance", "sustainable_aviation_fuel", "urea",
@@ -851,7 +858,7 @@ def check_driver_slices() -> list[str]:
                         benign self-alias — driver_alias()'s setdefault makes it a no-op identity entry, not a
                         second owner — so it is skipped, never flagged.
       (c) READ-DARK DRIFT (G7.2) -- a configured slice no REAL DAG id reaches can never have an episode line
-                        injected (planner.py:320/:334). 29 such slices were MEASURED and pinned in
+                        injected (planner.py:320/:334). 28 such slices were MEASURED and pinned in
                         READ_DARK_SLICES_PIN. A slice that is read-dark and is neither pinned nor named by a
                         `waivers:` entry is a NEW unaccounted gap -> hard error. A pinned slice that has
                         since been wired up is an advisory line telling you to shrink the pin (an
@@ -1170,7 +1177,7 @@ def write_driver_slices(driver_sink: dict, *, backend: str | None = None, bedroc
     construction, which is why the guard could never fire for anything. It still RECORDS (an ASCII WARN line
     + an append to the optional `warnings` collector) and still NEVER refuses: a legitimate E1b flow authors
     a slice before its alias lands, and hard-refusing would clobber a build in progress. Expect it to be
-    LOUD now — 29 configured slices are read-dark (READ_DARK_SLICES_PIN); that is the true state, and a
+    LOUD now — 28 configured slices are read-dark (READ_DARK_SLICES_PIN); that is the true state, and a
     guard that says so is worth more than one that reads green because it cannot speak.
 
     G1b/G1c/G5b, the wholesale-write guard (this is C2, one of the FIVE silent seams): the pass is

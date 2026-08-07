@@ -19,6 +19,9 @@ from leviathan.graphrag.numbers import pattern_records as PR
 from leviathan.graphrag.numbers import query as Q
 from leviathan.graphrag.numbers import stats as ST
 from leviathan.graphrag.numbers.registry import NumbersRegistry, TableSpec, load_registry
+from leviathan.graphrag.numbers.registry import (
+    visible_tables as _visible,  # D-CW-1d: ONE visibility rule
+)
 
 HAIKU = "claude-haiku-4-5"                                 # cheap + mechanical; the agent just selects table/metric/scope
 TOOL_NAME = "lookup_number"
@@ -1325,11 +1328,14 @@ def _visible_tables(reg: NumbersRegistry) -> list[str]:
     """The registry tables EXPOSED to the agent this call: sorted(reg.tables), MINUS the flag-gated
     pattern-records card when GRAPHRAG_PATTERN_RECORDS is OFF. Read per-call so the kill-switch rollback is
     live; when off the returned list is BYTE-IDENTICAL to the pre-feature sorted(reg.tables) (the card is
-    the only new table), so tool_schema + system_prompt are unchanged (plan 7.6 identical-answers smoke)."""
-    tables = sorted(reg.tables)
-    if PR.PR_TABLE in tables and not PR.pattern_records_on():
-        tables = [t for t in tables if t != PR.PR_TABLE]
-    return tables
+    the only new table), so tool_schema + system_prompt are unchanged (plan 7.6 identical-answers smoke).
+
+    D-CW-1d: the RULE itself now lives in ``registry.visible_tables`` and this is a thin wrapper over it --
+    ``dispatch.family_names()`` derives the planner's family enum from the SAME function, so the router can
+    no longer emit a family whose card the agent cannot see (the census's gold_pattern_records enum leak).
+    Kept as a module-local name because every call site in this module (tool_schema, system_prompt,
+    _families_line) reads it and the tests pin it here."""
+    return _visible(reg)
 
 
 # B1: MIRRORS dispatch._FAMILY_PREFIX -- the family enum is DERIVED by stripping this prefix off every
@@ -1420,6 +1426,25 @@ def tool_schema(reg: NumbersRegistry) -> dict:
                                        "named expiry (that is the curve at one as-of, one row per "
                                        "expiry); 'series' = every observation in the window, oldest -> "
                                        "newest; sum/mean/max/min collapse the window to one number."},
+                # D-CW-1c -- the twelfth NumberQuery field, and the only one the schema never declared.
+                # The model can only emit what the schema NAMES, so while this was absent EVERY series read
+                # ran at the 5000 cap with no way to say otherwise: a daily card asked for "the full
+                # history" came back truncated, and the truncation is silent at the row level (a capped
+                # series looks exactly like a short one). Declared here so a long read is a DELIBERATE
+                # window rather than an accident of the default.
+                "limit": {"type": "integer", "default": 5000, "minimum": 1, "maximum": 5000,
+                          "description":
+                          "maximum number of rows a 'series' read returns (default 5000, the cap; you may "
+                          "lower it, never raise it -- a larger value is clamped back to 5000). A window "
+                          "with MORE observations than this is TRUNCATED, and the rows kept are the "
+                          "NEWEST ones in the window (the series is read newest-first for exactly that "
+                          "reason and handed back to you oldest -> newest). So a small limit on a long "
+                          "card means 'the last N observations', not 'the first N'. Two rules: (1) pin "
+                          "the window you actually want with period_start / period_end rather than "
+                          "leaning on the cap -- a daily card holds ~250 rows per year, a weekly one ~52; "
+                          "(2) never describe a truncated read as the complete record -- if the rows you "
+                          "got start later than the history you asked about, say so, or re-read a "
+                          "narrower window."},
             },
             "required": ["table", "metric"],
         },
@@ -1836,9 +1861,30 @@ def system_prompt(reg: NumbersRegistry, stats_tool: Optional[bool] = None) -> st
     )
 
 
+LIMIT_CEILING = int(Q.NumberQuery.model_fields["limit"].default)   # 5000 -- derived, never a second copy
+
+
+def _clamp_limit(v) -> int:
+    """D-CW-1c: a model-supplied `limit` may only NARROW the read. Declaring the field in the tool schema
+    hands the model a knob on the SCAN SURFACE, and the one direction that is never safe is up: the 5000 cap
+    is what bounds a series read's bytes, and the S3 LIST-storm work (Jul-2026, $134) closed exactly this
+    surface. So the ceiling is the field's own default -- read from the model, never re-typed -- and anything
+    above it, below 1, or not an integer at all (a float, a string, None) collapses back to the default.
+    Clamping rather than raising is deliberate: a too-large limit is a mis-sized request, not a leakage or
+    attribution error, and refusing the whole lookup over it would cost a real answer."""
+    try:
+        n = int(v)
+    except (TypeError, ValueError):
+        return LIMIT_CEILING
+    return LIMIT_CEILING if n > LIMIT_CEILING or n < 1 else n
+
+
 def _forced_spec(asof: str, inp: dict) -> Q.NumberQuery:
-    """Build a NumberQuery from the model's tool input, FORCING asof (drop any asof the model tried to pass)."""
+    """Build a NumberQuery from the model's tool input, FORCING asof (drop any asof the model tried to pass)
+    and CLAMPING limit to the cap (D-CW-1c -- the field is model-emittable now, and only downward)."""
     data = {k: v for k, v in inp.items() if k != "asof"}
+    if "limit" in data:
+        data["limit"] = _clamp_limit(data["limit"])
     return Q.NumberQuery(asof=asof, **data)
 
 

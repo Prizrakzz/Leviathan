@@ -1,0 +1,1104 @@
+# Numbers registry — observed-value Athena tables the SQL agent may look up (point-in-time correct).
+# One entry per table: SQL shape (wide|tall), commodity/country/period identification, and the KNOWLEDGE-DATE
+# semantics (vintage|ingest|data_date) that anchors every as-of query. This file is the agent's cached
+# system-prompt context AND the deterministic query builder's schema source. Keystone tranche (4); ESR + the
+# rest fold in next.
+tables:
+
+  silver_psd:
+    description: >
+      USDA PSD (Production, Supply & Distribution) — the authoritative global commodity balance sheets by
+      country and marketing year. Each row is one country x commodity x marketing-year estimate as published on
+      a given release_date; estimates are revised across releases, so as-of a date means the latest release on
+      or before it.
+    grain: "one row per commodity x country x market_year x release_date"
+    shape: wide
+    commodity_col: leviathan_slug
+    country_col: country
+    period_col: market_year
+    period_type: marketing_year
+    period_sql_type: int                 # market_year is a smallint, e.g. 2023 (= 2023/24 marketing year)
+    knowledge_date_col: release_date
+    knowledge_semantics: vintage
+    metrics:
+      production_mt:         {unit: "MT", desc: "production for the marketing year"}
+      exports_mt:            {unit: "MT", desc: "exports"}
+      imports_mt:            {unit: "MT", desc: "imports"}
+      beginning_stocks_mt:   {unit: "MT", desc: "carry-in stocks"}
+      ending_stocks_mt:      {unit: "MT", desc: "carry-out stocks"}
+      consumption_mt:        {unit: "MT", desc: "domestic consumption/use"}
+      area_harvested_1000ha: {unit: "1000 ha", desc: "harvested area"}
+      yield_mt_ha:           {unit: "MT/ha", desc: "yield"}
+      su_ratio:              {unit: "ratio", desc: "stocks-to-use ratio"}
+    notes: >
+      Values in `_mt` columns are RAW metric tonnes (verified: Argentina corn MY2023 ending stocks = 2,462,000
+      = 2.46 MMT). period = the marketing year as an integer (e.g. 2023). Latest vintage <= asof = as-known.
+
+  silver_wasde:
+    description: >
+      USDA WASDE — monthly World Agricultural Supply and Demand Estimates. Tall/long format: one row per
+      commodity x REGION x attribute x marketing_year per monthly release_date. Attributes are the
+      balance-sheet line items; region is the geographic scope of the estimate (united_states, world,
+      brazil, major_exporters, ...). As-of a date = the latest monthly release on or before it.
+    grain: "one row per commodity x table_type x region x attribute x marketing_year x release_date"
+    # FIXED 2026-07-05 (pg-parity gate catch): the grain also carries table_type + region — without them
+    # in grain_cols the latest-vintage ROW_NUMBER collapsed ACROSS regions and kept one arbitrary region
+    # row per (commodity, MY, attribute). Undetectable before because the Title-Case metrics bug made
+    # every WASDE lookup return 0 rows anyway.
+    grain_cols: [commodity, table_type, region, marketing_year, attribute]
+    shape: tall
+    commodity_col: commodity
+    country_col: region                  # region IS the country axis here (see notes for the value format)
+    period_col: marketing_year
+    period_type: marketing_year
+    period_sql_type: string              # marketing_year is a string like '2023/24'
+    knowledge_date_col: release_date
+    knowledge_semantics: vintage
+    # Partition mode: REGISTERED (partition_mode registered / projection FORBIDDEN since BF-W2, ~461 real
+    # monthly release_date partitions). Athena prunes the catalog with NO S3 enumeration, so an unbounded
+    # probe is safe here -- the projected-grid / LIST-storm text that once lived on this table is DEAD
+    # doctrine (PRICE_OBSERVABILITY W1.2 / S2.F11). The as-of guard is still emitted NATIVELY on release_date
+    # (no CAST -- identity on a string col, and never poison a registered key) and the period-derived lower
+    # bound is KEPT as free hygiene; real publication dates make those date bounds semantically valid here
+    # (unlike ESR write-dates).
+    vintage_partition_col: release_date
+    vintage_partition_format: iso
+    vintage_dates_real: true
+    # FIXED 2026-07-16 (F2 pg-parity gate catch): the F2 WASDE rebuild put the F036 columns physically into
+    # ALL silver_wasde partitions -- estimate_role {projection|estimate|actual}, projection_month,
+    # source_table_id are natural-key columns. Early-era releases (1985-1999) legitimately carry MULTIPLE rows
+    # per numbers grain (commodity, table_type, region, marketing_year, attribute) at ONE release_date,
+    # differing only by estimate_role. The release_date-only latest-vintage ROW_NUMBER now TIES and pg vs
+    # Athena break the tie by ENGINE ORDER -> Branch-A value flip-flops on the 1985/1986/1989 releases. This
+    # deterministic role-priority tiebreak makes the MOST-SETTLED figure win at any as-of (actual < estimate <
+    # projection).
+    #
+    # FIXED 2026-07-22 (WASDE-restoration W2, chronological projection_month): the modern US two-vintage shape
+    # carries TWO projection rows per grain at ONE release -- a current-month projection column AND a
+    # prior-month one (silver stores FULL month names in projection_month: 'January'..'December'). The value
+    # that must win is the CURRENT one, which == the RELEASE month (probed carry-forward series: Nov'01->Nov,
+    # Dec'01->Dec, Jan'02->Jan=1546 not the stale Dec=1574). The OLD `projection_month DESC NULLS LAST` ranked
+    # month NAMES LEXICALLY -- it picks 'October' over 'November' (O>N) and 'December' over 'January' -- i.e.
+    # the STALE prior-month value at ~half of all releases. A static winner-first month list can't fix it
+    # either: the DEC/JAN WRAP is PRESENT (Athena probe 2026-07-22: 1549 grains, all January releases, carry
+    # BOTH 'December' and 'January'); a static calendar order would wrongly pick December there. So the rank is
+    # RELEASE-RELATIVE: `match_release_month: release_date` ranks the projection_month that equals the release
+    # month FIRST (rank 0), default ASC, no `dir` -> the SQL CASE and the pure-Python oracle agree BY
+    # CONSTRUCTION (avoids the ORACLE-DIR trap: a naive {..., dir: desc} emits correct SQL but the oracle's
+    # role_order branch ignored dir -- now honored symmetrically on both branches). source_table_id ASC stays
+    # the final total-order key. projection_month is silver `string` (full month names byte-for-byte) and
+    # release_date is the ISO 'YYYY-MM-DD' partition -> substr(release_date,6,2) is engine-portable, no CAST,
+    # no partition-pruning impact (it lives in the ROW_NUMBER ORDER BY, not the WHERE).
+    vintage_tiebreak:
+      - {col: estimate_role, role_order: [actual, estimate, projection]}   # role rank ASC: actual (rank 0) wins
+      - {col: projection_month, match_release_month: release_date}          # current-month projection wins (release-relative)
+      - {col: source_table_id, dir: asc}                                    # final deterministic total-order key
+    # DP-2 (PRICE_OBSERVABILITY W1.2): surface estimate_role as `revision_stamp` on every row so an
+    # avg_farm_price figure carries whether it is an actual / estimate / projection (R3 attribution: a
+    # current/future-MY value is a USDA PROJECTION and must be attributed, not sold as our forecast).
+    provenance_col: estimate_role
+    metric_col: attribute                # the metric NAME lives here (e.g. 'Ending Stocks')
+    value_col: estimate
+    unit_col: unit
+    metrics:
+      # FIXED 2026-07-05: the silver data stores snake_case attributes (ending_stocks, production, ...).
+      # The previous Title-Case names ('Ending Stocks', 'Total Use') matched ZERO rows — every WASDE lookup
+      # silently compiled to an empty result and reported "not yet published". Caught by the pg-mirror
+      # loader's 0-row load; values verified against SELECT DISTINCT attribute on release_date=2024-06-12.
+      "ending_stocks":   {desc: "carry-out stocks line"}
+      "production":      {desc: "production line"}
+      "exports":         {desc: "exports line"}
+      "imports":         {desc: "imports line"}
+      "domestic_total":  {desc: "total domestic use line (was mislabeled 'Total Use')"}
+      "beginning_stocks": {desc: "carry-in stocks line"}
+      # PRICE_OBSERVABILITY A3 RE-WHITELIST (2026-07-22): silver_wasde was rebuilt + promoted (canonical
+      # CERTIFIED, 373 releases 1995+, pg parity PASS) and avg_farm_price is LIVE data again -- unwinding the
+      # July W3.0 exclusion (label-dead then; the bronze alias was re-extended + re-parsed). Coverage + units
+      # are probe-verified against the rebuilt canonical (2026-07-22), trusted over the retired exclusion note:
+      #   corn/rice/sorghum/wheat  united_states  1995-01-12 -> 2026-07-10 (MY 1992/93 -> 2026/27)
+      #   soybeans                 united_states  1996-06-12 ->            (MY .. -> 2026/27)
+      #   cotton  REGION SPLIT: region 'u_s_cotton' 1995 -> 2011-08-11, THEN region 'united_states'
+      #           2011-09-12 -> now (the split is REAL -- row_filters accepts BOTH so a pre-2011 ask and a
+      #           modern ask both resolve; the two eras dedup by their own release vintage)
+      #   soybean_oil + soybean_meal  united_states  2011-09-12 -> now (from the restored US oil-crops table --
+      #           these are MARKET prices: Decatur oil c/lb, Decatur meal $/s.t., NOT farm-gate; desc says so)
+      #   barley/oats  2015-07-10 -> now
+      # unit_overrides is the GOVERNING display unit because the stored `unit` column is heterogeneous: modern
+      # rows carry real units, legacy pre-2011 rows carry an EMPTY unit (values era-correct, e.g. corn med 2.38),
+      # and cotton rows carry a WRONG bled label 'Million 480 Pound Bales' on c/lb-magnitude values (med 68.09).
+      # Two attribution BLEEDS the row_filters fence out of serving (mechanism = Metric.row_filters, mirrored
+      # in build_sql + apply_pit_filter):
+      #   * soybeans: besides the clean '$/bu' series (689 rows, med 10.55) silver carries '$/s.t.' rows (149,
+      #     med 392, meal-like), 'Domestic Measure' rows (691, med 5.86 hi 227.5, mixed junk) and 'c/lb' rows
+      #     (8, oil-like) on the soybeans commodity -- restrict soybeans farm-price fetches to unit IN
+      #     ('$/bu','') so only the true bean price (modern + legacy-blank) can reach serving.
+      #   * cotton: exclude nothing (the label is wrong but the rows are right; unit_overrides displays c/lb) --
+      #     the row_filter on the region column just widens the country match to region IN
+      #     ('u_s_cotton','united_states') across the 2011 split.
+      # Current- and future-MY values are USDA PROJECTIONS -- attributed by revision_stamp (provenance_col=
+      # estimate_role) and the A1 release-relative projection_month tiebreak picks the CURRENT-month value.
+      # R1 (config_check) binds unit_overrides keys to _FARM_PRICE_COMMODITIES; R3 binds the estimate_role-first
+      # vintage_tiebreak + provenance_col above (both already present).
+      "avg_farm_price":
+        desc: >
+          US season-average price by commodity (USDA survey-based; NOT a futures settle). corn, wheat, sorghum,
+          oats and barley are $/bu; rice $/cwt; cotton c/lb; soybeans $/bu. soybean_oil (c/lb) and soybean_meal
+          ($/s.t.) are US MARKET prices at Decatur, NOT farm-gate -- attribute them as such. Current- and
+          future-MY values are USDA PROJECTIONS (revision_stamp carries actual/estimate/projection), never sold
+          as our own forecast. Legacy pre-2011 rows carry an empty source unit; the values are era-correct.
+        unit_overrides:
+          corn:         "$/bu"
+          wheat:        "$/bu"
+          sorghum:      "$/bu"
+          oats:         "$/bu"
+          barley:       "$/bu"
+          rice:         "$/cwt"
+          cotton:       "c/lb"
+          soybeans:     "$/bu"
+          soybean_oil:  "c/lb"
+          soybean_meal: "$/s.t."
+        row_filters:
+          # soybeans attribution bleed -> only the true bean price ($/bu, plus legacy-blank) reaches serving.
+          soybeans:
+            unit: ["$/bu", ""]
+          # cotton region split -> the US cotton farm price lives under BOTH region codes across the 2011 break.
+          cotton:
+            region: ["u_s_cotton", "united_states"]
+    notes: >
+      attribute values are snake_case in silver (ending_stocks, ...). period = marketing_year string e.g.
+      '2023/24'. country filters the REGION column and its values are snake_case scopes: 'united_states',
+      'world', 'brazil', 'argentina', 'china', 'european_union', 'major_exporters', 'total_foreign', ...
+      — pass country='united_states' for the US balance sheet (NOT 'United States'). Without a country the
+      result spans ALL regions (each row carries its region in the country field).
+
+  silver_production:
+    description: >
+      Curated annual production statistics (FAOSTAT-style) by country and commodity. Tall format: metric names
+      live in `metric`, values in `value`. Observational/annual — stamped with an ingest_date (no revision
+      vintage), so as-of = rows ingested on or before the date.
+    grain: "one row per commodity x country x year x metric"
+    shape: tall
+    commodity_col: commodity
+    country_col: country
+    period_col: year
+    period_type: year
+    period_sql_type: int
+    knowledge_date_col: ingest_date
+    knowledge_semantics: ingest
+    metric_col: metric
+    value_col: value
+    unit_col: unit
+    metrics:
+      # physical vocabulary is production_quantity/area_harvested/yield (footer-probed 2026-07-15);
+      # the old declared name 'production' was a zero-row phantom -- the pg loader's isin filter
+      # never even mirrored those rows (C002-caught at the first live Branch-A gate fire).
+      production_quantity: {desc: "production quantity"}
+      area_harvested:      {desc: "harvested area"}
+      yield:               {desc: "yield"}
+    notes: "metric strings match the dataset's metric labels. period = year integer."
+
+  # SILVER-F047 QUARANTINE (corrected 2026-07-21 -- the earlier claim of a BF-W1 "numbers dispatch
+  # quarantine guard" described code that never existed; pydantic silently dropped this key until the
+  # registry went extra="forbid"). The projected silver_nasa_power is the LIST-storm class (~222k tiny
+  # files, month-grain projection). What F047 actually retired: ENGINE legs -- the cascade weather leg
+  # reads the NON-projected gold_weather_z since Phase D-W4 and must never come back here (INV-3).
+  # What legitimately REMAINS: the numbers agent's DIRECT raw-observation lookups (daily precip/temp by
+  # station-region) -- gold_weather_z serves standardized ANOMALIES (z), not raw values, and cannot
+  # replace them. Live protections: declared year/month cols make build_sql emit sargable bounds +
+  # static partition equalities (LIST-storm lint); INV-3 excludes it from DISTINCT vocab probes
+  # (contract_check.NUMBERS_PROJECTION_TABLES); the pg mirror EXCLUDES it (size); and quarantined: true
+  # is ENFORCED by config_check.check_quarantine -- any cascade_map/complex_map ref at this table fails
+  # the build. Spec RETAINED so the reconcile NUMBERS_TABLES hard-list + numbers_ref back-pointer stay green.
+  silver_nasa_power:
+    quarantined: true    # SILVER-F047: no engine map may reference this table (check_quarantine, build-failing);
+    #                      direct agent raw-weather lookups remain allowed with sargable predicates
+    description: >
+      NASA POWER daily weather by commodity growing region (country/region). Wide format: one column per
+      variable. Observational, non-revising — as-of = observation dates on or before the cutoff. Typically
+      queried as a windowed aggregate (sum precip / mean temp over a period_start..period_end).
+      SILVER-F047: QUARANTINED from serving -- weather is served from gold_weather_z.
+    grain: "one row per commodity x country x region x date (daily)"
+    shape: wide
+    partition_cols: [commodity, country, region]   # PHYSICAL TRUTH post BF-W1 compaction (synced 2026-07-21):
+    #                  Glue partitions are [commodity, year] REGISTERED; country/region/month are IN-FILE
+    #                  columns (the compaction folded them into the parquet; the rebuilt catalog forgot to
+    #                  declare them -- every weather lookup died COLUMN_NOT_FOUND until the Glue declaration
+    #                  was restored). This list stays as-is FUNCTIONALLY: build_sql keeps emitting the same
+    #                  equality predicates (country snake_case, region defaulting to the commodity's primary
+    #                  growing region) -- they are ordinary column predicates now, equally valid SQL. The
+    #                  LIST-storm risk this card's old comments guarded is RETIRED (registered partitions,
+    #                  catalog-side pruning; ~1.4K partitions vs the old ~222K projected grid).
+    commodity_col: commodity
+    country_col: country
+    period_type: date
+    date_col: date
+    year_col: year                       # year = the REGISTERED partition key (sargable bounds prune the
+    month_col: month                     # catalog); month = an in-file column since the compaction
+    knowledge_semantics: data_date
+    metrics:
+      temperature_2m_mean_c:    {unit: "degC", desc: "daily mean 2m temperature"}
+      temperature_2m_max_c:     {unit: "degC", desc: "daily max 2m temperature"}
+      temperature_2m_min_c:     {unit: "degC", desc: "daily min 2m temperature"}
+      precipitation_mm:         {unit: "mm", desc: "daily precipitation"}
+      relative_humidity_2m_pct: {unit: "pct", desc: "daily mean relative humidity"}
+      wind_speed_2m_m_s:        {unit: "m/s", desc: "daily mean 2m wind speed"}
+    notes: >
+      Use period_start/period_end for the window and agg=sum (precip) or agg=mean (temp). region partition
+      exists but is not yet a query filter (v1 aggregates across regions of a commodity+country).
+
+  silver_esr:
+    description: >
+      USDA FAS Export Sales Reporting — WEEKLY US export sales and shipments by commodity and destination.
+      commodity_name is the canonical contract slug. IMPORTANT: market_year uses the FAS END-year label
+      (soybeans MY 2023/24 = market_year 2024; confirmed 2026-07-03 from week windows 2023-09..2024-09);
+      period_offset +1 translates our START-year convention at compile time — callers keep passing 2023 for
+      2023/24. Each weekly report carries an as_of_date (the report cutoff); as-of a date = the latest report
+      published on or before it (grain = the WEEK). Destinations ARE supported: pass country=<name> (e.g.
+      country='China') for a buyer-scoped export-sales read; OMIT country for the national total across all
+      destinations. Names resolve to raw FAS codes via numbers/esr_destinations.yaml; an unrecognised name
+      returns NO rows (never a silent national total). Bloc/region aggregate codes (e.g. the EU) are a bloc
+      aggregate, and pseudo codes (Unknown) are never a single-country name target.
+    grain: "one row per commodity x destination x week_ending_date, per weekly as_of_date report"
+    shape: wide
+    commodity_col: commodity_name            # already our slugs: corn_cbot, soybeans_cbot, hard_red_winter_wheat_kcbt, ...
+    country_col: country_code                 # ESR_DESTINATION_PLAN W1: raw int FAS destination code (in-file on
+    #                                           silver_esr_compact, NOT a projected partition) -> name<->code is a
+    #                                           query-time translation (esr_destinations.yaml), no silver col / pg reload
+    country_name_ref: numbers/esr_destinations.yaml   # W0 numbers-owned static FAS code<->name reference
+    period_col: market_year
+    period_type: marketing_year
+    period_sql_type: int
+    period_offset: 1
+    date_col: week_ending_date
+    knowledge_date_col: as_of_date
+    # BF-W2 SEMANTIC FLIP (SILVER-F031 option-b): silver_esr_compact retains ONE object per
+    # (slug, as_of_date) weekly vintage, so as-of truth = the LATEST vintage published on/before
+    # asof -- the same ROW_NUMBER collapse as PSD/WASDE, keyed on the WEEK grain below. Backward
+    # compatible with the pre-migration single-vintage layout (ROW_NUMBER=1 trivially).
+    knowledge_semantics: vintage
+    # R2 lexical-format trap: as_of_date values are YYYYMMDD ('20260712') but asof is ISO -- a naive
+    # vintage guard compiles as_of_date <= '2026-07-14', lexically FALSE against every vintage (zero
+    # rows). vintage_partition_col+format make the guard compare natively in YYYYMMDD (sargable once
+    # as_of_date becomes a REGISTERED partition key at the BF-W2 scheme migration). vintage_dates_real
+    # stays false (default): the backfill vintage's as_of is a WRITE date covering all MYs, so
+    # period-derived date bounds on the vintage axis remain canary-banned (2026-07-04).
+    vintage_partition_col: as_of_date
+    vintage_partition_format: yyyyMMdd
+    # R4: under vintage semantics the as_of stamp IS the publication event (the fetch date), so the
+    # +7d data_date-era guard (D-W0.3) would DOUBLE-withhold the freshest published week. 0 at the
+    # flip, never before it.
+    publication_lag_days: 0
+    # R3: every weekly vintage carries the same week under BOTH the current and the next MY --
+    # without market_year in the grain the latest-vintage ROW_NUMBER collapse merges the two MYs.
+    grain_cols: [commodity_name, market_year, country_code, week_ending_date]
+    # S3 LIST-STORM FIX (Jul-2026, $134 in 2 days): the ORIGINAL silver_esr table uses partition
+    # PROJECTION (as_of_date 1990->NOW x market_year x commodity_code ~ 6.1M candidate prefixes) — every
+    # numbers query made Athena LIST ~130-600K S3 prefixes (26-31s planning time, measured). The agent
+    # serves from silver_esr_compact instead: the b2s task's layout at silver/esr/, REGISTERED Glue
+    # partitions, never projection. Pre-BF-W2-migration: one file per commodity (10 partitions, as_of_date
+    # as a data column); post-migration: one file per (commodity, as_of_date) weekly vintage. The
+    # commodity partition equality prunes every query to that slug's files either way (~10MB/vintage).
+    athena_table: silver_esr_compact
+    partition_cols: [commodity]
+    metrics:
+      weekly_exports_1000mt:    {unit: "1000 MT", desc: "actual shipments in the week"}
+      outstanding_sales_1000mt: {unit: "1000 MT", desc: "unshipped sales on the books"}
+      gross_new_sales_1000mt:   {unit: "1000 MT", desc: "new sales booked in the week"}
+      changes_1000mt:           {unit: "1000 MT", desc: "net change in outstanding sales"}
+    notes: >
+      Units are 1000 MT (the transform divides raw MT by 1000). commodity = contract slug. Pass country=<name>
+      for a per-destination (buyer) read, or OMIT country for the national total (agg=sum for a marketing-year
+      total, agg=series over a week window with period_start/end). Destination names resolve to FAS codes via
+      esr_destinations.yaml; an unrecognised name returns no rows (never a silent national total). The US is the
+      REPORTER, never a destination. period = market_year integer.
+
+  silver_fred_fx:
+    description: >
+      Daily FX rates (FRED) for the commodity-relevant currencies vs the US dollar — Brazilian real, Argentine
+      peso, Chinese yuan — with 90-day percent changes. Macro table (no commodity), known same-day (data_date).
+    grain: "one row per date"
+    shape: wide
+    period_type: date
+    date_col: date
+    knowledge_semantics: data_date
+    metrics:
+      brl_usd: {unit: "BRL per USD (FRED)", desc: "Brazilian real per US dollar; higher = weaker real"}
+      ars_usd: {unit: "ARS per USD (FRED)", desc: "Argentine peso per US dollar; higher = weaker peso"}
+      cny_usd: {unit: "CNY per USD (FRED)", desc: "Chinese yuan per US dollar; higher = weaker yuan"}
+      brl_usd_pct_change_90d: {unit: "pct", desc: "BRL/USD 90-day percent change"}
+      ars_usd_pct_change_90d: {unit: "pct", desc: "ARS/USD 90-day percent change"}
+      cny_usd_pct_change_90d: {unit: "pct", desc: "CNY/USD 90-day percent change"}
+    notes: >
+      No commodity/country filter. agg=latest returns the rate as-of a date; period_start/end + agg for a window.
+      Direction is the FRED "local currency per USD" convention (verify against source before hard sizing).
+
+  silver_noaa_oni:
+    description: >
+      NOAA Oceanic Nino Index (ONI) — the canonical ENSO state, MONTHLY. oni_anom is the 3-month running SST
+      anomaly (>= +0.5 El Nino, <= -0.5 La Nina); flags mark El Nino / La Nina months and the Brazil/Argentina
+      teleconnection regimes. No date column — identified by year + month, known at month end (year_month guard).
+    grain: "one row per year x month"
+    shape: wide
+    period_type: date
+    year_col: year
+    month_col: month
+    knowledge_semantics: year_month
+    metrics:
+      oni_anom:     {unit: "degC", desc: "ONI 3-month SST anomaly (>= +0.5 El Nino, <= -0.5 La Nina)"}
+      oni_lag3:     {unit: "degC", desc: "ONI lagged 3 months"}
+      oni_lag6:     {unit: "degC", desc: "ONI lagged 6 months"}
+      el_nino_flag: {unit: "0/1", desc: "1 if the month is classified El Nino"}
+      la_nina_flag: {unit: "0/1", desc: "1 if the month is classified La Nina"}
+    notes: >
+      No commodity filter (global ENSO state). agg=latest = the current ONI as-of a date. as-of compares
+      (year*100 + month) <= asof year-month, so a mid-month asof sees only completed months.
+
+  # WIRING WAVE-1 (Card A): NOAA Indian Ocean Dipole, the ONI sibling. year_month semantics (year+month,
+  # no date col). Serves the observed DMI + its 3-month running mean; iod_phase (string categorical) and
+  # iod_dmi_ethiopia_lag4 (a commodity-specific engineered feature) are EXCLUDED -- the numbers pipeline
+  # serves numeric observed values, not a string metric or a modelling input. NaN-honesty: the producer
+  # TRIMS any trailing all-NaN placeholder tail, so the max present (year,month) IS the last real reading
+  # and agg=latest serves a real number, never a sentinel. Flat, projection-forbidden.
+  # C3 (2026-08-01) -- CORRECTED. This line used to read "enters NO cascade_map (global climate state, no
+  # engine leg)". That recorded wiring-wave-1's SCOPE, not a doctrine: the table is the exact structural
+  # twin of silver_noaa_oni, whose oni_climate row has been mapped since P9-B. It now ENTERS cascade_map
+  # as `iod_climate`, an era/current climate-state leg. NO pace leg -- silver_noaa_iod is absent from
+  # cascade.PACE_TABLES while its ONI sibling is present, which is a deliberate code fact and where to
+  # look if a pace claim on IOD is ever expected.
+  # IOD SOURCE SWITCH (ADR_IOD_SOURCE_SWITCH, RATIFIED 2026-07-24, Option B): the basis moved from the
+  # FROZEN NOAA PSL HadISST1.1 file (dead at 2025-04, ~13 months without a regeneration) to the LIVE
+  # NOAA CPC ERSSTv5 IODMI record (1950-01..present). The card text is re-cut with it: the old
+  # "many months stale" framing described a dead source and is replaced by the live monthly cadence +
+  # the ~30-45d publication lag + the 45d freshness SLA. Table id, metrics and PIT fields are unchanged
+  # (decision 6.4), so this is a TEXT-only card edit -- reconcile_numbers stays clean by construction.
+  silver_noaa_iod:
+    description: >
+      NOAA Indian Ocean Dipole (Dipole Mode Index, DMI) -- the canonical IOD state, MONTHLY, from the
+      NOAA CPC IODMI record (ERSSTv5 SSTs, anomalies vs the FIXED 1991-2020 climatology), 1950-01
+      onward. dmi_value is the west-minus-east tropical Indian Ocean SST-anomaly gradient (positive IOD
+      warms the west / East Africa and cools the east / Indonesia-Australia); iod_dmi_3month_avg is its
+      3-month running mean. No date column -- identified by year + month (year_month guard). A completed
+      month is published about 30-45 days after month end, so the newest available month normally trails
+      today by roughly one month; that is the source's live cadence, not a gap. Global climate state; no
+      commodity filter.
+    grain: "one row per year x month"
+    shape: wide
+    period_type: date
+    year_col: year
+    month_col: month
+    knowledge_semantics: year_month
+    metrics:
+      dmi_value:          {unit: "degC", desc: "IOD Dipole Mode Index, monthly SST-gradient anomaly (positive = positive IOD)"}
+      iod_dmi_3month_avg: {unit: "degC", desc: "DMI 3-month running mean (seasonal IOD signal)"}
+    notes: >
+      No commodity/country filter (global IOD state). agg=latest = the latest published DMI as-of a
+      date; window months with period_start/period_end as 'YYYY-MM'. as-of compares (year*100 + month)
+      <= asof year-month, so a mid-month asof sees only completed months. The source is LIVE and
+      monthly with a ~30-45 day publication lag, held to a 45-day freshness SLA (registry
+      freshness_sla.max_lag_days, F082 staleness alarm): cite the reading's own month and let the
+      one-month cadence gap stand as normal -- never call a dated reading 'current' and never treat the
+      lag as missing data. Units are degC SST anomalies vs the FIXED 1991-2020 climatology (ERSSTv5,
+      served as published), so magnitudes are comparable across the whole 1950+ record but NOT with
+      pre-2026 HadISST-basis figures quoted elsewhere (the 1997 peak reads 1.55 here, 1.28 on the
+      retired basis). A climate index in degC, never a price or a crop-outcome forecast; positive-IOD
+      teleconnections (East-Africa/arabica, Australia) are qualitative context, not a served number.
+
+  gold_weather_z:
+    description: >
+      Gold weather z-table (Phase D-W4) — MONTHLY, per commodity growing region, point-in-time-safe
+      standardized weather-stress anomalies derived transform-upstream from the silver weather sources
+      (NASA POWER temperatures + CHIRPS precipitation). Tall/long: one row per commodity x country x region
+      x year x month x metric. Each z compares the month against the SAME MONTH in the trailing prior years
+      (the baseline excludes the observation year), so a value for year Y never sees Y. Non-revising
+      observational anomalies — as-of a date = months whose (year, month) is on or before the as-of
+      year-month. Decoupled from BOTH the deferred MLOps gold.feature_spine (silverleg.py:16-20 bars the
+      cascade from it) AND the projected silver_nasa_power (the Jul-2026 LIST-storm class); this table is
+      non-projected and mirror-friendly.
+    grain: "one row per commodity x country x region x year x month x metric"
+    shape: tall
+    commodity_col: commodity
+    country_col: country
+    # period_type mirrors the ONI year_month sibling ('date'): the registry period_type enum has no
+    # 'year_month' member and this field is cosmetic here (only agent.py prints it, and only when period_col
+    # is set — gold_weather_z has none). The as-of + windowing machinery is driven by knowledge_semantics
+    # below, NOT by this field. The cascade_map row that un-defers onto this table (D-W5) sets its OWN
+    # period_type: year_month (config_check.py:138 accepts it there).
+    period_type: date
+    year_col: year                       # year_month semantics: (year*100+month) is the window/guard axis
+    month_col: month
+    knowledge_semantics: year_month       # as-of guard = (year*100+month) <= asof_ym (no CAST, no partition)
+    metric_col: metric                    # tall: the metric NAME lives here
+    value_col: value                      # tall: the z-score / flag value lives here
+    metrics:
+      drought_z:        {unit: "z", desc: "longest consecutive dry-day run in the month, z vs prior-year same months (CHIRPS)"}
+      heat_stress_z:    {unit: "z", desc: "count of days above the heat threshold in the month, z vs prior-year same months"}
+      gdd_z:            {unit: "z", desc: "growing-degree-days accumulated in the month, z vs prior-year same months"}
+      tmax_anomaly:     {unit: "z", desc: "mean daily max temperature in the month, z vs prior-year same months"}
+      frost_event_flag: {unit: "0/1", desc: "1 if the monthly minimum temperature fell below the frost threshold"}
+    notes: >
+      z-scores are dimensionless (scale 1 — never delta a z against a level). country is the PSD Title-Case
+      surface form ('United States', 'Brazil', 'European Union') so a country_rule=region weather leg
+      resolves against it instead of going DARK. region is carried through but is NOT a query filter in v1
+      (a windowed leg aggregates across the commodity's regions, like silver_nasa_power v1). period =
+      year+month; as-of compares (year*100 + month) <= asof year-month. A mid-month asof sees only
+      COMPLETE months because the transform drops any month not covering every calendar day (RCA
+      2026-07-24: a ~23-day July's GDD sum z-scored against full-month baselines served gdd_z=-13.16) —
+      the latest row can therefore lag up to ~5 weeks behind today; that staleness is honest, not a gap.
+      z values are winsorized at +/-6: a serve of exactly +/-6.0 means "at or beyond the plausibility
+      cap" (thin same-month baselines make larger magnitudes statistical noise), and any |z|>6 from this
+      table is a data defect, never a real reading. frost_event_flag is a 0/1 flag, not a z.
+
+  # NUMBERS-DEPTH WAVE (Track A): three UDP/B-wave-certified silver tables wired into the numbers
+  # stack so the agent surfaces observed, point-in-time-correct cocoa / Malaysian-palm / SA-maize
+  # figures behind the SAME leakage-safe harness as PSD/WASDE/ESR. All three are flat, projection
+  # forbidden (no LIST-storm class), and NONE enters cascade_map (the reroute-v2 engine is untouched).
+  # The three su_ratio columns below are DIFFERENT formulas from the PSD-World stocks-to-use the
+  # reroute engine reads -- a naming collision only; each card labels its own formula.
+
+  silver_icco_cocoa:
+    description: >
+      ICCO Quarterly Bulletin of Cocoa Statistics -- the authoritative WORLD cocoa balance sheet,
+      collapsed to one row per cocoa marketing year. Grindings (world use), production, end stocks
+      and stocks-to-use, each taken from the latest ICCO release that carried it. Annual grain.
+    grain: "one row per cocoa_year (world balance sheet)"
+    shape: wide
+    commodity_col: null                 # single-commodity (cocoa); no commodity filter (W0-5)
+    country_col: null                   # world aggregate; no country axis
+    period_col: cocoa_year
+    period_type: marketing_year
+    period_sql_type: string             # values are '2024/25' (probed)
+    knowledge_date_col: latest_release_date
+    knowledge_semantics: vintage
+    publication_lag_days: 0             # latest_release_date IS the publication event
+    grain_cols: [cocoa_year]            # one row per year already; vintage guard just withholds future releases
+    metrics:
+      production_kt:  {unit: "1000 MT", desc: "world cocoa production (thousand tonnes)"}
+      grindings_kt:   {unit: "1000 MT", desc: "world cocoa grindings = world use (thousand tonnes)"}
+      end_stocks_kt:  {unit: "1000 MT", desc: "world end-of-year cocoa stocks (thousand tonnes)"}
+      su_ratio:       {unit: "ratio",   desc: "ICCO stocks-to-use = end_stocks_kt / grindings_kt (ANNUAL; NOT the PSD-World su_ratio)"}
+    notes: >
+      Single-commodity WORLD table (cocoa) -- omit commodity/country. period = cocoa marketing year
+      as a string '2024/25'. Values are in THOUSAND tonnes (kt). su_ratio is ICCO's annual
+      stocks/grindings ratio. Bronze QBCS is quarterly but silver retains only the ANNUAL
+      balance sheet, one row per cocoa_year, stamped with the latest release that published it.
+
+  silver_mpob:
+    description: >
+      MPOB (Malaysian Palm Oil Board) monthly palm-oil statistics -- production, closing stocks,
+      exports/imports and a monthly stocks-to-exports ratio for Malaysian crude palm oil. Monthly
+      grain; each month's stats are published ~10th of the FOLLOWING month.
+    grain: "one row per commodity x month (first-of-month data date)"
+    shape: wide
+    commodity_col: commodity            # single value malaysian_crude_palm_oil_cme (probed)
+    period_type: date
+    date_col: date                      # first-of-month DATA month, string '2016-12-01' = Dec-2016 stats
+    knowledge_semantics: data_date
+    knowledge_date_col: date
+    publication_lag_days: 43            # D1: conservative fixed lag -- see calibration
+    metrics:
+      production_cpo_mt:          {unit: "MT", desc: "crude palm oil production in the month"}
+      closing_stocks_palm_oil_mt: {unit: "MT", desc: "end-of-month palm oil stocks"}
+      exports_palm_oil_mt:        {unit: "MT", desc: "palm oil exports in the month"}
+      imports_palm_oil_mt:        {unit: "MT", desc: "palm oil imports in the month"}
+      su_ratio:                   {unit: "ratio", desc: "MONTHLY closing stocks / that-month exports (NOT the PSD annual stocks-to-use)"}
+    notes: >
+      commodity = malaysian_crude_palm_oil_cme (the only value). date is the DATA month stamped
+      first-of-month; window with period_start/period_end 'YYYY-MM-DD' or agg=latest for the newest
+      published month. Values in metric tonnes. This is MONTHLY -- for the USDA ANNUAL palm balance
+      sheet use silver_psd. su_ratio here is a monthly stocks/exports ratio.
+      (ffb_price_myr_per_mt remains excluded: MYR-native with no MYR in fred_fx -- deferred to
+      futures v1.5 under PRICE_OBSERVABILITY_DECISION; the price fence now lives in the REGISTER,
+      not the data.)
+
+  silver_sagis_cec:
+    description: >
+      South Africa Crop Estimates Committee (SAGIS/CEC) production estimates -- the numbered sequence
+      of national crop estimates by crop and reporting scope. Vintage table: each estimate carries a
+      release_date; as-of a date = the latest estimate published on or before it.
+    grain: "one row per crop x scope x production_year x report_month x estimate_number per release_date"
+    shape: wide
+    commodity_col: crop                 # SAGIS crop code: total_maize/white_maize/yellow_maize/wheat/... (W0-7)
+    country_col: scope                  # W0-2/D5: repurposed for the reporting scope total|commercial|developing
+    period_col: production_year
+    period_type: year
+    period_sql_type: int
+    knowledge_date_col: release_date
+    knowledge_semantics: vintage
+    publication_lag_days: 0
+    grain_cols: [crop, scope, production_year]   # latest-vintage collapse picks newest estimate as-known
+    vintage_tiebreak:
+      - {col: estimate_number, dir: desc}        # deterministic total order if two rows share a release_date
+    metrics:
+      current_estimate_t: {unit: "MT", desc: "current CEC production estimate (metric tonnes)"}
+      area_planted_ha:    {unit: "ha", desc: "area planted"}
+    notes: >
+      South Africa ONLY. commodity is a SAGIS crop code (total_maize for all maize; white_maize /
+      yellow_maize for the split). country selects the SCOPE: pass 'total' for the national headline
+      estimate ('commercial'/'developing' are the sub-scopes). period = production_year integer.
+      current_estimate_t is in metric TONNES. Revision fields (revision_t / revision_pct /
+      revision_surprise) are excluded -- they are cross-vintage DELTAS, not point-in-time levels (D4).
+
+  # WIRING WAVE-1 (Card B): CONAB Brazilian coffee production surveys. Survey-VINTAGE on the DERIVED
+  # survey_release_date (WIRING_WAVE1 pre-step, producer conab_coffee.py): each safra publishes up to four
+  # numbered surveys on a fixed annual calendar, so as-of a date = the latest survey published on/before it,
+  # with survey_number DESC the deterministic tiebreak (a higher survey always has a later derived release --
+  # no Dec/Jan wrap, unlike WASDE). The pre-step derived survey_release_date CONSERVATIVELY (first-of-month-
+  # AFTER the real mid-month release: S1->Mar-1(Y), S2->Jun-1(Y), S3->Oct-1(Y), S4->Feb-1(Y+1)), so the
+  # derived date is always >= the real release -> zero leak, <=~4wk withhold. The REVISION columns
+  # (production_revision_*, area_revision_ha, ...) are EXCLUDED -- cross-survey DELTAS, not PIT levels
+  # (the sagis_cec D4 rule). Flat, projection-forbidden. cascade_map repoint (conab_production_revision)
+  # is a documented TODO next to the `production` ref -- gated on a producer region='brazil' filter that this
+  # wave does not land (see cascade_map.yaml).
+  silver_conab_coffee:
+    description: >
+      CONAB (Brazil) coffee production surveys -- the numbered progressive estimates of the Brazilian
+      coffee crop by variety (arabica / robusta) and region. Survey-vintage: each safra carries up to
+      four surveys published across the crop year; as-of a date = the latest survey published on or
+      before it. National ('brazil' region) headline plus state/region detail.
+    grain: "one row per commodity x region x safra_year x survey_number"
+    shape: wide
+    commodity_col: commodity            # arabica_coffee | robusta_coffee
+    country_col: region                 # repurposed as the geo axis; pass region='brazil' for national
+    period_col: safra_year
+    period_type: marketing_year
+    period_sql_type: int
+    knowledge_date_col: survey_release_date   # WIRING_WAVE1 pre-step DERIVED column (producer)
+    knowledge_semantics: vintage
+    publication_lag_days: 0             # survey_release_date IS the (conservatively-derived) publication event
+    grain_cols: [commodity, region, safra_year]   # latest-survey collapse per (variety, region, safra)
+    vintage_tiebreak:
+      - {col: survey_number, dir: desc}          # deterministic total order (later survey wins the tie)
+    metrics:
+      production_thousand_bags: {unit: "1000 60-kg bags", desc: "CONAB production estimate (thousand 60-kg bags)"}
+      area_in_production_ha:    {unit: "ha", desc: "area in production"}
+      yield_bags_per_ha:        {unit: "bags/ha", desc: "yield (60-kg bags per hectare)"}
+    notes: >
+      Brazil ONLY. commodity = arabica_coffee | robusta_coffee. region selects the geo scope -- pass
+      region='brazil' for the national headline (state codes/names are sub-scopes). period = safra_year
+      integer. production_thousand_bags is thousand 60-kg bags. The survey REVISION columns
+      (production_revision_*, area_revision_ha, ...) are EXCLUDED -- they are cross-survey DELTAS, not
+      point-in-time levels (mirrors the sagis_cec D4 exclusion). Each safra collapses to its latest
+      survey as-known at asof. For the USDA global coffee balance sheet use silver_psd.
+
+  # WIRING WAVE-1 (Card C): SAGIS South-African WEEKLY cumulative grain export pace. DATA-DATE on the
+  # DERIVED week_ending_date (WIRING_WAVE1 pre-step, producer sagis_weekly_exports.py: the free-text
+  # week_ending range END parsed to an ISO date32; canonical parquet 1204 rows, 0 nulls, 2003-05..2024-04).
+  # The main loop APPLIED the gated Glue ADD COLUMNS migration (live catalog now = 9 cols, week_ending_date
+  # DATE), so Card C lands the numbers TableSpec here. data_date + a conservative publication_lag_days:5
+  # (the cumulative file posts a few days after the week's end -- the +5d shifts the as-of RHS literal back,
+  # sargable, mirrors the ESR/MPOB pub-lag pattern). prog_exports_mt is CUMULATIVE season-to-date; the
+  # pre-computed pct_of_prior_yr and z_vs_3yr_avg are SERVED AS STORED (the producer feeds them ONLY
+  # strictly-earlier seasons, sagis_weekly_exports.py:124-176 -- no-lookahead, so recomputing at query time
+  # would duplicate that guarantee; the Pink Sheet *_zscore_5yr precedent). National crop total only (no
+  # destination/grade axis); distinct from US ESR weekly sales and from SAGIS/CEC production estimates.
+  silver_sagis_weekly_exports:
+    description: >
+      SAGIS South Africa WEEKLY cumulative (progressive) grain export pace by crop -- maize and wheat.
+      One row per season x crop x week_number: the season-to-date exported tonnage plus a percent-of-
+      prior-year and a z-score vs the trailing 3-year same-week average. Point-in-time via the week's
+      ending date plus a conservative publication lag.
+    grain: "one row per season x crop x week_number"
+    shape: wide
+    commodity_col: crop                 # maize | wheat (SAGIS crop label, NOT a contract slug)
+    period_type: date
+    date_col: week_ending_date          # WIRING_WAVE1 pre-step DERIVED ISO date (producer) -- REQUIRED
+    knowledge_semantics: data_date
+    knowledge_date_col: week_ending_date
+    publication_lag_days: 5             # cumulative file posted weekly; conservative +5d never leaks
+    metrics:
+      prog_exports_mt:  {unit: "MT", desc: "season-to-date (cumulative) exports through the week"}
+      pct_of_prior_yr:  {unit: "pct", desc: "prog_exports as a percent of the prior season, SAME week (pre-computed, no-lookahead)"}
+      z_vs_3yr_avg:     {unit: "sigma vs 3-yr", desc: "prog_exports z vs the trailing <=3 prior seasons, same week (pre-computed, no-lookahead)"}
+    notes: >
+      South Africa ONLY. crop = maize | wheat. prog_exports_mt is CUMULATIVE season-to-date (a running
+      total, NOT a weekly flow -- never delta it against a weekly ESR figure). Window weeks with
+      period_start/period_end 'YYYY-MM-DD' on the week-ending date, or agg=latest for the newest week
+      on/before the as-of. pct_of_prior_yr and z_vs_3yr_avg are SERVED AS STORED (pre-computed strictly
+      no-lookahead by the producer) -- never recomputed. No destination/grade breakdown (national crop
+      total only). It is the weekly export PACE file, distinct from silver_sagis_cec production estimates.
+
+  # D-CW-2a (2026-08-07) -- USDA NASS WEEKLY CROP PROGRESS, from the DARK CAPABILITY CENSUS (item 6):
+  # the sharpest instance of the dark class. The table has been in silver since 2026-07 (6 contract
+  # slugs, state + national, 1979+) and a SHIPPED eval already grades its citation key
+  # (eval_queries_deepv2_width_v1.yaml:177, checklist :215) -- an eval no answer could ever pass,
+  # because the numbers registry had no card for it. This card is the whole fix; nothing is ingested,
+  # re-chunked or re-derived.
+  #
+  # PIT: data_date on the WEEK-ENDING date + a conservative 2-day publication lag. NASS publishes the
+  # week ending Sunday on the FOLLOWING MONDAY at ~16:00 ET (~20:00 UTC), so a same-day Monday cutoff
+  # would leak by hours and a Monday-holiday slip pushes the release to Tuesday. +2 makes a week citable
+  # from the Tuesday after it -- never early, at most one day late, and it is the same day the weekly
+  # schedule fires. (D-W0.3 idiom: the lag shifts the as-of RHS literal, so the guard stays sargable.)
+  #
+  # FRESHNESS, STATED RATHER THAN DISCOVERED (census finding, 2026-08-07): the transform and its jobdef
+  # exist but dag_schedules carries NO entry -- built, never put on the clock. The last silver write was
+  # 2026-06-01, so as this card lands the newest week is late May and ~9 weeks of the 2026 season are
+  # missing. That is a SCHEDULING gap, not a data gap, and the read path already tells the truth about
+  # it: every row is stamped with its own week-ending date and the recency machinery cites that stamp.
+  # The catch-up run + the weekly schedule + the FreshnessLagDays row are D-CW-2a(i)-(iii), separate
+  # from this card by design -- a card that waits for its schedule is a card that stays dark.
+  #
+  # PHYSICAL LAYOUT: partition PROJECTION (commodity enum x year 1979-2035 = ~342 candidates -- three
+  # orders of magnitude below the silver_esr grid behind the Jul-2026 LIST storm, but pruned the same
+  # way): the commodity equality is emitted by the ordinary commodity filter and trade-year-style
+  # SARGABLE BOUNDS come from year_col, so no query enumerates the projected space. `commodity` is the
+  # partition key holding the contract slug; the in-file `leviathan_slug` column carries the same value
+  # and is deliberately NOT the commodity_col (filtering the partition is what prunes).
+  silver_nass_crop_progress:
+    description: >
+      USDA NASS weekly Crop Progress -- US crop CONDITION ratings and planting / emergence / harvest
+      PACE, BY STATE and for the US as a whole, week by week from 1979. One row per contract x state x
+      week-ending date. pct_good_excellent and pct_poor_very_poor are the two tails of the weekly
+      condition rating (percent of the crop's acreage in those categories); pct_planted / pct_emerged /
+      pct_harvested are CUMULATIVE percent-of-acreage progress through the season, so they climb to 100
+      and stay there. Six contracts only: corn, soybeans, rice, upland cotton, winter wheat and spring
+      wheat. The week ending Sunday is published the following Monday afternoon and is citable from the
+      Tuesday after it.
+    grain: "one row per contract x state x week-ending date (weekly, in season)"
+    shape: wide
+    commodity_col: commodity            # PARTITION key = the contract slug (6 values; see notes)
+    country_col: state                  # repurposed as the GEO axis: 2-letter USPS code, 'US' = national
+    period_type: date
+    date_col: date                      # the WEEK-ENDING date (a Sunday), a physical DATE column
+    knowledge_semantics: data_date
+    knowledge_date_col: date
+    publication_lag_days: 2             # Sunday week-end -> Monday ~16:00 ET release; +2 never leaks
+    partition_cols: [commodity, year]   # projected; commodity via the commodity filter, year via bounds
+    year_col: year                      # sargable year bounds prune the projection (never an equality)
+    metrics:
+      pct_good_excellent: {unit: "pct of acreage", desc: "percent of the crop rated GOOD or EXCELLENT that week (the condition headline; higher = better crop)"}
+      pct_poor_very_poor: {unit: "pct of acreage", desc: "percent of the crop rated POOR or VERY POOR that week (the stress tail; it is NOT 100 minus good/excellent -- the fair category sits between them)"}
+      pct_planted:        {unit: "pct of acreage", desc: "CUMULATIVE percent of intended acreage planted through that week"}
+      pct_emerged:        {unit: "pct of acreage", desc: "CUMULATIVE percent of acreage emerged through that week"}
+      pct_harvested:      {unit: "pct of acreage", desc: "CUMULATIVE percent of acreage harvested through that week"}
+    notes: >
+      ALWAYS PASS A STATE. country selects the geography and takes the 2-letter USPS code in CAPITALS
+      ('IA', 'IL', 'KS') or 'US' for the national figure -- pass country='US' for "the US corn condition".
+      With NO state the read spans EVERY reporting state, and a latest-value read then returns ONE
+      arbitrary state's row, which is a state number wearing a national label. Every row carries its own
+      state in the country field: say which state (or 'US') you are quoting, always.
+      commodity = the CONTRACT slug and only these six exist: corn_cbot, soybeans_cbot, rough_rice_cbot,
+      cotton (upland), soft_red_winter_wheat_cbot (winter wheat) and hard_red_spring_wheat_mgex (spring
+      wheat, excl. durum). Anything else -- durum, barley, sorghum, oats, any non-US crop -- is NOT in
+      this table; decline rather than substituting a different crop.
+      SEASONALITY IS NOT STALENESS: NASS reports weekly only during the growing season, so there is a
+      long winter gap with no rows at all, and agg=latest at a February as-of correctly returns the last
+      week of the previous season. Cite the reading's OWN week-ending date and never call a dated
+      reading 'current' -- the same discipline the IOD card states for its monthly cadence.
+      Window weeks with period_start/period_end 'YYYY-MM-DD' on the week-ending date, or agg=latest for
+      the newest published week on/before the as-of; agg=series over a season is how a same-week analog
+      across years gets read (one lookup per year, or a multi-year window plus the week-ending dates).
+      Conditions are RATINGS, not a yield forecast: the percent good-to-excellent is what enumerators
+      reported that week, never converted here into bushels, and a condition number is not a USDA yield
+      estimate (that is silver_wasde / silver_psd).
+      Values are percentages of acreage (0-100). pct_planted/emerged/harvested are cumulative, so a
+      week-on-week delta is a PACE, not a level -- and a delta across a season boundary is meaningless.
+
+  # PRICE_OBSERVABILITY W2 (v1b): World Bank Pink Sheet monthly world benchmark price averages,
+  # registered read-side under the SAME leakage-safe harness. Flat, projection forbidden. DP-5: the
+  # physical `date` column is a TIMESTAMP, so date_col_type=timestamp normalizes both backends to
+  # 'YYYY-MM-DD' in the SELECT extras AND every predicate. NONE enters cascade_map (no engine leg);
+  # spread/basis MAGNITUDES stay derive-word-only until the premium engine ships (section 6, F1).
+  silver_pink_sheet:
+    description: >
+      World Bank "Pink Sheet" monthly commodity price benchmarks -- MONTHLY AVERAGES (not exchange
+      settles) for edible oils, grains, sugar, fertilizers and energy, in US dollars. Wide table,
+      one row per month. Point-in-time via a monthly data date plus a conservative publication lag.
+    grain: "one row per month (first-of-month data date)"
+    shape: wide
+    period_type: date
+    date_col: date                       # first-of-month DATA month; PHYSICAL TYPE IS TIMESTAMP (DP-5)
+    date_col_type: timestamp             # DP-5: normalize to 'YYYY-MM-DD' in extras AND predicates
+    knowledge_semantics: data_date
+    knowledge_date_col: date
+    publication_lag_days: 40             # DP-3: conservative fixed lag (WB publishes ~2nd business day
+    #                                      of M+1; withholding the newest month until +40d never leaks)
+    provenance_col: latest_release_ym    # DP-2: constant global WB release stamp -> "as published, WB release <stamp>"
+    # METRIC ORDER MATTERS: the wide pg-parity sampler takes only the FIRST FOUR (numbers_parity.py:93),
+    # so the first four span one commodity price / one fertilizer / one energy / one z-score for free
+    # coverage. Every key is verified against configs/silver/tables/silver_pink_sheet.yaml (never invented;
+    # the physical energy column is brent_crude_usd_bbl, not "brent_usd_bbl").
+    metrics:
+      soybean_oil_usd_t:                    {unit: "USD/mt", desc: "soybean oil monthly world price average (WB)"}
+      urea_usd_mt:                          {unit: "USD/mt", desc: "urea fertilizer monthly world price average (WB)"}
+      brent_crude_usd_bbl:                  {unit: "USD/bbl", desc: "Brent crude monthly average (WB energy)"}
+      palm_oil_cpo_usd_t_zscore_5yr:        {unit: "sigma vs 5-yr mean", desc: "palm oil CPO price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      soybeans_usd_t:                       {unit: "USD/mt", desc: "soybeans monthly world price average (WB)"}
+      soybean_meal_usd_t:                   {unit: "USD/mt", desc: "soybean meal monthly world price average (WB)"}
+      palm_oil_cpo_usd_t:                   {unit: "USD/mt", desc: "crude palm oil monthly world price average (WB)"}
+      raw_sugar_world_usd_t:                {unit: "USD/mt", desc: "raw sugar (world) monthly price average (WB)"}
+      wheat_us_hrw_usd_t:                   {unit: "USD/mt", desc: "US hard red winter wheat monthly price average (WB)"}
+      wheat_us_srw_usd_t:                   {unit: "USD/mt", desc: "US soft red winter wheat monthly price average (WB)"}
+      rapeseed_oil_usd_t:                   {unit: "USD/mt", desc: "rapeseed oil monthly world price average (WB)"}
+      dap_usd_mt:                           {unit: "USD/mt", desc: "DAP fertilizer monthly world price average (WB)"}
+      potassium_usd_mt:                     {unit: "USD/mt", desc: "potassium (potash) fertilizer monthly world price average (WB)"}
+      phosphate_rock_usd_mt:                {unit: "USD/mt", desc: "phosphate rock monthly world price average (WB)"}
+      natural_gas_us_usd_mmbtu:             {unit: "USD/mmbtu", desc: "US natural gas monthly average (WB energy)"}
+      natural_gas_eu_usd_mmbtu:             {unit: "USD/mmbtu", desc: "EU natural gas monthly average (WB energy)"}
+      blended_npk_index:                    {unit: "index", desc: "blended NPK fertilizer price index (WB)"}
+      urea_usd_mt_zscore_5yr:               {unit: "sigma vs 5-yr mean", desc: "urea price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      dap_usd_mt_zscore_5yr:                {unit: "sigma vs 5-yr mean", desc: "DAP price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      potassium_usd_mt_zscore_5yr:          {unit: "sigma vs 5-yr mean", desc: "potassium price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      natural_gas_us_usd_mmbtu_zscore_5yr:  {unit: "sigma vs 5-yr mean", desc: "US natural gas, sigma vs trailing 5-yr mean (PIT-clean)"}
+      natural_gas_eu_usd_mmbtu_zscore_5yr:  {unit: "sigma vs 5-yr mean", desc: "EU natural gas, sigma vs trailing 5-yr mean (PIT-clean)"}
+      phosphate_rock_usd_mt_zscore_5yr:     {unit: "sigma vs 5-yr mean", desc: "phosphate rock, sigma vs trailing 5-yr mean (PIT-clean)"}
+      brent_crude_usd_bbl_zscore_5yr:       {unit: "sigma vs 5-yr mean", desc: "Brent crude, sigma vs trailing 5-yr mean (PIT-clean)"}
+      blended_npk_index_zscore_5yr:         {unit: "sigma vs 5-yr mean", desc: "blended NPK index, sigma vs trailing 5-yr mean (PIT-clean)"}
+      soybeans_usd_t_zscore_5yr:            {unit: "sigma vs 5-yr mean", desc: "soybeans price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      soybean_oil_usd_t_zscore_5yr:         {unit: "sigma vs 5-yr mean", desc: "soybean oil price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      soybean_meal_usd_t_zscore_5yr:        {unit: "sigma vs 5-yr mean", desc: "soybean meal price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      raw_sugar_world_usd_t_zscore_5yr:     {unit: "sigma vs 5-yr mean", desc: "raw sugar (world) price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      wheat_us_hrw_usd_t_zscore_5yr:        {unit: "sigma vs 5-yr mean", desc: "US HRW wheat price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      wheat_us_srw_usd_t_zscore_5yr:        {unit: "sigma vs 5-yr mean", desc: "US SRW wheat price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      rapeseed_oil_usd_t_zscore_5yr:        {unit: "sigma vs 5-yr mean", desc: "rapeseed oil price, sigma vs trailing 5-yr mean (PIT-clean)"}
+    notes: >
+      World Bank Pink Sheet MONTHLY AVERAGES (not exchange settles); series begin 1960+. No
+      commodity/country filter -- the metric name IS the series. agg=latest returns the newest
+      knowable month; window with period_start/period_end 'YYYY-MM-DD'. The table is LATEST-ONLY and
+      WB revises months retroactively, so there is NO true as-of replay -- values are as-published at
+      the CURRENT WB release (see revision_stamp: "as published, WB release <latest_release_ym>").
+      Per-series validity floors null early z-scores (a z is null until its 5-yr window fills). Prices
+      are USD/mt (edible oils/grains/sugar/fertilizers), USD/bbl (Brent), USD/mmbtu (gas), or an index
+      (blended NPK). Uncovered commodities -- there are NO corn, coffee, cotton, rice or cocoa price
+      columns here -- decline honestly rather than substituting a different series.
+
+  # PRICE_OBSERVABILITY W4 (v2): CFTC Commitments of Traders MANAGED-MONEY positioning, registered
+  # read-side under the SAME leakage-safe harness. Flat, projection forbidden. leviathan_slug holds
+  # CONTRACT slugs (corn_cbot, ...), so a bare base name matches ZERO rows. POSITIONING IS HISTORICAL
+  # CONTEXT ONLY -- levels + z, past tense; it NEVER drives a forecast or a fork (R9).
+  # R9 AS AMENDED (D1, ratified 2026-08-01): silver_cot may enter the cascade map ONLY as a fetched
+  # past-tense CONTEXT leg; it may never be a fork ref, a regime-MARKER ref, or a chain/transmission hop.
+  # The shape that counts as "context" is cascade.positioning_context_violations -- leg_mode current (no
+  # era legs, so it can never reach the cross-era fork), period_type date, no reroute trade metric, no
+  # 0/1 flag, a sub-annual pace grain -- and config_check._check_positioning_lane is build-failing on
+  # every other shape AND on any chain_map/complex_map/transmission_map reference at all.
+  # What that does NOT say: the causal DAGs' positioning drivers are convergence-regime members today
+  # and stay so. graph.regimes fires on ACTIVE DRIVER IDS and never reads a numbers map, so that
+  # membership is invisible to R9 in both directions -- "regime" here is the numbers-map marker lane.
+  # MANAGED-MONEY ONLY: this wave carries no producer/merchant/swap-dealer categories and no
+  # percentiles (8 of 191 raw cols kept, W4b).
+  silver_cot:
+    description: >
+      CFTC Commitments of Traders (COT) -- WEEKLY managed-money positioning by futures contract.
+      One row per contract per report_date: total open interest plus managed-money long / short /
+      spreading / net positions, the signed managed-money net percent of open interest, and 3-year
+      trailing z-scores of the net measures. Positioning is UNREVISED, so latest-only is genuinely
+      point-in-time-clean. HISTORICAL CONTEXT ONLY -- levels and z, cited past tense; positioning
+      never drives a forecast or a fork. R9 AS AMENDED (D1, ratified 2026-08-01): this table may enter
+      the cascade map ONLY as a fetched past-tense CONTEXT leg (cot_mm_positioning); it may never be a
+      fork ref, a regime-MARKER ref, or a chain/complex/transmission hop.
+    grain: "one row per contract x report_date (weekly Tuesday positions)"
+    shape: wide
+    commodity_col: leviathan_slug        # CONTRACT slugs (corn_cbot, soybeans_cbot, ...); base names match 0 rows
+    period_type: date
+    date_col: report_date                # the Tuesday DATA date of the positions
+    knowledge_semantics: data_date
+    knowledge_date_col: report_date
+    publication_lag_days: 6              # S2.F6: Tuesday data, NORMALLY Friday 15:30 ET release; +6 (Tue->Monday)
+    #                                      covers the holiday-Friday slips CFTC batches to the next business day
+    #                                      several times a year. Fixed-lag model -- shutdown-era replay is
+    #                                      approximate (catch-ups batch-release weeks late); max_lag_days=10 alarms.
+    metrics:
+      open_interest:   {unit: "contracts", desc: "total open interest across all reportable and nonreportable traders"}
+      mm_long:         {unit: "contracts", desc: "managed-money long positions"}
+      mm_short:        {unit: "contracts", desc: "managed-money short positions"}
+      mm_spread:       {unit: "contracts", desc: "managed-money spreading positions"}
+      mm_net:          {unit: "contracts", desc: "managed-money net position (mm_long minus mm_short)"}
+      mm_pct_oi:       {unit: "pct of OI (signed)", desc: "managed-money NET position as a SIGNED percent of open interest (mm_net/OI*100; negative = net short)"}
+      mm_net_z_3yr:    {unit: "sigma vs 3-yr mean", desc: "managed-money net, sigma vs the 3-yr trailing window (PIT-clean)"}
+      mm_pct_oi_z_3yr: {unit: "sigma vs 3-yr mean", desc: "managed-money net percent-of-OI, sigma vs the 3-yr trailing window (PIT-clean)"}
+    notes: >
+      CFTC disaggregated MANAGED-MONEY ONLY (no producer/merchant/swap categories in this wave).
+      commodity = the CONTRACT slug (corn_cbot, ...); a bare base name ('corn') matches zero rows.
+      Positioning is unrevised -> latest-only is genuinely point-in-time-clean. 12 slugs live 2006+
+      (wheat series start ~2014 -- a legacy-name gap, W4b -- and wheat z validity starts ~1 year after
+      the series start, mirroring the z-floor note); FCOJ is absent. Positive contracts = net long,
+      negative = net short. POSITIONING IS HISTORICAL CONTEXT ONLY: cite levels and z past tense; it
+      never drives a forecast or a fork. Under R9 as amended (D1, 2026-08-01) it may enter cascade_map
+      ONLY as the past-tense context leg `cot_mm_positioning` -- never a fork ref, a regime-MARKER ref,
+      or a chain/complex/transmission hop, and never on an OUTLOOK turn (the flow fence is released
+      there by design, so the engine refuses the leg rather than hand that register a number).
+      Data-staleness note (RE-MEASURED 2026-08-01, item 88): max(report_date) = 2026-07-28 against
+      asof 2026-08-01 = 4 days, inside publication_lag_days=6 and well inside freshness_sla
+      max_lag_days=10 -- the "~6 weeks stale at the 2026-07-18 census" note this replaces is now stale
+      in the other direction, and a stale staleness note is how a healthy table gets written off. The
+      PIT guard still serves what is known WITH its date; max_lag_days=10 alarms on staleness.
+
+  # SEAM C (ENGINE SEAMS rev-52): futures v1.5-lite (Option A, LEVELS-ONLY). Daily CONTINUOUS FRONT-MONTH
+  # close prices (yfinance Yahoo quotes) for 12 US/NY exchange contracts. Flat, projection forbidden. NONE enters
+  # cascade_map/complex_map (no engine leg). The card is REGISTERED + linted (config_check.check_futures_lite)
+  # but WHITELIST-ABSENT from serving by DEFAULT (registry.WHITELIST_ABSENT_DEFAULT drops it from the loaded
+  # registry, exactly like a GRAPHRAG_NUMBERS_DISABLE entry) until the SEAM-C no-judge gate AND the yfinance
+  # freshness-stall fix (chain wrote nothing since 2026-06-05: worker image lacked yfinance) BOTH pass;
+  # whitelisting = removing it from that set. Post-whitelist kill-switch = GRAPHRAG_NUMBERS_DISABLE.
+  # LEVELS-ONLY: a roll-spliced continuous series has NO true vintage and NO PIT-safe cross-date delta, so
+  # the agent serves agg=latest single-date levels ONLY (levels_only=true -> build_sql RAISES on any other
+  # agg / any window) and DECLINES change / window / series / curve / spread / named-contract asks with honest
+  # templates (numbers/agent.py FUTURES_DECLINE_TEMPLATES). close is the ONLY whitelisted metric -- the
+  # derived columns (log_return / price_z_2yr / realized_vol_30d / momentum_*) span roll boundaries and are
+  # EXCLUDED. DP-5: the physical `date` column is a TIMESTAMP -> date_col_type=timestamp normalizes both
+  # backends to 'YYYY-MM-DD' in the SELECT extras AND every predicate (sargable substr guard, never a
+  # raw-timestamp compare). knowledge = data_date + a 1-day publication lag (the close for trading date D is
+  # public the next session). Distinct from the World Bank Pink Sheet MONTHLY averages and the USDA WASDE
+  # season-average FARM price.
+  silver_futures_prices:
+    description: >
+      Daily CONTINUOUS FRONT-MONTH futures close prices (yfinance Yahoo quotes) for 12 US/NY exchange
+      contracts -- grains, oilseeds and the softs. Wide table, one row per contract per trading date. The
+      served value is the front-month `close` (Yahoo quote); it is a continuous, roll-spliced series, so it
+      is LEVELS-ONLY: a single-date close as-of a date, never a change / window / curve / named-contract
+      read (the roll splice between expiries contaminates any cross-date delta). Point-in-time via the
+      trading date plus a one-day publication lag.
+    grain: "one row per contract x trading date (daily front-month close, Yahoo quote)"
+    shape: wide
+    commodity_col: leviathan_slug        # CONTRACT slugs (corn_cbot, ...); the front-month CONTINUOUS series
+    period_type: date
+    date_col: date                        # trading DATA date; PHYSICAL TYPE IS TIMESTAMP (DP-5)
+    date_col_type: timestamp              # DP-5: normalize to 'YYYY-MM-DD' in extras AND every predicate
+    knowledge_semantics: data_date
+    knowledge_date_col: date
+    publication_lag_days: 1               # the close for trading date D is public the next session (D+1)
+    levels_only: true                     # SEAM C: agg=latest single-date levels only; build_sql RAISES otherwise
+    metrics:
+      # close-only whitelist: OHLC open/high/low + volume + the derived columns are EXCLUDED. unit_overrides
+      # is the GOVERNING serving unit; per-contract exchange convention, magnitudes probe-verified 2026-06-05
+      # (corn 417.75 c/bu, cocoa 3828 USD/mt, rough rice 12.625 USD/cwt, ...). FUTURES v1.5 (2026-07-23, D2
+      # KEEP): the silver table now ALSO carries a physical per-row `unit` column (schema_version 2) written
+      # from the same single-source UNIT_MAP (transforms/raw_to_bronze/yfinance_futures.py) -- the override
+      # stays the serving contract (build_sql never selects the physical column; _apply_unit_overrides
+      # clobbers r["unit"] post-fetch), redundant-but-consistent BY LINT. config_check (check_futures_lite)
+      # BINDS the unit_overrides keys to the exact 12-slug set and the values to the strings below AND to
+      # UNIT_MAP (three-way; drift any way fails the build).
+      close:
+        desc: >
+          front-month CONTINUOUS close (daily Yahoo quote). LEVELS-ONLY: report as an observed level on its
+          trading date, framed as the CONTINUOUS FRONT-MONTH close (Yahoo quote) -- never a specific expiry,
+          never a change / window / curve read. Per-contract exchange units are returned on each row.
+        unit_overrides:
+          corn_cbot:                  "US cents/bushel"
+          soybeans_cbot:              "US cents/bushel"
+          soft_red_winter_wheat_cbot: "US cents/bushel"
+          hard_red_winter_wheat_kcbt: "US cents/bushel"
+          soybean_oil_cbot:           "US cents/lb"
+          arabica_coffee:             "US cents/lb"
+          cotton:                     "US cents/lb"
+          raw_sugar:                  "US cents/lb"
+          frozen_orange_juice:        "US cents/lb"
+          soybean_meal_cbot:          "USD/short ton"
+          cocoa:                      "USD/metric ton"
+          rough_rice_cbot:            "USD/cwt"
+    notes: >
+      12 contracts: corn_cbot, soybeans_cbot, soft_red_winter_wheat_cbot, hard_red_winter_wheat_kcbt,
+      soybean_oil_cbot, soybean_meal_cbot, arabica_coffee, cotton, raw_sugar, frozen_orange_juice,
+      rough_rice_cbot, cocoa. commodity = the CONTRACT slug. The served value is the CONTINUOUS FRONT-MONTH
+      close (Yahoo quote) -- SAY 'front-month' when you cite it, and NEVER present it as a specific delivery
+      month ('December corn') or a term-structure/curve read (front-month only; named contracts + the curve
+      need a paid vendor, not served). agg=latest returns the close (Yahoo quote) as-of a date; change /
+      window / series / curve / named-contract asks are DECLINED (roll splices contaminate any cross-date
+      delta). This is a DAILY front-month close quote, distinct from the World Bank Pink Sheet MONTHLY
+      averages and the USDA WASDE season-average FARM price. PROVENANCE (v1.5 W4.2): the served value IS the
+      Yahoo Finance continuous front-month close (not official exchange settlement) -- cite it as that, never
+      as an official exchange print. ROLL POLICY (roll_policy_version: 1, mirrored in the silver registry
+      provenance.roll_policy): yfinance continuous front-month, chained UNADJUSTED; roll rule
+      vendor-undocumented; rolls detected empirically at 5%-jump masking in bronze; derived/return columns
+      are NaN-masked at rolls and are NEVER served. The silver table carries a physical per-row `unit`
+      column (schema_version 2) lint-bound equal to unit_overrides above.
+
+  # PRICE_AND_PLAYBOOKS W1.0 (ratified 2026-07-28): the PER-DELIVERY-MONTH futures EOD table. ADDITIVE to
+  # silver_futures_prices above, which stays untouched and served throughout W1/W2 and W3's soak -- the flat
+  # table has natural_key [leviathan_slug, date] and no room for a delivery month without breaking it.
+  # The card is REGISTERED + linted (config_check.check_futures_eod) but WHITELIST-ABSENT from serving by
+  # DEFAULT (registry.WHITELIST_ABSENT_DEFAULT drops it at load, exactly like a GRAPHRAG_NUMBERS_DISABLE
+  # entry) for ALL of W1.0 / W1 / W2: the table vanishes from the agent tool enum + its system-prompt card,
+  # and every build_sql lookup raises KeyError -- fail-closed while nothing has been produced yet.
+  # Whitelisting = removing it from that set (W3, after the producers and their gates land); the
+  # post-whitelist rollback lever is the ordinary GRAPHRAG_NUMBERS_DISABLE=silver_futures_eod env idiom.
+  # NOT levels_only, unlike the flat sibling: these are REAL per-expiry series with no roll splice, so a
+  # cross-date delta on one delivery month is legitimate. What is NOT here is roll/continuous -- no
+  # is_front_month, no log_return, no adjusted series; roll policy is a QUERY-TIME decision, never a column.
+  # DP-5: the physical `trade_date` column is a TIMESTAMP -> date_col_type=timestamp normalizes both
+  # backends to 'YYYY-MM-DD' in the SELECT extras AND every predicate (the pg-parity requirement).
+  # grain_cols is EXPLICIT: without it the latest-vintage ROW_NUMBER would key on commodity alone and tie
+  # across every delivery month, making pg-vs-Athena row selection nondeterministic.
+  silver_futures_eod:
+    description: >
+      Daily END-OF-DAY prices for EVERY DELIVERY MONTH of 29 exchange futures contracts plus two Brazilian
+      cash references -- grains, oilseeds, softs, the vegoil complex and the South African / Chinese /
+      European boards. One row per contract per delivery month per trading date. The served value is
+      `settle`, and the row's own `settle_kind` column says exactly what that number is: an official
+      exchange `settlement`, a JSE `mark_to_market`, a CEPEA `cash_index`, or a session `close` standing in
+      where the settlement series was not purchased. Units and currencies are SOURCE-FAITHFUL exchange
+      convention -- there is no FX conversion anywhere in this table. GLBX rows are the vendor's UTC
+      daily buckets: the Sunday-evening session appears as a sparse SUNDAY-dated partial bar
+      (~70 per long-lived contract), distinct from Monday's session bar -- real prints, never fill. Point-in-time via the trading date
+      plus a one-day publication lag.
+    grain: "one row per contract x delivery month x trading date (per-delivery-month EOD)"
+    shape: wide
+    commodity_col: leviathan_slug        # CONTRACT slugs (corn_cbot, ...); all 31 registry contracts
+    period_type: date
+    date_col: trade_date                  # exchange SESSION date; PHYSICAL TYPE IS TIMESTAMP (DP-5)
+    date_col_type: timestamp              # DP-5: normalize to 'YYYY-MM-DD' in extras AND every predicate
+    knowledge_semantics: data_date
+    knowledge_date_col: trade_date
+    publication_lag_days: 1               # the EOD print for session D is public the next session (D+1)
+    grain_cols: [leviathan_slug, contract_month, trade_date]
+    # PHYSICAL LAYOUT (the F010 contract + the checked-in DDL): REGISTERED Glue partitions
+    # [leviathan_slug, trade_year], projection FORBIDDEN. leviathan_slug is pinned by the ordinary
+    # commodity equality -- so every lookup MUST name a contract or build_sql raises; trade_year is pinned
+    # by the SARGABLE YEAR BOUNDS build_sql derives from the query's own date window (year_col below),
+    # never by an equality: a price window legitimately spans years, so an equality would silently return
+    # ZERO rows. Same discipline as silver_nasa_power's registered [commodity, year] layout -- catalog-side
+    # pruning, no projected grid to enumerate (the Jul-2026 LIST-storm class stays out).
+    partition_cols: [leviathan_slug, trade_year]
+    year_col: trade_year                  # the REGISTERED year partition key -> sargable bounds ride with
+    #                                       the as-of guard and the period_start/period_end window
+    # W3.1 SERVED DIMENSIONS. contract_month makes the delivery month expressible at all (an equality for a
+    # named contract, IN(...) for a CURVE read across expiries) and puts the expiry label ON every row --
+    # a curve row without it is unattributable, since every row of a multi-expiry read carries the same
+    # slug and the same trade date. settle_kind and currency travel with it for the same reason: an ICE row
+    # is a session CLOSE, not an official settlement, and ten currencies share this table with NO FX
+    # conversion anywhere. `unit` is deliberately NOT declared as unit_col -- exactly like the flat sibling,
+    # unit_overrides is the GOVERNING serving unit and _apply_unit_overrides clobbers r["unit"] post-fetch.
+    contract_month_col: contract_month    # 'YYYY-MM'; NULL for exactly the two CEPEA cash references
+    settle_kind_col: settle_kind          # settlement | close | mark_to_market | cash_index
+    currency_col: currency                # ISO-4217, source-faithful, never converted
+    metrics:
+      # settle-ONLY whitelist: open/high/low/close + volume + open_interest are carried in silver for
+      # provenance but are NOT served -- they are NULL by construction on every settle-only source, so a
+      # served OHLC metric would be a mostly-empty column pretending to be a series. unit_overrides is the
+      # GOVERNING serving unit and is bound THREE-WAY by config_check.check_futures_eod to
+      # leviathan.silver.futures_eod_contracts.CONTRACT_MAP (the single source the physical `unit` column
+      # is written from) and to config_check._FUTURES_EOD_UNIT_OVERRIDES: drift in any direction fails the
+      # build. The vocabulary is wide on purpose (ten currencies), which is exactly why it is bound.
+      settle:
+        desc: >
+          the end-of-day price for a SPECIFIC delivery month on its trading date. ALWAYS cite it together
+          with the row's `settle_kind` -- an ICE row is a session close, not an official settlement, and a
+          CEPEA row is a cash index with no delivery month at all. Per-contract exchange units and
+          currencies are returned on each row and are never converted.
+        unit_overrides:
+          # databento_glbx_mdp3
+          corn_cbot:                      "US cents/bushel"
+          soybeans_cbot:                  "US cents/bushel"
+          soft_red_winter_wheat_cbot:     "US cents/bushel"
+          hard_red_winter_wheat_kcbt:     "US cents/bushel"
+          soybean_oil_cbot:               "US cents/lb"
+          soybean_meal_cbot:              "USD/short ton"
+          rough_rice_cbot:                "USD/cwt"
+          # databento_ifus_impact
+          arabica_coffee:                 "US cents/lb"
+          raw_sugar:                      "US cents/lb"
+          cocoa:                          "USD/metric ton"
+          cotton:                         "US cents/lb"
+          frozen_orange_juice:            "US cents/lb"
+          canola_ice:                     "CAD/t"
+          # databento_ifeu_impact
+          robusta_coffee:                 "USD/metric ton"
+          white_sugar:                    "USD/metric ton"
+          # czce
+          rapeseed_meal_zce:              "CNY/t"
+          rapeseed_oil_zce:               "CNY/t"
+          # dce
+          palm_olein_dce:                 "CNY/t"
+          soybean_meal_dce:               "CNY/t"
+          soybean_oil_dce:                "CNY/t"
+          soybeans_no_1_dce:              "CNY/t"
+          soybeans_no_2_dce:              "CNY/t"
+          # jse_safex
+          south_african_white_maize_jse:  "ZAR/t"
+          south_african_yellow_maize_jse: "ZAR/t"
+          # cepea
+          brazilian_arabica_coffee:       "BRL/60-kg bag"
+          campinas_corn_reference_bmf:    "BRL/60-kg bag"
+          # bursa
+          malaysian_crude_palm_oil_cme:   "MYR/t"
+          # miax -- DOLLARS/bushel, not CBOT cents: the settlement CSV publishes 7.0250, a factor
+          # of 100 from corn's ~430. Source-faithful; never scaled to match the CBOT convention.
+          hard_red_spring_wheat_mgex:     "USD/bushel"
+          # euronext_matif
+          french_wheat_matif:             "EUR/t"
+          french_maize_matif:             "EUR/t"
+          french_rapeseed_matif:          "EUR/t"
+    notes: >
+      31 contract slugs across 10 publication sources. commodity = the CONTRACT slug; the delivery month is
+      the `contract_month` column ('YYYY-MM'), which is NULL for exactly the two CEPEA cash references
+      (brazilian_arabica_coffee, campinas_corn_reference_bmf) -- `instrument_kind` (futures | cash_index)
+      is the discriminator that makes that NULL legal rather than a defect. DELIVERY MONTH: a read that
+      does not name an expiry returns EVERY delivery month the query's window covers, and a latest-value
+      read returns the NEAREST listed expiry -- that is a deterministic tie-break, NOT "the front month".
+      The front month is a named query-time roll rule (front-by-open-interest where the exchange
+      publishes it), this table stores no front-month flag and no continuous series, and the two are not
+      the same contract for much of the year. So never quote a level as "the price": read the row's own
+      contract_month and say WHICH EXPIRY it is, or read several rows and describe the curve. A
+      delivery-month FILTER does exist in the engine (one expiry, or a comma-separated list for a curve
+      read at one as-of) -- but it is available to you only when `contract_month` is listed in the tool's
+      input schema; if it is not listed there, do not try to pass it. WITH delivery months NAMED, agg=latest
+      returns the newest session ON OR BEFORE the as-of FOR EACH named expiry -- one row per expiry, which
+      IS the curve at a single as-of; the nearest-listed-expiry tie-break above applies only to a read that
+      names NO month. Every row comes
+      back carrying its own contract_month, settle_kind and currency -- state them with the number, never a
+      bare figure, and never attach a delivery month to a row that has none. PROVENANCE HONESTY: the
+      `settle_kind` column is the label, and it is not decorative -- databento_glbx_mdp3 rows are true
+      exchange settlements; databento_ifus_impact / databento_ifeu_impact rows are ohlcv-1d session CLOSES
+      (the ICE `statistics` settlement schema costs ~$1,960 and was deliberately excluded), so never call
+      an ICE number an official settlement; jse_safex rows are the SAFEX mark-to-market; cepea rows are a
+      cash index. CAVEAT (Databento open issue, plan F4): IFEU OHLCV bars have an acknowledged
+      system-priced-leg contamination issue, so robusta_coffee and white_sugar bars are SUSPECT until
+      checked against a free ICE settlement reference -- say so when citing them. UNITS: source-faithful
+      exchange convention, ten currencies, NEVER FX-converted at ingest or at serving; the per-row `unit`
+      and `currency` columns are the authority and unit_overrides above is lint-bound equal to them.
+      ROLL / CONTINUOUS ARE OUT OF SCOPE for this table: there is no front-month flag and no adjusted
+      series -- a stored front-month flag IS roll policy, and roll policy is a named, versioned query-time
+      decision. This is a PER-DELIVERY-MONTH EOD table, distinct from silver_futures_prices (the yfinance
+      CONTINUOUS front-month close), the World Bank Pink Sheet MONTHLY averages, and the USDA WASDE
+      season-average FARM price. COVERAGE FLOORS: history starts 2010-06 (CME via Databento), 2018-12 (ICE
+      via Databento), 2015-10 (CZCE), 2006 (DCE) -- and JSE SAFEX has NO history at all: that series
+      starts the day its producer first runs.
+
+  gold_pattern_records:
+    # T2B pattern-records ledger (plan sec 4 / D1 / D7). The engine's OWN recorded verdict history: one
+    # row per (record_kind, contract, driver_or_chain_id, as_of_date) recording whether the deterministic
+    # cascade/pace/chain engine FIRED or DECLINED for that pair at that as-of, plus the recorded values.
+    # Served as an ORDINARY observed table so persistence / base-rate / first-recorded claims are [N] facts
+    # read from SQL, not prose the verifier strips. GATED by GRAPHRAG_PATTERN_RECORDS (agent.py filters the
+    # card + tool enum + ## Conventions bullet out when the flag is OFF -> byte-identical pre-feature).
+    description: >
+      The engine's recorded verdict ledger. Each row is ONE (record_kind, contract, driver, as_of_date)
+      observation of whether the deterministic cascade/pace/chain quantification FIRED or DECLINED at that
+      as-of, with the recorded values (streak_len, window_change, n_points, n_rows). Use it to answer how
+      many past sweeps a (driver, contract) pair fired on, when it was first/last recorded, and the recorded
+      decline reasons -- an OBSERVATION register: report the COUNT and the DATES only, and add NO conclusion
+      or direction word (the reader interprets). provenance='daily_sweep' is the recorded daily firing history
+      (accrues one partition per day); provenance='backfill_grid' is a SEPARATE labelled ENGINE base rate over
+      vintaged-leg weekly replay asofs -- NEVER blend the two, and phrase a backfill rate as 'weekly replay
+      asofs', not recent daily firing. If no firing is recorded for a pair, say so plainly; never infer a run length.
+    grain: "one row per record_kind x contract x driver_or_chain_id x as_of_date"
+    grain_cols: [record_kind, contract, driver_or_chain_id, as_of_date]
+    shape: wide
+    commodity_col: contract
+    period_col: as_of_date
+    period_type: date
+    period_sql_type: string
+    date_col: written_at
+    date_col_type: timestamp        # written_at is a physical TIMESTAMP -> DP-5 substr-normalized in the guard
+    knowledge_date_col: written_at
+    knowledge_semantics: ingest     # a row is KNOWN when written; a backfill_grid row (written_at >> as_of_date)
+    #                                 is invisible at a past-asof PIT query BY DESIGN (plan F7)
+    # NO `metrics` (deliberate): this is an AGGREGATION-only card. The plan's use cases (base rate,
+    # run length, first/last-recorded, decline history) are COUNT/MIN aggregations over verdict + as_of_date
+    # (pattern_records.presence_sql), NOT lookup_number metric reads. Declaring the flat numeric columns
+    # (streak_len/window_change/n_points/n_rows/n_hops) as `metrics` would make the F010 generator derive
+    # them as silver value_columns + a 0.5 non-null floor -- WRONG for an observation ledger where those
+    # columns are legitimately NULL off their kind (plan sec 1.1: no value_columns / non-null floor). They
+    # mirror to pg as TEXT (the presence SQL never does math on them); the reader gets them via aggregation.
+    metrics: {}
+    notes: >
+      GATED behind GRAPHRAG_PATTERN_RECORDS (default OFF). commodity = the focus CONTRACT slug (corn_cbot);
+      driver_or_chain_id = the driver node id (export_pace, La_Nina) or the chain id. record_kind is one of
+      cascade|pace|chain (the fork kinds comove/reroute/price_leg are reserved but not written in v1). verdict
+      is fired|declined; a declined row carries decline_reason and NO fabricated values. The base-rate / streak
+      / first-recorded reads are SCALAR COUNT/MIN aggregations (never a bare GROUP-BY): an in-catalog pair whose
+      sweeps all declined returns a materialized recorded_firings=0 (a citable 0), distinct from a pair not yet
+      swept (sweeps_total=0). ALWAYS pin ONE provenance class in an aggregation -- daily_sweep for recorded
+      history, backfill_grid for the labelled engine base rate. The engine RECORDS and the reader interprets:
+      never mint a threshold from the count, and never add a conclusion or direction word to it.

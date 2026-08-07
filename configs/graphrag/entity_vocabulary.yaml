@@ -1,0 +1,257 @@
+# GraphRAG entity vocabulary — PRIVATE IP (git-ignored).
+# Phase 1 W3 SEED, grounded in the W1 corpus profile (real surface forms) + the 31-commodity
+# universe (leviathan.common.constants.ALL_COMMODITIES). This is a starting point for DOMAIN
+# REVIEW (Phase 1 exit gate), not a finished taxonomy. Every term should occur in the corpus
+# (the vocab linter checks this) and every surface form maps to exactly one (role, canonical).
+#
+# Structure mirrors GRAPHRAG_PLAN.md §3.2: nodes (things) | edges (typed relations) | arbitration
+# | aliases (EN/PT/ES) | verb_normalization.
+#
+# NODE-MODEL RULE (pinned): a node is a COMMODITY (or other entity below). A metric (production,
+# yield, export, price, …) + its direction (↑/↓) + as-of-date ride on the QuantitativeClaim /
+# Relationship — NEVER baked into a node id. There is NO `arabica_production` node; it is the
+# `arabica_coffee` node + a `production` metric on a claim/edge. Labelers & extraction must follow
+# this (the gold linter enforces it: a closed-type entity id must be a canonical node here).
+
+version: "0.4.0-seed"   # 0.4: grounded-truth harvest from the 3-doc run — geographies regions
+                        # (regions.yaml), producer countries, context (non-tradeable) commodities,
+                        # `produces` edge + `beneficial_weather` nodes. See GRAPHRAG_PLAN.md v0.4.
+
+nodes:
+  # underlying commodities (the 31 contracts collapse to these; contracts are aliases/instruments).
+  # Includes the crush/refine products + biofuel demand sinks (ethanol/biodiesel) so the demand-side
+  # cascade has real endpoints.
+  commodity:
+    # Wheat splits into CLASS nodes (distinct protein/spec/market, not just origin): hard red winter,
+    # hard red spring, soft red winter (US) + french_wheat (EU milling). `wheat` is the parent concept
+    # (expanded to its classes by commodity_hierarchy.yaml). Corn stays ONE node — its CBOT/BMF/MATIF
+    # variants are pure origin, carried by country_origin + the hierarchy contract→origin map.
+    [corn, wheat, hrw_wheat, hrs_wheat, srw_wheat, french_wheat, rice, white_maize, yellow_maize,
+     soybeans, soybean_meal, soybean_oil, rapeseed, canola, rapeseed_oil, rapeseed_meal,
+     palm_oil, palm_olein, arabica_coffee, robusta_coffee, cocoa, raw_sugar, white_sugar,
+     cotton, orange_juice, ethanol, biodiesel,
+     # CONTEXT commodities (tradeable:false — no contract/silver, never a cascade root, but real edge
+     # endpoints: sunflower_oil substitutes_for palm_oil; barley competes_with corn in feed). They
+     # have NO entry in commodity_hierarchy.contracts → flagged non-tradeable by construction.
+     sunflower, sunflower_oil, barley, sorghum, fish_meal]
+  # NOTE: canola (ICE, Canada) and rapeseed (MATIF, Europe) are the same oilseed agronomically but
+  # DISTINCT contracts (`canola_ice` vs `french_rapeseed_matif` in the universe) → distinct nodes,
+  # linked at extraction via substitutes_for/correlates_with, NOT collapsed by alias.
+  commodity_group:
+    [grains, food_grains, feed_grains, oilseeds, vegetable_oils, oilseed_meals,
+     soft_commodities, tropicals]
+  country_origin:    # producers (W1 surface forms) + the structural IMPORTERS that absorb displaced
+                     # supply (needed for the trade_flow + substitute stages of a cascade)
+    [Brazil, Argentina, United_States, China, Colombia, Vietnam, India, Australia,
+     Malaysia, Indonesia, Ukraine, Russia, Cote_dIvoire, Ghana, Thailand, Canada, EU,
+     South_Africa, Mexico,
+     Egypt, Turkey, Bangladesh, Pakistan, Nigeria, Philippines, Japan, South_Korea,
+     Algeria, Saudi_Arabia,
+     # producer countries harvested from configs/geographies/ + corpus-frequent origins
+     France, Germany, Italy, Poland, Romania, Hungary, Serbia, Peru, Paraguay, Ecuador,
+     Honduras, Uganda, Ethiopia, Cameroon]
+  region:            # distinct growing regions (sub-regions are their OWN nodes, not parent aliases;
+                     # containment is a belongs_to_group edge, never an alias)
+    [Minas_Gerais, Sul_de_Minas, Cerrado_Mineiro, Espirito_Santo, Parana, Mato_Grosso,
+     Pampas, Tay_Nguyen, Central_Highlands, Free_State, Sabah, Sarawak, Sumatra, Kalimantan]
+  organization:      # source bodies for attribution/reliability (harvested from legacy configs/sources)
+    [USDA, USDA_FAS, USDA_NASS, USDA_ERS, USDA_WAOB, CONAB, ICO, ICCO, MPOB, MPOC, FNC, Fedecafe,
+     Cecafe, ABIC, Cocobod, SAGIS, SAAFF, UNICA, CNA, ANEC, ABIOVE, World_Bank, FAO, IMF,
+     ISO_Sugar, LMC_International]
+  climate_driver:    # macro teleconnection drivers — the UPSTREAM cause of the proximate hazards.
+                     # A quant reasons "La Niña year → Brazil drought risk"; hazards are downstream.
+    [El_Niño, La_Niña, IOD_positive, IOD_negative, ENSO_neutral]
+  hazard:            # NEGATIVE weather/disease shocks (sign carried on the edge)
+    [drought, frost, flood, heat_stress, excess_rain, leaf_rust, HLB, black_pod, CBD,
+     witches_broom, harmattan]
+  beneficial_weather:  # POSITIVE conditions (grounded-truth gap: "snow cover protected crops")
+    [favorable_rainfall, adequate_moisture, protective_snow_cover, timely_rains, ideal_conditions]
+  # -- COST STACK + MACRO CONTEXT (D-CW-1e, 2026-08-07 -- the DARK CAPABILITY CENSUS, item 10) ------
+  # The vocab typed ethanol/biodiesel (the demand-side sinks) but had NO node for a single INPUT to
+  # growing a crop, so every fertilizer / energy / freight / metals mention in the corpus extracted as
+  # an unmapped entity -- while silver_pink_sheet serves 32 metrics across exactly these series and the
+  # driver_slices carry 863 props of urea/DAP/potash/diesel text. These are CONTEXT entities, not
+  # tradeable contracts: they have no entry in commodity_hierarchy.contracts, so they are non-tradeable
+  # by construction (the sunflower_oil/barley precedent) and can never be a cascade root. The surface
+  # forms below are the ones the corpus actually uses -- taken verbatim from the matching driver_slices
+  # term lists (fertilizer / energy / freight_rates / logistics_chokepoint / macro_context categories),
+  # never invented. CONFIG-ONLY: nothing re-chunks here; extraction types them from the next run on.
+  # NODE-MODEL RULE still applies -- the PRICE of urea is a metric on a claim, never a node id.
+  fertilizer:
+    [urea, DAP, potash, phosphate_rock, NPK_blend]
+  energy:            # the fuel/energy inputs (crude, gas, diesel) -- biofuel SINKS stay under commodity
+    [crude_oil, natural_gas, diesel]
+  freight:           # ocean freight COST (the rate itself); the routes are chokepoints below
+    [baltic_dry_index, panamax_freight]
+  logistics_chokepoint:   # physical route constraints that price freight and delay flows
+    [panama_canal, suez_canal]
+  metal:             # macro-barometer / input metals -- NEVER a tradeable contract here (no silver, no
+                     # cascade root); they exist so a macro-context mention types instead of dropping
+    [copper, aluminium, iron_ore, zinc, nickel, steel]
+  state_marker:      # market-signal nodes (NOT metrics; metrics live in silver/quantitative_claims)
+    [flowering_stress, biennial_off_year, biennial_on_year, withheld_supply,
+     crush_margin_expansion, tenderable_collapse, replanting_cycle, export_pace_lag, safrinha]
+  policy_event:
+    [export_ban, export_tax, import_tariff, biodiesel_mandate, DMO, FUNCAFE, soy_dollar,
+     quota, levy, port_closure, sanctions, MSP]
+  instrument:
+    [arabica_robusta_spread, white_raw_premium, soyoil_palm_premium, wheat_corn_spread,
+     soybean_crush_margin, board_crush, sugar_ethanol_parity]
+  event: []          # OPEN set — minted at extraction, canonicalized in Phase 4 (Fix 6)
+
+edges:               # typed/signed/dated relations — NEVER stored as nodes
+  causes:            {directed: true,  sign: pm,  lag: months}
+  affects_yield_of:  {directed: true,  sign: pm,  lag: months}
+  produces:          {directed: true,  sign: pos}                # country_origin → commodity (origin anchor)
+  teleconnects_to:   {directed: true,  sign: pm,  lag: months}   # climate_driver → hazard (ENSO/IOD)
+  amplifies:         {directed: true,  sign: pos}
+  dampens:           {directed: true,  sign: neg}
+  substitutes_for:   {directed: true,  sign: pos, lag: months}
+  competes_with:     {directed: false}
+  depends_on:        {directed: true}
+  crushed_into:      {directed: true}                            # oilseed → meal + oil (the crush)
+  refined_into:      {directed: true}                            # CPO → palm_olein, raw → white sugar
+  feedstock_for:     {directed: true,  sign: pm,  lag: months}   # veg-oil/cane/corn → biofuel demand
+  diverted_to:       {directed: true,  sign: pm,  lag: months}   # supply rerouted to fuel/domestic use
+  redirects_to:      {directed: true,  lag: months}
+  restricts:         {directed: true,  sign: neg, lag: months}
+  subsidizes:        {directed: true,  sign: pos}
+  delays:            {directed: true,  sign: neg, lag: months}
+  disrupts:          {directed: true,  sign: neg}
+  belongs_to_group:  {directed: true}
+  leads_lags:        {directed: true,  sign: pm,  lag: months}
+  correlates_with:   {directed: false}
+  precedes:          {directed: true}
+  confirms:          {directed: false}
+  contradicts:       {directed: false}
+  cited_by:          {directed: true}
+
+# Deterministic role resolution: each surface form → exactly one (role, canonical). A term that
+# could be both node and edge is an extraction error → vocab-curation queue (never double-counted).
+arbitration:
+  stress:        {role: node, canonical: flowering_stress}   # the causal link is a separate `causes` edge
+  substitution:  {role: edge, canonical: substitutes_for}
+  frost:         {role: node, canonical: frost}
+  ban:           {role: node, canonical: export_ban}
+
+aliases:             # EN/PT/ES + abbreviations + contract names → canonical node (free-text linking).
+                     # Contract slugs also appear here so a position name links; the authoritative
+                     # contract→node map for expansion lives in commodity_hierarchy.yaml.
+  arabica_coffee:    [arabica, "café arábica", "café arabica", "green coffee", "mild arabica",
+                      "Colombian mild", "Brazilian naturals", brazilian_arabica_coffee, BMF_arabica]
+  robusta_coffee:    [robusta, conilon, conillon, "Vietnamese robusta", "café robusta"]
+  corn:              [maize, "maíz", milho, "yellow corn", "U.S. corn", "EU maize", "maïs",
+                      corn_cbot, campinas_corn_reference_bmf, french_maize_matif]
+  wheat:             ["all wheat", "winter wheat", winter_wheat, "spring wheat (generic)", trigo, blé]
+  hrw_wheat:         ["HRW wheat", "hard red winter", "hard winter wheat", hard_red_winter_wheat_kcbt]
+  hrs_wheat:         ["HRS wheat", "hard red spring", "spring wheat", hard_red_spring_wheat_mgex]
+  srw_wheat:         ["SRW wheat", "soft red winter", "soft wheat", soft_red_winter_wheat_cbot]
+  french_wheat:      ["milling wheat", "French wheat", "EU wheat", "European wheat", "blé tendre",
+                      french_wheat_matif]
+  rice:              ["rough rice", "paddy rice", "milled rice", "long grain rice", rough_rice_cbot]
+  white_maize:       ["white maize", "SA white maize", south_african_white_maize_jse]
+  yellow_maize:      ["yellow maize", "SA yellow maize", south_african_yellow_maize_jse]
+  soybeans:          [soybean, soya, soja, soybeans_cbot, soybeans_no_1_dce, soybeans_no_2_dce]
+  soybean_meal:      [soymeal, "farelo de soja", soybean_meal_cbot, soybean_meal_dce]
+  soybean_oil:       [soyoil, "óleo de soja", soybean_oil_cbot, soybean_oil_dce]
+  palm_oil:          [CPO, crude_palm_oil, malaysian_crude_palm_oil_cme]
+  palm_olein:        [olein, palm_olein_dce]
+  rapeseed:          [colza, french_rapeseed_matif]
+  canola:            [canola_ice]
+  rapeseed_oil:      [rapeseed_oil_zce]
+  rapeseed_meal:     [rapeseed_meal_zce]
+  raw_sugar:         ["açúcar bruto", "azúcar crudo", sugar_no_11]
+  white_sugar:       [refined_sugar, sugar_no_5]
+  cotton:            ["algodón", "algodão"]
+  ethanol:           [hydrous_ethanol, anhydrous_ethanol, etanol, bioethanol]
+  biodiesel:         [B40, B35, B30, B50, FAME, palm_biodiesel, biodiesel_mandate_blend]
+  Minas_Gerais:      [MG, Minas]                              # sub-regions are their OWN region nodes
+  Sul_de_Minas:      ["Sul de Minas", "South of Minas"]
+  Cote_dIvoire:      ["Côte d'Ivoire", Ivory_Coast]
+  United_States:     [US, USA, U.S.]
+  CONAB:             ["Companhia Nacional de Abastecimento"]
+  leaf_rust:         [hemileia_vastatrix, ferrugem, roya, coffee_rust, "coffee leaf rust", CLR]
+  # hazard surface forms harvested from legacy stress_types (free-text → canonical hazard node)
+  drought:           [dry, dryness, "moisture deficit", "below-normal rainfall", "dry spell",
+                      "low soil moisture", "water stress", "dry conditions", seca]
+  frost:             [freeze, freezing, "cold snap", "cold damage", geada, "black frost", "sub-zero"]
+  flood:             [flooding, waterlogging, inundation, "excess rain", "excessive moisture"]
+  heat_stress:       ["heat wave", "high temperature", "excessive heat", "extreme heat", "hot dry"]
+  black_pod:         [phytophthora, "black pod disease"]
+  witches_broom:     ["witches' broom", "witch's broom", crinipellis]
+  CBD:               ["coffee berry disease", colletotrichum]
+  harmattan:         ["harmattan winds", "dry harmattan"]
+  El_Niño:           [El_Nino, "El Niño", "El Nino", ENSO_warm, ONI_positive]
+  La_Niña:           [La_Nina, "La Niña", "La Nina", ENSO_cool, ONI_negative]
+  safrinha:          [second_corn_crop, winter_corn, "segunda safra"]
+  MSP:               [minimum_support_price, FRP, SAP, fair_remunerative_price]
+  # context (non-tradeable) commodities — substitutes/feed alternatives that drive our contracts
+  sunflower:         [sunflowerseed, "sunflower seed", girasol, tournesol]
+  sunflower_oil:     ["sunflower oil", "sun oil", "sunflowerseed oil"]
+  barley:            [feed_barley, malting_barley, cebada]
+  sorghum:           [milo, "grain sorghum"]
+  fish_meal:         [fishmeal, "fish meal", "marine protein"]
+  # cost-stack + macro-context surface forms (D-CW-1e). Bare ambiguous words are DELIBERATELY absent:
+  # "phosphate" alone could be DAP or phosphate rock, and an alias with two canonical identities is the
+  # arbitration violation the linter exists to catch -- so only the unambiguous forms are listed.
+  urea:              ["granular urea", "urea prills"]
+  DAP:               ["diammonium phosphate", "DAP fertilizer"]
+  potash:            ["potassium chloride", "muriate of potash", MOP, KCl]
+  phosphate_rock:    ["phosphate rock", "rock phosphate"]
+  NPK_blend:         [NPK, "blended NPK", "NPK fertilizer", "fertilizer blend", "compound fertilizer"]
+  crude_oil:         [crude, "crude oil", Brent, "Brent crude", WTI]
+  natural_gas:       ["natural gas", natgas, "gas prices", "Henry Hub", TTF]
+  diesel:            [gasoil, "gas oil", "diesel fuel", "on-road diesel"]
+  baltic_dry_index:  ["baltic dry index", BDI, "dry bulk freight", "time charter"]
+  panamax_freight:   ["panamax rates", panamax, supramax, handysize, "freight rates"]
+  panama_canal:      ["panama canal", "canal congestion", "draft restrictions", "transit slots", neopanamax]
+  suez_canal:        ["suez canal", "red sea", "bab el-mandeb", houthi, "cape of good hope reroute"]
+  copper:            ["copper prices", "LME copper"]
+  aluminium:         [aluminum, "aluminium prices"]
+  iron_ore:          ["iron ore"]
+  steel:             ["steel prices"]
+  # beneficial-weather surface forms (positive valence on the edge)
+  favorable_rainfall: ["favorable rains", "good rains", "beneficial rainfall", "ample rainfall"]
+  adequate_moisture:  ["adequate moisture", "good soil moisture", "replenished moisture", "subsoil moisture"]
+  protective_snow_cover: ["snow cover", "protective snow", "favorable snow cover"]
+  timely_rains:       ["timely rains", "well-timed rainfall", "rains at flowering"]
+  ideal_conditions:   ["ideal conditions", "favorable weather", "benign weather", "good growing conditions"]
+
+# Many surface verbs → one canonical edge+sign; the original verb stays in the edge's verbatim span.
+verb_normalization:
+  "reduces|lowers|cuts|pressures|hurts|weighs on|drags": {edge: causes, sign: neg}
+  "boosts|lifts|supports|raises|drives up": {edge: causes, sign: pos}
+  "replaces|switches to|substitutes": {edge: substitutes_for, sign: pos}
+  "bans|halts|restricts|curbs|limits": {edge: restricts, sign: neg}
+  "delays|slows|holds up": {edge: delays, sign: neg}
+  "disrupts|blocks|closes": {edge: disrupts, sign: neg}
+  "crushed into|crushes into|processed into|yields meal and oil": {edge: crushed_into}
+  "refined into|refines into": {edge: refined_into}
+  "blended into|feedstock for|used for biodiesel|used for ethanol|mandated into fuel": {edge: feedstock_for, sign: pos}
+  "diverted to|channeled to|redirected to fuel|absorbed by mandate": {edge: diverted_to, sign: pm}
+  "produces|grows|cultivates|output of|harvest in|production located in": {edge: produces, sign: pos}
+
+# Causal linguistic anchors (harvested from legacy configs/sources). Extraction only mints a causal
+# edge when the sentence is anchored by one of these — cuts false-positive correlational edges.
+causal_markers:
+  - "as a result of"
+  - "due to"
+  - "because of"
+  - "in response to"
+  - "following"
+  - "consequently"
+  - "triggered by"
+  - "led to"
+  - "resulted in"
+  - "driven by"
+  - "attributed to"
+  - "stemming from"
+  - "owing to"
+  - "in the wake of"
+  - "prompted by"
+  - "caused by"
+  - "as a consequence of"
+  - "which led to"
+  - "which resulted in"
+  - "expected to lead to"
+  - "likely to result in"

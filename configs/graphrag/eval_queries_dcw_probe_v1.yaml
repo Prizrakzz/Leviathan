@@ -1,0 +1,525 @@
+# D-CW-0 UNLOCK-PROBE DECK v1 (2026-08-07) -- THE WAVE'S ACCEPTANCE INSTRUMENT, HELD OUT.
+#
+# WHY THIS FILE EXISTS. docs/private/DARK_CAPABILITY_CENSUS.md proved that three separate
+# capability-ADVERTISEMENT surfaces each describe a strict subset of what the estate already serves,
+# and that the gaps do not overlap: a capability can be dark to the router (dispatch.py:60-64), dark
+# to the user (server.py:709-710 _SUGGEST_METRICS), and dark to the walk (driver_slices.yaml:293
+# dag_alias) INDEPENDENTLY. Every other deck in the estate measures whether answers got better. This
+# deck measures something the others structurally cannot: whether a question that TODAY refuses,
+# mis-routes, or hallucinate-risks becomes GROUNDED WITH A NAMED TABLE CITED. It is the before/after
+# proof D-CW-4 reads, and it is the only instrument in the wave that can distinguish "nothing broke"
+# from "the dark capability is now reachable".
+#
+# ONE ROW PER UNLOCK. Twelve rows, twelve census unlocks, no doubling: pink-sheet fertilizer z (e.1),
+# the energy->fertilizer chain (e.1 + c natural_gas choke), WASDE avg_farm_price (e.2), ESR
+# per-destination (e.3), ICCO grindings (b.4), MPOB monthly (b.4), silver_nass_crop_progress (e.6 --
+# the census's sharpest instance), the macro slice de-choke (e.8), US-corn ethanol margins (c
+# ethanol_margins choke, PROVISIONAL -- see the row), positioning-to-numbers (e.9), NumberQuery.limit
+# / the oldest-5000 class (e.5), and IOD beside ONI (b.5).
+#
+# THE NO-TAUTOLOGY LAW (inherited from eval_queries_contracts_ab_v1.yaml). No question names its own
+# honesty gate. A row whose gate is "carry the week-ending stamp" does NOT ask "and tell me how stale
+# that is"; a row whose gate is "state the span you actually covered" does NOT ask "what window did
+# you read". Each question is a realistic desk ask whose SHAPE and whose SOURCE the system must infer.
+# A deck that asks for its own gate measures compliance with the question, not capability.
+#
+# HELD OUT. This deck is not in any gate, not in the router strata, and is never run between D-CW-0
+# and D-CW-4. No question here duplicates a row of eval_queries_contracts_ab_v1.yaml (the 25-row
+# no-tautology deck), eval_queries_deepv2_width_v1.yaml (the 6-row width deck), or any other deck in
+# configs/graphrag. ONE same-subject NEAR-NEIGHBOUR exists and is disclosed on the row itself
+# (dcw_palm_stocks_print vs ab_rec_malaysia_stocks) rather than hidden.
+#
+# SCHEMA. eval.py consumes exactly: q["contract"] (routed_right), q["question"], q.get("asof") (PIT),
+# q.get("id"), q.get("category") (census only), q.get("expect") (rubric counters). Everything else
+# here -- `unlock`, `census_ref`, `sources`, `today`, `wired`, `fail`, `provisional` -- is an AUTHOR
+# field eval.py never reads, exactly as `rc_expected` / `width_class` / `prereg` are author-only on
+# the two decks above. load_queries (eval.py:30-31) reads the `queries` key and ignores the rest.
+#
+# `rc_expected` IS DELIBERATELY ABSENT. The contracts deck records it for an offline selector audit;
+# this deck's instrument is TABLE CITATION, not response shape. Recording a shape expectation that was
+# never measured offline would be noise dressed as pre-registration, and running the selector over
+# these rows at authoring time would invite tuning the deck against it -- the exact failure the
+# no-tautology law exists to prevent. `expected_intent` is absent for the same reason it is absent on
+# the width deck (guessing the router lane mints false intent_ok failures); intent_ok stays None.
+#
+# `expect` IS OBSERVATIONAL, NEVER A GATE. Used on exactly two rows where a deterministic counter has
+# crisp semantics (evidence_cited on the macro de-choke row, where "did ANY dated row come back" IS
+# the hypothesis). It decides nothing. The headline read is the per-row three-state verdict below.
+#
+# OFFLINE ANSWERABILITY VALIDATION (no live retrieval, no API, no DB, no cost). Every named table,
+# metric, unit, PIT rule and publication lag was checked against configs/graphrag/numbers/tables.yaml
+# (the numbers registry the agent's own system prompt is built from) and, for the one table with no
+# card yet, against configs/silver/tables/silver_nass_crop_progress.yaml. Every routing claim was
+# checked against configs/graphrag/driver_slices.yaml (slice terms + the dag_alias block at :293 +
+# the waiver block) and the contract DAGs under configs/graphrag/causal/. Prop counts are quoted from
+# the census, which measured them over the chunked store; they are lower bounds and are never used as
+# a pass condition. NOTHING in this deck was validated by running a query.
+#
+# AS-OF IS FROZEN AT 2026-08-07 ON EVERY ROW AND MUST NOT BE BUMPED AT D-CW-4. The re-run compares two
+# images against the SAME world; a bumped asof compares two different worlds and the instrument is
+# dead. Several rows carry an explicit newest-knowable-value arithmetic derived from the cards'
+# publication lags at this asof (urea/gas June-2026 at lag 40; MPOB June-2026 at lag 43; COT
+# report_date 2026-07-28 at lag 6; WASDE the 2026-07-10 release) -- those are LEAK TRIPWIRES: a value
+# fresher than the lag allows is a failure in BOTH arms, not a win.
+#
+# INVOCATION -- THE D-CW-0 BASELINE ARM (unjudged, one arm, ~$1.5). There is no eval_set registry:
+# eval.py:2682 derives eval_set from the FILE STEM, so this file's name IS the eval_set
+# (`eval_queries_dcw_probe_v1`).
+#
+#   python -m leviathan.graphrag.eval --run --via-orchestrator --workers 4 \
+#     --queries configs/graphrag/eval_queries_dcw_probe_v1.yaml
+#
+# No `--judge` (D-CW-0 is unjudged by plan). No `--mode` (standard; deep_v2 is DARK in
+# reasoning_modes.DARK_NAMES and was refused at D-DV closure). --via-orchestrator is REQUIRED and not
+# optional here: without it the numbers agent never runs and ten of these twelve rows measure nothing.
+# The artifact lands at configs/graphrag/eval/baseline_eval_queries_dcw_probe_v1_<provider>_<ts>.json
+# (eval.py:2076-2080), with the S3 twin when EVIDENCE_S3 is set, stamped with the git commit.
+#
+# ENV -- AND THE ENV IS NOT THE VARIABLE UNDER TEST. Anthropic lane (GRAPHRAG_PROVIDER absent), and
+# the FULL serving env: EVIDENCE_BACKEND=pg, GRAPHRAG_NUMBERS_BACKEND=pg, EVIDENCE_PG_DSN,
+# EVIDENCE_S3, GRAPHRAG_SILVER=on. A numbers-heavy deck run without the pg + silver env measures the
+# harness (the standing "cascade dead w/o pg env in evals" law), and every row here that reads a
+# table would come back honestly empty. WHATEVER ENV THE BASELINE RUNS WITH, D-CW-4 REPEATS EXACTLY.
+#
+# IMAGE LAW. The baseline runs on the image built BEFORE any D-CW edit; every wave change is
+# committed after. If the baseline image and the deck's commit cannot both be shown, the before
+# record is not a before record.
+queries:
+
+  # =============================================================================================
+  # (1) PINK SHEET / FERTILIZER Z-SCORE -- census (e).1: 32 metrics incl. 16 PIT-clean 5yr z-scores,
+  # zero of them named in the router's only capability advertisement.
+  - id: dcw_urea_zscore
+    contract: corn_cbot
+    category: dcw_input_cost_z
+    asof: '2026-08-07'
+    unlock: "silver_pink_sheet -> router purpose string (D-CW-1a rank 1)"
+    census_ref: "census (b) missing-entirely list; (e).1; change site dispatch.py:60-64"
+    sources:
+      - silver:silver_pink_sheet          # urea_usd_mt + urea_usd_mt_zscore_5yr; data_date, pub lag 40
+      - driver_slice:urea                 # 165 props, ORPHAN -- no dag_alias entry, no DAG id resolves
+      - driver_slice:fertilizer           # 1421 props, reachable via fertilizer_input_costs in corn_cbot
+    today: >-
+      dispatch.py:60-64 never names silver_pink_sheet, so all 32 of its metrics -- including every
+      5yr z-score -- are invisible to the ONLY surface that tells the router what the numbers agent
+      can do. The walk cannot cover for it: the `urea` slice (165 props) is an ORPHAN with no
+      dag_alias entry at driver_slices.yaml:293 and no DAG id resolving to it, so only the generic
+      `fertilizer` slice is reachable from corn_cbot. Expected today: a qualitative "fertilizer came
+      off its 2022 highs" answer with no urea level, no dated stamp, and nothing to check.
+    wired: >-
+      Cites silver_pink_sheet urea_usd_mt AND urea_usd_mt_zscore_5yr (sigma vs the trailing 5-yr
+      mean, PIT-clean) for the newest KNOWABLE data month -- June-2026 at this asof, since
+      publication_lag_days=40 withholds July-2026 until 2026-08-10 -- carrying the data month and the
+      WB release stamp (provenance_col latest_release_ym), and answers "expensive or not" with the
+      sigma reading rather than an adjective.
+    fail: >-
+      Any urea level or expensive/cheap-vs-history verdict not carried by a cited silver_pink_sheet
+      row; a z-score quoted with no data month; or a July-2026 value, which the 40-day lag forbids
+      (a leak-shaped failure in EITHER arm, never a win).
+    question: "Fertilizer -- is urea actually expensive right now, or does it just feel that way after the last few years?"
+
+  # =============================================================================================
+  # (2) ENERGY -> FERTILIZER SQUEEZE -- dark on BOTH surfaces at once: the numbers half is census
+  # (e).1, the walk half is census (c) natural_gas 425 props reachable through ONE contract.
+  - id: dcw_gas_nitrogen_squeeze
+    contract: french_wheat_matif
+    category: dcw_input_cost_chain
+    asof: '2026-08-07'
+    unlock: "pink-sheet energy + fertilizer (D-CW-1a) AND natural_gas de-choke (D-CW-3c)"
+    census_ref: "census (b) + (c) 'natural_gas 425 only via french_maize'; (e).1"
+    sources:
+      - silver:silver_pink_sheet          # natural_gas_eu_usd_mmbtu (+ _zscore_5yr), urea_usd_mt (+ z)
+      - driver_slice:natural_gas          # 425 props; dag id `natural_gas` exists ONLY in french_maize_matif.yaml:463
+      - driver_slice:fertilizer           # 1421 props, the nitrogen-cost narrative
+    today: >-
+      Both legs are dark and for DIFFERENT reasons. Numbers: silver_pink_sheet is unnamed in the
+      purpose string, so natural_gas_eu_usd_mmbtu and urea_usd_mt are unreachable from the router.
+      Walk: the natural_gas slice is routed by exactly one dag id, `natural_gas`, which exists in
+      exactly one DAG (french_maize_matif) -- a French WHEAT question cannot reach it at any evidence
+      cap. Expected today: an unquantified "gas sets ammonia sets urea" mechanism with neither leg
+      dated and neither leg citable.
+    wired: >-
+      D-CW-1a advertises fertilizer + energy input costs and their 5yr z-scores; D-CW-3c adds the
+      natural_gas dag id to the wheat-family DAGs narrowly. The answer must carry BOTH legs as cited
+      numbers -- silver_pink_sheet natural_gas_eu_usd_mmbtu and urea_usd_mt, each on its own data
+      month (June-2026 at this asof) -- and may narrate the transmission from the natural_gas and
+      fertilizer slices.
+    fail: >-
+      A squeeze claim with zero cited numbers; the US gas series substituted for the EU one (the card
+      carries both and they are different answers); or a QUANTIFIED pass-through (X in gas = Y in
+      urea = Z in wheat cost) -- cascade quantification of input costs is explicitly NOT DOING in
+      this wave, so narration may cite the cost legs and the engine still never quantifies them.
+    provisional: >-
+      SPLIT ROW, REPORT THE HALVES SEPARATELY. The numbers half depends only on D-CW-1a; the walk
+      half depends on D-CW-3c landing french_wheat_matif (or the wheat family) among the narrow
+      de-choke targets. If D-CW-3c lands corn-side only, the walk half is instrument-dead on this row
+      and that is a scoping fact, not a regression.
+    question: "European gas has been all over the place -- what does that do to the nitrogen bill for next season's wheat crop, and is it actually biting yet?"
+
+  # =============================================================================================
+  # (3) WASDE AVG_FARM_PRICE AT A VINTAGE -- census (e).2. Three different prices live in this estate
+  # (WASDE season-average FARM price, Pink Sheet MONTHLY average, futures CONTINUOUS front-month) and
+  # the cards distinguish them explicitly; the router is told about none of the first two.
+  - id: dcw_farm_price_vintage
+    contract: corn_cbot
+    category: dcw_vintage_stamped_level
+    asof: '2026-08-07'
+    unlock: "silver_wasde + avg_farm_price with vintage stamps -> purpose string (D-CW-1a rank 2)"
+    census_ref: "census (b) 'silver_wasde (7 metrics incl. avg_farm_price w/ vintage stamps)'; (e).2"
+    sources:
+      - silver:silver_wasde               # avg_farm_price, commodity corn, region united_states, $/bu
+    today: >-
+      silver_wasde is absent from dispatch.py:60-64 entirely. A farm-price ask is therefore at risk of
+      being routed away, refused, or answered off a DIFFERENT price -- silver_futures_prices serves a
+      continuous front-month close and silver_pink_sheet serves a monthly world average, and neither
+      is the USDA season-average farm price a US grower or a basis desk means by the question.
+    wired: >-
+      Cites silver_wasde avg_farm_price for commodity=corn / region=united_states in $/bu (the card's
+      governing unit_override, since the stored unit column is heterogeneous), off the latest vintage
+      at or before the asof -- the July print, since the August WASDE lands after 2026-08-07 --
+      naming that release_date, and attributing the value through revision_stamp (provenance_col
+      estimate_role): a current- or next-MY figure is a USDA PROJECTION, never sold as our forecast.
+    fail: >-
+      A futures level or a Pink Sheet monthly average presented as the farm price; a farm price with
+      no release vintage on it; the value attributed to us rather than to USDA; or a refusal on a
+      table that has served corn continuously since 1995.
+    question: "What price is USDA actually carrying for US corn this season -- the farm-gate number, not the board?"
+
+  # =============================================================================================
+  # (4) ESR PER-DESTINATION -- census (e).3. 211 FAS destination codes with the translation LIVE and
+  # unadvertised; the purpose string names ESR sales and their pace but never the buyer axis.
+  - id: dcw_esr_china_corn
+    contract: corn_cbot
+    category: dcw_destination_read
+    asof: '2026-08-07'
+    unlock: "ESR per-destination buyers -> purpose string + esr_destinations.yaml ref (D-CW-1a rank 3)"
+    census_ref: "census (b) 'ESR per-destination (211 FAS codes, translation live)'; (e).3"
+    sources:
+      - silver:silver_esr                 # commodity_name corn_cbot; country China -> FAS 5700
+      - config:numbers/esr_destinations.yaml:149   # 5700: name China, aliases [china, chinese]
+      - driver_slice:china_buying_pace    # the narrative population -- soy-centric by construction
+    today: >-
+      The purpose string advertises ESR sales AND their pace but says nothing about per-destination
+      buyers, so the live name->code translation is invisible to the router. The two failure shapes
+      are specific: a NATIONAL total returned and described as China's, or a tonnage carried over
+      from the china_buying_pace narrative, which is a soybean-complex population and does not hold
+      US corn commitments.
+    wired: >-
+      Cites silver_esr for commodity_name=corn_cbot with country='China' (resolved to FAS 5700 via
+      esr_destinations.yaml -- an unrecognised name returns NO rows, never a silent national total),
+      market_year 2025 in our START-year convention (period_offset +1 compiles the FAS end-year
+      label), aggregated across the marketing year, in 1000 MT, with the weekly vintage as_of_date on
+      the figure and the distinction between shipped exports and outstanding sales kept intact.
+    fail: >-
+      A China tonnage no cited silver_esr row carries; a national total labelled as China's; shipped
+      and unshipped conflated into one "bought" number without saying so; or the US treated as a
+      destination (it is the REPORTER).
+    question: "How much corn has China actually bought out of the US this marketing year?"
+
+  # =============================================================================================
+  # (5) ICCO COCOA GRINDINGS -- census (b) rank 4. The table is citable and unadvertised; the walk
+  # holds a QUARTERLY REGIONAL grind narrative, which is a different quantity from the ANNUAL WORLD
+  # balance sheet, and nothing today stops the two being fused.
+  - id: dcw_cocoa_grindings
+    contract: cocoa
+    category: dcw_annual_world_balance
+    asof: '2026-08-07'
+    unlock: "silver_icco_cocoa (grindings) -> purpose string (D-CW-1a rank 4)"
+    census_ref: "census (b) 'silver_icco_cocoa (grindings!)'; exposure matrix CITABLE A-only"
+    sources:
+      - silver:silver_icco_cocoa          # grindings_kt / production_kt / su_ratio, per cocoa_year
+      - driver_slice:cocoa_grindings      # quarterly regional grind narrative (Europe/Asia/NA)
+    today: >-
+      silver_icco_cocoa is unadvertised, so a grindings ask routes to the walk, which carries the
+      quarterly REGIONAL grind reports. The specific hazard is a units-and-scope fusion: a European
+      quarterly grind percentage quoted as world demand, or a demand-destruction verdict with no
+      world balance behind it.
+    wired: >-
+      Cites silver_icco_cocoa grindings_kt across cocoa_years (agg=series, string period '2024/25')
+      in THOUSAND tonnes with the latest_release_date vintage, labelled explicitly as WORLD ANNUAL
+      grindings, optionally beside production_kt / su_ratio for the balance; the quarterly regional
+      narrative may frame the trend but never supplies the number.
+    fail: >-
+      An annual/quarterly or world/regional conflation; a grindings figure with no ICCO release
+      vintage; the ICCO su_ratio (end_stocks/grindings, annual) blended with the PSD-World
+      stocks-to-use, which is a different formula sharing a column name; or a refusal.
+    question: "Is chocolate demand really cracking at these cocoa prices, or has the grind held up?"
+
+  # =============================================================================================
+  # (6) MPOB MONTHLY PALM PRINT -- census (b) rank 4. NEAR-NEIGHBOUR DISCLOSED, see `heldout_note`.
+  - id: dcw_palm_stocks_print
+    contract: malaysian_crude_palm_oil_cme
+    category: dcw_monthly_print
+    asof: '2026-08-07'
+    unlock: "silver_mpob (monthly palm) -> purpose string (D-CW-1a rank 4)"
+    census_ref: "census (b) 'silver_mpob'; exposure matrix CITABLE A-only"
+    sources:
+      - silver:silver_mpob                # closing_stocks_palm_oil_mt, production_cpo_mt; pub lag 43
+      - silver:silver_psd                 # the ANNUAL palm balance -- the WRONG table for this ask
+    today: >-
+      silver_mpob is unadvertised, so the monthly board print is unreachable from the router and a
+      palm-stocks ask is served as narrative. The hazards are substitution (the USDA PSD ANNUAL palm
+      balance answered in place of the MONTHLY print) and an uncited stocks level that reads as a
+      board figure.
+    wired: >-
+      Cites silver_mpob closing_stocks_palm_oil_mt AND production_cpo_mt in metric tonnes for the
+      newest KNOWABLE data month -- June-2026 at this asof, since publication_lag_days=43 withholds
+      July-2026 until 2026-08-13 -- plus the same calendar month of the prior seasons for the
+      comparison (a windowed period_start/period_end read), with every figure on its own data month
+      and the commodity named as malaysian_crude_palm_oil_cme (the table's only value).
+    fail: >-
+      A July-2026 print (not knowable at this asof); a stocks figure with no data month; the PSD
+      annual balance substituted for the monthly print; or the MPOB monthly su_ratio (closing stocks
+      / that-month exports) presented as an annual stocks-to-use.
+    heldout_note: >-
+      SAME-SUBJECT NEAR NEIGHBOUR, DISCLOSED NOT HIDDEN: eval_queries_contracts_ab_v1.yaml
+      ::ab_rec_malaysia_stocks asks "Where are Malaysian palm stocks sitting right now versus
+      normal?" -- a NARRATIVE recency probe scored on response shape. This row is deliberately its
+      numbers twin (a named monthly print, two named quantities, an explicit multi-year same-month
+      comparison) and tests a different surface. It is not a duplicate, and the overlap is recorded
+      here so no reader has to rediscover it.
+    question: "What did the last Malaysian palm board print look like -- stocks and output -- and how does that sit against the same month in the last couple of seasons?"
+
+  # =============================================================================================
+  # (7) NASS CROP PROGRESS -- census (a): "the sharpest instance". A silver table with weekly
+  # STATE-level conditions back to 1979 that is ALREADY GRADED by a shipped eval it cannot pass,
+  # because it has no card in the numbers registry at all.
+  - id: dcw_nass_conditions_split
+    contract: corn_cbot
+    category: dcw_state_level_conditions
+    asof: '2026-08-07'
+    unlock: "silver_nass_crop_progress numbers card (D-CW-2a) + purpose-string clause (D-CW-2c)"
+    census_ref: "census (a) SILVER-ONLY list + the sharpest-instance note; (e).6"
+    sources:
+      - silver:silver_nass_crop_progress  # pct_good_excellent / pct_poor_very_poor by state, weekly, 1979+, 6 slugs
+      - driver_slice:us_drought_monitor   # 542 props; terms carry 'crop conditions', 'good-to-excellent'
+    today: >-
+      The table has NO card in configs/graphrag/numbers/tables.yaml, so it is silver-only with no path
+      to any user response -- while eval_queries_deepv2_width_v1.yaml:177 already names it as a source
+      and the width checklist grades its citation key. A state-level conditions ask can only be
+      answered from us_drought_monitor narrative, so any east/west rating split is ASSERTED. This is
+      the highest hallucination-risk row of the twelve on the numbers side: "the west is 62% G/E and
+      the east 71%" is fluent, precise, checkable, and today completely unsourced.
+    wired: >-
+      D-CW-2a lands the card; the answer cites silver_nass_crop_progress pct_good_excellent (and/or
+      pct_poor_very_poor) by state for commodity corn_cbot, with the WEEK-ENDING date on every
+      figure, and takes the August-yield-history half from the narrative populations rather than from
+      this table.
+    fail: >-
+      A state-level condition percentage with no week-ending date; late-May ratings presented as the
+      current read; a fabricated east/west split; or -- once the card is live -- a claim that
+      state-level conditions are unavailable.
+    provisional: >-
+      RECENCY RIDER, PRE-REGISTERED SO IT IS NEVER RE-LITIGATED AS A DEFECT. The census records the
+      table as STALE-BY-SCHEDULE: last silver write 2026-06-01, transform and jobdef exist, no
+      dag_schedules entry, roughly nine weeks of the 2026 season missing. Until the D-CW-2a(i)
+      catch-up run lands, the newest row is a late-MAY 2026 week, and the CORRECT wired behaviour is
+      to answer off that week WITH its date and say the season since is not in the table. Answering
+      stale data honestly is a PASS on this row; answering it silently is the FAIL above. If the card
+      lands and the catch-up does not, that split outcome is reported as such, not as a regression.
+    question: "Corn conditions -- how do the eastern belt states compare with the west, and when the belt splits like that, what has August usually done to the yield?"
+
+  # =============================================================================================
+  # (8) MACRO SLICE DE-CHOKE -- census (c): 2,121 props reachable through EXACTLY ONE contract.
+  - id: dcw_macro_on_soy
+    contract: soybeans_cbot
+    category: dcw_macro_dechoke
+    asof: '2026-08-07'
+    unlock: "macro_demand ids added to the grain/oilseed DAGs (D-CW-3b)"
+    census_ref: "census (c) 'macro 2,121 props only via cocoa'; (e).8"
+    sources:
+      - driver_slice:macro                # 2121 props; dag_alias macro:[macro_demand] at driver_slices.yaml:354
+      - node:cocoa                        # macro_demand exists in exactly ONE DAG: cocoa.yaml:383
+      - driver_slice:us_dollar_index      # 19 props, reachable by 25 contracts -- the thin substitute
+      - silver:silver_fred_fx             # brl_usd / cny_usd + their 90-day percent changes
+    today: >-
+      The 2,121-prop macro population is routed by one dag id, macro_demand, and that id lives in one
+      DAG: cocoa. A macro-on-oilseeds ask therefore retrieves, at best, the 19-prop us_dollar_index
+      slice -- reachable-but-empty, the harmful thin class -- so the transmission is narrated from
+      model prior rather than from dated rows. The failure is invisible in ordinary reading: the
+      mechanism prose is correct and entirely unsourced.
+    wired: >-
+      D-CW-3b routes macro_demand-class ids from the grain/oilseed DAGs that already carry macro
+      drivers. The answer must carry at least one DATED macro episode row out of the macro slice (the
+      recession / deleveraging / commodity-boom / financial-crisis vocabulary) attributed to the
+      soybean side, and must cite silver_fred_fx where it makes an FX claim.
+    fail: >-
+      A macro transmission asserted with zero dated rows behind it; cocoa-side rows cited as the
+      evidence for a soybean claim; or a price forecast (the outlook gate owns that register and this
+      row must not be answered in it).
+    expect:
+      needs_evidence: true
+    question: "When the macro turns -- rate scare, funds de-risking, a bid dollar -- how much of that actually lands in Chicago beans, and through what?"
+
+  # =============================================================================================
+  # (9) US-CORN ETHANOL MARGIN -- census (c): ethanol_margins 1,445 props routed by ONE dag id that
+  # exists only in the BRAZILIAN corn DAG. PROVISIONAL: the de-choke is NOT in D-CW-3's ratified list.
+  - id: dcw_us_ethanol_margin
+    contract: corn_cbot
+    category: dcw_biofuel_margin
+    asof: '2026-08-07'
+    unlock: "ethanol_margins de-choke (NOT SCOPED in D-CW-3) + energy input costs advertised (D-CW-1a)"
+    census_ref: "census (c) 'ethanol_margins 1,445 only via campinas_corn_reference_bmf (a US-corn ethanol-margin question cannot reach it)'"
+    sources:
+      - driver_slice:ethanol_margins      # 1445 props; dag_alias ethanol_margins:[ethanol_demand_BR] at :349
+      - node:campinas_corn_reference_bmf  # ethanol_demand_BR exists ONLY here (campinas...yaml:310)
+      - driver_slice:us_ethanol_rfs       # 543 props; dag_alias [RFS, ethanol_demand]; corn_cbot.yaml:383 carries ethanol_demand -> REACHABLE TODAY
+      - silver:silver_pink_sheet          # brent_crude_usd_bbl + natural_gas_us_usd_mmbtu, the energy leg of the margin
+    today: >-
+      A US corn ethanol-margin ask DOES reach us_ethanol_rfs (543 props, via corn_cbot's
+      ethanol_demand driver) but CANNOT reach ethanol_margins (1,445 props), which is routed by
+      exactly one dag id, ethanol_demand_BR, living only in the Brazilian campinas DAG. So the
+      MANDATE population answers a MARGIN question: corn in, ethanol and DDG out, energy cost -- the
+      economics themselves are narrated from prior plus RFS prose.
+    wired: >-
+      IN SCOPE THIS WAVE: D-CW-1a advertises energy input costs, making the energy leg citable --
+      silver_pink_sheet brent_crude_usd_bbl and natural_gas_us_usd_mmbtu on their data months
+      (June-2026 at this asof) -- with the corn leg carried on the WASDE/PSD balance and the mandate
+      leg on us_ethanol_rfs. IF D-CW-3 is amended to add a US-corn-side dag id to ethanol_margins,
+      the additional requirement is at least one dated row cited out of that 1,445-prop slice.
+    fail: >-
+      A stated margin NUMBER (a crush spread in dollars per gallon or per bushel) that no cited row
+      carries -- that is cascade quantification of input costs, explicitly NOT DOING in this wave --
+      or an ethanol-economics claim with no dated row of any kind behind it.
+    provisional: >-
+      PROVISIONAL, DECLARED AT AUTHORING. De-choking ethanol_margins is NOT in D-CW-3's ratified list
+      (a: fertilizer/energy orphans urea/dap/potash/diesel; b: macro; c: natural_gas +
+      russia_export_tax_quota; d: positioning-by-routing). If the wave ships as written, the WALK half
+      of this row measures nothing new and MUST be reported INSTRUMENT-DEAD -- never as a regression,
+      never as a D-CW-3 failure, and never as grounds to widen D-CW-3 mid-wave. The numbers half
+      stands on D-CW-1a alone and is read normally.
+    question: "US ethanol margins -- how much pressure is the grind under, and what is that doing to corn demand?"
+
+  # =============================================================================================
+  # (10) POSITIONING -> NUMBERS -- census (d): positioning narratives served from a 1-prop slice with
+  # a 0-prop sibling, while silver_cot (8 metrics, 2006+) sits in the registry.
+  - id: dcw_positioning_beans
+    contract: soybeans_cbot
+    category: dcw_positioning_to_numbers
+    asof: '2026-08-07'
+    unlock: "positioning asks routed to silver_cot numbers + suggester (D-CW-3d, D-CW-1b)"
+    census_ref: "census (d) 'cftc_positioning 1 prop (20 contracts)', 'managed_money_positioning 0 props (11 contracts)'; (e).9"
+    sources:
+      - silver:silver_cot                 # mm_net / mm_pct_oi / mm_net_z_3yr; leviathan_slug; pub lag 6
+      - driver_slice:cftc_positioning     # 1 prop, reachable by 20 contracts
+      - driver_slice:managed_money_positioning   # 0 props, reachable by 11 contracts
+    today: >-
+      The router purpose string DOES already name COT positioning, which makes this row a test of the
+      OTHER two surfaces: the suggester advertises no positioning at all (server.py:709-710), and the
+      walk serves positioning narrative from a 1-prop slice whose sibling holds zero props. The
+      reachable-but-empty class is worse than an orphan -- the walk returns something, so "the funds
+      are heavily long" arrives fluent, confident and unbacked.
+    wired: >-
+      D-CW-3d routes positioning asks to the numbers leg rather than populating the slice by chunking
+      (corpus work, out of scope). The answer cites silver_cot for leviathan_slug=soybeans_cbot at the
+      newest KNOWABLE report_date -- 2026-07-28 at this asof, since publication_lag_days=6 puts the
+      2026-08-04 report beyond reach until 2026-08-10 -- giving mm_net in contracts and/or the signed
+      mm_pct_oi, with mm_net_z_3yr as the "vs its own history" leg, stated PAST TENSE. The 0/1-prop
+      slices get a manifest content-debt note instead of a narrative.
+    fail: >-
+      A positioning claim with no cited silver_cot row; a bare base name ('soybeans') used as the
+      commodity, which matches zero rows; a report_date later than 2026-07-28; or positioning used to
+      drive a direction call or a fork -- R9 as amended: historical CONTEXT only, and the table
+      refuses OUTLOOK turns by design, so a refusal on an outlook-shaped answer is correct behaviour
+      and not a row failure.
+    question: "How crowded is the fund position in beans at the moment relative to where it usually sits?"
+
+  # =============================================================================================
+  # (11) THE OLDEST-5000 CLASS -- census (e).5, the one dark item with MEASURED harm. The tool schema
+  # hides NumberQuery.limit, so the agent has no lever to window a long series deliberately.
+  - id: dcw_full_record_range
+    contract: corn_cbot
+    category: dcw_full_history_series
+    asof: '2026-08-07'
+    unlock: "NumberQuery.limit into the tool schema with a newest-first note (D-CW-1c)"
+    census_ref: "census tool-schema row 'limit (measured harm: oldest-5000)'; (e).5"
+    sources:
+      - silver:silver_futures_eod         # settle per delivery month; corn_cbot ~49,255 rows (agent.py:2417)
+      - code:numbers/query.py:43          # limit: int = 5000, absent from the tool schema
+      - code:numbers/agent.py:1383-1423   # the NumberQuery tool input schema (11 of 12 fields)
+      - code:numbers/agent.py:2413-2443   # series_truncated -- the stamp that names this defect
+    today: >-
+      An unwindowed agg='series' read compiles ORDER BY <total order> LIMIT 5000 ASCENDING, with no
+      DESC, so the OLDEST 5,000 rows survive and roughly 44,000 newer ones are silently dropped --
+      corn's served "record" stops around 2011-2012. The truncation is stamped, but the agent has no
+      remedy available to it because `limit` is not in the tool's input schema. A renderer that then
+      headlines the extremes of that window is honest-looking and wrong.
+    wired: >-
+      D-CW-1c exposes limit in the tool schema with an explicit newest-first note, so the agent can
+      WINDOW deliberately. The answer must either window the read (period_start/period_end -- the
+      standing remedy, never raising the cap, which would re-open the scan surface the S3 LIST-storm
+      work closed) or state the span it actually covered; and every extreme it quotes must carry its
+      trade_date, its contract_month and its settle_kind (corn_cbot is GLBX, so a true exchange
+      settlement, in US cents/bushel), with the 2010-06 history floor acknowledged rather than implied
+      away.
+    fail: >-
+      A "full record" range whose extremes all sit in 2010-2012 while being presented as the whole
+      history; any range or extreme quoted with no date span stated; a bare level with no
+      contract_month (every row of a multi-expiry read carries the same slug and the same date, so a
+      level without its expiry is unattributable); or a raised cap in place of a window.
+    question: "How wide has corn's trading range been over the full history, and when did it print the extremes?"
+
+  # =============================================================================================
+  # (12) IOD BESIDE ONI -- census (b) rank 5. ONI is named in the purpose string and IOD is not, while
+  # the IOD slice is a 4-prop WAIVERED orphan no DAG id reaches (driver_slices.yaml:483).
+  - id: dcw_iod_beside_oni
+    contract: rough_rice_cbot
+    category: dcw_climate_index
+    asof: '2026-08-07'
+    unlock: "silver_noaa_iod named beside ONI in the purpose string (D-CW-1a rank 5)"
+    census_ref: "census (b) 'silver_noaa_iod (ONI is named, IOD is not)'; (c) orphan list 'indian_ocean_dipole 4'"
+    sources:
+      - silver:silver_noaa_iod            # dmi_value + iod_dmi_3month_avg; year_month; ~30-45d pub lag
+      - silver:silver_noaa_oni            # oni_anom / el_nino_flag / la_nina_flag -- the advertised sibling
+      - driver_slice:indian_ocean_dipole  # 4 props, WAIVERED at driver_slices.yaml:483: no DAG id reaches it
+    today: >-
+      dispatch.py:60-64 names ONI and stops there, so a served, live, monthly IOD table is invisible
+      to the router; and the walk's IOD slice is a 4-prop waivered orphan that the census records as
+      having routed props but NO DAG id reaching them. An IOD ask is therefore answered from model
+      prior. This is the deck's purest hallucination row: "the dipole is strongly positive" is one
+      fluent sentence, trivially checkable, and today sourced by nothing.
+    wired: >-
+      D-CW-1a names IOD beside ONI. The answer cites silver_noaa_iod dmi_value (degC, ERSSTv5 basis
+      against the FIXED 1991-2020 climatology) for its own year-month, beside silver_noaa_oni
+      oni_anom for the same window, and lets the roughly one-month publication cadence stand as normal
+      rather than as missing data.
+    fail: >-
+      An IOD phase or magnitude with no dated DMI reading; ONI quoted as if it were IOD; a dated
+      reading called "current"; a DMI compared against pre-2026 HadISST-basis figures quoted
+      elsewhere (the 1997 peak reads 1.55 on this basis and 1.28 on the retired one); or a served
+      IOD-to-rice-yield NUMBER -- positive-IOD teleconnections are qualitative context on this card,
+      never a served number.
+    question: "Everyone's watching ENSO -- what is the Indian Ocean Dipole doing, and does that change the monsoon read for rice?"
+
+# =================================================================================================
+# D-CW-4 READ CHECKLIST (author-only; this is how the after-arm is scored, fixed BEFORE the before-arm
+# runs so no verdict can be invented after the fact).
+#
+# PER ROW, ONE OF THREE STATES -- assigned from the answer text plus its citations, by hand:
+#   REFUSED               the system declines, or answers that the data is unavailable.
+#   UNGROUNDED            it answers, and the load-bearing figure/verdict is carried by no cited row.
+#   GROUNDED-WITH-TABLE   the named table appears in the citations AND every figure carries its own
+#                         date/vintage stamp AND no clause of `fail` is tripped.
+# Anything short of all three conditions is UNGROUNDED, not a partial pass. "It cited SOMETHING" is
+# not the bar; the bar is the NAMED table in `wired`.
+#
+# PER ROW, RECORD FOUR THINGS: (a) the state above, both arms; (b) which tables were actually cited;
+# (c) which `fail` clause tripped, verbatim, if any; (d) the routed lane (numbers / reasoning / live).
+# (d) matters because a row can reach GROUNDED-WITH-TABLE for the wrong reason -- the walk stumbling
+# onto a number the router never advertised is not the unlock this wave is buying.
+#
+# WAVE PASS = every NON-PROVISIONAL row moves REFUSED-or-UNGROUNDED -> GROUNDED-WITH-TABLE, and ZERO
+# rows regress in the other direction. Ten rows carry that burden. The three provisional carve-outs
+# are reported separately and CANNOT fail the wave:
+#   dcw_gas_nitrogen_squeeze  -- walk half rides D-CW-3c's landing set; numbers half is unconditional.
+#   dcw_nass_conditions_split -- PASS is the honest stale stamp until the D-CW-2a(i) catch-up lands.
+#   dcw_us_ethanol_margin     -- walk half is out of D-CW-3's ratified scope; instrument-dead if so.
+#
+# LEAK TRIPWIRES ARE SYMMETRIC. The newest-knowable arithmetic on rows 1, 2, 6 and 10 (June-2026 pink
+# sheet, June-2026 MPOB, 2026-07-28 COT) fails in EITHER arm. A wired answer that is fresher than the
+# card's publication lag allows is a leak, and a leak is never scored as an unlock.
+#
+# WHAT THIS DECK DOES NOT MEASURE, STATED SO NOBODY READS IT IN: answer quality, response shape, strip
+# rate, judged usefulness, or latency. It measures reachability of a named table, nothing else. The
+# wave's quality anchors are the contracts A/B selector zero-drift run and the modes-deck strip anchor
+# under D-CW-3, and the reviewed live-behavior batch under D-CW-4 -- not this file.

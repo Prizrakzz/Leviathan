@@ -541,11 +541,19 @@ def test_a_waived_read_dark_slice_is_accounted_for(tmp_path, monkeypatch):
 
 
 def test_the_live_pin_still_matches_the_live_wiring():
-    """The 29 read-dark slices are PINNED (READ_DARK_SLICES_PIN) so nobody re-derives a subset by hand
+    """The 28 read-dark slices are PINNED (READ_DARK_SLICES_PIN) so nobody re-derives a subset by hand
     again -- the deck author had already measured five of them at eval_queries_playbooks_v1.yaml:1130-1140.
-    Skipped on a tree with no private causal configs."""
+    Skipped on a tree with no private causal configs.
+
+    D-CW-3a (2026-08-07): 29 -> 28. `diesel` left the census when driver_slices.yaml aliased the
+    previously-waivered DAG id `gasoil_palm_spread` to it. This assertion is the tooth that makes the pin
+    follow the wiring in BOTH directions -- check_driver_slices only ADVISES ("shrink the pin") when a
+    pinned slice becomes reachable, because an improvement must never fail a build; the equality here is
+    what stops the advisory from being ignored until the pin is folklore."""
     import pytest
     from leviathan.graphrag import display as dp
     if not dp.all_driver_ids():
         pytest.skip("no causal configs in this tree -- the pin is vacuous")
     assert ev.read_dark_slices() == set(ev.READ_DARK_SLICES_PIN)
+    assert "diesel" not in ev.READ_DARK_SLICES_PIN                # D-CW-3a unlock, measured above
+    assert {"urea", "dap", "potash"} <= set(ev.READ_DARK_SLICES_PIN)   # D-CW-3a SKIPs: no nutrient DAG id

@@ -83,6 +83,13 @@ NUMBERS_TABLES = (
     #                                     served-registry drop (both lints read raw configs). Enumerated
     #                                     the moment the card landed so its data_date/trade_date/+1d PIT
     #                                     fields are structurally checked rather than shipping unchecked.
+    "silver_nass_crop_progress",        # D-CW-2a (DARK CAPABILITY CENSUS item 6): the weekly NASS crop
+    #                                     condition / pace card. Enumerated in the SAME change that adds the
+    #                                     tables.yaml card -- the drift test below is what forces that, and
+    #                                     it is exactly the point: this table's PIT fields were all null in
+    #                                     the registry until the card gave them a meaning (data_date on the
+    #                                     week-ending date, +2d publication lag), and an unenumerated table
+    #                                     would let that pair drift apart unchecked.
     "gold_pattern_records",             # T2b: pattern-records ledger (44th contract, registered-partition GOLD,
     #                                     flag-off until its deck gates the flip) — enumerated the moment its
     #                                     tables.yaml card landed so its knowledge fields reconcile against F010

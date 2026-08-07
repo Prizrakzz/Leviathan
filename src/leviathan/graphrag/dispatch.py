@@ -26,7 +26,6 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as _dt
-import functools
 import inspect
 import os
 import re
@@ -57,13 +56,38 @@ REGISTRY: tuple[ToolSpec, ...] = (
         # structurally unservable and correctly routed away; now it is a lookup, and a purpose that does
         # not say so leaves the new capability unreachable from the planner. family_names() derives the
         # data_families enum from the registry itself -- never hardcode a family in this string.
+        # D-CW-1a (2026-08-07, the DARK CAPABILITY CENSUS): this string advertised 8 of the 19 served
+        # numbers tables -- 11 tables / 62 metrics were dark to the ROUTER while the agent served them
+        # every day. The clauses below are ADDITIVE, in the census's own rank order (fertilizer/energy +
+        # z-scores; WASDE + farm price with vintage stamps; ESR per-destination; grindings/palm/CONAB/
+        # SAGIS; IOD beside ONI; the continuous front month, LEVELS-ONLY). Two wording rules, both load-
+        # bearing: (1) advertise nothing the R4 / levels_only fence forbids elaborating -- the continuous
+        # front-month clause carries its own "single dated level, no change/window/curve" caveat, because
+        # a purpose that promises a series the compiler RAISES on manufactures a decline; (2) never
+        # hardcode a family name here -- family_names() derives the data_families enum from the registry.
         purpose=("leakage-safe SQL over OBSERVED values (USDA PSD S&D vintages, ESR export sales AND "
-                 "their PACE vs the year-ago week/marketing year, CFTC managed-money POSITIONING levels "
+                 "their PACE vs the year-ago week/marketing year -- national OR BY DESTINATION (which "
+                 "country bought how much this marketing year), CFTC managed-money POSITIONING levels "
                  "-- net length, net long/short, how stretched vs its own history -- daily futures "
                  "settles BY DELIVERY MONTH, including the TERM STRUCTURE / forward CURVE across "
-                 "expiries and named-contract levels, weather aggregates, FX, ONI)."),
+                 "expiries and named-contract levels; World Bank monthly world price benchmarks and "
+                 "FERTILIZER / ENERGY INPUT COSTS (urea, DAP, potash, phosphate rock, blended NPK, US "
+                 "and EU natural gas, Brent) each with a point-in-time-clean 5-year z-score; WASDE "
+                 "monthly balance-sheet lines and the US season-average FARM PRICE, each row stamped "
+                 "with the release vintage and whether it is an actual, an estimate or a USDA "
+                 "projection; ICCO world cocoa GRINDINGS / production / stocks, MPOB monthly Malaysian "
+                 "palm production / stocks / exports, CONAB Brazil coffee surveys, SAGIS-CEC South "
+                 "African crop estimates and SAGIS weekly export pace, FAOSTAT annual production; "
+                 "weekly USDA NASS crop CONDITIONS (percent good-to-excellent, poor-to-very-poor) and "
+                 "planting / emergence / harvest PACE by US state; weather aggregates and monthly "
+                 "weather z-anomalies, FX, and BOTH climate indices -- ENSO/ONI and the Indian Ocean "
+                 "Dipole (IOD); plus the continuous front-month futures close as a single dated LEVEL "
+                 "only -- that series is roll-spliced, so no change, window or curve read is served "
+                 "off it)."),
         when_to_use=("a figure, level, quantity, \"what was X\"; also a named delivery month "
-                     "(\"December corn\") or the shape of the curve across expiries."),
+                     "(\"December corn\") or the shape of the curve across expiries; an INPUT COST "
+                     "(fertilizer, energy) or how stretched it is versus its own 5-year history; a "
+                     "crop CONDITION or planting/harvest pace; WHICH COUNTRY bought how much."),
         hard_rules=("it only sees data published on or before the as-of. If the user asks about a "
                     "report dated AFTER the as-of, still route here — the agent answers \"not "
                     "published\" honestly. Never re-date or 'fix' the user's request to make data "
@@ -98,18 +122,28 @@ def registry_block() -> str:
 _FAMILY_PREFIX = re.compile(r"^(?:silver|gold|bronze)_")
 
 
-@functools.lru_cache(maxsize=1)
 def family_names() -> tuple[str, ...]:
     """The observed-data FAMILY enum for the planner's data_families facet (Lane F2 durable fix). DERIVED
-    from the numbers registry at load -- one family per registered table id with the source-layer prefix
+    from the numbers registry at load -- one family per VISIBLE table id with the source-layer prefix
     (silver_/gold_/bronze_) stripped (silver_cot->cot, silver_esr->esr, silver_pink_sheet->pink_sheet,
     silver_psd->psd, ...) -- so the enum tracks the registry and is NEVER hardcoded. FAIL-CLOSED: any load
     failure yields the empty tuple, so the schema offers no families and _validate rejects everything
-    (data_families -> []); the facet then simply never promotes (promotion-only, so a dark enum is a no-op)."""
+    (data_families -> []); the facet then simply never promotes (promotion-only, so a dark enum is a no-op).
+
+    D-CW-1d (DARK CAPABILITY CENSUS, the enum leak): VISIBLE, not merely registered. The derivation is
+    ``registry.visible_tables`` -- the SAME function ``numbers.agent._visible_tables`` calls -- so a
+    flag-gated card that the agent cannot see (gold_pattern_records with GRAPHRAG_PATTERN_RECORDS off) can
+    no longer appear in the planner's enum. Before this the router could emit a family the agent had no card
+    for; it failed SOFT (the steering hint resolved to nothing), which is exactly why it survived unseen.
+
+    NOT MEMOIZED (the lru_cache(maxsize=1) that used to sit here is deliberately gone): the visibility rule
+    reads an env kill-switch PER CALL, and a cached enum would freeze whichever value the first turn of the
+    process happened to see -- turning a config-only, no-redeploy rollback into a restart. The work is a
+    sort of ~19 ids plus a regex sub over an already-lru_cached registry load, i.e. nothing."""
     try:
         from leviathan.graphrag.numbers import registry as _nreg
         out: list[str] = []
-        for tid in sorted(_nreg.load_registry().tables):
+        for tid in _nreg.visible_tables(_nreg.load_registry()):
             fam = _FAMILY_PREFIX.sub("", str(tid)).strip()
             if fam and fam not in out:
                 out.append(fam)
@@ -151,9 +185,12 @@ PLANNER_SYS = (
     "\n"
     "## OBSERVED-DATA FAMILIES (data_families -- orthogonal to steps)\n"
     "- ALSO list every OBSERVED-DATA family this turn implicates -- the registered numbers series the\n"
-    "  question touches (positioning=cot, export sales/pace=esr, balance sheet=psd/wasde, prices=pink_sheet,\n"
-    "  weather=nasa_power/gold weather, FX=fred_fx, ENSO=noaa_oni, ...). Fill it whenever a family is\n"
-    "  implicated even when you routed reasoning-only. Use ONLY names from the enum; empty when none apply.\n"
+    "  question touches (positioning=cot, export sales/pace=esr, balance sheet=psd/wasde, world prices AND\n"
+    "  fertilizer/energy input costs=pink_sheet, per-expiry settles/curve=futures_eod, crop conditions and\n"
+    "  planting/harvest pace=nass_crop_progress, cocoa grindings=icco_cocoa, palm monthly=mpob, Brazil\n"
+    "  coffee surveys=conab_coffee, South African estimates=sagis_cec, weather=nasa_power/gold weather,\n"
+    "  FX=fred_fx, ENSO=noaa_oni, IOD=noaa_iod, ...). Fill it whenever a family is implicated even when you\n"
+    "  routed reasoning-only. Use ONLY names from the enum; empty when none apply.\n"
     "\n"
     "## COREFERENCE AND SESSION STATE (the state block, when present, is your short-term memory)\n"
     "- An explicit commodity named in THIS turn always wins over state.\n"

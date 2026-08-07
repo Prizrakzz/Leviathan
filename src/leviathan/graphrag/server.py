@@ -706,8 +706,25 @@ def _parse_suggestions(raw: str) -> list[str]:
 # tracked contracts, the regimes CLOSEST TO FIRING (from the warm matrix), answerable buffer/rate metrics,
 # and the driver lanes — and prompted in the convexity house style with a hard "answerable-only" rule, so it
 # can only propose questions we can actually answer (never energy inventories, metals, or non-covered geos).
-_SUGGEST_METRICS = ("ending stocks & stocks-to-use, weekly export pace (ESR), production/consumption, crush, "
-                    "weather anomalies (rain/heat z), FX, ENSO (ONI/IOD)")
+# D-CW-1b (2026-08-07, the DARK CAPABILITY CENSUS): this catalog advertised 7 fundamentals and ZERO
+# prices, so the whole price / input-cost / curve half of the numbers registry was invisible to the user
+# even though the agent has served it since W2-W4. The additions below are census-GATED -- every one names
+# a table the agent can actually reach today (silver_pink_sheet, silver_wasde.avg_farm_price,
+# silver_futures_eod, silver_nass_crop_progress, ESR per-destination), never a dark or whitelist-absent
+# one, because a suggested question we cannot answer is worse than no suggestion.
+# WHAT IS DELIBERATELY ABSENT: POSITIONING. The wave plan asked for it here, and config_check's R10
+# (check_cot_register, PRICE_OBSERVABILITY W0.2 as amended by D1) forbids it -- a positioning-table metric
+# or its vocabulary in THIS string is a build failure, because positioning is a driver LANE, not a
+# suggestible numbers source. That fence is ratified and this wave changes no ratified fence; the router
+# already advertises COT positioning in dispatch.REGISTRY, which is the reachable half of the census's
+# item 9. Recorded here so the omission reads as a decision rather than an oversight.
+_SUGGEST_METRICS = ("ending stocks & stocks-to-use, weekly export pace (ESR) including which destination "
+                    "bought, production/consumption, crush, crop conditions & planting/harvest pace "
+                    "(NASS, by US state), weather anomalies (rain/heat z), FX, ENSO (ONI/IOD), the US "
+                    "season-average farm price (WASDE, with its release vintage), world monthly price "
+                    "benchmarks and fertilizer/energy input costs (urea/DAP/potash/NPK, US & EU natural "
+                    "gas, Brent) with their 5-year z-scores, and per-delivery-month futures settles "
+                    "including the forward curve across expiries")
 _SUGGEST_LANES = ("weather (frost/drought/harmattan/monsoon/La Nina), policy & trade (export bans/tariffs/"
                   "MSP/DMO/biodiesel mandates), biofuel & energy (RIN/RFS/crude/natgas/fertilizer), macro "
                   "(FX/freight/logistics), substitution, positioning, and stock/reserve buffers")

@@ -779,8 +779,13 @@ _WIRING_W1_IDS = ("silver_noaa_iod", "silver_conab_coffee", "silver_sagis_weekly
 # the coverage guard were all live. Same standing as the SEAM-C card: present regardless of the depth-wave
 # kill-switch, so it belongs in the BASELINE and is NOT one of the three ids that switch reverts.
 _W3_IDS = ("silver_futures_eod",)
+# D-CW-2a (2026-08-07) landed the weekly NASS crop-progress card (DARK CAPABILITY CENSUS item 6 -- a
+# shipped eval already graded its citation key while the registry had no card for it). Same standing as
+# every other later wave listed above: present regardless of the DEPTH-wave kill-switch, so it belongs in
+# the BASELINE and is NOT one of the three ids that switch reverts.
+_D_CW_IDS = ("silver_nass_crop_progress",)
 _DEPTH_BASELINE = (_PRE_WAVE_8 | set(_PRICE_IDS) | set(_SEAM_C_IDS) | set(_WIRING_W1_IDS)
-                   | set(_W3_IDS))
+                   | set(_W3_IDS) | set(_D_CW_IDS))
 
 
 def _tool_enum():

@@ -951,7 +951,29 @@ CURATION_OVERRIDES: dict = {
         # absent for many weeks at source); floors sit ~15pp under so an all-null regression still
         # hard-fails (KIND_ALL_NAN) and a drop below the floor still trips. week_of_year is
         # deliberately unlisted (its populatedness is intrinsic to the weekly grain, not a gap).
-        "min_nonnull_frac_overrides": {"pct_good_excellent": 0.25, "pct_harvested": 0.15},
+        #
+        # D-CW-2a (2026-08-07) -- THREE MORE COLUMNS, because wiring the numbers card MOVED THE
+        # VALUE SET. value_columns for a "both" table is the NUMBERS-METRIC set (build_contract:545),
+        # so landing configs/graphrag/numbers/tables.yaml#silver_nass_crop_progress promotes
+        # pct_poor_very_poor / pct_planted / pct_emerged into value_columns (and drops week_of_year,
+        # which was never a value anyway) -- and a promoted column with no floor inherits the uniform
+        # provisional 0.5, which these three can NEVER reach for exactly the reason the two above
+        # cannot: the progress/condition row is absent from source for most weeks of the year. Left
+        # unset, the next NASS write (the D-CW-2a catch-up run) fails the publish gate on a column
+        # nobody changed. That is a landmine the card lays, so the card discharges it.
+        # DERIVATION, from the in-repo EDA artifact (eda/silver_nass_crop_progress/summary.json,
+        # missingness_validity.column_missingness, EXACT over 141,714 rows -- not a guess, and not a
+        # new measurement either): pooled non-null rates are pct_poor_very_poor 0.5057,
+        # pct_planted 0.3267, pct_emerged 0.2049. The two RATIFIED floors above calibrate against the
+        # WORST COMMODITY, whose structural fraction is ~0.5x the pooled rate on both measured
+        # columns (0.303 vs 0.568; 0.171 vs 0.334), and then sit ~15% under that. Applying the same
+        # two steps to the pooled rates gives 0.21 / 0.14 / 0.085 -> floored to 0.20 / 0.13 / 0.08.
+        # PROVISIONAL and deliberately conservative (the per-commodity worst case is INFERRED here,
+        # not measured): OP-8 recalibrates from a real per-partition census. The gate stays LIVE --
+        # KIND_ALL_NAN still hard-fails an all-null column, and losing the populated weeks still trips.
+        "min_nonnull_frac_overrides": {"pct_good_excellent": 0.25, "pct_harvested": 0.15,
+                                       "pct_poor_very_poor": 0.20, "pct_planted": 0.13,
+                                       "pct_emerged": 0.08},
     },
     "silver_wasde": {
         "freshness_sla": {"cadence": "monthly"},  # WASDE releases monthly; the MY grain is not the cadence
