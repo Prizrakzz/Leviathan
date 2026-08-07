@@ -305,15 +305,23 @@ def test_the_engine_stamp_is_the_truncation_authority_and_reaches_the_eval_rende
             "rows": [_EOD_ROW, _EOD_ROW], "status": "ok", "truncated": True}
     line = _ev._num_line({"number_calls": [call]})
     assert "@trade_date=2026-07-27 (latest of 2 rows)" in line
-    assert "[TRUNCATED at row cap 4: OLDEST kept, NOT the latest print]" in line
+    # D-PQ FIX-1 (S5's deferred sentinel re-wording): the serving lanes compile newest-first by default,
+    # so the cap keeps the NEWEST rows and loses the EARLY end. The old wording is pinned NEGATIVE below --
+    # it is now the exact inverse of the truth, and it is the wording a reader uses to discount a current
+    # print as stale.
+    assert "[TRUNCATED at row cap 4: NEWEST kept, so the EARLY end of the window is missing -- not the " \
+           "complete history]" in line
+    assert "OLDEST kept" not in line
     call["truncated"] = False
     assert "TRUNCATED" not in _ev._num_line({"number_calls": [call]})
 
 
 def test_format_provenance_says_so_when_the_read_hit_the_row_cap():
-    # Item 62: at the cap the OLDEST 5,000 rows are kept, so "latest" is honest-looking and wrong.
+    # Item 62: at the cap the read is not the whole window, so it must not be narrated as the record.
+    # D-PQ FIX-1 re-aimed WHICH end is lost -- newest-first is the serving default, so the EARLY end goes.
     line = A.format_provenance([_eod_call([_EOD_ROW] * 4, limit=4)])[0]
-    assert "row cap 4 reached" in line and "NOT the latest print" in line
+    assert "row cap 4 reached" in line and "not the complete history" in line
+    assert "NEWEST rows kept" in line and "OLDEST rows kept" not in line
     assert "row cap" not in A.format_provenance([_eod_call([_EOD_ROW] * 3, limit=4)])[0]
 
 
