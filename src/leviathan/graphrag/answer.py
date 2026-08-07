@@ -3240,7 +3240,8 @@ def _pop_usage(structured) -> dict | None:
     return structured.pop("_usage", None) if isinstance(structured, dict) else None
 
 
-def _call_opus(system: str, user, *, model: str, tool: dict, on_token=None, temperature=None) -> dict:
+def _call_opus(system: str, user, *, model: str, tool: dict, on_token=None, temperature=None,
+               max_tokens: int | None = None) -> dict:
     """The real serving call — provider-routed (Anthropic API or Bedrock via providers.py) with the
     production fallback chain (backoff retry -> Sonnet->Haiku degradation, tagged). PROMPT CACHING: the
     system prompt is always a cached block, and when `user` arrives as a (stable_prefix, volatile_tail)
@@ -3259,9 +3260,11 @@ def _call_opus(system: str, user, *, model: str, tool: dict, on_token=None, temp
         user = [{"type": "text", "text": stable, "cache_control": {"type": "ephemeral"}},
                 {"type": "text", "text": volatile}]
     _sink: list = []                               # D-AM-4: the served attempt's Usage lands here
-    kw = dict(model=pv.resolve_model(model), max_tokens=6000, tool=tool, degrade_to=ex.HAIKU,
-              usage_sink=_sink)  # answers grew
-    # (sources block + per-hop citations): citv2 lost a turn to truncation at 4096; 6000 is headroom, not spend
+    # max_tokens: TURN default 6000 (citv2 lost a turn to truncation at 4096; 6000 is headroom, not
+    # spend). Callers composing DOCUMENTS (dossier.synthesize) pass their own ceiling -- forwarded
+    # only when provided, mirroring `temperature` exactly.
+    kw = dict(model=pv.resolve_model(model), max_tokens=max_tokens or 6000, tool=tool,
+              degrade_to=ex.HAIKU, usage_sink=_sink)  # answers grew
     if on_token is not None:
         out, degraded = pv.serving_call_stream(client, sys_blocks, user, on_token=on_token, **kw)
     else:

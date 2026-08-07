@@ -736,3 +736,15 @@ def test_synthesize_uses_the_document_scale_max_tokens():
     do.synthesize("q", "2026-08-07", {"title": "d", "subqueries": []}, [note],
                   {"pairs": [], "evidence": [], "number_calls": []}, call=fake_call)
     assert seen["max_tokens"] == do.SYNTH_MAX_TOKENS == 16000
+
+
+def test_call_opus_accepts_every_kwarg_synthesize_passes():
+    """Signature parity with the REAL call. The first dossier rerun failed on exactly this: every
+    test stubbed the call with a max_tokens-accepting fake while an._call_opus had no such
+    parameter -- five dossiers of sub-query spend died on a TypeError at synthesis. A stub can
+    lie; the signature cannot."""
+    import inspect
+    from leviathan.graphrag import answer as an
+    params = inspect.signature(an._call_opus).parameters
+    for kw in ("model", "tool", "max_tokens"):
+        assert kw in params, f"_call_opus lost kwarg {kw!r} that dossier.synthesize passes"
