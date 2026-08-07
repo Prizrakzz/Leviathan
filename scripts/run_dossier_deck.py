@@ -61,6 +61,21 @@ def main() -> int:
 
     dossier.land_artifact = land_and_capture
 
+    # Dual-synthesis capture: the sub-queries are the expensive leg (~$1/dossier); the synthesis
+    # is one call. Capturing (plan, notes, union) at the primary synthesize lets a SECOND model
+    # compose from the IDENTICAL inputs -- a perfectly controlled synthesis-model A/B for the
+    # price of one extra call per dossier, with zero rerank contention (one job, sequential).
+    synth_inputs: dict[str, tuple] = {}
+    orig_synth = dossier.synthesize
+
+    def synth_and_capture(question, asof, plan_data, notes, union, **kw):
+        out = orig_synth(question, asof, plan_data, notes, union, **kw)
+        synth_inputs[question] = (asof, plan_data, notes, union)
+        return out
+
+    dossier.synthesize = synth_and_capture
+    ALT_MODEL = "claude-opus-5"
+
     deck = yaml.safe_load(open(args.queries, encoding="utf-8"))
     rows = deck["queries"] if isinstance(deck, dict) else deck
     per_answer = []
@@ -92,6 +107,38 @@ def main() -> int:
         print(f"[dossier] {q['id']}: {job.status} strips={cv.get('stripped')} "
               f"spine_viol={len(per_answer[-1]['spine_violations'])} "
               f"secs={per_answer[-1]['secs']}", flush=True)
+
+        # Second composition from the IDENTICAL notes/union -- the controlled opus-5 arm.
+        cap = synth_inputs.get(q["question"])
+        if cap and job.status in ("done", "partial"):
+            asof2, plan2, notes2, union2 = cap
+            t1 = time.monotonic()
+            try:
+                synth2 = orig_synth(q["question"], asof2, plan2, notes2, union2, model=ALT_MODEL)
+                body2 = synth2.get("body") or ""
+                cv2 = synth2.get("verifier") or {}
+                pairs2 = {str(p.get("handle")).strip("[]") for p in (union2.get("pairs") or [])}
+                rendered2 = set(_HANDLE.findall(body2))
+                per_answer.append({
+                    "id": q["id"] + "__opus5", "intent": "dossier", "judge": None,
+                    "status": job.status, "error": None, "synth_model": ALT_MODEL,
+                    "secs": round(time.monotonic() - t1, 1),
+                    "strips": cv2.get("stripped") or 0,
+                    "handles_checked": cv2.get("checked") or 0,
+                    "claim_count": cv2.get("claim_count") or 0,
+                    "by_rule": cv2.get("by_rule") or {},
+                    "spine_violations": sorted(h for h in rendered2
+                                               if h.strip("[]") not in pairs2),
+                    "raw_draft": {**(synth2.get("structured") or {}),
+                                  "body_pre_sanitize": body2},
+                    "dossier": {"dossier_id": (captured.get(job.id) or {}).get("dossier_id"),
+                                "usage": synth2.get("usage")},
+                })
+                print(f"[dossier] {q['id']}__opus5: composed strips={cv2.get('stripped')} "
+                      f"secs={per_answer[-1]['secs']}", flush=True)
+            except (Exception, SystemExit) as e:  # noqa: BLE001 -- the alt arm must never kill the run
+                print(f"[dossier] {q['id']}__opus5: FAILED {type(e).__name__}: "
+                      f"{str(e)[:150]}", flush=True)
 
     out = {"kind": "baseline_single", "eval_set": "dossier_v1", "mode": "dossier",
            "judged": False, "model": "dossier-orchestration",
