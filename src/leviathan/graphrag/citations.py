@@ -9,6 +9,7 @@ recovery, fuzzy snippet-match fallback) — so numbers and page-level document c
 from __future__ import annotations
 
 import datetime as _dt
+import re
 from typing import Literal, Optional
 
 from pydantic import BaseModel
@@ -438,6 +439,40 @@ def from_number(call: dict, i: int) -> Citation:
 _MAX_EXTRA_ROWS = 6
 _EXTRA_SUFFIXES = "bcdefghijklmnopqrstuvwxyz"
 _EXTRA_DP = 2
+# CYCLE-6 (2026-08-08), the reader-precision arm's OWN fence -- see `_row_matches_value`. An identity claim
+# must be at least twice as tight as `verify._num_matches`' 1% BACKING tolerance, or a 1-significant-digit
+# restatement ("about 4") would bin a whole neighbourhood of rows (4.15 / 4.24 / 4.4 all round to 4 at d=0)
+# and mint a footer line for each. Rounding, never binning -- on this lane the binning refusal needs a
+# relative floor because d=0 alone does not supply one.
+_EXTRA_REL_TOL = 0.005
+# A row whose own CARD says it is denominated in percent. `orchestrator._stated_values` fences percent-marked
+# numerals out of the extras predicate wholesale (correction (B): "down 2.1% year on year" minted a
+# `MY1994/95 = 2.1 $/bu` PRICE row), but that fence over-reaches in exactly one direction: when the row the
+# numeral names IS a percentage, a percent sign is the correct unit for it, not a category error. Measured
+# on gate-3 dcw pass1 `dcw_macro_on_soy`: the served `silver_cot.mm_pct_oi = 15.7316` (unit "pct of OI
+# (signed)") was stated as "15.7%" and faced the reader with no footer row at all. The un-fence is per CALL
+# and reads only card-declared facts (the metric name and the registry unit), so the motivating fabrication
+# is still refused by construction -- `avg_farm_price` carries neither token.
+_PCT_UNIT_RX = re.compile(r"(?:\A|[\s(/])(?:%|pct|percent)", re.I)
+_PCT_METRIC_RX = re.compile(r"(?:\A|_)pct(?:_|\Z)|percent", re.I)
+
+
+def _percent_typed(call: dict, unit: str | None) -> bool:
+    """True when THIS call's rows are percentages by the card's own declaration."""
+    metric = str(((call or {}).get("query") or {}).get("metric") or "")
+    return bool(_PCT_UNIT_RX.search(unit or "") or _PCT_METRIC_RX.search(metric))
+
+
+def _float_decimals(v: float) -> int:
+    """Decimal places a stated magnitude was written to, recovered from the float's SHORTEST repr.
+    `orchestrator._stated_values` hands its consumers parsed floats, so unlike `verify._token_decimals`
+    this cannot see a written trailing zero ('0.20' arrives as 0.2 -> 1 place). That direction is safe:
+    fewer places = a WIDER rounding window = more candidate rows, and the relative fence below is what
+    bounds the width. Scientific-notation reprs (1e+21) carry no fractional part and read as 0."""
+    s = repr(float(v))
+    if "e" in s or "E" in s or "." not in s:
+        return 0
+    return len(s.split(".", 1)[1].rstrip("0"))
 
 
 def _stated_magnitudes(stated) -> list[float]:
@@ -467,66 +502,147 @@ def _row_matches_value(rv, stated) -> bool:
     an extra footer row is a claim of identity, so no rescale arm and no unit bridge. MAGNITUDE-insensitive
     to sign only, the one concession the estate's numerals demand (`_num_matches`' own rationale: a prose
     verb carries the direction, an injected delta row carries the minus). Any failure reads as NO match --
-    an omitted extra row, never an invented one."""
-    try:
-        v = abs(float(str(rv).replace(",", "")))
-    except (TypeError, ValueError):
+    an omitted extra row, never an invented one.
+
+    CYCLE-6 (2026-08-08) READER-PRECISION ARM, the footer twin of `verify._reader_precision_match`. The
+    2-dp equality above is itself a rounding test, but only at ONE fixed precision, and it therefore misses
+    every figure a reader restated more COARSELY than 2 places. Measured on gate-3 covenant `ab_cmp_coffee`:
+        row  silver_conab_coffee.production_thousand_bags MY2026 = 35763.1
+        prose                                                      "35,763"   (a correct 0-dp round)
+        round(35763, 2) = 35763.0  !=  round(35763.1, 2) = 35763.1  -> no match, no footer row
+    So the arm accepts when the row is the stated numeral rounded at the numeral's own written precision
+    -- AND the relative gap is inside `_EXTRA_REL_TOL`. THE RELATIVE FENCE IS THE BINNING REFUSAL AND IT IS
+    NOT OPTIONAL HERE: the verifier's arm can only ever convert strip->keep, while this one MINTS A LINE,
+    so a bare d=0 window (+-0.5) would let "about 4" claim identity with 4.15, 4.24 AND 4.4 off one 35-row
+    WASDE serve -- three invented rows from one vague numeral. 35763 vs 35763.1 is 3e-6 relative and
+    passes; 4 vs 4.4 is 10% and is refused. The two arms stay deliberately different for the same reason
+    correction (B) made them different: backing and identity are different questions.
+
+    CYCLE-6 REVIEW (2026-08-08), LOW 9: this is now a THIN VIEW on `_matcher`, which is what production
+    actually runs (`_match_candidates` compiles the predicate once per magnitude list). It is kept as the
+    named statement of the rule -- and pinned equivalent to the compiled form -- rather than deleted."""
+    return _matcher(_stated_magnitudes(stated))(rv)
+
+
+def _matcher(mags: list[float]):
+    """`_row_matches_value` COMPILED ONCE for a magnitude list, as a `value -> bool` closure. Same
+    predicate, same two arms, same order; what changes is that the 2-dp bucket becomes a set lookup and
+    the reader-precision arm bisects a sorted index instead of rescanning every stated magnitude per row.
+    Built because the completion pass walks EVERY served row of EVERY call and the estate serves 5000-row
+    windows: the linear form cost 13.7 s on the worst case measured, which a live turn cannot pay."""
+    import bisect
+    exact = {round(abs(float(m)), _EXTRA_DP) for m in mags}
+    ms = sorted(abs(float(m)) for m in mags)
+    # the widest reader-precision window any of these magnitudes can open (d=0 -> +-0.5); the bisect only
+    # has to consider magnitudes inside it, and each is then tested by the full two-clause rule
+    span = max((0.5 * 10.0 ** (-_float_decimals(m)) for m in ms), default=0.0)
+
+    def _hit(rv) -> bool:
+        try:
+            v = abs(float(str(rv).replace(",", "")))
+        except (TypeError, ValueError):
+            return False
+        if round(v, _EXTRA_DP) in exact:
+            return True
+        if not v or not ms:
+            return False
+        lo = bisect.bisect_left(ms, v - span)
+        for s in ms[lo:bisect.bisect_right(ms, v + span)]:
+            gap = abs(v - s)
+            if gap <= 0.5 * 10.0 ** (-_float_decimals(s)) and gap <= _EXTRA_REL_TOL * v:
+                return True
         return False
-    tv = round(v, _EXTRA_DP)
-    return any(round(s, _EXTRA_DP) == tv for s in _stated_magnitudes(stated))
+    return _hit
 
 
-def extra_number_citations(call: dict, i: int, stated: Optional[list[float]]) -> list[Citation]:
-    """The additional [N{i}b..] rows a call owes the reader: every SERVED row, other than the headline,
-    whose value the prose states. Empty (the common case) -> the footer is byte-identical.
+def row_period(call: dict, r: dict):
+    """The ROW's own period identity, then the query's as the fallback: a tall vintage table surfaces
+    `period` per row (silver_wasde -> marketing_year), a wide one may only carry the query scope.
+    CYCLE-6: lifted to module scope UNCHANGED so the hybrid-lane completion pass and `_cited_sources_block`
+    key their de-dup on the identical (value, period) pair the extras pass has always used -- two readings
+    of "which row is this" is how a de-dup silently stops de-duping."""
+    q = (call or {}).get("query") or {}
+    return r.get("period") if (r or {}).get("period") not in (None, "") else q.get("period")
 
-    The label is the headline's shape with the ROW's own period substituted and the row's estimate role
-    appended, so the two lines read as siblings of one lookup rather than as two lookups. `estimate_role`
-    is rendered ONLY here: putting it on the headline would rewrite every existing footer in the estate,
-    and the polarity pin (prose states the headline only -> byte-identical output) is the thing that keeps
-    this whole pass auditable."""
-    out: list[Citation] = []
-    rows = call.get("rows") or []
-    # `len(rows) < 2` is the whole entry fence and it subsumes more than it looks: a zero-row read has no
-    # value to cite, a single-row read IS its headline, and the EMPTY-2 collapsed-zero ESR aggregate is
-    # single-row BY DEFINITION (`agent._is_zero_esr_aggregate` requires exactly one row), so the class that
-    # must assert no value can never reach this pass.
-    if not stated or len(rows) < 2 or call.get("status") not in (None, "ok"):
-        return out
-    q = call.get("query", {}) or {}
-    table, metric = q.get("table", ""), q.get("metric", "")
-    src = _source_label(table)
-    rH = max(rows, key=_row_order_key)
-    mags = _stated_magnitudes(stated)             # percent-numerals dropped once, not once per row
-    if not mags:
-        return out
 
-    def _row_period(r: dict):
-        # the ROW's own period identity, then the query's as the fallback: a tall vintage table surfaces
-        # `period` per row (silver_wasde -> marketing_year), a wide one may only carry the query scope.
-        return r.get("period") if (r or {}).get("period") not in (None, "") else q.get("period")
-    # SEEDED WITH THE HEADLINE'S OWN (value, period): a vintage table legitimately serves the same MY on two
-    # releases, and the headline is already on the page -- re-rendering it as an extra is a duplicate footer
-    # line, not a second fact.
-    seen: set[tuple] = {(str(rH.get("value")), str(_period_label(_row_period(rH))))}
-    # CORRECTION (A): rank NEWEST-first, cap that ranking, render the survivors ascending.
+def row_key(call: dict, r: dict) -> tuple:
+    """The de-dup identity of one served row as the footer states it: (value, period label)."""
+    return (str((r or {}).get("value")), str(_period_label(row_period(call, r))))
+
+
+def headline_row(call: dict) -> dict:
+    """The row `from_number` headlines for this call ({} when it serves none) -- the SAME selector, so the
+    completion pass can never mistake the line already on the page for a missing one."""
+    rows = (call or {}).get("rows") or []
+    return max(rows, key=_row_order_key) if rows else {}
+
+
+def _call_magnitudes(call: dict, stated) -> list[float]:
+    """The stated magnitudes THIS call's rows may be minted against: the percent-fenced list, plus the
+    percent-marked numerals when the call is itself percent-denominated (see `_percent_typed`).
+
+    CYCLE-6 REVIEW (2026-08-08), MAJOR 5 -- TWO CONDITIONS, NOT ONE. The un-fence originally read only the
+    CALL's type, so one percent-denominated call turned EVERY percent numeral in the whole answer into a
+    candidate name for its rows: "Managed money holds 15.7% of open interest, down 2.1% on the week" minted
+    `mm_pct_oi = 2.1` from a week-on-week CHANGE -- correction (B)'s own fabrication class, restored for
+    exactly the table family where percent numerals are densest. The numeral must now ALSO read as a LEVEL
+    by its own syntax (`orchestrator._percent_is_level`), which is what `.percent_level` carries. Reading
+    `percent_level` STRICTLY (no fallback to `.percent`) is deliberate: an object that carries the old
+    annotation and not the new one gets no un-fence at all, i.e. the pre-cycle-6 refusal.
+    THIS ALSO NARROWS THE numbers_only LANE (`extra_number_citations` calls here): `.percent_level` is a
+    subset of `.percent`, so that lane can only ever mint FEWER extra rows than it did -- never more."""
+    mags = _stated_magnitudes(stated)
+    if _percent_typed(call, _metric_unit(((call or {}).get("query") or {}).get("table", ""),
+                                         ((call or {}).get("query") or {}).get("metric", ""),
+                                         ((call or {}).get("query") or {}).get("commodity"))):
+        for p in (getattr(stated, "percent_level", ()) or ()):
+            try:
+                mags.append(abs(float(p)))
+            except (TypeError, ValueError):
+                continue
+    return mags
+
+
+def _match_candidates(call: dict, mags: list[float], *, seen: set, skip: dict | None,
+                      limit: int = _MAX_EXTRA_ROWS) -> list[dict]:
+    """The served rows of ONE call whose value the prose states, ranked NEWEST-first and capped at `limit`.
+    `seen` is MUTATED (the caller decides how wide the de-dup horizon is -- one call for the numbers_only
+    extras, the whole footer for the hybrid completion pass); `skip` is the row already on the page.
+
+    CORRECTION (A) lives here: candidates are ranked NEWEST-first and the cap is applied to THAT ranking.
+    `_matcher` is what makes this affordable on a 5000-row truncated serve -- the naive form re-derived the
+    percent fence and rescanned every stated magnitude PER ROW (measured: 13.7 s on a 30-call x 5000-row
+    x 60-magnitude worst case, i.e. a live turn's whole latency budget spent in the footer)."""
+    hit = _matcher(mags)
+    # FILTER BEFORE SORTING, and that ordering is a measured cost, not a style choice: `_row_order_key`
+    # builds a 5-tuple per row, so sorting a 5000-row serve to then keep at most six of them spent 1.5 s
+    # of the 1.6 s the pass took. The value test is a set lookup; the sort now runs over the survivors.
+    # Semantics are untouched -- filter-then-rank-then-cap selects exactly what rank-then-filter-then-cap
+    # selected, because the cap is applied to the same ranking either way.
+    matched = [r for r in (call.get("rows") or [])
+               if r is not skip and (r or {}).get("value") not in (None, "") and hit(r.get("value"))]
     cands: list[dict] = []
-    for r in sorted(rows, key=_row_order_key, reverse=True):
-        if len(cands) >= _MAX_EXTRA_ROWS:
+    for r in sorted(matched, key=_row_order_key, reverse=True):
+        if len(cands) >= limit:
             break
-        if r is rH:
-            continue
-        val = (r or {}).get("value")
-        if val in (None, "") or not _row_matches_value(val, mags):
-            continue
-        key = (str(val), str(_period_label(_row_period(r))))
+        key = row_key(call, r)
         if key in seen:
             continue                              # one MY on two vintages is ONE fact to a reader
         seen.add(key)
         cands.append(r)
-    for r in sorted(cands, key=_row_order_key):
+    return cands
+
+
+def _mint_row_citations(call: dict, i: int, rows: list[dict]) -> list[Citation]:
+    """Render already-selected rows ASCENDING as letter-suffixed siblings of call `i`, so the reader still
+    reads a chronological footer under whatever ranking selected them."""
+    out: list[Citation] = []
+    q = call.get("query", {}) or {}
+    table, metric = q.get("table", ""), q.get("metric", "")
+    src = _source_label(table)
+    for r in sorted(rows, key=_row_order_key):
         val = (r or {}).get("value")
-        per = _period_label(_row_period(r))
+        per = _period_label(row_period(call, r))
         unit = r.get("unit") or _metric_unit(table, metric, q.get("commodity"))
         geo = q.get("country") or (str(r.get("country")).strip() if r.get("country") else None)
         scope = " ".join(x for x in (q.get("commodity"), geo, per) if x)
@@ -540,6 +656,125 @@ def extra_number_citations(call: dict, i: int, stated: Optional[list[float]]) ->
         out.append(Citation(id=f"N{i}{_EXTRA_SUFFIXES[len(out)]}", kind="number", label=label, source=src,
                             date=_row_known_date(r), value=str(val), unit=(unit or None),
                             locator=loc, payload={"query": {**q, "period": loc["period"]}, "rows": [r]}))
+    return out
+
+
+def extra_number_citations(call: dict, i: int, stated: Optional[list[float]]) -> list[Citation]:
+    """The additional [N{i}b..] rows a call owes the reader: every SERVED row, other than the headline,
+    whose value the prose states. Empty (the common case) -> the footer is byte-identical.
+
+    The label is the headline's shape with the ROW's own period substituted and the row's estimate role
+    appended, so the two lines read as siblings of one lookup rather than as two lookups. `estimate_role`
+    is rendered ONLY here: putting it on the headline would rewrite every existing footer in the estate,
+    and the polarity pin (prose states the headline only -> byte-identical output) is the thing that keeps
+    this whole pass auditable."""
+    rows = call.get("rows") or []
+    # `len(rows) < 2` is the whole entry fence and it subsumes more than it looks: a zero-row read has no
+    # value to cite, a single-row read IS its headline, and the EMPTY-2 collapsed-zero ESR aggregate is
+    # single-row BY DEFINITION (`agent._is_zero_esr_aggregate` requires exactly one row), so the class that
+    # must assert no value can never reach this pass.
+    if not stated or len(rows) < 2 or call.get("status") not in (None, "ok"):
+        return []
+    mags = _call_magnitudes(call, stated)         # percent-numerals dropped once, not once per row
+    if not mags:
+        return []
+    rH = headline_row(call)
+    # SEEDED WITH THE HEADLINE'S OWN (value, period): a vintage table legitimately serves the same MY on two
+    # releases, and the headline is already on the page -- re-rendering it as an extra is a duplicate footer
+    # line, not a second fact.
+    return _mint_row_citations(call, i, _match_candidates(call, mags, seen={row_key(call, rH)}, skip=rH))
+
+
+# ══ CYCLE-6 (2026-08-08) FOOTER-COMPLETION: THE SAME HOLE, ON THE HYBRID LANE ═════════════════════════
+#
+# THE MEASURED FAILURE (gate-3, both probe decks). CYCLE-4 made the reader's PROSE the Sources authority and
+# CYCLE-5 made a SERVED ROW citable in its own right -- but cycle-5's producer is only ever reached from
+# `orchestrator.run_numbers_only` (through `unify(stated=...)`). On the HYBRID lane a served value can
+# therefore face the reader with no footer row at all, two ways, and gate-3 shipped both:
+#   (i) THE MODEL STATES IT WITH NO MARKER. dcw pass2 `dcw_gas_nitrogen_squeeze`: "European natural gas as
+#       of June 2026 stood at 15.17 USD/mmbtu, with a 5-year z-score of -0.30632 sigma" -- no [N], hence no
+#       prose index, hence (by cycle-4's own rule) no footer row, while the record's served_rows carries
+#       natural_gas_eu_usd_mmbtu = 15.17 @ 2026-06-01 and its z-score row beside it. Same shape: dcw pass1
+#       `dcw_macro_on_soy` (mm_net 160,479 / mm_pct_oi 15.7% / soybean_oil 1,765 / soybean_meal 425) and
+#       covenant `ab_cmp_coffee` (35,763 / 1,486,837 / 24.0531).
+#  (ii) THE VERIFIER STRIPS THE ONLY MARKER-BEARING SENTENCES for a row (the CYCLE-6 FIX-B class), and the
+#       footer drops the row with them -- the reader is left with a figure in a surviving sentence and
+#       nothing to check it against.
+#
+# THE RULE IS CYCLE-4's, EXTENDED ONE STEP, NOT LOOSENED: the FINAL prose is the authority in BOTH
+# directions -- an index the prose carries gets its row (HANDLE-4), and a VALUE the prose states gets its
+# row too. The join key changes from the handle to the value, which is exactly the join cycle-5 already
+# ratified for the other lane; the predicate is cycle-5's own tight one (`_row_matches_value`: scale 1.0,
+# 2 dp, percent-fenced, now also correct-at-the-reader's-precision).
+#
+# FOUR REFUSALS, each one a class this must never resurrect:
+#   * a DECLINED / errored call and a ZERO-AGGREGATE refusal ("NO REPORTED FIGURE") mint nothing -- those
+#     calls exist to assert the ABSENCE of a figure, and a value-keyed footer row would contradict the very
+#     line `from_number` renders for them;
+#   * only the FINAL body counts. A value the verifier stripped away must not summon a row: the caller
+#     passes the post-strip, post-tidy prose, so a footer row can only ever appear beside surviving text;
+#   * NO DOUBLE MINT. The de-dup `seen` is seeded with EVERY row already on the page -- the [N] headline
+#     rows the prose still cites, and the extras from any earlier pass -- so a value already footed once
+#     (a 30-row window carrying the same print as its own `latest` call, the commonest shape in the deck)
+#     is never footed twice;
+#   * the per-call cap and the newest-first ranking are cycle-5's, unchanged (blocker-1 discipline) -- and
+#     a WHOLE-FOOTER cap sits above them, because a hybrid turn carries many calls where the numbers_only
+#     lane carries one. Measured on a 30-call x 5000-row worst case the per-call cap alone let the pass
+#     mint 91 rows: a footer nobody reads is a footer that hides the rows that mattered. The global cap
+#     is applied to a GLOBAL newest-first ranking, so what survives is the freshest evidence on the page,
+#     not whichever call happened to be looked up first.
+#
+# LANE IDEMPOTENCY, DECIDED EXPLICITLY: the two passes are ONE MECHANISM PER LANE and cannot overlap.
+# `run_numbers_only` builds its footer through `unify(stated=...)` + `render` and never calls
+# `_cited_sources_block`; the hybrid bodies build theirs through `_cited_sources_block` and never pass
+# `stated` to `unify`. The shared `seen` horizon makes the pair idempotent ANYWAY -- running both over one
+# footer mints each (value, period) exactly once -- so the disjointness is a fact, not a load-bearing
+# assumption.
+_MAX_COMPLETION_ROWS = 12
+
+
+def prose_completion_citations(number_calls: list | None, stated, *, seen: set,
+                               cited: set) -> list[Citation]:
+    """Every row the FINAL prose earns across ALL calls that the footer does not already carry.
+
+    `seen` is the whole footer's (value, period) horizon and is MUTATED. `cited` = the 1-based indices whose
+    `[N{i}]` headline the reader still sees: their headline row is already on the page (seeded into `seen`
+    and skipped as a candidate), while an UNCITED call is wholly unfooted and every row of it is a
+    candidate, headline included -- which is the (i) shape, a served value stated with no marker at all.
+
+    Never raises on one bad call: a malformed record is skipped, not fatal (a footer must never be the
+    thing that breaks an answer)."""
+    calls = number_calls or []
+    if not stated or not calls:
+        return []
+    picked: list[tuple[int, dict]] = []
+    for i, call in enumerate(calls, 1):
+        try:
+            if not isinstance(call, dict) or not (call.get("rows") or []):
+                continue
+            if call.get("status") not in (None, "ok") or _zero_aggregate(call):
+                continue                          # the classes whose whole point is to assert NO figure
+            mags = _call_magnitudes(call, stated)
+            if not mags:
+                continue
+            rH = headline_row(call)
+            if i in cited:
+                seen.add(row_key(call, rH))       # the line already on the page is not a missing one
+            picked += [(i, r) for r in _match_candidates(
+                call, mags, seen=seen, skip=(rH if i in cited else None))]
+        except Exception:  # noqa: BLE001
+            continue
+    # GLOBAL newest-first ranking, then the whole-footer cap, then render grouped by call in index order
+    # so the ids stay ascending and each call's suffixes stay contiguous (b, c, d ...).
+    keep = sorted(picked, key=lambda t: _row_order_key(t[1]), reverse=True)[:_MAX_COMPLETION_ROWS]
+    out: list[Citation] = []
+    for i, call in enumerate(calls, 1):
+        rows = [r for j, r in keep if j == i]
+        if rows:
+            try:
+                out += _mint_row_citations(call, i, rows)
+            except Exception:  # noqa: BLE001
+                continue
     return out
 
 

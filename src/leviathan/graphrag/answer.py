@@ -2100,6 +2100,11 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # ABSENT when off, never null -- the OFF-arm-clean rule.
     if verifier.get("enabled"):
         sg.trace["number_handles"] = _resolve_number_handles(structured, extra_number_calls)
+        # CYCLE-6 FIX-C, in the SAME gate and BEFORE the body render (see `_dedup_number_handles` for why
+        # the ordering is the whole safety of it). Stamped only when it re-pointed something.
+        _nclone = _dedup_number_handles(structured, extra_number_calls)
+        if _nclone:
+            sg.trace["number_rows_deduped"] = _nclone
         # D-PQ HANDLE-3, in the SAME gate and immediately after: the frames those removals (and the
         # verifier's own positional strips) left empty. Stamped only when it changed something, so an
         # untouched draft writes no key -- the OFF-arm-clean rule, again.
@@ -3695,6 +3700,64 @@ _DEBRIS_RULES = (
 )
 
 
+def _dedup_number_handles(structured: dict | None, number_calls: list | None) -> int:
+    """CYCLE-6 FIX-C, THE PROSE HALF. Re-point every [N] marker whose footer row is a FULL-IDENTITY clone of
+    an earlier index's onto that survivor, so the clone leaves the prose and -- by cycle-4's prose-authority
+    rule -- its duplicate footer line goes with it. Returns the number of INDICES re-pointed (0 on every
+    turn with no clone, which is the overwhelming majority). Mutates in place; never raises.
+
+    MEASURED (gate-3 dpq_probe, BOTH passes): p1 rendered [N10] and [N12], p2 [N9] and [N10], each pair the
+    identical `FUTURES EOD settle CBOT corn delivery 2026-12 = 446 US cents/bushel (exchange settlement,
+    USD)  [known 2026-06-05]` -- two separate lookups that returned the same row, footed twice.
+
+    WHY THE RE-POINT LIVES ON THE PROSE SIDE AND RUNS *BEFORE* THE BODY RENDER. `_cited_sources_block`
+    receives the structured dict and returns a STRING, and the assembled body is
+    `render(structured) + _cited_sources_block(structured, ...)` -- left-to-right, so a rewrite performed
+    inside the footer builder would reach the footer and never the body, and the reader would be left with
+    a `[N12]` in the prose pointing at a row that is no longer there. That is the dangling-marker defect
+    D-PQ HANDLE-4 exists to abolish; re-writing the prose first is the only ordering in which body and
+    footer cannot disagree.
+
+    THE RE-POINT IS SAFE BY CONSTRUCTION BECAUSE THE DROP DEMANDS FULL IDENTITY: the survivor's row is the
+    clone's row rendered byte for byte (`_number_row_clones` keys on the whole line), so whatever the model
+    meant by the clone index, the survivor says exactly the same thing. Grouped tokens are rewritten member
+    by member and re-emitted canonically; a group that collapses to one member ('[N10, N12]' -> '[N10]')
+    and an adjacent repeat the collapse creates ('[N10] [N10]') both fold, because a doubled marker is
+    debris the reader would read as two receipts."""
+    if not isinstance(structured, dict):
+        return 0
+    prose = f"{structured.get('tldr') or ''}\n{structured.get('mechanism') or ''}"
+    prose_n: list[int] = []
+    for _m in _N_HANDLE_RX.finditer(prose):
+        for _i in _n_handle_members(_m.group(0)):
+            if _i not in prose_n:
+                prose_n.append(_i)
+    clones = _number_row_clones(prose_n, number_calls)
+    if not clones:
+        return 0
+
+    def _rewrite(m) -> str:
+        got = _n_handle_members(m.group(0))
+        if not any(i in clones for i in got):
+            return m.group(0)                      # untouched tokens keep their EXACT bytes (no re-canon)
+        members: list[int] = []
+        for i in got:
+            j = clones.get(i, i)
+            if j not in members:
+                members.append(j)
+        return _n_handle_token(members)
+    for field in ("tldr", "mechanism"):
+        text = structured.get(field)
+        if not isinstance(text, str) or not text:
+            continue
+        new = _N_HANDLE_RX.sub(_rewrite, text)
+        # the collapse's own debris: '[N10] [N10]' / '[N10][N10]' are ONE receipt written twice
+        new = re.sub(r"(\[N\d+(?:,\s*N\d+)*\])(?:\s*\1)+", r"\1", new)
+        if new != text:
+            structured[field] = new
+    return len(clones)
+
+
 def _tidy_handle_debris(structured: dict | None) -> int:
     """Close up the punctuation frames a stripped/removed handle left empty. Returns the number of PROSE
     FIELDS it changed (0 on a clean draft, which is every turn with no strips). Mutates in place; never
@@ -3996,11 +4059,91 @@ def _cited_sources_block(d: dict, vreport: dict, number_calls: list | None) -> s
     # row per index the reader can still see. Emitting it here rather than inside the ledger walk is what
     # makes the order DETERMINISTIC -- a ledger that declared N2 and not N1 used to interleave them 2,1,3
     # -- and it is the same authority the prune already uses, read once for both directions.
-    for idx in sorted(prose_n):
+    #
+    # CYCLE-6 FIX-C, THE CLONE DROP -- AND WHERE IT DOES *NOT* LIVE. `_number_row_clones` names the indices
+    # whose rendered row is identical to an earlier index's in EVERY field (gate-3 dpq shipped one in both
+    # passes: [N10]/[N12] p1, [N9]/[N10] p2, the same FUTURES EOD 2026-12 corn settle of 446 differing only
+    # in index). The drop is effected ENTIRELY on the prose side, by `_dedup_number_handles` re-pointing the
+    # markers BEFORE the body renders, so by the time this loop runs the clone index is not in `prose_n` and
+    # there is nothing here to skip.
+    #
+    # CYCLE-6 REVIEW (2026-08-08), MEDIUM 6: cycle-6 ALSO skipped clone rows here, on this function's own
+    # authority, and that was backwards. Every index this function could call a clone is by construction an
+    # index the PROSE still carries (`prose_n` is where the map is derived from), so dropping its row is
+    # precisely the dangling-marker defect D-PQ HANDLE-4 abolishes -- latent on the two production call
+    # sites only because the prose pass runs first, and a loaded gun for any other caller. ONE MECHANISM:
+    # the prose pass drops the marker, cycle-4's prose-authority rule drops the row with it, and this
+    # function renders exactly one row per index the reader can still see, always.
+    kept_n = sorted(prose_n)
+    for idx in kept_n:
         row = _n_row(idx)
         if row is not None:
             lines.append(row)
+    lines += _prose_value_rows(prose, number_calls, kept_n)      # CYCLE-6 FIX-A
     return ("\n\n## Sources\n" + "\n".join(lines)) if lines else ""
+
+
+def _number_row_clones(prose_n: list[int], number_calls: list | None) -> dict[int, int]:
+    """{clone index -> survivor index} for [N] rows that are FULLY IDENTICAL as rendered -- same label
+    (index aside), same value, same unit, same period, same known-stamp. Keyed on the rendered row STRING
+    minus its `[N#] ` prefix, which is exactly that tuple and nothing else: `cit.from_number` writes the
+    source, metric, commodity, geo, period, delivery month, value, unit, print-kind, staleness clause and
+    truncation clause into that one line, so two lines matching there are two renderings of one fact and a
+    reader gains nothing from the second. The SURVIVOR IS THE LOWEST INDEX (the footer's own order, so
+    'keep the first' is stable regardless of who calls this). ANY difference in ANY field -> both stay.
+    Fails closed and silent: a call that will not render is simply not a clone of anything."""
+    first: dict[str, int] = {}
+    out: dict[int, int] = {}
+    for idx in sorted(i for i in prose_n if i >= 1):
+        try:
+            c = cit.from_number((number_calls or [])[idx - 1], idx)
+        except (ValueError, IndexError, TypeError):
+            continue
+        key = c.label + (f"  [known {c.date}]" if c.date else "")
+        if key in first:
+            out[idx] = first[key]
+        else:
+            first[key] = idx
+    return out
+
+
+def _prose_value_rows(prose: str, number_calls: list | None, cited_n: list[int]) -> list[str]:
+    """CYCLE-6 FIX-A -- the footer rows the FINAL prose earns by STATING a served value (see the long note
+    at `citations.prose_completion_citations` for the measured failure and the four refusals).
+
+    `prose` is the post-strip, post-tidy, post-humanize body: a figure the verifier removed cannot summon a
+    row, because it is not in the string this reads. `cited_n` is the set of indices whose `from_number`
+    headline is already on the page, so those rows seed the de-dup instead of being minted again.
+
+    THE DE-DUP HORIZON IS THE WHOLE FOOTER, not one call, and that is what makes the pass safe on a real
+    hybrid turn: the deck routinely serves the same print twice (a `latest` call beside the 30-row window
+    it was taken from), and a per-call horizon would foot 15.17 once for each. Seeded with EVERY rendered
+    headline first, then extended as rows are minted, walking calls in index order.
+
+    Never raises and never partially fails: an unparseable call is skipped, a footer must not be the thing
+    that breaks an answer (the same contract `_n_row` keeps)."""
+    calls = number_calls or []
+    if not calls or not prose.strip():
+        return []
+    try:
+        from leviathan.graphrag.orchestrator import _stated_values      # lazy: orchestrator imports THIS
+        stated = _stated_values(prose)
+    except Exception:  # noqa: BLE001
+        return []
+    if not stated:
+        return []
+    seen: set = set()
+    for idx in cited_n:                            # every headline already on the page, whatever its call
+        try:
+            call = calls[idx - 1]
+            seen.add(cit.row_key(call, cit.headline_row(call)))
+        except (IndexError, TypeError, AttributeError):
+            continue
+    try:
+        cits = cit.prose_completion_citations(calls, stated, seen=seen, cited=set(cited_n))
+    except Exception:  # noqa: BLE001
+        return []
+    return [f"[{c.id}] {c.label}" + (f"  [known {c.date}]" if c.date else "") for c in cits]
 
 
 def _foreign_regime_names(graph: gph.CausalGraph, contracts: list[str]) -> set[str]:
@@ -4221,6 +4364,8 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     _attach_provenance(structured, verifier)                     # stamp source_key for durable chip join (6.4)
     _nhandles = (_resolve_number_handles(structured, extra_number_calls)   # D-PQ HANDLE-1, both bodies
                  if verifier.get("enabled") else None)                    # ...and the same verifier gate
+    _nclone = (_dedup_number_handles(structured, extra_number_calls)       # CYCLE-6 FIX-C, both bodies
+               if verifier.get("enabled") else 0)                         # ...and the same verifier gate
     _debris = bool(verifier.get("enabled") and _tidy_handle_debris(structured))   # D-PQ HANDLE-3, ditto
     _orphans = bool(verifier.get("enabled")                                       # CYCLE-5 TIDY-2, ditto
                     and _tidy_strip_orphans(structured, verifier))
@@ -4265,6 +4410,7 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
                       "record_through": _rec_through,              # D-RC-13: observational, both bodies
                       **({"number_handles": _nhandles}             # D-PQ HANDLE-1: same census, both bodies
                          if _nhandles is not None else {}),        # ...absent when the verifier is off
+                      **({"number_rows_deduped": _nclone} if _nclone else {}),  # CYCLE-6 FIX-C, both bodies
                       **({"prose_debris_tidied": True} if _debris else {}),   # D-PQ HANDLE-3, both bodies
                       **({"prose_orphans_tidied": True} if _orphans else {}),  # CYCLE-5 TIDY-2, both bodies
                       **({"response_contract": _rc_active} if _rc_active else {}),   # Phase B twin stamp

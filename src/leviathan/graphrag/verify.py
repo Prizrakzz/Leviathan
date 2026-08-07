@@ -237,6 +237,24 @@ def _claim_numbers_in(s: str) -> list[float]:
     return [v for _a, _b, v in _claim_number_spans(s)]
 
 
+def _token_decimals(tok: str) -> int:
+    """CYCLE-6 (2026-08-08): decimal places the prose ACTUALLY WROTE for one claim token. '15.17' -> 2,
+    '-0.20' -> 2 (the trailing zero is written precision, not noise), '446' -> 0, '1,486,837' -> 0.
+    Load-bearing that this reads the TOKEN and not the parsed float: float('0.20') is 0.2 and a float
+    cannot remember how many places its author committed to, which is the whole quantity the reader-
+    precision arm in `_num_matches` needs."""
+    core = (tok or "").rstrip(".,")
+    return len(core.split(".", 1)[1]) if "." in core else 0
+
+
+def _claim_numbers_with_decimals(s: str) -> tuple[list[float], list[int]]:
+    """The claim magnitudes AND, positionally parallel, the decimal places each was written to. Two lists
+    rather than a list of pairs so every existing `_claim_numbers_in` call site keeps its exact shape and
+    only the two matchers that need the precision take the second list."""
+    spans = _claim_number_spans(s)
+    return ([v for _a, _b, v in spans], [_token_decimals((s or "")[a:b]) for a, b, _v in spans])
+
+
 def _mask_handles(s: str) -> str:
     """Blank every citation handle to SPACES of its own length. The callers that only need the VALUES use
     _HANDLE.sub("", ...), but a repair needs the numeral's position in the sentence AS WRITTEN, so the
@@ -333,10 +351,15 @@ def _sibling_backed(sent: str, idx: int, number_calls: list[dict]) -> bool:
     ORIGINAL one: strip the mis-citing HANDLE and leave the corroborated figure standing. Scoped to the
     one-numeral shape on purpose: with two numerals nobody can say which one the charged handle meant, and
     that ambiguity keeps the whole-sentence drop."""
-    spans = _claim_number_spans(_mask_handles(sent))
+    masked = _mask_handles(sent)
+    spans = _claim_number_spans(masked)
     if len(spans) != 1:
         return False
     v = spans[0][2]
+    # CYCLE-6: the sibling rescue asks the SAME matching question, so it gets the same reader-precision arm
+    # -- a sibling that backs "-0.31" against its own -0.30632 row is backing it, and refusing to see that
+    # would send the sentence to the whole-drop path this rescue exists to avoid.
+    dec = [_token_decimals(masked[spans[0][0]:spans[0][1]])]
     for m in _HANDLE.finditer(sent):
         if m.group("kind") != "N":
             continue
@@ -344,7 +367,7 @@ def _sibling_backed(sent: str, idx: int, number_calls: list[dict]) -> bool:
         if j == idx or not (1 <= j <= len(number_calls)):
             continue
         sib = number_calls[j - 1]
-        if _num_matches([v], _mismatch_pool(sib, _row_vals(sib))):
+        if _num_matches([v], _mismatch_pool(sib, _row_vals(sib)), dec):
             return True
     return False
 
@@ -409,13 +432,88 @@ def _coalesce(spans: list[tuple[int, int]]) -> list[tuple[int, int]]:
     return out
 
 
-def _num_matches(sent_nums: list[float], row_vals: list[float]) -> bool:
+# CYCLE-6 REVIEW (2026-08-08), BLOCKER 3 + MAJOR 4 -- THE RELATIVE CEILING ON THE READER-PRECISION ARM.
+# The arm shipped as a bare half-unit window, and at d=0 that is a FLAT +-0.5 with no relative floor at
+# all. At the magnitudes this estate actually serves (stocks-to-use, z-scores, MMT, $/bu, pct-of-OI) that
+# certifies tens-of-percent-wrong numbers as matches: prose "1" against a 1.49 row (33% off) cleared
+# `_num_matches`, and `_num_backed(1.0, [0.51], dec=0)` -- the MERGED ALL-ROWS backstop -- returned True on
+# a 96% error, widening the R4 cross-row mis-attribution surface rather than narrowing it. "strip -> keep
+# only" is not a safety argument when the keep is a WRONG number: refusing those is what the verifier is
+# for. It also inverted the precision incentive, certifying the vaguer spelling ("1") while stripping the
+# precise one ("1.0") on the identical claim -- the instrument rewarding fewer significant figures.
+# THE CEILING IS SIZED AGAINST THE TWO REAL GATE-3 ROWS, which is the whole defect this arm exists for:
+#   -0.31 vs -0.30632  ->  1.20% relative   ADMITTED
+#   -0.20 vs -0.19516  ->  2.42% relative   ADMITTED
+#   1 vs 1.49 (33%), 1 vs 0.51 (96%), 2 vs 2.49 (20%), 0.3 vs 0.34 (11.8%)   ALL REFUSED
+# 3% clears the real class with margin and refuses every adversarial one. The denominator is max(|a|,|b|)
+# so the test is symmetric in the two magnitudes -- neither the prose nor the row gets to be the yardstick.
+# The footer twin (`citations._EXTRA_REL_TOL`) stays TIGHTER at 0.5% and that difference is still the
+# correction-(B) doctrine: this arm converts strip->keep, that one MINTS A LINE.
+_READER_REL_CEILING = 0.03
+
+
+def _reader_precision_match(a: float, b: float, d: int | None) -> bool:
+    """CYCLE-6 (2026-08-08) THE ONE SANCTIONED AMENDMENT TO THE STRIP RULES. True when the prose magnitude
+    `a` is a CORRECT ROUNDING of the row magnitude `b` at the precision the prose itself wrote (`d` decimal
+    places, parsed from the matched token by `_token_decimals`). Both arguments are already MAGNITUDES
+    (the callers pass abs()), matching this module's standing sign discipline.
+
+    THE MEASURED DEFECT (gate-3 dcw_probe pass1, row `dcw_gas_nitrogen_squeeze` -- reproduced exactly).
+    The mechanism sentence "The most recent observed read on EU gas is 15.17 USD/mmbtu [N1] [N5], sitting
+    at -0.31 sigma versus its five-year mean [N2]" was charged number_mismatch on [N2] and number_unbacked
+    on [N1] and [N5], and the whole sentence went -- taking the ONLY marker-bearing statement of a SERVED
+    row with it. Every figure in it was right. The arithmetic:
+        row  silver_pink_sheet.natural_gas_eu_usd_mmbtu_zscore_5yr = -0.3063197017144927
+        prose                                                        -0.31          (a correct 2-dp round)
+        |0.31 - 0.30632| = 0.00368   >   0.01 * 0.30632 = 0.00306   -> `_num_matches` says NO
+                                     >   0.01 * 0.31    = 0.00310   -> the reverse arm says NO too
+    The identical shape strips the urea leg of the same answer: row -0.19515863509764528, prose "-0.20",
+    |0.2 - 0.195159| = 0.00484 > 0.01 * 0.195159 = 0.00195. A RELATIVE tolerance is the wrong instrument
+    for a value the reader rounded: at |x| ~ 0.3 a 2-dp restatement can be off by up to 0.005 in ABSOLUTE
+    terms, which is 1.6% relative -- so the tighter the row's magnitude, the more certainly a CORRECT
+    rounding fails. Nothing about the 1% arms is wrong for their own question; they simply cannot see this
+    one, and the remedy is an ADDITIONAL arm, never a loosened one.
+
+    THE TEST IS "a IS b ROUNDED TO d PLACES", stated as the half-unit-in-the-last-written-place window
+    (|b - a| <= 0.5 * 10**-d). That is the definition of a correct rounding and it is float-robust, where
+    `round(b, d) == a` is not: round() is half-to-EVEN and carries binary-representation artifacts at the
+    tie, so it would arbitrarily reject one of the two defensible renderings of an exact .5 boundary
+    (row -0.315 -> a reader may honestly write -0.31 or -0.32). Both are accepted here; nothing else is.
+
+    IT CAN ONLY EVER CONVERT strip -> keep, and it is ROUNDING, NEVER BINNING:
+        d=2  "-0.31" vs -0.30632  ->  0.00368 <= 0.005   MATCH
+        d=2  "-0.32" vs -0.30632  ->  0.01368 >  0.005   NO MATCH
+        d=1  "4.2"   vs  4.24     ->  0.04    <= 0.05    MATCH  (a 1-dp restatement of a 2-dp figure is a
+                                                                 correct rounding -- allowed, by policy)
+        d=0  "446"   vs  445.6    ->  0.4     <= 0.5     MATCH
+        d=0  "400"   vs  446      ->  46      >  0.5     NO MATCH  (the binning refusal)
+    SCALE 1 ONLY, deliberately: the multi-scale arms answer "is this the same quantity in other units",
+    and a rescale bridge stacked on a rounding window would admit a value the reader never wrote.
+    ZERO POLICY IS UNTOUCHED: the callers' `a == 0 or b == 0` guard runs FIRST and still means 0 matches
+    only 0, so a prose "0" can never round-rescue a 0.4 row. `d is None` -> the arm is absent entirely,
+    which is what keeps every caller that does not thread decimals byte-identical.
+
+    CYCLE-6 REVIEW (2026-08-08): the window is now ALSO fenced by `_READER_REL_CEILING` (see the constant).
+    "a is b rounded to d places" AND "a and b are the same number to within 3%" -- both, always. The pinned
+    behaviour above is unchanged (every one of those pairs is inside 3%); what the ceiling removes is the
+    d=0 flat-window class, where a vague spelling could certify an arbitrarily wrong small magnitude."""
+    if d is None or a == 0 or b == 0:
+        return False
+    return (abs(b - a) <= 0.5 * 10.0 ** (-d)
+            and abs(b - a) <= _READER_REL_CEILING * max(abs(a), abs(b)))
+
+
+def _num_matches(sent_nums: list[float], row_vals: list[float],
+                 sent_decs: list[int] | None = None) -> bool:
     """'31.4 million' vs 31400000, '36.4%' vs 0.3636: equal within 1% at any common reporting scale.
     MAGNITUDE-insensitive to sign: _NUM cannot extract a minus from prose ('fell 5.058 MMT' reads 5.058)
     while injected delta/pct rows are SIGNED (-5.058) -- direction lives in the prose verb, magnitude
-    backing is this check's job (Stage-1 RCA: every narrated DECLINE stripped deterministically)."""
-    for a0 in sent_nums:
+    backing is this check's job (Stage-1 RCA: every narrated DECLINE stripped deterministically).
+    CYCLE-6: `sent_decs` (positionally parallel to `sent_nums`, from `_claim_numbers_with_decimals`) arms
+    the reader-precision arm below. Omitted -> the predicate is exactly the pre-CYCLE-6 one."""
+    for k, a0 in enumerate(sent_nums):
         a = abs(a0)
+        d = sent_decs[k] if (sent_decs is not None and k < len(sent_decs)) else None
         for b0 in row_vals:
             b = abs(b0)
             if a == 0 or b == 0:
@@ -434,6 +532,8 @@ def _num_matches(sent_nums: list[float], row_vals: list[float]) -> bool:
                     return True
                 if abs(b * scale - a) <= 0.01 * a:
                     return True
+            if _reader_precision_match(a, b, d):       # CYCLE-6: correct at the reader's own precision
+                return True
     return False
 
 
@@ -492,20 +592,29 @@ def _all_row_vals(number_calls: list[dict]) -> list[float]:
     return out
 
 
-def _num_backed(v: float, allv: list[float], tol: float = 0.01) -> bool:
+def _num_backed(v: float, allv: list[float], tol: float = 0.01, *, dec: int | None = None) -> bool:
     """P9-B (R4): SCALE-1 exact-ish match only. Injected cascade rows are PRE-SCALED to narrate_unit, so a
     hallucinated ~40% must NOT be back-filled by a raw 0.4 ratio or a 4e7 tonnage that _num_matches'
     multi-scale set would bridge -- that bridging is the exact mis-attribution hole the pre-scale normalizer
     closes. Compare at scale 1 within a tight tolerance; 0 matches only 0. MAGNITUDE-insensitive to sign:
     prose numbers arrive unsigned (_NUM has no minus) while delta/pct rows are signed -- the Stage-1 RCA
-    showed every narrated decline stripping while identical gains passed."""
+    showed every narrated decline stripping while identical gains passed.
+
+    CYCLE-6 (2026-08-08) -- `dec` ARMS THE SAME SANCTIONED AMENDMENT HERE, AND THAT IS NOT SCOPE CREEP, IT
+    IS WHAT MAKES THE AMENDMENT REACH ITS OWN DEFECT. The gate-3 gas sentence was charged TWICE: [N2] as
+    number_mismatch (that is `_num_matches`) and [N1]/[N5] as number_unbacked (that is THIS predicate,
+    against the merged all-rows pool). Fixing only the first leaves the sentence stripped by the second
+    and the whole rule change inert. One rule -- "a stated value matches a row it is a correct rounding of
+    at the precision the prose wrote" -- applied at both places that implement matching. `dec=None` (every
+    caller that does not thread it) is the pre-CYCLE-6 predicate exactly. Scale-1 by construction here,
+    which is precisely where a reader-precision window belongs."""
     va = abs(v)
     for r in allv:
         ra = abs(r)
         if ra == 0:
             if va == 0:
                 return True
-        elif abs(va - ra) <= tol * ra:
+        elif abs(va - ra) <= tol * ra or _reader_precision_match(va, ra, dec):
             return True
     return False
 
@@ -516,8 +625,9 @@ def _check_number_handle(sent: str, idx: int, number_calls: list[dict]) -> str |
     row_vals = _row_vals(number_calls[idx - 1])
     # the HEADLINE check runs against what the cited LINE printed (`shown`), not the whole window it fetched
     pool = _mismatch_pool(number_calls[idx - 1], row_vals)
-    sent_nums = _claim_numbers_in(_HANDLE.sub("", sent))         # time/name tokens are NOT claims
-    if sent_nums and pool and not _num_matches(sent_nums, pool):
+    # CYCLE-6: the same extraction, now carrying each token's WRITTEN precision alongside its value
+    sent_nums, sent_decs = _claim_numbers_with_decimals(_HANDLE.sub("", sent))  # time/name tokens: NOT claims
+    if sent_nums and pool and not _num_matches(sent_nums, pool, sent_decs):
         return "number_mismatch"
     # P9-B all-numbers guard: EVERY magnitude in a handled sentence (years/range-tails/letter-codes exempt
     # at the extractor) must match SOME injected row across the merged calls -- else "rose to 5900 [N3],
@@ -528,13 +638,14 @@ def _check_number_handle(sent: str, idx: int, number_calls: list[dict]) -> str |
     # narrowing both would strip every legitimate second figure a window call genuinely supports.
     if os.environ.get("GRAPHRAG_CASCADE_QUANT", "on") != "off":
         allv = _all_row_vals(number_calls)
-        guard_nums = _claim_numbers_in(_HANDLE.sub("", sent))     # exemptions live in the extractor now
+        guard_nums, guard_decs = _claim_numbers_with_decimals(_HANDLE.sub("", sent))  # exemptions: extractor
         # backed = scale-1 match vs ANY row (pre-scaled cascade rows), OR the legacy scale-bridge vs the
         # sentence's OWN cited row (a '31.4 million MT' narration of its own raw-MT hybrid row is legitimate;
         # CROSS-row multi-scale backfill stays forbidden -- that is the R4 mis-attribution hole).
+        # CYCLE-6: both arms carry the numeral's written precision (see `_reader_precision_match`).
         if guard_nums and allv and any(
-                not (_num_backed(v, allv) or (row_vals and _num_matches([v], row_vals)))
-                for v in guard_nums):
+                not (_num_backed(v, allv, dec=d) or (row_vals and _num_matches([v], row_vals, [d])))
+                for v, d in zip(guard_nums, guard_decs)):
             return "number_unbacked"
     return None
 

@@ -371,9 +371,22 @@ def test_a_departed_handle_still_gets_no_row():
 
 
 def test_an_out_of_range_handle_never_mints_a_row():
-    """Fail-closed: `_resolve_number_handles` has already removed it, and the footer refuses it anyway."""
+    """Fail-closed: `_resolve_number_handles` has already removed it, and the footer refuses it anyway.
+
+    CYCLE-6 (2026-08-08) AMENDMENT, and it is the FIX-A rule working, not a regression of this one. The
+    HANDLE pin is unchanged and still the point: [N9] is out of range and mints nothing, ever. What is new
+    is that the prose STATES 4.4 and call #1 SERVED 4.4, so the value-completion pass owes the reader that
+    row on its own authority -- the whole defect FIX-A exists to close is a served value facing the reader
+    with nothing to check it against, and a dangling handle beside it does not make the value less served.
+    The row is minted against call 1 (its own index, letter-suffixed), never against the out-of-range 9."""
+    import re as _re
     st = {"tldr": "", "mechanism": "The reading is 4.4 $/bu [N9].", "sources": []}
-    assert an._cited_sources_block(st, {"resolved": {}}, [_call(4.4)]) == ""
+    block = an._cited_sources_block(st, {"resolved": {}}, [_call(4.4)])
+    assert "[N9]" not in block and "[N1]" not in block        # the HANDLE pin, unmoved
+    assert _re.findall(r"^\[N\d+[a-z]\] ", block, _re.M) == ["[N1b] "]
+
+    st2 = {"tldr": "", "mechanism": "The reading is elevated [N9].", "sources": []}
+    assert an._cited_sources_block(st2, {"resolved": {}}, [_call(4.4)]) == ""   # no value stated -> nothing
 
 
 def test_the_document_namespace_is_untouched_by_the_number_join():

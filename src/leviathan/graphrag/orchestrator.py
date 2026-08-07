@@ -179,19 +179,69 @@ class _StatedValues(list):
     35-row WASDE serve minted `MY1994/95 = 2.1 $/bu (actual)` -- a percentage manufacturing a price
     citation for a marketing year the answer never mentioned. The annotation rides the SAME extraction
     (one producer, still) and only the narrower consumer reads it; `list` semantics are untouched, so
-    `_verify_numbers_answer` and every existing caller see exactly the list they saw before."""
+    `_verify_numbers_answer` and every existing caller see exactly the list they saw before.
 
-    __slots__ = ("percent",)
+    CYCLE-6 REVIEW (2026-08-08), MAJOR 5. A SECOND annotation rides the same extraction: `.percent_level`,
+    the subset of `.percent` the prose wrote as a LEVEL rather than as a CHANGE. `.percent` stays exactly
+    what it was (the whole fence), and the narrow un-fence in `citations._call_magnitudes` reads only the
+    level subset -- see `_PCT_CHANGE_CUE_RX` for why a per-CALL un-fence was the wrong instrument."""
 
-    def __init__(self, values=(), percent=()):
+    __slots__ = ("percent", "percent_level")
+
+    def __init__(self, values=(), percent=(), percent_level=()):
         super().__init__(values)
         self.percent = tuple(percent)
+        self.percent_level = tuple(percent_level)
 
 
 # Numerals the prose denominates as a RATE rather than a level. Matched on the SCRUBBED text (so a date or
 # an MY label has already shed its fragments) and only where the marker directly follows the numeral.
 _PCT_NUMERAL_RX = re.compile(r"(\d+(?:\.\d+)?)\s*(?:%|percent(?:age)?\b|pct\b|basis points?\b|bps\b)",
                              re.IGNORECASE)
+
+# CYCLE-6 REVIEW (2026-08-08), MAJOR 5 -- THE PERCENT FENCE MOVES FROM THE CALL TO THE NUMERAL.
+# Cycle-6 un-fenced percent numerals for calls whose CARD says the rows are percentages, so a served
+# `silver_cot.mm_pct_oi = 15.7316` could be named by prose "15.7%". The un-fence was per CALL, which means
+# that once ONE call is percent-denominated EVERY percent numeral anywhere in the answer became a candidate
+# name for its rows -- and "Managed money holds 15.7% of open interest, down 2.1% on the week" then minted
+# `mm_pct_oi = 2.1` off a week-on-week CHANGE. Percent-change-vs-percent-level is the densest category
+# error in this domain and COT/pct tables are where percent numerals are densest, so the fence has to read
+# the NUMERAL'S OWN SYNTAX: a percent numeral is a candidate LEVEL only when no change cue immediately
+# precedes it. Matched against the text BEFORE the numeral (anchored with $), on the same scrubbed string
+# the numeral was found in, and hedges/adverbs between the cue and the numeral are stepped over.
+_PCT_CHANGE_CUE_RX = re.compile(
+    r"(?:\b(?:up|down|higher|lower|by|versus|vs\.?|than|plus|minus"
+    r"|rose|rise|rises|rising|risen|fell|fall|falls|falling|fallen"
+    r"|gain|gains|gained|lose|loses|lost|drop|drops|dropped|shed|sheds"
+    r"|declin(?:e|es|ed|ing)|increas(?:e|es|ed|ing)|decreas(?:e|es|ed|ing)"
+    r"|climb(?:s|ed|ing)?|jump(?:s|ed|ing)?|slip(?:s|ped|ping)?|surg(?:e|es|ed|ing)"
+    r"|advanc(?:e|es|ed|ing)|retreat(?:s|ed|ing)?|widen(?:s|ed|ing)?|narrow(?:s|ed|ing)?"
+    r"|grew|grow|grows|growing|shrank|shrunk|shrink|shrinks|sank|sunk|add|adds|added)\b"
+    r"|[+−])"
+    r"(?:\s+(?:another|about|roughly|nearly|almost|some|just|around|approximately|a|further|"
+    r"an|only|over|under))*"
+    r"\s*$", re.IGNORECASE)
+
+
+def _percent_is_level(scrub: str, start: int) -> bool:
+    """True when the percent numeral beginning at `start` in `scrub` reads as a LEVEL, not a CHANGE."""
+    return not _PCT_CHANGE_CUE_RX.search(scrub[max(0, start - 48):start])
+
+
+# CYCLE-6 REVIEW (2026-08-08), BLOCKERS 1+2 -- EVERY CITATION-HANDLE FORM, NOT JUST THE SOLITARY [N#].
+# The scrub below used to carry `\[N\d+\]` and nothing else, because `_stated_values` was written for and
+# validated on the numbers_only lane, whose prose carries only solitary [N] handles. Cycle-6 made it the
+# HYBRID lane's extractor too, and hybrid prose is saturated with `[E<k>]` episode handles that the D-DT
+# scaffold splices into `mechanism` AFTER the dedup pass and BEFORE the footer build -- so `[E7]` and
+# `[E12]` read as the stated magnitudes 7 and 12, and the footer-completion pass minted a fabricated row
+# for any served value that happened to BE 7 or 12 (MMT, $/bu, stocks-to-use, pct-of-OI: indices 1..30
+# collide with real row values constantly). The grouped and ranged forms leak the same way -- `[N1, N2]`
+# and `[N1-N6]` are a live class (`answer._N_HANDLE_RX`, D-PQ HANDLE-2, task #46) and shed their MEMBER
+# indices. `verify._mask_handles` is the estate's one masker but its `_HANDLE` covers only the solitary
+# form, so the full-token shape is defined HERE and both consumers of this extraction (the numbers_only
+# caution banner and the footer passes) get it at once. A handle index is never a claim on either lane.
+_HANDLE_TOKEN_RX = re.compile(r"\[\s*[NE]?\d+[a-z]?(?:\s*[,;–—-]\s*[NE]?\d+[a-z]?)*\s*\]",
+                              re.IGNORECASE)
 
 
 def _stated_values(answer: str) -> _StatedValues:
@@ -213,9 +263,15 @@ def _stated_values(answer: str) -> _StatedValues:
     (b) hyphen-glued unit descriptors ('60-kg bags') read as a stated 60; (c) duration arithmetic
     ('more than 14 months old') is derived, not looked-up; (d) markdown ordered-list markers ('1. ')
     read as stated 1.0/2.0/3.0. All are labels/derivations, never data figures. The no-year date form
-    subsumes the with-year one (the residual year token is already skipped by the year filter below)."""
+    subsumes the with-year one (the residual year token is already skipped by the year filter below).
+
+    CYCLE-6 REVIEW (2026-08-08), BLOCKERS 1+2: the handle alternative is now `_HANDLE_TOKEN_RX` -- EVERY
+    citation-handle form ([E7] as well as [N1], grouped `[N1, N2]` and ranged `[N1-N6]` as well as
+    solitary), because this extractor now feeds the hybrid footer as well as the numbers_only banner and a
+    handle index is not a magnitude on either lane. See the constant for the measured fabrications."""
     from leviathan.graphrag import verify as vf
-    scrub = re.sub(r"\d{4}-M\d{2}|\d{4}-\d{2}(?:-\d{2})?|\d{4}M\d{2}|\d{4}/\d{2,4}|\[N\d+\]", " ", answer)
+    scrub = re.sub(r"\d{4}-M\d{2}|\d{4}-\d{2}(?:-\d{2})?|\d{4}M\d{2}|\d{4}/\d{2,4}", " ", answer)
+    scrub = _HANDLE_TOKEN_RX.sub(" ", scrub)
     _MONTHS = (r"(?:January|February|March|April|May|June|July|August|September|October|November|"
                r"December)")
     scrub = re.sub(rf"{_MONTHS}\s+\d{{1,2}}(?:st|nd|rd|th)?\b"
@@ -225,13 +281,16 @@ def _stated_values(answer: str) -> _StatedValues:
     scrub = re.sub(r"(?m)^\s*\d{1,2}\.\s+", " ", scrub)
     vals = [v for v in vf._numbers_in(scrub)
             if abs(v) >= 0.001 and not (1900 <= v <= 2100 and float(v).is_integer())]   # skip years
-    pct = []
+    pct, pct_level = [], []
     for m in _PCT_NUMERAL_RX.finditer(scrub):
         try:
-            pct.append(float(m.group(1)))
+            p = float(m.group(1))
         except (TypeError, ValueError):
             continue
-    return _StatedValues(vals, pct)
+        pct.append(p)
+        if _percent_is_level(scrub, m.start(1)):     # CYCLE-6 REVIEW MAJOR 5: change vs level, per NUMERAL
+            pct_level.append(p)
+    return _StatedValues(vals, pct, pct_level)
 
 
 def _verify_numbers_answer(answer: str, calls: list) -> dict:
