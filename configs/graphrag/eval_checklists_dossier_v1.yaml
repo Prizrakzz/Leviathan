@@ -1,0 +1,470 @@
+# D-DR-4 PRE-REGISTERED CHECKLISTS + BEYOND-SINGLE-TURN SOURCE SETS for the dossier deck (2026-08-07).
+#
+# WHY THIS FILE EXISTS. D-DR-4's gate is "the dossier must WIN usefulness pairwise on >= 3 of 5 rows
+# with zero PIT violations, or it stays internal", plus dossier-specific checks the plan names verbatim:
+# "plan visible; every number pinned; disagreement section present; refusal-honest gaps". Those four
+# sentences plus the PIT clause and the deck's own pre-registered angle lists ARE the design of this
+# file: each becomes a binary question a judge answers item by item, so checklist pass-rate (0-100%,
+# bounded, auditable) can discriminate where a saturated 1-5 cannot.
+#
+# PRE-REGISTRATION LAW. Authored ONCE, BEFORE any D-DR-4 arm runs, and frozen from that moment to the
+# decision. The wording is NEUTRAL: no arm name, no mode name, no "dossier"/"quick"/"deep" anywhere,
+# and no item phrased so that one configuration passes by construction. An item added or reworded after
+# arms have run is a new instrument and invalidates the comparison -- append a v2 file instead.
+#
+# THE ONE PLACE THAT LAW NEEDED THOUGHT, RECORDED HONESTLY. "Plan visible" is a dossier-specific check,
+# and a naive wording ("does the answer show its sub-query plan") would be pass-by-construction for one
+# side. It is therefore written as a capability-neutral question -- does the answer say up front how it
+# broke the question up, and then address each part -- which a well-composed single answer CAN satisfy
+# by opening "I will take this in four parts" and doing so. The same applies to the disagreement and
+# limits items: both carry an "or states that it found none / that nothing was missing" branch, so a
+# truthful narrow answer scores TRUE rather than being punished for honesty. If a future reader thinks
+# these items favour one side, the reason is that the composition contract makes those elements appear,
+# which is the thing under test -- not that the wording excludes anyone.
+#
+# ITEM LAW (why every item looks the way it does):
+#   1. BINARY. A judge answers true/false plus one line of evidence. No 1-5, no "partially".
+#   2. REFUSAL-HONEST. Every item that could reward invention carries its "or says the record cannot"
+#      branch INSIDE the question, so a truthful "no dated row exists" answers TRUE. This is the
+#      ordinal-when-thin doctrine written into the grader: a mandate may never manufacture a number,
+#      so the grader may never reward one.
+#   3. BOUND TO WHAT THE ANSWER WAS SHOWN. Items say "in what it was shown" / "that it cites", never
+#      "present in the world". No arm is marked down for material no arm retrieved.
+#   4. SIX PER ROW, and the SAME SIX GATES on every row, each instantiated in that row's own terms. The
+#      shared item ids (plan_visible_followed, every_number_pinned, disagreement_section,
+#      cannot_answer_section, no_post_asof_material, angles_covered_or_declared) let the report
+#      aggregate a per-GATE pass-rate across the deck as well as a per-row one.
+#
+# ITEM COUNT -- A DELIBERATE DEVIATION, RECORDED. The build brief asked for 4-7 items per row.
+# pairwise_judge.validate_checklists (pairwise_judge.py:379) HARD-ERRORS outside 3-6 ("the
+# pre-registration law says 3-6"), and an instrument that does not schema-match aborts the run. Six is
+# therefore the maximum admissible and is what every row carries -- the top of the requested band that
+# the instrument will actually load. No gate was dropped to fit.
+#
+# SOURCE OF EVERY ITEM: the row's own `prereg` / `turn_floor` / `angles_expected` fields in
+# configs/graphrag/eval_dossier_v1.yaml (the deck IS the authority; this file only restates it as
+# binary questions), plus D-DR-4's four named dossier checks and its PIT clause.
+#
+# ---------------------------------------------------------------------------------------------------
+# `beyond_quick_sources` -- THE DETERMINISTIC CONVERSION COUNTER'S INPUT, ITS DOSSIER MEANING, AND ITS
+# HONEST LIMITS.
+#
+# THE KEY NAME IS FIXED BY THE INSTRUMENT. pairwise_judge reads exactly `beyond_quick_sources`
+# (pairwise_judge.py:390, :439); renaming it here would silently zero the counter. On THIS deck its
+# meaning is one ceiling higher than on the width deck: per row, the source families the deck documents
+# as sitting beyond a SINGLE TURN's reach -- behind a seed a one-seed or three-seed walk cannot hold,
+# behind a silver budget one turn does not have, or behind a reconciliation pass one turn has no room
+# for. Each entry records `width_basis` naming the ceiling from the deck's `turn_class`, and `why`
+# quoting the deck's reasoning.
+#
+# WHAT THE COUNTER ACTUALLY MEASURES -- READ THIS BEFORE QUOTING ANY NUMBER. Cited source KEYS are NOT
+# recoverable from a stored baseline: eval._per_answer_record (eval.py:1196-1265) is a hard whitelist
+# carrying NO `citations`, NO `structured.sources` and NO `answer`. The rendered '## Sources' footer
+# carries human labels ("USDA FAS GAIN Report - Wheat (2026-04-02)") plus the cited prop's TEXT
+# truncated to ~150 chars, never the slice id. So the counter is a LEXICAL PROXY: `markers` are the
+# vocabulary that family's props actually speak in, matched against the answer's cited-sources footer
+# (primary scope, because that text IS the cited props) and separately against the answer body
+# (secondary scope). A family present in the body but absent from the footer is reported as
+# ASSERTED-UNCITED -- a finding, not a hit.
+#   marker match rule: hit == any(markers) AND (context_markers empty OR any(context_markers)).
+#   matching is done on ex._normalize'd text (NFKD -> ascii -> lower, whitespace/underscore/hyphen
+#   collapsed to single spaces, punctuation KEPT), so markers here are written in that normalized form
+#   -- verified against extract._normalize at authoring ("stocks-to-use" -> "stocks to use",
+#   "natural_gas" -> "natural gas", "Cotton (monthly)" -> "cotton (monthly)").
+# Markers are deliberately SPECIFIC and multi-word wherever a short token would false-positive as a
+# substring (no bare "oni", no bare "dmo", no bare "trq") -- a generic token would score a hit for any
+# answer that mentions the commodity at all.
+#
+# TWO MEASURED FACTS ABOUT THAT FOOTER, inherited from the width checklist's instrument validation and
+# not re-derived here: each footer entry renders the source's HUMAN LABEL plus a ~150-char prop
+# truncation (so prop vocabulary matches only when it falls in the opening sentence, and the LABEL is
+# the one fully reliable identity available); and a turn can render NO footer at all, in which case the
+# counter's `has_sources_block` is 0 for that arm-row and a zero means "nothing citable to match
+# against", NOT "the coverage failed to convert".
+#
+# NO MARKER ON THIS DECK WAS CHOSEN BY LOOKING AT WHICH ARM IT HELPED -- there are no arms yet. Every
+# marker set is the family's own vocabulary as recorded in configs/graphrag/eval/e1_census.md, the
+# contract DAGs, and configs/graphrag/tables.yaml.
+checklist_version: dossier_v1
+deck: eval_dossier_v1
+authored: '2026-08-07'
+axes: [usefulness, grounding, composition_completeness]
+rows:
+
+  # -------------------------------------------------------------------------------------------------
+  - id: dr_regime_enso_crosscomplex
+    width_class: T1_seeds + T2_silver + T3_reconcile + T4_dark
+    items:
+      - id: plan_visible_followed
+        ask: >-
+          Does the answer state up front how it broke the question up -- the distinct complexes and legs
+          it set out to settle -- and then visibly address each of the parts it named, with none of them
+          announced and then left unaddressed?
+      - id: angles_covered_or_declared
+        ask: >-
+          Does the answer address EACH of the following, or state explicitly that the record it was
+          shown cannot support that leg: the regime's identification and dating; the sugar balance; the
+          palm and wider vegetable-oil balance; the coffees; the South American grains; the ORDER and
+          LAG across those balances; and managed-money positioning going into past instances?
+      - id: every_number_pinned
+        ask: >-
+          Does every figure in the answer -- levels, tonnages, percentages, index readings, positioning
+          sizes -- carry a citation handle or a named dated source, with no free-floating number and no
+          positioning figure asserted without its report date?
+      - id: disagreement_section
+        ask: >-
+          Does the answer identify at least one place where the sources it cites disagree with each
+          other or point in opposite directions -- for instance one complex the regime is recorded as
+          helping and another it is recorded as hurting, or two sources dating the same episode
+          differently -- and say which reading it takes and why; or state explicitly that the sources it
+          was shown do not disagree?
+      - id: cannot_answer_section
+        ask: >-
+          Does the answer name at least one SPECIFIC thing the question asks for that it could not
+          establish from what it was shown -- naming the leg, not apologising generically -- rather than
+          leaving the gap silent?
+      - id: no_post_asof_material
+        ask: >-
+          Is every dated item the answer relies on dated on or before the stated as-of, with no
+          development, release or price action later than the as-of presented as known?
+    beyond_quick_sources:
+      - key: driver_slice:el_nino
+        width_basis: T1_seeds
+        why: >-
+          the named legs sit on five distinct evidence nodes (raw_sugar, palm_oil, robusta_coffee,
+          soybeans, corn) against a three-seed ceiling, so the per-complex regime rows past the third
+          seed are beyond any single turn's reach
+        markers: [el nino, warm enso, warm phase, enso event]
+      - key: driver_slice:la_nina
+        width_basis: T1_seeds
+        why: the contrast regime the ordering claim is measured against
+        markers: [la nina, cold enso, cold phase]
+      - key: driver_slice:monsoon
+        width_basis: T1_seeds
+        why: monsoon_active / monsoon_weak -- the Indian leg of the sugar and rice balances
+        markers: [monsoon, southwest monsoon, kharif, rabi, monsoon rainfall]
+      - key: driver_slice:vietnam_robusta_weather
+        width_basis: T1_seeds
+        why: Vietnam_drought / Vietnam_irrigation_water_stress -- reachable only on the robusta seed
+        markers: [vietnam drought, central highlands, dak lak, irrigation water, water stress]
+      - key: driver_slice:south_american_safrinha
+        width_basis: T1_seeds
+        why: safrinha / brazil_soybean_supply -- the South American grain leg, another seed again
+        markers: [safrinha, second crop, second corn crop]
+      - key: driver_slice:indonesia_b40_palm
+        width_basis: T1_seeds
+        why: routed by DMO alone, which exists only in the palm contracts -- a further distinct seed
+        markers: [domestic market obligation, b40, b35, indonesian biodiesel]
+      - key: silver:silver_noaa_oni
+        width_basis: T2_silver
+        why: the series that DATES the regime; without it the ordering claim has no spine
+        markers: [oceanic nino index, sst anomaly, enso anomaly, nino 3.4, sea surface temperature]
+      - key: silver:silver_cot
+        width_basis: T2_silver
+        why: >-
+          the positioning leg CANNOT come from prose -- the narrative positioning layer is one prop
+          estate-wide -- so it is either this per-slug series or an honest refusal
+        markers: [managed money, commitments of traders, net long, net short, open interest]
+
+  # -------------------------------------------------------------------------------------------------
+  - id: dr_coststack_gas_to_margin
+    width_class: T2_silver + T3_reconcile + T4_dark
+    items:
+      - id: plan_visible_followed
+        ask: >-
+          Does the answer state up front how it broke the question up -- the links of the stack and the
+          crops it set out to cover -- and then visibly work through each link it named, with no link
+          announced and then skipped?
+      - id: angles_covered_or_declared
+        ask: >-
+          Does the answer address EACH of the following, or state explicitly that the record it was
+          shown cannot support that leg: the energy input; the nitrogen link; the delivered fertilizer
+          bill; cost of production for corn, for wheat and for soybeans SEPARATELY; and the margin
+          against the current board level for each crop?
+      - id: cannot_answer_section
+        ask: >-
+          Does the answer state EXPLICITLY which links of the cost stack it could not put a number on --
+          naming the specific link (for example the energy-to-nitrogen step, or a quotable fertilizer or
+          gas level) rather than apologising generically -- instead of carrying an unquantified
+          pass-through end to end as though it had been measured?
+      - id: every_number_pinned
+        ask: >-
+          Does every figure in the answer -- input costs, cost of production, board levels, margins --
+          carry a citation handle or a named dated source, with no free-floating number and no cost or
+          price level stated without a source?
+      - id: disagreement_section
+        ask: >-
+          Does the answer identify at least one place where the sources it cites disagree -- for
+          instance one row treating higher input costs as supporting price and another as destroying
+          demand, or two sources giving different cost pictures -- and say which reading it takes and
+          why; or state explicitly that the sources it was shown do not disagree?
+      - id: no_post_asof_material
+        ask: >-
+          Is every dated item the answer relies on dated on or before the stated as-of, with no
+          release, price or cost print later than the as-of presented as known?
+    beyond_quick_sources:
+      - key: driver_slice:fertilizer
+        width_basis: T2_silver
+        why: >-
+          5 dag ids (fertilizer_cost, fertilizer_costs, fertilizer_input_cost, fertilizer_input_costs,
+          input_cost_inflation) -- the backed head of the stack, and the only narrative route to it
+        markers: [fertilizer, nitrogen, urea, anhydrous, ammonia, potash, input cost]
+      - key: driver_slice:crude
+        width_basis: T2_silver
+        why: crude_oil / crude_oil_price / crude_oil_input_cost -- the energy leg feeding the nitrogen bill
+        markers: [crude oil, diesel, energy cost, feedstock cost, fuel cost]
+      - key: driver_slice:natural_gas
+        width_basis: T4_dark
+        why: >-
+          routed by ONE dag id that exists only in french_maize_matif, whose evidence node IS corn, so
+          _seed_contracts de-dups it away whenever the corn contract routes first -- structurally out of
+          reach from this question at any width
+        markers: [natural gas, gas price, henry hub, gas feedstock, ttf]
+      - key: silver:silver_pink_sheet
+        width_basis: T4_dark
+        why: >-
+          config_check R4 build-fails any engine ref to a price table, and the router's numbers purpose
+          string never names Pink Sheet fertilizer or energy -- so this family is reachable only by a
+          direct lookup the planner is not told exists (the deferred rider)
+        markers: [pink sheet, world bank commodity, phosphate rock, blended npk, monthly average price]
+      - key: driver_slice:crop_insurance_planting_intentions
+        width_basis: T2_silver
+        why: projected price / price ratio / acreage competition -- the crop-choice leg under the margin
+        markers: [planting intentions, prospective plantings, crop insurance, projected price, price ratio]
+      - key: driver_slice:us_farm_program
+        width_basis: T2_silver
+        why: the program-payment floor under the margin, a further competing driver slot
+        markers: [farm bill, loan rate, arc plc, base acres, program payment, conservation reserve]
+      - key: silver:silver_wasde
+        width_basis: T2_silver
+        why: >-
+          three crops' balance sheets are three of the reads before any fertilizer series; note WASDE
+          carries no avg_farm_price, so the margin's price side must come from elsewhere
+        markers: [wasde, world agricultural supply and demand]
+      - key: silver:silver_futures_eod
+        width_basis: T2_silver
+        why: the board level each crop's margin is struck against, one read per crop
+        markers: [delivery month, settlement price, front month, nearby futures, board price]
+
+  # -------------------------------------------------------------------------------------------------
+  - id: dr_policy_interference_multiorigin
+    width_class: T1_seeds + T3_reconcile + T4_dark
+    items:
+      - id: plan_visible_followed
+        ask: >-
+          Does the answer state up front how it broke the question up -- the origins and the interaction
+          question it set out to settle -- and then visibly address each origin it named, with none
+          announced and then left unaddressed?
+      - id: angles_covered_or_declared
+        ask: >-
+          Does the answer address EACH of the following, or state explicitly that the record it was
+          shown cannot support that leg: the Indian leg on rice; the Indonesian leg on palm; the
+          Argentine leg on the soy complex; the Russian leg on wheat; the interaction between those
+          instruments; and the dated sequence in which past clusters actually landed?
+      - id: every_number_pinned
+        ask: >-
+          Does every policy instrument the answer names carry a DATE and a citation handle -- duty
+          rates, price floors, quota volumes, procurement figures -- with no instrument, rate or volume
+          asserted from prior knowledge with no dated row behind it?
+      - id: disagreement_section
+        ask: >-
+          Does the answer identify at least one place where the sources it cites disagree -- for
+          instance two sources giving different effective dates or scopes for the same measure, or one
+          treating an intervention as binding and another as nominal -- and say which reading it takes
+          and why; or state explicitly that the sources it was shown do not disagree?
+      - id: cannot_answer_section
+        ask: >-
+          Is every origin whose interference the answer cannot date named EXPLICITLY as undated in what
+          it was shown, rather than omitted from the answer or folded into a general remark?
+      - id: no_post_asof_material
+        ask: >-
+          Is every policy measure and every episode the answer relies on dated on or before the stated
+          as-of, with no later measure or development presented as known?
+    beyond_quick_sources:
+      - key: driver_slice:russia_export_tax_quota
+        width_basis: T1_seeds
+        why: >-
+          routed by exactly one dag id (Russia_export_tax) which exists in exactly one contract
+          (french_wheat_matif) -- structurally unreachable while the rice contract holds the only seed
+        markers: [export tax, export duty, floating tax, export quota, damper, indicative price]
+        context_markers: [russia, russian]
+      - key: driver_slice:argentina_export_policy
+        width_basis: T1_seeds
+        why: routed only by Argentina_export_registration / Argentina_export_tax / soy_dollar, soy contracts only
+        markers: [djve, export registration, retention, withholding, soy dollar, export tax]
+        context_markers: [argentin]
+      - key: driver_slice:indonesia_b40_palm
+        width_basis: T1_seeds
+        why: routed by DMO alone, which exists only in the two palm contracts -- another seed entirely
+        markers: [domestic market obligation, b40, b35, indonesian biodiesel, export levy]
+        context_markers: [indonesia, indonesian]
+      - key: driver_slice:msp
+        width_basis: T1_seeds
+        why: India_MSP rides the cotton DAG and MSP the rice DAG -- the support-price leg spans two seeds
+        markers: [minimum support price, procurement price, support price]
+      - key: driver_slice:export_ban
+        width_basis: T3_reconcile
+        why: >-
+          1272 props across 6 dag ids -- the origin-by-origin dated instruments the sequencing claim is
+          built from, which only become a sequence once every origin is separately in hand
+        markers: [export ban, export prohibition, minimum export price, banned exports, suspended exports]
+      - key: driver_slice:tariff
+        width_basis: T3_reconcile
+        why: 10 dag ids -- the importer-side response that closes the interaction loop
+        markers: [import tariff, tariff rate quota, antidumping, section 301, import duty]
+      - key: driver_slice:china_reserve_auctions
+        width_basis: T3_reconcile
+        why: the state-reserve lever, a distinct population competing for the same budget
+        markers: [state reserve, reserve auction, reserve release, reserve sales]
+      - key: node:french_wheat
+        width_basis: T1_seeds
+        why: the second wheat evidence node the Russian population hangs off
+        markers: [matif, french wheat, france wheat, eu wheat, european union wheat, rouen]
+
+  # -------------------------------------------------------------------------------------------------
+  - id: dr_analog_book_by_commodity
+    width_class: T1_seeds + T2_silver + T3_reconcile
+    items:
+      - id: plan_visible_followed
+        ask: >-
+          Does the answer state up front how it broke the question up -- the commodities it will take
+          separately and the comparison it will run afterwards -- and then visibly do both, with no
+          commodity announced and then left unaddressed?
+      - id: angles_covered_or_declared
+        ask: >-
+          Does the answer nominate dated analog years SEPARATELY for corn, for Chicago wheat, for
+          soybeans and for cotton -- or state explicitly for any of them that the record it was shown
+          carries no usable analog -- rather than letting one commodity's analog stand in for the book?
+      - id: disagreement_section
+        ask: >-
+          Does the answer explicitly compare the four sets of nominated years, saying where they
+          converge and where they diverge and what pulls them apart -- or state explicitly that the
+          record it was shown does not let the four be compared?
+      - id: every_number_pinned
+        ask: >-
+          Is every nominated year and every figure used to justify it -- stocks levels, ratios,
+          condition readings, regime index values -- carried on a citation handle, with no year asserted
+          as an analog without a row behind it?
+      - id: cannot_answer_section
+        ask: >-
+          Does the answer say which of the four commodities the record it was shown is thinnest on for
+          this purpose, or otherwise name a specific part of the question it could not establish, rather
+          than presenting all four legs as equally supported?
+      - id: no_post_asof_material
+        ask: >-
+          Is every dated item the answer relies on dated on or before the stated as-of -- including
+          every balance-sheet vintage, condition reading and regime value used to characterise "the
+          current setup" -- with nothing later than the as-of presented as known?
+    beyond_quick_sources:
+      - key: driver_slice:drought
+        width_basis: T1_seeds
+        why: >-
+          9 dag ids across four commodities' DAGs; four distinct evidence nodes must each be seeded for
+          their own dated windows, against a three-seed ceiling
+        markers: [drought, rainfall deficit, dryness, moisture deficit, flash drought]
+      - key: driver_slice:el_nino
+        width_basis: T1_seeds
+        why: the regime axis that dates several candidate analog years
+        markers: [el nino, warm enso, warm phase]
+      - key: driver_slice:la_nina
+        width_basis: T1_seeds
+        why: the contrast regime; a depth-1 driver whose later dated windows are the beyond-reach material
+        markers: [la nina, cold enso, cold phase]
+      - key: driver_slice:us_drought_monitor
+        width_basis: T2_silver
+        why: crop_progress_condition / gdd_accumulation / ndvi_vegetation_health -- the does-it-match leg
+        markers: [crop progress, condition rating, good to excellent, drought monitor, vegetation health]
+      - key: driver_slice:textile_apparel_demand
+        width_basis: T1_seeds
+        why: the cotton-side demand analog, on a node the grain seeds cannot hold
+        markers: [textile, apparel, mill use, yarn, xinjiang]
+      - key: driver_slice:wasde_stocks_to_use
+        width_basis: T2_silver
+        why: the balance-sheet test of whether a nominated year actually resembles the as-of
+        markers: [stocks to use, ending stocks, carryout, carryover]
+      - key: silver:silver_psd
+        width_basis: T2_silver
+        why: the multi-year history each nomination is measured against, one read per commodity
+        markers: [psd, production supply and distribution, world balance sheet]
+      - key: silver:silver_noaa_oni
+        width_basis: T2_silver
+        why: the regime series that dates candidate years independently of the prose
+        markers: [oceanic nino index, sst anomaly, enso anomaly, nino 3.4]
+
+  # -------------------------------------------------------------------------------------------------
+  - id: dr_dispersion_wheat_venues
+    width_class: T1_seeds + T2_silver + T3_reconcile + T4_dark
+    items:
+      - id: plan_visible_followed
+        ask: >-
+          Does the answer state up front how it broke the question up -- the venues it will take one at
+          a time and the attribution step that follows -- and then visibly do both, with no venue
+          announced and then left unaddressed?
+      - id: angles_covered_or_declared
+        ask: >-
+          Does the answer give EACH of the four venues its own supply-and-demand treatment -- spring
+          wheat, hard red winter, soft red winter and EU milling wheat -- or state explicitly for any of
+          them that the record it was shown carries nothing venue-specific, rather than describing two
+          and generalising to the rest?
+      - id: cannot_answer_section
+        ask: >-
+          Does the answer name the venues or the portion of the dispersion it CANNOT separate on
+          anything it can cite -- stating plainly that the record it was shown does not distinguish them
+          -- rather than supplying a differentiator with no row behind it?
+      - id: every_number_pinned
+        ask: >-
+          Does every figure -- balance-sheet lines, board levels, positioning readings, quality or
+          protein measures -- carry a citation handle, with any price figure appearing only as a
+          quotation from a cited row rather than as a number the answer itself mints?
+      - id: disagreement_section
+        ask: >-
+          Does the answer identify at least one place where the sources it cites disagree or point in
+          opposite directions across the venues -- for instance one venue's supply signal contradicting
+          another's, or two sources reading the same export competition differently -- and say which
+          reading it takes and why; or state explicitly that the sources it was shown do not disagree?
+      - id: no_post_asof_material
+        ask: >-
+          Is every dated item the answer relies on dated on or before the stated as-of, with no
+          balance-sheet vintage, positioning report or price observation later than the as-of presented
+          as known?
+    beyond_quick_sources:
+      - key: node:french_wheat
+        width_basis: T1_seeds
+        why: >-
+          four venues resolve to four distinct evidence nodes (srw_wheat, hrw_wheat, hrs_wheat,
+          french_wheat) against a three-seed ceiling, so at least one venue is unseedable in any single
+          turn -- and the EU leg is the one carrying its own policy population
+        markers: [matif, french wheat, euronext, milling wheat, rouen, france wheat]
+      - key: node:hrs_wheat
+        width_basis: T1_seeds
+        why: the spring-wheat venue's own population; the anchor seed's siblings crowd it out otherwise
+        markers: [spring wheat, minneapolis, mgex, prime hard, durum]
+      - key: driver_slice:russia_export_tax_quota
+        width_basis: T1_seeds
+        why: reachable only via the french_wheat seed -- the same structural trap the width deck proved
+        markers: [export tax, export duty, floating tax, export quota, indicative price]
+        context_markers: [russia, russian]
+      - key: driver_slice:black_sea_corridor
+        width_basis: T1_seeds
+        why: the export-competition leg that separates the EU and US venues; 57 props, thin by record
+        markers: [black sea, grain corridor, grain initiative, export competition]
+      - key: driver_slice:polar_vortex_winterkill
+        width_basis: T2_silver
+        why: polar_vortex / protective_snow_cover -- present on the WINTER classes only, a real separator
+        markers: [polar vortex, winterkill, snow cover, protective snow]
+      - key: driver_slice:cereal_rust_complex
+        width_basis: T2_silver
+        why: stem_rust / stripe_rust -- the disease leg that differentiates the classes
+        markers: [stem rust, stripe rust, leaf rust]
+      - key: silver:silver_futures_eod
+        width_basis: T2_silver
+        why: >-
+          per-contract board levels by delivery month, one read per venue -- four of the reads the
+          attribution step needs before any balance-sheet series
+        markers: [delivery month, settlement price, front month, nearby futures, board price]
+      - key: silver:silver_cot
+        width_basis: T2_silver
+        why: >-
+          per-slug positioning, one read per venue; the narrative positioning layer is one prop
+          estate-wide, so this series or an honest refusal are the only two truthful options
+        markers: [managed money, commitments of traders, net long, net short, open interest]

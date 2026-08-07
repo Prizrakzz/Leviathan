@@ -1,0 +1,570 @@
+# D-DR-4 DOSSIER ACCEPTANCE DECK v1 (2026-08-07) -- FIVE HELD-OUT MULTI-ANGLE DESK ASKS.
+#
+# WHY THIS FILE EXISTS. D-DR-4 is the pre-registered judged gate that decides whether the deep-research
+# dossier ships at all: "the dossier must WIN usefulness pairwise on >= 3 of 5 rows with zero PIT
+# violations, or it stays internal." A deck of rows a single turn can already serve cannot decide that
+# -- the same lesson D-DV-0 check 4 taught the width deck (3 width-sensitive rows out of 12 and one
+# realized lift). Every row here is authored so that the ANSWER-BEARING WORK exceeds one turn, not
+# merely one retrieval budget: each needs several distinct evidence seeds, several distinct silver
+# reads, and a reconciliation ACROSS those legs that no single assembled evidence block holds.
+#
+# HELD OUT. No question here duplicates a row of any deck in configs/graphrag (656 questions / 558
+# distinct ids censused at authoring; no id collides -- the `dr_` prefix is unused estate-wide). Topic
+# ADJACENCY is unavoidable in a 656-row corpus and is disclosed per row under "NEIGHBOURS" rather than
+# denied; in every case the distinguishing axis is named.
+#
+# ---------------------------------------------------------------------------------------------------
+# THE NO-TAUTOLOGY LAW, EXTENDED TO THE HONESTY GATES -- read this before adding a row.
+#
+# The contracts deck banned questions that demand their own shape. This deck extends that ban to the
+# six graded elements: NO row asks for a plan, for a disagreement section, for a limits section, for
+# pinned numbers, or for point-in-time discipline BY NAME. A dossier that produces them does so because
+# the document-scale composition contract made it, which is exactly the thing under test. An earlier
+# draft of row (b) ended "...and I want to be told plainly about the links you cannot put a number on";
+# that sentence would have made the row's most important checklist item near-tautological and was cut.
+# If a future editor adds such a clause, the corresponding item stops measuring the contract.
+#
+# ---------------------------------------------------------------------------------------------------
+# WHAT "DOSSIER-SHAPED" MEANS HERE -- ARITHMETIC, NOT TASTE. Same discipline as the width deck, one
+# ceiling higher. From reasoning_modes.MODES:
+#     quick    node_budget 6   max_seeds 1   k_by_depth (4,2)   evidence_cap 12   silver_cap 4
+#     deep     (the width-capable preset the D-CC-3 B arm ran)  max_seeds 3
+# A row qualifies only if its answer-bearing work PROVABLY exceeds a ceiling that NO single turn has:
+#   (T1) SEED COUNT      -- the legs live behind >= 4 DISTINCT evidence nodes (evidence.node_for), so
+#                           even 3 seeds cannot hold them; only separate turns can.
+#   (T2) SILVER COUNT    -- the honest answer needs more distinct silver reads than any one turn's
+#                           silver budget (4 quick / 8 wide), counting per-contract reads separately.
+#   (T3) RECONCILIATION  -- the deliverable is a comparison ACROSS the legs (ordering, sequence, analog
+#                           agreement, dispersion) that only exists once every leg is separately
+#                           answered; a single turn can retrieve breadth but has no second pass in
+#                           which to reconcile it.
+#   (T4) DECLARED DARKNESS -- a named leg of the question is DARK in the driver layer (unbacked dag id
+#                           or orphan slice), so the honest deliverable includes an evidentiary refusal
+#                           that a single turn has no room to make without spending its whole budget.
+# Each row records its classes in `turn_class` and its floor in `turn_floor`.
+#
+# ---------------------------------------------------------------------------------------------------
+# SCHEMA. eval.py consumes exactly q["contract"] (routed_right), q["question"], q.get("asof") (PIT),
+# q.get("id"), q.get("category") (census only), q.get("expect") (rubric) -- identical to
+# eval_queries_contracts_ab_v1.yaml. `angles_expected`, `sources`, `prereg`, `turn_class`, `turn_floor`
+# are AUTHOR fields; eval.py never reads them, exactly as `rc_expected` is author-only on the contracts
+# deck and `width_class` is on the width deck. `rc_expected` is deliberately ABSENT: a dossier's shape
+# is decided by the dossier contract at synthesis, not by the per-turn selector, so recording a
+# per-turn selector expectation here would be a category error. `expected_intent` is absent for the
+# same reason the width deck omits it (guessing the router lane mints false intent_ok failures).
+#
+# `angles_expected` IS THE PRE-REGISTERED ANGLE LIST and it is load-bearing: checklist item
+# `angles_covered_or_declared` in eval_checklists_dossier_v1.yaml grades against THIS list, and it was
+# frozen with this file. It is NOT a plan: it never says how many sub-queries to run, and an answer
+# that covers an angle inside another section passes.
+#
+# `expect.drivers` IS OBSERVATIONAL, NEVER A GATE -- a plain substring list scored by eval.score() into
+# `drivers_hit n/m` after extract._normalize (NFKD -> ascii -> lower). Used on the three rows where
+# breadth has crisp semantics (origins named, years named, venues named), because that count IS the
+# dossier hypothesis stated deterministically. It decides nothing.
+#
+# ---------------------------------------------------------------------------------------------------
+# AS-OF POLICY, AND ONE DELIBERATE DEVIATION FROM THE WIDTH DECK. Four rows carry the authoring date.
+# Row (d) carries a BACK-DATED as-of (2026-03-31). Reason: D-DR-4's deterministic gate is "zero PIT
+# violations", and on a deck where every as-of is today that gate is vacuous -- there is no post-as-of
+# material for a leak to consist of. One back-dated row gives the gate teeth against a store whose
+# monthly balance-sheet vintages (silver_wasde, silver_psd) advance several releases between March and
+# August, while both arms read the SAME as-of so the comparison stays symmetric. PROVISIONAL: that
+# post-as-of material actually EXISTS in the store for that window was NOT confirmed offline (see
+# PROVISIONAL FLAGS below); if it does not, the row's PIT item degrades to the same vacuity as the
+# other four rather than misreporting anything.
+#
+# ---------------------------------------------------------------------------------------------------
+# OFFLINE ANSWERABILITY VALIDATION (no live retrieval, no API, no DB). Every named source was checked
+# against, in order of authority: (1) configs/graphrag/causal/*.yaml -- the dag id actually exists in
+# the named contract's DAG and in which OTHER contracts it exists (seed reachability); (2)
+# configs/graphrag/eval/e1_census.md -- the dag id is BACKED, which slice it aliases to, and that
+# slice's prop count; (3) configs/graphrag/eval/coverage_node_source.md -- the commodity node's
+# prop/doc/source census; (4) configs/graphrag/commodity_hierarchy.yaml -- contract -> evidence node,
+# which is what decides how many DISTINCT seeds a row needs; (5) configs/graphrag/tables.yaml -- the
+# silver series exists, its metrics, and its declared coverage limits; (6) the local mirrors under
+# configs/graphrag/evidence/*.jsonl for sample props.
+#
+# CAVEAT, STATED ONCE. (2) and (3) are SNAPSHOTS of the 1285-doc chunk cache; the local commodity
+# mirrors are older and thinner than the S3 store (corpus 39.9% chunked); and configs/graphrag/evidence/
+# carries NO drivers/ subdirectory at all locally, so EVERY driver_slice claim in this file rests on
+# the e1 census, never on a local read. Prop counts are lower bounds and local ABSENCE is never
+# evidence of absence in the store.
+#
+# DARK / UNREACHABLE MATERIAL DELIBERATELY BUILT INTO ROWS (verified at authoring, all from e1_census.md
+# and the DAG scan -- these are the T4 legs, and the "what the record cannot answer" items grade on them):
+#   * POSITIONING NARRATIVE IS EFFECTIVELY DEAD ESTATE-WIDE. cftc_positioning = 1 prop across its four
+#     dag ids (cot_mm_positioning, cot_positioning, spec_positioning, speculative_positioning);
+#     managed_money_positioning = 0 props; index_roll_flows = 0 props. Any positioning leg must come
+#     from the silver_cot numbers series or be declared. (rows a, e)
+#   * IOD_positive and IOD_negative are UNBACKED dag ids and indian_ocean_dipole is an ORPHAN slice
+#     (0 dag ids, 4 props) -- so palm's Indian-Ocean leg of an ENSO question is dark. (row a)
+#   * Thailand_production, India_ethanol_diversion, Vietnam_export_tax_policy, Algeria_tender_specs,
+#     buffer_stock_release, export_pace_lag, us_export_pace, export_pace are UNBACKED. (rows a, c, e)
+#   * There is NO Australia-wheat dag id anywhere: australia_crop_conditions (253 props) is routed only
+#     by australia_canola_supply / australia_rapeseed_supply / crop_condition, i.e. the canola-rapeseed
+#     contracts. The canonical "El Nino cuts the Australian wheat crop" leg has no driver route. (row a)
+#   * urea (165 props), dap (88), potash (113), global_rice_export_policy (292), sunflower_oil_balance
+#     (1133) are ORPHAN slices -- props exist, NO dag id routes to them. (rows b, c)
+#   * natural_gas (425 props) is routed by exactly one dag id, `natural_gas`, which exists in exactly
+#     one contract, french_maize_matif -- whose evidence node IS `corn`, so planner._seed_contracts
+#     de-dups it away whenever corn_cbot routes first. Gas-specific narrative is structurally hard to
+#     reach from a corn question at any width. (row b)
+#   * `pink_sheet_input_costs` is a silver_ref on the input-cost nodes of 31 DAGs, and config_check R4
+#     (the check at config_check.py:1064-1065 over PRICE_TABLES = ("silver_pink_sheet",),
+#     config_check.py:29) BUILD-FAILS any engine ref to a price table -- so the cascade can never
+#     quantify an input-cost leg. Separately, the router's numbers ToolSpec.purpose
+#     (dispatch.py:60-64, the exact rider the plan records) never names Pink Sheet fertilizer/energy, so the
+#     planner is not told the numbers agent can read urea / DAP / potash / phosphate rock / natgas /
+#     Brent at all; that one-sentence fix is a RECORDED RIDER deliberately deferred outside this
+#     measurement window (DEEP_V2_WAVE_PLAN.md:229-237). Row (b) is authored to be answerable WITHOUT
+#     it, and its limits item grades exactly this. (row b)
+#   * silver_wasde exposes ending_stocks / production / exports / imports / domestic_total /
+#     beginning_stocks ONLY -- there is NO wheat-by-class attribute and avg_farm_price is LABEL-DEAD
+#     (last release_date 2011-08-11, deliberately not whitelisted). The US wheat class split cannot be
+#     quantified from WASDE. (row e)
+#   * silver_pink_sheet carries NO corn, coffee, cotton, rice or cocoa price column, is LATEST-ONLY
+#     with no true as-of replay, and stamps "as published, WB release <latest_release_ym>". (rows a, b)
+#   * silver_cot is MANAGED-MONEY ONLY, keyed by CONTRACT slug (a bare base name matches zero rows), 12
+#     slugs from 2006 with the wheat series starting ~2014 and FCOJ absent, and was ~6 weeks stale at
+#     the 2026-07-18 census. Positioning is HISTORICAL CONTEXT ONLY -- levels and z, past tense, never
+#     a forecast or a fork. (rows a, e)
+#   * kc_chi_spread, protein_premium, tenderable_collapse, abandonment, vernalization_failure and
+#     calendar_spread are ALL UNBACKED, and basis_and_farmer_selling carries 13 props. The entire
+#     class-spread driver layer for wheat is dark. (row e)
+#
+# ---------------------------------------------------------------------------------------------------
+# PROVISIONAL AT AUTHORING (declared here so the pre-registration is honest, not patched later):
+#   P1. dr_regime_enso_crosscomplex -- el_nino (429 props) / la_nina (176) / monsoon (646) are BACKED in
+#       the census, but the local raw_sugar, soybeans and palm_oil mirrors return ZERO hits for "el
+#       nino", "la nina", "monsoon", "dipole", "dmo", "b40" and "levy". Driver props do not live in the
+#       commodity mirrors and configs/graphrag/evidence/drivers does not exist locally, so this is
+#       expected and is NOT evidence of absence -- but the number of DATED ENSO episodes actually
+#       retrievable per commodity was NOT confirmed offline. If fewer than ~3 dated episodes surface
+#       per commodity in both arms, the row measures ordering and honesty only, not episode breadth.
+#   P2. dr_coststack_gas_to_margin -- the local corn mirror carries 5 "fertilizer" props (incl. a 2022
+#       Mexico input-cost row) and ZERO "nitrogen", "natural gas", "anhydrous" or "cost of production"
+#       props; its single "urea" hit is a false positive ("Census Bureau"). The narrative cost-stack
+#       legs therefore rest entirely on the census counts for fertilizer (1421) and crude (1922). If
+#       the gas->nitrogen link returns nothing in BOTH arms, the row still measures the limits item
+#       (which is its point) but stops measuring stack completeness.
+#   P3. dr_analog_book_by_commodity -- whether the store actually holds material dated between the
+#       back-dated as-of (2026-03-31) and today is UNCONFIRMED offline; silver_cot was ~6 weeks stale
+#       at the 2026-07-18 census, which is the only ingest-currency datum available here. If nothing
+#       post-as-of exists, the PIT item cannot fire for either arm; report that as instrument-vacuous,
+#       never as a pass.
+#   P4. dr_analog_book_by_commodity -- black_sea_corridor is 57 props, thin for a 2022-analog leg. The
+#       row does not name 2022 and `expect.drivers` counts years REALIZED, so thinness costs coverage,
+#       not correctness.
+#   P5. dr_dispersion_wheat_venues -- srw_wheat / hrw_wheat / hrs_wheat / french_wheat carry 23004 /
+#       23005 / 23005 / 23004 props over 685 docs with IDENTICAL top-source mixes: they are very
+#       nearly the SAME evidence population routed to four node ids. The row's T1 claim is therefore
+#       about SEEDS (four distinct node ids must each be seeded for their per-node reads) and NOT about
+#       four distinct corpora, and its real separation power sits in the per-contract numbers legs and
+#       in the declared darkness. Recorded so nobody re-derives it as a defect.
+#   P6. Whether silver_futures_eod and silver_cot actually cover MGEX and Euronext milling wheat at the
+#       required grain was NOT confirmed offline (silver_cot's own note says 12 slugs with wheat from
+#       ~2014; MATIF SETTL. semantics are an open D-PR-24 question). Row (e)'s numbers legs are
+#       therefore PROVISIONAL and its limits item is written so that "the record cannot separate them
+#       on a citable series" is a PASSING answer.
+#
+# ---------------------------------------------------------------------------------------------------
+# OFFLINE SELECTOR AUDIT, RECORDED NOT TUNED. The real tier-1 selector was run over these five
+# questions at authoring time (intent.select_response_contract / select_response_contract_all, pure
+# regex, no API, no DB):
+#     dr_regime_enso_crosscomplex          -> None (default)
+#     dr_coststack_gas_to_margin           -> None (default)
+#     dr_policy_interference_multiorigin   -> enumeration   (also matched: recency)
+#     dr_analog_book_by_commodity          -> None (default)
+#     dr_dispersion_wheat_venues           -> enumeration
+# Three of five select `default` -- an EMPTY per-turn directive on the single-turn baseline arm, which
+# is correct and expected: per the D-CC-3 R1 consequence the composition census never ships to quick
+# width anyway, and a dossier's shape comes from the document-scale contract at synthesis, not from
+# the per-turn selector. This is recorded for the orchestrator's information ONLY. The deck must never
+# be tuned against the selector -- that is the no-tautology law the contracts deck was built on.
+#
+# VALIDATION RUN AT AUTHORING (offline, zero spend, all green):
+#   * eval.load_queries(this file) -> 5 rows, ids unique, eval_set 'eval_dossier_v1' (file stem).
+#   * all five `contract` values resolve in CausalGraph.load() and map through evidence.node_for to
+#     raw_sugar / corn / rice / corn / hrs_wheat.
+#   * pairwise_judge.validate_checklists(eval_checklists_dossier_v1.yaml, these rows) -> 0 errors,
+#     0 warnings; 5 rows / 30 items / 40 beyond-single-turn source entries.
+#   * pairwise_judge --dry-run over synthetic baselines -> plan built for all 5 rows, 6 items and 8
+#     documented sources each, presentation order split 3 A-first / 2 B-first, est ~$0.14 of judging.
+#   * both files are pure ASCII (cp1252 console law).
+#
+# ---------------------------------------------------------------------------------------------------
+# INVOCATION. There is NO eval_set registry -- eval.py:2682 derives eval_set from the FILE STEM, so
+# this file's name IS the eval_set: `eval_dossier_v1`. Baselines land as
+# baseline_eval_dossier_v1_<provider>_<ts>.json.
+#
+# THE PRE-REGISTERED SINGLE-TURN BASELINE ARM (D-DR-4 reads "the best single-turn answer (deep-v3 if
+# minted, else quick)"; the D-CC-3 verdict of 2026-08-07 did NOT mint deep-v3, so the baseline is
+# quick, and per R1's binding consequence the composition census must be OFF at quick width):
+#
+#   GRAPHRAG_COMPOSITION_CENSUS=off  GRAPHRAG_DRAFT_BODY_AUDIT=on  GRAPHRAG_MODES=quick \
+#   python -m leviathan.graphrag.eval --run --judge --via-orchestrator --workers 4 \
+#     --queries configs/graphrag/eval_dossier_v1.yaml --mode quick
+#
+# GRAPHRAG_DRAFT_BODY_AUDIT=on is not optional: pairwise_judge's fidelity ladder needs a byte-exact
+# recovery of out['answer'] (render_answer_for_judge rungs 1-3), and both arms must run it or the
+# pairwise read compares an exact body against a proxy.
+#
+# OPTIONAL REFERENCE ARM, orchestrator's call, NOT pre-registered as the gate's baseline: the same
+# command with `--mode deep` and GRAPHRAG_COMPOSITION_CENSUS=on reproduces the D-CC-3 B configuration
+# (deep + contracts), which the record shows was pairwise-dominant on usefulness 13-2 and is the
+# amended design's PROVISIONAL width engine for width-hungry sub-queries. Running it costs a third arm
+# and does not change the gate; recorded so the choice is deliberate either way.
+#
+# PAIRWISE READ (the D-CC-2 instrument; 3-6 items per row is enforced by
+# pairwise_judge.validate_checklists:379):
+#   python -m leviathan.graphrag.pairwise_judge \
+#     --a <baseline_single_turn.json> --b <baseline_dossier.json> \
+#     --queries configs/graphrag/eval_dossier_v1.yaml \
+#     --checklists configs/graphrag/eval_checklists_dossier_v1.yaml \
+#     --a-report <report_single_turn.md> --b-report <report_dossier.md> \
+#     --out <report stem>            # add --dry-run first: per-row plan, zero API calls, zero spend
+#
+# Read on THESE rows: pairwise usefulness (the gate: dossier wins >= 3 of 5, non-tie), checklist
+# pass-rate, strips-per-handle (never raw strip rate -- covenant amendment 3), zero spine violations,
+# and the cost/latency envelope ($1-2 and 5-20 min per dossier).
+queries:
+
+  # ---------------------------------------------------------------------------------------------
+  # (a) REGIME CONVERGENCE -- one weather regime, four complexes, an ORDERING deliverable, and a
+  # positioning leg the narrative layer cannot serve. The El-Nino-convergence-class row D-DR-4 names.
+  #
+  # WHY A DOSSIER AND NOT A TURN. T1: El_Nino / El_Nino (accented) is a dag id in raw_sugar,
+  # robusta_coffee, corn_cbot, soybeans_cbot, soybean_oil_cbot, soybean_meal_cbot, white_sugar and the
+  # maize contracts, and IOD_negative/IOD_positive carry the palm side -- the named legs sit on
+  # raw_sugar, robusta_coffee, palm_oil, soybeans and corn, FIVE distinct evidence nodes against a
+  # 3-seed ceiling. T2: the honest answer reads silver_noaa_oni (which dates the regime), silver_psd
+  # and silver_wasde per complex, and silver_cot per contract slug -- past four before the second
+  # commodity. T3: the deliverable is an ORDER and a LAG across complexes, which exists only after each
+  # complex is answered separately. T4: the palm leg's Indian-Ocean drivers are unbacked, the
+  # Australian-wheat leg has no dag id at all, and the positioning narrative layer is 1 prop.
+  #
+  # NEIGHBOURS (disclosed): ab_amb_elnino (contracts deck, raw_sugar) is a deliberately VAGUE one-line
+  # fail-open row ("how worried should I be ... for my softs book"); enso_1997_analog (v2/v3) is a
+  # RETROSPECTIVE on a named historical event; sy_cf_07 is a counterfactual; sy_cmp_10 and sy_enum_03
+  # are single-commodity sugar rows; enso_blacksea_wheat stacks TWO named shocks on wheat. None asks
+  # for an ordering across complexes with a lag and a positioning leg.
+  - id: dr_regime_enso_crosscomplex
+    contract: raw_sugar
+    category: dr_regime_convergence
+    asof: '2026-08-07'
+    turn_class: T1_seeds + T2_silver + T3_reconcile + T4_dark
+    turn_floor: ">=5 distinct evidence nodes and >=6 silver reads; the ordering leg exists only across them"
+    angles_expected:
+      - regime identification and dating at the as-of (is it actually the named regime, on which series)
+      - sugar balance (Indian and Thai cane, the monsoon leg, the ethanol diversion leg)
+      - palm and the wider vegoil balance (Southeast Asian dryness and its lag)
+      - the coffees (Vietnam robusta water stress; the Brazilian arabica leg)
+      - South American grains (Argentina and the Brazilian safrinha)
+      - the ORDER and LAG in which those balances have historically moved
+      - managed-money positioning going into past instances, past tense, levels and z only
+      - which named legs the record cannot support
+    sources:
+      - driver_slice:el_nino                     # 429 props; dag ids El_Nino + the accented twin
+      - driver_slice:la_nina                     # 176 props; the contrast regime
+      - driver_slice:monsoon                     # 646 props; monsoon_active + monsoon_weak (raw_sugar, rice, palm)
+      - driver_slice:vietnam_robusta_weather     # 442 props; Vietnam_drought + Vietnam_irrigation_water_stress
+      - driver_slice:south_american_safrinha     # 1795 props; safrinha / brazil_soybean_supply
+      - driver_slice:drought                     # 2370 props across 9 dag ids -- the did-it-bite leg
+      - driver_slice:indonesia_b40_palm          # 86 props; routed by DMO only, palm contracts only
+      - driver_slice:sugar_ethanol_parity        # 8 props -- THIN, named so the thinness is on the record
+      - silver:silver_noaa_oni                   # the ONI series that dates the regime
+      - silver:silver_psd                        # per-complex world balance sheets
+      - silver:silver_cot                        # managed-money positioning, per CONTRACT slug
+      - node:raw_sugar                           # 538 props / 50 docs / 3 sources -- thin, deliberately
+      - node:palm_oil                            # 4219 props / 236 docs / 14 sources
+      - node:robusta_coffee                      # 1221 props / 74 docs / 6 sources
+      - node:soybeans                            # 23440 props / 704 docs / 19 sources
+    prereg: >-
+      A dossier-shaped answer takes the complexes ONE AT A TIME, each with its own dated evidence, then
+      states an ORDER and a LAG across them and says what that ordering rests on. It reads positioning
+      off the managed-money series in past tense with its report date, or says plainly that the record
+      it holds carries no positioning rows -- and it does NOT narrate positioning from prose, because
+      the narrative positioning layer is one prop estate-wide. It declares the legs it cannot serve:
+      the Indian-Ocean drivers behind the palm leg are unbacked, and there is no Australian-wheat
+      driver anywhere in the DAG. A single turn is expected to cover two complexes, generalise the
+      rest, and either omit positioning or assert it unbacked -- the pre-registered failure.
+    question: "There is an El Nino building again. Across sugar, palm, the coffees and the South American grains, I need to know which balance sheets this regime has actually moved on the record, in what order and with what lag, which of them it has never reliably moved, and where funds were already sitting when past ones landed."
+
+  # ---------------------------------------------------------------------------------------------
+  # (b) COST STACK -- gas into nitrogen into the fertilizer bill into per-crop margins. The row D-DR-4
+  # names, authored to ride the Pink Sheet riders' limits HONESTLY rather than to pretend they are gone.
+  #
+  # THE KNOWN LIMITS, AND WHY THE ROW IS STILL ANSWERABLE. The quantified half of this stack is fenced
+  # three separate ways: (i) config_check R4 build-fails any engine ref to silver_pink_sheet, and
+  # `pink_sheet_input_costs` is precisely the silver_ref sitting on the input-cost nodes of 31 DAGs, so
+  # the cascade can NEVER quantify this leg; (ii) the router's numbers ToolSpec.purpose never names
+  # Pink Sheet fertilizer or energy, so the planner is not told a urea / DAP / potash / natgas / Brent
+  # lookup is even available -- the deferred one-sentence rider; (iii) the gas-specific narrative
+  # population is structurally out of reach from a corn question (natural_gas routes only via
+  # french_maize_matif, whose evidence node IS corn, so _seed_contracts de-dups it), and urea / dap /
+  # potash are ORPHAN slices with no dag id at all. What REMAINS, and what the row is built on: the
+  # fertilizer slice (1421 props; fertilizer_cost, fertilizer_costs, fertilizer_input_cost,
+  # fertilizer_input_costs, input_cost_inflation), the crude slice (1922 props; crude_oil,
+  # crude_oil_price, crude_oil_input_cost), the acreage-response and program-floor slices, and DIRECT
+  # numbers lookups on the balance-sheet and futures series for the margin end of the stack.
+  #
+  # WHY A DOSSIER AND NOT A TURN. T1: the three crops are corn, srw_wheat/hrw_wheat and soybeans --
+  # three-to-four distinct evidence nodes for the per-crop margin legs. T2: cost of production and
+  # board level for three crops is >= 6 silver reads before any fertilizer series. T3: the deliverable
+  # is a STACK -- each link conditioned on the one above it -- which only holds once each link is
+  # separately established. T4: the top two links of the stack are the fenced ones above, so the honest
+  # deliverable contains a specific, sourced statement of what cannot be quantified and why.
+  #
+  # NEIGHBOURS (disclosed): j30_price_fert_context asks for the urea and DAP MOVE and its meaning for
+  # corn economics (a numbers ask, one crop); copper_gas_fertilizer_corn asks whether the gas-to-corn
+  # TRANSMISSION fires (one mechanism); fert_costpush_or_demand asks which DIRECTION nets out;
+  # dv_chain_nitrogen_acres (width deck) ends at ACRES in the southern Plains, not at margins, and
+  # anchors hrw. None rebuilds the stack link by link across three crops to a margin.
+  - id: dr_coststack_gas_to_margin
+    contract: corn_cbot
+    category: dr_cost_stack
+    asof: '2026-08-07'
+    turn_class: T2_silver + T3_reconcile + T4_dark
+    turn_floor: ">=6 silver reads for three crops' cost and board legs; 2 of the 4 stack links are fenced"
+    angles_expected:
+      - the energy link (gas and crude as the input to nitrogen manufacture)
+      - the nitrogen link (what the record says about nitrogen and urea cost behaviour)
+      - the delivered fertilizer bill as it reaches the grower
+      - per-crop cost of production for corn, for wheat and for soybeans, and why the three differ
+      - the margin against the current board level for each crop
+      - which links of the stack carry a citable number and which do not
+    sources:
+      - driver_slice:fertilizer                  # 1421 props, 5 dag ids -- the backed head of the stack
+      - driver_slice:crude                       # 1922 props, 3 dag ids -- the energy leg
+      - driver_slice:natural_gas                 # 425 props, ONE dag id, french_maize_matif only (see above)
+      - driver_slice:crop_insurance_planting_intentions  # 289 props; projected price / price ratio
+      - driver_slice:us_farm_program             # 430 props; the program floor under the margin
+      - driver_slice:wasde_stocks_to_use         # 4000 props; the balance-sheet side of the margin
+      - driver_slice:us_ethanol_rfs              # 543 props; the corn demand leg that sets the board
+      - silver:silver_wasde                      # per-crop balance sheet; NO avg_farm_price (label-dead)
+      - silver:silver_psd                        # the multi-year comparison
+      - silver:silver_futures_eod                # the board level the margin is struck against
+      - silver:silver_pink_sheet                 # urea / DAP / potash / natgas / Brent -- FENCED, see above
+      - node:corn                                # 15241 props / 717 docs / 16 sources
+      - node:srw_wheat                           # 23004 props / 685 docs / 15 sources
+      - node:soybeans                            # 23440 props / 704 docs / 19 sources
+    prereg: >-
+      A dossier-shaped answer walks the stack link by link, gives each crop its own cost and margin
+      lines from crop-side rows rather than generalising corn to all three, and states EXPLICITLY which
+      links it could not put a number on -- naming the link, not apologising generically. Because the
+      fertilizer and energy PRICE series sit behind a fence the engine cannot cross and the router is
+      not told about, a truthful "the record I hold carries the direction of the fertilizer bill but no
+      quotable urea or gas level" is a PASSING answer and an invented one is the failure. A single turn
+      is expected to assert an unquantified pass-through end to end, or to deliver the corn leg and
+      generalise wheat and soybeans off it.
+    question: "Rebuild the input cost stack for me from the gas price down to what a grower actually clears this season -- gas into nitrogen, nitrogen into the delivered fertilizer bill, the bill into cost of production for corn, for wheat and for beans, and that against where the board sits now. Corn is the one I care about most; the other two are the comparison."
+
+  # ---------------------------------------------------------------------------------------------
+  # (c) CROSS-ORIGIN POLICY INTERFERENCE -- the Russia-tax lesson generalised across commodities.
+  #
+  # THE LESSON THIS ROW CARRIES FORWARD. The width deck proved that russia_export_tax_quota (363 props)
+  # is routed by exactly ONE dag id, `Russia_export_tax`, which exists in exactly ONE contract,
+  # french_wheat_matif -- structurally unreachable while only one evidence node is seeded. This row is
+  # the same trap FOUR TIMES OVER, and that is the whole design: argentina_export_policy (580 props) is
+  # routed only by Argentina_export_registration / Argentina_export_tax / soy_dollar, which live only
+  # in the soy contracts; indonesia_b40_palm (86 props) is routed only by DMO, which lives only in
+  # malaysian_crude_palm_oil_cme and palm_olein_dce; msp (1220 props) rides India_MSP (cotton) and MSP
+  # (rice); Russia's population needs the french_wheat seed. Answering the question the desk actually
+  # asked therefore requires FIVE distinct evidence nodes (rice, palm_oil, soybeans, french_wheat,
+  # cotton) against a 3-seed ceiling -- and a dossier gets one seed per sub-query for free.
+  #
+  # WHY A DOSSIER AND NOT A TURN. T1 as above. T3: the deliverable is which interventions FEED EACH
+  # OTHER and in what SEQUENCE -- a cross-leg reconciliation that does not exist until each origin's
+  # dated instruments are separately in hand. T4: global_rice_export_policy (292 props) is an ORPHAN
+  # slice with no dag id, so India's rice-specific policy population is not DAG-routable and must come
+  # through the export_ban aliases (India_export_ban, minimum_export_price, export_tax) and the rice
+  # node; Vietnam_export_tax_policy and buffer_stock_release are unbacked.
+  #
+  # LOCAL MIRROR EVIDENCE (rice.jsonl, 216 rows): "India implemented an export ban of non-basmati rice
+  # in 2023" [2023-01-01]; "India imposed minimum export price restrictions on basmati rice as of
+  # August 25, 2023" [2023-11-08]; "India imposed a 20 percent export duty on parboiled non-basmati
+  # rice (HS 1006.30.10) on August 25, 2023" [2023-11-08]; six MSP procurement rows. The dated
+  # instruments this row asks for demonstrably exist for at least the India leg.
+  #
+  # NEIGHBOURS (disclosed): dv_xorigin_wheat_policy (width deck) ranks WHEAT exporters by interference
+  # odds -- one commodity, no interaction leg; ab_cf_india_rice is a single counterfactual;
+  # j30_multi_rice_india is India's rice stance alone; sy_enum_11 / sy_ver_09 are Indian sugar policy;
+  # sy_cmp_09 contrasts two governments on ONE commodity. No row asks which simultaneous interventions
+  # across DIFFERENT crops feed each other.
+  - id: dr_policy_interference_multiorigin
+    contract: rough_rice_cbot
+    category: dr_policy_interference
+    asof: '2026-08-07'
+    turn_class: T1_seeds + T3_reconcile + T4_dark
+    turn_floor: ">=5 distinct evidence nodes, one per origin population, against a 3-seed ceiling"
+    angles_expected:
+      - the Indian leg on rice (ban, minimum export price, export duty, procurement and support price)
+      - the Indonesian leg on palm (domestic obligation, levy, export restriction)
+      - the Argentine leg on the soy complex (export tax, export registration)
+      - the Russian leg on wheat (export tax, quota)
+      - the interaction mechanism -- which of these instruments has historically triggered or amplified another
+      - the dated sequence in which past clusters of interventions actually landed
+      - which origin's hand has mattered most for rice specifically, and on what evidence
+      - which origins' interference the record cannot date
+    sources:
+      - driver_slice:export_ban                  # 1272 props, 6 dag ids incl. India_export_ban / minimum_export_price / export_tax
+      - driver_slice:russia_export_tax_quota     # 363 props; ONE dag id, french_wheat_matif only
+      - driver_slice:argentina_export_policy     # 580 props; soy contracts only (soy_dollar rides here)
+      - driver_slice:indonesia_b40_palm          # 86 props; DMO only, palm contracts only
+      - driver_slice:msp                         # 1220 props; India_MSP (cotton) + MSP (rice) + China_min_purchase_price
+      - driver_slice:tariff                      # 4000 props, 10 dag ids -- the importer-side response
+      - driver_slice:china_reserve_auctions       # 188 props; the state-reserve lever
+      - driver_slice:sanctions_payment_rails     # 217 props; the settlement leg on the Russian side
+      - node:rice                                # 14606 props / 572 docs / 16 sources
+      - node:palm_oil                            # 4219 props / 236 docs / 14 sources
+      - node:soybeans                            # 23440 props / 704 docs / 19 sources
+      - node:french_wheat                        # the second wheat seed the Russian population hangs off
+      - node:cotton                              # 9366 props / 541 docs / 17 sources -- the MSP leg
+    prereg: >-
+      A dossier-shaped answer gives each origin its own section with DATED instruments carrying their
+      own handles, then reconciles them: which instrument has historically followed which, and what
+      that sequence did to rice. It names the origins whose interference it cannot date rather than
+      dropping them, and it does not carry an export-registration or domestic-obligation claim from
+      prior knowledge with no dated row behind it. A single turn, holding one evidence node, is
+      expected to serve the India leg well, gesture at one other origin, and carry the Russian and
+      Argentine legs from generic prose -- the structurally predicted failure.
+    expect:
+      needs_evidence: true
+      drivers: [India, Indonesia, Argentina, Russia]
+    question: "Half the governments in the trade seem to be leaning on their own exports at once right now -- Delhi on rice, Jakarta on palm, Buenos Aires on the soy complex, Moscow on wheat. I trade rice but I get carried by all of it. Which of these interventions actually feed each other, in what sequence has that happened before, and whose hand is the one that has historically mattered most for what rice does?"
+
+  # ---------------------------------------------------------------------------------------------
+  # (d) EPISODE ANALOG, PER COMMODITY, WITH A CROSS-COMMODITY RECONCILIATION -- and the deck's one
+  # BACK-DATED as-of, so the PIT gate has something to bite on.
+  #
+  # WHY A DOSSIER AND NOT A TURN. T1: corn, srw_wheat, soybeans and cotton are four distinct evidence
+  # nodes against a 3-seed ceiling. T3: the deliverable is whether the four analog picks AGREE -- a
+  # comparison that cannot be formed until each commodity's analog set is separately established, and
+  # the reason a single wide turn cannot serve it even if it retrieves all four populations. T2: each
+  # commodity's "does the current setup match" leg needs its own balance-sheet read plus the regime
+  # series, past four before the third commodity.
+  #
+  # NEIGHBOURS (disclosed): dv_episode_lanina_arg (width deck) is ONE commodity, ONE regime, ONE
+  # country; positioning_corn_analogue compares today's COT with a NAMED year; enso_1997_analog is a
+  # retrospective on a named event. None asks four commodities to nominate their own analog years and
+  # then asks whether the nominations agree.
+  #
+  # AS-OF. Back-dated on purpose (see AS-OF POLICY above). "The current setup" means the setup as it
+  # stood at 2026-03-31; anything dated after it is a PIT violation for both arms alike.
+  - id: dr_analog_book_by_commodity
+    contract: corn_cbot
+    category: dr_episode_analog_book
+    asof: '2026-03-31'
+    turn_class: T1_seeds + T2_silver + T3_reconcile
+    turn_floor: ">=4 distinct evidence nodes each nominating its own dated years, then one agreement pass"
+    angles_expected:
+      - corn -- which past marketing years the setup at the as-of resembles, each with its year
+      - Chicago wheat -- the same, on its own evidence
+      - soybeans -- the same, on its own evidence
+      - cotton -- the same, on its own evidence
+      - whether the four nominations converge on the same years or diverge
+      - what drives them apart where they diverge (which factor is commodity-specific)
+      - which commodity's analog the record is thinnest on
+    sources:
+      - driver_slice:drought                     # 2370 props, 9 dag ids -- the recurring analog axis
+      - driver_slice:el_nino                     # 429 props
+      - driver_slice:la_nina                     # 176 props
+      - driver_slice:us_drought_monitor          # 542 props; crop_progress_condition / gdd / ndvi
+      - driver_slice:wasde_stocks_to_use         # 4000 props; the "does the balance sheet match" leg
+      - driver_slice:south_american_safrinha     # 1795 props; the soybean-side analog detail
+      - driver_slice:textile_apparel_demand      # 4000 props; the cotton-side demand analog
+      - driver_slice:black_sea_corridor          # 57 props -- THIN; named so the thinness is on the record
+      - silver:silver_psd                        # the multi-year balance-sheet comparison
+      - silver:silver_wasde                      # the vintage at the as-of
+      - silver:silver_noaa_oni                   # the regime series that dates candidate years
+      - node:corn                                # 15241 props / 717 docs / 16 sources
+      - node:srw_wheat                           # 23004 props / 685 docs / 15 sources
+      - node:soybeans                            # 23440 props / 704 docs / 19 sources
+      - node:cotton                              # 9366 props / 541 docs / 17 sources
+    prereg: >-
+      A dossier-shaped answer nominates dated years PER COMMODITY, each pinned to its own rows, then
+      runs the agreement pass explicitly -- naming where the four sets overlap and where they do not,
+      and saying which factor pulls them apart. It refuses to let one commodity's analog stand in for
+      the book. Every year it names sits at or before the as-of and nothing after it is treated as
+      known. A single turn is expected to nominate one or two years and apply them across the book --
+      which is exactly the failure the reconciliation leg is designed to expose. drivers_hit counts
+      years REALIZED by token; it is a coverage counter, never a correctness test, and an arm that
+      names two years correctly and stops is a truthful narrow answer.
+    expect:
+      needs_evidence: true
+      drivers: ['2012', '2019', '2021', '2022']
+    question: "I run corn, Chicago wheat, beans and cotton. For each of them separately, which past marketing years does the current setup actually look like -- and do those four picks land on the same years or on different ones? Where they disagree I want to know what is pulling them apart."
+
+  # ---------------------------------------------------------------------------------------------
+  # (e) DISPERSION / FUNDAMENTAL RELATIVE VALUE across FOUR related contracts -- and the deck's richest
+  # declared-darkness surface.
+  #
+  # DOCTRINE FENCE (reroute v2, REROUTE_V2_RV_PLAN.md:1-14). This is fundamental relative value, NOT a
+  # trading system: no long/short, no hedge ratio, no recommended spread, no basis, no cross-commodity
+  # tonnage delta. Price DIRECTION narration is allowed; a price NUMBER may appear only as a verbatim
+  # quote from a cited evidence row. The question is written to ask what the BALANCE SHEETS account
+  # for, never what to put on. Note also that all four venues share ONE PSD commodity code, so the
+  # reroute engine's B1 same-code ban means its ratio fork cannot fire here at all -- an answer that
+  # manufactures a relative-tightness verdict the engine would decline is the failure this row watches
+  # for, and a declared "the record does not separate them on a comparable series" is a PASS.
+  #
+  # WHY A DOSSIER AND NOT A TURN. T1: soft_red_winter_wheat_cbot -> srw_wheat, hard_red_winter_wheat_kcbt
+  # -> hrw_wheat, hard_red_spring_wheat_mgex -> hrs_wheat, french_wheat_matif -> french_wheat: FOUR
+  # distinct evidence nodes against a 3-seed ceiling, so no single turn can seed all four (see
+  # PROVISIONAL P5 for what that does and does not buy). T2: a per-venue read of the balance sheet, the
+  # board and positioning is 3 silver reads x 4 venues. T3: the deliverable is HOW MUCH of the
+  # dispersion the fundamentals account for -- a comparison across the four legs. T4: the entire
+  # class-spread driver layer is dark (kc_chi_spread, protein_premium, tenderable_collapse, abandonment,
+  # vernalization_failure, calendar_spread all UNBACKED; basis_and_farmer_selling 13 props), WASDE
+  # carries no wheat-by-class attribute, and silver_cot's wheat slugs start ~2014. The honest answer is
+  # substantially a statement of what cannot be separated.
+  #
+  # NEIGHBOURS (disclosed): ab_cmp_wheat_classes and kc_vs_chi_drought and ab_mech_kc_spread are TWO-way
+  # KC-versus-Chicago rows; matif_vs_chi_wheat is two-way on a named shock; spring_vs_winter_wheat is
+  # two-way on two named weather events; wheat_classes asks whether classes share weather drivers. None
+  # takes all four venues one at a time on their own balance sheets and asks how much of the observed
+  # dispersion the fundamentals account for.
+  - id: dr_dispersion_wheat_venues
+    contract: hard_red_spring_wheat_mgex
+    category: dr_dispersion_rv
+    asof: '2026-08-07'
+    turn_class: T1_seeds + T2_silver + T3_reconcile + T4_dark
+    turn_floor: ">=4 distinct evidence nodes (one per venue) against a 3-seed ceiling; 12 per-venue silver reads"
+    angles_expected:
+      - Minneapolis / spring wheat -- its own supply and demand at the as-of
+      - Kansas City / hard red winter -- its own supply and demand at the as-of
+      - Chicago / soft red winter -- its own supply and demand at the as-of
+      - Matif / EU milling wheat -- its own supply and demand at the as-of, including the Black Sea and Russian policy leg
+      - what genuinely differs between them on the balance sheets, venue by venue
+      - how much of the observed dispersion those differences account for
+      - which of the four the record cannot separate on any citable series
+    sources:
+      - node:srw_wheat                           # 23004 props / 685 docs / 15 sources
+      - node:hrw_wheat                           # 23005 props / 685 docs / 15 sources
+      - node:hrs_wheat                           # 23005 props / 685 docs / 15 sources
+      - node:french_wheat                        # 23004 props / 685 docs / 15 sources (see PROVISIONAL P5)
+      - driver_slice:russia_export_tax_quota     # 363 props; reachable only via the french_wheat seed
+      - driver_slice:black_sea_corridor          # 57 props -- THIN; the export-competition leg
+      - driver_slice:former_ussr_import_demand   # 696 props; present in srw + hrw
+      - driver_slice:polar_vortex_winterkill     # 129 props; polar_vortex / protective_snow_cover, winter classes only
+      - driver_slice:cereal_rust_complex         # 158 props; stem_rust / stripe_rust
+      - driver_slice:fusarium_head_blight_mycotoxin  # 105 props; the quality leg
+      - driver_slice:eu_crop_and_policy          # 17 props -- VERY THIN; the Matif policy leg
+      - silver:silver_wasde                      # balance sheet -- NO by-class attribute (see above)
+      - silver:silver_psd                        # the world and exporter history
+      - silver:silver_futures_eod                # per-contract board levels by delivery month
+      - silver:silver_cot                        # per-slug positioning; wheat slugs start ~2014
+    prereg: >-
+      A dossier-shaped answer gives each venue its own section on its own fundamentals, then states
+      explicitly how much of the dispersion those fundamentals account for and how much it cannot
+      attribute -- and it names the venues it cannot separate rather than inventing a differentiator.
+      Because the class-spread driver layer is dark and the balance-sheet series carries no by-class
+      split, a truthful "the record I hold does not separate these two on anything citable" is a
+      PASSING answer here. It stays on fundamentals: no position, no hedge ratio, no recommended
+      spread, and no price figure that is not a verbatim quote from a cited row. A single turn is
+      expected to serve two venues from the shared wheat population and assert the other two.
+    expect:
+      needs_evidence: true
+      drivers: [Minneapolis, Kansas, Chicago, Matif]
+    question: "Minneapolis, Kansas City, Chicago and Matif have pulled apart from each other this year. Take them one at a time on the fundamentals -- what is genuinely different about each one's supply and demand at the moment -- and then tell me how much of that dispersion the underlying balance sheets actually account for."
