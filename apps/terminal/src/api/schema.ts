@@ -342,3 +342,69 @@ export interface RespondResult {
   asof?: string;
   [k: string]: unknown;
 }
+
+// ── D-DR — the deep-research dossier (a JOB, not a turn) ────────────────────────────────────────────
+// Hand-typed for the same reason the streaming surface above is: the dossier's SSE events are not in the
+// backend OpenAPI. Declared here (the leaf schema module) so both the transport (api/dossier.ts) and the
+// pure reducer (store/dossier.ts) can name them without importing each other.
+
+/** The job's lifecycle, as GET /v1/dossier/{id} reports it. `partial` is a FIRST-CLASS success shape, not a
+ *  failure: a sub-query that fell over yields a dossier with the gap declared (D-DR-1 honest-partial), and
+ *  it still lands as a frozen artifact. The union stays open so a newer backend's status never crashes an
+ *  older bundle. */
+export type DossierStatus =
+  | 'planning'
+  | 'running'
+  | 'synthesizing'
+  | 'done'
+  | 'partial'
+  | 'failed'
+  | (string & {});
+
+/** One planned sub-question. `i` is 1-indexed and `n` is the plan size, so a row states its own k-of-N
+ *  without the reader having to hold the list. */
+export interface DossierSubquery {
+  i: number;
+  n: number;
+  title: string;
+  status?: 'pending' | 'running' | 'done' | 'failed' | (string & {});
+}
+
+/** GET /v1/dossier/{id} — the poll shape (also what a reconnect reads back). */
+export interface DossierState {
+  status: DossierStatus;
+  stage?: string;
+  subqueries?: DossierSubquery[];
+  artifact_id?: string;
+  error?: string;
+}
+
+/** GET /v1/dossier/{id}/events — one stage event. The FE dispatches on `type` (not on the SSE `event:`
+ *  name) because the locked contract puts the discriminator in the payload; the reducer treats every field
+ *  besides `type` as optional, so a backend that enriches an event later cannot break an older bundle. */
+export interface DossierEvent {
+  type: 'plan' | 'subquery' | 'synthesis' | 'done' | 'partial' | 'failed' | 'error' | (string & {});
+  stage?: string;
+  /** `plan` carries the whole roster; `subquery` carries one row's worth of the same fields. */
+  subqueries?: DossierSubquery[];
+  i?: number;
+  n?: number;
+  title?: string;
+  status?: string;
+  /** The terminal event's payload: the frozen artifact this dossier landed as. */
+  artifact_id?: string;
+  error?: string;
+}
+
+/** GET /v1/dossier/quota — 3 per user per UTC week (D-DR-2). `reset_at` is an ISO instant. */
+export interface DossierQuota {
+  remaining: number;
+  limit: number;
+  reset_at?: string;
+}
+
+/** POST /v1/dossier — 202. The plan does not exist yet; the SSE stream delivers it. */
+export interface DossierAccepted {
+  dossier_id: string;
+  plan_pending?: boolean;
+}

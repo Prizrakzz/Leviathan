@@ -138,6 +138,11 @@ export interface ComposeState {
   syncDraft: (text: string) => void;
   /** Drop the bar, keep the text. */
   detach: () => void;
+  /** D-DR-3: put a question BACK in the box after a submit that was refused (the dossier quota 429). The
+   *  composer clears optimistically on Enter -- it has to, the send is asynchronous -- so "the composer text
+   *  is preserved" is implemented as: clear, and if the server says no, hand the exact words back. A plain
+   *  push with no template attached, so the slot bar never reappears around a question that never had one. */
+  restore: (text: string) => void;
   /** The turn went out (or the box was emptied): forget everything. */
   clear: () => void;
 }
@@ -214,5 +219,6 @@ export const useCompose = create<ComposeState>((set) => ({
       return spans ? { draft: text, spans } : { draft: text, ...detached() };
     }),
   detach: () => set(detached()),
+  restore: (text) => set((s) => ({ draft: text, rev: s.rev + 1, focus: true, ...detached() })),
   clear: () => set({ draft: '', ...detached() }),
 }));

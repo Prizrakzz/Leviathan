@@ -1,14 +1,16 @@
 import { useState } from 'react';
+import { useDossier } from '@/api/useDossier';
 import { useTurn } from '@/api/useTurn';
 import { parseCommand } from '@/command/parser';
 import { useHotkeys } from '@/hotkeys/useHotkeys';
 import { useAsOf } from '@/store/asof';
 import { toContext } from '@/store/chips';
-import { useMode } from '@/store/mode';
+import { ASK_MODE, isDossierChoice, useMode } from '@/store/mode';
 import { useThread } from '@/store/thread';
 import { useUI } from '@/store/ui';
 import { noteToMarkdown } from '@/views/note/markdown';
 import { useUrlSync } from './useUrlSync';
+import { DossierProgress } from './DossierProgress';
 import { ErrorBoundary } from './ErrorBoundary';
 import { ShortcutSheet } from './ShortcutSheet';
 import { ThreadSidebar } from './ThreadSidebar';
@@ -21,6 +23,7 @@ import SettingsModal from '@/views/settings/SettingsModal';
  *  conversation column + composer), and the full hotkey system. Owns the active turn. */
 export function Shell() {
   const turn = useTurn();
+  const dossier = useDossier();
   const threadCollapsed = useUI((s) => s.threadCollapsed);
   const asofStep = useAsOf((s) => s.step);
   const [cmd, setCmd] = useState('');
@@ -38,6 +41,17 @@ export function Shell() {
     const p = parseCommand(input);
     const ui = useUI.getState();
     const q = p.kind === 'numbers' ? `${p.contract} ${p.metric}` : p.question;
+
+    // D-DR-3: Deep Research is NOT an ask mode -- it is a different ROUTE. The branch sits here, at the one
+    // submit chokepoint, and BEFORE anything turn-shaped happens: a dossier does not set `question`, does
+    // not title the thread, does not consume the context chips (POST /v1/dossier takes {question, asof}),
+    // and never touches the transcript. Its one as-of is stamped at submission and governs every sub-query
+    // (D-DR-1, PIT by construction), so it reads the same as-of a turn would and sends it in the body.
+    if (isDossierChoice(useMode.getState().choice)) {
+      void dossier.submit(q, { asof: p.asofOverride ?? useAsOf.getState().asof });
+      return;
+    }
+
     setQuestion(q);
     // Thread the turn: session_id = the current thread id. The BACKEND registers the thread index +
     // auto-titles it on the first saved turn (5.6 W2) — no client-side putThread race anymore.
@@ -46,15 +60,15 @@ export function Shell() {
     // P2: attached context chips ride the turn, then CLEAR — the turn consumed them (leaving them would
     // silently re-attach to the next unrelated question).
     const chips = ui.attachedChips;
-    // D-AM-14: the mode is read at SUBMIT time (getState, not a subscription) for the same reason the
-    // chips and the as-of are -- the selection that governs a turn is the one on screen when the user
-    // pressed send, and Shell must not re-render every time the picker moves. The raw name goes down; the
-    // transport drops it when it is `standard` (store/mode.modeParam), so this call site has no rule in it.
+    // D-AM-14 / D-DR-3: every ask now runs at the `quick` preset -- the picker's **Standard** entry IS that
+    // preset relabelled, and it is the only ask entry left. `ASK_MODE` is the single constant that states
+    // the label->wire mapping (store/mode), so this call site carries no literal and no rule: the raw name
+    // goes down, and the transport drops it only for `standard`, which no UI path can reach any more.
     turn.start(q, {
       asof: p.asofOverride ?? useAsOf.getState().asof,
       sessionId: thread.threadId,
       context: chips.length ? toContext(chips) : undefined,
-      mode: useMode.getState().mode,
+      mode: ASK_MODE,
     });
     if (chips.length) ui.clearChips();
   };
@@ -83,6 +97,18 @@ export function Shell() {
   return (
     <div className="flex h-screen flex-col bg-bg-0 text-text">
       <TopBar cmd={cmd} setCmd={setCmd} onSubmit={submit} streaming={turn.status === 'streaming'} />
+      {/* D-DR-3: the dossier JOB surface -- above the workspace, never inside the conversation column (the
+          result lands as a frozen artifact tab, not as a bubble). Renders nothing at all with no job and no
+          toast, so an estate with GRAPHRAG_DOSSIER dark is byte-identical to today. Wrapped: a fault in a
+          progress card must not blank the terminal (the S2.x lesson). */}
+      <ErrorBoundary fallback={null}>
+        <DossierProgress
+          job={dossier.job}
+          toast={dossier.toast}
+          onDismiss={dossier.dismiss}
+          onDismissToast={dossier.dismissToast}
+        />
+      </ErrorBoundary>
       <div className="flex flex-1 overflow-hidden">
         {threadCollapsed ? (
           // W1.6: collapsed → a slim expand rail, never NOTHING (the old branch rendered no affordance;

@@ -32,6 +32,32 @@ export async function parseSSE(
   h: StreamHandlers,
   idleMs: number = SSE_IDLE_MS,
 ): Promise<void> {
+  const { terminated, stalled } = await readSSEBlocks(stream, (block) => dispatchBlock(block, h), idleMs);
+  if (terminated) return;
+  h.onError?.({
+    error: stalled
+      ? `stream stalled — nothing received for ${Math.round(idleMs / 1000)}s, retry`
+      : 'stream ended without a result — retry',
+  });
+}
+
+/**
+ * The TRANSPORT half of parseSSE, split out for D-DR-3: read an SSE byte stream, hand each `\n\n`-delimited
+ * block to `onBlock`, and stop the moment `onBlock` says the block was terminal.
+ *
+ * Split rather than duplicated because the dossier's event stream (api/dossier.ts) is a DIFFERENT protocol
+ * on the same transport — its own event vocabulary (plan/subquery/synthesis/done/partial), its own terminal
+ * rule, its own honest-partial semantics — but the same framing, the same keepalive comments, the same
+ * multi-byte-split decoder flush and the same D-TW-4 watchdog. One place gets those four right.
+ *
+ * Returns WHY the read ended: `terminated` (onBlock claimed a block as terminal — the only clean end) and
+ * `stalled` (the idle watchdog fired). Each protocol turns that pair into its own error sentence.
+ */
+export async function readSSEBlocks(
+  stream: ReadableStream<Uint8Array>,
+  onBlock: (block: string) => boolean,
+  idleMs: number = SSE_IDLE_MS,
+): Promise<{ terminated: boolean; stalled: boolean }> {
   const reader = stream.getReader();
   const dec = new TextDecoder();
   let buf = '';
@@ -58,22 +84,18 @@ export async function parseSSE(
       while ((idx = buf.indexOf('\n\n')) >= 0) {
         const block = buf.slice(0, idx);
         buf = buf.slice(idx + 2);
-        if (dispatchBlock(block, h)) return; // terminal event -- the ONLY clean end of a turn
+        if (onBlock(block)) return { terminated: true, stalled }; // the ONLY clean end of a stream
       }
     }
     // Flush the decoder: `stream: true` holds back a multi-byte character split across chunk boundaries,
     // and the final chunk's tail is only released by a decode() with no argument.
     buf += dec.decode();
     // A stalled stream's leftover is a HALF block by definition -- dispatching it would invent an event.
-    if (!stalled && buf.trim() && dispatchBlock(buf, h)) return;
+    if (!stalled && buf.trim() && onBlock(buf)) return { terminated: true, stalled };
   } finally {
     clearTimeout(timer);
   }
-  h.onError?.({
-    error: stalled
-      ? `stream stalled — nothing received for ${Math.round(idleMs / 1000)}s, retry`
-      : 'stream ended without a result — retry',
-  });
+  return { terminated: false, stalled };
 }
 
 function dispatchBlock(block: string, h: StreamHandlers): boolean {

@@ -1,37 +1,71 @@
+import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
-import { DEFAULT_MODE, MODE_COPY, MODES, useMode, type ModeName } from '@/store/mode';
+import { DOSSIER_QUOTA_KEY, getDossierQuota } from '@/api/dossier';
+import { utcDay } from '@/lib/time';
+import { CHOICE_COPY, CHOICES, DEFAULT_CHOICE, useMode, type PickerChoice } from '@/store/mode';
+import { useSession } from '@/store/session';
 
 /**
- * D-AM-14 — the reasoning-mode selector, DOCKED AT THE ASK BAR.
+ * D-AM-14 / D-DR-3 — the ask-bar selector, now TWO entries.
  *
- * Deliberately NOT a settings toggle (user amendment). Depth is a per-question decision — "is this the
- * one worth 2-3x the wait?" is asked while typing the question, not once in a preferences dialog — so the
- * control lives where the question is written, in the smallest footprint that can still say what it does:
- * a chip that reads `▃ standard ▾`, opening a three-row menu with the time expectation on each row.
+ * Deliberately NOT a settings toggle (user amendment). Depth is a per-question decision — "is this the one
+ * worth minutes and one of three weekly runs?" is asked while typing the question, not once in a preferences
+ * dialog — so the control lives where the question is written, in the smallest footprint that can still say
+ * what it does: a chip that reads `▃ Standard ▾`, opening a two-row menu.
  *
- * The hints are STATIC v1 copy and deliberately RELATIVE ("faster", "~2-3x slower"). Per-mode p50s exist
- * only once stage-1 traffic has run through the EMF `mode` dimension; a precise number here before then
- * would be a measurement nobody made.
+ * D-DR-3 collapsed three modes to two entries, and the second one is NOT a mode. **Standard** is the label
+ * for the `quick` preset (the FE sends `mode=quick`; see store/mode.ASK_MODE). **Deep Research** switches
+ * the composer's submit into a dossier JOB — a different route, a different result, a weekly allowance. So
+ * the second row carries a BADGE ("2 of 3 this week") and goes un-choosable at zero with the reset date in
+ * its hint: a control that spends a scarce, weekly-replenished resource has to show the balance before the
+ * click, not after it.
  *
- * Keyboard: the trigger is an ordinary button (Enter/Space opens, ArrowDown opens onto the list).
- * Inside, the three rows are `menuitemradio`s with roving focus — Up/Down/Home/End move, Enter/Space
- * choose, Escape closes and returns focus to the trigger. Choosing returns focus to the trigger too, so a
- * keyboard user lands one Shift+Tab from the textarea they came out of.
+ * The hints are STATIC copy and deliberately RELATIVE ("one turn", "minutes"). Per-mode p50s exist only once
+ * the EMF `mode` dimension has traffic; a precise number here before then is a measurement nobody made. The
+ * BADGE is the exception and is not copy at all — it is the server's own count.
  *
- * Disabled while a turn streams, for the same reason the textarea is: the mode that governs a turn is the
- * one that was on screen at submit, and a control that moves mid-turn would imply otherwise.
+ * Keyboard (D-AM-14, preserved verbatim): the trigger is an ordinary button (Enter/Space opens, ArrowDown
+ * opens onto the list). Inside, the rows are `menuitemradio`s with roving focus — Up/Down/Home/End move,
+ * Enter/Space choose, Escape closes and returns focus to the trigger. An unavailable row is `aria-disabled`
+ * rather than `disabled` ON PURPOSE: a disabled button cannot take focus, so arrowing onto it would silently
+ * stall, and its hint — the one place the reset date is written — would be unreachable by keyboard.
+ *
+ * Disabled while a turn streams, for the same reason the textarea is: the selection that governs a submit is
+ * the one that was on screen at submit, and a control that moves mid-turn would imply otherwise.
  */
 
 /** A depth ramp, so the control reads as a LEVEL before the label is read at all. */
-const GLYPH: Record<ModeName, string> = { quick: '▁', standard: '▃', deep: '▆' };
+const GLYPH: Record<PickerChoice, string> = { quick: '▃', deep_research: '▆' };
 
 export function ModePicker({ disabled = false }: { disabled?: boolean }) {
-  const mode = useMode((s) => s.mode);
-  const setMode = useMode((s) => s.setMode);
+  const choice = useMode((s) => s.choice);
+  const setChoice = useMode((s) => s.setChoice);
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // The weekly allowance. ONE query key (api/useDossier.DOSSIER_QUOTA_KEY) is shared with the submit path,
+  // which invalidates it after every submission — so the badge can never promise a run the server just
+  // spent or refused. `null` data (not an error) is the DARK case: GRAPHRAG_DOSSIER absent -> 404.
+  const ready = useSession((s) => s.ready);
+  const quotaQ = useQuery({
+    queryKey: DOSSIER_QUOTA_KEY,
+    queryFn: getDossierQuota,
+    enabled: ready,
+    staleTime: 30_000,
+  });
+  const quota = quotaQ.data ?? null;
+  const dossierDark = quotaQ.isSuccess && quota === null;
+  const exhausted = !!quota && quota.remaining <= 0;
+  const unavailable = (c: PickerChoice) => c === 'deep_research' && (dossierDark || exhausted);
+
+  // Opening REFETCHES the balance: the menu is the one moment the number is being read, and a week-old
+  // cached "3 of 3" on a page left open overnight is exactly the lie this badge exists to prevent.
+  const refetch = quotaQ.refetch;
+  useEffect(() => {
+    if (open) void refetch();
+  }, [open, refetch]);
 
   // Click-outside closes (the UserMenu idiom -- one anchored-popover behaviour in this app, not two).
   useEffect(() => {
@@ -59,8 +93,9 @@ export function ModePicker({ disabled = false }: { disabled?: boolean }) {
     if (refocus) btnRef.current?.focus();
   };
 
-  const choose = (m: ModeName) => {
-    setMode(m);
+  const pick = (c: PickerChoice) => {
+    if (unavailable(c)) return; // the row stays focusable so its hint can be read; it just cannot be chosen
+    setChoice(c);
     close(true);
   };
 
@@ -72,7 +107,21 @@ export function ModePicker({ disabled = false }: { disabled?: boolean }) {
     els[(i + delta + els.length) % els.length]?.focus();
   };
 
-  const label = `reasoning mode: ${mode}`;
+  /** The badge text, or '' when there is no measured number to show. Never invents a balance. */
+  const badge = quota ? `${quota.remaining} of ${quota.limit} this week` : '';
+
+  /** What the Deep Research row says under its title: the refusal reason wins over the description. */
+  const hintFor = (c: PickerChoice) => {
+    if (c !== 'deep_research') return CHOICE_COPY[c].detail;
+    if (dossierDark) return 'not enabled on this deployment';
+    if (exhausted) {
+      const day = utcDay(quota?.reset_at);
+      return day ? `none left — the allowance resets ${day} (UTC)` : 'none left this week';
+    }
+    return CHOICE_COPY[c].detail;
+  };
+
+  const label = `research mode: ${CHOICE_COPY[choice].label}`;
 
   return (
     <div className="relative" ref={wrapRef} data-testid="mode-picker">
@@ -83,7 +132,7 @@ export function ModePicker({ disabled = false }: { disabled?: boolean }) {
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={label}
-        title={`${label} — ${MODE_COPY[mode].time}, ${MODE_COPY[mode].detail}`}
+        title={`${label} — ${CHOICE_COPY[choice].time}, ${CHOICE_COPY[choice].detail}`}
         data-testid="mode-trigger"
         onClick={() => setOpen((o) => !o)}
         onKeyDown={(e) => {
@@ -94,10 +143,10 @@ export function ModePicker({ disabled = false }: { disabled?: boolean }) {
         }}
         className="flex items-center gap-1 rounded-chip border border-line px-1.5 py-0.5 font-mono text-11 text-text-dim hover:border-cyan hover:text-cyan disabled:opacity-40"
       >
-        <span aria-hidden="true" className={mode === DEFAULT_MODE ? 'text-text-faint' : 'text-cyan'}>
-          {GLYPH[mode]}
+        <span aria-hidden="true" className={choice === DEFAULT_CHOICE ? 'text-text-faint' : 'text-cyan'}>
+          {GLYPH[choice]}
         </span>
-        <span>{mode}</span>
+        <span>{CHOICE_COPY[choice].label}</span>
         <span aria-hidden="true" className="text-text-faint">
           ▾
         </span>
@@ -107,10 +156,10 @@ export function ModePicker({ disabled = false }: { disabled?: boolean }) {
         <div
           ref={menuRef}
           role="menu"
-          aria-label="reasoning mode"
+          aria-label="research mode"
           data-testid="mode-menu"
           // The composer is docked at the BOTTOM of the shell, so the menu opens UPWARD.
-          className="absolute bottom-full left-0 z-30 mb-1 w-64 rounded-panel border border-line bg-bg-1 p-1 shadow-lg"
+          className="absolute bottom-full left-0 z-30 mb-1 w-72 rounded-panel border border-line bg-bg-1 p-1 shadow-lg"
           onKeyDown={(e) => {
             if (e.key === 'Escape') {
               e.preventDefault();
@@ -130,30 +179,47 @@ export function ModePicker({ disabled = false }: { disabled?: boolean }) {
             }
           }}
         >
-          {MODES.map((m) => (
-            <button
-              key={m}
-              type="button"
-              role="menuitemradio"
-              aria-checked={m === mode}
-              data-testid={`mode-option-${m}`}
-              onClick={() => choose(m)}
-              className={`block w-full rounded-chip px-2 py-1 text-left hover:bg-bg-2 ${
-                m === mode ? 'text-text' : 'text-text-dim'
-              }`}
-            >
-              <span className="flex items-baseline gap-1.5 font-mono text-12">
-                <span aria-hidden="true" className={m === mode ? 'text-cyan' : 'text-text-faint'}>
-                  {GLYPH[m]}
+          {CHOICES.map((c) => {
+            const off = unavailable(c);
+            return (
+              <button
+                key={c}
+                type="button"
+                role="menuitemradio"
+                aria-checked={c === choice}
+                aria-disabled={off || undefined}
+                data-testid={`mode-option-${c}`}
+                onClick={() => pick(c)}
+                className={`block w-full rounded-chip px-2 py-1 text-left hover:bg-bg-2 ${
+                  off ? 'opacity-50' : ''
+                } ${c === choice ? 'text-text' : 'text-text-dim'}`}
+              >
+                <span className="flex items-baseline gap-1.5 font-mono text-12">
+                  <span aria-hidden="true" className={c === choice ? 'text-cyan' : 'text-text-faint'}>
+                    {GLYPH[c]}
+                  </span>
+                  <span>{CHOICE_COPY[c].label}</span>
+                  {c === 'deep_research' && badge && (
+                    <span
+                      data-testid="dossier-quota-badge"
+                      className={`rounded-chip border px-1 text-11 ${
+                        exhausted ? 'border-neg text-neg' : 'border-line text-text-faint'
+                      }`}
+                    >
+                      {badge}
+                    </span>
+                  )}
+                  <span className="ml-auto text-11 text-text-faint">{CHOICE_COPY[c].time}</span>
                 </span>
-                <span>{m}</span>
-                <span className="ml-auto text-11 text-text-faint">{MODE_COPY[m].time}</span>
-              </span>
-              <span className="mt-0.5 block font-sans text-11 leading-snug text-text-faint">
-                {MODE_COPY[m].detail}
-              </span>
-            </button>
-          ))}
+                <span
+                  data-testid={`mode-hint-${c}`}
+                  className="mt-0.5 block font-sans text-11 leading-snug text-text-faint"
+                >
+                  {hintFor(c)}
+                </span>
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
