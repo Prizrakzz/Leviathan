@@ -72,6 +72,11 @@ QUOTA_PREFIX = "dossier"
 MIN_SUBQUERIES = 5
 MAX_SUBQUERIES = 12
 SYNTH_MAX_TOKENS = 16000     # document-scale synthesis cap; a turn's 6000 truncates a dossier
+# D-DR-4 model call (2026-08-07, dual-synthesis from IDENTICAL notes, pairwise blind opus-4-8):
+# opus-5 beat sonnet-4-6 on grounding 4-0-1, usefulness 3-2, composition 3-2, checklist
+# 0.933 vs 0.867, strips/handle 0.41 vs 0.52 -- at ~$0.10/dossier extra. Sub-queries stay on
+# the serving default; ONLY the document composition runs opus.
+SYNTH_MODEL = "claude-opus-5"
 WALL_CLOCK_S = 1200                       # ~20 min job cap (D-DR-1)
 SUBCALL_TIMEOUT_S = 300                   # provider read-timeout per sub-call ONLY (D-DR-1)
 
@@ -660,7 +665,7 @@ def synthesize(question: str, asof: str | None, plan_data: dict, notes: list[dic
     # (reasoning_modes.py:35) is about TURN length levers and does not govern this call.
     out = c(system_prompt(census),
             notes_block(question, asof, plan_data, notes, union),
-            model=model or an.SONNET, tool=an._answer_tool(), max_tokens=SYNTH_MAX_TOKENS)
+            model=model or SYNTH_MODEL, tool=an._answer_tool(), max_tokens=SYNTH_MAX_TOKENS)
     structured = out if isinstance(out, dict) else {}
     usage = structured.pop("_usage", None)
     structured.pop("_degraded_model", None)

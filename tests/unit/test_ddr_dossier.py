@@ -748,3 +748,24 @@ def test_call_opus_accepts_every_kwarg_synthesize_passes():
     params = inspect.signature(an._call_opus).parameters
     for kw in ("model", "tool", "max_tokens"):
         assert kw in params, f"_call_opus lost kwarg {kw!r} that dossier.synthesize passes"
+
+
+def test_synthesize_default_model_is_the_measured_winner():
+    """D-DR-4 model call: opus-5 won grounding 4-0-1 from identical notes. The default must be
+    the measured winner, and explicit model= must still override (the A/B seam stays open)."""
+    from leviathan.graphrag import dossier as do
+    assert do.SYNTH_MODEL == "claude-opus-5"
+    seen = {}
+
+    def fake_call(system, user, *, model, tool, max_tokens=None):
+        seen["model"] = model
+        return {"tldr": "t", "mechanism": "m", "sources": []}
+
+    note = {"i": 1, "title": "t", "question": "q", "sections": {}, "pairs": [], "used": [],
+            "strips": 0, "checked": 0, "mode": "quick", "contracts": None, "usage": {}}
+    union = {"pairs": [], "evidence": [], "number_calls": []}
+    do.synthesize("q", "2026-08-07", {"title": "d", "subqueries": []}, [note], union, call=fake_call)
+    assert seen["model"] == "claude-opus-5"
+    do.synthesize("q", "2026-08-07", {"title": "d", "subqueries": []}, [note], union,
+                  call=fake_call, model="claude-sonnet-4-6")
+    assert seen["model"] == "claude-sonnet-4-6"
