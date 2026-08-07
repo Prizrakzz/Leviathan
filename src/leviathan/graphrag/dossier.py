@@ -71,6 +71,7 @@ QUOTA_PREFIX = "dossier"
 
 MIN_SUBQUERIES = 5
 MAX_SUBQUERIES = 12
+SYNTH_MAX_TOKENS = 16000     # document-scale synthesis cap; a turn's 6000 truncates a dossier
 WALL_CLOCK_S = 1200                       # ~20 min job cap (D-DR-1)
 SUBCALL_TIMEOUT_S = 300                   # provider read-timeout per sub-call ONLY (D-DR-1)
 
@@ -652,9 +653,14 @@ def synthesize(question: str, asof: str | None, plan_data: dict, notes: list[dic
     from leviathan.graphrag import verify as vf
     census = union_census(notes, union)
     c = call if call is not None else an._call_opus
+    # DOCUMENT-scale output cap. A turn's 6000 default truncated ALL FIVE D-DR-4 dossiers at the
+    # synthesis step (stop_reason=max_tokens -> the extract guard raised -> job FAILED after every
+    # sub-query had already run and billed). A dossier composes 5-12 sub-answers under mandated
+    # sections; its ceiling is a document's, not a turn's. The turn-side max_tokens exclusion
+    # (reasoning_modes.py:35) is about TURN length levers and does not govern this call.
     out = c(system_prompt(census),
             notes_block(question, asof, plan_data, notes, union),
-            model=model or an.SONNET, tool=an._answer_tool())
+            model=model or an.SONNET, tool=an._answer_tool(), max_tokens=SYNTH_MAX_TOKENS)
     structured = out if isinstance(out, dict) else {}
     usage = structured.pop("_usage", None)
     structured.pop("_degraded_model", None)

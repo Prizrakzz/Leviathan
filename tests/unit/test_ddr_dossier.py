@@ -421,7 +421,7 @@ def test_synthesis_runs_the_document_contract_with_the_union_census():
     notes, union, results = _notes_and_union(windows=3)
     seen = {}
 
-    def call(system, user, *, model, tool):
+    def call(system, user, *, model, tool, max_tokens=None):
         seen.update(system=system, user=user, tool=tool)
         return {"tldr": "d", "mechanism": "## Mechanism\nx [E1]", "sources": []}
 
@@ -718,3 +718,21 @@ def test_the_dossier_counter_never_touches_the_daily_turn_counter():
         s.incr_turn_quota("u", dsr.quota_period(), dsr.QUOTA_LIMIT)
     s.incr_turn_quota("u", "2026-08-06", 50)                         # the daily turn counter
     assert s.read_quota("u", "2026-08-06") == 1 and s.read_quota("u", dsr.quota_period()) == 3
+
+
+def test_synthesize_uses_the_document_scale_max_tokens():
+    """The turn-scale default (6000) truncated ALL FIVE D-DR-4 dossiers at synthesis
+    (stop_reason=max_tokens -> ValueError -> job FAILED after every sub-query had billed).
+    The synthesis call must carry the document-scale cap explicitly."""
+    from leviathan.graphrag import dossier as do
+    seen = {}
+
+    def fake_call(system, user, *, model, tool, max_tokens=None):
+        seen["max_tokens"] = max_tokens
+        return {"tldr": "t", "mechanism": "m", "sources": []}
+
+    note = {"i": 1, "title": "t", "question": "q", "sections": {}, "pairs": [], "used": [],
+            "strips": 0, "checked": 0, "mode": "quick", "contracts": None, "usage": {}}
+    do.synthesize("q", "2026-08-07", {"title": "d", "subqueries": []}, [note],
+                  {"pairs": [], "evidence": [], "number_calls": []}, call=fake_call)
+    assert seen["max_tokens"] == do.SYNTH_MAX_TOKENS == 16000
