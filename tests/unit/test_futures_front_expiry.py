@@ -292,6 +292,25 @@ class TestReadPath:
         rows = [_row("2026-09", "432.25"), _row("2026-12", "447.50")]    # no activity metric anywhere
         assert Q.run(_spec(), query_fn=lambda _sql: rows) == []
 
+    def test_the_selected_expiry_survives_all_the_way_into_the_writers_numbers_panel(self):
+        """D-PQ RENDER, END TO END -- the half the A' wave shipped without.
+
+        The rule ran, the row came back correct, and the writer still quoted a bare level (dpq_probe_v1
+        row 1: `expiry_labeled` and `unit_present` both FAILED on a served read). The panel the hybrid
+        writer actually reads is `orchestrator._numbers_block` -> `citations.render`, so this pins the
+        WHOLE path -- SQL rows in, prompt text out -- rather than trusting that a correct row implies a
+        correct prompt. It is exactly the seam where the delivery month was being dropped: on this agg
+        the expiry is not in the query at all, because the roll rule chose it."""
+        from leviathan.graphrag import orchestrator as ORCH
+        rows = [_row("2026-09", "432.25", oi="500000"), _row("2026-12", "447.50", oi="900000")]
+        served = Q.run(_spec(), query_fn=lambda _sql: rows)
+        panel = ORCH._numbers_block([{"query": _spec().model_dump(exclude_none=True),
+                                      "rows": served, "status": "ok"}])
+        assert "2026-12" in panel                    # WHICH expiry the anchor picked
+        assert "US cents/bushel" in panel            # the exchange unit (ten currencies, no conversion)
+        assert "exchange settlement" in panel        # what KIND of print it is
+        assert "447.50" in panel or "447.5" in panel
+
 
 # -- reachability: the model can only emit what the schema names ------------------------------------
 class TestToolSchema:
@@ -316,6 +335,16 @@ class TestToolSchema:
         spec = A._forced_spec("2026-07-15", {"table": TABLE, "metric": "settle",
                                              "commodity": "corn_cbot", "agg": FE})
         assert spec.agg == FE and spec.asof == "2026-07-15"
+
+    def test_the_card_forbids_quoting_a_settle_without_its_delivery_month(self):
+        # D-PQ RENDER (2026-08-07). The read was CORRECT and the answer still quoted a bare level: the
+        # anchor picks the expiry FOR the writer, so the card has to say out loud that the picked expiry
+        # is not optional decoration. The three-part rule binds front_expiry at least as hard as a
+        # named-month read, and the card must say THAT, not just "never quote a level as the price".
+        notes = " ".join(str(_card()["notes"]).split()).lower()
+        assert "three-part quote is mandatory" in notes
+        assert "delivery month" in notes and "unit" in notes
+        assert "unattributable" in notes          # the remedy when a label is missing from the row
 
     def test_the_decline_reason_reaches_the_model_instead_of_a_bare_no_rows(self):
         # An empty front-expiry read is a REASONED absence, not a lake gap, and the recorded failure mode

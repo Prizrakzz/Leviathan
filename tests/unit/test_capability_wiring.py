@@ -371,3 +371,97 @@ def test_nass_is_in_the_pg_mirror_list():
 
 def test_nass_card_columns_resolve_in_the_checked_in_ddl():
     assert cc.check_numbers_schema_pins() == []
+
+
+# ====================================================================================================
+# D-CW-4 / D-PQ RE-RUN CORRECTIONS (2026-08-07) -- three cues the WIRED-v2 probe proved were missing.
+# Each one is prompt-side and none of them is verifiable offline, so what these tests pin is that the
+# cue is PRESENT AT THE SEAM THAT BINDS -- which is the half the first attempt got wrong.
+# ====================================================================================================
+class TestNassCardTeachesTheShapeItsOwnAxes_Invite:
+    """`dcw_nass_conditions_split`: EIGHT of sixteen lookups on one turn failed with `metric` omitted,
+    and a US winter-wheat condition (27.0 pct good/excellent) was read on a turn routed to
+    french_wheat_matif. Five metrics plus a free state axis is the shape that invites a metric-less
+    state sweep, and a US-only card with no geography sentence is the shape that invites a US number
+    being narrated as a French crop. The card is the only place the model reads before choosing."""
+
+    def _notes(self) -> str:
+        return " ".join(str(cc._load("numbers/tables.yaml")["tables"][NASS]["notes"]).split()).lower()
+
+    def test_the_card_states_the_one_metric_per_call_rule(self):
+        n = self._notes()
+        assert "one lookup = one metric" in n
+        assert "one call per" in n and "(metric, state)" in n     # the east-vs-west comparison, spelled out
+        assert "rejected before anything is queried" in n         # and what a metric-less call COSTS
+
+    def test_the_card_states_that_it_is_the_united_states_and_nothing_else(self):
+        n = self._notes()
+        assert "united states and nothing else" in n
+        assert "matif" in n                                       # the measured cross-contract read, named
+        assert "not a proxy" in n or "not proxies" in n
+
+    def test_the_five_metrics_the_refusal_offers_are_the_five_the_card_serves(self):
+        # the refusal text (agent._spec_error) lists the card's metrics; a drift between the two would
+        # hand the model a name that does not exist, which is worse than the bare pydantic dump was.
+        served = set(_reg().get(NASS).metrics)
+        err = na._spec_error({"table": NASS}, ValueError("x"), _reg())
+        assert served and all(m in err for m in served)
+
+
+class TestMarginCueLandsOnTheLaneThatActuallyRuns:
+    """R1 (`dcw_us_ethanol_margin`): SIX lookups before the wiring wave, ZERO in both wired arms.
+
+    D-PQ FIX-2's first remedy put the margin cue in `dispatch.ToolSpec.when_to_use`. THE RE-RUN
+    FALSIFIED THAT HYPOTHESIS STRUCTURALLY, not statistically: the row routed HYBRID in both arms, and
+    `run_hybrid` calls `answer_numbers` UNCONDITIONALLY -- so no wording in the router's registry block
+    could have caused the loss or can cure it. The cue therefore has to exist in the NUMBERS AGENT's own
+    system prompt, where it does not depend on the planner having spoken. The planner-side rule stays as
+    the second belt (it drives the B1 ROUTING HINT, which is the mechanism the new hypothesis blames)."""
+
+    def test_the_numbers_agent_itself_is_told_a_margin_is_a_multi_table_lookup(self):
+        sp = na.system_prompt(_reg())
+        assert "MARGIN, CRUSH, GRIND or PROCESSING-ECONOMICS" in sp
+        for leg in ("silver_pink_sheet", "silver_wasde", "silver_futures_eod"):
+            assert leg in sp
+        assert "front_expiry" in sp                       # the output-price leg is REACHABLE by name
+        assert "no margin metric and no margin table" in sp   # so it states legs, never a computed level
+
+    def test_the_hybrid_lane_runs_the_numbers_agent_whatever_the_router_said(self):
+        # the falsifier itself, pinned: if this ever stops being true the hypothesis above must be re-argued.
+        import inspect
+        from leviathan.graphrag import orchestrator as ORCH
+        src = inspect.getsource(ORCH.run_hybrid)
+        assert "na.answer_numbers(" in src and "pool.submit(_numbers)" in src
+
+    def test_the_planner_is_told_a_margin_implicates_several_families_not_one(self):
+        sysp = dp.PLANNER_SYS
+        assert "PROCESSING MARGIN, CRUSH or GRIND" in sysp
+        assert "pink_sheet" in sysp and "wasde" in sysp and "futures_eod" in sysp
+        assert "never one" in sysp
+
+    def test_the_when_to_use_cue_from_the_first_attempt_is_kept_not_replaced(self):
+        # It was not WRONG, it was insufficient -- and it is the only thing steering a numbers_only route,
+        # where the router's verdict really is the whole decision.
+        w = next(t for t in dp.REGISTRY if t.name == "numbers").when_to_use.lower()
+        assert "margin" in w and "crush" in w
+
+
+class TestTruncatedReadsMayNotWearASuperlative:
+    """Row 11 (`dcw_full_record_range`): the engine stamped a 5000-row cap correctly, `format_provenance`
+    and the eval report both rendered it, and the answer still opened "the full-history trading range on
+    record" with no date span. The stamp never reached the synthesis prompt, which is built from the [N]
+    labels -- so the render half is pinned in test_citations.py and the RULE is pinned here."""
+
+    def test_the_agent_prompt_forbids_the_superlative_and_names_the_remedy(self):
+        sp = na.system_prompt(_reg())
+        assert "NOT the complete history" in sp
+        assert "state the covered span" in sp
+        for banned in ("full history", "all-time", "on record"):
+            assert banned in sp
+        assert "WINDOWED (period_start / period_end)" in sp    # the remedy is windowing, never a bigger cap
+
+    def test_the_limit_knob_still_says_the_cap_is_not_a_cost_lever(self):
+        # D-PQ FIX-1/FIX-2 wording that the new bullet must not contradict.
+        d = na.tool_schema(_reg())["input_schema"]["properties"]["limit"]["description"]
+        assert "never describe a truncated read as the complete record" in d
+        assert "not a cost lever" in d

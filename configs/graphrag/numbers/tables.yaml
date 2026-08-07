@@ -771,6 +771,17 @@ tables:
       pct_emerged:        {unit: "pct of acreage", desc: "CUMULATIVE percent of acreage emerged through that week"}
       pct_harvested:      {unit: "pct of acreage", desc: "CUMULATIVE percent of acreage harvested through that week"}
     notes: >
+      ONE LOOKUP = ONE METRIC AND ONE STATE. This card carries FIVE metrics and a free state axis, which
+      is the exact shape that invites a metric-less state sweep ("give me Iowa's conditions"): `metric` is
+      REQUIRED and there is no all-metrics read, so an east-versus-west comparison is one call per
+      (metric, state) pair -- pct_good_excellent for IA, then pct_good_excellent for IL, and so on. A call
+      that omits `metric` is rejected before anything is queried and costs you a lookup from the budget.
+      THIS TABLE IS THE UNITED STATES AND NOTHING ELSE. Every row is a US state (or the 'US' national
+      roll-up) reported by USDA NASS: there is no French, EU, Black Sea, Brazilian, Argentine, Australian
+      or Chinese crop here. A US winter-wheat condition is NOT a read on MATIF milling wheat, a US corn
+      condition is NOT a read on a Brazilian or Chinese corn contract, and the two are not proxies for
+      each other -- say "US" out loud whenever you quote a figure from this card, and on a question about
+      a non-US contract either label it explicitly as the US analogue or do not use it at all.
       ALWAYS PASS A STATE. country selects the geography and takes the 2-letter USPS code in CAPITALS
       ('IA', 'IL', 'KS') or 'US' for the national figure -- pass country='US' for "the US corn condition".
       With NO state the read spans EVERY reporting state, and a latest-value read then returns ONE
@@ -1152,7 +1163,15 @@ tables:
       IS the curve at a single as-of; the nearest-listed-expiry tie-break above applies only to a read that
       names NO month. Every row comes
       back carrying its own contract_month, settle_kind and currency -- state them with the number, never a
-      bare figure, and never attach a delivery month to a row that has none. PROVENANCE HONESTY: the
+      bare figure, and never attach a delivery month to a row that has none.
+      THE THREE-PART QUOTE IS MANDATORY AND HAS NO EXCEPTIONS: a settle from this table is quotable ONLY
+      as <level> + <unit/currency> + <delivery month> + <what kind of print it is>. "corn settled at 446"
+      is not an answer this card supports; "CBOT corn December 2026 settled at 446 US cents/bushel, an
+      exchange settlement, on the 2026-06-05 session" is. This binds the agg=front_expiry read exactly as
+      hard as a named-month read -- HARDER, if anything, because that read chose the expiry FOR you and
+      the reader has no other way to learn which one it picked. The three labels are rendered onto the
+      number row you are handed; if one of them is absent from the row, say the level is unattributable
+      rather than quoting it bare. PROVENANCE HONESTY: the
       `settle_kind` column is the label, and it is not decorative -- databento_glbx_mdp3 rows are true
       exchange settlements; databento_ifus_impact / databento_ifeu_impact rows are ohlcv-1d session CLOSES
       (the ICE `statistics` settlement schema costs ~$1,960 and was deliberately excluded), so never call

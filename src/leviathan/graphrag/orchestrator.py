@@ -40,6 +40,19 @@ def _numbers_block(calls: list) -> str:
     # synthesis prompt so the writer states the national-total limitation instead of presenting the
     # figure as the destination cut. Absent scope_note (every national ask), the block is byte-identical.
     notes = sorted({c.get("scope_note") for c in (calls or []) if isinstance(c, dict) and c.get("scope_note")})
+    # D-PQ FIX-4: the TRUNCATION DIRECTIVE, prompt-side only. The [N] label already carries the FACT (a
+    # NEWEST-only slice and the span it covers -- citations.from_number), and that fact is reader-safe
+    # because the same label renders into the answer's `## Sources` list. The INSTRUCTION is not: it is
+    # addressed to the writer, so it rides here, where nothing reaches a reader. Measured on
+    # dcw_probe_v1 row 11 -- the stamp was correct, `format_provenance` and the eval report both rendered
+    # it, and the answer still sold a 5000-row-capped read as "the full-history trading range on record".
+    # Absent (every uncapped turn) -> the block is byte-identical.
+    if any(na.series_truncated(c) for c in (calls or []) if isinstance(c, dict)):
+        notes = notes + ["One or more reads above came back AT their row cap and are marked TRUNCATED: "
+                         "they are the NEWEST slice of the window, not its whole history. State the span "
+                         "the marked line names whenever you quote a figure from it, and do NOT describe "
+                         "any of it as the full history, the full record, all-time, the widest ever, or "
+                         "the extremes 'on record'."]
     if notes:
         block += "\nSCOPE NOTE (state this limitation explicitly in the answer): " + " ".join(notes)
     return block

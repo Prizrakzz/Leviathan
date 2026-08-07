@@ -42,13 +42,88 @@ def _fmt(v) -> str:
         return str(v)
 
 
-def _metric_unit(table: str, metric: str) -> str:
+def _metric_unit(table: str, metric: str, commodity: Optional[str] = None) -> str:
+    """The card's declared unit for a metric.
+
+    D-PQ RENDER-1: `unit_overrides` is consulted FIRST when the caller knows the commodity. A metric whose
+    source carries no governed unit (silver_futures_eod.settle, silver_wasde.avg_farm_price) declares NO
+    `unit:` at all -- only the per-commodity override map -- so the old `m.unit` read returned "" for exactly
+    the cards where a unitless number is least attributable (ten currencies, no conversion layer anywhere).
+    `Q.run` normally stamps `r["unit"]` post-fetch and the row wins, but any call minted OUTSIDE `run()`
+    (agg-shaped rows, cascade fixtures, a persisted citation payload) reaches here with no row unit, and the
+    citation then rendered bare. Commodity-less callers keep the old behaviour exactly."""
     try:
         from leviathan.graphrag.numbers.registry import load_registry
         m = load_registry().get(table).metrics.get(metric)
-        return m.unit if m else ""
+        if not m:
+            return ""
+        ov = getattr(m, "unit_overrides", None) or {}
+        if commodity and ov.get(commodity):
+            return ov[commodity]
+        return m.unit or ""
     except Exception:  # noqa: BLE001 — registry missing/table unknown -> no unit, never fatal
         return ""
+
+
+# -- D-PQ RENDER-2: the per-expiry PRICE row's self-identifying labels --------------------------------
+# A `silver_futures_eod` row carries its own contract_month, settle_kind and currency BY RATIFIED DESIGN
+# (the card declares all three columns "because a curve row without its expiry label is unattributable,
+# since every row of a multi-expiry read carries the same slug and the same trade date"). The MODEL never
+# saw any of it: the hybrid synthesis prompt is `orchestrator._numbers_block` -> `citations.render` ->
+# `Citation.label`, and the label was built from the QUERY's scope only (commodity/country/period). On an
+# `agg='front_expiry'` read the delivery month is not in the query AT ALL -- the rule SELECTS it -- so the
+# one read whose entire point is "which expiry IS the market" handed the writer a bare number. Measured
+# 2026-08-07 (dpq_probe_v1 row 1): the anchor served the right settle and the answer quoted it with no
+# delivery month and no unit; `expiry_labeled` and `unit_present` both failed on a CORRECT read.
+#
+# The labels are rendered from the ROW, never from the query, for the same reason the card puts them
+# there: the query may name no expiry and still get one back.
+_SETTLE_KIND_WORDS = {
+    # Plain-English renderings the writer can quote verbatim. Deliberately matched to
+    # `eval._SETTLE_KIND_PHRASES` so the panel hands the model the exact vocabulary the honesty pin reads,
+    # and deliberately NOT "official exchange settlement" for anything but a true `settlement` row --
+    # that phrase is the ICE mislabel `eval._SETTLE_MISLABEL_RX` exists to convict.
+    "settlement": "exchange settlement",
+    "close": "session close",
+    "cash_index": "cash index",
+    "mark_to_market": "mark-to-market",
+}
+
+
+def _print_kind(row: dict) -> str:
+    kind = str((row or {}).get("settle_kind") or "").strip()
+    return _SETTLE_KIND_WORDS.get(kind, kind)
+
+
+def _row_date_text(r: dict) -> str:
+    """The observation's own date, in `_row_order_key`'s priority. "" when the row carries none."""
+    for a in ("data_date", "knowledge_date"):
+        v = (r or {}).get(a)
+        if v not in (None, ""):
+            return str(v)[:10]
+    p = (r or {}).get("period")
+    return str(p) if p not in (None, "") else ""
+
+
+def _series_truncated(call: dict) -> bool:
+    """DELEGATES to `numbers.agent.series_truncated` -- never a second copy of the rule (the engine stamp
+    beats the row count, and only `agg='series'` can truncate). Imported lazily so citations.py keeps no
+    import-time dependency on the numbers stack; any failure reads as 'not truncated', which is the
+    one-sided direction the predicate itself already documents (a missed warning, never a false one)."""
+    try:
+        from leviathan.graphrag.numbers.agent import series_truncated
+        return bool(series_truncated(call))
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _covered_span(rows: list[dict]) -> str:
+    """The span the RETURNED rows actually cover, as 'first..last' (or one date when they share it). "" when
+    no row carries a date -- then the caller states the truncation without inventing a span."""
+    ds = sorted({d for d in (_row_date_text(r) for r in (rows or [])) if d})
+    if not ds:
+        return ""
+    return ds[0] if len(ds) == 1 else f"{ds[0]}..{ds[-1]}"
 
 
 def _row_order_key(r: dict) -> tuple:
@@ -106,7 +181,7 @@ def from_number(call: dict, i: int) -> Citation:
     src = _source_label(table)
     asof = q.get("asof")
     value = rH.get("value")
-    unit = rH.get("unit") or _metric_unit(table, metric)
+    unit = rH.get("unit") or _metric_unit(table, metric, q.get("commodity"))
     kd = rH.get("knowledge_date") or rH.get("data_date")
     # period label: agent calls carry a BARE MY year ("2011" -> render "MY2011"); cascade calls arrive
     # PRE-labeled ("MY2011" / "2010-06-01..2010-09-01") — re-prefixing those minted "MYMY2011" in the
@@ -114,18 +189,88 @@ def from_number(call: dict, i: int) -> Citation:
     per = str(q["period"]) if q.get("period") is not None else None
     if per and not (per.startswith("MY") or ".." in per):
         per = f"MY{per}"
-    scope = " ".join(x for x in (q.get("commodity"), q.get("country"), per) if x)
+    # D-PQ RENDER-2: the DELIVERY MONTH rides the scope, and it comes off the ROW. On agg='front_expiry'
+    # the query names no expiry (the rule selects one), so a query-only scope is silent on the single fact
+    # that makes the number attributable.
+    cmonth = str(rH.get("contract_month") or "").strip()
+    # D-PQ RENDER-2b, the same defect on the GEO axis. The row's `country` extra is the geography the value
+    # actually came from; the query's is what was ASKED for, and on a free-axis card
+    # (silver_nass_crop_progress repurposes country as the US STATE) an unscoped read returns ONE arbitrary
+    # state and the label then said nothing at all -- "a state number wearing a national label", the exact
+    # failure that card's own notes warn about. Query first (it is what the drill-down re-runs).
+    #
+    # THE FALLBACK IS FENCED TO A UNANIMOUS ROW SET, AND THAT FENCE IS THE WHOLE SAFETY OF IT. `_extras`
+    # emits a `country` alias for EVERY card with a country_col, so an UNSCOPED multi-geography read (an
+    # ESR national total spans every destination code) returns rows that disagree -- and the headline row
+    # `rH` is one of them. Borrowing its geo there would stamp one destination's name on a national
+    # aggregate, which is precisely the ESR destination-scope mislabel the agent's own guard exists to
+    # refuse. So: name the geo only when every returned row carries the SAME one; otherwise stay silent
+    # and leave the label exactly as it renders today.
+    #
+    # FIX-CYCLE-2 REVIEW BLOCKER: unanimity is TRIVIALLY satisfied by the default agg='latest'
+    # (LIMIT 1) read -- one row always agrees with itself -- so an UNSCOPED ESR latest read stamped
+    # a single buyer's name on the national leg, beside the scope note saying the opposite. The
+    # honest discriminator is SEMANTIC, not arithmetic: a destination-coded table (country_name_ref
+    # set -- its country axis enumerates buyers of ONE national flow) must never borrow row geo the
+    # query did not ask for. Free-axis cards (NASS states, MPOC per-country stocks) keep the
+    # fallback: there, the row's geo IS the fact's geography.
+    def _dest_coded(tbl: str) -> bool:
+        try:
+            from leviathan.graphrag.numbers import registry as _reg
+            spec = _reg.load_registry().tables.get(tbl)
+            return bool(spec is not None and getattr(spec, "country_name_ref", None))
+        except Exception:  # noqa: BLE001 -- a registry hiccup must fail SILENT (no label), never loud
+            return True
+    _geos = {str(r.get("country")).strip() for r in rows if str(r.get("country") or "").strip()}
+    geo = q.get("country") or (None if _dest_coded(table)
+                               else (next(iter(_geos)) if len(_geos) == 1 else None))
+    scope = " ".join(x for x in (q.get("commodity"), geo, per,
+                                 (f"delivery {cmonth}" if cmonth else None)) if x)
     if rows:
         label = f"{src} {metric} {scope} = {_fmt(value)} {unit}".strip()
+        # D-PQ RENDER-2, second half: WHAT KIND OF PRINT this is, plus the row's own currency. Both are
+        # card-declared columns and neither was reaching the writer. The currency is appended only when it
+        # is not already inside the unit string (US cents/bushel already says USD; CNY/t already says CNY),
+        # so a governed unit is never doubled up.
+        _kind = _print_kind(rH)
+        _ccy = str(rH.get("currency") or "").strip()
+        _tags = [t for t in (_kind, (_ccy if _ccy and _ccy.lower() not in (unit or "").lower() else "")) if t]
+        if _tags:
+            label += " (" + ", ".join(_tags) + ")"
         # staleness affordance (RCA (c)): when the freshest knowable date trails the asof by more than
         # ~30 days, give the synthesizer a clean 'latest available X; as-of Y' to STATE instead of
         # conflating the two dates and reading as fabrication. Terse by design — one clause, no prose.
         _hd, _ad = _parse_date(kd), _parse_date(asof)
         if _hd and _ad and (_ad - _hd).days > 30:
             label += f" (latest available {str(kd)[:10]}; as-of {asof})"
+        # D-PQ RENDER-3 -- THE TRUNCATION ANNOTATION, THREADED TO THE WRITER. `agent.series_truncated` has
+        # existed since J3b and `format_provenance` / `eval._num_line` both render it; the SYNTHESIS PROMPT
+        # never did, because it is built from these labels. Measured 2026-08-07 (dcw_probe_v1 row 11,
+        # dcw_full_record_range): a 5000-row-capped corn read was sold to the reader as "the full-history
+        # trading range on record", with no date span, off a window whose EARLY end had been discarded.
+        # The span is the remedy the card already prescribes ("never describe a truncated read as the
+        # complete record -- if the rows you got start later than the history you asked about, say so"):
+        # state what IS covered, or drop the superlative.
+        #
+        # FACT ONLY, NO IMPERATIVE, AND THAT SPLIT IS LOAD-BEARING. This label is rendered TWICE by two
+        # readers: `orchestrator._numbers_block` builds the model's prompt panel from it, and
+        # `answer._cited_sources_block` puts it verbatim in the READER's `## Sources` list. A directive
+        # ("do not call it full history") is correct for the first and is register leakage in the second,
+        # so the directive lives in the prompt-only SCOPE-NOTE channel (`_numbers_block`) and what stays
+        # here is the provenance a reader is entitled to see anyway: this is a slice, and here is its span.
+        if _series_truncated(call):
+            _span = _covered_span(rows)
+            _cap = q.get("limit")
+            label += (" [TRUNCATED at the "
+                      + (f"{_cap}-row cap" if _cap else "row cap")   # a fixture call may carry no limit
+                      + ": NEWEST slice only"
+                      + (f", covering {_span}" if _span else "")
+                      + " -- not the complete record]")
     else:
         label = f"{src} {metric} {scope} = {_empty_label(status, asof)}".strip()
     locator = {"kind": "number", **{k: q.get(k) for k in ("table", "metric", "commodity", "country", "period", "asof")}}
+    if cmonth:
+        locator["contract_month"] = cmonth      # the drill-down must re-run the expiry that was quoted
     return Citation(id=f"N{i}", kind="number", label=label, source=src, date=kd,
                     value=(str(value) if value is not None else None), unit=(unit or None),
                     locator=locator, payload={"query": q, "rows": rows[:3]})

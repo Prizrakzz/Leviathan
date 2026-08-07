@@ -355,3 +355,70 @@ def test_num_line_error_with_metric_present_no_keys_echo():
         {"query": {"table": "silver_futures_prices", "metric": "close"},
          "error": "levels_only", "rows": [], "status": "error"}]})
     assert line == "silver_futures_prices.close=ERROR[levels_only]"
+
+
+# ====================================================================================================
+# D-PQ SCHEMA-1 (2026-08-07) -- THE REJECTED-SPEC MESSAGE.
+#
+# MEASURED: dcw_probe_v1 row `dcw_nass_conditions_split` burned EIGHT of sixteen lookups on one turn,
+# every one of them the same failure -- `metric` omitted on silver_nass_crop_progress -- and every one
+# answered with the raw pydantic dump ("1 validation error for NumberQuery / metric / Field required
+# [type=missing, input_value={'asof': ...").  The tool schema ALREADY declares metric as required, so
+# this was never a missing fence: it was a fence whose refusal taught the model nothing, on the ONE card
+# whose shape invites the mistake (five metrics + a free state axis -> "give me Iowa's conditions" names
+# a state, not a column).  The model did eventually retry with a metric, but half the call budget was
+# gone and the re-scope never happened.
+#
+# The fence does not move.  `metric` stays required, the call still returns status='error', and nothing
+# is queried.  Only the TEXT changes -- to the shape the ESR / period-mismatch scope notes already use on
+# this loop: what was omitted, what the legal values are, and what to do next, delivered while the loop
+# still has budget to repair itself.
+# ====================================================================================================
+def _reject(inp, asof="2026-08-07"):
+    """Run ONE malformed tool call through the real agent loop and return its payload."""
+    client = FakeClient([_resp([_tool_use(inp)], "tool_use"), _resp([_text("done")], "end_turn")])
+    out = A.answer_numbers("corn conditions by state", asof=asof, client=client,
+                           query_fn=lambda _sql: [])
+    assert len(out["calls"]) == 1
+    return out["calls"][0]
+
+
+def test_a_metric_less_call_is_refused_with_a_remedy_not_a_pydantic_dump():
+    call = _reject({"table": "silver_nass_crop_progress", "commodity": "corn_cbot", "country": "IA"})
+    assert call["status"] == "error" and call["rows"] == []
+    err = call["error"]
+    assert "validation error" not in err.lower() and "input_value" not in err
+    assert "metric" in err and "REJECTED" in err
+    assert "ONE lookup = ONE metric" in err                 # the rule the 5-metric card kept losing
+    assert "nothing was queried" in err                     # so the model knows the budget cost, and why
+
+
+def test_the_refusal_names_the_metrics_that_card_actually_serves():
+    err = _reject({"table": "silver_nass_crop_progress", "country": "IA"})["error"]
+    for m in ("pct_good_excellent", "pct_poor_very_poor", "pct_planted", "pct_emerged", "pct_harvested"):
+        assert m in err                                     # reachable by NAME, on the failing call itself
+
+
+def test_the_fence_itself_is_unmoved_metric_is_still_required():
+    sch = A.tool_schema(A.load_registry())["input_schema"]
+    assert set(sch["required"]) == {"table", "metric"}
+
+
+def test_a_data_access_failure_is_still_a_different_message():
+    """The two failures must stay distinguishable: 'your call was malformed, re-issue it' vs 'the lookup
+    ran and the data access failed'.  Collapsing them would teach the model to retry an outage."""
+    def boom(_sql):
+        raise RuntimeError("pg connection refused")
+    client = FakeClient([_resp([_tool_use({"table": "silver_psd", "metric": "ending_stocks_mt",
+                                           "commodity": "corn_cbot"})], "tool_use"),
+                         _resp([_text("done")], "end_turn")])
+    call = A.answer_numbers("q", asof="2026-08-07", client=client, query_fn=boom)["calls"][0]
+    assert call["status"] == "error"
+    assert "pg connection refused" in call["error"] and "REJECTED" not in call["error"]
+
+
+def test_a_non_required_field_error_still_surfaces_its_own_cause():
+    # Only a MISSING/blank required field gets the rewritten text; anything else falls back to the raw
+    # exception, so no failure class is ever swallowed by the friendlier message.
+    err = _reject({"table": "silver_psd", "metric": "ending_stocks_mt", "agg": "not_an_agg"})["error"]
+    assert "REJECTED" not in err and "agg" in err

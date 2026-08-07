@@ -1913,6 +1913,49 @@ def system_prompt(reg: NumbersRegistry, stats_tool: Optional[bool] = None) -> st
         "- silver_nasa_power is per STATION-REGION: each lookup reads ONE region (defaults to the commodity's "
         "primary growing region, e.g. us_corn_iowa for corn_cbot). The result is that station's value, not a "
         "belt-wide total — state the region when you report the number.\n"
+        # D-PQ FIX-2b (2026-08-07) -- THE MARGIN/CRUSH MULTI-LEG CUE, MOVED TO THE SEAM THAT BINDS.
+        # FIX-2's first attempt put this cue in `dispatch.ToolSpec.when_to_use`, on the hypothesis that the
+        # row was being routed away from numbers. THE RE-RUN FALSIFIED THAT HYPOTHESIS, and the falsifier is
+        # structural rather than statistical: `dcw_us_ethanol_margin` routed HYBRID in both arms, and
+        # `orchestrator.run_hybrid` runs `answer_numbers` UNCONDITIONALLY on that lane -- so no wording in
+        # the router's registry block could have been the cause, and no wording there can be the cure. The
+        # agent itself was handed the question and emitted ZERO tool calls (6 lookups BEFORE the wave, 0 in
+        # both wired arms). NEW HYPOTHESIS, stated so the next probe can falsify it too: the loss is the B1
+        # ROUTING HINT going quiet. Where the planner names families the agent looks them up; where it names
+        # none the line disappears, and a question phrased as PRESSURE/ECONOMICS rather than as a figure has
+        # nothing in this prompt telling the agent that a margin is made of observed series at all -- every
+        # bullet above is a per-table convention, and margins are the one shape that lives ACROSS tables.
+        # So the cue goes here, unconditionally, where it does not depend on the planner having spoken.
+        # (The planner-side half is the data_families rule in dispatch.PLANNER_SYS; the two are belt and
+        # braces, and this one is the belt.)
+        "- A MARGIN, CRUSH, GRIND or PROCESSING-ECONOMICS question ('how much pressure is the ethanol grind "
+        "under', 'are crush margins squeezing demand') IS a numbers question, and its legs live on SEVERAL "
+        "tables -- so look up ALL of them rather than treating the question as commentary: (a) the INPUT "
+        "cost from silver_pink_sheet (natural_gas_us_usd_mmbtu / natural_gas_eu_usd_mmbtu for a grind, the "
+        "oil and meal series for a crush -- each with its own *_zscore_5yr metric beside it), (b) the USE "
+        "line from silver_wasde (domestic_total, the ethanol/crush use line, ending_stocks) for the "
+        "quantity flowing through the plant, and (c) the OUTPUT or FEEDSTOCK price from silver_futures_eod "
+        "(agg='front_expiry' when the question names no delivery month). There is no margin metric and no "
+        "margin table anywhere in this registry: state the observed LEGS with their units and dates and let "
+        "the reader combine them -- never compute, estimate or assert a margin level yourself, and never "
+        "answer 'the record does not carry a margin figure' without having looked up the legs that do "
+        "exist.\n"
+        # D-PQ FIX-4 (2026-08-07) -- THE FULL-HISTORY SUPERLATIVE. Measured on dcw_probe_v1 row 11
+        # (`dcw_full_record_range`): a corn settle series came back AT the 5000-row cap, the engine stamped
+        # the truncation correctly, and the answer still opened "the full-history trading range on record
+        # for CBOT corn sits between 371.5 and 528.5" with no date span anywhere in the sentence. The stamp
+        # was right and unread -- it reached `format_provenance` and the eval report but not the synthesis
+        # prompt. That thread is now closed on the render side (citations.from_number appends the
+        # annotation + the covered span to the [N] label); this bullet is the rule the annotation asks the
+        # model to follow, stated once, for every series card rather than per-table.
+        "- A read that comes back AT its row cap is NOT the complete history, and its [N] line says so and "
+        "names the span it DOES cover. When you see that annotation you have exactly two honest options: "
+        "state the covered span with the figure ('the widest range in the 2019-2026 window on record here "
+        "is ...'), or drop the superlative. NEVER write 'full history', 'the full record', 'all-time', "
+        "'ever', 'on record' or 'the widest ever' over a truncated read -- and never over ANY read whose "
+        "own rows do not reach back to the start of the history you are claiming. If the question asked "
+        "for the whole history, re-read it WINDOWED (period_start / period_end) rather than raising the "
+        "cap, and if you cannot, say plainly which window you actually have.\n"
         "- Each returned row is self-identifying (it carries its own period / year / month) — read those to confirm "
         "which observation each number is; results are chronological, so use agg=latest (not the first row) for "
         "the most recent value.\n\n"
@@ -1945,6 +1988,42 @@ def _forced_spec(asof: str, inp: dict) -> Q.NumberQuery:
     if "limit" in data:
         data["limit"] = _clamp_limit(data["limit"])
     return Q.NumberQuery(asof=asof, **data)
+
+
+# -- D-PQ SCHEMA-1: the SPEC-VALIDATION error, said in words the model can act on --------------------────
+# THE MEASURED FAILURE (dcw_probe_v1 row `dcw_nass_conditions_split`, 2026-08-07): EIGHT of sixteen
+# lookups on one turn failed with the raw pydantic dump
+#   "1 validation error for NumberQuery\nmetric\n  Field required [type=missing, input_value={'asof': ...
+# The tool schema ALREADY declares `required: [table, metric]` -- this is not a missing fence, it is a
+# fence whose refusal text taught the model nothing. `metric` is the ONE field a five-metric card invites
+# you to leave off ("give me Iowa's conditions" names a state, not a column), the model burned half its
+# six-call budget rediscovering that, and the retries then landed with no budget left to re-scope.
+#
+# The remedy is the one the ESR / period-mismatch scope notes already use on this loop: say WHAT was
+# omitted, WHAT the legal values are, and WHAT the next call should look like -- on the payload the model
+# reads, while it still has call budget to repair itself. Nothing about the fence moves: `metric` stays
+# required, an invalid call still returns status='error' and cites nothing.
+_ONE_METRIC_RULE = ("ONE lookup = ONE metric. A card with several metrics needs one call per metric "
+                    "(and one call per scope value), never a call that omits `metric` to sweep them.")
+
+
+def _spec_error(inp: dict, exc: Exception, reg: NumbersRegistry) -> str:
+    """A model-actionable message for a rejected tool input. Falls back to the raw exception text for any
+    failure that is not a missing/blank required field, so nothing is ever swallowed."""
+    missing = [f for f in ("table", "metric") if not str((inp or {}).get(f) or "").strip()]
+    if not missing:
+        return str(exc)[:200]
+    parts = [f"lookup REJECTED -- required field(s) omitted: {', '.join(missing)}. " + _ONE_METRIC_RULE]
+    tid = str((inp or {}).get("table") or "").strip()
+    if "metric" in missing and tid:
+        try:
+            names = sorted(reg.get(tid).metrics)
+        except Exception:  # noqa: BLE001 -- an unknown table is the other half of `missing`
+            names = []
+        if names:
+            parts.append(f"{tid} serves these metrics, and you must name exactly one: {', '.join(names)}.")
+    parts.append("Re-issue the call with the field filled in; nothing was queried.")
+    return " ".join(parts)
 
 
 def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU, reg: Optional[NumbersRegistry] = None,
@@ -2198,7 +2277,16 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
             """One tool call -> its payload. Self-contained error taxonomy so a bad lookup never kills the
             loop OR its batch-mates."""
             try:
-                spec = _forced_spec(asof, dict(b.input))
+                try:
+                    spec = _forced_spec(asof, dict(b.input))
+                except Exception as ve:  # noqa: BLE001 -- D-PQ SCHEMA-1: a REJECTED SPEC, said actionably
+                    # Separated from the outer handler because the two failures are different things and
+                    # the model must be able to tell them apart: this one means "your call was malformed,
+                    # fix it and re-issue" (nothing was queried, the loop still has budget), while the outer
+                    # one means "the lookup ran and the data access failed". NOT truncated to 200 like the
+                    # outer path -- the whole point is that the remedy reaches the model intact.
+                    return {"query": dict(b.input), "error": _spec_error(dict(b.input), ve, reg),
+                            "rows": [], "status": "error"}
                 # W3.2 COVERAGE ROUTING (silver_futures_eod only; ('serve', None) for every other table,
                 # so this is byte-identical elsewhere). A straddling window or an uncovered contract is
                 # DECLINED here -- before any SQL is compiled -- with the verbatim template stamped on the
