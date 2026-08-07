@@ -631,3 +631,31 @@ class TestPollerEndToEnd:
         assert "ratio=2.0" in out
         assert "BREACH" in out
         assert "1 table(s) over 1.0: ['silver_fgis']" in out
+
+
+class TestManifestExclusion:
+    """D-PQ recon V2 (2026-08-07): ShadowPublisher writes its run manifest under the CANONICAL
+    root on shadow publishes too, so manifest mtimes were resetting the freshness clock -- six
+    tables measured false-green (nass_crop_progress 3.0d reported vs 66.9d true). A manifest is
+    bookkeeping, never canonical data."""
+
+    def test_manifest_segment_is_excluded(self):
+        from leviathan.silver.freshness import is_excluded_key
+        assert is_excluded_key("silver/nass_crop_progress/_manifests/run_20260802.json")
+        assert is_excluded_key("silver/fgis/_manifests/2026/run.json")
+
+    def test_canonical_data_keys_still_count(self):
+        from leviathan.silver.freshness import is_excluded_key
+        assert not is_excluded_key("silver/nass_crop_progress/commodity=corn_cbot/year=2026/part-000.parquet")
+
+    def test_newest_last_modified_ignores_manifest_mtimes(self):
+        import datetime as dt
+        from leviathan.silver.freshness import newest_last_modified
+        old = dt.datetime(2026, 6, 1, tzinfo=dt.timezone.utc)
+        fresh = dt.datetime(2026, 8, 2, tzinfo=dt.timezone.utc)
+        got = newest_last_modified([
+            ("silver/t/commodity=c/year=2026/part-000.parquet", old),
+            ("silver/t/_manifests/run_20260802.json", fresh),
+            ("silver/t/_shadow/commodity=c/year=2026/part-000.parquet", fresh),
+        ])
+        assert got == old

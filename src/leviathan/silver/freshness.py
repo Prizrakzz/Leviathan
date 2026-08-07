@@ -92,7 +92,14 @@ RATIO_METRIC_NAME = "FreshnessLagRatio"
 # (and kept a datapoint flowing after a DELETED artifact, contra silver_alarms.py's
 # treat_missing_data='breaching' design note). Excluded as a SEGMENT rather than by narrowing any
 # one poll prefix so it generalises to every future backup convention, anywhere in the tree.
-_EXCLUDE_SEGMENTS = ("/_shadow/", "/_staging/", "/_backup/")
+#
+# ``/_manifests/`` added 2026-08-07 (D-PQ recon V2): ShadowPublisher writes its RUN MANIFEST under
+# the canonical root even on SHADOW publishes, so a shadow-only run was resetting the canonical
+# freshness clock -- the SILVER-F082 fail-open through a second door. MEASURED false-greens at
+# discovery: nass_crop_progress reported 3.0d vs 66.9d true, unica_annual_state 1.9 vs 67.7,
+# modis 11.0 vs 72.6, fnc x3 21.5 vs 66.0, fgis 0.9 vs 14.9 -- six tables under their ceilings
+# on manifest mtimes alone. A manifest is bookkeeping, never canonical data.
+_EXCLUDE_SEGMENTS = ("/_shadow/", "/_staging/", "/_backup/", "/_manifests/")
 _EXCLUDE_SUFFIXES = ("_tasks.json",)
 
 
