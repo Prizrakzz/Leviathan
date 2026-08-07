@@ -21,6 +21,33 @@ from leviathan.graphrag.numbers.registry import TableSpec, load_registry
 
 ATHENA_DB = "leviathan_dev"
 
+CURVE_ROW_CAP = 5000
+"""D-PQ FIX-1b -- the SCAN BOUND for the two branches that return a FIXED, self-bounding row set: the
+front-expiry curve (one whole session, every listed expiry) and the named-month curve dedup (one row per
+NAMED expiry). Both are bounded by the data, not by the caller, so `spec.limit` has no honest job on them.
+
+WHY IT IS A SEPARATE NUMBER FROM ``NumberQuery.limit``. `limit` is MODEL-EMITTABLE (D-CW-1c declared it in
+the tool schema) and ``agent._clamp_limit`` clamps UP only -- ``limit=1`` passes straight through. Both
+branches order ASCENDING on ``contract_month`` (``_total_order``; inside one session the earlier terms are
+constant), so a small `limit` kept the NEAREST LISTED EXPIRIES. On the front-expiry branch that handed
+``futures_roll.front_month`` a one-row frame and it returned that row -- the nearest listed expiry wearing
+``front_month_v2``'s provenance, which is precisely the `legacy_lane_front` substitution the guards in
+``build_sql`` and the card notes claim to refuse (measured: ``limit=1`` -> contract_month 2026-07 stamped
+``roll_method=open_interest``, where the full curve selects 2026-12). Compounded by ``agent._exec``, whose
+truncation sentinel is scoped to ``agg='series'``, so the substitution reported ``truncated: False``.
+
+A trailing LIMIT still rides both branches so a pathological curve can never become an unbounded scan --
+it is a SAFETY bound, at the same 5000 the series cap uses, not a caller-facing window."""
+
+FRONT_EXPIRY_AGG = "front_expiry"
+"""D-PQ A' -- the agg token for the EXCHANGE-SETTLE ANCHOR read, named once and referenced everywhere.
+
+It is deliberately NOT one of the four scalar aggregates: the aggregate of a curve is not a price
+anyone quotes (cascade._PRICE_COLLAPSE_BANNED says the same thing about the pace leg), so this is a
+SELECTION keyed on another column -- pick the front expiry by the ONE named, versioned rule, then serve
+THAT row as it stands. The rule is never re-derived here; it is IMPORTED and RUN
+(``leviathan.silver.futures_roll``, fenced by ``config_check.check_futures_roll``)."""
+
 
 class NumberQuery(BaseModel):
     table: str
@@ -39,7 +66,21 @@ class NumberQuery(BaseModel):
     #                                                  ('2026-12,2027-03,2027-05'). Ignored-by-construction on
     #                                                  tables with no contract_month_col -- build_sql RAISES there
     #                                                  rather than serving a continuous series as an expiry.
-    agg: Literal["latest", "series", "sum", "mean", "max", "min"] = "latest"
+    agg: Literal["latest", "series", "sum", "mean", "max", "min", "front_expiry"] = "latest"
+    #                                                  D-PQ A' -- `front_expiry` is the EXCHANGE-SETTLE ANCHOR
+    #                                                  read and it is a SELECTION, not an aggregation: the
+    #                                                  newest session on/before the as-of is read WHOLE (every
+    #                                                  listed expiry, one row each) and the ONE named, versioned
+    #                                                  front-month rule then names which of those rows IS the
+    #                                                  front contract. One row comes back, carrying its own
+    #                                                  contract_month / settle_kind / currency / unit, plus the
+    #                                                  rule's roll_method + roll_rule_version. It is legal ONLY
+    #                                                  on a card declaring roll_input_cols, and it is a
+    #                                                  SINGLE-SESSION level by construction (no window, no named
+    #                                                  month) -- "front expiry through time" is a SPLICE the
+    #                                                  moment the front month rolls, which is the exact
+    #                                                  contamination `levels_only` fences on the continuous
+    #                                                  sibling table.
     limit: int = 5000                                # the SERIES row cap. D-CW-1c (DARK CAPABILITY CENSUS):
     #                                                  this field is now DECLARED in the model-facing tool
     #                                                  schema (agent.tool_schema) so a long-history read can
@@ -633,8 +674,13 @@ def _is_series_branch(spec: NumberQuery, ts: TableSpec) -> bool:
     undoing: the four scalar aggs collapse to one row, and ``agg='latest'`` on a table WITH a chronological
     axis compiles either ``... DESC LIMIT 1`` or the per-expiry ROW_NUMBER curve dedup -- neither is a series
     and neither can truncate. A table with NO order column falls through to the series arm even at
-    ``agg='latest'``, which is why the test is on ``_order_col`` and not on the agg alone."""
-    if spec.agg in ("sum", "mean", "max", "min"):
+    ``agg='latest'``, which is why the test is on ``_order_col`` and not on the agg alone.
+
+    D-PQ A': ``front_expiry`` is NOT a series branch either -- it compiles the DENSE_RANK single-session
+    curve and then collapses to ONE row. Saying so HERE is load-bearing rather than cosmetic: this
+    predicate gates the newest-first re-sort in ``run()``, and a front-expiry read re-sorted as though it
+    were a truncated series would reverse the very rows the roll rule is about to be handed."""
+    if spec.agg in ("sum", "mean", "max", "min", FRONT_EXPIRY_AGG):
         return False
     if spec.agg == "latest":
         return not _order_col(ts)
@@ -720,6 +766,35 @@ def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = AT
         raise ValueError(f"table {spec.table} carries no delivery-month column, so a contract_month "
                          f"({spec.contract_month!r}) read is not expressible against it -- the served series "
                          f"is not that expiry (silver_futures_prices is the CONTINUOUS front month)")
+    # D-PQ A' FRONT-EXPIRY GUARDS. The exchange-settle anchor is a SELECTION over ONE session, so three
+    # shapes are refused before any SQL exists, each for its own reason:
+    #   (1) a card with no roll_input_cols cannot RUN the rule (the rule's activity metric is not on the
+    #       rows), and "the front month" inferred without it is the nearest listed expiry -- a DIFFERENT,
+    #       unnamed rule wearing front_month_v2's name (the legacy_lane_front convention). Note the
+    #       levels_only raise ABOVE already refuses front_expiry on the continuous card, and that ordering
+    #       is deliberate: levels_only keeps priority, so silver_futures_prices declines as levels-only
+    #       rather than as un-declared, which is the truer reason.
+    #   (2) a NAMED contract_month contradicts the selection outright -- the caller has already said which
+    #       expiry it wants, and answering with a different one (or re-selecting inside a one-month frame)
+    #       would be the quiet substitution the delivery-month guard above exists to refuse.
+    #   (3) a WINDOW makes it multi-session, and "front expiry, then across dates" is only PIT-safe while
+    #       both endpoints are the SAME contract. Across a roll it is a SPLICE -- the exact contamination
+    #       levels_only fences on the continuous sibling -- so the anchor stays a single-session LEVEL and
+    #       a paced/changed front-month series remains out of scope by ratified design.
+    if spec.agg == FRONT_EXPIRY_AGG:
+        if not (ts.roll_input_cols and ts.contract_month_col):
+            raise ValueError(f"table {spec.table} declares no roll_input_cols/contract_month_col, so "
+                             f"agg={FRONT_EXPIRY_AGG!r} is not expressible against it -- the named "
+                             f"front-month rule cannot be RUN on its rows, and a front month guessed from "
+                             f"the nearest listed expiry is a different, unnamed rule")
+        if spec.contract_month:
+            raise ValueError(f"agg={FRONT_EXPIRY_AGG!r} SELECTS the delivery month, so naming one "
+                             f"(contract_month={spec.contract_month!r}) is a contradiction -- read that "
+                             f"expiry with agg='latest', or drop the month to let the rule name the front")
+        if spec.period_start or spec.period_end:
+            raise ValueError(f"agg={FRONT_EXPIRY_AGG!r} is a SINGLE-SESSION level (the newest session on "
+                             f"or before the as-of); a windowed front-month read splices across the roll, "
+                             f"which is not point-in-time-safe -- name a delivery month for a calendar read")
     # DP-1 GUARD: a metric carrying unit_overrides is keyed by commodity for its unit (avg_farm_price). A
     # commodity-less query would serve unattributable blank-unit rows -- RAISE deterministically (the
     # Conventions bullet is discipline; this is enforcement).
@@ -742,6 +817,28 @@ def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = AT
         return f"SELECT {fn}(value) AS value FROM ({sql}) AS _v"
 
     table = ts.athena_table or spec.table                     # agent-facing id -> physical Glue table
+    if spec.agg == FRONT_EXPIRY_AGG:
+        # THE WHOLE NEWEST SESSION, every listed expiry -- the rule cannot pick a front month from one row.
+        # DENSE_RANK (not ROW_NUMBER) is the point: a session returns ~13 rows that must ALL survive, and
+        # the rank is unpartitioned because leviathan_slug is already pinned by the commodity equality
+        # (_partition_filters RAISES without it), so rank 1 IS "the newest session for this contract".
+        # A trailing LIMIT still rides so a pathological curve cannot become an unbounded scan.
+        # The roll inputs ride the SELECT of THIS BRANCH ONLY and are stripped off the row again by
+        # select_front_expiry -- the served-metric whitelist stays settle-only.
+        roll_cols = _front_expiry_input_cols(ts)              # BOUND to the rule module; raises on drift
+        if not order:
+            raise ValueError(f"table {spec.table} has no chronological column, so the newest session "
+                             f"cannot be identified for an agg={FRONT_EXPIRY_AGG!r} read")
+        inner = (f"SELECT {sel}" + "".join(f", {c}" for c in roll_cols)
+                 + f", DENSE_RANK() OVER (ORDER BY {order} DESC) AS _dr FROM {db}.{table} WHERE {where}")
+        outcols = ("value" + "".join(f", {a}" for _, a in extras)
+                   + "".join(f", {c}" for c in roll_cols))
+        # THE CAP IS `CURVE_ROW_CAP`, NEVER `spec.limit` (D-PQ FIX-1b). The roll rule is handed the WHOLE
+        # session or it is not running the rule at all: this ORDER BY is ASC on contract_month, so a
+        # model-emitted `limit=1` kept the NEAREST listed expiry and `select_front_expiry` then stamped it
+        # front_month_v2 -- the legacy_lane_front substitution the guards above refuse by name.
+        return (f"SELECT {outcols} FROM ({inner}) AS _v WHERE _dr = 1"
+                f" ORDER BY {_total_order(extras, inc_country)} LIMIT {CURVE_ROW_CAP}")
     if ts.knowledge_semantics == "vintage":
         # as-known: rank vintages within the identity group, keep the newest published on/before asof
         part = ", ".join(ts.group_cols()) or "1"
@@ -789,8 +886,13 @@ def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = AT
             inner = (f"SELECT {sel}, ROW_NUMBER() OVER (PARTITION BY {ts.contract_month_col} "
                      f"ORDER BY {order} DESC) AS _rn FROM {db}.{table} WHERE {where}")
             outcols = "value" + "".join(f", {a}" for _, a in extras)
+            # `CURVE_ROW_CAP`, not `spec.limit` (D-PQ FIX-1b): this branch returns exactly ONE row per
+            # NAMED expiry, so the caller already bounded it by listing the months. The order is ASC on
+            # contract_month, so a smaller `limit` silently dropped the DEFERRED end of the curve the
+            # caller explicitly asked for -- and `agent._exec`'s truncation sentinel is series-scoped, so
+            # it went unannotated. The trailing cap stays only as a scan bound.
             return (f"SELECT {outcols} FROM ({inner}) AS _v WHERE _rn = 1"
-                    f" ORDER BY {_total_order(extras, inc_country)} LIMIT {int(spec.limit)}")
+                    f" ORDER BY {_total_order(extras, inc_country)} LIMIT {CURVE_ROW_CAP}")
         return base + f" ORDER BY {order} DESC, {_total_order(extras, inc_country)} LIMIT 1"
     # series/default: chronological + total tiebreak. Under the S1 canary (futures cards, or every card at
     # the D-AM-18 token) this is the REVERSE of that order with an explicit NULLS LAST on every term, so the
@@ -1016,14 +1118,135 @@ def run(spec: NumberQuery, *, query_fn=None, db: str = ATHENA_DB,
     ``_apply_unit_overrides`` CLOBBERS ``r["unit"]`` on every row of a metric carrying unit_overrides --
     silver_wasde declares BOTH ``unit_col`` and ``unit_overrides`` on avg_farm_price. A re-sort placed after
     the override would sort on a unit string the SQL never ordered by, producing an order that is neither the
-    DESC SQL's nor today's ASC."""
+    DESC SQL's nor today's ASC.
+
+    D-PQ A': the FRONT-EXPIRY SELECTION also runs on the RAW rows, and BEFORE ``_apply_unit_overrides`` for
+    a second, independent reason -- it consumes the roll-input columns and STRIPS them, so the override (and
+    every consumer after it) sees exactly one settle row carrying only served aliases. It cannot collide
+    with the re-sort: ``_is_series_branch`` excludes this agg, so the re-sort is a no-op on this path."""
     ts = load_registry().get(spec.table)
     sql = build_sql(spec, ts, db=db, futures_newest_first=futures_newest_first)
     rows = query_fn(sql) if query_fn is not None else default_query_fn(db=db)(sql)
     if _newest_first_applies(spec, ts, futures_newest_first):
         rows = resort_rows_chronological(rows, spec, ts)     # S1: DESC fetch -> ASC presentation (raw rows)
+    if spec.agg == FRONT_EXPIRY_AGG:
+        rows = select_front_expiry(rows, spec, ts)           # A': run the ONE named rule, keep ONE row
     rows = _apply_unit_overrides(rows, spec, ts)
     return _apply_country_names(rows, spec, ts)              # ESR: raw country_code -> display name (post-fetch)
+
+
+# -- D-PQ A': THE EXCHANGE-SETTLE ANCHOR (front-expiry selection at the READ PATH) ----------------------
+#
+# WHY THIS EXISTS. `silver_futures_eod` is the estate's richest per-expiry exchange-settle table -- true
+# PIT, per-row unit / currency / settle_kind -- and the front-month rule that says WHICH expiry is "the
+# market" has existed, named and versioned, since W2 (leviathan.silver.futures_roll, front_month_v2). The
+# ENGINE has called it since W3.3 (cascade._pace_front_expiry). The AGENT read path never could: with no
+# agg for it, "what did CBOT corn settle at" either named an expiry or got the NEAREST LISTED one wearing
+# "the price"'s label. Seven judged row-runs recorded the consequence in the other direction -- the answer
+# "quietly substitutes farm price for the CBOT price the question actually asked about" -- and the
+# suppression half of that fix was explicitly deferred "until P1 produces a working futures anchor". This
+# is that anchor, and it is a READ PATH change only: no new rule, no new table, no doctrine change (the
+# card is not in config_check.PRICE_TABLES, so R4 does not reach it).
+#
+# THE DISCIPLINE, in one line: the rule is RUN, never EMULATED. Every decline below is a case where
+# running it honestly is impossible, and in each the answer is silence plus a reason -- never a
+# nearest-listed-expiry approximation wearing front_month_v2's name.
+
+FRONT_EXPIRY_DECLINE = (
+    "no front expiry was served for this contract at this as-of: the named, versioned front-month rule "
+    "(front_month_v2) either does not apply to it -- a cash reference has no delivery-month axis -- or "
+    "could not be RUN on the session's rows, because the activity metric it reads is absent on a "
+    "candidate expiry. Do NOT describe any level as 'the front month' or 'the price' on this basis; name "
+    "a delivery month (contract_month) and quote THAT expiry, or say the front-month level is unavailable"
+)
+
+
+def _front_expiry_input_cols(ts: TableSpec) -> list[str]:
+    """The PHYSICAL activity-metric columns a front-expiry read must SELECT, taken from the card and BOUND
+    to the rule module's own declared input contract.
+
+    The bind is the whole point. Which column a method reads is the rule module's business
+    (``futures_roll``'s method->column mapping), and a second copy of THAT is worse than a second copy of
+    the implementation: the config_check source fence scans for a competing IMPLEMENTATION and would never
+    see it, so when a method's column changes the stale copy either declines wrongly or waves through a
+    DEGRADED selection, silently (the F-L class, and exactly what ``front_month_inputs_present`` exists to
+    catch one level down). So the card DECLARES the columns it carries and this function REFUSES to compile
+    unless that declaration still equals what the rule reads -- fail-closed, at the seam, with the drift
+    named in the message."""
+    from leviathan.silver import futures_roll as FR
+    need = sorted({str(c) for c in FR.METHOD_METRIC_COL.values() if c})
+    have = sorted({str(c) for c in (ts.roll_input_cols or [])})
+    if have != need:
+        raise ValueError(f"table {ts.id}: roll_input_cols {have} != the front-month rule's declared input "
+                         f"columns {need} -- the card and leviathan.silver.futures_roll have drifted, and a "
+                         f"front-expiry read compiled across that drift would silently serve a degraded "
+                         f"selection (fix the card; never restate the rule's input contract here)")
+    return need
+
+
+def select_front_expiry(rows: list[dict], spec: NumberQuery, ts: TableSpec) -> list[dict]:
+    """The newest session's curve -> the ONE front-expiry row, chosen by ``futures_roll.front_month``.
+
+    Returns ``[]`` (an honest, reasoned absence -- ``FRONT_EXPIRY_DECLINE``) rather than approximating, in
+    every case where the named rule cannot be run: an unlabelled or undated curve row, an unmapped slug, a
+    CASH REFERENCE (roll method 'none' -- "front month" is not a question that can be asked of a CEPEA
+    index), the rule's OWN INPUT absent on any candidate row (asked of ``front_month_inputs_present``,
+    never restated here: a PARTIAL frame is the dangerous one, because whichever expiry happened to carry
+    a print wins by default), a selection that returns nothing (every listed expiry already in delivery or
+    off-cycle), and -- defensively -- a frame that somehow spans more than one session, which would make
+    "the front month" ambiguous across a roll.
+
+    The returned row is the FETCHED row for the selected expiry, unmodified except that the roll-input
+    columns are STRIPPED (they are not served metrics) and two provenance keys are added: ``roll_method``
+    and ``roll_rule_version``. Value, unit, currency, settle_kind, contract_month and the trade date all
+    ride the row exactly as the table stored them -- nothing is converted, nothing is recomputed."""
+    slug = str(getattr(spec, "commodity", None) or "").strip()
+    if not rows or not slug:
+        return []
+    roll_cols = _front_expiry_input_cols(ts)
+    recs: list[dict] = []
+    by_month: dict[str, dict] = {}
+    for r in rows:
+        cm = str((r or {}).get("contract_month") or "")[:7]
+        dt = next((str(r.get(a))[:10] for a in _SESSION_ALIASES if (r or {}).get(a) not in (None, "")), None)
+        if not cm or not dt:
+            return []                              # an unlabelled / undated curve row is unattributable
+        try:
+            v = float(str(r.get("value")).replace(",", ""))
+        except (TypeError, ValueError):
+            continue                               # no numeric observation -> not a candidate expiry
+        if v != v:                                 # NaN is not an observation either
+            continue
+        rec = {"leviathan_slug": slug, "trade_date": dt, "contract_month": cm, "settle": v}
+        for c in roll_cols:
+            rec[c] = r.get(c)
+        recs.append(rec)
+        by_month.setdefault(cm, r)
+    if not recs:
+        return []
+    try:
+        import pandas as pd
+
+        from leviathan.silver import futures_roll as FR
+        method = str(FR.roll_method_for(slug))     # the ONE rule module -- never re-derived here
+        if method == FR.METHOD_NONE:
+            return []                              # cash reference: no delivery-month axis at all
+        frame = pd.DataFrame(recs)
+        if not FR.front_month_inputs_present(frame):   # the rule's OWN input contract, asked of the rule
+            return []
+        out = FR.front_month(frame)
+    except Exception:  # noqa: BLE001 -- a failed selection is an honest absence, never a raised lookup
+        return []
+    if out is None or len(out) != 1:               # nothing eligible, or (defensively) >1 session
+        return []
+    picked = str(out["contract_month"].tolist()[0])[:7]
+    row = by_month.get(picked)
+    if row is None:
+        return []
+    kept = {k: v for k, v in row.items() if k not in roll_cols}
+    kept["roll_method"] = method
+    kept["roll_rule_version"] = str(FR.ROLL_RULE_VERSION)
+    return [kept]
 
 
 # -- S3 / S7 / S4: the shape of a series read, and the one shape no positional stat may be computed over --

@@ -2145,11 +2145,16 @@ def _num_line(out: dict) -> str:
             # PIT-safe claim (OUTCOMES_JOIN_PLAN J3; token primitive lives beside the agent's render).
             from leviathan.graphrag.numbers import agent as _na
             val = f"{last.get('value')}@{_na.row_date_token(last, qy.get('table'))} (latest of {len(rws)} rows)"
-            # J3b/D-OJ-8: an `agg='series'` read that came back AT its row cap kept the OLDEST rows and
-            # dropped the newest, so "latest of N rows" is honest-looking and wrong. The sentinel is the
-            # ENGINE's (`_exec` stamps it at the count the query returned, before nulls are dropped).
+            # J3b/D-OJ-8: an `agg='series'` read that came back AT its row cap did not return the whole
+            # window. D-PQ FIX-1 re-aimed WHICH end survives -- the serving lanes now compile newest-first
+            # (answer._series_newest_first_on, default on), so the cap keeps the NEWEST rows and drops the
+            # EARLY end of the window. "latest of N rows" is therefore honest again; what is no longer
+            # honest is treating the read as the complete history, which is what this now says. The
+            # sentinel is the ENGINE's (`_exec` stamps it at the count the query returned, before nulls
+            # are dropped).
             if _na.series_truncated(c):
-                val += f" [TRUNCATED at row cap {qy.get('limit')}: OLDEST kept, NOT the latest print]"
+                val += (f" [TRUNCATED at row cap {qy.get('limit')}: NEWEST kept, so the EARLY end of the "
+                        f"window is missing -- not the complete history]")
         parts.append(f"{qy.get('table','?')}.{qy.get('metric','?')}={val}")
     return ", ".join(parts)
 

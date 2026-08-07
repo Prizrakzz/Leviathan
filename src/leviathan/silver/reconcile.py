@@ -90,6 +90,13 @@ NUMBERS_TABLES = (
     #                                     the registry until the card gave them a meaning (data_date on the
     #                                     week-ending date, +2d publication lag), and an unenumerated table
     #                                     would let that pair drift apart unchecked.
+    "silver_mpoc_stock_comparison",     # D-PQ tranche 1a (2026-08-07): MPOC importer-country vegetable-oil
+    #                                     ending stocks. Enumerated in the SAME change that adds the tables.yaml
+    #                                     card, for the reason the NASS entry below states and which applies
+    #                                     with full force here: all three knowledge fields were NULL in the F010
+    #                                     contract until this card gave them a meaning (year_month on year+month,
+    #                                     no publication lag because the year_month guard branch never applies
+    #                                     one). An unenumerated table would let that trio drift apart unchecked.
     "gold_pattern_records",             # T2b: pattern-records ledger (44th contract, registered-partition GOLD,
     #                                     flag-off until its deck gates the flip) — enumerated the moment its
     #                                     tables.yaml card landed so its knowledge fields reconcile against F010

@@ -21,6 +21,15 @@ WHAT IS PINNED, AND IN WHICH DIRECTION
     never reach -- D-FR-2's docstring parked it as "LIVE the instant the estate-wide alternative is taken".
     It is taken here, so the divergence is pinned here.
 
+D-PQ FIX-1 ADDED SECTION 8, AND CHANGED THE POLARITY OF THE SEAM (section 6). Sections 1-5 are about the
+COMPILER GIVEN A TOKEN and are untouched -- `build_sql`'s kwarg still defaults False and "off is
+byte-identity" still means exactly what it meant. What moved is which token a SERVING LANE RESOLVES with
+no env set: D-AM-18 shipped this opt-in, and the D-CW-4 wired probe then measured the cost of opt-in on a
+lane nobody had set the env on (a Nov-2019 MPOB print served as "the same month"; the 5000-cap oldest-kept
+read re-measured UNCHANGED) while the model-facing `limit` schema already promised the newest end. The
+default is now ON and the flag is the ROLLBACK. Section 8 pins that at the seam resolution; section 6 pins
+the inverted fail-closed direction (only a recognised DISABLE disables).
+
 The file is hermetic: no AWS, no LLM, no pg. `tests/unit/test_futures_readpath_pins.py` stays the acceptance
 surface for the FUTURES scope; this file must never restate its pins, only the estate-wide ones and the
 futures NON-movement that bounds them.
@@ -310,14 +319,23 @@ class TestSentinelStillReachable:
 # 6. THE SEAM -- one env read, exact-'on', folded into the token the existing thread already carries
 # ==================================================================================================
 class TestSeam:
-    def test_exact_on_fail_closed(self, monkeypatch):
-        """STRICTER than the futures seam's on/1/true, deliberately: this flag widens the read shape of
-        every card in the estate, so the enable is spelled one way and a stray '1' inherited from another
-        flag's env block cannot turn it on."""
+    def test_the_default_is_ON_and_only_an_explicit_disable_rolls_it_back(self, monkeypatch):
+        """D-PQ FIX-1 INVERTED THIS SEAM'S POLARITY, and this test is where that is stated.
+
+        D-AM-18 shipped it opt-in and exact-'on'. The D-CW-4 wired probe then measured the cost of opt-in
+        on a lane where nobody set the env: a Nov-2019 MPOB row served as "the same month" under a
+        model-chosen small `limit` (R3), and the 5000-cap oldest-kept read re-measured UNCHANGED (row 11) --
+        while the model-facing `limit` schema had already been written to promise the newest end. So the
+        DEFAULT is now on and the flag is the ROLLBACK.
+
+        The fail-closed direction moves with it. It is no longer "only 'on' enables"; it is "only a
+        recognised DISABLE disables", so a stray or misspelled value leaves the CORRECT ordering in place
+        rather than silently restoring the defect."""
         monkeypatch.delenv(FLAG, raising=False)
-        assert AN._series_newest_first_on() is False
-        for val, want in (("on", True), ("ON", True), (" on ", True), ("1", False), ("true", False),
-                          ("yes", False), ("off", False), ("", False)):
+        assert AN._series_newest_first_on() is True
+        for val, want in (("off", False), ("OFF", False), (" off ", False), ("0", False),
+                          ("false", False), ("no", False),
+                          ("on", True), ("1", True), ("true", True), ("", True), ("maybe", True)):
             monkeypatch.setenv(FLAG, val)
             assert AN._series_newest_first_on() is want, val
 
@@ -334,10 +352,10 @@ class TestSeam:
         """A rename that orphaned the seam would leave the flag permanently off with nothing red; a
         memoized read would make the rollback need a redeploy."""
         assert FLAG in inspect.getsource(AN._series_newest_first_on)
-        monkeypatch.setenv(FLAG, "on")
-        assert AN._series_newest_first_on() is True
         monkeypatch.setenv(FLAG, "off")
         assert AN._series_newest_first_on() is False
+        monkeypatch.setenv(FLAG, "on")
+        assert AN._series_newest_first_on() is True
 
 
 # ==================================================================================================
@@ -412,8 +430,11 @@ class TestTokenReachesTheCompiler:
         assert seen and all(s == ALL for s in seen)
 
     def test_the_orchestrator_lane_threads_the_token_OMIT_WHEN_OFF(self, monkeypatch):
-        """Both halves. Flag off -> the kwarg is ABSENT (byte-identical turn, and an injected
-        answer_numbers fake with the pre-wave signature stays valid); flag on -> the estate-wide token."""
+        """Both halves, with the D-PQ FIX-1 polarity. DEFAULT (no env at all) -> the estate-wide token,
+        because the correct ordering is what a forgotten env block now produces; the explicit DISABLE ->
+        the kwarg is ABSENT, which is what keeps the rollback byte-identical and keeps an injected
+        answer_numbers fake with the pre-wave signature valid. The futures bool alone still yields the
+        futures-scoped True, and the estate-wide token still wins over it."""
         from leviathan.graphrag import orchestrator as ORCH
         seen: list = []
 
@@ -424,12 +445,14 @@ class TestTokenReachesTheCompiler:
         monkeypatch.setattr(ORCH.na, "answer_numbers", _fake)
         monkeypatch.delenv("GRAPHRAG_FUTURES_NEWEST_FIRST", raising=False)
         monkeypatch.delenv(FLAG, raising=False)
-        ORCH.run_numbers_only("q", "2026-06-08", query_fn=lambda _sql: [])
+        ORCH.run_numbers_only("q", "2026-06-08", query_fn=lambda _sql: [])       # default -> ALL
+        monkeypatch.setenv(FLAG, "off")
+        ORCH.run_numbers_only("q", "2026-06-08", query_fn=lambda _sql: [])       # rollback -> ABSENT
+        monkeypatch.setenv("GRAPHRAG_FUTURES_NEWEST_FIRST", "on")
+        ORCH.run_numbers_only("q", "2026-06-08", query_fn=lambda _sql: [])       # futures-scoped only
         monkeypatch.setenv(FLAG, "on")
         ORCH.run_numbers_only("q", "2026-06-08", query_fn=lambda _sql: [])
-        monkeypatch.setenv("GRAPHRAG_FUTURES_NEWEST_FIRST", "on")
-        ORCH.run_numbers_only("q", "2026-06-08", query_fn=lambda _sql: [])
-        assert seen == ["ABSENT", ALL, ALL]        # the estate-wide token wins over the futures bool
+        assert seen == [ALL, "ABSENT", True, ALL]  # the estate-wide token wins over the futures bool
 
     def test_every_lane_above_the_seam_reaches_the_fold_BY_NAME(self):
         """The three lanes that compile a series read. A lane that never called the fold would be
@@ -477,8 +500,96 @@ class TestTokenReachesTheCompiler:
         metric = next(iter(reg.get(table).metrics))
         client = TestClient(sv.app)
         monkeypatch.delenv("GRAPHRAG_FUTURES_NEWEST_FIRST", raising=False)
-        monkeypatch.delenv(FLAG, raising=False)
+        monkeypatch.setenv(FLAG, "off")                       # D-PQ FIX-1: the DISABLE, not the absence
         assert client.get(f"/v1/series/{table}/{metric}").status_code == 200
-        monkeypatch.setenv(FLAG, "on")
+        monkeypatch.delenv(FLAG, raising=False)               # ... and the default is the token
         assert client.get(f"/v1/series/{table}/{metric}").status_code == 200
         assert seen == [False, ALL]
+
+
+# ==================================================================================================
+# 8. D-PQ FIX-1 -- ANY BOUNDED SERVING READ KEEPS THE NEWEST ROWS, AT THE DEFAULT
+# ==================================================================================================
+# WHY THIS SECTION EXISTS ON TOP OF SECTIONS 1-7. Everything above measures the compiler and the
+# threading GIVEN a token. What went un-measured -- and what the D-CW-4 wired probe then measured in
+# production shape -- is which token a lane resolves when NOBODY SETS THE ENV. D-AM-18 shipped opt-in, so
+# the answer was "none": R3 caught a Nov-2019 MPOB print served as "the same month" under a model-chosen
+# small `limit`, and row 11 re-measured the 5000-cap oldest-kept read UNCHANGED. Meanwhile the tool
+# schema's own `limit` description (D-CW-1c) already PROMISED the model the newest end.
+#
+# So these tests are written at the SEAM RESOLUTION, not at a hand-passed token: they ask what a serving
+# lane compiles today, with the environment as a forgotten env block leaves it.
+def _serving_scope() -> object:
+    """The token a serving lane resolves this call -- the same one-line fold `orchestrator`, `server` and
+    `answer._answer_l2` each perform. Read through the real seams so a polarity change cannot pass here."""
+    return AN._newest_first_scope(AN._futures_newest_first_on(), AN._series_newest_first_on())
+
+
+class TestTheServingDefaultKeepsTheNewestRows:
+    @pytest.fixture(autouse=True)
+    def _no_env(self, monkeypatch):
+        """A forgotten env block, exactly: neither flag set anywhere."""
+        monkeypatch.delenv(FLAG, raising=False)
+        monkeypatch.delenv("GRAPHRAG_FUTURES_NEWEST_FIRST", raising=False)
+
+    def test_the_default_resolution_is_the_estate_wide_token(self):
+        assert _serving_scope() == ALL
+
+    @pytest.mark.parametrize("name", sorted(NON_FUTURES))
+    @pytest.mark.parametrize("limit", [1, 12, 5000])
+    def test_every_bounded_read_compiles_newest_first_at_the_default(self, name, limit):
+        """SMALL limit and the 5000 DEFAULT, on every non-futures shape the defect names. The cap is
+        unchanged -- only which end it keeps -- so the LIMIT clause is asserted intact beside the order."""
+        spec = NON_FUTURES[name].model_copy(update={"limit": limit})
+        ts = _ts(spec.table)
+        sql = Q.build_sql(spec, ts, futures_newest_first=_serving_scope())
+        assert _terms(sql) and all(t.endswith("DESC NULLS LAST") for t in _terms(sql))
+        assert sql.rstrip().endswith(f"LIMIT {limit}")
+
+    def test_the_oldest_5000_class_is_dead_on_the_corn_settle_series(self):
+        """THE NAMED CLASS. An unwindowed per-slug corn_cbot settle series is ~49k rows against a 5000 cap;
+        ascending, the surviving rows stopped in 2011 and the answer narrated a fifteen-year-old price at
+        today's as-of. At the default the same read now keeps the newest 5000."""
+        spec = _spec(EOD, "settle", commodity="corn_cbot")
+        assert spec.limit == 5000
+        sql = Q.build_sql(spec, _ts(EOD), futures_newest_first=_serving_scope())
+        assert all(t.endswith("DESC NULLS LAST") for t in _terms(sql))
+        assert sql.rstrip().endswith("LIMIT 5000")
+
+    def test_the_rows_still_arrive_ASCENDING_so_no_consumer_moved(self):
+        """The half a flip is worthless without, taken through `run()` at the DEFAULT: the fetch is
+        newest-first, the presentation is the ascending order every `series[-1]` consumer indexes into."""
+        rows = [{"value": str(v), "period": f"{y}/{str(y + 1)[2:]}", "knowledge_date": "2026-05-12"}
+                for v, y in ((3, 2025), (2, 2024), (1, 2023))]           # a DESC fetch, as the SQL returns it
+        seen: list = []
+
+        def _qfn(sql):
+            seen.append(sql)
+            return [dict(r) for r in rows]
+
+        got = Q.run(NON_FUTURES["psd_vintage"], query_fn=_qfn, futures_newest_first=_serving_scope())
+        assert all(t.endswith("DESC NULLS LAST") for t in _terms(seen[0]))
+        assert [r["period"] for r in got] == ["2023/24", "2024/25", "2025/26"]
+
+    def test_the_front_expiry_anchor_is_UNAFFECTED_in_both_halves(self):
+        """D-PQ A' is not a series branch, so the re-sort must stay inert on it -- a front-expiry read
+        reversed as though it were a truncated series would reverse the very rows the roll rule is about
+        to be handed. And its cap is `CURVE_ROW_CAP`, never `spec.limit` (FIX-1b), so a model-emitted
+        `limit=1` can no longer hand the rule a one-row frame."""
+        ts = _ts(EOD)
+        fe = Q.NumberQuery(table=EOD, metric="settle", asof="2026-06-08", commodity="corn_cbot",
+                           agg=Q.FRONT_EXPIRY_AGG, limit=1)
+        assert Q._is_series_branch(fe, ts) is False
+        assert Q._newest_first_applies(fe, ts, _serving_scope()) is False
+        sql = Q.build_sql(fe, ts, futures_newest_first=_serving_scope())
+        assert "DESC NULLS LAST" not in sql
+        assert sql.rstrip().endswith(f"LIMIT {Q.CURVE_ROW_CAP}")
+
+    def test_the_rollback_still_restores_the_pre_wave_compile_everywhere(self, monkeypatch):
+        """ANTI-VACUITY plus the lever. One env value returns every card above to the byte-identical
+        ascending string -- otherwise this section would be pinning an unrollbackable change."""
+        monkeypatch.setenv(FLAG, "off")
+        assert _serving_scope() is False
+        for name in sorted(NON_FUTURES):
+            spec, ts = NON_FUTURES[name], _ts(NON_FUTURES[name].table)
+            assert Q.build_sql(spec, ts, futures_newest_first=_serving_scope()) == Q.build_sql(spec, ts)

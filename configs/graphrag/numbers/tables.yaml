@@ -249,10 +249,20 @@ tables:
   silver_esr:
     description: >
       USDA FAS Export Sales Reporting — WEEKLY US export sales and shipments by commodity and destination.
-      commodity_name is the canonical contract slug. IMPORTANT: market_year uses the FAS END-year label
-      (soybeans MY 2023/24 = market_year 2024; confirmed 2026-07-03 from week windows 2023-09..2024-09);
-      period_offset +1 translates our START-year convention at compile time — callers keep passing 2023 for
-      2023/24. Each weekly report carries an as_of_date (the report cutoff); as-of a date = the latest report
+      commodity_name is the canonical contract slug. PERIOD = THE MARKETING-YEAR **START** YEAR, AS AN
+      INTEGER: MY 2025/26 is period=2025, MY 2023/24 is period=2023. Never the end year, and never the
+      calendar year of the as-of. A date belongs to the marketing year that STARTED on or before it — US
+      corn and soybeans start Sep 1, so any date from 2025-09-01 through 2026-08-31 is period=2025; US
+      wheat starts Jun 1, so 2025-06-01 through 2026-05-31 is period=2025. It follows that AT AN AS-OF IN
+      THE FIRST HALF OF A CALENDAR YEAR THE CURRENT MARKETING YEAR IS THE PREVIOUS ONE — at an as-of in
+      mid-2026 the current corn/soybean MY is 2025 (2025/26); period=2026 is a crop year that has not
+      opened and returns NO ROWS, which is a query error and not an absence of data. Omit period entirely
+      to read whatever weeks the window covers rather than guessing a year.
+      (Implementation note, not a caller rule: the PHYSICAL column uses the FAS END-year label — soybeans
+      MY 2023/24 is stored market_year 2024, confirmed 2026-07-03 from week windows 2023-09..2024-09 — and
+      period_offset +1 translates the start-year convention above at compile time. Callers pass the START
+      year on this card exactly as they do on silver_psd.)
+      Each weekly report carries an as_of_date (the report cutoff); as-of a date = the latest report
       published on or before it (grain = the WEEK). Destinations ARE supported: pass country=<name> (e.g.
       country='China') for a buyer-scoped export-sales read; OMIT country for the national total across all
       destinations. Names resolve to raw FAS codes via numbers/esr_destinations.yaml; an unrecognised name
@@ -310,7 +320,10 @@ tables:
       for a per-destination (buyer) read, or OMIT country for the national total (agg=sum for a marketing-year
       total, agg=series over a week window with period_start/end). Destination names resolve to FAS codes via
       esr_destinations.yaml; an unrecognised name returns no rows (never a silent national total). The US is the
-      REPORTER, never a destination. period = market_year integer.
+      REPORTER, never a destination. period = the marketing-year START year as an integer (MY 2025/26 -> 2025),
+      the same convention silver_psd uses; the current MY at a mid-2026 as-of is 2025, and period=2026 returns
+      no rows because that marketing year has not opened. When unsure, omit period and window with
+      period_start/period_end instead — a wrong year reads as "no data" and is indistinguishable from one.
 
   silver_fred_fx:
     description: >
@@ -509,6 +522,92 @@ tables:
       (ffb_price_myr_per_mt remains excluded: MYR-native with no MYR in fred_fx -- deferred to
       futures v1.5 under PRICE_OBSERVABILITY_DECISION; the price fence now lives in the REGISTER,
       not the data.)
+
+  # D-PQ TRANCHE 1a (2026-08-07) -- MPOC IMPORTER-COUNTRY VEGETABLE-OIL STOCKS. From the dark-table
+  # resurrection matrix (docs/private/recon/dark-table-resurrection-matrix.md, row 4): canonical is
+  # current, the publish chain is intact (mpoc DAG, cron 0 12 15 * ? *, silver --publish-mode shadow
+  # then a promote phase in canonical mode; publish_class A, retrofit_landed true) and the SILVER-F010
+  # contract is complete. Nothing is ingested, re-chunked or re-derived -- this card is the whole fix.
+  #
+  # WHAT THE TABLE ACTUALLY IS, measured 2026-08-07 rather than assumed: 272 rows, 5 IMPORTING
+  # countries (bangladesh, china, india, pakistan, usa) x 4 oils (palm_oil, rapeseed_oil, soybean_oil,
+  # sunflower_oil) x 18 months, 2025-01..2026-06, zero nulls, zero duplicates on the full natural key.
+  # The recon deck's headline for this table ("Malaysian palm ending stocks vs Indonesia's") does NOT
+  # describe it -- there is no Malaysia row and no Indonesia row. It is the DESTINATION-side stock
+  # picture: what the big buyers are sitting on. That is the honest desk story and the card says so,
+  # because a card that inherits a wrong subject line mints wrong citations.
+  #
+  # PIT: year_month, minted here (the F010 contract carried nulls for all three knowledge fields
+  # before this card, exactly like silver_nass_crop_progress at D-CW-2a). The as-of guard is the
+  # ONI/IOD one -- (year*100 + month) <= asof year-month.
+  #
+  # WHAT THAT GUARD DOES **NOT** DO, STATED PLAINLY BECAUSE THE FIRST DRAFT OF THIS CARD OVERCLAIMED IT.
+  # It compares MONTH LABELS, not publication events, so the CURRENT month is always admitted: at asof
+  # 2026-06-01 a 2026-06 row passes the guard, and MPOC does not print June until roughly 2026-07-15.
+  # The leak window is therefore the whole data month PLUS the print lag -- up to ~45 days, not the
+  # "~2 weeks" this comment used to claim -- and "a mid-month as-of sees only COMPLETED months" is
+  # simply false (the incomplete current month is admitted, and the ONI/IOD wording this inherited was
+  # never a no-leak guarantee either). LIVE SERVING IS SAFE ONLY BECAUSE THE ROW IS PHYSICALLY ABSENT
+  # until MPOC publishes it; every HISTORICAL REPLAY / BACKTEST as-of leaks, because the row exists by
+  # then. That is the honest statement of the gap, and it is a bound on how this card may be used
+  # (do not replay it as though it were vintage), not a claim that the gap is closed.
+  #
+  # publication_lag_days is deliberately NOT set, and the reason is STRUCTURAL rather than a choice:
+  # the year_month branch of the guard returns BEFORE the publication-lag shift is applied
+  # (query._guard -> the year_month branch returns above _pub_lagged_asof), so a lag declared here
+  # could not shift anything -- it would be inert decoration that the F010 reconcile would then have
+  # to carry as a real number. Closing the ~45-day window needs a real knowledge column on the F010
+  # contract (or a lag-aware year_month branch), which is its own change; the cadence sentence in
+  # `notes` is a WARNING to the reader, never a fix.
+  #
+  # SARGABLE PARTITION DISCIPLINE: none needed, and that is a FACT about this table rather than an
+  # omission. It is flat (partition_mode flat, projection forbidden, partition_keys []), so there is
+  # no projected grid to prune and no LIST-storm class here; the bare `year <= <asof year>` bound the
+  # year_month guard already emits is the whole story. Do not add partition_cols -- reconcile_numbers
+  # would then require them to be real Glue partition keys and fail the build.
+  silver_mpoc_stock_comparison:
+    description: >
+      MPOC (Malaysian Palm Oil Council) monthly ENDING STOCKS of the four major vegetable oils held in
+      the large importing markets -- Bangladesh, China, India, Pakistan and the United States. One row
+      per country x oil type x month. This is the DESTINATION-side stock picture (what the buyers hold),
+      NOT origin stocks: for Malaysian production / closing stocks / exports use silver_mpob, and for
+      the USDA annual world oilseed balance sheet use silver_psd. Monthly grain; a completed month is
+      published around the middle of the following month.
+    grain: "one row per country x oil_type x year x month"
+    shape: wide
+    commodity_col: oil_type             # the OIL axis; values are oil names, NOT contract slugs (see notes)
+    country_col: country                # the HOLDING country (lower_snake); this is a destination axis
+    period_type: date                   # cosmetic here (no period_col) -- the ONI/IOD/gold_weather_z idiom
+    year_col: year                      # year_month semantics: (year*100+month) is the guard/window axis
+    month_col: month
+    knowledge_semantics: year_month     # as-of guard = (year*100+month) <= asof year-month
+    metrics:
+      ending_stocks_mt: {unit: "MT", desc: "end-of-month stocks of that oil held in that country (metric tonnes)"}
+    notes: >
+      ALWAYS PASS BOTH A COUNTRY AND AN OIL. This table carries TWO free axes and neither has a
+      default: with no country the read spans every holding country and a latest-value read returns
+      ONE arbitrary country's row, and with no oil it returns one arbitrary oil -- a Pakistani
+      sunflower number wearing an Indian palm label. commodity selects the oil and takes exactly
+      palm_oil, rapeseed_oil, soybean_oil or sunflower_oil (oil names, NOT contract slugs -- there is
+      no corn/wheat/cocoa row here). country takes lower_snake names and only these five exist:
+      bangladesh, china, india, pakistan, usa (lower case, unlike the Title-Case surface form
+      gold_weather_z uses). Anything else -- Indonesia, Malaysia, the EU, any origin country -- is NOT
+      in this table; decline rather than substituting a different country.
+      Values are metric TONNES of end-of-month stocks: a LEVEL, never a flow. A month-on-month delta
+      is a stock BUILD or DRAW, which is a different quantity from imports or exports (those live in
+      silver_mpoc_trade_stats_monthly, which has no card, and in silver_psd).
+      COVERAGE IS SHORT AND THAT IS THE DATA: the series starts 2025-01, so there is no multi-year
+      history to z-score against and no same-month analog before 2025 -- refuse a "how unusual is
+      this versus history" ask on this table rather than computing a two-observation baseline.
+      Window months with period_start/period_end as 'YYYY-MM', or agg=latest for the newest published
+      month on or before the as-of. THE AS-OF GUARD COMPARES MONTH LABELS, NOT PUBLICATION DATES:
+      (year*100 + month) <= asof year-month admits the CURRENT, incomplete month, and MPOC does not
+      print a month until roughly the middle of the NEXT one -- so the guard alone does not prove a
+      reading was knowable at the as-of. In live use the row simply does not exist yet; in a historical
+      replay it does, and the guard will hand it to you. Treat any month at or after the as-of month as
+      NOT YET PUBLISHED regardless of what the guard returns, expect the newest genuinely-published
+      month to trail today by one to two months, and cite the reading's own year and month -- never
+      call a dated reading 'current' (the same discipline the IOD card states for its monthly cadence).
 
   silver_sagis_cec:
     description: >
@@ -757,6 +856,12 @@ tables:
       knowable month; window with period_start/period_end 'YYYY-MM-DD'. The table is LATEST-ONLY and
       WB revises months retroactively, so there is NO true as-of replay -- values are as-published at
       the CURRENT WB release (see revision_stamp: "as published, WB release <latest_release_ym>").
+      HOW STRETCHED A SERIES IS, IS A SECOND METRIC HERE, NOT A CALCULATION: every price carries a
+      companion '<metric>_zscore_5yr' metric (urea_usd_mt -> urea_usd_mt_zscore_5yr,
+      natural_gas_us_usd_mmbtu -> natural_gas_us_usd_mmbtu_zscore_5yr, and so on for all 17). Look the
+      z up as its own lookup beside the level -- one lookup for the number, one for the sigma. Prefer
+      the stored z over computing one from a history read: it is point-in-time-clean by construction,
+      whereas a z computed off a capped or windowed series inherits whatever that window happened to be.
       Per-series validity floors null early z-scores (a z is null until its 5-yr window fills). Prices
       are USD/mt (edible oils/grains/sugar/fertilizers), USD/bbl (Brent), USD/mmbtu (gas), or an index
       (blended NPK). Uncovered commodities -- there are NO corn, coffee, cotton, rice or cocoa price
@@ -962,6 +1067,16 @@ tables:
     contract_month_col: contract_month    # 'YYYY-MM'; NULL for exactly the two CEPEA cash references
     settle_kind_col: settle_kind          # settlement | close | mark_to_market | cash_index
     currency_col: currency                # ISO-4217, source-faithful, never converted
+    # D-PQ A' (the EXCHANGE-SETTLE ANCHOR): the two PHYSICAL activity-metric columns this table carries
+    # that the ONE named query-time roll rule reads (front-by-open-interest where the exchange publishes
+    # it, front-by-volume otherwise). Declaring them is what makes `agg=front_expiry` expressible HERE and
+    # nowhere else. They are NOT served metrics and do not join the settle-only whitelist: they ride the
+    # SELECT of that single branch, are consumed by the rule, and are STRIPPED off the row before it is
+    # returned -- a provenance column the reader could quote as a figure is exactly what the whitelist
+    # exists to prevent. The list is BOUND at the seam to the rule module's own declared input contract
+    # (query._front_expiry_input_cols raises on drift), so it can never become a second copy of "which
+    # method reads which column".
+    roll_input_cols: [open_interest, volume]
     metrics:
       # settle-ONLY whitelist: open/high/low/close + volume + open_interest are carried in silver for
       # provenance but are NOT served -- they are NULL by construction on every settle-only source, so a
@@ -1047,9 +1162,21 @@ tables:
       checked against a free ICE settlement reference -- say so when citing them. UNITS: source-faithful
       exchange convention, ten currencies, NEVER FX-converted at ingest or at serving; the per-row `unit`
       and `currency` columns are the authority and unit_overrides above is lint-bound equal to them.
+      THE FRONT-MONTH SETTLE IS AN AGG, NOT A GUESS: agg=front_expiry reads the newest session on or
+      before the as-of and lets the named, versioned roll rule name the front delivery month, returning
+      ONE row with its own contract_month, settle_kind, currency and unit. That is the read for "what is
+      corn trading at" / "where did CBOT wheat settle" when no delivery month is named -- use it instead
+      of quoting the nearest listed expiry, and instead of substituting any other table's price (the World
+      Bank monthly average or the USDA season-average FARM price are NOT the exchange settle and must
+      never be offered as one). It takes no contract_month (it SELECTS one) and no date window (it is one
+      session's LEVEL; a front-month series would splice across the roll). It returns NOTHING for the two
+      CEPEA cash references (no delivery-month axis) and for any contract whose session rows do not carry
+      the activity metric the rule reads -- an honest absence, so say the front-month level is unavailable
+      or name an expiry, never approximate it.
       ROLL / CONTINUOUS ARE OUT OF SCOPE for this table: there is no front-month flag and no adjusted
       series -- a stored front-month flag IS roll policy, and roll policy is a named, versioned query-time
-      decision. This is a PER-DELIVERY-MONTH EOD table, distinct from silver_futures_prices (the yfinance
+      decision, which is exactly what agg=front_expiry runs (it stores nothing and adjusts nothing). This
+      is a PER-DELIVERY-MONTH EOD table, distinct from silver_futures_prices (the yfinance
       CONTINUOUS front-month close), the World Bank Pink Sheet MONTHLY averages, and the USDA WASDE
       season-average FARM price. COVERAGE FLOORS: history starts 2010-06 (CME via Databento), 2018-12 (ICE
       via Databento), 2015-10 (CZCE), 2006 (DCE) -- and JSE SAFEX has NO history at all: that series

@@ -784,8 +784,15 @@ _W3_IDS = ("silver_futures_eod",)
 # every other later wave listed above: present regardless of the DEPTH-wave kill-switch, so it belongs in
 # the BASELINE and is NOT one of the three ids that switch reverts.
 _D_CW_IDS = ("silver_nass_crop_progress",)
+# D-PQ tranche 1a (2026-08-07) landed the MPOC importer-country vegetable-oil ending-stocks card, the
+# ONE table of the dark-table matrix's six tranche-1a candidates that survived a data-shape check (the
+# other five are recorded in the D-PQ execution record: three carry NO knowledge/date column at all, so
+# every build_sql read RAISES, and two are content-dead behind a fresh S3 object). Same standing as
+# every later wave above: present regardless of the DEPTH-wave kill-switch, so it belongs in the
+# BASELINE and is NOT one of the three ids that switch reverts.
+_D_PQ_IDS = ("silver_mpoc_stock_comparison",)
 _DEPTH_BASELINE = (_PRE_WAVE_8 | set(_PRICE_IDS) | set(_SEAM_C_IDS) | set(_WIRING_W1_IDS)
-                   | set(_W3_IDS) | set(_D_CW_IDS))
+                   | set(_W3_IDS) | set(_D_CW_IDS) | set(_D_PQ_IDS))
 
 
 def _tool_enum():

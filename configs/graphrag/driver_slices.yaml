@@ -433,6 +433,61 @@ dag_alias:
   # exact class the heuristic's docstring calls a legitimate concept alias.
   natural_gas: [refinery_energy_costs]
 
+  # ===== D-PQ DAG-curation wave (2026-08-07) -- the CURATION D-CW-3a said it could not do by wiring =====
+  # D-CW-3a MEASURED that no nutrient-specific driver id existed anywhere in the 33 causal YAMLs and
+  # correctly REFUSED to steal one of the five generic fertilizer ids from the `fertilizer` slice (a
+  # zero-sum re-own that un-strands nothing). This wave supplies the missing NODES instead, so both
+  # entries below are pure additions on brand-new ids: no slice loses a single prop, and the
+  # `fertilizer` slice keeps all five of its ids on all 15 contracts.
+  #
+  # urea_cost: a nitrogen input-cost node CURATED onto the 12 DAGs where nitrogen economics actually
+  # bind -- corn family (corn, corn_cbot, campinas_corn_reference_bmf, french_maize_matif, both JSE
+  # maize boards), wheat family (french_wheat_matif, MGEX, KCBT, CBOT SRW) and canola/rapeseed
+  # (canola_ice, french_rapeseed_matif). On every one it is inserted beside the DAG's existing generic
+  # fertilizer node AND made that node's parent, so the graph reads energy -> urea -> fertilizer cost
+  # -> price (a chain, never two parallel additive cost drivers double-counting one cost push).
+  # Reach 0 -> 12: `urea` LEAVES the read-dark census (evidence.READ_DARK_SLICES_PIN 28 -> 26 with
+  # potash). `urea` is a literal token of the id, so this adds no driver_slice_alias_warnings entry.
+  urea: [urea_cost]
+  # potash_cost: the ONE defensible nutrient-specific node outside nitrogen. Oil palm removes more
+  # potassium than any other nutrient and muriate of potash is the single largest line in a Malaysian /
+  # Indonesian estate fertiliser budget, with the 12-24 month FFB yield response the DAG's own
+  # fertilizer_cost node already encodes (lag 2-6 quarters, edge_type affects_yield_of) -- so the node
+  # is a refinement of an existing mechanism, not a new claim. Added to malaysian_crude_palm_oil_cme
+  # ONLY: palm_olein_dce is the refined downstream product and correctly carries no plantation cost
+  # stack at all. Reach 0 -> 1; shares the `potash` token, so no new advisory.
+  # DECLINED, and recorded rather than forced: **dap**. Phosphate is a build-up/maintenance nutrient
+  # with multi-year soil residual -- on none of the 33 boards is DAP the marginal input cost inside the
+  # 1-4 quarter lag horizon these DAGs model, and on the crops where it matters at all it moves with the
+  # nitrogen story a `urea_cost` node already carries. `dap` therefore STAYS in READ_DARK_SLICES_PIN;
+  # its 88 props wait for a real phosphate mechanism, not a node invented to retire a census line.
+  potash: [potash_cost]
+  #
+  # MACRO DE-CHOKE (no alias edit -- `macro: [macro_demand]` above already existed; the CHOKE was that
+  # `macro_demand` was a node on exactly ONE DAG, cocoa). The same wave curated a macro_demand node onto
+  # 23 more grain/oilseed/softs DAGs, mirroring cocoa.yaml's shape field-for-field, so the slice's 2,121
+  # props stop being cocoa-only: MEASURED reach 1 -> 24 contracts. Where the DAG already carried an
+  # unambiguous income-elastic consumption node, that node now names macro_demand as a PARENT (cocoa's
+  # exact shape, macro_demand -> grind_demand); where it did not, macro_demand is a root driver.
+  # Two honesty fences applied to the curation, both worth stating because they are why the number is
+  # 24 and not 33:
+  #   (i) DECLINED where end demand is income-INELASTIC or the sign would be ambiguous -- the four wheat
+  #       boards (milling wheat is the textbook staple; its macro channel is import FINANCING, already
+  #       carried by EUR_USD / USD_index), rough_rice_cbot (rice consumption FALLS with income across
+  #       Asia, so a '+' sign would be wrong), south_african_white_maize_jse (the southern-African food
+  #       staple -- note its YELLOW twin DOES get the node, because yellow maize is feed), raw_sugar +
+  #       white_sugar (calorie demand is inelastic; sugar's real macro channel is crude/ethanol parity,
+  #       already modelled by sugar_ethanol_parity), frozen_orange_juice (secular decline dominates the
+  #       cycle). Recorded, not smuggled.
+  #  (ii) region is `Global` on EVERY macro_demand node, including the China- and EU-specific ones, and
+  #       that is deliberate: fred_fx_macro IS a cascade-mapped ref, and cascade_map's region_map RESOLVES
+  #       'China' (-> China, cny) and 'EU'. A China-regioned node would therefore have quietly armed a
+  #       QUANTIFIED cny fx leg on eight DAGs -- turning a narrative de-choke into new engine
+  #       quantification, which this wave does not do. 'Global' lands in region_map.unresolved, so the
+  #       node stays qualitative exactly as cocoa's always has. The geography lives in the mechanism /
+  #       blurb / evidence_query text, where narrative belongs. (config_check's cascade_map region census
+  #       caught the one compound token, 'Brazil;Global', before it shipped.)
+
 # ── waivers: dark ids with no text slice, now ACCOUNTED (P2 W1) ──────────────────────────────
 # silver_only = FX crosses / teleconnection indices / computed spreads (grounded by the observed
 # silver leg, never text); deferred = a real corpus gap awaiting E1b/E2 or the paid chunk pass.

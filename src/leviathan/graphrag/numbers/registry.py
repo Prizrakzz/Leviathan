@@ -203,6 +203,29 @@ class TableSpec(BaseModel):
     #                                                          at serving, so a bare number is unattributable
     #                                                          without it (mirrors unit_col exactly: declare the
     #                                                          column, get the alias, no other behavior).
+    roll_input_cols: list[str] = []                          # D-PQ A' (OPTION A-prime, the exchange-settle
+    #                                                          anchor): the PHYSICAL columns a per-expiry price
+    #                                                          card carries that the ONE query-time front-month
+    #                                                          rule (leviathan.silver.futures_roll.front_month,
+    #                                                          ROLL_RULE_VERSION front_month_v2) reads as its
+    #                                                          ACTIVITY METRIC. Declaring a NON-EMPTY list is
+    #                                                          what makes `agg='front_expiry'` expressible on
+    #                                                          the card: those columns ride the SELECT of that
+    #                                                          ONE branch, are consumed BY THE RULE, and are
+    #                                                          STRIPPED off the returned row (they are not
+    #                                                          served metrics -- the card's whitelist stays
+    #                                                          settle-only, and a provenance column the reader
+    #                                                          could quote as a figure is exactly what that
+    #                                                          whitelist exists to prevent). The list is BOUND
+    #                                                          at the seam to the rule module's own declared
+    #                                                          input contract and a drift RAISES there
+    #                                                          (query._front_expiry_input_cols) -- never a
+    #                                                          second copy of "which method reads which
+    #                                                          column", which is the F-L drift class the rule
+    #                                                          module exists to prevent. [] (every other card)
+    #                                                          -> agg='front_expiry' is not expressible and
+    #                                                          build_sql RAISES rather than guessing a front
+    #                                                          month from the nearest listed expiry.
     metrics: dict[str, Metric] = {}                          # wide: column->Metric ; tall: metric-value->Metric
     grain_cols: list[str] = []                               # explicit unique-observation identity (else inferred)
     vintage_tiebreak: list[VintageTiebreakTerm] = []         # optional per-grain tiebreak for latest-vintage

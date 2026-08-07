@@ -749,25 +749,46 @@ def _futures_newest_first_on() -> bool:
     return os.environ.get("GRAPHRAG_FUTURES_NEWEST_FIRST", "").strip().lower() in ("on", "1", "true")
 
 
+_SERIES_NEWEST_FIRST_OFF = ("off", "0", "false", "no")
+"""The ONLY spellings that roll the estate-wide newest-first read shape BACK to the pre-D-AM-18 ascending
+compile. Deliberately several, and deliberately the inverse of the old enable list: after D-PQ FIX-1 the
+DEFAULT is on, so the value that must never be missed is the DISABLE. A stray unrecognised value
+(`GRAPHRAG_SERIES_NEWEST_FIRST=maybe`) therefore leaves the CORRECT ordering in place rather than silently
+restoring the defect."""
+
+
 def _series_newest_first_on() -> bool:
     """D-AM-18 (GRAPHRAG_SERIES_NEWEST_FIRST). THE SECOND ENV SEAM for the same read-shape flip, WIDENED to
     every series read instead of the futures cards `_futures_newest_first_on` scopes it to.
 
     THE DEFECT. D-FR-2 ratified S1 futures-scoped, so a non-futures series read -- PSD, CEPEA, pink_sheet,
-    COT, NASA POWER -- still compiles its ORDER BY ascending and `LIMIT 5000` keeps the OLDEST rows. On the
-    long cards that is not a corner: a z-score or a percentile asked for "long history" windows against
+    COT, NASA POWER, MPOB -- still compiles its ORDER BY ascending and `LIMIT 5000` keeps the OLDEST rows. On
+    the long cards that is not a corner: a z-score or a percentile asked for "long history" windows against
     rows that stop years before the as-of, and nothing in the answer says the tail is missing (the
     truncation sentinel annotates the read, it does not re-aim it).
 
-    WHY A SECOND FLAG RATHER THAN WIDENING THE FIRST. The futures scope is LIVE (rev 76) and its A/B is
-    closed; folding the estate into it would re-open that measurement and would make one rollback lever
-    cover two answer-changing surfaces. Two flags means the estate-wide read shape can be flipped, judged
-    and rolled back on its own, and it means GRAPHRAG_FUTURES_NEWEST_FIRST=on with this one absent compiles
-    the byte-identical SQL it compiles today.
+    D-PQ FIX-1: THE DEFAULT IS NOW ON, AND THE FLAG IS THE ROLLBACK. D-AM-18 shipped this seam OPT-IN, and
+    the D-CW-4 wired probe then measured what opt-in costs on a lane nobody remembered to set the env on:
+    row 3 served a Nov-2019 MPOB print as "the same month" (an ASC/oldest-kept read under a model-chosen
+    small `limit`), and row 11 re-measured the 5000-cap oldest-kept read UNCHANGED. Meanwhile the model-facing
+    tool schema (`agent.tool_schema`, the `limit` field, D-CW-1c) had already been written to PROMISE the
+    newest end -- "the rows kept are the NEWEST ones in the window ... read newest-first for exactly that
+    reason". A default-off flag made that promise FALSE on every non-futures card, which is worse than either
+    end taken honestly: the model sizes its window against a contract the compiler does not keep.
 
-    EXACT-'on', FAIL-CLOSED -- deliberately STRICTER than the futures seam's on/1/true. This one widens the
-    read shape of every card in the estate, so the enable is spelled one way and a stray "1" or "true"
-    inherited from another flag's env block does not turn it on by accident.
+    So the polarity is inverted rather than the flag deleted. The lever survives -- one env value still
+    restores the byte-identical pre-wave compile with no redeploy -- but it is now spelled as a DISABLE
+    (`_SERIES_NEWEST_FIRST_OFF`), and the value a forgotten env block produces (absent) is the correct one.
+    `_futures_newest_first_on` is deliberately NOT inverted: it is nested inside this scope (everything the
+    futures flag moves, this one moves too, and `_newest_first_scope` resolves the estate-wide token first),
+    so inverting it would change nothing except which of two flags a rollback has to find.
+
+    WHERE THE NEW DEFAULT LIVES, STATED SO NOBODY LOOKS FOR IT IN THE COMPILER. At the SEAM only.
+    `query.build_sql` / `query.run` still default `futures_newest_first=False`, so the compiler's contract,
+    its omit-when-off idiom and every pin in test_dam_series_order sections 1-4 are untouched: what changed
+    is which value the SERVING lanes hand it. The consequence is exactly the reach paragraph below -- the
+    threaded caller graph is newest-first now, the three unthreaded sites are not, and the raw-`build_sql`
+    tools (`numbers_parity`, `cascade_census`) stay unflagged by design.
 
     WHAT IT DOES NOT REACH, STATED SO THE GAPS ARE DECISIONS. The token rides the caller graph D-FR-10
     threaded, so it reaches the cascade legs, the J4 tape, the numbers agent and /v1/series -- and NOT the
@@ -787,7 +808,7 @@ def _series_newest_first_on() -> bool:
     section 7 pins -- rather than minting a parallel thread that would have to re-earn that proof frame by
     frame, and whose first missed frame would be indistinguishable from the flag being off.
     Read PER CALL (never memoized) so the env-flip rollback is live -> no redeploy (the _chain_on idiom)."""
-    return os.environ.get("GRAPHRAG_SERIES_NEWEST_FIRST", "").strip().lower() == "on"
+    return os.environ.get("GRAPHRAG_SERIES_NEWEST_FIRST", "").strip().lower() not in _SERIES_NEWEST_FIRST_OFF
 
 
 def _newest_first_scope(futures_on: bool, series_on: bool) -> bool | str:

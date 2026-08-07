@@ -654,8 +654,12 @@ def test_seam_injects_block_and_trace(monkeypatch):
     rpair = {"contract": "wheat", "metric": "exports_mt", "countryA": "Russia", "dA": -14.573,
              "countryB": "United States", "dB": 11.216, "window": "MY2009-MY2010", "reroute": True}
 
+    # `**_kw` (D-PQ FIX-1): the estate-wide newest-first scope is the SERVING DEFAULT now, so
+    # `_answer_l2` always sends `futures_newest_first` -- the omit-when-off idiom no longer keeps a
+    # pre-wave stub signature valid. This stub stands in for quantify's SHAPE, not its kwarg census
+    # (that pin lives in test_futures_readpath_pins section 7), so it absorbs the rest.
     def stub(sg, graph, *, qfn, asof, near, extra_number_calls, xc_request=None, comove=False,
-             price_request=None):
+             price_request=None, **_kw):
         extra_number_calls.append({"query": {"metric": "exports_mt"}, "rows": [{"value": 2.46}], "status": "ok"})
         return "OBSERVED CASCADE NUMBERS (test):\n- [N1] wheat exports 2.46 MMT", [{"divergence": False}], [rpair]
 
@@ -666,8 +670,12 @@ def test_seam_injects_block_and_trace(monkeypatch):
 
 
 def test_seam_empty_reroute_trace_not_stashed(monkeypatch):
+    # `**_kw` (D-PQ FIX-1): the estate-wide newest-first scope is the SERVING DEFAULT now, so
+    # `_answer_l2` always sends `futures_newest_first` -- the omit-when-off idiom no longer keeps a
+    # pre-wave stub signature valid. This stub stands in for quantify's SHAPE, not its kwarg census
+    # (that pin lives in test_futures_readpath_pins section 7), so it absorbs the rest.
     def stub(sg, graph, *, qfn, asof, near, extra_number_calls, xc_request=None, comove=False,
-             price_request=None):
+             price_request=None, **_kw):
         return "OBSERVED CASCADE NUMBERS (test):\n- x", [{"divergence": False}], []
 
     out, _captured = _seam_harness(monkeypatch, stub)

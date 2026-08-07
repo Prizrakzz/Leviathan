@@ -1393,7 +1393,26 @@ def tool_schema(reg: NumbersRegistry) -> dict:
                 "country": {"type": "string", "description": "country, if the table is per-country"},
                 "region": {"type": "string", "description": "station-region for weather tables (e.g. us_corn_iowa); "
                                                             "omit to use the commodity's primary region"},
-                "period": {"type": "string", "description": "marketing year or year (per the table's period format)"},
+                # D-PQ FIX-3 (D-CW-4 R4): "per the table's period format" left the ONE rule that actually
+                # decides whether a marketing-year read returns rows unstated at the only place the model
+                # reads before choosing a value. The measured failure: an ESR destination leg queried
+                # market_year 2026 at a mid-2026 as-of and got no_rows, because the marketing year in
+                # progress is 2025/26 -- keyed 2025. A wrong year is INDISTINGUISHABLE from an absence at
+                # the row level, so the model reported "no data" for a series that is fully populated.
+                "period": {"type": "string", "description":
+                           "the table's period value -- a calendar year, or a MARKETING YEAR. THE SPELLING "
+                           "IS PER CARD (some marketing-year tables want a single year like '2025', "
+                           "others a split label like '2025/26' -- the card says which), but WHICH "
+                           "marketing year you mean is the same rule everywhere: it is named by the year "
+                           "it STARTS. MY 2025/26 is '2025' (or '2025/26'), never '2026'. A date belongs "
+                           "to the marketing year that STARTED on or before it -- US corn and soybeans "
+                           "start Sep 1, US wheat starts Jun 1 -- so in the FIRST HALF of a calendar year "
+                           "the marketing year in progress is the PREVIOUS one: at an as-of in mid-2026 "
+                           "the current US corn/soybean marketing year is 2025/26, keyed 2025. Passing "
+                           "'2026' there asks for a crop year that has not opened and returns NO ROWS. "
+                           "When unsure OMIT this and window with period_start / period_end instead -- a "
+                           "wrong period reads as 'no data' and you cannot tell it apart from a real "
+                           "absence, so never report one as the other."},
                 "period_start": {"type": "string", "description": "YYYY-MM-DD window start (date-grained tables)"},
                 "period_end": {"type": "string", "description": "YYYY-MM-DD window end (date-grained tables)"},
                 # W3.1 item 2 -- the DELIVERY-MONTH dimension, declared the day silver_futures_eod was
@@ -1418,20 +1437,56 @@ def tool_schema(reg: NumbersRegistry) -> dict:
                 # above stayed unreachable in practice: 'latest' means the newest observation, and on a
                 # per-expiry table with delivery months NAMED that is the newest session FOR EACH named
                 # expiry (one row per expiry). Said plainly here so the curve form is callable as written.
-                "agg": {"type": "string", "enum": ["latest", "series", "sum", "mean", "max", "min"],
+                # D-PQ A' -- `front_expiry` is THE EXCHANGE-SETTLE ANCHOR, and it is declared here because
+                # the model can only emit what the schema NAMES. While it was absent, "what did CBOT corn
+                # settle at" had exactly two reachable answers: name an expiry (which the asker had not),
+                # or read the whole curve and quote the NEAREST LISTED one as "the price". The named,
+                # versioned front-month rule has existed since W2 and the cascade has called it since W3.3;
+                # this is the same rule, reachable from a lookup.
+                "agg": {"type": "string",
+                        "enum": ["latest", "series", "sum", "mean", "max", "min", "front_expiry"],
                         "default": "latest",
                         "description": "how to read the window. 'latest' = the newest observation on or "
                                        "before the as-of -- on a per-expiry futures table with "
                                        "contract_month(s) named it returns the newest session FOR EACH "
                                        "named expiry (that is the curve at one as-of, one row per "
                                        "expiry); 'series' = every observation in the window, oldest -> "
-                                       "newest; sum/mean/max/min collapse the window to one number."},
+                                       "newest; sum/mean/max/min collapse the window to one number; "
+                                       # A-prime review, STYLE 2: the GUARD is card-driven (a card must
+                                       # declare roll_input_cols + contract_month_col), not a hardcoded
+                                       # table name -- so the description says WHICH KIND of card rather
+                                       # than naming the one that qualifies today, which would drift on
+                                       # the second per-expiry card while still reading as authoritative.
+                                       "'front_expiry' (per-expiry exchange-settle cards -- today that "
+                                       "is silver_futures_eod) = THE FRONT-MONTH "
+                                       "EXCHANGE SETTLE -- the newest session on or before the as-of, "
+                                       "with the front delivery month chosen by the house's one named, "
+                                       "versioned roll rule. Use it for 'what is corn trading at' / "
+                                       "'where did CBOT wheat settle' when the question names no delivery "
+                                       "month: it returns ONE row carrying its own contract_month, "
+                                       "settle_kind, currency and unit, so say which expiry and which "
+                                       "kind of print it is. It takes NO contract_month (it SELECTS one) "
+                                       "and NO period_start/period_end (it is one session's level, never "
+                                       "a front-month series -- that would splice across the roll). If it "
+                                       "returns nothing, the rule could not be run for that contract: say "
+                                       "so, or name a delivery month -- never fall back to another "
+                                       "table's price and call it the futures level."},
                 # D-CW-1c -- the twelfth NumberQuery field, and the only one the schema never declared.
                 # The model can only emit what the schema NAMES, so while this was absent EVERY series read
                 # ran at the 5000 cap with no way to say otherwise: a daily card asked for "the full
                 # history" came back truncated, and the truncation is silent at the row level (a capped
                 # series looks exactly like a short one). Declared here so a long read is a DELIBERATE
                 # window rather than an accident of the default.
+                #
+                # D-PQ FIX-1/FIX-2 (D-CW-4 R3). Declaring the knob had a cost the census did not price:
+                # the model reached for SMALL caps as a way to keep a read cheap, and the compiler was
+                # still ASCENDING, so `limit=1` on a monthly card served a Nov-2019 print as "the same
+                # month". Two things changed. (a) The ORDER is fixed at the compiler (the serving lanes
+                # resolve newest-first by default now, answer._series_newest_first_on), so the "NEWEST
+                # ones" sentence below is TRUE rather than aspirational. (b) The description now says
+                # plainly that lowering the cap is not a way to spend less -- which is the reading that
+                # produced the narrow single-table calls, and the same reading that made a multi-leg
+                # margin read look expensive enough to skip. Prompt-side; the probe re-run adjudicates.
                 "limit": {"type": "integer", "default": 5000, "minimum": 1, "maximum": 5000,
                           "description":
                           "maximum number of rows a 'series' read returns (default 5000, the cap; you may "
@@ -1439,7 +1494,11 @@ def tool_schema(reg: NumbersRegistry) -> dict:
                           "with MORE observations than this is TRUNCATED, and the rows kept are the "
                           "NEWEST ones in the window (the series is read newest-first for exactly that "
                           "reason and handed back to you oldest -> newest). So a small limit on a long "
-                          "card means 'the last N observations', not 'the first N'. Two rules: (1) pin "
+                          "card means 'the last N observations', not 'the first N'. LEAVE IT ALONE unless "
+                          "you specifically want the last N observations: it is not a cost lever, it does "
+                          "not make a lookup cheaper or an answer shorter, and it is never a substitute "
+                          "for a second lookup -- a question whose legs live on several tables wants "
+                          "several full reads, not one narrowed one. Two rules: (1) pin "
                           "the window you actually want with period_start / period_end rather than "
                           "leaning on the cap -- a daily card holds ~250 rows per year, a weekly one ~52; "
                           "(2) never describe a truncated read as the complete record -- if the rows you "
@@ -2195,8 +2254,17 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                     except KeyError:
                         ksem = ""
                     status = "not_known" if ksem == "vintage" else "no_rows"
-                return {"query": spec.model_dump(exclude_none=True), "rows": vals, "status": status,
-                        "truncated": _trunc}
+                payload = {"query": spec.model_dump(exclude_none=True), "rows": vals, "status": status,
+                           "truncated": _trunc}
+                # D-PQ A': an EMPTY front-expiry read is not a plain lake gap -- the selection declines
+                # (cash reference, missing activity metric, nothing eligible) exactly where running the
+                # named rule honestly is impossible. Without the reason on the payload the model sees a
+                # bare no_rows and the recorded failure mode is precisely what it does next: reach for
+                # another table's price and call it the futures level. Query.run does not raise for this
+                # (an honest absence is not an error), so the reason rides here.
+                if not vals and str(getattr(spec, "agg", "") or "") == Q.FRONT_EXPIRY_AGG:
+                    payload["scope_note"] = Q.FRONT_EXPIRY_DECLINE
+                return payload
             except Exception as e:  # noqa: BLE001 — a bad lookup must not kill the loop
                 return {"query": dict(b.input), "error": str(e)[:200], "rows": [], "status": "error"}
 
@@ -2457,11 +2525,18 @@ def row_known_label(row, table: Optional[str] = None) -> Optional[str]:
 
 
 def series_truncated(call) -> bool:
-    """J3b (plan items 61-64): did this read come back at its own row cap, so the newest prints were
-    silently discarded? The series/default branch compiles `ORDER BY <total order> LIMIT <limit>` --
-    ASCENDING, no DESC -- and `NumberQuery.limit` defaults to 5000 with no lever in the tool schema, so an
-    unwindowed per-slug read of corn_cbot (49,255 rows) keeps the OLDEST 5,000 and drops ~44,000 newer ones.
-    A renderer that then headlines "the latest" is honest-looking and wrong.
+    """J3b (plan items 61-64): did this read come back at its own row cap, so part of the asked-for window
+    was silently discarded? As written, the series/default branch compiled `ORDER BY <total order> LIMIT
+    <limit>` -- ASCENDING, no DESC -- so an unwindowed per-slug read of corn_cbot (49,255 rows) kept the
+    OLDEST 5,000 and dropped ~44,000 newer ones, and a renderer that headlined "the latest" was
+    honest-looking and wrong.
+
+    WHICH END IS LOST HAS MOVED; WHETHER SOMETHING IS LOST HAS NOT (D-PQ FIX-1). The serving lanes now
+    resolve the newest-first scope ON by default (`answer._series_newest_first_on`), so a capped read keeps
+    the NEWEST rows and loses the EARLY end of the window instead. This predicate is unchanged and stays
+    exactly as load-bearing: the read is still not the complete history, the answer must still say so, and
+    the standing remedy is still WINDOWING. Only the RENDERED SENTENCE moved (`format_provenance`,
+    `eval._num_line`) -- pointing a reader at the wrong missing end is its own defect.
 
     SCOPED TO `agg='series'`, which is the sharpening the skeptic pass confirmed and this must not overstate:
     `agg='latest'` compiles `ORDER BY <order> DESC, ... LIMIT 1` and cannot truncate, and the named-month
@@ -2527,6 +2602,11 @@ def format_provenance(calls: list[dict]) -> list[str]:
         if known:
             line += f" [{known}]"
         if series_truncated(c):
-            line += f" (row cap {q.get('limit')} reached -- OLDEST rows kept, so this is NOT the latest print)"
+            # D-PQ FIX-1: the serving lanes compile newest-first by default, so a capped read keeps the
+            # NEWEST rows and loses the EARLY end of the window. The old wording ("OLDEST rows kept, so
+            # this is NOT the latest print") is now the exact inverse of the truth and would have a reader
+            # discount a current print as stale.
+            line += (f" (row cap {q.get('limit')} reached -- NEWEST rows kept, so the EARLY end of the "
+                     f"window is missing; not the complete history)")
         out.append(line)
     return out

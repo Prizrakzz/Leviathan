@@ -524,8 +524,11 @@ def test_answer_l2_passes_xc_request_to_quantify(monkeypatch):
 
     rec = {}
 
+    # `**_kw` (D-PQ FIX-1): `_answer_l2` now always threads `futures_newest_first` (the estate-wide
+    # newest-first scope is the serving default), so a pre-wave stub signature no longer survives the
+    # omit-when-off idiom. What this test pins is xc_request, not the kwarg census.
     def _stub_quantify(sg, graph, *, qfn, asof, near, extra_number_calls, xc_request=None, comove=False,
-                       price_request=None):
+                       price_request=None, **_kw):
         rec["xc_request"] = xc_request
         rec["comove"] = comove
         return None, None, None

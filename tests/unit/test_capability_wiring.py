@@ -50,6 +50,7 @@ _ADVERTISED = {
     "gold_weather_z": ("z-anomalies",),
     "silver_icco_cocoa": ("grindings",),
     "silver_mpob": ("mpob", "palm"),
+    "silver_mpoc_stock_comparison": ("mpoc",),          # D-PQ tranche 1a: importer-country vegoil stocks
     "silver_sagis_cec": ("sagis",),
     "silver_conab_coffee": ("conab",),
     "silver_sagis_weekly_exports": ("sagis",),

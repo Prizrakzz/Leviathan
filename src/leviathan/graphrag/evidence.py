@@ -767,9 +767,9 @@ def dag_backed_slice_names() -> set:
     return {slice_name for did, slice_name in alias.items() if did in real}
 
 
-# G7.2 -- the 28 configured driver slices no REAL DAG id reaches, so planner._fill can never reach them and
+# G7.2 -- the 26 configured driver slices no REAL DAG id reaches, so planner._fill can never reach them and
 # no episode line can ever be injected for them on any contract. MEASURED at plan time over 109 configured
-# specs against display.all_driver_ids() (361 ids). Pinned here as a standing census number so nobody
+# specs against display.all_driver_ids() (363 ids). Pinned here as a standing census number so nobody
 # re-derives a subset by hand again -- the deck author had already measured five of them
 # (suez/panama/baltic/mississippi/vessel_lineups) at eval_queries_playbooks_v1.yaml:1130-1140.
 # Drift from this pin is a lint finding, not a silent fact: check_driver_slices() hard-fails on a NEW
@@ -778,15 +778,30 @@ def dag_backed_slice_names() -> set:
 # D-CW-3a, 2026-08-07 (capability-wiring wave): 29 -> 28. `diesel` LEFT the read-dark census -- driver_slices
 # .yaml now aliases the previously-waivered DAG id `gasoil_palm_spread` (the palm-gasoil/POGO spread node on
 # malaysian_crude_palm_oil_cme and palm_olein_dce) to it, so its 497 props are reachable from two contracts.
-# It is the ONLY member this wave could remove: `urea`, `dap` and `potash` STAY read-dark because the estate
-# holds no nutrient-specific driver id anywhere in the 33 causal DAGs (the fertilizer concept is five generic
-# ids, all correctly owned by the `fertilizer` slice), and un-stranding them needs curation, not wiring.
+# It was the ONLY member THAT wave could remove: `urea`, `dap` and `potash` stayed read-dark because the
+# estate held no nutrient-specific driver id anywhere in the 33 causal DAGs (the fertilizer concept is five
+# generic ids, all correctly owned by the `fertilizer` slice), and un-stranding them needs CURATION, not
+# wiring -- an alias steal would have moved reach, not created it (one id is owned by exactly one slice).
+#
+# D-PQ DAG-curation wave, 2026-08-07: 28 -> 26. That curation was done, so `urea` and `potash` LEAVE the
+# census by acquiring real nodes rather than borrowed ones -- MEASURED by resolving all 33 causal YAMLs
+# before and after (parent-inclusive, the same set display.all_driver_ids() reports, 361 -> 363 ids):
+#   * `urea_cost` curated onto the 12 DAGs where nitrogen economics bind -- corn family (corn, corn_cbot,
+#     campinas_corn_reference_bmf, french_maize_matif, both JSE maize boards), wheat family
+#     (french_wheat_matif, MGEX, KCBT, CBOT SRW), canola_ice + french_rapeseed_matif. urea reach 0 -> 12.
+#   * `potash_cost` onto malaysian_crude_palm_oil_cme only (oil palm is the estate's one K-binding crop).
+#     potash reach 0 -> 1.
+# ZERO slices lost reach in the same measurement (`fertilizer` holds all 15 of its contracts, dag-backed
+# slices 81 -> 83), because both ids are NEW nodes, not re-owned ones. `dap` STAYS pinned and that is a
+# decision, not an oversight: phosphate is a build-up nutrient with multi-year soil residual and is the
+# marginal cost on none of the 33 boards inside the 1-4 quarter lag horizon these DAGs model, so its 88
+# props wait for a real mechanism rather than a node invented to retire a census line.
 READ_DARK_SLICES_PIN = frozenset({
     "baltic_dry_freight", "barley_yellow_dwarf_virus", "cattle_cycle_herd_size", "cattle_on_feed", "dap",
     "egypt_gasc_tenders", "global_rice_export_policy", "idr_fx", "index_roll_flows",
     "indian_ocean_dipole", "inr_fx", "madden_julian_oscillation", "metals", "mississippi_river_levels",
-    "myr_fx", "natural_rubber", "panama_canal_constraints", "potash", "real_yields_rates", "subsidy",
-    "suez_redsea_disruption", "sunflower_oil_balance", "sustainable_aviation_fuel", "urea",
+    "myr_fx", "natural_rubber", "panama_canal_constraints", "real_yields_rates", "subsidy",
+    "suez_redsea_disruption", "sunflower_oil_balance", "sustainable_aviation_fuel",
     "veg_oil_substitution_spreads", "vessel_lineups_export_basis", "west_africa_weather", "wheat_blast",
 })
 

@@ -99,16 +99,23 @@ def test_series_validation_and_shape(monkeypatch):
     monkeypatch.setattr(Q, "run", _run)
     body = c.get(f"/v1/series/{table}/{metric}", params={"asof": "2024-01-01"}).json()
     assert body["table"] == table and body["metric"] == metric and body["points"][0]["value"] == "0.09"
-    assert seen == [False], "the /v1/series canary is not threaded (or defaulted ON)"
+    # D-PQ FIX-1: the estate-wide newest-first scope is the SERVING DEFAULT now, so the value this route
+    # hands the compiler with no env set is the token, not False. What this line still measures is that
+    # the route THREADS whatever the seams resolve -- a route that hard-coded anything would red here.
+    assert seen == [Q.NEWEST_FIRST_ALL], "the /v1/series canary is not threaded"
 
 
 def test_series_route_threads_the_futures_newest_first_canary(monkeypatch):
     """S1 (D-FR-10) at the ONE user-facing surface that compiles an UNBOUNDED agg='series' read.
 
-    /v1/series sits ABOVE answer.py, so it imports the env seam and passes the bool straight to the
-    compiler -- there is no chain to thread it through. Both sides pinned: with the env off the route
-    passes False (the byte-identical pre-wave compile), with it on the route passes True. Without the
-    ON half a route that hard-coded False would pass the OFF half forever."""
+    /v1/series sits ABOVE answer.py, so it imports the env seams and passes the resolved scope straight
+    to the compiler -- there is no chain to thread it through. Both sides pinned: with the read shape
+    rolled back the route passes False (the byte-identical pre-wave compile), with the futures flag on it
+    passes True. Without the ON half a route that hard-coded False would pass the OFF half forever.
+
+    D-PQ FIX-1: the ESTATE-WIDE seam now defaults ON, so this futures-scoped pin only means what it says
+    with that one explicitly disabled -- otherwise the fold returns the estate-wide token in both arms and
+    this test would silently stop measuring the futures flag."""
     from leviathan.graphrag.numbers import query as Q
     from leviathan.graphrag.numbers.registry import load_registry
     c = _client(monkeypatch)
@@ -122,6 +129,7 @@ def test_series_route_threads_the_futures_newest_first_canary(monkeypatch):
         return []
 
     monkeypatch.setattr(Q, "run", _run)
+    monkeypatch.setenv("GRAPHRAG_SERIES_NEWEST_FIRST", "off")     # D-PQ FIX-1: hold the estate-wide scope
     monkeypatch.delenv("GRAPHRAG_FUTURES_NEWEST_FIRST", raising=False)
     assert c.get(f"/v1/series/{table}/{metric}").status_code == 200
     monkeypatch.setenv("GRAPHRAG_FUTURES_NEWEST_FIRST", "on")

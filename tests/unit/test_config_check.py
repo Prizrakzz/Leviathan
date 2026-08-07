@@ -541,7 +541,7 @@ def test_a_waived_read_dark_slice_is_accounted_for(tmp_path, monkeypatch):
 
 
 def test_the_live_pin_still_matches_the_live_wiring():
-    """The 28 read-dark slices are PINNED (READ_DARK_SLICES_PIN) so nobody re-derives a subset by hand
+    """The 26 read-dark slices are PINNED (READ_DARK_SLICES_PIN) so nobody re-derives a subset by hand
     again -- the deck author had already measured five of them at eval_queries_playbooks_v1.yaml:1130-1140.
     Skipped on a tree with no private causal configs.
 
@@ -549,11 +549,92 @@ def test_the_live_pin_still_matches_the_live_wiring():
     previously-waivered DAG id `gasoil_palm_spread` to it. This assertion is the tooth that makes the pin
     follow the wiring in BOTH directions -- check_driver_slices only ADVISES ("shrink the pin") when a
     pinned slice becomes reachable, because an improvement must never fail a build; the equality here is
-    what stops the advisory from being ignored until the pin is folklore."""
+    what stops the advisory from being ignored until the pin is folklore.
+
+    D-PQ (2026-08-07): 28 -> 26. `urea` and `potash` left the census the only honest way -- by CURATION,
+    not by an alias steal. D-CW-3a had measured that no nutrient-specific driver id existed anywhere in
+    the 33 DAGs; D-PQ added them (`urea_cost` on the 12 nitrogen-binding corn/wheat/canola boards,
+    `potash_cost` on malaysian_crude_palm_oil_cme), so these two lines invert with the diesel line above:
+    what was a SKIP is now an unlock. `dap` is the one that stayed, deliberately -- see the pin comment."""
     import pytest
     from leviathan.graphrag import display as dp
     if not dp.all_driver_ids():
         pytest.skip("no causal configs in this tree -- the pin is vacuous")
     assert ev.read_dark_slices() == set(ev.READ_DARK_SLICES_PIN)
     assert "diesel" not in ev.READ_DARK_SLICES_PIN                # D-CW-3a unlock, measured above
-    assert {"urea", "dap", "potash"} <= set(ev.READ_DARK_SLICES_PIN)   # D-CW-3a SKIPs: no nutrient DAG id
+    assert not ({"urea", "potash"} & set(ev.READ_DARK_SLICES_PIN))     # D-PQ curation unlock
+    assert "dap" in ev.READ_DARK_SLICES_PIN            # D-PQ DECLINE: no honest phosphate mechanism yet
+
+
+def _live_slice_reach() -> dict[str, set[str]]:
+    """slice -> the set of CONTRACTS that reach it, resolved over the live causal dir the same way the
+    planner does: parent-INCLUSIVE ids (a parent-only id is reachable, which is why display.all_driver_ids
+    includes them) through evidence.driver_alias(). Live-tree helper; callers skip when there is no
+    private causal config."""
+    import glob
+    import yaml
+    alias = ev.driver_alias()
+    out: dict[str, set[str]] = {}
+    for p in sorted(glob.glob(str(dp._CFG / "causal" / "*.yaml"))):
+        doc = yaml.safe_load(open(p, encoding="utf-8"))
+        if not isinstance(doc, dict) or not isinstance(doc.get("drivers"), list):
+            continue
+        ids: set[str] = set()
+        for d in doc["drivers"]:
+            ids.add(d["id"])
+            ids.update(d.get("parents") or [])
+        for i in ids:
+            if i in alias:
+                out.setdefault(alias[i], set()).add(doc["contract"])
+    return out
+
+
+def test_dpq_curation_reach_is_what_the_pin_claims():
+    """D-PQ DAG curation, the numbers the pin comment and the driver_slices.yaml D-PQ block assert.
+
+    The wave's whole claim is that three stranded/choked slices gained CONTRACT REACH without any other
+    slice losing any -- because every id it added is a NEW node, never a re-owned one (one id belongs to
+    exactly one slice, so an alias steal moves reach instead of creating it; that is precisely why
+    D-CW-3a refused to do this by wiring). Reach is the load-bearing number: read-darkness is binary and
+    would still read 'unlocked' if urea reached ONE contract, so the pin equality above cannot catch a
+    curation that quietly shrank. Skipped on a tree with no private causal configs."""
+    if not dp.all_driver_ids():
+        pytest.skip("no causal configs in this tree -- the reach census is vacuous")
+    reach = _live_slice_reach()
+    assert len(reach["urea"]) == 12                    # corn family 6 + wheat family 4 + canola/rapeseed 2
+    assert len(reach["potash"]) == 1                   # oil palm only -- the estate's one K-binding crop
+    assert "malaysian_crude_palm_oil_cme" in reach["potash"]
+    assert len(reach["macro"]) == 24                   # was 1 (cocoa-only): the 2,121-prop choke point
+    assert "cocoa" in reach["macro"]                   # the shape donor keeps its node
+    assert len(reach["fertilizer"]) == 15              # UNCHANGED: all five generic ids stayed put
+    assert "dap" not in reach                          # declined, still stranded, and honestly so
+
+
+def test_dpq_new_nodes_carry_no_new_cascade_capability():
+    """The wave is a NARRATIVE de-choke: it adds no cascade_map row and arms no new quantified leg.
+
+    Two independent proofs, both cheap and both config-only:
+      * `pink_sheet_input_costs` (urea_cost / potash_cost) is not a cascade_map ref at all -- that IS the
+        R4 fence, and this wave leaves it standing.
+      * `fred_fx_macro` (macro_demand) IS a mapped ref, so the guard here is different: every DAG that
+        gained a macro_demand node ALREADY carried at least one other fred_fx_macro driver, so the
+        contract's fireable-ref set is identical before and after. (The region field is the other half --
+        every macro_demand is region 'Global', which region_map lists unresolved, so the leg stays
+        qualitative. config_check's cascade_map census enforces that directly.)"""
+    import glob
+    import yaml
+    if not dp.all_driver_ids():
+        pytest.skip("no causal configs in this tree")
+    rows = cc._load("numbers/cascade_map.yaml") or {}
+    assert "pink_sheet_input_costs" not in (rows.get("refs") or rows), "R4: no pink sheet cascade ref"
+    for p in sorted(glob.glob(str(dp._CFG / "causal" / "*.yaml"))):
+        doc = yaml.safe_load(open(p, encoding="utf-8"))
+        if not isinstance(doc, dict) or not isinstance(doc.get("drivers"), list):
+            continue
+        md = [d for d in doc["drivers"] if d["id"] == "macro_demand"]
+        if not md:
+            continue
+        assert md[0]["region"] == "Global", f"{doc['contract']}: macro_demand region must stay unresolved"
+        others = [d["id"] for d in doc["drivers"]
+                  if d.get("silver_ref") == "fred_fx_macro" and d["id"] != "macro_demand"]
+        assert others, f"{doc['contract']}: macro_demand would be a NEW fred_fx_macro carrier"

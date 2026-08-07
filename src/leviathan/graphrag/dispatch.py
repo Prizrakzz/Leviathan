@@ -65,6 +65,27 @@ REGISTRY: tuple[ToolSpec, ...] = (
         # front-month clause carries its own "single dated level, no change/window/curve" caveat, because
         # a purpose that promises a series the compiler RAISES on manufactures a decline; (2) never
         # hardcode a family name here -- family_names() derives the data_families enum from the registry.
+        #
+        # D-PQ FIX-2 (2026-08-07), TWO EDITS, AND THE HYPOTHESIS IS STATED BECAUSE ONLY THE PROBE RE-RUN
+        # CAN ADJUDICATE IT. The D-CW-4 wired arm lost two behaviours the before-arm had, and both losses
+        # sit against this string:
+        #   R1 -- `dcw_us_ethanol_margin` went from SIX lookups (pink-sheet natgas + WASDE + a settle) to
+        #         ZERO. HYPOTHESIS: the D-CW-1a rewrite advertises input costs as a CATALOGUE of series
+        #         but never says that a MARGIN question is a numbers question. The row's own wording is
+        #         "how much pressure is the grind under" -- pressure/economics phrasing, which PLANNER_SYS
+        #         reads as judgment, and `when_to_use`'s cue list was all single-figure shapes ("a figure,
+        #         level, quantity"). The multi-leg pattern had no cue at all, so nothing in the registry
+        #         block competed with the reasoning route. REMEDY: name the margin/crush shape in
+        #         `when_to_use` and say out loud that its legs live on SEVERAL tables.
+        #   R2 -- the `*_zscore_5yr` metrics were displaced out of the emitted lookups on three rows, and
+        #         on one of them the z IS the unlock. HYPOTHESIS: the clause said the levels come "each
+        #         with a point-in-time-clean 5-year z-score" -- PROSE, which reads as a property of the
+        #         level rather than as a second metric name the model may pass to `lookup_number`. The
+        #         model can only emit what it can NAME. REMEDY: say TWO SEPARATELY QUERYABLE METRICS and
+        #         show two real metric ids, so the z is reachable by name and is visibly a LOOKUP rather
+        #         than something to compute (which is also what keeps it off the stats tool belt).
+        # Both are prompt-side and neither is verifiable offline; the D-CW probe re-run is the adjudicator
+        # and these two paragraphs are what a null result should be read against.
         purpose=("leakage-safe SQL over OBSERVED values (USDA PSD S&D vintages, ESR export sales AND "
                  "their PACE vs the year-ago week/marketing year -- national OR BY DESTINATION (which "
                  "country bought how much this marketing year), CFTC managed-money POSITIONING levels "
@@ -72,11 +93,16 @@ REGISTRY: tuple[ToolSpec, ...] = (
                  "settles BY DELIVERY MONTH, including the TERM STRUCTURE / forward CURVE across "
                  "expiries and named-contract levels; World Bank monthly world price benchmarks and "
                  "FERTILIZER / ENERGY INPUT COSTS (urea, DAP, potash, phosphate rock, blended NPK, US "
-                 "and EU natural gas, Brent) each with a point-in-time-clean 5-year z-score; WASDE "
+                 "and EU natural gas, Brent) -- each of those is TWO SEPARATELY QUERYABLE METRICS, the "
+                 "level AND its own point-in-time-clean 5-year z-score metric beside it "
+                 "(natural_gas_us_usd_mmbtu and natural_gas_us_usd_mmbtu_zscore_5yr; urea_usd_mt and "
+                 "urea_usd_mt_zscore_5yr), so 'how stretched is it' is a LOOKUP, not a calculation; WASDE "
                  "monthly balance-sheet lines and the US season-average FARM PRICE, each row stamped "
                  "with the release vintage and whether it is an actual, an estimate or a USDA "
                  "projection; ICCO world cocoa GRINDINGS / production / stocks, MPOB monthly Malaysian "
-                 "palm production / stocks / exports, CONAB Brazil coffee surveys, SAGIS-CEC South "
+                 "palm production / stocks / exports plus MPOC monthly vegetable-oil ENDING STOCKS "
+                 "held in the big importing markets (India, China, Pakistan, Bangladesh, the US), "
+                 "CONAB Brazil coffee surveys, SAGIS-CEC South "
                  "African crop estimates and SAGIS weekly export pace, FAOSTAT annual production; "
                  "weekly USDA NASS crop CONDITIONS (percent good-to-excellent, poor-to-very-poor) and "
                  "planting / emergence / harvest PACE by US state; weather aggregates and monthly "
@@ -87,7 +113,12 @@ REGISTRY: tuple[ToolSpec, ...] = (
         when_to_use=("a figure, level, quantity, \"what was X\"; also a named delivery month "
                      "(\"December corn\") or the shape of the curve across expiries; an INPUT COST "
                      "(fertilizer, energy) or how stretched it is versus its own 5-year history; a "
-                     "crop CONDITION or planting/harvest pace; WHICH COUNTRY bought how much."),
+                     "crop CONDITION or planting/harvest pace; WHICH COUNTRY bought how much. ALSO a "
+                     "MARGIN, CRUSH or PROCESSING-ECONOMICS question (\"how much pressure is the grind "
+                     "under\", \"are ethanol margins squeezing demand\") -- the inputs and the outputs "
+                     "of a margin are OBSERVED SERIES on SEPARATE tables (the energy or fertilizer cost, "
+                     "the balance-sheet line, the exchange settle), so route here for the legs even when "
+                     "the question is phrased as pressure or economics rather than as a number."),
         hard_rules=("it only sees data published on or before the as-of. If the user asks about a "
                     "report dated AFTER the as-of, still route here — the agent answers \"not "
                     "published\" honestly. Never re-date or 'fix' the user's request to make data "

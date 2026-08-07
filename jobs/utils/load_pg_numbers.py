@@ -144,7 +144,22 @@ P1_TABLES = ["silver_psd", "silver_wasde", "silver_production", "silver_esr", "s
              # sample entry is what makes a panel non-vacuous, and choosing that commodity/as-of pair is
              # worth doing against the first real mirror rather than guessing here (the reverse drift,
              # a sampled-but-unmirrored table, is the one the futures_eod pin forbids).
-             "silver_nass_crop_progress"]
+             "silver_nass_crop_progress",
+             # D-PQ tranche 1a (2026-08-07): silver_mpoc_stock_comparison joins the mirror in the SAME
+             # change that gives it a numbers card -- served but unmirrored means
+             # GRAPHRAG_NUMBERS_BACKEND=pg raises UndefinedTable per query and SILENTLY FALLS BACK TO
+             # ATHENA. Here the fallback would land on a flat, projection-forbidden table (272 rows, one
+             # object), so the cost of the fallback is trivial and the doctrine is the whole reason:
+             # a served numbers table must be mirrored, and "small enough not to matter" is how a
+             # silent-fallback path gets normalized.
+             # TYPE DOCTRINE: ending_stocks_mt mirrors numeric (the single wide metric); `year` and
+             # `month` mirror numeric because they are the declared year_col/month_col the
+             # (year*100+month) guard does arithmetic on; country / oil_type / source stay TEXT
+             # COLLATE "C". No date column exists, so nothing stringifies.
+             # SEQUENCING: this entry DEFINES the mirror; the LOAD still has to run in-VPC before any
+             # serving flip (see the orchestrator note in the D-PQ record). numbers_parity deliberately
+             # carries NO SAMPLE_COMMODITY row for it yet, for the reason the NASS entry gives.
+             "silver_mpoc_stock_comparison"]
 SCHEMA = "leviathan_dev"                       # == numbers.pgnumbers.SCHEMA == query.ATHENA_DB
 GLUE_DB = "leviathan_dev"
 

@@ -40,9 +40,11 @@ WHAT IS NOT HERE, AND WHY -- so nobody reads this file as covering more than it 
   matched-unit turn, on BOTH lanes -- lives in `test_numbers_stats.py` beside the live guard that mints it,
   where the cross-unit fixture already exists. `eval.py`'s row projection is still NOT landed, so the key
   reaches a trace but not yet an eval column.
-* **S5's sentinel re-wording.** `agent.py` and `eval.py` still say "OLDEST rows kept" and three docstrings
-  still describe the ASC read; those strings become factually false the moment S1 is promoted. The
-  negative half cannot be written green today and pinning the CURRENT wording would pin the defect.
+* **S5's sentinel re-wording** -- LANDED (D-PQ FIX-1), and no longer this file's gap. `agent.format_provenance`
+  and `eval._num_line` said "OLDEST rows kept"; the estate-wide newest-first scope is now the SERVING DEFAULT
+  (`answer._series_newest_first_on` inverted to opt-out), which made those strings the exact inverse of the
+  truth. Both now say the NEWEST rows survive and the EARLY end of the window is gone, pinned with a negative
+  half in `test_numbers_agent.py`. What is still NOT here is D-FR-14's census line, below.
 * **D-FR-14's census line.** Exit (1) puts the three strings in a registered template dict that
   `config_check`'s futures_lite census lints. Until that lands, `config_check`'s 6.1 row is NOT evidence
   for U2 -- section 1 carries a tripwire that says so out loud.
@@ -792,6 +794,10 @@ class TestS1SeamIsTheOnlyEnvRead:
             return {"answer": "x", "calls": []}
 
         monkeypatch.setattr(ORCH.na, "answer_numbers", _fake)
+        # D-PQ FIX-1: the ESTATE-WIDE seam now defaults ON, so this futures-scoped pin holds its meaning
+        # only with that one explicitly disabled -- otherwise the fold resolves to the estate-wide token
+        # and this test would be measuring the other flag. Held here so the coupling is visible.
+        monkeypatch.setenv("GRAPHRAG_SERIES_NEWEST_FIRST", "off")
         monkeypatch.delenv("GRAPHRAG_FUTURES_NEWEST_FIRST", raising=False)
         ORCH.run_numbers_only("q", "2026-06-08", query_fn=lambda _sql: [])
         monkeypatch.setenv("GRAPHRAG_FUTURES_NEWEST_FIRST", "on")

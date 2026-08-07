@@ -144,11 +144,24 @@ class TestContractMonthThreading:
 class TestNonFuturesPathUnchanged:
     def test_an_unparameterized_call_builds_the_PRE_WAVE_spec(self, route):
         """Both new parameters absent -> contract_month is None and agg is 'series', which is the spec this
-        route built before D-AM-21. The canary stays False with both env seams unset."""
+        route built before D-AM-21.
+
+        THE CANARY IS NO LONGER PART OF "PRE-WAVE" (D-PQ FIX-1). The estate-wide newest-first scope is now
+        the SERVING DEFAULT, so with both env seams unset this route hands the compiler the estate-wide
+        token -- which is the fix, not a drift. What this test is about is the SPEC, and the spec is
+        unmoved; the rollback half is asserted beside it so the lever stays measured."""
         assert route.get({"commodity": "corn"}, table="silver_psd",
                          metric="ending_stocks_mt").status_code == 200
         spec = route.specs[-1]
         assert spec.contract_month is None and spec.agg == "series"
+        assert route.canaries == [Q.NEWEST_FIRST_ALL]
+
+    def test_the_newest_first_rollback_still_reaches_this_route(self, route, monkeypatch):
+        """The other half of the row above: one env value restores the pre-D-AM-18 ascending compile on
+        /v1/series, live, with no redeploy."""
+        monkeypatch.setenv("GRAPHRAG_SERIES_NEWEST_FIRST", "off")
+        assert route.get({"commodity": "corn"}, table="silver_psd",
+                         metric="ending_stocks_mt").status_code == 200
         assert route.canaries == [False]
 
     def test_the_default_spec_compiles_the_SAME_SQL_a_pre_wave_spec_did(self, route):
@@ -289,10 +302,16 @@ class TestCurveIsNotTheInterleavedRead:
 # ==================================================================================================
 class TestCanaryStillThreaded:
     def test_the_route_still_hands_the_scope_token_to_run(self, route, monkeypatch):
+        # D-PQ FIX-1: the estate-wide seam defaults ON, so the futures-scoped half of this pin only means
+        # what it says with that one explicitly disabled. Three states, in rollback -> futures -> default
+        # order, so the fold's nesting is visible in one line.
+        monkeypatch.setenv("GRAPHRAG_SERIES_NEWEST_FIRST", "off")
         route.get({"commodity": SLUG, "asof": ASOF})
         monkeypatch.setenv("GRAPHRAG_FUTURES_NEWEST_FIRST", "on")
         route.get({"commodity": SLUG, "asof": ASOF})
-        assert route.canaries == [False, True]
+        monkeypatch.delenv("GRAPHRAG_SERIES_NEWEST_FIRST", raising=False)
+        route.get({"commodity": SLUG, "asof": ASOF})
+        assert route.canaries == [False, True, Q.NEWEST_FIRST_ALL]
 
     def test_the_curve_compile_is_byte_identical_under_every_scope(self):
         """agg='latest' with a chronological axis is not a series branch, so no newest-first scope may touch

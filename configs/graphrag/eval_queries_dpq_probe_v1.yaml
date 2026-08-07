@@ -1,0 +1,142 @@
+# D-PQ A' PROBE DECK v1 (2026-08-07) -- THE EXCHANGE-SETTLE ANCHOR'S ACCEPTANCE INSTRUMENT.
+#
+# WHY THIS FILE EXISTS. docs/private/recon/r4-price-fence-archaeology.md added OPTION A' to the D-PQ
+# menu: the anchor the wave needs is not a doctrine change at all, it is a READ PATH that was never
+# wired. `silver_futures_eod` is served, true point-in-time, carries per-row unit / currency /
+# settle_kind, and is NOT in config_check.PRICE_TABLES -- R4 never reached it. The front-month rule has
+# existed, named and versioned, since W2 (leviathan.silver.futures_roll, front_month_v2) and the cascade
+# has CALLED it since W3.3. Only the agent read path had no `agg=front_expiry`.
+#
+# THE DEBT THIS DISCHARGES, verbatim from the record. NUMBERS_FIRING_PLAN.md:434-452 (item A3) reports
+# SEVEN judged row-runs -- notably `ol_ctrl_mechanism_backward` and `pb_wheat_blacksea_shock` -- where
+# the live price leg was read as "quietly substitutes farm price for the CBOT price the question actually
+# asked about". The DISCLOSURE half shipped (a reader-facing label on the pair, cascade.py:2640-2642).
+# The SUPPRESSION half was explicitly deferred "until P1 produces a working futures anchor" (:443-445,
+# and P1 at :803-807: "Until it clears, 'how high can wheat go' keeps being answered with a season-average
+# farm price"). Row 1 below is that ask, asked plainly.
+#
+# TWO ROWS, AND THEY ARE A PAIR. Row 1 is the UNLOCK (the exchange settle is now reachable without naming
+# an expiry). Row 2 is the FENCE that must not move with it (`levels_only` stays absolute: no
+# change/window/curve read off the roll-spliced continuous series, and no front-month SERIES off the
+# per-expiry one either -- across a roll that is a splice). An unlock deck with no fence row measures
+# only that something new fires; the pair measures that the new thing did not buy its answer by relaxing
+# a ratified guard.
+#
+# WHAT IS DETERMINISTIC ELSEWHERE, AND IS THEREFORE NOT RE-ASKED HERE. The fence's HARD half is compiled,
+# not narrated: build_sql RAISES on `agg=front_expiry` against a levels_only card, on a named
+# contract_month, and on any period_start/period_end -- pinned at tests/unit/test_futures_front_expiry.py
+# (TestGuards). This deck measures the PROSE surface those raises cannot reach: what the answer says when
+# the read it wanted is refused, and whether it substitutes another table's price and calls it the
+# futures level. Row 2 therefore carries ABSENCE pins only; its positive content is judged/read.
+#
+# THE NO-TAUTOLOGY LAW (inherited from eval_queries_contracts_ab_v1.yaml and the D-CW probe deck). Neither
+# question names its own honesty gate. Row 1 does not ask "and tell me which delivery month that is";
+# row 2 does not ask "and refuse if it would splice". Each is a realistic desk ask whose SHAPE and whose
+# SOURCE the system must infer.
+#
+# REALIZABILITY. Both rows run at asof 2026-06-08 (a Monday) against corn_cbot, which reads the FRIDAY
+# 2026-06-05 session under publication_lag_days: 1. That session is not newly probed here -- it is the
+# session eval_queries_curve12.yaml S3-DIRECT probed on 2026-07-31 (13 delivery months, settle_kind
+# 'settlement', US cents/bushel, USD; 2026-07 417.50, 2026-09 427.00, 2026-12 446.00, ...), and
+# corn_cbot's measured coverage floor is 2010-06-06, so both rows are fully covered and
+# futures_coverage_route must read 'absent'. NO LEVEL AND NO EXPIRY IS PINNED BELOW. That is deliberate
+# and it is a limit of this deck, stated rather than hidden: the front month is chosen by OPEN INTEREST
+# for every GLBX slug, open interest was NOT probed for that session, and pinning an expiry from the
+# nearest listed month would be pinning exactly the tie-break this wave exists to stop being called
+# "the front month". The rows pin SHAPE (an expiry-labelled, settle_kind-stated, unit-carrying exchange
+# print) and the judge/reader checks the rest.
+#
+# ONE-ENV-PER-RUN, the curve12 env (this deck reads the same card): GRAPHRAG_NUMBERS_BACKEND=pg
+# (+ EVIDENCE_PG_DSN), chain OFF, pace leg OFF, provider env ABSENT (Anthropic lane), --workers 4.
+# silver_futures_eod is deliberately NOT in PACE_TABLES, so nothing here can render a pace [N], and no
+# row pins chain_fired / pace_expected / comove_expected / reroute_v2_expected.
+# Run --via-orchestrator: futures_coverage_route reads out['trace']['futures_coverage_guard'], which only
+# the ORCHESTRATOR stamps -- a bare answer_numbers run leaves it empty and every coverage pin silently
+# reads 'absent' for the wrong reason.
+#   python -m leviathan.graphrag.eval --run --via-orchestrator --judge --workers 4 \
+#     --queries configs/graphrag/eval_queries_dpq_probe_v1.yaml
+#
+# NOT MIRRORED TO PG: silver_futures_eod is absent from load_pg_numbers.P1_TABLES, so on this env every
+# EOD lookup takes pgnumbers' per-request ATHENA FALLBACK -- Athena latency, never an error.
+
+queries:
+
+  # =============================================================================================
+  # (1) THE ANCHOR -- the ask the seven judged rows had answered with a season-average farm price.
+  - id: dpq_cbot_corn_front_settle
+    contract: corn_cbot
+    category: dpq_exchange_settle_anchor
+    expected_intent: hybrid
+    asof: '2026-06-08'
+    unlock: "agg=front_expiry on silver_futures_eod (D-PQ A', recon r4-price-fence-archaeology sec 4)"
+    census_ref: "NUMBERS_FIRING_PLAN A3 :434-452 (7 judged rows) + P1 :803-829 (the named anchor table)"
+    sources:
+      - silver:silver_futures_eod          # per-expiry EOD settles; the front month is a QUERY-TIME rule
+      - silver:silver_wasde                # avg_farm_price -- the substitute this row must NOT accept
+    today: >-
+      The question names no delivery month, and until this wave nothing in the tool schema could express
+      "the front one". The two reachable answers were both wrong in the same direction: read the whole
+      curve and quote the NEAREST LISTED expiry as "the price" (a deterministic tie-break, not the front
+      month), or fall back to the USDA season-average FARM price -- the measured behaviour on seven judged
+      row-runs, read by the judge as a quiet substitution for the CBOT print that was asked about. A3's
+      reader-facing label made that substitution DISCLOSED; it did not make the right number reachable.
+    wired: >-
+      Cites a silver_futures_eod settle for the FRONT delivery month as named by front_month_v2, with the
+      trading date, the row's own contract_month, its settle_kind (a GLBX row is a true exchange
+      settlement) and its exchange unit and currency (US cents/bushel, USD -- never FX-converted). The
+      farm price may still appear as marketing-year CONTEXT, clearly labelled as the survey actual it is,
+      but it is no longer offered as the answer to "where is it trading".
+    fail: >-
+      Any level presented as "the corn price" with no delivery month attached; the season-average farm
+      price offered as the exchange level (disclosed or not); a nearest-listed expiry narrated as the
+      front month; an ICE-style "official settlement" claim on a row whose settle_kind says otherwise; or
+      a value with no unit/currency, which on a ten-currency table with no conversion layer is
+      unattributable.
+    question: "Where is CBOT corn actually trading right now, and how does that sit against the balance sheet going into new crop?"
+    expect:
+      price_cited: true
+      unit_present: true
+      expiry_labeled: true
+      settle_kind_stated: true
+      futures_coverage_route: absent
+      banned_valuation: 0
+      banned_flow: 0
+      numbers_mismatched: 0
+      pit_clean: true
+
+  # =============================================================================================
+  # (2) THE FENCE -- levels_only stays absolute, and the new agg buys no exception to it.
+  - id: dpq_levels_only_front_series_fence
+    contract: corn_cbot
+    category: dpq_levels_only_fence
+    expected_intent: hybrid
+    asof: '2026-06-08'
+    unlock: "none -- this row must behave IDENTICALLY before and after A'. It is the control."
+    census_ref: "SEAM-C levels_only (query.py build_sql) + the front_expiry single-session law (D-PQ A')"
+    sources:
+      - silver:silver_futures_prices       # the yfinance CONTINUOUS front-month close: levels_only: true
+      - silver:silver_futures_eod          # per-expiry; a NAMED expiry's calendar IS a legitimate read
+    today: >-
+      A "how much has the front month moved" ask is a CHANGE over a front-month series, and there is no
+      point-in-time-safe way to serve one. The continuous card is roll-spliced and levels_only, so any
+      window or series read against it RAISES; the per-expiry card can serve one contract through time
+      honestly, but "the front month through time" changes contract at every roll, and a delta spanning a
+      roll is a splice wearing a price's label.
+    wired: >-
+      UNCHANGED. agg=front_expiry is a SINGLE-SESSION level by construction and refuses any date window,
+      so the anchor cannot be turned into a front-month series. The honest answer is either one NAMED
+      delivery month's move, said as that contract's move, or a plain statement that a continuous
+      front-month change is not something this data can support -- and the current level may still be
+      quoted beside it.
+    fail: >-
+      Any change/percentage/"since last month" figure attributed to "the front month" or "corn" with no
+      delivery month attached; a move computed across two different delivery months; a continuous-series
+      level quoted as a specific expiry's settle; or a silent switch to the World Bank monthly average or
+      the season-average farm price to produce a change the futures data refused.
+    question: "How much has corn moved over the past month, and is that move big relative to what the balance sheet changed?"
+    expect:
+      futures_coverage_route: absent
+      banned_valuation: 0
+      banned_flow: 0
+      numbers_mismatched: 0
+      pit_clean: true
