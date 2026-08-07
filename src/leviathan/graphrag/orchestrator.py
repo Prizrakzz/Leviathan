@@ -53,6 +53,17 @@ def _numbers_block(calls: list) -> str:
                          "the marked line names whenever you quote a figure from it, and do NOT describe "
                          "any of it as the full history, the full record, all-time, the widest ever, or "
                          "the extremes 'on record'."]
+    # D-PQ EMPTY-1, the HYBRID half. The numbers_only lane reads the tool-result payloads directly and so
+    # sees `_no_rows_note` on the offending call; this lane consumes CALLS and shows the model only these
+    # labels, so the marker would arrive as a `## Sources` line with no instruction attached. The label
+    # carries the FACT ("NO ROWS RETURNED (...)" -- reader-safe, it renders in the answer's own source
+    # list); the DIRECTIVE is prompt-only and lives here, exactly like the truncation directive above.
+    # Absent (every turn where all reads returned rows) -> the block is byte-identical.
+    if any(not (c.get("rows") or []) for c in (calls or []) if isinstance(c, dict)):
+        notes = notes + ["One or more reads above are marked NO ROWS RETURNED: they produced no value at "
+                         "all. Say the record carries no figure for that scope and assert NO number for "
+                         "it -- not a level, not a change, and not zero. An empty read is an absence of "
+                         "data, never a measured value of 0."]
     if notes:
         block += "\nSCOPE NOTE (state this limitation explicitly in the answer): " + " ".join(notes)
     return block

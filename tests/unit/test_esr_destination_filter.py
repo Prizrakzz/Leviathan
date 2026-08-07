@@ -226,4 +226,11 @@ def test_bloc_scoped_read_empty_gets_no_caveat():
     assert not out["answer"].startswith("One note on scope")           # no bloc caveat over an empty result
     assert not out["answer"].startswith("One limitation to flag")      # and not the national decline either
     assert out["answer"] == model_text                                 # honest no-data narration stands verbatim
-    assert "scope_note" not in out["calls"][0]                         # no bloc note stamped on an empty read
+    # D-PQ EMPTY-1 MOVED THIS ASSERTION, DELIBERATELY. The property under test is that no BLOC caveat is
+    # stamped on an empty read, and it still holds. What is new is that an empty read now ALWAYS carries
+    # the NO ROWS RETURNED marker -- the guard that stops "0.0 thousand MT" being narrated as a fact -- and
+    # it is stamped by `_exec`, upstream of every destination branch. The two notes are about different
+    # things (is there a figure at all / what scope would a figure have had) and the marker outranks.
+    note = out["calls"][0].get("scope_note") or ""
+    assert note.startswith("NO ROWS RETURNED (")
+    assert "BLOC/REGIONAL AGGREGATE" not in note                       # no bloc note stamped on an empty read

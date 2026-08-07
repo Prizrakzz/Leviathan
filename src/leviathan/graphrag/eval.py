@@ -560,11 +560,26 @@ _MONTH_ALT = "jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec"
 # variant ('Dec 26') is DELIBERATELY EXCLUDED: it collides with a day-of-month ('May 26').
 _EXPIRY_ISO_RX = re.compile(r"(?<!\d)(20\d{2})-(0[1-9]|1[0-2])(?!-?\d)")
 _EXPIRY_TICKER_RX = re.compile(rf"\b({_MONTH_ALT})[a-z]*\.?\s?(?:[-–]\s?|['’])(\d{{2}}|\d{{4}})(?!\d)", re.I)
-# CUE form -- a month, an OPTIONAL 4-digit year, then a contract/price cue IMMEDIATELY after ('December
-# 2026 corn', 'the December contract', 'December 2026 settlement'). Adjacency is what keeps it honest:
-# 'in June 2012 the continuous close was 738.50' has 'the' in the slot and does NOT match.
+# CUE form -- a month, an OPTIONAL 4-digit year, an OPTIONAL exchange qualifier, then a contract/price cue
+# IMMEDIATELY after ('December 2026 corn', 'the December contract', 'December 2026 CBOT corn contract',
+# 'December 2026 settlement'). Adjacency is what keeps it honest: 'in June 2012 the continuous close was
+# 738.50' has 'the' in the slot and does NOT match.
+#
+# THE EXCHANGE SLOT (D-PQ PIN-1, measured on dpq_probe_v1 row `dpq_cbot_corn_front_settle`, 2026-08-07).
+# The answer named its expiry FOUR times -- "the nearby December 2026 CBOT corn contract settled at 446 US
+# cents per bushel [N1]" in the tl;dr, the mechanism and '## The record' -- against a served row whose
+# contract_month IS 2026-12, and `expiry_labeled` still read False. Cause: the cue had to follow the year
+# IMMEDIATELY, and the house style puts the EXCHANGE between them. The pin could not read TRUE on a fact
+# that was true, which makes it a broken instrument rather than a strict one.
+#
+# THE SLOT IS GATED ON THE YEAR BEING PRESENT, AND THAT IS LOAD-BEARING. `soft` (year-carrying) is read
+# ONLY on the `true` branch; `bare` (yearless) is what the `false` / anti-invention branch reads. Allowing
+# an exchange token after a YEARLESS month would newly mint `bare` entries and could convict an answer the
+# false branch previously cleared -- so the widening is confined to the branch that can only ever CREDIT.
+_EXPIRY_EXCH_ALT = (r"CBOT|CBoT|CME|ICE|NYMEX|COMEX|MGEX|KCBT|MATIF|Euronext|DCE|ZCE|CZCE|BMD|B3|"
+                    r"SHFE|TOCOM|NYBOT|LIFFE|Bursa")
 _EXPIRY_CUE_RX = re.compile(
-    rf"\b({_MONTH_ALT})[a-z]*\.?\s+(?:(20\d{{2}})\s+)?"
+    rf"\b({_MONTH_ALT})[a-z]*\.?\s+(?:(20\d{{2}})\s+(?:(?:{_EXPIRY_EXCH_ALT})\s+)?)?"
     r"(?:corn|soybeans?|soybean|beans|wheat|coffee|cocoa|sugar|cotton|rice|canola|maize|"
     r"orange juice|palm|rapeseed|meal|oil|contract|contracts|expiry|expiries|expiration|delivery|"
     r"futures|board|settle|settles|settled|settlement|close)\b", re.I)

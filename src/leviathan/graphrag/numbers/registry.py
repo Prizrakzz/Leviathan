@@ -176,6 +176,22 @@ class TableSpec(BaseModel):
     #                                                          (canary-proven 2026-07-04); never emit them
     commodity_code_col: Optional[str] = None                 # projected int partition keyed by source code
     commodity_codes: dict[str, int] = {}                     # slug -> source code (prunes the code partition)
+    commodity_values: list[str] = []                         # D-PQ CLASS-1: the CLOSED set of commodity values
+    #                                                          this card serves, declared BY THE CARD. Non-empty
+    #                                                          -> a lookup naming anything else is REFUSED at
+    #                                                          spec level with a teaching error (agent.
+    #                                                          _check_commodity_class) BEFORE any SQL is
+    #                                                          compiled, so a wrong-class ask costs a lookup
+    #                                                          and buys a remedy instead of returning a
+    #                                                          plausible number from a neighbouring class.
+    #                                                          The measured leak this fences is the US-crop-
+    #                                                          board one: silver_nass_crop_progress carries
+    #                                                          SIX US contract slugs and nothing else, and the
+    #                                                          prose-only "THIS TABLE IS THE UNITED STATES AND
+    #                                                          NOTHING ELSE" fence moved the leak twice
+    #                                                          (french_wheat in v2, a rough-rice row in v3)
+    #                                                          without ever stopping it. EMPTY (every other
+    #                                                          card) -> no fence, byte-identical.
     metric_col: Optional[str] = None                         # tall: column holding the metric NAME
     value_col: Optional[str] = None                          # tall: column holding the numeric VALUE
     unit_col: Optional[str] = None

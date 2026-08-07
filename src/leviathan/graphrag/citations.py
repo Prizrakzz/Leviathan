@@ -152,20 +152,30 @@ def _empty_label(status: Optional[str], asof: Optional[str]) -> str:
     tell a coverage gap (answerable elsewhere) from a vintage-timing gap (genuinely not yet published)
     from a lookup failure. Erasing this to one flat '(not known at asof)' made a June-2026-scoped COT
     window (empty because silver_cot ends 2025-12-30) read as a timing claim and the whole question
-    was declared unanswerable (judged-30 RCA (a)). Status ABSENT -> the legacy text, unchanged."""
+    was declared unanswerable (judged-30 RCA (a)). Status ABSENT -> the legacy text, unchanged.
+
+    D-PQ EMPTY-1 (2026-08-07, dcw_probe_v1 row `dcw_esr_china_corn`): every branch is now PREFIXED with
+    the literal marker `NO ROWS RETURNED`, and the parentheticals are untouched underneath it (so every
+    existing assertion, which tests membership of the reason text, still holds). The taxonomy was already
+    correct and already reader-safe; what it lacked was a phrase that says THERE IS NO NUMBER HERE loudly
+    enough that the writer cannot read the line as an invitation to state one -- the measured failure being
+    an export-sales read narrated as a factual `0.0 thousand MT (0 MT)` with the editorial "this represents
+    no actual shipments" on top. The marker is a FACT about the read, not a directive, so it is safe in the
+    reader-facing `## Sources` list as well as in the prompt panel (the citations.py:110 render split). The
+    directive half lives in orchestrator._numbers_block, prompt-side only."""
     a = str(asof) if asof else "asof"
     if status in ("not_known", "future_unpublished"):
-        return f"(not yet published as of {a})"
+        return f"NO ROWS RETURNED (not yet published as of {a})"
     if status in ("no_rows", "record_silent"):
-        return "(no matching rows -- scope/coverage gap, not a timing claim)"
+        return "NO ROWS RETURNED (no matching rows -- scope/coverage gap, not a timing claim)"
     if status == "error":
-        return "(lookup error)"
+        return "NO ROWS RETURNED (lookup error)"
     if status == "declined":
         # a lookup the harness STRUCTURALLY declined, not one that failed or came back empty: the SEAM-C
         # hybrid futures decline (task #144) neuters a curve/named front-month read so no level can be cited
         # as the asked-for quote. The scope note riding the same call carries the WHY to the writer.
-        return "(declined -- not servable from this series for this ask)"
-    return "(not known at asof)"
+        return "NO ROWS RETURNED (declined -- not servable from this series for this ask)"
+    return "NO ROWS RETURNED (not known at asof)"
 
 
 def from_number(call: dict, i: int) -> Citation:
@@ -268,6 +278,12 @@ def from_number(call: dict, i: int) -> Citation:
                       + " -- not the complete record]")
     else:
         label = f"{src} {metric} {scope} = {_empty_label(status, asof)}".strip()
+        # D-PQ EMPTY-1: an empty read carries NO UNIT either. A unit with no value behind it is the
+        # affordance half of a number -- "= NO ROWS RETURNED (...) 1000 MT" reads as a quantity whose
+        # digits happen to be missing, and the measured failure was a reader handed exactly that shape as
+        # "0.0 thousand MT (0 MT)". `eval`'s unit_present pin already gates on `value is not None`
+        # (NEWCAP TRIAGE 2026-07-24), so no scorer loses a signal; the drill-down re-runs off the locator.
+        unit = None
     locator = {"kind": "number", **{k: q.get(k) for k in ("table", "metric", "commodity", "country", "period", "asof")}}
     if cmonth:
         locator["contract_month"] = cmonth      # the drill-down must re-run the expiry that was quoted

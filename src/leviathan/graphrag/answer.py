@@ -2087,6 +2087,19 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # PRE-verifier, and strips run p50 1 / p90 7 / max 16, so a handle activated earlier could disappear).
     _emit(on_stage, "verified", strips=int(verifier.get("stripped", 0) or 0))
     _attach_provenance(structured, verifier)                     # stamp source_key for durable chip join (6.4)
+    # D-PQ HANDLE-1: the [N] namespace render, AFTER the verifier (its strips have already removed the
+    # handles it convicts, so this pass only ever sees survivors) and BEFORE `_humanize_structured` (so a
+    # spliced figure rides the same sanitize the rest of the prose does). Reads `extra_number_calls` --
+    # the CASCADE-EXTENDED list the model's GROUNDING LEDGER line was numbered against -- never the
+    # orchestrator's shorter `number_calls`, which stops at the agent's own lookups.
+    #
+    # GATED ON THE VERIFIER, and that is not a hedge -- it is the correct scope. This is the LAST LEG of
+    # the citation-truth chain, and `GRAPHRAG_VERIFY=off` is the documented rollback for that whole chain
+    # (it also selects the legacy two-list footer). With the verifier off no handle is resolvable in the
+    # sense this pass means, so running anyway would delete prose on a turn nobody asked to police. Key
+    # ABSENT when off, never null -- the OFF-arm-clean rule.
+    if verifier.get("enabled"):
+        sg.trace["number_handles"] = _resolve_number_handles(structured, extra_number_calls)
     # A4b SEAM 1: `_humanize_structured` is the FIRST reg.sanitize pass on the prose (per field). Capture
     # its INPUT -- post-verify, pre-sanitize -- because that is the last state in which a banned sentence
     # is still attributable to sanitize rather than to the verifier's strips.
@@ -2602,6 +2615,97 @@ def _episode_section_body(mech: str) -> str:
     return "\n".join(out) if out is not None else ""
 
 
+# ── D-PQ CAP-1: THE ABSENCE-BULLET CAP ON THE MODEL-AUTHORED SECTION ──────────────────────────────────
+#
+# THE MEASURED FAILURE (dcw_probe_v1 row `dcw_full_record_range`, 2026-08-07): a 24-bullet '## Episodes'
+# section of which TWENTY read "no citable item in this window, so what happened is not narrated; no price
+# record for this window." Eighty-three per cent of the section was the engine's own way of saying nothing.
+#
+# WHY D-RC-11's CAPS DID NOT FIRE, EXACTLY. They live inside the SYNTHESIS branch of
+# `_maybe_scaffold_episodes`, which is reached only when the model rendered NO section of its own. Here the
+# model DID render one -- `episodes_model_authored: True`, `_has_episode_section` returned early at the top
+# of the function, and every cap below it was skipped by construction. The knob existed and the shape it
+# was built for walked past it. That is the whole bug: the cap was attached to the PRODUCER instead of to
+# the SECTION.
+#
+# THE LAW, applied identically to both producers: absence bullets are capped at `max_absence` (the existing
+# knob, default 6) AND may never be a MAJORITY of the section. Majority is the sharper of the two on this
+# shape -- 20 of 24 is past a majority long before it is past six -- and it is arithmetic, not taste:
+# keeping A absence bullets beside P present ones is a majority exactly when A > P, so the ceiling is
+# min(max_absence, P). Bullets are dropped from the END, so the surviving section keeps its chronological
+# order and its earliest windows.
+#
+# AN ABSENCE BULLET IS A TWO-PART TEST, both deterministic: it carries a NO-RECEIPT marker from the
+# scorer's own vocabulary AND it carries no `[E` handle. The handle clause is what stops a receipted
+# bullet whose restated corpus text happens to say "the record is silent on X" from being culled as
+# absence -- the same false-absence-through-the-corpus class `_SCAFFOLD_ABSENCE_MARKERS` documents. The
+# marker tuple is the `_NO_CITABLE` half ONLY: `_NO_PRICE_RECORD` says a priced magnitude is missing, which
+# is true of most receipted historical windows and is not an empty bullet.
+_SCAFFOLD_NO_RECEIPT_MARKERS = (
+    "no citable item", "no cited item", "no citable source", "no dated item", "no dated source",
+    "no citable evidence", "corpus is silent", "record is silent", "no source in this window",
+    "not in this corpus", "not in the corpus", "not in this record")
+_SCAFFOLD_BULLET_RX = re.compile(r"^\s*[-*]\s+\S")
+# THE FLOOR (cycle-3 review). `min(max_absence, present)` alone is NON-MONOTONIC and starves exactly the
+# answers that need the enumeration most: one receipted window kept ONE absence bullet, a two-bullet
+# '## Episodes' section, which is BELOW the decks' own `min_episode_lines: 3` -- so the cap turned a thin
+# answer into a failing one, and adding present content could SHRINK the section (present=0 -> max_absence
+# bullets, present=1 -> one). The majority rule is a CEILING, never a target: floored at three, absence
+# never outnumbers present by more than the deck's own minimum line count, the section can no longer fall
+# under a pin it was built to satisfy, and `keep` is non-decreasing in `present` by construction. The floor
+# sits ABOVE `max_absence` when a mode sets that knob below three -- deliberate: the knob tunes how much
+# surplus absence a RICH section may keep, and it was never meant to shrink a sparse one below the minimum
+# shape. (The other bound, `max_bullets`, still binds on the synthesis producer and caps the section there.)
+_SCAFFOLD_ABSENCE_FLOOR = 3
+
+
+def _is_absence_bullet(line: str) -> bool:
+    """A bullet that names a window and then says nothing about it, with no receipt to show for it."""
+    low = (line or "").lower()
+    return ("[e" not in low) and any(m in low for m in _SCAFFOLD_NO_RECEIPT_MARKERS)
+
+
+def _cap_absence_bullets(mech: str, *, max_absence: int) -> tuple[str, int]:
+    """(mechanism with the Episodes section's surplus absence bullets removed, n_dropped).
+
+    Walks the LAST '## Episodes' section exactly as `_episode_section_body` does -- fence-aware,
+    '##'..'######', normalised heading PREFIX, the next heading closes it -- so the two can never disagree
+    about which lines are in scope. Non-bullet lines inside the section are untouched, and a section with
+    no surplus is returned byte-identical (the same object), so a compliant answer is unmoved."""
+    lines = (mech or "").split("\n")
+    lo, hi, in_fence = None, None, False
+    for i, line in enumerate(lines):
+        if line.lstrip().startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        m = _EPISODE_HEADING_RX.match(line)
+        if not m:
+            continue
+        if str(m.group(1)).strip().lower().startswith(_EPISODE_HEADING_TEXT):
+            lo, hi = i + 1, len(lines)                 # entering (or re-entering): the LAST section wins
+        elif lo is not None and hi == len(lines):
+            hi = i                                     # the next non-matching heading closes it
+    if lo is None:
+        return mech, 0
+    idx = [i for i in range(lo, hi) if _SCAFFOLD_BULLET_RX.match(lines[i])]
+    absent = [i for i in idx if _is_absence_bullet(lines[i])]
+    present = len(idx) - len(absent)
+    # THE DEGENERATE CASE, DECIDED RATHER THAN INHERITED: with ZERO present bullets the majority rule has
+    # no non-degenerate solution (any positive count is a majority) and applying it literally would leave a
+    # '## Episodes' heading with no bullets under it -- which is not an improvement on six that say
+    # nothing, and would strand the eval's own episode pins on an empty section. There the HARD cap is the
+    # whole law. Everywhere else the majority rule binds as a CEILING over the floor (see
+    # _SCAFFOLD_ABSENCE_FLOOR): max(min(max_absence, present), 3).
+    keep = (int(max_absence) if present == 0
+            else max(min(int(max_absence), present), _SCAFFOLD_ABSENCE_FLOOR))
+    if len(absent) <= keep:
+        return mech, 0
+    drop = set(absent[keep:])                          # keep the EARLIEST; surplus goes from the end
+    return "\n".join(ln for i, ln in enumerate(lines) if i not in drop), len(drop)
+
+
 def _scaffold_rows(injected: list | None, nodes: list | None) -> list[tuple] | None:
     """[(node label, injected span, receipt|None)] for every injected WINDOW, or None to DECLINE.
 
@@ -3009,8 +3113,20 @@ def _maybe_scaffold_episodes(structured: dict | None, verifier: dict | None, *,
         return {}
     mech = str((structured or {}).get("mechanism") or "")
     if _has_episode_section(mech):
-        return {"episodes_scaffolded": {"fired": False, "n_bullets": 0, "n_receipted": 0},
-                "episodes_model_authored": True}
+        # D-PQ CAP-1: the model wrote its own section, so no bullet here is the engine's to author -- but
+        # the SECTION's shape is still the engine's to bound, and D-RC-11's caps never reached this branch.
+        # Nothing else about the model-authored path moves: the stamp, the return shape and
+        # `episodes_model_authored: True` are unchanged, and a section already inside the law is
+        # byte-identical (`_cap_absence_bullets` returns its input).
+        _max_a = int(max_absence if max_absence is not None
+                     else _prm.get("serving.scaffold.max_absence", 6))
+        _capped_mech, _n_abs = _cap_absence_bullets(mech, max_absence=_max_a)
+        if _n_abs and isinstance(structured, dict):
+            structured["mechanism"] = _capped_mech
+        stamp = {"fired": False, "n_bullets": 0, "n_receipted": 0}
+        if _n_abs:                                    # REPORTED, never silent (the D-RC-11 n_capped rule)
+            stamp["n_absence_capped"] = _n_abs
+        return {"episodes_scaffolded": stamp, "episodes_model_authored": True}
 
     def _declined(why: str) -> dict:
         return {"episodes_scaffolded": {"fired": False, "n_bullets": 0, "n_receipted": 0, "declined": why},
@@ -3043,6 +3159,17 @@ def _maybe_scaffold_episodes(structured: dict | None, verifier: dict | None, *,
         keep: set[int] = set(i for i, r in enumerate(rows) if r[2])
         if len(keep) > max_b:                          # receipted alone over the cap: first max_b win
             keep = set(sorted(keep)[:max_b])
+        # D-PQ CAP-1: the MAJORITY rule, the same law `_cap_absence_bullets` applies to the model-authored
+        # section, stated once per producer because the two build their sections by different routes.
+        # Absence bullets may never OUTNUMBER receipted ones, so the ceiling is min(max_absence, receipted).
+        # SAME degenerate carve-out, same reason (see `_cap_absence_bullets`): with zero receipted rows the
+        # rule has no non-degenerate solution and would render a heading with no bullets, so there the hard
+        # cap is the whole law and this line is a no-op.
+        # SAME FLOOR too (_SCAFFOLD_ABSENCE_FLOOR), and for the same reason stated there: the majority
+        # rule is a ceiling, and one receipted window must not collapse the section under the decks'
+        # `min_episode_lines`. `max_bullets` is unmoved and still bounds the section here.
+        if keep:
+            max_a = max(min(max_a, len(keep)), _SCAFFOLD_ABSENCE_FLOOR)
         n_abs = 0
         for i, r in enumerate(rows):
             if r[2] or len(keep) >= max_b or n_abs >= max_a:
@@ -3212,11 +3339,262 @@ def _fork_basis(graph, contracts: list[str] | None, evidence: list | None, trace
             "episodes": n_windows >= 2}
 
 
+# ── D-PQ HANDLE-1: THE [N] NAMESPACE RENDER (a literal handle must never reach the reader) ─────────────
+#
+# THE MEASURED FAILURE (dcw_probe_v1 row `dcw_us_ethanol_margin`, 2026-08-07). The shipped body carried
+# NINE bare handles standing where a number belongs -- "U.S. total domestic corn consumption ... stands at
+# [N16] for MY2025", "ending stocks ... at [N5] against total use of [N4]", "the September contract settled
+# at [N6]". The reader was handed a token, not a figure.
+#
+# WHY THE VERIFIER DID NOT CATCH IT, EXACTLY. `verify._check_number_handle` charges a handle on TWO rules:
+# `number_mismatch` (a stated magnitude disagreeing with the cited row) and `number_unbacked` (a stated
+# magnitude no row carries). BOTH read the sentence's CLAIM NUMBERS. A sentence that states no number at
+# all -- because the model put the handle WHERE the number should have been -- has zero claim numbers, so
+# both rules pass vacuously and the token survives to the page. `index_out_of_range` did not fire either:
+# `extra_number_calls` is REBOUND to a copy at the cascade seam (answer.py:1915) and `cq.quantify` appends
+# its injected rows to that copy, so [N16] was IN RANGE against an 18-row list even though the orchestrator's
+# own `number_calls` (the 10 agent lookups) stops at [N10]. The handle pointed at a real cascade row that
+# came back EMPTY. Nothing in the chain is charged with "this handle resolved to nothing".
+#
+# THE FIX IS DETERMINISTIC AND HAS EXACTLY TWO DIRECTIONS, decided per TOKEN, never per model:
+#   RESOLVED + standing in for the value  -> SPLICE the row's own value+unit in front of the handle. The
+#       figure the model meant is on the row; the only thing missing was the render.
+#   RESOLVED + attached to a stated number -> UNTOUCHED. That is the ordinary citation shape and moving it
+#       would rewrite every correct answer in the estate.
+#   UNRESOLVABLE + attached to a stated number -> DROP THE HANDLE ONLY. This is verify's own remedy for
+#       `index_out_of_range` (it drops the token span), and the number itself has already answered to the
+#       verifier's rules on its own merits.
+#   UNRESOLVABLE + standing in for the value -> DROP THE WHOLE SENTENCE. The sentence promised a figure it
+#       cannot produce; there is nothing to substitute and a de-handled "stands at  for MY2025" is worse
+#       than silence. Whole-sentence drop is the register/verifier precedent (`_strip_banned_sentences`).
+#       ...UNLESS THE SENTENCE ALSO CARRIES A RESOLVED HANDLE, in which case only the empty promise's own
+#       CLAUSE goes and the backed content stays (see `_HANDLE_CLAUSE_OPEN_RX`).
+#
+# "STANDING IN FOR THE VALUE" IS A SYNTACTIC LOCALITY TEST, NOT A JUDGEMENT: the handle is IMMEDIATELY
+# preceded by a value-introducing word ("stands at [N16]", "total use of [N4]", "fell to [N13]", "was
+# [N11]") with nothing between the cue and the handle. That is precise in both directions and needs no
+# sentence-level reasoning: if a figure HAD been stated it would sit in that slot, so "settled at 446 US
+# cents per bushel [N1]" ends its prefix on 'bushel' and is untouched, while "settled at [N6]" ends on
+# 'at' and is filled in.
+#
+# A DIGIT-PRESENCE TEST WAS TRIED FIRST AND IS WRONG: prose is full of digits that are not magnitudes.
+# "The MY2025/26 ending stocks projection stands at [N5]" carries 2025 and 26; "As of June 2026 [N1] [N2]"
+# carries a year. Both would have read as 'a number was already stated' and the first is exactly the
+# measured defect. The cue test is blind to all of them by construction.
+_N_HANDLE_RX = re.compile(r"\[N(\d+)\]")
+_HANDLE_VALUE_SLOT_RX = re.compile(
+    r"\b(?:at|of|to|from|by|near|around|about|versus|vs\.?|was|were|is|are|be|been|reads?|read|stood|"
+    r"stands?|sits?|sat|reached|hit|printed|posted|came in at|carries|carrying|totall?ed|totals?)\s+$",
+    re.I)
+# A MIXED SENTENCE IS SEVERED, NOT KILLED (cycle-3 review). "Ending stocks were 1,200 [N2] against use of
+# [N4]." is one sentence carrying TWO handles: [N2] resolved and standing beside a stated figure, [N4]
+# unresolvable and standing in for one. The whole-sentence drop above is right when the sentence promised a
+# figure and can produce NOTHING; here it destroys verified, receipted content to remove one empty promise.
+# So when a sentence still carries a RESOLVED handle, only the unresolvable handle goes -- with its clause
+# when the clause is severable, which is what keeps the remainder grammatical ("against use of" alone is
+# worse than the sentence). SEVERABILITY IS SYNTACTIC AND DETERMINISTIC, the same discipline as the
+# value-slot cue: the clause runs from the LAST connective (or ', ') between the sentence start and the
+# handle, and failing that from the value cue the handle stands behind ("at [N4]" -> "at" goes too). The
+# comma leg requires trailing whitespace so a thousands separator ("1,200") can never be a clause opener.
+_HANDLE_CLAUSE_OPEN_RX = re.compile(
+    r",\s+|\b(?:against|versus|vs\.?|compared|while|whereas|with|and|but|plus|alongside)\s+", re.I)
+# never a decimal point: a boundary needs trailing whitespace or EOL (verify._verify_field's own _BOUND)
+_HANDLE_BOUND_RX = re.compile(r"[.!?;](?=\s|$)|\n")
+# ...AND never an INITIALISM's dot. `verify`'s _BOUND has no such clause because it only ever drops HANDLE
+# spans; this pass drops whole SENTENCES, and on "U.S. total domestic corn consumption stands at [N16]"
+# the naive boundary cuts after "U." and after "S.", so the drop starts mid-clause and leaves "U.S." glued
+# to the next sentence. Measured on the row this guard exists for. The test is one letter standing alone
+# after a space (or a bracket/quote, or another dot) -- 'U.'/'S.'/'e.'/'g.' -- which is exactly the
+# abbreviation shape and never a real terminator ("the WASDE." ends on a letter that has letters before
+# it, so it stays a boundary).
+_HANDLE_ABBREV_RX = re.compile(r"(?:^|[\s(\[\"'])[A-Za-z]$|\.[A-Za-z]$")
+# ...AND THE ABBREVIATION CLAUSE MUST NOT SWALLOW THE SENTENCE IN FRONT OF IT (cycle-3 review). An
+# initialism's LAST dot is genuinely ambiguous: it is mid-sentence in "U.S. total domestic corn consumption
+# stands at [N16]" and a REAL terminator in "Exports were strong from the U.S. The December contract
+# settled at [N9]." Skipping it unconditionally widened the span across a COMPLETE, fully-backed sentence,
+# and one empty handle in the widened span then deleted both (measured: the whole field went out with
+# census sentences_dropped:1 -- a drop is only ever entitled to the clause that made the promise).
+# THE DISCRIMINATOR IS WHAT FOLLOWS THE DOT, which is what every sentence splitter uses and the only signal
+# available without a parser: whitespace then a capital opens a NEW sentence ('. The'), whitespace then a
+# lower-case word continues the abbreviated one ('. total', '. consumption'). An initialism's INTERNAL dot
+# ('U.' in 'U.S.') is followed by no whitespace at all, so it never matches here and stays skipped.
+_HANDLE_SENT_START_RX = re.compile(r"[ \t]+[\"'(\[]*[A-Z]")
+
+
+def _handle_sentence_span(text: str, pos: int) -> tuple[int, int]:
+    """(start, end) of the sentence containing `pos` -- verify._verify_field's walk, plus the abbreviation
+    clause above, and CLAMPED TO THE CONTAINING LINE.
+
+    The line clamp is the outer fence on the same failure: whatever the sentence walk decides, a drop may
+    never cross a line boundary. It is redundant with the '\\n' alternative in `_HANDLE_BOUND_RX` (never
+    skippable) and is stated anyway, because the invariant belongs next to the span rather than inside a
+    boundary alternation that a later edit could widen."""
+    start, end = 0, len(text)
+    for b in _HANDLE_BOUND_RX.finditer(text):
+        if (b.group(0) != "\n" and _HANDLE_ABBREV_RX.search(text[:b.start()])
+                and not _HANDLE_SENT_START_RX.match(text, b.end())):
+            continue                                   # 'U.' / 'S.' / 'e.' / 'g.' -- an abbreviation, not an end
+        if b.start() < pos:
+            start = b.end()
+        elif b.start() >= pos:
+            end = b.end()
+            break
+    ls = text.rfind("\n", 0, pos) + 1                  # the containing line: [ls, le), newline included in le
+    le = text.find("\n", pos)
+    le = len(text) if le < 0 else le + 1
+    return max(start, ls), min(end, le)
+
+
+def _handle_clause_start(text: str, s0: int, start: int) -> int:
+    """Where the severable clause standing in front of an unresolvable handle at `start` begins, inside the
+    sentence that opens at `s0`. The LAST connective wins (the smallest severance that leaves prose), the
+    value cue is the fallback, and the handle itself is the floor -- so this never returns a position
+    outside `[s0, start]` and the caller's span is always a subset of the sentence it would have killed."""
+    seg = text[s0:start]
+    last = None
+    for cm in _HANDLE_CLAUSE_OPEN_RX.finditer(seg):
+        last = cm.start()
+    if last is None:
+        cue = _HANDLE_VALUE_SLOT_RX.search(seg)        # anchored at the end of `seg`: "... total use of "
+        last = cue.start() if cue else len(seg)
+    return s0 + last
+
+
+def _number_handle_value(call: dict | None, idx: int) -> str | None:
+    """The value+unit `[N{idx}]` resolves to, or None when it resolves to NOTHING (out of range, an empty
+    read, an errored/declined lookup). Routed through `cit.from_number` on purpose: the headline row, the
+    unit fallback and the empty-status taxonomy are decided in ONE place, so a spliced figure and the
+    `## Sources` line for the same handle can never disagree."""
+    if not isinstance(call, dict):
+        return None
+    try:
+        c = cit.from_number(call, idx)
+    except Exception:  # noqa: BLE001 -- a malformed call record resolves to nothing, never an exception
+        return None
+    if c.value is None or not str(c.value).strip():
+        return None
+    unit = str(c.unit or "").strip()
+    return f"{str(c.value).strip()} {unit}".strip()
+
+
+def _resolve_number_handles(structured: dict | None, number_calls: list | None) -> dict:
+    """Substitute or remove every `[N]` handle in the reader prose so none can render literally.
+
+    Mutates `structured['tldr']` / `structured['mechanism']` IN PLACE and returns the census
+    ({substituted, handles_dropped, sentences_dropped, unresolvable}) for the trace. Never raises:
+    a render guard must never be the thing that breaks an answer.
+
+    A SEVERED CLAUSE COUNTS AS `handles_dropped`, and the census keeps its four keys: the shape is pinned
+    byte-for-byte by the suites and rides every turn's trace, so the mixed-sentence remedy reports under
+    the drop it is (one handle left the page) rather than minting a fifth counter for it."""
+    census = {"substituted": 0, "handles_dropped": 0, "sentences_dropped": 0, "unresolvable": 0}
+    if not isinstance(structured, dict):
+        return census
+    calls = list(number_calls or [])
+    for field in ("tldr", "mechanism"):
+        text = structured.get(field)
+        if not isinstance(text, str) or "[N" not in text:
+            continue
+        ops: list[tuple[int, int, str]] = []      # (start, end, replacement)
+        kills: list[tuple[int, int]] = []         # whole-sentence drops
+        # ONE PASS FIRST, so every handle's verdict is known before any of them is acted on: whether a
+        # sentence may be killed depends on the OTHER handles standing in it (see _HANDLE_CLAUSE_OPEN_RX).
+        recs = []                                 # (match, value, sentence span, standing-in?)
+        for m in _N_HANDLE_RX.finditer(text):
+            idx = int(m.group(1))
+            call = calls[idx - 1] if 1 <= idx <= len(calls) else None
+            value = _number_handle_value(call, idx)
+            s0, s1 = _handle_sentence_span(text, m.start())
+            recs.append((m, value, s0, s1, bool(_HANDLE_VALUE_SLOT_RX.search(text[s0:m.start()]))))
+        backed = {(r[2], r[3]) for r in recs if r[1] is not None}     # spans that keep a RESOLVED handle
+        backed_at = [r[0].start() for r in recs if r[1] is not None]  # ...and where those handles sit
+        for m, value, s0, s1, standin in recs:
+            if value is not None:
+                if standin:
+                    ops.append((m.start(), m.start(), value + " "))
+                    census["substituted"] += 1
+                continue
+            census["unresolvable"] += 1
+            if standin and (s0, s1) in backed:
+                # MIXED: sever the clause instead of the sentence. Falls back to the bare token drop when
+                # the clause would swallow the resolved handle that is the reason to keep the sentence.
+                a = _handle_clause_start(text, s0, m.start())
+                if any(a <= p < m.end() for p in backed_at):
+                    a = m.start()
+                if a > s0 and text[a - 1] == " " and (m.end() >= len(text)
+                                                      or text[m.end()] in " ,.;:)!?"):
+                    a -= 1                        # the ONE separating space, as in the bare-drop leg below
+                ops.append((a, m.end(), ""))
+                census["handles_dropped"] += 1
+            elif standin:
+                # a sentence starting the field owns the space AFTER it, so the field never opens on an
+                # indent (verify._drop_span's rule, restated -- answer cannot import a closure)
+                e = s1
+                if s0 == 0:
+                    while e < len(text) and text[e] == " ":
+                        e += 1
+                if (s0, e) not in kills:
+                    kills.append((s0, e))
+                    census["sentences_dropped"] += 1
+            else:
+                # eat the ONE separating space when the handle is trailed by whitespace or punctuation,
+                # so "446 [N9], known" leaves "446, known" and not a double space before the comma. The
+                # verifier's own strip does not bother because it runs before humanize; this pass is the
+                # last thing to touch the prose before the sanitize that renders it.
+                a = m.start()
+                if a and text[a - 1] == " " and (m.end() >= len(text) or text[m.end()] in " ,.;:)!?"):
+                    a -= 1
+                ops.append((a, m.end(), ""))
+                census["handles_dropped"] += 1
+        if not ops and not kills:
+            continue
+        # a substitution inside a killed sentence is moot -- the sentence is going, so the op is dropped
+        # AND uncounted (the census must report what the reader's page actually received).
+        kept = [o for o in ops if not any(k0 <= o[0] < k1 for k0, k1 in kills)]
+        census["substituted"] -= sum(1 for o in ops if o not in kept and o[0] == o[1])
+        census["handles_dropped"] -= sum(1 for o in ops if o not in kept and o[0] != o[1])
+        merged = sorted(kept + [(k0, k1, "") for k0, k1 in kills], key=lambda o: (o[0], o[1]))
+        out, pos = [], 0
+        for a, b, repl in merged:
+            if a == b:                            # an INSERTION (the value splice)
+                if a < pos:                       # ...already swallowed by a preceding deletion
+                    continue
+                out.append(text[pos:a])
+                out.append(repl)
+                pos = a
+                continue
+            if b <= pos:                          # a deletion already fully consumed
+                continue
+            # CLAMP rather than SKIP. A first-sentence kill eats its trailing spaces (the leading-indent
+            # rule), so the NEXT sentence's recorded start sits BEHIND the cursor -- skipping on `a < pos`
+            # silently kept the second unbackable sentence on the page while still counting it dropped.
+            a = max(a, pos)
+            out.append(text[pos:a])
+            out.append(repl)
+            pos = b
+        out.append(text[pos:])
+        new = "".join(out)
+        if not text[:1].isspace():                # a field that did not open on whitespace must not start
+            new = new.lstrip(" \t")               # doing so because the sentence in front of it was killed
+        structured[field] = new
+    return census
+
+
 def _cited_sources_block(d: dict, vreport: dict, number_calls: list | None) -> str:
     """The single reader-facing `## Sources` list: the model's OWN handles, every entry resolved by the
     verifier to a real item's true metadata. Cited-only — retrieved-but-uncited items stay machine-side
-    (res['evidence'] / res['citations'])."""
+    (res['evidence'] / res['citations']).
+
+    THE [N] ORPHAN PRUNE (cycle-3 review). This block reads `d['sources']`, which `_resolve_number_handles`
+    does not touch: a handle whose sentence was dropped, or whose clause was severed, left the prose but
+    kept its footer row -- a `## Sources` entry pointing at nothing the reader can find, on exactly the
+    turns where the number was the thing that failed. `d` IS the final structured dict (this runs after
+    verify, after the scaffold, after humanize), so its two prose fields are the reader's page and the
+    membership test is exact. SCOPED TO THE [N] NAMESPACE, deliberately: the [E]/positional half has its
+    own recorded, deliberately-unfixed duplicate (see `_maybe_scaffold_episodes`' KNOWN COSMETIC note and
+    its test), and widening this prune would move that decision and the OFF arm with it."""
     resolved = (vreport or {}).get("resolved") or {}
+    prose = f"{d.get('tldr') or ''}\n{d.get('mechanism') or ''}"
     lines, seen = [], set()
     for s in (d.get("sources") or []):
         ref = str(s.get("ref", "")).strip().strip("[]")
@@ -3224,6 +3602,8 @@ def _cited_sources_block(d: dict, vreport: dict, number_calls: list | None) -> s
             continue
         seen.add(ref)
         if ref.upper().startswith("N"):
+            if f"[{ref}]" not in prose and f"[{ref.upper()}]" not in prose:
+                continue                          # the handle no longer reaches the reader: neither does the row
             try:
                 idx = int(ref[1:])
                 c = cit.from_number((number_calls or [])[idx - 1], idx)
@@ -3454,6 +3834,8 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
           stripped=int(verifier.get("stripped", 0) or 0))
     _emit(on_stage, "verified", strips=int(verifier.get("stripped", 0) or 0))   # F7: handles may ACTIVATE now
     _attach_provenance(structured, verifier)                     # stamp source_key for durable chip join (6.4)
+    _nhandles = (_resolve_number_handles(structured, extra_number_calls)   # D-PQ HANDLE-1, both bodies
+                 if verifier.get("enabled") else None)                    # ...and the same verifier gate
     # A4b on the SECOND synthesis path, for the SAME reason A4 is here: GRAPHRAG_PLANNER=onehop is a
     # documented rollback, and instrumenting only _answer_l2 would blind the audit on the exact path a
     # rollback puts every turn on. Identical two seams, identical field names.
@@ -3493,6 +3875,8 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
                       "banned_exec_words": _banned_exec, "unbacked_levels": _unbacked,
                       "outlook_mode": _outlook, "market_register": _mr,
                       "record_through": _rec_through,              # D-RC-13: observational, both bodies
+                      **({"number_handles": _nhandles}             # D-PQ HANDLE-1: same census, both bodies
+                         if _nhandles is not None else {}),        # ...absent when the verifier is off
                       **({"response_contract": _rc_active} if _rc_active else {}),   # Phase B twin stamp
                       **({"composition_census": _census} if _census is not None else {}),   # D-CC-1 twin
                       **_tldr_dir,                                 # D-RC-12: absent when the flag is off

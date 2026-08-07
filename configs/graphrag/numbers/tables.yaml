@@ -756,6 +756,12 @@ tables:
     grain: "one row per contract x state x week-ending date (weekly, in season)"
     shape: wide
     commodity_col: commodity            # PARTITION key = the contract slug (6 values; see notes)
+    # D-PQ CLASS-1: the six slugs, DECLARED, so the fence is code and not prose. A lookup naming anything
+    # else is refused at spec level with a teaching error before any SQL is compiled. This list and the
+    # `commodity = the CONTRACT slug and only these six exist` sentence in `notes` are the same fact said
+    # twice on purpose -- the notes teach, this enforces -- and test_numbers_class_fence pins them equal.
+    commodity_values: [corn_cbot, soybeans_cbot, rough_rice_cbot, cotton,
+                       soft_red_winter_wheat_cbot, hard_red_spring_wheat_mgex]
     country_col: state                  # repurposed as the GEO axis: 2-letter USPS code, 'US' = national
     period_type: date
     date_col: date                      # the WEEK-ENDING date (a Sunday), a physical DATE column

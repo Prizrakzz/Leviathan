@@ -182,7 +182,11 @@ def test_default_relevant_true_is_byte_identical_to_legacy(monkeypatch):
 def test_caps_flag_on_bounds_the_section_receipted_first(monkeypatch):
     """9 windows (2 receipted at the EDGES, 7 absence) under max_bullets=4/max_absence=2 -> both
     receipted rows kept (the late one included -- receipted-first, not first-N), 2 absence rows fill,
-    5 dropped and REPORTED via n_capped."""
+    5 dropped and REPORTED via n_capped.
+
+    UNMOVED BY THE CYCLE-3 ABSENCE FLOOR, and that is the point of keeping it here: the floor raises the
+    absence CEILING to 3, but `max_bullets=4` binds first and the section is the same 4 bullets. The two
+    bounds are independent and the tighter one still wins."""
     monkeypatch.setattr(an._prm, "get",
                         lambda key, default=None: {"serving.scaffold.max_bullets": 4,
                                                    "serving.scaffold.max_absence": 2}.get(key, default))
@@ -196,13 +200,34 @@ def test_caps_flag_on_bounds_the_section_receipted_first(monkeypatch):
 
 def test_caps_run_flaglessly(monkeypatch):
     """D-AM stage 3 re-expression of the old flag-off exemption: caps are UNCONDITIONAL now (the
-    interim kill-switch is retired). 9 rows = 2 receipted + 7 absence; the absence cap (6) drops
-    exactly one row with the env var ABSENT -- the capping the old test proved could NOT happen
-    flag-off is now the always-on behavior, receipted-first preserved."""
+    interim kill-switch is retired). 9 rows = 2 receipted + 7 absence, env var ABSENT.
+
+    D-PQ CAP-1 MOVED THIS NUMBER, DELIBERATELY. Under the hard cap alone the section was 2 receipted +
+    6 absence = 8 bullets, i.e. THREE QUARTERS of it said nothing. The majority rule binds first: absence
+    may never outnumber receipted, so the ceiling is min(max_absence=6, receipted=2) = 2.
+
+    THE CYCLE-3 REVIEW MOVED IT AGAIN, TO 5, AND THIS IS THE FLOORED LAW. The majority rule alone is a
+    CEILING WITHOUT A FLOOR and it starved sparse answers: one receipted window kept one absence bullet,
+    a two-bullet section, under the decks' own `min_episode_lines: 3` -- and adding receipted content
+    could SHRINK the section (present=0 kept `max_absence`, present=1 kept one). The ceiling is now
+    floored at three: max(min(max_absence=6, receipted=2), 3) = 3, so the section is 2 + 3 = 5 bullets
+    with 4 dropped. `max_bullets` is untouched and still bounds the section. Receipted-first is
+    unchanged and still proven here."""
     st, vf, trace = _run(monkeypatch, eps=_eps(9, receipted=(0, 8)))
     stamp = trace["episodes_scaffolded"]
-    assert stamp["fired"] is True and stamp["n_bullets"] == 8   # 2 receipted + 6 absence
-    assert stamp["n_capped"] == 1
+    assert stamp["fired"] is True and stamp["n_bullets"] == 5   # 2 receipted + 3 absence (floored ceiling)
+    assert stamp["n_receipted"] == 2 and stamp["n_capped"] == 4
+
+
+def test_absence_only_window_set_keeps_the_hard_cap(monkeypatch):
+    """D-PQ CAP-1's degenerate carve-out, PINNED so it stays a decision. With ZERO receipted rows the
+    majority rule has no non-degenerate solution -- applying it would render '## Episodes' with no
+    bullets at all -- so `max_absence` is the whole law there and the section is 6 bullets, not 0."""
+    st, vf, trace = _run(monkeypatch, eps=_eps(9, receipted=()))
+    stamp = trace["episodes_scaffolded"]
+    assert stamp["fired"] is True and stamp["n_receipted"] == 0
+    assert stamp["n_bullets"] == 6 and stamp["n_capped"] == 3
+    assert len([ln for ln in st["mechanism"].split("\n") if ln.startswith("- ")]) == 6
 
 
 def test_scaffold_rows_dedup_by_node_span():

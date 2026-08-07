@@ -239,6 +239,78 @@ _ESR_METRICS = ("weekly_exports_1000mt", "outstanding_sales_1000mt", "gross_new_
                 "changes_1000mt")
 
 
+# -- D-PQ EMPTY-1: AN EMPTY READ IS AN ABSENCE OF DATA, NEVER A MEASURED ZERO -------------------------
+#
+# THE MEASURED FAILURE (dcw_probe_v1 row `dcw_esr_china_corn`, 2026-08-07). One export-sales lookup, one
+# collapsed aggregate row, and the shipped answer read: "China has bought **0.0 thousand MT (0 MT) of corn**
+# out of the US during marketing year 2025/26 ... This represents no actual shipments of US corn to China
+# so far this marketing year." A quantity was asserted as fact and then EDITORIALISED into a market claim.
+#
+# TWO SEPARATE HAZARDS, TWO SEPARATE NOTES, because they are genuinely different failures:
+#   (1) THE EMPTY READ. `_exec` already classifies zero usable rows (no_rows / not_known), and the citation
+#       label already says so -- but nothing on the payload the MODEL reads forbids stating a figure for it,
+#       and "no rows" is one short inferential step from "the quantity is zero". `_NO_ROWS_NOTE` closes that
+#       step by name. Deterministic: it is keyed on `not vals`, which is a property of the result set.
+#   (2) THE ZERO AGGREGATE. `_agg` compiles `SELECT sum(value) ... ` and collapses every extra away, so a
+#       window with no reported weeks and a window whose weeks all reported zero arrive as the SAME single
+#       unlabelled row. On this table those two states are not the same fact and the second is not a
+#       purchase claim. Fenced to silver_esr, to agg='sum' and to the UNSIGNED metrics on purpose: a 0.0
+#       z-score, a 0 basis, a 0 change on any other card is a real observation and must not be caveated --
+#       and neither is a signed ESR net change that cancelled to zero (see `_ESR_UNSIGNED_METRICS`).
+_NO_ROWS_NOTE = (
+    "NO ROWS RETURNED ({why}): this lookup produced no value at all. State plainly that the record "
+    "carries no figure for this scope and do NOT assert any number for it -- not a level, not a change, "
+    "and NOT zero. An empty read is an absence of data, never a measured value of 0.")
+_NO_ROWS_WHY = {"no_rows": "scope/coverage gap, not a timing claim",
+                "record_silent": "scope/coverage gap, not a timing claim",
+                "not_known": "not yet published at this as-of",
+                "future_unpublished": "not yet published at this as-of",
+                "error": "the lookup failed"}
+_ESR_ZERO_AGG_NOTE = (
+    "The export-sales aggregate above summed to EXACTLY 0 over the requested window. On this table a zero "
+    "sum is produced equally by weeks that reported zero and by a window that carries no reported weeks at "
+    "all -- the aggregate collapses the week rows, so the two are indistinguishable from this result. Say "
+    "the record shows no reported {metric} for that scope and stop there: do NOT state it as a measured "
+    "quantity of zero, and do NOT characterise it as 'no purchases', 'no shipments' or 'nothing bought'.")
+
+
+def _no_rows_note(status: str) -> str:
+    return _NO_ROWS_NOTE.format(why=_NO_ROWS_WHY.get(str(status or ""), "no value was returned"))
+
+
+# THE SIGNEDNESS + AGG FENCE (cycle-3 review). `_exec` drops NULL-valued rows BEFORE this check runs, so
+# a 0.0 that reaches it ALWAYS means real week rows summed to exactly zero -- the "no reported weeks at
+# all" half of the ambiguity arrives as a NULL and is already routed to `_NO_ROWS_NOTE`. Two consequences,
+# and they narrow the caveat rather than widen it:
+#   * agg='sum' ONLY. mean/max/min are not the collapse the note describes -- a mean of 0, a max of 0, a
+#     min of 0 are real observations OF THE ROWS THAT CAME BACK, and telling the model there is "no
+#     reported figure" for them is false.
+#   * UNSIGNED METRICS ONLY. `changes_1000mt` is the card's own "net change in outstanding sales": it is
+#     SIGNED, and a busy window whose bookings and cancellations offset sums to exactly 0. That is a
+#     measured net of zero, not an absence, and caveating it would delete a true reading. The remaining
+#     three ESR metrics are quantities that cannot go negative, so a zero sum there is still the
+#     indistinguishable state the note is about.
+# The card (`numbers/tables.yaml`, silver_esr `metrics:`) carries unit and description but expresses no
+# signedness, so the unsigned set is named HERE, beside the rule that reads it, with the card's metric ids.
+_ESR_UNSIGNED_METRICS = ("weekly_exports_1000mt", "outstanding_sales_1000mt", "gross_new_sales_1000mt")
+
+
+def _is_zero_esr_aggregate(payload: dict) -> bool:
+    """A silver_esr UNSIGNED-metric SUM that came back as a single row valued exactly 0 (hazard (2))."""
+    q = (payload or {}).get("query") or {}
+    if q.get("table") != "silver_esr" or str(q.get("agg") or "") != "sum":
+        return False
+    if str(q.get("metric") or "") not in _ESR_UNSIGNED_METRICS:
+        return False
+    rows = (payload or {}).get("rows") or []
+    if len(rows) != 1:
+        return False
+    try:
+        return float(str((rows[0] or {}).get("value")).replace(",", "")) == 0.0
+    except (TypeError, ValueError):
+        return False
+
+
 def _fmt_esr_num(v) -> Optional[str]:
     """A row value -> a reader magnitude string whose numeric matches the row within the verifier's 1%
     tolerance (comma-grouped integer when near-whole, else one decimal). None on an unparseable value."""
@@ -2007,9 +2079,58 @@ _ONE_METRIC_RULE = ("ONE lookup = ONE metric. A card with several metrics needs 
                     "(and one call per scope value), never a call that omits `metric` to sweep them.")
 
 
+# -- D-PQ CLASS-1: the CARD-LEVEL commodity class fence -----------------------------------------------
+#
+# THE MEASURED LEAK, TWICE. `silver_nass_crop_progress` is USDA NASS: six US contract slugs, US states,
+# nothing else. The fence for that was PROSE in the card's `notes` ("THIS TABLE IS THE UNITED STATES AND
+# NOTHING ELSE"), and prose fences move the leak rather than close it -- v2 put a US condition on a
+# french_wheat ask, v3 put one on a rough-rice / India-monsoon row. A rule the model can read is a rule the
+# model can also not read.
+#
+# WHAT IS FENCEABLE HERE, EXACTLY, AND WHAT IS NOT. This seam sees the SPEC and the REGISTRY and nothing
+# else, so it can enforce exactly one thing deterministically: SLUG MEMBERSHIP -- is the commodity this
+# lookup names one of the values the card declares it serves? That is a closed-set test on card-declared
+# data and it cannot wobble run to run.
+#
+# WHAT REMAINS BEHAVIOURAL, STATED PLAINLY SO NOBODY LATER MISTAKES THIS FOR THE WHOLE FIX: whether the
+# queried commodity matches the ROW'S OWN CONTRACT (the v3 shape -- a legal slug, wrong question) is NOT
+# decidable here. `answer_numbers` is handed a QUESTION and an as-of; it is never handed the routed
+# contract, and it cannot be: on the hybrid lane it runs in a worker thread CONCURRENTLY with the walk that
+# does the routing (orchestrator.run_hybrid), so at lookup time the answer's contract set does not yet
+# exist. `families` is a HINT, not a scope. Closing that half means threading routing into the numbers
+# lane -- a real plumbing change with its own ordering risk -- and until it is done, a corn-conditions
+# lookup on a rice question is refused only if `corn_cbot` is off this card, which it is not.
+class CommodityOffCard(ValueError):
+    """A lookup naming a commodity the card does not serve (D-PQ CLASS-1). Its message is the remedy."""
+
+
+def _check_commodity_class(spec, reg: NumbersRegistry) -> None:
+    """RAISE `CommodityOffCard` when the spec names a commodity outside the card's declared closed set.
+    No declaration (`commodity_values` empty -- every card but NASS today) -> no fence, no behaviour."""
+    cid = str(getattr(spec, "commodity", "") or "").strip()
+    tid = str(getattr(spec, "table", "") or "").strip()
+    if not cid or not tid:
+        return
+    try:
+        allowed = list(reg.get(tid).commodity_values or [])
+    except Exception:  # noqa: BLE001 -- an unknown table is the OTHER fence's business, not this one
+        return
+    if not allowed or cid in allowed:
+        return
+    raise CommodityOffCard(
+        f"lookup REFUSED -- {tid} does not serve commodity {cid!r}. This card serves exactly these and "
+        f"nothing else: {', '.join(allowed)}. It is a CLOSED set, not a default: there is no row for "
+        f"{cid!r} here and no neighbouring commodity on this card stands in for it. Either re-issue the "
+        f"call with one of the listed values (and say out loud, in the answer, which commodity and which "
+        f"geography the figure belongs to), or find another table -- do NOT substitute a different "
+        f"commodity's number for the one that was asked about. Nothing was queried.")
+
+
 def _spec_error(inp: dict, exc: Exception, reg: NumbersRegistry) -> str:
     """A model-actionable message for a rejected tool input. Falls back to the raw exception text for any
     failure that is not a missing/blank required field, so nothing is ever swallowed."""
+    if isinstance(exc, CommodityOffCard):
+        return str(exc)          # D-PQ CLASS-1: the message IS the remedy -- never truncated, never re-worded
     missing = [f for f in ("table", "metric") if not str((inp or {}).get(f) or "").strip()]
     if not missing:
         return str(exc)[:200]
@@ -2279,6 +2400,7 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
             try:
                 try:
                     spec = _forced_spec(asof, dict(b.input))
+                    _check_commodity_class(spec, reg)      # D-PQ CLASS-1: the card's own closed slug set
                 except Exception as ve:  # noqa: BLE001 -- D-PQ SCHEMA-1: a REJECTED SPEC, said actionably
                     # Separated from the outer handler because the two failures are different things and
                     # the model must be able to tell them apart: this one means "your call was malformed,
@@ -2344,6 +2466,15 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                     status = "not_known" if ksem == "vintage" else "no_rows"
                 payload = {"query": spec.model_dump(exclude_none=True), "rows": vals, "status": status,
                            "truncated": _trunc}
+                # D-PQ EMPTY-1, hazards (1) and (2). Stamped HERE, on the payload the model reads while it
+                # still has call budget, and APPENDED so the ESR/period notes `_stamp_scope` adds next can
+                # never overwrite them. The two are mutually exclusive by construction (one needs zero
+                # rows, the other needs exactly one valued row).
+                if not vals:
+                    payload["scope_note"] = _no_rows_note(status)
+                elif _is_zero_esr_aggregate(payload):
+                    payload["scope_note"] = _ESR_ZERO_AGG_NOTE.format(
+                        metric=str(getattr(spec, "metric", "") or "figure"))
                 # D-PQ A': an EMPTY front-expiry read is not a plain lake gap -- the selection declines
                 # (cash reference, missing activity metric, nothing eligible) exactly where running the
                 # named rule honestly is impossible. Without the reason on the payload the model sees a
@@ -2351,7 +2482,12 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                 # another table's price and call it the futures level. Query.run does not raise for this
                 # (an honest absence is not an error), so the reason rides here.
                 if not vals and str(getattr(spec, "agg", "") or "") == Q.FRONT_EXPIRY_AGG:
-                    payload["scope_note"] = Q.FRONT_EXPIRY_DECLINE
+                    # APPENDED to the D-PQ EMPTY-1 marker above, never over it: this note says WHY the rule
+                    # could not run, the marker says there is no number here. Both are true and the
+                    # `_stamp_scope` seam below uses the same append discipline for the same reason.
+                    _prior = payload.get("scope_note")
+                    payload["scope_note"] = (f"{_prior} {Q.FRONT_EXPIRY_DECLINE}" if _prior
+                                             else Q.FRONT_EXPIRY_DECLINE)
                 return payload
             except Exception as e:  # noqa: BLE001 — a bad lookup must not kill the loop
                 return {"query": dict(b.input), "error": str(e)[:200], "rows": [], "status": "error"}
@@ -2363,12 +2499,18 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
             if dest and _is_esr_call(payload):
                 codes = _esr_call_codes(payload)
                 if not codes:                              # national lookup for a destination ask -> national caveat
-                    payload["scope_note"] = _esr_scope_note(dest)
+                    # D-PQ EMPTY-1: APPEND, never overwrite -- `_exec` may already have stamped the
+                    # NO ROWS RETURNED marker or the zero-aggregate caveat on this same payload, and both
+                    # of those are about whether a number exists at all, which outranks a scope caveat.
+                    _p = payload.get("scope_note")
+                    payload["scope_note"] = (f"{_p} {_esr_scope_note(dest)}" if _p else _esr_scope_note(dest))
                 elif _esr_codes_are_bloc(codes) and (payload.get("rows") or []):
                     # scoped to a bloc/region code that RETURNED a figure -> bloc-aggregate note. Gated on rows:
                     # an empty bloc read (e.g. the EU, absent from silver_esr) carries no figure to label as a
                     # bloc aggregate, so the model just narrates the no_rows result honestly.
-                    payload["scope_note"] = _esr_bloc_scope_note(dest)
+                    _p = payload.get("scope_note")                       # D-PQ EMPTY-1: append, see above
+                    payload["scope_note"] = (f"{_p} {_esr_bloc_scope_note(dest)}" if _p
+                                             else _esr_bloc_scope_note(dest))
                 # scoped to a real single country -> NO scope_note (the value IS that destination's)
             if ask_win and _is_month_grain_call(payload, reg):
                 # Month-grained card answering a NAMED-month ask with a row from a different month: tell the
