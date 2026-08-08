@@ -396,7 +396,8 @@ export interface DossierEvent {
   error?: string;
 }
 
-/** GET /v1/dossier/quota — 3 per user per UTC week (D-DR-2). `reset_at` is an ISO instant. */
+/** GET /v1/dossier/quota — 4 per user per UTC calendar month (D-DR-2b). `reset_at` is an ISO instant:
+ *  the first moment of the next month. */
 export interface DossierQuota {
   remaining: number;
   limit: number;

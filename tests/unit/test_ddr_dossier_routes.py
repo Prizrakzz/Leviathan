@@ -168,15 +168,17 @@ def test_quota_route_shape_and_the_429_carries_reset_at(monkeypatch):
     _stub_job(monkeypatch)
     c = _client()
     q = c.get("/v1/dossier/quota", headers=h).json()
-    assert q["limit"] == 3 and q["remaining"] == 3 and q["reset_at"].endswith("Z")
-    for i in range(3):
+    assert q["limit"] == 4 and q["remaining"] == 4 and q["reset_at"].endswith("Z")
+    assert q["reset_at"].endswith("-01T00:00:00Z")        # D-DR-2b: the first instant of the next month
+    for i in range(dsr.QUOTA_LIMIT):
         assert c.post("/v1/dossier", json={"question": f"q{i}"}, headers=h).status_code == 202
         dsr.forget("d-fixed")
     assert c.get("/v1/dossier/quota", headers=h).json()["remaining"] == 0
     r = c.post("/v1/dossier", json={"question": "one too many"}, headers=h)
     assert r.status_code == 429
     body = r.json()
-    assert body["remaining"] == 0 and body["limit"] == 3 and body["reset_at"] == q["reset_at"]
+    assert body["remaining"] == 0 and body["limit"] == 4 and body["reset_at"] == q["reset_at"]
+    assert "month" in body["error"]                      # the refusal names the window it will lift in
 
 
 def test_quota_is_per_principal(monkeypatch):
@@ -185,11 +187,11 @@ def test_quota_is_per_principal(monkeypatch):
     monkeypatch.setenv("GRAPHRAG_DOSSIER", "on")
     _stub_job(monkeypatch)
     c = _client()
-    for i in range(3):
+    for i in range(dsr.QUOTA_LIMIT):
         c.post("/v1/dossier", json={"question": f"q{i}"}, headers=alice)
         dsr.forget("d-fixed")
     assert c.get("/v1/dossier/quota", headers=alice).json()["remaining"] == 0
-    assert c.get("/v1/dossier/quota", headers=bob).json()["remaining"] == 3
+    assert c.get("/v1/dossier/quota", headers=bob).json()["remaining"] == dsr.QUOTA_LIMIT
 
 
 def test_the_eval_lane_never_consumes_quota(monkeypatch):
@@ -197,11 +199,11 @@ def test_the_eval_lane_never_consumes_quota(monkeypatch):
     monkeypatch.setenv("GRAPHRAG_DOSSIER", "on")
     _stub_job(monkeypatch)
     c = _client()
-    for i in range(5):
+    for i in range(dsr.QUOTA_LIMIT + 2):
         assert c.post("/v1/dossier", json={"question": f"q{i}"}).status_code == 202
         dsr.forget("d-fixed")
-    assert c.get("/v1/dossier/quota").json() == {"remaining": 3, "limit": 3, "bypass": True,
-                                                 "reset_at": dsr.week_reset_at()}
+    assert c.get("/v1/dossier/quota").json() == {"remaining": 4, "limit": 4, "bypass": True,
+                                                 "reset_at": dsr.month_reset_at()}
 
 
 # ══ 4. GET ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -251,7 +253,7 @@ def test_a_restart_orphan_is_reported_failed_and_refunded(monkeypatch):
     h = _as_user(monkeypatch, "u-alice")
     monkeypatch.setenv("GRAPHRAG_DOSSIER", "on")
     store = sv._STATE["store"]
-    for _ in range(dsr.QUOTA_LIMIT):                  # week fully spent, one of them by the orphan
+    for _ in range(dsr.QUOTA_LIMIT):                  # month fully spent, one of them by the orphan
         store.incr_turn_quota("u-alice", dsr.quota_period(), dsr.QUOTA_LIMIT)
     store.put_item("u-alice", dsr.KIND, "orphan",
                    {"dossier_id": "orphan", "status": dsr.RUNNING, "stage": "subquery 3/6",

@@ -9,15 +9,15 @@ import { useSession } from '@/store/session';
  * D-AM-14 / D-DR-3 — the ask-bar selector, now TWO entries.
  *
  * Deliberately NOT a settings toggle (user amendment). Depth is a per-question decision — "is this the one
- * worth minutes and one of three weekly runs?" is asked while typing the question, not once in a preferences
+ * worth minutes and one of four monthly runs?" is asked while typing the question, not once in a preferences
  * dialog — so the control lives where the question is written, in the smallest footprint that can still say
  * what it does: a chip that reads `▃ Standard ▾`, opening a two-row menu.
  *
  * D-DR-3 collapsed three modes to two entries, and the second one is NOT a mode. **Standard** is the label
  * for the `quick` preset (the FE sends `mode=quick`; see store/mode.ASK_MODE). **Deep Research** switches
- * the composer's submit into a dossier JOB — a different route, a different result, a weekly allowance. So
- * the second row carries a BADGE ("2 of 3 this week") and goes un-choosable at zero with the reset date in
- * its hint: a control that spends a scarce, weekly-replenished resource has to show the balance before the
+ * the composer's submit into a dossier JOB — a different route, a different result, a monthly allowance. So
+ * the second row carries a BADGE ("2 of 4 this month") and goes un-choosable at zero with the reset date in
+ * its hint: a control that spends a scarce, monthly-replenished resource has to show the balance before the
  * click, not after it.
  *
  * The hints are STATIC copy and deliberately RELATIVE ("one turn", "minutes"). Per-mode p50s exist only once
@@ -45,7 +45,7 @@ export function ModePicker({ disabled = false }: { disabled?: boolean }) {
   const btnRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // The weekly allowance. ONE query key (api/useDossier.DOSSIER_QUOTA_KEY) is shared with the submit path,
+  // The monthly allowance (D-DR-2b). ONE query key (api/useDossier.DOSSIER_QUOTA_KEY) is shared with the submit path,
   // which invalidates it after every submission — so the badge can never promise a run the server just
   // spent or refused. `null` data (not an error) is the DARK case: GRAPHRAG_DOSSIER absent -> 404.
   const ready = useSession((s) => s.ready);
@@ -60,8 +60,8 @@ export function ModePicker({ disabled = false }: { disabled?: boolean }) {
   const exhausted = !!quota && quota.remaining <= 0;
   const unavailable = (c: PickerChoice) => c === 'deep_research' && (dossierDark || exhausted);
 
-  // Opening REFETCHES the balance: the menu is the one moment the number is being read, and a week-old
-  // cached "3 of 3" on a page left open overnight is exactly the lie this badge exists to prevent.
+  // Opening REFETCHES the balance: the menu is the one moment the number is being read, and a stale
+  // cached "4 of 4" on a page left open overnight is exactly the lie this badge exists to prevent.
   const refetch = quotaQ.refetch;
   useEffect(() => {
     if (open) void refetch();
@@ -108,7 +108,7 @@ export function ModePicker({ disabled = false }: { disabled?: boolean }) {
   };
 
   /** The badge text, or '' when there is no measured number to show. Never invents a balance. */
-  const badge = quota ? `${quota.remaining} of ${quota.limit} this week` : '';
+  const badge = quota ? `${quota.remaining} of ${quota.limit} this month` : '';
 
   /** What the Deep Research row says under its title: the refusal reason wins over the description. */
   const hintFor = (c: PickerChoice) => {
@@ -116,7 +116,7 @@ export function ModePicker({ disabled = false }: { disabled?: boolean }) {
     if (dossierDark) return 'not enabled on this deployment';
     if (exhausted) {
       const day = utcDay(quota?.reset_at);
-      return day ? `none left — the allowance resets ${day} (UTC)` : 'none left this week';
+      return day ? `none left — the allowance resets ${day} (UTC)` : 'none left this month';
     }
     return CHOICE_COPY[c].detail;
   };

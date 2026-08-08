@@ -63,10 +63,11 @@ from dataclasses import dataclass
 
 # ── constants ───────────────────────────────────────────────────────────────────────────────────────
 FLAG = "GRAPHRAG_DOSSIER"                 # absent -> every dossier route 404s (dark-first, D-DR-5)
-ADMIN_FLAG = "GRAPHRAG_DOSSIER_ADMINS"    # comma-separated Cognito subs that bypass the weekly quota
+ADMIN_FLAG = "GRAPHRAG_DOSSIER_ADMINS"    # comma-separated Cognito subs that bypass the monthly quota
 KIND = "dossier"                          # per-user store collection: pk=user#<sub>, sk=dossier#<id>
 ARTIFACT_KIND = "artifact"                # where the frozen result lands (the D-AM-15 seam)
-QUOTA_LIMIT = 3                           # dossiers per user per UTC (ISO) week -- D-DR-2, ratified
+QUOTA_LIMIT = 4                           # dossiers per user per UTC calendar month -- D-DR-2b (2026-08-08),
+                                          # was 3 per ISO week (D-DR-2)
 QUOTA_PREFIX = "dossier"
 
 MIN_SUBQUERIES = 5
@@ -115,32 +116,39 @@ def allowed(sub: str | None) -> bool:
     return str(sub or "") in {x.strip() for x in v.split(",") if x.strip()}
 
 
-# ── quota (D-DR-2): 3 per user per UTC week, on the profile-satellite store ──────────────────────────
-def week_key(now: _dt.datetime | None = None) -> str:
-    """The ISO-week bucket key, UTC. ISO weeks start Monday, which is what makes `week_reset_at`'s
-    Monday-midnight arithmetic and this key name the SAME window -- a reset date that disagreed with the
-    counter's bucket is how a user gets told 'resets Monday' and is still refused on Monday."""
+# ── quota (D-DR-2b): 4 per user per UTC calendar month, on the profile-satellite store ───────────────
+def month_key(now: _dt.datetime | None = None) -> str:
+    """The calendar-month bucket key, UTC: `YYYY-MM`. Months start on the 1st, which is what makes
+    `month_reset_at`'s first-of-next-month arithmetic and this key name the SAME window -- a reset date
+    that disagreed with the counter's bucket is how a user gets told 'resets September 1' and is still
+    refused on September 1. (D-DR-2b, 2026-08-08: this was an ISO-week bucket; the property it had to
+    hold -- key and reset naming one window -- is unchanged, only the window is.)"""
     d = now or _dt.datetime.now(_dt.timezone.utc)
-    y, w, _ = d.isocalendar()
-    return f"{y:04d}-W{w:02d}"
+    return f"{d.year:04d}-{d.month:02d}"
 
 
-def week_reset_at(now: _dt.datetime | None = None) -> str:
-    """The instant the current bucket rolls over: next Monday 00:00:00Z, ISO-8601 with a literal Z."""
+def month_reset_at(now: _dt.datetime | None = None) -> str:
+    """The instant the current bucket rolls over: the FIRST moment of the next calendar month, UTC,
+    ISO-8601 with a literal Z. Built by incrementing (year, month) and constructing the 1st -- never by
+    adding a fixed delta, because months are 28/29/30/31 days long and a 30-day step would drift the
+    reset off the bucket boundary (the exact disagreement `month_key`'s docstring forbids). December
+    carries into January of the next year. (D-DR-2b, 2026-08-08.)"""
     d = now or _dt.datetime.now(_dt.timezone.utc)
-    monday = (d - _dt.timedelta(days=d.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
-    return (monday + _dt.timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    y, m = (d.year + 1, 1) if d.month == 12 else (d.year, d.month + 1)
+    return _dt.datetime(y, m, 1, tzinfo=_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def quota_period(now: _dt.datetime | None = None) -> str:
-    """The satellite's sk suffix: `dossier#<ISO week>` -> sk=`quota#dossier#2026-W32`. Namespaced like
+    """The satellite's sk suffix: `dossier#<UTC month>` -> sk=`quota#dossier#2026-08`. Namespaced like
     the suggester's `suggest#<day>` so the daily turn counter is untouched (same table, same item
-    shape, disjoint keys)."""
-    return f"{QUOTA_PREFIX}#{week_key(now)}"
+    shape, disjoint keys). D-DR-2b changed the BUCKET inside the namespace, not the key family: old
+    `quota#dossier#2026-W32` rows are simply never read again and age out (no migration, and the
+    one-time effect is a fresh allowance in the user's favour)."""
+    return f"{QUOTA_PREFIX}#{month_key(now)}"
 
 
 def quota_bypass(ident: dict | None) -> bool:
-    """Who does NOT spend a weekly slot.
+    """Who does NOT spend a monthly slot.
 
     (1) THE EVAL LANE -- no auth context at all. `auth.auth_on()` False means the whole deployment is
     running without Cognito: dev, tests and the eval harness. There is no principal to charge and no
@@ -168,7 +176,7 @@ def quota_state(store, ident: dict, *, now: _dt.datetime | None = None) -> dict:
     """{remaining, limit, reset_at} for GET /v1/dossier/quota. Bypassed principals always read FULL --
     the badge must not tell an admin they have 0 left when nothing will ever refuse them. FAIL-OPEN on
     any store error (the `_require_identity_quota` law: a counter glitch must never lock a user out)."""
-    out = {"remaining": QUOTA_LIMIT, "limit": QUOTA_LIMIT, "reset_at": week_reset_at(now)}
+    out = {"remaining": QUOTA_LIMIT, "limit": QUOTA_LIMIT, "reset_at": month_reset_at(now)}
     if quota_bypass(ident):
         out["bypass"] = True
         return out
@@ -183,7 +191,7 @@ def quota_state(store, ident: dict, *, now: _dt.datetime | None = None) -> dict:
 def consume_quota(store, ident: dict, *, now: _dt.datetime | None = None) -> str | None:
     """Spend one slot AT ACCEPTANCE (the 202) -- never at completion, or two racing submissions both
     pass. Returns the period key that was charged (for a later refund), or None when bypassed.
-    Raises `store.QuotaExceeded` when the week is spent. FAIL-OPEN on any non-quota store error."""
+    Raises `store.QuotaExceeded` when the month is spent. FAIL-OPEN on any non-quota store error."""
     from leviathan.graphrag import store as st
     if quota_bypass(ident):
         return None
@@ -1110,7 +1118,7 @@ def reap_orphan(store, user: str, rec: dict) -> dict:
     if rec.get("status") in TERMINAL or get_job(rec.get("dossier_id") or "") is not None:
         return rec
     rec = {**rec, "status": FAILED, "stage": FAILED,
-           "error": "server restarted while this dossier was running; the weekly slot was refunded"}
+           "error": "server restarted while this dossier was running; the monthly slot was refunded"}
     rec["events"] = list(rec.get("events") or []) + [{"type": FAILED, "ts": _now(),
                                                       "error": rec["error"]}]
     refund_quota(store, user, rec.get("quota_period"))

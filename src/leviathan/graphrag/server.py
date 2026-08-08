@@ -22,7 +22,8 @@ Endpoints (build-plan Phase 1 — all additive, deterministic, no new LLM spend 
                                         a named, PRIVATE freeze of one answer turn; D-AM-15).
   POST /v1/dossier , GET /v1/dossier/{id} , /v1/dossier/{id}/events , /v1/dossier/quota — the
                                         deep-research dossier job (D-DR; dark behind GRAPHRAG_DOSSIER,
-                                        3 per user per UTC week, result lands as a frozen artifact).
+                                        4 per user per UTC calendar month, result lands as a frozen
+                                        artifact).
 
 Run (image ENTRYPOINT is `python`):  -m uvicorn leviathan.graphrag.server:app --host 0.0.0.0 --port 8080
 Deployment (ECS + ALB, Cognito enforcement, durable table, prod CORS origin) is a Phase-4 gated step."""
@@ -1428,7 +1429,7 @@ def dossier_create(body: DossierIn, ident: dict = Depends(_require_identity)) ->
         # A JSONResponse, not an HTTPException: the locked contract puts `reset_at` at the TOP level of
         # the 429 body (the picker renders the date), and HTTPException would bury it under `detail`.
         state = dsr.quota_state(_store(), ident)
-        return JSONResponse(status_code=429, content={"error": "weekly dossier limit reached",
+        return JSONResponse(status_code=429, content={"error": "monthly dossier limit reached",
                                                       "limit": state["limit"], "remaining": 0,
                                                       "reset_at": state["reset_at"]})
     job = dsr.start(_store(), ident, q, asof, graph=_graph(), quota_period=period)

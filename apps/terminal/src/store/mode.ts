@@ -26,7 +26,7 @@ import { persist } from 'zustand/middleware';
  * `{"choice":"ultra"}` at the CURRENT version would sail past a version-gated migrate and graft an unknown
  * name onto the store. A v1 blob (which held `mode`, one of three names) has no `choice` key at all and so
  * lands on the default — deliberately: `deep`/`standard` are no longer selectable, and silently promoting a
- * returning user's stored `deep` into Deep Research would spend one of their three weekly dossiers on a
+ * returning user's stored `deep` into Deep Research would spend one of their four monthly dossiers on a
  * choice they never made.
  */
 export type ModeName = 'quick' | 'standard' | 'deep';
@@ -52,7 +52,7 @@ export const DEFAULT_CHOICE: PickerChoice = 'quick';
 /** Static selector copy. Deliberately RELATIVE — no invented milliseconds (the D-AM-13 rule): per-mode p50s
  *  exist only in the EMF `mode` dimension, and a precise number on screen before that is a number nobody
  *  measured. The dossier's "minutes" is the D-DR-1 design envelope (5-20 min, 20-min wall clock), which is a
- *  shape the user must know before spending one of three weekly runs — not a latency claim. */
+ *  shape the user must know before spending one of four monthly runs — not a latency claim. */
 export interface ChoiceCopy {
   /** The LABEL a human reads. Internal identifiers never appear on screen. */
   label: string;

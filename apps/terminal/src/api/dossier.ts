@@ -34,7 +34,7 @@ export const DOSSIER_QUOTA_KEY = ['dossier-quota'] as const;
 export const DOSSIER_IDLE_MS = 6 * SSE_IDLE_MS; // 9 min of total silence = dead, not slow
 
 /** A 429 from POST /v1/dossier. Carries the reset date so the composer's toast can say WHEN, not just no —
- *  a bare "quota exhausted" on a WEEKLY allowance is the least actionable refusal we could ship. */
+ *  a bare "quota exhausted" on a MONTHLY allowance is the least actionable refusal we could ship. */
 export class DossierQuotaError extends Error {
   readonly resetAt?: string;
   constructor(message: string, resetAt?: string) {
@@ -79,7 +79,7 @@ export async function createDossier(question: string, asof?: string): Promise<Do
     const msg =
       typeof detail === 'string' && detail.trim()
         ? detail.trim()
-        : 'no deep research runs left this week';
+        : 'no deep research runs left this month';
     throw new DossierQuotaError(msg, resetAtOf(body));
   }
   throw new Error(await httpErrorMessage(res, 'POST /v1/dossier'));
@@ -93,9 +93,9 @@ export async function getDossier(id: string): Promise<DossierState> {
   return (await res.json()) as DossierState;
 }
 
-/** The weekly allowance, or `null` when the dossier routes are dark (404). See the header note. */
+/** The monthly allowance, or `null` when the dossier routes are dark (404). See the header note. */
 export async function getDossierQuota(): Promise<DossierQuota | null> {
-  if (MOCK) return { remaining: 2, limit: 3, reset_at: mockResetAt() };
+  if (MOCK) return { remaining: 2, limit: 4, reset_at: mockResetAt() };
   const res = await fetchWithAuth(`${BASE}/v1/dossier/quota`);
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(await httpErrorMessage(res, 'GET /v1/dossier/quota'));
@@ -166,10 +166,9 @@ export function isTerminalType(type: string): boolean {
 
 // ── VITE_MOCK=1: a synthetic job so the whole surface runs without a backend ────────────────────────
 function mockResetAt(): string {
+  // D-DR-2b: the first instant of the NEXT UTC month (month+1 with day 1 normalises December -> January).
   const d = new Date();
-  d.setUTCDate(d.getUTCDate() + (8 - (d.getUTCDay() || 7))); // next UTC Monday
-  d.setUTCHours(0, 0, 0, 0);
-  return d.toISOString();
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1)).toISOString();
 }
 
 function mockCreateDossier(): Promise<DossierAccepted> {

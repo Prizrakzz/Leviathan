@@ -245,9 +245,10 @@ class DynamoStore:
             raise  # non-condition Dynamo error -> caller fails open
 
     def read_quota(self, user_id: str, period: str) -> int:
-        """Current count on ONE quota satellite (D-DR-2: the weekly dossier counter is `dossier#<ISO
-        week>`, the same sk=quota#<period> item shape the daily turn counter and the suggest counter
-        already use -- one convention, no new table and no new key family). Strongly consistent: the
+        """Current count on ONE quota satellite (D-DR-2b: the monthly dossier counter is
+        `dossier#<YYYY-MM>`, the same sk=quota#<period> item shape the daily turn counter and the
+        suggest counter already use -- one convention, no new table and no new key family; the D-DR-2
+        weekly `dossier#<ISO week>` rows are simply never read again). Strongly consistent: the
         remaining-uses badge must never read behind its own decrement. Absent item -> 0."""
         it = self.db.get_item(TableName=self.table, ConsistentRead=True,
                               Key={"pk": {"S": f"user#{user_id}"}, "sk": {"S": f"quota#{period}"}}).get("Item")

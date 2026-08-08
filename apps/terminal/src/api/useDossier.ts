@@ -23,7 +23,7 @@ import type { ArtifactItem } from './schema';
 export interface DossierToast {
   kind: 'quota' | 'error';
   text: string;
-  /** ISO instant the weekly allowance resets (quota only). */
+  /** ISO instant the monthly allowance resets (quota only). */
   resetAt?: string;
 }
 

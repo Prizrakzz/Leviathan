@@ -175,7 +175,7 @@ def test_subject_resolution_is_deterministic_and_falls_back_to_the_question():
 def _run(monkeypatch, respond, *, question="corn crop failure", asof="2026-08-01", synth=None,
          store=None, **kw):
     store = store or _store()
-    job = dsr.Job("d-1", IDENT["sub"], question, asof, quota_period="dossier#2026-W32")
+    job = dsr.Job("d-1", IDENT["sub"], question, asof, quota_period="dossier#2026-08")
     dsr.register(job)
 
     def _plan(q, **k):
@@ -239,10 +239,10 @@ def test_one_failed_subquery_yields_a_partial_dossier_with_the_gap_declared(monk
 
 def test_every_subquery_failing_lands_failed_and_refunds_the_slot(monkeypatch):
     store = _store()
-    store.incr_turn_quota(IDENT["sub"], "dossier#2026-W32", dsr.QUOTA_LIMIT)
+    store.incr_turn_quota(IDENT["sub"], "dossier#2026-08", dsr.QUOTA_LIMIT)
     job, store = _run(monkeypatch, _boom_respond, store=store)
     assert job.status == dsr.FAILED and job.error
-    assert store.read_quota(IDENT["sub"], "dossier#2026-W32") == 0      # FAILED -> refunded
+    assert store.read_quota(IDENT["sub"], "dossier#2026-08") == 0      # FAILED -> refunded
 
 
 def _boom_respond(q, **kw):
@@ -251,7 +251,7 @@ def _boom_respond(q, **kw):
 
 def test_partial_does_not_refund(monkeypatch):
     store = _store()
-    store.incr_turn_quota(IDENT["sub"], "dossier#2026-W32", dsr.QUOTA_LIMIT)
+    store.incr_turn_quota(IDENT["sub"], "dossier#2026-08", dsr.QUOTA_LIMIT)
 
     def respond(q, *, graph, asof=None, **kw):
         if q == "q1?":
@@ -260,7 +260,7 @@ def test_partial_does_not_refund(monkeypatch):
 
     job, store = _run(monkeypatch, respond, store=store)
     assert job.status == dsr.PARTIAL
-    assert store.read_quota(IDENT["sub"], "dossier#2026-W32") == 1      # spent: a document was delivered
+    assert store.read_quota(IDENT["sub"], "dossier#2026-08") == 1      # spent: a document was delivered
 
 
 def test_wall_clock_cap_skips_the_rest_and_still_composes(monkeypatch):
@@ -515,40 +515,90 @@ def test_every_rendered_handle_resolves_to_a_carried_pair(monkeypatch):
     assert used and used <= carried
 
 
-# ══ 7. QUOTA (D-DR-2) ════════════════════════════════════════════════════════════════════════════════
+# ══ 7. QUOTA (D-DR-2b: 4 per user per UTC CALENDAR MONTH) ════════════════════════════════════════════
 def _mon(y, m, d, h=0):
     return _dt.datetime(y, m, d, h, tzinfo=_dt.timezone.utc)
 
 
-def test_week_bucket_and_reset_agree_on_the_same_monday_boundary():
-    sun = _mon(2026, 8, 9, 23)                 # Sunday 23:00Z
-    mon = _mon(2026, 8, 10, 0)                 # Monday 00:00Z -- the next bucket
-    assert dsr.week_key(sun) != dsr.week_key(mon)
-    assert dsr.week_reset_at(sun) == "2026-08-10T00:00:00Z"
-    assert dsr.week_reset_at(mon) == "2026-08-17T00:00:00Z"
-    assert dsr.week_key(_mon(2026, 8, 10, 0)) == dsr.week_key(_mon(2026, 8, 16, 23))   # one whole week
+def _parse_z(s: str) -> _dt.datetime:
+    """The reset instant, back as a datetime. Asserts the literal-Z wire format on the way (strptime
+    with a literal Z in the pattern rejects '+00:00' and any offset form)."""
+    return _dt.datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=_dt.timezone.utc)
 
 
-def test_quota_decrements_at_acceptance_and_refuses_the_fourth(monkeypatch):
+def test_the_limit_is_four_a_month():
+    """D-DR-2b (2026-08-08): the ratified number, pinned so a silent edit is a red test."""
+    assert dsr.QUOTA_LIMIT == 4
+
+
+def test_the_bucket_key_is_the_utc_calendar_month():
+    assert dsr.month_key(_mon(2026, 8, 1)) == "2026-08"
+    assert dsr.month_key(_mon(2026, 8, 31, 23)) == "2026-08"      # the whole month is ONE bucket
+    assert dsr.month_key(_mon(2026, 9, 1)) == "2026-09"
+    assert dsr.month_key(_mon(2026, 12, 31, 23)) == "2026-12"
+    assert dsr.quota_period(_mon(2026, 8, 6)) == "dossier#2026-08"
+
+
+def test_reset_is_the_first_moment_of_the_next_month_with_a_literal_Z():
+    assert dsr.month_reset_at(_mon(2026, 8, 6)) == "2026-09-01T00:00:00Z"
+    assert dsr.month_reset_at(_mon(2026, 8, 31, 23)) == "2026-09-01T00:00:00Z"   # same bucket, same reset
+    assert dsr.month_reset_at(_mon(2026, 9, 1)) == "2026-10-01T00:00:00Z"
+
+
+def test_december_rolls_into_next_january():
+    """The year has to increment. A `month + 1` that never carried would mint a '2026-13' reset."""
+    assert dsr.month_reset_at(_mon(2026, 12, 1)) == "2027-01-01T00:00:00Z"
+    assert dsr.month_reset_at(_mon(2026, 12, 31, 23)) == "2027-01-01T00:00:00Z"
+    assert dsr.month_key(_mon(2027, 1, 1)) == "2027-01"
+
+
+def test_month_length_is_never_assumed_to_be_thirty_days():
+    """A 30-day delta would land the reset INSIDE its own bucket on a 31-day month and a month EARLY on
+    February. The reset must be the calendar 1st, whatever the month's length is."""
+    cases = [(_mon(2026, 1, 1), "2026-02-01T00:00:00Z", 31),   # 31-day
+             (_mon(2026, 2, 1), "2026-03-01T00:00:00Z", 28),   # 28-day (common year)
+             (_mon(2024, 2, 1), "2024-03-01T00:00:00Z", 29),   # 29-day (leap year)
+             (_mon(2026, 4, 1), "2026-05-01T00:00:00Z", 30),   # 30-day
+             (_mon(2026, 8, 1), "2026-09-01T00:00:00Z", 31)]
+    for first, expected, length in cases:
+        assert dsr.month_reset_at(first) == expected
+        assert (_parse_z(expected) - first).days == length     # the delta VARIES; it is never a constant
+
+
+def test_the_key_and_the_reset_name_the_same_window():
+    """The property `month_key`'s docstring demands: the reset instant is the first instant of the NEXT
+    bucket, and every instant before it is still inside THIS one -- so a user told 'resets on the 1st' is
+    never still refused on the 1st. Probed across a 31-day month, February (common and leap), a 30-day
+    month and the December->January year boundary."""
+    for t in (_mon(2026, 1, 15), _mon(2026, 2, 3), _mon(2024, 2, 29, 23), _mon(2026, 4, 30, 23),
+              _mon(2026, 8, 31, 23), _mon(2026, 12, 31, 23)):
+        reset = _parse_z(dsr.month_reset_at(t))
+        assert dsr.month_key(reset) != dsr.month_key(t)                            # rollover, exactly there
+        assert dsr.month_key(reset - _dt.timedelta(seconds=1)) == dsr.month_key(t)  # and not one tick sooner
+        assert dsr.month_reset_at(reset) != dsr.month_reset_at(t)                  # the next bucket resets later
+
+
+def test_quota_decrements_at_acceptance_and_refuses_the_fifth(monkeypatch):
     monkeypatch.setenv("GRAPHRAG_AUTH", "on")
     s = _store()
     now = _mon(2026, 8, 6)
     for i in range(dsr.QUOTA_LIMIT):
-        assert dsr.consume_quota(s, IDENT, now=now) == dsr.quota_period(now)
+        assert dsr.consume_quota(s, IDENT, now=now) == dsr.quota_period(now) == "dossier#2026-08"
         assert dsr.quota_state(s, IDENT, now=now)["remaining"] == dsr.QUOTA_LIMIT - (i + 1)
     with pytest.raises(st.QuotaExceeded):
-        dsr.consume_quota(s, IDENT, now=now)
-    assert dsr.quota_state(s, IDENT, now=now) == {"remaining": 0, "limit": 3,
-                                                  "reset_at": dsr.week_reset_at(now)}
+        dsr.consume_quota(s, IDENT, now=now)                      # the FIFTH is refused
+    assert dsr.quota_state(s, IDENT, now=now) == {"remaining": 0, "limit": 4,
+                                                  "reset_at": "2026-09-01T00:00:00Z"}
 
 
-def test_the_next_utc_week_is_a_fresh_bucket(monkeypatch):
+def test_the_next_utc_month_is_a_fresh_bucket(monkeypatch):
     monkeypatch.setenv("GRAPHRAG_AUTH", "on")
     s = _store()
     for _ in range(dsr.QUOTA_LIMIT):
         dsr.consume_quota(s, IDENT, now=_mon(2026, 8, 6))
     assert dsr.quota_state(s, IDENT, now=_mon(2026, 8, 6))["remaining"] == 0
-    assert dsr.quota_state(s, IDENT, now=_mon(2026, 8, 13))["remaining"] == dsr.QUOTA_LIMIT
+    assert dsr.quota_state(s, IDENT, now=_mon(2026, 8, 31, 23))["remaining"] == 0   # still the same month
+    assert dsr.quota_state(s, IDENT, now=_mon(2026, 9, 1))["remaining"] == dsr.QUOTA_LIMIT
 
 
 def test_refund_never_mints_a_negative_counter(monkeypatch):
@@ -560,11 +610,29 @@ def test_refund_never_mints_a_negative_counter(monkeypatch):
     assert s.read_quota(IDENT["sub"], p) == 0
 
 
+def test_a_refund_targets_the_same_period_the_spend_charged(monkeypatch):
+    """The refund follows the CARRIED period string, not `now`: a job accepted on 2026-08-31 and reaped
+    on 2026-09-01 must give the slot back to August, or the user is charged a slot forever and credited
+    one they never spent."""
+    monkeypatch.setenv("GRAPHRAG_AUTH", "on")
+    s = _store()
+    spent = _mon(2026, 8, 31, 23)
+    p = dsr.consume_quota(s, IDENT, now=spent)
+    assert p == "dossier#2026-08"
+    assert dsr.quota_state(s, IDENT, now=spent)["remaining"] == dsr.QUOTA_LIMIT - 1
+    dsr.refund_quota(s, IDENT["sub"], p)                          # reaped the next day, in September
+    assert s.read_quota(IDENT["sub"], p) == 0
+    assert dsr.quota_state(s, IDENT, now=spent)["remaining"] == dsr.QUOTA_LIMIT
+    assert s.read_quota(IDENT["sub"], dsr.quota_period(_mon(2026, 9, 1))) == 0     # September untouched
+
+
 def test_eval_lane_and_admins_bypass_quota(monkeypatch):
     s = _store()
     assert dsr.quota_bypass(IDENT) is True                        # auth OFF = eval/dev lane
     assert dsr.consume_quota(s, IDENT) is None and s.read_quota(IDENT["sub"], dsr.quota_period()) == 0
-    assert dsr.quota_state(s, IDENT)["bypass"] is True
+    # A bypassed principal reads FULL, never 0: the badge must not tell an admin they are out of runs.
+    assert dsr.quota_state(s, IDENT) == {"remaining": 4, "limit": 4, "bypass": True,
+                                         "reset_at": dsr.month_reset_at()}
     monkeypatch.setenv("GRAPHRAG_AUTH", "on")
     assert dsr.quota_bypass(IDENT) is False
     monkeypatch.setenv("GRAPHRAG_DOSSIER_ADMINS", "u-alice,u-bob")
@@ -580,7 +648,9 @@ def test_quota_read_fails_open(monkeypatch):
         def read_quota(self, *a, **k):
             raise RuntimeError("dynamo is sulking")
 
-    assert dsr.quota_state(_Dead(), IDENT)["remaining"] == dsr.QUOTA_LIMIT
+    # Fail-open on a store error hands back the FULL monthly limit, with the month's own reset instant.
+    assert dsr.quota_state(_Dead(), IDENT, now=_mon(2026, 8, 6)) == {
+        "remaining": 4, "limit": 4, "reset_at": "2026-09-01T00:00:00Z"}
 
 
 # ══ 8. FLAG + RESTART SEMANTICS ══════════════════════════════════════════════════════════════════════
@@ -596,17 +666,17 @@ def test_flag_grammar_dark_wildcard_and_allowlist(monkeypatch):
 
 def test_an_orphaned_job_lands_failed_and_refunds_on_the_next_read(monkeypatch):
     s = _store()
-    s.incr_turn_quota(IDENT["sub"], "dossier#2026-W32", dsr.QUOTA_LIMIT)
+    s.incr_turn_quota(IDENT["sub"], "dossier#2026-08", dsr.QUOTA_LIMIT)
     rec = {"dossier_id": "gone", "status": dsr.RUNNING, "stage": "subquery 2/6",
-           "quota_period": "dossier#2026-W32", "subqueries": [], "events": []}
+           "quota_period": "dossier#2026-08", "subqueries": [], "events": []}
     s.put_item(IDENT["sub"], dsr.KIND, "gone", rec)
     out = dsr.reap_orphan(s, IDENT["sub"], rec)
     assert out["status"] == dsr.FAILED and "restarted" in out["error"]
-    assert s.read_quota(IDENT["sub"], "dossier#2026-W32") == 0
+    assert s.read_quota(IDENT["sub"], "dossier#2026-08") == 0
     assert s.get_item(IDENT["sub"], dsr.KIND, "gone")["status"] == dsr.FAILED
     # Idempotent: a second read must not refund twice.
     dsr.reap_orphan(s, IDENT["sub"], s.get_item(IDENT["sub"], dsr.KIND, "gone"))
-    assert s.read_quota(IDENT["sub"], "dossier#2026-W32") == 0
+    assert s.read_quota(IDENT["sub"], "dossier#2026-08") == 0
 
 
 def test_a_live_job_is_never_reaped(monkeypatch):
@@ -703,21 +773,25 @@ def test_read_and_refund_quota_are_on_the_store_protocol():
 
 def test_in_memory_quota_satellite_round_trips():
     s = _store()
-    assert s.read_quota("u", "dossier#2026-W32") == 0
-    s.incr_turn_quota("u", "dossier#2026-W32", 3)
-    s.incr_turn_quota("u", "dossier#2026-W32", 3)
-    assert s.read_quota("u", "dossier#2026-W32") == 2
-    s.refund_quota("u", "dossier#2026-W32")
-    assert s.read_quota("u", "dossier#2026-W32") == 1
-    assert s.read_quota("u", "dossier#2026-W33") == 0                # buckets are independent
+    assert s.read_quota("u", "dossier#2026-08") == 0
+    s.incr_turn_quota("u", "dossier#2026-08", dsr.QUOTA_LIMIT)
+    s.incr_turn_quota("u", "dossier#2026-08", dsr.QUOTA_LIMIT)
+    assert s.read_quota("u", "dossier#2026-08") == 2
+    s.refund_quota("u", "dossier#2026-08")
+    assert s.read_quota("u", "dossier#2026-08") == 1
+    assert s.read_quota("u", "dossier#2026-09") == 0                # buckets are independent
 
 
 def test_the_dossier_counter_never_touches_the_daily_turn_counter():
+    """The `dossier#` namespace keeps the monthly bucket disjoint from the bare-day turn counter and from
+    the suggester's `suggest#<day>` -- same table, same item shape, three key families that never meet."""
     s = _store()
-    for _ in range(3):
+    for _ in range(dsr.QUOTA_LIMIT):
         s.incr_turn_quota("u", dsr.quota_period(), dsr.QUOTA_LIMIT)
     s.incr_turn_quota("u", "2026-08-06", 50)                         # the daily turn counter
-    assert s.read_quota("u", "2026-08-06") == 1 and s.read_quota("u", dsr.quota_period()) == 3
+    s.incr_turn_quota("u", "suggest#2026-08-06", 200)                # the suggester's daily counter
+    assert s.read_quota("u", "2026-08-06") == 1 and s.read_quota("u", "suggest#2026-08-06") == 1
+    assert s.read_quota("u", dsr.quota_period()) == dsr.QUOTA_LIMIT
 
 
 def test_synthesize_uses_the_document_scale_max_tokens():

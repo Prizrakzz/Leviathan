@@ -24,7 +24,7 @@ import { useUI } from '@/store/ui';
  *  - `partial` is rendered as a LANDING, not a failure: the dossier exists, with its gaps declared inside it.
  *  - a row the server never reported on reads "no result reported" once the job is over — the reducer does
  *    not mark it failed on a guess (store/dossier), and neither does this.
- *  - the quota toast carries the reset DATE. A weekly allowance refused without a date is unactionable.
+ *  - the quota toast carries the reset DATE. A monthly allowance refused without a date is unactionable.
  */
 
 const STAGE_LABEL: Record<StageKey, string> = {
