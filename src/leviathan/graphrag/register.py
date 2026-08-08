@@ -733,6 +733,17 @@ def _strip_banned_sentences(seg: str, *, market_register: str = FENCED,
         start, pos = pos, pos + len(text) + len(delim)
         if text and _is_banned_sentence(text, market_register=market_register,
                                         derivation_ok=bool(derivation_ok) and lo <= start < hi):
+            # CYCLE-10 (2026-08-08): THE DROPPED UNIT LEAVES ITS LINE BREAKS BEHIND. `_SENT_KEEP` captures
+            # `[.!?;]\s+`, so a unit that ended a LINE owned the terminating "\n" -- dropping it welded the
+            # next line onto the previous one. Measured on the gate-7 covenant footer, byte-exact:
+            #     "[3] USDA WASDE (2014-01-01): U.S. <banned sentence>\n[4] World Bank ..."
+            #  -> "[3] USDA WASDE (2014-01-01): U.S. [4] World Bank ..."
+            # -- two `## Sources` rows on one line, which is how a provenance list stops parsing as a list.
+            # The same weld joins two prose paragraphs when the strip takes the last sentence of one.
+            # WHITESPACE ONLY, and deliberately so: not one strip DECISION moves, no counter moves, and
+            # `register_leaks(sanitize(x)) == []` / the OUTLOOK `unbacked_levels` invariant are untouched
+            # (a newline carries no token). What is preserved is the line structure the caller wrote.
+            out.append("\n" * delim.count("\n"))
             continue
         out.append(text + delim)
     return "".join(out)

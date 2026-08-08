@@ -2136,7 +2136,7 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
             sg.trace["number_rows_deduped"] = _nclone
         # CYCLE-9 FIX 3, in the SAME gate and BEFORE the debris pass (which closes the frames it empties):
         # the [E] half of the same total join. Stamped only when it removed something -- OFF-arm-clean.
-        _eorph = _prune_orphan_evidence_handles(structured, verifier)
+        _eorph = _prune_orphan_evidence_handles(structured, verifier, market_register=_mr)
         if _eorph:
             sg.trace["evidence_orphans_pruned"] = _eorph
         # D-PQ HANDLE-3, in the SAME gate and immediately after: the frames those removals (and the
@@ -2172,17 +2172,41 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
         secs = _sectionize(structured.get("mechanism") or "")     # FINAL prose (post-verify+humanize); read per
         if secs:                                                  # call so the env-flip rollback stays live
             structured["sections"] = secs
+    # ══ CYCLE-10-AMEND (2026-08-08) REVIEW MAJOR 1+2 -- THE FOOTER IS NOT PART OF THE REGISTER'S TEXT ══
+    # FIX 2 pre-cleared each row's SNIPPET at row scope and then still handed the assembled footer to the
+    # body-wide `reg.sanitize`. That left one interaction it could not reach, because it is not about
+    # snippets at all: a row's OWN marker. `register._CIT_HANDLE` is `\[[EN]\d+\]` (register.py:283), so
+    # "[10]" is not a citation to that gate -- and `register._level_tokens` (register.py:434) accepts any
+    # token of two or more integer digits, so "[10]" READS AS AN UNBACKED PRICE LEVEL. On an OUTLOOK turn
+    # every footer row whose ref is >= 10 was therefore deleted by the body pass with a perfectly clean
+    # snippet, and when the deletion took the last row it took the "## Sources" heading with it. Measured:
+    # 12 clean rows in, refs 1-9 out; 37.5% of all rows lost on a 4,000-footer sweep.
+    # THE REMEDY IS STRUCTURAL, NOT A CLASSIFIER PATCH: the footer is ASSEMBLED FROM ROWS THAT HAVE EACH
+    # ALREADY BEEN THROUGH THE REGISTER (at row scope, where the row's own marker is not part of the text
+    # being judged) and is APPENDED AFTER the body pass. The register never sees the footer, so the
+    # marker-as-level reading, the row-head deletion, the row fusion and the separator weld are all
+    # unreachable BY CONSTRUCTION rather than by a rule that has to keep being right.
+    # NOTHING IS RELAXED: the same sentences are still refused -- `_source_row_snippet` runs the identical
+    # instrument with the identical `market_register`, and it is now the ONLY register pass the footer
+    # gets, which is why it must stay exactly where it is.
+    # THE OFF ARM IS BYTE-IDENTICAL: the legacy two-list footer is not row-cleared, so it stays INSIDE the
+    # sanitize input exactly as before -- `_footer` is empty on that branch and the append is a no-op.
+    _footer = ""
     if verifier.get("enabled"):                                   # ONE validated source list, model-numbered
-        _pre_sanitize = (render(structured, include_ledger=False)
-                         + _cited_sources_block(structured, verifier, extra_number_calls))
+        _sanitize_in = render(structured, include_ledger=False)
+        _footer = _cited_sources_block(structured, verifier, extra_number_calls, market_register=_mr)
     else:                                                         # verifier off -> legacy two-list rendering
         footer = ("\n\n## Sources\n" + cit.render(ev_cits)) if ev_cits else ""
-        _pre_sanitize = render(structured) + footer
-    # A4b SEAM 2: the assembled body on its way INTO the render-seam sanitize. Both branches now name the
-    # same local and ONE sanitize call consumes it -- same arguments, same register, same output bytes.
-    # This pass is the only one that ever sees the cited-sources block and the numbers footer, so it is
-    # the only place a leak living OUTSIDE tldr/mechanism (which the raw counters never scan) can be seen.
-    body = reg.sanitize(_pre_sanitize, market_register=_mr)
+        _sanitize_in = render(structured) + footer
+    # A4b SEAM 2: the assembled body on its way INTO the render seam. Both branches now name the same
+    # local and ONE sanitize call consumes it -- same arguments, same register, same output bytes.
+    # The SNAPSHOT stays the WHOLE PAGE (prose + footer), byte-identical to what it recorded before the
+    # amendment: it is what `pairwise_judge.render_answer_for_judge` serves as the answer and what the
+    # numeral adjudicators diff against the served body, and a snapshot that dropped the footer would make
+    # every footer figure read as newly minted at the seam. What changed is only which SLICE of it the
+    # register consumes -- the footer crosses this seam unchanged, which is the property being fixed.
+    _pre_sanitize = _sanitize_in + _footer
+    body = reg.sanitize(_sanitize_in, market_register=_mr) + _footer
     _raw_draft = _fold_draft(_raw_draft, sanitize_input_snapshot(body_pre_sanitize=_pre_sanitize))
     if degraded:
         body = _DEGRADED_BANNER.format(m=degraded) + body
@@ -4253,14 +4277,26 @@ def _e_handle_token(members: list[int]) -> str:
     return "[" + ", ".join(f"E{i}" for i in members) + "]"
 
 
-def _prune_orphan_evidence_handles(structured: dict | None, vreport: dict | None) -> int:
+def _prune_orphan_evidence_handles(structured: dict | None, vreport: dict | None, *,
+                                   market_register: str = reg.FENCED) -> int:
     """Remove every prose `[E]` marker the `## Sources` block cannot answer for. Returns the number of
     REFS removed from the page (0 on every turn whose join is already total). Mutates in place; never
     raises -- a render guard must never be the thing that breaks an answer.
 
-    THE LIVE SET IS COMPUTED THE WAY THE FOOTER COMPUTES IT, not by a parallel rule: `_cited_sources_block`
-    emits a document row for a ledger ref exactly when it is in `vreport['resolved']`. Reading the same two
-    inputs here is what makes "an empty Sources block with live markers" unreachable rather than unlikely.
+    ══ CYCLE-10 (2026-08-08) FIX 3 -- THE AUTHORITY IS THE RENDERED FOOTER, NOT THE LEDGER ══════════════
+    Cycle-9 computed the live set from `structured['sources']` x `vreport['resolved']` -- a faithful
+    re-derivation of "which ledger rows RESOLVED", which is not the same question as "which rows the
+    reader actually GETS". Gate-7 `ab_out_cotton` is the gap: strips 0, nothing convicted, every ref
+    resolved, this prune returned 0 -- and the reader still received three [E] markers with no row,
+    because the rows were emitted and then deleted downstream (see `_document_source_rows`). A prune
+    keyed on an earlier stage cannot see that.
+    The live set is now the EMISSION DECISION ITSELF (`_emitted_evidence_refs`, which is
+    `_cited_sources_block`'s own row walk), so the two can never disagree about a ref again.
+    ORDER, AND IT IS DELIBERATE: FIX 2 runs FIRST -- when the evidence exists the row is EMITTED and the
+    marker is KEPT. This prune is the last-resort backstop for the genuinely rowless ref (a ledger entry
+    verify convicted, or a marker the model never declared), never the primary remedy. Emission does not
+    read the prose, so computing it before the prose is pruned is exactly equivalent to reading the
+    assembled footer, and it costs no second render.
 
     == CYCLE-9 REVIEW (2026-08-08), BLOCKER 2 -- THE LIVE SET AND THE MEMBERSHIP PROBE ARE ONE NAMESPACE ==
     The first cut keyed `live` on the ledger's RAW `ref` STRING and probed it with `str(member)`, the
@@ -4281,16 +4317,7 @@ def _prune_orphan_evidence_handles(structured: dict | None, vreport: dict | None
     try:
         if not isinstance(structured, dict):
             return 0
-        resolved = (vreport or {}).get("resolved") or {}
-        live = set()
-        for s in (structured.get("sources") or []):
-            ref = str(s.get("ref", "")).strip().strip("[]")
-            if not ref or ref.upper().startswith("N") or ref not in resolved:
-                continue
-            live.add(ref)                         # the FOOTER's key, verbatim
-            norm = _E_REF_CANON_RX.match(ref)
-            if norm:
-                live.add(str(int(norm.group(1))))  # the PROSE's key: E1 / e1 / 01 / E01 / 1.0 -> "1"
+        live = _emitted_evidence_refs(structured, vreport or {}, market_register=market_register)
         for field in ("tldr", "mechanism"):
             text = structured.get(field)
             if not isinstance(text, str) or "[E" not in text:
@@ -4337,7 +4364,139 @@ def _prune_orphan_evidence_handles(structured: dict | None, vreport: dict | None
     return removed
 
 
-def _cited_sources_block(d: dict, vreport: dict, number_calls: list | None) -> str:
+# ══ CYCLE-10 (2026-08-08) FIX 2 -- WHY A RESOLVED SOURCE ROW NEVER REACHED THE READER ═══════════════════
+# THE MEASURED SHAPE (gate-7 `ab_out_cotton`, BOTH covenant passes -- reproducible, not sampling). The
+# prose cites [E1]..[E7] and the rendered footer carries rows 1, 2, 4 and 6 only; pass 2 has the same shape
+# on a different ref set. Every other producer was ruled out from the run artifacts: `strips` = 0 and
+# `by_rule` = {} (so verify convicted nothing and stripped no ledger row), `evidence_orphans_pruned` absent
+# (so the cycle-9 [E] prune removed nothing), `episodes_scaffolded.fired` False (so no machine-composed
+# section minted a marker), and the draft, the post-verify snapshot and the shipped body all carry the same
+# seven [E] refs. The rows were EMITTED and then DELETED further downstream.
+#
+# THE DELETER IS `reg.sanitize`, AND IT IS DOING ITS JOB. The body render is
+# `render(structured) + _cited_sources_block(...)` and the WHOLE string -- footer included -- then goes
+# through `reg.sanitize(..., market_register=_mr)`. `ab_out_cotton` is an outlook turn, so `_mr` is
+# `reg.OUTLOOK`, where `_strip_banned_sentences` DELETES any sentence carrying an unbacked level. A footer
+# row's snippet is raw corpus prose that frequently quotes a price, a forecast level or a tonnage, and the
+# row's own `[3]` marker is NOT a citation handle to that gate (`register._CIT_HANDLE` is `\[[EN]\d+\]`),
+# so a WASDE quote naming a price reads as an unbacked level and the row is removed. Reproduced byte-exact
+# against the shipped artifact:
+#     in   "[3] USDA WASDE (2014-01-01): U.S. <price sentence>\n[4] World Bank ...: Cotton prices ..."
+#     out  "[3] USDA WASDE (2014-01-01): U.S. [4] World Bank ...: Cotton prices ..."
+# which is the adjudicator's "separator bug" -- not a short-snippet quirk at all. `_SENT_KEEP` splits on
+# `([.!?;]\s+)`, so the dropped unit takes its delimiter WITH IT, and when that delimiter was the row's
+# terminating "\n" the next row is pulled onto the same line. A row whose whole snippet is one banned
+# sentence disappears outright, which is the row-skip.
+#
+# THE FIX IS AT THE EMISSION SITE, AND IT IS TWO PROPERTIES, NOT TWO PATCHES:
+#   (a) THE ROW IS NOT ITS SNIPPET. `[ref] source (date)` is the attribution -- the thing a reader clicking
+#       [E3] needs -- and it must survive whatever the register says about the quoted text. So the snippet
+#       is put through the SAME register instrument HERE, alone, at row scope: whatever survives is
+#       rendered, and when nothing survives the row is emitted without a snippet rather than not at all.
+#       The body-wide pass that follows then has nothing left to delete, by construction.
+#   (b) A ROW IS ONE LINE. The snippet's whitespace is collapsed first, so a corpus newline inside a
+#       140-char snippet can never split one row across two lines either.
+# The register gate is NOT relaxed anywhere: the same sentences are refused, and `register_leaks(body)`
+# and the OUTLOOK `unbacked_levels` invariant are unaffected -- the text is removed either way. What
+# changes is that its removal no longer takes the ROW, or the next row's line break, with it.
+# THE STRUCTURAL BACKSTOP for the delimiter half lives in `register._strip_banned_sentences`, which now
+# preserves the newlines of a dropped unit's delimiter; this site does not depend on it.
+#
+# CYCLE-10-AMEND (2026-08-08), REVIEW MAJOR 1+2 -- READ (a) AS IT NOW STANDS. "The body-wide pass that
+# follows then has nothing left to delete" was true of the SNIPPET and false of the ROW: the row's own
+# `[10]` marker is not a `_CIT_HANDLE` and IS a `_level_tokens` hit, so on OUTLOOK the pass deleted every
+# row from ref 10 up, clean snippet and all. There is no body-wide pass over the footer any more -- both
+# call sites append the assembled footer AFTER `reg.sanitize` (see the note at the L2 body). That makes
+# THIS function's row-scope pre-clear the ONLY register gate the footer gets: it is not a belt-and-braces
+# duplicate of a later pass, it is the gate. Do not remove it, and do not pass it a register other than
+# the one the body is sanitized with.
+@functools.lru_cache(maxsize=4096)
+def _row_snippet_cleared(s: str, market_register: str) -> str:
+    """The register verdict on ONE already-collapsed snippet string.
+
+    CYCLE-10-AMEND (2026-08-08), REVIEW MINOR 3 -- THE REGISTER BUDGET. `_document_source_rows` is walked
+    TWICE on every turn: once by `_prune_orphan_evidence_handles` (through `_emitted_evidence_refs`,
+    before the scaffold) and once by `_cited_sources_block` (at render time). The review asked for ONE
+    walk shared between the two readers; that is NOT SAFE HERE and the reason is structural rather than
+    stylistic: `_maybe_scaffold_episodes` APPENDS to `structured['sources']` and rebinds
+    `verifier['resolved']` (answer.py:3324) BETWEEN the two calls (prune 2139 -> scaffold 2163 -> block
+    2177). A walk cached at prune time and replayed at render time would drop every synthesized
+    episode-receipt row from the footer while its `[E]` marker stayed on the page -- precisely the
+    dangling-marker defect the three-place rule exists to make unreachable.
+    So the DUPLICATED WORK is removed instead of the second walk: the cost of a walk is one `reg.sanitize`
+    per row, and sanitize is a pure function of (text, market_register) -- it reads no environment (see
+    register.py's note at _REVERSION_PHRASES) and its only lookups are `lru_cache(maxsize=1)` registries.
+    Memoizing it collapses the second walk's register cost to zero, keeps the second walk's FRESHNESS, and
+    is correct for the scaffold's new rows too (they simply miss the cache)."""
+    try:
+        return reg.sanitize(s, market_register=market_register).strip()
+    except Exception:  # noqa: BLE001 -- a footer must never be the thing that breaks an answer
+        return ""
+
+
+def _source_row_snippet(text: object, *, market_register: str = reg.FENCED) -> str:
+    """One `## Sources` row's snippet, normalized to a single line and pre-cleared through the register
+    pass the assembled body will run. Returns "" when nothing of it may be shown."""
+    s = re.sub(r"\s+", " ", str(text or "")).strip()
+    if not s:
+        return ""
+    return _row_snippet_cleared(s, market_register)
+
+
+def _document_source_rows(d: dict, vreport: dict, *,
+                          market_register: str = reg.FENCED) -> list[tuple[str, str]]:
+    """(ref, rendered row) for every DOCUMENT ledger entry the `## Sources` block emits, in ledger order.
+
+    ONE walk, TWO readers: `_cited_sources_block` renders these rows and
+    `_prune_orphan_evidence_handles` asks which refs they cover. That is the whole of CYCLE-10 FIX 3 --
+    the prune's authority stops being a parallel re-derivation of "which ledger rows resolved" and becomes
+    the emission decision itself, so "a marker with no row" is decided by the code that emits rows."""
+    resolved = (vreport or {}).get("resolved") or {}
+    from leviathan.graphrag import display as dp
+    out: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for s in (d.get("sources") or []):
+        ref = str(s.get("ref", "")).strip().strip("[]")
+        if not ref or ref in seen:
+            continue
+        seen.add(ref)
+        if ref.upper().startswith("N"):
+            continue                              # the [N] namespace is emitted off the PROSE, not here
+        if ref not in resolved:
+            continue
+        r = resolved[ref]
+        snip = _source_row_snippet(r.get("snippet"), market_register=market_register)
+        head = f"[{ref}] {dp.source_name(str(r.get('source') or ''))} ({r.get('date')})"
+        row = head + (f": {snip}" if snip else "")
+        # CYCLE-10-AMEND (2026-08-08), REVIEW MINOR 4 -- EVERY ROW TERMINATES ITSELF. A head-only row
+        # ("[5] USDA WASDE (2014-01-01)") carried no sentence terminator, so ANY sentence splitter of the
+        # `([.!?;]\s+)` family FUSES it with the row below into one unit -- and a single banned neighbour
+        # then takes a good attribution down with it. The footer no longer meets the body-wide register
+        # pass at all (see the two call sites), so this is not what keeps rows alive today; it is the
+        # property that stops the NEXT sentence-scoped consumer from re-minting the same defect. One
+        # character, appended only when the row does not already end a sentence.
+        if row[-1:] not in (".", "!", "?", ";"):
+            row += "."
+        out.append((ref, row))
+    return out
+
+
+def _emitted_evidence_refs(d: dict, vreport: dict, *,
+                           market_register: str = reg.FENCED) -> set[str]:
+    """The [E]/document refs the `## Sources` block WILL emit a row for -- the ledger's own `ref` key AND,
+    when that ref is an E-form / zero-padded / float spelling of an integer, the canonical digit the PROSE
+    writes (CYCLE-9 REVIEW BLOCKER 2's two-key rule, unchanged)."""
+    live: set[str] = set()
+    for ref, _row in _document_source_rows(d, vreport, market_register=market_register):
+        live.add(ref)
+        norm = _E_REF_CANON_RX.match(ref)
+        if norm:
+            live.add(str(int(norm.group(1))))
+    return live
+
+
+def _cited_sources_block(d: dict, vreport: dict, number_calls: list | None, *,
+                         market_register: str = reg.FENCED) -> str:
     """The single reader-facing `## Sources` list: the model's OWN handles, every entry resolved by the
     verifier to a real item's true metadata. Cited-only — retrieved-but-uncited items stay machine-side
     (res['evidence'] / res['citations']).
@@ -4374,8 +4533,11 @@ def _cited_sources_block(d: dict, vreport: dict, number_calls: list | None) -> s
     SAFE BY CONSTRUCTION AGAINST THE UNRESOLVABLE CLASS: `_resolve_number_handles` runs FIRST and under the
     SAME `verifier.get("enabled")` gate, and it removes every handle that resolves to nothing -- so an index
     reaching this scan has already been shown to have a value. `_n_row` still fails closed on a malformed or
-    out-of-range call, because a footer must never be the thing that breaks an answer."""
-    resolved = (vreport or {}).get("resolved") or {}
+    out-of-range call, because a footer must never be the thing that breaks an answer.
+
+    CYCLE-10 FIX 2: the document rows come from `_document_source_rows` (see its note for the register
+    interaction that was deleting them) and `market_register` is the SAME value the assembled body will be
+    sanitized with -- passing a different one would pre-clear the snippet against the wrong rule."""
     prose = f"{d.get('tldr') or ''}\n{d.get('mechanism') or ''}"
     prose_n: list[int] = []                       # every [N] index the READER still sees, in written order
     for _m in _N_HANDLE_RX.finditer(prose):       # ...grouped tokens enumerated (D-PQ HANDLE-2)
@@ -4393,19 +4555,7 @@ def _cited_sources_block(d: dict, vreport: dict, number_calls: list | None) -> s
             return None
         return f"[N{idx}] {c.label}" + (f"  [known {c.date}]" if c.date else "")
 
-    lines, seen = [], set()
-    for s in (d.get("sources") or []):
-        ref = str(s.get("ref", "")).strip().strip("[]")
-        if not ref or ref in seen:
-            continue
-        seen.add(ref)
-        if ref.upper().startswith("N"):
-            continue                              # the [N] namespace is emitted below, off the PROSE
-        if ref in resolved:
-            r = resolved[ref]
-            from leviathan.graphrag import display as dp
-            lines.append(f"[{ref}] {dp.source_name(str(r.get('source') or ''))} "
-                         f"({r.get('date')}): {r.get('snippet')}")
+    lines = [row for _ref, row in _document_source_rows(d, vreport, market_register=market_register)]
     # THE [N] BLOCK, off the PROSE and nothing else: ascending index, after the document rows, exactly one
     # row per index the reader can still see. Emitting it here rather than inside the ledger walk is what
     # makes the order DETERMINISTIC -- a ledger that declared N2 and not N1 used to interleave them 2,1,3
@@ -4723,7 +4873,7 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
                  if verifier.get("enabled") else None)                    # ...and the same verifier gate
     _nclone = (_dedup_number_handles(structured, extra_number_calls)       # CYCLE-6 FIX-C, both bodies
                if verifier.get("enabled") else 0)                         # ...and the same verifier gate
-    _eorph = (_prune_orphan_evidence_handles(structured, verifier)         # CYCLE-9 FIX 3, both bodies
+    _eorph = (_prune_orphan_evidence_handles(structured, verifier, market_register=_mr)         # CYCLE-9 FIX 3, both bodies
               if verifier.get("enabled") else 0)                          # ...and the same verifier gate
     _debris = bool(verifier.get("enabled") and _tidy_handle_debris(structured))   # D-PQ HANDLE-3, ditto
     _orphans = bool(verifier.get("enabled")                                       # CYCLE-5 TIDY-2, ditto
@@ -4749,13 +4899,19 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
         secs = _sectionize(structured.get("mechanism") or "")     # the L2 seam: same post-verify+humanize
         if secs:                                                  # ordering, same per-call flag read
             structured["sections"] = secs
+    # CYCLE-10-AMEND (2026-08-08) REVIEW MAJOR 1+2 on the SECOND synthesis path, spelled identically to
+    # the L2 body (see the note there for the marker-as-level root cause). GRAPHRAG_PLANNER=onehop is a
+    # documented rollback: a footer that only reaches the reader on one of the two bodies is the same
+    # defect with a flag in front of it.
+    _footer = ""
     if verifier.get("enabled"):                                   # ONE validated source list, model-numbered
-        _pre_sanitize = (render(structured, include_ledger=False)
-                         + _cited_sources_block(structured, verifier, extra_number_calls))
+        _sanitize_in = render(structured, include_ledger=False)
+        _footer = _cited_sources_block(structured, verifier, extra_number_calls, market_register=_mr)
     else:                                                         # verifier off -> legacy two-list rendering
         footer = ("\n\n## Sources\n" + cit.render(ev_cits)) if ev_cits else ""
-        _pre_sanitize = render(structured) + footer
-    body = reg.sanitize(_pre_sanitize, market_register=_mr)       # strips leaked internal tokens
+        _sanitize_in = render(structured) + footer
+    _pre_sanitize = _sanitize_in + _footer                        # A4b SEAM 2: the WHOLE page, as before
+    body = reg.sanitize(_sanitize_in, market_register=_mr) + _footer   # strips leaked internal tokens
     _raw_draft = _fold_draft(_raw_draft, sanitize_input_snapshot(body_pre_sanitize=_pre_sanitize))
     if degraded:
         body = _DEGRADED_BANNER.format(m=degraded) + body

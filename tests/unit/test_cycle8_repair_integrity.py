@@ -160,32 +160,41 @@ def test_fix2b_corruption_3_palm_MT_may_not_enter_a_percent_slot():
 
 
 def test_fix2b_registry_unit_class_reads_the_card_when_the_row_is_bare():
-    assert vf._registry_unit_class(_call("silver_mpob", "production_cpo_mt", ["1629801.0"])) == "mass"
-    assert vf._registry_unit_class(
-        _call("silver_pink_sheet", "natural_gas_eu_usd_mmbtu_zscore_5yr", ["-0.3"])) == "index"
-    # fail-open at every step: an unknown table, an undeclared unit, a fixture query -> None, repair as before
-    assert vf._registry_unit_class(_call("not_a_table", "not_a_metric", ["1"])) is None
-    assert vf._registry_unit_class(_call("silver_wasde", "avg_farm_price", ["4.55"])) is None
-    assert vf._registry_unit_class({}) is None
+    """CYCLE-10 (2026-08-08): the card lookup existed to decide whether a row value MAY BE WRITTEN into a
+    prose slot. Nothing writes any more, so `_registry_unit_class` is deleted along with the rest of the
+    fence. The palm shape it was built for is pinned here as what it now is -- a DROP, with no dependence
+    on a registry being loadable at all."""
+    assert not hasattr(vf, "_registry_unit_class")
+    palm = _call("silver_mpob", "production_cpo_mt", ["1629801.0"])
+    slot = "running roughly 2 percent below the average [N1]"
+    assert vf._num_repair(slot, 1, [palm]) is None
+    st, rep = _verify("", "Stocks are running roughly 2 percent below the average [N1].", [palm])
+    assert "1,629,801" not in st["mechanism"] and st["mechanism"] == ""
+    assert rep["repaired"] == 0 and rep["repairs"] == []
 
 
 def test_fix2b_d2_a_percent_slot_is_fenced_WITHOUT_the_registry():
     """(d) fails open when the card is unreadable, which would restore the palm corruption verbatim. (d2)
-    reads the call's own METRIC NAME: only a percent-denominated call may write a percent slot."""
+    reads the call's own METRIC NAME: only a percent-denominated call may write a percent slot.
+
+    CYCLE-10: a percent slot -- and every other slot -- is fenced without reading anything, because there
+    is no writer. The percent-denominated call that (d2) deliberately still ALLOWED is refused too."""
     slot = "running roughly 2 percent below the average [N1]"
     assert vf._num_repair(slot, 1, [_call("no_such_table", "production_cpo_mt", ["1629801.0"])]) is None
     assert vf._num_repair(slot, 1, [_call("no_such_table", "", ["1629801.0"])]) is None
-    # ...and a percent-denominated call still repairs its own slot
     pct = _call("no_such_table", "ending_stocks_mt_pct", ["5.11"])
-    rep = vf._num_repair("stocks fell 4.2 percent on the year [N1]", 1, [pct])
-    assert rep is not None and rep[2] == "5.11"
+    assert vf._num_repair("stocks fell 4.2 percent on the year [N1]", 1, [pct]) is None
+    assert not hasattr(vf, "_PCT_METRIC")
 
 
 def test_fix2b_unit_class_lead_reads_the_head_of_a_unit_PHRASE():
-    assert vf._unit_class_lead("sigma vs 5-yr mean") == "index"
-    assert vf._unit_class_lead("BRL per USD (FRED)") == "money"
-    assert vf._unit_class_lead("MT") == "mass"
-    assert vf._unit_class_lead("") is None and vf._unit_class_lead("furlongs") is None
+    """CYCLE-10: `_unit_class_lead` was the phrase-head reader for the repair class fence and is gone with
+    it. The estate's OTHER unit-class reader -- `citations`, which the footer and the completion lane use
+    -- is untouched, and that is where unit classification still lives."""
+    for gone in ("_unit_class_lead", "_unit_class", "_UNIT_CLASSES", "_UNIT_OF", "_UNIT_TAIL"):
+        assert not hasattr(vf, gone), gone
+    from leviathan.graphrag import citations as _cit
+    assert hasattr(_cit, "_UNIT_CLASSES")                      # the minting-side table, untouched
 
 
 def test_fix2a_non_value_slot_fence_is_independent_of_the_extractor():
@@ -197,13 +206,15 @@ def test_fix2a_non_value_slot_fence_is_independent_of_the_extractor():
     assert vf._num_repair("2 percent of the crop [N1]", 1, [z]) is None
 
 
-def test_fix2a_a_genuine_value_slot_still_repairs():
-    """The fence is SCOPED. A count row named by a duration noun in HEAD position is a value slot and must
-    keep repairing -- refusing it would send a repairable sentence to the whole-drop path."""
+def test_fix2a_a_genuine_value_slot_no_longer_repairs_either_cycle10():
+    """The cycle-8 fence was SCOPED so a genuine value slot -- a count row named by a duration noun in HEAD
+    position -- kept repairing. CYCLE-10 removes the scope with the writer: the head-position slot is the
+    honest cost of the termination, recorded here rather than discovered at the next gate."""
     streak = {"query": {"table": "gold_cascade", "metric": "oni_anom_pace_streak"}, "status": "ok",
               "shown": ["9"], "rows": [{"value": "9", "unit": "months"}]}
-    rep = vf._num_repair("the anomaly has risen in each of the last 5 months [N1]", 1, [streak])
-    assert rep is not None and rep[2] == "9"
+    assert vf._num_repair("the anomaly has risen in each of the last 5 months [N1]", 1, [streak]) is None
+    st, rep = _verify("", "The anomaly has risen in each of the last 5 months [N1].", [streak])
+    assert st["mechanism"] == "" and rep["by_rule"].get("number_mismatch") == 1
 
 
 def test_fix2c_a_prose_repair_is_counted_and_recorded_never_laundered():
@@ -216,16 +227,19 @@ def test_fix2c_a_prose_repair_is_counted_and_recorded_never_laundered():
     say "if this crosses above the value it already has"). That shape is now fail-closed, so it can no
     longer serve as the control for the RECORD path. The declarative twin -- same call, same handle, same
     single numeral, no conditional -- is a genuine repair and is what this pin exercises. The refusal of the
-    conditional form is pinned separately below."""
+    conditional form is pinned separately below.
+
+    CYCLE-10 (2026-08-08): the anti-laundering CARRIERS are what this pin now protects, and they are why
+    the fields were NOT deleted with the behaviour. `repaired` and `repairs` stay present and unconditional
+    on every run so gate-8 artifacts remain schema-comparable with gate-7's -- they are simply always 0 and
+    [] now, and the defect they were built to expose is charged as an ordinary strip instead."""
     call = _call("agent_lane", "urea_z", ["-0.195159"])
     st, rep = _verify("", "- **Urea z-score [N1]:** the reading sits at 1 sigma right now.", [call])
-    assert "0.195159" in st["mechanism"]                      # the repair DID happen
-    assert rep["repaired"] == 1
-    # CYCLE-9 REVIEW (2026-08-08), MAJOR 4: the row is NEGATIVE and the slot carries no sign of its own,
-    # so the replacement now carries the row's ("0.195159" asserted a positive z-score the row denies).
-    assert rep["repairs"] == [{"field": "mechanism", "rule": "number_mismatch_repaired",
-                              "from": "1", "to": "-0.195159"}]
-    assert rep["by_rule"]["number_mismatch_repaired"] == 1
+    assert "0.195159" not in st["mechanism"]                  # no mutation reaches the reader
+    assert rep["repaired"] == 0 and rep["repairs"] == []      # ...and the carriers are STILL there
+    assert "repaired" in rep and "repairs" in rep
+    assert rep["by_rule"].get("number_mismatch") == 1
+    assert "number_mismatch_repaired" not in rep["by_rule"]
 
 
 def test_fix2c_the_carriers_are_always_present_and_empty_on_a_clean_answer():
@@ -533,8 +547,9 @@ def test_m4_a_two_numeral_duration_sentence_is_still_ambiguity_refused():
     z = _call("silver_fred", "eu_gas_z", ["0.31"], unit="z")
     assert vf._num_repair("gas sits at a 5-year z-score of +1.24 sigma [N1]", 1, [z]) is None
     assert vf._num_repair("the 90-day change was only -0.76 z [N1]", 1, [z]) is None
-    # the ONE-numeral shape the repair path was always allowed to touch is unaffected
-    assert vf._num_repair("gas sits at +1.24 sigma [N1]", 1, [z])[2] == "0.31"
+    # CYCLE-10: the ONE-numeral shape the repair path was always allowed to touch is refused too, so the
+    # ambiguity gate is no longer load-bearing anywhere -- the answer is the same on both sides of it.
+    assert vf._num_repair("gas sits at +1.24 sigma [N1]", 1, [z]) is None
 
 
 # ---- MAJOR 5 -- a threshold inside a conditional is not a value slot ---------------------------------
@@ -556,15 +571,14 @@ def test_m5_a_conditional_threshold_is_never_rewritten_to_the_current_level():
     assert rep["by_rule"].get("number_mismatch") == 1          # the honest fail-closed drop instead
 
 
-def test_m5_a_bare_comparison_without_a_conditional_still_repairs():
-    """The fence needs BOTH halves. Plain description is not a threshold, and over-refusing here would
-    quietly convert legitimate repairs into sentence drops.
-
-    CYCLE-9 REVIEW (2026-08-08), MAJOR 4: the replacement gained the row's SIGN (the slot writes none of
-    its own and the row is -0.195159). The claim under test -- that a bare comparison stays REPAIRABLE --
-    is unchanged; only the figure it writes is now the row's actual one."""
+def test_m5_a_bare_comparison_is_refused_with_everything_else_cycle10():
+    """The MAJOR-5 fence needed BOTH halves precisely so plain description stayed repairable. CYCLE-10
+    deletes the distinction: a bare comparison and a conditional threshold get the same answer, and the
+    machinery that told them apart is gone."""
     call = _call("agent_lane", "urea_z", ["-0.195159"])
-    assert vf._num_repair("the reading sits above 1 sigma [N1] today", 1, [call])[2] == "-0.195159"
+    assert vf._num_repair("the reading sits above 1 sigma [N1] today", 1, [call]) is None
+    for gone in ("_COND_CTX", "_THRESHOLD_LEAD", "_THRESHOLD_NOUN", "_NON_VALUE_SLOT"):
+        assert not hasattr(vf, gone), gone
 
 
 # ---- MAJOR 6 -- the registry-independent class arm, for every class ----------------------------------
@@ -572,40 +586,39 @@ def test_m5_a_bare_comparison_without_a_conditional_still_repairs():
 def test_m6_a_metric_name_declares_its_class_without_the_registry():
     """`_registry_unit_class` fails open at every step by design, and cycle-8's only registry-independent
     lock covered PERCENT slots. A metric NAME carrying an explicit unit token is a class the fence can read
-    with no registry at all."""
-    assert vf._metric_tell_class(_call("unregistered_tbl", "ending_stocks_mt", ["1"])) == "mass"
-    assert vf._metric_tell_class(_call("unregistered_tbl", "fob_usd_t", ["1"])) == "money"
-    assert vf._metric_tell_class(_call("unregistered_tbl", "anomaly_degc", ["1"])) == "temp"
-    assert vf._metric_tell_class(_call("unregistered_tbl", "price_z", ["1"])) == "index"
-    assert vf._metric_tell_class(_call("unregistered_tbl", "area_ha", ["1"])) == "area"
-    # pct wins outright over the base unit it is a percentage OF -- the same precedence `_PCT_METRIC` asserts
-    assert vf._metric_tell_class(_call("unregistered_tbl", "ending_stocks_mt_pct", ["1"])) == "pct"
-    # and it is a UNIT-TOKEN test, never a semantic guess: 'us_' is not a currency, a lone 't' is not a mass
-    assert vf._metric_tell_class(_call("unregistered_tbl", "us_corn_conditions", ["1"])) is None
-    assert vf._metric_tell_class(_call("unregistered_tbl", "oni_level_delta", ["1"])) is None
+    with no registry at all.
+
+    CYCLE-10: this arm is DELETED, and gate-7 is why. `drought_z_pace_change` classified as `index` from
+    exactly this tell, the prose slot read `index` too, and the equal-class certificate authorised the
+    corruption. A tell that cannot be wrong about the LABEL and cannot be right about the QUANTITY is not a
+    safety property."""
+    assert not hasattr(vf, "_metric_tell_class") and not hasattr(vf, "_METRIC_TELL")
+    for metric in ("ending_stocks_mt", "fob_usd_t", "anomaly_degc", "price_z", "area_ha",
+                   "ending_stocks_mt_pct", "us_corn_conditions", "oni_level_delta"):
+        assert vf._num_repair("the reading ran 2 degC above normal [N1]", 1,
+                              [_call("unregistered_tbl", metric, ["1"])]) is None, metric
 
 
 def test_m6_a_cross_class_splice_is_refused_with_the_registry_absent():
     """The class the fence was born for, now closed without the registry: an unregistered table, a row that
     carries no unit, and a metric name that says what it is."""
     mt = _call("unregistered_tbl", "ending_stocks_mt", ["1629801"])
-    assert vf._registry_unit_class(mt) is None                 # the registry genuinely cannot help
-    assert vf._call_unit_class(mt, 1629801.0) == "mass"        # ... and the name still supplies the class
     assert vf._num_repair("the anomaly ran 2 degC above normal [N1]", 1, [mt]) is None
     assert vf._num_repair("cash traded at $4.20 [N1]", 1, [mt]) is None
+    # CYCLE-10 -- ...and the SAME-class splice the fence used to wave through is refused as well
+    assert vf._num_repair("stocks ran 1500000 MT on the year [N1]", 1, [mt]) is None
 
 
 # ---- MINOR 7 -- the 'pct-points' spelling ------------------------------------------------------------
 
 def test_m7_the_pct_points_spelling_classifies_as_percent():
     palm = _call("silver_mpob", "production_cpo_mt", ["1629801"])
+    # CYCLE-10: MINOR 7 closed ONE SPELLING through which the palm corruption reappeared. Every spelling is
+    # closed now, including the ones nobody enumerated, because the refusal reads no unit token at all.
     for spelling in ("percent", "percentage points", "pct-points", "pct-point", "percentage-points",
-                     "pp", "ppt"):
+                     "pp", "ppt", "pct-pts", "basis points", "furlongs", ""):
         sent = "roughly 2 " + spelling + " below the average [N1]"
         assert vf._num_repair(sent, 1, [palm]) is None, spelling
-    assert vf._unit_class("pct-points") == "pct" and vf._unit_class("percentage-points") == "pct"
-    # the bare index tokens `_UNIT_CLASSES['index']` owns are NOT swept up by the tail strip
-    assert vf._unit_class("points") == "index" and vf._unit_class("pts") == "index"
 
 
 # ---- MINOR 8 -- `repaired` counts handles, `repairs` counts what the reader receives ------------------

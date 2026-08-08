@@ -345,13 +345,26 @@ def test_onehop_path_carries_both_sanitize_inputs(monkeypatch):
 
 
 def test_the_body_snapshot_is_the_exact_string_the_sanitizer_consumed(monkeypatch):
-    """`body_pre_sanitize` must be the sanitizer's INPUT, not a re-render: `reg.sanitize` applied to it
-    must reproduce the served answer byte for byte, or the diff the adjudicator reads is fiction."""
+    """`body_pre_sanitize` must be the ASSEMBLED PAGE at the render seam, not a re-render: reconstructing
+    the seam from it must reproduce the served answer byte for byte, or the diff the adjudicator reads is
+    fiction.
+
+    CYCLE-10-AMEND (2026-08-08), REVIEW MAJOR 1+2: the seam is now `reg.sanitize(prose) + footer`. The
+    validated `## Sources` block is assembled from rows already cleared through the register at ROW scope
+    and is appended AFTER the body pass, because the body pass read a row's own `[10]` marker as an
+    unbacked price level (`register._CIT_HANDLE` does not match a bare `[10]`, `register._level_tokens`
+    does) and deleted every row from ref 10 up on an outlook turn. The snapshot still carries the WHOLE
+    page -- the judge and the numeral adjudicators read it as the answer -- so the identity is stated on
+    its two halves: the prose half must still sanitize to the answer's prose half, and the footer half
+    must cross the seam UNCHANGED. With no validated footer the partition is empty and this is the
+    original assertion, unchanged."""
     from leviathan.graphrag import register as reg
     _audit(monkeypatch, "on")
     _body(monkeypatch, "on")
     out = _l2_val(monkeypatch)
-    assert reg.sanitize(out["trace"]["raw_draft"]["body_pre_sanitize"]) == out["answer"]
+    pre = out["trace"]["raw_draft"]["body_pre_sanitize"]
+    prose, sep, footer = pre.partition("\n\n## Sources\n")
+    assert reg.sanitize(prose) + sep + footer == out["answer"]
 
 
 # -- the regression this exists to close: attribute a banned_valuation red to a PASS ------------------

@@ -70,12 +70,14 @@ COV2_CALLS = (_pad(1)
 def test_gate6_corruption_1_the_approach_threshold_is_never_rewritten():
     """COV1. The charge is real (1.5 is not [N4]'s 0), so the sentence still answers for itself -- but the
     remedy is the fail-closed DROP, never the rewrite. REFUSED BY CLAUSE (c): the widened `_THRESHOLD_LEAD`
-    now reads 'toward', and `_COND_CTX` already read 'threshold'. Both halves of MAJOR 5, at last."""
+    now reads 'toward', and `_COND_CTX` already read 'threshold'. Both halves of MAJOR 5, at last.
+
+    CYCLE-10 (2026-08-08): the CHARGE and the OUTCOME are unchanged and are what this pin now asserts;
+    the two clause internals it used to reach into (`_THRESHOLD_LEAD`, `_COND_CTX`) are deleted, because
+    the refusal no longer depends on recognising the shape of the sentence at all."""
     assert vf._check_number_handle(COV1_SENT, 4, COV1_CALLS) == "number_mismatch"
     assert vf._num_repair(COV1_SENT, 4, COV1_CALLS) is None
-    masked = vf._mask_handles(COV1_SENT)
-    a, _b, _v = vf._claim_number_spans(masked)[0]
-    assert vf._THRESHOLD_LEAD.search(masked[:a]) and vf._COND_CTX.search(masked)
+    assert not hasattr(vf, "_THRESHOLD_LEAD") and not hasattr(vf, "_COND_CTX")
     s = _structured(mechanism=COV1_SENT)
     rep = vf.verify_citations(s, [], COV1_CALLS)
     assert "0 °C threshold" not in s["mechanism"] and s["mechanism"] == ""
@@ -92,11 +94,14 @@ def test_gate6_corruption_1_the_whole_approach_verb_set():
         assert vf._num_repair(sent, 1, [_call("oni_anom", 0.0, "degC")]) is None, lead
 
 
-def test_gate6_corruption_1_a_bare_approach_without_a_conditional_still_repairs():
-    """MAJOR 5's own scoping rule, preserved: the fence needs BOTH halves. A descriptive approach clause with
-    no conditional/threshold marker is an ordinary statement of fact and its numeral stays repairable."""
+def test_gate6_corruption_1_a_bare_approach_is_refused_too_now_cycle10():
+    """MAJOR 5's scoping rule kept the descriptive twin repairable so the fence could not over-refuse.
+    CYCLE-10 removes the distinction along with the writer: threshold and description get one answer."""
     sent = "The anomaly moved toward 1.5 degC last month [N1]."
-    assert vf._num_repair(sent, 1, [_call("oni_anom", 0.9, "degC")])[2] == "0.9"
+    assert vf._num_repair(sent, 1, [_call("oni_anom", 0.9, "degC")]) is None
+    s = _structured(mechanism=sent)
+    rep = vf.verify_citations(s, [], [_call("oni_anom", 0.9, "degC")])
+    assert s["mechanism"] == "" and rep["repairs"] == []
 
 
 def test_gate6_corruption_2_the_boolean_is_never_spliced_into_a_degC_slot():
@@ -108,7 +113,7 @@ def test_gate6_corruption_2_the_boolean_is_never_spliced_into_a_degC_slot():
     assert vf._check_number_handle(COV2_SENT, 2, COV2_CALLS) == "number_mismatch"
     assert vf._sibling_backed(COV2_SENT, 2, COV2_CALLS) is True          # clause (a)'s predecessor
     assert vf._num_repair(COV2_SENT, 2, COV2_CALLS) is None
-    assert vf._call_unit_class(COV2_CALLS[1], 1.0) == "flag"
+    assert not hasattr(vf, "_call_unit_class")            # CYCLE-10: the class fence is gone entirely
     s = _structured(tldr=COV2_SENT)
     rep = vf.verify_citations(s, [], COV2_CALLS)
     assert "at 1 °C" not in s["tldr"] and "0.98 °C" in s["tldr"]   # the figure survives intact
@@ -125,11 +130,15 @@ def test_allowlist_a_two_solitary_handles_in_one_slot_are_ineligible():
     ambiguous by construction and takes the drop.
 
     CYCLE-9 REVIEW: the numerals are unsigned and the scale gap is 2.3x so that clause (e) (MAJOR 4) is
-    not the thing refusing -- the SOLO control has to repair or this pin proves nothing about (a)."""
+    not the thing refusing -- the SOLO control has to repair or this pin proves nothing about (a).
+
+    CYCLE-10: the SOLO control -- the shape clause (a) deliberately still admitted -- is refused as well,
+    so this pin no longer separates (a) from the rest. It is kept as the fixture that proves the
+    two-handle ambiguity NEVER became repairable at any point in the cycle-4..10 sequence."""
     agree = _pad(3) + [_call("oni_anom", 0.31, "degC")] + _pad(7) + [_call("oni_anom", 0.31, "degC")]
     assert vf._num_repair("Anomalies ran 0.72 degC [N12][N4].", 12, agree) is None
     solo = _pad(3) + [_call("oni_anom", 0.31, "degC")]
-    assert vf._num_repair("Anomalies ran 0.72 degC [N4].", 4, solo)[2] == "0.31"
+    assert vf._num_repair("Anomalies ran 0.72 degC [N4].", 4, solo) is None
 
 
 def test_allowlist_a_a_grouped_handle_can_never_name_a_repair_source():
@@ -142,12 +151,15 @@ def test_allowlist_a_a_grouped_handle_can_never_name_a_repair_source():
 def test_allowlist_b_unknown_on_either_side_is_ineligible_fail_closed():
     """(b) THE INVERSION. Unknown used to mean 'no opinion, repair as before'; it now costs eligibility.
     Unknown SOURCE is the door the COV2 corruption came through; unknown TARGET is fenced with it, because
-    a class the module cannot name is a class it cannot certify in either direction."""
+    a class the module cannot name is a class it cannot certify in either direction.
+
+    CYCLE-10: the inversion is complete rather than partial -- the KNOWN-and-EQUAL arm, the one shape
+    (b) still admitted, is refused too. Gate-7 is the reason: its corruption held a known, equal pair."""
     known = _call("oni_anom", 2.75, "degC")
     unknown_src = {"query": {"metric": "m"}, "rows": [{"value": 2.75}], "shown": [2.75]}
     assert vf._num_repair("It peaked at +2.47 degC [N1].", 1, [unknown_src]) is None
     assert vf._num_repair("It peaked at +2.47 furlongs [N1].", 1, [known]) is None
-    assert vf._num_repair("It peaked at +2.47 degC [N1].", 1, [known])[2] == "2.75"
+    assert vf._num_repair("It peaked at +2.47 degC [N1].", 1, [known]) is None
 
 
 def test_allowlist_b_cross_class_stays_refused_and_the_flag_class_is_absolute():
@@ -162,14 +174,14 @@ def test_allowlist_b_cross_class_stays_refused_and_the_flag_class_is_absolute():
     assert vf._num_repair("The anomaly is 0.98 degC [N1].", 1, [flag]) is None
 
 
-def test_allowlist_b_the_flag_class_is_readable_from_row_card_and_name():
-    """The three evidence sources `_call_unit_class` reads, descending: the ROW's unit, then the card, then
-    the metric NAME. A flag call is refused through whichever one survives."""
-    assert vf._unit_class("0/1") == "flag" and vf._unit_class("boolean") == "flag"
-    assert vf._call_unit_class(_call("whatever", 1, "0/1"), 1.0) == "flag"
+def test_allowlist_b_the_flag_class_no_longer_needs_to_be_readable_at_all_cycle10():
+    """Cycle-9 needed the boolean class readable from the ROW's unit, the card and the metric NAME, so a
+    flag could not slip through as 'unknown'. CYCLE-10 needs none of it: the row is refused whether or not
+    anything can name its class, and the three readers are deleted."""
+    for gone in ("_unit_class", "_call_unit_class", "_metric_tell_class", "_registry_unit_class"):
+        assert not hasattr(vf, gone), gone
+    assert vf._num_repair("The anomaly is 0.98 degC [N1].", 1, [_call("whatever", 1, "0/1")]) is None
     bare = {"query": {"metric": "el_nino_flag"}, "rows": [{"value": 1}], "shown": [1.0]}
-    assert vf._metric_tell_class(bare) == "flag"
-    assert vf._call_unit_class(bare, 1.0) == "flag"
     assert vf._num_repair("The anomaly is 0.98 degC [N1].", 1, [bare]) is None
 
 
@@ -203,21 +215,23 @@ def test_allowlist_the_ineligible_path_is_the_honest_drop_never_a_rewrite():
     assert [e["rule"] for e in rep["strip_audit"]] == ["number_mismatch"]
 
 
-def test_allowlist_the_legitimate_same_class_repairs_still_fire():
-    """The allowlist is not a ban. Every repair whose source and target classes are KNOWN and EQUAL, in a
-    solitary slot, still lands -- which is the whole population the widening rule admits."""
+def test_allowlist_the_last_repairing_population_is_now_empty_cycle10():
+    """THE POPULATION THE ALLOWLIST ADMITTED, MEASURED AND THEN CLOSED. Cycle-9 pinned these six as the
+    whole set of repairs that could still fire: source and target classes KNOWN and EQUAL, one solitary
+    handle, plausible magnitude and sign. Gate-7's corruption is a member of exactly this set -- z into z,
+    one handle, 0.6 vs 0.6267 -- which is why the set is now empty rather than smaller. Every one of the
+    six drops, and nothing writes a numeral anywhere."""
     cases = [
-        ("It peaked at +2.47 degC [N1].", _call("oni_anom", 2.75, "degC"), "2.75"),
-        ("It peaked at +2.47 °C [N1].", _call("oni_anom", 2.75, "degC"), "2.75"),
+        ("It peaked at +2.47 degC [N1].", _call("oni_anom", 2.75, "degC")),
+        ("It peaked at +2.47 °C [N1].", _call("oni_anom", 2.75, "degC")),
         ("The metric rose in each of the last 4 months [N1].",
-         _call("oni_anomaly_pace_streak", 5, "months"), "5"),
-        ("gas sits at +1.24 sigma [N1]", _call("gas_zscore_5yr", 0.31, "sigma vs 5-yr mean"), "0.31"),
-        ("stocks fell 4.2 percent on the year [N1]", _call("ending_stocks_mt_pct", 5.1, "%"), "5.1"),
-        ("Output reached 92000000 MT [N1].", _call("ending_stocks_mt", 88500000, "MT"), "88,500,000"),
+         _call("oni_anomaly_pace_streak", 5, "months")),
+        ("gas sits at +1.24 sigma [N1]", _call("gas_zscore_5yr", 0.31, "sigma vs 5-yr mean")),
+        ("stocks fell 4.2 percent on the year [N1]", _call("ending_stocks_mt_pct", 5.1, "%")),
+        ("Output reached 92000000 MT [N1].", _call("ending_stocks_mt", 88500000, "MT")),
     ]
-    for prose, call, want in cases:
-        got = vf._num_repair(prose, 1, [call])
-        assert got is not None and got[2] == want, prose
+    for prose, call in cases:
+        assert vf._num_repair(prose, 1, [call]) is None, prose
 
 
 # ══ FIX 2 -- GROUPED / RANGED HANDLE PARSING (amendment 3a) ═════════════════════════════════════════
@@ -432,13 +446,14 @@ def test_review_b1_the_threshold_class_is_closed_not_just_its_preposition():
         assert vf._num_repair(sent, 1, row) is None, sent
 
 
-def test_review_b1_an_ordinary_measurement_still_repairs():
-    """The other half of BLOCKER 1: (c1) must fence STATED thresholds without swallowing the reported
-    kind. No threshold noun, no conditional -- the numeral reports a level and the repair fires."""
+def test_review_b1_an_ordinary_measurement_is_refused_as_well_cycle10():
+    """(c1) had to fence STATED thresholds without swallowing the REPORTED kind, so an ordinary measured
+    level stayed repairable. CYCLE-10 stops distinguishing them -- a reported level is exactly the shape
+    gate-7 corrupted -- and both forms take the drop."""
     assert vf._num_repair("The anomaly read 0.31 degC [N1].", 1,
-                          [_call("oni_anom", 0.98, "degC")])[2] == "0.98"
+                          [_call("oni_anom", 0.98, "degC")]) is None
     assert vf._num_repair("The anomaly is above 0.31 degC [N1].", 1,
-                          [_call("oni_anom", 0.98, "degC")])[2] == "0.98"   # bare comparison = description
+                          [_call("oni_anom", 0.98, "degC")]) is None
 
 
 def test_review_b2_a_resolved_E_form_ledger_ref_is_never_pruned():
@@ -472,16 +487,17 @@ def test_review_m3_an_evidence_handle_beside_the_slot_costs_nothing():
     """MAJOR 3. Clause (a)'s rationale is "two CANDIDATE SOURCES for one numeral"; an [E] handle is an
     ATTRIBUTION and can never source a numeral, so counting it dropped whole sentences written in the
     house style the system prompt asks for. Measured as the third-largest refusal bucket in the reviewer's
-    4,000-draft sweep. The verdict must not depend on what is standing NEXT to the [N] handle."""
+    4,000-draft sweep. The verdict must not depend on what is standing NEXT to the [N] handle.
+
+    CYCLE-10: the invariant MAJOR 3 asked for -- that an [E] token beside the slot never changes the
+    verdict -- is preserved trivially and totally, because every verdict is now the same verdict. The
+    refusal bucket the reviewer measured is moot: no sentence in it was repairable to begin with."""
     solo = [_call("oni_anom", 0.31, "degC")]
-    base = vf._num_repair("Anomalies ran 0.72 degC [N1].", 1, solo)
-    assert base is not None and base[2] == "0.31"
+    assert vf._num_repair("Anomalies ran 0.72 degC [N1].", 1, solo) is None
     for sent in ("Anomalies ran 0.72 degC [N1], per the CPC bulletin [E2].",
                  "Anomalies ran 0.72 degC [N1] (see the record [3]).",
                  "Anomalies ran 0.72 degC [N1] [E2, E5]."):
-        r = vf._num_repair(sent, 1, solo)
-        assert r is not None and r[2] == "0.31", sent
-    # ...and the [N] rule itself is untouched: a SECOND number handle, grouped or not, still refuses.
+        assert vf._num_repair(sent, 1, solo) is None, sent
     pair = solo + [_call("oni_anom", 0.31, "degC")]
     assert vf._num_repair("Anomalies ran 0.72 degC [N1][N2].", 1, pair) is None
     assert vf._num_repair("Anomalies ran 0.72 degC [N1, N2].", 1, pair) is None
@@ -527,19 +543,23 @@ def test_review_m4_the_sign_the_page_carries_must_not_be_contradicted():
     """`_CLAIM_NUM` cannot see a minus, so a repair splices the MAGNITUDE under the sign already on the
     page. When the page's explicit sign and the row's sign disagree, that publishes a figure that is
     neither the model's nor the row's. Agreement -- and a slot with no explicit sign -- still repairs, so
-    `test_repair_direction_stays_in_the_prose_sign` is unmoved."""
+    `test_repair_direction_stays_in_the_prose_sign` is unmoved.
+
+    CYCLE-10: the agreeing-sign arm drops too. A sign that agrees certifies the DIRECTION and says
+    nothing about whether the row is the same quantity as the slot -- which is precisely how gate-7's
+    signed `*_pace_change` walked into a slot whose own word already carried the direction."""
     assert vf._num_repair("The anomaly read -0.693675 z [N1].", 1,
-                          [_call("oni_anom", -2.1035, "sigma")])[2] == "2.1035"   # signs AGREE -> repair
+                          [_call("oni_anom", -2.1035, "sigma")]) is None          # signs agree: still no
     assert vf._num_repair("The anomaly read +0.693675 z [N1].", 1,
                           [_call("oni_anom", -2.1035, "sigma")]) is None          # page says +, row says -
     assert vf._num_repair("The anomaly read -0.693675 z [N1].", 1,
                           [_call("oni_anom", 2.1035, "sigma")]) is None           # page says -, row says +
-    # THE OTHER HALF, closed WITHOUT costing a repair: an unsigned slot fed by a NEGATIVE row used to
-    # publish the magnitude alone ("is at 0.98 degC" <- a -18.4 row wrote "18.4"). The span is the whole
-    # numeral, so the replacement carries the row's own sign instead.
+    # THE OTHER HALF: an unsigned slot fed by a NEGATIVE row used to publish the magnitude alone ("is at
+    # 0.98 degC" <- a -18.4 row wrote "18.4"), which cycle-9 closed by carrying the row's own sign into
+    # the replacement. CYCLE-10 closes it by writing no replacement.
     assert vf._num_repair("The anomaly read 0.693675 z [N1].", 1,
-                          [_call("oni_anom", -2.1035, "sigma")])[2] == "-2.1035"
-    assert vf._PROSE_SIGN.search("a 5-") is None                  # a hyphenated word is not a sign
+                          [_call("oni_anom", -2.1035, "sigma")]) is None
+    assert not hasattr(vf, "_PROSE_SIGN") and not hasattr(vf, "_REPAIR_MAG_RATIO_MAX")
 
 
 def test_review_m6_the_prune_leaves_no_residue_the_debris_pass_cannot_close():
