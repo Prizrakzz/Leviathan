@@ -17,7 +17,7 @@ import { ModePicker } from './ModePicker';
  * (GRAPHRAG_DOSSIER absent -> 404), and the picker has to render it as "not enabled", never as broken.
  */
 const hoisted = vi.hoisted(() => ({
-  quota: { remaining: 2, limit: 3, reset_at: '2026-08-10T00:00:00Z' } as DossierQuota | null,
+  quota: { remaining: 2, limit: 4, reset_at: '2026-09-01T00:00:00Z' } as DossierQuota | null,
   calls: 0,
 }));
 
@@ -46,7 +46,7 @@ async function openMenu(user: ReturnType<typeof userEvent.setup>) {
 beforeEach(() => {
   localStorage.clear();
   useMode.setState({ choice: DEFAULT_CHOICE });
-  hoisted.quota = { remaining: 2, limit: 3, reset_at: '2026-08-10T00:00:00Z' };
+  hoisted.quota = { remaining: 2, limit: 4, reset_at: '2026-09-01T00:00:00Z' };
   hoisted.calls = 0;
 });
 
@@ -90,21 +90,21 @@ describe('ModePicker (D-DR-3 — two options, docked at the ask bar)', () => {
     const user = userEvent.setup();
     mount(<ModePicker />);
     await openMenu(user);
-    await waitFor(() => expect(screen.getByTestId('dossier-quota-badge')).toHaveTextContent('2 of 3 this week'));
+    await waitFor(() => expect(screen.getByTestId('dossier-quota-badge')).toHaveTextContent('2 of 4 this month'));
     // The badge belongs to the dossier row only -- Standard has no allowance to spend.
     expect(screen.getByTestId('mode-option-quick').querySelector('[data-testid="dossier-quota-badge"]')).toBeNull();
   });
 
   it('at zero it is un-choosable and the hint carries the RESET DATE, in UTC', async () => {
-    hoisted.quota = { remaining: 0, limit: 3, reset_at: '2026-08-10T00:00:00Z' };
+    hoisted.quota = { remaining: 0, limit: 4, reset_at: '2026-09-01T00:00:00Z' };
     const user = userEvent.setup();
     mount(<ModePicker />);
     await openMenu(user);
     await waitFor(() =>
       expect(screen.getByTestId('mode-option-deep_research').getAttribute('aria-disabled')).toBe('true'),
     );
-    expect(screen.getByTestId('dossier-quota-badge')).toHaveTextContent('0 of 3 this week');
-    expect(screen.getByTestId('mode-hint-deep_research')).toHaveTextContent('2026-08-10');
+    expect(screen.getByTestId('dossier-quota-badge')).toHaveTextContent('0 of 4 this month');
+    expect(screen.getByTestId('mode-hint-deep_research')).toHaveTextContent('2026-09-01');
 
     // Clicking it changes NOTHING -- not the store, not the menu (the hint stays readable).
     await user.click(screen.getByTestId('mode-option-deep_research'));
@@ -179,7 +179,7 @@ describe('ModePicker (D-DR-3 — two options, docked at the ask bar)', () => {
   });
 
   it('an UNAVAILABLE row still takes keyboard focus — its hint is the only place the reset date is written', async () => {
-    hoisted.quota = { remaining: 0, limit: 3, reset_at: '2026-08-10T00:00:00Z' };
+    hoisted.quota = { remaining: 0, limit: 4, reset_at: '2026-09-01T00:00:00Z' };
     const user = userEvent.setup();
     mount(<ModePicker />);
     screen.getByTestId('mode-trigger').focus();

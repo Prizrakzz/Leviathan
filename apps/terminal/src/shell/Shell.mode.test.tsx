@@ -41,7 +41,7 @@ vi.mock('@/api/client', () => ({
   markNotificationSeen: () => Promise.resolve({ ok: true }),
 }));
 
-// The picker reads the weekly allowance. This suite is about the ASK path, so the dossier routes are dark.
+// The picker reads the monthly allowance. This suite is about the ASK path, so the dossier routes are dark.
 vi.mock('@/api/dossier', async (orig) => {
   const actual = await orig<typeof import('@/api/dossier')>();
   return { ...actual, getDossierQuota: () => Promise.resolve(null) };

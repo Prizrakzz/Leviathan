@@ -20,7 +20,7 @@ const hoisted = vi.hoisted(() => ({
   sent: [] as RespondParams[],
   posted: [] as { question: string; asof?: string }[],
   quotaCalls: 0,
-  quota: { remaining: 2, limit: 3, reset_at: '2026-08-10T00:00:00Z' } as DossierQuota | null,
+  quota: { remaining: 2, limit: 4, reset_at: '2026-09-01T00:00:00Z' } as DossierQuota | null,
   /** What POST /v1/dossier does. Replaced per-test to drive the 429 path. */
   createImpl: null as null | (() => Promise<{ dossier_id: string }>),
   /** The scripted stage stream. */
@@ -114,7 +114,7 @@ beforeEach(() => {
   hoisted.sent = [];
   hoisted.posted = [];
   hoisted.quotaCalls = 0;
-  hoisted.quota = { remaining: 2, limit: 3, reset_at: '2026-08-10T00:00:00Z' };
+  hoisted.quota = { remaining: 2, limit: 4, reset_at: '2026-09-01T00:00:00Z' };
   hoisted.createImpl = null;
   hoisted.events = [];
   hoisted.polled = null;
@@ -234,13 +234,13 @@ describe('Shell: a refused dossier is non-destructive (D-DR-2 quota)', () => {
     const user = userEvent.setup();
     const { DossierQuotaError } = await import('@/api/dossier');
     hoisted.createImpl = () =>
-      Promise.reject(new DossierQuotaError('no deep research runs left this week', '2026-08-10T00:00:00Z'));
+      Promise.reject(new DossierQuotaError('no deep research runs left this month', '2026-09-01T00:00:00Z'));
     mount();
     const box = await ask(user, 'how tight is the corn balance?');
 
     await waitFor(() => expect(screen.getByTestId('dossier-toast')).toBeTruthy());
-    expect(screen.getByTestId('dossier-toast')).toHaveTextContent('no deep research runs left this week');
-    expect(screen.getByTestId('dossier-toast-reset')).toHaveTextContent('2026-08-10');
+    expect(screen.getByTestId('dossier-toast')).toHaveTextContent('no deep research runs left this month');
+    expect(screen.getByTestId('dossier-toast-reset')).toHaveTextContent('2026-09-01');
     // Non-destructive: the words come back into the box the user typed them in.
     await waitFor(() => expect(box.value).toBe('how tight is the corn balance?'));
     expect(screen.queryByTestId('dossier-progress')).toBeNull();

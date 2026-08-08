@@ -149,7 +149,7 @@ describe('choice persistence (localStorage lv-mode)', () => {
   });
 
   it('a v1 blob (the three-mode era) lands on Standard — never on Deep Research', async () => {
-    // The quota is three dossiers a WEEK. Promoting a stored `deep` into Deep Research would spend one on
+    // The quota is four dossiers a MONTH. Promoting a stored `deep` into Deep Research would spend one on
     // a choice the returning user never made, so every legacy value resolves to the ordinary ask.
     for (const legacy of ['deep', 'standard', 'quick']) {
       localStorage.setItem('lv-mode', JSON.stringify({ state: { mode: legacy }, version: 1 }));
