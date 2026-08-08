@@ -886,9 +886,18 @@ def test_all_classb_families_are_held_until_retrofit(descriptors):
 def test_wave2_is_exactly_the_classb_set(descriptors):
     wave2 = {s for s, d in descriptors.items() if d["wave"] == 2}
     retrofit = {s for s, d in descriptors.items() if d.get("retrofit_required") and not d.get("retrofit_landed")}
+    # D-PQ publish-chain repair (2026-08-08): psd_monthly LANDED its A-W4 retrofit -- the
+    # scheduled silver leg fired into dry-run (`--publish-mode` defaulted, writing NOTHING on
+    # every day-8-13 window) while the citable flagship's canonical sat frozen at a single
+    # 2026-07-18 manual session. Landing it is the 4-part M2 package (retrofit_landed, wave,
+    # promote_mode+auth_mode, this literal); the stem leaves BOTH sets together or the
+    # equality below is what catches a half-landed retrofit.
+    # nass_crop_progress LANDED the same day (both silver legs armed with the value-typed
+    # --force-overwrite true; annual's latest_only dry-run had produced ZERO shadow objects
+    # ever). Same 4-part package, same rule.
     assert wave2 == retrofit == {
-        "cot", "food_cpi", "futures_prices", "unica", "psd_monthly",
-        "nass_crop_progress", "fgis", "modis_biweekly",
+        "cot", "food_cpi", "futures_prices", "unica",
+        "fgis", "modis_biweekly",
     }
 
 

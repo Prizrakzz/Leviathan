@@ -54,6 +54,8 @@
         {
           "command": [
             "jobs/batch/fnc_colombia_silver_task.py",
+            "--force-overwrite",
+            "true",
             "--publish-mode",
             "shadow"
           ],
@@ -71,6 +73,8 @@
       {
         "command": [
           "jobs/batch/fnc_colombia_silver_task.py",
+          "--force-overwrite",
+          "true",
           "--publish-mode",
           "canonical"
         ],

@@ -1,13 +1,13 @@
 {
   "schedule": "psd_monthly",
   "family": "usda_psd",
-  "wave": 2,
+  "wave": 3,
   "cron": "cron(0 18 8-13 * ? *)",
   "publish_class": "B->A(W4)",
   "retrofit_required": true,
-  "retrofit_landed": false,
-  "promote_mode": "stop_and_notify",
-  "auth_mode": "hmac",
+  "retrofit_landed": true,
+  "promote_mode": "autonomous",
+  "auth_mode": "kms",
   "skip_existing": true,
   "asof": "<aws.scheduler.scheduled-time>",
   "gate_tables": [
@@ -69,11 +69,12 @@
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "-m",
-            "jobs.batch.psd_silver_task"
+            "jobs.batch.psd_silver_task",
+            "--force-overwrite"
           ],
           "env": {},
           "publishes": true,
-          "publish_mode": "latest_only"
+          "publish_mode": "shadow_canonical"
         }
       ]
     }

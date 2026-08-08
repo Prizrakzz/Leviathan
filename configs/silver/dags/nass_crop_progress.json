@@ -1,13 +1,13 @@
 {
   "schedule": "nass_crop_progress",
   "family": "usda_nass",
-  "wave": 2,
+  "wave": 3,
   "cron": "cron(0 9 ? * TUE *)",
   "publish_class": "B->A(W4)",
   "retrofit_required": true,
-  "retrofit_landed": false,
-  "promote_mode": "stop_and_notify",
-  "auth_mode": "hmac",
+  "retrofit_landed": true,
+  "promote_mode": "autonomous",
+  "auth_mode": "kms",
   "skip_existing": false,
   "asof": "<aws.scheduler.scheduled-time>",
   "gate_tables": [
@@ -72,7 +72,9 @@
           "jobdef": "leviathan-dev-b3-flat-silver",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
-            "jobs/batch/nass_crop_progress_silver_task.py"
+            "jobs/batch/nass_crop_progress_silver_task.py",
+            "--force-overwrite",
+            "true"
           ],
           "env": {},
           "publishes": true,
@@ -85,14 +87,16 @@
           "jobdef": "leviathan-dev-b3-flat-silver",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
-            "jobs/batch/nass_annual_silver_task.py"
+            "jobs/batch/nass_annual_silver_task.py",
+            "--force-overwrite",
+            "true"
           ],
           "env": {},
           "publishes": true,
-          "publish_mode": "latest_only"
+          "publish_mode": "shadow_canonical"
         }
       ]
     }
   ],
-  "notes": "QuickStats full series in one run covers BOTH crop_progress and annual (no separate annual schedule); bronze --series all writes both series so the two silver producers fan out. Year-round weekly, self-healing. | 2026-07-23 (leviathan-e4-wt lane) A-W4 crop_progress retrofit -- two stacked defects fixed: (1) BRONZE SKIP: nass_task.py skips an existing bronze partition unless --force-overwrite, and bronze_nass_key is YEAR-granular, so the current-CY partition (created in May) was never refreshed by weekly runs. Added --force-overwrite to the bronze command (nass_task.py has no current-year-scoped flag; --limit-years takes a hardcoded int, not self-healing). The ~1 GB QuickStats file is parsed unconditionally regardless, so force adds only cheap idempotent re-PUTs of the already-parsed full-history shards (a few thousand small snappy parquets, ~cents/week of S3 PUT), and is the only way the year-granular current-CY partition self-heals weekly. (2) SILVER DRY-RUN: nass_crop_progress_silver publish_mode latest_only->shadow_canonical (renderer appends --publish-mode shadow; latest_only left the b2s at its dry-run default = held no-op, zero silver writes). Mirrors modis_biweekly / the futures_prices interim shadow-first shape. promote stays stop_and_notify (CLASS-B): shadow+gate soak only, canonical is the manual W4 KMS-signed upgrade; promote.tasks EMPTY. retrofit_landed stays FALSE (shadow soak, not landed; keeps the Wave-2 CLASS-B invariant). nass_annual_silver is a SEPARATE lane -- left latest_only (held DISABLED, unchanged). Gate covers both silver_nass_annual + silver_nass_crop_progress; both route Branch B (feature_probe/value_census read the CANONICAL s3_root, never _shadow/), so a shadow publish leaves the gate inputs untouched -- gate stays green on existing canonical."
+  "notes": "QuickStats full series in one run covers BOTH crop_progress and annual (no separate annual schedule); bronze --series all writes both series so the two silver producers fan out. Year-round weekly, self-healing. | 2026-07-23 (leviathan-e4-wt lane) A-W4 crop_progress retrofit -- two stacked defects fixed: (1) BRONZE SKIP: nass_task.py skips an existing bronze partition unless --force-overwrite, and bronze_nass_key is YEAR-granular, so the current-CY partition (created in May) was never refreshed by weekly runs. Added --force-overwrite to the bronze command (nass_task.py has no current-year-scoped flag; --limit-years takes a hardcoded int, not self-healing). The ~1 GB QuickStats file is parsed unconditionally regardless, so force adds only cheap idempotent re-PUTs of the already-parsed full-history shards (a few thousand small snappy parquets, ~cents/week of S3 PUT), and is the only way the year-granular current-CY partition self-heals weekly. (2) SILVER DRY-RUN: nass_crop_progress_silver publish_mode latest_only->shadow_canonical (renderer appends --publish-mode shadow; latest_only left the b2s at its dry-run default = held no-op, zero silver writes). Mirrors modis_biweekly / the futures_prices interim shadow-first shape. | 2026-08-08 (D-PQ publish-chain repair R3): RETROFIT LANDED -- promote_mode autonomous + auth_mode kms (the publisher jobdef carries no LEVIATHAN_APPROVAL_SECRET, so hmac would ApprovalError at fire), wave 2->3, both silver legs armed: crop_progress gains --force-overwrite true (VALUE-TYPED flag; 2026 partitions exist, without it the weekly fire skips them all and 'succeeds'), nass_annual latest_only->shadow_canonical + the same flag (its dry-run default had produced ZERO shadow objects ever -- the 68d staleness was honest). Canonical catch-up one-shots ran same day (corn-2026 9150->11194 bytes, data through Aug-2026) + pg mirror reload. Gate covers both silver_nass_annual + silver_nass_crop_progress; both route Branch B (feature_probe/value_census read the CANONICAL s3_root, never _shadow/). First armed fire Tuesday 2026-08-11 09:00Z: expect the FIRST canonical advance by schedule in this family's history; nass_annual's first shadow moves the rolling baseline a long way (runbook section 5)."
 }

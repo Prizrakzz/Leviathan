@@ -1,6 +1,6 @@
 {
   "asof": "<aws.scheduler.scheduled-time>",
-  "auth_mode": "hmac",
+  "auth_mode": "kms",
   "family": "usda_nass",
   "gate": {
     "command": [
@@ -56,6 +56,8 @@
         {
           "command": [
             "jobs/batch/nass_crop_progress_silver_task.py",
+            "--force-overwrite",
+            "true",
             "--publish-mode",
             "shadow"
           ],
@@ -66,7 +68,11 @@
         },
         {
           "command": [
-            "jobs/batch/nass_annual_silver_task.py"
+            "jobs/batch/nass_annual_silver_task.py",
+            "--force-overwrite",
+            "true",
+            "--publish-mode",
+            "shadow"
           ],
           "env": [],
           "integration": "batch",
@@ -77,7 +83,52 @@
     }
   },
   "promote": {
-    "mode": "stop_and_notify",
-    "tasks": []
+    "mode": "autonomous",
+    "tasks": [
+      {
+        "command": [
+          "jobs/batch/nass_crop_progress_silver_task.py",
+          "--force-overwrite",
+          "true",
+          "--publish-mode",
+          "canonical"
+        ],
+        "env": [
+          {
+            "Name": "LEVIATHAN_APPROVAL_MODE",
+            "Value": "kms"
+          },
+          {
+            "Name": "LEVIATHAN_KMS_KEY_ID",
+            "Value": "alias/leviathan-dev-publish-signer"
+          }
+        ],
+        "integration": "batch",
+        "jobdef": "leviathan-dev-silver-publisher-runner",
+        "queue": "leviathan-dev-queue-ondemand"
+      },
+      {
+        "command": [
+          "jobs/batch/nass_annual_silver_task.py",
+          "--force-overwrite",
+          "true",
+          "--publish-mode",
+          "canonical"
+        ],
+        "env": [
+          {
+            "Name": "LEVIATHAN_APPROVAL_MODE",
+            "Value": "kms"
+          },
+          {
+            "Name": "LEVIATHAN_KMS_KEY_ID",
+            "Value": "alias/leviathan-dev-publish-signer"
+          }
+        ],
+        "integration": "batch",
+        "jobdef": "leviathan-dev-silver-publisher-runner",
+        "queue": "leviathan-dev-queue-ondemand"
+      }
+    ]
   }
 }

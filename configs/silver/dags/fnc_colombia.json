@@ -70,7 +70,9 @@
           "jobdef": "leviathan-dev-b3-flat-silver",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
-            "jobs/batch/fnc_colombia_silver_task.py"
+            "jobs/batch/fnc_colombia_silver_task.py",
+            "--force-overwrite",
+            "true"
           ],
           "env": {},
           "publishes": true,
