@@ -17,7 +17,7 @@ from __future__ import annotations
 import datetime as _dt
 import os
 import re
-from typing import Optional
+from typing import NamedTuple, Optional
 
 from leviathan.graphrag import answer as an
 from leviathan.graphrag import citations as cit
@@ -184,14 +184,22 @@ class _StatedValues(list):
     CYCLE-6 REVIEW (2026-08-08), MAJOR 5. A SECOND annotation rides the same extraction: `.percent_level`,
     the subset of `.percent` the prose wrote as a LEVEL rather than as a CHANGE. `.percent` stays exactly
     what it was (the whole fence), and the narrow un-fence in `citations._call_magnitudes` reads only the
-    level subset -- see `_PCT_CHANGE_CUE_RX` for why a per-CALL un-fence was the wrong instrument."""
+    level subset -- see `_PCT_CHANGE_CUE_RX` for why a per-CALL un-fence was the wrong instrument.
 
-    __slots__ = ("percent", "percent_level")
+    CYCLE-7 (2026-08-08). A THIRD annotation, `.mint`, read by ONE consumer only
+    (`citations.prose_completion_citations`): the numerals a footer row may be MINTED from, each carrying
+    the four facts an identity claim needs and this list cannot express -- SIGN, written decimals, the unit
+    the prose put on it, and whether a citation handle already claims it. See `_mint_numerals`. The list
+    itself, `.percent` and `.percent_level` are byte-for-byte what they were, so the caution banner and the
+    numbers_only extras lane are untouched by construction."""
 
-    def __init__(self, values=(), percent=(), percent_level=()):
+    __slots__ = ("percent", "percent_level", "mint")
+
+    def __init__(self, values=(), percent=(), percent_level=(), mint=()):
         super().__init__(values)
         self.percent = tuple(percent)
         self.percent_level = tuple(percent_level)
+        self.mint = tuple(mint)
 
 
 # Numerals the prose denominates as a RATE rather than a level. Matched on the SCRUBBED text (so a date or
@@ -290,7 +298,160 @@ def _stated_values(answer: str) -> _StatedValues:
         pct.append(p)
         if _percent_is_level(scrub, m.start(1)):     # CYCLE-6 REVIEW MAJOR 5: change vs level, per NUMERAL
             pct_level.append(p)
-    return _StatedValues(vals, pct, pct_level)
+    return _StatedValues(vals, pct, pct_level, _mint_numerals(answer))
+
+
+# ══ CYCLE-7 (2026-08-08) THE MINT-ELIGIBLE NUMERALS -- what an IDENTITY claim needs and a magnitude list
+# ══ cannot carry ══════════════════════════════════════════════════════════════════════════════════════
+#
+# GATE-4 MEASURED THE COST OF ASKING THE LIST. Cycle-6's FIX A minted a footer row whenever a served value
+# matched a stated MAGNITUDE, and on the hybrid lane that shipped 11 both-pass wrong-attribution rows --
+# rows that are REAL served numbers, correctly rendered, attached to a prose numeral that is semantically
+# not about them. Every one of them is a fact this extraction had already thrown away before `citations`
+# could ask:
+#   * `drought_z = -0.19742` minted from "-0.195 sigma", which is the UREA z-score standing next to its own
+#     [N2] marker  -- THE NUMERAL WAS ALREADY CLAIMED, and a second row for a claimed numeral is
+#     over-minting by construction (7 of the 11, and the whole covenant `ab_pt_soy` 0.90-into-five spray);
+#   * `drought_z = 0.202378` from "-0.195", `= -1.00651` from "1.006", `era_diff = 0.031` from "-0.033"
+#     -- SIGN. `verify._NUM` cannot see a minus (verify.py:509), so the list is magnitudes and a footer row
+#     could name a number of the opposite direction. Magnitude-insensitivity is a BACKING policy for strip
+#     decisions; it was never an IDENTITY policy, and cycle-6's own review said so in those words;
+#   * `drought_z = 1.0044` from the "1" in "(1-4 quarter)" (a lag horizon), `pace_streak = 2` from the "(2)"
+#     of a list marker, `pace_streak = 5 months` from the "5" of the range "2-5 MMT", `el_nino_flag = 1`
+#     from the "1" of "2016 Q1" -- NON-DATA NUMERAL SHAPES. Deterministic shapes, every one;
+#   * `drought_z = -0.628213` (unit z) from "-0.63 degC" (an ONI temperature) -- THE UNIT THE PROSE WROTE.
+#
+# THE POLARITY IS DECIDED AND IT IS NOT SYMMETRIC: a missing bonus row costs a reader one line of context;
+# a wrong-attribution row is a lie with a citation on it. Everything below therefore fails to NO NUMERAL --
+# an omitted row, never an invented one.
+#
+# WHY A SECOND SCRUB RATHER THAN A WIDER ONE. `_stated_values`' scrub is CONSUMED BY THE CAUTION BANNER,
+# whose question ("is this figure backed by SOME row") is the opposite of this one, and whose false-caution
+# classes were fixed twice by hand. Widening it to drop range endpoints and list markers would silently
+# stop CHECKING them. So the mint pass runs its OWN pass over the same answer -- length-PRESERVING, so
+# every offset is the answer's own and the handle spans stay readable -- and the shipped list is unchanged.
+class _Numeral(NamedTuple):
+    """One prose numeral as an identity claim can use it. `value` is SIGNED (unlike the `_StatedValues`
+    list), `decimals` is what the reader actually WROTE, `unit` is the token the prose put after it (or the
+    currency symbol in front), and `claimed` says a citation handle already answers for it."""
+    value: float
+    decimals: int
+    unit: str
+    percent: bool
+    percent_level: bool
+    claimed: bool
+
+
+# The sign must be GLUED to the digit: a markdown bullet ("- 453.1 USD/mt") and an em-dash aside are not
+# minus signs, and reading them as one would flip a row's direction on the strength of a layout character.
+# U+2212 MINUS is the one non-ASCII form the corpus writes; the en/em dashes are deliberately NOT signs
+# here (in this corpus they are range separators -- see `_MINT_RANGE_HI`).
+_MINT_NUM_RX = re.compile(r"[-−+]?\d[\d,]*(?:\.\d+)?")
+# A sentence boundary, verify._verify_field's own rule: terminal punctuation followed by space or EOL.
+_MINT_BOUND_RX = re.compile(r"[.!?;](?=\s|$)|\n")
+# NON-DATA NUMERAL SHAPES. Each is a shape no writer produces to state a magnitude, and each was measured
+# minting a row in gate-4.
+_MINT_LIST_OPEN_RX = re.compile(r"\(\s*$")               # "(2) in extreme cases"  -> an enumeration marker
+_MINT_LIST_CLOSE_RX = re.compile(r"\A\s*\)")
+_MINT_RANGE_LO_RX = re.compile(r"\A\s*[-–—−]\s*\d")        # "2-5 MMT" seen from the 2
+_MINT_RANGE_HI_RX = re.compile(r"\d\s*[-–—−]\s*\Z")        # ...and seen from the 5
+_MINT_HORIZON_RX = re.compile(
+    r"\A\s*(?:[-–—−]\s*\d+(?:\.\d+)?\s*)?"
+    r"(?:quarter|month|week|day|year|hour|session|marketing year|crop year)s?\b", re.I)
+_MINT_QLABEL_RX = re.compile(r"(?:\A|[\s(\[])[QH]\Z")    # "2016 Q1" -> a quarter label, not a magnitude
+_MINT_ORDINAL_RX = re.compile(r"\A(?:st|nd|rd|th)\b", re.I)
+# The unit the prose wrote, read the way a reader reads it: the token immediately after the numeral, or a
+# currency symbol immediately before it. Bounded so a whole clause can never be mistaken for a unit.
+_MINT_UNIT_RX = re.compile(r"\A\s*\*{0,2}([A-Za-z°%$€£][A-Za-z°%/·. ]{0,14})")
+_MINT_CCY_RX = re.compile(r"[$€£]\s*\Z")
+# `_PCT_NUMERAL_RX`'s tail, matched against the text AFTER a numeral rather than against the numeral+tail
+# pair -- the same rate-vs-level question, asked per numeral instead of per whole-answer sweep.
+_MINT_PCT_TAIL_RX = re.compile(r"\A\s*(?:%|percent(?:age)?\b|pct\b|basis points?\b|bps\b)", re.I)
+# THE SCRUBS ARE `_stated_values`' OWN, compiled once and applied length-preservingly. Kept beside it (and
+# pinned equal to it) rather than shared through a helper, because the two passes must be free to diverge:
+# this one may add a refusal that the caution banner must NOT inherit.
+_MINT_MONTHS = (r"(?:January|February|March|April|May|June|July|August|September|October|November|"
+                r"December)")
+_MINT_SCRUBS = (
+    re.compile(r"\d{4}-M\d{2}|\d{4}-\d{2}(?:-\d{2})?|\d{4}M\d{2}|\d{4}/\d{2,4}"),
+    re.compile(rf"{_MINT_MONTHS}\s+\d{{1,2}}(?:st|nd|rd|th)?\b"
+               rf"|\b\d{{1,2}}(?:st|nd|rd|th)?\s+{_MINT_MONTHS}"),
+    re.compile(r"\b\d+(?:\.\d+)?-(?=[A-Za-z])"),
+    re.compile(r"\b\d+(?:\.\d+)?\s+(?:month|week|day|year|hour)s?\b"),
+    re.compile(r"(?m)^\s*\d{1,2}\.\s+"),
+)
+
+
+def _blank(text: str, rx) -> str:
+    """`rx` matches replaced by EQUAL-LENGTH spaces, so every offset in the result is an offset in the
+    original. The whole mint pass depends on this: a claim test that cannot locate a handle relative to a
+    numeral is not a claim test."""
+    return rx.sub(lambda m: " " * (m.end() - m.start()), text)
+
+
+def _mint_numerals(answer: str) -> tuple:
+    """Every numeral in `answer` that may NAME a served row, with the facts an identity claim needs.
+
+    Same scrubs as `_stated_values` (dates, marketing years, month-day forms, hyphen-glued unit
+    descriptors, duration arithmetic, ordered-list markers) and the same two value filters (a magnitude
+    floor and the bare-year skip) -- applied length-preservingly. What this adds is per numeral:
+
+    CLAIMED. A numeral is claimed when a citation handle already answers for it: the next handle inside the
+    same sentence with NO other surviving numeral between them ("-0.63 degC [N28]", "$1.82/bu [N20]"), or a
+    handle sitting immediately in front of it with only whitespace between ("[N1] 15.17 USD/mmbtu", the
+    shape the deck's writers actually produce). INTERVENING YEARS DO NOT BREAK THE LINK -- they are not
+    surviving numerals, which is why "-0.63 degC in mid-2021 [N10]" reads as claimed and dcw pass2's
+    `nass_conditions_split` over-mint is refused.
+
+    SHAPES. List markers, both ends of a numeric range, lag/horizon numerals, quarter labels and ordinal
+    fragments. Measured, every one.
+
+    UNIT. The token the prose wrote, for `citations._mint_matcher`'s category fence."""
+    hs = [(m.start(), m.end()) for m in _HANDLE_TOKEN_RX.finditer(answer or "")]
+    p = _blank(answer or "", _HANDLE_TOKEN_RX)
+    for rx in _MINT_SCRUBS:
+        p = _blank(p, rx)
+    bounds = [m.start() for m in _MINT_BOUND_RX.finditer(p)]
+    toks = []
+    for m in _MINT_NUM_RX.finditer(p):
+        raw = m.group(0).replace("−", "-")
+        try:
+            v = float(raw.replace(",", "").lstrip("+"))
+        except ValueError:
+            continue
+        if abs(v) < 0.001 or (1900 <= abs(v) <= 2100 and float(v).is_integer()):
+            continue                              # the magnitude floor and the year skip, `_stated_values`'
+        toks.append((m.start(), m.end(), raw, v))
+    out: list[_Numeral] = []
+    for k, (a, b, raw, v) in enumerate(toks):
+        nb = next((x for x in bounds if x >= b), len(p))          # this sentence's end
+        pb = max([x for x in bounds if x < a] or [-1])            # ...and its start
+        nn = toks[k + 1][0] if k + 1 < len(toks) else len(p)
+        pe = toks[k - 1][1] if k else -1
+        claimed = (any(b <= h0 < min(nb, nn) for h0, _ in hs)
+                   or any(max(pb, pe) < h1 <= a and not p[h1:a].strip() for _, h1 in hs))
+        pre, post = p[max(0, a - 24):a], p[b:b + 32]
+        signed = raw[:1] in "-+"
+        shaped = bool(
+            (_MINT_LIST_OPEN_RX.search(pre) and _MINT_LIST_CLOSE_RX.match(post))
+            or _MINT_RANGE_LO_RX.match(post)
+            or _MINT_RANGE_HI_RX.search(pre)
+            or (signed and re.search(r"\d\s*\Z", pre))            # "2-5 MMT" seen from the -5 half
+            or _MINT_HORIZON_RX.match(post)
+            or _MINT_QLABEL_RX.search(pre)
+            or _MINT_ORDINAL_RX.match(post))
+        if shaped:
+            continue                              # a shape, never a magnitude -- it names nothing
+        um = _MINT_UNIT_RX.match((answer or "")[b:b + 32])
+        unit = um.group(1).strip() if um else ""
+        if not unit and _MINT_CCY_RX.search((answer or "")[max(0, a - 4):a]):
+            unit = "USD"                          # "$1.82/bu" -- the unit sits in FRONT of this numeral
+        pct = bool(_MINT_PCT_TAIL_RX.match(post))
+        # `_percent_is_level` reads the text in FRONT of the DIGITS (its caller passes `m.start(1)`), so a
+        # signed numeral hands it the digit offset too -- the numeral's own sign is a cue, not context.
+        out.append(_Numeral(v, (len(raw.split(".")[1]) if "." in raw else 0), unit,
+                            pct, pct and _percent_is_level(p, a + (1 if signed else 0)), claimed))
+    return tuple(out)
 
 
 def _verify_numbers_answer(answer: str, calls: list) -> dict:

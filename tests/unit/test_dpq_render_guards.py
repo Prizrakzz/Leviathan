@@ -374,16 +374,18 @@ def test_an_out_of_range_handle_never_mints_a_row():
     """Fail-closed: `_resolve_number_handles` has already removed it, and the footer refuses it anyway.
 
     CYCLE-6 (2026-08-08) AMENDMENT, and it is the FIX-A rule working, not a regression of this one. The
-    HANDLE pin is unchanged and still the point: [N9] is out of range and mints nothing, ever. What is new
-    is that the prose STATES 4.4 and call #1 SERVED 4.4, so the value-completion pass owes the reader that
-    row on its own authority -- the whole defect FIX-A exists to close is a served value facing the reader
-    with nothing to check it against, and a dangling handle beside it does not make the value less served.
-    The row is minted against call 1 (its own index, letter-suffixed), never against the out-of-range 9."""
+    HANDLE pin is unchanged and still the point: [N9] is out of range and mints nothing, ever.
+    CYCLE-7 (2026-08-08) RE-AMENDMENT, one step further in the SAME direction: nothing is minted here at
+    all now. Cycle-6 gave call #1 the row because the value was served and stated; gate-4 measured what
+    minting off a call the reader has no marker for costs (11 both-pass wrong-attribution rows) and the
+    completion pass is now scoped to calls the prose actually cites. [N9] is out of range, so it cites
+    NOTHING -- and a value whose only marker is a dangling one is precisely the case where "which row is
+    this" has no answer the footer can stand behind. Both directions of the pin now read the same way."""
     import re as _re
     st = {"tldr": "", "mechanism": "The reading is 4.4 $/bu [N9].", "sources": []}
     block = an._cited_sources_block(st, {"resolved": {}}, [_call(4.4)])
     assert "[N9]" not in block and "[N1]" not in block        # the HANDLE pin, unmoved
-    assert _re.findall(r"^\[N\d+[a-z]\] ", block, _re.M) == ["[N1b] "]
+    assert _re.findall(r"^\[N\d+[a-z]\] ", block, _re.M) == []
 
     st2 = {"tldr": "", "mechanism": "The reading is elevated [N9].", "sources": []}
     assert an._cited_sources_block(st2, {"resolved": {}}, [_call(4.4)]) == ""   # no value stated -> nothing

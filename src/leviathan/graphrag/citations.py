@@ -604,7 +604,7 @@ def _call_magnitudes(call: dict, stated) -> list[float]:
 
 
 def _match_candidates(call: dict, mags: list[float], *, seen: set, skip: dict | None,
-                      limit: int = _MAX_EXTRA_ROWS) -> list[dict]:
+                      limit: int = _MAX_EXTRA_ROWS, rowhit=None) -> list[dict]:
     """The served rows of ONE call whose value the prose states, ranked NEWEST-first and capped at `limit`.
     `seen` is MUTATED (the caller decides how wide the de-dup horizon is -- one call for the numbers_only
     extras, the whole footer for the hybrid completion pass); `skip` is the row already on the page.
@@ -612,15 +612,21 @@ def _match_candidates(call: dict, mags: list[float], *, seen: set, skip: dict | 
     CORRECTION (A) lives here: candidates are ranked NEWEST-first and the cap is applied to THAT ranking.
     `_matcher` is what makes this affordable on a 5000-row truncated serve -- the naive form re-derived the
     percent fence and rescanned every stated magnitude PER ROW (measured: 13.7 s on a 30-call x 5000-row
-    x 60-magnitude worst case, i.e. a live turn's whole latency budget spent in the footer)."""
-    hit = _matcher(mags)
+    x 60-magnitude worst case, i.e. a live turn's whole latency budget spent in the footer).
+
+    CYCLE-7 (2026-08-08): `rowhit` lets a caller supply its OWN row predicate while keeping the ranking,
+    the cap and the de-dup horizon byte-identical. Only the hybrid completion pass passes one (it asks a
+    strictly narrower question than the numbers_only extras -- see `_mint_matcher`); `rowhit=None` is the
+    cycle-5 lane, unchanged to the byte."""
+    hit = _matcher(mags) if rowhit is None else None
     # FILTER BEFORE SORTING, and that ordering is a measured cost, not a style choice: `_row_order_key`
     # builds a 5-tuple per row, so sorting a 5000-row serve to then keep at most six of them spent 1.5 s
     # of the 1.6 s the pass took. The value test is a set lookup; the sort now runs over the survivors.
     # Semantics are untouched -- filter-then-rank-then-cap selects exactly what rank-then-filter-then-cap
     # selected, because the cap is applied to the same ranking either way.
     matched = [r for r in (call.get("rows") or [])
-               if r is not skip and (r or {}).get("value") not in (None, "") and hit(r.get("value"))]
+               if r is not skip and (r or {}).get("value") not in (None, "")
+               and (rowhit(r) if hit is None else hit(r.get("value")))]
     cands: list[dict] = []
     for r in sorted(matched, key=_row_order_key, reverse=True):
         if len(cands) >= limit:
@@ -732,15 +738,161 @@ def extra_number_citations(call: dict, i: int, stated: Optional[list[float]]) ->
 # assumption.
 _MAX_COMPLETION_ROWS = 12
 
+# ══ CYCLE-7 (2026-08-08) THE IDENTITY GATE ON THE COMPLETION MINT ═════════════════════════════════════
+#
+# GATE-4 CONFIRMED FIX A HEALED ITS THREE MOTIVATING FIXTURES AND MEASURED WHAT IT COST: 11 both-pass rows
+# in which a REAL served number, correctly rendered, was attached to a prose numeral that is semantically
+# not about it -- a UREA z-score naming a DROUGHT z row, a FARM PRICE naming a z-score, an ONI TEMPERATURE
+# naming a z-score, a LAG HORIZON and a LIST MARKER and a RANGE ENDPOINT each naming a measured row. Plus
+# the covenant's own instance of the class: one "0.90 z" sprayed into FIVE distinct drought rows.
+#
+# ONE MEASUREMENT DECIDED THE SHAPE OF THE FIX. Cycle-5's numbers_only extras -- the SAME predicate on the
+# SAME kind of data -- produced ZERO over-mints across all five runs, and the difference between the two
+# lanes is not the matcher, it is the SCOPE: the extras pass only ever runs on a call the answer is already
+# citing, so its rows are siblings of a row the reader can see. The hybrid pass ran on every call on the
+# turn. So the completion pass is RE-SCOPED TO THE SAME PLACE, and the match is asked as the identity
+# question it actually is:
+#
+#   (1) PER CALL, AND ONLY AN ESTABLISHED ONE. A row may be minted only from a call whose `[N{i}]` marker
+#       the reader still sees -- the call is in context, its headline row is on the page, and the minted
+#       row is a sibling of that row. An UNCITED call mints nothing at all.
+#   (2) SIGN-EXACT. Magnitude-insensitivity is a BACKING policy (`verify._num_matches`' own rationale: a
+#       prose verb carries the direction). It was never an identity policy, and gate-4 shipped four rows
+#       that read the opposite direction of the numeral that named them.
+#   (3) THE NUMERAL MUST BE UNCLAIMED. A numeral standing beside a handle that already answers for it has
+#       its row; a SECOND row for it is over-minting by construction (7 of the 11).
+#   (4) NON-DATA NUMERAL SHAPES MINT NOTHING (list markers, range endpoints, lag horizons, quarter labels,
+#       ordinals) -- decided in `orchestrator._mint_numerals`, deterministic shapes every one.
+#   (5) A d=0 INTEGER NEVER NAMES A NON-INTEGER ROW ("1" cannot be `1.0044 z`).
+#   (6) THE UNITS MUST NOT CONTRADICT. A numeral the prose wrote in degC does not name a row denominated
+#       in z; a numeral behind a currency symbol does not name a z-score. Both were shipped.
+#
+# THE RESIDUAL IS STATED, NOT HIDDEN. Rule (1) gives up the shape FIX A was born for -- a whole call the
+# answer never marks, whose values the prose states (gate-3 `dcw_gas_nitrogen_squeeze` pass2, and the
+# `dcw_macro_on_soy` and `dcw_farm_price_vintage` shapes with it). That is deliberate and it is the safe
+# polarity: a missing bonus row costs a reader one line of context, a wrong-attribution row is a lie with
+# a citation on it. The gas class is ALSO covered from the other side -- cycle-6's verify amendment keeps
+# the marker-bearing sentences alive, which is what actually healed the gas unlock at gate-4 (the P1 probe
+# holds on BOTH passes), and the completion pass was never what fixed it.
+_MINT_REL_TOL = _EXTRA_REL_TOL
+# RULE (5), AND WHY IT IS A CEILING RATHER THAN THE FLAT BAN THE GATE-4 WRITE-UP PROPOSED. "A d=0 integer
+# never names a non-integer row" refuses `1 -> 1.0044 z`, which is the measured defect -- and it ALSO
+# refuses `35,763 -> 35763.1`, which is the CONAB row cycle-6's reader-precision arm was built for and the
+# one shape on this lane that provably needed it. The two are not the same claim and the arithmetic says so
+# by a factor of ~1,500: 1 vs 1.0044 is 4.4e-3 relative, 35763 vs 35763.1 is 2.8e-6. A numeral written with
+# NO decimals has a half-unit window of +-0.5 whatever its magnitude, so on this arm the relative ceiling
+# is the ONLY thing bounding it, and 0.5% is far too loose there -- it is a window that says nothing about
+# a small number and everything about a large one. At 1e-4 the measured over-mints go (1 -> 1.0044,
+# 1 -> -1.00019, "about 26" -> 26.2459) and every measured 0-dp restatement of a real figure stays
+# (35,763 / 1,486,837 / 115,000,000). An EXACT integer row is unaffected: its gap is zero.
+_MINT_D0_REL_TOL = 1e-4
+# The unit CATEGORIES an identity claim may not cross. Read off the LEADING token of each side, so a
+# sloppy tail ("degC in mid-2021") classifies on 'degC' and a unit this table does not know classifies as
+# nothing at all -- and an unknown on EITHER side never refuses. Fail-open by construction: this fence can
+# only ever remove a row cycle-6 would have minted, never add one.
+_UNIT_CLASSES = (
+    ("pct", re.compile(r"\A(?:%|pct|percent|percentage|bps|basis points?)\b", re.I)),
+    ("temp", re.compile(r"\A(?:°\s*[CF]|deg\s*[CF]|degrees?)\b", re.I)),
+    ("z", re.compile(r"\A(?:z|sigma|std|stdev)\b", re.I)),
+    ("price", re.compile(r"\A(?:usd|eur|cny|brl|myr|cents?|c/|\$|€|£)\b", re.I)),
+    ("mass", re.compile(r"\A(?:mt|kt|mmt|t|tonnes?|tons?|kg|lb|lbs|bu|bushels?|bags?)\b", re.I)),
+    ("area", re.compile(r"\A(?:ha|hectares?|acres?)\b", re.I)),
+)
+
+
+def _unit_class(u) -> str | None:
+    """The coarse category of a unit string, or None when this table does not name it."""
+    s = str(u or "").strip().lstrip("/ ")
+    for name, rx in _UNIT_CLASSES:
+        if rx.match(s):
+            return name
+    return None
+
+
+def _mint_candidates(call: dict, stated, unit: str) -> list:
+    """The numerals THIS call's rows may be minted from: `stated.mint`, less the CLAIMED ones (rule (3):
+    a numeral a handle already answers for has its row) and less the percent-marked ones, plus the percent
+    LEVELS back when the call is itself percent-denominated -- exactly `_call_magnitudes`' fence
+    (correction (B) + cycle-6 review MAJOR 5), asked per numeral instead of per magnitude.
+
+    A `stated` that carries no `.mint` annotation (a plain list, every direct/legacy caller, every fixture
+    that hand-builds one) yields NOTHING here: cycle-7's gate needs sign, precision, unit and claimed-ness,
+    and a bare magnitude can supply none of them. The refusal direction is the safe one."""
+    lvl = _percent_typed(call, unit)
+    return [n for n in (getattr(stated, "mint", ()) or ())
+            if not n.claimed and (not n.percent or (lvl and n.percent_level))]
+
+
+def _mint_bucket(x: float) -> tuple[bool, float]:
+    """CYCLE-7-AMEND (2026-08-08) -- the exact bucket's key, SIGN-CARRYING.
+
+    `round(x, _EXTRA_DP)` alone is NOT sign-exact in the near-zero band: every |x| < 0.005 collapses to
+    +-0.0, and `round(-0.0, 2) == round(0.0, 2)` is True, so a bucket hit short-circuited before any sign
+    test could run and a prose "-0.0012 z" minted a "0.0041 z" row. The covenant serves exactly this band
+    (`ab_mech_frost` drought_z = -0.00851709 z), so rule (2) was false on precisely the rows that need it.
+
+    IDENTICAL OUTSIDE THE BAND: for any pair that does not round to zero, `round(x, 2) == round(y, 2)` iff
+    the signs agree AND the magnitudes bucket together, so keying on (is_negative, magnitude) changes
+    nothing a 2-dp key already decided. ZERO STAYS SIGN-NEUTRAL -- `-0.0 < 0` is False in Python, so a true
+    zero and a negative zero share one key, which is the right reading (a zero has no direction) and is
+    what `_hit`'s own `if not v` refusal already assumes.
+
+    The magnitude collision WITHIN one sign in that band is not addressed here and is not new: 0.0012 and
+    0.0041 still share a bucket, exactly as 2-dp equality has always meant they do."""
+    return (x < 0, round(abs(x), _EXTRA_DP))
+
+
+def _mint_matcher(nums: list, unit: str):
+    """`row -> bool` for the completion lane: the row's value IS the thing one of `nums` names.
+
+    Same two arms as `_matcher` (2-dp bucket, then the reader-precision window under a relative ceiling)
+    read on SIGNED values, plus the integer and unit fences. Indexed the same way and for the same measured
+    reason -- the pass walks every served row of every established call and the estate serves 5000-row
+    windows, so a per-row rescan of every numeral is a latency budget, not a predicate."""
+    import bisect
+    exact: dict[tuple[bool, float], list] = {}
+    for n in nums:
+        exact.setdefault(_mint_bucket(n.value), []).append(n)
+    ms = sorted(nums, key=lambda n: n.value)
+    keys = [n.value for n in ms]
+    span = max((0.5 * 10.0 ** (-n.decimals) for n in ms), default=0.0)
+    rcls = _unit_class(unit)
+
+    def _hit(r) -> bool:
+        try:
+            v = float(str((r or {}).get("value")).replace(",", ""))
+        except (TypeError, ValueError):
+            return False
+        if not v:
+            return False                          # a 0.0 row: `_stated_values` floors magnitudes at 0.001,
+                                                  # so nothing can name it, and `_zero_aggregate` already
+                                                  # refuses the class whose point is to assert no figure
+        rc = _unit_class((r or {}).get("unit")) or rcls
+        cands = list(exact.get(_mint_bucket(v), ()))     # CYCLE-7-AMEND: sign-carrying key, see `_mint_bucket`
+        cands += ms[bisect.bisect_left(keys, v - span):bisect.bisect_right(keys, v + span)]
+        for n in cands:
+            gap = abs(v - n.value)                # SIGNED, so a direction flip never reaches the window
+            rel = _MINT_D0_REL_TOL if n.decimals == 0 else _MINT_REL_TOL      # rule (5)
+            if _mint_bucket(v) != _mint_bucket(n.value) and not (
+                    gap <= 0.5 * 10.0 ** (-n.decimals) and gap <= rel * abs(v)):
+                continue
+            if gap and n.decimals == 0 and gap > _MINT_D0_REL_TOL * abs(v):
+                continue                          # ...also above the 2-dp bucket: "1" is not `1.0044 z`
+            pc = _unit_class(n.unit)
+            if pc and rc and pc != rc:
+                continue                          # rule (6): a degC numeral does not name a z row
+            return True
+        return False
+    return _hit
+
 
 def prose_completion_citations(number_calls: list | None, stated, *, seen: set,
                                cited: set) -> list[Citation]:
-    """Every row the FINAL prose earns across ALL calls that the footer does not already carry.
+    """Every row the FINAL prose earns on an ESTABLISHED call that the footer does not already carry.
 
     `seen` is the whole footer's (value, period) horizon and is MUTATED. `cited` = the 1-based indices whose
-    `[N{i}]` headline the reader still sees: their headline row is already on the page (seeded into `seen`
-    and skipped as a candidate), while an UNCITED call is wholly unfooted and every row of it is a
-    candidate, headline included -- which is the (i) shape, a served value stated with no marker at all.
+    `[N{i}]` headline the reader still sees; CYCLE-7 makes that set the ENTRY FENCE (rule (1) above), so
+    every minted row is a sibling of a row already on the page and an uncited call mints nothing.
 
     Never raises on one bad call: a malformed record is skipped, not fatal (a footer must never be the
     thing that breaks an answer)."""
@@ -750,18 +902,21 @@ def prose_completion_citations(number_calls: list | None, stated, *, seen: set,
     picked: list[tuple[int, dict]] = []
     for i, call in enumerate(calls, 1):
         try:
+            if i not in cited:
+                continue                          # CYCLE-7 rule (1): the call must be established in context
             if not isinstance(call, dict) or not (call.get("rows") or []):
                 continue
             if call.get("status") not in (None, "ok") or _zero_aggregate(call):
                 continue                          # the classes whose whole point is to assert NO figure
-            mags = _call_magnitudes(call, stated)
-            if not mags:
+            q = call.get("query") or {}
+            unit = _metric_unit(q.get("table", ""), q.get("metric", ""), q.get("commodity"))
+            nums = _mint_candidates(call, stated, unit)
+            if not nums:
                 continue
             rH = headline_row(call)
-            if i in cited:
-                seen.add(row_key(call, rH))       # the line already on the page is not a missing one
+            seen.add(row_key(call, rH))           # the line already on the page is not a missing one
             picked += [(i, r) for r in _match_candidates(
-                call, mags, seen=seen, skip=(rH if i in cited else None))]
+                call, [], seen=seen, skip=rH, rowhit=_mint_matcher(nums, unit))]
         except Exception:  # noqa: BLE001
             continue
     # GLOBAL newest-first ranking, then the whole-footer cap, then render grouped by call in index order

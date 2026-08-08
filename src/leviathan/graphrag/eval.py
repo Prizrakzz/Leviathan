@@ -1246,10 +1246,21 @@ def _alias_col(rr: dict, alias: str, raw: str):
 def _served_rows(out: dict) -> list[dict]:
     """Per numbers-call, the bounded (period, estimate_role, value, unit, knowledge_date) projection of the
     rows the lookup actually returned. Never raises: an audit column must never be the thing that fails a
-    run's serialization."""
+    run's serialization.
+
+    CYCLE-7 (2026-08-08) INSTRUMENT-1 -- EVERY CALL THAT CAN PRODUCE A FOOTER ROW, not just the agent's.
+    `number_calls` is the orchestrator's list and stops at the numbers agent's own lookups; the hybrid
+    lane's cascade seam appends its injected legs (delta / pace / price / era / weather-z / drought-z and
+    the synthetic rows) to a COPY that only `answer` ever held, and those legs mint most of the [N] indices
+    a hybrid footer carries. Measured on gate-4: dcw pass1 `nass_conditions_split` shipped 23 footer rows
+    against ZERO served row values, pass2 `urea_zscore` 18 against 2 -- i.e. the artifact could not answer
+    for the rows the adjudicator was reading. `answer` now returns that list as `number_calls_full`
+    (INSTRUMENT-1); this reads it when present and falls back to exactly the old source when absent, so the
+    numbers_only lane and every fixture record project byte-identically. No existing field changes meaning
+    and the same two caps bound the result."""
     recs = []
     budget = _ROWS_PER_RECORD_CAP
-    for c in (out.get("number_calls") or []):
+    for c in (out.get("number_calls_full") or out.get("number_calls") or []):
         try:
             if not isinstance(c, dict):
                 continue

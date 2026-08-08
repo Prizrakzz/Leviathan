@@ -16,6 +16,14 @@ The three fixes:
 
 The POLARITY pins (byte-identical output when the defect is absent) carry as much weight as the positive
 ones: gate-4 must stay comparable to gate-3 on every metric that already existed.
+
+CYCLE-7 (2026-08-08) AMENDS SIX FIX-A PINS IN THIS FILE, and every amendment is in ONE direction: fewer
+rows minted. Gate-4 measured 11 both-pass wrong-attribution rows off FIX A's magnitude-only match, and the
+completion pass is now identity-gated and scoped to calls the prose actually cites
+(`citations.prose_completion_citations`, pinned in `test_cycle7_identity_gate.py`). FIX B -- the sanctioned
+verify amendment -- is FROZEN as shipped and nothing in this file's FIX-B section moved. The three FIX-A
+shapes that lose their rows (gas pass2, macro pass1, the coffee covenant serve as the covenant actually
+cited it) are pinned here as REFUSALS, with the cost stated in each docstring rather than deleted.
 """
 from __future__ import annotations
 
@@ -164,33 +172,43 @@ def _rows(block: str) -> list[str]:
     return [ln for ln in block.split("\n") if ln.startswith("[N")]
 
 
-def test_gas_pass2_shape_a_stated_but_unmarked_served_value_gets_its_row():
-    """(i) THE MODEL STATES IT WITH NO MARKER. gate-3 dcw pass2: 'European natural gas as of June 2026
-    stood at 15.17 USD/mmbtu, with a 5-year z-score of -0.30632 sigma' -- no [N], no footer row, while the
-    record served both figures."""
+def test_gas_pass2_shape_is_GIVEN_UP_by_the_cycle7_per_call_scope():
+    """CYCLE-7 AMENDMENT, AND THE HONEST RESIDUAL. (i) THE MODEL STATES IT WITH NO MARKER -- gate-3 dcw
+    pass2: 'European natural gas as of June 2026 stood at 15.17 USD/mmbtu, with a 5-year z-score of
+    -0.30632 sigma', no [N] anywhere on either call. Cycle-6 minted [N1b]/[N2b] here; gate-4 measured what
+    minting off an UNESTABLISHED call costs (11 both-pass wrong-attribution rows) and cycle-7 rule (1)
+    gives this shape up: a call the reader sees no marker for mints nothing.
+
+    THE CLASS IS COVERED FROM THE OTHER SIDE and that is why the trade is affordable -- what actually
+    healed the gas unlock at gate-4 was cycle-6's verify amendment keeping the marker-bearing sentences
+    alive (pinned directly by `test_the_gate3_gas_answer_stops_stripping_entirely`), not this pass."""
     st = {"tldr": "Urea is close to its recent average [N3].", "sources": [],
           "mechanism": ("European natural gas as of June 2026 stood at 15.17 USD/mmbtu, with a 5-year "
                         "z-score of -0.30632 sigma.")}
     rows = _rows(an._cited_sources_block(st, _VR, _gas_calls()))
-    assert rows[0].startswith("[N3] PINK SHEET urea_usd_mt")
-    assert any(r.startswith("[N1b] PINK SHEET natural_gas_eu_usd_mmbtu ") and "15.17" in r
-               and "[known 2026-06-01]" in r for r in rows), rows
-    assert any(r.startswith("[N2b] PINK SHEET natural_gas_eu_usd_mmbtu_zscore_5yr") and "-0.30632" in r
-               for r in rows), rows
+    assert rows == [r for r in rows if r.startswith("[N3] PINK SHEET urea_usd_mt")], rows
+    assert not any(r.startswith("[N1b]") or r.startswith("[N2b]") for r in rows), rows
 
 
 def test_the_same_print_served_twice_is_footed_once():
     """The de-dup horizon is the WHOLE footer, not one call: the deck routinely serves a `latest` read
-    beside the 30-row window it came from, and 15.17 appears in both. One fact, one row."""
-    st = {"tldr": "", "sources": [], "mechanism": "EU gas last printed 15.17 USD/mmbtu."}
+    beside the 30-row window it came from, and 15.17 appears in both. One fact, one row.
+    CYCLE-7: both calls now carry a marker (rule (1)), which is also the shape the deck actually ships."""
+    st = {"tldr": "", "sources": [],
+          "mechanism": ("EU gas last printed 15.17 USD/mmbtu [N1]. The five-year window [N5] ran as high "
+                        "as 17.91.")}
     rows = _rows(an._cited_sources_block(st, _VR, _gas_calls()))
-    assert len([r for r in rows if "15.17" in r]) == 1, rows
-    assert rows[0].startswith("[N1b]")                    # the `latest` call, not the window, wins
+    mints = [r for r in rows if re.match(r"\[N\d+[a-z]\]", r)]
+    # 15.17 is [N1]'s headline AND [N5]'s; the shared horizon means the COMPLETION pass re-mints neither
+    assert not any("15.17" in r for r in mints), rows
+    assert mints == [r for r in mints if r.startswith("[N5b]") and "17.91" in r], rows
 
 
-def test_macro_pass1_shape_cot_and_price_rows_appear():
+def test_macro_pass1_shape_is_GIVEN_UP_the_same_way():
     """gate-3 dcw pass1 `dcw_macro_on_soy`: mm_net 160,479 / mm_pct_oi 15.7% / soybean_oil 1,765 /
-    soybean_meal 425 were all SERVED and all faced the reader uncited."""
+    soybean_meal 425 were all SERVED and all faced the reader uncited. CYCLE-7 rule (1) refuses the whole
+    shape for the same reason as the gas one -- and gate-4's own `dcw_macro_on_soy` completion row
+    (`cny_usd_pct_change_90d = -0.763022` off call 11, which the prose never marks) goes with it."""
     def _c(table, metric, value, kd):
         return {"query": {"table": table, "metric": metric, "asof": "2026-08-07"}, "status": "ok",
                 "rows": [{"value": value, "knowledge_date": kd}]}
@@ -201,9 +219,7 @@ def test_macro_pass1_shape_cot_and_price_rows_appear():
     st = {"tldr": "", "sources": [],
           "mechanism": ("Managed money is net long 160,479 contracts, 15.7% of open interest. Soyoil sits "
                         "at 1,765 USD/t and soymeal at 425 USD/t.")}
-    rows = _rows(an._cited_sources_block(st, _VR, calls))
-    assert [r.split()[0] for r in rows] == ["[N1b]", "[N2b]", "[N3b]", "[N4b]"], rows
-    assert "160,479" in rows[0] and "15.7316" in rows[1] and "1,765" in rows[2] and "425" in rows[3]
+    assert an._cited_sources_block(st, _VR, calls) == ""
 
 
 def test_a_percent_numeral_still_cannot_mint_a_PRICE_row():
@@ -228,16 +244,28 @@ def test_coffee_covenant_shape_needs_the_reader_precision_arm():
              _conab("area_in_production_ha", [("1508744.0", "2025"), ("1486837.0", "2026")]),
              _conab("yield_bags_per_ha", [("26.24593701781084", "2025"),
                                           ("24.05314099662572", "2026")])]
+    # CYCLE-7, AND THE COST STATED PLAINLY. The covenant answer this fixture is copied from cites [N4]..
+    # [N13] and NEVER [N1]/[N2]/[N3] -- so under rule (1) the real shape mints NOTHING, and the three rows
+    # gate-4 shipped for it are given up with the gas and macro shapes. That refusal is pinned first; the
+    # reader-precision arm is then pinned on the SAME serve with the calls established, which is the shape
+    # that keeps the arm reachable (and is what `dcw_us_ethanol_margin`-style turns actually look like).
+    _bare = {"tldr": "", "sources": [],
+             "mechanism": ("Brazil arabica production is 35,763 thousand bags on 1,486,837 ha, a yield of "
+                           "24.0531 bags/ha.")}
+    assert an._cited_sources_block(_bare, _VR, calls) == ""
+    _cite = "The CONAB survey reports production [N1], area [N2] and yield [N3]. "
     st = {"tldr": "", "sources": [],
-          "mechanism": ("Brazil arabica production is 35,763 thousand bags on 1,486,837 ha, a yield of "
-                        "24.0531 bags/ha.")}
-    rows = _rows(an._cited_sources_block(st, _VR, calls))
+          "mechanism": (_cite + "The prior crop ran 38,905 thousand bags on 1,508,744 ha, a yield of "
+                        "26.2459 bags/ha.")}
+    rows = [r for r in _rows(an._cited_sources_block(st, _VR, calls)) if re.match(r"\[N\d+[a-z]\]", r)]
     assert len(rows) == 3, rows
-    assert all("MY2026" in r and "[known 2026-06-01]" in r for r in rows), rows
-    assert "35,763" in rows[0] and "1,486,837" in rows[1] and "24.0531" in rows[2]
-    # ...and the binning refusal on the same fixture: a 1-significant-digit numeral names nothing
-    st2 = {"tldr": "", "sources": [], "mechanism": "Yield was about 26 bags/ha."}
-    assert an._cited_sources_block(st2, _VR, calls) == ""
+    # "38,905" for 38904.9 is a 0-dp round the 2-dp bucket alone cannot see -- the arm is what mints it,
+    # and CYCLE-7's 0-dp relative ceiling admits it at 2.6e-6 while refusing "about 26" at 9.4e-3.
+    assert "MY2024 = 38,905" in rows[0] and "1,508,744" in rows[1] and "26.2459" in rows[2], rows
+    # ...and the binning refusal on the same fixture: a 2-significant-digit numeral names nothing
+    st2 = {"tldr": "", "sources": [], "mechanism": _cite + "Yield was about 26 bags/ha."}
+    assert not [r for r in _rows(an._cited_sources_block(st2, _VR, calls))
+                if re.match(r"\[N\d+[a-z]\]", r)]
 
 
 def test_only_the_final_prose_counts():
@@ -270,12 +298,17 @@ def test_the_whole_footer_is_capped_and_the_cap_takes_the_newest():
     calls, prose = [], []
     for k in range(20):
         v = f"{100 + k}.50"
+        # CYCLE-7: two rows per call -- the headline (already on the page under its own marker) and the
+        # older sibling the prose restates. Rule (1) needs the call cited; the CAP is what this pins.
         calls.append({"query": {"table": "silver_pink_sheet", "metric": f"m{k}", "asof": "2026-08-07"},
                       "status": "ok",
-                      "rows": [{"value": v, "knowledge_date": f"2026-06-{k + 1:02d}"}]})
+                      "rows": [{"value": v, "knowledge_date": f"2026-06-{k + 1:02d}"},
+                               {"value": f"{200 + k}.50", "knowledge_date": f"2026-07-{k + 1:02d}"}]})
         prose.append(v)
-    st = {"tldr": "", "sources": [], "mechanism": "Prints: " + ", ".join(prose) + "."}
-    rows = _rows(an._cited_sources_block(st, _VR, calls))
+    st = {"tldr": "", "sources": [],
+          "mechanism": ("Reads " + " ".join(f"[N{k}]" for k in range(1, 21)) + ".\n"
+                        "Prints: " + ", ".join(prose) + ".")}
+    rows = [r for r in _rows(an._cited_sources_block(st, _VR, calls)) if re.match(r"\[N\d+[a-z]\]", r)]
     assert len(rows) == cit._MAX_COMPLETION_ROWS == 12
     # the survivors are the twelve NEWEST knowledge dates on the page (calls 9..20), and the ids are still
     # ascending by call index
@@ -500,18 +533,22 @@ def test_a_percent_CHANGE_never_names_a_percent_LEVEL_row():
     """MAJOR 5. The un-fence was per CALL, so one percent-denominated call made EVERY percent numeral in
     the answer a candidate name for its rows -- and 'down 2.1% on the week' minted `mm_pct_oi = 2.1` off a
     week-on-week CHANGE. Percent-change-vs-percent-level is the densest category error in this domain."""
-    cot = _num([15.7316, 2.1], "silver_cot", "mm_pct_oi", "corn", "2026-06-01", "pct of OI (signed)")
-    sv = orc._stated_values("Managed money holds 15.7% of open interest, down 2.1% on the week.")
+    # CYCLE-7: three rows (so the headline is neither of the two under test) and the call is marked in the
+    # prose, which rule (1) now requires; the percent question itself is unchanged.
+    cot = _num([99.0, 15.7316, 2.1], "silver_cot", "mm_pct_oi", "corn", "2026-06-01",
+               "pct of OI (signed)")
+    sv = orc._stated_values("Per the COT [N1], managed money holds 15.7% of open interest, "
+                            "down 2.1% on the week.")
     assert sv.percent == (15.7, 2.1) and sv.percent_level == (15.7,)
-    labels = [c.label for c in cit.prose_completion_citations([cot], sv, seen=set(), cited=set())]
+    labels = [c.label for c in cit.prose_completion_citations([cot], sv, seen=set(), cited={1})]
     assert any("= 15.7316 " in x for x in labels)          # the LEVEL still mints
     assert not any("= 2.1 " in x for x in labels)          # the CHANGE never does
     # the same two clauses in the reviewer's own spelling, each standing alone
     mint = lambda p: [c.label for c in cit.prose_completion_citations(                # noqa: E731
-        [cot], orc._stated_values(p), seen=set(), cited=set())]
-    assert mint("Managed money holds 15.7 percent of open interest.") == \
+        [cot], orc._stated_values(p), seen=set(), cited={1})]
+    assert mint("Per the COT [N1], managed money holds 15.7 percent of open interest.") == \
         ["COT mm_pct_oi corn MY2026-06-01 = 15.7316 pct of OI (signed)"]
-    assert mint("Positioning fell, down 2.1 percent on the week.") == []
+    assert mint("Per the COT [N1], positioning fell, down 2.1 percent on the week.") == []
 
 
 def test_the_change_cue_reads_only_the_numerals_own_context():

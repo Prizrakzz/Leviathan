@@ -285,6 +285,32 @@ def _save_turn(ident: dict, session_id: Optional[str], result: dict, *, question
         pass
 
 
+# CYCLE-7-AMEND (2026-08-08): respond() keys that are IN-PROCESS INSTRUMENTS, never wire fields.
+_INTERNAL_RESULT_KEYS = ("number_calls_full",)
+
+
+def _public_result(result: dict) -> dict:
+    """Strip respond()'s in-process-only keys before anything leaves this service.
+
+    CYCLE-7 INSTRUMENT-1 put `number_calls_full` -- the FULL cascade-seam call list, i.e. every served row
+    of every injected leg -- at respond()'s TOP LEVEL so `eval._served_rows` could audit a hybrid footer.
+    The eval harness calls `orchestrator.respond` DIRECTLY and still receives it. The SERVICE must not, and
+    this is the boundary: unstripped, /v1/respond returned it raw, the SSE `result` event serialized it,
+    and the frontend posts the whole payload back to /v1/share (a PUBLIC read) and /v1/artifacts (a durable
+    freeze) -- so an unbounded internal row projection would ride onto a share link.
+
+    THE OTHER TWO SEAMS, STATED. Thread history was never exposed: `store._TURN_ALLOWED` is an ALLOWLIST and
+    has never carried the key. `store.make_share` has NO strip list of its own -- it freezes exactly the
+    payload it is handed -- which is precisely why the strip belongs HERE, before the client is ever given
+    the field it would post back.
+
+    Mutates and returns the SAME dict: respond() mints a fresh result per turn and the caller owns it."""
+    if isinstance(result, dict):
+        for k in _INTERNAL_RESULT_KEYS:
+            result.pop(k, None)
+    return result
+
+
 # ── existing serving surface ────────────────────────────────────────────────────────────────────────
 class Ask(BaseModel):
     question: str
@@ -340,9 +366,10 @@ def respond_route(body: Ask, ident: dict = Depends(_require_identity_quota)) -> 
     # Auth + per-user daily quota gated (Stage 4/5): a turn is Bedrock spend, so only signed-in users within
     # their daily cap may run it. When GRAPHRAG_AUTH is off (dev/eval) this is a no-op.
     from leviathan.graphrag import orchestrator as orch
-    result = orch.respond(body.question, graph=_graph(), asof=body.asof, session_id=body.session_id,
-                          context=body.context, profile_facts=_turn_profile_facts(ident),
-                          mode=body.mode)                       # D-AM-9 (None = absent = standard)
+    result = _public_result(                                    # CYCLE-7-AMEND: in-process keys stop here
+        orch.respond(body.question, graph=_graph(), asof=body.asof, session_id=body.session_id,
+                     context=body.context, profile_facts=_turn_profile_facts(ident),
+                     mode=body.mode))                           # D-AM-9 (None = absent = standard)
     _save_turn(ident, body.session_id, result, question=body.question)   # durable history (PIT-safe, fail-open)
     return result
 
@@ -376,9 +403,10 @@ def respond_stream(question: str, session_id: Optional[str] = None, asof: Option
 
         def work() -> None:
             try:
-                result = orch.respond(question, graph=_graph(), asof=asof, session_id=session_id,
-                                      on_stage=on_stage, context=_decode_context(context),
-                                      profile_facts=_pf, mode=mode)     # D-AM-9
+                result = _public_result(                  # CYCLE-7-AMEND: strip BEFORE the terminal event
+                    orch.respond(question, graph=_graph(), asof=asof, session_id=session_id,
+                                 on_stage=on_stage, context=_decode_context(context),
+                                 profile_facts=_pf, mode=mode))         # D-AM-9
                 out.put(("result", result))               # deliver the note FIRST — the user isn't waiting on persistence
                 _save_turn(ident, session_id, result, question=question)  # then durable history (fail-open, off the perceived path)
             except Exception as e:  # noqa: BLE001 — the floor makes this near-impossible; belt + braces

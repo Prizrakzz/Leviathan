@@ -2152,9 +2152,22 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     _raw_draft = _fold_draft(_raw_draft, sanitize_input_snapshot(body_pre_sanitize=_pre_sanitize))
     if degraded:
         body = _DEGRADED_BANNER.format(m=degraded) + body
+    # ══ CYCLE-7 (2026-08-08) INSTRUMENT-1: THE CALL LIST THE FOOTER WAS ACTUALLY BUILT FROM ═══════════
+    # `eval._served_rows` projects `out["number_calls"]`, which the orchestrator sets to the AGENT's own
+    # lookups (orchestrator.py:519). On the hybrid lane that is not the list this answer's footer was built
+    # from: `extra_number_calls` is REBOUND to a copy at the cascade seam (answer.py:1915) and `cq.quantify`
+    # appends every injected leg -- delta, pace, price, era, weather-z, drought-z, synthetic rows -- to the
+    # COPY. The projection therefore stopped at the agent's calls and a hybrid record showed footer rows it
+    # carried no served values for: gate-4 dcw pass1 `nass_conditions_split` = 23 footer rows / 0 served row
+    # values, pass2 `urea_zscore` = 18 / 2. Every [N] index above the agent's count was unauditable from the
+    # artifact, which on a wrong-attribution cycle is the one thing the artifact has to answer.
+    # ADDITIVE, AND ONLY ADDITIVE: a NEW key beside the existing ones. Nothing that reads `number_calls`
+    # changes meaning, the numbers_only lane never sets this (no cascade seam) and falls back to exactly
+    # what it projected before, and `_served_rows`' own caps are what bound the extra rows.
     return {"answer": body, "structured": structured, "contract": contracts[0] if contracts else None,
             "contracts": contracts, "citations": [c.model_dump() for c in ev_cits], "evidence": evidence,
-            "model": model, "trace": {"planner": "l2", "fired_regimes": sg.fired_regimes,
+            "model": model, "number_calls_full": extra_number_calls,
+            "trace": {"planner": "l2", "fired_regimes": sg.fired_regimes,
                                       "citation_verifier": verifier, "banned_mood_words": _banned_mood,
                                       "banned_valuation_words": _banned_val, "banned_flow_words": _banned_flow,
                                       "banned_exec_words": _banned_exec, "unbacked_levels": _unbacked,
@@ -3524,11 +3537,69 @@ def _handle_clause_start(text: str, s0: int, start: int) -> int:
     return s0 + last
 
 
+def _splice_fmt(v) -> str:
+    """CYCLE-7-AMEND (2026-08-08) -- THE SPLICE'S OWN RENDERER: reader precision, WITHOUT losing a digit
+    the reader needs.
+
+    Cycle-7 routed the splice through `cit._fmt` to stop 17 digits of a z-score reaching the page. `_fmt`
+    is the FOOTER's formatter and carries two shapes a spliced figure cannot afford:
+      * `,.0f` for |v| >= 1000 DROPS the decimals -- a 1052.25 c/bu soybean settle spliced as "1,052";
+      * `%g` goes SCIENTIFIC below 1e-4 -- 0.00001234 spliced as "1.234e-05".
+    Both are latent (no gate-4 body carried either shape), and both are wrong in the one direction that
+    matters: the prose figure is what the reader trades off, and a rounded one is not a smaller version of
+    the truth, it is a different number.
+
+    THE RULE: %g's SIGNIFICANT-DIGIT precision (which is what made "-0.30632" out of -0.3063197017144927),
+    rendered POSITIONALLY with thousands grouping and never in exponent form. Implementation is exactly
+    that -- take `%.6g`, read back how many decimal places it implies (including through an exponent), and
+    lay the value down at that many places. So the gate-4 shapes are byte-identical (15.17 -> "15.17",
+    -0.3063197017144927 -> "-0.30632"), the >= 1000 arm keeps what it carried (1052.25 -> "1,052.25",
+    1486837.4 -> "1,486,837" -- 6 significant digits leaves it no decimal to keep), and the small end stays
+    positional (0.00001234 -> "0.00001234").
+
+    THE FOOTER'S `_fmt` IS DELIBERATELY UNTOUCHED THIS CYCLE. Splice and footer can now disagree in the
+    DIGITS for |v| >= 1000 (prose "1,052.25", `## Sources` "1,052"), which is a narrowing of cycle-7's
+    one-renderer promise and is RECORDED AS A FOLLOW-UP, not smuggled in here: `_fmt` is the footer's shape
+    across every citation surface and the share/artifact freezes, and re-cutting it is its own change with
+    its own pins. A non-numeric value falls through to `str(v)`, `_fmt`'s own posture."""
+    s = str(v).strip()
+    try:
+        f = float(s.replace(",", ""))
+    except (TypeError, ValueError):
+        return s
+    if f != f or f in (float("inf"), float("-inf")):      # NaN/inf: nothing positional to write
+        return s
+    g = f"{f:.6g}"
+    if "e" in g or "E" in g:
+        mant, _, exp = g.lower().partition("e")
+        dp = (len(mant.split(".", 1)[1]) if "." in mant else 0) - int(exp)
+    else:
+        dp = len(g.split(".", 1)[1]) if "." in g else 0
+    return f"{f:,.{max(dp, 0)}f}"
+
+
 def _number_handle_value(call: dict | None, idx: int) -> str | None:
     """The value+unit `[N{idx}]` resolves to, or None when it resolves to NOTHING (out of range, an empty
     read, an errored/declined lookup). Routed through `cit.from_number` on purpose: the headline row, the
     unit fallback and the empty-status taxonomy are decided in ONE place, so a spliced figure and the
-    `## Sources` line for the same handle can never disagree."""
+    `## Sources` line for the same handle can never disagree.
+
+    CYCLE-7 (2026-08-08) -- THE FIGURE IS RENDERED THE WAY THE FOOTER RENDERS IT. `Citation.value` is the
+    ROW's raw value, carried as a string for the drill-down; the `## Sources` LINE for the same row is
+    `_fmt`-ed. Splicing the raw one put a full float repr on the reader's page, measured on gate-4 dcw
+    pass2 `dcw_gas_nitrogen_squeeze`:
+        prose   "sitting at -0.3063197017144927 sigma vs 5-yr mean [N2] -0.31 sigma"
+        footer  "[N2] PINK SHEET natural_gas_eu_usd_mmbtu_zscore_5yr = -0.30632 sigma vs 5-yr mean"
+    -- 17 digits of a z-score, beside its own correctly-rounded citation, on the same line. Covenant
+    `ab_mech_frost` shipped "-0.00851709 z" the same way. ZERO occurrences in all three gate-3 runs, so
+    this is a cycle-6 regression, not a legacy shape: FIX A's arrival is what put values in front of
+    handles often enough to see it. The figure is therefore rendered at the footer's READER PRECISION.
+
+    CYCLE-7-AMEND (2026-08-08): through `_splice_fmt`, NOT `cit._fmt` -- same precision, but thousands-
+    grouped positionally and with the decimals kept above 1000 (a 1052.25 settle must not reach the reader
+    as "1,052") and no scientific notation below 1e-4. See `_splice_fmt` for the measured shapes and for
+    the recorded follow-up (the footer keeps `_fmt` this cycle, so the two can differ in the DIGITS for
+    |v| >= 1000)."""
     if not isinstance(call, dict):
         return None
     try:
@@ -3538,7 +3609,85 @@ def _number_handle_value(call: dict | None, idx: int) -> str | None:
     if c.value is None or not str(c.value).strip():
         return None
     unit = str(c.unit or "").strip()
-    return f"{str(c.value).strip()} {unit}".strip()
+    return f"{_splice_fmt(str(c.value).strip())} {unit}".strip()
+
+
+# ── CYCLE-7: ...AND THE SPLICE MUST NOT WRITE A FIGURE THE SENTENCE ALREADY CARRIES ────────────────────
+# The same gate-4 row shipped the other half of the defect FIVE times in one paragraph:
+#     "European natural gas was at 15.17 USD/mmbtu [N1] 15.17 USD/mmbtu as of the latest available date"
+#     "Urea was at 453.1 USD/mt [N3] 453.1 USD/mt"    "DAP was at 783.8 USD/mt [N5] 783.8 USD/mt"
+# The value-slot cue ("was at", "sitting at") only ever looked BACKWARD, so a writer who puts the marker
+# in FRONT of its figure -- "was at [N1] 15.17 USD/mmbtu", which is exactly what this deck's writers do --
+# reads as a handle standing in for a missing number, and the splice duplicates it. The z-score pair is
+# the same shape with a rounding in it ("at [N2] -0.31 sigma" -> the raw -0.30632 spliced in front).
+#
+# THE TEST IS NUMERIC, NOT TEXTUAL, and it has to be: "-0.31" and "-0.30632" are the same figure written
+# to different precision, and a string compare sees two different things. So the adjacent numeral counts
+# as THIS figure when it is a correct rounding of it at its own written precision AND inside a relative
+# ceiling -- the same two-clause reading of "the reader restated this number" that cycle-6's (frozen)
+# verify amendment already ratified for strip decisions, restated here for a render decision.
+#
+# ADJACENT MEANS ADJACENT: only whitespace and opening punctuation may sit between the token and the
+# numeral, on either side. A looser scan (the whole sentence, up to the next handle) suppresses a splice
+# the handle genuinely owes whenever some OTHER row further along the sentence happens to carry the same
+# figure -- and a bare "[N1]" facing the reader is D-PQ HANDLE-1's own defect, restored. Every one of the
+# five measured duplications is immediately adjacent, so the strict reading is both sufficient and the
+# only one that cannot regress the pass it lives inside.
+#
+# A SKIPPED SPLICE IS NOT A NEW CENSUS STATE. The token simply falls into the branch it always belonged
+# in -- RESOLVED + attached to a stated number -> UNTOUCHED -- so `number_handles` keeps its four pinned
+# keys and `substituted` counts what the reader's page actually received, which is what it has always
+# promised to count.
+#
+# CYCLE-7-AMEND (2026-08-08) -- THE PREFIX SET IS ENUMERATED, NOT JUST THE BARE SHAPES. Cycle-7 shipped
+# `[\s(\[*"']*` between the handle and the numeral, which leaves out the deck's OWN most common shape: a
+# currency glyph. "Urea was at [N1] $453.1/mt" still duplicated to "...453.1 USD/mt [N1] $453.1/mt", and the
+# cycle-7 pin file quotes `$453.1/mt` twice as the writers' idiom. The widening below is an ENUMERATION --
+# currency glyphs, the approximation markers, the separating punctuation, and a currency WORD ("USD 453.1")
+# -- and nothing else.
+#
+# IT IS STILL STRICT ADJACENCY. A BOUNDED window (at most four prefix tokens, each with its own optional
+# whitespace) of ENUMERATED shapes, never "the rest of the sentence" -- so the HANDLE-1 guard the strictness
+# protects (a bare "[N1]" facing the reader whenever some unrelated numeral further along happens to carry
+# the same figure) is untouched. A LONE "-" is deliberately NOT a prefix token: it is the numeral's own sign,
+# and consuming it would make the comparison sign-blind. The en-dash is out for the same reason
+# `orchestrator._MINT_RANGE_LO_RX` reads it as a range separator; the em-dash and "--" are in.
+_HANDLE_ADJ_TOKEN = (r"[(\[*\"']"                                        # cycle-7's own opening shapes
+                     r"|[$€£]"                                           # currency glyphs: $ EUR GBP
+                     r"|~=|~|(?i:c\.|about|roughly)"                     # the approximation markers
+                     r"|[:,;]|--|—"                                      # separating punctuation + em-dash
+                     r"|(?i:USD|EUR|GBP|BRL|MYR|CNY|ARS|ZAR|CAD|INR)")   # a currency WORD prefix
+_HANDLE_ADJ_AFTER_RX = re.compile(
+    r"\A\s*(?:(?:" + _HANDLE_ADJ_TOKEN + r")\s*){0,4}([-−+]?\d[\d,]*(?:\.\d+)?)")
+_HANDLE_ADJ_BEFORE_RX = re.compile(r"([-−+]?\d[\d,]*(?:\.\d+)?)[\s)\]*\"']*\Z")
+_HANDLE_ADJ_REL_TOL = 0.03
+
+
+def _figure_already_stated(text: str, s0: int, s1: int, m, value: str) -> bool:
+    """True when a numeral IMMEDIATELY beside the handle `m` already states the figure `value`.
+
+    Reads at most one numeral on each side, inside the handle's own sentence `[s0, s1)`, with nothing but
+    whitespace/brackets/emphasis marks in between. Any parse failure reads as NOT stated, so the fallback
+    is cycle-6's behaviour (splice) rather than a silent drop of a figure the reader needs."""
+    try:
+        v = float(str(value).split()[0].replace(",", "").replace("−", "-"))
+    except (TypeError, ValueError, IndexError):
+        return False
+    after = _HANDLE_ADJ_AFTER_RX.match(text[m.end():max(m.end(), s1)])
+    before = _HANDLE_ADJ_BEFORE_RX.search(text[min(s0, m.start()):m.start()])
+    for hit in (after, before):
+        if hit is None:
+            continue
+        t = hit.group(1).replace("−", "-")
+        try:
+            pv = float(t.replace(",", "").lstrip("+"))
+        except ValueError:
+            continue
+        d = len(t.split(".", 1)[1]) if "." in t else 0
+        gap = abs(pv - v)
+        if gap <= 0.5 * 10.0 ** (-d) and (not v or gap <= _HANDLE_ADJ_REL_TOL * abs(v)):
+            return True
+    return False
 
 
 def _resolve_number_handles(structured: dict | None, number_calls: list | None) -> dict:
@@ -3586,8 +3735,12 @@ def _resolve_number_handles(structured: dict | None, number_calls: list | None) 
             # to "still points at something" (True) and nothing more -- it stands in for no single figure.
             value = vals[0] if len(members) == 1 else (True if live else None)
             s0, s1 = _handle_sentence_span(text, m.start())
-            recs.append((m, value, s0, s1, bool(_HANDLE_VALUE_SLOT_RX.search(text[s0:m.start()])),
-                         members, live))
+            # CYCLE-7: the cue is necessary but NOT sufficient -- a handle written IN FRONT of its own
+            # figure ("was at [N1] 15.17 USD/mmbtu") satisfies it and is not standing in for anything.
+            standin = bool(_HANDLE_VALUE_SLOT_RX.search(text[s0:m.start()]))
+            if standin and isinstance(value, str) and _figure_already_stated(text, s0, s1, m, value):
+                standin = False                    # -> the ordinary "resolved beside a stated number" branch
+            recs.append((m, value, s0, s1, standin, members, live))
         backed = {(r[2], r[3]) for r in recs if r[1] is not None}     # spans that keep a RESOLVED handle
         backed_at = [r[0].start() for r in recs if r[1] is not None]  # ...and where those handles sit
         for m, value, s0, s1, standin, members, live in recs:
@@ -4403,6 +4556,8 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     return {"answer": body, "structured": structured, "contract": contracts[0],
             "contracts": contracts, "citations": [c.model_dump() for c in ev_cits],
             "evidence": evidence, "model": model,
+            "number_calls_full": extra_number_calls,       # CYCLE-7 INSTRUMENT-1, see the note at the L2 body
+
             "trace": {"routed": routed, "contracts": contracts, "banned_mood_words": _banned_mood,
                       "banned_valuation_words": _banned_val, "banned_flow_words": _banned_flow,
                       "banned_exec_words": _banned_exec, "unbacked_levels": _unbacked,
