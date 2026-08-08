@@ -1301,6 +1301,18 @@ def _per_answer_record(r: dict, run_kind: str) -> dict:
             "strips": v.get("stripped", 0),
             "claim_count": v.get("claim_count", 0),
             "handles_checked": v.get("checked", 0),
+            # CYCLE-8 (2026-08-08) FIX 2(c) -- NO LAUNDERING. A number_mismatch REPAIR rewrites the reader's
+            # prose and used to leave `strips` at 0: gate-5 `dcw_palm_stocks_print` shipped "roughly
+            # 1,629,801 percent below the five-year average" and scored a clean row. `repairs` is the count
+            # and `repair_edits` the numerals-only before/after record, both straight off the verifier
+            # report; `strips` and `strip_rate` keep their frozen cross-run meaning.
+            "repairs": v.get("repaired", 0),
+            "repair_edits": v.get("repairs") or None,
+            # CYCLE-8 FIX 4 -- NO SILENT DENOMINATORS. False on a turn the CITATION verifier never ran
+            # (numbers_only/live/social have no structured tldr/mechanism and are verified by
+            # `orchestrator._verify_numbers_answer` instead), so a 0 in `claim_count` is readable as
+            # "different lane" rather than "an answer that made no claims".
+            "citation_verifier_ran": bool(v.get("enabled")),
             "by_rule": v.get("by_rule") or {},
             # W3 RCA: stripped-sentence audit rides the baseline ONLY when GRAPHRAG_STRIP_AUDIT is on
             # (verify omits the key when off) -- the per-turn text the by_rule counts can't give.
@@ -2010,12 +2022,33 @@ def athena_panel() -> list[str]:
     return lines
 
 
-def verifier_panel(traces: list[dict]) -> list[str]:
+def verifier_panel(traces: list[dict], ids: list | None = None) -> list[str]:
     """The deterministic citation_violations panel (plan sec 6.6) — counts fabricated attributions
-    without a judge. Its absence made the 37->151 hallucination-tally diagnosis slow; never again."""
+    without a judge. Its absence made the 37->151 hallucination-tally diagnosis slow; never again.
+
+    CYCLE-8 (2026-08-08) -- TWO ADDITIVE HONESTY LINES, no existing number redefined:
+      * FIX 2(c) prose REPAIRS beside the strips. A number_mismatch repair MUTATES the answer, and the
+        panel used to fold it into `corrected` (shared with ledger-date fixes) while the strip count stayed
+        0 -- gate-5 `dcw_palm_stocks_print` shipped "1,629,801 percent" and read as a clean row.
+      * FIX 4 the LIVE DENOMINATOR. `traces` carries one entry per ANSWER and this panel silently drops the
+        ones the citation verifier never ran on -- gate-5 covenant went 25 -> 23 with nothing saying so
+        (`ab_rank_wheat_importers`, `ab_rec_malaysia_stocks`: both numbers_only turns, whose prose lives in
+        `answer` and not in a structured tldr/mechanism, and which `orchestrator._verify_numbers_answer`
+        verifies instead). `ids`, when the caller passes it, NAMES them.
+    """
     vs = [t for t in traces if t and t.get("enabled")]
     if not vs:
         return []
+    dark = [str(i) for i, t in zip(ids or [], traces) if not (t and t.get("enabled"))] if ids else []
+    # CYCLE-8 REVIEW (2026-08-08), MINOR 8 -- THE PANEL MUST NOT OVERSTATE THE PROSE IT CHANGED.
+    # `repaired` counts OFFENDING HANDLES that survived (PASS 2, per handle, like every other rule); the
+    # `repairs` list is emitted from the APPLIED ops, so an edit swallowed by a PASS-1 drop span
+    # (no_lexical_overlap / quote_mismatch / fabricated_citation) increments `repaired` and produces NO
+    # record -- correctly, because the reader never receives that mutation. The panel line claimed "each one
+    # changed a figure the reader sees", which is false in exactly that case. The reader-visible number is
+    # now `len(repairs)`; the handle count is still printed beside it, labelled for what it is.
+    total_edits = sum(len(v.get("repairs") or ()) for v in vs)
+    total_repairs = sum(v.get("repaired", 0) for v in vs)
     by: dict = {}
     for v in vs:
         for k, c in (v.get("by_rule") or {}).items():
@@ -2041,7 +2074,19 @@ def verifier_panel(traces: list[dict]) -> list[str]:
             f"(strips / {total_claims} sentence-claims; handle-rate "
             f"{total_strips / max(1, total_handles):.4f}) — the baseline-v0 comparison metric",
             f"- violations by rule: {rules}",
-            f"- answers with >=1 strip: {sum(1 for v in vs if v.get('stripped'))}/{len(vs)}"]
+            # CYCLE-8 FIX 2(c): a repair is a PROSE MUTATION and is reported as a defect beside the strips.
+            f"- **prose repairs (number_mismatch rewrites): {total_edits}** — figures the reader actually "
+            f"receives rewritten; `strips` alone does NOT count them"
+            + (f" (charged against {total_repairs} offending handles; the difference is edits swallowed by "
+               f"a whole-sentence drop, which never reach the page)"
+               if total_repairs != total_edits else ""),
+            f"- answers with >=1 strip or repair: "
+            f"{sum(1 for v in vs if v.get('stripped') or v.get('repaired'))}/{len(vs)}",
+            # CYCLE-8 FIX 4: no silent denominators.
+            f"- live denominator: **{len(vs)}/{len(traces)}** answers ran the citation verifier"
+            + (f" — not run on: {', '.join(dark)} (numbers_only/live turns carry no structured "
+               f"tldr/mechanism; their figures are checked by the numbers verifier)" if dark
+               else (" — every answer" if len(vs) == len(traces) else ""))]
 
 
 def _is_slice_key(rel: str) -> bool:
@@ -2101,6 +2146,15 @@ def _baseline_json(rows: list[dict], *, run_kind: str, model: str, judged: bool,
     total_strips = sum(p["strips"] for p in per)
     total_claims = sum(p["claim_count"] for p in per)
     total_handles = sum(p["handles_checked"] for p in per)
+    # CYCLE-8: the two additive honesty columns -- prose REPAIRS (FIX 2c) and the LIVE denominator, i.e.
+    # how many of `n_answers` the citation verifier actually ran on (FIX 4). Neither redefines an
+    # existing key; `strip_rate` and `handle_strip_rate` are byte-identical to what they always were.
+    total_repairs = sum(p.get("repairs", 0) for p in per)
+    # CYCLE-8 REVIEW MINOR 8: `total_repairs` is the OFFENDING-HANDLE count; `total_repair_edits` is the
+    # number of prose mutations the reader actually receives. They differ when a repair is swallowed by a
+    # whole-sentence drop, and only the second one is a statement about the published page.
+    total_repair_edits = sum(len(p.get("repair_edits") or ()) for p in per)
+    verifier_answers = sum(1 for p in per if p.get("citation_verifier_ran"))
     return {"kind": f"baseline_{run_kind}",
             "ts": _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "eval_set": eval_set, "model": model,
@@ -2122,6 +2176,9 @@ def _baseline_json(rows: list[dict], *, run_kind: str, model: str, judged: bool,
             "mode": mode,
             "n_answers": len(per),
             "total_strips": total_strips, "total_claims": total_claims, "total_handles": total_handles,
+            "total_repairs": total_repairs,                      # CYCLE-8 FIX 2(c): offending handles
+            "total_repair_edits": total_repair_edits,            # ... prose mutations the reader receives
+            "verifier_answers": verifier_answers,                # CYCLE-8 FIX 4: the LIVE denominator
             "strip_rate": round(total_strips / max(1, total_claims), 6),
             "handle_strip_rate": round(total_strips / max(1, total_handles), 6),
             "register_leaks_total": sum(p["register_leaks"] for p in per),
@@ -2322,7 +2379,9 @@ def report(rows: list[dict], *, model: str, graph_version: str | None = None,
     if any((r["out"].get("trace") or {}).get("planner") == "l2" for r in rows):
         lines += planner_report(rows) + [""]                           # L2 grounded-subgraph cascade panel
     lines += register_report(rows) + [""]                              # output-register discipline (leaked internal tokens)
-    lines += verifier_panel([(r["out"].get("trace") or {}).get("citation_verifier") for r in rows]) + [""]
+    lines += verifier_panel(  # CYCLE-8 FIX 4: ids name the turns the citation verifier never ran on
+        [(r["out"].get("trace") or {}).get("citation_verifier") for r in rows],
+        [(r.get("q") or {}).get("id") for r in rows]) + [""]
     lines += athena_panel() + [""]                                     # S3 LIST-storm tripwire (planning-time gate)
     lines += source_report(rows) + [""]                                # multi-source lift (deterministic + judge)
     if judged:
@@ -2609,7 +2668,9 @@ def convo_report(rows: list[dict], *, model: str, graph_version: str | None = No
                   f"point_in_time {javg('point_in_time')} | grounding {javg('grounding')} | "
                   f"**continuity {javg('continuity')}** /5",
                   f"- hallucinated claims: {sum(_n_halluc(j) for j in judged)}"]
-    lines += verifier_panel([(r["out"].get("trace") or {}).get("citation_verifier") for r in rows])
+    lines += verifier_panel(  # CYCLE-8 FIX 4
+        [(r["out"].get("trace") or {}).get("citation_verifier") for r in rows],
+        [f'{r.get("convo")}/{r.get("turn")}' for r in rows])
     lines += athena_panel()                                            # S3 LIST-storm tripwire (planning-time gate)
     for cid in dict.fromkeys(r["convo"] for r in rows):
         lines += ["", f"## {cid}", ""]

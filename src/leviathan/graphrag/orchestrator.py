@@ -1528,10 +1528,16 @@ def respond(*args, **kwargs) -> dict:
                            "synth_llm": tr.get("ms_synth_llm"), "quantify": tr.get("ms_quantify"),
                            "rollup": tr.get("ms_rollup")}
         stripped = int((tr.get("citation_verifier") or {}).get("stripped", 0) or 0)
+        # CYCLE-8 (2026-08-08) FIX 2(c): a number_mismatch REPAIR rewrites the reader's prose and is not a
+        # strip, so `stripped=0` was readable as "this turn shipped clean" on a turn that shipped a rewritten
+        # figure. Added to the HUMAN line only -- the EMF block below is a dashboard contract and gets its
+        # own decision, recorded as a follow-up rather than smuggled in here.
+        repaired = int((tr.get("citation_verifier") or {}).get("repaired", 0) or 0)
         # print() (not logging) so the line reaches CloudWatch even though the app root logger sits at WARNING
         # under uvicorn — ASCII-only, flushed. Human-readable companion to the EMF metric line below.
         print(f"[timing] total_ms={total} intent={res.get('intent')} model={res.get('model')} "
-              f"ms_fill={gm.get('fill')} ms_rest={gm.get('rest')} stripped={stripped}", flush=True)
+              f"ms_fill={gm.get('fill')} ms_rest={gm.get('rest')} stripped={stripped} "
+              f"repaired={repaired}", flush=True)
         # Stage 5.3 R3: emit the same numbers as CloudWatch EMF -> auto-extracted metrics (Leviathan/Serving)
         # feeding the serving dashboard. StripCount ties the primary quality signal (verifier strips) into ops.
         # RF-6 NOW batch: cascade firing-rate counters off the per-node quantify trace (count metrics only —

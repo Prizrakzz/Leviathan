@@ -766,6 +766,12 @@ _MAX_COMPLETION_ROWS = 12
 #   (5) A d=0 INTEGER NEVER NAMES A NON-INTEGER ROW ("1" cannot be `1.0044 z`).
 #   (6) THE UNITS MUST NOT CONTRADICT. A numeral the prose wrote in degC does not name a row denominated
 #       in z; a numeral behind a currency symbol does not name a z-score. Both were shipped.
+#   (7) THE 2-dp BUCKET IS AN INDEX, NOT AN ARM (CYCLE-8). Every candidate faces the reader-precision
+#       WINDOW, bucket hit or not. The relative ceiling of rule (5) stays scoped to d=0, where it is the
+#       only thing bounding a flat +-0.5 -- above d=0 the reader's own written precision is the bound, and
+#       promoting the ceiling there refused correctly-rounded z restatements. See `_mint_matcher`.
+#   (8) ONE ROW PER (STATED VALUE, CALL) (CYCLE-8). A numeral names one fact, not a fan of neighbours --
+#       see `prose_completion_citations`. Rules (7) and (8) both fire on gate-5's five-row FX spray.
 #
 # THE RESIDUAL IS STATED, NOT HIDDEN. Rule (1) gives up the shape FIX A was born for -- a whole call the
 # answer never marks, whose values the prose states (gate-3 `dcw_gas_nitrogen_squeeze` pass2, and the
@@ -774,7 +780,9 @@ _MAX_COMPLETION_ROWS = 12
 # a citation on it. The gas class is ALSO covered from the other side -- cycle-6's verify amendment keeps
 # the marker-bearing sentences alive, which is what actually healed the gas unlock at gate-4 (the P1 probe
 # holds on BOTH passes), and the completion pass was never what fixed it.
-_MINT_REL_TOL = _EXTRA_REL_TOL
+# (`_MINT_REL_TOL`, cycle-7's alias for `_EXTRA_REL_TOL` on this lane, is GONE as of the cycle-8 review:
+# above d=0 the reader's WRITTEN PRECISION is the bound and a second, tighter relative clause on top of it
+# refused correctly-rounded restatements -- see BLOCKER 1 in `_mint_matcher`. Nothing else read it.)
 # RULE (5), AND WHY IT IS A CEILING RATHER THAN THE FLAT BAN THE GATE-4 WRITE-UP PROPOSED. "A d=0 integer
 # never names a non-integer row" refuses `1 -> 1.0044 z`, which is the measured defect -- and it ALSO
 # refuses `35,763 -> 35763.1`, which is the CONAB row cycle-6's reader-precision arm was built for and the
@@ -843,12 +851,47 @@ def _mint_bucket(x: float) -> tuple[bool, float]:
 
 
 def _mint_matcher(nums: list, unit: str):
-    """`row -> bool` for the completion lane: the row's value IS the thing one of `nums` names.
+    """`row -> bool` for the completion lane: the row's value IS the thing one of `nums` names. Carries
+    `.which(row) -> numeral | None`, the same decision returning WHICH numeral claimed the row (rule (7)
+    below needs the claimant, not just the verdict).
 
-    Same two arms as `_matcher` (2-dp bucket, then the reader-precision window under a relative ceiling)
-    read on SIGNED values, plus the integer and unit fences. Indexed the same way and for the same measured
-    reason -- the pass walks every served row of every established call and the estate serves 5000-row
-    windows, so a per-row rescan of every numeral is a latency budget, not a predicate."""
+    Same reader-precision window under the same relative ceiling as `_matcher`, read on SIGNED values, plus
+    the integer and unit fences. The 2-dp bucket is an INDEX here, not an arm -- see CYCLE-8 below. Indexed
+    for the same measured reason as `_matcher` -- the pass walks every served row of every established call
+    and the estate serves 5000-row windows, so a per-row rescan of every numeral is a latency budget, not a
+    predicate.
+
+    CYCLE-8 (2026-08-08) RULE (7) -- THE 2-dp BUCKET NO LONGER BYPASSES THE PRECISION GATE.
+    Cycle-7 wrote the two arms as `bucket-equal OR (window AND ceiling)`, so a bucket hit SHORT-CIRCUITED
+    both the reader-precision window and the relative ceiling. Measured on gate-5 covenant
+    `ab_enum_cotton_china`: the prose stated ONE value, `3.2651` (4 written decimals), and the footer minted
+    FIVE letter-suffixed FX rows off it -- 3.2666 / 3.2733 / 3.2743 / 3.2675 / 3.2705, every one of them a
+    DIFFERENT day's fix. All five round to 3.27 at 2 dp, so the bucket matched all five; the reader's own
+    precision says a 4-dp figure claims identity only within +-0.00005, and the largest gap here is 0.0092
+    -- 184x the window. The bucket is a coarse INDEX over a reader who wrote finely, and reading it as a
+    verdict inverted the precision incentive the cycle-6 review already ruled on for this lane.
+    The predicate is now the reader-precision WINDOW always: `gap <= half-unit-at-the-numeral's-decimals`.
+    That is what the second clause already said for non-bucket hits, so nothing that passed it changes;
+    what goes is the class that passed NEITHER and rode the bucket. `_mint_bucket` survives as the
+    candidate index it always physically was (and keeps its sign-carrying key -- see its own note).
+
+    CYCLE-8 REVIEW (2026-08-08) BLOCKER 1 -- THE RELATIVE CEILING IS SCOPED BACK TO d=0, WHERE IT BELONGS.
+    Rule (7) as first written ALSO promoted the relative ceiling to an always-on clause, and that destroyed
+    correctly-rounded sub-unit restatements. MEASURED: prose "a z-score of -0.20 [N12]" against the served
+    `urea_usd_mt_zscore_5yr = -0.19515863509764528`. The reader wrote 2 dp, so the half-unit window is
+    +-0.005 and the gap 0.004841 is INSIDE it -- this IS the row -- but 0.005 * |v| is 0.000976 and the
+    ceiling refused it. Same shape on the gas z (-0.31 <- -0.3063197) and the potash z (-0.36 <- -0.3563389).
+    For ANY |v| < 1 written to 2 dp the ceiling is strictly tighter than the reader's own precision, so
+    correct rounding stops being sufficient -- and the z-score / small-percent band is this estate's
+    dominant numeral shape. A matcher-level sweep of both gates: 54 identity matches kept, 14 LOST, 5 of the
+    14 legitimate 2-dp z restatements.
+    THE CEILING CONTRIBUTED NOTHING TO THE DEFECT IT WAS ADDED FOR. The WINDOW clause alone refuses 9/9 of
+    the cotton FX spray AND the `dcw_macro_on_soy` BRL spray (gaps 0.0002-0.0092 against a 0.00005 window,
+    4x-184x over). The ceiling refuses none of them the window does not already. It is pure collateral.
+    So: the window is checked ALWAYS, and `_MINT_D0_REL_TOL` is checked ONLY at `decimals == 0` -- which is
+    exactly what rule (5)'s own note says the ceiling is for (a 0-dp numeral has a flat +-0.5 window that
+    bounds nothing, so the relative arm is the only thing bounding it there). The CONAB control
+    `35,763 <- 35763.1` is a d=0 hit and keeps both clauses; `1 <- 1.0044` still refuses on the ceiling."""
     import bisect
     exact: dict[tuple[bool, float], list] = {}
     for n in nums:
@@ -858,13 +901,13 @@ def _mint_matcher(nums: list, unit: str):
     span = max((0.5 * 10.0 ** (-n.decimals) for n in ms), default=0.0)
     rcls = _unit_class(unit)
 
-    def _hit(r) -> bool:
+    def _which(r):
         try:
             v = float(str((r or {}).get("value")).replace(",", ""))
         except (TypeError, ValueError):
-            return False
+            return None
         if not v:
-            return False                          # a 0.0 row: `_stated_values` floors magnitudes at 0.001,
+            return None                           # a 0.0 row: `_stated_values` floors magnitudes at 0.001,
                                                   # so nothing can name it, and `_zero_aggregate` already
                                                   # refuses the class whose point is to assert no figure
         rc = _unit_class((r or {}).get("unit")) or rcls
@@ -872,17 +915,19 @@ def _mint_matcher(nums: list, unit: str):
         cands += ms[bisect.bisect_left(keys, v - span):bisect.bisect_right(keys, v + span)]
         for n in cands:
             gap = abs(v - n.value)                # SIGNED, so a direction flip never reaches the window
-            rel = _MINT_D0_REL_TOL if n.decimals == 0 else _MINT_REL_TOL      # rule (5)
-            if _mint_bucket(v) != _mint_bucket(n.value) and not (
-                    gap <= 0.5 * 10.0 ** (-n.decimals) and gap <= rel * abs(v)):
-                continue
-            if gap and n.decimals == 0 and gap > _MINT_D0_REL_TOL * abs(v):
-                continue                          # ...also above the 2-dp bucket: "1" is not `1.0044 z`
+            if gap > 0.5 * 10.0 ** (-n.decimals):
+                continue                          # CYCLE-8 rule (7): the WINDOW always, bucket hit or not
+            if n.decimals == 0 and gap > _MINT_D0_REL_TOL * abs(v):
+                continue                          # rule (5): the ceiling bounds the UNBOUNDED d=0 window
             pc = _unit_class(n.unit)
             if pc and rc and pc != rc:
                 continue                          # rule (6): a degC numeral does not name a z row
-            return True
-        return False
+            return n
+        return None
+
+    def _hit(r) -> bool:
+        return _which(r) is not None
+    _hit.which = _which
     return _hit
 
 
@@ -900,6 +945,7 @@ def prose_completion_citations(number_calls: list | None, stated, *, seen: set,
     if not stated or not calls:
         return []
     picked: list[tuple[int, dict]] = []
+    hits: dict[int, object] = {}
     for i, call in enumerate(calls, 1):
         try:
             if i not in cited:
@@ -915,13 +961,34 @@ def prose_completion_citations(number_calls: list | None, stated, *, seen: set,
                 continue
             rH = headline_row(call)
             seen.add(row_key(call, rH))           # the line already on the page is not a missing one
+            hits[i] = _mint_matcher(nums, unit)
             picked += [(i, r) for r in _match_candidates(
-                call, [], seen=seen, skip=rH, rowhit=_mint_matcher(nums, unit))]
+                call, [], seen=seen, skip=rH, rowhit=hits[i])]
         except Exception:  # noqa: BLE001
             continue
     # GLOBAL newest-first ranking, then the whole-footer cap, then render grouped by call in index order
     # so the ids stay ascending and each call's suffixes stay contiguous (b, c, d ...).
-    keep = sorted(picked, key=lambda t: _row_order_key(t[1]), reverse=True)[:_MAX_COMPLETION_ROWS]
+    #
+    # CYCLE-8 (2026-08-08) RULE (8) -- ONE ROW PER (STATED VALUE, CALL). A numeral names ONE fact. Gate-5's
+    # covenant `ab_enum_cotton_china` minted FIVE rows from ONE stated 3.2651 (see `_mint_matcher`'s rule
+    # (7) note) -- and even with rule (7) closing that particular spray on precision, the SHAPE is the
+    # defect: a footer that answers one numeral with a fan of near-neighbours is asserting five identities
+    # for one claim. The collapse runs on the RANKED list, so the row that survives is the NEWEST the
+    # numeral names -- the same ranking correction (A) already established -- and it runs BEFORE the
+    # whole-footer cap, so a spray can no longer crowd out other calls' legitimate rows.
+    # THE FARM-PRICE VINTAGE SHAPE IS UNTOUCHED BY CONSTRUCTION: `dcw_farm_price_vintage` mints
+    # 4.55 / 4.24 / 4.15 off THREE DIFFERENT stated values, which are three different keys.
+    keep: list[tuple[int, dict]] = []
+    claimed: set[tuple[int, float]] = set()
+    for i, r in sorted(picked, key=lambda t: _row_order_key(t[1]), reverse=True):
+        if len(keep) >= _MAX_COMPLETION_ROWS:
+            break
+        h = hits.get(i)                           # `.get`, not `[]`: this loop sits outside the per-call
+        n = h.which(r) if h is not None else None  # try/except and a footer must never break an answer
+        if n is None or (i, n.value) in claimed:  # `which` re-asks the SAME predicate `rowhit` just ran
+            continue
+        claimed.add((i, n.value))
+        keep.append((i, r))
     out: list[Citation] = []
     for i, call in enumerate(calls, 1):
         rows = [r for j, r in keep if j == i]

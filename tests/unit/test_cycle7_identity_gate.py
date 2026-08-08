@@ -206,22 +206,33 @@ def test_rule2_sign_is_exact_for_minting_and_stays_insensitive_for_backing():
     assert vf._num_matches([-0.60975], [0.614177], [6]) is True             # BACKING: unchanged, still true
     call = _gold_z([("1.75586", "2026", "2026-06"), ("-0.60975", "2021", "2021-09")])
     assert _refuses("The 2012 analogue read 0.614177 z. [N1]", [call], {1}) == []
+    # CYCLE-8 (2026-08-08), rule (7): the POSITIVE control moved onto a numeral that is a CORRECT ROUNDING
+    # of the row. Cycle-7 wrote it as the gate-4 prose "0.614177" against a 0.60975 row -- a pair that only
+    # ever matched through the 2-dp EXACT BUCKET, which cycle-8 demoted to a candidate index (they differ
+    # in the third decimal: 0.614177 is not 0.60975 written to any precision). The SIGN pin is what this
+    # test exists for and it is now pinned on BOTH arms of a precision-legal pair.
     plus = _gold_z([("1.75586", "2026", "2026-06"), ("0.60975", "2021", "2021-09")])
-    assert len(_refuses("The 2012 analogue read 0.614177 z. [N1]", [plus], {1})) == 1
+    assert len(_refuses("The 2012 analogue read 0.61 z. [N1]", [plus], {1})) == 1
+    assert _refuses("The 2012 analogue read 0.61 z. [N1]", [call], {1}) == []       # ...and the minus row
 
 
 def test_rule3_a_claimed_numeral_never_mints_a_second_row():
     """RULE (3), and the two adjacencies it reads: a handle AFTER the numeral inside its own sentence
     (with no other surviving numeral between -- an intervening YEAR does not break the link), and a
     handle sitting immediately in FRONT of it."""
+    # CYCLE-8 (2026-08-08), rule (7): the numeral is "1.01" throughout, not cycle-7's "1.006". 1.006 named
+    # the 1.01225 row only through the 2-dp exact bucket, which cycle-8 demoted to a candidate index -- so
+    # under cycle-7's spelling BOTH arms would now refuse and this test would stop discriminating the thing
+    # it exists for (CLAIMED-ness). "1.01" is a correct 2-dp rounding of 1.01225, so the mint decision turns
+    # on rule (3) alone, exactly as cycle-7 intended.
     call = _gold_z([("1.75586", "2026-08-07", "2026-06"),
                     ("1.01225", "2021-09-23", "2021-09")])
-    assert _refuses("The current window is 1.006 z [N32]. [N1]", [call], {1, 32}) == []
-    assert _refuses("It read -0.63 degC in mid-2021 [N10] and 1.006 z in 2026 [N9]. [N1]",
+    assert _refuses("The current window is 1.01 z [N32]. [N1]", [call], {1, 32}) == []
+    assert _refuses("It read -0.63 degC in mid-2021 [N10] and 1.01 z in 2026 [N9]. [N1]",
                     [call], {1, 9, 10}) == []
-    assert _refuses("The window read [N9] 1.006 z. [N1]", [call], {1, 9}) == []
+    assert _refuses("The window read [N9] 1.01 z. [N1]", [call], {1, 9}) == []
     # ...and an UNCLAIMED restatement of the same figure still mints
-    assert len(_refuses("The current window is 1.006 z, which is elevated. [N1]", [call], {1})) == 1
+    assert len(_refuses("The current window is 1.01 z, which is elevated. [N1]", [call], {1})) == 1
 
 
 def test_rule5_the_zero_dp_ceiling_separates_a_restatement_from_a_coincidence():
