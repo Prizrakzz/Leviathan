@@ -25,7 +25,79 @@ import re
 
 # The optional trailing letter consumes model-minted variants like [E1b]: unmatched they LEAK to the
 # reader as literal text (Stage-1 RCA q7); matched they resolve by idx and strip like any other handle.
-_HANDLE = re.compile(r"\[(?P<kind>[NE]?)(?P<idx>\d+)(?:[a-z])?\]")
+#
+# ══ CYCLE-9 (2026-08-08) -- THE THIRD SANCTIONED AMENDMENT, PART (3a): GROUPED / RANGED HANDLES ══════
+# SCOPE, AS RATIFIED: BACKING VISIBILITY ONLY, AND IT IS STRICTLY ERROR-REDUCING. The renderer emits
+# GROUPED citations -- `[N5, N10, N12]`, `[N1-N4]`, `[E2, E5]` -- and the solitary shape above could not
+# match one, so every row cited that way was INVISIBLE to this module: invisible to `_sibling_backed`,
+# to the `_kinds` prose-kind map, to the evidence backing pools, and to `answer._orphan_has_content`.
+#
+# THE MEASURED CORRUPTION (gate-6 `ab_amb_elnino`, covenant pass 2, reproduced from the recorded draft).
+#     draft  "The ONI anomaly is at 0.98 degC and has risen for five consecutive months [N5, N10, N12],
+#             putting the ENSO signal firmly in El Nino territory [N2]"
+#     page   "... is at 1 degC ..."
+# [N5] IS the 0.98 degC ONI row -- it materializes the figure -- but the group was unmatched, so the only
+# handle this module could see was [N2] (el_nino_flag = 1). `_sibling_backed` iterated the sentence's
+# handles, found no backer, and the sentence was handed to the repair path as single-handle-mismatched.
+# The charge itself was the artifact: with the group parsed, [N5] backs 0.98 and the correct remedy is
+# the r5 one -- strip the mis-citing handle, leave the corroborated figure standing.
+#
+# WHAT THIS AMENDMENT DOES *NOT* DO, deliberately: a grouped token is NEVER newly CHARGEABLE. It is not
+# counted in `checked`, it never adds a strip, it never adds a drop span. It contributes BACKING and
+# nothing else -- which is why the change can only ever convert a false charge into no charge. Making
+# grouped members chargeable is a separate, non-error-reducing decision and is not taken here.
+#
+# A CONTINUATION MEMBER IS BARE ONLY BEHIND A PREFIXED LEAD -- CYCLE-9 REVIEW (2026-08-08), MEDIUM 8.
+# The first cut of this pattern required the `N`/`E` prefix on EVERY member, because without SOME such
+# requirement the widened pattern swallows an ordinary bracketed YEAR RANGE (`[1980-1990]`) and silently
+# removes two magnitudes from claim extraction -- a verification LOSS inside an amendment sanctioned as
+# loss-free. The prefix-on-every-member rule bought that safety with a DISAGREEMENT: `answer._N_HANDLE_RX`
+# reads `N?\d+` continuations, so the renderer's own `[N5, 10, 12]` spelling was a handle to the renderer
+# and ordinary prose here. "Verify sees fewer groups" is not free, and the review measured the price: on
+# the bare-continuation spelling `_sibling_backed` cannot see the backing member, the r5 rescue cannot
+# fire, and the sentence is DROPPED WHOLE where the prefixed spelling of the same sentence keeps its
+# figure. It escaped corruption only because the unmasked continuation digits inflated the claim-span
+# count past the ambiguity fence -- correct by accident, not by design.
+# THE CONDITION IS THE FIX: the LEADING member must carry the prefix, and only then may continuations go
+# bare. `[N5, 10, 12]` is a handle (the lead says so); `[1980-1990]` and `[5900-9999]` are not, because
+# their lead is bare and a bare lead still demands prefixed continuations. The two readers now agree on
+# every form either can produce, and the year-range hazard stays closed. `(?(kind)...)` is a re
+# CONDITIONAL on group participation, so `kind` is now an OPTIONAL GROUP (None when absent, where it used
+# to be ""); the one reader of it compares against "N" and is unaffected.
+# ASCII SOURCE: the dash variants are built from CODEPOINTS, the discipline `_QUOTE_EDGE` states.
+_H_DASHES = "-" + "".join(chr(c) for c in (0x2010, 0x2011, 0x2012, 0x2013, 0x2014, 0x2015, 0x2212))
+_H_SEP = r"(?:,|;|&|/|and|[" + _H_DASHES + r"])"
+_H_MEMBER = r"[NE]\d+[a-z]?"                      # continuation behind a BARE lead: prefix required
+_H_MEMBER_ANY = r"[NE]?\d+[a-z]?"                 # continuation behind a PREFIXED lead: prefix optional
+_HANDLE = re.compile(r"\[(?P<kind>[NE])?(?P<idx>\d+)(?:[a-z])?"
+                     r"(?P<more>(?:\s*" + _H_SEP + r"\s*"
+                     r"(?(kind)" + _H_MEMBER_ANY + r"|" + _H_MEMBER + r"))*)\]")
+_H_MEMBER_RX = re.compile(r"([NE]?)(\d+)[a-z]?")
+# A RANGE is exactly two indices joined by a dash -- `[N1-N4]` cites four handles, `[N13, N14]` two. The
+# expansion is capped and never inverted (`answer._N_RANGE_MAX`, restated -- answer does not import this).
+_H_RANGE_RX = re.compile(r"\A([NE])(\d+)[a-z]?\s*[" + _H_DASHES + r"]\s*[NE]?(\d+)[a-z]?\Z")
+_H_RANGE_MAX = 24
+
+
+def _handle_members(token: str) -> list[tuple[str, int]]:
+    """The (kind, index) pairs one handle TOKEN cites, in written order, de-duplicated. A solitary `[N5]`
+    returns `[("N", 5)]` and a bare `[3]` returns `[("E", 3)]` -- the pre-CYCLE-9 reading, byte for byte
+    (an absent kind has always meant the evidence namespace; see `_kinds` in `verify_citations`). A member
+    that omits its own kind inherits the token's LEADING kind, which is the only reading a group admits."""
+    inner = (token or "")[1:-1].strip()
+    rng = _H_RANGE_RX.match(inner)
+    if rng:
+        lo, hi = int(rng.group(2)), int(rng.group(3))
+        if 0 < lo < hi <= lo + _H_RANGE_MAX:
+            return [(rng.group(1), i) for i in range(lo, hi + 1)]
+    out: list[tuple[str, int]] = []
+    lead = ""
+    for k, d in _H_MEMBER_RX.findall(inner):
+        lead = lead or k
+        pair = (k or lead or "E", int(d))
+        if pair not in out:
+            out.append(pair)
+    return out
 # CYCLE-5 TIDY-1: how much of the text FOLLOWING a strip is read to build the seam key. Long enough that a
 # renderer-side prefix match is unambiguous against ordinary prose, short enough that nothing grows a
 # second copy of the answer.
@@ -86,6 +158,16 @@ _UNIT_CLASSES = {
     "area": ("ha", "hectare", "hectares", "acre", "acres"),
     "money": ("usd", "us$", "$", "eur", "brl", "myr", "cny", "cent", "cents", "usc"),
     "index": ("z", "sigma", "index", "points", "pts", "idx"),
+    # CYCLE-9 (2026-08-08) -- THE BOOLEAN CLASS, AND IT MAY NEVER SOURCE A REPAIR. Gate-6 `ab_amb_elnino`
+    # (covenant pass 2) shipped "The ONI anomaly is at 1 degC": the 1 is `el_nino_flag`, a row whose unit
+    # string is literally "0/1". `_unit_class` did not know that token, so the source class was None, and
+    # the cycle-7/8 fence is `if src_cls and tgt_cls and src_cls != tgt_cls` -- an UNCLASSIFIABLE source
+    # SKIPPED the guard entirely (fail-open on the source side). Naming the class is half the remedy; the
+    # other half is `_num_repair`'s allowlist, which fails CLOSED on an unknown class either way.
+    # DELIBERATELY NARROW, the `_METRIC_TELL` discipline restated: only tokens that can mean NOTHING but a
+    # boolean. 'indicator' and 'dummy' are not on the list -- a "technical indicator" is a magnitude.
+    "flag": ("0/1", "1/0", "0-1", "flag", "flags", "bool", "boolean", "binary",
+             "yes/no", "y/n", "true/false", "t/f"),
 }
 _UNIT_OF = {tok: cls for cls, toks in _UNIT_CLASSES.items() for tok in toks}
 # The synthetic metric suffix a streak call carries (cascade._pace_synth stamps
@@ -483,6 +565,10 @@ def _registry_unit_class(call: dict) -> str | None:
 # would be the fence fabricating the very thing it is checking. Such a call stays unresolved and repairs --
 # see the refutation note in `_num_repair` for why fail-closing it instead was measured and rejected.
 _METRIC_TELL = (
+    # CYCLE-9: the BOOLEAN tell leads, and it leads for the same reason `pct` does -- a flag metric is a
+    # flag whatever else its name says (`el_nino_flag`, `la_nina_flag`, `drought_indicator`). Reading it
+    # here is what keeps the class available when the row's "0/1" unit is absent and the card is unreadable.
+    ("flag", re.compile(r"(?:\A|_)(?:flag|flags|bool|boolean|binary)(?:_|\Z)", re.I)),
     ("pct", re.compile(r"(?:\A|_)(?:pct|percent|percentage|pp|ppt|bps)(?:_|\Z)", re.I)),
     ("index", re.compile(r"(?:\A|_)(?:z|zscore|zscr|sigma|idx|index)(?:_|\Z)", re.I)),
     ("temp", re.compile(r"(?:\A|_)(?:degc|degf|celsius|fahrenheit|kelvin)(?:_|\Z)", re.I)),
@@ -575,6 +661,19 @@ _NON_VALUE_SLOT = re.compile(r"\A(?:(?:st|nd|rd|th)\b|" + _DUR_SEP + _DURATION_N
 # fence holds with the registry absent. (`ending_stocks_mt_pct` still repairs a "-5.11%" slot; a bare
 # `production_cpo_mt` never can, registry or no registry.)
 _PCT_METRIC = re.compile(r"(?:\A|_)pct(?:_|\Z)|percent", re.I)
+# CYCLE-9 REVIEW (2026-08-08), MAJOR 4 -- the two plausibility conditions on a repair. See clause (e) in
+# `_num_repair` for why dimension alone is not certification.
+# ONE ORDER OF MAGNITUDE is the transcription window: a mistyped digit, a dropped decimal point, a
+# rounded figure and a re-scaled twin all live inside it; a different METRIC's row does not. The measured
+# corruptions sit at 19x, ~780x and ~6 orders, and the widest repair this estate has ever recorded as
+# CORRECT is the cycle-4 window/`shown` binding at 12x -- which this fence therefore also refuses, and the
+# pin for it is inverted in place rather than tuned around (`test_shown_pool_drives_the_repair_source...`).
+_REPAIR_MAG_RATIO_MAX = 10.0
+# How much text in front of the numeral clause (c2) reads. See the cut rule at its call site.
+_LEAD_WINDOW = 64
+# The numeral's OWN sign as the page writes it. The lookbehind keeps a range dash ("1.5-2.0") and a
+# hyphenated word ("5-year") from reading as one; a digit or letter in front means it is not a sign.
+_PROSE_SIGN = re.compile(r"(?<![\dA-Za-z])([+\-])\s*\Z")
 # CYCLE-8 REVIEW (2026-08-08), MAJOR 5 -- A CONDITIONAL THRESHOLD IS NOT A VALUE SLOT EITHER.
 # The one repair that survived cycle-8 anywhere on the gates was itself a non-value-slot rewrite that FIX
 # 2(a) does not describe. Gate-4 `dcw_gas_nitrogen_squeeze` shipped
@@ -593,10 +692,70 @@ _PCT_METRIC = re.compile(r"(?:\A|_)pct(?:_|\Z)|percent", re.I)
 # sentence the verifier cannot certify leaves the page rather than leaving it rewritten into a falsehood.
 _COND_CTX = re.compile(r"\b(?:if|once|unless|should|when|whenever|whether|until|till|were|assuming|"
                        r"provided|watch|trigger|triggers|threshold)\b", re.I)
+#
+# CYCLE-9 (2026-08-08) -- THE APPROACH VERBS, THE SECOND CLAUSE THE FENCE WAS MISSING.
+# Gate-6 `ab_amb_elnino` (covenant pass 1) shipped, from the recorded draft:
+#     "does the anomaly continue rising toward the 1.5 degC threshold"  ->  "... toward the 0 degC ..."
+# 0 degC is ENSO-NEUTRAL: the repair spliced [N4]'s row value into a threshold the prose was reasoning
+# ABOUT and turned a watch-item into an absurdity. The conditional half of the MAJOR-5 fence matched
+# ("threshold" is in `_COND_CTX`); the comparison half did not, because the set below knew only verbs of
+# CROSSING and the sentence used a verb of APPROACHING. A threshold one is moving TOWARD is the same
+# category as a threshold one might CROSS -- more plainly so, since the prose is explicit that the value
+# has not reached it. The lead set is widened to the approach forms and nothing else moves.
+# `towards` precedes `toward` in the alternation so the longer spelling is not clipped to the shorter.
+#
+# CYCLE-9 REVIEW (2026-08-08), BLOCKER 1 -- THE VERB LIST WAS A DENY-LIST AND ONLY ITS PREPOSITION DIED.
+# Widening the lead set closed the ONE SPELLING gate-6 shipped. The review re-ran the same corruption with
+# the preposition changed and 9 of 10 rewordings still rewrote 1.5 -> 0 through the shipped code:
+#     "if the anomaly climbs TO the 1.5 degC threshold [N1], impacts worsen."
+#     "The 1.5 degC threshold [N1] would mark a strong El Nino if reached."
+#     "Watch the 1.5 degC threshold [N1] as the season progresses."
+#     "whether the anomaly holds VERSUS the 1.5 degC threshold [N1]."
+#     "once the ONI SETTLES AT 1.5 degC [N1] the event is strong."
+# The measured corruption CLASS survived verbatim. That is what a verb enumeration buys inside a cycle
+# whose whole thesis is "the default is REFUSE, including for anything nobody has thought of yet": clause
+# (c) was the only fence standing between that sentence and the rewrite (src and tgt are both `temp`, so
+# the class fence passes it), and it was the one clause still written as a deny-list.
+#
+# THE ALLOWLIST QUESTION, ASKED OF THE SLOT ITSELF AND NOT OF THE VERB IN FRONT OF IT: is the numeral's
+# own noun phrase a STATED THRESHOLD? "the 1.5 degC threshold", "the 2 percent line", "a 100 mark" -- the
+# numeral is an ATTRIBUTIVE MODIFIER of a threshold noun, i.e. it NAMES a level rather than reporting one,
+# and no row value belongs in that slot whether or not the sentence is conditional. `_THRESHOLD_NOUN` is
+# read directly off the text FOLLOWING the numeral, within its own clause (the pattern admits only unit /
+# qualifier words, never a comma or a clause break), so it cannot reach across into a neighbouring phrase.
+# The conditional conjunction is DROPPED for this shape on purpose: "The 1.5 degC threshold marks a strong
+# El Nino." is a stated threshold with no conditional in it anywhere, and it is the same non-value slot.
+#
+# THE VERB LIST SURVIVES AS AN *OR*, NEVER AS THE GATE. It still catches the shapes where the threshold
+# noun is absent ("crosses above +1 sigma", "settles at 1.5 degC"), and there it keeps its `_COND_CTX`
+# conjunction, because a bare comparison with no threshold noun IS ordinary description ("the anomaly is
+# above +0.98 degC [N3]") and must stay repairable. Two additions to the lead set, both measured above:
+# the verbs of RESTING/ARRIVING plus their preposition ("settles at", "sits at", "holds at", "comes in
+# at", "climbs to", "falls to"), which is the shape rewording 5 used to walk straight past the fence.
 _THRESHOLD_LEAD = re.compile(
     r"\b(?:above|below|under|over|past|through|beyond|exceeds?|exceeding|breaches?|breaching|"
-    r"crosses?|crossing|crossed|hits?|hitting|reaches?|reaching|touches?|tops?|clears?)"
-    r"\s+(?:the\s+|its\s+|a\s+)?[+\-]?\s*\Z", re.I)
+    r"crosses?|crossing|crossed|hits?|hitting|reaches?|reaching|touches?|tops?|clears?|"
+    r"towards|toward|approaching|approaches|approach|nearing|nears|near|up to|short of|shy of|"
+    r"(?:settles?|settling|settled|sits?|sitting|sat|stands?|standing|stood|holds?|holding|held|"
+    r"stays?|staying|stayed|rests?|resting|rested|lands?|landing|landed|prints?|printing|printed|"
+    r"climbs?|climbing|climbed|rises?|rising|risen|falls?|falling|fallen|drops?|dropping|dropped|"
+    r"slips?|slipping|slipped|moves?|moving|moved|gets?|getting|got|comes? in|coming in|came in)"
+    r"\s+(?:up|down|back)?\s*(?:to|at|on|onto|into)|versus|vs\.?|against)"
+    r"\s+(?:the\s+|its\s+|a\s+|an\s+)?[+\-]?\s*\Z", re.I)
+# The nouns a numeral can MODIFY that make it a named level rather than a measured one. Read forward from
+# the numeral's own end across at most a few unit / qualifier tokens -- "1.5 degC threshold", "2 percent
+# line", "1.5 deg C strong-El-Nino threshold" -- and never across a comma, a bracket or a clause break.
+# EVERY QUANTIFIER IS BOUNDED, and that is load-bearing, not tidiness: `(?:\s*[A-Za-z][A-Za-z./+-]*){0,3}`
+# nests an unbounded token inside a repetition, which is catastrophic backtracking on a long unbroken
+# run (measured: a 5,000-char word did not return). A 15-char cap holds every unit and qualifier this
+# estate writes ("percentage", "strong-El-Nino") and caps the search space at a few thousand paths.
+# `[ \t]` rather than `\s` for the same reason the clause-break rule exists: a threshold noun on the NEXT
+# LINE is not governing this numeral's slot.
+_THRESHOLD_NOUN = re.compile(
+    r"\A(?:[ \t]*(?:%|[A-Za-z][A-Za-z./+-]{0,14})){0,3}[ \t]*"
+    r"(?:threshold|thresholds|trigger|triggers|line|barrier|barriers|cutoff|cutoffs|"
+    r"boundary|boundaries|mark|marks|handle|benchmark|benchmarks|tripwire|watermark|"
+    r"level|levels)\b", re.I)
 
 
 def _sibling_backed(sent: str, idx: int, number_calls: list[dict]) -> bool:
@@ -624,15 +783,15 @@ def _sibling_backed(sent: str, idx: int, number_calls: list[dict]) -> bool:
     # -- a sibling that backs "-0.31" against its own -0.30632 row is backing it, and refusing to see that
     # would send the sentence to the whole-drop path this rescue exists to avoid.
     dec = [_token_decimals(masked[spans[0][0]:spans[0][1]])]
+    # CYCLE-9 (2026-08-08) AMENDMENT 3a: every MEMBER of every handle token, not just the solitary ones.
+    # The gate-6 covenant corruption is exactly this loop failing to see [N5] inside `[N5, N10, N12]`.
     for m in _HANDLE.finditer(sent):
-        if m.group("kind") != "N":
-            continue
-        j = int(m.group("idx"))
-        if j == idx or not (1 <= j <= len(number_calls)):
-            continue
-        sib = number_calls[j - 1]
-        if _num_matches([v], _mismatch_pool(sib, _row_vals(sib)), dec):
-            return True
+        for kind, j in _handle_members(m.group(0)):
+            if kind != "N" or j == idx or not (1 <= j <= len(number_calls)):
+                continue
+            sib = number_calls[j - 1]
+            if _num_matches([v], _mismatch_pool(sib, _row_vals(sib)), dec):
+                return True
     return False
 
 
@@ -684,7 +843,46 @@ def _num_repair(sent: str, idx: int, number_calls: list[dict]) -> tuple[int, int
           (`dcw_gas_nitrogen_squeeze` writes six "a 5-year z-score of X" sentences). The gate is now asked of
           `cycle8=False` spans, which is HEAD's own count, so no sentence becomes repairable that was not
           repairable before. The REWRITE still uses the cycle-8 span; when both views hold exactly one span
-          they are by construction the same span (the cycle-8 set is a subset of HEAD's)."""
+          they are by construction the same span (the cycle-8 set is a subset of HEAD's).
+
+    ══ CYCLE-9 (2026-08-08) -- THE THIRD SANCTIONED AMENDMENT, PART (3b): ELIGIBILITY IS AN ALLOWLIST ══
+    EVERY refusal above was written as a DENY RULE, and gate-6 is what a deny-list costs. Two corruptions
+    shipped from this function on one deck, and NEITHER was a new hole -- each was a shape the deny-list
+    had simply never been asked about:
+      * "rising TOWARD the 1.5 degC threshold" -> "toward the 0 degC threshold". The MAJOR-5 conditional
+        fence knew verbs of CROSSING, not verbs of APPROACHING (see `_THRESHOLD_LEAD`).
+      * "The ONI anomaly is at 0.98 degC" -> "at 1 degC", the 1 being `el_nino_flag` with unit "0/1". The
+        cross-class fence reads `if src_cls and tgt_cls and ...`, so an UNCLASSIFIABLE source skipped it.
+    Both are the same structural fact: the default was REPAIR, and everything the enumeration had not
+    thought of inherited that default. The default is now REFUSE. A numeral is repaired when, and only
+    when, ALL FOUR of these hold; anything else -- including anything nobody has thought of yet -- takes
+    the fail-closed path this function has always taken for ambiguity: the sentence goes, with its audit
+    record, and the reader loses a sentence instead of receiving a fabricated one.
+      (a) THE SLOT CARRIES EXACTLY ONE SOLITARY HANDLE. One handle token in the sentence, citing one row.
+          Two tokens are two candidate sources for one numeral and their agreement is never checked at the
+          slot; a GROUPED token (`[N5, N10, N12]`) is many rows behind one marker and cannot name a repair
+          source at all. The gate-6 tldr corruption is precisely a grouped token the module could not see
+          (amendment 3a) sitting beside the solitary one that was charged.
+      (b) BOTH UNIT CLASSES KNOWN AND EQUAL. Unknown on EITHER side is now INELIGIBLE, where before an
+          unknown side meant "no opinion, repair as usual". That inversion is the whole of the fix: the
+          measured corruption came in through the unknown side, and a class the module cannot name is a
+          class it cannot certify. The BOOLEAN class may never source a repair even into a boolean slot --
+          a 0/1 flag is not a magnitude in any dimension (see `_UNIT_CLASSES['flag']`).
+      (c) THE SLOT IS NOT A STATED THRESHOLD. (c1) the numeral does not MODIFY a threshold noun ("the
+          1.5 degC threshold"), which is a non-value slot conditional or not; OR-ed with (c2) the MAJOR-5
+          shape, a threshold verb before the numeral inside a conditional sentence. See `_THRESHOLD_NOUN`.
+      (d) THE EXISTING NON-VALUE-SLOT AND DURATION FENCES PASS (cycle-8 FIX 2(a), MAJOR 4), and the
+          percent slot keeps its registry-independent (d2) lock on top of (b).
+      (e) THE REPLACEMENT IS A PLAUSIBLE TRANSCRIPTION OF WHAT THE PAGE SAYS: within one order of
+          magnitude of the written numeral, and not contradicting an explicit sign the page carries.
+          Dimension is not plausibility, and after (b) the class fence is the only other thing left.
+
+    THE HONEST COST, MEASURED AND ACCEPTED. (b) retires the legacy "a call that declares NO unit repairs
+    exactly as before" contract, which the agent lane and every unit-less fixture relied on; (e) retires
+    the cycle-4 window-dilution repair (12x, sign-flipped). Those sentences now DROP rather than repair.
+    That is the correct trade in both directions: a drop removes a wrong figure, a repair asserts a new
+    one, and this function has now minted a false assertion on three consecutive gates. Widening back is
+    admissible ONLY on same-unit-class-known evidence -- never by re-admitting an unknown."""
     if not (1 <= idx <= len(number_calls)):
         return None
     if _SCALE_WORD.search(sent):
@@ -697,19 +895,74 @@ def _num_repair(sent: str, idx: int, number_calls: list[dict]) -> tuple[int, int
         return None
     if len(_claim_number_spans(masked, cycle8=False)) != 1:
         return None                                       # MAJOR 4: HEAD's ambiguity refusal, preserved
+    # (a) CYCLE-9 -- exactly ONE [N] handle token in the sentence, and that token solitary (ungrouped).
+    # CYCLE-9 REVIEW (2026-08-08), MAJOR 3: SCOPED TO THE [N] NAMESPACE. The clause's own rationale is
+    # "two CANDIDATE SOURCES for one numeral", and an [E]/positional handle is an ATTRIBUTION -- it names
+    # a document, it can never source a numeral, so the rationale does not reach it. Counting it cost the
+    # WHOLE SENTENCE on the house style the system prompt asks for ("... -0.72 degC [N1], per the CPC
+    # bulletin [E2]"), and the review measured it as the third-largest refusal bucket in a 4,000-draft
+    # sweep (321 N+E two-token refusals plus 47 in mixed 3-4 token forms, of 3,004 refused slots). The
+    # GROUPED test is unchanged and still applies to the surviving token: a group is many rows behind one
+    # marker and names no repair source. A MIXED token (`[N5, E2]`) carries an N member, so it is counted
+    # here and then refused as grouped -- the strict reading, unchanged.
+    _toks = [m for m in _HANDLE.finditer(sent)
+             if any(k == "N" for k, _ in _handle_members(m.group(0)))]
+    if len(_toks) != 1 or len(_handle_members(_toks[0].group(0))) != 1:
+        return None
     if _NON_VALUE_SLOT.match(masked[spans[0][1]:]):
-        return None                                       # (e) a window length / position / share slot
-    if _THRESHOLD_LEAD.search(masked[:spans[0][0]]) and _COND_CTX.search(masked):
-        return None                                       # (f) a threshold inside a conditional
+        return None                                       # (d/e) a window length / position / share slot
+    # (c) CYCLE-9 REVIEW, BLOCKER 1 -- the ALLOWLIST question first, the verb list only as an OR.
+    if _THRESHOLD_NOUN.match(masked[spans[0][1]:]):
+        return None                                       # (c1) the numeral NAMES a level, conditional or not
+    # The lead is `\Z`-anchored, so only the text immediately in front of the numeral can ever match it.
+    # Searching the whole prefix made a widened alternation cost O(sentence); the window makes it O(1).
+    # The cut is advanced past the first space so a truncation can never manufacture a `\b` mid-word and
+    # read "hangover the" as "over the" -- the longest real lead ("crosses above the +") is 19 chars.
+    _pre = masked[:spans[0][0]]
+    if len(_pre) > _LEAD_WINDOW:
+        _pre = _pre[-_LEAD_WINDOW:]
+        _cut = _pre.find(" ")
+        _pre = _pre[_cut + 1:] if _cut >= 0 else _pre
+    if _THRESHOLD_LEAD.search(_pre) and _COND_CTX.search(masked):
+        return None                                       # (c2) a threshold verb inside a conditional
     src_cls = _call_unit_class(call, vals[0])
     tgt_cls = _sentence_unit_class(masked, spans[0][0], spans[0][1])
+    if src_cls == "flag" or tgt_cls == "flag":
+        return None                                       # (b) a 0/1 flag is not a magnitude, ever
     if src_cls == "count" and tgt_cls != "count":
-        return None                                       # (c) a run length is not a magnitude
-    if src_cls and tgt_cls and src_cls != tgt_cls:
-        return None                                       # (d) unit-foreign replacement
-    if tgt_cls == "pct" and src_cls != "pct" and not _PCT_METRIC.search(
+        return None                                       # (b) a run length is not a magnitude
+    if not src_cls or not tgt_cls or src_cls != tgt_cls:
+        return None                                       # (b) unknown on either side, or cross-class
+    if tgt_cls == "pct" and not _PCT_METRIC.search(
             str(((call or {}).get("query") or {}).get("metric") or "")):
         return None                                       # (d2) only a percent CALL writes a percent slot
+    # (e) CYCLE-9 REVIEW (2026-08-08), MAJOR 4 -- THE CLASS FENCE CERTIFIES DIMENSION, NEVER PLAUSIBILITY.
+    # With (b) inverted, same-unit-class is the LAST fence standing on every repair that still fires, so
+    # the population it admits is where the next corruption comes from. Measured through the shipped code:
+    #     "The ONI anomaly is at 0.98 degC [N1]"  <- a `soil_temp_c` row of -18.4 degC   -> "18.4"
+    #     a "2.1 percent" slot                    <- a `stocks_pct_chg` row              -> "1,629,801"
+    #     a "1.2 sigma" slot                      <- an index row                        -> "940.5"
+    # Every one is dimensionally legal and none is a plausible transcription of what the model wrote.
+    # TWO POSITIVE CONDITIONS ON ELIGIBILITY, which is the shape (b) and (c1) already have (unlike the
+    # deny-list this cycle exists to retire):
+    #   MAGNITUDE. A repair is a TRANSCRIPTION fix -- the model read the right row and wrote it wrong. A
+    #     replacement more than one order of magnitude from what the page says is not a transcription of
+    #     it, and a zero against a non-zero (the gate-6 `1.5 -> 0` corruption, exactly) is the degenerate
+    #     case of the same test. This is a SECOND, independent lock on that shipped corruption.
+    #   SIGN. `_CLAIM_NUM` cannot see a minus, so the sign stays on the page and only the magnitude is
+    #     spliced (`test_repair_direction_stays_in_the_prose_sign`). When the page's EXPLICIT sign and the
+    #     row's sign DISAGREE, that splice publishes a figure that is neither the model's nor the row's --
+    #     a magnitude the row states under a direction the row denies. Under the allowlist doctrine an
+    #     uncertifiable direction takes the fail-closed path like every other ambiguity. Signs that AGREE,
+    #     and slots with no explicit sign at all, are untouched: the pin above still repairs.
+    wv, rv = abs(spans[0][2]), abs(vals[0])
+    if (wv == 0.0) != (rv == 0.0):
+        return None                                       # (e) zero against a magnitude, and vice versa
+    if wv and rv and max(wv, rv) > _REPAIR_MAG_RATIO_MAX * min(wv, rv):
+        return None                                       # (e) not a transcription of what the page says
+    _sign = _PROSE_SIGN.search(masked[:spans[0][0]])
+    if _sign and vals[0] and (_sign.group(1) == "-") != (vals[0] < 0):
+        return None                                       # (e) the page's direction, the row's denial
     av = abs(vals[0])
     repl = f"{av:g}"
     if "e" in repl or "E" in repl:
@@ -717,6 +970,14 @@ def _num_repair(sent: str, idx: int, number_calls: list[dict]) -> tuple[int, int
             repl = f"{int(av):,}"
         else:
             return None
+    # THE OTHER HALF OF THE SIGN FINDING, and it costs no repair to close. `_CLAIM_NUM` cannot see a minus
+    # so the MAGNITUDE is all that is spliced, which is right when the page already carries the sign --
+    # but when it does NOT, `abs()` published a NEGATIVE row as a POSITIVE figure ("is at 0.98 degC" <- a
+    # -18.4 row wrote "18.4"). The refusal is not the remedy here: the span is the whole numeral, so the
+    # replacement simply carries the row's own sign. When the page DID write a sign, clause (e) has
+    # already certified that the two agree, and the magnitude alone still goes in (no doubled minus).
+    if vals[0] < 0 and not _sign:
+        repl = "-" + repl
     return spans[0][0], spans[0][1], repl
 
 
@@ -1003,8 +1264,12 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
         # DELETED the reader's `## Sources` block. The prose kind is the missing discriminator.
         _prose_all = (structured.get("tldr") or "") + "\n" + (structured.get("mechanism") or "")
         _kinds: dict[str, set[str]] = {}
+        # CYCLE-9 AMENDMENT 3a: every MEMBER of every token. An index cited ONLY in grouped form used to be
+        # absent from this map, so `_is_number_declaration` could not recognize its ledger entry and the row
+        # stripped as a fabricated_citation. Backing-side only, and it can only ever KEEP a ledger row.
         for _m in _HANDLE.finditer(_prose_all):
-            _kinds.setdefault(_m.group("idx"), set()).add(_m.group("kind") or "E")
+            for _k, _i in _handle_members(_m.group(0)):
+                _kinds.setdefault(str(_i), set()).add(_k or "E")
 
         def _is_number_declaration(ref: str) -> bool:
             """This unmatched ledger entry declares an injected NUMBERS row, not a fabricated document.
@@ -1102,8 +1367,20 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
             # sentence span -> every DECLARED handle in it that resolved, as (handle span, pool, per-handle
             # rule). Their verdict is deferred to PASS 1b because the quoted-span question is a SENTENCE
             # question, and (as in the old per-handle order) it outranks no_lexical_overlap.
-            quoting: dict[tuple[int, int], list[tuple[int, int, list[dict], str | None]]] = {}
+            # CYCLE-9 AMENDMENT 3a: the tuple grew a CHARGEABLE flag. A GROUPED token's members contribute
+            # their resolved pool to the sentence's quoted-span question (backing) and are never drop
+            # candidates and never counted -- see the amendment note at `_HANDLE`.
+            quoting: dict[tuple[int, int], list[tuple[int, int, list[dict], str | None, bool]]] = {}
             for m in _HANDLE.finditer(text):
+                _members = _handle_members(m.group(0))
+                if len(_members) > 1:                     # GROUPED: backing only, never a charge
+                    s0, s1 = _sentence_span(text, m.start())
+                    for _k, _i in _members:
+                        _r = str(_i)
+                        if _k != "N" and _r in resolved and _r not in cascade_refs:
+                            quoting.setdefault((s0, s1), []).append(
+                                (m.start(), m.end(), resolved[_r], None, False))
+                    continue
                 report["checked"] += 1
                 s0, s1 = _sentence_span(text, m.start())
                 sent = text[s0:s1]
@@ -1114,7 +1391,7 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
                     if ref in resolved and ref not in cascade_refs:
                         quoting.setdefault((s0, s1), []).append(
                             (m.start(), m.end(), resolved[ref],
-                             _check_evidence_handle(sent, resolved[ref], quotes=False)))
+                             _check_evidence_handle(sent, resolved[ref], quotes=False), True))
                         continue                          # verdict AND charge both land in PASS 1b
                     if ref in cascade_refs:               # downstream of an unmatched ledger row, not a
                         rule = "ledger_cascade"           # fabrication of its own (D-DV-1 iii)
@@ -1139,14 +1416,20 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
             # own rule -- quote_mismatch outranking no_lexical_overlap, as the per-handle order did.
             for (q0, q1), group in quoting.items():
                 sent = text[q0:q1]
-                if _unbacked_quote(sent, [p for _a, _b, p, _r in group]) is not None:
-                    for h0, h1, _p, _r in group:
-                        drops.append((h0, h1))
-                    report["stripped"] += 1
-                    report["by_rule"]["quote_mismatch"] = report["by_rule"].get("quote_mismatch", 0) + 1
-                    _audit("quote_mismatch", field, sent)
+                # CYCLE-9 AMENDMENT 3a: the POOLS include every grouped member's resolved items (a span
+                # carried by a group-cited source is backed for the sentence), while only the CHARGEABLE
+                # entries can be dropped or counted. A sentence whose only handles are grouped therefore
+                # takes no strip at all -- backing added, charges unchanged.
+                _chargeable = [e for e in group if e[4]]
+                if _unbacked_quote(sent, [p for _a, _b, p, _r, _c in group]) is not None:
+                    if _chargeable:
+                        for h0, h1, _p, _r, _c in _chargeable:
+                            drops.append((h0, h1))
+                        report["stripped"] += 1
+                        report["by_rule"]["quote_mismatch"] = report["by_rule"].get("quote_mismatch", 0) + 1
+                        _audit("quote_mismatch", field, sent)
                     continue
-                for h0, h1, _p, rule in group:
+                for h0, h1, _p, rule, _c in _chargeable:
                     if rule:
                         drops.append((h0, h1))
                         report["stripped"] += 1

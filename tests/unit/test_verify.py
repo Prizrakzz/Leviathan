@@ -477,9 +477,17 @@ def test_pattern_records_preface_only_the_denominator_is_unbacked():
 # analyst's own number. The eval judge scored four such fabrications on ONE row while by_rule already carried
 # number_mismatch=3 -- the verifier SAW them and published them anyway. Default policy now: rewrite the
 # figure from the cited row when the sentence is unambiguous, delete the whole sentence otherwise.
-def _calls(rows: dict) -> list:
-    """number_calls long enough for the highest cited [N] index; a listed index carries exactly ONE row."""
-    return [{"query": {"metric": "m"}, "rows": ([{"value": rows[i]}] if i in rows else [])}
+def _calls(rows: dict, unit: str | None = None) -> list:
+    """number_calls long enough for the highest cited [N] index; a listed index carries exactly ONE row.
+
+    CYCLE-9 (2026-08-08): `unit` is new and it is REQUIRED to reach the repair path at all. Under the
+    repair-eligibility ALLOWLIST an unknown unit class on either side is INELIGIBLE (fail closed), so a
+    unit-less fixture -- which is what this helper always built -- now DROPS its sentence instead of
+    rewriting it. Every pin below that is about the repair MECHANISM (which pool sources the value, the
+    sign discipline, comma grouping, the audit rule name, the mode knob) names its unit so the mechanism
+    is still exercised; every pin that is about the unit-less CONTRACT itself now pins the drop."""
+    row = (lambda v: {"value": v, **({"unit": unit} if unit else {})})
+    return [{"query": {"metric": "m"}, "rows": ([row(rows[i])] if i in rows else [])}
             for i in range(1, max(rows) + 1)]
 
 
@@ -489,22 +497,29 @@ def _window_calls(spec: dict) -> list:
     `rows` holds both the endpoint and the member row the model quoted, and `shown` holds the endpoint
     alone. Under the all-rows pool the decoy cleared the citation; under shown-binding it cannot."""
     return [{"query": {"metric": "m"},
-             "rows": ([{"value": spec[i][0]}, {"value": spec[i][1]}] if i in spec else []),
+             "rows": ([{"value": spec[i][0], "unit": "degC"}, {"value": spec[i][1], "unit": "degC"}]
+                      if i in spec else []),
              **({"shown": [spec[i][0]]} if i in spec else {})}
             for i in range(1, max(spec) + 1)]
 
 
 def test_judge_fixture_transcription_fabrications_are_repaired_in_place():
     """The four figures the judge caught, each a single-number/single-row sentence -> the TRUE value lands in
-    the prose and the handle stays (it is no longer a mis-citation once the figure is the row's)."""
+    the prose and the handle stays (it is no longer a mis-citation once the figure is the row's).
+
+    CYCLE-9 (2026-08-08), THE REPAIR-ELIGIBILITY ALLOWLIST. Two of the four preconditions this fixture used
+    to satisfy only by accident are now stated: the call must declare a unit class the prose slot AGREES
+    with (clause b), and the slot must carry exactly ONE solitary handle (clause a). The first three cases
+    below carry their units and repair exactly as they always did. The FOURTH -- the '[N12][N4]' shape --
+    now DROPS, and that is the honest outcome: two handles are two candidate sources for one numeral, the
+    verifier never checks that they agree about which row the numeral came from, and the gate-6 tldr
+    corruption is precisely a second (grouped) handle in the slot that the module could not see."""
     cases = [
-        ("Anomalies ran -0.72 degC [N12][N4].", _calls({4: 0.06, 12: 0.06}),
-         "Anomalies ran -0.06 degC [N12][N4].", 2),
-        ("The index sat at -0.693675 z [N14].", _calls({14: -2.1035}),
+        ("The index sat at -0.693675 z [N14].", _calls({14: -2.1035}, unit="sigma"),
          "The index sat at -2.1035 z [N14].", 1),
-        ("The index sat at -1.78323 z [N15].", _calls({15: -1.4097}),
+        ("The index sat at -1.78323 z [N15].", _calls({15: -1.4097}, unit="sigma"),
          "The index sat at -1.4097 z [N15].", 1),
-        ("It peaked at +2.47 degC [N1].", _calls({1: 2.75}),
+        ("It peaked at +2.47 degC [N1].", _calls({1: 2.75}, unit="degC"),
          "It peaked at +2.75 degC [N1].", 1),
     ]
     for prose, calls, want, n_handles in cases:
@@ -515,20 +530,25 @@ def test_judge_fixture_transcription_fabrications_are_repaired_in_place():
         assert rep["corrected"] == n_handles, prose
         assert rep["by_rule"].get("number_mismatch_repaired") == n_handles, prose
         assert "number_mismatch" not in rep["by_rule"], prose  # the rule key is not double-charged
+    # ...and the two-handle member of the same family takes the fail-closed drop (clause a)
+    s2 = _structured("Anomalies ran -0.72 degC [N12][N4].", [])
+    rep2 = vf.verify_citations(s2, [], _calls({4: 0.06, 12: 0.06}, unit="degC"))
+    assert s2["tldr"] == "" and rep2["repaired"] == 0
+    assert rep2["by_rule"] == {"number_mismatch": 2}
 
 
 def test_judge_fixtures_are_charged_even_when_the_call_carries_the_member_row():
-    """(d) The SAME four figures in the shape they actually shipped in: the cited call carries the true
-    endpoint AND the member row the model lifted, and only the endpoint was displayed. Under the old
-    all-rows pool every one of these cleared uncharged (measured: rep_w4_on.md renders all four with
-    handles intact); bound to `shown` they charge and repair to the displayed value."""
+    """(d) The SAME figures in the shape they actually shipped in: the cited call carries the true endpoint
+    AND the member row the model lifted, and only the endpoint was displayed. Under the old all-rows pool
+    every one of these cleared uncharged (measured: rep_w4_on.md renders all four with handles intact);
+    bound to `shown` they charge and repair to the displayed value.
+    CYCLE-9: the '[N12][N4]' member of the family now drops under allowlist clause (a) -- see the pin above
+    -- so it is asserted there and the three solitary shapes carry the repair assertion here."""
     cases = [
-        ("Anomalies ran -0.72 degC [N12][N4].", _window_calls({4: (0.06, -0.72), 12: (0.06, -0.72)}),
-         "Anomalies ran -0.06 degC [N12][N4].", 2),
-        ("The index sat at -0.693675 z [N14].", _window_calls({14: (-2.1035, -0.693675)}),
-         "The index sat at -2.1035 z [N14].", 1),
-        ("The index sat at -1.78323 z [N15].", _window_calls({15: (-1.4097, -1.78323)}),
-         "The index sat at -1.4097 z [N15].", 1),
+        ("The index sat at -0.693675 degC [N14].", _window_calls({14: (-2.1035, -0.693675)}),
+         "The index sat at -2.1035 degC [N14].", 1),
+        ("The index sat at -1.78323 degC [N15].", _window_calls({15: (-1.4097, -1.78323)}),
+         "The index sat at -1.4097 degC [N15].", 1),
         ("It peaked at +2.47 degC [N1].", _window_calls({1: (2.75, 2.47)}),
          "It peaked at +2.75 degC [N1].", 1),
     ]
@@ -551,21 +571,32 @@ def test_judge_fixtures_are_charged_even_when_the_call_carries_the_member_row():
 
 
 # -- the DILUTION fixture: one call, a whole window of rows, one displayed endpoint --------------------
+# CYCLE-9: the rows carry their `degC` unit, which the served cascade rows have always carried and this
+# fixture never bothered to state. Under the repair-eligibility allowlist an unknown source class is
+# ineligible, so an unstated unit would make this pin about clause (b) instead of about the POOL.
 _DILUTION = [{"query": {"table": "gold_weather_z", "metric": "oni_anomaly"},
-              "rows": [{"value": 0.06}, {"value": -0.72}, {"value": 0.31}],   # the Jan-Jun window series
+              "rows": [{"value": 0.06, "unit": "degC"}, {"value": -0.72, "unit": "degC"},
+                       {"value": 0.31, "unit": "degC"}],                       # the Jan-Jun window series
               "shown": [0.06]}]                                                # what the [N1] line printed
 
 
-def test_window_row_dilution_is_charged_and_repaired_to_the_shown_value():
+def test_window_row_dilution_is_charged_and_DROPPED_cycle9_review():
     """(a) The measured escape in miniature. -0.72 IS a row on the cited call -- it is the January member
     of a Jan-Jun window -- but the panel line printed 0.06, so narrating -0.72 as the window's reading is a
-    fabrication the reader was never shown. One shown value = an unambiguous repair source even though
-    `rows` holds three."""
+    fabrication the reader was never shown. THE CHARGE is what this pin exists for and it is unchanged.
+
+    CYCLE-9 REVIEW (2026-08-08), MAJOR 4 -- THE REPAIR HALF IS RETIRED, INVERTED IN PLACE. This fixture
+    used to publish "The window read -0.06 degC": a MINUS sign the row denies (`shown` is +0.06) wrapped
+    around a magnitude 12x from what the page said. Clause (e) refuses both -- an explicit prose sign the
+    row contradicts, and a replacement outside one order of magnitude of the numeral it replaces -- so the
+    sentence now takes the fail-closed drop. The `shown`-binding discipline this family was built for is
+    unaffected: which POOL sources a repair is pinned below, on a fixture whose sign and scale agree."""
     s = _structured("The window read -0.72 degC [N1].", [])
     rep = vf.verify_citations(s, [], _DILUTION)
-    assert s["tldr"] == "The window read -0.06 degC [N1]."
-    assert rep["by_rule"].get("number_mismatch_repaired") == 1
-    assert rep["corrected"] == 1 and rep["stripped"] == 0
+    assert s["tldr"] == ""                                         # dropped whole, not rewritten
+    assert rep["by_rule"].get("number_mismatch") == 1
+    assert rep["by_rule"].get("number_mismatch_repaired") is None
+    assert rep["corrected"] == 0 and rep["stripped"] == 1
 
 
 def test_window_row_dilution_clears_under_the_legacy_pool(monkeypatch):
@@ -592,9 +623,14 @@ def test_call_without_shown_keeps_the_all_rows_behaviour():
 
 def test_shown_pool_drives_the_repair_source_not_just_the_charge():
     """The charge and the rewrite read ONE pool. Repairing from `rows` while charging on `shown` would
-    splice in a figure the reader was never given -- here that would be the decoy itself."""
+    splice in a figure the reader was never given -- here that would be the decoy itself.
+
+    CYCLE-9 REVIEW (2026-08-08): the fixture moves from the -0.72 member row to the +0.31 one and the
+    claim is unchanged. -0.72 is now refused by clause (e) on TWO independent counts (a prose sign the row
+    denies, 12x scale), so it can no longer exercise which pool sources a repair; +0.31 is the same decoy
+    shape -- a member row the panel line did not print -- with the sign and the scale agreeing."""
     assert vf._mismatch_pool(_DILUTION[0], vf._row_vals(_DILUTION[0])) == [0.06]
-    assert vf._num_repair("The window read -0.72 degC [N1].", 1, _DILUTION)[2] == "0.06"
+    assert vf._num_repair("The window read 0.31 degC [N1].", 1, _DILUTION)[2] == "0.06"
     # >1 shown value (the su_ratio line prints endpoint + baseline + delta) -> no unambiguous source
     multi = [{"rows": [{"value": 8.1}], "shown": [8.1, 9.4, -1.3]}]
     assert vf._num_repair("Stocks-to-use eased to 7.2% [N1].", 1, multi) is None
@@ -604,14 +640,14 @@ def test_repair_direction_stays_in_the_prose_sign():
     """_CLAIM_NUM cannot see a minus, so the row's MAGNITUDE goes in and the sign already on the page stays
     put -- the repair fixes the transcription, it never re-argues the direction."""
     s = _structured("The anomaly read -0.693675 z [N1].", [])
-    vf.verify_citations(s, [], _calls({1: -2.1035}))
+    vf.verify_citations(s, [], _calls({1: -2.1035}, unit="sigma"))
     assert s["tldr"] == "The anomaly read -2.1035 z [N1]."     # magnitude from the row, minus untouched
 
 
 def test_repair_audit_entry_names_the_repaired_rule(monkeypatch):
     monkeypatch.setenv("GRAPHRAG_STRIP_AUDIT", "on")
     s = _structured("It peaked at +2.47 degC [N1].", [])
-    rep = vf.verify_citations(s, [], _calls({1: 2.75}))
+    rep = vf.verify_citations(s, [], _calls({1: 2.75}, unit="degC"))
     assert [e["rule"] for e in rep["strip_audit"]] == ["number_mismatch_repaired"]
     assert rep["strip_audit"][0]["field"] == "tldr" and "2.47" in rep["strip_audit"][0]["text"]
 
@@ -723,14 +759,48 @@ def test_unit_compatible_replacement_still_repairs_when_both_units_are_known():
         assert rep["by_rule"] == {"number_mismatch_repaired": 1}, prose
 
 
-def test_an_unknown_unit_on_either_side_never_refuses():
-    """The legacy contract: the agent lane and every fixture emit rows with NO unit key, and prose units the
-    table does not know ('z') must not start stripping. Unknown -> no opinion -> repair as before."""
+def test_an_unknown_unit_on_either_side_is_now_INELIGIBLE_cycle9():
+    """CYCLE-9 (2026-08-08) -- THE INVERSION, PINNED AT THE SITE OF THE CONTRACT IT REPLACES.
+
+    This pin used to read `..._never_refuses` and assert the legacy contract: "the agent lane and every
+    fixture emit rows with NO unit key ... unknown -> no opinion -> repair as before". THAT is the door the
+    gate-6 tldr corruption walked through. `el_nino_flag` serves unit "0/1", `_unit_class` did not know the
+    token, `src_cls` came back None, and the cross-class fence -- spelled `if src_cls and tgt_cls and
+    src_cls != tgt_cls` -- was SKIPPED, so a boolean was spliced into a degC slot ("at 1 degC").
+
+    The classification helpers are UNCHANGED (an unrecognized token is still None; that is honest). What
+    changed is what None BUYS at the repair site: it used to buy permission, and it now costs eligibility.
+    The sentence takes the fail-closed drop every other ambiguity takes."""
     assert vf._unit_class("furlongs") is None and vf._unit_class("") is None
     assert vf._call_unit_class({"rows": [{"value": 2.75}]}, 2.75) is None
     s = _structured("The index sat at -0.693675 z [N1].", [])
-    vf.verify_citations(s, [], _calls({1: -2.1035}))
-    assert s["tldr"] == "The index sat at -2.1035 z [N1]."
+    rep = vf.verify_citations(s, [], _calls({1: -2.1035}))          # no unit anywhere -> INELIGIBLE
+    assert s["tldr"] == "" and rep["repaired"] == 0
+    assert rep["by_rule"] == {"number_mismatch": 1}
+    # the same fixture with the source class KNOWN and AGREEING repairs exactly as it always did
+    ok = _structured("The index sat at -0.693675 z [N1].", [])
+    assert vf.verify_citations(ok, [], _calls({1: -2.1035}, unit="sigma"))["repaired"] == 1
+    assert ok["tldr"] == "The index sat at -2.1035 z [N1]."
+    # ...and a KNOWN source into an UNKNOWN slot is ineligible too -- the fence is closed on both sides
+    bad = _structured("The index sat at -0.693675 furlongs [N1].", [])
+    assert vf._num_repair("The index sat at -0.693675 furlongs [N1].", 1,
+                          _calls({1: -2.1035}, unit="sigma")) is None
+    assert vf.verify_citations(bad, [], _calls({1: -2.1035}, unit="sigma"))["repaired"] == 0
+
+
+def test_the_boolean_class_may_never_source_a_repair_cycle9():
+    """The gate-6 covenant tldr corruption in miniature, at the unit layer. `el_nino_flag` serves a "0/1"
+    row; the prose slot is a degC anomaly. The class is now NAMED (so it cannot read as unknown) and it is
+    refused OUTRIGHT -- a flag is not a magnitude in any dimension, so it is barred even from a flag slot."""
+    assert vf._unit_class("0/1") == "flag" and vf._unit_class("boolean") == "flag"
+    flag = [{"query": {"table": "gold_weather_z", "metric": "el_nino_flag"},
+             "rows": [{"value": 1, "unit": "0/1"}], "shown": [1.0]}]
+    assert vf._call_unit_class(flag[0], 1.0) == "flag"
+    assert vf._num_repair("The ONI anomaly is at 0.98 degC [N1].", 1, flag) is None
+    # the metric NAME alone carries the tell, so a row that lost its unit is refused too
+    bare = [{"query": {"metric": "el_nino_flag"}, "rows": [{"value": 1}], "shown": [1.0]}]
+    assert vf._metric_tell_class(bare[0]) == "flag"
+    assert vf._num_repair("The ONI anomaly is at 0.98 degC [N1].", 1, bare) is None
 
 
 def test_sentence_unit_is_read_off_the_masked_text_not_a_trailing_handle():
@@ -766,7 +836,7 @@ def test_any_other_value_of_the_knob_is_fail_closed(monkeypatch):
     for val in ("failclosed", "on", "", "Handle"):
         monkeypatch.setenv("GRAPHRAG_VERIFY_NUM_MODE", val)
         s = _structured("It peaked at +2.47 degC [N1].", [])
-        rep = vf.verify_citations(s, [], _calls({1: 2.75}))
+        rep = vf.verify_citations(s, [], _calls({1: 2.75}, unit="degC"))
         assert s["tldr"] == "It peaked at +2.75 degC [N1].", val
         assert rep["corrected"] == 1, val
 
@@ -785,12 +855,14 @@ def test_scale_word_refuses_the_repair_and_the_sentence_goes():
 def test_large_integer_repairs_comma_grouped_never_scientific():
     """A raw production-scale row (88,500,000) repairs as prose, not as 8.85e+07; a large NON-integer value
     that {:g} would render scientifically is refused and the sentence goes."""
+    mt = [{"query": {"metric": "m"}, "rows": [{"value": 88500000, "unit": "MT"}]}]   # CYCLE-9: class known
     s = _structured("Output reached 92000000 MT [N1].", [])
-    rep = vf.verify_citations(s, [], [{"query": {"metric": "m"}, "rows": [{"value": 88500000}]}])
+    rep = vf.verify_citations(s, [], mt)
     assert s["tldr"] == "Output reached 88,500,000 MT [N1]."
     assert rep["corrected"] == 1 and rep["by_rule"] == {"number_mismatch_repaired": 1}
     s2 = _structured("Output reached 92000000 MT [N1].", [])
-    rep2 = vf.verify_citations(s2, [], [{"query": {"metric": "m"}, "rows": [{"value": 88500000.5}]}])
+    rep2 = vf.verify_citations(s2, [], [{"query": {"metric": "m"},
+                                         "rows": [{"value": 88500000.5, "unit": "MT"}]}])
     assert s2["tldr"] == "" and rep2["by_rule"] == {"number_mismatch": 1}
 
 

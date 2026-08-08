@@ -501,10 +501,19 @@ def raw_draft_snapshot(**parts) -> dict | None:
     copied into rev 71 for measured-config parity with the W5 flip run). So this snapshot IS on the wire
     on every live /v1/respond today. That is a standing config finding for the serving env, NOT a licence
     to widen the payload on the same switch -- which is exactly why `sanitize_input_snapshot` below has
-    its OWN default-off flag rather than riding this one."""
+    its OWN default-off flag rather than riding this one.
+
+    CYCLE-9 REVIEW (2026-08-08), MINOR 9 -- THE BOUNDARY KEYS ARE EXEMPT FROM THE FALSY DROP. `if v` is a
+    sound default for a draft capture (an empty field the model never wrote is noise), but FIX 4's whole
+    purpose is to make the interval `preverify_* -> postverify_*` ATTRIBUTABLE, and the most interesting
+    mutation in that interval is verify EMPTYING a field. Under the falsy drop that lands as an ABSENT
+    key -- indistinguishable from the flag being off, on exactly the case the boundary was added to name.
+    The `preverify_`/`postverify_` prefixes emit `""` instead, so "verify deleted this field" is a value
+    the adjudicator can read. Every other caller's contract is byte-identical."""
     if os.environ.get("GRAPHRAG_STRIP_AUDIT", "off") == "off":
         return None
-    snap = {k: str(v) for k, v in parts.items() if v}
+    snap = {k: str(v if v is not None else "") for k, v in parts.items()
+            if v or k.startswith(("preverify_", "postverify_"))}
     return snap or None
 
 
@@ -2077,9 +2086,29 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # structure -- and were then stripped on sight as "foreign". A latent bug that deep (3 seeds + tracked
     # hops) amplifies. `contracts` stays sg.seeds everywhere else: that is the ANSWER's scope, not the
     # prompt's.
+    # CYCLE-9 (2026-08-08) FIX 4, BOUNDARY 1 -- see the note at the post-verify capture below.
+    _raw_draft = _fold_draft(_raw_draft, raw_draft_snapshot(
+        preverify_tldr=structured.get("tldr"), preverify_mechanism=structured.get("mechanism")))
     verifier = vf.verify_citations(structured, evidence, extra_number_calls,
                                    foreign_names=_foreign_regime_names(
                                        graph, sorted({n.contract for n in sg.nodes})))
+    # ══ CYCLE-9 (2026-08-08) FIX 4 -- THE MISSING ATTRIBUTION BOUNDARY, ADDITIVE ONLY ═══════════════
+    # The gate-6 adjudicator (p4.py) could not attribute a draft-vs-page numeral diff to the repair path:
+    # `raw_draft` is captured at the top of this function and the next capture (`verified_*`) is taken
+    # AFTER `_resolve_number_handles`, so verify's rewrites and the number-handle pass's value SPLICES
+    # land inside ONE interval. Ten surviving-sentence mutations were detected across the six gate-6 runs
+    # against two recorded repair ops, and the other eight could not be named -- they read as laundering
+    # candidates when most were the handle pass doing its job (`ab_cmp_vegoils` "read 6.10212 %" is a
+    # splice, not a repair). Two SHORT snapshots close the interval, and the passes become separable:
+    #     raw_draft -> preverify_*        nothing may change (the counters' draft)
+    #     preverify_* -> postverify_*     verify_citations ALONE (strips + repairs)
+    #     postverify_* -> verified_*      the [N]/[E] handle passes (splice, drop, sever, prune, tidy)
+    #     verified_* -> body_pre_sanitize humanize + scaffold + render
+    #     body_pre_sanitize -> body       the render-seam sanitize
+    # Same flag, same absent-when-off contract, same two short prose fields as `raw_draft` itself: no new
+    # switch, no new cost class, and every existing key is byte-identical.
+    _raw_draft = _fold_draft(_raw_draft, raw_draft_snapshot(
+        postverify_tldr=structured.get("tldr"), postverify_mechanism=structured.get("mechanism")))
     _emit(on_stage, "verifying", checked=int(verifier.get("checked", 0) or 0),
           stripped=int(verifier.get("stripped", 0) or 0))
     # F7 `verified`: the verifier is DONE, so the streamed draft's citation handles are now reconcilable —
@@ -2105,6 +2134,11 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
         _nclone = _dedup_number_handles(structured, extra_number_calls)
         if _nclone:
             sg.trace["number_rows_deduped"] = _nclone
+        # CYCLE-9 FIX 3, in the SAME gate and BEFORE the debris pass (which closes the frames it empties):
+        # the [E] half of the same total join. Stamped only when it removed something -- OFF-arm-clean.
+        _eorph = _prune_orphan_evidence_handles(structured, verifier)
+        if _eorph:
+            sg.trace["evidence_orphans_pruned"] = _eorph
         # D-PQ HANDLE-3, in the SAME gate and immediately after: the frames those removals (and the
         # verifier's own positional strips) left empty. Stamped only when it changed something, so an
         # untouched draft writes no key -- the OFF-arm-clean rule, again.
@@ -3849,6 +3883,13 @@ _DEBRIS_RULES = (
     (re.compile(r"([(\[])[ \t]+"), r"\1"),               # "( both" -- the opening half
     (re.compile(r"[ \t]+([)\]])"), r"\1"),               # "evidence )" -- THE measured shape
     (re.compile(r"[ \t]+-{2,}[ \t]*(?=[.,;:!?])"), ""),  # "the record --."
+    # CYCLE-9 REVIEW (2026-08-08), MEDIUM 6 -- the two residues the [E] prune leaves that no rule above
+    # closes. Both are measured: "Costs fell [E1], [E2]." -> "Costs fell,." (a comma-period ON THE PAGE),
+    # and "A dash -- [E1] -- closes it." -> "A dash -- -- closes it." A separator whose two sides are gone
+    # is debris in exactly the sense this table means, and neither pattern can fire on prose that still
+    # has its content: a comma directly against a terminator, and a dash run directly against another.
+    (re.compile(r"[ \t]*,(?=[ \t]*[.;:!?])"), ""),       # "fell,." -- the emptied list separator
+    (re.compile(r"(-{2,})(?:[ \t]+-{2,})+"), r"\1"),     # "-- --" -- the emptied em-dash aside
     (re.compile(r"[ \t]+([.,;:!?])"), r"\1"),
 )
 
@@ -4137,6 +4178,163 @@ def _tidy_strip_orphans(structured: dict | None, vreport: dict | None) -> int:
             structured[field] = new
             changed += 1
     return changed
+
+
+# ══ CYCLE-9 (2026-08-08) FIX 3 -- THE [E] ORPHAN PRUNE, THE MIRROR OF THE [N] ONE ═══════════════════
+# D-PQ HANDLE-4 made the prose <-> `## Sources` join TOTAL in the [N] namespace and said, in terms,
+# "nothing here reads or moves the [E]/positional half". Gate-6 measured what that half costs.
+#
+# THE MEASURED SHAPE (`dcw_urea_zscore`, BOTH dcw passes -- it is reproducible, not a sampling artifact):
+# the prose carries [E1] and [E2] and the rendered `## Sources` block carries [N] rows ONLY. Every [E]
+# marker on the page is dangling: a reader clicking it finds nothing, on exactly the rows where the
+# evidence attribution was the thing that failed.
+#
+# TWO INDEPENDENT PRODUCERS, ONE REMEDY. A prose [E<n>] gets no footer row when
+#   * its LEDGER ENTRY was stripped -- `verify` drops a fabricated_citation row from `structured['sources']`
+#     and leaves `resolved[ref] = []`; or
+#   * THE MODEL NEVER DECLARED IT. `verify`'s undeclared-handle path keeps a marker whose sentence is
+#     supported by SOME provided item (`undeclared_unsupported` is charged only when nothing supports it),
+#     but `_cited_sources_block` walks `d['sources']` and an undeclared handle is in no ledger at all.
+# Neither producer is a defect on its own terms; the DANGLING MARKER is, and it is the same defect either
+# way, so the fix reads the one authority both halves already answer to: does this ref get a row?
+#
+# THE PRUNE IS THE [N] RULE RESTATED, and every conservative property comes with it:
+#   * a GROUPED token is narrowed to its surviving members ("[E2, E5]" -> "[E2]"), never dropped whole;
+#   * a token with no surviving member is removed WITH its one separating space, the exact rule
+#     `_resolve_number_handles`' bare-drop leg uses, so "documented [E1], and" leaves "documented, and";
+#   * A SENTENCE IS NEVER KILLED. The [N] pass kills a sentence when the handle STANDS IN for the figure
+#     ("stands at [N16]" promises a number it cannot produce). An [E] handle stands in for nothing -- it
+#     is an attribution, and prose minus an attribution is still the model's own sentence. Dropping the
+#     token is the whole remedy, and it is `verify`'s own remedy for a convicted [E] handle.
+#   * `_tidy_handle_debris` runs immediately after and closes the frames these removals empty, so the
+#     "(both referenced qualitatively [E1][E2][E3])" -> "( )" residue cannot reappear through this door.
+# SCOPED TO THE EXPLICIT `[E` SPELLING, deliberately: a BARE `[3]` is the positional namespace whose
+# duplicate-row decision is recorded and deliberately unfixed elsewhere, and widening to it would move
+# that decision under cover of this one.
+#
+# == THE SECOND INSTRUMENT THIS MOVES, DECLARED UP FRONT -- CYCLE-9 REVIEW (2026-08-08), MEDIUM 7 ======
+# `repaired` / `strip_rate` are not the only frozen cross-run numbers this cycle shifts. `eval._cited_
+# evidence` joins by scanning the PROSE for `f"[{c['id']}]"`, and an evidence citation's id IS the `E`
+# form (`citations.py:1020`, `id=f"E{i}"`). So every marker this prune removes also drops that citation
+# out of `_cited_evidence`, and with it `min_episodes_cited`, `min_episode_sources`,
+# `_cited_episode_clusters` and the source-tier pin -- the very pins the scaffold's ref-floor note is
+# built around keeping delta-zero. THE MEASURED EXPOSURE IS THE DANGLING SET AND NOTHING ELSE: 10 refs on
+# 5 rows across the six gate-6 runs, of 327 [E] refs in prose. It is the honest direction (a dangling
+# marker was never a citation the reader could follow, so crediting it was always a false pass), but it
+# is a DROP on those pins at the next gate and it must be read as this change, not discovered as noise.
+_E_HANDLE_RX = re.compile(r"\[E\d+[a-z]?(?:\s*" + _N_SEP + r"\s*E?\d+[a-z]?)*\]")
+_E_MEMBER_RX = re.compile(r"E?(\d+)[a-z]?")
+_E_RANGE_RX = re.compile("\\AE(\\d+)[a-z]?\\s*[" + _N_DASHES + "]\\s*E?(\\d+)[a-z]?\\Z")
+# CYCLE-9 REVIEW, BLOCKER 2: a ledger `ref` reduced to the integer the PROSE writes. Covers the E-form,
+# the zero-padded form and the float spelling json round-trips produce; anything else keeps only its raw
+# key, which is what the footer uses.
+_E_REF_CANON_RX = re.compile(r"\A[Ee]?(\d+)(?:\.0+)?\Z")
+
+
+def _e_handle_members(token: str) -> list[int]:
+    """The 1-based evidence refs an `[E...]` token cites, in written order, de-duplicated. The [N] reader's
+    rules exactly (`_n_handle_members`): a dash-joined PAIR is a range and expands, everything else is a
+    member list, and a solitary `[E5]` returns `[5]`."""
+    inner = token[1:-1].strip()
+    rng = _E_RANGE_RX.match(inner)
+    if rng:
+        lo, hi = int(rng.group(1)), int(rng.group(2))
+        if 0 < lo < hi <= lo + _N_RANGE_MAX:
+            return list(range(lo, hi + 1))
+    out: list[int] = []
+    for x in _E_MEMBER_RX.findall(inner):
+        i = int(x)
+        if i not in out:
+            out.append(i)
+    return out
+
+
+def _e_handle_token(members: list[int]) -> str:
+    return "[" + ", ".join(f"E{i}" for i in members) + "]"
+
+
+def _prune_orphan_evidence_handles(structured: dict | None, vreport: dict | None) -> int:
+    """Remove every prose `[E]` marker the `## Sources` block cannot answer for. Returns the number of
+    REFS removed from the page (0 on every turn whose join is already total). Mutates in place; never
+    raises -- a render guard must never be the thing that breaks an answer.
+
+    THE LIVE SET IS COMPUTED THE WAY THE FOOTER COMPUTES IT, not by a parallel rule: `_cited_sources_block`
+    emits a document row for a ledger ref exactly when it is in `vreport['resolved']`. Reading the same two
+    inputs here is what makes "an empty Sources block with live markers" unreachable rather than unlikely.
+
+    == CYCLE-9 REVIEW (2026-08-08), BLOCKER 2 -- THE LIVE SET AND THE MEMBERSHIP PROBE ARE ONE NAMESPACE ==
+    The first cut keyed `live` on the ledger's RAW `ref` STRING and probed it with `str(member)`, the
+    PROSE's integer. Those are different namespaces the moment a ledger writes anything but a bare
+    canonical decimal, and the paragraph above is exactly why they must not be: the footer keys on `ref`,
+    the prose keys on the digit, and this function is the join. Measured end-to-end through the real
+    `verify_citations`: a ledger row `{"ref": "E1", ...}` that verify RESOLVES, whose footer row
+    `_cited_sources_block` DOES render, had its `[E1]` marker deleted from the reader's page -- FIX 3's own
+    defect, inverted, minted by FIX 3. Reproduced for "E1", "[E1]", "e1", "01", "E01" and 1.0; only "1"
+    survived. Every one of those spellings is a shape `verify` explicitly codes for (`.strip("[]")` plus
+    the `ref.upper().startswith("N")` test) and the footer renders all of them.
+    THE FIX IS TO HOLD BOTH KEYS. The raw `ref` goes in (that is the footer's key) AND, when the ref is an
+    E-form / zero-padded / float spelling of an integer, its CANONICAL DIGIT does too (that is the prose's
+    key). The set only ever grows, and growth is the safe direction here by construction: `live` is built
+    from rows that are BOTH kept in `sources` AND present in `resolved`, so a wider set can only keep a
+    marker whose footer row exists -- never mint one that does not."""
+    removed = 0
+    try:
+        if not isinstance(structured, dict):
+            return 0
+        resolved = (vreport or {}).get("resolved") or {}
+        live = set()
+        for s in (structured.get("sources") or []):
+            ref = str(s.get("ref", "")).strip().strip("[]")
+            if not ref or ref.upper().startswith("N") or ref not in resolved:
+                continue
+            live.add(ref)                         # the FOOTER's key, verbatim
+            norm = _E_REF_CANON_RX.match(ref)
+            if norm:
+                live.add(str(int(norm.group(1))))  # the PROSE's key: E1 / e1 / 01 / E01 / 1.0 -> "1"
+        for field in ("tldr", "mechanism"):
+            text = structured.get(field)
+            if not isinstance(text, str) or "[E" not in text:
+                continue
+            ops: list[tuple[int, int, str]] = []
+            for m in _E_HANDLE_RX.finditer(text):
+                members = _e_handle_members(m.group(0))
+                keep = [i for i in members if str(i) in live]
+                if len(keep) == len(members):
+                    continue
+                removed += len(members) - len(keep)
+                if keep:
+                    ops.append((m.start(), m.end(), _e_handle_token(keep)))
+                    continue
+                a, b = m.start(), m.end()
+                # THE ONE SEPARATING SPACE, `_resolve_number_handles`' rule -- and CYCLE-9 REVIEW MEDIUM 6:
+                # when what FOLLOWS is punctuation that already closes the clause, the space to eat is the
+                # one on the LEFT, or "Costs fell [E1], [E2]." leaves the comma-period the debris pass
+                # cannot see. When the token opens the field there is no left space to take, so the
+                # trailing one goes instead and the field is lstripped below (the `_resolve_number_handles`
+                # leading-indent guard, restated -- a field must not start on a space because the token in
+                # front of it was removed).
+                if a and text[a - 1] == " " and (b >= len(text) or text[b] in " ,.;:)!?"):
+                    a -= 1
+                elif b < len(text) and text[b] == " ":
+                    b += 1
+                ops.append((a, b, ""))
+            if not ops:
+                continue
+            out, pos = [], 0
+            for a, b, repl in ops:
+                if a < pos:                       # a preceding removal already ate this left space
+                    a = pos
+                out.append(text[pos:a])
+                out.append(repl)
+                pos = b
+            out.append(text[pos:])
+            new = "".join(out)
+            if not text[:1].isspace():
+                new = new.lstrip(" \t")
+            structured[field] = new
+    except Exception:  # noqa: BLE001 -- a render guard must never break an answer
+        return removed
+    return removed
 
 
 def _cited_sources_block(d: dict, vreport: dict, number_calls: list | None) -> str:
@@ -4509,8 +4707,14 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
             uniq.append(h)
     ev_cits = cit.unify(uniq, extra_number_calls)                 # machine-readable list (UI drill-down)
     from leviathan.graphrag import verify as vf
+    # CYCLE-9 FIX 4 on the SECOND synthesis path, for the SAME reason A4/A4b are here: identical two
+    # boundaries, identical field names (see the note at the L2 body).
+    _raw_draft = _fold_draft(_raw_draft, raw_draft_snapshot(
+        preverify_tldr=structured.get("tldr"), preverify_mechanism=structured.get("mechanism")))
     verifier = vf.verify_citations(structured, evidence, extra_number_calls,
                                    foreign_names=_foreign_regime_names(graph, contracts))
+    _raw_draft = _fold_draft(_raw_draft, raw_draft_snapshot(
+        postverify_tldr=structured.get("tldr"), postverify_mechanism=structured.get("mechanism")))
     _emit(on_stage, "verifying", checked=int(verifier.get("checked", 0) or 0),
           stripped=int(verifier.get("stripped", 0) or 0))
     _emit(on_stage, "verified", strips=int(verifier.get("stripped", 0) or 0))   # F7: handles may ACTIVATE now
@@ -4519,6 +4723,8 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
                  if verifier.get("enabled") else None)                    # ...and the same verifier gate
     _nclone = (_dedup_number_handles(structured, extra_number_calls)       # CYCLE-6 FIX-C, both bodies
                if verifier.get("enabled") else 0)                         # ...and the same verifier gate
+    _eorph = (_prune_orphan_evidence_handles(structured, verifier)         # CYCLE-9 FIX 3, both bodies
+              if verifier.get("enabled") else 0)                          # ...and the same verifier gate
     _debris = bool(verifier.get("enabled") and _tidy_handle_debris(structured))   # D-PQ HANDLE-3, ditto
     _orphans = bool(verifier.get("enabled")                                       # CYCLE-5 TIDY-2, ditto
                     and _tidy_strip_orphans(structured, verifier))
@@ -4566,6 +4772,7 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
                       **({"number_handles": _nhandles}             # D-PQ HANDLE-1: same census, both bodies
                          if _nhandles is not None else {}),        # ...absent when the verifier is off
                       **({"number_rows_deduped": _nclone} if _nclone else {}),  # CYCLE-6 FIX-C, both bodies
+                      **({"evidence_orphans_pruned": _eorph} if _eorph else {}),  # CYCLE-9 FIX 3, ditto
                       **({"prose_debris_tidied": True} if _debris else {}),   # D-PQ HANDLE-3, both bodies
                       **({"prose_orphans_tidied": True} if _orphans else {}),  # CYCLE-5 TIDY-2, both bodies
                       **({"response_contract": _rc_active} if _rc_active else {}),   # Phase B twin stamp

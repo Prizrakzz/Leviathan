@@ -221,8 +221,10 @@ def test_fix2c_a_prose_repair_is_counted_and_recorded_never_laundered():
     st, rep = _verify("", "- **Urea z-score [N1]:** the reading sits at 1 sigma right now.", [call])
     assert "0.195159" in st["mechanism"]                      # the repair DID happen
     assert rep["repaired"] == 1
+    # CYCLE-9 REVIEW (2026-08-08), MAJOR 4: the row is NEGATIVE and the slot carries no sign of its own,
+    # so the replacement now carries the row's ("0.195159" asserted a positive z-score the row denies).
     assert rep["repairs"] == [{"field": "mechanism", "rule": "number_mismatch_repaired",
-                              "from": "1", "to": "0.195159"}]
+                              "from": "1", "to": "-0.195159"}]
     assert rep["by_rule"]["number_mismatch_repaired"] == 1
 
 
@@ -556,9 +558,13 @@ def test_m5_a_conditional_threshold_is_never_rewritten_to_the_current_level():
 
 def test_m5_a_bare_comparison_without_a_conditional_still_repairs():
     """The fence needs BOTH halves. Plain description is not a threshold, and over-refusing here would
-    quietly convert legitimate repairs into sentence drops."""
+    quietly convert legitimate repairs into sentence drops.
+
+    CYCLE-9 REVIEW (2026-08-08), MAJOR 4: the replacement gained the row's SIGN (the slot writes none of
+    its own and the row is -0.195159). The claim under test -- that a bare comparison stays REPAIRABLE --
+    is unchanged; only the figure it writes is now the row's actual one."""
     call = _call("agent_lane", "urea_z", ["-0.195159"])
-    assert vf._num_repair("the reading sits above 1 sigma [N1] today", 1, [call])[2] == "0.195159"
+    assert vf._num_repair("the reading sits above 1 sigma [N1] today", 1, [call])[2] == "-0.195159"
 
 
 # ---- MAJOR 6 -- the registry-independent class arm, for every class ----------------------------------

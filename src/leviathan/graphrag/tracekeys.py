@@ -35,6 +35,7 @@ TRACE_RECORD_KEYS: tuple[str, ...] = (
     "prose_debris_tidied",       # D-PQ HANDLE-3: True when a strip left a bracket/dash frame to close up
     "prose_orphans_tidied",      # CYCLE-5 TIDY-2: True when a strip left a headless paragraph to repair
     "number_rows_deduped",       # CYCLE-6 FIX-C: [N] indices re-pointed onto a full-identity twin's row
+    "evidence_orphans_pruned",   # CYCLE-9 FIX 3: [E] refs removed for want of a `## Sources` row
 )
 
 # out["intent_decision"][decision_key] -> record[record_column].
