@@ -1871,16 +1871,30 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # not passed at all -> ev.retrieve's own _FETCH_K default, exactly as before.
     _fk = {"fetch_k": mode_knobs["fetch_k"]} if (mode_knobs or {}).get("fetch_k") else {}
     retr = retrieve or functools.partial(ev.retrieve, **_RETRIEVAL, **_fk)
-    sg = pl.grounded_subgraph(query, graph, route_fn=lambda q, g: routed,
+    # D-GD-1 R1 #5: `focus_driver` rides INTO the walk purely as a displacement fence -- the cascade-closure
+    # reservation may not evict the node this very function re-injects below, or the ON arm alone would end
+    # the turn one node OVER the ceiling. Observational to scoring/admission/budget, and a strict no-op when
+    # the reservation is off. OMIT-WHEN-EMPTY, like `_fk` above and every other threaded seam here: on a
+    # turn with no live-event root the walk call is BYTE-IDENTICAL, carrying route_fn and nothing else
+    # (test_dam_modes.test_walk_and_ground_kwargs_are_untouched_on_standard_and_dark is that pin).
+    _fd = {"focus_driver": focus_driver} if focus_driver else {}
+    sg = pl.grounded_subgraph(query, graph, route_fn=lambda q, g: routed, **_fd,
                               **_rm.walk_kwargs(mode_knobs))
     if focus_driver and not any(n.kind == "driver" and n.id == focus_driver for n in sg.nodes):
         for cid in sg.seeds:                                       # first seed contract that carries the driver
             if any(d.id == focus_driver for d in graph.contracts[cid].drivers):
                 node = pl.GroundedNode(kind="driver", id=focus_driver, contract=cid, depth=1, relevance=1.0)
                 node.prior = pl._prior(graph, node)
+                # D-GD-1: the third admission reason. This inject is the PRECEDENT the cascade-closure
+                # reservation was built from -- it force-admits post-walk with no budget accounted for --
+                # so it must be readable as its own reason and never counted as a closure admission.
+                node.admission = {"reason": "focus_driver", "ancestor_of": None, "chain_depth": 0}
                 sg.nodes.append(node)
                 sg.trace.setdefault("kept", []).append(list(node.key))
                 sg.trace["focus_driver"] = focus_driver
+                _cc = sg.trace.get("cascade_closure")          # D-GD-1: keep the admissions map TOTAL over
+                if isinstance(_cc, dict):                      # sg.nodes -- a post-walk inject included
+                    (_cc.setdefault("admissions", {}))[":".join(str(p) for p in node.key)] = node.admission
                 break
     # F7 `walk`: the subgraph EXISTS now — shape (node count + reach) is decided BEFORE ground() spends its
     # 8-20s on evidence + probes, so this lands far earlier than the `walking` completion tick below.

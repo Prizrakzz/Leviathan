@@ -111,6 +111,16 @@ MODES: dict[str, Mode] = {m.name: m for m in (
     # None: forcing the reroute-v2 leg widened the [N] namespace and mis-paired indices (number_mismatch
     # 2/2/11, clean dose-response off/flag/forced-on). budget_scale 1.5 -> None: H-verbosity KILLED
     # (realized length ratio 1.14x; the worst-stripped row was SHORTER than its quick twin).
+    #
+    # D-GD (2026-08-08) -- depth=1 STAYS PINNED, and that is a POSITIVE decision, not an oversight.
+    # docs/private/GUIDED_DEPTH_WAVE_PLAN.md's core item (D-GD-1, the cascade-closure reservation) lives
+    # entirely in WAVE-1 ADMISSION: the schema forces every driver parent to be a driver of the SAME
+    # contract and the walk enqueues every driver of a contract into wave 1, so the seed cascade's depth-2
+    # set is provably empty (measured 0 new keys in 33 of 33 DAGs at any budget -- dgd-walk-admission.md
+    # V1). Un-pinning `depth` here would buy the reservation nothing and would reverse D-DV-1's measured
+    # verdict for no reason. The reservation is flagged separately (GRAPHRAG_CLOSURE_RESERVE) and is NOT a
+    # mode knob in v1: it is the A/B's single variable, so it must not ride a preset that also moves
+    # node_budget / caps / fetch_k.
     Mode(name=DEEP,
          node_budget=16, depth=1, max_seeds=3,
          k_by_depth=(7, 5), evidence_cap=48, probe_cap=36,

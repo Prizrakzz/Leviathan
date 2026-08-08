@@ -78,6 +78,13 @@ serving:
     node_budget: 10
     depth: 2
     max_seeds: 2
+    # D-GD-1 (2026-08-08) cascade-closure reservation SIZE -- the number of the walk's EXISTING slots
+    # held for the backed ancestors of the top-ranked admitted drivers. This is the magnitude only;
+    # the gate is GRAPHRAG_CLOSURE_RESERVE and it DEFAULTS OFF, so this value is inert until the
+    # D-GD-3 A/B flips it (`=on` reads this number, an integer overrides it outright).
+    # 3 because ancestor closure is median 2 / mean 3.58 for the 573 of 1,112 drivers that have one --
+    # 3 covers the median chain whole; 26-ancestor monsters are clipped by N, not by luck.
+    closure_reserve: 3
   ground:                       # planner.ground
     recency_days: 548           # probe evidence must be dated within this window before asof to fire
     probe_cap: 24

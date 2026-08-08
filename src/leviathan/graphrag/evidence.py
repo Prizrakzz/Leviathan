@@ -796,13 +796,35 @@ def dag_backed_slice_names() -> set:
 # decision, not an oversight: phosphate is a build-up nutrient with multi-year soil residual and is the
 # marginal cost on none of the 33 boards inside the 1-4 quarter lag horizon these DAGs model, so its 88
 # props wait for a real mechanism rather than a node invented to retire a census line.
+#
+# D-GD guided-depth wave, TRANCHE 2, 2026-08-08: 26 -> 14, the largest single shrink this pin has taken.
+# Twelve slices LEAVE by acquiring real curated nodes on the boards where their economics bind (eleven via
+# a new dag_alias entry, `myr_fx` via wiring alone onto the already-existing MYR_USD id). MEASURED by
+# resolving all 33 causal YAMLs before and after: dag-backed slices 83 -> 95, read-dark 26 -> 14, and ZERO
+# slices lost reach, because every id but MYR_USD is a brand-new node rather than a re-owned one.
+#   subsidy 0 -> 4 (raw_sugar, white_sugar, soybeans_no_1_dce, cotton) | sunflower_oil_balance 0 -> 5 |
+#   suez_redsea_disruption / panama_canal_constraints / mississippi_river_levels / cattle_on_feed 0 -> 3 |
+#   egypt_gasc_tenders / idr_fx / inr_fx / myr_fx 0 -> 2 | global_rice_export_policy / west_africa_weather
+#   0 -> 1 (their ceiling -- one rice board, one West-African board).
+# The per-slice landing sites, and every board this tranche REFUSED, are recorded at the alias sites in
+# configs/graphrag/driver_slices.yaml; that file is the authority, this pin is the measurement.
+# THREE CLASSES STAY, each for a stated reason and none of them an oversight:
+#   * NO HOST COMMODITY -- natural_rubber (79 props): there is no rubber board and no ag driver whose
+#     mechanism is rubber. Routing cannot invent a commodity.
+#   * DOUBLE-COUNT REFUSALS -- cattle_cycle_herd_size (32) and dap (88): each would need a second node on a
+#     board that already models the same channel inside the DAGs' 0-4 quarter lag horizon (placements /
+#     nitrogen). Same call, same reasoning, one wave apart.
+#   * CONTENT-STARVED CORPUS DEBT -- indian_ocean_dipole (4 props, D-EI-4 ratified waive-not-register),
+#     real_yields_rates (2), and the four zero-prop slices (barley_yellow_dwarf_virus, index_roll_flows,
+#     madden_julian_oscillation, veg_oil_substitution_spreads). ROUTING CANNOT FIX EMPTY: a node for these
+#     buys absence markers and moves the render surface on live boards, the trade D-EI-4 already rejected.
+#   * plus metals (975), baltic_dry_freight (18), vessel_lineups_export_basis (14),
+#     sustainable_aviation_fuel (25), wheat_blast (32) -- outside the D-GD tranche's named scope, untouched.
 READ_DARK_SLICES_PIN = frozenset({
-    "baltic_dry_freight", "barley_yellow_dwarf_virus", "cattle_cycle_herd_size", "cattle_on_feed", "dap",
-    "egypt_gasc_tenders", "global_rice_export_policy", "idr_fx", "index_roll_flows",
-    "indian_ocean_dipole", "inr_fx", "madden_julian_oscillation", "metals", "mississippi_river_levels",
-    "myr_fx", "natural_rubber", "panama_canal_constraints", "real_yields_rates", "subsidy",
-    "suez_redsea_disruption", "sunflower_oil_balance", "sustainable_aviation_fuel",
-    "veg_oil_substitution_spreads", "vessel_lineups_export_basis", "west_africa_weather", "wheat_blast",
+    "baltic_dry_freight", "barley_yellow_dwarf_virus", "cattle_cycle_herd_size", "dap",
+    "index_roll_flows", "indian_ocean_dipole", "madden_julian_oscillation", "metals", "natural_rubber",
+    "real_yields_rates", "sustainable_aviation_fuel", "veg_oil_substitution_spreads",
+    "vessel_lineups_export_basis", "wheat_blast",
 })
 
 

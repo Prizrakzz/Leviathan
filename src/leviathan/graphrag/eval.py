@@ -1385,7 +1385,66 @@ def _per_answer_record(r: dict, run_kind: str) -> dict:
             # `numbers_mismatched` boolean -- the counts behind it (stated / rows / mismatched) were
             # unreadable from any file, so a mismatch could not be sized without re-running the turn.
             "served_rows": _served_rows(out),
-            "numbers_verifier": (out.get("trace") or {}).get("numbers_verifier")}
+            "numbers_verifier": (out.get("trace") or {}).get("numbers_verifier"),
+            # D-GD-1 -- APPENDED, never interleaved (the same additive contract served_rows rides). The raw
+            # `cascade_closure` column arrives above through the tracekeys registry; this is the DERIVED
+            # counter the D-GD-3 decision is read from, so the adjudicator never has to re-derive a join.
+            "closure_cited": _closure_cited(out)}
+
+
+def _closure_cited(out: dict) -> dict:
+    """D-GD-1 (2026-08-08) INSTRUMENT -- CITATIONS THAT LANDED ON A CLOSURE-ADMITTED NODE, deterministically,
+    from the artifact alone. STRICTLY ADDITIVE: no existing field changes meaning, nothing here is read by
+    any scoring or strip path, and deleting this column leaves every pre-existing one byte-identical.
+
+    WHY A JOIN AND NOT A DEPTH FIELD. The recon's instrument section flagged the blocker: node identity is
+    not attached to a citation anywhere (`answer.py` flattens evidence to `{**h, "contract": ...}` and
+    verify's `report["resolved"][ref]` projects `{source, date, source_key, snippet}`). verify.py's rules
+    are FROZEN for this wave's A/B, so the join is built from the two fields it ALREADY projects:
+    `planner.ground` stamps the (source_key, date) identity of the rows that SURVIVED `_dedup_and_cap` on
+    each reserved node (`trace.cascade_closure.cited_join`), and this counts the resolved handles that hit
+    that set. Post-cap on purpose -- a pre-cap join would score a slot that the cap had already zeroed.
+
+    THE THREE NUMBERS THE D-GD-3 ADJUDICATOR READS, and what each can and cannot say:
+      `n_reserved`  -- slots the reservation actually spent. 0 on the ON arm == THE ROW IS INSTRUMENT-DEAD
+                       (the mechanism never fired); it is never reportable as a D-GD loss.
+      `n_cited`     -- distinct [E] handles resolving to a closure-admitted node's row. The headline: reach
+                       that CONVERTED. Bounded above by `reserved_with_evidence`.
+      `open`/`closed` -- the embedding-free cascade-closure census, stamped on BOTH arms, so the arms are
+                       comparable even on rows where nothing was cited (ON arm `open` must fall).
+    THE JOIN KEY IS ROW-GRANULAR: (source_key, date, snippet) — R1 #2 (2026-08-08). `source_key` is a
+    DOCUMENT key and `_dedup_and_cap` attributes each ROW once, NOT each DOCUMENT once, so two propositions
+    of one document legitimately survive on two different nodes and the 2-field key counted a citation on a
+    COSINE node's row as a closure citation. The error was one-directional — the OFF arm has no reserved
+    nodes, so its `cited_join` is empty and `n_cited` is structurally 0 — i.e. it could only ever inflate
+    the treatment arm. `snippet` is verify.py's own projection (verify.py:906), stamped identically by
+    `planner.ground`, so verify.py still needs no change. A `cited_join` row without the third field is a
+    pre-fix artifact shape and is NOT joinable: it is dropped rather than matched document-granularly."""
+    cc = ((out.get("trace") or {}).get("cascade_closure")) or {}
+    if not cc:
+        return {}
+    join = set()
+    for _row in (cc.get("cited_join") or []):
+        _row = list(_row) if isinstance(_row, (list, tuple)) else []
+        if len(_row) < 3 or not _row[0]:
+            continue
+        join.add((_row[0], str(_row[1] or "")[:10], _row[2] or ""))
+    resolved = (((out.get("trace") or {}).get("citation_verifier")) or {}).get("resolved") or {}
+    hits = sorted(ref for ref, m in resolved.items()
+                  if isinstance(m, dict)
+                  and (m.get("source_key"), str(m.get("date") or "")[:10],
+                       m.get("snippet") or "") in join)
+    return {"enabled": bool(cc.get("enabled")), "reserve_n": cc.get("reserve_n"),
+            "n_reserved": len(cc.get("reserved") or []),
+            "reserved_with_evidence": cc.get("reserved_with_evidence"),
+            "n_cited": len(hits), "refs": hits,
+            "reserved_ids": [r.get("key", [None, None, None])[2] for r in (cc.get("reserved") or [])],
+            "reserved_slices": [r.get("slice") for r in (cc.get("reserved") or [])],
+            "n_displaced": len(cc.get("displaced") or []), "count_delta": cc.get("count_delta"),
+            "headroom_used": cc.get("headroom_used"),
+            "open_lost_with_displaced": cc.get("open_edges_lost_with_displaced"),
+            "census_population": cc.get("census_population"),
+            "closed": cc.get("closed"), "open": cc.get("open"), "kept": cc.get("kept")}
 
 
 def _partial_path(eval_set: str, provider: str, *, judge: bool = False):
@@ -1965,7 +2024,52 @@ def planner_report(rows: list[dict]) -> list[str]:
             f"- avg subgraph: **{avg('n_kept')}** grounded nodes across **{avg('n_contracts')}** contracts "
             f"(>1 contract = a cross-commodity cascade hop was grounded, not just described)",
             f"- avg **convergence regimes fired** (deterministic): {avg('n_regimes')}",
-            f"- avg **leg-grounding rate** (kept drivers backed by dated evidence): {avg('leg_grounded')}"]
+            f"- avg **leg-grounding rate** (kept drivers backed by dated evidence): {avg('leg_grounded')}"] \
+        + closure_panel(rows)
+
+
+def closure_panel(rows: list[dict]) -> list[str]:
+    """D-GD-1 cascade-closure lines, folded into the L2 panel. ADDITIVE: returns [] on any run whose walks
+    carry no `cascade_closure` stamp (every pre-D-GD baseline), so no existing report changes.
+
+    Reported on BOTH arms by design. `open` is the arms' shared, embedding-free baseline -- computed over a
+    FIXED population (R1 #3: cosine/focus-admitted kept drivers + the drivers this walk displaced) whose
+    BACKED, SLICE-DISTINCT parent was not admitted -- and it is the number the ON arm must move.
+    `cited` is the conversion: how many of the reserved slots reached a citation handle. INSTRUMENT-DEAD is
+    printed, not hidden: an ON-arm row that reserved nothing measured nothing and must never be read as a
+    loss (the `dv_episode_lanina_arg` discipline)."""
+    recs = [(((r.get("out") or {}).get("trace") or {}).get("cascade_closure") or {},
+             _closure_cited(r.get("out") or {}), (r.get("q") or {}).get("id")) for r in rows]
+    recs = [(c, j, i) for c, j, i in recs if c]
+    if not recs:
+        return []
+    on = [(c, j, i) for c, j, i in recs if c.get("enabled")]
+    n_res = sum(j.get("n_reserved") or 0 for _, j, _ in recs)
+    n_cit = sum(j.get("n_cited") or 0 for _, j, _ in recs)
+    n_ev = sum(j.get("reserved_with_evidence") or 0 for _, j, _ in recs)
+    opens = sum(int(c.get("open") or 0) for c, _, _ in recs)
+    closes = sum(int(c.get("closed") or 0) for c, _, _ in recs)
+    bad = [i for c, _, i in recs if (c.get("count_delta") or 0) != 0]
+    dead = [i for c, j, i in on if not (j.get("n_reserved") or 0)]
+    L = ["- **cascade closure** (D-GD-1): reservation "
+         f"{'ON' if on else 'OFF'} on {len(on)}/{len(recs)} walks · "
+         f"open edges **{opens}** / closed {closes} "
+         "(open = a kept driver's backed, slice-distinct parent was NOT admitted)"]
+    if on:
+        n_hr = sum(j.get("headroom_used") or 0 for _, j, _ in recs)
+        n_disp = sum(j.get("n_displaced") or 0 for _, j, _ in recs)
+        n_lost = sum(j.get("open_lost_with_displaced") or 0 for _, j, _ in recs)
+        L.append(f"  - reserved slots **{n_res}** · with dated evidence after the cap **{n_ev}** · "
+                 f"citations landing on them **{n_cit}**")
+        L.append(f"  - paid from UNSPENT budget {n_hr} · by displacing an admitted driver {n_disp} "
+                 f"(open edges those displaced drivers still carry, counted on BOTH arms: {n_lost})")
+    if dead:
+        L.append(f"  - **INSTRUMENT-DEAD rows (reservation never fired, never a loss): {len(dead)}** "
+                 f"{dead[:8]}")
+    if bad:
+        L.append(f"  - **NODE-COUNT INVARIANT VIOLATED on {len(bad)} row(s): {bad[:8]} "
+                 "-- the reservation must displace exactly what it admits**")
+    return L
 
 
 def register_report(rows: list[dict]) -> list[str]:

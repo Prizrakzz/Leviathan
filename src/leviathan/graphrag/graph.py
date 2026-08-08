@@ -119,6 +119,34 @@ class CausalGraph:
             stack.extend(ix.by_id[n].parents)
         return sorted(seen)
 
+    def ancestors_by_depth(self, contract: str, driver_id: str) -> dict[str, int]:
+        """D-GD (2026-08-08) — `ancestors()` with the CHAIN DEPTH each upstream cause sits at
+        (1 = a direct parent, 2 = a grandparent, ...). Same SET as `ancestors()` by construction, and
+        test_dgd_closure_reservation pins the parity over all 33 curated DAGs.
+
+        WHY THE DEPTH IS NEEDED AND THE SORTED SET IS NOT: the cascade-closure reservation
+        (planner._closure_plan) spends a FIXED, small number of slots, so it must spend them
+        NEAREST-PARENT-FIRST — a reservation of 3 then closes the median chain whole (median ancestor
+        closure 2, mean 3.58, max 26; docs/private/recon/dgd-walk-admission.md V3) instead of scattering
+        alphabetically across a 26-ancestor monster. The depth also rides the per-node admission record
+        so the D-GD-3 adjudicator can read WHICH link of a chain each admitted node closed.
+
+        BFS, so a cause reachable by two paths keeps its SHALLOWEST depth. Acyclicity is not assumed:
+        `out` terminates any cycle. Pure/offline, same as `ancestors()`."""
+        ix = self._ix(contract)
+        out: dict[str, int] = {}
+        frontier = [p for p in ix.by_id[driver_id].parents if p in ix.by_id]
+        depth = 1
+        while frontier:
+            nxt: list[str] = []
+            for n in sorted(frontier):
+                if n in out:
+                    continue
+                out[n] = depth
+                nxt.extend(p for p in ix.by_id[n].parents if p in ix.by_id)
+            frontier, depth = nxt, depth + 1
+        return out
+
     def descendants(self, contract: str, driver_id: str) -> list[str]:
         """Transitive downstream effects (drivers this one is a parent of) — 'what this drives'."""
         ix = self._ix(contract)

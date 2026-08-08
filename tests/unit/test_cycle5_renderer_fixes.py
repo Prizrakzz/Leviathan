@@ -296,8 +296,14 @@ def test_new_artifact_fields_are_strictly_additive():
     # every pre-existing column is identical in value, not merely in name
     assert {k: v for k, v in rich.items() if k not in _NEW} == {k: v for k, v in bare.items()
                                                                 if k not in _NEW}
-    assert list(rich)[-2:] == list(_NEW)                   # APPENDED: no pre-existing column moved
-    assert list(rich)[:-2] == list(bare)[:-2]
+    # APPENDED: no pre-existing column moved. The pin is "nothing BEFORE these two moved", never "nothing
+    # may ever follow them" -- later waves append their own columns after (D-GD-1 `closure_cited`,
+    # 2026-08-08), which is the same additive contract, one wave further along. Extend _LATER, never
+    # re-order.
+    _LATER = ("closure_cited",)
+    _tail = len(_NEW) + len(_LATER)
+    assert list(rich)[-_tail:] == list(_NEW) + list(_LATER)
+    assert list(rich)[:-_tail] == list(bare)[:-_tail]
     json.dumps(rich)                                       # the record must still serialize
 
 

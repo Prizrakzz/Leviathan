@@ -36,6 +36,10 @@ TRACE_RECORD_KEYS: tuple[str, ...] = (
     "prose_orphans_tidied",      # CYCLE-5 TIDY-2: True when a strip left a headless paragraph to repair
     "number_rows_deduped",       # CYCLE-6 FIX-C: [N] indices re-pointed onto a full-identity twin's row
     "evidence_orphans_pruned",   # CYCLE-9 FIX 3: [E] refs removed for want of a `## Sources` row
+    "cascade_closure",           # D-GD-1: per-node admission records + the open/closed edge census.
+                                 # Stamped on EVERY walk, BOTH polarities of GRAPHRAG_CLOSURE_RESERVE --
+                                 # `open` is the two arms' shared deterministic baseline, so the usual
+                                 # absent-when-off idiom would leave the ON arm's number uncomparable.
 )
 
 # out["intent_decision"][decision_key] -> record[record_column].

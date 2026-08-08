@@ -43,6 +43,30 @@ _PROBE_WORKERS = int(os.environ.get("GRAPHRAG_PROBE_WORKERS") or _pr.get("servin
 _EVIDENCE_CAP = int(_pr.get("serving.ground.evidence_cap", 24))
 _K_BY_DEPTH = tuple(_pr.get("serving.ground.k_by_depth", (5, 3, 2)))
 
+# ── D-GD-1 (2026-08-08) CASCADE-CLOSURE RESERVATION ──────────────────────────────────────────────────────────
+# N slots of the walk's EXISTING budget are reserved, inside the wave that admits them, for the BACKED
+# ANCESTORS of the top-ranked admitted drivers — admitted at the anchor's own depth, decided OUTSIDE the
+# hop-first comparator (line 160) so a tracked hop can never eat the reservation, and PAID FOR by displacing
+# the lowest-ranked admitted drivers of that same wave. Same node count, same k, same evidence_cap: the
+# reservation REPLACES cosine admissions, it never adds one.
+#
+# WHY THIS SHAPE AND NOT A DEPTH KNOB (docs/private/recon/dgd-walk-admission.md V1/V3, dgd-graph-depth-
+# structure.md S1.2, dgd-chain-instruments.md V1): a driver's depth-2 route is its `.parents`, the schema
+# forces every parent to be a driver id of the SAME contract, and the walk enqueues EVERY driver of a
+# contract into wave 1 — so 1026/1026 parent edges point at a node that is ALREADY a wave-1 candidate and
+# already `visited`-stamped. Measured new depth-2 driver nodes from the seed fan-in: 0 in 33 of 33 DAGs at
+# any budget. The hierarchy is real (1,026 parent edges, 573/1,112 drivers parented, chains 3-8 deep) and it
+# is invisible to a flat cos(query, mechanism) sort over 24-45 siblings. This is therefore an ADMISSION-SORT
+# change, not a depth change, and `reasoning_modes` keeping deep pinned at depth=1 is CORRECT under it.
+#
+# PRECEDENT: answer._answer_l2's `focus_driver` force-inject (answer.py:1876-1884) is the same move done
+# post-walk with no budget accounted for; this one is done inside the walk and pays for its slots.
+_CLOSURE_RESERVE = int(_pr.get("serving.walk.closure_reserve", 3))
+# The admission record every kept node carries (GroundedNode.admission + trace.cascade_closure.admissions).
+# A d==0 SEED carries this too: the walk admits seeds by fiat at relevance 1.0, and the node's own `depth`
+# already says so — the enum stays the three values the D-GD-3 counter is written against.
+_ADMIT_COSINE = {"reason": "cosine", "ancestor_of": None, "chain_depth": 0}
+
 
 # ── edge-category map (code-level; NO YAML re-curation) ──────────────────────────────────────────────────────
 # Classifies the EXISTING relation/edge_type vocabulary so grounding expectations differ by kind:
@@ -75,6 +99,12 @@ class GroundedNode:
     active: bool = False                        # driver "active" = evidence leg non-empty near the episode
     via_edge: Optional[dict] = None             # the inter-commodity edge that reached this contract node
     episodes: list = field(default_factory=list)     # PIT-filtered dated episodes (timeline layer)
+    # D-GD-1: WHY this node was admitted — {reason: cosine|closure_reservation|focus_driver,
+    # ancestor_of: <the driver whose chain earned the slot, or None>, chain_depth: <int, 0 when N/A>}.
+    # Observational only: nothing in the render, the prompt, the verifier or the footer reads it. It is
+    # what makes an admission decision AUDITABLE from an artifact (it rides trace.cascade_closure.admissions
+    # -> tracekeys -> every eval per-answer record).
+    admission: dict = field(default_factory=dict)
 
     @property
     def key(self) -> tuple:
@@ -117,10 +147,276 @@ def _seed_contracts(query, graph, route_fn, max_seeds: int) -> list[str]:
     return seeds
 
 
+def _closure_reserve_n(explicit: int | None = None) -> int:
+    """D-GD-1: the reservation SIZE for this walk. DEFAULT OFF (0) — the D-GD-3 A/B is what flips it.
+
+    `explicit` (the kwarg) wins outright and reads no environment: the test + eval-arm seam.
+    Otherwise `GRAPHRAG_CLOSURE_RESERVE`:
+      absent / '' / off / false / no / 0  -> 0, i.e. the shipped walk byte for byte
+      on / true / yes                     -> params `serving.walk.closure_reserve` (3)
+      an INTEGER                          -> that size, so N is sweepable with no code change
+
+    '1' therefore means RESERVE ONE, not "on". This knob carries a MAGNITUDE, so the house
+    ("on","1","true") boolean idiom would make the only interesting small value unreachable; the
+    boolean words are still accepted so the flip stays a one-word env change. Anything unparseable
+    resolves to 0 — fail-CLOSED, because a typo must never silently change which nodes a desk turn saw."""
+    if explicit is not None:
+        return max(0, int(explicit))
+    v = (os.environ.get("GRAPHRAG_CLOSURE_RESERVE") or "").strip().lower()
+    if v in ("", "off", "false", "no"):
+        return 0
+    if v in ("on", "true", "yes"):
+        return max(0, _CLOSURE_RESERVE)
+    try:
+        return max(0, int(v))
+    except ValueError:
+        return 0
+
+
+def _driver_slice_resolvers(driver_slices=None):
+    """(backed_ids, slice_path_fn) for the WALK — the same two-mode seam `ground()` already carries, so a
+    hermetic test injects one set and gets identical semantics on both sides of the walk/ground line.
+
+    `driver_slices` given -> the id IS its own slice path (tests). None -> the curated alias map.
+    A broken/absent alias config degrades to "nothing is backed", which makes the reservation a strict
+    no-op rather than a walk that fails: an observational fence can never be allowed to kill a turn."""
+    if driver_slices is not None:
+        backed = set(driver_slices)
+        return backed, (lambda did: f"drivers/{did}")
+    try:
+        backed = ev.backed_dag_ids()
+    except Exception:  # noqa: BLE001 — config gone -> no reservation, never a dead walk
+        return set(), (lambda did: None)
+
+    def _sp(did):
+        s = ev.slice_for_driver(did)
+        return f"drivers/{s}" if s else None
+    return backed, _sp
+
+
+def _closure_plan(scored: list, kept: dict, graph: gph.CausalGraph, *, node_budget: int, reserve_n: int,
+                  backed: set, slice_of_driver, wave_pruned: dict, protect_ids: frozenset = frozenset()
+                  ) -> Optional[dict]:
+    """Decide ONE wave's cascade-closure reservation. PURE (no embed, no I/O): it reads only the wave's
+    already-scored candidates, the kept set, and the curated DAG.
+
+    Returns None when nothing is reserved — and the caller then runs the SHIPPED admission verbatim, which
+    is the whole of the byte-identity guarantee for the OFF arm and for the flag-on-but-nothing-eligible
+    case. Otherwise: {seq, final, displaced, displaced_rec, reserved, skipped, admissions, tau_release}.
+
+    THE FOUR RULES, each with the measurement that forced it:
+      1. ELIGIBILITY = BACKED **and** SLICE-DISTINCT. 23.1% of the estate's 1,026 parent edges reach a DARK
+         parent (no slice -> a prior-only node that can never be cited) and 4.2% reach a parent resolving to
+         the SAME slice as a node already in the walk, where `_dedup_and_cap` collapses it to zero rows
+         (recon V6). Without both filters ~1 slot in 4 buys a node that cannot be cited.
+      2. NEAREST-PARENT-FIRST, anchored on the RANK-ORDERED admitted drivers. N=3 then closes the median
+         chain (closure median 2, mean 3.58) whole before spilling to the second-best driver's chain.
+      3. TAU-EXEMPT, and the ledger stays a PARTITION. An ancestor admitted for structural reasons may score
+         below the relevance floor on its own mechanism — exempting it is the point of the fix. The wave's
+         own `tau` entry for that key is RELEASED (returned in `tau_release`) rather than left beside the
+         admission, so every key still carries exactly ONE decision and `visited` still stamps it exactly
+         once. This is why the reservation is WAVE-LOCAL: it never reaches back into an earlier wave's
+         tombstones, so the visited-before-tau aggravator the recon flagged stays untouched.
+      4. HEADROOM FIRST, DISPLACE ONLY FOR THE REMAINDER; the CEILING is the invariant, not the count.
+         REVIEW FIX (D-GD-1 R1 #1, 2026-08-08): v1 displaced UNCONDITIONALLY, so it paid for every slot
+         whether or not the wave had a spare one to give. Measured on the real 33-DAG graph at the deep
+         knobs (node_budget=16/depth=1/tau=.35): 0 of 198 single-contract walks and 4 of 33 three-seed
+         walks ever FILLED node_budget — tau, not the budget, is what ends these walks — while 220 of 220
+         and 68 of 80 displacements respectively happened with the budget UNSPENT. The ON arm was therefore
+         not "the same slots, better chosen": it was the shipped walk MINUS 1-3 cosine-admitted drivers
+         with 7-12 slots left idle, which would have conflated `+ancestors` with `-top drivers` in one arm.
+         So: `headroom = node_budget - (len(kept) + len(base))` is spent FIRST and additively; only the
+         remainder displaces the lowest-ranked admitted drivers (never a seed, never a tracked hop — the
+         hop-first comparator is deliberately untouched; never an ANCHOR of this same reservation nor ANY
+         driver on an anchor's ancestor chain, which would orphan the chain it earned, R1 #4; never the
+         turn's `focus_driver`, whose post-walk re-inject would otherwise re-add it on the ON arm only,
+         R1 #5). If the wave cannot pay for the remainder, the reservation is TRIMMED. The invariant that
+         actually matters is `len(kept) <= node_budget` — the 17-node `_COALESCE_MAX_DOCS` rerank cliff —
+         and headroom-first satisfies it BY CONSTRUCTION. `count_delta = reserved - displaced -
+         headroom_used` stays assertable at 0 as the accounting proof.
+
+         NOTE FOR RATIFICATION: with headroom-first the ON arm is genuinely ADDITIVE on most walks. That is
+         a different confound from v1's (more nodes, not different nodes) — but an honest and
+         `node_budget`-bounded one, and it is the user's call at D-GD-3 adjudication."""
+    # (1) what the SHIPPED rule would admit, in rank order — the baseline this plan may not out-count.
+    base, n = [], len(kept)
+    for e in scored:
+        if e[5] > 0 and n >= node_budget:
+            continue
+        base.append(e)
+        n += 1
+    base_keys = {e[7] for e in base}
+    # (2) slices the walk already covers: a reserved ancestor resolving to one of them retrieves the same
+    #     rows under a different name and the cross-node dedup zeroes it. Read PRE-displacement, so a slice
+    #     held only by a node this plan is about to displace still blocks -- deliberately CONSERVATIVE: the
+    #     displaced set is not decided until step (4), and erring toward "skip" can only ever leave a slot
+    #     with the shipped cosine admission, never spend one on a node that cannot be cited.
+    covered = {sp for nd in kept.values() if nd.kind == "driver"
+               for sp in (slice_of_driver(nd.id),) if sp}
+    covered |= {sp for e in base if e[3] == "driver"
+                for sp in (slice_of_driver(e[2]),) if sp}
+    reserved: list[dict] = []
+    skipped: list[dict] = []
+    chains: dict = {}                                       # (contract, anchor) -> its FULL ancestor chain
+    for e in base:                                          # rank order: strongest admitted driver first
+        if len(reserved) >= reserve_n:
+            break
+        if e[3] != "driver" or e[5] <= 0:
+            continue
+        cid, anchor = e[4], e[2]
+        try:
+            chain = graph.ancestors_by_depth(cid, anchor)
+        except Exception:  # noqa: BLE001 — an unindexed driver must not fail the walk
+            continue
+        for a, cdepth in sorted(chain.items(), key=lambda kv: (kv[1], kv[0])):
+            if len(reserved) >= reserve_n:
+                break
+            key = ("driver", cid, a)
+            if key in base_keys or key in kept or any(tuple(r["key"]) == key for r in reserved):
+                skipped.append({"id": a, "of": anchor, "reason": "already_admitted"})
+                continue
+            if a not in backed:
+                skipped.append({"id": a, "of": anchor, "reason": "unbacked"})
+                continue
+            sp = slice_of_driver(a)
+            if not sp:
+                skipped.append({"id": a, "of": anchor, "reason": "no_slice"})
+                continue
+            if sp in covered:
+                skipped.append({"id": a, "of": anchor, "reason": "same_slice"})
+                continue
+            covered.add(sp)
+            chains[(cid, anchor)] = chain
+            reserved.append({"key": list(key), "contract": cid, "ancestor_of": anchor,
+                             "chain_depth": int(cdepth), "slice": sp, "depth": e[5]})
+    if not reserved:
+        return None
+    # (4) PAY FOR IT — HEADROOM FIRST (R1 #1), then the lowest-ranked admitted drivers.
+    # `base` is what the shipped rule would admit this wave, so len(kept)+len(base) is the OFF arm's node
+    # count at the end of it; anything left under node_budget is a slot NOBODY was going to use.
+    headroom = max(0, node_budget - (len(kept) + len(base)))
+    headroom_used = min(len(reserved), headroom)
+    need = len(reserved) - headroom_used
+    # PROTECTED from displacement: every anchor, every driver on an anchor's FULL ancestor chain (R1 #4 —
+    # an interior parent that was already cosine-admitted is skipped `already_admitted` above and would
+    # otherwise become the lowest-ranked displaceable driver, deleting the very link that earned the
+    # grandparent), and the turn's focus_driver (R1 #5 — answer.py re-injects it post-walk with no budget
+    # accounting, which would push the ON arm past the ceiling on the ON arm only).
+    anchors = {(r["contract"], r["ancestor_of"]) for r in reserved}
+    protected = set(anchors) | {(cid, a) for (cid, anchor) in anchors
+                                for a in chains.get((cid, anchor)) or ()}
+    displaceable = [e for e in reversed(base)
+                    if e[3] == "driver" and e[5] > 0 and (e[4], e[2]) not in protected
+                    and e[2] not in protect_ids]
+    displaced = displaceable[:need]
+    if len(displaced) < need:                                # trimmed, never overdrawn
+        reserved = reserved[:headroom_used + len(displaced)]
+        headroom_used = min(headroom_used, len(reserved))
+    if not reserved:
+        return None
+    disp_keys = {e[7] for e in displaced}
+    # (3) build each reserved node's scored entry: a tau SURVIVOR reuses its own (the budget dropped it),
+    #     a tau-PRUNED sibling is rebuilt at the anchor's depth with the relevance the wave already scored.
+    by_key = {e[7]: e for e in scored}
+    tau_release: list[dict] = []
+    for r in reserved:
+        key = tuple(r["key"])
+        e = by_key.get(key)
+        if e is not None:
+            r["_entry"], r["relevance"], r["tau_exempt"] = e, e[1], False
+            continue
+        rec = wave_pruned.get(key)
+        rel = rec[0] if rec else 0.0
+        r["relevance"], r["tau_exempt"] = rel, True
+        r["_entry"] = (0, rel, key[2], "driver", key[1], r["depth"], None, key)
+        if rec:
+            tau_release.append(rec[1])
+    res_keys = {tuple(r["key"]) for r in reserved}
+    ins: dict = {}
+    for r in reserved:                                       # each chain hangs off the driver that earned it
+        ins.setdefault((r["contract"], r["ancestor_of"]), []).append(r)
+    seq: list = []
+    for e in scored:
+        if e[7] in res_keys:
+            continue                                         # re-emitted beside its anchor below
+        seq.append(e)
+        grp = ins.pop((e[4], e[2]), None)
+        if grp:
+            seq.extend(r["_entry"] for r in sorted(grp, key=lambda r: (r["chain_depth"], str(r["key"][2]))))
+    for grp in ins.values():                                 # defensive: anchor absent -> keep at the tail
+        seq.extend(r["_entry"] for r in grp)
+    final = (base_keys - disp_keys) | res_keys
+    return {"seq": seq, "final": final, "displaced": disp_keys, "headroom_used": headroom_used,
+            "displaced_rec": [{"key": list(e[7]), "relevance": e[1], "depth": e[5]} for e in displaced],
+            "reserved": reserved, "skipped": skipped, "tau_release": tau_release,
+            "admissions": {tuple(r["key"]): {"reason": "closure_reservation",
+                                             "ancestor_of": r["ancestor_of"],
+                                             "chain_depth": r["chain_depth"]} for r in reserved}}
+
+
+def _closure_census(nodes: list, graph: gph.CausalGraph, backed: set, slice_of_driver,
+                    displaced: list | tuple = ()) -> dict:
+    """The embedding-free statement of the defect the reservation exists to fix, computed on EVERY walk so
+    both arms of the A/B carry it: over a FIXED population of drivers, how many of their BACKED,
+    SLICE-DISTINCT parent edges were CLOSED (both ends admitted) and how many were left OPEN.
+
+    `open` is the deterministic counter the D-GD-3 read moves (ON arm < OFF arm) and it needs no judge, no
+    retrieval and no model. Dark parents and same-slice parents are counted on NEITHER side: they are
+    ineligible for the reservation, so charging the walk for them would be a metric the fix cannot move.
+
+    THE POPULATION IS FIXED — R1 #3 (2026-08-08). v1 counted over `kept`, the very set the reservation
+    changes, so DISPLACING a driver silently DELETED all of that driver's open parent edges from the count
+    with nothing closed — and displacement systematically targets the LOWEST-ranked admitted drivers,
+    precisely the ones whose parents were never admitted, i.e. the ones carrying the most open edges. The
+    bias had a direction (measured on the real graph over the 57 firing single-contract rows: open fell 86
+    while 36 of those edges vanished with a displaced node; the synthetic worst case was a 6x
+    overstatement). The population is therefore the OFF ARM'S kept driver set, reconstructed on both arms
+    as `cosine/focus-admitted kept drivers + the drivers this walk displaced`:
+      - a DISPLACED driver stays in the census, so its open edges are still charged;
+      - a CLOSURE-RESERVED driver is NOT a census child, so the treatment cannot add its own parent edges
+        to either side of the ledger.
+    Under it `open` can only fall because an ANCESTOR WAS ADMITTED — the mechanism — and
+    `open_edges_lost_with_displaced` publishes the decomposition instead of leaving it to be re-derived."""
+    admitted = {(n.contract, n.id) for n in nodes if n.kind == "driver"}
+    disp = {(k[1], k[2]) for k in (tuple(d["key"]) for d in (displaced or [])) if k and k[0] == "driver"}
+    population = sorted({(n.contract, n.id) for n in nodes if n.kind == "driver"
+                         and ((getattr(n, "admission", None) or {}).get("reason")
+                              != "closure_reservation")} | disp)
+    closed, open_edges, lost = 0, [], 0
+    for cid, did in population:
+        try:
+            parents = list(graph.driver(cid, did).parents)
+        except Exception:  # noqa: BLE001 — a synthetic/injected node need not be in the graph
+            continue
+        sp_child = slice_of_driver(did)
+        for p in parents:
+            if p not in backed:
+                continue
+            sp = slice_of_driver(p)
+            if not sp or sp == sp_child:
+                continue
+            if (cid, did) in admitted and (cid, p) in admitted:
+                closed += 1                                  # both ends retrievable in THIS walk
+            else:
+                open_edges.append([cid, did, p])
+                if (cid, did) in disp:
+                    lost += 1                                # what the v1 kept-set population deleted
+    return {"closed": closed, "open": len(open_edges), "open_edges": sorted(open_edges),
+            "census_population": len(population), "open_edges_lost_with_displaced": lost}
+
+
 def grounded_subgraph(query: str, graph: gph.CausalGraph, *, depth: int = _DEPTH, node_budget: int = _NODE_BUDGET,
-                      tau: float = _TAU, max_seeds: int = _MAX_SEEDS, embed=None, route_fn=None) -> Subgraph:
+                      tau: float = _TAU, max_seeds: int = _MAX_SEEDS, embed=None, route_fn=None,
+                      closure_reserve: int | None = None, driver_slices=None,
+                      focus_driver: str | None = None) -> Subgraph:
     """Query-conditioned frontier walk. Returns the kept subgraph with the PRIOR leg + mermaid + trace filled;
-    evidence/silver/convergence are added by ground(). Deterministic given `embed` (inject a fake in tests)."""
+    evidence/silver/convergence are added by ground(). Deterministic given `embed` (inject a fake in tests).
+
+    `focus_driver` (D-GD-1 R1 #5) is OBSERVATIONAL to the walk itself — it changes nothing about scoring,
+    admission or budget. It only marks that driver DISPLACEMENT-PROTECTED, because answer._answer_l2
+    re-injects it post-walk when it is absent, with no budget accounted for; a reservation that displaced
+    it would therefore grow the turn's node count on the ON arm ONLY, past the very 17-node
+    `_COALESCE_MAX_DOCS` cliff the budget invariant exists to hold. No-op when the reservation is off."""
     embed = embed or ev.embed
     if route_fn is None:
         from leviathan.graphrag import answer as _an  # lazy: answer imports planner for the l2 path
@@ -132,6 +428,15 @@ def grounded_subgraph(query: str, graph: gph.CausalGraph, *, depth: int = _DEPTH
     visited: set = set()
     kept: dict[tuple, GroundedNode] = {}
     pruned: list[dict] = []
+    # D-GD-1: reserve_left is a PER-WALK budget (not per-wave) — "reserve N of the walk's slots".
+    reserve_left = _closure_reserve_n(closure_reserve)
+    _backed, _slice_of_driver = _driver_slice_resolvers(driver_slices)
+    _cl_reserved: list[dict] = []
+    _cl_displaced: list[dict] = []
+    _cl_skipped: list[dict] = []
+    _cl_admissions: dict = {}
+    _cl_headroom = 0
+    _protect_ids = frozenset({focus_driver}) if focus_driver else frozenset()
 
     # Wave-by-wave BFS: at each depth, SCORE every candidate and admit the most relevant under the budget,
     # instead of FIFO in YAML-curation order (v1.1's walk kept whichever drivers came first, so 70% of
@@ -140,6 +445,7 @@ def grounded_subgraph(query: str, graph: gph.CausalGraph, *, depth: int = _DEPTH
     wave = [(c, 0, None, "contract", c) for c in seeds]     # (id, depth, via_edge, kind, contract)
     while wave and len(kept) < node_budget:
         scored = []
+        wave_pruned: dict = {}                              # D-GD-1: this wave's tau tombstones, by key
         for id_, d, via, kind, cid in wave:
             key = (kind, cid, id_)
             if key in visited:
@@ -152,19 +458,48 @@ def grounded_subgraph(query: str, graph: gph.CausalGraph, *, depth: int = _DEPTH
             else:                                           # a driver: score its mechanism
                 rel = _relevance(qv, graph.driver(cid, id_).mechanism, embed, mech)
             if d > 0 and rel < tau:
-                pruned.append({"key": list(key), "relevance": round(rel, 3), "depth": d, "reason": "tau"})
+                _p = {"key": list(key), "relevance": round(rel, 3), "depth": d, "reason": "tau"}
+                pruned.append(_p)
+                if reserve_left > 0:                        # only the reservation ever reads this index
+                    wave_pruned[key] = (round(rel, 3), _p)
                 continue
             is_hop = 1 if (kind == "contract" and d > 0) else 0    # tracked hop priority (L2's headline)
             scored.append((is_hop, round(rel, 3), id_, kind, cid, d, via, key))
 
         scored.sort(key=lambda x: (-x[0], -x[1], x[2]))     # hop-first, then relevance desc, id asc (deterministic)
+        # D-GD-1: the reservation is decided HERE — AFTER the hop-first comparator has run and OUTSIDE it,
+        # so a tracked hop can never consume a reserved slot (dgd-graph-depth-structure.md S3/S4.6). `plan`
+        # is None whenever nothing was reserved, and the loop below is then the shipped one byte for byte.
+        plan = None
+        if reserve_left > 0 and any(e[3] == "driver" and e[5] > 0 for e in scored):
+            plan = _closure_plan(scored, kept, graph, node_budget=node_budget, reserve_n=reserve_left,
+                                 backed=_backed, slice_of_driver=_slice_of_driver, wave_pruned=wave_pruned,
+                                 protect_ids=_protect_ids)
+        if plan is not None:
+            _rel = {id(p) for p in plan["tau_release"]}      # a tau-exempt admission RELEASES its tombstone
+            if _rel:                                         # so the pruned/kept ledger stays a partition
+                pruned[:] = [p for p in pruned if id(p) not in _rel]
+            reserve_left -= len(plan["reserved"])
+            _cl_reserved.extend(plan["reserved"])
+            _cl_displaced.extend(plan["displaced_rec"])
+            _cl_skipped.extend(plan["skipped"])
+            _cl_admissions.update(plan["admissions"])
+            _cl_headroom += plan["headroom_used"]
+        _seq = plan["seq"] if plan is not None else scored
+        _final = plan["final"] if plan is not None else None
         nxt = []
-        for is_hop, rel, id_, kind, cid, d, via, key in scored:
-            if d > 0 and len(kept) >= node_budget:          # budget spent on higher-ranked candidates
-                pruned.append({"key": list(key), "relevance": rel, "depth": d, "reason": "budget"})
+        for is_hop, rel, id_, kind, cid, d, via, key in _seq:
+            if _final is None:
+                _blocked, _reason = (d > 0 and len(kept) >= node_budget), "budget"
+            else:                                           # the plan already spent the SAME budget: it
+                _blocked = key not in _final                # displaced exactly as many as it reserved
+                _reason = "closure_displaced" if key in plan["displaced"] else "budget"
+            if _blocked:                                    # budget spent on higher-ranked candidates
+                pruned.append({"key": list(key), "relevance": rel, "depth": d, "reason": _reason})
                 continue
             node = GroundedNode(kind=kind, id=id_, contract=cid, depth=d, relevance=rel, via_edge=via)
             node.prior = _prior(graph, node)
+            node.admission = dict(_cl_admissions.get(key) or _ADMIT_COSINE)
             kept[key] = node
             if d >= depth:
                 continue
@@ -186,6 +521,25 @@ def grounded_subgraph(query: str, graph: gph.CausalGraph, *, depth: int = _DEPTH
                   trace={"seeds": seeds, "kept": [list(n.key) for n in nodes], "pruned": pruned,
                          "visited": len(visited), "budget": node_budget,
                          "params": {"depth": depth, "tau": tau, "node_budget": node_budget, "max_seeds": max_seeds}})
+    # D-GD-1 AUDITABILITY. ONE new, purely ADDITIVE trace key; every pre-existing key above is byte-identical
+    # on both arms. Stamped on EVERY walk, both polarities, deliberately: `open` is the arms' shared
+    # deterministic baseline, and an OFF arm that stamped nothing would leave the ON arm's number
+    # uncomparable (the served_rows lesson — an adjudication that needs a re-run is not an adjudication).
+    # `_count_delta` is the node-count invariant, carried as evidence rather than as a promise.
+    for r in _cl_reserved:
+        r.pop("_entry", None)                                # the scored tuple is machinery, not a record
+    sg.trace["cascade_closure"] = {
+        "enabled": bool(_closure_reserve_n(closure_reserve)), "reserve_n": _closure_reserve_n(closure_reserve),
+        "kept": len(nodes), "budget": node_budget,
+        "reserved": _cl_reserved, "displaced": _cl_displaced,
+        # R1 #1: the accounting identity, restated for headroom-first. Every reserved slot is paid for by
+        # EITHER an unspent budget slot OR a displaced driver, never by nothing — so this stays 0, while
+        # the invariant that actually binds (`kept <= budget`) is now satisfied by construction.
+        "headroom_used": _cl_headroom,
+        "count_delta": len(_cl_reserved) - len(_cl_displaced) - _cl_headroom,
+        "skipped": _cl_skipped[:32],                         # bounded: an audit column may not become a dump
+        "admissions": {":".join(str(p) for p in n.key): n.admission for n in nodes},
+        **_closure_census(nodes, graph, _backed, _slice_of_driver, _cl_displaced)}
     sg.mermaid = graph_to_mermaid(sg, graph)
     return sg
 
@@ -209,6 +563,42 @@ def _slice_of(n: GroundedNode, slice_path) -> Optional[str]:
     return ev.node_for(n.contract) if n.kind == "contract" else slice_path(n.id)
 
 
+def _closure_cap_order(order: list) -> list:
+    """D-GD-1 PIN 1 — THE SELF-CANCEL TRAP, CLOSED. `_dedup_and_cap` spends one global budget walking the
+    nodes `(depth, -relevance)`-first, so a CLOSURE-RESERVED ancestor — admitted for STRUCTURE, often below
+    the relevance floor its siblings cleared — sorts to the tail and is retrieved-and-then-zeroed. That is
+    the exact D-DV-1b uncitable-prompt-window defect the plan names as option (b)'s self-cancel, and it
+    would have made the reservation buy a node the reader can never cite.
+
+    THE FIX IS AN ORDER CHANGE, NOT A SCORE CHANGE. A reserved node is moved to sit immediately after the
+    ANCHOR DRIVER whose chain earned it (its whole chain in nearest-parent-first order), so it draws cap
+    budget as that driver's peer instead of as the walk's tail. Relevance is NOT rewritten: the field feeds
+    `cap_policy="score"` quotas, `_render_order` and the trace, and a synthetic 1.0 there would be a lie
+    that three other readers would repeat. Under the score policy the same move also protects the reserved
+    node from the ceil()-overshoot trim, which is likewise paid from the tail.
+
+    NO-OP BY CONSTRUCTION when no node carries a closure admission — it returns the very list it was given,
+    so the OFF arm's cap is the shipped FIFO byte for byte."""
+    res = [n for n in order if ((getattr(n, "admission", None) or {}).get("reason") == "closure_reservation")]
+    if not res:
+        return order
+    res_ids = {id(n) for n in res}
+    by_anchor: dict = {}
+    for n in res:
+        by_anchor.setdefault((n.contract, (n.admission or {}).get("ancestor_of")), []).append(n)
+    out: list = []
+    for n in order:
+        if id(n) in res_ids:
+            continue
+        out.append(n)
+        grp = by_anchor.pop((n.contract, n.id), None)
+        if grp:
+            out.extend(sorted(grp, key=lambda x: (int((x.admission or {}).get("chain_depth") or 0), str(x.id))))
+    for grp in by_anchor.values():                             # anchor absent (defensive): keep, at the tail
+        out.extend(grp)
+    return out
+
+
 def _dedup_and_cap(sg: Subgraph, cap: int, *, cap_policy: str | None = None, k_by_depth=None) -> None:
     """A prop retrieved under several nodes is attributed to the SHALLOWEST (most-relevant) node only, and the
     subgraph's total evidence is capped (depth-2 unions explode) — shallow nodes first.
@@ -230,7 +620,7 @@ def _dedup_and_cap(sg: Subgraph, cap: int, *, cap_policy: str | None = None, k_b
     scores are therefore comparable only sometimes, and a policy may not depend on "sometimes". Rows
     keep their retriever order WITHIN a node, where comparability always holds."""
     seen: set = set()
-    order = sorted(sg.nodes, key=lambda x: (x.depth, -x.relevance))
+    order = _closure_cap_order(sorted(sg.nodes, key=lambda x: (x.depth, -x.relevance)))
     if cap_policy != "score":
         budget = cap
         for n in order:
@@ -266,6 +656,13 @@ def _dedup_and_cap(sg: Subgraph, cap: int, *, cap_policy: str | None = None, k_b
         q = math.ceil(round(cap * share, 9))
         if order[i].depth == 0:
             q = max(q, k0)                                    # the routed contract's own k is a floor
+        if ((getattr(order[i], "admission", None) or {}).get("reason") == "closure_reservation"):
+            # D-GD-1 R1 #6: a CLOSURE-RESERVED node is admitted for STRUCTURE and is tau-EXEMT, so its
+            # relevance can be exactly 0.0 (no wave tombstone to inherit) -> share 0 -> ceil(0) = 0 rows,
+            # which is pin 1's self-cancel reopened through the quota instead of through the order. One
+            # row is the floor: the slot was spent, the node must be citable. (Reachable only under
+            # cap_policy="score", i.e. deep_v2, which is dark -- fixed anyway, cheaply.)
+            q = max(q, 1)
         uniq[i] = keep[:max(q, 0)]
     over = sum(len(k) for k in uniq) - cap                    # ceil() overshoots; pay it lowest-relevance first
     for i in range(len(uniq) - 1, -1, -1):
@@ -453,6 +850,40 @@ def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, s
         if n.kind == "driver" and (n.id not in backed or sp is None):
             continue
         n.episodes = tl.episodes_for(sp, asof, evidence=n.evidence)
+
+    # ── D-GD-1 AUDIT JOIN: what a closure-admitted node actually contributed ──────────────────────────────
+    # Computed AFTER _dedup_and_cap, on the rows that SURVIVED it — a pre-cap count would say the slot paid
+    # off when the cap had already zeroed it (pin 1's failure mode, measured as a number rather than
+    # asserted). `cited_join` is the ROW identity of those rows; verify's report already projects exactly
+    # these three fields per resolved [E] handle, so eval can COUNT the citations that landed on
+    # closure-admitted evidence with ZERO change to verify.py (whose rules are settled and stay frozen).
+    #
+    # THE KEY IS (source_key, date, snippet) AND NOT (source_key, date) — R1 #2 (2026-08-08). `source_key`
+    # is a DOCUMENT key, not a row key (evidence.py:314/377 — one document is chunked into MANY
+    # propositions), and `_dedup_and_cap`'s dedup signature is (source_key, date, text[:80]), so two
+    # DIFFERENT propositions of the SAME document survive on two DIFFERENT nodes. Under the 2-field key any
+    # [E] handle resolving to a COSINE node's row from a document a reserved node also holds was counted as
+    # a closure citation — and because the OFF arm has no reserved nodes, `cited_join` is empty there and
+    # `n_cited` is structurally 0, so the miscount could only ever INFLATE THE TREATMENT. Shared documents
+    # across slices are the normal case here (evidence.py:1208). The third field is verify.py's OWN
+    # `snippet` projection, byte for byte (verify.py:906: text[:140] + "..." when longer), so the join stays
+    # a pure read of what the verifier already publishes.
+    _cc = sg.trace.get("cascade_closure")
+    if isinstance(_cc, dict):
+        _idx = {tuple(r["key"]): r for r in (_cc.get("reserved") or [])}
+        _join = []
+        for n in sg.nodes:
+            r = _idx.get(tuple(n.key))
+            if r is None:
+                continue
+            r["n_evidence"] = len(n.evidence or [])
+            r["n_episodes"] = len(n.episodes or [])
+            for h in (n.evidence or []):
+                _t = h.get("text") or ""
+                _join.append([h.get("source_key"), str(h.get("date") or "")[:10],
+                              _t[:140] + ("..." if len(_t) > 140 else "")])
+        _cc["cited_join"] = _join
+        _cc["reserved_with_evidence"] = sum(1 for r in _idx.values() if r.get("n_evidence"))
 
     # ── parallel silver PREFETCH (serving only) ──────────────────────────────────────────────────────────
     # The silver leg + firing both call silver_lookup sequentially; each servable ref is an Athena read

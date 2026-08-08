@@ -488,6 +488,109 @@ dag_alias:
   #       blurb / evidence_query text, where narrative belongs. (config_check's cascade_map region census
   #       caught the one compound token, 'Brazil;Global', before it shipped.)
 
+  # ===== D-GD guided-depth wave, TRANCHE 2 (2026-08-08) -- eleven orphan slices acquire a REAL node =====
+  # Same Pareto rule D-PQ used and for the same reason: every id below is a BRAND-NEW driver node curated
+  # onto the boards where its economics bind, so no slice loses a prop and no id changes owner (the
+  # duplicate-ownership leg of evidence.check_driver_slices hard-errors on a second owner). Contrast the
+  # ONE alias-only entry, `myr_fx`, which takes an id that was WAIVED silver_only and gives it the text
+  # slice it has always been -- its waiver row is deleted below in the same edit, because a waiver asserts
+  # "grounded by the observed silver leg, never text" and that stops being true the moment a text slice
+  # owns it (the D-CW-3a precedent, verbatim).
+  #
+  # WHY NOW, and why with edges rather than nodes alone: the D-GD recon proved the walk FLATTENS the
+  # curated hierarchy (a driver's parents are already wave-1 siblings, so 0 of 33 DAGs yield a new depth-2
+  # key at ANY budget). Reach is therefore necessary but NOT sufficient -- the D-PQ macro de-choke took
+  # `macro` from 1 to 24 contracts and the wired-v2 read still showed it dark, because reachable is not
+  # ADMITTED. These nodes ship BEFORE the D-GD-1 cascade-closure reservation and BEFORE the D-GD-3 A/B so
+  # the graph is CONSTANT across both arms; conversion is then measured with the admission help the
+  # closure mechanism provides, not without it.
+  subsidy: [producer_subsidy]
+    # 3,038 props, the estate's largest orphan. FOUR boards, each a named programme a desk actually trades,
+    # never a generic "governments support farmers" node: raw_sugar + white_sugar (India's FRP cane price
+    # and the WTO-litigated export subsidy), soybeans_no_1_dce (China's per-mu direct payment, the 2016
+    # replacement for the stockpiling regime, on the DOMESTIC non-GMO board where it binds -- not on the
+    # no.2 imported-bean board), cotton (the Xinjiang target-price subsidy). On every one the node is a
+    # PARENT of that board's own acreage or balance node, so the graph reads subsidy -> acreage/carryout
+    # -> price rather than leaving a free-floating policy marker. Reach 0 -> 4.
+    # DECLINED and recorded, not smuggled: the US boards (us_farm_program already carries that concept and
+    # owns its own slice), rough_rice_cbot (its MSP node IS the Indian procurement instrument -- a second
+    # node would double-count one policy), campinas_corn_reference_bmf (Plano Safra is subsidised CREDIT, a
+    # financing-cost channel with no acreage node on that DAG to parent), and the MATIF boards (CAP direct
+    # payments have been DECOUPLED since 2003, so the acreage claim would be wrong for the modern era).
+  sunflower_oil_balance: [sunflower_oil_supply]
+    # 1,133 props. Sunoil is the marginal substitute in the vegoil stack, so the node lands on the five
+    # boards that price against it: french_rapeseed_matif (EU bottling), rapeseed_oil_zce + soybean_oil_dce
+    # + palm_olein_dce (the Chinese switch), malaysian_crude_palm_oil_cme (the Indian switch). Reach 0 -> 5.
+    # DECLINED: soybean_oil_cbot -- US soyoil's marginal demand is RFS/renewable-diesel, not Black Sea
+    # sunoil -- and canola_ice, where the substitution runs through the EU/China boards already listed.
+  egypt_gasc_tenders: [Egypt_GASC_tender]
+    # 447 props. GASC is the single largest milling-wheat buyer; the node is a parent of each board's
+    # export_pace_lag, mirroring french_wheat's existing Algeria_tender_specs shape. Reach 0 -> 2.
+    # DECLINED: hard_red_spring_wheat_mgex (high-protein spring wheat is not GASC's grade) and
+    # soft_red_winter_wheat_cbot (soft low-protein wheat rarely wins a GASC bread-programme tender). The
+    # slice's own `[moves:]` annotation lists srw_wheat; this refuses that annotation on the physics.
+  idr_fx: [IDR_USD]
+    # 274 props. The palm SELLER's currency: Indonesia is ~58% of world output and the DAGs carried MYR and
+    # CNY but never IDR. malaysian_crude_palm_oil_cme + palm_olein_dce. Reach 0 -> 2.
+  inr_fx: [INR_USD]
+    # 402 props. The palm BUYER's currency (India is the largest single importer) and the sugar EXPORTER's
+    # parity currency (India is the swing raw exporter). malaysian_crude_palm_oil_cme + raw_sugar.
+    # Reach 0 -> 2. DECLINED: rough_rice_cbot, whose INR_THB_VND_weakness basket already carries the rupee
+    # leg -- a second node there would double-own one FX channel.
+    # BOTH FX nodes carry region tokens (`Indonesia`, `India`) that RESOLVE in cascade_map.region_map but
+    # carry NO currency column, so fred_fx_macro degrades to qualitative exactly as the D-PQ macro_demand
+    # fence intended. Only brl/ars/cny exist in silver_fred_fx; nothing new is quantified by this wave.
+  myr_fx: [MYR_USD]
+    # 14 props, and the ONE alias-only entry in the tranche -- MYR_USD already exists as a node on
+    # malaysian_crude_palm_oil_cme and palm_olein_dce, so this is wiring, not curation. Reach 0 -> 2.
+    # Its `waivers:` row is deleted below in the same edit (the D-CW-3a precedent).
+  global_rice_export_policy: [vietnam_thailand_export_policy]
+    # 292 props. rough_rice_cbot's whole export-policy stack is India-centric and owned by `export_ban`;
+    # this is the non-India half (Vietnam suspensions, Thai price floors) that buyers turn to when India
+    # restricts. Parent of buyer_tender_demand. Reach 0 -> 1 -- the ceiling, since rice has one board.
+  west_africa_weather: [west_africa_rainfall]
+    # 154 props. cocoa's weather is densely curated but ENTIRELY through generic shared slices (drought,
+    # flood, heat, harmattan); the one thing it has no node for is the belt's RAINFALL TIMING, which is
+    # what sets main- and mid-crop size. Parent of export_pace_lag (arrivals). Reach 0 -> 1.
+    # DECLINED: cotton and robusta_coffee -- West African cotton is ~5% of world exports and robusta is a
+    # Vietnam/Brazil crop; the slice's own terms are Ivory-Coast/Ghana cocoa-belt terms.
+  mississippi_river_levels: [Mississippi_low_water]
+    # 20 props, and the cleanest structural precedent in the estate: it is the US twin of the already
+    # curated `Parana_low_water` -> parana_river_levels node on soybean_meal_cbot. Curated with
+    # parents: [drought] on all three boards, so the chain reads drought -> low water -> barge freight ->
+    # basis, a four-link all-backed chain that existed nowhere in the estate before this wave.
+    # corn_cbot + soybeans_cbot + soft_red_winter_wheat_cbot. Reach 0 -> 3.
+  panama_canal_constraints: [Panama_Canal_constraint]
+    # 8 props -- the thinnest slice this wave adopts, and it is adopted for STRUCTURE, not volume: a
+    # chokepoint node gives the freight leg a cause, which is what the closure reservation walks.
+    # corn_cbot + soybeans_cbot + soybean_meal_cbot. Reach 0 -> 3.
+  suez_redsea_disruption: [Suez_Red_Sea_disruption]
+    # 44 props. soft_red_winter_wheat_cbot + raw_sugar + white_sugar -- the three boards that BOTH carry a
+    # freight_rates node to parent AND appear in the slice's own `[moves:]` list. Reach 0 -> 3.
+    # DECLINED: malaysian_crude_palm_oil_cme. Palm's Red Sea exposure is real, but that DAG carries no
+    # freight node at all, and inventing a freight stack for one chokepoint is a bigger curation act than
+    # this wave should make in passing.
+  # `cattle_on_feed` needs NO entry here: the slice name and the new driver id are IDENTICAL, so
+  # backed_dag_ids() resolves it by identity (the same reason el_nino/frost/export_ban never needed one).
+  # Adopted on corn + corn_cbot + soybean_meal_cbot as a PARENT of each board's aggregate feed-demand node,
+  # exactly the shape ASF_hog_herd and poultry_expansion already have on soybean_meal_cbot. Reach 0 -> 3.
+  #
+  # NICHE TRIAGE -- the refusals this tranche makes on purpose, so nobody re-litigates them:
+  #   * natural_rubber (79 props) REFUSED: there is no rubber board in the estate and no ag driver whose
+  #     mechanism is rubber. Routing cannot invent a commodity.
+  #   * cattle_cycle_herd_size (32 props) REFUSED as a SEPARATE node: the multi-year liquidation/rebuild
+  #     cycle is not separable from placements inside the 0-4 quarter lag horizon these DAGs model, and a
+  #     second cattle node on the same board would double-count one feed-demand channel -- the same
+  #     reasoning D-PQ used to decline `dap`. It stays in READ_DARK_SLICES_PIN as corpus debt.
+  #   * CONTENT-STARVED, therefore PARKED and NOT aliased -- routing cannot fix empty: indian_ocean_dipole
+  #     (4 props, and D-EI-4 already ratified waive-not-register), real_yields_rates (2), and the four
+  #     zero-prop slices (barley_yellow_dwarf_virus, index_roll_flows, madden_julian_oscillation,
+  #     veg_oil_substitution_spreads). Giving any of them a node would buy pure absence markers while
+  #     changing the render surface on live boards -- the exact trade D-EI-4 measured and rejected.
+  #   * ALSO STILL PINNED, untouched by this wave and outside its scope: dap (88, D-PQ's recorded phosphate
+  #     refusal), metals (975), baltic_dry_freight (18), vessel_lineups_export_basis (14),
+  #     sustainable_aviation_fuel (25), wheat_blast (32).
+
 # ── waivers: dark ids with no text slice, now ACCOUNTED (P2 W1) ──────────────────────────────
 # silver_only = FX crosses / teleconnection indices / computed spreads (grounded by the observed
 # silver leg, never text); deferred = a real corpus gap awaiting E1b/E2 or the paid chunk pass.
@@ -523,7 +626,10 @@ waivers:
   IOD_negative: {category: silver_only, note: "Indian Ocean Dipole teleconnection index"}
   IOD_positive: {category: silver_only, note: "Indian Ocean Dipole teleconnection index"}
   India_ethanol_diversion: {category: deferred, note: "India E20 cane-to-ethanol policy"}
-  MYR_USD: {category: silver_only, note: "MYR/USD FX cross"}
+  # MYR_USD: REMOVED 2026-08-08 (D-GD tranche 2) -- it now resolves to the `myr_fx` slice in
+  #   dag_alias above, so the silver_only claim ("grounded by the observed silver leg, never text")
+  #   is no longer true of it. Same shape as the D-CW-3a gasoil_palm_spread / refinery_energy_costs
+  #   removals above.
   NAO: {category: silver_only, note: "North Atlantic Oscillation teleconnection index"}
   PDO: {category: silver_only, note: "Pacific Decadal Oscillation teleconnection index"}
   SAM: {category: silver_only, note: "Southern Annular Mode teleconnection index"}
