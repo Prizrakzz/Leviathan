@@ -151,7 +151,15 @@ _bedrock_rerank_client = None
 # CPU bge fallback (the "45s walk" was a Cohere/bge mixture). One request DOES take 300+ docs in ~2s and
 # cross-encoder scoring is pointwise, so batching across nodes is SCORE-IDENTICAL. Hence the coalescer below:
 # concurrent rerank calls within a turn merge into ONE Bedrock request (<= _COALESCE_MAX_DOCS docs).
-_COALESCE_MAX_DOCS = 1000            # API cap per request (10 nodes x pool 60 = 600, comfortably under)
+# _COALESCE_MAX_DOCS is the per-request DOCUMENT cap, and it is the same 1,000 on both managed lanes
+# (Bedrock Rerank and native api.cohere.com/v2/rerank publish the same number). Its old note ("10 nodes x
+# pool 60 = 600, comfortably under") was stale twice over and is corrected here (D-MW-11): the deep
+# node_budget is 16, not 10, so the shipped worst case is 16 x 60 = 960 — 96% of the cap, not "comfortably
+# under" — and since D-MW-9 the cap is applied at CALLER boundaries in `_fire`, so the leaf's own offset
+# loop is a guard for one oversized caller, not the normal chunker. Per-backend reality at that boundary:
+# on BEDROCK a second request is a second draw on a 3/min account-wide bucket (the cliff), on COHERE
+# (1,000/min) it is a request-shape detail and the groups go out concurrently.
+_COALESCE_MAX_DOCS = 1000
 _COALESCE_IDLE_WINDOW = 0.25         # s — a lone caller (one-hop path) barely waits
 _COALESCE_HINT_WINDOW = 4.0          # s — hard cap the leader waits for the hinted batch (env/param tunable)
 # QUIESCENCE (raised 0.8 -> 2.5, Phase-2 latency RCA, MEASURED in-VPC job 52e131bb over 20 stubbed + 5 live
@@ -176,7 +184,9 @@ _RERANK_MAX_ATTEMPTS = 2
 # — ~300x, measured (14 calls in 7.5 s, zero 429s). No SDK: `requests` is a core dep, so the seam adds no
 # dependency and no rebuild beyond the normal image. The 17-node rerank cliff (16 x pool-60 = 960 docs
 # < _COALESCE_MAX_DOCS 1000 < 17 x 60) stops being a quota cliff on this lane and becomes a request-shape
-# detail — 1,000 is ALSO the native per-request document cap, so the SAME chunk loop applies unchanged.
+# detail — 1,000 is ALSO the native per-request document cap, so the same cap arithmetic applies; what
+# changed at D-MW-9 is WHERE it is applied (caller boundaries in `_fire`) and that the groups it produces
+# go out concurrently on this lane.
 _COHERE_RERANK_URL = "https://api.cohere.com/v2/rerank"
 _DEFAULT_COHERE_RERANK_MODEL = "rerank-v3.5"
 # The coalescer's member wait: every queued caller gives the leader this long before raising
@@ -185,18 +195,27 @@ _DEFAULT_COHERE_RERANK_MODEL = "rerank-v3.5"
 # shipped ladder at (5,30)x3 + 3 s backoff = 108 s > 90 s: during a Cohere slowdown every member
 # would time out to bge while the leader kept leadership in flight, the exact incident class the
 # test_coalescer_cross_turn docstring records for the 8-attempt adaptive ladder. The arithmetic is
-# pinned: _COHERE_MAX_ATTEMPTS * sum(_COHERE_TIMEOUT) + sum(_COHERE_BACKOFF) < _COALESCE_MEMBER_WAIT.
+# pinned (`_cohere_ladder_seconds(attempts, timeout) < _COALESCE_MEMBER_WAIT`) AND, since D-MW-10 made
+# the three numbers below env/param-resolvable, ENFORCED at resolution: `_cohere_max_attempts` clamps
+# rather than let a taskdef edit re-create the 108 s defect where no test can see it.
 _COALESCE_MEMBER_WAIT = 90
-# EXPLICIT timeouts (connect, read). The Bedrock leaf never set any — a recorded gotcha: botocore's
-# 60 s default read timeout inside a 90 s coalescer member wait leaves no room for the bge fallback.
-# (5, 20) not (5, 30): 3 x (5+20) + 1 + 2 = 78 s, under the member wait with margin for the
-# 4 s coalesce window. Cohere's measured upstream latency is 51 ms — a 20 s read ceiling is ~400x p50.
+# EXPLICIT timeouts (connect, read) — DEFAULTS as of D-MW-10; `_cohere_timeout()` resolves them. The
+# Bedrock leaf never set any — a recorded gotcha: botocore's 60 s default read timeout inside a 90 s
+# coalescer member wait leaves no room for the bge fallback. (5, 20) not (5, 30): 3 x (5+20) + 1 + 2 =
+# 78 s, under the member wait with margin for the 4 s coalesce window. Cohere's measured upstream
+# latency is 51 ms — a 20 s read ceiling is ~400x p50.
 _COHERE_TIMEOUT = (5, 20)
 # 3 total attempts, backoff 1 s then 2 s, ONLY on 429/5xx/timeout/connection errors. Bedrock keeps its
 # fail-fast 2 (that number is quota-rationalized against a ~1-token/20 s bucket; the rationale does NOT
 # transfer to a 1,000/min lane, where a retry is cheap and a fallback to a 13.88 s/60-doc CPU pool is not).
 _COHERE_MAX_ATTEMPTS = 3
+# The backoff ladder is NOT a knob: it is short, it is bounded by the clamp above, and every value a
+# taskdef could put here is already reachable through attempts + timeouts.
 _COHERE_BACKOFF = (1.0, 2.0)
+# D-MW-9: how many packed groups may be in flight at once on the cohere lane. 4, matching the walk's own
+# fill pool — the bound exists so a wide walk cannot turn one turn into a burst against the shared key
+# (1,000/min is generous, not infinite), not because the API needs protecting from 5.
+_COALESCE_GROUP_WORKERS = 4
 
 
 def _coalesce_window() -> float:
@@ -217,6 +236,78 @@ def _rerank_max_attempts() -> int:
     same resolution order as every other serving knob, so the ladder is tunable without a rebuild."""
     return max(1, int(os.environ.get("GRAPHRAG_RERANK_MAX_ATTEMPTS")
                       or _pr.get("serving.retrieval.rerank_max_attempts", _RERANK_MAX_ATTEMPTS)))
+
+
+# ── D-MW-10: the cohere ladder knobs, resolvable AND budget-clamped ───────────────────────────────────
+# Same env > params > code-default order as every other serving knob, so a Cohere slowdown is tunable on
+# the running task without a rebuild. The BEDROCK knobs are deliberately untouched: `_rerank_max_attempts`
+# is quota-rationalized against a ~1-token/20 s bucket and that rationale does not transfer.
+#
+# THE CLAMP IS THE PART THAT IS NOT OPTIONAL. The diff review that caught the first shipped ladder at
+# (5,30)x3 + 3 s = 108 s > the 90 s member wait caught it in a CONSTANT — and a constant is exactly what
+# an env override replaces. Making these settable without re-deriving the arithmetic AT RESOLUTION would
+# move that defect behind a taskdef edit, where no test can see it and the symptom is every coalescer
+# member timing out to the 13.88 s/60-doc CPU pool while the leader holds process-global leadership.
+# So the resolver computes the worst case and lowers `attempts` until it fits — once, loudly, naming both
+# numbers so the log says what was asked for and what is actually running.
+_COHERE_BUDGET_WARNED: set = set()
+
+
+def _cohere_timeout() -> tuple[float, float]:
+    """(connect, read) seconds for one native rerank HTTP attempt. Env > params > `_COHERE_TIMEOUT`."""
+    connect = float(os.environ.get("GRAPHRAG_COHERE_TIMEOUT_CONNECT")
+                    or _pr.get("serving.retrieval.cohere_timeout_connect", _COHERE_TIMEOUT[0]))
+    read = float(os.environ.get("GRAPHRAG_COHERE_TIMEOUT_READ")
+                 or _pr.get("serving.retrieval.cohere_timeout_read", _COHERE_TIMEOUT[1]))
+    return (connect, read)
+
+
+def _cohere_ladder_seconds(attempts: int, timeout: tuple[float, float]) -> float:
+    """WORST-CASE wall clock of one leaf chunk request: every attempt can burn connect+read, and exactly
+    `attempts - 1` backoff sleeps sit between them (the last attempt is never followed by a sleep — see
+    `_cohere_post`, whose loop breaks before sleeping). This is the arithmetic the member wait bounds."""
+    n = max(0, int(attempts))
+    backoff = sum(_COHERE_BACKOFF[min(i, len(_COHERE_BACKOFF) - 1)] for i in range(max(0, n - 1)))
+    return n * (float(timeout[0]) + float(timeout[1])) + backoff
+
+
+def _cohere_member_budget() -> float:
+    """What a coalescer MEMBER can actually afford to wait on the leaf: the member wait MINUS the time
+    the leader may spend before firing (the hinted coalesce window plus the quiescence closer). Diff
+    review round 2 caught the first clamp bounding against `_COALESCE_MEMBER_WAIT` alone — a READ=23
+    ladder resolved to 87 s, passed that clamp, and still walled at 91 s once the 4 s window ran, timing
+    every member out to the CPU pool. The shipped constants' own derivation comment carried the margin
+    ("78 s, under the member wait WITH MARGIN FOR THE 4 s COALESCE WINDOW"); the resolver must too."""
+    return _COALESCE_MEMBER_WAIT - (_coalesce_window() + _coalesce_quiescence())
+
+
+def _cohere_max_attempts(timeout: tuple[float, float] | None = None) -> int:
+    """Total native-rerank attempts (1 initial + retries), env > params > `_COHERE_MAX_ATTEMPTS`, CLAMPED
+    so the resolved ladder's worst case stays strictly under `_cohere_member_budget()` (the member wait
+    net of the leader's pre-fire timers). Never below 1: a zero-attempt ladder is a silent permanent
+    fallback, which is worse than a slow one. WARNS whenever the resolved ladder cannot be made to fit —
+    including at the floor of 1 attempt, where nothing was lowered but the log must still name the
+    over-budget ladder that is actually running (review catch: the floor case ran silently)."""
+    t = timeout if timeout is not None else _cohere_timeout()
+    budget = _cohere_member_budget()
+    want = max(1, int(os.environ.get("GRAPHRAG_COHERE_MAX_ATTEMPTS")
+                      or _pr.get("serving.retrieval.cohere_max_attempts", _COHERE_MAX_ATTEMPTS)))
+    n = want
+    while n > 1 and _cohere_ladder_seconds(n, t) >= budget:
+        n -= 1
+    over = _cohere_ladder_seconds(n, t) >= budget
+    if n != want or over:
+        keyed = (want, n, round(t[0], 3), round(t[1], 3))
+        if keyed not in _COHERE_BUDGET_WARNED:
+            _COHERE_BUDGET_WARNED.add(keyed)
+            log.warning("cohere rerank ladder of %d attempts x (%.0f+%.0f)s worst-cases at %.0fs against "
+                        "a %.0fs member budget (%ds wait - %.1fs window - %.1fs quiescence); %s",
+                        want, t[0], t[1], _cohere_ladder_seconds(want, t), budget,
+                        _COALESCE_MEMBER_WAIT, _coalesce_window(), _coalesce_quiescence(),
+                        ("STILL OVER BUDGET at the 1-attempt floor (%.0fs worst case) -- every coalesced "
+                         "member can time out to the CPU pool" % _cohere_ladder_seconds(n, t)) if over
+                        else "CLAMPED to %d attempts (%.0fs worst case)" % (n, _cohere_ladder_seconds(n, t)))
+    return n
 
 
 def _rerank_backend() -> str:
@@ -493,14 +584,19 @@ def _cohere_api_key() -> str:
 
 
 def _cohere_post(headers: dict, body: dict) -> dict:
-    """ONE chunk request with the D-MW-2 retry ladder: 3 total attempts, backoff 1 s then 2 s, retrying
-    ONLY 429 / 5xx / read-connect timeouts / connection errors. Anything else (401, 400, a malformed
-    body) raises IMMEDIATELY — retrying a rejected request just delays the bge fallback."""
+    """ONE chunk request with the D-MW-2 retry ladder: 3 total attempts by default, backoff 1 s then 2 s,
+    retrying ONLY 429 / 5xx / read-connect timeouts / connection errors. Anything else (401, 400, a
+    malformed body) raises IMMEDIATELY — retrying a rejected request just delays the bge fallback.
+
+    D-MW-10: attempts and timeouts are RESOLVED here (env > params > default), once per chunk request so
+    the whole ladder runs on one consistent pair, and budget-clamped by `_cohere_max_attempts`."""
     import requests
+    timeout = _cohere_timeout()
+    attempts = _cohere_max_attempts(timeout)
     last: BaseException | None = None
-    for attempt in range(_COHERE_MAX_ATTEMPTS):
+    for attempt in range(attempts):
         try:
-            resp = requests.post(_COHERE_RERANK_URL, headers=headers, json=body, timeout=_COHERE_TIMEOUT)
+            resp = requests.post(_COHERE_RERANK_URL, headers=headers, json=body, timeout=timeout)
         except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
             last = e
         else:
@@ -513,7 +609,7 @@ def _cohere_post(headers: dict, body: dict) -> dict:
                 raise RuntimeError(f"cohere rerank HTTP {code}: {str(getattr(resp, 'text', ''))[:200]}")
             else:
                 return resp.json()
-        if attempt + 1 >= _COHERE_MAX_ATTEMPTS:
+        if attempt + 1 >= attempts:
             break
         time.sleep(_COHERE_BACKOFF[min(attempt, len(_COHERE_BACKOFF) - 1)])
     raise last if last is not None else RuntimeError("cohere rerank failed")
@@ -555,12 +651,45 @@ def _cohere_rerank_call(query: str, docs: list[str]) -> list[float]:
     return out
 
 
+def _pack_callers(entries: list[dict], cap: int) -> list[list[dict]]:
+    """FIRST-FIT packing of WHOLE callers into <= `cap`-document requests, arrival order preserved.
+
+    A caller is ATOMIC here: its texts are one node's rerank pool, and its ranking must come out of ONE
+    request (D-MW-9 — see `_fire` for the measurement that bought this). First-fit rather than next-fit
+    because a small late caller riding an earlier group's spare room is free and costs one fewer request;
+    the groups themselves stay in arrival order, so the dispatch below is order-preserving by construction.
+
+    A caller whose OWN texts reach the cap becomes its own group and falls through to the leaf's internal
+    offset loop — which is the ONLY place that loop still runs, and the reason it survives. It cannot
+    happen on today's knobs (RERANK_POOL 60 x the largest shipped node_budget 16 = 960 < 1,000, and one
+    caller is one node), but "impossible today" is a knob away from possible, and the failure mode without
+    the guard is an oversized request rejected by the API instead of a split one."""
+    groups: list[list[dict]] = []
+    sizes: list[int] = []
+    for e in entries:
+        n = len(e["texts"])
+        placed = False
+        if n < cap:                                   # an oversized caller is never packed with anyone
+            for i, s in enumerate(sizes):
+                if s + n <= cap:
+                    groups[i].append(e)
+                    sizes[i] = s + n
+                    placed = True
+                    break
+        if not placed:
+            groups.append([e])
+            sizes.append(n)
+    return groups
+
+
 class _RerankCoalescer:
-    """Merges concurrent same-query rerank calls into ONE Bedrock request (the 3-req/min quota budget is
-    ~one request per TURN). The first caller becomes the leader: it waits until the hinted batch size arrives
-    (`expect`, set by the walk) or the window lapses, drains the queue, fires one grouped request per distinct
-    query, and routes each caller's slice of scores back. Callers block on their event; leader errors propagate
-    to every member so the caller-level bge fallback stays intact."""
+    """Merges concurrent same-query rerank calls into ONE managed request where they fit (the Bedrock
+    3-req/min quota budget is ~one request per TURN; on the native cohere lane fewer, larger requests are
+    still better, just no longer load-bearing for survival). The first caller becomes the leader: it waits
+    until the hinted batch size arrives (`expect`, set by the walk) or the window lapses, drains the queue,
+    packs the drained callers into per-query requests at CALLER boundaries (D-MW-9, see `_fire`), and routes
+    each caller's slice of scores back. Callers block on their event; a request's error propagates to that
+    request's members so the caller-level bge fallback stays intact."""
 
     def __init__(self):
         import threading
@@ -583,7 +712,7 @@ class _RerankCoalescer:
         "latency-only" one the earlier record claimed. Accumulating makes the number what it always
         should have been: how many promised callers are outstanding PROCESS-WIDE, which is exactly what
         the leader's count-based closer needs. Batches stay per-query (`_fire` groups by distinct
-        query), so coalescing two turns never merges their documents.
+        query before it packs), so coalescing two turns never merges their documents.
 
         Deliberately NOT changed: leadership stays process-global. Per-turn leadership would put N
         leaders against that same 3/min bucket simultaneously (measured burst: 3 of 8 succeed, 4-8
@@ -628,15 +757,21 @@ class _RerankCoalescer:
         return e["scores"]
 
     def _lead(self) -> None:
-        """Own the queue until it is empty, ONE request in flight at a time.
+        """Own the queue until it is empty, ONE DRAIN in flight at a time.
+
+        (It read "one request" until D-MW-9, and on the bedrock lane that is still literally true. On the
+        cohere lane a drain may dispatch several packed requests concurrently — but they are still ONE
+        leader's, from ONE drain, bounded by `_COALESCE_GROUP_WORKERS`. The property the corrections below
+        defend is that no SECOND leader elects mid-flight, and that is untouched.)
 
         Two Phase-2 corrections, both measured (in-VPC jobs 52e131bb / 44e96fc1):
           * leadership is released AFTER the request, not before it. Releasing early let arrivals that landed
             during an in-flight call elect a second leader and fire a SECOND concurrent Bedrock request —
             reproduced at 4 concurrent requests from a single turn when the call was slow (i.e. exactly when
             it was throttled). That is a positive feedback loop against a 3-req/min ceiling, and it is the
-            mechanism behind the 410 s worst turn on record. Holding leadership caps in-flight at 1 and turns
-            late arrivals into a coalesced follow-up batch instead of a competing request.
+            mechanism behind the 410 s worst turn on record. Holding leadership caps in-flight at ONE DRAIN
+            (one request on bedrock; up to `_COALESCE_GROUP_WORKERS` packed requests on cohere, deliberately
+            and boundedly) and turns late arrivals into a coalesced follow-up batch, not a competing request.
           * `_expect` is DECREMENTED by what the batch actually took, never zeroed. Zeroing pinned every batch
             after the first to the hardcoded _COALESCE_IDLE_WINDOW (0.25 s) that no env var can reach —
             measured as the closer on 10/10 serving-config turns.
@@ -689,32 +824,112 @@ class _RerankCoalescer:
             raise
 
     def _fire(self, batch: list[dict]) -> None:
-        """One grouped managed request per distinct query; each caller gets its own contiguous score slice.
-        Errors propagate to every member of the group so the caller-level bge fallback stays intact.
+        """Pack the batch into REQUESTS and dispatch them; each caller gets its own contiguous score slice.
+        A group's error propagates to that group's members so the caller-level bge fallback stays intact.
 
         D-MW-2 (the review catch that would otherwise have shipped the whole seam dark): this leaf used to
         name `_bedrock_rerank_call` LITERALLY, so a `cohere` branch in rerank_scores alone would still have
         sent every COALESCED request — i.e. every walk rerank — to Bedrock's 3/min bucket. The leaf is now
         DISPATCHED, resolved ONCE per fire so a mid-fire env flip cannot split one batch across two vendors.
-        Leadership, windows, quiescence and expect/unexpect are what stay unchanged."""
-        call = _cohere_rerank_call if _rerank_backend() == "cohere" else _bedrock_rerank_call
-        groups: dict[str, list[dict]] = {}
+        Leadership, windows, quiescence and expect/unexpect are what stay unchanged.
+
+        D-MW-9 (2026-08-11) moves the CHUNK BOUNDARY up to here and makes it a CALLER boundary. Before,
+        one flattened list per distinct query was chunked at `_COALESCE_MAX_DOCS` OFFSETS inside the leaf,
+        so past 1,000 docs one node's texts could straddle two requests. The P2 entry check (12 live calls,
+        real corpus docs, ~$0.06) measured what that costs and re-pinned its own tolerance: identical whole
+        requests agree to 0.0, identical CHUNKED requests to 2.9e-4, whole-vs-chunked to 5.6e-4 — the same
+        magnitude, i.e. Cohere's cross-request replica noise is ~3e-4 and there is NO per-request
+        normalization effect (tau 0.99905, top-10 overlap 1.0). That noise is ordering-invisible ACROSS
+        nodes (planner._dedup_and_cap already refuses to compare raw scores across nodes) but it is not
+        free WITHIN one node's ranking — and it is free to AVOID: pack whole callers. Within-node ordering
+        is then single-request BY CONSTRUCTION, and the leaf's offset loop survives only as the guard for
+        a single caller bigger than the cap.
+
+        PACKING AND DISPATCH ARE BOTH PER-BACKEND (review round 2 corrected both halves of this doc):
+          * cohere: pack at caller boundaries; >1 group dispatches CONCURRENTLY (bounded pool,
+            order-preserving reassembly, per-GROUP error granularity). At 1,000 req/min first-fit's
+            occasional extra request is a request-shape detail, and serializing groups would spend P3's
+            width purely in latency.
+          * bedrock: NO caller packing — one flattened list per query, offset-chunked inside the leaf,
+            exactly the pre-P2 shape. First-fit can emit MORE requests than offset chunking (33 callers
+            x 60 docs: packed [960,960,60] = 3 vs offset 2), and an extra draw on a 3-req/min
+            NON-ADJUSTABLE bucket on the declared rollback lane is not a shape detail. Straddled
+            within-node rankings there carry the ~3e-4 replica noise, which the rollback lane accepts —
+            it accepted it for its entire pre-P2 life.
+        SCOPE OF THE BYTE-IDENTITY CLAIM, stated exactly (review round 2 — the first wording
+        overclaimed): a ONE-QUERY batch under the cap is byte-identical to the pre-D-MW-9 path on both
+        lanes — one group, one leaf call, leader's thread. A MULTI-QUERY batch (cross-turn coalescing)
+        on the cohere lane now dispatches its per-query requests CONCURRENTLY at any size; that is a
+        deliberate P2 delta (the requests were always separate; only their timing changed), pinned as
+        intended behavior, and recorded in the P2 execution record."""
+        backend = _rerank_backend()                    # resolved ONCE per fire (D-MW-2), for BOTH decisions
+        call = _cohere_rerank_call if backend == "cohere" else _bedrock_rerank_call
+        by_query: dict[str, list[dict]] = {}
         for e in batch:
-            groups.setdefault(e["q"], []).append(e)
-        for q, entries in groups.items():
-            try:
-                flat = [t for e in entries for t in e["texts"]]
-                scores = call(q, flat)
-                i = 0
-                for e in entries:
-                    e["scores"] = scores[i:i + len(e["texts"])]
-                    i += len(e["texts"])
-            except Exception as err:  # noqa: BLE001 — propagate to every member; callers fall back
-                for e in entries:
-                    e["err"] = err
-            finally:
-                for e in entries:
-                    e["ev"].set()
+            by_query.setdefault(e["q"], []).append(e)  # batches stay per-query: never merge two turns' docs
+        groups: list[tuple[str, list[dict]]] = []
+        for q, entries in by_query.items():
+            if backend == "cohere":
+                groups.extend((q, g) for g in _pack_callers(entries, _COALESCE_MAX_DOCS))
+            else:
+                groups.append((q, entries))            # bedrock: pre-P2 shape, leaf offset loop chunks
+        if backend == "cohere" and len(groups) > 1:
+            self._fire_concurrent(call, groups)
+            return
+        for q, entries in groups:
+            self._fire_group(call, q, entries)
+
+    def _fire_concurrent(self, call, groups: list[tuple[str, list[dict]]]) -> None:
+        """The cohere lane's multi-group dispatch: up to `_COALESCE_GROUP_WORKERS` requests in flight.
+
+        THE LANE STAMP IS THE SUBTLE PART. `_fire` runs on the LEADER's thread, which carries the turn's
+        collector; a worker thread carries nothing, and `_lane_record_request` is a thread-local read, so
+        dispatching without adopting would silently drop every request/doc/ms from the turn's stamp — the
+        exact instrument D-MW-6 exists to make computable. Each worker therefore adopts the leader's
+        collector OBJECT (the same prescription planner._parallel_fill uses, and for the same measured
+        reason: a Context copied inside a worker is empty). Attribution is unchanged: requests stay
+        LEADER-attributed and informational, fallbacks stay caller-attributed and exact.
+
+        Futures are consumed IN GROUP ORDER, and each group writes only its own callers' slices, so
+        reassembly is order-preserving regardless of completion order. `_fire_group` never raises, so
+        `.result()` is a join, not an error channel — and the pool's shutdown-on-exit means a caller can
+        never observe a half-dispatched batch."""
+        from concurrent.futures import ThreadPoolExecutor
+        lane = lane_collector()
+        with ThreadPoolExecutor(max_workers=min(_COALESCE_GROUP_WORKERS, len(groups)),
+                                thread_name_prefix="rerank-grp") as pool:
+            futures = [pool.submit(self._fire_group_in_lane, call, q, entries, lane)
+                       for q, entries in groups]
+            for f in futures:
+                f.result()
+
+    @staticmethod
+    def _fire_group_in_lane(call, q: str, entries: list[dict], lane) -> None:
+        """One group, on a pool thread, with the leader's lane installed (`adopt_lane` is nested-safe and
+        fail-open, so a turn with no collector costs nothing)."""
+        with adopt_lane(lane):
+            _RerankCoalescer._fire_group(call, q, entries)
+
+    @staticmethod
+    def _fire_group(call, q: str, entries: list[dict]) -> None:
+        """ONE request: the group's callers' texts concatenated in arrival order, sliced back the same way.
+
+        The try/except/finally is what makes `_fire` never raise (the leader's contract), and its SCOPE is
+        now the GROUP: a failed request errors ITS callers only, so a second group's callers still get
+        their scores instead of a whole batch dropping to the 13.88 s/60-doc CPU pool together."""
+        try:
+            flat = [t for e in entries for t in e["texts"]]
+            scores = call(q, flat)
+            i = 0
+            for e in entries:
+                e["scores"] = scores[i:i + len(e["texts"])]
+                i += len(e["texts"])
+        except Exception as err:  # noqa: BLE001 — propagate to this group's members; callers fall back
+            for e in entries:
+                e["err"] = err
+        finally:
+            for e in entries:
+                e["ev"].set()
 
 
 _COAL = _RerankCoalescer()

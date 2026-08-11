@@ -36,7 +36,11 @@ the delivered document, not inferred from a dashboard.
 
 SEQUENTIAL BY LAW. Sub-queries run one at a time. The Cohere rerank quota is a HARD 3/min cap and the
 D-DV chain lesson is explicit: never co-schedule rerank-heavy turns. Latency is the price; a
-nondeterministic rerank starvation that changes ANSWERS is not.
+nondeterministic rerank starvation that changes ANSWERS is not. (The 3/min quota rationale is HISTORICAL
+as of D-MW P1 -- the native cohere lane serves 1,000/min -- and the law is RETAINED FOR DETERMINISM until
+the parallel-subquery gate: relaxing it is a THROUGHPUT change with its own blast radius (DB pool, census
+ContextVar concurrency, wall-clock semantics), and it gets its own gate rather than riding a quota raise.
+D-MW-12. Behavior here is unchanged.)
 
 HONEST-PARTIAL. A sub-query failure records its error and the job continues; the dossier lands PARTIAL
 with the gap declared in its own mandated section. A failure is never silent and never invisible.
@@ -1011,7 +1015,8 @@ def execute(job: Job, *, graph, store, respond=None, call=None, synth_call=None,
                               "config": r["config"], "rationale": r["rationale"]} for r in job.subqueries])
         persist(store, job)
 
-        # -- sub-queries: SEQUENTIAL (Cohere 3/min; never co-schedule rerank-heavy turns) -------------
+        # -- sub-queries: SEQUENTIAL BY LAW (the Cohere 3/min rationale is HISTORICAL as of D-MW P1;
+        #    retained for determinism until the parallel-subquery gate -- D-MW-12) --------------------
         for entry in job.subqueries:
             if time.monotonic() >= deadline:
                 entry["status"] = SQ_SKIPPED

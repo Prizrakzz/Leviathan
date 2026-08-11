@@ -17,9 +17,12 @@ already happened once in this estate):
                           exactly. Pinned in BOTH polarities so "the flag does nothing" and "the flag does
                           something" are separately provable.
   PIN 3  BUDGET           node count and k identical on both arms, and the post-reservation count may never
-                          cross 16 -- the 17th retrieving node makes 17x60=1,020 docs, splits the rerank
-                          coalescer at _COALESCE_MAX_DOCS=1000 and silently burns 2/3 of a 3-req/min
-                          non-adjustable quota. Recorded twice in the recon; this wave does not cross it.
+                          cross `node_budget`. It was written as "may never cross 16", justified by the
+                          17-node rerank cliff (17x60=1,020 docs splits the coalescer at
+                          _COALESCE_MAX_DOCS=1000 and burns 2/3 of a 3-req/min non-adjustable quota).
+                          D-MW-11 separates the two: the CEILING is the walk's own law and is now
+                          parametrized in node_budget; the CLIFF was the BEDROCK lane's, and serving
+                          reranks on native cohere (1,000 req/min, caller-boundary packing) since D-MW P1.
   PIN 4  SAME-CONTRACT    a driver's parents are same-contract BY SCHEMA, so no new `_context_block` may
                           render. A new contract block costs ~2.8k tokens (measured 7,071-14,190 chars,
                           median 11,194); the reservation's whole prose claim is that it costs none.
@@ -159,16 +162,24 @@ def test_pin2_no_parents_at_all_is_byte_identical(alias):
     assert _walk_state(_walk(gr, closure_reserve=0)) == _walk_state(_walk(gr, closure_reserve=3))
 
 
-# ══ PIN 3 -- THE BUDGET CEILING (and the 17-node rerank cliff) ═══════════════════════════════════════════
+# ══ PIN 3 -- THE BUDGET CEILING ══════════════════════════════════════════════════════════════════════════
 # R1 #1 AMENDMENT (2026-08-08). Pin 3 was written as `len(kept_on) == len(kept_off)`. That is STRICTLY
-# STRONGER than the constraint it was defending (the 17-node `_COALESCE_MAX_DOCS` cliff, i.e.
-# `len(kept) <= node_budget`) and it cost real drivers to maintain: measured on the real 33-DAG graph at the
-# deep knobs, 0/198 single-contract and 4/33 three-seed walks ever FILLED node_budget -- tau ends these
-# walks, not the budget -- so 220/220 and 68/80 displacements respectively deleted a cosine-admitted driver
-# while 7-12 slots sat idle. The equality therefore bought nothing and made the ON arm two changes at once
-# (+ancestors AND -top drivers). The pin is now the CEILING, which headroom-first satisfies by construction,
-# plus the accounting identity `reserved == displaced + headroom_used` as the proof no slot came from
-# nowhere. Post-fix the same measurement reads 0/0 displacements with free budget.
+# STRONGER than the constraint it was defending (`len(kept) <= node_budget`) and it cost real drivers to
+# maintain, so the pin is now the CEILING, which headroom-first satisfies by construction, plus the
+# accounting identity `reserved == displaced + headroom_used` as the proof no slot came from nowhere.
+#
+# D-MW-11 RE-SCOPE (2026-08-11), TWO CORRECTIONS:
+#  * THE NUMBERS. The R1 sweep quoted here ("0/198 single-contract and 4/33 three-seed walks ever FILLED
+#    node_budget -- tau ends these walks, not the budget") ran a DETERMINISTIC HASH embedder, which
+#    centres mechanism cosines on 0.0 so 100% of candidates fall below tau and the budget can never bind.
+#    With the real bge-m3, same population and knobs, it is the opposite: 288/288 routed-deck walks FILL
+#    node_budget at the deep knobs, 0.0% of reserved slots are headroom-paid, the reservation is ~100%
+#    substitution (GUIDED_DEPTH_V2_PLAN.md:141-170). The CEILING pin is unaffected -- it was always the
+#    right constraint -- but the sentence justifying it was measuring a fake embedder.
+#  * THE NAME. The ceiling is the WALK's budget law, not the rerank cliff. The 17-node cliff belongs to
+#    the BEDROCK lane's 3-req/min bucket; serving runs native cohere (1,000/min) since D-MW P1, and
+#    D-MW-9 packs rerank requests at caller boundaries, so crossing 1,000 docs now costs one more
+#    concurrent request. The bound is parametrized in node_budget accordingly.
 def test_pin3_node_count_and_k_are_invariant_under_the_reservation(alias):
     gr = _chain_graph()                             # 14 drivers + 1 seed vs node_budget 8: heavily oversubscribed
     off, on = _walk(gr, closure_reserve=0), _walk(gr, closure_reserve=3)
@@ -186,20 +197,51 @@ def test_pin3_node_count_and_k_are_invariant_under_the_reservation(alias):
         assert len(decided) == len(set(decided))
 
 
-@pytest.mark.parametrize("budget", [6, 8, 10, 16])
-def test_pin3_reservation_can_never_cross_the_17_node_rerank_cliff(alias, budget):
-    """The coalescer chunks at _COALESCE_MAX_DOCS=1000 and each node caps at RERANK_POOL=60, so the 17th
-    retrieving node = 1,020 docs = two requests against a 3/min non-adjustable quota. THE CEILING is the
-    pin (R1 #1): the reservation spends the walk's OWN budget -- unspent slots first, displacement for the
-    remainder -- so `kept` can rise toward node_budget but never past it. Pinned across the whole budget
-    range this estate ships (quick 6 / params 10 / deep 16)."""
+@pytest.mark.parametrize("budget", [6, 8, 10, 16, 32])
+def test_pin3_reservation_never_exceeds_node_budget(alias, budget):
+    """THE WALK INVARIANT IS `len(kept) <= node_budget`, PARAMETRIZED IN THE BUDGET (D-MW-11 re-scope).
+
+    This pin used to be named for the 17-node rerank cliff and carried a hard `<= 16` beside the budget
+    bound. That conflated two different facts. The walk law is the budget: the reservation spends the
+    walk's OWN slots -- unspent ones first, displacement for the remainder -- so `kept` can rise toward
+    node_budget but never past it, whatever node_budget is. The CLIFF is a BEDROCK-lane quota artifact:
+    17 x pool-60 = 1,020 docs > _COALESCE_MAX_DOCS, i.e. a second draw on a 3-req/min non-adjustable
+    bucket. Serving reranks on the NATIVE cohere lane (1,000 req/min) since D-MW P1, and D-MW-9 packs
+    requests at caller boundaries, so past the cap the walk pays one more concurrent request -- a
+    request-shape detail, not a cliff. A hardcoded 16 here would have made this pin FAIL the moment P3
+    widens the deep preset, for a reason that no longer exists.
+
+    The 32 case is deliberate: it is the width GUIDED_DEPTH_V2_PLAN.md:141-170 measured as the first
+    node_budget at which the median deep walk (tau-survivors median 31) has any headroom at all."""
     gr = _chain_graph()
     off = _walk(gr, closure_reserve=0, node_budget=budget)
     on = _walk(gr, closure_reserve=3, node_budget=budget)
-    assert len(on.nodes) <= max(budget, 1) and len(on.nodes) <= 16
+    assert len(on.nodes) <= max(budget, 1)
     assert len(on.nodes) >= len(off.nodes)                   # additive-or-equal, never subtractive
     cc = on.trace["cascade_closure"]
     assert len(cc["reserved"]) == len(cc["displaced"]) + cc["headroom_used"] and cc["count_delta"] == 0
+
+
+@pytest.mark.parametrize("budget", [16, 32])
+def test_pin3_the_ceiling_binds_at_p3_width_too(monkeypatch, budget):
+    """NON-VACUITY FOR THE WIDE END. `_chain_graph` holds 15 nodes, so a 32-budget walk there can never
+    reach its ceiling -- the parametrized pin above proves the accounting at that width, not the bound.
+    This fixture is OVERSUBSCRIBED at 32 (43 drivers, all above tau), which is the shape P3's wider preset
+    creates and the reason the bound had to stop being a hardcoded 16 in the first place."""
+    ds = [_drv("anchor", 0.95, parents=["mid"]), _drv("mid", 0.40, parents=["root"]), _drv("root", 0.10)]
+    ds += [_drv(f"w{i}", 0.90 - i * 0.005) for i in range(40)]
+    amap = {"anchor": "anchor_sl", "mid": "mid_sl", "root": "root_sl",
+            **{f"w{i}": f"w{i}_sl" for i in range(40)}}
+    monkeypatch.setattr(ev, "backed_dag_ids", lambda: set(amap))
+    monkeypatch.setattr(ev, "slice_for_driver", lambda d: amap.get(d))
+    gr = _corn(ds)
+    off = _walk(gr, closure_reserve=0, node_budget=budget)
+    on = _walk(gr, closure_reserve=3, node_budget=budget)
+    assert len(off.nodes) == budget, "fixture must SATURATE the budget or the ceiling pin is vacuous"
+    assert len(on.nodes) == budget                       # the ceiling binds; the reservation pays from within
+    cc = on.trace["cascade_closure"]
+    assert cc["headroom_used"] == 0 and len(cc["displaced"]) == len(cc["reserved"]) > 0
+    assert cc["count_delta"] == 0
 
 
 def test_pin3_reservation_is_a_per_walk_budget_not_per_wave(alias):
@@ -794,7 +836,8 @@ def test_r1_4_the_whole_ancestor_chain_of_an_anchor_is_protected_at_any_depth(al
 def test_r1_5_the_focus_driver_is_never_displaced(alias_wide):
     """THE FINDING, exactly (reviewer case A6). answer._answer_l2 re-injects `focus_driver` post-walk with
     NO budget accounting, so a reservation that displaced it grew the turn's node count on the ON arm only
-    -- past the 17-node `_COALESCE_MAX_DOCS` cliff pin 3 exists to hold. It now rides into the walk as a
+    -- past the `len(kept) <= node_budget` ceiling pin 3 exists to hold (the 17-node number was the
+    BEDROCK lane's quota cliff, retired as a walk law by D-MW-11). It now rides into the walk as a
     displacement fence."""
     gr = _wide_graph(6)
     victims = [d["key"][2] for d in _walk(gr, closure_reserve=3,

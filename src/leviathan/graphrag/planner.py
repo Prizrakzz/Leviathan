@@ -219,25 +219,37 @@ def _closure_plan(scored: list, kept: dict, graph: gph.CausalGraph, *, node_budg
          tombstones, so the visited-before-tau aggravator the recon flagged stays untouched.
       4. HEADROOM FIRST, DISPLACE ONLY FOR THE REMAINDER; the CEILING is the invariant, not the count.
          REVIEW FIX (D-GD-1 R1 #1, 2026-08-08): v1 displaced UNCONDITIONALLY, so it paid for every slot
-         whether or not the wave had a spare one to give. Measured on the real 33-DAG graph at the deep
-         knobs (node_budget=16/depth=1/tau=.35): 0 of 198 single-contract walks and 4 of 33 three-seed
-         walks ever FILLED node_budget — tau, not the budget, is what ends these walks — while 220 of 220
-         and 68 of 80 displacements respectively happened with the budget UNSPENT. The ON arm was therefore
-         not "the same slots, better chosen": it was the shipped walk MINUS 1-3 cosine-admitted drivers
-         with 7-12 slots left idle, which would have conflated `+ancestors` with `-top drivers` in one arm.
+         whether or not the wave had a spare one to give. Headroom-first remains the right shape — the
+         CEILING is the invariant, and spending an unspent slot is strictly cheaper than deleting a
+         cosine-admitted driver — but THE NUMBERS THAT MOTIVATED IT WERE A SIM ARTIFACT, corrected here
+         (D-MW-11; measurement in GUIDED_DEPTH_V2_PLAN.md:141-170). The R1 sweep ran a DETERMINISTIC HASH
+         embedder, which centres mechanism cosines on 0.0, so 100% of candidates fell below tau=0.35, tau
+         ate every wave and the budget never bound: "0 of 198 walks ever FILLED node_budget" was a property
+         of the fake embedder, not of the walk. Re-measured with the REAL bge-m3 on the same population,
+         same code, same knobs, it is the OPPOSITE: real mechanism cosines sit in a narrow band above the
+         floor (pruned-candidate relevance p10 0.314 / median 0.370 / p90 0.443, only 32.4% below tau), so
+         the BUDGET is what ends the walk — 288 of 288 routed-deck walks FILL node_budget at the deep knobs
+         (192 of 198 on the 6-queries-per-contract population), 0.0% of reserved slots are paid by headroom,
+         and the reservation is ~100% SUBSTITUTION in practice. Tau-survivors per deep walk are min 8 /
+         p25 25 / median 31 / p75 36 / max 49, so headroom on the median walk needs node_budget >= 32: a
+         WIDTH decision (D-MW P3), not a knob away.
          So: `headroom = node_budget - (len(kept) + len(base))` is spent FIRST and additively; only the
          remainder displaces the lowest-ranked admitted drivers (never a seed, never a tracked hop — the
          hop-first comparator is deliberately untouched; never an ANCHOR of this same reservation nor ANY
          driver on an anchor's ancestor chain, which would orphan the chain it earned, R1 #4; never the
          turn's `focus_driver`, whose post-walk re-inject would otherwise re-add it on the ON arm only,
          R1 #5). If the wave cannot pay for the remainder, the reservation is TRIMMED. The invariant that
-         actually matters is `len(kept) <= node_budget` — the 17-node `_COALESCE_MAX_DOCS` rerank cliff —
-         and headroom-first satisfies it BY CONSTRUCTION. `count_delta = reserved - displaced -
-         headroom_used` stays assertable at 0 as the accounting proof.
+         actually matters is `len(kept) <= node_budget` — the WALK's own law — and headroom-first satisfies
+         it BY CONSTRUCTION. (It used to be justified as "the 17-node `_COALESCE_MAX_DOCS` rerank cliff".
+         That cliff is the BEDROCK lane's: 17 x pool-60 = 1,020 docs = a second draw on a 3/min
+         non-adjustable bucket. On the native cohere lane, 1,000 req/min, chunk count is a request-shape
+         detail — D-MW-11 — so the budget is defended AS A BUDGET, not as a quota.) `count_delta =
+         reserved - displaced - headroom_used` stays assertable at 0 as the accounting proof.
 
-         NOTE FOR RATIFICATION: with headroom-first the ON arm is genuinely ADDITIVE on most walks. That is
-         a different confound from v1's (more nodes, not different nodes) — but an honest and
-         `node_budget`-bounded one, and it is the user's call at D-GD-3 adjudication."""
+         NOTE, CORRECTED (D-MW-11): the R1 record's "with headroom-first the ON arm is genuinely ADDITIVE
+         on most walks" describes the hash-embedder SIM, not the product. On the real embedder 0 of 288
+         routed-deck walks take ANY additive admission, so the ON arm is what v1 claimed to be — the same
+         slots, differently chosen — and the D-GD-3 adjudication reads it that way."""
     # (1) what the SHIPPED rule would admit, in rank order — the baseline this plan may not out-count.
     base, n = [], len(kept)
     for e in scored:
@@ -415,8 +427,11 @@ def grounded_subgraph(query: str, graph: gph.CausalGraph, *, depth: int = _DEPTH
     `focus_driver` (D-GD-1 R1 #5) is OBSERVATIONAL to the walk itself — it changes nothing about scoring,
     admission or budget. It only marks that driver DISPLACEMENT-PROTECTED, because answer._answer_l2
     re-injects it post-walk when it is absent, with no budget accounted for; a reservation that displaced
-    it would therefore grow the turn's node count on the ON arm ONLY, past the very 17-node
-    `_COALESCE_MAX_DOCS` cliff the budget invariant exists to hold. No-op when the reservation is off."""
+    it would therefore grow the turn's node count on the ON arm ONLY, past the `len(kept) <= node_budget`
+    ceiling the budget invariant exists to hold. (That ceiling used to be argued as the 17-node
+    `_COALESCE_MAX_DOCS` rerank cliff; the cliff is the BEDROCK lane's — on native cohere at 1,000 req/min
+    chunk count is a request-shape detail, D-MW-11. The fence stands on the budget itself, which is a
+    per-turn cost and prompt-window fact, not a vendor quota.) No-op when the reservation is off."""
     embed = embed or ev.embed
     if route_fn is None:
         from leviathan.graphrag import answer as _an  # lazy: answer imports planner for the l2 path
@@ -612,11 +627,13 @@ def _dedup_and_cap(sg: Subgraph, cap: int, *, cap_policy: str | None = None, k_b
     the tail of the LOWEST-relevance node first. It never rewrites or re-ranks a row (D-DT item-2 law).
 
     WHY THE QUOTA IS NODE-RELEVANCE-PROPORTIONAL AND NOT ROW-SCORE-THRESHOLDED: verified against
-    rankers._fire (one grouped Bedrock request PER DISTINCT QUERY, and the walk sends the same query
-    string for every node) -- so on the happy path all nodes' docs are scored in ONE request and their
-    scores share a normalization. But that is NOT guaranteed: _parallel_fill's pool can be narrower than
-    the hinted batch (measured floor ceil(n_arrivals/workers) requests per turn), the quiescence closer
-    can split a batch, and the per-caller bge fallback scores each node on its own scale. Cross-node raw
+    rankers._fire (grouped PER DISTINCT QUERY, and the walk sends the same query string for every node,
+    then packed at caller boundaries into <= _COALESCE_MAX_DOCS requests -- D-MW-9) -- so on the happy
+    path all nodes' docs are scored in ONE request and their scores share a normalization. But that is
+    NOT guaranteed: past the doc cap the packing splits nodes ACROSS requests (whole nodes, never a node
+    in half), _parallel_fill's pool can be narrower than the hinted batch (measured floor
+    ceil(n_arrivals/workers) requests per turn), the quiescence closer can split a batch, and the
+    per-caller bge fallback scores each node on its own scale. Cross-node raw
     scores are therefore comparable only sometimes, and a policy may not depend on "sometimes". Rows
     keep their retriever order WITHIN a node, where comparability always holds."""
     seen: set = set()

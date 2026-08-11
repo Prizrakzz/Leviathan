@@ -140,10 +140,16 @@ def _lane_teardown():
 
 # -- batch-composition invariance: the score is a property of the (query, doc), not of the request ----
 def test_a_docs_score_is_identical_whole_or_chunked(monkeypatch):
-    """THE UNIT HALF of the D-MW-8 Layer A assertion (the live half scores 200 docs whole vs as 4x50 and
-    agrees to 1e-6). Cross-encoder scoring is POINTWISE, which is the entire licence for the coalescer's
-    batching -- if a doc's score moved with its batch mates, every coalesced turn would be scoring
-    something other than what an uncoalesced turn scores, and the whole seam would be unsound."""
+    """THE UNIT HALF of batch invariance: through a DETERMINISTIC stub, a doc's score must be a pure
+    function of (query, doc), never of its batch mates -- that property is the licence for the
+    coalescer's batching, and this pin holds OUR code (chunking, realignment) to it exactly.
+    THE LIVE HALF was measured, not assumed (P2 entry check, 2026-08-11, real corpus docs): Cohere's
+    fleet carries ~3e-4 cross-request replica noise (identical CHUNKED requests differ by 2.9e-4;
+    whole-vs-chunked by 5.6e-4 -- same magnitude, so NO per-request normalization effect), which is
+    ordering-invisible (tau 0.99905, top-10 overlap 1.0). The original 1e-6 live tolerance FAILED and
+    was re-pinned on that measurement; D-MW-8's Layer A live arm itself was CLOSED-BY-DIRECTIVE, never
+    run to verdict (plan section 11). Caller-boundary packing (D-MW-9) makes within-node ordering
+    single-request by construction, so the live noise cannot touch what a reader sees."""
     docs = ["alpha", "bravo", "charlie", "delta", "echo"]
     truth = {d: 0.9 - i / 10.0 for i, d in enumerate(docs)}       # deterministic per-DOC, recorded-style
     monkeypatch.setenv("COHERE_API", "k-test")

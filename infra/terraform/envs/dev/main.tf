@@ -540,6 +540,10 @@ module "serving" {
   # existing CPU target-tracking policy rarely fires and the service effectively stays at 1 — and scaling OUT
   # would split the Cohere managed-rerank quota (3 req/min, account-wide) across tasks, hurting latency. max=2
   # is a CPU-spike safety valve only.
+  # HISTORICAL as of D-MW P1 (2026-08-11): serving reranks on the NATIVE cohere lane, whose 1,000 req/min
+  # limit is PER KEY, not per task — a second task splits nothing. max_count=2 is therefore now a plain
+  # CPU/cost cap with no quota argument behind it; revisit at the P5 credits wave (where per-turn cost and
+  # concurrency get a ledger). Value deliberately UNCHANGED here: this is commentary, not a capacity change.
   max_count = 2
 
   # Stage 1.5 latency fixes (env flips only; rollback = remove the key):

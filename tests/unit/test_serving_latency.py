@@ -351,9 +351,16 @@ def test_bedrock_client_retry_ladder_is_capped(monkeypatch):
     assert captured["retries"]["max_attempts"] == 2 and captured["retries"]["mode"] == "adaptive"
 
 
-def test_bedrock_rerank_call_chunks_past_api_cap(monkeypatch):
-    fake = _FakeRerankClient([])                              # results filled per call below
+def test_bedrock_leaf_chunk_loop_is_the_oversized_caller_guard(monkeypatch):
+    """The leaf's internal OFFSET loop still exists, and this pin is now explicitly scoped to what it is
+    FOR after D-MW-9: one caller whose own texts exceed the per-request cap.
 
+    It used to be the normal chunker — `_fire` handed it one flattened list per query and it split at
+    offsets, so past 1,000 docs a single node's pool could straddle two requests. Packing moved up to
+    `_fire` at CALLER boundaries (see the pin below and test_coalescer_cross_turn), and the loop stayed
+    as the safety net for the one case packing cannot fix: a caller bigger than the cap, which `_fire`
+    hands over whole rather than rejecting or splitting between nodes. Impossible on today's knobs
+    (RERANK_POOL 60 x node_budget 16 = 960 < 1,000) and one knob away from possible."""
     class _Counting:
         def __init__(self):
             self.n = 0
@@ -368,7 +375,38 @@ def test_bedrock_rerank_call_chunks_past_api_cap(monkeypatch):
     monkeypatch.setattr(rk, "_COALESCE_MAX_DOCS", 2)
     scores = rk._bedrock_rerank_call("q", ["a", "b", "c", "d", "e"])
     assert counting.n == 3 and scores == [1.0] * 5            # 2+2+1 chunks, order preserved
-    assert fake is not None
+
+
+def test_fire_packs_at_caller_boundaries_not_offsets(monkeypatch):
+    """THE COMPANION PIN (D-MW-9): the request boundary the WALK sees is a caller boundary, decided in
+    `_fire` — the leaf loop above never sees a multi-caller list it could split mid-node.
+
+    Three callers of 2 docs at a cap of 3: the flattened list is 6 docs, so offset chunking would have
+    produced [3, 3] and cut caller 2 in half. Caller packing refuses to co-pack a second caller into a
+    3-doc request that already holds 2, so it produces three whole-caller requests instead — a request
+    MORE than the offset split, deliberately, because on the 1,000/min lane the extra request is cheap
+    and the split ranking is not. COHERE lane: review round 2 gated packing there (bedrock keeps the
+    pre-P2 flat shape precisely because its 3/min bucket makes extra requests expensive), and the
+    multi-group cohere dispatch is concurrent, so composition is asserted order-insensitively."""
+    import threading
+    monkeypatch.setenv("GRAPHRAG_RERANK_BACKEND", "cohere")
+    monkeypatch.setattr(rk, "_COALESCE_MAX_DOCS", 3)
+    seen: list[list[str]] = []
+    lock = threading.Lock()
+
+    def fake(q, docs):
+        with lock:
+            seen.append(list(docs))
+        return [float(d) for d in docs]
+
+    monkeypatch.setattr(rk, "_cohere_rerank_call", fake)
+    coal = rk._RerankCoalescer()
+    entries = [{"q": "q", "texts": [f"{c}1", f"{c}2"], "ev": threading.Event(),
+                "scores": None, "err": None} for c in (1, 2, 3)]
+    coal._fire(entries)
+    assert sorted(seen) == [["11", "12"], ["21", "22"], ["31", "32"]]  # never [11,12,21] + [22,31,32]
+    assert [e["scores"] for e in entries] == [[11.0, 12.0], [21.0, 22.0], [31.0, 32.0]]
+    assert all(e["err"] is None and e["ev"].is_set() for e in entries)
 
 
 # ── Fix B: streamed synthesis ────────────────────────────────────────────────────────────────────────
