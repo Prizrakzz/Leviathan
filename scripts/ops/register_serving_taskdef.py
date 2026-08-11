@@ -266,6 +266,15 @@ def main(argv=None) -> int:
                     help="mount one Secrets Manager entry as NAME (repeatable). Removal is "
                          "deliberately NOT offered: the wave's rollback ladder is an env flip, and "
                          "un-mounting a secret by hand is how a container stops booting.")
+    ap.add_argument("--image", metavar="URI_OR_DIGEST",
+                    help="set the container image: a full URI, or a bare sha256:... digest which "
+                         "is pinned onto the source revision's repository. THE MISSING HALF OF AN "
+                         "ENV FLIP THAT DEPENDS ON NEW CODE: this script carries the source "
+                         "revision's image verbatim (right for a pure env change), so flipping a "
+                         "flag whose READER only exists in a newer image silently runs the OLD "
+                         "code under the NEW value -- for GRAPHRAG_RERANK_BACKEND that means the "
+                         "unknown-backend fall-through to the CPU cross-encoder, i.e. a ~100 s/walk "
+                         "regression with no error anywhere. Caught live on rev 92.")
     ap.add_argument("--region", default="us-east-1")
     ap.add_argument("--allow-noop", action="store_true",
                     help="permit registering a byte-identical copy of the source revision. Off by "
@@ -309,9 +318,23 @@ def main(argv=None) -> int:
     payload = copy.deepcopy(strip_for_register(source_td, _rejected_fields(ecs)))
     container = pick_container(payload, args.container)
     before_env, before_secrets = _env_map(container), _secret_map(container)
+    before_image = container.get("image", "")
     apply_patch(container, set_env=set_env, unset_env=unset_env, add_secret=add_secret)
+    if args.image:
+        # A bare digest pins onto the SOURCE revision's repository, so an operator can paste the
+        # digest a build printed without re-typing the registry/repo path (and cannot accidentally
+        # retarget the family at a different repository).
+        if args.image.startswith("sha256:"):
+            repo = before_image.split("@")[0].split(":")[0]
+            container["image"] = "%s@%s" % (repo, args.image)
+        else:
+            container["image"] = args.image
     after_env, after_secrets = _env_map(container), _secret_map(container)
+    after_image = container.get("image", "")
 
+    print("")
+    print("IMAGE: %s" % ("UNCHANGED  %s" % before_image if after_image == before_image
+                         else "CHANGE\n  from %s\n  to   %s" % (before_image, after_image)))
     print("")
     for line in diff_lines(before_env, after_env, kind="env"):
         print(line)
@@ -319,7 +342,8 @@ def main(argv=None) -> int:
     for line in diff_lines(before_secrets, after_secrets, kind="secret", mask=True):
         print(line)
 
-    changed = (before_env != after_env) or (before_secrets != after_secrets)
+    changed = (before_env != after_env) or (before_secrets != after_secrets) or (
+        after_image != before_image)
     if not changed and not args.allow_noop:
         print("")
         print("REFUSING: the patch changes nothing, so registering would mint a revision that "
@@ -344,7 +368,13 @@ def main(argv=None) -> int:
               % family)
         return 0
 
-    resp = ecs.register_task_definition(**payload, tags=tags)
+    # `tags` is OMITTED when the source revision carries none. RegisterTaskDefinition rejects an
+    # empty list outright -- ClientException "Tags can not be empty" -- so passing tags=[] turns a
+    # perfectly good payload into a hard failure at the flip moment. Caught live against rev 91,
+    # which has zero tags (every serving revision in this family is hand-registered, and none of
+    # them ever carried one). Only pass the key when there is something to pass.
+    resp = (ecs.register_task_definition(**payload, tags=tags) if tags
+            else ecs.register_task_definition(**payload))
     new = resp["taskDefinition"]
     new_ref = "%s:%d" % (new["family"], new["revision"])
     print("")
