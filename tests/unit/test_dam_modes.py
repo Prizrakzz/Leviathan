@@ -86,20 +86,24 @@ def test_reasoning_modes_is_a_leaf_module():
 
 
 def test_the_preset_table_and_nothing_else():
-    assert rm.valid_names() == frozenset({"quick", "standard", "deep", "deep_v2"})
-    assert set(rm.MODES) == {rm.QUICK, rm.STANDARD, rm.DEEP, rm.DEEP_V2}
+    assert rm.valid_names() == frozenset({"quick", "standard", "deep", "deep_v2", "max", "max_c0"})
+    assert set(rm.MODES) == {rm.QUICK, rm.STANDARD, rm.DEEP, rm.DEEP_V2, rm.MAX, rm.MAX_C0}
 
 
 def test_deep_v2_is_dark_and_the_wildcard_can_never_sweep_it_in(monkeypatch):
     """D-DV-2 ships the arm's preset in the SAME image as the D-DV-1 fixes, so the eval can run it --
     but an un-adjudicated arm must never become honorable by turning modes on estate-wide. The dark
     set is named in the leaf (one producer), and the wildcard branch reads serving_names()."""
-    assert rm.DARK_NAMES == frozenset({rm.DEEP_V2})
+    # D-MW-13: the max bundle joins the dark set at birth. serving_names() is UNCHANGED by that -- the
+    # pin below is the proof that two new presets widened valid_names() without widening what
+    # GRAPHRAG_MODES=on may sweep in.
+    assert rm.DARK_NAMES == frozenset({rm.DEEP_V2, rm.MAX, rm.MAX_C0})
     assert rm.serving_names() == frozenset({"quick", "standard", "deep"})
     assert rm.DEEP_V2 in rm.valid_names()                              # still RESOLVABLE (stamped)
     for on in ("on", "1", "true"):
         monkeypatch.setenv("GRAPHRAG_MODES", on)
         assert rm.DEEP_V2 not in orch._modes_enabled()
+        assert rm.MAX not in orch._modes_enabled() and rm.MAX_C0 not in orch._modes_enabled()
     assert rm.resolve("deep_v2", orch._modes_enabled())["honored"] == "standard"
     monkeypatch.setenv("GRAPHRAG_MODES", "deep_v2")                    # named EXPLICITLY -> honored
     assert orch._modes_enabled() == frozenset({"deep_v2"})
@@ -121,7 +125,12 @@ def test_the_two_new_policy_fields_default_to_none_on_every_pre_ddv_preset():
     on all of them except deep_v2, so `knobs()` cannot mint them, `ground_kwargs()` cannot pass
     cap_policy, and answer._render_order returns the walk order unchanged. Nothing to promise by hand
     -- the None default IS the guarantee, exactly as `standard` is for the whole table."""
-    assert ("cap_policy", "order_policy") == rm.KNOB_FIELDS[-2:]        # appended, never sorted in
+    # D-MW-13 re-pin: the per-seed quartet appends AFTER order_policy, per_seed_reserve LAST (the
+    # appended-last law -- D-MW-28's cascade_contract_slots moves this tail a second time in P6).
+    assert ("per_seed_probe_cap", "per_seed_reserve") == rm.KNOB_FIELDS[-2:]
+    assert rm.KNOB_FIELDS[-4:] == ("per_seed_budget", "per_seed_evidence_cap",
+                                   "per_seed_probe_cap", "per_seed_reserve")
+    assert rm.KNOB_FIELDS[-6:-4] == ("cap_policy", "order_policy")      # appended, never sorted in
     for name in (rm.QUICK, rm.STANDARD, rm.DEEP):
         m = rm.MODES[name]
         assert m.cap_policy is None and m.order_policy is None, name
@@ -142,7 +151,7 @@ def test_v1_knob_table_matches_the_ratified_values():
     """D-AM-10's table, transcribed. If the eval retunes a number this test is the one place to
     change it -- and the change is then visible in review, which is the whole point."""
     assert rm.knobs(rm.QUICK) == {
-        "node_budget": 6, "depth": 1, "max_seeds": 1,
+        "node_budget": 6, "depth": 1, "max_seeds": 2,          # D-MW-13 (R7): a CEILING, ratified 08-11
         "k_by_depth": (4, 2), "evidence_cap": 12, "probe_cap": 12,
         "fetch_k": 40, "silver_cap": 4,
         "scaffold_max_bullets": 6, "scaffold_max_absence": 3,
@@ -151,8 +160,9 @@ def test_v1_knob_table_matches_the_ratified_values():
     # RERANK_POOL is 60 and the cut runs after fusion), depth 3->1 + k_by_depth (7,5,3)->(7,5) (DEAD:
     # node_budget saturated 36/36 inside wave 1, wave 2 never ran), xc_force True->None (forced
     # reroute-v2 = number_mismatch dose-response 2/2/11), budget_scale 1.5->None (H-verbosity killed).
+    # D-MW-13 (R7): deep's max_seeds 3 -> 4 is its tier CEILING; the per-seed budget (32) is P4's commit.
     assert rm.knobs(rm.DEEP) == {
-        "node_budget": 16, "depth": 1, "max_seeds": 3,
+        "node_budget": 16, "depth": 1, "max_seeds": 4,
         "k_by_depth": (7, 5), "evidence_cap": 48, "probe_cap": 36,
         "fetch_k": 60, "silver_cap": 12,
         "scaffold_max_bullets": 12, "scaffold_max_absence": 6}
@@ -169,6 +179,114 @@ def test_deep_v2_preset_matches_the_ratified_values():
         "cap_policy": "score", "order_policy": "relevance"}
     assert an._scaffold_cap_kwargs(rm.knobs(rm.DEEP_V2)) == {}          # inherit, not pin
     assert an._mode_budget("ranking", rm.knobs(rm.DEEP_V2)) is None     # no budget_scale -> untouched
+
+
+# ══ A2 -- D-MW-13: the max bundle (seed CEILINGS + PER-SEED allocations) ═════════════════════════════
+def test_max_preset_matches_the_step0_calibrated_values():
+    """D-MW-13, STEP-0-CALIBRATED + RATIFIED 2026-08-11 (census 288 routed walks: per-seed cosine demand
+    p75 = 63, eligible-ancestor demand p75 = 4). node_budget / evidence_cap / probe_cap are ABSENT on
+    purpose -- they are DERIVED from the REALIZED seed count at walk/ground time, and a flat number
+    pinned here would silently beat the per-seed arithmetic."""
+    assert rm.knobs(rm.MAX) == {
+        "depth": 2, "max_seeds": 6,
+        "k_by_depth": (7, 5, 3),
+        "fetch_k": 60, "silver_cap": 12,
+        "scaffold_max_bullets": 12, "scaffold_max_absence": 6,
+        "cap_policy": "score", "order_policy": "relevance",
+        "per_seed_budget": 63, "per_seed_evidence_cap": 24, "per_seed_probe_cap": 24,
+        "per_seed_reserve": 4}
+    for absent in ("node_budget", "evidence_cap", "probe_cap"):
+        assert absent not in rm.knobs(rm.MAX), absent
+        assert getattr(rm.MODES[rm.MAX], absent) is None, absent
+
+
+def test_max_and_max_c0_differ_by_exactly_one_field():
+    """THE ONE-VARIABLE LAW, proven field by field rather than asserted: P3-A's two arms are
+    `--mode max_c0` vs `--mode max`, so any second difference between these presets would silently
+    confound the gate's only variable (the graph-admission reserve)."""
+    hot, off = rm.MODES[rm.MAX], rm.MODES[rm.MAX_C0]
+    differ = [f for f in rm.KNOB_FIELDS if getattr(hot, f) != getattr(off, f)]
+    assert differ == ["per_seed_reserve"], differ
+    assert hot.per_seed_reserve == 4 and off.per_seed_reserve == 0
+    assert off.name == "max_c0" and hot.name == "max"
+
+
+def test_zero_is_a_value_not_a_default_on_max_c0():
+    """0 must SURVIVE the None-filters end to end: `knobs()` drops None, so a per_seed_reserve that
+    fell through as None would leave GRAPHRAG_CLOSURE_RESERVE deciding the OFF arm -- the arm would
+    silently run the ON mechanism. The kwarg-beats-env precedence is a shipped pin; this is what
+    hands the walk a 0 to enforce it with."""
+    kn = rm.knobs(rm.MAX_C0)
+    assert kn["per_seed_reserve"] == 0 and "per_seed_reserve" in kn
+    assert rm.walk_kwargs(kn)["per_seed_reserve"] == 0
+    assert rm.walk_kwargs(rm.knobs(rm.MAX))["per_seed_reserve"] == 4
+
+
+def test_walk_kwargs_carry_the_per_seed_walk_knobs():
+    """per_seed_budget / per_seed_reserve are WALK knobs (grounded_subgraph keywords); the two ground
+    per-seed caps are NOT, and must never leak onto the walk call."""
+    for name in (rm.MAX, rm.MAX_C0):
+        wk = rm.walk_kwargs(rm.knobs(name))
+        assert wk["per_seed_budget"] == 63 and wk["depth"] == 2 and wk["max_seeds"] == 6, name
+        assert "node_budget" not in wk, name                             # derived, never flat
+        assert "per_seed_evidence_cap" not in wk and "per_seed_probe_cap" not in wk, name
+    # THE CROSS-CLUSTER SEAM PIN (D-MW-13 contract item 4): the per-seed walk knobs are Class-1 only
+    # once grounded_subgraph accepts them, so this assertion is RED until the planner half of the same
+    # commit lands -- deliberately, because a preset that threads a keyword its callee rejects is a
+    # TypeError at the first honored turn, not a test-time nicety.
+    walk = set(inspect.signature(pl.grounded_subgraph).parameters)
+    assert set(rm.walk_kwargs(rm.knobs(rm.MAX))) <= walk
+    for name in (rm.QUICK, rm.STANDARD, rm.DEEP, rm.DEEP_V2):            # untouched by construction
+        wk = rm.walk_kwargs(rm.knobs(name))
+        assert "per_seed_budget" not in wk and "per_seed_reserve" not in wk, name
+
+
+def test_the_tier_seed_ceilings_are_quick_2_deep_4_max_6():
+    """R7's one default-product change, ratified 2026-08-11: max_seeds STOPS being a fan-in number and
+    becomes the tier CEILING the dispatch planner picks under. A two-market question on the default
+    tier is no longer a one-market answer."""
+    assert rm.MODES[rm.QUICK].max_seeds == 2
+    assert rm.MODES[rm.DEEP].max_seeds == 4
+    assert rm.MODES[rm.MAX].max_seeds == rm.MODES[rm.MAX_C0].max_seeds == 6
+    assert rm.MODES[rm.STANDARD].max_seeds is None                       # all-None pin, untouched
+    # SEQUENCED, NOT FORGOTTEN: quick/deep's ratified per-seed budgets (12 / 32) land in the P4-ARM
+    # commit, after P3's verdict, so P3-A/B attribution stays one-variable.
+    for name in (rm.QUICK, rm.DEEP):
+        assert rm.MODES[name].per_seed_budget is None, name
+
+
+@pytest.mark.parametrize("n,evidence,probe", [(1, 24, 24), (3, 72, 72), (6, 144, 96)])
+def test_scaled_ground_kwargs_is_the_one_producer_of_the_seed_scaled_caps(n, evidence, probe):
+    """D-MW-13: ground caps scale with the REALIZED seed count and clamp at the module totals -- 24/seed
+    hits the 144 evidence ceiling exactly at 6 seeds, while the probe total binds earlier (96 at 4).
+    The arithmetic lives HERE, once: a call site that multiplied for itself is the drift class."""
+    assert (rm.TOTAL_EVIDENCE_CAP, rm.TOTAL_PROBE_CAP) == (144, 96)
+    kn = rm.knobs(rm.MAX)
+    out = rm.scaled_ground_kwargs(kn, n)
+    assert out["evidence_cap"] == evidence and out["probe_cap"] == probe
+    assert out["k_by_depth"] == (7, 5, 3) and out["cap_policy"] == "score"
+    assert set(out) == {"k_by_depth", "cap_policy", "evidence_cap", "probe_cap"}
+    assert rm.scaled_ground_kwargs(rm.knobs(rm.MAX_C0), n) == out        # the reserve is a WALK knob
+    assert kn == rm.knobs(rm.MAX)                                        # the knob dict is not mutated
+    assert set(out) <= set(inspect.signature(pl.ground).parameters)      # still Class-1 keywords only
+
+
+def test_scaled_ground_kwargs_is_byte_identical_where_the_per_seed_fields_are_absent():
+    """THE BYTE-IDENTITY LAW for the new producer: on every pre-D-MW preset it IS ground_kwargs(), at
+    any seed count -- so threading it at the call site cannot move quick/standard/deep/deep_v2."""
+    for name in (rm.QUICK, rm.STANDARD, rm.DEEP, rm.DEEP_V2):
+        kn = rm.knobs(name)
+        for n in (0, 1, 3, 6, 99):
+            assert rm.scaled_ground_kwargs(kn, n) == rm.ground_kwargs(kn), (name, n)
+    assert rm.scaled_ground_kwargs(None, 3) == {} and rm.scaled_ground_kwargs({}, 3) == {}
+
+
+def test_scaled_ground_kwargs_never_grounds_a_turn_at_zero():
+    """Fail-open, this module's law: a walk reporting 0 seeds falls back to the ONE-seed allocation,
+    never to a cap of 0 (which would ground the turn with no evidence at all)."""
+    one = rm.scaled_ground_kwargs(rm.knobs(rm.MAX), 1)
+    assert rm.scaled_ground_kwargs(rm.knobs(rm.MAX), 0) == one
+    assert rm.scaled_ground_kwargs(rm.knobs(rm.MAX), -3) == one
 
 
 def test_kwarg_builders_name_only_callee_accepted_keywords():
@@ -271,7 +389,7 @@ def test_walk_and_ground_kwargs_are_untouched_on_standard_and_dark(monkeypatch):
 def test_honored_mode_threads_walk_and_ground_knobs(monkeypatch):
     seen = _capture_l2(monkeypatch, mode_knobs=rm.knobs("deep"))
     assert seen["walk"]["node_budget"] == 16 and seen["walk"]["depth"] == 1
-    assert seen["walk"]["max_seeds"] == 3
+    assert seen["walk"]["max_seeds"] == 4                      # D-MW-13: deep's tier ceiling
     assert seen["ground"]["k_by_depth"] == (7, 5)
     assert seen["ground"]["evidence_cap"] == 48 and seen["ground"]["probe_cap"] == 36
     quick = _capture_l2(monkeypatch, mode_knobs=rm.knobs("quick"))

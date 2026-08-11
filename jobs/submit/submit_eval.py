@@ -104,7 +104,8 @@ def _emit_parity_warning(region: str, job_env: dict[str, str]) -> None:
 
 def build_command(*, queries: str | None, convos: str | None, model: str, judge: bool,
                   judge_model: str, k: int, workers: int | None = None,
-                  via_orchestrator: bool = False) -> list[str]:
+                  via_orchestrator: bool = False, mode: str | None = None,
+                  planner: str | None = None) -> list[str]:
     """The container command (the image ENTRYPOINT is `python`, so this is the arg list to it)."""
     cmd = ["-m", "leviathan.graphrag.eval", "--run", "--model", model, "--k", str(k)]
     if convos:
@@ -122,6 +123,15 @@ def build_command(*, queries: str | None, convos: str | None, model: str, judge:
         # e.g. --workers 1 for Bedrock-rerank arms: the Cohere Rerank quota is 3 req/min and each TURN is one
         # coalesced request, so concurrent turns (default 4 workers) would throttle -> silent bge contamination.
         cmd += ["--workers", str(workers)]
+    if mode:
+        # D-MW-16: the tier/preset arm lever, forwarded to eval --mode. Until this existed, a mode arm in
+        # the cloud needed a HAND-REGISTERED job definition carrying the flag in its baked command, so an
+        # arm's identity lived outside the submit record -- the gate could not prove which preset it ran.
+        # The serving-side GRAPHRAG_MODES allowlist still decides whether the mode is HONORED (pass it via
+        # --env GRAPHRAG_MODES=max,max_c0); the request is recorded either way, per row, in mode_decision.
+        cmd += ["--mode", mode]
+    if planner:
+        cmd += ["--planner", planner]
     return cmd
 
 
@@ -154,6 +164,12 @@ def main() -> None:
                          "to LOCAL bge (rankers._rerank_backend), so workers is NOT capped by the Cohere "
                          "3-req/min quota — that cap ONLY bites if you also pass GRAPHRAG_RERANK_BACKEND=bedrock, "
                          "in which case drop to --workers 1.")
+    ap.add_argument("--mode", default=None,
+                    help="reasoning mode REQUESTED on every turn (quick|standard|deep|max|max_c0), "
+                         "forwarded to eval --mode. Requires --via-orchestrator. Pair with "
+                         "--env GRAPHRAG_MODES=<allowlist> or the mode is requested but never honored")
+    ap.add_argument("--planner", default=None, choices=["l2", "onehop"],
+                    help="forwarded to eval --planner: 'onehop' forces the single-contract baseline arm")
     ap.add_argument("--memory", type=int, default=32768, help="MiB; legal Fargate value for 8 vCPU (16/20/24/28/32 GB)")
     ap.add_argument("--vcpu", type=int, default=8)
     ap.add_argument("--queue", default=None,
@@ -169,7 +185,7 @@ def main() -> None:
     aws_region = get_required_env("AWS_REGION")
     command = build_command(queries=args.queries, convos=args.convos, model=args.model,
                             judge=args.judge, judge_model=args.judge_model, k=args.k, workers=args.workers,
-                            via_orchestrator=args.via_orchestrator)
+                            via_orchestrator=args.via_orchestrator, mode=args.mode, planner=args.planner)
     overrides: dict = {
         "command": command,
         "resourceRequirements": [
@@ -184,6 +200,10 @@ def main() -> None:
     overrides["environment"] = [{"name": k, "value": v} for k, v in job_env.items()]
     stem = Path(args.convos or args.queries).stem
     job_name = f"eval-{stem.replace('_', '-')}-{args.model.replace('.', '-')}"
+    if args.mode:
+        # the two P3 arms are the SAME deck at the SAME model and differ only by mode -- without this the
+        # two submissions are indistinguishable in the Batch console
+        job_name += f"-{args.mode.replace('_', '-')}"
     for k, v in env_pairs:
         job_name += f"-{v.lower()[:12]}" if k == "GRAPHRAG_PROVIDER" else ""
 
@@ -210,6 +230,7 @@ def main() -> None:
     write_run_record(Path("data/batch_runs") / f"eval_{run_id}.json",
                      {"run_id": run_id, "job_name": job_name, "job_id": resp["jobId"],
                       "queries": args.convos or args.queries, "model": args.model, "judge": args.judge,
+                      "mode": args.mode, "planner": args.planner,
                       "env_overrides": dict(env_pairs)})
 
 

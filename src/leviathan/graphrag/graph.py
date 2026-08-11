@@ -162,6 +162,41 @@ class CausalGraph:
             stack.extend(ix.children.get(n, []))
         return sorted(seen)
 
+    def descendants_by_depth(self, contract: str, driver_id: str) -> dict[str, int]:
+        """D-MW-15 (iv), 2026-08-11 — `descendants()` with the CASCADE DISTANCE each downstream effect sits
+        at, in the NEGATIVE-DEPTH convention: -1 = a direct child, -2 = a grandchild, ... The sign IS the
+        direction, so one admission record can carry both legs of the cascade (`ancestors_by_depth` returns
+        +1/+2/...) and a reader never has to consult a second field to know which way an edge points.
+
+        SAME SET as `descendants()` by construction — the same reverse-edge index (`_Index.children`), the
+        same reachability — and test_dmw_walk pins that parity over all 33 curated DAGs, exactly as
+        test_dgd_closure_reservation pins the ancestors BFS. This is the PUBLIC seam the walk's downstream
+        admission needs: `_Index.children` is private and reading it from planner.py would put a second
+        traversal of the same edges in a second module (the COMPAT-9 duplicate-and-drift class).
+
+        THE HONEST CLAIM ABOUT WHAT IT BUYS (D-MW-15 iv, restated per review): within-contract children are
+        ALREADY wave-1 candidates — the walk enqueues every driver of a contract — so downstream admission
+        is NOT new reach. It is structural RE-ADMISSION of siblings that tau or the budget dropped, with the
+        cascade direction visible in the audit trail. Read the P3-A verdict that way.
+
+        BFS, so an effect reachable by two paths keeps its SHALLOWEST distance. Acyclicity is not assumed:
+        `out` terminates any cycle. Pure/offline, same as `descendants()`."""
+        ix = self._ix(contract)
+        if driver_id not in ix.by_id:
+            raise KeyError(f"{driver_id!r} not in {contract!r}")
+        out: dict[str, int] = {}
+        frontier = [c for c in ix.children.get(driver_id, []) if c in ix.by_id]
+        depth = 1
+        while frontier:
+            nxt: list[str] = []
+            for n in sorted(frontier):
+                if n in out:
+                    continue
+                out[n] = -depth
+                nxt.extend(c for c in ix.children.get(n, []) if c in ix.by_id)
+            frontier, depth = nxt, depth + 1
+        return out
+
     # ── convergence ───────────────────────────────────────────────────────────────────
     def regimes(self, contract: str, active) -> list[FiredRegime]:
         """Which convergence signals fire given a set of active driver ids: a regime fires when at least

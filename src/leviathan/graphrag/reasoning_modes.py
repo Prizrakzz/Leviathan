@@ -5,7 +5,7 @@ from leviathan.graphrag (pure data + pure functions), so orchestrator.py, answer
 eval.py can all import it without cycles, and the preset table cannot be hand-copied into a second
 module and drift (the COMPAT-9 duplicate-and-pin defect class).
 
-PRESETS -- `quick` / `standard` / `deep`, plus the DARK `deep_v2`. `standard` is ALL-NONE:
+PRESETS -- `quick` / `standard` / `deep`, plus the DARK `deep_v2` / `max` / `max_c0`. `standard` is ALL-NONE:
 `knobs("standard")` is the EMPTY DICT, every kwarg builder returns `{}`, and every call site therefore
 stays byte-identical under the omit-when-default idiom. That empty dict IS the fail-open guarantee (the
 same role the `default` response contract's empty directive plays), not a promise anyone has to keep by
@@ -28,6 +28,19 @@ THREADS values, it does not redesign seams:
   contract  budget_scale                           -> scales the ACTIVE response contract's word range
   gate      xc_force                               -> the reroute-v2 request gate (force off / force on)
   render    order_policy                           -> answer._render_order (evidence render + flat list)
+  walk/seed per_seed_budget / per_seed_reserve     -> planner.grounded_subgraph (D-MW-13; totals =
+                                                      value x the REALIZED seed count, not a flat number)
+  ground    per_seed_evidence_cap / _probe_cap     -> planner.ground, via `scaled_ground_kwargs()` ONLY
+                                                      (the ONE producer of the seed-scaled totals)
+
+`max` / `max_c0` (D-MW-13, STEP-0-CALIBRATED + RATIFIED 2026-08-11) -- the Full-cascade tier. `max_seeds`
+KEEPS its name and becomes the tier seed CEILING (6); the dispatch planner decides the REALIZED cardinality
+under it, and every budget scales PER SEED from that realized count: 63 cosine slots/seed (the measured p75
+of per-seed above-tau demand) plus 4 DEDICATED reserve slots/seed for graph admission, so cosine and
+structural admission can never displace each other. `max_c0` is byte-identical except `per_seed_reserve=0`
+-- 0 is a VALUE, not None: it survives `knobs()` and forces the reservation OFF outright (the closure kwarg
+beats the env, a shipped pin), which is what makes the P3-A arms differ by exactly ONE variable at identical
+width. Both are DARK until P4 adjudicates the bundle; `max_c0` stays dark permanently as the OFF control.
 
 EXCLUDED FROM v1, each with its recorded reason (do NOT add these without a new ratification):
   * rerank pool          -- a module-global read at the slice site; per-request mutation bleeds
@@ -55,6 +68,14 @@ QUICK = "quick"
 STANDARD = "standard"
 DEEP = "deep"
 DEEP_V2 = "deep_v2"
+MAX = "max"
+MAX_C0 = "max_c0"
+
+# D-MW-13: the TOTAL ceilings the seed-scaled ground caps may never exceed, whatever the realized seed
+# count is. They live here (not at a call site) because `scaled_ground_kwargs()` is the ONE producer of
+# the scaled totals -- cap arithmetic duplicated at a seam is the COMPAT-9 drift class all over again.
+TOTAL_EVIDENCE_CAP = 144
+TOTAL_PROBE_CAP = 96
 
 
 @dataclass(frozen=True)
@@ -93,11 +114,30 @@ class Mode:
     #                planner keyword -- so it rides mode_knobs directly, like fetch_k.
     cap_policy: str | None = None
     order_policy: str | None = None
+    # D-MW-13 (R7): PER-SEED allocations. `max_seeds` above stops being a flat fan-in number and becomes
+    # the tier seed CEILING -- the dispatch planner picks the realized cardinality under it -- and these
+    # four scale the walk from that REALIZED count. Appended after order_policy, `per_seed_reserve` LAST
+    # (the appended-last law; D-MW-28's cascade_contract_slots moves the tail again in P6).
+    #   per_seed_budget       cosine node slots per seed (total = value x realized seeds); when set it
+    #                         REPLACES the flat node_budget for that walk.
+    #   per_seed_evidence_cap / per_seed_probe_cap  ground caps per seed, totalled and clamped to
+    #                         TOTAL_EVIDENCE_CAP / TOTAL_PROBE_CAP by scaled_ground_kwargs() ONLY.
+    #   per_seed_reserve      DEDICATED additive graph-admission slots per seed -- never displaced by
+    #                         cosine and never backfilled with it. 0 is a VALUE (forces the reservation
+    #                         OFF, beating the env); None leaves the shipped env-driven path alone.
+    per_seed_budget: int | None = None
+    per_seed_evidence_cap: int | None = None
+    per_seed_probe_cap: int | None = None
+    per_seed_reserve: int | None = None
 
 
 MODES: dict[str, Mode] = {m.name: m for m in (
+    # D-MW-13 (R7, RATIFIED 2026-08-11): max_seeds 1 -> 2 is a CEILING, not a fan-in raise -- a
+    # two-market question on the DEFAULT tier stops being a one-market answer. quick's own per-seed
+    # budget (12, the ratified Scan allocation) lands with the P4 ARMS, deliberately not here, so
+    # P3-A/B attribution stays one-variable.
     Mode(name=QUICK,
-         node_budget=6, depth=1, max_seeds=1,
+         node_budget=6, depth=1, max_seeds=2,
          k_by_depth=(4, 2), evidence_cap=12, probe_cap=12,
          fetch_k=40, silver_cap=4,
          scaffold_max_bullets=6, scaffold_max_absence=3,
@@ -121,8 +161,10 @@ MODES: dict[str, Mode] = {m.name: m for m in (
     # verdict for no reason. The reservation is flagged separately (GRAPHRAG_CLOSURE_RESERVE) and is NOT a
     # mode knob in v1: it is the A/B's single variable, so it must not ride a preset that also moves
     # node_budget / caps / fetch_k.
+    # D-MW-13 (R7): max_seeds 3 -> 4 = deep's tier CEILING. Its per-seed budget (32, the ratified
+    # Analysis allocation) rides the P4-arm commit, same sequencing reason as quick's.
     Mode(name=DEEP,
-         node_budget=16, depth=1, max_seeds=3,
+         node_budget=16, depth=1, max_seeds=4,
          k_by_depth=(7, 5), evidence_cap=48, probe_cap=36,
          fetch_k=60, silver_cap=12,
          scaffold_max_bullets=12, scaffold_max_absence=6,   # == today's params default (deep = today)
@@ -136,16 +178,39 @@ MODES: dict[str, Mode] = {m.name: m for m in (
          k_by_depth=(7, 5), evidence_cap=24, probe_cap=36,
          fetch_k=60, silver_cap=8,
          cap_policy="score", order_policy="relevance"),
+    # D-MW-13 THE FULL-CASCADE TIER (STEP-0-CALIBRATED 2026-08-11: per-seed cosine demand p75 = 63,
+    # eligible-ancestor demand p75 = 4). node_budget / evidence_cap / probe_cap stay None ON PURPOSE --
+    # they are DERIVED from the realized seed count at walk/ground time, so a flat number pinned here
+    # would silently win over the per-seed arithmetic. depth=2 buys hop DRIVERS only (the walk fences
+    # contract expansion at d >= 2). DARK until P4.
+    Mode(name=MAX,
+         depth=2, max_seeds=6,
+         k_by_depth=(7, 5, 3),
+         fetch_k=60, silver_cap=12,
+         scaffold_max_bullets=12, scaffold_max_absence=6,
+         cap_policy="score", order_policy="relevance",
+         per_seed_budget=63, per_seed_evidence_cap=24, per_seed_probe_cap=24, per_seed_reserve=4),
+    # THE OFF CONTROL, byte-identical to `max` except per_seed_reserve 4 -> 0. It exists because the
+    # closure kwarg beats GRAPHRAG_CLOSURE_RESERVE OUTRIGHT (a shipped precedence pin), so "max with
+    # graph admission OFF" is unconstructible from one preset -- and P3-A's two arms must differ by
+    # exactly one variable at identical width. Permanently dark.
+    Mode(name=MAX_C0,
+         depth=2, max_seeds=6,
+         k_by_depth=(7, 5, 3),
+         fetch_k=60, silver_cap=12,
+         scaffold_max_bullets=12, scaffold_max_absence=6,
+         cap_policy="score", order_policy="relevance",
+         per_seed_budget=63, per_seed_evidence_cap=24, per_seed_probe_cap=24, per_seed_reserve=0),
 )}
 
 # Presets that `GRAPHRAG_MODES=on` must NOT sweep into the honored set. A dark preset is still resolvable
 # by NAME (GRAPHRAG_MODES=deep_v2 for the eval arm), which is what keeps the flip a one-env-var decision.
-DARK_NAMES: frozenset = frozenset({DEEP_V2})
+DARK_NAMES: frozenset = frozenset({DEEP_V2, MAX, MAX_C0})
 
 # The knob field names, in declaration order (the trace-stamp column order; append, never sort).
 KNOB_FIELDS: tuple[str, ...] = tuple(f.name for f in fields(Mode) if f.name != "name")
 
-_WALK_KNOBS = ("node_budget", "depth", "max_seeds")
+_WALK_KNOBS = ("node_budget", "depth", "max_seeds", "per_seed_budget", "per_seed_reserve")
 _GROUND_KNOBS = ("k_by_depth", "evidence_cap", "probe_cap", "cap_policy")
 
 
@@ -201,6 +266,32 @@ def walk_kwargs(kn: dict | None) -> dict:
 def ground_kwargs(kn: dict | None) -> dict:
     """`planner.ground` kwargs present in `kn` ({} when standard/absent)."""
     return {k: kn[k] for k in _GROUND_KNOBS if kn and kn.get(k) is not None}
+
+
+def scaled_ground_kwargs(kn: dict | None, n_seeds: int) -> dict:
+    """`ground_kwargs()` with the D-MW-13 SEED-SCALED caps folded in -- the ONE producer of that
+    arithmetic (no call site multiplies or clamps anything itself).
+
+    Identical to `ground_kwargs(kn)` whenever the per-seed fields are absent, which is every pre-D-MW
+    preset -- so quick / standard / deep / deep_v2 stay byte-identical here by construction, not by
+    promise. When they ARE present the totals are `per_seed_* x n_seeds`, clamped to
+    TOTAL_EVIDENCE_CAP / TOTAL_PROBE_CAP; the per-seed value WINS over any flat evidence_cap/probe_cap
+    a preset might also carry (the preset that scales must not be half-scaled).
+
+    `n_seeds` is the REALIZED seed count, not the ceiling. It is floored at 1: a walk that somehow
+    reports zero seeds must fall back to a one-seed allocation, never to a cap of 0 (that would ground
+    the turn with no evidence at all -- fail-open is this module's law)."""
+    out = ground_kwargs(kn)
+    if not kn:
+        return out
+    n = max(1, int(n_seeds or 0))
+    per_ev = kn.get("per_seed_evidence_cap")
+    if per_ev is not None:
+        out["evidence_cap"] = min(int(per_ev) * n, TOTAL_EVIDENCE_CAP)
+    per_probe = kn.get("per_seed_probe_cap")
+    if per_probe is not None:
+        out["probe_cap"] = min(int(per_probe) * n, TOTAL_PROBE_CAP)
+    return out
 
 
 def scale_budget(budget: str | None, scale: float | None) -> str | None:

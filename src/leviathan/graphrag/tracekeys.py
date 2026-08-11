@@ -45,6 +45,17 @@ TRACE_RECORD_KEYS: tuple[str, ...] = (
                                  # carries no run/eval_set dimension, so "fallbacks == 0" is computable
                                  # from this column and from nowhere else. Stamped on EVERY turn that
                                  # reranks or could have (both polarities, same reason as cascade_closure).
+    # ── D-MW P3. APPENDED, per the law above: the P3 build first INSERTED these two ahead of `rerank_lane`,
+    # which shifts that column's position in every per-answer record (eval.py splats this registry in
+    # order). "Append, never sort" is not a style note -- it is what keeps a stored artifact's columns
+    # comparable across waves.
+    "walk_shape",                # D-MW-13: {n_seeds, kept_by_depth, hop_contracts,
+                                 # fenced_second_order_hops} -- the artifact source for four P3 RECORDED
+                                 # quantities that previously had NONE (seeds and per-node depth never
+                                 # reached the per-answer record). Stamped by planner.grounded_subgraph on
+                                 # every walk, beside cascade_closure, both arms.
+    "n_evidence_chars",          # D-MW-17: post-cap evidence char sum -- the design-time measurement for a
+                                 # token-denominated budget. Recorded, never a behavior input in D-MW.
 )
 
 # out["intent_decision"][decision_key] -> record[record_column].

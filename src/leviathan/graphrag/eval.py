@@ -20,8 +20,15 @@ from leviathan.graphrag import answer as an
 from leviathan.graphrag import evidence as ev
 from leviathan.graphrag import extract as ex
 from leviathan.graphrag import graph as gph
+from leviathan.graphrag import planner as _pl
 from leviathan.graphrag import register as reg
 from leviathan.graphrag import tracekeys as tk
+
+# D-MW-15: the admission-reason strings have ONE PRODUCER (planner.py:72-78) and this is the READ side of
+# it. Imported, never re-typed: a partition keyed on a stale literal would silently score every downstream
+# citation as upstream -- i.e. it would report the gate's headline counter as a pass on the wrong mechanism.
+# planner pulls only evidence/graph/params, all of which this module already imports, so no new cycle.
+_REASON_DOWNSTREAM = _pl.REASON_DOWNSTREAM
 
 _QUERIES = ex._CFG / "eval_queries.yaml"
 _OUT = ex._CFG / "eval"
@@ -1419,32 +1426,156 @@ def _closure_cited(out: dict) -> dict:
     nodes, so its `cited_join` is empty and `n_cited` is structurally 0 — i.e. it could only ever inflate
     the treatment arm. `snippet` is verify.py's own projection (verify.py:906), stamped identically by
     `planner.ground`, so verify.py still needs no change. A `cited_join` row without the third field is a
-    pre-fix artifact shape and is NOT joinable: it is dropped rather than matched document-granularly."""
+    pre-fix artifact shape and is NOT joinable: it is dropped rather than matched document-granularly.
+
+    D-MW-15 SPLIT (2026-08-11) -- UPSTREAM vs DOWNSTREAM, and why the counter had to split. Admission v2
+    admits in BOTH cascade directions: `closure_reservation` (an ancestor -- the wave's whole hypothesis)
+    and `cascade_downstream` (structural RE-admission of a sibling child that tau or the budget dropped).
+    A single `n_cited` counts handles hitting ANY structurally admitted node, so DOWNSTREAM citations could
+    mask UPSTREAM silence and the gate headline would read as a pass on the wrong mechanism. The join rows
+    therefore carry a FOURTH `reason` field (stamped by planner.ground) and this partitions on it:
+      `n_cited_upstream`   -- THE GATE HEADLINE (D-MW-16 joins it to the deck row's named upstream nodes).
+      `n_cited_downstream` -- RECORDED, never a pass criterion.
+      `n_cited`            -- their SUM, unchanged in name and (see below) in value, so every pre-P3 reader
+                              and every D-GD-era report line stays whole.
+    TWO COMPATIBILITY PROPERTIES, both deliberate:
+      (1) A LEGACY 3-FIELD ROW PARSES AS UPSTREAM. Pre-P3 artifacts were stamped by the v1 reservation,
+          whose only admission reason WAS `closure_reservation` -- so reading them as upstream is the
+          historically true reading, not a default. It also keeps every stored baseline re-readable.
+      (2) LANE ASSIGNMENT IS EXCLUSIVE, UPSTREAM WINNING. One evidence row can legitimately survive on an
+          upstream node AND a downstream one, and a naive per-lane count would then count one handle twice
+          and break `n_cited == upstream + downstream`. Each resolved handle is assigned to exactly one
+          lane, so the sum is still the DISTINCT-handle count the D-GD instrument published, and the split
+          is a partition rather than two overlapping tallies."""
     cc = ((out.get("trace") or {}).get("cascade_closure")) or {}
     if not cc:
         return {}
-    join = set()
+    up, down = set(), set()
     for _row in (cc.get("cited_join") or []):
         _row = list(_row) if isinstance(_row, (list, tuple)) else []
         if len(_row) < 3 or not _row[0]:
             continue
-        join.add((_row[0], str(_row[1] or "")[:10], _row[2] or ""))
+        key = (_row[0], str(_row[1] or "")[:10], _row[2] or "")
+        (down if (len(_row) > 3 and str(_row[3] or "") == _REASON_DOWNSTREAM) else up).add(key)
+    down -= up                                               # exclusive lanes, upstream wins (property 2)
     resolved = (((out.get("trace") or {}).get("citation_verifier")) or {}).get("resolved") or {}
-    hits = sorted(ref for ref, m in resolved.items()
-                  if isinstance(m, dict)
-                  and (m.get("source_key"), str(m.get("date") or "")[:10],
-                       m.get("snippet") or "") in join)
+
+    def _hits(join: set) -> list[str]:
+        return sorted(ref for ref, m in resolved.items()
+                      if isinstance(m, dict)
+                      and (m.get("source_key"), str(m.get("date") or "")[:10],
+                           m.get("snippet") or "") in join)
+
+    hits_up, hits_down = _hits(up), _hits(down)
+    hits = sorted(hits_up + hits_down)
     return {"enabled": bool(cc.get("enabled")), "reserve_n": cc.get("reserve_n"),
             "n_reserved": len(cc.get("reserved") or []),
             "reserved_with_evidence": cc.get("reserved_with_evidence"),
             "n_cited": len(hits), "refs": hits,
+            "n_cited_upstream": len(hits_up), "n_cited_downstream": len(hits_down),
+            "refs_upstream": hits_up, "refs_downstream": hits_down,
             "reserved_ids": [r.get("key", [None, None, None])[2] for r in (cc.get("reserved") or [])],
+            # The per-node reason lets D-MW-16's verdict join the DECK's named upstream nodes against the
+            # nodes this walk actually admitted UPSTREAM (a downstream re-admission of the same id is not
+            # the chain leg the deck row names). Same legacy reading as the join rows: reason absent ==
+            # v1 reservation == upstream.
+            #
+            # ONE JOIN SHAPE, FULLY QUALIFIED `driver:<contract>:<id>` (P3 round-1 BLOCKER). These two lists
+            # exist for exactly ONE consumer -- chain_verdict's join against the deck row's `upstream_nodes`
+            # -- and the deck names GroundedNode keys. Emitting element [2] (the BARE driver id) made
+            # `set(named) & set(admitted)` empty BY CONSTRUCTION, i.e. WIRED was structurally unreachable on
+            # every row of the frozen v2 deck. The producer is normalised here rather than the reader
+            # because this is also the shape `cascade_closure.admissions` already publishes, so the artifact
+            # now speaks ONE node-id language end to end. `reserved_ids` deliberately stays BARE: it is the
+            # pre-P3 D-GD column and a stored baseline must keep re-reading.
+            "upstream_ids": [":".join(str(p) for p in (r.get("key") or []))
+                             for r in (cc.get("reserved") or [])
+                             if str(r.get("reason") or "") != _REASON_DOWNSTREAM],
+            "downstream_ids": [":".join(str(p) for p in (r.get("key") or []))
+                               for r in (cc.get("reserved") or [])
+                               if str(r.get("reason") or "") == _REASON_DOWNSTREAM],
             "reserved_slices": [r.get("slice") for r in (cc.get("reserved") or [])],
             "n_displaced": len(cc.get("displaced") or []), "count_delta": cc.get("count_delta"),
             "headroom_used": cc.get("headroom_used"),
             "open_lost_with_displaced": cc.get("open_edges_lost_with_displaced"),
             "census_population": cc.get("census_population"),
             "closed": cc.get("closed"), "open": cc.get("open"), "kept": cc.get("kept")}
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════
+# D-MW-16: the chain deck's THREE-STATE VERDICT, produced instead of eyeballed
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════
+CHAIN_VERDICTS = ("WIRED", "TODAY", "FAIL")
+
+
+def chain_named_upstream(q: dict) -> list[str]:
+    """The node ids a chain-deck row NAMES as the upstream evidence its wired state requires.
+
+    ONE AUTHOR KEY, ONE READER (P3 round-1). The deck author built `upstream_nodes:` explicitly as "the
+    flat, machine-readable join key the WIRED verdict names" -- fully-qualified `driver:<contract>:<id>`
+    GroundedNode keys, exactly the shape `_closure_cited` emits. This reads THAT key and nothing else.
+
+    WHAT WAS DELETED AND WHY. The first cut parsed `depth2_evidence[].node` plus `conversion`. Both are
+    AUTHOR PROSE fields: `conversion` is a provenance note ("orphan slice `subsidy` -> dag id
+    `producer_subsidy`"), and reading it as an id inflated `basis.named_nodes` on 3 of the 8 frozen v2 rows
+    with a permanently un-matchable entry. A prose field can never be a join key, and a second reader of the
+    same fact is how the two drift. Rows that carry only `depth2_evidence` and no `upstream_nodes` name
+    NOTHING here -- by design: `named_nodes: 0` cannot be WIRED, which is the honest reading of a row whose
+    author never declared a machine-readable join."""
+    return [str(n).strip() for n in (q.get("upstream_nodes") or []) if n]
+
+
+def chain_verdict(q: dict, rec: dict, *, checklist_pass: bool | None = None, defect: bool = False) -> dict:
+    """D-MW-16's WIRED / TODAY / FAIL for ONE chain-deck row, from the artifact + the checklist and from
+    NOTHING ELSE. Pure: no I/O, no re-run, no judge call.
+
+    THE PRODUCTION RULE, NAMED EXACTLY BY THE PLAN (D-MW-16, "no other artifact field feeds the verdict"):
+      FAIL   the row triggered a `fail` clause -- a DEFECT CLASS, not an arm result. It is an INPUT
+             (`defect`), never derived: the deck's fail clauses are prose an adjudicator/judge applies
+             ("a quantified pass-through", "a lead time with no basis"), and inventing a deterministic
+             proxy for them here would be a different instrument than the one that was pre-registered.
+      WIRED  the row's checklist item PASSED **and** `closure_cited.n_cited_upstream >= 1` **and** that
+             upstream reach landed on a node the row NAMES. All three, conjunctively.
+      TODAY  everything else that measured something: the upstream leg is admitted-or-admissible but
+             UNCITED -- the exact state the deck's `today` clause describes.
+
+    WHY THE JOIN IS ID-GRANULAR AND NOT HANDLE-GRANULAR, STATED HONESTLY. `cited_join` rows carry
+    (source_key, date, snippet, reason) -- an evidence-ROW identity plus its admission lane -- and carry NO
+    node id, so no artifact can say WHICH upstream node a given handle landed on. Both sides of the id join
+    speak ONE shape -- fully-qualified `driver:<contract>:<id>` -- produced by `_closure_cited` on the
+    artifact side and by the deck's `upstream_nodes` key on the author side. The join this produces is
+    therefore the conjunction of two facts the artifact DOES carry: (a) >= 1 handle resolved to an
+    UPSTREAM-admitted node's row, and (b) >= 1 of the row's NAMED nodes is in this walk's upstream-admitted
+    set. That is strictly weaker than a per-handle attribution and is labelled `join: "id_granular"` in the
+    basis so no reader can quote it as more. A per-handle join needs a node id on the join row -- a write-
+    side change, sequenced for whoever next opens that stamp.
+
+    INSTRUMENT-DEAD IS REPORTED, NOT SCORED (the `dv_episode_lanina_arg` discipline, inherited verbatim
+    from the D-GD deck): `n_reserved == 0` on an enabled arm means the mechanism never fired on this row,
+    so the row measured NOTHING. It is flagged in the basis rather than minting a fourth state -- the
+    caller EXCLUDES those rows from the denominator, exactly as the deck's own instrument-dead rule says.
+    A row with no named nodes at all cannot be WIRED: it has no join to make (`named_nodes: 0` in basis)."""
+    cc = rec.get("closure_cited") or {}
+    named = chain_named_upstream(q)
+    admitted = [str(x) for x in (cc.get("upstream_ids") or []) if x]
+    matched = sorted(set(named) & set(admitted))
+    n_up = int(cc.get("n_cited_upstream") or 0)
+    basis = {"named_nodes": len(named), "named_admitted": matched,
+             "n_cited_upstream": n_up, "n_cited_downstream": int(cc.get("n_cited_downstream") or 0),
+             "checklist_pass": checklist_pass, "defect": bool(defect), "join": "id_granular",
+             # an ON-arm row that reserved nothing measured nothing -- never a loss, never a denominator.
+             # `n_reserved` rides the basis so the DENOMINATOR can be computed from the ON arm alone
+             # (pairwise_judge._verdict_totals): the deck's own rule is "a row is LIVE iff
+             # closure_cited.n_reserved > 0 ON THE ON ARM", and a per-arm `instrument_dead` cannot express it
+             # -- the OFF arm is `enabled: False`, so its rows read not-dead forever and its denominator is
+             # the whole deck.
+             "n_reserved": int(cc.get("n_reserved") or 0),
+             "instrument_dead": bool(cc.get("enabled")) and not (cc.get("n_reserved") or 0)}
+    if defect:
+        return {"verdict": "FAIL", "basis": basis}
+    if bool(checklist_pass) and n_up >= 1 and matched:
+        return {"verdict": "WIRED", "basis": basis}
+    return {"verdict": "TODAY", "basis": basis}
 
 
 def _partial_path(eval_set: str, provider: str, *, judge: bool = False):
@@ -2059,8 +2190,12 @@ def closure_panel(rows: list[dict]) -> list[str]:
         n_hr = sum(j.get("headroom_used") or 0 for _, j, _ in recs)
         n_disp = sum(j.get("n_displaced") or 0 for _, j, _ in recs)
         n_lost = sum(j.get("open_lost_with_displaced") or 0 for _, j, _ in recs)
+        # D-MW-15: UPSTREAM is the headline, DOWNSTREAM is recorded beside it and is never the criterion --
+        # a downstream re-admission citation must never mask upstream silence (the instrument-split catch).
+        n_up = sum(j.get("n_cited_upstream") or 0 for _, j, _ in recs)
+        n_dn = sum(j.get("n_cited_downstream") or 0 for _, j, _ in recs)
         L.append(f"  - reserved slots **{n_res}** · with dated evidence after the cap **{n_ev}** · "
-                 f"citations landing on them **{n_cit}**")
+                 f"citations landing on them **{n_cit}** (upstream **{n_up}** / downstream {n_dn})")
         L.append(f"  - paid from UNSPENT budget {n_hr} · by displacing an admitted driver {n_disp} "
                  f"(open edges those displaced drivers still carry, counted on BOTH arms: {n_lost})")
     if dead:

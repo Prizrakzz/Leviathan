@@ -21,6 +21,11 @@ metrics.
 ONE claude-opus-4-8 forced-tool call per row, temperature 0. The judge MODEL is frozen and this template
 freezes BEFORE any arm runs (the pre-registration law -- see the checklist yaml's header).
 
+AXES ARE PER-RUN SINCE D-MW-16: `AXES` is the module DEFAULT, and a checklist yaml carrying an `axes:` key
+selects the axes that run instead (validated against `KNOWN_AXES`; an unknown axis raises before any spend).
+On the default axes the system template and the tool schema are byte-identical to every run recorded before
+this change -- see `system_text`.
+
 --------------------------------------------------------------------------------------------------
 WHAT THE JUDGE IS SHOWN, AND THE TWO PLACES THIS DIVERGES FROM eval.judge -- STATED ONCE, HONESTLY.
 
@@ -58,6 +63,54 @@ from leviathan.graphrag import extract as ex
 MODEL = "claude-opus-4-8"                       # frozen for this instrument; never read from env
 AXES = ("usefulness", "grounding", "composition_completeness")
 ARMS = ("A", "B")
+
+# D-MW-16 AXES-FROM-CHECKLIST. The D-GD checklist froze an `upstream_evidence` axis on 2026-08-08 and
+# NOTHING READ IT: `AXES` was a hardcoded module constant and the yaml's `axes:` key was inert, so the
+# wave's own hypothesis axis could not be judged. A deck's checklist may now name the axes its rows are
+# scored on -- but only from the KNOWN set below. An unrecognised axis REFUSES LOUDLY (resolve_axes raises,
+# and validate_checklists errors) BEFORE any judging spend: silently dropping it would run a $3 instrument
+# that is not the one that was pre-registered, and the report would look complete while missing the axis
+# the wave exists to measure.
+KNOWN_AXES: frozenset = frozenset(AXES) | {"upstream_evidence"}
+
+# Definitions for axes NOT already defined in `_PAIRWISE_SYS`. VERBATIM from the freeze site named in the
+# checklist yaml's header ("AXIS TEXT, FROZEN HERE", eval_checklists_dgd_chain_v1.yaml:37-44) -- copied,
+# not paraphrased: the pre-registration law makes the wording itself part of the instrument.
+_AXIS_TEXT = {
+    "upstream_evidence":
+        "upstream_evidence -- where the answer asserts that an UPSTREAM quantity moves a downstream one "
+        "(input cost -> margin -> acreage; energy -> blending -> demand; policy -> logistics -> basis; "
+        "support -> stocks), does the UPSTREAM leg itself carry a citation handle resolving to a dated row "
+        "ABOUT THAT UPSTREAM QUANTITY -- not a row about the downstream commodity that merely mentions it "
+        "-- and is the LEAD TIME between the legs either stated with a basis or explicitly declared "
+        "unknown? An answer that says \"the record I was shown carries no dated row for the nitrogen leg\" "
+        "scores HIGH: naming the absence is upstream honesty.",
+}
+
+
+def resolve_axes(checks: dict | None) -> tuple[str, ...]:
+    """The axes ONE run judges on: the checklist's `axes:` key when it carries one, else the module default.
+
+    RAISES on an unknown axis -- the refusal is the point, and it happens at load time, before the first
+    call. Order is the checklist's own (it is the report's column order); duplicates and empties are a
+    malformed instrument and raise too."""
+    ax = (checks or {}).get("axes")
+    if not ax:
+        return AXES
+    if isinstance(ax, str):
+        ax = [ax]
+    names = tuple(str(a).strip() for a in ax)
+    if not all(names):
+        raise ValueError("checklists: 'axes' carries an empty entry -- name every axis or omit the key")
+    if len(set(names)) != len(names):
+        raise ValueError(f"checklists: 'axes' repeats an axis {list(names)}")
+    unknown = [a for a in names if a not in KNOWN_AXES]
+    if unknown:
+        raise ValueError(
+            f"checklists: unknown judged axis {unknown} -- known axes are {sorted(KNOWN_AXES)}. "
+            "An axis this instrument cannot produce is REFUSED before any judging spend; add its frozen "
+            "text to pairwise_judge._AXIS_TEXT and KNOWN_AXES in the same commit that freezes the deck.")
+    return names
 _ORDER_SALT = "dcc2-pairwise-order-v1"          # bump ONLY with a new instrument version, never mid-wave
 
 # The SAME split eval._prose uses (eval.py:546-547) to cut the '## Sources' footer off a rendered answer.
@@ -241,11 +294,32 @@ _PAIRWISE_SYS = (
 )
 
 
-def _pairwise_tool(items: list[dict] | None) -> dict:
+def system_text(axes: tuple[str, ...] = AXES) -> str:
+    """The judge's system turn for a run on `axes`.
+
+    BYTE-IDENTITY LAW: on the default axes this returns `_PAIRWISE_SYS` UNCHANGED, so every D-CC-era run
+    stays comparable to the ones already recorded -- the frozen template is not rewritten to accommodate a
+    later deck. A run whose checklist names different axes gets the frozen template PLUS an appended block
+    that (a) states the axes to emit and (b) supplies the frozen text of any axis the template does not
+    already define. The tool schema forces exactly `axes`, so an axis described above but not in this run's
+    list cannot be emitted -- it is inert text, never a silent third verdict."""
+    if tuple(axes) == AXES:
+        return _PAIRWISE_SYS
+    lines = [_PAIRWISE_SYS, "",
+             "AXES FOR THIS RUN. This deck's pre-registered checklist names its own axes; they REPLACE the "
+             "axis list above. Pick a winner on EXACTLY these, in this order: " + ", ".join(axes) + ". "
+             "Definitions above still hold for any axis named here; the rest are not scored on this run."]
+    extra = [_AXIS_TEXT[a] for a in axes if a in _AXIS_TEXT]
+    if extra:
+        lines += [""] + [f"- {t}" for t in extra]
+    return "\n".join(lines)
+
+
+def _pairwise_tool(items: list[dict] | None, axes: tuple[str, ...] = AXES) -> dict:
     verd = {"type": "string", "enum": ["ANSWER_1", "ANSWER_2", "tie"]}
     props: dict = {}
     required: list[str] = []
-    for ax in AXES:
+    for ax in axes:
         props[ax] = verd
         props[f"{ax}_rationale"] = {"type": "string"}
         required += [ax, f"{ax}_rationale"]
@@ -283,18 +357,19 @@ def build_prompt(question: str, asof, text_first: str, text_second: str, items: 
 
 
 def judge_pair(question: str, asof, text_first: str, text_second: str, items: list[dict] | None, *,
-               client=None, model: str = MODEL, call=None, max_tokens: int = 4096):
+               client=None, model: str = MODEL, call=None, max_tokens: int = 4096,
+               axes: tuple[str, ...] = AXES):
     """ONE forced-tool call. `call` defaults to ex.call_opus -- the SAME helper eval.judge uses
     (eval.py:1665), with the same cached-system-block idiom (eval.py:1699) so the two instruments share
     prompt-cache behaviour. temperature is pinned 0 (call_opus forwards it only when provided,
     extract.py:499). Returns (verdict_dict, usage)."""
     call = call or ex.call_opus
-    sys_blocks = [{"type": "text", "text": _PAIRWISE_SYS, "cache_control": {"type": "ephemeral"}}]
+    sys_blocks = [{"type": "text", "text": system_text(axes), "cache_control": {"type": "ephemeral"}}]
     # temperature deliberately NOT sent: claude-opus-4-8 rejects the parameter with a 400
     # (deprecated on 4.8+; measured live 2026-08-07 on all 18 rows). Verdict determinism rests on
     # the forced-tool schema + the frozen template, same as eval.judge, which also sends none.
     return call(client, sys_blocks, build_prompt(question, asof, text_first, text_second, items),
-                model=model, max_tokens=max_tokens, tool=_pairwise_tool(items))
+                model=model, max_tokens=max_tokens, tool=_pairwise_tool(items, axes))
 
 
 # ---------------------------------------------------------------------------------------------------
@@ -363,6 +438,10 @@ def validate_checklists(cfg: dict, queries: list[dict]) -> tuple[list[str], list
     for k in ("checklist_version", "deck", "rows"):
         if not cfg.get(k):
             errs.append(f"checklists: missing top-level key '{k}'")
+    try:                                        # D-MW-16: the axes key is part of the schema match
+        resolve_axes(cfg)
+    except ValueError as e:
+        errs.append(str(e))
     deck_ids = [str(q.get("id")) for q in queries]
     rows = cfg.get("rows") or []
     if not isinstance(rows, list):
@@ -437,8 +516,35 @@ def build_plan(queries: list[dict], a_rows: dict, b_rows: dict, checks: dict, *,
                      "text": {"A": ta, "B": tb}, "provenance": {"A": pa, "B": pb},
                      "items": c.get("items") or [],
                      "beyond_quick_sources": c.get("beyond_quick_sources") or [],
-                     "width_class": c.get("width_class")})
+                     "width_class": c.get("width_class"),
+                     # D-MW-16: the two halves of the three-state verdict, carried per arm. The deck row
+                     # supplies the NAMED upstream nodes, the baseline row supplies the closure counters;
+                     # the checklist half arrives from the judge below. A deck that names no upstream
+                     # nodes (every non-chain deck) carries {} here and produces no verdict at all.
+                     "chain_named": gev.chain_named_upstream(q),
+                     "verdict_item": c.get("verdict_item"),
+                     "closure": {arm: ((rows.get(rid) or {}).get("closure_cited") or {})
+                                 for arm, rows in (("A", a_rows), ("B", b_rows))}})
     return plan
+
+
+def _verdict_item_pass(items: list[dict], checklist: list[dict], arm: str,
+                       verdict_item: str | None) -> bool | None:
+    """The ONE checklist item whose pass-state feeds the row's WIRED verdict, for `arm`.
+
+    WHICH ITEM, AND WHY IT IS NOT "ALL OF THEM": the chain checklist's item law orders each row's items
+    with the UPSTREAM-EVIDENCE item FIRST and the row's own separation/honesty items after, and D-MW-16
+    names the verdict input as "checklist item passes" -- singular. So the default is the row's FIRST item,
+    and a checklist row may override it by id with `verdict_item:` when its ordering differs. None (never
+    False) when the row was not judged or the item was not answered: an unjudged row must read as
+    "no evidence either way", which chain_verdict resolves to TODAY, not to a defect."""
+    want = str(verdict_item) if verdict_item else (str(items[0].get("id")) if items else None)
+    if not want:
+        return None
+    for e in checklist or []:
+        if str(e.get("item_id")) == want:
+            return bool(e.get(arm))
+    return None
 
 
 def _dry_run_lines(plan: list[dict], model: str) -> list[str]:
@@ -463,10 +569,10 @@ def _dry_run_lines(plan: list[dict], model: str) -> list[str]:
 # ---------------------------------------------------------------------------------------------------
 # Reports
 # ---------------------------------------------------------------------------------------------------
-def _tally(results: list[dict]) -> dict:
-    t = {ax: {"A": 0, "B": 0, "tie": 0} for ax in AXES}
+def _tally(results: list[dict], axes: tuple[str, ...] = AXES) -> dict:
+    t = {ax: {"A": 0, "B": 0, "tie": 0} for ax in axes}
     for r in results:
-        for ax in AXES:
+        for ax in axes:
             w = (r.get("verdicts") or {}).get(ax, {}).get("winner")
             if w in t[ax]:
                 t[ax][w] += 1
@@ -502,8 +608,51 @@ def _conversion_totals(results: list[dict]) -> dict:
     return out
 
 
+def _n_reserved(row: dict, arm: str) -> int:
+    return int((((row.get("chain_verdict") or {}).get(arm) or {}).get("basis") or {}).get("n_reserved") or 0)
+
+
+def _live_arm(results: list[dict]) -> str | None:
+    """WHICH ARM DEFINES THE LIVE-ROW SET: the ON arm, i.e. the one whose rows actually reserved something.
+
+    Derived rather than declared, from the one fact that separates the arms in the artifact: `--mode max`
+    fills dedicated slots (`n_reserved > 0`), `--mode max_c0` reserves nothing on any row, by construction.
+    None when NEITHER arm reserved anything anywhere -- then no row measured the mechanism and the
+    denominator is empty, which is the honest reading, not a fallback to len(rows)."""
+    n = {arm: sum(1 for r in results if _n_reserved(r, arm) > 0) for arm in ARMS}
+    best = max(ARMS, key=lambda a: n[a])                   # ARMS order breaks a tie deterministically
+    return best if n[best] else None
+
+
+def _verdict_totals(results: list[dict]) -> dict:
+    """Per-arm WIRED/TODAY/FAIL counts + THE ONE live-row denominator, taken from the ON arm.
+
+    THE DENOMINATOR IS `live`, NEVER len(rows) (D-MW-16, and the deck's own instrument-dead rule): a row
+    that reserved nothing measured nothing, so it is counted OUT rather than counted as a TODAY. The gate's
+    readability floor (>= 3 live rows) is checked against this number.
+
+    ONE SET, NOT TWO (P3 round-1 finding). The deck pre-registers it exactly: "a row is LIVE iff
+    `closure_cited.n_reserved > 0` ON THE ON ARM". Computing liveness per arm gave the OFF arm the WHOLE
+    DECK as its denominator forever -- `max_c0` stamps `cascade_closure.enabled: False`, so its rows can
+    never read instrument-dead -- and the gate's two clauses (the ">= 3 live rows" floor and the "majority
+    of live rows" headline) would then be read off two different denominators. The ON arm is derived
+    (`_live_arm`) and RECORDED as `live_arm` so the choice is auditable from the report alone."""
+    rows = [r for r in results if (r.get("chain_verdict") or {})]
+    on = _live_arm(rows)
+    live_ids = {r["id"] for r in rows if on and _n_reserved(r, on) > 0}
+    out: dict = {}
+    for arm in ARMS:
+        have = [r for r in rows if (r.get("chain_verdict") or {}).get(arm)]
+        live = [r["chain_verdict"][arm] for r in have if r["id"] in live_ids]
+        out[arm] = {v: sum(1 for x in live if x["verdict"] == v) for v in gev.CHAIN_VERDICTS}
+        out[arm]["live"] = len(live)
+        out[arm]["instrument_dead"] = len(have) - len(live)
+    out["live_arm"] = on
+    return out
+
+
 def run_rows(plan: list[dict], *, client=None, model: str = MODEL, max_tokens: int = 4096,
-             call=None) -> list[dict]:
+             call=None, axes: tuple[str, ...] = AXES) -> list[dict]:
     """One judged row per plan entry. The deterministic conversion count is computed FIRST and outside
     the try, so a failed judge call still yields the row's counter (a partial read stays readable), and
     one bad row can never lose the other five."""
@@ -518,11 +667,11 @@ def run_rows(plan: list[dict], *, client=None, model: str = MODEL, max_tokens: i
         try:
             v, usage = judge_pair(p["question"], p["asof"], p["text"][first], p["text"][second],
                                   p["items"], client=client, model=model, max_tokens=max_tokens,
-                                  call=call)
+                                  call=call, axes=axes)
             order = (first, second)
             row["verdicts"] = {ax: {"winner": _to_arm(str(v.get(ax)), order),
                                     "shown_label": v.get(ax),
-                                    "rationale": v.get(f"{ax}_rationale")} for ax in AXES}
+                                    "rationale": v.get(f"{ax}_rationale")} for ax in axes}
             asked = {str(it["id"]) for it in p["items"]}
             got: set[str] = set()
             for e in (v.get("checklist") or []):
@@ -542,19 +691,36 @@ def run_rows(plan: list[dict], *, client=None, model: str = MODEL, max_tokens: i
         except Exception as e:                             # noqa: BLE001 -- one bad row must not lose the rest
             row["error"] = str(e)[:300]
             print(f"  WARN pairwise {p['id']} failed -- {str(e)[:120]}", flush=True)
+        # D-MW-16's three-state verdict, produced per arm AFTER the judge and OUTSIDE its failure path:
+        # a row whose judge call died still records its deterministic half (it reads TODAY, the honest
+        # "upstream leg not shown cited" state) instead of vanishing. `defect` is deliberately not passed:
+        # FAIL is the deck's adjudicated defect class, never derived here (eval.chain_verdict's docstring).
+        if p.get("chain_named"):
+            row["chain_verdict"] = {
+                # `upstream_nodes` is the deck's ONE machine-readable join key and chain_named_upstream's
+                # only source -- the synthetic row handed back here must speak it too, or the plan's
+                # already-extracted names would be re-parsed into nothing.
+                arm: gev.chain_verdict({"upstream_nodes": list(p["chain_named"])},
+                                       {"closure_cited": p["closure"][arm]},
+                                       checklist_pass=_verdict_item_pass(p["items"], row["checklist"],
+                                                                         arm, p.get("verdict_item")))
+                for arm in ARMS}
         results.append(row)
     return results
 
 
 def build_report(results: list[dict], *, arms: dict, deck: str, checklist_version: str | None,
-                 model: str, salt: str) -> dict:
+                 model: str, salt: str, axes: tuple[str, ...] = AXES) -> dict:
     return {"kind": "pairwise_judge", "instrument": "dcc2_pairwise_v1",
             "ts": _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "judge_model": model, "temperature": 0, "deck": deck,
             "checklist_version": checklist_version, "order_salt": salt,
-            "arms": arms, "axes": list(AXES),
-            "totals": _tally(results), "checklist": _checklist_rates(results),
+            # `axes` was ALREADY a report field; it now records the RESOLVED per-run axes rather than
+            # restating a module constant, so a report says which instrument produced it.
+            "arms": arms, "axes": list(axes),
+            "totals": _tally(results, axes), "checklist": _checklist_rates(results),
             "conversion": _conversion_totals(results),
+            "chain_verdicts": _verdict_totals(results),
             # the blind is per-row-id deterministic, NOT balanced -- record the split so a reader can see
             # how much residual position bias the run carries (6 rows will rarely come out 3/3)
             "order_balance": {arm: sum(1 for r in results if r["order"]["first"] == arm) for arm in ARMS},
@@ -566,6 +732,9 @@ def build_report(results: list[dict], *, arms: dict, deck: str, checklist_versio
 
 
 def report_md(rep: dict) -> str:
+    # the report renders the axes IT was built on (falling back to the module default for a pre-D-MW-16
+    # report json, which carried the same three) -- never the current module constant
+    axes = tuple(rep.get("axes") or AXES)
     L: list[str] = ["# D-CC-2 pairwise blind judge -- " + str(rep.get("deck")), ""]
     a, b = rep["arms"]["A"], rep["arms"]["B"]
     L += [f"- judge `{rep['judge_model']}` temperature 0 | instrument `{rep['instrument']}` | "
@@ -576,15 +745,16 @@ def report_md(rep: dict) -> str:
           f"commit={b.get('git_commit')}, s/h={b.get('handle_strip_rate')})", ""]
     L += ["## Pairwise tallies (per axis, non-tie = a decided row)", "",
           "| axis | A | B | tie |", "|---|---|---|---|"]
-    for ax in AXES:
+    for ax in axes:
         t = rep["totals"][ax]
         L.append(f"| {ax} | {t['A']} | {t['B']} | {t['tie']} |")
     L += ["", "## Per-row verdicts", "",
-          "| row | shown first | usefulness | grounding | composition_completeness |", "|---|---|---|---|---|"]
+          "| row | shown first | " + " | ".join(axes) + " |",
+          "|---|---|" + "---|" * len(axes)]
     for r in rep["rows"]:
         v = r.get("verdicts") or {}
         L.append(f"| {r['id']} | {r['order']['first']} | "
-                 + " | ".join(str(v.get(ax, {}).get("winner", "-")) for ax in AXES) + " |")
+                 + " | ".join(str(v.get(ax, {}).get("winner", "-")) for ax in axes) + " |")
     ck = rep["checklist"]
     L += ["", "## Checklist pass-rate (the headline metric -- pre-registered, binary, bounded)", "",
           "| arm | passed | answered | pass rate |", "|---|---|---|---|"]
@@ -621,6 +791,43 @@ def report_md(rep: dict) -> str:
                  f"{'yes' if cb.get('has_sources_block') else 'NONE'} | "
                  f"{', '.join(ca.get('asserted_uncited') or []) or '-'} | "
                  f"{', '.join(cb.get('asserted_uncited') or []) or '-'} |")
+    cvt = rep.get("chain_verdicts") or {}
+    # Render whenever the chain instrument RAN (any count anywhere), not only when live rows exist:
+    # a total-failure run (0 live on both arms) must render as a DECLARED instrument-dead gate, never
+    # disappear into a non-chain-looking report (D-MW-16's instrument-dead law; verifier finding 2026-08-11).
+    _chain_ran = any(any((cvt.get(arm) or {}).get(k) for k in ("live", "instrument_dead", "WIRED", "TODAY", "FAIL"))
+                     for arm in ARMS)
+    if _chain_ran:
+        _dead = not any((cvt.get(arm) or {}).get("live") for arm in ARMS)
+        L += ["", "## Chain verdict (D-MW-16: WIRED / TODAY / FAIL, PRODUCED -- not eyeballed)"
+                  + (" -- INSTRUMENT-DEAD GATE" if _dead else ""), ""]
+        if _dead:
+            L += ["**0 live rows: no arm reserved anything, so the mechanism measured NOTHING on this "
+                  "deck.** Recorded, no verdict, no fix cycle (D-MW-16's minimum-live-rows law). The "
+                  "per-arm instrument-dead counts below are the whole story.", ""]
+        L += ["WIRED = the row's checklist item passed AND >= 1 citation handle landed on an "
+              "UPSTREAM-admitted node the deck row NAMES. TODAY = admitted-or-admissible but "
+              "upstream-uncited. FAIL is the deck's adjudicated defect class and is never derived here. "
+              "The denominator is LIVE rows only -- a row that reserved nothing measured nothing -- and it "
+              f"is ONE set, taken from the ON arm ({cvt.get('live_arm') or 'none: no arm reserved'}).", "",
+              "| arm | WIRED | TODAY | FAIL | live rows | instrument-dead |", "|---|---|---|---|---|---|"]
+        for arm in ARMS:
+            c = cvt.get(arm) or {}
+            L.append(f"| {arm} | {c.get('WIRED', 0)} | {c.get('TODAY', 0)} | {c.get('FAIL', 0)} | "
+                     f"{c.get('live', 0)} | {c.get('instrument_dead', 0)} |")
+        L += ["", "| row | A | B | A upstream cited | B upstream cited | named nodes admitted |",
+              "|---|---|---|---|---|---|"]
+        for r in rep["rows"]:
+            cv = r.get("chain_verdict") or {}
+            if not cv:
+                continue
+            a, b = cv.get("A") or {}, cv.get("B") or {}
+            named = sorted(set((a.get("basis") or {}).get("named_admitted") or [])
+                           | set((b.get("basis") or {}).get("named_admitted") or []))
+            L.append(f"| {r['id']} | {a.get('verdict', '-')} | {b.get('verdict', '-')} | "
+                     f"{(a.get('basis') or {}).get('n_cited_upstream', 0)} | "
+                     f"{(b.get('basis') or {}).get('n_cited_upstream', 0)} | "
+                     f"{', '.join(named) or '-'} |")
     L += ["", "## Presentation order + answer-text provenance", "",
           f"Blind split: A shown first on {rep['order_balance']['A']} rows, B on "
           f"{rep['order_balance']['B']} (deterministic per row id, not balanced).", "",
@@ -633,7 +840,7 @@ def report_md(rep: dict) -> str:
     L += ["", "## Rationales", ""]
     for r in rep["rows"]:
         L.append(f"### {r['id']}")
-        for ax in AXES:
+        for ax in axes:
             v = (r.get("verdicts") or {}).get(ax, {})
             L.append(f"- **{ax}: {v.get('winner', '-')}** -- {v.get('rationale', '')}")
         if r.get("error"):
@@ -664,6 +871,9 @@ def main() -> int:
     a_base = json.loads(Path(args.a).read_text(encoding="utf-8"))
     b_base = json.loads(Path(args.b).read_text(encoding="utf-8"))
     checks = load_checklists(args.checklists) if args.checklists else {"rows": []}
+    # D-MW-16: axes resolve HERE -- before the plan, before the client, before one token of spend. An
+    # unknown axis raises out of main() rather than judging a deck on an instrument nobody registered.
+    axes = resolve_axes(checks)
     if args.checklists:
         errs, warns = validate_checklists(checks, queries)
         for w in warns:
@@ -679,6 +889,7 @@ def main() -> int:
                       a_report=a_rep, b_report=b_rep, salt=args.order_salt)
 
     if args.dry_run:
+        print(f"axes: {', '.join(axes)}", flush=True)
         print("\n".join(_dry_run_lines(plan, args.model)), flush=True)
         return 0
 
@@ -691,17 +902,17 @@ def main() -> int:
     # at call time (ANTHROPIC_API / ANTHROPIC_API_KEY) and never stored anywhere in this module.
     client = anthropic.Anthropic(api_key=bx._api_key(), timeout=pv._client_timeout(), max_retries=0)
 
-    results = run_rows(plan, client=client, model=args.model, max_tokens=args.max_tokens)
+    results = run_rows(plan, client=client, model=args.model, max_tokens=args.max_tokens, axes=axes)
     rep = build_report(results, arms={"A": arm_identity(args.a, a_base), "B": arm_identity(args.b, b_base)},
                        deck=Path(args.queries).stem, checklist_version=checks.get("checklist_version"),
-                       model=args.model, salt=args.order_salt)
+                       model=args.model, salt=args.order_salt, axes=axes)
     stem = Path(args.out)
     stem.parent.mkdir(parents=True, exist_ok=True)
     stem.with_suffix(".json").write_text(json.dumps(rep, indent=2), encoding="utf-8")
     stem.with_suffix(".md").write_text(report_md(rep), encoding="utf-8")
     t = rep["totals"]
     print(f"wrote {stem.with_suffix('.json')} + {stem.with_suffix('.md')}", flush=True)
-    for ax in AXES:
+    for ax in axes:
         print(f"  {ax}: A {t[ax]['A']} / B {t[ax]['B']} / tie {t[ax]['tie']}", flush=True)
     ck = rep["checklist"]
     print(f"  checklist pass-rate: A {ck['A']['pass_rate']} B {ck['B']['pass_rate']}", flush=True)

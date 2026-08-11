@@ -14,6 +14,7 @@ answer is leakage-consistent.
 """
 from __future__ import annotations
 
+import contextlib
 import datetime as _dt
 import os
 import re
@@ -1014,6 +1015,28 @@ def _modes_enabled() -> frozenset:
     return frozenset(x.strip() for x in v.split(",") if x.strip()) & rm.valid_names()
 
 
+# D-MW-13 (WIDTH-GATED MANDATES): the composition census ships with the FULL-CASCADE tier and nowhere
+# else. The D-CC-3 R1 measurement is the binding: the mandates are WIDTH-HUNGRY -- at quick's 12-row
+# evidence they order enumeration the evidence cannot back (strips/handle 0.1765 vs 0.1073) -- so they
+# may never reach quick/standard/deep. BOTH max presets carry it, deliberately: P3-A's two arms must
+# differ by exactly ONE variable (per_seed_reserve), and a census that rode only `max` would make the
+# mandates a second variable and the gate unreadable.
+_CENSUS_MANDATE_MODES: frozenset = frozenset({rm.MAX, rm.MAX_C0})
+
+
+def _census_ctx(honored: str | None):
+    """The thread-scoped census override for this turn -- the EXACT dossier idiom
+    (dossier.run_subquery), never the env flag and never a mode knob (the excluded-knobs law: flags are
+    not knobs). `answer.composition_census_override` is a ContextVar-backed contextmanager, so it is
+    thread-scoped by construction and token-resets in its own finally: a concurrent desk turn on this
+    task is untouched in both directions, and an exception inside the block cannot leave a pooled
+    serving thread pinned ON. A turn on any other mode gets `nullcontext()` -- literally no override, so
+    `_composition_census_on()` keeps reading the env flag exactly as it does today."""
+    if honored in _CENSUS_MANDATE_MODES:
+        return an.composition_census_override(True)
+    return contextlib.nullcontext()
+
+
 def _family_facet_on() -> bool:
     """Data-family facet consumption kill-switch (F2 durable fix). DEFAULT-OFF, case-insensitive, fail-closed
     (any unrecognized value stays off) -- copies the _reroute_v2_on idiom exactly. When OFF the planner keeps
@@ -1794,6 +1817,13 @@ def _respond_walk(query: str, *, graph, asof: Optional[str] = None, call=None, r
                 carried = [c for c in state.contracts if c in g.contracts]
                 if carried:
                     return carried
+            # D-MW-13 RECORDED SCOPE LINE: this tier stays at route_smart's module default k=2 even on a
+            # max turn, deliberately. It is the SESSION-CARRIED path -- it re-derives routing from
+            # conversation HISTORY, so widening it changes which markets a follow-up inherits from turns
+            # the user is no longer looking at. That is a different blast radius from widening the
+            # planner's read of THIS turn's question, it has no gate in this wave, and P3-A's arms do not
+            # depend on it. The de-cap therefore stops at the two seams that read the current turn:
+            # dp.plan_turn's ceiling and answer()'s route_smart call. Revisit with the tier UI (P5).
             return an.route_smart(q, g)
     qfn = query_fn
     if state is not None:
@@ -1827,8 +1857,20 @@ def _respond_walk(query: str, *, graph, asof: Optional[str] = None, call=None, r
         import time as _time
         from leviathan.graphrag import dispatch as dp
         _t_disp = _time.perf_counter()                             # W6.1-0 stage timer (MsDispatch)
+        # D-MW-13 THE ROUTER DE-CAP, dispatch half: the HONORED mode's seed CEILING is the planner's
+        # contract ceiling. ORDERING VERIFIED (and it is the whole reason the mode resolves at the top
+        # of this function, ~70 lines above): `_mode`/`_mode_knobs` are resolved BEFORE this call, so
+        # the ceiling is known when the plan is made -- a plan truncated at 2 could not be widened
+        # afterwards, the ids would simply be gone. OMIT-WHEN-ABSENT, like every other mode seam here:
+        # no honored mode -> the kwarg is not passed -> dispatch's own MAX_CONTRACTS=2 -> the CAPS are
+        # byte-identical to their pre-D-MW self.
+        # THE PROMPT IS NOT (stated exactly, P3 round-1): PLANNER_SYS deliberately gained the NAMED ANCHORS
+        # section on EVERY turn -- R7a's Named-Anchor Law is tier-INDEPENDENT, a ratified product change,
+        # not a mode-gated one -- so an unmoded turn's system bytes did move. The serving prompt-cache
+        # prefix therefore invalidates ONCE, at deploy, and re-warms on the next turns.
+        _pc = {"max_contracts": int(_mode_knobs["max_seeds"])} if _mode_knobs.get("max_seeds") else {}
         p = dp.plan_turn(query, graph=graph, state_block=sblock, today=_today(),
-                         state_contracts=(state.contracts if state else None), call=call)
+                         state_contracts=(state.contracts if state else None), call=call, **_pc)
         _ms_dispatch = int((_time.perf_counter() - _t_disp) * 1000)
         plan = None if p.fallback else p
     if plan is not None:
@@ -2080,22 +2122,29 @@ def _respond_walk(query: str, *, graph, asof: Optional[str] = None, call=None, r
             an._emit(on_stage, "numbers", calls=len(res.get("number_calls", [])))
             _emit_numbers(on_stage, res.get("number_calls"))       # F7 `number`: the numbers-only lane's twin
         elif kind == "hybrid":
-            res = run_hybrid(query, asof, graph=graph, call=call, retrieve=retrieve, model=model,
-                             client=numbers_client, numbers_model=numbers_model, query_fn=qfn, planner=planner,
-                             extra_context=sblock, route_fn=route_fn, near=near, silver_lookup=silver_lookup,
-                             on_stage=on_stage, focus_driver=att["focus_driver"], xc_request=xc_request,
-                             outlook=outlook_mode,
-                             # B1 handoff parity: the NUMBERS leg gets the enriched question, the walk keeps
-                             # the raw `query` (route_fn's <=80-char coreference gate). Flag off -> both None
-                             # -> this call is byte-identical to today.
-                             numbers_query=(_nq if _fam_on else None),
-                             families=_families, **_rck, **_mk)
+            # D-MW-13: the census override wraps the SYNTHESIS-BEARING lanes only. It must be entered
+            # here, around the call, because `_composition_census_on()` is read on THIS thread inside
+            # the response-contract seam these two functions reach. The live and numbers_only lanes are
+            # EXEMPT for the same reason they are exempt from the knob stamp below: they run no response
+            # contract, so an override there would set a flag nothing reads.
+            with _census_ctx(_mode["honored"]):
+                res = run_hybrid(query, asof, graph=graph, call=call, retrieve=retrieve, model=model,
+                                 client=numbers_client, numbers_model=numbers_model, query_fn=qfn, planner=planner,
+                                 extra_context=sblock, route_fn=route_fn, near=near, silver_lookup=silver_lookup,
+                                 on_stage=on_stage, focus_driver=att["focus_driver"], xc_request=xc_request,
+                                 outlook=outlook_mode,
+                                 # B1 handoff parity: the NUMBERS leg gets the enriched question, the walk keeps
+                                 # the raw `query` (route_fn's <=80-char coreference gate). Flag off -> both None
+                                 # -> this call is byte-identical to today.
+                                 numbers_query=(_nq if _fam_on else None),
+                                 families=_families, **_rck, **_mk)
         else:
-            res = run_reasoning(query, asof, graph=graph, call=call, retrieve=retrieve, model=model,
-                                planner=planner, extra_context=sblock, route_fn=route_fn, near=near,
-                                silver_lookup=silver_lookup, on_stage=on_stage,
-                                focus_driver=att["focus_driver"], qfn=qfn, xc_request=xc_request,
-                                outlook=outlook_mode, **_rck, **_mk)
+            with _census_ctx(_mode["honored"]):                       # D-MW-13, see the hybrid lane above
+                res = run_reasoning(query, asof, graph=graph, call=call, retrieve=retrieve, model=model,
+                                    planner=planner, extra_context=sblock, route_fn=route_fn, near=near,
+                                    silver_lookup=silver_lookup, on_stage=on_stage,
+                                    focus_driver=att["focus_driver"], qfn=qfn, xc_request=xc_request,
+                                    outlook=outlook_mode, **_rck, **_mk)
     except Exception as e:  # noqa: BLE001 — deterministic floor: a UI turn must never 500
         # The floor's CAUSE must be visible in logs: the 2026-07-19 incident spent hours attributing
         # an Anthropic-tier outage to a feature flag because the swallowed exception was never logged

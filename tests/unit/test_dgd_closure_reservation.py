@@ -135,8 +135,11 @@ def test_pin2_flag_off_is_byte_identical_and_the_new_key_is_the_only_delta(alias
     off = _walk(gr, closure_reserve=0)
     zero = _walk(gr, closure_reserve=None)          # env unset in the suite -> _closure_reserve_n() == 0
     assert _walk_state(off) == _walk_state(zero)
-    # the trace gained exactly ONE key over the shipped walk, and nothing else moved.
-    assert set(off.trace) == _PRE_DGD_TRACE_KEYS | {"cascade_closure"}
+    # the trace gained exactly TWO additive keys over the shipped walk, and nothing else moved.
+    # D-MW-13 RE-PIN: `walk_shape` joins `cascade_closure` as an ADDITIVE, both-arms stamp -- four P3
+    # RECORDED quantities (seeds, per-depth kept, hop contracts, second-order fences) had no artifact
+    # source at all, and a key stamped on one arm only is an uncomparable key (the cascade_closure lesson).
+    assert set(off.trace) == _PRE_DGD_TRACE_KEYS | {"cascade_closure", "walk_shape"}
     cc = off.trace["cascade_closure"]
     assert cc["enabled"] is False and cc["reserve_n"] == 0
     assert cc["reserved"] == [] and cc["displaced"] == [] and cc["count_delta"] == 0
@@ -181,12 +184,16 @@ def test_pin2_no_parents_at_all_is_byte_identical(alias):
 #    D-MW-9 packs rerank requests at caller boundaries, so crossing 1,000 docs now costs one more
 #    concurrent request. The bound is parametrized in node_budget accordingly.
 def test_pin3_node_count_and_k_are_invariant_under_the_reservation(alias):
+    """THE v1 (env/kwarg-driven) POSTURE: same budget, same count, the reservation pays from within.
+    Still live code -- GRAPHRAG_CLOSURE_RESERVE and the `closure_reserve` kwarg are untouched by D-MW-15,
+    and quick/standard/deep carry no per-seed knobs -- so this pin is neither vacuous nor dead."""
     gr = _chain_graph()                             # 14 drivers + 1 seed vs node_budget 8: heavily oversubscribed
     off, on = _walk(gr, closure_reserve=0), _walk(gr, closure_reserve=3)
     assert len(off.nodes) == 8                      # this fixture is oversubscribed: NO headroom at all
     assert len(on.nodes) == 8                       # so here the reservation still pays by displacement
     assert on.trace["cascade_closure"]["headroom_used"] == 0
     assert on.trace["cascade_closure"]["count_delta"] == 0
+    assert on.trace["cascade_closure"]["dedicated_used"] == 0        # v1: NOT the dedicated mechanism
     assert len(on.trace["cascade_closure"]["displaced"]) == len(on.trace["cascade_closure"]["reserved"])
     # k is a function of node.depth only (planner.ground: k_by_depth[min(depth, len-1)]) -- so pinning the
     # depth multiset pins k without needing to run ground().
@@ -197,7 +204,29 @@ def test_pin3_node_count_and_k_are_invariant_under_the_reservation(alias):
         assert len(decided) == len(set(decided))
 
 
-@pytest.mark.parametrize("budget", [6, 8, 10, 16, 32])
+def test_pin3_node_count_under_the_DEDICATED_slot_posture_is_additive_not_invariant(alias):
+    """PIN 3, RE-SCOPED FOR D-MW-15 (the plan's enumerated re-scope). Under per-seed DEDICATED slots the
+    count invariant is no longer `len(kept_on) == len(kept_off)`: reserve slots are ADDITIVE BY
+    CONSTRUCTION, so the ceiling that binds is the COSINE one (`charged <= per_seed_budget * n_seeds`) and
+    the node count rises by exactly the number of slots that FILLED. That is the doctrine's "the node
+    budget must never bind" -- stated as an assertion instead of as a promise.
+
+    k is still a function of depth only, so the depth multiset of the SHARED nodes is unchanged."""
+    gr = _chain_graph()
+    off = _walk(gr, per_seed_budget=8, per_seed_reserve=0)     # 0 is a VALUE: reservation OFF outright
+    on = _walk(gr, per_seed_budget=8, per_seed_reserve=3)
+    cc = on.trace["cascade_closure"]
+    assert len(off.nodes) == 8 and cc["dedicated"] is True
+    assert cc["reserve_slots"]["filled"] == len(cc["reserved"]) > 0
+    assert len(on.nodes) == len(off.nodes) + cc["reserve_slots"]["filled"]
+    assert cc["displaced"] == [] and cc["headroom_used"] == 0 and cc["count_delta"] == 0
+    assert {n.id for n in off.nodes} < {n.id for n in on.nodes}, "strictly additive: every OFF node survives"
+    for sg in (off, on):
+        decided = [tuple(p["key"]) for p in sg.trace["pruned"]] + _keys(sg)
+        assert len(decided) == len(set(decided))
+
+
+@pytest.mark.parametrize("budget", [6, 8, 10, 16, 32, 63])
 def test_pin3_reservation_never_exceeds_node_budget(alias, budget):
     """THE WALK INVARIANT IS `len(kept) <= node_budget`, PARAMETRIZED IN THE BUDGET (D-MW-11 re-scope).
 
@@ -212,7 +241,9 @@ def test_pin3_reservation_never_exceeds_node_budget(alias, budget):
     widens the deep preset, for a reason that no longer exists.
 
     The 32 case is deliberate: it is the width GUIDED_DEPTH_V2_PLAN.md:141-170 measured as the first
-    node_budget at which the median deep walk (tau-survivors median 31) has any headroom at all."""
+    node_budget at which the median deep walk (tau-survivors median 31) has any headroom at all. The 63
+    case is the D-MW STEP-0 calibration (12a): the measured p75 of PER-SEED above-tau cosine demand, i.e.
+    the `max` preset's one-seed width."""
     gr = _chain_graph()
     off = _walk(gr, closure_reserve=0, node_budget=budget)
     on = _walk(gr, closure_reserve=3, node_budget=budget)
@@ -220,6 +251,20 @@ def test_pin3_reservation_never_exceeds_node_budget(alias, budget):
     assert len(on.nodes) >= len(off.nodes)                   # additive-or-equal, never subtractive
     cc = on.trace["cascade_closure"]
     assert len(cc["reserved"]) == len(cc["displaced"]) + cc["headroom_used"] and cc["count_delta"] == 0
+
+
+@pytest.mark.parametrize("per_seed", [4, 8, 16, 63])
+def test_pin3_the_ceiling_is_SEED_SCALED_under_per_seed_budget(alias, per_seed):
+    """THE SEED-SCALED SHAPE of the same ceiling (D-MW-13). `node_budget` is no longer a flat number: it
+    is `per_seed_budget x the REALIZED seed count`, and the kwarg/default is ignored outright when the
+    per-seed knob is present. One seed here (route_fn returns ['corn']), so the derived ceiling is the
+    per-seed value itself -- test_dmw_walk pins the multi-seed derivation."""
+    gr = _chain_graph()
+    sg = _walk(gr, node_budget=999, per_seed_budget=per_seed)   # 999 must be IGNORED
+    assert sg.trace["budget"] == per_seed * 1
+    assert sg.trace["params"]["node_budget"] == per_seed
+    assert len(sg.nodes) <= per_seed
+    assert sg.trace["walk_shape"]["n_seeds"] == 1
 
 
 @pytest.mark.parametrize("budget", [16, 32])
@@ -434,7 +479,14 @@ def test_the_reservation_is_trimmed_not_overdrawn_when_the_wave_cannot_pay(alias
 
 
 # ══ THE ADMISSION RECORD -- auditability from the artifact ══════════════════════════════════════════════
-_REASONS = {"cosine", "closure_reservation", "focus_driver"}
+# D-MW-15: 'cascade_downstream' joins the enum (the second STRUCTURAL reason), and the record shape
+# becomes a required-SUPERSET check -- the convergence pair {convergence, anchors} is present only on a
+# candidate >= 2 admitted anchors' chains reached, and an exact-set assertion would have made the
+# optional pair unshippable. `_STRUCTURAL_REASONS` is the module's own set, read here so the test and the
+# three guard sites can never disagree about what "structural" means.
+_REASONS = {pl.REASON_COSINE, pl.REASON_CLOSURE, pl.REASON_DOWNSTREAM, "focus_driver"}
+_REC_REQUIRED = {"reason", "ancestor_of", "chain_depth"}
+_REC_OPTIONAL = {"convergence", "anchors"}
 
 
 def test_every_admitted_node_carries_an_admission_record_on_both_arms(alias):
@@ -445,9 +497,29 @@ def test_every_admitted_node_carries_an_admission_record_on_both_arms(alias):
         for node in sg.nodes:
             rec = adm[":".join(str(p) for p in node.key)]
             assert rec is node.admission
-            assert set(rec) == {"reason", "ancestor_of", "chain_depth"}
+            assert _REC_REQUIRED <= set(rec) <= (_REC_REQUIRED | _REC_OPTIONAL)
             assert rec["reason"] in _REASONS
             assert isinstance(rec["chain_depth"], int)
+
+
+def test_the_structural_reason_set_is_the_one_producer_of_the_three_guards():
+    """THE FINDING THIS PINS (D-MW-15): three shipped guards compared the LITERAL 'closure_reservation' --
+    the 1-row score floor, the cap-order anchor-adjacency move, and the census exclusion -- so a
+    'cascade_downstream' node would have bypassed all three silently and landed with ZERO evidence rows,
+    the exact admitted-but-not-cited defect P3-A exists to prove fixed. All three are membership tests on
+    this one set now, and the reason literals have ONE producer."""
+    import inspect
+    assert pl._STRUCTURAL_REASONS == {"closure_reservation", "cascade_downstream"}
+    assert pl.REASON_CLOSURE in pl._STRUCTURAL_REASONS and pl.REASON_DOWNSTREAM in pl._STRUCTURAL_REASONS
+    assert pl.REASON_COSINE not in pl._STRUCTURAL_REASONS
+    assert pl._ADMIT_COSINE["reason"] == pl.REASON_COSINE
+    src = inspect.getsource(pl)
+    # the reason strings appear as LITERALS only where they are minted (the constants) and in prose.
+    assert src.count('"closure_reservation"') == 1, "the reason literal must be minted in exactly one place"
+    assert src.count('"cascade_downstream"') == 1
+    for fn in (pl._closure_cap_order, pl._dedup_and_cap, pl._closure_census):
+        assert "_STRUCTURAL_REASONS" in inspect.getsource(fn), \
+            "%s must test MEMBERSHIP, not a literal" % fn.__name__
 
 
 def test_the_admission_records_partition_the_kept_set(alias):
@@ -545,14 +617,19 @@ def test_ground_stamps_the_post_cap_citation_join(alias):
     cc = sg.trace["cascade_closure"]
     assert cc["reserved_with_evidence"] == len(cc["reserved"]) >= 1
     assert cc["cited_join"], "the join must be POST-cap: a pre-cap join scores slots the cap already zeroed"
-    # the join keys are exactly the THREE fields verify's `report['resolved'][ref]` projects -- which is
+    # The first three join fields are exactly what verify's `report['resolved'][ref]` projects -- which is
     # what lets the counter exist with verify.py entirely untouched. R1 #2: the third field (verify's own
     # `snippet`) is what makes the key ROW-granular; source_key alone is a DOCUMENT key.
+    # D-MW-15 RE-PIN: a FOURTH field carries the admission REASON, so eval can split n_cited into
+    # upstream/downstream. The first three are byte-identical, so the join stays a pure read of verify.
     node = next(n for n in sg.nodes if n.id == "root")
     assert [h["source_key"] for h in node.evidence]
     for h in node.evidence:
         _t = h.get("text") or ""
-        assert [h["source_key"], h["date"], _t[:140] + ("..." if len(_t) > 140 else "")] in cc["cited_join"]
+        assert [h["source_key"], h["date"], _t[:140] + ("..." if len(_t) > 140 else ""),
+                pl.REASON_CLOSURE] in cc["cited_join"]
+    assert all(len(row) == 4 for row in cc["cited_join"])
+    assert {row[3] for row in cc["cited_join"]} <= pl._STRUCTURAL_REASONS
     for r in cc["reserved"]:
         assert "_entry" not in r and r["n_evidence"] >= 0
 
@@ -652,13 +729,17 @@ def test_r1_1_the_ceiling_holds_and_the_slots_always_balance(alias_wide, budget)
     assert len(cc["reserved"]) == len(cc["displaced"]) + cc["headroom_used"]
 
 
-def test_r1_1_a_FULL_wave_still_pays_by_displacement(alias):
-    """The other half of the rule: headroom-first is not 'never displace'. An oversubscribed wave has no
-    spare slot, so the reservation still buys its slots from the lowest-ranked admitted drivers."""
-    on = _walk(_chain_graph(), closure_reserve=3, node_budget=8)
-    cc = on.trace["cascade_closure"]
-    assert cc["headroom_used"] == 0 and len(cc["displaced"]) == len(cc["reserved"]) > 0
-    assert len(on.nodes) == 8
+# DELETED 2026-08-11, D-MW-15 (plan MOAT_WIDTH_WAVE_PLAN.md:591-604, the enumerated test re-scope):
+#   test_r1_1_a_FULL_wave_still_pays_by_displacement
+# The R7 amendment DISSOLVED the headroom-vs-displacement fork it was the other half of: under per-seed
+# DEDICATED slots the reservation fires into its OWN allocation and displacement is not reached at all, so
+# "a full wave still pays by displacement" is no longer a rule the shipped product has. The v1 env-driven
+# path that DOES displace is still live and still pinned -- by
+# test_pin3_node_count_and_k_are_invariant_under_the_reservation (full wave, headroom 0, displaced ==
+# reserved), test_pin3_the_ceiling_binds_at_p3_width_too and
+# test_displacement_takes_the_LOWEST_ranked_admitted_drivers -- so this deletion removes a duplicate of a
+# retired rule, not the coverage of live code. The dedicated-slot posture it is replaced by is
+# test_pin3_node_count_under_the_DEDICATED_slot_posture_is_additive_not_invariant.
 
 
 # ── R1 #2 -- THE EVAL JOIN KEY IS ROW-GRANULAR, NOT DOCUMENT-GRANULAR ────────────────────────────────────
@@ -766,19 +847,39 @@ def test_r1_3_open_may_never_fall_by_more_than_the_edges_actually_closed(alias_h
         % (budget, a["open"] - b["open"], b["closed"] - a["closed"]))
 
 
-def test_r1_3_a_displaced_drivers_open_edges_stay_in_the_census(alias_hub):
-    """budget 7 admits all six above-tau drivers EXACTLY, so the wave is full (headroom 0) and `hub` --
-    lowest-ranked, five open parent edges -- is the driver the reservation buys its slot from. This is the
-    case v1 mis-measured, so the pin asserts the edges survive the population change."""
-    on = _walk(_hub_graph(), closure_reserve=1, node_budget=7)
-    cc = on.trace["cascade_closure"]
-    assert cc["headroom_used"] == 0, "the pin needs a FULL wave, else nothing is displaced at all"
-    assert "hub" in {d["key"][2] for d in cc["displaced"]}, "fixture must displace the hub"
-    assert [e for e in cc["open_edges"] if e[1] == "hub"], "its open edges must still be charged"
-    assert cc["open_edges_lost_with_displaced"] == 5      # published, not left to be re-derived
-    off_drivers = [n for n in _walk(_hub_graph(), closure_reserve=0, node_budget=7).nodes
-                   if n.kind == "driver"]
-    assert cc["census_population"] == len(off_drivers), "the population IS the OFF arm's kept driver set"
+def test_r1_3_a_displaced_drivers_open_edges_stay_in_the_census(alias_hub, monkeypatch):
+    """RE-SCOPED TO A SYNTHETIC DISPLACED LIST (D-MW-15's enumerated re-scope). The pin's SUBJECT is
+    `_closure_census`'s population rule -- 'a displaced driver's open parent edges are still charged' --
+    and the original fixture reached it only through a walk that happened to displace. Under the
+    dedicated-slot mechanism displacement is not reached at all, so a walk-shaped fixture would make the
+    census rule untestable for the reason that has nothing to do with the census. The census is a pure
+    function; it is now fed the displaced list directly, which also makes the pin exact rather than
+    fixture-dependent.
+
+    `hub` is the maximal-open-edge node (five backed, slice-distinct, below-tau parents) -- exactly what
+    lowest-ranked-first displacement targeted, and exactly the case v1's kept-set population mis-measured
+    at a 6x overstatement."""
+    amap = alias_hub
+    gr = _hub_graph()
+    backed, slice_of = set(amap), (lambda d: amap.get(d))
+    # the kept set AFTER a displacement: `hub` is gone, everything else stayed.
+    nodes = [pl.GroundedNode(kind="driver", id=i, contract="corn", depth=1, relevance=0.5)
+             for i in ["anchor", "p1"] + [f"f{k}" for k in range(4)]]
+    for n in nodes:
+        n.admission = dict(pl._ADMIT_COSINE)
+    displaced = [{"key": ["driver", "corn", "hub"], "relevance": 0.36, "depth": 1}]
+    with_disp = pl._closure_census(nodes, gr, backed, slice_of, displaced)
+    without = pl._closure_census(nodes, gr, backed, slice_of, [])
+    assert [e for e in with_disp["open_edges"] if e[1] == "hub"], "its open edges must still be charged"
+    assert with_disp["open_edges_lost_with_displaced"] == 5   # published, not left to be re-derived
+    assert with_disp["open"] - without["open"] == 5, "the whole 6x-overstatement class, as a number"
+    assert with_disp["census_population"] == len(nodes) + 1   # the displaced driver IS in the population
+    # ...and a STRUCTURALLY admitted node is on NEITHER side of the ledger (D-MW-15: both reasons).
+    for reason in (pl.REASON_CLOSURE, pl.REASON_DOWNSTREAM):
+        extra = pl.GroundedNode(kind="driver", id="hub", contract="corn", depth=1, relevance=0.0)
+        extra.admission = {"reason": reason, "ancestor_of": "anchor", "chain_depth": 1}
+        assert pl._closure_census(nodes + [extra], gr, backed, slice_of, [])["census_population"] \
+            == without["census_population"], "a structural admission may not join the census population"
 
 
 def test_r1_3_a_reserved_node_does_not_bring_its_OWN_parent_edges_into_the_census(alias_wide):

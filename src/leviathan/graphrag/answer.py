@@ -1511,14 +1511,22 @@ def _route_llm_tool() -> dict:
 
 def route_llm(query: str, graph: gph.CausalGraph, *, k: int = 2, call=None) -> list[str]:
     """TIER 3 (LLM): a cheap Haiku call resolves coreference/comparison/multi-commodity ('which ag is most
-    exposed to the dollar') by mapping the question to ids from the tracked list."""
+    exposed to the dollar') by mapping the question to ids from the tracked list.
+
+    D-MW-13 (the router de-cap): `k` is now the tier's SEED CEILING, and the prompt phrase is RENDERED
+    from it rather than typed. The pair used to disagree the moment a caller widened k -- the prose said
+    "the 1-2 most relevant" while the code sliced at 6 -- and the model obeys the prose, so a widened
+    walk silently kept receiving two ids. At the default k=2 the rendered sentence is byte-identical to
+    the shipped one."""
     call = call or _call_opus
     ids = list(graph.contracts)
+    n = max(1, int(k))
+    want = "the most relevant one" if n == 1 else f"the 1-{n} most relevant"
     sys = ("Map a commodities question to the tracked futures-contract id(s) it concerns. Resolve coreference and "
-           "comparisons. Return ONLY ids from the provided list, the 1-2 most relevant, via pick_contracts.")
+           f"comparisons. Return ONLY ids from the provided list, {want}, via pick_contracts.")
     user = f"TRACKED CONTRACTS: {ids}\n\nQUESTION: {query}"
     out = call(sys, user, model=ex.HAIKU, tool=_route_llm_tool())
-    return [c for c in (out.get("contracts") or []) if c in graph.contracts][:k]
+    return [c for c in (out.get("contracts") or []) if c in graph.contracts][:n]
 
 
 def route_smart(query: str, graph: gph.CausalGraph, *, embed=None, route_call=None, k: int = 2) -> list[str]:
@@ -1906,9 +1914,16 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
               depth=max((int(getattr(n, "depth", 0) or 0) for n in sg.nodes), default=0))
     probe_retr = None if retrieve else functools.partial(ev.retrieve, mode="hybrid", rerank=False)
     _emit(on_stage, "walking")                                    # early tick: the 8-20s ground starts NOW (5.6 W5)
+    # D-MW-13: the ground caps are SEED-SCALED now, so they are produced from the REALIZED seed count --
+    # `sg.seeds`, the walk's own output, NOT trace.walk_shape's n_seeds (reading the trace would couple
+    # this seam to the order in which the walk stamps its keys). `scaled_ground_kwargs` is the ONE
+    # producer of that arithmetic and its clamps; this call site multiplies nothing. On every preset
+    # without per-seed fields it returns exactly `ground_kwargs(mode_knobs)`, so standard/quick/deep/
+    # deep_v2 stay byte-identical here by construction (test_dam_modes' passthrough pins).
+    _n_seeds = len(getattr(sg, "seeds", None) or [])
     pl.ground(sg, query, graph, retrieve=retr, silver_lookup=silver_lookup, asof=asof, near=near,
               probe_retrieve=probe_retr, on_stage=on_stage,       # probes = cheap existence checks, no reranker
-              **_rm.ground_kwargs(mode_knobs))                    # D-AM-10: {} unless a mode is honored
+              **_rm.scaled_ground_kwargs(mode_knobs, n_seeds=_n_seeds))   # D-AM-10: {} unless a mode is honored
     _gm = sg.trace.get("ground_ms") or {}
     _emit(on_stage, "walking", nodes=len(sg.nodes), regimes=len(sg.fired_regimes),
           ms_fill=_gm.get("fill"), ms_rest=_gm.get("rest"))
@@ -4807,7 +4822,27 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     use_blocks = call is None or call is _call_opus               # real path -> prompt-cached content blocks
     call = call or _call_opus
     route_fn = route_fn or route_smart
-    routed = route_fn(query, graph)
+    # D-MW-13 THE ROUTER DE-CAP, mode-aware half. `route_smart` fans out to at most k contracts and k
+    # defaulted to 2 -- so a `max` walk with a seed ceiling of 6 was still handed two ids and the wider
+    # tier bought nothing on any turn the dispatch planner did not route. When a mode is honored, its
+    # `max_seeds` IS that k. Two fences, both deliberate:
+    #   * only when route_fn is THIS module's route_smart. A CALLER-SUPPLIED route_fn (the orchestrator's
+    #     planner-resolved lambda, the session-carried coreference closure, every test fake) keeps its
+    #     exact 2-positional-arg call -- widening a caller's function by keyword would break the fakes
+    #     and, for the session path, re-derive routing from HISTORY at a new width (a separate blast
+    #     radius, deliberately left at k=2 for this wave -- D-MW-13's recorded scope line).
+    #   * omit-when-absent: with no honored mode this is the same one-line call it always was.
+    # RECORDED (P3 round-1, accept-with-record): the de-cap keys on `max_seeds` being PRESENT, so it also
+    # honors the cap-set of any OTHER preset carrying that field -- and `deep_v2`'s realized route width
+    # therefore moved 2 -> 3. Its declared max_seeds was ALWAYS 3; before this line route_smart's module
+    # default k=2 truncated it, so the D-DV record measured a realized 2. deep_v2 is DARK (its gate closed,
+    # the preset refused), and its preset bytes are unchanged -- but anyone re-running a deep_v2 arm against
+    # the D-DV baseline is comparing a 3-seed instrument to a 2-seed one. Left as-is deliberately: honoring
+    # a preset's own declared ceiling is the correct behaviour, and special-casing the two D-MW presets
+    # would put the wave's name inside a general seam.
+    _seed_k = (mode_knobs or {}).get("max_seeds")
+    routed = (route_smart(query, graph, k=int(_seed_k)) if (_seed_k and route_fn is route_smart)
+              else route_fn(query, graph))
     if not routed:
         return {"answer": "No tracked contract matched this question.", "structured": None, "contract": None,
                 "contracts": [], "evidence": [], "model": model, "trace": {"routed": []}}
