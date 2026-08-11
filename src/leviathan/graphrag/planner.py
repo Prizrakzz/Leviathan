@@ -698,7 +698,7 @@ def _parallel_fill(nodes, fn, query, retrieve, expected: int | None = None) -> N
             from leviathan.graphrag import (
                 rankers as rk,  # the walk's per-node reranks merge into ONE request
             )
-            if rk._rerank_backend() == "bedrock":
+            if rk._rerank_backend() in ("bedrock", "cohere"):   # D-MW-5: the native lane still coalesces
                 hinted = int(expected if expected is not None else len(nodes))
                 rk.rerank_expect(hinted)
         except Exception:  # noqa: BLE001 — a hint miss only costs latency, never correctness
@@ -717,18 +717,36 @@ def _parallel_fill(nodes, fn, query, retrieve, expected: int | None = None) -> N
         # connection BEFORE the rerank, so the extra threads queue on that pool exactly as they do today and
         # only the (network-bound, coalesced) rerank leg gains parallelism.
         workers = min(hinted, len(nodes))
-    fn_ = fn
-    if hinted:
-        def fn_(n):  # noqa: E306
-            try:
+    # D-MW-6: THE LANE PROPAGATION. Every rerank in this walk happens inside one of these workers, and the
+    # lane collector is a THREAD-LOCAL, so the parent turn's collector object is captured HERE (on the
+    # caller's thread) and installed into each worker for the duration of its node. Two round-3 corrections
+    # are baked in: (a) contextvars does NOT work for this — a Context copied inside a worker is empty, and
+    # one shared Context entered by 4 workers raises; (b) the wrapper is now UNCONDITIONAL. It used to exist
+    # only when `hinted` was truthy, i.e. never on the bge lane — which would have left an A/B's bge CONTROL
+    # arm with no lane stamp at all and no way to pre-flight itself. The unexpect-on-raise leg stays
+    # hint-gated (retracting a promise nobody made is a quota lie), so the hinted path is byte-identical.
+    _lane_rk, _parent_lane = None, None
+    try:
+        from leviathan.graphrag import rankers as _lane_rk
+        _parent_lane = _lane_rk.lane_collector()
+    except Exception:  # noqa: BLE001 — telemetry must never break a walk
+        _lane_rk, _parent_lane = None, None
+
+    def fn_(n):  # noqa: E306
+        try:
+            if _parent_lane is None:
                 fn(n)
-            except BaseException:                  # a promised arrival that died must RETRACT its promise,
-                try:                               # else the leader waits out the whole window for a caller
-                    from leviathan.graphrag import rankers as rk  # that can never arrive
+            else:
+                with _lane_rk.adopt_lane(_parent_lane):     # nested-safe; clears in its own finally
+                    fn(n)
+        except BaseException:                  # a promised arrival that died must RETRACT its promise,
+            if hinted:                         # else the leader waits out the whole window for a caller
+                try:                           # that can never arrive
+                    from leviathan.graphrag import rankers as rk
                     rk.rerank_unexpect()
                 except Exception:  # noqa: BLE001
                     pass
-                raise
+            raise
     with cf.ThreadPoolExecutor(max_workers=workers) as pool:
         list(pool.map(fn_, nodes))
 
@@ -1020,8 +1038,23 @@ def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, s
             """Execute the frozen probe list and merge into probe_cache in the FROZEN order. Results are
             collected by INDEX (never as_completed), so completion order cannot reach the caller; and
             .result() surfaces the FIRST failing probe in frozen order — the serial loop's semantics."""
+            # D-MW-6: the SECOND rerank seam in this module (the collector-seam inventory names three).
+            # A probe reranks whenever `probe_retrieve` is None — the serving default — so a turn whose
+            # only reranks are probes must still stamp its lane. `adopt_lane` is nested-safe, which is
+            # what makes ONE `_one` correct in BOTH branches below: the sequential branch runs on the
+            # caller's own thread, where installing-and-clearing would strip the turn's own collector.
+            _lane_rk, _parent_lane = None, None
+            try:
+                from leviathan.graphrag import rankers as _lane_rk
+                _parent_lane = _lane_rk.lane_collector()
+            except Exception:  # noqa: BLE001 — telemetry must never break a walk
+                _lane_rk, _parent_lane = None, None
+
             def _one(item):
-                return _recent(list(probe(query, item[1], k=2, asof=asof, near=near)))
+                if _parent_lane is None:
+                    return _recent(list(probe(query, item[1], k=2, asof=asof, near=near)))
+                with _lane_rk.adopt_lane(_parent_lane):
+                    return _recent(list(probe(query, item[1], k=2, asof=asof, near=near)))
             if _PROBE_WORKERS <= 1 or len(plan) <= 1:              # sequential: exact pre-F3 call pattern
                 out = [_one(it) for it in plan]
             else:
@@ -1032,9 +1065,22 @@ def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, s
                 # serial loop aborted on the FIRST failure). cancel_futures drops the not-yet-started ones;
                 # the <=_PROBE_WORKERS already running finish in the background and touch nothing we read.
                 pool = cf.ThreadPoolExecutor(max_workers=min(_PROBE_WORKERS, len(plan)))
+                futs = []
                 try:
-                    out = [f.result() for f in [pool.submit(_one, it) for it in plan]]
+                    futs = [pool.submit(_one, it) for it in plan]
+                    out = [f.result() for f in futs]
                 finally:
+                    # Diff-review catch (D-MW P1): a still-RUNNING probe holds a direct reference to the
+                    # turn's collector and can record a rerank/fallback AFTER the turn snapshots — an
+                    # undercount the gate clause `fallbacks == 0` would read as clean. The strand is
+                    # COUNTED into the collector before shutdown; D-MW-8's pre-flight requires
+                    # `stranded == 0` alongside `fallbacks == 0`, so a stranded turn is never a gate row.
+                    try:
+                        _n_live = sum(1 for f in futs if not f.done())
+                        if _n_live and _parent_lane is not None:
+                            _parent_lane.record_stranded(_n_live)
+                    except Exception:  # noqa: BLE001 — telemetry must never break a walk
+                        pass
                     pool.shutdown(wait=False, cancel_futures=True)
             for (key, _sp), res in zip(plan, out):
                 probe_cache[key] = res

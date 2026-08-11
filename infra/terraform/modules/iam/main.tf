@@ -135,6 +135,47 @@ resource "aws_iam_role_policy_attachment" "batch_execution_role_databento_secret
 }
 
 # ---------------------------------------------------------------------------
+# Secrets Manager read for the execution role (MOAT_WIDTH P1, D-MW-4). The
+# serving task mounts COHERE_API_KEY via secrets/valueFrom for the native Cohere
+# rerank lane, and the evidence/eval jobdef mounts the same key so a cohere-labelled
+# eval arm cannot silently run bge (submit_eval can override environment but NOT
+# secrets). Both consumers already run under THIS execution role, so one grant covers
+# both -- the databento shape, verbatim, for the same reason: the ECS agent injects
+# the secret, so the grant belongs on the EXECUTION role and never on a job/task role.
+# Recon established there is NO wildcard secretsmanager grant in this estate (the
+# Anthropic key rides an out-of-band INLINE policy invisible to the repo), so a new
+# secret is covered by nothing and the failure mode is ResourceInitializationError at
+# CONTAINER START -- it reads as a bad deploy, not a missing grant. Scoped to the one
+# secret ARN (trailing -* matches the Secrets Manager random 6-char suffix).
+# count-gated: leviathan-dev-cohere-api-key is created out-of-band (flat-name
+# convention, like the Anthropic key); until the ARN is wired there is no grant.
+# APPLY WITH RESOURCE-LEVEL TARGETS ONLY -- `-target module.iam` drags in the module's
+# dependency closure (s3 / ecr_trainer / dynamodb) and would plan the data-lake bucket
+# policy and an ECR lifecycle cap that differs from live.
+# ---------------------------------------------------------------------------
+data "aws_iam_policy_document" "batch_execution_cohere_secret" {
+  count = var.cohere_api_key_secret_arn != "" ? 1 : 0
+  statement {
+    sid       = "ReadCohereApiKeySecret"
+    actions   = ["secretsmanager:GetSecretValue"]
+    resources = ["${var.cohere_api_key_secret_arn}-*"]
+  }
+}
+
+resource "aws_iam_policy" "batch_execution_cohere_secret" {
+  count       = var.cohere_api_key_secret_arn != "" ? 1 : 0
+  name        = "${var.project_name}-${var.environment}-batch-execution-cohere-secret"
+  description = "Lets the Batch/ECS execution role inject the COHERE_API_KEY secret into the serving task and the evidence/eval task."
+  policy      = data.aws_iam_policy_document.batch_execution_cohere_secret[0].json
+}
+
+resource "aws_iam_role_policy_attachment" "batch_execution_role_cohere_secret" {
+  count      = var.cohere_api_key_secret_arn != "" ? 1 : 0
+  role       = aws_iam_role.batch_execution_role.name
+  policy_arn = aws_iam_policy.batch_execution_cohere_secret[0].arn
+}
+
+# ---------------------------------------------------------------------------
 # Batch job role — assumed by the container code to write to S3
 # ---------------------------------------------------------------------------
 

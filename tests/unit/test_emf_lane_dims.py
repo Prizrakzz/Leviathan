@@ -113,8 +113,23 @@ def test_override_must_be_a_known_slug(capsys, monkeypatch):
 
 def test_unknown_rerank_backend_is_bounded(capsys, monkeypatch):
     """An arbitrary env value must never become a dimension value (billed per distinct combination)."""
+    # D-MW-6 housekeeping: the fixture string must be genuinely OUTSIDE the closed set, or this test
+    # silently becomes a passthrough pin the day that slug is added (it was checked against 'cohere').
+    assert "some-new-reranker-v9" not in emf._RERANK_BACKENDS
     monkeypatch.setenv("GRAPHRAG_RERANK_BACKEND", "some-new-reranker-v9")
     assert _emit_and_parse(capsys, metrics={"TurnLatencyMs": 1})["rerank_backend"] == "other"
+
+
+def test_cohere_is_a_first_class_lane_dim_not_other(capsys, monkeypatch):
+    """D-MW-6: the NATIVE lane is a member of the closed set. Left out, every native-lane record would
+    collapse to `other` -- and `other` is exactly where an unknown/typo'd backend lands, so the prod alarm
+    feed could not tell the production reranker apart from a misconfiguration."""
+    assert emf._RERANK_BACKENDS == ("bge", "bedrock", "cohere")     # closed set, cardinality-bounded
+    monkeypatch.setenv("GRAPHRAG_RERANK_BACKEND", "cohere")
+    doc = _emit_and_parse(capsys, metrics={"RerankRequests": 1, "RerankFallbacks": 0},
+                          units={"RerankRequests": "Count", "RerankFallbacks": "Count"})
+    assert doc["rerank_backend"] == "cohere" and doc["source"] == "local"
+    assert ["source", "rerank_backend"] in _dim_sets(doc)           # the new rerank metrics ride lane dims
 
 
 def test_rerank_backend_reads_rankers_resolution(capsys, monkeypatch):

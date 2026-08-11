@@ -4727,6 +4727,52 @@ def _call_opus(system: str, user, *, model: str, tool: dict, on_token=None, temp
     return out
 
 
+def _with_rerank_lane(fn):
+    """D-MW-6: give a DIRECT `answer()` call its own rerank-lane collector.
+
+    Serving always enters through orchestrator._respond, which mints the turn's collector; but the EVAL
+    LANE calls answer() directly (eval.py's non-orchestrator rows) and would otherwise produce rows with
+    no `rerank_lane` column at all -- i.e. exactly the arms a parity gate needs to read. NESTED-SAFE and
+    deliberately so: when a collector is already installed this is a pure pass-through, so an orchestrator
+    turn keeps ONE collector for the whole turn and the stamp keeps ONE owner.
+
+    A wrapper rather than an in-body try/finally because `answer` has three return points across ~200
+    lines; wrapping cannot miss one, and functools.wraps keeps the signature introspectable."""
+    @functools.wraps(fn)
+    def _laned(*args, **kwargs):
+        # DIFF-REVIEW FIX (D-MW P1): `fn` is invoked EXACTLY ONCE, and never from inside an
+        # exception handler. The first shipped shape put the pass-through call inside a
+        # try whose handler ALSO called fn -- so a raising answer() (the deterministic-floor
+        # population) re-ran the whole walk + synthesis a second time, replayed SSE stage
+        # ticks, and replaced the floor's recorded cause with the retry's exception. The
+        # try below guards ONLY telemetry; fn sits outside every handler.
+        lane = None
+        try:
+            from leviathan.graphrag import rankers as rk
+            if rk.lane_collector() is None:
+                lane = rk.RerankLaneCollector()
+                rk.install_lane(lane)
+        except Exception:  # noqa: BLE001 — telemetry must never break an answer
+            lane = None
+        if lane is None:
+            return fn(*args, **kwargs)                     # orchestrator owns this turn's lane
+        try:
+            out = fn(*args, **kwargs)
+        finally:
+            try:
+                rk.clear_lane()
+            except Exception:  # noqa: BLE001
+                pass
+        try:
+            if isinstance(out, dict):
+                out.setdefault("trace", {})["rerank_lane"] = lane.snapshot()
+        except Exception:  # noqa: BLE001
+            pass
+        return out
+    return _laned
+
+
+@_with_rerank_lane
 def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 5, asof: str | None = None,
            near: str | None = None, max_contracts: int = 2, retrieve=None, call=None, route_fn=None,
            driver_retrieve=None, extra_context: str | None = None, extra_number_calls: list | None = None,

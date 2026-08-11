@@ -1419,13 +1419,28 @@ def _evidence_only(query: str, asof: str, *, graph, kind: str, exc: Exception,
 
     if len(contracts) > 1:
         try:
-            if rk._rerank_backend() == "bedrock":
+            if rk._rerank_backend() in ("bedrock", "cohere"):   # D-MW-5: the native lane still coalesces
                 rk.rerank_expect(len(contracts))
         except Exception:  # noqa: BLE001 — a hint miss only costs latency, never correctness
             pass
         import concurrent.futures as _cf
+        # D-MW-6: the THIRD rerank seam (the floor path). Same thread-local propagation as
+        # planner._parallel_fill -- a floor turn is precisely the population where a silent bge fallback
+        # is most expensive (floor turns already run p50 242.6 s / p95 1,163.6 s), so it is the last
+        # place the lane stamp should be blind.
+        try:
+            _parent_lane = rk.lane_collector()
+        except Exception:  # noqa: BLE001 — telemetry must never break the floor
+            _parent_lane = None
+
+        def _hits_laned(c):
+            if _parent_lane is None:
+                return _hits(c)
+            with rk.adopt_lane(_parent_lane):          # nested-safe; clears in its own finally
+                return _hits(c)
+
         with _cf.ThreadPoolExecutor(max_workers=len(contracts)) as _pool:
-            per_contract = list(_pool.map(_hits, contracts))
+            per_contract = list(_pool.map(_hits_laned, contracts))
     else:
         per_contract = [_hits(c) for c in contracts]
     evidence, seen = [], set()
@@ -1664,10 +1679,12 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
     focus driver, as-of, a rolling summary — carries across turns for coreference ("does IT cascade?");
     EVIDENCE never carries (each turn re-fetches under its own as-of; the one cache is keyed by exact SQL,
     which embeds its as-of). An explicit as-of always beats the carried one. GRAPHRAG_SESSIONS=off or a
-    store failure degrade to stateless — memory never breaks an answer."""
-    import os
-    planner = planner or os.environ.get("GRAPHRAG_PLANNER", "l2")
+    store failure degrade to stateless — memory never breaks an answer.
 
+    D-MW-6: this front half owns the TURN's rerank-lane collector. The two early-return lanes below
+    (guardrail, trivial) return ABOVE it and rerank nothing, so they mint no collector and carry no
+    `rerank_lane` stamp -- an empty lane is not a measurement. Everything else runs inside
+    `_respond_walk`, whose one job here is to be a body the collector can wrap in a try/finally."""
     refused = _guardrail_check(query)                 # input pre-filter (default off, fail-open)
     if refused is not None:
         return refused                                # refused turns never touch session state
@@ -1691,6 +1708,43 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
         if _klass is not None:
             an._emit(on_stage, "social", klass=_klass)   # one stage tick so SSE relays it as a normal turn
             return _trivial_answer(query, _klass)         # never touches session state (returns above load)
+
+    # ── D-MW-6: ONE rerank-lane collector per turn ────────────────────────────────────────────────
+    # Created + installed HERE (the first line of real work) and cleared in the finally, because the
+    # slot is a THREAD-LOCAL and serving threads are POOLED: a leaked collector would attribute the next
+    # turn's reranks to this one. The walk's fill/probe pools and the floor pool each install this same
+    # OBJECT into their workers (rankers.adopt_lane), so fan-in is one lock-guarded set of counters, not
+    # a merge. Fail-open end to end -- telemetry never breaks a turn.
+    _rk_lane = None
+    try:
+        from leviathan.graphrag import rankers as _rk_lane
+        _rk_lane.install_lane(_rk_lane.RerankLaneCollector())
+    except Exception:  # noqa: BLE001 — no lane is a valid state; every record site is a no-op without one
+        _rk_lane = None
+    try:
+        return _respond_walk(query, graph=graph, asof=asof, call=call, retrieve=retrieve, model=model,
+                             numbers_client=numbers_client, numbers_model=numbers_model, query_fn=query_fn,
+                             classify=classify, planner=planner, session_id=session_id,
+                             session_store=session_store, on_stage=on_stage, context=context,
+                             profile_facts=profile_facts, mode=mode)
+    finally:
+        if _rk_lane is not None:
+            try:
+                _rk_lane.clear_lane()
+            except Exception:  # noqa: BLE001
+                pass
+
+
+def _respond_walk(query: str, *, graph, asof: Optional[str] = None, call=None, retrieve=None,
+                  model: str = an.SONNET, numbers_client=None, numbers_model: str = na.HAIKU, query_fn=None,
+                  classify=None, planner: str | None = None, session_id: Optional[str] = None,
+                  session_store=None, on_stage=None, context=None, profile_facts: dict | None = None,
+                  mode: str | None = None) -> dict:
+    """The body of `_respond` (see its docstring for the contract) -- everything below the guardrail and
+    trivial early returns. Split out for ONE reason: the turn's rerank-lane collector needs a try/finally
+    around the real work, and the two early-return lanes must stay above it."""
+    import os
+    planner = planner or os.environ.get("GRAPHRAG_PLANNER", "l2")
 
     # ── D-AM-9/12: reasoning mode, resolved ONCE ─────────────────────────────────────────────────
     # The ONE resolution for the turn: the request field + the GRAPHRAG_MODES allowlist in, the
@@ -2080,6 +2134,18 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
         if isinstance(_mkt.get("k_by_depth"), tuple):
             _mkt["k_by_depth"] = list(_mkt["k_by_depth"])
         res.setdefault("trace", {})["mode_knobs"] = _mkt
+    # D-MW-6: the rerank lane, stamped UNCONDITIONALLY on every turn that reaches here -- deliberately
+    # NOT the absent-when-default idiom the knob stamp above uses. `backends == ['bge'], fallbacks == 0`
+    # IS the measurement for a control arm, so an absent key would make the OFF arm uncomparable (the
+    # same reasoning that put cascade_closure on both polarities). A lane that recorded nothing reports
+    # zeros, which is itself the fact that this turn never reranked.
+    try:
+        from leviathan.graphrag import rankers as _rk_stamp
+        _lane = _rk_stamp.lane_collector()
+        if _lane is not None:
+            res.setdefault("trace", {})["rerank_lane"] = _lane.snapshot()
+    except Exception:  # noqa: BLE001 — telemetry must never break a turn
+        pass
     res["intent_decision"] = decided
     return _session_writeback(res, query, asof, session_id, store, state, graph, call,
                               ms_dispatch=_ms_dispatch)

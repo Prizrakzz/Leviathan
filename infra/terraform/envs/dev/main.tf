@@ -51,6 +51,18 @@ locals {
   # with a trailing -* for the Secrets Manager random suffix. Same shape as
   # fas_api_key_secret_arn above.
   databento_api_key_secret_arn = "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:leviathan/dev/databento-api-key"
+
+  # MOAT_WIDTH P1 (D-MW-4): name-based ARN for the Cohere key mounted as COHERE_API_KEY on
+  # the serving task (native rerank lane) and on the evidence/eval jobdef. FLAT name --
+  # leviathan-dev-cohere-api-key -- matching the Anthropic key's convention, not the
+  # leviathan/dev/* path convention; every vendor key in this estate is created OUT-OF-BAND
+  # (this one already exists). Still CONSTRUCTED, not looked up, for the same reason as the
+  # three locals above: a data source resolves at PLAN time, so it makes every unrelated
+  # apply in this env depend on the secret still existing -- a deleted/rotated-by-recreate
+  # secret would block the whole estate's plan instead of just this grant. ECS/Batch
+  # valueFrom resolves the name-based ARN for a same-region secret; the iam GetSecretValue
+  # grant widens it with a trailing -* for the random suffix (live: ...-gFimH7).
+  cohere_api_key_secret_arn = "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:leviathan-dev-cohere-api-key"
 }
 
 module "s3" {
@@ -80,6 +92,9 @@ module "iam" {
   numbers_pg_dsn_secret_arn = data.aws_secretsmanager_secret.pg_dsn.arn
   # W2: execution-role GetSecretValue for the databento fetch's DATABENTO_API_KEY mount.
   databento_api_key_secret_arn = local.databento_api_key_secret_arn
+  # D-MW-4: execution-role GetSecretValue for the serving task's + eval jobdef's COHERE_API_KEY
+  # mount (one grant, both consumers -- they share this execution role).
+  cohere_api_key_secret_arn = local.cohere_api_key_secret_arn
   # SILVER-F014 latch: flipped TRUE under the signed A1-A2 G1+G5.0 grants (2026-07-16) --
   # canonical authority now rests on kms:Sign + gate-first + shadow-first, not the deny.
   silver_canonical_publish_approved = true
@@ -504,6 +519,13 @@ module "serving" {
 
   extra_secrets = {
     ANTHROPIC_API_KEY = data.aws_secretsmanager_secret.anthropic_api_key.arn
+    # CONFIG-OF-RECORD ONLY -- the taskdef half of D-MW-4 ships OUT-OF-BAND (register the new
+    # revision FROM the live one via scripts/ops/register_serving_taskdef.py, then
+    # update-service --force-new-deployment). Applying this through module.serving would mint a
+    # revision from terraform's STALE config and poison every latest-ACTIVE consumer (submit_eval
+    # parity, the promote runbook -- both resolve the family by name). This line rides the
+    # post-freeze tf batch (task #25), which must re-diff live vs config at execution time.
+    COHERE_API_KEY = local.cohere_api_key_secret_arn
   }
   task_role_arn      = module.iam.batch_job_role_arn
   execution_role_arn = module.iam.batch_execution_role_arn
@@ -523,6 +545,9 @@ module "serving" {
   # Stage 1.5 latency fixes (env flips only; rollback = remove the key):
   #  - GRAPHRAG_RERANK_BACKEND: managed Cohere Rerank (coalesced, 1 req/turn — quota is 3/min) replaces the
   #    CPU bge cross-encoder that made the L2 walk ~100s. Rollback = "bge".
+  #    AMENDED D-MW-4 (MOAT_WIDTH P1): the value flips "bedrock" -> "cohere", the NATIVE Cohere API
+  #    (1,000 req/min instead of the account-wide 3/min Bedrock bucket -- the quota was the binding
+  #    constraint on walk width). Bedrock stays intact as a one-key rollback ("bedrock"), bge as "bge".
   #  - GRAPHRAG_SILVER_CACHE: cross-turn vintage cache for silver Athena reads (~14s of the walk) —
   #    historical asof = immutable vintage -> cached forever; live asof -> 15-min TTL. PIT-safe by design.
   #  - GRAPHRAG_NUMBERS_BACKEND: numbers lookups served from the RDS pg mirror (schema leviathan_dev,
@@ -535,7 +560,12 @@ module "serving" {
   #    GRAPHRAG_SESSIONS_TABLE -> conversation memory in the existing sessions table (per-user threads).
   #    GRAPHRAG_CONVERGENCE_CACHE -> in-process TTL cache. Rollback for each = remove the key.
   extra_environment = {
-    GRAPHRAG_RERANK_BACKEND  = "bedrock"
+    # CONFIG-OF-RECORD ONLY -- ships with the taskdef half of D-MW-4, out-of-band from the live
+    # revision (register from live via scripts/ops/register_serving_taskdef.py, never mint from this
+    # config). It is written here in the SAME commit as the COHERE_API_KEY secret above because
+    # without it the next module.serving apply would silently un-ship P1 back onto the 3/min Bedrock
+    # lane. Rides the post-freeze tf batch (task #25), which re-diffs live vs config at execution time.
+    GRAPHRAG_RERANK_BACKEND  = "cohere"
     GRAPHRAG_SILVER_CACHE    = "on"
     GRAPHRAG_NUMBERS_BACKEND = "pg"
     GRAPHRAG_CORS_ORIGINS    = "https://leviathanconvexity.com,https://www.leviathanconvexity.com"

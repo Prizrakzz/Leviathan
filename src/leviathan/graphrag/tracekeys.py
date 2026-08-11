@@ -40,6 +40,11 @@ TRACE_RECORD_KEYS: tuple[str, ...] = (
                                  # Stamped on EVERY walk, BOTH polarities of GRAPHRAG_CLOSURE_RESERVE --
                                  # `open` is the two arms' shared deterministic baseline, so the usual
                                  # absent-when-off idiom would leave the ON arm's number uncomparable.
+    "rerank_lane",               # D-MW-6: {backends, requests, docs, fallbacks, throttles, short_counts,
+                                 # ms} for the turn. THE GATE INSTRUMENT for the cohere parity gate -- EMF
+                                 # carries no run/eval_set dimension, so "fallbacks == 0" is computable
+                                 # from this column and from nowhere else. Stamped on EVERY turn that
+                                 # reranks or could have (both polarities, same reason as cascade_closure).
 )
 
 # out["intent_decision"][decision_key] -> record[record_column].

@@ -24,7 +24,7 @@ NAMESPACE = "Leviathan/Serving"
 # lanes again. BOTH are CLOSED slug sets — a CloudWatch dimension is billed per distinct combination, so raw
 # env text (arbitrary strings) must never reach a dimension value.
 _SOURCES = ("serving", "eval", "batch", "local")
-_RERANK_BACKENDS = ("bge", "bedrock")
+_RERANK_BACKENDS = ("bge", "bedrock", "cohere")     # D-MW-6: the native lane, or its dim collapses to `other`
 
 
 def _eval_harness() -> bool:
@@ -61,7 +61,7 @@ def _source() -> str:
 
 
 def _rerank_backend() -> str:
-    """`bge` | `bedrock`, resolved through rankers so there is exactly ONE resolution path (env >
+    """`bge` | `bedrock` | `cohere`, resolved through rankers so there is exactly ONE resolution path (env >
     params > code default `bge`) — a second copy of that precedence here is how the two lanes drifted
     unnoticed in the first place. Anything else is reported as `other` rather than passed through."""
     try:

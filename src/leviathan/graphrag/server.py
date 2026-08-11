@@ -85,8 +85,15 @@ def _warm_startup() -> None:
         from leviathan.graphrag import evidence as ev
         ev.embed(["warmup"])                              # loads the bge-m3 query embedder into this process
         from leviathan.graphrag import rankers as rk
-        if rk._rerank_backend() == "bge":                 # warm the cross-encoder only when it's the active backend
-            rk.rerank_scores("warmup", ["warmup"])
+        # D-MW-5: warm the bge cross-encoder on EVERY serving start, whatever backend is active -- it is
+        # the FALLBACK for both managed lanes, and the first throttle-induced fallback on a fresh task
+        # otherwise pays a cold CrossEncoder load PLUS 13.88 s/60-doc inside the global rerank lock (at
+        # 32-node walks: a multi-minute first fallback, during an incident). Called through the bge leaf
+        # DIRECTLY, never rerank_scores -- dispatching would spend a live managed request on the word
+        # "warmup" at boot. hf_cache above stays seeded, so an outage never triggers an HF download.
+        # record=False: the ~14 s cold load must NOT publish a latency sample onto the active backend's
+        # alarm series at every task start (diff-review catch).
+        rk._bge_rerank_scores("warmup", ["warmup"], record=False)
         print(f"[warm] models warm_ms={int((time.time() - tw) * 1000)} total_ms={int((time.time() - t0) * 1000)}",
               flush=True)
     except Exception as e:  # noqa: BLE001 — warmup is best-effort; the first turn just pays the load

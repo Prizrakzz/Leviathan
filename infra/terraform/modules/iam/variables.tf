@@ -47,6 +47,12 @@ variable "databento_api_key_secret_arn" {
   default     = ""
 }
 
+variable "cohere_api_key_secret_arn" {
+  type        = string
+  description = "D-MW-4 (MOAT_WIDTH P1): Secrets Manager ARN (name-based) for the Cohere key mounted as COHERE_API_KEY on the SERVING task and on the evidence/eval jobdef. Grants the batch EXECUTION role GetSecretValue -- the same role both consumers already use as executionRoleArn, so this one grant covers both and no job/task role needs secretsmanager. Without it the failure is ResourceInitializationError at CONTAINER START (reads as a bad deploy, not a missing grant). The secret is created out-of-band; empty = no grant."
+  default     = ""
+}
+
 # SILVER-F014 (R1) — two fail-closed flags on the gated publisher role. Both DEFAULT
 # to the safe posture (canonical silver/ denied, repair off). Flipping either is a
 # governed, signed-approval action (see reports/silver_readiness/R1_F014_iam_gate.md).

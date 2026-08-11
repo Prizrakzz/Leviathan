@@ -47,6 +47,15 @@ _PARAMETERS = {
 # resolved by NAME at registration so the random suffixes stay out of this (public) repo.
 _SECRET_NAME = "leviathan-dev-anthropic-api-key"
 _PG_DSN_SECRET_NAME = "leviathan/dev/evidence-pg-dsn"          # load_pg_evidence.py / pg_evidence_swap.py exit 1 without it
+# D-MW-3: the cohere rerank key. This jobdef is what the D-MW-8 Layer B eval arm runs on, and
+# submit_eval can override `environment` but NOT `secrets` (containerOverrides has no secrets
+# field) — so WITHOUT this entry a GRAPHRAG_RERANK_BACKEND=cohere arm finds no key, falls back to
+# bge, and reports itself as a cohere run. That is the exact "measured a mixture" failure the
+# parity gate exists to prevent, and it is invisible in the artifacts. The execution role is
+# leviathan-dev-batch-execution-role, the same principal the D-MW-4 IAM trio grants
+# GetSecretValue on the cohere secret — no second grant is needed, but the grant MUST be applied
+# before this revision is used or the container dies at start with ResourceInitializationError.
+_COHERE_SECRET_NAME = "leviathan-dev-cohere-api-key"
 
 _CONTAINER = {
     # Image is pinned to the digest :latest resolves to AT REGISTRATION (matching the live revision's digest
@@ -92,11 +101,14 @@ def main() -> None:
     ]
     container["image"] = f"{_ACCOUNT}.dkr.ecr.{_REGION}.amazonaws.com/{_REPO}@{digest}"
 
-    # Inject both secrets from Secrets Manager, ARNs resolved by name.
+    # Inject the secrets from Secrets Manager, ARNs resolved by name.
     sm = boto3.client("secretsmanager", region_name=_REGION)
     container["secrets"] = [
         {"name": "ANTHROPIC_API_KEY", "valueFrom": sm.describe_secret(SecretId=_SECRET_NAME)["ARN"]},
         {"name": "EVIDENCE_PG_DSN", "valueFrom": sm.describe_secret(SecretId=_PG_DSN_SECRET_NAME)["ARN"]},
+        # COHERE_API_KEY mounts under the ECS env NAME; rankers reads COHERE_API *or* COHERE_API_KEY
+        # (the batch_extract._api_key dual-name idiom) because local .env carries the other spelling.
+        {"name": "COHERE_API_KEY", "valueFrom": sm.describe_secret(SecretId=_COHERE_SECRET_NAME)["ARN"]},
     ]
 
     payload = dict(
