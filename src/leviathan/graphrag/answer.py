@@ -473,6 +473,64 @@ def _count_unbacked_levels(structured: dict) -> int:
             + reg.unbacked_level_count(str(structured.get("mechanism") or "")))
 
 
+def _count_bare_digits(structured: dict) -> int:
+    """D-HP-4(c): the digit-lint's ESCAPE COUNTER -- how many CLAIM MAGNITUDES the model typed itself on
+    the RAW pre-sanitize draft. ALWAYS ON, both polarities of every D-HP flag, and it GATES NOTHING.
+
+    It replaces `number_unbacked` as the fabrication tripwire: 248 of the 478 killed-class events in the
+    census are `number_unbacked`, and D-HP-12 routes exactly those sentences into `bare_digit`, so a
+    successor family that reads only the strip classes would score a RENAME as a win. This counter cannot
+    be renamed into: it counts what the model TYPED, before any renderer, verifier or strip touches it.
+
+    ONE PRODUCER (D-HP-3, and this is the whole point of that item): `verify._mask_handles` +
+    `_claim_numbers_with_decimals`, which delegates to `verify._claim_number_spans` -- the extractor with
+    six measured exemptions AND the one dhp_census.json itself ran (`method.extractor`), so every count
+    here is denominated in the same producer every census percentage is. It is NOT
+    `orchestrator._stated_values` and NOT `register._level_tokens`; those two carry different exemption
+    sets, each fixed after its own live false-caution incident, and a lint that picks a fourth extractor
+    reproduces that history a fourth time.
+
+    Scored on tldr and mechanism SEPARATELY and summed, never on the concatenation -- `_count_unbacked_levels`'
+    fold-pass rule, for the same reason (a section boundary must not be a sentence boundary)."""
+    from leviathan.graphrag import verify as _vf
+
+    def _n(s: str) -> int:
+        return len(_vf._claim_numbers_with_decimals(_vf._mask_handles(s or ""))[0])
+    return _n(str(structured.get("tldr") or "")) + _n(str(structured.get("mechanism") or ""))
+
+
+def _typed_resolved(verifier: dict | None) -> dict:
+    """D-HP-2's TYPED RESOLVED MAP + D-HP-4(d)'s `citation_resolved` column, from one producer.
+
+    THE BUG IT CLOSES (review P12 -- reader-facing, not cosmetic). `verify_citations` keys `resolved` on
+    the BARE DIGIT (verify.py:904) because the tool schema types a ledger `ref` as an integer, and the FE's
+    LIVE chip path keys the lookup the same way (citations.ts:89 `CITE = /\\[([A-Za-z]?)(\\d+)\\]/g`, :94-99
+    `const key = m[2]`) -- the prefix is DISPLAY-ONLY there. The estate already documents the hazard twice
+    (verify.py:866-868 "the E/N integer namespaces collide by schema"; dossier.py:692). TODAY [E] handles
+    are model-invented and sparse; D-HP-2 makes the [E] menu DENSE over 24-63 rows while [N] runs N1..N24,
+    so E7/N7 co-exist on nearly every turn and a reader can be shown the WRONG RECEIPT for a CORRECTLY
+    BOUND handle. (The DURABLE path `resolvedFor`, citations.ts:40-67, already handles this carefully with
+    separate `numLocByRef`/`numLocByDigit` maps; it is the LIVE path that is digit-only.)
+
+    SHAPE: the same payloads, re-keyed to the FULL handle (`"E7"`). Every key in `report["resolved"]` is
+    E-namespace by construction -- a ledger ref whose prose kind is "N" takes the `kept_sources` branch
+    and never reaches the map -- and the D-DT episode scaffold's synthesized refs (answer.py's
+    `resolved[str(ref)] = ...`) are [E] refs too, which is why this is computed at RETURN time and not
+    inside verify: it must see the scaffold's additions.
+
+    ADDITIVE ONLY, AND DELIBERATELY NOT MERGED INTO `resolved` (RECORDED DIVERGENCE from D-HP-2's letter,
+    which said "ALONGSIDE the legacy digit keys" in the SAME dict). MEASURED REASON: `eval._hits`
+    (eval.py:1474-1481) iterates `resolved.items()` to compute `n_cited` / `n_cited_upstream` -- the
+    RESERVE's standing bar (R6, HELD) -- so duplicate typed keys would DOUBLE a live gate instrument's
+    numbers in H0, silently. Five further consumers join on the digit keys (`_synth_ref_floor`,
+    `_cited_sources_block`, `_prune_orphan_evidence_handles`, dossier.py:477, the FE `resolvedFor`).
+    A sibling key costs the FE one `?? ` fallback and costs the estate nothing."""
+    resolved = (verifier or {}).get("resolved") or {}
+    if not isinstance(resolved, dict):
+        return {}
+    return {(f"E{k}" if str(k).isdigit() else str(k)): v for k, v in resolved.items()}
+
+
 def raw_draft_snapshot(**parts) -> dict | None:
     """A4: the RAW model draft, captured BEFORE the verifier destroys it -- or None when the run is not
     being audited.
@@ -963,6 +1021,42 @@ def composition_census_override(on: bool | None):
         yield
     finally:
         _CENSUS_OVERRIDE.reset(token)
+
+
+_HANDLE_MENU_OVERRIDE: contextvars.ContextVar = contextvars.ContextVar(
+    "graphrag_handle_menu_override", default=None)
+
+
+@contextlib.contextmanager
+def handle_menu_override(on: bool | None):
+    """Force `_handle_menu_on()` to `on` for the duration of the block, on THIS thread only. `None`
+    restores the default (ON). Token-reset in a finally, so an exception inside the block can never
+    leave a thread pinned. The `composition_census_override` idiom, verbatim, and for the same reason:
+    the decision is PER CALL, so it cannot be an os.environ flip -- the environment is process-global
+    and a concurrent desk turn would silently inherit the dossier's setting.
+
+    D-HP-16 IS WHY IT EXISTS. The dossier's 5-12 sub-answers are ordinary quick/deep turns through
+    `orchestrator.respond` (dossier.py:4, :932), so every prompt change D-HP-1/D-HP-2 make at H0 is a
+    DOSSIER-INPUT CHANGE ON DAY ONE -- while the dossier's OUTPUT-side handle plumbing (`remap_body`
+    through the grouped-blind `dossier._HANDLE_RX`) is not fixed until D-HP-28, after G1+G2. The plan
+    already gates the GRAMMAR at this boundary (`run_subquery` pins the control preset explicitly,
+    never `deep_hp`/`quick_hp`); the MENU is the same class of input change and rides the same lever."""
+    token = _HANDLE_MENU_OVERRIDE.set(None if on is None else bool(on))
+    try:
+        yield
+    finally:
+        _HANDLE_MENU_OVERRIDE.reset(token)
+
+
+def _handle_menu_on() -> bool:
+    """Whether THIS turn renders the D-HP-2 numbered receipt menu (and the range-form ledger clause).
+
+    DEFAULT ON -- H0's menu is the wave's instrument and every desk lane gets it. It is a thread-scoped
+    OVERRIDE, not an env flag: R9's one-way-kill law owns `GRAPHRAG_HANDLE_PROSE` (the GRAMMAR), and a
+    second env knob for the MENU would be a second control surface for one wave. The only caller that
+    turns it off is `dossier.run_subquery`, and it does so per sub-call."""
+    ov = _HANDLE_MENU_OVERRIDE.get()
+    return True if ov is None else bool(ov)
 
 
 def _composition_census_on() -> bool:
@@ -1598,7 +1692,86 @@ def _usable_date(d) -> str | None:
     return s if (s and s != _DATE_SENTINEL) else None
 
 
-def _ev_block(evidence: list[dict]) -> str:
+def _uniq_evidence(evidence: list[dict]) -> list[dict]:
+    """THE ONE deduped evidence list (D-HP-1) -- `uniq`, first-occurrence order, deduped by `source_key`.
+
+    Lifted VERBATIM out of the two bodies' inline `seen_docs, uniq = set(), []` loops so the three
+    consumers (the rendered MENU, `citations.unify`'s [E] numbering, and `verify_citations`' resolution
+    set) can never again be three separate derivations of "which evidence rows exist". An item with no
+    `source_key` is not in `uniq` -- it has no durable identity to cite, and that was already true of the
+    footer and of `unify`; D-HP-1 only makes the MENU agree with them."""
+    seen_docs, uniq = set(), []
+    for h in evidence or []:
+        sk = h.get("source_key")
+        if sk and sk not in seen_docs:
+            seen_docs.add(sk)
+            uniq.append(h)
+    return uniq
+
+
+def _evidence_ordinals(uniq: list[dict]) -> dict[str, int]:
+    """`source_key` -> its 1-based GLOBAL [E] ordinal, taken off `uniq` -- i.e. the SAME positional index
+    `cit.unify` stamps (`id=f"E{i}"`, citations.py:1003-1021) and the same one `[E{i}] == uniq[i-1]` means
+    to the verifier. D-HP-1's whole point: NOT a counter threaded through the per-contract render loop.
+
+    WHY A COUNTER CANNOT WORK (recon 2 s2, the sharpest landmine in the wave). `_l2_blocks` regroups by
+    contract (`for cid in dict.fromkeys(n.contract for n in _nodes)`) and emits a node's evidence per
+    driver, while `sg.nodes` is BFS-WAVE ordered -- insertion-ordered by wave, so on any multi-seed or
+    cross-hop walk it is NOT contract-contiguous. A render-order counter therefore disagrees with `unify`
+    on every turn with a repeated `source_key` or a non-contract-contiguous wave order, which is EVERY
+    standard and quick turn (`order_policy` is None there). `_render_order`'s own docstring says the two
+    "cannot be allowed to disagree"; before D-HP-1 they coincided only by luck."""
+    return {str(h.get("source_key")): i for i, h in enumerate(uniq, 1) if h.get("source_key")}
+
+
+def _evidence_menu(uniq: list[dict]) -> dict[str, tuple[int, dict]]:
+    """`source_key` -> (its global [E] ordinal, THE ROW THAT ORDINAL MEANS -- `uniq[i-1]`).
+
+    THE D-HP-1 INVARIANT, MADE STRUCTURAL (H0 review, the blocker). The first H0 build threaded the
+    ORDINALS ALONE and left `_ev_block` to render whichever chunk of a `source_key` it met FIRST IN
+    RENDER ORDER. Those are two different rows: `_l2_blocks` regroups by contract while `uniq` is flat
+    `_render_order` order, and `source_key` is a DOCUMENT key -- `evidence.py:314` builds one record PER
+    PROPOSITION under the same key, so two chunks of one document carry genuinely different TEXT. The
+    model then read one passage under `[E{i}]` while `cit.unify`'s payload, the FE chip snippet and
+    `verify._check_evidence_handle`'s quote pool all carried the OTHER one. Consequences measured on the
+    fixture: a sentence correctly quoting what it was SHOWN strips as `quote_mismatch` /
+    `no_lexical_overlap` (a NEW false-caution class, manufactured by the menu itself and landing inside
+    G1 clause (3)/(4)'s declared set), and the FE shows a snippet the model never saw.
+
+    SO THE ORDINAL AND THE ROW IT NAMES TRAVEL AS ONE OBJECT. A caller cannot hold the numbering without
+    holding the text it binds -- the menu IS the ledger, or the grammar dies at birth. Derived from
+    `_evidence_ordinals`, never beside it: there is still exactly ONE numbering derivation in this file."""
+    return {sk: (n, uniq[n - 1]) for sk, n in _evidence_ordinals(uniq).items()}
+
+
+def _ev_block(evidence: list[dict], menu: dict[str, tuple[int, dict]] | None = None,
+              rendered: set[str] | None = None) -> str:
+    """One rendered evidence block. D-HP-2 numbers each row with its GLOBAL [E] ordinal.
+
+    ROW SHAPE (D-HP-2, corrected to PRESERVE THE TRUST TAG):
+        `- [E7][T2] (USDA WASDE, reported 2026-05-12; event 2026-04-30) {driver: x} <text>`
+    The draft's `- [E7] (USDA WASDE, ...)` silently deleted `[T1]-[T4]`, which is the row's LEADING token
+    today and which the persona depends on TWICE, verbatim (answer.py:117-120 and :260-263: "each evidence
+    item is tagged [T1]-[T4] by source trust ... When sources of DIFFERENT tiers disagree on a fact, FLAG
+    the disagreement"). The ordinal SHARES the head with [T], so the incremental prompt cost is ~0 -- and
+    it matches the [N] rows' shipped idiom (numbers/cascade.py:1747) and the dossier's `notes_block`
+    (dossier.py:626-634), which already renders exactly this at document scale.
+
+    `menu` / `rendered` are BOTH OMITTED-WHEN-DEFAULT: with `menu=None` this returns the pre-D-HP-2
+    bytes exactly, so every other caller (and the flag-off/verify-off branch, and the DOSSIER SUB-ANSWER
+    LANE per D-HP-16) is unchanged.
+
+    `menu` IS `_evidence_menu`'s (ordinal, uniq row) PAIR, NEVER A BARE ORDINAL (H0 review blocker): the
+    text rendered under `[E{i}]` is `uniq[i-1]`'s text by construction, not "whichever chunk of this
+    document this contract's block happened to carry". See `_evidence_menu` for the measured failure.
+
+    THE PER-DRIVER BLOCK STRUCTURE IS PRESERVED (D-HP-1). The menu is NUMBERED from `uniq` but RENDERED in
+    the existing per-contract / per-driver blocks, because the D-MW-30 admission-provenance header
+    (`_admission_note(n)`) has nowhere else to live and D-HP-25 lever (ii) rides it. A duplicate
+    `source_key` renders its TEXT once, at its first block, and is CROSS-REFERENCED by its global ordinal
+    everywhere else -- `rendered` is the caller-owned set that carries that state across blocks. An item
+    with no ordinal (no `source_key`, so not in `uniq` and uncitable) renders in its pre-D-HP shape: no
+    handle is offered for a row the reader could never be shown."""
     def _one(e: dict) -> str:
         head = f"[T{source_tier(e['source'])}] ({e['source']}, reported {e['date']}"
         ev_dt = _usable_date(e.get("event_date"))
@@ -1606,7 +1779,24 @@ def _ev_block(evidence: list[dict]) -> str:
             head += f"; event {ev_dt}"
         head += ")"
         drv = f" {{driver: {e['driver']}}}" if e.get("driver") else ""   # cross-cutting cascade trigger
-        return f"- {head}{drv} {e['text']}"
+        if menu is None:
+            return f"- {head}{drv} {e['text']}"
+        sk = str(e.get("source_key") or "")
+        hit = menu.get(sk)
+        if not hit:
+            return f"- {head}{drv} {e['text']}"                 # uncitable row: pre-D-HP shape, no handle
+        n, rep = hit
+        if rendered is not None and sk in rendered:
+            # THE CROSS-REFERENCE NAMES THE FIRST LABEL THE TEXT RENDERED UNDER, AND NEVER ITSELF (H0
+            # review). The first build emitted `- [E3]... (same item as [E3] above)` -- a tautology in a
+            # prompt whose whole job is to teach that an ordinal is an ADDRESS. This row carries NO [E]
+            # label of its own, so `[E{n}]` unambiguously names the ONE row whose text is above and the
+            # menu keeps the ledger property: each `[E{i}]` labels exactly one row, and that row has the
+            # text. The block header, the driver tag and the admission provenance all survive.
+            return f"- {head}{drv} (same item as [E{n}] above)"
+        if rendered is not None:
+            rendered.add(sk)
+        return f"- [E{n}]{head}{drv} {rep['text']}"
     return "\n".join(_one(e) for e in evidence) or "(no evidence retrieved)"
 
 
@@ -1690,7 +1880,8 @@ def _admission_note(node) -> str:
 
 
 def _l2_blocks(sg, graph: gph.CausalGraph, asof: str | None = None, order: list | None = None,
-               provenance: bool = False) -> list[str]:
+               provenance: bool = False,
+               menu: dict[str, tuple[int, dict]] | None = None) -> list[str]:
     """v1.1 ADDITIVE assembly (the A/B fix): the reasoner gets AT LEAST what one-hop gave it — the FULL
     _context_block per contract (all drivers, all regime definitions, inter-commodity edges) — PLUS the walk's
     structure: how each cross-commodity contract was REACHED (edge + category: an accounting identity needs no
@@ -1708,9 +1899,24 @@ def _l2_blocks(sg, graph: gph.CausalGraph, asof: str | None = None, order: list 
     with how the walk reached it. DEFAULT FALSE, and False makes the suffix the empty string, so the
     render is byte-identical for every other caller — on a reserved walk too, not merely on an empty one.
     It touches the VOLATILE half only: the annotation is per-turn state, so the cached stable prefix is
-    unaffected either way."""
+    unaffected either way.
+
+    `menu` (D-HP-1/D-HP-2, H0) is `_evidence_menu`'s `source_key -> (global [E] ordinal, THE uniq ROW)`,
+    built ONCE by the caller off `uniq` and threaded here so the rendered menu carries the SAME numbering
+    -- AND THE SAME TEXT -- `cit.unify` and the verifier use. DEFAULT None -> `_ev_block` renders its
+    pre-D-HP bytes, so every other caller is byte-identical, and so is the DOSSIER SUB-ANSWER LANE, which
+    holds the whole menu off until D-HP-28 opens (see `handle_menu_override`).
+    CACHE LAW (D-HP-2, corrected): the evidence rows were ALREADY volatile -- every evidence block is
+    appended to `vlines`, and the stable half is hop annotations + `_context_block` only. NUMBERING THEM
+    CHANGES NO CACHED BYTE AND THE MENU STAYS WHERE IT IS. (Moving the menu's POSITION is D-HP-25 lever
+    (iii) and belongs to the reserve arm -- doing it here would confound the one untried reserve lever
+    with a named mechanism.)"""
     stable: list[str] = []
     volatile: list[str] = []
+    # ONE cross-block set: a duplicate `source_key` renders its text at its FIRST block and is
+    # cross-referenced by its global ordinal in every later one. Blocks keep their headers; ordinals are
+    # global. Owned here (not by `_ev_block`) because the state spans blocks by construction.
+    _seen_rows: set[str] | None = set() if menu is not None else None
     # `order` (D-DV-2) is the SAME sequence _answer_l2 builds its flat evidence list from. None -> sg.nodes,
     # and `_by` is then sg.by_contract's own comprehension, so the render is byte-identical.
     _nodes = sg.nodes if order is None else order
@@ -1784,7 +1990,8 @@ def _l2_blocks(sg, graph: gph.CausalGraph, asof: str | None = None, order: list 
             vlines.append(f"DRIVERS MERELY NAMED IN PASSING (weak signal — no dedicated evidence): {named_only}")
         for n in _by(cid):                                         # dated evidence + silver, per grounded node
             if n.kind == "contract" and n.evidence:
-                vlines.append(f"--- DATED EVIDENCE for {cid} ---\n" + _ev_block(n.evidence))
+                vlines.append(f"--- DATED EVIDENCE for {cid} ---\n"
+                              + _ev_block(n.evidence, menu, _seen_rows))
             elif n.kind == "driver" and n.evidence:
                 # D-MW-30 / 30c: the admission provenance rides the HEADER, never the rows. The flat
                 # evidence list _answer_l2 builds (and therefore citations.unify's E-numbering and the
@@ -1792,7 +1999,8 @@ def _l2_blocks(sg, graph: gph.CausalGraph, asof: str | None = None, order: list 
                 # this string is invisible to every citation seam by construction, not by promise.
                 # `provenance` False -> `_sfx` is "" -> the f-string is the pre-wave line, byte for byte.
                 _sfx = _admission_note(n) if provenance else ""
-                vlines.append(f"--- DATED EVIDENCE for driver {n.id}{_sfx} ---\n" + _ev_block(n.evidence))
+                vlines.append(f"--- DATED EVIDENCE for driver {n.id}{_sfx} ---\n"
+                              + _ev_block(n.evidence, menu, _seen_rows))
             # R3.4 (D-EI-8): the corroboration floor's SUPPRESSION META, or None when this node's
             # episodes did not come from timeline.episodes_for (a hand-built fixture, a future producer).
             # None and {"n_suppressed": 0} are DIFFERENT facts and are kept different: the first has no
@@ -2000,8 +2208,41 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # an absent key is False on every other preset (the knob is None, never False -- reasoning_modes' F7
     # note), so both seams take their default and this whole lever has a provable off state.
     _provenance = bool((mode_knobs or {}).get("provenance_prompt"))
+    # ══ D-HP-1 (H0) -- THE HOIST: ONE LIST, ONE NUMBERING, THREE CONSUMERS ════════════════════════════
+    # THE DEFECT (recon 2 s2): three independent numberings that coincided only by luck.
+    #   PROMPT ORDER   -- `_l2_blocks` regroups by contract and emits `_ev_block(n.evidence)` per node.
+    #   VERIFIER ORDER -- the FLAT list `[{**h, "contract": n.contract} for n in _ev_order for h in
+    #                     n.evidence]`, NOT contract-regrouped, is what `verify_citations` received.
+    #   CITATION ORDER -- `uniq` (deduped by source_key) is what `cit.unify` stamps `E{i}` onto,
+    #                     positionally (citations.py:1003-1021).
+    # `sg.nodes` is BFS-WAVE ordered, so on any multi-seed or cross-hop walk it is NOT contract-contiguous,
+    # and render order and E order disagree whenever `order_policy` is None -- i.e. on EVERY standard and
+    # quick turn. `_render_order`'s own docstring says the two "cannot be allowed to disagree".
+    # THE FIX: build `evidence`/`uniq` HERE, BEFORE the render, and give all three consumers the same list.
+    #   (i)   `uniq` is the ONLY thing the menu renders, numbered by its 1-based GLOBAL ordinal (D-HP-2).
+    #   (ii)  `uniq` is the argument to `cit.unify` below -- unchanged.
+    #   (iii) `uniq` is the `evidence` argument to `verify_citations` -- CHANGED from the non-deduped list.
+    #         `[E{i}]` means `uniq[i-1]` in all three places, which the draft never said.
+    # THIS IS A PROMPT-CONTENT CHANGE, NOT A PURE REORDERING (review G8): dedup by `source_key` REDUCES the
+    # [E] rows the model sees. TWO BINDING CONSEQUENCES, both recorded in D-HP-21:
+    #   * the per-driver BLOCK STRUCTURE is preserved (the D-MW-30 admission-provenance header has nowhere
+    #     else to live and D-HP-25 lever (ii) rides it) -- see `_ev_block`'s cross-reference row;
+    #   * NO STORED PRE-HOIST ARTIFACT IS A CONTROL. Every control arm re-runs on the post-H0 image.
+    _evidence = [{**h, "contract": n.contract} for n in _ev_order for h in n.evidence]
+    _uniq = _uniq_evidence(_evidence)
+    # D-HP-16 (H0 review): THE DOSSIER SUB-ANSWER LANE DOES NOT GET THE MENU YET. `dossier.run_subquery`
+    # runs each sub-question as a NORMAL turn through respond() -> here, so without this gate the dense
+    # numbered menu -- the single strongest nudge toward multi-citation GROUPING -- lands on the one lane
+    # whose output-side fix is sequenced AFTER G1+G2: `dossier._HANDLE_RX` (dossier.py:95) does not match
+    # a grouped token at all, so `remap_body` neither remaps nor drops it and a stale LOCAL index reaches
+    # a DELIVERED document inside the GLOBAL namespace -- the plan's own "worst outcome in this wave".
+    # Raising the input density before the output fix is exactly the ordering D-HP-28 forbids, so the
+    # lane is held on the pre-D-HP prompt by the SAME boundary the plan already gates its grammar at
+    # (`run_subquery` pins the control preset; `allow_shape_escalation=False` rides the same call).
+    _menu_on = _handle_menu_on()
+    _ev_menu = _evidence_menu(_uniq) if _menu_on else None
     stable_blocks, volatile_blocks = _l2_blocks(sg, graph, asof=asof, order=_ev_order,
-                                                provenance=_provenance)
+                                                provenance=_provenance, menu=_ev_menu)
     if extra_resolver is not None:                                # numbers ∥ walk JOIN (run_hybrid): the walk is
         extra_context, extra_number_calls = extra_resolver()      # done — collect the numbers thread's output now
     if extra_context:                                             # hybrid numbers / conversation state (volatile)
@@ -2086,17 +2327,35 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
             sg.trace["quantify_error"] = type(e).__name__
     # Clause A' (thin-turn honesty fix): a per-turn GROUNDING LEDGER line enumerating the EXACT valid handle
     # ranges for this turn, so the model cannot mint an [E]/[N] handle beyond what the engine actually holds.
-    # Stays in the VOLATILE tail (never the cached constant) so the cache prefix is unchanged. n_ev is a
-    # PRE-dedup overcount of graph-node evidence (answer.py dedups below) -- a loose cap that can never
-    # SUPPRESS a legit [E], only forbid an invented one; it binds HARD only when n_ev == 0 (a dark chain).
-    n_ev = sum(len(getattr(n, "evidence", []) or []) for n in sg.nodes)
+    # Stays in the VOLATILE tail (never the cached constant) so the cache prefix is unchanged.
+    # D-HP-1, ALSO CORRECTED BY THE SAME HOIST: `n_ev` WAS "a PRE-dedup overcount of graph-node evidence
+    # ... a loose cap that can never SUPPRESS a legit [E], only forbid an invented one". Post-hoist it is
+    # EXACT -- `len(_uniq)` is literally the row count the menu rendered and the only set `unify` and the
+    # verifier will resolve against, so the cap is now the truth rather than an upper bound. ON THE
+    # MENU-OFF LANE IT IS THE PRE-DEDUP OVERCOUNT AGAIN, deliberately: nothing rendered a numbered row
+    # there, so the honest statement is the loose cap the pre-D-HP prompt made.
+    # D-HP-2, THE LEDGER LINE: the [E] clause becomes a RANGE, symmetric with [N]. The shipped asymmetry
+    # was visible in one sentence -- [N] got a range, [E] got a count -- and a count is not addressable.
+    # THE RANGE RIDES THE MENU AND CANNOT OUTLIVE IT (D-HP-16, H0 review): "each mapping to the item
+    # tagged with it above" is a claim ABOUT THE RENDERED ROWS, so on the menu-off lane the ledger reverts
+    # to its pre-D-HP sentence AND to its pre-D-HP PRE-DEDUP count, byte for byte -- a lane that renders
+    # unnumbered rows must not be told its handles are addresses. `n_ev` also feeds the composition
+    # census below, so the whole prompt (menu, ledger, mandates) is pre-D-HP on that lane, not just the
+    # rows.
+    if _menu_on:
+        n_ev = len(_uniq)
+        _e_clause = ("Emit NO [E] handles (there are no evidence items); " if n_ev == 0 else
+                     f"[E] handles run [E1]..[E{n_ev}], each mapping to the item tagged with it above; ")
+    else:
+        n_ev = sum(len(getattr(n, "evidence", []) or []) for n in sg.nodes)
+        _e_clause = f"Cite AT MOST {n_ev} distinct [E] handles, each mapping to one item above; "
     n_num = len(extra_number_calls or [])
     sg.trace["injected_n"] = n_num                               # W6.1-0: [N] rows injected (cited-vs-injected denom)
     _ledger_line = (
         f"GROUNDING LEDGER: {n_ev} dated evidence item(s) and {n_num} observed number row(s) are "
-        f"available for this question. Cite AT MOST {n_ev} distinct [E] handles, each mapping to one "
-        f"item above; " + ("emit NO [N] handles (there are no number rows)."
-                           if n_num == 0 else f"[N] handles run [N1]..[N{n_num}]."))
+        f"available for this question. " + _e_clause
+        + ("emit NO [N] handles (there are no number rows)."
+           if n_num == 0 else f"[N] handles run [N1]..[N{n_num}]."))
     # D-RC-13: the record's EDGE, stamped observationally (trace, unconditional -- the fork_basis
     # scoped-promise precedent) and stated to the model only when the flag is on (the suffix is ''
     # otherwise, so the ledger line is byte-identical flag-off).
@@ -2163,6 +2422,7 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     _banned_flow = _count_banned_flow(structured)
     _banned_exec = _count_banned_exec(structured)                 # W5: A2 execution idioms, RAW (pinned 0 always)
     _unbacked = _count_unbacked_levels(structured)                # W5.0: bare price levels, RAW (derivation gate)
+    _bare_digits = _count_bare_digits(structured)                 # D-HP-4(c): the digit-lint ESCAPE COUNTER
     # A4: the counters above are computed HERE and the draft they were computed on is destroyed BELOW --
     # verify_citations mutates `structured` in place, _humanize_structured rewrites it, sanitize cleans the
     # render. Snapshot it while it still exists (flag-gated; None -> the key is absent, not null).
@@ -2171,13 +2431,9 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     _synth_usage = _pop_usage(structured)                         # D-AM-4: same pop channel, both bodies
     if sg.mermaid and _valid_mermaid(sg.mermaid):
         structured["diagram_mermaid"] = sg.mermaid                # deterministic diagram overrides the LLM's
-    evidence = [{**h, "contract": n.contract} for n in _ev_order for h in n.evidence]
-    seen_docs, uniq = set(), []
-    for h in evidence:
-        sk = h.get("source_key")
-        if sk and sk not in seen_docs:
-            seen_docs.add(sk)
-            uniq.append(h)
+    # D-HP-1: `evidence` / `uniq` were BUILT HERE and are now built BEFORE `_l2_blocks` (see the hoist
+    # above). These two names are kept so the rest of this body reads unchanged; nothing is re-derived.
+    evidence, uniq = _evidence, _uniq
     ev_cits = cit.unify(uniq, extra_number_calls)                 # machine-readable list (UI drill-down)
     from leviathan.graphrag import verify as vf
     # D-DV-1c: the RENDERED contract set, not sg.seeds. _l2_blocks builds a context block for EVERY walk
@@ -2188,7 +2444,11 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # CYCLE-9 (2026-08-08) FIX 4, BOUNDARY 1 -- see the note at the post-verify capture below.
     _raw_draft = _fold_draft(_raw_draft, raw_draft_snapshot(
         preverify_tldr=structured.get("tldr"), preverify_mechanism=structured.get("mechanism")))
-    verifier = vf.verify_citations(structured, evidence, extra_number_calls,
+    # D-HP-1 (iii): the verifier resolves against `uniq`, NOT the pre-dedup flat list. `[E{i}]` means
+    # `uniq[i-1]` in all three places -- the rendered menu, `cit.unify`'s numbering, and here. Passing the
+    # non-deduped list let the verifier resolve a handle against a row the model was never shown under
+    # that ordinal, which is the wrong-slot class D-HP-14 exists to make auditable.
+    verifier = vf.verify_citations(structured, uniq, extra_number_calls,
                                    foreign_names=_foreign_regime_names(
                                        graph, sorted({n.contract for n in sg.nodes})))
     # ══ CYCLE-9 (2026-08-08) FIX 4 -- THE MISSING ATTRIBUTION BOUNDARY, ADDITIVE ONLY ═══════════════
@@ -2328,6 +2588,8 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                                       "citation_verifier": verifier, "banned_mood_words": _banned_mood,
                                       "banned_valuation_words": _banned_val, "banned_flow_words": _banned_flow,
                                       "banned_exec_words": _banned_exec, "unbacked_levels": _unbacked,
+                                      "bare_digit_count": _bare_digits,   # D-HP-4(c): always on, gates nothing
+                                      "citation_resolved": _typed_resolved(verifier),   # D-HP-4(d), G1 (6)
                                       "outlook_mode": _outlook, "market_register": _mr,
                                       **({"degraded_model": degraded} if degraded else {}),
                                       **({"synth_usage": _synth_usage} if _synth_usage else {}),   # D-AM-4
@@ -4942,11 +5204,19 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
             contracts.append(c)
         if len(contracts) >= max_contracts:
             break
+    # D-HP-1 (H0), THE ONE-HOP BODY'S OWN HOIST. This body builds its evidence blocks INLINE, so the
+    # retrieval loop is split: RETRIEVE first, build `uniq` + the global ordinals from the complete flat
+    # list, THEN render. Rendering inside the retrieval loop is exactly what made a render-order counter
+    # unavailable here -- the driver block's rows are appended to `evidence` AFTER every contract block has
+    # already rendered, so any numbering assigned during the loop would be short by the driver rows.
+    # The emitted BLOCK ORDER is unchanged (contract blocks, then the driver block, then extra_context,
+    # then the recency suffix), and with `ordinals` absent `_ev_block` returns its pre-D-HP bytes.
     stable_blocks, volatile_blocks, evidence, ev_ids, regimes = [], [], [], [], []
+    _hits_by_contract: list[tuple[str, list]] = []
     for c in contracts:
         hits = retrieve(query, ev.node_for(c), k=k, asof=asof, near=near)   # variants share a commodity-node slice
         stable_blocks.append(_context_block(graph, c))             # byte-stable per contract -> cache prefix
-        volatile_blocks.append(f"--- DATED EVIDENCE for {c} ---\n" + _ev_block(hits))
+        _hits_by_contract.append((c, hits))
         evidence += [{**h, "contract": c} for h in hits]
         ev_ids += [h["source_key"] for h in hits]
         regimes += [s.name for s in graph.contracts[c].convergence]
@@ -4954,9 +5224,19 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     drivers = _active_drivers(query, contracts, graph) if ev.driver_specs() else []
     driver_hits = _driver_evidence(query, drivers, k=_DRIVER_K, asof=asof, near=near, retrieve_fn=driver_retrieve)
     if driver_hits:
-        volatile_blocks.append("--- CROSS-CUTTING DRIVER EVIDENCE (cascade/convergence triggers; tie to silver) ---\n"
-                               + _ev_block(driver_hits))
         evidence += [{**h, "contract": "(driver)"} for h in driver_hits]
+    uniq = _uniq_evidence(evidence)                                # D-HP-1: the ONE list, built ONCE
+    # D-HP-16 (H0 review): the dossier gate rides BOTH bodies, or `GRAPHRAG_PLANNER=onehop` -- the
+    # DOCUMENTED rollback lane -- would put every dossier sub-answer back on the numbered menu with the
+    # grouped-blind `remap_body` still downstream. Same lever, same reason; see `_answer_l2`'s hoist.
+    _ev_menu = _evidence_menu(uniq) if _handle_menu_on() else None
+    _seen_rows: set[str] = set()
+    for c, hits in _hits_by_contract:
+        volatile_blocks.append(f"--- DATED EVIDENCE for {c} ---\n"
+                               + _ev_block(hits, _ev_menu, _seen_rows))
+    if driver_hits:
+        volatile_blocks.append("--- CROSS-CUTTING DRIVER EVIDENCE (cascade/convergence triggers; tie to silver) ---\n"
+                               + _ev_block(driver_hits, _ev_menu, _seen_rows))
     if extra_context:                                              # hybrid numbers / conversation state (volatile)
         volatile_blocks.append(extra_context)
     # D-RC-13 on the one-hop body: this body has no GROUNDING LEDGER line, so the record-edge sentence
@@ -5012,6 +5292,7 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     _banned_flow = _count_banned_flow(structured)
     _banned_exec = _count_banned_exec(structured)                 # W5: A2 execution idioms, RAW (pinned 0 always)
     _unbacked = _count_unbacked_levels(structured)                # W5.0: bare price levels, RAW (derivation gate)
+    _bare_digits = _count_bare_digits(structured)                 # D-HP-4(c): the digit-lint ESCAPE COUNTER
     # A4 on the SECOND synthesis path. There is no single choke point -- verify_citations is called from
     # _answer_l2 AND from here, and this is the documented GRAPHRAG_PLANNER=onehop rollback lane. Snapshotting
     # only the L2 body would leave the fallback with no raw draft, i.e. a silent hole in the audit exactly on
@@ -5021,19 +5302,14 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     _synth_usage = _pop_usage(structured)                         # D-AM-4: same pop channel, both bodies
     # unified provenance footer (Phase 4): document-level, deduped by source_key. Numbers citations join here in
     # the Phase-5 hybrid path; the per-prop page/char slots ride along for the page-citation recovery.
-    seen_docs, uniq = set(), []
-    for h in evidence:
-        sk = h.get("source_key")
-        if sk and sk not in seen_docs:
-            seen_docs.add(sk)
-            uniq.append(h)
+    # D-HP-1: `uniq` was rebuilt HERE and is now built once, above, beside the ordinals the menu rendered.
     ev_cits = cit.unify(uniq, extra_number_calls)                 # machine-readable list (UI drill-down)
     from leviathan.graphrag import verify as vf
     # CYCLE-9 FIX 4 on the SECOND synthesis path, for the SAME reason A4/A4b are here: identical two
     # boundaries, identical field names (see the note at the L2 body).
     _raw_draft = _fold_draft(_raw_draft, raw_draft_snapshot(
         preverify_tldr=structured.get("tldr"), preverify_mechanism=structured.get("mechanism")))
-    verifier = vf.verify_citations(structured, evidence, extra_number_calls,
+    verifier = vf.verify_citations(structured, uniq, extra_number_calls,   # D-HP-1 (iii), both bodies
                                    foreign_names=_foreign_regime_names(graph, contracts))
     _raw_draft = _fold_draft(_raw_draft, raw_draft_snapshot(
         postverify_tldr=structured.get("tldr"), postverify_mechanism=structured.get("mechanism")))
@@ -5095,6 +5371,8 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
             "trace": {"routed": routed, "contracts": contracts, "banned_mood_words": _banned_mood,
                       "banned_valuation_words": _banned_val, "banned_flow_words": _banned_flow,
                       "banned_exec_words": _banned_exec, "unbacked_levels": _unbacked,
+                      "bare_digit_count": _bare_digits,            # D-HP-4(c): always on, gates nothing
+                      "citation_resolved": _typed_resolved(verifier),   # D-HP-4(d), G1 (6)
                       "outlook_mode": _outlook, "market_register": _mr,
                       "record_through": _rec_through,              # D-RC-13: observational, both bodies
                       **({"number_handles": _nhandles}             # D-PQ HANDLE-1: same census, both bodies

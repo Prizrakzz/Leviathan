@@ -2435,6 +2435,16 @@ def _baseline_json(rows: list[dict], *, run_kind: str, model: str, judged: bool,
             # field was never sent, which resolves to standard); what each turn actually RAN is the
             # per-answer `mode_decision` column, lifted from the decision dict via the tracekeys registry.
             "mode": mode,
+            # D-HP-4, THE ARM STAMP (review P17; the section-2 law). WITHOUT IT a D-HP treatment artifact
+            # and its control differ ONLY by `git_commit` (added at _write_baseline) and D-HP-19's BRIDGE
+            # RUN has no join key. Landed in the SAME change as the trace keys and BEFORE any arm runs,
+            # which is the whole point: an arm identity added after the arms have run is not an identity.
+            # It reads the RESOLVED PRESET KNOB (R9: the treatment rides the matched dark presets
+            # deep_hp/quick_hp/esc_hp/esc_r_hp, NOT a process env), with GRAPHRAG_HANDLE_PROSE as the
+            # ONE-WAY KILL SWITCH layered on top. At H0 no preset declares the knob, so every run stamps
+            # the kill-switch's value (None/"off") -- the column exists and is stable from today, and it
+            # becomes correct with no eval-side edit the moment D-HP-8 mints the presets.
+            "handle_prose": _handle_prose_arm(mode),
             "n_answers": len(per),
             "total_strips": total_strips, "total_claims": total_claims, "total_handles": total_handles,
             "total_repairs": total_repairs,                      # CYCLE-8 FIX 2(c): offending handles
@@ -2448,6 +2458,42 @@ def _baseline_json(rows: list[dict], *, run_kind: str, model: str, judged: bool,
             "intent_ok": sum(1 for p in per if p["intent_ok"]),
             "intent_n": sum(1 for p in per if p["intent_ok"] is not None),
             "per_answer": per}
+
+
+def _handle_prose_arm(mode: str | None) -> str | None:
+    """D-HP-4's arm stamp: what `handle_prose` was RESOLVED to for this run, or None when the wave's
+    control surface does not exist on this image yet.
+
+    R9 (ratified): the treatment rides a MATCHED DARK PRESET SET (`deep_hp`/`quick_hp`/`esc_hp`/`esc_r_hp`)
+    and `GRAPHRAG_HANDLE_PROSE` is demoted to a ONE-WAY KILL SWITCH. The decisive reason the knob cannot be
+    a process env is that the escalation seam swaps the knob dict WHOLE (orchestrator.py:2138-2139), so an
+    env-only design silently strips the treatment MID-TURN on two of the four judged gates.
+    So the resolution order here is: the preset knob, then the kill switch, and the kill switch WINS --
+    and the env can only ever say OFF. A non-kill env value (`on`, `1`, anything) stamps None, because
+    it did not and could not turn the treatment on.
+
+    NEVER RAISES and never reads a mode that does not exist -- `reasoning_modes.knobs` returns {} for an
+    unknown name, so a deck naming a preset this image has not shipped stamps None rather than failing a
+    (billed) run at artifact-write time."""
+    import os as _os
+    try:
+        from leviathan.graphrag import reasoning_modes as _rm
+        knob = (_rm.knobs(mode) or {}).get("handle_prose")
+    except Exception:                                  # noqa: BLE001 -- an arm stamp is never worth a run
+        knob = None
+    kill = str(_os.environ.get("GRAPHRAG_HANDLE_PROSE", "")).strip().lower()
+    if kill in ("off", "0", "false", "kill"):
+        return "off"                                   # the one-way kill switch, recorded as such
+    if knob is None:
+        # ONE-WAY MEANS ONE-WAY (H0 review). The first build returned `kill or None` here, so a stray
+        # `GRAPHRAG_HANDLE_PROSE=on` stamped the arm "on" when NOTHING had turned the treatment on --
+        # the env cannot reach the render seam at all (R9: the escalation seam swaps the knob dict WHOLE
+        # at orchestrator.py:2138-2139, which is the decisive reason the knob is a PRESET). This is the
+        # join key D-HP-19's bridge run and every arm-vs-control comparison ride, and an artifact that
+        # NAMES AN ARM THAT DID NOT RUN is strictly worse than one that names none. So: only a preset
+        # knob or an explicit kill may ever name an arm; any other env value stamps None.
+        return None                                    # H0: no preset declares it -> absent, never "on"
+    return str(knob)
 
 
 def _baseline_git_commit() -> str:

@@ -448,17 +448,25 @@ def test_grounding_ledger_line_present_with_counts(monkeypatch):
               retrieve=_retrieve, call=_fake_answer_call(captured), route_fn=lambda q, g: ["arabica_coffee"],
               extra_number_calls=[ncall])
     user = captured["user"]
-    assert "GROUNDING LEDGER:" in user and "Cite AT MOST" in user
+    # D-HP-2 (H0): the [E] clause is now a RANGE, symmetric with [N] -- the shipped asymmetry ("[N] gets a
+    # range, [E] gets a count") is what made the [E] menu unaddressable. `n_ev` is also EXACT now
+    # (`len(uniq)`, D-HP-1) rather than the old pre-dedup overcount, so it is a real upper index and not a
+    # loose cap. The withdrawn wording is asserted ABSENT in tests/unit/test_dhp_handle_grammar.py.
+    assert "GROUNDING LEDGER:" in user and "[E] handles run [E1]..[E" in user
     assert "[N] handles run [N1]..[N1]." in user                     # exactly one number row -> [N1]
     import re
     m = re.search(r"GROUNDING LEDGER: (\d+) dated evidence item\(s\) and (\d+) observed number row\(s\)", user)
     assert m and int(m.group(1)) >= 1 and int(m.group(2)) == 1       # >=1 [E] item, exactly 1 [N] row
+    assert f"[E] handles run [E1]..[E{m.group(1)}]" in user          # the range AGREES with the count
 
 
 def test_grounding_ledger_line_dark_says_no_handles(monkeypatch):
     # a DARK chain (empty retrieval, no number rows): the line reports 0/0 and structurally removes the
-    # invent-a-handle move -- 'Cite AT MOST 0 distinct [E] handles' + 'emit NO [N] handles'. Unit-test
-    # equivalent of the q6 dry-render (a real q6 run may yield nonzero [E]; this proves the 0/0 wording).
+    # invent-a-handle move -- 'Emit NO [E] handles' + 'emit NO [N] handles'. Unit-test equivalent of the
+    # q6 dry-render (a real q6 run may yield nonzero [E]; this proves the 0/0 wording).
+    # D-HP-2: the zero branch was 'Cite AT MOST 0 distinct [E] handles', which asks the model to reason
+    # about a cap of zero. The range form has no zero to state, so the empty case says so in words --
+    # and it binds HARDEST exactly here, on a dark chain, which is the case Clause A' was written for.
     gr = _graph()
     monkeypatch.setattr(ev, "embed", lambda texts, **k: [[0.0] for _ in texts])
     captured = {}
@@ -467,8 +475,9 @@ def test_grounding_ledger_line_dark_says_no_handles(monkeypatch):
               call=_fake_answer_call(captured), route_fn=lambda q, g: ["arabica_coffee"])
     user = captured["user"]
     assert "GROUNDING LEDGER: 0 dated evidence item(s) and 0 observed number row(s)" in user
-    assert "Cite AT MOST 0 distinct [E] handles" in user
+    assert "Emit NO [E] handles (there are no evidence items)" in user
     assert "emit NO [N] handles (there are no number rows)." in user
+    assert "[E1]" not in user                    # a dark chain offers NO addressable receipt at all
 
 
 def test_sectionize_round_trip_rich_fixture():

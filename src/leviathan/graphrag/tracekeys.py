@@ -71,6 +71,41 @@ TRACE_RECORD_KEYS: tuple[str, ...] = (
                                  # them off the deep arms. They ride INSIDE this dict rather than as two
                                  # DECISION_RECORD_KEYS entries so eval.py gains the columns with no edit
                                  # and no column shift -- one registered key, one stamp site, one producer.
+    # ── D-HP H0 (D-HP-4). APPENDED at the tail, per the law above (the 12f column-shift lesson).
+    "prose_handles",             # D-HP-4(a): the [E]-side census, a SIBLING of `number_handles`, NEVER a
+                                 # fifth key inside it -- `number_handles` is a four-key dict pinned
+                                 # byte-for-byte by the suites (answer.py:3856-3860). Same four-key shape:
+                                 # {substituted, handles_dropped, sentences_dropped, unresolvable}.
+                                 # Absent (None) until D-HP-10's [E] resolution pass lands at H1.
+    "error",                     # D-HP-4(b): the LITERAL key, not the draft's `turn_error`. This registry
+                                 # lifts keys VERBATIM BY THEIR OWN NAME (the contract above; eval.py's
+                                 # `**{k: trace.get(k) ...}` has NO rename hook), so a `turn_error` entry
+                                 # would lift a key nothing stamps -- an all-None column forever, a PERFECT
+                                 # reproduction of the C2/U3 class this registry exists to kill. `error` IS
+                                 # stamped: eval.py's outer except (:1771) and `_timeout_row` (:1225,
+                                 # "watchdog_timeout" beside degraded_model), so the column separates CRASH
+                                 # from WATCHDOG on arrival. Renaming the stamp is not the fix either --
+                                 # `_timeout_row`'s docstring makes trace['error'] the AV2 transient-policy
+                                 # discriminator.
+    "floor_cause",               # D-HP-4(b): the orchestrator's deterministic floor (orchestrator.py:2314,
+                                 # beside trace["floor"]="evidence_only" at :1597). A FLOORED turn is a
+                                 # THIRD failure shape and was invisible in the per-answer record.
+                                 # NB (AC3 correction 4a, MEASURED): these two ATTRIBUTE a failure, they do
+                                 # not DETECT one. The four max-arm dead rows carry `error` None,
+                                 # `floor_cause` absent, `answer` None and `mode_decision` POPULATED --
+                                 # neither the except-branch nor the floor produced them. THE TRIPWIRE is
+                                 # `walk_shape is not None` AND `synth_usage is not None` (both already
+                                 # registered above); G1 clause (5) and G3 rung 4 read all four.
+    "bare_digit_count",          # D-HP-4(c): RAW pre-sanitize digit escapes, in the counter-cluster idiom at
+                                 # answer.py:2161-2169. ALWAYS ON, both polarities of the flag, gates nothing.
+                                 # It is the digit-lint's ESCAPE COUNTER and it replaces `number_unbacked` as
+                                 # the fabrication tripwire (248 of the 478 killed-class events are
+                                 # `number_unbacked`, and D-HP-12 routes exactly those sentences here).
+    "citation_resolved",         # D-HP-4(d): the verifier's `resolved` map projected onto the per-answer
+                                 # record. WITHOUT IT NO [E] BINDING IS AUDITABLE FROM ANY STORED ARTIFACT --
+                                 # the record carries `served_rows` (so an [N] handle -> row join exists) but
+                                 # neither `resolved` nor the evidence list, so G1 clause (6)'s spot-audit is
+                                 # not computable for [E] handles at all. GATE-BLOCKING for D-HP-21 (6).
 )
 
 # out["intent_decision"][decision_key] -> record[record_column].

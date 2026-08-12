@@ -280,7 +280,39 @@ OUTLOOK = "outlook"
 # -> every sentence carrying an uncited level token is STRIPPED. Fail-closed: the default is NOT backed.
 _OUTLOOK_HEADING = re.compile(r"^#{1,6}\s*Outlook\b.*$", re.I | re.M)
 _NEXT_HEADING = re.compile(r"^#{1,6}\s+\S", re.M)
-_CIT_HANDLE = re.compile(r"\[[EN]\d+\]")
+# ── D-HP-3 (handle-prose wave, H0): THE GROUPED/RANGED HANDLE SHAPE, and why this module had to learn it.
+# MEASURED AT FOLD TIME against the shipped module: `_level_tokens("Use of [N1, 23] fell.")` returned
+# `['23']` and `_level_tokens("Use of [N13, 14] fell.")` returned `['14']`. Both `_CIT_HANDLE` and the old
+# `_NUM_NOISE` head carried ONLY the SOLITARY `\[[EN]\d+\]` shape, while the bare-CONTINUATION member form
+# `[N1, 23]` is explicitly LEGAL to `verify._HANDLE` (verify.py:97 `_H_MEMBER_ANY`, "continuation behind a
+# PREFIXED lead: prefix optional", pinned at test_cycle10_no_rewrites.py:180). So a grouped handle's member
+# indices shed into `_NUM_TOKEN` as candidate PRICE LEVELS. MEASURED CONSEQUENCE, both legs:
+#   * OUTLOOK: `sanitize('Palm olein use of [N1, 23] fell in the quarter.', market_register=OUTLOOK)` == ''
+#     -- the whole sentence stripped, fail-closed, for citing its evidence in a grouped token.
+#   * FENCED: the sentence survives (the derivation gate is OUTLOOK-scoped -- the plan's clause says
+#     "under FENCED ... is STRIPPED"; the measured strip is on OUTLOOK. RECORDED, not silently adopted),
+#     but `unbacked_levels`/`unbacked_level_count` -- the `price_target_backed` teeth -- still count `23`
+#     as an unbacked level on EVERY register. A counter that charges a citation is the same defect.
+# Handle-prose raises grouped-handle density BY DESIGN, so this is a regression VECTOR, not a cosmetic
+# parse divergence.
+#
+# THE SPELLING, AND ITS ONE NAMED DIVERGENCE FROM `orchestrator._HANDLE_TOKEN_RX` (D-HP-6 consumer 8).
+# The orchestrator's scrub reads `\[\s*[NE]?\d+[a-z]?(?:\s*[,;<dash>-]\s*[NE]?\d+[a-z]?)*\s*\]` -- the LEAD
+# member's prefix is OPTIONAL there. Copying that verbatim into a LEVEL scrubber re-opens the year-range
+# hazard `verify._HANDLE` closed deliberately (verify.py:85-92: "`[1980-1990]` and `[5900-9999]` are not
+# [handles], because their lead is bare"). MEASURED: with the orchestrator spelling copied verbatim,
+# `_level_tokens('band [5900-9999] held.')` goes `['5900','9999']` -> `[]` -- a bracketed price band stops
+# being an unbacked level, i.e. the gate passes by being WEAKENED. That is the exact regression class the
+# 2026-07-31 `_POLICY_LEAD` narrowing exists to refuse. SO: the LEAD MUST CARRY ITS PREFIX here, which is
+# `verify._HANDLE`'s own rule and the one this wave's chosen producer already enforces. Continuations stay
+# prefix-optional, which is the whole leak. A solitary BARE `[3]` is excluded for the same reason: it is
+# indistinguishable from a bracketed price `[1450]`. DIVERGENCES RECORDED, direction TIGHTENING, both
+# asserted in tests/unit/test_dhp_handle_grammar.py.
+# ASCII SOURCE: the dash variants are built from CODEPOINTS (verify.py's `_QUOTE_EDGE` discipline).
+_H_DASHES = "-" + "".join(chr(c) for c in (0x2010, 0x2011, 0x2012, 0x2013, 0x2014, 0x2015, 0x2212))
+_H_SEP = r"(?:,|;|&|/|and|[" + _H_DASHES + r"])"          # verify.py:95, verbatim (`-` FIRST: never a range)
+_HANDLE_TOKEN = (r"\[\s*[NE]\d+[a-z]?(?:\s*" + _H_SEP + r"\s*[NE]?\d+[a-z]?)*\s*\]")
+_CIT_HANDLE = re.compile(_HANDLE_TOKEN, re.I)
 _MOVE_TOKEN = re.compile(r"[+\-−]\s?\d+(?:\.\d+)?\s*%")
 _DERIV_OP = re.compile(r"->|→|\bimplie[sd]\b|\bimplying\b|\bworks out to\b|\bgives\b")
 # A sentence carrying one of these is stating a DERIVED OUTPUT, not quoting an observed row. It is held to
@@ -330,8 +362,8 @@ _ANCHOR_WORD = re.compile(
 # Numeric noise that is never a price level: citation handles, ISO/partial dates, marketing years,
 # percentages, and bare calendar years.
 _NUM_NOISE = re.compile(
-    r"\[[EN]\d+\]"                                   # citation handles
-    r"|\b\d{4}-\d{2}(-\d{2})?\b"                     # 2024-01 / 2024-01-10
+    _HANDLE_TOKEN                                    # citation handles (solitary AND grouped/ranged)
+    + r"|\b\d{4}-\d{2}(-\d{2})?\b"                   # 2024-01 / 2024-01-10
     # (C) MARKETING YEAR. `\b\d{4}/...` could not fire on 'MY2000/01' -- the 'MY' prefix destroys the
     # leading word boundary, so nothing was scrubbed, and `_NUM_TOKEN`'s `(?<![\w.])` then blocked '2000'
     # (preceded by 'Y') while letting the two-digit TAIL '01' through as a level. 2 of the 25 hits. The

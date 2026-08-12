@@ -920,14 +920,24 @@ def run_subquery(entry: dict, *, asof: str | None, graph, respond=None, on_stage
     deck measures SINGLE TURNS only, so an escalated dossier would be both unmeasured and outside the
     gate that decides the flip. The opt-out is recorded per sub-turn as
     `trace.escalation_decision.suppressed_reason == 'caller'`, never as a silent absence. This is the
-    boundary to move -- deliberately, with its own measurement -- if the dossier ever wants the width."""
+    boundary to move -- deliberately, with its own measurement -- if the dossier ever wants the width.
+
+    THE D-HP NUMBERED RECEIPT MENU IS OPTED OUT AT THIS SAME BOUNDARY (D-HP-16, H0 review).
+    `an.handle_menu_override(False)` rides EVERY respond() call this lane makes, on both configs, so a
+    sub-answer renders the PRE-D-HP prompt -- unnumbered evidence rows and the pre-D-HP ledger sentence,
+    byte for byte. WHY, in one line: an addressable dense menu is the strongest available nudge toward
+    multi-citation GROUPING, and `_HANDLE_RX` (:95) below does not match a grouped token at all, so
+    `remap_body` neither remaps nor drops it and a stale LOCAL index reaches a DELIVERED document inside
+    the GLOBAL namespace. The plan already pins this lane's GRAMMAR to the control preset (never
+    `deep_hp`/`quick_hp`) until D-HP-28's own gate opens; the menu is the same class of input change and
+    is held at the same boundary rather than raising the input density before the output fix lands."""
     from leviathan.graphrag import answer as an
     from leviathan.graphrag import orchestrator as orch
     fn = respond if respond is not None else orch.respond
     deep = entry.get("config") == "deep"
 
     def _go():
-        with an.composition_census_override(deep):
+        with an.composition_census_override(deep), an.handle_menu_override(False):
             return fn(entry["question"], graph=graph, asof=asof,
                       mode="deep" if deep else "quick", on_stage=on_stage,
                       allow_shape_escalation=False)
