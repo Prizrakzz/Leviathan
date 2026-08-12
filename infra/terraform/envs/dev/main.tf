@@ -572,6 +572,12 @@ module "serving" {
     GRAPHRAG_RERANK_BACKEND  = "cohere"
     GRAPHRAG_SILVER_CACHE    = "on"
     GRAPHRAG_NUMBERS_BACKEND = "pg"
+    # D-MW P5 FLIP (2026-08-12, plan 12f): the credit ledger + depth slider go live in the SAME
+    # change as the fd908fb8 image digest (the flip law). Registered from live via
+    # register_serving_taskdef.py; written here as config-of-record so the next module.serving
+    # apply cannot silently un-meter the tiers. GRAPHRAG_MODES stays quick,deep (already live).
+    GRAPHRAG_CREDITS         = "on"
+    GRAPHRAG_CREDITS_LIMIT   = "100"
     GRAPHRAG_CORS_ORIGINS    = "https://leviathanconvexity.com,https://www.leviathanconvexity.com"
 
     GRAPHRAG_AUTH              = "on"

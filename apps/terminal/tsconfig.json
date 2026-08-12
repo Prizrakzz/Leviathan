@@ -21,5 +21,8 @@
     "paths": { "@/*": ["src/*"] },
     "types": ["vitest/globals", "@testing-library/jest-dom", "node"]
   },
-  "include": ["src", "scripts", "vitest.setup.ts", "playwright.config.ts", ".storybook"]
+  "include": ["src", "scripts", "vitest.setup.ts", "playwright.config.ts", ".storybook"],
+  // Stories are storybook-only and NOT in the shipped bundle; the deploy gate typechecks what
+  // ships. WIP stories (e.g. a co-tenant rebuild of pruned views) must not veto an app deploy.
+  "exclude": ["src/**/*.stories.tsx"]
 }
