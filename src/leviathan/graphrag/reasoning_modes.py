@@ -37,7 +37,7 @@ THREADS values, it does not redesign seams:
 KEEPS its name and becomes the tier seed CEILING (6); the dispatch planner decides the REALIZED cardinality
 under it, and every budget scales PER SEED from that realized count: 63 cosine slots/seed (the measured p75
 of per-seed above-tau demand) plus 4 DEDICATED reserve slots/seed for graph admission, so cosine and
-structural admission can never displace each other. `max_c0` is byte-identical except `per_seed_reserve=0`
+structural admission can never displace each other. `max_c0` is now byte-identical (12c zeroed both)
 -- 0 is a VALUE, not None: it survives `knobs()` and forces the reservation OFF outright (the closure kwarg
 beats the env, a shipped pin), which is what makes the P3-A arms differ by exactly ONE variable at identical
 width. Both are DARK until P4 adjudicates the bundle; `max_c0` stays dark permanently as the OFF control.
@@ -133,15 +133,16 @@ class Mode:
 
 MODES: dict[str, Mode] = {m.name: m for m in (
     # D-MW-13 (R7, RATIFIED 2026-08-11): max_seeds 1 -> 2 is a CEILING, not a fan-in raise -- a
-    # two-market question on the DEFAULT tier stops being a one-market answer. quick's own per-seed
-    # budget (12, the ratified Scan allocation) lands with the P4 ARMS, deliberately not here, so
-    # P3-A/B attribution stays one-variable.
+    # two-market question on the DEFAULT tier stops being a one-market answer. P4-ARM COMMIT
+    # (2026-08-12, after the P3 gates -- plan 12c): per_seed_budget=12, the ratified Scan
+    # allocation, replaces the flat node_budget=6 (the walk derives 12 x realized seeds).
     Mode(name=QUICK,
-         node_budget=6, depth=1, max_seeds=2,
+         depth=1, max_seeds=2,
          k_by_depth=(4, 2), evidence_cap=12, probe_cap=12,
          fetch_k=40, silver_cap=4,
          scaffold_max_bullets=6, scaffold_max_absence=3,
-         budget_scale=0.7, xc_force=False),
+         budget_scale=0.7, xc_force=False,
+         per_seed_budget=12),
     Mode(name=STANDARD),          # LOAD-BEARING: all-None IS the byte-identical passthrough guarantee
     # D-DV-1: four knobs amended on the FORENSICS, not on taste. fetch_k 120 -> 60: RERANK_POOL is 60 and
     # the pool cut runs AFTER fusion, so at 120 the pool collapsed to ~dense-top-60 and the BM25 leg (the
@@ -161,14 +162,15 @@ MODES: dict[str, Mode] = {m.name: m for m in (
     # verdict for no reason. The reservation is flagged separately (GRAPHRAG_CLOSURE_RESERVE) and is NOT a
     # mode knob in v1: it is the A/B's single variable, so it must not ride a preset that also moves
     # node_budget / caps / fetch_k.
-    # D-MW-13 (R7): max_seeds 3 -> 4 = deep's tier CEILING. Its per-seed budget (32, the ratified
-    # Analysis allocation) rides the P4-arm commit, same sequencing reason as quick's.
+    # D-MW-13 (R7): max_seeds 3 -> 4 = deep's tier CEILING. P4-ARM COMMIT (2026-08-12, plan 12c):
+    # per_seed_budget=32, the ratified Analysis allocation, replaces the flat node_budget=16.
     Mode(name=DEEP,
-         node_budget=16, depth=1, max_seeds=4,
+         depth=1, max_seeds=4,
          k_by_depth=(7, 5), evidence_cap=48, probe_cap=36,
          fetch_k=60, silver_cap=12,
-         scaffold_max_bullets=12, scaffold_max_absence=6,   # == today's params default (deep = today)
-         budget_scale=None, xc_force=None),
+         scaffold_max_bullets=12, scaffold_max_absence=6,   # == today's params default
+         budget_scale=None, xc_force=None,
+         per_seed_budget=32),
     # D-DV-2 THE ARM: explore WIDE (same 16-node walk, same 3 seeds), cite NARROW (cap 48 -> 24) and
     # spend that narrower cap by relevance rather than by arrival order, with the strongest rows rendered
     # last. Everything else is deep's, so the A/B moves the cap policy + the order + the cap size only.
@@ -189,11 +191,14 @@ MODES: dict[str, Mode] = {m.name: m for m in (
          fetch_k=60, silver_cap=12,
          scaffold_max_bullets=12, scaffold_max_absence=6,
          cap_policy="score", order_policy="relevance",
-         per_seed_budget=63, per_seed_evidence_cap=24, per_seed_probe_cap=24, per_seed_reserve=4),
-    # THE OFF CONTROL, byte-identical to `max` except per_seed_reserve 4 -> 0. It exists because the
-    # closure kwarg beats GRAPHRAG_CLOSURE_RESERVE OUTRIGHT (a shipped precedence pin), so "max with
-    # graph admission OFF" is unconstructible from one preset -- and P3-A's two arms must differ by
-    # exactly one variable at identical width. Permanently dark.
+         # per_seed_reserve 4 -> 0: THE P3 GATE TERMINATION (plan 12c, 2026-08-12). P3-A: 0/8 live
+         # rows cited a reserved node, both runs; P3-B: the reserve cost strip 1.17x/1.31x at
+         # identical width. Reservation ships OFF, no fix cycle (D-GD-3 discipline); re-open paths
+         # are D-MW-17's token budget and D-HP. The admission MACHINERY stays built and dark.
+         per_seed_budget=63, per_seed_evidence_cap=24, per_seed_probe_cap=24, per_seed_reserve=0),
+    # THE P3 OFF CONTROL, retained as the historical arm identity (P3 artifacts stamp honored=max_c0).
+    # Since the 12c termination zeroed max's own reserve the two presets are now BYTE-IDENTICAL except
+    # name; max_c0 stays permanently dark and is NEVER the shipped tier.
     Mode(name=MAX_C0,
          depth=2, max_seeds=6,
          k_by_depth=(7, 5, 3),

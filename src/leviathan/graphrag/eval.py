@@ -2659,7 +2659,10 @@ def report(rows: list[dict], *, model: str, graph_version: str | None = None,
 
 
 _PRICE = {"claude-sonnet-4-6": (3.0 / 1e6, 15.0 / 1e6), "claude-opus-4-8": (5.0 / 1e6, 25.0 / 1e6),
-          "claude-haiku-4-5": (1.0 / 1e6, 5.0 / 1e6)}
+          "claude-haiku-4-5": (1.0 / 1e6, 5.0 / 1e6),
+          # D-MW-20: the two absent entries made every sonnet-5/opus-5 dry-run fall through to the
+          # sonnet-4-6 row and UNDERESTIMATE -- added here because P4's price record reads this table.
+          "claude-sonnet-5": (3.0 / 1e6, 15.0 / 1e6), "claude-opus-5": (5.0 / 1e6, 25.0 / 1e6)}
 
 
 def estimate_cost(queries: list[dict], *, model: str, judge_model: str | None = None,

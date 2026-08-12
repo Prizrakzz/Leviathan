@@ -150,22 +150,26 @@ def test_mode_is_frozen():
 def test_v1_knob_table_matches_the_ratified_values():
     """D-AM-10's table, transcribed. If the eval retunes a number this test is the one place to
     change it -- and the change is then visible in review, which is the whole point."""
+    # P4-ARM COMMIT (2026-08-12, plan 12c): quick/deep converted to the ratified per-seed budgets
+    # (Scan 12 / Analysis 32); the flat node_budget is gone -- the walk derives budget x realized seeds.
     assert rm.knobs(rm.QUICK) == {
-        "node_budget": 6, "depth": 1, "max_seeds": 2,          # D-MW-13 (R7): a CEILING, ratified 08-11
+        "depth": 1, "max_seeds": 2,                            # D-MW-13 (R7): a CEILING, ratified 08-11
         "k_by_depth": (4, 2), "evidence_cap": 12, "probe_cap": 12,
         "fetch_k": 40, "silver_cap": 4,
         "scaffold_max_bullets": 6, "scaffold_max_absence": 3,
-        "budget_scale": 0.7, "xc_force": False}
+        "budget_scale": 0.7, "xc_force": False,
+        "per_seed_budget": 12}
     # D-DV-1: deep amended on the forensics. fetch_k 120->60 (>60 deletes the lexical leg outright:
     # RERANK_POOL is 60 and the cut runs after fusion), depth 3->1 + k_by_depth (7,5,3)->(7,5) (DEAD:
     # node_budget saturated 36/36 inside wave 1, wave 2 never ran), xc_force True->None (forced
     # reroute-v2 = number_mismatch dose-response 2/2/11), budget_scale 1.5->None (H-verbosity killed).
-    # D-MW-13 (R7): deep's max_seeds 3 -> 4 is its tier CEILING; the per-seed budget (32) is P4's commit.
+    # D-MW-13 (R7): deep's max_seeds 3 -> 4 is its tier CEILING.
     assert rm.knobs(rm.DEEP) == {
-        "node_budget": 16, "depth": 1, "max_seeds": 4,
+        "depth": 1, "max_seeds": 4,
         "k_by_depth": (7, 5), "evidence_cap": 48, "probe_cap": 36,
         "fetch_k": 60, "silver_cap": 12,
-        "scaffold_max_bullets": 12, "scaffold_max_absence": 6}
+        "scaffold_max_bullets": 12, "scaffold_max_absence": 6,
+        "per_seed_budget": 32}
 
 
 def test_deep_v2_preset_matches_the_ratified_values():
@@ -193,21 +197,25 @@ def test_max_preset_matches_the_step0_calibrated_values():
         "fetch_k": 60, "silver_cap": 12,
         "scaffold_max_bullets": 12, "scaffold_max_absence": 6,
         "cap_policy": "score", "order_policy": "relevance",
+        # reserve 4 -> 0: the P3 gate termination (plan 12c) -- 0/8 upstream cited both runs +
+        # strip 1.17x/1.31x at identical width. Reservation OFF, no fix cycle.
         "per_seed_budget": 63, "per_seed_evidence_cap": 24, "per_seed_probe_cap": 24,
-        "per_seed_reserve": 4}
+        "per_seed_reserve": 0}
     for absent in ("node_budget", "evidence_cap", "probe_cap"):
         assert absent not in rm.knobs(rm.MAX), absent
         assert getattr(rm.MODES[rm.MAX], absent) is None, absent
 
 
-def test_max_and_max_c0_differ_by_exactly_one_field():
-    """THE ONE-VARIABLE LAW, proven field by field rather than asserted: P3-A's two arms are
-    `--mode max_c0` vs `--mode max`, so any second difference between these presets would silently
-    confound the gate's only variable (the graph-admission reserve)."""
+def test_max_and_max_c0_are_now_byte_identical_twins():
+    """P3 ran with the one-variable pair (reserve 4 vs 0). THE 12c TERMINATION zeroed max's own
+    reserve, so the twins are now BYTE-IDENTICAL except name: max_c0 is retained as the historical
+    P3 arm identity (stored artifacts stamp honored=max_c0), permanently dark, never the shipped
+    tier. A reserve re-raise on max would re-open the one-variable pair -- this pin makes that a
+    visible decision, not a drift."""
     hot, off = rm.MODES[rm.MAX], rm.MODES[rm.MAX_C0]
     differ = [f for f in rm.KNOB_FIELDS if getattr(hot, f) != getattr(off, f)]
-    assert differ == ["per_seed_reserve"], differ
-    assert hot.per_seed_reserve == 4 and off.per_seed_reserve == 0
+    assert differ == [], differ
+    assert hot.per_seed_reserve == 0 and off.per_seed_reserve == 0
     assert off.name == "max_c0" and hot.name == "max"
 
 
@@ -219,7 +227,7 @@ def test_zero_is_a_value_not_a_default_on_max_c0():
     kn = rm.knobs(rm.MAX_C0)
     assert kn["per_seed_reserve"] == 0 and "per_seed_reserve" in kn
     assert rm.walk_kwargs(kn)["per_seed_reserve"] == 0
-    assert rm.walk_kwargs(rm.knobs(rm.MAX))["per_seed_reserve"] == 4
+    assert rm.walk_kwargs(rm.knobs(rm.MAX))["per_seed_reserve"] == 0   # 12c: max's reserve is OFF too
 
 
 def test_walk_kwargs_carry_the_per_seed_walk_knobs():
@@ -236,9 +244,16 @@ def test_walk_kwargs_carry_the_per_seed_walk_knobs():
     # TypeError at the first honored turn, not a test-time nicety.
     walk = set(inspect.signature(pl.grounded_subgraph).parameters)
     assert set(rm.walk_kwargs(rm.knobs(rm.MAX))) <= walk
-    for name in (rm.QUICK, rm.STANDARD, rm.DEEP, rm.DEEP_V2):            # untouched by construction
+    # P4-ARM COMMIT: quick/deep now carry their ratified per-seed budgets (12/32) but NO reserve
+    # (the reservation is a max-family concept and it is OFF everywhere per 12c).
+    assert rm.walk_kwargs(rm.knobs(rm.QUICK))["per_seed_budget"] == 12
+    assert rm.walk_kwargs(rm.knobs(rm.DEEP))["per_seed_budget"] == 32
+    for name in (rm.QUICK, rm.STANDARD, rm.DEEP, rm.DEEP_V2):
         wk = rm.walk_kwargs(rm.knobs(name))
-        assert "per_seed_budget" not in wk and "per_seed_reserve" not in wk, name
+        assert "per_seed_reserve" not in wk, name
+    for name in (rm.STANDARD, rm.DEEP_V2):                               # untouched by construction
+        wk = rm.walk_kwargs(rm.knobs(name))
+        assert "per_seed_budget" not in wk, name
 
 
 def test_the_tier_seed_ceilings_are_quick_2_deep_4_max_6():
@@ -249,10 +264,11 @@ def test_the_tier_seed_ceilings_are_quick_2_deep_4_max_6():
     assert rm.MODES[rm.DEEP].max_seeds == 4
     assert rm.MODES[rm.MAX].max_seeds == rm.MODES[rm.MAX_C0].max_seeds == 6
     assert rm.MODES[rm.STANDARD].max_seeds is None                       # all-None pin, untouched
-    # SEQUENCED, NOT FORGOTTEN: quick/deep's ratified per-seed budgets (12 / 32) land in the P4-ARM
-    # commit, after P3's verdict, so P3-A/B attribution stays one-variable.
-    for name in (rm.QUICK, rm.DEEP):
-        assert rm.MODES[name].per_seed_budget is None, name
+    # P4-ARM COMMIT LANDED (2026-08-12, plan 12c): the ratified per-seed budgets are live on the
+    # tier presets -- Scan 12 / Analysis 32 / Full-cascade 63.
+    assert rm.MODES[rm.QUICK].per_seed_budget == 12
+    assert rm.MODES[rm.DEEP].per_seed_budget == 32
+    assert rm.MODES[rm.MAX].per_seed_budget == 63
 
 
 @pytest.mark.parametrize("n,evidence,probe", [(1, 24, 24), (3, 72, 72), (6, 144, 96)])
@@ -387,13 +403,17 @@ def test_walk_and_ground_kwargs_are_untouched_on_standard_and_dark(monkeypatch):
 
 
 def test_honored_mode_threads_walk_and_ground_knobs(monkeypatch):
+    # P4-ARM COMMIT (plan 12c): the tiers thread per_seed_budget, never a flat node_budget --
+    # the walk derives budget x realized seeds.
     seen = _capture_l2(monkeypatch, mode_knobs=rm.knobs("deep"))
-    assert seen["walk"]["node_budget"] == 16 and seen["walk"]["depth"] == 1
+    assert seen["walk"]["per_seed_budget"] == 32 and "node_budget" not in seen["walk"]
+    assert seen["walk"]["depth"] == 1
     assert seen["walk"]["max_seeds"] == 4                      # D-MW-13: deep's tier ceiling
     assert seen["ground"]["k_by_depth"] == (7, 5)
     assert seen["ground"]["evidence_cap"] == 48 and seen["ground"]["probe_cap"] == 36
     quick = _capture_l2(monkeypatch, mode_knobs=rm.knobs("quick"))
-    assert quick["walk"]["node_budget"] == 6 and quick["ground"]["k_by_depth"] == (4, 2)
+    assert quick["walk"]["per_seed_budget"] == 12 and "node_budget" not in quick["walk"]
+    assert quick["ground"]["k_by_depth"] == (4, 2)
 
 
 def test_cap_policy_rides_the_seam_evidence_cap_already_rides(monkeypatch):
