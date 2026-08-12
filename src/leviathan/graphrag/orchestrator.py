@@ -1039,7 +1039,10 @@ _ESC_TARGET: str = _ESC
 # the width deck that max-opus won 5/6 ran WITH the census on -- so an escalated walk that dropped them
 # would be a different bundle from the one the verdict measured. This set is keyed on the EFFECTIVE
 # mode (whose knobs run), never on the honored one (which stays `deep`, priced and stamped).
-_CENSUS_MANDATE_MODES: frozenset = frozenset({rm.MAX, rm.MAX_C0, _ESC, _ESC_R})
+# D-MW-28 (P6): `max_cc1` joins for the SAME one-variable reason. The P6 gate's arms are `max` vs
+# `max_cc1`; a mandate set naming one and not the other makes the composition census a SECOND variable --
+# and clause (3) of that gate is composition non-harm, i.e. precisely the axis the mandates move.
+_CENSUS_MANDATE_MODES: frozenset = frozenset({rm.MAX, rm.MAX_C0, rm.MAX_CC1, _ESC, _ESC_R})
 
 
 def _shape_esc_on() -> bool:

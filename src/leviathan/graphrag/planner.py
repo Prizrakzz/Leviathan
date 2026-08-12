@@ -80,10 +80,25 @@ _CLOSURE_RESERVE = int(_pr.get("serving.walk.closure_reserve", 3))
 REASON_COSINE = "cosine"
 REASON_CLOSURE = "closure_reservation"          # upstream: an ancestor of an admitted driver
 REASON_DOWNSTREAM = "cascade_downstream"        # downstream: a descendant, i.e. structural RE-admission
+# D-MW-28 (P6, 2026-08-12) THE THIRD STRUCTURAL REASON, and the first that admits a CONTRACT: a FOREIGN
+# market reached by the seed's INVERTED inter_commodity edges (graph.rev_cross_links) -- "which markets
+# this one cascades into". It joins the set for the same reason `cascade_downstream` did: the three shipped
+# guards (the 1-row evidence floor, the cap-order anchor-adjacency move, the closure-census exclusion) are
+# MEMBERSHIP tests, and a reason that skipped them would land a ~2.8k-token contract block with ZERO
+# evidence rows -- the admitted-but-not-cited defect, bought with a paid slot.
+REASON_DOWNSTREAM_CONTRACT = "cascade_downstream_contract"
 # Admitted for STRUCTURE, not for cosine: tau-exempt, relevance-floor-protected, cap-order-protected, and
 # EXCLUDED from the closure census population (recorded decision, D-MW-15: downstream children are not
 # ancestors; counting them would redefine the open/closed denominator mid-instrument).
-_STRUCTURAL_REASONS: frozenset = frozenset({REASON_CLOSURE, REASON_DOWNSTREAM})
+_STRUCTURAL_REASONS: frozenset = frozenset({REASON_CLOSURE, REASON_DOWNSTREAM, REASON_DOWNSTREAM_CONTRACT})
+# THE DOWNSTREAM LANE, as ONE SET (P6 round-1 BLOCKER, 2026-08-12). `eval._closure_cited` partitioned the
+# citation join with an EQUALITY test against `REASON_DOWNSTREAM`, so the P6 admission -- a THIRD reason,
+# minted here and downstream by construction -- fell into the UPSTREAM lane and INFLATED `n_cited_upstream`,
+# the D-MW-16 gate headline, while `n_cited_downstream` (the P6 gate's own headline clause) stayed 0 BY
+# CONSTRUCTION. The lane is therefore a MEMBERSHIP test on this set, exported for the same reason
+# `_STRUCTURAL_REASONS` is: one producer, never a literal re-typed on the read side. A legacy 3-field join
+# row carries no reason at all and still reads UPSTREAM, so every stored baseline re-reads unchanged.
+DOWNSTREAM_REASONS: frozenset = frozenset({REASON_DOWNSTREAM, REASON_DOWNSTREAM_CONTRACT})
 # The admission record every kept node carries (GroundedNode.admission + trace.cascade_closure.admissions).
 # A d==0 SEED carries this too: the walk admits seeds by fiat at relevance 1.0, and the node's own `depth`
 # already says so — the enum stays the values the D-GD-3 counter is written against, plus the D-MW-15 pair.
@@ -237,6 +252,29 @@ def _driver_slice_resolvers(driver_slices=None):
     return backed, _sp
 
 
+def _contract_node_resolver(graph: gph.CausalGraph):
+    """D-MW-28 — the CONTRACT-granularity twin of `_driver_slice_resolvers`: contract id -> the evidence
+    NODE serving it, which is what `_slice_of` uses for a contract node and therefore the unit
+    slice-distinctness must be judged in (soybean_meal_cbot and _dce are ONE slice, so admitting both
+    buys one slice twice and the cross-node dedup zeroes the second).
+
+    ONE PRODUCER: `graph.contract_node`, the map the graph loaded once — not a per-candidate
+    `evidence.node_for` (a YAML read per call on the walk's hot path) and not a second parse here.
+
+    WHERE 'BACKED' ACTUALLY COMES FROM, STATED HONESTLY: not from here. `ev.covered_nodes()` is an S3 LIST
+    (the D-PQ list-storm lesson) and a walk may not pay one per turn, so backedness is delivered
+    STRUCTURALLY by the base-yaml/hierarchy fence inside `graph.rev_cross_links` — every foreign it can
+    return is a tracked, exchange-listed contract — and the STEP-0 census verified that implication
+    directly (`self_tests.no_unbacked_foreign_among_hierarchy_contracts: true`: all 31 hierarchy contracts
+    carry an evidence node). The `unbacked` skip stays as the fail-CLOSED branch for an unresolvable id."""
+    def _node(cid):
+        try:
+            return graph.contract_node(cid) or None
+        except Exception:  # noqa: BLE001 — an unresolvable contract is skipped `unbacked`, never fatal
+            return None
+    return _node
+
+
 def _closure_plan(scored: list, kept: dict, graph: gph.CausalGraph, *, node_budget: int, reserve_n: int,
                   backed: set, slice_of_driver, wave_pruned: dict, protect_ids: frozenset = frozenset(),
                   slots_by_origin: dict | None = None, origin_of_contract: dict | None = None,
@@ -321,7 +359,14 @@ def _closure_plan(scored: list, kept: dict, graph: gph.CausalGraph, *, node_budg
             `trace.cascade_closure.n_convergence`. Prose surfacing stays with D-HP; here it feeds the audit
             trail, the census and the eval join.
     Rules 1-3 (eligibility, tau-exemption + the tombstone release, the ledger-is-a-partition law) and the
-    chain-root protection fence are UNCHANGED — v2 is a payment + ordering change, not a new mechanism."""
+    chain-root protection fence are UNCHANGED — v2 is a payment + ordering change, not a new mechanism.
+
+    ── CROSS-MARKET CASCADE (D-MW-28, P6): NOT HERE. `_cascade_plan` owns it, at END-OF-WALK ────────────────
+    The first cut ran the P6 foreign-contract frontier as a wave-0 branch of THIS function. Round-1 review
+    measured it as SUBTRACTIVE on reciprocal pairs (arabica/robusta, raw/white sugar): a foreign the forward
+    walk reaches anyway was bought at wave 0, inherited the cascade reason, and the leaf fence then deleted
+    its whole driver fan-in — the ON arm lost 31 nodes and gained none. It moved to `_cascade_plan`, which
+    runs AFTER the last wave against the FINAL kept set. This function is the reserve's, unchanged."""
     dedicated = slots_by_origin is not None
     _origin_of = origin_of_contract or {}
     # (1) what the SHIPPED rule would admit, in rank order — the baseline this plan may not out-count.
@@ -519,18 +564,142 @@ def _closure_plan(scored: list, kept: dict, graph: gph.CausalGraph, *, node_budg
     # The admission record: the shipped THREE fields always, plus the OPTIONAL convergence pair (D-MW-15 v)
     # ONLY on a candidate >= 2 admitted anchors reached. The shape is a required-SUPERSET now, not an exact
     # set — test_dgd_closure_reservation's exact-shape pin re-scoped in the same commit.
-    _adm: dict = {}
-    for r in reserved:
-        rec = {"reason": r.get("reason", REASON_CLOSURE), "ancestor_of": r["ancestor_of"],
-               "chain_depth": r["chain_depth"]}
-        if r.get("convergence"):
-            rec["convergence"], rec["anchors"] = True, list(r.get("anchors") or [])
-        _adm[tuple(r["key"])] = rec
     return {"seq": seq, "final": final, "displaced": disp_keys, "headroom_used": headroom_used,
             "displaced_rec": [{"key": list(e[7]), "relevance": e[1], "depth": e[5]} for e in displaced],
             "reserved": reserved, "skipped": skipped, "tau_release": tau_release,
             "dedicated_used": len(reserved) if dedicated else 0, "slots_used": slots_used,
-            "admissions": _adm}
+            "admissions": {tuple(r["key"]): _admission_record(r) for r in reserved}}
+
+
+def _admission_record(r: dict) -> dict:
+    """THE ADMISSION RECORD, one producer for both structural sources (the reserve's `_closure_plan` and
+    P6's `_cascade_plan`): the shipped THREE fields always, plus the OPTIONAL convergence pair (D-MW-15 v)
+    on a candidate >= 2 admitted anchors reached. The shape is a required-SUPERSET, not an exact set."""
+    rec = {"reason": r.get("reason", REASON_CLOSURE), "ancestor_of": r["ancestor_of"],
+           "chain_depth": r["chain_depth"]}
+    if r.get("convergence"):
+        rec["convergence"], rec["anchors"] = True, list(r.get("anchors") or [])
+    return rec
+
+
+def _cascade_plan(seeds: list, kept: dict, graph: gph.CausalGraph, *, slots: int,
+                  node_of_contract, score_text) -> tuple[list, list]:
+    """D-MW-28 (P6, 2026-08-12) THE CROSS-MARKET CASCADE, decided at END-OF-WALK. PURE (no I/O): it reads
+    the FINAL kept set, the load-time reverse index, and an injected `score_text` that resolves
+    cos(query, mechanism) off the walk's OWN `_relevance` cache. Returns (bought, skipped).
+
+    THE CANDIDATES are the FOREIGN CONTRACTS reached by the seeds' INVERTED inter_commodity edges --
+    `graph.rev_cross_links(seed)`, the markets the seed's situation cascades INTO -- scored by
+    cos(query, THE EDGE MECHANISM) like every other hop, strongest declared edge representing a pair.
+
+    ── WHY END-OF-WALK, AND NOT A WAVE-0 FRONTIER (P6 round-1 BLOCKER, three findings, one redesign) ──────
+    The first cut ran this as a third frontier inside `_closure_plan` at wave 0, and paid for it three ways,
+    all MEASURED on the real graph:
+      (a) SUBTRACTIVE ON RECIPROCAL PAIRS. arabica/robusta and raw/white sugar declare each OTHER, so the
+          forward walk reaches the foreign anyway as a tracked hop at d==1 and expands it. Buying it at
+          wave 0 stamped it `cascade_downstream_contract`, and the leaf fence then fired on the wave-1
+          re-entry too: the ON arm LOST robusta's whole 31-node driver fan-in and gained nothing. Two of
+          the six frozen D-MW-29 deck rows are exactly this class, and they would have scored a fence
+          side-effect as a treatment effect.
+      (b) SLICE-DISTINCTNESS READ TOO EARLY. Coverage was computed over wave 0 (the seeds), so a foreign
+          sharing an evidence node with a wave-1 forward hop was bought anyway; the paid block and the free
+          hop then fought over one slice and the cross-node dedup zeroed one of them.
+      (c) OVERWRITE. A cascade key was never added to `visited`, so a later wave re-scored the same
+          contract and overwrote the kept node's via_edge/relevance with the FORWARD edge's -- the artifact
+          then contradicted the very admission record that described it.
+    Offering the slot AFTER the last wave closes all three AT THE SOURCE rather than fencing each:
+      * THE SLOT ONLY EVER BUYS A MARKET THE WALK DID NOT REACH. `key in kept` is the FINAL kept set, so a
+        forward-reachable foreign is skipped `already_admitted`, arrives by the ordinary path and EXPANDS
+        NORMALLY. The fence can no longer convert an expanding hop into a leaf, and the ON arm's kept set
+        is a SUPERSET of the OFF arm's BY CONSTRUCTION (pinned on a reciprocal fixture).
+      * THE FAN-OUT FENCE IS STRUCTURAL, and applies ONLY to what the SLOT bought: there is no wave left to
+        enqueue into. Measured fan-out is 30-134 nodes per contract and `is_hop` precedence sorts them
+        ahead of every driver, so one slot would otherwise buy a WAVE.
+      * NO OVERWRITE IS POSSIBLE. The bought key enters `kept` and `visited` exactly once, at the end.
+      * SLICE-DISTINCTNESS IS READ AGAINST THE FINAL KEPT SET -- the only reading that answers the question
+        it is asked ("would this block retrieve rows the turn already holds?").
+    ELIGIBILITY otherwise is rule 1 verbatim at CONTRACT granularity: `node_of_contract` resolves the
+    evidence slice (variants share one), an unresolvable node is skipped `unbacked` (fail-CLOSED), and the
+    BASE-YAML fence (a non-tradeable duplicate contract) is applied upstream, in `rev_cross_links`.
+    CONVERGENCE, cross-market: a foreign declared by >= 2 seeds carries the {convergence, anchors} stamp
+    and is counted as `n_convergence_cross`.
+    THE POT: its own, never the reserve's and never the cosine budget's, so the walk ceiling becomes
+    `node_budget + cascade_contract_slots` (stated honestly: every kept node counts) and the reserve's
+    `count_delta` identity is untouched.
+    `no_slot` IS RECORDED LAST, AFTER EVERY ELIGIBILITY TEST (P6 round-1): recording it first made
+    `cascade_skipped_counts` read ~19 no_slot on a 20-edge seed whatever the candidates were, destroying
+    the supply-vs-slot decomposition the column exists for -- the same first-32-overall defect the P3
+    round-1 fix removed from the reserve's own column."""
+    bought: list[dict] = []
+    skipped: list[dict] = []
+    if slots <= 0 or node_of_contract is None:
+        return bought, skipped
+    cov_nodes = {nd for _n in kept.values() for nd in (node_of_contract(_n.contract),) if nd}
+    cands: dict = {}
+    for s in seeds:                                          # seeds in route order (it decides ancestor_of)
+        try:
+            links = graph.rev_cross_links(s)
+        except Exception:  # noqa: BLE001 — a graph without the reverse index must not fail the walk
+            links = []
+        for lk in links:
+            f = lk.get("contract") or lk.get("declaring_contract")
+            if not f or f == s:
+                continue
+            try:
+                sc = float(score_text(lk.get("mechanism") or "")) if score_text else 0.0
+            except Exception:  # noqa: BLE001 — a scoring miss orders it last, never kills the walk
+                sc = 0.0
+            r = cands.get(f)
+            if r is None:
+                r = cands[f] = {"id": f, "anchors": [], "score": sc, "edge": lk, "anchor": s}
+            elif sc > r["score"]:                            # the STRONGEST declared edge represents the pair
+                r["score"], r["edge"], r["anchor"] = sc, lk, s
+            if s not in r["anchors"]:
+                r["anchors"].append(s)                       # cross-market convergence evidence
+    for r in sorted(cands.values(), key=lambda r: (-round(r["score"], 6), r["id"])):
+        f, anchor = r["id"], r["anchor"]
+        key = ("contract", f, f)
+        if key in kept:
+            # THE X2 FIX, as a skip reason: the walk already holds this market, and it holds it as an
+            # EXPANDING hop. The slot is not spent on it and the fence never touches it.
+            skipped.append({"id": f, "of": anchor, "reason": "already_admitted",
+                            "source": REASON_DOWNSTREAM_CONTRACT})
+            continue
+        nd = node_of_contract(f)
+        if not nd:                                           # no evidence slice -> a block nobody can cite
+            skipped.append({"id": f, "of": anchor, "reason": "unbacked",
+                            "source": REASON_DOWNSTREAM_CONTRACT})
+            continue
+        if nd in cov_nodes:
+            skipped.append({"id": f, "of": anchor, "reason": "same_slice",
+                            "source": REASON_DOWNSTREAM_CONTRACT})
+            continue
+        if len(bought) >= slots:
+            # ELIGIBLE, and the pot is spent. Recorded rather than `break`ed: "the slot bought nothing" and
+            # "there was nothing to buy" are different findings and the P6 record reads both. Costs one
+            # dict per unbought ELIGIBLE candidate, on the ON arm only.
+            skipped.append({"id": f, "of": anchor, "reason": "no_slot",
+                            "source": REASON_DOWNSTREAM_CONTRACT})
+            continue
+        cov_nodes.add(nd)
+        lk = r["edge"]
+        via = {"driver_commodity": lk.get("driver_commodity"), "relation": lk.get("relation"),
+               "sign": lk.get("sign"), "lag": lk.get("lag"), "mechanism": lk.get("mechanism"),
+               "blurb": lk.get("blurb"), "tracked": True, "_from": anchor,
+               "category": edge_category(lk.get("relation")),
+               # the edge is traversed in REVERSE (the foreign DECLARED the seed as its driver), and the
+               # renderer's "REACHED VIA CASCADE HOP" line reads correctly under that: the mechanism string
+               # was authored to describe how the seed moves this market.
+               "reason": REASON_DOWNSTREAM_CONTRACT}
+        rec = {"key": list(key), "contract": f, "ancestor_of": anchor,
+               # NEGATIVE depth IS the direction (the descendants_by_depth convention): -1 = one cascade
+               # step downstream. One reader never has to consult a second field.
+               "chain_depth": -1, "slice": nd, "depth": 1, "reason": REASON_DOWNSTREAM_CONTRACT,
+               "relevance_q": round(r["score"], 4), "_via": via}
+        if len(r["anchors"]) >= 2:
+            rec["convergence"], rec["anchors"] = True, list(r["anchors"])
+        bought.append(rec)
+    return bought, skipped
 
 
 def _closure_census(nodes: list, graph: gph.CausalGraph, backed: set, slice_of_driver,
@@ -592,7 +761,8 @@ def grounded_subgraph(query: str, graph: gph.CausalGraph, *, depth: int = _DEPTH
                       tau: float = _TAU, max_seeds: int = _MAX_SEEDS, embed=None, route_fn=None,
                       closure_reserve: int | None = None, driver_slices=None,
                       focus_driver: str | None = None,
-                      per_seed_budget: int | None = None, per_seed_reserve: int | None = None) -> Subgraph:
+                      per_seed_budget: int | None = None, per_seed_reserve: int | None = None,
+                      cascade_contract_slots: int | None = None) -> Subgraph:
     """Query-conditioned frontier walk. Returns the kept subgraph with the PRIOR leg + mermaid + trace filled;
     evidence/silver/convergence are added by ground(). Deterministic given `embed` (inject a fake in tests).
 
@@ -608,6 +778,30 @@ def grounded_subgraph(query: str, graph: gph.CausalGraph, *, depth: int = _DEPTH
         GRAPHRAG_CLOSURE_RESERVE — the kwarg-wins precedence is a shipped pin, and it is what makes the
         P3-A arms (`max` vs `max_c0`) differ by exactly ONE variable at identical width.
     BOTH None => the shipped v1 walk byte for byte, env-driven closure_reserve path untouched.
+
+    ── D-MW-28 (P6, 2026-08-12) CROSS-MARKET CASCADE: `cascade_contract_slots` ──────────────────────────────
+    N PAID SLOTS for FOREIGN CONTRACTS reached by the seeds' INVERTED inter_commodity edges — the markets a
+    seed's situation cascades INTO (`graph.rev_cross_links`), scored by cos(query, edge mechanism) on the
+    walk's own cache. None/0 => this walk is byte-identical to the pre-P6 one, and that is the shipped
+    default on EVERY serving preset. FOUR properties, each forced by a review catch:
+      * THE SLOT IS OFFERED AT END-OF-WALK, once, after the last wave (`_cascade_plan`). It may only buy a
+        market the walk did NOT reach: a foreign already in `kept` is skipped `already_admitted`, arrives
+        by the ordinary forward path and EXPANDS NORMALLY. The ON arm's kept set is therefore a SUPERSET of
+        the OFF arm's BY CONSTRUCTION — the P6 round-1 blocker was a wave-0 version that FENCED such a
+        foreign into a leaf and deleted its whole driver fan-in on reciprocal pairs.
+      * THE CEILING IS HONEST. Every kept node counts, so the slots are not free: the walk ceiling becomes
+        `node_budget + cascade_contract_slots`. The cosine loop still stops at `charged < node_budget` —
+        a cascade admission is charged to its OWN pot, never to the cosine budget — and pin 3 re-pins to
+        the new bound in this same commit.
+      * THE FAN-OUT FENCE, now STRUCTURAL and scoped to what the SLOT bought: a node admitted after the
+        last wave has no wave to enqueue into, so neither its drivers nor its own cross_links ever enter
+        one. Measured fan-out is 30-134 nodes per contract; one slot buys ONE contract block plus its own
+        evidence, or the "paid slot" would be a paid subtree.
+      * A KNOB, NOT AN ENV. It is a `Mode` field (`max_cc1` carries 1, every serving preset carries None),
+        because a process-global env re-opens the exact defect that forced closure_reserve into the mode
+        table: every quick/standard turn on the task would pay a ~2.8k-token foreign block. The eight P6
+        ledger keys likewise stamp ONLY when the knob is present, so a shipped preset's `cascade_closure`
+        shape is byte-identical to its pre-P6 self.
 
     THE HOP FENCE (D-MW-13), SCOPED TO THE SEED-SCALED WALK: the cross_links enqueue is SKIPPED whenever
     the child contract would land at depth >= 2, and each skip increments
@@ -664,6 +858,11 @@ def grounded_subgraph(query: str, graph: gph.CausalGraph, *, depth: int = _DEPTH
                     else (0 if per_seed_reserve is not None else _closure_reserve_n(closure_reserve)))
     _origin_of_contract: dict = {c: c for c in seeds}       # contract -> the SEED whose lineage reached it
     _backed, _slice_of_driver = _driver_slice_resolvers(driver_slices)
+    # D-MW-28: the cascade pot. `or 0` makes None and 0 the same OFF, and max(0, ...) makes a negative a
+    # no-op rather than an inverted ceiling. It is spent ONCE, after the last wave (`_cascade_plan`).
+    _cascade_total = max(0, int(cascade_contract_slots or 0))
+    _node_of_contract = _contract_node_resolver(graph)
+    _cl_cascade: list[dict] = []
     _cl_reserved: list[dict] = []
     _cl_displaced: list[dict] = []
     _cl_skipped: list[dict] = []
@@ -761,7 +960,12 @@ def grounded_subgraph(query: str, graph: gph.CausalGraph, *, depth: int = _DEPTH
             # A DEDICATED-slot admission is charged to nothing (D-MW-15 i). Every other admission — cosine,
             # and every v1 closure admission, which pays by headroom or displacement — is charged, so
             # `charged == len(kept)` on every v1 walk and the budget check below is byte-identical.
-            if not (_dedicated and node.admission.get("reason") in _STRUCTURAL_REASONS):
+            # NOTHING P6 DOES REACHES THIS LOOP: the cascade slot is offered ONCE, after the last wave
+            # (`_cascade_plan`), precisely so a foreign the walk reaches ANYWAY arrives here by the ordinary
+            # path and EXPANDS NORMALLY. Fencing it here — keyed on the contract or on a pre-stamped
+            # admission — is what made the ON arm subtractive on reciprocal pairs (P6 round-1 blocker).
+            _reason = node.admission.get("reason")
+            if not (_dedicated and _reason in _STRUCTURAL_REASONS):
                 charged += 1
             if d >= depth:
                 continue
@@ -783,6 +987,28 @@ def grounded_subgraph(query: str, graph: gph.CausalGraph, *, depth: int = _DEPTH
                     nxt.append((p, d + 1, None, "driver", cid))
         wave = nxt
 
+    # ── D-MW-28 (P6) THE CROSS-MARKET CASCADE SLOT, OFFERED ONCE, AFTER THE LAST WAVE ────────────────────
+    # END-OF-WALK is the whole of the round-1 fix (see `_cascade_plan`): the slot may only ever buy a market
+    # the walk did NOT reach, judged against the FINAL kept set, so the ON arm's kept set is a SUPERSET of
+    # the OFF arm's by construction. The bought node enters `kept` and `visited` exactly once, here, and has
+    # no wave to expand into -- the fan-out fence, structurally, on the nodes the SLOT bought and only those.
+    # It is charged to its own pot (never to `charged`), which is why the ceiling is
+    # `node_budget + cascade_contract_slots` and the reserve's `count_delta` identity is untouched.
+    if _cascade_total > 0:
+        _cl_cascade, _x_skips = _cascade_plan(
+            seeds, kept, graph, slots=_cascade_total, node_of_contract=_node_of_contract,
+            score_text=(lambda t: _relevance(qv, t, embed, mech)))
+        _cl_skipped.extend(_x_skips)
+        for r in _cl_cascade:
+            _key = tuple(r["key"])
+            node = GroundedNode(kind="contract", id=r["contract"], contract=r["contract"], depth=1,
+                                relevance=float(r.get("relevance_q") or 0.0),
+                                via_edge=r.pop("_via", None))
+            node.prior = _prior(graph, node)
+            node.admission = _admission_record(r)            # ONE producer, shared with the reserve
+            visited.add(_key)
+            kept[_key] = node
+
     nodes = list(kept.values())
     sg = Subgraph(seeds=seeds, nodes=nodes,
                   trace={"seeds": seeds, "kept": [list(n.key) for n in nodes], "pruned": pruned,
@@ -795,6 +1021,8 @@ def grounded_subgraph(query: str, graph: gph.CausalGraph, *, depth: int = _DEPTH
     # `_count_delta` is the node-count invariant, carried as evidence rather than as a promise.
     for r in _cl_reserved:
         r.pop("_entry", None)                                # the scored tuple is machinery, not a record
+    for r in _cl_cascade:                                    # ...and so is the cascade record's via_edge,
+        r.pop("_via", None)                                  # already consumed by the admission above
     _n_res = _closure_reserve_n(closure_reserve) if per_seed_reserve is None else reserve_total
     # D-MW-15 (P3 round-1): the skipped column is a SUPPLY-vs-SLOT census read, and a first-32-overall
     # sample destroyed it. At max width `already_admitted` dominates the ordered candidate pool by
@@ -803,10 +1031,21 @@ def grounded_subgraph(query: str, graph: gph.CausalGraph, *, depth: int = _DEPTH
     # from "no slot" -- was never visible in the artifact. Two columns now: FULL per-reason counts (never
     # truncated, the number the census actually reads) beside a sample capped PER REASON, so every reason
     # that fired is present and the sample stays bounded (5 reasons x 8).
+    # D-MW-28: the P6 source gets its OWN two columns. The reason VOCABULARY is deliberately shared
+    # (`already_admitted` / `unbacked` / `same_slice` / `no_slot` mean the same things at contract
+    # granularity), but pooling the counts would make the P3 supply-vs-slot read unreadable on a P6 arm --
+    # an instrument whose denominator moves with a second treatment measures neither.
     _skipped_counts: dict = {}
     _skipped_sample: list = []
+    _x_skipped_counts: dict = {}
+    _x_skipped_sample: list = []
     for _s in _cl_skipped:
         _rsn = str(_s.get("reason") or "")
+        if _s.get("source") == REASON_DOWNSTREAM_CONTRACT:
+            _x_skipped_counts[_rsn] = _x_skipped_counts.get(_rsn, 0) + 1
+            if _x_skipped_counts[_rsn] <= 8:
+                _x_skipped_sample.append(_s)
+            continue
         _skipped_counts[_rsn] = _skipped_counts.get(_rsn, 0) + 1
         if _skipped_counts[_rsn] <= 8:
             _skipped_sample.append(_s)
@@ -839,6 +1078,29 @@ def grounded_subgraph(query: str, graph: gph.CausalGraph, *, depth: int = _DEPTH
         "n_downstream": sum(1 for r in _cl_reserved if r.get("reason") == REASON_DOWNSTREAM),
         "n_convergence": sum(1 for r in _cl_reserved if r.get("convergence")),
         **_closure_census(nodes, graph, _backed, _slice_of_driver, _cl_displaced)}
+    # ── D-MW-28 THE CROSS-MARKET CASCADE LEDGER (P6) ────────────────────────────────────────────────────
+    # STAMPED ONLY WHEN THE KNOB IS PRESENT (`cascade_contract_slots is not None`), which is the P6 arms and
+    # nothing else. Both P6 POLARITIES stamp -- 0 is a value, and an OFF arm that stamped nothing leaves the
+    # ON arm's number uncomparable (the `open` counter's lesson) -- but a shipped preset carries None, so a
+    # quick/standard/deep/max turn's `cascade_closure` key set is BYTE-IDENTICAL to its pre-P6 self. P6
+    # round-1 minor: eight new keys on every serving artifact is a shape change no consumer asked for.
+    # `cascade_contracts` carries the same audit record shape as `reserved` (reason / ancestor_of == the
+    # SEED that reached it / chain_depth -1 / the optional convergence pair), so one reader reads all
+    # three admission sources.
+    # NOTE for an artifact reader: an admitted foreign contract IS a contract node at depth 1, so it also
+    # counts in `walk_shape.hop_contracts`. `cascade_slots.filled` is the breakout.
+    if cascade_contract_slots is not None:
+        sg.trace["cascade_closure"].update({
+            "cascade_contracts": _cl_cascade, "cascade_enabled": bool(_cascade_total),
+            "cascade_contract_slots": cascade_contract_slots,
+            "cascade_slots": {"total": _cascade_total, "filled": len(_cl_cascade),
+                              "empty": max(0, _cascade_total - len(_cl_cascade))},
+            # supply-vs-slot, decomposed and NOT pooled with the reserve's column above: `no_slot` means the
+            # pot was spent on better-scoring ELIGIBLE candidates, every other reason means there was
+            # nothing to buy.
+            "cascade_skipped": _x_skipped_sample, "cascade_skipped_counts": _x_skipped_counts,
+            "n_cascade_contract": len(_cl_cascade),
+            "n_convergence_cross": sum(1 for r in _cl_cascade if r.get("convergence"))})
     # D-MW-13 THE walk_shape ARTIFACT. Four RECORDED quantities of the P3 gates had no artifact source —
     # seeds and per-node depth never reached the per-answer record, so every "len(seeds) distribution" and
     # "wave-2 hop-driver count" clause was unreadable. Stamped BESIDE cascade_closure, registered in
@@ -900,7 +1162,13 @@ def _closure_cap_order(order: list) -> list:
     res_ids = {id(n) for n in res}
     by_anchor: dict = {}
     for n in res:
-        by_anchor.setdefault((n.contract, (n.admission or {}).get("ancestor_of")), []).append(n)
+        a = (n.admission or {}).get("ancestor_of")
+        # THE ANCHOR'S OWN (contract, id), which differs by admitted KIND. A structurally admitted DRIVER
+        # hangs off a driver of its own contract -> (n.contract, anchor). A D-MW-28 cascade CONTRACT hangs
+        # off the SEED, a contract node whose key is (seed, seed) -- so (n.contract, anchor) would match
+        # nothing, the group would fall through to the defensive tail, and a ~2.8k-token paid block would
+        # be retrieved-and-then-zeroed by the cap. That IS pin 1's self-cancel, on a paid slot.
+        by_anchor.setdefault((a, a) if n.kind == "contract" else (n.contract, a), []).append(n)
     out: list = []
     for n in order:
         if id(n) in res_ids:
@@ -962,6 +1230,22 @@ def _dedup_and_cap(sg: Subgraph, cap: int, *, cap_policy: str | None = None, k_b
                 continue
             seen.add(sig)
             keep.append(h)
+        if not keep and n.evidence and (
+                (getattr(n, "admission", None) or {}).get("reason") in _STRUCTURAL_REASONS):
+            # THE STRUCTURAL 1-ROW FLOOR, APPLIED HERE AND NOT ONLY IN THE QUOTA LOOP (P6 round-2 major).
+            # The quota loop below early-outs on `if not keep: continue`, so a structurally admitted node
+            # whose rows ALL deduped against an earlier node reached the floor never -- it ended the turn
+            # with zero rows, which is precisely the admitted-but-not-cited defect the floor exists to
+            # prevent, on a slot that was PAID for. Reproduced end to end on the likeliest class for a
+            # CROSS-MARKET slot: a substitution piece filed under both commodity slices, so the foreign
+            # block's only row is the seed's row.
+            # A DUPLICATE RECEIPT IS HONEST -- the same dated row cited under two nodes says the two markets
+            # share that record, which is true; an evidence-less paid block is the recorded defect class.
+            # The row is the node's OWN BEST (retriever order within a node is always comparable, which is
+            # why the quota may only truncate a tail), and `seen` is deliberately NOT re-stamped: the row is
+            # already accounted to the node that kept it first, and the attribution rule for every OTHER
+            # node is unchanged.
+            keep = [n.evidence[0]]
         uniq.append(keep)
     live = [i for i, k in enumerate(uniq) if k]
     tot_rel = sum(max(float(order[i].relevance or 0.0), 0.0) for i in live)
@@ -1216,7 +1500,13 @@ def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, s
     # a pure read of what the verifier already publishes.
     _cc = sg.trace.get("cascade_closure")
     if isinstance(_cc, dict):
-        _idx = {tuple(r["key"]): r for r in (_cc.get("reserved") or [])}
+        # D-MW-28: the join covers ALL THREE structural sources -- the P6 gate headline is
+        # "the foreign contract is admitted AND CITED", and a paid block missing from `cited_join` would
+        # make that clause unreadable from the artifact (the C2/U3 class). The two `*_with_evidence`
+        # counters stay SEPARATE so the reserve's own number never moves under a P6 arm.
+        _res_rows = list(_cc.get("reserved") or [])
+        _cas_rows = list(_cc.get("cascade_contracts") or [])
+        _idx = {tuple(r["key"]): r for r in _res_rows + _cas_rows}
         _join = []
         for n in sg.nodes:
             r = _idx.get(tuple(n.key))
@@ -1236,7 +1526,9 @@ def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, s
                 _join.append([h.get("source_key"), str(h.get("date") or "")[:10],
                               _t[:140] + ("..." if len(_t) > 140 else ""), _reason])
         _cc["cited_join"] = _join
-        _cc["reserved_with_evidence"] = sum(1 for r in _idx.values() if r.get("n_evidence"))
+        _cc["reserved_with_evidence"] = sum(1 for r in _res_rows if r.get("n_evidence"))
+        if _cas_rows:                                        # absent when P6 is off -> artifact unchanged
+            _cc["cascade_with_evidence"] = sum(1 for r in _cas_rows if r.get("n_evidence"))
 
     # ── parallel silver PREFETCH (serving only) ──────────────────────────────────────────────────────────
     # The silver leg + firing both call silver_lookup sequentially; each servable ref is an Athena read

@@ -129,7 +129,43 @@ def test_the_reason_partition_reads_planners_constant_not_a_retyped_literal():
     """ONE PRODUCER (planner.py:72-78). A stale literal here would score every downstream citation as
     upstream -- i.e. report the gate's headline as a pass on the wrong mechanism."""
     assert ev._REASON_DOWNSTREAM is pl.REASON_DOWNSTREAM
+    assert ev._DOWNSTREAM_REASONS is pl.DOWNSTREAM_REASONS
     assert pl.REASON_DOWNSTREAM in pl._STRUCTURAL_REASONS and pl.REASON_CLOSURE in pl._STRUCTURAL_REASONS
+
+
+def test_the_P6_cascade_reason_lands_in_the_DOWNSTREAM_lane():
+    """D-MW-28 (P6) round-1 BLOCKER. The lane tested EQUALITY against `cascade_downstream`, so the third
+    structural reason -- a FOREIGN CONTRACT, downstream by construction -- fell into the UPSTREAM lane: it
+    INFLATED the D-MW-16 headline with a mechanism that instrument does not measure, and left the P6 gate's
+    own headline clause (`n_cited_downstream >= 1` on a majority of live rows) at 0 BY CONSTRUCTION, whose
+    pre-committed consequence is routing the whole wave to D-HP's narration contract on a false read. The
+    partition is MEMBERSHIP in planner's set, so the third reason is downstream because planner says so."""
+    join = [[DOC, DATE, "palm sets the veg-oil floor", pl.REASON_DOWNSTREAM_CONTRACT],
+            [DOC, DATE, "gas sets ammonia", pl.REASON_CLOSURE]]
+    got = ev._closure_cited(_out(join, _resolved(E1="palm sets the veg-oil floor",
+                                                 E2="gas sets ammonia")))
+    assert got["n_cited_downstream"] == 1 and got["refs_downstream"] == ["E1"]
+    assert got["n_cited_upstream"] == 1 and got["refs_upstream"] == ["E2"]
+    assert got["n_cited"] == 2                                # the sum is still the distinct-handle count
+    assert pl.DOWNSTREAM_REASONS == {pl.REASON_DOWNSTREAM, pl.REASON_DOWNSTREAM_CONTRACT}
+    assert pl.REASON_CLOSURE not in pl.DOWNSTREAM_REASONS     # upstream stays upstream
+
+
+def test_the_cascade_admissions_reach_the_id_lists_from_their_OWN_column():
+    """THE ADMISSION HALF of the P6 gate's join. planner keeps cascade admissions OUT of `reserved` on
+    purpose (the reserve's count_delta identity would stop being assertable), and the id lists read
+    `reserved` only -- so `downstream_ids` was structurally EMPTY for P6 and the deck's stated join had
+    nothing to read. They now come from BOTH columns, in the producer's own fully-qualified shape:
+    `contract:<foreign>:<foreign>`, distinct from `driver:<contract>:<id>` by construction and exactly the
+    string the frozen cascade deck names as `foreign_contract_node`."""
+    out = _out([], {}, reserved=[{"key": ["driver", "corn_cbot", "urea_cost"], "reason": pl.REASON_CLOSURE}])
+    out["trace"]["cascade_closure"]["cascade_contracts"] = [
+        {"key": ["contract", "canola_ice", "canola_ice"], "reason": pl.REASON_DOWNSTREAM_CONTRACT,
+         "ancestor_of": "soybean_oil_cbot", "chain_depth": -1}]
+    got = ev._closure_cited(out)
+    assert got["downstream_ids"] == ["contract:canola_ice:canola_ice"]
+    assert got["upstream_ids"] == ["driver:corn_cbot:urea_cost"], "the upstream lane cannot move"
+    assert got["reserved_ids"] == ["urea_cost"], "the pre-P3 D-GD column stays reserve-only and BARE"
 
 
 def test_upstream_and_downstream_reserved_ids_partition_the_reserved_set():

@@ -66,6 +66,111 @@ def _index(c: cs.CausalContract) -> _Index:
     return _Index(c, by_id, children)
 
 
+# ── D-MW-27 (2026-08-12) THE REVERSE INTER-COMMODITY INDEX ───────────────────────────────────────────────────
+# A contract's YAML declares who DRIVES it (corn lists wheat: "cheap feed wheat substitutes..."). INVERTING
+# that map answers the doctrine's missing direction: for a seed S, WHICH MARKETS S'S SITUATION CASCADES INTO
+# (the downstream/consumer direction). The forward map is `cross_links()`; this is its transpose.
+#
+# THE ALIAS PROBLEM, MEASURED (STEP-0 census, data/dmw_p6_census.json): 65 of the 117 inter_commodity edges
+# name a `driver_commodity` string that is NOT a contract id ('soybean_oil' vs soybean_oil_cbot/_dce, 'wheat'
+# vs three venue-suffixed wheats), so a NAIVE inversion covers only 52 tracked edges. Alias resolution
+# rescues 42 more (52 -> 94).
+#
+# THE RESOLUTION RULE, EXACT (plan round-3, applied verbatim; the census recorded the literal-prose reading
+# beside it and it strands 13 contract-id-valued edges, so the two-step reading below is the ratified one):
+#   driver_commodity -> node_for() (the _hier() contract->node map, so a CONTRACT-ID-valued string lands on
+#   its node first) -> the INVERTED _hier() map -> the tracked contract-id set -> LEXICOGRAPHIC-FIRST when
+#   that set has more than one member, recorded per edge.
+# THREE BUCKETS, reported separately so a deck-shrink decision reads a DECOMPOSED number:
+#   resolved                     94   the edge inverts to a tracked seed contract
+#   unresolvable-no-node         23   the string names no commodity node AT ALL -- unresolvable BY
+#                                     CONSTRUCTION, never a census shortfall. Measured classes: wheat (10,
+#                                     the largest), sunflower_oil, sorghum, barley, ethanol.
+#   unresolvable-no-contract      0   a node with no LOADED contract (empty on the shipped estate)
+#
+# THE BASE-YAML FENCE (census `deck_eligibility_rule`): `corn` and `soybeans` are BASE yamls, not tradeable
+# markets (absent from commodity_hierarchy, no exchange/origin) and they byte-duplicate their _cbot
+# variants' inter_commodity sets. They are excluded as FOREIGN TARGETS -- without the fence D-MW-28's paid
+# slot can buy a phantom contract block that no desk can trade. The fence is defined RELATIVELY (a loaded
+# contract, absent from the hierarchy, whose commodity node is ALSO served by a loaded hierarchy contract)
+# so it fires on the real estate and is a no-op on a synthetic graph the hierarchy knows nothing about.
+_REV_RESOLVED = "resolved"
+_REV_NO_NODE = "unresolvable-no-node"
+_REV_NO_CONTRACT = "unresolvable-no-contract"
+
+
+def _hier_contract_nodes() -> dict:
+    """{contract_id: commodity node} straight from evidence's OWN hierarchy loader -- one producer of the
+    contract->node fact, never a second parse of commodity_hierarchy.yaml here (the COMPAT-9 drift class).
+
+    LAZY import: `evidence` pulls the harvest/params chain, and `graph` is imported by offline causal
+    tooling that must stay light. The direction is verified clean -- evidence does NOT import graph -- so
+    this can never cycle. Any failure (public clone with no private config) degrades to an EMPTY map, which
+    makes every edge `unresolvable-no-node` and the whole mechanism a no-op: an inversion index may never
+    be the thing that kills a load."""
+    try:
+        from leviathan.graphrag import evidence as ev
+        raw = (ev._hier().get("contracts") or {})
+        return {k: (v.get("node") or k) for k, v in raw.items() if isinstance(v, dict)}
+    except Exception:  # noqa: BLE001 — no hierarchy -> no inversion, never a failed load
+        return {}
+
+
+def _invert_inter_commodity(contracts: dict) -> tuple[list, dict, dict]:
+    """(resolution_table, index, hier) — the LOAD-TIME inversion, THREE elements. `resolution_table` is one
+    row per inter_commodity edge in the estate (117 today), carrying its bucket, its resolved node, the
+    candidate set and the tie-break that picked the seed, so the resolution is REVISITABLE from an artifact
+    rather than re-derived. `index` is {seed_contract: [edge rows]} over the RESOLVED, TRADEABLE-foreign
+    rows. `hier` is the {contract_id: commodity node} map this same call already read -- bound to
+    `self._hier_nodes` and served by the public `contract_node()`, i.e. the graph's OWN copy of the
+    contract->node fact, so the walk never re-parses commodity_hierarchy.yaml per candidate.
+
+    Deterministic: contracts and edges are walked in sorted/declaration order and every candidate set is
+    sorted, so the same YAMLs always produce the same table and the same tie-breaks."""
+    hier = _hier_contract_nodes()
+    by_node: dict[str, list[str]] = {}
+    for cid in sorted(hier):
+        by_node.setdefault(hier[cid], []).append(cid)
+    nodes = set(by_node)
+
+    def _node_of(name: str) -> str:
+        return hier.get(name, name)
+    # THE BASE-YAML FENCE, relative (see the block comment): loaded, off-hierarchy, and its node is served
+    # by a loaded hierarchy contract -> a duplicate of a tradeable sibling, never a market of its own.
+    untradeable = {cid for cid in contracts if cid not in hier
+                   and any(o != cid and o in hier and hier[o] == _node_of(cid) for o in contracts)}
+    table: list[dict] = []
+    index: dict[str, list[dict]] = {}
+    for cid in sorted(contracts):
+        for i, e in enumerate(contracts[cid].inter_commodity):
+            dc = e.driver_commodity
+            node = _node_of(dc)
+            cands = list(by_node.get(node) or ())
+            tracked = [c for c in cands if c in contracts]
+            if node not in nodes:
+                bucket, seed, tie = _REV_NO_NODE, None, None
+            elif not tracked:
+                bucket, seed, tie = _REV_NO_CONTRACT, None, None
+            else:
+                bucket, seed = _REV_RESOLVED, tracked[0]
+                tie = "single-member" if len(tracked) == 1 else "lexicographic-first"
+            row = {"declaring_contract": cid, "idx": i, "driver_commodity": dc, "relation": e.relation,
+                   "sign": e.sign, "lag": e.lag, "mechanism": e.mechanism, "blurb": e.blurb,
+                   "bucket": bucket, "node": (node if node in nodes else None), "candidates": cands,
+                   "tracked_candidates": tracked, "seed": seed, "tie_break": tie,
+                   "foreign_tradeable": cid not in untradeable}
+            table.append(row)
+            if bucket == _REV_RESOLVED and row["foreign_tradeable"]:
+                # The INDEX row is `cross_links`' shape with the two ends named: `contract` is the FOREIGN
+                # (declaring) market, `seed` the resolved commodity it declared. `tracked` is True by
+                # construction here -- the index only ever holds loaded, tradeable contracts.
+                index.setdefault(seed, []).append(
+                    {"contract": cid, "seed": seed, "idx": i, "driver_commodity": dc,
+                     "relation": e.relation, "sign": e.sign, "lag": e.lag, "mechanism": e.mechanism,
+                     "blurb": e.blurb, "tracked": True})
+    return table, index, hier
+
+
 @dataclass
 class FiredRegime:
     name: str
@@ -88,6 +193,9 @@ class CausalGraph:
         # graph identity for audit/reproducibility (trace.graph_version, /healthz, eval headers). A
         # production load computes it from the YAML bytes; synthetic test graphs pass 'test' or None.
         self.version = version
+        # D-MW-27: the REVERSE inter-commodity index, built ONCE at load time (never per query). It is a
+        # pure transpose of data already in memory plus one hierarchy read, so it costs a load, not a turn.
+        self._rev_table, self._rev_index, self._hier_nodes = _invert_inter_commodity(contracts)
 
     @classmethod
     def load(cls, paths=None) -> "CausalGraph":
@@ -217,6 +325,55 @@ class CausalGraph:
         return [{"driver_commodity": e.driver_commodity, "relation": e.relation, "sign": e.sign,
                  "mechanism": e.mechanism, "lag": e.lag, "tracked": e.driver_commodity in self.contracts}
                 for e in self.contracts[contract].inter_commodity]
+
+    def rev_cross_links(self, commodity: str) -> list[dict]:
+        """D-MW-27 — the INVERSE of `cross_links`: the FOREIGN CONTRACTS that declare `commodity` as a
+        `driver_commodity`, i.e. THE MARKETS THIS ONE CASCADES INTO. Read off the load-time index, so this
+        is a dict lookup, never a traversal.
+
+        Each row is the DECLARING contract plus the declared edge verbatim (`mechanism` is the string
+        D-MW-28 scores cos(query, .) against, and it already reads in the right direction: the foreign
+        contract wrote it to describe how `commodity` moves IT). `seed` is the resolved commodity, so a row
+        is self-describing in an artifact.
+
+        NEVER RAISES on an unknown/unresolved id -- it returns []. `cross_links` may KeyError because it is
+        a contract lookup; this is an index read on the walk's hot path and a routing surprise must never
+        kill a turn. Rows are fresh dicts (same idiom as `cross_links`), ordered by declaring contract then
+        declaration index -- deterministic.
+
+        CONTRACT-KEYED, per the ratified alias rule. RECORDED CONSEQUENCE (census `zero_pair_decomposition`
+        + `node_keyed_view`): the lexicographic-first tie-break funnels every edge of a multi-contract node
+        onto ONE contract id, so `corn_cbot` -- the most-routed contract in the product -- has ZERO inverted
+        pairs while its node `corn` carries 20 edges, all funnelled to campinas_corn_reference_bmf. Keying
+        by `node_for(seed)` instead would hand 9 more contracts their cascade at zero cost and with no
+        change to the resolution rule. That is a RATIFICATION question for D-MW-29, deliberately NOT taken
+        here: this method implements the rule as written."""
+        return [dict(r) for r in (self._rev_index.get(commodity) or ())]
+
+    def contract_node(self, contract: str) -> str:
+        """The commodity NODE serving a contract — `evidence.node_for` semantics, read off the map this
+        graph already loaded instead of re-parsing the hierarchy YAML per call (D-MW-28 asks this question
+        once per candidate on the walk's hot path). Unknown/already-a-node ids return unchanged, which is
+        also what makes a SYNTHETIC contract id its own node in a hermetic test — no test-only branch.
+        test_dmw_p6 pins the parity against `evidence.node_for` over every loaded contract."""
+        return self._hier_nodes.get(contract, contract)
+
+    def rev_cross_link_resolution(self) -> list[dict]:
+        """THE RESOLUTION TABLE, queryable: one row per inter_commodity edge with its bucket, resolved node,
+        candidate set, tie-break and tradeable-foreign flag. This is the audit surface the STEP-0 census
+        pins against -- a resolution nobody can re-read is a resolution nobody can revisit."""
+        return [dict(r) for r in self._rev_table]
+
+    def rev_cross_link_buckets(self) -> dict:
+        """The THREE-BUCKET decomposition (+ the two fence counters), so a shrink decision reads decomposed
+        numbers instead of one 'we got N'. Pinned against data/dmw_p6_census.json."""
+        out = {"edges": len(self._rev_table), _REV_RESOLVED: 0, _REV_NO_NODE: 0, _REV_NO_CONTRACT: 0,
+               "untradeable_foreign_edges": 0, "seeds_with_pairs": len(self._rev_index)}
+        for r in self._rev_table:
+            out[r["bucket"]] = out.get(r["bucket"], 0) + 1
+            if r["bucket"] == _REV_RESOLVED and not r["foreign_tradeable"]:
+                out["untradeable_foreign_edges"] += 1
+        return out
 
     # ── silver resolution (the decoupling seam) ───────────────────────────────────────
     def silver_status(self, contract: str, driver_id: str) -> dict:

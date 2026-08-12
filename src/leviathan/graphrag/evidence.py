@@ -553,10 +553,37 @@ def restamp(node: str) -> int:
 
 
 # ── contract -> commodity node resolution (variants share one evidence slice) ──────────
+_HIER_CACHE: dict = {}          # the _Q_CACHE idiom: a module-level memo of a config that is static per process
+
+
 def _hier() -> dict:
-    import yaml
+    """The parsed commodity_hierarchy.yaml, MEMOIZED per process (D-MW-28 P6 round-1 minor).
+
+    KEYED BY THE RESOLVED CONFIG PATH, NOT BY A CONSTANT (P6 round-2 minor). The read is `ex._CFG /
+    "commodity_hierarchy.yaml"`, and `ex._CFG` is a module-level SINGLETON that six unit files repoint at a
+    tmp dir. A one-entry memo keyed on a constant made that repointing INVISIBLE -- a test that pointed
+    `_CFG` at a fixture hierarchy silently read the real one, and, worse in the other direction, a test that
+    populated the memo while `_CFG` pointed at a directory that does not exist would cache `{}` and poison
+    every later reader in the process. Keying on `str(path)` makes the memo follow the config it actually
+    parsed: repointing `_CFG` naturally misses the old key and re-parses, and the entry for the real config
+    survives beside it. Nothing else changes -- serving never repoints `_CFG`, so serving holds exactly one
+    entry, as before.
+
+    WHY IT IS MEMOIZED AT ALL: every caller treats the file as fixed for the life of the process
+    (`node_for`, `all_nodes`, and `graph._hier_contract_nodes`, which `CausalGraph.__init__` calls on EVERY
+    construction). Uncached, each construction re-read and re-parsed the whole YAML -- measured 20.6 ms of
+    the 21.1 ms per synthetic graph -- so an eval/config_check/tooling job that builds N graphs paid N parses
+    for one unchanging fact. Serving is unaffected either way (one graph, loaded once into server._STATE).
+
+    Entries are never evicted (the key space is the set of config roots a process uses -- one, in serving);
+    a test that needs a fresh parse of the SAME path clears the memo or monkeypatches this function (the
+    load-time pin in test_dmw_p6 does the latter)."""
     p = ex._CFG / "commodity_hierarchy.yaml"
-    return (yaml.safe_load(p.read_text(encoding="utf-8")) or {}) if p.exists() else {}
+    key = str(p)
+    if key not in _HIER_CACHE:
+        import yaml
+        _HIER_CACHE[key] = (yaml.safe_load(p.read_text(encoding="utf-8")) or {}) if p.exists() else {}
+    return _HIER_CACHE[key]
 
 
 def node_for(contract: str) -> str:

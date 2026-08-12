@@ -88,10 +88,12 @@ def test_reasoning_modes_is_a_leaf_module():
 def test_the_preset_table_and_nothing_else():
     # D-MW-30: the escalated bundle appends esc / esc_r. valid_names() widens (they are RESOLVABLE by
     # name, which is how the eval arms reach them); serving_names() does NOT -- see the pin below.
+    # D-MW-28 (P6): max_cc1 appends the same way -- resolvable BY NAME (the gate's ON arm), dark to the
+    # wildcard. Fourth application of the same law, and the serving_names() pin below is still untouched.
     assert rm.valid_names() == frozenset({"quick", "standard", "deep", "deep_v2", "max", "max_c0",
-                                          "esc", "esc_r"})
+                                          "esc", "esc_r", "max_cc1"})
     assert set(rm.MODES) == {rm.QUICK, rm.STANDARD, rm.DEEP, rm.DEEP_V2, rm.MAX, rm.MAX_C0,
-                             rm.ESC, rm.ESC_R}
+                             rm.ESC, rm.ESC_R, rm.MAX_CC1}
 
 
 def test_deep_v2_is_dark_and_the_wildcard_can_never_sweep_it_in(monkeypatch):
@@ -104,7 +106,9 @@ def test_deep_v2_is_dark_and_the_wildcard_can_never_sweep_it_in(monkeypatch):
     # D-MW-30 (F8): esc / esc_r join the dark set in the SAME commit that mints them. A forgotten entry
     # here would make an UNMETERED max-width + opus turn wildcard-honorable -- the escalated bundle is
     # reachable in serving ONLY through the escalation seam, which stamps honored=deep and prices deep.
-    assert rm.DARK_NAMES == frozenset({rm.DEEP_V2, rm.MAX, rm.MAX_C0, rm.ESC, rm.ESC_R})
+    # D-MW-28 (P6): max_cc1 joins DARK_NAMES in the SAME commit that mints it. It carries a PAID slot for
+    # a foreign contract block, so a forgotten entry would spend it on every wildcard turn.
+    assert rm.DARK_NAMES == frozenset({rm.DEEP_V2, rm.MAX, rm.MAX_C0, rm.ESC, rm.ESC_R, rm.MAX_CC1})
     assert rm.serving_names() == frozenset({"quick", "standard", "deep"})
     assert rm.DEEP_V2 in rm.valid_names()                              # still RESOLVABLE (stamped)
     for on in ("on", "1", "true"):
@@ -112,6 +116,7 @@ def test_deep_v2_is_dark_and_the_wildcard_can_never_sweep_it_in(monkeypatch):
         assert rm.DEEP_V2 not in orch._modes_enabled()
         assert rm.MAX not in orch._modes_enabled() and rm.MAX_C0 not in orch._modes_enabled()
         assert rm.ESC not in orch._modes_enabled() and rm.ESC_R not in orch._modes_enabled()
+        assert rm.MAX_CC1 not in orch._modes_enabled()
     assert rm.resolve("deep_v2", orch._modes_enabled())["honored"] == "standard"
     monkeypatch.setenv("GRAPHRAG_MODES", "deep_v2")                    # named EXPLICITLY -> honored
     assert orch._modes_enabled() == frozenset({"deep_v2"})
@@ -138,10 +143,14 @@ def test_the_two_new_policy_fields_default_to_none_on_every_pre_ddv_preset():
     # D-MW-30 re-pin (F7): synth_model then provenance_prompt append AFTER per_seed_reserve, so the
     # quartet's own slice moves left by two. Same law, third application: append, never insert -- the
     # KNOB_FIELDS order IS the trace-stamp column order, and 12f is the record of what a shift costs.
-    assert ("synth_model", "provenance_prompt") == rm.KNOB_FIELDS[-2:]
-    assert rm.KNOB_FIELDS[-6:-2] == ("per_seed_budget", "per_seed_evidence_cap",
+    # D-MW-28 re-pin (P6): `cascade_contract_slots` appends AFTER provenance_prompt, so the tail moves a
+    # FOURTH time and every slice below shifts left by one. Same law, same reason: KNOB_FIELDS order IS
+    # the trace-stamp column order -- append, never insert.
+    assert ("provenance_prompt", "cascade_contract_slots") == rm.KNOB_FIELDS[-2:]
+    assert rm.KNOB_FIELDS[-3] == "synth_model"
+    assert rm.KNOB_FIELDS[-7:-3] == ("per_seed_budget", "per_seed_evidence_cap",
                                      "per_seed_probe_cap", "per_seed_reserve")
-    assert rm.KNOB_FIELDS[-8:-6] == ("cap_policy", "order_policy")      # appended, never sorted in
+    assert rm.KNOB_FIELDS[-9:-7] == ("cap_policy", "order_policy")      # appended, never sorted in
     for name in (rm.QUICK, rm.STANDARD, rm.DEEP):
         m = rm.MODES[name]
         assert m.cap_policy is None and m.order_policy is None, name

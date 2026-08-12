@@ -5,8 +5,8 @@ from leviathan.graphrag (pure data + pure functions), so orchestrator.py, answer
 eval.py can all import it without cycles, and the preset table cannot be hand-copied into a second
 module and drift (the COMPAT-9 duplicate-and-pin defect class).
 
-PRESETS -- `quick` / `standard` / `deep`, plus the DARK `deep_v2` / `max` / `max_c0` and the D-MW-30 escalated
-pair `esc` / `esc_r`. `standard` is ALL-NONE:
+PRESETS -- `quick` / `standard` / `deep`, plus the DARK `deep_v2` / `max` / `max_c0`, the D-MW-30 escalated
+pair `esc` / `esc_r`, and the D-MW-28 P6 arm `max_cc1`. `standard` is ALL-NONE:
 `knobs("standard")` is the EMPTY DICT, every kwarg builder returns `{}`, and every call site therefore
 stays byte-identical under the omit-when-default idiom. That empty dict IS the fail-open guarantee (the
 same role the `default` response contract's empty directive plays), not a promise anyone has to keep by
@@ -37,6 +37,8 @@ THREADS values, it does not redesign seams:
                                                       F5: mode > env > params; an explicit caller wins)
   render    provenance_prompt                      -> answer._l2_blocks + answer._system (D-MW-30, 30c:
                                                       structural-admission provenance + the INVITATION)
+  walk      cascade_contract_slots                 -> planner.grounded_subgraph (D-MW-28/P6: PAID slots
+                                                      for foreign contracts the seed CASCADES INTO)
 
 `max` / `max_c0` (D-MW-13, STEP-0-CALIBRATED + RATIFIED 2026-08-11) -- the Full-cascade tier. `max_seeds`
 KEEPS its name and becomes the tier seed CEILING (6); the dispatch planner decides the REALIZED cardinality
@@ -58,6 +60,10 @@ per_seed_reserve 4 + `provenance_prompt=True`, the
 12c reserve retry with the missing half (the writer could not tell a structural node from a cosine one, so the
 reserved rows rendered anonymously and were never cited). Both permanently DARK as presets: serving reaches
 them ONLY through the escalation seam, which stamps mode_decision.honored=deep + escalation_decision.fired.
+
+`max_cc1` (D-MW-28, P6) -- `max` + ONE cross-market cascade contract slot, the two-preset arm pattern for the
+THIRD time. The P6 gate runs `--mode max` vs `--mode max_cc1`: one variable, identical width, neither arm
+constructible by mixing a preset with a kwarg (the kwarg beats the preset OUTRIGHT -- a shipped pin). DARK.
 
 EXCLUDED FROM v1, each with its recorded reason (do NOT add these without a new ratification):
   * rerank pool          -- a module-global read at the slice site; per-request mutation bleeds
@@ -89,6 +95,7 @@ MAX = "max"
 MAX_C0 = "max_c0"
 ESC = "esc"                                   # D-MW-30: the escalated SHAPE (deep's envelope, max's width)
 ESC_R = "esc_r"                               # ...plus the reserve bundle (reserve 4 + the provenance prompt)
+MAX_CC1 = "max_cc1"                           # D-MW-28 (P6): max + ONE cross-market cascade contract slot
 
 # D-MW-13: the TOTAL ceilings the seed-scaled ground caps may never exceed, whatever the realized seed
 # count is. They live here (not at a call site) because `scaled_ground_kwargs()` is the ONE producer of
@@ -160,6 +167,14 @@ class Mode:
     #                      everywhere else -> both seams are byte-identical (they take `False` defaults).
     synth_model: str | None = None
     provenance_prompt: bool | None = None
+    # D-MW-28 (P6): the CROSS-MARKET CASCADE slot count, appended LAST -- the appended-last law, FOURTH
+    # application (KNOB_FIELDS order IS the trace-stamp column order; 12f records what a shift costs).
+    # N PAID slots for FOREIGN CONTRACTS reached by the seeds' INVERTED inter_commodity edges (the markets
+    # a seed cascades INTO), threaded to planner.grounded_subgraph -- Class-1 by this module's own rule.
+    # A KNOB AND NOT AN ENV, deliberately: a process-global GRAPHRAG_CASCADE_CONTRACTS re-opens the exact
+    # defect that forced the reserve into this table -- every quick/standard turn on the task would pay a
+    # ~2.8k-token foreign contract block. None (every shipped preset) == 0 == byte-identical.
+    cascade_contract_slots: int | None = None
 
 
 MODES: dict[str, Mode] = {m.name: m for m in (
@@ -278,6 +293,31 @@ MODES: dict[str, Mode] = {m.name: m for m in (
          cap_policy="score", order_policy="relevance",
          per_seed_budget=63, per_seed_evidence_cap=24, per_seed_probe_cap=24, per_seed_reserve=4,
          synth_model="claude-opus-5", provenance_prompt=True),
+    # ── D-MW-28 THE P6 ON-ARM (2026-08-12) ──────────────────────────────────────────────────────────────
+    # `max_cc1` = `max`'s EXACT fields + one cascade-contract slot. The D-MW-13 two-preset arm pattern,
+    # third application (max/max_c0, esc/esc_r, max/max_cc1): the P6 gate's arms are `--mode max` vs
+    # `--mode max_cc1`, so they differ by EXACTLY ONE variable and neither arm can be built by mixing a
+    # preset with a kwarg (the kwarg beats the preset outright -- a shipped pin -- which is what made
+    # "max with the mechanism off" unconstructible from one preset in the first place).
+    # `max` carries None, NOT 0: 0 is the value that would MINT the key into max's trace stamp and move
+    # the OFF arm's artifact, and None is what every other shipped preset carries here.
+    # RERANK CHUNK ARITHMETIC, RE-CHECKED AGAINST THE NEW BOUND (D-MW-11/D-MW-9): fetch_k 60 and
+    # rankers._COALESCE_MAX_DOCS 1000 pack 16 WHOLE nodes per request, and the ceiling is now
+    # 63 x seeds + 1. At every realized cardinality the request count is UNCHANGED --
+    # 63/126/189/252/315/378 -> 4/8/12/16/20/24 requests, and +1 node changes none of them (no capacity
+    # width is a multiple of 16; the residues are 15/14/13/12/11/10). A realized fill that lands exactly
+    # on a multiple of 16 costs ONE more concurrent request on a 1,000 req/min lane -- a request-shape
+    # detail, not a quota event. The plan's "33-34 x 60 = still 2 chunks" was written at the 32-node
+    # framing; under whole-node packing 33-34 is 3 chunks, and the P6 delta is 0-or-1 either way.
+    # DARK at birth, like every arm this wave has minted.
+    Mode(name=MAX_CC1,
+         depth=2, max_seeds=6,
+         k_by_depth=(7, 5, 3),
+         fetch_k=60, silver_cap=12,
+         scaffold_max_bullets=12, scaffold_max_absence=6,
+         cap_policy="score", order_policy="relevance",
+         per_seed_budget=63, per_seed_evidence_cap=24, per_seed_probe_cap=24, per_seed_reserve=0,
+         cascade_contract_slots=1),
 )}
 
 # Presets that `GRAPHRAG_MODES=on` must NOT sweep into the honored set. A dark preset is still resolvable
@@ -286,12 +326,16 @@ MODES: dict[str, Mode] = {m.name: m for m in (
 # would make the escalated bundle WILDCARD-HONORABLE -- i.e. `GRAPHRAG_MODES=on` would serve an UNMETERED
 # max-width + opus turn to anyone who typed the name. serving_names() is unchanged by this, and the pin on
 # that fact (test_dam_modes:101) is the leak fence.
-DARK_NAMES: frozenset = frozenset({DEEP_V2, MAX, MAX_C0, ESC, ESC_R})
+# D-MW-28 (P6): max_cc1 joins in the SAME commit that mints it, for the same reason -- a forgotten entry
+# makes an un-adjudicated arm wildcard-honorable. serving_names() is UNCHANGED by this, and the pin on
+# that fact is the leak fence.
+DARK_NAMES: frozenset = frozenset({DEEP_V2, MAX, MAX_C0, ESC, ESC_R, MAX_CC1})
 
 # The knob field names, in declaration order (the trace-stamp column order; append, never sort).
 KNOB_FIELDS: tuple[str, ...] = tuple(f.name for f in fields(Mode) if f.name != "name")
 
-_WALK_KNOBS = ("node_budget", "depth", "max_seeds", "per_seed_budget", "per_seed_reserve")
+_WALK_KNOBS = ("node_budget", "depth", "max_seeds", "per_seed_budget", "per_seed_reserve",
+               "cascade_contract_slots")
 _GROUND_KNOBS = ("k_by_depth", "evidence_cap", "probe_cap", "cap_policy")
 
 

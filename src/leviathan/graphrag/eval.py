@@ -29,6 +29,11 @@ from leviathan.graphrag import tracekeys as tk
 # citation as upstream -- i.e. it would report the gate's headline counter as a pass on the wrong mechanism.
 # planner pulls only evidence/graph/params, all of which this module already imports, so no new cycle.
 _REASON_DOWNSTREAM = _pl.REASON_DOWNSTREAM
+# D-MW-28 (P6, 2026-08-12): the lane is a MEMBERSHIP test on planner's own set, not an equality test against
+# one member. P6 mints a THIRD reason (`cascade_downstream_contract`), also downstream by construction, and
+# the equality partition put it in the UPSTREAM lane -- inflating the D-MW-16 headline while the P6 gate's
+# own headline (`n_cited_downstream`) stayed 0 BY CONSTRUCTION. Same import law as above: one producer.
+_DOWNSTREAM_REASONS = _pl.DOWNSTREAM_REASONS
 
 _QUERIES = ex._CFG / "eval_queries.yaml"
 _OUT = ex._CFG / "eval"
@@ -1442,6 +1447,14 @@ def _closure_cited(out: dict) -> dict:
       (1) A LEGACY 3-FIELD ROW PARSES AS UPSTREAM. Pre-P3 artifacts were stamped by the v1 reservation,
           whose only admission reason WAS `closure_reservation` -- so reading them as upstream is the
           historically true reading, not a default. It also keeps every stored baseline re-readable.
+    D-MW-28 (P6, 2026-08-12) -- THE THIRD REASON, AND WHY THE LANE IS A MEMBERSHIP TEST. The cross-market
+    cascade admits a FOREIGN CONTRACT (`cascade_downstream_contract`), which is downstream by construction:
+    it is the market the seed's situation cascades INTO. The partition tested EQUALITY against
+    `cascade_downstream`, so a P6 citation landed in the UPSTREAM lane -- inflating the D-MW-16 headline
+    with a mechanism it does not measure, while the P6 gate's own headline clause (`n_cited_downstream >= 1`
+    on a majority of live rows) read 0 BY CONSTRUCTION and would have routed the whole wave to D-HP's
+    narration contract on a false read. The test is now membership in `planner.DOWNSTREAM_REASONS`; the
+    reserve's counters are unmoved on every pre-P6 artifact, since no such row can exist in one.
       (2) LANE ASSIGNMENT IS EXCLUSIVE, UPSTREAM WINNING. One evidence row can legitimately survive on an
           upstream node AND a downstream one, and a naive per-lane count would then count one handle twice
           and break `n_cited == upstream + downstream`. Each resolved handle is assigned to exactly one
@@ -1456,7 +1469,7 @@ def _closure_cited(out: dict) -> dict:
         if len(_row) < 3 or not _row[0]:
             continue
         key = (_row[0], str(_row[1] or "")[:10], _row[2] or "")
-        (down if (len(_row) > 3 and str(_row[3] or "") == _REASON_DOWNSTREAM) else up).add(key)
+        (down if (len(_row) > 3 and str(_row[3] or "") in _DOWNSTREAM_REASONS) else up).add(key)
     down -= up                                               # exclusive lanes, upstream wins (property 2)
     resolved = (((out.get("trace") or {}).get("citation_verifier")) or {}).get("resolved") or {}
 
@@ -1488,12 +1501,21 @@ def _closure_cited(out: dict) -> dict:
             # because this is also the shape `cascade_closure.admissions` already publishes, so the artifact
             # now speaks ONE node-id language end to end. `reserved_ids` deliberately stays BARE: it is the
             # pre-P3 D-GD column and a stored baseline must keep re-reading.
+            #
+            # D-MW-28 (P6): the CASCADE admissions join the same two lists, from `cascade_contracts` --
+            # planner keeps them out of `reserved` so the reserve's count_delta identity stays assertable,
+            # but the deck's adjudication join ("the foreign contract was ADMITTED") reads an id list, and
+            # a list that never carried them was structurally empty on the downstream side. The key shape
+            # is the producer's own `":".join(key)`, i.e. `contract:<foreign>:<foreign>` -- distinct from
+            # `driver:<contract>:<id>` by construction, and exactly the `foreign_contract_node` string the
+            # frozen cascade deck names. The reason is downstream, so they land in `downstream_ids` and
+            # chain_verdict's upstream join (the only shipped consumer, eval.py:1560) cannot move.
             "upstream_ids": [":".join(str(p) for p in (r.get("key") or []))
-                             for r in (cc.get("reserved") or [])
-                             if str(r.get("reason") or "") != _REASON_DOWNSTREAM],
+                             for r in ((cc.get("reserved") or []) + (cc.get("cascade_contracts") or []))
+                             if str(r.get("reason") or "") not in _DOWNSTREAM_REASONS],
             "downstream_ids": [":".join(str(p) for p in (r.get("key") or []))
-                               for r in (cc.get("reserved") or [])
-                               if str(r.get("reason") or "") == _REASON_DOWNSTREAM],
+                               for r in ((cc.get("reserved") or []) + (cc.get("cascade_contracts") or []))
+                               if str(r.get("reason") or "") in _DOWNSTREAM_REASONS],
             "reserved_slices": [r.get("slice") for r in (cc.get("reserved") or [])],
             "n_displaced": len(cc.get("displaced") or []), "count_delta": cc.get("count_delta"),
             "headroom_used": cc.get("headroom_used"),

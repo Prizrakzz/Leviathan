@@ -227,8 +227,19 @@ def test_pin3_node_count_under_the_DEDICATED_slot_posture_is_additive_not_invari
 
 
 @pytest.mark.parametrize("budget", [6, 8, 10, 16, 32, 63])
-def test_pin3_reservation_never_exceeds_node_budget(alias, budget):
-    """THE WALK INVARIANT IS `len(kept) <= node_budget`, PARAMETRIZED IN THE BUDGET (D-MW-11 re-scope).
+@pytest.mark.parametrize("cc_slots", [None, 0, 2])
+def test_pin3_reservation_never_exceeds_node_budget(alias, budget, cc_slots):
+    """THE WALK INVARIANT IS `len(kept) <= node_budget + cascade_contract_slots`, PARAMETRIZED IN BOTH
+    (D-MW-11 re-scope, then the D-MW-28 re-pin below).
+
+    D-MW-28 RE-PIN (P6, 2026-08-12), STATED HONESTLY: P6 adds a THIRD admission source whose slots are
+    additive by construction (a paid foreign contract block is charged to `cascade_contract_slots`, never
+    to the cosine budget), so the ceiling this pin defends BECOMES `node_budget + cascade_contract_slots`
+    -- the plan refused to call the slots free, and so does this bound. None == 0 == the pre-P6 ceiling,
+    which is what every serving preset carries and what the un-parametrized cases below assert.
+    NON-VACUITY: this fixture's contracts declare no inter_commodity edges, so the cascade source finds
+    nothing to admit here and the raised bound is exercised (not merely stated) in
+    test_dmw_p6.py::test_the_ceiling_is_node_budget_plus_the_cascade_slots, on a fixture that FILLS both.
 
     This pin used to be named for the 17-node rerank cliff and carried a hard `<= 16` beside the budget
     bound. That conflated two different facts. The walk law is the budget: the reservation spends the
@@ -245,12 +256,20 @@ def test_pin3_reservation_never_exceeds_node_budget(alias, budget):
     case is the D-MW STEP-0 calibration (12a): the measured p75 of PER-SEED above-tau cosine demand, i.e.
     the `max` preset's one-seed width."""
     gr = _chain_graph()
-    off = _walk(gr, closure_reserve=0, node_budget=budget)
-    on = _walk(gr, closure_reserve=3, node_budget=budget)
-    assert len(on.nodes) <= max(budget, 1)
+    off = _walk(gr, closure_reserve=0, node_budget=budget, cascade_contract_slots=cc_slots)
+    on = _walk(gr, closure_reserve=3, node_budget=budget, cascade_contract_slots=cc_slots)
+    assert len(on.nodes) <= max(budget, 1) + int(cc_slots or 0)
     assert len(on.nodes) >= len(off.nodes)                   # additive-or-equal, never subtractive
     cc = on.trace["cascade_closure"]
     assert len(cc["reserved"]) == len(cc["displaced"]) + cc["headroom_used"] and cc["count_delta"] == 0
+    # THE POT IS DECLARED ON BOTH P6 POLARITIES (an unstamped arm is uncomparable) and on NEITHER shipped
+    # one: the knob's ABSENCE gates the eight P6 keys, so a serving preset's artifact shape is byte-
+    # identical to its pre-P6 self (P6 round-1 minor). `0` is a value -- the OFF arm of the P6 A/B.
+    if cc_slots is None:
+        assert "cascade_slots" not in cc and "cascade_contracts" not in cc
+    else:
+        assert cc["cascade_slots"] == {"total": cc_slots, "filled": 0,
+                                       "empty": cc_slots}, "no declared edges here -> nothing to buy"
 
 
 @pytest.mark.parametrize("per_seed", [4, 8, 16, 63])
@@ -484,7 +503,12 @@ def test_the_reservation_is_trimmed_not_overdrawn_when_the_wave_cannot_pay(alias
 # candidate >= 2 admitted anchors' chains reached, and an exact-set assertion would have made the
 # optional pair unshippable. `_STRUCTURAL_REASONS` is the module's own set, read here so the test and the
 # three guard sites can never disagree about what "structural" means.
-_REASONS = {pl.REASON_COSINE, pl.REASON_CLOSURE, pl.REASON_DOWNSTREAM, "focus_driver"}
+# D-MW-28 (P6): `cascade_downstream_contract` joins the enum -- the THIRD structural reason and the first
+# that admits a CONTRACT node. Its record carries the same three required fields (`ancestor_of` is the
+# SEED that reached it, `chain_depth` is -1, the negative-is-downstream convention) plus the same optional
+# convergence pair, so every reader of this enum keeps reading one shape.
+_REASONS = {pl.REASON_COSINE, pl.REASON_CLOSURE, pl.REASON_DOWNSTREAM, pl.REASON_DOWNSTREAM_CONTRACT,
+            "focus_driver"}
 _REC_REQUIRED = {"reason", "ancestor_of", "chain_depth"}
 _REC_OPTIONAL = {"convergence", "anchors"}
 
@@ -509,14 +533,20 @@ def test_the_structural_reason_set_is_the_one_producer_of_the_three_guards():
     the exact admitted-but-not-cited defect P3-A exists to prove fixed. All three are membership tests on
     this one set now, and the reason literals have ONE producer."""
     import inspect
-    assert pl._STRUCTURAL_REASONS == {"closure_reservation", "cascade_downstream"}
+    # D-MW-28 RE-PIN (P6): `cascade_downstream_contract` joins the set in the commit that mints it -- the
+    # first STRUCTURAL reason that admits a CONTRACT, and the guards below are exactly what stop a
+    # ~2.8k-token paid foreign block from landing with zero evidence rows.
+    assert pl._STRUCTURAL_REASONS == {"closure_reservation", "cascade_downstream",
+                                      "cascade_downstream_contract"}
     assert pl.REASON_CLOSURE in pl._STRUCTURAL_REASONS and pl.REASON_DOWNSTREAM in pl._STRUCTURAL_REASONS
+    assert pl.REASON_DOWNSTREAM_CONTRACT in pl._STRUCTURAL_REASONS
     assert pl.REASON_COSINE not in pl._STRUCTURAL_REASONS
     assert pl._ADMIT_COSINE["reason"] == pl.REASON_COSINE
     src = inspect.getsource(pl)
     # the reason strings appear as LITERALS only where they are minted (the constants) and in prose.
     assert src.count('"closure_reservation"') == 1, "the reason literal must be minted in exactly one place"
     assert src.count('"cascade_downstream"') == 1
+    assert src.count('"cascade_downstream_contract"') == 1
     for fn in (pl._closure_cap_order, pl._dedup_and_cap, pl._closure_census):
         assert "_STRUCTURAL_REASONS" in inspect.getsource(fn), \
             "%s must test MEMBERSHIP, not a literal" % fn.__name__

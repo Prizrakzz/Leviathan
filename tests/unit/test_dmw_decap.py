@@ -294,7 +294,10 @@ def test_census_override_is_the_thread_scoped_dossier_idiom_not_the_env_flag(mon
     # D-MW-30 F3 RE-PIN: the escalated presets joined the set. The mandates are part of the 12e-measured
     # width bundle, so a walk that escalates to that width carries them too -- keyed on the EFFECTIVE
     # mode, never on the honored one (which stays `deep` on an escalated turn).
-    assert orch._CENSUS_MANDATE_MODES == frozenset({rm.MAX, rm.MAX_C0, orch._ESC, orch._ESC_R})
+    # D-MW-28 (P6) RE-PIN: `max_cc1` joined for the ONE-VARIABLE reason -- the P6 gate's arms are max vs
+    # max_cc1, and a mandate riding only one of them makes the composition census a second variable on the
+    # very axis that gate's clause (3) measures.
+    assert orch._CENSUS_MANDATE_MODES == frozenset({rm.MAX, rm.MAX_C0, rm.MAX_CC1, orch._ESC, orch._ESC_R})
     monkeypatch.delenv("GRAPHRAG_COMPOSITION_CENSUS", raising=False)
     with orch._census_ctx(rm.MAX):
         assert an._composition_census_on() is True
