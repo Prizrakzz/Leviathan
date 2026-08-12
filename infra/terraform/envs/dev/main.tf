@@ -578,6 +578,10 @@ module "serving" {
     # apply cannot silently un-meter the tiers. GRAPHRAG_MODES stays quick,deep (already live).
     GRAPHRAG_CREDITS         = "on"
     GRAPHRAG_CREDITS_LIMIT   = "100"
+    # GRAPHRAG_METER_EXEMPT_SUBS also rides the live taskdef (owner/ops accounts, never metered).
+    # The VALUE is a Cognito user sub and is deliberately NOT committed (this repo is public);
+    # it is set at registration via register_serving_taskdef.py --set-env. Recorded OPS-3 deviation:
+    # key named here, value lives only on the taskdef.
     GRAPHRAG_CORS_ORIGINS    = "https://leviathanconvexity.com,https://www.leviathanconvexity.com"
 
     GRAPHRAG_AUTH              = "on"

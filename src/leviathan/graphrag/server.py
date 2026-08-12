@@ -353,6 +353,14 @@ def _op_id(sub: str, turn_id: Optional[str]) -> str:
     return f"turn-{sub}-{tid}"
 
 
+def _exempt_sub(sub: str) -> bool:
+    """GRAPHRAG_METER_EXEMPT_SUBS: comma-separated Cognito subs whose turns and dossiers are NEVER
+    metered (owner/ops accounts). Exempt users see no credits badge (/v1/credits 404s, the dark idiom)
+    and the dossier monthly counter is never consumed. Config-of-record rides extra_environment."""
+    raw = os.environ.get("GRAPHRAG_METER_EXEMPT_SUBS", "")
+    return bool(sub) and sub in {s.strip() for s in raw.split(",") if s.strip()}
+
+
 def _credit_gate(ident: dict, mode: Optional[str], turn_id: Optional[str] = None) -> Optional[dict]:
     """STEP 1 — GATE. Runs INSIDE the quota dependency, BEFORE the daily-turn increment.
 
@@ -376,6 +384,8 @@ def _credit_gate(ident: dict, mode: Optional[str], turn_id: Optional[str] = None
     without a signal): an infra glitch runs the turn unmetered rather than refusing a paying user."""
     if not _credits_on():
         return None                                   # THE KILL SWITCH — nothing below this line runs
+    if _exempt_sub(str(ident.get("sub") or "")):
+        return None                                   # owner/ops exemption: unmetered, zero store calls
     from leviathan.graphrag import orchestrator as orch
     from leviathan.graphrag import reasoning_modes as rm
     from leviathan.graphrag import store as st
@@ -809,8 +819,8 @@ def credits_route(ident: dict = Depends(_require_identity)) -> dict:
 
     FAIL-OPEN on any store error: a badge that cannot read the counter shows the full grant rather than
     telling a paying user they have nothing left."""
-    if not _credits_on():
-        raise HTTPException(status_code=404, detail="not found")
+    if not _credits_on() or _exempt_sub(str(ident.get("sub") or "")):
+        raise HTTPException(status_code=404, detail="not found")   # dark OR exempt: no meter to report
     limit = _credits_limit()
     return {"remaining": _credits_remaining(str(ident.get("sub") or ""), _credits_period(), limit,
                                             on_error=limit),
@@ -1812,7 +1822,9 @@ def dossier_create(body: DossierIn, ident: dict = Depends(_require_identity)) ->
     if not _DOSSIER_ASOF_RX.match(asof):
         raise HTTPException(status_code=422, detail="asof must be YYYY-MM-DD")
     try:
-        period = dsr.consume_quota(_store(), ident)
+        # Owner/ops exemption: the monthly counter is never consumed (start() accepts a None period,
+        # so the failure-refund path no-ops too). The quota BADGE stays truthful: it never decrements.
+        period = None if _exempt_sub(str(ident.get("sub") or "")) else dsr.consume_quota(_store(), ident)
     except st.QuotaExceeded:
         # A JSONResponse, not an HTTPException: the locked contract puts `reset_at` at the TOP level of
         # the 429 body (the picker renders the date), and HTTPException would bury it under `detail`.

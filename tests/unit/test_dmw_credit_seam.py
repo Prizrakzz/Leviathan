@@ -716,3 +716,39 @@ def test_the_seam_releases_with_the_token_it_was_admitted_with(monkeypatch):
     assert len(took) == 1 and len(gave) == 1
     assert gave[0][2] == "tok1"                                       # the token, not a bare user id
     assert s.leases == {}
+
+
+# ══ owner/ops metering exemption (GRAPHRAG_METER_EXEMPT_SUBS) ════════════════════════════════════════
+def test_an_exempt_sub_is_never_metered_and_a_neighbor_still_is(monkeypatch):
+    """The owner exemption: a listed sub on a METERED tier makes ZERO store calls (proven with the
+    refusing store); an unlisted sub on the same env is charged normally (the exemption cannot leak)."""
+    monkeypatch.setenv("GRAPHRAG_CREDITS", "on")
+    monkeypatch.setenv("GRAPHRAG_MODES", "quick,deep")
+    monkeypatch.setenv("GRAPHRAG_METER_EXEMPT_SUBS", " owner-sub ,ops-sub ")
+    _use(monkeypatch, _RefusingStore())
+    assert sv._credit_gate({"sub": "owner-sub"}, "deep") is None
+    assert sv._credit_gate({"sub": "ops-sub"}, "deep") is None
+    s = _use(monkeypatch, _LedgerStore())
+    assert sv._credit_gate({"sub": "someone-else"}, "deep") is not None
+    assert "debit" in s.kinds()
+
+
+def test_an_exempt_sub_sees_no_credits_badge(monkeypatch):
+    """/v1/credits 404s for an exempt sub (the dark idiom: no meter to report -> the FE renders no
+    badge), and still 200s for everyone else."""
+    from leviathan.graphrag import auth
+    monkeypatch.setenv("GRAPHRAG_CREDITS", "on")
+    monkeypatch.setenv("GRAPHRAG_CREDITS_LIMIT", "100")
+    _use(monkeypatch, _LedgerStore())
+    c = _respond(monkeypatch, lambda q, **kw: _result("deep"))
+    assert c.get("/v1/credits").status_code == 200                      # not exempt: badge renders
+    monkeypatch.setenv("GRAPHRAG_METER_EXEMPT_SUBS", auth.LOCAL_USER)
+    assert c.get("/v1/credits").status_code == 404                      # exempt: no meter to report
+
+
+def test_the_exempt_list_grammar(monkeypatch):
+    monkeypatch.delenv("GRAPHRAG_METER_EXEMPT_SUBS", raising=False)
+    assert sv._exempt_sub("anyone") is False
+    monkeypatch.setenv("GRAPHRAG_METER_EXEMPT_SUBS", " a , b ,")
+    assert sv._exempt_sub("a") and sv._exempt_sub("b") and not sv._exempt_sub("c")
+    assert sv._exempt_sub("") is False
