@@ -17,6 +17,9 @@ Endpoints (build-plan Phase 1 — all additive, deterministic, no new LLM spend 
   GET  /v1/events?contract=&asof=     — live-events feed; empty when asof<today (PIT kill-switch).    §4.7
   GET  /v1/gallery                    — curated starter prompts, filled from the warm convergence catalog
                                         (deterministic, no model call, no quota; D-AM-16).
+  GET  /v1/credits                    — {remaining, limit, reset_at} of the monthly CREDIT grant that the
+                                        metered depth tier spends (D-MW-24; 404 while GRAPHRAG_CREDITS is
+                                        dark, because then nothing is metered).
   POST /v1/share , GET /v1/share/{id} — immutable, reproducible note snapshot (pins graph_version).  §6.7
   GET/POST/DELETE /v1/{threads,watchlists,workspaces,artifacts} — per-user persistence (artifacts =
                                         a named, PRIVATE freeze of one answer turn; D-AM-15).
@@ -167,22 +170,297 @@ def _require_identity(authorization: Optional[str] = Header(None)) -> dict:
         raise HTTPException(status_code=401, detail=str(e))
 
 
-def _require_identity_quota(authorization: Optional[str] = Header(None)) -> dict:
-    """`_require_identity` + a per-user DAILY turn cap (Stage 5, env `GRAPHRAG_TURN_QUOTA`). Each turn is
-    real Bedrock spend, so an open-signup public deploy caps per-account velocity. Over the cap -> 429.
-    Quota unset -> no cap; any counter/infra error -> ALLOW (fail-open; WAF rate-limit + the Bedrock daily
-    budget are the hard backstops, a counter glitch must not lock out a paying user)."""
-    ident = _require_identity(authorization)
+def _daily_turn_quota(ident: dict) -> None:
+    """The per-user DAILY turn cap (Stage 5, env `GRAPHRAG_TURN_QUOTA`) — the shipped meter, on its
+    shipped primitive (`incr_turn_quota` -> a plain conditional UpdateItem). Each turn is real Bedrock
+    spend, so an open-signup public deploy caps per-account velocity. Over the cap -> 429. Quota unset ->
+    no cap; any counter/infra error -> ALLOW (fail-open; WAF rate-limit + the Bedrock daily budget are the
+    hard backstops, a counter glitch must not lock out a paying user).
+
+    D-MW-24 NOTE (the reason this is its own function now): the credit gate must run BEFORE this
+    increment, so an out-of-credits 429 never burns one of the user's 50 daily turns. Extracted, not
+    rewritten — this meter stays BYTE-UNTOUCHED (wrapping it in the ledger's transactional path would
+    change its failure type from ConditionalCheckFailedException to TransactionCanceledException and the
+    QuotaExceeded mapping below would silently stop firing, i.e. the cap would fail OPEN)."""
     cap = os.environ.get("GRAPHRAG_TURN_QUOTA")
-    if cap:
-        from leviathan.graphrag import store as st
-        try:
-            _store().incr_turn_quota(ident["sub"], time.strftime("%Y-%m-%d", time.gmtime()), int(cap))
-        except st.QuotaExceeded:
-            raise HTTPException(status_code=429, detail=f"daily turn limit ({cap}) reached; try again tomorrow")
-        except Exception:  # noqa: BLE001 — fail open on any non-quota error
-            pass
-    return ident
+    if not cap:
+        return
+    from leviathan.graphrag import store as st
+    try:
+        _store().incr_turn_quota(ident["sub"], time.strftime("%Y-%m-%d", time.gmtime()), int(cap))
+    except st.QuotaExceeded:
+        raise HTTPException(status_code=429, detail=f"daily turn limit ({cap}) reached; try again tomorrow")
+    except Exception:  # noqa: BLE001 — fail open on any non-quota error
+        pass
+
+
+# NOTE (P5 review F7): the mode-less `_require_identity_quota` was DELETED here. Zero routes referenced
+# it once both turn routes moved to the mode-carrying wrappers, and a dead gate that reads as live is how
+# a future route gets wired to the UNMETERED variant by accident — on the money path. The mode-less entry
+# point still exists and is named: `_metered_identity_quota(authorization, None)` (a None mode prices
+# nothing, so it behaves exactly as the deleted function did). Prose elsewhere that cites "the
+# `_require_identity_quota` law" means the fail-open law now stated on `_metered_identity_quota`.
+
+
+# ══ D-MW-24: THE CREDIT SEAM ════════════════════════════════════════════════════════════════════════
+# The depth slider prices DEPTH, not turns. Two notches ship: Scan (`quick`, UNMETERED — the default
+# experience is never metered; usage anxiety suppresses engagement) and Analysis (`deep`, 1 credit/turn
+# against a monthly grant). `max`/`max_c0` stay DARK and are deliberately ABSENT from the price table:
+# an un-shipped tier has no price, and a tier with no price is unmetered — which is safe here only
+# because serving's GRAPHRAG_MODES allowlist is what decides whether it can be honored at all.
+#
+# THE ONE SEAM is the quota dependency (below): FastAPI resolves it BEFORE the handler body, which is
+# the only place where (a) the credits check can precede the daily-turn increment and (b) a refusal can
+# still be a 429 — once a StreamingResponse's generator starts, the status line is already sent.
+_CREDITS_FLAG = "GRAPHRAG_CREDITS"              # absent/off => ZERO metering code executes (dark-first)
+_CREDITS_LIMIT_ENV = "GRAPHRAG_CREDITS_LIMIT"   # the monthly grant; ratified initial 100
+_CREDITS_DEFAULT_LIMIT = 100
+_CREDIT_PRICES: dict = {"deep": 1}              # wire names, frozen identifiers (rm.DEEP); quick == free
+_CREDIT_KEY = "_credit"                         # private slot on the identity dict: the turn's charge
+_CREDITS_ERROR_CODE = "credits_exceeded"        # the 429's MACHINE slug; the sentence rides `detail` (F9)
+# The GROUNDED-WALK STAMP (F2). `planner.grounded_subgraph` writes `trace.walk_shape` on EVERY walk, both
+# arms, and `answer._answer_l2` spreads sg.trace into the result — so its PRESENCE is the artifact that a
+# metered walk actually ran, and its ABSENCE is the one signal that says no depth was delivered. The
+# deterministic floor (`trace.floor`, historically 17.6% of turns), the trivial-router reply, the guardrail
+# refusal and the two knob-exempt lanes (live / numbers_only) all lack it. `intent_decision.mode.honored`
+# CANNOT play this role: orchestrator.py stamps it unconditionally on the way out, including on the floor
+# result, so a floored turn is indistinguishable from a delivered deep turn by that field alone.
+# THE DIRECTION OF THE FAILURE IS DELIBERATE: any lane that does not stamp a walk reads as delivered-nothing
+# and is REFUNDED. If the walk stamp ever moved or the onehop planner rollback (GRAPHRAG_PLANNER=onehop, no
+# grounded_subgraph) were taken, every metered turn would net to zero — the estate stops billing rather than
+# billing for depth it cannot prove it delivered.
+_WALK_STAMP = "walk_shape"
+
+
+class CreditsExceeded(Exception):
+    """Raised by the quota dependency when the monthly grant cannot cover the requested tier.
+
+    WHY AN EXCEPTION AND NOT A RESPONSE (measured, round-3): a dependency can only short-circuit by
+    RAISING; `HTTPException` buries everything under `detail` so a top-level `reset_at` is impossible
+    that way; and a `JSONResponse` RETURNED from a dependency does not short-circuit at all — the
+    handler runs anyway. A bare exception + an app-level handler is the only construct that is both
+    dependency-raisable (i.e. fires before the stream opens) and top-level-shaped."""
+
+    def __init__(self, *, limit: int, remaining: int, reset_at: str, detail: Optional[str] = None):
+        self.limit, self.remaining, self.reset_at = int(limit), int(remaining), str(reset_at)
+        # A human `detail` string rides ALONGSIDE the structured fields on purpose: the FE transport
+        # error extractor reads `detail` and renders anything else as a bare "HTTP 429" (the D-TW-6
+        # class). The structured fields are what DepthControl reads for the reset day.
+        self.detail = detail or (f"monthly credit limit ({self.limit}) reached; "
+                                 f"credits reset {self.reset_at[:10]}")
+        super().__init__(self.detail)
+
+
+@app.exception_handler(CreditsExceeded)
+def _credits_exceeded_handler(request, exc: CreditsExceeded) -> JSONResponse:
+    """THE LOCKED 429 BODY. D-MW-25's FE parsing and the prod smoke assert exactly these five keys.
+
+    `error` is a MACHINE SLUG and `detail` is the human sentence (P5 review F9). The FE types `error` as a
+    code (`CreditsRefusal.code`) and the shipped dossier 429 already puts a code there; a prose phrase in a
+    field a client branches on is a contract that reads one way and behaves another. The sentence a user
+    sees never moved — it has always come from `detail`."""
+    return JSONResponse(status_code=429,
+                        content={"error": _CREDITS_ERROR_CODE, "limit": exc.limit,
+                                 "remaining": exc.remaining, "reset_at": exc.reset_at,
+                                 "detail": exc.detail})
+
+
+def _credits_on() -> bool:
+    """THE KILL SWITCH. Absent/''/'off' -> False -> not one line of metering code runs and not one store
+    call is made on the turn path (mock-asserted): the request path is byte-identical to its pre-D-MW
+    self. The flip to 'on' is a later, separate decision (the env flag and the code that reads it are ONE
+    change — see the P1 flip law)."""
+    return os.environ.get(_CREDITS_FLAG, "").strip().lower() in ("on", "1", "true")
+
+
+def _credits_limit() -> int:
+    try:
+        return max(0, int(os.environ.get(_CREDITS_LIMIT_ENV, _CREDITS_DEFAULT_LIMIT)))
+    except (TypeError, ValueError):
+        return _CREDITS_DEFAULT_LIMIT
+
+
+def _credits_period(now: Optional[float] = None) -> str:
+    """The store period suffix `credits#YYYY-MM` (row sk=`quota#credits#YYYY-MM`) — DELEGATED to
+    store.credits_period, never re-derived here. One authority for the key and one for the reset: a
+    reset date that disagreed with the counter's bucket is how a user is told 'resets September 1' and
+    is still refused on September 1."""
+    from leviathan.graphrag import store as st
+    return st.credits_period(now)
+
+
+def _credits_reset_at(now: Optional[float] = None) -> str:
+    """First instant of the next UTC month — the 429 body's `reset_at`. Delegated, same reason."""
+    from leviathan.graphrag import store as st
+    return st.credits_reset_at(now)
+
+
+def _credit_price(honored: Optional[str]) -> int:
+    """What the tier that ACTUALLY RAN costs. Unknown/None/absent (every early-return lane) -> 0."""
+    return int(_CREDIT_PRICES.get((honored or "").strip().lower(), 0))
+
+
+def _grounded_walk_ran(result: Optional[dict]) -> bool:
+    """Did this turn actually run the grounded walk the metered tier prices? See `_WALK_STAMP`."""
+    if not isinstance(result, dict):
+        return False
+    # PRESENCE, not truthiness: the stamp's existence is the delivery signal (planner stamps it at
+    # its single return); an empty-dict stamp must still read as a delivered walk (verify catch).
+    return _WALK_STAMP in ((result.get("trace") or {}) if isinstance(result.get("trace"), dict) else {})
+
+
+def _honored_mode(result: Optional[dict]) -> Optional[str]:
+    """The tier the user actually RECEIVED — the reconcile's one authority for what to charge for.
+
+    TWO conditions, not one (F2). The honored stamp says what the resolver decided; the walk stamp says
+    whether that depth was ever delivered. The guardrail refusal and the trivial-router reply return ABOVE
+    `rm.resolve` and carry neither, which was always the reconcile signal — but the DETERMINISTIC FLOOR
+    carries the honored stamp and no walk: orchestrator.py stamps `intent_decision` on the way out, after
+    the floor has already replaced the branch with a banner plus raw evidence lines. Reading the honored
+    stamp alone charged a full credit for the single largest population that delivers no depth at all."""
+    if not _grounded_walk_ran(result):
+        return None
+    return (((result.get("intent_decision") or {}).get("mode") or {}).get("honored")) or None
+
+
+def _credits_remaining(sub: str, period: str, limit: int, *, on_error: int) -> int:
+    """Grant minus spend. `on_error` is the caller's choice of degradation and the two callers want
+    OPPOSITE things: the 429 body passes 0 (we are already refusing — a made-up positive balance beside
+    a refusal is worse than none), the badge passes the full grant (a badge that cannot read the counter
+    must not tell a paying user they have nothing left)."""
+    try:
+        return max(0, limit - int(_store().read_quota(sub, period) or 0))
+    except Exception:  # noqa: BLE001
+        return int(on_error)
+
+
+_TURN_ID_RE = re.compile(r"[^A-Za-z0-9_-]")
+
+
+def _op_id(sub: str, turn_id: Optional[str]) -> str:
+    """THE CHARGE'S IDENTITY (F4). Idempotency is only reachable if two invocations of the gate can agree
+    on one key, so the op_id is derived from the SUBJECT plus the client's per-question turn id: the FE
+    mints one uuid at submit and REUSES it across an SSE reconnect or a retry of the same question, so the
+    ledgerop marker collapses the replay to a no-op and the same question cannot be billed twice.
+
+    RECORDED: a caller that sends no turn_id (bare curl, an API integration) gets a random key and
+    therefore NO cross-request idempotency — the single-in-flight lease is its only protection. The sub is
+    in the key so one user's turn id can never collide with another's; the id is sanitised because it
+    lands in a DynamoDB sort key."""
+    tid = _TURN_ID_RE.sub("", str(turn_id or ""))[:64]
+    if not tid:
+        return f"turn-{time.strftime('%Y%m%dT%H%M%S', time.gmtime())}-{os.urandom(8).hex()}"
+    return f"turn-{sub}-{tid}"
+
+
+def _credit_gate(ident: dict, mode: Optional[str], turn_id: Optional[str] = None) -> Optional[dict]:
+    """STEP 1 — GATE. Runs INSIDE the quota dependency, BEFORE the daily-turn increment.
+
+    Order, and why it is this order:
+      1. kill switch  — off => return immediately, zero store calls, zero imports.
+      2. resolve      — the REQUESTED-AND-ALLOWLISTED tier via `rm.resolve` (a PURE function; calling it
+                        here with the same inputs the orchestrator will use is not a second resolution
+                        authority) intersected with the same GRAPHRAG_MODES allowlist. A tier the
+                        allowlist does not honor prices as what will actually run: nothing.
+      3. price        — 0 (quick/standard/dark) => unmetered, still zero store calls.
+      4. lease        — single-in-flight for METERED tiers only. `store.acquire_lease` is a LEASE, not a
+                        TTL (DynamoDB TTL deletion is best-effort within ~48h, so a crashed turn on a TTL
+                        would lock the user out of metered depth for up to two days); its 15-minute
+                        horizon is the store's `LEASE_SECONDS` default and is not re-declared here.
+      5. debit        — the atomic conditional debit. Over the grant -> CreditsExceeded -> 429 BEFORE the
+                        daily counter moves and before any stream opens.
+
+    Returns the CHARGE RECORD the turn reconciles against, or None when nothing was charged. FAIL-OPEN on
+    every non-quota store error (the `_metered_identity_quota` fail-open law, and the store's docstring puts
+    that decision HERE — a swallowed AccessDenied at the store would turn every metered turn unmetered
+    without a signal): an infra glitch runs the turn unmetered rather than refusing a paying user."""
+    if not _credits_on():
+        return None                                   # THE KILL SWITCH — nothing below this line runs
+    from leviathan.graphrag import orchestrator as orch
+    from leviathan.graphrag import reasoning_modes as rm
+    from leviathan.graphrag import store as st
+    honored = rm.resolve(mode, orch._modes_enabled())["honored"]
+    amount = _credit_price(honored)
+    if amount <= 0:
+        return None                                   # Scan (quick) + standard are UNMETERED by design
+    sub = str(ident.get("sub") or "")
+    period, limit = _credits_period(), _credits_limit()
+    op_id = _op_id(sub, turn_id)
+    lease, busy = None, False
+    try:
+        lease = _store().acquire_lease(sub) or None   # the OWNER TOKEN (F5), or None when held
+        busy = lease is None                          # a live lease held by another turn => refuse
+    except Exception:  # noqa: BLE001 — a lease glitch admits the turn; it never blocks a paying user
+        lease, busy = None, False
+    if busy:
+        raise HTTPException(status_code=429,
+                            detail="a metered turn is already running on this account; wait for it to "
+                                   "finish, or run this question as a Scan")
+    try:
+        applied = _store().debit(sub, period, amount, limit, op_id=f"{op_id}#debit", ref=honored)
+    except st.QuotaExceeded:
+        _release_lease({"sub": sub, "lease": lease})
+        raise CreditsExceeded(limit=limit, remaining=_credits_remaining(sub, period, limit, on_error=0),
+                              reset_at=_credits_reset_at())
+    except Exception:  # noqa: BLE001 — nothing was charged, so there is nothing to reconcile
+        _release_lease({"sub": sub, "lease": lease})
+        return None
+    # `applied is False` = the ledgerop marker was already there, i.e. THIS request is a replay of a turn
+    # that was charged once. It still runs (the user asked for an answer), it still holds the lease, and it
+    # still settles — but its refund leg is a no-op, because refunding here would give back the ORIGINAL
+    # request's credit and hand a delivered turn away for free.
+    return {"sub": sub, "period": period, "amount": amount, "op_id": op_id, "applied": bool(applied),
+            "honored": honored, "lease": lease, "settled": False}
+
+
+def _settle_credit(charge: Optional[dict], result: Optional[dict]) -> None:
+    """STEP 2 — RECONCILE, and the CHARGE-COMMIT point.
+
+    Called at exactly one moment per turn: where the result event is ENQUEUED (the stream) or the result
+    is returned (the POST twin), and on every path that delivers no metered depth — the trivial-router
+    reply, the guardrail refusal, an honored-tier DOWNGRADE (requested deep, honored standard, because
+    the allowlist did not honor it), and any exception before the result. Pass `result=None` for those
+    last ones: nothing was delivered, so the whole charge goes back.
+
+    The refund is the DIFFERENCE between what the gate charged and what the turn actually delivered, so
+    a requested-but-downgraded tier leaves the ledger NET UNCHANGED. Idempotent twice over: the store op
+    is keyed on a fixed op_id, and `settled` makes a second call a local no-op (a turn that raises AFTER
+    its result event must not be refunded — it was delivered).
+
+    DELIVERY SEMANTICS, PLAINLY: a GET SSE route has no delivery signal, so a client disconnect AFTER
+    compute is CHARGED (the recorded trade; the product copy says so) and a disconnect before the result
+    is not auto-refunded — no observable signal distinguishes it from a completed read."""
+    if not charge or charge.get("settled"):
+        return
+    charge["settled"] = True                          # set FIRST: a raising refund must not be retried
+    if not charge.get("applied", True):
+        return                                        # a replay charged nothing here (F4): the ORIGINAL
+                                                      # request owns this op_id's reconcile
+    back = int(charge.get("amount") or 0) - _credit_price(_honored_mode(result))
+    if back <= 0:
+        return
+    try:
+        _store().credit(charge["sub"], charge["period"], back, op_id=f"{charge['op_id']}#refund",
+                        ref=f"undelivered:{_honored_mode(result) or 'none'}")
+    except Exception:  # noqa: BLE001 — a refund that raised would turn one failure into two
+        pass
+
+
+def _release_lease(charge: Optional[dict]) -> None:
+    """Drop the single-in-flight lease. Called in a FINALLY on every terminal path (the item's TTL is
+    garbage collection only, and its 15-minute expiry only the crash backstop). Idempotent.
+
+    OWNERSHIP-FENCED (F5): `charge["lease"]` is the TOKEN this turn was admitted with, and the release is
+    conditional on it at the store. A worker whose own lease expired mid-turn — so a second turn was
+    admitted and holds a fresh token — releases NOTHING instead of deleting the live lease."""
+    if not charge or not charge.get("lease"):
+        return
+    token = charge["lease"]
+    charge["lease"] = None
+    try:
+        _store().release_lease(charge["sub"], token)
+    except Exception:  # noqa: BLE001 — the lease expires on its own; never fail a turn on its release
+        pass
 
 
 def _trim_citation_provenance(citations: list) -> list:
@@ -330,6 +608,67 @@ class Ask(BaseModel):
     # typed enum would reject at the edge, which is exactly the failure mode the fail-open pin
     # forbids). The orchestrator does the validation, the allowlist and the stamping.
     mode: Optional[str] = None
+    # D-MW-24 / F4: the client's per-question TURN ID -- one uuid minted at submit and REUSED across an
+    # SSE reconnect or a retry of the same question. It is the only thing that can make the credit charge
+    # idempotent across requests (`_op_id`); absent, the charge falls back to a random key and a genuine
+    # retry is billed again. Free-form and optional for the same reason `mode` is: an unknown value must
+    # never 422 a desk turn.
+    turn_id: Optional[str] = None
+
+
+def _metered_identity_quota(authorization: Optional[str], mode: Optional[str],
+                            turn_id: Optional[str] = None) -> dict:
+    """THE ONE GATE for a turn: identity -> credits (on the requested-and-allowlisted tier) -> daily cap.
+
+    The order is the whole point. FastAPI resolves this dependency before the handler body, so a
+    route-level credits check would already have burned a daily turn; here the credits refusal fires
+    FIRST and the daily counter never moves. The reverse hazard is covered too: a daily-cap 429 after a
+    successful debit credits the debit back (the turn never ran).
+
+    The charge record rides on the identity dict under a private key — the handler pops it, so nothing
+    downstream (`_save_turn`, `_turn_profile_facts`) ever sees it.
+
+    THE FAIL-OPEN LAW lives here (it used to be named after `_require_identity_quota`, deleted per F7): a
+    counter or ledger glitch must never lock a paying user out — see `_credit_gate`."""
+    ident = _require_identity(authorization)
+    charge = _credit_gate(ident, mode, turn_id)        # raises CreditsExceeded / 429-busy, or returns None
+    try:
+        _daily_turn_quota(ident)
+    except BaseException:
+        _settle_credit(charge, None)                   # daily cap hit: no depth delivered, credit it back
+        _release_lease(charge)
+        raise
+    if charge:
+        ident[_CREDIT_KEY] = charge
+    return ident
+
+
+def _require_identity_quota_ask(body: Ask, authorization: Optional[str] = Header(None)) -> dict:
+    """The POST /v1/respond gate. A dependency MAY declare a body param — and declaring it under the
+    SAME name as the handler's (`body`) is load-bearing: FastAPI counts body params by NAME, so one
+    shared name keeps the request body top-level (two distinct names would embed it and change the
+    wire contract). Pinned by test.
+
+    THE VALIDATION FENCE (F1), and the reason this route was already safe: `body: Ask` is the endpoint's
+    OWN required input, so a request that cannot satisfy it fails in the DEPENDENCY's own params and
+    FastAPI never calls this function — no lease is taken and no ledger row is written for a request that
+    was never going to run. The stream twin declares `question` for exactly this reason."""
+    return _metered_identity_quota(authorization, body.mode, body.turn_id)
+
+
+def _require_identity_quota_stream(question: str, mode: Optional[str] = None,
+                                   turn_id: Optional[str] = None,
+                                   authorization: Optional[str] = Header(None)) -> dict:
+    """The GET /v1/respond/stream gate — the same seam reading the route's `mode` QUERY param.
+
+    `question: str` is declared here DELIBERATELY and is not decoration (F1). FastAPI solves
+    sub-dependencies BEFORE it validates the path operation's own params, so a gate whose parameters are
+    all optional can never be skipped: `GET /v1/respond/stream?mode=deep` with no `question` used to
+    debit a credit and take the 15-minute lease, then 422 — and the 422 never enters the generator where
+    every settle and release lives, so the credit was destroyed and the account was locked out of metered
+    depth for 15 minutes. Declaring the endpoint's own required param HERE makes the gate UNREACHABLE for
+    a request that cannot be served. Keep it required; a default value re-opens the window."""
+    return _metered_identity_quota(authorization, mode, turn_id)
 
 
 def _decode_context(raw: Optional[str]) -> list:
@@ -370,14 +709,23 @@ def _turn_profile_facts(ident: dict) -> Optional[dict]:
 
 
 @app.post("/v1/respond")
-def respond_route(body: Ask, ident: dict = Depends(_require_identity_quota)) -> dict:
-    # Auth + per-user daily quota gated (Stage 4/5): a turn is Bedrock spend, so only signed-in users within
-    # their daily cap may run it. When GRAPHRAG_AUTH is off (dev/eval) this is a no-op.
+def respond_route(body: Ask, ident: dict = Depends(_require_identity_quota_ask)) -> dict:
+    # Auth + per-user daily quota + (D-MW-24) the credit gate: a turn is Bedrock spend, so only signed-in
+    # users within their daily cap and their monthly grant may run it. When GRAPHRAG_AUTH is off (dev/eval)
+    # the identity is local; when GRAPHRAG_CREDITS is off the credit half is not executed at all.
     from leviathan.graphrag import orchestrator as orch
-    result = _public_result(                                    # CYCLE-7-AMEND: in-process keys stop here
-        orch.respond(body.question, graph=_graph(), asof=body.asof, session_id=body.session_id,
-                     context=body.context, profile_facts=_turn_profile_facts(ident),
-                     mode=body.mode))                           # D-AM-9 (None = absent = standard)
+    charge = ident.pop(_CREDIT_KEY, None)                       # the turn's charge record (None = unmetered)
+    try:
+        result = _public_result(                                # CYCLE-7-AMEND: in-process keys stop here
+            orch.respond(body.question, graph=_graph(), asof=body.asof, session_id=body.session_id,
+                         context=body.context, profile_facts=_turn_profile_facts(ident),
+                         mode=body.mode))                       # D-AM-9 (None = absent = standard)
+    except BaseException:
+        _settle_credit(charge, None)                            # no result: the whole charge goes back
+        raise
+    finally:
+        _release_lease(charge)                                  # the lease drops on EVERY terminal path
+    _settle_credit(charge, result)                              # COMMIT (or refund a downgrade/early return)
     _save_turn(ident, body.session_id, result, question=body.question)   # durable history (PIT-safe, fail-open)
     return result
 
@@ -385,7 +733,8 @@ def respond_route(body: Ask, ident: dict = Depends(_require_identity_quota)) -> 
 @app.get("/v1/respond/stream")
 def respond_stream(question: str, session_id: Optional[str] = None, asof: Optional[str] = None,
                    context: Optional[str] = None, mode: Optional[str] = None,
-                   ident: dict = Depends(_require_identity_quota)):
+                   turn_id: Optional[str] = None,
+                   ident: dict = Depends(_require_identity_quota_stream)):
     """SSE wrapper: respond() runs in a worker thread; the stream relays each `on_stage` tick as its own
     `stage` event, then the single terminal `result` (or `error`).
 
@@ -408,6 +757,12 @@ def respond_stream(question: str, session_id: Optional[str] = None, asof: Option
             out.put(("stage", {"stage": stage, **(info or {})}))
 
         _pf = _turn_profile_facts(ident)                  # D-RC-14: read on the request thread, before the worker
+        _charge = ident.pop(_CREDIT_KEY, None)            # D-MW-24: read in the streaming task (see below)
+        # ACCEPTED-WITH-RECORD (F11): a generator that is never iterated leaves this charge unsettled and the
+        # lease held. BOUNDED, not open-ended: F1 removed the reachable trigger (an un-servable request now
+        # 422s before the gate runs), the lease self-expires in 15 minutes, and every path that DOES enter
+        # here settles through the refund. Closing it fully means eagerly starting the worker -- a larger
+        # behavior change than the residual hazard.
 
         def work() -> None:
             try:
@@ -416,9 +771,15 @@ def respond_stream(question: str, session_id: Optional[str] = None, asof: Option
                                  on_stage=on_stage, context=_decode_context(context),
                                  profile_facts=_pf, mode=mode))         # D-AM-9
                 out.put(("result", result))               # deliver the note FIRST — the user isn't waiting on persistence
+                _settle_credit(_charge, result)           # D-MW-24: the charge COMMITS at the result ENQUEUE
                 _save_turn(ident, session_id, result, question=question)  # then durable history (fail-open, off the perceived path)
             except Exception as e:  # noqa: BLE001 — the floor makes this near-impossible; belt + braces
+                _settle_credit(_charge, None)             # pre-result failure: the whole charge goes back
                 out.put(("error", {"error": f"{type(e).__name__}: {str(e)[:200]}"}))
+            finally:
+                _release_lease(_charge)               # the lease drops HERE, not in the generator: the
+                                                     # worker owns the compute, and a disconnected client
+                                                     # abandons the generator while this thread runs on.
 
         threading.Thread(target=work, daemon=True).start()
         yield 'event: stage\ndata: {"stage": "accepted"}\n\n'      # immediate ack before the first planning tick
@@ -434,6 +795,26 @@ def respond_stream(question: str, session_id: Optional[str] = None, asof: Option
 
     return StreamingResponse(gen(), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@app.get("/v1/credits")
+def credits_route(ident: dict = Depends(_require_identity)) -> dict:
+    """{remaining, limit, reset_at} — what the credits badge renders, and what the FE re-reads after a
+    submit or a 429 (the /v1/dossier/quota pattern, generalized). FREE: identity-gated, no model call,
+    and explicitly NOT the turn quota — reading a counter is not a use of it.
+
+    DARK IS A 404, not a zero (the dossier-gate idiom, and the shape api/credits.ts already codes
+    against): with `GRAPHRAG_CREDITS` off nothing is metered, so there is no meter to report and the FE
+    renders no badge at all. A 500 would say something different — that the feature exists and broke.
+
+    FAIL-OPEN on any store error: a badge that cannot read the counter shows the full grant rather than
+    telling a paying user they have nothing left."""
+    if not _credits_on():
+        raise HTTPException(status_code=404, detail="not found")
+    limit = _credits_limit()
+    return {"remaining": _credits_remaining(str(ident.get("sub") or ""), _credits_period(), limit,
+                                            on_error=limit),
+            "limit": limit, "reset_at": _credits_reset_at()}
 
 
 # ── 1.2 cascade DAG topology ──────────────────────────────────────────────────────────────────────

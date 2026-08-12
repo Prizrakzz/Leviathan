@@ -1,13 +1,31 @@
 import { fetchWithAuth } from '../auth/oidc';
-import { httpErrorMessage } from './errors';
+import { type CreditsRefusal, readHttpError } from './errors';
 import type { ContextAttachment, RespondResult, StageEvent } from './schema';
 import { MAX_ATTACH } from '@/store/chips';
 import { modeParam } from '@/store/mode';
 
+/**
+ * A turn that ended badly. `error` is the sentence to show and has always been the whole payload.
+ *
+ * D-MW-25 adds `credits`, present ONLY for the credits wall: the depth control needs the reset day and the
+ * balance, and a string cannot carry them. It rides ALONGSIDE the sentence rather than replacing it, so
+ * every existing reader (useTurn -> the answer view) keeps working unchanged and a client that ignores the
+ * field degrades to exactly today's behaviour.
+ */
+export interface TurnError {
+  error: string;
+  credits?: CreditsRefusal;
+  /** The HTTP status, when the turn failed BEFORE the stream opened. P5 review F6: the composer has to hand
+   *  the question back on ANY ask-route 429 — the busy-lease refusal ("a metered turn is already running")
+   *  is deliberately NOT the credits shape, so keying the restore on `credits` alone lost the user's typed
+   *  sentence on a refusal that is, by construction, retryable. Absent for in-stream failures. */
+  status?: number;
+}
+
 export interface StreamHandlers {
   onStage?: (e: StageEvent) => void;
   onResult?: (r: RespondResult) => void;
-  onError?: (err: { error: string }) => void;
+  onError?: (err: TurnError) => void;
 }
 
 /** No-bytes watchdog (D-TW-4). The backend emits `: keepalive` after every 10s of silence (server.py),
@@ -131,13 +149,18 @@ function dispatchBlock(block: string, h: StreamHandlers): boolean {
 /** Open the real SSE endpoint and pump it through parseSSE. Mock mode routes elsewhere (client.ts). */
 export async function openRespondStream(
   base: string,
-  params: { question: string; asof?: string; sessionId?: string; context?: ContextAttachment[]; mode?: string },
+  params: { question: string; asof?: string; sessionId?: string; context?: ContextAttachment[]; mode?: string; turnId?: string },
   h: StreamHandlers,
   signal?: AbortSignal,
 ): Promise<void> {
   const qs = new URLSearchParams({ question: params.question });
   if (params.asof) qs.set('asof', params.asof);
   if (params.sessionId) qs.set('session_id', params.sessionId);
+  // P5 review F4: the per-question TURN ID. It is what makes the credit charge idempotent across requests —
+  // the gate derives its ledger op from `sub + turn_id`, so a reconnect or a retry of the SAME question is
+  // one charge, not two. Minted once at submit (Shell) and reused for every attempt at that question; a
+  // caller that sends none is charged per request (the lease is then its only protection).
+  if (params.turnId) qs.set('turn_id', params.turnId);
   // P2: attachments ride a JSON-encoded param (the stream is GET-only); cap mirrors the store's MAX_ATTACH
   if (params.context?.length) qs.set('context', JSON.stringify(params.context.slice(0, MAX_ATTACH)));
   // D-AM-14: the reasoning mode, LAST and CONDITIONAL. `modeParam` is the one place the omit rule lives
@@ -152,9 +175,20 @@ export async function openRespondStream(
     signal,
   });
   if (!res.ok || !res.body) {
+    if (res.ok) {
+      h.onError?.({ error: 'stream did not open — retry' });
+      return;
+    }
     // D-TW-6: the server's own sentence (FastAPI `detail`) — the 50-turn daily cap is the one users hit,
     // and it used to render as `error: HTTP 429`. No route context appended: this string goes ON SCREEN.
-    h.onError?.({ error: res.ok ? 'stream did not open — retry' : await httpErrorMessage(res) });
+    // D-MW-25: the SAME single read also yields the credits refusal when this is the credits wall (the
+    // body can be consumed once, so the sentence and the structured fields must come out together).
+    // This is the only place the wall can surface: the gate refuses BEFORE the StreamingResponse opens,
+    // by construction, so a credits 429 is always a non-OK response and never an in-stream `error` event.
+    const { message, credits } = await readHttpError(res);
+    h.onError?.(credits
+      ? { error: message, credits, status: res.status }
+      : { error: message, status: res.status });
     return;
   }
   await parseSSE(res.body, h);

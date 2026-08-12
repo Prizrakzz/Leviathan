@@ -30,6 +30,9 @@ export interface RespondParams {
   sessionId?: string;
   context?: ContextAttachment[];
   mode?: string;
+  /** P5 review F4: the per-question idempotency key. One uuid per QUESTION (not per request), reused across
+   *  a reconnect/retry, so the server's credit charge collapses a replay to a no-op. See api/sse.ts. */
+  turnId?: string;
 }
 
 /** Stream a turn. `VITE_MOCK=1` routes to the in-repo mock so the whole UI runs without the backend. */

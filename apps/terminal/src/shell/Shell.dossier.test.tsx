@@ -55,6 +55,13 @@ vi.mock('@/api/client', () => ({
   markNotificationSeen: () => Promise.resolve({ ok: true }),
 }));
 
+// D-MW-25: the depth control also reads the credit grant. This suite is about the DOSSIER meter, which is
+// a separate one, so credits are dark here -- which is itself the pin that the two never got merged.
+vi.mock('@/api/credits', async (orig) => {
+  const actual = await orig<typeof import('@/api/credits')>();
+  return { ...actual, getCredits: () => Promise.resolve(null) };
+});
+
 // The REAL DossierQuotaError class is kept (useDossier branches on `instanceof`), and only the four calls
 // that touch the network are replaced.
 vi.mock('@/api/dossier', async (orig) => {

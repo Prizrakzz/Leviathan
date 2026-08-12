@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useCompose } from '@/store/compose';
 import { AttachedChips } from './AttachedChips';
-import { ModePicker } from './ModePicker';
+import { DepthControl } from './DepthControl';
 import { TemplateSlotBar } from './TemplateSlotBar';
 
 /**
@@ -10,10 +10,11 @@ import { TemplateSlotBar } from './TemplateSlotBar';
  * honest hint) while a turn streams — there is deliberately NO stop button (user decision). Refocuses
  * itself when the turn finishes. The top CommandBar stays for codes/power use.
  *
- * D-AM-14 docks the reasoning-mode picker here, under the box, in BOTH variants (hero + pinned): depth is
- * chosen with the question, so the control belongs at the ask bar and nowhere else. It reads its own
- * selection from the store and Shell reads it back at submit — the composer stays a text box with no
- * mode prop to thread and no mode state to hold.
+ * D-AM-14 docks the depth control here, under the box, in BOTH variants (hero + pinned): depth is chosen
+ * with the question, so the control belongs at the ask bar and nowhere else. It reads its own selection
+ * from the store and Shell reads it back at submit — the composer stays a text box with no mode prop to
+ * thread and no mode state to hold. (D-MW-21 replaced the picker with a notched slider; nothing about that
+ * posture changed, which is the point of having kept the state out of here.)
  *
  * D-UX-1 makes this box the PREFILL target for the template library and the landing starters (store/compose,
  * same no-prop posture as the mode picker). The box stays UNCONTROLLED — a prefill is written to the DOM
@@ -132,7 +133,7 @@ export function Composer({
         </button>
       </div>
       <div className="mt-1.5 flex items-center gap-2">
-        <ModePicker disabled={streaming} />
+        <DepthControl disabled={streaming} />
       </div>
     </div>
   );

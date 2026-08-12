@@ -8,6 +8,7 @@ Phase-4 deploy step; this module is fully testable now with the in-memory backen
 """
 from __future__ import annotations
 
+import datetime as _dt
 import json
 import time
 import uuid
@@ -31,6 +32,62 @@ def _turn_sort_key(thread_id: str) -> str:
     """A per-thread, chronologically-sortable DynamoDB sort key for a turn (epoch-micros + a short random
     suffix so same-microsecond appends never collide)."""
     return f"turn#{thread_id}#{int(time.time() * 1_000_000):020d}#{uuid.uuid4().hex[:6]}"
+
+
+# ── D-MW-23: the credit ledger ──────────────────────────────────────────────────────────────────────
+# A SEPARATE transactional path from the three shipped meters (daily turn, suggest, dossier monthly).
+# Those three stay on their existing single-call UpdateItem primitives BYTE-UNTOUCHED: wrapping them
+# over a transaction changes their failure type (TransactionCanceledException is NOT
+# ConditionalCheckFailedException), the QuotaExceeded mapping would stop firing, and all three caps
+# would silently fail OPEN. Nothing below edits incr_turn_quota / read_quota / refund_quota.
+CREDITS_PREFIX = "credits"
+LEASE_SECONDS = 900                                                  # 15 minutes (D-MW-24 in-flight lease)
+
+
+def _lease_token() -> str:
+    """The OWNER TOKEN of one in-flight lease (P5 review fix F5). Without it `release_lease` is an
+    unconditional delete, so a worker whose own lease already EXPIRED — and whose turn was therefore
+    superseded by a second admitted turn — deletes the live lease on its way out and admits a third
+    concurrent metered turn. The token makes release ownership-fenced: only the holder can drop it, and
+    an expired takeover mints a fresh one, which fences the previous holder out by construction."""
+    return uuid.uuid4().hex
+
+
+def credits_period(now: Optional[float] = None) -> str:
+    """The credit satellite's period suffix: `credits#<UTC month>` -> sk=`quota#credits#YYYY-MM`.
+
+    The monthly reset is FREE because the period is IN THE KEY (the dossier design's best property,
+    kept): a new month is a new item that starts absent, i.e. at zero. Namespaced like the suggester's
+    `suggest#<day>` and the dossier's `dossier#<month>`, so the daily turn counter is untouched — same
+    table, same item shape, disjoint keys — and `read_quota(user, credits_period())` powers the badge
+    with no new primitive."""
+    return f"{CREDITS_PREFIX}#{time.strftime('%Y-%m', time.gmtime(now))}"
+
+
+def credits_reset_at(now: Optional[float] = None) -> str:
+    """First instant of the next UTC month — the `reset_at` field of the CreditsExceeded 429 body."""
+    d = _dt.datetime.fromtimestamp(time.time() if now is None else now, _dt.timezone.utc)
+    y, m = (d.year + 1, 1) if d.month == 12 else (d.year, d.month + 1)
+    return _dt.datetime(y, m, 1, tzinfo=_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _ledger_sort_key(period: str) -> str:
+    """sk='ledger#<period>#<epoch-micros>#<rand>' — the per-transaction history that makes refunds,
+    disputes and audit possible (today: none exists). Chronological inside a period; a same-microsecond
+    pair never collides."""
+    return f"ledger#{period}#{int(time.time() * 1_000_000):020d}#{uuid.uuid4().hex[:6]}"
+
+
+def _ledger_row(kind: str, amount: int, ref: Optional[str], balance_after: Optional[int],
+                op_id: str, period: str) -> dict:
+    """The pinned row body {kind, amount, ref, balance_after} + the audit fields that make a row
+    self-describing when read back out of order (op_id, period, ts).
+
+    `balance_after` is the USED counter after the op (the badge shows cap - balance_after), and it is
+    ADVISORY: DynamoDB transactions return no values, so it is derived from a consistent read taken
+    just before the transaction. The quota item is the authority; the ledger is the story."""
+    return {"kind": kind, "amount": int(amount), "ref": ref, "balance_after": balance_after,
+            "op_id": op_id, "period": period, "ts": _now()}
 
 
 # The PIT firewall for durable turns: a saved turn holds the CONCLUSION only. Retrieved evidence, raw number
@@ -73,6 +130,14 @@ class Store(Protocol):
     def incr_turn_quota(self, user_id: str, day: str, cap: int) -> None: ...
     def read_quota(self, user_id: str, period: str) -> int: ...
     def refund_quota(self, user_id: str, period: str) -> None: ...
+    def debit(self, user_id: str, period: str, amount: int, cap: int, *, op_id: str,
+              ref: Optional[str] = None) -> bool: ...
+    def credit(self, user_id: str, period: str, amount: int, *, op_id: str,
+               ref: Optional[str] = None) -> bool: ...
+    def list_ledger(self, user_id: str, period: str) -> list[dict]: ...
+    def acquire_lease(self, user_id: str, *, lease_seconds: int = LEASE_SECONDS,
+                      now: Optional[float] = None) -> Optional[str]: ...
+    def release_lease(self, user_id: str, token: Optional[str] = None) -> None: ...
     def append_turn(self, user_id: str, thread_id: str, record: dict) -> dict: ...
     def list_turns(self, user_id: str, thread_id: str) -> list[dict]: ...
     def delete_turns(self, user_id: str, thread_id: str) -> int: ...
@@ -96,6 +161,9 @@ class InMemoryStore:
         self._turns: dict[tuple, list[dict]] = {}                    # (user, thread) -> [turn records]
         self._profiles: dict[str, dict] = {}                         # user -> profile record
         self._notifs: dict[str, dict] = {}                           # user -> {notif_id -> record} (P3)
+        self._ledger: dict[str, list[dict]] = {}                     # user -> [ledger rows] (D-MW-23)
+        self._ledger_ops: set[tuple] = set()                         # (user, op_id) — idempotency guard
+        self._leases: dict[str, tuple] = {}                          # user -> (expires_at, owner token)
 
     def incr_turn_quota(self, user_id: str, day: str, cap: int) -> None:
         n = self._quota.get((user_id, day), 0)
@@ -110,6 +178,63 @@ class InMemoryStore:
         n = self._quota.get((user_id, period), 0)
         if n > 0:                                                    # never below zero (Dynamo parity)
             self._quota[(user_id, period)] = n - 1
+
+    # ── credit ledger (D-MW-23) — semantics mirror DynamoStore exactly, including replay + lease ──
+    def debit(self, user_id: str, period: str, amount: int, cap: int, *, op_id: str,
+              ref: Optional[str] = None) -> bool:
+        amount, cap = int(amount), int(cap)
+        if amount <= 0:
+            raise ValueError("debit amount must be positive")
+        if (user_id, op_id) in self._ledger_ops:
+            return False                                             # idempotent replay -> no-op
+        if amount > cap:                                             # parity with the Dynamo guard: the
+            raise QuotaExceeded(                                     # attribute_not_exists(n) branch would
+                f"credit debit {amount} exceeds the monthly grant {cap}")   # admit it on a fresh item
+        n = self._quota.get((user_id, period), 0)
+        if n > cap - amount:                                         # == the `n <= :limit` condition
+            raise QuotaExceeded(f"monthly credit limit {cap} reached")
+        self._quota[(user_id, period)] = n + amount
+        self._ledger_ops.add((user_id, op_id))
+        self._ledger.setdefault(user_id, []).append(
+            _ledger_row("debit", amount, ref, n + amount, op_id, period))
+        return True
+
+    def credit(self, user_id: str, period: str, amount: int, *, op_id: str,
+               ref: Optional[str] = None) -> bool:
+        amount = int(amount)
+        if amount <= 0:
+            raise ValueError("credit amount must be positive")
+        if (user_id, op_id) in self._ledger_ops:
+            return False                                             # double refund / refund race -> no-op
+        n = self._quota.get((user_id, period), 0)
+        if n < amount:                                               # == the `n >= :amt` condition; a
+            return False                                             # failed transaction writes NOTHING
+        self._quota[(user_id, period)] = n - amount
+        self._ledger_ops.add((user_id, op_id))
+        self._ledger.setdefault(user_id, []).append(
+            _ledger_row("credit", amount, ref, n - amount, op_id, period))
+        return True
+
+    def list_ledger(self, user_id: str, period: str) -> list[dict]:
+        return [r for r in self._ledger.get(user_id, []) if r.get("period") == period]
+
+    def acquire_lease(self, user_id: str, *, lease_seconds: int = LEASE_SECONDS,
+                      now: Optional[float] = None) -> Optional[str]:
+        t = time.time() if now is None else now
+        held = self._leases.get(user_id)
+        if held is not None and not (held[0] < t):                   # == `attribute_not_exists(sk) OR
+            return None                                              #     expires_at < :now`
+        token = _lease_token()                                       # an EXPIRED takeover mints a FRESH
+        self._leases[user_id] = (t + int(lease_seconds), token)      # token: the old owner is fenced out
+        return token
+
+    def release_lease(self, user_id: str, token: Optional[str] = None) -> None:
+        held = self._leases.get(user_id)
+        if held is None:
+            return
+        if token is not None and held[1] != token:                   # == `ConditionExpression lease_token
+            return                                                   #     = :t` -- not ours, leave it
+        self._leases.pop(user_id, None)
 
     def put_share(self, snap: ShareSnapshot) -> None:
         self._shares[snap.id] = snap
@@ -274,6 +399,181 @@ class DynamoStore:
         except ClientError as e:
             if e.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
                 return
+            raise
+
+    # ── credit ledger (D-MW-23) — a SEPARATE transactional path; the three meters above are untouched ──
+    @staticmethod
+    def _cancel_index(err) -> dict:
+        """{item index -> reason code} from a TransactionCanceledException. Index-aware ON PURPOSE: the
+        transaction carries [quota, ledgerop, ledger row], and a ConditionalCheckFailed on the LEDGEROP
+        means 'already applied' (a no-op) while the same code on the QUOTA item means 'over cap'
+        (QuotaExceeded). Collapsing them would turn every client retry into a spurious 429."""
+        reasons = (getattr(err, "response", None) or {}).get("CancellationReasons") or []
+        return {i: (r or {}).get("Code") for i, r in enumerate(reasons)}
+
+    def _probe_balance(self, user_id: str, period: str, delta: int) -> Optional[int]:
+        """Advisory `balance_after` for the ledger row: DynamoDB transactions return no values, so the
+        post-state is derived from a consistent read taken just before the write. Best-effort — a read
+        glitch must never fail a charge, it only leaves the audit field null."""
+        try:
+            return int(self.read_quota(user_id, period)) + int(delta)
+        except Exception:  # noqa: BLE001 — audit metadata, never load-bearing
+            return None
+
+    def _ledger_items(self, user_id: str, period: str, row: dict, op_id: str) -> list[dict]:
+        """The two write-side items every ledger op carries: the conditional idempotency marker
+        (the exact append_notification idiom) and the durable history row. NEITHER carries `expires_at`
+        — a ledgerop that aged out would re-open the double-charge window it exists to close, and the
+        history is the audit record."""
+        return [
+            {"Put": {"TableName": self.table,
+                     "Item": {"pk": {"S": f"user#{user_id}"}, "sk": {"S": f"ledgerop#{op_id}"},
+                              "body": self._s({"op_id": op_id, "period": period, "ts": row["ts"]})},
+                     "ConditionExpression": "attribute_not_exists(sk)"}},
+            {"Put": {"TableName": self.table,
+                     "Item": {"pk": {"S": f"user#{user_id}"}, "sk": {"S": _ledger_sort_key(period)},
+                              "body": self._s(row)}}},
+        ]
+
+    def debit(self, user_id: str, period: str, amount: int, cap: int, *, op_id: str,
+              ref: Optional[str] = None) -> bool:
+        """Spend `amount` credits against the monthly grant `cap`, atomically and idempotently.
+
+        ONE TransactWriteItems: [quota ADD, ledgerop conditional Put, ledger row Put]. Returns True when
+        newly applied, False when `op_id` was already applied (a client retry / a double charge attempt);
+        raises QuotaExceeded when the grant is spent. Non-condition Dynamo errors PROPAGATE so the policy
+        layer can decide (the fail-open law lives there, not here — a swallowed AccessDenied would turn
+        every metered turn unmetered without a signal).
+
+        LEGAL EXPRESSION SYNTAX: DynamoDB ConditionExpressions do not support arithmetic, so the
+        threshold is precomputed caller-side (`:limit = cap - amount`) and the condition is
+        `attribute_not_exists(n) OR n <= :limit`. The absent-item branch is why `amount > cap` is
+        refused up front: on a fresh item that branch is TRUE and would admit an over-grant charge."""
+        from botocore.exceptions import ClientError
+        amount, cap = int(amount), int(cap)
+        if amount <= 0:
+            raise ValueError("debit amount must be positive")
+        if amount > cap:
+            raise QuotaExceeded(f"credit debit {amount} exceeds the monthly grant {cap}")
+        row = _ledger_row("debit", amount, ref, self._probe_balance(user_id, period, amount), op_id, period)
+        items = [
+            {"Update": {"TableName": self.table,
+                        "Key": {"pk": {"S": f"user#{user_id}"}, "sk": {"S": f"quota#{period}"}},
+                        "UpdateExpression": "ADD n :amt",
+                        "ConditionExpression": "attribute_not_exists(n) OR n <= :limit",
+                        "ExpressionAttributeValues": {":amt": {"N": str(amount)},
+                                                      ":limit": {"N": str(cap - amount)}}}},
+        ] + self._ledger_items(user_id, period, row, op_id)
+        try:
+            self.db.transact_write_items(TransactItems=items)
+            return True
+        except ClientError as e:
+            if e.response.get("Error", {}).get("Code") != "TransactionCanceledException":
+                raise
+            codes = self._cancel_index(e)
+            if codes.get(1) == "ConditionalCheckFailed":
+                return False                                         # op_id already applied -> no-op
+            if codes.get(0) == "ConditionalCheckFailed":
+                raise QuotaExceeded(f"monthly credit limit {cap} reached")
+            raise                                                    # capacity/size cancellation -> caller
+
+    def credit(self, user_id: str, period: str, amount: int, *, op_id: str,
+               ref: Optional[str] = None) -> bool:
+        """Give `amount` credits back (a downgrade, a guardrail refusal, a pre-result exception).
+
+        Same transaction shape as `debit`. `n >= :amt` in the SAME call means a refund can never mint a
+        negative counter (free credits); a refund racing a monthly reset simply finds nothing to give
+        back and is a swallowed no-op. Returns True when applied, False when the op_id was already
+        applied (double refund) or there was nothing to refund."""
+        from botocore.exceptions import ClientError
+        amount = int(amount)
+        if amount <= 0:
+            raise ValueError("credit amount must be positive")
+        row = _ledger_row("credit", amount, ref, self._probe_balance(user_id, period, -amount), op_id, period)
+        items = [
+            {"Update": {"TableName": self.table,
+                        "Key": {"pk": {"S": f"user#{user_id}"}, "sk": {"S": f"quota#{period}"}},
+                        "UpdateExpression": "ADD n :neg",
+                        "ConditionExpression": "n >= :amt",
+                        "ExpressionAttributeValues": {":neg": {"N": str(-amount)},
+                                                      ":amt": {"N": str(amount)}}}},
+        ] + self._ledger_items(user_id, period, row, op_id)
+        try:
+            self.db.transact_write_items(TransactItems=items)
+            return True
+        except ClientError as e:
+            if e.response.get("Error", {}).get("Code") != "TransactionCanceledException":
+                raise
+            codes = self._cancel_index(e)
+            if codes.get(1) == "ConditionalCheckFailed" or codes.get(0) == "ConditionalCheckFailed":
+                return False                                         # replay, or nothing to give back
+            raise
+
+    def list_ledger(self, user_id: str, period: str) -> list[dict]:
+        """One period's transaction history, chronological (the sk embeds epoch-micros)."""
+        q = self.db.query(TableName=self.table,
+                          KeyConditionExpression="pk = :p AND begins_with(sk, :k)",
+                          ExpressionAttributeValues={":p": {"S": f"user#{user_id}"},
+                                                     ":k": {"S": f"ledger#{period}#"}})
+        out = []
+        for i in q.get("Items", []):
+            try:
+                out.append(json.loads(i["body"]["S"]))
+            except (KeyError, ValueError):
+                continue                                             # one junk row never 500s an audit read
+        return out
+
+    def acquire_lease(self, user_id: str, *, lease_seconds: int = LEASE_SECONDS,
+                      now: Optional[float] = None) -> Optional[str]:
+        """Single-in-flight guard for metered tiers: a LEASE, not a TTL. DynamoDB TTL deletion is
+        best-effort within ~48h, so a crashed turn whose lease was TTL-only would lock the user out of
+        metered tiers for up to two days. The admission condition reads the lease itself
+        (`attribute_not_exists(sk) OR expires_at < :now`); TTL stays pure garbage collection.
+
+        Returns the OWNER TOKEN written on the item (truthy), or None when another metered turn holds a
+        live lease. The token is what makes `release_lease` ownership-fenced (F5): an expired takeover
+        writes a FRESH token, so the superseded holder's release finds a lease that is not its own.
+        Non-condition errors propagate; the caller ADMITS on them (fail-open: a counter glitch must not
+        lock out a paying user)."""
+        from botocore.exceptions import ClientError
+        t = int(time.time() if now is None else now)
+        token = _lease_token()
+        try:
+            self.db.put_item(
+                TableName=self.table,
+                Item={"pk": {"S": f"user#{user_id}"}, "sk": {"S": f"inflight#{user_id}"},
+                      "expires_at": {"N": str(t + int(lease_seconds))},
+                      "lease_token": {"S": token},
+                      "acquired_at": {"S": _now()}},
+                ConditionExpression="attribute_not_exists(sk) OR expires_at < :now",
+                ExpressionAttributeValues={":now": {"N": str(t)}})
+            return token
+        except ClientError as e:
+            if e.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                return None
+            raise
+
+    def release_lease(self, user_id: str, token: Optional[str] = None) -> None:
+        """Deleted in a `finally` on every terminal path — the lease's real lifetime is the turn, and
+        the 15-minute expiry is only the crash backstop.
+
+        OWNERSHIP-FENCED when a token is given (F5): the delete is conditional on `lease_token = :t`, so
+        a worker whose lease already expired (and whose turn was superseded by a second admitted one)
+        cannot delete the LIVE lease on its way out and admit a third concurrent metered turn. A
+        condition failure means the lease is gone or belongs to someone else — both are no-ops, never
+        errors. `token=None` keeps the unconditional delete for an operator sweep with no token to hand."""
+        from botocore.exceptions import ClientError
+        key = {"pk": {"S": f"user#{user_id}"}, "sk": {"S": f"inflight#{user_id}"}}
+        if token is None:
+            self.db.delete_item(TableName=self.table, Key=key)
+            return
+        try:
+            self.db.delete_item(TableName=self.table, Key=key,
+                                ConditionExpression="lease_token = :t",
+                                ExpressionAttributeValues={":t": {"S": token}})
+        except ClientError as e:
+            if e.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                return                                               # not ours (or already gone) -> no-op
             raise
 
     def append_turn(self, user_id: str, thread_id: str, record: dict) -> dict:

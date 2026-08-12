@@ -25,6 +25,12 @@ param(
     [string]$DistributionId = "",
     # Empty = infra/terraform/envs/dev relative to this script.
     [string]$TerraformDir = "",
+    # D-MW P5 (review F8): where the SERVING allowlist is read from for the roster-parity guard. The
+    # DEPLOYED revision, resolved through describe-services -- never the family's latest ACTIVE, which a
+    # terraform apply can mint from stale config without ever deploying it.
+    [string]$ServingCluster   = "leviathan-dev-serving",
+    [string]$ServingService   = "leviathan-dev-serving",
+    [string]$ServingContainer = "serving",
     # D-TW-20 emergency escape. Loudly logged; never the default path.
     [switch]$SkipGate
 )
@@ -37,6 +43,28 @@ if ([string]::IsNullOrWhiteSpace($TerraformDir)) {
     $TerraformDir = Join-Path $RepoRoot "infra\terraform\envs\dev"
 }
 Write-Host "[deploy] app dir: $AppDir"
+
+# ===================================================================================================
+# D-MW P5 DEPLOY-ORDER RECORD (review F3). READ BEFORE SHIPPING THE P5 SPA.
+#
+# THIS BUNDLE IS DARK FOR METERING ONLY - NOT FOR DEPTH. Serving already honors `deep` (rev 89 onward
+# carries GRAPHRAG_MODES=quick,deep) and the pre-P5 SPA only ever sent `quick`. The moment this bundle
+# lands, the Analysis notch sends mode=deep and serving honors it - UNMETERED, bounded only by the
+# 50/day turn cap - for as long as GRAPHRAG_CREDITS stays off. The credit code shipping dark does not
+# make the SPA dark.
+#
+# SO THE FE DEPLOY IS COUPLED TO THE CREDITS FLIP. These five move as ONE decision, in one change,
+# exactly like the P1 flip law (an env flag and the code that reads it are one change; a flip step with
+# no image digest is incomplete by construction):
+#     1. this SPA bundle
+#     2. GRAPHRAG_CREDITS=on
+#     3. GRAPHRAG_CREDITS_LIMIT=100
+#     4. the GRAPHRAG_MODES tier additions (quick,deep)
+#     5. the serving image digest carrying the credit seam
+# If the SPA must land first for any reason, that is a DECISION, not a default: record the unmetered-deep
+# window in the flip record, or reduce GRAPHRAG_MODES to `quick` for the duration. The credit code below
+# stays as built - dark, and flipped by env, not by editing this script.
+# ===================================================================================================
 
 # ---------------------------------------------------------------------------------------------------
 # 0) D-TW-20 GATE. The e2e specs and the unit suite exist; nothing ran them, so they were red for weeks
@@ -69,6 +97,77 @@ if ($SkipGate) {
         Pop-Location
     }
     Write-Host "[deploy] gate PASS (typecheck + lint + unit + e2e)"
+}
+
+# ---------------------------------------------------------------------------------------------------
+# 0a) GUARD 6/6 - SERVING ALLOWLIST PARITY (D-MW P5, review F8). The SILENT-DROP TRAP, production half.
+#
+#     A tier the FE offers that serving's GRAPHRAG_MODES allowlist does not contain is resolved to
+#     `standard` by the orchestrator: the analyst selects Analysis, pays attention to a depth chip that
+#     says deep, and gets a standard turn. Nothing errors. No client-side test can see it -- the unit
+#     mirror (apps/terminal/src/store/mode.parity.test.ts SERVING_ALLOWLIST_CONTRACT) is a hand-copied
+#     constant and can only ever catch an FE-side regression.
+#
+#     THIS is where the production direction closes: read the DEPLOYED serving revision's GRAPHRAG_MODES
+#     and refuse to build when a wire name this bundle can send is missing from it. The FE list is not
+#     restated here - it is PARSED out of store/mode.ts's CHOICE_MODE table, so adding a notch cannot
+#     leave this guard behind.
+#
+#     UNREADABLE == REFUSE. An allowlist that cannot be verified is exactly the silent-shallower-turn
+#     case; -SkipGate is the (loudly stamped) emergency path, same as the gate above.
+# ---------------------------------------------------------------------------------------------------
+function Get-FeAskModes {
+    param([string]$Dir)
+    $modeFile = Join-Path $Dir "src\store\mode.ts"
+    if (-not (Test-Path $modeFile)) { throw "ALLOWLIST GUARD: cannot find $modeFile - refusing to guess the FE roster" }
+    $src = Get-Content -Raw -Path $modeFile
+    $blk = [regex]::Match($src, 'CHOICE_MODE\s*:\s*Record<[^>]*>\s*=\s*\{(?<body>[^}]*)\}')
+    if (-not $blk.Success) { throw "ALLOWLIST GUARD: could not parse CHOICE_MODE out of $modeFile (was the table reshaped? fix this parser rather than deleting the guard)" }
+    $wires = @()
+    foreach ($m in [regex]::Matches($blk.Groups['body'].Value, "(?m)^\s*\w+\s*:\s*'(?<wire>[^']+)'")) {
+        $wires += $m.Groups['wire'].Value
+    }
+    if ($wires.Count -eq 0) { throw "ALLOWLIST GUARD: CHOICE_MODE parsed to ZERO wire names - the parser is broken, not the roster" }
+    return ($wires | Sort-Object -Unique)
+}
+
+if ($SkipGate) {
+    Write-Host "[deploy] allowlist parity guard SKIPPED with the rest of the gate (-SkipGate)."
+} else {
+    $FeAskModes = Get-FeAskModes -Dir $AppDir
+    Write-Host "[deploy] guard 6/6: serving allowlist parity - this bundle can ask for: $($FeAskModes -join ', ')"
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    $deployedTd = & aws ecs describe-services --cluster $ServingCluster --services $ServingService `
+        --region $Region --query "services[0].taskDefinition" --output text 2>$null
+    $tdExit = $LASTEXITCODE
+    $ErrorActionPreference = $prev
+    if ($tdExit -ne 0 -or [string]::IsNullOrWhiteSpace($deployedTd) -or $deployedTd -eq "None") {
+        throw "ALLOWLIST GUARD: could not read the DEPLOYED serving task definition ($ServingCluster/$ServingService in $Region). An unverifiable allowlist is the silent-shallower-turn case - REFUSING to build. (-SkipGate is the emergency path and stamps the build UNVERIFIED.)"
+    }
+    Write-Host "[deploy]   deployed serving taskdef: $deployedTd"
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    $liveModesRaw = & aws ecs describe-task-definition --task-definition $deployedTd --region $Region `
+        --query "taskDefinition.containerDefinitions[?name=='$ServingContainer'] | [0].environment[?name=='GRAPHRAG_MODES'] | [0].value" `
+        --output text 2>$null
+    $modeExit = $LASTEXITCODE
+    $ErrorActionPreference = $prev
+    if ($modeExit -ne 0) {
+        throw "ALLOWLIST GUARD: describe-task-definition failed on $deployedTd - REFUSING to build."
+    }
+    $liveModesRaw = ([string]$liveModesRaw).Trim()
+    if ([string]::IsNullOrWhiteSpace($liveModesRaw) -or $liveModesRaw -eq "None") {
+        throw "ALLOWLIST GUARD: the deployed serving container '$ServingContainer' carries NO GRAPHRAG_MODES. Every non-standard tier this bundle sends would resolve to standard silently. REFUSING to build - set the env in the SAME change as this deploy (the flip law)."
+    }
+    # PS 5.1: .Split(char[]) - the string overload is a CHARACTER SET (the d4e2d7cb trap).
+    $liveModes = @($liveModesRaw.Split([char]',') | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    Write-Host "[deploy]   deployed GRAPHRAG_MODES: $($liveModes -join ', ')"
+    $missing = @($FeAskModes | Where-Object { $liveModes -notcontains $_ })
+    if ($missing.Count -gt 0) {
+        throw "ALLOWLIST GUARD: serving does NOT honor $($missing -join ', ') - this bundle offers those notches and every turn at them would silently run standard with no signal to the user. REFUSING to build. Fix by adding them to GRAPHRAG_MODES on the serving taskdef in the SAME change as this deploy."
+    }
+    Write-Host "[deploy] guard 6/6 PASS: every FE notch's wire name is honored by the deployed serving allowlist"
 }
 
 # ---------------------------------------------------------------------------------------------------

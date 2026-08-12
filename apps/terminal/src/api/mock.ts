@@ -14,6 +14,7 @@ import type {
   StageEvent,
 } from './schema';
 import type { StreamHandlers } from './sse';
+import { DEFAULT_MODE, isMode, type ModeName } from '@/store/mode';
 
 type Schemas = components['schemas'];
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -427,19 +428,28 @@ function partialsFor(result: RespondResult): StageEvent[] {
 /** D-AM-14 mock knobs: FABRICATED stand-ins for the values reasoning_modes.py resolves, present so the
  *  "what ran" chip is exercisable with `VITE_MOCK=1` (the whole point of the mock: the UI runs with no
  *  backend). Deliberately a SHORT dict, not a copy of the ratified preset table -- the chip renders
- *  whatever keys arrive, so a mock that mirrored every knob would only be a second place to go stale. */
-const MOCK_MODE_KNOBS: Record<string, Record<string, unknown>> = {
+ *  whatever keys arrive, so a mock that mirrored every knob would only be a second place to go stale.
+ *
+ *  D-MW-21: keyed by `ModeName`, so the roster lives in store/mode and adding a mode there is a COMPILE
+ *  error here rather than a mock lane that silently stops honoring the tier the UI now offers. `null` =
+ *  a mode with no knobs to stamp (the `standard` passthrough resolves to an empty knob dict). */
+export const MOCK_MODE_KNOBS: Record<ModeName, Record<string, unknown> | null> = {
   quick: { depth: 1, node_budget: 6, k_by_depth: [4, 2], evidence_cap: 12, fetch_k: 40 },
+  standard: null,
   deep: { depth: 3, node_budget: 16, k_by_depth: [7, 5, 3], evidence_cap: 48, fetch_k: 120 },
 };
 
 /** Stamp the mode decision (every turn, like the backend) and — only for a non-standard, knob-consuming
  *  mock lane — the resolved knobs. Returns the SAME object when there is nothing to stamp, so a standard
- *  mock turn is byte-identical to the fixture it has always been. */
+ *  mock turn is byte-identical to the fixture it has always been.
+ *
+ *  D-MW-21: the roster check is `isMode` (store/mode.MODES), not a second hardcoded list -- an FE tier the
+ *  mock lane did not recognise used to be reported as `invalid` and honored as `standard`, which is the
+ *  silent-drop trap reproduced inside our own fixtures. */
 function withMockMode(result: RespondResult, mode?: string): RespondResult {
   const requested = (mode ?? '').trim().toLowerCase() || null;
-  const known = requested != null && ['quick', 'standard', 'deep'].includes(requested);
-  const honored = known && requested ? requested : 'standard';
+  const known = isMode(requested);
+  const honored: ModeName = known ? requested : DEFAULT_MODE;
   const knobs = MOCK_MODE_KNOBS[honored];
   if (!requested && !result.intent_decision) return result;
   return {

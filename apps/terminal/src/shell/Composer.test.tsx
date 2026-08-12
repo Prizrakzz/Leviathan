@@ -4,12 +4,16 @@ import type { ReactElement } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { Composer } from './Composer';
 
-// The composer docks the ModePicker, which reads the dossier quota (D-DR-3) -- so it needs a query client
-// and a stubbed fetcher. `null` = the routes are dark, which is the correct default for a suite that is
-// about the TEXT BOX and has no opinion about the allowance.
+// The composer docks the DepthControl, which reads two balances (the dossier allowance, D-DR-3, and the
+// credit grant, D-MW-25) -- so it needs a query client and stubbed fetchers. `null` = the routes are dark,
+// which is the correct default for a suite that is about the TEXT BOX and has no opinion about either meter.
 vi.mock('@/api/dossier', async (orig) => {
   const actual = await orig<typeof import('@/api/dossier')>();
   return { ...actual, getDossierQuota: () => Promise.resolve(null) };
+});
+vi.mock('@/api/credits', async (orig) => {
+  const actual = await orig<typeof import('@/api/credits')>();
+  return { ...actual, getCredits: () => Promise.resolve(null) };
 });
 
 function mount(ui: ReactElement) {
