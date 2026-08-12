@@ -208,6 +208,10 @@ def _daily_turn_quota(ident: dict) -> None:
 # against a monthly grant). `max`/`max_c0` stay DARK and are deliberately ABSENT from the price table:
 # an un-shipped tier has no price, and a tier with no price is unmetered — which is safe here only
 # because serving's GRAPHRAG_MODES allowlist is what decides whether it can be honored at all.
+# THE ONE EXCEPTION, stated (D-MW-30 F6): the escalated presets ARE priced, at deep's price, even though
+# they are dark and no serving turn is ever honored as one. The asymmetry is deliberate and is spelled
+# out at the table below — for max, unpriced means "cannot be sold"; for esc, unpriced would mean
+# "delivered the widest walk we have, then refunded it".
 #
 # THE ONE SEAM is the quota dependency (below): FastAPI resolves it BEFORE the handler body, which is
 # the only place where (a) the credits check can precede the daily-turn increment and (b) a refusal can
@@ -215,7 +219,14 @@ def _daily_turn_quota(ident: dict) -> None:
 _CREDITS_FLAG = "GRAPHRAG_CREDITS"              # absent/off => ZERO metering code executes (dark-first)
 _CREDITS_LIMIT_ENV = "GRAPHRAG_CREDITS_LIMIT"   # the monthly grant; ratified initial 100
 _CREDITS_DEFAULT_LIMIT = 100
-_CREDIT_PRICES: dict = {"deep": 1}              # wire names, frozen identifiers (rm.DEEP); quick == free
+# D-MW-30 F6 (money, defence in depth): the escalated presets are priced AT DEEP'S PRICE. A shape
+# escalation is honored `deep` and therefore lands here as `deep` today -- these two entries change
+# nothing about what any turn is charged. They exist because the failure they prevent is silent and
+# expensive: if `honored` ever came to carry the effective preset (a future stamp change, a dossier
+# sub-turn, an eval arm requesting the preset BY NAME), an unpriced `esc` would read as UNMETERED and
+# the reconcile would FULL-REFUND a delivered max-width + Opus turn. A tier with no price is free.
+_CREDIT_PRICES: dict = {"deep": 1, "esc": 1, "esc_r": 1}   # wire names, frozen identifiers
+                                                # (rm.DEEP / rm.ESC / rm.ESC_R); quick == free
 _CREDIT_KEY = "_credit"                         # private slot on the identity dict: the turn's charge
 _CREDITS_ERROR_CODE = "credits_exceeded"        # the 429's MACHINE slug; the sentence rides `detail` (F9)
 # The GROUNDED-WALK STAMP (F2). `planner.grounded_subgraph` writes `trace.walk_shape` on EVERY walk, both

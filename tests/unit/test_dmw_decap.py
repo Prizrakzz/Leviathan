@@ -291,7 +291,10 @@ def test_census_mandates_never_ship_to_the_narrow_tiers(monkeypatch, mode):
 
 
 def test_census_override_is_the_thread_scoped_dossier_idiom_not_the_env_flag(monkeypatch):
-    assert orch._CENSUS_MANDATE_MODES == frozenset({rm.MAX, rm.MAX_C0})
+    # D-MW-30 F3 RE-PIN: the escalated presets joined the set. The mandates are part of the 12e-measured
+    # width bundle, so a walk that escalates to that width carries them too -- keyed on the EFFECTIVE
+    # mode, never on the honored one (which stays `deep` on an escalated turn).
+    assert orch._CENSUS_MANDATE_MODES == frozenset({rm.MAX, rm.MAX_C0, orch._ESC, orch._ESC_R})
     monkeypatch.delenv("GRAPHRAG_COMPOSITION_CENSUS", raising=False)
     with orch._census_ctx(rm.MAX):
         assert an._composition_census_on() is True

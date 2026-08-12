@@ -1015,24 +1015,130 @@ def _modes_enabled() -> frozenset:
     return frozenset(x.strip() for x in v.split(",") if x.strip()) & rm.valid_names()
 
 
+# D-MW-30 (30b): THE ESCALATED-SHAPE PRESET NAMES. They are DEFINED by `reasoning_modes.py` (the 30b
+# bundle) and land in the same commit as this seam; the literals here are the FROZEN WIRE IDENTIFIERS,
+# exactly the idiom `server._CREDIT_PRICES` already uses for `deep`. Two consequences, both deliberate:
+# a split commit cannot make this module unimportable, and it cannot make the seam FIRE either -- the
+# fire condition requires the preset's knob dict to be NON-EMPTY, so a missing preset degrades to the
+# deep turn the user asked for and never to `standard` (the F4 shallower-turn failure class).
+_ESC: str = getattr(rm, "ESC", "esc")
+_ESC_R: str = getattr(rm, "ESC_R", "esc_r")
+
+# THE LIVE ESCALATION TARGET (30b): `esc` at birth. `esc_r` (the reserve + provenance bundle) replaces
+# it ONLY if the 30d read-(3) gate passes -- and that replacement is THIS ONE LINE, which is why the
+# seam below reads this name instead of naming a preset inline.
+_ESC_TARGET: str = _ESC
+
 # D-MW-13 (WIDTH-GATED MANDATES): the composition census ships with the FULL-CASCADE tier and nowhere
 # else. The D-CC-3 R1 measurement is the binding: the mandates are WIDTH-HUNGRY -- at quick's 12-row
 # evidence they order enumeration the evidence cannot back (strips/handle 0.1765 vs 0.1073) -- so they
 # may never reach quick/standard/deep. BOTH max presets carry it, deliberately: P3-A's two arms must
 # differ by exactly ONE variable (per_seed_reserve), and a census that rode only `max` would make the
 # mandates a second variable and the gate unreadable.
-_CENSUS_MANDATE_MODES: frozenset = frozenset({rm.MAX, rm.MAX_C0})
+# D-MW-30 (F3): the escalated presets join them. The mandates are PART of the 12e-measured bundle --
+# the width deck that max-opus won 5/6 ran WITH the census on -- so an escalated walk that dropped them
+# would be a different bundle from the one the verdict measured. This set is keyed on the EFFECTIVE
+# mode (whose knobs run), never on the honored one (which stays `deep`, priced and stamped).
+_CENSUS_MANDATE_MODES: frozenset = frozenset({rm.MAX, rm.MAX_C0, _ESC, _ESC_R})
 
 
-def _census_ctx(honored: str | None):
+def _shape_esc_on() -> bool:
+    """D-MW-30 kill switch (F11). DEFAULT-OFF, case-insensitive, fail-closed -- the _family_facet_on /
+    _reroute_v2_on idiom verbatim, so the flip and the rollback are operated like every other one.
+
+    IT GATES FIRING ONLY. Detection runs on every turn regardless (the planner emits `evidence_shape`
+    and `_escalation_decision` stamps it), which is what lets the deep arms of the 30d deck be an
+    UNCONTAMINATED control and the detection substrate at the same time: `fired` must be false on
+    12/12 deep-arm rows, and `flagged` is still the measurement."""
+    return os.environ.get("GRAPHRAG_SHAPE_ESC", "off").lower() == "on"
+
+
+def _escalation_decision(plan, kind: str | None, honored: str | None, planned_seeds: int,
+                         switch_on: bool, caller_allows: bool = True) -> dict:
+    """THE ESCALATION DECISION, stamped on EVERY turn (F10) -- {flagged, fired, suppressed_reason,
+    planned_seeds} plus the two F12 tripwire fields. Pure: it reads the preset table and the plan's own
+    trace and nothing else, mutates nothing.
+
+    `planned_seeds` is the PLANNED contract count (F1, the critical review finding): seeds REALIZE
+    inside `grounded_subgraph`, parameterised by the very knobs this decision sets, so a condition on
+    realized seeds would be circular. The bound is sound in the direction that matters -- `_seed_contracts`
+    de-dups and truncates, so realized <= planned ALWAYS, and a plan of <= 2 can never widen into 3.
+
+    THE COUNT IS BOUNDED ON BOTH SIDES, `1 <= planned_seeds <= 2` (30f review, BLOCKER). ZERO planned
+    contracts is not a narrow question, it is an UNKNOWN one, and it is the ONE case where the walk's
+    routing is NOT the plan's: `route_fn` is rebound to the planner's contracts only under `if pc:`, so a
+    zero-contract plan leaves the fallback router (session coreference, then `route_smart` at
+    `max_seeds`) to seed the walk -- realized is then unbounded by planned and measured at 4 on the
+    repro, i.e. the escalation would deliver the max-width + Opus bundle on exactly the 3-4 market shape
+    12e measured as HARMFUL. A hungry-flagged zero-contract plan therefore NEVER fires; the record still
+    carries `flagged: True` and `planned_seeds: 0`, which is the honest reading of it.
+
+    `suppressed_reason` is a CLOSED ENUM, evaluated first-blocker-wins in this order:
+      no_plan    the planner fell back (or was never consulted) -- there is no detection to act on
+      lane       not reasoning/hybrid: live and numbers_only consume no walk knob at all
+      tier       honored is not `deep` -- the gift rides the PAID tier only, never quick/standard
+      caller     the CALLER opted this turn out (`allow_shape_escalation=False`): the dossier lane runs
+                 N deep sub-turns per job and is a separately-adjudicated product (12e leaves its Opus
+                 seat "untouched -- its own measured verdict, different task"), so the flip's blast
+                 radius stops at the desk turn instead of silently re-pricing and re-shaping a dossier
+      shape      the planner did not flag the question as evidence-hungry
+      seeds      the plan carries 3+ markets (width HURTS there, P4) or ZERO (see above)
+      switch     GRAPHRAG_SHAPE_ESC is off -- a deliberately dark build
+      no_preset  the escalated preset carries no knobs: a BUILD DEFECT, never a switch state. Split out
+                 from `switch` (30f review) precisely because 30d's VOID check is "fired is false on
+                 12/12 deep-arm rows", which a build that lost the preset passes trivially while the
+                 seam is dead. The two states must be distinguishable in the record.
+    `None` iff the turn escalated.
+
+    THE TWO F12 TRIPWIRE FIELDS ride the same dict: `xc_explicit` and `answer_mode_outlook`, read off
+    `plan.trace()` when a plan exists and None otherwise. The 30d deck pre-registers a per-row
+    expectation for both -- the new PLANNER_SYS section moves the prompt for EVERY tier and shares it
+    with those two detections, so a silent perturbation of a NEIGHBOUR is what they exist to catch. They
+    ride HERE, inside a dict `tracekeys.TRACE_RECORD_KEYS` already carries, rather than as two new
+    registry entries: the artifact gains the columns with no eval.py edit and no column shift."""
+    flagged = bool(plan is not None and getattr(plan, "evidence_shape", False) is True)
+    reason: str | None = None
+    if plan is None:
+        reason = "no_plan"
+    elif kind not in ("reasoning", "hybrid"):
+        reason = "lane"
+    elif honored != rm.DEEP:
+        reason = "tier"
+    elif not caller_allows:
+        reason = "caller"
+    elif not flagged:
+        reason = "shape"
+    elif not (1 <= int(planned_seeds) <= 2):
+        reason = "seeds"
+    elif not switch_on:
+        reason = "switch"
+    elif not rm.knobs(_ESC_TARGET):
+        reason = "no_preset"
+    tr: dict = {}
+    if plan is not None:
+        try:
+            tr = dict(plan.trace() or {})
+        except Exception:  # noqa: BLE001 — a tripwire may never break a turn
+            tr = {}
+    return {"flagged": flagged, "fired": reason is None, "suppressed_reason": reason,
+            "planned_seeds": int(planned_seeds),
+            "xc_explicit": tr.get("xc_explicit"), "answer_mode_outlook": tr.get("answer_mode_outlook")}
+
+
+def _census_ctx(effective: str | None):
     """The thread-scoped census override for this turn -- the EXACT dossier idiom
     (dossier.run_subquery), never the env flag and never a mode knob (the excluded-knobs law: flags are
     not knobs). `answer.composition_census_override` is a ContextVar-backed contextmanager, so it is
     thread-scoped by construction and token-resets in its own finally: a concurrent desk turn on this
     task is untouched in both directions, and an exception inside the block cannot leave a pooled
     serving thread pinned ON. A turn on any other mode gets `nullcontext()` -- literally no override, so
-    `_composition_census_on()` keeps reading the env flag exactly as it does today."""
-    if honored in _CENSUS_MANDATE_MODES:
+    `_composition_census_on()` keeps reading the env flag exactly as it does today.
+
+    THE ARGUMENT IS THE EFFECTIVE MODE, NOT THE HONORED ONE (D-MW-30 F3): an escalated turn is honored
+    `deep` (that is what it is priced and stamped as) while the knobs that RUN are the escalated
+    preset's. The census is one of those knobs' bundle-mates, so it must follow the mode whose width
+    actually ran or the escalated walk would be a different bundle from the measured one."""
+    if effective in _CENSUS_MANDATE_MODES:
         return an.composition_census_override(True)
     return contextlib.nullcontext()
 
@@ -1690,7 +1796,7 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
              numbers_client=None, numbers_model: str = na.HAIKU, query_fn=None, classify=None,
              planner: str | None = None, session_id: Optional[str] = None, session_store=None,
              on_stage=None, context=None, profile_facts: dict | None = None,
-             mode: str | None = None) -> dict:
+             mode: str | None = None, allow_shape_escalation: bool = True) -> dict:
     """Classify the query's intent, run the matching branch, and return one fused answer + unified citations.
     `asof` defaults to today. The reasoning/hybrid branches default to the L2 deterministic grounded-subgraph
     walk (v1.1 reached judge parity with one-hop at 0/30 register leaks, and the roadmap — driver-slice
@@ -1707,7 +1813,15 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
     D-MW-6: this front half owns the TURN's rerank-lane collector. The two early-return lanes below
     (guardrail, trivial) return ABOVE it and rerank nothing, so they mint no collector and carry no
     `rerank_lane` stamp -- an empty lane is not a measurement. Everything else runs inside
-    `_respond_walk`, whose one job here is to be a body the collector can wrap in a try/finally."""
+    `_respond_walk`, whose one job here is to be a body the collector can wrap in a try/finally.
+
+    D-MW-30 (30f review): `allow_shape_escalation` is the CALLER-BOUNDARY opt-out for the planner-routed
+    shape escalation, and its default is True precisely so the API is preserving -- every existing caller
+    keeps today's behaviour. A caller passes False when its lane is a SEPARATELY ADJUDICATED product that
+    must not change shape or writer by side effect of a serving flip: `dossier.run_subquery` is the one
+    such caller today (N deep sub-turns per job, each of them the narrow evidence-hungry shape the
+    detector flags, and the dossier's own synthesis seat was measured on its own). It suppresses with
+    reason `caller`, so an opted-out turn is VISIBLE in the record rather than merely absent from it."""
     refused = _guardrail_check(query)                 # input pre-filter (default off, fail-open)
     if refused is not None:
         return refused                                # refused turns never touch session state
@@ -1749,7 +1863,8 @@ def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrie
                              numbers_client=numbers_client, numbers_model=numbers_model, query_fn=query_fn,
                              classify=classify, planner=planner, session_id=session_id,
                              session_store=session_store, on_stage=on_stage, context=context,
-                             profile_facts=profile_facts, mode=mode)
+                             profile_facts=profile_facts, mode=mode,
+                             allow_shape_escalation=allow_shape_escalation)
     finally:
         if _rk_lane is not None:
             try:
@@ -1762,7 +1877,7 @@ def _respond_walk(query: str, *, graph, asof: Optional[str] = None, call=None, r
                   model: str = an.SONNET, numbers_client=None, numbers_model: str = na.HAIKU, query_fn=None,
                   classify=None, planner: str | None = None, session_id: Optional[str] = None,
                   session_store=None, on_stage=None, context=None, profile_facts: dict | None = None,
-                  mode: str | None = None) -> dict:
+                  mode: str | None = None, allow_shape_escalation: bool = True) -> dict:
     """The body of `_respond` (see its docstring for the contract) -- everything below the guardrail and
     trivial early returns. Split out for ONE reason: the turn's rerank-lane collector needs a try/finally
     around the real work, and the two early-return lanes must stay above it."""
@@ -1784,6 +1899,16 @@ def _respond_walk(query: str, *, graph, asof: Optional[str] = None, call=None, r
     _mode = rm.resolve(mode, _modes_enabled())
     _mode_knobs = rm.knobs(_mode["honored"])          # {} for standard/dark => every seam byte-identical
     _mk = {"mode_knobs": _mode_knobs} if _mode_knobs else {}   # the omit-when-default idiom, per seam
+    # D-MW-30 (F3): THE TURN CARRIES TWO MODE IDENTITIES from here on.
+    #   `_mode["honored"]`  what the turn IS -- priced (server._credit_price), stamped (decided.mode),
+    #                       shown to the user. A shape escalation NEVER moves it: the escalation is an
+    #                       intelligence feature inside the tier the user bought, not a paid notch.
+    #   `_effective`        whose KNOBS run. Equal to honored on every turn except an escalated one.
+    # Everything that asks "how wide did this turn actually go?" -- the census mandates, the knob dict
+    # threaded into the lanes, the trace stamp -- reads `_effective`/`_mode_knobs`. Everything that asks
+    # "what did the user buy?" reads `_mode`. Conflating the two is how a delivered max+opus turn would
+    # get full-refunded (F6) or a paid deep turn would get charged as something it was never sold as.
+    _effective = _mode["honored"]
 
     # ── session load (Phase 1) ────────────────────────────────────────────────────────────────────
     snap, store, ss = None, None, None
@@ -1852,6 +1977,10 @@ def _respond_walk(query: str, *, graph, asof: Optional[str] = None, call=None, r
     # legacy path below byte-for-byte. The plan NEVER overrides the caller's explicit as-of, and a
     # live step still runs behind the as-of kill-switch — the plan is advice, the guards are law.
     plan, decided, near = None, None, None
+    pc: list = []                       # D-MW-30 (F1): the PLANNED, graph-resolvable contracts. Hoisted out
+                                        # of the branch below so the escalation seam reads the ONE producer
+                                        # of that filter instead of re-deriving it (and so a legacy/fallback
+                                        # turn reports 0 planned seeds rather than tripping over a NameError).
     _ms_dispatch = None
     if classify is None:
         import time as _time
@@ -1984,6 +2113,32 @@ def _respond_walk(query: str, *, graph, asof: Optional[str] = None, call=None, r
     # below this line may mutate `kind` — the D-RC selector's "kind is FINAL here" is now a recorded
     # fact a test can assert, not prose. Rides intent_decision -> the eval record (tracekeys registry).
     decided = (decided or {}) | {"kind_history": _kind_hist}
+
+    # ── D-MW-30: PLANNER-ROUTED SHAPE ESCALATION (the escalation seam) ────────────────────────────────
+    # THE DOCTRINE (12e, measured across two writers): width is a QUESTION SHAPE, not a tier. The user
+    # picks the cost envelope; the PLANNER picks the shape within it. On the paid tier, a question whose
+    # evidence demand is deep-and-narrow (episodes, vintages, chains, regime post-mortems on <= 2 markets)
+    # runs the max-shaped walk that won the 12e width deck 5/6 on usefulness AND composition; every other
+    # question -- and every 3+-market question, where the same deck showed width HURTS -- runs deep.
+    #
+    # WHY HERE: `kind` is FINAL exactly one line above (the D-AM-1 audit is the recorded fence), the plan
+    # and `pc` are in scope, and EVERY knob consumer is still below -- the xc_force gate, the census
+    # context, the two lane calls that receive `mode_knobs`, and the trace stamp. Nothing that runs above
+    # this line can read an escalated knob, which is why the pre-plan seams (silver cap, the dispatch
+    # ceiling) provably keep deep's values (F9 pins esc's identity to deep's on every one of them).
+    #
+    # WHY rm.knobs(_ESC_TARGET) AND NEVER rm.resolve (F4): `resolve()` applies the SERVING ALLOWLIST, and
+    # the escalated presets are permanently dark -- resolving through it would return `standard`, i.e.
+    # the escalation would silently make the turn SHALLOWER than the deep walk it replaced. The preset
+    # table is read directly, and an empty read cannot fire (see `_escalation_decision`).
+    _esc = _escalation_decision(plan, kind, _mode["honored"], len(pc), _shape_esc_on(),
+                                allow_shape_escalation)
+    if _esc["fired"]:
+        _effective = _ESC_TARGET
+        _mode_knobs = rm.knobs(_ESC_TARGET)   # the walk/ground knob dict swaps WHOLE -- never a merge:
+        _mk = {"mode_knobs": _mode_knobs}      # a half-escalated bundle is not the bundle 12e measured.
+        print(f"SHAPE_ESC_FIRED effective={_effective} planned_seeds={_esc['planned_seeds']}")  # ASCII soak
+
     # D-RC-14: profile facts join sblock at the SAME documented multiplex the attachment block uses
     # (run_reasoning/run_hybrid forward only `extra_context`; a competing param is silently dropped).
     # Both legs required: the caller passed facts AND the flag is on -- the server gates its store read
@@ -2127,7 +2282,7 @@ def _respond_walk(query: str, *, graph, asof: Optional[str] = None, call=None, r
             # the response-contract seam these two functions reach. The live and numbers_only lanes are
             # EXEMPT for the same reason they are exempt from the knob stamp below: they run no response
             # contract, so an override there would set a flag nothing reads.
-            with _census_ctx(_mode["honored"]):
+            with _census_ctx(_effective):                             # D-MW-30 F3: EFFECTIVE, not honored
                 res = run_hybrid(query, asof, graph=graph, call=call, retrieve=retrieve, model=model,
                                  client=numbers_client, numbers_model=numbers_model, query_fn=qfn, planner=planner,
                                  extra_context=sblock, route_fn=route_fn, near=near, silver_lookup=silver_lookup,
@@ -2139,7 +2294,7 @@ def _respond_walk(query: str, *, graph, asof: Optional[str] = None, call=None, r
                                  numbers_query=(_nq if _fam_on else None),
                                  families=_families, **_rck, **_mk)
         else:
-            with _census_ctx(_mode["honored"]):                       # D-MW-13, see the hybrid lane above
+            with _census_ctx(_effective):                             # D-MW-13/30, see the hybrid lane above
                 res = run_reasoning(query, asof, graph=graph, call=call, retrieve=retrieve, model=model,
                                     planner=planner, extra_context=sblock, route_fn=route_fn, near=near,
                                     silver_lookup=silver_lookup, on_stage=on_stage,
@@ -2183,6 +2338,14 @@ def _respond_walk(query: str, *, graph, asof: Optional[str] = None, call=None, r
         if isinstance(_mkt.get("k_by_depth"), tuple):
             _mkt["k_by_depth"] = list(_mkt["k_by_depth"])
         res.setdefault("trace", {})["mode_knobs"] = _mkt
+    # D-MW-30 (F10): the escalation decision, stamped UNCONDITIONALLY -- on the live and numbers lanes,
+    # on the legacy/no-plan path, on the deterministic floor, and on every suppressed turn. NOT the
+    # absent-when-default idiom: the 30d DETECTION read is computed from the deep arms, where `fired` is
+    # false on 12/12 rows by construction (the switch is absent there), so an absent key would make the
+    # instrument dead exactly where it is load-bearing. `flagged` is the planner's detection and rides
+    # regardless of the kill switch; `fired` is the only thing the switch gates. Registered in
+    # tracekeys.TRACE_RECORD_KEYS (APPENDED -- the 12f column-shift lesson).
+    res.setdefault("trace", {})["escalation_decision"] = _esc
     # D-MW-6: the rerank lane, stamped UNCONDITIONALLY on every turn that reaches here -- deliberately
     # NOT the absent-when-default idiom the knob stamp above uses. `backends == ['bge'], fallbacks == 0`
     # IS the measurement for a control arm, so an absent key would make the OFF arm uncomparable (the

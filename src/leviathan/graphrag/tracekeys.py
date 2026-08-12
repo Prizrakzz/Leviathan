@@ -56,6 +56,21 @@ TRACE_RECORD_KEYS: tuple[str, ...] = (
                                  # every walk, beside cascade_closure, both arms.
     "n_evidence_chars",          # D-MW-17: post-cap evidence char sum -- the design-time measurement for a
                                  # token-denominated budget. Recorded, never a behavior input in D-MW.
+    # ── D-MW-30. APPENDED, per the law above (the 12f column-shift lesson).
+    "escalation_decision",       # D-MW-30 (F10): {flagged, fired, suppressed_reason, planned_seeds,
+                                 # xc_explicit, answer_mode_outlook} --
+                                 # the planner-routed shape escalation, stamped by orchestrator._respond_walk
+                                 # on EVERY turn, both polarities of GRAPHRAG_SHAPE_ESC. `flagged` is the
+                                 # detection (the 30d read-(1) precision/recall gate reads it off the DEEP
+                                 # arms, where `fired` is false by construction); `fired` is the delivery
+                                 # signal the credit seam and the quality read pair with `walk_shape`.
+                                 # THE LAST TWO ARE THE F12 TRIPWIRE, not decision inputs: the new
+                                 # PLANNER_SYS section moves the DISPATCH PROMPT FOR EVERY TIER and shares
+                                 # it with `xc_explicit` and `answer_mode_outlook`, so the 30d deck
+                                 # pre-registers a per-row expectation for both and the adjudicator diffs
+                                 # them off the deep arms. They ride INSIDE this dict rather than as two
+                                 # DECISION_RECORD_KEYS entries so eval.py gains the columns with no edit
+                                 # and no column shift -- one registered key, one stamp site, one producer.
 )
 
 # out["intent_decision"][decision_key] -> record[record_column].

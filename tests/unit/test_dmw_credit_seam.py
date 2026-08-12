@@ -210,9 +210,15 @@ def test_credits_absent_is_off(monkeypatch):
 
 # ══ 2. THE PRICE TABLE (the 2-notch ship) ════════════════════════════════════════════════════════════
 def test_only_deep_is_priced_and_the_dark_tiers_are_absent():
-    """Scan (quick) is UNMETERED; max/max_c0 are DARK and therefore carry no price at all."""
+    """Scan (quick) is UNMETERED; max/max_c0 are DARK and therefore carry no price at all.
+
+    D-MW-30 F6 RE-PIN: the two ESCALATED presets are priced, at deep's price, and that asymmetry with
+    max/max_c0 is the point. An unpriced `max` cannot be SOLD; an unpriced `esc` would be a delivered
+    max-width + Opus turn that the reconcile FULL-REFUNDS the moment anything stamps it as honored."""
+    from leviathan.graphrag import orchestrator as orch
     from leviathan.graphrag import reasoning_modes as rm
-    assert sv._CREDIT_PRICES == {rm.DEEP: 1}
+    assert sv._CREDIT_PRICES == {rm.DEEP: 1, orch._ESC: 1, orch._ESC_R: 1}
+    assert sv._credit_price(orch._ESC) == 1 and sv._credit_price(orch._ESC_R) == 1
     assert sv._credit_price(rm.QUICK) == 0 and sv._credit_price(rm.STANDARD) == 0
     assert sv._credit_price(rm.MAX) == 0 and sv._credit_price(rm.MAX_C0) == 0
     assert sv._credit_price(None) == 0 and sv._credit_price("nonsense") == 0
@@ -244,6 +250,34 @@ def test_a_deep_turn_debits_one_credit(monkeypatch):
     assert s.balance("local", 100) == 99
     assert [k for k in s.kinds() if k in ("acquire_lease", "debit", "credit", "release_lease")] == \
         ["acquire_lease", "debit", "release_lease"]             # lease -> charge -> release, no refund
+
+
+def test_a_fired_shape_escalation_nets_exactly_one_credit(monkeypatch):
+    """D-MW-30 F6, THE MONEY PIN: an escalated turn is a DEEP turn that got wider for free.
+
+    The turn the user bought is `deep` (honored), the walk that ran is the escalated preset's, and the
+    ledger must see EXACTLY the deep charge: one debit, no second charge for the extra width, and --
+    the failure this pin exists for -- NO REFUND LEG. The escalated turn delivers MORE than the tier
+    promises, so any path that reads the escalation and concludes 'not the priced tier' is a full
+    refund of the most expensive turn the estate produces."""
+    s = _use(monkeypatch, _LedgerStore())
+    monkeypatch.setenv("GRAPHRAG_CREDITS", "on")
+    monkeypatch.setenv("GRAPHRAG_MODES", "quick,deep")
+
+    def _escalated(q, **kw):
+        out = _result("deep")                                   # honored STAYS deep -- that is the point
+        out["trace"]["escalation_decision"] = {"flagged": True, "fired": True,
+                                               "suppressed_reason": None, "planned_seeds": 1}
+        return out
+    c = _respond(monkeypatch, _escalated)
+    r = c.post("/v1/respond", json={"question": "every time palm banned exports?", "mode": "deep"})
+    assert r.status_code == 200
+    assert s.balance("local", 100) == 99                        # exactly one credit, never two, never zero
+    assert [k for k in s.kinds() if k in ("acquire_lease", "debit", "credit", "release_lease")] == \
+        ["acquire_lease", "debit", "release_lease"]             # no `credit` == no refund leg
+    # ANTI-VACUITY: the reconcile really did read a turn whose stamps say ESCALATED, not a plain deep one.
+    assert sv._honored_mode(_escalated(None)) == "deep"
+    assert _escalated(None)["trace"]["escalation_decision"]["fired"] is True
 
 
 def test_the_429_body_is_top_level_shaped(monkeypatch):

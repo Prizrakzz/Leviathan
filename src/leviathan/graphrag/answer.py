@@ -1415,9 +1415,24 @@ _SYSTEM_RECENCY = (
     "question's 'today'. Dating a claim is never optional where the reader could mistake it for current.")
 
 
+# D-MW-30 / 30c: THE INVITATION (esc_r only), the reserve's missing half. P3-A proved graph admission works
+# and citation does not follow -- and the reason is legible in hindsight: a reserved row rendered EXACTLY
+# like a cosine one, so the writer had no way to know it was reached structurally rather than because it
+# looked like the question. Two halves ride together: `_l2_blocks(provenance=True)` annotates the evidence
+# header, and this paragraph says what the annotation MEANS. INFORMATION + PERMISSION, never a rule -- no
+# cap, no quota, no "cite at least one". A mandate here would buy citations by compulsion and would measure
+# nothing about whether the structural channel is USEFUL, which is the only thing the gate is asking.
+_SYSTEM_PROVENANCE = (
+    "\n\nSTRUCTURAL ADMISSIONS: evidence blocks marked '[graph admission: ...]' were reached through the "
+    "causal graph -- an upstream ancestor of something already in scope, or a market this one cascades into "
+    "-- rather than by textual similarity to the question, which is where a ROOT CAUSE usually sits. "
+    "Tracing one back to explain WHY the near-term story is happening is invited wherever it strengthens "
+    "the answer; it is never required, and an admission that adds nothing should simply be left alone.")
+
+
 def _system(*, outlook: bool = False, episodes: bool | None = None, recency: bool = False,
             response_contract: str | None = None, budget: str | None = None,
-            census: dict | None = None) -> str:
+            census: dict | None = None, provenance: bool = False) -> str:
     """The active reader-facing persona. GRAPHRAG_MENTOR_VOICE default on -> mentor; =off -> the prior string.
     GRAPHRAG_CASCADE_QUANT on -> append the OBSERVED CASCADE NUMBERS addendum (P9-B: the loop supplies the
     [N] rows). GRAPHRAG_PATTERN_RECORDS on -> append the OBSERVATION-register RECORDED HISTORY directive (T2B).
@@ -1433,6 +1448,10 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
     down as one argument exactly like `budget`: this function reads no environment for it and the
     seam that owns the kill-switch reads it once. None on every dark turn -> both contract seams
     below are byte-identical -> the whole composition lever has a provable off state.
+    `provenance` (D-MW-30 / 30c) appends the STRUCTURAL-ADMISSION invitation, and is threaded down from
+    the escalated bundle's `provenance_prompt` knob exactly like `budget` and `census`: this function
+    reads no environment for it. DEFAULT FALSE, so every existing caller -- the one-hop body included --
+    is byte-identical and the whole provenance lever has a provable off state.
     Read PER CALL, never memoized: a serving process is long-lived, so a once-at-import read would
     make the env-flip rollback a silent no-op until a redeploy — defeating the gate's purpose."""
     if os.environ.get("GRAPHRAG_MENTOR_VOICE", "on") == "off":
@@ -1459,6 +1478,8 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
         base = base + _SYSTEM_OUTLOOK
     if recency:                                                    # D-RC-13: dating discipline (flag resolved
         base = base + _SYSTEM_RECENCY                              #   by the caller's seam, threaded DOWN)
+    if provenance:                                                 # D-MW-30 (esc_r): the structural-admission
+        base = base + _SYSTEM_PROVENANCE                           #   INVITATION, threaded from the mode knob
     base = base + _rc.directive(response_contract, census=census)  # D-RC Phase B: emphasis LAST ('' for
     return base                                                    #   default/None -- the fail-open pin)
 
@@ -1639,7 +1660,37 @@ def _render_order(nodes: list, order_policy: str | None) -> list:
     return out
 
 
-def _l2_blocks(sg, graph: gph.CausalGraph, asof: str | None = None, order: list | None = None) -> list[str]:
+def _admission_note(node) -> str:
+    """D-MW-30 / 30c: the admission provenance suffix for a STRUCTURALLY admitted node -- '' for every
+    cosine node, every seed, every focus_driver inject, and every node whose admission record is absent
+    or malformed. Built from the audit record the walk ALREADY writes (planner._reserve_plan's
+    `admissions` map, mirrored onto GroundedNode.admission), so nothing new is computed at render time
+    and the string can never disagree with the trace an artifact carries.
+
+    The test is MEMBERSHIP in `planner._STRUCTURAL_REASONS`, never a literal (the D-MW-15 law): a THIRD
+    structural reason -- P6's `cascade_downstream_contract` -- must annotate on the day it lands, not on
+    the day someone remembers this function exists. Note that P6's reason attaches to a CONTRACT node,
+    and only the driver header is annotated below, so that wave threads this helper at its own header.
+
+    The planner import is LAZY for the same reason _answer_l2's is: answer <- planner is a cycle, and
+    this is a sys.modules hit on every real turn (the caller imported it before the walk ran)."""
+    from leviathan.graphrag import planner as _pl
+    adm = getattr(node, "admission", None) or {}
+    if not isinstance(adm, dict) or adm.get("reason") not in _pl._STRUCTURAL_REASONS:
+        return ""
+    upstream = adm.get("reason") == _pl.REASON_CLOSURE
+    anchor = adm.get("ancestor_of")
+    lead = "upstream ancestor of" if upstream else "downstream of"
+    note = f"{lead} {anchor}" if anchor else ("upstream structural admission" if upstream
+                                              else "downstream structural admission")
+    anchors = adm.get("anchors") or []
+    if adm.get("convergence") and anchors:          # (v) reachable from >= 2 admitted anchors' chains
+        note += f", converges from {len(anchors)} anchors"
+    return f" [graph admission: {note}]"
+
+
+def _l2_blocks(sg, graph: gph.CausalGraph, asof: str | None = None, order: list | None = None,
+               provenance: bool = False) -> list[str]:
     """v1.1 ADDITIVE assembly (the A/B fix): the reasoner gets AT LEAST what one-hop gave it — the FULL
     _context_block per contract (all drivers, all regime definitions, inter-commodity edges) — PLUS the walk's
     structure: how each cross-commodity contract was REACHED (edge + category: an accounting identity needs no
@@ -1651,7 +1702,13 @@ def _l2_blocks(sg, graph: gph.CausalGraph, asof: str | None = None, order: list 
 
     Returns (stable_blocks, volatile_blocks): the STABLE part — hop annotations + the per-contract graph
     context + the shared-ancestor note — is byte-identical across a session's turns and forms the prompt-
-    cache prefix; everything per-turn (convergence state, active lists, retrieved evidence) is volatile."""
+    cache prefix; everything per-turn (convergence state, active lists, retrieved evidence) is volatile.
+
+    `provenance` (D-MW-30 / 30c, esc_r only) annotates a STRUCTURALLY admitted driver's evidence header
+    with how the walk reached it. DEFAULT FALSE, and False makes the suffix the empty string, so the
+    render is byte-identical for every other caller — on a reserved walk too, not merely on an empty one.
+    It touches the VOLATILE half only: the annotation is per-turn state, so the cached stable prefix is
+    unaffected either way."""
     stable: list[str] = []
     volatile: list[str] = []
     # `order` (D-DV-2) is the SAME sequence _answer_l2 builds its flat evidence list from. None -> sg.nodes,
@@ -1729,7 +1786,13 @@ def _l2_blocks(sg, graph: gph.CausalGraph, asof: str | None = None, order: list 
             if n.kind == "contract" and n.evidence:
                 vlines.append(f"--- DATED EVIDENCE for {cid} ---\n" + _ev_block(n.evidence))
             elif n.kind == "driver" and n.evidence:
-                vlines.append(f"--- DATED EVIDENCE for driver {n.id} ---\n" + _ev_block(n.evidence))
+                # D-MW-30 / 30c: the admission provenance rides the HEADER, never the rows. The flat
+                # evidence list _answer_l2 builds (and therefore citations.unify's E-numbering and the
+                # verifier's resolution set) is built from `n.evidence` -- these dicts, untouched -- so
+                # this string is invisible to every citation seam by construction, not by promise.
+                # `provenance` False -> `_sfx` is "" -> the f-string is the pre-wave line, byte for byte.
+                _sfx = _admission_note(n) if provenance else ""
+                vlines.append(f"--- DATED EVIDENCE for driver {n.id}{_sfx} ---\n" + _ev_block(n.evidence))
             # R3.4 (D-EI-8): the corroboration floor's SUPPRESSION META, or None when this node's
             # episodes did not come from timeline.episodes_for (a hand-built fixture, a future producer).
             # None and {"n_suppressed": 0} are DIFFERENT facts and are kept different: the first has no
@@ -1932,7 +1995,13 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # D-DV-2 presentation order, resolved ONCE and consumed by BOTH the render below and the flat
     # evidence list further down -- two derivations of the same sequence is how they drift apart.
     _ev_order = _render_order(sg.nodes, (mode_knobs or {}).get("order_policy"))
-    stable_blocks, volatile_blocks = _l2_blocks(sg, graph, asof=asof, order=_ev_order)
+    # D-MW-30 / 30c: the provenance bundle's ONE resolution, read from the mode knob HERE and threaded to
+    # BOTH of its seams -- the evidence header below and the persona at the synthesis call. `bool(...)` of
+    # an absent key is False on every other preset (the knob is None, never False -- reasoning_modes' F7
+    # note), so both seams take their default and this whole lever has a provable off state.
+    _provenance = bool((mode_knobs or {}).get("provenance_prompt"))
+    stable_blocks, volatile_blocks = _l2_blocks(sg, graph, asof=asof, order=_ev_order,
+                                                provenance=_provenance)
     if extra_resolver is not None:                                # numbers ∥ walk JOIN (run_hybrid): the walk is
         extra_context, extra_number_calls = extra_resolver()      # done — collect the numbers thread's output now
     if extra_context:                                             # hybrid numbers / conversation state (volatile)
@@ -2085,7 +2154,8 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                                          sg.trace)
     structured = call(_system(outlook=_outlook, episodes=_episodes, recency=_recency_stamp_on(),
                               response_contract=_rc_active, budget=_mode_budget(_rc_active, mode_knobs),
-                              census=_census),                    # D-CC-1: None on every dark turn
+                              census=_census,                     # D-CC-1: None on every dark turn
+                              provenance=_provenance),            # D-MW-30: False on every non-esc_r turn
                       _pack(sp, vp, use_blocks), model=model, tool=_answer_tool(), **call_kw)
     sg.trace["ms_synth_llm"] = int((time.perf_counter() - _t_synth) * 1000)
     _banned_mood = _count_banned_mood(structured)                 # P9-A: RAW output, pre-sanitize (see helper)
@@ -4808,9 +4878,16 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     # DEFAULT only -- an explicit caller arg (eval --model, a test, a mode override) always wins, so
     # the eval lever and the env lever can never fight. Serving passes no model, so this line is the
     # flip: set GRAPHRAG_SYNTH_MODEL on the task env and roll back by unsetting one var.
+    # D-MW-30 (F5): the escalated bundle's synthesis SEAT joins that same branch, ranked mode > env >
+    # params. It is INSIDE the default-only guard, so the precedence law is untouched: an explicit caller
+    # --model (the eval arm, a test, an operator override) still wins outright over all three. The mode
+    # outranks the env because a per-request escalation must beat a process-wide default -- otherwise a
+    # task env pinning sonnet would silently strip the writer half off a bundle that was MEASURED with it
+    # (12e: max+opus was the winning pair, and the wave ships bundles as measured, never re-derived).
     if model == SONNET:
         import os as _os
-        model = (_os.environ.get("GRAPHRAG_SYNTH_MODEL")
+        model = ((mode_knobs or {}).get("synth_model")
+                 or _os.environ.get("GRAPHRAG_SYNTH_MODEL")
                  or str(_prm.get("serving.synth_model", "") or "") or model)
     raw_retrieve = retrieve                                        # the CALLER's arg (None on serving) — _answer_l2
     # D-AM-10: the ONE-HOP body's retrieval width. Same per-call partial rebind as _answer_l2's (no

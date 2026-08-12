@@ -5,7 +5,8 @@ from leviathan.graphrag (pure data + pure functions), so orchestrator.py, answer
 eval.py can all import it without cycles, and the preset table cannot be hand-copied into a second
 module and drift (the COMPAT-9 duplicate-and-pin defect class).
 
-PRESETS -- `quick` / `standard` / `deep`, plus the DARK `deep_v2` / `max` / `max_c0`. `standard` is ALL-NONE:
+PRESETS -- `quick` / `standard` / `deep`, plus the DARK `deep_v2` / `max` / `max_c0` and the D-MW-30 escalated
+pair `esc` / `esc_r`. `standard` is ALL-NONE:
 `knobs("standard")` is the EMPTY DICT, every kwarg builder returns `{}`, and every call site therefore
 stays byte-identical under the omit-when-default idiom. That empty dict IS the fail-open guarantee (the
 same role the `default` response contract's empty directive plays), not a promise anyone has to keep by
@@ -32,6 +33,10 @@ THREADS values, it does not redesign seams:
                                                       value x the REALIZED seed count, not a flat number)
   ground    per_seed_evidence_cap / _probe_cap     -> planner.ground, via `scaled_ground_kwargs()` ONLY
                                                       (the ONE producer of the seed-scaled totals)
+  synth     synth_model                            -> answer.answer's DEFAULT-ONLY model branch (D-MW-30,
+                                                      F5: mode > env > params; an explicit caller wins)
+  render    provenance_prompt                      -> answer._l2_blocks + answer._system (D-MW-30, 30c:
+                                                      structural-admission provenance + the INVITATION)
 
 `max` / `max_c0` (D-MW-13, STEP-0-CALIBRATED + RATIFIED 2026-08-11) -- the Full-cascade tier. `max_seeds`
 KEEPS its name and becomes the tier seed CEILING (6); the dispatch planner decides the REALIZED cardinality
@@ -41,6 +46,18 @@ structural admission can never displace each other. `max_c0` is now byte-identic
 -- 0 is a VALUE, not None: it survives `knobs()` and forces the reservation OFF outright (the closure kwarg
 beats the env, a shipped pin), which is what makes the P3-A arms differ by exactly ONE variable at identical
 width. Both are DARK until P4 adjudicates the bundle; `max_c0` stays dark permanently as the OFF control.
+
+`esc` / `esc_r` (D-MW-30, ratified 12e) -- THE ESCALATED BUNDLE, the max_c0 twin pattern re-used. Width is a
+QUESTION SHAPE, not a tier: `deep` is the priced envelope and the dispatch planner escalates an
+evidence-hungry <= 2-seed question to the measured max SHAPE inside it. `esc` is therefore deep's identity
+for every pre-plan and non-walk knob (F9 -- `max_seeds` STAYS 4: escalation never changes ROUTING, only
+width) with the 12e-measured walk/ground width bolted on (per-seed 63/24/24, depth 2, k (7,5,3), score +
+relevance) plus the synthesis seat `synth_model='claude-opus-5'` -- the 12e width-deck verdict was max+opus,
+so the bundle ships AS MEASURED and is never re-derived. `esc_r` is `esc` plus the reserve BUNDLE:
+per_seed_reserve 4 + `provenance_prompt=True`, the
+12c reserve retry with the missing half (the writer could not tell a structural node from a cosine one, so the
+reserved rows rendered anonymously and were never cited). Both permanently DARK as presets: serving reaches
+them ONLY through the escalation seam, which stamps mode_decision.honored=deep + escalation_decision.fired.
 
 EXCLUDED FROM v1, each with its recorded reason (do NOT add these without a new ratification):
   * rerank pool          -- a module-global read at the slice site; per-request mutation bleeds
@@ -70,6 +87,8 @@ DEEP = "deep"
 DEEP_V2 = "deep_v2"
 MAX = "max"
 MAX_C0 = "max_c0"
+ESC = "esc"                                   # D-MW-30: the escalated SHAPE (deep's envelope, max's width)
+ESC_R = "esc_r"                               # ...plus the reserve bundle (reserve 4 + the provenance prompt)
 
 # D-MW-13: the TOTAL ceilings the seed-scaled ground caps may never exceed, whatever the realized seed
 # count is. They live here (not at a call site) because `scaled_ground_kwargs()` is the ONE producer of
@@ -129,6 +148,18 @@ class Mode:
     per_seed_evidence_cap: int | None = None
     per_seed_probe_cap: int | None = None
     per_seed_reserve: int | None = None
+    # D-MW-30 (F7): the escalated bundle's two fields, appended AFTER per_seed_reserve -- the appended-last
+    # law again (D-MW-28's cascade_contract_slots moves this tail a third time in P6). BOTH are None on
+    # every other preset, and None is the ONLY correct absent value here: `knobs()` filters `is not None`,
+    # so a literal False or "" would MINT the key into deep's trace stamp and break the byte-identity law
+    # that the whole mode table rests on.
+    #   synth_model        the synthesis writer for THIS turn, consumed at the ONE default-only branch in
+    #                      answer.answer (mode > env > params; an explicit caller --model still wins).
+    #   provenance_prompt  True = render each structurally-admitted node's admission provenance on its
+    #                      evidence header AND append the invitation paragraph to the persona. None
+    #                      everywhere else -> both seams are byte-identical (they take `False` defaults).
+    synth_model: str | None = None
+    provenance_prompt: bool | None = None
 
 
 MODES: dict[str, Mode] = {m.name: m for m in (
@@ -206,11 +237,56 @@ MODES: dict[str, Mode] = {m.name: m for m in (
          scaffold_max_bullets=12, scaffold_max_absence=6,
          cap_policy="score", order_policy="relevance",
          per_seed_budget=63, per_seed_evidence_cap=24, per_seed_probe_cap=24, per_seed_reserve=0),
+    # ── D-MW-30 THE ESCALATED BUNDLE (ratified 12e, 2026-08-12) ─────────────────────────────────────────
+    # `esc` = DEEP's identity + the 12e-measured max SHAPE. Every pre-plan knob (silver_cap, max_seeds,
+    # xc_force) and every non-walk knob (fetch_k, scaffold caps, budget_scale) is DEEP's VALUE, not max's --
+    # F9: those three are consumed BEFORE the plan exists (orchestrator :1845/:1871/:2032), so an escalation
+    # that moved them would change the turn's ROUTING and pre-plan shape, not its width, and the arm would
+    # measure two variables. `max_seeds` therefore STAYS 4: escalation buys DEPTH OF EVIDENCE on a <= 2-seed
+    # question, never a wider fan-in. Only the width quartet + the two policies + depth/k_by_depth + the two
+    # new fields differ from deep, and that difference IS the bundle under test.
+    # node_budget / evidence_cap / probe_cap stay None for max's reason, restated because it matters MORE
+    # here (deep carries FLAT 48/36): they are DERIVED from the realized seed count by scaled_ground_kwargs,
+    # so inheriting deep's flat numbers would put a stale pair in the trace stamp beside the per-seed values
+    # that actually ran -- an artifact that lies about the arm. The per-seed quartet REPLACES them.
+    # synth_model rides the bundle because 12e measured the bundle: the width-deck verdict (usefulness 5/6,
+    # composition 5/6, strips 0.023-0.027) was max+OPUS, and the writer-alone leg was already measured flat
+    # (12e's lift read), so the bundle ships as measured and a bundle win attributes to WIDTH (F13).
+    Mode(name=ESC,
+         depth=2, max_seeds=4,
+         k_by_depth=(7, 5, 3),
+         fetch_k=60, silver_cap=12,
+         scaffold_max_bullets=12, scaffold_max_absence=6,
+         budget_scale=None, xc_force=None,
+         cap_policy="score", order_policy="relevance",
+         # 0 is a VALUE (the max_c0 lesson): it survives knobs() and forces the reservation OFF outright,
+         # so the esc arm cannot silently run the ON mechanism because GRAPHRAG_CLOSURE_RESERVE was set.
+         per_seed_budget=63, per_seed_evidence_cap=24, per_seed_probe_cap=24, per_seed_reserve=0,
+         synth_model="claude-opus-5"),
+    # `esc_r` = `esc` + the RESERVE BUNDLE, one variable in the D-MW-30 arm-B sense: per_seed_reserve 4
+    # (12c's dedicated graph-admission slots, re-opened) AND the provenance rendering + invitation that
+    # P3-A lacked. The two ride TOGETHER on purpose -- 12e's finding was that admission works and citation
+    # does not follow when the writer cannot tell a structural node from a cosine one, so re-testing the
+    # reserve without the provenance half would re-run a measurement that already returned its verdict.
+    # Every other field is esc's, byte-for-byte (the pin below proves it).
+    Mode(name=ESC_R,
+         depth=2, max_seeds=4,
+         k_by_depth=(7, 5, 3),
+         fetch_k=60, silver_cap=12,
+         scaffold_max_bullets=12, scaffold_max_absence=6,
+         budget_scale=None, xc_force=None,
+         cap_policy="score", order_policy="relevance",
+         per_seed_budget=63, per_seed_evidence_cap=24, per_seed_probe_cap=24, per_seed_reserve=4,
+         synth_model="claude-opus-5", provenance_prompt=True),
 )}
 
 # Presets that `GRAPHRAG_MODES=on` must NOT sweep into the honored set. A dark preset is still resolvable
 # by NAME (GRAPHRAG_MODES=deep_v2 for the eval arm), which is what keeps the flip a one-env-var decision.
-DARK_NAMES: frozenset = frozenset({DEEP_V2, MAX, MAX_C0})
+# D-MW-30 (F8): esc / esc_r join the dark set IN THE SAME COMMIT that mints them. A forgotten entry here
+# would make the escalated bundle WILDCARD-HONORABLE -- i.e. `GRAPHRAG_MODES=on` would serve an UNMETERED
+# max-width + opus turn to anyone who typed the name. serving_names() is unchanged by this, and the pin on
+# that fact (test_dam_modes:101) is the leak fence.
+DARK_NAMES: frozenset = frozenset({DEEP_V2, MAX, MAX_C0, ESC, ESC_R})
 
 # The knob field names, in declaration order (the trace-stamp column order; append, never sort).
 KNOB_FIELDS: tuple[str, ...] = tuple(f.name for f in fields(Mode) if f.name != "name")

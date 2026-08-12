@@ -193,9 +193,12 @@ def test_kill_switch_disables_attachments(monkeypatch):
 
 
 def test_content_markers_for_deploy_gate():
-    """The S4-style image content-check greps these (a stale image fails BEFORE cutover)."""
+    """The S4-style image content-check greps these (a stale image fails BEFORE cutover).
+
+    RE-PINNED 2026-08-12 (deliberate, not deleted): the D-MW _respond/_respond_walk split moved the
+    live-guard marker into _respond_walk; the gate greps the pair so the split cannot orphan it again."""
     import inspect
-    src = inspect.getsource(orch._respond)
+    src = inspect.getsource(orch._respond) + inspect.getsource(orch._respond_walk)
     assert "not _att_present" in src                       # the legacy live guard
     assert "_resolve_attachments" in src
     assert "attachment_note" in src

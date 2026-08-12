@@ -138,9 +138,15 @@ class GroundedNode:
     episodes: list = field(default_factory=list)     # PIT-filtered dated episodes (timeline layer)
     # D-GD-1: WHY this node was admitted — {reason: cosine|closure_reservation|focus_driver,
     # ancestor_of: <the driver whose chain earned the slot, or None>, chain_depth: <int, 0 when N/A>}.
-    # Observational only: nothing in the render, the prompt, the verifier or the footer reads it. It is
-    # what makes an admission decision AUDITABLE from an artifact (it rides trace.cascade_closure.admissions
-    # -> tracekeys -> every eval per-answer record).
+    # It is what makes an admission decision AUDITABLE from an artifact (it rides
+    # trace.cascade_closure.admissions -> tracekeys -> every eval per-answer record).
+    # ONE READER SINCE D-MW-30c, AND ONLY UNDER A KNOB: `answer._admission_note` reads this record to
+    # suffix the DRIVER evidence header with its admission provenance, and that runs only when the
+    # effective mode carries `provenance_prompt=True` (the `esc_r` bundle; off on every serving preset
+    # today). THE OTHER THREE NON-READERS STILL HOLD AND ARE NOW PINNED, not merely asserted: the flat
+    # evidence list the citations are built from is assembled from `n.evidence`, not from the rendered
+    # block, so the verifier and the footer cannot see this text — see
+    # test_dmw_esc_bundle.py::test_the_header_text_is_invisible_to_citations_and_the_verifier.
     admission: dict = field(default_factory=dict)
 
     @property

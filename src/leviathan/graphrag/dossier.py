@@ -908,7 +908,19 @@ def run_subquery(entry: dict, *, asof: str | None, graph, respond=None, on_stage
                       census on globally must not reach these calls.
       config=deep  -> mode=deep, census forced ON. The provisional width engine, pending D-DR-4.
     The override is thread-scoped (see answer.composition_census_override), so a concurrent desk turn
-    on this task is untouched in both directions."""
+    on this task is untouched in both directions.
+
+    THE SHAPE ESCALATION IS OPTED OUT AT THIS BOUNDARY (D-MW-30, 30f review). `allow_shape_escalation
+    =False` rides EVERY respond() call this lane makes, on both configs. Without it, turning
+    GRAPHRAG_SHAPE_ESC on for the desk would silently change the DOSSIER too: a deep sub-question is a
+    decomposed narrow ask -- exactly the 1-2 contract evidence-hungry shape the detector flags -- so the
+    expected escalation rate on this lane is HIGH, and every escalated sub-turn would double the walk
+    (per_seed_budget 63 vs deep's 32) and swap the writer for claude-opus-5, N times per job. Plan 12e
+    leaves the dossier's Opus seat "untouched -- its own measured verdict, different task", and the 30d
+    deck measures SINGLE TURNS only, so an escalated dossier would be both unmeasured and outside the
+    gate that decides the flip. The opt-out is recorded per sub-turn as
+    `trace.escalation_decision.suppressed_reason == 'caller'`, never as a silent absence. This is the
+    boundary to move -- deliberately, with its own measurement -- if the dossier ever wants the width."""
     from leviathan.graphrag import answer as an
     from leviathan.graphrag import orchestrator as orch
     fn = respond if respond is not None else orch.respond
@@ -917,7 +929,8 @@ def run_subquery(entry: dict, *, asof: str | None, graph, respond=None, on_stage
     def _go():
         with an.composition_census_override(deep):
             return fn(entry["question"], graph=graph, asof=asof,
-                      mode="deep" if deep else "quick", on_stage=on_stage)
+                      mode="deep" if deep else "quick", on_stage=on_stage,
+                      allow_shape_escalation=False)
 
     return _with_deadline(_go, timeout) or {}
 

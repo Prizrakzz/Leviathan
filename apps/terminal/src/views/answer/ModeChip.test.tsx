@@ -69,6 +69,38 @@ describe('ModeChip — what actually ran (D-AM-14)', () => {
     expect(screen.getByTestId('mode-chip-knobs')).toHaveTextContent('9');
   });
 
+  it('the escalated bundle stays invisible: the synthesis seat and the prompt flag never render', async () => {
+    // D-MW-30 (30f review). An escalated turn is honored `deep` and stamps the ESCALATED knob dict, which
+    // carries two fields that are not width: synth_model (the writer) and provenance_prompt (a prompt
+    // flag). The open-shape passthrough above would have rendered both verbatim under a header reading
+    // "ran deep" -- a new disclosure of writer identity, made by side effect. The width knobs still render.
+    const user = userEvent.setup();
+    render(
+      <ModeChip
+        result={turn({
+          intent_decision: { mode: { requested: 'deep', honored: 'deep', invalid: false } },
+          trace: {
+            mode_knobs: {
+              ...KNOBS,
+              per_seed_budget: 63,
+              synth_model: 'claude-opus-5',
+              provenance_prompt: true,
+            },
+          },
+        })}
+      />,
+    );
+    expect(screen.getByTestId('mode-chip-toggle')).toHaveTextContent('ran deep');
+    await user.click(screen.getByTestId('mode-chip-toggle'));
+
+    const knobs = screen.getByTestId('mode-chip-knobs');
+    expect(knobs).not.toHaveTextContent('synth model');
+    expect(knobs).not.toHaveTextContent('claude-opus-5');
+    expect(knobs).not.toHaveTextContent('provenance prompt');
+    expect(knobs).toHaveTextContent('per seed budget'); // a genuine WIDTH knob still passes through
+    expect(knobs).toHaveTextContent('63');
+  });
+
   describe('renders NOTHING when nothing non-standard ran', () => {
     it('a standard turn', () => {
       render(

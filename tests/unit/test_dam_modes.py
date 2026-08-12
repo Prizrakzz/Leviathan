@@ -86,8 +86,12 @@ def test_reasoning_modes_is_a_leaf_module():
 
 
 def test_the_preset_table_and_nothing_else():
-    assert rm.valid_names() == frozenset({"quick", "standard", "deep", "deep_v2", "max", "max_c0"})
-    assert set(rm.MODES) == {rm.QUICK, rm.STANDARD, rm.DEEP, rm.DEEP_V2, rm.MAX, rm.MAX_C0}
+    # D-MW-30: the escalated bundle appends esc / esc_r. valid_names() widens (they are RESOLVABLE by
+    # name, which is how the eval arms reach them); serving_names() does NOT -- see the pin below.
+    assert rm.valid_names() == frozenset({"quick", "standard", "deep", "deep_v2", "max", "max_c0",
+                                          "esc", "esc_r"})
+    assert set(rm.MODES) == {rm.QUICK, rm.STANDARD, rm.DEEP, rm.DEEP_V2, rm.MAX, rm.MAX_C0,
+                             rm.ESC, rm.ESC_R}
 
 
 def test_deep_v2_is_dark_and_the_wildcard_can_never_sweep_it_in(monkeypatch):
@@ -97,13 +101,17 @@ def test_deep_v2_is_dark_and_the_wildcard_can_never_sweep_it_in(monkeypatch):
     # D-MW-13: the max bundle joins the dark set at birth. serving_names() is UNCHANGED by that -- the
     # pin below is the proof that two new presets widened valid_names() without widening what
     # GRAPHRAG_MODES=on may sweep in.
-    assert rm.DARK_NAMES == frozenset({rm.DEEP_V2, rm.MAX, rm.MAX_C0})
+    # D-MW-30 (F8): esc / esc_r join the dark set in the SAME commit that mints them. A forgotten entry
+    # here would make an UNMETERED max-width + opus turn wildcard-honorable -- the escalated bundle is
+    # reachable in serving ONLY through the escalation seam, which stamps honored=deep and prices deep.
+    assert rm.DARK_NAMES == frozenset({rm.DEEP_V2, rm.MAX, rm.MAX_C0, rm.ESC, rm.ESC_R})
     assert rm.serving_names() == frozenset({"quick", "standard", "deep"})
     assert rm.DEEP_V2 in rm.valid_names()                              # still RESOLVABLE (stamped)
     for on in ("on", "1", "true"):
         monkeypatch.setenv("GRAPHRAG_MODES", on)
         assert rm.DEEP_V2 not in orch._modes_enabled()
         assert rm.MAX not in orch._modes_enabled() and rm.MAX_C0 not in orch._modes_enabled()
+        assert rm.ESC not in orch._modes_enabled() and rm.ESC_R not in orch._modes_enabled()
     assert rm.resolve("deep_v2", orch._modes_enabled())["honored"] == "standard"
     monkeypatch.setenv("GRAPHRAG_MODES", "deep_v2")                    # named EXPLICITLY -> honored
     assert orch._modes_enabled() == frozenset({"deep_v2"})
@@ -127,10 +135,13 @@ def test_the_two_new_policy_fields_default_to_none_on_every_pre_ddv_preset():
     -- the None default IS the guarantee, exactly as `standard` is for the whole table."""
     # D-MW-13 re-pin: the per-seed quartet appends AFTER order_policy, per_seed_reserve LAST (the
     # appended-last law -- D-MW-28's cascade_contract_slots moves this tail a second time in P6).
-    assert ("per_seed_probe_cap", "per_seed_reserve") == rm.KNOB_FIELDS[-2:]
-    assert rm.KNOB_FIELDS[-4:] == ("per_seed_budget", "per_seed_evidence_cap",
-                                   "per_seed_probe_cap", "per_seed_reserve")
-    assert rm.KNOB_FIELDS[-6:-4] == ("cap_policy", "order_policy")      # appended, never sorted in
+    # D-MW-30 re-pin (F7): synth_model then provenance_prompt append AFTER per_seed_reserve, so the
+    # quartet's own slice moves left by two. Same law, third application: append, never insert -- the
+    # KNOB_FIELDS order IS the trace-stamp column order, and 12f is the record of what a shift costs.
+    assert ("synth_model", "provenance_prompt") == rm.KNOB_FIELDS[-2:]
+    assert rm.KNOB_FIELDS[-6:-2] == ("per_seed_budget", "per_seed_evidence_cap",
+                                     "per_seed_probe_cap", "per_seed_reserve")
+    assert rm.KNOB_FIELDS[-8:-6] == ("cap_policy", "order_policy")      # appended, never sorted in
     for name in (rm.QUICK, rm.STANDARD, rm.DEEP):
         m = rm.MODES[name]
         assert m.cap_policy is None and m.order_policy is None, name

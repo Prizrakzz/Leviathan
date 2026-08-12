@@ -31,6 +31,22 @@ const KNOB_ORDER = [
   'xc_force',
 ] as const;
 
+/**
+ * NOT KNOBS, AND NEVER RENDERED (D-MW-30, 30f review). The unknown-key passthrough below exists so a new
+ * WIDTH knob shows up in the chip the day the backend starts sending it. These two are not width: they are
+ * the SYNTHESIS SEAT and a PROMPT flag that the escalated `esc`/`esc_r` bundles carry, and the passthrough
+ * would have rendered them verbatim — showing "ran deep" above a row reading "synth model claude-opus-5"
+ * on any escalated turn. That is a new disclosure of writer identity made by side effect, which is not
+ * what the chip is for and not what F8 ("the escalation is invisible to the FE") intended.
+ *
+ * THE ESCALATION STAYS INVISIBLE, ON PURPOSE. Serving stamps honored=deep, `esc`/`esc_r` are never added
+ * to mode.ts DARK_TIERS, and there is deliberately NO "escalated" badge here. A badge is real product
+ * polish — "we spent more on this one for you" is a nice thing to be able to say — but it is a PRODUCT
+ * decision with its own copy, its own expectation-setting and its own measurement, not a side effect of a
+ * knob table growing two fields. Recorded as not-built, deliberately.
+ */
+const KNOB_DENY = ['synth_model', 'provenance_prompt'] as const;
+
 function fmt(v: unknown): string {
   if (Array.isArray(v)) return v.join('/'); // k_by_depth [7,5,3] -> 7/5/3
   if (typeof v === 'boolean') return v ? 'on' : 'off';
@@ -45,7 +61,12 @@ export function ModeChip({ result }: { result: RespondResult }) {
 
   const known = KNOB_ORDER.filter((k) => knobs[k] !== undefined) as string[];
   const extra = Object.keys(knobs)
-    .filter((k) => knobs[k] !== undefined && !(KNOB_ORDER as readonly string[]).includes(k))
+    .filter(
+      (k) =>
+        knobs[k] !== undefined &&
+        !(KNOB_ORDER as readonly string[]).includes(k) &&
+        !(KNOB_DENY as readonly string[]).includes(k),
+    )
     .sort();
   const keys = [...known, ...extra];
 
