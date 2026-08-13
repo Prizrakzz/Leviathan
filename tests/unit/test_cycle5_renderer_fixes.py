@@ -303,7 +303,11 @@ def test_new_artifact_fields_are_strictly_additive():
     # D-HP-17/19 (2026-08-13): `dhp_successor` appends after `closure_cited` -- the successor strip-class
     # family, derived per row from `by_rule` beside the OLD family, which is what makes the bridge run a
     # readout rather than a second billed run. Same additive contract, one wave further along.
-    _LATER = ("closure_cited", "dhp_successor")
+    # D-HP-21 CLAUSE (2b) (H2, 2026-08-13): `bare_handle_escapes` appends after THAT -- the clause named a
+    # number no module produced, so a pre-registered clause of G1 was unreadable from any artifact. Same
+    # additive contract, same one-line re-anchor the comment above licenses ("Extend _LATER, never
+    # re-order"); nothing before it moved, which is what the second assertion checks.
+    _LATER = ("closure_cited", "dhp_successor", "bare_handle_escapes")
     _tail = len(_NEW) + len(_LATER)
     assert list(rich)[-_tail:] == list(_NEW) + list(_LATER)
     assert list(rich)[:-_tail] == list(bare)[:-_tail]

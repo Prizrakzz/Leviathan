@@ -43,6 +43,47 @@ def load_queries(path=_QUERIES) -> list[dict]:
     return (yaml.safe_load(path.read_text(encoding="utf-8")) or {}).get("queries") or []
 
 
+def select_queries(queries: list[dict], only_ids: str | list[str]) -> list[dict]:
+    """The `--only-ids` ROW FILTER: the deck stays the deck, the arm runs a NAMED SUBSET of its rows.
+
+    D-HP B2 (plan E.6): a pre-registered split that names its rows -- G1's frozen 7-row HUNGRY subset of
+    `eval_queries_shape_esc_v1.yaml` -- had NO shipped execution mechanism. The restriction was applied at
+    READ time on a 12-row artifact, which is a different experiment from the one the packet froze. This is
+    that mechanism, and it obeys three laws:
+
+      1. AN UNKNOWN ID IS A HARD ERROR THAT NAMES IT. Silently skipping it would run a SMALLER population
+         than the one pre-registered while the artifact still claimed the deck -- the fail-open shape a
+         frozen gate cannot survive (a typo would quietly shrink a denominator and every rate with it).
+      2. DECK ORDER IS PRESERVED, never the order the ids were typed in: the run's row order must be a
+         function of the deck alone so two invocations of the same split are the same run.
+      3. THE FILTER IS RECORDED, not inferred. `eval_set` stays the deck's canonical stem (the artifact is
+         still that deck's artifact and every stored reader keyed on the stem is untouched); the top-level
+         `row_filter` key carries the ids that actually ran. See `_baseline_json`.
+    """
+    raw = only_ids if isinstance(only_ids, list) else str(only_ids).split(",")
+    wanted = [str(t).strip() for t in raw]
+    wanted = [t for t in wanted if t]
+    if not wanted:
+        raise ValueError("--only-ids was given but names no row id (empty or comma-only); pass the ids or "
+                         "omit the flag -- an empty filter must never read as 'the whole deck'")
+    have = {str(q.get("id")) for q in queries}
+    missing = [t for t in wanted if t not in have]
+    if missing:
+        raise ValueError(f"--only-ids names {len(missing)} id(s) ABSENT from this deck: "
+                         f"{', '.join(missing)} (deck carries {len(have)} rows). Refusing before any "
+                         f"spend: an unknown id silently skipped would run a smaller population than the "
+                         f"one the run claims.")
+    keep = set(wanted)
+    return [q for q in queries if str(q.get("id")) in keep]
+
+
+def _row_filter_record(queries: list[dict]) -> dict:
+    """The artifact's `row_filter` block, computed from the rows that SURVIVED the filter (never from the
+    argument), so it cannot describe a selection the run did not make."""
+    ids = sorted({str(q.get("id")) for q in queries})
+    return {"ids": ids, "count": len(ids)}
+
+
 _NOT_KNOWN = ("not known", "not yet known", "not yet been", "no data", "not available", "wasn't published",
               "was not published", "not published", "not been published", "unavailable")
 
@@ -1419,7 +1460,18 @@ def _per_answer_record(r: dict, run_kind: str) -> dict:
             # THIS IS THE BRIDGE RUN (D-HP-19): the OLD family (`strips`, `by_rule`, `strip_rate`,
             # `handle_strip_rate`) is untouched above and the successor rides beside it on the SAME
             # generations, so the covenant record has a join at the seam and no extra run is billed.
-            "dhp_successor": _quality_counters(out)}
+            "dhp_successor": _quality_counters(out),
+            # D-HP-21 CLAUSE (2b) (H2) -- APPENDED at the tail, never interleaved. THE CLAUSE HAD NO
+            # INSTRUMENT: `bare_handle_escapes` appeared in no module, no trace key and no column, so a
+            # PRE-REGISTERED clause of G1 was unreadable from any artifact -- the C2/U3 class of defect,
+            # on the one clause that catches a FULLY RESOLVED grouped token sitting in a value slot
+            # (`answer.py`'s design leaves it untouched, so clause (2) is blind to it BY CONSTRUCTION).
+            # Computed at the SAME seam and in the same shape as `register_leaks` -- a deterministic scan
+            # of the ASSEMBLED BODY -- so nothing in the serving renderer moves for a gate readout.
+            # RECORDED ON BOTH ARMS, deliberately: a zero-bar clause with no measured control-arm noise
+            # floor is not a measurement (the estate's own lesson), and on the control arm the model still
+            # types the figure, so a non-zero reading there is the INSTRUMENT's rate, not the treatment's.
+            "bare_handle_escapes": _bare_handle_escapes(out)}
 
 
 def _quality_counters(out: dict) -> dict | None:
@@ -1431,6 +1483,34 @@ def _quality_counters(out: dict) -> dict | None:
         return _emf.quality_counters((out or {}).get("trace") or {})
     except Exception:                                  # noqa: BLE001 -- an instrument is never worth a run
         return None
+
+
+def _bare_handle_escapes(out: dict) -> int:
+    """G1 CLAUSE (2b)'s QUANTITY: handle tokens that SURVIVED to the assembled body standing in a VALUE
+    SLOT. `bare_handle_escapes == 0` is pre-registered on the treatment arms and, until H2, nothing
+    computed it -- the clause named a number no module produced.
+
+    WHAT IT CATCHES THAT CLAUSE (2) CANNOT: a FULLY RESOLVED grouped token. `[N13, N14]` stands in for no
+    single figure, so the renderer may not splice a value into it and leaves it untouched by design; every
+    member resolved, so `unresolvable` is 0 and clause (2) reads clean while the reader receives
+    `[N13, N14]` where a number belongs -- the D-PQ HANDLE-1 defect re-minted.
+
+    ONE GRAMMAR, ONE CUE, BOTH `answer`'s OWN: the SUFFIX-AWARE `[N]` token regex (the superset, so the
+    counter never varies with the arm it measures), `_E_HANDLE_RX`, and `_HANDLE_VALUE_SLOT_RX` -- the same
+    cue the renderer itself uses to decide a slot. A second spelling here is how two readers of one page
+    drift apart. Never raises; 0 on an empty body."""
+    try:
+        body = str((out or {}).get("answer") or "")
+        if not body:
+            return 0
+        n = 0
+        for rx in (an._n_token_rx(True), an._E_HANDLE_RX):
+            for m in rx.finditer(body):
+                if an._HANDLE_VALUE_SLOT_RX.search(body[:m.start()]):
+                    n += 1
+        return n
+    except Exception:                                  # noqa: BLE001 -- an instrument is never worth a run
+        return 0
 
 
 def _closure_cited(out: dict) -> dict:
@@ -2424,7 +2504,7 @@ def corpus_fingerprint() -> str:
 
 def _baseline_json(rows: list[dict], *, run_kind: str, model: str, judged: bool, eval_set: str,
                    graph_version: str | None, corpus_fp: str, via_orchestrator: bool = False,
-                   mode: str | None = None) -> dict:
+                   mode: str | None = None, row_filter: dict | None = None) -> dict:
     """The machine-readable baseline artifact (P7-P0.1): per-answer strip/claim/leak/intent detail plus the
     run-level reproducibility keys. `register_leaks` here is RESIDUAL (post-sanitize) leakage — the answer
     body was already sanitized at synthesis; do not read it as raw pre-sanitize leakage."""
@@ -2490,6 +2570,18 @@ def _baseline_json(rows: list[dict], *, run_kind: str, model: str, judged: bool,
             # per-row half is `per_answer[].dhp_successor`). Appended, so every pre-D-HP key above is
             # byte-identical and a pre-D-HP reader is untouched.
             "dhp_successor": _successor_totals(per),
+            # D-HP-17 (H2) THE CLASS SCAN + THE REFUSAL CENSUS, both APPENDED for the same reason. The scan
+            # is what carries the covenant across this boundary (section 2: the class scan, not the band,
+            # is the regression detector; D-HP-18 records the band UNUSABLE), so it is PRODUCED here rather
+            # than retyped by a gate reader off the markdown panel.
+            "dhp_class_scan": _class_scan(per),
+            "dhp_refusals": _refusal_census(per),
+            # D-HP B2 / plan E.6 -- THE ROW FILTER, PRESENT ONLY WHEN ONE WAS APPLIED. `eval_set` above
+            # stays the DECK's canonical stem, so no stored reader keyed on the stem moves and no arm
+            # renames itself by running a subset; this key is the only place the subset is stated, and it
+            # is ABSENT (not null, not empty) on every unfiltered run -- which keeps the byte-shape of
+            # every artifact written before this key existed exactly as it was.
+            **({"row_filter": row_filter} if row_filter else {}),
             "per_answer": per}
 
 
@@ -2533,6 +2625,134 @@ def _successor_totals(per: list[dict]) -> dict:
     # rate) is recorded BY ID. Recorded, never a verdict -- the pooled ceiling of 15 is the gate clause.
     out["mis_bound_rows_ge_3"] = sorted(p.get("id") for p in live
                                         if int((p.get("dhp_successor") or {}).get("mis_bound_count") or 0) >= 3)
+    # G1 CLAUSE (2b) (H2), pooled with the ids that carry it: a fully RESOLVED grouped token in a value
+    # slot is invisible to clause (2), and the clause that catches it had no instrument until H2. Pooled
+    # over the live rows so it shares the successor family's denominator, and the ids are listed because a
+    # `== 0` clause is only actionable if the reader can go straight to the offending row.
+    out["bare_handle_escapes"] = sum(int(p.get("bare_handle_escapes") or 0) for p in live)
+    out["bare_handle_escape_rows"] = sorted(p.get("id") for p in live if p.get("bare_handle_escapes"))
+    # G1 CLAUSE (8)'s DENOMINATOR, PRODUCED (H2 FOLD 1, K1) -- on BOTH arms, on THESE live rows, from the
+    # producer this dict already pools. `bare_handle_escapes` above closed the same defect for clause (2b);
+    # clause (8) had the mirror of it: `substitution_load_mean` is the NUMERATOR and the bar it is read
+    # against -- 0.6 x the CONTROL arm's mean typed-numeral count per answer on the same deck -- had no
+    # shipped producer at all, so the one clause that fails G1 "regardless of the strip classes" was not
+    # computable from the artifacts. NO NEW EXTRACTOR: `bare_digit_escapes` IS that count
+    # (`trace["bare_digit_count"]` = `answer._count_bare_digits`, i.e. `verify._mask_handles` +
+    # `_claim_numbers_with_decimals` over the PRE-VERIFY `tldr` + `mechanism`, which is the text
+    # `raw_draft.preverify_*` snapshots and the extractor clause (8) names), it is always on and gates
+    # nothing, and it is already pooled here on the SAME denominator as the numerator. All that was
+    # missing was the division and the factor, and a number nobody can recompute is not evidence.
+    # THE COMPARISON STAYS A TWO-ARTIFACT READ, deliberately: treatment `substitution_load_mean` >= the
+    # CONTROL run's `substitution_floor` on the SAME DECK. Recording the floor on the treatment arm too is
+    # what makes the collapse legible (it is the wave's claim) instead of an absence.
+    out["typed_numeral_mean"] = round(out["bare_digit_escapes"] / max(1, len(live)), 4)
+    try:
+        from leviathan.graphrag import emf as _emf
+        out["substitution_floor"] = _emf.substitution_floor(out["typed_numeral_mean"])
+    except Exception:                                  # noqa: BLE001 -- an instrument is never worth a run
+        # DISTINGUISHABLE, never a silent 0.0: this bar is a FLOOR, so a fail-open zero would read as
+        # "any substitution load passes" on the clause that catches number-avoidance.
+        out["substitution_floor"] = None
+    return out
+
+
+def _class_scan(per: list[dict]) -> dict:
+    """D-HP-17 (H2): G1 CLAUSE (4)'s CLASS SCAN for THIS RUN, on the rows the D-HP contract binds.
+
+    WHY IT IS A PRODUCED COLUMN AND NOT A READING. Section 2 names the class scan -- never a band -- as the
+    regression detector, and it is the ONLY pre-D-HP instrument that survives the boundary unchanged; after
+    D-HP-18 records the residual band unusable it is what carries the covenant. Until H2 it existed only as
+    `_verifier_panel`'s "violations by rule" LINE in a markdown report, so the clause a gate FAILS on was
+    computed by a human reading prose. It is now off the same rows, with the same denominator rule as
+    `_successor_totals` (the CYCLE-8 FIX 4 law): rows whose CITATION verifier ran, the numbers_only / live
+    lane excluded BY ID rather than zero-filled.
+
+    THE ARITHMETIC LIVES IN `emf.class_scan` -- one producer, so the artifact column, a gate reader and a
+    later re-read of the stored corpus (jobs/utils/dhp_census/dhp_h2_residual.py) cannot disagree about
+    which classes fired. The intersection law ("blocks only if it reproduces in BOTH runs") is
+    `emf.blocking_classes` over two of these dicts and is deliberately NOT computable from one run.
+
+    THE MEMBERSHIP TEST IS THE ARTIFACT COLUMN `citation_verifier_ran`, not the presence of the derived
+    `dhp_successor` dict, and the difference is deliberate: if a successor derivation ever fails on a row,
+    that row's CLASSES must still be scanned. A regression detector that goes quiet when its neighbour
+    instrument breaks is the failure this whole family is written against."""
+    try:
+        from leviathan.graphrag import emf as _emf
+        live = [p for p in per if p.get("citation_verifier_ran")]
+        scan = _emf.class_scan([(p.get("by_rule") or {}) for p in live])
+        # THE NAMED EXCLUSION, carried on the scan itself so the set of rows it read is never in doubt.
+        scan["rows_excluded"] = [p.get("id") for p in per if not p.get("citation_verifier_ran")]
+        return scan
+    except Exception:                                  # noqa: BLE001 -- an instrument is never worth a run
+        return {}
+
+
+def _refusal_census(per: list[dict]) -> dict:
+    """D-HP-17 (H2): THE TREATMENT ARM'S REFUSAL SURFACE, pooled -- the ten-key `number_handles` shape and
+    its [E] sibling, which no run-level column carried.
+
+    `binding_refused` (H1 FIX Z2) is the ONLY record anywhere that a D-HP-13 / D-HP-14 refusal fired and
+    removed prose: the class counters beside it say WHY, this one says HOW MANY HANDLES, and it is the
+    OPPOSITE of `unresolvable` (a refused handle RESOLVED and was declined). `scope_checked` and
+    `direction_checked` are its denominators -- COMPARISONS, never attempts (H1 FIX Z12a) -- and a numerator
+    without them is not a rate.
+
+    THE OPEN QUESTION IS RAISED HERE, NOT DECIDED (plan 10.11 / W4-NF-4): `binding_refused` is budgeted by
+    NO G1 clause, while the two class counters it accompanies are budgeted at 15 pooled by R11. Whether G1
+    wants a pre-registered expectation on it is the GATE OWNER's, and H2's job is to make the number
+    readable before the freeze rather than to invent a ceiling for it. `refusal_budget_status` says exactly
+    that, in the artifact, so a reader cannot mistake silence for a pass.
+
+    Absent keys on a control row are ABSENT, not zero: the six treatment keys exist only when `handle_prose`
+    ran (the OFF-arm-clean rule), so a control run reports zeros over `rows_with_key: 0` and the two are
+    distinguishable.
+
+    H2 FOLD 1 (K4) -- THE DENOMINATOR. This census pooled over EVERY row and then divided by a live-row
+    count it never reported, so `sentences_dropped_mean` mixed two populations and no reader could see it.
+    It now filters to the rows whose CITATION verifier ran and names the rest BY ID (`rows_pooled` /
+    `rows_excluded`) -- D-HP-17's own H2 sentence for BOTH new header keys, and the rule `dhp_successor`
+    and `dhp_class_scan` already carried. It matters most here: this is the number E.5 item 2 asks the
+    owner to ratify a budget against."""
+    out: dict = {"binding_refused": 0, "scope_checked": 0, "direction_checked": 0,
+                 "grouped_in_slot": 0, "direction_sign_mismatch": 0, "slot_scope_mismatch": 0,
+                 "sentences_dropped": 0, "handles_dropped": 0, "unresolvable": 0, "substituted": 0,
+                 "rows_with_treatment_keys": 0,
+                 "rows_pooled": 0, "rows_excluded": [],
+                 "refusal_budget_status": "RAISED, NOT BUDGETED -- open ratification question (plan 10.11; "
+                                          "the R11 ceiling of 15 binds the class counters, not this one)"}
+    try:
+        # THE DENOMINATOR IS NAMED, NOT SILENT (H2 FOLD 1, K4 -- D-HP-17's own H2 sentence says BOTH new
+        # header keys reach the artifact "with the non-reasoning lane excluded BY ID"; `dhp_class_scan`
+        # did it and this one did not). It pooled over EVERY row and then divided by a live-row count it
+        # never wrote down, so the mean's numerator and denominator came from different populations --
+        # and this is the exact number E.5 item 2 asks the owner to ratify a budget against.
+        # THE MEMBERSHIP TEST IS `citation_verifier_ran`, the same artifact column `_class_scan` uses.
+        live = [p for p in per if p.get("citation_verifier_ran")]
+        out["rows_pooled"] = len(live)
+        out["rows_excluded"] = [p.get("id") for p in per if not p.get("citation_verifier_ran")]
+        for p in live:
+            nh = p.get("number_handles") if isinstance(p.get("number_handles"), dict) else {}
+            ph = p.get("prose_handles") if isinstance(p.get("prose_handles"), dict) else {}
+            if "binding_refused" in nh:
+                out["rows_with_treatment_keys"] += 1
+            for k in ("binding_refused", "scope_checked", "direction_checked",
+                      "grouped_in_slot", "direction_sign_mismatch", "slot_scope_mismatch"):
+                out[k] += int(nh.get(k) or 0)
+            for k in ("sentences_dropped", "handles_dropped", "unresolvable", "substituted"):
+                out[k] += int(nh.get(k) or 0) + int(ph.get(k) or 0)   # both halves, R4's own denominator
+    except Exception:                                  # noqa: BLE001 -- an instrument is never worth a run
+        return out
+    # R4's REFUSAL BUDGET is a PER-ANSWER mean over the rows the contract binds, and it is PROPOSED, not
+    # ratified (<= 1 dropped sentence per answer, singles above 3 recorded by text) -- so the mean is
+    # reported and no verdict is stamped on it here. H2 FOLD 1 (K4): its denominator is `rows_pooled`,
+    # the SAME population the numerator was summed over and now written into the artifact beside it.
+    out["sentences_dropped_mean"] = round(out["sentences_dropped"] / max(1, out["rows_pooled"]), 4)
+    out["rows_sentences_dropped_gt_3"] = sorted(
+        p.get("id") for p in live
+        if (int(((p.get("number_handles") or {}) if isinstance(p.get("number_handles"), dict) else {})
+                .get("sentences_dropped") or 0)
+            + int(((p.get("prose_handles") or {}) if isinstance(p.get("prose_handles"), dict) else {})
+                  .get("sentences_dropped") or 0)) > 3)
     return out
 
 
@@ -3187,6 +3407,13 @@ def main() -> int:
     ap.add_argument("--judge-model", default="claude-opus-4-8")
     ap.add_argument("--k", type=int, default=5)
     ap.add_argument("--queries", default=None, help="queries yaml path (default configs/graphrag/eval_queries.yaml)")
+    ap.add_argument("--only-ids", default=None,
+                    help="comma-separated row ids: run ONLY those rows of --queries, in DECK order "
+                         "(D-HP B2 / plan E.6 -- the mechanism a pre-registered NAMED SUBSET executes "
+                         "through, e.g. G1's frozen 7-row hungry split of the shape_esc deck). An id that "
+                         "is not in the deck is a HARD ERROR before any spend, never a silent skip; the "
+                         "deck's stem still names the artifact's eval_set and the ids that ran are "
+                         "recorded in its top-level `row_filter` key")
     ap.add_argument("--via-orchestrator", action="store_true",
                     help="route each query through the intent branch (orchestrator.respond) — numbers/reasoning/hybrid")
     ap.add_argument("--planner", default=None, choices=[None, "l2", "onehop"],
@@ -3206,8 +3433,20 @@ def main() -> int:
     args = ap.parse_args()
     from pathlib import Path
     if args.convos:
+        if args.only_ids:                             # a convo deck has no ROW ids -- refuse rather than
+            raise ValueError("--only-ids selects rows of a --queries deck and has no meaning for "
+                             "--convos; refusing rather than ignoring it silently")
         return _convos_main(args, Path(args.convos))
     queries = load_queries(Path(args.queries)) if args.queries else load_queries()
+    # THE ROW FILTER RUNS HERE: before the dry-run estimate (so the cost printed is the cost of the rows
+    # that will run) and long before run() spawns a worker -- never inside a worker, where a filter would
+    # be a per-row skip rather than a population.
+    row_filter = None
+    if args.only_ids:
+        queries = select_queries(queries, args.only_ids)
+        row_filter = _row_filter_record(queries)
+        print(f"  row filter: {row_filter['count']} of the deck's rows -- {', '.join(row_filter['ids'])}",
+              flush=True)
     if args.dry_run or not args.run:
         print(f"DRY-RUN cost estimate: {estimate_cost(queries, model=args.model, via_orchestrator=args.via_orchestrator, judge_model=args.judge_model if args.judge else None)}")
         import collections
@@ -3320,7 +3559,8 @@ def main() -> int:
     _write_baseline(_baseline_json(rows, run_kind="single", model=args.model, judged=args.judge,
                                    eval_set=(Path(args.queries).stem if args.queries else "default"),
                                    graph_version=graph.version, corpus_fp=corpus_fingerprint(),
-                                   via_orchestrator=args.via_orchestrator, mode=args.mode))
+                                   via_orchestrator=args.via_orchestrator, mode=args.mode,
+                                   row_filter=row_filter))
     routed = sum(r["rubric"]["routed_right"] for r in rows)
     extra = ""
     if args.judge:

@@ -194,6 +194,23 @@ def test_cited_vs_injected_counting(monkeypatch):
     orch.respond("q", graph=None)
     assert captured["CitedN"] == 4
     assert captured["InjectedN"] == 12                     # denominator = rows injected into the prompt
+    assert captured["CitedNSolitary"] == 4                 # ...the pre-D-HP series, unchanged on this shape
+
+
+def test_cited_n_counts_grouped_citations_and_keeps_the_old_series_beside_it(monkeypatch):
+    """D-HP-20 (H2). `[N13, N14]` is TWO citations and the shipped solitary regex saw ZERO of them, so the
+    cited-vs-injected ratio would have RISEN across the D-HP boundary for a reason that is pure grammar --
+    handle-prose converts grouped citations into solitary slot handles with no behaviour change at all.
+    `CitedN` is the honest count now; `CitedNSolitary` carries the pre-D-HP arithmetic byte-identical
+    beside it, so the historical panel series has a live continuation instead of a silent redefinition
+    (the widget restatement itself is the infra owner's item, R14)."""
+    captured = _capture_emf(monkeypatch)
+    ans = "crush [N13, N14] and stocks [N2]; again [N2]; sibling [N1, N1b]; not a handle [X1]"
+    canned = {"intent": "hybrid", "model": "m", "answer": ans, "trace": {"injected_n": 20}}
+    monkeypatch.setattr(orch, "_respond", lambda *a, **k: canned)
+    orch.respond("q", graph=None)
+    assert captured["CitedN"] == 5                         # N13, N14, N2, N1, N1b -- ROWS, not tokens
+    assert captured["CitedNSolitary"] == 1                 # ...what the old regex saw: [N2] alone
 
 
 # -- A6: the NOT-firing counters (NUMBERS_FIRING_PLAN section 3) -------------------------------------

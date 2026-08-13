@@ -1690,6 +1690,28 @@ def _agent_zero_call_turns(res: dict, tr: dict):
     return 0 if (res.get("number_calls") or []) else 1
 
 
+def _cited_n_ordinals(ans: str, fallback: int) -> int:
+    """D-HP-20 (H2): the DISTINCT [N] ROWS an answer cites, counting GROUPED tokens -- `CitedN`'s honest
+    arithmetic, and the one the cited-vs-injected ratio needs to survive the D-HP boundary.
+
+    `[N13, N14]` is TWO citations and the shipped solitary regex saw zero of them; `[N1, N1b]` is two
+    DIFFERENT ROWS of one call, which is why the identity is the (index, suffix) PAIR rather than the
+    index (the collapse of those two IS the mis-binding `answer._n_handle_pairs` exists to prevent).
+
+    ONE PRODUCER, AND ONE GRAMMAR ON BOTH ARMS. The token grammar and the member reading are `answer`'s --
+    a second copy here is how two readers of the same page drift apart -- and the SUFFIX-AWARE grammar is
+    used on the control arm too, deliberately: section 2 forbids an instrument that varies with the arm it
+    measures. Fails open to the caller's pre-D-HP count, so a telemetry line is never lost to a counter."""
+    try:
+        seen: set[tuple[int, str]] = set()
+        for m in an._n_token_rx(True).finditer(ans or ""):
+            for pair in an._n_handle_pairs(m.group(0)):
+                seen.add(pair)
+        return len(seen)
+    except Exception:  # noqa: BLE001 -- a counter never costs a turn its telemetry
+        return int(fallback or 0)
+
+
 def respond(*args, **kwargs) -> dict:
     """Per-turn TIMING wrapper (Stage 5.0/5.4 latency diagnostic): times `_respond`, stamps
     `trace.timing_ms` = {total, fill, rest}, and logs one INFO line so the warm-turn phase breakdown is
@@ -1744,7 +1766,19 @@ def respond(*args, **kwargs) -> dict:
             _cost = _pv.serving_cost_usd(_su.get("model") or "", _su.get("in") or 0, _su.get("out") or 0,
                                          _su.get("cache_read") or 0, _su.get("cache_write") or 0)
         injected_n = int(tr.get("injected_n") or 0)
-        cited_n = len(set(re.findall(r"\[N\d+\]", _ans)))
+        # D-HP-20 (H2), THE `CitedN` CORRECTION -- THE PANEL MOVES WITHOUT A BEHAVIOUR CHANGE OTHERWISE.
+        # The shipped regex is SOLITARY-ONLY, so it has always undercounted grouped citations; under
+        # handle-prose the contract converts grouped citations into solitary slot handles, which would
+        # INFLATE the cited-vs-injected ratio for a reason that is pure grammar. The plan's option (b) is
+        # taken: `CitedN` becomes what its name claims (every ORDINAL cited, grouped or not) and
+        # `CitedNSolitary` carries the pre-D-HP arithmetic BYTE-IDENTICAL beside it, so the historical
+        # series has a live continuation and the boundary is readable instead of silent (the `n_evidence`
+        # denominator lesson, tracekeys.py). The WIDGET restatement is the infra owner's item (R14).
+        # ARM-CONSTANT BY CONSTRUCTION (section 2's "any flag that gates a rule must be constant across
+        # arms"): the SUFFIX-AWARE grammar is used on BOTH arms, so this counter can never measure its own
+        # instrument, and the ordinal identity is the (index, suffix) PAIR -- the row a handle names.
+        cited_n_solitary = len(set(re.findall(r"\[N\d+\]", _ans)))
+        cited_n = _cited_n_ordinals(_ans, cited_n_solitary)
         # RV2 W2 dark observables (S3-F1, S2-4): XcLlmWouldFire counts planner would-fires REGARDLESS of
         # the GRAPHRAG_XC_LLM_DETECT flag (the D20 counted-soak channel -- response dicts alone are not a
         # queryable surface); PlannerFallback is 1 iff dispatch actually RAN (ms_dispatch stamped) and no
@@ -1777,7 +1811,8 @@ def respond(*args, **kwargs) -> dict:
                   "DivergenceNodes": sum(1 for t in qt if t.get("divergence")),
                   "RerouteFired": 1 if rt else 0,
                   "MultiCountryTurn": 1 if len(rt_countries) >= 2 else 0,
-                  "CitedN": cited_n, "InjectedN": injected_n, "AnswerChars": len(_ans),
+                  "CitedN": cited_n, "CitedNSolitary": cited_n_solitary,
+                  "InjectedN": injected_n, "AnswerChars": len(_ans),
                   # D-AM-4 (None-safe: emf drops None values, so faked/floored turns emit nothing here)
                   "InputTokens": _su.get("in"), "OutputTokens": _su.get("out"),
                   "CacheReadTokens": _su.get("cache_read"), "CacheWriteTokens": _su.get("cache_write"),
@@ -1808,7 +1843,8 @@ def respond(*args, **kwargs) -> dict:
                         "MsSynthLLM": "Milliseconds", "MsQuantify": "Milliseconds", "MsRollup": "Milliseconds",
                         "StripCount": "Count", "CascadeFired": "Count",
                         "CascadeNodes": "Count", "DivergenceNodes": "Count", "RerouteFired": "Count",
-                        "MultiCountryTurn": "Count", "CitedN": "Count", "InjectedN": "Count",
+                        "MultiCountryTurn": "Count", "CitedN": "Count", "CitedNSolitary": "Count",
+                        "InjectedN": "Count",
                         "AnswerChars": "Count", "TrivialShortCircuit": "Count",
                         "InputTokens": "Count", "OutputTokens": "Count",
                         "CacheReadTokens": "Count", "CacheWriteTokens": "Count", "CostUsd": "None",

@@ -157,6 +157,138 @@ BARE_DIGIT_CLASS: str = "bare_digit"
 # ITS BUDGET LIVES IN G1 CLAUSE (e-ep), NOT HERE: zero on every control row (the mutation is
 # treatment-gated, so a control charge is an instrument defect), REPORTED against a pre-registered
 # ceiling on the treatment arm. The per-turn denominator is `trace['episode_spans_validated']`.
+#
+# ══ H2 (D-HP-17/18, THE METRIC TRANSITION) -- THE CLASS SCAN, WHICH IS WHAT CARRIES THE COVENANT ══════
+# Section 2 names the CLASS SCAN -- not any rate -- as the regression detector, and D-HP-18's derivation
+# (data/dhp_h2_residual_band.json) records the residual band UNUSABLE, so after this boundary the scan is
+# the ONLY pre-D-HP instrument that survives. It therefore stops being a thing a gate reader retypes off a
+# report and becomes a produced surface, here, beside the tuples it reads (the COMPAT-9 one-producer class).
+#
+# `G1_DECLARED_CLASSES` IS G1 CLAUSE (4)'s FROZEN DECLARED SET, ENUMERATED IN THE CLAUSE'S OWN ORDER: the
+# 19a five, PLUS the three that survive by construction, PLUS `undeclared_unsupported`, PLUS the D-HP-native
+# charging classes, PLUS `slot_orphan` (H1 FIX W2) and `episode_span_unbacked` (H1b / D-HP-15). A class
+# OUTSIDE this set that reproduces in BOTH runs is what clause (4) fails on; the set is frozen at first arm,
+# not here, and every member's reason is written at the clause. THE SPELLINGS ARE THE SEAM CONTRACT (the
+# rule stated at KILLED_CLASSES): these fifteen are every class `verify.py` can charge (`_check_number_handle`
+# -> index_out_of_range / number_mismatch / number_unbacked; the ledger branches -> fabricated_citation /
+# ledger_cascade / undeclared_unsupported; the prose checks -> no_lexical_overlap / quote_mismatch /
+# foreign_regime_name; the digit-lint -> bare_digit) plus the five `answer._fold_ledger_class` folds in.
+G1_DECLARED_CLASSES: tuple[str, ...] = ("fabricated_citation", "ledger_cascade", "no_lexical_overlap",
+                                        "number_mismatch", "number_unbacked",
+                                        "quote_mismatch", "index_out_of_range", "foreign_regime_name",
+                                        "undeclared_unsupported",
+                                        "bare_digit", "direction_sign_mismatch", "slot_scope_mismatch",
+                                        "grouped_in_slot", "slot_orphan", "episode_span_unbacked")
+# THE ARM-EXCLUSIVE CLASSES -- the ones that CANNOT be charged on a control row, so a RAW `stripped` delta
+# across the arms is not a like-for-like quantity. G1 clause (3) states the caution and X5 corrected its
+# count from four to FIVE; **H2 CORRECTS IT AGAIN, TO SIX**, and the sixth is H1b's own: `episode_span_
+# unbacked` folds into `by_rule` + `stripped` like the other five and its pass MUTATES ONLY under
+# `handle_prose` ((e-ep)(i) makes a control charge an INSTRUMENT DEFECT that voids the run set), so it too
+# has no control-arm counterpart. X5 was written one fold before H1b landed the class; the count is
+# arithmetic over this tuple now instead of a sentence that has to be re-counted by hand.
+ARM_EXCLUSIVE_CLASSES: tuple[str, ...] = ("bare_digit", "slot_scope_mismatch", "direction_sign_mismatch",
+                                          "grouped_in_slot", "slot_orphan", "episode_span_unbacked")
+
+# ══ H2 FOLD 1 (K1) -- G1 CLAUSE (8)'s DENOMINATOR, AS ARITHMETIC RATHER THAN AS A SENTENCE ════════
+# Clause (8) reads `number_handles.substituted + prose_handles.substituted` per answer against **0.6 x the
+# CONTROL arm's mean TYPED-NUMERAL count per answer ON THE SAME DECK**. H2 produced the NUMERATOR
+# (`quality_counters.substitution_load` -> `dhp_successor.substitution_load_mean`) and left the DENOMINATOR
+# to a gate reader with no shipped producer to read it from -- the SAME C2/U3 defect H2 had just repaired
+# for clause (2b), left standing on a clause that FAILS G1 "regardless of the strip classes".
+#
+# THE DENOMINATOR ALREADY HAS A PRODUCER, AND NAMING IT IS THE FIX -- NO SECOND EXTRACTOR IS MINTED HERE.
+# `bare_digit_escapes` (see `quality_counters`) reads `trace["bare_digit_count"]` =
+# `answer._count_bare_digits(structured)`, which counts CLAIM MAGNITUDES on the PRE-VERIFY `tldr` +
+# `mechanism` -- the exact text `answer.raw_draft_snapshot` captures as `raw_draft.preverify_*` three lines
+# later, before `verify_citations` mutates it -- using `verify._mask_handles` + `_claim_numbers_with_
+# decimals`, the extractor clause (8) NAMES BY NAME and the one `dhp_census.json` itself ran
+# (`method.extractor`), which is what makes the census anchor of 19.8 numerals per answer commensurable
+# with it at all. It is ALWAYS ON, on BOTH ARMS, and it gates nothing (D-HP-4(c)), so the control arm's
+# mean is a COLUMN ON THE CONTROL ARTIFACT rather than a number a gate owner re-derives from a corpus.
+# (A THIRD EXTRACTOR WAS AVAILABLE AND IS REFUSED: `orchestrator._stated_values` and
+# `register._level_tokens` carry different exemption sets, each fixed after its own live false-caution
+# incident -- D-HP-3's whole point.)
+#
+# THE FACTOR AND THE MULTIPLY LIVE HERE, beside the tuples, so the eval projection, a gate reader and any
+# later re-read of the stored corpus cannot disagree about the bar. WHAT DOES NOT LIVE HERE IS THE
+# COMPARISON: clause (8) is a TWO-ARTIFACT read (the treatment run's `substitution_load_mean` against the
+# CONTROL run's `substitution_floor` on the SAME DECK), so this returns a FLOOR and never a verdict --
+# the same reason `blocking_classes` takes two scans instead of pooling them.
+SUBSTITUTION_FLOOR_FACTOR: float = 0.6
+
+
+def substitution_floor(typed_numeral_mean) -> float:
+    """G1 CLAUSE (8)'s BAR, from ONE arm's mean typed-numeral count per answer. Never raises.
+
+    READ IT OFF THE **CONTROL** ARTIFACT: it is the floor the TREATMENT arm's `substitution_load_mean` on
+    the same deck must clear, below which the arm is NUMBER-AVOIDING and the gate fails regardless of the
+    strip classes. It is computed on BOTH arms for the reason clause (2b)'s instrument is recorded on both:
+    a bar with no measured counterpart on the other arm is not a measurement. On the treatment arm it is
+    expected to collapse toward zero -- that collapse IS the wave's claim, and it is a reading, not a bar."""
+    try:
+        return round(SUBSTITUTION_FLOOR_FACTOR * float(typed_numeral_mean or 0.0), 4)
+    except Exception:  # noqa: BLE001 -- an instrument never breaks a turn
+        return 0.0
+
+
+def class_scan(by_rules) -> dict:
+    """G1 CLAUSE (4)'s CLASS SCAN over one RUN, from the `by_rule` dicts of the rows the contract binds.
+
+    ONE RUN, NEVER TWO: the intersection law ("a new class blocks only if it reproduces in BOTH runs") is
+    `blocking_classes` below, which takes two of these. Pooling two runs into one scan would silently
+    satisfy the law by addition, which is the shape it exists to refuse.
+
+    RETURNS, and each key is a sentence a gate owner reads rather than derives:
+      pooled            {class: events} over the rows passed in -- the run's histogram
+      classes_present   sorted classes with a non-zero count (the set the intersection law operates on)
+      undeclared        classes present and NOT in `G1_DECLARED_CLASSES` -- clause (4)'s failure candidates
+      arm_exclusive     the subset of `pooled` with no control-arm counterpart, itemised
+      arm_exclusive_total   their sum -- the exact amount by which a RAW `stripped` delta is not
+                        like-for-like (clause (3)); reported so the reader subtracts nothing by hand
+      rows_charged      {class: rows} -- concentration, since 30.8% of the pre-D-HP corpus's strips sat in
+                        the worst 10% of answers, and a pooled count cannot say that
+      rows              how many rows the scan read (the NAMED denominator; the caller excludes the
+                        non-reasoning lane by id, per G1 clause (5))
+      total_events      sum(pooled) -- equals the rows' `stripped` sum when the ledger invariant holds
+
+    `by_rule` accrues by `get(rule, 0) + 1`, so a CLEAN ROW STORES `{}` and every read here is a `.get`.
+    Never raises: an instrument is never worth a billed run's artifact."""
+    pooled: dict[str, int] = {}
+    rows_charged: dict[str, int] = {}
+    n = 0
+    try:
+        for by in (by_rules or ()):
+            n += 1
+            if not isinstance(by, dict):
+                continue
+            for cls, c in by.items():
+                c = _i(c)
+                if c <= 0:
+                    continue
+                key = str(cls)
+                pooled[key] = pooled.get(key, 0) + c
+                rows_charged[key] = rows_charged.get(key, 0) + 1
+    except Exception:  # noqa: BLE001 -- an instrument must never break a run
+        pass
+    present = sorted(pooled)
+    return {"pooled": {k: pooled[k] for k in present},
+            "classes_present": present,
+            "undeclared": [k for k in present if k not in G1_DECLARED_CLASSES],
+            "arm_exclusive": {k: pooled[k] for k in present if k in ARM_EXCLUSIVE_CLASSES},
+            "arm_exclusive_total": sum(pooled[k] for k in present if k in ARM_EXCLUSIVE_CLASSES),
+            "rows_charged": {k: rows_charged[k] for k in present},
+            "rows": n,
+            "total_events": sum(pooled.values())}
+
+
+def blocking_classes(scan_a: dict, scan_b: dict) -> list[str]:
+    """THE INTERSECTION LAW AS ARITHMETIC (section 2): an undeclared class blocks G1 clause (4) only if it
+    reproduces in BOTH runs of the arm. Returns the sorted intersection of the two runs' `undeclared` lists
+    -- empty is the pass shape. A class in exactly one run is RECORDED by the caller, never a block."""
+    try:
+        return sorted(set(scan_a.get("undeclared") or ()) & set(scan_b.get("undeclared") or ()))
+    except Exception:  # noqa: BLE001
+        return []
 
 
 def _i(v) -> int:

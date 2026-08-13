@@ -952,3 +952,383 @@ def test_the_composition_census_denominator_boundary_is_recorded_where_it_is_rea
     src = inspect.getsource(tk)
     head = src.split('"composition_census"')[1].split('"number_handles"')[0]
     assert "82b213a0" in head and "deduped" in head and "source_key" in head
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════
+# 7. H2 (D-HP-17/18/20) -- THE METRIC TRANSITION: THE CLASS SCAN, THE REFUSAL SURFACE, THE CitedN FIX
+#
+# Section 2 names THE CLASS SCAN -- never a band -- as the regression detector, and D-HP-18's derivation
+# (data/dhp_h2_residual_band.json) records the residual band UNUSABLE, so after this boundary the scan is
+# the only pre-D-HP instrument that survives. These pins hold it to being a PRODUCED SURFACE with one
+# producer, a named denominator, and an intersection law that a single run cannot satisfy.
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════
+from leviathan.graphrag import verify as vfmod                                # noqa: E402
+
+
+def test_the_declared_set_is_every_class_the_ledger_can_charge():
+    """G1 clause (4) fails on a class OUTSIDE the declared set, so a set that is not exhaustive over the
+    seam's own spellings is a clause pre-registered to fail on the wave's own remedies (the `slot_orphan`
+    and `episode_span_unbacked` precedents, plan 10.11 / 10.13). Enumerated in the clause's own order."""
+    assert emfmod.G1_DECLARED_CLASSES == (
+        "fabricated_citation", "ledger_cascade", "no_lexical_overlap", "number_mismatch", "number_unbacked",
+        "quote_mismatch", "index_out_of_range", "foreign_regime_name",
+        "undeclared_unsupported",
+        "bare_digit", "direction_sign_mismatch", "slot_scope_mismatch",
+        "grouped_in_slot", "slot_orphan", "episode_span_unbacked")
+    assert len(set(emfmod.G1_DECLARED_CLASSES)) == len(emfmod.G1_DECLARED_CLASSES)
+    # every class named by ANY successor tuple is declared -- otherwise a counter could count a class the
+    # class scan would fail the gate on.
+    for tup in (emfmod.KILLED_CLASSES, emfmod.RESIDUAL_CLASSES, emfmod.BLINDED_CLASSES,
+                emfmod.MIS_BOUND_CLASSES, emfmod.ARM_EXCLUSIVE_CLASSES, (emfmod.BARE_DIGIT_CLASS,)):
+        for cls in tup:
+            assert cls in emfmod.G1_DECLARED_CLASSES
+    # THE SEAM CONTRACT: every spelling verify.py can charge is in the set (a rename there that is not
+    # mirrored here reads as an UNDECLARED class and would fail clause (4) on an instrument change).
+    vsrc = inspect.getsource(vfmod)
+    for cls in ("fabricated_citation", "ledger_cascade", "undeclared_unsupported", "quote_mismatch",
+                "foreign_regime_name", "bare_digit", "number_mismatch", "number_unbacked",
+                "no_lexical_overlap", "index_out_of_range"):
+        assert '"' + cls + '"' in vsrc and cls in emfmod.G1_DECLARED_CLASSES
+
+
+def test_the_arm_exclusive_count_is_six_and_it_is_arithmetic_not_a_sentence():
+    """G1 clause (3)'s caution: the treatment arm's RAW `stripped` carries classes with NO control-arm
+    counterpart, so a raw stripped DELTA is not like-for-like. NF-6 said three, X5 corrected it to five,
+    and H2 corrects it to SIX -- `episode_span_unbacked` (H1b) folds into the same ledger and its pass
+    MUTATES ONLY under `handle_prose`, so it too can never be charged on a control row. The count is now
+    read off the tuple instead of re-counted by hand in prose."""
+    assert emfmod.ARM_EXCLUSIVE_CLASSES == ("bare_digit", "slot_scope_mismatch", "direction_sign_mismatch",
+                                            "grouped_in_slot", "slot_orphan", "episode_span_unbacked")
+    assert len(emfmod.ARM_EXCLUSIVE_CLASSES) == 6
+    # ...and each one is a RENDER/lint-side class, never one of the verifier's own nine survivors.
+    for cls in emfmod.ARM_EXCLUSIVE_CLASSES:
+        assert cls not in emfmod.RESIDUAL_CLASSES and cls not in emfmod.KILLED_CLASSES
+
+
+def test_the_class_scan_reads_rows_and_names_the_undeclared():
+    """ONE RUN, and per class BOTH the events and the ROWS charged -- 30.8% of the pre-D-HP corpus's strips
+    sat in the worst 10% of answers, so a pooled count alone cannot say whether a class is a spread or a
+    single bad row."""
+    scan = emfmod.class_scan([{"no_lexical_overlap": 2, "bare_digit": 1},
+                              {"no_lexical_overlap": 1},
+                              {},                                     # a CLEAN row stores {}
+                              {"totally_new_rule": 4}])
+    assert scan["rows"] == 4 and scan["total_events"] == 8
+    assert scan["pooled"] == {"bare_digit": 1, "no_lexical_overlap": 3, "totally_new_rule": 4}
+    assert scan["rows_charged"] == {"bare_digit": 1, "no_lexical_overlap": 2, "totally_new_rule": 1}
+    assert scan["undeclared"] == ["totally_new_rule"]
+    assert scan["arm_exclusive"] == {"bare_digit": 1} and scan["arm_exclusive_total"] == 1
+    assert scan["classes_present"] == ["bare_digit", "no_lexical_overlap", "totally_new_rule"]
+    # never raises: junk rows are skipped, not fatal (an instrument is never worth a billed run)
+    assert emfmod.class_scan([None, "junk", {"bare_digit": 1}])["pooled"] == {"bare_digit": 1}
+    assert emfmod.class_scan(None)["pooled"] == {} and emfmod.class_scan([])["rows"] == 0
+
+
+def test_the_intersection_law_is_arithmetic_and_one_run_cannot_satisfy_it():
+    """Section 2: a new class BLOCKS only if it reproduces in BOTH runs. Pooling the two runs into one scan
+    would satisfy the law by ADDITION, which is the shape it exists to refuse -- so the law lives in a
+    function that takes TWO scans and `class_scan` deliberately takes one run's rows."""
+    a = emfmod.class_scan([{"weird_rule": 1, "other_new": 2}])
+    b = emfmod.class_scan([{"weird_rule": 1}])
+    assert emfmod.blocking_classes(a, b) == ["weird_rule"]            # reproduced -> blocks
+    assert emfmod.blocking_classes(a, emfmod.class_scan([{}])) == []  # once only -> RECORDED, never a block
+    assert emfmod.blocking_classes({}, {}) == []
+
+
+def test_the_class_scan_reaches_the_artifact_with_its_denominator_named():
+    """The clause a gate FAILS on used to be computed by a human reading `_verifier_panel`'s markdown line.
+    It is a produced column now, on the same rows as `dhp_successor` (CYCLE-8 FIX 4: the non-reasoning lane
+    is excluded BY ID, never zero-filled) and from the same producer as the EMF counters."""
+    rows = [_turn(_hp_trace({"no_lexical_overlap": 2, "slot_orphan": 1})),
+            {"q": {"id": "numbers_row"}, "rubric": {},
+             "out": {"trace": {"citation_verifier": {"enabled": False, "by_rule": {"never_read": 9}}}}}]
+    b = ev._baseline_json(rows, run_kind="single", model="m", judged=False, eval_set="s",
+                          graph_version="v", corpus_fp="f", mode="deep_hp")
+    scan = b["dhp_class_scan"]
+    assert scan["rows"] == 1 and scan["rows_excluded"] == ["numbers_row"]
+    assert scan["pooled"] == {"no_lexical_overlap": 2, "slot_orphan": 1}
+    assert scan["undeclared"] == []                       # both are in the frozen declared set
+    assert scan["arm_exclusive"] == {"slot_orphan": 1}    # ...and the arm-exclusive half is itemised
+    once = emfmod.class_scan([{"no_lexical_overlap": 2, "slot_orphan": 1}])
+    once["rows_excluded"] = ["numbers_row"]
+    assert scan == once                                   # ONE producer: no second arithmetic anywhere
+
+
+def test_the_refusal_surface_is_pooled_and_its_budget_question_is_raised_not_decided():
+    """`binding_refused` (H1 FIX Z2) is the ONLY record anywhere that a D-HP-13/D-HP-14 refusal fired and
+    removed prose, and plan 10.11 records the OPEN QUESTION: it is budgeted by NO G1 clause while the two
+    class counters beside it are budgeted at 15 pooled by R11. H2 makes the number readable BEFORE the
+    freeze and says so in the artifact -- inventing a ceiling for it would be a builder deciding a
+    ratification question."""
+    hot = _hp_trace({}, number_handles={"substituted": 4, "handles_dropped": 1, "sentences_dropped": 2,
+                                        "unresolvable": 0, "grouped_in_slot": 1,
+                                        "direction_sign_mismatch": 2, "slot_scope_mismatch": 1,
+                                        "scope_checked": 9, "direction_checked": 7, "binding_refused": 3})
+    b = ev._baseline_json([_turn(hot)], run_kind="single", model="m", judged=False, eval_set="s",
+                          graph_version="v", corpus_fp="f", mode="deep_hp")
+    ref = b["dhp_refusals"]
+    assert ref["binding_refused"] == 3                                   # the HANDLES a refusal removed
+    assert ref["scope_checked"] == 9 and ref["direction_checked"] == 7   # ...with its own denominators
+    assert ref["rows_with_treatment_keys"] == 1
+    assert "RAISED, NOT BUDGETED" in ref["refusal_budget_status"]
+    # R4's proposed budget is REPORTED, never scored: the mean rides BOTH handle halves ([N] 2 + [E] 0).
+    assert ref["sentences_dropped"] == 2 and ref["sentences_dropped_mean"] == 2.0
+    # A CONTROL row stamps the four-key census only, so the six treatment keys are ABSENT (not zero) and
+    # the two shapes stay distinguishable in the pooled readout.
+    ctl = ev._baseline_json([_turn(_hp_trace({}))], run_kind="single", model="m", judged=False,
+                            eval_set="s", graph_version="v", corpus_fp="f", mode="deep")["dhp_refusals"]
+    assert ctl["rows_with_treatment_keys"] == 0 and ctl["binding_refused"] == 0
+
+
+def test_the_refusal_census_pools_the_treatment_lane_by_id_and_reports_its_denominator():
+    """H2 FOLD 1 (K4). D-HP-17's own H2 sentence says BOTH new header keys reach the artifact "with the
+    non-reasoning lane excluded BY ID". `dhp_class_scan` did it; `dhp_refusals` iterated EVERY row and
+    then divided by a live-row count it never wrote down -- a numerator and a denominator from two
+    different populations, on the ONE number E.5 item 2 asks the owner to ratify a budget against.
+
+    THE DEFENCE THAT EXISTED LIVED IN ANOTHER MODULE: both handle censuses are stamped only inside
+    `if verifier.get("enabled")`, so no serving path today produces the polluting row. An instrument
+    whose correctness depends on a caller two files away is not an instrument -- and
+    `citation_verifier_ran` is the SAME membership test `_class_scan` uses, so there is one rule."""
+    hot = _hp_trace({}, number_handles={"substituted": 4, "sentences_dropped": 2, "binding_refused": 3,
+                                        "scope_checked": 9, "direction_checked": 7})
+    # a NUMBERS-LANE row that (illegally, but not impossibly) carries handle keys: excluded BY ID, and
+    # its 5 dropped sentences reach neither the pooled numerator nor the `> 3` id list.
+    numbers = {"q": {"id": "numbers_row"}, "rubric": {},
+               "out": {"trace": {"citation_verifier": {"enabled": False},
+                                 "number_handles": {"binding_refused": 11, "sentences_dropped": 5},
+                                 "prose_handles": {"sentences_dropped": 0}}}}
+    b = ev._baseline_json([_turn(hot), numbers], run_kind="single", model="m", judged=False,
+                          eval_set="s", graph_version="v", corpus_fp="f", mode="deep_hp")
+    ref = b["dhp_refusals"]
+    assert ref["rows_pooled"] == 1 and ref["rows_excluded"] == ["numbers_row"]
+    assert ref["binding_refused"] == 3                      # the excluded lane's 11 is NOT pooled
+    assert ref["sentences_dropped"] == 2                    # ...nor its 5 dropped sentences
+    assert ref["sentences_dropped_mean"] == 2.0             # numerator and denominator, one population
+    assert ref["rows_sentences_dropped_gt_3"] == []         # the excluded row cannot be named here
+    # the denominator is in the ARTIFACT, not only in the arithmetic (the CYCLE-8 "no silent
+    # denominators" rule) and it is the SAME pair `dhp_class_scan` already carries.
+    scan = b["dhp_class_scan"]
+    assert (ref["rows_pooled"], ref["rows_excluded"]) == (scan["rows"], scan["rows_excluded"])
+
+
+def test_the_cited_n_counter_stops_undercounting_grouped_citations():
+    """D-HP-20 (H2). The shipped `CitedN` regex is SOLITARY-ONLY, so it counted `[N13, N14]` as ZERO
+    citations; handle-prose converts grouped citations into solitary slot handles, which would INFLATE the
+    cited-vs-injected ratio for a reason that is pure grammar and no behaviour change at all. `CitedN` is
+    the honest count now and `CitedNSolitary` carries the pre-D-HP arithmetic byte-identical beside it, so
+    the historical series has a live continuation instead of a silent redefinition."""
+    import re as _re
+    from leviathan.graphrag import orchestrator as orch
+    ans = "The crush ran hot [N13, N14] while stocks fell [N2]. Again [N2] and the sibling [N1, N1b]."
+    assert len(set(_re.findall(r"\[N\d+\]", ans))) == 1               # the OLD arithmetic: only [N2]
+    assert orch._cited_n_ordinals(ans, 1) == 5                        # 13, 14, 2, 1, 1b -- rows, not tokens
+    # the (index, suffix) PAIR is the identity: a headline and its sibling are two DIFFERENT rows, and
+    # collapsing them is the mis-binding `answer._n_handle_pairs` exists to prevent.
+    assert orch._cited_n_ordinals("[N1] and [N1b]", 0) == 2
+    assert orch._cited_n_ordinals("", 0) == 0 and orch._cited_n_ordinals(None, 0) == 0
+    assert orch._cited_n_ordinals(object(), 7) == 7                   # fail-open to the caller's count
+
+
+def test_the_cited_n_counters_ride_the_same_emf_line_with_units():
+    """Both counters are emitted, both as Counts. The WIDGET restatement is the infra owner's item (R14) --
+    terraform is a co-tenant path this wave does not touch -- so the code side must at minimum make the
+    honest series exist before D-HP's own arms move the panel."""
+    from leviathan.graphrag import orchestrator as orch
+    src = inspect.getsource(orch.respond)
+    assert '"CitedN": cited_n, "CitedNSolitary": cited_n_solitary' in src
+    assert '"CitedNSolitary": "Count"' in src
+    assert "_cited_n_ordinals(_ans, cited_n_solitary)" in src
+
+
+def test_clause_2b_finally_has_an_instrument():
+    """G1 clause (2b) pre-registers `bare_handle_escapes == 0` and, until H2, the name appeared in NO
+    module, trace key or column -- a clause of a frozen gate that no artifact could answer (the C2/U3
+    class). It catches exactly what clause (2) cannot: a FULLY RESOLVED grouped token in a value slot,
+    which the renderer leaves untouched BY DESIGN, so `unresolvable` reads 0 while the reader receives
+    `[N13, N14]` where a figure belongs.
+
+    Computed at the `register_leaks` seam off the ASSEMBLED BODY -- nothing in the serving renderer moves
+    for a gate readout -- and RECORDED ON BOTH ARMS, because a zero-bar clause with no measured control-arm
+    noise floor is not a measurement."""
+    out = {"answer": "Stocks fell to [N13, N14] and use of [E2] rose. Crush was 3.2 [N5]. See [E1].",
+           "trace": {"citation_verifier": {"enabled": True, "by_rule": {}, "stripped": 0,
+                                           "claim_count": 3, "checked": 2}}}
+    assert ev._bare_handle_escapes(out) == 2          # `to [N13, N14]` and `of [E2]`: cue + surviving token
+    # NOT an escape: a token standing beside a figure the model typed, or with no value cue in front of it.
+    assert ev._bare_handle_escapes({"answer": "Crush was 3.2 [N5]. See [E1]."}) == 0
+    assert ev._bare_handle_escapes({}) == 0 and ev._bare_handle_escapes({"answer": None}) == 0
+    assert ev._bare_handle_escapes({"answer": object()}) == 0                     # never raises
+    rec = ev._per_answer_record({"q": {"id": "r1"}, "rubric": {}, "out": out}, "single")
+    assert rec["bare_handle_escapes"] == 2
+    assert list(rec)[-1] == "bare_handle_escapes"     # APPENDED at the tail, never interleaved
+    tot = ev._baseline_json([{"q": {"id": "r1"}, "rubric": {}, "out": out}], run_kind="single", model="m",
+                            judged=False, eval_set="s", graph_version="v", corpus_fp="f",
+                            mode="deep_hp")["dhp_successor"]
+    assert tot["bare_handle_escapes"] == 2 and tot["bare_handle_escape_rows"] == ["r1"]
+
+
+def test_clause_8_has_a_produced_denominator_and_it_is_the_extractor_the_clause_names():
+    """H2 FOLD 1 (K1). Clause (8) carried the MIRROR of the clause-(2b) defect H2 had just closed: the
+    NUMERATOR (`substitution_load_mean`) shipped as a column while the bar it is read against -- 0.6 x
+    the CONTROL arm's mean typed-numeral count per answer on the same deck -- had no shipped producer,
+    so the one clause that fails G1 "regardless of the strip classes" was not computable from the
+    artifacts.
+
+    NO SECOND EXTRACTOR IS MINTED, which is the whole of D-HP-3: the count IS the already-pooled
+    `bare_digit_escapes` = `trace["bare_digit_count"]` = `answer._count_bare_digits`, i.e.
+    `verify._mask_handles` + `_claim_numbers_with_decimals` over the PRE-VERIFY `tldr` + `mechanism` --
+    the text `raw_draft.preverify_*` snapshots, and the extractor `dhp_census.json` itself ran, which is
+    what makes the census anchor of 19.8 numerals per answer commensurable with this column at all."""
+    # ONE PRODUCER for the factor and the multiply, so the eval column, a gate reader and a later
+    # re-read of the stored corpus cannot disagree about the bar.
+    assert emfmod.SUBSTITUTION_FLOOR_FACTOR == 0.6
+    assert emfmod.substitution_floor(19.8) == 11.88               # the census anchor through the bar
+    assert emfmod.substitution_floor(0) == 0.0 and emfmod.substitution_floor(None) == 0.0
+    assert emfmod.substitution_floor(object()) == 0.0             # never raises
+    # ...and the count really is the extractor the clause names, on the text the clause names.
+    from leviathan.graphrag import answer as _an
+    assert _an._count_bare_digits({"tldr": "Crush ran 12.4 and 3.2 [N1].",
+                                   "mechanism": "Stocks fell 7 percent."}) == 3
+    # BOTH ARMS, on the SAME live-row denominator as the numerator it is read against.
+    rows = [_turn(_hp_trace({})), _turn(_hp_trace({}))]
+    for arm in ("deep_hp", "deep"):
+        tot = ev._baseline_json(rows, run_kind="single", model="m", judged=False, eval_set="s",
+                                graph_version="v", corpus_fp="f", mode=arm)["dhp_successor"]
+        assert tot["rows_counted"] == 2 and tot["bare_digit_escapes"] == 10   # 5 typed numerals x 2
+        assert tot["typed_numeral_mean"] == 5.0
+        assert tot["substitution_floor"] == 3.0                   # 0.6 x 5.0 -- the CONTROL arm's bar
+        assert tot["substitution_floor"] == emfmod.substitution_floor(tot["typed_numeral_mean"])
+        # the clause stays a TWO-ARTIFACT read: the instrument produces both halves and compares
+        # neither (10.0 >= 3.0 is the gate owner's reading across two runs on ONE deck).
+        assert tot["substitution_load_mean"] == 10.0
+
+
+# ======================================================================================================
+# 8. D-HP B2 (plan E.6) -- --only-ids: THE ROW FILTER A PRE-REGISTERED NAMED SUBSET EXECUTES THROUGH
+#
+# THE DEFECT THIS CLOSES: E.5-R item 1 froze G1's shape_esc arm at the 30g 7-row HUNGRY split and REJECTED
+# the 12-row reading BY NAME -- and nothing in the tree could run 7 rows. Every prior shape_esc artifact
+# records n_answers = 12 because the restriction was applied at READ time, i.e. the artifact described a
+# different experiment from the one the packet froze. These pins hold the mechanism to three laws: an
+# unknown id is a HARD ERROR that names it (never a silent skip, which would shrink a pre-registered
+# denominator quietly); the rows come out in DECK order (so the split is a function of the deck alone);
+# and the filter is RECORDED in the artifact while `eval_set` stays the deck's canonical stem.
+# ======================================================================================================
+_DECK = [{"id": "a", "q": "?"}, {"id": "b", "q": "?"}, {"id": "c", "q": "?"}, {"id": "d", "q": "?"}]
+
+# E.5-R item 1 / data/dhp_g1/manifest_d1.json -- VERBATIM, in the manifest's order (which is the deck's).
+_G1_HUNGRY_SEVEN = ["shape_esc_episode_us_drought", "shape_esc_episode_cocoa_harmattan",
+                    "shape_esc_vintage_brazil_soy", "shape_esc_vintage_palm_stocks",
+                    "shape_esc_chain_sugar_ethanol", "shape_esc_regime_oilshare",
+                    "shape_esc_ctx_orange_juice"]
+
+
+def test_only_ids_selects_exactly_the_named_rows_and_never_reorders_the_deck():
+    """The rows are the named ones and ONLY the named ones; the ORDER is the deck's, not the argument's,
+    so two invocations of the same split are the same run."""
+    assert [q["id"] for q in ev.select_queries(_DECK, "c,a")] == ["a", "c"]
+    assert [q["id"] for q in ev.select_queries(_DECK, "d,b,a,c")] == ["a", "b", "c", "d"]
+    assert [q["id"] for q in ev.select_queries(_DECK, " b , c ")] == ["b", "c"]   # whitespace tolerated
+    assert [q["id"] for q in ev.select_queries(_DECK, "b,b")] == ["b"]            # a repeat is not a dup row
+    assert [q["id"] for q in ev.select_queries(_DECK, ["a", "d"])] == ["a", "d"]  # list form, same law
+
+
+def test_an_unknown_id_is_a_HARD_ERROR_THAT_NAMES_IT_never_a_silent_skip():
+    """The fail-open shape a frozen gate cannot survive: a typo'd id silently dropped runs a SMALLER
+    population than the one pre-registered while the artifact still claims the deck."""
+    with pytest.raises(ValueError) as e:
+        ev.select_queries(_DECK, "a,zzz_not_in_deck,c")
+    assert "zzz_not_in_deck" in str(e.value)                  # the id itself, not just a count
+    assert "a" in str(e.value) or "ABSENT" in str(e.value)
+    with pytest.raises(ValueError) as e2:                     # every missing id is named, not just the first
+        ev.select_queries(_DECK, "nope1,nope2")
+    assert "nope1" in str(e2.value) and "nope2" in str(e2.value)
+
+
+@pytest.mark.parametrize("bad", ["", "   ", ",", " , , "])
+def test_an_empty_filter_refuses_rather_than_reading_as_the_whole_deck(bad):
+    with pytest.raises(ValueError):
+        ev.select_queries(_DECK, bad)
+
+
+def test_the_G1_FROZEN_SEVEN_select_seven_rows_of_the_SHIPPED_shape_esc_deck():
+    """The packet's own ids against the deck file as it ships: 7 of 12, and the seven are exactly the
+    deck's `expected_shape: true` rows post-30g(a). If a deck edit ever renames one of these, THIS pin
+    reddens rather than the arm running six rows and calling itself the split."""
+    import pathlib
+
+    import yaml as _yaml
+    p = (pathlib.Path(__file__).resolve().parents[2] / "configs" / "graphrag"
+         / "eval_queries_shape_esc_v1.yaml")
+    deck = (_yaml.safe_load(p.read_text(encoding="utf-8")) or {}).get("queries") or []
+    assert len(deck) == 12                                    # the whole deck, the 12-row reading E.5-R rejects
+    picked = ev.select_queries(deck, ",".join(_G1_HUNGRY_SEVEN))
+    assert len(picked) == 7
+    assert [q["id"] for q in picked] == _G1_HUNGRY_SEVEN       # deck order == the manifest's order
+    assert all(q.get("expected_shape") for q in picked)        # the 30g hungry half, by the deck's own key
+
+
+def test_the_row_filter_key_is_ABSENT_from_an_unfiltered_artifact():
+    """Byte-shape: an unfiltered run's baseline is exactly what it was before this flag existed -- the key
+    is ABSENT, not null and not empty, so no stored reader and no stored artifact's key set moves."""
+    import json as _json
+    kw = dict(run_kind="single", model="m", judged=False, eval_set="s", graph_version="v", corpus_fp="f")
+    plain = ev._baseline_json([], **kw)
+    assert "row_filter" not in plain
+    assert _json.dumps(ev._baseline_json([], **kw, row_filter=None)) == _json.dumps(plain)
+    assert list(ev._baseline_json([], **kw, row_filter=None)) == list(plain)
+
+
+def test_the_row_filter_key_carries_the_SORTED_ids_and_the_count_and_leaves_eval_set_ALONE():
+    """`eval_set` stays the DECK's canonical stem -- a subset must not rename the arm -- and the subset is
+    stated in the one place a clause population is read from."""
+    rows = [{"q": {"id": "b"}, "rubric": {}, "out": {}}, {"q": {"id": "a"}, "rubric": {}, "out": {}}]
+    rf = ev._row_filter_record([q["q"] for q in rows])
+    assert rf == {"ids": ["a", "b"], "count": 2}               # SORTED, and the count is of the id list
+    doc = ev._baseline_json(rows, run_kind="single", model="m", judged=False,
+                            eval_set="eval_queries_shape_esc_v1", graph_version="v", corpus_fp="f",
+                            row_filter=rf)
+    assert doc["eval_set"] == "eval_queries_shape_esc_v1"      # NOT renamed by the subset
+    assert doc["row_filter"] == {"ids": ["a", "b"], "count": 2}
+    assert doc["n_answers"] == 2                              # the clause populations read the FILTERED count
+    assert list(doc).index("row_filter") < list(doc).index("per_answer")
+
+
+def test_the_record_is_computed_from_the_rows_that_SURVIVED_not_from_the_argument():
+    """A record built from the argument could describe a selection the run did not make."""
+    picked = ev.select_queries(_DECK, "d,a")
+    assert ev._row_filter_record(picked) == {"ids": ["a", "d"], "count": 2}
+
+
+def test_the_filter_is_applied_in_main_BEFORE_the_dry_run_and_BEFORE_run_spawns_workers():
+    """A filter applied inside a worker would be a per-row SKIP, not a population -- and the dry-run cost
+    estimate would price rows that never run."""
+    src = inspect.getsource(ev.main)
+    assert '"--only-ids"' in src
+    assert src.index("select_queries(") < src.index("args.dry_run")
+    assert src.index("select_queries(") < src.index("rows = run(")
+    assert "row_filter=row_filter" in src                      # ...and it reaches the artifact
+    assert "only_ids" in inspect.getsource(ev.select_queries)
+
+
+def test_submit_eval_forwards_only_ids_and_omitting_it_stays_byte_identical():
+    mk = _submit_eval().build_command
+    cmd = mk(**_BASE, via_orchestrator=True, only_ids="r1,r2")
+    assert cmd[cmd.index("--only-ids") + 1] == "r1,r2"         # forwarded VERBATIM, unparsed
+    assert cmd.index("--only-ids") == cmd.index("--queries") + 2     # it rides the deck it restricts
+    assert mk(**_BASE, via_orchestrator=True) == mk(**_BASE, via_orchestrator=True, only_ids=None)
+    assert "--only-ids" not in mk(**_BASE, via_orchestrator=True)
+    mod = _submit_eval()
+    assert '"--only-ids"' in inspect.getsource(mod.main) and "only_ids=args.only_ids" in \
+        inspect.getsource(mod.main)
+
+
+def test_only_ids_with_a_convo_deck_refuses_on_BOTH_sides_rather_than_being_ignored():
+    """The eval CLI and the submitter refuse the same pairing: a convo deck has no ROW ids, and a flag
+    quietly ignored is the silent-skip defect wearing a different hat."""
+    with pytest.raises(ValueError):
+        _submit_eval().build_command(queries=None, convos="configs/graphrag/eval_convos_v1.yaml",
+                                     model="m", judge=False, judge_model="j", k=5, only_ids="r1")
+    esrc = inspect.getsource(ev.main)
+    assert "--only-ids selects rows of a --queries deck" in esrc

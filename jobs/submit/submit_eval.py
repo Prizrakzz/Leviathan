@@ -105,13 +105,23 @@ def _emit_parity_warning(region: str, job_env: dict[str, str]) -> None:
 def build_command(*, queries: str | None, convos: str | None, model: str, judge: bool,
                   judge_model: str, k: int, workers: int | None = None,
                   via_orchestrator: bool = False, mode: str | None = None,
-                  planner: str | None = None) -> list[str]:
+                  planner: str | None = None, only_ids: str | None = None) -> list[str]:
     """The container command (the image ENTRYPOINT is `python`, so this is the arg list to it)."""
     cmd = ["-m", "leviathan.graphrag.eval", "--run", "--model", model, "--k", str(k)]
     if convos:
+        if only_ids:
+            # --only-ids names ROWS of a queries deck; a convo deck has none. The eval CLI refuses the
+            # same pairing -- refuse HERE too, before a job is submitted with a flag the container will
+            # reject after it has already been billed for the container start.
+            raise ValueError("--only-ids has no meaning with --convos")
         cmd += ["--convos", convos]
     else:
         cmd += ["--queries", queries]
+        if only_ids:
+            # D-HP B2 / plan E.6: a pre-registered NAMED SUBSET of a deck (G1's frozen 7-row hungry split)
+            # runs through this flag. Forwarded verbatim; the container hard-errors on an unknown id, so a
+            # typo fails the submission's job rather than quietly shrinking the population.
+            cmd += ["--only-ids", only_ids]
     if via_orchestrator:
         # The intent-branch serving path (numbers_only/reasoning/hybrid) — REQUIRED for any run whose
         # intent accuracy is compared to the 22/30 baseline; plain answer() never sets out.intent
@@ -147,6 +157,13 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="Submit the GraphRAG v2 eval as a Fargate Batch job")
     ap.add_argument("--queries", default="configs/graphrag/eval_queries_v2.yaml",
                     help="queries yaml (path INSIDE the image; baked from configs/graphrag/)")
+    ap.add_argument("--only-ids", default=None,
+                    help="comma-separated row ids: run ONLY those rows of --queries, in deck order "
+                         "(forwarded to eval --only-ids). The mechanism a PRE-REGISTERED NAMED SUBSET "
+                         "executes through -- e.g. D-HP G1's frozen 7-row hungry split of "
+                         "eval_queries_shape_esc_v1.yaml. An id absent from the deck hard-errors inside "
+                         "the container before any spend; the artifact keeps the deck's stem as eval_set "
+                         "and records the ids that ran in its top-level row_filter key")
     ap.add_argument("--convos", default=None,
                     help="conversations yaml (multi-turn session eval) — overrides --queries when set")
     ap.add_argument("--model", default="claude-sonnet-4-6", help="serving model (validated ~= Opus at ~1/5 cost)")
@@ -185,7 +202,8 @@ def main() -> None:
     aws_region = get_required_env("AWS_REGION")
     command = build_command(queries=args.queries, convos=args.convos, model=args.model,
                             judge=args.judge, judge_model=args.judge_model, k=args.k, workers=args.workers,
-                            via_orchestrator=args.via_orchestrator, mode=args.mode, planner=args.planner)
+                            via_orchestrator=args.via_orchestrator, mode=args.mode, planner=args.planner,
+                            only_ids=args.only_ids)
     overrides: dict = {
         "command": command,
         "resourceRequirements": [
@@ -204,6 +222,11 @@ def main() -> None:
         # the two P3 arms are the SAME deck at the SAME model and differ only by mode -- without this the
         # two submissions are indistinguishable in the Batch console
         job_name += f"-{args.mode.replace('_', '-')}"
+    if args.only_ids:
+        # same argument as --mode above: a NAMED-SUBSET arm and a whole-deck arm are the same deck, model
+        # and mode, so without this they are indistinguishable in the Batch console. The COUNT is the
+        # distinguishing token (the ids themselves are in the run record and in the artifact's row_filter).
+        job_name += f"-rows{len([t for t in args.only_ids.split(',') if t.strip()])}"
     for k, v in env_pairs:
         job_name += f"-{v.lower()[:12]}" if k == "GRAPHRAG_PROVIDER" else ""
 
@@ -230,7 +253,7 @@ def main() -> None:
     write_run_record(Path("data/batch_runs") / f"eval_{run_id}.json",
                      {"run_id": run_id, "job_name": job_name, "job_id": resp["jobId"],
                       "queries": args.convos or args.queries, "model": args.model, "judge": args.judge,
-                      "mode": args.mode, "planner": args.planner,
+                      "mode": args.mode, "planner": args.planner, "only_ids": args.only_ids,
                       "env_overrides": dict(env_pairs)})
 
 
