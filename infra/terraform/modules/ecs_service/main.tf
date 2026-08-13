@@ -195,6 +195,11 @@ resource "aws_ecs_service" "this" {
   # R5.5/R6 serving state as a side effect of an unrelated batch. A -target exclusion
   # only disarms it for one apply; this disarms it permanently.
   #
+  # (The five-flag list above is that day's MEASUREMENT, kept as history. The CURRENT
+  # env config-of-record is envs/dev/main.tf `additional_environment`, reconciled to
+  # live rev 96 on 2026-08-13 -- see its two dated RECONCILED blocks and
+  # docs/private/CONFIG_OF_RECORD_BACKLOG.md for the standing findings.)
+  #
   # CONSEQUENCE, STATED PLAINLY: terraform can no longer roll serving forward either.
   # Deploying serving is scripts/flip_*_serving.ps1 / register-taskdef +
   # --force-new-deployment, and the rollout must be verified by NEW TASK ARN + fresh

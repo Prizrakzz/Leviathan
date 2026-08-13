@@ -653,6 +653,21 @@ module "serving" {
     GRAPHRAG_TRIVIAL_ROUTER          = "on"
     GRAPHRAG_XC_LLM_DETECT           = "on"
 
+    # ------------------------------------------------------------------------------------------
+    # RECONCILED TO LIVE 2026-08-13 (drift, same class as the 2026-07-30 block above; found by the
+    # D-HP H2 review and recorded at docs/private/CONFIG_OF_RECORD_BACKLOG.md, task #53). Both keys
+    # are LIVE on serving rev 96 (verified by describe-task-definition) but were absent here, so a
+    # re-derivation from this map would have silently flipped them off:
+    #  - GRAPHRAG_EPISODE_SCAFFOLD: code default OFF; dropping it kills the render-side episode
+    #    synthesis layer (D-DT section presence 49% -> 93%) with no alarm.
+    #  - GRAPHRAG_STRIP_AUDIT: NAMED AT ITS LIVE VALUE ONLY. The code's own doctrine (answer.py,
+    #    raw_draft_snapshot note) says this flag should NOT be set in serving; that open decision is
+    #    CR-1 in the backlog doc and is deliberately NOT resolved by this line -- turning it off is
+    #    a live-behaviour change that should ride the next taskdef flip, not a config reconcile.
+    # ------------------------------------------------------------------------------------------
+    GRAPHRAG_EPISODE_SCAFFOLD        = "on"
+    GRAPHRAG_STRIP_AUDIT             = "on"
+
   }
 
   # Stage 1: guardrail on, auth off, CORS = localhost (defaults in the module).
