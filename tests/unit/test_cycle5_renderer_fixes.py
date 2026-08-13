@@ -300,7 +300,10 @@ def test_new_artifact_fields_are_strictly_additive():
     # may ever follow them" -- later waves append their own columns after (D-GD-1 `closure_cited`,
     # 2026-08-08), which is the same additive contract, one wave further along. Extend _LATER, never
     # re-order.
-    _LATER = ("closure_cited",)
+    # D-HP-17/19 (2026-08-13): `dhp_successor` appends after `closure_cited` -- the successor strip-class
+    # family, derived per row from `by_rule` beside the OLD family, which is what makes the bridge run a
+    # readout rather than a second billed run. Same additive contract, one wave further along.
+    _LATER = ("closure_cited", "dhp_successor")
     _tail = len(_NEW) + len(_LATER)
     assert list(rich)[-_tail:] == list(_NEW) + list(_LATER)
     assert list(rich)[:-_tail] == list(bare)[:-_tail]
@@ -695,7 +698,12 @@ def test_the_audited_seam_record_is_a_normalized_key_not_prose(monkeypatch):
                                    "That sits in El Nino territory, and it is a long way from over.",
           "sources": []}
     seams = vf.verify_citations(st, [], calls)["strip_seams"]
-    assert seams and all(set(s) == {"field", "key"} for s in seams)
+    # H1 FOLD ROUND 3 (FIX X2): the record gained a PRODUCER TAG. The point of this pin is unchanged and
+    # is asserted on the line below -- the seam carries a bounded, normalized KEY and never raw prose --
+    # and the shape is still CLOSED, so a fourth key cannot appear unnoticed. `src` is an enumerated
+    # producer name, so it leaks nothing either (`answer._SEAM_SRC_*`).
+    assert seams and all(set(s) == {"field", "key", "src"} for s in seams)
+    assert all(s["src"] == "verify" for s in seams)         # the only producer inside verify itself
     assert all(len(s["key"]) <= vf._SEAM_KEY_CHARS and s["key"] == s["key"].lower() for s in seams)
 
 

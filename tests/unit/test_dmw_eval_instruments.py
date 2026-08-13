@@ -747,3 +747,208 @@ def test_the_flags_are_parsed_by_the_cli_and_named_the_same_as_evals():
     assert "mode=args.mode" in src and "planner=args.planner" in src
     esrc = inspect.getsource(ev.main)
     assert '"--mode"' in esrc and '"--planner"' in esrc
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════
+# 6. D-HP-17 / D-HP-19 / D-HP-20 -- THE SUCCESSOR METRIC FAMILY AND ITS COUNTERS
+#
+# D5: THE INSTRUMENT IS PART OF THE CLAIM. Four of nine strip classes go to zero BY CONSTRUCTION under
+# handle-prose, so a metric family that silently absorbs that is not measuring D-HP, it is congratulating
+# it. These pins hold the family to the shape the plan froze BEFORE any arm runs: one producer for the
+# arithmetic, named denominators, the honesty rider's three numbers together, and BLINDED never read as
+# KILLED.
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════
+from leviathan.graphrag import emf as emfmod                                  # noqa: E402
+
+
+def _hp_trace(by_rule: dict | None = None, **over) -> dict:
+    tr = {"citation_verifier": {"enabled": True, "stripped": 4, "claim_count": 20, "checked": 9,
+                                "by_rule": dict(by_rule or {})},
+          "number_handles": {"substituted": 7, "handles_dropped": 0, "sentences_dropped": 1,
+                             "unresolvable": 2},
+          "prose_handles": {"substituted": 3, "handles_dropped": 0, "sentences_dropped": 0,
+                            "unresolvable": 1},
+          "wrong_slot_audit": {"scope_checked": 10, "scope_mismatch": 2,
+                               "direction_checked": 4, "direction_mismatch": 1},
+          "bare_digit_count": 5}
+    tr.update(over)
+    return tr
+
+
+def test_wrong_slot_audit_is_a_registered_column_at_the_tail():
+    """D-HP-14's census is the ONLY instrument for the wave's #1 risk, and registration IS the lift: a key
+    absent from the registry reaches NO artifact, silently (the C2/U3 class). It appends at the TAIL --
+    eval.py splats the registry IN ORDER, so an insert shifts every later column in every stored record.
+
+    RE-ANCHORED (H1 FIX W2, finding NF-2): `slot_orphan_dropped` was APPENDED after this column, so the
+    tail moved by one -- which is what the law licenses and what this pin exists to police. The invariant
+    asserted is unchanged: `wrong_slot_audit` must still be AFTER every older key and must never have been
+    INSERTED ahead of one.
+
+    RE-ANCHORED AGAIN (H1b, D-HP-15): `episode_spans_validated` was APPENDED after THAT, so the tail moved
+    by one more. Same law, same one-line re-anchor, same unchanged invariant."""
+    assert tk.TRACE_RECORD_KEYS[-3] == "wrong_slot_audit"
+    assert tk.TRACE_RECORD_KEYS[-2] == "slot_orphan_dropped"
+    assert tk.TRACE_RECORD_KEYS[-1] == "episode_spans_validated"
+    for older in ("number_handles", "rerank_lane", "walk_shape", "citation_resolved"):
+        assert tk.TRACE_RECORD_KEYS.index(older) < tk.TRACE_RECORD_KEYS.index("wrong_slot_audit")
+    assert len(set(tk.TRACE_RECORD_KEYS)) == len(tk.TRACE_RECORD_KEYS)
+    rec = ev._per_answer_record(_turn(_hp_trace()), "single")
+    assert rec["wrong_slot_audit"] == {"scope_checked": 10, "scope_mismatch": 2,
+                                       "direction_checked": 4, "direction_mismatch": 1}
+    assert ev._per_answer_record(_turn({}), "single")["wrong_slot_audit"] is None   # absent-as-None
+
+
+def test_the_strip_class_tuples_are_the_verifiers_own_spellings():
+    """A CONTRACT WITH verify.py, pinned because its failure mode is silent: a class renamed at the verify
+    seam and not here reads as 0 forever -- which is exactly the "metric family that congratulates the
+    wave" D5 forbids. `number_unbacked` is deliberately in BOTH the killed and the blinded tuple: it is
+    killed by a NEW FENCE (the digit-lint) and blinded by the ORDERING, and reporting it in one place only
+    would hide one of the two mechanisms."""
+    assert emfmod.KILLED_CLASSES == ("fabricated_citation", "ledger_cascade", "number_unbacked",
+                                     "undeclared_unsupported")
+    assert emfmod.RESIDUAL_CLASSES == ("no_lexical_overlap", "quote_mismatch", "foreign_regime_name",
+                                       "index_out_of_range")
+    assert emfmod.BLINDED_CLASSES == ("number_mismatch", "number_unbacked")
+    assert emfmod.MIS_BOUND_CLASSES == ("slot_scope_mismatch", "direction_sign_mismatch")
+    assert emfmod.BARE_DIGIT_CLASS == "bare_digit"
+    # CONFLICT 4: `number_mismatch` is NOT a mis-binding term. Under handle-prose it goes to zero by
+    # ORDERING (the verifier sees prose with no digits), so counting it as mis-binding would report an
+    # instrument artifact as the wave's #1 risk.
+    assert "number_mismatch" not in emfmod.MIS_BOUND_CLASSES
+    assert "number_mismatch" in emfmod.BLINDED_CLASSES
+
+
+def test_the_successor_family_is_derived_once_and_reaches_the_row():
+    """ONE PRODUCER: the artifact column and the CloudWatch counter read the SAME arithmetic, so a
+    dashboard and a gate readout can never disagree about the same turn."""
+    by = {"fabricated_citation": 2, "ledger_cascade": 1, "number_unbacked": 3, "undeclared_unsupported": 1,
+          "no_lexical_overlap": 4, "quote_mismatch": 1, "number_mismatch": 6, "bare_digit": 2,
+          "slot_scope_mismatch": 1, "direction_sign_mismatch": 1}
+    rec = ev._per_answer_record(_turn(_hp_trace(by)), "single")
+    q = rec["dhp_successor"]
+    assert q == emfmod.quality_counters(_hp_trace(by))
+    assert q["unconstructible_count"] == 7                       # 2 + 1 + 3 + 1
+    assert q["residual_strips"] == 5                             # 4 + 1 (+0 +0: two classes NEVER fired)
+    assert q["blinded_class_count"] == 9                         # number_mismatch 6 + number_unbacked 3
+    # H1 FIX Z1 RE-PIN -- ALL THREE TERMS, WITH THE PROJECTION DEDUPLICATED. `wrong_slot_audit` is built
+    # FROM the same two counters (`answer._wrong_slot_audit`), so summing it verbatim counted the SCOPE
+    # class twice; the rule at `emf.MIS_BOUND_CLASSES` adds only its EXCESS over its own mirror. The
+    # fixture above is deliberately INCOHERENT (by_rule scope 1 vs projection 2) to prove the excess leg
+    # still reports a pre-mirror artifact's scope events instead of dropping them: 1 + 1 + (2 - 1) = 3.
+    assert q["mis_bound_count"] == 3
+    # ...and on a COHERENT row -- the only shape a live turn can produce, since the folder writes both --
+    # all three classes present pool to scope + direction, in the artifact AND in emf, from ONE producer.
+    coherent = _hp_trace({"slot_scope_mismatch": 4, "direction_sign_mismatch": 7, "bare_digit": 2},
+                         wrong_slot_audit={"scope_checked": 12, "scope_mismatch": 4,
+                                           "direction_checked": 11, "direction_mismatch": 7})
+    assert emfmod.quality_counters(coherent)["mis_bound_count"] == 11
+    assert ev._per_answer_record(_turn(coherent), "single")["dhp_successor"]["mis_bound_count"] == 11
+    assert q["bare_digit_strips"] == 2 and q["bare_digit_escapes"] == 5   # CONVICTIONS vs ESCAPES
+    assert q["handles_unresolvable"] == 3                        # [N] 2 + [E] 1
+    assert q["substitution_load"] == 10                          # [N] 7 + [E] 3
+
+
+def test_a_clean_row_reads_zero_and_never_raises_a_keyerror():
+    """THE READING RULE (folded review G21): `by_rule` accrues by `get(rule, 0) + 1`, so a CLEAN ROW STORES
+    `{}` and a direct subscript would raise on precisely the rows a gate hopes for."""
+    q = emfmod.quality_counters(_hp_trace({}))
+    assert q["unconstructible_count"] == 0 and q["residual_strips"] == 0 and q["blinded_class_count"] == 0
+
+
+def test_the_non_reasoning_lane_is_excluded_by_name_not_zero_filled():
+    """D-HP-17's DENOMINATOR ACCOUNTING (the CYCLE-8 "no silent denominators" rule). numbers_only / live
+    turns are verified by `orchestrator._verify_numbers_answer` and carry `enabled` False; D-HP's contract
+    does not bind them in the first build, so a fake 0 from that lane would dilute every counter it pools
+    into. G1 clause (5) reads the excluded ids."""
+    assert emfmod.quality_counters({"citation_verifier": {"enabled": False, "by_rule": {}}}) is None
+    assert emfmod.quality_counters({}) is None and emfmod.quality_counters(None) is None
+    rows = [_turn(_hp_trace({"fabricated_citation": 2})),
+            {"q": {"id": "numbers_row"}, "rubric": {},
+             "out": {"trace": {"citation_verifier": {"enabled": False}}}}]
+    b = ev._baseline_json(rows, run_kind="single", model="m", judged=False, eval_set="s",
+                          graph_version="v", corpus_fp="f", mode="deep_hp")
+    tot = b["dhp_successor"]
+    assert tot["rows_counted"] == 1 and tot["rows_excluded"] == ["numbers_row"]
+    assert tot["unconstructible_count"] == 2
+
+
+def test_the_honesty_rider_ships_as_three_numbers_in_one_dict():
+    """PRE-REGISTERED AND READ TOGETHER, NEVER APART: `unconstructible_count` is satisfiable by RENAMING a
+    class, so the gate reports it beside `bare_digit_strips` (the class D-HP-12 routes those sentences
+    into) and RAW `strips`. All three on the SAME live-row denominator -- `total_strips` above pools the
+    excluded lane too, which is why this dict carries its own."""
+    rows = [_turn(_hp_trace({"bare_digit": 3})), _turn(_hp_trace({"bare_digit": 1}))]
+    tot = ev._baseline_json(rows, run_kind="single", model="m", judged=False, eval_set="s",
+                            graph_version="v", corpus_fp="f", mode="deep_hp")["dhp_successor"]
+    assert tot["unconstructible_count"] == 0 and tot["bare_digit_strips"] == 4 and tot["strips"] == 8
+    # ...and the number-avoidance instrument, denominated per ANSWER against the census's 19.8 mean.
+    assert tot["substitution_load"] == 20 and tot["substitution_load_mean"] == 10.0
+
+
+def test_the_r11_per_row_tripwire_records_ids_not_a_verdict():
+    """R11: any single row at `mis_bound_count >= 3` (~3 of ~21 rendered figures = ~14%) is recorded BY ID.
+    This is why `wrong_slot_audit.scope_mismatch` had to be a PER-ROW column: a per-run census alone makes
+    the ceiling uncheckable at the row level it is written at."""
+    # H1 FIX Z1 RE-PIN: the row is written COHERENTLY (the folder mirrors the render census into `by_rule`,
+    # and `wrong_slot_audit` projects the same counters), so the tripwire fires on scope + direction and
+    # the projection adds nothing -- which is the whole point of the dedup rule.
+    hot = _turn(_hp_trace({"slot_scope_mismatch": 2, "direction_sign_mismatch": 2},
+                          wrong_slot_audit={"scope_checked": 6, "scope_mismatch": 2,
+                                            "direction_checked": 4, "direction_mismatch": 2}))
+    cold = _turn(_hp_trace({}, wrong_slot_audit={"scope_checked": 9, "scope_mismatch": 0,
+                                                 "direction_checked": 2, "direction_mismatch": 0}))
+    cold["q"] = {"id": "cold"}
+    tot = ev._baseline_json([hot, cold], run_kind="single", model="m", judged=False, eval_set="s",
+                            graph_version="v", corpus_fp="f", mode="deep_hp")["dhp_successor"]
+    assert tot["mis_bound_rows_ge_3"] == ["r1"] and tot["mis_bound_count"] == 4
+    # ...and the DIRECTION term is visible at all, which it was not: every one of its convictions deleted a
+    # sentence while `mis_bound_count`, `mis_bound_rows_ge_3` and the MisBound counter all read 0.
+    only_dir = _hp_trace({"direction_sign_mismatch": 5},
+                         wrong_slot_audit={"scope_checked": 5, "scope_mismatch": 0,
+                                           "direction_checked": 5, "direction_mismatch": 5})
+    assert emfmod.quality_counters(only_dir)["mis_bound_count"] == 5
+
+
+def test_the_emf_counters_are_fleet_dimensioned_only(monkeypatch):
+    """R14 (ratified): a CloudWatch dimension bills per DISTINCT COMBINATION, so five always-on counters on
+    the turn emitter's (intent x model x mode) set is a recurring monthly bill for a cut Logs Insights can
+    already produce from the lane fields. They ride their OWN emit call with `dimensions=None` -- which is
+    also why this is one line to change if the decision is ever revisited.
+
+    `emit()` still attaches the LANE set (source / rerank_backend), so `source=serving` stays filterable --
+    the same dimension D-HP-20 change (1) needs the WIDGET to start using, and the reason that change is a
+    panel edit rather than a code edit."""
+    seen: list = []
+    monkeypatch.setattr(emfmod, "emit", lambda metrics, **kw: seen.append((metrics, kw)))
+    emfmod.emit_quality(_hp_trace({"fabricated_citation": 1, "no_lexical_overlap": 2}))
+    assert len(seen) == 1
+    metrics, kw = seen[0]
+    assert kw["dimensions"] is None                              # NEVER the turn emitter's dimension set
+    assert set(metrics) == {"Unconstructible", "ResidualStrips", "BareDigits", "HandlesUnresolvable",
+                            "MisBound"}                          # exactly the five R14 priced
+    assert metrics["Unconstructible"] == 1 and metrics["ResidualStrips"] == 2
+    assert metrics["BareDigits"] == 5 and metrics["MisBound"] == 2
+    assert all(u == "Count" for u in kw["units"].values())
+    seen.clear()
+    emfmod.emit_quality({"citation_verifier": {"enabled": False}})
+    assert seen == []                                            # the numbers lane never touches the panel
+
+
+def test_emit_quality_is_fail_open_like_every_other_emit():
+    """Telemetry must never break or slow a turn -- the module's opening law. A malformed trace returns
+    None / emits nothing rather than raising into the serving path."""
+    assert emfmod.quality_counters({"citation_verifier": {"enabled": True, "by_rule": "not-a-dict"}}) is None
+    emfmod.emit_quality({"citation_verifier": "garbage"})         # no exception
+
+
+def test_the_composition_census_denominator_boundary_is_recorded_where_it_is_read():
+    """H0-FOLD RESIDUAL 2 (10.9), discharged. `composition_census.n_evidence` CHANGED DENOMINATOR at the
+    H0 hoist on the desk lanes -- pre-dedup evidence appearances -> deduped DOCUMENTS (`uniq`), the same
+    population the rendered menu and `n_ev` bind to. Nothing gates on the column (D-MW-17 recorded-only),
+    so no gate clause moves; what would have broken is a later wave pooling both definitions in one read.
+    The boundary is recorded in the REGISTRY -- the one place every consumer of the column already looks --
+    and pinned here so it cannot be tidied away."""
+    src = inspect.getsource(tk)
+    head = src.split('"composition_census"')[1].split('"number_handles"')[0]
+    assert "82b213a0" in head and "deduped" in head and "source_key" in head

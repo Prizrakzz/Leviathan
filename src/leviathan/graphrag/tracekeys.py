@@ -30,8 +30,37 @@ TRACE_RECORD_KEYS: tuple[str, ...] = (
     "response_contract",         # D-RC Phase B: the ACTIVE contract (answer-seam stamp)
     "synth_usage",               # D-AM-4: serving tokens {model,in,out,cache_read,cache_write}
     "mode_knobs",                # D-AM-11: the RESOLVED knob values a honored non-standard mode ran
-    "composition_census",        # D-CC-1: {entities,n_entities,n_episode_windows,n_evidence}; absent when dark
+    "composition_census",        # D-CC-1: {entities,n_entities,n_episode_windows,n_evidence}; absent when dark.
+                                 # D-HP H0 BOUNDARY, RECORDED HERE BECAUSE THIS IS THE COLUMN'S CONSUMER NOTE
+                                 # (10.9 residual 2): `n_evidence` changed DENOMINATOR at the H0 hoist on the
+                                 # desk lanes -- it counted the PRE-DEDUP evidence list and now counts the
+                                 # deduped `uniq` (answer._uniq_evidence), which is also what `n_ev` and the
+                                 # rendered menu bind to. POST-H0 MEANING, PINNED: distinct evidence
+                                 # DOCUMENTS (one row per source_key), not chunk appearances. A cross-boundary
+                                 # read of this column pools two definitions -- artifacts written before
+                                 # commit 82b213a0 are the pre-dedup population and are NOT comparable to
+                                 # anything after it. Nothing gates on it (D-MW-17 recorded-only), so no gate
+                                 # clause moves; the boundary is recorded so no later wave re-derives it wrong.
     "number_handles",            # D-PQ HANDLE-1: {substituted,handles_dropped,sentences_dropped,unresolvable}
+                                 # ...ON THE CONTROL LANE. THE TREATMENT LANE STAMPS TEN KEYS (H1 FIX W4,
+                                 # finding NF-4): `answer._resolve_number_handles` adds SIX under
+                                 # `handle_prose` -- grouped_in_slot, direction_sign_mismatch,
+                                 # slot_scope_mismatch, scope_checked, direction_checked and
+                                 # BINDING_REFUSED. The four-key byte-pin the suites carry is CONTROL-
+                                 # scoped, so the superset reds nothing; it is named here because this
+                                 # registry is the one place every consumer already looks, and a counter
+                                 # documented nowhere is a counter no gate reads.
+                                 # `binding_refused` (H1 FIX Z2) is the one that MUST be found here: a
+                                 # D-HP-13 / D-HP-14 refusal RESOLVED its receipt and this pass declined
+                                 # to bind it -- the OPPOSITE of D-HP-17 item 4's `unresolvable` ("the
+                                 # model addressed a receipt that does not exist"), which is why the two
+                                 # may not share a counter. It is the ONLY record anywhere that a refusal
+                                 # fired and removed prose: the class counters beside it say WHY, this one
+                                 # says HOW MANY HANDLES. `scope_checked` / `direction_checked` are its
+                                 # denominators (COMPARISONS, never attempts -- H1 FIX Z12a).
+                                 # NOT BUDGETED BY ANY G1 CLAUSE TODAY, recorded as an open question at
+                                 # plan 10.11: the two class counters it accompanies are budgeted at 15
+                                 # pooled by R11 and this one is budgeted by nothing.
     "prose_debris_tidied",       # D-PQ HANDLE-3: True when a strip left a bracket/dash frame to close up
     "prose_orphans_tidied",      # CYCLE-5 TIDY-2: True when a strip left a headless paragraph to repair
     "number_rows_deduped",       # CYCLE-6 FIX-C: [N] indices re-pointed onto a full-identity twin's row
@@ -73,9 +102,12 @@ TRACE_RECORD_KEYS: tuple[str, ...] = (
                                  # and no column shift -- one registered key, one stamp site, one producer.
     # ── D-HP H0 (D-HP-4). APPENDED at the tail, per the law above (the 12f column-shift lesson).
     "prose_handles",             # D-HP-4(a): the [E]-side census, a SIBLING of `number_handles`, NEVER a
-                                 # fifth key inside it -- `number_handles` is a four-key dict pinned
-                                 # byte-for-byte by the suites (answer.py:3856-3860). Same four-key shape:
-                                 # {substituted, handles_dropped, sentences_dropped, unresolvable}.
+                                 # fifth key inside it -- the [E] half may not ride the [N] half's dict.
+                                 # Same four-key shape: {substituted, handles_dropped, sentences_dropped,
+                                 # unresolvable}. (CORRECTED, H1 FIX W4: the original wording, "a four-key
+                                 # dict pinned byte-for-byte by the suites", is CONTROL-lane true only --
+                                 # see the treatment-lane superset named at `number_handles` above. The
+                                 # sibling rule itself is unchanged and is about NAMESPACES, not arity.)
                                  # Absent (None) until D-HP-10's [E] resolution pass lands at H1.
     "error",                     # D-HP-4(b): the LITERAL key, not the draft's `turn_error`. This registry
                                  # lifts keys VERBATIM BY THEIR OWN NAME (the contract above; eval.py's
@@ -106,6 +138,61 @@ TRACE_RECORD_KEYS: tuple[str, ...] = (
                                  # the record carries `served_rows` (so an [N] handle -> row join exists) but
                                  # neither `resolved` nor the evidence list, so G1 clause (6)'s spot-audit is
                                  # not computable for [E] handles at all. GATE-BLOCKING for D-HP-21 (6).
+    # ── D-HP H1 (D-HP-14). APPENDED at the tail, per the law above.
+    "wrong_slot_audit",          # D-HP-14: THE WAVE'S #1 RISK EXPRESSED AS A COLUMN. A resolved-but-MIS-BOUND
+                                 # handle prints a REAL, CITED, WRONG number -- today's fabricated number is
+                                 # strippable, this one is invisible to every check in the tree, and no
+                                 # instrument for it exists. SHAPE, FROZEN HERE BECAUSE FOUR CONSUMERS JOIN ON
+                                 # IT: {scope_checked, scope_mismatch, direction_checked, direction_mismatch},
+                                 # four ints, stamped by the [N]/[E] render passes on every handle-prose turn
+                                 # (absent -> None on every control row, which is the arm's own OFF proof).
+                                 # PER-ROW BY CONSTRUCTION, and that is a REQUIREMENT, not a side effect: R11's
+                                 # tripwire records any single row with `mis_bound_count >= 3` BY ID, and
+                                 # `mis_bound_count` = slot_scope_mismatch + direction_sign_mismatch +
+                                 # wrong_slot_audit.scope_mismatch (D-HP-17 item 2c), so a per-RUN-only census
+                                 # would make the ceiling of 15 uncheckable at the row level it is written at.
+    # ── H1 FIX W2 (finding NF-2). APPENDED at the tail, per the law above (the 12f column-shift lesson).
+    "slot_orphan_dropped",       # THE Z4/W1 REMEDY'S OWN RECORD: {sentences_dropped}, stamped by BOTH
+                                 # serving bodies when a RECORDED verifier strip emptied a value slot and
+                                 # the sentence went whole. Absent (never null) when it removed nothing,
+                                 # and absent on every control row -- the pass is treatment-gated.
+                                 # WHY IT HAD TO BE REGISTERED: this pass DELETES SENTENCES, and it was
+                                 # the only removal in the stack with no counterpart anywhere -- no
+                                 # `by_rule` class, no successor-family term, no column. A G2 fluency
+                                 # delta it caused would have had no readable cause in any G1/G2 run,
+                                 # which is the C2/U3 class this registry exists to kill, re-minted on the
+                                 # one pass whose false-fire risk the H1 review measured at 314/32,557
+                                 # before W1 scoped it to a recorded strip.
+                                 # IT IS NOW DOUBLE-BOOKED ON PURPOSE: W2 also folds the same count into
+                                 # the ONE strip ledger as `by_rule['slot_orphan']` (+`stripped`), so the
+                                 # CLASS SCAN sees it without having to know this column exists. This key
+                                 # is the per-turn census; the ledger class is the pooled instrument. They
+                                 # come from one producer and must agree.
+                                 # `bare_digit_dropped` is deliberately NOT registered beside it: that
+                                 # remedy's magnitude is already recoverable from `by_rule['bare_digit']`
+                                 # (verify's own charge for the same sentences), so it is shadowed rather
+                                 # than silent. Recorded here so the asymmetry is a decision, not a gap.
+    # ── H1b (D-HP-15). APPENDED at the tail, per the law above (the 12f column-shift lesson).
+    "episode_spans_validated",   # D-HP-15 SELECT: {spans_checked, bullets_dropped}, stamped by BOTH
+                                 # serving bodies when the span-membership pass had model episode
+                                 # bullets to test. Absent (never null) on every CONTROL row -- the
+                                 # mutation is treatment-gated -- and absent on any row whose mechanism
+                                 # carried no '## Episodes' bullets at all.
+                                 # THE DENOMINATOR RIDES WITH THE CHARGE, DELIBERATELY. `bullets_dropped`
+                                 # alone is a numerator G1's (e-ep) ceiling cannot be read against: a run
+                                 # with two drops over 4 bullets and one with two over 90 are the same
+                                 # number and not the same fact. So a CLEAN treatment row still stamps
+                                 # `{spans_checked: n, bullets_dropped: 0}` -- the one departure from the
+                                 # absent-when-nothing-fired idiom, and it is what makes the ceiling
+                                 # computable rather than merely stated.
+                                 # DOUBLE-BOOKED ON PURPOSE, the `slot_orphan_dropped` pattern: the same
+                                 # drops fold into the ONE strip ledger as `by_rule['episode_span_unbacked']`
+                                 # (+ `stripped`), so the CLASS SCAN (G1 clause (4), where the class is
+                                 # DECLARED) sees the removal without knowing this column exists. This key
+                                 # is the per-turn census; the ledger class is the pooled instrument. One
+                                 # producer (`answer._validate_episode_spans`), so they must agree.
+                                 # IT IS IN NO `emf` SUCCESSOR TUPLE, for the reason stated beside
+                                 # `emf.MIS_BOUND_CLASSES`.
 )
 
 # out["intent_decision"][decision_key] -> record[record_column].

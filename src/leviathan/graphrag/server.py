@@ -225,8 +225,21 @@ _CREDITS_DEFAULT_LIMIT = 100
 # expensive: if `honored` ever came to carry the effective preset (a future stamp change, a dossier
 # sub-turn, an eval arm requesting the preset BY NAME), an unpriced `esc` would read as UNMETERED and
 # the reconcile would FULL-REFUND a delivered max-width + Opus turn. A tier with no price is free.
-_CREDIT_PRICES: dict = {"deep": 1, "esc": 1, "esc_r": 1}   # wire names, frozen identifiers
-                                                # (rm.DEEP / rm.ESC / rm.ESC_R); quick == free
+# D-HP H1 FIX Z5(d): the four `_hp` twins are priced AT THEIR BASE'S PRICE, in the same commit as the
+# escalation seam that makes them reachable. The table is keyed on the HONORED WIRE NAME, so a flipped
+# `deep_hp` tier -- D-HP-26 step 0's whole point -- would bill ZERO credits: the treatment arm would be
+# free while its control paid, which is a pricing defect wearing an A/B's clothes, and the refund path
+# (`_credit_price` again at the reconcile) would recompute the same 0 and quietly agree. `quick_hp` is
+# absent for the same reason `quick` is: Scan is unmetered on both arms, and an entry would mint a price
+# for a tier that has none.
+# WHY LITERALS AND NOT A DERIVATION: this table is the FROZEN WIRE CONTRACT (see the note above), and it
+# must stay readable as one line of prices. `rm.base_mode(honored)` is the alternative and was refused
+# here for the reason the D-MW-30 comment gives: a price table that computes is a price table that can be
+# argued with at 3am. The names are pinned against the leaf's own join in test_dmw_credit_seam.
+_CREDIT_PRICES: dict = {"deep": 1, "esc": 1, "esc_r": 1,   # wire names, frozen identifiers
+                        "deep_hp": 1, "esc_hp": 1, "esc_r_hp": 1}
+                                                # (rm.DEEP / rm.ESC / rm.ESC_R + the D-HP twins);
+                                                # quick and quick_hp == free
 _CREDIT_KEY = "_credit"                         # private slot on the identity dict: the turn's charge
 _CREDITS_ERROR_CODE = "credits_exceeded"        # the 429's MACHINE slug; the sentence rides `detail` (F9)
 # The GROUNDED-WALK STAMP (F2). `planner.grounded_subgraph` writes `trace.walk_shape` on EVERY walk, both

@@ -16,7 +16,12 @@ What is pinned here, in the order the acceptance shapes name it:
      control run whose only difference is that the scaffold call is a no-op (i.e. the pre-change body).
   D  THE RECEIPT BRANCH BOTH WAYS + the FALSE-ABSENCE IMPOSSIBILITY over the full receipt matrix.
   E  the three-place [E] rule, the evidence fence, and every fail-closed decline.
-  F  the FOUR-CONSTRAINT SEAM, pinned by source order in BOTH serving bodies.
+  F  the FOUR-CONSTRAINT SEAM, pinned by source order in BOTH serving bodies -- and the three legs the
+     H1b conviction pass (D-HP-15, plan 10.13) could only break HERE. AT FOLD-2 (plan 10.15) THAT PASS
+     MOVED OFF THIS SEAM, ahead of the digit lint that was de-markering the text it walked, so it is no
+     longer the scaffold's NEIGHBOUR -- but it still runs FIRST, still leaves the heading standing so
+     the scaffold cannot double-render, and still lets the cap law count the bullets that survived the
+     conviction. The seam itself did not move, which is the property this section owns.
   G  fork_basis minted in BOTH bodies, its numeric leg equal to the old predicate, and independent of
      the answer prose WITH THE SCAFFOLD ON (V.4 X3's condition).
   H  the PIN SPLIT: fork_licensed registered + a strict superset, the 5 cascade/pace rows unchanged,
@@ -450,6 +455,108 @@ def test_the_seam_constraints_are_written_down_where_the_code_lives():
     stated in the module so the next reader has them at hand."""
     doc = inspect.getsource(an._maybe_scaffold_episodes)
     assert "THREE-LEG FIRE CONDITION" in doc and "RECEIPT-BRANCHING" in doc
+
+
+# ══ F (H1b, D-HP-15 / plan 10.13, RE-ANCHORED AT FOLD-2 / plan 10.15) -- THE CONVICTION PASS ═══════
+# H1b inserted `_validate_episode_spans` immediately before the scaffold call; FOLD-2 MOVED IT UPSTREAM,
+# ahead of the whole seven-pass stack, because the D-HP-12 digit lint was eating ordered-list markers
+# out of the text the fence walked (plan 10.15 G-A). THE SEAM IS STILL THIS FILE'S PROPERTY, so the
+# three legs that could only break HERE are still pinned HERE rather than in the item's own suite: the
+# pass -- wherever it runs -- must not displace the scaffold from the four constraints above, must not
+# open the two-section hazard section A exists for, and must run FIRST so the cap law counts survivors.
+# What changed is the DISTANCE, not the ORDER, and the assertion below says so.
+_H1B_SPAN_A = tl.month_span(_EPS[0])                    # 1994-06..1994-08, spelled by the ONE producer
+_H1B_SPAN_B = tl.month_span(_EPS[1])                    # 2021-06..2021-08
+_H1B_FAKE = ("2019-01..2019-03", "2018-04..2018-06", "2017-02..2017-05")   # windows nothing injected
+
+
+def _h1b_mech(*spans):
+    """A model-authored '## Episodes' section, one ABSENCE bullet per span (no [E], absence marker)."""
+    return ("## The record\nThe corpus documents frost damage [E1].\n## Episodes\n"
+            + "".join(f"- {s} -- drivers/frost: no citable item in this window.\n" for s in spans)
+            + "## What to watch\nFurther cold fronts.\n")
+
+
+@pytest.mark.parametrize("body", ["_answer_l2", "answer"])
+def test_the_h1b_validation_pass_runs_first_without_displacing_the_scaffold(body):
+    """CONVICTIONS FIRST, SHAPE CAPS SECOND -- pinned as SOURCE ORDER in both bodies. The four
+    constraints above are unchanged and are re-asserted from the conviction pass's perspective, because
+    the failure mode of an insert is that it satisfies itself and MOVES ITS NEIGHBOUR -- and the failure
+    mode of a RELOCATION (fold-2) is that it drags the neighbour along with it.
+
+    RE-ANCHORED AT FOLD-2, and the re-anchor is the point: the pass now runs ahead of the seven-pass
+    stack, so it is upstream of the A4b `verified_*` capture instead of downstream of it. THE SCAFFOLD
+    DID NOT MOVE -- it is still after that capture, still before `_humanize_structured`, still before
+    `render` -- which is exactly what this file exists to guarantee. The ordering relation that carries
+    the cap law (`val < call`) is unchanged; only the distance between them is."""
+    src = inspect.getsource(getattr(an, body))
+    val, call = src.index("_validate_episode_spans(structured,"), src.index("_maybe_scaffold_episodes(")
+    assert val < call, "the conviction pass no longer precedes the scaffold"
+    assert val < src.index("_drop_bare_digit_sentences("), "the fence would walk de-markered text again"
+    assert src.index("verified_mechanism=structured") < call, "the SCAFFOLD left the four-constraint seam"
+    assert call < src.index("_humanize_structured(structured")     # the scaffold's own constraint 3
+    assert call < src.index("render(structured")                   # ...and constraint 4, unmoved
+
+
+def test_a_section_emptied_by_h1b_keeps_its_heading_so_the_scaffold_never_double_renders():
+    """THE TWO-SECTION HAZARD SECTION A EXISTS FOR, reached from a new direction. `_maybe_scaffold_
+    episodes` fires ONLY when the model wrote no section (`_has_episode_section`), and `eval._episode_
+    section` resets its body on every matching heading, so the LAST section wins. If H1b's conviction pass
+    had removed the HEADING along with the last convicted bullet, the scaffold would then synthesize a
+    SECOND '## Episodes' section and the scorer would read the engine's while the reader read both.
+
+    IT DOES NOT: the remedy is deletion of CONVICTED prose and a heading is not convicted (the
+    `_cap_absence_bullets` precedent, which never removes it either). A section whose every bullet was
+    unbacked ships as a BARE HEADING -- recorded as a residual in plan 10.13, pinned here as CURRENT
+    behaviour so the day it changes the change is deliberate."""
+    st = _structured(_h1b_mech(*_H1B_FAKE))
+    # RE-ANCHORED (H1b fold-1 F4): the census gained `section_seen`, which is what the two seams now
+    # stamp the trace key on. The three counts this pin is about are unchanged.
+    assert an._validate_episode_spans(st, _injected(), handle_prose=True) == \
+        {"spans_checked": 3, "bullets_dropped": 3, "section_seen": True}
+    mech = st["mechanism"]
+    assert an._has_episode_section(mech) and ev._episode_section(mech) is not None
+    assert "- " not in ev._episode_section(mech)                   # the heading, and nothing under it
+
+
+def test_the_scaffold_does_not_double_render_after_h1b_emptied_the_model_section(monkeypatch):
+    """...and the consequence of the pin above, driven through the producer rather than argued: with the
+    flag ON, on the SAME turn, the scaffold still takes the model-authored branch (`fired` False,
+    `episodes_model_authored` True) and the page carries exactly ONE '## Episodes' heading."""
+    st = _structured(_h1b_mech(*_H1B_FAKE))
+    an._validate_episode_spans(st, _injected(), handle_prose=True)
+    monkeypatch.setenv("GRAPHRAG_EPISODE_SCAFFOLD", "on")
+    trace = an._maybe_scaffold_episodes(st, _verifier(), injected=_injected(),
+                                        nodes=[_Node("drivers/frost", _EPS)], evidence=_EVIDENCE,
+                                        n_positional=2)
+    assert trace["episodes_model_authored"] is True
+    assert trace["episodes_scaffolded"]["fired"] is False
+    assert st["mechanism"].count("## Episodes") == 1
+
+
+def test_the_cap_law_counts_the_bullets_that_survive_the_conviction_pass(monkeypatch):
+    """WHY THE ORDER IS *THIS* ORDER, in behaviour and not only in source. D-PQ CAP-1's cap is a SHAPE
+    bound on a section the model wrote; H1b's pass is a CONVICTION. Running the cap first would have it
+    spend its budget deleting bullets the conviction pass was about to delete anyway, and stamp
+    `n_absence_capped` for a shape problem the answer did not have.
+
+    DRIVEN: five absence bullets, two backed and three invented, `max_absence=2`. In the serving order the
+    conviction pass removes the three invented ones and the cap then sees a compliant section and stamps
+    NOTHING. (Reversed, the cap would see five, drop three, and report a cap that never applied.) The cap
+    laws themselves are frozen for H1b -- `_cap_absence_bullets` is untouched -- so this pins the
+    INTERACTION, which is the only thing the insert could have broken."""
+    monkeypatch.setenv("GRAPHRAG_EPISODE_SCAFFOLD", "on")
+    order = (_H1B_SPAN_A, _H1B_FAKE[0], _H1B_FAKE[1], _H1B_SPAN_B, _H1B_FAKE[2])
+    # the reversed order, measured first, is what makes the assertion below a distinction and not a tautology
+    assert an._cap_absence_bullets(_h1b_mech(*order), max_absence=2)[1] == 3
+    st = _structured(_h1b_mech(*order))
+    assert an._validate_episode_spans(st, _injected(), handle_prose=True)["bullets_dropped"] == 3
+    trace = an._maybe_scaffold_episodes(st, _verifier(), injected=_injected(),
+                                        nodes=[_Node("drivers/frost", _EPS)], evidence=_EVIDENCE,
+                                        n_positional=2)
+    assert "n_absence_capped" not in trace["episodes_scaffolded"]   # nothing left for the cap to do
+    assert st["mechanism"].count("\n- ") == 2                       # the two backed bullets, in order
+    assert st["mechanism"].index(_H1B_SPAN_A) < st["mechanism"].index(_H1B_SPAN_B)
 
 
 # ══ G -- fork_basis: BOTH mint bodies, the superset equality, and the circularity fence ═══════════════

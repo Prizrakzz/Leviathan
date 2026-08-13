@@ -6,7 +6,8 @@ eval.py can all import it without cycles, and the preset table cannot be hand-co
 module and drift (the COMPAT-9 duplicate-and-pin defect class).
 
 PRESETS -- `quick` / `standard` / `deep`, plus the DARK `deep_v2` / `max` / `max_c0`, the D-MW-30 escalated
-pair `esc` / `esc_r`, and the D-MW-28 P6 arm `max_cc1`. `standard` is ALL-NONE:
+pair `esc` / `esc_r`, the D-MW-28 P6 arm `max_cc1`, and the D-HP-8 handle-prose set
+`quick_hp` / `deep_hp` / `esc_hp` / `esc_r_hp`. `standard` is ALL-NONE:
 `knobs("standard")` is the EMPTY DICT, every kwarg builder returns `{}`, and every call site therefore
 stays byte-identical under the omit-when-default idiom. That empty dict IS the fail-open guarantee (the
 same role the `default` response contract's empty directive plays), not a promise anyone has to keep by
@@ -39,6 +40,9 @@ THREADS values, it does not redesign seams:
                                                       structural-admission provenance + the INVITATION)
   walk      cascade_contract_slots                 -> planner.grounded_subgraph (D-MW-28/P6: PAID slots
                                                       for foreign contracts the seed CASCADES INTO)
+  grammar   handle_prose                           -> answer._system(handles=) + the [E]/[N] render passes
+                                                      + the digit-lint CHARGE (D-HP-8, R9: ONE knob for the
+                                                      whole bundle; GRAPHRAG_HANDLE_PROSE kills, never enables)
 
 `max` / `max_c0` (D-MW-13, STEP-0-CALIBRATED + RATIFIED 2026-08-11) -- the Full-cascade tier. `max_seeds`
 KEEPS its name and becomes the tier seed CEILING (6); the dispatch planner decides the REALIZED cardinality
@@ -60,6 +64,16 @@ per_seed_reserve 4 + `provenance_prompt=True`, the
 12c reserve retry with the missing half (the writer could not tell a structural node from a cosine one, so the
 reserved rows rendered anonymously and were never cited). Both permanently DARK as presets: serving reaches
 them ONLY through the escalation seam, which stamps mode_decision.honored=deep + escalation_decision.fired.
+
+`quick_hp` / `deep_hp` / `esc_hp` / `esc_r_hp` (D-HP-8, R9 ratified) -- THE HANDLE-PROSE CONTROL SURFACE, and
+the ONE enabling lever of that treatment. Each is CONSTRUCTED from its base preset plus `handle_prose=True`
+(`HANDLE_PROSE_PRESETS` below), so the gate arm `deep` vs `deep_hp` differs by exactly ONE variable and cannot
+drift the day a base preset is amended. The set is MATCHED because the escalation seam swaps the knob dict
+WHOLE: a `deep_hp` turn escalating into `esc` would revert the prompt contract mid-turn while the renderer and
+the lint reverted with it (or half-reverted), silently gutting two of the four judged gates. All four are DARK
+at birth; `standard` is excluded from the ladder entirely (its empty knob dict IS the fail-open guarantee, and
+a field on it would red the passthrough pin). A SERVING FLIP OF `deep_hp` MAY NOT OPEN WHILE
+`GRAPHRAG_SHAPE_ESC` IS ON UNLESS `esc_hp` SHIPS WITH IT.
 
 `max_cc1` (D-MW-28, P6) -- `max` + ONE cross-market cascade contract slot, the two-preset arm pattern for the
 THIRD time. The P6 gate runs `--mode max` vs `--mode max_cc1`: one variable, identical width, neither arm
@@ -85,7 +99,7 @@ newer than the turn's horizon. `deep` is therefore PIT-neutral, and `quick` only
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, fields, replace
 
 QUICK = "quick"
 STANDARD = "standard"
@@ -96,6 +110,13 @@ MAX_C0 = "max_c0"
 ESC = "esc"                                   # D-MW-30: the escalated SHAPE (deep's envelope, max's width)
 ESC_R = "esc_r"                               # ...plus the reserve bundle (reserve 4 + the provenance prompt)
 MAX_CC1 = "max_cc1"                           # D-MW-28 (P6): max + ONE cross-market cascade contract slot
+# D-HP-8 (H1, R9): THE MATCHED DARK PRESET SET -- the handle-prose treatment's ONE enabling lever. Four
+# names, minted in ONE commit, all four in DARK_NAMES. `standard` is NOT in the set and cannot be (its
+# all-None dict IS the fail-open guarantee), and `max`/`max_c0`/`max_cc1` are out of the ladder entirely.
+QUICK_HP = "quick_hp"                         # the FIRST tier in the D-HP-26 flip ladder
+DEEP_HP = "deep_hp"                           # the second; the reference arm for G1/G2
+ESC_HP = "esc_hp"                             # the escalation TARGET a deep_hp turn must reach
+ESC_R_HP = "esc_r_hp"                         # ...and the reserve twin (D-HP-25's arm)
 
 # D-MW-13: the TOTAL ceilings the seed-scaled ground caps may never exceed, whatever the realized seed
 # count is. They live here (not at a call site) because `scaled_ground_kwargs()` is the ONE producer of
@@ -175,6 +196,20 @@ class Mode:
     # defect that forced the reserve into this table -- every quick/standard turn on the task would pay a
     # ~2.8k-token foreign contract block. None (every shipped preset) == 0 == byte-identical.
     cascade_contract_slots: int | None = None
+    # D-HP-8 (H1, R9): THE HANDLE-PROSE GRAMMAR FLAG, appended LAST -- the appended-last law, FIFTH
+    # application (KNOB_FIELDS order IS the trace-stamp column order; 12f records what a shift costs).
+    # ONE knob gates the WHOLE treatment bundle (B8): the prompt contract (`_system(handles=...)`), the
+    # [E]/[N] render passes, and the digit-lint's CHARGE. Two knobs would re-create the
+    # GRAPHRAG_VERIFY_ALLNUM hazard PHASE9_B deliberately refused.
+    # A KNOB AND NOT AN ENV, and the reason is measured, not stylistic: the escalation seam swaps the knob
+    # dict WHOLE (orchestrator.py:2138-2139, "never a merge"), so a process env would leave the PROMPT
+    # contract on while the renderer reverted mid-turn -- or half-revert -- on exactly the two judged gates
+    # (D-HP-23 rung 2, D-HP-25) that ride escalation. `GRAPHRAG_HANDLE_PROSE` survives as a ONE-WAY KILL
+    # only (`handle_prose_arm` / `handle_prose_on` below are the ONE producer of that resolution).
+    # None on every non-`_hp` preset, and None is the ONLY correct absent value: `knobs()` filters
+    # `is not None`, so a literal False would MINT the key into deep's trace stamp and break the
+    # byte-identity law the whole table rests on.
+    handle_prose: bool | None = None
 
 
 MODES: dict[str, Mode] = {m.name: m for m in (
@@ -320,6 +355,22 @@ MODES: dict[str, Mode] = {m.name: m for m in (
          cascade_contract_slots=1),
 )}
 
+# ── D-HP-8 THE MATCHED DARK PRESET SET (H1, R9 ratified) ────────────────────────────────────────────────
+# base name -> `_hp` twin. THE ONE PRODUCER of the pairing: every consumer that must follow a turn from a
+# base preset to its handle-prose twin (or back) reads this table instead of retyping a name -- the
+# escalation target, the census mandate set, the credit price and the eval arm stamp are all the same join.
+HANDLE_PROSE_PRESETS: dict[str, str] = {QUICK: QUICK_HP, DEEP: DEEP_HP, ESC: ESC_HP, ESC_R: ESC_R_HP}
+_HP_BASE_OF: dict[str, str] = {hp: base for base, hp in HANDLE_PROSE_PRESETS.items()}
+
+# THE TWINS ARE CONSTRUCTED FROM THEIR BASE, NOT HAND-COPIED, and that is a correctness decision rather
+# than a brevity one. D-HP's gate arms are `deep` vs `deep_hp` at ONE variable; a copied field table makes
+# the arm silently TWO-variable the day anyone amends `deep` (the COMPAT-9 duplicate-and-drift class, which
+# is the reason this module exists at all). `dataclasses.replace` on the frozen preset gives
+# "byte-for-byte its base plus `handle_prose=True`" BY CONSTRUCTION -- there is nothing left to promise,
+# and the pins below assert the property rather than re-listing the values.
+MODES.update({hp: replace(MODES[base], name=hp, handle_prose=True)
+              for base, hp in HANDLE_PROSE_PRESETS.items()})
+
 # Presets that `GRAPHRAG_MODES=on` must NOT sweep into the honored set. A dark preset is still resolvable
 # by NAME (GRAPHRAG_MODES=deep_v2 for the eval arm), which is what keeps the flip a one-env-var decision.
 # D-MW-30 (F8): esc / esc_r join the dark set IN THE SAME COMMIT that mints them. A forgotten entry here
@@ -329,7 +380,14 @@ MODES: dict[str, Mode] = {m.name: m for m in (
 # D-MW-28 (P6): max_cc1 joins in the SAME commit that mints it, for the same reason -- a forgotten entry
 # makes an un-adjudicated arm wildcard-honorable. serving_names() is UNCHANGED by this, and the pin on
 # that fact is the leak fence.
-DARK_NAMES: frozenset = frozenset({DEEP_V2, MAX, MAX_C0, ESC, ESC_R, MAX_CC1})
+# D-HP-8 (R9): ALL FOUR `_hp` twins join in the SAME commit that mints them -- the F8 leak fence, fifth
+# application, and here it is the whole control surface. `quick_hp`/`deep_hp` are the flip ladder's own
+# rungs (D-HP-26), so a forgotten entry would serve UNGATED handle-only prose -- number-free sentences
+# with the figures still unspliced -- to anyone who typed the name before G1 has run. THE ROLLBACK IS THE
+# SAME ONE ENV VALUE for all four: drop the name from GRAPHRAG_MODES and the tier falls back to its base
+# preset, byte-identical OFF, no rebuild.
+DARK_NAMES: frozenset = frozenset({DEEP_V2, MAX, MAX_C0, ESC, ESC_R, MAX_CC1,
+                                   QUICK_HP, DEEP_HP, ESC_HP, ESC_R_HP})
 
 # The knob field names, in declaration order (the trace-stamp column order; append, never sort).
 KNOB_FIELDS: tuple[str, ...] = tuple(f.name for f in fields(Mode) if f.name != "name")
@@ -381,6 +439,108 @@ def knobs(name: str | None) -> dict:
     => every kwarg builder below is empty => every call site is byte-identical."""
     m = get(name)
     return {k: getattr(m, k) for k in KNOB_FIELDS if getattr(m, k) is not None}
+
+
+# ── D-HP-8: THE HANDLE-PROSE CONTROL SURFACE (R9) ───────────────────────────────────────────────────────
+# The kill switch's accepted OFF spellings. `GRAPHRAG_HANDLE_PROSE` is a ONE-WAY KILL: it can force the
+# treatment off from any preset, and it can NEVER turn it on. The env READ stays at the caller (this module
+# reads no environment -- the `resolve(allowed=...)` idiom), so the value is threaded in, never fetched.
+HANDLE_PROSE_KILL_VALUES: frozenset = frozenset({"off", "0", "false", "kill"})
+
+
+def _hp_killed(kill_env: str | None) -> bool:
+    return str(kill_env or "").strip().lower() in HANDLE_PROSE_KILL_VALUES
+
+
+# ── D-HP H1 FIX Z9: THE TWO ROLLBACK LANES BELONG TO THE ONE PRODUCER ────────────────────────────────
+# Section 2's MUTUAL-EXCLUSION law says handle-prose is IGNORED on a turn whose renderer cannot honour it:
+# `GRAPHRAG_VERIFY=off` (every handle pass runs inside `if verifier.get("enabled")`) and
+# `GRAPHRAG_MENTOR_VOICE=off` (`answer._system` returns the LEGACY persona, which carries neither the
+# menu's vocabulary nor the four spans the contract supersedes). Those two reads used to live ONLY in
+# `answer._handle_prose_active`, so `eval._handle_prose_arm` -- the artifact's join key for D-HP-19's
+# bridge run and for every arm-vs-control comparison -- stamped "on" for turns on which the treatment
+# PROVABLY did not run. An artifact that NAMES AN ARM THAT DID NOT RUN is strictly worse than one that
+# names none, so the lanes move HERE, beside the kill switch, and both seams call the same function.
+# THE LEAF STILL READS NO ENVIRONMENT (the `resolve(allowed=...)` idiom): the VALUES are threaded in.
+# An omitted lane argument means "this lane is not engaged", so every pre-Z9 two-argument caller is
+# byte-identical -- the lanes can only ever turn the treatment OFF, never on.
+# THE SPELLING IS THE CALLERS' OWN, EXACTLY: `verify.py:890` and `_system` both test `== "off"` against a
+# value defaulted to "on", so a lane is engaged iff the string IS "off". No strip, no case-fold -- a
+# looser test here would silently widen a documented rollback lane that two other modules read narrowly.
+def _hp_lane_off(env_value: str | None) -> bool:
+    return env_value is not None and str(env_value) == "off"
+
+
+def _hp_lanes_open(verify_env: str | None, mentor_env: str | None) -> bool:
+    """True when NEITHER rollback lane is engaged -- i.e. the renderer can honour the contract."""
+    return not (_hp_lane_off(verify_env) or _hp_lane_off(mentor_env))
+
+
+def handle_prose_variant(name: str | None) -> str | None:
+    """The `_hp` twin of a base preset, or None when there is none (`standard`, `max`, an unknown name,
+    or an `_hp` name itself). The escalation seam's target selection is exactly this lookup."""
+    return HANDLE_PROSE_PRESETS.get((name or "").strip().lower())
+
+
+def base_mode(name: str | None) -> str:
+    """The BASE preset behind a name: `deep_hp` -> `deep`, and every other name unchanged (including
+    unknown ones -- fail-open, same as `resolve`/`get`).
+
+    THE CONSUMERS THAT NEED THIS ARE NOT OPTIONAL, and each is a live defect if it retypes the join
+    instead: the escalation gate's tier test (`honored != DEEP` would suppress every `deep_hp` turn with
+    reason `tier`, i.e. `esc_hp` would be UNREACHABLE and D-HP-23 rung 2 would measure nothing), the
+    composition-census mandate set (an `esc_hp` arm without the mandates its `esc` control ran is a
+    two-variable arm), and the credit price (a `deep_hp` turn priced by name alone bills 0)."""
+    n = (name or "").strip().lower()
+    return _HP_BASE_OF.get(n, n)
+
+
+def handle_prose_on(kn: dict | None, kill_env: str | None = None) -> bool:
+    """THE SEAM BOOLEAN: does handle-prose run on this turn? True iff the RESOLVED knob dict carries
+    `handle_prose` True and the kill switch is not set. ONE producer for the prompt contract, the [E]/[N]
+    render passes and the digit-lint CHARGE -- the bundle rule (B8) is that they cannot disagree.
+
+    The argument is the KNOB DICT, never a mode name, because the knob dict is what the escalation seam
+    swaps WHOLE (orchestrator.py:2138-2139): a seam that re-derived the flag from the honored name would
+    keep the prompt contract on through an escalation that reverted the renderer.
+
+    THE ROLLBACK LANES ARE NOT READ HERE, deliberately: this answers "is the treatment SELECTED", which is
+    what `answer._handle_prose_on` has always meant. `handle_prose_active` answers "may it RUN"."""
+    if _hp_killed(kill_env):
+        return False
+    return bool((kn or {}).get("handle_prose"))
+
+
+def handle_prose_active(kn: dict | None, kill_env: str | None = None, *,
+                        verify_env: str | None = None, mentor_env: str | None = None) -> bool:
+    """`handle_prose_on` AND the two ROLLBACK LANES -- the FULL verdict, and the ONE producer of it.
+
+    `answer._handle_prose_active` is a thin wrapper that supplies the two env values; `eval` reads the
+    same function for its arm stamp. A lane added on one side therefore cannot exist on the other, which
+    is the H0 defect (`eval` naming an arm that did not run) reopened once already by the second lane."""
+    if not handle_prose_on(kn, kill_env):
+        return False
+    return _hp_lanes_open(verify_env, mentor_env)
+
+
+def handle_prose_arm(kn: dict | None, kill_env: str | None = None, *,
+                     verify_env: str | None = None, mentor_env: str | None = None) -> str | None:
+    """THE ARM STAMP for an artifact header: `"on"` | `"off"` | None (the wave's control surface is not
+    on this image / no preset declared it). NEVER stamps "on" for an env value: an artifact that NAMES AN
+    ARM THAT DID NOT RUN is strictly worse than one that names none, and this is the join key D-HP-19's
+    bridge run rides.
+
+    H1 FIX Z9 -- THE STAMP READS THE FULL VERDICT, NOT JUST THE KNOB AND THE KILL. A preset that declares
+    the knob on a turn whose `GRAPHRAG_VERIFY`/`GRAPHRAG_MENTOR_VOICE` rollback lane is engaged stamps
+    "off": the treatment was selected and did NOT run, which is exactly what a killed run stamps and for
+    the same reason. The None case is unchanged and still means "nothing turned it on and nothing killed
+    it" -- a control row, and a lane engaged on a control row still stamps None, because no arm was ever
+    selected there to be reported off."""
+    if _hp_killed(kill_env):
+        return "off"
+    if not bool((kn or {}).get("handle_prose")):
+        return None
+    return "on" if _hp_lanes_open(verify_env, mentor_env) else "off"
 
 
 def walk_kwargs(kn: dict | None) -> dict:

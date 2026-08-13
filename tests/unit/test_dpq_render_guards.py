@@ -210,8 +210,21 @@ def test_the_guard_is_gated_on_the_verifier_in_both_bodies():
     SOURCE because the alternative is an end-to-end turn, and this is a one-line invariant."""
     import pathlib
     src = pathlib.Path(an.__file__).read_text(encoding="utf-8")
-    assert src.count('if verifier.get("enabled"):\n        sg.trace["number_handles"]') == 1
+    # D-HP-11 (H1) RE-PIN. The invariant is unchanged and is asserted the same way; only the CALL grew a
+    # kwarg (`handle_prose=`, the treatment bundle's one knob), so a byte-exact match on the old call text
+    # would red on a change the plan mandates. What is pinned is the GATE and the ORDER: the [N] pass is
+    # the FIRST thing inside the verifier gate that touches [N] tokens, and it is inside it on both bodies.
+    _gate = src.index('if verifier.get("enabled"):')
+    assert src.index('sg.trace["number_handles"] = _resolve_number_handles(', _gate) > _gate
     assert 'if verifier.get("enabled") else None)' in src
+    # ...and D-HP-12's REMEDY is the one pass ahead of it, inside the SAME gate: it must run before any
+    # value splice, or it reads the engine's spliced digits as the model's own.
+    # H1 FIX Z12 RE-PIN, THE IDIOM THIS FILE ALREADY APPLIES TO `_resolve_number_handles` ABOVE: the call
+    # grew an argument the fix mandates (the verifier, so the remedy can mint the strip seam TIDY-2 joins
+    # on), so both pins here match the call's HEAD. The invariants -- ORDER inside the gate, and BOTH
+    # bodies -- are unchanged and are what is asserted.
+    assert src.index("_drop_bare_digit_sentences(structured, extra_number_calls", _gate) < \
+        src.index("_resolve_number_handles(structured, extra_number_calls,", _gate)
 
 
 def test_both_synthesis_bodies_call_the_guard_and_the_key_is_registered():
@@ -220,9 +233,19 @@ def test_both_synthesis_bodies_call_the_guard_and_the_key_is_registered():
     (a spliced figure rides the same sanitize as the rest of the prose)."""
     import pathlib
     src = pathlib.Path(an.__file__).read_text(encoding="utf-8")
-    assert src.count("_resolve_number_handles(structured, extra_number_calls)") == 2
+    # D-HP-11 (H1) RE-PIN: the call grew `handle_prose=`, so the pin matches the call's HEAD (both bodies)
+    # rather than a byte-exact argument list the plan mandates changing.
+    assert src.count("_resolve_number_handles(structured, extra_number_calls,") == 2
+    assert src.count("handle_prose=_handles)") >= 2          # ...and BOTH carry the one resolved knob
     from leviathan.graphrag import tracekeys as tk
     assert "number_handles" in tk.TRACE_RECORD_KEYS
+    # D-HP-10/12/14 ride the SAME two-body rule: a render pass on one body only is the same defect with a
+    # flag in front of it (the `GRAPHRAG_PLANNER=onehop` rollback lane serves every turn when it is on).
+    assert src.count("_resolve_evidence_handles(structured, uniq, handle_prose=_handles)") == 2
+    assert src.count("_drop_bare_digit_sentences(structured, extra_number_calls") == 2
+    assert src.count("_wrong_slot_audit(") == 3              # the producer + one call site per body
+    for k in ("prose_handles", "wrong_slot_audit"):
+        assert k in tk.TRACE_RECORD_KEYS
 
 
 # ══ HANDLE-2: a grouped token is MANY handles ════════════════════════════════════════════════════════

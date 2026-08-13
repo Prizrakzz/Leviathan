@@ -214,14 +214,25 @@ def test_only_deep_is_priced_and_the_dark_tiers_are_absent():
 
     D-MW-30 F6 RE-PIN: the two ESCALATED presets are priced, at deep's price, and that asymmetry with
     max/max_c0 is the point. An unpriced `max` cannot be SOLD; an unpriced `esc` would be a delivered
-    max-width + Opus turn that the reconcile FULL-REFUNDS the moment anything stamps it as honored."""
+    max-width + Opus turn that the reconcile FULL-REFUNDS the moment anything stamps it as honored.
+
+    D-HP H1 FIX Z5(d): the metered `_hp` TWINS are priced too, at their base's price. D-HP-26 step 0 flips
+    the treatment on BY PRESET NAME, so an unpriced `deep_hp` would bill 0 while its `deep` control billed
+    1 -- the treatment arm free, the refund path recomputing the same 0 and quietly agreeing. `quick_hp` is
+    absent for the same reason `quick` is: Scan is unmetered on both arms."""
     from leviathan.graphrag import orchestrator as orch
     from leviathan.graphrag import reasoning_modes as rm
-    assert sv._CREDIT_PRICES == {rm.DEEP: 1, orch._ESC: 1, orch._ESC_R: 1}
+    assert sv._CREDIT_PRICES == {rm.DEEP: 1, orch._ESC: 1, orch._ESC_R: 1,
+                                 rm.DEEP_HP: 1, rm.ESC_HP: 1, rm.ESC_R_HP: 1}
     assert sv._credit_price(orch._ESC) == 1 and sv._credit_price(orch._ESC_R) == 1
     assert sv._credit_price(rm.QUICK) == 0 and sv._credit_price(rm.STANDARD) == 0
     assert sv._credit_price(rm.MAX) == 0 and sv._credit_price(rm.MAX_C0) == 0
     assert sv._credit_price(None) == 0 and sv._credit_price("nonsense") == 0
+    # EVERY metered twin is priced EXACTLY as its base, derived from the leaf's own join table so a
+    # rename cannot silently un-price an arm. `quick_hp` inherits quick's zero, which is the same rule.
+    for base, hp in rm.HANDLE_PROSE_PRESETS.items():
+        assert sv._credit_price(hp) == sv._credit_price(base), hp
+    assert sv._credit_price(rm.QUICK_HP) == 0 and rm.QUICK_HP not in sv._CREDIT_PRICES
 
 
 def test_a_quick_turn_is_unmetered_even_with_credits_on(monkeypatch):
@@ -786,3 +797,25 @@ def test_the_exempt_list_grammar(monkeypatch):
     monkeypatch.setenv("GRAPHRAG_METER_EXEMPT_SUBS", " a , b ,")
     assert sv._exempt_sub("a") and sv._exempt_sub("b") and not sv._exempt_sub("c")
     assert sv._exempt_sub("") is False
+
+
+def test_z5d_a_deep_hp_turn_bills_exactly_one_credit_with_no_refund_leg(monkeypatch):
+    """D-HP H1 FIX Z5(d), THE MONEY PIN FOR THE TREATMENT ARM. `_CREDIT_PRICES` is keyed on the honored
+    WIRE NAME, and D-HP-26 step 0 flips the treatment on BY PRESET NAME (`--mode deep_hp` with
+    `GRAPHRAG_MODES=deep,deep_hp`), so an unpriced twin bills ZERO: the treatment arm free while its
+    `deep` control pays, and the refund path recomputing the same 0 and quietly agreeing.
+
+    EXACTLY THE DEEP CHARGE: one debit, no second charge, and NO REFUND LEG -- the same three-call
+    signature the escalation pin asserts, because it is the same tier wearing the treatment's name."""
+    s = _use(monkeypatch, _LedgerStore())
+    monkeypatch.setenv("GRAPHRAG_CREDITS", "on")
+    monkeypatch.setenv("GRAPHRAG_MODES", "deep,deep_hp")
+    c = _respond(monkeypatch, lambda q, **kw: _result("deep_hp"))
+    r = c.post("/v1/respond", json={"question": "q", "mode": "deep_hp"})
+    assert r.status_code == 200
+    assert s.balance("local", 100) == 99                        # exactly one, never two, never zero
+    assert [k for k in s.kinds() if k in ("acquire_lease", "debit", "credit", "release_lease")] == \
+        ["acquire_lease", "debit", "release_lease"]             # no `credit` == no refund leg
+    # ANTI-VACUITY: the reconcile really read a turn stamped with the TWIN, not its base.
+    assert sv._honored_mode(_result("deep_hp")) == "deep_hp"
+    assert sv._credit_price("deep_hp") == sv._credit_price("deep") == 1

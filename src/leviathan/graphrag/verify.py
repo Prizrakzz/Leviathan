@@ -135,22 +135,82 @@ _SEAM_LOOKAHEAD = 120
 # established precedent for a raw-text carrier is an ENV GATE (`strip_audit` above, `raw_draft` likewise).
 # TWO CHANGES, and both are needed:
 #   * the SERIALIZED form is gated on GRAPHRAG_STRIP_AUDIT, exactly like `strip_audit`; and
-#   * what it carries is a NORMALIZED 40-char KEY (whitespace-collapsed, case-folded), not the prose. The
-#     renderer join was always a normalized-prefix compare capped at 32 chars, so the key is everything the
-#     join can use and nothing it cannot.
+#   * what it PUBLISHES is a NORMALIZED KEY CUT TO 40 CHARACTERS (whitespace-collapsed, case-folded), not
+#     the prose. The renderer join was always a normalized-prefix compare capped at 32 chars, so 40
+#     characters is everything the join can use and nothing it cannot.
 # The tidy pass must still work in PRODUCTION with the gate off, so the seams also ride an INTERNAL,
 # NON-SERIALIZED carrier: `_VerifyReport.strip_seams`, an attribute on the returned dict subclass. It is
 # invisible to json.dumps, to `dict(...)`, to every projection and whitelist -- so no client, artifact or
 # durable record can ever see it -- while `answer._tidy_strip_orphans`, which is handed the report OBJECT
 # two lines after `verify_citations` returns, reads it directly.
+#
+# H1 FOLD ROUND 5 (2026-08-13) -- FIX W-A/W-B: THE 40 IS THE *PROJECTION'S* BOUND, SO IT IS APPLIED AT THE
+# PROJECTION. Round 4 cut the key inside `_seam_key`, i.e. AT THE MINT, which put one number in front of
+# two different questions and answered both of them wrong:
+#   * TOO NARROW FOR THE LICENCE -- a measured false NEGATIVE, and the fold's own root cause reached by a
+#     third route. The consumer canonicalizes both sides (`answer._licence_canon`) and then compares 32
+#     NORMALIZED characters. Canon DELETES characters, so a key cut at 40 RAW characters can carry fewer
+#     than 32 canonical ones, and its last character is then a truncation artefact -- most often the lone
+#     "-" left when a "--" run is split at char 40, which `-{2,}` cannot erase. The compare diverges at
+#     that boundary and a cut a producer really made goes unlicensed. DRIVEN END TO END on
+#     "The December contract were ( [E9] ) --.  The December contract sits at -- [E4] --." (recorded key
+#     ") --. the december contract sits at -- -", canon 33 chars, against a 32-char tail canon, differing
+#     at index 31 -- 0 sentences dropped and the reader got the fragment) and on
+#     "Brazilian output were [E8],.  Exports hit -- [E8] --.  Exports reads -- [N6] --.". Reach measured
+#     by the round-4 verifier: 95 of 122,470 synthetic house-shaped fragments (0.078%), and ZERO on the
+#     estate's own stored prose -- small, which is why it is a minor, but it is the SAME staleness class
+#     Y1 and Y2 closed.
+#   * AND IT NEVER BOUND WHAT ACTUALLY NEEDED BOUNDING. `answer._seam_key` has no cut, so once
+#     `answer._mint_strip_seam` began MIRRORING this projection (round-4 FIX Y5), the audit published
+#     render-side keys at the full `_SEAM_LOOKAHEAD` width -- measured at 119 characters per seam on
+#     `data/dmw_p4/tier_20260812T051533Z.json`'s mechanism, three times the class this very note bounds,
+#     on the browser-visible channel, under a flag the repo's config-of-record says is live in serving.
+# SO, AND THE SPLIT IS THE WHOLE FIX: the MINT keeps the full `_SEAM_LOOKAHEAD` width on the in-memory
+# carrier, which no serializer can see and which only the licence and TIDY-2 read; `_projected_seam` cuts
+# a COPY to `_SEAM_KEY_CHARS` for the projection, for EVERY producer (`answer._mint_strip_seam` calls the
+# same helper). Do not re-unify them: the two sides answer opposite questions.
 _SEAM_KEY_CHARS = 40
 
 
 def _seam_key(s: str) -> str:
-    """The normalized, bounded comparison form of a seam's successor text. `answer._seam_key` is the same
-    normalization on the renderer side (whitespace-collapsed, case-folded) -- applying it here is what makes
-    the join possible without shipping prose, and re-applying it there is idempotent."""
-    return re.sub(r"\s+", " ", str(s or "")).strip().lower()[:_SEAM_KEY_CHARS]
+    """The normalized comparison form of a seam's successor text, at the FULL width the caller hands in
+    (every mint site bounds its input at `_SEAM_LOOKAHEAD`). `answer._seam_key` is the same normalization
+    on the renderer side (whitespace-collapsed, case-folded) -- applying it here is what makes the join
+    possible without shipping prose, and re-applying it there is idempotent.
+
+    DELIBERATELY NOT LENGTH-BOUNDED (H1 FOLD ROUND 5). The 40-character `_SEAM_KEY_CHARS` class belongs to
+    the browser-visible PROJECTION and is applied there, by `_projected_seam`. A `[:_SEAM_KEY_CHARS]` on
+    this line puts the bound inside the LICENCE path, where the consumer's canon deletes characters before
+    comparing 32 of them -- read the note above for the two driven reproductions, and do not restore it."""
+    return re.sub(r"\s+", " ", str(s or "")).strip().lower()
+
+
+def _projected_seam(seam: dict) -> dict:
+    """The GRAPHRAG_STRIP_AUDIT copy of one seam: a COPY of the record whose `key` is cut to
+    `_SEAM_KEY_CHARS`. Both producers project through here.
+
+    THAT IT IS A COPY IS THE POINT. The in-memory carrier must keep the full-width key (the licence
+    compare needs it), and the projection must not have it (it is up-to-120-character PRE-SANITIZE prose
+    on `trace["citation_verifier"]`, which `/v1/respond` returns whole). Appending the SAME dict object to
+    both -- which is what round 4 did on both producers -- collapses those two requirements into one and
+    the wider one wins. The bound is a property of the projection SITE, not of any caller's key."""
+    out = dict(seam or {})
+    out["key"] = str(out.get("key") or "")[:_SEAM_KEY_CHARS]
+    return out
+
+
+# H1 FOLD ROUND 4 (2026-08-13) -- FIX Y1, THE TWO CLEANUPS THIS FILE APPLIES TO ITS OWN OUTPUT, NAMED.
+# `_verify_field` used to spell these inline on its `return`, ten lines AFTER it minted its seam keys off
+# the pre-cleanup text -- so every key it recorded described a string the renderer would never see. See the
+# seam loop at the end of `_verify_field` for the reproduction and for why the fix is window-local.
+def _strip_cleanup(text: str) -> str:
+    """The whitespace repair a positional strip needs: collapse runs of spaces, then close the space a
+    removed span left in front of `.`/`,`/`;`. Order matters ("  ." -> " ." -> ".").
+
+    IDEMPOTENT and PURELY SUBTRACTIVE ON WHITESPACE: it never inserts, never crosses a newline (`" "`,
+    not `\\s`), and never touches a character that is not a space. That is what makes it safe to apply to
+    a WINDOW of the text as well as to the whole of it (FIX Y1)."""
+    return re.sub(r" +([.,;])", r"\1", re.sub(r"  +", " ", str(text or "")))
 
 
 class _VerifyReport(dict):
@@ -768,6 +828,58 @@ def _num_backed(v: float, allv: list[float], tol: float = 0.01, *, dec: int | No
     return False
 
 
+# ══ D-HP-12 (H1) -- THE DIGIT-LINT. THE CHARGE LIVES HERE; THE REMEDY LIVES IN THE HANDLE PASS ════════
+# The split is the cycle-10 discipline, restated for a new rule: this module decides WHAT IS FLAGGED and
+# writes it into the ONE strip ledger (`stripped` / `by_rule` / `strip_audit`), and the renderer decides
+# what the reader loses. Keeping the charge here is what keeps `by_rule` comparable across the D-HP
+# boundary -- a lint that minted its own counter family would make the class scan (this wave's primary
+# gate, section 2) unable to see it.
+#
+# WHY THE REMEDY CANNOT LIVE HERE, MEASURED FROM THE ORDER OF THE SHIPPED PASSES: `_resolve_number_handles`
+# runs AFTER this module and SPLICES row values into the prose (answer.py:4168). A deletion pass that ran
+# after the splice would delete every sentence the renderer had just filled in -- the digits it would read
+# are the ENGINE's, not the model's. So the remedy runs FIRST in the handle stack, before any splice, and
+# it re-detects through THIS function so the two can never disagree about what a bare digit is.
+#
+# R3, OPTION (b) AS RATIFIED -- THE [E]-CITED EXEMPTION, AND THE HARD COUNTER THAT PRICES IT.
+# 10.5% of all typed numerals exist ONLY inside [E] chunk prose (`b_grammar.uncited_numerals`), so a menu
+# built from served_rows alone cannot express them: under a handle-only contract the model would either
+# keep typing them or lose 850 real figures per corpus. Option (b) keeps the prose whole TODAY and prices
+# the hole HONESTLY -- an [E]-cited sentence is EXEMPT from the charge and COUNTED SEPARATELY, so
+# "the model never types a number" is measured rather than asserted. The counter is what decides whether
+# option (a) (the `[Q]` span handle) is worth its own phase.
+# THE EXEMPTION IS SENTENCE-SCOPED AND THAT IS DELIBERATELY GENEROUS: it does not ask whether the [E] item
+# actually carries the numeral (that question is `quote_mismatch`'s and it needs a span, which is exactly
+# what option (a) would build). A generous exemption costs a COUNT, never a false deletion; the reverse
+# would delete correct prose, which is D3.
+def bare_digit_verdict(sent: str) -> str | None:
+    """D-HP-12's per-SENTENCE verdict, and the ONE producer of it (both this module's charge and
+    `answer._drop_bare_digit_sentences`' remedy call exactly this).
+
+      None         -- the sentence states no claim magnitude of its own. Nothing to charge.
+      "e_cited"    -- it does, AND it cites an [E] handle: the R3(b) exemption. Counted, never charged.
+      "bare_digit" -- it does, and it cites no evidence: the model typed a number under a contract that
+                      says it must write a handle in the slot instead.
+
+    THE EXTRACTOR IS D-HP-3's SINGLE PRODUCER (`_mask_handles` + `_claim_number_spans`) -- the one with the
+    six measured exemptions (year, range tail, letter-glued code, date day, ordinal, duration modifier) and
+    the one `dhp_census.json` itself ran, so every count here is denominated in the same producer every
+    census percentage is. It is NOT `orchestrator._stated_values` and NOT `register._level_tokens`: those
+    carry different exemption sets, each fixed after its own live false-caution incident.
+
+    THE KIND TEST READS `_handle_members`, not a regex over the text, so a GROUPED `[E1, E2]`, a ranged
+    `[E1-E4]` and the bare-lead `[3]` (which has always meant the evidence namespace here) all exempt --
+    and an [N]-only sentence never does, because an [N] handle is a slot address, not a source of prose
+    figures."""
+    s = str(sent or "")
+    if not s.strip() or not _claim_number_spans(_mask_handles(s)):
+        return None
+    for m in _HANDLE.finditer(s):
+        if any(k == "E" for k, _i in _handle_members(m.group(0))):
+            return "e_cited"
+    return "bare_digit"
+
+
 def _check_number_handle(sent: str, idx: int, number_calls: list[dict]) -> str | None:
     if not (1 <= idx <= len(number_calls)):
         return "index_out_of_range"
@@ -801,14 +913,36 @@ def _check_number_handle(sent: str, idx: int, number_calls: list[dict]) -> str |
 
 def verify_citations(structured: dict | None, evidence: list[dict] | None,
                      number_calls: list[dict] | None = None, *,
-                     foreign_names: set[str] | None = None) -> dict:
+                     foreign_names: set[str] | None = None,
+                     handle_prose: bool = False) -> dict:
     """Verify + repair `structured` IN PLACE (tldr/mechanism prose, sources ledger); return the report.
     `foreign_names` = regime names that belong to OTHER contracts' DAGs (never routed here) — asserting
     one is the measured cross-contract fabrication class, so the token is stripped and counted.
     The report carries `resolved` ({ref -> the matched item's true metadata}) so the caller can render
     ONE validated source list numbered by the model's own handles (the dual-list mismatch inflated the
     judge's hallucination tally 37->151 while grounding/PIT rose).
-    GRAPHRAG_VERIFY=off -> no-op. Never raises: verification must never break an answer."""
+    GRAPHRAG_VERIFY=off -> no-op. Never raises: verification must never break an answer.
+
+    == D-HP (H1) -- `handle_prose` IS THE TREATMENT BUNDLE'S ONE KNOB, AND IT ARRIVES AS AN ARGUMENT ====
+    This module reads NO environment for it (the `_mr` / `_outlook` threading discipline: the flag is
+    resolved ONCE at the serving body and rides down, so no engine under that seam can disagree about
+    which lane a turn is on). Default False -> every counter, every branch and every returned byte is the
+    pre-D-HP report exactly, which is what makes the control arm byte-identical BY CONSTRUCTION rather
+    than by promise. TWO things change when it is True, and both are one-sided:
+      (1) an [E] handle whose index is IN RANGE of the single evidence list (D-HP-1's `uniq`) RESOLVES
+          POSITIONALLY. This is D-HP-9's pinned ORDER clause. With `sources` dropped from the tool schema
+          there is no ledger loop to run, `report['resolved']` would stay {} (this function initialises it
+          empty and writes it ONLY from the ledger) and SIX consumers go dark -- including
+          `answer._prune_orphan_evidence_handles`, which would then prune EVERY [E] handle from the prose,
+          and the LIVE FE chip path, which reads `trace.citation_verifier.resolved` and nothing else.
+          Minting here -- the same seam, the same payload shape -- is what keeps that join total.
+          IT IS DELIBERATELY NOT A SYNTHESISED LEDGER: writing `structured['sources']` BEFORE this call
+          would make `_match_ledger_entry` match by construction and `fabricated_citation` read 0
+          TAUTOLOGICALLY. The server re-synthesises the ledger FROM `resolved` AFTER this returns.
+          An OUT-OF-RANGE index is untouched and still falls to the undeclared branch -- that is the
+          index-range check, and it is the whole check.
+      (2) the D-HP-12 DIGIT-LINT charges `bare_digit` per sentence (see `bare_digit_verdict`).
+    """
     # CYCLE-8 FIX 2(c): `repaired` / `repairs` are ALWAYS present (0 / []), never gated. See the
     # no-laundering note in PASS 2.
     report = _VerifyReport({"enabled": True, "checked": 0, "stripped": 0, "corrected": 0, "claim_count": 0,
@@ -830,6 +964,14 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
         _audit_on = os.environ.get("GRAPHRAG_STRIP_AUDIT", "off") != "off"
         if _audit_on:
             report["strip_audit"] = []
+        # D-HP-12 / R3(b): the HARD COUNTER that prices the [E]-cited exemption. Present ONLY on the
+        # treatment lane (the OFF-arm-clean rule: a key absent is honest, a key present and always zero
+        # is a column that says "measured" when nothing measured it). `charged` is the class the ledger
+        # also carries under `by_rule['bare_digit']`; `e_cited` is the 10.5%-of-numerals hole R3 option
+        # (b) knowingly leaves open, and it is the number that decides whether option (a) is worth a phase.
+        if handle_prose:
+            report["handle_prose"] = True
+            report["bare_digit"] = {"charged": 0, "e_cited": 0}
 
         # W4 A/B RCA (2026-07-31): a number_mismatch dropped the HANDLE only, so the fabricated FIGURE stayed
         # on the page -- now uncited, which reads as the analyst's own number (the judge scored 4 of these on
@@ -905,6 +1047,31 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
                                        "source_key": m0.get("source_key"),
                                        "snippet": txt[:140] + ("..." if len(txt) > 140 else "")}
         structured["sources"] = kept_sources
+
+        # 1b) D-HP-9/D-HP-10 -- UNDER HANDLE-PROSE AN [E] HANDLE IS POSITIONAL, NOT LEDGERED.
+        # `[E{i}]` means `uniq[i-1]` in all three places (D-HP-1 (iii)), so an index inside the range the
+        # GROUNDING LEDGER line stated is a resolved address by construction and needs no model-authored
+        # declaration to prove it. Without this the [E] branch of PASS 1 routes EVERY handle to
+        # `undeclared_unsupported` the moment the ledger is gone -- the corpus carries 3,813 [E] markers
+        # against ONE such strip today precisely because handles are normally DECLARED.
+        # THE PAYLOAD SHAPE IS verify.py's OWN (source/date/source_key/snippet, 140 chars + ellipsis), so
+        # `_attach_provenance`, `_cited_sources_block`, `_prune_orphan_evidence_handles`, the FE chip path
+        # and `eval._closure_cited` all join exactly as they do on a ledgered turn.
+        # A ref the LEDGER already spoke for is never overwritten (including one it CONVICTED -- a
+        # `cascade_refs` entry sits in `resolved` as [] and stays there): a conviction outranks a position.
+        if handle_prose:
+            for _ref, _knds in _kinds.items():
+                if "E" not in _knds or _ref in resolved or not _ref.isdigit():
+                    continue
+                _i = int(_ref)
+                if not (1 <= _i <= len(evidence)):
+                    continue                              # out of range: the undeclared branch, unchanged
+                _item = evidence[_i - 1]
+                resolved[_ref] = [_item]
+                _txt = _item.get("text") or ""
+                report["resolved"][_ref] = {"source": _item.get("source"), "date": _item.get("date"),
+                                            "source_key": _item.get("source_key"),
+                                            "snippet": _txt[:140] + ("..." if len(_txt) > 140 else "")}
 
         # 2) sentence-scoped prose checks; strip violating handles BY POSITION (formatting untouched)
         _BOUND = re.compile(r"[.!?;](?=\s|$)|\n")         # never a decimal point (needs trailing space/EOL)
@@ -1024,6 +1191,32 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
                         report["by_rule"][rule] = report["by_rule"].get(rule, 0) + 1
                         _audit(rule, field, sent)
 
+            # ══ D-HP-12 -- THE DIGIT-LINT'S CHARGE, PER SENTENCE ═══════════════════════════════════════
+            # PER SENTENCE because `claim_count` (the strip-rate denominator every successor metric in
+            # D-HP-17 divides by) is SENTENCES, not handles -- charging per numeral would denominate the
+            # new class against a quantity nothing else in the ledger uses.
+            # IT ADDS NO DROP SPAN. The charge is the ledger entry; the deletion is
+            # `answer._drop_bare_digit_sentences`, which runs FIRST in the handle stack (before any value
+            # splice can put an ENGINE digit where this pass would read a MODEL one) and re-detects through
+            # `bare_digit_verdict`, the one producer both halves share.
+            # The walk is `_BOUND`'s own, so the lint's sentence and the strip machinery's sentence are the
+            # same span -- a second sentence splitter is how two passes come to disagree about a boundary.
+            if handle_prose:
+                _lint_at = 0
+                for _b in list(_BOUND.finditer(text)) + [None]:
+                    _lint_end = _b.end() if _b is not None else len(text)
+                    if _lint_end <= _lint_at:
+                        continue
+                    _lint_sent, _lint_at = text[_lint_at:_lint_end], _lint_end
+                    _verdict = bare_digit_verdict(_lint_sent)
+                    if _verdict == "e_cited":             # R3(b): counted, never charged, never dropped
+                        report["bare_digit"]["e_cited"] += 1
+                    elif _verdict == "bare_digit":
+                        report["bare_digit"]["charged"] += 1
+                        report["stripped"] += 1
+                        report["by_rule"]["bare_digit"] = report["by_rule"].get("bare_digit", 0) + 1
+                        _audit("bare_digit", field, _lint_sent)
+
             if foreign:                                   # a regime name from ANOTHER contract's DAG is a
                 for m in foreign.finditer(text):          # cross-contract fabrication, never a citation issue
                     drops.append((m.start(), m.end()))
@@ -1088,20 +1281,72 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
             # text that now FOLLOWS the cut: a position would not survive humanize/scaffold/sanitize, but a
             # normalized prefix of the successor text does. Absent when nothing was deleted (OFF-arm-clean).
             #
-            # FIX-CYCLE-2 (major 7): the seam is recorded as a NORMALIZED 40-char KEY and the SERIALIZED
-            # copy is gated on GRAPHRAG_STRIP_AUDIT, the same gate `strip_audit` uses for the same reason.
-            # The tidy pass reads the internal `report.strip_seams` carrier, which is always populated and
-            # which nothing downstream can serialize. See `_VerifyReport` / `_seam_key` above.
+            # FIX-CYCLE-2 (major 7): the seam is recorded as a NORMALIZED KEY and the SERIALIZED copy is
+            # gated on GRAPHRAG_STRIP_AUDIT, the same gate `strip_audit` uses for the same reason. H1
+            # FOLD ROUND 5 (W-A) moved the 40-character cut OFF the mint and ONTO that copy: the record
+            # appended below keeps the key at its full `_SEAM_LOOKAHEAD` width for the licence compare,
+            # and `_projected_seam` cuts a COPY for the projection. The tidy pass reads the internal
+            # `report.strip_seams` carrier, which is always populated and which nothing downstream can
+            # serialize. See `_VerifyReport` / `_seam_key` / `_projected_seam` above.
+            #
+            # H1 FOLD ROUND 3 (2026-08-13) -- FIX X2, THE PRODUCER TAG. Every seam now carries `src`,
+            # naming the pass that minted it. The carrier is shared: `answer._mint_strip_seam` writes into
+            # THIS list from the render passes (FIX Z12), so "the verifier's own drop record" was not a
+            # property a reader could check -- and `answer._slot_orphan_licensed` was reading it as one.
+            # `src` makes provenance explicit at the producer instead of inferred at the consumer.
+            # THIS PRODUCER IS SLOT-EMPTYING: it removes a handle span from INSIDE a sentence, so its
+            # seams are the ONE record that a value slot was emptied here, and they are what the
+            # slot-orphan licence accepts. TIDY-2 (`answer._seam_adjacent`) accepts every tag -- its job is
+            # seam repair and every producer opens a repairable seam.
+            # H1 FOLD ROUND 3 -- FIX X6, THE EMPTY-KEY DECISION, STATED HERE AND AT `_mint_strip_seam`.
+            # A strip applied at the very END of a field leaves no successor text, so the key is "". This
+            # producer MINTS IT ANYWAY and that is deliberate: an end-of-field strip is a real position and
+            # a real emptied slot ("...stood at [N9]" with no terminator), and refusing the seam would
+            # blind the licence to the field-final case -- the commonest shape under handle-only prose.
+            # Whole-sentence producers keep the opposite rule (they skip empty keys) because an empty key
+            # can never TIDY-2-join to an orphan line, which is the only thing their seams are for.
+            # H1 FOLD ROUND 4 (2026-08-13) -- FIX Y1: THE KEY IS MINTED FROM THE TEXT THIS FUNCTION IS
+            # ABOUT TO RETURN, NOT FROM THE TEXT IT IS HOLDING.
+            # THE DEFECT, REPRODUCED ON THE ESTATE'S OWN STORED PROSE. The `return` below applies
+            # `_strip_cleanup` -- and a positional strip that empties a slot in front of a "."/","/";"
+            # leaves exactly the " ." that cleanup closes. Minting before it therefore recorded a key ONE
+            # CHARACTER LONGER, at every cut, than the string the renderer would read. A single strip
+            # survives that (its key is the field-final "." or "", which carries no later cut inside the
+            # window) but a field with TWO OR MORE strips does not: every seam but the LAST one spans a
+            # later cut, the extra space lands inside the 32-char compare, `answer._slot_orphan_licensed`
+            # refuses, and only the field-final cue sentence is remedied. Measured pre-fix:
+            # "Stocks stood at [N9]. Exports totalled at [N8]." -> 2 seams, 1 drop, and the reader got
+            # "Stocks stood at."; three strips shipped two fragments, four shipped three; both handle
+            # namespaces; the comma spelling likewise. On stored prose,
+            # data/.../tier_20260812T051533Z.json shipped "In MY2023 it was" while its immediate
+            # neighbour -- whose key had no later cut in it -- was correctly removed. The asymmetry
+            # INSIDE ONE FIELD was the whole tell.
+            # WHY THE WINDOW, NOT THE RETURN VALUE. Cleaning `text[_pos:_pos+_SEAM_LOOKAHEAD]` is
+            # provably the same compare as cleaning the whole field and re-deriving the offset, and it
+            # needs no offset arithmetic (which is what would actually be fragile here):
+            #   * `_strip_cleanup` only ever DELETES SPACES, so a match that straddles the window's LEFT
+            #     edge can only delete characters BEFORE `_pos` -- and `_seam_key` strips leading
+            #     whitespace anyway, so the key is identical either way;
+            #   * a match straddling the RIGHT edge can only differ at raw offset ~120, i.e. far past the
+            #     32 NORMALIZED characters `_slot_orphan_licensed` compares (it caps at 32 and floors at
+            #     8, matching shorter keys whole), so no reachable difference survives into the compare;
+            #   * and it never crosses a newline, so a cut at the end of a line cannot borrow the next.
+            # The consumer additionally canonicalizes both sides (`answer._licence_canon`, FIX Y2), which
+            # covers the same whitespace class for the OTHER producer; this fix is still stated here
+            # because the honest key is the producer's own contract, and it is pinned as such.
             _shift = 0
             for a, b, v in sorted(ops):
                 _pos = a + _shift
                 _shift += len(v) - (b - a)
                 if v == "":
-                    _seam = {"field": field, "key": _seam_key(text[_pos:_pos + _SEAM_LOOKAHEAD])}
+                    _seam = {"field": field,
+                             "key": _seam_key(_strip_cleanup(text[_pos:_pos + _SEAM_LOOKAHEAD])),
+                             "src": "verify"}
                     report.strip_seams.append(_seam)
                     if _audit_on:
-                        report.setdefault("strip_seams", []).append(_seam)
-            return re.sub(r" +([.,;])", r"\1", re.sub(r"  +", " ", text))
+                        # W-A: a CUT COPY, never `_seam` itself -- the carrier stays full width.
+                        report.setdefault("strip_seams", []).append(_projected_seam(_seam))
+            return _strip_cleanup(text)
 
         for fld in ("tldr", "mechanism"):
             if structured.get(fld):

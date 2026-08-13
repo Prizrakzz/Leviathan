@@ -499,3 +499,72 @@ def test_caller_optout_wins_over_shape_in_the_suppression_order():
                                   trace=lambda: {"xc_explicit": False, "answer_mode_outlook": False})
     d = orch._escalation_decision(plan, "reasoning", "deep", 2, True, caller_allows=False)
     assert d["fired"] is False and d["suppressed_reason"] == "caller"
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════
+# D-HP H1 FIX Z5 -- THE MATCHED PRESET SET REACHES THE SEAM (a/b/c)
+#
+# R9 minted `quick_hp`/`deep_hp`/`esc_hp`/`esc_r_hp` for ONE decisive reason, stated in D-HP-8: the
+# escalation seam swaps the walk/ground knob dict WHOLE ("never a merge"), so a treatment turn that
+# escalates through a single-target constant is handed knobs with no `handle_prose` -- the prompt
+# contract, the renderer and the digit-lint all revert MID-TURN, on two of the four judged gates. H1
+# minted the set and left the seam reading `honored != rm.DEEP` and a scalar `_ESC_TARGET`, so the set
+# was unreachable: EVERY deep_hp turn suppressed with reason `tier`, and D-HP-23 rung 2 / D-HP-25 would
+# have measured nothing while the record looked healthy.
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════
+
+_HP_MODES = "deep,deep_hp"
+
+
+def test_z5a_a_deep_hp_turn_is_tier_eligible_and_escalates(monkeypatch, esc):
+    """FIX Z5(a): the tier test reads the BASE preset (`rm.base_mode`), so the treatment's own tier is
+    the tier it was minted from. Without this the `tier` branch fired on every treatment turn."""
+    out, rec = _turn(monkeypatch, mode="deep_hp", modes=_HP_MODES)
+    assert out["intent_decision"]["mode"]["honored"] == "deep_hp"
+    d = _decision(out)
+    assert (d["fired"], d["suppressed_reason"]) == (True, None)
+    # ...and the control arm's decision is untouched, which is what makes the two comparable
+    out_c, _ = _turn(monkeypatch, mode="deep", modes=_HP_MODES)
+    assert _decision(out_c)["fired"] is True
+    # ...and a tier that is genuinely not deep still suppresses on `tier`, both arms
+    out_q, _ = _turn(monkeypatch, mode="quick", modes="quick,quick_hp")
+    assert _decision(out_q)["suppressed_reason"] == "tier"
+    out_qhp, _ = _turn(monkeypatch, mode="quick_hp", modes="quick,quick_hp")
+    assert _decision(out_qhp)["suppressed_reason"] == "tier"
+
+
+def test_z5b_the_escalation_target_is_the_matched_twin_and_handle_prose_survives(monkeypatch, esc):
+    """FIX Z5(b), THE R9 RATIONALE ITSELF: a deep_hp turn escalates to `esc_hp`, and `handle_prose` is
+    still in the knob dict the lane actually received. A scalar target hands the escalated turn `esc`'s
+    knobs, which carry no `handle_prose` -- the treatment silently dropped MID-TURN."""
+    if rm.ESC_HP not in rm.MODES:                       # the `esc` fixture's own defensiveness, mirrored
+        monkeypatch.setitem(rm.MODES, rm.ESC_HP,
+                            rm.Mode(name=rm.ESC_HP, handle_prose=True, **_ESC_STANDIN))
+    out, rec = _turn(monkeypatch, mode="deep_hp", modes=_HP_MODES)
+    assert _decision(out)["fired"] is True
+    assert rec["mode_knobs"] == rm.knobs(rm.ESC_HP)
+    assert rec["mode_knobs"].get("handle_prose") is True, "the treatment reverted mid-turn"
+    assert an._handle_prose_on(rec["mode_knobs"]) is True
+    # the CONTROL arm escalates to the base target, unchanged, and carries no handle_prose
+    _, rec_c = _turn(monkeypatch, mode="deep", modes=_HP_MODES)
+    assert rec_c["mode_knobs"] == rm.knobs(orch._ESC_TARGET)
+    assert "handle_prose" not in rec_c["mode_knobs"]
+    # THE MAP IS DERIVED, NEVER RETYPED: the 30d flip is still ONE line and carries the twin with it
+    assert orch._esc_target(rm.DEEP) == orch._ESC_TARGET
+    assert orch._esc_target(rm.DEEP_HP) == rm.handle_prose_variant(orch._ESC_TARGET)
+    assert orch._esc_target(None) == orch._esc_target("standard") == orch._ESC_TARGET
+
+
+def test_z5c_the_census_mandate_covers_both_arms_of_the_escalated_pair(monkeypatch, esc):
+    """FIX Z5(c): `_CENSUS_MANDATE_MODES` is keyed on the EFFECTIVE mode. An escalated treatment turn is
+    effective `esc_hp`; absent from the set it would run WITHOUT the composition census its `esc` control
+    ran -- a two-variable arm on a COMPOSITION axis, which is the very axis the mandates move."""
+    if rm.ESC_HP not in rm.MODES:
+        monkeypatch.setitem(rm.MODES, rm.ESC_HP,
+                            rm.Mode(name=rm.ESC_HP, handle_prose=True, **_ESC_STANDIN))
+    _, hot_hp = _turn(monkeypatch, mode="deep_hp", modes=_HP_MODES)
+    _, hot = _turn(monkeypatch, mode="deep", modes=_HP_MODES)
+    assert hot_hp["census"] is True and hot["census"] is True      # ARM SYMMETRY under the mandate
+    assert rm.ESC_HP in orch._CENSUS_MANDATE_MODES
+    assert rm.ESC_R_HP in orch._CENSUS_MANDATE_MODES
+    assert an._composition_census_on() is False                    # cleaned up when the turn returned

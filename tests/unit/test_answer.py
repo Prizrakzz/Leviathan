@@ -703,9 +703,14 @@ def test_l2_seam_passes_the_rendered_contract_set_to_the_verifier(monkeypatch):
     seen: dict = {}
     _real = vf.verify_citations
 
-    def _spy(structured, evidence, number_calls=None, *, foreign_names=None):
+    def _spy(structured, evidence, number_calls=None, *, foreign_names=None, handle_prose=False):
+        # D-HP-9/12 (H1): the seam now threads the treatment bundle's ONE resolution down as a keyword,
+        # so the spy must accept it or this pin reds on a change it is not about. Captured too -- an
+        # ordinary L2 turn is a CONTROL turn and this asserts it stays one.
         seen["foreign"] = set(foreign_names or ())
-        return _real(structured, evidence, number_calls, foreign_names=foreign_names)
+        seen["handle_prose"] = handle_prose
+        return _real(structured, evidence, number_calls, foreign_names=foreign_names,
+                     handle_prose=handle_prose)
     monkeypatch.setattr(vf, "verify_citations", _spy)
 
     def fake_call(system, user, *, model, tool):
@@ -718,3 +723,4 @@ def test_l2_seam_passes_the_rendered_contract_set_to_the_verifier(monkeypatch):
     assert out["trace"]["planner"] == "l2"
     assert "robusta_glut" not in seen["foreign"]           # the hop's regimes were RENDERED -> not foreign
     assert "corn_pollination_burn" in seen["foreign"]      # an unwalked DAG's regime still is
+    assert seen["handle_prose"] is False                   # D-HP-8: no `_hp` preset -> a CONTROL turn

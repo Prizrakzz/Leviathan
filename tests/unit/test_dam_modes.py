@@ -90,10 +90,18 @@ def test_the_preset_table_and_nothing_else():
     # name, which is how the eval arms reach them); serving_names() does NOT -- see the pin below.
     # D-MW-28 (P6): max_cc1 appends the same way -- resolvable BY NAME (the gate's ON arm), dark to the
     # wildcard. Fourth application of the same law, and the serving_names() pin below is still untouched.
+    # D-HP-8 (R9): the four `_hp` twins append the same way -- resolvable BY NAME (the gate arms request
+    # `--mode deep_hp`), dark to the wildcard. FIFTH application, and the serving_names() pin below is
+    # STILL untouched: thirteen presets, three servable.
     assert rm.valid_names() == frozenset({"quick", "standard", "deep", "deep_v2", "max", "max_c0",
-                                          "esc", "esc_r", "max_cc1"})
+                                          "esc", "esc_r", "max_cc1",
+                                          "quick_hp", "deep_hp", "esc_hp", "esc_r_hp"})
     assert set(rm.MODES) == {rm.QUICK, rm.STANDARD, rm.DEEP, rm.DEEP_V2, rm.MAX, rm.MAX_C0,
-                             rm.ESC, rm.ESC_R, rm.MAX_CC1}
+                             rm.ESC, rm.ESC_R, rm.MAX_CC1,
+                             rm.QUICK_HP, rm.DEEP_HP, rm.ESC_HP, rm.ESC_R_HP}
+    # Every preset's `name` field agrees with its table key -- the `replace(...)`-constructed twins would
+    # otherwise be able to carry their BASE's name and stamp the wrong arm on every artifact.
+    assert all(m.name == k for k, m in rm.MODES.items())
 
 
 def test_deep_v2_is_dark_and_the_wildcard_can_never_sweep_it_in(monkeypatch):
@@ -108,7 +116,12 @@ def test_deep_v2_is_dark_and_the_wildcard_can_never_sweep_it_in(monkeypatch):
     # reachable in serving ONLY through the escalation seam, which stamps honored=deep and prices deep.
     # D-MW-28 (P6): max_cc1 joins DARK_NAMES in the SAME commit that mints it. It carries a PAID slot for
     # a foreign contract block, so a forgotten entry would spend it on every wildcard turn.
-    assert rm.DARK_NAMES == frozenset({rm.DEEP_V2, rm.MAX, rm.MAX_C0, rm.ESC, rm.ESC_R, rm.MAX_CC1})
+    # D-HP-8 (R9): all four `_hp` twins join DARK_NAMES in the SAME commit that mints them, and here the
+    # dark set IS the whole control surface -- `quick_hp`/`deep_hp` are the flip ladder's own rungs, so a
+    # forgotten entry serves UNGATED handle-only prose (number-free sentences, figures unspliced) to anyone
+    # who types the name, before G1 has run a single row.
+    assert rm.DARK_NAMES == frozenset({rm.DEEP_V2, rm.MAX, rm.MAX_C0, rm.ESC, rm.ESC_R, rm.MAX_CC1,
+                                       rm.QUICK_HP, rm.DEEP_HP, rm.ESC_HP, rm.ESC_R_HP})
     assert rm.serving_names() == frozenset({"quick", "standard", "deep"})
     assert rm.DEEP_V2 in rm.valid_names()                              # still RESOLVABLE (stamped)
     for on in ("on", "1", "true"):
@@ -117,6 +130,7 @@ def test_deep_v2_is_dark_and_the_wildcard_can_never_sweep_it_in(monkeypatch):
         assert rm.MAX not in orch._modes_enabled() and rm.MAX_C0 not in orch._modes_enabled()
         assert rm.ESC not in orch._modes_enabled() and rm.ESC_R not in orch._modes_enabled()
         assert rm.MAX_CC1 not in orch._modes_enabled()
+        assert not (set(rm.HANDLE_PROSE_PRESETS.values()) & orch._modes_enabled())
     assert rm.resolve("deep_v2", orch._modes_enabled())["honored"] == "standard"
     monkeypatch.setenv("GRAPHRAG_MODES", "deep_v2")                    # named EXPLICITLY -> honored
     assert orch._modes_enabled() == frozenset({"deep_v2"})
@@ -146,11 +160,14 @@ def test_the_two_new_policy_fields_default_to_none_on_every_pre_ddv_preset():
     # D-MW-28 re-pin (P6): `cascade_contract_slots` appends AFTER provenance_prompt, so the tail moves a
     # FOURTH time and every slice below shifts left by one. Same law, same reason: KNOB_FIELDS order IS
     # the trace-stamp column order -- append, never insert.
-    assert ("provenance_prompt", "cascade_contract_slots") == rm.KNOB_FIELDS[-2:]
-    assert rm.KNOB_FIELDS[-3] == "synth_model"
-    assert rm.KNOB_FIELDS[-7:-3] == ("per_seed_budget", "per_seed_evidence_cap",
+    # D-HP-8 re-pin (H1): `handle_prose` appends AFTER cascade_contract_slots -- the tail moves a FIFTH
+    # time and every slice below shifts left by one. Same law, same reason.
+    assert rm.KNOB_FIELDS[-1] == "handle_prose"
+    assert ("provenance_prompt", "cascade_contract_slots") == rm.KNOB_FIELDS[-3:-1]
+    assert rm.KNOB_FIELDS[-4] == "synth_model"
+    assert rm.KNOB_FIELDS[-8:-4] == ("per_seed_budget", "per_seed_evidence_cap",
                                      "per_seed_probe_cap", "per_seed_reserve")
-    assert rm.KNOB_FIELDS[-9:-7] == ("cap_policy", "order_policy")      # appended, never sorted in
+    assert rm.KNOB_FIELDS[-10:-8] == ("cap_policy", "order_policy")     # appended, never sorted in
     for name in (rm.QUICK, rm.STANDARD, rm.DEEP):
         m = rm.MODES[name]
         assert m.cap_policy is None and m.order_policy is None, name
@@ -248,6 +265,94 @@ def test_zero_is_a_value_not_a_default_on_max_c0():
     assert kn["per_seed_reserve"] == 0 and "per_seed_reserve" in kn
     assert rm.walk_kwargs(kn)["per_seed_reserve"] == 0
     assert rm.walk_kwargs(rm.knobs(rm.MAX))["per_seed_reserve"] == 0   # 12c: max's reserve is OFF too
+
+
+# ══ D-HP-8 -- THE HANDLE-PROSE CONTROL SURFACE (R9 ratified) ═════════════════════════════════════════
+_HP_PAIRS = (("quick", "quick_hp"), ("deep", "deep_hp"), ("esc", "esc_hp"), ("esc_r", "esc_r_hp"))
+
+
+def test_the_hp_twins_are_their_base_plus_exactly_one_field():
+    """THE ARM IS ONE VARIABLE OR IT MEASURES TWO. `deep` vs `deep_hp` is the reference gate arm, so a
+    twin that drifted from its base by any other field would make every G1/G2 verdict unattributable.
+    The twins are CONSTRUCTED with `dataclasses.replace`, not hand-copied, so the property holds the day
+    someone amends a base preset -- which is the copy-and-drift class (COMPAT-9) this module exists to
+    kill. The source pin below is what keeps a future editor from re-typing the table."""
+    assert dict(_HP_PAIRS) == rm.HANDLE_PROSE_PRESETS
+    for base, hp in _HP_PAIRS:
+        differ = [f for f in rm.KNOB_FIELDS if getattr(rm.MODES[base], f) != getattr(rm.MODES[hp], f)]
+        assert differ == ["handle_prose"], (base, hp, differ)
+        assert rm.knobs(hp) == rm.knobs(base) | {"handle_prose": True}, hp
+        # THE BYTE-IDENTITY LAW on the base: `knobs()` filters `is not None`, so the control arm must not
+        # so much as MINT the key. A literal False on a base preset would move its trace stamp.
+        assert "handle_prose" not in rm.knobs(base), base
+        assert rm.MODES[base].handle_prose is None and rm.MODES[hp].handle_prose is True
+    src = inspect.getsource(rm)
+    assert "replace(MODES[base], name=hp, handle_prose=True)" in src   # constructed, never hand-copied
+
+
+def test_standard_and_max_are_not_in_the_ladder_and_cannot_be():
+    """`standard`'s EMPTY knob dict IS the fail-open guarantee (the module's own opening claim), and
+    `test_standard_is_the_all_none_passthrough_pin` reds the moment a field lands on it. The max family
+    is out of the ladder for a different reason -- it is not a served tier at all. Neither gets a twin."""
+    for excluded in (rm.STANDARD, rm.MAX, rm.MAX_C0, rm.MAX_CC1, rm.DEEP_V2):
+        assert rm.handle_prose_variant(excluded) is None, excluded
+    assert rm.knobs(rm.STANDARD) == {}                                 # the passthrough pin, untouched
+    assert rm.MODES[rm.STANDARD].handle_prose is None
+
+
+def test_the_matched_set_is_what_survives_an_escalation():
+    """THE DECISIVE R9 REASON, expressed as a property. orchestrator.py:2138-2139 swaps the knob dict
+    WHOLE ("never a merge"), so a `deep_hp` turn that escalated into `esc` would be handed a dict with NO
+    `handle_prose` -- the PROMPT contract, the renderer and the digit-lint all revert mid-turn, silently
+    gutting D-HP-23 rung 2 and D-HP-25 (two of the four judged gates). The leaf therefore owns the
+    base<->twin join, and every seam that must follow a turn across it reads THIS table."""
+    assert rm.handle_prose_on(rm.knobs(rm.ESC)) is False               # the control target strips it
+    assert rm.handle_prose_on(rm.knobs(rm.handle_prose_variant(rm.ESC))) is True
+    assert rm.handle_prose_variant(rm.DEEP) == rm.DEEP_HP and rm.handle_prose_variant(rm.ESC_R) == rm.ESC_R_HP
+    # The inverse join. Its three consumers are named in `base_mode`'s docstring and each is a live defect
+    # if it retypes the name instead: the escalation gate's tier test (`honored != DEEP` suppresses every
+    # deep_hp turn with reason `tier`), the composition-census mandate set, and the credit price.
+    for base, hp in _HP_PAIRS:
+        assert rm.base_mode(hp) == base
+    for unchanged in (rm.QUICK, rm.DEEP, rm.STANDARD, rm.MAX, "no_such_mode", ""):
+        assert rm.base_mode(unchanged) == unchanged
+    assert rm.base_mode(None) == ""                                    # fail-open, never raises
+
+
+def test_the_kill_switch_is_one_way_at_the_leaf(monkeypatch):
+    """`GRAPHRAG_HANDLE_PROSE` can force the treatment OFF from any preset and can NEVER turn it on.
+    The leaf reads no environment (its own law), so the VALUE is threaded in -- one producer for the eval
+    arm stamp and the serving seam alike, which is what stops an artifact from disagreeing with its turn."""
+    on_kn, off_kn = rm.knobs(rm.DEEP_HP), rm.knobs(rm.DEEP)
+    for kill in ("off", "0", "false", "kill", "OFF", " off "):
+        assert rm.handle_prose_on(on_kn, kill) is False, kill
+        assert rm.handle_prose_arm(on_kn, kill) == "off", kill
+    for noise in ("on", "1", "true", "deep_hp", "yes", "", None):
+        assert rm.handle_prose_on(on_kn, noise) is True, noise         # the preset decides, not the env
+        assert rm.handle_prose_on(off_kn, noise) is False, noise       # ...and the env cannot enable
+        assert rm.handle_prose_arm(off_kn, noise) is None, noise
+    assert rm.handle_prose_on(None) is False and rm.handle_prose_arm(None) is None
+    # "reads no environment" is not a promise here: `test_reasoning_modes_is_a_leaf_module` pins the
+    # module's imports to {__future__, dataclasses}, so an `os.environ` read is unbuildable.
+    monkeypatch.setenv("GRAPHRAG_HANDLE_PROSE", "off")
+    assert rm.handle_prose_on(on_kn) is True                           # ...the ambient env is INVISIBLE
+
+
+def test_the_kill_switch_spelling_is_the_same_set_at_every_seam():
+    """THE SEAMS MUST NOT DISAGREE ABOUT WHETHER A RUN WAS KILLED. Three places resolve the one-way kill
+    today -- the leaf (`HANDLE_PROSE_KILL_VALUES`, the producer), `answer._handle_prose_on` (the BEHAVIOUR)
+    and `eval._handle_prose_arm` (the ARM STAMP, which now delegates to the leaf). A spelling accepted by
+    one and not another would let an artifact record `off` on a turn that ran the treatment, or the reverse
+    -- and that column is the join key D-HP-19's bridge run rides.
+
+    RECORDED HANDOFF (not fixable from this cluster's files): `answer._HANDLE_PROSE_KILL` is a SECOND copy
+    of this tuple. It agrees today and this pin keeps it agreeing, but the durable fix is one line in
+    answer.py -- `_handle_prose_on` calling `rm.handle_prose_on(mode_knobs, os.environ.get(
+    "GRAPHRAG_HANDLE_PROSE"))` (answer.py already imports the leaf as `_rm`)."""
+    assert rm.HANDLE_PROSE_KILL_VALUES == frozenset({"off", "0", "false", "kill"})
+    assert set(getattr(an, "_HANDLE_PROSE_KILL")) == set(rm.HANDLE_PROSE_KILL_VALUES)
+    # and there is NO "on" spelling anywhere, by design: the presets are the only way in.
+    assert not (rm.HANDLE_PROSE_KILL_VALUES & {"on", "1", "true", "yes"})
 
 
 def test_walk_kwargs_carry_the_per_seed_walk_knobs():

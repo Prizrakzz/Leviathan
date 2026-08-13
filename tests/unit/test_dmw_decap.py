@@ -297,7 +297,15 @@ def test_census_override_is_the_thread_scoped_dossier_idiom_not_the_env_flag(mon
     # D-MW-28 (P6) RE-PIN: `max_cc1` joined for the ONE-VARIABLE reason -- the P6 gate's arms are max vs
     # max_cc1, and a mandate riding only one of them makes the composition census a second variable on the
     # very axis that gate's clause (3) measures.
-    assert orch._CENSUS_MANDATE_MODES == frozenset({rm.MAX, rm.MAX_C0, rm.MAX_CC1, orch._ESC, orch._ESC_R})
+    # D-HP H1 FIX Z5(c) RE-PIN: the `_hp` TWINS of the two escalated presets joined, for the identical
+    # one-variable reason. This set is keyed on the EFFECTIVE mode, and an escalated handle-prose turn is
+    # effective `esc_hp` -- absent from the set it would run WITHOUT the composition census its `esc`
+    # control ran, i.e. a two-variable arm on the very axis the mandates move.
+    assert orch._CENSUS_MANDATE_MODES == frozenset({rm.MAX, rm.MAX_C0, rm.MAX_CC1, orch._ESC, orch._ESC_R,
+                                                    rm.ESC_HP, rm.ESC_R_HP})
+    # ...and the twins are DERIVED from the leaf's join table, never retyped, so a rename cannot drop one
+    for base in (orch._ESC, orch._ESC_R):
+        assert rm.handle_prose_variant(base) in orch._CENSUS_MANDATE_MODES
     monkeypatch.delenv("GRAPHRAG_COMPOSITION_CENSUS", raising=False)
     with orch._census_ctx(rm.MAX):
         assert an._composition_census_on() is True

@@ -1029,6 +1029,26 @@ _ESC_R: str = getattr(rm, "ESC_R", "esc_r")
 # seam below reads this name instead of naming a preset inline.
 _ESC_TARGET: str = _ESC
 
+# ── D-HP H1 FIX Z5(b): THE TARGET IS A MAP KEYED ON THE HONORED MODE ─────────────────────────────────
+# R9's decisive reason for minting a MATCHED preset set, verbatim: the escalation seam swaps the walk /
+# ground knob dict WHOLE ("never a merge"), so a single-target constant hands an escalating `deep_hp` turn
+# a knob dict with NO `handle_prose` -- the prompt contract, the renderer and the digit-lint all revert
+# MID-TURN, on two of the four judged gates. A matched set that is minted and never reached is not a set.
+# DERIVED, NEVER RE-TYPED: the treatment target is `handle_prose_variant(_ESC_TARGET)`, so the 30d flip
+# (`_ESC_TARGET = _ESC_R`, ONE line) carries the treatment lane with it and the two can never disagree
+# about which bundle escalated. An unknown/absent twin degrades to the base target, which is the pre-Z5
+# behaviour exactly -- and `_escalation_decision`'s `no_preset` branch still refuses to fire on an empty
+# knob dict, so a missing preset suppresses the escalation instead of silently shipping a half-bundle.
+_ESC_TARGETS: dict[str, str] = {
+    rm.DEEP: _ESC_TARGET,
+    (rm.handle_prose_variant(rm.DEEP) or rm.DEEP): (rm.handle_prose_variant(_ESC_TARGET) or _ESC_TARGET),
+}
+
+
+def _esc_target(honored: str | None) -> str:
+    """The escalation target for a turn honored `honored` (FIX Z5(b)). Unknown -> the base target."""
+    return _ESC_TARGETS.get((honored or "").strip().lower(), _ESC_TARGET)
+
 # D-MW-13 (WIDTH-GATED MANDATES): the composition census ships with the FULL-CASCADE tier and nowhere
 # else. The D-CC-3 R1 measurement is the binding: the mandates are WIDTH-HUNGRY -- at quick's 12-row
 # evidence they order enumeration the evidence cannot back (strips/handle 0.1765 vs 0.1073) -- so they
@@ -1042,7 +1062,15 @@ _ESC_TARGET: str = _ESC
 # D-MW-28 (P6): `max_cc1` joins for the SAME one-variable reason. The P6 gate's arms are `max` vs
 # `max_cc1`; a mandate set naming one and not the other makes the composition census a SECOND variable --
 # and clause (3) of that gate is composition non-harm, i.e. precisely the axis the mandates move.
-_CENSUS_MANDATE_MODES: frozenset = frozenset({rm.MAX, rm.MAX_C0, rm.MAX_CC1, _ESC, _ESC_R})
+# D-HP H1 FIX Z5(c): the `_hp` twins of the two escalated presets JOIN THE SET, for the one-variable
+# reason stated three paragraphs up. This set is keyed on the EFFECTIVE mode, and an escalated
+# handle-prose turn is effective `esc_hp` -- absent from the set, it would run WITHOUT the composition
+# census its `esc` control ran, making the arm two-variable on a COMPOSITION axis, which is precisely the
+# axis the mandates move. The names are derived from the leaf's join table so a preset rename cannot
+# silently drop one; `handle_prose_variant` returns None for a name with no twin, and those are filtered.
+_CENSUS_MANDATE_MODES: frozenset = frozenset(
+    {rm.MAX, rm.MAX_C0, rm.MAX_CC1, _ESC, _ESC_R}
+    | {hp for hp in (rm.handle_prose_variant(_ESC), rm.handle_prose_variant(_ESC_R)) if hp})
 
 
 def _shape_esc_on() -> bool:
@@ -1105,7 +1133,13 @@ def _escalation_decision(plan, kind: str | None, honored: str | None, planned_se
         reason = "no_plan"
     elif kind not in ("reasoning", "hybrid"):
         reason = "lane"
-    elif honored != rm.DEEP:
+    elif rm.base_mode(honored) != rm.DEEP:
+        # D-HP H1 FIX Z5(a): the tier test reads the BASE preset. A `deep_hp` turn is honored `deep_hp`,
+        # so the literal comparison suppressed EVERY escalation on the treatment arm with reason `tier` --
+        # `esc_hp`/`esc_r_hp` were unreachable through this seam, and D-HP-23 rung 2 / D-HP-25 would have
+        # measured nothing while the record looked healthy. `base_mode` is the leaf's own join for exactly
+        # this (its docstring names this branch first); every non-`_hp` name is returned unchanged, so the
+        # control arm's decision is byte-identical.
         reason = "tier"
     elif not caller_allows:
         reason = "caller"
@@ -1115,7 +1149,7 @@ def _escalation_decision(plan, kind: str | None, honored: str | None, planned_se
         reason = "seeds"
     elif not switch_on:
         reason = "switch"
-    elif not rm.knobs(_ESC_TARGET):
+    elif not rm.knobs(_esc_target(honored)):       # FIX Z5(b): the target this turn would actually take
         reason = "no_preset"
     tr: dict = {}
     if plan is not None:
@@ -1790,6 +1824,14 @@ def respond(*args, **kwargs) -> dict:
             emf.emit({"FloorTurns": 1},
                      dimensions={"intent": res.get("intent"), "cause": tr.get("floor_cause") or "other"},
                      units={"FloorTurns": "Count"})
+        # D-HP-20 change (2): the SUCCESSOR COUNTERS, emitted BESIDE StripCount from this same seam and
+        # sequenced with H1, NOT with the flip -- D-HP's own gate arms move the "Citation strips / turn"
+        # panel months before any tier flips, and `StripCount` is not even expected to fall (the
+        # `bare_digit` class lands in the SAME `stripped` counter, so the panel may RISE first). A
+        # SEPARATE line for the FloorTurns reason INVERTED: these ship FLEET-DIMENSIONED ONLY (R14), so
+        # folding them into the block above would inherit its (intent x model x mode) set and bill five
+        # always-on counters against that cardinality every month. Silent on the numbers lane.
+        emf.emit_quality(tr)
     except Exception:  # noqa: BLE001 — instrumentation must never break an answer
         pass
     return res
@@ -2137,8 +2179,10 @@ def _respond_walk(query: str, *, graph, asof: Optional[str] = None, call=None, r
     _esc = _escalation_decision(plan, kind, _mode["honored"], len(pc), _shape_esc_on(),
                                 allow_shape_escalation)
     if _esc["fired"]:
-        _effective = _ESC_TARGET
-        _mode_knobs = rm.knobs(_ESC_TARGET)   # the walk/ground knob dict swaps WHOLE -- never a merge:
+        # FIX Z5(b): the target is keyed on the HONORED mode, so a `deep_hp` turn escalates to `esc_hp`
+        # and the treatment rides the swap instead of being dropped by it.
+        _effective = _esc_target(_mode["honored"])
+        _mode_knobs = rm.knobs(_effective)     # the walk/ground knob dict swaps WHOLE -- never a merge:
         _mk = {"mode_knobs": _mode_knobs}      # a half-escalated bundle is not the bundle 12e measured.
         print(f"SHAPE_ESC_FIRED effective={_effective} planned_seeds={_esc['planned_seeds']}")  # ASCII soak
 

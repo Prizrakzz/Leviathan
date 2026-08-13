@@ -1326,6 +1326,15 @@ def _per_answer_record(r: dict, run_kind: str) -> dict:
             # "different lane" rather than "an answer that made no claims".
             "citation_verifier_ran": bool(v.get("enabled")),
             "by_rule": v.get("by_rule") or {},
+            # H1 FIX Z7 -- R3(b)'s HARD COUNTER, WHITELISTED. `report['bare_digit'] = {charged, e_cited}`
+            # is the number the STATUS block ratified R3 option (b) on ("the hard E-backed/bare counter"),
+            # and R3 states it "decides whether option (a) is worth a phase". This projection is a hard
+            # whitelist -- a trace key not named here reaches NO artifact -- so the number that decides a
+            # phase was unreadable from any G1 run. `charged` is the by_rule class above; `e_cited` is the
+            # 10.5%-of-numerals hole option (b) knowingly leaves open, and NOTHING else carries it
+            # (`emf.bare_digit_escapes` reads `trace.bare_digit_count`, a different quantity).
+            # Absent (None) on every control row -- verify mints the key only on the treatment lane.
+            "bare_digit": v.get("bare_digit") or None,
             # W3 RCA: stripped-sentence audit rides the baseline ONLY when GRAPHRAG_STRIP_AUDIT is on
             # (verify omits the key when off) -- the per-turn text the by_rule counts can't give.
             "strip_audit": v.get("strip_audit") or None,
@@ -1401,7 +1410,27 @@ def _per_answer_record(r: dict, run_kind: str) -> dict:
             # D-GD-1 -- APPENDED, never interleaved (the same additive contract served_rows rides). The raw
             # `cascade_closure` column arrives above through the tracekeys registry; this is the DERIVED
             # counter the D-GD-3 decision is read from, so the adjudicator never has to re-derive a join.
-            "closure_cited": _closure_cited(out)}
+            "closure_cited": _closure_cited(out),
+            # D-HP-17/19 -- APPENDED at the tail, never interleaved. THE SUCCESSOR FAMILY, per ROW, derived
+            # from `by_rule` + the render census by `emf.quality_counters` (the ONE producer -- the EMF
+            # counters read the identical arithmetic, so a dashboard and an artifact can never disagree).
+            # None on a row whose CITATION verifier never ran: that is the declared non-reasoning lane
+            # (D-HP-17's denominator accounting / G1 clause (5)), excluded rather than zero-filled.
+            # THIS IS THE BRIDGE RUN (D-HP-19): the OLD family (`strips`, `by_rule`, `strip_rate`,
+            # `handle_strip_rate`) is untouched above and the successor rides beside it on the SAME
+            # generations, so the covenant record has a join at the seam and no extra run is billed.
+            "dhp_successor": _quality_counters(out)}
+
+
+def _quality_counters(out: dict) -> dict | None:
+    """D-HP-17's successor family for one row, or None on a non-reasoning-lane row. A thin read of
+    `emf.quality_counters` so the artifact and the CloudWatch counters share ONE arithmetic; never raises
+    (a missing instrument must not cost a billed run its artifact)."""
+    try:
+        from leviathan.graphrag import emf as _emf
+        return _emf.quality_counters((out or {}).get("trace") or {})
+    except Exception:                                  # noqa: BLE001 -- an instrument is never worth a run
+        return None
 
 
 def _closure_cited(out: dict) -> dict:
@@ -2457,7 +2486,54 @@ def _baseline_json(rows: list[dict], *, run_kind: str, model: str, judged: bool,
             "scaffold_violations": sum(1 for p in per if not p.get("mechanism_scaffold_ok", True)),
             "intent_ok": sum(1 for p in per if p["intent_ok"]),
             "intent_n": sum(1 for p in per if p["intent_ok"] is not None),
+            # D-HP-17 THE SUCCESSOR FAMILY, POOLED (the run-level half of the D-HP-19 bridge readout; the
+            # per-row half is `per_answer[].dhp_successor`). Appended, so every pre-D-HP key above is
+            # byte-identical and a pre-D-HP reader is untouched.
+            "dhp_successor": _successor_totals(per),
             "per_answer": per}
+
+
+def _successor_totals(per: list[dict]) -> dict:
+    """POOL the successor family over the rows the D-HP contract actually binds.
+
+    THE DENOMINATOR IS NAMED, NOT SILENT (the CYCLE-8 FIX 4 rule): `rows_counted` is the number of rows whose
+    CITATION verifier ran, and `rows_excluded` lists BY ID the ones it did not -- the numbers_only / live
+    lane, which `orchestrator._verify_numbers_answer` handles and which D-HP's contract does not bind in the
+    first build. G1 clause (5) reads that id list; without it "0 unconstructible" would silently include rows
+    that could never have constructed anything.
+
+    THE THREE NUMBERS THAT ARE READ TOGETHER, NEVER APART (D-HP-17's honesty rider): `unconstructible_count`
+    (pre-registered 0 on every treatment row), `bare_digit_strips`, and RAW `strips`. A run where the first
+    is 0 while the other two are flat has RENAMED a class, not deleted a surface, and this dict carries all
+    three so the reading cannot be done one number at a time. `blinded_class_count` rides beside them for the
+    same reason: `number_mismatch` is 38.6% of the pre-D-HP corpus and goes to zero by ORDERING, so a bridge
+    run showing total strips fall ~39% has an explanation in the readout instead of a mystery.
+
+    `substitution_load_mean` is the NUMBER-AVOIDANCE instrument (B7, G1 clause (8)) -- an aggregate FLOOR
+    checked after the fact, never an instruction to the writer (a density mandate would feed the wave's #1
+    risk directly). Its census anchor is the ALL-ANSWERS mean of 19.8 typed numerals per answer."""
+    live = [p for p in per if p.get("dhp_successor")]
+    keys = ("unconstructible_count", "residual_strips", "blinded_class_count", "mis_bound_count",
+            "bare_digit_strips", "bare_digit_escapes", "handles_unresolvable", "substitution_load")
+    out: dict = {"rows_counted": len(live),
+                 "rows_excluded": [p.get("id") for p in per if not p.get("dhp_successor")]}
+    for k in keys:
+        out[k] = sum(int((p.get("dhp_successor") or {}).get(k) or 0) for p in live)
+    out["substitution_load_mean"] = round(out["substitution_load"] / max(1, len(live)), 4)
+    # H1 FIX Z7: R3(b)'s ESCAPE HALF, pooled beside `bare_digit_strips` (its CHARGED half). The two are
+    # read together or not at all -- charged alone says how often the lint fired, and the pair says what
+    # share of the digit population the [E]-cited exemption is carrying, which is the R3 option-(a)
+    # decision. Off the per-answer `bare_digit` column, so the pooled number and the row it came from
+    # cannot disagree.
+    out["bare_digit_e_cited"] = sum(int(((p.get("bare_digit") or {}).get("e_cited")) or 0) for p in live)
+    # RAW strips over the SAME live rows -- the honesty rider's third number, on the rider's own denominator
+    # (`total_strips` above pools every row, including the excluded lane).
+    out["strips"] = sum(int(p.get("strips") or 0) for p in live)
+    # R11's PER-ROW TRIPWIRE: any single row at mis_bound_count >= 3 (~3 of ~21 rendered figures = ~14% row
+    # rate) is recorded BY ID. Recorded, never a verdict -- the pooled ceiling of 15 is the gate clause.
+    out["mis_bound_rows_ge_3"] = sorted(p.get("id") for p in live
+                                        if int((p.get("dhp_successor") or {}).get("mis_bound_count") or 0) >= 3)
+    return out
 
 
 def _handle_prose_arm(mode: str | None) -> str | None:
@@ -2474,26 +2550,34 @@ def _handle_prose_arm(mode: str | None) -> str | None:
 
     NEVER RAISES and never reads a mode that does not exist -- `reasoning_modes.knobs` returns {} for an
     unknown name, so a deck naming a preset this image has not shipped stamps None rather than failing a
-    (billed) run at artifact-write time."""
+    (billed) run at artifact-write time.
+
+    ONE PRODUCER (D-HP-8, H1): the resolution itself lives in `reasoning_modes.handle_prose_arm` -- the same
+    leaf function the SERVING seam's boolean (`handle_prose_on`) is built from, so an artifact can never
+    disagree with the turn it describes about which arm ran. This wrapper owns only the two things the leaf
+    deliberately does not: reading the environment (the leaf reads none, by law) and never raising.
+
+    ONE-WAY MEANS ONE-WAY (H0 review, preserved): the first build returned `kill or None`, so a stray
+    `GRAPHRAG_HANDLE_PROSE=on` stamped the arm "on" when NOTHING had turned the treatment on. An artifact
+    that NAMES AN ARM THAT DID NOT RUN is strictly worse than one that names none, so only a preset knob or
+    an explicit kill may ever name an arm; any other env value stamps None.
+
+    H1 FIX Z9 -- THE TWO ROLLBACK LANES ARE PART OF THE VERDICT, AND THAT IS THE SAME DEFECT AGAIN FROM A
+    THIRD SIDE. Serving resolves the bundle with `answer._handle_prose_active`, which returns False under
+    `GRAPHRAG_VERIFY=off` (section 2's mutual-exclusion law) and under `GRAPHRAG_MENTOR_VOICE=off` (the
+    LEGACY persona carries neither the menu's vocabulary nor the superseded spans). This stamp read only
+    the preset knob and the kill switch, so with either lane engaged it named "on" a run that provably
+    did not run the treatment -- the exact sentence above, violated. The lanes now live in the leaf and
+    both seams pass their env values in, so a lane added on one side cannot exist on the other."""
     import os as _os
+    kill = _os.environ.get("GRAPHRAG_HANDLE_PROSE", "")
     try:
         from leviathan.graphrag import reasoning_modes as _rm
-        knob = (_rm.knobs(mode) or {}).get("handle_prose")
+        return _rm.handle_prose_arm(_rm.knobs(mode), kill,
+                                    verify_env=_os.environ.get("GRAPHRAG_VERIFY", "on"),
+                                    mentor_env=_os.environ.get("GRAPHRAG_MENTOR_VOICE", "on"))
     except Exception:                                  # noqa: BLE001 -- an arm stamp is never worth a run
-        knob = None
-    kill = str(_os.environ.get("GRAPHRAG_HANDLE_PROSE", "")).strip().lower()
-    if kill in ("off", "0", "false", "kill"):
-        return "off"                                   # the one-way kill switch, recorded as such
-    if knob is None:
-        # ONE-WAY MEANS ONE-WAY (H0 review). The first build returned `kill or None` here, so a stray
-        # `GRAPHRAG_HANDLE_PROSE=on` stamped the arm "on" when NOTHING had turned the treatment on --
-        # the env cannot reach the render seam at all (R9: the escalation seam swaps the knob dict WHOLE
-        # at orchestrator.py:2138-2139, which is the decisive reason the knob is a PRESET). This is the
-        # join key D-HP-19's bridge run and every arm-vs-control comparison ride, and an artifact that
-        # NAMES AN ARM THAT DID NOT RUN is strictly worse than one that names none. So: only a preset
-        # knob or an explicit kill may ever name an arm; any other env value stamps None.
-        return None                                    # H0: no preset declares it -> absent, never "on"
-    return str(knob)
+        return None
 
 
 def _baseline_git_commit() -> str:

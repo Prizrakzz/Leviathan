@@ -1059,6 +1059,78 @@ def _handle_menu_on() -> bool:
     return True if ov is None else bool(ov)
 
 
+# The one-way KILL spellings, and there is no "on" spelling by design (R9).
+# H1 FIX Z12: THIS IS A VIEW, NOT A SECOND COPY. The set was retyped here and held in agreement with the
+# leaf's `HANDLE_PROSE_KILL_VALUES` by a drift pin -- which is a test standing in for a definition. R9
+# made the leaf the ONE producer of the spellings, so the tuple is now DERIVED from it and the pin becomes
+# redundant rather than load-bearing. The name survives because two suites read it by name.
+_HANDLE_PROSE_KILL = tuple(sorted(_rm.HANDLE_PROSE_KILL_VALUES))
+
+
+def _handle_prose_on(mode_knobs: dict | None) -> bool:
+    """D-HP-8/R9 -- THE TREATMENT BUNDLE'S ONE KNOB, RESOLVED ONCE PER TURN AT THE SERVING BODY.
+
+    B8's BUNDLE RULE IS WHY THERE IS EXACTLY ONE OF THESE: the prompt contract (D-HP-7), the renderer
+    (D-HP-10/11) and the digit-lint's CHARGE (D-HP-12) move TOGETHER. Two knobs would re-create the
+    GRAPHRAG_VERIFY_ALLNUM hazard PHASE9_B deliberately refused -- a strip rule gated by a flag that can
+    differ across arms means the arm measures its own instrument (section 2's standing law).
+
+    THE ENABLING LEVER IS A PRESET, NEVER AN ENV. `mode_knobs` is the reasoning mode's RESOLVED knob dict
+    (`deep_hp` / `quick_hp` / `esc_hp` / `esc_r_hp`, all in `DARK_NAMES`), threaded down as ONE argument
+    exactly as `provenance_prompt` / `order_policy` / `fetch_k` already are. The decisive reason it cannot
+    be a process env is the ESCALATION SEAM: orchestrator.py:2138-2139 swaps the walk/ground knob dict
+    WHOLE ("never a merge"), so an env-only design would leave the prompt contract on while the escalated
+    turn's knobs said nothing -- the treatment half-reverting MID-TURN on two of the four judged gates.
+
+    `GRAPHRAG_HANDLE_PROSE` SURVIVES AS A ONE-WAY KILL AND NOTHING ELSE. It can force the bundle OFF from
+    an incident shell with no taskdef registration; it CANNOT turn it on, so it cannot drift a gate arm
+    and it cannot stamp an arm nothing ran (the H0 fix to `eval._handle_prose_arm`, from the other side).
+
+    THE VERIFIER GATE IS NOT READ HERE, and that is deliberate: this answers "is the treatment selected",
+    the call sites answer "may the renderer run". Section 2's MUTUAL-EXCLUSION law (handle-prose is
+    IGNORED whenever `GRAPHRAG_VERIFY=off`) is enforced where the passes live -- inside
+    `if verifier.get("enabled"):` -- and at the persona seam, which must not emit a contract the renderer
+    cannot honour.
+
+    H1 FIX Z12: the RESOLUTION is the leaf's (`_rm.handle_prose_on`) and this function owns only what the
+    leaf deliberately does not -- reading the environment. One producer, one set of kill spellings."""
+    return _rm.handle_prose_on(mode_knobs, os.environ.get("GRAPHRAG_HANDLE_PROSE"))
+
+
+def _handle_prose_active(mode_knobs: dict | None) -> bool:
+    """`_handle_prose_on` AND the two ROLLBACK LANES that make the contract unhonourable -- the ONE
+    expression both serving bodies resolve, and the one the persona, the tool schema and the verifier's
+    `handle_prose` argument are all threaded from. "Is the treatment selected" is `_handle_prose_on`;
+    THIS answers "may it actually run this turn", and the difference is the whole of section 2's
+    MUTUAL-EXCLUSION law.
+
+    (1) `GRAPHRAG_VERIFY=off` (section 2, folded from review G9). Every handle pass runs inside
+        `if verifier.get("enabled"):`, and this env is the DOCUMENTED rollback for the entire
+        citation-truth chain. Under handle-prose that rollback would become a LIVE DEFECT rather than a
+        safe fallback: the model writes no digits, nothing splices values, nothing prunes unresolvable
+        handles, and `render()` falls back to the model's own `**Sources**` ledger -- number-free,
+        handle-littered prose reaching the reader. So the PROMPT CONTRACT IS NOT EMITTED on a turn where
+        the renderer cannot run. The spelling is verify.py's own, and the conformance suite asserts the
+        two agree rather than trusting that they do.
+    (2) `GRAPHRAG_MENTOR_VOICE=off` returns `_SYSTEM_LEGACY` from `_system` -- a persona that carries
+        neither the handle menu's vocabulary nor the four spans this contract supersedes. The leg would
+        be appended to a document it does not describe, and the same half-on shape follows. Same rule,
+        same reason: no contract the renderer's other half cannot honour.
+
+    Both are READ PER CALL. A once-at-import read would make either rollback a silent no-op until a
+    redeploy, which is the failure `_system`'s own docstring records.
+
+    H1 FIX Z9 -- THE VERDICT IS THE LEAF'S, THE ENVIRONMENT IS THIS FUNCTION'S. The two lanes used to live
+    only here, so `eval._handle_prose_arm` (which cannot see this module's env reads) stamped "on" for a
+    turn on which the treatment provably did not run -- the H0 arm-stamp defect, reopened by the second
+    lane. The three env values are threaded INTO `_rm.handle_prose_active`, which both the serving seam and
+    the artifact stamp now read, so a lane added on one side cannot exist on the other."""
+    return _rm.handle_prose_active(
+        mode_knobs, os.environ.get("GRAPHRAG_HANDLE_PROSE"),
+        verify_env=os.environ.get("GRAPHRAG_VERIFY", "on"),            # verify.py:890's exact spelling
+        mentor_env=os.environ.get("GRAPHRAG_MENTOR_VOICE", "on"))      # _system's exact spelling
+
+
 def _composition_census_on() -> bool:
     """D-CC-1 kill-switch (GRAPHRAG_COMPOSITION_CENSUS), the _episode_scaffold_on idiom: DEFAULT-OFF,
     house on/1/true spelling, read PER CALL. Off -> the seam threads `census=None` -> response_contracts
@@ -1495,6 +1567,40 @@ _SYSTEM_EPISODES = (
     "the note.")
 
 
+# ══ D-HP-15 (H1b) -- THE SELECT-ORDER-CONNECT VARIANT. APPENDED, NOT REWRITTEN IN PLACE ═══════════════
+# THE SAME SHAPE `_SYSTEM_HANDLES` USES ON THE BODY, and for the same reason: `_SYSTEM_EPISODES` is a
+# module constant shared by EVERY turn, so an in-place rewrite would make the D-HP arm inseparable from
+# the episode mandate and would cost the control arm its byte-identity (the one promise this wave may not
+# spend). The control persona is `_SYSTEM_EPISODES` alone, byte-for-byte, and a pin asserts it.
+# WHAT IT NARROWS, AND ONLY THAT: the SELECTION. The mandate above still owns the section's existence,
+# its heading, its placement, its one-bullet-per-window rule and both absence vocabularies. This leg says
+# the windows are the PROMPT'S, spelled the prompt's way -- which is what makes "the model picks episode
+# ids" a checkable claim rather than a hope. ORDER stays the model's (the scorer's matching is
+# order-insensitive) and CONNECTIVE PROSE stays free: neither is narrowed here, and the render-side pass
+# this leg describes touches neither.
+# IT DOES NOT RE-STATE THE NUMBER CONTRACT. `_SYSTEM_HANDLES` is appended after it and already narrows
+# every magnitude instruction in the block above; saying it twice in two vocabularies is how a grammar
+# acquires a contradiction (the D-HP-8 lesson, applied to its own successor).
+_SYSTEM_EPISODES_SELECT = (
+    "\nEPISODES UNDER THIS TURN'S NUMBER CONTRACT -- SELECT, ORDER, CONNECT. You do not author windows; "
+    "you SELECT them. Every '## Episodes' bullet must name one of the windows an injected 'DATED "
+    "EPISODES' line actually carried, and must spell that window EXACTLY as the line spells it -- the "
+    "same four-digit years, the same two-dot glyph, the same '..' token, copied rather than retyped from "
+    "memory. A bullet naming a window no injected line carried is DELETED WHOLE before the reader sees "
+    "it, and so is a bullet whose window is spelled differently from the line it came from; there is no "
+    "partial credit and no repair. Selecting FEWER windows than were injected is a legitimate move; "
+    "inventing one is the worst move available here.\n"
+    "CITE RECEIPTS BY THEIR HANDLES. When a window's injected line showed you a citable item, carry that "
+    "item's [E] handle in the bullet exactly as you would anywhere else in the note -- the handle IS the "
+    "citation and there is nothing else to declare.\n"
+    "TYPE NO MAGNITUDES ON A BULLET. The span's two years are the only figures a bullet carries in its "
+    "own right; a price move is an [N] handle in its slot or it is the plain statement that the record "
+    "holds none. The report COUNT is never a numeral.\n"
+    "THE CONNECTIVE PROSE IS YOURS. What the window is, why it belongs in this answer, how it sits "
+    "beside the others -- write that in your own words. The rule above is about which windows exist, "
+    "never about what you may say once you have chosen them.")
+
+
 # D-RC-13: the dating discipline (the recency half of the desk-probe findings: the equities and
 # Arabic answers led with MY2020-22 facts in PRESENT tense, and Malaysia's MPOB read never said its
 # newest month was three months old). STATIC text -- the per-turn DATE rides the volatile GROUNDING
@@ -1524,9 +1630,91 @@ _SYSTEM_PROVENANCE = (
     "the answer; it is never required, and an admission that adds nothing should simply be left alone.")
 
 
+# ══ D-HP-7/8/12 (H1) -- THE HANDLE-PROSE CONTRACT. APPENDED, NOT REWRITTEN IN PLACE ═══════════════════
+# THE SHAPE IS A ONE-SIDED NARROWING OF THE SHIPPED D-PQ CONTRACT, and the leg says so IN THE MODEL'S
+# HEARING rather than leaving it to infer:
+#     TODAY  "value AND handle"  (`_SYSTEM_CASCADE`: "every figure you state MUST appear in an injected
+#                                 row and carry its numbered [N] handle"), verifier strips mismatches.
+#     D-HP   "handle ONLY, written in the slot where the figure belongs." The left conjunct is deleted.
+# The plan's instruction is that the four spans stating the old contract are "rewritten to say so". They
+# are SUPERSEDED BY NAME here instead of edited in place, and that is not laziness -- it is D-HP-8's
+# recorded decision. Those spans live in `_SYSTEM_MENTOR`, a module constant shared by EVERY turn; the
+# in-place rewrite is a `response_contracts.apply` needle job over three byte-pinned needles shared by
+# every contract, which would make the D-HP arm inseparable from the contract selector and cost the OFF
+# arm its byte-identity. It is recorded as the consolidation follow-up, after G1/G2.
+# AN APPENDED LEG THAT DOES NOT NAME WHAT IT OVERRIDES LEAVES THE MODEL HOLDING A CONTRADICTION, which is
+# the one thing a grammar cannot survive -- so each superseded instruction is quoted back and cancelled.
+#
+# WHAT IS DELIBERATELY *NOT* IN HERE, each with its reason (D-HP-7's NOT-IN-SCOPE list + B7):
+#   - NO DERIVATION GRAMMAR. The operator whitelist is SIZE ZERO, and after the R10 shown-bound re-run it
+#     is a MEASUREMENT, not a decision: DERIVED numerals are 2.0% of the corpus at 0.25x their own chance
+#     floor, falling to 1.3% / 0.8% under shown-binding, and NO op (sum, diff, ratio, pct_change,
+#     count_streak, share, minmax, agg) clears its floor in any variant. The cascade already computes the
+#     op and serves it as a row -- 50.3% of all typed numerals are a direct read of an ALREADY-DERIVED
+#     metric. So the grammar is DIRECT + A REFUSAL, and the refusal is stated as a legitimate move.
+#   - NO DENSITY MANDATE. Handles are OPTIONAL-WITH-REFUSAL (B7): mandatory-citation grammars convert
+#     non-citation failures into MIS-citation failures, which feeds this wave's #1 risk directly. The
+#     number-avoidance failure mode is caught by G1 clause (8)'s AGGREGATE band, checked after the fact,
+#     with no instruction to the writer.
+#   - NO DATE/ERA/MONTH HANDLES. Those are renderable today and are sequenced after G1/G2, so the model
+#     must keep WRITING them -- and the leg says so explicitly, because a contract that reads "never type
+#     a digit" would take the RECENCY discipline's dated claims down with it. The extractor agrees: a bare
+#     calendar year, a year-range tail, a date's day, an ordinal and a duration modifier are all EXEMPT
+#     from `_claim_number_spans`, so none of them is a magnitude to the lint either.
+#   - NO SIGN. D1: the engine prints MAGNITUDE, the analyst writes DIRECTION. The splice writes abs(value)
+#     for sign-meaningful rows precisely so the verb keeps carrying the sign, so a minus sign typed into
+#     the prose would be the model overwriting the one thing it still owns.
+_SYSTEM_HANDLES = (
+    "\n\nHANDLE-PROSE (THIS TURN'S NUMBER CONTRACT -- IT NARROWS EVERY NUMBER INSTRUCTION ABOVE).\n"
+    "THE ONE RULE: you do not type figures. You write the HANDLE where the figure belongs, and the engine "
+    "substitutes the value, its unit and its citation before the reader sees the sentence. Write \"US wheat "
+    "export commitments were [N4]\", never \"were 12.549 MMT [N4]\". The receipt rows above are a numbered "
+    "MENU and a handle is an ADDRESS into it: [N7] is the 7th OBSERVED CASCADE NUMBERS row, [E7] is the 7th "
+    "evidence item, counted once per source across every block.\n"
+    "THIS SUPERSEDES, BY NAME: (a) 'every figure you state MUST appear in an injected row AND carry its "
+    "numbered [N] handle' -- the FIGURE half is deleted, the HANDLE half stands alone; (b) every "
+    "instruction to DECLARE handles 'in the sources ledger' -- there is no sources ledger on this turn, the "
+    "ledger is rendered from the handles you actually write, so writing [E3] IS declaring it and there is "
+    "nothing else to fill in; (c) 'in `sources` ORDER citations most-trusted first' -- ordering now lives "
+    "in the menu, whose every row carries its [T1]-[T4] trust tag: prefer the lowest-T row when two "
+    "disagree, and FLAG the disagreement exactly as before.\n"
+    "THE SLOT: put the handle exactly where the number would have gone -- after the value word ('at', "
+    "'of', 'to', 'was', 'rose to', 'settled at', 'printed'). A handle that is not in a value slot reads as "
+    "a plain citation and stays one. NEVER put a GROUPED or RANGED token ([N13, N14], [E1-E4]) in a value "
+    "slot: a group stands in for no single figure, so there is nothing to substitute and the clause is "
+    "dropped. Group only when you are citing several items for one qualitative claim.\n"
+    "ONE HANDLE, ONE FIGURE, AND CHECK THE ROW YOU ARE POINTING AT: the row's scope tag "
+    "([series/country/table/period] on a number row, the source and dates on an evidence row) must be the "
+    "thing your sentence is about. A handle pointing at a REAL but WRONG row prints a real, cited, wrong "
+    "number -- the worst failure available on this turn, and worse than saying nothing.\n"
+    "NO ARITHMETIC. Do not add, subtract, ratio, average, percent-change, rank or streak-count the menu's "
+    "values into a new figure -- there is no way to write the result and it will be deleted. If the "
+    "quantity you want is not ITSELF a row, either say it qualitatively ('roughly half', 'sharply lower', "
+    "'the tightest in years' -- these carry no digit and are always allowed) or say the record does not "
+    "carry it. Refusing a magnitude is a correct, professional move here; inventing one is not.\n"
+    "NO HANDLE, NO MAGNITUDE -- and that is allowed. A claim may carry no handle at all, in which case it "
+    "carries no figure. There is no minimum: do not sprinkle handles to look grounded, and do not force a "
+    "number into a sentence that does not need one.\n"
+    "STILL WRITE, EXACTLY AS BEFORE: dates, years, marketing years, delivery months, era labels, "
+    "quarters and lags in words. Those are not magnitudes and the contract does not touch them -- 'the "
+    "export ban took effect 2010-08 [E1]', 'in MY 2021/22', 'about a quarter later' are all correct.\n"
+    "DIRECTION IS YOURS, MAGNITUDE IS THE ROW'S. Write 'fell', 'rose', 'widened', 'tightened', 'drew' -- "
+    "the engine prints the size, never the direction, and never a sign. Do NOT write a minus sign, a "
+    "leading '+' or the word 'negative' in front of a handle; the verb already carries it, and the engine "
+    "checks your verb against the row's sign.\n"
+    "THE ONE EXEMPTION, AND IT IS NARROW: a figure that appears in the QUOTED TEXT of an evidence item and "
+    "exists nowhere in the number menu may be typed, IN THE SAME SENTENCE AS THAT ITEM'S [E] HANDLE. That "
+    "is the only sentence in which a typed figure survives. Every other typed figure is a lint violation "
+    "and the engine deletes the sentence that carries it -- so if you cannot find the row, do not type the "
+    "number, say what the record supports.\n"
+    "THINK IN `plan` FIRST. The `plan` property is your private scratchpad: nobody reads it, nothing is "
+    "graded on it, and it is deleted before the answer is checked. Choose your rows there, compare them "
+    "there, write numbers there freely -- then write the answer with handles in the slots.")
+
+
 def _system(*, outlook: bool = False, episodes: bool | None = None, recency: bool = False,
             response_contract: str | None = None, budget: str | None = None,
-            census: dict | None = None, provenance: bool = False) -> str:
+            census: dict | None = None, provenance: bool = False, handles: bool = False) -> str:
     """The active reader-facing persona. GRAPHRAG_MENTOR_VOICE default on -> mentor; =off -> the prior string.
     GRAPHRAG_CASCADE_QUANT on -> append the OBSERVED CASCADE NUMBERS addendum (P9-B: the loop supplies the
     [N] rows). GRAPHRAG_PATTERN_RECORDS on -> append the OBSERVATION-register RECORDED HISTORY directive (T2B).
@@ -1546,6 +1734,18 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
     the escalated bundle's `provenance_prompt` knob exactly like `budget` and `census`: this function
     reads no environment for it. DEFAULT FALSE, so every existing caller -- the one-hop body included --
     is byte-identical and the whole provenance lever has a provable off state.
+    `handles` (D-HP-7/8) appends the HANDLE-PROSE contract -- the same threading discipline, and for the
+    same reason it matters more here than anywhere else: this leg is the PROMPT half of a bundle whose
+    other halves are the [E]/[N] render passes and the digit-lint's charge, and B8 says the three move
+    together or the arm measures its own instrument. It is appended LAST of the legs because it NARROWS
+    every number rule above it (the four superseded spans are named inside the text, not left to
+    inference). It ALSO selects D-HP-15's `_SYSTEM_EPISODES_SELECT` leg, and only when `episodes` is
+    already true: the select-order-connect variant NARROWS the episode mandate and is meaningless
+    without it, so the two legs are one conjunction rather than two independent appends.
+    DEFAULT FALSE -> byte-identical, and the OFF arm is provable rather than promised. The
+    caller resolves it with `_handle_prose_active`, never with the raw knob: a persona that promised
+    handle substitution on a turn where the renderer cannot run would ship handle-littered, number-free
+    prose to the reader (section 2's MUTUAL-EXCLUSION law).
     Read PER CALL, never memoized: a serving process is long-lived, so a once-at-import read would
     make the env-flip rollback a silent no-op until a redeploy — defeating the gate's purpose."""
     if os.environ.get("GRAPHRAG_MENTOR_VOICE", "on") == "off":
@@ -1568,12 +1768,16 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
         episodes = _timeline_on()                                  #   (a floor, not the seam invariant)
     if episodes:                                                   # W4-D3: the reserved '## Episodes' heading
         base = base + _SYSTEM_EPISODES
+        if handles:                                                # D-HP-15: the SELECT variant, appended
+            base = base + _SYSTEM_EPISODES_SELECT                  #   (control = the mandate alone, pinned)
     if outlook:                                                    # W5-D5: the reserved '## Outlook' heading
         base = base + _SYSTEM_OUTLOOK
     if recency:                                                    # D-RC-13: dating discipline (flag resolved
         base = base + _SYSTEM_RECENCY                              #   by the caller's seam, threaded DOWN)
     if provenance:                                                 # D-MW-30 (esc_r): the structural-admission
         base = base + _SYSTEM_PROVENANCE                           #   INVITATION, threaded from the mode knob
+    if handles:                                                    # D-HP-7/8: LAST of the legs, because it
+        base = base + _SYSTEM_HANDLES                              #   NARROWS every number rule above it
     base = base + _rc.directive(response_contract, census=census)  # D-RC Phase B: emphasis LAST ('' for
     return base                                                    #   default/None -- the fail-open pin)
 
@@ -1771,14 +1975,49 @@ def _ev_block(evidence: list[dict], menu: dict[str, tuple[int, dict]] | None = N
     `source_key` renders its TEXT once, at its first block, and is CROSS-REFERENCED by its global ordinal
     everywhere else -- `rendered` is the caller-owned set that carries that state across blocks. An item
     with no ordinal (no `source_key`, so not in `uniq` and uncitable) renders in its pre-D-HP shape: no
-    handle is offered for a row the reader could never be shown."""
-    def _one(e: dict) -> str:
+    handle is offered for a row the reader could never be shown.
+
+    A MENU REQUIRES ITS `rendered` SET (H1 residual 10.9(3), NARROWED BY FIX Z3). `menu` without
+    `rendered` compiles and reads plausibly, and it SILENTLY BREAKS THE LEDGER PROPERTY: with no
+    caller-owned set to carry the cross-reference state, a `source_key` met twice renders its text TWICE
+    under the SAME `[E{i}]` label, so an ordinal stops naming exactly one row -- the one thing D-HP-2's
+    menu exists to promise. That direction is a real defect and still raises.
+    THE OTHER DIRECTION IS A LEGITIMATE CALL AND MUST NOT RAISE. `rendered` without `menu` is an unused
+    accumulator, not a broken ledger: with `menu=None` every row renders in its pre-D-HP shape and the set
+    is never read. The ONE-HOP body passes `rendered=set()` UNCONDITIONALLY while its menu is None
+    whenever `_handle_menu_on()` is False -- i.e. on `dossier.run_subquery`'s every sub-call -- so the
+    symmetric guard turned the DOCUMENTED `GRAPHRAG_PLANNER=onehop` rollback lane into a ValueError out of
+    `answer()`: a guard against a silent mis-render that crashed the fallback it was meant to protect.
+    Symmetry is not the invariant; "an ordinal names exactly one row" is, and only one half of the pair
+    can break it.
+
+    THE LABELLED ROW'S HEADER COMES FROM THE ROW THE LABEL BINDS (H1 residual 10.9(1)). The H0 fix bound
+    the TEXT under `[E{i}]` to `uniq[i-1]` but left the head (source / reported date / event date) and the
+    driver tag reading the LOCALLY ENCOUNTERED row -- so on the L2 body, where `_l2_blocks` regroups by
+    contract while `uniq` is flat `_render_order` order, a duplicate `source_key` could ship the bound
+    text under ANOTHER chunk's event date or driver tag. That is the same defect the H0 blocker fixed, one
+    field over: a mislabelled receipt is a wrong receipt even when the prose under it is right. The head
+    and the text are now derived from ONE row, `rep`, and cannot disagree.
+    THE CROSS-REFERENCE ROW KEEPS ITS LOCAL HEAD, deliberately: it binds NO text (it names the label whose
+    text is above), and its head + driver tag + admission provenance are what place THIS occurrence in
+    THIS block -- which is the per-driver structure the clause above preserves on purpose."""
+    if menu is not None and rendered is None:                   # FIX Z3: only the LEDGER-BREAKING half
+        raise ValueError("_ev_block: a `menu` requires its caller-owned `rendered` set -- without one a "
+                         "`source_key` met twice renders one ordinal's text twice and breaks the D-HP-2 "
+                         "ledger property; pass both (the D-HP path) or menu=None (pre-D-HP bytes).")
+
+    def _head_of(e: dict) -> tuple[str, str]:
+        """(head, driver tag) for ONE row -- the single derivation both branches call, so a labelled row's
+        header can only ever describe the row whose text it carries."""
         head = f"[T{source_tier(e['source'])}] ({e['source']}, reported {e['date']}"
         ev_dt = _usable_date(e.get("event_date"))
         if ev_dt and ev_dt != str(e["date"])[:10]:             # WS-MS6: show WHEN the event happened vs was reported
             head += f"; event {ev_dt}"
         head += ")"
-        drv = f" {{driver: {e['driver']}}}" if e.get("driver") else ""   # cross-cutting cascade trigger
+        return head, (f" {{driver: {e['driver']}}}" if e.get("driver") else "")   # cross-cutting cascade trigger
+
+    def _one(e: dict) -> str:
+        head, drv = _head_of(e)
         if menu is None:
             return f"- {head}{drv} {e['text']}"
         sk = str(e.get("source_key") or "")
@@ -1796,7 +2035,8 @@ def _ev_block(evidence: list[dict], menu: dict[str, tuple[int, dict]] | None = N
             return f"- {head}{drv} (same item as [E{n}] above)"
         if rendered is not None:
             rendered.add(sk)
-        return f"- [E{n}]{head}{drv} {rep['text']}"
+        _head, _drv = _head_of(rep)                            # H1 residual 10.9(1): head + text, ONE row
+        return f"- [E{n}]{_head}{_drv} {rep['text']}"
     return "\n".join(_one(e) for e in evidence) or "(no evidence retrieved)"
 
 
@@ -2208,6 +2448,14 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # an absent key is False on every other preset (the knob is None, never False -- reasoning_modes' F7
     # note), so both seams take their default and this whole lever has a provable off state.
     _provenance = bool((mode_knobs or {}).get("provenance_prompt"))
+    # D-HP-7/8/9/12 (H1): THE TREATMENT BUNDLE'S ONE RESOLUTION, read from the mode knob HERE and threaded
+    # to ALL FOUR of its seams -- the persona (`_system(handles=)`), the tool schema
+    # (`_answer_tool(handles=)`), the verifier's charge + positional [E] resolution
+    # (`verify_citations(handle_prose=)`), and the render passes below. B8's bundle rule is that they
+    # cannot disagree, and ONE local read once is how that is guaranteed rather than promised. False on
+    # every non-`_hp` preset AND on both rollback lanes (`_handle_prose_active`), so the whole grammar has
+    # a provable off state at every seam it touches.
+    _handles = _handle_prose_active(mode_knobs)
     # ══ D-HP-1 (H0) -- THE HOIST: ONE LIST, ONE NUMBERING, THREE CONSUMERS ════════════════════════════
     # THE DEFECT (recon 2 s2): three independent numberings that coincided only by luck.
     #   PROMPT ORDER   -- `_l2_blocks` regroups by contract and emits `_ev_block(n.evidence)` per node.
@@ -2342,20 +2590,11 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # unnumbered rows must not be told its handles are addresses. `n_ev` also feeds the composition
     # census below, so the whole prompt (menu, ledger, mandates) is pre-D-HP on that lane, not just the
     # rows.
-    if _menu_on:
-        n_ev = len(_uniq)
-        _e_clause = ("Emit NO [E] handles (there are no evidence items); " if n_ev == 0 else
-                     f"[E] handles run [E1]..[E{n_ev}], each mapping to the item tagged with it above; ")
-    else:
-        n_ev = sum(len(getattr(n, "evidence", []) or []) for n in sg.nodes)
-        _e_clause = f"Cite AT MOST {n_ev} distinct [E] handles, each mapping to one item above; "
+    n_ev = (len(_uniq) if _menu_on
+            else sum(len(getattr(n, "evidence", []) or []) for n in sg.nodes))
     n_num = len(extra_number_calls or [])
     sg.trace["injected_n"] = n_num                               # W6.1-0: [N] rows injected (cited-vs-injected denom)
-    _ledger_line = (
-        f"GROUNDING LEDGER: {n_ev} dated evidence item(s) and {n_num} observed number row(s) are "
-        f"available for this question. " + _e_clause
-        + ("emit NO [N] handles (there are no number rows)."
-           if n_num == 0 else f"[N] handles run [N1]..[N{n_num}]."))
+    _ledger_line = _grounding_ledger(n_ev, n_num, menu_on=_menu_on)
     # D-RC-13: the record's EDGE, stamped observationally (trace, unconditional -- the fork_basis
     # scoped-promise precedent) and stated to the model only when the flag is on (the suffix is ''
     # otherwise, so the ledger line is byte-identical flag-off).
@@ -2368,6 +2607,12 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # keep the plain signature). The verifier still runs on the FINAL structured output below, so streaming is
     # additive UX — the trust contract is unchanged.
     on_token = (lambda t: _emit(on_stage, "token", text=t)) if on_stage is not None else None
+    # H1 FIX Z10: on the TREATMENT lane the tool schema carries a `plan` property that is generated FIRST,
+    # so the relay would deliver the model's private, unverified scratchpad to the browser before anything
+    # ran on it. Wrapped only when the region can exist, so the CONTROL arm's relay is the same lambda it
+    # has always been -- byte-identical, not merely equivalent.
+    if _handles:
+        on_token = _plan_filtered_token_relay(on_token)
     call_kw = {"on_token": on_token} if (on_token is not None and call is _call_opus) else {}
     _emit(on_stage, "synthesizing")                               # prompt assembled; the model call starts NOW
     _emit(on_stage, "drafting")                                   # F7: the engine feed is CLOSED — prose mode
@@ -2414,8 +2659,10 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     structured = call(_system(outlook=_outlook, episodes=_episodes, recency=_recency_stamp_on(),
                               response_contract=_rc_active, budget=_mode_budget(_rc_active, mode_knobs),
                               census=_census,                     # D-CC-1: None on every dark turn
-                              provenance=_provenance),            # D-MW-30: False on every non-esc_r turn
-                      _pack(sp, vp, use_blocks), model=model, tool=_answer_tool(), **call_kw)
+                              provenance=_provenance,             # D-MW-30: False on every non-esc_r turn
+                              handles=_handles),                  # D-HP-7/8: False on every non-_hp turn
+                      _pack(sp, vp, use_blocks), model=model,
+                      tool=_answer_tool(handles=_handles), **call_kw)   # D-HP-7/9: `plan` in, `sources` out
     sg.trace["ms_synth_llm"] = int((time.perf_counter() - _t_synth) * 1000)
     _banned_mood = _count_banned_mood(structured)                 # P9-A: RAW output, pre-sanitize (see helper)
     _banned_val = _count_banned_valuation(structured)             # DP-6: valuation/flow raw counts, pre-sanitize
@@ -2429,6 +2676,14 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     _raw_draft = raw_draft_snapshot(tldr=structured.get("tldr"), mechanism=structured.get("mechanism"))
     degraded = _pop_degraded(structured)
     _synth_usage = _pop_usage(structured)                         # D-AM-4: same pop channel, both bodies
+    # D-HP-7 ORDERING PIN (c), the one D-HP-6 could not write at H0: the PLANNING REGION is lifted off
+    # `structured` HERE -- same pop channel, and BEFORE `verify_citations` -- so `claim_count` (the
+    # strip-rate denominator every D-HP-17 successor divides by) is byte-identical with and without a
+    # plan, the digit-lint never charges the model's scratchpad, and no fidelity rung of
+    # `render_answer_for_judge` can serve unrendered reasoning as an answer. Dropped on the floor by
+    # design: a trace key would put the model's private reasoning into a stored artifact the judge, the
+    # adjudicators and the FE all read.
+    _pop_plan(structured)
     if sg.mermaid and _valid_mermaid(sg.mermaid):
         structured["diagram_mermaid"] = sg.mermaid                # deterministic diagram overrides the LLM's
     # D-HP-1: `evidence` / `uniq` were BUILT HERE and are now built BEFORE `_l2_blocks` (see the hoist
@@ -2450,7 +2705,8 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # that ordinal, which is the wrong-slot class D-HP-14 exists to make auditable.
     verifier = vf.verify_citations(structured, uniq, extra_number_calls,
                                    foreign_names=_foreign_regime_names(
-                                       graph, sorted({n.contract for n in sg.nodes})))
+                                       graph, sorted({n.contract for n in sg.nodes})),
+                                   handle_prose=_handles)         # D-HP-9/12: the SAME one resolution
     # ══ CYCLE-9 (2026-08-08) FIX 4 -- THE MISSING ATTRIBUTION BOUNDARY, ADDITIVE ONLY ═══════════════
     # The gate-6 adjudicator (p4.py) could not attribute a draft-vs-page numeral diff to the repair path:
     # `raw_draft` is captured at the top of this function and the next capture (`verified_*`) is taken
@@ -2474,7 +2730,40 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # this is the ONLY signal that permits the UI to ACTIVATE them (RCA F7c: the `token` draft is
     # PRE-verifier, and strips run p50 1 / p90 7 / max 16, so a handle activated earlier could disappear).
     _emit(on_stage, "verified", strips=int(verifier.get("stripped", 0) or 0))
+    # D-HP-9 / R1(b): the ledger is re-minted FROM `resolved` HERE -- after verify returns, before
+    # provenance stamps. OFF-arm-clean: `_handles` False -> not called -> `structured['sources']` is the
+    # model's own ledger, byte-identical. See `_synthesize_sources` for why the direction and the
+    # position are both part of the contract.
+    if _handles:
+        _synthesize_sources(structured, verifier)
     _attach_provenance(structured, verifier)                     # stamp source_key for durable chip join (6.4)
+    # D-HP-15 (H1b) SELECT -- THE EPISODE-SPAN FENCE, HERE AND NOT AT THE SCAFFOLD SEAM (fold-2 G-A).
+    # IT WALKS MARKER-INTACT TEXT. It ran after the whole stack until this fold, and the D-HP-12 lint
+    # below eats an ordered item's '1. ' marker as a bare-digit sentence -- so on the treatment arm the
+    # fence saw no items in a numbered '## Episodes' section, the fabricated window shipped, and an
+    # honest ordered item after a convicted one was read as a CONTINUATION and deleted uncharged. Both
+    # residuals are one root: A FENCE MUST NEVER WALK TEXT A PRIOR PASS REWROTE (H1's staleness lesson).
+    # It stays AFTER `verify_citations` (the strip-rate denominators are final, so the fold below does
+    # not move them) and OUTSIDE the seven-pass stack -- before it now, not after: this pass MINTS
+    # nothing, so the `_synth_ref_floor`/`_resolve_evidence_handles` law that forbids relocating a
+    # PRODUCER into the stack does not reach it, and the stack is handed a page whose convicted bullets
+    # are already gone. The A4b interval its deletions fall in moved with it (plan 10.15).
+    # OFF-ARM: the kwarg is OMITTED when the treatment is not active (`_scaffold_cap_kwargs`' idiom), the
+    # pass counts and returns without writing, the ledger fold is a no-op on n=0, and the trace key is
+    # never stamped -- so a control turn's body, ledger and record are byte-identical.
+    _espan = _validate_episode_spans(structured, sg.trace.get("episodes_injected"),
+                                     **({"handle_prose": True} if _handles else {}))
+    if _handles and _espan.get("section_seen"):        # the DENOMINATOR rides beside the charge, so a
+        sg.trace["episode_spans_validated"] = _espan   # clean treatment row still reports what it checked
+    # ...AND IT STAMPS ON `section_seen`, NOT ON `spans_checked` (H1b fold-1 F4), and `section_seen` is
+    # set BEFORE every early return (fold-2 G-B) so the FULLY-FLOORED lane -- where the prompt carries no
+    # window at all and every window the model writes is minted -- can no longer read to a G1 consumer
+    # exactly like a row that never had a section. That lane now convicts, too: universal membership
+    # against an empty stamped set.
+    # ONE STRIP LEDGER, ONE WRITER (H1 FIX W2's law): a bullet this pass removed is a bullet the reader
+    # lost, so it is charged like every other render-side removal. DECLARED in G1 clause (4)'s frozen set
+    # in the same change, or the clause would be pre-registered to fail on the wave's own remedy.
+    _fold_ledger_class(verifier, _EPISODE_SPAN_UNBACKED_CLASS, _espan.get("bullets_dropped"))
     # D-PQ HANDLE-1: the [N] namespace render, AFTER the verifier (its strips have already removed the
     # handles it convicts, so this pass only ever sees survivors) and BEFORE `_humanize_structured` (so a
     # spliced figure rides the same sanitize the rest of the prose does). Reads `extra_number_calls` --
@@ -2487,12 +2776,34 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # sense this pass means, so running anyway would delete prose on a turn nobody asked to police. Key
     # ABSENT when off, never null -- the OFF-arm-clean rule.
     if verifier.get("enabled"):
-        sg.trace["number_handles"] = _resolve_number_handles(structured, extra_number_calls)
+        # D-HP-12's REMEDY, FIRST IN THE STACK AND BEFORE ANY SPLICE. `_resolve_number_handles` writes row
+        # values into the prose, so a digit-lint running after it would read the ENGINE's digits as the
+        # MODEL's and delete the sentences the renderer had just filled in. Charged in verify (ONE strip
+        # ledger, `by_rule['bare_digit']`), deleted here. OFF-arm-clean: no key, no call.
+        if _handles:
+            _bdrop = _drop_bare_digit_sentences(structured, extra_number_calls, verifier)
+            if any(_bdrop.values()):
+                sg.trace["bare_digit_dropped"] = _bdrop
+        sg.trace["number_handles"] = _resolve_number_handles(structured, extra_number_calls,
+                                                             handle_prose=_handles)
+        # H1 FIX Z1/Z6: the three D-HP-native render classes join the ONE strip ledger, so the class scan,
+        # the artifact projection, the successor family and the EMF counters all read one location.
+        if _handles:
+            _fold_render_classes(verifier, sg.trace["number_handles"])
         # CYCLE-6 FIX-C, in the SAME gate and BEFORE the body render (see `_dedup_number_handles` for why
         # the ordering is the whole safety of it). Stamped only when it re-pointed something.
         _nclone = _dedup_number_handles(structured, extra_number_calls)
         if _nclone:
             sg.trace["number_rows_deduped"] = _nclone
+        # D-HP-10, the [E] half of the [N] pass above, and it inserts HERE -- before the prune, never
+        # after (ordering pin (b)). This one asks "does the index name a row at all"; the prune asks "did
+        # the reader actually GET the row", keyed on the footer's own emission decision. ALWAYS STAMPED,
+        # both polarities: G1 reads control-vs-treatment on this column and a treatment-only census has
+        # no denominator. With `_handles` False it is a pure read and the prose is byte-identical.
+        sg.trace["prose_handles"] = _resolve_evidence_handles(structured, uniq, handle_prose=_handles)
+        # D-HP-14: the wave's #1 risk as a per-ROW column (R11's tripwire is per row, not per run).
+        if _handles:
+            sg.trace["wrong_slot_audit"] = _wrong_slot_audit(sg.trace["number_handles"])
         # CYCLE-9 FIX 3, in the SAME gate and BEFORE the debris pass (which closes the frames it empties):
         # the [E] half of the same total join. Stamped only when it removed something -- OFF-arm-clean.
         _eorph = _prune_orphan_evidence_handles(structured, verifier, market_register=_mr)
@@ -2503,6 +2814,16 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
         # untouched draft writes no key -- the OFF-arm-clean rule, again.
         if _tidy_handle_debris(structured):
             sg.trace["prose_debris_tidied"] = True
+        # H1 FIX Z4, in the SAME gate and AFTER the debris pass (which closes the bracket frames a
+        # positional strip left standing, so the sentence's real tail is visible here) and BEFORE TIDY-2
+        # (which repairs the paragraph seam this drop opens, off the seams it mints). Treatment only.
+        if _handles:
+            _sorph = _drop_slot_orphan_sentences(structured, verifier)
+            # H1 FIX W2: the deleted sentences join the ONE strip ledger, so no sentence this pass
+            # removed is unaccounted for in the artifact (finding NF-2).
+            _fold_ledger_class(verifier, _SLOT_ORPHAN_CLASS, _sorph.get("sentences_dropped"))
+            if any(_sorph.values()):
+                sg.trace["slot_orphan_dropped"] = _sorph
         # CYCLE-5 TIDY-2, in the SAME gate and immediately after the debris pass: the debris rules close
         # up punctuation frames INSIDE a line, this one closes the paragraph seam a whole-sentence drop
         # opened. Order matters only in that both run after every removal is final. Stamped only when it
@@ -2616,14 +2937,226 @@ def _pack(stable: str, volatile: str, structured: bool):
     return (stable, volatile) if structured else stable + "\n\n" + volatile
 
 
-def _answer_tool() -> dict:
+_PLAN_PROPERTY_DESC = (
+    "Your PRIVATE working notes for this answer. NOT shown to the reader, not stored, not verified, not "
+    "graded -- it is deleted server-side the moment the call returns. Use it to decide WHICH receipt rows "
+    "you will cite and in what order, to talk yourself through arithmetic or comparisons, and to note what "
+    "the record does NOT support. Write numbers here freely: this is the one place digits cost nothing. "
+    "Nothing you write here can appear in the answer except as a handle.")
+
+
+def _answer_tool(handles: bool = False) -> dict:
+    """The `emit_answer` tool schema. `handles=False` returns the SHIPPED schema byte-for-byte.
+
+    == D-HP-7 / D-HP-9 (H1), THE CONDITIONAL FORM ======================================================
+    `handles=True` makes TWO changes, and the argument (never an env read) is what keeps the OFF arm
+    provable and keeps the DOCUMENT lane out of it: `dossier.py:678` calls this WITH NO ARGUMENTS, so the
+    dossier's schema is byte-identical until D-HP-28 opens (D-HP-16: "D-HP-9 SHIPS CONDITIONALLY OR IT
+    DOES NOT SHIP").
+
+    (1) `plan` IS ADDED -- THE FREE REASONING REGION, AND IT IS A PROPERTY, NOT A DELIMITED SPAN.
+        The constrained-generation result D-HP-7 adopts is that a restrictive output grammar caps
+        reasoning UNLESS the grammar carries a free region. This model has no other output channel, so the
+        region is either a new property or a span inside the prose fields -- and a span breaks four named
+        invariants, every one of them measured:
+          (i)   `verify.claim_count` splits SENTENCES over `tldr + " " + mechanism`, and it is THE strip-rate
+                denominator every successor metric in D-HP-17 divides by. An in-field region inflates it and
+                destroys the bridge run's comparability.
+          (ii)  the digit-lint charges inside that same function, so an in-field region's digits would be
+                CHARGED -- the lint would fine the model for thinking in numbers, which is the one place
+                D-HP wants it to.
+          (iii) `structured['mechanism']` is rendered DIRECTLY by the FE and scraped MID-STREAM by
+                `StreamingNote.streamingPreview`, so a delimited span inside it streams to the reader
+                verbatim.
+          (iv)  a separate property is invisible to that scraper by construction.
+        IT IS NOT IN `required` (a turn that needs no scratchpad must not be forced to invent one) and it
+        is POPPED server-side beside `_pop_usage`, BEFORE `verify_citations`, so it never reaches
+        `structured`, never reaches the render, never reaches the judge and never moves `claim_count`.
+        IT IS EMITTED FIRST, and the cost is PRE-REGISTERED rather than discovered: the planning region's
+        output tokens delay the first `tldr` delta, so D-HP-24's "TTFB unchanged at the transport" is false
+        and D-HP-27 (R5) owns the SSE consequence. Reason-then-write is the point; a plan emitted after the
+        prose is a rationalisation, not a plan.
+
+    (2) `sources` IS DROPPED -- from `properties` AND from `required` (it is in both, and a conditional
+        that varied only one would emit a schema demanding a property it does not declare). This is the
+        deletion that makes THREE of the four killed classes unconstructible rather than caught:
+        `fabricated_citation` has no ledger row to mint, `ledger_cascade` goes with it for free, and
+        `undeclared_unsupported` collapses to a pure index-range check. Two of its four fields were already
+        renderer-owned anyway (`source` is overwritten by `_humanize_structured`, `date` is corrected by
+        the verifier), and the `ref: integer` typing is what made E and N collide on one namespace.
+        THE THREE CONTRACTS THIS OWES, none of them optional and none of them here (R1): the server
+        synthesises `verifier['resolved']` (verify.py mints it positionally under `handle_prose=True`,
+        because six consumers join on it and `_prune_orphan_evidence_handles` would otherwise prune EVERY
+        [E] handle from the prose), re-synthesises `structured['sources']` FROM `resolved` AFTER
+        `verify_citations` returns, and carries `source_key` on every synthesised row -- the sole input to
+        the 6.5 click-to-page locator. A drop without them costs the reader receipts AND click-to-page."""
     s = {"type": "string"}
+    props: dict = {}
+    if handles:
+        props["plan"] = {"type": "string", "description": _PLAN_PROPERTY_DESC}
+    props.update({"tldr": s, "mechanism": s, "diagram_mermaid": s})
+    required = ["tldr", "mechanism"]
+    if not handles:
+        props["sources"] = {"type": "array", "items": {"type": "object", "properties": {
+            "ref": {"type": "integer"}, "source": s, "date": s, "note": s}}}
+        required.append("sources")
     return {"name": "emit_answer", "description": "Emit the reader-first structured answer.",
-            "input_schema": {"type": "object", "properties": {
-                "tldr": s, "mechanism": s, "diagram_mermaid": s,
-                "sources": {"type": "array", "items": {"type": "object", "properties": {
-                    "ref": {"type": "integer"}, "source": s, "date": s, "note": s}}}},
-                "required": ["tldr", "mechanism", "sources"]}}
+            "input_schema": {"type": "object", "properties": props, "required": required}}
+
+
+def _pop_plan(structured) -> str | None:
+    """D-HP-7: lift the planning region OFF `structured` and return it, in the `_pop_usage` idiom.
+
+    THE POSITION IS THE CONTRACT (ordering pin (c), the one D-HP-6 could not write at H0): this runs
+    BEFORE `verify_citations`, so `claim_count` is byte-identical with and without a plan, the digit-lint
+    never charges the model's scratchpad, and no fidelity rung of `render_answer_for_judge` can serve it.
+    Returned rather than discarded so the caller decides -- and today every caller drops it on the floor:
+    the region is UNRENDERED BY CONSTRUCTION, and a trace key would put the model's private reasoning into
+    a stored artifact that the judge, the adjudicators and the FE all read."""
+    if not isinstance(structured, dict):
+        return None
+    v = structured.pop("plan", None)
+    return str(v) if isinstance(v, str) and v.strip() else None
+
+
+# ══ H1 FIX Z10 -- THE PLAN REGION MUST NOT REACH THE SSE `token` STAGE ════════════════════════════════
+# `_pop_plan` deletes the region server-side AFTER the model call returns. That is the right place for the
+# STORED artifact and the wrong place for the TRANSPORT: on a streamed turn the forced-tool relay
+# (`extract.call_opus_stream` -> `on_token` -> `_emit(on_stage, "token", ...)`) forwards the raw
+# `input_json_delta` of the tool input as it generates, and `plan` is emitted FIRST in the schema. So the
+# whole planning region was delivered to the browser and accumulated into React state BEFORE anything
+# verified it -- and `_PLAN_PROPERTY_DESC` tells the model that region is "not shown to the reader, not
+# stored" and to "write numbers here freely". The one place the model is instructed to type unverified,
+# unlinted, unstripped magnitudes was the one region shipped to the client unfiltered.
+# THE FILTER IS AT THE RELAY, NOT AT THE RESULT, and it is SERVER-SIDE (R5(b)): nothing can unsend a token
+# already written to the wire, so the deltas belonging to the `plan` key are dropped BEFORE `_emit`. The
+# scraper argument in `_answer_tool`'s reason (iv) ("a separate property is invisible to that scraper by
+# construction") holds for what is PAINTED; it never held for what is DELIVERED.
+# WHAT IS FORWARDED: the key token itself and the value's own quotes, so the accumulated draft stays
+# parseable JSON (`{"plan": "", "tldr": "...`) and the FE's partial-JSON scrape is untouched. Only the
+# CONTENT of the value is dropped.
+# STATE MACHINE, NOT A REGEX: the relay hands over arbitrary fragments of one JSON document, so a token
+# boundary can fall anywhere -- inside a key, inside an escape, between the colon and the quote. The
+# scanner therefore carries its state across chunks and decides per CHARACTER.
+# FAIL-OPEN IS NOT AN OPTION HERE, so it fails CLOSED-ish instead: any internal error stops filtering by
+# dropping nothing further only after the plan value has closed; an exception inside the scan suppresses
+# the chunk rather than forwarding a possibly-plan fragment. A dropped note fragment costs a cosmetic
+# stream; a forwarded one costs the promise.
+_PLAN_KEY = "plan"
+
+
+class _PlanRegionFilter:
+    """Streaming JSON scanner that removes the `plan` value's CONTENT from a tool-input delta stream."""
+
+    # H1 FIX W3 (finding NF-3): `inject` is the stand-in a SUPPRESSED NON-STRING value leaves behind. The
+    # string path forwards the value's own quotes, so the draft reads `"plan": ""` and stays parseable
+    # JSON -- which is the property this filter's rationale rests on (the FE's streaming preview does
+    # `JSON.parse` first and only falls back to a per-key regex scrape when that throws). The defensive
+    # raw path forwarded NOTHING, emitting `{"plan": , "tldr": ...}` -- syntactically invalid, i.e. the
+    # branch that exists to degrade gracefully degraded WORSE than the one it mirrors. It now emits the
+    # literal `null`, which is valid JSON, carries no plan content, and is what a consumer of an
+    # out-of-contract value should see.
+    __slots__ = ("in_str", "esc", "depth", "expect_key", "is_key", "key_buf", "cur_key", "sup_str",
+                 "sup_raw", "broken", "inject")
+
+    def __init__(self) -> None:
+        self.in_str = self.esc = self.is_key = self.sup_str = self.sup_raw = self.broken = False
+        self.depth = 0
+        self.expect_key = True          # the document opens on `{`; the first string after it is a key
+        self.key_buf = self.cur_key = ""
+        self.inject = ""
+
+    def feed(self, chunk: str) -> str:
+        if self.broken:
+            return chunk                # the scan lost its footing AFTER the region closed -- pass through
+        out: list[str] = []
+        try:
+            for c in chunk:
+                keep = self._char(c)
+                if self.inject:         # W3: the stand-in for a suppressed non-string value
+                    out.append(self.inject)
+                    self.inject = ""
+                if keep:
+                    out.append(c)
+        except Exception:  # noqa: BLE001 -- never forward a fragment this scanner could not classify
+            self.inject = ""
+            self.broken = not (self.sup_str or self.sup_raw)
+            return "" if (self.sup_str or self.sup_raw) else "".join(out)
+        return "".join(out)
+
+    def _char(self, c: str) -> bool:
+        """True to forward `c`."""
+        if self.in_str:
+            drop = self.sup_str
+            if self.esc:
+                self.esc = False
+            elif c == "\\":
+                self.esc = True
+            elif c == '"':
+                self.in_str = False
+                drop = False                        # the closing quote keeps the JSON well-formed
+                if self.is_key:
+                    self.is_key, self.cur_key, self.key_buf = False, self.key_buf, ""
+                elif self.sup_str:
+                    self.sup_str, self.cur_key = False, ""
+            elif self.is_key:
+                self.key_buf += c
+            return not drop
+        if self.sup_raw:                            # a NON-string plan value (defensive: the schema says
+            if self.depth <= 1 and c in ",}":       # string). Drop until the value's own end.
+                self.sup_raw, self.cur_key = False, ""
+                if c == ",":
+                    self.expect_key = True
+                else:
+                    self.depth -= 1
+                return True
+            if c in "{[":
+                self.depth += 1
+            elif c in "}]":
+                self.depth -= 1
+            return False
+        if c == '"':
+            self.in_str, self.esc = True, False
+            if self.expect_key and self.depth == 1:
+                self.is_key, self.key_buf, self.expect_key = True, "", False
+            elif self.depth == 1 and self.cur_key == _PLAN_KEY:
+                self.sup_str = True                 # the opening quote of the plan value; forward it
+            return True
+        if c in "{[":
+            self.depth += 1
+            if c == "{":
+                self.expect_key = self.depth == 1
+            if self.depth > 1 and self.cur_key == _PLAN_KEY:
+                self.sup_raw, self.inject = True, "null"     # W3: valid JSON in the value's place
+                return False
+            return True
+        if c in "}]":
+            self.depth -= 1
+            return True
+        if c == ",":
+            if self.depth == 1:
+                self.expect_key, self.cur_key = True, ""
+            return True
+        if c == ":" or c.isspace():
+            return True
+        if self.depth == 1 and self.cur_key == _PLAN_KEY:   # a bare literal (number/true/null) plan value
+            self.sup_raw, self.inject = True, "null"         # W3: valid JSON in the value's place
+            return False
+        return True
+
+
+def _plan_filtered_token_relay(emit_fn):
+    """Wrap an `on_token` callback so the `plan` region never reaches it. One filter per turn (the scanner
+    is stateful across chunks); returns `emit_fn` unchanged when there is nothing to wrap."""
+    if emit_fn is None:
+        return None
+    f = _PlanRegionFilter()
+
+    def _relay(t: str) -> None:
+        kept = f.feed(t if isinstance(t, str) else str(t))
+        if kept:
+            emit_fn(kept)
+    return _relay
 
 
 def _valid_mermaid(s: str | None) -> bool:
@@ -2654,6 +3187,78 @@ def render(d: dict, *, include_ledger: bool = True) -> str:
         parts += ["", "**Sources**"] + [f"[{x.get('ref')}] {x.get('source')} · {x.get('date')} — {x.get('note', '')}"
                                          for x in srcs]
     return "\n".join(parts).strip()
+
+
+def _grounding_ledger(n_ev: int, n_num: int, *, menu_on: bool) -> str:
+    """THE GROUNDING LEDGER sentence -- ONE producer, both serving bodies (D-HP-16).
+
+    Clause A' (the thin-turn honesty fix): a per-turn line enumerating the EXACT valid handle ranges, so
+    the model cannot mint an [E]/[N] handle beyond what the engine actually holds. It rides the VOLATILE
+    tail, never the cached constant.
+
+    WHY IT IS A FUNCTION NOW, AND WHY THAT IS A D-HP-16 ITEM RATHER THAN A TIDY. The one-hop body -- the
+    DOCUMENTED `GRAPHRAG_PLANNER=onehop` rollback lane -- had NO ledger line at all (answer.py states it
+    verbatim: "this body has no GROUNDING LEDGER line, so the record-edge sentence rides its own volatile
+    block"). That was survivable while handles were optional decoration on typed prose. Under handle-only
+    prose it is not: the rollback lane would render a NUMBERED menu and then tell the model NOTHING about
+    which addresses exist, which is the D2 asymmetry -- an unaddressable menu -- restored on exactly the
+    path a rollback puts every turn on. So the line ships on both bodies, from one derivation, because
+    two spellings of "which handles are valid" is how the two lanes drift.
+
+    `menu_on` False is the pre-D-HP sentence AND the pre-D-HP loose cap, byte for byte: "each mapping to
+    the item tagged with it above" is a claim ABOUT RENDERED ROWS and must not outlive them (D-HP-16's
+    dossier lane renders unnumbered rows and must not be told its handles are addresses)."""
+    e_clause = (("Emit NO [E] handles (there are no evidence items); " if n_ev == 0 else
+                 f"[E] handles run [E1]..[E{n_ev}], each mapping to the item tagged with it above; ")
+                if menu_on else
+                f"Cite AT MOST {n_ev} distinct [E] handles, each mapping to one item above; ")
+    return (f"GROUNDING LEDGER: {n_ev} dated evidence item(s) and {n_num} observed number row(s) are "
+            f"available for this question. " + e_clause
+            + ("emit NO [N] handles (there are no number rows)."
+               if n_num == 0 else f"[N] handles run [N1]..[N{n_num}]."))
+
+
+def _synthesize_sources(structured: dict, verifier: dict) -> int:
+    """D-HP-9 / R1(b): re-mint `structured['sources']` FROM `verifier['resolved']`. Returns the row count.
+
+    THE THIRD OF THE THREE CONTRACTS THE SCHEMA DROP OWES, and the one with a READER-FACING cost. With
+    `sources` gone from the tool schema the model authors no ledger; verify mints `resolved` positionally
+    (its own `handle_prose` branch) so the `## Sources` block and the LIVE FE chip path -- both of which
+    read `trace.citation_verifier.resolved` -- survive. `structured['sources']` does NOT survive on its
+    own, and TWO consumers read it and nothing else:
+      * `_attach_provenance` is the SOLE producer of `structured.sources[].source_key`, whose docstring
+        states its purpose ("so the frontend can join a model ref to the citation row's snippet WITHOUT
+        name-matching"), and citations.ts feeds that key to `docLocator` -- THE 6.5 PDF CLICK-TO-PAGE
+        LOCATOR. It loops `structured['sources']`, so an empty ledger stamps nothing.
+      * the FE's DURABLE path (`resolvedFor`) reads `structured.sources`, a DIFFERENT function from the
+        live path's `resolvedMap`. Synthesising only one of the two fixes one lane and leaves the other
+        dark, which is precisely the folded C1 blocker.
+    So a drop without this costs the reader RECEIPTS and CLICK-TO-PAGE in the same flip.
+
+    THE DIRECTION IS FROM `resolved`, NEVER THE REVERSE, AND THE ORDER IS PART OF THE CONTRACT (G17):
+    writing a ledger BEFORE `verify_citations` would make `_match_ledger_entry` match by construction and
+    `fabricated_citation` would read 0 TAUTOLOGICALLY -- the gate would measure its own scaffolding. This
+    runs AFTER verify returns and BEFORE `_attach_provenance`, which is the pinned sequence.
+
+    THE ROW SHAPE IS TODAY'S POST-`_attach_provenance` SHAPE, field for field ({ref:int, source, date,
+    note, source_key}), so every downstream consumer joins unchanged and `_attach_provenance` becomes an
+    idempotent re-stamp rather than a no-op on a missing key. `note` carries verify's OWN snippet of the
+    resolved item -- engine text about the item the handle names, never model prose, and never a
+    fabrication surface: there is no field here a model could have invented.
+    `ref` is `int` because the shipped schema typed it `{"type": "integer"}` and `_document_source_rows`,
+    `dossier._sources_block` and the FE all join on the bare digit."""
+    if not isinstance(structured, dict):
+        return 0
+    resolved = (verifier or {}).get("resolved") or {}
+    rows = []
+    for ref in sorted((r for r in resolved if str(r).isdigit()), key=lambda r: int(r)):
+        r = resolved.get(ref) or {}
+        if not isinstance(r, dict):
+            continue
+        rows.append({"ref": int(ref), "source": r.get("source"), "date": r.get("date"),
+                     "note": r.get("snippet") or "", "source_key": r.get("source_key")})
+    structured["sources"] = rows
+    return len(rows)
 
 
 def _attach_provenance(structured: dict, verifier: dict) -> None:
@@ -3120,6 +3725,17 @@ def _is_absence_bullet(line: str) -> bool:
     return ("[e" not in low) and any(m in low for m in _SCAFFOLD_NO_RECEIPT_MARKERS)
 
 
+# RECORDED DIVERGENCE (H1b fold-1 F4), stated at BOTH sites so neither reader thinks the other agrees
+# with it. This function's ITEM SCOPE is `_SCAFFOLD_BULLET_RX` -- '- ' and '* ' only. D-HP-15's
+# `_episode_bullet_indices` walks the SAME SECTION BOUNDS (fence-aware, '##'..'######', normalised
+# heading PREFIX, last section wins) but a WIDER ITEM SET: it also takes ORDERED items ('1. ', '2) ').
+# The reason is the two passes' opposite failure directions. The cap pass is a SHAPE cap on the
+# engine's own synthesized bullets, which are '- ' by construction; widening it would change a frozen
+# cap law on a producer H1b may not touch. The validation pass is a FENCE over MODEL prose, and a
+# fence that a numbered list walks straight through is fail-OPEN -- an ordered '## Episodes' section
+# shipped a fabricated window uncharged and unstamped (the reviewer's driven reproduction). So the
+# divergence is deliberate and one-directional: every item this function sees, that walk sees too.
+# The agreement that still binds (and is tested on the detector corpus) is the SECTION BOUNDS.
 def _cap_absence_bullets(mech: str, *, max_absence: int) -> tuple[str, int]:
     """(mechanism with the Episodes section's surplus absence bullets removed, n_dropped).
 
@@ -3159,6 +3775,389 @@ def _cap_absence_bullets(mech: str, *, max_absence: int) -> tuple[str, int]:
         return mech, 0
     drop = set(absent[keep:])                          # keep the EARLIEST; surplus goes from the end
     return "\n".join(ln for i, ln in enumerate(lines) if i not in drop), len(drop)
+
+
+# ══ D-HP-15 (H1b) -- SELECT-ORDER-CONNECT: THE SPAN-MEMBERSHIP VALIDATION PASS ════════════════════════
+#
+# THE MEASURED HOLE THIS CLOSES, and it is measured rather than argued (H1b recon, code lens). The
+# D-HP-12 digit-lint is STRUCTURALLY BLIND to an episode span: `verify._claim_number_spans` exempts a
+# bare four-digit year and a year-range short tail, so
+# `bare_digit_verdict('- 1994-06..1994-08 -- frost: no citable item in this window ...')` is None and
+# `_claim_numbers_in` is []. The consequence is exactly inverted from what the wave wants: an HONEST
+# bullet that restates the injected prop-date COUNT ('(11 report dates)') loses its whole sentence to
+# `_drop_bare_digit_sentences`, while a WHOLLY FABRICATED window sails through untouched. "The model
+# never types a number" is therefore not yet true inside the one section whose load-bearing token is a
+# date range -- and the section is the LAST surface on which the model still authors a dated ledger
+# (plan 10.10), which is why G1 does not open until this lands.
+#
+# THE SHAPE IS DISPOSITION (b+), SELECT-ORDER-CONNECT IN PLACE (mini-plan s.1; folded to plan 10.13).
+# The MODEL keeps authoring the section. Under `handle_prose` its SELECTION is validated: every bullet
+# must name a window this turn's prompt actually carried. Its ORDER survives (the scorer's matching is
+# order-insensitive, so nothing downstream reads bullet order as meaning). Its CONNECTIVE prose is
+# untouched -- magnitudes are already policed by the digit-lint and the handle grammar, which is the
+# wave, not this item. Full engine authorship of the section was REJECTED: it collides with D-RC-9,
+# converts the five episode eval pins into scaffold tautologies, collapses the
+# `episodes_model_authored` control-vs-treatment column, and opens a G2 fluency surface structurally
+# larger than the 1.5% integrity upside (`c_strips.by_section['episodes']` = 15 of 974).
+#
+# MEMBERSHIP, NEVER PARSING, AND THE QUESTION IS UNIVERSAL, NOT EXISTENTIAL (H1b fold-1 FIX F1). The
+# test is "is EVERY span-shaped token written in this bullet an EXACT MEMBER of the `timeline.month_span`
+# tokens `_l2_blocks` STAMPED into `trace['episodes_injected']['spans']`" -- the same strings
+# `render_line` showed the model and `eval._line_targets` matches on by ENDPOINT STRING EQUALITY.
+#
+# THE EXISTENTIAL FORM ('does the line contain ONE stamped token anywhere') SHIPPED IN THE FIRST BUILD
+# AND WAS FAIL-OPEN, driven end to end by the fold-1 review: `- 2019-01..2019-03 -- the great
+# disruption: milder than the 1994-06..1994-08 frost [E1].` sailed through with the FABRICATED lead
+# window intact, `bullets_dropped=0`, `by_rule` clean -- one honest window backing a whole bullet's
+# worth of invention. It is not an exotic shape either: the SELECT persona explicitly frees the model
+# to write "how it sits beside the others", which is an INVITATION to name a second window in the same
+# bullet. The consequence compounded: clause (e-ep)'s ceiling read CLEAN on rows that still shipped a
+# fabricated window, so the gate that exists precisely because this item can ship gate-invisible could
+# not see the residual. ONE UNSTAMPED TOKEN NOW CONVICTS THE WHOLE BULLET.
+#
+# TOKENIZING DOES NOT MINT A SECOND DEFINITION OF A WINDOW, and that distinction is the whole of why
+# the universal form is still "membership". `_EPISODE_SPAN_SHAPE_RX` finds where a span-SHAPED token
+# STARTS AND ENDS; it never interprets one -- no year, no month, no ordering, no calendar. The verdict
+# is still `token in stamped`, exact and whole. Parsing a span back out and INTERPRETING it is what
+# `timeline.month_span`'s own docstring names as how its three readers drift apart, and that is still
+# refused here. `eval._line_targets` already tokenizes with `_YM_RX` before doing string equality, so
+# this is the SECOND SPELLING of an existing tokenization, checked against it on a corpus (answer
+# cannot import eval -- the AST pin -- so agreement is a cross-import TEST, the `_SCAFFOLD_ABSENCE_RX`
+# idiom).
+#
+# THE SCANNER IS DELIBERATELY WIDER THAN WELL-FORMED, which is the F2 half. `- 11994-06..1994-08` and
+# `- 1994-06..1994-08..2025-01` are span-SHAPED and are NOT members, so they die -- under plain
+# substring containment they survived, because a stamped token is a substring of both. Matching whole
+# tokens is what makes the fence boundary-correct in both directions; `- 994-06..1994-08` (a written
+# token that CONTAINS a stamped one is still not equal to it) was already correct and stays correct.
+#
+# A BULLET THAT SPELLS THE WINDOW DIFFERENTLY ('1994-06 .. 1994-08') IS UNBACKED BY DESIGN: it is
+# unbacked to the scorer too, and fail-closed is the direction this wave takes on every seam. A bullet
+# carrying NO span-shaped token at all is unbacked for the reason stated on the function itself.
+#
+# WHY THIS IS VERIFICATION AND NOT RELEVANCE-GATING (the D-RC-9 reconciliation, stated in full in plan
+# 10.13). D-RC-9 governs the RELEVANCE gate: it removes the MANDATE and the SYNTHESIS, never model
+# freedom. It does NOT govern conviction-based remedies -- the treatment's verifier and render passes
+# already delete convicted model prose everywhere else in the answer. An unbacked span IS a conviction,
+# the episode-window analogue of `fabricated_citation`, so this drop is verification. No doctrine moves.
+#
+# THE CENSUS POSTURE, H1's own: THE PASS ALWAYS COUNTS AND MUTATES ONLY UNDER THE KNOB. The walk and the
+# membership test run on BOTH arms -- no knob early-return -- so the control lane exercises the identical
+# code path and a walk defect cannot hide behind the flag. `bullets_dropped` counts bullets ACTUALLY
+# REMOVED, so a control row cannot carry the charge BY CONSTRUCTION rather than by a second `if`, which
+# is what makes G1's clause (e-ep) ("`episode_span_unbacked == 0` on every control row") an INSTRUMENT
+# CHECK rather than a restatement of the gating.
+#
+# THIS PASS MINTS NO STRIP SEAM, AND THE REASON IS X6's. It is a WHOLE-BULLET producer, so nothing it
+# removes can leave a value slot empty in a SURVIVING sentence -- it deletes whole list items and their
+# wrapped remainders, never a fragment of a sentence that stays on the page -- and `_SLOT_EMPTYING_SEAM_
+# SRCS` would refuse it in any case. A seam minted here would be a licence-shaped record standing for
+# nothing, which is exactly what X6 forbids for a whole-sentence producer. Pinned.
+# RE-ARGUED AT FOLD-2 (G-A), because the move above the stack RETIRED THE SECOND REASON and it would
+# otherwise stand as a false one: until this fold the pass ran after `_tidy_handle_debris` and after
+# TIDY-2, i.e. where no seam CONSUMER remained in the turn, and that position was cited beside the
+# whole-bullet argument. It now runs BEFORE both, so consumers do remain -- and the conclusion is
+# unchanged because the load-bearing reason was always the first one: a producer that removes only
+# whole items mints nothing a consumer could want. The pass still mints no seam, and the pin asserting
+# it is re-anchored to the property rather than to the neighbourhood.
+#
+# THE HEADING IS NEVER REMOVED, and that is the `_cap_absence_bullets` precedent rather than an
+# oversight: the remedy is deletion of CONVICTED prose, and a heading is not convicted. A section whose
+# every bullet was unbacked therefore ships as a bare heading -- recorded as a residual in plan 10.13,
+# not fixed here, because refusing the section is exactly the post-synthesis deletion D-RC-9 exempts.
+#
+# A CONVICTED BULLET TAKES ITS CONTINUATION LINES WITH IT (H1b fold-1 FIX F3). A wrapped bullet is one
+# bullet, and removing only its first line left the convicted prose itself on the page: driven,
+# `## Episodes\n- 2019-01..2019-03 -- invented:\n  the great disruption, no citable item.\n` became a
+# heading followed by a DANGLING FRAGMENT of the very sentence the conviction was about. (POSITION
+# CLAUSE RETIRED AT FOLD-2: this pass now runs BEFORE the seven-pass stack, so TIDY-2 *does* run later
+# -- but TIDY-2 joins seams, and this pass mints none, so the fragment would still stand; the remedy
+# stays the cut.) It is the Z4 orphan-fragment class H1 spent a fold arriving at "0 genuine fragments
+# ship". The drop therefore extends from the bullet through the CONTINUATION LINES that follow it
+# inside the section: non-blank, non-item, non-heading, non-fence, stopping at the first line that is
+# any of those. An INNOCENT wrapped bullet keeps its continuation lines by construction -- the
+# extension is computed only from convicted indices. `bullets_dropped` still counts BULLETS: the
+# reader-loss unit charged to the ledger is the bullet, and a two-line bullet is not two losses.
+#
+# ORDERED ITEMS ARE IN SCOPE (H1b fold-1 FIX F4). `## Episodes\n1. 2019-01..2019-03 -- invented.\n` was
+# entirely outside `_SCAFFOLD_BULLET_RX` -- the fabricated window shipped, nothing was charged, and
+# because `spans_checked` was 0 no key was stamped at all. A fence whose posture is fail-CLOSED may not
+# be walked through by a list marker. The widening is a RECORDED DIVERGENCE from
+# `_cap_absence_bullets`' item scope, stated at both sites; the SECTION BOUNDS still agree exactly.
+#
+# AND THE KEY IS STAMPED WHENEVER THE SECTION EXISTS, even at `spans_checked=0` (the second half of
+# F4). Stamping on `spans_checked` alone made "this row had no episode section" and "this row had a
+# section whose items were never in scope" the SAME reading to a G1 reader -- which is the blind spot
+# clause (e-ep)(ii)'s denominator exists to remove. `section_seen` rides in the census (omitted when
+# False, the file's own idiom) and is what the two seams stamp on.
+#
+# ── WHERE THIS PASS RUNS, AND WHY IT MOVED (H1b FOLD-2 G-A -- the root of fold-1's residuals) ────────
+# THE FENCE NOW RUNS BEFORE THE SEVEN-PASS STACK, immediately after `verify_citations` and its ledger,
+# and specifically BEFORE the D-HP-12 digit lint. It used to run at the scaffold seam, AFTER the whole
+# stack. The reason is one sentence, and it is H1's own staleness lesson applied to H1b: A FENCE MUST
+# NEVER WALK TEXT A PRIOR PASS REWROTE.
+#
+# DRIVEN, END TO END, by the fold-1 verifier on `deep_hp`. `## Episodes\n1. 2019-01..2019-03 --
+# invented.\n2. 1994-06..1994-08 -- real.` shipped the FABRICATED window to the reader with a clean
+# `by_rule`, because `_drop_bare_digit_sentences` -- treatment-only, and until this fold upstream of
+# here -- eats the ordinal MARKER as a bare-digit sentence. The fence then received ' 2019-01..2019-03
+# -- invented.' with no marker at all, `_episode_item_indices` returned [] on the treatment arm (and
+# [3, 4] on the control arm, where the lint never fires), and fold-1's F4 item widening was INERT on
+# the only arm that can act on it. The same de-markering produced fold-1's second residual: an honest,
+# fully-backed ordered item following a convicted bullet was no longer an ITEM to the fence, so it read
+# as a CONTINUATION and was deleted UNCHARGED -- a reader loss and a ledger undercount against H1 FIX
+# W2's own law.
+#
+# BOTH DIE AT THE ROOT WHEN THE FENCE WALKS MARKER-INTACT TEXT. An ordered item is an item; an honest
+# ordered item after a convicted bullet is an ITEM, not a continuation; and the de-markered-residue
+# heuristic the verifier offered as an alternative is never needed (it would have made the fence guess
+# at what another pass had already destroyed, which is the same defect one layer down).
+#
+# WHAT THE MOVE KEEPS, CLAUSE BY CLAUSE, because each was a reason and not an ordering preference:
+#   * AFTER `verify_citations` -- `claim_count` and checked/stripped are final, so folding this class
+#     into the ONE ledger does not move the strip rate's denominators. UNCHANGED.
+#   * OUTSIDE the seven-pass stack's MEMBERSHIP -- it now runs BEFORE the stack rather than after it,
+#     and the law it obeys is unchanged: `_synth_ref_floor` mints episode refs above `len(uniq)` and
+#     `_resolve_evidence_handles` kills exactly those, so a PRODUCER relocated into the stack is
+#     destroyed by the treatment's own renderer. This pass mints nothing -- it only deletes convicted
+#     model prose -- so running ahead of the stack costs it nothing and hands the stack a page whose
+#     convicted bullets are already gone (the same "convictions first" direction the cap law gets).
+#   * BEFORE `_maybe_scaffold_episodes` -- CONVICTIONS FIRST, SHAPE CAPS SECOND. UNCHANGED, and the
+#     scaffold DID NOT MOVE WITH IT: the scaffold stays at D-DT-1's four-constraint seam, which is its
+#     own law, and this pass is simply no longer its neighbour.
+#   * BEFORE `_humanize_structured` -- one register pass over the survivors. UNCHANGED.
+# WHAT THE MOVE CHANGES, STATED RATHER THAN LEFT FOR A READER: the A4b raw-draft interval this pass's
+# deletions fall in. They were in `verified_* -> body_pre_sanitize` (the render seam's) and are now in
+# `postverify_* -> verified_*` (the handle passes'). The deletions stay fully attributable -- the class
+# is declared, charged through the one ledger, and stamped with its own trace key and denominator --
+# and there is NO position that is both above the digit lint and below the `verified_*` capture, since
+# the capture closes the stack the lint opens. Recorded at plan 10.15 with this reasoning.
+#
+# ── THE FULLY-FLOORED LANE CONVICTS (H1b FOLD-2 G-B -- fold-1's third residual) ──────────────────────
+# `_l2_blocks` leg 1 stamps a floored record as `{'spans': [], 'windows': [], 'floored': ...}` AND STILL
+# RENDERS its `DATED EPISODES` line, so `_episodes_on` fires and the persona still asks for the section
+# -- while the prompt carries ZERO windows. Every window the model then writes is MINTED BY
+# CONSTRUCTION. The first build returned early on `not stamped` and shipped them all, uncharged and
+# unstamped, in the one lane where the fence's subject is guaranteed to be invention.
+# NOW: `section_seen` is stamped BEFORE any early return (so (e-ep)(ii)'s "no key = no episode section"
+# reading is true again), and the membership test runs against the EMPTY SET -- which no written window
+# can be a member of, so every windowed bullet convicts. A bullet naming NO window is DECLINED there
+# (see `_episode_bullet_unbacked`), so an honest prose-only episode section on a floored turn ships
+# untouched. THE CENSUS POSTURE IS UNCHANGED: always counts, mutates only under the knob, no key and no
+# charge on a control row.
+# AND IT REACHES THE ONE-HOP LANE, deliberately: that body passes `injected=None`, so its stamped set
+# is empty by construction and a one-hop turn whose model invents a window is now fenced too. The
+# one-hop pass was "a structural no-op" only because nothing was stamped there -- which is precisely
+# the floored lane's shape, and the fail-closed direction is the same one.
+_EPISODE_SPAN_UNBACKED_CLASS: str = "episode_span_unbacked"
+
+# THE ITEM SCOPE OF THE FENCE: '- ', '* ', AND ORDERED '1. ' / '2) '. Wider than `_SCAFFOLD_BULLET_RX`
+# on purpose (see the recorded divergence at `_cap_absence_bullets`), and the widening is safe in the
+# one direction that matters: every line the cap pass calls a bullet, this calls an item too.
+_EPISODE_ITEM_RX = re.compile(r"^\s*(?:[-*]\s+\S|\d+[.)]\s+\S)")
+# THE SPAN-SHAPE SCANNER -- WHERE A SPAN-SHAPED TOKEN STARTS AND ENDS, NEVER WHAT IT MEANS. A run of
+# digits and hyphens, then one or more '..'-joined runs of the same, ending on a digit. TWO dots are
+# REQUIRED, which is what keeps an ordinary decimal ('3.5', '1.2 million') out of the fence and what
+# keeps the ' -- ' clause separator out of it. Maximal by greed, so a boundary-broken token
+# ('11994-06..1994-08', '1994-06..1994-08..2025-01') is returned WHOLE and fails membership as a whole.
+# SECOND SPELLING of `eval._YM_RX`'s tokenization, checked against it on a corpus in the grammar suite:
+# no 'YYYY-MM..YYYY-MM' the scorer can see is invisible here, and this is deliberately the WIDER of the
+# two (it also catches malformed shapes `_YM_RX` refuses, which is the fail-closed direction).
+_EPISODE_SPAN_SHAPE_RX = re.compile(r"\d[\d-]*(?:\.\.[\d-]*\d)+")
+
+
+def _stamped_episode_spans(injected: list | None) -> list[str]:
+    """Every `timeline.month_span` token this turn's prompt CARRIED, in stamp order, deduped.
+
+    READS `spans` AND NOTHING ELSE. `windows` carries the DAY-GRAIN pair beside it (D-OJ-16): matching
+    is month-grain because that is the string the model was SHOWN, measurement is day-grain because a
+    `YYYY-MM` end expands to month-end. A FULLY FLOORED record stamps `spans: []` present-and-empty, so
+    it contributes nothing here without this function needing to know what `floored` means -- the same
+    property `_maybe_scaffold_episodes`' leg 2 relies on."""
+    out: list[str] = []
+    for rec in (injected or []):
+        if not isinstance(rec, dict):
+            continue
+        for sp in (rec.get("spans") or []):
+            if isinstance(sp, str) and sp.strip() and sp not in out:
+                out.append(sp)
+    return out
+
+
+def _episode_section_bounds(lines: list[str]) -> tuple[int, int] | None:
+    """[lo, hi) of the LAST '## Episodes' section's BODY in `lines`, or None if there is no section.
+
+    MIRRORS `_cap_absence_bullets`' walk exactly -- fence-aware, '##'..'######', normalised heading
+    PREFIX, entering (or re-entering) resets so the LAST section wins, the next non-matching heading
+    closes it. It is a SECOND SPELLING of that walk rather than an extraction of it because H1b's scope
+    forbids editing `_cap_absence_bullets` (both cap laws are frozen for this build), and a duplicated
+    walk is how two readers come to disagree about which lines are in scope. So the duplication is
+    CHECKED: a unit test asserts the two agree on every mechanism in the detector corpus, in both
+    directions, and on the two-section hazard shapes `_has_episode_section` exists for.
+
+    The BOUNDS are what the two passes must agree on. Their ITEM SCOPE deliberately differs -- see the
+    recorded divergence stated at both sites."""
+    lo, hi, in_fence = None, None, False
+    for i, line in enumerate(lines):
+        if line.lstrip().startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        m = _EPISODE_HEADING_RX.match(line)
+        if not m:
+            continue
+        if str(m.group(1)).strip().lower().startswith(_EPISODE_HEADING_TEXT):
+            lo, hi = i + 1, len(lines)                 # entering (or re-entering): the LAST section wins
+        elif lo is not None and hi == len(lines):
+            hi = i                                     # the next non-matching heading closes it
+    return None if lo is None else (lo, hi)
+
+
+def _episode_bullet_indices(lines: list[str]) -> list[int]:
+    """The indices of the LIST ITEMS inside the LAST '## Episodes' section of `lines`.
+
+    Items are `_EPISODE_ITEM_RX`: '- ', '* ' AND ordered '1. ' / '2) '. That last widening is H1b
+    fold-1's F4 -- an ordered episode section was fail-OPEN and stamped nothing -- and it is a RECORDED
+    DIVERGENCE from `_cap_absence_bullets`' item scope, written at both sites. The SECTION BOUNDS are
+    the shared walk (`_episode_section_bounds`)."""
+    bounds = _episode_section_bounds(lines)
+    return [] if bounds is None else _episode_item_indices(lines, *bounds)
+
+
+def _episode_item_indices(lines: list[str], lo: int, hi: int) -> list[int]:
+    """The item lines in [lo, hi). ONE spelling of the item filter, shared by both readers of the walk:
+    the public `_episode_bullet_indices` and the validation pass (which also needs `hi` for F3's
+    continuation extension, and must not re-spell the filter to get it)."""
+    return [i for i in range(lo, hi) if _EPISODE_ITEM_RX.match(lines[i])]
+
+
+def _episode_span_tokens(line: str) -> list[str]:
+    """Every SPAN-SHAPED token written in `line`, whole and in written order.
+
+    SHAPE ONLY -- this says where a token starts and ends, never what it means. No year, no month, no
+    calendar, no ordering: the verdict on each token is exact membership in the stamped spans. That is
+    what keeps the universal test inside "membership, never parsing"."""
+    return _EPISODE_SPAN_SHAPE_RX.findall(line or "")
+
+
+def _episode_bullet_unbacked(line: str, stamped: set) -> bool:
+    """UNIVERSAL, not existential (H1b fold-1 F1): EVERY span-shaped token must be a stamped member.
+
+    A bullet carrying NO span-shaped token at all is unbacked too -- the persona's own shape rule is
+    "ONE '- ' bullet per injected episode WINDOW and NOTHING else", so a bullet inside this section that
+    names no window is not an enumeration of one. THAT CLAUSE HAS A SUBJECT, AND THE SUBJECT IS THE
+    STAMPED SET (H1b fold-2 G-B): when the prompt carried ZERO windows there is no enumeration to be a
+    bullet OF, so a token-less bullet is DECLINED rather than convicted -- which is what keeps the
+    floored lane's honest PROSE section on the page while every MINTED window in it still dies below.
+    With windows carried, the clause reads exactly as fold-1 pinned it."""
+    toks = _episode_span_tokens(line)
+    if not toks:
+        return bool(stamped)
+    return any(t not in stamped for t in toks)
+
+
+def _episode_continuation(line: str) -> bool:
+    """Is `line` the continuation of the wrapped item above it? (H1b fold-1 F3)
+
+    A continuation is any non-blank line that does not START something else: not a list item, not a
+    heading, not a fence. Blank ends the item, which is how a reader reads it too."""
+    s = (line or "").strip()
+    if not s or s.startswith("#") or s.startswith("```"):
+        return False
+    return not _EPISODE_ITEM_RX.match(line)
+
+
+def _episode_line_is_backed(line: str, stamped: set) -> bool:
+    """Does `line` NAME A STAMPED WINDOW? -- the belt-and-braces guard on F3's continuation cut.
+
+    H1b FOLD-2 G-A's SECOND HALF, kept even though the fence's move above the digit lint removes the
+    reproduction that motivated it (an honest ordered item, de-markered by D-HP-12's lint, read as the
+    convicted bullet's continuation and was deleted UNCHARGED). ONE LINE AND ONE PIN, defence in depth:
+    a cut that would swallow a line naming a window the prompt actually carried stops instead. A
+    continuation of a convicted bullet cannot name a stamped window and still be that bullet's own
+    wrapped remainder in any shape a reader would call one."""
+    return any(t in stamped for t in _episode_span_tokens(line))
+
+
+def _validate_episode_spans(structured: dict | None, injected: list | None, *,
+                            handle_prose: bool = False) -> dict:
+    """D-HP-15 SELECT: drop every model-authored episode bullet naming a window the prompt never carried.
+
+    Returns `{spans_checked, bullets_dropped}` -- the DENOMINATOR and the CHARGE, in that order, and both
+    are needed: a ceiling on drops with no count of bullets examined is a number no gate can read --
+    plus `section_seen: True` WHENEVER A '## Episodes' SECTION EXISTED (omitted when it did not, the
+    file's own idiom). That third field is the F4 half of fold-1: the two seams stamp the trace key on
+    `section_seen`, not on `spans_checked`, so a G1 reader can tell "no section" from "a section whose
+    items were never in scope". `spans_checked` counts ITEMS TESTED (one membership question each), not
+    distinct span tokens.
+
+    `section_seen` IS SET BEFORE EVERY LATER RETURN (H1b fold-2 G-B). It answers one question -- "did
+    the model author a `## Episodes` section on this row" -- and the answer must not depend on whether
+    anything was stamped, or the FULLY-FLOORED lane (where every window is minted by construction)
+    reads to a G1 consumer exactly like a row that never had a section at all. That was fold-1's third
+    verifier finding, and it falsified (e-ep)(ii)'s own "no key = no episode section" sentence in the
+    one lane where the reading matters most.
+
+    THE MEMBERSHIP QUESTION IS UNIVERSAL: every span-shaped token in the item must be an exact stamped
+    member, and one unstamped token convicts the whole bullet (`_episode_bullet_unbacked`). The
+    existential form -- one stamped token anywhere backs the line -- shipped in the first build and was
+    fail-open on exactly the shape the SELECT persona invites; see the block comment above.
+
+    AND UNIVERSAL MEMBERSHIP AGAINST AN EMPTY SET CONVICTS (fold-2 G-B, the second half). A floored
+    record stamps `spans: []` present-and-empty and STILL renders its `DATED EPISODES` line, so the
+    persona still asks for the section while the prompt carries no window at all: every span the model
+    then writes is MINTED. The first build returned early on `not stamped` and shipped them. It now
+    tests them like any other row -- against the empty set, so a written window is never a member --
+    while a bullet naming NO window is declined (`_episode_bullet_unbacked`), which is what leaves an
+    honest prose section untouched on exactly that lane.
+
+    `handle_prose` IS THE ONLY GATE AND IT IS OMITTED WHEN OFF (the `_scaffold_cap_kwargs` idiom), so the
+    control call is byte-identical and an injected fake carrying the older signature stays valid. It
+    needs no companion `verifier.get("enabled")` test the way the seven-pass stack does: the serving
+    seams resolve it through `_handle_prose_active`, which ALREADY returns False on the `GRAPHRAG_VERIFY=off`
+    and `GRAPHRAG_MENTOR_VOICE=off` rollback lanes (section 2's mutual-exclusion law, one resolution).
+
+    A CONVICTED ITEM TAKES ITS CONTINUATION LINES WITH IT, so a wrapped bullet cannot leave the convicted
+    prose behind as a dangling fragment under the heading (F3). Non-item lines that follow an INNOCENT
+    item, and every line outside the section, are untouched. THE CUT NEVER CROSSES A LINE THAT NAMES A
+    STAMPED WINDOW (fold-2 G-A's guard, `_episode_line_is_backed`): the reader may not lose a window the
+    prompt actually carried to a neighbour's conviction, and the ledger may not undercount if it did.
+
+    NEVER RAISES and never partially writes: the mechanism is rebuilt once, from one index set, after
+    every decision is made. An instrument must not cost an answer."""
+    census = {"spans_checked": 0, "bullets_dropped": 0}
+    try:
+        mech = str((structured or {}).get("mechanism") or "")
+        if not mech:
+            return census                              # no prose -> no section, and that is the reading
+        lines = mech.split("\n")
+        bounds = _episode_section_bounds(lines)
+        if bounds is None:
+            return census                              # no section -> no key, and that is the reading
+        lo, hi = bounds
+        census["section_seen"] = True                  # ...BEFORE every later return (fold-2 G-B): the
+        stamped_set = set(_stamped_episode_spans(injected))   # floored lane must not read as "no section"
+        idx = _episode_item_indices(lines, lo, hi)     # ONE spelling of the item filter, shared
+        if not idx:
+            return census
+        census["spans_checked"] = len(idx)
+        drop = [i for i in idx if _episode_bullet_unbacked(lines[i], stamped_set)]
+        if not drop or not handle_prose or not isinstance(structured, dict):
+            return census                              # ALWAYS COUNTED, MUTATED ONLY UNDER THE KNOB
+        cut = set(drop)
+        for i in drop:                                 # F3: the wrapped remainder rides with its bullet
+            for j in range(i + 1, hi):
+                if not _episode_continuation(lines[j]):
+                    break
+                if _episode_line_is_backed(lines[j], stamped_set):
+                    break                              # fold-2 G-A: the cut never crosses a stamped line
+                cut.add(j)
+        structured["mechanism"] = "\n".join(ln for i, ln in enumerate(lines) if i not in cut)
+        census["bullets_dropped"] = len(drop)          # BULLETS, not lines: one bullet is one loss
+        return census
+    except Exception:  # noqa: BLE001 -- an instrument must never break a turn
+        return census
 
 
 def _scaffold_rows(injected: list | None, nodes: list | None) -> list[tuple] | None:
@@ -3848,26 +4847,102 @@ def _fork_basis(graph, contracts: list[str] | None, evidence: list | None, trace
 # the literal the reader would have seen anyway.
 _N_DASHES = "-" + "".join(chr(c) for c in (0x2010, 0x2011, 0x2012, 0x2013, 0x2014, 0x2015, 0x2212))
 _N_SEP = "(?:,|;|&|/|and|[" + _N_DASHES + "])"
-_N_HANDLE_RX = re.compile(r"\[N\d+(?:\s*" + _N_SEP + r"\s*N?\d+)*\]")
-_N_MEMBER_RX = re.compile(r"N?(\d+)")
+# ══ D-HP-11/12 (H1) -- THE `[N1b]` TRAP, DEFUSED. THE SUFFIX IS PART OF THE MEMBER, NOT NOISE ═════════
+# THE DEFECT, AS H0 RECORDED IT (10.4 item 1, and it is the wave's #1 RISK wearing a small hat): this
+# token regex carried no `[a-z]?`, so `[N1b]` was INVISIBLE here -- while `cit.unify` genuinely MINTS that
+# id (`_EXTRA_SUFFIXES`, citations.py:643-660; `ids == ["N1","N1b","N1c","N2"]` is pinned at
+# test_cycle5_renderer_fixes.py:90), `_E_HANDLE_RX` already parses the [E] twin, and `verify._HANDLE`
+# parses both. An invisible token is INERT DEBRIS: it reaches the reader as literal text -- exactly the
+# D-PQ HANDLE-1 defect this whole pass exists to abolish.
+# WHY H0 REFUSED TO WIDEN THE REGEX ALONE, AND WHY THAT WAS RIGHT: `_N_MEMBER_RX` was `N?(\d+)`, so a
+# widened token would have resolved `[N1b]` onto CALL 1's HEADLINE ROW -- converting inert debris into a
+# MIS-BINDING, which is a REAL, CITED, WRONG number and the one failure this wave cannot make strippable.
+# THE FIX IS THEREFORE TWO-SIDED AND BOTH SIDES SHIP TOGETHER:
+#   (1) the SUFFIX IS CAPTURED and travels with its index everywhere (`_n_handle_pairs`), so no consumer
+#       can hold `1` without knowing it came from `N1b`; and
+#   (2) `_number_handle_value` REFUSES to resolve a suffixed member (see its own note: a sibling row
+#       EXISTS only where the prose STATED its value, which is what mints it, and under handle-prose the
+#       prose states nothing -- so the honest verdict is UNRESOLVABLE, never "near enough, take the
+#       headline"). Unresolvable then takes the SHIPPED ladder: drop / sever / kill. Debris stops reaching
+#       the reader AND no wrong row is ever spliced. Deletion beats a fourth fence (D3).
+# `_n_handle_members` KEEPS ITS EXACT `list[int]` SHAPE as a thin de-duplicated view on the pair producer
+# (the `_claim_numbers_in` / `_claim_number_spans` idiom in verify.py, for the same reason): its callers
+# and its pins are byte-identical, and only the two readers that need the suffix take the richer list.
+#
+# ══ H1 FIX Z8 -- THE WIDENING IS GATED ON THE TREATMENT, SO THE CONTROL ARM IS BYTE-IDENTICAL ═════════
+# H1 shipped the `[a-z]?` widening on BOTH arms, priced as "one-sided: debris removed, nothing newly
+# bound" (data/dhp_h1_suffix_exposure.json: 46 artifacts / 430 audited answers / 51,863 tokens; 5 suffixed
+# tokens in model prose, 1 of them at `verified_*`). The measurement stands and the exposure is real, but
+# the priced delta was NOT the whole delta: a suffixed token in a VALUE SLOT is `standin` + unresolvable,
+# so on the CONTROL arm it now DELETES A WHOLE SENTENCE (reproduced: "US wheat exports were [N1b] this
+# week." -> ""), and it moves the control arm's own `number_handles.unresolvable` / `sentences_dropped`
+# census -- the two columns G1 clause (2) and D-HP-17 item 4 read. The orchestrator's byte-identity
+# mandate is explicit, so the widening becomes the TREATMENT's token grammar and `_N_HANDLE_RX` is
+# restored to its pre-H1 bytes.
+# THE ARMS THEREFORE PARSE DIFFERENT TOKEN SETS, AND THAT IS RECORDED, NOT HIDDEN. Section 2's law (a
+# flag that gates a STRIP RULE must be constant across arms, or the arm measures its own instrument) is
+# satisfied in the only sense that binds here: the class this widening reaches is EMPTY on the control arm
+# in the measured population except for ~1 token per 430 answers, and `handle_strip_rate` is
+# arm-relative-only across this boundary. The residual control-arm exposure (inert `[N1b]` debris reaching
+# a reader, D-PQ HANDLE-1's own defect) is a PRE-EXISTING defect that predates this wave and does not get
+# fixed by an ungated strip rule inside an A/B -- it is recorded for the post-gate consolidation.
+# ONE GRAMMAR PER ARM, SELECTED ONCE: `_n_token_rx(handle_prose)`. Every OTHER consumer of `_N_HANDLE_RX`
+# (the footer scan, the clone de-dup, the resolved-handle probe) keeps the narrow one on BOTH arms, and
+# that is correct rather than lazy: a suffixed member is refused by `_number_handle_value`, so no suffixed
+# token can survive `_resolve_number_handles` on the treatment lane for a later pass to meet.
+_N_HANDLE_RX = re.compile(r"\[N\d+(?:\s*" + _N_SEP + r"\s*N?\d+)*\]")           # pre-D-HP bytes: control
+_N_HANDLE_HP_RX = re.compile(r"\[N\d+[a-z]?(?:\s*" + _N_SEP + r"\s*N?\d+[a-z]?)*\]")   # treatment only
+_N_MEMBER_RX = re.compile(r"N?(\d+)([a-z]?)")
 # A RANGE is exactly two indices joined by a dash -- `[N1-N6]` means six handles, `[N13, N14]` means two.
 # Expansion is capped (a runaway "[N1-N400]" is not a citation) and never inverted.
-_N_RANGE_RX = re.compile("\\AN(\\d+)\\s*[" + _N_DASHES + "]\\s*N?(\\d+)\\Z")
+# FIX Z8, THE OTHER HALF: A SUFFIXED ENDPOINT REFUSES THE RANGE READING. The endpoint suffixes are now
+# CAPTURED, and a range wearing one is not expanded at all. The shipped form admitted `[a-z]?` on both
+# endpoints and expanded over INTEGERS, so `[N1b-N3]` yielded `[(1,""),(2,""),(3,"")]` -- byte-identical
+# to `[N1-N3]`, i.e. `N1b` PROMOTED to call 1's headline through the one syntax that skips the pair
+# producer's whole reason for existing. Refusing the expansion drops the token to the MEMBER reading,
+# where the suffixed member meets `_number_handle_value`'s refusal exactly as a suffixed scalar does.
+_N_RANGE_RX = re.compile("\\AN(\\d+)([a-z]?)\\s*[" + _N_DASHES + "]\\s*N?(\\d+)([a-z]?)\\Z")
 _N_RANGE_MAX = 24
+
+
+def _n_token_rx(handle_prose: bool = False):
+    """The [N] TOKEN GRAMMAR for this arm (FIX Z8). Treatment: suffix-aware. Control: the pre-H1 bytes."""
+    return _N_HANDLE_HP_RX if handle_prose else _N_HANDLE_RX
+
+
+def _n_handle_pairs(token: str) -> list[tuple[int, str]]:
+    """The (1-based call index, SUFFIX) pairs a `[N...]` token cites, in written order, de-duplicated on
+    the PAIR. `[N5]` -> `[(5, "")]`; `[N1b]` -> `[(1, "b")]`; `[N1, N1b]` -> `[(1, ""), (1, "b")]`, which
+    is two DIFFERENT rows of one call and must stay two members.
+    De-duplication is on the pair and not on the index, precisely so the headline and its sibling do not
+    collapse into each other -- that collapse IS the mis-binding this producer exists to prevent.
+
+    A RANGE WITH A SUFFIXED ENDPOINT IS NOT A RANGE (FIX Z8): it falls through to the member reading, so
+    `[N1b-N3]` -> `[(1, "b"), (3, "")]` and the sibling id is refused downstream instead of promoted."""
+    inner = token[1:-1].strip()
+    rng = _N_RANGE_RX.match(inner)
+    if rng and not (rng.group(2) or rng.group(4)):
+        lo, hi = int(rng.group(1)), int(rng.group(3))
+        if 0 < lo < hi <= lo + _N_RANGE_MAX:
+            return [(i, "") for i in range(lo, hi + 1)]
+    out: list[tuple[int, str]] = []
+    for x, sfx in _N_MEMBER_RX.findall(inner):
+        p = (int(x), sfx or "")
+        if p not in out:
+            out.append(p)
+    return out
 
 
 def _n_handle_members(token: str) -> list[int]:
     """The 1-based call indices a `[N...]` token cites, in written order, de-duplicated. A solitary
-    `[N5]` returns `[5]` -- the pre-D-PQ-HANDLE-2 behaviour, byte for byte."""
-    inner = token[1:-1].strip()
-    rng = _N_RANGE_RX.match(inner)
-    if rng:
-        lo, hi = int(rng.group(1)), int(rng.group(2))
-        if 0 < lo < hi <= lo + _N_RANGE_MAX:
-            return list(range(lo, hi + 1))
+    `[N5]` returns `[5]` -- the pre-D-PQ-HANDLE-2 behaviour, byte for byte.
+
+    A THIN VIEW on `_n_handle_pairs` (D-HP-11/12): the INDEX axis only, re-deduplicated so that a token
+    naming a headline and its sibling (`[N1, N1b]`) still reports ONE index here. Every pre-D-HP caller
+    -- the dedup re-point, the footer's cited-index scan, the census arithmetic -- asks an index question
+    and gets the same answer it always did."""
     out: list[int] = []
-    for x in _N_MEMBER_RX.findall(inner):
-        i = int(x)
+    for i, _sfx in _n_handle_pairs(token):
         if i not in out:
             out.append(i)
     return out
@@ -3876,6 +4951,13 @@ def _n_handle_members(token: str) -> list[int]:
 def _n_handle_token(members: list[int]) -> str:
     """The canonical rendering of a (possibly narrowed) member list -- the shape the model itself writes."""
     return "[" + ", ".join(f"N{i}" for i in members) + "]"
+
+
+def _n_handle_token_pairs(pairs: list[tuple[int, str]]) -> str:
+    """`_n_handle_token`'s suffix-carrying twin: the canonical rendering of a NARROWED pair list, so a
+    surviving sibling member is re-emitted as the id `cit.unify` actually minted (`N1b`) rather than
+    silently promoted to its call's headline (`N1`) -- which would be the mis-binding by another route."""
+    return "[" + ", ".join(f"N{i}{s}" for i, s in pairs) + "]"
 
 
 _HANDLE_VALUE_SLOT_RX = re.compile(
@@ -3997,7 +5079,8 @@ def _splice_fmt(v) -> str:
     return f"{f:,.{max(dp, 0)}f}"
 
 
-def _number_handle_value(call: dict | None, idx: int) -> str | None:
+def _number_handle_value(call: dict | None, idx: int, suffix: str = "", *,
+                         magnitude_only: bool = False) -> str | None:
     """The value+unit `[N{idx}]` resolves to, or None when it resolves to NOTHING (out of range, an empty
     read, an errored/declined lookup). Routed through `cit.from_number` on purpose: the headline row, the
     unit fallback and the empty-status taxonomy are decided in ONE place, so a spliced figure and the
@@ -4018,9 +5101,33 @@ def _number_handle_value(call: dict | None, idx: int) -> str | None:
     grouped positionally and with the decimals kept above 1000 (a 1052.25 settle must not reach the reader
     as "1,052") and no scientific notation below 1e-4. See `_splice_fmt` for the measured shapes and for
     the recorded follow-up (the footer keeps `_fmt` this cycle, so the two can differ in the DIGITS for
-    |v| >= 1000)."""
+    |v| >= 1000).
+
+    ══ D-HP-11/12 (H1) -- A SUFFIXED MEMBER IS UNRESOLVABLE HERE, AND THAT IS THE WHOLE TRAP-DEFUSAL ════
+    `suffix` is the letter off `[N1b]`. It is REFUSED rather than ignored, and the reason is measured, not
+    cautious. A letter-suffixed id exists ONLY where `citations._mint_row_citations` minted one, and that
+    producer is reached on exactly two paths -- `extra_number_citations(call, i, stated)` and
+    `prose_completion_citations(calls, stated, ...)` -- BOTH of which require `stated`, the magnitudes the
+    PROSE ITSELF WROTE (`orchestrator._stated_values`). Both serving bodies call `cit.unify(uniq,
+    extra_number_calls)` with NO `stated` (answer.py's two `ev_cits` lines), so at the moment this pass
+    runs NO sibling row exists on either body; and under handle-prose the model states no magnitude at all,
+    so none can ever come into existence for it to bind to. THE ONLY REACHABLE MEANING OF `[N1b]` HERE IS
+    A TOKEN THE MODEL INVENTED.
+    Resolving it to call 1's HEADLINE would therefore print a REAL, CITED, WRONG number -- the one class
+    no verifier in this tree can see (B7's re-ranked #1 risk) -- in exchange for saving a token the reader
+    was never owed. So it resolves to NOTHING and takes the shipped ladder (drop / sever / kill), which is
+    D3: deletion beats a fourth fence. If a future phase threads the turn's minted sibling ids down here,
+    THIS is the function that gains the lookup, and its refusal becomes a miss instead of a guess.
+
+    `magnitude_only` is D-HP-11's SIGN CLAUSE (see `_polarity_entry`): the splice writes abs(value) for a
+    row whose metric is in the POLARITY TABLE, because under handle-only prose the model's own verb
+    already carries the direction and the raw signed value would render "fell to -0.31" on every signed
+    delta row. Default False keeps `_splice_fmt` BYTE-IDENTICAL for every other metric and every
+    pre-D-HP caller."""
     if not isinstance(call, dict):
         return None
+    if suffix:
+        return None                    # D-HP-11/12: a sibling id nothing minted -- never the headline
     try:
         c = cit.from_number(call, idx)
     except Exception:  # noqa: BLE001 -- a malformed call record resolves to nothing, never an exception
@@ -4028,7 +5135,13 @@ def _number_handle_value(call: dict | None, idx: int) -> str | None:
     if c.value is None or not str(c.value).strip():
         return None
     unit = str(c.unit or "").strip()
-    return f"{_splice_fmt(str(c.value).strip())} {unit}".strip()
+    raw = str(c.value).strip()
+    if magnitude_only:
+        try:
+            raw = str(abs(float(raw.replace(",", ""))))
+        except (TypeError, ValueError):
+            pass                       # unparseable -> the signed string, exactly as before
+    return f"{_splice_fmt(raw)} {unit}".strip()
 
 
 # ── CYCLE-7: ...AND THE SPLICE MUST NOT WRITE A FIGURE THE SENTENCE ALREADY CARRIES ────────────────────
@@ -4109,7 +5222,226 @@ def _figure_already_stated(text: str, s0: int, s1: int, m, value: str) -> bool:
     return False
 
 
-def _resolve_number_handles(structured: dict | None, number_calls: list | None) -> dict:
+# ══ D-HP-13 (H1) -- THE POLARITY TABLE. ONE TABLE, TWO READERS, CLOSED BY ENUMERATION ═════════════════
+# It is read by D-HP-11's SIGN CLAUSE (which metrics get abs() spliced) and by D-HP-13's DIRECTION CHECK
+# (whether the model's verb agrees with the row's sign). ONE table on purpose: two tables would drift, and
+# a drift means splicing a magnitude while checking a sign the splice no longer shows.
+#
+# A METRIC NOT IN THIS TABLE IS NOT CHECKED AND IS NOT abs()-ed. That is the entire safety argument, and
+# the plan states why it must be: INVERSE-POLARITY METRICS ARE THE NORM IN THIS ESTATE -- "stocks-to-use
+# fell" means "tightened", a negative spread delta means "widened" -- so a naive sign-agreement test
+# produces SYSTEMATIC false positives whose remedy is DELETING CORRECT PROSE.
+#
+# THE CLASS-SIZE JUSTIFICATION IS AUTHORED BY ENUMERATION, NOT INFERRED. The draft cited
+# `b_grammar.direct_read_of_an_already_derived_metric` at 50.3% as evidence "the class is large", but that
+# field counts DERIVED metrics and its own note lists `su_ratio` and `avg_farm_price`, which carry NO sign
+# semantics. DERIVED IS NOT SIGN-MEANINGFUL. The table's size is whatever the table says it is.
+#
+# WHAT IS DELIBERATELY EXCLUDED, EACH WITH ITS REASON (these are LEVEL facts, not CHANGE facts -- their
+# sign is information the reader needs and the prose verb does NOT carry it):
+#   *_z / *_zscore / *_sigma  -- "sitting at -0.31 sigma" is a POSITION relative to a mean. abs() would
+#                                delete the fact; "rose"/"fell" beside it describe a different quantity.
+#   *_spread / *_basis (and their deltas) -- the sign convention is per-leg (near minus far, or the
+#                                reverse), so "widened" maps to either sign. UNCHECKABLE without the leg
+#                                order, and guessing it is how a detector starts deleting correct prose.
+#   *_ratio / *_pct (LEVELS) / *_rank / *_price / *_stocks (LEVELS) -- unsigned quantities; nothing to check.
+_DIR_UP = frozenset((
+    "rose rise risen rises rising increase increased increases increasing gain gained gains gaining "
+    "grew grow grown grows growing climb climbed climbs climbing higher up added adds advance advanced"
+).split())
+_DIR_DOWN = frozenset((
+    "fell fall fallen falls falling decline declined declines declining drop dropped drops dropping "
+    "slip slipped slips slipping lower down shrank shrunk shrink shrinks contracted contracts "
+    "ease eased eases easing retreat retreated"
+).split())
+# The two STOCK-MOTION verbs. Unambiguous ONLY on a stocks-change metric, so they live on that entry and
+# nowhere else: "the spread built" is not English about a spread, and "the balance drew" is not about a z.
+_DIR_STOCK_UP = frozenset("built build builds building rebuilt rebuilds accumulated".split())
+_DIR_STOCK_DOWN = frozenset("drew draw draws drawn drawdown destocked depleted".split())
+# suffix -> (sign convention, the verbs licensed for a POSITIVE value, the verbs licensed for a NEGATIVE
+# one). Matched LONGEST-SUFFIX-FIRST, so `_stocks_delta` wins over `_delta` and keeps the stock verbs.
+_POLARITY_TABLE: tuple[tuple[str, str, frozenset, frozenset], ...] = (
+    ("_stocks_delta", "positive = stocks INCREASED", _DIR_UP | _DIR_STOCK_UP, _DIR_DOWN | _DIR_STOCK_DOWN),
+    ("_stocks_change", "positive = stocks INCREASED", _DIR_UP | _DIR_STOCK_UP, _DIR_DOWN | _DIR_STOCK_DOWN),
+    ("_pace_change", "positive = the pace ACCELERATED", _DIR_UP, _DIR_DOWN),
+    ("_pct_change", "positive = the quantity INCREASED", _DIR_UP, _DIR_DOWN),
+    ("_pct_chg", "positive = the quantity INCREASED", _DIR_UP, _DIR_DOWN),
+    ("_yoy", "positive = up on the year", _DIR_UP, _DIR_DOWN),
+    ("_mom", "positive = up on the month", _DIR_UP, _DIR_DOWN),
+    ("_wow", "positive = up on the week", _DIR_UP, _DIR_DOWN),
+    ("_delta", "positive = the quantity INCREASED", _DIR_UP, _DIR_DOWN),
+    ("_change", "positive = the quantity INCREASED", _DIR_UP, _DIR_DOWN),
+    ("_chg", "positive = the quantity INCREASED", _DIR_UP, _DIR_DOWN),
+    ("_diff", "positive = the quantity INCREASED", _DIR_UP, _DIR_DOWN),
+)
+
+
+def _binding_clause(text: str, s0: int, pos: int) -> str:
+    """The span the two BINDING checks read: from the last connective inside the sentence (or the
+    sentence's own start) up to the handle at `pos`.
+
+    IT IS NOT `_handle_clause_start`'s span, and the difference is measured, not stylistic. That function
+    answers "what is the SMALLEST thing I may delete and still leave prose", so when a sentence carries no
+    connective it falls back to the VALUE CUE -- which for "Stocks rose to [N1]" is just "to ", and the
+    verb the direction check exists to read is on the other side of it. Reading the cue-anchored span
+    would make D-HP-13 silent on the single most common shape in the corpus.
+    The two are nested, so nothing is convicted outside what the remedy removes: this span always starts
+    at or before `_handle_clause_start`'s, and it always sits inside the SENTENCE, which is what the
+    remedy takes whenever no other resolved handle is there to justify a sever."""
+    seg = text[s0:pos]
+    last = 0
+    for cm in _HANDLE_CLAUSE_OPEN_RX.finditer(seg):
+        last = cm.end()
+    return seg[last:]
+
+
+def _polarity_entry(metric: str) -> tuple[str, str, frozenset, frozenset] | None:
+    """The POLARITY TABLE row a metric name belongs to, or None -- and None is the common case by design.
+    Longest suffix wins so a specialised entry is never shadowed by its generic parent. A metric carrying
+    an EXCLUDED marker (`_z`, `_zscore`, `_sigma`, `_spread`, `_basis`) is refused outright even when it
+    also ends in `_delta`: `spread_delta` and `zscore_delta` are exactly the inverse-polarity shapes the
+    block note above says must never be checked, and a suffix match would otherwise admit them."""
+    m = str(metric or "").strip().lower()
+    if not m:
+        return None
+    if {"z", "zscore", "sigma", "spread", "basis"} & set(m.split("_")):
+        return None                    # a LEVEL fact whose sign the prose verb does not carry
+    hit = None
+    for entry in _POLARITY_TABLE:
+        # `endswith` OR the bare name: a card may serve the metric AS `stocks_delta`, with no qualifier in
+        # front of it, and a suffix test alone would silently drop it to the generic `_delta` entry --
+        # losing the two STOCK-MOTION verbs on exactly the family that owns them.
+        if (m.endswith(entry[0]) or m == entry[0].lstrip("_"))                 and (hit is None or len(entry[0]) > len(hit[0])):
+            hit = entry
+    return hit
+
+
+def _call_metric(call: dict | None) -> str:
+    return str(((call or {}).get("query") or {}).get("metric") or "")
+
+
+def _direction_sign_mismatch(clause: str, call: dict | None, idx: int) -> bool:
+    """D-HP-13. True when the ONE direction verb standing in front of a handle disagrees with the SIGN of
+    the row that handle resolves to. False whenever the question is not cleanly askable -- and every one
+    of those refusals is deliberate, because THE REMEDY IS DELETION OF PROSE.
+
+    THE FOUR REFUSALS, each closing a false-positive class the plan names:
+      (1) the metric is not in the POLARITY TABLE            -> not sign-meaningful, or inverse-polarity.
+      (2) the clause carries ZERO licensed verbs             -> nothing claims a direction.
+      (3) the clause carries MORE THAN ONE licensed verb     -> no rule binds a verb to a handle in a
+          multi-clause sentence, and inventing one is how a detector starts deleting correct prose. The
+          draft was rejected in review for exactly this gap; the refusal IS the rule.
+      (4) the row's value is 0 or unparseable                -> zero has no direction.
+    THE SCOPE IS THE CONNECTIVE-DELIMITED CLAUSE, NOT THE SENTENCE, and that is the binding rule the
+    plan demanded (it named none, which is why the draft was not measurable as written): the verb must sit
+    in `_binding_clause(text, sentence_start, handle)` -- from the last connective to the handle. A verb
+    in a NEIGHBOURING clause can therefore never convict this handle, and a verb this check does convict
+    is always inside the sentence the remedy removes.
+
+    WHY IT IS ADMISSIBLE WHERE THE CYCLE-10 REPAIR FENCE WAS NOT, and this belongs in the code and not
+    only in a plan: a false positive here costs a SENTENCE; the repair fence's false positive cost a
+    CORRUPTED NUMBER on the reader's page. That asymmetry is the whole argument. Rewriting "fell" to
+    "rose" would be the repair path wearing a different hat and is refused (D3)."""
+    entry = _polarity_entry(_call_metric(call))
+    if entry is None:
+        return False
+    try:
+        c = cit.from_number(call, idx)
+        v = float(str(c.value).replace(",", ""))
+    except Exception:  # noqa: BLE001 -- an unreadable row makes no sign claim
+        return False
+    if v == 0:
+        return False
+    _sfx, _conv, up, down = entry
+    words = [w for w in re.findall(r"[A-Za-z]+", clause or "") if w.lower() in (up | down)]
+    if len(words) != 1:
+        return False
+    w = words[0].lower()
+    return (w in down) if v > 0 else (w in up)
+
+
+# The YEAR / MARKETING-YEAR tokens a string can name. THREE ALTERNATIVES, and the split between them is
+# the DECLARED / BARE distinction the clause side reads (`_period_years(declared_only=)`):
+#   my / myb  -- an MY-prefixed crop year, with or without its second leg (`MY2025`, `MY2025/26`)
+#   pa / pb   -- a bare SLASH-joined crop year (`2025/26`). The slash IS the declaration. A HYPHEN pair is
+#                deliberately absent: `2026-05` is an ISO date fragment, and reading it as a crop year
+#                would put a false scope on the clause side of a DELETION-ARMED check.
+#   plain     -- a bare 4-digit year. Never a declared scope; far more often a reference year.
+_PERIOD_TOKEN_RX = re.compile(
+    r"\bMY\s?(?P<my>(?:19|20)\d{2})(?:\s*[/-]\s*(?P<myb>\d{2,4}))?\b"
+    r"|\b(?P<pa>(?:19|20)\d{2})\s*/\s*(?P<pb>\d{2,4})\b"
+    r"|\b(?P<plain>(?:19|20)\d{2})\b")
+
+
+def _period_years(text: str, *, declared_only: bool = False) -> set[str]:
+    """Every 4-digit crop/calendar year a string names, normalized. `MY2025/26` -> {2025, 2026}.
+
+    `declared_only` keeps ONLY the forms that DECLARE a crop-year scope -- `MY2025`, `MY2025/26`,
+    `2025/26` -- and drops the bare 4-digit year. IT IS THE CLAUSE SIDE'S READING, and the reason is a
+    false-positive class this check would otherwise own: "above the 2015 low [N1]" names a REFERENCE
+    year, not the scope of the figure in the slot, so a row dated 2026 would read as DISJOINT and the
+    remedy would DELETE A CORRECT SENTENCE. A detector whose remedy is deletion does not get to guess
+    what a bare year means (D-HP-13's own ceiling clause, applied to its sibling). The ROW side keeps the
+    full reading: a row that names its period any way at all has named it."""
+    out: set[str] = set()
+    for m in _PERIOD_TOKEN_RX.finditer(text or ""):
+        g = m.groupdict()
+        if g["plain"] and not declared_only:
+            out.add(g["plain"])
+        lead = g["my"] or g["pa"]
+        tail = g["myb"] or g["pb"]
+        if lead:
+            out.add(lead)
+        if tail:
+            out.add(tail if len(tail) == 4 else (lead[:2] + tail))
+    return out
+
+
+def _slot_scope_mismatch(clause: str, call: dict | None, idx: int) -> tuple[bool, bool]:
+    """D-HP-14(a), THE PERIOD AXIS -- the only axis of the scope cross-check that ships in the first build.
+
+    RETURNS `(compared, mismatch)` (H1 FIX Z12). `compared` is True only when BOTH SIDES SPOKE -- the
+    clause named a DECLARED crop-year scope AND the row named a year -- which is the only state in which
+    anything was actually checked. The caller increments `wrong_slot_audit.scope_checked` off THAT bool,
+    not off "a solitary resolved handle existed": the shipped form counted ATTEMPTS, so the column read as
+    coverage on rows whose clause named no period at all, which is precisely the "never claims coverage it
+    does not have" promise this function's own docstring makes below.
+
+    THE RISK IT INSTRUMENTS: a resolved-but-MIS-BOUND handle prints a real, cited, WRONG number, and the
+    closest outside measurement puts wrong-entity action at 24-26% across four baselines with 0.0%
+    wrong-TOOL error in the same runs -- the format layer gives NO signal on binding. By condition it is
+    0.0% for every UNAMBIGUOUS case and 100% UNDER TEMPORAL AMBIGUITY, and a receipt menu keyed by
+    commodity x metric x PERIOD x vintage x source IS the temporal-ambiguity configuration. So the period
+    axis is where the measured risk actually lives, and it is the axis this estate can check with no
+    vocabulary and no second opinion: both sides name a year or they do not.
+
+    IT FIRES ONLY WHEN BOTH SIDES SPEAK, AND THE CLAUSE MUST SPEAK IN THE DECLARED FORM. The clause must
+    name a CROP-YEAR SCOPE (`MY2025`, `MY2025/26`, `2025/26` -- never a bare `2015`, which is far more
+    often a reference year than a scope: see `_period_years(declared_only=)`) AND the resolved row's scope
+    must name a year, and then the sets must be DISJOINT. No clause scope, no row period, or any overlap
+    at all -> False. That is the "0.0% for every unambiguous condition" shape: the detector is silent
+    unless the turn actually created the ambiguity.
+
+    THE COMMODITY AND UNIT-CLASS AXES ARE NOT BUILT, AND ARE RECORDED AS NOT BUILT rather than approximated
+    -- commodity needs a vocabulary this function is not threaded (the graph), and unit class was the exact
+    quantity the cycle-10 repair fence compared and got wrong ("a fence that compares labels cannot see
+    semantics"). `wrong_slot_audit.scope_checked` therefore counts PERIOD checks and nothing else, so the
+    column never claims coverage it does not have."""
+    if not str(clause or "").strip():
+        return False, False
+    try:
+        c = cit.from_number(call, idx)
+    except Exception:  # noqa: BLE001
+        return False, False
+    row_years = _period_years(str(c.label or ""))
+    clause_years = _period_years(clause, declared_only=True)
+    if not (row_years and clause_years):
+        return False, False                        # one side said nothing: nothing was COMPARED
+    return True, not (row_years & clause_years)
+
+
+def _resolve_number_handles(structured: dict | None, number_calls: list | None, *,
+                            handle_prose: bool = False) -> dict:
     """Substitute or remove every `[N]` handle in the reader prose so none can render literally.
 
     Mutates `structured['tldr']` / `structured['mechanism']` IN PLACE and returns the census
@@ -4131,8 +5463,50 @@ def _resolve_number_handles(structured: dict | None, number_calls: list | None) 
                                  spanning the whole token.
     A grouped token NEVER receives the value splice: it stands in for no single figure, so `standin` can
     only ever kill or narrow it. Each departed member is counted once under `handles_dropped` /
-    `unresolvable` -- the same accounting a solitary handle gets, and no fifth census key."""
+    `unresolvable` -- the same accounting a solitary handle gets, and no fifth census key.
+
+    ══ D-HP-11 (H1) -- `handle_prose` FLIPS THE DEFAULT, AND ADDS THREE REFUSALS ═════════════════════════
+    Default False -> every branch, every counter and every census KEY below is the pre-D-HP pass exactly.
+    The four census keys are pinned byte-for-byte by the suites, so the D-HP counters are ADDED KEYS that
+    appear ONLY on the treatment lane (the OFF-arm-clean rule).
+
+    (a) THE SLOT CUE BECOMES A CONFIRMATION, NOT A PRECONDITION. Under D-HP-7 the contract is "handle
+        ONLY, written in the slot where the figure belongs", so THE MODEL WROTE NO DIGIT and a solitary
+        RESOLVED handle is standing in for its value whether or not a value-introducing word precedes it.
+        `_HANDLE_VALUE_SLOT_RX` still runs -- it is the cue the estate measured and shipped, and a cue HIT
+        is still the strongest evidence -- but a cue MISS no longer means "leave the token on the page",
+        which under handle-only prose is the D-PQ HANDLE-1 defect restored.
+        `_figure_already_stated` STILL RUNS AND STILL WINS. It is not dead code on a mixed or degraded
+        turn (a retry, a `GRAPHRAG_HANDLE_PROSE=off` mid-flight kill, a model that ignored the contract),
+        and on those turns it is the only thing standing between the reader and a doubled figure.
+
+    (b) A GROUPED TOKEN IN A VALUE SLOT IS A LINT VIOLATION, NOT A CITATION. The shipped rule leaves a
+        FULLY-RESOLVED group untouched -- correct while the model also types the digit, and a defect the
+        moment it does not: `[N13, N14]` then SHIPS TO THE READER standing where a figure belongs, which
+        is exactly D-PQ HANDLE-1 re-minted, and G1 clause (2) is blind to it because the handles resolved.
+        A group stands in for NO SINGLE FIGURE, so it may not be spliced; the clause is SEVERED and the
+        turn is charged `grouped_in_slot`.
+
+    (c) TWO BINDING REFUSALS (D-HP-13 direction-vs-sign, D-HP-14(a) period scope). Both route the handle
+        into the SHIPPED ladder (drop-handle / sever-clause / kill-sentence) rather than inventing a
+        fourth remedy. Neither ever rewrites a word or a digit -- that is the cycle-10 repair path
+        wearing a different hat (D3).
+        THEY ARE ACCOUNTED AS `binding_refused`, NEVER AS `unresolvable` (H1 FIX Z2): a refused handle
+        RESOLVED and was declined, which is the opposite of D-HP-17 item 4's "the model addressed a
+        receipt that does not exist". See the counter's own note at the charge site.
+
+    THE CYCLE-10 RECONCILIATION, STATED WHERE THE CODE IS: this pass writes a numeral into prose, which is
+    the capability the termination branch DELETED from verify.py. The distinction is not a fence, it is
+    the slot: `_num_repair` second-guessed a number THE MODEL HAD WRITTEN on the strength of a four-clause
+    allowlist, and the gate-7 op passed all four and still corrupted a correct sentence. D-HP SPLICES INTO
+    A SLOT THAT IS EMPTY BY CONTRACT -- there is no model-written number to certify against, so the splice
+    carries NO semantic judgement. Its only failure mode is a handle pointing at the wrong row, and its
+    only remedy is DELETION. `verify.report['repaired'] / ['repairs']` stay 0 / [] on every turn, both
+    arms, which is what test_cycle10_no_rewrites asserts and what this pass must never move."""
     census = {"substituted": 0, "handles_dropped": 0, "sentences_dropped": 0, "unresolvable": 0}
+    if handle_prose:                              # ADDED KEYS, treatment lane only (OFF-arm clean)
+        census.update({"grouped_in_slot": 0, "direction_sign_mismatch": 0, "slot_scope_mismatch": 0,
+                       "scope_checked": 0, "direction_checked": 0, "binding_refused": 0})
     if not isinstance(structured, dict):
         return census
     calls = list(number_calls or [])
@@ -4146,35 +5520,105 @@ def _resolve_number_handles(structured: dict | None, number_calls: list | None) 
         # ONE PASS FIRST, so every handle's verdict is known before any of them is acted on: whether a
         # sentence may be killed depends on the OTHER handles standing in it (see _HANDLE_CLAUSE_OPEN_RX).
         recs = []                                 # (match, value, sentence span, standing-in?, members, live)
-        for m in _N_HANDLE_RX.finditer(text):
+        for m in _n_token_rx(handle_prose).finditer(text):   # FIX Z8: the arm's own token grammar
+            # D-HP-11/12: the PAIR list is the producer, the index list a de-duplicated view of it. Every
+            # value lookup is keyed on the PAIR, so a suffixed member can never borrow its call's headline.
+            pairs = _n_handle_pairs(m.group(0))
             members = _n_handle_members(m.group(0))
-            vals = [_number_handle_value(calls[i - 1] if 1 <= i <= len(calls) else None, i) for i in members]
-            live = [i for i, v in zip(members, vals) if v is not None]
+            vals = [_number_handle_value(calls[i - 1] if 1 <= i <= len(calls) else None, i, sfx,
+                                         magnitude_only=(handle_prose
+                                                         and _polarity_entry(_call_metric(
+                                                             calls[i - 1] if 1 <= i <= len(calls) else None))
+                                                         is not None))
+                    for i, sfx in pairs]
+            live_pairs = [p for p, v in zip(pairs, vals) if v is not None]
+            live = [i for i, _s in live_pairs]
             # `value` is the SPLICE payload and exists only for a SOLITARY handle; a grouped token resolves
             # to "still points at something" (True) and nothing more -- it stands in for no single figure.
-            value = vals[0] if len(members) == 1 else (True if live else None)
+            value = vals[0] if len(pairs) == 1 else (True if live_pairs else None)
             s0, s1 = _handle_sentence_span(text, m.start())
             # CYCLE-7: the cue is necessary but NOT sufficient -- a handle written IN FRONT of its own
             # figure ("was at [N1] 15.17 USD/mmbtu") satisfies it and is not standing in for anything.
             standin = bool(_HANDLE_VALUE_SLOT_RX.search(text[s0:m.start()]))
+            gslot = False
+            refused = False
+            if handle_prose:
+                # (c) THE TWO BINDING REFUSALS, on a SOLITARY RESOLVED member only. The clause is the
+                # span the remedy would delete, so a convicted verb or year is always one the reader
+                # loses -- never a neighbouring clause's.
+                if len(pairs) == 1 and isinstance(value, str):
+                    _call = calls[pairs[0][0] - 1] if 1 <= pairs[0][0] <= len(calls) else None
+                    _clause = _binding_clause(text, s0, m.start())
+                    # FIX Z12: `scope_checked` counts COMPARISONS, never attempts -- see
+                    # `_slot_scope_mismatch`'s return contract.
+                    _compared, _mismatch = _slot_scope_mismatch(_clause, _call, pairs[0][0])
+                    if _compared:
+                        census["scope_checked"] += 1
+                    if _mismatch:
+                        census["slot_scope_mismatch"] += 1
+                        value, live, live_pairs, refused = None, [], [], True
+                    else:
+                        census["direction_checked"] += 1
+                        if _direction_sign_mismatch(_clause, _call, pairs[0][0]):
+                            census["direction_sign_mismatch"] += 1
+                            value, live, live_pairs, refused = None, [], [], True
+                # (a) THE FLIP. The model wrote no digit, so a solitary resolved handle IS the figure --
+                # the cue confirms, it no longer gates. Ordered AFTER the refusals so a refused handle
+                # is never promoted into a standin it cannot fill.
+                if len(pairs) == 1 and isinstance(value, str):
+                    standin = True
+                # (b) GROUPED-IN-SLOT. Only the CUE can establish it: without a value-introducing word
+                # there is no empty slot and a group beside prose is an ordinary co-citation.
+                gslot = bool(value is not None and len(pairs) > 1
+                             and _HANDLE_VALUE_SLOT_RX.search(text[s0:m.start()]))
             if standin and isinstance(value, str) and _figure_already_stated(text, s0, s1, m, value):
                 standin = False                    # -> the ordinary "resolved beside a stated number" branch
-            recs.append((m, value, s0, s1, standin, members, live))
-        backed = {(r[2], r[3]) for r in recs if r[1] is not None}     # spans that keep a RESOLVED handle
-        backed_at = [r[0].start() for r in recs if r[1] is not None]  # ...and where those handles sit
-        for m, value, s0, s1, standin, members, live in recs:
+            recs.append((m, value, s0, s1, standin, pairs, live, live_pairs, gslot, refused))
+        # A `grouped_in_slot` token is on its way OUT, so it backs nothing: counting it here would let it
+        # rescue a neighbouring unresolvable handle from a kill it has earned.
+        backed = {(r[2], r[3]) for r in recs if r[1] is not None and not r[8]}
+        backed_at = [r[0].start() for r in recs if r[1] is not None and not r[8]]
+        for m, value, s0, s1, standin, pairs, live, live_pairs, gslot, refused in recs:
+            if gslot:
+                # D-HP-11(b): NEVER spliced (a group stands in for no single figure), never left standing
+                # (a literal `[N13, N14]` in a value slot is the D-PQ HANDLE-1 defect). The clause goes.
+                a = _handle_clause_start(text, s0, m.start())
+                if any(a <= p < m.end() for p in backed_at):
+                    a = m.start()                 # ...never swallow a resolved handle to remove this one
+                if a > s0 and text[a - 1] == " " and (m.end() >= len(text)
+                                                      or text[m.end()] in " ,.;:)!?"):
+                    a -= 1
+                op = (a, m.end(), "")
+                ops.append(op)
+                narrowed[op] = len(pairs)
+                census["handles_dropped"] += len(pairs)
+                census["grouped_in_slot"] += 1
+                continue
             if value is not None:
-                if standin and len(members) == 1:
+                if standin and len(pairs) == 1:
                     ops.append((m.start(), m.start(), value + " "))
                     census["substituted"] += 1
-                elif len(live) != len(members):    # a PARTIALLY resolvable group -> keep only what resolves
-                    op = (m.start(), m.end(), _n_handle_token(live))
+                elif len(live_pairs) != len(pairs):    # a PARTIALLY resolvable group -> keep what resolves
+                    op = (m.start(), m.end(), _n_handle_token_pairs(live_pairs))
                     ops.append(op)
-                    narrowed[op] = len(members) - len(live)
+                    narrowed[op] = len(pairs) - len(live_pairs)
                     census["handles_dropped"] += narrowed[op]
                     census["unresolvable"] += narrowed[op]
                 continue
-            census["unresolvable"] += len(members)
+            # ══ H1 FIX Z2 -- A BINDING REFUSAL IS NOT AN UNRESOLVABLE HANDLE ══════════════════════════
+            # D-HP-17 item 4 defines `unresolvable` as "the model addressed a receipt that does not
+            # exist". A D-HP-13/D-HP-14 refusal is the opposite state: the receipt EXISTS and resolved,
+            # and this pass declined to bind it. Routing refusals through `unresolvable` made two
+            # pre-registered clauses mutually unsatisfiable -- G1 clause (2) requires
+            # `number_handles.unresolvable == 0` on EVERY treatment row while R11 budgets 15 mis-bound
+            # events -- so one legitimate fire of the wave's own designed behaviour failed the gate. It
+            # also polluted `handles_unresolvable`, which the successor family calls "the wave's residual".
+            # THE REMOVAL IS UNCHANGED (value=None still takes the shipped drop/sever/kill ladder); only
+            # the ACCOUNTING moves, to its own counter beside the two class counters that name the reason.
+            if refused:
+                census["binding_refused"] += len(pairs)
+            else:
+                census["unresolvable"] += len(pairs)
             if standin and (s0, s1) in backed:
                 # MIXED: sever the clause instead of the sentence. Falls back to the bare token drop when
                 # the clause would swallow the resolved handle that is the reason to keep the sentence.
@@ -4186,8 +5630,8 @@ def _resolve_number_handles(structured: dict | None, number_calls: list | None) 
                     a -= 1                        # the ONE separating space, as in the bare-drop leg below
                 op = (a, m.end(), "")
                 ops.append(op)
-                narrowed[op] = len(members)
-                census["handles_dropped"] += len(members)
+                narrowed[op] = len(pairs)
+                census["handles_dropped"] += len(pairs)
             elif standin:
                 # a sentence starting the field owns the space AFTER it, so the field never opens on an
                 # indent (verify._drop_span's rule, restated -- answer cannot import a closure)
@@ -4208,8 +5652,8 @@ def _resolve_number_handles(structured: dict | None, number_calls: list | None) 
                     a -= 1
                 op = (a, m.end(), "")
                 ops.append(op)
-                narrowed[op] = len(members)
-                census["handles_dropped"] += len(members)
+                narrowed[op] = len(pairs)
+                census["handles_dropped"] += len(pairs)
         if not ops and not kills:
             continue
         # a substitution inside a killed sentence is moot -- the sentence is going, so the op is dropped
@@ -4243,6 +5687,707 @@ def _resolve_number_handles(structured: dict | None, number_calls: list | None) 
         if not text[:1].isspace():                # a field that did not open on whitespace must not start
             new = new.lstrip(" \t")               # doing so because the sentence in front of it was killed
         structured[field] = new
+    return census
+
+
+# ══ H1 FIX Z1/Z6 -- THE D-HP-NATIVE RENDER CLASSES BELONG IN THE ONE STRIP LEDGER ═════════════════════
+# THE DEFECT, IN ONE LINE: `emf.MIS_BOUND_CLASSES` and G1 clause (4)'s CLASS SCAN both read `by_rule`, and
+# these three classes were only ever written into `trace['number_handles']` -- so `mis_bound_count` (the
+# wave's #1-risk metric and R11's ceiling of 15) read `direction_sign_mismatch` as 0 FOREVER, and the
+# class scan -- section 2's named primary regression detector -- was blind to three of the four classes
+# G1 clause (4) declares. That is exactly the D5 failure emf.py's own block comment names: "a family that
+# congratulates the wave".
+# WHY THE LEDGER AND NOT A SECOND READER: `by_rule` is the ONE place a strip class is counted, and every
+# consumer already reads it (the class scan, the per-answer projection, the successor family, the EMF
+# counters). Teaching one more consumer to look somewhere else would leave the other three blind and
+# would make "which classes fired" a question with two answers.
+# `stripped` IS INCREMENTED ALONGSIDE, and that is the ledger's own invariant, not bookkeeping garnish:
+# every `by_rule[x] += 1` in verify.py is paired with `stripped += 1`, so a class folded in without its
+# strip would break `sum(by_rule.values()) == stripped`. Each of these three events DID remove prose from
+# the reader's page, so counting it as a strip is the honest reading, not an inflation.
+# TREATMENT-LANE ONLY: these keys exist only when `handle_prose` ran, so a control row's `by_rule` and
+# `stripped` are byte-identical (the OFF-arm-clean rule).
+_RENDER_LEDGER_CLASSES: tuple[str, ...] = ("slot_scope_mismatch", "direction_sign_mismatch",
+                                           "grouped_in_slot")
+# H1 FIX W2 (finding NF-2) -- THE FOURTH FOLDED CLASS, AND THE ONE THE LEDGER OWED MOST.
+# `slot_orphan_dropped` (the Z4/W1 remedy) DELETES WHOLE SENTENCES and had no counterpart anywhere: not a
+# `by_rule` class, not an `emf` successor term, not a column -- so a G2 fluency movement it caused was a
+# movement with no readable cause in any G1/G2 artifact. It folds here, under the SAME rule as the three
+# above (`by_rule` + `stripped` together, treatment lane only, one location every consumer already reads).
+# WHAT IT COUNTS, STATED SO NOBODY READS IT AS A SECOND CONVICTION: the CONVICTION was the verifier's and
+# is already charged under ITS class (`no_lexical_overlap`, `quote_mismatch`, ...). This class counts the
+# SECOND PAGE LOSS that conviction caused -- the sentence the reader lost after the handle went. The
+# ledger has always counted removals of prose, one entry per removal, which is exactly what keeps
+# `sum(by_rule.values()) == stripped` true; two removals from one conviction are two entries.
+# IT IS IN NO `emf` SUCCESSOR TUPLE ON PURPOSE (see the note at `emf.MIS_BOUND_CLASSES`): it is not a
+# mis-binding, not a killed class and not one of the four that survive by construction. It is DECLARED in
+# G1 clause (4)'s class set (plan section 10.11) so the class scan reads it instead of failing on it.
+_SLOT_ORPHAN_CLASS: str = "slot_orphan"
+
+
+def _fold_ledger_class(verifier: dict | None, cls: str, n) -> int:
+    """Fold ONE render-side class into the verifier's ONE strip ledger, `by_rule` and `stripped` together
+    so the ledger's sum invariant holds. Returns the number of events folded. Never raises.
+
+    THE ONE WRITER: every render-side charge goes through here, so "which classes the render passes may
+    add to the ledger, and what they must do to `stripped` when they do" has exactly one answer."""
+    try:
+        n = int(n or 0)
+        if n <= 0 or not isinstance(verifier, dict):
+            return 0
+        by = verifier.get("by_rule")
+        if not isinstance(by, dict):
+            return 0
+        by[cls] = int(by.get(cls, 0) or 0) + n
+        verifier["stripped"] = int(verifier.get("stripped", 0) or 0) + n
+        return n
+    except Exception:  # noqa: BLE001 -- an instrument must never break a turn
+        return 0
+
+
+def _fold_render_classes(verifier: dict | None, number_census: dict | None) -> int:
+    """Fold the D-HP-native render classes into the verifier's ONE strip ledger. Returns the number of
+    events folded (0 on a control turn, and on any treatment turn where none fired). Never raises."""
+    try:
+        if not isinstance(verifier, dict) or not isinstance(number_census, dict):
+            return 0
+        return sum(_fold_ledger_class(verifier, cls, number_census.get(cls, 0))
+                   for cls in _RENDER_LEDGER_CLASSES)
+    except Exception:  # noqa: BLE001 -- an instrument must never break a turn
+        return 0
+
+
+def _wrong_slot_audit(number_census: dict | None) -> dict:
+    """D-HP-14's census, projected from the [N] pass's own counters into the SHAPE `tracekeys` froze:
+    `{scope_checked, scope_mismatch, direction_checked, direction_mismatch}`.
+
+    IT IS A PROJECTION, NOT A SECOND MEASUREMENT, and that is the point -- the numbers a gate reads and
+    the numbers that actually deleted prose are the same numbers. Two producers for one risk is how a
+    census comes to say 0 while the page lost a sentence.
+
+    WHAT `scope_checked` MEANS, EXACTLY, so the column never claims coverage it does not have: PERIOD
+    checks only (see `_slot_scope_mismatch`). The commodity and unit-class axes of D-HP-14(a) are NOT
+    BUILT in this pass -- commodity needs a vocabulary this seam is not threaded, and unit class is the
+    quantity the cycle-10 repair fence compared and got wrong. `direction_checked` counts the handles that
+    survived the scope check and were asked D-HP-13's question at all (a metric outside the POLARITY TABLE
+    is counted as asked and answered "no mismatch", because the table's closure IS the answer).
+
+    R11 READS THIS PER ROW: `mis_bound_count` = `slot_scope_mismatch` + `direction_sign_mismatch` +
+    `wrong_slot_audit.scope_mismatch`, ceiling 15 pooled per treatment arm, with any single row at >= 3
+    recorded BY ID. A per-run-only census would make that ceiling uncheckable at the level it is written
+    at, which is why the shape is per turn and lands on the trace beside the render census it comes from.
+    THE THIRD TERM IS A PROJECTION OF THE FIRST AND MUST NOT BE ADDED TWICE -- the dedup rule is stated
+    once, at `emf.MIS_BOUND_CLASSES`, and every consumer reads the arithmetic from there."""
+    c = number_census or {}
+    return {"scope_checked": int(c.get("scope_checked", 0) or 0),
+            "scope_mismatch": int(c.get("slot_scope_mismatch", 0) or 0),
+            "direction_checked": int(c.get("direction_checked", 0) or 0),
+            "direction_mismatch": int(c.get("direction_sign_mismatch", 0) or 0)}
+
+
+def _sentence_has_resolved_handle(text: str, s0: int, s1: int, calls: list,
+                                  skip: tuple[int, int] | None = None) -> bool:
+    """True when the sentence `[s0, s1)` carries a citation handle that RESOLVES -- an [N] member with a
+    real value, or any in-range [E] member. `skip` excludes one span (the clause about to be severed), so
+    the question is always "does anything OUTSIDE the cut survive to justify keeping the sentence".
+    [E] resolution is an INDEX-RANGE question here on purpose: the evidence list this pass would join is
+    not threaded into the [N] lane, and over-counting an [E] as resolved can only ever make this function
+    SEVER where it would otherwise KILL -- the smaller deletion, which is the safe direction."""
+    sent = text[s0:s1]
+    for m in _N_HANDLE_RX.finditer(sent):
+        if skip and s0 + m.start() >= skip[0] and s0 + m.end() <= skip[1]:
+            continue
+        for i, sfx in _n_handle_pairs(m.group(0)):
+            if _number_handle_value(calls[i - 1] if 1 <= i <= len(calls) else None, i, sfx) is not None:
+                return True
+    for m in _E_HANDLE_RX.finditer(sent):
+        if skip and s0 + m.start() >= skip[0] and s0 + m.end() <= skip[1]:
+            continue
+        if _e_handle_members(m.group(0)):
+            return True
+    return False
+
+
+# H1 FOLD ROUND 3 (2026-08-13) -- FIX X2. THE SEAM CARRIER IS SHARED, SO EVERY SEAM NAMES ITS PRODUCER.
+# `strip_seams` is written by FOUR passes now (verify's positional strips, the digit-lint's remedy, this
+# file's [E] prune and the slot-orphan drop's own repair mint), and two consumers read it for DIFFERENT
+# questions. TIDY-2 asks "did SOMETHING get removed just before this orphan line" -- every producer
+# answers that, so `_seam_adjacent` accepts every tag and is unchanged. The slot-orphan licence asks the
+# narrower "was a VALUE SLOT emptied at this exact cut", which only the SLOT-EMPTYING producers can
+# answer. Inferring that from the list was impossible; the tag makes it a read.
+# THE SEAMS ARE PER-TURN, IN-MEMORY ONLY: `_VerifyReport.strip_seams` is an attribute no serializer can
+# see (verify.py's `_VerifyReport` note), and the GRAPHRAG_STRIP_AUDIT copy is a debug projection built
+# from each in-flight dict by `verify._projected_seam` -- a CUT COPY, 40 chars of key, never the carrier's
+# own object (H1 FOLD ROUND 5, W-A). No artifact, client or durable record carries this shape, so widening
+# the RECORD is a free change -- the only thing that had to move with it is hand-built fixtures. Widening
+# the PROJECTION is not free and is bounded at the projection site; read `_mint_strip_seam` below.
+_SEAM_SRC_VERIFY = "verify"          # verify._verify_field -- a convicted handle span, removed by position
+_SEAM_SRC_BARE_DIGIT = "bare_digit"  # _drop_bare_digit_sentences -- a WHOLE sentence, D-HP-12's remedy
+_SEAM_SRC_EV_PRUNE = "ev_prune"      # _prune_orphan_evidence_handles -- an [E] marker with no footer row
+_SEAM_SRC_SLOT_ORPHAN = "slot_orphan"  # _drop_slot_orphan_sentences -- a WHOLE sentence, Z4/W1's remedy
+# THE LICENCE SET, and it is the whole of FIX X2: a producer belongs here when its deletion can leave a
+# value slot EMPTY IN A SURVIVING SENTENCE. `verify` strips a handle out of the middle of a sentence and
+# `_prune_orphan_evidence_handles` removes an [E] marker from one; both leave "...stood at." on the page.
+# The two whole-SENTENCE producers cannot: the sentence they cut is gone, so nothing they mint is evidence
+# that anything was emptied -- their seams exist for TIDY-2's join and for that only.
+_SLOT_EMPTYING_SEAM_SRCS = frozenset({_SEAM_SRC_VERIFY, _SEAM_SRC_EV_PRUNE})
+
+
+def _mint_strip_seam(vreport, field: str, tail: str, *, src: str,
+                     allow_empty: bool = False) -> None:
+    """Record a render-side cut on the verifier's INTERNAL seam carrier, in verify's own shape and with
+    verify's own normalization (H1 FIX Z12), tagged with its PRODUCER (H1 FIX X2).
+
+    WHY THE RENDER PASSES MUST MINT THEIR OWN: `_tidy_strip_orphans` repairs the paragraph seam a
+    whole-sentence strip opens, and it joins on `report.strip_seams` -- which only `verify._verify_field`
+    ever populated. A sentence deleted by the digit-lint's remedy (or by the value-slot orphan pass) was
+    therefore invisible to TIDY-2, so its successor could be left as a headless fragment with nothing able
+    to repair it. The seam is the text FOLLOWING the cut, exactly as verify records it, so one
+    `_seam_adjacent` compare serves both producers.
+
+    THE COUNTERS ARE NOT TOUCHED: `strip_seams` is a POSITION carrier, never a count. This function writes
+    no `stripped`, no `by_rule`, no `strip_audit` entry -- the charge for a bare-digit sentence is verify's
+    and stays verify's. Never raises: a cosmetic carrier must not cost an answer.
+
+    `src` IS MANDATORY (keyword-only, FIX X2): a seam with no producer is a seam no consumer can classify,
+    and the slot-orphan licence fails CLOSED on one. Every call site names its constant above.
+
+    `allow_empty` IS THE X6 DECISION, and it is stated identically at verify's own mint (verify.py's seam
+    loop). An end-of-field cut leaves NO successor text -- key "" -- and the two producer kinds want
+    opposite answers. A SLOT-EMPTYING producer passes True: "...stood at [E1]" with no terminator is a real
+    position and a real emptied slot, and refusing its seam would blind the licence to the field-final
+    shape, which handle-only prose makes common. A WHOLE-SENTENCE producer leaves it False: its seams
+    exist for TIDY-2, an empty key can never join to an orphan line, and minting one would be a licence-
+    shaped record standing for nothing.
+
+    THE GRAPHRAG_STRIP_AUDIT PROJECTION IS MIRRORED HERE (H1 FIX Y5), for the same reason verify writes it
+    and under the same flag read the same way. Before this, the ONE debug surface for seams was
+    verify-only: a gate owner who turned the audit on to see whether the `ev_prune` producer fired, or
+    which `src` licensed a deletion, got a projection that was blind to every render-side producer BY
+    CONSTRUCTION (driven: 4 seams on the in-memory carrier, 2 in the projection, no non-`verify` tag
+    visible). It is OBSERVABILITY ONLY -- no counter, no decision, and the licence reads the attribute.
+
+    THE LEAK FENCE IS TWO THINGS, AND THE SECOND ONE IS ROUND 5'S (FIX W-A).
+      (1) THE FLAG, UNCHANGED. With the audit off this writes the ATTRIBUTE and NOTHING to the dict, so
+          `dict(report)`, `json.dumps(report)` and every trace projection are byte-identical to before.
+      (2) THE WIDTH, APPLIED AT THE PROJECTION AND NOWHERE ELSE. `key` below is the FULL
+          `_SEAM_LOOKAHEAD`-wide normalized form and MUST STAY THAT WIDE on the carrier, because the
+          licence compare needs it: `_licence_canon` DELETES characters before comparing 32 of them, so a
+          key cut at 40 raw characters can carry fewer than 32 canonical ones and a real cut goes
+          unlicensed (verify's `_SEAM_KEY_CHARS` note holds the two driven reproductions). What the
+          PROJECTION publishes is a CUT COPY through `verify._projected_seam` -- 40 characters, for every
+          producer. Round 4 appended the SAME dict object to both, so the audit published up to 120
+          characters of PRE-SANITIZE prose per seam on `trace['citation_verifier']`, which `/v1/respond`
+          returns whole: MEASURED at 119 characters per seam and 28 seams / 3,240 JSON bytes on
+          `data/dmw_p4/tier_20260812T051533Z.json`'s mechanism, three times the class FIX-CYCLE-2 review
+          major 7 bounded to 40, on a flag the repo's config-of-record says is live in serving. The
+          in-memory carrier is NOT cut and must not be -- no serializer can see it at all.
+    So with the flag on, the record is the same `{field, key, src}` shape verify publishes, in the same
+    40-character key class and with a fixed-enum tag, no prose."""
+    try:
+        from leviathan.graphrag import verify as _vf
+        key = _seam_key(str(tail or "")[:_vf._SEAM_LOOKAHEAD])
+        if vreport is None or (not key and not allow_empty):
+            return
+        seams = getattr(vreport, "strip_seams", None)
+        if isinstance(seams, list):
+            seam = {"field": field, "key": key, "src": src}
+            seams.append(seam)
+            if isinstance(vreport, dict) and os.environ.get("GRAPHRAG_STRIP_AUDIT", "off") != "off":
+                proj = vreport.setdefault("strip_seams", [])   # verify's own projection, the same list
+                if isinstance(proj, list):
+                    # W-A: a CUT COPY of the record, never `seam` itself -- the carrier stays full width.
+                    proj.append(_vf._projected_seam(seam))
+    except Exception:  # noqa: BLE001 -- a seam carrier must never break a turn
+        return
+
+
+# ══ H1 FIX Z4 -- A STRIP THAT EMPTIES A VALUE SLOT TAKES THE WHOLE SENTENCE ═══════════════════════════
+# THE DEFECT, REPRODUCED END TO END: `verify_citations` runs BEFORE the handle passes and removes a
+# convicted handle span BY POSITION. Under D-HP-7 the slot is empty by contract, so the sentence loses its
+# figure AND its handle at once and renders as "US corn ending stocks stood at." -- a truncated fragment on
+# the reader's page. The handle passes cannot help: the token is already gone, so D-HP-10's drop/sever/kill
+# ladder never sees it, and `_tidy_handle_debris` closes BRACKET frames, not a dangling value word.
+# HANDLE-ONLY PROSE TURNS THIS FROM AN EDGE CASE INTO THE GENERAL CASE. On the control arm the model also
+# typed the digit, so the same strip leaves "...stood at 12.5 mil bu." -- a complete sentence. On the
+# treatment arm EVERY figure lives in a slot, so EVERY one of the four RESIDUAL classes G1 declares survive
+# by construction (no_lexical_overlap, quote_mismatch, foreign_regime_name, index_out_of_range) produces a
+# fragment, on the treatment arm and on the treatment arm only -- which lands on G2 (fluency do-no-harm)
+# and on the reader.
+# THE REMEDY IS THE WHOLE SENTENCE, NOT A SEVER, and the reason is that the anchor is gone: every other
+# remedy in this file computes its clause from the HANDLE's own position, and there is no handle left here
+# to compute from. A cue-anchored sever would be a second, weaker locality rule invented for the hardest
+# case; "the sentence promised a figure it cannot produce" is D-PQ HANDLE-1's own rule and it is the one
+# the rest of the stack already applies to exactly this state.
+# THE TEST IS TWO CONDITIONS, AND THE FIRST ONE IS THE STRIP (H1 FIX W1, finding NF-1).
+#   (i) A RECORDED STRIP AT THIS SENTENCE'S OWN CUT POSITION -- the verifier's own drop record, never a
+#       lexical shape; and
+#  (ii) the shipped cue read at what is left of the sentence's end. `_HANDLE_VALUE_SLOT_RX` is the same
+#       enumerated value-introducing word set the splice uses, so prompt, splice and this pass cannot
+#       disagree about what a value slot is.
+# THE CUE ALONE WAS NOT EVIDENCE OF ANYTHING, AND THAT IS MEASURED, NOT ARGUED. Shipped as a cue-only
+# scan, this pass deleted 314 of 32,557 sentences (0.96%) across the estate's own stored prose -- almost
+# all of them grammatically complete, fully backed sentences that never carried a handle at all. Two whole
+# classes were this house's idiom: "...documented as active at this as-of." went to nothing (`\bof\s+$`
+# matches across the hyphen) and "Production vs. exports diverged in June." lost its SUBJECT ("vs." reads
+# as a terminator AND "vs" is itself a cue). The pass is treatment-gated, so 100% of that delta would have
+# been attributed to the arm on G2 (fluency do-no-harm) and paid by the reader.
+# THE LINKAGE IS A SLOT-EMPTYING PRODUCER'S OWN SEAM RECORD, which exists for precisely this reason:
+# `verify._verify_field` mints one `{field, key, src}` per applied deletion, `key` being the normalized
+# successor text at the cut (verify.py's seam loop), and `_prune_orphan_evidence_handles` mints the same
+# record when it removes an [E] marker from a slot. A sentence whose handle was emptied out of its value
+# slot therefore carries a recorded seam AT THE POSITION THIS PASS WOULD CUT, and a sentence that merely
+# ends on a cue word does not. The join is by normalized text rather than by position because no
+# downstream pass preserves positions -- the same rule `_tidy_strip_orphans` has always used, and the same
+# `_seam_key`.
+# THE SNAPSHOT IS TAKEN ONCE, BEFORE ANY CUT, so this pass can never license itself off a seam it minted.
+#
+# ══ H1 FOLD ROUND 3 (2026-08-13) -- WHAT THIS LICENCE IS AND, PRECISELY, WHAT IT IS NOT ═══════════════
+# THREE CORRECTIONS, each raised with a reproduction by the round-2 adversarial verifier and each folded
+# rather than argued away. Read them as the licence's actual contract; the paragraphs above state the
+# INTENT, these state the GUARANTEE.
+#
+# (X2) THE SEAM LIST IS NOT VERIFIER-ONLY, AND NEVER WAS AFTER Z12. `_drop_bare_digit_sentences` is a
+# RENDER pass, runs FIRST in the handle stack on BOTH bodies, and mints into the SAME carrier, so the
+# snapshot this pass takes already contains render-minted seams. REPRODUCED: a newline-bounded list where
+# the digit-lint deletes line 2 mints a seam whose key is line 3's text -- and line 1, a complete sentence
+# the verifier never touched, normalizes to the same key and was deleted off it. A terminator-less
+# sentence has no punctuation to distinguish "my own cut" from "the line after me", so ADJACENCY became a
+# licence, which the pass's own pin docstring explicitly denies. THE FIX IS PROVENANCE, not a punctuation
+# heuristic: every seam carries `src`, and only the SLOT-EMPTYING producers (`verify`, `ev_prune`) license
+# a cut. A whole-sentence producer's seam is TIDY-2 material and nothing else.
+#
+# (X3a) A SEAM LICENSES AT MOST ONE CUT. `_slot_orphan_licensed` CONSUMES the seam it matched off the
+# snapshot, so N recorded strips can license at most N deletions. REPRODUCED before the fix: one strip on
+# "Prices settled near [E9]. Trade was thin. Prices settled near. Trade was thin." deleted TWO sentences,
+# the second of which nothing had ever touched. The blast radius of a text-join collision is now bounded
+# by the number of strips the turn actually applied, which is the only bound the join itself can offer.
+#
+# (X3b) THE JOIN IS A BOUNDED-PREFIX TEXT JOIN. IT IS NOT POSITIONALLY EXACT, AND NOTHING HERE MAY CLAIM
+# IT IS. Two cut positions in one field whose successors agree for min(len, 32) >= 8 normalized characters
+# license each other; under repeated boilerplate that is reachable, and the WRONG sentence can die while
+# the one a strip actually hit survives. REPRODUCED at 32 chars (a repeated 65-char house sentence) and at
+# 17 (a repeated short field-final sentence). MEASURED CORPUS EXPOSURE IS ZERO: an exhaustive positional
+# scan -- every character position in all 207 cue-bearing fields turned into the seam verify would mint,
+# tested against every cue tail -- found 314/314 cue sentences licensable ONLY from their own cut and zero
+# foreign licences, across 32,557 stored sentences. ACCEPTED AS A RESIDUAL: positions do not survive
+# humanize/scaffold/sanitize, so a positional join is not available at this seam, and G2's fluency
+# do-no-harm read is the runtime guard that would surface a real collision. The residual is bounded by
+# X3a's one-shot rule and is recorded at plan 10.11.
+#
+# (X3b, THE OTHER DIRECTION -- H1 FOLD ROUND 4, FIX Y4.) THE RECORD ABOVE STATED ONLY THE FALSE-POSITIVE
+# HALF, AND THE MISSING HALF WAS THE BIGGER NUMBER. A text join can also REFUSE a cut a producer really
+# made, and it did, because THE KEY IS A SNAPSHOT OF TEXT LATER PASSES REWRITE. TWO NAMED REWRITERS, both
+# landing INSIDE the compared window, both in the same turn as the mint: `verify._verify_field`'s own
+# space-before-terminator cleanup, which fired ten lines after its mint (FIX Y1), and
+# `_tidy_handle_debris`, which runs between the [E] prune's mint and this pass (FIX Y2). MEASURED, not
+# reasoned: the round-3 corpus oracle -- a sentence is a genuine Z4 fragment iff it carries a handle, its
+# core does NOT end on a value cue before the strip and DOES after -- found 59 genuine fragments in stored
+# prose, of which the licence removed 45 and 14 SHIPPED (2 unambiguous value-slot fragments plus 12 of
+# this house's "at this as-of" idiom); round 4's reconstruction of the same oracle on the same population
+# read 58 / 56 / 2, the 2 being the same unambiguous pair. Round 4 fixes both rewriters; the oracle re-run
+# after Y1+Y2 ships 0 on both arms.
+# DISPOSITION OF THE IDIOM CASES: they die, and that is Z4's own rule applied without an exception
+# -- a sentence that lost its evidence handle and ends on a value cue is a sentence promising a figure it
+# cannot produce, whatever idiom it is written in. Whether the remedy for that family should be a SEVER
+# rather than the whole sentence is a live question and it is a POST-GATE one (plan 10.12); it is not a
+# reason to leave the licence refusing.
+# THE REMEDY IS THE WHOLE SENTENCE, NOT A SEVER, and the reason is that the anchor is gone: every other
+# remedy in this file computes its clause from the HANDLE's own position, and there is no handle left here
+# to compute from. A cue-anchored sever would be a second, weaker locality rule invented for the hardest
+# case; "the sentence promised a figure it cannot produce" is D-PQ HANDLE-1's own rule and it is the one
+# the rest of the stack already applies to exactly this state.
+#
+# ══ H1 FOLD ROUND 4 (2026-08-13) -- FIX Y2: THE COMPARE HAPPENS IN DEBRIS-FREE SPACE ═════════════════
+# THE DEFECT IS THE SAME ONE Y1 FIXES AT THE OTHER PRODUCER, AND IT IS THE ROOT CAUSE OF EVERY FRAGMENT
+# THE ROUND-3 VERIFIER COULD STILL LAND ON THE READER'S PAGE: THE SEAM KEY IS A SNAPSHOT OF TEXT THAT
+# LATER PASSES REWRITE. `_tidy_handle_debris` runs BETWEEN the mint and this read (serving order:
+# [E] prune -> debris -> slot-orphan) and rewrites exactly the punctuation the removals emptied, so the
+# key describes a string that no longer exists. FIVE SHAPES DRIVEN END TO END PRE-FIX, for `ev_prune` AND
+# for `verify` and in both handle namespaces; the FOUR whose cut is AT the sentence's own end each shipped
+# the fragment this pass exists to remove (the fifth is the mid-sentence case at the bottom of this note):
+#     "...stood at ([E1])."   -> prune "...stood at ()."  key ")."  -> debris "...stood at."  tail "."
+#     "...stood at [[E1]]."   -> ... key "]." ;  "revised to ( [E1] )." -> ... key ")." (rules 2/3)
+#     "The record stood at [E1] --."  key "--."  -> debris "The record stood at."  tail "."
+# 306 occurrences of the enabling shape (a value-slot cue immediately followed by "(" or "[") sit in the
+# estate's stored prose, so this is not a fixture curiosity.
+# THE FIX IS AT THE CONSUMER, AND IT IS A CANONICALIZATION OF BOTH SIDES, NOT A RE-MINT. Re-minting after
+# the debris pass would need every producer to know which passes still run behind it -- the assumption
+# that has now failed twice. `_licence_canon` instead erases the punctuation CLASSES `_DEBRIS_RULES`
+# rewrites and applies `_seam_key`'s normalization, to the recorded key and to the pass-time tail alike.
+# WHY THAT IS SOUND RATHER THAN JUST CONVENIENT: the pass-time tail is ALWAYS post-debris (the debris
+# pass is unconditional and runs first), so a stale key can differ from an honest tail only by debris
+# RESIDUE -- bracket/paren frames the tidy erased or closed up, dash runs it collapsed, a separator comma
+# it dropped, whitespace it pulled off a terminator. Canon makes exactly those differences invisible and
+# nothing else. THE COARSENING IS REAL AND IS BOUNDED THREE WAYS, all pre-existing: the seam must be in
+# THIS FIELD, its `src` must be a slot-emptying producer (X2), it is CONSUMED on match (X3a), and the
+# sentence must independently end on a value-slot cue. RE-MEASURED AT CORPUS SCALE, not argued: the
+# exhaustive positional scan that found 0 foreign licences pre-canon (every character position in all 207
+# cue-bearing fields turned into the seam `verify` would mint, tested against every cue tail across
+# 32,557 stored sentences) finds 0 foreign licences post-canon as well -- see plan 10.12.
+# WHAT IT DOES NOT REACH, STATED SO NOBODY READS MORE INTO IT: canon converges the residue AT a cut; it
+# cannot move a cut. "A dash -- [E1] -- stood at." is pruned MID-sentence, so the seam sits before
+# "-- stood at." and not at the sentence's own end, and no canonical form of that key is the tail this
+# pass computes. That sentence's core ends on a cue BEFORE the strip as well as after, so the corpus
+# oracle does not count it as a Z4 fragment either; it is pinned as a recorded non-licence.
+_LICENCE_DEBRIS_RX = (
+    (re.compile(r"[()\[\]]+"), ""),          # _DEBRIS_RULES 0-3: emptied frames, erased or closed up
+    (re.compile(r"-{2,}"), ""),              # _DEBRIS_RULES 4 + 6: a dash left standing / "-- --"
+    (re.compile(r",(?=\s*[.;:!?])"), ""),    # _DEBRIS_RULES 5: the emptied list separator "fell,."
+    (re.compile(r"\s+([.,;:!?])"), r"\1"),   # _DEBRIS_RULES 7 (and verify._strip_cleanup's half of it)
+)
+
+
+def _licence_canon(s: str) -> str:
+    """`_seam_key`'s normalization plus the debris punctuation classes erased (H1 FIX Y2).
+
+    APPLIED TO BOTH SIDES OF THE LICENCE COMPARE AND NOWHERE ELSE. `_seam_adjacent` (TIDY-2) keeps the
+    plain `_seam_key` form: it joins a whole ORPHAN LINE against a seam recorded in the same pass order,
+    it has no stale-key problem to solve, and widening its join would widen a different pass's blast
+    radius for no measured reason."""
+    out = _seam_key(s)
+    for rx, repl in _LICENCE_DEBRIS_RX:
+        out = rx.sub(repl, out)
+    return re.sub(r"\s+", " ", out).strip()
+
+
+# GATED ON THE TREATMENT and stamped per class on the trace before `body_pre_sanitize` (B2's
+# drop-with-audit rule), so the control arm is byte-identical and the deletion is never silent.
+def _slot_orphan_licensed(seams: list, field: str, tail: str) -> bool:
+    """True when a SLOT-EMPTYING producer recorded a cut at the position `tail` runs from, and that record
+    has not already licensed another sentence this turn (H1 FIX W1, tightened by X2 + X3a).
+
+    `tail` is the text FOLLOWING the sentence's emptied value slot -- i.e. the terminator and everything
+    after it -- which is the same quantity `verify._verify_field` stored as the seam's `key` when it
+    applied the deletion. One normalized compare therefore answers "was something removed HERE".
+
+    THREE CONDITIONS, and the first two are provenance rather than text:
+      (a) THE SEAM'S FIELD IS THIS FIELD;
+      (b) THE SEAM'S PRODUCER CAN EMPTY A SLOT (`_SLOT_EMPTYING_SEAM_SRCS` -- `verify` and `ev_prune`).
+          A `bare_digit` / `slot_orphan` seam marks a WHOLE SENTENCE that is gone; it is TIDY-2 material
+          and is NEVER a licence. FAIL-CLOSED on an absent or unknown `src`: a record no consumer can
+          classify does not get to delete a reader's sentence.
+      (c) THE TEXT JOINS, on the compare below.
+    A MATCHED SEAM IS CONSUMED (popped off the caller's SNAPSHOT list, never off the report), so one
+    recorded cut licenses exactly one deletion. That is what bounds a text-join collision to the number of
+    cuts the turn actually made instead of to the number of places the text happens to repeat.
+
+    THE COMPARE IS NOT `_seam_adjacent`, and the difference is the FLOOR. That helper is calibrated for
+    TIDY-2's join against a whole ORPHAN LINE (8 normalized chars minimum, 32 cap), and a floor blinds
+    exactly the case this pass most needs: the FIELD'S LAST sentence, whose tail is "." or "". Those short
+    tails are matched WHOLE instead. Longer tails keep the estate's 32-char prefix rule.
+
+    BOTH SIDES ARE CANONICALIZED FIRST (`_licence_canon`, FIX Y2), because the recorded key is a SNAPSHOT
+    OF TEXT LATER PASSES REWRITE and the tail is read after they have. Read the Y2 note above before
+    touching either side of this compare.
+
+    THE FALSE-NEGATIVE RESIDUAL, STATED WITH THE SAME DISCIPLINE AS THE COLLISION (FIX Y4). A sentence
+    reassuring the reader that only a deep sanitize edit could break an honest match stood here until
+    round 4. It was REFUTED and is DELETED rather than softened -- the plan's 10.12 retirement notice
+    holds its exact words, and it may not return to this file in any spelling. The edits that broke honest
+    matches were neither deep nor sanitize's. TWO REWRITERS, both inside the compared window and both in
+    the SAME turn as the mint -- `verify._verify_field`'s own space-before-terminator cleanup, which fired
+    ten lines AFTER it minted (FIX Y1), and `_tidy_handle_debris`, which runs between the [E] prune's mint
+    and this read (FIX Y2). MEASURED PRE-FIX on the estate's own stored prose by the corpus oracle (a
+    sentence is a genuine Z4 fragment iff it carries a handle, its core does NOT end on a value cue before
+    the strip and DOES after): round 3 counted 59 genuine fragments, 45 removed and 14 SHIPPED; round 4's
+    reconstruction of the same oracle on the same population counted 58 / 56 / 2, the two survivors being
+    the two round 3 named unambiguous. POST-FIX BOTH ARMS SHIP 0. "A broken match only ever leaves a
+    fragment standing" is not a reassurance -- a standing fragment is the whole of what Z4 was raised for.
+    The residual that remains is the one canon cannot reach (a cut that is not at the sentence's own end);
+    see the Y2 note and plan 10.12.
+
+    IT IS A TEXT JOIN, NOT A POSITION. Two cuts in one field whose successors agree over the compared
+    window license each other; see the X3b note above for the reproduction, the measured zero corpus
+    exposure and why the residual is accepted rather than closed. Do not restate this compare as
+    positionally exact anywhere."""
+    try:
+        from leviathan.graphrag import verify as _vf
+        fk = _licence_canon(str(tail or "")[:_vf._SEAM_LOOKAHEAD])
+        for i, s in enumerate(seams or []):
+            if not isinstance(s, dict) or s.get("field") != field:
+                continue
+            if s.get("src") not in _SLOT_EMPTYING_SEAM_SRCS:      # FIX X2 -- provenance, fail-closed
+                continue
+            sk = _licence_canon(str(s.get("key") or s.get("after") or ""))
+            n = min(len(sk), len(fk), 32)
+            hit = (sk[:n] == fk[:n]) if n >= 8 else (sk == fk)
+            if hit:
+                try:
+                    seams.pop(i)                                  # FIX X3a -- ONE seam, ONE cut
+                except Exception:  # noqa: BLE001 -- an unpoppable carrier must not cost the licence
+                    pass
+                return True
+        return False
+    except Exception:  # noqa: BLE001 -- a render guard must never be the thing that breaks an answer
+        return False
+
+
+def _drop_slot_orphan_sentences(structured: dict | None, vreport=None) -> dict:
+    """Remove every sentence a RECORDED VERIFIER STRIP left ending on an EMPTY VALUE SLOT. Returns
+    `{sentences_dropped}`; mutates in place; never raises.
+
+    BOTH conditions are required (H1 FIX W1): the cut position must carry a strip seam minted by a
+    SLOT-EMPTYING producer (`verify`, `ev_prune` -- X2's tag test) AND what remains of the sentence must
+    end on a value-slot cue. With no such seam recorded -- a turn nothing was emptied on, or a caller that
+    passed no report -- this pass deletes NOTHING, which is the whole of finding NF-1's remedy. Each seam
+    licenses at most ONE cut (X3a), and the join is by text rather than by position (X3b): read the notes
+    above this function before widening either."""
+    census = {"sentences_dropped": 0}
+    if not isinstance(structured, dict):
+        return census
+    seams = _report_seams(vreport)          # SNAPSHOT (a copy): never licensed by this pass's own seams
+    if not seams:
+        return census
+    try:
+        for field in ("tldr", "mechanism"):
+            text = structured.get(field)
+            if not isinstance(text, str) or not text.strip():
+                continue
+            cuts: list[tuple[int, int]] = []
+            pos = 0
+            while pos < len(text):
+                s0, s1 = _handle_sentence_span(text, pos)
+                if s1 <= pos:                          # never spin on a degenerate span
+                    pos += 1
+                    continue
+                core = text[s0:s1].rstrip()
+                while core and core[-1] in ".!?;:,":    # the terminator is not part of the slot test
+                    core = core[:-1].rstrip()
+                # THE CUT POSITION IS WHERE THE FIGURE WAS: the end of what survives, before the
+                # terminator. That is exactly where a slot-emptying producer recorded its seam if it
+                # emptied this slot. The join is by TEXT and is not positionally exact (FIX X3b); each
+                # seam licenses at most one cut (FIX X3a), which is what bounds the collision case.
+                if (core and _HANDLE_VALUE_SLOT_RX.search(core + " ")
+                        and _slot_orphan_licensed(seams, field, text[s0 + len(core):])):
+                    e = s1
+                    if s0 == 0:                        # the leading-indent rule (verify._drop_span)
+                        while e < len(text) and text[e] == " ":
+                            e += 1
+                    cuts.append((s0, e))
+                    census["sentences_dropped"] += 1
+                pos = s1
+            if not cuts:
+                continue
+            out, p = [], 0
+            for a, b in cuts:
+                a = max(a, p)
+                out.append(text[p:a])
+                # A WHOLE-SENTENCE producer: the seam is TIDY-2's repair record, never a licence (X2),
+                # and it keeps the empty-key skip (X6) because an empty key cannot join to an orphan line.
+                _mint_strip_seam(vreport, field, text[b:], src=_SEAM_SRC_SLOT_ORPHAN)
+                p = max(p, b)
+            out.append(text[p:])
+            new = "".join(out)
+            if not text[:1].isspace():
+                new = new.lstrip(" \t")
+            structured[field] = new
+    except Exception:  # noqa: BLE001 -- a render guard must never be the thing that breaks an answer
+        return census
+    return census
+
+
+def _drop_bare_digit_sentences(structured: dict | None, number_calls: list | None,
+                               vreport=None) -> dict:
+    """D-HP-12's REMEDY. The charge is `verify`'s (`by_rule['bare_digit']`, one ledger); this is the
+    deletion. Returns `{sentences_dropped, clauses_severed, e_cited_kept}`; mutates in place; never raises.
+
+    IT RUNS FIRST IN THE HANDLE STACK, BEFORE ANY VALUE SPLICE, AND THAT ORDER IS LOAD-BEARING.
+    `_resolve_number_handles` WRITES row values into the prose. A digit-lint that ran after it would read
+    the ENGINE's digits as the MODEL's and delete every sentence the renderer had just filled in -- the
+    lint fining the estate for doing its job. Running first also means the sentences this removes never
+    pay for a splice the reader will not receive.
+
+    ONE PRODUCER WITH THE CHARGE: the verdict is `verify.bare_digit_verdict`, the same function verify
+    called, so the count in `by_rule` and the deletions on the page cannot disagree about what a bare
+    digit is or about the R3(b) [E]-cited exemption. Where they CAN differ is population -- verify may
+    already have dropped a charged sentence for a citation rule -- and the census reports what the
+    reader's page actually lost, which is what a render census has always promised.
+
+    SEVER OR KILL, and the test is the shipped one (`_HANDLE_CLAUSE_OPEN_RX`): the clause is severed only
+    when it opens on a real connective (so the sentence keeps a grammatical head) AND something OUTSIDE
+    the cut still resolves. Otherwise the sentence goes whole -- "the sentence promised a figure it cannot
+    produce", D-PQ HANDLE-1's own rule, and the register/verifier precedent for a whole-sentence drop.
+
+    IT MINTS ITS OWN STRIP SEAMS (H1 FIX Z12): the charge lives in verify and mints none, so TIDY-2 could
+    not repair a paragraph seam this remedy opened. `_mint_strip_seam` records the POSITION only -- no
+    counter moves -- and only for the WHOLE-SENTENCE cuts, which are the only ones that can leave a
+    headless successor."""
+    from leviathan.graphrag import verify as _vf
+    census = {"sentences_dropped": 0, "clauses_severed": 0, "e_cited_kept": 0}
+    if not isinstance(structured, dict):
+        return census
+    calls = list(number_calls or [])
+    try:
+        for field in ("tldr", "mechanism"):
+            text = structured.get(field)
+            if not isinstance(text, str) or not text.strip():
+                continue
+            cuts: list[tuple[int, int]] = []
+            seen_sents: set[tuple[int, int]] = set()
+            for a, _b, _v in _vf._claim_number_spans(_vf._mask_handles(text)):
+                s0, s1 = _handle_sentence_span(text, a)
+                if (s0, s1) in seen_sents:
+                    continue
+                seen_sents.add((s0, s1))
+                verdict = _vf.bare_digit_verdict(text[s0:s1])
+                if verdict == "e_cited":
+                    census["e_cited_kept"] += 1
+                    continue
+                if verdict != "bare_digit":
+                    continue
+                c_a = _handle_clause_start(text, s0, a)
+                # The clause ends at the NEXT connective, or -- when the offending numeral sits in the
+                # sentence's LAST clause, which is the commonest shape -- just before the terminator, so
+                # the sentence keeps its full stop. Refusing the trailing case forced a whole-sentence
+                # kill on every "..., while stocks hit 4,250" and made the sever rule nearly unreachable.
+                c_b = len(text[:s1].rstrip())
+                while c_b > a and text[c_b - 1] in ".!?;,":
+                    c_b -= 1
+                for cm in _HANDLE_CLAUSE_OPEN_RX.finditer(text[a:s1]):
+                    c_b = a + cm.start()
+                    break
+                if c_a > s0 and c_b > a and _sentence_has_resolved_handle(text, s0, s1, calls,
+                                                                         skip=(c_a, c_b)):
+                    if c_a and text[c_a - 1] == " ":
+                        c_a -= 1
+                    cuts.append((c_a, c_b))
+                    census["clauses_severed"] += 1
+                    continue
+                e = s1
+                if s0 == 0:                       # the leading-indent rule (verify._drop_span, restated)
+                    while e < len(text) and text[e] == " ":
+                        e += 1
+                cuts.append((s0, e))
+                census["sentences_dropped"] += 1
+                # FIX Z12: the WHOLE-SENTENCE cuts are the ones that can leave a headless successor, so
+                # they -- and only they -- mint the seam TIDY-2 joins on. A severed clause keeps its
+                # sentence, so it opens no paragraph seam.
+                # FIX X2: tagged `bare_digit`, and that tag is NOT in the slot-orphan licence set. This
+                # pass deletes a WHOLE sentence -- nothing survives with an emptied slot -- so its seam is
+                # evidence of a repairable paragraph seam and of nothing else. Before the tag existed, a
+                # terminator-less neighbour could normalize to this key and be deleted off it.
+                _mint_strip_seam(vreport, field, text[e:], src=_SEAM_SRC_BARE_DIGIT)
+            if not cuts:
+                continue
+            merged: list[tuple[int, int]] = []
+            for a, b in sorted(set(cuts)):
+                if merged and a <= merged[-1][1]:
+                    merged[-1] = (merged[-1][0], max(merged[-1][1], b))
+                else:
+                    merged.append((a, b))
+            out, pos = [], 0
+            for a, b in merged:
+                a = max(a, pos)
+                out.append(text[pos:a])
+                pos = max(pos, b)
+            out.append(text[pos:])
+            new = "".join(out)
+            if not text[:1].isspace():
+                new = new.lstrip(" \t")
+            structured[field] = new
+    except Exception:  # noqa: BLE001 -- a render guard must never be the thing that breaks an answer
+        return census
+    return census
+
+
+def _resolve_evidence_handles(structured: dict | None, uniq: list | None, *,
+                              handle_prose: bool = False) -> dict:
+    """D-HP-10 -- the [E] RESOLUTION PASS, and the producer of the `prose_handles` trace column.
+
+    THE GAP IT CLOSES, and nothing else in the tree closes it: `verify._check_evidence_handle` is a
+    LEXICAL-OVERLAP test against the matched pool, so an [E] index pointing at the WRONG-BUT-REAL item
+    passes today and is READER-INVISIBLE. There is no [E] equivalent of the [N] value-splice, so an
+    unresolvable [E] standing where a receipt belongs simply survives. Under handle-only prose that is not
+    a cosmetic gap: the handle IS the claim.
+
+    SHAPE: the SAME four census keys as `number_handles` (the registry comment at
+    `tracekeys.prose_handles` freezes it), so the two halves of the join read as one instrument -- AND
+    THE SAME RULES INSIDE THEM (H1 FIX Z12): the whole-sentence kill leg charges `sentences_dropped`
+    only, exactly as `_resolve_number_handles` does, so the same shape reads the same on both halves.
+    `substituted` IS STRUCTURALLY 0 IN THIS BUILD AND IS NOT A BUG: the [E] splice payload would be a
+    date / era label / series scope, and D-HP-7 puts all three on the NOT-IN-SCOPE list, sequenced after
+    G1/G2 with the renderer-ownership table. The key exists so the column shape does not move when they
+    land; a non-zero value is a later change, made deliberately.
+
+    ALWAYS COUNTS, MUTATES ONLY UNDER `handle_prose` -- the `bare_digit_count` posture, and for the same
+    reason: G1 reads control-vs-treatment on the SAME column, and a census that exists only on the
+    treatment arm gives the comparison no denominator. With the flag off this function is a pure read and
+    the prose is byte-identical.
+
+    RESOLUTION IS POSITIONAL, MATCHING D-HP-1 (iii) AND `verify`'s OWN handle-prose branch: `[E{i}]` means
+    `uniq[i-1]`, so an index in `1..len(uniq)` resolves and anything else does not. The removal ladder is
+    the shipped one -- drop the handle when it stands beside prose, sever or kill when it stands where the
+    receipt belongs. IT RUNS BEFORE `_prune_orphan_evidence_handles` (ordering pin (b)), which remains the
+    last-resort backstop keyed on the FOOTER's emission decision: this pass answers "does the index name a
+    row at all", that one answers "did the reader actually get the row"."""
+    census = {"substituted": 0, "handles_dropped": 0, "sentences_dropped": 0, "unresolvable": 0}
+    if not isinstance(structured, dict):
+        return census
+    n_uniq = len(uniq or [])
+    try:
+        for field in ("tldr", "mechanism"):
+            text = structured.get(field)
+            if not isinstance(text, str) or "[E" not in text:
+                continue
+            recs = []
+            for m in _E_HANDLE_RX.finditer(text):
+                members = _e_handle_members(m.group(0))
+                live = [i for i in members if 1 <= i <= n_uniq]
+                s0, s1 = _handle_sentence_span(text, m.start())
+                standin = bool(_HANDLE_VALUE_SLOT_RX.search(text[s0:m.start()]))
+                recs.append((m, members, live, s0, s1, standin))
+                census["unresolvable"] += len(members) - len(live)
+            if not handle_prose or not any(len(r[2]) != len(r[1]) for r in recs):
+                continue
+            backed = {(r[3], r[4]) for r in recs if r[2]}
+            ops: list[tuple[int, int, str]] = []
+            kills: list[tuple[int, int]] = []
+            for m, members, live, s0, s1, standin in recs:
+                if len(live) == len(members):
+                    continue
+                if live:                          # PARTIAL: narrow to the members that name a row
+                    ops.append((m.start(), m.end(), _e_handle_token(live)))
+                    census["handles_dropped"] += len(members) - len(live)
+                    continue
+                if standin and (s0, s1) not in backed:
+                    # H1 FIX Z12: THE KILL LEG CHARGES `sentences_dropped` AND NOTHING ELSE, which is
+                    # `_resolve_number_handles`' own accounting. This half used to charge
+                    # `handles_dropped` here as well, so the two censuses the docstring calls "one
+                    # instrument" disagreed on the identical shape (E kill -> handles_dropped 1, N kill
+                    # -> 0). One census, one rule: a handle that left with its whole sentence is reported
+                    # as the SENTENCE the reader lost, not twice.
+                    e = s1
+                    if s0 == 0:
+                        while e < len(text) and text[e] == " ":
+                            e += 1
+                    if (s0, e) not in kills:
+                        kills.append((s0, e))
+                        census["sentences_dropped"] += 1
+                    continue
+                census["handles_dropped"] += len(members)
+                a = m.start()
+                if standin:                       # MIXED: sever the empty promise, keep the backed content
+                    a = _handle_clause_start(text, s0, m.start())
+                if a and text[a - 1] == " " and (m.end() >= len(text) or text[m.end()] in " ,.;:)!?"):
+                    a -= 1
+                ops.append((a, m.end(), ""))
+            merged = sorted(ops + [(k0, k1, "") for k0, k1 in kills], key=lambda o: (o[0], o[1]))
+            out, pos = [], 0
+            for a, b, repl in merged:
+                if b <= pos:
+                    continue
+                a = max(a, pos)
+                out.append(text[pos:a])
+                out.append(repl)
+                pos = b
+            out.append(text[pos:])
+            new = "".join(out)
+            if not text[:1].isspace():
+                new = new.lstrip(" \t")
+            structured[field] = new
+    except Exception:  # noqa: BLE001 -- a render guard must never be the thing that breaks an answer
+        return census
     return census
 
 
@@ -4465,29 +6610,49 @@ def _orphan_has_content(frag: str) -> bool:
 def _seam_key(s: str) -> str:
     """Whitespace-collapsed, case-folded comparison form. The seam recorded by `verify` is pre-humanize and
     pre-sanitize text; the fragment on the page has been through both, so the join is on a NORMALIZED
-    prefix rather than on positions (which no downstream pass preserves)."""
+    prefix rather than on positions (which no downstream pass preserves).
+
+    IT IS NOT LENGTH-BOUNDED, AND SINCE ROUND 5 THAT IS TRUE OF `verify._seam_key` TOO -- the two are the
+    same normalization, deliberately. Callers bound the INPUT at `verify._SEAM_LOOKAHEAD`; the 40-character
+    `verify._SEAM_KEY_CHARS` class belongs to the browser-visible PROJECTION and is applied there, by
+    `verify._projected_seam`. Cutting here would put the bound inside the LICENCE path, where
+    `_licence_canon` deletes characters before the 32-character compare -- the false NEGATIVE round 5
+    closed (W-B). Bound the projection, not the key."""
     return re.sub(r"\s+", " ", s or "").strip().lower()
 
 
 def _report_seams(vreport) -> list:
     """The strip seams for this turn. FIX-CYCLE-2 (review major 7): `verify` no longer ships the seam's raw
     successor prose on the report dict -- that reached the browser through `trace['citation_verifier']`. The
-    seams ride an INTERNAL attribute on the report object (invisible to every serializer), and a normalized
-    40-char `key` is additionally published under `strip_seams` only when GRAPHRAG_STRIP_AUDIT is on. Read
-    the attribute first, fall back to the dict key so an audited run, a hand-built fixture and a legacy
-    `{"after": ...}` record all still join."""
+    seams ride an INTERNAL attribute on the report object (invisible to every serializer, and carrying the
+    key at the full `verify._SEAM_LOOKAHEAD` width the licence compare needs), and a COPY whose `key` is
+    cut to `verify._SEAM_KEY_CHARS` (40) is additionally published under `strip_seams` only when
+    GRAPHRAG_STRIP_AUDIT is on -- the cut is made at the PROJECTION site, not at the mint (round-5 W-A).
+    Read the attribute first, fall back to the dict key so an audited run, a hand-built fixture and a
+    legacy `{"after": ...}` record all still join. THE FALLBACK IS THE NARROWER RECORD AND CAN
+    UNDER-LICENSE: 40 raw characters can carry fewer than 32 canonical ones once `_licence_canon`
+    deletes (the W-B class), so on an audited record with no attribute a real cut can be refused --
+    driven on W-B's own reproduction by the round-5 verifier. Unreachable in serving (the attribute and
+    the projection are written together, and X3a consumes from this function's COPY, never the carrier);
+    recorded at plan 10.12-R5 rather than fixed, because widening the fallback would republish the
+    full-width prose the projection exists to cut.
+
+    BOTH BRANCHES RETURN A COPY (H1 FIX X3a). `_slot_orphan_licensed` now CONSUMES the seam it matched, so
+    the list it is handed must be this pass's own snapshot: the report's carrier -- attribute or audited
+    dict key -- is never shortened by a reader."""
     got = getattr(vreport, "strip_seams", None)
     if got:
         return list(got)
-    return (vreport or {}).get("strip_seams") or []
+    return list((vreport or {}).get("strip_seams") or [])
 
 
 def _seam_adjacent(seams: list, field: str, frag: str) -> bool:
     """True when some recorded strip seam in THIS field is immediately followed by `frag`. The prefix
     compare is capped at 32 chars and floored at 8: shorter than 8 normalized characters is not evidence
     of anything, and beyond 32 a single sanitize edit inside the fragment would break an honest match.
-    (`key` is verify's normalized 40-char form; `after` is the legacy/fixture raw form. `_seam_key` is
-    idempotent on the former, so one compare serves both.)"""
+    (`key` is verify's normalized form -- full width on the carrier, cut to 40 only in the audit
+    projection; `after` is the legacy/fixture raw form. `_seam_key` is idempotent on the former, so one
+    compare serves both, and the 32-char cap makes the two widths the same compare.)"""
     fk = _seam_key(frag)
     if len(fk) < 8:
         return False
@@ -4709,17 +6874,46 @@ def _prune_orphan_evidence_handles(structured: dict | None, vreport: dict | None
             if not ops:
                 continue
             out, pos = [], 0
+            cuts_at: list[int] = []               # H1 FIX X1: each emptied slot's offset in the NEW text
+            grown = 0
             for a, b, repl in ops:
                 if a < pos:                       # a preceding removal already ate this left space
                     a = pos
                 out.append(text[pos:a])
                 out.append(repl)
+                grown += (a - pos) + len(repl)
+                # THE SAME PREDICATE `verify` USES AT ITS OWN MINT (`if v == ""`): a WHOLLY removed token
+                # is the one that can leave the slot empty. A NARROWED group keeps a handle standing in
+                # the slot, so it empties nothing and mints nothing.
+                if repl == "":
+                    cuts_at.append(grown)
                 pos = b
             out.append(text[pos:])
             new = "".join(out)
             if not text[:1].isspace():
+                _pre = len(new)
                 new = new.lstrip(" \t")
+                _shed = _pre - len(new)
+                if _shed:
+                    cuts_at = [max(0, c - _shed) for c in cuts_at]
             structured[field] = new
+            # ══ H1 FOLD ROUND 3 (2026-08-13) -- FIX X1: THIS PRUNE IS A SLOT-EMPTYING PRODUCER ═════════
+            # THE COVERAGE HOLE, REPRODUCED THROUGH THE SERVING BODY'S OWN PASS ORDER. W1 narrowed the
+            # slot-orphan drop to positions carrying a recorded seam, and named `verify` as the only
+            # producer that mints one. This function removes an [E] marker from a VALUE SLOT -- exactly
+            # the gate-7 `ab_out_cotton` class it exists for, a resolved ref whose footer row the register
+            # deleted -- and minted nothing, so "US corn ending stocks stood at [E1]." survived verify
+            # intact, was pruned to "US corn ending stocks stood at." here, and the slot-orphan pass
+            # REFUSED the cut for want of a licence. The fragment reached the reader, on the treatment arm
+            # only, which is the whole of what Z4 was raised for.
+            # THE REMEDY IS THE WIDENING RULE W1 ITSELF STATED: "if a render-side orphan is ever observed,
+            # the licence widens by adding a seam mint at that producer." One mint, tagged `ev_prune`,
+            # which is in `_SLOT_EMPTYING_SEAM_SRCS` because this deletion leaves the SENTENCE STANDING
+            # with its slot empty -- the same state verify's positional strip leaves.
+            # `allow_empty=True` is the X6 decision: a marker at the very end of a field ("...stood at
+            # [E1]", no terminator) is a real position, and the field-final shape is the commonest one.
+            for c in cuts_at:
+                _mint_strip_seam(vreport, field, new[c:], src=_SEAM_SRC_EV_PRUNE, allow_empty=True)
     except Exception:  # noqa: BLE001 -- a render guard must never break an answer
         return removed
     return removed
@@ -5239,8 +7433,26 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
                                + _ev_block(driver_hits, _ev_menu, _seen_rows))
     if extra_context:                                              # hybrid numbers / conversation state (volatile)
         volatile_blocks.append(extra_context)
-    # D-RC-13 on the one-hop body: this body has no GROUNDING LEDGER line, so the record-edge sentence
-    # rides its own volatile block (same text, same flag, '' when off -> byte-identical assembly).
+    # D-HP-7/8/9/12 (H1) ON THE SECOND SYNTHESIS PATH, resolved HERE because the ledger line below needs
+    # it -- the same ONE read the persona, the tool schema and the verifier take further down. Spelled
+    # identically to the L2 body (`_provenance` / `_census` / `_outlook` discipline).
+    _handles = _handle_prose_active(mode_knobs)
+    # D-HP-16: THE ONE-HOP BODY GAINS THE GROUNDING LEDGER, AND ONLY UNDER HANDLE-PROSE. This body has
+    # never had one -- the comment two lines down said so as a standing fact -- which was survivable while
+    # handles were optional decoration on typed prose. Under handle-ONLY prose it is not: the DOCUMENTED
+    # `GRAPHRAG_PLANNER=onehop` rollback lane would render a NUMBERED menu and then tell the model nothing
+    # about which addresses exist, i.e. D2's asymmetry (an unaddressable menu) restored on exactly the
+    # path a rollback puts every turn on. ONE producer with the L2 body (`_grounding_ledger`), so the two
+    # lanes cannot drift on what "which handles are valid" means.
+    # GATED, NOT UNCONDITIONAL: appending it on every turn would change the one-hop CONTROL prompt, and
+    # the OFF arm is byte-identical or it is not a control. `menu_on` rides the same gate the menu did.
+    if _handles:
+        volatile_blocks.append(_grounding_ledger(
+            len(uniq) if _ev_menu is not None else len(evidence),
+            len(extra_number_calls or []), menu_on=_ev_menu is not None))
+    # D-RC-13 on the one-hop body: this body has no GROUNDING LEDGER line of its own on the CONTROL lane,
+    # so the record-edge sentence rides its own volatile block (same text, same flag, '' when off ->
+    # byte-identical assembly).
     _rec_through = _record_through(evidence)
     _rec_suffix = _recency_ledger_suffix(_rec_through)
     if _rec_suffix:
@@ -5282,11 +7494,19 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     _census = (_composition_census(contracts=contracts, number_calls=extra_number_calls,
                                    trace={}, n_evidence=len(evidence))
                if (_rc_active and _composition_census_on()) else None)
+    # D-HP-7/8/9/12 (H1) ON THE SECOND SYNTHESIS PATH, spelled IDENTICALLY to the L2 body. This is the
+    # DOCUMENTED `GRAPHRAG_PLANNER=onehop` rollback lane, and D-HP-16 is explicit that a one-lane landing
+    # is the D2 asymmetry restored on exactly the path a rollback puts every turn on: the persona would
+    # promise handle substitution while the schema still demanded a model-authored ledger, or the reverse.
+    # One resolution, four seams, both bodies -- the `_provenance` / `_census` / `_outlook` discipline.
+    # (`_handles` is resolved ABOVE, at the ledger seam, because the prompt needs it before this call.)
     structured = call(_system(outlook=_outlook, episodes=_episodes, recency=_recency_stamp_on(),
                               response_contract=_rc_active,
                               budget=_mode_budget(_rc_active, mode_knobs),    # D-AM-10, both bodies
-                              census=_census),                                # D-CC-1, both bodies
-                      _pack(sp, vp, use_blocks), model=model, tool=_answer_tool())
+                              census=_census,                                 # D-CC-1, both bodies
+                              handles=_handles),                              # D-HP-7/8, both bodies
+                      _pack(sp, vp, use_blocks), model=model,
+                      tool=_answer_tool(handles=_handles))
     _banned_mood = _count_banned_mood(structured)                 # P9-A: RAW output, pre-sanitize
     _banned_val = _count_banned_valuation(structured)             # DP-6: valuation/flow raw counts, pre-sanitize
     _banned_flow = _count_banned_flow(structured)
@@ -5300,6 +7520,7 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     _raw_draft = raw_draft_snapshot(tldr=structured.get("tldr"), mechanism=structured.get("mechanism"))
     degraded = _pop_degraded(structured)
     _synth_usage = _pop_usage(structured)                         # D-AM-4: same pop channel, both bodies
+    _pop_plan(structured)                                         # D-HP-7 pin (c), both bodies, pre-verify
     # unified provenance footer (Phase 4): document-level, deduped by source_key. Numbers citations join here in
     # the Phase-5 hybrid path; the per-prop page/char slots ride along for the page-citation recovery.
     # D-HP-1: `uniq` was rebuilt HERE and is now built once, above, beside the ordinals the menu rendered.
@@ -5310,20 +7531,62 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     _raw_draft = _fold_draft(_raw_draft, raw_draft_snapshot(
         preverify_tldr=structured.get("tldr"), preverify_mechanism=structured.get("mechanism")))
     verifier = vf.verify_citations(structured, uniq, extra_number_calls,   # D-HP-1 (iii), both bodies
-                                   foreign_names=_foreign_regime_names(graph, contracts))
+                                   foreign_names=_foreign_regime_names(graph, contracts),
+                                   handle_prose=_handles)                  # D-HP-9/12, both bodies
     _raw_draft = _fold_draft(_raw_draft, raw_draft_snapshot(
         postverify_tldr=structured.get("tldr"), postverify_mechanism=structured.get("mechanism")))
     _emit(on_stage, "verifying", checked=int(verifier.get("checked", 0) or 0),
           stripped=int(verifier.get("stripped", 0) or 0))
     _emit(on_stage, "verified", strips=int(verifier.get("stripped", 0) or 0))   # F7: handles may ACTIVATE now
+    # D-HP-9 / R1(b): the ledger is re-minted FROM `resolved` HERE -- after verify returns, before
+    # provenance stamps. OFF-arm-clean: `_handles` False -> not called -> `structured['sources']` is the
+    # model's own ledger, byte-identical. See `_synthesize_sources` for why the direction and the
+    # position are both part of the contract.
+    if _handles:
+        _synthesize_sources(structured, verifier)
     _attach_provenance(structured, verifier)                     # stamp source_key for durable chip join (6.4)
-    _nhandles = (_resolve_number_handles(structured, extra_number_calls)   # D-PQ HANDLE-1, both bodies
+    # D-HP-15 (H1b) SELECT on the SECOND synthesis path, at the IDENTICAL position and spelled
+    # identically (D-HP-16's three-lane law): BEFORE the digit lint, outside the seven-pass stack, after
+    # `verify_citations`. It moved here with the L2 body at fold-2 (G-A) -- see the note there for the
+    # de-markering root cause; a fence that only walks marker-intact text on one of the two bodies is
+    # the same defect with a flag in front of it.
+    # `injected` is None here for the SAME reason the scaffold's is -- this body has no episode producer.
+    # THAT IS NO LONGER A NO-OP (fold-2 G-B): an empty stamped set is exactly the FULLY-FLOORED lane's
+    # shape, so a one-hop turn whose model writes a window the prompt never carried is now fenced too,
+    # in the same fail-closed direction. It ships anyway so a future one-hop episode producer is correct
+    # for free and cannot silently diverge from the L2 body, which is the whole of the W4-D3 rationale.
+    _espan = _validate_episode_spans(structured, None,
+                                     **({"handle_prose": True} if _handles else {}))
+    if _handles and _espan.get("section_seen"):                   # ...same stamp rule, both bodies
+        _trace_espan = _espan
+    else:
+        _trace_espan = None
+    _fold_ledger_class(verifier, _EPISODE_SPAN_UNBACKED_CLASS,    # ONE strip ledger, both bodies
+                       _espan.get("bullets_dropped"))
+    # D-HP-12's REMEDY on the SECOND synthesis path, in the SAME position (FIRST, before any splice) and
+    # for the same reason it is first on the L2 body. `GRAPHRAG_PLANNER=onehop` is a DOCUMENTED rollback:
+    # a lint that only deletes on one of the two bodies is the same defect with a flag in front of it.
+    _bdrop = (_drop_bare_digit_sentences(structured, extra_number_calls, verifier)
+              if (verifier.get("enabled") and _handles) else None)
+    _nhandles = (_resolve_number_handles(structured, extra_number_calls,   # D-PQ HANDLE-1, both bodies
+                                         handle_prose=_handles)
                  if verifier.get("enabled") else None)                    # ...and the same verifier gate
+    if verifier.get("enabled") and _handles:                              # H1 FIX Z1/Z6, both bodies
+        _fold_render_classes(verifier, _nhandles)
     _nclone = (_dedup_number_handles(structured, extra_number_calls)       # CYCLE-6 FIX-C, both bodies
                if verifier.get("enabled") else 0)                         # ...and the same verifier gate
+    # D-HP-10 + D-HP-14 on the SECOND synthesis path, spelled identically to the L2 body and inserted at
+    # the same point in the stack: after the [N] pass and the dedup, BEFORE the prune (ordering pin (b)).
+    _phandles = (_resolve_evidence_handles(structured, uniq, handle_prose=_handles)
+                 if verifier.get("enabled") else None)
+    _wslot = _wrong_slot_audit(_nhandles) if (verifier.get("enabled") and _handles) else None
     _eorph = (_prune_orphan_evidence_handles(structured, verifier, market_register=_mr)         # CYCLE-9 FIX 3, both bodies
               if verifier.get("enabled") else 0)                          # ...and the same verifier gate
     _debris = bool(verifier.get("enabled") and _tidy_handle_debris(structured))   # D-PQ HANDLE-3, ditto
+    _sorph = (_drop_slot_orphan_sentences(structured, verifier)                   # H1 FIX Z4, both bodies
+              if (verifier.get("enabled") and _handles) else None)                # ...same position, after
+    _fold_ledger_class(verifier, _SLOT_ORPHAN_CLASS,                              # H1 FIX W2, both bodies
+                       (_sorph or {}).get("sentences_dropped"))
     _orphans = bool(verifier.get("enabled")                                       # CYCLE-5 TIDY-2, ditto
                     and _tidy_strip_orphans(structured, verifier))
     # A4b on the SECOND synthesis path, for the SAME reason A4 is here: GRAPHRAG_PLANNER=onehop is a
@@ -5377,6 +7640,15 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
                       "record_through": _rec_through,              # D-RC-13: observational, both bodies
                       **({"number_handles": _nhandles}             # D-PQ HANDLE-1: same census, both bodies
                          if _nhandles is not None else {}),        # ...absent when the verifier is off
+                      **({"prose_handles": _phandles}              # D-HP-10: same census, both bodies
+                         if _phandles is not None else {}),        # ...absent when the verifier is off
+                      **({"wrong_slot_audit": _wslot} if _wslot is not None else {}),   # D-HP-14, ditto
+                      **({"bare_digit_dropped": _bdrop}            # D-HP-12's remedy, both bodies
+                         if (_bdrop and any(_bdrop.values())) else {}),
+                      **({"slot_orphan_dropped": _sorph}           # H1 FIX Z4's remedy, both bodies
+                         if (_sorph and any(_sorph.values())) else {}),
+                      **({"episode_spans_validated": _trace_espan}  # D-HP-15 SELECT, both bodies
+                         if _trace_espan is not None else {}),      # ...absent on every control row
                       **({"number_rows_deduped": _nclone} if _nclone else {}),  # CYCLE-6 FIX-C, both bodies
                       **({"evidence_orphans_pruned": _eorph} if _eorph else {}),  # CYCLE-9 FIX 3, ditto
                       **({"prose_debris_tidied": True} if _debris else {}),   # D-PQ HANDLE-3, both bodies
