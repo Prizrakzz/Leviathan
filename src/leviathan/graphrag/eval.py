@@ -2703,9 +2703,20 @@ def _refusal_census(per: list[dict]) -> dict:
     readable before the freeze rather than to invent a ceiling for it. `refusal_budget_status` says exactly
     that, in the artifact, so a reader cannot mistake silence for a pass.
 
-    Absent keys on a control row are ABSENT, not zero: the six treatment keys exist only when `handle_prose`
-    ran (the OFF-arm-clean rule), so a control run reports zeros over `rows_with_key: 0` and the two are
-    distinguishable.
+    `empty_row_addressed` (G1 REMEDIATION-2 R2-a, 2026-08-14) is the SECOND counter split off
+    `unresolvable` on the identical grounds and it lands here, beside the first, for the identical reason:
+    it is where a reader looks for "how many handles did this arm remove, and why". IT IS THE ONLY RECORD
+    ANYWHERE that the treatment arm addressed a menu row that exists and carries no value -- the residue
+    G1 decision-1 r3's clause (2) failed on -- and like `binding_refused` it is BUDGETED BY NO CLAUSE. It
+    is not a `by_rule` class and is in no successor tuple (nothing was mis-bound and no strip ledger
+    counts an `unresolvable` removal either), so `dhp_class_scan` and clause (4)'s declared set do not see
+    it and must not: this is an ACCOUNTING SPLIT of a counter clause (2) already read, not a new page loss.
+    Whether clause (2) wants a pre-registered expectation on it is the GATE OWNER's, exactly as with
+    `binding_refused`, and `refusal_budget_status` says so in the artifact for both.
+
+    Absent keys on a control row are ABSENT, not zero: the SEVEN treatment keys exist only when
+    `handle_prose` ran (the OFF-arm-clean rule), so a control run reports zeros over `rows_with_key: 0`
+    and the two are distinguishable.
 
     H2 FOLD 1 (K4) -- THE DENOMINATOR. This census pooled over EVERY row and then divided by a live-row
     count it never reported, so `sentences_dropped_mean` mixed two populations and no reader could see it.
@@ -2715,11 +2726,14 @@ def _refusal_census(per: list[dict]) -> dict:
     owner to ratify a budget against."""
     out: dict = {"binding_refused": 0, "scope_checked": 0, "direction_checked": 0,
                  "grouped_in_slot": 0, "direction_sign_mismatch": 0, "slot_scope_mismatch": 0,
+                 "empty_row_addressed": 0,          # G1 REMEDIATION-2 R2-a, see the note below
                  "sentences_dropped": 0, "handles_dropped": 0, "unresolvable": 0, "substituted": 0,
                  "rows_with_treatment_keys": 0,
                  "rows_pooled": 0, "rows_excluded": [],
-                 "refusal_budget_status": "RAISED, NOT BUDGETED -- open ratification question (plan 10.11; "
-                                          "the R11 ceiling of 15 binds the class counters, not this one)"}
+                 "refusal_budget_status": "RAISED, NOT BUDGETED -- open ratification question for BOTH "
+                                          "`binding_refused` (plan 10.11) and `empty_row_addressed` "
+                                          "(plan 10.19, G1 REMEDIATION-2 R2-a); the R11 ceiling of 15 "
+                                          "binds the class counters, neither of these"}
     try:
         # THE DENOMINATOR IS NAMED, NOT SILENT (H2 FOLD 1, K4 -- D-HP-17's own H2 sentence says BOTH new
         # header keys reach the artifact "with the non-reasoning lane excluded BY ID"; `dhp_class_scan`
@@ -2736,7 +2750,8 @@ def _refusal_census(per: list[dict]) -> dict:
             if "binding_refused" in nh:
                 out["rows_with_treatment_keys"] += 1
             for k in ("binding_refused", "scope_checked", "direction_checked",
-                      "grouped_in_slot", "direction_sign_mismatch", "slot_scope_mismatch"):
+                      "grouped_in_slot", "direction_sign_mismatch", "slot_scope_mismatch",
+                      "empty_row_addressed"):
                 out[k] += int(nh.get(k) or 0)
             for k in ("sentences_dropped", "handles_dropped", "unresolvable", "substituted"):
                 out[k] += int(nh.get(k) or 0) + int(ph.get(k) or 0)   # both halves, R4's own denominator

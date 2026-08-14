@@ -338,7 +338,13 @@ def quality_counters(trace: Optional[dict]) -> Optional[dict]:
       mis_bound_count        the #1 risk as a number; ceiling 15 pooled per treatment arm (R11)
       bare_digit_strips      the digit-lint's CONVICTIONS (a by_rule class, `strips` counts it too)
       bare_digit_escapes     the digit-lint's ESCAPES (`trace.bare_digit_count`, always-on, gates nothing)
-      handles_unresolvable   the model addressed a receipt that does not exist -- the wave's residual
+      handles_unresolvable   the model addressed a receipt that does not exist -- the wave's residual.
+                             NARROWED 2026-08-14 (G1 REMEDIATION-2 R2-a, plan 10.19): on the TREATMENT
+                             lane an EMPTY-ROW address (the receipt exists and carries no value) now
+                             lands in `number_handles.empty_row_addressed` instead, so this column is
+                             the invented-receipt population only. The CONTROL lane is unchanged (the
+                             OFF-arm-clean rule), so a cross-arm read of this one column is NOT like
+                             for like after that date -- `dhp_refusals` carries both halves.
       substitution_load      the NUMBER-AVOIDANCE instrument (B7 / G1 clause (8)), denominated per answer
                              against the census's ALL-ANSWERS mean of 19.8 typed numerals
     """

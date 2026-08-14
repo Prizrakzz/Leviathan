@@ -5551,6 +5551,67 @@ def _slot_scope_mismatch(clause: str, call: dict | None, idx: int) -> tuple[bool
     return True, not (row_years & clause_years)
 
 
+# ══ D-HP G1 REMEDIATION-2 R2-a (2026-08-14) -- THE EMPTY-ROW ADDRESS IS ITS OWN STATE ═════════════════
+#
+# THE DOCTRINE, PINNED BY THE OWNER AT THIS WINDOW: OBEDIENCE IS NOT LOAD-BEARING. Remediation 1 answered
+# the r2 clause-(2) population with a PROMPT clause ("Do NOT cite the empty row's [N] handle"), and the
+# population fell 55 -> 3. The three that survived are the residue that a directive can never reach: two
+# turns where the model was told and cited anyway, and one where the shape was invisible to the directive
+# altogether (R2-b, fixed at the source in `citations.is_empty_read`). A rule the model may decline is not
+# a guarantee, so the guarantee moves here, to the resolver, where the model has no vote.
+#
+# WHAT WAS ALREADY TRUE AND STAYS TRUE, STATED FIRST SO THE CHANGE IS NOT OVERSOLD: NOTHING EMPTY EVER
+# RENDERED. `_number_handle_value` returns None for every one of these shapes (`Citation.value` is None or
+# blank), so an empty-row address has always taken the shipped ladder -- splice nothing, drop the handle,
+# sever the clause, or kill the sentence. The r3 artifacts confirm it: not one empty figure reached a
+# reader on any of the 52 row-instances. THE DEFECT WAS THE ACCOUNTING, and it was a real one.
+#
+# THE ACCOUNTING DEFECT. `unresolvable` is DEFINED by D-HP-17 item 4 as "the model addressed a receipt that
+# DOES NOT EXIST" -- an index past the end of the menu, or a sibling id nothing minted. An empty-row
+# address is the opposite state: the receipt EXISTS, the menu line is real, the handle names it correctly,
+# and the row behind it carries no value. Charging both to one counter makes G1 clause (2) read "no holes
+# in the reader's page" as "the model never addressed an absence", which is a claim about the WRITER's
+# obedience, not about the page -- and it is unsatisfiable by construction on the control arm, which this
+# wave does not touch. THE PRECEDENT IS H1 FIX Z2's, EXACTLY: `binding_refused` split off `unresolvable`
+# for the same reason (a refused handle RESOLVED and was declined) and lives in the same census.
+#
+# THREE THINGS THIS DELIBERATELY IS NOT.
+#   (1) NOT A STRIP CLASS. It is not folded into `by_rule`/`stripped` and it is NOT in
+#       `_RENDER_LEDGER_CLASSES` -- `unresolvable`'s own removals have never been strips either, so
+#       folding this half and not that half would inflate the TREATMENT arm's `strips` against clause (3)
+#       for a removal the control arm makes silently. `binding_refused` sits in exactly this position.
+#       CONSEQUENCE, RECORDED FOR THE RE-FREEZE: clause (4)'s SIXTEEN-member declared set is UNTOUCHED,
+#       because the class scan reads `by_rule` and this counter never enters it. What the re-freeze owes
+#       is a sentence in clause (2) naming the counter, and a decision on whether it carries a budget.
+#   (2) NOT AN OFF-ARM CHANGE. The key is minted only under `handle_prose`, beside the other six D-HP
+#       counters, so the control census keeps its four pinned keys byte-for-byte and the control arm keeps
+#       charging `unresolvable` exactly as it does today. That is the OFF-arm-clean rule, and it is the
+#       same rule `_resolve_evidence_handles` obeyed when D2(b) refused to grow a fifth key.
+#   (3) NOT A NEW REMOVAL. Not one byte of the ladder moves. The handle leaves the page under the same
+#       drop/sever/kill it takes today, counted under the same `handles_dropped` / `sentences_dropped`.
+#
+# THE PREDICATE IS THE CLASS, NOT A LIST OF SHAPES. A dead member is an EMPTY-ROW ADDRESS when the call it
+# names EXISTS and PRESENTS NO VALUE -- which covers the zero-row reads, the four empty statuses, R2-b's
+# blank-value shape and the zero-AGGREGATE class, and covers any fifth shape a future card invents without
+# anyone remembering to come back here. Everything else dead -- an out-of-range index, a suffixed member
+# nothing minted, a malformed record -- stays `unresolvable`, which is what that word means.
+def _addresses_empty_row(call, idx: int, suffix: str = "") -> bool:
+    """True when `[N{idx}]` names a menu row that EXISTS and carries no value.
+
+    False for an out-of-range index (`call` is None), for a suffixed member (D-HP-11/12: a token the model
+    invented, and "invented" is `unresolvable` by definition), and for any row that resolves to a figure.
+    Never raises: a malformed record reads False, the side that leaves the charge where it is today."""
+    if suffix or not isinstance(call, dict):
+        return False
+    if cit.is_empty_read(call):
+        return True                        # zero rows, or rows that all came back blank (R2-b)
+    try:                                   # ...and the classes that HAVE rows but withhold the value
+        c = cit.from_number(call, idx)     # (the zero-AGGREGATE marker), read off the one producer
+    except Exception:  # noqa: BLE001
+        return False
+    return c.value is None or not str(c.value).strip()
+
+
 def _resolve_number_handles(structured: dict | None, number_calls: list | None, *,
                             handle_prose: bool = False) -> dict:
     """Substitute or remove every `[N]` handle in the reader prose so none can render literally.
@@ -5606,6 +5667,12 @@ def _resolve_number_handles(structured: dict | None, number_calls: list | None, 
         RESOLVED and was declined, which is the opposite of D-HP-17 item 4's "the model addressed a
         receipt that does not exist". See the counter's own note at the charge site.
 
+    (d) [G1 REMEDIATION-2 R2-a, 2026-08-14] AN EMPTY-ROW ADDRESS IS `empty_row_addressed`, NEVER
+        `unresolvable`, on the SAME grounds one rung down: the receipt EXISTS and carries no value, while
+        `unresolvable` is D-HP-17 item 4's "a receipt that does not exist". The REMOVAL is untouched.
+        See `_addresses_empty_row`'s own note for the doctrine ("obedience is not load-bearing"), the
+        three things this deliberately is NOT, and the re-freeze item it owes G1 clause (2).
+
     THE CYCLE-10 RECONCILIATION, STATED WHERE THE CODE IS: this pass writes a numeral into prose, which is
     the capability the termination branch DELETED from verify.py. The distinction is not a fence, it is
     the slot: `_num_repair` second-guessed a number THE MODEL HAD WRITTEN on the strength of a four-clause
@@ -5617,7 +5684,8 @@ def _resolve_number_handles(structured: dict | None, number_calls: list | None, 
     census = {"substituted": 0, "handles_dropped": 0, "sentences_dropped": 0, "unresolvable": 0}
     if handle_prose:                              # ADDED KEYS, treatment lane only (OFF-arm clean)
         census.update({"grouped_in_slot": 0, "direction_sign_mismatch": 0, "slot_scope_mismatch": 0,
-                       "scope_checked": 0, "direction_checked": 0, "binding_refused": 0})
+                       "scope_checked": 0, "direction_checked": 0, "binding_refused": 0,
+                       "empty_row_addressed": 0})     # R2-a, the SEVENTH added key (see its own note)
     if not isinstance(structured, dict):
         return census
     calls = list(number_calls or [])
@@ -5644,6 +5712,14 @@ def _resolve_number_handles(structured: dict | None, number_calls: list | None, 
                     for i, sfx in pairs]
             live_pairs = [p for p, v in zip(pairs, vals) if v is not None]
             live = [i for i, _s in live_pairs]
+            # R2-a: of the members that resolved to NOTHING, how many named a menu row that EXISTS and
+            # carries no value. Computed off `vals` -- BEFORE the binding refusals below can empty `live`
+            # -- so a refused handle (which RESOLVED) can never be miscounted here. Treatment lane only:
+            # on the control arm the key does not exist and every dead member stays `unresolvable`.
+            dead_empty = (sum(1 for (i, sfx), v in zip(pairs, vals)
+                              if v is None and _addresses_empty_row(
+                                  calls[i - 1] if 1 <= i <= len(calls) else None, i, sfx))
+                          if handle_prose else 0)
             # `value` is the SPLICE payload and exists only for a SOLITARY handle; a grouped token resolves
             # to "still points at something" (True) and nothing more -- it stands in for no single figure.
             value = vals[0] if len(pairs) == 1 else (True if live_pairs else None)
@@ -5684,12 +5760,12 @@ def _resolve_number_handles(structured: dict | None, number_calls: list | None, 
                              and _HANDLE_VALUE_SLOT_RX.search(text[s0:m.start()]))
             if standin and isinstance(value, str) and _figure_already_stated(text, s0, s1, m, value):
                 standin = False                    # -> the ordinary "resolved beside a stated number" branch
-            recs.append((m, value, s0, s1, standin, pairs, live, live_pairs, gslot, refused))
+            recs.append((m, value, s0, s1, standin, pairs, live, live_pairs, gslot, refused, dead_empty))
         # A `grouped_in_slot` token is on its way OUT, so it backs nothing: counting it here would let it
         # rescue a neighbouring unresolvable handle from a kill it has earned.
         backed = {(r[2], r[3]) for r in recs if r[1] is not None and not r[8]}
         backed_at = [r[0].start() for r in recs if r[1] is not None and not r[8]]
-        for m, value, s0, s1, standin, pairs, live, live_pairs, gslot, refused in recs:
+        for m, value, s0, s1, standin, pairs, live, live_pairs, gslot, refused, dead_empty in recs:
             if gslot:
                 # D-HP-11(b): NEVER spliced (a group stands in for no single figure), never left standing
                 # (a literal `[N13, N14]` in a value slot is the D-PQ HANDLE-1 defect). The clause goes.
@@ -5714,7 +5790,13 @@ def _resolve_number_handles(structured: dict | None, number_calls: list | None, 
                     ops.append(op)
                     narrowed[op] = len(pairs) - len(live_pairs)
                     census["handles_dropped"] += narrowed[op]
-                    census["unresolvable"] += narrowed[op]
+                    # R2-a: the departed members split by WHY they departed. `dead_empty` is a subset of
+                    # `narrowed[op]` by construction (both are counted off the same dead-member list), so
+                    # the two counters always sum to what `unresolvable` alone used to carry.
+                    # (`dead_empty` is 0 unless `handle_prose`, so the control census never grows a key.)
+                    if dead_empty:
+                        census["empty_row_addressed"] += dead_empty
+                    census["unresolvable"] += narrowed[op] - dead_empty
                 continue
             # ══ H1 FIX Z2 -- A BINDING REFUSAL IS NOT AN UNRESOLVABLE HANDLE ══════════════════════════
             # D-HP-17 item 4 defines `unresolvable` as "the model addressed a receipt that does not
@@ -5726,10 +5808,18 @@ def _resolve_number_handles(structured: dict | None, number_calls: list | None, 
             # also polluted `handles_unresolvable`, which the successor family calls "the wave's residual".
             # THE REMOVAL IS UNCHANGED (value=None still takes the shipped drop/sever/kill ladder); only
             # the ACCOUNTING moves, to its own counter beside the two class counters that name the reason.
+            # ══ R2-a -- AND AN EMPTY-ROW ADDRESS IS NOT AN UNRESOLVABLE HANDLE EITHER ═════════════════
+            # The same distinction one rung down: `unresolvable` means the receipt DOES NOT EXIST, and a
+            # menu row that exists and carries no value is a different fact about a different failure.
+            # THE REMOVAL IS UNCHANGED -- this token still takes the drop/sever/kill ladder below; only
+            # the accounting splits. Control arm: `dead_empty` is 0 by construction, so this line reads
+            # `census["unresolvable"] += len(pairs)` exactly as it did.
             if refused:
                 census["binding_refused"] += len(pairs)
             else:
-                census["unresolvable"] += len(pairs)
+                if dead_empty:                # 0 unless `handle_prose` -- the control census never grows
+                    census["empty_row_addressed"] += dead_empty
+                census["unresolvable"] += len(pairs) - dead_empty
             if standin and (s0, s1) in backed:
                 # MIXED: sever the clause instead of the sentence. Falls back to the bare token drop when
                 # the clause would swallow the resolved handle that is the reason to keep the sentence.

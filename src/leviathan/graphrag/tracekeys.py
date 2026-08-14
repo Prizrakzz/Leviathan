@@ -42,11 +42,11 @@ TRACE_RECORD_KEYS: tuple[str, ...] = (
                                  # anything after it. Nothing gates on it (D-MW-17 recorded-only), so no gate
                                  # clause moves; the boundary is recorded so no later wave re-derives it wrong.
     "number_handles",            # D-PQ HANDLE-1: {substituted,handles_dropped,sentences_dropped,unresolvable}
-                                 # ...ON THE CONTROL LANE. THE TREATMENT LANE STAMPS TEN KEYS (H1 FIX W4,
-                                 # finding NF-4): `answer._resolve_number_handles` adds SIX under
+                                 # ...ON THE CONTROL LANE. THE TREATMENT LANE STAMPS ELEVEN KEYS (H1 FIX
+                                 # W4, finding NF-4): `answer._resolve_number_handles` adds SEVEN under
                                  # `handle_prose` -- grouped_in_slot, direction_sign_mismatch,
-                                 # slot_scope_mismatch, scope_checked, direction_checked and
-                                 # BINDING_REFUSED. The four-key byte-pin the suites carry is CONTROL-
+                                 # slot_scope_mismatch, scope_checked, direction_checked,
+                                 # BINDING_REFUSED and EMPTY_ROW_ADDRESSED. The four-key byte-pin is CONTROL-
                                  # scoped, so the superset reds nothing; it is named here because this
                                  # registry is the one place every consumer already looks, and a counter
                                  # documented nowhere is a counter no gate reads.
@@ -61,6 +61,15 @@ TRACE_RECORD_KEYS: tuple[str, ...] = (
                                  # NOT BUDGETED BY ANY G1 CLAUSE TODAY, recorded as an open question at
                                  # plan 10.11: the two class counters it accompanies are budgeted at 15
                                  # pooled by R11 and this one is budgeted by nothing.
+                                 # `empty_row_addressed` (G1 REMEDIATION-2 R2-a, plan 10.19) is the SECOND
+                                 # counter split off `unresolvable` on the identical grounds: the model
+                                 # addressed a menu row that EXISTS and carries no value, which is not
+                                 # "a receipt that does not exist" either. The REMOVAL is unchanged (the
+                                 # shipped drop/sever/kill ladder); only the accounting moved, so that
+                                 # G1 clause (2)'s column reports holes in the page rather than the
+                                 # writer's obedience. It is NOT a `by_rule` strip class and is in no
+                                 # successor tuple -- see `answer._addresses_empty_row`. ALSO UNBUDGETED:
+                                 # clause (2) must name it at the re-freeze (plan 10.19.5 item 1).
     "prose_debris_tidied",       # D-PQ HANDLE-3: True when a strip left a bracket/dash frame to close up
     "prose_orphans_tidied",      # CYCLE-5 TIDY-2: True when a strip left a headless paragraph to repair
     "number_rows_deduped",       # CYCLE-6 FIX-C: [N] indices re-pointed onto a full-identity twin's row

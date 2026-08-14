@@ -73,7 +73,13 @@ def _numbers_block(calls: list) -> str:
     # lanes read it. The treatment arm carries the same rule in its own vocabulary at `_SYSTEM_HANDLES`
     # ("AN EMPTY MENU ROW IS NOT AN ADDRESS"); this sentence is what gives the CONTROL arm and the shipped
     # product the identical fix, which is what the defect being older than the wave requires.
-    if any(not (c.get("rows") or []) for c in (calls or []) if isinstance(c, dict)):
+    # D-HP G1 REMEDIATION-2 R2-b (2026-08-14): the gate was `not (c.get("rows") or [])`, i.e. the ZERO-ROW
+    # half only -- so on r3 inv3 `dv_sub_ddg_floor`, whose read came back `ok` with one row carrying an
+    # EMPTY value, this directive did not fire at all and the writer was shown a menu line ending in a bare
+    # "=" with no instruction attached. The predicate is now `citations.is_empty_read`, the SAME producer
+    # that decides the label three lines of prose above it, so the directive and the marker cannot disagree
+    # about which reads are empty. Byte-identical on every turn whose reads all carry a value.
+    if any(cit.is_empty_read(c) for c in (calls or []) if isinstance(c, dict)):
         notes = notes + ["One or more reads above are marked NO ROWS RETURNED: they produced no value at "
                          "all. Say the record carries no figure for that scope and assert NO number for "
                          "it -- not a level, not a change, and not zero. An empty read is an absence of "

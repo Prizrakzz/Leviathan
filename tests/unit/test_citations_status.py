@@ -127,3 +127,61 @@ def test_render_path_joins_status_and_stale_labels_cleanly():
     assert "scope/coverage gap" in block
     # one line per citation, no crash on the multi-clause label
     assert len([ln for ln in block.splitlines() if ln.strip()]) == 2
+
+
+# --- (d) D-HP G1 REMEDIATION-2 R2-b: "ok + all-blank values" is an ABSENCE, everywhere ----------------
+
+def _blank_call(rows, status="ok"):
+    return {"query": {"table": "silver_fred_fx", "metric": "ars_usd", "asof": "2026-06-01"},
+            "rows": rows, "status": status}
+
+
+def test_ok_with_a_single_blank_value_row_renders_the_no_rows_marker():
+    """THE THIRD EMPTY SHAPE (G1 decision-1 r3, `dv_sub_ddg_floor` [N1]): status `ok`, one row, value ''.
+    It took the rows-bearing branch and rendered `... ars_usd = ` -- a menu line ending in a bare "="
+    with nothing behind it, in the prompt panel AND the reader's `## Sources` list. The writer cited it.
+    It is an absence and now says so, under the SAME `NO ROWS RETURNED` prefix every other empty branch
+    carries (that prefix is what the directive and every existing assertion key on)."""
+    c = from_number(_blank_call([{"value": ""}]), 1)
+    assert c.label.rstrip().endswith(")") and "= NO ROWS RETURNED" in c.label
+    assert "carries no value at all" in c.label and "blank field as of 2026-06-01" in c.label
+    assert c.value is None and c.unit is None          # ...and no unit with no value behind it
+    assert c.payload["rows"] == [{"value": ""}]        # the drill-down still re-runs the real read
+
+
+def test_the_blank_shape_does_not_borrow_a_timing_or_coverage_parenthetical():
+    """The taxonomy is the point of `_empty_label` and this shape belongs to none of its four branches:
+    a row DID come back (not "no matching rows") and nothing is pending publication (not a timing claim).
+    Erasing that distinction is the judged-30 RCA (a) defect with a new shape in it."""
+    lbl = from_number(_blank_call([{"value": None}, {"value": "   "}]), 1).label
+    assert "scope/coverage gap" not in lbl and "not yet published" not in lbl
+    assert "not known at asof" not in lbl and "lookup error" not in lbl
+
+
+def test_a_measured_zero_is_never_read_as_blank():
+    """THE WHOLE SAFETY OF THE PREDICATE. `0`, `0.0` and `"0"` are MEASURED quantities; the test is
+    written against `is None` / `str(...).strip()` and never against truthiness, because `0 or ""` is
+    `""` and a truthy test would erase every measured zero on the estate."""
+    for v in (0, 0.0, "0", "0.00"):
+        c = from_number(_blank_call([{"value": v, "unit": "MMT"}]), 1)
+        assert "NO ROWS RETURNED" not in c.label and c.value is not None
+    # a PARTIALLY blank series is a series: one blank row does not make the read an absence.
+    c = from_number(_blank_call([{"value": ""}, {"value": 1.62, "unit": "MMT"}]), 1)
+    assert "NO ROWS RETURNED" not in c.label
+
+
+def test_is_empty_read_is_the_one_producer_the_three_consumers_share():
+    """ONE PRODUCER, NEVER COPIED -- the `_series_truncated` / `_is_zero_esr_aggregate` discipline. The
+    label, `orchestrator._numbers_block`'s empty-read directive and `answer._addresses_empty_row`'s charge
+    all key on this predicate, so they cannot disagree about which reads are empty. The r3 defect was
+    exactly that disagreement: the label said "a figure", the directive never fired, and the resolver
+    knew the truth only after the model had already cited the row."""
+    from leviathan.graphrag import citations as cit
+    from leviathan.graphrag import orchestrator as orch
+    blank = _blank_call([{"value": ""}])
+    assert cit.is_empty_read(blank) and cit.is_empty_read(_blank_call([], "no_rows"))
+    assert not cit.is_empty_read(_blank_call([{"value": 1.62}]))
+    assert not cit.is_empty_read(None) and not cit.is_empty_read({"rows": "junk"})
+    # the DIRECTIVE now fires on the blank shape, and still does not fire on a turn that has figures.
+    assert "Do NOT cite the empty row" in orch._numbers_block([blank])
+    assert "Do NOT cite the empty row" not in orch._numbers_block([_blank_call([{"value": 0}])])

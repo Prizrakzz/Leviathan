@@ -464,8 +464,12 @@ def test_the_control_arm_is_the_pre_dhp_renderer_on_every_shape_but_the_declared
     on = _st(body, body)
     n_on = an._resolve_number_handles(on, calls, handle_prose=True)
     assert on["tldr"] != st["tldr"]
+    # SEVEN added keys since G1 REMEDIATION-2 R2-a (`empty_row_addressed`, the second counter split off
+    # `unresolvable` after `binding_refused`). The CONTROL set above is still the pre-D-HP four exactly --
+    # that assertion is the one that must never move, and the accounting split did not move it.
     assert set(n_on) - set(n) == {"grouped_in_slot", "direction_sign_mismatch", "slot_scope_mismatch",
-                                  "scope_checked", "direction_checked", "binding_refused"}
+                                  "scope_checked", "direction_checked", "binding_refused",
+                                  "empty_row_addressed"}
 
 
 def test_the_suffixed_token_is_the_treatments_grammar_and_the_control_arm_is_bytes():
@@ -1003,3 +1007,99 @@ def test_d2b_the_remedy_and_the_clause_2b_instrument_read_ONE_grammar():
         assert ev._bare_handle_escapes({"answer": text}) > 0          # the clause reads it as an escape
         an._drop_evidence_value_slot(st, _uniq(2))
         assert ev._bare_handle_escapes({"answer": st["mechanism"]}) == 0   # ...and reads zero after
+
+
+# ══ G1 REMEDIATION-2 R2-a (2026-08-14) -- THE EMPTY-ROW ADDRESS IS ITS OWN STATE ══════════════════════
+
+def _empty_call(rows, status: str = "ok") -> dict:
+    """The three empty shapes G1 decision-1 r3 actually served, in the shape `cit.from_number` reads.
+    `rows=[]` + status `ok`/`no_rows` are the r2 population; `rows=[{'value': ''}]` is the THIRD shape
+    (r3 inv3 `dv_sub_ddg_floor` [N1], silver_fred_fx ars_usd) that the r2 diagnosis never saw."""
+    return {"query": {"table": "silver_fred_fx", "metric": "ars_usd", "asof": "2026-06-01"},
+            "rows": rows, "status": status}
+
+
+@pytest.mark.parametrize("rows,status", [([], "ok"), ([], "no_rows"), ([{"value": ""}], "ok"),
+                                         ([{"value": None}], "ok"), ([{"value": "  "}], "ok")])
+def test_r2a_an_empty_row_address_is_charged_to_its_own_counter_never_unresolvable(rows, status):
+    """THE DOCTRINE: obedience is not load-bearing. Remediation 1 answered the r2 clause-(2) population
+    with a PROMPT clause and it fell 55 -> 3; the residue is what a directive can never reach. The
+    guarantee therefore moves to the resolver, where the model has no vote.
+
+    THE REMOVAL WAS ALREADY RIGHT AND IS UNCHANGED -- nothing empty has ever rendered. What moves is the
+    ACCOUNTING: `unresolvable` is D-HP-17 item 4's "the model addressed a receipt that DOES NOT EXIST",
+    and a menu row that exists and carries no value is the opposite fact. Same split, same grounds and
+    same census as H1 FIX Z2's `binding_refused`."""
+    st = _st("The peso sat at [N1] on the day.")
+    census = an._resolve_number_handles(st, [_empty_call(rows, status)], handle_prose=True)
+    assert st["tldr"] == ""                            # the ladder is untouched: nothing empty renders
+    assert census["empty_row_addressed"] == 1
+    assert census["unresolvable"] == 0                 # G1 clause (2)'s column, and it is now honest
+    assert census["sentences_dropped"] == 1 and census["substituted"] == 0
+
+
+def test_r2a_a_receipt_that_does_not_exist_is_still_unresolvable():
+    """THE OTHER HALF, or the split is a laundering rather than a distinction. An index past the end of
+    the menu and a suffixed member nothing minted are BOTH "a receipt that does not exist", and both must
+    keep the word `unresolvable` -- otherwise D-HP-17 item 4's counter has no population left at all."""
+    calls = [_call("stocks", 1.62)]
+    for text in ("Stocks were at [N9] overall.", "Stocks were at [N1b] overall."):
+        st = _st(text)
+        census = an._resolve_number_handles(st, calls, handle_prose=True)
+        assert census["unresolvable"] == 1 and census["empty_row_addressed"] == 0
+    # ...and a row that RESOLVES is charged to neither: the counter counts absences, not handles.
+    st = _st("Stocks were at [N1] overall.")
+    census = an._resolve_number_handles(st, calls, handle_prose=True)
+    assert census["substituted"] == 1
+    assert census["unresolvable"] == 0 and census["empty_row_addressed"] == 0
+
+
+def test_r2a_the_control_arm_keeps_its_four_keys_and_its_charge():
+    """THE OFF-ARM-CLEAN RULE, the same one D2(b) obeyed when it refused to grow a fifth key on the [E]
+    census (`test_d2b_the_off_arm_never_reaches_the_pass_and_the_E_census_keeps_its_four_keys`). The key
+    is minted only under `handle_prose`, so the control census is the pre-D-HP four BYTE FOR BYTE and the
+    control arm charges `unresolvable` exactly as it does today -- which is what keeps G1 a comparison."""
+    off = _st("The peso sat at [N1] on the day.")
+    census = an._resolve_number_handles(off, [_empty_call([{"value": ""}])])
+    assert census == {"substituted": 0, "handles_dropped": 0, "sentences_dropped": 1, "unresolvable": 1}
+    assert off["tldr"] == ""                       # the removal is identical on both arms
+
+
+def test_r2a_a_grouped_token_splits_its_dead_members_by_reason():
+    """HANDLE-2's narrowing leg carries the same split, per MEMBER. `[N1, N2]` with N1 empty and N2 live
+    narrows to `[N2]` on BOTH arms; the departed member is charged to the counter that names WHY it
+    departed, and the two counters always sum to what `unresolvable` alone used to carry."""
+    calls = [_empty_call([{"value": ""}]), _call("stocks", 1.62)]
+    on = _st("Stocks fell sharply this year [N1, N2].")
+    c_on = an._resolve_number_handles(on, calls, handle_prose=True)
+    assert on["tldr"] == "Stocks fell sharply this year [N2]."
+    assert c_on["handles_dropped"] == 1 and c_on["empty_row_addressed"] == 1 and c_on["unresolvable"] == 0
+    off = _st("Stocks fell sharply this year [N1, N2].")
+    c_off = an._resolve_number_handles(off, calls)
+    assert off["tldr"] == "Stocks fell sharply this year [N2]."     # byte-identical page
+    assert c_off["handles_dropped"] == 1 and c_off["unresolvable"] == 1
+
+
+def test_r2a_a_binding_refusal_is_not_miscounted_as_an_empty_row():
+    """THE ORDERING TRAP: the two D-HP-13/14 refusals set `value = None` and empty `live` AFTER the
+    members resolved, so a classifier reading the post-refusal state would charge a refused handle -- a
+    handle whose row carries a real figure -- to the ABSENCE counter. The split is computed off the
+    resolution result, before any refusal can touch it."""
+    st = _st("Use in MY2020 ran to [N1].")
+    census = an._resolve_number_handles(st, [_call("use_total", 5.0, period="2024")], handle_prose=True)
+    assert census["slot_scope_mismatch"] == 1 and census["binding_refused"] == 1
+    assert census["empty_row_addressed"] == 0 and census["unresolvable"] == 0
+
+
+def test_r2a_the_predicate_is_the_class_not_a_list_of_shapes():
+    """`_addresses_empty_row` asks ONE question -- does this handle name a row that EXISTS and presents no
+    value -- so a fifth empty shape nobody has met yet is in the class by construction. A NUMERIC ZERO is
+    not blank and must never be: `0` is a measured quantity, and a truthiness test (`0 or ""` is `""`)
+    would erase every measured zero on the estate."""
+    assert an._addresses_empty_row(_empty_call([]), 1) is True
+    assert an._addresses_empty_row(_empty_call([{"value": ""}]), 1) is True
+    assert an._addresses_empty_row(_call("stocks", 0), 1) is False        # a measured ZERO is a value
+    assert an._addresses_empty_row(_call("stocks", 1.62), 1) is False
+    assert an._addresses_empty_row(None, 9) is False                      # out of range: does NOT exist
+    assert an._addresses_empty_row(_empty_call([]), 1, "b") is False      # invented: does NOT exist
+    assert an._addresses_empty_row({"query": None, "rows": "junk"}, 1) is False   # never raises

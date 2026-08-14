@@ -189,6 +189,72 @@ def _parse_date(s) -> Optional[_dt.date]:
         return None
 
 
+# ══ D-HP G1 REMEDIATION-2 R2-b (2026-08-14) -- "OK + ALL-BLANK VALUES" IS AN ABSENCE, EVERYWHERE ═══════
+#
+# THE MEASURED DEFECT (G1 decision-1 r3, clause (2), row `dv_sub_ddg_floor` on inv3). A numbers read came
+# back `status: 'ok'`, `row_count: 1`, `rows: [{'value': ''}]`. Three consumers disagreed about what that
+# is, and every one of them defaulted to "a row, therefore a figure":
+#   * `from_number` took its `elif rows:` branch and rendered `... ars_usd = ` -- a menu line ending in a
+#     bare "=" with nothing behind it, in BOTH the prompt panel and the reader's `## Sources` list;
+#   * `orchestrator._numbers_block`'s empty-read directive is gated on the ROWS LIST being empty, so it
+#     did not fire at all on that turn -- the writer was never told the read produced nothing;
+#   * `answer._number_handle_value` DID read it correctly (`Citation.value == ''` -> None) and removed the
+#     handle, so the only place the truth was known was the last one, after the model had already cited it.
+# The r2 diagnosis was honest about its own population (55 of 55 events sat under four empty STATUSES);
+# this shape simply was not in it. It is the same family, one branch short.
+#
+# THE FIX IS ONE PREDICATE WITH ONE PRODUCER, `is_empty_read`, delegated and never copied -- the
+# `_series_truncated` / `_is_zero_esr_aggregate` discipline exactly, and for the same reason: the prompt
+# directive, the menu label and the resolver's charge must not be able to disagree about which reads are
+# in the class. It is ARM-SYMMETRIC BY CONSTRUCTION (it is a truth fix on the SHIPPED numbers menu, which
+# both arms and the live product read; the control arm carried the identical defect on r3 inv1 [N30]), and
+# every turn whose reads all carry a value is BYTE-IDENTICAL because the predicate is false on all of them.
+#
+# A NUMERIC ZERO IS NOT BLANK, and that distinction is the whole safety of the predicate: `0`, `0.0` and
+# `"0"` are MEASURED quantities and must keep rendering as figures. Only `None`, `""` and whitespace are
+# blank -- which is why the test is written against `is None` / `str(...).strip()` and never against
+# truthiness (`0 or ""` is `""`, and a truthiness test would erase every measured zero on the estate).
+def _value_blank(row) -> bool:
+    """True when a returned row carries NO value at all (None / empty / whitespace). A numeric 0 is a
+    VALUE and reads False here."""
+    if not isinstance(row, dict):
+        return True
+    v = row.get("value")
+    return v is None or (isinstance(v, str) and not v.strip())
+
+
+def values_all_blank(rows) -> bool:
+    """True when rows came back AND not one of them carries a value. False on an empty list (that is the
+    ZERO-ROW class, which already has its own branch and its own label)."""
+    rows = rows or []
+    if not isinstance(rows, (list, tuple)):
+        return False               # a malformed record is NOT an absence -- see `is_empty_read`'s note
+    return bool(rows) and all(_value_blank(r) for r in rows)
+
+
+def is_empty_read(call) -> bool:
+    """THE ONE PRODUCER for "this numbers read produced no value at all" -- zero rows OR rows that are all
+    blank. Read by `from_number` (the label), `orchestrator._numbers_block` (the directive) and
+    `answer._addresses_empty_row` (the charge), so the three can never disagree.
+
+    A MALFORMED RECORD IS NOT AN ABSENCE. `rows` that is neither a list nor a tuple reads False, so a
+    garbage record keeps whatever charge it carries today rather than being promoted into a class that
+    exists to describe a read the estate actually served."""
+    if not isinstance(call, dict):
+        return False
+    rows = call.get("rows") or []
+    if not isinstance(rows, (list, tuple)):
+        return False
+    return (not rows) or values_all_blank(rows)
+
+
+# The sentinel `status` `from_number` hands `_empty_label` for the blank-value shape. It is NOT a status any
+# numbers agent emits (the agent said `ok`, and truthfully -- the query ran): it is this module's own name
+# for "rows came back, none of them carry a value", so the taxonomy stays status-driven and every existing
+# branch is reached by exactly the statuses it was reached by before.
+BLANK_VALUE_STATUS = "__blank_value__"
+
+
 def _empty_label(status: Optional[str], asof: Optional[str]) -> str:
     """Status-aware label for a zero-row lookup — preserve the agent's taxonomy so the synthesizer can
     tell a coverage gap (answerable elsewhere) from a vintage-timing gap (genuinely not yet published)
@@ -206,6 +272,17 @@ def _empty_label(status: Optional[str], asof: Optional[str]) -> str:
     reader-facing `## Sources` list as well as in the prompt panel (the citations.py:110 render split). The
     directive half lives in orchestrator._numbers_block, prompt-side only."""
     a = str(asof) if asof else "asof"
+    if status == BLANK_VALUE_STATUS:
+        # D-HP G1 REMEDIATION-2 R2-b (2026-08-14). THE THIRD EMPTY SHAPE, and it had no branch here at all:
+        # a read that comes back status `ok` with rows, EVERY one of which carries an EMPTY value. The
+        # measured row is r3 inv3 `dv_sub_ddg_floor` [N1] -- silver_fred_fx ars_usd, status `ok`,
+        # row_count 1, `rows=[{value: ''}]` -- which took the `elif rows:` branch below and rendered as
+        # `... ars_usd = ` : a numbered menu line ending in a bare "=" with NOTHING behind it. The writer
+        # cited it, exactly as it had cited the marked shapes, and the resolver charged the handle.
+        # It is not a timing claim and it is not "no matching rows" (a row DID come back), so it gets its
+        # own parenthetical under the SAME marker prefix every other branch carries -- the prefix is what
+        # `_numbers_block`'s directive and every existing membership assertion key on.
+        return f"NO ROWS RETURNED (the returned row carries no value at all -- blank field as of {a})"
     if status in ("not_known", "future_unpublished"):
         return f"NO ROWS RETURNED (not yet published as of {a})"
     if status in ("no_rows", "record_silent"):
@@ -315,7 +392,11 @@ def from_number(call: dict, i: int) -> Citation:
                                else (next(iter(_geos)) if len(_geos) == 1 else None))
     scope = " ".join(x for x in (q.get("commodity"), geo, per,
                                  (f"delivery {cmonth}" if cmonth else None)) if x)
-    if rows and _zero_aggregate(call):
+    # D-HP G1 REMEDIATION-2 R2-b: the blank-value read is routed to the ABSENCE branch BEFORE either
+    # rows-bearing branch can claim it. `_blank` is false on every read that carries a value, so both
+    # branches below are byte-identical on every such turn.
+    _blank = values_all_blank(rows)
+    if rows and not _blank and _zero_aggregate(call):
         # D-PQ EMPTY-2: the collapsed-aggregate class renders the MARKER, exactly as the zero-ROW class
         # does. `value` and `unit` are withheld for the same reason EMPTY-1 withholds them: a unit with no
         # value behind it reads as a quantity whose digits are missing, and `answer._number_handle_value`
@@ -324,7 +405,7 @@ def from_number(call: dict, i: int) -> Citation:
         # untouched in `payload`/`locator`, so the drill-down still re-runs the real read.
         label = f"{src} {metric} {scope} = {_ZERO_AGG_LABEL}".strip()
         value, unit = None, None
-    elif rows:
+    elif rows and not _blank:
         label = f"{src} {metric} {scope} = {_fmt(value)} {unit}".strip()
         # D-PQ RENDER-2, second half: WHAT KIND OF PRINT this is, plus the row's own currency. Both are
         # card-declared columns and neither was reaching the writer. The currency is appended only when it
@@ -365,7 +446,14 @@ def from_number(call: dict, i: int) -> Citation:
                       + (f", covering {_span}" if _span else "")
                       + " -- not the complete record]")
     else:
-        label = f"{src} {metric} {scope} = {_empty_label(status, asof)}".strip()
+        _st = BLANK_VALUE_STATUS if _blank else status
+        label = f"{src} {metric} {scope} = {_empty_label(_st, asof)}".strip()
+        # D-HP G1 REMEDIATION-2 R2-b: the blank-value read gives up its VALUE too, for the same reason the
+        # zero-row and zero-aggregate classes give up theirs -- `answer._number_handle_value` reads
+        # `Citation.value`, and leaving `''` there left the ONE consumer that had it right depending on a
+        # string test rather than on the class. `payload`/`locator` keep the real row set, so the
+        # drill-down still re-runs the read that produced the blank.
+        value = None
         # D-PQ EMPTY-1: an empty read carries NO UNIT either. A unit with no value behind it is the
         # affordance half of a number -- "= NO ROWS RETURNED (...) 1000 MT" reads as a quantity whose
         # digits happen to be missing, and the measured failure was a reader handed exactly that shape as
