@@ -60,11 +60,28 @@ def _numbers_block(calls: list) -> str:
     # carries the FACT ("NO ROWS RETURNED (...)" -- reader-safe, it renders in the answer's own source
     # list); the DIRECTIVE is prompt-only and lives here, exactly like the truncation directive above.
     # Absent (every turn where all reads returned rows) -> the block is byte-identical.
+    # D-HP G1 REMEDIATION D1 (2026-08-14), THE SHARED HALF -- ONE CLAUSE APPENDED TO AN EXISTING DIRECTIVE.
+    # THE MEASURED DEFECT, and it is OLDER THAN D-HP: on the r2 run set the model addressed 27 [N] handles
+    # (treatment) and 28 (control) that resolved to nothing, and EVERY one of them was an IN-RANGE index
+    # whose row came back EMPTY -- the rows this very directive is about. The model had been told to state
+    # the gap and then cited the empty row as the receipt for it, usually grouped ("[N7, N8, N11, N12]",
+    # "[N15-N17]"). The renderer already deletes those tokens; nothing told the writer not to write them.
+    # WHY HERE, AND WHY THIS IS ARM-SYMMETRIC BY CONSTRUCTION: this is the ONE existing producer of the
+    # empty-read directive, it is prompt-only (the reader-facing half stays `citations._empty_label`'s
+    # FACT, per that function's own split), it fires only on a turn that already carries an empty read --
+    # so every turn without one is byte-identical, both arms -- and both the reasoning and numbers_only
+    # lanes read it. The treatment arm carries the same rule in its own vocabulary at `_SYSTEM_HANDLES`
+    # ("AN EMPTY MENU ROW IS NOT AN ADDRESS"); this sentence is what gives the CONTROL arm and the shipped
+    # product the identical fix, which is what the defect being older than the wave requires.
     if any(not (c.get("rows") or []) for c in (calls or []) if isinstance(c, dict)):
         notes = notes + ["One or more reads above are marked NO ROWS RETURNED: they produced no value at "
                          "all. Say the record carries no figure for that scope and assert NO number for "
                          "it -- not a level, not a change, and not zero. An empty read is an absence of "
-                         "data, never a measured value of 0."]
+                         "data, never a measured value of 0. Do NOT cite the empty row's [N] handle "
+                         "either -- not on its own, and not inside a group or range of handles as the "
+                         "receipt for the gap: a handle with no value behind it is removed before the "
+                         "reader sees it, taking its clause with it. Name the gap in words; a stated "
+                         "absence needs no citation."]
     if notes:
         block += "\nSCOPE NOTE (state this limitation explicitly in the answer): " + " ".join(notes)
     return block

@@ -173,12 +173,31 @@ BARE_DIGIT_CLASS: str = "bare_digit"
 # -> index_out_of_range / number_mismatch / number_unbacked; the ledger branches -> fabricated_citation /
 # ledger_cascade / undeclared_unsupported; the prose checks -> no_lexical_overlap / quote_mismatch /
 # foreign_regime_name; the digit-lint -> bare_digit) plus the five `answer._fold_ledger_class` folds in.
+#
+# ══ D-HP G1 REMEDIATION D2(b) (2026-08-14) -- `evidence_handle_in_slot` IS THE SIXTEENTH MEMBER ════════
+# `answer._resolve_evidence_handles` now severs the clause (or drops the sentence) carrying a FULLY
+# RESOLVED [E] handle that stands behind a value cue -- G1 clause (2b)'s escape, measured at 7 events over
+# 4 treatment rows on the r2 run set with no remedy anywhere in the stack. `answer._fold_ledger_class`
+# folds those removals into the ONE ledger, so it is DECLARED here in the same change or clause (4) would
+# be pre-registered to fail on the wave's own remedy (the `slot_orphan` / `episode_span_unbacked` rule).
+# THE SET IS FROZEN AT FIRST ARM, NOT HERE: this member joins at the RE-FREEZE that follows the
+# remediation window, and the clause's own text must name it there.
+# IT JOINS NO SUCCESSOR TUPLE, each exclusion a decision:
+#   * NOT `KILLED_CLASSES`   -- it is not one of the four AC1 classes and pooling a render-side conviction
+#                               into `unconstructible_count` would inflate the wave's headline claim with
+#                               its own remedy (the `slot_orphan` argument, restated).
+#   * NOT `RESIDUAL_CLASSES` -- those four survive BY CONSTRUCTION at the verifier; this is a RENDER-side
+#                               conviction with its own remedy and would double D-HP-18's residual band.
+#   * NOT `MIS_BOUND_CLASSES`-- NOTHING WAS MIS-BOUND, and that is the sharpest reason: the handle
+#                               resolved and named the right item. What was wrong is the SLOT it stood in,
+#                               which is `grouped_in_slot`'s question, not R11's.
 G1_DECLARED_CLASSES: tuple[str, ...] = ("fabricated_citation", "ledger_cascade", "no_lexical_overlap",
                                         "number_mismatch", "number_unbacked",
                                         "quote_mismatch", "index_out_of_range", "foreign_regime_name",
                                         "undeclared_unsupported",
                                         "bare_digit", "direction_sign_mismatch", "slot_scope_mismatch",
-                                        "grouped_in_slot", "slot_orphan", "episode_span_unbacked")
+                                        "grouped_in_slot", "slot_orphan", "episode_span_unbacked",
+                                        "evidence_handle_in_slot")
 # THE ARM-EXCLUSIVE CLASSES -- the ones that CANNOT be charged on a control row, so a RAW `stripped` delta
 # across the arms is not a like-for-like quantity. G1 clause (3) states the caution and X5 corrected its
 # count from four to FIVE; **H2 CORRECTS IT AGAIN, TO SIX**, and the sixth is H1b's own: `episode_span_
@@ -186,8 +205,13 @@ G1_DECLARED_CLASSES: tuple[str, ...] = ("fabricated_citation", "ledger_cascade",
 # `handle_prose` ((e-ep)(i) makes a control charge an INSTRUMENT DEFECT that voids the run set), so it too
 # has no control-arm counterpart. X5 was written one fold before H1b landed the class; the count is
 # arithmetic over this tuple now instead of a sentence that has to be re-counted by hand.
+# D-HP G1 REMEDIATION D2(b): **SEVEN**, and the seventh is `evidence_handle_in_slot` -- the remedy pass
+# mutates only under `handle_prose` and the census key is not even minted on a control turn, so like the
+# six above it has no control-arm counterpart and a raw `stripped` delta across the arms is not like for
+# like. The count is arithmetic over this tuple, never a sentence to be re-counted by hand (X5's lesson).
 ARM_EXCLUSIVE_CLASSES: tuple[str, ...] = ("bare_digit", "slot_scope_mismatch", "direction_sign_mismatch",
-                                          "grouped_in_slot", "slot_orphan", "episode_span_unbacked")
+                                          "grouped_in_slot", "slot_orphan", "episode_span_unbacked",
+                                          "evidence_handle_in_slot")
 
 # ══ H2 FOLD 1 (K1) -- G1 CLAUSE (8)'s DENOMINATOR, AS ARITHMETIC RATHER THAN AS A SENTENCE ════════
 # Clause (8) reads `number_handles.substituted + prose_handles.substituted` per answer against **0.6 x the

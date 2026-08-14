@@ -740,19 +740,23 @@ def test_dhp4_keys_are_appended_at_the_tail_never_inserted():
     # H1 RE-PIN (D-HP-14): `wrong_slot_audit` appends AFTER the five H0 keys, so the H0 slice moves left by
     # one and NOTHING before it moves at all. Same law, same reason -- this pin is re-anchored to the H0
     # block's own position rather than re-listing it against the tail, so a later append re-pins one line.
-    assert keys[-9:-4] == ("prose_handles", "error", "floor_cause", "bare_digit_count", "citation_resolved")
-    assert keys[-4] == "wrong_slot_audit"
+    assert keys[-10:-5] == ("prose_handles", "error", "floor_cause", "bare_digit_count",
+                            "citation_resolved")
+    assert keys[-5] == "wrong_slot_audit"
     # H1 RE-PIN (FIX W2 / finding NF-2): `slot_orphan_dropped` appends AFTER it. Same law, same one-line
     # re-anchor -- the H0 slice moves left by one more and nothing before it moves at all.
-    assert keys[-3] == "slot_orphan_dropped"
+    assert keys[-4] == "slot_orphan_dropped"
     # H1b RE-PIN (D-HP-15): `episode_spans_validated` appends after THAT. Third application of the same
     # law in this wave, and the third one-line re-anchor -- which is the whole point of writing the pin
     # against the tail rather than against a frozen absolute index.
-    assert keys[-2] == "episode_spans_validated"
+    assert keys[-3] == "episode_spans_validated"
     # G1 AMENDMENT A3 RE-PIN (2026-08-14): `plan_tokens` -- the popped planning region's SIZE, never its
     # text -- appends after THAT. Fourth application of the same law, fourth one-line re-anchor, and
     # nothing before the H0 slice moves at all.
-    assert keys[-1] == "plan_tokens"
+    assert keys[-2] == "plan_tokens"
+    # G1 REMEDIATION D2(b) RE-PIN (2026-08-14): `evidence_slot_dropped` -- clause (2b)'s remedy census --
+    # appends after THAT. Fifth application of the same law, fifth one-line re-anchor.
+    assert keys[-1] == "evidence_slot_dropped"
     for older in ("number_handles", "rerank_lane", "walk_shape", "escalation_decision"):
         assert keys.index(older) < keys.index("prose_handles")
     assert len(set(keys)) == len(keys)
@@ -1966,3 +1970,86 @@ def test_a4_a_truncated_turn_records_what_it_billed_on_both_lanes():
         ex.call_opus(_client, "sys", "user", model="global.anthropic.claude-sonnet-4-6", max_tokens=12000)
     assert ei.value.cost_usd is None and "cost_usd=" not in str(ei.value)
     assert "billed in=41234 out=12000" in str(ei.value)       # ...the MEASURED counts still land
+
+
+# == D-HP G1 REMEDIATION (2026-08-14) -- THE PROMPT HALVES OF THE TWO FAILED CLAUSES ===================
+#
+# D1 (clause 2): the 27 treatment + 28 control `unresolvable` events are NOT invented indices. Every one
+# is an IN-RANGE menu row that came back EMPTY (`citations._empty_label` -> "NO ROWS RETURNED"), cited by
+# the model as the RECEIPT FOR THE GAP after the prompt told it to state the gap. The GROUNDING LEDGER's
+# range was already correct and is not the defect; nothing said an empty row is not addressable. Fixed in
+# TWO halves, one per arm, same rule -- the persona for the treatment, the D-PQ EMPTY-1 scope note (the
+# ONE existing producer, prompt-only, fires only on a turn that HAS an empty read) for both arms on the
+# HYBRID lane only (`_numbers_block` is a `run_hybrid` producer; it does not reach the pure lanes --
+# which costs the measured population nothing, all 55 empty rows being hybrid numbers-agent lookups),
+# because the defect is on the shipped product and predates the wave.
+# D2 (clause 2b): the persona never said the value slot belongs to [N] alone. Plan record: 10.18.
+
+def _persona_off_permutations() -> list:
+    """Every OFF-arm persona shape a serving turn can take. `handles=False` is the control arm."""
+    return [an._system(),
+            an._system(episodes=True), an._system(episodes=True, recency=True),
+            an._system(outlook=True), an._system(provenance=True),
+            an._system(episodes=True, outlook=True, recency=True, provenance=True)]
+
+
+def test_d1_an_empty_menu_row_is_not_an_address_on_the_treatment_persona():
+    """THE TREATMENT HALF. It sits with the paragraph it narrows ("ONE HANDLE, ONE FIGURE, AND CHECK THE
+    ROW YOU ARE POINTING AT") and it names the GROUPED shape explicitly, because every measured event was
+    a group or range standing in for the absence (`[N7, N8, N11, N12]`, `[N15-N17]`)."""
+    hp = an._system(handles=True, episodes=True)
+    assert "AN EMPTY MENU ROW IS NOT AN ADDRESS" in hp
+    assert "NEVER write the handle of a row whose value reads NO ROWS RETURNED" in hp
+    assert "not inside a group or range of handles" in hp
+    assert hp.index("ONE HANDLE, ONE FIGURE") < hp.index("AN EMPTY MENU ROW IS NOT AN ADDRESS")
+    for off in _persona_off_permutations():
+        assert "AN EMPTY MENU ROW IS NOT AN ADDRESS" not in off
+        assert "NO ROWS RETURNED" not in off
+
+
+def test_d1_the_shared_empty_read_directive_carries_the_handle_clause_on_both_arms():
+    """THE ARM-SYMMETRIC HALF, AND ITS FENCE. `orchestrator._numbers_block` is the ONE producer of the
+    empty-read directive; it is PROMPT-ONLY (the reader-facing half stays `citations._empty_label`'s FACT,
+    per that function's own split) and it fires ONLY when a call actually came back empty -- so a turn
+    with no empty read is byte-identical on both arms, which is what makes a control-prompt change
+    affordable at all."""
+    full = {"query": {"table": "silver_wasde", "metric": "production", "commodity": "corn"},
+            "status": "ok", "rows": [{"value": 1536.0, "unit": "1000 MT", "knowledge_date": "2026-06-01"}]}
+    empty = {"query": {"table": "silver_wasde", "metric": "area", "commodity": "corn"},
+             "status": "not_known", "rows": []}
+    with_gap = orc._numbers_block([full, empty])
+    assert "Do NOT cite the empty row's [N] handle" in with_gap
+    assert "not inside a group or range of handles as the receipt for the gap" in with_gap
+    assert "a stated absence needs no citation" in with_gap
+    # ...and the row itself still SAYS it is empty, in the reader-safe FACT vocabulary (D-PQ EMPTY-1).
+    assert "NO ROWS RETURNED" in with_gap
+    no_gap = orc._numbers_block([full])
+    assert "SCOPE NOTE" not in no_gap and "Do NOT cite the empty row" not in no_gap
+
+
+def test_d2a_the_persona_says_the_value_slot_belongs_to_N_alone():
+    """THE (2b) PROMPT HALF, extending the paragraph that already forbids a GROUPED token in a slot -- the
+    grammar was written entirely in [N] vocabulary, so nothing had told the writer that the OTHER
+    namespace cannot fill a slot at all. It must NOT contradict THE ONE EXEMPTION (a figure quoted from an
+    evidence item may be typed in that item's own sentence), so the exit is named rather than closed."""
+    hp = an._system(handles=True, episodes=True)
+    assert "AN [E] HANDLE IS NEVER A FIGURE" in hp
+    assert "THE ONE EXEMPTION" in hp                      # the legitimate exit is still open, and named
+    assert hp.index("THE SLOT:") < hp.index("AN [E] HANDLE IS NEVER A FIGURE")
+    for off in _persona_off_permutations():
+        assert "AN [E] HANDLE IS NEVER A FIGURE" not in off
+
+
+def test_the_plan_budget_firming_is_the_same_sentence_at_both_sites_and_off_arm_silent():
+    """A2(b)'s LAW: `_PLAN_PROPERTY_DESC` and `_SYSTEM_HANDLES` are read in the SAME turn, so a budget
+    stated firmly in one and loosely in the other is not a budget. The r2 set exceeded ~800 on 22 of 24
+    rows; no cap and no knob were added (both trade a truncated answer for a truncated plan), so the only
+    lever is the wording -- and it must be IDENTICAL at both sites."""
+    firm = "the number to plan TO, not a line to drift past"
+    hp = an._system(handles=True, episodes=True)
+    assert firm in hp and firm in an._PLAN_PROPERTY_DESC
+    assert "1,500 tokens" in hp and "1,500 tokens" in an._PLAN_PROPERTY_DESC
+    assert "800" in hp and "800 TOKENS" in an._PLAN_PROPERTY_DESC          # same number, both sites
+    for off in _persona_off_permutations():
+        assert firm not in off
+    assert an._PLAN_PROPERTY_DESC not in an._answer_tool()["input_schema"]["properties"]  # not on OFF

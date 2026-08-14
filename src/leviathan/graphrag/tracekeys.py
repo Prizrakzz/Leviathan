@@ -109,6 +109,12 @@ TRACE_RECORD_KEYS: tuple[str, ...] = (
                                  # see the treatment-lane superset named at `number_handles` above. The
                                  # sibling rule itself is unchanged and is about NAMESPACES, not arity.)
                                  # Absent (None) until D-HP-10's [E] resolution pass lands at H1.
+                                 # D-HP G1 REMEDIATION D2(b) (2026-08-14): this census does NOT grow a
+                                 # fifth key. G1 clause (2b)'s escape -- a RESOLVED [E] behind a value
+                                 # cue -- is convicted by a SEPARATE pass seated AFTER the [E] prune
+                                 # (`answer._drop_evidence_value_slot`), because the clause measures the
+                                 # ASSEMBLED BODY and a conviction inside this pass pre-empted `ev_prune`.
+                                 # Its record is `evidence_slot_dropped` at the tail of this list.
     "error",                     # D-HP-4(b): the LITERAL key, not the draft's `turn_error`. This registry
                                  # lifts keys VERBATIM BY THEIR OWN NAME (the contract above; eval.py's
                                  # `**{k: trace.get(k) ...}` has NO rename hook), so a `turn_error` entry
@@ -214,6 +220,25 @@ TRACE_RECORD_KEYS: tuple[str, ...] = (
                                  # ABSENT (never null) ON EVERY CONTROL ROW -- `plan` exists in the schema
                                  # only under `_answer_tool(handles=True)`, so the arm's OFF state is
                                  # proved by the column rather than asserted.
+    # -- D-HP G1 REMEDIATION D2(b) (2026-08-14). APPENDED AT THE TAIL, per the law at the head of this
+    # tuple: every artifact written before this line keeps its column order.
+    "evidence_slot_dropped",     # G1 CLAUSE (2b)'s REMEDY, per turn: {convicted, handles_dropped,
+                                 # sentences_dropped} from `answer._drop_evidence_value_slot` -- a
+                                 # RESOLVED [E] handle standing behind a VALUE CUE, where the [N] grammar
+                                 # owns the slot and an [E] payload (source/date/snippet) has no figure to
+                                 # substitute. The clause had an instrument (`eval._bare_handle_escapes`)
+                                 # and, until this window, NO remedy anywhere in the stack.
+                                 # IT IS NOT AN `unresolvable` EVENT, and the distinction is
+                                 # `binding_refused`'s exactly: the receipt EXISTS, resolved, and names
+                                 # the right item -- what was convicted is the SLOT, never the address.
+                                 # DOUBLE-BOOKED ON PURPOSE, the `slot_orphan_dropped` pattern: `convicted`
+                                 # folds into the ONE strip ledger as `by_rule['evidence_handle_in_slot']`
+                                 # (+ `stripped`), DECLARED in G1 clause (4)'s set, so the class scan sees
+                                 # the removal without knowing this column exists. One producer, so the
+                                 # two must agree.
+                                 # ABSENT (never null) on every CONTROL row and on every treatment row
+                                 # where nothing fired -- the pass is treatment-gated and the stamp is
+                                 # conditional, so the OFF arm is byte-identical.
 )
 
 # out["intent_decision"][decision_key] -> record[record_column].

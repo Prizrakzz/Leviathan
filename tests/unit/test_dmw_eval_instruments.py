@@ -789,11 +789,15 @@ def test_wrong_slot_audit_is_a_registered_column_at_the_tail():
     by one more. Same law, same one-line re-anchor, same unchanged invariant.
 
     RE-ANCHORED A THIRD TIME (D-HP G1 AMENDMENT A3, 2026-08-14): `plan_tokens` -- the popped planning
-    region's SIZE, never its text -- was APPENDED after THAT. Tail moved by one more; nothing else."""
-    assert tk.TRACE_RECORD_KEYS[-4] == "wrong_slot_audit"
-    assert tk.TRACE_RECORD_KEYS[-3] == "slot_orphan_dropped"
-    assert tk.TRACE_RECORD_KEYS[-2] == "episode_spans_validated"
-    assert tk.TRACE_RECORD_KEYS[-1] == "plan_tokens"
+    region's SIZE, never its text -- was APPENDED after THAT. Tail moved by one more; nothing else.
+
+    RE-ANCHORED A FOURTH TIME (D-HP G1 REMEDIATION D2(b), 2026-08-14): `evidence_slot_dropped` -- clause
+    (2b)'s remedy census -- was APPENDED after THAT. Tail moved by one more; nothing else."""
+    assert tk.TRACE_RECORD_KEYS[-5] == "wrong_slot_audit"
+    assert tk.TRACE_RECORD_KEYS[-4] == "slot_orphan_dropped"
+    assert tk.TRACE_RECORD_KEYS[-3] == "episode_spans_validated"
+    assert tk.TRACE_RECORD_KEYS[-2] == "plan_tokens"
+    assert tk.TRACE_RECORD_KEYS[-1] == "evidence_slot_dropped"
     for older in ("number_handles", "rerank_lane", "walk_shape", "citation_resolved"):
         assert tk.TRACE_RECORD_KEYS.index(older) < tk.TRACE_RECORD_KEYS.index("wrong_slot_audit")
     assert len(set(tk.TRACE_RECORD_KEYS)) == len(tk.TRACE_RECORD_KEYS)
@@ -972,13 +976,18 @@ from leviathan.graphrag import verify as vfmod                                # 
 def test_the_declared_set_is_every_class_the_ledger_can_charge():
     """G1 clause (4) fails on a class OUTSIDE the declared set, so a set that is not exhaustive over the
     seam's own spellings is a clause pre-registered to fail on the wave's own remedies (the `slot_orphan`
-    and `episode_span_unbacked` precedents, plan 10.11 / 10.13). Enumerated in the clause's own order."""
+    and `episode_span_unbacked` precedents, plan 10.11 / 10.13). Enumerated in the clause's own order.
+
+    D-HP G1 REMEDIATION D2(b) (2026-08-14) adds the SIXTEENTH, `evidence_handle_in_slot`: clause (2b)'s
+    remedy (`answer._drop_evidence_value_slot`) folds its removals into the same ledger, so the class is
+    declared in the same change or clause (4) is pre-registered to fail on it. Plan 10.18.2 carries the
+    standing obligation that the CLAUSE'S OWN TEXT names it at the re-freeze."""
     assert emfmod.G1_DECLARED_CLASSES == (
         "fabricated_citation", "ledger_cascade", "no_lexical_overlap", "number_mismatch", "number_unbacked",
         "quote_mismatch", "index_out_of_range", "foreign_regime_name",
         "undeclared_unsupported",
         "bare_digit", "direction_sign_mismatch", "slot_scope_mismatch",
-        "grouped_in_slot", "slot_orphan", "episode_span_unbacked")
+        "grouped_in_slot", "slot_orphan", "episode_span_unbacked", "evidence_handle_in_slot")
     assert len(set(emfmod.G1_DECLARED_CLASSES)) == len(emfmod.G1_DECLARED_CLASSES)
     # every class named by ANY successor tuple is declared -- otherwise a counter could count a class the
     # class scan would fail the gate on.
@@ -995,15 +1004,18 @@ def test_the_declared_set_is_every_class_the_ledger_can_charge():
         assert '"' + cls + '"' in vsrc and cls in emfmod.G1_DECLARED_CLASSES
 
 
-def test_the_arm_exclusive_count_is_six_and_it_is_arithmetic_not_a_sentence():
+def test_the_arm_exclusive_count_is_seven_and_it_is_arithmetic_not_a_sentence():
     """G1 clause (3)'s caution: the treatment arm's RAW `stripped` carries classes with NO control-arm
     counterpart, so a raw stripped DELTA is not like-for-like. NF-6 said three, X5 corrected it to five,
-    and H2 corrects it to SIX -- `episode_span_unbacked` (H1b) folds into the same ledger and its pass
-    MUTATES ONLY under `handle_prose`, so it too can never be charged on a control row. The count is now
-    read off the tuple instead of re-counted by hand in prose."""
+    H2 corrected it to SIX -- `episode_span_unbacked` (H1b) folds into the same ledger and its pass
+    MUTATES ONLY under `handle_prose` -- and the G1 REMEDIATION corrects it to SEVEN on the identical
+    argument: `evidence_handle_in_slot`'s pass is treatment-gated and its census key is not even minted on
+    a control turn. The count is read off the tuple instead of re-counted by hand in prose, which is why
+    each correction has been one line."""
     assert emfmod.ARM_EXCLUSIVE_CLASSES == ("bare_digit", "slot_scope_mismatch", "direction_sign_mismatch",
-                                            "grouped_in_slot", "slot_orphan", "episode_span_unbacked")
-    assert len(emfmod.ARM_EXCLUSIVE_CLASSES) == 6
+                                            "grouped_in_slot", "slot_orphan", "episode_span_unbacked",
+                                            "evidence_handle_in_slot")
+    assert len(emfmod.ARM_EXCLUSIVE_CLASSES) == 7
     # ...and each one is a RENDER/lint-side class, never one of the verifier's own nine survivors.
     for cls in emfmod.ARM_EXCLUSIVE_CLASSES:
         assert cls not in emfmod.RESIDUAL_CLASSES and cls not in emfmod.KILLED_CLASSES

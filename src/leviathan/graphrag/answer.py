@@ -1683,10 +1683,41 @@ _SYSTEM_HANDLES = (
     "a plain citation and stays one. NEVER put a GROUPED or RANGED token ([N13, N14], [E1-E4]) in a value "
     "slot: a group stands in for no single figure, so there is nothing to substitute and the clause is "
     "dropped. Group only when you are citing several items for one qualitative claim.\n"
+    # D-HP G1 REMEDIATION D2(a), 2026-08-14. THE MEASURED SHAPE, from the r2 artifacts: seven solitary,
+    # FULLY RESOLVED [E] tokens standing immediately behind a value cue -- "priced at [E1]", "range from
+    # [E17]", "from 500 to [E10] thousand metric tons". The slot rule above is written entirely in the [N]
+    # vocabulary, so nothing in the grammar ever told the writer that the OTHER namespace cannot fill a
+    # slot at all. It is a one-sentence extension of the paragraph it sits in, not a new rule: the value
+    # slot belongs to [N] and to nothing else.
+    "AND THE VALUE SLOT IS [N]'s ALONE -- AN [E] HANDLE IS NEVER A FIGURE. [E] names a dated item; the "
+    "engine substitutes NOTHING for it, so an [E] handle standing behind a value cue ('priced at [E1]', "
+    "'range from [E17]', 'from 500 to [E10]') is a sentence promising a number it cannot produce, and the "
+    "clause carrying it is severed before the reader sees it. If the quantity is not itself a number row: "
+    "type it in the SAME SENTENCE as that item's [E] handle under THE ONE EXEMPTION below, or say the "
+    "record does not carry it. Beside prose, an [E] handle is exactly right and is left alone.\n"
     "ONE HANDLE, ONE FIGURE, AND CHECK THE ROW YOU ARE POINTING AT: the row's scope tag "
     "([series/country/table/period] on a number row, the source and dates on an evidence row) must be the "
     "thing your sentence is about. A handle pointing at a REAL but WRONG row prints a real, cited, wrong "
     "number -- the worst failure available on this turn, and worse than saying nothing.\n"
+    # D-HP G1 REMEDIATION D1, 2026-08-14. THE DIAGNOSIS, from the r2 artifacts and NOT what the clause
+    # table's phrase "a receipt that does not exist" suggests: every one of the 27 treatment events (and
+    # every one of the control arm's 28) is an IN-RANGE index whose menu row came back EMPTY -- status
+    # not_known / no_rows / error, rendered by `citations._empty_label` as "= NO ROWS RETURNED (...)".
+    # Zero out-of-range indices, zero suffix forms, zero wholesale inventions on either arm. The model was
+    # doing the honest thing badly: it grouped the empty rows into one token to EVIDENCE the gap
+    # ("[N7, N8, N11, N12]", "[N15-N17]") after the prompt told it to state the gap. The menu numbers those
+    # rows, the GROUNDING LEDGER's range covers them, and until this paragraph nothing said they are not
+    # addressable. The renderer's drop is correct and stays; this is the half that stops the ADDRESSING.
+    # THE SHARED HALF IS `orchestrator._numbers_block`'s EMPTY-1 directive, which carries the same clause
+    # for the control arm and for the numbers lane (the measured empty rows are all agent lookups, which is
+    # exactly that directive's population).
+    "AN EMPTY MENU ROW IS NOT AN ADDRESS. A number row can come back with nothing in it -- 'NO ROWS "
+    "RETURNED', whether not yet published, no matching rows, a lookup error or a declined read. It is "
+    "numbered so you can SEE the gap, never so you can cite it: it holds no value, so its handle "
+    "substitutes nothing and is deleted with the clause standing on it. NEVER write the handle of a row "
+    "whose value reads NO ROWS RETURNED -- not alone, and not inside a group or range of handles, and not "
+    "as the receipt for the absence itself. Say the gap in words ('the record carries no planted-area "
+    "figure for this scope'); a stated absence needs no citation and is the correct move here.\n"
     "NO ARITHMETIC. Do not add, subtract, ratio, average, percent-change, rank or streak-count the menu's "
     "values into a new figure -- there is no way to write the result and it will be deleted. If the "
     "quantity you want is not ITSELF a row, either say it qualitatively ('roughly half', 'sharply lower', "
@@ -1716,7 +1747,13 @@ _SYSTEM_HANDLES = (
     "there, compare them there, write numbers there freely -- no digit in `plan` is ever charged by the "
     "lint. BUT `plan` IS NOT FREE: it and the answer share ONE output budget, so a long plan is a short "
     "answer. Budget it at about 800 tokens (roughly 600 words) of terse notes -- the row list, the "
-    "comparison, the refusals -- then write the answer with handles in the slots.")
+    # D-HP G1 REMEDIATION, 2026-08-14, THE ONE PROMPT-STRENGTHENING ATTEMPT (recorded, read by no clause).
+    # A2's soft budget was exceeded on 22 of 24 treatment rows (median 1,667, max 4,695). The budget is
+    # still SOFT -- no cap, no knob, nothing counts it -- so the only lever available is to say what the
+    # measurement says, in both of the two places that instruct the region and in the same words.
+    "comparison, the refusals -- and treat 800 as the number to plan TO, not a line to drift past: the "
+    "best-scoring rows measured so far had the SHORTEST plans, so a plan running past ~1,500 tokens is "
+    "evidence you are writing the answer twice. Then write the answer with handles in the slots.")
 
 
 def _system(*, outlook: bool = False, episodes: bool | None = None, recency: bool = False,
@@ -2818,6 +2855,15 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
         _eorph = _prune_orphan_evidence_handles(structured, verifier, market_register=_mr)
         if _eorph:
             sg.trace["evidence_orphans_pruned"] = _eorph
+        # D-HP G1 REMEDIATION D2(b), in the SAME gate and immediately AFTER the prune (which keeps its own
+        # population) and BEFORE the debris pass (which closes the frames this one empties). Treatment
+        # only, stamped only when it fired, and its removals join the ONE strip ledger under a class
+        # DECLARED in G1 clause (4)'s set -- the `slot_orphan` / `episode_span_unbacked` rule.
+        if _handles:
+            _eslot = _drop_evidence_value_slot(structured, uniq, verifier)
+            _fold_ledger_class(verifier, _E_VALUE_SLOT_CLASS, _eslot.get("convicted"))
+            if any(_eslot.values()):
+                sg.trace["evidence_slot_dropped"] = _eslot
         # D-PQ HANDLE-3, in the SAME gate and immediately after: the frames those removals (and the
         # verifier's own positional strips) left empty. Stamped only when it changed something, so an
         # untouched draft writes no key -- the OFF-arm-clean rule, again.
@@ -2971,7 +3017,12 @@ _PLAN_PROPERTY_DESC = (
     "multiples, and a long plan is a short answer. BUDGET IT AT ABOUT 800 TOKENS (roughly 600 words). That "
     "is a soft budget, not a hard limit: exceed it only when the question genuinely needs it, and never at "
     "the cost of finishing the answer. Terse beats prose here -- the row list, the comparison, the "
-    "refusals. Nothing you write here can appear in the answer except as a handle.")
+    # D-HP G1 REMEDIATION, 2026-08-14: the same firming, in the same words, as `_SYSTEM_HANDLES`' budget
+    # paragraph -- the two are read in ONE turn and a budget stated firmly in one and loosely in the other
+    # is the A2(b) defect wearing a different hat. Still soft: no cap, no knob, no clause reads it.
+    "refusals. 800 is the number to plan TO, not a line to drift past -- the best-scoring rows measured so "
+    "far had the SHORTEST plans, so notes running past ~1,500 tokens are evidence you are writing the "
+    "answer twice. Nothing you write here can appear in the answer except as a handle.")
 
 
 def _answer_tool(handles: bool = False) -> dict:
@@ -5783,6 +5834,24 @@ _RENDER_LEDGER_CLASSES: tuple[str, ...] = ("slot_scope_mismatch", "direction_sig
 # mis-binding, not a killed class and not one of the four that survive by construction. It is DECLARED in
 # G1 clause (4)'s class set (plan section 10.11) so the class scan reads it instead of failing on it.
 _SLOT_ORPHAN_CLASS: str = "slot_orphan"
+# ══ D-HP G1 REMEDIATION D2(b), 2026-08-14 -- THE FIFTH FOLDED CLASS: AN [E] HANDLE IN A VALUE SLOT ═════
+# G1 clause (2b) pre-registers `bare_handle_escapes == 0` on the treatment arms and the r2 run set read 7
+# over 4 rows -- every one a SOLITARY, FULLY RESOLVED [E] token immediately behind a value cue ("priced at
+# [E1]", "range from [E17]", "from 500 to [E10] thousand metric tons"). The clause had an INSTRUMENT
+# (`eval._bare_handle_escapes`, H2) and NO REMEDY: `_resolve_number_handles` owns the [N] half (splice a
+# solitary resolved handle, sever a grouped one), and `_resolve_evidence_handles` acted only on
+# UNRESOLVABLE [E], so a resolved [E] in a slot was left standing by construction on both arms. That is
+# D-PQ HANDLE-1's own defect -- the sentence promised a figure it cannot produce -- and it takes D-PQ
+# HANDLE-1's own remedy: sever the clause when the sentence keeps another receipt, drop the sentence when
+# it does not. NEVER a substitution: an [E] payload is a source, a date and a snippet, so there is no
+# figure to write and inventing one is the class this wave exists to make unconstructible.
+# IT IS A NEW DECLARED CLASS, on the `slot_orphan` / `episode_span_unbacked` precedent, and it MUST JOIN
+# G1 CLAUSE (4)'s DECLARED SET AT THE RE-FREEZE or the clause is pre-registered to fail on the wave's own
+# remedy. It is in `emf.G1_DECLARED_CLASSES` and `emf.ARM_EXCLUSIVE_CLASSES` (the seventh arm-exclusive
+# class) and in no successor tuple: nothing was mis-bound (the handle resolved and named the right item),
+# it is not one of the four killed classes, and it is not a verifier residual -- it is a RENDER-side
+# conviction with its own remedy, exactly like `grouped_in_slot`, which is the [N]-side twin of it.
+_E_VALUE_SLOT_CLASS: str = "evidence_handle_in_slot"
 
 
 def _fold_ledger_class(verifier: dict | None, cls: str, n) -> int:
@@ -5885,6 +5954,11 @@ _SEAM_SRC_VERIFY = "verify"          # verify._verify_field -- a convicted handl
 _SEAM_SRC_BARE_DIGIT = "bare_digit"  # _drop_bare_digit_sentences -- a WHOLE sentence, D-HP-12's remedy
 _SEAM_SRC_EV_PRUNE = "ev_prune"      # _prune_orphan_evidence_handles -- an [E] marker with no footer row
 _SEAM_SRC_SLOT_ORPHAN = "slot_orphan"  # _drop_slot_orphan_sentences -- a WHOLE sentence, Z4/W1's remedy
+# D-HP G1 REMEDIATION D2(b): _resolve_evidence_handles' value-slot kill -- a WHOLE sentence, so it is a
+# TIDY-2 producer and NOT a licensing one (X2's rule: the sentence it cut is gone, so nothing it mints is
+# evidence that a surviving sentence was emptied). `allow_empty` is therefore False at its mint (X6's
+# whole-sentence answer). Treatment-gated, so no control turn mints it and the OFF arm is byte-identical.
+_SEAM_SRC_E_VALUE_SLOT = "e_value_slot"
 # THE LICENCE SET, and it is the whole of FIX X2: a producer belongs here when its deletion can leave a
 # value slot EMPTY IN A SURVIVING SENTENCE. `verify` strips a handle out of the middle of a sentence and
 # `_prune_orphan_evidence_handles` removes an [E] marker from one; both leave "...stood at." on the page.
@@ -6349,6 +6423,36 @@ def _drop_bare_digit_sentences(structured: dict | None, number_calls: list | Non
     except Exception:  # noqa: BLE001 -- a render guard must never be the thing that breaks an answer
         return census
     return census
+
+
+def _sentence_keeps_other_receipt(text: str, s0: int, s1: int, skips, n_uniq: int) -> bool:
+    """True when the sentence `[s0, s1)` still carries a citation the reader KEEPS, outside `skips`.
+
+    The [E]-lane twin of `_sentence_has_resolved_handle`, and separate from it for one reason: that
+    function needs the turn's `number_calls` to ask whether an [N] member has a value, and this pass is
+    not threaded them. It does not need to be. `_resolve_number_handles` runs BEFORE this pass on both
+    bodies (the ordering is pinned at both call sites), and it removes every [N] token it could not
+    resolve -- so any `[N...]` still standing here resolved, which is exactly the question being asked.
+    An [E] token counts when any member is in range, the same index-range reading the pass itself uses.
+
+    `skips` IS A LIST, NOT ONE SPAN, and that is the `_resolve_number_handles` rule restated: a token on
+    its way OUT backs nothing, so counting it here would let one convicted escape rescue a neighbouring
+    one from the kill it has earned (that pass's `backed` set excludes its own `grouped_in_slot` tokens
+    for exactly this reason). Measured shape it fixes: "DDGS from corn was priced at [E1], and soymeal
+    prices had reached their lowest average ... at [E45]." -- BOTH tokens are escapes, so the honest
+    verdict is one dead sentence rather than two severed clauses meeting at ", ."."""
+    sent = text[s0:s1]
+    def _skipped(m) -> bool:
+        return any(s0 + m.start() >= a and s0 + m.end() <= b for a, b in skips)
+    for m in _N_HANDLE_HP_RX.finditer(sent):
+        if not _skipped(m):
+            return True
+    for m in _E_HANDLE_RX.finditer(sent):
+        if _skipped(m):
+            continue
+        if any(1 <= i <= n_uniq for i in _e_handle_members(m.group(0))):
+            return True
+    return False
 
 
 def _resolve_evidence_handles(structured: dict | None, uniq: list | None, *,
@@ -7017,6 +7121,131 @@ def _prune_orphan_evidence_handles(structured: dict | None, vreport: dict | None
 # THE STRUCTURAL BACKSTOP for the delimiter half lives in `register._strip_banned_sentences`, which now
 # preserves the newlines of a dropped unit's delimiter; this site does not depend on it.
 #
+# ══ D-HP G1 REMEDIATION D2(b) (2026-08-14) -- CLAUSE (2b)'s REMEDY, AND IT RUNS *AFTER* THE PRUNE ═════
+#
+# THE DEFECT: G1 decision 1 failed clause (2b) on 7 events over 4 treatment rows (control noise floor 5),
+# every one a SOLITARY, FULLY RESOLVED `[E]` token standing immediately behind a value cue -- "priced at
+# [E1]", "range from [E17]", "from 500 to [E10] thousand metric tons". The clause had an INSTRUMENT
+# (`eval._bare_handle_escapes`, H2) and NO REMEDY anywhere in the stack. The [N] half is covered three
+# ways (splice a solitary resolved handle, sever a `grouped_in_slot` one, drop an unresolvable one), and
+# `_resolve_evidence_handles` acts only on UNRESOLVABLE `[E]` -- so a RESOLVED [E] in a value slot was
+# left standing BY CONSTRUCTION, on both arms. That is D-PQ HANDLE-1's own defect (the sentence promised a
+# figure it cannot produce) and it takes D-PQ HANDLE-1's own ladder: sever the clause when the sentence
+# keeps another receipt, drop the sentence when it does not. NEVER a splice -- an [E] payload is a source,
+# a date and a snippet, so there is no figure to write and inventing one is the class this wave exists to
+# make unconstructible (D3: deletion beats a fourth fence).
+#
+# WHY IT IS ITS OWN PASS AND WHY IT SITS *HERE*, AFTER `_prune_orphan_evidence_handles`. Built first as a
+# second conviction inside `_resolve_evidence_handles`, it PRE-EMPTED THE PRUNE: an orphan [E] standing in
+# a value slot is also a resolved-in-slot escape, so this remedy removed the token before the prune could,
+# and `ev_prune` -- a SLOT-EMPTYING seam producer that LICENSES a slot-orphan cut -- stopped firing. Four
+# H1 fold pins (X1, X6, Y2, Y5) reproduce that regression exactly. The correct placement follows from what
+# the clause MEASURES: `bare_handle_escapes` scans the ASSEMBLED BODY, so its population is the tokens that
+# survived every earlier pass -- the prune included. Running here leaves each producer its own cases and
+# makes this one a strict backstop over what is left.
+# ORDERING, EXACTLY: after `_prune_orphan_evidence_handles` (so the prune keeps its own population) and
+# BEFORE `_tidy_handle_debris` (which closes the bracket frames a removal leaves) and before TIDY-2 (which
+# repairs the paragraph seam a whole-sentence drop opens, off the seam this pass mints).
+def _drop_evidence_value_slot(structured: dict | None, uniq: list | None, vreport=None) -> dict:
+    """Sever the clause (or drop the sentence) carrying a RESOLVED `[E]` handle in a VALUE SLOT.
+
+    Returns `{convicted, handles_dropped, sentences_dropped}` -- ZERO-VALUED on every turn that had none,
+    so the caller stamps nothing (the OFF-arm-clean rule). Mutates `tldr`/`mechanism` in place; never
+    raises, because a render guard must never be the thing that breaks an answer.
+
+    THE CALLER GATES IT ON `handle_prose`, and nothing in here reads the environment: this is a
+    TREATMENT-LANE pass, so a control turn's prose, ledger, seams and trace are byte-identical.
+
+    IT IS NOT `unresolvable`, AND THE DISTINCTION IS H1 FIX Z2's (there, `binding_refused`): the receipt
+    EXISTS, resolved, and names the right item. What is convicted is the SLOT. So it is charged to its own
+    class, `_E_VALUE_SLOT_CLASS`, which the caller folds into the ONE strip ledger.
+
+    ONE GRAMMAR WITH THE INSTRUMENT: `_E_HANDLE_RX` + `_HANDLE_VALUE_SLOT_RX`, which is exactly the pair
+    `eval._bare_handle_escapes` scans the assembled body with. A second spelling here is how two readers of
+    one page drift apart -- and on this clause it would be a remedy that cannot satisfy its own threshold.
+    THE CUE IS NOT A PERFECT CRITERION, AND THAT IS RECORDED RATHER THAN PATCHED (plan 10.18.2): on the r2
+    population 4 of 7 are genuine broken promises and 3 are the house CITATION idiom wearing the same cue
+    ("the dated evidence at [E45]", "documented from [E24]"). A lexical exemption invented from three
+    examples was REFUSED -- the Z4/W1 finding is on the record that a cue-only lexical rule deleted 314 of
+    32,557 stored sentences -- so the prompt half (`_SYSTEM_HANDLES`: "AN [E] HANDLE IS NEVER A FIGURE") is
+    what should drive the population to zero and this is the backstop. Narrowing the CRITERION is a
+    re-freeze decision, stated as an open question at plan 10.18.4, not taken here.
+
+    A CONVICTED TOKEN BACKS NOTHING (`_resolve_number_handles`' `grouped_in_slot` rule): two escapes in one
+    sentence kill it rather than severing twice and meeting at ", ." -- the measured `dv_sub_ddg_floor`
+    shape. And a sever NEVER swallows a receipt the reader keeps; it falls back to the bare token drop at
+    the identical decision the [N] pass makes."""
+    census = {"convicted": 0, "handles_dropped": 0, "sentences_dropped": 0}
+    if not isinstance(structured, dict):
+        return census
+    n_uniq = len(uniq or [])
+    try:
+        for field in ("tldr", "mechanism"):
+            text = structured.get(field)
+            if not isinstance(text, str) or "[E" not in text:
+                continue
+            recs = []                          # (match, members, sentence span, convicted?)
+            for m in _E_HANDLE_RX.finditer(text):
+                members = _e_handle_members(m.group(0))
+                s0, s1 = _handle_sentence_span(text, m.start())
+                bad = bool(members and all(1 <= i <= n_uniq for i in members)
+                           and _HANDLE_VALUE_SLOT_RX.search(text[s0:m.start()]))
+                recs.append((m, members, s0, s1, bad))
+            spans = [(r[0].start(), r[0].end()) for r in recs if r[4]]
+            if not spans:
+                continue
+            keep_at = ([r[0].start() for r in recs
+                        if not r[4] and any(1 <= i <= n_uniq for i in r[1])]
+                       + [m.start() for m in _N_HANDLE_HP_RX.finditer(text)])
+            ops: list[tuple[int, int]] = []
+            kills: list[tuple[int, int]] = []
+            for m, members, s0, s1, bad in recs:
+                if not bad:
+                    continue
+                census["convicted"] += 1
+                if _sentence_keeps_other_receipt(text, s0, s1, spans, n_uniq):
+                    a = _handle_clause_start(text, s0, m.start())   # the cue is the fallback floor, so a
+                    if any(a <= p < m.end() for p in keep_at):      # sever never leaves a dangling slot
+                        a = m.start()
+                    if a and text[a - 1] == " " and (m.end() >= len(text)
+                                                     or text[m.end()] in " ,.;:)!?"):
+                        a -= 1
+                    ops.append((a, m.end()))
+                    census["handles_dropped"] += len(members)
+                    continue
+                e = s1
+                if s0 == 0:
+                    while e < len(text) and text[e] == " ":
+                        e += 1
+                if (s0, e) in kills:
+                    continue
+                kills.append((s0, e))
+                census["sentences_dropped"] += 1
+                # X2: a WHOLE-SENTENCE producer names its own tag and is NOT in `_SLOT_EMPTYING_SEAM_SRCS`
+                # (the sentence it cut is gone, so it is evidence that nothing was EMPTIED); X6: that kind
+                # of producer passes `allow_empty` False, so a field-final cut mints no empty-key record.
+                _mint_strip_seam(vreport, field, text[e:], src=_SEAM_SRC_E_VALUE_SLOT)
+            merged: list[tuple[int, int]] = []
+            for a, b in sorted(ops + kills):
+                if merged and a <= merged[-1][1]:
+                    merged[-1] = (merged[-1][0], max(merged[-1][1], b))
+                else:
+                    merged.append((a, b))
+            out, pos = [], 0
+            for a, b in merged:
+                a = max(a, pos)
+                out.append(text[pos:a])
+                pos = max(pos, b)
+            out.append(text[pos:])
+            new = "".join(out)
+            if not text[:1].isspace():
+                new = new.lstrip(" \t")
+            structured[field] = new
+    except Exception:  # noqa: BLE001 -- a render guard must never be the thing that breaks an answer
+        return census
+    return census
+
+
 # CYCLE-10-AMEND (2026-08-08), REVIEW MAJOR 1+2 -- READ (a) AS IT NOW STANDS. "The body-wide pass that
 # follows then has nothing left to delete" was true of the SNIPPET and false of the ROW: the row's own
 # `[10]` marker is not a `_CIT_HANDLE` and IS a `_level_tokens` hit, so on OUTLOOK the pass deleted every
@@ -7666,6 +7895,9 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     _wslot = _wrong_slot_audit(_nhandles) if (verifier.get("enabled") and _handles) else None
     _eorph = (_prune_orphan_evidence_handles(structured, verifier, market_register=_mr)         # CYCLE-9 FIX 3, both bodies
               if verifier.get("enabled") else 0)                          # ...and the same verifier gate
+    _eslot = (_drop_evidence_value_slot(structured, uniq, verifier)   # D-HP G1 REMEDIATION D2(b), both
+              if (verifier.get("enabled") and _handles) else None)   # bodies, the SAME post-prune seat
+    _fold_ledger_class(verifier, _E_VALUE_SLOT_CLASS, (_eslot or {}).get("convicted"))
     _debris = bool(verifier.get("enabled") and _tidy_handle_debris(structured))   # D-PQ HANDLE-3, ditto
     _sorph = (_drop_slot_orphan_sentences(structured, verifier)                   # H1 FIX Z4, both bodies
               if (verifier.get("enabled") and _handles) else None)                # ...same position, after
@@ -7735,6 +7967,8 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
                          if _trace_espan is not None else {}),      # ...absent on every control row
                       **({"number_rows_deduped": _nclone} if _nclone else {}),  # CYCLE-6 FIX-C, both bodies
                       **({"evidence_orphans_pruned": _eorph} if _eorph else {}),  # CYCLE-9 FIX 3, ditto
+                      **({"evidence_slot_dropped": _eslot}         # D-HP G1 REMEDIATION D2(b), both
+                         if (_eslot and any(_eslot.values())) else {}),          # bodies, same stamp rule
                       **({"prose_debris_tidied": True} if _debris else {}),   # D-PQ HANDLE-3, both bodies
                       **({"prose_orphans_tidied": True} if _orphans else {}),  # CYCLE-5 TIDY-2, both bodies
                       **({"response_contract": _rc_active} if _rc_active else {}),   # Phase B twin stamp

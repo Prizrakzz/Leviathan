@@ -865,3 +865,141 @@ def test_the_fold_runs_on_both_serving_bodies_and_only_on_the_treatment():
     for at in (src.index("_fold_render_classes(verifier,"),
                src.rindex("_fold_render_classes(verifier,")):
         assert "_handles" in src[at - 220:at], "the fold is not gated on the treatment"
+
+
+# == D-HP G1 REMEDIATION D2(b) (2026-08-14) -- A RESOLVED [E] STANDING WHERE A FIGURE BELONGS ==========
+#
+# G1 decision 1 failed clause (2b) on 7 events over 4 treatment rows (control noise floor 5), EVERY one a
+# solitary, FULLY RESOLVED [E] token immediately behind a value cue ("priced at [E1]", "range from [E17]",
+# "from 500 to [E10] thousand metric tons"). The clause had an instrument (`eval._bare_handle_escapes`)
+# and NO REMEDY: the [N] half is covered by the splice / `grouped_in_slot` sever / unresolvable drop, and
+# `_resolve_evidence_handles` acts only on UNRESOLVABLE [E]. These pin the remedy, its seat in the stack,
+# its accounting, its declaration and its OFF-arm silence. Plan record: 10.18.2.
+
+def _uniq(n: int) -> list:
+    """`n` positional evidence rows -- only the LENGTH is read (resolution is positional, D-HP-1 (iii))."""
+    return [{"source": "USDA", "date": "2026-01-01", "text": "t"} for _ in range(n)]
+
+
+class _SeamCarrier(dict):
+    """verify's `_VerifyReport` shape as this file needs it: a dict WITH a `strip_seams` attribute."""
+
+
+def test_d2b_a_resolved_E_handle_behind_a_value_cue_takes_the_shipped_ladder():
+    """SEVER WHEN THE SENTENCE KEEPS A RECEIPT, DROP THE SENTENCE WHEN IT DOES NOT -- D-PQ HANDLE-1's own
+    ladder, never a substitution (an [E] payload is source/date/snippet, so there is no figure to write).
+
+    AND IT IS NOT `unresolvable`: the receipt EXISTS and names the right item, which is H1 FIX Z2's
+    distinction applied to the [E] half. What was convicted is the SLOT."""
+    sever = _st("", "US corn stocks tightened [E2] and the cargo was priced at [E1].")
+    cen = an._drop_evidence_value_slot(sever, _uniq(2))
+    assert "[E1]" not in sever["mechanism"]                 # the empty promise is gone...
+    assert "[E2]" in sever["mechanism"]                     # ...and the receipt the reader keeps stays
+    assert cen == {"convicted": 1, "handles_dropped": 1, "sentences_dropped": 0}
+
+    kill = _st("", "The cargo was priced at [E1].")
+    cen = an._drop_evidence_value_slot(kill, _uniq(1))
+    assert kill["mechanism"] == ""                           # nothing backed it -- the sentence goes
+    assert cen == {"convicted": 1, "handles_dropped": 0, "sentences_dropped": 1}
+
+    # BESIDE PROSE IT IS A CITATION AND STAYS ONE: no value cue, no conviction, no byte moved.
+    plain = _st("", "The revision is documented in the dated record [E1].")
+    keep = dict(plain)
+    cen = an._drop_evidence_value_slot(plain, _uniq(1))
+    assert plain == keep and cen["convicted"] == 0
+
+    # ...and an OUT-OF-RANGE index is NOT this pass's business: `_resolve_evidence_handles` owns the
+    # unresolvable ladder and ran earlier. Convicting it here would double-charge one removal.
+    orphan = _st("", "The cargo was priced at [E9].")
+    keep = dict(orphan)
+    assert an._drop_evidence_value_slot(orphan, _uniq(1))["convicted"] == 0 and orphan == keep
+
+
+def test_d2b_two_escapes_in_one_sentence_kill_it_instead_of_meeting_at_a_comma():
+    """A CONVICTED ESCAPE BACKS NOTHING -- `_resolve_number_handles`' `grouped_in_slot` rule, restated for
+    the [E] half. The measured shape is dv_sub_ddg_floor's: two escapes in ONE sentence. Counting the
+    first as a reason to keep the second would sever two clauses and leave them meeting at ", ."."""
+    st = _st("", "In MY 2025/26, DDGS was priced at [E1], and meal reached its lowest at [E2].")
+    cen = an._drop_evidence_value_slot(st, _uniq(2))
+    assert st["mechanism"] == ""
+    assert cen["convicted"] == 2                             # two tokens convicted...
+    assert cen["sentences_dropped"] == 1                     # ...one sentence lost (the Z12 accounting)
+    assert cen["handles_dropped"] == 0
+
+
+def test_d2b_the_pass_is_seated_AFTER_the_prune_on_BOTH_bodies():
+    """THE ORDERING IS THE FIX, AND IT WAS FOUND BY A REGRESSION, NOT BY TASTE. Built first as a second
+    conviction inside `_resolve_evidence_handles`, this remedy PRE-EMPTED `_prune_orphan_evidence_handles`
+    -- an orphan [E] in a value slot is also a resolved-in-slot escape -- and `ev_prune`, a SLOT-EMPTYING
+    seam producer that LICENSES a slot-orphan cut, stopped firing (H1 fold pins X1/X6/Y2/Y5 all reproduce
+    it). The correct seat follows from what clause (2b) MEASURES: `bare_handle_escapes` scans the
+    ASSEMBLED BODY, so the population is what survived every earlier pass, the prune included."""
+    import inspect
+    src = inspect.getsource(an)
+    assert src.count("_drop_evidence_value_slot(structured, uniq, verifier)") == 2   # both bodies
+    for body in (an._answer_l2, an.answer):
+        b = inspect.getsource(body)
+        if "_drop_evidence_value_slot" not in b:
+            continue
+        assert b.index("_prune_orphan_evidence_handles") < b.index("_drop_evidence_value_slot")
+        assert b.index("_drop_evidence_value_slot") < b.index("_tidy_handle_debris")
+    assert an._SEAM_SRC_E_VALUE_SLOT not in an._SLOT_EMPTYING_SEAM_SRCS   # X2: licenses no orphan cut
+
+
+def test_d2b_the_off_arm_never_reaches_the_pass_and_the_E_census_keeps_its_four_keys():
+    """THE OFF-ARM-CLEAN RULE. The pass is CALLER-GATED on `_handles` at both bodies (never an env read),
+    and `_resolve_evidence_handles`' census is still the pre-D-HP four keys exactly -- the remedy did not
+    grow a fifth key on a dict the suites pin. That is what keeps G1 a comparison."""
+    import inspect
+    src = inspect.getsource(an)
+    assert src.count("if _handles:\n            _eslot = _drop_evidence_value_slot") == 1
+    assert "and _handles) else None)   # bodies, the SAME post-prune seat" in src
+    cen = an._resolve_evidence_handles(_st("", "The cargo was priced at [E1]."), _uniq(1),
+                                       handle_prose=True)
+    assert sorted(cen) == ["handles_dropped", "sentences_dropped", "substituted", "unresolvable"]
+
+
+def test_d2b_the_class_is_declared_folds_into_the_one_ledger_and_mints_a_tagged_seam():
+    """THREE CONTRACTS THE NEW CLASS OWES, each of which has cost a previous fold a defect when skipped:
+    it is DECLARED in G1 clause (4)'s set (or the clause fails on the wave's own remedy -- the
+    `slot_orphan` / `episode_span_unbacked` precedent), it is ARM-EXCLUSIVE (so a raw `stripped` delta
+    across the arms is still not like for like), and its whole-sentence cut mints a TIDY-2 seam that NAMES
+    ITS PRODUCER (FIX X2: a seam with no `src` is a seam no consumer can classify)."""
+    from leviathan.graphrag import emf as _emf
+    assert an._E_VALUE_SLOT_CLASS in _emf.G1_DECLARED_CLASSES
+    assert an._E_VALUE_SLOT_CLASS in _emf.ARM_EXCLUSIVE_CLASSES
+
+    rep = {"enabled": True, "by_rule": {}, "stripped": 0}
+    assert an._fold_ledger_class(rep, an._E_VALUE_SLOT_CLASS, 2) == 2
+    assert rep["by_rule"][an._E_VALUE_SLOT_CLASS] == 2 and rep["stripped"] == 2   # the sum invariant
+    assert an._fold_ledger_class(rep, an._E_VALUE_SLOT_CLASS, 0) == 0             # no-op at n=0
+
+    carrier = _SeamCarrier()
+    carrier.strip_seams = []
+    st = _st("", "The cargo was priced at [E1]. Trade was thin.")
+    an._drop_evidence_value_slot(st, _uniq(1), carrier)
+    assert [s["src"] for s in carrier.strip_seams] == [an._SEAM_SRC_E_VALUE_SLOT]
+    assert carrier.strip_seams[0]["field"] == "mechanism"
+    # ...and a SEVER mints nothing: it leaves the sentence standing, so there is no paragraph seam to
+    # repair and a record would stand for a cut TIDY-2 must not join to.
+    carrier.strip_seams = []
+    an._drop_evidence_value_slot(_st("", "Stocks tightened [E2] and it was priced at [E1]."),
+                                 _uniq(2), carrier)
+    assert carrier.strip_seams == []
+
+
+def test_d2b_the_remedy_and_the_clause_2b_instrument_read_ONE_grammar():
+    """ONE GRAMMAR, ONE CUE, ONE PRODUCER. `eval._bare_handle_escapes` scans the assembled body with
+    `an._E_HANDLE_RX` + `an._HANDLE_VALUE_SLOT_RX`; the remedy convicts on the identical pair. A second
+    spelling is how two readers of one page drift apart -- and on this clause it would be a remedy that
+    cannot satisfy its own threshold. Driven on the shapes the r2 artifacts actually carried."""
+    from leviathan.graphrag import eval as ev
+    for text in ("**Price context.** DDGS from corn was priced at [E1], and soymeal prices had reached "
+                 "their lowest average since the pandemic at [E2].",
+                 "Anti-dumping duties on US DDGS imports into China range from [E1], rendering them "
+                 "uncompetitive.",
+                 "A report revised ending stocks upward, from 500 to [E1] thousand metric tons [E2]."):
+        st = _st("", text)
+        assert ev._bare_handle_escapes({"answer": text}) > 0          # the clause reads it as an escape
+        an._drop_evidence_value_slot(st, _uniq(2))
+        assert ev._bare_handle_escapes({"answer": st["mechanism"]}) == 0   # ...and reads zero after

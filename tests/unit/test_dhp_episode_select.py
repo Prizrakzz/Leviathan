@@ -538,9 +538,13 @@ def test_the_trace_key_is_registered_at_the_tail_with_its_denominator():
 
     RE-ANCHORED (D-HP G1 AMENDMENT A3, 2026-08-14): `plan_tokens` was APPENDED after this column, so the
     tail moved by one. Same law, same one-line re-anchor, same unchanged invariant -- this key must still
-    be AFTER every older one and must never have been INSERTED ahead of one."""
-    assert tk.TRACE_RECORD_KEYS[-2] == "episode_spans_validated"
-    assert tk.TRACE_RECORD_KEYS[-1] == "plan_tokens"
+    be AFTER every older one and must never have been INSERTED ahead of one.
+
+    RE-ANCHORED AGAIN (D-HP G1 REMEDIATION D2(b), 2026-08-14): `evidence_slot_dropped` -- clause (2b)'s
+    remedy census -- was APPENDED after THAT. Tail moved by one more; nothing else."""
+    assert tk.TRACE_RECORD_KEYS[-3] == "episode_spans_validated"
+    assert tk.TRACE_RECORD_KEYS[-2] == "plan_tokens"
+    assert tk.TRACE_RECORD_KEYS[-1] == "evidence_slot_dropped"
     assert len(set(tk.TRACE_RECORD_KEYS)) == len(tk.TRACE_RECORD_KEYS)
     assert set(an._validate_episode_spans({"mechanism": _mech(_BACKED_A)}, _injected())) == \
         {"spans_checked", "bullets_dropped", "section_seen"}          # RE-ANCHORED, H1b fold-1 F4
