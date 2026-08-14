@@ -310,6 +310,10 @@ data "aws_ecr_repository" "embedder" {
 
 # RDS pgvector — used only to read its security group id, so the serving task
 # SG can be granted ingress on 5432.
+# NOTE (config-of-record, 2026-08-14): the instance itself is NOT terraform-managed — this is a
+# data source only, so its class lives in the AWS console/CLI history. Current class of record:
+# db.m7g.xlarge (4 vCPU / 16 GB), upgraded from db.m7g.large per EC-1 (user-authorized 2026-08-14,
+# docs/private/EVIDENCE_CAPACITY_ITEMS.md). The pg store is a DISPOSABLE DERIVED INDEX (S3 = truth).
 data "aws_db_instance" "pg" {
   db_instance_identifier = "leviathan-dev-pg"
 }
