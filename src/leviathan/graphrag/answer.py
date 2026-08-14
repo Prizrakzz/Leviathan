@@ -1726,6 +1726,34 @@ _SYSTEM_HANDLES = (
     "NO HANDLE, NO MAGNITUDE -- and that is allowed. A claim may carry no handle at all, in which case it "
     "carries no figure. There is no minimum: do not sprinkle handles to look grounded, and do not force a "
     "number into a sentence that does not need one.\n"
+    # D-HP G1 REMEDIATION-3 M2(a), 2026-08-14. THE MEASURED GAP, and it is the whole of G1's clause-(8)
+    # failure on the covenant deck. The grammar above carries FOUR explicit licences to omit a magnitude
+    # ("say it qualitatively"; "NO HANDLE, NO MAGNITUDE"; "say the gap in words"; "worse than saying
+    # nothing") and ZERO affirmative instruction to use the menu it was handed. The design note at the top
+    # of this block records the omission as deliberate -- "NO DENSITY MANDATE ... caught by G1 clause (8)'s
+    # AGGREGATE band, checked after the fact, WITH NO INSTRUCTION TO THE WRITER". A detector was built and
+    # the actuator was withheld; the detector fired.
+    # THE MENU HYPOTHESIS IS REFUTED ROW BY ROW, so this is not a receipt-supply problem: on
+    # `ab_mech_frost` the treatment arm's `served_rows` are BYTE-IDENTICAL to the control arm's (24 blocks
+    # / 158 values), control addressed 8 distinct [N] rows across 11 tokens, the treatment wrote ZERO --
+    # and every renderer-side counter on that row reads zero (handles_dropped 0, sentences_dropped 0,
+    # unresolvable 0, empty_row_addressed 0, binding_refused 0). Nothing was taken away from the writer;
+    # the writer took nothing. On `ab_rank_cocoa_origin` the treatment menu was RICHER than control's.
+    # IT IS CLAIM-SCOPED, WITH NO COUNT, NO QUOTA AND NO MINIMUM, AND THAT IS NOT STYLE. A
+    # mandatory-citation grammar converts non-citation failures into MIS-citation failures (B7, this
+    # wave's #1 risk) and would trade clause (8) against R11 -- the OTHER whole-gate failure. The R11
+    # exposure is arithmetic, not a worry: pooled over the six r4+d2 treatment invocations the SHIPPED
+    # instrument charged 2.4 mis_bound per +100 substitutions, so recovering the measured headroom
+    # projected about +3 pooled. Under the M1 detector that rate is 0.0 per 100 on the same corpus, which
+    # is why this sentence ships BEHIND the detector fix and not in front of it.
+    # THE WORDING IS THE DIAGNOSIS'S OWN, VERBATIM AND UNEDITED -- it was written claim-scoped on purpose
+    # and re-drafting it here is how a careful clause loses its fence.
+    "THE MENU IS PART OF THE ANSWER. Before a paragraph is finished, look back at the numbered rows: "
+    "every magnitude the record offers FOR A CLAIM YOU ARE ALREADY MAKING belongs in that claim, as its "
+    "handle. Writing 'stocks are thin' beside a live stocks row, or 'export pace fell' beside a live pace "
+    "row, hands the reader your adjective where the record could have handed them the figure. This is not "
+    "a minimum and not a quota: a claim you are not making needs no handle, and a row that is not about "
+    "your claim is still left alone.\n"
     "STILL WRITE, EXACTLY AS BEFORE: dates, years, marketing years, delivery months, era labels, "
     "quarters and lags in words. Those are not magnitudes and the contract does not touch them -- 'the "
     "export ban took effect 2010-08 [E1]', 'in MY 2021/22', 'about a quarter later' are all correct.\n"
@@ -1738,6 +1766,19 @@ _SYSTEM_HANDLES = (
     "is the only sentence in which a typed figure survives. Every other typed figure is a lint violation "
     "and the engine deletes the sentence that carries it -- so if you cannot find the row, do not type the "
     "number, say what the record supports.\n"
+    # D-HP G1 REMEDIATION-3 M2(b), 2026-08-14. THE SECOND WRITER-SIDE GAP, and the artifacts show the
+    # writer reaching PAST the exemption rather than using it. `d2_inv4` / `ab_verif_palm_levy` minted a
+    # PSEUDO-HANDLE for a figure it was already licensed to type: "In March 2026, Indonesia *raised* the
+    # export levy by [N-not-in-record text, but E24 states] \"2.5 percent to 12.5 percent\"". The
+    # paragraph above states the exemption as a SURVIVAL rule ("the only sentence in which a typed figure
+    # survives"), which reads as a hole in the lint that a careful writer should feel bad about using --
+    # so a careful writer invented a token instead. It costs nothing to say the exemption is CORRECT, and
+    # it recovers the `bare_digit_e_cited` population honestly rather than through a numerator re-reading
+    # after the data is in (which is the re-litigation E.4's termination rule forbids).
+    "AND USING THAT EXEMPTION IS CORRECT, NOT A LOOPHOLE: an [E]-quoted figure typed in that item's own "
+    "sentence is exactly what the record supports and exactly how it should be written -- it is not a "
+    "lint escape and nothing is deducted for it. Do NOT invent a substitute token to avoid typing it; a "
+    "handle that names no menu row is the one thing on this turn that resolves to nothing at all.\n"
     # D-HP G1 AMENDMENT A2(b), 2026-08-14: THE SECOND UNCAPPED INSTRUCTION. `_PLAN_PROPERTY_DESC` and this
     # paragraph are the ONLY two places that instruct the region, and they are read in the SAME turn -- a
     # budget stated in one and contradicted by silence in the other is not a budget. Same number (~800),
@@ -5508,8 +5549,193 @@ def _period_years(text: str, *, declared_only: bool = False) -> set[str]:
     return out
 
 
+# ══ D-HP G1 REMEDIATION-3 M1 (2026-08-14) -- THE PERIOD AXIS READS THE HANDLE'S *OWN* SCOPE ═══════════
+#
+# THE MEASURED DEFECT, AND IT IS THE WHOLE OF G1's R11 FAILURE. The gate charged 25 `slot_scope_mismatch`
+# events over 204 comparisons (12.3%) against a pre-registered ceiling of 15. A read-only replay of all
+# six treatment invocations -- driven by the functions IMPORTED from this module rather than a model of
+# them, and reproducing 11 of the 12 charged rows BYTE-EXACTLY on BOTH the numerator and the
+# `scope_checked` denominator -- adjudicated every one of the 25 a FALSE POSITIVE. Real mis-bindings:
+# ZERO. Ambiguous: ZERO. In each of the 25 the receipt's own period is EXACTLY the period the sentence
+# attaches to that handle, so 25 correct, cited, receipted figures were deleted from readers' pages (the
+# conviction is not a tally -- it empties `value`/`live` and routes the handle into the drop/sever/kill
+# ladder at the charge site). Two shapes produced them, and NEITHER is 10.19.4's range/era suspicion --
+# that hypothesis is REFUTED as this population's generator (not one of the 25 has a range or an era-span
+# on either side, and a range-aware intersection rescues ZERO of them).
+#
+#   SHAPE A (23 of 25) -- THE WINDOW ENDED AT THE HANDLE. `_binding_clause` returns `text[s0:pos]`, so on
+#   the corpus's dominant era-pair grammar -- "from [N5] in MY2023 to [N4] in MY2024" -- the span read for
+#   [N4] is "...from [N5] in MY2023 to ", whose only declared year is the PREVIOUS SIBLING'S. The handle's
+#   own "in MY2024" sits one character past the window's right edge and is invisible. A sibling's year
+#   convicted, every time, on 23 separate occasions.
+#
+#   SHAPE B (2 of 25) -- THE ROW SIDE PARSED A RENDERING. `row_years` came off `str(c.label)`, and that
+#   string carries `citations.from_number`'s PROVENANCE TAIL ("(latest available 2026-05-29; as-of
+#   2026-08-06)"). On a SERIES read the query names no period, so `_period_label` prints none and the row
+#   side's ONLY years were two PUBLICATION DATES: `ab_rank_cocoa_origin`'s "2024/25 cocoa year" claim was
+#   convicted against {2026} while the receipt's own headline row IS period "2024/25". The same tail ran
+#   the other way too, MASKING 2 further shape-A false positives by inflating the row side on 131 of 186
+#   cited comparisons -- so the shipped instrument mis-read 27 of 206, in BOTH directions at once.
+#
+# THE THREE RULES THAT REPLACE THEM, and the ORDER matters because a widened window is itself
+# deletion-armed. THE MEASUREMENT THAT FORBIDS THE OBVIOUS FIX, run before this code was written: a plain
+# widened window (left bound at the previous sibling, right bound at the next) scores 18 convictions over
+# 364 checks -- it kills all 25 and MINTS 18 NEW ONES of a class the shipped detector never had, the
+# COMPARISON ANCHOR ("stand at [N6], down sharply from the MY2013 peak [N2]", where MY2013 is [N2]'s year
+# and never [N6]'s). A nearest-token-within-30-characters rule scores 40 -- worse than shipped. So the
+# window is necessary and NOT sufficient, and what rides inside it is APPOSITIVE OWNERSHIP:
+#
+#   (1) THE WINDOW (M1(a)). A handle's period may only be looked for between the PREVIOUS [N] sibling and
+#       the NEXT one, clipped to the sentence. A sibling's year can never be reached at all.
+#   (2) OWNERSHIP INSIDE IT. Right-attachment WINS and CONSUMES: "[N4] in MY2024" binds MY2024 to [N4]
+#       across nothing but whitespace, markdown emphasis and ONE scope preposition (in/for/of/during/
+#       at/by/as of). A comma, a dash, a paren, a colon or any other word breaks it -- those are the
+#       shapes the 18 anchors are made of. Failing that, the NEAREST PRECEDING token binds, but only
+#       across a CLEAN bridge (no bracket, no comma/semicolon/colon, no paren, no dash, <= 48 chars) and
+#       only if no other handle has already claimed it. A token another handle owns NEVER convicts.
+#   (3) FAIL-OPEN ON ABSENCE (M1(c)). No owned token -> `compared = False`, SILENT, never a conviction --
+#       and likewise when the receipt declares no period. A conviction whose remedy is DELETION needs
+#       POSITIVE evidence on BOTH sides; the docstring below has always claimed that and the row side
+#       violated it 131 times.
+#
+# AND FIX 3, THE 10.19.4 SUSPICION, KEPT AND RECORDED AS MOVING NOTHING: a declared SPAN
+# ("MY2010->MY2011", "MY2023-to-MY2024") is expanded to its CLOSED INTERVAL and tested for CONTAINMENT.
+# It rescues 0 of the 25 -- it is a latent defect closed on the way past, not this population's cause.
+# It is also SAFE BY DIRECTION: expansion only ever ADDS years to the clause side, so it can only make
+# the detector quieter, never louder, which is the only direction a deletion-armed check may be tuned in.
+_DECLARED_PERIOD_RX = re.compile(
+    r"\bMY\s?(?:19|20)\d{2}(?:\s*[/-]\s*\d{2,4})?\b"
+    r"|\b(?:19|20)\d{2}\s*/\s*\d{2,4}\b")
+
+# A DECLARED SPAN between two years, in the spellings the corpus actually writes. Both endpoints must be
+# full 4-digit years, which is what keeps an ISO date fragment ("2026-05-29") out of it.
+_PERIOD_SPAN_RX = re.compile(
+    r"\b(?:MY\s?)?(?:19|20)\d{2}(?:\s*[/-]\s*\d{2,4})?"
+    r"\s*(?:→|–|—|->|\.\.|-to-|through|to|-)\s*"
+    r"(?:MY\s?)?(?:19|20)\d{2}(?:\s*[/-]\s*\d{2,4})?\b", re.I)
+
+# The ONLY text that may stand between a handle and the period token to its RIGHT for that token to be the
+# handle's own. Whitespace, markdown emphasis, and ONE scope preposition -- nothing else. Punctuation is
+# excluded ON MEASUREMENT, not on taste: every one of the 18 anchor false positives a permissive bridge
+# mints reaches its year across a comma, a dash or a paren.
+_RIGHT_APPOS_RX = re.compile(r"[\s*_]*(?:in|for|of|during|at|by|as\s+of)?[\s*_]*", re.I)
+# What DISQUALIFIES a preceding token from being the handle's own: another handle, a clause break, or a
+# parenthetical. `--` is spelled out because the en/em dashes do not cover the ASCII form.
+_LEFT_BRIDGE_BAD_RX = re.compile(r"[\[\],;:()–—]|--")
+_LEFT_BRIDGE_MAX = 48
+
+
+def _declared_span_years(text: str) -> set[str]:
+    """Every year a DECLARED SPAN in `text` covers, endpoints included (FIX 3). Empty when it names none.
+    Capped at 80 years so a malformed pair can never mint a set the intersection below cannot reason about."""
+    out: set[str] = set()
+    for m in _PERIOD_SPAN_RX.finditer(text or ""):
+        ys = sorted(int(y) for y in re.findall(r"(?:19|20)\d{2}", m.group(0)))
+        if ys and 0 < ys[-1] - ys[0] <= 80:
+            out |= {str(y) for y in range(ys[0], ys[-1] + 1)}
+    return out
+
+
+def _handle_period_phrase(text: str, s0: int, s1: int, hs: int, he: int) -> str:
+    """The period phrase THIS handle occurrence owns, or "" when it owns none.
+
+    THE THREE RULES ARE IN THE BLOCK NOTE ABOVE. The return is the phrase's TEXT rather than a year set on
+    purpose: `_slot_scope_mismatch` keeps taking a string, so the one existing pin that calls it directly
+    is unmoved, and a phrase that happens to be one end of a declared SPAN is returned as the WHOLE SPAN
+    so the containment reading below sees the interval and not an endpoint.
+
+    IT IS NOT `_binding_clause` AND IT DOES NOT TOUCH IT. That function answers D-HP-13's question ("the
+    ONE licensed verb standing in front of this handle"), whose semantics genuinely are left-only, and it
+    fires 0 of 1,026 -- nothing there needs to move. Only the PERIOD axis changes its input.
+
+    THE LEFT BOUND IS BELT-AND-BRACES, AND IT IS RECORDED AS SUCH RATHER THAN SOLD AS LOAD-BEARING.
+    Mutating `_left_bound` to 0 over the whole r4+d2 corpus moves NOTHING (0/171 either way), because a
+    bridge that reaches back past a sibling necessarily contains that sibling's `[`, which
+    `_LEFT_BRIDGE_BAD_RX` already rejects. It is kept because M1(a) states it as a property of the WINDOW
+    while the bracket rule is a property of the BRIDGE TEXT: two independent statements of "a sibling's
+    year never convicts", so a later edit to either one cannot silently retire the guarantee. Every other
+    clause here IS load-bearing and was mutation-killed: collapsing the right edge to the handle scores 31
+    convictions, dropping the span widening scores 1, and reading publication dates instead of the
+    receipt's scope scores 138."""
+    sent = text[s0:s1]
+    a, b = hs - s0, he - s0
+    if not (0 <= a < b <= len(sent)):
+        return ""
+    handles = [(mm.start(), mm.end()) for mm in _n_token_rx(True).finditer(sent)]
+    toks = [(mm.start(), mm.end()) for mm in _DECLARED_PERIOD_RX.finditer(sent)]
+    if not toks:
+        return ""
+    owner: dict[tuple[int, int], int] = {}          # handle span -> index into `toks`
+    claimed: set[int] = set()
+
+    def _right_bound(hb: int) -> int:
+        nxt = [x for (x, _y) in handles if x >= hb]
+        return min(nxt) if nxt else len(sent)
+
+    def _left_bound(ha: int) -> int:
+        prv = [y for (_x, y) in handles if y <= ha]
+        return max(prv) if prv else 0
+
+    for (ha, hb) in handles:                        # PASS 1 -- right-attachment wins and CONSUMES
+        hi = _right_bound(hb)
+        for k, (ts, te) in enumerate(toks):
+            if ts < hb:
+                continue
+            if te > hi or k in claimed:
+                break
+            if _RIGHT_APPOS_RX.fullmatch(sent[hb:ts]):
+                owner[(ha, hb)] = k
+                claimed.add(k)
+            break
+    for (ha, hb) in handles:                        # PASS 2 -- the nearest CLEAN preceding token
+        if (ha, hb) in owner:
+            continue
+        lo = _left_bound(ha)
+        for k in range(len(toks) - 1, -1, -1):
+            ts, te = toks[k]
+            if te > ha:
+                continue
+            if ts < lo or k in claimed:
+                break
+            bridge = sent[te:ha]
+            if len(bridge) <= _LEFT_BRIDGE_MAX and not _LEFT_BRIDGE_BAD_RX.search(bridge):
+                owner[(ha, hb)] = k
+                claimed.add(k)
+            break
+    k = owner.get((a, b))
+    if k is None:
+        return ""
+    ts, te = toks[k]
+    for sm in _PERIOD_SPAN_RX.finditer(sent):       # FIX 3: an endpoint is read as its whole span
+        if sm.start() <= ts and te <= sm.end():
+            return sm.group(0)
+    return sent[ts:te]
+
+
+def _receipt_period_text(call: dict | None) -> str:
+    """The RECEIPT'S OWN declared period -- the query's `period` and the HEADLINE ROW's, and nothing else.
+
+    THIS IS M1(b), AND IT IS THE SHAPE-B FIX. The shipped row side read `str(Citation.label)`, a RENDERED
+    string carrying `from_number`'s staleness tail, its truncation span, its print-kind and currency tags
+    and its formatted value. A detector whose remedy is DELETION must never parse a rendering -- that is
+    the cycle-10 repair fence's own epitaph ("a fence that compares labels cannot see semantics"), applied
+    to its sibling. `knowledge_date`, `asof` and `_covered_span` are DELIBERATELY absent: a publication
+    date is not a scope, and reading one as a scope is what convicted a crop year against {2026}.
+    The headline row comes from `cit.headline_row`, the SAME selector `from_number` headlines with, so the
+    period compared here can never disagree with the period the reader's `## Sources` line was built from."""
+    q = ((call or {}).get("query") or {}) if isinstance(call, dict) else {}
+    parts = [str(q.get("period") or "").strip(),
+             str((cit.headline_row(call) or {}).get("period") or "").strip()]
+    return " ".join(p for p in parts if p)
+
+
 def _slot_scope_mismatch(clause: str, call: dict | None, idx: int) -> tuple[bool, bool]:
     """D-HP-14(a), THE PERIOD AXIS -- the only axis of the scope cross-check that ships in the first build.
+
+    `clause` IS THE HANDLE'S OWN PERIOD PHRASE (`_handle_period_phrase`), NOT a window of prose. See the
+    REMEDIATION-3 M1 block note above for the 25 false positives the window reading produced and for the
+    three rules that replaced it. A string that names no declared scope still returns `(False, False)`,
+    which is what the pre-M1 pin asserting exactly that continues to measure.
 
     RETURNS `(compared, mismatch)` (H1 FIX Z12). `compared` is True only when BOTH SIDES SPOKE -- the
     clause named a DECLARED crop-year scope AND the row named a year -- which is the only state in which
@@ -5531,7 +5757,10 @@ def _slot_scope_mismatch(clause: str, call: dict | None, idx: int) -> tuple[bool
     often a reference year than a scope: see `_period_years(declared_only=)`) AND the resolved row's scope
     must name a year, and then the sets must be DISJOINT. No clause scope, no row period, or any overlap
     at all -> False. That is the "0.0% for every unambiguous condition" shape: the detector is silent
-    unless the turn actually created the ambiguity.
+    unless the turn actually created the ambiguity. [M1(c), 2026-08-14] THE ABSENCE RULE IS NOW SYMMETRIC
+    AND IT IS STATED AS A LAW RATHER THAN AS AN ACCIDENT OF PARSING: a conviction needs POSITIVE evidence
+    on BOTH sides, so no owned period phrase -> silent, and no declared receipt period -> silent. The
+    shipped row side broke that promise on 131 of 186 cited comparisons by counting publication dates.
 
     THE COMMODITY AND UNIT-CLASS AXES ARE NOT BUILT, AND ARE RECORDED AS NOT BUILT rather than approximated
     -- commodity needs a vocabulary this function is not threaded (the graph), and unit class was the exact
@@ -5540,12 +5769,15 @@ def _slot_scope_mismatch(clause: str, call: dict | None, idx: int) -> tuple[bool
     column never claims coverage it does not have."""
     if not str(clause or "").strip():
         return False, False
+    # M1(b): the RECEIPT'S OWN period fields, never the rendered label. `from_number` is still the thing
+    # that must not raise -- it is what resolves the row the reader is shown -- but nothing is parsed
+    # out of what it renders.
     try:
-        c = cit.from_number(call, idx)
+        cit.from_number(call, idx)
     except Exception:  # noqa: BLE001
         return False, False
-    row_years = _period_years(str(c.label or ""))
-    clause_years = _period_years(clause, declared_only=True)
+    row_years = _period_years(_receipt_period_text(call))
+    clause_years = _period_years(clause, declared_only=True) | _declared_span_years(clause)
     if not (row_years and clause_years):
         return False, False                        # one side said nothing: nothing was COMPARED
     return True, not (row_years & clause_years)
@@ -5736,9 +5968,16 @@ def _resolve_number_handles(structured: dict | None, number_calls: list | None, 
                 if len(pairs) == 1 and isinstance(value, str):
                     _call = calls[pairs[0][0] - 1] if 1 <= pairs[0][0] <= len(calls) else None
                     _clause = _binding_clause(text, s0, m.start())
+                    # [G1 REMEDIATION-3 M1, 2026-08-14] THE TWO CHECKS NO LONGER SHARE ONE SPAN, because
+                    # they never asked the same question. D-HP-13 reads the licensed VERB standing in
+                    # front of the handle, which is genuinely left-only and fires 0 of 1,026 -- untouched.
+                    # D-HP-14(a) reads the PERIOD THIS HANDLE OWNS, which the era-pair grammar writes
+                    # AFTER it ("[N4] in MY2024"); reading it out of a left-truncated window is how a
+                    # sibling's year deleted 23 correct figures. See `_handle_period_phrase`.
+                    _scope = _handle_period_phrase(text, s0, s1, m.start(), m.end())
                     # FIX Z12: `scope_checked` counts COMPARISONS, never attempts -- see
                     # `_slot_scope_mismatch`'s return contract.
-                    _compared, _mismatch = _slot_scope_mismatch(_clause, _call, pairs[0][0])
+                    _compared, _mismatch = _slot_scope_mismatch(_scope, _call, pairs[0][0])
                     if _compared:
                         census["scope_checked"] += 1
                     if _mismatch:

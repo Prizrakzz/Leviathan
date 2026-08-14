@@ -2040,6 +2040,79 @@ def test_d2a_the_persona_says_the_value_slot_belongs_to_N_alone():
         assert "AN [E] HANDLE IS NEVER A FIGURE" not in off
 
 
+def test_m2a_the_menu_is_part_of_the_answer_and_it_is_claim_scoped():
+    """G1 REMEDIATION-3 M2(a). THE MEASURED GAP: four explicit licences to omit a magnitude and ZERO
+    affirmative instruction to use the menu. The design note above `_SYSTEM_HANDLES` records the omission
+    as deliberate -- "NO DENSITY MANDATE ... caught by G1 clause (8)'s AGGREGATE band, checked after the
+    fact, WITH NO INSTRUCTION TO THE WRITER" -- and clause (8) then failed on the covenant deck (11.74 and
+    10.17 against an 11.84 floor). The MENU hypothesis is refuted: on `ab_mech_frost` the treatment arm's
+    served rows are BYTE-IDENTICAL to control's (24 blocks / 158 values), control addressed 8 distinct
+    rows, the treatment wrote zero handles, and every renderer counter on that row reads zero.
+
+    THE FENCE IS THE POINT AND IT IS PINNED HERE, not just written: the sentence is CLAIM-SCOPED and
+    carries NO count, NO quota and NO minimum. A mandatory-citation grammar converts non-citation failures
+    into MIS-citation failures (B7), which is the other whole-gate failure (R11) -- so it must sit BESIDE
+    "NO HANDLE, NO MAGNITUDE" narrowing it, never replacing it."""
+    hp = an._system(handles=True, episodes=True)
+    assert "THE MENU IS PART OF THE ANSWER" in hp
+    assert "FOR A CLAIM YOU ARE ALREADY MAKING" in hp
+    assert "This is not a minimum and not a quota" in hp
+    assert "a claim you are not making needs no handle" in hp
+    # the licence it NARROWS is still standing -- the pair is the contract, not the new half alone
+    assert "NO HANDLE, NO MAGNITUDE -- and that is allowed" in hp
+    assert "do not sprinkle handles to look grounded" in hp
+    assert hp.index("NO HANDLE, NO MAGNITUDE") < hp.index("THE MENU IS PART OF THE ANSWER")
+    # ...and NOTHING in it states a floor, a count or a share
+    for quota in ("at least", "at minimum", "a minimum of", "%", "every row", "all of the rows"):
+        assert quota not in hp[hp.index("THE MENU IS PART OF THE ANSWER"):
+                               hp.index("STILL WRITE, EXACTLY AS BEFORE")], quota
+
+
+def test_m2b_the_one_exemption_is_correct_not_a_loophole():
+    """G1 REMEDIATION-3 M2(b). The artifacts show the writer reaching PAST the exemption rather than using
+    it: `d2_inv4` / `ab_verif_palm_levy` minted a PSEUDO-HANDLE for a figure it was already licensed to
+    type ("raised the export levy by [N-not-in-record text, but E24 states] \\"2.5 percent to 12.5
+    percent\\""). The paragraph stated the exemption as a SURVIVAL rule -- "the only sentence in which a
+    typed figure survives" -- which reads as a hole in the lint, so a careful writer invented a token
+    instead. It must sit WITH that paragraph and must not re-open the general typing ban."""
+    hp = an._system(handles=True, episodes=True)
+    assert "AND USING THAT EXEMPTION IS CORRECT, NOT A LOOPHOLE" in hp
+    assert "it is not a lint escape and nothing is deducted for it" in hp
+    assert "Do NOT invent a substitute token to avoid typing it" in hp
+    assert hp.index("THE ONE EXEMPTION") < hp.index("AND USING THAT EXEMPTION IS CORRECT")
+    # the ban itself is untouched: every OTHER typed figure still costs the sentence
+    assert "Every other typed figure is a lint violation" in hp
+    assert "IN THE SAME SENTENCE AS THAT ITEM'S [E] HANDLE" in hp
+
+
+def test_m2_the_off_arm_is_byte_identical_on_every_persona_permutation():
+    """D-HP-16's "SHIPS CONDITIONALLY OR IT DOES NOT SHIP", measured rather than asserted, for BOTH M2
+    halves. `_SYSTEM_HANDLES` is appended only under `handles=True`, so the control persona in every
+    permutation of the four independent legs carries none of it -- and the control arm of a re-run must be
+    a control arm, or clause (8)'s denominator is measuring the treatment."""
+    import itertools
+    probes = ("THE MENU IS PART OF THE ANSWER", "FOR A CLAIM YOU ARE ALREADY MAKING",
+              "AND USING THAT EXEMPTION IS CORRECT", "Do NOT invent a substitute token")
+    seen = 0
+    for outlook, episodes, recency, prov in itertools.product([False, True], [None, False, True],
+                                                              [False, True], [False, True]):
+        off = an._system(outlook=outlook, episodes=episodes, recency=recency, provenance=prov)
+        for probe in probes:
+            assert probe not in off, (probe, outlook, episodes, recency, prov)
+        seen += 1
+    assert seen == 24                       # 2 x 3 x 2 x 2, the whole OFF-arm surface
+    for off in _persona_off_permutations():
+        for probe in probes:
+            assert probe not in off
+    # ...and the treatment arm carries both halves on every one of its own permutations
+    for outlook, episodes, recency, prov in itertools.product([False, True], [None, False, True],
+                                                              [False, True], [False, True]):
+        on = an._system(handles=True, outlook=outlook, episodes=episodes, recency=recency,
+                        provenance=prov)
+        for probe in probes:
+            assert probe in on, (probe, outlook, episodes, recency, prov)
+
+
 def test_the_plan_budget_firming_is_the_same_sentence_at_both_sites_and_off_arm_silent():
     """A2(b)'s LAW: `_PLAN_PROPERTY_DESC` and `_SYSTEM_HANDLES` are read in the SAME turn, so a budget
     stated firmly in one and loosely in the other is not a budget. The r2 set exceeded ~800 on 22 of 24

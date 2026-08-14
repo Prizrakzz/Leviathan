@@ -613,6 +613,134 @@ def test_scope_checked_counts_comparisons_never_attempts():
     assert an._slot_scope_mismatch("no period here", _call("stocks", 1.0), 1) == (False, False)
 
 
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════
+# G1 REMEDIATION-3 M1 -- THE PERIOD AXIS READS THE HANDLE'S OWN SCOPE
+#
+# THE POPULATION THESE PINS ARE BUILT FROM: G1 charged 25 `slot_scope_mismatch` events over 204
+# comparisons against a ceiling of 15, and a replay over the six treatment invocations adjudicated ALL 25
+# false positives, zero real mis-bindings. The shapes are quoted from the artifacts, not invented.
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════
+
+def _series_call(metric: str, rows: list[tuple[str, float]], table: str = "silver_icco_cocoa") -> dict:
+    """A SERIES read: the query names NO period, so every year the label carries is a PUBLICATION date.
+    This is the shape-B configuration (`ab_rank_cocoa_origin`), and `knowledge_date` is what the shipped
+    row side read as the receipt's scope."""
+    return {"query": {"table": table, "metric": metric, "commodity": "cocoa"},
+            "rows": [{"value": v, "unit": "1000 MT", "period": p,
+                      "knowledge_date": f"{int(str(p)[:4]) + 1}-11-30"} for p, v in rows],
+            "status": "ok"}
+
+
+def test_m1_a_siblings_year_can_never_convict_the_handle_beside_it():
+    """SHAPE A, 23 of the 25. `_binding_clause` ends AT the handle, and this corpus's dominant era-pair
+    grammar writes each handle's period AFTER it -- so for [N4] the shipped window read
+    "...from [N5] in MY2023 to ", whose only declared year is the PREVIOUS SIBLING'S. 23 correct, cited,
+    receipted figures were deleted from readers' pages on that reading.
+
+    BOTH handles must be COMPARED (the fix is not "go quiet") and NEITHER convicted."""
+    text = "Production fell from [N1] in MY2023 to [N2] in MY2024, a step-down of [N3]."
+    st = _st(text)
+    calls = [_period_call("production", 5225.0, "2023"), _period_call("production", 4980.0, "2024"),
+             _call("production_delta", -245.0)]
+    census = an._resolve_number_handles(st, calls, handle_prose=True)
+    assert census["slot_scope_mismatch"] == 0 and census["binding_refused"] == 0
+    assert census["scope_checked"] == 2                      # both era legs were actually CHECKED
+    assert census["substituted"] == 3
+    # ...and the ownership is exact, handle by handle: the right-attached token wins and CONSUMES
+    s0, s1 = an._handle_sentence_span(text, text.index("[N2]"))
+    assert an._handle_period_phrase(text, s0, s1, text.index("[N1]"), text.index("[N1]") + 4) == "MY2023"
+    assert an._handle_period_phrase(text, s0, s1, text.index("[N2]"), text.index("[N2]") + 4) == "MY2024"
+
+
+def test_m1_the_row_side_reads_the_receipt_never_the_rendered_label():
+    """SHAPE B, the other 2. The row side parsed `str(Citation.label)`, which carries `from_number`'s
+    provenance tail ("(latest available 2026-05-29; as-of 2026-08-06)"). On a SERIES read the query names
+    no period, so the label declared NO scope and the row side's ONLY years were two PUBLICATION DATES:
+    `ab_rank_cocoa_origin`'s "2024/25 cocoa year" claim was convicted against {2026} while the receipt's
+    own headline row IS period "2024/25". A detector whose remedy is DELETION must never parse a rendering.
+
+    The same tail ran the OTHER way too, inflating the row side on 131 of 186 cited comparisons and
+    MASKING 2 further false positives -- so the pin asserts the label's dates are absent from the
+    comparison, not merely that this row passes."""
+    call = _series_call("production_kt", [("2022/23", 4900.0), ("2023/24", 4400.0), ("2024/25", 4723.0)])
+    label = an.cit.from_number(call, 1).label
+    assert "2024/25" not in label                            # a series read RENDERS no period at all...
+    assert an._receipt_period_text(call) == "2024/25"        # ...but the receipt has one, and says it
+    st = _st("The ICCO placed world production for the 2024/25 cocoa year at [N1].")
+    census = an._resolve_number_handles(st, [call], handle_prose=True)
+    assert census["scope_checked"] == 1 and census["slot_scope_mismatch"] == 0
+    assert census["substituted"] == 1
+    # the knowledge_date years are 2023/2024/2025+1 -- none of them may reach the comparison
+    assert "2026" not in an._period_years(an._receipt_period_text(call))
+
+
+def test_m1_a_comparison_anchor_is_never_the_handles_own_period():
+    """THE CLASS A PLAIN WIDENED WINDOW MINTS, measured BEFORE this code was written: left-bound at the
+    previous sibling and right-bound at the next scores 18 convictions over 364 checks -- it kills all 25
+    and invents 18 of these. "down sharply from the MY2013 peak [N2]" is [N2]'s year and never [N6]'s, and
+    the tell is the punctuation: every anchor reaches its year across a comma, a dash or a paren.
+
+    The remedy is OWNERSHIP inside the window, not a wider window."""
+    text = ("China ending stocks stand at [N1], down sharply from the MY2013 peak [N2].")
+    s0, s1 = an._handle_sentence_span(text, text.index("[N1]"))
+    assert an._handle_period_phrase(text, s0, s1, text.index("[N1]"), text.index("[N1]") + 4) == ""
+    assert an._handle_period_phrase(text, s0, s1, text.index("[N2]"), text.index("[N2]") + 4) == "MY2013"
+    census = an._resolve_number_handles(
+        _st(text), [_period_call("ending_stocks", 33.2, "2026"), _period_call("ending_stocks", 66.1,
+                                                                             "2013")], handle_prose=True)
+    assert census["slot_scope_mismatch"] == 0 and census["scope_checked"] == 1   # only [N2] speaks
+    assert census["substituted"] == 2
+
+
+def test_m1_the_conviction_needs_positive_evidence_on_both_sides():
+    """M1(c), AND IT IS THE RULE THE DOCSTRING ALWAYS CLAIMED AND THE ROW SIDE BROKE 131 TIMES. A
+    conviction DELETES prose, so it needs a period on BOTH sides. Absence on either -> silent, never a
+    charge -- and `scope_checked` must not count it, or the coverage column lies again (FIX Z12)."""
+    # (i) the handle owns no period phrase
+    no_clause = an._resolve_number_handles(_st("Stocks stood at [N1] after the report."),
+                                           [_period_call("stocks", 1.6, "2025")], handle_prose=True)
+    assert no_clause["scope_checked"] == 0 and no_clause["slot_scope_mismatch"] == 0
+    # (ii) the receipt declares no period at all
+    no_row = an._resolve_number_handles(_st("MY2025 stocks stood at [N1] after the report."),
+                                        [_call("stocks", 1.6)], handle_prose=True)
+    assert no_row["scope_checked"] == 0 and no_row["slot_scope_mismatch"] == 0
+    assert an._receipt_period_text(_call("stocks", 1.6)) == ""
+    assert an._receipt_period_text(None) == ""
+
+
+def test_m1_a_real_mis_binding_is_still_convicted():
+    """THE OTHER DIRECTION, or the instrument means nothing. The adjudication found ZERO real mis-bindings
+    in the 25, which is a statement about the corpus and NOT a licence for a detector that cannot fire.
+    A handle whose own sentence names MY2024 and whose receipt is MY2019 is exactly the "REAL but WRONG
+    row" the grammar calls the worst failure available on this turn, and it is refused."""
+    census = an._resolve_number_handles(_st("Exports reached [N1] in MY2024, the highest on record."),
+                                        [_period_call("exports", 12.5, "2019")], handle_prose=True)
+    assert census["scope_checked"] == 1 and census["slot_scope_mismatch"] == 1
+    assert census["binding_refused"] == 1 and census["substituted"] == 0
+    assert census["unresolvable"] == 0                       # FIX Z2: a refusal is not a missing receipt
+    # ...and the LEFT-attached spelling is caught too ("the MY2024 ratio stood at [N1]")
+    left = an._resolve_number_handles(_st("The MY2024 ratio stood at [N1]."),
+                                      [_period_call("su_ratio", 0.96, "2019")], handle_prose=True)
+    assert left["scope_checked"] == 1 and left["slot_scope_mismatch"] == 1
+
+
+def test_m1_a_declared_span_is_read_as_its_closed_interval():
+    """FIX 3, 10.19.4's SUSPICION -- KEPT, AND RECORDED AS MOVING NOTHING ON THE SCORED CORPUS (it rescues
+    0 of the 25; the population's cause was the window and the label, not range-blindness). It is a latent
+    defect closed on the way past, and it is SAFE BY DIRECTION: expansion only ever ADDS years to the
+    clause side, so it can make the detector quieter and never louder -- the only direction a
+    deletion-armed check may be tuned in."""
+    text = "In the MY2010-MY2012 window the ratio fell from [N1] to [N2]."
+    s0, s1 = an._handle_sentence_span(text, text.index("[N1]"))
+    span = an._handle_period_phrase(text, s0, s1, text.index("[N1]"), text.index("[N1]") + 4)
+    assert an._declared_span_years(span) == {"2010", "2011", "2012"}   # the INTERIOR year, not just the endpoints
+    census = an._resolve_number_handles(_st(text), [_period_call("su_ratio", 0.31, "2011"),
+                                                    _period_call("su_ratio", 0.22, "2012")],
+                                        handle_prose=True)
+    assert census["slot_scope_mismatch"] == 0 and census["substituted"] == 2
+    assert an._declared_span_years("MY2024 alone") == set()            # no span named -> nothing expanded
+
+
 def test_the_three_render_classes_reach_the_one_strip_ledger():
     """FIX Z1/Z6. `emf.MIS_BOUND_CLASSES` and G1 clause (4)'s CLASS SCAN both read `by_rule`, and these
     three classes were written ONLY into `trace['number_handles']` -- so `mis_bound_count` read
