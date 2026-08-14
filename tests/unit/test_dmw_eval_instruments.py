@@ -786,10 +786,14 @@ def test_wrong_slot_audit_is_a_registered_column_at_the_tail():
     INSERTED ahead of one.
 
     RE-ANCHORED AGAIN (H1b, D-HP-15): `episode_spans_validated` was APPENDED after THAT, so the tail moved
-    by one more. Same law, same one-line re-anchor, same unchanged invariant."""
-    assert tk.TRACE_RECORD_KEYS[-3] == "wrong_slot_audit"
-    assert tk.TRACE_RECORD_KEYS[-2] == "slot_orphan_dropped"
-    assert tk.TRACE_RECORD_KEYS[-1] == "episode_spans_validated"
+    by one more. Same law, same one-line re-anchor, same unchanged invariant.
+
+    RE-ANCHORED A THIRD TIME (D-HP G1 AMENDMENT A3, 2026-08-14): `plan_tokens` -- the popped planning
+    region's SIZE, never its text -- was APPENDED after THAT. Tail moved by one more; nothing else."""
+    assert tk.TRACE_RECORD_KEYS[-4] == "wrong_slot_audit"
+    assert tk.TRACE_RECORD_KEYS[-3] == "slot_orphan_dropped"
+    assert tk.TRACE_RECORD_KEYS[-2] == "episode_spans_validated"
+    assert tk.TRACE_RECORD_KEYS[-1] == "plan_tokens"
     for older in ("number_handles", "rerank_lane", "walk_shape", "citation_resolved"):
         assert tk.TRACE_RECORD_KEYS.index(older) < tk.TRACE_RECORD_KEYS.index("wrong_slot_audit")
     assert len(set(tk.TRACE_RECORD_KEYS)) == len(tk.TRACE_RECORD_KEYS)

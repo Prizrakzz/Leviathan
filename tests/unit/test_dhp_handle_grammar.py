@@ -740,15 +740,19 @@ def test_dhp4_keys_are_appended_at_the_tail_never_inserted():
     # H1 RE-PIN (D-HP-14): `wrong_slot_audit` appends AFTER the five H0 keys, so the H0 slice moves left by
     # one and NOTHING before it moves at all. Same law, same reason -- this pin is re-anchored to the H0
     # block's own position rather than re-listing it against the tail, so a later append re-pins one line.
-    assert keys[-8:-3] == ("prose_handles", "error", "floor_cause", "bare_digit_count", "citation_resolved")
-    assert keys[-3] == "wrong_slot_audit"
+    assert keys[-9:-4] == ("prose_handles", "error", "floor_cause", "bare_digit_count", "citation_resolved")
+    assert keys[-4] == "wrong_slot_audit"
     # H1 RE-PIN (FIX W2 / finding NF-2): `slot_orphan_dropped` appends AFTER it. Same law, same one-line
     # re-anchor -- the H0 slice moves left by one more and nothing before it moves at all.
-    assert keys[-2] == "slot_orphan_dropped"
+    assert keys[-3] == "slot_orphan_dropped"
     # H1b RE-PIN (D-HP-15): `episode_spans_validated` appends after THAT. Third application of the same
     # law in this wave, and the third one-line re-anchor -- which is the whole point of writing the pin
     # against the tail rather than against a frozen absolute index.
-    assert keys[-1] == "episode_spans_validated"
+    assert keys[-2] == "episode_spans_validated"
+    # G1 AMENDMENT A3 RE-PIN (2026-08-14): `plan_tokens` -- the popped planning region's SIZE, never its
+    # text -- appends after THAT. Fourth application of the same law, fourth one-line re-anchor, and
+    # nothing before the H0 slice moves at all.
+    assert keys[-1] == "plan_tokens"
     for older in ("number_handles", "rerank_lane", "walk_shape", "escalation_decision"):
         assert keys.index(older) < keys.index("prose_handles")
     assert len(set(keys)) == len(keys)
@@ -1138,11 +1142,18 @@ def test_ordering_pin_c_the_planning_region_is_popped_before_the_verifier():
     rather than argued: `claim_count` is the strip-rate denominator EVERY D-HP-17 successor metric divides
     by (`_SENT_SPLIT` over `tldr + " " + mechanism`, verify.py), the digit-lint charges inside the same
     function, and `render_answer_for_judge`'s rungs read `structured`. A plan left on the dict would
-    inflate the denominator, fine the model for thinking in numbers, and stream its scratchpad."""
+    inflate the denominator, fine the model for thinking in numbers, and stream its scratchpad.
+
+    RE-ANCHORED (G1 AMENDMENT A3, 2026-08-14): the call is now `_plan_tokens(_pop_plan(structured))` on
+    both bodies -- the region's TEXT is still returned and dropped on the floor at this exact position,
+    and only its SIZE is kept. The POSITION is the contract this pin polices, and the position did not
+    move; the wrapper is asserted too, so a future edit cannot quietly keep the text instead."""
     src = _read("answer")
-    assert src.count("\n    _pop_plan(structured)") == 2       # BOTH bodies, never one (`def` excluded)
-    for start in (0, src.index("\n    _pop_plan(structured)") + 1):
-        pop = src.index("\n    _pop_plan(structured)", start)
+    _POP = "\n    _plan_tok = _plan_tokens(_pop_plan(structured))"
+    assert src.count(_POP) == 2                                # BOTH bodies, never one (`def` excluded)
+    assert src.count("\n    _pop_plan(structured)") == 0       # ...and the bare form is gone from both
+    for start in (0, src.index(_POP) + 1):
+        pop = src.index(_POP, start)
         assert pop < src.index("vf.verify_citations(", pop)
     # ...and the OUTCOME: a plan on the dict cannot move the denominator, because it is not on the dict.
     with_plan = {"tldr": "Stocks fell [E1].", "mechanism": "## Mechanism\nThe balance tightened [E2].",
@@ -1797,3 +1808,161 @@ def test_z10_the_control_arm_relay_is_the_shipped_lambda_and_the_filter_is_a_pur
         relay(doc[i:i + 7])
     assert "".join(seen) == doc
     assert an._plan_filtered_token_relay(None) is None
+
+
+# == D-HP G1 AMENDMENT (2026-08-14) -- THE VOID'S FOUR ITEMS =========================================
+# G1 decision 1 was VOIDED under clause (5): two treatment rows died at the shared 6000 max_tokens
+# ceiling. The diagnosis proved the cause ARCHITECTURAL rather than a verbose writer -- the popped `plan`
+# region took ~47% of treatment output (767 / 1,651 / 1,529 / 3,748 tokens over the four surviving rows),
+# was ANTI-correlated with the retained prose (r = -0.28, i.e. plan and answer are SUBSTITUTES), and both
+# prompt sites told the writer the region was free. The four items are pinned here, one test each.
+
+def test_a1_the_turn_default_is_12000_on_every_mode_and_reaches_both_call_paths():
+    """A1. The ceiling is a SHARED default (`max_tokens or 12000` in `_call_opus`), raised for EVERY mode
+    including deep, and it must reach BOTH lanes: the SSE lane (`on_token` set -> serving_call_stream)
+    and the BUFFERED lane the eval and POST paths take (`on_token` None -> serving_call). A ceiling that
+    reached only one of them would raise the arm that was not truncating and leave the one that was.
+
+    A HANDLES-GATED ceiling is REFUSED by the same reasoning: threading a treatment-only max_tokens would
+    add a SECOND difference between the G1 arms and weaken the comparison the raise exists to rescue. And
+    the DOCUMENT lane keeps its own: `dossier.SYNTH_MAX_TOKENS` is 16000, forwarded when provided."""
+    from leviathan.graphrag import extract as ex
+    from leviathan.graphrag import providers as pv
+    src = _read("answer")
+    assert "max_tokens=max_tokens or 12000" in src and "max_tokens or 6000" not in src
+    seen: dict[str, list[int]] = {"buffered": [], "streamed": []}
+
+    def _rec(kind):
+        def go(client, system, user, **kw):
+            seen[kind].append(kw["max_tokens"])
+            kw["usage_sink"].append(ex.Usage(input_tokens=1, output_tokens=1))
+            return {"tldr": "x"}, None
+        return go
+
+    def _rec_stream(client, system, user, *, on_token, **kw):
+        return _rec("streamed")(client, system, user, **kw)
+
+    _saved = (pv.make_client, pv.serving_call, pv.serving_call_stream)
+    try:
+        pv.make_client = lambda: object()
+        pv.serving_call, pv.serving_call_stream = _rec("buffered"), _rec_stream
+        kw = dict(model="claude-sonnet-4-6", tool={"name": "emit_answer"})
+        an._call_opus("s", "u", **kw)                              # eval / POST -- BUFFERED
+        an._call_opus("s", "u", on_token=lambda t: None, **kw)     # serving SSE -- STREAMED
+        an._call_opus("s", "u", max_tokens=16000, **kw)            # the document lane's own ceiling
+    finally:
+        pv.make_client, pv.serving_call, pv.serving_call_stream = _saved
+    assert seen["buffered"] == [12000, 16000]      # the default, then the caller's explicit override
+    assert seen["streamed"] == [12000]
+    assert dos.SYNTH_MAX_TOKENS == 16000           # ...unchanged; the document scale is its own
+    # 16,000 is the HARD upper bound on the BUFFERED lane (the SDK's HTTP timeout becomes the failure
+    # mode beyond it), so the shared default must sit strictly inside the safe non-streaming band.
+    assert 6000 < 12000 < dos.SYNTH_MAX_TOKENS
+
+
+def test_a2_both_plan_prompt_sites_carry_the_budget_and_the_off_arm_is_byte_identical():
+    """A2. The false economy is corrected in BOTH places that instruct the region, because they are read
+    in the SAME turn: a budget stated in the schema description and contradicted by silence in the
+    persona is not a budget. "Digits cost nothing" was true of the LINT and false of the CEILING.
+
+    AND THE OFF ARM DOES NOT MOVE. `plan` exists only under `_answer_tool(handles=True)` and the closing
+    paragraph only under `_system(handles=True)`, so the control schema, the control persona in every
+    permutation, and the DOCUMENT lane (`dossier.py` calls `_answer_tool()` bare) are byte-identical --
+    D-HP-16's "SHIPS CONDITIONALLY OR IT DOES NOT SHIP", measured rather than asserted."""
+    import itertools
+    desc = an._answer_tool(handles=True)["input_schema"]["properties"]["plan"]["description"]
+    leg = an._SYSTEM_HANDLES
+    for probe in ("BUDGET IT AT ABOUT 800 TOKENS", "ONE output budget", "SUBSTITUTES",
+                  "soft budget, not a hard limit"):
+        assert probe in desc, probe
+    for probe in ("KEEP IT SHORT", "about 800 tokens", "share ONE output budget",
+                  "a long plan is a short answer"):
+        assert probe in leg, probe
+    # the corrected half survives in both: the LINT never charges a digit here, the CEILING always does
+    assert "charged by the lint" in desc and "charged by the lint" in leg
+    assert "this is the one place digits cost nothing" not in desc + leg
+    # ...and the OFF arm carries none of it, on any persona permutation
+    for outlook, episodes, recency, prov in itertools.product([False, True], [None, False, True],
+                                                              [False, True], [False, True]):
+        off = an._system(outlook=outlook, episodes=episodes, recency=recency, provenance=prov)
+        assert "800 tokens" not in off and "THINK IN `plan`" not in off
+    assert an._answer_tool() == an._answer_tool(handles=False) == _SHIPPED_OFF_SCHEMA
+    assert "plan" not in an._answer_tool()["input_schema"]["properties"]
+
+
+def test_a3_plan_tokens_is_a_count_never_the_text_and_is_absent_on_control():
+    """A3. The region was unmeasurable BY CONSTRUCTION -- popped server-side, stripped from the SSE relay
+    -- so G1's void had to be diagnosed by regression against a control arm. The remedy is a SCALAR and
+    only a scalar: `_pop_plan`'s privacy reason (a trace key would put the model's private reasoning into
+    a stored artifact the judge, the adjudicators and the FE all read) is unchanged and is RESTATED at
+    the new field. Absent on every control row, because `plan` is not in the control schema at all."""
+    import pathlib as _pl
+    assert an._plan_tokens(None) is None and an._plan_tokens("") is None and an._plan_tokens("   ") is None
+    assert an._plan_tokens("a" * 3200) == 800          # chars/4, the stated estimator
+    assert an._plan_tokens("x") == 1                   # ...floored at 1, never 0 for a non-empty region
+    trt = {"tldr": "a", "mechanism": "b", "plan": "cite N1 then N2. 12.5 vs 14.9."}
+    ctl = {"tldr": "a", "mechanism": "b", "sources": []}
+    assert an._plan_tokens(an._pop_plan(dict(ctl))) is None            # CONTROL: no region, no column
+    assert an._plan_tokens(an._pop_plan(dict(trt))) == 8
+    popped = dict(trt)
+    an._pop_plan(popped)
+    assert "plan" not in popped                        # the TEXT is still dropped on the floor
+    src = _read("answer")
+    assert src.count('"plan_tokens": _plan_tok') == 2                  # BOTH serving bodies
+    assert "plan_tokens" in tk.TRACE_RECORD_KEYS       # registration IS the lift (the C2/U3 class)
+    # the column carries a COUNT: no consumer may extend it to a prefix, a sample or the region's bytes
+    assert "NEVER THE TEXT" in _pl.Path(tk.__file__).read_text(encoding="utf-8")
+    assert "COUNT, NEVER THE TEXT" in " ".join(an._plan_tokens.__doc__.split())
+
+
+def test_a4_a_truncated_turn_records_what_it_billed_on_both_lanes():
+    """A4. TRUNCATION WAS AN EVIDENCE-DESTROYING FAILURE: both guards raised BEFORE `_usage_from` ran, so
+    a dead row discarded the usage object together with the partial draft. G1's two dead rows burned
+    2 x 6000 output tokens ($0.180) that no artifact could see -- `synth_spend_floor_usd` sums the rows
+    that SURVIVED. The usage is now read first and travels on the exception AND in its message, because
+    `str(e)` is what eval.py persists into `trace['error']`, a registered column a dead row does carry.
+
+    RAISE BEHAVIOUR UNCHANGED, which is the constraint: same ValueError type, same trigger, same message
+    prefix, still outside providers.RETRYABLE so nothing retries or degrades on a correctness failure."""
+    import types
+
+    from leviathan.graphrag import extract as ex
+    from leviathan.graphrag import providers as pv
+    _u = types.SimpleNamespace(input_tokens=41234, output_tokens=12000,
+                               cache_creation_input_tokens=0, cache_read_input_tokens=38000)
+    _resp = types.SimpleNamespace(stop_reason="max_tokens", content=[], usage=_u)
+    _client = types.SimpleNamespace(messages=types.SimpleNamespace(create=lambda **kw: _resp))
+
+    class _Stream:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def __iter__(self):
+            return iter(())
+
+        def get_final_message(self):
+            return _resp
+
+    _sclient = types.SimpleNamespace(messages=types.SimpleNamespace(stream=lambda **kw: _Stream()))
+    lanes = ((ex.call_opus, _client, "switch this call to streaming"),
+             (lambda *a, **k: ex.call_opus_stream(*a, on_token=None, **k), _sclient, "raise max_tokens"))
+    for call, client, tail in lanes:
+        with pytest.raises(ValueError) as ei:
+            call(client, "sys", "user", model="claude-sonnet-4-6", max_tokens=12000)
+        e = ei.value
+        assert str(e).startswith("output truncated at max_tokens=12000 (stop_reason=max_tokens); ")
+        assert tail in str(e)
+        assert "billed in=41234 out=12000 cache_read=38000 cache_write=0" in str(e)
+        assert e.usage.output_tokens == 12000 and e.usage.cache_read == 38000
+        assert e.cost_usd == pytest.approx(0.315102)
+        assert len(str(e)) < 300                   # ...must survive eval.py's `str(e)[:300]` clip whole
+        assert not isinstance(e, pv.RETRYABLE)     # a correctness failure never retries or degrades
+    # an UNPRICED model (a Bedrock inference-profile id) OMITS the cost rather than fabricating one:
+    # `price()` falls back to Opus, which would overstate a Sonnet turn several-fold.
+    with pytest.raises(ValueError) as ei:
+        ex.call_opus(_client, "sys", "user", model="global.anthropic.claude-sonnet-4-6", max_tokens=12000)
+    assert ei.value.cost_usd is None and "cost_usd=" not in str(ei.value)
+    assert "billed in=41234 out=12000" in str(ei.value)       # ...the MEASURED counts still land

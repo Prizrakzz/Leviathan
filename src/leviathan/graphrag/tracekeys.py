@@ -193,6 +193,27 @@ TRACE_RECORD_KEYS: tuple[str, ...] = (
                                  # producer (`answer._validate_episode_spans`), so they must agree.
                                  # IT IS IN NO `emf` SUCCESSOR TUPLE, for the reason stated beside
                                  # `emf.MIS_BOUND_CLASSES`.
+    # -- D-HP G1 AMENDMENT A3 (2026-08-14). APPENDED AT THE TAIL, per the law at the head of this tuple
+    # (the 12f column-shift lesson): every artifact written before this line keeps its column order, and
+    # this column arrives last in every artifact written after it.
+    "plan_tokens",               # A3: the SIZE of the popped `plan` region (answer._plan_tokens), stamped
+                                 # by BOTH serving bodies beside `synth_usage`. A COUNT, NEVER THE TEXT --
+                                 # `answer._pop_plan`'s privacy reason is the constraint on this column and
+                                 # is restated at its producer: the region is the model's private
+                                 # reasoning, and a key carrying its bytes would put that reasoning into a
+                                 # stored artifact the judge, the adjudicators and the FE all read. No
+                                 # consumer may extend this to a prefix, a sample or a first line.
+                                 # WHY THE COLUMN EXISTS: the region is unrenderable, unstreamed and
+                                 # unstored by construction, so its size was recoverable ONLY by regression
+                                 # against a control arm -- which is literally how the G1 void was
+                                 # diagnosed (the plan measured ~47% of treatment output, 767 to 3,748
+                                 # tokens over four rows, ANTI-correlated with retained prose at r=-0.28).
+                                 # ESTIMATED, NEVER BILLED: chars/4, the prose approximation; the billed
+                                 # total is `synth_usage.out` and this is the share of it the scratchpad
+                                 # took. Read the two together or neither.
+                                 # ABSENT (never null) ON EVERY CONTROL ROW -- `plan` exists in the schema
+                                 # only under `_answer_tool(handles=True)`, so the arm's OFF state is
+                                 # proved by the column rather than asserted.
 )
 
 # out["intent_decision"][decision_key] -> record[record_column].

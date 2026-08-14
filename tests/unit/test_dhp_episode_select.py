@@ -534,8 +534,13 @@ def test_the_trace_key_is_registered_at_the_tail_with_its_denominator():
     """REGISTRATION IS THE LIFT: a key absent from `TRACE_RECORD_KEYS` reaches NO artifact, silently.
     It appends at the TAIL (eval.py splats the registry IN ORDER), and it carries the DENOMINATOR beside
     the charge -- two drops over 4 bullets and two over 90 are the same numerator and not the same fact,
-    so a ceiling read off `bullets_dropped` alone is not computable."""
-    assert tk.TRACE_RECORD_KEYS[-1] == "episode_spans_validated"
+    so a ceiling read off `bullets_dropped` alone is not computable.
+
+    RE-ANCHORED (D-HP G1 AMENDMENT A3, 2026-08-14): `plan_tokens` was APPENDED after this column, so the
+    tail moved by one. Same law, same one-line re-anchor, same unchanged invariant -- this key must still
+    be AFTER every older one and must never have been INSERTED ahead of one."""
+    assert tk.TRACE_RECORD_KEYS[-2] == "episode_spans_validated"
+    assert tk.TRACE_RECORD_KEYS[-1] == "plan_tokens"
     assert len(set(tk.TRACE_RECORD_KEYS)) == len(tk.TRACE_RECORD_KEYS)
     assert set(an._validate_episode_spans({"mechanism": _mech(_BACKED_A)}, _injected())) == \
         {"spans_checked", "bullets_dropped", "section_seen"}          # RE-ANCHORED, H1b fold-1 F4

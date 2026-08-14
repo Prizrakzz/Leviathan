@@ -1707,9 +1707,16 @@ _SYSTEM_HANDLES = (
     "is the only sentence in which a typed figure survives. Every other typed figure is a lint violation "
     "and the engine deletes the sentence that carries it -- so if you cannot find the row, do not type the "
     "number, say what the record supports.\n"
-    "THINK IN `plan` FIRST. The `plan` property is your private scratchpad: nobody reads it, nothing is "
-    "graded on it, and it is deleted before the answer is checked. Choose your rows there, compare them "
-    "there, write numbers there freely -- then write the answer with handles in the slots.")
+    # D-HP G1 AMENDMENT A2(b), 2026-08-14: THE SECOND UNCAPPED INSTRUCTION. `_PLAN_PROPERTY_DESC` and this
+    # paragraph are the ONLY two places that instruct the region, and they are read in the SAME turn -- a
+    # budget stated in one and contradicted by silence in the other is not a budget. Same number (~800),
+    # same distinction (the LINT never charges a digit here; the CEILING always does).
+    "THINK IN `plan` FIRST, AND KEEP IT SHORT. The `plan` property is your private scratchpad: nobody "
+    "reads it, nothing is graded on it, and it is deleted before the answer is checked. Choose your rows "
+    "there, compare them there, write numbers there freely -- no digit in `plan` is ever charged by the "
+    "lint. BUT `plan` IS NOT FREE: it and the answer share ONE output budget, so a long plan is a short "
+    "answer. Budget it at about 800 tokens (roughly 600 words) of terse notes -- the row list, the "
+    "comparison, the refusals -- then write the answer with handles in the slots.")
 
 
 def _system(*, outlook: bool = False, episodes: bool | None = None, recency: bool = False,
@@ -2683,7 +2690,9 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # `render_answer_for_judge` can serve unrendered reasoning as an answer. Dropped on the floor by
     # design: a trace key would put the model's private reasoning into a stored artifact the judge, the
     # adjudicators and the FE all read.
-    _pop_plan(structured)
+    # D-HP G1 AMENDMENT A3: the TEXT is still dropped on the floor, exactly as above. Only its SIZE is
+    # kept, and only as a scalar -- see `_plan_tokens` for the restated privacy reason and the method.
+    _plan_tok = _plan_tokens(_pop_plan(structured))
     if sg.mermaid and _valid_mermaid(sg.mermaid):
         structured["diagram_mermaid"] = sg.mermaid                # deterministic diagram overrides the LLM's
     # D-HP-1: `evidence` / `uniq` were BUILT HERE and are now built BEFORE `_l2_blocks` (see the hoist
@@ -2914,6 +2923,8 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                                       "outlook_mode": _outlook, "market_register": _mr,
                                       **({"degraded_model": degraded} if degraded else {}),
                                       **({"synth_usage": _synth_usage} if _synth_usage else {}),   # D-AM-4
+                                      **({"plan_tokens": _plan_tok}          # A3: BESIDE synth_usage, a COUNT
+                                         if _plan_tok is not None else {}),  # ...absent on every control row
                                       **({"raw_draft": _raw_draft} if _raw_draft else {}),   # A4, audited runs only
                                       "has_diagram": _valid_mermaid(structured.get("diagram_mermaid")), **sg.trace}}
 
@@ -2937,12 +2948,30 @@ def _pack(stable: str, volatile: str, structured: bool):
     return (stable, volatile) if structured else stable + "\n\n" + volatile
 
 
+# D-HP G1 AMENDMENT A2(a), 2026-08-14 -- THE BUDGET SENTENCE, AND WHY THE OLD ONE WAS FALSE.
+# The shipped text said "this is the one place digits cost nothing". That is TRUE OF THE LINT and FALSE
+# OF THE CEILING, and the writer had no way to tell the two apart: `plan` is emitted FIRST and is OUTPUT,
+# so it is billed against the SAME `max_tokens` as the answer. G1's void measured the consequence -- the
+# popped region took ~47% of treatment output (767 / 1,651 / 1,529 / 3,748 tokens on the four surviving
+# rows), and its correlation with the retained prose is NEGATIVE (r = -0.28): the plan and the answer are
+# SUBSTITUTES, not multiples. Reasoning migrated out of the prose and into a region nobody had budgeted.
+# THE NUMBER IS ~800 AND IT IS MEASURED, NOT GUESSED: the SMALLEST plan observed anywhere in the arm (767
+# tokens, dv_xorigin_wheat_policy) produced that arm's BEST row -- claim_count 55, 28 handles checked, the
+# largest claim count of the four. There is no evidence that 3,748 bought anything 767 did not.
+# SOFT, DELIBERATELY. A hard cap the model cannot count against would trade a truncated answer for a
+# truncated plan; the ceiling raise (A1) is what makes an overrun survivable, and this is what makes the
+# raise honest rather than open-ended.
 _PLAN_PROPERTY_DESC = (
     "Your PRIVATE working notes for this answer. NOT shown to the reader, not stored, not verified, not "
     "graded -- it is deleted server-side the moment the call returns. Use it to decide WHICH receipt rows "
     "you will cite and in what order, to talk yourself through arithmetic or comparisons, and to note what "
-    "the record does NOT support. Write numbers here freely: this is the one place digits cost nothing. "
-    "Nothing you write here can appear in the answer except as a handle.")
+    "the record does NOT support. Write numbers here freely: no digit you type HERE is ever charged by the "
+    "lint. THAT IS NOT THE SAME AS FREE. These notes and the answer are drawn from ONE output budget, so "
+    "every token spent here is a token the answer does not get -- notes and answer are SUBSTITUTES, not "
+    "multiples, and a long plan is a short answer. BUDGET IT AT ABOUT 800 TOKENS (roughly 600 words). That "
+    "is a soft budget, not a hard limit: exceed it only when the question genuinely needs it, and never at "
+    "the cost of finishing the answer. Terse beats prose here -- the row list, the comparison, the "
+    "refusals. Nothing you write here can appear in the answer except as a handle.")
 
 
 def _answer_tool(handles: bool = False) -> dict:
@@ -3017,6 +3046,37 @@ def _pop_plan(structured) -> str | None:
         return None
     v = structured.pop("plan", None)
     return str(v) if isinstance(v, str) and v.strip() else None
+
+
+def _plan_tokens(plan: str | None) -> int | None:
+    """D-HP G1 AMENDMENT A3 (2026-08-14): the SIZE of the popped planning region, and NOTHING ELSE.
+
+    THE PRIVACY REASON AT `_pop_plan` STANDS, AND IS RESTATED HERE BECAUSE THIS IS THE FIELD THAT COULD
+    HAVE BROKEN IT: the region is the model's private reasoning, and a trace key carrying its TEXT would
+    put that reasoning into a stored artifact the judge, the adjudicators and the FE all read. A SCALAR
+    carries no reasoning. It is the one thing about the region that can be recorded without leaking it,
+    and `plan_tokens` is a COUNT, NEVER THE TEXT -- no caller may extend this to carry a prefix, a
+    sample, a first line or a hash of the content.
+
+    WHY IT EXISTS. The region was unmeasurable BY CONSTRUCTION: `_pop_plan` returns it, every caller
+    drops it on the floor, and `_PlanRegionFilter` strips it from the SSE relay too. G1's void therefore
+    had to be diagnosed by SUBTRACTION against a control arm -- fitting the control's residual and
+    applying the fit to treatment -- to reach the finding that the plan was ~47% of treatment output.
+    That is an expensive way to learn a number the producer already had. With this column the next arm
+    reads it directly.
+
+    METHOD, STATED BECAUSE IT IS AN ESTIMATE AND MUST NEVER BE READ AS A BILLED COUNT: characters / 4,
+    rounded -- the standard English-prose approximation. No tokenizer is imported (the serving path
+    carries none, and cl100k is not this model's tokenizer anyway; the G1 diagnosis measured cl100k
+    running 15-30% cold against Claude on this text). The BILLED total already rides `synth_usage.out`;
+    this is the SHARE of that total the scratchpad took, to within the estimator's error.
+
+    ABSENT ON EVERY CONTROL ROW, and that is the arm's own OFF proof rather than a convention: `plan`
+    only exists in the schema under `handles=True` (`_answer_tool`), so a control turn has no region to
+    size and stamps no key. None (-> the key is omitted) whenever nothing was popped."""
+    if not isinstance(plan, str) or not plan.strip():
+        return None
+    return max(1, round(len(plan) / 4))
 
 
 # ══ H1 FIX Z10 -- THE PLAN REGION MUST NOT REACH THE SSE `token` STAGE ════════════════════════════════
@@ -7245,10 +7305,34 @@ def _call_opus(system: str, user, *, model: str, tool: dict, on_token=None, temp
         user = [{"type": "text", "text": stable, "cache_control": {"type": "ephemeral"}},
                 {"type": "text", "text": volatile}]
     _sink: list = []                               # D-AM-4: the served attempt's Usage lands here
-    # max_tokens: TURN default 6000 (citv2 lost a turn to truncation at 4096; 6000 is headroom, not
-    # spend). Callers composing DOCUMENTS (dossier.synthesize) pass their own ceiling -- forwarded
-    # only when provided, mirroring `temperature` exactly.
-    kw = dict(model=pv.resolve_model(model), max_tokens=max_tokens or 6000, tool=tool,
+    # max_tokens: TURN default 12000, EVERY MODE INCLUDING DEEP (D-HP G1 AMENDMENT A1, owner-ratified
+    # 2026-08-14: "raise the ceiling to every mode, and raise the ceiling for deep"). It was 6000 (citv2
+    # lost a turn to truncation at 4096; 6000 was the answer to THAT), and 6000 is what deep_v2 max width
+    # outgrew.
+    # THIS IS A WIDTH FIX, NOT A HANDLE-PROSE CONCESSION -- the number that proves it is on the CONTROL
+    # arm: dv_episode_lanina_arg control run 2 recorded out=5851 against the 6000 ceiling, 97.5% of it,
+    # with no plan region in the schema at all. The ceiling was already marginal for deep_v2 at max width
+    # BEFORE D-HP existed; the handle-prose arm's popped `plan` region (measured at ~47% of treatment
+    # output) merely spent the last 2.5% and killed two rows outright.
+    # SIZING (the G1 void diagnosis, two independent estimators that agree): METHOD A additive
+    # (out = prose + overhead + env + plan) projects the widest row at 6,968 / 8,792 tokens at mean /
+    # max observed plan; METHOD B paired (out_T = out_C_max - sources_C + plan) projects 7,347 / 9,171.
+    # Worst credible projection ~9,200. 12000 clears that by +30% and the largest MEASURED row (5,703)
+    # by 2.1x; 10000 would clear the projection by only +9% against a plan region with 4.9x observed
+    # variance over n=4.
+    # THE CEILING ON THE CEILING IS 16,000, and it is a TRANSPORT bound, not a taste one: the eval lane
+    # is BUFFERED (no `on_token` -> pv.serving_call, not serving_call_stream), and beyond ~16k
+    # non-streaming the SDK's own HTTP timeout becomes the failure mode. Anything larger requires moving
+    # that lane to streaming FIRST -- which the truncation error string already advises and which
+    # extract.call_opus_stream would NOT rescue on its own (it raises on stop_reason=="max_tokens"
+    # identically).
+    # THE OFF ARM IS UNCHANGED IN EFFECT: raising a ceiling can only change a turn that was truncating,
+    # and no control row ever truncated (12/12 completed, largest 5,851). Raised on the SHARED default
+    # rather than threaded handles-gated through call_kw on purpose -- a treatment-only ceiling would be
+    # a SECOND difference between the G1 arms and would weaken the comparison it is meant to rescue.
+    # Callers composing DOCUMENTS (dossier.synthesize, its own SYNTH_MAX_TOKENS = 16000) still pass their
+    # own ceiling -- forwarded only when provided, mirroring `temperature` exactly.
+    kw = dict(model=pv.resolve_model(model), max_tokens=max_tokens or 12000, tool=tool,
               degrade_to=ex.HAIKU, usage_sink=_sink)  # answers grew
     if on_token is not None:
         out, degraded = pv.serving_call_stream(client, sys_blocks, user, on_token=on_token, **kw)
@@ -7520,7 +7604,7 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     _raw_draft = raw_draft_snapshot(tldr=structured.get("tldr"), mechanism=structured.get("mechanism"))
     degraded = _pop_degraded(structured)
     _synth_usage = _pop_usage(structured)                         # D-AM-4: same pop channel, both bodies
-    _pop_plan(structured)                                         # D-HP-7 pin (c), both bodies, pre-verify
+    _plan_tok = _plan_tokens(_pop_plan(structured))               # D-HP-7 pin (c) + A3 scalar, both bodies
     # unified provenance footer (Phase 4): document-level, deduped by source_key. Numbers citations join here in
     # the Phase-5 hybrid path; the per-prop page/char slots ride along for the page-citation recovery.
     # D-HP-1: `uniq` was rebuilt HERE and is now built once, above, beside the ordinals the menu rendered.
@@ -7662,6 +7746,8 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
                       "evidence_ids": ev_ids, "has_diagram": _valid_mermaid(structured.get("diagram_mermaid")),
                       **({"degraded_model": degraded} if degraded else {}),
                       **({"synth_usage": _synth_usage} if _synth_usage else {}),   # D-AM-4
+                      **({"plan_tokens": _plan_tok}                # A3, both bodies: a COUNT, never the text
+                         if _plan_tok is not None else {}),        # ...absent on every control row
                       **({"raw_draft": _raw_draft} if _raw_draft else {}),   # A4, audited runs only
                       **_scaf_trace,                               # D-DT-1: absent when the flag is off
                       "citation_verifier": verifier, "model": model}}

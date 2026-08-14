@@ -487,6 +487,45 @@ def _usage_from(u) -> Usage:
                  cache_read=getattr(u, "cache_read_input_tokens", 0) or 0)
 
 
+def _truncated(usage: Usage, max_tokens: int, model: str, advice: str) -> ValueError:
+    """D-HP G1 AMENDMENT A4 (2026-08-14): the truncation error, CARRYING WHAT WAS ALREADY BILLED.
+
+    THE DEFECT THIS CLOSES IS NOT THE RAISE -- it is what the raise threw away. Both truncation guards
+    fired BEFORE `_usage_from(resp.usage)` was ever constructed, so a truncated turn discarded the usage
+    object together with the partial draft, and the tokens were spent by then either way. D-HP G1 paid
+    for the lesson: two rows died at the 6000 ceiling, 2 x 6000 output tokens ($0.180 at sonnet-4-6 list)
+    were billed and left NO trace anywhere, and the run artifact's synth_spend_floor_usd -- summed over
+    the rows that SURVIVED -- could not see 43% of the run's output tokens. The void had to be diagnosed
+    by regression against a control arm because the dead rows carried no numbers of their own.
+
+    TWO CHANNELS, DELIBERATELY. `.usage` and `.cost_usd` ride the exception for a programmatic caller;
+    the same figures are appended to the MESSAGE because `str(e)` is the channel that actually reaches a
+    stored record today -- eval.py's outer except stamps `trace["error"] = str(e)[:300]`, and `error` is
+    a registered TRACE_RECORD_KEYS column, so the numbers land in the per-answer record of exactly the
+    row that died. (The G1 dead rows prove the channel works: both carry the full truncation string.)
+    The suffix is short by design -- the 300-char clip must never eat it.
+
+    COST IS OMITTED, NEVER FABRICATED, for a model this module has no price for: `price()` falls back to
+    Opus, which would overstate a Sonnet turn several-fold, and a Bedrock inference-profile id is not in
+    the table at all. Absent beats wrong (the DarkRefNodes 0-semantics idiom). The TOKEN COUNTS are
+    always present -- they are measured, not priced.
+
+    RAISE BEHAVIOUR IS UNCHANGED, which is the whole constraint: same `ValueError` type, same trigger,
+    same message prefix, and still outside providers.py's RETRYABLE set, so nothing retries or degrades
+    on a correctness failure. Returns the exception for the caller to `raise` -- so the traceback points
+    at the guard, not at this helper."""
+    billed = (f"billed in={usage.input_tokens} out={usage.output_tokens} "
+              f"cache_read={usage.cache_read} cache_write={usage.cache_creation}")
+    cost = usage.cost_for(model) if model in PRICES else None
+    if cost is not None:
+        billed += f" cost_usd={cost:.4f}"
+    err = ValueError(f"output truncated at max_tokens={max_tokens} (stop_reason=max_tokens); "
+                     f"{advice} [{billed}]")
+    err.usage = usage           # A4: the object itself, for a caller that wants the buckets
+    err.cost_usd = cost         # ...None for an unpriced model, never a fabricated number
+    return err
+
+
 def call_opus(client, system: str, user: str, *, model: str = MODEL,
               max_tokens: int = 4096, tool: dict | None = None,
               temperature: float | None = None) -> tuple[dict, Usage]:
@@ -507,7 +546,9 @@ def call_opus(client, system: str, user: str, *, model: str = MODEL,
     if getattr(resp, "stop_reason", None) == "max_tokens":
         # NEVER silently accept a truncated structured result — a partial tool_use drops trailing fields
         # (this is what swallowed soybeans' inter_commodity + convergence). Caller must raise max_tokens or stream.
-        raise ValueError(f"output truncated at max_tokens={max_tokens} (stop_reason=max_tokens); "
+        # A4: read the usage FIRST -- the tokens are already billed by the time stop_reason is legible,
+        # and this guard used to discard them (see `_truncated`). Both arms, both lanes.
+        raise _truncated(_usage_from(getattr(resp, "usage", None)), max_tokens, model,
                          "raise max_tokens or switch this call to streaming")
     tool_input = next((b.input for b in resp.content if getattr(b, "type", None) == "tool_use"), None)
     if tool_input is None:
@@ -561,7 +602,10 @@ def call_opus_stream(client, system: str, user, *, model: str = MODEL, max_token
                             pass
         final = stream.get_final_message()
     if getattr(final, "stop_reason", None) == "max_tokens":
-        raise ValueError(f"output truncated at max_tokens={max_tokens} (stop_reason=max_tokens); raise max_tokens")
+        # A4 on the STREAMED lane, spelled identically. It matters here for the same reason it matters
+        # there: this path raises on stop_reason=="max_tokens" too, so moving a lane to streaming does
+        # NOT rescue a ceiling failure -- and must not lose the turn's billed usage either.
+        raise _truncated(_usage_from(getattr(final, "usage", None)), max_tokens, model, "raise max_tokens")
     tool_input = next((b.input for b in final.content if getattr(b, "type", None) == "tool_use"), None)
     if tool_input is None:
         raise ValueError("model returned no tool_use block")
