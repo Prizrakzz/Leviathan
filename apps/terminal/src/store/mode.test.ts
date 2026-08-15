@@ -126,6 +126,13 @@ describe('internal mode identifiers (unchanged by D-MW-21)', () => {
     // mode.ts records it. The real fence is `serving_names()` (= valid_names() - DARK_NAMES), which no FE
     // test can read -- so this pin's job is to make a STALE census fail loudly here rather than mislead a
     // reader, and it must be updated on the same change that flips or mints a dark tier.
+    //
+    // T2-2 (2026-08-15) IS THE FIRST TIME THAT RULE WAS TESTED, AND IT FAILED ON THE FIRST TRY: minting
+    // `deep_cc1` into the backend's DARK_NAMES left this census at 10 names one commit after T1-7 had
+    // just repaired it. RECORDED HERE BECAUSE THIS PIN CANNOT CATCH IT: the assertion compares the FE
+    // list against a LITERAL COPY OF ITSELF, so it stays green through any backend drift and "the parity
+    // pin is still green" is true and NON-PROBATIVE. Only a reader diffing this list against
+    // `reasoning_modes.DARK_NAMES` closes the loop -- 11 names there, 11 names here, as of 2026-08-15.
     expect([...DARK_TIERS]).toEqual([
       'deep_v2',
       'max',
@@ -133,6 +140,7 @@ describe('internal mode identifiers (unchanged by D-MW-21)', () => {
       'esc',
       'esc_r',
       'max_cc1',
+      'deep_cc1',
       'quick_hp',
       'deep_hp',
       'esc_hp',

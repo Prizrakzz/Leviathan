@@ -93,11 +93,13 @@ def test_the_preset_table_and_nothing_else():
     # D-HP-8 (R9): the four `_hp` twins append the same way -- resolvable BY NAME (the gate arms request
     # `--mode deep_hp`), dark to the wildcard. FIFTH application, and the serving_names() pin below is
     # STILL untouched: thirteen presets, three servable.
+    # T2-2 (CASCADE_HOME plan): `deep_cc1` appends the same way -- the T2-3 gate's ON arm, resolvable BY
+    # NAME, dark to the wildcard. SIXTH application: fourteen presets, three servable.
     assert rm.valid_names() == frozenset({"quick", "standard", "deep", "deep_v2", "max", "max_c0",
-                                          "esc", "esc_r", "max_cc1",
+                                          "esc", "esc_r", "max_cc1", "deep_cc1",
                                           "quick_hp", "deep_hp", "esc_hp", "esc_r_hp"})
     assert set(rm.MODES) == {rm.QUICK, rm.STANDARD, rm.DEEP, rm.DEEP_V2, rm.MAX, rm.MAX_C0,
-                             rm.ESC, rm.ESC_R, rm.MAX_CC1,
+                             rm.ESC, rm.ESC_R, rm.MAX_CC1, rm.DEEP_CC1,
                              rm.QUICK_HP, rm.DEEP_HP, rm.ESC_HP, rm.ESC_R_HP}
     # Every preset's `name` field agrees with its table key -- the `replace(...)`-constructed twins would
     # otherwise be able to carry their BASE's name and stamp the wrong arm on every artifact.
@@ -120,7 +122,11 @@ def test_deep_v2_is_dark_and_the_wildcard_can_never_sweep_it_in(monkeypatch):
     # dark set IS the whole control surface -- `quick_hp`/`deep_hp` are the flip ladder's own rungs, so a
     # forgotten entry serves UNGATED handle-only prose (number-free sentences, figures unspliced) to anyone
     # who types the name, before G1 has run a single row.
+    # T2-2: `deep_cc1` joins DARK_NAMES in the SAME edit that mints it, and it is the sharpest case of the
+    # fence yet -- every earlier dark preset was built on a dark base or an unflipped treatment, while this
+    # one is the SHIPPED serving tier plus a paid foreign-contract slot the T2-3 gate has not adjudicated.
     assert rm.DARK_NAMES == frozenset({rm.DEEP_V2, rm.MAX, rm.MAX_C0, rm.ESC, rm.ESC_R, rm.MAX_CC1,
+                                       rm.DEEP_CC1,
                                        rm.QUICK_HP, rm.DEEP_HP, rm.ESC_HP, rm.ESC_R_HP})
     assert rm.serving_names() == frozenset({"quick", "standard", "deep"})
     assert rm.DEEP_V2 in rm.valid_names()                              # still RESOLVABLE (stamped)
@@ -130,6 +136,7 @@ def test_deep_v2_is_dark_and_the_wildcard_can_never_sweep_it_in(monkeypatch):
         assert rm.MAX not in orch._modes_enabled() and rm.MAX_C0 not in orch._modes_enabled()
         assert rm.ESC not in orch._modes_enabled() and rm.ESC_R not in orch._modes_enabled()
         assert rm.MAX_CC1 not in orch._modes_enabled()
+        assert rm.DEEP_CC1 not in orch._modes_enabled()
         assert not (set(rm.HANDLE_PROSE_PRESETS.values()) & orch._modes_enabled())
     assert rm.resolve("deep_v2", orch._modes_enabled())["honored"] == "standard"
     monkeypatch.setenv("GRAPHRAG_MODES", "deep_v2")                    # named EXPLICITLY -> honored
@@ -293,8 +300,12 @@ def test_the_hp_twins_are_their_base_plus_exactly_one_field():
 def test_standard_and_max_are_not_in_the_ladder_and_cannot_be():
     """`standard`'s EMPTY knob dict IS the fail-open guarantee (the module's own opening claim), and
     `test_standard_is_the_all_none_passthrough_pin` reds the moment a field lands on it. The max family
-    is out of the ladder for a different reason -- it is not a served tier at all. Neither gets a twin."""
-    for excluded in (rm.STANDARD, rm.MAX, rm.MAX_C0, rm.MAX_CC1, rm.DEEP_V2):
+    is out of the ladder for a different reason -- it is not a served tier at all. Neither gets a twin.
+
+    T2-2: `deep_cc1` joins the excluded list. It IS deep-shaped, but it is an EVAL ARM, not a tier -- the
+    ladder pairs a served tier with its handle-prose twin, and a cascade arm with an `_hp` twin would be a
+    two-variable preset nobody ratified."""
+    for excluded in (rm.STANDARD, rm.MAX, rm.MAX_C0, rm.MAX_CC1, rm.DEEP_CC1, rm.DEEP_V2):
         assert rm.handle_prose_variant(excluded) is None, excluded
     assert rm.knobs(rm.STANDARD) == {}                                 # the passthrough pin, untouched
     assert rm.MODES[rm.STANDARD].handle_prose is None

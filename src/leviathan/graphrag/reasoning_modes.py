@@ -110,6 +110,7 @@ MAX_C0 = "max_c0"
 ESC = "esc"                                   # D-MW-30: the escalated SHAPE (deep's envelope, max's width)
 ESC_R = "esc_r"                               # ...plus the reserve bundle (reserve 4 + the provenance prompt)
 MAX_CC1 = "max_cc1"                           # D-MW-28 (P6): max + ONE cross-market cascade contract slot
+DEEP_CC1 = "deep_cc1"                         # T2-2: deep + the SAME one slot -- the T2-3 gate's ON arm
 # D-HP-8 (H1, R9): THE MATCHED DARK PRESET SET -- the handle-prose treatment's ONE enabling lever. Four
 # names, minted in ONE commit, all four in DARK_NAMES. `standard` is NOT in the set and cannot be (its
 # all-None dict IS the fail-open guarantee), and `max`/`max_c0`/`max_cc1` are out of the ladder entirely.
@@ -371,6 +372,28 @@ _HP_BASE_OF: dict[str, str] = {hp: base for base, hp in HANDLE_PROSE_PRESETS.ite
 MODES.update({hp: replace(MODES[base], name=hp, handle_prose=True)
               for base, hp in HANDLE_PROSE_PRESETS.items()})
 
+# ── T2-2 THE CASCADE SERVING-HOME ARM (CASCADE_HOME_AND_SMALL_ITEMS_PLAN, T2-3.A) ───────────────────────
+# `deep_cc1` = `deep` + ONE cross-market cascade contract slot. The two-preset arm pattern, FOURTH
+# application (max/max_c0, esc/esc_r, max/max_cc1, deep/deep_cc1): the T2-3 gate runs `--mode deep` vs
+# `--mode deep_cc1`, so they must differ by EXACTLY ONE field, and neither arm may be built by mixing a
+# preset with a kwarg (the kwarg beats the preset outright -- a shipped pin).
+# BUILT BY `replace`, NEVER HAND-COPIED, and the plan pre-registers that as a PIN rather than a promise:
+# `deep` is the SHIPPED serving tier and is amended by other waves, so a copied field table would make the
+# arm silently TWO-VARIABLE the day anyone touches it (the COMPAT-9 duplicate-and-drift class). The unit pin
+# asserts field-for-field equality except `name` and `cascade_contract_slots`.
+# THE PIN IS NECESSARY AND NOT SUFFICIENT (T2-3.A, verbatim): it passes against the REPO and the eval runs
+# whatever the IMAGE baked. The artifact-side proof is clause (0)(ii), which reads `per_answer[].mode_knobs`
+# on every row of both arms.
+# `deep` carries None here, NOT 0 -- the max/max_cc1 lesson: 0 is the value that MINTS the key into the OFF
+# arm's trace stamp and moves its artifact.
+# DARK AT BIRTH, in DARK_NAMES in this same edit (the F8 leak fence, SIXTH application): the slot buys a
+# ~2.8k-token foreign contract block, so a forgotten entry would spend it on every wildcard turn of a
+# SERVING-shaped preset -- strictly worse than the max_cc1 case, whose base is itself dark.
+# NOT in `orchestrator._CENSUS_MANDATE_MODES`, and that is the SYMMETRIC choice, not an omission: `deep` is
+# not in it either, so adding `deep_cc1` alone would make the composition census a SECOND variable -- the
+# same reasoning that put max_cc1 IN beside max.
+MODES[DEEP_CC1] = replace(MODES[DEEP], name=DEEP_CC1, cascade_contract_slots=1)
+
 # Presets that `GRAPHRAG_MODES=on` must NOT sweep into the honored set. A dark preset is still resolvable
 # by NAME (GRAPHRAG_MODES=deep_v2 for the eval arm), which is what keeps the flip a one-env-var decision.
 # D-MW-30 (F8): esc / esc_r join the dark set IN THE SAME COMMIT that mints them. A forgotten entry here
@@ -386,7 +409,12 @@ MODES.update({hp: replace(MODES[base], name=hp, handle_prose=True)
 # with the figures still unspliced -- to anyone who typed the name before G1 has run. THE ROLLBACK IS THE
 # SAME ONE ENV VALUE for all four: drop the name from GRAPHRAG_MODES and the tier falls back to its base
 # preset, byte-identical OFF, no rebuild.
-DARK_NAMES: frozenset = frozenset({DEEP_V2, MAX, MAX_C0, ESC, ESC_R, MAX_CC1,
+# T2-2: `deep_cc1` joins in the SAME edit that mints it -- the F8 leak fence, SIXTH application, and the
+# sharpest one yet. Every earlier dark preset was built on a dark base (`max`, `esc`) or on an unflipped
+# treatment; `deep_cc1` is the SHIPPED serving tier plus a paid slot, so a forgotten entry would hand every
+# `GRAPHRAG_MODES=on` turn a foreign contract block the T2-3 gate has not yet adjudicated. serving_names()
+# is UNCHANGED by this, and the pin on that fact (test_dam_modes:125) is the leak fence.
+DARK_NAMES: frozenset = frozenset({DEEP_V2, MAX, MAX_C0, ESC, ESC_R, MAX_CC1, DEEP_CC1,
                                    QUICK_HP, DEEP_HP, ESC_HP, ESC_R_HP})
 
 # ── EC-3: THE METERED PREDICATE (the leaf half of a two-module fact) ────────────────────────────────

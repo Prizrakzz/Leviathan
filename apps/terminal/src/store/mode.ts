@@ -61,13 +61,22 @@ export const DEFAULT_MODE: ModeName = 'standard';
  * FE can read that set at build or test time, so this constant is a hand-kept CENSUS of it, and its only
  * job is to make "we do not offer this" a fact a test can pin rather than something a reader must notice.
  *
- * CENSUS AS OF 2026-08-15 (reasoning_modes.DARK_NAMES at HEAD) — 10 names, all dark, none offered here:
+ * CENSUS AS OF 2026-08-15 (reasoning_modes.DARK_NAMES at HEAD) — 11 names, all dark, none offered here:
  *   `deep_v2`                                    — D-DV, refused (composition binds)
  *   `max`, `max_c0`                              — the P5 2-notch ship's original two
  *   `esc`, `esc_r`                               — D-MW-30 escalated SHAPE + its reserve twin
  *   `max_cc1`                                    — D-MW-28/P6, max + one cross-market cascade slot
+ *   `deep_cc1`                                   — T2-2 (CASCADE_HOME plan), `deep` + one cross-market
+ *                                                  cascade slot; the T2-3 gate's ON arm. DARK AT BIRTH,
+ *                                                  and the ONLY dark name built on a SHIPPED serving tier
  *   `quick_hp`, `deep_hp`, `esc_hp`, `esc_r_hp`  — the D-HP-26 flip ladder (flag still dark)
  * `standard` is NOT and cannot be in it (its all-None dict IS the fail-open guarantee).
+ *
+ * NOTE ON `deep_cc1` AND WHAT A FLIP WOULD LOOK LIKE HERE: T2-4 flips the mechanism by moving
+ * `cascade_contract_slots=1` onto `Mode(DEEP)` ITSELF, not by promoting this name. That flip therefore
+ * DELETES `deep_cc1` rather than un-darkening it, and the Analysis notch's wire name never changes —
+ * which is why no notch is added for it and why it leaves this list only when the name leaves
+ * `DARK_NAMES`.
  *
  * IF A DARK TIER FLIPS: it enters `serving_names()` server-side first; it enters this bundle only when a
  * notch is added for it, and then it leaves this list on the same change (see the parity pin's own note —
@@ -80,6 +89,7 @@ export const DARK_TIERS: readonly string[] = [
   'esc',
   'esc_r',
   'max_cc1',
+  'deep_cc1',
   'quick_hp',
   'deep_hp',
   'esc_hp',

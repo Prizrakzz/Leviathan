@@ -83,7 +83,16 @@ def real() -> g.CausalGraph:
 # ══ D-MW-27: THE REVERSE INDEX ═══════════════════════════════════════════════════════════════════════════
 def test_the_three_buckets_match_the_step0_census(real, census):
     """THE HEADLINE PIN. The buckets are reported DECOMPOSED so a deck-shrink decision reads three numbers,
-    and they are checked against the artifact the deck was authored from -- not against prose."""
+    and they are checked against the artifact the deck was authored from -- not against prose.
+
+    T2-1 RE-ANCHOR NOTE (2026-08-15, the ratified cause is the NODE RE-KEY): every number on this pin is
+    UNCHANGED, and that is the point of the pin. The re-key moved the index KEY, not the resolution rule --
+    117 edges, 94 resolved, 23 unresolvable-by-construction, 0 no-contract, all identical before and after,
+    and the re-derived census (jobs/utils/dmw_census/dmw_census.py) reproduces the P6 artifact's totals
+    block byte for byte. `seeds_with_pairs` is still 15 but now counts seed NODES rather than tie-break
+    WINNER CONTRACTS: the count survives only because the winner was injective onto its node, so the
+    population line below is pinned separately and the census spells the change in
+    `summary.seeds_with_pairs_are`."""
     b = real.rev_cross_link_buckets()
     t = census["totals"]
     assert b["edges"] == t["inter_commodity_edges"] == 117
@@ -92,6 +101,124 @@ def test_the_three_buckets_match_the_step0_census(real, census):
     assert b["unresolvable-no-contract"] == t["unresolvable_no_contract"] == 0
     assert b["resolved"] + b["unresolvable-no-node"] + b["unresolvable-no-contract"] == b["edges"]
     assert b["seeds_with_pairs"] == census["summary"]["n_seeds_with_pairs"] == 15
+    assert census["summary"]["seeds_with_pairs"] == sorted(real.contract_node(s)
+                                                           for s in census["summary"]["seeds_with_pairs"])
+    # THE NUMBER THE RE-KEY ACTUALLY MOVED, pinned beside the ones it did not.
+    assert b["contracts_reaching_pairs"] == census["summary"]["n_contracts_reaching_pairs"] == 24
+    assert census["index_keying"]["applied"].startswith("node")
+
+
+def test_the_rekey_is_NODE_keyed_and_every_contract_of_a_node_reaches_its_nodes_edges(real, census):
+    """T2-1, THE RATIFIED FIX, pinned as behaviour (CASCADE_HOME_AND_SMALL_ITEMS_PLAN, TRACK 2 opening
+    ratification). The census's own `zero_pair_decomposition.FINDING` recorded the defect: the
+    lexicographic-first tie-break funnelled every edge of a multi-contract node onto ONE contract id, so
+    the reverse index was keyed by an accident of alphabetical order rather than by the identity the walk
+    actually seeds on. `planner._seed_contracts` de-dupes seeds to distinct commodity NODES, so the NODE was
+    always the runtime seed identity -- the index just was not filed under it.
+
+    The property is stronger than "corn_cbot got its pairs": ANY two contracts of one node must see the
+    SAME rows, or the paid slot's supply depends on which sibling the router happened to pick."""
+    by_node = {}
+    for cid in real.contracts:
+        by_node.setdefault(real.contract_node(cid), []).append(cid)
+    for node, members in by_node.items():
+        first = [(r["contract"], r["idx"]) for r in real.rev_cross_links(members[0])]
+        for m in members[1:]:
+            assert [(r["contract"], r["idx"]) for r in real.rev_cross_links(m)] == first, (node, m)
+        for r in real.rev_cross_links(members[0]):
+            assert r["seed_node"] == node, (node, r["contract"])
+    assert sorted(c for c in real.contracts if real.rev_cross_links(c)) == \
+        census["summary"]["contracts_reaching_pairs"]
+
+
+def test_the_census_still_carries_the_P6_era_DECK_AUTHORABILITY_record(census):
+    """THE RECORD-LOSS PIN (T2-1 review finding, 2026-08-15). The T2-1 rebuild of the census producer
+    silently DROPPED five `summary` keys the P6-era artifact carried, and `--verify-legacy` could not see
+    it: its diff covers only `_INVARIANT_BLOCKS`, and `summary` is not -- and cannot be -- one of them.
+    Two of the five are the AUTHORABILITY RECORD for the exact 6-row deck T2-3 fires on, and the artifact
+    is about to be sha256-frozen into T2-3.I, so the loss would have been frozen with it.
+
+    The values are pinned at their P6 readings because the re-key does not touch `deck_eligible_pairs`:
+    same 63 entries, same 15 seeds, so the same NO SHRINK verdict. If a future curation batch (the 10
+    wheat-edge renames) moves them, this pin is the thing that makes the move VISIBLE rather than silent --
+    which is the whole complaint."""
+    s = census["summary"]
+    assert s["n_deck_eligible_seeds"] == 15
+    assert s["n_deck_eligible_pairs"] == 63
+    assert set(s["deck_eligible_by_seed"]) == {p["seed"] for p in census["deck_eligible_pairs"]}
+    assert sum(len(v) for v in s["deck_eligible_by_seed"].values()) == 63
+    assert s["n_pairs_failing_backed"] == 0
+    assert s["n_pairs_failing_slice_distinct"] == 2
+    assert s["deck_shrink_verdict"].startswith("NO SHRINK")
+    assert "6 rows" in s["deck_shrink_verdict"]
+
+
+def test_the_CONTRACT_KEYED_liveness_join_is_BLIND_to_every_seed_T2_1_gained(real, census):
+    """THE JOIN-SOUNDNESS PIN, AND THE ONE THAT COSTS MONEY IF IT IS WRONG (T2-1 review finding).
+
+    T2-3.D lets the freeze block take EITHER spelling of the liveness join -- contract-keyed
+    (`seed`,`foreign`) or node-keyed (`seed_node`,`foreign_node`) -- and the plan names the contract-keyed
+    one FIRST. That was sound at P6: only the lexicographic-first tie-break WINNER could return
+    `rev_cross_links` rows, so `planner._cascade_plan`'s `ancestor_of` (the walk's REALIZED seed, not the
+    deck row's `contract`) was always one of the 15 contracts the `seed` column carries.
+
+    T2-1 BREAKS THAT, AND BREAKS IT ON EXACTLY THE POPULATION IT EXISTS TO CREATE. Every co-node sibling
+    now returns the same rows while `deck_eligible_pairs` stays byte-identical to P6 -- so a foreign bought
+    under any of the 9 gained contracts has NO `seed`-column match and reads NOT LIVE though the mechanism
+    fired. Enough of those and the gate declares '< 3 LIVE rows -> INSTRUMENT-DEAD' on a LIVE instrument:
+    the same misread T2-3.D spends a paragraph fencing on the FOREIGN half, re-opened on the SEED half.
+
+    THE FIX IS A RECORD, NOT A CODE CHANGE -- the census now MEASURES the blindness
+    (`index_keying.T2_3_join_soundness`) and recommends the node-keyed pair to the freeze block. The choice
+    itself belongs to the adjudicator, before any arm. This pin holds the measurement honest."""
+    js = census["index_keying"]["T2_3_join_soundness"]
+    deck = census["deck_eligible_pairs"]
+    gained = js["seed_contracts_gained_by_T2_1"]
+    # (a) the hazard is REAL and TOTAL: not one gained contract has a contract-keyed deck row
+    assert gained == census["node_keyed_view"]["contracts_that_gain_cascade_under_node_keying"]
+    assert len(gained) == census["node_keyed_view"]["n_contracts_gained"] == 9
+    assert "corn_cbot" in gained, "the flagship contract is IN the blind set"
+    assert js["n_gained_seeds_with_zero_contract_keyed_deck_rows"] == len(gained)
+    for cid in gained:
+        row = js["deck_rows_reachable_per_gained_seed"][cid]
+        assert row["contract_keyed"] == 0, cid
+        assert row["node_keyed"] > 0, cid
+        # and the graph AGREES with the census: the contract really can seed a walk now
+        assert real.rev_cross_links(cid), cid
+        assert sum(1 for p in deck if p["seed"] == cid) == 0, cid
+        assert sum(1 for p in deck if p["seed_node"] == real.contract_node(cid)) == row["node_keyed"], cid
+    # (b) the node-keyed spelling is sound on the SAME population: every gained contract's node is a
+    #     `seed_node` the deck carries, which is what makes the recommendation more than a preference
+    seed_nodes = {p["seed_node"] for p in deck}
+    assert all(real.contract_node(c) in seed_nodes for c in gained)
+    # (c) the contract-keyed column did NOT quietly widen to cover the gap (it is the P6 15, unchanged)
+    assert {p["seed"] for p in deck} == set(js["deck_eligible_pairs_seed_column"])
+    assert len(js["deck_eligible_pairs_seed_column"]) == 15
+    # (d) the record actually WARNS -- a measurement nobody is pointed at is the defect this pin fixes
+    assert "T2_3_join_soundness" in census["index_keying"]["T2_3_join_note"]
+    assert js["RECOMMENDATION_TO_THE_FREEZE_BLOCK"].startswith("take the NODE-KEYED pair")
+
+
+def test_corn_cbot_INHERITS_node_corns_edges(real, census):
+    """THE FLAGSHIP CASE, and the pin that flipped SIGN at T2-1. It used to assert corn_cbot's ZERO -- the
+    US corn benchmark, the most-routed contract in the product, could not spend a cascade slot at all
+    because `campinas_corn_reference_bmf` sorts first among node `corn`'s contracts. The plan ratified the
+    re-key BEFORE the arms were designed for exactly this reason ("the flagship question must be able to
+    spend the slot"), so the zero is now a POSITIVE pin: corn_cbot reaches node corn's 19 indexed edges,
+    which are the 20 declared minus the one the base-yaml fence drops.
+
+    The three sibling contracts and the base yaml all read the same 19 -- and the resolution table's
+    recorded `seed` for those edges is STILL `campinas_corn_reference_bmf`, because the re-key changed the
+    KEY, never the tie-break."""
+    rows = real.rev_cross_links("corn_cbot")
+    assert len(rows) == 19
+    assert census["contract_pair_counts"]["contract_keyed"]["corn_cbot"] == 0, "the defect, as recorded"
+    assert census["contract_pair_counts"]["node_keyed"]["corn_cbot"] == 19, "the remedy, as re-derived"
+    for cid in ("campinas_corn_reference_bmf", "french_maize_matif", "corn"):
+        assert len(real.rev_cross_links(cid)) == 19, cid
+    assert {r["seed"] for r in rows} == {"campinas_corn_reference_bmf"}, "the tie-break is UNCHANGED"
+    assert {r["seed_node"] for r in rows} == {"corn"}
+    assert "corn" not in {r["contract"] for r in rows}, "the base-yaml fence still holds on the foreign end"
 
 
 def test_the_resolution_table_reproduces_the_census_row_for_row(real, census):
@@ -215,9 +342,18 @@ def test_the_index_is_built_at_LOAD_time_and_the_lookup_reads_no_config(real, mo
 def test_rev_cross_links_never_raises_and_hands_out_copies(real):
     """`cross_links` may KeyError -- it is a contract lookup. This one is an INDEX read on the walk's hot
     path, so a routing surprise returns [] instead of killing a desk turn. And the rows are fresh dicts:
-    a caller that mutates one must not corrupt the graph's own index (the same idiom cross_links uses)."""
+    a caller that mutates one must not corrupt the graph's own index (the same idiom cross_links uses).
+
+    T2-1 RE-ANCHOR: the never-raise contract is UNCHANGED, but `wheat`'s zero now means something narrower
+    and is pinned for the narrower reason. It used to read "a NODE, not a contract"; since the re-key a
+    node id is exactly what the index IS keyed by, so the honest statement is that `wheat` names no node
+    (there is no wheat node -- the largest unresolvable-by-construction class, 10 edges) and `contract_node`
+    passes unknowns through unchanged onto a key the index does not hold. A REAL node now resolves, and
+    that is pinned too, so the [] can never be read as "nodes are rejected"."""
     assert real.rev_cross_links("no_such_contract") == []
-    assert real.rev_cross_links("wheat") == []               # a NODE, not a contract -> nothing to invert
+    assert real.rev_cross_links("wheat") == []               # names no node AND no contract -> nothing
+    assert real.rev_cross_links("soybean_oil")               # ...but a REAL node resolves (the re-key)
+    assert real.contract_node("soybean_oil_cbot") == "soybean_oil"
     rows = real.rev_cross_links("soybean_oil_cbot")
     rows[0]["mechanism"] = "MUTATED"
     assert real.rev_cross_links("soybean_oil_cbot")[0]["mechanism"] != "MUTATED"
@@ -686,6 +822,39 @@ def test_max_cc1_is_max_plus_exactly_one_variable():
     assert diff == {"cascade_contract_slots"}
     assert a.cascade_contract_slots is None and b.cascade_contract_slots == 1
     assert "cascade_contract_slots" not in rm.knobs(rm.MAX), "None is not 0: the OFF arm mints no key"
+
+
+def test_deep_cc1_is_deep_plus_exactly_one_variable():
+    """T2-2, THE BUILD OBLIGATION THE T2-3 PRE-REGISTRATION MANDATES AS A PIN AND NOT AS A PROMISE
+    (docs/private/CASCADE_HOME_AND_SMALL_ITEMS_PLAN.md, T2-3.A). Fourth application of the two-preset arm
+    pattern (max/max_c0, esc/esc_r, max/max_cc1, deep/deep_cc1), and the first whose OFF arm is a SHIPPED
+    SERVING TIER -- which is precisely why the equality is asserted as a property instead of re-listing
+    deep's field table. `deep` is amended by other waves; a hand-copied table makes the gate silently
+    TWO-VARIABLE the day anyone touches it, and the gate would not notice.
+
+    THE PIN IS NECESSARY AND IS NOT SUFFICIENT, and the prereg says so in the same breath: it passes
+    against the REPO while the eval runs whatever the IMAGE baked. The artifact-side proof is clause (0)
+    conjunct (ii), which reads `per_answer[].mode_knobs` on every row of BOTH arms -- a repo pin cannot
+    detect a stale image and `mode_knobs` can.
+
+    DARK AT BIRTH is asserted here too rather than only in the roster file: the F8 fence and the mint are
+    one edit, so they are one pin."""
+    a, b = rm.MODES[rm.DEEP], rm.MODES[rm.DEEP_CC1]
+    diff = {f for f in rm.KNOB_FIELDS if getattr(a, f) != getattr(b, f)}
+    assert diff == {"cascade_contract_slots"}, diff
+    assert b.name == "deep_cc1" and a.name == "deep"
+    assert a.cascade_contract_slots is None and b.cascade_contract_slots == 1
+    assert "cascade_contract_slots" not in rm.knobs(rm.DEEP), "None is not 0: the OFF arm mints no key"
+    assert rm.knobs(rm.DEEP_CC1) == rm.knobs(rm.DEEP) | {"cascade_contract_slots": 1}
+    # deep's OWN shape, spelled once so a silent amendment to deep shows up HERE as well as in the diff
+    # above -- the T2-3.A arm table is written against these numbers (depth 1, ceiling 4, per-seed 32,
+    # FLAT evidence_cap 48, probe_cap 36, cap_policy None = FIFO, order_policy None).
+    assert (b.depth, b.max_seeds, b.per_seed_budget, b.evidence_cap, b.probe_cap) == (1, 4, 32, 48, 36)
+    assert b.cap_policy is None and b.order_policy is None and b.per_seed_evidence_cap is None
+    assert rm.walk_kwargs(rm.knobs(rm.DEEP_CC1))["cascade_contract_slots"] == 1
+    assert rm.DEEP_CC1 in rm.DARK_NAMES and rm.DEEP_CC1 not in rm.serving_names()
+    import inspect
+    assert "replace(MODES[DEEP], name=DEEP_CC1, cascade_contract_slots=1)" in inspect.getsource(rm)
 
 
 def test_the_p6_arms_are_symmetric_under_the_composition_census_mandate():

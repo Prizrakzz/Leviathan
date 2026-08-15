@@ -120,10 +120,19 @@ def _invert_inter_commodity(contracts: dict) -> tuple[list, dict, dict]:
     """(resolution_table, index, hier) — the LOAD-TIME inversion, THREE elements. `resolution_table` is one
     row per inter_commodity edge in the estate (117 today), carrying its bucket, its resolved node, the
     candidate set and the tie-break that picked the seed, so the resolution is REVISITABLE from an artifact
-    rather than re-derived. `index` is {seed_contract: [edge rows]} over the RESOLVED, TRADEABLE-foreign
+    rather than re-derived. `index` is {seed NODE: [edge rows]} over the RESOLVED, TRADEABLE-foreign
     rows. `hier` is the {contract_id: commodity node} map this same call already read -- bound to
     `self._hier_nodes` and served by the public `contract_node()`, i.e. the graph's OWN copy of the
     contract->node fact, so the walk never re-parses commodity_hierarchy.yaml per candidate.
+
+    T2-1 (2026-08-15, RATIFIED in docs/private/CASCADE_HOME_AND_SMALL_ITEMS_PLAN.md): THE INDEX IS KEYED BY
+    `node_for(seed)`, NOT by the tie-break winner. The resolution RULE is untouched -- the same two-step
+    alias resolution, the same lexicographic-first tie-break, the same recorded `seed` on every table row --
+    only the KEY the index files an edge under changed. Under the old contract key the tie-break funnelled
+    every edge of a multi-contract node onto ONE contract id, so `corn_cbot` (the most-routed contract in
+    the product) reached ZERO inverted edges while its node `corn` carried 20; keying by node hands all 9
+    co-node contracts their node's cascade at zero cost. `_seed_contracts` already de-dupes the walk's seeds
+    to distinct commodity NODES, so the NODE was always the runtime seed identity.
 
     Deterministic: contracts and edges are walked in sorted/declaration order and every candidate set is
     sorted, so the same YAMLs always produce the same table and the same tie-breaks."""
@@ -162,10 +171,12 @@ def _invert_inter_commodity(contracts: dict) -> tuple[list, dict, dict]:
             table.append(row)
             if bucket == _REV_RESOLVED and row["foreign_tradeable"]:
                 # The INDEX row is `cross_links`' shape with the two ends named: `contract` is the FOREIGN
-                # (declaring) market, `seed` the resolved commodity it declared. `tracked` is True by
-                # construction here -- the index only ever holds loaded, tradeable contracts.
-                index.setdefault(seed, []).append(
-                    {"contract": cid, "seed": seed, "idx": i, "driver_commodity": dc,
+                # (declaring) market, `seed` the resolved commodity it declared and `seed_node` the NODE the
+                # row is FILED under (T2-1). `tracked` is True by construction here -- the index only ever
+                # holds loaded, tradeable contracts.
+                index.setdefault(_node_of(seed), []).append(
+                    {"contract": cid, "seed": seed, "seed_node": _node_of(seed), "idx": i,
+                     "driver_commodity": dc,
                      "relation": e.relation, "sign": e.sign, "lag": e.lag, "mechanism": e.mechanism,
                      "blurb": e.blurb, "tracked": True})
     return table, index, hier
@@ -333,22 +344,26 @@ class CausalGraph:
 
         Each row is the DECLARING contract plus the declared edge verbatim (`mechanism` is the string
         D-MW-28 scores cos(query, .) against, and it already reads in the right direction: the foreign
-        contract wrote it to describe how `commodity` moves IT). `seed` is the resolved commodity, so a row
-        is self-describing in an artifact.
+        contract wrote it to describe how `commodity` moves IT). `seed` is the resolved commodity that
+        DECLARED the edge and `seed_node` the node it is filed under, so a row is self-describing in an
+        artifact.
 
         NEVER RAISES on an unknown/unresolved id -- it returns []. `cross_links` may KeyError because it is
         a contract lookup; this is an index read on the walk's hot path and a routing surprise must never
         kill a turn. Rows are fresh dicts (same idiom as `cross_links`), ordered by declaring contract then
         declaration index -- deterministic.
 
-        CONTRACT-KEYED, per the ratified alias rule. RECORDED CONSEQUENCE (census `zero_pair_decomposition`
-        + `node_keyed_view`): the lexicographic-first tie-break funnels every edge of a multi-contract node
-        onto ONE contract id, so `corn_cbot` -- the most-routed contract in the product -- has ZERO inverted
-        pairs while its node `corn` carries 20 edges, all funnelled to campinas_corn_reference_bmf. Keying
-        by `node_for(seed)` instead would hand 9 more contracts their cascade at zero cost and with no
-        change to the resolution rule. That is a RATIFICATION question for D-MW-29, deliberately NOT taken
-        here: this method implements the rule as written."""
-        return [dict(r) for r in (self._rev_index.get(commodity) or ())]
+        NODE-KEYED (T2-1, 2026-08-15, RATIFIED in docs/private/CASCADE_HOME_AND_SMALL_ITEMS_PLAN.md). The
+        argument is resolved through `contract_node()` before the lookup, so EVERY contract of a node
+        reaches its node's edges. THE DEFECT THIS CLOSES, verbatim from the P6 census
+        (`zero_pair_decomposition.FINDING` + `node_keyed_view`): under the old contract key the
+        lexicographic-first tie-break funnelled every edge of a multi-contract node onto ONE contract id, so
+        `corn_cbot` -- the most-routed contract in the product -- returned ZERO rows while node `corn`
+        carried 20 edges, all funnelled to campinas_corn_reference_bmf. Nine contracts gained their node's
+        cascade by this re-key at zero cost, with NO change to the resolution rule, the recorded tie-breaks
+        or the three buckets. An id that is neither a contract nor a node still returns [] -- `contract_node`
+        passes unknowns through unchanged and the index has no such key."""
+        return [dict(r) for r in (self._rev_index.get(self.contract_node(commodity)) or ())]
 
     def contract_node(self, contract: str) -> str:
         """The commodity NODE serving a contract — `evidence.node_for` semantics, read off the map this
@@ -366,9 +381,18 @@ class CausalGraph:
 
     def rev_cross_link_buckets(self) -> dict:
         """The THREE-BUCKET decomposition (+ the two fence counters), so a shrink decision reads decomposed
-        numbers instead of one 'we got N'. Pinned against data/dmw_p6_census.json."""
+        numbers instead of one 'we got N'. Pinned against data/dmw_p6_census.json.
+
+        `seeds_with_pairs` is `len(self._rev_index)`, i.e. the number of distinct index KEYS -- and since
+        T2-1 the key is the commodity NODE, so it counts seed NODES with at least one inverted edge (15 on
+        the real estate, the same 15 the P6-era contract-keyed census reported, because the tie-break winner
+        was injective onto its node). `contracts_reaching_pairs` is the number the re-key actually MOVED:
+        loaded contracts whose node carries edges, 15 -> 24. Both are reported so no reader has to infer
+        which population a single 'seeds' number meant."""
         out = {"edges": len(self._rev_table), _REV_RESOLVED: 0, _REV_NO_NODE: 0, _REV_NO_CONTRACT: 0,
-               "untradeable_foreign_edges": 0, "seeds_with_pairs": len(self._rev_index)}
+               "untradeable_foreign_edges": 0, "seeds_with_pairs": len(self._rev_index),
+               "contracts_reaching_pairs": sum(1 for c in self.contracts
+                                               if self.contract_node(c) in self._rev_index)}
         for r in self._rev_table:
             out[r["bucket"]] = out.get(r["bucket"], 0) + 1
             if r["bucket"] == _REV_RESOLVED and not r["foreign_tradeable"]:
