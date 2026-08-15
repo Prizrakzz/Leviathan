@@ -235,6 +235,38 @@ def test_only_deep_is_priced_and_the_dark_tiers_are_absent():
     assert sv._credit_price(rm.QUICK_HP) == 0 and rm.QUICK_HP not in sv._CREDIT_PRICES
 
 
+def test_the_metered_predicate_and_the_price_table_cannot_drift(monkeypatch):
+    """EC-3 CROSS-PIN. `rm.is_metered` and `sv._CREDIT_PRICES` are two modules' answers about ONE fact
+    (did the user pay for this turn), and the second is the frozen wire contract, so the FIRST is the
+    one that must be pinned against it -- the COMPAT-9 duplicate-and-drift class, applied to metering.
+
+    THE INVARIANT, both directions of it:
+      (a) a DEEP-BASED PRICE IMPLIES METERED -- every priced wire name whose `base_mode` is `deep`
+          (`deep`, and `deep_hp` since D-HP H1 Z5(d)) reads metered. Minting a new deep-based twin,
+          pricing it, and forgetting `HANDLE_PROSE_PRESETS` would give a PAID tier the unmetered
+          fast-fail -- a bought turn that floors to save 3 minutes, which is the whole thing EC-3 exists
+          to stop.
+      (b) NO UNPRICED SERVING TIER IS METERED -- `quick`/`standard` are free, so they must never buy the
+          long horizon; pool patience is a real resource and Scan's contract is the fast fail.
+    The escalated names are asserted at their DELIBERATE asymmetry (see `rm.is_metered`'s docstring):
+    priced defensively, unmetered by the predicate, which errs toward the floor-and-refund path."""
+    from leviathan.graphrag import reasoning_modes as rm
+    for name in sv._CREDIT_PRICES:
+        if rm.base_mode(name) == rm.DEEP:
+            assert rm.is_metered(name) is True, name
+    for name in sorted(rm.serving_names()):
+        if name not in sv._CREDIT_PRICES:
+            assert rm.is_metered(name) is False, name
+    assert rm.is_metered(rm.DEEP) is True and rm.is_metered(rm.DEEP_HP) is True
+    assert rm.is_metered(rm.QUICK) is False and rm.is_metered(rm.STANDARD) is False
+    assert rm.is_metered(None) is False and rm.is_metered("nonsense") is False
+    assert rm.METERED_BASES == frozenset({rm.DEEP})
+    # The conservative direction, stated as a pin so a "fix" has to argue with it: an escalated name
+    # would decline patience, floor, and refund -- it never overcharges.
+    for name in (rm.ESC, rm.ESC_R, rm.ESC_HP, rm.ESC_R_HP):
+        assert rm.is_metered(name) is False, name
+
+
 def test_a_quick_turn_is_unmetered_even_with_credits_on(monkeypatch):
     s = _use(monkeypatch, _LedgerStore())
     monkeypatch.setenv("GRAPHRAG_CREDITS", "on")
@@ -424,6 +456,37 @@ def test_the_delivery_signal_is_the_walk_stamp_not_the_honored_stamp():
     assert sv._honored_mode(None) is None
     assert sv._grounded_walk_ran(_result("deep")) is True
     assert sv._grounded_walk_ran(_floor_result("deep")) is False
+
+
+def test_a_pool_exhausted_floor_prices_zero_and_refunds(monkeypatch):
+    """GATE EC-3 CLAUSE (c), REFUND HALF, at the unit level -- no server spun, because the assertion is
+    about the PRICING RULE, not the transport (the transport is already pinned by the floor test above).
+
+    A metered turn that burns its whole EC-3 patience horizon raises the pool wedge, the orchestrator
+    floors it with `trace.floor_cause = pg_pool_exhausted` (EC-3 item 4) -- and the floor carries NO
+    `trace.walk_shape`, because the walk never completed. So `_honored_mode` reads None, `_credit_price`
+    prices 0, and `_settle_credit` gives the whole charge back. THE POINT: EC-3 needed no new refund
+    code, and this pin is what says so out loud -- if anyone ever moved the refund off the walk stamp,
+    the patience item would start charging a full credit for turns that delivered a banner."""
+    from leviathan.graphrag import orchestrator as orch
+    wedge = RuntimeError("pg pool exhausted: no connection freed in 300s "
+                         "(size=8) - leaked slot or wedged holder")
+    assert orch._floor_cause(wedge) == "pg_pool_exhausted"
+    floored = _floor_result("deep")
+    floored["trace"]["floor_cause"] = "pg_pool_exhausted"
+    assert sv._grounded_walk_ran(floored) is False        # the horizon expired mid-walk: no stamp
+    assert sv._honored_mode(floored) is None              # ...so the reconcile sees delivered-nothing
+    assert sv._credit_price(sv._honored_mode(floored)) == 0
+    # ...and the reconcile actually hands it back, against the same in-memory ledger the rest of the
+    # file uses (the store twin, not a bespoke double).
+    s = _use(monkeypatch, _LedgerStore())
+    period = sv._credits_period()
+    s.debit("local", period, 1, 100, op_id="turn#1", ref="deep")
+    assert s.spent[("local", period)] == 1
+    sv._settle_credit({"sub": "local", "period": period, "amount": 1, "op_id": "turn#1",
+                       "applied": True, "honored": "deep", "lease": "L", "settled": False}, floored)
+    assert s.spent[("local", period)] == 0                 # NET ZERO: the full charge, back
+    assert s.kinds()[-1] == "credit"
 
 
 @pytest.mark.parametrize("early", ["trivial", "guardrail"])

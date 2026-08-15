@@ -20,14 +20,55 @@ Design choices (deliberate):
 
 DSN from EVIDENCE_PG_DSN (e.g. postgresql://postgres:...@host:5432/leviathan). psycopg3; the query vector rides
 as a '[f1,f2,...]' literal cast ::vector, so no extra adapter package is needed.
+
+EC-3 FILL PATIENCE -- THE ORCHESTRATOR DECISION OF RECORD (2026-08-15). A METERED turn (the user bought
+depth: rm.is_metered on the HONORED mode) waits longer for a pool slot than an unmetered one, because
+flooring a paid turn to save 3 minutes is the wrong trade and fast-fail is only correct for Scan. The
+shape of that patience was the decision, and it is a TURN-SCOPED DEADLINE, NOT A PER-BORROW DURATION:
+
+  ONE horizon per turn bounds the TOTAL borrow WAITING across ALL of that turn's borrows.
+
+WHY, PLAINLY: a max-width walk issues HUNDREDS of borrows (the EC-2 item exists precisely to collapse
+that count). A per-borrow patience of 300s is therefore not a 300s promise -- it is 300s x hundreds of
+borrows of worst-case latency, i.e. an unbounded turn wearing a bounded-looking number, and the ALB's
+1800s idle would be the only thing left holding the line. A deadline installed once at the top of the
+grounded walk cannot compound: every borrow reads the SAME instant, the last one gets whatever is left,
+and the turn degrades to the deterministic floor the moment the horizon passes -- degrade, never hang.
+It also makes the knob READABLE: `GRAPHRAG_FILL_PATIENCE_S=300` means this turn will spend at most ~300s
+waiting on the pool, full stop, whatever the walk's width turns out to be.
+
+Two consequences, both deliberate. (1) The deadline lives on a THREAD-LOCAL, so it is per-turn by
+construction on a threaded server and a concurrent unmetered turn is untouched -- but the fill/probe
+worker pools do not inherit it (contextvars do not reach them either; planner records that finding), so
+each pool CAPTURES on the parent thread and INSTALLS per worker, the exact `rankers.adopt_lane` shape.
+(2) A borrow that starts with less than `_POOL_WAIT_S` left on the clock takes the LEGACY single-get
+path unchanged, so the last borrow of an exhausted horizon can overshoot it by at most one `_POOL_WAIT_S`
+-- accepted, because the alternative is a second timeout grammar for the final borrow of every walk.
+Patience is OFF by default in the sense that matters: nothing installs a deadline unless the orchestrator
+does, and `GRAPHRAG_FILL_PATIENCE_S=0` disables it estate-wide with no deploy.
+
+THE NUMBERS LANE IS EXEMPT, AND THE EXEMPTION IS ENFORCED, NOT ASSUMED (corrected 2026-08-15). Its
+Athena fallback IS its patience, and making it wait would trade a fast honest degrade for a slow one.
+But the deadline is AMBIENT -- `_acquire` reads a thread-local, it is not an opt-in argument -- so
+"does not adopt" buys nothing on its own: the cascade-quantify legs call `numbers_lookup` SEQUENTIALLY
+ON THE WALK THREAD (answer.py's `cq.quantify(qfn=...)`, inside the orchestrator's `_patience_ctx`),
+so `pgnumbers.pg_query` inherited the metered horizon on every metered reasoning/hybrid turn and a
+lookup the design says fast-fails at `_POOL_WAIT_S` could block for the whole remaining horizon. Only
+the FORKED numbers-agent thread was ever exempt, and that was an accident of threading, not the
+decision. `without_patience()` below is the enforcement: the numbers lane SUSPENDS the turn's horizon
+across its own borrow and restores it, so its borrow is the legacy single-get on every lane while the
+walk's own borrows keep the horizon they were given.
 """
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
+import random
 import re
 import threading
+import time
 from typing import Optional
 
 DIM = 1024                                                   # bge-m3 (and Titan v2) embedding width
@@ -72,6 +113,154 @@ _POOL_SIZE = int(os.environ.get("EVIDENCE_PG_POOL", "4"))
 # means slots leaked or a holder wedged — fail the ONE caller loudly (pg_query degrades to its Athena
 # fallback; a walk fetch errors its turn) instead of blocking every worker forever (Jul-11 stall autopsy).
 _POOL_WAIT_S = int(os.environ.get("EVIDENCE_PG_POOL_WAIT_S", "120"))
+
+# ── EC-3: METERED-TURN FILL PATIENCE (see the module docstring for the decision of record) ─────────────
+# The turn's borrow-wait horizon, as a MONOTONIC DEADLINE on a thread-local. Absent (the default state,
+# and every unmetered turn) -> `_acquire` runs the legacy single-get path byte-identically.
+_PATIENCE_TL = threading.local()
+_PATIENCE_ENV = "GRAPHRAG_FILL_PATIENCE_S"
+_PATIENCE_DEFAULT_S = 300.0                      # the EC-3 spec's horizon: 120s fast-fail -> up to 300s
+
+
+def _fill_patience_s() -> float:
+    """The metered horizon in seconds, read at CALL TIME (never cached at import), 0.0 = disabled.
+
+    CALL-TIME, like `table_name()` and `_STMT_TIMEOUT_MS`'s read: the knob is the rollback. `=0` turns
+    EC-3 off estate-wide without a deploy and without a code path changing shape -- with no deadline
+    installed, `_acquire` is the pre-EC-3 function.
+
+    THE GRAMMAR, and the asymmetry is on purpose: an EXPLICIT `0` (or any non-positive value) DISABLES,
+    because that is someone deliberately reaching for the rollback. Anything unparseable -- a typo, an
+    empty string, `300s`, a value some future taskdef renders as a list -- falls back to the 300s
+    DEFAULT rather than to off. A rollback should be something you MEANT; a typo must not silently
+    un-ship the feature and leave a floor rate nobody can explain."""
+    raw = os.environ.get(_PATIENCE_ENV)
+    if raw is None or not str(raw).strip():
+        return _PATIENCE_DEFAULT_S
+    try:
+        v = float(str(raw).strip())
+    except (TypeError, ValueError):
+        return _PATIENCE_DEFAULT_S
+    return v if v > 0 else 0.0
+
+
+def patience_deadline() -> Optional[float]:
+    """THIS thread's borrow-wait deadline (a `time.monotonic()` instant), or None. `_acquire` reads it.
+
+    None is a valid state everywhere -- it is the state of every unmetered turn, every eval/Batch arm,
+    every loader and every test that has not installed one."""
+    return getattr(_PATIENCE_TL, "deadline", None)
+
+
+def current_patience_deadline() -> Optional[float]:
+    """THE CAPTURE SEAM: read the parent thread's deadline before handing work to a pool.
+
+    Same value as `patience_deadline()`; a distinct NAME because the call sites are distinct duties --
+    `patience_deadline()` is the consumer (`_acquire`), this is the producer of the value a worker
+    later adopts. `rankers.lane_collector()` plays the same double role for the lane."""
+    return patience_deadline()
+
+
+@contextlib.contextmanager
+def set_patience(seconds):
+    """Install a horizon of `seconds` on THIS thread for the duration of the block. The orchestrator's
+    seam: entered ONCE per metered turn, around the grounded-walk region.
+
+    NESTED-SAFE IN THE DIRECTION THAT MATTERS -- a nested block may SHORTEN the turn's horizon, never
+    EXTEND it (the installed deadline is `min(new, existing)`). One horizon per turn is the whole
+    decision; a nested 300s inside a 300s turn that had 20s left would silently mint a second horizon
+    and the bound would stop being a bound. The prior value is restored in a `finally`, so an exception
+    inside the walk can never leave a pooled serving thread carrying a dead turn's deadline.
+
+    `seconds` non-positive/None -> the block is a NO-OP that leaves whatever is installed alone (the
+    disabled knob must not clear an outer deadline, and must not install one)."""
+    try:
+        secs = float(seconds or 0)
+    except (TypeError, ValueError):
+        secs = 0.0
+    if secs <= 0:
+        yield
+        return
+    prior = patience_deadline()
+    new = time.monotonic() + secs
+    _PATIENCE_TL.deadline = new if prior is None else min(prior, new)
+    try:
+        yield
+    finally:
+        if prior is None:
+            _clear_patience()
+        else:
+            _PATIENCE_TL.deadline = prior
+
+
+@contextlib.contextmanager
+def adopt_patience(deadline):
+    """Run a block with the PARENT's `deadline` installed on THIS thread -- the fill/probe workers' seam,
+    and a literal copy of `rankers.adopt_lane`'s shape (contextvars provably do not reach these pools;
+    planner.py records that measurement).
+
+    NESTED-SAFE the same way `adopt_lane` is: a thread that already carries a deadline KEEPS it. The
+    sequential branches of both pools run on the CALLER's own thread, where installing-and-clearing
+    would strip the turn's own horizon mid-walk. Fail-open end to end -- patience is a latency policy,
+    so nothing in here may ever raise into a walk."""
+    own = False
+    try:
+        own = deadline is not None and patience_deadline() is None
+        if own:
+            _PATIENCE_TL.deadline = float(deadline)
+    except Exception:  # noqa: BLE001 — a patience miss costs latitude, never correctness
+        own = False
+    try:
+        yield
+    finally:
+        if own:
+            _clear_patience()
+
+
+@contextlib.contextmanager
+def without_patience():
+    """SUSPEND this thread's horizon for the block, then restore it -- THE NUMBERS LANE's seam, and the
+    only declared exemption that has to be spelled to be true.
+
+    WHY IT EXISTS AT ALL. The deadline is AMBIENT: `_acquire` reads the thread-local, no caller opts in.
+    So a lane cannot exempt itself by not mentioning the patience API -- silence is precisely the state
+    in which it INHERITS. `pgnumbers.pg_query` runs on the WALK's own thread on the cascade-quantify
+    legs (`cq.quantify(qfn=...)` calls them sequentially inside the orchestrator's `_patience_ctx`), so
+    before this seam existed a numbers lookup on a metered turn waited the turn's whole remaining
+    horizon instead of fast-failing into Athena at `_POOL_WAIT_S`. The forked numbers-agent thread was
+    the only genuinely exempt caller, and only because thread-locals do not cross a fork.
+
+    SUSPEND, NOT DISABLE, and the difference is the bound: the horizon is TURN-scoped, so clearing it
+    permanently would hand the rest of the walk an unbounded wait. The prior deadline is restored in a
+    `finally` -- the same instant, not a fresh one, so time spent inside the block still counts against
+    the turn's horizon and the bound stays a bound. Nesting is a no-op (nothing installed -> nothing to
+    restore). Fail-open end to end: patience is a latency policy and may never raise into a lookup."""
+    prior = None
+    had = False
+    try:
+        prior = patience_deadline()
+        had = prior is not None
+        if had:
+            _clear_patience()
+    except Exception:  # noqa: BLE001 — a suspend miss costs latitude, never correctness
+        had = False
+    try:
+        yield
+    finally:
+        if had:
+            try:
+                _PATIENCE_TL.deadline = prior
+            except Exception:  # noqa: BLE001 — same fail-open contract as the install side
+                pass
+
+
+def _clear_patience() -> None:
+    """Drop this thread's deadline. Pool threads are REUSED across turns, so the clear is what keeps a
+    later unmetered turn from inheriting a paid turn's (already expired) horizon."""
+    try:
+        del _PATIENCE_TL.deadline
+    except AttributeError:
+        pass
 # Server-side per-statement ceiling on POOLED SERVING connections (numbers lookups AND evidence-walk
 # fetches — both draw from this pool). A pooled conn should hold its slot only for one execute()+fetch;
 # without a server-side kill a pathological query (e.g. a bad plan on a freshly-reloaded, un-ANALYZEd
@@ -109,11 +298,44 @@ def _acquire():
                 for _ in range(max(1, _POOL_SIZE)):
                     p.put(None)                          # lazy slots — connect on first checkout
                 _POOL = p
-    try:
-        conn = _POOL.get(timeout=max(1, _POOL_WAIT_S))
-    except _q.Empty:
-        raise RuntimeError(f"pg pool exhausted: no connection freed in {_POOL_WAIT_S}s "
-                           f"(size={_POOL_SIZE}) — leaked slot or wedged holder") from None
+    # EC-3: the SIGNATURE IS UNCHANGED and the deadline is ambient (thread-local), because the borrow
+    # sites are hundreds of call sites deep inside the walk -- threading a patience argument through
+    # them would be the same edit as threading a lane collector, which the estate already refused once.
+    _dl = patience_deadline()
+    _rem = None if _dl is None else _dl - time.monotonic()
+    if _rem is None or _rem <= _POOL_WAIT_S:
+        # THE LEGACY PATH, byte-identical (same single get, same timeout arithmetic, same message, same
+        # `from None`): no deadline installed -- every unmetered turn, every eval arm, every loader --
+        # or a horizon so nearly spent that one more slice would just be this wait wearing a new name.
+        try:
+            conn = _POOL.get(timeout=max(1, _POOL_WAIT_S))
+        except _q.Empty:
+            raise RuntimeError(f"pg pool exhausted: no connection freed in {_POOL_WAIT_S}s "
+                               f"(size={_POOL_SIZE}) — leaked slot or wedged holder") from None
+    else:
+        # THE PATIENT PATH. Slices are JITTERED (0.8-1.2x) so N workers that all queued at the same
+        # instant do not re-collide in lockstep every wait, and each slice is CLAMPED to what is left
+        # of the turn's horizon so the loop cannot overshoot it. There is NO SLEEP between attempts:
+        # `Queue.get(timeout=...)` IS the wait, and a sleep would hand the freed slot to some other
+        # thread while this one napped -- latency invented, not spent.
+        _t0 = time.monotonic()
+        _horizon = max(0.0, _dl - _t0)
+        while True:
+            _left = _dl - time.monotonic()
+            if _left <= 0:
+                # PAST THE HORIZON = the same terminal wedge as the legacy path, deliberately the same
+                # message SHAPE with the total horizon in the seconds slot: `orchestrator._floor_cause`
+                # types it (slug `pg_pool_exhausted`) off the leading phrase, and a second grammar
+                # would mean a second thing to match. The turn floors -- and a floored turn carries no
+                # walk stamp, so `server._settle_credit` prices it 0 and refunds it.
+                raise RuntimeError(f"pg pool exhausted: no connection freed in {int(round(_horizon))}s "
+                                   f"(size={_POOL_SIZE}) — leaked slot or wedged holder") from None
+            _slice = min(_left, max(1.0, _POOL_WAIT_S * random.uniform(0.8, 1.2)))
+            try:
+                conn = _POOL.get(timeout=_slice)
+                break
+            except _q.Empty:
+                continue
     if conn is None or conn.closed:
         try:
             kw = {"autocommit": True}

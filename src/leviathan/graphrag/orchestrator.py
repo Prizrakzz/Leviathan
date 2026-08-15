@@ -1203,6 +1203,43 @@ def _census_ctx(effective: str | None):
     return contextlib.nullcontext()
 
 
+def _patience_ctx(honored: str | None):
+    """EC-3: the metered turn's POOL-BORROW HORIZON, installed around the grounded-walk region.
+
+    THE ARGUMENT IS THE HONORED MODE, NOT THE EFFECTIVE ONE, and that is the opposite choice from
+    `_census_ctx` one function up -- deliberately. The census follows the width that actually RAN (it is
+    a knob's bundle-mate); patience follows what the USER BOUGHT. An escalated turn is honored `deep`,
+    priced as `deep`, and gets deep's patience; if the two were conflated, a `max` eval arm (unpriced,
+    dark) would start spending the metered horizon and the eval lane's pool-contention law would be the
+    only thing left holding it.
+
+    THREE GATES, all fail-open to today's behavior: metered tier, patience knob enabled, pgstore
+    importable. Any of them short of true returns `nullcontext()` -- literally no deadline installed --
+    and `pgstore._acquire` is then its pre-EC-3 self, byte for byte. `_fill_patience_s()` is read HERE,
+    per turn, so `GRAPHRAG_FILL_PATIENCE_S=0` rolls the whole item back on the next turn with no deploy.
+
+    NOT INSTALLED ON: the live and numbers_only lanes (they run no grounded walk -- the same structural
+    exemption those lanes already carry from the knob threading).
+
+    THE NUMBERS LANE IS EXEMPT AT ITS OWN BORROW, NOT BY THREADING (corrected 2026-08-15). This wrap is
+    entered on the CALLER's thread and the deadline is a thread-local, so the forked numbers-AGENT leg of
+    a hybrid turn is exempt for free -- but the cascade-quantify legs call `numbers_lookup` SEQUENTIALLY
+    ON THIS THREAD (`answer.py` -> `cq.quantify(qfn=...)`), so on a metered turn they DID inherit this
+    horizon until `pgnumbers.pg_query` was made to borrow inside `pgstore.without_patience()`. That
+    suspend is what makes "`pg_query` keeps fast-failing into its Athena fallback" true; do not restate
+    the exemption as a consequence of the fork."""
+    try:
+        if not rm.is_metered(honored):
+            return contextlib.nullcontext()
+        from leviathan.graphrag import pgstore as _pgs
+        secs = _pgs._fill_patience_s()
+        if secs <= 0:
+            return contextlib.nullcontext()
+        return _pgs.set_patience(secs)
+    except Exception:  # noqa: BLE001 — patience is a latency policy; it can never fail a turn
+        return contextlib.nullcontext()
+
+
 def _family_facet_on() -> bool:
     """Data-family facet consumption kill-switch (F2 durable fix). DEFAULT-OFF, case-insensitive, fail-closed
     (any unrecognized value stays off) -- copies the _reroute_v2_on idiom exactly. When OFF the planner keeps
@@ -1509,7 +1546,8 @@ def _guardrail_check(query: str):
 # over the anthropic SDK's own availability errors (providers.RETRYABLE = RateLimitError,
 # APIConnectionError, InternalServerError -- 529 overloaded arrives as InternalServerError), which reach
 # the floor UNWRAPPED: serving_call re-raises the original exception after the degraded attempt fails.
-_FLOOR_CAUSES = ("pg_statement_timeout", "pg_operational", "model_download", "llm_unavailable", "other")
+_FLOOR_CAUSES = ("pg_statement_timeout", "pg_pool_exhausted", "pg_operational", "model_download",
+                 "llm_unavailable", "other")
 
 # Bounded, and matched against the TYPE NAME only -- never raw message text, so no user/provider string can
 # mint a dimension value. Bedrock's InvokeModel throttle/unavailability names are included because serving
@@ -1546,6 +1584,16 @@ def _floor_cause(exc: BaseException) -> str:
     msg = str(exc).lower()
     if "querycanceled" in name or "statement timeout" in msg or "canceling statement" in msg:
         return "pg_statement_timeout"
+    if "pg pool exhausted" in msg:
+        # EC-3. The wedge is a BARE RuntimeError raised by pgstore._acquire (a queue timeout has no
+        # driver exception to type off), so its message is the only signal -- exactly the `model_download`
+        # situation, and the phrase is pgstore's own literal, not a user or provider string, so no
+        # dimension value can be minted from outside. It sits ABOVE the generic pg row because the
+        # message would otherwise be claimed by nothing and fall to `other`, which is where every
+        # pool-exhaustion floor landed BEFORE this build (the EC-0 benchmark's recorded incidental).
+        # CLOUDWATCH DISCONTINUITY: the FloorTurns `cause` split has a step at this commit -- historical
+        # `other` includes pool floors, `other` after it does not.
+        return "pg_pool_exhausted"
     if "huggingface" in msg or ("couldn't connect to" in msg and "load the files" in msg):
         return "model_download"
     if "operationalerror" in name or "operationalerror" in msg or "psycopg" in msg:
@@ -2388,7 +2436,12 @@ def _respond_walk(query: str, *, graph, asof: Optional[str] = None, call=None, r
             # the response-contract seam these two functions reach. The live and numbers_only lanes are
             # EXEMPT for the same reason they are exempt from the knob stamp below: they run no response
             # contract, so an override there would set a flag nothing reads.
-            with _census_ctx(_effective):                             # D-MW-30 F3: EFFECTIVE, not honored
+            # EC-3 rides the SAME wrap point for the same reason: the walk (and every pool borrow it
+            # makes) happens on THIS thread, inside this call. Honored, not effective -- see
+            # `_patience_ctx`. The numbers AGENT leg forks its own thread in run_hybrid, so it never sees
+            # this thread-local; the cascade-quantify numbers legs DO run on this thread, and they are
+            # exempted at the borrow itself (`pgnumbers.pg_query` -> `pgstore.without_patience()`).
+            with _patience_ctx(_mode["honored"]), _census_ctx(_effective):  # D-MW-30 F3: EFFECTIVE census
                 res = run_hybrid(query, asof, graph=graph, call=call, retrieve=retrieve, model=model,
                                  client=numbers_client, numbers_model=numbers_model, query_fn=qfn, planner=planner,
                                  extra_context=sblock, route_fn=route_fn, near=near, silver_lookup=silver_lookup,
@@ -2400,7 +2453,7 @@ def _respond_walk(query: str, *, graph, asof: Optional[str] = None, call=None, r
                                  numbers_query=(_nq if _fam_on else None),
                                  families=_families, **_rck, **_mk)
         else:
-            with _census_ctx(_effective):                             # D-MW-13/30, see the hybrid lane above
+            with _patience_ctx(_mode["honored"]), _census_ctx(_effective):  # D-MW-13/30 + EC-3, as above
                 res = run_reasoning(query, asof, graph=graph, call=call, retrieve=retrieve, model=model,
                                     planner=planner, extra_context=sblock, route_fn=route_fn, near=near,
                                     silver_lookup=silver_lookup, on_stage=on_stage,

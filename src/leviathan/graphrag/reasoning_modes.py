@@ -389,6 +389,40 @@ MODES.update({hp: replace(MODES[base], name=hp, handle_prose=True)
 DARK_NAMES: frozenset = frozenset({DEEP_V2, MAX, MAX_C0, ESC, ESC_R, MAX_CC1,
                                    QUICK_HP, DEEP_HP, ESC_HP, ESC_R_HP})
 
+# ── EC-3: THE METERED PREDICATE (the leaf half of a two-module fact) ────────────────────────────────
+# `server._CREDIT_PRICES` is the SIBLING AUTHORITY and stays the frozen wire contract -- it answers
+# "what does this honored tier COST", in literals, because a price table that computes is a price table
+# that can be argued with at 3am (server.py's own note). This predicate answers a different question --
+# "is this turn one the user PAID for" -- for consumers that must never grow a price opinion: EC-3's
+# fill patience, and anything after it that wants to spend a scarce resource only on a bought turn.
+# THE INVARIANT THAT KEEPS THE TWO HONEST, and the one the cross-pin in test_dmw_credit_seam asserts:
+# a DEEP-BASED PRICE IMPLIES METERED. Every priced wire name whose `base_mode` is `deep` (`deep` and,
+# since D-HP H1 Z5(d), `deep_hp`) MUST read metered here, and no unpriced SERVING tier (`quick`,
+# `standard`) may. Adding a price for a new deep-based twin without adding it to the join `base_mode`
+# already owns is the failure the pin catches.
+METERED_BASES: frozenset = frozenset({DEEP})
+
+
+def is_metered(honored: str | None) -> bool:
+    """Did the user PAY for this turn? True iff the honored tier's BASE preset is a metered one.
+
+    THE ARGUMENT IS THE HONORED MODE, NEVER THE EFFECTIVE ONE (D-MW-30 F3): a shape escalation moves
+    only `_effective`; `honored` stays `deep`, which is what the turn was sold and priced as. Passing
+    `_effective` here would ask "how wide did it go", which is not what anyone is buying.
+
+    `base_mode` (not a name list) is the join, so the four `_hp` twins follow their base for free --
+    a flipped `deep_hp` tier is metered on the same line that prices it 1.
+
+    THE ESCALATED NAMES READ FALSE and that is the SAFE direction, stated so nobody "fixes" it: `esc`
+    and `esc_r` are priced in `_CREDIT_PRICES` purely as a fence against a future stamp change (an
+    unpriced `esc` that ever reached `honored` would FULL-REFUND a delivered max-width turn). They
+    cannot be `honored` today. If one ever were, this predicate would decline the extra patience, the
+    turn would floor exactly as it does now, and a floored turn prices 0 and refunds -- i.e. the
+    conservative read costs latitude, never money. The reverse default would spend patience on turns
+    nobody paid for."""
+    return base_mode(honored) in METERED_BASES
+
+
 # The knob field names, in declaration order (the trace-stamp column order; append, never sort).
 KNOB_FIELDS: tuple[str, ...] = tuple(f.name for f in fields(Mode) if f.name != "name")
 

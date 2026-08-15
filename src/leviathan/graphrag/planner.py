@@ -14,6 +14,7 @@ WS-1 here = the walk + prior leg + mermaid + trace. The I/O legs (evidence, silv
 `ground()` (WS-2/4/5)."""
 from __future__ import annotations
 
+import contextlib
 import math
 import os
 from dataclasses import dataclass, field
@@ -1281,6 +1282,38 @@ def _dedup_and_cap(sg: Subgraph, cap: int, *, cap_policy: str | None = None, k_b
         n.evidence = keep
 
 
+def _capture_parent_patience():
+    """EC-3 CAPTURE, on the CALLER's thread: the turn's pool-borrow deadline, or None.
+
+    Called before a pool is handed any work, for the same measured reason the lane collector is captured
+    here (D-MW-6, and the finding recorded a few lines below in `_parallel_fill`): contextvars DO NOT
+    reach these workers -- a Context copied inside a worker is empty and one shared Context entered by
+    several workers raises -- so the parent's value is read HERE and installed per worker. Fail-open:
+    None simply means no patience, which is the pre-EC-3 behavior."""
+    try:
+        from leviathan.graphrag import pgstore as _pg
+        return _pg, _pg.current_patience_deadline()
+    except Exception:  # noqa: BLE001 — a patience miss costs latitude, never correctness
+        return None, None
+
+
+@contextlib.contextmanager
+def _adopt_parent(lane_rk, parent_lane, pat_pg, parent_deadline):
+    """Install the parent turn's THREAD-LOCAL context on a pool worker: the rerank lane (D-MW-6) and the
+    EC-3 borrow deadline. Both adopters are individually nested-safe and fail-open, so this is correct on
+    BOTH branches of both pools -- including the sequential branch, which runs on the caller's own thread
+    and must keep (never re-install, never clear) what is already there.
+
+    With neither captured this is an EMPTY ExitStack, i.e. the call is exactly the bare `fn(n)` the
+    pre-D-MW code made."""
+    with contextlib.ExitStack() as _st:
+        if parent_lane is not None and lane_rk is not None:
+            _st.enter_context(lane_rk.adopt_lane(parent_lane))
+        if parent_deadline is not None and pat_pg is not None:
+            _st.enter_context(pat_pg.adopt_patience(parent_deadline))
+        yield
+
+
 def _parallel_fill(nodes, fn, query, retrieve, expected: int | None = None) -> None:
     """Run the per-node evidence fetch concurrently (overlaps the slow managed-rerank round-trips). Falls back
     to sequential when workers<=1 or a single node. On the REAL serving retriever we pre-warm the shared query
@@ -1343,14 +1376,16 @@ def _parallel_fill(nodes, fn, query, retrieve, expected: int | None = None) -> N
         _parent_lane = _lane_rk.lane_collector()
     except Exception:  # noqa: BLE001 — telemetry must never break a walk
         _lane_rk, _parent_lane = None, None
+    # EC-3: the SAME propagation, one thread-local over. Every pool-slot borrow of this walk happens
+    # inside one of these workers, so a horizon installed on the turn's thread reaches NONE of them
+    # unless it is carried across explicitly -- an un-adopted worker would fast-fail at _POOL_WAIT_S and
+    # floor the very turn the patience was bought for.
+    _pat_pg, _parent_deadline = _capture_parent_patience()
 
     def fn_(n):  # noqa: E306
         try:
-            if _parent_lane is None:
+            with _adopt_parent(_lane_rk, _parent_lane, _pat_pg, _parent_deadline):
                 fn(n)
-            else:
-                with _lane_rk.adopt_lane(_parent_lane):     # nested-safe; clears in its own finally
-                    fn(n)
         except BaseException:                  # a promised arrival that died must RETRACT its promise,
             if hinted:                         # else the leader waits out the whole window for a caller
                 try:                           # that can never arrive
@@ -1676,11 +1711,14 @@ def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, s
                 _parent_lane = _lane_rk.lane_collector()
             except Exception:  # noqa: BLE001 — telemetry must never break a walk
                 _lane_rk, _parent_lane = None, None
+            # EC-3: the probes are the turn's OTHER borrow population (~24 round-trips on a serving
+            # turn, all against the same pool), so they carry the parent's horizon for the same reason
+            # the fill workers do -- and `_adopt_parent` is nested-safe, which is what keeps ONE `_one`
+            # correct in both the sequential (caller's thread) and pooled branches below.
+            _pat_pg, _parent_deadline = _capture_parent_patience()
 
             def _one(item):
-                if _parent_lane is None:
-                    return _recent(list(probe(query, item[1], k=2, asof=asof, near=near)))
-                with _lane_rk.adopt_lane(_parent_lane):
+                with _adopt_parent(_lane_rk, _parent_lane, _pat_pg, _parent_deadline):
                     return _recent(list(probe(query, item[1], k=2, asof=asof, near=near)))
             if _PROBE_WORKERS <= 1 or len(plan) <= 1:              # sequential: exact pre-F3 call pattern
                 out = [_one(it) for it in plan]
