@@ -1801,6 +1801,17 @@ def respond(*args, **kwargs) -> dict:
                            "dispatch": tr.get("ms_dispatch"), "numbers": tr.get("ms_numbers"),
                            "synth_llm": tr.get("ms_synth_llm"), "quantify": tr.get("ms_quantify"),
                            "rollup": tr.get("ms_rollup")}
+        # EC-2 GATE (a): pool borrows per walk, mirrored INTO the existing timing block rather than
+        # promoted to a TRACE_RECORD_KEYS column -- the 12f choice, made deliberately. EC-0's record
+        # states that `ms_fill` is not in the eval artifact either (per_answer does not mirror
+        # trace.timing_ms) and that BOTH sides of the EC-1 read were taken off the `[timing]` line below;
+        # borrows are the same class of read for the same gate, so they belong on the same grep, and the
+        # comparator arithmetic stays a single-source join. A permanent artifact column for a capacity
+        # item's temporary counter would outlive the gate that needs it. Absent on every non-walking
+        # turn (live/numbers_only build no subgraph) -> None, no zero-fill, same rule as every other key.
+        pb = tr.get("pool_borrows") or {}
+        tr["timing_ms"]["borrows_fill"] = pb.get("fill")
+        tr["timing_ms"]["borrows_rest"] = pb.get("rest")
         stripped = int((tr.get("citation_verifier") or {}).get("stripped", 0) or 0)
         # CYCLE-8 (2026-08-08) FIX 2(c): a number_mismatch REPAIR rewrites the reader's prose and is not a
         # strip, so `stripped=0` was readable as "this turn shipped clean" on a turn that shipped a rewritten
@@ -1809,9 +1820,12 @@ def respond(*args, **kwargs) -> dict:
         repaired = int((tr.get("citation_verifier") or {}).get("repaired", 0) or 0)
         # print() (not logging) so the line reaches CloudWatch even though the app root logger sits at WARNING
         # under uvicorn — ASCII-only, flushed. Human-readable companion to the EMF metric line below.
+        # EC-2: `borrows_fill=` / `borrows_rest=` are APPENDED at the tail, so every existing reader of
+        # this line (the EC-0 gate arithmetic joins ms_fill to per_answer.secs off exactly this print)
+        # keeps parsing byte-identically and simply gains two fields.
         print(f"[timing] total_ms={total} intent={res.get('intent')} model={res.get('model')} "
               f"ms_fill={gm.get('fill')} ms_rest={gm.get('rest')} stripped={stripped} "
-              f"repaired={repaired}", flush=True)
+              f"repaired={repaired} borrows_fill={pb.get('fill')} borrows_rest={pb.get('rest')}", flush=True)
         # Stage 5.3 R3: emit the same numbers as CloudWatch EMF -> auto-extracted metrics (Leviathan/Serving)
         # feeding the serving dashboard. StripCount ties the primary quality signal (verifier strips) into ops.
         # RF-6 NOW batch: cascade firing-rate counters off the per-node quantify trace (count metrics only —

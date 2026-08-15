@@ -459,13 +459,17 @@ def test_the_eval_lane_is_not_special_cased(monkeypatch):
 def test_both_pools_capture_and_adopt_the_parent_horizon():
     """The propagation, asserted on the planner's own helpers rather than by spinning a walk: capture
     reads the CALLER's thread, and `_adopt_parent` installs it on the worker beside the rerank lane --
-    with neither captured it is an empty stack, i.e. the bare call."""
+    with neither captured it is an empty stack, i.e. the bare call.
+
+    EC-2 (2026-08-15): the capture tuple grew a THIRD element -- the borrow ledger rides the same
+    capture as the deadline, on purpose (one seam to remember at every future pool). This test's
+    assertions are unchanged; only the unpacking widened."""
     from leviathan.graphrag import planner as pl
     pg._clear_patience()
-    mod, dl = pl._capture_parent_patience()
+    mod, dl, _led = pl._capture_parent_patience()
     assert mod is pg and dl is None
     with pg.set_patience(6):
-        mod, dl = pl._capture_parent_patience()
+        mod, dl, _led = pl._capture_parent_patience()
         assert dl == pg.patience_deadline()
     seen: dict = {}
 

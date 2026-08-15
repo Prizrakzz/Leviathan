@@ -39,9 +39,19 @@ def _stringify(v):
 def pg_query(sql: str) -> list[dict]:
     """Execute one (build_sql-shaped) statement on the mirror and return Athena-contract rows:
     list[dict[str, str|None]] keyed by the SELECT aliases. Reuses the evidence store's connection pool —
-    same RDS, same DSN, already sized for concurrent walk fetches."""
+    same RDS, same DSN, already sized for concurrent walk fetches.
+
+    EC-3 EXEMPTION, ENFORCED (2026-08-15). The borrow runs inside `pgstore.without_patience()`: this
+    lane keeps the LEGACY fast-fail wait (`_POOL_WAIT_S`) even on a metered turn, because the per-request
+    Athena fallback in `query_fn` below IS this lane's patience — waiting out a 300s pool horizon here
+    would trade a fast honest degrade for a slow one. It must be SAID, not assumed: the patience deadline
+    is ambient (a thread-local `_acquire` reads), and the cascade-quantify legs call this on the WALK's
+    own thread inside the orchestrator's horizon, so without the suspend this lane silently inherited it.
+    Suspend, not disable — the deadline is restored immediately after the borrow, so the walk's remaining
+    borrows keep the turn's bound and the time spent here still counts against it."""
     from leviathan.graphrag import pgstore
-    conn = pgstore._acquire()
+    with pgstore.without_patience():
+        conn = pgstore._acquire()
     try:
         with conn.cursor() as cur:
             cur.execute(sql)

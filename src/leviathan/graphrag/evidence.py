@@ -492,7 +492,8 @@ def _out(recs: list[dict], scores: dict | None = None) -> list[dict]:
 def retrieve(query: str, node: str, *, k: int = 5, asof: str | None = None, near: str | None = None,
              beta: float = 0.25, bedrock=None, records: list[dict] | None = None,
              mode: str = "dense", rerank: bool = False, mmr: float = 0.0,
-             same_source: bool = True, fairness: float = 0.30, fetch_k: int = _FETCH_K) -> list[dict]:
+             same_source: bool = True, fairness: float = 0.30, fetch_k: int = _FETCH_K,
+             candidates: list[dict] | None = None) -> list[dict]:
     """Top-k props for the query, point-in-time filtered (date <= asof) — leakage-safe. Default
     (mode='dense', rerank=False, mmr=0) is pure cosine + episode-proximity, UNCHANGED. Opt-in retrieval-quality
     knobs (all in-memory; they curate WHICH dated evidence reaches the LLM, never the reasoning):
@@ -500,11 +501,24 @@ def retrieve(query: str, node: str, *, k: int = 5, asof: str | None = None, near
       rerank=True   -> a bge cross-encoder re-orders relevance (precision);
       mmr>0         -> MMR final-select for diversity (guards against rerank narrowing the evidence set).
     EVIDENCE_BACKEND=pg routes candidate fetch to pgvector (one filtered SQL round-trip instead of a full-slice
-    scan) with the SAME post-fetch pipeline — see pgstore.pg_retrieve. Explicit `records=` always stays local."""
+    scan) with the SAME post-fetch pipeline — see pgstore.pg_retrieve. Explicit `records=` always stays local.
+
+    EC-2 `candidates=`: this node's pg rows, fetched upstream in a batched LATERAL statement. It is a PG-ONLY
+    argument and it is REFUSED on the flat path rather than ignored (below) — pg rows carry `id`/`vector` or
+    `id`/`score` and the flat scorer wants the JSONL record shape, so a silent ignore would have meant a
+    caller believing it had prefetched while every node quietly re-scanned its whole slice."""
     if records is None and os.environ.get("EVIDENCE_BACKEND") == "pg":
         from leviathan.graphrag import pgstore
         return pgstore.pg_retrieve(query, node, k=k, asof=asof, near=near, beta=beta, mode=mode, rerank=rerank,
-                                   mmr=mmr, same_source=same_source, fairness=fairness, fetch_k=fetch_k)
+                                   mmr=mmr, same_source=same_source, fairness=fairness, fetch_k=fetch_k,
+                                   candidates=candidates)
+    if candidates is not None:
+        # RAISED, NOT `assert`ed: an assert is compiled out under -O and this is a wiring contract, not a
+        # debugging aid. Reaching here means either the backend is not pg or an explicit `records=` was
+        # passed (the hermetic-test path) -- in both cases the caller's prefetch is meaningless and the
+        # honest answer is to say so loudly at the seam rather than to serve a silently un-batched walk.
+        raise ValueError("evidence.retrieve: candidates= is a pg-backend argument; the flat/records path "
+                         "cannot consume prefetched pg rows")
     all_records = load_index(node) if records is None else records
     recs = [r for r in all_records if r["date"] <= asof] if asof else list(all_records)   # leakage filter FIRST
     if not recs:

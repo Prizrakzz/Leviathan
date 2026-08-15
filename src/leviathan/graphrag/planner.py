@@ -15,8 +15,10 @@ WS-1 here = the walk + prior leg + mermaid + trace. The I/O legs (evidence, silv
 from __future__ import annotations
 
 import contextlib
+import functools
 import math
 import os
+import threading
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -1283,34 +1285,45 @@ def _dedup_and_cap(sg: Subgraph, cap: int, *, cap_policy: str | None = None, k_b
 
 
 def _capture_parent_patience():
-    """EC-3 CAPTURE, on the CALLER's thread: the turn's pool-borrow deadline, or None.
+    """EC-3 + EC-2 CAPTURE, on the CALLER's thread: `(pgstore, deadline, borrow_ledger)`.
 
     Called before a pool is handed any work, for the same measured reason the lane collector is captured
     here (D-MW-6, and the finding recorded a few lines below in `_parallel_fill`): contextvars DO NOT
     reach these workers -- a Context copied inside a worker is empty and one shared Context entered by
     several workers raises -- so the parent's value is read HERE and installed per worker. Fail-open:
-    None simply means no patience, which is the pre-EC-3 behavior."""
+    all-None simply means no patience and no ledger, which is the pre-EC-3 behavior.
+
+    ONE CAPTURE CARRIES BOTH (EC-2). The horizon and the ledger live on the same thread-locals in the
+    same module, are captured at the same instant on the same thread and are installed by the same
+    worker wrapper; two capture helpers would have been two things to remember to call at every future
+    pool seam, and the one that got forgotten would fail SILENTLY (an un-adopted ledger does not raise,
+    it just undercounts, which is the worst possible failure mode for a gate instrument). The tuple grew
+    from 2 to 3 rather than gaining a parallel helper for exactly that reason."""
     try:
         from leviathan.graphrag import pgstore as _pg
-        return _pg, _pg.current_patience_deadline()
+        return _pg, _pg.current_patience_deadline(), _pg.current_borrow_ledger()
     except Exception:  # noqa: BLE001 — a patience miss costs latitude, never correctness
-        return None, None
+        return None, None, None
 
 
 @contextlib.contextmanager
-def _adopt_parent(lane_rk, parent_lane, pat_pg, parent_deadline):
-    """Install the parent turn's THREAD-LOCAL context on a pool worker: the rerank lane (D-MW-6) and the
-    EC-3 borrow deadline. Both adopters are individually nested-safe and fail-open, so this is correct on
-    BOTH branches of both pools -- including the sequential branch, which runs on the caller's own thread
-    and must keep (never re-install, never clear) what is already there.
+def _adopt_parent(lane_rk, parent_lane, pat_pg, parent_deadline, parent_ledger=None):
+    """Install the parent turn's THREAD-LOCAL context on a pool worker: the rerank lane (D-MW-6), the
+    EC-3 borrow deadline and the EC-2 borrow ledger. All three adopters are individually nested-safe and
+    fail-open, so this is correct on BOTH branches of both pools -- including the sequential branch,
+    which runs on the caller's own thread and must keep (never re-install, never clear) what is already
+    there.
 
-    With neither captured this is an EMPTY ExitStack, i.e. the call is exactly the bare `fn(n)` the
-    pre-D-MW code made."""
+    With nothing captured this is an EMPTY ExitStack, i.e. the call is exactly the bare `fn(n)` the
+    pre-D-MW code made. `parent_ledger` defaults to None so the pre-EC-2 four-argument call form still
+    means exactly what it meant."""
     with contextlib.ExitStack() as _st:
         if parent_lane is not None and lane_rk is not None:
             _st.enter_context(lane_rk.adopt_lane(parent_lane))
         if parent_deadline is not None and pat_pg is not None:
             _st.enter_context(pat_pg.adopt_patience(parent_deadline))
+        if parent_ledger is not None and pat_pg is not None:
+            _st.enter_context(pat_pg.adopt_borrow_ledger(parent_ledger))
         yield
 
 
@@ -1380,11 +1393,15 @@ def _parallel_fill(nodes, fn, query, retrieve, expected: int | None = None) -> N
     # inside one of these workers, so a horizon installed on the turn's thread reaches NONE of them
     # unless it is carried across explicitly -- an un-adopted worker would fast-fail at _POOL_WAIT_S and
     # floor the very turn the patience was bought for.
-    _pat_pg, _parent_deadline = _capture_parent_patience()
+    # EC-2: and the borrow LEDGER rides the same capture, for the mirror-image reason -- every borrow this
+    # walk makes happens in one of these workers, so a ledger that stayed on the caller's thread would
+    # report a max-width fill as ZERO borrows and the gate would read a 300x improvement that never
+    # happened.
+    _pat_pg, _parent_deadline, _parent_ledger = _capture_parent_patience()
 
     def fn_(n):  # noqa: E306
         try:
-            with _adopt_parent(_lane_rk, _parent_lane, _pat_pg, _parent_deadline):
+            with _adopt_parent(_lane_rk, _parent_lane, _pat_pg, _parent_deadline, _parent_ledger):
                 fn(n)
         except BaseException:                  # a promised arrival that died must RETRACT its promise,
             if hinted:                         # else the leader waits out the whole window for a caller
@@ -1396,6 +1413,218 @@ def _parallel_fill(nodes, fn, query, retrieve, expected: int | None = None) -> N
             raise
     with cf.ThreadPoolExecutor(max_workers=workers) as pool:
         list(pool.map(fn_, nodes))
+
+
+# ── EC-2: THE BORROW COUNTER + THE BATCHED PREFETCH ───────────────────────────────────────────────────
+_BATCH_ENV = "GRAPHRAG_EVIDENCE_BATCH"
+# How long a fill worker waits on the worker that owns its chunk's statement before re-checking. NOT a
+# deadline for anything: the owner always marks the chunk done and notifies in a `finally`, so this only
+# ever fires on a lost wakeup, after which the loop re-reads the state and proceeds. Kept well under
+# pgstore's `_STMT_TIMEOUT_MS` so a re-check cannot outlive the statement it is waiting for.
+_PREFETCH_WAIT_S = 30.0
+
+
+def _ec2_enabled() -> bool:
+    """The knob, read at CALL TIME (never cached at import), DEFAULT OFF -- EC-2 ships DARK.
+
+    Same grammar as every other serving knob here: `1/true/yes/on` (case-insensitive) enables, anything
+    else -- including absent, empty and unparseable -- leaves the walk on the shipped per-node path. The
+    asymmetry is the opposite of EC-3's on purpose: EC-3 shipped ON and a typo must not un-ship it, while
+    EC-2 ships OFF and a typo must not silently ARM an unmeasured structural change on the serving lane."""
+    return str(os.environ.get(_BATCH_ENV) or "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _ledger_open(_region: str) -> None:
+    """Install a fresh borrow ledger on THIS thread for the named region. Fail-open: an instrument that
+    can break a walk is worse than no instrument."""
+    try:
+        from leviathan.graphrag import pgstore as _pg
+        _pg.open_borrow_ledger()
+    except Exception:  # noqa: BLE001 — telemetry must never break a walk
+        pass
+
+
+def _ledger_close():
+    """Uninstall this thread's ledger and return its count, or None (no ledger / pgstore unavailable)."""
+    try:
+        from leviathan.graphrag import pgstore as _pg
+        return _pg.close_borrow_ledger()
+    except Exception:  # noqa: BLE001 — telemetry must never break a walk
+        return None
+
+
+class _Prefetch:
+    """EC-2's batched fill reads, PULLED BY THE FILL WORKERS one chunk at a time and DROPPED as consumed.
+
+    THE TWO PROPERTIES THIS TYPE EXISTS FOR (both are review corrections to the first build, which
+    materialized the whole map on the caller's thread before any worker started):
+
+    (1) BOUNDED RESIDENCY. A fill row carries its raw 1024-float vector as a `list[float]` -- ~34-42 KB of
+        live heap per row, ~40 MB per 20-slice chunk at fetch_k=60. An eager map of every slice a wide walk
+        touches measured 121.9 MB live at the 60-slice depth-1 width and ~242 MB at the 119-slice ceiling,
+        PER CONCURRENT TURN, held for the whole of `ground()` -- through the probe/silver region, long after
+        the last row was consumed. `pgstore._BATCH_CHUNK` bounds one STATEMENT and can never bound that.
+        Here a chunk is fetched only when a worker actually asks for a slice inside it, and each slice's
+        rows are deleted from the map the moment their LAST consumer takes them (the consumer count comes
+        from the same `_fill_slice` predicate the fill uses, so it is exact). Live heap therefore tracks
+        the chunks in flight, not the walk's width, and `close()` at the fill boundary leaves nothing at
+        all for the `rest` region. The estate has an OOM-tore-the-store precedent; this is that lesson.
+
+    (2) NO SERIALIZATION ON THE TURN THREAD. Every statement -- the batch ones AND the per-node ones a
+        rejected batch degrades to -- is now issued from the fill pool, `EVIDENCE_PG_POOL`-ways concurrent
+        and under the EC-3 deadline the workers already adopt. Issuing them from the caller's thread ahead
+        of `_parallel_fill` made ceil(width/20) statements serial in the good case, and (before the pgstore
+        fix that rides with this) up to `chunk` legacy statements serial per rejected chunk in the bad one
+        -- each free to spend a full `_POOL_WAIT_S` alone. The walk's concurrency is where those reads
+        belong, and a failed chunk now costs what it costs today rather than a serialized version of it.
+
+    `take(sp)` returns this node's rows (possibly `[]`, meaning "fetched, nothing there"), or None meaning
+    "the batch is not serving you -- take your own borrow", which is exactly what `_fill`'s omit-when-absent
+    kwarg does with it. NOTHING here can fail a walk: every fetch is wrapped, and every failure is a None.
+    """
+
+    def __init__(self, fetch, slices, wants, *, chunk: int):
+        self._fetch = fetch                                     # (part) -> {slice: rows}; raises freely
+        self._chunks = [list(slices[i:i + chunk]) for i in range(0, len(slices), chunk)]
+        self._chunk_of = {sp: i for i, part in enumerate(self._chunks) for sp in part}
+        self._state: dict[int, str] = {}                        # chunk index -> "fetching" | "done"
+        self._ready: dict[str, list] = {}                       # slice -> rows, ONLY while unconsumed
+        self._want = dict(wants)                                # slice -> consumers still to come
+        self._closed = False
+        self._cv = threading.Condition()
+
+    def _consume(self, sp):
+        """Hand out `sp`'s rows and, if this was its last consumer, DROP them. Caller holds the lock."""
+        rows = self._ready[sp]
+        left = int(self._want.get(sp, 1)) - 1
+        if left <= 0:
+            self._want.pop(sp, None)
+            del self._ready[sp]                                 # the whole point: the map shrinks as it is read
+        else:
+            self._want[sp] = left
+        return rows
+
+    def take(self, sp):
+        while True:
+            with self._cv:
+                if self._closed:
+                    return None
+                if sp in self._ready:
+                    return self._consume(sp)
+                idx = self._chunk_of.get(sp)
+                if idx is None:
+                    return None                                 # never planned (or already served + dropped)
+                st = self._state.get(idx)
+                if st == "done":
+                    return None                                 # chunk ran; this slice was not served -> own borrow
+                if st == "fetching":
+                    # Another worker owns this chunk's statement. Waiting is bounded: the owner marks the
+                    # chunk done and notifies in a `finally`, so a raising owner wakes us too. The timeout is
+                    # belt-and-braces against a lost wakeup, never a correctness requirement.
+                    self._cv.wait(_PREFETCH_WAIT_S)
+                    continue
+                self._state[idx] = "fetching"                    # THIS worker owns it; it holds no lock while
+                part = list(self._chunks[idx])                   # it runs, and it never waits on another chunk
+            rows = None
+            try:
+                rows = self._fetch(part)
+            except Exception:  # noqa: BLE001 — the batch is an optimization; the nodes take their own borrows
+                rows = None
+            with self._cv:
+                try:
+                    for n, rs in (rows or {}).items():
+                        if self._want.get(n):                    # only slices this walk will actually consume
+                            self._ready[n] = rs
+                finally:
+                    self._state[idx] = "done"
+                    self._cv.notify_all()
+                if self._closed:
+                    self._ready.clear()
+                    return None
+                return self._consume(sp) if sp in self._ready else None
+
+    def close(self) -> None:
+        """Drop everything at the fill boundary. Idempotent, and safe against a straggler worker: a `take`
+        after close returns None (its node takes its own borrow) rather than re-populating the map."""
+        with self._cv:
+            self._closed = True
+            self._ready.clear()
+            self._want.clear()
+            self._chunk_of.clear()
+            self._chunks = []
+            self._cv.notify_all()
+
+
+def _ec2_prefetch(sg, query, asof, retrieve, fill_slice):
+    """EC-2: the batched read plan for every distinct slice this fill is about to ask for, or None.
+
+    THREE GATES, ALL OF WHICH MUST HOLD, and any one short returns None -- at which point `_fill` omits
+    the kwarg and the walk is the shipped walk byte for byte:
+      (1) `GRAPHRAG_EVIDENCE_BATCH` truthy. Default off; this item ships dark and is armed per arm.
+      (2) The retriever IS the real `ev.retrieve` (through the `getattr(retrieve, 'func', ...)` partial
+          idiom this module already uses for the embedding pre-warm). An injected fake is hermetic by
+          contract: it may not accept `candidates=`, it may not read pg at all, and prefetching rows it
+          will never consume would be paid work AND a signature break.
+      (3) The pg backend is LIVE (`EVIDENCE_BACKEND=pg`). On the flat backend there are no pg rows to
+          prefetch and `evidence.retrieve` refuses the argument outright.
+
+    THE HANDLE IS A LOCAL, RETURNED BY VALUE, and never module state. Eval arms run --workers 2/4 in ONE
+    process, so a module-level prefetch would let two concurrent turns -- different queries, different
+    as-ofs, different embeddings -- read each other's evidence. That is not a latency bug, it is a
+    wrong-answer bug and a PIT-firewall bug at once, so the map can only ever travel by argument.
+
+    NOTHING IS FETCHED HERE. This builds the PLAN (which slices, in which chunks, and how many nodes will
+    consume each) and hands back a `_Prefetch`; the statements are issued by the fill workers on demand.
+    See `_Prefetch`'s docstring for the two reasons -- bounded live heap, and no serialized SQL on the
+    turn's own thread. The one thing that still happens on this thread is the query embedding, which is
+    memoized and is the pre-warm `_parallel_fill` would do anyway.
+
+    SLICE ORDER IS CONSUMPTION ORDER (first appearance in `sg.nodes`), not sorted: chunk k is then the
+    chunk the fill reaches k-th, which is what keeps the number of chunks alive at once near one instead
+    of near the walk's width. It changes nothing about WHICH rows any node gets -- the batch scatters
+    per node and every ORDER BY is total.
+
+    THE RETRIEVAL KNOBS ARE READ OFF THE PARTIAL (`mode`/`rerank`/`mmr`/`fetch_k`), because the batch has
+    to fetch the SAME candidate set the per-node call would have: `hybrid` decides whether the lexical
+    leg rides, `fetch_k` sizes it, and rerank/mmr decide (through `pgstore.needs_vectors`) whether rows
+    carry raw vectors or the scalar cosine. Absent keywords fall back to `ev.retrieve`'s own defaults --
+    the same values the un-partialed function would have used.
+
+    FAIL-OPEN END TO END: anything at all going wrong here returns None and the turn takes today's path."""
+    if not _ec2_enabled():
+        return None
+    if getattr(retrieve, "func", retrieve) is not ev.retrieve:
+        return None
+    try:
+        if os.environ.get("EVIDENCE_BACKEND") != "pg":
+            return None
+        from leviathan.graphrag import pgstore as _pg
+        wants: dict[str, int] = {}
+        for sp in (fill_slice(n) for n in sg.nodes):            # consumption order, and the EXACT consumer
+            if sp is not None:                                 # count each slice's rows must survive for
+                wants[sp] = wants.get(sp, 0) + 1
+        if not wants:
+            return None
+        kw = getattr(retrieve, "keywords", None) or {}
+        mode = kw.get("mode", "dense")
+        rerank = bool(kw.get("rerank", False))
+        mmr = float(kw.get("mmr", 0.0) or 0.0)
+        fetch_k = int(kw.get("fetch_k", ev._FETCH_K))
+        # The SAME embedding every `_fill` would compute: `ev.embed` memoizes one vector per query, so
+        # this both feeds the batch and pre-warms the workers (the pre-warm `_parallel_fill` already does).
+        qv = ev.embed([query])[0]
+        hybrid, with_vectors = (mode == "hybrid"), _pg.needs_vectors(rerank=rerank, mmr=mmr)
+
+        def _fetch(part):
+            # ONE statement, ONE borrow, ON THE WORKER'S THREAD: `chunk=len(part)` because the chunking
+            # decision has already been made here, and a second split inside pgstore would put statements
+            # this handle believes are one behind a single "fetching" flag.
+            return _pg.fetch_candidates_batch(qv, query, part, asof=asof, fetch_k=fetch_k, hybrid=hybrid,
+                                              with_vectors=with_vectors, chunk=len(part))
+
+        return _Prefetch(_fetch, list(wants), wants, chunk=_pg._BATCH_CHUNK)
+    except Exception:  # noqa: BLE001 — the batch is an optimization; the walk falls back to per-node
+        return None
 
 
 def _emit_stage(on_stage, stage: str, **info) -> None:
@@ -1440,12 +1669,36 @@ def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, s
 
     from leviathan.graphrag import timeline as tl
 
-    def _fill(n):                                                  # per-node evidence, k decays with depth
+    def _fill_slice(n):
+        """THE ONE ELIGIBILITY PREDICATE: this node's evidence slice when it should be retrieved, else None.
+
+        Extracted for EC-2 rather than copied. The rule ("a driver with no backing id or no slice is a
+        prior-only node and issues no fetch") previously existed as the same boolean written out THREE
+        times -- in `_fill`, in the `eligible` count, and in the progress wrapper -- and the EC-2 prefetch
+        would have been a FOURTH. A prefetch built on a predicate that had drifted from `_fill`'s would
+        either miss nodes (silently un-batched, no error) or fetch slices nothing asks for (paid work,
+        invisible). One function, four readers, no drift."""
         sp = _slice_of(n, slice_path)
         if n.kind == "driver" and (n.id not in backed or sp is None):
+            return None
+        return sp
+
+    def _fill(n, prefetch=None):                                   # per-node evidence, k decays with depth
+        sp = _fill_slice(n)
+        if sp is None:
             return                                                 # no slice -> prior-only node (no empty fetch)
         k = k_by_depth[min(n.depth, len(k_by_depth) - 1)]
-        n.evidence = list(retrieve(query, sp, k=k, asof=asof, near=near))
+        # EC-2: OMIT-WHEN-ABSENT, the estate's threading idiom. With no prefetch (the default, the dark
+        # knob, a hermetic fake retriever, the flat backend) `_kw` is empty and this call is the shipped
+        # call BYTE FOR BYTE -- an injected test double never sees an argument it does not accept, and a
+        # slice the batch could not serve silently takes its own borrow instead of failing.
+        # `take` is what ISSUES this slice's batch statement (on THIS worker's thread, inside the pool's
+        # concurrency and the EC-3 deadline it has adopted) when this node is the first to need the chunk,
+        # and it DROPS the rows once the last node that wants them has them. `[]` is a served slice with no
+        # rows and still means "do not borrow"; None means "not served" and is the only omit case.
+        _rows = prefetch.take(sp) if prefetch is not None else None
+        _kw = {} if _rows is None else {"candidates": _rows}
+        n.evidence = list(retrieve(query, sp, k=k, asof=asof, near=near, **_kw))
         # NOTE: episodes are NOT stamped here -- see the episodes_for loop AFTER _dedup_and_cap below.
 
     # The per-node retrieves are INDEPENDENT — each closure mutates only its own node. On pg the fetch is a fast
@@ -1453,16 +1706,27 @@ def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, s
     # the walk. Run them concurrently so the rerank round-trips overlap (coalesced into one request).
     import time as _time
     _t0 = _time.perf_counter()
-    eligible = sum(1 for n in sg.nodes
-                   if not (n.kind == "driver" and (n.id not in backed or _slice_of(n, slice_path) is None)))
-    fill_fn = _fill
+    # EC-2 INSTRUMENT: the FILL region's pool borrows. Opened here and closed at `_t_fill` so the two
+    # boundaries of `ground_ms` and of `pool_borrows` are the SAME two boundaries -- a borrow count and a
+    # duration that measured different regions would be uncomparable, and gate (a) and gate (c) are read
+    # off the same [timing] line.
+    _borrows: dict = {"fill": None, "rest": None}
+    _ledger_open("fill")
+    eligible = sum(1 for n in sg.nodes if _fill_slice(n) is not None)
+    # EC-2 THE PREFETCH PLAN, built on the CALLER's thread and FETCHING NOTHING here: the batched reads are
+    # pulled chunk-by-chunk by the fill workers themselves (see `_Prefetch` -- bounded live heap, and no
+    # serialized SQL on the turn thread). Gated three ways inside `_ec2_prefetch` and returning None
+    # whenever any gate is short -- and `_fill`'s omit-when-absent then makes the whole item vanish.
+    _prefetch = _ec2_prefetch(sg, query, asof, retrieve, _fill_slice)
+    fill_fn = _fill if _prefetch is None else functools.partial(_fill, prefetch=_prefetch)
     if on_stage is not None:                                       # progress ticks (5.6 W5); the None path runs the
         import threading as _th  # exact same closure as before — byte-identical
         _plock, _pdone = _th.Lock(), [0]
+        _inner_fill = fill_fn
 
         def fill_fn(n):  # noqa: E306
-            _fill(n)
-            if n.kind == "driver" and (n.id not in backed or _slice_of(n, slice_path) is None):
+            _inner_fill(n)
+            if _fill_slice(n) is None:
                 return                                             # ineligible node — no evidence work happened
             with _plock:
                 _pdone[0] += 1
@@ -1473,8 +1737,21 @@ def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, s
             # here). SLUG ONLY: never the prop text, never a source_key (invariant 4 — walk evidence is
             # document prose). A dark leg returns above, so a 0 here means "asked, kept nothing".
             _emit_stage(on_stage, "evidence", node=":".join(str(p) for p in n.key), kept=len(n.evidence or []))
-    _parallel_fill(sg.nodes, fill_fn, query, retrieve, expected=eligible)
+    try:
+        _parallel_fill(sg.nodes, fill_fn, query, retrieve, expected=eligible)
+    finally:
+        # EC-2 RESIDENCY: the prefetch dies WITH THE FILL, on the success path and on the raising one.
+        # `take` already drops each slice's rows at its last consumer, so by here the map is normally
+        # empty -- but "normally" is not a bound: a node that raised, an early return, or a `wants` count
+        # the walk never spends would leave ~34-42 KB per row alive for the whole of the probe/silver
+        # region, per concurrent turn. Nothing after this line has any use for a candidate row.
+        if _prefetch is not None:
+            _prefetch.close()
     _t_fill = _time.perf_counter()
+    # EC-2: close the FILL ledger and open the REST one at the SAME instant `ground_ms` splits, so
+    # borrows and milliseconds are attributed to identical regions. The probes are the bulk of `rest`.
+    _borrows["fill"] = _ledger_close()
+    _ledger_open("rest")
     # P7-P0.2: per-driver-leg evidence report — the E0/E3 sparsity-attribution instrumentation. Purely
     # additive to the trace (the trace is never persisted to durable turns — PIT firewall intact). A leg is
     # `dark` when it was dropped as prior-only; dark_reason separates the two OR'd sub-conditions at the
@@ -1715,10 +1992,16 @@ def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, s
             # turn, all against the same pool), so they carry the parent's horizon for the same reason
             # the fill workers do -- and `_adopt_parent` is nested-safe, which is what keeps ONE `_one`
             # correct in both the sequential (caller's thread) and pooled branches below.
-            _pat_pg, _parent_deadline = _capture_parent_patience()
+            # EC-2: the probes ride the SAME capture, so their borrows land in the `rest` half of
+            # `trace.pool_borrows`. PROBES ARE OUT OF SCOPE for the BATCHING half of EC-2 (they stay one
+            # borrow per probe, deliberately -- a probe is a k=2 existence check with its own cache and
+            # its own frozen-order determinism, and folding it into the batch would put a second, very
+            # different query shape inside the same statement). They are IN scope for the COUNTER,
+            # because a gate that only counted the half that improved would be a rigged instrument.
+            _pat_pg, _parent_deadline, _parent_ledger = _capture_parent_patience()
 
             def _one(item):
-                with _adopt_parent(_lane_rk, _parent_lane, _pat_pg, _parent_deadline):
+                with _adopt_parent(_lane_rk, _parent_lane, _pat_pg, _parent_deadline, _parent_ledger):
                     return _recent(list(probe(query, item[1], k=2, asof=asof, near=near)))
             if _PROBE_WORKERS <= 1 or len(plan) <= 1:              # sequential: exact pre-F3 call pattern
                 out = [_one(it) for it in plan]
@@ -1799,6 +2082,11 @@ def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, s
     # where the walk's time goes (fill = parallel evidence fetch + coalesced rerank; rest = silver + firing).
     _t_end = _time.perf_counter()
     sg.trace["ground_ms"] = {"fill": int((_t_fill - _t0) * 1000), "rest": int((_t_end - _t_fill) * 1000)}
+    # EC-2 GATE (a)'s READ, beside ground_ms and on the same two boundaries: pool borrows per walk, split
+    # fill vs rest. None on either half means no ledger was installed (pgstore unimportable) -- an honest
+    # absence, never a zero, because a zero here would read as "the batch worked perfectly".
+    _borrows["rest"] = _ledger_close()
+    sg.trace["pool_borrows"] = {"fill": _borrows["fill"], "rest": _borrows["rest"]}
     return sg
 
 
