@@ -792,12 +792,18 @@ def test_wrong_slot_audit_is_a_registered_column_at_the_tail():
     region's SIZE, never its text -- was APPENDED after THAT. Tail moved by one more; nothing else.
 
     RE-ANCHORED A FOURTH TIME (D-HP G1 REMEDIATION D2(b), 2026-08-14): `evidence_slot_dropped` -- clause
-    (2b)'s remedy census -- was APPENDED after THAT. Tail moved by one more; nothing else."""
-    assert tk.TRACE_RECORD_KEYS[-5] == "wrong_slot_audit"
-    assert tk.TRACE_RECORD_KEYS[-4] == "slot_orphan_dropped"
-    assert tk.TRACE_RECORD_KEYS[-3] == "episode_spans_validated"
-    assert tk.TRACE_RECORD_KEYS[-2] == "plan_tokens"
-    assert tk.TRACE_RECORD_KEYS[-1] == "evidence_slot_dropped"
+    (2b)'s remedy census -- was APPENDED after THAT. Tail moved by one more; nothing else.
+
+    RE-ANCHORED A FIFTH TIME (D-HP-25 V2, 2026-08-15, plan 10.30.6): `evidence_geo_dropped` -- the [E]
+    geo-containment census -- was APPENDED after THAT. Tail moved by one more; nothing else. NOTE WHAT
+    NEEDED NO LINE HERE: V1's `geo_checked` / `geo_mismatch` ride INSIDE `number_handles` and register no
+    top-level key, so they shift no column at all."""
+    assert tk.TRACE_RECORD_KEYS[-6] == "wrong_slot_audit"
+    assert tk.TRACE_RECORD_KEYS[-5] == "slot_orphan_dropped"
+    assert tk.TRACE_RECORD_KEYS[-4] == "episode_spans_validated"
+    assert tk.TRACE_RECORD_KEYS[-3] == "plan_tokens"
+    assert tk.TRACE_RECORD_KEYS[-2] == "evidence_slot_dropped"
+    assert tk.TRACE_RECORD_KEYS[-1] == "evidence_geo_dropped"
     for older in ("number_handles", "rerank_lane", "walk_shape", "citation_resolved"):
         assert tk.TRACE_RECORD_KEYS.index(older) < tk.TRACE_RECORD_KEYS.index("wrong_slot_audit")
     assert len(set(tk.TRACE_RECORD_KEYS)) == len(tk.TRACE_RECORD_KEYS)
@@ -818,7 +824,19 @@ def test_the_strip_class_tuples_are_the_verifiers_own_spellings():
     assert emfmod.RESIDUAL_CLASSES == ("no_lexical_overlap", "quote_mismatch", "foreign_regime_name",
                                        "index_out_of_range")
     assert emfmod.BLINDED_CLASSES == ("number_mismatch", "number_unbacked")
-    assert emfmod.MIS_BOUND_CLASSES == ("slot_scope_mismatch", "direction_sign_mismatch")
+    # D-HP-25 RE-PIN (2026-08-15, plan 10.30.6): the BINDING VERIFIER's two classes join, because a
+    # receipt naming the wrong GEOGRAPHY is a wrong receipt exactly as one naming the wrong PERIOD is.
+    # Excluding them would count the finds and not the finding, and 10.30.6 pre-refused that before any
+    # number existed to argue about. THEY THEREFORE CONSUME R11's FROZEN CEILING OF 15 POOLED PER
+    # TREATMENT ARM, and the 15 does not move to accommodate them.
+    assert emfmod.MIS_BOUND_CLASSES == ("slot_scope_mismatch", "direction_sign_mismatch",
+                                        "geo_mismatch", "evidence_geo_contradiction")
+    # THE PROJECTION DEDUP IS UNCHANGED AND STAYS EXACT: `MIS_BOUND_PROJECTION` mirrors element [0] only,
+    # and `answer._resolve_number_handles` seats the geo check inside the direction check's `else`, so
+    # ONE HANDLE CAN CHARGE AT MOST ONE of the three [N] classes -- no handle contributes a scope term
+    # and a geo term, so nothing is double-counted.
+    assert emfmod.MIS_BOUND_PROJECTION == "scope_mismatch"
+    assert emfmod.MIS_BOUND_CLASSES[0] == "slot_scope_mismatch"
     assert emfmod.BARE_DIGIT_CLASS == "bare_digit"
     # CONFLICT 4: `number_mismatch` is NOT a mis-binding term. Under handle-prose it goes to zero by
     # ORDERING (the verifier sees prose with no digits), so counting it as mis-binding would report an
@@ -981,13 +999,22 @@ def test_the_declared_set_is_every_class_the_ledger_can_charge():
     D-HP G1 REMEDIATION D2(b) (2026-08-14) adds the SIXTEENTH, `evidence_handle_in_slot`: clause (2b)'s
     remedy (`answer._drop_evidence_value_slot`) folds its removals into the same ledger, so the class is
     declared in the same change or clause (4) is pre-registered to fail on it. Plan 10.18.2 carries the
-    standing obligation that the CLAUSE'S OWN TEXT names it at the re-freeze."""
+    standing obligation that the CLAUSE'S OWN TEXT names it at the re-freeze.
+
+    D-HP-25 (2026-08-15, plan 10.30.6) adds the SEVENTEENTH and EIGHTEENTH, the binding verifier's own:
+    `geo_mismatch` (V1, folded via `answer._fold_render_classes`) and `evidence_geo_contradiction` (V2,
+    folded via `answer._fold_ledger_class` at both serving bodies). MANDATORY, on the identical argument
+    the two precedents above carry: clause (4) is a CLASS SCAN over `by_rule`, so an undeclared class
+    FAILS THE CLAUSE ON ITS OWN REMEDY -- a verifier that breaks the gate by WORKING is a defect, not a
+    result. The same standing obligation applies: the clause's own text must name both at the
+    re-freeze."""
     assert emfmod.G1_DECLARED_CLASSES == (
         "fabricated_citation", "ledger_cascade", "no_lexical_overlap", "number_mismatch", "number_unbacked",
         "quote_mismatch", "index_out_of_range", "foreign_regime_name",
         "undeclared_unsupported",
         "bare_digit", "direction_sign_mismatch", "slot_scope_mismatch",
-        "grouped_in_slot", "slot_orphan", "episode_span_unbacked", "evidence_handle_in_slot")
+        "grouped_in_slot", "slot_orphan", "episode_span_unbacked", "evidence_handle_in_slot",
+        "geo_mismatch", "evidence_geo_contradiction")
     assert len(set(emfmod.G1_DECLARED_CLASSES)) == len(emfmod.G1_DECLARED_CLASSES)
     # every class named by ANY successor tuple is declared -- otherwise a counter could count a class the
     # class scan would fail the gate on.
@@ -1004,18 +1031,24 @@ def test_the_declared_set_is_every_class_the_ledger_can_charge():
         assert '"' + cls + '"' in vsrc and cls in emfmod.G1_DECLARED_CLASSES
 
 
-def test_the_arm_exclusive_count_is_seven_and_it_is_arithmetic_not_a_sentence():
+def test_the_arm_exclusive_count_is_nine_and_it_is_arithmetic_not_a_sentence():
     """G1 clause (3)'s caution: the treatment arm's RAW `stripped` carries classes with NO control-arm
     counterpart, so a raw stripped DELTA is not like-for-like. NF-6 said three, X5 corrected it to five,
     H2 corrected it to SIX -- `episode_span_unbacked` (H1b) folds into the same ledger and its pass
     MUTATES ONLY under `handle_prose` -- and the G1 REMEDIATION corrects it to SEVEN on the identical
     argument: `evidence_handle_in_slot`'s pass is treatment-gated and its census key is not even minted on
     a control turn. The count is read off the tuple instead of re-counted by hand in prose, which is why
-    each correction has been one line."""
+    each correction has been one line.
+
+    D-HP-25 (2026-08-15, plan 10.30.6) corrects it to NINE on the identical argument, for the binding
+    verifier's two classes: V1's counters are minted only inside the `handle_prose` branch (a control
+    census still carries the pinned FOUR keys byte-for-byte) and V2's pass is not called at all on a
+    control turn, so neither has a control-arm counterpart."""
     assert emfmod.ARM_EXCLUSIVE_CLASSES == ("bare_digit", "slot_scope_mismatch", "direction_sign_mismatch",
                                             "grouped_in_slot", "slot_orphan", "episode_span_unbacked",
-                                            "evidence_handle_in_slot")
-    assert len(emfmod.ARM_EXCLUSIVE_CLASSES) == 7
+                                            "evidence_handle_in_slot",
+                                            "geo_mismatch", "evidence_geo_contradiction")
+    assert len(emfmod.ARM_EXCLUSIVE_CLASSES) == 9
     # ...and each one is a RENDER/lint-side class, never one of the verifier's own nine survivors.
     for cls in emfmod.ARM_EXCLUSIVE_CLASSES:
         assert cls not in emfmod.RESIDUAL_CLASSES and cls not in emfmod.KILLED_CLASSES

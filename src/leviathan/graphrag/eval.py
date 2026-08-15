@@ -1322,12 +1322,21 @@ def _served_rows(out: dict) -> list[dict]:
             take = max(0, min(_ROWS_PER_CALL_CAP, budget))
             recs.append({
                 "table": q.get("table"), "metric": q.get("metric"),
+                # D-HP-25 TIGHTENING T2 (ratified at M-0): the GEO half of the receipt, ARTIFACT-ONLY.
+                # `_receipt_geo_text` reads the query's country first and a UNANIMOUS row country
+                # second, so an offline reader (M-1's replay, M-3's labelling) cannot reconstruct what
+                # the verifier compared against unless BOTH reach the record. Purely additive: no
+                # existing field changes meaning, no behaviour reads it, and `_ROWS_PER_RECORD_CAP` /
+                # `_ROWS_PER_CALL_CAP` bound the result exactly as before -- `take` is computed above
+                # and neither cap moves.
+                "country": q.get("country"),
                 "status": c.get("status"), "row_count": len(rows),
                 # `estimate_role` reaches a row under query._extras' provenance ALIAS (`revision_stamp`);
                 # the raw column name is accepted too so a cascade/fixture-minted row projects the same.
                 "rows": [{"period": rr.get("period"),
                           "estimate_role": _alias_col(rr, "revision_stamp", "estimate_role"),
                           "value": rr.get("value"), "unit": rr.get("unit"),
+                          "country": rr.get("country"),          # T2, the ROW half of the same read
                           "knowledge_date": _alias_col(rr, "knowledge_date", "data_date")}
                          for rr in rows[:take] if isinstance(rr, dict)]})
             budget -= len(recs[-1]["rows"])
@@ -2727,13 +2736,24 @@ def _refusal_census(per: list[dict]) -> dict:
     out: dict = {"binding_refused": 0, "scope_checked": 0, "direction_checked": 0,
                  "grouped_in_slot": 0, "direction_sign_mismatch": 0, "slot_scope_mismatch": 0,
                  "empty_row_addressed": 0,          # G1 REMEDIATION-2 R2-a, see the note below
+                 "geo_checked": 0, "geo_mismatch": 0,   # D-HP-25 V1, see the note below
                  "sentences_dropped": 0, "handles_dropped": 0, "unresolvable": 0, "substituted": 0,
                  "rows_with_treatment_keys": 0,
                  "rows_pooled": 0, "rows_excluded": [],
                  "refusal_budget_status": "RAISED, NOT BUDGETED -- open ratification question for BOTH "
                                           "`binding_refused` (plan 10.11) and `empty_row_addressed` "
                                           "(plan 10.19, G1 REMEDIATION-2 R2-a); the R11 ceiling of 15 "
-                                          "binds the class counters, neither of these"}
+                                          "binds the class counters, neither of these. "
+                                          "D-HP-25 (plan 10.30.6): `geo_mismatch` IS BUDGETED -- it is "
+                                          "a `by_rule` class AND an `emf.MIS_BOUND_CLASSES` member, so "
+                                          "it consumes the SAME frozen ceiling of 15 pooled per "
+                                          "treatment arm as `slot_scope_mismatch` and "
+                                          "`direction_sign_mismatch`, alongside the [E] half "
+                                          "(`evidence_geo_contradiction`, counted in `by_rule` and "
+                                          "reported per turn as `evidence_geo_dropped`). "
+                                          "`geo_checked` is its DENOMINATOR (comparisons, never "
+                                          "attempts) and is budgeted by nothing, exactly as "
+                                          "`scope_checked` and `direction_checked` are not"}
     try:
         # THE DENOMINATOR IS NAMED, NOT SILENT (H2 FOLD 1, K4 -- D-HP-17's own H2 sentence says BOTH new
         # header keys reach the artifact "with the non-reasoning lane excluded BY ID"; `dhp_class_scan`
@@ -2749,9 +2769,12 @@ def _refusal_census(per: list[dict]) -> dict:
             ph = p.get("prose_handles") if isinstance(p.get("prose_handles"), dict) else {}
             if "binding_refused" in nh:
                 out["rows_with_treatment_keys"] += 1
+            # D-HP-25 V1: `geo_checked` / `geo_mismatch` extend BOTH hand-enumerations -- this one and
+            # the `out` defaults above -- because a single-sided extension is exactly how a class becomes
+            # invisible in the one summary a reader actually reads (plan 10.30.6).
             for k in ("binding_refused", "scope_checked", "direction_checked",
                       "grouped_in_slot", "direction_sign_mismatch", "slot_scope_mismatch",
-                      "empty_row_addressed"):
+                      "empty_row_addressed", "geo_checked", "geo_mismatch"):
                 out[k] += int(nh.get(k) or 0)
             for k in ("sentences_dropped", "handles_dropped", "unresolvable", "substituted"):
                 out[k] += int(nh.get(k) or 0) + int(ph.get(k) or 0)   # both halves, R4's own denominator

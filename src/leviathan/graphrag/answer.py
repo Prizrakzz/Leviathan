@@ -25,6 +25,7 @@ from leviathan.graphrag import intent as _it     # D-RC-11: is_episodic_explicit
 from leviathan.graphrag import response_contracts as _rc   # D-RC Phase B: LEAF module (pure data, no cycle)
 from leviathan.graphrag import reasoning_modes as _rm      # D-AM-9: LEAF module (pure data, no cycle)
 from leviathan.graphrag import timeline as _tl   # W4-D3: LINE_PREFIX only (module imports params alone -> no cycle)
+from leviathan.graphrag import geo_lexicon as _geo   # D-HP-25: LEAF module (pure data + regex, no cycle)
 
 # Production retrieval stack — the arm that won the free k=3 A/B (hybrid doubled exact-token recall 2/6->4/6;
 # rerank sharpened rank; MMR kept the best source-diversity, guarding against narrowing). Serving uses this by
@@ -2905,6 +2906,15 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
             _fold_ledger_class(verifier, _E_VALUE_SLOT_CLASS, _eslot.get("convicted"))
             if any(_eslot.values()):
                 sg.trace["evidence_slot_dropped"] = _eslot
+            # D-HP-25 V2, in the SAME gate and the SAME stack position as its sibling above: after the
+            # prune (which keeps its own population) and BEFORE the debris pass (which closes the frames
+            # this one empties). Treatment only, stamped only when it fired -- the absent-not-null rule,
+            # which is D-HP-16's three-lane law: a key that is `null` on control and `0` on a quiet
+            # treatment run is a key that cannot be pooled.
+            _egeo = _drop_evidence_geo_contradiction(structured, uniq, verifier)
+            _fold_ledger_class(verifier, _E_GEO_CONTRADICTION_CLASS, _egeo.get("convicted"))
+            if any(_egeo.values()):
+                sg.trace["evidence_geo_dropped"] = _egeo
         # D-PQ HANDLE-3, in the SAME gate and immediately after: the frames those removals (and the
         # verifier's own positional strips) left empty. Stamped only when it changed something, so an
         # untouched draft writes no key -- the OFF-arm-clean rule, again.
@@ -5636,6 +5646,97 @@ def _declared_span_years(text: str) -> set[str]:
     return out
 
 
+# ══ D-HP-25 (plan 10.30.3(i)) -- THE OWNERSHIP CORE, FACTORED OUT. IT IS A MOVE, NOT A REWRITE ════════
+#
+# The two-pass sibling-bounded appositive-ownership core below WAS the body of `_handle_period_phrase`
+# and is MOVED VERBATIM -- both passes ride intact (PASS 1 right-attachment wins and CONSUMES; PASS 2 the
+# nearest CLEAN preceding token under `_LEFT_BRIDGE_MAX` / `_LEFT_BRIDGE_BAD_RX`). ZERO LOGIC CHANGE.
+# THE REGRESSION PROOF IS THE FIVE EXISTING PINS at `tests/unit/test_dhp_renderer.py:651, :652, :686,
+# :687, :735`, and they pass UNMODIFIED. A factor-out that requires touching a pin is not a factor-out.
+#
+# WHY IT IS FACTORED AT ALL: the GEO axis (D-HP-25 V1) asks the identical question of a different
+# vocabulary, and a second copy of a 45-line consumption ledger is how two axes come to disagree about
+# what "this handle's own token" means. The two DELIBERATE differences the geo wrapper supplies are stated
+# at `_handle_geo_phrase`: no span widening, and its OWN appositive set.
+#
+# THE TWO PARAMETERS THAT MAKE IT AXIS-AGNOSTIC, AND WHY EACH IS A LIST RATHER THAN A REGEX:
+#   * `tok_positions` -- the token spans, PRE-COMPUTED by the caller. The period axis mints them from a
+#     regex and the geo axis from a LEXICON, and a core that took a regex could only ever serve the first.
+#     Entries may carry a third element (the geo axis rides `(start, end, slug)`); only [0] and [1] are
+#     read here, so one core serves both shapes.
+#   * `siblings` -- the token spans that BOUND the window. Defaults to this text's `[N` handles, which is
+#     what the period axis has always used; the `[E]` containment pass (V2) passes its OWN `[E]` spans,
+#     because "the previous sibling" means the previous handle OF THE KIND BEING BOUND.
+#
+# THE CONSUMPTION LEDGER (`claimed`) IS PER CALL, AND THAT IS A LAW, NOT AN ACCIDENT (plan 10.30.3(ii)):
+# each axis computes its own, so a YEAR can never consume a slot a GEO token needed. Two axes competing
+# for one ledger is a silent, order-dependent bug, and it is forbidden BY CONSTRUCTION here -- there is no
+# module-level ledger for a caller to accidentally share.
+def _owned_token(sent: str, a: int, b: int, tok_positions, appos_rx,
+                 *, siblings=None) -> int | None:
+    """The INDEX into `tok_positions` of the token the handle at `sent[a:b]` owns, or None.
+
+    `sent` is ONE sentence, `a`/`b` are offsets INTO IT. Returns an index rather than the token text so
+    the geo axis can recover its slug and the period axis its span -- the two wrappers differ only in
+    what they do with the answer."""
+    handles = ([(mm.start(), mm.end()) for mm in _n_token_rx(True).finditer(sent)]
+               if siblings is None else [(int(x), int(y)) for (x, y, *_r) in siblings])
+    toks = list(tok_positions or [])
+    if not toks:
+        return None
+    owner: dict[tuple[int, int], int] = {}          # handle span -> index into `toks`
+    claimed: set[int] = set()
+
+    def _right_bound(hb: int) -> int:
+        nxt = [x for (x, _y) in handles if x >= hb]
+        return min(nxt) if nxt else len(sent)
+
+    def _left_bound(ha: int) -> int:
+        prv = [y for (_x, y) in handles if y <= ha]
+        return max(prv) if prv else 0
+
+    for (ha, hb) in handles:                        # PASS 1 -- right-attachment wins and CONSUMES
+        hi = _right_bound(hb)
+        for k, tk in enumerate(toks):
+            ts, te = tk[0], tk[1]
+            if ts < hb:
+                continue
+            if te > hi or k in claimed:
+                break
+            if appos_rx.fullmatch(sent[hb:ts]):
+                owner[(ha, hb)] = k
+                claimed.add(k)
+            break
+    for (ha, hb) in handles:                        # PASS 2 -- the nearest CLEAN preceding token
+        if (ha, hb) in owner:
+            continue
+        lo = _left_bound(ha)
+        for k in range(len(toks) - 1, -1, -1):
+            ts, te = toks[k][0], toks[k][1]
+            if te > ha:
+                continue
+            if ts < lo or k in claimed:
+                break
+            bridge = sent[te:ha]
+            if len(bridge) <= _LEFT_BRIDGE_MAX and not _LEFT_BRIDGE_BAD_RX.search(bridge):
+                owner[(ha, hb)] = k
+                claimed.add(k)
+            break
+    return owner.get((a, b))
+
+
+def _sibling_window(sent: str, a: int, b: int, siblings=None) -> tuple[int, int]:
+    """The M1(a) WINDOW for the handle at `sent[a:b]`: previous sibling's end .. next sibling's start,
+    clipped to the sentence. The SAME bounds `_owned_token` computes internally, exposed because L3's
+    multi-geo decline is a question about the WINDOW ("does this window name more than one country") and
+    not about ownership."""
+    handles = ([(mm.start(), mm.end()) for mm in _n_token_rx(True).finditer(sent)]
+               if siblings is None else [(int(x), int(y)) for (x, y, *_r) in siblings])
+    prv = [y for (_x, y) in handles if y <= a]
+    nxt = [x for (x, _y) in handles if x >= b]
+    return (max(prv) if prv else 0, min(nxt) if nxt else len(sent))
+
+
 def _handle_period_phrase(text: str, s0: int, s1: int, hs: int, he: int) -> str:
     """The period phrase THIS handle occurrence owns, or "" when it owns none.
 
@@ -5656,53 +5757,19 @@ def _handle_period_phrase(text: str, s0: int, s1: int, hs: int, he: int) -> str:
     year never convicts", so a later edit to either one cannot silently retire the guarantee. Every other
     clause here IS load-bearing and was mutation-killed: collapsing the right edge to the handle scores 31
     convictions, dropping the span widening scores 1, and reading publication dates instead of the
-    receipt's scope scores 138."""
+    receipt's scope scores 138.
+
+    [D-HP-25, plan 10.30.3(i)] THE OWNERSHIP CORE NOW LIVES IN `_owned_token` AND WAS MOVED VERBATIM.
+    This function is the THIN WRAPPER that supplies the period axis' own three things: the token grammar
+    (`_DECLARED_PERIOD_RX`), the appositive vocabulary (`_RIGHT_APPOS_RX`) and the FIX-3 span widening
+    below, which is the period axis' alone (there is no geo analogue of "an endpoint is read as its whole
+    span"). Nothing about the rules moved; only their location did."""
     sent = text[s0:s1]
     a, b = hs - s0, he - s0
     if not (0 <= a < b <= len(sent)):
         return ""
-    handles = [(mm.start(), mm.end()) for mm in _n_token_rx(True).finditer(sent)]
     toks = [(mm.start(), mm.end()) for mm in _DECLARED_PERIOD_RX.finditer(sent)]
-    if not toks:
-        return ""
-    owner: dict[tuple[int, int], int] = {}          # handle span -> index into `toks`
-    claimed: set[int] = set()
-
-    def _right_bound(hb: int) -> int:
-        nxt = [x for (x, _y) in handles if x >= hb]
-        return min(nxt) if nxt else len(sent)
-
-    def _left_bound(ha: int) -> int:
-        prv = [y for (_x, y) in handles if y <= ha]
-        return max(prv) if prv else 0
-
-    for (ha, hb) in handles:                        # PASS 1 -- right-attachment wins and CONSUMES
-        hi = _right_bound(hb)
-        for k, (ts, te) in enumerate(toks):
-            if ts < hb:
-                continue
-            if te > hi or k in claimed:
-                break
-            if _RIGHT_APPOS_RX.fullmatch(sent[hb:ts]):
-                owner[(ha, hb)] = k
-                claimed.add(k)
-            break
-    for (ha, hb) in handles:                        # PASS 2 -- the nearest CLEAN preceding token
-        if (ha, hb) in owner:
-            continue
-        lo = _left_bound(ha)
-        for k in range(len(toks) - 1, -1, -1):
-            ts, te = toks[k]
-            if te > ha:
-                continue
-            if ts < lo or k in claimed:
-                break
-            bridge = sent[te:ha]
-            if len(bridge) <= _LEFT_BRIDGE_MAX and not _LEFT_BRIDGE_BAD_RX.search(bridge):
-                owner[(ha, hb)] = k
-                claimed.add(k)
-            break
-    k = owner.get((a, b))
+    k = _owned_token(sent, a, b, toks, _RIGHT_APPOS_RX)
     if k is None:
         return ""
     ts, te = toks[k]
@@ -5781,6 +5848,193 @@ def _slot_scope_mismatch(clause: str, call: dict | None, idx: int) -> tuple[bool
     if not (row_years and clause_years):
         return False, False                        # one side said nothing: nothing was COMPARED
     return True, not (row_years & clause_years)
+
+
+# ══ D-HP-25 V1 (plan 10.30.3) -- THE `[N]` GEO AXIS ═══════════════════════════════════════════════════
+#
+# THE CLAIM THIS AXIS MAKES, AND THE ONE IT DOES NOT. It proves that a backed figure's receipt agrees with
+# the claim's OWN DECLARED GEOGRAPHY. It does NOT prove unique-row correctness: a swap onto a
+# FACET-IDENTICAL row (same period, same geography, same table, different row) is undetectable by ANY
+# deterministic facet check, because there is nothing left to disagree with. That residual is PERMANENT
+# for as long as handle prose is the render mode (the typed-digit cross-check that once caught it was
+# removed BY DESIGN when the model stopped typing the digit), it is bounded empirically by the 60-figure
+# judged audit at `<= 1/60`, and plan 10.30.2 forbids stating the claim without both halves.
+#
+# THE APPOSITIVE SET IS THE PERIOD AXIS' MINUS ITS PORTABILITY ASSUMPTION (L3). It is spelled SEPARATELY
+# rather than shared, and that separation is load-bearing: `from` / `to` / `into` must NEVER enter the geo
+# set, because "in MY2024" is a SCOPE and "to China" is a DIRECTION. A later widening of the period
+# vocabulary must not be able to leak a direction preposition into this one, so the two constants do not
+# touch. (They are equal today; the point is that nothing enforces or assumes that they stay equal.)
+_GEO_RIGHT_APPOS_RX = re.compile(r"[\s*_]*(?:in|for|of|during|at|by|as\s+of)?[\s*_]*", re.I)
+
+
+def _handle_geo_phrase(text: str, s0: int, s1: int, hs: int, he: int) -> set[str]:
+    """The canonical GEOGRAPHY this handle occurrence owns, as an ADDITIVE CLOSURE set, or `set()`.
+
+    THE SAME WRAPPER AS `_handle_period_phrase`, WITH THREE DELIBERATE DIFFERENCES (plan 10.30.3(ii)):
+
+      1. NO SPAN WIDENING. There is no geo analogue of "an endpoint is read as its whole span", and
+         widening a country is how a region swallows a continent.
+      2. ITS OWN APPOSITIVE SET (`_GEO_RIGHT_APPOS_RX`) -- see the note above; the period axis'
+         vocabulary is NOT portable.
+      3. ITS OWN CONSUMPTION LEDGER. `_owned_token` builds `claimed` per call, so a YEAR can never
+         consume a slot a GEO token needed. Two axes sharing one ledger is a silent, order-dependent bug
+         and it is forbidden by construction rather than by convention.
+
+    L1 AND L3 ARE ENFORCED HERE, BEFORE OWNERSHIP IS EVEN CONSULTED, and both resolve to SILENCE:
+
+      * L1 -- if the WINDOW names an AGGREGATE (`world / global / worldwide / total / international /
+        all origins`), or the only geography it names is `european_union` with no member state beside it,
+        nothing is returned. An aggregate is a CONTAINER and a container disagreeing with its contents is
+        not a disagreement.
+      * L3 -- if the WINDOW names MORE THAN ONE canonical geography, nothing is returned. "US sales to
+        China" names two countries and the sentence is about a FLOW; no single-geo comparison is correct
+        there and none is attempted. This is the seller/buyer trap and it is declined, not guessed.
+        L3 IS READ ON THE WINDOW'S *CONTENTS*, NOT ON THE OWNED TOKEN, and that choice is recorded here
+        because it is the QUIETER of the two readings of the clause and it has a measurable cost. In a
+        two-geography era-pair sentence ("Brazilian output reached [N1] while Indonesian output reached
+        [N2]") the LEFT handle's window reaches both countries and DECLINES, while the RIGHT handle's
+        window -- left-bounded by its previous sibling -- reaches one and IS compared. Reading L3 off
+        the OWNED token instead would compare both, and would also make the answer depend on which
+        appositive rule happened to fire, which is exactly the order-dependence the per-call ledger
+        exists to forbid. The lost coverage is a RECORDED RESIDUAL (plan 10.30.11), not a rule to be
+        loosened after seeing a catch rate.
+
+    The return is a CLOSURE SET (L2, ADDITIVE) rather than a slug, because that is the shape the
+    comparison takes on both sides -- `{france}` is returned as `{france, european_union}` so an ancestor
+    and a descendant can never be read as a disagreement. Never raises."""
+    try:
+        sent = text[s0:s1]
+        a, b = hs - s0, he - s0
+        if not (0 <= a < b <= len(sent)):
+            return set()
+        toks = _geo.extract_geos(sent)
+        if not toks:
+            return set()
+        lo, hi = _sibling_window(sent, a, b)
+        window = sent[lo:hi]
+        if _geo.sentinel_hit(window):                       # L1: an aggregate never convicts, either way
+            return set()
+        in_window = {slug for (ts, te, slug) in toks if ts >= lo and te <= hi}
+        if len(in_window) != 1:                             # L3: 0 -> nothing to own; >1 -> a FLOW
+            return set()
+        if in_window == {_geo.EU_SLUG}:                     # L1's conditional half: EU unaccompanied
+            return set()
+        k = _owned_token(sent, a, b, toks, _GEO_RIGHT_APPOS_RX)
+        if k is None:
+            return set()                                    # M1(c): no owned token -> SILENT, never a hit
+        return _geo.canon_closure(toks[k][2])
+    except Exception:  # noqa: BLE001 -- a deletion-armed check fails toward NOT comparing
+        return set()
+
+
+def _receipt_dest_coded(table: str) -> bool:
+    """`citations.py:384`'s `_dest_coded`, re-stated (it is a closure inside `from_number` and cannot be
+    imported). A DESTINATION-CODED table's `country` axis enumerates BUYERS of one national flow, so the
+    row's country is not the fact's geography and reading it would convict correct sentences at scale.
+
+    THE FAIL-SILENT DIRECTION IS INHERITED UNCHANGED: a registry hiccup returns True, i.e. "treat as
+    destination-coded", i.e. DO NOT read the row. It fails toward NOT COMPARING, which is the safe
+    direction here and the same one the shipped label logic chose."""
+    try:
+        from leviathan.graphrag.numbers import registry as _reg
+        spec = _reg.load_registry().tables.get(table)
+        return bool(spec is not None and getattr(spec, "country_name_ref", None))
+    except Exception:  # noqa: BLE001 -- a registry hiccup must fail SILENT, never loud
+        return True
+
+
+def _receipt_geo_text(call: dict | None) -> set[str]:
+    """The RECEIPT'S OWN geography, as an additive closure set. `set()` when the receipt names none.
+
+    THIS IS M1(b) ON THE GEO AXIS, AND THE FENCE IS VERBATIM: `Citation.label` IS NEVER PARSED. A
+    detector whose remedy is DELETION must never parse a rendering -- that is the cycle-10 repair fence's
+    own epitaph applied to its sibling, and `_receipt_period_text` states it for the period axis in the
+    same words.
+
+    [TIGHTENING T1, RATIFIED AT M-0] IT MIRRORS THE SHIPPED `from_number` GEO RULE EXACTLY, because the
+    only honest thing to convict against is WHAT THE RECEIPT WOULD ACTUALLY RENDER (`citations.py:390-392`):
+
+      * the QUERY's `country` first -- it is what the drill-down re-runs, and on a free-axis card it is
+        the only unambiguous statement of scope;
+      * ELSE the ROW's country, and ONLY when (a) every returned row carries the SAME one
+        (`len(_geos) == 1`, the unanimity fence) AND (b) the table is NOT destination-coded. Unanimity
+        alone is TRIVIALLY satisfied by an `agg='latest'` LIMIT-1 read -- one row always agrees with
+        itself -- which is exactly why the semantic half of the fence is not optional.
+
+    [REVIEW BLOCKER, FIXED 2026-08-15 -- THE BUYER FENCE COVERS *BOTH* HALVES, NOT ONLY THE ROW.] The
+    first build read `query['country']` UNCONDITIONALLY and consulted `_receipt_dest_coded` only on the
+    ROW fallback. That is a false-conviction engine on the one destination-coded table in the registry:
+    an ESR call's `query['country']` IS THE DESTINATION (`numbers/agent.py:197-205` -- "country=<name>
+    -> FAS code IN filter"), so "American export commitments reached [N1]" against a `country='China'`
+    ESR read compared `{united_states}` to `{china}`, convicted, and DELETED A CORRECT SENTENCE -- while
+    charging R11's frozen ceiling of 15 for the privilege. The reason `_receipt_dest_coded` exists
+    (stated at its own docstring) is that on such a table THE COUNTRY AXIS ENUMERATES BUYERS OF ONE
+    NATIONAL FLOW; that is a fact about the AXIS, and the query half reads the same axis the row half
+    does. So a destination-coded table now returns `set()` OUTRIGHT: the comparison is OFF, on both
+    halves. THE COST IS RECORDED AND IT IS COVERAGE, NOT SAFETY -- 268/6120 = 4.4% of stored `[N]` calls
+    lose the geo comparison entirely, including the genuine buyer-vs-buyer catch ("Chinese purchases
+    reached [N1]" bound to a Japan-scoped read). A geo verifier's failure mode is not missing a swap, it
+    is deleting a correct sentence, so the quieter reading is the one this check takes -- the same trade
+    L1/L3/L4 make. Mirroring `from_number` LABEL-SIDE was never the point; the point is convicting only
+    against a field that states THE FACT'S OWN GEOGRAPHY, and on a dest-coded table neither field does.
+
+    A receipt that names an AGGREGATE (L1) or more than one country returns `set()`: the comparison is
+    OFF, not resolved in the aggregate's favour. Never raises."""
+    try:
+        q = ((call or {}).get("query") or {}) if isinstance(call, dict) else {}
+        raw = str(q.get("country") or "").strip()
+        rows = ((call or {}).get("rows") or []) if isinstance(call, dict) else []
+        if raw or rows:
+            # THE BUYER FENCE, ASKED ONCE, ANSWERED FOR BOTH HALVES. The fail-SILENT-on-hiccup branch is
+            # inherited unchanged and now covers the query half too: a registry exception returns True,
+            # i.e. do not read EITHER field, i.e. do not compare. An unknown table still yields
+            # `spec is None` -> False and both halves are read, exactly as `citations.py:383-389` behaves.
+            if _receipt_dest_coded(str(q.get("table") or "")):
+                return set()
+            if not raw:
+                geos = {str(r.get("country")).strip() for r in rows
+                        if isinstance(r, dict) and str(r.get("country") or "").strip()}
+                if len(geos) == 1:
+                    raw = next(iter(geos))
+        if not raw or _geo.sentinel_hit(raw):               # L1 on the receipt side
+            return set()
+        slugs = _geo.slugs_in(raw)
+        if len(slugs) != 1 or slugs == {_geo.EU_SLUG}:      # L3 + L1's conditional half
+            return set()
+        return _geo.canon_closure(next(iter(slugs)))
+    except Exception:  # noqa: BLE001 -- fail toward NOT comparing
+        return set()
+
+
+def _slot_geo_mismatch(claim: set[str] | None, call: dict | None, idx: int) -> tuple[bool, bool]:
+    """D-HP-25 V1 -- THE GEO AXIS, MIRRORING `_slot_scope_mismatch` EXACTLY IN SHAPE.
+
+    Returns `(compared, mismatch)` on the same FIX Z12 contract: `compared` counts COMPARISONS and never
+    ATTEMPTS, so `geo_checked` can never read as coverage on a handle whose clause named no geography.
+    SILENT UNLESS BOTH SIDES SPEAK -- a conviction whose remedy is DELETION needs POSITIVE evidence on
+    both sides, and the period axis' row half violated exactly that promise on 131 of 186 comparisons.
+
+    THE FOUR LAWS ARE ALREADY DISCHARGED BY THE TIME THIS RUNS, and that placement is deliberate: L1
+    (sentinels), L3 (multi-geo) and L4 (word boundaries, follower blacklist, homonyms, ambiguous
+    surfaces) all resolve to an EMPTY SET at the producer, so this function's only remaining job is L2 --
+    the ADDITIVE closures either intersect (agreement, however distant an ancestor) or they do not.
+    ANCESTOR/DESCENDANT PAIRS NEVER CONVICT: non-empty intersection IS agreement.
+
+    It keeps `cit.from_number`'s try/except guard for the identical reason the period axis does: the
+    resolve is what the reader is SHOWN and it must not raise -- but nothing is parsed out of what it
+    renders."""
+    claim = set(claim or ())
+    if not claim:
+        return False, False
+    try:
+        cit.from_number(call, idx)
+    except Exception:  # noqa: BLE001
+        return False, False
+    receipt = _receipt_geo_text(call)
+    if not receipt:
+        return False, False                        # one side said nothing: nothing was COMPARED
+    return True, not (claim & receipt)
 
 
 # ══ D-HP G1 REMEDIATION-2 R2-a (2026-08-14) -- THE EMPTY-ROW ADDRESS IS ITS OWN STATE ═════════════════
@@ -5917,7 +6171,11 @@ def _resolve_number_handles(structured: dict | None, number_calls: list | None, 
     if handle_prose:                              # ADDED KEYS, treatment lane only (OFF-arm clean)
         census.update({"grouped_in_slot": 0, "direction_sign_mismatch": 0, "slot_scope_mismatch": 0,
                        "scope_checked": 0, "direction_checked": 0, "binding_refused": 0,
-                       "empty_row_addressed": 0})     # R2-a, the SEVENTH added key (see its own note)
+                       "empty_row_addressed": 0,      # R2-a, the SEVENTH added key (see its own note)
+                       # D-HP-25 V1 (plan 10.30.6): the GEO axis' comparison denominator and its class
+                       # counter -- the EIGHTH and NINTH added keys, TREATMENT-ONLY like the seven above,
+                       # so the control census keeps its four pinned keys byte-for-byte.
+                       "geo_checked": 0, "geo_mismatch": 0})
     if not isinstance(structured, dict):
         return census
     calls = list(number_calls or [])
@@ -5988,6 +6246,27 @@ def _resolve_number_handles(structured: dict | None, number_calls: list | None, 
                         if _direction_sign_mismatch(_clause, _call, pairs[0][0]):
                             census["direction_sign_mismatch"] += 1
                             value, live, live_pairs, refused = None, [], [], True
+                        else:
+                            # [D-HP-25 V1, plan 10.30.3(v)] THE THIRD BINDING REFUSAL, SEATED AT THE
+                            # EXISTING LADDER AND WRITING NO NEW REMOVAL CODE -- the same one statement
+                            # the other two ride, so a geo-refused handle takes the same drop / sever /
+                            # kill path and is charged the same `binding_refused`.
+                            # IT IS NESTED INSIDE THE DIRECTION `else` ON PURPOSE, AND THAT IS THE
+                            # `MIS_BOUND_PROJECTION` DEDUP RULE MADE STRUCTURAL: a handle can be
+                            # convicted by AT MOST ONE class, so `emf`'s
+                            # `by_rule[scope] + by_rule[direction] + by_rule[geo]` can never
+                            # double-count one handle against R11's frozen ceiling of 15. A flat
+                            # ordering would have let one handle charge two classes and inflate the
+                            # wave's own mis-binding metric with its own arithmetic.
+                            # ORDERED BEFORE THE `standin` FLIP BELOW, exactly as the other two are, so
+                            # a geo-refused handle is never promoted into a slot it cannot fill.
+                            _gclaim = _handle_geo_phrase(text, s0, s1, m.start(), m.end())
+                            _gcomp, _gmis = _slot_geo_mismatch(_gclaim, _call, pairs[0][0])
+                            if _gcomp:
+                                census["geo_checked"] += 1
+                            if _gmis:
+                                census["geo_mismatch"] += 1
+                                value, live, live_pairs, refused = None, [], [], True
                 # (a) THE FLIP. The model wrote no digit, so a solitary resolved handle IS the figure --
                 # the cue confirms, it no longer gates. Ordered AFTER the refusals so a refused handle
                 # is never promoted into a standin it cannot fill.
@@ -6147,8 +6426,16 @@ def _resolve_number_handles(structured: dict | None, number_calls: list | None, 
 # the reader's page, so counting it as a strip is the honest reading, not an inflation.
 # TREATMENT-LANE ONLY: these keys exist only when `handle_prose` ran, so a control row's `by_rule` and
 # `stripped` are byte-identical (the OFF-arm-clean rule).
+# D-HP-25 V1 (plan 10.30.6): `geo_mismatch` IS THE FOURTH MEMBER, and the census key and the ledger class
+# are ONE SPELLING deliberately -- this tuple is read as BOTH ("`number_census.get(cls)` -> `by_rule[cls]`"
+# in `_fold_render_classes`), so a class whose ledger name differs from its census name would need a
+# rename hook, and a rename hook is the second grammar that lets two readers of one page drift apart.
+# Plan 10.30.6 named the class "e.g. `geo_scope_mismatch`"; the "e.g." is discharged HERE, in favour of
+# the spelling the census already carries. THE SPELLING IS THE SEAM CONTRACT (the rule stated at
+# `emf.KILLED_CLASSES`): `emf.G1_DECLARED_CLASSES`, `emf.ARM_EXCLUSIVE_CLASSES`, `emf.MIS_BOUND_CLASSES`,
+# `eval._refusal_census` and this tuple all say `geo_mismatch` and nothing translates between them.
 _RENDER_LEDGER_CLASSES: tuple[str, ...] = ("slot_scope_mismatch", "direction_sign_mismatch",
-                                           "grouped_in_slot")
+                                           "grouped_in_slot", "geo_mismatch")
 # H1 FIX W2 (finding NF-2) -- THE FOURTH FOLDED CLASS, AND THE ONE THE LEDGER OWED MOST.
 # `slot_orphan_dropped` (the Z4/W1 remedy) DELETES WHOLE SENTENCES and had no counterpart anywhere: not a
 # `by_rule` class, not an `emf` successor term, not a column -- so a G2 fluency movement it caused was a
@@ -6181,6 +6468,28 @@ _SLOT_ORPHAN_CLASS: str = "slot_orphan"
 # it is not one of the four killed classes, and it is not a verifier residual -- it is a RENDER-side
 # conviction with its own remedy, exactly like `grouped_in_slot`, which is the [N]-side twin of it.
 _E_VALUE_SLOT_CLASS: str = "evidence_handle_in_slot"
+# ══ D-HP-25 V2 (plan 10.30.4) -- THE SIXTH FOLDED CLASS: AN [E] RECEIPT THAT CONTRADICTS THE GEOGRAPHY ═
+# THE CONSTRAINT THAT DICTATES THE WHOLE DESIGN: evidence rows carry NO geo, NO commodity and NO scope
+# fields at any layer -- `evidence.py:486-490` projects exactly `date, source, source_key, text,
+# event_date, event_date_precision, score`. There is no facet to compare, adding one is a store-schema
+# change, a store-schema change is a RE-CHUNK, and re-chunking is FORBIDDEN by the standing chunk-once
+# law. So this axis works on TEXT CONTAINMENT or it does not exist, and what it convicts is a POSITIVE
+# CONTRADICTION -- never an absence.
+# IT IS A NEW SIBLING PASS AND BOTH REJECTED ALTERNATIVES ARE NAMED, because each is a defect this estate
+# has already paid for:
+#   * NOT A WIDENING OF `_drop_evidence_value_slot`. Different class semantics -- that pass convicts a
+#     resolved [E] standing in a VALUE SLOT, this one convicts a resolved [E] whose TEXT names a
+#     different country than the sentence does. Folding two classes into one census key destroys the
+#     accounting the class scan reads.
+#   * NOT A HOOK IN `_resolve_evidence_handles`. Shrinking `live` there MIS-CHARGES `unresolvable` --
+#     that function acts only on UNRESOLVABLE [E] and a conviction booked through it inflates the wrong
+#     denominator. THAT IS THE H1 FIX Z2 ERROR AND IT IS NOT REPEATED.
+# IT JOINS `emf.G1_DECLARED_CLASSES` and `emf.ARM_EXCLUSIVE_CLASSES` on the `evidence_handle_in_slot`
+# precedent, and -- UNLIKE that class -- IT ALSO JOINS `emf.MIS_BOUND_CLASSES`: a receipt that names the
+# wrong country IS a wrong receipt, and excluding it would let this wave count the finds and not the
+# finding. It is NOT in `emf.KILLED_CLASSES` (a RENDER conviction must not inflate
+# `unconstructible_count`; plan 10.10(c) forbids exactly that contamination).
+_E_GEO_CONTRADICTION_CLASS: str = "evidence_geo_contradiction"
 
 
 def _fold_ledger_class(verifier: dict | None, cls: str, n) -> int:
@@ -6288,6 +6597,12 @@ _SEAM_SRC_SLOT_ORPHAN = "slot_orphan"  # _drop_slot_orphan_sentences -- a WHOLE 
 # evidence that a surviving sentence was emptied). `allow_empty` is therefore False at its mint (X6's
 # whole-sentence answer). Treatment-gated, so no control turn mints it and the OFF arm is byte-identical.
 _SEAM_SRC_E_VALUE_SLOT = "e_value_slot"
+# D-HP-25 V2 (plan 10.30.4): `_drop_evidence_geo_contradiction`'s kill -- a WHOLE sentence, so it takes
+# the IDENTICAL X2 position as the value-slot kill above: a TIDY-2 producer and NOT a licensing one (the
+# sentence it cut is gone, so nothing it mints is evidence that a SURVIVING sentence was emptied), and
+# `allow_empty` False at its mint (X6's whole-sentence answer). Treatment-gated, so no control turn mints
+# it and the OFF arm is byte-identical.
+_SEAM_SRC_E_GEO = "e_geo"
 # THE LICENCE SET, and it is the whole of FIX X2: a producer belongs here when its deletion can leave a
 # value slot EMPTY IN A SURVIVING SENTENCE. `verify` strips a handle out of the middle of a sentence and
 # `_prune_orphan_evidence_handles` removes an [E] marker from one; both leave "...stood at." on the page.
@@ -7575,6 +7890,182 @@ def _drop_evidence_value_slot(structured: dict | None, uniq: list | None, vrepor
     return census
 
 
+# ══ D-HP-25 V2 (plan 10.30.4) -- THE `[E]` GEO-CONTAINMENT PASS ══════════════════════════════════════
+#
+# MODELLED ON `_drop_evidence_value_slot` ABOVE: the same recs-then-act shape, the same sever-vs-kill
+# ladder, the same merge/splice arithmetic. COPIED SHAPE, NOT A WIDENING -- see `_E_GEO_CONTRADICTION_
+# CLASS` for why folding the two into one class is refused, and why a hook inside
+# `_resolve_evidence_handles` is the H1 FIX Z2 error.
+#
+# THE RULE, STATED AS A CONJUNCTION SO EVERY CLAUSE MUST HOLD. Convict a RESOLVED, SOLITARY `[E]` iff:
+#   (a) the CLAIM WINDOW -- the SAME `_owned_token` core, with the `[E]` tokens as the sibling index --
+#       owns EXACTLY ONE canonical geography `G_c`; AND
+#   (b) the receipt's FULL STORED TEXT (`row['text']`) contains NO surface of `canon_closure(G_c)`.
+#       NEVER the 140-char snippet, NEVER the label: a snippet is a display artifact and convicting on
+#       one measures TRUNCATION, not binding; AND
+#   (c) that same text DOES contain at least one surface of some OTHER country.
+#
+# (c) IS THE WHOLE DESIGN. It makes this a POSITIVE-CONTRADICTION detector: SILENCE ON ABSENCE (a receipt
+# that names no country is not evidence of the WRONG country), SILENCE ON AGGREGATES, and all four V1
+# laws applying unchanged on BOTH the claim side and the receipt side. Without (c) the pass would convict
+# every correctly-bound sentence whose supporting document simply never spells its country out, which is
+# most of the corpus.
+#
+# THE OFFLINE-TEXT LIMITATION, RECORDED HERE RATHER THAN DISCOVERED LATER: `uniq` carries the row `text`
+# the turn actually retrieved, so this pass reads the same bytes the reader's receipt is built from. An
+# OFFLINE replay (M-1) that reconstructs rows from stored artifacts sees only what those artifacts kept,
+# and the artifacts keep a SNIPPET. The remedy is a HYDRATION SIDECAR at M-1/M-2 (re-read full text from
+# the store), never a relaxation of (b) onto the snippet -- see plan 10.30.11.
+def _drop_evidence_geo_contradiction(structured: dict | None, uniq: list | None, vreport=None) -> dict:
+    """Sever the clause (or drop the sentence) carrying a RESOLVED `[E]` whose text names a DIFFERENT
+    country than the sentence does.
+
+    Returns `{convicted, handles_dropped, sentences_dropped}` -- ZERO-VALUED on every turn that had none,
+    so the caller stamps nothing (the OFF-arm-clean rule). Mutates `tldr`/`mechanism` in place; never
+    raises, because a render guard must never be the thing that breaks an answer.
+
+    THE CALLER GATES IT ON `handle_prose`, and nothing in here reads the environment: this is a
+    TREATMENT-LANE pass, so a control turn's prose, ledger, seams and trace are byte-identical.
+
+    ITS OWN REMEDY, ITS OWN SEAM, ITS OWN CLASS. Sever when the sentence keeps another receipt
+    (`_sentence_keeps_other_receipt`), kill the sentence when it does not -- and a sever NEVER swallows a
+    receipt the reader keeps (`keep_at`), which is the identical decision the [N] pass and the value-slot
+    pass both make. NEVER a splice: an [E] payload is a source, a date and a snippet, so there is no
+    figure to write."""
+    census = {"convicted": 0, "handles_dropped": 0, "sentences_dropped": 0}
+    if not isinstance(structured, dict):
+        return census
+    rows = list(uniq or [])
+    n_uniq = len(rows)
+    try:
+        for field in ("tldr", "mechanism"):
+            text = structured.get(field)
+            if not isinstance(text, str) or "[E" not in text:
+                continue
+            recs = []                          # (match, members, sentence span, convicted?)
+            for m in _E_HANDLE_RX.finditer(text):
+                members = _e_handle_members(m.group(0))
+                s0, s1 = _handle_sentence_span(text, m.start())
+                bad = (len(members) == 1 and 1 <= members[0] <= n_uniq
+                       and _e_geo_contradicts(text, s0, s1, m, rows[members[0] - 1]))
+                recs.append((m, members, s0, s1, bad))
+            spans = [(r[0].start(), r[0].end()) for r in recs if r[4]]
+            if not spans:
+                continue
+            keep_at = ([r[0].start() for r in recs
+                        if not r[4] and any(1 <= i <= n_uniq for i in r[1])]
+                       + [m.start() for m in _N_HANDLE_HP_RX.finditer(text)])
+            ops: list[tuple[int, int]] = []
+            kills: list[tuple[int, int]] = []
+            for m, members, s0, s1, bad in recs:
+                if not bad:
+                    continue
+                census["convicted"] += 1
+                if _sentence_keeps_other_receipt(text, s0, s1, spans, n_uniq):
+                    a = _handle_clause_start(text, s0, m.start())
+                    if any(a <= p < m.end() for p in keep_at):      # ...never swallow a kept receipt
+                        a = m.start()
+                    if a and text[a - 1] == " " and (m.end() >= len(text)
+                                                     or text[m.end()] in " ,.;:)!?"):
+                        a -= 1
+                    ops.append((a, m.end()))
+                    census["handles_dropped"] += len(members)
+                    continue
+                e = s1
+                if s0 == 0:
+                    while e < len(text) and text[e] == " ":
+                        e += 1
+                if (s0, e) in kills:
+                    continue
+                kills.append((s0, e))
+                census["sentences_dropped"] += 1
+                # X2: a WHOLE-SENTENCE producer names its own tag and is NOT in `_SLOT_EMPTYING_SEAM_SRCS`
+                # (the sentence it cut is gone, so it is evidence that nothing was EMPTIED); X6: that kind
+                # of producer passes `allow_empty` False, so a field-final cut mints no empty-key record.
+                _mint_strip_seam(vreport, field, text[e:], src=_SEAM_SRC_E_GEO)
+            merged: list[tuple[int, int]] = []
+            for a, b in sorted(ops + kills):
+                if merged and a <= merged[-1][1]:
+                    merged[-1] = (merged[-1][0], max(merged[-1][1], b))
+                else:
+                    merged.append((a, b))
+            out, pos = [], 0
+            for a, b in merged:
+                a = max(a, pos)
+                out.append(text[pos:a])
+                pos = max(pos, b)
+            out.append(text[pos:])
+            new = "".join(out)
+            if not text[:1].isspace():
+                new = new.lstrip(" \t")
+            structured[field] = new
+    except Exception:  # noqa: BLE001 -- a render guard must never be the thing that breaks an answer
+        return census
+    return census
+
+
+def _e_geo_contradicts(text: str, s0: int, s1: int, m, row) -> bool:
+    """The three-clause conjunction of plan 10.30.4, for ONE resolved solitary `[E]` occurrence.
+
+    THE CLAIM SIDE reuses the ownership core with the `[E]` tokens as the SIBLING INDEX -- "the previous
+    sibling" must mean the previous handle OF THE KIND BEING BOUND, or an `[E]` in a sentence full of
+    `[N]`s would be windowed by tokens that have nothing to do with it. L1 and L3 are applied to that
+    window exactly as `_handle_geo_phrase` applies them, and both resolve to SILENCE.
+
+    THE RECEIPT SIDE reads `row['text']` -- THE FULL STORED TEXT, never the 140-char snippet and never
+    the label. All four laws apply to the text scan too: `geo_lexicon.extract_geos` already discharges
+    L4 (word boundaries, the follower blacklist, homonyms, ambiguous surfaces), `sentinel_hit` discharges
+    L1, and `canon_closure` discharges L2 -- an EU mention in a France receipt's text is the claim's own
+    ancestor and is therefore CONTAINMENT, not contradiction.
+
+    Never raises."""
+    try:
+        sent = text[s0:s1]
+        a, b = m.start() - s0, m.end() - s0
+        if not (0 <= a < b <= len(sent)):
+            return False
+        toks = _geo.extract_geos(sent)
+        if not toks:
+            return False
+        sibs = [(mm.start(), mm.end()) for mm in _E_HANDLE_RX.finditer(sent)]
+        lo, hi = _sibling_window(sent, a, b, siblings=sibs)
+        if _geo.sentinel_hit(sent[lo:hi]):                   # L1 on the claim side
+            return False
+        in_window = {slug for (ts, te, slug) in toks if ts >= lo and te <= hi}
+        if len(in_window) != 1 or in_window == {_geo.EU_SLUG}:   # L3 + L1's conditional half
+            return False
+        k = _owned_token(sent, a, b, toks, _GEO_RIGHT_APPOS_RX, siblings=sibs)
+        if k is None:
+            return False                                     # (a): no OWNED geography -> silent
+        claim = _geo.canon_closure(toks[k][2])
+        body = str((row or {}).get("text") or "")            # THE FULL STORED TEXT. Never the snippet.
+        if not body.strip():
+            return False                                     # nothing to read -> silent, never a hit
+        if _geo.sentinel_hit(body):                          # L1 on the receipt side
+            return False
+        found = _geo.slugs_in(body)
+        if claim & _geo.closure_of(found):                   # (b): the claim's closure IS mentioned
+            return False
+        # [REVIEW MAJOR, FIXED 2026-08-15 -- L1's CONDITIONAL HALF ON THE RECEIPT SIDE.] `sentinel_hit`
+        # deliberately does NOT carry `european_union` (geo_lexicon.py:173-180): the EU is a real
+        # country-level slug on the ESR/PSD tables and its AGGREGATE reading is conditional, which only
+        # the caller can evaluate. V1 evaluates it (`_receipt_geo_text`: `slugs == {EU_SLUG}` -> `set()`);
+        # this side did not, so an `EU wheat exports ...` receipt read as a POSITIVE CONTRADICTION of a
+        # German/Italian/Polish/Romanian/Hungarian claim and KILLED THE SENTENCE. Only `france` carries
+        # the EU ancestor edge (plan 10.30.11(C) residual 3 keeps the other five out on purpose), and
+        # that residual's own justification -- "an European Union receipt with no member state beside it
+        # is an AGGREGATE and never compares at all" -- was true of V1 and FALSE HERE until this line.
+        # THE FIX IS THE FENCE, NOT THE VOCABULARY: the lexicon is NOT widened (that is the edit class
+        # this wave refuses); the EU simply never counts as the OTHER country that convicts. It costs
+        # nothing that clause (c) was entitled to -- when a member state stands beside the EU in the same
+        # receipt, THAT slug still convicts on its own (or clause (b) has already exonerated the claim).
+        others = {s for s in found
+                  if s != _geo.EU_SLUG and not (_geo.canon_closure(s) & claim)}
+        return bool(others)                                  # (c): POSITIVE contradiction, or silence
+    except Exception:  # noqa: BLE001 -- fail toward NOT convicting
+        return False
+
+
 # CYCLE-10-AMEND (2026-08-08), REVIEW MAJOR 1+2 -- READ (a) AS IT NOW STANDS. "The body-wide pass that
 # follows then has nothing left to delete" was true of the SNIPPET and false of the ROW: the row's own
 # `[10]` marker is not a `_CIT_HANDLE` and IS a `_level_tokens` hit, so on OUTLOOK the pass deleted every
@@ -8227,6 +8718,9 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     _eslot = (_drop_evidence_value_slot(structured, uniq, verifier)   # D-HP G1 REMEDIATION D2(b), both
               if (verifier.get("enabled") and _handles) else None)   # bodies, the SAME post-prune seat
     _fold_ledger_class(verifier, _E_VALUE_SLOT_CLASS, (_eslot or {}).get("convicted"))
+    _egeo = (_drop_evidence_geo_contradiction(structured, uniq, verifier)  # D-HP-25 V2, both bodies,
+             if (verifier.get("enabled") and _handles) else None)          # the SAME post-prune seat
+    _fold_ledger_class(verifier, _E_GEO_CONTRADICTION_CLASS, (_egeo or {}).get("convicted"))
     _debris = bool(verifier.get("enabled") and _tidy_handle_debris(structured))   # D-PQ HANDLE-3, ditto
     _sorph = (_drop_slot_orphan_sentences(structured, verifier)                   # H1 FIX Z4, both bodies
               if (verifier.get("enabled") and _handles) else None)                # ...same position, after
@@ -8298,6 +8792,8 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
                       **({"evidence_orphans_pruned": _eorph} if _eorph else {}),  # CYCLE-9 FIX 3, ditto
                       **({"evidence_slot_dropped": _eslot}         # D-HP G1 REMEDIATION D2(b), both
                          if (_eslot and any(_eslot.values())) else {}),          # bodies, same stamp rule
+                      **({"evidence_geo_dropped": _egeo}           # D-HP-25 V2, both bodies, the SAME
+                         if (_egeo and any(_egeo.values())) else {}),   # absent-not-null stamp rule
                       **({"prose_debris_tidied": True} if _debris else {}),   # D-PQ HANDLE-3, both bodies
                       **({"prose_orphans_tidied": True} if _orphans else {}),  # CYCLE-5 TIDY-2, both bodies
                       **({"response_contract": _rc_active} if _rc_active else {}),   # Phase B twin stamp

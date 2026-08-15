@@ -116,7 +116,23 @@ BLINDED_CLASSES: tuple[str, ...] = ("number_mismatch", "number_unbacked")
 # of 15 and the per-row tripwire are written against. On a PRE-MIRROR artifact (`by_rule` carries no
 # scope term) the excess is the whole projection, so an older row still reports its scope events instead
 # of silently dropping them. One expression, correct on both populations, and no term is ignored.
-MIS_BOUND_CLASSES: tuple[str, ...] = ("slot_scope_mismatch", "direction_sign_mismatch")
+#
+# ══ D-HP-25 (plan 10.30.6) -- THE TWO BINDING-VERIFIER CLASSES JOIN, AND THE DEDUP RULE STILL HOLDS ════
+# `geo_mismatch` (V1, the [N] geo axis) and `evidence_geo_contradiction` (V2, the [E] containment pass)
+# are BOTH mis-bindings: a receipt that names the wrong GEOGRAPHY is a wrong receipt exactly as one that
+# names the wrong PERIOD is. Excluding them would let this wave count the finds and not the finding --
+# GAMING OUR OWN GATE -- and plan 10.30.6 pre-refuses that in advance of any number existing to argue
+# about. CONSEQUENCE, PRE-REGISTERED AND NOT NEGOTIABLE: they consume R11's FROZEN CEILING OF 15 POOLED
+# PER TREATMENT ARM, and the 15 itself may not be moved. If the new classes push an arm past 15 that is a
+# FAIL to be RCA'd, never a ceiling to be raised.
+# THE PROJECTION DEDUP IS UNAFFECTED, AND THE REASON IS STRUCTURAL RATHER THAN ARITHMETIC.
+# `MIS_BOUND_PROJECTION` mirrors `MIS_BOUND_CLASSES[0]` (`slot_scope_mismatch`) alone, and
+# `answer._resolve_number_handles` seats the geo check INSIDE the direction check's `else`, so ONE HANDLE
+# CAN BE CONVICTED BY AT MOST ONE OF THE THREE [N] CLASSES. The expression below therefore stays exact:
+# no handle contributes a scope term AND a geo term, so nothing is double-counted and the `max(0, ...)`
+# excess term keeps reading pre-mirror artifacts correctly.
+MIS_BOUND_CLASSES: tuple[str, ...] = ("slot_scope_mismatch", "direction_sign_mismatch",
+                                      "geo_mismatch", "evidence_geo_contradiction")
 MIS_BOUND_PROJECTION: str = "scope_mismatch"        # `wrong_slot_audit`'s mirror of MIS_BOUND_CLASSES[0]
 BARE_DIGIT_CLASS: str = "bare_digit"
 # ══ H1 FIX W2 -- `slot_orphan` IS IN `by_rule` AND IN NO TUPLE ABOVE, DELIBERATELY ════════════════════
@@ -197,7 +213,19 @@ G1_DECLARED_CLASSES: tuple[str, ...] = ("fabricated_citation", "ledger_cascade",
                                         "undeclared_unsupported",
                                         "bare_digit", "direction_sign_mismatch", "slot_scope_mismatch",
                                         "grouped_in_slot", "slot_orphan", "episode_span_unbacked",
-                                        "evidence_handle_in_slot")
+                                        "evidence_handle_in_slot",
+                                        # ── D-HP-25 (plan 10.30.6): THE SEVENTEENTH AND EIGHTEENTH.
+                                        # MANDATORY, and the reason is that clause (4) is a CLASS SCAN
+                                        # over `by_rule`: an UNDECLARED class FAILS THE CLAUSE ON ITS
+                                        # OWN REMEDY. A verifier that breaks the gate by WORKING is a
+                                        # defect, not a result. `geo_mismatch` folds via
+                                        # `answer._fold_render_classes` (it is in
+                                        # `_RENDER_LEDGER_CLASSES`); `evidence_geo_contradiction` folds
+                                        # via `answer._fold_ledger_class` at both serving bodies. Both
+                                        # are ALSO in `MIS_BOUND_CLASSES` above -- unlike
+                                        # `evidence_handle_in_slot`, which convicts the SLOT and not the
+                                        # binding -- and NEITHER is in `KILLED_CLASSES`.
+                                        "geo_mismatch", "evidence_geo_contradiction")
 # THE ARM-EXCLUSIVE CLASSES -- the ones that CANNOT be charged on a control row, so a RAW `stripped` delta
 # across the arms is not a like-for-like quantity. G1 clause (3) states the caution and X5 corrected its
 # count from four to FIVE; **H2 CORRECTS IT AGAIN, TO SIX**, and the sixth is H1b's own: `episode_span_
@@ -209,9 +237,15 @@ G1_DECLARED_CLASSES: tuple[str, ...] = ("fabricated_citation", "ledger_cascade",
 # mutates only under `handle_prose` and the census key is not even minted on a control turn, so like the
 # six above it has no control-arm counterpart and a raw `stripped` delta across the arms is not like for
 # like. The count is arithmetic over this tuple, never a sentence to be re-counted by hand (X5's lesson).
+# D-HP-25 (plan 10.30.6): **NINE**, and the eighth and ninth are the binding verifier's own. Both passes
+# mutate ONLY under `handle_prose` (V1's census keys are not even minted on a control turn, V2's pass is
+# not called), so like the seven above they have no control-arm counterpart and a raw `stripped` delta
+# across the arms is not like for like. The count is arithmetic over this tuple, never a sentence to be
+# re-counted by hand (X5's lesson, restated a third time).
 ARM_EXCLUSIVE_CLASSES: tuple[str, ...] = ("bare_digit", "slot_scope_mismatch", "direction_sign_mismatch",
                                           "grouped_in_slot", "slot_orphan", "episode_span_unbacked",
-                                          "evidence_handle_in_slot")
+                                          "evidence_handle_in_slot",
+                                          "geo_mismatch", "evidence_geo_contradiction")
 
 # ══ H2 FOLD 1 (K1) -- G1 CLAUSE (8)'s DENOMINATOR, AS ARITHMETIC RATHER THAN AS A SENTENCE ════════
 # Clause (8) reads `number_handles.substituted + prose_handles.substituted` per answer against **0.6 x the

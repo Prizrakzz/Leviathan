@@ -271,8 +271,14 @@ def test_served_rows_ride_the_per_answer_record():
     assert sr[0]["row_count"] == 35
     got = {(r["period"], r["estimate_role"], r["value"]) for r in sr[0]["rows"]}
     assert ("2024/25", "actual", 4.24) in got and ("2025/26", "estimate", 4.15) in got
-    assert all(set(r) == {"period", "estimate_role", "value", "unit", "knowledge_date"}
+    # D-HP-25 TIGHTENING T2 (2026-08-15, plan 10.30.11(B)): `country` joins the per-ROW projection, and
+    # `country` (from the query) joins the per-CALL one. ARTIFACT-ONLY -- no behaviour reads either, and
+    # both caps are unchanged (the next test pins `_ROWS_PER_CALL_CAP` and still passes). Without them an
+    # offline reader cannot reconstruct what the geo verifier compared against, so M-1's replay and M-3's
+    # per-injection labelling would be unfalsifiable from stored artifacts.
+    assert all(set(r) == {"period", "estimate_role", "value", "unit", "knowledge_date", "country"}
                for r in sr[0]["rows"])
+    assert "country" in sr[0]
     assert rec["numbers_verifier"] == nv
 
 

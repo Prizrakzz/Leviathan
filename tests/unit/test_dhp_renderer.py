@@ -464,12 +464,15 @@ def test_the_control_arm_is_the_pre_dhp_renderer_on_every_shape_but_the_declared
     on = _st(body, body)
     n_on = an._resolve_number_handles(on, calls, handle_prose=True)
     assert on["tldr"] != st["tldr"]
-    # SEVEN added keys since G1 REMEDIATION-2 R2-a (`empty_row_addressed`, the second counter split off
-    # `unresolvable` after `binding_refused`). The CONTROL set above is still the pre-D-HP four exactly --
-    # that assertion is the one that must never move, and the accounting split did not move it.
+    # NINE added keys since D-HP-25 V1 (`geo_checked` / `geo_mismatch`, the binding verifier's geography
+    # axis, after the SEVEN that ended at G1 REMEDIATION-2 R2-a's `empty_row_addressed`). THE CONTROL SET
+    # ABOVE IS STILL THE PRE-D-HP FOUR EXACTLY -- that assertion is the one that must never move, and
+    # neither the accounting split nor the geo axis moved it. This line IS the control-arm invariance
+    # proof for V1: every new counter is inside the `handle_prose` branch, so an OFF turn's census is
+    # byte-identical and a new key can only ever appear on the right-hand side of this subtraction.
     assert set(n_on) - set(n) == {"grouped_in_slot", "direction_sign_mismatch", "slot_scope_mismatch",
                                   "scope_checked", "direction_checked", "binding_refused",
-                                  "empty_row_addressed"}
+                                  "empty_row_addressed", "geo_checked", "geo_mismatch"}
 
 
 def test_the_suffixed_token_is_the_treatments_grammar_and_the_control_arm_is_bytes():

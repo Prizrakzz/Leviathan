@@ -541,10 +541,16 @@ def test_the_trace_key_is_registered_at_the_tail_with_its_denominator():
     be AFTER every older one and must never have been INSERTED ahead of one.
 
     RE-ANCHORED AGAIN (D-HP G1 REMEDIATION D2(b), 2026-08-14): `evidence_slot_dropped` -- clause (2b)'s
-    remedy census -- was APPENDED after THAT. Tail moved by one more; nothing else."""
-    assert tk.TRACE_RECORD_KEYS[-3] == "episode_spans_validated"
-    assert tk.TRACE_RECORD_KEYS[-2] == "plan_tokens"
-    assert tk.TRACE_RECORD_KEYS[-1] == "evidence_slot_dropped"
+    remedy census -- was APPENDED after THAT. Tail moved by one more; nothing else.
+
+    RE-ANCHORED A THIRD TIME (D-HP-25 V2, 2026-08-15, plan 10.30.6): `evidence_geo_dropped` -- the [E]
+    geo-containment census -- was APPENDED after THAT. Tail moved by one more; nothing else, and in
+    particular this key's own position RELATIVE TO EVERY OLDER KEY is unchanged, which is the invariant
+    the pin actually protects."""
+    assert tk.TRACE_RECORD_KEYS[-4] == "episode_spans_validated"
+    assert tk.TRACE_RECORD_KEYS[-3] == "plan_tokens"
+    assert tk.TRACE_RECORD_KEYS[-2] == "evidence_slot_dropped"
+    assert tk.TRACE_RECORD_KEYS[-1] == "evidence_geo_dropped"
     assert len(set(tk.TRACE_RECORD_KEYS)) == len(tk.TRACE_RECORD_KEYS)
     assert set(an._validate_episode_spans({"mechanism": _mech(_BACKED_A)}, _injected())) == \
         {"spans_checked", "bullets_dropped", "section_seen"}          # RE-ANCHORED, H1b fold-1 F4

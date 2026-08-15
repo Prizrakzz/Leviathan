@@ -70,6 +70,29 @@ TRACE_RECORD_KEYS: tuple[str, ...] = (
                                  # writer's obedience. It is NOT a `by_rule` strip class and is in no
                                  # successor tuple -- see `answer._addresses_empty_row`. ALSO UNBUDGETED:
                                  # clause (2) must name it at the re-freeze (plan 10.19.5 item 1).
+                                 # ── D-HP-25 V1 (2026-08-15, plan 10.30.3/10.30.6): the treatment lane
+                                 # now stamps THIRTEEN keys. The two new ones are `GEO_CHECKED` and
+                                 # `GEO_MISMATCH`, the geography axis of the binding verifier, and they
+                                 # ride INSIDE this dict rather than as a new registered key so eval.py
+                                 # gains them with no edit and no column shift (the `escalation_decision`
+                                 # idiom: one registered key, one stamp site, one producer).
+                                 # `geo_checked` is `geo_mismatch`'s DENOMINATOR and it counts
+                                 # COMPARISONS, never ATTEMPTS -- the FIX Z12a contract that
+                                 # `scope_checked` / `direction_checked` are already written against, so
+                                 # the column can never read as coverage on a handle whose clause named
+                                 # no geography at all. BOTH SIDES MUST SPEAK: the clause must OWN
+                                 # exactly one canonical geography (its own consumption ledger, never
+                                 # the period axis') and the receipt must name one through the SHIPPED
+                                 # `from_number` rule (query country first, else a UNANIMOUS row country
+                                 # on a table that is not destination-coded). `Citation.label` is NEVER
+                                 # parsed -- the M1(b) fence, inherited verbatim.
+                                 # `geo_mismatch` IS ALSO A `by_rule` CLASS, and the census key and the
+                                 # class are ONE SPELLING on purpose (`answer._RENDER_LEDGER_CLASSES` is
+                                 # read as both). It is DECLARED in `emf.G1_DECLARED_CLASSES` and in
+                                 # `emf.MIS_BOUND_CLASSES`, so it consumes R11's frozen ceiling of 15.
+                                 # A handle can be convicted by AT MOST ONE of the three [N] classes --
+                                 # the geo check is seated inside the direction check's `else` -- so the
+                                 # `MIS_BOUND_PROJECTION` dedup arithmetic is unaffected.
     "prose_debris_tidied",       # D-PQ HANDLE-3: True when a strip left a bracket/dash frame to close up
     "prose_orphans_tidied",      # CYCLE-5 TIDY-2: True when a strip left a headless paragraph to repair
     "number_rows_deduped",       # CYCLE-6 FIX-C: [N] indices re-pointed onto a full-identity twin's row
@@ -248,6 +271,36 @@ TRACE_RECORD_KEYS: tuple[str, ...] = (
                                  # ABSENT (never null) on every CONTROL row and on every treatment row
                                  # where nothing fired -- the pass is treatment-gated and the stamp is
                                  # conditional, so the OFF arm is byte-identical.
+    # -- D-HP-25 THE BINDING VERIFIER (2026-08-15, plan 10.30). APPENDED AT THE TAIL, per the law at the
+    # head of this tuple: every artifact written before this line keeps its column order, and this column
+    # arrives last in every artifact written after it. APPEND-NEVER-SORT is the 12f law, and a sorted
+    # insert re-keys every historical artifact comparison.
+    "evidence_geo_dropped",      # V2's OWN RECORD, per turn: {convicted, handles_dropped,
+                                 # sentences_dropped} from `answer._drop_evidence_geo_contradiction` --
+                                 # a RESOLVED, SOLITARY [E] whose FULL STORED TEXT names a DIFFERENT
+                                 # country than the sentence does. It is a POSITIVE-CONTRADICTION
+                                 # detector: silence on absence, silence on aggregates, and a conviction
+                                 # only when the receipt text positively names some OTHER country.
+                                 # WHY IT IS NOT A FIFTH KEY INSIDE `evidence_slot_dropped`: different
+                                 # class semantics. That pass convicts the SLOT an [E] stands in; this
+                                 # one convicts the BINDING. Folding two classes into one census key
+                                 # destroys the accounting the class scan reads (plan 10.30.4).
+                                 # DOUBLE-BOOKED ON PURPOSE, the `slot_orphan_dropped` pattern:
+                                 # `convicted` folds into the ONE strip ledger as
+                                 # `by_rule['evidence_geo_contradiction']` (+ `stripped`), DECLARED in
+                                 # `emf.G1_DECLARED_CLASSES` and -- unlike `evidence_handle_in_slot` --
+                                 # ALSO in `emf.MIS_BOUND_CLASSES`, because a receipt naming the wrong
+                                 # GEOGRAPHY is a wrong receipt. It therefore consumes R11's frozen
+                                 # ceiling of 15 pooled per treatment arm, which is pre-registered at
+                                 # plan 10.30.6 and is NOT a ceiling this wave may raise.
+                                 # ABSENT (never null) on every CONTROL row and on every treatment row
+                                 # where nothing fired -- the pass is treatment-gated and the stamp is
+                                 # conditional, so the OFF arm is byte-identical.
+                                 # THE [N] HALF OF THE SAME VERIFIER (V1) MINTS NO TOP-LEVEL KEY: its
+                                 # two counters `geo_checked` / `geo_mismatch` ride INSIDE
+                                 # `number_handles` beside the seven D-HP counters already there -- one
+                                 # registered key, one stamp site, one producer, no column shift. They
+                                 # are documented at `number_handles` above.
 )
 
 # out["intent_decision"][decision_key] -> record[record_column].

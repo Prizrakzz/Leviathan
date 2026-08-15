@@ -26,11 +26,19 @@ import dhp_1b_harness as H                                  # noqa: E402
 # RECORD, spent in call order; this answer exhausts the budget so 51 of its calls project
 # row_count>0 with ZERO rows. Struck for a LOSSY INPUT, before injection -- never for its result.
 VOID = {("r6_inv8_shape_esc_deep_hp_r2", "shape_esc_episode_us_drought")}
+# D-HP-25 V1 (plan 10.30.6): the geo axis' two counters extend BOTH hand-enumerations, exactly as
+# `eval.py:2775-2777` extends its own two. A single-sided extension is how a class becomes invisible in
+# the one readout a gate is scored on -- M-2's bars ("catch rate per arm", "innocent deletions 0/2899")
+# are read on THIS instrument, and without these keys a V1 conviction would still move `sentences_dropped`
+# while its FACET ATTRIBUTION read as `binding_refused` alone. `geo_checked` is the DENOMINATOR
+# (comparisons, never attempts) and is therefore in the census and NOT in the charges: it moves on turns
+# where nothing was convicted, and a charge key that fires without a conviction is a mislabelled catch.
 CENSUS_KEYS = ("substituted", "handles_dropped", "sentences_dropped", "unresolvable",
                "grouped_in_slot", "direction_sign_mismatch", "slot_scope_mismatch",
-               "binding_refused", "empty_row_addressed")
+               "binding_refused", "empty_row_addressed", "geo_checked", "geo_mismatch")
 CHARGE_KEYS = ("unresolvable", "empty_row_addressed", "binding_refused",
-               "slot_scope_mismatch", "direction_sign_mismatch", "grouped_in_slot")
+               "slot_scope_mismatch", "direction_sign_mismatch", "grouped_in_slot",
+               "geo_mismatch")
 
 
 def answers():
