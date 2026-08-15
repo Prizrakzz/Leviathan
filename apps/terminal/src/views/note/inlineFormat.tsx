@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { CitationChip } from './CitationChip';
+import { CITE_SRC, citeRefOf, citeResolve } from './citations';
 import type { CiteOpen, ResolvedCite, ResolvedMap } from './citations';
 import { InertCite } from './InertCite';
 
@@ -23,7 +24,10 @@ export interface InlineOpts {
   inert?: boolean;
 }
 
-const CITE = /^\[([A-Za-z]?)(\d+)\]/; // [1] [E2] [N1] at the cursor — g1 = type prefix (E/N/''), g2 = the ledger integer
+// [1] [E2] [N1] [N1b] at the cursor. The GRAMMAR IS NOT RESTATED HERE (T1-7): it is `citations.CITE_SRC`,
+// anchored. The two tokenizers accepting different handle sets is the defect this fix closes — the note
+// body chipped a handle the TL;DR left as literal text — so there is now exactly one place to widen.
+const CITE = new RegExp('^' + CITE_SRC);
 
 /** Tokenize inline markup. A `**bold**`/`*em*` with no closing marker (common mid-stream) has its
  *  marker DROPPED, never shown; an unresolved `[n]` stays literal text (or, in `inert` mode, becomes an
@@ -45,20 +49,19 @@ export function parseInline(text: string, resolved: ResolvedMap, opts: InlineOpt
     // pre-verify, and a fabricated handle must not silently vanish into prose either).
     if (opts.inert && cm) {
       flush();
-      out.push({ k: 'inert', ref: (cm[1] ?? '') + (cm[2] as string) });
+      out.push({ k: 'inert', ref: citeRefOf(cm) });
       i += cm[0].length;
       continue;
     }
-    // Resolve by the BARE DIGIT (the backend's ledger `ref` is the integer; P9 prose carries a TYPED [E3]/[N4]
-    // handle over the SAME integer key). Keep the full typed handle as the display ref so CitationChip's
-    // color (amber/cyan) + tooltip stay unchanged, and the resolved entry's doc locator flows through.
-    if (cm && resolved[cm[2] as string]) {
+    // Resolve through `citeResolve`: the SIBLING ROW's own entry ('1b') when the ledger carries one, else
+    // the BARE DIGIT (the backend's ledger `ref` is the integer; P9 prose carries a TYPED [E3]/[N4] handle
+    // over the SAME integer key). Keep the full typed handle — suffix included — as the display ref so
+    // CitationChip's color (amber/cyan) + tooltip stay unchanged, the resolved entry's locator flows
+    // through, and the click pins the row serving actually minted.
+    const hit = cm ? citeResolve(cm, resolved) : undefined;
+    if (cm && hit) {
       flush();
-      out.push({
-        k: 'cite',
-        ref: (cm[1] ?? '') + (cm[2] as string),
-        resolved: resolved[cm[2] as string] as ResolvedCite,
-      });
+      out.push({ k: 'cite', ref: citeRefOf(cm), resolved: hit as ResolvedCite });
       i += cm[0].length;
       continue;
     }

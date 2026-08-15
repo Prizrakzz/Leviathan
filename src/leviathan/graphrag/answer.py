@@ -10,6 +10,7 @@ from __future__ import annotations
 import contextlib
 import contextvars
 import functools
+import math
 import os
 import re
 import time
@@ -2261,8 +2262,19 @@ def _l2_blocks(sg, graph: gph.CausalGraph, asof: str | None = None, order: list 
             note = ("an accounting/processing identity — holds by construction, no dated evidence needed"
                     if kind == "transformation" else
                     "a market-structure link" if kind == "market_structure" else "a causal link — needs evidence")
+            # T1-3 (cascade step-0b): the CONTRACT header carries the admission provenance too, and the
+            # helper's own docstring declared this the owed work ("P6's reason attaches to a CONTRACT node,
+            # and only the driver header is annotated below, so that wave threads this helper at its own
+            # header"). WITHOUT IT the one fact that distinguishes a PAID cross-market block from an
+            # ordinary walked hop -- that the graph reached this market downstream of a named seed, and
+            # from how many anchors -- never reaches the writer, so `n_convergence_cross` is a trace column
+            # nothing in the prompt can act on. It rides the CASCADE-HOP line for the same reason the driver
+            # suffix rides the driver header: the evidence rows are untouched dicts, so the string is
+            # invisible to `citations.unify`'s E-numbering and to the verifier's resolution set BY
+            # CONSTRUCTION. `provenance` False -> `_csfx` is "" -> this line is byte-identical to pre-T1-3.
+            _csfx = _admission_note(cnode) if provenance else ""
             lines.append(f"REACHED VIA CASCADE HOP: {e.get('_from')} --{e.get('relation')}({e.get('sign')})--> {cid}"
-                         f" [{kind}: {note}] {e.get('mechanism') or ''}")
+                         f"{_csfx} [{kind}: {note}] {e.get('mechanism') or ''}")
         lines.append(_context_block(graph, cid))                   # the FULL one-hop context, verbatim
         stable.append("\n".join(lines))
 
@@ -2869,7 +2881,9 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
         # MODEL's and delete the sentences the renderer had just filled in. Charged in verify (ONE strip
         # ledger, `by_rule['bare_digit']`), deleted here. OFF-arm-clean: no key, no call.
         if _handles:
-            _bdrop = _drop_bare_digit_sentences(structured, extra_number_calls, verifier)
+            # T1-6: `uniq` is threaded so the [E]-cited exemption can be checked against the receipts it
+            # names -- the SAME one evidence list D-HP-1 builds once and every [E] pass on this body reads.
+            _bdrop = _drop_bare_digit_sentences(structured, extra_number_calls, verifier, uniq=uniq)
             if any(_bdrop.values()):
                 sg.trace["bare_digit_dropped"] = _bdrop
         sg.trace["number_handles"] = _resolve_number_handles(structured, extra_number_calls,
@@ -6965,8 +6979,254 @@ def _drop_slot_orphan_sentences(structured: dict | None, vreport=None) -> dict:
     return census
 
 
+# ══ T1-6 (CASCADE_HOME_AND_SMALL_ITEMS) -- THE e-CITED LINT'S RANGE GAP, CLOSED CONSERVATIVELY ═══════
+#
+# THE RESIDUAL, INHERITED BY NAME. D-HP closed with (R4): "the e-cited lint under-extracts range-shaped
+# typed figures ('2-4 quarter') -- an existing-lint gap, not a new axis", MOVED to the estate small-items
+# bundle. THE MEASURED CASE is verdicts #35/#36 of `data/dhp_g1/clause6_audit.json`
+# (`ab_rec_malaysia_stocks`, cov4.r2), and it is one of the SIX genuine writer-side mis-bindings the audit
+# decomposition kept after every exoneration:
+#     "any confirmed onset would add a 2-4 quarter supply lag [E23]"
+# `[E23]` is `usda_gain_soybean_meal` (country TH) and its stored text forecasts a slight increase in Thai
+# palm kernel IMPORTS. It states no lag, no quarter count and neither endpoint. The sentence nevertheless
+# passed every gate, because `verify.bare_digit_verdict`'s R3(b) exemption is SENTENCE-SCOPED and
+# DELIBERATELY GENEROUS: it asks only whether an [E] handle is present, never whether that item carries
+# the numeral. The prompt half already states the narrow contract the exemption is supposed to encode --
+# `_SYSTEM_HANDLES`: "a figure that appears in the QUOTED TEXT of an evidence item ... may be typed, IN
+# THE SAME SENTENCE AS THAT ITEM'S [E] HANDLE" -- so what ships below is the lint finally reading the rule
+# the writer was already given, on ONE shape and no other.
+#
+# WHY THE SHAPE IS "ONE RANGE", AND WHY THAT IS NOT AN ARBITRARY NARROWING. A range is the one typed-figure
+# shape that is UNAMBIGUOUSLY a magnitude and CHEAPLY checkable: two endpoints, both of which must appear in
+# the receipt for the receipt to be stating the range at all. Every other typed figure needs the span
+# machinery D-HP's option (a) ([Q] handles) was deferred for, and the estate's own record (Z4/W1: a cue-only
+# lexical rule deleted 314 of 32,557 stored sentences) forbids inventing a wider criterion from a handful of
+# examples. So the exemption stands EXACTLY as shipped for every sentence that carries no parseable range.
+#
+# FAIL-OPEN AT EVERY DOUBT, AND THE DIRECTION IS THE WHOLE SAFETY OF IT. Not a range, an unparseable
+# endpoint, a year range, a date fragment, a descending pair, a receipt whose text is unavailable, ANY
+# cited member of the record that could not be read (so the union is complete or the sentence is exempt),
+# an endpoint the writer ROUNDED or TRUNCATED to its own stated precision, ANY exception -- all read as
+# EXEMPT. A missed conviction costs a count; a false one deletes correct prose, which is D3 and the reason
+# the exemption was written generous in the first place. The last two entries are review fixes: each was a
+# reproduced FALSE CONVICTION on a stored r6 body, which is this lint's one unacceptable outcome.
+#
+# IT MINTS NO NEW LEDGER CLASS. The sentence was already a claim-magnitude sentence; what it loses is the
+# exemption, so it is charged and removed as `bare_digit` through the ladder that already exists. A new
+# class would have to join `emf.G1_DECLARED_CLASSES` (clause (4) is a class scan) and would double-count
+# a conviction the ledger already has a name for.
+#
+# THE CHARGE/REMEDY SPLIT, STATED HONESTLY. `verify.bare_digit_verdict` is the CHARGE and it is FROZEN
+# (the D-HP termination branch freezes the cycle-8 extractor exactly as shipped, and this bundle carries a
+# standing verify.py freeze). So verify still COUNTS such a sentence under `bare_digit.e_cited` while this
+# pass REMOVES it. That divergence is inside the population difference `_drop_bare_digit_sentences`' own
+# docstring already declares ("Where they CAN differ is population"), and the render census reports what
+# the reader's page actually lost -- which is what a render census has always promised. Moving the charge
+# to match is a verify-window change, recorded, not taken here.
+_RANGE_DASHES = "-" + chr(0x2010) + chr(0x2011) + chr(0x2012) + chr(0x2013) + chr(0x2014)
+_RANGE_FIG_RX = re.compile(
+    r"(?<![A-Za-z0-9.,])(\d[\d,]*(?:\.\d+)?)[ ]?[" + _RANGE_DASHES + r"][ ]?(\d[\d,]*(?:\.\d+)?)(?![\d.,])")
+_YEARISH_RX = re.compile(r"\A(?:19|20)\d{2}\Z")
+
+
+def _range_num(tok: str):
+    """One endpoint as a float, or None when it is not cleanly parseable. `None` propagates all the way
+    out as EXEMPT -- the fail-open direction this whole pass is built in."""
+    try:
+        return float(str(tok).replace(",", ""))
+    except (TypeError, ValueError):
+        return None
+
+
+def _range_figures(sent: str) -> list[tuple[str, str, str]]:
+    """The RANGE-shaped typed figures in one sentence, as `(verbatim, low_token, high_token)`.
+
+    `sent` must already have its handle tokens MASKED (`verify._mask_handles`, which is length-preserving),
+    or a ranged handle like `[E1-E4]` would read as the range `1-4`.
+
+    EVERY EXCLUSION IS A FAIL-OPEN, and each is here because it is a shape that LOOKS like a range and is
+    not one:
+      * a YEAR on either side ('2024-25', '2010-2020', and the leading pair of an ISO date '2026-05-30')
+        -- `verify._claim_number_spans` already exempts bare years and year-range tails, and this pass may
+        not be stricter than the extractor whose exemptions the writer was promised;
+      * a descending pair ('9-4') -- not a range, and reading it as one would invent a claim;
+      * an unparseable endpoint -- nothing to check against anything;
+      * a match glued to another dash-digit run on either side (a chain, i.e. a date or a phone-shaped
+        code, never a magnitude span).
+    """
+    out: list[tuple[str, str, str]] = []
+    s = sent or ""
+    try:
+        for m in _RANGE_FIG_RX.finditer(s):
+            lo_t, hi_t = m.group(1), m.group(2)
+            if _YEARISH_RX.match(lo_t.replace(",", "")) or _YEARISH_RX.match(hi_t.replace(",", "")):
+                continue
+            lo, hi = _range_num(lo_t), _range_num(hi_t)
+            if lo is None or hi is None or lo > hi:
+                continue
+            if m.start() > 0 and s[m.start() - 1] in _RANGE_DASHES:
+                continue                                   # the tail of a longer dash chain
+            tail = s[m.end():m.end() + 2]
+            if tail[:1] in _RANGE_DASHES and tail[1:2].isdigit():
+                continue                                   # the head of a longer dash chain
+            out.append((m.group(0), lo_t, hi_t))
+    except Exception:  # noqa: BLE001 -- a lint helper may never be the thing that breaks an answer
+        return []
+    return out
+
+
+def _e_receipt_texts(sent: str, uniq: list | None) -> tuple[list[str], bool]:
+    """The FULL stored text of every `[E]` receipt this sentence cites, in citation order -- AND whether
+    that pool is COMPLETE, i.e. whether every member the sentence names actually contributed text.
+
+    Reads the SAME index-range rule the rest of the [E] lane uses (`1 <= i <= len(uniq)`), and the same
+    `_e_handle_members` grammar, so a grouped `[E1, E2]` and a ranged `[E1-E4]` both contribute every
+    member they name. An out-of-range member contributes nothing (there is no receipt to read); a receipt
+    with no text contributes nothing, which is what makes an unhydrated fixture EXEMPT rather than
+    convicted.
+
+    WHY THIS RETURNS A PAIR (REVIEW FIX). "Contributes nothing" was silent, and `_range_backed` then asked
+    whether the POOLED record states the range -- a union reading that is only sound when the union IS the
+    record the sentence cited. As shipped, a sentence citing `[E2][E3][E5][E25][E8]` with only ONE of the
+    five hydrated was convicted on that one receipt's figures, i.e. against a record it was KNOWN could not
+    be read in full. The all-missing case was already exempt (`if not texts`); the PARTIALLY-missing case
+    is the same doubt in a smaller dose and now reads the same way. Reported here rather than inferred by
+    the caller because only this scan knows which members were named."""
+    items = list(uniq or [])
+    out: list[str] = []
+    complete = True
+    try:
+        for m in _E_HANDLE_RX.finditer(sent or ""):
+            for i in _e_handle_members(m.group(0)):
+                t = ""
+                if 1 <= i <= len(items):
+                    t = str((items[i - 1] or {}).get("text") or "").strip()
+                if t:
+                    out.append(t)
+                else:
+                    complete = False                        # a member of the cited record we cannot read
+    except Exception:  # noqa: BLE001
+        return [], False
+    return out, complete
+
+
+def _tok_places(tok: str) -> int:
+    """The DECIMAL PLACES a written endpoint carries -- the precision the sentence itself chose to speak
+    in. '42' -> 0, '2.5' -> 1, '1,250' -> 0."""
+    t = str(tok).replace(",", "")
+    return len(t.split(".", 1)[1]) if "." in t else 0
+
+
+def _endpoint_backed(tok: str, val: float, pool: list[float]) -> bool:
+    """Is ONE written endpoint recoverable from the pooled receipt figures?
+
+    EXACT FIRST, THEN THE WRITER'S OWN PRECISION (REVIEW FIX). The shipped test was exact float equality,
+    which convicts a FAITHFUL RESTATEMENT: `[E17]` states "the AD rates ... range from 42.2 to 53.7
+    percent" and the body writes "42-54% antidumping duty ... [E17]" -- the same range, rounded to the
+    precision prose speaks in -- and the lint deleted the sentence for it. That is exactly the D3 failure
+    this module's own header forbids ("a missed conviction costs a count; a false one deletes correct
+    prose"), and rounding is not an exotic shape: a writer asked for prose rounds.
+
+    SO A POOL VALUE BACKS A TOKEN WHEN IT AGREES AT THE TOKEN'S OWN PRECISION -- rounded (half-up) OR
+    truncated toward zero, because both are ordinary restatement habits and the fail-open direction takes
+    the union of the two rather than guessing which one the writer used.
+
+    THE TOLERANCE IS THE TOKEN'S, NEVER A FIXED EPSILON, and that is what keeps this from softening into
+    "any nearby number": '42' admits [41.5, 43), while '42.2' admits only [42.15, 42.3) and '42.20' only
+    [42.195, 42.21). A sentence that speaks precisely is still held to the precision it claimed."""
+    if any(abs(v - val) < 1e-9 for v in pool):
+        return True
+    q = 10.0 ** _tok_places(tok)
+    for v in pool:
+        if v < 0:                                           # the range grammar mints no signed endpoint
+            continue
+        if abs(math.floor(v * q + 0.5) / q - val) < 1e-9:   # rounded at the token's stated precision
+            return True
+        if abs(math.floor(v * q) / q - val) < 1e-9:         # ...or truncated at it
+            return True
+    return False
+
+
+def _range_backed(verbatim: str, lo_tok: str, hi_tok: str, texts: list[str]) -> bool:
+    """Does ANY cited receipt state this range?
+
+    TWO GENEROUS TESTS, EITHER OF WHICH EXONERATES: some cited receipt contains the range VERBATIM under
+    any dash spelling, or BOTH endpoint VALUES are recoverable (`_endpoint_backed`: exactly, or at the
+    written token's own precision) from the digit runs of the POOLED text of the receipts this sentence
+    cites.
+
+    THE UNION IS ONLY SOUND ON A COMPLETE RECORD, AND THE CALLER GUARANTEES THAT BEFORE CALLING HERE
+    (REVIEW FIX). `_e_cited_unbacked_ranges` refuses to call this at all unless every cited member
+    contributed its text (`_e_receipt_texts` returns that flag), because a union missing a member is a
+    record with a hole in it, not a record. The vegoils sentence below is the shape that makes it concrete:
+    its exoneration IS the four receipts that carry the endpoints, one each, so if any one of them is out
+    of range or textless the pool cannot answer the question asked of it -- and the sentence must be exempt
+    one step EARLIER rather than convicted on whichever members happened to hydrate.
+
+    THE POOL IS THE UNION, NOT PER-RECEIPT, AND THAT WIDENING IS MEASURED RATHER THAN ASSUMED. The r6
+    replay produced exactly one conviction that a per-receipt reading created and a union reading does
+    not: `ab_cmp_vegoils` writes "soyoil has traded roughly 12-29% above palm across documented episodes
+    [E2][E3][E5][E25]", and those four receipts state 12, 20, 25/14 and 29 percent respectively -- both
+    endpoints ARE in the record the sentence cites, one per receipt, which is what a span across
+    "documented episodes" means. Convicting it would be this lint ruling on COMPOSITION, which is a
+    different question (the derivation grammar, deliberately size zero) asked by a different instrument.
+    The pool is the fail-open reading and it is the one that ships.
+
+    THE ENDPOINT SWEEP READS `verify._numbers_in` -- the RAW sweep, not the claim extractor -- also
+    deliberately: on the RECEIPT side a year, a code digit or a date component is a perfectly good source
+    for an endpoint, and the only question being asked is whether the reader can get the figure back out
+    of the record.
+
+    BOTH endpoints, never one: a record stating '2' and nothing else does not state '2 to 4'."""
+    try:
+        lo, hi = _range_num(lo_tok), _range_num(hi_tok)
+        if lo is None or hi is None:
+            return True                                     # unparseable -> exempt, never convicted
+        from leviathan.graphrag import verify as _vf
+        norm = re.sub(r"[" + _RANGE_DASHES + r"]", "-", verbatim or "")
+        pool: list[float] = []
+        for t in texts:
+            if norm and norm in re.sub(r"[" + _RANGE_DASHES + r"]", "-", t):
+                return True
+            pool.extend(_vf._numbers_in(t))
+        if _endpoint_backed(lo_tok, lo, pool) and _endpoint_backed(hi_tok, hi, pool):
+            return True
+    except Exception:  # noqa: BLE001
+        return True                                         # any doubt -> backed -> exempt
+    return False
+
+
+def _e_cited_unbacked_ranges(sent: str, uniq: list | None) -> list[str]:
+    """The range figures in an `[E]`-CITED sentence that NO cited receipt states -- verbatim, in order.
+
+    `[]` (i.e. the R3(b) exemption stands, untouched) whenever: no `uniq` was threaded, the sentence cites
+    no resolvable receipt, no receipt carries text, ANY cited member failed to contribute text (the record
+    is incomplete -- see below), the sentence carries no parseable range, or every range it carries is
+    backed. That list of ways to return `[]` IS the conservatism: this function can only ever move a
+    sentence that types a range its own receipts do not contain.
+
+    THE COMPLETENESS GUARD IS A REVIEW FIX AND IT IS ALL-OR-NOTHING BY DESIGN. `_range_backed` pools the
+    cited receipts and asks whether the union states the range; a union assembled from SOME of the cited
+    members answers a question nobody asked. The shipped code only exempted when the pool was ENTIRELY
+    empty, so a sentence citing five receipts with four unhydrated was convicted on the fifth. One
+    unreadable member is one doubt, and every doubt in this pass reads as EXEMPT."""
+    if not uniq:
+        return []
+    try:
+        from leviathan.graphrag import verify as _vf
+        figs = _range_figures(_vf._mask_handles(sent or ""))
+        if not figs:
+            return []
+        texts, complete = _e_receipt_texts(sent, uniq)
+        if not texts or not complete:
+            return []
+        return [v for v, lo, hi in figs if not _range_backed(v, lo, hi, texts)]
+    except Exception:  # noqa: BLE001
+        return []
+
+
 def _drop_bare_digit_sentences(structured: dict | None, number_calls: list | None,
-                               vreport=None) -> dict:
+                               vreport=None, uniq: list | None = None) -> dict:
     """D-HP-12's REMEDY. The charge is `verify`'s (`by_rule['bare_digit']`, one ledger); this is the
     deletion. Returns `{sentences_dropped, clauses_severed, e_cited_kept}`; mutates in place; never raises.
 
@@ -7010,9 +7270,17 @@ def _drop_bare_digit_sentences(structured: dict | None, number_calls: list | Non
                 seen_sents.add((s0, s1))
                 verdict = _vf.bare_digit_verdict(text[s0:s1])
                 if verdict == "e_cited":
-                    census["e_cited_kept"] += 1
-                    continue
-                if verdict != "bare_digit":
+                    # T1-6: the R3(b) exemption is CONDITIONAL on one shape only -- a RANGE the cited
+                    # receipts do not state. Everything else keeps the exemption byte for byte, and
+                    # `uniq=None` (every pre-T1-6 caller) keeps it unconditionally.
+                    _bad_ranges = _e_cited_unbacked_ranges(text[s0:s1], uniq)
+                    if not _bad_ranges:
+                        census["e_cited_kept"] += 1
+                        continue
+                    # CONDITIONAL KEY, never a null (the OFF-arm-clean rule): a turn with no such
+                    # sentence carries the pre-T1-6 three-key census exactly.
+                    census["e_cited_range_unbacked"] = census.get("e_cited_range_unbacked", 0) + 1
+                elif verdict != "bare_digit":
                     continue
                 c_a = _handle_clause_start(text, s0, a)
                 # The clause ends at the NEXT connective, or -- when the offending numeral sits in the
@@ -8699,8 +8967,8 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     # D-HP-12's REMEDY on the SECOND synthesis path, in the SAME position (FIRST, before any splice) and
     # for the same reason it is first on the L2 body. `GRAPHRAG_PLANNER=onehop` is a DOCUMENTED rollback:
     # a lint that only deletes on one of the two bodies is the same defect with a flag in front of it.
-    _bdrop = (_drop_bare_digit_sentences(structured, extra_number_calls, verifier)
-              if (verifier.get("enabled") and _handles) else None)
+    _bdrop = (_drop_bare_digit_sentences(structured, extra_number_calls, verifier, uniq=uniq)
+              if (verifier.get("enabled") and _handles) else None)   # T1-6: same `uniq`, both bodies
     _nhandles = (_resolve_number_handles(structured, extra_number_calls,   # D-PQ HANDLE-1, both bodies
                                          handle_prose=_handles)
                  if verifier.get("enabled") else None)                    # ...and the same verifier gate

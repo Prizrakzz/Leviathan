@@ -122,7 +122,24 @@ describe('internal mode identifiers (unchanged by D-MW-21)', () => {
   });
 
   it('names the DARK tiers explicitly, so their absence is a decision and not an oversight', () => {
-    expect([...DARK_TIERS]).toEqual(['max', 'max_c0']);
+    // T1-7: the census is the server-side `reasoning_modes.DARK_NAMES` roster at HEAD, in the order
+    // mode.ts records it. The real fence is `serving_names()` (= valid_names() - DARK_NAMES), which no FE
+    // test can read -- so this pin's job is to make a STALE census fail loudly here rather than mislead a
+    // reader, and it must be updated on the same change that flips or mints a dark tier.
+    expect([...DARK_TIERS]).toEqual([
+      'deep_v2',
+      'max',
+      'max_c0',
+      'esc',
+      'esc_r',
+      'max_cc1',
+      'quick_hp',
+      'deep_hp',
+      'esc_hp',
+      'esc_r_hp',
+    ]);
+    // `standard` can never be dark: its all-None knob dict IS the backend's fail-open guarantee.
+    expect(DARK_TIERS).not.toContain('standard');
     for (const t of DARK_TIERS) {
       expect(MODES as readonly string[]).not.toContain(t);
       expect(CHOICES as readonly string[]).not.toContain(t);

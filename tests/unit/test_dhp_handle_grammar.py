@@ -272,17 +272,36 @@ def test_consumer_11_dossier_handle_rx_is_gate_blocking_not_a_divergence():
 
 
 def test_consumer_12_fe_cite_rx_is_a_recorded_divergence_and_keys_on_the_bare_digit():
-    """apps/terminal/src/views/note/citations.ts:89 `CITE = /\\[([A-Za-z]?)(\\d+)\\]/g` -- SOLITARY-ONLY
-    (a grouped `[N1, N2]` never becomes a chip) AND digit-keyed (:94-99 `const key = m[2]`), which is the
-    namespace collision D-HP-2's typed resolved map exists for. Read as TEXT: this suite owns no FE code,
-    and the FE edit is D-HP-2's one knowing waiver of B2's "the FE never changes"."""
+    """apps/terminal/src/views/note/citations.ts -- the FE cite grammar. RE-PINNED BY T1-7
+    (CASCADE_HOME_AND_SMALL_ITEMS), which is the same change that moved it, per the estate's re-pin-in-the-
+    same-commit law. Two things moved and one thing did not:
+
+      * MOVED: the grammar gained an optional ROW SUFFIX (`[N1b]`, a completion row of call N1 minted by
+        `citations._mint_row_citations`), and it is now declared ONCE as an exported SOURCE STRING
+        (`CITE_SRC`) because two renderers tokenize handles -- this module and `inlineFormat.parseInline`
+        -- and the two hand-copied regexes drifting apart is how the suffix bug lived.
+      * MOVED: `const key = m[2]` became `citeResolve`, which tries the sibling's own entry (`'1b'`) FIRST
+        and only then the call's headline entry under the bare digit.
+      * DID NOT MOVE, AND IS THE DIVERGENCE THIS TEST EXISTS FOR: it is still SOLITARY-ONLY (a grouped
+        `[N1, N2]` never becomes a chip) and the FALLBACK is still the BARE DIGIT, which is the namespace
+        collision D-HP-2's typed resolved map exists for.
+
+    Read as TEXT: this suite owns no FE code, and the FE edit is D-HP-2's one knowing waiver of B2's "the
+    FE never changes". The grammar is then re-derived from the file and exercised, so the divergence is
+    pinned by BEHAVIOR and not only by a string that the next edit can drift past silently."""
     from pathlib import Path
     p = Path(__file__).resolve().parents[2] / "apps" / "terminal" / "src" / "views" / "note" / "citations.ts"
     if not p.exists():                                        # the FE is not vendored in every checkout
         pytest.skip("terminal app not present")
     src = p.read_text(encoding="utf-8", errors="replace")
-    assert r"/\[([A-Za-z]?)(\d+)\]/g" in src                  # solitary-only, pinned
-    assert "const key = m[2]" in src                          # ...and keyed on the BARE DIGIT
+    assert r"export const CITE_SRC = '\\[([A-Za-z]?)(\\d+)([a-z]?)\\]'" in src   # ONE grammar, exported
+    assert "const CITE = new RegExp(CITE_SRC, 'g')" in src    # ...global scan, no anchor -> solitary-only
+    assert "resolved[digits + suffix] : undefined) ?? resolved[digits]" in src   # BARE DIGIT is the fallback
+    # The same source string, run as a Python regex (a JS single-quoted `\\[` is one backslash + `[`).
+    js = re.search(r"export const CITE_SRC = '([^']+)';", src).group(1)
+    rx = re.compile(js.replace("\\\\", "\\"))
+    assert rx.fullmatch("[E7]") and rx.fullmatch("[1]") and rx.fullmatch("[N1b]")   # the T1-7 widening
+    assert rx.search("a [N1, N2] b") is None                  # <- solitary-only, still pinned
 
 
 def _read(mod: str) -> str:

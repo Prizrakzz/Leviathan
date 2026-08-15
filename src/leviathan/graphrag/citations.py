@@ -170,16 +170,38 @@ def _covered_span(rows: list[dict]) -> str:
 
 def _row_order_key(r: dict) -> tuple:
     """Chronology key mirroring the series SQL's total order (data_date, then year/month, then period,
-    then knowledge_date). The series query (numbers.query._total_order) sorts rows ASCENDING, so the
-    FRESHEST observation is max() over this key — computed rather than trusting rows[-1] so an
-    engine-arbitrary sample can never headline the oldest print (judged-30 RCA (b))."""
+    then knowledge_date, then contract_month). The series query (numbers.query._total_order) sorts rows
+    ASCENDING, so the FRESHEST observation is max() over this key — computed rather than trusting rows[-1]
+    so an engine-arbitrary sample can never headline the oldest print (judged-30 RCA (b)).
+
+    T1-5 (CASCADE_HOME_AND_SMALL_ITEMS) CLOSES X3, THE DEFERRED TERM `query._total_order` NAMES BY NAME
+    ("there is already a second, INCOMPLETE copy in `citations._row_order_key` (it omits `contract_month`,
+    X3, deferred-and-named)"). WHY IT MATTERS AND WHERE: on a CURVE read -- a per-expiry price table
+    returning many rows for ONE trading session -- every row ties on `data_date`, on `year`/`month`, on
+    `period` and on `knowledge_date`, so the key was CONSTANT across the whole result and `max()` returned
+    `rows[0]`: whichever expiry the engine happened to hand back first. That is the same Athena-vs-pg
+    arbitrariness `_total_order` exists to remove, surviving in the one copy of the key that had drifted.
+
+    THE POSITION IS THE SQL's, NOT A NEW CHOICE. `query._order_aliases` ranks `contract_month` AFTER
+    `knowledge_date` and AHEAD of `unit`; `unit` is not in this key at all, so the SQL's position for the
+    term is the tail, exactly where it is appended here.
+
+    THE BEHAVIOR CHANGE, PINNED RATHER THAN DESCRIBED (tests/unit/test_citations_row_order.py): 'YYYY-MM'
+    sorts lexically == chronologically, so the curve's expiries now sort ASCENDING with the NEAREST
+    delivery month FIRST and the FURTHEST LAST -- and `max()` therefore headlines THE FURTHEST-DATED
+    EXPIRY of the session, deterministically and identically on both backends. It is the row the series
+    SQL's own ORDER BY puts last, which is the property that makes the headline reproducible; it is NOT
+    the front month, and a caller that wants the front month has `agg='front_expiry'`, which selects one
+    row before this key is ever consulted. A row carrying no `contract_month` contributes "" and every
+    non-curve read is byte-identical."""
     def _i(x) -> int:
         try:
             return int(x)
         except (TypeError, ValueError):
             return -1
     return (str(r.get("data_date") or ""), _i(r.get("year")), _i(r.get("month")),
-            str(r.get("period") or ""), str(r.get("knowledge_date") or ""))
+            str(r.get("period") or ""), str(r.get("knowledge_date") or ""),
+            str(r.get("contract_month") or ""))
 
 
 def _parse_date(s) -> Optional[_dt.date]:
@@ -359,6 +381,19 @@ def from_number(call: dict, i: int) -> Citation:
     # the query names no expiry (the rule selects one), so a query-only scope is silent on the single fact
     # that makes the number attributable.
     cmonth = str(rH.get("contract_month") or "").strip()
+    # T1-4 (CASCADE_HOME_AND_SMALL_ITEMS): THE SPREAD STAT'S TWO LEGS, WHICH NOTHING READ.
+    # `numbers.agent._stat_calls` writes `near_month` / `far_month` onto a spread row precisely BECAUSE a
+    # difference between two contracts can never carry a single `contract_month` (the card's own rule: never
+    # attach a delivery month to a row that has none). This function read `contract_month` and nothing else,
+    # so a carry figure reached the reader's `## Sources` list with NO delivery months at all -- "stats
+    # spread corn_cbot = 12.5 spread", a number whose entire meaning is WHICH TWO EXPIRIES it spans.
+    # BOTH LABELS OR NEITHER, AND NEVER A GUESS FROM A PARTIAL PAIR. A spread naming one leg is not a
+    # narrower fact, it is a WRONG one -- the reader would read the named month as the figure's delivery,
+    # which is exactly the single-month semantics the stat row refuses to claim. Identical legs are refused
+    # for the same reason: that row is not a spread and this label would assert a span that is not there.
+    _near = str(rH.get("near_month") or "").strip()
+    _far = str(rH.get("far_month") or "").strip()
+    legs = f"{_near}->{_far}" if (_near and _far and _near != _far) else ""
     # D-PQ RENDER-2b, the same defect on the GEO axis. The row's `country` extra is the geography the value
     # actually came from; the query's is what was ASKED for, and on a free-axis card
     # (silver_nass_crop_progress repurposes country as the US STATE) an unscoped read returns ONE arbitrary
@@ -390,8 +425,11 @@ def from_number(call: dict, i: int) -> Citation:
     _geos = {str(r.get("country")).strip() for r in rows if str(r.get("country") or "").strip()}
     geo = q.get("country") or (None if _dest_coded(table)
                                else (next(iter(_geos)) if len(_geos) == 1 else None))
-    scope = " ".join(x for x in (q.get("commodity"), geo, per,
-                                 (f"delivery {cmonth}" if cmonth else None)) if x)
+    # `cmonth` wins when a row carries one: it is the row's OWN declared expiry, and a row carrying both a
+    # contract_month and a leg pair would be a producer defect this label must not paper over. A row with
+    # neither renders exactly as it did before T1-4 -- the anti-vacuity property the spread pin asserts.
+    _delivery = (f"delivery {cmonth}" if cmonth else (f"delivery {legs}" if legs else None))
+    scope = " ".join(x for x in (q.get("commodity"), geo, per, _delivery) if x)
     # D-HP G1 REMEDIATION-2 R2-b: the blank-value read is routed to the ABSENCE branch BEFORE either
     # rows-bearing branch can claim it. `_blank` is false on every read that carries a value, so both
     # branches below are byte-identical on every such turn.

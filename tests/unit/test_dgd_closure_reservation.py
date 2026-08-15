@@ -547,9 +547,19 @@ def test_the_structural_reason_set_is_the_one_producer_of_the_three_guards():
     assert src.count('"closure_reservation"') == 1, "the reason literal must be minted in exactly one place"
     assert src.count('"cascade_downstream"') == 1
     assert src.count('"cascade_downstream_contract"') == 1
-    for fn in (pl._closure_cap_order, pl._dedup_and_cap, pl._closure_census):
+    # T1-2 RE-PIN (CASCADE_HOME_AND_SMALL_ITEMS, 2026-08-15): `_dedup_and_cap`'s two membership tests were
+    # FACTORED, not dropped -- `_is_structural` is now the single spelling and `_structural_floor` the
+    # single 1-row rule, so the FIFO branch (cap_policy=None, what `deep` runs) gets the identical
+    # guarantee the score branch had. The pin follows the rule to where it lives and additionally asserts
+    # the DELEGATION, so a future edit cannot re-inline a literal into either branch.
+    for fn in (pl._closure_cap_order, pl._is_structural, pl._closure_census):
         assert "_STRUCTURAL_REASONS" in inspect.getsource(fn), \
             "%s must test MEMBERSHIP, not a literal" % fn.__name__
+    assert "_is_structural(" in inspect.getsource(pl._structural_floor), \
+        "the floor must reach the set through the ONE predicate, never re-spell the test"
+    _dc = inspect.getsource(pl._dedup_and_cap)
+    assert _dc.count("_structural_floor(") == 2, "both cap branches must go through the ONE floor"
+    assert "_is_structural(" in _dc, "the quota rescue must test MEMBERSHIP through the one predicate"
 
 
 def test_the_admission_records_partition_the_kept_set(alias):

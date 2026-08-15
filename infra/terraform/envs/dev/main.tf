@@ -579,9 +579,21 @@ module "serving" {
     # D-MW P5 FLIP (2026-08-12, plan 12f): the credit ledger + depth slider go live in the SAME
     # change as the fd908fb8 image digest (the flip law). Registered from live via
     # register_serving_taskdef.py; written here as config-of-record so the next module.serving
-    # apply cannot silently un-meter the tiers. GRAPHRAG_MODES stays quick,deep (already live).
+    # apply cannot silently un-meter the tiers.
     GRAPHRAG_CREDITS         = "on"
     GRAPHRAG_CREDITS_LIMIT   = "100"
+    # CR-4 (docs/private/CONFIG_OF_RECORD_BACKLOG.md), NAMED HERE 2026-08-15 by the estate small-items
+    # bundle (T1-8). Until now this line was a COMMENT ("GRAPHRAG_MODES stays quick,deep (already live)")
+    # and the key lived ONLY on the registered task-definition chain -- the same CR-1/CR-2 shape one flag
+    # over. An apply that rebuilds the taskdef would drop it, `reasoning_modes.resolve` would then honor
+    # NOTHING, and every turn would silently resolve to `standard`: unpriced, so the credit ledger stops
+    # billing, and since EC-3 unmetered, so no metered turn gets its fill-patience horizon. The failure is
+    # doubly invisible -- turns still answer, only shallower and free.
+    # WRITTEN AT THE LIVE VALUE, AND NOTHING IS APPLIED IN THIS BUNDLE: tfstate is LOCAL-ONLY
+    # (project_tfstate_truncated_incident) and the module's `lifecycle ignore_changes = [task_definition]`
+    # means naming a key here has no live effect until the next taskdef registration. This is the
+    # config-of-record half only; the next tf batch validates and any registration rides the flip law.
+    GRAPHRAG_MODES           = "quick,deep"
     # GRAPHRAG_METER_EXEMPT_SUBS also rides the live taskdef (owner/ops accounts, never metered).
     # The VALUE is a Cognito user sub and is deliberately NOT committed (this repo is public);
     # it is set at registration via register_serving_taskdef.py --set-env. Recorded OPS-3 deviation:

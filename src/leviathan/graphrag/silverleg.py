@@ -95,7 +95,7 @@ def _z(latest: float, history: list[float]) -> float | None:
 
 
 def _rows(query_fn, table: str, metric: str, asof: str, *, commodity=None, country=None, agg="series",
-          period_start=None, limit=400) -> list[dict]:
+          period_start=None, limit=400, newest_first: bool | str = False) -> list[dict]:
     """One PIT-safe read for the firing legs.
 
     FUTURES_READPATH S1 canary (D-FR-10): UNFLAGGED BY DESIGN, and named here so it reads as a decision
@@ -114,14 +114,30 @@ def _rows(query_fn, table: str, metric: str, asof: str, *, commodity=None, count
     reads ~504 calendar days under a 800 cap and `_oni` is agg='latest' (never the series branch), but
     `_su_ratio` runs limit=400 on silver_psd and drops its country filter whenever the contract has no
     primary-country geo -- every country's marketing years then compete for 400 ascending rows, and the
-    recent ones are the ones that lose. It is held out of D-AM-18 because `make_silver_lookup`
-    memoizes these legs behind a SHARED cross-request cache whose key carries no read-shape term: threading
+    recent ones are the ones that lose. It was held out of D-AM-18 because `make_silver_lookup`
+    memoizes these legs behind a SHARED cross-request cache whose key carried no read-shape term: threading
     the token without re-keying that cache would let a turn read an entry computed under the other
-    ordering. Re-keying is its own change with its own gate, so it is named here instead of half-done."""
+    ordering.
+
+    T1-1 (CASCADE_HOME_AND_SMALL_ITEMS, 2026-08-15) CLOSES IT, AND IN THE ORDER THE PLAN NAMES:
+    the memo/shared cache is re-keyed on the READ-SHAPE SCOPE FIRST (`_read_shape`, part of every key), and
+    only then is the token threaded here. Half-doing it -- the token without the key -- is worse than the
+    defect: one turn would read another ordering's cached entry, silently, forever (the shared cache is
+    IMMORTAL on a historical as-of). WHAT MOVES AND WHAT DOES NOT, stated so the gate can pin it:
+      * `_su_ratio` MOVES. Under the token `query.run` compiles DESC + LIMIT and re-sorts to ASC
+        presentation, so the 400 rows that survive are the NEWEST 400 instead of the oldest 400. That is
+        the whole defect: a cited stocks-to-use ratio off years-old data, feeding REGIME FIRING.
+      * `_fx` DOES NOT. It reads a ~504-calendar-day window under an 800 cap, so the cap never bites and
+        the returned SET is identical whichever end the SQL keeps; the handler additionally `sorted()`s its
+        own pairs before reading the tail, so even the ORDER it consumes is unchanged.
+      * `_oni` DOES NOT. `agg='latest'` on a card WITH an order column is not the series branch
+        (`query._is_series_branch`), so `_newest_first_applies` is False for its spec whatever the token
+        says, and neither the SQL nor the rows can move.
+    Both are pinned unchanged in tests/unit/test_silverleg.py rather than argued here."""
     from leviathan.graphrag.numbers import query as Q
     spec = Q.NumberQuery(table=table, metric=metric, asof=asof, commodity=commodity, country=country,
                          agg=agg, period_start=period_start, limit=limit)
-    return Q.run(spec, query_fn=query_fn)
+    return Q.run(spec, query_fn=query_fn, futures_newest_first=newest_first)
 
 
 def _primary_country(contract: str) -> str | None:
@@ -148,12 +164,14 @@ def _kd(row: dict) -> str:
     return str(row.get("knowledge_date") or row.get("data_date") or "")[:10]
 
 
-def _su_ratio(query_fn, contract: str, asof: str) -> dict:
+def _su_ratio(query_fn, contract: str, asof: str, newest_first: bool | str = False) -> dict:
     country = _primary_country(contract)
     if country:                                        # geo gives snake_case; silver_psd stores 'United States'
         country = country.replace("_", " ").title()
-    stocks = _rows(query_fn, "silver_psd", "ending_stocks_mt", asof, commodity=contract, country=country)
-    cons = _rows(query_fn, "silver_psd", "consumption_mt", asof, commodity=contract, country=country)
+    stocks = _rows(query_fn, "silver_psd", "ending_stocks_mt", asof, commodity=contract, country=country,
+                   newest_first=newest_first)
+    cons = _rows(query_fn, "silver_psd", "consumption_mt", asof, commodity=contract, country=country,
+                 newest_first=newest_first)
 
     def _by_period(rows):
         out = {}
@@ -181,11 +199,12 @@ def _su_ratio(query_fn, contract: str, asof: str) -> dict:
             "detail": f"{country or 'unspecified country'} MY{latest_p} vs {len(hist)} prior years at the same vintage"}
 
 
-def _fx(query_fn, contract: str, asof: str) -> dict:
+def _fx(query_fn, contract: str, asof: str, newest_first: bool | str = False) -> dict:
     metric = "cny_usd" if contract.endswith(("_dce", "_zce")) else "brl_usd"
     window_days = int(_thr("fred_fx_macro", "window_days", 504))
     start = (_dt.date.fromisoformat(asof[:10]) - _dt.timedelta(days=window_days)).isoformat()
-    rows = _rows(query_fn, "silver_fred_fx", metric, asof, period_start=start, limit=800)
+    rows = _rows(query_fn, "silver_fred_fx", metric, asof, period_start=start, limit=800,
+                 newest_first=newest_first)
     vals = [( _kd(r), _num(r.get("value"))) for r in rows]
     vals = sorted((d, v) for d, v in vals if v)
     if len(vals) < 60:
@@ -200,8 +219,9 @@ def _fx(query_fn, contract: str, asof: str) -> dict:
             "detail": f"vs trailing {window_days}d"}
 
 
-def _oni(query_fn, contract: str, asof: str) -> dict:
-    rows = _rows(query_fn, "silver_noaa_oni", "oni_anom", asof, agg="latest", limit=5)
+def _oni(query_fn, contract: str, asof: str, newest_first: bool | str = False) -> dict:
+    rows = _rows(query_fn, "silver_noaa_oni", "oni_anom", asof, agg="latest", limit=5,
+                 newest_first=newest_first)
     if not rows:
         return {"live": False, "reason": "no_rows"}
     v = _num(rows[0].get("value"))
@@ -226,6 +246,49 @@ def servable_refs() -> set[str]:
 # a HISTORICAL asof reads immutable vintage data -> cache FOREVER; a live/today asof gets a short TTL.
 _SHARED: dict[tuple, tuple[dict, float | None]] = {}     # key -> (result, expires_at | None=immortal)
 _SHARED_LOCK = None
+
+
+# ── T1-1 (a) THE READ-SHAPE TERM OF THE CACHE KEY, ADDED BEFORE THE TOKEN IS THREADED ────────────────
+# THE KEY IS A STATEMENT ABOUT WHAT PRODUCED THE ENTRY, and until now it said only WHICH READ
+# (`ref`, `scope`, `asof`) and never HOW the read was ordered. Both caches below are keyed on it: the
+# per-answer `memo` (harmless on its own -- one factory, one ordering) and `_SHARED`, which is
+# CROSS-REQUEST and IMMORTAL on a historical as-of. Two turns of one process can legitimately resolve
+# different newest-first scopes (the flag pair is read per turn at `answer._newest_first_scope`), so
+# without this term the first turn's ordering would be served to every later turn forever -- a silent,
+# unfalsifiable staleness that is strictly worse than the oldest-window defect T1-1(b) fixes.
+# IT IS A LABEL, NOT THE TOKEN ITSELF, for one reason: the token's value set is open (False / True /
+# "all"), and a key that carries a raw scope value would mint a NEW cache partition every time the scope
+# vocabulary widens. Three labels, one per compiled ordering, is the whole of what the SQL can be.
+def _read_shape(newest_first: bool | str) -> str:
+    """The cache-key term naming the ORDERING these rows were fetched under: 'asc' (no flip),
+    'nf_all' (the estate-wide token) or 'nf' (the futures-scoped canary). Anything unrecognized reads as
+    its own label rather than collapsing into one of the three -- an unknown scope must never be able to
+    SHARE an entry with a known one, which is the entire property this function exists to provide."""
+    if not newest_first:
+        return "asc"
+    if newest_first is True:
+        return "nf"
+    s = str(newest_first)
+    return "nf_all" if s == "all" else "nf:" + s
+
+
+def _resolved_scope():
+    """The newest-first SCOPE for a factory that was handed none. Resolved ONCE, at factory-build time, so
+    every lookup the factory serves -- and every cache key it writes -- carries one ordering for its whole
+    life.
+
+    THIS MODULE STILL READS NO ENVIRONMENT, and the distinction is the `intensity` idiom's: the two env
+    seams are `answer._futures_newest_first_on` and `answer._series_newest_first_on`, and they are folded
+    by `answer._newest_first_scope` -- the ONE fold every other threaded call site uses. Calling that seam
+    is not a second reading of the environment; re-implementing it here would be. A caller that resolves
+    the scope itself (the serving orchestrator, an eval harness, a test) passes it explicitly and this is
+    never reached. Any failure -> False, the pre-wave ASC compile: a silver miss may never break an
+    answer, and the conservative direction is the ordering that shipped."""
+    try:
+        from leviathan.graphrag import answer as _an
+        return _an._newest_first_scope(_an._futures_newest_first_on(), _an._series_newest_first_on())
+    except Exception:  # noqa: BLE001
+        return False
 
 
 def _shared_enabled() -> bool:
@@ -267,7 +330,8 @@ def _shared_put(key: tuple, out: dict, asof_s: str) -> None:
         _SHARED[key] = (out, exp)
 
 
-def make_silver_lookup(graph, query_fn=None, *, cap: int | None = None, intensity: bool = False):
+def make_silver_lookup(graph, query_fn=None, *, cap: int | None = None, intensity: bool = False,
+                       newest_first: bool | str | None = None):
     """Build the `silver_lookup(contract, driver_id, asof)` callable ground() accepts. Memoized per
     (ref, contract-or-global, asof); at most `cap` silver reads per answer; failures -> {live: False}.
     THREAD-SAFE with single-flight: ground() now prefetches lookups in parallel, so concurrent callers of
@@ -277,9 +341,19 @@ def make_silver_lookup(graph, query_fn=None, *, cap: int | None = None, intensit
     ([SKEPTIC F1] -- never a declared pydantic field, never null; absent when off / no-z / sub-threshold).
     The flag is READ at the answer.py/server seam and threaded HERE as a kwarg (the GRAPHRAG_COMOVE idiom --
     no os.environ read in this module). The memo/shared caches store the RAW handler output, so a shared
-    cross-turn cache entry can never leak a band into a flag-off factory."""
+    cross-turn cache entry can never leak a band into a flag-off factory.
+
+    `newest_first` (T1-1) is the READ-SHAPE SCOPE the three legs compile under -- the same
+    `query.NEWEST_FIRST_ALL` token every other threaded read carries. `None` (the default, and what every
+    pre-T1-1 caller passes by omission) resolves it ONCE here via `_resolved_scope()`; a caller that has
+    already resolved the scope passes it and this module never asks. IT IS PART OF EVERY CACHE KEY
+    (`_read_shape`), and the ORDER of the two halves is the whole safety of the change: the key term is
+    established first, the token is threaded second, so no entry computed under one ordering can ever be
+    served to a lookup running under another."""
     import threading
     cap = cap if cap is not None else int(_pr.get("serving.silver.cap", 8))
+    nf = _resolved_scope() if newest_first is None else newest_first
+    shape = _read_shape(nf)
     memo: dict[tuple, dict] = {}
     budget = {"left": cap}
     lk = threading.Lock()
@@ -306,7 +380,7 @@ def make_silver_lookup(graph, query_fn=None, *, cap: int | None = None, intensit
                 return {"live": False, "ref": ref or None}
             scope = contract if ref == "psd_ending_stock_su_ratio" else (
                 contract if ref == "fred_fx_macro" else "_global")
-            key = (ref, scope, asof_s)
+            key = (ref, scope, asof_s, shape)          # T1-1(a): the READ-SHAPE term, in FRONT of the token
             while True:
                 with lk:
                     if key in memo:
@@ -324,7 +398,7 @@ def make_silver_lookup(graph, query_fn=None, *, cap: int | None = None, intensit
                         break                                  # this caller runs the handler
                 ev_wait.wait(timeout=60)                       # another caller is running it — wait + re-check
             try:
-                out = _HANDLERS[ref](query_fn, contract, asof_s)
+                out = _HANDLERS[ref](query_fn, contract, asof_s, nf)
                 with lk:
                     memo[key] = out
                 _shared_put(key, out, asof_s)

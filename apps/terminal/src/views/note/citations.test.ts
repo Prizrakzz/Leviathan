@@ -34,6 +34,39 @@ describe('citation tokenizer', () => {
     expect(cite.ref).toBe('E3'); // display ref stays TYPED
     expect(cite.resolved.source).toBe('USDA WASDE'); // resolved by the bare digit "3"
   });
+
+  // ── T1-7: the LETTER-SUFFIXED handle ────────────────────────────────────────────────────────────────
+  it('CHIPS a letter-suffixed handle [N1b] and routes it to its CALL (same chart target as [N1])', () => {
+    // Pre-fix the grammar was `\[([A-Za-z]?)(\d+)\]`, so "[N1b]" matched nothing and reached the reader as
+    // literal text -- a dead marker beside a real, footed row. `citations._mint_row_citations` mints N1b as
+    // a COMPLETION ROW of call 1: the same query, hence the same chart locator, a different period.
+    const led = {
+      '1': { source: 'USDA PSD', date: '2021-06-11', locator: { kind: 'number', table: 'silver_psd' } },
+    };
+    const segs = tokenizeCitations('stocks fell [N1] from [N1b] a year earlier.', led);
+    const cites = segs.filter((s) => s.kind === 'cite') as { ref: string; resolved: { locator?: unknown } }[];
+    expect(cites.map((c) => c.ref)).toEqual(['N1', 'N1b']); // the SUFFIX survives into the display/click ref
+    expect(cites[1]?.resolved.locator).toBe(cites[0]?.resolved.locator); // ...onto call 1's chart target
+  });
+
+  it('a suffixed handle prefers its OWN sibling entry when the ledger carries one', () => {
+    const led = {
+      '1': { source: 'USDA PSD', locator: { kind: 'number', table: 'silver_psd', period: '2025' } },
+      '1b': { source: 'USDA PSD', locator: { kind: 'number', table: 'silver_psd', period: '2024' } },
+    };
+    const cite = tokenizeCitations('was [N1b] then', led).find((s) => s.kind === 'cite') as {
+      ref: string;
+      resolved: { locator?: { period?: string } };
+    };
+    expect(cite.ref).toBe('N1b');
+    expect(cite.resolved.locator?.period).toBe('2024'); // the ROW's period, not the headline's
+  });
+
+  it('an unresolved suffixed handle still stays plain text (no new fabrication surface)', () => {
+    expect(tokenizeCitations('see [N9c] gone', resolved)).toEqual([
+      { kind: 'text', text: 'see [N9c] gone' },
+    ]);
+  });
 });
 
 describe('resolvedFor (6.4 unified live + durable)', () => {
@@ -113,6 +146,34 @@ describe('resolvedFor doc locator (6.5 click-to-page)', () => {
     const loc = resolvedFor(turn)['N1']?.locator;
     expect(loc?.kind).toBe('number'); // number wins over the doc locator
     expect(loc?.table).toBe('silver_psd');
+  });
+
+  it('T1-7: a suffixed number citation is admitted under its own key, with its ROW period', () => {
+    // `cit.unify` ships `N1` (the headline) and `N1b` (a completion row of the SAME call): same table +
+    // metric, its own `locator.period`. Both must be addressable, and the sibling must not overwrite or be
+    // overwritten by the headline.
+    const turn = {
+      structured: { sources: [{ ref: 1, source: 'USDA PSD', date: '2021-06-11' }] },
+      citations: [
+        { id: 'N1', kind: 'number', locator: { kind: 'number', table: 'silver_psd', period: '2025' } },
+        { id: 'N1b', kind: 'number', locator: { kind: 'number', table: 'silver_psd', period: '2024' } },
+      ],
+    };
+    const m = resolvedFor(turn);
+    expect(m['1']?.locator?.period).toBe('2025');
+    expect(m['1b']?.locator?.period).toBe('2024'); // the sibling keeps ITS row
+    expect(m['1b']?.locator?.table).toBe('silver_psd'); // ...on the same chart target
+    // and it INHERITS the call's display identity rather than hovering as a bare " · "
+    expect(m['1b']?.source).toBe('USDA PSD');
+    expect(m['1b']?.date).toBe('2021-06-11');
+  });
+
+  it('T1-7: a turn with NO suffixed citations is byte-identical (anti-vacuity)', () => {
+    const turn = {
+      structured: { sources: [{ ref: 1, source: 'USDA WASDE', date: '2022-01-01' }] },
+      citations: [{ id: 'N1', kind: 'number', locator: { kind: 'number', table: 'silver_psd' } }],
+    };
+    expect(Object.keys(resolvedFor(turn))).toEqual(['1']);
   });
 
   it('no source_key → no locator (unchanged for number-less, key-less refs)', () => {

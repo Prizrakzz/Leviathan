@@ -2,6 +2,7 @@ import * as Tooltip from '@radix-ui/react-tooltip';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { FormattedNote, parseInline, renderInline } from './inlineFormat';
+import { tokenizeCitations } from './citations';
 import type { ResolvedMap } from './citations';
 
 const resolved: ResolvedMap = { '1': { source: 'USDA WASDE', date: '2022-01-01', text: 'stocks tightened' } };
@@ -88,6 +89,48 @@ describe('parseInline (6.1 markup subset)', () => {
     const cite = toks.find((t) => t.k === 'cite') as { ref: string; resolved: ResolvedMap[string] };
     expect(cite.ref).toBe('N4'); // /^[A-Za-z]/ ⇒ isNumber true ⇒ cyan
     expect((cite.resolved.locator as { kind: string }).kind).toBe('number');
+  });
+
+  // ── T1-7: the LETTER-SUFFIXED handle, on the anchored copy of the grammar ───────────────────────────
+  it('resolves a SUFFIXED number handle [N1b] onto its call, keeping the suffix in the ref', () => {
+    const numLedger: ResolvedMap = {
+      '1': { source: 'USDA PSD', date: '2024', locator: { kind: 'number', table: 'silver_psd' } },
+    };
+    const toks = parseInline('stocks fell [N1] from [N1b]', numLedger);
+    const cites = toks.filter((t) => t.k === 'cite') as { ref: string; resolved: ResolvedMap[string] }[];
+    expect(cites.map((c) => c.ref)).toEqual(['N1', 'N1b']);
+    // the completion row is the SAME lookup: same locator ⇒ the click lands on the same chart target
+    expect(cites[1]?.resolved.locator).toBe(numLedger['1']!.locator);
+  });
+
+  it('inert mode keeps the suffix too (a pre-verifier [N1b] is a visible marker, never text)', () => {
+    expect(parseInline('was [N1b] then', {}, { inert: true })).toEqual([
+      { k: 'text', v: 'was ' },
+      { k: 'inert', ref: 'N1b' },
+      { k: 'text', v: ' then' },
+    ]);
+  });
+});
+
+/**
+ * THE TWO-COPY PIN (T1-7). Two tokenizers walk the same prose -- `tokenizeCitations` (global) for the note
+ * body and `parseInline` (anchored) for the TL;DR/headings -- and this is the defect that lived here: they
+ * carried HAND-COPIED regexes, so a handle shape one accepted the other left as literal text. Both now
+ * build from `citations.CITE_SRC`; this pin is what fails if anyone re-inlines a copy.
+ */
+describe('cite grammar parity — the two tokenizers accept EXACTLY the same handle set', () => {
+  const led: ResolvedMap = { '1': { source: 'S', date: 'd' }, '12': { source: 'S', date: 'd' } };
+  const accepted = ['[1]', '[12]', '[E1]', '[N1]', '[N1b]', '[N12z]'];
+  const rejected = ['[1B]', '[Nb]', '[N1bc]', '[]', '[N 1]', '[1-2]'];
+
+  it.each(accepted)('%s chips in BOTH renderers', (tok) => {
+    expect(tokenizeCitations(`x ${tok} y`, led).some((s) => s.kind === 'cite')).toBe(true);
+    expect(parseInline(`x ${tok} y`, led).some((t) => t.k === 'cite')).toBe(true);
+  });
+
+  it.each(rejected)('%s is literal text in BOTH renderers', (tok) => {
+    expect(tokenizeCitations(`x ${tok} y`, led).some((s) => s.kind === 'cite')).toBe(false);
+    expect(parseInline(`x ${tok} y`, led).some((t) => t.k === 'cite')).toBe(false);
   });
 });
 

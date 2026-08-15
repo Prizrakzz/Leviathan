@@ -1186,6 +1186,45 @@ def _closure_cap_order(order: list) -> list:
     return out
 
 
+def _is_structural(n) -> bool:
+    """MEMBERSHIP in `_STRUCTURAL_REASONS` for one node's admission record -- the D-MW-15 law spelled once
+    so the two `_dedup_and_cap` branches and any later reader cannot disagree about what a paid slot is.
+    A malformed / absent record reads as NOT structural, which is the fail-open direction: the floor is a
+    guarantee ABOUT paid slots and must never manufacture one for a cosine node."""
+    return ((getattr(n, "admission", None) or {}).get("reason") in _STRUCTURAL_REASONS)
+
+
+def _structural_floor(n, keep: list) -> list:
+    """THE ONE-ROW FLOOR FOR A PAID SLOT, shared by both `_dedup_and_cap` branches (T1-2).
+
+    Returns `keep` unchanged on every node that kept a row, on every cosine node, and on every node that
+    HAD no evidence to begin with (an empty node is not an empty PAID block -- nothing was bought). It
+    returns the node's own best row only when a STRUCTURALLY admitted node holding evidence would
+    otherwise end the turn with nothing.
+
+    FIFO PRODUCES THAT STATE TWO WAYS, and both are closed here rather than only the first:
+      (i)  FULL DEDUP -- every one of the node's rows was attributed to an earlier (shallower) node. This
+           is the score branch's own case, and the likeliest shape for a CROSS-MARKET slot: a substitution
+           piece filed under both commodity slices, so the foreign block's only row is the seed's row.
+      (ii) BUDGET EXHAUSTION -- FIFO spends one global budget shallowest-first, so a paid slot that sorts
+           late gets `budget <= 0` and keeps nothing however unique its rows are. The score branch cannot
+           reach this state (its quota is proportional, never first-come), which is exactly why the floor
+           written there did not cover the branch that ships.
+
+    THE ROW IS NOT CHARGED TO THE BUDGET AND NOT STAMPED INTO `seen`, and both are deliberate:
+      * NOT CHARGED -- the floor is a guarantee, and a guarantee financed out of the same exhausted budget
+        that broke it is not one. The overrun is bounded by the number of structurally admitted nodes,
+        which is itself a bounded pot (`closure_reserve` + `cascade_contract_slots`), so the cap can
+        exceed its nominal value by at most that many rows and only on turns that bought slots.
+      * NOT STAMPED -- the row is already accounted to the node that kept it first, and the attribution
+        rule for every OTHER node must stay what it was. A DUPLICATE RECEIPT IS HONEST: the same dated row
+        cited under two nodes says the two markets share that record, which is true. An evidence-less paid
+        block is the recorded defect class."""
+    if keep or not n.evidence or not _is_structural(n):
+        return keep
+    return [n.evidence[0]]                                 # the node's OWN best (retriever order, in-node)
+
+
 def _dedup_and_cap(sg: Subgraph, cap: int, *, cap_policy: str | None = None, k_by_depth=None) -> None:
     """A prop retrieved under several nodes is attributed to the SHALLOWEST (most-relevant) node only, and the
     subgraph's total evidence is capped (depth-2 unions explode) — shallow nodes first.
@@ -1207,7 +1246,17 @@ def _dedup_and_cap(sg: Subgraph, cap: int, *, cap_policy: str | None = None, k_b
     ceil(n_arrivals/workers) requests per turn), the quiescence closer can split a batch, and the
     per-caller bge fallback scores each node on its own scale. Cross-node raw
     scores are therefore comparable only sometimes, and a policy may not depend on "sometimes". Rows
-    keep their retriever order WITHIN a node, where comparability always holds."""
+    keep their retriever order WITHIN a node, where comparability always holds.
+
+    T1-2 (CASCADE_HOME_AND_SMALL_ITEMS, cascade step-0a): THE STRUCTURAL 1-ROW FLOOR IS NOT A
+    `cap_policy="score"` FEATURE -- it is a property of a PAID slot, and it now holds on BOTH branches.
+    The floor and the `q = max(q, 1)` quota rescue below were written for deep_v2, which is DARK; the
+    FIFO branch is what `deep` (and every shipped preset) actually runs, so a structurally admitted node
+    -- a closure reservation, a `cascade_downstream` child, or P6's `cascade_downstream_contract` foreign
+    market -- could reach the renderer with ZERO evidence rows on the ONE arm that ships. That is a PAID
+    evidence-empty block: the slot was bought out of its own pot, the header renders, and there is nothing
+    under it to cite. See `_structural_floor` for the two ways FIFO produces it and for why the row is
+    neither charged to the budget nor stamped into `seen`."""
     seen: set = set()
     order = _closure_cap_order(sorted(sg.nodes, key=lambda x: (x.depth, -x.relevance)))
     if cap_policy != "score":
@@ -1221,7 +1270,7 @@ def _dedup_and_cap(sg: Subgraph, cap: int, *, cap_policy: str | None = None, k_b
                 seen.add(sig)
                 keep.append(h)
                 budget -= 1
-            n.evidence = keep
+            n.evidence = _structural_floor(n, keep)
         return
 
     uniq: list[list] = []                                     # dedup FIRST, uncapped: same attribution rule
@@ -1233,23 +1282,12 @@ def _dedup_and_cap(sg: Subgraph, cap: int, *, cap_policy: str | None = None, k_b
                 continue
             seen.add(sig)
             keep.append(h)
-        if not keep and n.evidence and (
-                (getattr(n, "admission", None) or {}).get("reason") in _STRUCTURAL_REASONS):
-            # THE STRUCTURAL 1-ROW FLOOR, APPLIED HERE AND NOT ONLY IN THE QUOTA LOOP (P6 round-2 major).
-            # The quota loop below early-outs on `if not keep: continue`, so a structurally admitted node
-            # whose rows ALL deduped against an earlier node reached the floor never -- it ended the turn
-            # with zero rows, which is precisely the admitted-but-not-cited defect the floor exists to
-            # prevent, on a slot that was PAID for. Reproduced end to end on the likeliest class for a
-            # CROSS-MARKET slot: a substitution piece filed under both commodity slices, so the foreign
-            # block's only row is the seed's row.
-            # A DUPLICATE RECEIPT IS HONEST -- the same dated row cited under two nodes says the two markets
-            # share that record, which is true; an evidence-less paid block is the recorded defect class.
-            # The row is the node's OWN BEST (retriever order within a node is always comparable, which is
-            # why the quota may only truncate a tail), and `seen` is deliberately NOT re-stamped: the row is
-            # already accounted to the node that kept it first, and the attribution rule for every OTHER
-            # node is unchanged.
-            keep = [n.evidence[0]]
-        uniq.append(keep)
+        # THE STRUCTURAL 1-ROW FLOOR, APPLIED HERE AND NOT ONLY IN THE QUOTA LOOP (P6 round-2 major).
+        # The quota loop below early-outs on `if not keep: continue`, so a structurally admitted node whose
+        # rows ALL deduped against an earlier node reached the floor never. T1-2 factored the rule into
+        # `_structural_floor` so the FIFO branch gets the identical guarantee; this call is byte-for-byte
+        # the condition and the row this branch already used.
+        uniq.append(_structural_floor(n, keep))
     live = [i for i, k in enumerate(uniq) if k]
     tot_rel = sum(max(float(order[i].relevance or 0.0), 0.0) for i in live)
     k0 = int((tuple(k_by_depth or ()) or (0,))[0] or 0)
@@ -1261,7 +1299,7 @@ def _dedup_and_cap(sg: Subgraph, cap: int, *, cap_policy: str | None = None, k_b
         q = math.ceil(round(cap * share, 9))
         if order[i].depth == 0:
             q = max(q, k0)                                    # the routed contract's own k is a floor
-        if ((getattr(order[i], "admission", None) or {}).get("reason") in _STRUCTURAL_REASONS):
+        if _is_structural(order[i]):
             # D-GD-1 R1 #6 (D-MW-15: now a MEMBERSHIP test, so `cascade_downstream` gets the same floor —
             # a structurally admitted node that ends the turn with ZERO evidence rows is the exact
             # admitted-but-not-cited defect P3-A exists to prove fixed).

@@ -64,7 +64,20 @@ export function resolvedFor(r: {
       numLocByDigit.set(c.id.replace(/^[A-Za-z]+/, ''), nloc);
     }
   }
-  const refs = new Set<string>([...Object.keys(live ?? {}), ...structuredSources.map((s) => String(s.ref))]);
+  // T1-7: LETTER-SUFFIXED NUMBER IDS ARE ADMITTED IN THEIR OWN RIGHT. `citations._mint_row_citations`
+  // mints `N{i}{a,b,c...}` for the COMPLETION ROWS of call `i` -- same query (table/metric/commodity/
+  // country, i.e. the SAME chart target), a different served period, and each sibling carries its own
+  // `locator.period`. Admitting the suffixed key ('1b') is what lets that chip name ITS row in the
+  // provenance line instead of borrowing the headline's. It is collision-free by construction: a ledger
+  // `ref` is a BARE INTEGER by tool schema (answer.py `{"ref": {"type": "integer"}}`), so no evidence ref
+  // can ever be '1b'. The UNSUFFIXED number digits are deliberately NOT admitted this way -- they share
+  // the [E]/bare-ref namespace, and widening that is a separate decision, not this fix.
+  const suffixedNumRefs = [...numLocByDigit.keys()].filter((k) => /^\d+[a-z]$/.test(k));
+  const refs = new Set<string>([
+    ...Object.keys(live ?? {}),
+    ...structuredSources.map((s) => String(s.ref)),
+    ...suffixedNumRefs,
+  ]);
   for (const ref of refs) {
     if (!ref || ref === 'undefined') continue;
     const ss = structuredSources.find((s) => String(s.ref) === ref);
@@ -81,12 +94,60 @@ export function resolvedFor(r: {
     const locator = numLoc ?? (typeof sk === 'string' ? docLocator(sk, text, ss) : undefined);
     out[ref] = { source, date: (ss?.date as string | undefined) ?? lr?.date, text, locator };
   }
+  // A sibling row INHERITS its call's display identity. `N1b` is one row of the lookup `N1` already
+  // renders -- the same source, on the same day -- so its hover shows that source rather than a bare
+  // ` · ` (the number ledger carries no `source`/`date`/snippet of its own). Only the LOCATOR stays the
+  // sibling's, because the period is the one thing that genuinely differs.
+  for (const ref of Object.keys(out)) {
+    const base = /^(\d+)[a-z]$/.exec(ref)?.[1];
+    const b = base ? out[base] : undefined;
+    const e = out[ref];
+    if (!b || !e) continue;
+    out[ref] = { ...e, source: e.source ?? b.source, date: e.date ?? b.date, text: e.text ?? b.text };
+  }
   return out;
 }
 
 export type NoteSegment = { kind: 'text'; text: string } | { kind: 'cite'; ref: string; resolved: ResolvedCite };
 
-const CITE = /\[([A-Za-z]?)(\d+)\]/g; // [1] [E2] [N1] — g1 = type prefix (E/N/''), g2 = the bare ledger integer
+/**
+ * THE ONE CITE GRAMMAR (T1-7). Exported as a SOURCE STRING because two renderers tokenize handles — this
+ * module's `tokenizeCitations` (global scan) and `inlineFormat.parseInline` (anchored, at the cursor) — and
+ * two hand-copied regexes drifting apart is exactly how the letter-suffix bug lived: the note body accepted
+ * one grammar and the TL;DR another. Both build their RegExp from this string, so the accepted grammar is
+ * identical by construction and only the flags/anchor differ.
+ *
+ *   g1 = the type prefix (E/N/'')  ·  g2 = the bare ledger integer  ·  g3 = the ROW SUFFIX (a-z, optional)
+ *
+ * [1] [E2] [N1] as before, plus [N1b]: `citations._mint_row_citations` mints `N{i}{letter}` for a
+ * COMPLETION ROW of call `i` — a sibling of the same lookup, so `[N1b]` is not a new citation namespace,
+ * it is one more row of `[N1]`'s query.
+ */
+export const CITE_SRC = '\\[([A-Za-z]?)(\\d+)([a-z]?)\\]';
+
+const CITE = new RegExp(CITE_SRC, 'g');
+
+/** The DISPLAY handle a match renders and CLICKS as: the full typed token, suffix included. Keeping the
+ *  suffix is what makes the click land on the right receipt — the drawer pins by exact citation id
+ *  (`ReceiptsDrawer.rowFor`), and the id serving minted for this row IS `N1b`. Promoting it to `N1` would
+ *  pin the headline row: a real, cited, wrong row (answer.py's own mis-binding refusal, from the FE side). */
+export function citeRefOf(m: readonly (string | undefined)[]): string {
+  return (m[1] ?? '') + (m[2] ?? '') + (m[3] ?? '');
+}
+
+/** Resolve a match against the map: the SIBLING's own entry first (`'1b'`, admitted by `resolvedFor` with
+ *  that row's period), else the call's headline entry under the bare digit (`'1'`). The fallback is the
+ *  clickthrough guarantee — a suffixed handle always reaches the SAME chart target as its unsuffixed twin,
+ *  because a completion row is the same table/metric/commodity/country read — while the exact-first order
+ *  means a sibling that DOES carry its own provenance never has it overwritten by the headline's. */
+export function citeResolve(
+  m: readonly (string | undefined)[],
+  resolved: ResolvedMap,
+): ResolvedCite | undefined {
+  const digits = m[2] ?? '';
+  const suffix = m[3] ?? '';
+  return (suffix ? resolved[digits + suffix] : undefined) ?? resolved[digits];
+}
 
 /** The verifier's resolved-citation map — a chip renders ONLY for refs in here (fabricated refs are
  *  stripped server-side, so an unresolved `[n]` stays plain text). */
@@ -100,12 +161,12 @@ export function tokenizeCitations(text: string, resolved: ResolvedMap): NoteSegm
   const out: NoteSegment[] = [];
   let last = 0;
   for (const m of text.matchAll(CITE)) {
-    const key = m[2] as string;                 // the bare ledger integer used to look the chip up
-    const ref = (m[1] ?? '') + key;             // the full TYPED handle kept as the display ref
+    const hit = citeResolve(m, resolved);       // sibling row first, then the call's headline entry
+    const ref = citeRefOf(m);                   // the full TYPED handle, SUFFIX INCLUDED, is the display ref
     const at = m.index ?? 0;
-    if (resolved[key]) {
+    if (hit) {
       if (at > last) out.push({ kind: 'text', text: text.slice(last, at) });
-      out.push({ kind: 'cite', ref, resolved: resolved[key] });
+      out.push({ kind: 'cite', ref, resolved: hit });
       last = at + m[0].length;
     }
     // unresolved [n]: leave in place as text (handled by the trailing slice)

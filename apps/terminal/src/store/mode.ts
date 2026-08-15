@@ -21,10 +21,11 @@ import { persist } from 'zustand/middleware';
  *     its own union is what stops `deep_research` from ever leaking onto the `mode` query param: it is not
  *     a `ModeName` and the type system says so.
  *
- * WHAT IS DELIBERATELY *NOT* HERE (the P5 dark-first pin): `max` / `max_c0` exist in the backend's preset
- * table and may be present in serving's GRAPHRAG_MODES allowlist, and they are NOT offered by this bundle.
- * `DARK_TIERS` states that absence as a fact a test can pin, rather than leaving it as something a reader
- * has to notice.
+ * WHAT IS DELIBERATELY *NOT* HERE (the P5 dark-first pin): the backend's preset table carries a whole
+ * DARK set — `max`/`max_c0` and, since, `deep_v2`, `esc`/`esc_r`, `max_cc1` and the four `_hp` ladder
+ * tiers — none of which this bundle offers. `DARK_TIERS` below states that absence as a fact a test can
+ * pin, rather than leaving it as something a reader has to notice; the server-side fence itself is
+ * `reasoning_modes.serving_names()`.
  *
  * THE RECORDED DEFAULT-PRODUCT CHANGE (R7-ratified, D-MW-21): no notch maps to `standard` any more, so the
  * ask route always sends an explicit `mode` — **Scan** sends `mode=quick`, it does not omit the field. The
@@ -49,11 +50,41 @@ export const MODES: readonly ModeName[] = ['quick', 'standard', 'deep'] as const
 export const DEFAULT_MODE: ModeName = 'standard';
 
 /**
- * Tiers the BACKEND may honor that this bundle deliberately never offers (the P5 2-notch ship: `max` and
- * `max_c0` stay DARK). Stated here so the roster-parity pin can assert the absence in BOTH directions —
- * a backend tier missing from the FE roster is fine ONLY when it is listed here as intentional.
+ * Backend presets this bundle deliberately never offers. Stated here so the roster-parity pin can assert
+ * the absence in BOTH directions — a backend tier missing from the FE roster is fine ONLY when it is
+ * listed here as intentional.
+ *
+ * THIS LIST IS A RECORD, NOT THE FENCE. The fence is server-side and singular:
+ * `leviathan.graphrag.reasoning_modes.serving_names()` = `valid_names() - DARK_NAMES`, i.e. what the
+ * wildcard allowlist value (`GRAPHRAG_MODES=on`) is allowed to mean. A dark preset is excluded there so
+ * that turning modes on estate-wide can never silently honor an un-adjudicated arm. Nothing in this repo's
+ * FE can read that set at build or test time, so this constant is a hand-kept CENSUS of it, and its only
+ * job is to make "we do not offer this" a fact a test can pin rather than something a reader must notice.
+ *
+ * CENSUS AS OF 2026-08-15 (reasoning_modes.DARK_NAMES at HEAD) — 10 names, all dark, none offered here:
+ *   `deep_v2`                                    — D-DV, refused (composition binds)
+ *   `max`, `max_c0`                              — the P5 2-notch ship's original two
+ *   `esc`, `esc_r`                               — D-MW-30 escalated SHAPE + its reserve twin
+ *   `max_cc1`                                    — D-MW-28/P6, max + one cross-market cascade slot
+ *   `quick_hp`, `deep_hp`, `esc_hp`, `esc_r_hp`  — the D-HP-26 flip ladder (flag still dark)
+ * `standard` is NOT and cannot be in it (its all-None dict IS the fail-open guarantee).
+ *
+ * IF A DARK TIER FLIPS: it enters `serving_names()` server-side first; it enters this bundle only when a
+ * notch is added for it, and then it leaves this list on the same change (see the parity pin's own note —
+ * the list, the serving env and the taskdef move together or the notch lies).
  */
-export const DARK_TIERS: readonly string[] = ['max', 'max_c0'] as const;
+export const DARK_TIERS: readonly string[] = [
+  'deep_v2',
+  'max',
+  'max_c0',
+  'esc',
+  'esc_r',
+  'max_cc1',
+  'quick_hp',
+  'deep_hp',
+  'esc_hp',
+  'esc_r_hp',
+] as const;
 
 /** The three things the ask bar can be set to. `deep_research` is a SUBMIT ROUTE, not a mode. */
 export type PickerChoice = 'quick' | 'deep' | 'deep_research';

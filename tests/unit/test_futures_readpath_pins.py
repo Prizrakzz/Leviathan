@@ -858,6 +858,9 @@ class TestS1UnflaggedByDesign:
     _CONSTANT_TABLE_SITES = {
         "cascade._psd_component_rows": ("silver_psd",),
         "cascade._cot_outcome_read": ("gold_cot_outcomes",),
+        # T1-1 NOTE (2026-08-15): silverleg._rows is now THREADED (see the Q.run census below). Its entry
+        # stays here because the three-table statement is still the fact that bounds what its SQL can be,
+        # and the anti-vacuity pin beneath depends on it -- but the site is no longer "unflagged".
         "silverleg._rows": ("silver_psd", "silver_fred_fx", "silver_noaa_oni"),
     }
 
@@ -923,9 +926,18 @@ class TestS1UnflaggedByDesign:
                     j += 1
                 (threaded if "futures_newest_first" in src[i:j] else unthreaded).append(name)
                 i = j
-        assert sorted(threaded) == ["agent", "agent", "agent", "cascade", "cascade", "server"], threaded
-        assert unthreaded == ["silverleg"], (f"an UNCLASSIFIED serving Q.run site exists ({unthreaded}) "
-                                             f"-- thread it, or classify it in 7.4 as silverleg is")
+        # T1-1 RE-PIN (CASCADE_HOME_AND_SMALL_ITEMS, 2026-08-15): silverleg MOVED from the classified
+        # column to the threaded one. This pin was written to red on exactly that day -- "a new read site
+        # anywhere reds this until someone decides which it is" -- and the decision was taken: `_su_ratio`
+        # runs limit=400 on silver_psd with the country filter dropped whenever the contract has no
+        # primary-country geo, so under an ascending compile it read the OLDEST 400 rows and fed a
+        # years-stale stocks-to-use ratio into REGIME FIRING. The other two legs are threaded through the
+        # same `_rows` helper and provably cannot move (see silverleg._rows' own docstring, and the
+        # unchanged-leg pins in tests/unit/test_cascade_home_small_items.py).
+        assert sorted(threaded) == ["agent", "agent", "agent", "cascade", "cascade", "server",
+                                    "silverleg"], threaded
+        assert unthreaded == [], (f"an UNCLASSIFIED serving Q.run site exists ({unthreaded}) "
+                                  f"-- thread it, or classify it in 7.4")
 
     def test_the_raw_build_sql_tools_stay_unflagged_and_the_contract_says_why(self):
         """numbers_parity / cascade_census compile with `build_sql` and execute the raw string
