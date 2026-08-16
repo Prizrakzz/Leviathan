@@ -7,7 +7,7 @@
       "-m",
       "jobs.audit.silver_rebuild_gate",
       "--tables",
-      "silver_unica_annual_state,silver_unica_biweekly_release_series,silver_unica_biweekly_season_history",
+      "silver_unica_annual_state,silver_unica_biweekly_release_series,silver_unica_biweekly_season_history,silver_unica_corn_ethanol,silver_unica_monthly_ethanol_sales",
       "--asof",
       "<aws.scheduler.scheduled-time>",
       "--baseline-uri",
@@ -20,7 +20,9 @@
   "gate_tables": [
     "silver_unica_annual_state",
     "silver_unica_biweekly_release_series",
-    "silver_unica_biweekly_season_history"
+    "silver_unica_biweekly_season_history",
+    "silver_unica_corn_ethanol",
+    "silver_unica_monthly_ethanol_sales"
   ],
   "phases": {
     "bronze": {

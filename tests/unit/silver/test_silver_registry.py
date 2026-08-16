@@ -184,9 +184,12 @@ def test_producer_metadata_complete(reg):
     for name in ("silver_fred_fx", "silver_noaa_oni", "silver_icco_cocoa",
                  "silver_nass_citrus", "silver_ams_cotton_quality", "silver_sagis_weekly_deliveries"):
         assert reg.table(name)["producer"]["status"] == "producer", name
-    # ...while the UNICA pair stays half-orphan (scope deferral: no producer exists; F062 sweep).
-    assert reg.table("silver_unica_corn_ethanol")["producer"]["status"] == "half-orphan"
-    assert reg.table("silver_unica_monthly_ethanol_sales")["producer"]["status"] == "half-orphan"
+    # ...and the UNICA derived pair is now PRODUCER too (DSG-TAIL F2, 2026-08-16): the BF-W3
+    # half-orphan deferral's premise ("no producer exists") died by measurement -- the biweekly
+    # task's _TABLE_MAP writes both, proven by the 09:27Z bridge and the 11:04Z armed-promote
+    # fire advancing their canonical parquets the same day.
+    assert reg.table("silver_unica_corn_ethanol")["producer"]["status"] == "producer"
+    assert reg.table("silver_unica_monthly_ethanol_sales")["producer"]["status"] == "producer"
 
 
 # ---------------------------------------------------------------------------

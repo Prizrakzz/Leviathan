@@ -177,11 +177,16 @@ PRODUCER = {
     "silver_unica_annual_state": (_T + "unica_annual_state.py", _J + "unica_annual_state_task.py", "producer"),
     "silver_unica_biweekly_release_series": (_T + "unica_biweekly.py", _J + "unica_biweekly_silver_task.py", "producer"),
     "silver_unica_biweekly_season_history": (_T + "unica_biweekly.py", _J + "unica_biweekly_silver_task.py", "producer"),
-    # BF-W3 SCOPE DEFERRAL (step 2, user-ratified): no dedicated producer exists for these two
-    # (the F062 fetcher is frozen at the 2020-21 season -- new fetch development, not backfill
-    # adoption). They stay half-orphan until an F062 sweep builds their lane.
-    "silver_unica_corn_ethanol": (None, None, "half-orphan"),
-    "silver_unica_monthly_ethanol_sales": (None, None, "half-orphan"),
+    # DSG-TAIL F2 (2026-08-16, owner-ratified): the BF-W3 half-orphan deferral's premise is
+    # DEAD BY MEASUREMENT -- unica_biweekly_silver_task.py's _TABLE_MAP writes all FOUR
+    # biweekly tables including these two (transform_corn_ethanol /
+    # transform_monthly_ethanol_sales), proven twice on 2026-08-16: the manual canonical
+    # bridge (09:27Z) and the armed-promote proof fire (11:04Z) both advanced their
+    # canonical parquets. The deferral was ratified when no producer existed; recording the
+    # producer that now demonstrably exists closes it rather than re-litigates it. Same
+    # shape as the release_series/season_history siblings above.
+    "silver_unica_corn_ethanol": (_T + "unica_biweekly.py", _J + "unica_biweekly_silver_task.py", "producer"),
+    "silver_unica_monthly_ethanol_sales": (_T + "unica_biweekly.py", _J + "unica_biweekly_silver_task.py", "producer"),
     "silver_wap_table01": (_T + "wap_table01.py", _J + "wap_silver_task.py", "producer"),
     "silver_wap_table01_revisions": (_T + "wap_table01.py", _J + "wap_silver_task.py", "producer"),
     "silver_wasde": (None, _J + "wasde_bronze_modern_task.py", "producer"),

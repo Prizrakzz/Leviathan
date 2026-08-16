@@ -680,13 +680,24 @@ module "serving" {
     # re-derivation from this map would have silently flipped them off:
     #  - GRAPHRAG_EPISODE_SCAFFOLD: code default OFF; dropping it kills the render-side episode
     #    synthesis layer (D-DT section presence 49% -> 93%) with no alarm.
-    #  - GRAPHRAG_STRIP_AUDIT: NAMED AT ITS LIVE VALUE ONLY. The code's own doctrine (answer.py,
-    #    raw_draft_snapshot note) says this flag should NOT be set in serving; that open decision is
-    #    CR-1 in the backlog doc and is deliberately NOT resolved by this line -- turning it off is
-    #    a live-behaviour change that should ride the next taskdef flip, not a config reconcile.
+    #  - GRAPHRAG_STRIP_AUDIT: NAMED AT ITS LIVE VALUE ONLY. CR-1 RESOLVED 2026-08-16
+    #    (DSG-TAIL Sitting 2, owner-ratified): OFF, riding the rev-100 taskdef flip exactly as
+    #    the previous note demanded -- the code's own doctrine (answer.py raw_draft_snapshot
+    #    note) says this flag should not be set in serving, and its consumer (the D-HP flip)
+    #    closed dark on 2026-08-15. The live flip is the CLI rev-100 registration; this line
+    #    converges the map to the same value so a re-derivation cannot silently flip it back ON.
+    #    RE-DERIVATION WARNING WIDENED (review wf_6906ea5b, measured vs live rev 99): TWELVE
+    #    env keys live ONLY on the registered revision and in neither this map nor the module's
+    #    base_environment (GRAPHRAG_CASCADE_HEADLINE/TIMELINE/OUTLOOK/DOSSIER,
+    #    GRAPHRAG_RESPONSE_CONTRACT, RECENCY_STAMP, TLDR_COHERENCE, PROFILE_CONTEXT,
+    #    FUTURES_NEWEST_FIRST, EVIDENCE_BATCH, METER_EXEMPT_SUBS, EVIDENCE_S3). A terraform
+    #    re-derivation of the serving taskdef would UN-SHIP D-RC and the dossier lane. That
+    #    refresh is CR-3 in docs/private/CONFIG_OF_RECORD_BACKLOG.md, STILL OPEN -- until it
+    #    lands, serving taskdefs are registered ONLY by copy-from-DEPLOYED
+    #    (scripts/ops/register_serving_taskdef.py), never from this map.
     # ------------------------------------------------------------------------------------------
     GRAPHRAG_EPISODE_SCAFFOLD        = "on"
-    GRAPHRAG_STRIP_AUDIT             = "on"
+    GRAPHRAG_STRIP_AUDIT             = "off"
 
   }
 

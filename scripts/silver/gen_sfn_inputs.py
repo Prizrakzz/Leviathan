@@ -96,14 +96,58 @@ PROMOTE_MODES = frozenset({"autonomous", "stop_and_notify", "post_publish_audit"
 # ``--vintage-mode {latest,all}``) must supply its value in the descriptor, never be whitelisted --
 # whitelisting one is exactly the defect class this lint exists to catch.
 _VALUELESS_TRAILING_FLAGS = frozenset({
-    "--skip-existing-s3",   # fetch_usda_esr / fetch_usda_nass_citrus / fetch_usda_wasde
-    "--force-overwrite",    # yfinance_futures / gold_weather_z / nass_task
+    "--skip-existing-s3",   # store_true on every scheduled fetcher (exceptions below)
+    "--force-overwrite",    # store_true on ~half the estate -- and VALUE-TYPED on the other half
     "--current-season",     # fetch_usda_nass_citrus / fetch_unica_biweekly (season-scoped chain fetch, store_true)
     "--discover",           # fetch_unica_biweekly (enumerate bulletins via Playwright, store_true)
     "--reconcile-schema-widen",  # compact_weather_silver_task (F013 pure-widen partition-SD self-heal, store_true)
     "--refresh-manifest",   # fetch_usda_wasde (merge the esmis archive head into the manifest, store_true)
     "--through-current-season",  # fetch_unica (extend the static harvest_years to the open season, store_true)
 })
+
+# DSG-TAIL F3 (2026-08-16): the whitelist above is by flag NAME, but a flag's grammar is
+# per-SCRIPT -- "--force-overwrite" is store_true in food_cpi_task.py and VALUE-TYPED
+# ("--force-overwrite true") in fgis_silver_task.py. A name-global whitelist is fail-open:
+# a bare "--force-overwrite" ending an fgis command lints clean here and argparse-exit-2s
+# at fire ("expected one argument"). These sets name the scripts where the whitelisted
+# flag REQUIRES a value, so the dangling checks still apply to them.
+# MAP HYGIENE (review fold, wf_6906ea5b): the first draft was built by grepping strings and
+# carried four wrong entries -- three scripts that never define the flag (the string lived
+# in a docstring, a printed help line, and a built subprocess command) and one whose
+# nargs='?' makes the bare form legal. This map now holds ONLY parser-verified value-REQUIRED
+# declarations (add_argument with no action/nargs escape); when in doubt, read the parser,
+# never the grep. The old whitelist comment's own claim about gold_weather_z being
+# store_true was the same grep-artifact class -- it is `default="false"` value-typed.
+_VALUE_TYPED_EXCEPTIONS = {
+    "--force-overwrite": frozenset({
+        "bronze_to_silver_esr_task.py",
+        "conab_coffee_silver_task.py",
+        "fgis_silver_task.py", "fnc_colombia_silver_task.py", "gold_weather_z_task.py",
+        "mpob_annual_silver_task.py", "mpob_overview_bronze_task.py",
+        "mpob_overview_text_task.py", "mpob_silver_task.py",
+        "nass_annual_silver_task.py", "nass_crop_progress_silver_task.py",
+        "unica_annual_state_task.py", "unica_biweekly_task.py",
+    }),
+}
+
+
+def _flag_is_valueless(tok: str, cmd: list) -> bool:
+    """True when ``tok`` is a whitelisted store_true flag FOR THE SCRIPT this command runs.
+
+    Script-form commands carry the script path at ``cmd[0]``; MODULE-form commands carry
+    ``-m`` at ``cmd[0]`` and the dotted module at ``cmd[1]`` (review fold: reading cmd[0]
+    alone made every module-form task fall back to the name-global whitelist -- psd_monthly
+    and enso_monthly both carry --force-overwrite module-form, and every value-typed parser
+    in the map is reachable as a jobs.batch.* module)."""
+    if tok not in _VALUELESS_TRAILING_FLAGS:
+        return False
+    if not cmd:
+        return True
+    if str(cmd[0]) == "-m" and len(cmd) > 1:
+        script = str(cmd[1]).rsplit(".", 1)[-1] + ".py"
+    else:
+        script = str(cmd[0]).replace("\\", "/").rsplit("/", 1)[-1]
+    return script not in _VALUE_TYPED_EXCEPTIONS.get(tok, frozenset())
 
 # --- Platform constants (NOT descriptor-driven; the scheduled thin contract is uniform) ---------
 # The on-demand Fargate queue -- every Batch task + the gate run here. The descriptors' interruptible
@@ -252,7 +296,7 @@ def lint_descriptor(desc: dict, stem: str) -> list[str]:
             # mid-command case generalizes it (a value silently dropped between two flags).
             for i, tok in enumerate(cmd):
                 if not (isinstance(tok, str) and tok.startswith("--")
-                        and tok not in _VALUELESS_TRAILING_FLAGS):
+                        and not _flag_is_valueless(tok, cmd)):
                     continue
                 nxt = cmd[i + 1] if i + 1 < len(cmd) else None
                 if nxt is None:

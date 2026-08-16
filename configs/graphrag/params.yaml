@@ -148,6 +148,28 @@ serving:
       oni_climate: {kind: abs, band: 0.5}
       pink_sheet_input_costs: {kind: z, window_years: 5, z: 1.5}
       psd_sd_level: {kind: z, window_years: 10, z: 1.0}   # export/import/consumption/stock vintage levels
+  stats:                        # G4c(i): the numbers-agent compute_stat belt (NOT silverleg's driver
+    # verdicts above -- silverleg never reads this key, and `_thr` never reaches it). It lives here, one
+    # block down from silverleg's PSD window_years=10 and FX window_days=504, because "how long a window
+    # is a z-score taken over" is one question with one home, and a futures z whose window was whatever
+    # the model happened to type is the exact auditability gap section 1d names.
+    futures_z:
+      # 250 SESSIONS, and the unit is SESSIONS because silver_futures_eod is a per-session, per-delivery-
+      # month table -- a calendar-day window over it would silently vary with holidays and venue closures.
+      # ~250 is one trading year (252 CME sessions less a US holiday or two), and one trading year is the
+      # honest ceiling for a SINGLE delivery month: a corn Dec contract lists 2-3 years out but only
+      # trades liquidly in its final ~12 months, so 504 (the FX number) would reach back into the
+      # illiquid listing tail and z a liquid print against an illiquid regime -- two populations, one
+      # sigma, a wrong number that looks right.
+      # CEILING AND DEFAULT, NOT A REWRITE -- AND NEVER A NEW FLOOR (review FATAL, wf_6906ea5b): a
+      # caller that named a SHORTER window keeps it; a caller that asked for more is narrowed TO this;
+      # a caller that named NONE gets min(this, len(series)) -- because stats.zscore treats a non-None
+      # window as a REQUIRED depth (it declines when history < window), so a bare 250 default would
+      # have turned every shorter-than-250 handle (model-emitted limit, period-scoped ask, thin month)
+      # from a computed z into a decline. The only genuine floor stays stats.MIN_ZSCORE_N (8). Never
+      # silent either way: the effective window is stamped on the injected [N] row and rendered on
+      # the citation.
+      window_sessions: 250
 
 gates:                          # §9 targets (measured, not assumed)
   extraction_relation_f1: 0.80

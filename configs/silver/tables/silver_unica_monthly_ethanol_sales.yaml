@@ -115,10 +115,9 @@ cascade_ref: null
 source_contract_ref: null
 serving_table: null
 producer:
-  status: half-orphan
-  transform: null
-  batch_task: null
-  note: C-WRONG-8 orphan class; producer rebuilt in SILVER-F062
+  status: producer
+  transform: src/leviathan/transforms/bronze_to_silver/unica_biweekly.py
+  batch_task: jobs/batch/unica_biweekly_silver_task.py
 location_mode: static
 write_mode: overwrite
 fingerprint:

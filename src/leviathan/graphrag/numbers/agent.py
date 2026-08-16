@@ -15,6 +15,7 @@ import os
 import re
 from typing import Optional
 
+from leviathan.graphrag import params as _pr
 from leviathan.graphrag.numbers import pattern_records as PR
 from leviathan.graphrag.numbers import query as Q
 from leviathan.graphrag.numbers import stats as ST
@@ -1708,6 +1709,37 @@ def _handle_labels(rows: list) -> dict:
 _TIME_AXIS_STATS = frozenset({"streak", "window_change", "percentile", "zscore", "yoy_delta"})
 
 
+_FUTURES_Z_TABLES = frozenset({"silver_futures_eod"})
+
+
+def _z_window(requested, src_table, n_points=None):
+    """G4c(i): the DECLARED z window for a futures series -- callers may narrow it, never silently widen.
+
+    `serving.stats.futures_z.window_sessions` (params.yaml, one block below silverleg's PSD
+    window_years and FX window_days) is the default when a caller names no window and the
+    ceiling when it names a bigger one. It is never silent: `_stat_calls` stamps the effective
+    window on the injected [N] row and `citations.from_number` renders it, so a narrowed window is
+    a fact the reader can see. Non-futures series return `requested` untouched -- None keeps
+    stats.zscore's own 'all of history' semantics, byte-identical to pre-G4c.
+
+    THE LEN CLAMP (review FATAL, wf_6906ea5b): stats.zscore treats a NON-None window as a
+    REQUIRED history depth (stats.py declines when len(hist) < window, and only truncates
+    after that check) -- so injecting a bare 250 where the caller passed None would convert
+    'all of history' into a hard 250-point requirement, and every shorter-than-250 futures
+    handle (a model-emitted `limit`, a period-scoped ask, a thinly-listed month) would flip
+    from computing to declining. The default arm therefore clamps to the series length: the
+    z ranks against ALL available points up to the declared ceiling, the row stamps the
+    honest effective window, and stats' own MIN_ZSCORE_N floor still declines genuinely
+    thin series. An EXPLICIT `requested` keeps stats' require-this-depth contract untouched
+    (asking for a 200-point rank over 120 points is honestly refused, as before G4c)."""
+    if src_table not in _FUTURES_Z_TABLES:
+        return requested
+    ceiling = int(_pr.get("serving.stats.futures_z.window_sessions", 250))
+    if requested is not None:
+        return min(int(requested), ceiling)
+    return ceiling if n_points is None else min(ceiling, int(n_points))
+
+
 def _dispatch_stat(stat: str, inp: dict, handles: dict) -> dict:
     """Resolve the referenced turn-scoped handles and run ONE stats function. Returns the stats contract dict
     (declined or not). RAISES KeyError for an unknown/cross-turn handle (the caller turns it into a refusal)."""
@@ -1771,7 +1803,9 @@ def _dispatch_stat(stat: str, inp: dict, handles: dict) -> dict:
     if stat == "percentile":
         return ST.percentile(_val(), series)
     if stat == "zscore":
-        return ST.zscore(_val(), series, window=inp.get("window"))
+        return ST.zscore(_val(), series,
+                         window=_z_window(inp.get("window"), handles[sh].get("src_table"),
+                                          len(series)))
     if stat == "window_change":
         return ST.window_change(series, inp.get("t1"), inp.get("t2"))
     if stat == "revision_count":
@@ -1816,7 +1850,8 @@ _STAT_UNIT = {"streak": "consecutive periods", "revision_count": "consecutive re
 
 
 def _stat_calls(stat: str, res: dict, prov: dict, series_unit: Optional[str], kd: Optional[str],
-                labels: Optional[dict] = None) -> list[dict]:
+                labels: Optional[dict] = None, src_table: Optional[str] = None,
+                src_metric: Optional[str] = None) -> list[dict]:
     """Turn a SUCCESSFUL stats result into one (or, for extrema, two) synthetic lookup call(s) -- each an
     [N] row carrying the computed value so the all-numbers guard value-checks it. A decline injects nothing.
 
@@ -1830,6 +1865,17 @@ def _stat_calls(stat: str, res: dict, prov: dict, series_unit: Optional[str], kd
         # under their own keys -- writing a pair into the `contract_month` alias would put a non-month
         # string in the one field every downstream expiry reader parses as a month.
         lab["near_month"], lab["far_month"] = res.get("near"), res.get("far")
+    if stat == "zscore":
+        # G4c(iii), T1-4's shape applied to the z row. A carry figure with no delivery months was a
+        # number whose meaning was missing; a sigma with no WINDOW and no SERIES is the same defect
+        # in the other axis -- "compute_stat zscore corn_cbot = 2.1 sigma" is unauditable and
+        # unreproducible. `res["window"]` is stats.zscore's OWN field (stats.py:313 defaults it to
+        # n), so the row can never imply a window that was not used, including after `_z_window`
+        # narrows a caller's ask. BOTH OR NEITHER: a window with no series names a length with no
+        # subject; a series with no window implies the whole history. Written under their own keys,
+        # never into `contract_month`, which every downstream expiry reader parses as a month.
+        lab["z_window"] = res.get("window")
+        lab["z_series"] = ".".join(x for x in (src_table or "", src_metric or "") if x) or None
     def _row(val, metric):
         q = {"table": STATS_TOOL_NAME, "metric": metric}
         return {"query": q, "rows": [{"value": val, "unit": unit, "knowledge_date": kd, **lab}],
@@ -2553,8 +2599,17 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                     unit_guard_fires.append(str(res.get("units")))
                 return ({**res, "status": "declined"}, [])
             prov = _stat_provenance(stat, inp, handles)
+            # G4c review fold (wf_6906ea5b, minor): ONE window per receipt. provenance.params
+            # carries the model's REQUEST; after a clamp the same tool result would ship
+            # `window: 250` beside `provenance.params.window: 5000` -- a contradictory receipt
+            # inside an auditability bundle. The effective window (stats.zscore's own res
+            # field) overwrites the requested one so every surface answers "taken over how
+            # many points" identically.
+            if stat == "zscore" and res.get("window") is not None:
+                prov.setdefault("params", {})["window"] = res["window"]
             sh = handles.get(inp.get("series_handle")) or {}
-            injected = _stat_calls(stat, res, prov, sh.get("unit"), sh.get("kd"), sh.get("labels"))
+            injected = _stat_calls(stat, res, prov, sh.get("unit"), sh.get("kd"), sh.get("labels"),
+                                   sh.get("src_table"), sh.get("src_metric"))
             payload = {**res, "status": "ok", "provenance": prov,
                        "note": "This is now an injected observed figure -- state it with its unit and stay "
                                "descriptive (no forecast/extrapolation)."}
@@ -2606,10 +2661,17 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                 # dispatch time would mean re-deriving it per stat call from a handle that had already
                 # discarded the rows, which is precisely how the multiplicity got lost in the first place.
                 _vals, _exps = _series_axis(_rows)
+                # G4c(iii): the SOURCE IDENTITY, stamped where both halves exist. A sigma's meaning
+                # is "how far from normal, for WHICH series" -- the handle carried the numbers and
+                # threw away the subject, so the citation had no way to name it. Read off the
+                # recorded query, never guessed from the rows.
+                _srcq = content.get("query") or {}
                 handles[h] = {"series": _vals, "kd": _handle_kd(_rows),
                               "unit": (_rows[0].get("unit") if _rows else None),
                               "expiries": _exps, "shape": Q.series_shape(_rows),
-                              "labels": _handle_labels(_rows)}
+                              "labels": _handle_labels(_rows),
+                              "src_table": (_srcq.get("table") or None),
+                              "src_metric": (_srcq.get("metric") or None)}
             else:                                                  # unknown tool (or stats off) -> honest error
                 content = {"status": "error", "error": f"unknown tool {name!r}"}
             results.append({"type": "tool_result", "tool_use_id": b.id, "content": json.dumps(content)[:6000]})

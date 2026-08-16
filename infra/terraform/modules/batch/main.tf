@@ -91,6 +91,19 @@ locals {
     { on_exit_code = null, on_reason = "*", on_status_reason = null, action = "EXIT" },
   ]
 
+  # DSG-TAIL F1 -- PROPOSED, THEN CLOSED BY MEASUREMENT THE SAME DAY (2026-08-16). A
+  # review lens argued the matrix above leaves a residual: a container that RAN and
+  # exited nonzero-but-not-1 with an ABSENT reason would match no rule and fall to
+  # Batch's no-match default (RETRY) -- a second pass over a canonical write path on the
+  # four self-promote publisher jobdefs. A live probe REFUTED it: job cb151695 on
+  # b3-flat-silver (this exact matrix), exit code 2, container reason None, statusReason
+  # 'Essential container in task exited' -- terminal after ONE attempt. The terminal
+  # on_reason "*" rule catches reason-less exits in practice, so the matrix is already
+  # doctrine-complete and a publisher variant would be dead config. Banked for the
+  # future: the Batch API ACCEPTS on_exit_code = "*" (probe registration
+  # leviathan-dev-f1-probe-throwaway rev 1, accepted then deregistered) -- if a genuine
+  # retry-over-write class ever appears, that is the legal widening.
+
   # --- The weather/ingest worker FLEET pin (post-freeze batch, run sheet section 8) ---
   #
   # Ten jobdef families are held in terraform state at revisions 1-3 on the mutable
@@ -1334,6 +1347,8 @@ resource "aws_batch_job_definition" "modis_ndvi_bronze_to_silver" {
 
   # D-PR-7 / D-PR-37: the shared producer retry matrix (5 rules = the API cap).
   # Declared once at the top of this file; see that comment before changing anything.
+  # (DSG-TAIL F1 probe, 2026-08-16: reason-less exits ARE terminal under this matrix --
+  # job cb151695, exit 2, reason None, one attempt. No publisher variant needed.)
   retry_strategy {
     attempts = local.producer_retry_attempts
 

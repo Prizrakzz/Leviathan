@@ -971,3 +971,46 @@ def test_wave2_is_exactly_the_classb_set(descriptors):
 def test_wave0_is_the_single_platform_proof(descriptors):
     wave0 = {s for s, d in descriptors.items() if d["wave"] == 0}
     assert wave0 == {"fx_macro_daily"}
+
+
+def test_force_overwrite_grammar_is_per_script(gen):
+    """DSG-TAIL F3 (2026-08-16): the valueless-flag whitelist is per-SCRIPT, not per-NAME.
+
+    '--force-overwrite' is store_true in food_cpi_task.py but VALUE-TYPED in
+    fgis_silver_task.py ('--force-overwrite true'). Before this fix the name-global
+    whitelist let a bare fgis flag lint clean and argparse-exit-2 at fire. The pair below
+    is the anti-vacuity idiom: the same bare flag must lint GREEN on the store_true script
+    and RED on the value-typed one, or the map proves nothing."""
+    def desc_with(cmd):
+        return {
+            "schedule": "x", "family": "x", "wave": 3, "cron": "cron(0 0 * * ? *)",
+            "publish_class": "A", "promote_mode": "stop_and_notify", "auth_mode": "hmac",
+            "gate_tables": ["t"], "gate_baseline_uri": "s3://b/c.json",
+            "asof": "<aws.scheduler.scheduled-time>",
+            "retry": {"maximum_retry_attempts": 3, "maximum_event_age_in_seconds": 86400},
+            "phases": [{"name": "silver", "tasks": [{
+                "id": "t1", "invocation_form": "s", "integration": "batch",
+                "jobdef": "jd", "queue": "q", "command": cmd, "env": {},
+                "publishes": True, "publish_mode": "shadow_canonical"}]}],
+        }
+    _dangling = lambda errs: [e for e in errs if "value-expecting" in e or "dangling" in e]
+    assert not _dangling(gen.lint_descriptor(desc_with(
+        ["jobs/batch/food_cpi_task.py", "--force-overwrite"]), "x")), \
+        "bare --force-overwrite on the store_true script must stay GREEN (the armed food_cpi shape)"
+    assert _dangling(gen.lint_descriptor(desc_with(
+        ["jobs/batch/fgis_silver_task.py", "--force-overwrite"]), "x")), \
+        "bare --force-overwrite on the VALUE-TYPED script must lint RED (argparse exit 2 at fire)"
+    # Review fold (wf_6906ea5b MAJOR): MODULE-form commands carry the script at cmd[1], not
+    # cmd[0] -- reading cmd[0] alone made every module-form task fall back to the name-global
+    # whitelist (psd_monthly and enso_monthly both carry --force-overwrite module-form). The
+    # same green/red pair, module-form:
+    def mdesc_with(cmd):
+        d = desc_with(cmd)
+        d["phases"][0]["tasks"][0]["invocation_form"] = "m"
+        return d
+    assert not _dangling(gen.lint_descriptor(mdesc_with(
+        ["-m", "jobs.batch.psd_silver_task", "--force-overwrite"]), "x")), \
+        "module-form store_true (the live psd_monthly shape) must stay GREEN"
+    assert _dangling(gen.lint_descriptor(mdesc_with(
+        ["-m", "jobs.batch.fgis_silver_task", "--force-overwrite"]), "x")), \
+        "module-form pointing at a VALUE-TYPED parser must lint RED, not fall back to name-global"

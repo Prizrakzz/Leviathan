@@ -429,7 +429,18 @@ def from_number(call: dict, i: int) -> Citation:
     # contract_month and a leg pair would be a producer defect this label must not paper over. A row with
     # neither renders exactly as it did before T1-4 -- the anti-vacuity property the spread pin asserts.
     _delivery = (f"delivery {cmonth}" if cmonth else (f"delivery {legs}" if legs else None))
-    scope = " ".join(x for x in (q.get("commodity"), geo, per, _delivery) if x)
+    # G4c(iii): THE Z-SCORE'S WINDOW AND ITS SERIES, WHICH NOTHING READ -- T1-4's defect on the other
+    # axis. `numbers.agent._stat_calls` writes `z_window` / `z_series` onto a zscore row for exactly
+    # the reason it writes near_month/far_month onto a spread row: the figure's entire meaning is HOW
+    # MANY points it was ranked against and WHICH series those points came from, and neither reached
+    # `## Sources`. BOTH LABELS OR NEITHER, AND NEVER A GUESS FROM A PARTIAL PAIR -- a window with no
+    # series names a length with no subject, and a series with no window asserts the whole history,
+    # which after the declared-window narrowing is exactly the claim that would be false. A row
+    # carrying neither renders EXACTLY as it does today: the anti-vacuity property the pin asserts.
+    _zw = str(rH.get("z_window") or "").strip()
+    _zs = str(rH.get("z_series") or "").strip()
+    _zspan = f"vs {_zw} points of {_zs}" if (_zw and _zs) else ""
+    scope = " ".join(x for x in (q.get("commodity"), geo, per, _delivery, _zspan) if x)
     # D-HP G1 REMEDIATION-2 R2-b: the blank-value read is routed to the ABSENCE branch BEFORE either
     # rows-bearing branch can claim it. `_blank` is false on every read that carries a value, so both
     # branches below are byte-identical on every such turn.
