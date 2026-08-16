@@ -186,5 +186,11 @@ notes: 'min_nonnull_frac is PROVISIONAL (uniform 0.5) pending per-source calibra
   soft_red_winter_wheat_cbot, hard_red_spring_wheat_mgex). Target additive net-commitment columns (accumulated_exports_1000mt,
   current_my_net_sales_1000mt, current_my_total_commitment_1000mt, next_my_outstanding_sales_1000mt, next_my_net_sales_1000mt)
   are specified for BF-W2 (see reports/silver_readiness/R2_esr/).'
+vintage_waiver:
+  reason: The FULL per-partition silver_esr surface at silver/production/source=usda_esr was superseded
+    by silver_esr_compact at Phase D and has no writer on any schedule, so its as_of_date is frozen at
+    the 20260524 re-baseline and a second vintage cannot arise. Per-week PIT vintages live on silver_esr_compact
+    (the numbers athena_table and this contract's serving_table); this surface is read by nothing.
+  approved: 2026-08-16 D-SG G1-6 (user gate)
 min_nonnull_frac_overrides:
   changes_1000mt: 0.0

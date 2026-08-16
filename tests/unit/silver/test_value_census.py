@@ -21,6 +21,7 @@ from leviathan.silver.value_census import (
     evaluate_gate,
     evaluate_warnings,
     file_column_stat,
+    resolve_floor,
 )
 
 
@@ -268,3 +269,97 @@ def test_live_registry_carries_the_cotton_calibration():
     reg = load_silver()
     ov = reg.tables["silver_ams_cotton_quality"].get("min_nonnull_frac_overrides")
     assert ov == {"samples_classed": 0.25}
+
+
+# ---------------------------------------------------------------------------
+# D-SG G1-5: the season-aware floor (the NASS pct_harvested class).
+#
+# The usda_nass gate refused on 2026-08-11 with "[commodity=corn_cbot] 'pct_harvested' non-null
+# fraction 0.141 < floor 0.15". Nothing was wrong with the data -- NASS publishes no harvested row
+# until harvest begins, so a mid-August census is legitimately sparse and a season-blind floor turns
+# that into the same refusal, at the same point in the calendar, every year. The floor is now chosen
+# by the month the census ran in; the refusal stays honest in the months the column is populated.
+# ---------------------------------------------------------------------------
+def _sparse_141(tmp_path, name="harvest.parquet"):
+    tbl = pa.table({"pct_harvested": pa.array([1.0] * 141 + [None] * 859, type=pa.float64())})
+    md = _write(tmp_path, name, tbl)
+    return census_column([_stat(md, "pct_harvested")], "pct_harvested")
+
+
+def test_season_floor_passes_in_august_and_still_refuses_in_november(tmp_path):
+    census = _sparse_141(tmp_path)
+    assert census.nonnull_fraction == pytest.approx(0.141)
+    args = ("t", {"pct_harvested": census}, ["pct_harvested"], 0.5)
+    kw = {"floor_overrides": {"pct_harvested": 0.15},
+          "season_floor_overrides": {"pct_harvested": {"1-9": 0.10}}}
+    # August: inside the pre-harvest window, so 0.141 clears the season floor.
+    assert evaluate_gate(*args, as_of_month=8, **kw) == []
+    # November: the harvest weeks have landed and the report is closing, so the SAME fraction is a
+    # real regression and the full calibrated floor refuses it.
+    rows = evaluate_gate(*args, as_of_month=11, **kw)
+    assert [r.kind for r in rows] == [KIND_NONNULL_BELOW_FLOOR]
+    assert rows[0].threshold == 0.15
+
+
+def test_a_caller_that_cannot_say_when_gets_the_strict_floor(tmp_path):
+    # The season floor is a statement about WHEN the census ran; without a month it stays inert.
+    census = _sparse_141(tmp_path, "harvest_nomonth.parquet")
+    rows = evaluate_gate("t", {"pct_harvested": census}, ["pct_harvested"], 0.5,
+                         floor_overrides={"pct_harvested": 0.15},
+                         season_floor_overrides={"pct_harvested": {"1-9": 0.10}})
+    assert [r.kind for r in rows] == [KIND_NONNULL_BELOW_FLOOR]
+
+
+def test_season_floor_does_not_waive_all_nan(tmp_path):
+    # Loosening a month never disarms the gate: a dead column still hard-fails inside the window.
+    tbl = pa.table({"pct_harvested": pa.array([None, None], type=pa.float64())})
+    md = _write(tmp_path, "dead_season.parquet", tbl)
+    census = census_column([_stat(md, "pct_harvested")], "pct_harvested")
+    rows = evaluate_gate("t", {"pct_harvested": census}, ["pct_harvested"], 0.5,
+                         season_floor_overrides={"pct_harvested": {"1-9": 0.10}}, as_of_month=8)
+    assert [r.kind for r in rows] == [KIND_ALL_NAN]
+
+
+def test_resolve_floor_layers_scalar_then_column_then_season():
+    assert resolve_floor("c", 0.5) == 0.5
+    assert resolve_floor("c", 0.5, {"c": 0.15}) == 0.15
+    assert resolve_floor("c", 0.5, {"c": 0.15}, {"c": {"1-9": 0.10}}, 8) == 0.10
+    # a month outside every window, and a column with no window of its own, fall back untouched.
+    assert resolve_floor("c", 0.5, {"c": 0.15}, {"c": {"1-9": 0.10}}, 11) == 0.15
+    assert resolve_floor("other", 0.5, {"c": 0.15}, {"c": {"1-9": 0.10}}, 8) == 0.5
+
+
+def test_resolve_floor_windows_wrap_the_new_year_and_never_loosen_on_overlap():
+    wrap = {"c": {"11-3": 0.05}}
+    assert [resolve_floor("c", 0.5, None, wrap, m) for m in (11, 12, 1, 3)] == [0.05] * 4
+    assert resolve_floor("c", 0.5, None, wrap, 4) == 0.5
+    # overlapping windows resolve to the HIGHEST floor -- an ambiguous declaration cannot weaken
+    # the gate below its author's strictest intent.
+    assert resolve_floor("c", 0.5, None, {"c": {"1-9": 0.10, "8-10": 0.20}}, 8) == 0.20
+
+
+def test_live_registry_carries_the_nass_season_calibration():
+    # the tracked contract validates against the schema and reaches the census through the runner.
+    from leviathan.silver.registry import load_registry as load_silver
+    reg = load_silver()
+    c = reg.tables["silver_nass_crop_progress"]
+    assert c["min_nonnull_frac_season_overrides"] == {"pct_harvested": {"1-9": 0.10}}
+    # the full-year floor is untouched: the season window refines it, it does not replace it.
+    assert c["min_nonnull_frac_overrides"]["pct_harvested"] == 0.15
+    # and no other contract gained a season window in this wave.
+    with_season = sorted(n for n, t in reg.tables.items() if "min_nonnull_frac_season_overrides" in t)
+    assert with_season == ["silver_nass_crop_progress"]
+
+
+def test_live_registry_carries_the_esr_vintage_waiver():
+    """D-SG G1-6 PATH A: the abandoned full silver_esr surface is frozen at one as_of vintage, so the
+    V001 single_vintage row refused the ONE gate job that covers the whole usda_esr family -- and
+    blocked promote for silver_esr_compact, the surface that actually carries the per-week vintages.
+    The waiver demotes that row to a WARN naming the approval; every other V001 kind stays hard."""
+    from leviathan.silver.registry import load_registry as load_silver
+    reg = load_silver()
+    w = reg.tables["silver_esr"]["vintage_waiver"]
+    assert w["approved"] == "2026-08-16 D-SG G1-6 (user gate)"
+    assert "silver_esr_compact" in w["reason"]
+    # the certified serving surface is NOT waived -- its vintages are real.
+    assert "vintage_waiver" not in reg.tables["silver_esr_compact"]

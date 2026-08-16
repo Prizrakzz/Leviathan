@@ -251,6 +251,51 @@ def census_column(
 
 
 # ---------------------------------------------------------------------------
+# Floor resolution (D-SG G1-5): scalar -> per-column -> season window.
+# ---------------------------------------------------------------------------
+def _month_in_window(month: int, window: str) -> bool:
+    """Is ``month`` inside the inclusive ``'START-END'`` window? START > END wraps the new year."""
+    start_s, _, end_s = window.partition("-")
+    start, end = int(start_s), int(end_s)
+    if start <= end:
+        return start <= month <= end
+    return month >= start or month <= end
+
+
+def resolve_floor(
+    column: str,
+    min_nonnull_frac: Optional[float],
+    floor_overrides: Optional[Mapping[str, float]] = None,
+    season_overrides: Optional[Mapping[str, Mapping[str, float]]] = None,
+    as_of_month: Optional[int] = None,
+) -> Optional[float]:
+    """The non-null floor that applies to ``column`` for a census taken in ``as_of_month``.
+
+    Three layers, each narrower than the last: the table scalar ``min_nonnull_frac``, the OP-8
+    per-column ``min_nonnull_frac_overrides``, and the G1-5 per-column-per-season
+    ``min_nonnull_frac_season_overrides``. A column with no season window declared for the census
+    month resolves exactly as it did before this function existed, so 44 of the 45 contracts are
+    untouched.
+
+    WHY A SEASON LAYER EXISTS: some value columns are CALENDAR-STRUCTURAL at source, not merely
+    sparse. ``pct_harvested`` has no row at all before the harvest weeks, so a mid-August census
+    measures 0.141 against a floor calibrated on a full crop year and the gate refuses -- every
+    August, forever, on data that is exactly what the source published. Selecting the floor by the
+    month keeps the refusal honest in the months where the column IS supposed to be populated.
+
+    ``as_of_month`` None (the default) leaves the season layer inert: the season floor is a
+    statement about WHEN the census ran, so a caller that cannot say when must not get the looser
+    floor. Overlapping windows resolve to the HIGHEST floor, so an ambiguous declaration can never
+    loosen the gate below its author's strictest intent."""
+    floor = (floor_overrides or {}).get(column, min_nonnull_frac)
+    if as_of_month is None:
+        return floor
+    windows = (season_overrides or {}).get(column) or {}
+    matched = [v for w, v in windows.items() if _month_in_window(as_of_month, w)]
+    return max(matched) if matched else floor
+
+
+# ---------------------------------------------------------------------------
 # The gate.
 # ---------------------------------------------------------------------------
 @dataclass(frozen=True)
@@ -284,6 +329,8 @@ def evaluate_gate(
     knowledge_date_col: Optional[str] = None,
     knowledge_census: Optional[ColumnCensus] = None,
     floor_overrides: Optional[Mapping[str, float]] = None,
+    season_floor_overrides: Optional[Mapping[str, Mapping[str, float]]] = None,
+    as_of_month: Optional[int] = None,
 ) -> list[GateRow]:
     """Return the ordered list of HARD-FAIL rows for one table (empty == green).
 
@@ -305,19 +352,25 @@ def evaluate_gate(
     must not false-fail a legitimately-thin partition (the WASDE 1987 scanned
     release, OP-8/AV-11 calibration).
 
+    The per-column floor is resolved by :func:`resolve_floor`: the table scalar, then
+    ``floor_overrides``, then -- only when the caller states ``as_of_month`` -- the season window
+    from ``season_floor_overrides`` (D-SG G1-5, the calendar-structural columns).
+
     The vintage check fires whenever a knowledge-date column is declared, regardless
     of ``vintage_retention``: a serving copy that has collapsed to one vintage cannot
     answer a point-in-time question, and that is precisely the ESR-collapse the draft
     left uncaught (latest-only is NOT a licence to ship a single global as_of).
     """
     rows: list[GateRow] = []
-    overrides = floor_overrides or {}
 
     for col in value_columns:
         # OP-8 per-column calibration (min_nonnull_frac_overrides): a user-gated, source-real
-        # floor for columns structurally absent at the source over part of the range. The gate
-        # stays live -- an all-null regression still hard-fails via KIND_ALL_NAN above the floor.
-        floor = overrides.get(col, min_nonnull_frac)
+        # floor for columns structurally absent at the source over part of the range, refined by
+        # D-SG G1-5's per-season windows for the columns whose absence is CALENDAR-structural. The
+        # gate stays live -- an all-null regression still hard-fails via KIND_ALL_NAN above the
+        # floor, in every month.
+        floor = resolve_floor(col, min_nonnull_frac, floor_overrides,
+                              season_floor_overrides, as_of_month)
         c = census_by_column.get(col)
         if c is None:
             rows.append(

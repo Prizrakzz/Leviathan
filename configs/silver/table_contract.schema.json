@@ -499,6 +499,24 @@
         }
       }
     },
+    "min_nonnull_frac_season_overrides": {
+      "type": "object",
+      "description": "D-SG G1-5 season-aware refinement of the V001 non-null floor for a column whose source population is CALENDAR-STRUCTURAL (silver_nass_crop_progress pct_harvested: the harvest row does not exist at source before the harvest weeks, so a mid-August census is legitimately sparse and a season-blind floor refuses every August). Keys must be declared value_columns; values map an inclusive month window 'START-END' (1-12; START > END wraps across the new year) to the floor that applies when the census runs in that month. A month outside every declared window falls back to min_nonnull_frac_overrides and then to min_nonnull_frac, so a table without an override is unchanged. Overlapping windows resolve to the HIGHEST floor -- an ambiguous declaration can never loosen the gate. The gate stays live in every month: all-null still hard-fails and a fall below the month's floor still trips.",
+      "additionalProperties": false,
+      "patternProperties": {
+        "^[a-z0-9_]+$": {
+          "type": "object",
+          "additionalProperties": false,
+          "patternProperties": {
+            "^(1[0-2]|[1-9])-(1[0-2]|[1-9])$": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          }
+        }
+      }
+    },
     "vintage_waiver": {
       "type": "object",
       "description": "Declared, user-gated waiver of the V001 single_vintage hard gate for annual latest-only sources where a second vintage is structurally impossible without destroying raw history (BF-W2 rider 6, FAOSTAT class). The census demotes the single_vintage GateRow to a WARN and carries this object in the artifact; the readiness certificate then reports the table with the waiver, never silently green.",

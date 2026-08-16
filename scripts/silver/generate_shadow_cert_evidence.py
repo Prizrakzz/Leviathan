@@ -101,7 +101,15 @@ def _census(body: bytes, contract: dict) -> dict:
     for col in value_cols:
         stat = vc.file_column_stat(md, col)
         by_col[col] = vc.census_column([stat], col)
-    gate = vc.evaluate_gate("t", by_col, value_cols, contract.get("min_nonnull_frac"))
+    # Match the census runner's floor layering (jobs/audit/value_census.py) -- without the
+    # override layers this writer judged pct_harvested against the table scalar and would
+    # now diverge from the gate in both directions depending on the month (review m-10).
+    gate = vc.evaluate_gate(
+        "t", by_col, value_cols, contract.get("min_nonnull_frac"),
+        floor_overrides=contract.get("min_nonnull_frac_overrides") or None,
+        season_floor_overrides=contract.get("min_nonnull_frac_season_overrides") or None,
+        as_of_month=datetime.now(timezone.utc).month,
+    )
     return {
         "value_columns": list(value_cols),
         "min_nonnull_frac": contract.get("min_nonnull_frac"),

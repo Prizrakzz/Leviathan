@@ -895,7 +895,31 @@ CURATION_OVERRIDES: dict = {
     # Floor 0.0 = tolerate the dead field while KEEPING the gate live: KIND_ALL_NAN still
     # hard-fails if even the historical vintages go null (real corruption), and every other
     # value column stays at the table floor.
-    "silver_esr": {"min_nonnull_frac_overrides": {"changes_1000mt": 0.0}},
+    # -- D-SG G1-6 (owner-gated 2026-08-16): the FULL per-partition silver_esr surface
+    # (silver/production/source=usda_esr) was SUPERSEDED by silver_esr_compact at Phase D. Nothing
+    # writes it: the esr_weekly chain's only silver producer is bronze_to_silver_esr_task.py
+    # (the COMPACT writer), and backfill_silver_usda_esr.py is on no schedule. Measured
+    # 2026-08-16: commodity_code=101 holds 37 market_year prefixes, EVERY one carrying the single
+    # as_of=20260524 re-baseline. So distinct(as_of_date)==1 is a PERMANENT property of an
+    # abandoned surface, and the V001 single_vintage row exit-1'd the one gate job that covers the
+    # whole usda_esr family -- blocking [Promote] for silver_esr_compact too (2026-08-06 and
+    # 2026-08-13 FAILED; bronze meanwhile holds as_of=20260806 and 20260813). The waiver DEMOTES
+    # that row to a WARN carrying this approval (never silently green) and leaves every other
+    # V001 kind hard: KIND_ALL_NAN still refuses, the per-column floors still refuse. PIT adequacy
+    # for ESR is served by silver_esr_compact, which carries the real per-week vintages and is
+    # what tables.yaml:311 `athena_table` and this contract's `serving_table` both name.
+    "silver_esr": {
+        "min_nonnull_frac_overrides": {"changes_1000mt": 0.0},
+        "vintage_waiver": {
+            "reason": ("The FULL per-partition silver_esr surface at "
+                       "silver/production/source=usda_esr was superseded by silver_esr_compact at "
+                       "Phase D and has no writer on any schedule, so its as_of_date is frozen at "
+                       "the 20260524 re-baseline and a second vintage cannot arise. Per-week PIT "
+                       "vintages live on silver_esr_compact (the numbers athena_table and this "
+                       "contract's serving_table); this surface is read by nothing."),
+            "approved": "2026-08-16 D-SG G1-6 (user gate)",
+        },
+    },
     "silver_esr_compact": {"min_nonnull_frac_overrides": {"changes_1000mt": 0.0}},
     # ── Wave-3 conab canary forensics (2026-07-17): the production_revision_thousand_bags min_nonnull
     # override is RETIRED by WIRING WAVE-1 (2026-07-23). Wiring silver_conab_coffee into the numbers
@@ -974,6 +998,32 @@ CURATION_OVERRIDES: dict = {
         "min_nonnull_frac_overrides": {"pct_good_excellent": 0.25, "pct_harvested": 0.15,
                                        "pct_poor_very_poor": 0.20, "pct_planted": 0.13,
                                        "pct_emerged": 0.08},
+        #
+        # D-SG G1-5 (user-gated 2026-08-16) -- THE FLOOR THAT REFUSED AUGUST. The usda_nass gate
+        # failed on 2026-08-11 (job 90b65749) with "[commodity=corn_cbot] 'pct_harvested' non-null
+        # fraction 0.141 < floor 0.15". Nothing was wrong with the data: NASS publishes no harvested
+        # row until harvest begins, so the current crop year contributes planted / emerged /
+        # condition weeks and NO harvest weeks, and the pooled non-null fraction falls all season
+        # until the first harvest report. 0.141 measured in mid-August is the source telling the
+        # truth, and a season-blind floor turns that into an annual refusal window -- the same
+        # refusal, at the same point in the calendar, every year.
+        #
+        # WINDOW, derived from the crop-progress reporting season rather than from the failure:
+        # harvested is reported from the first harvest weeks (corn / soybeans / rice from early
+        # September, cotton later, spring wheat from August) to the report's close on the last
+        # Monday in November. Months 1-9 are therefore the months in which the current crop year has
+        # accrued few or no harvested rows; from October the harvest weeks are landing and by the
+        # report's close the crop year is complete, so a shortfall in 10-12 is a REAL regression and
+        # keeps the full 0.15.
+        # FLOOR 0.10, the value the D-SG plan itself names for this column: it clears the measured
+        # 0.141 with headroom for the deeper trough in late August / early September (the fraction
+        # keeps falling until the first harvest report), and it stays far enough above zero that
+        # KIND_ALL_NAN and a genuine collapse still hard-fail in EVERY month.
+        # pct_harvested ALONE carries a season window: it is the only value column whose absence is
+        # calendar-structural in the direction that bites. planted / emerged report April-June and
+        # condition May-November, so their dilution peaks in the winter months their existing
+        # full-year floors were already calibrated across.
+        "min_nonnull_frac_season_overrides": {"pct_harvested": {"1-9": 0.10}},
     },
     "silver_wasde": {
         "freshness_sla": {"cadence": "monthly"},  # WASDE releases monthly; the MY grain is not the cadence
@@ -1091,7 +1141,8 @@ def _apply_curation_overrides(name: str, contract: dict) -> None:
         if note:
             row["note"] = note
     for key in ("natural_key", "required_nonnull", "coverage_axis", "vintage_waiver",
-                "min_nonnull_frac_overrides", "schema_version"):
+                "min_nonnull_frac_overrides", "min_nonnull_frac_season_overrides",
+                "schema_version"):
         if key in ov:
             contract[key] = ov[key]
     if "freshness_sla" in ov:

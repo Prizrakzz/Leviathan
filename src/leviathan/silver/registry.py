@@ -235,6 +235,23 @@ def _structural_lints(contract: dict, label: str) -> list[str]:
             out.append(f"{label}: min_nonnull_frac_overrides['{oc}'] must be a fraction in [0,1]")
     if overrides and frac is None:
         out.append(f"{label}: min_nonnull_frac_overrides set but min_nonnull_frac is null")
+    # D-SG G1-5 per-season windows: same discipline as the per-column layer, because a mistyped
+    # column or an unparseable month window would be a SILENT no-op -- the gate would keep refusing
+    # the season the declaration was written to make honest, and nothing would say why.
+    for oc, windows in (contract.get("min_nonnull_frac_season_overrides") or {}).items():
+        if oc not in vcs:
+            out.append(f"{label}: min_nonnull_frac_season_overrides key '{oc}' is not a value_column")
+        if not isinstance(windows, dict) or not windows:
+            out.append(f"{label}: min_nonnull_frac_season_overrides['{oc}'] must be a non-empty "
+                       f"month-window map")
+            continue
+        for win, ofl in windows.items():
+            if not re.fullmatch(r"(1[0-2]|[1-9])-(1[0-2]|[1-9])", str(win)):
+                out.append(f"{label}: min_nonnull_frac_season_overrides['{oc}'] window '{win}' is "
+                           f"not an inclusive 'START-END' month range (1-12)")
+            if not isinstance(ofl, (int, float)) or isinstance(ofl, bool) or not (0 <= float(ofl) <= 1):
+                out.append(f"{label}: min_nonnull_frac_season_overrides['{oc}']['{win}'] must be a "
+                           f"fraction in [0,1]")
     return out
 
 

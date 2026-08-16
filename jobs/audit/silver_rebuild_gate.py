@@ -92,8 +92,9 @@ BRANCH_UNKNOWN = "unknown"
 # psycopg` image fault (census class D-iii) read to the operator exactly like a data refusal.
 #
 # ONLY 72 IS RETRYABLE, and that is a CONTRACT with two consumers outside this file:
-#   * the `leviathan-dev-silver-gate` jobdef's retryStrategy (D-PR-37's trimmed 3-object matrix:
-#     {onExitCode:'72' -> retry}, {onStatusReason:'ResourceInitializationError*' -> retry},
+#   * the `leviathan-dev-silver-gate` jobdef's retryStrategy (the 4-object matrix, D-PR-37 as
+#     amended by D-SG G1-3b: {onExitCode:'72' -> retry}, {onStatusReason:'ResourceInitializationError*'
+#     -> retry}, {onStatusReason:'CannotPullContainer*' -> retry -- both PRE-START classes},
 #     {onReason:'*' -> exit}; attempts 2). A no-match in `evaluateOnExit` defaults to RETRY, which is why
 #     the terminal catch-all is mandatory there and why NO new exit code may be minted here on the
 #     assumption that "unknown == never retried".
@@ -109,6 +110,107 @@ EXIT_PREFLIGHT = 71       # image/config fence refused to run: preflight drift, 
                           # F010 registry. The image is wrong; the gate never reached a stage.
 EXIT_BASELINE_FETCH = 72  # BaselineFetchError -- a transient S3 GET of the rolling baseline. THE ONLY
                           # RETRYABLE CODE.
+
+# ---------------------------------------------------------------------------
+# D-PR-28 / D-SG G3-4, 2026-08-16 -- THE VERDICT'S DELIVERY MECHANISM.
+#
+# A REFUSAL rides exit 1 into the SFN Catch -> FailNotify and reaches the owner. A PASS_WITH_DRIFT
+# does not: D-PR-5 made a PASS that rode over ANOTHER family's drift (banner.global_drift > 0) exit 0
+# with a stdout line, inside a Batch container, in one of 26 daily executions. It reaches nobody.
+# This block gives the gate ONE metric so that verdict has a destination.
+#
+# EXIT CODES, R11's 15 AND THE CLAUSE FLOORS ARE UNTOUCHED. This is telemetry emitted AFTER the
+# verdict is final. `_emit_gate_metrics` cannot raise -- a metric emitter that can kill the gate is
+# worse than no metric -- and its own failure prints one line and returns.
+#
+# WHAT IS DELIBERATELY NOT EMITTED: exits 64 / 70 / 71 / 72. D-PR-8's whole point is that those are
+# faults in the gate's inputs or image and NOT decisions about data; minting a verdict row for them
+# would put INFRA into a metric whose only question is "did the machinery judge, and how". They
+# already reach the owner via leviathan-dev-batch-job-failed-scheduled. This is why the drift alarm
+# is treat_missing_data = "notBreaching": the ABSENCE of a verdict is not one.
+#
+# THE SECOND METRIC IN THIS BLOCK IS NOT AN EXTRA. `ValueCensusHardFailTables` has had a live alarm
+# (leviathan-dev-value-census-regression, P1, threshold 0) since the F082 apply and NOTHING HAS EVER
+# PUBLISHED IT. `stage_value_census` runs on BOTH branches for EVERY table of EVERY gate run, so the
+# gate is the natural and only emitter, and it costs one more datum on a call already being made.
+# ---------------------------------------------------------------------------
+GATE_VERDICT_METRIC = "GateVerdict"
+CENSUS_HARDFAIL_METRIC = "ValueCensusHardFailTables"
+GATE_METRIC_NAMESPACE = "Leviathan/Silver"
+
+# The gate's own three-valued verdict vocabulary. "YELLOW" is not a word the gate speaks: a PASS that
+# rode over drift is still a PASS, and naming it PASS_WITH_DRIFT keeps the metric readable against
+# the banner it is derived from.
+VERDICT_PASS = "PASS"
+VERDICT_PASS_WITH_DRIFT = "PASS_WITH_DRIFT"
+VERDICT_FAIL = "FAIL"
+
+# Populated by _main() at its ONE verdict-bearing return; read by main()'s finally. A dict rather
+# than a return-value change so no caller of _main() has to move.
+_VERDICT_RECORD: dict = {}
+
+
+def _gate_family(tables: list[str]) -> str:
+    """The DAG family this gate run speaks for -- the ``Family`` dimension. Never raises.
+
+    DERIVED from the tables rather than threaded in: all 26 rendered gate commands
+    (``configs/silver/dags/_rendered/*.input.json``) pass a ``--tables`` list that resolves under
+    ``dag_catalog.family_of`` to EXACTLY ONE family, and that family equals the descriptor's own
+    ``family`` field in every one of the 26. So the renderer, the descriptors and the state machine
+    need no change at all.
+
+    A run whose tables span families is dimensioned "mixed"; one whose tables map to no family is
+    "unknown". Neither is dropped: a metric that silently omits the odd run is the failure mode this
+    item exists to remove."""
+    fams = set()
+    for t in tables:
+        try:
+            from leviathan.silver.dag_catalog import family_of
+            fams.add(family_of(t))
+        except Exception:  # noqa: BLE001 -- unmapped table / unimportable catalog
+            fams.add("unknown")
+    if len(fams) == 1:
+        return fams.pop()
+    return "mixed" if fams else "unknown"
+
+
+def _emit_gate_metrics(record: dict) -> None:
+    """put_metric_data for GateVerdict + ValueCensusHardFailTables. NEVER raises.
+
+    TWO GateVerdict datums per run, on the freshness poller's dual-dimension precedent:
+    ``{Family, Verdict}`` for attribution and ``{Verdict}`` for the estate-wide alarm. A CloudWatch
+    alarm needs an EXACT dimension set, so an alarm on "drift anywhere" would otherwise need a SEARCH
+    metric-math expression -- more surface, and un-plannable in HCL.
+
+    ``ValueCensusHardFailTables`` is UNDIMENSIONED, matching the value_census_regression alarm in
+    modules/silver_observability (dimensions = []). Each family's run publishes its own count; the
+    alarm's statistic=Maximum over the 1-day period therefore reads the worst family of the day,
+    which is what threshold 0 means.
+
+    boto3 is imported INSIDE the function so the unit suite exercises every other path with no AWS
+    dependency at all."""
+    if not record:
+        return
+    try:
+        import boto3
+        now = datetime.now(timezone.utc)
+        verdict = record["verdict"]
+        data = [
+            {"MetricName": GATE_VERDICT_METRIC, "Timestamp": now, "Value": 1.0, "Unit": "Count",
+             "Dimensions": [{"Name": "Family", "Value": record["family"]},
+                            {"Name": "Verdict", "Value": verdict}]},
+            {"MetricName": GATE_VERDICT_METRIC, "Timestamp": now, "Value": 1.0, "Unit": "Count",
+             "Dimensions": [{"Name": "Verdict", "Value": verdict}]},
+            {"MetricName": CENSUS_HARDFAIL_METRIC, "Timestamp": now,
+             "Value": float(record["census_hard_fail"]), "Unit": "Count", "Dimensions": []},
+        ]
+        boto3.client("cloudwatch").put_metric_data(
+            Namespace=GATE_METRIC_NAMESPACE, MetricData=data)
+        print(f"  [metric] GateVerdict family={record['family']} verdict={verdict}; "
+              f"{CENSUS_HARDFAIL_METRIC}={record['census_hard_fail']} -> {GATE_METRIC_NAMESPACE}")
+    except Exception as e:  # noqa: BLE001 -- telemetry must never change a verdict
+        print(f"  [metric] WARN could not emit gate metrics ({type(e).__name__}: {str(e)[:160]}) "
+              f"-- the verdict above stands and is unaffected")
 
 
 def select_branch(table: str, *, silver_reg, pg_mirror=PG_MIRROR_TABLES) -> str:
@@ -970,6 +1072,10 @@ def main(argv=None) -> int:
         durable record, so swallowing it would trade one lost signal for another.
 
     `BaseException` (KeyboardInterrupt, SystemExit's non-Exception siblings) deliberately propagates."""
+    # D-PR-28 / G3-4: `_VERDICT_RECORD` is module state, so a second main() in the same process must
+    # not inherit the first one's verdict -- "empty means no verdict" has to hold per RUN, not per
+    # interpreter.
+    _VERDICT_RECORD.clear()
     try:
         return _main(argv)
     except SystemExit as e:  # argparse: 2 == usage, 0 == --help
@@ -984,6 +1090,12 @@ def main(argv=None) -> int:
               f"the gate CRASHED and produced NO VERDICT. This is exit {EXIT_INTERNAL}, not a refusal: "
               f"nothing was decided about the data and canonical was never touched.")
         return EXIT_INTERNAL
+    finally:
+        # D-PR-28 / G3-4: THE single emission point. `_VERDICT_RECORD` is empty on every path that
+        # produced no verdict (usage 64, crash 70, preflight 71, baseline 72), and
+        # `_emit_gate_metrics` returns immediately on an empty record -- so those paths emit nothing,
+        # deliberately. This `finally` never returns, so it cannot alter an exit code.
+        _emit_gate_metrics(_VERDICT_RECORD)
 
 
 def _main(argv=None) -> int:
@@ -1099,6 +1211,19 @@ def _main(argv=None) -> int:
                   + "; ".join(f"{s['name']}={s['detail']}" for s in reds))
             for s in reds:
                 _print_stage_errors("FAIL", r["table"], s)
+    # D-PR-28 / G3-4: record the verdict for main()'s single emission point. This is the ONLY place a
+    # verdict exists as a fact -- the exit code cannot carry PASS_WITH_DRIFT (it is exit 0 by design,
+    # D-PR-5), so the three-valued verdict is derived here from the bundle and handed to main(). PASS
+    # vs PASS_WITH_DRIFT is exactly `banner.global_drift`: the count of WARN stages, i.e. drift this
+    # family rode over that belongs to another family's gate table.
+    _VERDICT_RECORD.update({
+        "family": _gate_family(tables),
+        "verdict": (VERDICT_FAIL if bundle["verdict"] != "PASS"
+                    else (VERDICT_PASS_WITH_DRIFT if b["global_drift"] > 0 else VERDICT_PASS)),
+        "census_hard_fail": sum(
+            1 for r in bundle["results"] for s in r["stages"]
+            if s["name"] == "value_census" and s["status"] == RED),
+    })
     # D-PR-8: the ONLY path that may return EXIT_REFUSAL. Everything above this line is a fault in the
     # gate's own inputs or image and carries its own code, so exit 1 now means exactly one thing:
     # the gate RAN, evaluated the stages, and REFUSED. It is never retried.

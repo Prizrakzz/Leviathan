@@ -116,9 +116,17 @@ BURNED_TABLE_FRESHNESS: dict[str, tuple[str, int, str]] = {
 #                                   fires the same alarm after one day.
 # Value: (family, max_lag_days, basis-justification).
 ARTIFACT_FRESHNESS: dict[str, tuple[str, int, str]] = {
+    # D-SG G3 STEP 1 (2026-08-16): this basis string is byte-identical to the APPLIED tfvars row.
+    # Commit 835ccf31 hand-edited the GENERATED file, so every regeneration since silently reverted
+    # the applied text and test_emitted_tfvars_file_matches_current_registry has been red. Folding
+    # the text back here makes the generator the source of truth again -- no applied alarm attribute
+    # moves.
     "graphrag_timeline_episodes": (
         "graphrag_evidence", 10,
-        "weekly timeline rebuild (cron 0 3 ? * SUN *) + 3d grace; one missed run breaches",
+        "weekly rebuild schedule (cron 0 3 ? * SUN *, ENABLED 2026-08-05) + 3d grace; one missed "
+        "RUN breaches. The signal is the run HEARTBEAT (timeline/last_run.json, touched on every "
+        "successful run incl. UNCHANGED_SKIP weeks) -- schedule liveness, never content churn; "
+        "the artifact itself moves only on a content change (R7.1)",
     ),
 }
 

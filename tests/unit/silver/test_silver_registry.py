@@ -307,3 +307,30 @@ def test_structural_lint_flags_bad_floor_overrides():
         c["min_nonnull_frac_overrides"] = {vcs[0]: 0.25}
         assert not any("min_nonnull_frac_overrides" in p
                        for p in R._structural_lints(c, "x.yaml"))
+
+
+def test_structural_lint_flags_bad_season_overrides():
+    # D-SG G1-5: a mistyped column or an unparseable month window must be LOUD -- silently ignored,
+    # the season the declaration was written for would keep refusing and nothing would say why.
+    c = _minimal_contract()
+    vcs = c.get("value_columns") or []
+    c["min_nonnull_frac_season_overrides"] = {"not_a_value_column": {"1-9": 0.1}}
+    assert any("is not a value_column" in p for p in R._structural_lints(c, "x.yaml"))
+    if vcs:
+        c["min_nonnull_frac_season_overrides"] = {vcs[0]: {"1-13": 0.1}}
+        assert any("month range" in p for p in R._structural_lints(c, "x.yaml"))
+        c["min_nonnull_frac_season_overrides"] = {vcs[0]: {"1-9": 1.5}}
+        assert any("fraction in [0,1]" in p for p in R._structural_lints(c, "x.yaml"))
+        c["min_nonnull_frac_season_overrides"] = {vcs[0]: {}}
+        assert any("non-empty" in p for p in R._structural_lints(c, "x.yaml"))
+        # a wrapping window is legal (a season that crosses the new year).
+        c["min_nonnull_frac_season_overrides"] = {vcs[0]: {"11-3": 0.05}}
+        assert not any("min_nonnull_frac_season_overrides" in p
+                       for p in R._structural_lints(c, "x.yaml"))
+
+
+def test_schema_rejects_a_malformed_season_window():
+    # the schema's patternProperties are the other half of the fence (the lint is the readable half).
+    c = _minimal_contract()
+    c["min_nonnull_frac_season_overrides"] = {"pct_harvested": {"august": 0.1}}
+    assert R.validate_contract(c)

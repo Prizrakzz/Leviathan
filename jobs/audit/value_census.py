@@ -177,6 +177,13 @@ def census_one_table(contract: dict, *, per_group: int = 3, max_workers: int = 1
     value_columns = list(contract.get("value_columns") or [])
     min_frac = contract.get("min_nonnull_frac")
     floor_overrides = contract.get("min_nonnull_frac_overrides") or None
+    season_overrides = contract.get("min_nonnull_frac_season_overrides") or None
+    # D-SG G1-5: the season floor is a statement about WHEN this census ran, so the month comes
+    # from the census clock (the same clock that stamps generated_at), never from the data.
+    # KNOWN LIMIT (review m-4): a REPLAY with --asof in another month still gets the wall-clock
+    # month's floor -- census_one_table takes no asof today. In production asof ~= now, so this
+    # is cosmetic; plumb asof through before ever using replays to relitigate a season verdict.
+    as_of_month = datetime.now(timezone.utc).month
     knowledge_col = contract.get("knowledge_date_col")
     vintage = contract.get("vintage_retention")
     projection_domains = contract.get("projection_domains") or {}
@@ -215,7 +222,9 @@ def census_one_table(contract: dict, *, per_group: int = 3, max_workers: int = 1
             g_census[col] = census_column(fstats, col)
         label = g or "(flat)"
         for r in evaluate_gate(table, g_census, value_columns, min_frac,
-                               floor_overrides=floor_overrides):  # value checks only
+                               floor_overrides=floor_overrides,
+                               season_floor_overrides=season_overrides,
+                               as_of_month=as_of_month):  # value checks only
             per_group_rows.append(GateRow(r.table, r.column, r.kind, r.observed, r.threshold,
                                           f"[{label}] {r.detail}"))
         for r in evaluate_warnings(table, g_census, value_columns):
@@ -252,7 +261,11 @@ def census_one_table(contract: dict, *, per_group: int = 3, max_workers: int = 1
             f"min_nonnull_frac is provisional ({min_frac}); per-source calibration pending (OP-8/AV-11).",
         ] + ([f"min_nonnull_frac_overrides ACTIVE: {floor_overrides} (OP-8 user-gated per-column "
               "calibration; the gate compared these columns against their calibrated floors)"]
-             if floor_overrides else []),
+             if floor_overrides else [])
+          + ([f"min_nonnull_frac_season_overrides ACTIVE for census month {as_of_month:02d}: "
+              f"{season_overrides} (D-SG G1-5 calendar-structural columns; the month's window "
+              "floor replaced the per-column floor where one is declared)"]
+             if season_overrides else []),
     )
     # Fold per-group value rows + vintage rows into the result's gate/warn lists (waived vintage
     # rows land in WARN, and the artifact carries the waiver object itself).
