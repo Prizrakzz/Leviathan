@@ -27,6 +27,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 
 from leviathan.common.config import get_required_env, load_env
+from leviathan.common.ingest_fence import bronze_is_current
 from leviathan.common.logging import get_logger
 from leviathan.storage.paths import bronze_pink_sheet_key, parse_hive_key
 from leviathan.storage.s3 import (
@@ -40,14 +41,6 @@ logger = get_logger("pink_sheet_task")
 
 _RAW_PREFIX = "raw/production/source=world_bank_pink_sheet/"
 _WORKERS = 6
-
-
-def _bronze_exists(s3_client, bucket: str, key: str) -> bool:
-    try:
-        s3_client.head_object(Bucket=bucket, Key=key)
-        return True
-    except Exception:  # noqa: BLE001
-        return False
 
 
 def _process(
@@ -64,7 +57,12 @@ def _process(
 
     b_key = bronze_pink_sheet_key(release_ym)
 
-    if not force_overwrite and _bronze_exists(s3, bucket, b_key):
+    # D-SG G2-1: skip only when bronze is NOT STALE, never on bare existence.
+    # This family's own measured shape: the 08-04 fire re-downloaded release
+    # 2026M07 into the same key and bronze skipped on existence ("raw_keys=2
+    # written=0 skipped=2", exit 0). The class evidence lives at
+    # leviathan.common.ingest_fence.bronze_is_current.
+    if not force_overwrite and bronze_is_current(s3, bucket, raw_key, b_key):
         return "skipped", raw_key
 
     try:

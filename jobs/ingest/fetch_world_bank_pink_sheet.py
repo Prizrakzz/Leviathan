@@ -57,6 +57,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from leviathan.common.config import get_required_env, load_env
+from leviathan.common.dates import coerce_date
 from leviathan.common.logging import get_logger
 from leviathan.storage.paths import raw_pink_sheet_key
 from leviathan.storage.raw_metadata import check_min_file_size, write_raw_s3_metadata
@@ -246,6 +247,29 @@ def main() -> None:
         help="Skip the download if the S3 key already exists (safe for re-runs).",
     )
     parser.add_argument(
+        "--asof",
+        default=None,
+        help="Scheduled-time ISO the release-recency fence measures against. Default: today (UTC).",
+    )
+    parser.add_argument(
+        "--max-release-lag-months",
+        type=int,
+        default=1,
+        dest="max_release_lag_months",
+        help=(
+            "Advance fence: fail if the release discovered on the WB page is more than this "
+            "many calendar months behind --asof. Default 1 (the WB publishes monthly, around "
+            "the first Tuesday; a fire on the 4th legitimately sees month-1, never month-2)."
+        ),
+    )
+    parser.add_argument(
+        "--no-advance-fence",
+        dest="advance_fence",
+        action="store_false",
+        default=True,
+        help="Disable the D-SG G2-1 release-recency fence (deliberate historical reruns only).",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Discover the URL and print the S3 key without downloading anything.",
@@ -281,6 +305,32 @@ def main() -> None:
             )
 
     s3_key = raw_pink_sheet_key(release_ym, filename)
+
+    # ---- D-SG G2-1(c) RELEASE-RECENCY FENCE ---------------------------------
+    # The release label is whatever CMO-Pink-Sheet-<Month>-<Year>.pdf href the page
+    # happens to show at fire time. The schedule fires on the 4th; the WB publishes
+    # "around the first Tuesday" -- so in any month where the WB posts later, this
+    # job re-downloads the PRIOR month's workbook into the SAME release= key, bronze
+    # skips it, and the whole chain exits 0 having landed nothing. On 2026-08-04 that
+    # produced release=2026M07 (a legal month-1) with raw/bronze still holding only
+    # {2026M05, 2026M07}. A month-2 lag is NOT legal and must go red.
+    if args.advance_fence:
+        _asof = coerce_date(args.asof)
+        _rel_year, _rel_month = int(release_ym[:4]), int(release_ym[5:7])
+        _lag = (_asof.year - _rel_year) * 12 + (_asof.month - _rel_month)
+        if _lag > args.max_release_lag_months:
+            raise SystemExit(
+                f"ZERO-ADVANCE: the World Bank commodity-markets page still advertises "
+                f"release {release_ym}, which is {_lag} calendar months behind asof "
+                f"{_asof.isoformat()} (limit {args.max_release_lag_months}). Either the WB "
+                "has stopped publishing, or the page structure moved and _PDF_DATE_RE is "
+                "matching a stale/archive href. This fire would have re-downloaded an "
+                "already-held release and exited 0."
+            )
+        logger.info(
+            "release-recency fence OK: release=%s, lag=%d month(s) behind asof=%s",
+            release_ym, _lag, _asof.isoformat(),
+        )
 
     # ------------------------------------------------------------------
     # Dry run

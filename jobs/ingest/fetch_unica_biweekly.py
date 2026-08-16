@@ -44,6 +44,9 @@ from typing import Any
 import yaml
 
 from leviathan.common.config import get_required_env, load_env
+from leviathan.common.dates import coerce_date as _coerce_date_lib
+from leviathan.common.dates import current_harvest_season as _current_harvest_season_lib
+from leviathan.common.dates import season_start_date as _season_start_date_lib
 from leviathan.common.logging import get_logger
 from leviathan.storage.paths import unica_biweekly_raw_key
 from leviathan.storage.raw_metadata import write_raw_s3_metadata
@@ -83,18 +86,8 @@ _PLAYWRIGHT_TIMEOUT_MS = 60_000
 # ---------------------------------------------------------------------------
 
 def _coerce_date(as_of: "str | _dt.date | _dt.datetime | None") -> _dt.date:
-    if as_of is None:
-        return _dt.date.today()
-    if isinstance(as_of, _dt.datetime):
-        return as_of.date()
-    if isinstance(as_of, _dt.date):
-        return as_of
-    s = str(as_of).strip().replace("Z", "").replace("z", "")
-    # tolerate a bare date, a full ISO timestamp, or a trailing offset
-    try:
-        return _dt.datetime.fromisoformat(s).date()
-    except ValueError:
-        return _dt.date.fromisoformat(s[:10])
+    """Delegates to leviathan.common.dates.coerce_date (the single definition of record)."""
+    return _coerce_date_lib(as_of)
 
 
 def current_harvest_season(as_of: "str | _dt.date | _dt.datetime | None" = None) -> str:
@@ -111,9 +104,7 @@ def current_harvest_season(as_of: "str | _dt.date | _dt.datetime | None" = None)
     Examples: Jul 2026 -> ``2026/2027``; Dec 2026 -> ``2026/2027``; Feb 2027 -> ``2026/2027``;
     Apr 2027 -> ``2027/2028``.
     """
-    d = _coerce_date(as_of)
-    start = d.year if d.month >= 4 else d.year - 1
-    return f"{start}/{start + 1}"
+    return _current_harvest_season_lib(as_of)
 
 
 # ---------------------------------------------------------------------------
@@ -181,18 +172,43 @@ def _is_pruned_source(exc: Exception) -> bool:
     return isinstance(exc, _PrunedSourceError)
 
 
-def _exit_reason(uploaded: int, skipped: int, errors: int, missing: int) -> str | None:
+def _exit_reason(
+    uploaded: int,
+    skipped: int,
+    errors: int,
+    missing: int,
+    *,
+    season: str | None = None,
+    season_targets: int | None = None,
+    as_of: "str | _dt.date | _dt.datetime | None" = None,
+    season_grace_days: int = 45,
+) -> str | None:
     """Return a SystemExit message if the run should fail, else ``None``.
 
     Any non-pruned failure fails the run.  A run that uploaded nothing, skipped
-    nothing, and saw only pruned links means every discovered bulletin is dead
-    — fail rather than exit green with no signal.  Mirrors
+    nothing, and saw only pruned links means every discovered bulletin is dead --
+    fail rather than exit green with no signal.  Mirrors
     ``fetch_sagis_cec._exit_reason``.
+
+    D-SG G2-1(a-iii) ZERO-ADVANCE FENCE: when the run is season-scoped
+    (``season`` set), a fully open season that holds ZERO target bulletins is not
+    a quiet fortnight -- it is discovery yielding nothing, which is exactly the
+    state that ran green from 2026-06-03 to 2026-08-12. Quiet fortnights stay
+    green because they show ``skipped > 0`` (bulletins already in S3).
     """
     if errors:
         return f"{errors} bulletin(s) failed - see logs above."
     if uploaded == 0 and skipped == 0 and missing > 0:
         return f"No bulletins uploaded and {missing} link(s) pruned/missing - source may be dead."
+    if season and season_targets == 0:
+        open_days = (_coerce_date_lib(as_of) - _season_start_date_lib(season)).days
+        if open_days > season_grace_days:
+            return (
+                f"ZERO-ADVANCE: harvest season {season} has been open {open_days} days "
+                f"(grace {season_grace_days}) and the manifest holds ZERO bulletins for it. "
+                "Discovery is yielding nothing -- check the UNICADATA listing page shape "
+                "and the manifest's harvest_year labels."
+            )
     return None
 
 
@@ -366,7 +382,11 @@ async def _extract_current_bulletin(
     # calendar year in which the bulk of the cane is crushed (i.e. the start year).
     #   April–November → season starting in April of that year  e.g. 2024/04 → 2024/2025
     #   December–March  → tail / early of prior-start-year season e.g. 2024/12 → 2024/2025
-    if year is None and published_ym:
+    # D-SG G2-1(a-iii): the published month is EVIDENCE; the caller's loop year is a
+    # REQUEST. Deriving only when `year is None` is how idm=32820684 (published 2026/04,
+    # i.e. season 2026/2027) got written into the manifest as harvest_year "2025/2026",
+    # which made every season-scoped fetch of 2026/2027 match zero rows and exit 0.
+    if published_ym:
         pub_year = int(published_ym[:4])
         pub_month = int(published_ym[5:7])
         # Bulletins published Jan–March close out the season that started ~18 months prior.
@@ -452,7 +472,10 @@ async def _extract_all_bulletins(
         "Playwright: found %d download_media.php links for year=%s",
         len(dl_links), year,
     )
-    if len(dl_links) > 1:
+    # The portal now renders exactly ONE download_media.php link (08-12 fire log:
+    # "found 1 download_media.php links"). ">1" sent that case to Strategy C, which
+    # needs an iframe.iframe-doc and returns None without one.
+    if len(dl_links) >= 1:
         # Get the current iframe src to pair with the first link.
         iframe_src = ""
         try:
@@ -626,6 +649,7 @@ def main() -> None:
     # -----------------------------------------------------------------------
     sources = _load_sources()
     all_harvest_years: list[str] = [str(y) for y in sources.get("harvest_years", [])]
+    season: str | None = None
     if args.current_season:
         season = current_harvest_season(args.asof)
         target_years: list[str] = [season]
@@ -788,7 +812,13 @@ def main() -> None:
         errors,
     )
     reason = _exit_reason(
-        uploaded=uploaded, skipped=skipped, errors=errors, missing=missing
+        uploaded=uploaded,
+        skipped=skipped,
+        errors=errors,
+        missing=missing,
+        season=(season if args.current_season else None),
+        season_targets=len(target_bulletins),
+        as_of=args.asof,
     )
     if reason:
         raise SystemExit(reason)

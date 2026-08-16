@@ -27,6 +27,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 
 from leviathan.common.config import get_required_env, load_env
+from leviathan.common.ingest_fence import bronze_is_current
 from leviathan.common.logging import get_logger
 from leviathan.storage.paths import bronze_unica_key, parse_hive_key
 from leviathan.storage.s3 import (
@@ -40,14 +41,6 @@ logger = get_logger("unica_task")
 
 _RAW_PREFIX = "raw/production/source=unica/"
 _WORKERS = 4
-
-
-def _bronze_exists(s3_client, bucket: str, key: str) -> bool:
-    try:
-        s3_client.head_object(Bucket=bucket, Key=key)
-        return True
-    except Exception:  # noqa: BLE001
-        return False
 
 
 def _process(
@@ -65,7 +58,13 @@ def _process(
 
     b_key = bronze_unica_key(harvest_year)
 
-    if not force_overwrite and _bronze_exists(s3, bucket, b_key):
+    # D-SG G2-1: skip only when bronze is NOT STALE, never on bare existence.
+    # This family's own measured shape: the annual leg re-uploaded the same 41
+    # raw HTML keys every Wednesday and bronze skipped them all on existence
+    # ("written=0 skipped=41", exit 0) while bronze/silver sat frozen at
+    # 2026-06-03. The class evidence lives at
+    # leviathan.common.ingest_fence.bronze_is_current.
+    if not force_overwrite and bronze_is_current(s3, bucket, raw_key, b_key):
         return "skipped", raw_key
 
     try:

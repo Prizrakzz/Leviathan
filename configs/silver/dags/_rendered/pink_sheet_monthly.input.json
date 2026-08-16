@@ -38,7 +38,10 @@
       "tasks": [
         {
           "command": [
-            "jobs/ingest/fetch_world_bank_pink_sheet.py"
+            "jobs/ingest/fetch_world_bank_pink_sheet.py",
+            "--skip-existing-s3",
+            "--asof",
+            "<aws.scheduler.scheduled-time>"
           ],
           "env": [],
           "integration": "batch",

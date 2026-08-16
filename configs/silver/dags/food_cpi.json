@@ -2,7 +2,7 @@
   "schedule": "food_cpi",
   "family": "world_bank",
   "wave": 2,
-  "cron": "cron(0 16 4 * ? *)",
+  "cron": "cron(0 16 8 * ? *)",
   "publish_class": "B->A(W4)",
   "retrofit_required": true,
   "retrofit_landed": false,
@@ -60,5 +60,5 @@
       ]
     }
   ],
-  "notes": "Full series in one run. CLASS-B latest-only (no bronze step); split from pink_sheet under the one world_bank catalog family; held DISABLED until the A-W4 retrofit."
+  "notes": "Full series in one run. CLASS-B latest-only (no bronze step); split from pink_sheet under the one world_bank catalog family; held DISABLED until the A-W4 retrofit. D-SG owner decision D23 (2026-08-16): the cron moved from the 4th to the 8th ALONGSIDE pink_sheet_monthly, which it shares a fire minute with. The move is pink_sheet's -- the WB posts 'around the first Tuesday' and a fire on the 4th can precede it -- and food_cpi rides it so the two schedules keep the collision profile they already had rather than splitting into two separate first-week fires. NOT FIXED HERE and recorded so it is not lost: this descriptor's silver leg is a BARE command and food_cpi_task.py:221 defaults --publish-mode to dry-run, the same silent-no-op class as fgis (fixed 07-23) and unica biweekly (fixed by D-SG G2-1(a-iv)). food_cpi is outside the G2-1 slice; it needs the same explicit --publish-mode shadow before its schedule can write anything."
 }

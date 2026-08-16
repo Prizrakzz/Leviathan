@@ -240,7 +240,12 @@ bulletins:
     pdf_url: 'https://unicadata.com.br/arquivos/pdfs/2024/10/e655a8379f17981e6d3b0dc92be51406.pdf'
     download_url: null
 
-  - harvest_year: "2025/2026"
+  # published_ym 2026/04 is the FIRST fortnight of season 2026/2027, not 2025/2026.
+  # The mislabel came from _extract_current_bulletin deriving the season only when the
+  # caller passed year=None; it made every season-scoped fetch of 2026/2027 match zero
+  # manifest rows and exit 0 (D-SG G2-1(a-iii)). The raw S3 object is still under
+  # harvest_year=2025_2026 -- moving it is owner decision D22, not this edit.
+  - harvest_year: "2026/2027"
     idm: "32820684"
     bulletin_num: None
     published_ym: "2026/04"

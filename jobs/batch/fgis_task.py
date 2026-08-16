@@ -43,6 +43,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 
 from leviathan.common.config import get_required_env, load_env
+from leviathan.common.ingest_fence import bronze_is_current
 from leviathan.common.logging import get_logger
 from leviathan.storage.paths import bronze_fgis_key, parse_hive_key
 from leviathan.storage.s3 import (
@@ -56,14 +57,6 @@ logger = get_logger("fgis_task")
 
 _RAW_PREFIX = "raw/production/source=usda_fgis_export_inspections/"
 _WORKERS = 8
-
-
-def _bronze_exists(s3_client, bucket: str, key: str) -> bool:
-    try:
-        s3_client.head_object(Bucket=bucket, Key=key)
-        return True
-    except Exception:  # noqa: BLE001
-        return False
 
 
 def _year_from_key(raw_key: str) -> int | None:
@@ -115,7 +108,11 @@ def _process(
     s3 = get_thread_local_s3_client(aws_region)
     b_key = bronze_fgis_key(year)
 
-    if not force_overwrite and _bronze_exists(s3, bucket, b_key):
+    # D-SG G2-1: skip only when bronze is NOT STALE. Existence alone let four
+    # consecutive fresh raw snapshots be selected and discarded while the job
+    # exited 0 (fgis bronze year=2026 frozen at 2026-07-17T07:22:53Z against
+    # raw as_of=20260723/0730/0806/0813).
+    if not force_overwrite and bronze_is_current(s3, bucket, raw_key, b_key):
         return "skipped", raw_key
 
     try:
@@ -165,6 +162,23 @@ def main() -> None:
         default=0,
         help="Cap number of years processed (0 = all)",
     )
+    parser.add_argument(
+        "--max-raw-age-days",
+        type=int,
+        default=8,
+        dest="max_raw_age_days",
+        help=(
+            "Advance fence: fail if the newest raw as_of snapshot for the CURRENT calendar "
+            "year is older than this (weekly cadence + 1 day of slack). Default 8."
+        ),
+    )
+    parser.add_argument(
+        "--no-advance-fence",
+        dest="advance_fence",
+        action="store_false",
+        default=True,
+        help="Disable the D-SG G2-1 advance fence (deliberate historical-only reruns only).",
+    )
     args = parser.parse_args()
 
     bucket = args.bucket or get_required_env("LEVIATHAN_BUCKET")
@@ -186,6 +200,7 @@ def main() -> None:
     ingest_date = datetime.now(timezone.utc).date().isoformat()
     start = datetime.now(timezone.utc)
     written = skipped = errors = 0
+    written_years: set[int] = set()
 
     with ThreadPoolExecutor(max_workers=_WORKERS) as pool:
         futures = {
@@ -196,6 +211,7 @@ def main() -> None:
             for year in years
         }
         for fut in as_completed(futures):
+            fut_year = futures[fut]
             try:
                 status, _ = fut.result()
             except Exception as exc:  # noqa: BLE001
@@ -204,6 +220,7 @@ def main() -> None:
                 continue
             if status == "written":
                 written += 1
+                written_years.add(fut_year)
             elif status == "skipped":
                 skipped += 1
             else:
@@ -217,6 +234,66 @@ def main() -> None:
 
     if errors:
         sys.exit(1)
+
+    # ---- D-SG G2-1(b) ZERO-ADVANCE FENCE -------------------------------------
+    # FGIS is a WEEKLY CUMULATIVE source: every Thursday fetch stages a new
+    # year={CY}/as_of={YYYYMMDD}/CY{CY}.csv that contains rows the prior one did
+    # not, so a healthy fire MUST rebuild the current CY. Between 2026-07-17 and
+    # 2026-08-13 four consecutive fires staged fresh raw and rebuilt nothing while
+    # exiting 0. Two stateless assertions: (1) the fetch leg is alive, (2) the
+    # bronze leg consumed it.
+    # --limit is a deliberately partial run (the module's own smoke test), so it
+    # cannot assert anything about the current CY: the fence stands down for it.
+    if args.advance_fence and not args.limit:
+        current_cy = datetime.now(timezone.utc).year
+        if current_cy not in year_key_map:
+            logger.error(
+                "ADVANCE FENCE: no raw CSV for the current calendar year %d under "
+                "s3://%s/%s -- the weekly fetch leg is dead.",
+                current_cy, bucket, _RAW_PREFIX,
+            )
+            sys.exit(1)
+        current_key = year_key_map[current_cy]
+        as_of = parse_hive_key(current_key, "as_of")
+        if not as_of:
+            logger.error(
+                "ADVANCE FENCE: newest raw key for CY%d has no as_of= partition (%s) -- "
+                "only the static backfill is present; the weekly fetch never ran.",
+                current_cy, current_key,
+            )
+            sys.exit(1)
+        age_days = (
+            datetime.now(timezone.utc).date()
+            - datetime.strptime(as_of, "%Y%m%d").date()
+        ).days
+        if age_days > args.max_raw_age_days:
+            logger.error(
+                "ADVANCE FENCE: newest CY%d raw snapshot as_of=%s is %d days old "
+                "(limit %d) -- the weekly FGIS fetch has stopped landing snapshots.",
+                current_cy, as_of, age_days, args.max_raw_age_days,
+            )
+            sys.exit(1)
+        # Assert the STATE, not the event: "bronze consumed the newest raw" is true either
+        # because this run rebuilt it (written_years) or because a prior run already did
+        # (bronze_is_current). Asserting the event alone reds every idempotent re-run --
+        # an operator refire, an SFN re-execution, a second fire in the same week -- and a
+        # <family>-sched-* FAILED execution voids the G5 streak on a routine action.
+        if current_cy not in written_years and not bronze_is_current(
+            get_thread_local_s3_client(aws_region), bucket, current_key,
+            bronze_fgis_key(current_cy),
+        ):
+            logger.error(
+                "ADVANCE FENCE: CY%d bronze is OLDER than raw as_of=%s (%d days old) and was "
+                "NOT rebuilt this run (written=%d skipped=%d). A fresh cumulative snapshot "
+                "was selected and discarded -- the D-SG G2-1 silent no-op.",
+                current_cy, as_of, age_days, written, skipped,
+            )
+            sys.exit(1)
+        logger.info(
+            "ADVANCE FENCE OK: CY%d bronze current against as_of=%s (%d days old; rebuilt "
+            "this run: %s).",
+            current_cy, as_of, age_days, current_cy in written_years,
+        )
 
 
 if __name__ == "__main__":

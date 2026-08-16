@@ -2,7 +2,7 @@
   "schedule": "pink_sheet_monthly",
   "family": "world_bank",
   "wave": 1,
-  "cron": "cron(0 16 4 * ? *)",
+  "cron": "cron(0 16 8 * ? *)",
   "publish_class": "A",
   "retrofit_required": false,
   "retrofit_landed": true,
@@ -34,7 +34,10 @@
           "jobdef": "leviathan-dev-b3-flat-silver",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
-            "jobs/ingest/fetch_world_bank_pink_sheet.py"
+            "jobs/ingest/fetch_world_bank_pink_sheet.py",
+            "--skip-existing-s3",
+            "--asof",
+            "<aws.scheduler.scheduled-time>"
           ],
           "env": {},
           "publishes": false
@@ -77,5 +80,5 @@
       ]
     }
   ],
-  "notes": "World Bank one-DAG-two-commodities SPLIT into pink_sheet (Wave 1) and food_cpi (Wave 2) under the one world_bank catalog family; full workbook self-heals. Bronze is a named 36-col jobdef."
+  "notes": "World Bank one-DAG-two-commodities SPLIT into pink_sheet (Wave 1) and food_cpi (Wave 2) under the one world_bank catalog family; full workbook self-heals. Bronze is a named 36-col jobdef. D-SG G2-1(c) 2026-08-16, owner decision D23: the cron moved from the 4th to the 8th. The WB publishes 'around the first Tuesday' (fetch_world_bank_pink_sheet.py header, latest possible the 7th), so a fire on the 4th re-downloaded the PRIOR month's workbook into the SAME release= key, bronze skipped it, and the chain exited 0 having landed nothing -- the 2026-08-04 fire is the measured case (release=2026M07, a legal month-1). The 8th removes the cause; the fetch's new release-recency fence detects it if the WB slips further. food_cpi moves to the same new cron -- the two already shared cron(0 16 4 * ? *), so the collision profile is unchanged. The fetch leg also regained --skip-existing-s3 (store_true, default False, so a bare command OVERWROTE the same release key every fire) and --asof, which the fence measures the discovered release against."
 }

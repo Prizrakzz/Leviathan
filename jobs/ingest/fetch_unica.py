@@ -35,6 +35,7 @@ from pathlib import Path
 import yaml
 
 from leviathan.common.config import get_required_env, load_env
+from leviathan.common.dates import current_harvest_season, harvest_seasons_through
 from leviathan.common.logging import get_logger
 from leviathan.storage.paths import unica_raw_key
 from leviathan.storage.raw_metadata import write_raw_s3_metadata
@@ -129,6 +130,21 @@ def main() -> None:
         ),
     )
     parser.add_argument(
+        "--through-current-season",
+        action="store_true",
+        help=(
+            "Extend the manifest's harvest_years forward to the CURRENT open season derived "
+            "from --asof, so the annual leg never freezes on a static list again. "
+            "D-SG G2-1(a-i): configs/sources/unica_sources.yaml ended at 2020/2021, so five "
+            "closed seasons and the open one were never fetched while the job exited 0."
+        ),
+    )
+    parser.add_argument(
+        "--asof",
+        default=None,
+        help="Scheduled-time ISO used to derive the current harvest season. Default: today (UTC).",
+    )
+    parser.add_argument(
         "--skip-existing-s3",
         action="store_true",
         help="Skip harvest years whose S3 key already exists (safe for re-runs).",
@@ -152,7 +168,26 @@ def main() -> None:
     manifest_data = yaml.safe_load(_MANIFEST_PATH.read_text(encoding="utf-8"))
     all_harvest_years: list[str] = [str(y) for y in manifest_data["harvest_years"]]
 
-    harvest_years = args.harvest_years if args.harvest_years else all_harvest_years
+    season_now = current_harvest_season(args.asof)
+    if args.harvest_years:
+        harvest_years = args.harvest_years
+    elif args.through_current_season:
+        harvest_years = harvest_seasons_through(all_harvest_years[0], args.asof)
+        added = [y for y in harvest_years if y not in all_harvest_years]
+        logger.info(
+            "through-current-season: manifest ends at %s, current season is %s, "
+            "extending by %d season(s): %s",
+            all_harvest_years[-1], season_now, len(added), added,
+        )
+    else:
+        harvest_years = all_harvest_years
+        if season_now not in harvest_years:
+            raise SystemExit(
+                f"MANIFEST STALE: current harvest season {season_now} is absent from "
+                f"{_MANIFEST_PATH.name} (which ends at {all_harvest_years[-1]}). This fetch "
+                "would re-download only closed seasons and exit 0 -- the D-SG G2-1(a-i) "
+                "silent no-op. Pass --through-current-season, or extend harvest_years."
+            )
     logger.info(
         "Loaded %d harvest years from manifest %s",
         len(all_harvest_years),
@@ -221,6 +256,12 @@ def main() -> None:
     )
     if errors:
         raise SystemExit(1)
+    if uploaded == 0:
+        raise SystemExit(
+            f"ZERO-ADVANCE: {len(harvest_years)} harvest year(s) targeted and NOTHING was "
+            "uploaded. This fetcher re-writes every target key on every run, so uploaded=0 "
+            "means the target list was empty or every request was skipped -- never a healthy run."
+        )
 
 
 if __name__ == "__main__":

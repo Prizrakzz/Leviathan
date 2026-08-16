@@ -15,6 +15,17 @@
 # NOTE: The Per-Harvest view (idMn=32, tipoHistorico=4) exposes data for
 # 1980/1981–2020/2021 (41 harvest years, verified May 2026).  Years 2021/2022
 # and later return empty tables on this endpoint; use unica_biweekly instead.
+#
+# D-SG G2-1(a-i), 2026-08-16: this list is the FLOOR, no longer the whole target.
+# fetch_unica.py --through-current-season extends it to the current open season, and a
+# bare run now refuses when the current season is absent from this file rather than
+# re-downloading 41 closed seasons and exiting 0.  The "2021/2022 and later return empty
+# tables" claim above was VERIFIED IN MAY 2026 AND HAS NOT BEEN RE-TESTED SINCE -- the
+# extension is self-validating either way (_fetch_harvest_year raises when the response
+# carries no <table>, and a run that uploads nothing now exits non-zero), so the first
+# scheduled fire IS the probe.  If those seasons are genuinely still empty, the schedule
+# goes RED weekly by design: extend this list to the seasons the portal really serves, or
+# drop --through-current-season from the descriptor -- do not restore the silent no-op.
 
 source: unica
 # idMn=32 → Production and Milling / Per Harvest (tipoHistorico=4)
