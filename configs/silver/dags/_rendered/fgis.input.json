@@ -1,6 +1,6 @@
 {
   "asof": "<aws.scheduler.scheduled-time>",
-  "auth_mode": "hmac",
+  "auth_mode": "kms",
   "family": "usda_fgis",
   "gate": {
     "command": [
@@ -54,6 +54,8 @@
         {
           "command": [
             "jobs/batch/fgis_silver_task.py",
+            "--force-overwrite",
+            "true",
             "--publish-mode",
             "shadow"
           ],
@@ -66,7 +68,30 @@
     }
   },
   "promote": {
-    "mode": "stop_and_notify",
-    "tasks": []
+    "mode": "autonomous",
+    "tasks": [
+      {
+        "command": [
+          "jobs/batch/fgis_silver_task.py",
+          "--force-overwrite",
+          "true",
+          "--publish-mode",
+          "canonical"
+        ],
+        "env": [
+          {
+            "Name": "LEVIATHAN_APPROVAL_MODE",
+            "Value": "kms"
+          },
+          {
+            "Name": "LEVIATHAN_KMS_KEY_ID",
+            "Value": "alias/leviathan-dev-publish-signer"
+          }
+        ],
+        "integration": "batch",
+        "jobdef": "leviathan-dev-fgis-silver",
+        "queue": "leviathan-dev-queue-ondemand"
+      }
+    ]
   }
 }

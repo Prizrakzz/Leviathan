@@ -2639,7 +2639,13 @@ resource "aws_batch_job_definition" "fgis_silver" {
     ]
 
     executionRoleArn = var.batch_execution_role_arn
-    jobRoleArn       = var.batch_job_role_arn
+    # D-SG G2-2 / T2 arming (2026-08-16): this jobdef is fgis's promote_jobdef
+    # (self-promotion, forced by test_digest_pinned_producers_must_self_promote --
+    # fgis-silver rides local.worker_fleet_image, a digest pin). An autonomous promote
+    # signs a KMS approval, and kms:Sign lives ONLY on the SILVER-F014 silver-publisher
+    # role -- batch_job_role would AccessDeny on the FIRST unattended canonical write.
+    # Same choice, same reason, as futures_eod_silver and modis_ndvi_bronze_to_silver.
+    jobRoleArn       = var.silver_publisher_job_role_arn
 
     networkConfiguration = {
       assignPublicIp = "ENABLED"

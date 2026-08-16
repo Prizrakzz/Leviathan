@@ -1,13 +1,13 @@
 {
   "schedule": "fgis",
   "family": "usda_fgis",
-  "wave": 2,
+  "wave": 3,
   "cron": "cron(0 12 ? * THU *)",
   "publish_class": "B->A(W4)",
   "retrofit_required": true,
-  "retrofit_landed": false,
-  "promote_mode": "stop_and_notify",
-  "auth_mode": "hmac",
+  "retrofit_landed": true,
+  "promote_mode": "autonomous",
+  "auth_mode": "kms",
   "skip_existing": false,
   "asof": "<aws.scheduler.scheduled-time>",
   "gate_tables": [
@@ -71,15 +71,17 @@
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/batch/fgis_silver_task.py",
-            "--publish-mode",
-            "shadow"
+            "--force-overwrite",
+            "true"
           ],
           "env": {},
           "publishes": true,
-          "publish_mode": "latest_only"
+          "publish_mode": "shadow_canonical"
         }
       ]
     }
   ],
-  "notes": "ONE weekly run self-heals (cumulative CY{year}.csv) -- NOT a large-first-run. Named bronze+silver jobdefs. A-W4 CLASS-B RETROFIT ARMED 2026-07-23 (leviathan-e4-wt lane): silver fgis_silver_task.py now ships --publish-mode shadow. RCA it fixes: a BARE command defaults to --publish-mode dry-run and writes NOTHING (canonical frozen at the 2026-05-31 bulk backfill; fresh raw CY2026.csv staged 2026-07-17 sat unconsumed). promote.tasks stays EMPTY (shadow-only soak) -- the SFN [Promote] Map runs promote.tasks on a GREEN gate REGARDLESS of promote_mode (the state machine has NO mode Choice), so a populated promote WOULD arm autonomous canonical; canonical promotion instead runs via the main loop's KMS-signed manual legs (LEVIATHAN_APPROVAL_MODE=kms + LEVIATHAN_KMS_KEY_ID=alias/leviathan-dev-publish-signer). retrofit_landed stays FALSE deliberately: test_wave2_is_exactly_the_classb_set binds fgis to the retrofit_required-and-not-landed Wave-2 set, and the flip to autonomous is the user's one-word call (mirrors the futures_prices interim shape). A manual day-0 catch-up (fetch->bronze->silver-shadow->gate->canonical) must refresh the frozen canonical before the Thursday schedule maintains it. The dag_schedules.auto.tfvars.json fgis entry is ENABLED (the earlier 'held DISABLED until A-W4' note was stale)."
+  "notes": "ONE weekly run self-heals (cumulative CY{year}.csv) -- NOT a large-first-run. Named bronze+silver jobdefs. A-W4 CLASS-B RETROFIT ARMED 2026-07-23 (leviathan-e4-wt lane): silver fgis_silver_task.py now ships --publish-mode shadow. RCA it fixes: a BARE command defaults to --publish-mode dry-run and writes NOTHING (canonical frozen at the 2026-05-31 bulk backfill; fresh raw CY2026.csv staged 2026-07-17 sat unconsumed). promote.tasks stays EMPTY (shadow-only soak) -- the SFN [Promote] Map runs promote.tasks on a GREEN gate REGARDLESS of promote_mode (the state machine has NO mode Choice), so a populated promote WOULD arm autonomous canonical; canonical promotion instead runs via the main loop's KMS-signed manual legs (LEVIATHAN_APPROVAL_MODE=kms + LEVIATHAN_KMS_KEY_ID=alias/leviathan-dev-publish-signer). retrofit_landed stays FALSE deliberately: test_wave2_is_exactly_the_classb_set binds fgis to the retrofit_required-and-not-landed Wave-2 set, and the flip to autonomous is the user's one-word call (mirrors the futures_prices interim shape). A manual day-0 catch-up (fetch->bronze->silver-shadow->gate->canonical) must refresh the frozen canonical before the Thursday schedule maintains it. The dag_schedules.auto.tfvars.json fgis entry is ENABLED (the earlier 'held DISABLED until A-W4' note was stale). | 2026-08-16 (D-SG G2-2 / T2, owner-ratified): promote ARMED -- stop_and_notify -> autonomous, wave 2->3, retrofit_landed true, auth_mode hmac->kms; publish_mode latest_only -> shadow_canonical, so the renderer supplies --publish-mode (the explicit shadow flag is REMOVED from the command -- keeping it would render the flag twice, the unica-annual lesson); --force-overwrite true (value-typed parser) so weekly canonical promotes refresh EXISTING marketing_year partitions (the nass 08-08 lesson). promote_jobdef = self (fgis-silver is digest-pinned via local.worker_fleet_image; the shared runner would promote a shadow built by a different image class) -- the jobRoleArn move to silver-publisher rides the SAME change. Preconditions held before arming: G2-1 RCA closed (bronze rebuilt from the 5-week raw backlog), full manual chain green through the gate TODAY (fgis-manual-dsg-se 2026-08-16 07:42Z SUCCEEDED; shadow advanced 07:46Z, canonical frozen 2026-05-31 = the promote gap this arms shut).",
+  "promote_jobdef": "leviathan-dev-fgis-silver",
+  "promote_jobdef_note": "SELF-PROMOTION, same class + same proof as futures_eod and modis_biweekly: fgis-silver rides the digest-pinned local.worker_fleet_image, so a promote on the shared floating runner would re-derive silver with a DIFFERENT build than the shadow it promotes (test_digest_pinned_producers_must_self_promote forces this the moment the pin exists). jobRoleArn=silver-publisher moved in the same change (kms:Sign)."
 }

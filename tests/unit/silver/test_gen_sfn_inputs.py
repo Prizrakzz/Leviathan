@@ -944,15 +944,15 @@ def test_wave2_is_exactly_the_classb_set(descriptors):
     # nass_crop_progress LANDED the same day (both silver legs armed with the value-typed
     # --force-overwrite true; annual's latest_only dry-run had produced ZERO shadow objects
     # ever). Same 4-part package, same rule.
-    # D-SG T2 (2026-08-16, owner-ratified): modis_biweekly LANDED its A-W4 retrofit and armed
-    # promote -- the same 4-part package (retrofit_landed, wave, promote_mode+auth_mode, this
-    # literal) plus the prerequisite jobRoleArn move on leviathan-dev-modis-ndvi-bronze-to-silver
-    # without which the unattended canonical promote AccessDenies at kms:Sign, plus
-    # --force_overwrite true so weekly promotes refresh existing partitions. The stem leaves
-    # BOTH sets together or the equality below is what catches a half-landed retrofit.
+    # D-SG T2 (2026-08-16, owner-ratified): modis_biweekly and fgis LANDED their A-W4
+    # retrofits and armed promote -- the same 4-part package (retrofit_landed, wave,
+    # promote_mode+auth_mode, this literal) plus the prerequisite jobRoleArn move on each
+    # self-promote jobdef without which the unattended canonical promote AccessDenies at
+    # kms:Sign, plus force-overwrite so weekly promotes refresh existing partitions (fgis
+    # value-typed --force-overwrite true; modis underscore --force_overwrite true). The stem
+    # leaves BOTH sets together or the equality below is what catches a half-landed retrofit.
     assert wave2 == retrofit == {
         "cot", "food_cpi", "futures_prices", "unica",
-        "fgis",
     }
 
 
