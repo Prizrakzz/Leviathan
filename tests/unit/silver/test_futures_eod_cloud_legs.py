@@ -171,21 +171,55 @@ class TestNamesMatchTheDescriptors:
             "leviathan-dev-browser-runner": {"jobs/ingest/fetch_euronext_eod.py"},
         }
 
-    def test_the_browser_runner_is_the_one_jobdef_terraform_does_not_yet_track(self, batch_tf,
-                                                                               free_desc):
-        """D-PR-23's other half, still open and therefore still asserted: leviathan-dev-browser-runner
-        exists in AWS at revision 1, was created out of band, and carries NEITHER retryStrategy NOR
-        attemptDurationSeconds. Adopting it into terraform WITH those two rides the post-freeze
-        batch. Until then this test is the record that the chain depends on a jobdef no plan
-        reproduces -- and the day it IS adopted, this test goes red and gets replaced by the
-        ordinary name/image/role assertions its siblings carry."""
+    def test_the_browser_runner_is_terraform_tracked_and_carries_the_two_things_rev_1_lacked(
+            self, batch_tf, free_desc):
+        """INVERTED 2026-08-05 by commit 32898871 ("feat(tf): adopt browser-runner into the batch
+        module -- digest-pinned, 900s timeout, producer matrix"), which closed D-PR-23's other half.
+
+        The predecessor of this test asserted the NEGATIVE -- that leviathan-dev-browser-runner was
+        the one jobdef in the chain terraform did not reproduce (hand-registered rev 1, out of band,
+        carrying neither retryStrategy nor attemptDurationSeconds) -- and it wrote down its own
+        retirement condition: 'the day it IS adopted, this test goes red and gets replaced by the
+        ordinary name/image/role assertions its siblings carry.' That day came. This is that
+        replacement, pinning the ADOPTED state rather than the gap.
+
+        The adoption is an ALIGNMENT to rev 1 (role/env/sizing/network) PLUS exactly the two things
+        rev 1 lacked, and both are asserted here because both are the reason the adoption happened:
+        a 900s timeout so a hung Chromium render dies inside the fire instead of stalling until the
+        SFN gives up, and the shared 5-rule producer retry matrix -- this is a raw-landing PRODUCER,
+        not a publisher, so retrying it cannot double-write."""
         browser = {_unversion(t["jobdef"]) for t in _tasks(free_desc, "fetch")
                    if t["command"][0].endswith("fetch_euronext_eod.py")}
         assert browser == {"leviathan-dev-browser-runner"}
-        assert "browser-runner" not in batch_tf, (
-            "leviathan-dev-browser-runner appears in modules/batch/main.tf -- if it has been "
-            "adopted, retire this test and assert its image pin, jobRoleArn, retry_strategy and "
-            "attemptDurationSeconds the way the other three jobdefs are asserted above")
+
+        block = _block(batch_tf, 'resource "aws_batch_job_definition" "browser_runner"')
+        declared = 'name = "${var.project_name}-${var.environment}-browser-runner"'
+        assert declared in block
+        assert _render(declared).split('"')[1] == "leviathan-dev-browser-runner"
+
+        # Its OWN image var, not the worker image: playwright + Chromium live in
+        # docker/leviathan_browser so this leg can move its browser without re-qualifying silver.
+        assert "image = var.browser_runner_image" in block
+        # Count-gated like its three siblings: an unprovisioned lane is a no-op, never a jobdef
+        # that fails at container START.
+        assert 'count = var.browser_runner_image != "" ? 1 : 0' in block
+
+        # RAW LANDING ONLY -- never the publisher role. The silver leg that follows in the same
+        # execution is the only thing allowed to hold glue:CreatePartition.
+        assert "jobRoleArn       = var.batch_job_role_arn" in block
+        assert "silver_publisher_job_role_arn" not in block
+
+        # The two things rev 1 lacked.
+        assert "attempt_duration_seconds = 900" in _block(block, "timeout {")
+        retry = _block(block, "retry_strategy {")
+        assert "attempts = local.producer_retry_attempts" in retry
+        assert "for_each = local.producer_retry_rules" in retry
+        # The shared matrix itself: 5 rules, the Batch evaluate_on_exit API cap. (_block matches
+        # braces and the list opens with '[', so slice the list literal by hand.)
+        start = batch_tf.index("producer_retry_rules = [")
+        matrix = batch_tf[start:batch_tf.index("\n  ]", start)]
+        assert matrix.count("{ on_exit_code") == 5, \
+            "the shared producer matrix is 5 rules -- the Batch evaluate_on_exit API cap"
 
     def test_databento_fetch_name(self, databento_fetch, databento_desc):
         declared = 'name = "${var.project_name}-${var.environment}-databento-fetch"'

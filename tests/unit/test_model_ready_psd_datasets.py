@@ -40,6 +40,20 @@ from leviathan.storage.paths import (
 from leviathan.training.model_ready import select_model_ready_features
 
 
+def _readable(path: Path) -> str:
+    """The Windows extended-length escape, mirroring _local_path in the producer.
+
+    The model-ready matrix key nests five Hive segments, so under a pytest tmp_path the full file
+    path measures 260 chars against a 259-char legacy MAX_PATH (LongPathsEnabled=0 here). The
+    producer writes through the same escape; a verification read that did not would report the
+    object missing when it is in fact present and correct."""
+    import os
+
+    if sys.platform == "win32" and len(str(path)) > 259:
+        return "\\\\?\\" + os.path.abspath(str(path))
+    return str(path)
+
+
 def _feature_matrix(years: list[int] | None = None) -> pd.DataFrame:
     years = years or list(range(2000, 2006))
     return pd.DataFrame({
@@ -1255,14 +1269,19 @@ def test_model_ready_cli_can_materialize_wasde_snapshot_feature_set(tmp_path: Pa
         check=True,
     )
 
-    matrix = pd.read_parquet(tmp_path / gold_model_ready_matrix_key(
+    # Read back through the SAME Windows MAX_PATH escape the producer now uses. The matrix key is
+    # five nested Hive segments deep, so under a pytest tmp_path the full file path measures 260
+    # chars -- one over the 259 legacy limit, with LongPathsEnabled=0 on this host. The producer
+    # side is fixed in jobs/batch/build_model_ready_datasets.py::_local_path (2026-08-16); this is
+    # the verification read, which needs it for exactly the same reason.
+    matrix = pd.read_parquet(_readable(tmp_path / gold_model_ready_matrix_key(
         model_version,
         PSD_SNAPSHOT_DATASET_KEY,
         "corn_cbot",
         "psd_production_anomaly_pct",
-    ))
+    )))
     feature_sets = pd.read_parquet(
-        tmp_path / gold_model_ready_feature_set_version_key(model_version)
+        _readable(tmp_path / gold_model_ready_feature_set_version_key(model_version))
     )
 
     assert "wasde_latest_revision" in matrix.columns

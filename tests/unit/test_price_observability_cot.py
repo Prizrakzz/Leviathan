@@ -253,7 +253,11 @@ def test_cot_is_branch_a_twelfth_pg_mirror_table():
     # the added/removed table in the message. Read that one first when this trips.
     # D-CW-2a (2026-08-07) added silver_nass_crop_progress as the 19th (weekly NASS crop progress: the
     # card landed, so the table is SERVED, so it must be MIRRORED).
-    assert len(g.PG_MIRROR_TABLES) == 19, (
+    # D-PQ tranche 1a (2026-08-07, commit 2f2b0620) added silver_mpoc_stock_comparison as the 20th, on
+    # the same card-landed -> served -> must-be-mirrored rule. Note it is TINY (272 rows, one object),
+    # so the Athena fallback it prevents would have been cheap -- it was mirrored anyway, because
+    # "small enough not to matter" is how a silent-fallback path gets normalized.
+    assert len(g.PG_MIRROR_TABLES) == 20, (
         "pg-mirror roster changed; the by-NAME pin lives in tests/unit/test_silver_rebuild_gate.py::"
         "test_branch_selection_all_45_tables. Roster now: " + str(sorted(g.PG_MIRROR_TABLES)))
 

@@ -302,8 +302,58 @@ def test_work_orders_and_blocking_are_sorted_deterministic():
 
 # ---------------------------------------------------------------------------
 # runner smoke: build_evidence over the LIVE registry + report artifacts (local files only)
+#
+# RE-SCOPED 2026-08-16 (suite-debt sweep). This was ONE test and it was BADLY SCOPED: half of it
+# exercises the runner against the in-repo registry (deterministic, tracked, correct to assert), and
+# the other half asserted per-table VERDICTS that are computed entirely from
+# reports/silver_readiness/ -- a tree that is GITIGNORED (.gitignore:77) and 0-files-tracked. Two
+# consequences, both measured rather than assumed:
+#
+#   * on a fresh clone the tree does not exist at all, so those assertions never described anything
+#     reproducible;
+#   * on this machine the tree is the ORIGINAL R1 snapshot (every file mtime 2026-07-12 20:00), in
+#     which R1_V001_value_census/value_census_summary.json still records
+#     silver_chirps -> {"passed": false, "kinds": ["all_nan"]}. The certifier reads that faithfully
+#     and returns BLOCKED. The assertion pinned BACKFILL_READY, which is the state AFTER the BF-W1
+#     backfill + a census re-run + a summary regeneration -- work the artifact tree never received.
+#
+# So the red was neither a code regression nor a stale constant: the test was asserting a
+# point-in-time snapshot of an untracked artifact as if it were a repo invariant. The fix is to say
+# so out loud. The registry half runs always; the verdict half declares its precondition and SKIPS
+# with the precise reason when the artifacts do not meet it. Deliberately NOT done: fabricating a
+# passing census summary, or checking in a synthetic 45-table artifact corpus that would make the
+# "runner smoke over the LIVE report artifacts" test stop smoking the live report artifacts.
 # ---------------------------------------------------------------------------
+def _local_report_tree_state() -> str | None:
+    """None when the local report tree can support the verdict assertions; else the skip reason.
+
+    Pinned to the ONE dependency those assertions actually rest on -- the V001 value-census summary
+    -- and it reports which of the two ways it is unusable, so the skip is diagnostic, not a shrug."""
+    import json
+
+    from jobs.audit import readiness_certify as rcert
+
+    summary = rcert.V001_SUMMARY
+    if not summary.exists():
+        return (f"reports/silver_readiness/ is gitignored and absent here ({summary} not found). "
+                f"The per-table verdicts below are computed FROM that tree, so there is nothing to "
+                f"assert. Regenerate it with the R1 value-census run to exercise this.")
+    try:
+        tables = (json.loads(summary.read_text(encoding="utf-8")) or {}).get("tables") or {}
+    except (OSError, ValueError) as exc:
+        return f"{summary} is present but unreadable ({exc}); refusing to guess its contents"
+    chirps = tables.get("silver_chirps") or {}
+    if chirps.get("passed") is not True:
+        return (f"the local V001 census summary is a PRE-BF-W1 snapshot: silver_chirps records "
+                f"passed={chirps.get('passed')!r} kinds={chirps.get('kinds')!r}, so the certifier "
+                f"correctly returns BLOCKED. These assertions describe the POST-backfill tree. "
+                f"Re-run the BF-W1 backfill + the value census and regenerate {summary.name} to "
+                f"exercise them -- do NOT relax the assertions to match a stale artifact.")
+    return None
+
+
 def test_runner_build_evidence_smoke(tmp_path):
+    """The REGISTRY half: hermetic, because the F010 registry is tracked in-repo."""
     from jobs.audit import readiness_certify as rcert
     from leviathan.silver.registry import load_registry
 
@@ -313,6 +363,27 @@ def test_runner_build_evidence_smoke(tmp_path):
     # model_predictions -- an engine-replay output, not a value-census measurement source) +
     # silver_futures_eod (PRICE_AND_PLAYBOOKS W1.0, registered ahead of its producers).
     assert len(evidence) == 45
+    assert {e.table for e in evidence} == set(reg.names())    # one row per registry table, no dups
+    cert = certify_all(evidence)
+    # Structural, and true whatever the artifact tree says: a certificate covers every table and
+    # NEVER self-signs.
+    assert set(cert["tables"]) == set(reg.names())
+    assert cert["signed"] is False
+    assert cert["verdict"] in ("RED", "GREEN")
+
+
+def test_runner_certificate_verdicts_over_the_local_report_tree(tmp_path):
+    """The ARTIFACT half: asserts the POST-BF-W3 verdicts, and skips (loudly, naming the gap) when
+    the gitignored report tree cannot support them. See the block comment above."""
+    from jobs.audit import readiness_certify as rcert
+    from leviathan.silver.registry import load_registry
+
+    reason = _local_report_tree_state()
+    if reason:
+        pytest.skip(reason)
+
+    reg = load_registry()
+    evidence = rcert.build_evidence(reg, evidence_dir=tmp_path)
     cert = certify_all(evidence)
 
     # HONEST: today it must be RED (orphans unadopted, chirps all-NaN, ESR single-vintage).

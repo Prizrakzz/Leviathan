@@ -518,6 +518,55 @@ def _digest_pinned_jobdef_names() -> set[str]:
     return pinned
 
 
+# ---------------------------------------------------------------------------
+# KNOWN RED -- mpob. LEFT RED DELIBERATELY (suite-debt sweep, 2026-08-16). This is a REAL
+# defect and the test is right; the fix is BLOCKED on terraform, not on this file.
+#
+# THE DEFECT. configs/silver/dags/mpob.json publishes shadow_canonical on TWO digest-pinned
+# jobdefs -- leviathan-dev-mpob-silver and leviathan-dev-mpob-annual-silver, both on
+# local.worker_fleet_image (batch/main.tf:2692, :2935), live digest sha256:753dbcd1... on
+# revision 7 of each (re-verified after D-SG S-C bumped the fleet pin; cf50c051 was withdrawn as a
+# corrupt artifact by 6cc58103, which is itself a reason the promote leg must not float) -- while
+# promote falls through to the shared
+# leviathan-dev-silver-publisher-runner on floating :latest. That is the mixed-vintage shape
+# that burned futures_eod on 2026-08-01 and that D-SG fixed for psd_monthly (c1b64036 +
+# cff0d7c7).
+#
+# WHY THE psd_monthly REPAIR CANNOT BE COPIED HERE -- TWO INDEPENDENT BLOCKERS, both measured:
+#
+#   (1) ROLE. Self-promotion calls kms:Sign, which lives ONLY on module.iam.silver_publisher_role
+#       (envs/dev/main.tf:1283 aws_iam_role_policy.silver_publisher_kms_sign). psd-silver binds
+#       jobRoleArn = var.silver_publisher_job_role_arn (batch/main.tf:3986). BOTH mpob jobdefs
+#       bind var.batch_job_role_arn instead -- VERIFIED LIVE 2026-08-16 via
+#       `aws batch describe-job-definitions`, and RE-VERIFIED after the S-C/S-D commits landed
+#       mid-sweep (the role did NOT move with the digest): rev 7 of each carries
+#       arn:aws:iam::668891723125:role/leviathan-dev-batch-job-role, and that role's 4 inline +
+#       6 attached policies contain NO kms:Sign. Flipping the descriptor today would move the
+#       CANONICAL write from a working shared runner onto a jobdef that AccessDenies at
+#       kms:Sign -- i.e. it would BREAK a currently-working publish to satisfy a test.
+#
+#   (2) ARITY. promote_jobdef is a single scalar, and lint_descriptor
+#       (gen_sfn_inputs.py:287-299) fences it to `own == {pj}` -- THE one jobdef every
+#       shadow_canonical publisher in the descriptor runs on. mpob has two. Naming either one
+#       alone therefore fails test_all_descriptors_lint_clean, trading one red for another.
+#
+# THE REQUIRED FIX, in this order (terraform + a generator decision, NOT a test edit):
+#   a. batch/main.tf: repoint mpob_silver:2713 and mpob_annual_silver:2956 from
+#      var.batch_job_role_arn to var.silver_publisher_job_role_arn (the psd-silver shape), and
+#      drop the retry matrix from both per the publishing-job doctrine (a retried publisher
+#      re-runs its write path). Both are already 1 vCPU / 2048 MB with identical image, exec
+#      role and network config, so nothing else diverges.
+#   b. THEN either fold the two producers onto one jobdef, or widen promote_jobdef to a
+#      per-task mapping so a two-publisher family can self-promote both legs. The arity fence
+#      is load-bearing and must not simply be relaxed to `pj in own`: that would let the annual
+#      promote run on a jobdef the annual command has never been proven on.
+#   c. THEN set promote_jobdef + promote_jobdef_note here, re-render _rendered/, and add "mpob"
+#      to PENDING_HAND_MERGE in tests/unit/test_dag_descriptor_publish_modes.py -- which D-SG S-D
+#      (bdacc32f) has since EMPTIED, so re-opening it for mpob is a deliberate act, and the
+#      dag_schedules.auto.tfvars.json hand-merge itself stays the orchestrator's per the tfvars law.
+#
+# Until (a) lands this test is the correct alarm and must stay red. Do NOT weaken it.
+# ---------------------------------------------------------------------------
 def test_digest_pinned_producers_must_self_promote(gen, descriptors):
     """Any descriptor whose shadow_canonical publisher runs on a DIGEST-PINNED jobdef must declare that
     jobdef as its promote_jobdef. Otherwise the promote leg re-derives silver on the shared runner's

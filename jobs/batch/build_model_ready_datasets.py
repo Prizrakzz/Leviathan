@@ -6,6 +6,7 @@ import datetime as dt
 import hashlib
 import io
 import json
+import os
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -153,10 +154,33 @@ def _parse_snapshot_stages(raw: str | None) -> tuple[tuple[str, ...], bool]:
     return tuple(part.strip() for part in normalized.split(",") if part.strip()), True
 
 
+# Windows MAX_PATH. The model-ready layout is FIVE nested Hive segments deep --
+# gold/model_ready_matrices/dataset_version=<v>/dataset_key=<k>/commodity=<c>/target=<t>/part-000.parquet
+# -- so a --local-root lane blows past the 259-character legacy limit on paths that are perfectly
+# legal on S3 and on the Fargate (Linux) lane this job actually ships on. MEASURED 2026-08-16 on the
+# wasde-snapshot CLI test: parent directory 243 chars (created fine), full file path 260 chars
+# (io.open -> FileNotFoundError). That is why the failure LOOKS like a missing mkdir and is not:
+# _write_bytes already does mkdir(parents=True) and it succeeds -- only the file itself is too long.
+#
+# corn_cbot is one of the SHORTEST slugs in ALL_COMMODITIES, so this is not a one-character tuning
+# problem; soybean_oil_cbot and friends overrun it by a wide margin. The fix is the documented
+# Win32 escape hatch: an extended-length \\?\ path, which raises the limit to ~32,767 and does not
+# depend on the machine's LongPathsEnabled registry flag (0 on this host). Applied HERE rather than
+# at each I/O site so the read, the exists-probe and the write all get it. No-op off Windows, and
+# no-op for short paths, so nothing that already works changes shape.
+_WIN_MAX_PATH = 259
+
+
 def _local_path(args: argparse.Namespace, key: str) -> Path:
     if not args.local_root:
         raise ValueError("local path requested without --local-root")
-    return Path(args.local_root) / key
+    path = Path(args.local_root) / key
+    if sys.platform == "win32" and len(str(path)) > _WIN_MAX_PATH:
+        resolved = Path(os.path.abspath(str(path)))          # \\?\ requires an absolute, normalized path
+        if not str(resolved).startswith("\\\\?\\"):
+            return Path("\\\\?\\" + str(resolved))
+        return resolved
+    return path
 
 
 def _read_bytes(args: argparse.Namespace, key: str) -> bytes:

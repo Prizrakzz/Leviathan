@@ -179,8 +179,22 @@ _ARM_NOTE = {
 }
 
 # The call-side signature the wrapper stands in for. Drift = refuse (never measure something else).
+#
+# RE-PINNED 2026-08-16 (suite-debt sweep) to the 13-parameter v2 signature. THE FENCE WORKED: it
+# refused rather than crashed. The four trailing names -- slots_by_origin / origin_of_contract /
+# score_of / n_charged -- are ADMISSION V2, added by commit d952c09f ("feat(dmw): P3 -- seed-scaled
+# max preset (63+4, DARK) + router de-cap + named-anchor law + graph admission v2 + gate
+# instruments") on 2026-08-11 at 23:07. This census script was created by b24187c3 the SAME DAY at
+# 15:36 and pinned the then-current 9; the planner widened 7.5 hours later and the script was never
+# re-pinned. It has had exactly one commit in its life, so this is its first update.
+#
+# Re-pinning alone is NOT sufficient and must not be done alone: planner.py:924-932 passes all four
+# unconditionally, so a re-pinned fence with the OLD wrapper turns SystemExit into
+# `TypeError: _wrapper() got an unexpected keyword argument 'slots_by_origin'`. The wrapper below is
+# widened in the same change, which is the whole point of the fence -- it predicted exactly that crash.
 _CLOSURE_PLAN_PARAMS = ("scored", "kept", "graph", "node_budget", "reserve_n", "backed",
-                        "slice_of_driver", "wave_pruned", "protect_ids")
+                        "slice_of_driver", "wave_pruned", "protect_ids",
+                        "slots_by_origin", "origin_of_contract", "score_of", "n_charged")
 
 # Embedder preflight: near-synonym pairs that a real semantic embedder must place close together and
 # a hash embedder cannot. Floors are deliberately loose -- this is a DEGENERACY fence, not a quality
@@ -196,8 +210,8 @@ _EMBED_MIN_DIM = 64
 def base_admissions(scored, n_kept: int, node_budget: int) -> list:
     """What the SHIPPED admission rule admits from this wave, in rank order.
 
-    EXACT MIRROR of planner._closure_plan step (1) (planner.py:253-259) and, by construction, of the
-    walk's own admission loop (planner.py:506-514): a d==0 seed is admitted by fiat, a d>0 candidate
+    EXACT MIRROR of planner._closure_plan step (1) (planner.py:375-383) and, by construction, of the
+    walk's own admission loop (planner.py:556-565): a d==0 seed is admitted by fiat, a d>0 candidate
     only while the running node count is under budget. `scored` entries are the planner's 8-tuples
     (is_hop, rel, id, kind, contract, depth, via, key); only [5] (depth) is read here.
 
@@ -485,7 +499,7 @@ def assert_signature(plan_fn) -> None:
             "REFUSED: planner._closure_plan signature drifted.\n"
             "  expected %s\n  found    %s\n"
             "The census wraps this seam; a drifted signature means it would measure something other\n"
-            "than the shipped mechanism. Re-read planner.py:197 and re-pin _CLOSURE_PLAN_PARAMS."
+            "than the shipped mechanism. Re-read planner.py:281 and re-pin _CLOSURE_PLAN_PARAMS."
             % (list(_CLOSURE_PLAN_PARAMS), list(got)))
 
 
@@ -504,15 +518,33 @@ def census_hook(pl, rec: Recorder, *, probe_n: int):
     assert_signature(real)
 
     def _wrapper(scored, kept, graph, *, node_budget, reserve_n, backed, slice_of_driver,
-                 wave_pruned, protect_ids=frozenset()):
+                 wave_pruned, protect_ids=frozenset(), slots_by_origin=None,
+                 origin_of_contract=None, score_of=None, n_charged=None):
         base = base_admissions(scored, len(kept), node_budget)
         hr = headroom(len(kept), len(base), node_budget)
         eligible, probe_err = [], None
         try:
+            # THE PROBE INFLATES EVERY CAP, and `slots_by_origin` is a cap like the other two.
+            # The probe exists to size the FULL eligible ancestor population, which is why it already
+            # lifts node_budget and sets reserve_n=probe_n. On an ADMISSION V2 walk the per-origin
+            # slot ledger is a THIRD bound (_closure_plan:418 `slots = dict(slots_by_origin or {})`),
+            # so forwarding the real caps verbatim would silently report a number bounded by supply
+            # rather than by demand -- the exact class of error this script's refusal fence exists to
+            # prevent. Inflate each origin to probe_n instead, which keeps `dedicated` TRUE
+            # (_closure_plan:373 tests `is not None`, so the v2 ordering/scoring path is still the
+            # thing being measured) while removing the bound. The other three v2 arguments are
+            # forwarded UNCHANGED: they select the mechanism, they do not cap it.
+            #
+            # The no-op guarantee is unaffected: _closure_plan COPIES the dict, so neither the real
+            # ledger nor the walk can observe the probe -- and the wrapper still returns None always.
+            probe_slots = ({o: probe_n for o in slots_by_origin}
+                           if slots_by_origin is not None else None)
             probe = real(list(base), kept, graph,
                          node_budget=len(kept) + len(base) + probe_n + _PROBE_SLACK,
                          reserve_n=probe_n, backed=backed, slice_of_driver=slice_of_driver,
-                         wave_pruned=wave_pruned, protect_ids=protect_ids)
+                         wave_pruned=wave_pruned, protect_ids=protect_ids,
+                         slots_by_origin=probe_slots, origin_of_contract=origin_of_contract,
+                         score_of=score_of, n_charged=n_charged)
             if probe is not None:
                 eligible = [{"id": r["key"][2], "contract": r["contract"],
                              "ancestor_of": r["ancestor_of"], "chain_depth": r["chain_depth"]}
@@ -526,7 +558,7 @@ def census_hook(pl, rec: Recorder, *, probe_n: int):
             # BOUNDARY, so each invocation stamps how many d>0 CONTRACT nodes (tracked hops)
             # are in `kept` at this moment -- an inexact boundary is explained only when its
             # excess is covered by hops admitted BETWEEN the two stamps. `kept` is the walk's
-            # dict keyed (kind, contract, id) -> GroundedNode (planner.py:197, signature-pinned
+            # dict keyed (kind, contract, id) -> GroundedNode (planner.py:852, signature-pinned
             # by the wrapper's refusal fence, so this shape cannot silently drift).
             "hops_before": sum(1 for k, nd in kept.items() if k[0] == "contract" and nd.depth > 0),
             "headroom": hr,

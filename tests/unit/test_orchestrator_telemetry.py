@@ -98,7 +98,14 @@ def _stub_embed(monkeypatch):
     monkeypatch.setattr(ev, "embed", lambda texts, **kw: [[1.0, 0.0, 0.0, 0.0] for _ in texts])
 
 
-_TIMING_KEYS = {"total", "fill", "rest", "dispatch", "numbers", "synth_llm", "quantify", "rollup"}
+# EXTENDED 2026-08-15 by the EC wave: commit 17fd02fa ("feat(ec2): batched fill evidence reads, dark
+# -- demand-pulled LATERAL chunks + borrow ledger") appended `borrows_fill` / `borrows_rest` at
+# orchestrator.py:1813-1814, mirroring the per-walk pool-borrow ledger INTO this block rather than
+# promoting it to a TRACE_RECORD_KEYS column (the EC-2 gate (a) choice: a capacity item's temporary
+# counter should not outlive the gate that needs it as a permanent artifact column). They follow the
+# same no-zero-fill rule as every other key here -- None on a turn that builds no subgraph.
+_TIMING_KEYS = {"total", "fill", "rest", "dispatch", "numbers", "synth_llm", "quantify", "rollup",
+                "borrows_fill", "borrows_rest"}
 
 
 # ── W6.1-0: stage timers populate trace.timing_ms on a stubbed turn ─────────────────────────────────

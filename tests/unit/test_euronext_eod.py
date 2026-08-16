@@ -244,9 +244,28 @@ class TestHeaderPinFailsClosed:
         assert len(df) == 12, "an id rename must not take the leg down; the header pin is the guard"
 
     def test_a_short_body_row_is_a_hard_error(self):
-        payload = table_html().replace(b'      <td class="text-right">201,888</td>\n', b"", 1)
+        """WHY THIS TEST WAS INERT, and why the assertion is UNCHANGED. The fence itself never
+        moved: euronext_eod.py has exactly one commit (50a2ec3d) and build_bronze:386-390 still
+        raises on `len(cells) != _COLUMN_COUNT`. What moved is the CHECKOUT. The fixture blob is
+        stored LF-only, this repo runs core.autocrlf=true, so on a Windows working tree
+        euronext_ebm_table.html lands with 183 CRLF line ends -- and the old one-shot
+        `.replace(b'...</td>\\n', b"")` matched NOTHING. build_bronze then received the PRISTINE
+        fixture, parsed 12 well-formed rows, and never raised: a data-integrity fence asserted by
+        a mutation that silently did not happen. The repair is to make the cut line-ending
+        agnostic AND to prove the cut bit before asserting on it -- a no-op replace must go RED
+        here, never green."""
+        cell = b'<td class="text-right">201,888</td>'
+        payload = table_html()
+        assert payload.count(cell) == 1, "fixture drifted: the day-volume cell this test cuts is gone"
+        # Cut the cell AND its own line ending, whichever the checkout produced.
+        for eol in (b"\r\n", b"\n"):
+            shortened = payload.replace(b"      " + cell + eol, b"", 1)
+            if shortened != payload:
+                break
+        assert shortened != payload, "the short-row mutation did not bite -- the assertion below would be vacuous"
+        assert shortened.count(cell) == 0
         with pytest.raises(ValueError, match="positional map cannot be trusted"):
-            T.build_bronze(payload, product="EBM-DPAR", as_of_date=_AS_OF)
+            T.build_bronze(shortened, product="EBM-DPAR", as_of_date=_AS_OF)
 
     def test_a_table_with_no_settlement_at_all_is_refused(self):
         """A pre-publish capture (before ~18:30 CET) is the shape this catches. The tempting repair

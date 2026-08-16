@@ -61,6 +61,19 @@ _EXPECTED_BRANCH_A = frozenset({
     # Distinct from silver_nasa_power, the other projected numbers table, which stays Branch B on a
     # measured SIZE exclusion (tens of millions of rows); this one is ~142K.
     "silver_nass_crop_progress",
+    # D-PQ tranche 1a (2026-08-07, commit 2f2b0620 "feat(dpq): D-PQ build + adversarial review +
+    # fixes -- futures front-expiry anchor, MPOC card, ..."). The 20th, and it enters for the
+    # SAME reason as the 19th: the MPOC numbers card landed in that change, so the table became
+    # SERVED, and a served numbers table must be MIRRORED -- unmirrored + GRAPHRAG_NUMBERS_BACKEND
+    # =pg raises UndefinedTable per query and SILENTLY FALLS BACK TO ATHENA. What makes this entry
+    # worth reading rather than counting: the fallback here would be CHEAP (272 rows, one object,
+    # projection-forbidden), and it was added anyway. "Small enough not to matter" is precisely how
+    # a silent-fallback path gets normalized, so the doctrine is applied on the small table too.
+    # The load still has to run in-VPC before any serving flip, and numbers_parity deliberately
+    # carries NO SAMPLE_COMMODITY row for it yet -- picking that commodity/as-of pair against the
+    # first REAL mirror beats guessing it here (the reverse drift, sampled-but-unmirrored, is what
+    # the silver_futures_eod pin forbids).
+    "silver_mpoc_stock_comparison",
 })
 
 
@@ -81,7 +94,7 @@ def test_branch_selection_all_45_tables():
         "why_this_matters": "a table entering Branch A gains the pg reload + parity + the V001 floor; "
                             "a table LEAVING it loses its only mirror refresh path while staying "
                             "served -- update this roster deliberately, never to make a test pass"}
-    assert len(branch_a) == 19                        # 18 + D-CW-2a's silver_nass_crop_progress
+    assert len(branch_a) == 20                        # 19 + D-PQ tranche 1a's silver_mpoc_stock_comparison
     assert branch_a | branch_b == set(names)          # partition: no table is UNKNOWN in the real registry
     assert not (branch_a & branch_b)
 

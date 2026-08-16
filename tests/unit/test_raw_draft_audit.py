@@ -26,6 +26,30 @@ from leviathan.graphrag import verify as vf
 RAW_TLDR = "Arabica is bullish after the frost [1]."
 RAW_MECH = "A bearish offset is possible; still bullish overall [1]."
 
+# RE-PINNED 2026-08-16 (suite-debt sweep). CYCLE-9 (2026-08-08) FIX 4 -- "the missing attribution
+# boundary", commit d7e9db86 ("fix(cycle9): repair becomes an allowlist -- grouped-handle parsing,
+# [E] orphan prune, attributable mutations") -- added TWO more captures on the SAME
+# GRAPHRAG_STRIP_AUDIT flag and the same two short prose fields, on BOTH synthesis bodies
+# (answer.py:2800/2825 in _answer_l2 and :8932/8937 in the onehop rollback lane). The A4 snapshot's
+# shape is therefore these SIX keys, not two.
+#
+# WHY THIS FILE WENT RED AND THE OTHER DID NOT: d7e9db86 pinned the new keys in the companion file it
+# shipped (tests/unit/test_cycle9_repair_allowlist.py:398-404, :618-624) and never re-pinned this
+# one. So the keys were always covered; only this file's shape assertion was stale.
+#
+# The four boundary keys are EXEMPT from raw_draft_snapshot's falsy drop (answer.py:575-576
+# `if v or k.startswith(("preverify_", "postverify_"))`), so they cannot fall out of the set when a
+# field is empty -- which is why membership here is unconditional.
+#
+# NOTE what is deliberately NOT asserted as a whole-dict equality below: `postverify_mechanism` is
+# NOT equal to RAW_MECH (verify strips the trailing citation), and that DELTA is the entire point of
+# FIX 4. Freezing it into an instrumentation test would both misstate the contract and break this
+# file on every future verify change. The set closure is kept exact; the values are pinned only
+# where the contract says nothing may change.
+A4_KEYS = {"tldr", "mechanism",
+           "preverify_tldr", "preverify_mechanism",
+           "postverify_tldr", "postverify_mechanism"}
+
 
 def _graph() -> g.CausalGraph:
     coffee = cs.CausalContract(
@@ -104,7 +128,11 @@ def test_l2_path_snapshots_the_raw_draft(monkeypatch):
     _audit(monkeypatch, "on")
     out = _l2(monkeypatch)
     draft = out["trace"]["raw_draft"]
-    assert draft == {"tldr": RAW_TLDR, "mechanism": RAW_MECH}
+    assert set(draft) == A4_KEYS
+    # verbatim: no truncation, no cleaning
+    assert draft["tldr"] == RAW_TLDR and draft["mechanism"] == RAW_MECH
+    # FIX 4's first interval contract (answer.py:2818): raw -> preverify, nothing may change.
+    assert draft["preverify_tldr"] == RAW_TLDR and draft["preverify_mechanism"] == RAW_MECH
     # the counter and the sentence agree: the trace says HOW MANY, the draft says WHICH
     assert out["trace"]["banned_mood_words"] == 3
     assert "bullish" in draft["tldr"] and "bearish" in draft["mechanism"]
@@ -135,7 +163,10 @@ def test_onehop_path_snapshots_the_raw_draft(monkeypatch):
     fleet unauditable the moment that rollback is used."""
     _audit(monkeypatch, "on")
     out = _onehop()
-    assert out["trace"]["raw_draft"] == {"tldr": RAW_TLDR, "mechanism": RAW_MECH}
+    draft = out["trace"]["raw_draft"]
+    assert set(draft) == A4_KEYS
+    assert draft["tldr"] == RAW_TLDR and draft["mechanism"] == RAW_MECH
+    assert draft["preverify_tldr"] == RAW_TLDR and draft["preverify_mechanism"] == RAW_MECH
     assert "planner" not in out["trace"]                         # this really is the non-L2 body
 
 
@@ -330,7 +361,7 @@ def test_l2_path_carries_both_sanitize_inputs(monkeypatch):
     _audit(monkeypatch, "on")
     _body(monkeypatch, "on")
     draft = _l2_val(monkeypatch)["trace"]["raw_draft"]
-    assert set(draft) == {"tldr", "mechanism", "verified_tldr", "verified_mechanism", "body_pre_sanitize"}
+    assert set(draft) == A4_KEYS | {"verified_tldr", "verified_mechanism", "body_pre_sanitize"}
     assert draft["body_pre_sanitize"].startswith("**TL;DR.**")   # the ASSEMBLED body, not a field
 
 
@@ -341,7 +372,7 @@ def test_onehop_path_carries_both_sanitize_inputs(monkeypatch):
     _body(monkeypatch, "on")
     draft = an.answer("arabica coffee frost", graph=_graph(), retrieve=_retrieve,
                       call=_val_synth)["trace"]["raw_draft"]
-    assert set(draft) == {"tldr", "mechanism", "verified_tldr", "verified_mechanism", "body_pre_sanitize"}
+    assert set(draft) == A4_KEYS | {"verified_tldr", "verified_mechanism", "body_pre_sanitize"}
 
 
 def test_the_body_snapshot_is_the_exact_string_the_sanitizer_consumed(monkeypatch):
@@ -403,7 +434,7 @@ def test_serving_shape_is_unchanged_when_only_strip_audit_is_on(monkeypatch):
     _audit(monkeypatch, "on")
     _body(monkeypatch, None)
     draft = _l2_val(monkeypatch)["trace"]["raw_draft"]
-    assert set(draft) == {"tldr", "mechanism"}                   # exactly A4, nothing added
+    assert set(draft) == A4_KEYS      # exactly A4 + the cycle-9 boundaries; nothing from A4b
 
 
 def test_nothing_is_snapshotted_when_neither_flag_is_on(monkeypatch):
