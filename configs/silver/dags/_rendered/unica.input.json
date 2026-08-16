@@ -40,10 +40,7 @@
       "tasks": [
         {
           "command": [
-            "jobs/ingest/fetch_unica.py",
-            "--through-current-season",
-            "--asof",
-            "<aws.scheduler.scheduled-time>"
+            "jobs/ingest/fetch_unica.py"
           ],
           "env": [],
           "integration": "batch",

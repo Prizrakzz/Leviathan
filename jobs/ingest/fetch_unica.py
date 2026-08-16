@@ -101,7 +101,30 @@ def _fetch_harvest_year(harvest_year: str) -> bytes:
             f"No <table> tag in response for harvest_year={harvest_year}. "
             "The year may not be available in the current data set."
         )
+    _assert_data_rows(html_bytes, harvest_year)
     return html_bytes
+
+
+# The empty-shell floor. Measured 2026-08-16 (D-SG M-8 probe): a REAL season page
+# (2020/2021) carries 28 <tr> rows at ~25.7 KB; a post-2020 season returns a shell
+# with a <table> tag, exactly 4 header rows and no data at ~21.9 KB -- which passes
+# the size and <table> checks above. 8 sits between the two shapes with margin.
+_MIN_TABLE_ROWS = 8
+
+
+def _assert_data_rows(html_bytes: bytes, harvest_year: str) -> None:
+    """Refuse an empty table SHELL: a page whose <table> carries headers but no data.
+
+    Uploading a shell as raw would ripple a zero-row season through bronze/silver
+    silently -- the exact no-op class D-SG G2-1 exists to end.
+    """
+    rows = html_bytes.lower().count(b"<tr")
+    if rows < _MIN_TABLE_ROWS:
+        raise RuntimeError(
+            f"Empty table shell for harvest_year={harvest_year}: {rows} <tr> row(s) "
+            f"(floor {_MIN_TABLE_ROWS}). The endpoint serves no data for this season "
+            "-- unicadata's idTabela=2495 data ceiling is 2020/2021; use unica_biweekly."
+        )
 
 
 

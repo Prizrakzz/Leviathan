@@ -38,6 +38,9 @@ playwright:
 
 # Available harvest years (labels as they appear in the safra <select>).
 # The Per-Harvest view returns real 28-row state-level data for 1980/1981–2020/2021
+# RE-VERIFIED 2026-08-16 (D-SG M-8 probe, fetcher's own request path): 2021/2022..
+# 2026/2027 still return empty 4-row table shells (pass the size+<table> bar; now
+# REFUSED by fetch_unica._assert_data_rows). The endpoint ceiling is 2020/2021.
 # (verified May 2026).  Years 2021/2022 onward return empty 4-row tables on this
 # endpoint; use the unica_biweekly pipeline for post-2020/2021 data.
 harvest_years:

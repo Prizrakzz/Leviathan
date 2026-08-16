@@ -154,3 +154,28 @@ def test_january_bulletin_closes_the_prior_season():
     )
     result = asyncio.run(fetch_unica_biweekly._extract_current_bulletin(page, None))
     assert result["harvest_year"] == "2026/2027"
+
+
+class TestEmptyShellGuard:
+    """D-SG M-8: the portal's post-2020 'empty shell' (a <table>, 4 header rows, no
+    data) passed the size+<table> bar and would have uploaded garbage weekly."""
+
+    @staticmethod
+    def _page(rows: int) -> bytes:
+        body = b"<table>" + b"<tr><td>x</td></tr>" * rows + b"</table>"
+        return body + b" " * 22000  # clears _MIN_HTML_BYTES like the real shells do
+
+    def test_a_four_row_shell_is_refused(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("fu_t", "jobs/ingest/fetch_unica.py")
+        fu = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(fu)
+        with pytest.raises(RuntimeError, match="Empty table shell"):
+            fu._assert_data_rows(self._page(4), "2026/2027")
+
+    def test_a_real_page_row_count_passes(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("fu_t", "jobs/ingest/fetch_unica.py")
+        fu = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(fu)
+        fu._assert_data_rows(self._page(28), "2020/2021")  # the measured real shape
