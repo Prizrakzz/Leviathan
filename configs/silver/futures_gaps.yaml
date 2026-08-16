@@ -1,0 +1,39 @@
+# silver_futures_eod -- THE DECLARED-GAP LEDGER (D-SG G1-9)
+#
+# WHAT THIS IS. A per-(slug, day) record of a session the VENUE never published. The nightly
+# per-day row floor (jobs/batch/futures_eod_task.assert_row_floor) excludes a day listed here, and
+# logs every exclusion by name. Nothing else reads this file.
+#
+# WHY IT EXISTS. The floor is right and it stays right: the FIRST fire that meets a missing
+# slug-day FAILS, loudly, because a missing day is indistinguishable from a broken producer until
+# someone looks. What was wrong was the REPETITION -- EMA-DPAR 2026-08-05 re-failed every nightly
+# fire for seven fires until the day rolled out of the 5-day lookback window, and seven identical
+# reds are seven chances to stop reading the alarm. Declaring the day here ends the repetition
+# without weakening the fence: an UNDECLARED missing slug-day still fails exactly as it did before.
+#
+# THE RULES, so this never becomes a place to hide a broken leg:
+#   * one entry = one slug on one day. Never a range, never a wildcard, never a slug on its own.
+#   * `evidence` says what was CHECKED at the venue, not what was assumed.
+#   * the exclusion only applies when the declared slug is genuinely ABSENT from that day's rows.
+#     A declared day whose slug DID publish is judged like any other day.
+#   * KNOWN LIMIT (review m-5): the floor is a per-day aggregate for the leg, so on a day a
+#     declared slug excludes, a SECOND, unrelated shortfall on the SAME day (another slug also
+#     short) is not independently judged -- there is no per-slug expectation to subtract from.
+#     Different days stay fully judged; a multi-slug outage on one day warrants its own entries.
+#   * nothing here is auto-written. A human adds the row after reading the venue.
+#
+# FIELDS (all five are required; a malformed entry is a hard load error, never a skipped row):
+#   slug           the leviathan_slug, exactly as CONTRACT_MAP spells it
+#   day            the missing trade date, ISO YYYY-MM-DD
+#   first_observed the date the fence first failed on it, ISO YYYY-MM-DD
+#   evidence       what was verified at the venue
+#   declared_by    the decision that put the row here
+
+- slug: french_maize_matif
+  day: "2026-08-05"
+  first_observed: "2026-08-05"
+  evidence: >-
+    Euronext published no EMA-DPAR (French maize) delivery-month rows for the 2026-08-05
+    session; the EBM-DPAR and ECO-DPAR captures of the same run landed normally, so the
+    browser leg ran and the venue simply had nothing to serve for this product.
+  declared_by: D-SG G1-9

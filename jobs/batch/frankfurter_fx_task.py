@@ -23,7 +23,9 @@ import argparse
 import io
 import logging
 import sys
+import time
 from datetime import date
+from typing import Callable
 
 import requests
 
@@ -41,6 +43,18 @@ _API_BASE = "https://api.frankfurter.dev/v1"
 _START_DATE = "2004-12-31"          # matches the existing history floor (OP-6)
 _TIMEOUT = 60
 
+# D-SG G1-4. frankfurter.dev sits behind Cloudflare and returned 520/522 twice in four days
+# (2026-08-08 and 2026-08-11), and each one burned a whole daily fire because the GET below got
+# exactly one shot. Three attempts with a 30 s / 120 s pause cost at most 2.5 extra minutes on a
+# job whose median run is well under a minute. The house urllib3 adapter
+# (jobs/ingest/fetch_sagis_cec.py) is deliberately NOT reused here: its backoff schedule is a
+# factor, not a pair of literals, and it differs between urllib3 1.26 and 2.x -- this leg's
+# contract is "30 then 120", exactly, and it needs 520/522, which are not standard codes.
+_RETRY_SLEEPS = (30, 120)                       # len == tries - 1; 3 tries total
+_RETRY_STATUSES = frozenset(range(500, 600))    # ANY 5xx (uncurated by design: the Cloudflare
+# 52x family is the measured offender, and a wasted retry on a permanent 501/505 costs 2.5 min
+# once -- cheaper than a curated list drifting when the CDN mints a new code)
+
 RAW_KEY = "raw/fx/source=frankfurter/timeseries.json"
 BRONZE_KEY = "bronze/fx/source=frankfurter/part-000.parquet"
 
@@ -48,6 +62,38 @@ BRONZE_KEY = "bronze/fx/source=frankfurter/part-000.parquet"
 def _timeseries_url(start: str, end: str) -> str:
     symbols = ",".join(SERIES_MAP.keys())
     return f"{_API_BASE}/{start}..{end}?base=USD&symbols={symbols}"
+
+
+def _get_with_retry(url: str, *, sleep: Callable[[float], None] = time.sleep) -> requests.Response:
+    """GET with a bounded backoff on TRANSPORT and SERVER faults only.
+
+    RETRIES: connection errors, read timeouts, and any 5xx -- which is what a Cloudflare 520/522 in
+    front of frankfurter.dev actually is. NEVER RETRIES 4xx: a 400/404 is the vendor telling us the
+    request is wrong, and three identical wrong requests are three identical answers plus four
+    minutes. The last failure is re-raised unchanged, so the job's exit vocabulary and the existing
+    traceback are untouched. ``sleep`` is injected so the tests exercise the schedule without it.
+    """
+    last: Exception | None = None
+    for attempt, sleep_for in enumerate((*_RETRY_SLEEPS, None), start=1):
+        try:
+            resp = requests.get(url, timeout=_TIMEOUT)
+            if resp.status_code in _RETRY_STATUSES:
+                raise requests.HTTPError(f"{resp.status_code} {resp.reason}", response=resp)
+            resp.raise_for_status()          # 4xx -> raises, is NOT retried
+            return resp
+        except (requests.ConnectionError, requests.Timeout) as exc:
+            last = exc
+        except requests.HTTPError as exc:
+            status = exc.response.status_code if exc.response is not None else None
+            if status not in _RETRY_STATUSES:
+                raise
+            last = exc
+        if sleep_for is None:
+            break
+        logger.warning("frankfurter attempt %d/%d failed (%s) -- retrying in %ds",
+                       attempt, len(_RETRY_SLEEPS) + 1, last, sleep_for)
+        sleep(sleep_for)
+    raise last  # type: ignore[misc]
 
 
 def main() -> None:
@@ -76,8 +122,7 @@ def main() -> None:
 
     url = _timeseries_url(args.start, args.end)
     logger.info("Fetching %s", url)
-    resp = requests.get(url, timeout=_TIMEOUT)
-    resp.raise_for_status()
+    resp = _get_with_retry(url)
     raw_bytes = resp.content
     logger.info("Downloaded %d bytes", len(raw_bytes))
 

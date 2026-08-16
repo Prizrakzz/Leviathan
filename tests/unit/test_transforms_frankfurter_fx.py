@@ -271,3 +271,74 @@ class TestPublishIdentityResolution:
                                     bucket="b", s3_client=None, argv=["prog"])
         assert captured["target"].account_id == "668891723125"
         assert "leviathan-dev-batch-job-role" in captured["target"].role_arn
+
+
+# ---------------------------------------------------------------------------
+# D-SG G1-4 -- the bounded backoff in front of the one GET this leg makes
+# ---------------------------------------------------------------------------
+
+class TestFrankfurterRetry:
+    """Two Cloudflare 5xx in four days each burned a whole daily fire (2026-08-08, 2026-08-11).
+
+    The contract pinned here: three tries, 30 s then 120 s, on 5xx (Cloudflare's 520/522 included)
+    and on transport faults -- and NEVER on a 4xx, which is the vendor saying the request is wrong.
+    ``sleep`` is injected, so the schedule is asserted without the suite waiting 150 seconds."""
+
+    @staticmethod
+    def _task():
+        from jobs.batch import frankfurter_fx_task
+        return frankfurter_fx_task
+
+    @staticmethod
+    def _response(task, code: int, reason: str = "x", content: bytes = b"{}"):
+        class R:
+            def __init__(self):
+                self.status_code, self.reason, self.content = code, reason, content
+
+            def raise_for_status(self):
+                if self.status_code >= 400:
+                    raise task.requests.HTTPError(str(self.status_code), response=self)
+        return R()
+
+    def test_a_cloudflare_520_is_retried_then_succeeds(self, monkeypatch):
+        T = self._task()
+        calls, sleeps = [], []
+        seq = [self._response(T, 520), self._response(T, 522), self._response(T, 200)]
+        monkeypatch.setattr(T.requests, "get",
+                            lambda url, timeout: (calls.append(url), seq.pop(0))[1])
+        resp = T._get_with_retry("https://x", sleep=sleeps.append)
+        assert resp.status_code == 200
+        assert len(calls) == 3 and sleeps == [30, 120]
+
+    def test_a_404_is_never_retried(self, monkeypatch):
+        T = self._task()
+        calls, sleeps = [], []
+        monkeypatch.setattr(T.requests, "get",
+                            lambda url, timeout: (calls.append(url),
+                                                  self._response(T, 404, "Not Found", b""))[1])
+        with pytest.raises(T.requests.HTTPError):
+            T._get_with_retry("https://x", sleep=sleeps.append)
+        assert len(calls) == 1 and sleeps == []
+
+    def test_three_consecutive_5xx_reraise_the_last(self, monkeypatch):
+        T = self._task()
+        sleeps = []
+        monkeypatch.setattr(T.requests, "get",
+                            lambda url, timeout: self._response(T, 522, "Origin Down", b""))
+        with pytest.raises(T.requests.HTTPError):
+            T._get_with_retry("https://x", sleep=sleeps.append)
+        assert sleeps == [30, 120]
+
+    def test_a_connection_fault_is_retried(self, monkeypatch):
+        T = self._task()
+        sleeps, calls = [], []
+
+        def _boom(url, timeout):
+            calls.append(url)
+            if len(calls) < 3:
+                raise T.requests.ConnectionError("reset by peer")
+            return self._response(T, 200)
+
+        monkeypatch.setattr(T.requests, "get", _boom)
+        assert T._get_with_retry("https://x", sleep=sleeps.append).status_code == 200
+        assert sleeps == [30, 120]

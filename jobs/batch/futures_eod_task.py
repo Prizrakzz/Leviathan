@@ -132,18 +132,21 @@ import json
 import logging
 import os
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
+from functools import lru_cache
+from pathlib import Path
 from typing import NamedTuple, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 import pandas as pd  # noqa: E402
+import yaml  # noqa: E402
 from leviathan.common.config import get_required_env, load_env  # noqa: E402
 from leviathan.common.logging import get_logger  # noqa: E402
 from leviathan.silver import futures_eod_contracts as FC  # noqa: E402
 from leviathan.silver.flat_producer import authorize_for_contract  # noqa: E402
 from leviathan.silver.partitioned_producer import build_partitioned_publish  # noqa: E402
-from leviathan.silver.registry import load_registry  # noqa: E402
+from leviathan.silver.registry import CONFIGS_SILVER_DIR, load_registry  # noqa: E402
 from leviathan.storage.paths import (  # noqa: E402
     bursa_code_prefix,
     cepea_indicator_prefix,
@@ -185,6 +188,8 @@ from leviathan.transforms.raw_to_bronze.databento_eod import (  # noqa: E402
     DATASET_SLUGS,
     GLBX,
     ICE_BAR_RULE,
+    IFEU,
+    IFUS,
     ROOT_MAP,
     apply_ice_settle,
     build_ohlcv_bronze,
@@ -232,13 +237,40 @@ SILVER_COLUMNS = FC.SILVER_COLUMNS
 # applies only to backfill/full-year units. See _truncation_error.
 _MIN_ROWS_PER_UNIT = 25
 
+# D-PR-16, MEASURED 2026-08-16 on four consecutive green fires (2026-08-12/13/14/15, jobdef
+# leviathan-dev-futures-eod-silver:4). The three databento datasets are NOT available to the same
+# trade date at the 08:00Z fire: GLBX.MDP3 carries through T-1, both ICE datasets through T-2.
+# Measured per fire as max(rows_out / outright_symbols) across each dataset's roots (an outright
+# that traded every session pins the count exactly), corroborated by the assembled silver span
+# (its max is GLBX's, = T-1, every fire) and by the canonical merge deltas (+133/+140/+132 rows =
+# ONE new GLBX session + ONE new ICE session; an ICE-lag-1 world would have added ~205-230).
+#
+# WHY THIS IS A LAG DECLARATION AND NOT A WIDER MARGIN. Before this, `expected` came off a pure
+# weekday calendar ending at T-1, so both ICE datasets sat at EXACTLY present == expected - 1 on
+# all four fires: the one-holiday margin was fully consumed by structural lag, leaving the ICE legs
+# one venue holiday away from a false truncation verdict on all 8 units, and degrading the check's
+# real sensitivity from "lost >= 2 sessions" to "lost >= 1". Widening the margin to 2 would delete
+# the only ICE liveness detector this leg has (D-PR-16's explicit refusal). Naming the lag instead
+# moves `window_end` to the date the vendor ACTUALLY publishes to, and the margin goes back to
+# meaning what it says.
+#
+# A dataset absent from this map falls back to 1, which reproduces the pre-D-PR-16 window_end
+# byte-for-byte (bdate_range(end=today-1, periods=1)[0] IS the last weekday on or before today-1,
+# and the old `today - 1 day` fed into bdate_range(since, ...) resolved to the same thing on a
+# weekend). So the GLBX path is unchanged by construction, and only the ICE legs move.
+_EXPECTED_LAG_SESSIONS: dict[str, int] = {GLBX: 1, IFUS: 2, IFEU: 2}
 
-def _truncation_error(bronze, spec, *, mode: str, since: str | None) -> str | None:
+
+def _truncation_error(bronze, spec, *, mode: str, since: str | None,
+                      dataset: str | None = None) -> str | None:
     """The truncated-download verdict for ONE bronze unit, or None when the unit is healthy.
 
     backfill: the flat per-unit floor (full-year semantics, unchanged).
     incremental: DAY COVERAGE -- distinct trade dates in the unit vs the weekday sessions in
-    [since, yesterday-UTC], one-holiday margin. Pure, so tests feed it frames directly."""
+    [since, window_end], one-holiday margin. ``window_end`` is the last session the UNIT'S OWN
+    dataset publishes to, derived from _EXPECTED_LAG_SESSIONS (D-PR-16): T-1 for GLBX, T-2 for both
+    ICE datasets. ``dataset`` is None for every non-databento leg, which resolves to lag 1 -- the
+    pre-D-PR-16 behaviour, unchanged. Pure, so tests feed it frames directly."""
     if not spec.min_rows_per_unit:
         return None
     if mode != "incremental":
@@ -248,15 +280,37 @@ def _truncation_error(bronze, spec, *, mode: str, since: str | None) -> str | No
         return None
     if not since:                                       # incremental always computes since; belt only
         return None
-    window_end = datetime.now(tz=timezone.utc).date() - timedelta(days=1)
-    expected = len(pd.bdate_range(since, window_end.isoformat()))
+    lag = _EXPECTED_LAG_SESSIONS.get(dataset or "", 1)
+    # Step back `lag` WEEKDAY sessions from yesterday-UTC. periods=lag with end= pinned means
+    # element [0] is the lag-th session back, and lag=1 collapses to "the last weekday on or before
+    # yesterday" -- identical to what the old bare `today - 1 day` produced once it was fed to
+    # bdate_range below. Never a calendar-day subtraction: a 2-day lag across a weekend is four
+    # calendar days, and getting that wrong is the whole bug class this closes.
+    window_end = pd.bdate_range(end=datetime.now(tz=timezone.utc).date() - timedelta(days=1),
+                                periods=lag)[0].date()
+    since_d = datetime.strptime(since, "%Y-%m-%d").date()
+    # D-PR-45 / D-SG G1-7, the other half. A straddling window can be covered by TWO units and
+    # neither can hold the other's sessions, so a unit is measured against the window CLIPPED TO ITS
+    # OWN CALENDAR YEAR. The year is read from the frame (a Databento unit is per-year by
+    # construction) rather than plumbed through the shared loop, so this function stays pure and the
+    # tests keep feeding it frames directly. A frame spanning two years is left unclipped, i.e.
+    # judged exactly as it is today.
+    if len(bronze):
+        years = set(pd.to_datetime(bronze["trade_date"]).dt.year.unique().tolist())
+        if len(years) == 1:
+            y = int(next(iter(years)))
+            since_d = max(since_d, date(y, 1, 1))
+            window_end = min(window_end, date(y, 12, 31))
+            if since_d > window_end:
+                return None
+    expected = len(pd.bdate_range(since_d.isoformat(), window_end.isoformat()))
     if expected <= 0:
         return None
     present = int(bronze["trade_date"].nunique()) if len(bronze) else 0
     if present < expected - 1:                          # one-holiday margin; venue calendars differ
         return (f"only {present} of {expected} expected session(s) present "
-                f"(window {since}..{window_end.isoformat()}) -- treating as a truncated "
-                f"download, not a thin market")
+                f"(window {since_d.isoformat()}..{window_end.isoformat()}) -- treating as a "
+                f"truncated download, not a thin market")
     return None
 
 # ---------------------------------------------------------------------------
@@ -428,8 +482,76 @@ def preflight(spec: SourceSpec) -> bool:
     return True
 
 
+# ---------------------------------------------------------------------------
+# D-SG G1-9 -- THE DECLARED-GAP LEDGER
+#
+# One missing slug-day (EMA-DPAR 2026-08-05, which the venue never published) re-failed EVERY
+# nightly fire for seven fires, until the day rolled out of the 5-day lookback. The floor was
+# right each time; the REPETITION was the defect. A day recorded in the ledger is excluded from
+# the floor arithmetic BY NAME and only while the declared slug is genuinely absent -- so the
+# first fire on an UNDECLARED missing day still fails exactly as it does today, and nothing is
+# ever excluded quietly. See configs/silver/futures_gaps.yaml for the rules.
+# ---------------------------------------------------------------------------
+FUTURES_GAPS_PATH = CONFIGS_SILVER_DIR / "futures_gaps.yaml"
+_GAP_FIELDS = ("slug", "day", "first_observed", "evidence", "declared_by")
+
+
+def _gap_day(value, where: str) -> str:
+    """One ISO ``YYYY-MM-DD`` date out of a ledger field (PyYAML may hand back a ``date``)."""
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return value.isoformat()
+    try:
+        return date.fromisoformat(str(value)).isoformat()
+    except ValueError as exc:
+        raise ValueError(f"{FUTURES_GAPS_PATH.name} {where}: {value!r} is not an ISO date") from exc
+
+
+@lru_cache(maxsize=None)
+def load_declared_gaps(path: Optional[Path] = None) -> dict[str, frozenset[str]]:
+    """``{day: {slug, ...}}`` from the committed gap ledger. FAIL CLOSED on a malformed row.
+
+    A row here EXCUSES a fence, so a row that cannot be read must never be silently dropped: that
+    is the whole difference between "this gap was declared" and "this gap was mistyped". An absent
+    file is legal and means "nothing declared"; a present-but-broken file is a hard error.
+    """
+    src = path or FUTURES_GAPS_PATH
+    if not src.exists():
+        return {}
+    doc = yaml.safe_load(src.read_text(encoding="utf-8"))
+    if doc is None:
+        return {}
+    if not isinstance(doc, list):
+        raise ValueError(f"{src.name}: the ledger is a LIST of gap records, got {type(doc).__name__}")
+    out: dict[str, set[str]] = {}
+    seen: set[tuple[str, str]] = set()
+    for i, rec in enumerate(doc):
+        where = f"entry {i}"
+        if not isinstance(rec, dict):
+            raise ValueError(f"{src.name} {where}: expected a mapping, got {type(rec).__name__}")
+        unknown = sorted(set(rec) - set(_GAP_FIELDS))
+        missing = sorted(set(_GAP_FIELDS) - set(rec))
+        if missing or unknown:
+            raise ValueError(f"{src.name} {where}: missing {missing}, unknown {unknown} "
+                             f"(required: {list(_GAP_FIELDS)})")
+        slug = str(rec["slug"])
+        if slug not in FC.CONTRACT_MAP:
+            raise ValueError(f"{src.name} {where}: {slug!r} is not a silver_futures_eod slug")
+        for field in ("evidence", "declared_by"):
+            if not str(rec[field] or "").strip():
+                raise ValueError(f"{src.name} {where}: {field} is empty -- a gap is declared with "
+                                 f"what was checked at the venue, never on its own authority")
+        day = _gap_day(rec["day"], f"{where} day")
+        _gap_day(rec["first_observed"], f"{where} first_observed")
+        if (slug, day) in seen:
+            raise ValueError(f"{src.name} {where}: {slug} {day} is declared twice")
+        seen.add((slug, day))
+        out.setdefault(day, set()).add(slug)
+    return {day: frozenset(slugs) for day, slugs in out.items()}
+
+
 def assert_row_floor(df: pd.DataFrame, spec: SourceSpec,
-                     mode: str = "incremental") -> list[str]:
+                     mode: str = "incremental",
+                     declared_gaps: Optional[dict[str, frozenset[str]]] = None) -> list[str]:
     """PLAN GATE 5. The per-day silver row count for this leg, as EXACT COUNTS.
 
     Returns the violating days (empty == pass). Three things this deliberately is NOT:
@@ -441,6 +563,8 @@ def assert_row_floor(df: pd.DataFrame, spec: SourceSpec,
         number. Rows are selected by ``source ==`` an exact publication-source value, and counted;
       * not a per-unit floor -- ``_MIN_ROWS_PER_UNIT`` is Databento's (root, year) bronze check and
         means something else entirely.
+
+    ``declared_gaps`` (D-SG G1-9) defaults to the committed ledger; pass ``{}`` to judge every day.
     """
     if not spec.rows_per_day or df is None or df.empty:
         return []
@@ -454,14 +578,41 @@ def assert_row_floor(df: pd.DataFrame, spec: SourceSpec,
         return [f"frame carries foreign publication source(s) {alien} for --source {spec.name}"]
     if scoped.empty:
         return [f"no rows with source in {list(spec.publication_sources)}"]
+    gaps = load_declared_gaps() if declared_gaps is None else declared_gaps
+    # A ledger entry only speaks for the leg that publishes its slug -- otherwise one venue's
+    # declared gap would quietly excuse a day on another venue's leg.
+    leg_slugs = {slug for slug, rec in FC.CONTRACT_MAP.items()
+                 if rec["source"] in spec.publication_sources}
     per_day = scoped.groupby("trade_date", dropna=False).size()
     bad: list[str] = []
     for day, n in per_day.items():
         n = int(n)
+        declared = set(gaps.get(str(day)[:10], ())) & leg_slugs
+        if declared and _excluded_by_ledger(scoped, day, declared, spec, n):
+            continue
         if (n != spec.rows_per_day) if spec.rows_per_day_exact else (n < spec.rows_per_day):
             rel = "==" if spec.rows_per_day_exact else ">="
             bad.append(f"{str(day)[:10]}: {n} row(s), floor {rel} {spec.rows_per_day}")
     return bad
+
+
+def _excluded_by_ledger(scoped: pd.DataFrame, day, declared: set[str], spec: SourceSpec,
+                        n_rows: int) -> bool:
+    """True when a DECLARED slug is genuinely absent on ``day``, so the day leaves the arithmetic.
+
+    Absence is re-checked against this run's rows rather than trusted: a ledger entry for a slug
+    that DID publish that day is stale, and a stale entry must not excuse a real shortfall."""
+    if "leviathan_slug" not in scoped.columns:
+        return False
+    present = set(scoped.loc[scoped["trade_date"] == day, "leviathan_slug"].dropna().astype(str))
+    absent = sorted(declared - present)
+    if not absent:
+        return False
+    logger.warning("row floor (%s): DAY %s EXCLUDED -- declared venue gap for %s "
+                   "(configs/silver/futures_gaps.yaml); its %d row(s) are NOT judged against the "
+                   "%d/day floor", spec.name, str(day)[:10], ", ".join(absent), n_rows,
+                   spec.rows_per_day)
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -1130,29 +1281,72 @@ def publish(df: pd.DataFrame, contract: dict, auth, s3_client, glue_client, *,
     return plan.run()
 
 
-def select_units(args, s3_client, bucket: str, spec: SourceSpec) -> list[tuple[str, object]]:
-    """``[(label, loader)]`` for one leg -- ``loader()`` returns ``(bronze_frame, stats)``.
+def _incremental_unit_landed(s3_client, bucket: str, dataset: str, root: str, year: int) -> bool:
+    """Has an ``ohlcv-1d`` payload actually landed under this ``(root, year)`` raw prefix?
+
+    Asked ONLY of the year the January straddle ADDS. The fetch leg keys the whole incremental
+    window under ``year(--since)`` (jobs/ingest/fetch_databento_eod.py, incremental branch: the
+    unit list is built from ``since.year``), so in the first days of January the new year's raw
+    prefix is legitimately empty -- and selecting it anyway raises FileNotFoundError in the loader,
+    which is a NEW full-family red inside exactly the window the straddle fix exists to keep green.
+    ``s3_client`` is None only where there is nothing to list (unit tests), and there the unit is
+    shown rather than hidden."""
+    if s3_client is None:
+        return True
+    token = databento_payload_prefix("ohlcv-1d", root)
+    prefix = raw_databento_key(DATASET_SLUGS[dataset], root, year, "")
+    return any(key.rsplit("/", 1)[-1].startswith(token) and key.endswith(".dbn.zst")
+               for key in _list_keys(s3_client, bucket, prefix))
+
+
+def select_units(args, s3_client, bucket: str, spec: SourceSpec
+                 ) -> list[tuple[str, object, Optional[str]]]:
+    """``[(label, loader, dataset)]`` for one leg -- ``loader()`` returns ``(bronze_frame, stats)``.
+
+    ``dataset`` is the databento dataset code the unit came from (D-PR-16: it selects the unit's
+    expected publication lag) and is None for every leg that has only one publication calendar.
 
     The ONLY per-source step on the read side. Everything after the loop (assembly, the two
     uniqueness assertions, the row floor, the merge, the publish) is shared."""
     if spec.name == "databento":
         roots = args.roots or sorted(ROOT_MAP)
         now_year = datetime.now(tz=timezone.utc).year
-        years = ([datetime.strptime(args.since, "%Y-%m-%d").year]
-                 if args.mode == "incremental" else args.years)
+        # D-PR-45 / D-SG G1-7 (JANUARY STRADDLE). A Databento unit is one (root, CALENDAR YEAR)
+        # payload and --since defaults to today-5d, so from Jan 1 to Jan 5 the window spans TWO
+        # years. Taking only year(--since) cannot see a session the vendor filed under the new
+        # year; taking only the current year drops the December tail. Both, always: root_years()
+        # below already discards a year a root cannot have, and on 360 days of the year the set
+        # collapses to one element, so a non-straddling window resolves to exactly the same units
+        # it does today.
+        since_year = None
+        if args.mode == "incremental":
+            since_year = datetime.strptime(args.since, "%Y-%m-%d").year
+            end_year = (datetime.now(tz=timezone.utc).date() - timedelta(days=1)).year
+            years = sorted({since_year, end_year})
+        else:
+            years = args.years
         units = []
         for root in roots:
             usable = root_years(root, now_year)
             for year in (years if years else usable):
-                if int(year) in usable:
-                    units.append((ROOT_MAP[root][0], root, int(year)))
+                if int(year) not in usable:
+                    continue
+                dataset = ROOT_MAP[root][0]
+                if (since_year is not None and int(year) != since_year
+                        and not _incremental_unit_landed(s3_client, bucket, dataset, root,
+                                                         int(year))):
+                    logger.info("skip %s %s/%s: the straddle year holds no landed payload -- the "
+                                "fetch leg keys this window under year(--since)=%s",
+                                dataset, root, year, since_year)
+                    continue
+                units.append((dataset, root, int(year)))
 
         def _bind(dataset, root, year):
             return lambda: load_unit_bronze(s3_client, bucket, dataset=dataset, root=root,
                                             year=year, ice_bar_rule=args.ice_bar_rule,
                                             mode=args.mode)
 
-        return [(f"{dataset} {root}/{year}", _bind(dataset, root, year))
+        return [(f"{dataset} {root}/{year}", _bind(dataset, root, year), dataset)
                 for dataset, root, year in sorted(units)]
 
     if spec.name == "czce":
@@ -1163,7 +1357,7 @@ def select_units(args, s3_client, bucket: str, spec: SourceSpec) -> list[tuple[s
         def _bind_key(key):
             return lambda: load_czce_session(s3_client, bucket, key)
 
-        return [(_czce_key_date(key) or key, _bind_key(key)) for key in keys]
+        return [(_czce_key_date(key) or key, _bind_key(key), None) for key in keys]
 
     # The three remaining free legs are all "one landed object == one unit", differing only in
     # which key reader enumerates them and which loader parses them. Keeping them in one table
@@ -1205,7 +1399,7 @@ def select_units(args, s3_client, bucket: str, spec: SourceSpec) -> list[tuple[s
         def _bind_obj(key):
             return lambda: loader(s3_client, bucket, key)
 
-        return [(label_of(key), _bind_obj(key)) for key in enumerate_keys()]
+        return [(label_of(key), _bind_obj(key), None) for key in enumerate_keys()]
 
     raise NotImplementedError(
         f"--source {spec.name} has no unit reader yet. Still needed: {spec.todo}")
@@ -1293,10 +1487,11 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     frames: list[pd.DataFrame] = []
     failures = 0
-    for label, loader in units:
+    for label, loader, unit_dataset in units:
         try:
             bronze, stats = loader()
-            trunc = _truncation_error(bronze, spec, mode=args.mode, since=args.since)
+            trunc = _truncation_error(bronze, spec, mode=args.mode, since=args.since,
+                                      dataset=unit_dataset)
             if trunc:
                 logger.error("%s: %s", label, trunc)
                 failures += 1

@@ -91,3 +91,65 @@ class TestBackfillFloorUnchanged:
     def test_sources_without_a_unit_floor_never_charge(self):
         czce = TASK._SOURCE_SPECS["czce"]
         assert TASK._truncation_error(_frame([], 0), czce, mode="incremental", since=None) is None
+
+
+class TestExpectedLagSessions:
+    """D-PR-16: window_end is the LAST SESSION THAT DATASET PUBLISHES TO, not a bare yesterday.
+
+    Measured 2026-08-16 over four consecutive green fires: GLBX.MDP3 publishes through T-1, both
+    ICE datasets through T-2. Before this the ICE legs sat at exactly present == expected - 1 on
+    every fire, i.e. the one-holiday margin was consumed by structural lag and a single venue
+    holiday would have false-failed all 8 ICE units."""
+
+    def _lagged_window(self, n_weekdays: int, lag: int) -> tuple[str, list[str]]:
+        """since + the sessions in [since, window_end] where window_end is `lag` weekdays back."""
+        cur = datetime.now(tz=timezone.utc).date() - timedelta(days=1)
+        stepped = 0
+        while True:
+            if cur.weekday() < 5:
+                stepped += 1
+                if stepped == lag:
+                    break
+            cur -= timedelta(days=1)
+        days: list[str] = []
+        while len(days) < n_weekdays:
+            if cur.weekday() < 5:
+                days.append(cur.isoformat())
+            cur -= timedelta(days=1)
+        return days[-1], sorted(days)
+
+    def test_glbx_lag_one_is_byte_identical_to_the_old_window(self):
+        # The regression fence: lag 1 must reproduce pre-D-PR-16 exactly.
+        since, days = _window(5)
+        bronze = _frame(days, 4)
+        assert TASK._truncation_error(bronze, SPEC, mode="incremental", since=since,
+                                      dataset=TASK.GLBX) is None
+        assert TASK._truncation_error(bronze, SPEC, mode="incremental", since=since) is None
+
+    def test_ice_us_full_coverage_at_lag_two_passes_with_the_margin_intact(self):
+        # 4 of 4 ICE sessions present AND one more allowed to go missing -- the margin restored.
+        since, days = self._lagged_window(4, 2)
+        assert TASK._truncation_error(_frame(days, 5), SPEC, mode="incremental", since=since,
+                                      dataset=TASK.IFUS) is None
+        assert TASK._truncation_error(_frame(days[1:], 5), SPEC, mode="incremental", since=since,
+                                      dataset=TASK.IFUS) is None
+
+    def test_ice_europe_uses_the_same_lag_as_ice_us(self):
+        since, days = self._lagged_window(4, 2)
+        assert TASK._truncation_error(_frame(days, 5), SPEC, mode="incremental", since=since,
+                                      dataset=TASK.IFEU) is None
+
+    def test_ice_two_missing_sessions_is_still_a_truncated_download(self):
+        # Anti-vacuity: the lag declaration must not turn the detector off.
+        since, days = self._lagged_window(4, 2)
+        err = TASK._truncation_error(_frame(days[:2], 13), SPEC, mode="incremental", since=since,
+                                     dataset=TASK.IFUS)
+        assert err is not None and "expected session(s) present" in err
+
+    def test_the_measured_2026_08_lags_are_the_declared_ones(self):
+        assert TASK._EXPECTED_LAG_SESSIONS == {TASK.GLBX: 1, TASK.IFUS: 2, TASK.IFEU: 2}
+
+    def test_an_undeclared_dataset_falls_back_to_lag_one(self):
+        since, days = _window(5)
+        assert TASK._truncation_error(_frame(days, 4), SPEC, mode="incremental", since=since,
+                                      dataset="NOT.A.DATASET") is None

@@ -337,3 +337,86 @@ class TestChainWiring:
     def test_the_task_merges_before_an_incremental_publish(self):
         src = (_REPO / "jobs" / "batch" / "futures_eod_task.py").read_text(encoding="utf-8")
         assert "merge_with_canonical" in src and "assert_no_duplicates" in src
+
+
+# ---------------------------------------------------------------------------
+class TestJanuaryStraddle:
+    """D-PR-45 / D-SG G1-7, dated: must land before 2027-01-01.
+
+    A Databento unit is one (root, CALENDAR YEAR) payload and --since defaults to today-5d, so
+    from Jan 1 to Jan 5 the incremental window spans two years. Both years are selected, and each
+    unit is judged against the window CLIPPED TO ITS OWN YEAR -- the select_units fix alone would
+    have doubled the failure, charging both straddle units as truncated against the full window."""
+
+    class _Args:
+        def __init__(self, since, mode="incremental", roots=None, years=None):
+            self.since, self.mode, self.roots, self.years = since, mode, roots, years
+            self.ice_bar_rule = "prefer_on_venue_publisher"
+
+    def _labels(self, monkeypatch, today, since, roots=("ZC",)):
+        import datetime as _dt
+
+        class _FixedDT(_dt.datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return _dt.datetime(today[0], today[1], today[2], tzinfo=tz)
+
+        monkeypatch.setattr(T2, "datetime", _FixedDT)
+        # s3_client None: there is nothing to list here, so every candidate year is shown.
+        units = T2.select_units(self._Args(since, roots=list(roots)), None, "b",
+                                T2.source_spec("databento"))
+        return sorted(label for label, *_rest in units)
+
+    def test_a_straddling_window_selects_both_years(self, monkeypatch):
+        labels = self._labels(monkeypatch, (2027, 1, 4), "2026-12-30")
+        assert any(l.endswith("/2026") for l in labels), labels
+        assert any(l.endswith("/2027") for l in labels), labels
+
+    def test_a_normal_window_still_selects_exactly_one_year(self, monkeypatch):
+        labels = self._labels(monkeypatch, (2026, 8, 16), "2026-08-11")
+        assert len(labels) == 1 and labels[0].endswith("/2026"), labels
+
+    def test_the_unit_carries_its_dataset_for_the_lag_lookup(self, monkeypatch):
+        import datetime as _dt
+
+        class _FixedDT(_dt.datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return _dt.datetime(2026, 8, 16, tzinfo=tz)
+
+        monkeypatch.setattr(T2, "datetime", _FixedDT)
+        units = T2.select_units(self._Args("2026-08-11", roots=["ZC", "KC"]), None, "b",
+                                T2.source_spec("databento"))
+        assert {dataset for _l, _ldr, dataset in units} == {T.GLBX, T.IFUS}
+
+    def test_a_straddle_year_with_no_landed_payload_is_skipped(self, monkeypatch):
+        """The fetch leg keys the whole window under year(--since), so on Jan 2-5 the new year's
+        raw prefix is empty -- selecting it anyway would raise FileNotFoundError in the loader."""
+        import datetime as _dt
+
+        class _FixedDT(_dt.datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return _dt.datetime(2027, 1, 4, tzinfo=tz)
+
+        monkeypatch.setattr(T2, "datetime", _FixedDT)
+        labels = sorted(label for label, *_r in T2.select_units(
+            self._Args("2026-12-30", roots=["ZC"]), FakeS3({}), "b",
+            T2.source_spec("databento")))
+        assert labels == ["GLBX.MDP3 ZC/2026"], labels
+
+    def test_each_straddle_unit_is_judged_against_its_own_year(self, monkeypatch):
+        """Without the clip in _truncation_error, BOTH straddle units read as truncated."""
+        import datetime as _dt
+
+        class _FixedDT(_dt.datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return _dt.datetime(2027, 1, 6, tzinfo=tz)
+
+        monkeypatch.setattr(T2, "datetime", _FixedDT)
+        spec = T2.source_spec("databento")
+        dec = pd.DataFrame({"trade_date": pd.to_datetime(["2026-12-30", "2026-12-31"])})
+        jan = pd.DataFrame({"trade_date": pd.to_datetime(["2027-01-04", "2027-01-05"])})
+        assert T2._truncation_error(dec, spec, mode="incremental", since="2026-12-30") is None
+        assert T2._truncation_error(jan, spec, mode="incremental", since="2026-12-30") is None
