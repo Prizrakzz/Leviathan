@@ -277,7 +277,7 @@ variable "pink_sheet_image_digest" {
   # D-SG S-C repin 2026-08-16: cf50c051 = the worker build carrying the pink_sheet
   # --skip-existing-s3 restore + release-recency fence (G2-1c). The pin-collision law:
   # the task change and this digest move ride the SAME change or an apply reverts the fix.
-  default     = "sha256:cf50c051a5bd660d66da0851582e90bffb0bb8ec7e6a591dbff3f2dae73c4d7b"
+  default     = "sha256:753dbcd1112e762e84f6e3e74e6de11e294ace23184bf0a88c20e2f3a463b235"
 
   validation {
     condition     = var.pink_sheet_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.pink_sheet_image_digest))
@@ -345,7 +345,7 @@ variable "worker_fleet_image_digest" {
   # variable's comment demands): cf50c051 = the D-SG worker build (ingest fences, unica/
   # fgis fixes, wasde discovery+quarantine, season floors, gate metrics, poller task,
   # straddle + declared ICE lag). Full suite green; two adversarial review passes folded.
-  default     = "sha256:cf50c051a5bd660d66da0851582e90bffb0bb8ec7e6a591dbff3f2dae73c4d7b"
+  default     = "sha256:753dbcd1112e762e84f6e3e74e6de11e294ace23184bf0a88c20e2f3a463b235"
 
   validation {
     condition     = var.worker_fleet_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.worker_fleet_image_digest))
@@ -388,7 +388,7 @@ variable "silver_gate_image_digest" {
   # vintage_waiver (G1-6 PATH A) and the GateVerdict/ValueCensusHardFailTables
   # emitters (G3-4) into the gate. timeline_rebuild's identical old digest below is
   # DELIBERATELY NOT moved (the fleet-digest law: one intended move per variable).
-  default     = "sha256:cf50c051a5bd660d66da0851582e90bffb0bb8ec7e6a591dbff3f2dae73c4d7b"
+  default     = "sha256:753dbcd1112e762e84f6e3e74e6de11e294ace23184bf0a88c20e2f3a463b235"
 
   validation {
     condition     = var.silver_gate_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.silver_gate_image_digest))
