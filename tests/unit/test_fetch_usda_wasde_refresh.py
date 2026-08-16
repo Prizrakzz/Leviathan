@@ -50,9 +50,6 @@ def test_an_empty_scrape_fails_closed_instead_of_using_the_static_manifest(monke
 
     monkeypatch.setattr(F, "_load_manifest", lambda: [_entry("2026-07", "2026-07-10", "0726")])
     monkeypatch.setattr(F, "_build_manifest_entries", lambda *a, **kw: [])
-    monkeypatch.setattr(
-        F, "_make_session", lambda *a, **kw: type("S", (), {"close": lambda self: None})()
-    ) if hasattr(F, "_make_session") else None
     monkeypatch.setattr(sys, "argv", ["fetch_usda_wasde.py", "--refresh-manifest", "--dry-run"])
     rc = F.main()
     assert rc == 1

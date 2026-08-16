@@ -340,8 +340,9 @@ resource "aws_cloudwatch_metric_alarm" "freshness_sla_breach" {
 # alike. modis does NOT lose coverage: its own 45d table ceiling still counts it the day it is
 # truly dead.
 #
-# for_each is the SAME key set as the alarm above (the generated map merged with the two
-# hand-wired extras), so the two are 1:1 by construction and no third tfvars surface is created.
+# for_each is the alarm above's key set MINUS var.silver_breach_count_static_families
+# (review M-6) -- 1:1 with the family MAX alarms except for the declared static
+# exclusions; no third tfvars surface is created.
 # treat_missing_data = "breaching" for the same reason as the alarm above: the poller dying is
 # the failure this whole lane exists to catch, and the breach datum is written on EVERY cycle
 # (a healthy family emits 0, never nothing).

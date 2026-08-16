@@ -152,7 +152,7 @@ def main() -> None:
     print("bucket=%s region=%s cache=%s" % (args.bucket, args.aws_region, args.cache_dir))
 
     s3 = get_thread_local_s3_client(args.aws_region)
-    keep, _seen_raw = _distinct_release_dates(s3, args.bucket)
+    keep, seen_raw = _distinct_release_dates(s3, args.bucket)
     if keep is None:
         raise SystemExit("raw ETag listing unavailable -- the rider would be inert; nothing proved")
     print("distinct vendor releases (newest label per raw zip ETag): %s" % ", ".join(sorted(keep)))
@@ -160,14 +160,17 @@ def main() -> None:
     print("caching live bronze partitions (read-only GETs):")
     paths = _download(args.bucket, args.aws_region, args.cache_dir)
     labels = [os.path.basename(p)[: -len(".parquet")] for p in paths]
-    dropped = sorted(set(labels) - keep)
-    print("partitions=%d kept=%d dropped=%s" % (len(labels), len(keep), dropped or "none"))
+    # Model the SHIPPED selection (review M-2): a label raw proves duplicate is dropped;
+    # a label with NO raw counterpart is KEPT -- the same rule _load_bronze applies.
+    selected = {l for l in labels if l in keep or l not in seen_raw}
+    dropped = sorted(set(labels) - selected)
+    print("partitions=%d kept=%d dropped=%s" % (len(labels), len(selected), dropped or "none"))
 
     rows_all, hash_all = _spawn("FULL", args.cache_dir, None)
-    rows_dedup, hash_dedup = _spawn("DEDUP", args.cache_dir, keep)
+    rows_dedup, hash_dedup = _spawn("DEDUP", args.cache_dir, selected)
 
     print("\nFULL   partitions=%d rows=%d hash=%s" % (len(labels), rows_all, hash_all))
-    print("DEDUP  partitions=%d rows=%d hash=%s" % (len(keep), rows_dedup, hash_dedup))
+    print("DEDUP  partitions=%d rows=%d hash=%s" % (len(selected), rows_dedup, hash_dedup))
     if hash_all == hash_dedup:
         print("RESULT: PASS -- the dedup rider is output-identical on the live bronze")
         return

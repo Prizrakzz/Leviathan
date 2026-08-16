@@ -1940,7 +1940,7 @@ resource "aws_scheduler_schedule" "ecr_pin_audit" {
 # schedule was ENABLED and had fired; commit 835ccf31 armed it 2026-08-05 and
 # leviathan-dev-freshness-sla-breach-table-graphrag-timeline-episodes has been
 # OK since (threshold 10, treat_missing_data="breaching"; the row now lives at
-# silver_observability.auto.tfvars.json:72-76 and its basis string is owned by
+# silver_observability.auto.tfvars.json:52-56 and its basis string is owned by
 # the silver_alarms.py generator since D-SG G3 STEP 1). THE CRON BELOW IS
 # DELIBERATELY THE ONE THE ALARM'S BASIS STRING NAMES, so the alarm's own
 # justification stays true rather than aspirational.

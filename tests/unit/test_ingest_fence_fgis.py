@@ -190,10 +190,11 @@ def test_advance_fence_passes_an_idempotent_rerun(fgis_env, monkeypatch, caplog)
     monkeypatch.setattr(fgis_task, "_process", lambda *a, **kw: ("skipped", "stub"))
     monkeypatch.setattr(fgis_task, "bronze_is_current", lambda *a, **kw: True)
 
-    code = _run_main(monkeypatch, [])
+    with caplog.at_level("INFO"):
+        code = _run_main(monkeypatch, [])
 
     assert code is None
-    assert "ADVANCE FENCE OK" in caplog.text or code is None
+    assert "ADVANCE FENCE OK" in caplog.text
 
 
 @mock_aws
