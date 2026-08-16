@@ -149,7 +149,6 @@ PENDING_HAND_MERGE = {
     "pink_sheet_monthly",  # D-SG G2-1(c): fetch --skip-existing-s3 --asof; cron 4th -> 8th (D23)
     "food_cpi",            # D-SG D23: cron 4th -> 8th, riding pink_sheet's fire minute
     "wasde_monthly",       # D-SG G1-2 (separate slice): fetch/silver window arguments
-    "psd_monthly",         # D-SG G1-1a: silver+promote legs repointed to leviathan-dev-psd-silver
 }
 
 
