@@ -290,19 +290,23 @@ class TestRatioMetricData:
 
 
 class TestPollerPassesTheDenominator:
-    """The emitter half is dead if the SCRIPT never passes ``expected``.
+    """The emitter half is dead if the POLLER never passes ``expected``.
 
     These are TEXT pins on the source, and text pins are exactly as strong as the string they
     match -- ``"expected=expected" in src`` stays green for a call that is dead, mis-scoped, or
     never reached. They are kept because they name the requirement in one line, but the load-bearing
     coverage is :class:`TestPollerEndToEnd` below, which runs ``main()`` against a fake S3 + a fake
-    CloudWatch and reads the datums that ACTUALLY arrive at ``put_metric_data``."""
+    CloudWatch and reads the datums that ACTUALLY arrive at ``put_metric_data``.
+
+    Repointed 2026-08-16 (D-SG G3-1) at the TASK module: scripts/silver/freshness_poller.py is a
+    shim now, so pinning its text would pin an empty file."""
 
     @staticmethod
     def _src() -> str:
         from pathlib import Path
         repo = Path(__file__).resolve().parents[3]
-        return (repo / "scripts" / "silver" / "freshness_poller.py").read_text(encoding="utf-8")
+        return (repo / "jobs" / "observability" / "freshness_poller_task.py").read_text(
+            encoding="utf-8")
 
     def test_script_passes_expected_to_metric_data_for(self):
         assert "expected=expected" in self._src()
@@ -383,7 +387,9 @@ class TestExtraTargets:
         assert self.ARTIFACT in by_table
         t = by_table[self.ARTIFACT]
         assert t.family == "graphrag_evidence"
-        assert t.prefix.endswith("/")
+        # D-SG D12: this target names ONE OBJECT, not a directory -- see the EXTRA_TARGETS
+        # comment. The prefix therefore deliberately does NOT end in "/".
+        assert t.prefix.endswith("/last_run.json")
 
     def test_bucket_and_prefix_match_the_evidence_jobdef(self):
         # The single source of truth for where the artifact actually lands: the evidence-build job
@@ -401,11 +407,14 @@ class TestExtraTargets:
 
         t = {x.table: x for x in all_poll_targets()}[self.ARTIFACT]
         assert t.bucket == bucket
-        assert t.prefix == prefix.rstrip("/") + "/timeline/"
-
-        # ...and that prefix is exactly where write_artifact puts the object.
+        # D-SG D12: the HEARTBEAT object, pinned to the writer's OWN constant rather than to a
+        # hand-copied literal -- timeline.write_heartbeat puts exactly this key under EVIDENCE_S3.
         from leviathan.graphrag import timeline as tl
-        assert (prefix.rstrip("/") + "/" + tl._ARTIFACT).startswith(t.prefix)
+        assert t.prefix == prefix.rstrip("/") + "/" + tl._HEARTBEAT
+
+        # ...and the artifact the heartbeat attests to still lives in that same directory.
+        assert (prefix.rstrip("/") + "/" + tl._ARTIFACT).startswith(
+            prefix.rstrip("/") + "/timeline/")
 
     def test_poll_targets_stays_registry_pure(self):
         # The registry-coverage pin above (len(targets) == len(reg.names())) must keep meaning what
@@ -423,11 +432,12 @@ class TestExtraTargets:
         assert by_dim["Table"]["MetricName"] == METRIC_NAME
 
     def test_poller_polls_all_targets_not_just_the_registry(self):
-        # The whole leg is dead if the SCRIPT still calls poll_targets(). Read the source rather
+        # The whole leg is dead if the POLLER still calls poll_targets(). Read the source rather
         # than importing it (the module takes argv/boto3 at import-adjacent scope).
         from pathlib import Path
         repo = Path(__file__).resolve().parents[3]
-        src = (repo / "scripts" / "silver" / "freshness_poller.py").read_text(encoding="utf-8")
+        src = (repo / "jobs" / "observability" / "freshness_poller_task.py").read_text(
+            encoding="utf-8")
         assert "targets = all_poll_targets()" in src
 
 
@@ -495,12 +505,18 @@ class _FakeBoto3:
 
 @pytest.fixture(scope="module")
 def poller():
-    """The script, loaded as a module. It is under scripts/ (not a package), so importlib by path."""
+    """The TASK module, loaded by path. `jobs/` is not an installed package, so importlib by path.
+
+    Repointed 2026-08-16 (D-SG G3-1) from scripts/silver/freshness_poller.py, which is now a
+    shim. These tests monkeypatch `boto3` ON THIS MODULE OBJECT, so they must load the module
+    that actually builds the clients -- pointing them at the shim would silently test nothing,
+    which is the exact shape of the two drifts this move exists to end."""
     import importlib.util
     from pathlib import Path
     repo = Path(__file__).resolve().parents[3]
     spec = importlib.util.spec_from_file_location(
-        "freshness_poller_under_test", repo / "scripts" / "silver" / "freshness_poller.py")
+        "freshness_poller_under_test",
+        repo / "jobs" / "observability" / "freshness_poller_task.py")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
@@ -522,7 +538,9 @@ class TestPollerEndToEnd:
     # The two ceilings under test are the live declared ones, pinned to silver_alarms by
     # TestDeclaredCeiling.test_declared_ceilings_match_the_per_table_alarms above.
     FGIS_PREFIX = "silver/fgis/"
-    EPISODES_PREFIX = "graphrag_evidence/timeline/"
+    # D-SG D12: the timeline target's list prefix now names the heartbeat OBJECT, so the fake
+    # listing is keyed by that full key and the key it yields IS the prefix.
+    EPISODES_PREFIX = "graphrag_evidence/timeline/last_run.json"
 
     def test_ratio_datums_actually_reach_put_metric_data(self, poller, monkeypatch):
         # THE LANE-B ASSERTION. A table WITH a declared ceiling emits FOUR datums, two of them
@@ -550,7 +568,7 @@ class TestPollerEndToEnd:
             ["--tables", "silver_fgis,graphrag_timeline_episodes"],
             listing={
                 self.FGIS_PREFIX: [(self.FGIS_PREFIX + "part.parquet", _ago(7.0))],
-                self.EPISODES_PREFIX: [(self.EPISODES_PREFIX + "episodes.json", _ago(5.0))],
+                self.EPISODES_PREFIX: [(self.EPISODES_PREFIX, _ago(5.0))],
             })
         assert rc == 0
         ratios = {d["Dimensions"][0]["Value"]: d["Value"]
@@ -570,7 +588,7 @@ class TestPollerEndToEnd:
         # This is the R7a datapoint precondition D-EI-12 wants -- the METRIC, never the alarm.
         rc, s3, cw = _run(
             poller, monkeypatch, ["--tables", "graphrag_timeline_episodes"],
-            listing={self.EPISODES_PREFIX: [(self.EPISODES_PREFIX + "episodes.json", _ago(2.0))]})
+            listing={self.EPISODES_PREFIX: [(self.EPISODES_PREFIX, _ago(2.0))]})
         assert rc == 0
         assert s3.listed == [("leviathan-dev-shahem-001", self.EPISODES_PREFIX)]
         assert {d["Dimensions"][0]["Value"] for d in cw.datums} == {
@@ -610,11 +628,14 @@ class TestPollerEndToEnd:
         # Whole-estate sweep: no target may silently degrade to day-only (which is what a missing
         # denominator looks like from CloudWatch -- indistinguishable from "this table has no
         # ceiling"). 4 datums x every target, and every request stays inside the put chunk.
-        n = len(all_poll_targets())
+        # An UNFILTERED run also carries one FreshnessBreachCount per family (D-SG G3-1).
+        targets = all_poll_targets()
+        n = len(targets)
+        families = {t.family for t in targets}
         rc, s3, cw = _run(poller, monkeypatch, [], default=("part.parquet", _ago(1.0)))
         assert rc == 0
         assert len(s3.listed) == n
-        assert len(cw.datums) == 4 * n
+        assert len(cw.datums) == 4 * n + len(families)
         assert len([d for d in cw.datums if d["MetricName"] == RATIO_METRIC_NAME]) == 2 * n
         assert all(0 < len(chunk) <= poller._PUT_CHUNK for chunk in cw.puts)
         assert set(cw.namespaces) == {METRIC_NAMESPACE}
@@ -659,3 +680,49 @@ class TestManifestExclusion:
             ("silver/t/_shadow/commodity=c/year=2026/part-000.parquet", fresh),
         ])
         assert got == old
+
+
+class TestBreachCount:
+    """D-SG G3-1. The family breach-count metric, and the empty-prefix asymmetry."""
+
+    def test_empty_prefix_counts_as_a_breach(self):
+        from leviathan.silver.freshness import is_breaching
+        assert is_breaching(None, 10.0) is True
+
+    def test_no_ceiling_cannot_breach(self):
+        from leviathan.silver.freshness import is_breaching
+        assert is_breaching(99.0, None) is False
+        assert is_breaching(99.0, 0) is False
+
+    def test_healthy_family_emits_zero_not_nothing(self):
+        from leviathan.silver.freshness import breach_counts
+        counts = breach_counts([("weather", 0.1, 3.0), ("weather", 80.7, 45.0)])
+        assert counts == {"weather": 1}
+        assert breach_counts([("cftc", 1.0, 16.0)]) == {"cftc": 0}
+
+    def test_breach_datums_reach_put_metric_data(self, poller, monkeypatch):
+        _rc, _s3, cw = _run(poller, monkeypatch, [], default=("part.parquet", _dt(22)))
+        names = {d["MetricName"] for d in cw.datums}
+        assert "FreshnessBreachCount" in names
+        assert "FreshnessLagRatio" in names   # FACT 0-A: this was dark in prod for 3 months
+        breach = [d for d in cw.datums if d["MetricName"] == "FreshnessBreachCount"]
+        assert all(d["Dimensions"][0]["Name"] == "Family" for d in breach)
+        assert all(d["Unit"] == "Count" for d in breach)
+
+    def test_a_filtered_run_suppresses_the_breach_metric(self, poller, monkeypatch, capsys):
+        # --tables makes the per-family counts PARTIAL, and a partial count written at this
+        # timestamp would overwrite the real one -- so a filtered run emits none and says why.
+        rc, _s3, cw = _run(
+            poller, monkeypatch, ["--tables", "silver_fgis"],
+            listing={"silver/fgis/": [("silver/fgis/part.parquet", _ago(7.0))]})
+        assert rc == 0
+        assert all(d["MetricName"] != "FreshnessBreachCount" for d in cw.datums)
+        assert "[breach] SUPPRESSED" in capsys.readouterr().out
+
+    def test_ratio_is_emitted_alongside_days_on_the_scheduled_path(self, poller, monkeypatch):
+        # FACT 0-A as a behaviour, not a text pin: the SCHEDULED (unfiltered) invocation is the one
+        # that dropped `expected=` in the terraform copy, so it is the one that must be measured.
+        _rc, _s3, cw = _run(poller, monkeypatch, [], default=("part.parquet", _dt(22)))
+        n = len(all_poll_targets())
+        assert len([d for d in cw.datums if d["MetricName"] == RATIO_METRIC_NAME]) == 2 * n
+        assert len([d for d in cw.datums if d["MetricName"] == METRIC_NAME]) == 2 * n

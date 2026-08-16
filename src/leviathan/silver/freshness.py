@@ -61,12 +61,16 @@ __all__ = [
     "METRIC_NAMESPACE",
     "METRIC_NAME",
     "RATIO_METRIC_NAME",
+    "BREACH_METRIC_NAME",
     "TABLE_CEILING_OVERRIDES",
     "is_excluded_key",
     "newest_last_modified",
     "lag_days",
     "declared_ceiling_days",
     "lag_ratio",
+    "is_breaching",
+    "breach_counts",
+    "breach_metric_data",
     "PollTarget",
     "poll_targets",
     "EXTRA_TARGETS",
@@ -79,6 +83,24 @@ METRIC_NAME = "FreshnessLagDays"
 
 # D-PR-14. The normalized companion metric. NEVER a rename of METRIC_NAME -- see rule 1 above.
 RATIO_METRIC_NAME = "FreshnessLagRatio"
+
+# D-SG G3-1, 2026-08-16. THE THIRD METRIC, and the one the family alarm should have been reading
+# all along.
+#
+# FreshnessLagDays{Family} is evaluated with statistic=Maximum against a threshold that
+# jobs/observability/silver_alarms.py takes as min() over the family's member ceilings -- the
+# family's SLOWEST member measured against its FASTEST member's ceiling. For a mixed-cadence
+# family that is not a mis-tuning, it is arithmetically unsatisfiable: ``weather`` carries a 3d
+# ceiling while silver_modis_ndvi is an 8-day composite sitting at 80.7d (measured 2026-08-16),
+# so leviathan-dev-freshness-sla-breach-weather has been latched ALARM since 2026-07-30 while
+# all four daily weather tables sat at 0.12-0.14d.
+#
+# FreshnessLagRatio (D-PR-14) normalizes per member but is STILL collapsed by Maximum, so it
+# answers "how bad is the worst member" -- a real improvement, and still not the question the
+# alarm asks. FreshnessBreachCount answers the question directly: how MANY member tables are
+# past THEIR OWN declared ceiling. Alarm on >= 1 and the weather artifact dies without losing
+# modis coverage (its own 45d table ceiling still counts it the day it is truly dead).
+BREACH_METRIC_NAME = "FreshnessBreachCount"
 
 # Canonical-only: the shadow/staging soak areas, the BACKUP areas and the tasks manifest are NOT
 # canonical data, so a shadow-published table (which by SFN doctrine never advances canonical) can
@@ -276,7 +298,32 @@ EXTRA_TARGETS: tuple[PollTarget, ...] = (
         table="graphrag_timeline_episodes",
         family="graphrag_evidence",
         bucket="leviathan-dev-shahem-001",
-        prefix="graphrag_evidence/timeline/",
+        # D-SG D12 / D-EI-12 CALIBRATION, 2026-08-16 -- POINTED AT THE HEARTBEAT, NOT THE
+        # DIRECTORY. This is an S3 list PREFIX that happens to name one full key, so
+        # list_objects_v2 returns exactly last_run.json and nothing else.
+        #
+        # WHY: the weekly rebuild runs ``--run-if-changed``, so on an UNCHANGED week it writes NO
+        # episodes.json -- correctly, R7.1 -- and touches only the heartbeat. What is being
+        # measured is SCHEDULE LIVENESS, never content churn, and the applied alarm's own basis
+        # string in silver_observability.auto.tfvars.json has said exactly that since 2026-08-05
+        # while the emitter still pointed at the directory.
+        #
+        # WHAT THE DIRECTORY PREFIX GOT WRONG, precisely: ``newest_last_modified`` takes the MAX
+        # over the prefix, so today it happens to return last_run.json (2026-08-09T03:01Z,
+        # measured lag 6.40d) because the heartbeat is newer than episodes.json
+        # (2026-08-04T07:17Z). The reading is right by ACCIDENT. A run that writes the artifact
+        # and then fails before stamping the heartbeat would reset the clock off the artifact and
+        # read fresh -- the fail-open direction R7.2 closed for /_backup/, through a third door.
+        # Naming the object makes the measurement a declaration instead of a coincidence.
+        #
+        # THE FAILURE MODE THIS TAKES ON, stated: if the heartbeat object is ever renamed or
+        # moved, this prefix lists EMPTY, the poller emits no datapoint, and the
+        # treat_missing_data="breaching" alarm fires within one day. That is the correct
+        # direction (fail closed) and it is pinned by
+        # tests/unit/silver/test_freshness_poller.py, which asserts this prefix against
+        # leviathan.graphrag.timeline's own ``_HEARTBEAT`` constant rather than a hand-copied
+        # literal.
+        prefix="graphrag_evidence/timeline/last_run.json",
         expected_lag_days=10.0,
     ),
 )
@@ -334,3 +381,60 @@ def metric_data_for(
         {**ratio_base, "Dimensions": [{"Name": "Family", "Value": family}]},
     ])
     return data
+
+
+def is_breaching(lag: Optional[float], expected: Optional[float]) -> bool:
+    """True when this table is past its OWN declared ceiling -- the per-member breach predicate.
+
+    THE EMPTY PREFIX COUNTS AS A BREACH (``lag is None``), and that is load-bearing rather than
+    convenient. The poller emits NO ``FreshnessLagDays`` datapoint for a table whose canonical
+    prefix has zero objects; today that absence is caught only by ``treat_missing_data =
+    'breaching'`` on the per-TABLE alarm, which exactly five tables have. The family breach-count
+    datapoint is written on EVERY poll cycle, so scoring an empty prefix 0 here would make the
+    replacement metric strictly WEAKER than the metric it replaces -- the failure mode this
+    estate keeps re-learning.
+
+    A table with no declared ceiling (``expected`` None or non-positive) CANNOT breach and scores
+    0; :func:`breach_counts` still counts it as a member so the family keeps emitting."""
+    if lag is None:
+        return True
+    ratio = lag_ratio(lag, expected)
+    if ratio is None:
+        return False
+    return ratio > 1.0
+
+
+def breach_counts(
+    rows: Iterable[tuple[str, Optional[float], Optional[float]]],
+) -> dict[str, int]:
+    """``{family: number of member tables past their own ceiling}``, for EVERY family seen.
+
+    ``rows`` is ``(family, lag_days_or_None, expected_or_None)`` -- one row per polled table.
+
+    A family with zero breaches is present with value 0, DELIBERATELY. An alarm that only
+    receives a datapoint while it is breaching can never CLEAR, and the breach-count alarms are
+    ``treat_missing_data = 'breaching'`` (a poller that dies must page), so a healthy family that
+    stopped emitting would page within one evaluation period."""
+    counts: dict[str, int] = {}
+    for family, lag, expected in rows:
+        counts.setdefault(family, 0)
+        if is_breaching(lag, expected):
+            counts[family] += 1
+    return counts
+
+
+def breach_metric_data(counts: dict[str, int], *, timestamp: datetime) -> list[dict]:
+    """One ``FreshnessBreachCount{Family}`` MetricDatum per family, ordered by family name.
+
+    ``Unit`` is ``"Count"`` -- unlike the two lag metrics (which are bare day numbers CloudWatch
+    has no unit for), this one really is a count of things."""
+    return [
+        {
+            "MetricName": BREACH_METRIC_NAME,
+            "Timestamp": timestamp,
+            "Value": float(counts[family]),
+            "Unit": "Count",
+            "Dimensions": [{"Name": "Family", "Value": family}],
+        }
+        for family in sorted(counts)
+    ]

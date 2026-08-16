@@ -15,9 +15,11 @@ Safety posture:
   - retryStrategy attempts=2: a Fargate-Spot reclaim retries once; a re-emit of the same lags is
     idempotent (CloudWatch just overwrites the datapoint at that timestamp).
 
-NOTE: the worker image must contain scripts/silver/freshness_poller.py + src/leviathan/silver/freshness.py
-+ the configs/silver/tables registry (all baked into the embedder image on the next build). Register a
-new revision AFTER that image ships.
+NOTE: the poller is the in-image module jobs/observability/freshness_poller_task.py (D-SG G3-1;
+the image copies jobs/ and NOT scripts/, so the old scripts/silver path was never runnable in a
+container -- scripts/silver/freshness_poller.py is now a local shim over the same module). The
+image must carry that module + src/leviathan/silver/freshness.py + the configs/silver/tables
+registry. Register a new revision AFTER that image ships.
 
     python jobs/utils/register_freshness_poller_jobdef.py            # register new revision
     python jobs/utils/register_freshness_poller_jobdef.py --dry-run  # print, don't register
@@ -37,7 +39,7 @@ _BUCKET = "leviathan-dev-shahem-001"
 
 _CONTAINER = {
     "image": f"{_ACCOUNT}.dkr.ecr.{_REGION}.amazonaws.com/{_REPO}:latest",
-    "command": ["scripts/silver/freshness_poller.py"],       # the DEFAULT command IS the poller
+    "command": ["-m", "jobs.observability.freshness_poller_task"],  # the DEFAULT command IS the poller (in-image module; scripts/ is not baked)
     "jobRoleArn": f"arn:aws:iam::{_ACCOUNT}:role/leviathan-dev-freshness-poller-job-role",  # ListBucket + PutMetricData only
     "executionRoleArn": f"arn:aws:iam::{_ACCOUNT}:role/leviathan-dev-batch-execution-role",
     "resourceRequirements": [
