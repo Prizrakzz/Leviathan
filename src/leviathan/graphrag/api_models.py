@@ -183,8 +183,8 @@ class SuggestRequest(BaseModel):
 
 
 class SuggestResponse(BaseModel):
-    """3-4 follow-up questions (or [] — over-cap, kill-switch, parse failure all degrade to empty;
-    suggestions are a nicety and must never surface an error)."""
+    """Up to 3 grounded follow-up questions (or [] — over-cap, kill-switch, cold catalog and parse failure
+    all degrade to empty; suggestions are a nicety and must never surface an error)."""
     suggestions: list[str] = []
 
 

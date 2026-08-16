@@ -1,7 +1,7 @@
 """6.8 grounded suggester — data-scoped catalog + convexity house-style prompt + answerable-gate.
 Hermetic: seeds the warm convergence matrix in _STATE, injects the Haiku call, no AWS / no LLM
 (the suggester's news surface was deleted in E1b). Flag-gated: GRAPHRAG_SUGGEST_CATALOG default
-off -> base prompt is byte-identical."""
+off -> no catalog, and since D-SG S2 that means no chips at all rather than a base prompt."""
 from __future__ import annotations
 
 import time
@@ -56,7 +56,7 @@ def test_suggest_scope_collects_and_dedups():
 def test_catalog_off_by_default(monkeypatch):
     _warm(monkeypatch)
     monkeypatch.delenv("GRAPHRAG_SUGGEST_CATALOG", raising=False)
-    assert sv._suggest_catalog(["coffee"]) is None                     # flag off -> base prompt
+    assert sv._suggest_catalog(["coffee"]) is None                     # flag off -> no catalog, no chips
 
 
 def test_catalog_cold_matrix_is_none(monkeypatch):
@@ -232,10 +232,13 @@ def test_xc_gate_fails_open_when_detector_absent(monkeypatch):
     assert sv._xc_chip_gate(chips, {"pairs": []}) == chips
 
 
-def test_route_base_prompt_when_flag_off(monkeypatch):
+def test_route_serves_nothing_when_flag_off(monkeypatch):
+    """D-SG S2/L1: the route is grounded-ONLY. With the flag off there is no catalog, so there is no
+    prompt, no model call and no chip -- the ungrounded base prompt used to fill this window, and it
+    bypassed the answerable denylist and the cross-commodity gate (both catalog-guarded)."""
     monkeypatch.setenv("GRAPHRAG_SUGGEST", "on")
     monkeypatch.delenv("GRAPHRAG_SUGGEST_CATALOG", raising=False)
-    _warm(monkeypatch)                                                 # warm present, but flag off -> base
+    _warm(monkeypatch)                                                 # warm present, but flag off -> no catalog
     captured: dict = {}
 
     def fake_call(p):
@@ -245,5 +248,31 @@ def test_route_base_prompt_when_flag_off(monkeypatch):
     monkeypatch.setitem(sv._STATE, "suggest_call", fake_call)
     r = _client(monkeypatch).post("/v1/suggest", json={"question": "corn?", "tldr": "tight"})
     assert r.status_code == 200
-    assert "answerable-only" not in captured["prompt"]                 # base prompt, no catalog
-    assert "Regimes closest to tipping" not in captured["prompt"]
+    assert r.json()["suggestions"] == []
+    assert "prompt" not in captured                                    # the model was never called
+
+
+def test_route_serves_nothing_when_matrix_is_cold(monkeypatch):
+    """The other half of the same branch: flag ON but the convergence warmer cold (task restart, warmer
+    down). Expected for up to one warmer cycle after a deploy -- an empty row, never a generic one."""
+    monkeypatch.setenv("GRAPHRAG_SUGGEST", "on")
+    monkeypatch.setenv("GRAPHRAG_SUGGEST_CATALOG", "on")
+    monkeypatch.delitem(sv._STATE, "conv_warm", raising=False)
+    called: dict = {}
+    monkeypatch.setitem(sv._STATE, "suggest_call", lambda p: called.setdefault("hit", True) or '["Q?"]')
+    r = _client(monkeypatch).post("/v1/suggest", json={"question": "corn?", "tldr": "tight"})
+    assert r.status_code == 200 and r.json()["suggestions"] == [] and "hit" not in called
+
+
+def test_grounded_prompt_asks_for_five_and_keeps_the_hard_rules(monkeypatch):
+    """L3: the count clause and the Mix clause move together (a '5 questions' ask under three hard-named
+    roles reads as a contradiction), while the two clauses the gates cannot repair after the fact -- the
+    120-char rule and the no-minted-number rule -- stay exactly as ratified."""
+    monkeypatch.setenv("GRAPHRAG_SUGGEST_CATALOG", "on")
+    _warm(monkeypatch)
+    p = sv._suggest_prompt_grounded(M.SuggestRequest(question="corn?"), None,
+                                    sv._suggest_catalog_text(sv._suggest_catalog([])))
+    assert "EXACTLY 5 questions" in p and "EXACTLY 3" not in p
+    assert "Mix: cover at least (1)" in p and "extras beyond these are welcome" in p
+    assert "MUST be under 120 characters" in p
+    assert "NEVER state a specific numeric level, threshold, or quantity" in p

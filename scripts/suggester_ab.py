@@ -140,7 +140,7 @@ def main() -> None:
         base_prompt = sv._suggest_prompt(body, None)
         arms["base"].append(_run_arm("base", base_prompt, call, args.samples, grounded=False))
         if cat_text:
-            g_prompt = sv._suggest_prompt_grounded(body, None, cat_text, [])
+            g_prompt = sv._suggest_prompt_grounded(body, None, cat_text)
             arms["grounded"].append(_run_arm("grounded", g_prompt, call, args.samples, grounded=True))
 
     print(f"\nSuggester A/B -- {len(SCENARIOS)} scenarios x {args.samples} samples"

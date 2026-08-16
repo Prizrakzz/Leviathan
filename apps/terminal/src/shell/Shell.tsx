@@ -186,8 +186,7 @@ export function Shell() {
         ) : (
           <ThreadSidebar turn={turn} />
         )}
-        {/* P9-E1a: watch chips prefill the top command bar through the SAME setCmd the bell uses. */}
-        <Workspace turn={turn} question={question} onAsk={ask} onPrefill={setCmd} />
+        <Workspace turn={turn} question={question} onAsk={ask} />
       </div>
       {helpOpen && <ShortcutSheet onClose={() => setHelpOpen(false)} />}
       {/* Settings + onboarding (6.6) — always mounted, self-gated on open/profile state. Wrapped so a

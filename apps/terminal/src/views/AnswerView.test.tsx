@@ -17,20 +17,11 @@ function doneTurn(result: TurnState['result']): TurnState {
   return { ...emptyTurn('done'), citationsLive: true, result };
 }
 
-function mount(
-  turn: TurnState,
-  question: string,
-  handlers: { onAsk?: (q: string) => void; onPrefill?: (q: string) => void } = {},
-) {
+function mount(turn: TurnState, question: string, handlers: { onAsk?: (q: string) => void } = {}) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <AnswerView
-        turn={turn}
-        question={question}
-        onAsk={handlers.onAsk ?? (() => {})}
-        onPrefill={handlers.onPrefill}
-      />
+      <AnswerView turn={turn} question={question} onAsk={handlers.onAsk ?? (() => {})} />
     </QueryClientProvider>,
   );
 }
@@ -78,23 +69,14 @@ describe('AnswerView graph chip + numbers rendering (P1.5: graph is TAB-ONLY, ne
     expect(screen.queryByTestId('note')).toBeNull();
   });
 
-  it('P9-E1a: watch chips derive from the watch section; click PREFILLS, no turn started', async () => {
-    const onAsk = vi.fn();
-    const onPrefill = vi.fn();
-    mount(doneTurn(MOCK_RESULT), 'KC frost 2021', { onAsk, onPrefill });
-    const chips = await screen.findAllByTestId('watch-chip', undefined, T);
-    expect(chips.length).toBeGreaterThan(0);
-    // MOCK_RESULT's watch section, first bullet, citation marker stripped
-    expect(chips[0]!.textContent).toBe('Certified/tenderable stocks through the July frost window');
-    await userEvent.click(chips[0]!);
-    expect(onPrefill).toHaveBeenCalledWith('Certified/tenderable stocks through the July frost window');
-    expect(onAsk).not.toHaveBeenCalled(); // prefill only -- a watch chip never submits a turn
-  });
-
-  it('P9-E1a: a structured-null turn renders zero watch chips', async () => {
-    const r = numbersOnlyResult('what were ending stocks', '2024-06-01');
-    mount(doneTurn(r), 'what were ending stocks');
-    await screen.findByTestId('numbers-answer', undefined, T);
+  it('D-SG S2-L2: the follow-up row carries NO watch chips, even for a watch-bearing answer', async () => {
+    // The reversal of P9-E1a's merge. MOCK_RESULT has a populated watch section, so this is the case that
+    // used to prepend up to 4 amber prefill chips to the row; the follow-up row is now the grounded
+    // suggester alone (here: an empty suggest response, so no row at all). The watch bullets are still
+    // rendered by the answer's own watch section -- they are just no longer restated as follow-ups.
+    mount(doneTurn(MOCK_RESULT), 'KC frost 2021');
+    await screen.findByTestId('sections', undefined, T);
     expect(screen.queryByTestId('watch-chip')).toBeNull();
+    expect(screen.queryByTestId('suggestion-chips')).toBeNull();
   });
 });

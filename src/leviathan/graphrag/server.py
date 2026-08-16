@@ -1062,8 +1062,13 @@ def citation_pdf_route(source_key: str = Query(...), snippet: Optional[str] = Qu
 
 # ── 6.2 query suggester — decoupled Haiku side-channel (never touches the answer path) ──────────────
 def _suggest_prompt(body: M.SuggestRequest, facts: Optional[dict]) -> str:
-    """The Haiku prompt: role + strict output contract + the turn packet + optional facts.
-    ASCII, hard-truncated fields (the packet is client-supplied text)."""
+    """The ungrounded base prompt: role + strict output contract + the turn packet + optional facts.
+    ASCII, hard-truncated fields (the packet is client-supplied text).
+
+    D-SG S2/L1: NO LONGER A SERVING PATH. `/v1/suggest` is grounded-only -- a cold or flag-off catalog
+    returns [] rather than falling through to here, because an ungrounded chip bypasses the answerable
+    denylist and the cross-commodity gate (both catalog-guarded). It stays in the module as the BASE ARM
+    of scripts/suggester_ab.py -- the control the grounded prompt is measured against."""
     lines = [
         "You suggest the NEXT question a commodity researcher would ask in a research terminal that",
         "answers from causal driver graphs, official-source evidence (USDA/WASDE/GAIN etc.) and",
@@ -1131,9 +1136,11 @@ def _mints_number(s: str) -> bool:
 
 
 def _parse_suggestions(raw: str) -> list[str]:
-    """First JSON array in the completion -> <=4 clean chips. Deterministic guards (the one-vocab
+    """First JSON array in the completion -> <=6 clean chips. Deterministic guards (the one-vocab
     doctrine applies to chips): strings only, trimmed, <=140 chars, ZERO register leaks (an internal
-    id can never render as a chip), no minted numeric level (_mints_number), deduped. Unparseable -> []."""
+    id can never render as a chip), no minted numeric level (_mints_number), deduped. Unparseable -> [].
+    The cap is the ask (5) plus one slot of deliberate slack: the route over-generates so 3 SURVIVE the
+    gates, and the survivors are trimmed to 3 there, not here."""
     from leviathan.graphrag import register as reg
     m = None
     try:
@@ -1149,7 +1156,7 @@ def _parse_suggestions(raw: str) -> list[str]:
         if not s or len(s) > 140 or s in out or reg.register_leaks(s) or reg.lane_b_hits(s) or _mints_number(s):
             continue                                                  # Lane A rides register_leaks; Lane B is the +1
         out.append(s)
-    return out[:4]
+    return out[:6]
 
 
 # ── 6.8 grounded suggester — data-scoped catalog + convexity house style (flag GRAPHRAG_SUGGEST_CATALOG) ─
@@ -1297,7 +1304,7 @@ def _suggest_scope(body: M.SuggestRequest, facts: Optional[dict]) -> list[str]:
 def _suggest_catalog(scope: list[str]) -> Optional[dict]:
     """Data-scoped catalog from the WARM convergence matrix (never computed live): tracked contracts + the
     regimes closest to firing (scoped to the user's markets, else global top-N). None when the flag is off or
-    the matrix is cold -> the route then uses the byte-identical base prompt."""
+    the matrix is cold -> the route then serves NO chips at all (D-SG S2/L1: grounded-only)."""
     if os.environ.get("GRAPHRAG_SUGGEST_CATALOG", "off").lower() != "on":
         return None
     warm = _STATE.get("conv_warm")
@@ -1352,12 +1359,18 @@ def _suggest_catalog_text(cat: dict) -> str:
 
 def _suggest_prompt_grounded(body: M.SuggestRequest, facts: Optional[dict], cat_text: str) -> str:
     """The convexity-house-style, ANSWERABLE-ONLY prompt: short buffer+rate -> named-regime-tip questions
-    scoped to the catalog (our DAGs + silver). Used only when the catalog flag is on and the matrix is
-    warm; otherwise the route uses the byte-identical base `_suggest_prompt`."""
+    scoped to the catalog (our DAGs + silver). The ONLY prompt the route ever uses: a flag-off or cold
+    catalog serves no chips rather than falling back to the ungrounded `_suggest_prompt`.
+
+    D-SG S2/L3 asks for FIVE, not three: the route wants 3 chips AFTER the deny/register/number/xc gates,
+    and padding is only possible from an ungrounded source, so 3 is reached by over-generation. Two clauses
+    carry the count -- the array size and the Mix roles -- and both must move together or the model reads
+    a contradiction. Every other clause is byte-identical (the 120-char rule and the no-minted-number rule
+    are the two the gates cannot repair after the fact)."""
     lines = [
         "You suggest the NEXT question a commodity researcher would ask, in the house style of a convexity",
         "desk: a supply BUFFER + a depletion/flow RATE tipping a NAMED regime. Return ONLY a JSON array of",
-        "EXACTLY 3 questions. Each MUST be under 120 characters -- count the characters, a longer one is",
+        "EXACTLY 5 questions. Each MUST be under 120 characters -- count the characters, a longer one is",
         "DISCARDED. Keep each to ONE buffer + ONE rate + ONE regime, no extra clauses. Plain English, ASCII,",
         "no code_like names, no price targets.",
         "HARD RULE -- answerable-only: reference ONLY the contracts, regimes, drivers and fundamentals listed",
@@ -1367,8 +1380,8 @@ def _suggest_prompt_grounded(body: M.SuggestRequest, facts: Optional[dict], cat_
         "'>15% lag') -- ask about DIRECTION and CONFLUENCE; you do not have the live values.",
         "Style (108 chars): 'Cane crush firm -- how fast must sugar ending stocks fall before the ethanol-",
         "diversion regime fires?'",
-        "Mix: (1) a regime CLOSEST TO FIRING for the user's markets, (2) a cross-commodity CASCADE, (3) one",
-        "going deeper on the last answer.",
+        "Mix: cover at least (1) a regime CLOSEST TO FIRING for the user's markets, (2) a cross-commodity",
+        "CASCADE, (3) one going deeper on the last answer; extras beyond these are welcome.",
         "",
         cat_text,
     ]
@@ -1389,49 +1402,60 @@ def _suggest_prompt_grounded(body: M.SuggestRequest, facts: Optional[dict], cat_
 
 @app.post("/v1/suggest", response_model=M.SuggestResponse)
 def suggest_route(body: M.SuggestRequest, ident: dict = Depends(_require_identity)) -> dict:
-    """3-4 follow-up questions for the completed turn (or starters for `{}`). Fired once per turn BY THE
-    CLIENT; identity-gated but NEVER the turn quota — a separate namespaced daily counter caps the Haiku
-    spend, and every failure mode degrades to `[]` (chips are a nicety, never an error state)."""
+    """Up to 3 GROUNDED follow-up questions for the completed turn (or starters for `{}`). Fired once per
+    turn BY THE CLIENT; identity-gated but NEVER the turn quota — a separate namespaced daily counter caps
+    the Haiku spend, and every failure mode degrades to `[]` (chips are a nicety, never an error state).
+    D-SG S2: 3 is a TARGET reached by over-generation, never a guarantee reached by padding — on shortfall
+    the row renders fewer."""
     empty = M.SuggestResponse(suggestions=[]).model_dump()
     if os.environ.get("GRAPHRAG_SUGGEST", "on").lower() != "on":       # kill-switch, no redeploy
         return empty
     from leviathan.graphrag import store as st
-    try:                                                               # sk=quota#suggest#<day> — the turn
-        cap = int(os.environ.get("GRAPHRAG_SUGGEST_QUOTA", "200"))     # quota counter is untouched
-        _store().incr_turn_quota(ident["sub"], f"suggest#{time.strftime('%Y-%m-%d', time.gmtime())}", cap)
-    except st.QuotaExceeded:
-        return empty
-    except Exception:  # noqa: BLE001 — counter glitch -> fail open
-        pass
     try:
         facts = (_store().get_profile(ident["sub"]) or {}).get("facts")
     except Exception:  # noqa: BLE001
         facts = None
     facts_d = facts if isinstance(facts, dict) else None
-    # 6.8 grounded path: when GRAPHRAG_SUGGEST_CATALOG=on AND the convergence matrix is warm, build a
-    # data-scoped catalog + the convexity house-style prompt; else the byte-identical base prompt. EVERYTHING
-    # below (catalog build, prompt build, model call, parse) is inside ONE try so ANY failure degrades to [].
+    # 6.8 grounded path, D-SG S2/L1 made EXCLUSIVE: a chip is served only when GRAPHRAG_SUGGEST_CATALOG=on
+    # AND the convergence matrix is warm. A cold matrix (task restart, warmer down) now yields ZERO chips for
+    # up to one warmer cycle instead of ungrounded ones — deliberate: the base prompt bypassed the answerable
+    # denylist and the cross-commodity gate, both of which are catalog-guarded. EVERYTHING below (catalog
+    # build, prompt build, model call, parse) is inside ONE try so ANY failure degrades to [].
     try:
         scope = _suggest_scope(body, facts_d)
         catalog = _suggest_catalog(scope)
-        if catalog:
-            prompt = _suggest_prompt_grounded(body, facts_d, _suggest_catalog_text(catalog))
-        else:
-            prompt = _suggest_prompt(body, facts_d)
+        if not catalog:
+            return empty
+        # sk=quota#suggest#<day> — the turn quota counter is untouched. BELOW the catalog check (D-SG S2/L1):
+        # the counter caps Haiku spend, and a cold-catalog request spends no Haiku, so it must spend no slot.
+        try:
+            cap = int(os.environ.get("GRAPHRAG_SUGGEST_QUOTA", "200"))
+            _store().incr_turn_quota(ident["sub"],
+                                     f"suggest#{time.strftime('%Y-%m-%d', time.gmtime())}", cap)
+        except st.QuotaExceeded:
+            return empty
+        except Exception:  # noqa: BLE001 — counter glitch -> fail open
+            pass
+        prompt = _suggest_prompt_grounded(body, facts_d, _suggest_catalog_text(catalog))
         call = _STATE.get("suggest_call")
         if call is None:
             from leviathan.graphrag import providers as pv
             def call(p: str) -> str:
                 client = pv.make_client()
-                out = client.messages.create(model=pv.resolve_model("claude-haiku-4-5"), max_tokens=320,
+                # 768, not 320: the prompt asks for 5 chips of up to 120 chars and `_parse_suggestions`
+                # finds the array with rindex("]") — a completion truncated mid-array parses to [] and the
+                # whole row disappears, so the ceiling carries real headroom over the 5x120 ask.
+                out = client.messages.create(model=pv.resolve_model("claude-haiku-4-5"), max_tokens=768,
                                              messages=[{"role": "user", "content": p}])
                 return "".join(b.text for b in out.content if getattr(b, "type", "") == "text").strip()
         sug = _parse_suggestions(call(prompt) or "")
-        if catalog:                                                    # answerable-gate: drop out-of-domain chips
-            sug = [s for s in sug if not _SUGGEST_DENY.search(s)]
-            if _reroute_v2_on():                                       # flag off => gate never runs (byte-identical)
-                sug = _xc_chip_gate(sug, catalog)                      # RV-v2: drop non-allowlisted cross-asks
-        return M.SuggestResponse(suggestions=sug).model_dump()
+        sug = [s for s in sug if not _SUGGEST_DENY.search(s)]          # answerable-gate: drop out-of-domain
+        if _reroute_v2_on():                                           # flag off => gate never runs (byte-identical)
+            sug = _xc_chip_gate(sug, catalog)                          # RV-v2: drop non-allowlisted cross-asks
+        # The wire contract is 3. The FE's own slice(0,3) stays, as a defence against version skew in either
+        # direction (a stale bundle against this server, or this bundle against an older one) — not as the
+        # enforcement point.
+        return M.SuggestResponse(suggestions=sug[:3]).model_dump()
     except Exception:  # noqa: BLE001 — ANY failure (catalog/prompt/model/parse) -> no chips
         return empty
 

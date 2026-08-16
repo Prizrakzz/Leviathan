@@ -21,13 +21,10 @@ export function Workspace({
   turn,
   question,
   onAsk,
-  onPrefill,
 }: {
   turn: TurnState;
   question: string;
   onAsk: (q: string) => void;
-  /** P9-E1a: threaded Shell -> AnswerView so watch chips can PREFILL the command bar (never submit). */
-  onPrefill?: (q: string) => void;
 }) {
   const tabs = useUI((s) => s.tabs);
   const activeTabId = useUI((s) => s.activeTabId);
@@ -70,7 +67,7 @@ export function Workspace({
         className={hasTabs ? 'min-h-0 shrink-0 overflow-hidden' : 'min-h-0 flex-1 overflow-hidden'}
         data-testid="chat-panel"
       >
-        <AnswerView turn={turn} question={question} onAsk={onAsk} onPrefill={onPrefill} />
+        <AnswerView turn={turn} question={question} onAsk={onAsk} />
       </div>
     </main>
   );

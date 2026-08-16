@@ -13,16 +13,32 @@ import { useSession } from '@/store/session';
  *  near-firing regimes, and census-realizable pairs). The suggester keeps its real job: follow-ups under a
  *  finished answer, where the last turn is what makes it worth the spend. */
 
-/** Round-robin clamp. BREADTH FIRST — one starter from every category before any category gets a second —
- *  so growing the yaml can never let one category crowd the landing page, and the reader always sees the
- *  full range of question SHAPES the engine answers well. (SuggestionChips clamps its row to 3 for the same
- *  reason; the numbers differ because that row sits under an answer and this one IS the page.) */
-const PER_CATEGORY = 2;
-const MAX_STARTERS = 8;
+/** D-SG S1 — THREE starters, one per category. The landing page was a 2-column board of 8 chips under 7
+ *  category headings; that reads as a menu to study rather than a question to ask, and the hero composer
+ *  (the thing the page exists to point at) lost the eye to it. Three unlabelled chips is the whole surface
+ *  now. Round-robin stays BREADTH FIRST — one starter from a category before any category gets a second —
+ *  so growing the yaml can never let one category crowd the page. */
+const PER_CATEGORY = 1;
+const MAX_STARTERS = 3;
+
+/** Days since Jan 1 of the same UTC year. UTC, not local: the gallery's doctrine is that two users on the
+ *  same book on the same day see the same gallery (the server fills the slots from one warm matrix per
+ *  day), and a local-midnight rotation would break that across zones. Exported for the test. */
+export function utcDayOfYear(now: Date = new Date()): number {
+  const midnight = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  return Math.round((midnight - Date.UTC(now.getUTCFullYear(), 0, 1)) / 86_400_000);
+}
 
 /** Category order is the SERVER's (gallery.yaml file order), never sorted here: the authored order is a
- *  curation decision and the file is where it is reviewed. Exported for the test. */
-export function pickStarters(items: GalleryItem[], max = MAX_STARTERS): [string, GalleryItem[]][] {
+ *  curation decision and the file is where it is reviewed. What DOES move is where the round starts:
+ *  clamping to 3 without rotation would freeze the landing page onto the first three categories forever,
+ *  so the start offset walks the categories by UTC day. Deterministic by construction — same day, same
+ *  three shapes — while the chip TEXT keeps varying with the live warm catalog. Exported for the test. */
+export function pickStarters(
+  items: GalleryItem[],
+  max = MAX_STARTERS,
+  day = utcDayOfYear(),
+): GalleryItem[] {
   const byCat = new Map<string, GalleryItem[]>();
   // An unfilled entry still carries its `{slot}` blanks (cold catalog). D-UX-1 made the click PREFILL rather
   // than submit, so a blank is no longer a hazard — but this row is a one-glance menu of questions the book
@@ -33,20 +49,17 @@ export function pickStarters(items: GalleryItem[], max = MAX_STARTERS): [string,
     if (bucket) bucket.push(it);
     else byCat.set(it.category, [it]);
   }
-  const picked = new Map<string, GalleryItem[]>();
-  let n = 0;
-  for (let round = 0; round < PER_CATEGORY && n < max; round++) {
-    for (const [cat, bucket] of byCat) {
-      if (n >= max) break;
-      const it = bucket[round];
-      if (!it) continue;
-      const out = picked.get(cat);
-      if (out) out.push(it);
-      else picked.set(cat, [it]);
-      n++;
+  const buckets = [...byCat.values()];
+  if (!buckets.length) return [];
+  const start = ((day % buckets.length) + buckets.length) % buckets.length;
+  const picked: GalleryItem[] = [];
+  for (let round = 0; round < PER_CATEGORY && picked.length < max; round++) {
+    for (let i = 0; i < buckets.length && picked.length < max; i++) {
+      const it = buckets[(start + i) % buckets.length]?.[round];
+      if (it) picked.push(it);
     }
   }
-  return [...picked];
+  return picked;
 }
 
 /** The new-thread landing (5.6 W4): a centered hero composer + starter prompts, ChatGPT-style,
@@ -63,7 +76,7 @@ export function EmptyState({ onAsk }: { onAsk: (q: string) => void }) {
   // No local fallback list: while this loads (or if it fails) the starter row renders NOTHING rather than
   // four hardcoded questions the book may not be able to answer. The hero and the composer are what keep
   // the page from being empty — chips are a nicety, never an error state (the SuggestionChips doctrine).
-  const groups = pickStarters(galleryQ.data?.items ?? []);
+  const starters = pickStarters(galleryQ.data?.items ?? []);
   const vocab = galleryQ.data?.vocab ?? EMPTY_VOCAB;
   // D-UX-1 REVERTS the click-submits starter. A starter is a DRAFT, not a decision: it lands in the hero
   // composer with its slot bar attached, and the analyst edits the contract (or any word of it) and presses
@@ -79,28 +92,19 @@ export function EmptyState({ onAsk }: { onAsk: (q: string) => void }) {
         </div>
       </div>
       <Composer onSubmit={onAsk} streaming={false} hero />
-      {groups.length > 0 && (
-        <div
-          className="grid w-full max-w-3xl gap-x-6 gap-y-4 sm:grid-cols-2"
-          data-testid="prompt-gallery"
-        >
-          {groups.map(([category, items]) => (
-            <div key={category}>
-              <div className="font-mono text-11 uppercase tracking-wider text-text-faint">
-                {category.replace(/_/g, ' ')}
-              </div>
-              <div className="mt-1.5 flex flex-col gap-1.5">
-                {items.map((it) => (
-                  <button
-                    key={it.id}
-                    onClick={() => choose(it)}
-                    className="rounded-chip border border-line px-2.5 py-1 text-left font-sans text-12 text-text-dim hover:border-cyan hover:text-text"
-                  >
-                    {it.question}
-                  </button>
-                ))}
-              </div>
-            </div>
+      {/* D-SG S1: ONE unlabelled row. With a single starter per category the headings labelled nothing —
+          they just told the reader which drawer the question came out of, which is the yaml's concern, not
+          the analyst's. The category is still what CHOOSES the three; it is no longer what frames them. */}
+      {starters.length > 0 && (
+        <div className="flex w-full max-w-3xl flex-wrap justify-center gap-2" data-testid="prompt-gallery">
+          {starters.map((it) => (
+            <button
+              key={it.id}
+              onClick={() => choose(it)}
+              className="rounded-chip border border-line px-2.5 py-1 text-left font-sans text-12 text-text-dim hover:border-cyan hover:text-text"
+            >
+              {it.question}
+            </button>
           ))}
         </div>
       )}

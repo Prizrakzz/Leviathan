@@ -25,7 +25,6 @@ import { Note } from './note/Note';
 import { Sections } from './note/Sections';
 import { StreamingNote } from './note/StreamingNote';
 import { useTypewriter } from './note/useTypewriter';
-import { deriveWatchChips } from './note/watchChips';
 import { ChartCards } from './numbers/ChartCards';
 import { Numbers } from './numbers/Numbers';
 import { ReceiptsDrawer } from './receipts/ReceiptsDrawer';
@@ -145,13 +144,10 @@ export function AnswerView({
   turn,
   question,
   onAsk,
-  onPrefill,
 }: {
   turn: TurnState;
   question: string;
   onAsk: (q: string) => void;
-  /** P9-E1a: watch-chip click PREFILLS the composer (the NotificationBell setCmd path) -- never submits. */
-  onPrefill?: (q: string) => void;
 }) {
   const r = turn.result;
   const receiptsOpen = useUI((s) => s.receiptsOpen);
@@ -216,13 +212,12 @@ export function AnswerView({
     staleTime: Infinity,
   });
 
-  // P9-E1a: deterministic watch chips off the SAME turn the suggester keys on (live result when done,
-  // else the last persisted turn). Deduped against the server texts inside the helper.
+  // D-SG S2-L2: the follow-up row carries the GROUNDED suggester chips and nothing else. It used to be a
+  // mix -- up to 4 FE-derived watch chips prepended to up to 3 server chips, so a 7-button row where only
+  // the cyan half was answerable-by-construction. The watch bullets already sit in the answer's own watch
+  // section, one scroll up; restating them as follow-ups made the row read as generic. deriveWatchChips
+  // stays in-tree (with its tests) against a future home for the chips, but nothing calls it here.
   const suggestions = suggestQ.data?.suggestions ?? [];
-  const watchSource = liveDone
-    ? (r?.structured ?? null)
-    : ((lastTurn?.structured ?? null) as Parameters<typeof deriveWatchChips>[0]);
-  const watchChips = deriveWatchChips(watchSource, suggestions);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   useAutoScroll(
@@ -373,7 +368,7 @@ export function AnswerView({
 
         {turn.status !== 'streaming' && (
           <ErrorBoundary fallback={null} resetKeys={[suggestKey]}>
-            <SuggestionChips items={suggestions} onAsk={onAsk} watchItems={watchChips} onPrefill={onPrefill} />
+            <SuggestionChips items={suggestions} onAsk={onAsk} />
           </ErrorBoundary>
         )}
       </div>

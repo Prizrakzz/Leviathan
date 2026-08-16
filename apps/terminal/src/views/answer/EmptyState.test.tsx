@@ -1,12 +1,12 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const galleryMock = vi.fn();
 vi.mock('@/api/client', () => ({ getGallery: () => galleryMock() }));
 
-import { EmptyState, pickStarters } from './EmptyState';
+import { EmptyState, pickStarters, utcDayOfYear } from './EmptyState';
 import type { GalleryItem } from '@/api/schema';
 import { useCompose } from '@/store/compose';
 
@@ -20,6 +20,8 @@ const item = (id: string, category: string, question: string, filled = true): Ga
 
 // One row per category plus a SECOND convergence row, mirroring the shape gallery.yaml ships (12 rows over
 // 7 categories) so the clamp is exercised against real proportions rather than a toy list.
+// D-SG S1: 7 categories and a 3-chip page means the rotation is what decides WHICH three, so every
+// assertion below either pins the UTC day or asserts something the rotation cannot move.
 const CONV_1 = item('conv_1', 'convergence', 'How close is the frost squeeze regime in coffee to firing right now?');
 const CONV_2 = item('conv_2', 'convergence', 'The ethanol diversion regime in sugar is short of its threshold?');
 const CROSS_1 = item('cross_1', 'cross_commodity', 'Compare palm oil and soybean oil?');
@@ -52,16 +54,26 @@ function mount(onAsk: (q: string) => void = () => {}) {
   );
 }
 
-describe('EmptyState prompt gallery (D-AM-16)', () => {
-  it('renders the filled gallery entries grouped under their category headings', async () => {
+afterEach(() => vi.useRealTimers());
+
+describe('EmptyState prompt gallery (D-AM-16, clamped to 3 by D-SG S1)', () => {
+  it('renders EXACTLY 3 unlabelled starters, rotated by the UTC day', async () => {
+    // Only Date is faked (timers stay real, so waitFor and userEvent still tick). 2026-03-04 is day 62;
+    // 62 % 7 categories = 6, so the round starts at the LAST category and wraps -- which is the whole point
+    // of the rotation: without it the landing page would be frozen on convergence/cross_commodity/cascade.
+    vi.useFakeTimers({ toFake: ['Date'], shouldAdvanceTime: true });
+    vi.setSystemTime(new Date('2026-03-04T09:00:00Z'));
     galleryMock.mockResolvedValue({ items: ITEMS });
     mount();
-    await waitFor(() => expect(screen.getByTestId('prompt-gallery')).toBeTruthy());
-    // categories are headings, questions are the chips
-    expect(screen.getByText('cross commodity')).toBeTruthy(); // underscores are display-stripped
-    expect(screen.getByText('convergence')).toBeTruthy();
-    expect(screen.getByText(CONV_1.question)).toBeTruthy();
-    expect(screen.getByText(RECENCY_1.question)).toBeTruthy();
+    const gallery = await waitFor(() => screen.getByTestId('prompt-gallery'));
+    expect([...gallery.querySelectorAll('button')].map((b) => b.textContent)).toEqual([
+      RECENCY_1.question,
+      CONV_1.question,
+      CROSS_1.question,
+    ]);
+    // the category headings are GONE: with one starter per category they labelled nothing
+    expect(screen.queryByText('cross commodity')).toBeNull();
+    expect(screen.queryByText('convergence')).toBeNull();
   });
 
   it('D-UX-1: a starter PREFILLS the hero composer verbatim and fires NO turn', async () => {
@@ -69,7 +81,8 @@ describe('EmptyState prompt gallery (D-AM-16)', () => {
     // a mouse: no chance to swap the contract, add a clause, or set the reasoning mode first. Now the chip
     // text lands in the box (byte-identical to what it used to submit) and Enter is what sends it.
     const onAsk = vi.fn();
-    galleryMock.mockResolvedValue({ items: ITEMS });
+    // a one-row catalog: which of the 7 categories the day happens to start on is the clamp's business
+    galleryMock.mockResolvedValue({ items: [VERIFY_1] });
     mount(onAsk);
     const chip = await screen.findByText(VERIFY_1.question);
     await userEvent.click(chip);
@@ -137,42 +150,34 @@ describe('EmptyState prompt gallery (D-AM-16)', () => {
   });
 });
 
-describe('pickStarters clamp (D-AM-16)', () => {
-  it('takes one per category before any category takes a second, in server order', () => {
-    const groups = pickStarters(ITEMS);
-    expect(groups.map(([c]) => c)).toEqual([
-      'convergence',
-      'cross_commodity',
-      'cascade',
-      'verification',
-      'ranking',
-      'horizon',
-      'recency',
-    ]);
-    // 7 categories -> round 0 spends 7 of the 8 slots on ONE row each; only the leftover 8th slot goes to a
-    // second row, and it lands on the first category in server order. (The return is GROUPED for rendering,
-    // so a category's two rows sit together — the breadth-first claim is the per-category counts, not the
-    // flattened order.)
-    expect(groups.map(([c, i]) => [c, i.length])).toEqual([
-      ['convergence', 2],
-      ['cross_commodity', 1],
-      ['cascade', 1],
-      ['verification', 1],
-      ['ranking', 1],
-      ['horizon', 1],
-      ['recency', 1],
-    ]);
-    expect(groups.flatMap(([, i]) => i)).toHaveLength(8);
+describe('pickStarters clamp (D-AM-16, re-pinned by D-SG S1)', () => {
+  it('takes ONE per category, at most 3, in server order from the rotated start', () => {
+    // Day 0 starts at the first category, so this is the un-rotated baseline: three consecutive categories
+    // in gallery.yaml order, one row each. CONV_2 proves the second convergence row is never reached.
+    expect(pickStarters(ITEMS, 3, 0).map((i) => i.id)).toEqual(['conv_1', 'cross_1', 'cascade_1']);
+  });
+
+  it('rotates the start category by UTC day, and the same day always picks the same three', () => {
+    const ids = (day: number) => pickStarters(ITEMS, 3, day).map((i) => i.id);
+    expect(ids(1)).toEqual(['cross_1', 'cascade_1', 'verify_1']);
+    expect(ids(6)).toEqual(['recency_1', 'conv_1', 'cross_1']); // wraps past the last category
+    expect(ids(7)).toEqual(ids(0)); // 7 categories -> the cycle closes
+    expect(ids(3)).toEqual(ids(3)); // deterministic: no shuffle, no clock read inside the pick
+    // the offset is a function of the DATE alone, in UTC -- two users on the same book on the same day
+    // must see the same three, whatever their zone (Jan 1 is day 0).
+    expect(utcDayOfYear(new Date('2026-01-01T23:59:59Z'))).toBe(0);
+    expect(utcDayOfYear(new Date('2026-03-04T09:00:00Z'))).toBe(62);
   });
 
   it('honours the max, and no category may exceed PER_CATEGORY even when it is the only one', () => {
     const many = Array.from({ length: 9 }, (_, i) => item(`c${i}`, 'convergence', `q${i}`));
-    expect(pickStarters(many).flatMap(([, i]) => i)).toHaveLength(2); // PER_CATEGORY, not MAX_STARTERS
-    expect(pickStarters(ITEMS, 3).flatMap(([, i]) => i)).toHaveLength(3);
+    expect(pickStarters(many, 3, 0)).toHaveLength(1); // PER_CATEGORY, not MAX_STARTERS
+    expect(pickStarters(ITEMS, 2, 0)).toHaveLength(2);
+    expect(pickStarters([], 3, 0)).toEqual([]); // an empty catalog must not divide by zero categories
   });
 
   it('drops unfilled entries before clamping, so a cold row never consumes a slot', () => {
     const mixed = [item('cold', 'convergence', 'q {contract}', false), CROSS_1, CASCADE_1];
-    expect(pickStarters(mixed).flatMap(([, i]) => i.map((x) => x.id))).toEqual(['cross_1', 'cascade_1']);
+    expect(pickStarters(mixed, 3, 0).map((x) => x.id)).toEqual(['cross_1', 'cascade_1']);
   });
 });
