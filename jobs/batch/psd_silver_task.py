@@ -47,13 +47,14 @@ from leviathan.common.logging import get_logger
 from leviathan.silver.flat_producer import authorize_for_contract, build_flat_publish
 from leviathan.silver.publisher import ManifestState
 from leviathan.silver.registry import load_registry
-from leviathan.storage.paths import silver_psd_key
+from leviathan.storage.paths import parse_hive_key, silver_psd_key
 from leviathan.storage.s3 import get_thread_local_s3_client, list_s3_keys
 from leviathan.transforms.bronze_to_silver.usda_psd import transform_psd_bronze_to_silver
 
 logger = get_logger("psd_silver_task")
 
 _BRONZE_PREFIX = "bronze/production/source=usda_psd/"
+_RAW_BULK_PREFIX = "raw/production/source=usda_psd/release_type=bulk/"
 _TABLE = "silver_psd"
 _JOB = "psd_silver"
 
@@ -134,6 +135,49 @@ def _assert_release_dates_not_future(silver_df: pd.DataFrame, ingest_date: str) 
 # Bronze load
 # ---------------------------------------------------------------------------
 
+def _distinct_release_dates(s3_client, bucket: str) -> tuple[set[str] | None, set[str]]:
+    """The release_date labels whose RAW vendor zip is the NEWEST copy of its content.
+
+    fetch_usda_psd.py stamps ``release_date`` with the FETCH date (its default is
+    ``date.today()``), and psd_monthly fires on days 8-13, so ONE monthly USDA bulk file
+    lands under up to six different release_date labels. Measured 2026-08-16 on the live
+    prefix: 08-08/09/10/11 all carry ETag d085f3d1a6048cedcbc9b5df94e07b21 and 08-12/13
+    both carry bd5be5458e069a6f8ccc260acfff4b4f -- 8 bronze partitions, 4 distinct vendor
+    releases, and 8,238,412 of the 16,735,546 concatenated rows are exact duplicates the
+    transform pays 8.5 GiB to load and then discards at usda_psd.py:400.
+
+    Keeping the NEWEST label per ETag is content-preserving by construction: step 11.5 of
+    the transform already resolves a re-printed vintage by keeping the latest
+    release_date, so dropping an OLDER byte-identical copy can change nothing it would
+    have kept.
+
+    Returns ``(keep, seen_raw)``: ``keep`` is the newest-label-per-ETag set (None = keep
+    everything, if the raw prefix cannot be read -- a listing failure degrades to today's
+    behaviour instead of silently truncating history); ``seen_raw`` is EVERY release_date
+    observed under the raw prefix. A bronze partition whose release_date is absent from
+    ``seen_raw`` has no raw counterpart to judge it a duplicate BY, so the caller must
+    KEEP it -- dropping it would silently truncate the input of a self-promoting
+    canonical transform on the strength of an absent object.
+    """
+    try:
+        newest: dict[str, str] = {}
+        seen_raw: set[str] = set()
+        paginator = s3_client.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=bucket, Prefix=_RAW_BULK_PREFIX):
+            for obj in page.get("Contents", []):
+                rd = parse_hive_key(obj["Key"], "release_date")
+                if not rd:
+                    continue
+                seen_raw.add(rd)
+                etag = obj["ETag"].strip('"')
+                if etag not in newest or rd > newest[etag]:
+                    newest[etag] = rd
+        return (set(newest.values()) or None, seen_raw)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("raw ETag dedup unavailable (%s) -- loading every bronze partition", exc)
+        return None, set()
+
+
 def _load_bronze(bucket: str, aws_region: str, s3_client) -> list[pd.DataFrame]:
     bronze_keys = sorted(
         list_s3_keys(bucket, _BRONZE_PREFIX, suffix="part-000.parquet", aws_region=aws_region)
@@ -141,6 +185,32 @@ def _load_bronze(bucket: str, aws_region: str, s3_client) -> list[pd.DataFrame]:
     if not bronze_keys:
         logger.error("No bronze PSD Parquets found under %s -- aborting", _BRONZE_PREFIX)
         sys.exit(1)
+    keep, seen_raw = _distinct_release_dates(s3_client, bucket)
+    if keep is not None:
+        selected = []
+        orphans = []
+        for k in bronze_keys:
+            rd = parse_hive_key(k, "release_date")
+            if rd in keep:
+                selected.append(k)
+            elif rd not in seen_raw:
+                # No raw counterpart exists to judge this partition a duplicate BY
+                # (raw expiry / hand-delete / bronze-without-raw). KEEP it: the dedup
+                # may only drop a partition raw PROVES is an older copy.
+                selected.append(k)
+                orphans.append(rd)
+        if orphans:
+            logger.info(
+                "bronze dedup: %d partition(s) have no raw counterpart and are KEPT: %s",
+                len(orphans), sorted(orphans),
+            )
+        if selected:
+            logger.info(
+                "bronze dedup by raw ETag: %d of %d partitions carry distinct vendor "
+                "content; skipping %d re-download(s) of an unchanged release",
+                len(selected), len(bronze_keys), len(bronze_keys) - len(selected),
+            )
+            bronze_keys = selected
     logger.info("Loading %d bronze PSD Parquets ...", len(bronze_keys))
     dfs: list[pd.DataFrame] = []
     for key in bronze_keys:

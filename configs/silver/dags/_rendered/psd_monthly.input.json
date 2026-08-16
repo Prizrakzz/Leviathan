@@ -59,7 +59,7 @@
           ],
           "env": [],
           "integration": "batch",
-          "jobdef": "leviathan-dev-b3-flat-silver",
+          "jobdef": "leviathan-dev-psd-silver",
           "queue": "leviathan-dev-queue-ondemand"
         }
       ]
@@ -87,7 +87,7 @@
           }
         ],
         "integration": "batch",
-        "jobdef": "leviathan-dev-silver-publisher-runner",
+        "jobdef": "leviathan-dev-psd-silver",
         "queue": "leviathan-dev-queue-ondemand"
       }
     ]

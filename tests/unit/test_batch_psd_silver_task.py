@@ -8,6 +8,11 @@ The A-W4 retrofit routes the flat ``silver_psd`` write through the shadow-first 
 ``build_flat_publish``; ``--publish-mode`` defaults to dry-run (nothing written). Those tests
 exercise ``_publish_psd`` directly with injected guard verdicts, proving the three-mode INV-6
 contract.
+
+The D-SG G1-1b bounded-input rider (drop bronze partitions whose RAW vendor zip duplicates a
+newer one) is exercised on synthetic ETag sets: the SELECTION is unit-testable here, while the
+claim that the selection cannot change the silver output is the separate live-bronze proof
+``jobs/utils/psd_dedup_proof.py``.
 """
 from __future__ import annotations
 
@@ -20,6 +25,7 @@ from leviathan.storage.paths import silver_psd_key
 from leviathan.transforms.bronze_to_silver.usda_psd import _SILVER_COLS
 
 from jobs.batch import psd_silver_task as task
+from jobs.utils import psd_dedup_proof as proof
 from tests.unit.silver.conftest import (
     FakeS3,
     canonical_authorization,
@@ -170,3 +176,169 @@ class TestShadowFirstPublish:
         assert state is ManifestState.CERTIFIED
         assert (_BUCKET, canonical_key) in s3.store
         assert s3.store[(_BUCKET, canonical_key)] != _SENTINEL   # canonical overwritten
+
+
+# ---------------------------------------------------------------------------
+# TestBronzeEtagDedup (D-SG G1-1b bounded-input rider)
+# ---------------------------------------------------------------------------
+
+_RAW_KEY = task._RAW_BULK_PREFIX + "release_date=%s/psd_alldata.zip"
+
+# The LIVE shape, 2026-08-16: 8 raw zips, 4 distinct ETags (08-08..08-11 identical,
+# 08-12/08-13 identical). The newest label of each pair is the one the rider keeps.
+_LIVE_ETAGS = {
+    "2026-05-20": "a16b789ec80f27605e755418f7026a8b",
+    "2026-07-17": "39762f232a748acf15cd3d28f5dd8287",
+    "2026-08-08": "d085f3d1a6048cedcbc9b5df94e07b21",
+    "2026-08-09": "d085f3d1a6048cedcbc9b5df94e07b21",
+    "2026-08-10": "d085f3d1a6048cedcbc9b5df94e07b21",
+    "2026-08-11": "d085f3d1a6048cedcbc9b5df94e07b21",
+    "2026-08-12": "bd5be5458e069a6f8ccc260acfff4b4f",
+    "2026-08-13": "bd5be5458e069a6f8ccc260acfff4b4f",
+}
+
+
+class _FakePaginator:
+    """Two-page ListObjectsV2 so the rider's pagination is exercised, not assumed."""
+
+    def __init__(self, contents: list[dict], raiser: Exception | None = None):
+        self._contents = contents
+        self._raiser = raiser
+
+    def paginate(self, **kw):
+        if self._raiser is not None:
+            raise self._raiser
+        half = (len(self._contents) + 1) // 2
+        for page in (self._contents[:half], self._contents[half:]):
+            yield {"Contents": page} if page else {}
+
+
+class _FakeListS3:
+    def __init__(self, etags: dict[str, str], raiser: Exception | None = None):
+        self.contents = [
+            # ETags come back from S3 quoted; the rider must strip the quotes.
+            {"Key": _RAW_KEY % label, "ETag": '"%s"' % etag}
+            for label, etag in sorted(etags.items())
+        ]
+        self._raiser = raiser
+
+    def get_paginator(self, name: str):
+        assert name == "list_objects_v2"
+        return _FakePaginator(self.contents, self._raiser)
+
+
+def _bronze_keys(labels: list[str]) -> list[str]:
+    return [
+        "bronze/production/source=usda_psd/release_date=%s/part-000.parquet" % label
+        for label in labels
+    ]
+
+
+class TestDistinctReleaseDates:
+    def test_newest_label_wins_per_etag(self) -> None:
+        keep, seen = task._distinct_release_dates(_FakeListS3(_LIVE_ETAGS), _BUCKET)
+        assert keep == {"2026-05-20", "2026-07-17", "2026-08-11", "2026-08-13"}
+        assert seen == set(_LIVE_ETAGS)
+
+    def test_distinct_etags_are_all_kept(self) -> None:
+        etags = {"2026-06-10": "aaa", "2026-07-10": "bbb", "2026-08-10": "ccc"}
+        keep, seen = task._distinct_release_dates(_FakeListS3(etags), _BUCKET)
+        assert keep == set(etags)
+        assert seen == set(etags)
+
+    def test_empty_prefix_returns_none(self) -> None:
+        # Nothing to compare -> keep everything, which is what None means downstream.
+        keep, seen = task._distinct_release_dates(_FakeListS3({}), _BUCKET)
+        assert keep is None
+        assert seen == set()
+
+    def test_keys_without_a_release_date_are_ignored(self) -> None:
+        fake = _FakeListS3({"2026-08-13": "aaa"})
+        fake.contents.append({"Key": task._RAW_BULK_PREFIX + "manifest.json", "ETag": '"zzz"'})
+        keep, _seen = task._distinct_release_dates(fake, _BUCKET)
+        assert keep == {"2026-08-13"}
+
+    def test_listing_failure_degrades_to_keep_everything(self) -> None:
+        fake = _FakeListS3(_LIVE_ETAGS, raiser=RuntimeError("AccessDenied"))
+        keep, seen = task._distinct_release_dates(fake, _BUCKET)
+        assert keep is None
+        assert seen == set()
+
+
+class TestLoadBronzeDedup:
+    @staticmethod
+    def _patch(monkeypatch, labels: list[str]) -> list[str]:
+        loaded: list[str] = []
+        monkeypatch.setattr(task, "list_s3_keys", lambda *a, **kw: _bronze_keys(labels))
+        monkeypatch.setattr(
+            task, "_download_parquet",
+            lambda _c, _b, key: loaded.append(key) or pd.DataFrame({"release_date": [key]}),
+        )
+        return loaded
+
+    def test_eight_partitions_collapse_to_four(self, monkeypatch, caplog) -> None:
+        loaded = self._patch(monkeypatch, sorted(_LIVE_ETAGS))
+        with caplog.at_level("INFO", logger="psd_silver_task"):
+            dfs = task._load_bronze(_BUCKET, "us-east-1", _FakeListS3(_LIVE_ETAGS))
+        assert len(dfs) == 4
+        assert [k.split("release_date=")[1][:10] for k in loaded] == [
+            "2026-05-20", "2026-07-17", "2026-08-11", "2026-08-13"
+        ]
+        # The drop is loud, and it says how many and why.
+        assert "bronze dedup by raw ETag: 4 of 8 partitions" in caplog.text
+        assert "skipping 4 re-download(s)" in caplog.text
+
+    def test_a_bronze_partition_with_no_raw_counterpart_is_kept(self, monkeypatch, caplog) -> None:
+        """Review M-2: the dedup may only drop a partition raw PROVES is an older copy.
+
+        A bronze partition whose raw zip is gone (raw lifecycle expiry, hand-delete,
+        bronze-without-raw) has nothing to judge it a duplicate BY -- dropping it would
+        silently truncate the input of a self-promoting canonical transform.
+        """
+        labels = sorted(_LIVE_ETAGS) + ["2026-04-15"]  # orphan: bronze exists, raw does not
+        loaded = self._patch(monkeypatch, labels)
+        with caplog.at_level("INFO", logger="psd_silver_task"):
+            dfs = task._load_bronze(_BUCKET, "us-east-1", _FakeListS3(_LIVE_ETAGS))
+        assert len(dfs) == 5  # the 4 distinct releases + the orphan, KEPT
+        assert any("2026-04-15" in k for k in loaded)
+        assert "no raw counterpart and are KEPT" in caplog.text
+        assert "'2026-04-15'" in caplog.text or "2026-04-15" in caplog.text
+
+    def test_distinct_etags_load_every_partition(self, monkeypatch, caplog) -> None:
+        etags = {"2026-06-10": "aaa", "2026-07-10": "bbb", "2026-08-10": "ccc"}
+        loaded = self._patch(monkeypatch, sorted(etags))
+        with caplog.at_level("INFO", logger="psd_silver_task"):
+            dfs = task._load_bronze(_BUCKET, "us-east-1", _FakeListS3(etags))
+        assert len(dfs) == len(loaded) == 3
+        # Behaviour is unchanged and the accounting line says so out loud.
+        assert "bronze dedup by raw ETag: 3 of 3 partitions" in caplog.text
+        assert "skipping 0 re-download(s)" in caplog.text
+
+    def test_unreadable_raw_prefix_loads_every_partition(self, monkeypatch) -> None:
+        loaded = self._patch(monkeypatch, sorted(_LIVE_ETAGS))
+        fake = _FakeListS3(_LIVE_ETAGS, raiser=RuntimeError("AccessDenied"))
+        assert len(task._load_bronze(_BUCKET, "us-east-1", fake)) == 8
+        assert len(loaded) == 8
+
+    def test_selection_that_matches_nothing_loads_every_partition(self, monkeypatch) -> None:
+        """A raw prefix that shares no label with bronze must not empty the load."""
+        loaded = self._patch(monkeypatch, ["2026-05-20", "2026-07-17"])
+        fake = _FakeListS3({"2020-01-01": "aaa"})
+        assert len(task._load_bronze(_BUCKET, "us-east-1", fake)) == 2
+        assert len(loaded) == 2
+
+
+class TestProofHarnessHash:
+    """The live-bronze proof's verdict is only worth its hash: row-order blind, value-aware."""
+
+    def test_row_order_does_not_change_the_hash(self) -> None:
+        df = pd.concat([_silver_df(), _silver_df().assign(market_year=2025)], ignore_index=True)
+        assert proof._frame_hash(df) == proof._frame_hash(df.iloc[::-1])
+
+    def test_a_changed_value_changes_the_hash(self) -> None:
+        df = _silver_df()
+        assert proof._frame_hash(df) != proof._frame_hash(df.assign(production_mt=381.0))
+
+    def test_a_dropped_row_changes_the_hash(self) -> None:
+        df = pd.concat([_silver_df(), _silver_df().assign(market_year=2025)], ignore_index=True)
+        assert proof._frame_hash(df) != proof._frame_hash(df.head(1))
