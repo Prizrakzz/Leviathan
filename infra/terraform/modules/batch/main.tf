@@ -1306,7 +1306,13 @@ resource "aws_batch_job_definition" "modis_ndvi_bronze_to_silver" {
     ]
 
     executionRoleArn = var.batch_execution_role_arn
-    jobRoleArn       = var.batch_job_role_arn
+    # D-SG G2-2 / T2 arming (2026-08-16): this jobdef is modis_biweekly's promote_jobdef
+    # (self-promotion, forced by test_digest_pinned_producers_must_self_promote once
+    # worker_fleet_image_digest pinned the family). An autonomous promote signs a KMS
+    # approval, and kms:Sign lives ONLY on the SILVER-F014 silver-publisher role --
+    # batch_job_role would AccessDeny on the FIRST unattended canonical write. Same
+    # choice, same reason, as futures_eod_silver.
+    jobRoleArn       = var.silver_publisher_job_role_arn
 
     networkConfiguration = {
       assignPublicIp = "ENABLED"

@@ -342,9 +342,11 @@ variable "worker_fleet_image_digest" {
   type        = string
   description = "sha256 digest of the worker image the ten weather/ingest jobdef families run. Empty = fall back to ':latest' (which would REVERT all ten -- see the comment)."
   # D-SG S-C DELIBERATE FLEET BUMP 2026-08-16 (the 'own change, after the auditor' this
-  # variable's comment demands): cf50c051 = the D-SG worker build (ingest fences, unica/
-  # fgis fixes, wasde discovery+quarantine, season floors, gate metrics, poller task,
-  # straddle + declared ICE lag). Full suite green; two adversarial review passes folded.
+  # variable's comment demands): 53db13d5 = the D-SG worker build (ingest fences, unica/
+  # fgis fixes + endpoint-ceiling fence, wasde discovery+quarantine, season floors, gate
+  # metrics, poller task, straddle + declared ICE lag). Full suite green; two adversarial
+  # review passes folded. (The first D-SG push, cf50c051, was CORRUPT -- double-gzipped
+  # OCI blobs -- caught by the poller smoke BEFORE any schedule moved; never armed.)
   default     = "sha256:53db13d53bfb3b5066d92100930f56ee98c1cca309d692be5b6d88cbb18847d2"
 
   validation {
