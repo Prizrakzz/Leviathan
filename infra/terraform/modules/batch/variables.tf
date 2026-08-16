@@ -188,6 +188,20 @@ variable "futures_eod_silver_image_digest" {
   }
 }
 
+variable "psd_silver_image_digest" {
+  # The WORKER image the DEDICATED psd-silver jobdef runs, pinned BY DIGEST. Assembled in the
+  # module against var.ecr_repository_url, same shape as pink_sheet_image_digest. Empty falls
+  # back to ":latest" so no other environment changes shape by adopting this module.
+  type        = string
+  description = "sha256 digest of the worker image the dedicated psd-silver jobdef runs. Empty = the mutable ':latest' tag."
+  default     = ""
+
+  validation {
+    condition     = var.psd_silver_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.psd_silver_image_digest))
+    error_message = "psd_silver_image_digest must be empty or a full 'sha256:<64 hex>' digest -- a TAG is not accepted, since a tag is exactly the mutability this pin exists to remove."
+  }
+}
+
 variable "silver_publisher_job_role_arn" {
   # module.iam.silver_publisher_role_arn -- the SILVER-F014 gated writer. Required by
   # the futures_eod silver jobdef because silver_futures_eod is a class-A REGISTERED-

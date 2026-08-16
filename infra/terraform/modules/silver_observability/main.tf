@@ -309,6 +309,68 @@ resource "aws_cloudwatch_metric_alarm" "freshness_sla_breach" {
   comparison_operator = "GreaterThanThreshold"
   threshold           = each.value
   treat_missing_data  = "breaching"
+  # D-SG G3-1, 2026-08-16: DEMOTED TO METRIC-ONLY, superseded by freshness_breach_count below.
+  # This alarm's threshold is min() over the family's member ceilings while its statistic is
+  # Maximum over the members' lags, so a mixed-cadence family is guaranteed to lie in one
+  # direction or the other. leviathan-dev-freshness-sla-breach-weather latched ALARM 2026-07-30
+  # and has been unable to signal a NEW stall ever since (CloudWatch notifies on TRANSITION).
+  # The metric series is RETAINED for forensics; only the paging moves.
+  # THE COMPLETING EDIT, after 7 consecutive green FreshnessBreachCount cycles: delete this
+  # resource entirely (and its `for_each` var wiring stays -- freshness_breach_count reads the
+  # same maps). ROLLBACK before then: restore `alarm_actions = local.alarm_actions`.
+  alarm_actions = []
+  tags          = { Project = var.project_name, Environment = var.environment, ManagedBy = "terraform" }
+}
+
+# ---------------------------------------------------------------------------
+# D-SG G3-1, 2026-08-16 -- PER-FAMILY BREACH COUNT. The metric the family alarm should have had.
+#
+# THE ARTIFACT THIS KILLS, precisely: the alarm above thresholds a family at
+# dag_catalog.build_catalog's max_sla_lag_days, which is min() over the family's members ("the
+# tightest interim ceiling"), and evaluates it with statistic=Maximum over those same members.
+# A mixed-cadence family therefore compares its FASTEST member's ceiling against its SLOWEST
+# member's lag and is arithmetically guaranteed to breach. Measured 2026-08-16: `weather`
+# carries a 3d ceiling while silver_modis_ndvi (an 8-day composite) sits at 80.74d, so
+# leviathan-dev-freshness-sla-breach-weather has been latched ALARM since 2026-07-30 while
+# silver_nasa_power / silver_chirps / silver_cpc_soil / gold_weather_z all sat at 0.12-0.14d.
+#
+# FreshnessBreachCount{Family} is the number of member tables past THEIR OWN declared ceiling
+# (jobs/observability/freshness_poller_task.py via leviathan.silver.freshness.breach_counts), so
+# > 0 means "at least one member is genuinely late" for annual, biweekly and daily members
+# alike. modis does NOT lose coverage: its own 45d table ceiling still counts it the day it is
+# truly dead.
+#
+# for_each is the SAME key set as the alarm above (the generated map merged with the two
+# hand-wired extras), so the two are 1:1 by construction and no third tfvars surface is created.
+# treat_missing_data = "breaching" for the same reason as the alarm above: the poller dying is
+# the failure this whole lane exists to catch, and the breach datum is written on EVERY cycle
+# (a healthy family emits 0, never nothing).
+# ---------------------------------------------------------------------------
+resource "aws_cloudwatch_metric_alarm" "freshness_breach_count" {
+  # STATIC families are subtracted (review M-6): model_output's only member is
+  # silver_model_predictions, whose writer is STOPPED and whose disposition is the G5
+  # STATIC-pending set (owner decision D25) -- a breach-count alarm on it would page
+  # continuously from ~2026-08-28 about a table nothing schedules. Remove a family from
+  # the exclusion the day it gets a producer again.
+  # SEQUENCING (review M-6, run sheet S-E): apply this resource AFTER the G2 catch-ups
+  # land -- usda_esr / usda_fgis / unica / weather breach honestly TODAY, and the estate
+  # law is never to arm a treat_missing_data=breaching alarm that is already breaching.
+  for_each = toset(setsubtract(
+    keys(merge(var.silver_freshness_slas, var.silver_extra_family_slas)),
+    var.silver_breach_count_static_families,
+  ))
+
+  alarm_name          = "${local.name_prefix}-freshness-breach-count-${replace(each.key, "_", "-")}"
+  alarm_description   = "Family '${each.key}' has at least one member table past ITS OWN declared freshness ceiling (FreshnessBreachCount{Family}, emitted by jobs/observability/freshness_poller_task.py). Replaces the MAX-over-members read, which compared the family's tightest ceiling against its slowest member. Runbook: R4_incident_runbooks.md#freshness-sla-breach."
+  namespace           = var.silver_metric_namespace
+  metric_name         = "FreshnessBreachCount"
+  dimensions          = { Family = each.key }
+  statistic           = "Maximum"
+  period              = 86400
+  evaluation_periods  = 1
+  comparison_operator = "GreaterThanThreshold"
+  threshold           = 0
+  treat_missing_data  = "breaching"
   alarm_actions       = local.alarm_actions
   tags                = { Project = var.project_name, Environment = var.environment, ManagedBy = "terraform" }
 }
@@ -348,6 +410,19 @@ resource "aws_cloudwatch_metric_alarm" "freshness_sla_breach_table" {
 # ---------------------------------------------------------------------------
 # Global value-census-regression alarm (SILVER-V001 metric ValueCensusHardFailTables).
 # After R4 every table is census-green, so any hard-fail table is a regression -> page immediately.
+#
+# D-SG G3-5, 2026-08-16 -- THIS ALARM WAS HOLLOW FROM CREATION UNTIL THIS CHANGE, AND THE
+# RESOURCE IS UNTOUCHED BECAUSE THE DEFECT WAS NEVER HERE. Nothing published
+# ValueCensusHardFailTables: `list-metrics --namespace Leviathan/Silver` returned no such metric,
+# and the only put_metric_data call in the repo was the freshness poller's. With
+# treat_missing_data = "notBreaching" it therefore sat OK forever -- its StateReason still read
+# "a1a2-delivery-test-reset" from 2026-07-16, four weeks after the fact. Exactly the "reads as
+# coverage" defect the D-E RCA deleted 22 alarms for, on the one P1 class in the set.
+# THE EMITTER now exists: jobs/audit/silver_rebuild_gate.py::_emit_gate_metrics publishes the
+# count of tables whose `value_census` stage went RED, once per gate run. That stage runs on
+# BOTH branches for every table of every run, so the coverage is the whole gated estate.
+# notBreaching stays correct: the gate publishes on verdict-bearing exits only, and a day with
+# no gate run (a weekend for a weekly family) is not a regression.
 # ---------------------------------------------------------------------------
 resource "aws_cloudwatch_metric_alarm" "value_census_regression" {
   alarm_name          = "${local.name_prefix}-value-census-regression"
@@ -355,6 +430,46 @@ resource "aws_cloudwatch_metric_alarm" "value_census_regression" {
   namespace           = var.silver_metric_namespace
   metric_name         = "ValueCensusHardFailTables"
   statistic           = "Maximum"
+  period              = 86400
+  evaluation_periods  = 1
+  comparison_operator = "GreaterThanThreshold"
+  threshold           = 0
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.alarm_actions
+  tags                = { Project = var.project_name, Environment = var.environment, ManagedBy = "terraform" }
+}
+
+# ---------------------------------------------------------------------------
+# D-PR-28 / D-SG G3-4 -- THE GATE'S DRIFT-RIDING PASS HAS A DESTINATION.
+#
+# A gate REFUSAL is exit 1 -> SFN Catch -> FailNotify -> leviathan-dev-alerts. A PASS that rode
+# over ANOTHER family's drift (`banner.global_drift > 0`, D-PR-5) is exit 0 BY DESIGN, so until
+# this alarm its only trace was a stdout line inside one of 26 daily Batch containers. That is
+# the one verdict in the vocabulary with no delivery mechanism.
+#
+# THE DIMENSION VALUE IS THE GATE'S OWN WORD, "PASS_WITH_DRIFT". The plan calls this class
+# YELLOW and the resource keeps that name for continuity with the record, but a CloudWatch
+# alarm matches an EXACT dimension value, so the string here must be the one
+# jobs/audit/silver_rebuild_gate.py::_emit_gate_metrics writes -- not the prose label.
+#
+# DIMENSIONED {Verdict} ALONE, not {Family, Verdict}: an alarm needs an exact dimension set, so
+# "drift-riding on any family" would otherwise require a SEARCH metric-math expression. The gate
+# emits BOTH shapes on the freshness poller's dual-dimension precedent: {Family,Verdict} for
+# attribution in the console, {Verdict} for this alarm.
+#
+# statistic = Sum over a 1-day period: twice in a day is worse than once, and this alarm reports
+# the count in its state reason.
+# treat_missing_data = notBreaching: the gate emits NOTHING on exits 64/70/71/72 (those are not
+# verdicts, D-PR-8), and a quiet day is not a drift-riding pass. Those classes page via
+# batch-job-failed-scheduled.
+# ---------------------------------------------------------------------------
+resource "aws_cloudwatch_metric_alarm" "gate_verdict_yellow" {
+  alarm_name          = "${local.name_prefix}-gate-verdict-yellow"
+  alarm_description   = "The silver rebuild gate returned PASS_WITH_DRIFT at least once in the last 24h -- a PASS that promoted while carrying another family's drift (banner.global_drift > 0). It is exit 0 by design (D-PR-5), so this alarm is its only delivery mechanism. Read the WARN lines in the gate container log for the family and the drifting table. Runbook: R4_incident_runbooks.md#gate-yellow."
+  namespace           = var.silver_metric_namespace
+  metric_name         = "GateVerdict"
+  dimensions          = { Verdict = "PASS_WITH_DRIFT" }
+  statistic           = "Sum"
   period              = 86400
   evaluation_periods  = 1
   comparison_operator = "GreaterThanThreshold"

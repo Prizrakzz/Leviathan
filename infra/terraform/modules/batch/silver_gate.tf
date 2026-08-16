@@ -153,10 +153,10 @@ resource "aws_batch_job_definition" "silver_gate" {
   }
 
   # -------------------------------------------------------------------------
-  # D-PR-8 + D-PR-37: THE GATE MATRIX. Three rules, and every one of them earns
-  # its slot against an API cap of FIVE.
+  # D-PR-8 + D-PR-37 + D-SG G1-3: THE GATE MATRIX. Four rules, and every one of
+  # them earns its slot against an API cap of FIVE.
   #
-  #   {72 -> RETRY}  the ONLY retryable outcome the gate can produce. 72 is
+  #   {72 -> RETRY}  the ONLY retryable outcome the gate itself can produce. 72 is
   #                  BaselineFetchError -- a transient S3 GET of the rolling
   #                  baseline census. Retrying it re-reads S3; it can never turn a
   #                  refusal into a promote, because a refusal is exit 1 and exit 1
@@ -164,6 +164,10 @@ resource "aws_batch_job_definition" "silver_gate" {
   #   {ResourceInitializationError* -> RETRY}  the container never became the gate
   #                  (ENI / ASM init). Nothing was judged, so a second attempt is
   #                  free of attribution risk.
+  #   {CannotPullContainer* -> RETRY}  the image never pulled, so the container
+  #                  never became the gate either -- same attribution argument as
+  #                  the rule above it. See that rule for the evidence that moved
+  #                  this class from permanent to transient.
   #   {'*' -> EXIT}  MANDATORY AND NON-NEGOTIABLE. A no-match in evaluateOnExit
   #                  defaults to **RETRY**, so deleting this line silently arms a
   #                  retry on EVERY failure class including a verdict FAIL -- the
@@ -176,10 +180,12 @@ resource "aws_batch_job_definition" "silver_gate" {
   # auditor today. Retrying them 3x cannot succeed -- it only triples the alarm
   # datapoints. `Host EC2*` is dead weight on a Fargate ondemand queue. Both go.
   #
-  # CannotPullContainer is NOT listed below: it falls through to the terminal
-  # catch-all, which EXITs. That is the D-PR-37 trim, not an omission.
+  # CannotPullContainer WAS NOT listed below -- the D-PR-37 trim, on the 26/26
+  # eviction evidence above. D-SG G1-3 (2026-08-16) PUT IT BACK as a RETRY, and the
+  # rule below carries the reversal's evidence. The paragraph above is the record of
+  # what was measured then, not a live instruction.
   #
-  # attempts 2 (not 3): only one class retries, and it retries once.
+  # attempts 2 (not 3): each retrying class retries once.
   #
   # THIS JOBDEF ALSO CARRIES [Reconcile] (`$.gate.jobdef` is reused for
   # `jobs.audit.advance_rolling_census`), so the matrix was checked against that
@@ -209,6 +215,20 @@ resource "aws_batch_job_definition" "silver_gate" {
       on_exit_code     = null
       on_reason        = null
       on_status_reason = "ResourceInitializationError*"
+    }
+
+    # D-SG G1-3 (2026-08-16). The D-PR-37 trim above ("CannotPullContainer is NOT
+    # listed below") is REVERSED, and the reversal is narrow: the class is now
+    # transient in this estate (cap-100 lifecycle + weekly ecr-pin-audit; all five
+    # in-window events kept a present digest with unchanged pushedAt), and a pull
+    # failure happens BEFORE the container is the gate, so nothing was judged and a
+    # second attempt carries no attribution risk -- the same argument that already
+    # licenses the rule above it. attempts stays 2: two classes retry, each once.
+    evaluate_on_exit {
+      action           = "RETRY"
+      on_exit_code     = null
+      on_reason        = null
+      on_status_reason = "CannotPullContainer*"
     }
 
     # MANDATORY TERMINAL RULE -- no-match defaults to RETRY. Do not remove.

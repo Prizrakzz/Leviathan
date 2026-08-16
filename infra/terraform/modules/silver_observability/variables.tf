@@ -59,6 +59,19 @@ variable "silver_extra_family_slas" {
   default     = {}
 }
 
+variable "silver_breach_count_static_families" {
+  type        = list(string)
+  description = <<-EOT
+    D-SG G3-1 / review M-6. Families SUBTRACTED from the freshness_breach_count for_each
+    because every member is deliberately unscheduled/static, so a breach-count alarm would
+    page continuously about a table nothing produces. Current: model_output (only member
+    silver_model_predictions -- writer STOPPED, partitions pruned 2026-07-14, disposition is
+    the G5 STATIC-pending set / owner decision D25). Remove a family the day it regains a
+    producer; the FreshnessBreachCount METRIC keeps emitting for it either way.
+  EOT
+  default     = ["model_output"]
+}
+
 variable "silver_table_freshness_slas" {
   type = map(object({
     family    = string

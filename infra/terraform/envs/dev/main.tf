@@ -230,6 +230,10 @@ module "batch" {
   # D-PR-22: the pink-sheet bronze leg comes off the mutable :latest tag.
   pink_sheet_image_digest = var.pink_sheet_image_digest
 
+  # D-SG G1-1: the DEDICATED psd-silver jobdef (2 vCPU / 16384 MB). Pinned to the digest
+  # b3-flat-silver rev 24 runs TODAY -- memory moves in this change, the image does not.
+  psd_silver_image_digest = var.psd_silver_image_digest
+
   # D-PR-7/D-PR-11 PRECONDITION. Ten families are held in state by revision ARN at
   # revisions 1-3 on ":latest" while live sits 3-5 revisions ahead on one digest.
   # The retry matrices and the four new timeouts RE-REGISTER all ten, so without
@@ -1473,73 +1477,44 @@ resource "aws_scheduler_schedule" "freshness_poller" {
       JobQueue      = local.ondemand_job_queue_arn
       JobDefinition = "${var.project_name}-${var.environment}-raw-ingest-runner"
       ContainerOverrides = {
-        # INLINE, deliberately: the worker image copies src/ + jobs/ + configs/ + sql/ but NOT
-        # scripts/, so ["scripts/silver/freshness_poller.py"] would die at container start -- the
-        # exact silently-dead failure the 2026-07-28 sweep incident documents above. The shared
-        # logic (poll_targets / newest_last_modified / lag_days / metric_data_for) lives in
-        # leviathan.silver.freshness, which IS in the image; this is only the thin emit loop from
-        # scripts/silver/freshness_poller.py. If the Dockerfile ever gains COPY scripts/, replace
-        # this with the script path and delete the inline form.
+        # ---------------------------------------------------------------------------------------
+        # D-SG G3-1, 2026-08-16 -- THE INLINE PYTHON IS GONE, AND WITH IT A WHOLE FAILURE CLASS.
         #
-        # R7a FIX, 2026-08-04 -- THE INLINE COPY HAD DRIFTED FROM THE SCRIPT IT MIRRORS.
-        # This loop called `poll_targets()`, which is REGISTRY-PURE by design (its docstring says so:
-        # it is kept registry-pure so the registry-coverage pin in test_freshness_poller.py keeps
-        # meaning what it says). The non-registry artifacts live in `EXTRA_TARGETS`, and only
-        # `all_poll_targets()` returns both -- which is what scripts/silver/freshness_poller.py:78
-        # has called since R7a landed. The inline copy was never updated, so the ONE artifact
-        # EXTRA_TARGETS exists for, `graphrag_timeline_episodes`, was never polled.
+        # This block used to carry a hand-transcribed COPY of the emit loop in
+        # scripts/silver/freshness_poller.py, because the worker image copies src/ + jobs/ +
+        # configs/ + sql/ and NOT scripts/. It drifted from the file it mirrored TWICE, and both
+        # times the drift was silent and expensive:
         #
-        # MEASURED before this edit (read-only, 2026-08-04), and this is the whole argument:
-        #   FreshnessLagDays Table=graphrag_timeline_episodes  -> 0 datapoints, 07-28..08-04
-        #   FreshnessLagDays Family=graphrag_evidence          -> 0 datapoints, same window
-        #   FreshnessLagDays Family=usda_esr (control)         -> 4 datapoints, 08-01..08-04
-        # The poller runs and emits every day; it simply never had this target in its list. R7a has
-        # been carried as "code landed, image stale" -- but the code landed in the SCRIPT, and the
-        # real gap is here, in the terraform-owned inline duplicate of that script.
+        #   R7a, found 2026-08-04: the loop called `poll_targets()` -- registry-pure by design --
+        #   where the script had moved to `all_poll_targets()`. graphrag_timeline_episodes, the one
+        #   artifact EXTRA_TARGETS exists for, emitted 0 datapoints for 7 days while the control
+        #   family emitted daily. Fixed here with a getattr shim.
         #
-        # WHY getattr AND NOT A PLAIN IMPORT. The poller runs
-        # `leviathan-dev-raw-ingest-runner:2`, which is NOT terraform-managed (referenced by bare
-        # name; registered out of band) and is pinned to worker sha256:2f3efb7c, pushed
-        # 2026-07-29T22:07Z. `all_poll_targets` first exists in commit 6b0b8ff7,
-        # 2026-07-31T21:09+03:00 -- TWO DAYS LATER. A plain `from ... import all_poll_targets` on
-        # that image is an ImportError at container start, which would take the poller down and with
-        # it ALL 26 freshness metrics: a fence that kills the thing it measures. The getattr keeps
-        # the 26 alive on the old image, adds the artifact the moment the jobdef is repinned to a
-        # current worker digest, and -- because a silent fallback is the failure mode this estate
-        # keeps re-learning -- PRINTS which mode it ran in and how many targets it polled.
+        #   D-SG, found 2026-08-16: the loop called metric_data_for(...) with NO `expected=`, so
+        #   D-PR-14's FreshnessLagRatio took the `ratio is None` early return and was NEVER emitted
+        #   in production. Measured: list-metrics --namespace Leviathan/Silver returned exactly
+        #   FreshnessLagDays, BatchJobFailedScheduled and BatchJobFailedBackstop -- three months
+        #   after the ratio shipped, was unit-tested, and was written up as live.
         #
-        # THE REAL FIX IS THE REPIN of leviathan-dev-raw-ingest-runner onto a current worker image;
-        # that is an out-of-band jobdef, not terraform's, so it is named here and not done here.
-        # Until it happens the log line reads "targets=... mode=registry-only (EXTRA_TARGETS
-        # UNAVAILABLE ...)" every day, which is the declaration that keeps this honest.
+        # Two drifts in one quarter on one block is a CLASS, not two bugs, and a comment asking the
+        # next reader to keep two copies in sync has now failed twice. The class is closed by moving
+        # the loop INTO THE IMAGE as jobs/observability/freshness_poller_task.py (jobs/ is already
+        # COPYed by docker/leviathan_worker/Dockerfile) and naming the module here. Terraform now
+        # holds NO python. scripts/silver/freshness_poller.py is a shim over the same module, so the
+        # local command and the scheduled command are the same code by construction.
         #
-        # This is also the precondition D-EI-12 holds the R7c alarm on: an alarm with
-        # treat_missing_data="breaching" over a metric that has never had a datapoint is a permanent
-        # red the moment it applies. Both this line AND the repin must land before that alarm unheld.
-        Command = ["-c", join("\n", [
-          "import boto3, datetime as dt",
-          "from leviathan.silver import freshness as F",
-          "from leviathan.silver.freshness import newest_last_modified, lag_days, metric_data_for, METRIC_NAMESPACE",
-          "targets_fn = getattr(F, 'all_poll_targets', None)",
-          "mode = 'registry+extra' if targets_fn else 'registry-only (EXTRA_TARGETS UNAVAILABLE -- repin leviathan-dev-raw-ingest-runner)'",
-          "targets = sorted((targets_fn or F.poll_targets)(), key=lambda x: x.table)",
-          "print('freshness poller: targets=%d mode=%s' % (len(targets), mode))",
-          "now = dt.datetime.now(dt.timezone.utc)",
-          "s3 = boto3.client('s3'); cw = boto3.client('cloudwatch')",
-          "md = []",
-          "for t in targets:",
-          "    pages = s3.get_paginator('list_objects_v2').paginate(Bucket=t.bucket, Prefix=t.prefix)",
-          "    objs = ((o['Key'], o['LastModified']) for page in pages for o in page.get('Contents', []) or [])",
-          "    lag = lag_days(newest_last_modified(objs), now)",
-          "    if lag is None:",
-          "        print('EMPTY ' + t.table)",
-          "        continue",
-          "    print('%-42s lag_days=%.2f' % (t.table, lag))",
-          "    md.extend(metric_data_for(t.table, t.family, lag, timestamp=now))",
-          "for i in range(0, len(md), 20):",
-          "    cw.put_metric_data(Namespace=METRIC_NAMESPACE, MetricData=md[i:i+20])",
-          "print('put %d datapoints' % len(md))",
-        ])]
+        # ENTRYPOINT on this image is ["python"], and the silver gate has run the `-m` form
+        # (`-m jobs.audit.silver_rebuild_gate`) on it since rev 6 -- the module form is proven here,
+        # not assumed.
+        #
+        # THE JOBDEF PIN THIS DEPENDS ON: leviathan-dev-raw-ingest-runner is registered OUT OF BAND
+        # (not terraform's) and must carry a worker image built at or after the commit that adds
+        # jobs/observability/freshness_poller_task.py. APPLYING THIS SCHEDULE CHANGE IS GATED ON
+        # that repin AND on a SMOKE of this exact command to SUCCEEDED -- an unimportable module
+        # here takes down all 26 freshness metrics at once, which is the "fence that kills the thing
+        # it measures" the R7a getattr was written to avoid.
+        # ---------------------------------------------------------------------------------------
+        Command = ["-m", "jobs.observability.freshness_poller_task"]
       }
     })
     retry_policy {
@@ -1933,9 +1908,13 @@ resource "aws_scheduler_schedule" "ecr_pin_audit" {
 # The graphrag episodes artifact (s3://leviathan-dev-shahem-001/graphrag_evidence/
 # timeline/episodes.json) has been a HAND-RUN one-off since it was first built.
 # R7a (the poller's EXTRA_TARGETS emission) is landed and live -- freshness.py
-# EXTRA_TARGETS carries graphrag_timeline_episodes at prefix
-# graphrag_evidence/timeline/ with expected_lag_days 10 -- so the artifact's age
-# is now MEASURED. This unit is the cadence that age is measured against.
+# EXTRA_TARGETS carries graphrag_timeline_episodes at the HEARTBEAT object
+# graphrag_evidence/timeline/last_run.json (D-SG D12, 2026-08-16: repointed from
+# the bare timeline/ prefix so a skip-if-unchanged week measures schedule
+# liveness, and a run that writes the artifact but dies before stamping the
+# heartbeat now AGES instead of resetting the clock) with expected_lag_days 10 --
+# so the schedule's liveness is now MEASURED. This unit is the cadence that age
+# is measured against.
 #
 # PROVEN, NOT DESIGNED. Batch job r5-timeline-derive
 # (638b80cb-cd2f-43a2-8337-743b534692a2, 2026-08-04) ran argv
@@ -1956,17 +1935,15 @@ resource "aws_scheduler_schedule" "ecr_pin_audit" {
 # leviathan.graphrag.pgstore inside derive(), so no Anthropic client is ever
 # constructed on this path.
 #
-# THE R7c ALARM IS NOT HERE, AND THAT IS D-EI-12.
-# silver_observability.auto.tfvars.json:52-56 already carries the
-# graphrag_timeline_episodes FreshnessLagDays alarm (threshold 10,
-# treat_missing_data="breaching", basis "weekly timeline rebuild
-# (cron 0 3 ? * SUN *) + 3d grace"). It is held OUT of every batch until this
-# schedule is not merely CREATED but ENABLED and has fired -- an alarm calibrated
-# to a cadence that is not running breaches permanently ~10 days after the last
-# hand-run rebuild, which is the "55 alarms into a void" failure with the sign
-# flipped. THE CRON BELOW IS DELIBERATELY THE ONE THAT ALARM'S BASIS STRING NAMES,
-# so that when D-EI-12 is lifted the alarm's own justification is true rather than
-# aspirational.
+# THE R7c ALARM IS LIVE -- THE D-EI-12 HOLD IS DISCHARGED (recorded 2026-08-16,
+# D-SG G2-6). History: the alarm row was held out of every batch until this
+# schedule was ENABLED and had fired; commit 835ccf31 armed it 2026-08-05 and
+# leviathan-dev-freshness-sla-breach-table-graphrag-timeline-episodes has been
+# OK since (threshold 10, treat_missing_data="breaching"; the row now lives at
+# silver_observability.auto.tfvars.json:72-76 and its basis string is owned by
+# the silver_alarms.py generator since D-SG G3 STEP 1). THE CRON BELOW IS
+# DELIBERATELY THE ONE THE ALARM'S BASIS STRING NAMES, so the alarm's own
+# justification stays true rather than aspirational.
 #
 # BEFORE THIS IS ENABLED -- Gate 3, which R7b re-opens BY DESIGN. The sequencing
 # law is ONE rebuild -> ONE full deck re-probe. A weekly rebuild with no

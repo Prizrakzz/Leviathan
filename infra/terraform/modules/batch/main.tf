@@ -5,11 +5,15 @@
 # WHY A MATRIX AT ALL. Measured 2026-08-04 over 393 Batch jobs on both queues:
 # of 67 live jobdef families exactly THREE carried a retryStrategy, and two of
 # the three were aimed at the wrong class -- `silver-gate` retried
-# CannotPullContainerError (a PERMANENT digest eviction in this estate: 26/26
-# samples in 21 days were evictions, and a 3x backoff cannot resurrect a deleted
+# CannotPullContainerError (READ AS PERMANENT AT THE TIME: 26/26 samples in 21
+# days were digest evictions, and a 3x backoff cannot resurrect a deleted
 # manifest -- it only triples the alarm datapoints), and `gain_backfill` (below)
 # retried exit 137, i.e. OOM, which is deterministic and needs a RESOURCE change,
 # not another attempt.
+#
+# THE CannotPullContainer READING IS REVERSED AS OF 2026-08-16 (D-SG G1-3) on new
+# evidence, and the rule below carries the whole argument. The 2026-08-04 text is
+# kept as the record of what was true then, not as a live instruction.
 #
 # THE 5-OBJECT HARD CAP IS REAL AND IS WHY THIS LIST IS FIVE LONG. Read from the
 # live botocore Batch service model (`batch/2016-08-10/service-2.json.gz`,
@@ -49,14 +53,24 @@
 # ===========================================================================
 locals {
   # attempts is the CEILING, not a promise -- evaluate_on_exit decides. With the
-  # matrix below, only ResourceInitializationError ever consumes a second attempt.
+  # matrix below, only ResourceInitializationError and CannotPullContainer ever
+  # consume a second attempt.
   producer_retry_attempts = 3
 
   # Every rule carries all four keys (null where unused) so the list has ONE
   # object type and `dynamic` can address the fields directly.
   producer_retry_rules = [
-    # PERMANENT in this estate -- digest eviction. Never retry. (Class A.)
-    { on_exit_code = null, on_reason = null, on_status_reason = "CannotPullContainer*", action = "EXIT" },
+    # D-SG G1-3 (2026-08-16): RETRY, not EXIT. The exit-pin here was correct when
+    # CannotPullContainerError meant PERMANENT digest eviction (26/26 samples in the
+    # 21 days to 2026-08-04 were evictions, and a 3x backoff cannot resurrect a
+    # deleted manifest). THAT LANDMINE IS DISCHARGED: the ECR cap-100 lifecycle
+    # policy plus the weekly leviathan-dev-ecr-pin-audit now hold the pinned digests,
+    # and all five in-window CannotPull events (5 scheduled executions + 1 eval,
+    # 2026-08-02..08-13) were verified TRANSIENT -- the pinned digest was still
+    # present with an unchanged pushedAt after the failure. Cost of being wrong: ONE
+    # wasted attempt, after which the pin-audit names the real eviction. Cost of
+    # being right: five burned scheduled fires do not happen again. (Class A.)
+    { on_exit_code = null, on_reason = null, on_status_reason = "CannotPullContainer*", action = "RETRY" },
     # The one genuinely transient container-start class. (Class B / ENI + ASM init.)
     { on_exit_code = null, on_reason = null, on_status_reason = "ResourceInitializationError*", action = "RETRY" },
     # Deterministic: the job needs more memory, not another attempt. (Class J.)
@@ -3324,11 +3338,14 @@ resource "aws_batch_job_definition" "unica_annual_state" {
 # ceiling. NO RE-ATTEMPT ON A PUBLISHING JOB: a publisher must not be silently
 # re-attempted into a partial second publish -- a failed sweep is re-fired
 # deliberately (the same-asof re-run is idempotent under the write-guard).
-# D-PR-7 UPDATE: this jobdef now carries the shared retry matrix, and the
-# invariant is UNCHANGED by it. Every rule in that matrix is EXIT except
-# ResourceInitializationError, which by definition means the CONTAINER NEVER
-# STARTED -- so no publish, partial or otherwise, can have happened. Exit 1, OOM,
-# CannotPull and the terminal catch-all all still terminate on the first attempt.
+# D-PR-7 STATUS (corrected D-SG review m-3, 2026-08-16): this jobdef carries NO
+# retry_strategy AT ALL, deliberately -- it does not consume the shared
+# producer_retry_rules local, so nothing here retries on ANY class, including the
+# pre-start ones (ResourceInitializationError / CannotPullContainer). Batch's
+# default for a jobdef without a retryStrategy is attempts=1: every failure
+# terminates on the first attempt. Admitting the pre-start classes to publishers
+# is owner decision D17 (declined for now) and would be its own reviewed change
+# plus a rewrite of the pinning doctrine test.
 # ---------------------------------------------------------------------------
 resource "aws_batch_job_definition" "pattern_records_sweep" {
   count = var.pattern_records_image != "" ? 1 : 0
@@ -3718,9 +3735,12 @@ resource "aws_batch_job_definition" "databento_fetch" {
 # NO RE-ATTEMPT ON A PUBLISHING JOB: a publisher must never be silently re-attempted
 # into a partial second publish. A failed silver task is re-fired deliberately (the run
 # is idempotent under skip_existing=false + the canonical union).
-# D-PR-7 UPDATE: this jobdef now carries the shared retry matrix, and the invariant is
-# UNCHANGED by it -- every rule is EXIT except ResourceInitializationError, which means
-# the container never started, so there is no partial publish to compound.
+# D-PR-7 STATUS (corrected D-SG review m-3, 2026-08-16): this jobdef carries NO
+# retry_strategy AT ALL, deliberately -- it does not consume the shared producer_retry_rules
+# local (T2b publisher-doctrine exclusion, pinned by test_futures_eod_cloud_legs.py). Batch's
+# default is attempts=1: every failure, pre-start classes included, terminates on the first
+# attempt. Admitting ResourceInitializationError/CannotPullContainer here is owner decision
+# D17 (declined for now); it would rewrite the doctrine test, never delete it.
 # ---------------------------------------------------------------------------
 resource "aws_batch_job_definition" "futures_eod_silver" {
   count = local.futures_eod_image != "" && var.silver_publisher_job_role_arn != "" ? 1 : 0
@@ -3871,6 +3891,119 @@ resource "aws_batch_job_definition" "browser_runner" {
         on_status_reason = evaluate_on_exit.value.on_status_reason
       }
     }
+  }
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Job definition: USDA PSD bronze -> silver  (D-SG G1-1)
+#
+# WHY A DEDICATED JOBDEF. jobs/batch/psd_silver_task.py is the only leg in the estate that
+# concatenates EVERY bronze release snapshot into one pandas frame. MEASURED 2026-08-16
+# against the 8 live bronze partitions (30,536,582 bytes of parquet on S3): 16,735,546 rows,
+# 2,518 MiB resident after load, PEAK RSS 8,685-9,997 MiB inside
+# transform_psd_bronze_to_silver (concat :292 -> drop_duplicates :400 -> pivot_table :405).
+# leviathan-dev-b3-flat-silver is 1 vCPU / 4096 MB and is SHARED with the fred, world_bank,
+# nass, ams, icco, mpoc, sagis and cftc legs -- exactly the wrong place to put 16 GB.
+# Live proof of the failure: Batch job 213aaaa7-bd2e-4fdc-b11c-3c40cdac66be (2026-08-13
+# 18:04:21Z), "OutOfMemoryError: container killed due to memory usage", exit 137 at 31 s.
+#
+# 2 vCPU / 16384 MB is the Fargate MAXIMUM at 2 vCPU and gives 1.65x over the measured peak.
+# IT IS NOT A PERMANENT ANSWER, and the arithmetic is written down so the next person does
+# not have to re-derive it: fetch_usda_psd.py:121 stamps release_date=TODAY and this schedule
+# fires on days 8-13, so bronze gains ~6 partitions a month and the peak grows ~1.2 GiB per
+# partition. The G1-1b bounded-input rider in psd_silver_task._load_bronze (drop bronze
+# partitions whose RAW zip ETag duplicates a newer one -- 6 of the 8 live partitions are two
+# byte-identical vendor downloads) is what keeps this inside 16 GB past September.
+#
+# THIS JOBDEF PUBLISHES AND SELF-PROMOTES, WHICH IS WHY IT CARRIES THE PUBLISHER ROLE:
+#   1. the promote leg re-runs the SAME transform with --publish-mode canonical, so it OOMs
+#      on silver-publisher-runner's 1 vCPU / 4096 MB exactly like the shadow leg did --
+#      repointing only the silver leg leaves the canonical write broken;
+#   2. tests/unit/silver/test_gen_sfn_inputs.py::test_digest_pinned_producers_must_self_promote
+#      requires any DIGEST-PINNED silver jobdef to be its family's promote_jobdef, and a
+#      self-promote calls kms:Sign, which lives ONLY on module.iam.silver_publisher_role
+#      (envs/dev/main.tf aws_iam_role_policy.silver_publisher_kms_sign). Same shape as
+#      futures_eod_silver above.
+#
+# NO retry matrix, deliberately: the publishing-job doctrine that futures_eod_silver and
+# pattern_records_sweep already carry. A retried publisher re-runs its write path.
+# ---------------------------------------------------------------------------
+locals {
+  psd_silver_image = (
+    var.psd_silver_image_digest == ""
+    ? "${var.ecr_repository_url}:latest"
+    : "${var.ecr_repository_url}@${var.psd_silver_image_digest}"
+  )
+}
+
+resource "aws_batch_job_definition" "psd_silver" {
+  count = var.silver_publisher_job_role_arn == "" ? 0 : 1
+
+  name = "${var.project_name}-${var.environment}-psd-silver"
+  type = "container"
+
+  platform_capabilities = ["FARGATE"]
+
+  container_properties = jsonencode({
+    image = local.psd_silver_image
+
+    # Module form ([m]) because psd_silver_task does a defensive `jobs.*` import. The state
+    # machine overrides this on every fire with the descriptor's command plus the stage's
+    # --publish-mode, so the baked list is the MANUAL-run default, never the scheduled one --
+    # and it is baked as `shadow` so an un-overridden fire can never touch canonical.
+    command = [
+      "-m", "jobs.batch.psd_silver_task",
+      "--force-overwrite",
+      "--publish-mode", "shadow"
+    ]
+
+    # The UNION of what the two legs carry today: b3-flat-silver:24 (AWS_REGION,
+    # LEVIATHAN_BUCKET) plus silver-publisher-runner:24's PYTHONPATH, plus the KMS pair
+    # futures_eod_silver bakes (inert unless the job is run with --publish-mode canonical).
+    # LEVIATHAN_ENV is deliberately ABSENT: neither live leg sets it, and this change is
+    # allowed to move memory, not environment.
+    environment = [
+      { name = "PYTHONPATH", value = "/app/src" },
+      { name = "AWS_REGION", value = var.aws_region },
+      { name = "LEVIATHAN_BUCKET", value = var.leviathan_bucket },
+      { name = "LEVIATHAN_APPROVAL_MODE", value = "kms" },
+      { name = "LEVIATHAN_KMS_KEY_ID", value = local.publish_signer_alias }
+    ]
+
+    resourceRequirements = [
+      { type = "VCPU", value = "2" },
+      { type = "MEMORY", value = "16384" }
+    ]
+
+    executionRoleArn = var.batch_execution_role_arn
+    # The GATED writer (SILVER-F014), not batch_job_role -- see the header's point 2.
+    jobRoleArn = var.silver_publisher_job_role_arn
+
+    networkConfiguration = {
+      assignPublicIp = "ENABLED"
+    }
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = "/aws/batch/${var.project_name}-${var.environment}"
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "psd-silver"
+      }
+    }
+  })
+
+  timeout {
+    # 1 h. The measured transform is ~4 min of CPU on 8 partitions; the ceiling covers load,
+    # pivot and the shadow->validate->promote publish with wide margin. attemptDurationSeconds
+    # is PER ATTEMPT and this jobdef has no retry, so 3600 s is also the whole-job ceiling.
+    attempt_duration_seconds = 3600
   }
 
   tags = {

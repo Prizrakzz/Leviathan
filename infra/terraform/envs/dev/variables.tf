@@ -282,6 +282,31 @@ variable "pink_sheet_image_digest" {
   }
 }
 
+variable "psd_silver_image_digest" {
+  # The WORKER image leviathan-dev-psd-silver runs (D-SG G1-1, the OOM fix).
+  #
+  # VALUE = the digest the LIVE latest-ACTIVE leviathan-dev-b3-flat-silver (rev 24) and
+  # leviathan-dev-silver-publisher-runner (rev 24) BOTH run today -- ECR tag 20260804T132111,
+  # pushed 2026-08-04T13:21:41Z, verified by describe-job-definitions on 2026-08-16. It is
+  # DELIBERATELY NOT var.worker_fleet_image_digest (sha256:02e1fde4..., tag 20260805T173909)
+  # and DELIBERATELY NOT ':latest' (sha256:c808ccfb..., tag 20260808T181848).
+  #
+  # THE STANDING LAW: a worker-fleet digest move rides ONE change, alone (the futures
+  # read-path record -- gate-side parity stayed NON-CITABLE until the fleet rebuilt past
+  # e8aa7857 with the tf digest moved in the same change). This change moves MEMORY. If it
+  # also moved the PSD silver code forward one or two builds, a green first fire would not be
+  # citable as proof the OOM fix worked and a red one would not be attributable. Re-pin in its
+  # own change, after the first green fire.
+  type        = string
+  description = "sha256 digest of the worker image the dedicated psd-silver jobdef runs. Empty = the mutable ':latest' tag."
+  default     = "sha256:e8aa7857a2e1b3b0258fa7258803a60d608a1209cf3b02042220da2094bf4b7f"
+
+  validation {
+    condition     = var.psd_silver_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.psd_silver_image_digest))
+    error_message = "psd_silver_image_digest must be empty or a full 'sha256:<64 hex>' digest (a TAG is not accepted)."
+  }
+}
+
 # --- D-PR-7/D-PR-11 PRECONDITION: the ten-family worker fleet pin ----------
 
 variable "worker_fleet_image_digest" {

@@ -201,10 +201,11 @@ def _gate_retry_block() -> str:
 
 def test_the_gate_matrix_fits_the_five_object_api_cap():
     """D-PR-37: `evaluateOnExit` accepts a MAXIMUM OF 5 objects and RegisterJobDefinition rejects more.
-    The gate needs three; the assertion is the cap, so a fourth and fifth are allowed and a sixth fails
-    here instead of at register time."""
+    The gate needs four (D-SG G1-3 added CannotPullContainer*); the assertion is the cap, so a fifth is
+    allowed and a sixth fails here instead of at register time."""
     rules = _gate_retry_block().count("evaluate_on_exit {")
-    assert rules == 3, "the gate matrix is {72 retry}, {ResourceInit* retry}, {'*' exit}"
+    assert rules == 4, ("the gate matrix is {72 retry}, {ResourceInit* retry}, "
+                        "{CannotPullContainer* retry -- D-SG G1-3}, {'*' exit}")
     assert rules <= 5, "RegisterJobDefinition REJECTS a 6-object evaluateOnExit outright"
 
 
@@ -220,9 +221,12 @@ def test_only_the_baseline_fetch_code_is_retried_by_the_jobdef():
     rules = [_span(block, "evaluate_on_exit {", start=m.start())
              for m in re.finditer(r"evaluate_on_exit \{", block)]
     retrying = [r for r in rules if re.search(r'action\s*=\s*"RETRY"', r, re.I)]
-    assert len(retrying) == 2, "exactly two rules may retry: exit 72 and ResourceInitializationError*"
+    assert len(retrying) == 3, ("exactly three rules may retry: exit 72, "
+                                "ResourceInitializationError* and CannotPullContainer* "
+                                "-- every one of them precedes a verdict")
     assert any(f'"{g.EXIT_BASELINE_FETCH}"' in r for r in retrying)
     assert any("ResourceInitializationError*" in r for r in retrying)
+    assert any("CannotPullContainer*" in r for r in retrying)
 
     for forbidden in (g.EXIT_REFUSAL, g.EXIT_USAGE, g.EXIT_INTERNAL, g.EXIT_PREFLIGHT):
         assert f'"{forbidden}"' not in block, (
@@ -243,7 +247,7 @@ def test_the_terminal_catch_all_is_present_and_exits():
 
 
 def test_the_gate_jobdef_carries_a_per_attempt_timeout_and_two_attempts():
-    """D-PR-11 (live rev 14 had none) and D-PR-8's `attempts: 2` -- one retry, for one class."""
+    """D-PR-11 (live rev 14 had none) and D-PR-8's `attempts: 2` -- one retry, for each retryable class."""
     text = _GATE_TF.read_text(encoding="utf-8")
     assert re.search(r"attempts\s*=\s*2", _gate_retry_block())
     assert re.search(r"attempt_duration_seconds\s*=\s*3600", _block(text, "timeout {"))
