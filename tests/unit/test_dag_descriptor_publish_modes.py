@@ -114,13 +114,26 @@ def test_every_publishing_silver_task_declares_publish_mode():
 
 
 def test_unica_biweekly_silver_is_no_longer_bare():
-    """The exact 2026-08-12 regression: latest_only, so the renderer supplies nothing."""
+    """The exact 2026-08-12 regression, guarded across its TWO fixed shapes.
+
+    Morning of 2026-08-16 (G2-1(a)): latest_only + an EXPLICIT --publish-mode shadow (the
+    renderer supplies nothing for latest_only, so the flag had to live in the descriptor).
+    Afternoon of the same day (DSG-TAIL A2 arming): shadow_canonical, where the RENDERER
+    supplies the flag and the explicit one had to go (double-flag law) -- the descriptor
+    goes back to bare-of-the-flag but the RENDERED command must never be. What this test
+    exists to prevent is unchanged: a scheduled biweekly silver leg whose rendered command
+    lets unica_biweekly_silver_task.py fall through to its dry-run default."""
     desc = _descriptors()["unica"]
     task = next(
         t for t in _publishing_silver_tasks(desc) if t["id"] == "unica_biweekly_silver"
     )
-    assert task["publish_mode"] == "latest_only"
-    assert task["command"][-2:] == ["--publish-mode", "shadow"]
+    assert task["publish_mode"] == "shadow_canonical"
+    assert "--publish-mode" not in task["command"], "double-flag: the renderer supplies it now"
+    rendered = next(
+        t for t in _rendered_silver_tasks(desc)
+        if "unica_biweekly_silver_task.py" in t["command"][0]
+    )
+    assert rendered["command"][-2:] == ["--publish-mode", "shadow"], rendered["command"]
 
 
 def test_unica_annual_leg_leaves_the_flag_to_the_renderer():

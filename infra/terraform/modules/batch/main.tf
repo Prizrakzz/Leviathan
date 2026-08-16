@@ -2722,7 +2722,15 @@ resource "aws_batch_job_definition" "mpob_silver" {
     ]
 
     executionRoleArn = var.batch_execution_role_arn
-    jobRoleArn       = var.batch_job_role_arn
+    # DSG-TAIL A1 (2026-08-16): this jobdef is mpob's promote_jobdef (self-promotion --
+    # it rides local.worker_fleet_image, a digest pin, and since the A1 fold it hosts BOTH
+    # mpob silver legs). An autonomous promote signs a KMS approval, and kms:Sign lives
+    # ONLY on the SILVER-F014 silver-publisher role -- batch_job_role would AccessDeny on
+    # the FIRST unattended canonical write. Same choice, same reason, as futures_eod_silver,
+    # modis_ndvi_bronze_to_silver and fgis_silver. The pre-start-only retry matrix STAYS
+    # (probe-amended: CannotPull*/ResourceInit* retries never ran the write path; the
+    # T2-armed self-promote jobdefs keep the identical matrix).
+    jobRoleArn       = var.silver_publisher_job_role_arn
 
     networkConfiguration = {
       assignPublicIp = "ENABLED"
@@ -2928,85 +2936,16 @@ resource "aws_batch_job_definition" "mpob_overview_bronze" {
 }
 
 # ---------------------------------------------------------------------------
-# Job definition: MPOB overview_pdf bronze → annual silver
+# Job definition: MPOB overview_pdf bronze → annual silver — FOLDED AWAY
+# (DSG-TAIL A1, 2026-08-16). mpob_annual_silver was spec-identical to mpob_silver
+# (image, exec role, network, 1 vCPU/2048) and the SFN thin contract overrides the
+# command per task, so the annual silver leg now runs on leviathan-dev-mpob-silver.
+# The fold is what lets the family self-promote through a SCALAR promote_jobdef —
+# the arity lint (gen_sfn_inputs lint_descriptor: own == {pj}) stays untouched and
+# load-bearing. The KNOWN-RED walkthrough lives in test_gen_sfn_inputs.py (rewritten
+# to the closed state in the same change). jobs/batch/mpob_annual_silver_task.py is
+# unaffected — the task file lives on; only the jobdef died.
 # ---------------------------------------------------------------------------
-
-resource "aws_batch_job_definition" "mpob_annual_silver" {
-  name = "${var.project_name}-${var.environment}-mpob-annual-silver"
-  type = "container"
-
-  platform_capabilities = ["FARGATE"]
-
-  parameters = {
-    bucket          = var.leviathan_bucket
-    aws_region      = var.aws_region
-    force_overwrite = "false"
-  }
-
-  container_properties = jsonencode({
-    image = local.worker_fleet_image
-
-    command = [
-      "jobs/batch/mpob_annual_silver_task.py",
-      "--bucket", "Ref::bucket",
-      "--aws-region", "Ref::aws_region",
-      "--force-overwrite", "Ref::force_overwrite"
-    ]
-
-    environment = [
-      { name = "LEVIATHAN_BUCKET", value = var.leviathan_bucket },
-      { name = "AWS_REGION", value = var.aws_region },
-      { name = "LEVIATHAN_ENV", value = var.environment }
-    ]
-
-    resourceRequirements = [
-      { type = "VCPU", value = "1" },
-      { type = "MEMORY", value = "2048" }
-    ]
-
-    executionRoleArn = var.batch_execution_role_arn
-    jobRoleArn       = var.batch_job_role_arn
-
-    networkConfiguration = {
-      assignPublicIp = "ENABLED"
-    }
-
-    logConfiguration = {
-      logDriver = "awslogs"
-      options = {
-        "awslogs-group"         = "/aws/batch/${var.project_name}-${var.environment}"
-        "awslogs-region"        = var.aws_region
-        "awslogs-stream-prefix" = "mpob-annual-silver"
-      }
-    }
-  })
-
-  timeout {
-    attempt_duration_seconds = 900
-  }
-
-  # D-PR-7 / D-PR-37: the shared producer retry matrix (5 rules = the API cap).
-  # Declared once at the top of this file; see that comment before changing anything.
-  retry_strategy {
-    attempts = local.producer_retry_attempts
-
-    dynamic "evaluate_on_exit" {
-      for_each = local.producer_retry_rules
-      content {
-        action           = evaluate_on_exit.value.action
-        on_exit_code     = evaluate_on_exit.value.on_exit_code
-        on_reason        = evaluate_on_exit.value.on_reason
-        on_status_reason = evaluate_on_exit.value.on_status_reason
-      }
-    }
-  }
-
-  tags = {
-    Project     = var.project_name
-    Environment = var.environment
-    ManagedBy   = "terraform"
-  }
-}
 
 # ---------------------------------------------------------------------------
 # Job definition: silver/* → gold/feature_spine (long-format training matrix)
@@ -3254,11 +3193,26 @@ resource "aws_batch_job_definition" "unica_annual_state" {
 
     resourceRequirements = [
       { type = "VCPU", value = "0.5" },
-      { type = "MEMORY", value = "1024" }
+      # DSG-TAIL A2 review fold: 1024 -> 2048. The A2 fold makes this jobdef host the
+      # biweekly leg too, which previously ran on b3-flat-silver's 4096 MB -- and the
+      # day-0 bridge ran on publisher-runner, so the biweekly task had NEVER executed at
+      # 1024 MB. Sizing a fold target to its new tenant set is part of the fold, not a
+      # second variable (the annual leg's own 1024-proven footprint is unaffected by
+      # headroom). 0.5 vCPU supports up to 4 GB on Fargate; 2048 = 4-6x the estimated
+      # biweekly peak (KB-scale tables, pandas over small bronze parquets).
+      { type = "MEMORY", value = "2048" }
     ]
 
     executionRoleArn = var.batch_execution_role_arn
-    jobRoleArn       = var.batch_job_role_arn
+    # DSG-TAIL A2 (2026-08-16): this jobdef is unica's promote_jobdef (self-promotion --
+    # it rides local.worker_fleet_image, a digest pin, and since the A2 fold it hosts BOTH
+    # unica silver legs: annual/state AND biweekly, commands overridden per task by the
+    # SFN). An autonomous promote signs a KMS approval; kms:Sign lives ONLY on the
+    # SILVER-F014 silver-publisher role. Same choice, same reason, as futures_eod_silver,
+    # modis_ndvi_bronze_to_silver, fgis_silver and mpob_silver. NOTE the digest fence
+    # (test_digest_pinned_producers_must_self_promote) had this family's exposure MASKED
+    # for weeks behind mpob's alphabetically-earlier red -- the arming surfaced it.
+    jobRoleArn       = var.silver_publisher_job_role_arn
 
     networkConfiguration = {
       assignPublicIp = "ENABLED"
@@ -3742,7 +3696,7 @@ resource "aws_batch_job_definition" "databento_fetch" {
 # Sizing 1 vCPU / 4096 MB: an incremental run holds five days of one source but stages
 # the whole (leviathan_slug, trade_year) object and UNIONS it with the existing
 # canonical partition before publishing -- a trade_year, not a lookback window, is the
-# in-memory unit. Same shape as fgis_silver / mpob_annual_silver.
+# in-memory unit. Same shape as fgis_silver (and the since-folded mpob_annual_silver).
 #
 # NO RE-ATTEMPT ON A PUBLISHING JOB: a publisher must never be silently re-attempted
 # into a partial second publish. A failed silver task is re-fired deliberately (the run

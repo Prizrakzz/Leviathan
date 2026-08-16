@@ -87,7 +87,7 @@
           ],
           "env": [],
           "integration": "batch",
-          "jobdef": "leviathan-dev-mpob-annual-silver",
+          "jobdef": "leviathan-dev-mpob-silver",
           "queue": "leviathan-dev-queue-ondemand"
         }
       ]
@@ -113,7 +113,7 @@
           }
         ],
         "integration": "batch",
-        "jobdef": "leviathan-dev-silver-publisher-runner",
+        "jobdef": "leviathan-dev-mpob-silver",
         "queue": "leviathan-dev-queue-ondemand"
       },
       {
@@ -133,7 +133,7 @@
           }
         ],
         "integration": "batch",
-        "jobdef": "leviathan-dev-silver-publisher-runner",
+        "jobdef": "leviathan-dev-mpob-silver",
         "queue": "leviathan-dev-queue-ondemand"
       }
     ]

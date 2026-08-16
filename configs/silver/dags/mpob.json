@@ -103,7 +103,7 @@
           "id": "mpob_annual_silver",
           "invocation_form": "s",
           "integration": "batch",
-          "jobdef": "leviathan-dev-mpob-annual-silver",
+          "jobdef": "leviathan-dev-mpob-silver",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
             "jobs/batch/mpob_annual_silver_task.py"
@@ -115,5 +115,7 @@
       ]
     }
   ],
-  "notes": "Fully named jobdefs (bronze x2 + text + monthly/annual silver). --skip-existing; --year cumulative self-heals."
+  "notes": "Fully named jobdefs (bronze x2 + text + monthly/annual silver). --skip-existing; --year cumulative self-heals. | 2026-08-16 (DSG-TAIL A1, owner-ratified): the annual silver leg FOLDED onto leviathan-dev-mpob-silver -- the two jobdefs were spec-identical (image/exec/network/1vCPU/2048) and the SFN overrides the command per task, so leviathan-dev-mpob-annual-silver was destroyed and the family self-promotes through the scalar promote_jobdef below (own-set = {mpob-silver}, the arity lint untouched). jobRoleArn moved to silver-publisher in the same change (kms:Sign). This closes the mixed-vintage promote (shared runner floating vs digest-pinned producers) that burned futures_eod on 2026-08-01 -- the deliberate suite red in test_gen_sfn_inputs.py clears with it.",
+  "promote_jobdef": "leviathan-dev-mpob-silver",
+  "promote_jobdef_note": "SELF-PROMOTION, same class + same proof as futures_eod, modis_biweekly and fgis: mpob-silver rides the digest-pinned local.worker_fleet_image, so a promote on the shared floating runner would re-derive silver with a DIFFERENT build than the shadow it promotes. Both silver legs (monthly + annual, folded 2026-08-16) run and promote on this one jobdef; jobRoleArn=silver-publisher moved in the same change."
 }

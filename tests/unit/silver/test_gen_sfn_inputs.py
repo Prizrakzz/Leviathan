@@ -218,20 +218,35 @@ def test_unica_biweekly_fetch_discovers_current_season(gen, descriptors):
     ], biweekly["command"]
 
 
-def test_unica_ships_shadow_only_with_empty_promote(gen, descriptors):
-    """SFN doctrine (futures precedent): the retrofit ships SILVER --publish-mode shadow with
-    promote.tasks EMPTY (shadow-only soak; canonical promotion is a main-loop KMS-signed manual leg).
-    unica stays held (retrofit_required + not landed => promote_mode stop_and_notify), so the [Promote]
-    Map -- which runs promote.tasks UNCONDITIONALLY on a green gate -- must render nothing."""
+def test_unica_promotes_both_legs_on_the_folded_self_jobdef(gen, descriptors):
+    """DSG-TAIL A2 (2026-08-16): the shadow-only soak ENDED -- unica armed autonomous with the
+    SAME fold shape as mpob's. This test's previous form pinned promote.tasks EMPTY (the held
+    CLASS-B soak, canonical via manual KMS legs); it now pins the armed contract: BOTH silver
+    legs (annual/state + biweekly) run AND promote on leviathan-dev-unica-annual-state (the
+    digest-pinned fold target), each promote carries the KMS pair, and the biweekly leg carries
+    --force-overwrite while the annual promote renders bare (its skip-existing canonical path is
+    a proven clean no-op on the static-at-ceiling table)."""
     d = descriptors["unica"]
-    assert d.get("retrofit_required") and not d.get("retrofit_landed"), "unica must stay CLASS-B held"
-    assert d["promote_mode"] == "stop_and_notify"
+    assert d.get("retrofit_required") and d.get("retrofit_landed"), "unica retrofit is LANDED"
+    assert d["promote_mode"] == "autonomous"
+    assert d["promote_jobdef"] == "leviathan-dev-unica-annual-state"
     r = gen.render_input(d)
-    assert r["promote"]["tasks"] == [], "promote.tasks must be empty (no autonomous arm)"
-    # the shadow_canonical annual/state producer publishes --publish-mode shadow in the silver phase
+    promote = r["promote"]["tasks"]
+    assert len(promote) == 2, f"annual + biweekly must both promote, got {len(promote)}"
+    for t in promote:
+        assert t["jobdef"] == "leviathan-dev-unica-annual-state", t["jobdef"]
+        assert t["command"][-2:] == ["--publish-mode", "canonical"], t["command"]
+        env = {e["Name"]: e["Value"] for e in t["env"]}
+        assert env.get("LEVIATHAN_APPROVAL_MODE") == "kms"
+    biweekly = next(t for t in promote if "unica_biweekly_silver_task.py" in t["command"][0])
+    assert "--force-overwrite" in biweekly["command"]
+    annual = next(t for t in promote if "unica_annual_state_task.py" in t["command"][0])
+    assert "--force-overwrite" not in annual["command"], \
+        "annual promote stays bare: skip-existing no-op on the static-at-ceiling table"
+    # both silver-phase legs still stage shadow first
     shadow = [t for t in r["phases"]["silver"]["tasks"]
               if t["command"][-2:] == ["--publish-mode", "shadow"]]
-    assert shadow, "the shadow_canonical silver publisher must carry --publish-mode shadow"
+    assert len(shadow) == 2, "both publishers must stage --publish-mode shadow in the silver phase"
 
 
 def test_enso_iod_leg_is_cpc_and_republishes(gen, descriptors):
@@ -519,53 +534,38 @@ def _digest_pinned_jobdef_names() -> set[str]:
 
 
 # ---------------------------------------------------------------------------
-# KNOWN RED -- mpob. LEFT RED DELIBERATELY (suite-debt sweep, 2026-08-16). This is a REAL
-# defect and the test is right; the fix is BLOCKED on terraform, not on this file.
+# mpob -- CLOSED (DSG-TAIL A1, 2026-08-16, owner-ratified). This block stood as a
+# deliberate KNOWN RED from the same-day suite sweep until the fold landed hours later.
 #
-# THE DEFECT. configs/silver/dags/mpob.json publishes shadow_canonical on TWO digest-pinned
-# jobdefs -- leviathan-dev-mpob-silver and leviathan-dev-mpob-annual-silver, both on
-# local.worker_fleet_image (batch/main.tf:2692, :2935), live digest sha256:753dbcd1... on
-# revision 7 of each (re-verified after D-SG S-C bumped the fleet pin; cf50c051 was withdrawn as a
-# corrupt artifact by 6cc58103, which is itself a reason the promote leg must not float) -- while
-# promote falls through to the shared
-# leviathan-dev-silver-publisher-runner on floating :latest. That is the mixed-vintage shape
-# that burned futures_eod on 2026-08-01 and that D-SG fixed for psd_monthly (c1b64036 +
-# cff0d7c7).
+# WHAT STOOD HERE: mpob published shadow_canonical on TWO digest-pinned jobdefs
+# (mpob-silver + mpob-annual-silver) while promote fell through to the shared runner on
+# a floating image -- the mixed-vintage shape that burned futures_eod on 2026-08-01.
+# Self-promotion was blocked twice over: (1) ROLE -- both jobdefs bound batch_job_role,
+# which has no kms:Sign; (2) ARITY -- promote_jobdef is a scalar and the lint fences it
+# to THE one jobdef every shadow_canonical publisher runs on, and mpob had two.
 #
-# WHY THE psd_monthly REPAIR CANNOT BE COPIED HERE -- TWO INDEPENDENT BLOCKERS, both measured:
+# THE FIX TAKEN: the fold (this block's own option b, first branch). mpob-annual-silver
+# was spec-identical to mpob-silver (image/exec/network/1 vCPU/2048; the SFN overrides
+# the command per task), so the annual leg moved onto mpob-silver, the annual jobdef was
+# destroyed (tf resource + output removed), and the scalar promote_jobdef became legal
+# (own == {mpob-silver}). jobRoleArn moved to silver-publisher in the same change. The
+# arity fence was NOT relaxed -- it stays load-bearing, byte-identical.
 #
-#   (1) ROLE. Self-promotion calls kms:Sign, which lives ONLY on module.iam.silver_publisher_role
-#       (envs/dev/main.tf:1283 aws_iam_role_policy.silver_publisher_kms_sign). psd-silver binds
-#       jobRoleArn = var.silver_publisher_job_role_arn (batch/main.tf:3986). BOTH mpob jobdefs
-#       bind var.batch_job_role_arn instead -- VERIFIED LIVE 2026-08-16 via
-#       `aws batch describe-job-definitions`, and RE-VERIFIED after the S-C/S-D commits landed
-#       mid-sweep (the role did NOT move with the digest): rev 7 of each carries
-#       arn:aws:iam::668891723125:role/leviathan-dev-batch-job-role, and that role's 4 inline +
-#       6 attached policies contain NO kms:Sign. Flipping the descriptor today would move the
-#       CANONICAL write from a working shared runner onto a jobdef that AccessDenies at
-#       kms:Sign -- i.e. it would BREAK a currently-working publish to satisfy a test.
+# DELIBERATE DEVIATIONS from the walkthrough that stood here, both probe-driven:
+#   - The retry matrix STAYS on mpob-silver. The old step (a) said drop it "per the
+#     publishing-job doctrine (a retried publisher re-runs its write path)" -- but the
+#     live matrix retries ONLY on CannotPullContainer*/ResourceInitializationError*
+#     (pre-start failures that never ran a write; every real failure exits), and the
+#     T2-armed self-promote jobdefs (modis rev 12, fgis rev 9) keep the identical matrix.
+#   - PENDING_HAND_MERGE stayed EMPTY: the committed tfvars generator
+#     (gen_dag_schedules_tfvars.py) splices the mpob entry semantically in the same
+#     sitting as the apply, so no hand-merge window ever opens.
+#   - The image facts in the old text were stale by close: live was rev 8 @ 53db13d5 on
+#     both jobdefs (tf state current), not rev 7 @ 753dbcd1.
 #
-#   (2) ARITY. promote_jobdef is a single scalar, and lint_descriptor
-#       (gen_sfn_inputs.py:287-299) fences it to `own == {pj}` -- THE one jobdef every
-#       shadow_canonical publisher in the descriptor runs on. mpob has two. Naming either one
-#       alone therefore fails test_all_descriptors_lint_clean, trading one red for another.
-#
-# THE REQUIRED FIX, in this order (terraform + a generator decision, NOT a test edit):
-#   a. batch/main.tf: repoint mpob_silver:2713 and mpob_annual_silver:2956 from
-#      var.batch_job_role_arn to var.silver_publisher_job_role_arn (the psd-silver shape), and
-#      drop the retry matrix from both per the publishing-job doctrine (a retried publisher
-#      re-runs its write path). Both are already 1 vCPU / 2048 MB with identical image, exec
-#      role and network config, so nothing else diverges.
-#   b. THEN either fold the two producers onto one jobdef, or widen promote_jobdef to a
-#      per-task mapping so a two-publisher family can self-promote both legs. The arity fence
-#      is load-bearing and must not simply be relaxed to `pj in own`: that would let the annual
-#      promote run on a jobdef the annual command has never been proven on.
-#   c. THEN set promote_jobdef + promote_jobdef_note here, re-render _rendered/, and add "mpob"
-#      to PENDING_HAND_MERGE in tests/unit/test_dag_descriptor_publish_modes.py -- which D-SG S-D
-#      (bdacc32f) has since EMPTIED, so re-opening it for mpob is a deliberate act, and the
-#      dag_schedules.auto.tfvars.json hand-merge itself stays the orchestrator's per the tfvars law.
-#
-# Until (a) lands this test is the correct alarm and must stay red. Do NOT weaken it.
+# test_digest_pinned_producers_must_self_promote below is the fence that was red; the
+# descriptor now satisfies it. Do not weaken it -- it is what catches the NEXT family
+# that pins an image without carrying its promote.
 # ---------------------------------------------------------------------------
 def test_digest_pinned_producers_must_self_promote(gen, descriptors):
     """Any descriptor whose shadow_canonical publisher runs on a DIGEST-PINNED jobdef must declare that
@@ -950,12 +950,21 @@ def test_wave2_is_exactly_the_classb_set(descriptors):
     # jobRoleArn moved to silver-publisher in the same change -- without it the unattended
     # canonical promote AccessDenies at kms:Sign); food_cpi promotes on the shared runner
     # (its producer is the CLI-managed b3-flat-silver, not a terraform pin). Each carries its
-    # parser's force-overwrite spelling so promotes refresh existing partitions. Remaining:
-    # cot + futures_prices (hand-armed interim shapes) and unica (BLOCKED on per-task
-    # promote_jobdef arity -- two publishers on two jobdefs, T5). The stem leaves BOTH sets
-    # together or the equality below is what catches a half-landed retrofit.
+    # parser's force-overwrite spelling so promotes refresh existing partitions.
+    # DSG-TAIL A2 (2026-08-16, owner-ratified): unica LANDED too, by the SAME FOLD as
+    # mpob's: unica-annual-state IS a terraform digest pin (main.tf:3166) -- an earlier
+    # "CLI-managed" recon claim was a truncated-grep false negative that
+    # test_digest_pinned_producers_must_self_promote caught the moment mpob's
+    # alphabetically-earlier red stopped masking its loop. The biweekly leg moved onto
+    # unica-annual-state (SFN overrides commands per task), own-set collapsed to one,
+    # scalar promote_jobdef became legal, jobRoleArn moved to silver-publisher in the
+    # same change. Biweekly flipped to shadow_canonical (explicit shadow flag removed,
+    # bare --force-overwrite added); the annual promote renders bare and skip-existings
+    # into a clean no-op (probe P4, unica_annual_state_task.py:198-205). Remaining:
+    # cot + futures_prices, the two hand-armed interim shapes. The stem leaves BOTH
+    # sets together or the equality below is what catches a half-landed retrofit.
     assert wave2 == retrofit == {
-        "cot", "futures_prices", "unica",
+        "cot", "futures_prices",
     }
 
 
