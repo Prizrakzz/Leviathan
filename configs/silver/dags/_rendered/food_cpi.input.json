@@ -1,6 +1,6 @@
 {
   "asof": "<aws.scheduler.scheduled-time>",
-  "auth_mode": "hmac",
+  "auth_mode": "kms",
   "family": "world_bank",
   "gate": {
     "command": [
@@ -41,7 +41,10 @@
       "tasks": [
         {
           "command": [
-            "jobs/batch/food_cpi_task.py"
+            "jobs/batch/food_cpi_task.py",
+            "--force-overwrite",
+            "--publish-mode",
+            "shadow"
           ],
           "env": [],
           "integration": "batch",
@@ -52,7 +55,29 @@
     }
   },
   "promote": {
-    "mode": "stop_and_notify",
-    "tasks": []
+    "mode": "autonomous",
+    "tasks": [
+      {
+        "command": [
+          "jobs/batch/food_cpi_task.py",
+          "--force-overwrite",
+          "--publish-mode",
+          "canonical"
+        ],
+        "env": [
+          {
+            "Name": "LEVIATHAN_APPROVAL_MODE",
+            "Value": "kms"
+          },
+          {
+            "Name": "LEVIATHAN_KMS_KEY_ID",
+            "Value": "alias/leviathan-dev-publish-signer"
+          }
+        ],
+        "integration": "batch",
+        "jobdef": "leviathan-dev-silver-publisher-runner",
+        "queue": "leviathan-dev-queue-ondemand"
+      }
+    ]
   }
 }

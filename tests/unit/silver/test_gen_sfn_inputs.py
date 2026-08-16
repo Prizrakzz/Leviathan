@@ -944,15 +944,18 @@ def test_wave2_is_exactly_the_classb_set(descriptors):
     # nass_crop_progress LANDED the same day (both silver legs armed with the value-typed
     # --force-overwrite true; annual's latest_only dry-run had produced ZERO shadow objects
     # ever). Same 4-part package, same rule.
-    # D-SG T2 (2026-08-16, owner-ratified): modis_biweekly and fgis LANDED their A-W4
-    # retrofits and armed promote -- the same 4-part package (retrofit_landed, wave,
-    # promote_mode+auth_mode, this literal) plus the prerequisite jobRoleArn move on each
-    # self-promote jobdef without which the unattended canonical promote AccessDenies at
-    # kms:Sign, plus force-overwrite so weekly promotes refresh existing partitions (fgis
-    # value-typed --force-overwrite true; modis underscore --force_overwrite true). The stem
-    # leaves BOTH sets together or the equality below is what catches a half-landed retrofit.
+    # D-SG T2 (2026-08-16, owner-ratified): modis_biweekly, fgis and food_cpi LANDED their
+    # A-W4 retrofits and armed promote -- the same 4-part package (retrofit_landed, wave,
+    # promote_mode+auth_mode, this literal); modis+fgis self-promote (digest-pinned jobdefs,
+    # jobRoleArn moved to silver-publisher in the same change -- without it the unattended
+    # canonical promote AccessDenies at kms:Sign); food_cpi promotes on the shared runner
+    # (its producer is the CLI-managed b3-flat-silver, not a terraform pin). Each carries its
+    # parser's force-overwrite spelling so promotes refresh existing partitions. Remaining:
+    # cot + futures_prices (hand-armed interim shapes) and unica (BLOCKED on per-task
+    # promote_jobdef arity -- two publishers on two jobdefs, T5). The stem leaves BOTH sets
+    # together or the equality below is what catches a half-landed retrofit.
     assert wave2 == retrofit == {
-        "cot", "food_cpi", "futures_prices", "unica",
+        "cot", "futures_prices", "unica",
     }
 
 

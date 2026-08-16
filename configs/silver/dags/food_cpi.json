@@ -1,13 +1,13 @@
 {
   "schedule": "food_cpi",
   "family": "world_bank",
-  "wave": 2,
+  "wave": 3,
   "cron": "cron(0 16 8 * ? *)",
   "publish_class": "B->A(W4)",
   "retrofit_required": true,
-  "retrofit_landed": false,
-  "promote_mode": "stop_and_notify",
-  "auth_mode": "hmac",
+  "retrofit_landed": true,
+  "promote_mode": "autonomous",
+  "auth_mode": "kms",
   "skip_existing": false,
   "asof": "<aws.scheduler.scheduled-time>",
   "gate_tables": [
@@ -51,14 +51,15 @@
           "jobdef": "leviathan-dev-b3-flat-silver",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
-            "jobs/batch/food_cpi_task.py"
+            "jobs/batch/food_cpi_task.py",
+            "--force-overwrite"
           ],
           "env": {},
           "publishes": true,
-          "publish_mode": "latest_only"
+          "publish_mode": "shadow_canonical"
         }
       ]
     }
   ],
-  "notes": "Full series in one run. CLASS-B latest-only (no bronze step); split from pink_sheet under the one world_bank catalog family; held DISABLED until the A-W4 retrofit. D-SG owner decision D23 (2026-08-16): the cron moved from the 4th to the 8th ALONGSIDE pink_sheet_monthly, which it shares a fire minute with. The move is pink_sheet's -- the WB posts 'around the first Tuesday' and a fire on the 4th can precede it -- and food_cpi rides it so the two schedules keep the collision profile they already had rather than splitting into two separate first-week fires. NOT FIXED HERE and recorded so it is not lost: this descriptor's silver leg is a BARE command and food_cpi_task.py:221 defaults --publish-mode to dry-run, the same silent-no-op class as fgis (fixed 07-23) and unica biweekly (fixed by D-SG G2-1(a-iv)). food_cpi is outside the G2-1 slice; it needs the same explicit --publish-mode shadow before its schedule can write anything."
+  "notes": "Full series in one run. CLASS-B latest-only (no bronze step); split from pink_sheet under the one world_bank catalog family; held DISABLED until the A-W4 retrofit. D-SG owner decision D23 (2026-08-16): the cron moved from the 4th to the 8th ALONGSIDE pink_sheet_monthly, which it shares a fire minute with. The move is pink_sheet's -- the WB posts 'around the first Tuesday' and a fire on the 4th can precede it -- and food_cpi rides it so the two schedules keep the collision profile they already had rather than splitting into two separate first-week fires. NOT FIXED HERE and recorded so it is not lost: this descriptor's silver leg is a BARE command and food_cpi_task.py:221 defaults --publish-mode to dry-run, the same silent-no-op class as fgis (fixed 07-23) and unica biweekly (fixed by D-SG G2-1(a-iv)). food_cpi is outside the G2-1 slice; it needs the same explicit --publish-mode shadow before its schedule can write anything. | 2026-08-16 (D-SG G2-2 / T2, owner-ratified): the bare-command silent no-op is FIXED BY THE ARMING ITSELF -- publish_mode latest_only -> shadow_canonical makes the renderer supply --publish-mode shadow (no explicit flag needed; the earlier note predates this mechanism). 4-part package (wave 2->3, retrofit_landed true, autonomous, kms) + bare --force-overwrite (store_true parser, lint-whitelisted) so monthly canonical promotes refresh the existing single-object table. NO promote_jobdef: the producer rides the CLI-managed shared b3-flat-silver (not a terraform digest pin), so the shared silver-publisher-runner is the correct promote leg (image-equivalent by construction). Canonical frozen 2026-06-05; the TRUE 70.87d stall this arms shut. Its COVERAGE_TABLE_FRESHNESS override still waits for one canonical publish per G3-3 (never arm an already-breaching alarm)."
 }
