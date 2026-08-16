@@ -34,7 +34,11 @@
           "jobdef": "leviathan-dev-usda-wasde-raw-backfill",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
-            "jobs/ingest/fetch_usda_wasde.py"
+            "jobs/ingest/fetch_usda_wasde.py",
+            "--refresh-manifest",
+            "--discover-pages",
+            "1",
+            "--skip-existing-s3"
           ],
           "env": {},
           "publishes": false
@@ -68,7 +72,11 @@
           "jobdef": "leviathan-dev-wasde-silver",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
-            "jobs/batch/wasde_silver_task.py"
+            "jobs/batch/wasde_silver_task.py",
+            "--since-days",
+            "75",
+            "--seed-from",
+            "2010-01-01"
           ],
           "env": {},
           "publishes": true,
@@ -78,5 +86,5 @@
     }
   ],
   "per_release_date": true,
-  "notes": "--skip-existing on the fetch (DOM-range, not calendar-encoded); SILVER iterates per release_date (--release-date). Registered per release_date."
+  "notes": "FETCH: --refresh-manifest --discover-pages 1 merges the esmis archive head into the static manifest (a release absent from configs/sources/usda_wasde_manifest.yaml is UNREACHABLE -- opaque node ids in the URL -- which is why 2026-08-12 never landed), then --skip-existing-s3 makes the fire idempotent (source_url-aware, so v2 corrections still re-fetch). SILVER: --since-days 75 is the INCREMENTAL publish window (was: unbounded, republishing all 624 bronze releases every fire and dying on the 1985-06-10 F034 conflict); --seed-from 2010-01-01 is a FROZEN floor -- it matches the BF-W2 canonical publish, so release_sequence stays continuous with every partition already written. Registered per release_date."
 }

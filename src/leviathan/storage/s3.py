@@ -146,6 +146,16 @@ def upload_bytes_to_s3(
 _s3_local = threading.local()
 
 
+# The pool a THREAD-LOCAL client carries. botocore's default max_pool_connections is 10, and
+# callers that create the client on the main thread and then hand it to a wider pool (e.g.
+# wasde_silver_task.py -> _READ_WORKERS = 16) burn urllib3's "Connection pool is full,
+# discarding connection ... pool size: 10" on every fire -- each discard is a torn-down TLS
+# session re-established on the next read. 32 covers every in-repo worker count (max 16) with
+# headroom; it is a CEILING, not an allocation, so a single-threaded caller pays nothing.
+_BOTO_POOLED_CONFIG = Config(retries={"max_attempts": 10, "mode": "adaptive"},
+                             max_pool_connections=32)
+
+
 def get_thread_local_s3_client(aws_region: str) -> S3Client:
     """Return a thread-local boto3 S3 client for use in ThreadPoolExecutor workers.
 
@@ -156,7 +166,7 @@ def get_thread_local_s3_client(aws_region: str) -> S3Client:
         _s3_local.clients = {}
     if aws_region not in _s3_local.clients:
         _s3_local.clients[aws_region] = boto3.client(
-            "s3", region_name=aws_region, config=_BOTO_RETRY_CONFIG
+            "s3", region_name=aws_region, config=_BOTO_POOLED_CONFIG
         )
     return _s3_local.clients[aws_region]
 

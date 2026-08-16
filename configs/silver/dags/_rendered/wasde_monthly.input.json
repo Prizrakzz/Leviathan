@@ -38,7 +38,11 @@
       "tasks": [
         {
           "command": [
-            "jobs/ingest/fetch_usda_wasde.py"
+            "jobs/ingest/fetch_usda_wasde.py",
+            "--refresh-manifest",
+            "--discover-pages",
+            "1",
+            "--skip-existing-s3"
           ],
           "env": [],
           "integration": "batch",
@@ -52,6 +56,10 @@
         {
           "command": [
             "jobs/batch/wasde_silver_task.py",
+            "--since-days",
+            "75",
+            "--seed-from",
+            "2010-01-01",
             "--publish-mode",
             "shadow"
           ],
@@ -69,6 +77,10 @@
       {
         "command": [
           "jobs/batch/wasde_silver_task.py",
+          "--since-days",
+          "75",
+          "--seed-from",
+          "2010-01-01",
           "--publish-mode",
           "canonical"
         ],

@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import io
 import json
+from datetime import date
 
 import pandas as pd
 import pytest
@@ -90,6 +91,43 @@ def test_selection_splits_publish_window_from_history():
                                             seed_from="2024-05-01")
     assert sorted(publish) == ["2024-07-12"]
     assert sorted(history) == ["2024-05-10", "2024-06-12"]
+
+
+# ---------------------------------------------------------------------------
+# F034 QUARANTINE (D-SG G1-2) -- excluded from BOTH legs, never silently.
+# ---------------------------------------------------------------------------
+def test_quarantine_excludes_from_publish_window_and_history_seed():
+    keys = [f"{_BR}/release_date={d}/part-000.parquet"
+            for d in ("2024-04-11", "2024-05-10", "2024-06-12", "2024-07-12")]
+    publish, history = T.select_bronze_keys(
+        keys, from_date="2024-06-01", quarantined=["2024-05-10", "2024-06-12"])
+    assert sorted(publish) == ["2024-07-12"]      # quarantined release never publishes
+    assert sorted(history) == ["2024-04-11"]      # ... and never seeds the revision series,
+                                                  # which is the half a publish-only filter misses
+    # the live conflict release is pinned WITH its evidence, so the parse fix has a target.
+    assert "1985-06-10" in T.QUARANTINED_RELEASES
+    reason = T.QUARANTINE_REASONS["1985-06-10"]
+    assert "2.5" in reason and "1.67" in reason and "avg_farm_price_bu" in reason
+
+
+def test_quarantine_refuses_an_explicitly_named_release():
+    keys = [f"{_BR}/release_date={d}/part-000.parquet" for d in ("2024-05-10", "2024-06-12")]
+    with pytest.raises(T.WasdeQuarantineError):
+        T.select_bronze_keys(keys, release_dates=["2024-05-10"], quarantined=["2024-05-10"])
+    # named-but-absent-from-bronze still reports QUARANTINE, not the misleading "missing".
+    with pytest.raises(T.WasdeQuarantineError):
+        T.select_bronze_keys(keys, release_dates=["1985-06-10"], quarantined=["1985-06-10"])
+
+
+def test_since_days_resolves_the_incremental_window():
+    assert T._resolve_from_date(T._parse_args(["--since-days", "75"]),
+                                today=date(2026, 8, 16)) == "2026-06-02"
+    assert T._resolve_from_date(T._parse_args(["--from", "2026-01-01"]),
+                                today=date(2026, 8, 16)) == "2026-01-01"
+    assert T._resolve_from_date(T._parse_args([]), today=date(2026, 8, 16)) is None
+    with pytest.raises(SystemExit):     # both knobs = fail closed
+        T._resolve_from_date(T._parse_args(["--from", "2026-01-01", "--since-days", "75"]),
+                             today=date(2026, 8, 16))
 
 
 # ---------------------------------------------------------------------------

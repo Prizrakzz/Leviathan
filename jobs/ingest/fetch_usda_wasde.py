@@ -40,11 +40,16 @@ Modes
     Scrape esmis 70 pages and rebuild manifest.  No AWS credentials required.
 
 Normal (no --discover)
-    Load manifest, apply filters, upload to raw S3.
+    Load manifest, apply filters, upload to raw S3.  ``--refresh-manifest``
+    additionally merges the head of the archive (``--discover-pages`` pages,
+    newest-first) into the loaded manifest IN MEMORY first, so a release the
+    static YAML has never heard of is still reachable.
 
 Idempotency
 -----------
-Pass ``--skip-existing-s3`` to skip files already in S3.
+Pass ``--skip-existing-s3`` to skip files already in S3 -- keyed on the
+``source_url`` recorded in the raw_meta sidecar, not key existence, so a v2/v3
+correction that reuses a release_date still re-fetches.
 Pass ``--dry-run`` to print S3 keys without downloading anything.
 """
 from __future__ import annotations
@@ -53,6 +58,7 @@ import argparse
 import logging
 import re
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -64,7 +70,7 @@ from leviathan.common.config import get_required_env, load_env
 from leviathan.common.logging import get_logger
 from leviathan.storage.paths import raw_wasde_key
 from leviathan.storage.raw_metadata import check_min_file_size, write_raw_s3_metadata
-from leviathan.storage.s3 import s3_object_exists, upload_bytes_to_s3
+from leviathan.storage.s3 import download_s3_json, s3_object_exists, upload_bytes_to_s3
 
 logger = get_logger(__name__)
 
@@ -92,6 +98,14 @@ _UA = (
 
 _PDF_MAGIC = b"%PDF"
 _REQUEST_TIMEOUT_S = 60
+
+# A download failure on a release inside this window turns the JOB red (exit 1). Older failures
+# stay warnings: three manifest URLs are permanently 404 at the source (2001-05-10
+# wheat-revision, 2002-05-10 broilers_revision, 2006-07-12 China_rice_revision -- they are why
+# the 627-entry manifest yields 624 bronze releases), and re-reddening a daily lane on a
+# 25-year-old dead link buys nothing. Inside the window, a silent exit-0 is the exact defect
+# that hid the missing 2026-08-12 release for 37 days.
+_RECENT_FAILURE_DAYS = 120
 
 # Year range where TXT is the authoritative and only available format.
 _TXT_ERA_START = 1995
@@ -191,30 +205,35 @@ def _scrape_esmis_page(
 def _build_manifest_entries(
     session: requests.Session,
     sleep_seconds: float,
+    pages: int = _ESMIS_PAGE_COUNT,
 ) -> list[dict[str, Any]]:
-    """Scrape all 70 esmis pages and return deduplicated manifest entries.
+    """Scrape the first *pages* esmis archive pages and return deduplicated manifest entries.
 
     Format routing: 1995–1999 → TXT; all other years → PDF.
     Deduplication: per calendar_month, keep the entry with the latest
     release_date (handles v2/v3 correction releases and the duplicate-dated
     TXT entries in the 1995 era).
+
+    The archive is ordered newest-first, so ``pages=1`` is the cheap monthly refresh (it carries
+    the current release) while the default 70 rebuilds the whole manifest for --discover.
     """
+    pages = max(1, min(int(pages), _ESMIS_PAGE_COUNT))
     all_entries: list[dict[str, Any]] = []
 
-    for page_num in range(_ESMIS_PAGE_COUNT):
+    for page_num in range(pages):
         try:
             page_entries = _scrape_esmis_page(session, page_num)
             all_entries.extend(page_entries)
             logger.info(
                 "Page %d/%d: %d links (total so far: %d)",
                 page_num + 1,
-                _ESMIS_PAGE_COUNT,
+                pages,
                 len(page_entries),
                 len(all_entries),
             )
         except Exception as exc:  # noqa: BLE001 — per-page scrape error; loop continues to remaining pages
             logger.warning("Failed to scrape page %d: %s — continuing", page_num, exc)
-        if page_num < _ESMIS_PAGE_COUNT - 1:
+        if page_num < pages - 1:
             time.sleep(sleep_seconds)
 
     # Keep only entries matching the preferred format for that year.
@@ -261,6 +280,30 @@ def _build_manifest_entries(
 # ---------------------------------------------------------------------------
 # Manifest I/O
 # ---------------------------------------------------------------------------
+
+def _merge_manifest(
+    existing: list[dict[str, Any]],
+    discovered: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Merge freshly scraped entries into the loaded manifest, keyed by calendar_month.
+
+    A discovered entry is ADOPTED when its calendar_month is absent (a new release -- the
+    2026-08-12 case) or when its release_date is strictly newer than the stored one (a v2/v3
+    correction that moved the date). An identical month/date is left alone so the merge is a
+    no-op on a quiet day. Returns ``(merged_sorted_by_release_date, changed_calendar_months)``.
+    The repo YAML is NOT written unless --save-manifest: the scheduled container's filesystem is
+    ephemeral, so the merge exists to make THIS run complete, not to mutate a tracked config.
+    """
+    by_month = {e["calendar_month"]: e for e in existing}
+    changed: list[str] = []
+    for e in discovered:
+        cur = by_month.get(e["calendar_month"])
+        if cur is None or e["release_date"] > cur["release_date"]:
+            by_month[e["calendar_month"]] = e
+            changed.append(e["calendar_month"])
+    merged = sorted(by_month.values(), key=lambda x: x["release_date"])
+    return merged, sorted(changed)
+
 
 def _load_manifest() -> list[dict[str, Any]]:
     data = yaml.safe_load(_MANIFEST_PATH.read_text(encoding="utf-8"))
@@ -350,9 +393,23 @@ def _upload_entry(
 
     try:
         if skip_existing and s3_object_exists(bucket, s3_key, region):
-            logger.info("Skipping — already in S3: %s", s3_key)
-            time.sleep(sleep_seconds)
-            return "skipped"
+            # A v2/v3 correction can REUSE the release_date under a different source URL
+            # (wasde0526v2.pdf -> the same wasde0526.pdf key). Key-existence alone would pin the
+            # superseded bytes forever, so the recorded source_url in the raw_meta sidecar is the
+            # real idempotency token. A missing/unreadable sidecar re-downloads (fail-open toward
+            # freshness, never toward staleness).
+            try:
+                meta = download_s3_json(
+                    bucket, f"raw_meta/{s3_key}_meta.json", region)
+                same_source = meta.get("source_url") == url
+            except Exception:  # noqa: BLE001 — no sidecar / unreadable: fall through and refetch
+                same_source = False
+            if same_source:
+                logger.info("Skipping — already in S3 from the same source URL: %s", s3_key)
+                time.sleep(sleep_seconds)
+                return "skipped"
+            logger.info("Re-fetching %s — S3 object exists but its recorded source_url differs "
+                        "(correction release)", s3_key)
 
         logger.info("Downloading %s  %s …", release_date, url)
         resp = session.get(url, timeout=_REQUEST_TIMEOUT_S, allow_redirects=True)
@@ -391,7 +448,7 @@ def _upload_entry(
 # Main
 # ---------------------------------------------------------------------------
 
-def main() -> None:
+def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     parser = argparse.ArgumentParser(
         description=(
@@ -413,6 +470,36 @@ def main() -> None:
         "--skip-existing-s3",
         action="store_true",
         help="Skip files whose S3 key already exists.",
+    )
+    parser.add_argument(
+        "--refresh-manifest",
+        action="store_true",
+        help=(
+            "Re-scrape the head of the esmis archive and MERGE new/corrected releases into the "
+            "loaded manifest IN MEMORY, then continue into upload mode. Without this the fetcher "
+            "can only ever land releases already listed in the static YAML -- which is why the "
+            "2026-08-12 WASDE was never fetched (release URLs carry an opaque node id and cannot "
+            "be constructed). Use with --discover-pages."
+        ),
+    )
+    parser.add_argument(
+        "--discover-pages",
+        type=int,
+        default=1,
+        metavar="N",
+        help=(
+            "How many esmis archive pages --refresh-manifest scrapes (newest-first). Default 1 "
+            "(~12 newest releases, one HTTP request). Only --discover rebuilds all 70."
+        ),
+    )
+    parser.add_argument(
+        "--save-manifest",
+        action="store_true",
+        help=(
+            "Additionally write the merged manifest back to "
+            "configs/sources/usda_wasde_manifest.yaml. Operator-only: the scheduled container "
+            "writes to an ephemeral filesystem, so the scheduled form omits this."
+        ),
     )
     parser.add_argument(
         "--dry-run",
@@ -467,12 +554,33 @@ def main() -> None:
             "Manifest saved: %d entries → %s", len(entries), _MANIFEST_PATH
         )
         session.close()
-        return
+        return 0
 
     # ------------------------------------------------------------------
     # Upload mode
     # ------------------------------------------------------------------
     entries = _load_manifest()
+
+    if args.refresh_manifest:
+        discovered = _build_manifest_entries(
+            session, sleep_seconds=args.sleep_seconds, pages=args.discover_pages)
+        if not discovered:
+            # The archive head always carries ~12 releases, so an empty scrape is a scrape
+            # fault (esmis 5xx, WAF, DOM change), never a quiet month. Falling back to the
+            # static manifest here is the 2026-08-12 silent-miss class this flag exists to end.
+            logger.error(
+                "MANIFEST REFRESH FAILED: --discover-pages %d scraped ZERO routed entries -- "
+                "exiting 1 rather than proceeding on the static manifest.", args.discover_pages)
+            session.close()
+            return 1
+        entries, changed = _merge_manifest(entries, discovered)
+        logger.info(
+            "Manifest refresh: scraped %d page(s) -> %d routed entries; merged manifest now %d "
+            "entries; months adopted/corrected: %s",
+            args.discover_pages, len(discovered), len(entries), changed or "none")
+        if args.save_manifest:
+            _save_manifest(entries)
+            logger.info("Merged manifest written to %s", _MANIFEST_PATH)
 
     if args.year_from is not None:
         entries = [e for e in entries if int(e["release_date"][:4]) >= args.year_from]
@@ -484,7 +592,7 @@ def main() -> None:
     if not entries:
         logger.warning("No entries to process after filtering.")
         session.close()
-        return
+        return 0
 
     if args.limit:
         entries = entries[: args.limit]
@@ -498,13 +606,16 @@ def main() -> None:
                 f"{e['filename']}  ->  {s3_key}"
             )
         session.close()
-        return
+        return 0
 
     load_env()
     bucket = get_required_env("LEVIATHAN_BUCKET")
     region = get_required_env("AWS_REGION")
 
     uploaded = skipped = errors = 0
+    recent_cutoff = (
+        datetime.now(timezone.utc).date() - timedelta(days=_RECENT_FAILURE_DAYS)).isoformat()
+    failed_recent: list[str] = []
     for entry in entries:
         result = _upload_entry(
             entry,
@@ -520,10 +631,19 @@ def main() -> None:
             skipped += 1
         else:
             errors += 1
+            if entry["release_date"] >= recent_cutoff:
+                failed_recent.append(entry["release_date"])
 
     session.close()
     logger.info("Done. uploaded=%d  skipped=%d  errors=%d", uploaded, skipped, errors)
+    if failed_recent:
+        logger.error(
+            "FETCH FAILED for %d release(s) inside the %d-day recency window: %s. Exiting 1 so "
+            "the schedule turns RED instead of succeeding with nothing landed.",
+            len(failed_recent), _RECENT_FAILURE_DAYS, sorted(failed_recent))
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

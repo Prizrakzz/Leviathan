@@ -31,7 +31,7 @@ import logging
 import os
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, Optional, Sequence
 
 from leviathan.common.config import load_env
@@ -60,10 +60,39 @@ _BRONZE_PREFIX = "bronze/production/source=usda_wasde/"
 _CANONICAL_PREFIX = "silver/wasde/"
 _READ_WORKERS = 16
 
+# F034 QUARANTINE (D-SG G1-2 / owner decision 6.D3). A release whose bronze parse yields a
+# divergent-value natural-key conflict is excluded from BOTH the publish window AND the history
+# seed -- one ancient release must never block the current month. This is NOT a silent drop:
+# every exclusion is logged at WARNING with its reason, the reasons are pinned here as the parse
+# fix's own regression target, and an EXPLICIT --release-date naming a quarantined release raises
+# WasdeQuarantineError rather than vanishing. A quarantined release never published (it cannot --
+# resolve_conflicts raises before staging), so excluding it removes nothing from the canonical
+# table; the only consequence is that release_sequence for later releases in the same series does
+# not count it, which is exactly consistent with the PUBLISHED set.
+# Re-derive the full conflict set for a full-history rebuild with scratch/f2_wasde_earlylist.py
+# (read-only; it threads state across buildable releases and skips conflicts).
+QUARANTINE_REASONS: dict[str, str] = {
+    "1985-06-10": (
+        "WasdeKeyConflict on natural key ('1985-06-10', "
+        "'world_rice_supply_and_use_ending_stocks', 'rice', 'avg_farm_price_bu', '1984/85', "
+        "'beginning_stocks', 'Milled Basis', 'projection', 'May'): divergent estimates 2.5 vs "
+        "1.67 -- a Milled-Basis rice column mis-bind in the scanned-era parse. Observed on every "
+        "fire 2026-08-08..2026-08-13 (job b01663ec0ded4021a7221a40d6c934f4). Parse fix is a "
+        "follow-on; this release has NEVER been registered in Glue, so quarantine publishes "
+        "nothing and un-publishes nothing."),
+}
+QUARANTINED_RELEASES: tuple[str, ...] = tuple(sorted(QUARANTINE_REASONS))
+
 
 class WasdeBronzeNotReadyError(RuntimeError):
     """F032-style ordering guard: silver is never planned/staged from an empty bronze layer, an
     empty publish selection, or an explicitly requested release that bronze does not carry."""
+
+
+class WasdeQuarantineError(RuntimeError):
+    """An EXPLICITLY requested release_date is on the F034 quarantine list. Refused loudly: a
+    quarantined release is skipped only when the caller asked for a WINDOW, never when the caller
+    named it -- silently dropping a named release is the drop/keep-last failure mode one level up."""
 
 
 class WasdeRegionGateError(RuntimeError):
@@ -81,6 +110,7 @@ def select_bronze_keys(
     to_date: Optional[str] = None,
     release_dates: Optional[Sequence[str]] = None,
     seed_from: Optional[str] = None,
+    quarantined: Optional[Sequence[str]] = None,
 ) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
     """Split bronze keys into ``(publish, history)`` groups keyed by ``release_date``.
 
@@ -89,7 +119,8 @@ def select_bronze_keys(
     consumed only to seed ``prior_series_state`` for the F034 revision math, optionally bounded
     below by ``seed_from`` (an unbounded seed yields the true release_sequence; a bounded one
     counts from the seed window's start). Fails closed on empty bronze, an empty publish
-    selection, or a requested release missing from bronze.
+    selection, or a requested release missing from bronze. ``quarantined`` release_dates (F034)
+    are removed from BOTH groups; naming one explicitly raises instead.
     """
     by_release: dict[str, list[str]] = {}
     for key in all_keys:
@@ -100,6 +131,26 @@ def select_bronze_keys(
         raise WasdeBronzeNotReadyError(
             f"no bronze WASDE release partitions under {_BRONZE_PREFIX} -- refusing to plan "
             "silver ahead of bronze (F032 ordering guard)")
+    blocked_set = set(quarantined or ())
+    if release_dates:
+        named_blocked = sorted(set(release_dates) & blocked_set)
+        if named_blocked:
+            # checked BEFORE the bronze-membership check so the operator gets the true reason,
+            # never the misleading "missing from bronze".
+            raise WasdeQuarantineError(
+                f"explicitly requested release_date(s) {named_blocked} are QUARANTINED: "
+                + "; ".join(f"{d}: {QUARANTINE_REASONS.get(d, 'reason not recorded')}"
+                            for d in named_blocked)
+                + " -- fix the parse or remove the entry from QUARANTINE_REASONS; a named "
+                  "release is never silently dropped")
+    dropped = sorted(d for d in blocked_set if d in by_release)
+    for d in dropped:
+        del by_release[d]
+    if dropped:
+        logger.warning(
+            "F034 QUARANTINE: excluding %d bronze release(s) from BOTH the publish window and "
+            "the history seed: %s", len(dropped),
+            {d: QUARANTINE_REASONS.get(d, "reason not recorded") for d in dropped})
     if release_dates:
         wanted = sorted(set(release_dates))
         missing = [d for d in wanted if d not in by_release]
@@ -279,6 +330,7 @@ def run_from_bronze(
     release_dates: Optional[Sequence[str]] = None,
     seed_history: bool = True,
     seed_from: Optional[str] = None,
+    quarantined: Optional[Sequence[str]] = None,
     shadow_prefix: Optional[str] = None,
     manifest_store=None,
     run_id: Optional[str] = None,
@@ -288,7 +340,7 @@ def run_from_bronze(
     ``(manifest, results)``; clients are injectable so the whole path is test-provable offline."""
     publish_keys, history_keys = select_bronze_keys(
         bronze_keys, from_date=from_date, to_date=to_date,
-        release_dates=release_dates, seed_from=seed_from)
+        release_dates=release_dates, seed_from=seed_from, quarantined=quarantined)
     logger.info(
         "wasde runner: publish releases=%s history releases=%d (seed_history=%s seed_from=%s)",
         sorted(publish_keys), len(history_keys), seed_history, seed_from)
@@ -320,6 +372,11 @@ def _parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
                    help="inclusive lower release_date bound (ISO) of the publish window")
     p.add_argument("--to", dest="to_date", default=None,
                    help="inclusive upper release_date bound (ISO) of the publish window")
+    p.add_argument("--since-days", dest="since_days", type=int, default=None,
+                   help="INCREMENTAL PUBLISH: derive --from as today-N days. The scheduled fire "
+                        "uses 75 (covers the current monthly release plus the two before it, so a "
+                        "missed month still catches up on the next fire) instead of republishing "
+                        "all 600+ releases. Mutually exclusive with --from.")
     p.add_argument("--release-date", dest="release_dates", action="append", default=None,
                    help="publish EXACTLY this bronze release (repeatable; overrides --from/--to)")
     p.add_argument("--seed-from", dest="seed_from", default=None,
@@ -327,12 +384,37 @@ def _parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
                         "a bound trades true release_sequence for fewer reads)")
     p.add_argument("--no-history-seed", dest="no_history_seed", action="store_true",
                    help="skip prior_series_state seeding (per-release-local revision recompute)")
+    p.add_argument("--quarantine-release", dest="quarantine_releases", action="append",
+                   default=None,
+                   help="ADDITIVE ad-hoc F034 quarantine (repeatable). Union'd with the pinned "
+                        "QUARANTINED_RELEASES; use it to unblock a fire while the pinned entry "
+                        "is being reviewed, then promote the date into QUARANTINE_REASONS with "
+                        "its natural key and both divergent estimates.")
     p.add_argument("--shadow-prefix", default=None)
     p.add_argument("--publish-mode", default="dry-run",
                    choices=["dry-run", "shadow", "canonical"],
                    help="default dry-run; canonical needs a signed approval (gated B-wave)")
     p.add_argument("--contract-version", default=None)
     return p.parse_args(argv)
+
+
+def _resolve_from_date(args: argparse.Namespace, *, today: Optional[date] = None) -> Optional[str]:
+    """The publish window's lower bound: explicit --from, else today - --since-days, else None.
+
+    Passing BOTH is a fail-closed configuration error (SystemExit): a rolling window silently
+    overriding a pinned one, or vice versa, is exactly the class of ambiguity that let an
+    unbounded scheduled command republish 624 releases a fire."""
+    if args.from_date and args.since_days is not None:
+        raise SystemExit("--from and --since-days are mutually exclusive: pass exactly one "
+                         "(pin the window or roll it, never both)")
+    if args.from_date:
+        return args.from_date
+    if args.since_days is None:
+        return None
+    if args.since_days < 1:
+        raise SystemExit(f"--since-days must be >= 1, got {args.since_days}")
+    return ((today or datetime.now(timezone.utc).date())
+            - timedelta(days=args.since_days)).isoformat()
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
@@ -372,17 +454,24 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     bronze_keys = list_s3_keys(bucket, _BRONZE_PREFIX, suffix=".parquet", aws_region=aws_region)
     logger.info("found %d bronze WASDE parquet objects under %s", len(bronze_keys), _BRONZE_PREFIX)
 
+    from_date = _resolve_from_date(args)
+    quarantined = tuple(sorted(set(QUARANTINED_RELEASES) | set(args.quarantine_releases or ())))
+    logger.info("wasde window: from=%s to=%s (since_days=%s) seed_from=%s quarantined=%s",
+                from_date, args.to_date, args.since_days, args.seed_from, list(quarantined))
+
     manifest, results = run_from_bronze(
         contract=contract, auth=auth, s3_client=s3_client, glue_client=glue_client,
         bronze_keys=bronze_keys, bucket=bucket,
-        from_date=args.from_date, to_date=args.to_date, release_dates=args.release_dates,
+        from_date=from_date, to_date=args.to_date, release_dates=args.release_dates,
         seed_history=not args.no_history_seed, seed_from=args.seed_from,
+        quarantined=quarantined,
         shadow_prefix=args.shadow_prefix, run_id=run_id)
 
     for res in results:
         print(json.dumps(res.to_summary(), default=str))  # ensure_ascii default: cp1252-safe
     print(f"wasde_silver_task: mode={auth.mode.value} state={manifest.state.value} "
-          f"releases={len(results)} run_id={run_id}")
+          f"releases={len(results)} from={from_date} quarantined={list(quarantined)} "
+          f"run_id={run_id}")
     return 1 if manifest.state is ManifestState.FAILED else 0
 
 
