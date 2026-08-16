@@ -144,12 +144,7 @@ def test_unica_annual_leg_leaves_the_flag_to_the_renderer():
 # waiting on the hand-merge (the tfvars is never regenerated wholesale -- render to
 # scratch, diff, hand-merge only the entries being changed). Every entry is a live
 # schedule that has NOT yet received its fix. Empty it as the merges land.
-PENDING_HAND_MERGE = {
-    "unica",               # D-SG G2-1(a): fetch --through-current-season + biweekly --publish-mode
-    "pink_sheet_monthly",  # D-SG G2-1(c): fetch --skip-existing-s3 --asof; cron 4th -> 8th (D23)
-    "food_cpi",            # D-SG D23: cron 4th -> 8th, riding pink_sheet's fire minute
-    "wasde_monthly",       # D-SG G1-2 (separate slice): fetch/silver window arguments
-}
+PENDING_HAND_MERGE: set[str] = set()  # emptied 2026-08-16: all D-SG merges landed (S-D)
 
 
 def test_descriptor_tfvars_assembly_has_no_violations():
