@@ -24,15 +24,19 @@ from leviathan.common.dates import current_harvest_season, harvest_seasons_throu
 # ---------------------------------------------------------------------------
 
 def test_manifest_stale_season_exits(tmp_path, monkeypatch):
-    """A bare fetch against a manifest that ends before the open season REFUSES."""
+    """A bare fetch against a manifest ending BELOW the endpoint ceiling REFUSES.
+
+    Ending AT the ceiling is the COMPLETE case (the ceiling test below): D-SG M-8
+    measured that idTabela=2495 serves nothing past 2020/2021, so only a manifest
+    short of the ceiling itself is genuinely stale."""
     manifest = tmp_path / "unica_sources.yaml"
     manifest.write_text(
         textwrap.dedent(
             """\
             source: unica
             harvest_years:
+              - "2018/2019"
               - "2019/2020"
-              - "2020/2021"
             """
         ),
         encoding="utf-8",
@@ -46,7 +50,35 @@ def test_manifest_stale_season_exits(tmp_path, monkeypatch):
     msg = str(exc.value)
     assert msg.startswith("MANIFEST STALE")
     assert "2026/2027" in msg
-    assert "2020/2021" in msg
+    assert "2019/2020" in msg
+
+
+def test_manifest_at_the_endpoint_ceiling_is_complete_not_stale(tmp_path, monkeypatch, caplog):
+    """The 2026-08-16 fence misfire, pinned: a manifest reaching _ENDPOINT_CEILING is
+    COMPLETE for this endpoint (post-2020 seasons return empty shells; the biweekly leg
+    owns the open season), so the bare scheduled path proceeds instead of refusing."""
+    manifest = tmp_path / "unica_sources.yaml"
+    manifest.write_text(
+        textwrap.dedent(
+            """\
+            source: unica
+            harvest_years:
+              - "2019/2020"
+              - "2020/2021"
+            """
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(fetch_unica, "_MANIFEST_PATH", manifest)
+    monkeypatch.setattr("sys.argv", ["fetch_unica.py", "--asof", "2026-08-12", "--dry-run"])
+
+    with caplog.at_level("INFO"):
+        try:
+            fetch_unica.main()
+        except SystemExit as exc:
+            assert exc.code in (0, None), f"bare path refused at the ceiling: {exc}"
+
+    assert "endpoint ceiling" in caplog.text
 
 
 def test_through_current_season_extends():

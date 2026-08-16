@@ -111,6 +111,10 @@ def _fetch_harvest_year(harvest_year: str) -> bytes:
 # the size and <table> checks above. 8 sits between the two shapes with margin.
 _MIN_TABLE_ROWS = 8
 
+# The last season idTabela=2495 actually serves (D-SG M-8 probe, 2026-08-16: every later
+# season returns an empty table shell). A manifest reaching this ceiling is COMPLETE.
+_ENDPOINT_CEILING = "2020/2021"
+
 
 def _assert_data_rows(html_bytes: bytes, harvest_year: str) -> None:
     """Refuse an empty table SHELL: a page whose <table> carries headers but no data.
@@ -204,12 +208,25 @@ def main() -> None:
         )
     else:
         harvest_years = all_harvest_years
-        if season_now not in harvest_years:
+        # THE ENDPOINT CEILING EXCEPTION (D-SG M-8, measured 2026-08-16): idTabela=2495
+        # serves NO data past _ENDPOINT_CEILING -- post-2020 seasons return empty 4-row
+        # table shells (refused by _assert_data_rows). A manifest that reaches the ceiling
+        # is therefore COMPLETE, not stale, and the bare path is the correct scheduled
+        # config; the biweekly leg owns current seasons. The refusal below survives for
+        # the day the manifest falls short of the ceiling itself.
+        if season_now not in harvest_years and all_harvest_years[-1] != _ENDPOINT_CEILING:
             raise SystemExit(
                 f"MANIFEST STALE: current harvest season {season_now} is absent from "
-                f"{_MANIFEST_PATH.name} (which ends at {all_harvest_years[-1]}). This fetch "
-                "would re-download only closed seasons and exit 0 -- the D-SG G2-1(a-i) "
+                f"{_MANIFEST_PATH.name} (which ends at {all_harvest_years[-1]}, below the "
+                f"documented endpoint ceiling {_ENDPOINT_CEILING}). This fetch would "
+                "re-download only closed seasons and exit 0 -- the D-SG G2-1(a-i) "
                 "silent no-op. Pass --through-current-season, or extend harvest_years."
+            )
+        if season_now not in harvest_years:
+            logger.info(
+                "manifest ends at the documented endpoint ceiling %s (current season %s is "
+                "served by unica_biweekly, not this endpoint) -- proceeding on the closed set",
+                _ENDPOINT_CEILING, season_now,
             )
     logger.info(
         "Loaded %d harvest years from manifest %s",
