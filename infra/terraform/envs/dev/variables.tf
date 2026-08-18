@@ -347,14 +347,18 @@ variable "worker_fleet_image_digest" {
   # metrics, poller task, straddle + declared ICE lag). Full suite green; two adversarial
   # review passes folded. (The first D-SG push, cf50c051, was CORRUPT -- double-gzipped
   # OCI blobs -- caught by the poller smoke BEFORE any schedule moved; never armed.)
-  # D-LD TRANCHE-2 DELIBERATE FLEET BUMP 2026-08-18: e1fe1d82 = the tranche-2 landing build
-  # (six PIT-anchor producer transforms + fetch_mpob --refresh-manifest + unica wayback leg +
-  # Track-1 aftermath). ECR tag 20260818T141445, pushed 14:17Z; build-script runtime-closure +
-  # IMAGE_MANIFEST smokes green; silver suite 898 green at commit. b3-flat-silver rev 29 and
-  # silver-publisher-runner rev 28 hand-registered on this digest the same hour (the pin
-  # moves in the SAME change per this file's standing law); HAND_ARMED['mpob'] released in
-  # this change too -- the mpob descriptor's --refresh-manifest is safe on this image.
-  default     = "sha256:e1fe1d8276b38c457019d20ba2ba4c359f2499842ace5b8d1df527cfaad8f1a9"
+  # D-LD TRANCHE-2 DELIBERATE FLEET BUMP 2026-08-18 (#1, 14:17Z): e1fe1d82 = the tranche-2
+  # landing build (six PIT-anchor producer transforms + fetch_mpob --refresh-manifest + unica
+  # wayback leg). b3-flat-silver rev 29 + silver-publisher-runner rev 28 rode it; the mpob
+  # HAND_ARMED hold released against it. All eight producer fires + gates ran on it same day.
+  # D-LD TRANCHE-2 DELIBERATE FLEET BUMP 2026-08-18 (#2, 18:18Z): 69de00d2 = the SPLICE build
+  # (commit 490ba6f1): six-card contracts baked (33 cards), food_cpi CURATION widen (its
+  # producer fails closed on the old contract), mpoc un-hide, nass_crop_progress pct_emerged
+  # floor 0.08 -> 0.05 (per-partition census). b3-flat-silver rev 30, silver-publisher-runner
+  # rev 29 AND silver-gate rev 22 hand-registered on it the same hour -- the gate ride is the
+  # point: the floor lives in the image-baked contract, so the weekly nass family gate unreds
+  # only on this digest. Pin moves in the SAME change per this file's standing law.
+  default     = "sha256:69de00d21dc2ce7190e9929bec2ddb710ec8c8798ebfe69996098298a324dc61"
 
   validation {
     condition     = var.worker_fleet_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.worker_fleet_image_digest))
