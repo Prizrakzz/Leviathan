@@ -63,6 +63,7 @@ __all__ = [
     "RATIO_METRIC_NAME",
     "BREACH_METRIC_NAME",
     "TABLE_CEILING_OVERRIDES",
+    "RETIRED_WRITE_SURFACES",
     "is_excluded_key",
     "newest_last_modified",
     "lag_days",
@@ -240,6 +241,22 @@ class PollTarget:
     expected_lag_days: Optional[float] = None
 
 
+# D-LD Track 2 #1 (2026-08-18, recon wf_14e22400 Lens C -- THE ESR ALARM INVERSION): tables whose
+# Glue-derived s3_prefix points at a RETIRED write surface. The estate's loudest freshness breach
+# (ratio 6.08 for the whole measured window) was silver_esr's contract prefix
+# silver/production/source=usda_esr -- a leg holding exactly ONE frozen vintage (as_of=20260524)
+# that NOTHING reads: the numbers card serves silver_esr_compact (athena_table redirect, the $134
+# LIST-storm fix), the writer writes silver/esr/, and esr_compact carries its OWN poll target and
+# ceiling. Polling a retired leg is worse than noise -- it is "FreshnessLagDays blind to dead legs"
+# INVERTED: a permanent red that trains operators to ignore the family while the leg that actually
+# serves breaches unwatched. Excluded here WITH the story; delete the entry if the surface is ever
+# re-activated (the contract prefix is Glue-derived, so fixing Glue would also fix this).
+RETIRED_WRITE_SURFACES: dict[str, str] = {
+    "silver_esr": "pre-compact write surface, frozen at vintage 20260524; serving + writing both "
+                  "moved to silver/esr/ (silver_esr_compact, its own poll target)",
+}
+
+
 def poll_targets(registry: Optional[SilverRegistry] = None) -> list[PollTarget]:
     """Every registry table that has an ``s3_prefix`` (+ ``s3_bucket``), with its DAG family resolved.
 
@@ -247,10 +264,13 @@ def poll_targets(registry: Optional[SilverRegistry] = None) -> list[PollTarget]:
     ``dag_catalog.family_of`` derivation, so the ``Family`` dimension the poller emits lines up
     one-to-one with the per-family ``freshness_sla_breach`` alarms. ``expected_lag_days`` is the
     table's OWN ceiling (:func:`declared_ceiling_days`) -- never the family's tightest one, which is
-    what makes the family ``Maximum`` stop being poisoned by its slowest member (D-PR-14)."""
+    what makes the family ``Maximum`` stop being poisoned by its slowest member (D-PR-14).
+    Tables in :data:`RETIRED_WRITE_SURFACES` are skipped with their reason on record."""
     reg = registry or load_registry()
     targets: list[PollTarget] = []
     for name in reg.names():
+        if name in RETIRED_WRITE_SURFACES:
+            continue
         contract = reg.table(name)
         prefix = contract.get("s3_prefix")
         bucket = contract.get("s3_bucket")

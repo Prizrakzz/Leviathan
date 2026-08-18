@@ -22,6 +22,24 @@ Discovery strategy
 All report URLs are stored in a static manifest produced by the probe script:
   configs/sources/mpob_archive.yaml
 
+The BEPI stat server has NO archive listing for monthly releases: the
+``{YYYY}75`` root serves only the LATEST published month and rolls older
+``val1`` slots back to an "under construction" placeholder once superseded.
+A static manifest therefore ages out the moment MPOB publishes a month nobody
+hand-added (month=05/2026 was lost exactly this way: published ~Jun 10, rolled
+off ~Jul 10 when June superseded it, zero Wayback captures).
+
+``--refresh-manifest`` closes that class: before fetching, it probes all 12
+monthly ``val1`` slots (plus the annual base) for the current and previous
+year and merges any published slot the manifest has never heard of -- the
+WASDE archive-head merge (fetch_usda_wasde.py), adapted to a site whose
+archive is not enumerable. It fails closed (exit 1) when the sweep finds zero
+published monthly slots. ``--save-manifest`` appends adopted entries back to
+the YAML (a dev convenience; the scheduled container's filesystem is
+ephemeral, so the in-memory merge is what makes a scheduled run complete).
+There is deliberately no full ``--discover`` rebuild: only the latest month
+is ever visible, so a rebuild would erase manifest history, not rediscover it.
+
 MPOB BEPI (bepi.mpob.gov.my) is a Joomla CMS site with no WAF; standard
 ``requests`` with a Chrome User-Agent works without fingerprint bypass.
 
@@ -45,11 +63,11 @@ from __future__ import annotations
 import argparse
 import logging
 import time
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import requests
 import yaml
-
 from leviathan.common.config import get_required_env, load_env
 from leviathan.common.logging import get_logger
 from leviathan.storage.paths import (
@@ -103,6 +121,159 @@ _MANIFEST_PATH = (
     Path(__file__).parent.parent.parent / "configs" / "sources" / "mpob_archive.yaml"
 )
 
+# ---------------------------------------------------------------------------
+# Monthly-slot discovery (D-LD MPOB retrofit, 2026-08-18)
+# ---------------------------------------------------------------------------
+# BEPI has no monthly archive listing: the {YYYY}75 root serves ONLY the latest
+# published month, and older val1 slots roll back to the under-construction
+# placeholder once superseded. Discovery is therefore a constructive probe of
+# every slot per year-base, not a listing scrape -- and a full manifest REBUILD
+# is impossible from the live site (only the latest month is visible), which is
+# why this fetcher has --refresh-manifest but no --discover.
+
+_STAT_BASE = "https://bepi.mpob.gov.my/stat/web_report1.php"
+_MONTHLY_VAL_SUFFIX = "75"
+_ANNUAL_VAL_SUFFIX = "84"
+
+# The val+val1 monthly format starts at 2026: 2021-2025 have no monthly pages
+# in this format (exhaustive art=1008-1248 scan) and 2020's twelve slots all
+# serve the placeholder -- see the manifest's monthly section notes.
+_MONTHLY_FORMAT_FLOOR_YEAR = 2026
+
+
+def _monthly_stat_url(year: int, month: int) -> str:
+    return f"{_STAT_BASE}?val={year}{_MONTHLY_VAL_SUFFIX}&val1={month:02d}"
+
+
+def _annual_stat_url(year: int) -> str:
+    return f"{_STAT_BASE}?val={year}{_ANNUAL_VAL_SUFFIX}"
+
+
+def _entry_label(entry: dict) -> str:
+    month = entry.get("month")
+    base = f"{entry['release_type']}/{entry['year']}"
+    return f"{base}/{month:02d}" if month is not None else base
+
+
+def _probe_years(today: date) -> list[int]:
+    """Year bases the refresh sweep probes: current + previous, floored at 2026.
+
+    The previous year matters at the January boundary: the December release
+    publishes ~Jan 10 under the OLD year's val base.
+    """
+    return [y for y in (today.year, today.year - 1) if y >= _MONTHLY_FORMAT_FLOOR_YEAR]
+
+
+def _sweep_stat_slots(
+    session: requests.Session,
+    years: list[int],
+    sleep_seconds: float,
+) -> tuple[list[dict], int, int]:
+    """Probe every monthly val1 slot (and the annual base) for *years*.
+
+    Returns ``(published_entries, placeholder_count, error_count)``. A slot is
+    PUBLISHED on HTTP 200 with the palm-oil table marker, a PLACEHOLDER on
+    HTTP 200 without it (the under-construction state), and an ERROR on
+    anything else. Errors are counted, never raised, so one bad slot cannot
+    mask what the rest of the sweep proved -- the caller decides whether the
+    sweep as a whole is trustworthy (see the zero-published rule in main).
+    """
+    published: list[dict] = []
+    placeholders = 0
+    errors = 0
+    for year in years:
+        for month in range(1, 13):
+            url = _monthly_stat_url(year, month)
+            try:
+                html_text = _download_html(url, session)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Sweep probe failed %d/%02d (%s): %s", year, month, url, exc)
+                errors += 1
+            else:
+                if _TABLE_MARKER in html_text.upper():
+                    published.append(
+                        {
+                            "release_type": "monthly_release",
+                            "year": year,
+                            "month": month,
+                            "stat_url": url,
+                        }
+                    )
+                    logger.info("Sweep: %d/%02d PUBLISHED", year, month)
+                else:
+                    placeholders += 1
+            time.sleep(sleep_seconds)
+        # The annual summary rides the same sweep with the same adopt-if-absent
+        # semantics (a new year's {YYYY}84 entry otherwise needs a hand-add every
+        # Q1), but it never counts toward the monthly fail-closed rule: a new
+        # year's annual is legitimately absent for most of the year.
+        annual_url = _annual_stat_url(year)
+        try:
+            html_text = _download_html(annual_url, session)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Sweep probe failed annual/%d (%s): %s", year, annual_url, exc)
+            errors += 1
+        else:
+            if _TABLE_MARKER in html_text.upper():
+                published.append(
+                    {
+                        "release_type": "annual_summary",
+                        "year": year,
+                        "stat_url": annual_url,
+                    }
+                )
+                logger.info("Sweep: annual %d PUBLISHED", year)
+            else:
+                placeholders += 1
+        time.sleep(sleep_seconds)
+    return published, placeholders, errors
+
+
+def _merge_manifest(
+    releases: list[dict],
+    discovered: list[dict],
+) -> tuple[list[dict], list[dict]]:
+    """Adopt discovered entries whose (release_type, year, month) is absent.
+
+    Unlike WASDE there is no correction case: a slot's URL is fully determined
+    by (year, month), so a known entry is always left byte-identical and the
+    merge is a no-op on a quiet day. Existing entries are never reordered (the
+    manifest's section layout is operator documentation); adopted entries
+    append at the end, which the fetch loop is indifferent to. Returns
+    ``(merged, adopted)``.
+    """
+    have = {(e["release_type"], e["year"], e.get("month")) for e in releases}
+    adopted = [
+        e for e in discovered if (e["release_type"], e["year"], e.get("month")) not in have
+    ]
+    return releases + adopted, adopted
+
+
+def _append_manifest_entries(adopted: list[dict]) -> None:
+    """Append adopted entries to the manifest YAML without touching its body.
+
+    The manifest is heavily commented operator documentation, so the WASDE
+    approach (rewrite everything below the header) would destroy it. The file
+    ends inside the ``releases:`` list, so same-indent items appended at the
+    end are valid list members -- entry order carries no meaning to the fetch
+    loop.
+    """
+    stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    lines = [
+        "",
+        f"  # --- adopted by fetch_mpob.py --refresh-manifest --save-manifest ({stamp}) ---",
+        "",
+    ]
+    for e in adopted:
+        lines.append(f"  - release_type: {e['release_type']}")
+        lines.append(f"    year: {e['year']}")
+        if e.get("month") is not None:
+            lines.append(f"    month: {e['month']}")
+        lines.append(f'    stat_url: "{e["stat_url"]}"')
+        lines.append("")
+    with _MANIFEST_PATH.open("a", encoding="utf-8", newline="\n") as fh:
+        fh.write("\n".join(lines))
+
 
 # ---------------------------------------------------------------------------
 # HTTP helper
@@ -118,13 +289,33 @@ def _download_html(url: str, session: requests.Session, timeout: int = 30) -> st
 # Main
 # ---------------------------------------------------------------------------
 
-def main() -> None:
+def main() -> int | None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     parser = argparse.ArgumentParser(
         description=(
             "Download MPOB BEPI palm oil HTML table pages to raw S3. "
             "Reads URLs from configs/sources/mpob_archive.yaml."
         )
+    )
+    parser.add_argument(
+        "--refresh-manifest",
+        action="store_true",
+        help=(
+            "Before fetching, probe all 12 monthly val1 slots (plus the annual base) for "
+            "the current + previous year and merge any published slot the manifest has "
+            "never heard of. Exits 1 when the sweep finds ZERO published monthly slots -- "
+            "the {YYYY}75 root always serves the latest month once any month exists, so an "
+            "empty sweep is a probe fault or site regression, never a quiet month. There "
+            "is no full --discover rebuild: only the latest month is ever visible."
+        ),
+    )
+    parser.add_argument(
+        "--save-manifest",
+        action="store_true",
+        help=(
+            "With --refresh-manifest: append adopted entries to the manifest YAML "
+            "(dev convenience; the scheduled container's filesystem is ephemeral)."
+        ),
     )
     parser.add_argument(
         "--skip-existing-s3",
@@ -172,6 +363,49 @@ def main() -> None:
     logger.info("Loaded %d entries from manifest %s", len(releases), _MANIFEST_PATH.name)
 
     # -----------------------------------------------------------------------
+    # Manifest refresh (runs before filters and before any AWS access)
+    # -----------------------------------------------------------------------
+    if args.refresh_manifest:
+        sweep_session = requests.Session()
+        sweep_session.headers.update({"User-Agent": _UA})
+        years = _probe_years(datetime.now(timezone.utc).date())
+        discovered, placeholders, probe_errors = _sweep_stat_slots(
+            sweep_session, years, args.sleep_seconds
+        )
+        sweep_session.close()
+        monthly_found = [e for e in discovered if e["release_type"] == "monthly_release"]
+        if not monthly_found:
+            # The {YYYY}75 root serves the latest month whenever ANY month has
+            # published, so a zero-published sweep is a probe fault or a site
+            # regression (the 2020 all-placeholder state), never a quiet month.
+            # Proceeding on the static manifest is the silent-miss class that
+            # lost month=05/2026 -- fail closed instead.
+            logger.error(
+                "MANIFEST REFRESH FAILED: swept years %s and found ZERO published "
+                "monthly slots (placeholders=%d, probe_errors=%d) -- exiting 1 rather "
+                "than proceeding on the static manifest.",
+                years,
+                placeholders,
+                probe_errors,
+            )
+            return 1
+        releases, adopted = _merge_manifest(releases, discovered)
+        logger.info(
+            "Manifest refresh: years %s -> %d published slot(s) (placeholders=%d, "
+            "probe_errors=%d); adopted: %s",
+            years,
+            len(discovered),
+            placeholders,
+            probe_errors,
+            [_entry_label(e) for e in adopted] or "none",
+        )
+        if args.save_manifest and adopted:
+            _append_manifest_entries(adopted)
+            logger.info(
+                "Appended %d adopted entrie(s) to %s", len(adopted), _MANIFEST_PATH.name
+            )
+
+    # -----------------------------------------------------------------------
     # Apply filters
     # -----------------------------------------------------------------------
     if args.year is not None:
@@ -199,8 +433,10 @@ def main() -> None:
                 s3_key = raw_mpob_monthly_key(year, month)
             else:
                 s3_key = raw_mpob_overview_pdf_key(year)
-            print(f"  {rt:<20}  {year}/{month or '--':>2}  →  {s3_key}")
-        return
+            # ASCII-only: the dry run is the recommended local verification and
+            # Windows consoles are cp1252.
+            print(f"  {rt:<20}  {year}/{month or '--':>2}  ->  {s3_key}")
+        return None
 
     # -----------------------------------------------------------------------
     # Download & upload
@@ -305,4 +541,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

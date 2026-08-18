@@ -99,6 +99,15 @@ HAND_ARMED: dict[str, str] = {
         "shadow-first arm ratified 2026-07-22 (commit d46716cf: 'arm autonomous canonical "
         "promote'); descriptor stays latest_only/stop_and_notify for the Wave-2 CLASS-B invariant"
     ),
+    "mpob": (
+        "IMAGE GATE (D-LD MPOB retrofit 2026-08-18, review wf_051e926a confirmed): the descriptor's "
+        "fetch command carries --refresh-manifest but the digest-pinned b3-flat-silver image still "
+        "bakes the OLD fetch_mpob.py, whose argparse exits 2 on the unknown flag -- terminal after "
+        "ONE attempt per the F1 probe (cb151695), reddening all three monthly fires. The live arm "
+        "stays flag-less until the worker image carrying the new parser is built, pushed and "
+        "registered as a new b3-flat-silver revision; remove this hold in that SAME change "
+        "(variables.tf:278 pin-collision law)"
+    ),
     "futures_prices": (
         "shadow-first arm per futures_prices.json's own notes ('the dag_schedules.auto.tfvars.json "
         "futures_prices entry is hand-armed to the shadow-first shape'); A-W4 retrofit landed in the "
@@ -108,11 +117,12 @@ HAND_ARMED: dict[str, str] = {
 
 # Descriptors that exist but are DELIBERATELY not armed as a live schedule.
 NOT_ARMED: dict[str, str] = {
-    "production_faostat": (
-        "FAOSTAT Glue projected-canonical, 'Bulk one run' (descriptor notes). Never armed: live "
-        "scheduler list-schedules 2026-08-04 shows 25 SFN family schedules and no faostat entry. "
-        "Arming it is a decision with a day-0 review, not a regeneration side effect."
-    ),
+    # production_faostat ARMED 2026-08-18 (D-LD Track 2 #2, owner-ratified "do the remaining
+    # tracks"): the hold's own condition was met -- a deliberate decision with a day-0 review,
+    # not a regeneration side effect. The trigger: FAOSTAT is a LIT numbers card (silver_production)
+    # that recon wf_14e22400 measured 76d stale with ZERO eval coverage -- the estate's only true
+    # built-but-unscheduled case on a served table (D-PQ F6). Day-0 smoke = a -manual- SFN fire of
+    # the exact rendered command before the first natural cron (annual, 1st 06:00Z).
 }
 
 

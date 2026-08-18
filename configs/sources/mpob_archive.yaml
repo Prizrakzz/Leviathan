@@ -103,9 +103,17 @@ releases:
   # Verified live 2026-07-16: val1=06 (June 2026) serves the full CPO table
   # ("PERFORMANCE OF THE MALAYSIAN PALM OIL INDUSTRY, JUNE 2026"); val1=01..05
   # are all under-construction. The April entry authored 2026-05-20 (val1=04)
-  # has since rolled off. Bump this val1 to the current month as MPOB publishes
-  # (~10th of each month); the fetcher treats a not-yet-published monthly_release
-  # (HTTP 200 without the marker) as a soft miss (WARNING + tally), not a failure.
+  # has since rolled off.
+  #
+  # 2026-08-18 (D-LD MPOB retrofit): the old contract here -- "bump this val1 by
+  # hand as MPOB publishes" -- is RETIRED. Nobody bumped it past June, so
+  # month=05/2026 was permanently lost (published ~Jun 10, rolled off ~Jul 10,
+  # zero Wayback captures). fetch_mpob.py --refresh-manifest now probes all 12
+  # val1 slots (plus the annual base) for the current + previous year on every
+  # scheduled fire and merges published slots in memory; --save-manifest appends
+  # them here. Rolled-off entries below stay: their raw is already in S3, and the
+  # fetcher treats a not-yet-published/rolled-off monthly_release (HTTP 200
+  # without the marker) as a soft miss (WARNING + tally), not a failure.
   - release_type: monthly_release
     year: 2026
     month: 6

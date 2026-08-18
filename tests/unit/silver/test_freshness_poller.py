@@ -359,10 +359,13 @@ class TestPollTargets:
         assert fam == {"silver_nass_crop_progress": "usda_nass", "gold_weather_z": "weather"}
 
     def test_real_registry_covers_every_prefixed_table(self):
-        # Every registry table carries an s3_prefix, so every one is a poll target with a valid family.
+        # Every registry table carries an s3_prefix, so every one is a poll target with a valid
+        # family -- EXCEPT the retired write surfaces, excluded WITH their story (D-LD Track 2 #1:
+        # the dead pre-compact ESR leg was the estate's loudest permanent-red).
+        from leviathan.silver.freshness import RETIRED_WRITE_SURFACES
         reg = load_registry()
         targets = poll_targets(reg)
-        assert len(targets) == len(reg.names())
+        assert len(targets) == len(reg.names()) - len(RETIRED_WRITE_SURFACES)
         assert all(t.prefix.endswith("/") and t.bucket and t.family for t in targets)
 
     def test_namespace_constant(self):
@@ -420,8 +423,9 @@ class TestExtraTargets:
         # The registry-coverage pin above (len(targets) == len(reg.names())) must keep meaning what
         # it says, so the extras are NEVER folded into poll_targets itself.
         assert self.ARTIFACT not in {t.table for t in poll_targets()}
+        from leviathan.silver.freshness import RETIRED_WRITE_SURFACES
         reg = load_registry()
-        assert len(poll_targets(reg)) == len(reg.names())
+        assert len(poll_targets(reg)) == len(reg.names()) - len(RETIRED_WRITE_SURFACES)
         assert len(all_poll_targets(reg)) == len(poll_targets(reg)) + len(EXTRA_TARGETS)
 
     def test_extra_targets_emit_the_same_metric_contract(self):
@@ -730,3 +734,23 @@ class TestBreachCount:
         n = len(all_poll_targets())
         assert len([d for d in cw.datums if d["MetricName"] == RATIO_METRIC_NAME]) == 2 * n
         assert len([d for d in cw.datums if d["MetricName"] == METRIC_NAME]) == 2 * n
+
+
+class TestRetiredWriteSurfaces:
+    """D-LD Track 2 #1: the ESR alarm inversion, closed. The dead pre-compact leg is excluded
+    from polling WITH its story, and the leg that actually serves (esr_compact) still polls."""
+
+    def test_the_dead_esr_leg_is_excluded_and_the_serving_leg_still_polls(self):
+        from leviathan.silver.freshness import RETIRED_WRITE_SURFACES, all_poll_targets
+        names = {t.table for t in all_poll_targets()}
+        assert "silver_esr" in RETIRED_WRITE_SURFACES
+        assert "silver_esr" not in names, "the retired leg must not poll (permanent-red noise)"
+        assert "silver_esr_compact" in names, "the SERVING leg must keep its own poll target"
+
+    def test_every_retired_entry_names_a_real_registry_table_with_a_reason(self):
+        from leviathan.silver.freshness import RETIRED_WRITE_SURFACES
+        from leviathan.silver.registry import load_registry
+        reg = load_registry()
+        for name, reason in RETIRED_WRITE_SURFACES.items():
+            assert name in reg.names(), name
+            assert len(reason) > 20, "an exclusion without its story is how dead legs get forgotten"

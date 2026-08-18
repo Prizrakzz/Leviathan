@@ -11,8 +11,7 @@
   "skip_existing": true,
   "asof": "<aws.scheduler.scheduled-time>",
   "gate_tables": [
-    "silver_mpob",
-    "silver_mpob_annual"
+    "silver_mpob"
   ],
   "gate_baseline_uri": "s3://leviathan-dev-shahem-001/cascade_census/rolling/mpob/census.json",
   "gate_jobdef": "leviathan-dev-silver-gate",
@@ -35,7 +34,8 @@
           "jobdef": "leviathan-dev-b3-flat-silver",
           "queue": "leviathan-dev-queue-ondemand",
           "command": [
-            "jobs/ingest/fetch_mpob.py"
+            "jobs/ingest/fetch_mpob.py",
+            "--refresh-manifest"
           ],
           "env": {},
           "publishes": false
@@ -98,24 +98,11 @@
           "env": {},
           "publishes": true,
           "publish_mode": "shadow_canonical"
-        },
-        {
-          "id": "mpob_annual_silver",
-          "invocation_form": "s",
-          "integration": "batch",
-          "jobdef": "leviathan-dev-mpob-silver",
-          "queue": "leviathan-dev-queue-ondemand",
-          "command": [
-            "jobs/batch/mpob_annual_silver_task.py"
-          ],
-          "env": {},
-          "publishes": true,
-          "publish_mode": "shadow_canonical"
         }
       ]
     }
   ],
-  "notes": "Fully named jobdefs (bronze x2 + text + monthly/annual silver). --skip-existing; --year cumulative self-heals. | 2026-08-16 (DSG-TAIL A1, owner-ratified): the annual silver leg FOLDED onto leviathan-dev-mpob-silver -- the two jobdefs were spec-identical (image/exec/network/1vCPU/2048) and the SFN overrides the command per task, so leviathan-dev-mpob-annual-silver was destroyed and the family self-promotes through the scalar promote_jobdef below (own-set = {mpob-silver}, the arity lint untouched). jobRoleArn moved to silver-publisher in the same change (kms:Sign). This closes the mixed-vintage promote (shared runner floating vs digest-pinned producers) that burned futures_eod on 2026-08-01 -- the deliberate suite red in test_gen_sfn_inputs.py clears with it.",
+  "notes": "Fully named jobdefs (bronze x2 + text + monthly/annual silver). --skip-existing; --year cumulative self-heals. | 2026-08-16 (DSG-TAIL A1, owner-ratified): the annual silver leg FOLDED onto leviathan-dev-mpob-silver -- the two jobdefs were spec-identical (image/exec/network/1vCPU/2048) and the SFN overrides the command per task, so leviathan-dev-mpob-annual-silver was destroyed and the family self-promotes through the scalar promote_jobdef below (own-set = {mpob-silver}, the arity lint untouched). jobRoleArn moved to silver-publisher in the same change (kms:Sign). This closes the mixed-vintage promote (shared runner floating vs digest-pinned producers) that burned futures_eod on 2026-08-01 -- the deliberate suite red in test_gen_sfn_inputs.py clears with it. | 2026-08-18 (D-LD Q1, owner-ratified): the ANNUAL leg RETIRED from the schedule -- silver_mpob_annual holds 6 rows ending year=2016, superseded by the lit monthly silver_mpob, and was spending a task slot, a gate slot and freshness attention on data that stopped a decade ago. The DATA STAYS (canonical + registry contract untouched; a static historical table); only the weekly re-derivation and its gate coverage end. The mpob_annual_silver_task.py file also stays -- a manual re-run remains possible if the source ever resumes. | 2026-08-18 (D-LD MPOB retrofit): fetch gains --refresh-manifest, the WASDE archive-head merge adapted to BEPI (no listing exists; the {YYYY}75 root serves ONLY the latest month, so the sweep probes all 12 val1 slots + the annual base for current+previous year, fail-closed exit 1 on zero published monthly slots). Closes the hand-bumped-manifest class that permanently lost month=05/2026. IMAGE GATE (mechanized per review wf_051e926a): the live arm is HELD flag-less via HAND_ARMED['mpob'] in scripts/silver/gen_dag_schedules_tfvars.py -- the old baked argparse exits 2 on the unknown flag, terminal after ONE attempt (F1 probe cb151695), so the flag reaches the tfvars only when the hold is removed in the SAME change that registers the new b3-flat-silver revision on the image carrying the new fetch_mpob.py (next fire Sept 10-12).",
   "promote_jobdef": "leviathan-dev-mpob-silver",
   "promote_jobdef_note": "SELF-PROMOTION, same class + same proof as futures_eod, modis_biweekly and fgis: mpob-silver rides the digest-pinned local.worker_fleet_image, so a promote on the shared floating runner would re-derive silver with a DIFFERENT build than the shadow it promotes. Both silver legs (monthly + annual, folded 2026-08-16) run and promote on this one jobdef; jobRoleArn=silver-publisher moved in the same change."
 }
