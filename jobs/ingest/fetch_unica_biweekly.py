@@ -42,12 +42,18 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-
 from leviathan.common.config import get_required_env, load_env
 from leviathan.common.dates import coerce_date as _coerce_date_lib
 from leviathan.common.dates import current_harvest_season as _current_harvest_season_lib
 from leviathan.common.dates import season_start_date as _season_start_date_lib
 from leviathan.common.logging import get_logger
+from leviathan.common.unica_bulletins import MIN_PDF_BYTES as _SHARED_MIN_PDF_BYTES
+from leviathan.common.unica_bulletins import PDF_MAGIC as _SHARED_PDF_MAGIC
+from leviathan.common.unica_bulletins import (
+    corrected_season,
+    relabel_reason,
+    season_for_publication,
+)
 from leviathan.storage.paths import unica_biweekly_raw_key
 from leviathan.storage.raw_metadata import write_raw_s3_metadata
 from leviathan.storage.s3 import s3_object_exists, upload_bytes_to_s3
@@ -74,8 +80,11 @@ _MANIFEST_PATH = (
 _LISTING_URL = "https://unicadata.com.br/listagem.php?idMn=63&idioma=2"
 _DOWNLOAD_BASE = "https://unicadata.com.br/download_media.php?idM="
 
-_PDF_MAGIC = b"%PDF"
-_MIN_PDF_BYTES = 50_000  # real bulletins are ~2.8 MB; require at least 50 KB
+# Aliases of the shared floors in leviathan.common.unica_bulletins -- the wayback backfill leg
+# validates payloads against the SAME bar, so the two legs cannot drift apart on what counts as
+# a real bulletin.  The private names stay because they are the tested public surface here.
+_PDF_MAGIC = _SHARED_PDF_MAGIC
+_MIN_PDF_BYTES = _SHARED_MIN_PDF_BYTES  # real bulletins are ~2.8 MB; require at least 50 KB
 
 _REQUEST_TIMEOUT_S = 60
 _PLAYWRIGHT_TIMEOUT_MS = 60_000
@@ -387,14 +396,11 @@ async def _extract_current_bulletin(
     # i.e. season 2026/2027) got written into the manifest as harvest_year "2025/2026",
     # which made every season-scoped fetch of 2026/2027 match zero rows and exit 0.
     if published_ym:
-        pub_year = int(published_ym[:4])
-        pub_month = int(published_ym[5:7])
-        # Bulletins published Jan–March close out the season that started ~18 months prior.
-        if pub_month <= 3:
-            season_start = pub_year - 1
-        else:
-            season_start = pub_year
-        year = f"{season_start}/{season_start + 1}"
+        # Bulletins published Jan-March close out the season that started ~18 months prior.
+        # The arithmetic itself lives in leviathan.common.unica_bulletins.season_for_publication
+        # (which in turn delegates to common.dates.current_harvest_season) so the publication
+        # rule has exactly ONE definition across the extractor, the backfill and the fence.
+        year = season_for_publication(int(published_ym[:4]), int(published_ym[5:7]))
 
     if not idm:
         return None
@@ -556,6 +562,37 @@ def _save_manifest(bulletins: list[dict[str, Any]]) -> None:
     _MANIFEST_PATH.write_text("".join(lines), encoding="utf-8")
 
 
+def _apply_season_relabels(bulletins: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], int]:
+    """Correct the season label of every bulletin named in the quarantine map.
+
+    THE STORY (D-SG G2-1(a-iii), full RCA in leviathan.common.unica_bulletins): idm=32820684 was
+    published 2026/04 -- the first fortnight of season 2026/2027 -- but landed in the manifest
+    labelled "2025/2026", because ``_extract_current_bulletin`` used to apply its
+    publication-month inference only when the caller passed ``year=None``, so a caller-supplied
+    loop year silently overrode the evidence.  That one wrong label made the season-scoped fetch
+    of 2026/2027 match ZERO manifest rows, report "Downloading 0 bulletin(s)", and exit 0 every
+    single Wednesday while silver content froze at fortnight 2026-02-01.
+
+    Two things are fixed upstream of here (the extractor now lets the published month win, and
+    the committed manifest row has been corrected), so on a healthy tree this function is a
+    no-op.  It stays wired anyway, at the layer the RCA named, because the manifest is
+    machine-appended by two different discovery legs and a re-minted mislabel must not be able
+    to re-open the same silent no-op.  It is also the fetch-side twin of the identical relabel
+    applied on read in ``jobs/batch/unica_biweekly_task.py`` -- one correction, both layers.
+    """
+    relabelled = 0
+    out: list[dict[str, Any]] = []
+    for b in bulletins:
+        idm = b.get("idm")
+        note = relabel_reason(idm, b.get("harvest_year"))
+        if note:
+            logger.warning("%s", note)
+            b = {**b, "harvest_year": corrected_season(idm, b.get("harvest_year"))}
+            relabelled += 1
+        out.append(b)
+    return out, relabelled
+
+
 def _merge_bulletins(
     existing: list[dict[str, Any]],
     new_bulletins: list[dict[str, Any]],
@@ -657,6 +694,7 @@ def main() -> None:
     else:
         target_years = args.harvest_years if args.harvest_years else all_harvest_years
     bulletins: list[dict[str, Any]] = _load_manifest()
+    bulletins, _relabelled = _apply_season_relabels(bulletins)
 
     logger.info(
         "Manifest: %d known bulletins across %d configured harvest years",

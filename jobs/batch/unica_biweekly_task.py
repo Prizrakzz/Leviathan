@@ -28,7 +28,8 @@ Usage
     python jobs/batch/unica_biweekly_task.py --bucket leviathan-dev-shahem-001 \\
         --aws-region us-east-1 --dry-run
 
-    # Full backfill (idempotent — skips existing outputs)
+    # Full backfill (idempotent — skips outputs that are present AND not stale against
+    # their raw PDF; a re-landed raw rebuilds automatically, see _all_bronze_current)
     python jobs/batch/unica_biweekly_task.py --bucket leviathan-dev-shahem-001 \\
         --aws-region us-east-1
 
@@ -53,7 +54,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 
 from leviathan.common.config import get_required_env, load_env
+from leviathan.common.ingest_fence import bronze_is_current
 from leviathan.common.logging import get_logger
+from leviathan.common.unica_bulletins import corrected_season, relabel_reason
 from leviathan.storage.paths import (
     bronze_unica_biweekly_key,
     parse_hive_key,
@@ -127,19 +130,38 @@ def _parse_args() -> argparse.Namespace:
 # ---------------------------------------------------------------------------
 
 
-def _all_bronze_exist(
+def _all_bronze_current(
     s3_client,
     bucket: str,
+    raw_key: str,
     harvest_year: str,
     idm: str,
     expected_tables: list[str],
 ) -> bool:
-    """Return True only when every expected bronze Parquet already exists."""
+    """True only when every expected bronze Parquet exists AND is NOT STALE against *raw_key*.
+
+    D-LD Track U -- the skip predicate is CONTENT-AWARE, never bare existence.
+
+    WHY THE SMALLER CHANGE IS THE RIGHT ONE.  The alternative on the table was a
+    ``--force-reprocess <window>`` flag: an operator names the backfill window and bronze
+    rebuilds everything inside it.  That is strictly worse here.  It needs a human to know the
+    window and to remember to pass it; it rebuilds untouched bulletins along with the repaired
+    ones; and, decisively, it leaves the DEFECT in place -- the next re-landed PDF outside
+    whatever window someone typed is skipped on existence exactly as before, so the silent no-op
+    survives its own fix.  The staleness fence needs no operator, no window and no memory: a
+    bulletin whose raw bytes were re-landed by the wayback backfill has a newer LastModified than
+    its bronze and rebuilds automatically, while a bulletin nobody touched still skips.
+
+    It is also not new machinery: ``leviathan.common.ingest_fence.bronze_is_current`` is the
+    shared fence D-SG G2-1 already installed on the unica ANNUAL leg (``jobs/batch/unica_task.py``
+    :67), on fgis and on pink_sheet.  The biweekly leg was the one member of the family still
+    reading bare existence.  The fence fails toward REBUILDING on any uncertainty -- an
+    unreadable mtime rebuilds rather than skips -- which is the correct direction for a leg whose
+    documented failure mode is "green while landing nothing".
+    """
     for table_name in expected_tables:
         key = bronze_unica_biweekly_key(harvest_year, idm, table_name)
-        try:
-            s3_client.head_object(Bucket=bucket, Key=key)
-        except Exception:  # noqa: BLE001
+        if not bronze_is_current(s3_client, bucket, raw_key, key):
             return False
     return True
 
@@ -167,8 +189,26 @@ def _process(
         logger.warning("Could not parse harvest_year/idm from key: %s", raw_key)
         return "error", raw_key, "unknown"
 
-    # Skip check: if ALL output tables already exist, skip unless force-overwrite
-    if not force_overwrite and _all_bronze_exist(s3, bucket, harvest_year, idm, _OUTPUT_TABLES):
+    # QUARANTINE RELABEL (D-SG G2-1(a-iii); full story in leviathan.common.unica_bulletins).
+    # The hive key is a LABEL, not evidence.  idm=32820684 was published 2026/04 -- the first
+    # fortnight of season 2026/2027 -- but its raw object was written under
+    # harvest_year=2025_2026 by the loop-year-beats-evidence bug, and MOVING that object is
+    # owner decision D22, not an ingest-code decision.  So the object stays where it is and the
+    # correction is applied on READ, here, before the harvest_year reaches either the skip
+    # predicate or the bronze key.  Without it, silver resolves the bulletin's "DD/04" fortnight
+    # labels against 2025_2026 and dates April-2026 readings to April 2025 -- a 2026/2027
+    # bulletin folded into the 2025/2026 season.  The fetch layer applies the identical map to
+    # manifest rows (fetch_unica_biweekly._apply_season_relabels); one correction, both layers.
+    note = relabel_reason(idm, harvest_year)
+    if note:
+        logger.warning("%s  raw_key=%s", note, raw_key)
+        harvest_year = corrected_season(idm, harvest_year) or harvest_year
+
+    # Skip check: content-aware -- every output table must exist AND be no older than the raw
+    # PDF behind it.  Bare existence was the defect (see _all_bronze_current).
+    if not force_overwrite and _all_bronze_current(
+        s3, bucket, raw_key, harvest_year, idm, _OUTPUT_TABLES
+    ):
         return "skipped", raw_key, "skipped"
 
     # Download
@@ -247,10 +287,20 @@ def main() -> None:
     raw_keys = list_s3_keys(bucket, _RAW_PREFIX, suffix="report.pdf", aws_region=aws_region)
     raw_keys.sort()
 
-    # Optional harvest-year filter
+    # Optional harvest-year filter -- QUARANTINE-AWARE.  A raw key is a LABEL: idm=32820684 is a
+    # 2026/2027 bulletin whose object sits under harvest_year=2025_2026 (owner decision D22 keeps
+    # it there).  Filtering on the literal key text would silently drop it from a
+    # "--harvest-year 2026_2027" backfill -- the same class of trap the relabel exists to close --
+    # so the filter matches the CORRECTED season as well as the recorded one.
     if args.harvest_year:
         hy = args.harvest_year.replace("/", "_")
-        raw_keys = [k for k in raw_keys if f"harvest_year={hy}/" in k]
+
+        def _in_target_season(key: str) -> bool:
+            recorded = parse_hive_key(key, "harvest_year")
+            idm = parse_hive_key(key, "idm")
+            return hy in {recorded, corrected_season(idm, recorded)}
+
+        raw_keys = [k for k in raw_keys if _in_target_season(k)]
         logger.info("Filtered to harvest_year=%s  keys=%d", hy, len(raw_keys))
 
     if args.limit:
