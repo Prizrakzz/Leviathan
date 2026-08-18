@@ -44,6 +44,18 @@ FOOD_CPI = "silver_food_cpi"
 FNC_AREA = "silver_fnc_colombia_area_department"
 MPOC_EXPORTS = "silver_mpoc_exports_by_country"
 
+# D-LD TRANCHE 3 (2026-08-19) -- the UNICA Brazil sugar/ethanol family. STRUCTURALLY UNLIKE Tranche 2:
+# nothing here needed a producer pre-step, because all three already carried a usable data date
+# (`fortnight_date` is a real Glue DATE, `month_date` a clean ISO string), which is why the DDL regen
+# for this tranche is a no-op. What kept them dark was a SERVING judgement about ceilings, so the blocks
+# below assert the PIT trio first (as Tranche 2 does) and then the CEILING/DEFECT teaching second,
+# rather than the closed-set fences Tranche 2's blocks lead with.
+UNICA_HIST = "silver_unica_biweekly_season_history"
+UNICA_CORN = "silver_unica_corn_ethanol"
+UNICA_SALES = "silver_unica_monthly_ethanol_sales"
+# The FOURTH table of the tranche's scope, REFUSED a card and pinned as a refusal below.
+UNICA_RELEASE = "silver_unica_biweekly_release_series"
+
 
 def _purpose() -> str:
     return next(t.purpose for t in dp.REGISTRY if t.name == "numbers").lower()
@@ -101,6 +113,13 @@ _ADVERTISED = {
     FOOD_CPI: ("consumer price inflation", "cpi"),           # never "food inflation" (FP.CPI.TOTL.ZG)
     FNC_AREA: ("coffee area", "by department"),              # disjoint from the two FNC siblings
     MPOC_EXPORTS: ("by destination country",),               # NOT ("mpoc",) -- the monthly card owns that
+    # ── D-LD TRANCHE 3. `ethanol` appeared NOWHERE in the purpose string before this wave, so a bare
+    # ("ethanol",) would have advertised whichever of the three landed first and then free-ridden for
+    # the other two -- the exact failure this map exists to catch, arriving from a genuinely empty
+    # vocabulary rather than from a sibling's. Three disjoint tokens instead.
+    UNICA_HIST: ("cane crush",),                             # NOT ("ethanol",) -- see above
+    UNICA_CORN: ("corn ethanol",),                           # a different FEEDSTOCK, not a synonym
+    UNICA_SALES: ("ethanol sales",),                         # SALES, never production
 }
 
 
@@ -208,6 +227,13 @@ def test_visible_set_is_the_registry_minus_the_ledger_card_and_the_quarantine(mo
     "consumer price inflation",     # ...and never "food inflation": the table is headline CPI
     "coffee area",                  # Colombian AREA, disjoint from the two FNC siblings
     "by destination country",       # MPOC's ANNUAL export book, beside its MONTHLY sibling
+    # D-LD TRANCHE 3: three tokens for the UNICA family. The word "ethanol" was absent from the whole
+    # purpose string before this wave -- while `when_to_use` already invited "are ethanol margins
+    # squeezing demand" here -- so these three close an advertisement gap the router was being asked
+    # to route into blind.
+    "cane crush",                   # the Centro-Sul biweekly bulletin, season-to-date
+    "corn ethanol",                 # the OTHER feedstock, never a synonym for the cane card
+    "ethanol sales",                # the demand side: what left the mills, not what they made
 ])
 def test_purpose_names_each_census_unlock(token):
     assert token in _purpose(), f"router purpose string omits {token!r} (D-CW-1a census rank order)"
@@ -2408,3 +2434,479 @@ def test_mpoc_exports_freshness_ceiling_is_not_widened_by_its_publication_lag():
 
 def test_mpoc_exports_card_columns_resolve_in_the_checked_in_ddl():
     assert cc.check_numbers_schema_pins() == []
+
+
+# ════════════════════════════════════════════════════════════════════════════════════════════════════
+# D-LD TRANCHE 3 (2026-08-19) -- THE UNICA BRAZIL SUGAR/ETHANOL FAMILY.
+#
+# WHAT MAKES THIS TRANCHE DIFFERENT FROM TRANCHE 2, and why the blocks below are shaped differently:
+# Tranche 2 was a PRODUCER wave. Six tables had NO date column of any kind, `query._guard` raised
+# before any SQL compiled, and each needed a derived anchor before a card could exist -- so every one
+# of those blocks leads with the trio because the trio was the thing that changed.
+# These three needed nothing. `fortnight_date` has been a real Glue DATE since the table landed and
+# `month_date` a clean ISO string; the DDL regen for this tranche is a NO-OP, and the F010 diff is the
+# PIT trio plus the value_columns/consumers that carding any wide table produces. What kept them dark
+# was a SERVING JUDGEMENT that had not been made: three tables whose newest reading is months old,
+# where the hazard is not a guard that fails but a correctly-guarded old number narrated as the
+# current state of the Brazilian crush.
+#
+# THE OWNER'S RATIFICATION IS THE SPEC (2026-08-18, verbatim): "you can have them but PIT aware with
+# its ceiling, so for example if someone asked about something that happened in 2021, it would fetch
+# that data but if someone asked a run down over july 2026, it can't use that data." Both halves are
+# pinned below, at real as-ofs, against the real stored rows -- and the post-ceiling half is pinned as
+# a property of the GUARD (it returns nothing because nothing exists), never as a code fence, because
+# there is no fence and inventing one would be a fence against a table's own contents.
+#
+# THE SHARED PINS, one per block, so a card cannot land half-wired:
+#   *_card_pit_shape                               -- the trio + the axis declarations, byte-exact
+#   *_card_reconciles_against_the_f010_registry    -- NUMBERS_TABLES + numbers_ref + consumers,
+#                                                     and the trio equal on BOTH sides (reconcile.py)
+#   *_is_in_the_pg_mirror_list                     -- served must mean mirrored (silent Athena fallback)
+#   *_notes_state_the_ceiling_and_its_reason       -- NEW to this tranche and it is the tranche's
+#                                                     whole point: a ceiling the notes do not EXPLAIN
+#                                                     produces an answer that narrates stale data as
+#                                                     current, which is the one outcome the
+#                                                     ratification forbids.
+# ════════════════════════════════════════════════════════════════════════════════════════════════════
+_UNICA_TRIO = {
+    UNICA_HIST: ("fortnight_date", "data_date", 14),
+    UNICA_CORN: ("fortnight_date", "data_date", 14),
+    UNICA_SALES: ("month_date", "data_date", 45),
+}
+# consumers is NOT uniform across the three and the difference is real, not an oversight: the crush
+# history was ALREADY a feature-layer table (consumers=feature_layer) so carding it makes it "both",
+# while the other two had no consumer at all and become "numbers_registry". Tranche 2's `_reconciles`
+# helper hardcodes "both"; a helper that hardcoded it here would fail on a correct registry.
+_UNICA_CONSUMERS = {UNICA_HIST: "both", UNICA_CORN: "numbers_registry", UNICA_SALES: "numbers_registry"}
+
+
+def _unica_reconciles(table_id: str):
+    """The same four things Tranche 2's `_reconciles` asserts, with `consumers` read per table."""
+    from leviathan.silver import reconcile as RC
+    from leviathan.silver import registry as SR
+    reg = SR.load_registry()
+    assert table_id in RC.NUMBERS_TABLES, "an unenumerated table is STRUCTURALLY UNCHECKED"
+    assert [d.detail for d in RC.reconcile_numbers(reg) if d.table == table_id] == []
+    c = reg.table(table_id)
+    assert c["numbers_ref"] == f"configs/graphrag/numbers/tables.yaml#{table_id}"
+    assert c["consumers"] == _UNICA_CONSUMERS[table_id]
+    assert (c["knowledge_date_col"], c["knowledge_semantics"],
+            c["publication_lag_days"]) == _UNICA_TRIO[table_id]
+
+
+def test_every_unica_card_is_served_and_in_the_tool_enum():
+    """All three at once: the registry, the visibility derivation and the agent's tool enum agree."""
+    reg = _reg()
+    enum = _props()["table"]["enum"]
+    visible = nreg.visible_tables(reg)
+    for tid in (UNICA_HIST, UNICA_CORN, UNICA_SALES):
+        assert tid in reg.tables, tid
+        assert tid in visible, tid
+        assert tid in enum, tid
+
+
+def test_the_refused_unica_table_is_carded_nowhere():
+    """THE REFUSAL, PINNED AS A REFUSAL rather than left as an absence -- the Tranche-3 counterpart of
+    Tranche 2's `test_no_tranche2_card_declares_period_required`.
+
+    silver_unica_biweekly_release_series was IN SCOPE for this tranche and is deliberately NOT carded.
+    Its only temporal column is `position_date`, a Glue STRING of free-text 'DD/MM/YYYY' bulletin
+    stamps, and `TableSpec.knowledge_col()` would hand that to `_guard`, which emits a LEXICOGRAPHIC
+    `CAST(position_date AS varchar) <= '<asof>'`. MEASURED against the canonical parquet: that
+    predicate admits 119 of 122 rows at EVERY as-of -- including asof 2015-01-01, at which the
+    February-2026 stamps ('01/02/2026' -> '0' < '2') pass while March-2025 stamps ('31/03/2025' ->
+    '3' > '2') are dropped. A future row citable at a 2015 as-of is a live PIT leak, and the owner's
+    ratification is precisely a ratification of the guard holding.
+    This test is the place that has to move first if a producer ever emits a real DATE anchor for it;
+    until then, carding it would be undoing a measurement."""
+    assert UNICA_RELEASE not in _reg().tables, (
+        "silver_unica_biweekly_release_series was carded without a real date anchor -- re-read the "
+        "refusal in the tranche header of configs/graphrag/numbers/tables.yaml before removing this")
+    from leviathan.silver import reconcile as RC
+    assert UNICA_RELEASE not in RC.NUMBERS_TABLES
+    from jobs.utils.load_pg_numbers import P1_TABLES
+    assert UNICA_RELEASE not in P1_TABLES              # nothing served -> nothing to mirror
+
+
+def test_no_unica_card_declares_period_required():
+    """THE DECISION, PINNED AS A DECISION. `period_required` is calibrated to the WAP trap -- every
+    release prints MULTIPLE period rows side by side, so a period-less agg=latest returns ONE row and
+    it is the WRONG CROP. That trap cannot arise on any of these three, and the measurement is in the
+    test below it: each has a real date axis, so `agg=latest` collapses via ORDER BY <date> DESC
+    LIMIT 1, and no date value in any of the three maps to more than one harvest_year. Declaring the
+    fence would refuse the season-arc reads these cards exist to serve."""
+    reg = _reg()
+    opted_in = {t for t, ts in reg.tables.items() if ts.period_required}
+    assert opted_in == {"silver_wap_table01_revisions"}, (
+        "period_required is still the WAP-only fence; adding a card here needs the wrong-crop "
+        "measurement that justified it, not an analogy")
+
+
+def test_every_unica_card_collapses_latest_to_one_row():
+    """The MEASUREMENT behind the pin above, and the structural difference from Tranche 2's three
+    dateless cards: those compiled `agg='latest'` to an ascending SERIES (no `_order_col`, no LIMIT 1),
+    which is why their notes had to teach that the headline row of such a read is the OLDEST. All
+    three cards here have a date axis, so `latest` means what a reader assumes it means."""
+    for tid, kw in ((UNICA_HIST, dict(country="centro_sul")),
+                    (UNICA_CORN, {}),
+                    (UNICA_SALES, {})):
+        ts = _reg().get(tid)
+        assert Q._order_col(ts) == ts.date_col, tid
+        sql = Q.build_sql(Q.NumberQuery(table=tid, metric=sorted(ts.metrics)[0], asof="2026-08-19",
+                                        **kw), ts)
+        assert sql.endswith("LIMIT 1"), tid
+        assert f"ORDER BY {ts.date_col} DESC" in sql, tid
+
+
+def test_every_unica_card_surfaces_its_bulletin_stamp_on_every_row():
+    """THE ONE MECHANICAL DEFENCE THIS FAMILY HAS, pinned on all three at once.
+
+    A minority of rows in each table came out of the parser wrong -- column mis-assignment on three
+    season_history bulletins, a pt-BR thousands-separator misparse on two more -- and the defect is
+    BULLETIN-SCOPED: every affected row shares a `source_position_date`. The registry offers no
+    row-level exclusion (`Metric.row_filters` is keyed by commodity and these cards have no commodity
+    column), so `provenance_col` is what turns a prose warning into something checkable ON THE ROW:
+    every returned row carries its originating bulletin as the `revision_stamp` alias, and each card's
+    notes name the bad stamps. That is a CLASS-1 weak fence by the estate's own doctrine and the
+    durable fix is a producer re-parse -- this pin exists so the weak fence cannot silently vanish
+    before the strong one lands."""
+    for tid in (UNICA_HIST, UNICA_CORN, UNICA_SALES):
+        ts = _reg().get(tid)
+        assert ts.provenance_col == "source_position_date", tid
+        assert ("source_position_date", "revision_stamp") in Q._extras(ts), tid
+        sql = Q.build_sql(Q.NumberQuery(table=tid, metric=sorted(ts.metrics)[0], asof="2026-08-19",
+                                        **({"country": "centro_sul"} if ts.country_col else {})), ts)
+        assert "source_position_date AS revision_stamp" in sql, tid
+
+
+def test_unica_family_freshness_ceiling_is_not_widened_by_the_cards():
+    """THE BANKED CATEGORY ERROR, and this tranche re-earned it on its first card. MEASURED with
+    build_catalog before and after: the `unica` family ceiling moved 14 -> 28 the moment
+    season_history declared publication_lag_days 14, because that table WAS the family minimum at
+    lag 0. publication_lag_days guards the AS-OF axis; FreshnessLagDays measures S3 WRITE recency; the
+    unica DAG fires cron(0 12 ? * WED *) and rewrites canonical with --force-overwrite every week
+    whatever the content lag. Each pin equals its table's own cadence default -- it cancels the grace
+    and arms nothing tighter."""
+    from leviathan.silver import dag_catalog as DC
+    assert DC.FRESHNESS_LAG_OVERRIDES[UNICA_HIST] == 14        # weekly cadence default
+    assert DC.FRESHNESS_LAG_OVERRIDES[UNICA_CORN] == 14        # weekly cadence default
+    assert DC.FRESHNESS_LAG_OVERRIDES[UNICA_SALES] == 45       # MONTHLY default, deliberately not 14
+    assert DC.build_catalog()["unica"].max_sla_lag_days == 14   # held exactly where it was
+
+
+def test_unica_cards_columns_resolve_in_the_checked_in_ddl():
+    assert cc.check_numbers_schema_pins() == []
+
+
+# ════════════════════════════════════════════════════════════════════════════════════════════════════
+# (1) silver_unica_biweekly_season_history -- the Centro-Sul crush bulletin.
+# Beyond the shared pins, this block holds the two properties that are unique to it: the region axis is
+# a SUM plus its parts (not three peers), and the metrics are CUMULATIVE (so a cross-season difference
+# is nonsense). Both are measured off the canonical parquet, not asserted.
+# ════════════════════════════════════════════════════════════════════════════════════════════════════
+def _unica_hist():
+    return _reg().get(UNICA_HIST)
+
+
+def test_unica_hist_card_pit_shape():
+    """data_date on the fortnight POSITION date -- a REAL Glue `date` that needed no producer pre-step,
+    which is the structural difference from every Tranche-2 card. date_col_type stays "string": the
+    column is a Glue `date`, not a TIMESTAMP, so the DP-5 substr normalization does not apply and
+    CAST(col AS varchar) is the correct compare on both backends (the sagis week_ending_date idiom)."""
+    ts = _unica_hist()
+    assert (ts.knowledge_semantics, ts.knowledge_date_col, ts.date_col) == \
+           ("data_date", "fortnight_date", "fortnight_date")
+    assert ts.publication_lag_days == 14
+    assert ts.date_col_type == "string"                  # NOT "timestamp" -- see the docstring
+    assert ts.shape == "wide" and ts.commodity_col is None
+    assert ts.country_col == "region"                    # the GEO axis, the fnc-area idiom
+    assert (ts.period_col, ts.period_type, ts.period_sql_type) == \
+           ("harvest_year", "marketing_year", "string")  # '2025_2026', UNDERSCORE
+    assert ts.partition_cols == [] and ts.year_col is None and ts.month_col is None
+    assert set(ts.metrics) == {"cane_crushed_t", "sugar_produced_t", "ethanol_total_m3",
+                               "ethanol_anhydrous_m3", "ethanol_hydrous_m3"}
+    assert not ts.levels_only and not ts.quarantined
+
+
+def test_unica_hist_declares_its_closed_sugar_set():
+    ts = _unica_hist()
+    assert list(ts.commodity_values) == ["raw_sugar", "white_sugar"]
+    for slug in ts.commodity_values:
+        assert slug in ts.notes, f"{slug} is enforced but not taught in the card's notes"
+
+
+def test_unica_hist_offcard_commodity_is_refused_before_any_sql():
+    """The reflex reaches this fence turns into a teaching refusal: corn (because the family's OTHER
+    ethanol card is corn-fed) and palm/cocoa/coffee (because this is a tropical-softs neighbourhood)."""
+    class _S:
+        def __init__(self, table, commodity):
+            self.table, self.commodity = table, commodity
+    for slug in ("corn_cbot", "campinas_corn_reference_bmf", "malaysian_crude_palm_oil_cme", "cocoa"):
+        with pytest.raises(na.CommodityOffCard) as e:
+            na._check_commodity_class(_S(UNICA_HIST, slug), _reg())
+        assert "raw_sugar" in str(e.value) and "Nothing was queried." in str(e.value)
+
+
+def test_unica_hist_sql_applies_the_fourteen_day_lag_and_pins_the_region():
+    spec = Q.NumberQuery(table=UNICA_HIST, metric="cane_crushed_t", asof="2021-11-01",
+                         country="centro_sul")
+    sql = Q.build_sql(spec)
+    assert "region = 'centro_sul'" in sql
+    assert "CAST(fortnight_date AS varchar) <= '2021-10-18'" in sql       # asof - 14d
+    assert "ORDER BY fortnight_date DESC" in sql and sql.endswith("LIMIT 1")
+
+
+def test_unica_hist_oracle_agrees_with_the_guard_at_the_publication_boundary():
+    """apply_pit_filter is the pure-Python twin of the SQL guard: the +14d lag must withhold the
+    position that is stamped but whose bulletin has not printed, on BOTH sides."""
+    ts = _unica_hist()
+    rows = [
+        {"region": "centro_sul", "fortnight_date": "2026-01-16", "cane_crushed_t": 601_035_365.0},
+        {"region": "centro_sul", "fortnight_date": "2026-02-01", "cane_crushed_t": 601_644_297.0},
+        {"region": "sao_paulo", "fortnight_date": "2026-01-16", "cane_crushed_t": 341_213_448.0},
+    ]
+    early = Q.NumberQuery(table=UNICA_HIST, metric="cane_crushed_t", asof="2026-02-10",
+                          country="centro_sul")
+    assert [r["fortnight_date"] for r in Q.apply_pit_filter(rows, early, ts)] == ["2026-01-16"]
+    later = Q.NumberQuery(table=UNICA_HIST, metric="cane_crushed_t", asof="2026-02-15",
+                          country="centro_sul")
+    assert sorted(r["fortnight_date"] for r in Q.apply_pit_filter(rows, later, ts)) == \
+        ["2026-01-16", "2026-02-01"]
+
+
+def test_unica_hist_notes_state_the_ceiling_and_its_reason():
+    """THE TRANCHE-3 PIN. A ceiling the notes do not EXPLAIN produces exactly the answer the owner's
+    ratification forbids -- the February reading narrated as the current crush -- because the guard
+    returning nothing looks identical to a table that is merely quiet. The tokens below are the four
+    things the answer agent needs in order to say WHY the series stops."""
+    ts = _unica_hist()
+    blob = " ".join((ts.description + " " + ts.notes).lower().split())
+    for token in ("2026-02-01",                   # the ceiling itself, as a date
+                  "2026/27",                      # the season that has no bulletin
+                  "zero parseable bulletins",     # the reason, said out loud
+                  "prunes superseded bulletins",  # the MECHANISM behind the reason
+                  "not answerable here",          # the instruction, not merely the fact
+                  "cumulative",                   # the metrics are season-to-date
+                  "centro_sul is the sum",        # the region trap
+                  "16/07/2022",                   # a named corrupt bulletin stamp
+                  "revision_stamp"):              # ...and how to spot one on a returned row
+        assert token in blob, token
+    assert "never call a dated reading 'current'" in blob
+
+
+def test_unica_hist_notes_name_every_measured_bad_bulletin():
+    """The defect census, pinned so a notes rewrite cannot quietly drop one. These four stamps are the
+    MEASURED bad bulletins: excluding exactly them leaves 252 rows on which
+    ethanol_anhydrous + ethanol_hydrous == ethanol_total to a maximum relative error of 0.0, while 43
+    of the full table's 300 rows breach that identity by more than 1%."""
+    blob = _unica_hist().notes
+    for stamp in ("16/07/2022", "01/02/2013", "16/03/2013", "10/16/2025"):
+        assert stamp in blob, stamp
+
+
+def test_unica_hist_card_reconciles_against_the_f010_registry():
+    _unica_reconciles(UNICA_HIST)
+
+
+def test_unica_hist_is_in_the_pg_mirror_list():
+    from jobs.utils.load_pg_numbers import P1_TABLES
+    assert UNICA_HIST in P1_TABLES
+
+
+# ════════════════════════════════════════════════════════════════════════════════════════════════════
+# (2) silver_unica_corn_ethanol -- the OTHER feedstock.
+# The property this block holds beyond the shared pins: this card serves a FLOW and a CUMULATIVE side
+# by side, which no other card in the estate does, and the two differ by ~19x late in a season.
+# ════════════════════════════════════════════════════════════════════════════════════════════════════
+def _unica_corn():
+    return _reg().get(UNICA_CORN)
+
+
+def test_unica_corn_card_pit_shape():
+    ts = _unica_corn()
+    assert (ts.knowledge_semantics, ts.knowledge_date_col, ts.date_col) == \
+           ("data_date", "fortnight_date", "fortnight_date")
+    assert ts.publication_lag_days == 14
+    assert ts.date_col_type == "string"
+    assert ts.shape == "wide" and ts.commodity_col is None
+    assert ts.country_col is None                        # NO region axis -- unlike the cane card
+    assert (ts.period_col, ts.period_type, ts.period_sql_type) == \
+           ("harvest_year", "marketing_year", "string")
+    assert ts.partition_cols == [] and ts.year_col is None
+    assert set(ts.metrics) == {"total_quinzenal_kl", "anhydrous_quinzenal_kl", "hydrous_quinzenal_kl",
+                               "total_accum_kl", "anhydrous_accum_kl", "hydrous_accum_kl"}
+    assert not ts.levels_only and not ts.quarantined
+
+
+def test_unica_corn_declares_a_corn_only_closed_set():
+    """CORN, and the refused slug is the one the PUBLISHER trades in: UNICA is a sugarcane body, so
+    raw_sugar is the reflex reach at exactly the card that has no cane in it."""
+    ts = _unica_corn()
+    assert list(ts.commodity_values) == ["corn_cbot", "campinas_corn_reference_bmf"]
+    for slug in ts.commodity_values:
+        assert slug in ts.notes
+
+
+def test_unica_corn_sugar_lookup_is_refused_before_any_sql():
+    class _S:
+        def __init__(self, table, commodity):
+            self.table, self.commodity = table, commodity
+    for slug in ("raw_sugar", "white_sugar"):
+        with pytest.raises(na.CommodityOffCard) as e:
+            na._check_commodity_class(_S(UNICA_CORN, slug), _reg())
+        assert "corn_cbot" in str(e.value) and "Nothing was queried." in str(e.value)
+
+
+def test_unica_corn_card_separates_the_flow_from_the_cumulative_in_both_places():
+    """The card's primary hazard, held in CODE where it can be held: every `_quinzenal_` metric's desc
+    must say the fortnight alone and every `_accum_` metric's desc must say season-to-date, so the
+    distinction survives a notes rewrite. The registry cannot enforce the arithmetic -- only the
+    labelling -- so this is the strongest available pin, and the notes carry the rest."""
+    ts = _unica_corn()
+    for name, m in ts.metrics.items():
+        d = m.desc.lower()
+        if name.endswith("_quinzenal_kl"):
+            assert "in that fortnight alone" in d, name
+            assert "not cumulative" in d, name
+        else:
+            assert "since the season opened" in d or "season-to-date" in d, name
+            assert "cumulative" in d, name
+
+
+def test_unica_corn_sql_applies_the_fourteen_day_lag():
+    spec = Q.NumberQuery(table=UNICA_CORN, metric="total_accum_kl", asof="2026-03-15")
+    sql = Q.build_sql(spec)
+    assert "CAST(fortnight_date AS varchar) <= '2026-03-01'" in sql       # asof - 14d
+    assert "ORDER BY fortnight_date DESC" in sql and sql.endswith("LIMIT 1")
+
+
+def test_unica_corn_notes_state_the_ceiling_the_history_floor_and_the_bad_bulletins():
+    ts = _unica_corn()
+    blob = " ".join((ts.description + " " + ts.notes).lower().split())
+    for token in ("2026-02-01",                   # the ceiling
+                  "2026/27",                      # the season with no bulletin
+                  "zero parseable bulletins",     # the reason
+                  "not answerable here",          # the instruction
+                  "2021_2022",                    # the history FLOOR: nothing before 2021/22 exists
+                  "09/01/2022", "10/16/2025",     # the two measured bad bulletins
+                  "2024-04-01",                   # the year-early date stamp on 2024_2025 position 24
+                  "no region axis"):              # must not borrow the cane card's regions
+        assert token in blob, token
+    assert "never call a dated reading 'current'" in blob
+
+
+def test_unica_corn_card_reconciles_against_the_f010_registry():
+    _unica_reconciles(UNICA_CORN)
+
+
+def test_unica_corn_is_in_the_pg_mirror_list():
+    from jobs.utils.load_pg_numbers import P1_TABLES
+    assert UNICA_CORN in P1_TABLES
+
+
+# ════════════════════════════════════════════════════════════════════════════════════════════════════
+# (3) silver_unica_monthly_ethanol_sales -- the demand side, and the estate's only TWO-CEILING card.
+# The newest ROW the guard admits (2025-11-01) is not the newest row carrying a NUMBER (2024-11-01),
+# and the gap between them is the failure mode this block exists to pin.
+# ════════════════════════════════════════════════════════════════════════════════════════════════════
+def _unica_sales():
+    return _reg().get(UNICA_SALES)
+
+
+def test_unica_sales_card_pit_shape():
+    """data_date on month_date, which is a Glue STRING already in ISO 'YYYY-MM-01' form in 58/58 rows
+    (probed) -- so the plain CAST-as-varchar compare orders correctly on both backends with no render
+    step, and date_col_type stays "string" for the ordinary reason rather than the Glue-date one."""
+    ts = _unica_sales()
+    assert (ts.knowledge_semantics, ts.knowledge_date_col, ts.date_col) == \
+           ("data_date", "month_date", "month_date")
+    assert ts.publication_lag_days == 45                 # month end (~30d) + the following bulletin
+    assert ts.date_col_type == "string"
+    assert ts.shape == "wide" and ts.commodity_col is None and ts.country_col is None
+    assert (ts.period_col, ts.period_type, ts.period_sql_type) == \
+           ("harvest_year", "marketing_year", "string")
+    assert set(ts.metrics) == {"total_current_m3", "total_prior_m3", "internal_current_m3",
+                               "internal_prior_m3", "external_current_m3", "external_prior_m3"}
+    assert "is_partial" not in ts.metrics                # MEASURED unreliable -- see the test below
+    assert not ts.levels_only and not ts.quarantined
+
+
+def test_unica_sales_excludes_the_unreliable_partial_flag_and_says_why():
+    """The mpoc_trade `imports_mt` idiom: a physical column left OFF the card because it is MEASURED
+    WRONG, with the verdict recorded in the notes rather than as a silent omission. `is_partial` flags
+    exactly ONE row (October 2020) while at least three other part-months are flagged False -- November
+    2020 reads 143,814 m3 against a prior-year 2,847,663; October 2021 358,018 against 3,049,853;
+    November 2021 240,529 against 2,731,050."""
+    ts = _unica_sales()
+    assert "is_partial" not in ts.metrics
+    blob = ts.notes.lower()
+    assert "is_partial is present and is not served" in blob
+    assert "143,814" in ts.notes                         # the measured counter-example, not a claim
+
+
+def test_unica_sales_sql_applies_the_forty_five_day_lag():
+    spec = Q.NumberQuery(table=UNICA_SALES, metric="total_current_m3", asof="2025-03-01")
+    sql = Q.build_sql(spec)
+    assert "CAST(month_date AS varchar) <= '2025-01-15'" in sql           # asof - 45d
+    assert "ORDER BY month_date DESC" in sql and sql.endswith("LIMIT 1")
+
+
+def test_unica_sales_oracle_agrees_with_the_guard():
+    ts = _unica_sales()
+    rows = [
+        {"month_date": "2024-10-01", "total_current_m3": 3_082_621.0},
+        {"month_date": "2024-11-01", "total_current_m3": 2_935_757.0},
+        {"month_date": "2024-12-01", "total_current_m3": 1.0},   # +45d -> not yet citable
+    ]
+    # asof chosen at the BOUNDARY: 2024-12-01 + 45d == 2025-01-15, so an asof of 2025-01-10 is the
+    # last day on which December is still withheld -- the pin fails if the lag is dropped OR shortened.
+    spec = Q.NumberQuery(table=UNICA_SALES, metric="total_current_m3", asof="2025-01-10")
+    assert sorted(r["month_date"] for r in Q.apply_pit_filter(rows, spec, ts)) == \
+        ["2024-10-01", "2024-11-01"]
+
+
+def test_unica_sales_notes_state_BOTH_ceilings_and_the_null_is_not_zero_rule():
+    """THE PIN THIS CARD EXISTS FOR. `agg=latest` at a 2026 as-of returns the 2025-11-01 row and every
+    metric on it is NULL -- so the guard is behaving correctly, a row IS returned, and the only thing
+    standing between that and a fabricated zero is what the notes teach. Both ceilings must be stated
+    or the answer picks one and is wrong either way."""
+    ts = _unica_sales()
+    blob = " ".join((ts.description + " " + ts.notes).lower().split())
+    for token in ("2025-11-01",                       # the newest ROW the guard admits
+                  "2024-11-01",                       # the newest POPULATED month
+                  "two different ceilings",           # said as a structure, not left to be inferred
+                  "do not present a null row as a zero",
+                  "2026/27", "zero parseable bulletins", "not answerable",
+                  "only april through november exist",   # the four missing months per season
+                  "not answerable for any month after 2013"):   # the export-channel gap
+        assert token in blob, token
+    assert "never call a dated reading 'current'" in blob
+
+
+def test_unica_sales_card_reconciles_against_the_f010_registry():
+    _unica_reconciles(UNICA_SALES)
+
+
+def test_unica_sales_is_in_the_pg_mirror_list():
+    from jobs.utils.load_pg_numbers import P1_TABLES
+    assert UNICA_SALES in P1_TABLES
+
+
+def test_unica_sales_export_columns_carry_a_measured_floor_not_the_uniform_one():
+    """CARDING A TABLE IS WHAT FIRST SUBJECTS ITS METRICS TO A NON-NULL FLOOR, and on this table that
+    would have turned the unica family gate red by an act of documentation. value_columns was EMPTY
+    before the card, so no floor applied; the card makes it the six-metric set and every one inherits
+    the uniform provisional 0.5. MEASURED 2026-08-19 over 58 rows: external_current_m3 and
+    external_prior_m3 are each populated in exactly 10 (0.1724), structurally -- the export column was
+    only captured for seasons 2012_2013 and 2013_2014. Floor 0.12 is measured-minus-margin (the
+    ams-cotton precedent) with headroom for the gate sampler's known undershoot (the D-LD
+    nass_crop_progress lesson). The gate stays live: KIND_ALL_NAN still hard-fails an all-null column
+    and losing the ten populated rows still trips it."""
+    c = _f010(UNICA_SALES)
+    assert c["min_nonnull_frac"] == 0.5                    # the table floor is UNCHANGED
+    ov = c["min_nonnull_frac_overrides"]
+    assert ov == {"external_current_m3": 0.12, "external_prior_m3": 0.12}
+    for col in ov:
+        assert col in c["value_columns"], "an override key that is not a value_column is orphaned"
+    # the four columns that clear the table floor on their own are deliberately NOT pinned down
+    assert "internal_current_m3" not in ov                 # 0.6724 measured -- clears 0.5 unaided

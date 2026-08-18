@@ -936,6 +936,29 @@ CURATION_OVERRIDES: dict = {
     # Calibrated floor 0.25 keeps the gate live: an all-null regression still hard-fails
     # (KIND_ALL_NAN), and a fall below 0.25 (losing the 2018+ populated seasons) still trips.
     "silver_ams_cotton_quality": {"min_nonnull_frac_overrides": {"samples_classed": 0.25}},
+    # ── D-LD TRANCHE 3 (2026-08-19, the UNICA cards): the SAME OP-8 calibration, and it is a
+    # DIRECT CONSEQUENCE of landing silver_unica_monthly_ethanol_sales' card rather than an
+    # independent finding. Carding a wide table makes value_columns the CARD-METRIC set, so six
+    # columns that had no floor at all (value_columns was []) inherit the uniform provisional 0.5 in
+    # one step. Four of them clear it; the two EXPORT-channel columns cannot and never will.
+    # MEASURED on the canonical parquet 2026-08-19 (58 rows): external_current_m3 and
+    # external_prior_m3 are each populated in exactly 10 rows = 0.1724. The nulls are STRUCTURAL,
+    # not a regression -- the export column was only ever captured for seasons 2012_2013 and
+    # 2013_2014, and every bulletin parsed since prints the domestic split alone (the card's notes
+    # carry the same fact and refuse an export-share answer for any month after 2013 on that
+    # ground). Without this pin the newly-carded table would fail V001 on its FIRST gate fire and
+    # take the whole unica family red -- a gate turned red by an act of DOCUMENTATION, which is the
+    # class this override table exists to prevent.
+    # Floor 0.12 = measured-minus-margin, the ams-cotton/pink-sheet precedent, with the D-LD
+    # nass_crop_progress lesson applied on top: the gate's file sample UNDERSHOOTS the full-scan
+    # fraction, so a floor set at the measured value would fail on sampling noise alone. The gate
+    # stays LIVE -- KIND_ALL_NAN still hard-fails an all-null column, and losing the ten populated
+    # 2012-2014 rows still trips it. The other four columns stay at the table floor deliberately:
+    # internal_current_m3 is the weakest of them at 0.6724 and clears 0.5 on its own.
+    "silver_unica_monthly_ethanol_sales": {"min_nonnull_frac_overrides": {
+        "external_current_m3": 0.12,
+        "external_prior_m3": 0.12,
+    }},
     # ── Pink Sheet first-fire calibration (2026-08-04, world_bank-firstfire-smoke): the WB CMO
     # rapeseed-oil series starts mid-history, so its all-time non-null fraction can never reach the
     # uniform provisional 0.5 -- MEASURED at the first real fetch: rapeseed_oil_usd_t 0.3672, its 5yr

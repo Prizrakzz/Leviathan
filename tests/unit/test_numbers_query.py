@@ -823,9 +823,25 @@ _D_LD_IDS = ("silver_fgis", "silver_wap_table01_revisions", "silver_fnc_colombia
 _D_LD_T2_IDS = ("silver_sagis_weekly_deliveries", "silver_ams_cotton_quality", "silver_nass_annual",
                 "silver_food_cpi", "silver_fnc_colombia_area_department",
                 "silver_mpoc_exports_by_country")
+# D-LD TRANCHE 3 (2026-08-19) landed the UNICA Brazil sugar/ethanol family, and its precondition is
+# the OPPOSITE of Tranche 2's: these three needed NO producer pre-step at all. `fortnight_date` has
+# been a real Glue DATE and `month_date` a clean ISO string since the tables landed, so the guard could
+# always have anchored on them -- what kept them dark was a SERVING judgement about ceilings (each
+# stops months in the past, and the hazard is a correctly-guarded old number narrated as current),
+# ratified by the owner on 2026-08-18. A SEPARATE tuple for the same reason Tranche 2 got one: a reader
+# tracing why an id is in the baseline should land on the paragraph that actually explains it.
+# Same standing as every wave above: present regardless of the DEPTH-wave kill-switch, so they belong
+# in the BASELINE and are NOT among the three ids that switch reverts.
+# NOTE the fourth table of that tranche's scope, silver_unica_biweekly_release_series, is deliberately
+# ABSENT: it was REFUSED a card because its only temporal column is free-text 'DD/MM/YYYY' on which the
+# guard degenerates to a lexicographic compare (measured: 119/122 rows admitted at EVERY as-of,
+# including a Feb-2026 stamp at asof 2015-01-01). That refusal is pinned in
+# tests/unit/test_capability_wiring.py::test_the_refused_unica_table_is_carded_nowhere.
+_D_LD_T3_IDS = ("silver_unica_biweekly_season_history", "silver_unica_corn_ethanol",
+                "silver_unica_monthly_ethanol_sales")
 _DEPTH_BASELINE = ((_PRE_WAVE_8 | set(_PRICE_IDS) | set(_SEAM_C_IDS) | set(_WIRING_W1_IDS)
                     | set(_W3_IDS) | set(_D_CW_IDS) | set(_D_PQ_IDS) | set(_D_LD_IDS)
-                    | set(_D_LD_T2_IDS))
+                    | set(_D_LD_T2_IDS) | set(_D_LD_T3_IDS))
                    - _QUARANTINE_STRIPPED)          # D-LD Track 2 #5, see above
 
 

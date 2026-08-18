@@ -370,7 +370,48 @@ P1_TABLES = ["silver_psd", "silver_wasde", "silver_production", "silver_esr", "s
              # ADD COLUMNS has NOT been applied, so a load run before that ALTER would mirror FOUR
              # columns and every as-of-guarded pg lookup would fail on the missing column. Run the ALTER
              # (and the producer re-fire) first; the entry is defined here so the two cannot drift.
-             "silver_mpoc_exports_by_country"]
+             "silver_mpoc_exports_by_country",
+             # ── D-LD TRANCHE 3 (2026-08-19): the three UNICA cards. Same doctrine, unbent: a SERVED
+             # numbers table must be MIRRORED, because served-but-unmirrored means
+             # GRAPHRAG_NUMBERS_BACKEND=pg raises UndefinedTable per query and SILENTLY FALLS BACK TO
+             # ATHENA (pgnumbers.py:66-77, warning-log only). All three are tiny -- 305 / 86 / 58 rows,
+             # one flat object each, projection forbidden, no partition grid -- so the fallback here is
+             # a latency cost rather than a LIST-storm one; the entries exist so the mirror set and the
+             # served set cannot drift, not because these three are expensive to miss.
+             # SEQUENCING, common to all three and simpler than Tranche 2's: their PIT anchors are
+             # columns that ALREADY EXIST in the live catalog (no staged-hidden column, no gated ADD
+             # COLUMNS, no ordering constraint), so the in-VPC load
+             # (jobs/submit/submit_batch_load_numbers_pg.py) can run the moment the cards land.
+             # numbers_parity deliberately carries NO SAMPLE_COMMODITY row for any of them yet: a
+             # sampled-but-unmirrored table turns the WHOLE parity gate red (numbers_parity.py:30-36
+             # imports P1_TABLES and SKIPs loudly), so the pair is chosen against the first real mirror.
+             #
+             # silver_unica_biweekly_season_history -- 305 rows / one 20 KB object. TYPE DOCTRINE: the
+             # five wide metrics (cane_crushed_t, sugar_produced_t, ethanol_total_m3,
+             # ethanol_anhydrous_m3, ethanol_hydrous_m3) mirror NUMERIC. harvest_year is the period_col
+             # but period_sql_type is STRING ('2025_2026'), so it stays TEXT COLLATE "C" -- correct,
+             # because build_sql emits a string equality on it and nothing compares it arithmetically.
+             # region (the country_col), fortnight_label, source_idm and source_position_date (the
+             # provenance_col) stay TEXT COLLATE "C"; fortnight_seq is a bigint that is NOT a metric and
+             # NOT an int period col, so it routes to TEXT COLLATE "C" as a label. The Glue DATE
+             # fortnight_date stringifies to ISO TEXT COLLATE "C", which is exactly what the guard's
+             # CAST-as-varchar compare expects on both backends.
+             "silver_unica_biweekly_season_history",
+             # silver_unica_corn_ethanol -- 86 rows / one 12 KB object. Same shape one axis narrower
+             # (no region column). Six wide metrics mirror NUMERIC; harvest_year TEXT COLLATE "C" (string
+             # period), fortnight_seq TEXT COLLATE "C" (a label, not a metric), fortnight_date the ISO
+             # date render, fortnight_label / source_idm / source_position_date TEXT COLLATE "C".
+             "silver_unica_corn_ethanol",
+             # silver_unica_monthly_ethanol_sales -- 58 rows / one 10 KB object, the smallest of the
+             # three. Six wide metrics mirror NUMERIC. TWO type facts worth stating because neither is
+             # the obvious guess: month_date is a Glue STRING already in ISO 'YYYY-MM-01' form (not a
+             # date32 like the two cards above), so it mirrors TEXT COLLATE "C" directly and the
+             # CAST-as-varchar guard compares byte-identically on both backends with no render step in
+             # between; and `is_partial` is a BOOLEAN that the card deliberately does NOT serve as a
+             # metric (it is measured unreliable -- see the card's notes), so it is not in the numeric
+             # set and lands as text. month_num is a bigint label, TEXT COLLATE "C"; harvest_year /
+             # month_label / source_idm / source_position_date likewise.
+             "silver_unica_monthly_ethanol_sales"]
 SCHEMA = "leviathan_dev"                       # == numbers.pgnumbers.SCHEMA == query.ATHENA_DB
 GLUE_DB = "leviathan_dev"
 

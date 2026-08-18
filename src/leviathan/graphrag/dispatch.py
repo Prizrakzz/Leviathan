@@ -137,6 +137,29 @@ REGISTRY: tuple[ToolSpec, ...] = (
         #   * AMS US cotton CLASSING QUALITY -- tokens `cotton classing` / `tenderable`. It is the only
         #     card in the estate whose SUBJECT is what a harvested crop turned out to BE rather than how
         #     much of it there is, and the clause says QUALITY out loud for exactly that reason.
+        #
+        # D-LD TRANCHE 3 (2026-08-19): THREE MORE, the UNICA Brazil sugar/ethanol family. The dark spot
+        # this closes is measurable rather than rhetorical: the word `ethanol` did not appear ANYWHERE in
+        # this purpose string before today, while `when_to_use` directly below already invited the router
+        # to send "are ethanol margins squeezing demand" here. The estate was advertising a routing cue
+        # for a series it never claimed to hold. Three tokens, each verified absent from this string
+        # before this wave (`cane crush`, `corn ethanol`, `ethanol sales`) -- and note that a bare
+        # `ethanol` would have been the free-ride this coverage map exists to catch the moment the second
+        # of the three landed, since one token cannot advertise three cards.
+        #   * UNICA BIWEEKLY CANE CRUSH -- token `cane crush`. The clause says SEASON-TO-DATE out loud
+        #     because the metrics are cumulative and every other weekly/biweekly card in this string is a
+        #     flow, and it names raw AND white sugar so the physical-supply-behind-the-contract link is
+        #     explicit rather than inferred.
+        #   * UNICA BIWEEKLY CORN ETHANOL -- token `corn ethanol`. Advertised as "a separate feedstock
+        #     from cane" in the same breath, because the two cards' ethanol columns are the substitution
+        #     hazard of this tranche: same publisher, same bulletin, same units, different feedstock.
+        #   * UNICA MONTHLY ETHANOL SALES -- token `ethanol sales`. SALES, never production: it is the
+        #     demand side of the same book and the clause says so, since a mill's output and a mill's
+        #     sales differ by inventory and neither substitutes for the other.
+        # THE CEILING RIDES THE SENTENCE, the mpoc_trade idiom: all three are advertised as a closed
+        # archive ending February 2026 (sales November 2024), so the planner never routes a "where is
+        # the crush now" ask here in the first place rather than routing it and relying on the card's
+        # notes to catch it afterwards.
         purpose=("leakage-safe SQL over OBSERVED values (USDA PSD S&D vintages, ESR export sales AND "
                  "their PACE vs the year-ago week/marketing year -- national OR BY DESTINATION (which "
                  "country bought how much this marketing year), FGIS export INSPECTIONS -- the tonnage "
@@ -181,7 +204,16 @@ REGISTRY: tuple[ToolSpec, ...] = (
                  "African crop estimates plus the two SAGIS weekly South African files -- weekly "
                  "export pace AND weekly PRODUCER DELIVERIES into commercial storage (maize, wheat, "
                  "soybeans, sunflower, season-to-date), which are arrivals from the farm and not "
-                 "shipments abroad; FAOSTAT annual production; "
+                 "shipments abroad; "
+                 "UNICA's BRAZILIAN SUGARCANE AND ETHANOL book -- the biweekly Centro-Sul CANE CRUSH "
+                 "bulletin (cane crushed, sugar made and ethanol distilled SEASON-TO-DATE by region, "
+                 "which is the physical Brazilian supply print behind raw and white sugar), Brazilian "
+                 "CORN ETHANOL production fortnight by fortnight since 2021 as a separate feedstock "
+                 "from cane, and monthly mill ETHANOL SALES with the year-ago month printed beside "
+                 "each figure -- every one of those three a CLOSED-FOR-NOW archive whose newest "
+                 "reading is February 2026 (sales: November 2024), because the 2026/27 season has no "
+                 "readable bulletin at all, so they are the HISTORY and never the current crush; "
+                 "FAOSTAT annual production; "
                  "weekly USDA NASS crop CONDITIONS (percent good-to-excellent, poor-to-very-poor) and "
                  "planting / emergence / harvest PACE by US state; ANNUAL US crop ACREAGE, yield and "
                  "production BY STATE back to 1866 -- how many hectares of corn, soybeans, upland "
@@ -331,7 +363,12 @@ def planner_sys(max_contracts: int = MAX_CONTRACTS) -> str:
     "  department=fnc_colombia_area_department, South African estimates=sagis_cec (weekly EXPORT\n"
     "  pace=sagis_weekly_exports, weekly PRODUCER DELIVERIES into storage=sagis_weekly_deliveries -- three\n"
     "  different cards, and deliveries are arrivals from the farm, never shipments abroad), country\n"
-    "  consumer-price inflation=food_cpi, weather=weather_z,\n"
+    "  consumer-price inflation=food_cpi,\n"
+    "  Brazilian CANE CRUSH season-to-date=unica_biweekly_season_history (Brazilian CORN\n"
+    "  ethanol=unica_corn_ethanol, monthly mill ETHANOL SALES=unica_monthly_ethanol_sales -- three\n"
+    "  different cards: the first is what the mills MADE from cane, the second is a different FEEDSTOCK\n"
+    "  entirely, the third is what was SOLD; all three end in early 2026 and none can answer a\n"
+    "  2026/27 question), weather=weather_z,\n"
     "  FX=fred_fx, ENSO=noaa_oni, IOD=noaa_iod, ...). Fill it whenever a family is implicated even when you\n"
     "  routed reasoning-only. Use ONLY names from the enum; empty when none apply.\n"
     "- A PROCESSING MARGIN, CRUSH or GRIND question (\"how much pressure is the ethanol grind under\", \"are\n"

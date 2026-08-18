@@ -4,7 +4,7 @@ table_name: silver_unica_biweekly_season_history
 layer: silver
 domain: production
 lifecycle_class: source
-owner: silver-platform
+owner: numbers-platform
 schema_version: 1
 glue_database: leviathan_dev
 s3_root: s3://leviathan-dev-shahem-001/silver/unica_biweekly_season_history
@@ -101,18 +101,21 @@ required_nonnull:
 value_columns:
 - cane_crushed_t
 - sugar_produced_t
+- ethanol_total_m3
+- ethanol_anhydrous_m3
+- ethanol_hydrous_m3
 min_nonnull_frac: 0.5
 min_nonnull_frac_status: provisional
 coverage_axis: harvest_year x region x fortnight_seq
 vintage_retention: latest-only
-knowledge_date_col: null
-knowledge_semantics: null
-publication_lag_days: null
+knowledge_date_col: fortnight_date
+knowledge_semantics: data_date
+publication_lag_days: 14
 freshness_sla:
   cadence: weekly
   max_lag_days: null
-consumers: feature_layer
-numbers_ref: null
+consumers: both
+numbers_ref: configs/graphrag/numbers/tables.yaml#silver_unica_biweekly_season_history
 cascade_ref: null
 source_contract_ref: configs/datasets/source_contracts.yaml#unica_biweekly
 serving_table: null

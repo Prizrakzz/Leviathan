@@ -3023,3 +3023,397 @@ tables:
       be handed months of that same year that nobody could have read yet, so treat any month in the
       as-of's own calendar year as NOT YET PUBLISHED regardless of what the guard returns, and do not
       replay this card as though it were vintage.
+
+  # ══════════════════════════════════════════════════════════════════════════════════════════════
+  # D-LD TRANCHE 3 (2026-08-19) -- THE UNICA BRAZIL SUGAR/ETHANOL FAMILY.
+  #
+  # Five silver tables, THREE cards. The unica family gate passes (5 tables, zero reds, 2026-08-18)
+  # and the canonical republish is gate-clean, so what follows is a SERVING decision per table and
+  # not a data-availability one.
+  #
+  # THE OWNER'S RATIFICATION, and it is the reason this tranche exists at all: "you can have them
+  # but PIT aware with its ceiling, so for example if someone asked about something that happened in
+  # 2021, it would fetch that data but if someone asked a run down over july 2026, it can't use that
+  # data." The three cards below implement exactly that and nothing more. History serves normally
+  # through the ordinary as-of guard; a post-ceiling question returns NO ROWS, and it does so
+  # SELF-ENFORCINGLY -- `fortnight_date <= asof - lag` cannot return a row the table does not hold,
+  # so no extra code fence exists or is needed. What the cards add is the WHY: each notes block
+  # states where its own series stops and what stopped it, so the answer agent explains the gap
+  # instead of narrating a February-2026 reading as the current crush.
+  #
+  # THE CEILING, MEASURED PER TABLE (pyarrow over s3://leviathan-dev-shahem-001, 2026-08-19; the
+  # ceilings are NOT common to the family and were not assumed from one another):
+  #   silver_unica_biweekly_season_history  fortnight_date 2012-04-16 .. 2026-02-01 (season 2025_2026
+  #                                         position 01/02, 29 rows that season)
+  #   silver_unica_corn_ethanol             fortnight_date 2021-04-16 .. 2026-02-01 (same last
+  #                                         bulletin, DIFFERENT table -- measured, not inherited)
+  #   silver_unica_monthly_ethanol_sales    month_date 2012-04-01 .. 2025-11-01 ROWS, but the last
+  #                                         POPULATED month is 2024-11-01 -- the 2025_2026 rows exist
+  #                                         and are entirely null. TWO ceilings, and the card states
+  #                                         both, because the guard stops at the first and a reader
+  #                                         who quotes a number stops at the second.
+  #
+  # WHY 2026/27 IS EMPTY, carried on all three cards because it is the question a July-2026 ask
+  # actually raises: the 2026/27 season has ZERO parseable bulletins. The origin PRUNES superseded
+  # bulletins, so the running season is not archived as it goes; the manifest's only Apr-2026 row
+  # (idm 32820684) is a MISLABELLED off-topic season-close document, the single Wayback capture is
+  # doc_type=unknown (an unparseable variant layout), and May-Aug 2026 have no captures at all. A
+  # force-overwrite bronze rebuild returned written=0, which makes the emptiness CONTENT truth
+  # rather than a pipeline stall. There is nothing to serve for 2026/27 and there may never be.
+  #
+  # ── THE FOURTH TABLE IS REFUSED, AND THE REFUSAL IS THE MEASUREMENT ────────────────────────────
+  # silver_unica_biweekly_release_series was in this tranche's scope and IS NOT CARDED. It has no
+  # date column of any kind: its only temporal field is `position_date`, a Glue STRING carrying
+  # free-text bulletin stamps. Anchoring the guard on it does not merely fail to help -- it produces
+  # a predicate that is worse than absent, because `CAST(position_date AS varchar) <= '<asof>'` is a
+  # LEXICOGRAPHIC compare over 'DD/MM/YYYY' text. MEASURED against the canonical parquet: 119 of 122
+  # rows pass that guard at EVERY as-of tried, including asof 2015-01-01, at which the February-2026
+  # bulletin rows ('01/02/2026' -> '0' < '2') are admitted while March-2025 rows ('31/03/2025' ->
+  # '3' > '2') are dropped. That is a live PIT LEAK pointed the wrong way, and it is precisely the
+  # thing the owner's ratification is a ratification OF.
+  # The date text cannot be repaired at card level either: the column mixes DD/MM/YYYY with
+  # MM/DD/YYYY ('10/16/2025', 3 rows) and carries DAY/MONTH-SWAPPED DUPLICATES of bulletins that are
+  # already present under their correct stamp -- '05/01/2024' holds byte-identical digits to
+  # '01/05/2024' (50.612 vs 50612.000, 18.978 vs 18978.000, 31.634 vs 31634.000), i.e. one bulletin
+  # ingested twice under two parses and two scales. Its `cane_crushed_current_t` is additionally
+  # NULL in 109 of 122 rows and the remaining metric columns hold each other's quantities on ~90% of
+  # rows (at position 01/10/2021 centro_sul, `sugar_produced_current_t` = 467,439 is the CANE figure
+  # the season-history table stores as 467,439,086 t). The card is refused pending a producer fix
+  # that emits a real DATE anchor; nothing here is a judgement about the underlying bulletin.
+  # silver_unica_annual_state stays DARK this wave by the same wave's scope decision.
+  #
+  # ── A DATA VERDICT THAT RIDES ALL THREE CARDS, AND IT IS NOT COSMETIC ──────────────────────────
+  # A minority of rows in each table came out of the parser WRONG, in two measured mechanisms, and
+  # both are BULLETIN-SCOPED: every affected row carries the same `source_position_date`. That is
+  # why all three cards declare `provenance_col: source_position_date` -- every returned row carries
+  # its originating bulletin stamp as `revision_stamp`, so the defect is checkable ON THE ROW rather
+  # than only in prose. The notes name the bad stamps explicitly.
+  #   (1) COLUMN MIS-ASSIGNMENT (season_history only). Bulletin 16/07/2022 shifted every metric one
+  #       column left; bulletins 01/02/2013 and 16/03/2013 duplicated cane into ethanol_total_m3 and
+  #       sugar into ethanol_anhydrous_m3.
+  #   (2) pt-BR THOUSANDS SEPARATOR read as a decimal point -- values exactly 1000x too small.
+  #       Bulletin 10/16/2025 (season_history + corn_ethanol) and 09/01/2022 (corn_ethanol).
+  # THE CLASSIFICATION IS PROVEN, not inferred: excluding exactly those stamps leaves 252/305
+  # season-history rows on which ethanol_anhydrous + ethanol_hydrous == ethanol_total to a maximum
+  # relative error of 0.0, and 64/64 corn rows on which the quinzenal identity holds to 0.0 -- while
+  # 43 of the 300 rows in the full table breach that identity by more than 1%. The clean set is also
+  # exactly additive across regions (centro_sul == sao_paulo + demais_estados, max rel err 0.0).
+  # WHAT THE CARD CANNOT DO ABOUT IT, said plainly rather than implied: the registry offers no
+  # row-level exclusion. `Metric.row_filters` is keyed by commodity and these cards have no
+  # commodity column, so the enforcement available today is the provenance stamp plus the notes --
+  # a CLASS-1 weak fence by the estate's own doctrine. The durable fix is a producer re-parse, and
+  # until it lands these cards trade a documented, row-stamped defect against three tables that are
+  # otherwise unreachable.
+  # ══════════════════════════════════════════════════════════════════════════════════════════════
+  silver_unica_biweekly_season_history:
+    description: >
+      UNICA (Uniao da Industria de Cana-de-Acucar) Brazil -- the BIWEEKLY sugarcane harvest bulletin,
+      season-to-date. One row per harvest season x region x fortnight position: how much cane has been
+      crushed, how much sugar made and how much ethanol distilled SINCE THE SEASON OPENED, as of that
+      fortnight. This is the Centro-Sul crush report the sugar market trades off -- the physical
+      Brazilian supply print behind raw and white sugar, and behind Brazilian hydrous ethanol. It is
+      CUMULATIVE, not a per-fortnight flow. Three regions: sao_paulo, demais_estados (the rest of the
+      Centro-Sul) and centro_sul, which is their SUM and not a fourth place. Coverage is bulletin-
+      sparse -- nine seasons between 2012/13 and 2025/26 with 2016/17 through 2020/21 absent entirely.
+    grain: "one row per harvest_year x region x fortnight position (biweekly, season-to-date cumulative)"
+    shape: wide
+    commodity_col: null                 # no product column -- every row is Brazilian cane and its output
+    # D-PQ CLASS-1 on a card with NO commodity axis (the mpoc_exports idiom). `commodity` emits no SQL
+    # here, but an EMPTY commodity_values would let a corn, cocoa or palm lookup sail through and return
+    # a Brazilian cane tonnage wearing the wrong label. agent._check_commodity_class reads
+    # commodity_values ALONE (never commodity_col), so the closed set is a free pre-SQL teaching refusal.
+    # Both sugar slugs are listed on purpose: the table's sugar output is the deliverable behind BOTH the
+    # ICE raw (#11) and white (#5) contracts, and refusing a caller for picking one of two names for the
+    # same physical product would be a manufactured decline. Corn slugs are DELIBERATELY EXCLUDED even
+    # though ethanol is served here -- Brazilian CORN ethanol is a different table
+    # (silver_unica_corn_ethanol) and letting corn_cbot through would defeat that separation.
+    commodity_values: [raw_sugar, white_sugar]
+    country_col: region                 # repurposed as the GEO axis (the fnc area-by-department idiom)
+    period_col: harvest_year
+    period_type: marketing_year
+    period_sql_type: string             # values are '2025_2026' with an UNDERSCORE (probed)
+    date_col: fortnight_date            # Glue `date`; the fortnight POSITION the cumulative total is at
+    knowledge_date_col: fortnight_date
+    knowledge_semantics: data_date
+    publication_lag_days: 14            # position date -> bulletin print; see the POINT-IN-TIME note
+    provenance_col: source_position_date  # DP-2 -> alias `revision_stamp`: the originating bulletin
+    metrics:
+      cane_crushed_t:       {unit: "MT", desc: "sugarcane crushed in that region SINCE THE SEASON OPENED, cumulative metric tonnes (not the fortnight's own crush)"}
+      sugar_produced_t:     {unit: "MT", desc: "sugar produced season-to-date, cumulative metric tonnes"}
+      ethanol_total_m3:     {unit: "m3", desc: "total ethanol produced season-to-date, cumulative cubic metres (== anhydrous + hydrous, exactly, on clean rows)"}
+      ethanol_anhydrous_m3: {unit: "m3", desc: "ANHYDROUS ethanol season-to-date, cumulative cubic metres -- the gasoline-blending grade"}
+      ethanol_hydrous_m3:   {unit: "m3", desc: "HYDROUS ethanol season-to-date, cumulative cubic metres -- the neat fuel sold at the pump"}
+    notes: >
+      EVERY NUMBER ON THIS CARD IS CUMULATIVE SEASON-TO-DATE, AND THAT IS THE EASIEST THING TO GET
+      WRONG. cane_crushed_t at position 01/02 is everything crushed since the season opened in April,
+      not the crush of that fortnight. A fortnight's own throughput is the DIFFERENCE between two
+      consecutive positions of the SAME season and region, and it is only valid inside one season --
+      differencing across a season boundary subtracts a full year's total from a two-week one. Never
+      compare a cumulative figure to a weekly or monthly flow from another table, and never call a
+      season-to-date total "this fortnight's crush".
+      ALWAYS PASS A REGION. country selects the region and there are exactly three values:
+      sao_paulo, demais_estados and centro_sul. With no region the read spans all three and a
+      latest-value read returns ONE arbitrary region's row. centro_sul IS THE SUM OF THE OTHER TWO --
+      verified exactly, to a maximum relative error of 0.0 across all five metrics -- so it is a TOTAL
+      and not a third place: never add the three together, and never present centro_sul beside its two
+      components as though they were peers. There is no north-northeast region here and no Brazil
+      national total: UNICA's biweekly bulletin covers the Centro-Sul only, so a Brazil-wide cane or
+      sugar figure is NOT available from this card and must not be manufactured by scaling one up.
+      period is the SEASON, written '2025_2026' with an UNDERSCORE -- not '2025/26', not '2025-26' and
+      not a bare year. The Brazilian cane season runs April to March, so season 2025_2026 opens in
+      April 2025 and its positions run into early 2026: a question about "2025" has to choose which
+      season it means, and the answer must say which one it used.
+      COVERAGE IS BULLETIN-SPARSE AND THE GAPS ARE NOT ZEROS. Nine seasons are present -- 2012_2013,
+      2013_2014, 2014_2015, 2015_2016, 2021_2022, 2022_2023, 2023_2024, 2024_2025, 2025_2026 -- and
+      2016_2017 through 2020_2021 are ABSENT ENTIRELY. Within a season only the positions carried by an
+      archived bulletin exist: season 2025_2026 holds positions 1-2 and 14-20 with 3-13 missing,
+      because UNICA prunes superseded bulletins and the intermediate ones were never captured. A
+      missing position did not have zero crush; it was not archived. Never narrate a gap as a stop, a
+      collapse or a drought, and never interpolate across one.
+      THE SERIES STOPS AT 2026-02-01 AND THE REASON IS NOT STALENESS. That position -- season
+      2025_2026, fortnight 01/02 -- is the newest row this table holds, so agg=latest at any as-of from
+      2026-02-15 onward returns it. The 2026/27 season has ZERO parseable bulletins: the origin prunes
+      superseded bulletins so the running season is not archived as it goes, the only April-2026
+      manifest entry is a mislabelled off-topic document, the single web-archive capture is an
+      unparseable layout variant, and May through August 2026 have no captures at all. A
+      force-overwrite rebuild wrote zero rows, which makes this CONTENT truth rather than a pipeline
+      stall. A question about the 2026/27 crush, or about where the crush stands in mid-2026, IS NOT
+      ANSWERABLE HERE: say that the series ends with the 1 February 2026 position of the 2025/26
+      season and that no 2026/27 bulletin has been published in a readable form, rather than offering
+      the February figure as though it were current. Say the reading's own season and position date out
+      loud on every figure and never call a dated reading 'current'.
+      FOUR BULLETINS ARE MEASURED BAD AND EVERY ROW CARRIES ITS OWN STAMP. Each row's originating
+      bulletin is returned as revision_stamp. DECLINE rather than quote any figure whose revision_stamp
+      is one of these four: '16/07/2022' (21 rows, season 2022_2023 -- every metric is shifted one
+      column left, so sugar_produced_t holds the CANE tonnage, ethanol_total_m3 holds the SUGAR and one
+      row carries a negative hydrous volume; the whole of season 2022/23 comes from this bulletin and
+      is therefore unusable); '01/02/2013' and '16/03/2013' (22 rows, season 2012_2013 and the tail of
+      2013_2014 -- ethanol_total_m3 duplicates cane_crushed_t and ethanol_anhydrous_m3 duplicates
+      sugar_produced_t); and '10/16/2025' (8 rows, season 2025_2026 positions 1-4 -- values are exactly
+      1000x too small, a Brazilian thousands separator read as a decimal point, and the stamp itself is
+      the only one written month-first). The remaining 252 rows satisfy
+      ethanol_anhydrous + ethanol_hydrous == ethanol_total to a maximum relative error of 0.0, which is
+      what identifies the bad four rather than plausibility. A quick sanity check on any single row:
+      seasonal Centro-Sul cane runs in the hundreds of MILLIONS of tonnes and sugar in the tens of
+      millions, so a "sugar" figure above ~45,000,000 t or any metric below ~100,000 is a defect row,
+      not a small season.
+      UNITS ARE RAW TONNES AND RAW CUBIC METRES, not thousands and not the source page's own display
+      scale. On the clean rows cane_crushed_t spans 5,674,389 to 649,389,303 MT, sugar_produced_t
+      179,554 to 42,245,297 MT and ethanol_total_m3 221,200 to 34,958,563 m3. Ethanol is a VOLUME and
+      sugar is a MASS: they cannot be added, netted, or converted into one another on this card, and a
+      sugar-versus-ethanol MIX is a ratio the source publishes separately and this table does not carry.
+      commodity IS OPTIONAL AND THERE IS NO PRODUCT AXIS -- every row covers cane and both of its
+      outputs at once. If you pass one, pass raw_sugar or white_sugar; a corn, palm, coffee or cocoa
+      lookup is refused before anything is queried. Brazilian CORN ethanol is NOT here: it is a
+      separate table, silver_unica_corn_ethanol, and the ethanol columns on this card are cane ethanol
+      only, so adding the two cards' ethanol together double-counts nothing but describes two different
+      feedstocks that must be labelled apart.
+      POINT-IN-TIME: each row is stamped with its own fortnight POSITION date and a 14-day publication
+      lag, so the 01/02 position becomes citable on 15 February. UNICA prints the bulletin roughly ten
+      days after the position closes, so the lag is deliberately generous -- never early, at most a few
+      days late. One consequence worth stating: a row's position date is a DATA date, not the date this
+      table acquired it, and several early-season rows were in fact parsed out of a much later
+      bulletin's restatement. The quantity was public at the position date either way, which is what
+      the guard encodes; but there is NO vintage axis here, so never present a figure from this card as
+      "as published on" any particular date, and never difference two rows and call it a revision.
+
+  silver_unica_corn_ethanol:
+    description: >
+      UNICA Brazil -- BIWEEKLY CORN ethanol production, the second feedstock. One row per harvest
+      season x fortnight position, carrying BOTH the fortnight's own output (the `quinzenal` columns)
+      AND the season-to-date cumulative (`accum`), split anhydrous / hydrous / total. This is the
+      fastest-growing supply line in Brazilian ethanol and it is the CORN half only: cane ethanol lives
+      on silver_unica_biweekly_season_history. There is no region axis -- one national series per
+      position -- and coverage starts with the 2021/22 season, which is when UNICA began publishing the
+      corn table at all.
+    grain: "one row per harvest_year x fortnight position (biweekly; corn ethanol, national)"
+    shape: wide
+    commodity_col: null                 # no product column -- every row is Brazilian corn ethanol
+    # The closed set is CORN, and deliberately so: the reflex reach for a Brazilian corn-ethanol ask is
+    # the Brazilian corn slug, and the US benchmark is the reflex reach for anyone thinking in CBOT
+    # terms. Sugar slugs are EXCLUDED even though the publisher is a sugar body -- a raw_sugar lookup
+    # landing here would return a corn-ethanol volume under a sugar label, which is exactly the
+    # cross-feedstock confusion this card exists to prevent.
+    commodity_values: [corn_cbot, campinas_corn_reference_bmf]
+    country_col: null                   # single-geography (Brazil); no region column exists here
+    period_col: harvest_year
+    period_type: marketing_year
+    period_sql_type: string             # '2025_2026', underscore (probed)
+    date_col: fortnight_date            # Glue `date`
+    knowledge_date_col: fortnight_date
+    knowledge_semantics: data_date
+    publication_lag_days: 14            # same bulletin, same cadence as the cane card
+    provenance_col: source_position_date  # DP-2 -> alias `revision_stamp`
+    metrics:
+      total_quinzenal_kl:     {unit: "m3", desc: "corn ethanol produced IN THAT FORTNIGHT ALONE, kilolitres (== cubic metres); a FLOW, not cumulative"}
+      anhydrous_quinzenal_kl: {unit: "m3", desc: "ANHYDROUS corn ethanol in that fortnight alone, kilolitres (a FLOW, not cumulative) -- the gasoline-blending grade"}
+      hydrous_quinzenal_kl:   {unit: "m3", desc: "HYDROUS corn ethanol in that fortnight alone, kilolitres (a FLOW, not cumulative) -- the neat pump fuel"}
+      total_accum_kl:         {unit: "m3", desc: "corn ethanol produced SINCE THE SEASON OPENED, cumulative kilolitres"}
+      anhydrous_accum_kl:     {unit: "m3", desc: "anhydrous corn ethanol season-to-date, cumulative kilolitres"}
+      hydrous_accum_kl:       {unit: "m3", desc: "hydrous corn ethanol season-to-date, cumulative kilolitres"}
+    notes: >
+      THIS CARD CARRIES BOTH A FLOW AND A CUMULATIVE, AND MIXING THEM IS THE PRIMARY HAZARD. The
+      `_quinzenal_` metrics are that fortnight's own production; the `_accum_` metrics are everything
+      since the season opened in April. They are not interchangeable and they differ by more than an
+      order of magnitude late in a season (a fortnight runs ~110,000-433,000 kl while a full season
+      accumulates to ~8,190,625 kl). Pick one deliberately, say which one you quoted, and never
+      difference two `_accum_` rows and present the result beside a `_quinzenal_` figure as though the
+      two were the same measurement. Differencing `_accum_` is only valid WITHIN one season.
+      KILOLITRES ARE CUBIC METRES. The column names say kl and the unit is m3 -- 1 kl == 1 m3 exactly,
+      so these volumes are directly comparable with the cane-ethanol columns on
+      silver_unica_biweekly_season_history without any conversion. What they must NOT be is silently
+      added to them without saying so: cane ethanol and corn ethanol are different feedstocks with
+      different economics, and Brazil's total ethanol supply is their sum stated AS a sum.
+      ANHYDROUS + HYDROUS == TOTAL, exactly, on every clean row (maximum relative error 0.0 across 64
+      rows), so the split is a real decomposition and never needs recomputing. Anhydrous is blended
+      into gasoline under the Brazilian mandate; hydrous is sold neat at the pump and competes with
+      gasoline on a per-kilometre basis. A question about blending demand is the anhydrous line; a
+      question about flex-fuel pump economics is the hydrous line.
+      period is the SEASON, written '2025_2026' with an UNDERSCORE. Five seasons exist and no more --
+      2021_2022, 2022_2023, 2023_2024, 2024_2025 and 2025_2026 -- because UNICA did not publish a corn
+      table before 2021/22. There is no history here for the corn-ethanol build-out before that, and no
+      earlier figure may be inferred from the cane card, which does not carry corn at all.
+      NO REGION AXIS. This is a single national series: there is no sao_paulo / centro_sul split for
+      corn ethanol the way there is for cane, so a regional corn-ethanol question is not answerable
+      here and must not be answered by borrowing the cane card's regions.
+      THE SERIES STOPS AT 2026-02-01, THE SAME LAST BULLETIN AS THE CANE CARD -- and that is a measured
+      coincidence of the shared publication, not an inherited assumption: this table's own ceiling was
+      sampled independently. agg=latest at any as-of from 2026-02-15 onward returns the 01/02 position
+      of season 2025_2026 (total_accum_kl 7,646,774 kl). The 2026/27 season has ZERO parseable
+      bulletins -- the origin prunes superseded bulletins, the only April-2026 manifest entry is a
+      mislabelled off-topic document, the one web-archive capture is an unparseable layout variant, and
+      May through August 2026 have no captures at all; a force-overwrite rebuild wrote zero rows. A
+      2026/27 corn-ethanol question, or "how much corn ethanol is Brazil making now" asked in mid-2026,
+      IS NOT ANSWERABLE HERE: say the series ends at the 1 February 2026 position and why, rather than
+      presenting that figure as the current rate. Never call a dated reading 'current'.
+      TWO BULLETINS ARE MEASURED BAD AND EVERY ROW CARRIES ITS OWN STAMP as revision_stamp. DECLINE
+      rather than quote any figure whose revision_stamp is '09/01/2022' (8 rows, season 2022_2023
+      positions 3-10) or '10/16/2025' (13 rows, season 2025_2026 positions 1-13): both are exactly
+      1000x too small, a Brazilian thousands separator read as a decimal point, and both are trivially
+      recognisable because a fortnight's real corn-ethanol output is in the hundreds of THOUSANDS of
+      kilolitres while those rows read in the hundreds. 21 of 86 rows are affected. The consequence for
+      season 2025_2026 is specific and worth stating: its positions 1-13 are unusable and its positions
+      14-20 are clean, so a season-to-date figure for that season is only trustworthy from the November
+      2025 position onward.
+      ONE MORE ROW-LEVEL DEFECT, unrelated to the two bulletins: season 2024_2025 position 24 (label
+      01/04) carries fortnight_date 2024-04-01 where the season calendar requires 2025-04-01 -- a
+      year-early stamp that places the season's LAST position before its FIRST (2024-04-16). Its
+      volumes are consistent with the rest of the season, but its date is not, so it sorts wrongly in
+      any chronological read and becomes citable a year too early under the as-of guard. Treat a
+      2024-04-01 reading on this card as the April 2025 season close.
+      SPARSENESS AND NULLS: season 2022_2023 position 1 is present with every metric null, and the
+      `_accum_` columns carry more nulls than the `_quinzenal_` ones (6 and 12 of 86) because a
+      bulletin sometimes prints the fortnight without restating the running total. A null is a missing
+      print, never a zero.
+      commodity IS OPTIONAL AND THERE IS NO PRODUCT AXIS. If you pass one, pass corn_cbot or
+      campinas_corn_reference_bmf; a sugar, palm or coffee lookup is refused before anything is
+      queried, because this card would otherwise hand back a corn-ethanol volume under a sugar label.
+      POINT-IN-TIME: each row is stamped with its own fortnight position date plus a 14-day publication
+      lag, so the 01/02 position is citable from 15 February. There is NO vintage axis: one value per
+      (season, position), taken from whichever archived bulletin carried it, so never present a figure
+      from this card as as-published-on-a-date and never difference two rows and call it a revision.
+
+  silver_unica_monthly_ethanol_sales:
+    description: >
+      UNICA Brazil -- MONTHLY ethanol SALES by Centro-Sul mills, with the year-ago month printed beside
+      each figure. One row per harvest season x month: total volume sold, split into the DOMESTIC
+      (internal) and EXPORT (external) channels, each with its own prior-year comparator. This is the
+      DEMAND side of the Brazilian ethanol book -- what left the mills, as against what the biweekly
+      cards say was produced. It is a monthly FLOW, not cumulative. Coverage is thin and holed: 58 rows
+      across nine seasons, only the April-November months of each season, and 16 of those rows carry no
+      figures at all.
+    grain: "one row per harvest_year x calendar month (monthly ethanol sales, Centro-Sul mills)"
+    shape: wide
+    commodity_col: null                 # no product column -- every row is Brazilian cane ethanol
+    # Sugar slugs, for the same reason the cane card carries them: this is UNICA's cane-mill book and
+    # its ethanol is the co-product of the sugar the ICE contracts deliver. Corn slugs are EXCLUDED --
+    # corn ethanol is silver_unica_corn_ethanol and it has no sales table at all, so admitting
+    # corn_cbot here would answer a corn question with a cane number.
+    commodity_values: [raw_sugar, white_sugar]
+    country_col: null                   # single-geography (Centro-Sul); no region column exists here
+    period_col: harvest_year
+    period_type: marketing_year
+    period_sql_type: string             # '2024_2025', underscore (probed)
+    date_col: month_date                # Glue STRING, but ISO 'YYYY-MM-01' in 58/58 rows (probed), so
+    #                                     the plain CAST-as-varchar compare orders it correctly on both
+    #                                     backends. date_col_type stays "string" -- it is not a
+    #                                     TIMESTAMP, so the DP-5 substr normalization does not apply.
+    knowledge_date_col: month_date
+    knowledge_semantics: data_date
+    publication_lag_days: 45            # month START -> month end (~30d) -> the following bulletin (~15d)
+    provenance_col: source_position_date  # DP-2 -> alias `revision_stamp`
+    metrics:
+      total_current_m3:    {unit: "m3", desc: "total ethanol SOLD by Centro-Sul mills in that month, cubic metres (a monthly FLOW; == internal + external where both are printed)"}
+      total_prior_m3:      {unit: "m3", desc: "the SAME month one year earlier, as printed in the source beside the current figure -- a stored comparator, never recompute it"}
+      internal_current_m3: {unit: "m3", desc: "DOMESTIC-market ethanol sales that month, cubic metres"}
+      internal_prior_m3:   {unit: "m3", desc: "domestic sales in the same month one year earlier, as printed"}
+      external_current_m3: {unit: "m3", desc: "EXPORT ethanol sales that month, cubic metres (sparse -- see notes)"}
+      external_prior_m3:   {unit: "m3", desc: "export sales in the same month one year earlier, as printed"}
+    notes: >
+      SALES ARE NOT PRODUCTION. This card is what mills SOLD; silver_unica_biweekly_season_history is
+      what they MADE. The two are different quantities on different cadences (monthly flow versus
+      biweekly cumulative) and the gap between them is inventory, not an error -- so never difference
+      one against the other and call the result a stock build, and never substitute a production figure
+      for a sales question or the reverse.
+      THESE ARE MONTHLY FLOWS. Unlike the two biweekly cards, nothing here is cumulative: a
+      month-on-month difference is a genuine change in the sales rate. internal + external ==
+      total, exactly, on every row where all three are printed.
+      THE PRIOR-YEAR COLUMNS ARE STORED, NOT DERIVED. total_prior_m3, internal_prior_m3 and
+      external_prior_m3 are the source's own year-ago comparators printed beside each current figure.
+      Read them; never recompute a year-on-year change by reaching for another row of this table, and
+      always quote the base beside any percentage so the comparison is visible.
+      EXPORT SALES ARE ALMOST ENTIRELY MISSING, and that is coverage rather than zero exports.
+      external_current_m3 is populated in only 10 of 58 rows -- seasons 2012_2013 and 2013_2014 and
+      nowhere else. A null export figure means the bulletin's export column was not captured, NOT that
+      Brazil exported no ethanol that month. An export-share or domestic-versus-export split is
+      therefore NOT ANSWERABLE for any month after 2013: decline rather than treating a null as zero or
+      inferring exports as total minus internal, which for those months would be an invented number.
+      internal_current_m3 is itself null in 19 of 58 rows.
+      ONLY APRIL THROUGH NOVEMBER EXIST. month_num takes the values 4 to 11 and nothing else, so
+      December, January, February and March are ABSENT from every season in this table. A full-season
+      or calendar-year ethanol sales total CANNOT be assembled here -- it would silently omit four
+      months, including the inter-harvest period. Say which months a figure covers, and decline a
+      calendar-year total.
+      SIXTEEN ROWS ARE PRESENT AND ENTIRELY EMPTY, which matters because the as-of guard will return
+      them. Season 2025_2026 has rows for all eight of its months (April to November 2025) and EVERY
+      metric on all eight is null; season 2022_2023 is null for seven of its eight months; and
+      September 2012 is null. So the table has TWO different ceilings and the answer must respect both:
+      the newest ROW is month_date 2025-11-01, but the newest month carrying an actual number is
+      2024-11-01 (total_current_m3 = 2,935,757 m3). A latest-value read at a 2026 as-of will hand back
+      a 2025 row with nothing in it -- report that the month exists but was never populated, and fall
+      back to November 2024 as the last real reading while saying it is that old. Do NOT present a
+      null row as a zero, and do NOT quietly quote the November 2024 figure as if it were current.
+      WHY IT STOPS THERE. The 2025/26 rows are empty and no 2026/27 rows exist at all because the
+      2026/27 season has ZERO parseable bulletins: the origin prunes superseded bulletins so the
+      running season is never archived, the only April-2026 manifest entry is a mislabelled off-topic
+      document, the single web-archive capture is an unparseable layout variant, and May through August
+      2026 have no captures; a force-overwrite rebuild wrote zero rows. A question about Brazilian
+      ethanol sales in mid-2026 is NOT ANSWERABLE from this card -- say the series' last populated
+      month is November 2024 and why, rather than narrating it as the current pace. Never call a dated
+      reading 'current'.
+      is_partial IS PRESENT AND IS NOT SERVED, and that is a data verdict rather than an omission. The
+      column flags exactly ONE row (October 2020) as partial, while at least three other rows are
+      obviously part-months and are flagged False: November 2020 reads 143,814 m3 against a prior-year
+      2,847,663; October 2021 reads 358,018 against 3,049,853; November 2021 reads 240,529 against
+      2,731,050. The flag therefore cannot be trusted to mark a partial month, so it is not offered as
+      a metric. Apply the check by hand instead: a total_current_m3 far below its own total_prior_m3 --
+      the full months in this table run 1,395,305 to 3,119,327 m3 -- is a PART-MONTH print, and quoting
+      it as a monthly rate or annualising it would be wrong by a factor of several.
+      MONTH LABELS ARE MIXED-LANGUAGE and must not be used as the time axis. month_label carries both
+      Portuguese and English abbreviations for the same months (Abr/Apr, Mai/May, Ago/Aug, Set/Sep,
+      Out/Oct) because different bulletin vintages were parsed differently. Use month_date, which is a
+      clean ISO 'YYYY-MM-01' string in all 58 rows, and note that it is the FIRST of the month while
+      the figure covers the WHOLE month.
+      period is the SEASON, written '2024_2025' with an UNDERSCORE, and the Brazilian season runs April
+      to March -- so season 2024_2025's months here are April to November 2024. Nine seasons appear and
+      2016/17 through 2019/20 are absent entirely.
+      commodity IS OPTIONAL AND THERE IS NO PRODUCT AXIS. If you pass one, pass raw_sugar or
+      white_sugar; a corn lookup is refused before anything is queried, because Brazilian corn ethanol
+      has no sales table and answering a corn question with this cane-mill number would be a
+      cross-feedstock substitution.
+      POINT-IN-TIME: each row is stamped with the FIRST of its own month plus a 45-day publication lag,
+      so a month becomes citable about six weeks after it opens -- the month has to finish (~30 days)
+      and then appear in the following bulletin (~15 days). The lag is deliberately generous: never
+      early, at most a couple of weeks late. There is NO vintage axis -- one value per (season, month)
+      from whichever archived bulletin carried it -- so never present a figure as as-published-on-date
+      and never difference two rows and call it a revision.

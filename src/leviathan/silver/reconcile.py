@@ -180,6 +180,25 @@ NUMBERS_TABLES = (
     #                                     contract (glue_type null) ahead of its own gated ADD COLUMNS, which
     #                                     is exactly why the trio needs a structural check now rather than
     #                                     after the catalog catches up.
+    # ── D-LD TRANCHE 3 (2026-08-19): the UNICA Brazil sugar/ethanol family. UNLIKE Tranche 2, these
+    #    three needed NO producer pre-step -- each already carried a usable data date, which is why
+    #    the DDL regen for this tranche is a no-op and only the PIT trio moves. They still land here
+    #    in the SAME change as the cards, because the drift test set(NUMBERS_TABLES) == set(tables.yaml
+    #    keys) is what makes that true rather than merely intended.
+    "silver_unica_biweekly_season_history",  # UNICA biweekly cane crush / sugar / ethanol, season-to-date
+    #                                     cumulative by region. data_date on the fortnight POSITION date
+    #                                     (a real Glue `date`, not derived), +14d for the bulletin print.
+    #                                     consumers=both: it was already a feature-layer table.
+    "silver_unica_corn_ethanol",        # UNICA biweekly CORN ethanol, fortnight flow + season accumulation.
+    #                                     data_date on fortnight_date, +14d -- the same bulletin as the cane
+    #                                     card, but the ceiling was sampled INDEPENDENTLY (both land on
+    #                                     2026-02-01; that is a measured coincidence, not an inheritance).
+    "silver_unica_monthly_ethanol_sales",  # UNICA monthly ethanol SALES with stored year-ago comparators.
+    #                                     data_date on month_date (a Glue string, ISO 'YYYY-MM-01' in 58/58
+    #                                     rows), +45d = month-end plus the following bulletin. This contract
+    #                                     ALSO carries the measured per-column floors for the two export
+    #                                     channels (CURATION_OVERRIDES), because carding a wide table is what
+    #                                     first subjects its metrics to a non-null floor at all.
     "gold_pattern_records",             # T2b: pattern-records ledger (44th contract, registered-partition GOLD,
     #                                     flag-off until its deck gates the flip) — enumerated the moment its
     #                                     tables.yaml card landed so its knowledge fields reconcile against F010

@@ -115,6 +115,27 @@ _EXPECTED_BRANCH_A = frozenset({
     "silver_food_cpi",
     "silver_fnc_colombia_area_department",
     "silver_mpoc_exports_by_country",
+    # D-LD TRANCHE 3 (2026-08-19) -- THREE MORE, the UNICA Brazil sugar/ethanol family, on the same
+    # doctrine (a served card must be mirrored) and with a simpler precondition than either tranche
+    # above. These needed NO producer pre-step: all three already carried a usable data date, so no
+    # staged-hidden column, no gated ALTER, no ordering constraint -- their pg load can run the moment
+    # the cards land. All three are FLAT, projection-forbidden and one object each (305 / 86 / 58
+    # rows), so an unmirrored read falls back to a single-object Athena scan and NOT the projected-grid
+    # LIST-storm class that silver_nass_annual and silver_fnc_colombia_area_department carry above.
+    # As with every entry above: the in-VPC load has NOT run, and numbers_parity carries no
+    # SAMPLE_COMMODITY row for any of the three.
+    # ONE ENTRY CARRIES AN EXTRA FACT worth reading before interpreting a gate result:
+    # silver_unica_monthly_ethanol_sales enters Branch A and therefore gains the V001 floor -- and its
+    # two EXPORT-channel columns are populated in only 10 of 58 rows (structurally: the column was
+    # captured for seasons 2012_2013 and 2013_2014 alone). Their measured floors live in the F010
+    # contract's min_nonnull_frac_overrides (0.12 each); without them this table would fail V001 on its
+    # FIRST fire and take the whole unica family red by an act of documentation.
+    # NOT HERE, deliberately: silver_unica_biweekly_release_series, which was REFUSED a card this wave
+    # (its free-text position_date makes the as-of guard a lexicographic no-op) and so is served by
+    # nothing and mirrors nothing; and silver_unica_annual_state, still dark by scope.
+    "silver_unica_biweekly_season_history",
+    "silver_unica_corn_ethanol",
+    "silver_unica_monthly_ethanol_sales",
 })
 
 
@@ -135,7 +156,7 @@ def test_branch_selection_all_45_tables():
         "why_this_matters": "a table entering Branch A gains the pg reload + parity + the V001 floor; "
                             "a table LEAVING it loses its only mirror refresh path while staying "
                             "served -- update this roster deliberately, never to make a test pass"}
-    assert len(branch_a) == 32                        # 20 + D-LD Track 1's six + Tranche 2's six
+    assert len(branch_a) == 35                        # 20 + Track 1's six + T2's six + T3's three
     assert branch_a | branch_b == set(names)          # partition: no table is UNKNOWN in the real registry
     assert not (branch_a & branch_b)
 

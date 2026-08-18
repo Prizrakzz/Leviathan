@@ -271,7 +271,17 @@ def test_cot_is_branch_a_twelfth_pg_mirror_table():
     # (nass_annual, fnc_colombia_area_department), so again the prevented fallback is the LIST-storm
     # class. One carries an extra precondition the by-NAME roster records: mpoc_exports_by_country's
     # anchor is staged HIDDEN pending its own gated Glue ALTER, so its LOAD must wait for that ALTER.
-    assert len(g.PG_MIRROR_TABLES) == 32, (
+    # D-LD TRANCHE 3 (2026-08-19) added THREE more -- the 33rd through 35th -- on that same rule:
+    # silver_unica_biweekly_season_history, silver_unica_corn_ethanol,
+    # silver_unica_monthly_ethanol_sales. The precondition is the OPPOSITE of Tranche 2's: none of
+    # these needed a producer pre-step, because all three already carried a usable data date (a real
+    # Glue `date` on the two biweekly tables, an ISO string on the monthly one) -- what kept them dark
+    # was a serving judgement about ceilings, not an unbuildable guard. All three are FLAT,
+    # projection-forbidden and one object each, so the fallback they prevent is latency and NOT the
+    # LIST-storm class. NOT in the roster and deliberately so: silver_unica_biweekly_release_series,
+    # which was REFUSED a card in that wave (free-text position_date makes the as-of guard a
+    # lexicographic no-op), so it is served by nothing and there is nothing to mirror.
+    assert len(g.PG_MIRROR_TABLES) == 35, (
         "pg-mirror roster changed; the by-NAME pin lives in tests/unit/test_silver_rebuild_gate.py::"
         "test_branch_selection_all_45_tables. Roster now: " + str(sorted(g.PG_MIRROR_TABLES)))
 

@@ -477,6 +477,30 @@ refs:
 #   silver_mpoc_exports_by_country -- DEFERRED (D-LD Tranche-2 card): no driver attribute names
 #     destination-side palm EXPORT offtake; the mpob refs above carry the origin side, and this card's
 #     archive additionally stops at 2023 -- a cascade leg reading it would go permanently stale.
+#   -- D-LD TRANCHE 3 (2026-08-19), the three UNICA cards. Same discipline as Tranche 2: the register
+#      is extended in the SAME change that lands the cards, so the completeness claim above stays true
+#      rather than becoming false one wave later. Same UN-DEFER GATE as every line above.
+#   silver_unica_biweekly_season_history -- DEFERRED (D-LD Tranche-3 card), and this is the one entry in
+#     the whole register where the near-neighbour is NOT hypothetical, so the refusal is argued rather
+#     than asserted. configs/graphrag/causal/raw_sugar.yaml is dense with Brazilian CANE mechanisms --
+#     La Nina drying the Center-South belt, frost in southern Sao Paulo, harvest rainfall against ATR
+#     sucrose -- and several of them name "crush" in their own mechanism text. NONE of them is a driver
+#     ATTRIBUTE naming an observable cane-crush series: they are weather and phenology attributes whose
+#     EFFECT is described in crush terms, which is exactly the binding this register exists to refuse.
+#     Wiring one of them to cane_crushed_t would make the map assert that a rainfall anomaly IS the
+#     crush number. TWO further reasons specific to this card, either sufficient on its own: the series
+#     is CUMULATIVE season-to-date, so a cascade window rule (which reads a level or a change over a
+#     window) would silently difference across a season boundary and subtract a full season from a
+#     fortnight; and it stops at 2026-02-01 with no 2026/27 bulletin in existence, so a leg reading it
+#     would go permanently stale in exactly the way the mpoc line above refuses.
+#   silver_unica_corn_ethanol -- DEFERRED (D-LD Tranche-3 card): no driver attribute names Brazilian
+#     corn-ethanol output. The nearest real attribute is the ethanol-diversion regime on the sugar side,
+#     which is about CANE being sent to ethanol instead of sugar -- a different feedstock from this
+#     card's entire subject, so binding it here would assert the substitution backwards.
+#   silver_unica_monthly_ethanol_sales -- DEFERRED (D-LD Tranche-3 card): no driver attribute names
+#     ethanol SALES. Same ceiling problem as its two siblings and one more of its own -- its last
+#     POPULATED month is November 2024, so a cascade leg would read a two-year-old figure as a current
+#     demand signal.
 
 # ── region_map (RF-2) -- driver region token -> table scope, for country_rule=region refs ──────────────
 # TOP-LEVEL sibling of refs (load_map returns refs only; cascade.load_region_map reads this block).

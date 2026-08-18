@@ -185,6 +185,37 @@ FRESHNESS_LAG_OVERRIDES: dict[str, int] = {
     "silver_sagis_weekly_deliveries": 14,
     "silver_food_cpi": 400,
     "silver_mpoc_exports_by_country": 400,
+    # D-LD TRANCHE 3 (2026-08-19): the SAME law again, and this time it reached the family ceiling on
+    # the FIRST of the three cards. MEASURED with build_catalog run before and after the cards landed:
+    # the `unica` family ceiling moved 14 -> 28 the moment silver_unica_biweekly_season_history
+    # declared publication_lag_days 14, because that table WAS the family minimum at lag 0.
+    # THE WRITE CADENCE IS THE ANSWER AND IT IS ONE FACT FOR ALL THREE: every unica silver table is
+    # produced by the SAME DAG, and that DAG fires cron(0 12 ? * WED *) -- WEEKLY -- rewriting the
+    # canonical parquet with --force-overwrite on every fire whatever the content lag (canonical
+    # objects last written 2026-08-18, with the newest bulletin inside them dated 2026-02-01: the
+    # clearest possible demonstration that write recency and content recency are different axes here).
+    # publication_lag_days guards the AS-OF axis; FreshnessLagDays measures S3 write recency; summing
+    # them is the banked category error, so each pin below equals that table's own cadence default and
+    # cancels the grace, changing nothing else.
+    #   silver_unica_biweekly_season_history -- 28 -> 14 (weekly default). This is the pin that holds
+    #     the family where it was.
+    #   silver_unica_corn_ethanol -- 28 -> 14 (weekly default). Its PRE-card ceiling was 45, but only
+    #     because its cadence was NULL (value_columns and grain were both empty, so _cadence had
+    #     nothing to read) and effective_sla_lag_days fell through to the fallback. Carding it ends
+    #     that state whether or not this entry exists, so the honest comparison is 28-unpinned against
+    #     14-pinned, not against the old placeholder -- and 14 is what its weekly producer earns.
+    #   silver_unica_monthly_ethanol_sales -- 90 -> 45 (MONTHLY default, not weekly). Deliberately NOT
+    #     tightened to the 14 its weekly-firing producer would justify: this table's pre-card ceiling
+    #     was already 45, the family minimum is 14 either way, and arming a tighter alarm is a separate
+    #     decision from cancelling a grace (the food_cpi precedent directly above, which likewise pinned
+    #     the cadence default rather than the fire cadence).
+    # NOT PINNED, as a measurement rather than an omission: silver_unica_annual_state (400, uncarded)
+    # and silver_unica_biweekly_release_series (45 fallback, REFUSED a card this wave -- see the
+    # tranche header in configs/graphrag/numbers/tables.yaml) declare no publication_lag_days at all,
+    # so there is no grace to cancel and an entry for either would be a pin against nothing.
+    "silver_unica_biweekly_season_history": 14,
+    "silver_unica_corn_ethanol": 14,
+    "silver_unica_monthly_ethanol_sales": 45,
 }
 
 
