@@ -118,6 +118,16 @@ class TableSpec(BaseModel):
     period_sql_type: Literal["int", "string"] = "string"     # how the period column compares in SQL
     period_offset: int = 0                                   # source-label translation: OUR convention is MY=START
     #                                                          year; ESR labels by END year -> offset +1 at compile
+    period_required: bool = False                            # D-LD review fold (wf_31e951c7 FATAL): a card whose
+    #                                                          EVERY release carries multiple period rows side by
+    #                                                          side (WAP prints the prior crop's prel. beside the
+    #                                                          current crop's proj.) makes a period-less agg=latest
+    #                                                          a WRONG-CROP answer -- the tiebreak picks the LOWEST
+    #                                                          period. True -> the agent REFUSES a period-less
+    #                                                          lookup pre-SQL with a teaching error (the
+    #                                                          commodity_values idiom on the period axis). Prose
+    #                                                          alone is the CLASS-1 lesson: teach in notes AND
+    #                                                          enforce here, the same fact said twice on purpose.
     levels_only: bool = False                                # SEAM C (futures v1.5-lite): a roll-spliced
     #                                                          continuous FRONT-MONTH settle series carries NO
     #                                                          true vintage and NO PIT-safe cross-date delta --

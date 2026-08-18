@@ -2172,10 +2172,40 @@ def _check_commodity_class(spec, reg: NumbersRegistry) -> None:
         f"commodity's number for the one that was asked about. Nothing was queried.")
 
 
+class PeriodRequiredOffCard(ValueError):
+    """A period-less lookup on a card that declares period_required (D-LD wf_31e951c7 FATAL).
+
+    The WAP class: every release prints MULTIPLE period rows side by side (the prior crop's
+    preliminary beside the current crop's projection), so a period-less agg=latest is not a
+    default -- it is a WRONG-CROP answer (the tiebreak picks the LOWEST period). The message
+    is the remedy, the CommodityOffCard idiom on the period axis."""
+
+
+def _check_period_required(spec, reg: NumbersRegistry) -> None:
+    """RAISE `PeriodRequiredOffCard` when the card declares period_required and the spec has no period.
+    No declaration (every card but WAP today) -> no fence, no behaviour."""
+    tid = str(getattr(spec, "table", "") or "").strip()
+    if not tid or str(getattr(spec, "period", "") or "").strip():
+        return
+    try:
+        ts = reg.get(tid)
+    except Exception:  # noqa: BLE001 -- an unknown table is the OTHER fence's business, not this one
+        return
+    if not getattr(ts, "period_required", False):
+        return
+    raise PeriodRequiredOffCard(
+        f"lookup REFUSED -- {tid} requires a period and none was given. Every release on this card "
+        f"carries MULTIPLE marketing-year rows side by side (the prior crop's near-final estimate "
+        f"beside the current crop's projection), so a period-less read does not have a sensible "
+        f"default: it silently returns the WRONG CROP'S number. Re-issue the call naming the period "
+        f"in the exact spelling the card's notes state, and say in the answer which marketing year "
+        f"the figure belongs to. Nothing was queried.")
+
+
 def _spec_error(inp: dict, exc: Exception, reg: NumbersRegistry) -> str:
     """A model-actionable message for a rejected tool input. Falls back to the raw exception text for any
     failure that is not a missing/blank required field, so nothing is ever swallowed."""
-    if isinstance(exc, CommodityOffCard):
+    if isinstance(exc, (CommodityOffCard, PeriodRequiredOffCard)):
         return str(exc)          # D-PQ CLASS-1: the message IS the remedy -- never truncated, never re-worded
     missing = [f for f in ("table", "metric") if not str((inp or {}).get(f) or "").strip()]
     if not missing:
@@ -2447,6 +2477,7 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                 try:
                     spec = _forced_spec(asof, dict(b.input))
                     _check_commodity_class(spec, reg)      # D-PQ CLASS-1: the card's own closed slug set
+                    _check_period_required(spec, reg)      # D-LD: the WAP wrong-crop fence (period axis)
                 except Exception as ve:  # noqa: BLE001 -- D-PQ SCHEMA-1: a REJECTED SPEC, said actionably
                     # Separated from the outer handler because the two failures are different things and
                     # the model must be able to tell them apart: this one means "your call was malformed,

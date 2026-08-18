@@ -779,6 +779,29 @@ def test_wap_enters_no_engine_map():
     assert all((row or {}).get("table") != WAP for row in casc.load_map().values())
 
 
+def test_wap_period_less_lookup_is_refused_by_code_not_prose():
+    """D-LD review FATAL (wf_31e951c7), the CODE half: every WAP circular prints the prior crop's
+    prel. beside the current crop's proj., and a period-less agg=latest tiebreaks to the LOWEST
+    marketing year -- the WRONG CROP (measured: 799.7 served where the desk means 843.8). The
+    notes teach always-pass-period; period_required ENFORCES it pre-SQL with a teaching error
+    (the CommodityOffCard idiom on the period axis). Both halves or the CLASS-1 lesson repeats."""
+    from leviathan.graphrag.numbers import agent as A, registry as R
+    reg = R.load_registry()
+    assert reg.get(WAP).period_required is True
+
+    class _Spec:
+        table = WAP
+        period = None
+        commodity = "wheat"
+    with pytest.raises(A.PeriodRequiredOffCard, match="WRONG CROP"):
+        A._check_period_required(_Spec(), reg)
+    _Spec.period = "2026/27"
+    A._check_period_required(_Spec(), reg)   # a pinned period passes
+
+    # the fence is opt-in: no other card declares it, so no other card's behaviour moves
+    assert [t for t, ts in reg.tables.items() if getattr(ts, "period_required", False)] == [WAP]
+
+
 # ====================================================================================================
 # D-LD TRACK 1 -- the silver_fnc_colombia_monthly card (LIGHT-THE-DARK census row 10). Colombia is the
 # largest washed-arabica origin and the monthly FNC print was silver-only: no card, no router clause, no

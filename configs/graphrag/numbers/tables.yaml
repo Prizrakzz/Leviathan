@@ -1440,6 +1440,9 @@ tables:
   # NOT in cascade_map (no engine leg) and NOT in cascade.PACE_TABLES -- a monthly ESTIMATE-REVISION
   # ledger is not a pace surface, and a pace [N] rendered off it would narrate USDA's editing as a flow.
   silver_wap_table01_revisions:
+    # D-LD review fold: period_required is the CODE half of the always-pass-period rule the
+    # notes teach -- the CLASS-1 idiom (teach AND enforce; prose alone moved the leak twice).
+    period_required: true
     description: >
       USDA FAS World Agricultural Production (WAP) circular, Table 01 -- the MONTH-OVER-MONTH REVISION
       ledger for world PRODUCTION. One row per monthly circular x commodity group x country x marketing
