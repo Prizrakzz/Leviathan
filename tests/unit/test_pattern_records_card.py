@@ -224,10 +224,16 @@ def test_card_exposed_to_agent_when_flag_on(monkeypatch):
 
 def test_visible_tables_off_equals_full_registry_minus_card(monkeypatch):
     """The byte-identity guarantee: with the flag OFF the exposed set is EXACTLY the pre-feature set
-    (sorted(reg.tables) minus the one new card) -- so tool_schema + system_prompt are unchanged."""
+    (sorted(reg.tables) minus the one new card) -- so tool_schema + system_prompt are unchanged.
+
+    AMENDED (D-LD Track 2 #5, 2026-08-18): `visible_tables` now strips QUARANTINED cards by the same
+    mechanism, so the pre-feature set this compares against is the registry minus the ledger card AND
+    minus every `quarantined: true` card. The flag's own guarantee is untouched -- it is still the only
+    thing this test varies -- and the quarantine strip has its own pins in test_capability_wiring."""
     monkeypatch.delenv("GRAPHRAG_PATTERN_RECORDS", raising=False)
     reg = load_registry()
-    assert na._visible_tables(reg) == sorted(t for t in reg.tables if t != pr.PR_TABLE)
+    assert na._visible_tables(reg) == sorted(t for t, ts in reg.tables.items()
+                                             if t != pr.PR_TABLE and not ts.quarantined)
 
 
 def test_recorded_history_addendum_gated_in_answer_system(monkeypatch):

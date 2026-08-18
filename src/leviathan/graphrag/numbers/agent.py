@@ -2223,6 +2223,35 @@ def _spec_error(inp: dict, exc: Exception, reg: NumbersRegistry) -> str:
     return " ".join(parts)
 
 
+def tables_queried(calls: list) -> list[str]:
+    """D-LD Sitting-A (Lens C, LIST B "UNMEASURABLE-USAGE"): WHICH CARDS THIS TURN ACTUALLY TOUCHED.
+
+    THE HOLE THIS CLOSES. Every lit card was unmeasurable in production: `Leviathan/Serving` carries no
+    `table`/`card`/`metric_id` dimension anywhere in its 43 metric names, `tracekeys` declared no table
+    key, and the numbers stack prints nothing per lookup -- so the only per-table record in the estate was
+    `eval.py`'s offline per-answer artifact. "Which cards do users actually hit" was answerable from
+    evals and from nowhere else. The call list has carried the answer all along; nobody lifted it.
+
+    DERIVED, NEVER STAMPED PER LOOKUP: the ONE producer is the finished `calls` list (the same list every
+    citation, footer and [N] handle is built from), so this can never disagree with the provenance the
+    reader sees. Sorted + de-duplicated -> a stable set, not a call-order log; a card read four times
+    appears once, because the question this answers is REACH, not volume (`MsNumbers` is the lane's
+    volume metric and it is undimensioned by table on purpose).
+
+    `compute_stat` IS EXCLUDED, and it is the only exclusion. `_stat_calls` mints synthetic [N] rows whose
+    `query.table` is the STATS TOOL NAME rather than a card id (agent.py `_row`) -- a pseudo-table that is
+    in no registry, has no card, and would otherwise appear in a per-table usage census as the most-read
+    "table" in the estate. Everything else counts, INCLUDING declined/errored/no_rows lookups: a card the
+    agent reached for and got nothing from is a card that was queried, and dropping those would make the
+    census read cleanest exactly where serving is most broken."""
+    seen: set[str] = set()
+    for c in (calls or []):
+        tid = str((((c or {}).get("query") or {}).get("table") or "")).strip()
+        if tid and tid != STATS_TOOL_NAME:
+            seen.add(tid)
+    return sorted(seen)
+
+
 def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU, reg: Optional[NumbersRegistry] = None,
                    query_fn=None, max_calls: int = 6, max_tokens: int = 1500, on_call=None,
                    families: Optional[list] = None, futures_newest_first: bool | str = False) -> dict:
@@ -2379,6 +2408,9 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                     if agg:
                         result["answer"] = agg
                         result["esr_aggregate_legs"] = len(indexed)
+                        # D-LD Sitting-A: taken AFTER the aggregate legs were appended -- this early
+                        # return is the one path that grows `calls` and then leaves immediately.
+                        result["tables_queried"] = tables_queried(calls)
                         return result
                     # generic breakdown with no available aggregate: the plain national-total decline stands.
                     preface += _esr_destination_preface(dest)
@@ -2467,6 +2499,11 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                         preface += shape_preface
             if preface:
                 result["answer"] = (preface + text).strip()
+            # D-LD Sitting-A: the per-turn usage census, taken at the LAST possible moment. The ESR
+            # aggregate legs and the pattern-records legs above APPEND to `calls`, so a stamp beside the
+            # result dict's construction would under-report exactly the deterministic legs the engine
+            # injected on the turns where the model's own lookups were not enough.
+            result["tables_queried"] = tables_queried(calls)
             return result
         convo.append({"role": "assistant", "content": resp.content})
 
@@ -2712,7 +2749,10 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                 except Exception:  # noqa: BLE001 — progress reporting can never fail a lookup
                     pass
         convo.append({"role": "user", "content": results})
-    return {"answer": "(stopped: max tool calls reached)", "calls": calls}
+    # D-LD Sitting-A: the budget-exhausted return is a REAL turn with real lookups behind it, so the usage
+    # census rides it too -- otherwise the BUSIEST turns are precisely the ones missing from the read.
+    return {"answer": "(stopped: max tool calls reached)", "calls": calls,
+            "tables_queried": tables_queried(calls)}
 
 
 # --- J3: DATED ROW RENDERING (OUTCOMES_JOIN_PLAN items 54-60a, 91) ----------------------------------

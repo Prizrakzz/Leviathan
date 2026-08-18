@@ -91,9 +91,16 @@ class TableSpec(BaseModel):
     description: str
     quarantined: bool = False                                # SILVER-F047 (silver_nasa_power): no engine map may
     #                                                          reference a quarantined table -- enforced build-
-    #                                                          failing by config_check.check_quarantine. Direct
-    #                                                          agent lookups stay allowed (raw daily weather has
-    #                                                          no gold replacement; gold_weather_z = anomalies).
+    #                                                          failing by config_check.check_quarantine.
+    #                                                          D-LD TRACK 2 #5 (2026-08-18) CORRECTS THE OLD
+    #                                                          SECOND HALF OF THIS NOTE ("direct agent lookups
+    #                                                          stay allowed"): the card is now stripped from
+    #                                                          `visible_tables` too, so it reaches neither the
+    #                                                          agent tool enum, the system-prompt cards, nor the
+    #                                                          planner family enum -- the model cannot name it.
+    #                                                          It is still LOADED, so `reg.get`/`build_sql` and
+    #                                                          every programmatic lookup are untouched (that is
+    #                                                          the carve-out; see visible_tables' docstring).
     athena_table: Optional[str] = None                       # physical Glue table when it differs from the id —
     #                                                          e.g. silver_esr serves from silver_esr_compact
     #                                                          (registered partitions; the projected original
@@ -404,11 +411,33 @@ def visible_tables(reg: NumbersRegistry) -> list[str]:
 
     The pattern-records import is LOCAL: ``pattern_records`` imports the numbers stack, and a module-level
     import here would make the registry -- which every numbers module loads -- the bottom of an import
-    cycle. It is a pure-python module with no AWS/IO at import, so the call is cheap."""
+    cycle. It is a pure-python module with no AWS/IO at import, so the call is cheap.
+
+    D-LD TRACK 2 #5 (2026-08-18, ratified): ...MINUS every ``quarantined`` card as well, by exactly the
+    mechanism the flag-gated card uses -- one filter, one function, both consumers. THE CONTRADICTION THIS
+    CLOSES: ``silver_nasa_power`` carries ``quarantined: true`` whose own card says "QUARANTINED from
+    serving -- weather is served from gold_weather_z" (SILVER-F047), yet it sat in the agent's tool enum
+    and its system-prompt card, so the model was invited to look up the one table the doctrine says it may
+    not serve from. It is also the ONLY lit card absent from the pg mirror (``load_pg_numbers.P1_TABLES``,
+    excluded for size), so every such lookup fell through to Athena ON THE PROJECTED weather prefix -- the
+    ~130-600K-LIST class that cost $134 in Jul-2026. A build-failing engine-map fence (check_quarantine)
+    over an enum that still offered the table is a fence with a door beside it.
+
+    WHAT IS **NOT** CHANGED, and must not be: ``load_registry`` still LOADS the card (it is dropped from
+    VISIBILITY, never from the registry), so ``reg.get(tid)``, ``Q.build_sql`` and every direct,
+    programmatic lookup compile exactly as before -- that is the quarantine doctrine's own carve-out, and
+    it is what keeps the F010 reconcile back-pointer, ``NUMBERS_TABLES`` and the card's lints green. The
+    kill-switch drop (``_disabled_tables``) is the other thing entirely: it removes the card from the
+    registry and makes ``build_sql`` raise KeyError. Quarantine is a VISIBILITY verdict; disable is a
+    LOADING verdict; conflating them would fail-close a table the lints still have to read."""
     tables = sorted(reg.tables)
     from leviathan.graphrag.numbers import pattern_records as PR
     if PR.PR_TABLE in tables and not PR.pattern_records_on():
         tables = [t for t in tables if t != PR.PR_TABLE]
+    # D-LD Track 2 #5 / SILVER-F047: quarantined cards never reach the tool enum, the system-prompt cards
+    # or the planner's family enum. Read off the LOADED spec (not a hardcoded id) so the verdict travels
+    # with the card, exactly as `check_quarantine` reads it.
+    tables = [t for t in tables if not getattr(reg.tables.get(t), "quarantined", False)]
     return tables
 
 

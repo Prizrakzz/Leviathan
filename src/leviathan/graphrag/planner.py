@@ -1598,7 +1598,11 @@ def _ec2_prefetch(sg, query, asof, retrieve, fill_slice):
 
     THREE GATES, ALL OF WHICH MUST HOLD, and any one short returns None -- at which point `_fill` omits
     the kwarg and the walk is the shipped walk byte for byte:
-      (1) `GRAPHRAG_EVIDENCE_BATCH` truthy. Default off; this item ships dark and is armed per arm.
+      (1) `GRAPHRAG_EVIDENCE_BATCH` truthy. LIVE IN SERVING since rev 98 (the dev task definition sets it
+          to "1"); the code default is still OFF, which is the rollback -- clearing the env var restores
+          the byte-identical single-get walk with no redeploy of this module. CORRECTED 2026-08-18 (D-LD
+          Track 2 #8): this line read "ships dark and is armed per arm", which was true only of the EC-2
+          gate arms and had been stale since the flip.
       (2) The retriever IS the real `ev.retrieve` (through the `getattr(retrieve, 'func', ...)` partial
           idiom this module already uses for the embedding pre-warm). An injected fake is hermetic by
           contract: it may not accept `candidates=`, it may not read pg at all, and prefetching rows it

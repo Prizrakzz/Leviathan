@@ -59,7 +59,9 @@ decision. `without_patience()` below is the enforcement: the numbers lane SUSPEN
 across its own borrow and restores it, so its borrow is the legacy single-get on every lane while the
 walk's own borrows keep the horizon they were given.
 
-EC-2 BATCHED FILL READS + THE BORROW LEDGER (2026-08-15, SHIPS DARK behind GRAPHRAG_EVIDENCE_BATCH).
+EC-2 BATCHED FILL READS + THE BORROW LEDGER (2026-08-15; LIVE IN SERVING at GRAPHRAG_EVIDENCE_BATCH=1
+since rev 98 -- CORRECTED 2026-08-18, D-LD Track 2 #8, this line used to say "SHIPS DARK". The code
+default remains OFF, so clearing the env var is still the no-redeploy rollback).
 `fetch_candidates` is ONE BORROW PER NODE, and a max-width walk visits hundreds of nodes -- that borrow
 COUNT is the capacity problem EC-1 bought hardware to survive and EC-3 bought patience to tolerate.
 `fetch_candidates_batch()` is the structural fix: N nodes collapse into ceil(N/chunk) LATERAL

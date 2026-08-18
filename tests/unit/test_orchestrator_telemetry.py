@@ -492,3 +492,80 @@ def test_no_session_still_stamps_ms_dispatch(monkeypatch):
                                   ms_dispatch=17)
     assert out["trace"]["ms_dispatch"] == 17
     assert "session" not in out                                 # no store -> no writeback, but timer lands
+
+
+# ════════════════════════════════════════════════════════════════════════════════════════════════════
+# D-LD SITTING-A -- PER-TABLE USAGE (Lens C LIST B: all 27 cards were unmeasurable in production).
+# The trace column is the artifact half; `NumbersTableTouched` is the CloudWatch half. Both come from
+# ONE producer, `numbers.agent.tables_queried`, derived from the finished call list.
+# ════════════════════════════════════════════════════════════════════════════════════════════════════
+def test_tables_queried_reaches_the_trace_on_a_numbers_only_turn():
+    """THE LIFT, on the lane the recon measured. The agent has always known which cards it read; until
+    D-LD that knowledge was written to a dict the orchestrator dropped -- the C2/U3 class."""
+    out = orch.respond("what were US corn ending stocks", graph=_graph(), asof="2024-06-01",
+                       classify=_force("numbers_only"), numbers_client=_numbers_client(),
+                       query_fn=_query_fn)
+    assert out["intent"] == "numbers_only"
+    assert out["trace"]["tables_queried"] == ["silver_psd"]
+
+
+def test_tables_queried_reaches_the_trace_on_a_hybrid_turn(monkeypatch):
+    """BOTH LANES OR NEITHER (the #144 precedent). The hybrid join discards the agent's prose, so the
+    census has to be copied off the payload exactly as `futures_coverage_guard` is."""
+    _stub_embed(monkeypatch)
+    res = orch.respond("given low ending stocks is corn a buy", graph=_graph(), asof="2024-06-01",
+                       classify=_force("hybrid"), call=_reason_call, retrieve=_retrieve,
+                       numbers_client=_numbers_client(), query_fn=_query_fn)
+    assert res["intent"] == "hybrid"
+    assert res["trace"]["tables_queried"] == ["silver_psd"]
+
+
+def test_tables_queried_is_registered_so_it_reaches_an_artifact():
+    """REGISTRATION IS THE LIFT: a trace key absent from `TRACE_RECORD_KEYS` reaches NO eval artifact,
+    silently. Appended at the TAIL, per the 12f append-never-sort law."""
+    from leviathan.graphrag import tracekeys as tk
+    assert tk.TRACE_RECORD_KEYS[-1] == "tables_queried"
+    assert len(set(tk.TRACE_RECORD_KEYS)) == len(tk.TRACE_RECORD_KEYS)
+
+
+def test_table_touches_emitted_beside_the_turn_block(monkeypatch):
+    """The EMF half fires from the same seam, one Count per DISTINCT card."""
+    from leviathan.graphrag import emf
+    emitted: list = []
+    monkeypatch.setattr(emf, "emit",
+                        lambda metrics, *, dimensions=None, units=None: emitted.append((metrics, dimensions)))
+    canned = {"intent": "numbers_only", "model": "m", "answer": "a",
+              "trace": {"ms_numbers": 10, "tables_queried": ["silver_psd", "silver_wasde"]}}
+    monkeypatch.setattr(orch, "_respond", lambda *a, **k: canned)
+    orch.respond("q", graph=None)
+    touches = [(m, d) for m, d in emitted if emf.TABLE_TOUCH_METRIC in m]
+    assert [d["table"] for _m, d in touches] == ["silver_psd", "silver_wasde"]
+    assert all(m[emf.TABLE_TOUCH_METRIC] == 1 for m, _d in touches)
+    # ...and the turn block itself never grew a `table` dimension (the R14 cost ruling).
+    turn = next(d for m, d in emitted if "TurnLatencyMs" in m)
+    assert "table" not in turn and set(turn) == {"intent", "model", "mode"}
+
+
+def test_no_table_touches_on_a_turn_whose_numbers_lane_never_ran(monkeypatch):
+    """ABSENT means the lane never ran -- a reasoning turn must not dilute a per-card panel."""
+    from leviathan.graphrag import emf
+    emitted: list = []
+    monkeypatch.setattr(emf, "emit",
+                        lambda metrics, *, dimensions=None, units=None: emitted.append((metrics, dimensions)))
+    monkeypatch.setattr(orch, "_respond",
+                        lambda *a, **k: {"intent": "reasoning", "model": "m", "answer": "a", "trace": {}})
+    orch.respond("q", graph=None)
+    assert not [m for m, _d in emitted if emf.TABLE_TOUCH_METRIC in m]
+
+
+def test_a_failing_touch_emitter_never_breaks_the_turn(monkeypatch):
+    """Fail-open, end to end: the emitter itself raises and the reader still gets the answer."""
+    from leviathan.graphrag import emf
+
+    def _boom(*_a, **_kw):
+        raise RuntimeError("cloudwatch is having a day")
+    monkeypatch.setattr(emf, "emit_table_touches", _boom)
+    canned = {"intent": "numbers_only", "model": "m", "answer": "a",
+              "trace": {"ms_numbers": 10, "tables_queried": ["silver_psd"]}}
+    monkeypatch.setattr(orch, "_respond", lambda *a, **k: canned)
+    assert orch.respond("q", graph=None)["answer"] == "a"

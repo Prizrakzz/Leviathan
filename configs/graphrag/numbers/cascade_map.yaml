@@ -409,6 +409,51 @@ refs:
 #     cross-commodity spread needs two contracts in one leg; the map has neither knob. This is engine
 #     work (the premium/spread engine the tables.yaml futures block defers), not a mapping gap.
 
+# -- D-LD TRACK 2 #9 SERVED-TABLE DISPOSITIONS (2026-08-18) -- the OTHER direction of the same register --
+# The C3 block above records refs this file REFUSED to bind. This block records the mirror gap the D-LD
+# recon found: numbers cards with no row in this file, so a reader could not tell an unconsidered table
+# from a considered one. Silence is not a disposition; every card without an ACTIVE ref above now has a
+# line here (review wf_051e926a F5 corrected the first draft, which covered ten and claimed completeness
+# while the six newest D-LD cards sat silent). "DEFERRED" is a comment-register disposition (no YAML rows
+# on purpose: reconcile_cascade reads raw refs and would demand a silver-registry cascade_ref back-pointer
+# for every row minted here), recorded WITHOUT quantification -- writing a table, metric, scale and window
+# IS the quantification decision, and that decision (Option C, PRICE_DOCTRINE_AND_DARK_DATA_WAVE_PLAN)
+# stays FENCED. Reason each, one line: the C3 skips needed evidence because a plausible near-neighbour
+# existed and was refused; these need only the fact that nothing asks for them.
+# UN-DEFER GATE, common to all: a causal DAG driver attribute (configs/graphrag/causal/*.yaml
+# `silver_ref`) that NAMES the series, and then one row above -- in that order, never the reverse.
+#
+#   silver_wasde -- DEFERRED: no driver attribute asks for a WASDE line; the balance-sheet refs above are
+#     silver_psd's, and a second balance-sheet home would fork one driver across two vintage regimes.
+#   silver_pink_sheet -- DEFERRED: R4 fences it from every engine ref (PRICE_TABLES), and lifting that is
+#     Option C, which stays fenced.
+#   silver_production -- DEFERRED: no driver attribute asks for FAOSTAT annual production; the production
+#     drivers resolve to silver_psd, which is vintage-clean where this card is not.
+#   silver_nasa_power -- see the C3 REFUSAL above (precipitation_mm, sign-inversion argument): this card
+#     is CONSIDERED-AND-REFUSED there, not silent here; it is additionally quarantined (SILVER-F047) and
+#     stripped from serving visibility as of D-LD Sitting-A. The weather legs resolve to gold_weather_z.
+#   silver_icco_cocoa -- DEFERRED: no driver attribute names grindings.
+#   silver_mpob -- DEFERRED: no driver attribute names Malaysian palm stocks or output.
+#   silver_mpoc_stock_comparison -- DEFERRED: no driver attribute names destination-side vegoil stocks.
+#   silver_sagis_cec -- DEFERRED: no driver attribute names the South African crop estimate.
+#   silver_sagis_weekly_exports -- DEFERRED: no driver attribute names South African weekly export
+#     volumes; the export refs above resolve to silver_psd.
+#   silver_nass_crop_progress -- DEFERRED: no driver attribute names crop condition or planting/harvest
+#     pace.
+#   gold_pattern_records -- DEFERRED: the outcomes ledger card, not an observed-data series; a cascade
+#     ref would feed engine output back into the engine.
+#   silver_fgis -- DEFERRED (D-LD Track-1 card, lit 2026-08-18): no driver attribute names weekly export
+#     inspections; the export-pace refs above resolve to silver_psd/esr.
+#   silver_wap_table01_revisions -- DEFERRED (D-LD Track-1 card): a REVISIONS series; a cascade ref
+#     would bind a driver to vintage deltas, which no DAG attribute names.
+#   silver_fnc_colombia_monthly -- DEFERRED (D-LD Track-1 card): no driver attribute names Colombian
+#     monthly coffee output.
+#   silver_fnc_colombia_exports_port_type -- DEFERRED (D-LD Track-1 card): no driver attribute names
+#     port-type export splits.
+#   silver_nass_citrus -- DEFERRED (D-LD Track-1 card): no driver attribute names citrus forecasts.
+#   silver_mpoc_trade_stats_monthly -- DEFERRED (D-LD Track-1 card): no driver attribute names
+#     destination-side palm import volumes; the mpob refs above carry the origin side.
+
 # ── region_map (RF-2) -- driver region token -> table scope, for country_rule=region refs ──────────────
 # TOP-LEVEL sibling of refs (load_map returns refs only; cascade.load_region_map reads this block).
 # resolve: EXACT region tokens (as written in configs/graphrag/causal/*.yaml) that name ONE country.

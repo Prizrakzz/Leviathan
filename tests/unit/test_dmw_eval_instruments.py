@@ -797,13 +797,18 @@ def test_wrong_slot_audit_is_a_registered_column_at_the_tail():
     RE-ANCHORED A FIFTH TIME (D-HP-25 V2, 2026-08-15, plan 10.30.6): `evidence_geo_dropped` -- the [E]
     geo-containment census -- was APPENDED after THAT. Tail moved by one more; nothing else. NOTE WHAT
     NEEDED NO LINE HERE: V1's `geo_checked` / `geo_mismatch` ride INSIDE `number_handles` and register no
-    top-level key, so they shift no column at all."""
-    assert tk.TRACE_RECORD_KEYS[-6] == "wrong_slot_audit"
-    assert tk.TRACE_RECORD_KEYS[-5] == "slot_orphan_dropped"
-    assert tk.TRACE_RECORD_KEYS[-4] == "episode_spans_validated"
-    assert tk.TRACE_RECORD_KEYS[-3] == "plan_tokens"
-    assert tk.TRACE_RECORD_KEYS[-2] == "evidence_slot_dropped"
-    assert tk.TRACE_RECORD_KEYS[-1] == "evidence_geo_dropped"
+    top-level key, so they shift no column at all.
+
+    RE-ANCHORED A SIXTH TIME (D-LD Sitting-A, 2026-08-18): `tables_queried` -- the per-table usage census,
+    the first per-table record production has ever had -- was APPENDED after THAT. Tail moved by one more;
+    nothing else, and the invariant this pin polices is again unchanged."""
+    assert tk.TRACE_RECORD_KEYS[-7] == "wrong_slot_audit"
+    assert tk.TRACE_RECORD_KEYS[-6] == "slot_orphan_dropped"
+    assert tk.TRACE_RECORD_KEYS[-5] == "episode_spans_validated"
+    assert tk.TRACE_RECORD_KEYS[-4] == "plan_tokens"
+    assert tk.TRACE_RECORD_KEYS[-3] == "evidence_slot_dropped"
+    assert tk.TRACE_RECORD_KEYS[-2] == "evidence_geo_dropped"
+    assert tk.TRACE_RECORD_KEYS[-1] == "tables_queried"
     for older in ("number_handles", "rerank_lane", "walk_shape", "citation_resolved"):
         assert tk.TRACE_RECORD_KEYS.index(older) < tk.TRACE_RECORD_KEYS.index("wrong_slot_audit")
     assert len(set(tk.TRACE_RECORD_KEYS)) == len(tk.TRACE_RECORD_KEYS)

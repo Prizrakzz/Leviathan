@@ -301,6 +301,44 @@ TRACE_RECORD_KEYS: tuple[str, ...] = (
                                  # `number_handles` beside the seven D-HP counters already there -- one
                                  # registered key, one stamp site, one producer, no column shift. They
                                  # are documented at `number_handles` above.
+    # -- D-LD SITTING-A, THE USAGE CENSUS (2026-08-18). APPENDED AT THE TAIL, per the law at the head of
+    # this tuple: every artifact written before this line keeps its column order, and this column arrives
+    # last in every artifact written after it.
+    "tables_queried",            # THE FIRST PER-TABLE RECORD ANYWHERE IN PRODUCTION. Lens C measured the
+                                 # hole exactly: `Leviathan/Serving` has 43 metric names and NO `table`,
+                                 # `card`, `metric_id` or `family` dimension in any of them; this registry
+                                 # declared no table key either; and the numbers stack prints nothing per
+                                 # lookup. The ONLY per-table record in the estate was `eval.py`'s own
+                                 # per-call `{"table": ..., "metric": ...}` -- an offline artifact -- so
+                                 # "which of the lit cards do users actually reach" was answerable from
+                                 # evals and from nowhere else, for all 27 cards at once.
+                                 # SHAPE: a SORTED, DE-DUPLICATED list of card ids (`numbers.agent
+                                 # .tables_queried`, derived from the finished `calls` list -- the same
+                                 # list every citation and [N] handle is built from, so the column can
+                                 # never disagree with the provenance the reader was shown). REACH, NOT
+                                 # VOLUME: a card read four times appears once, deliberately -- `MsNumbers`
+                                 # is the lane's volume metric and it stays undimensioned by table.
+                                 # `compute_stat` is EXCLUDED and is the only exclusion: it is a pseudo-
+                                 # table minted by `_stat_calls`, in no registry, and would otherwise top
+                                 # every usage census in the estate.
+                                 # STAMPED ON BOTH LANES (the #144 precedent, carried the same way as
+                                 # `futures_coverage_guard`): run_numbers_only copies it off the agent's
+                                 # return, run_hybrid off the same payload through its join holder. A
+                                 # single-lane stamp would have made the first per-table read blind to the
+                                 # lane most numbers arrive on.
+                                 # PRESENT-WITH-ZERO, NOT ABSENT-WHEN-EMPTY -- the ONE departure from this
+                                 # file's usual idiom, and it is deliberate: a numbers turn that queried
+                                 # nothing stamps `[]`, which is that turn's own zero and is precisely the
+                                 # observation a reach census must be able to make (the `CascadeFired`
+                                 # 0-semantics). ABSENT means the numbers lane never ran -- which on
+                                 # HYBRID is never (the lane is always submitted), so there a swallowed
+                                 # lane failure/timeout ALSO stamps `[]` rather than dropping the key
+                                 # (review wf_051e926a F4): absence stays a numbers_only-didn't-run
+                                 # signal, and a hybrid lane outage is not mistaken for a reasoning turn.
+                                 # ITS EMF SIBLING IS NOT THIS COLUMN: `emf.emit_table_touches` emits
+                                 # `NumbersTableTouched` on its OWN record under a `[["table"]]` dimension
+                                 # set -- never on the turn emitter, whose (intent x model x mode) set the
+                                 # R14 cost ruling forbids multiplying. The two come from one producer.
 )
 
 # out["intent_decision"][decision_key] -> record[record_column].

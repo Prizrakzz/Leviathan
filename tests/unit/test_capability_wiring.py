@@ -51,6 +51,10 @@ _ADVERTISED = {
     "silver_psd": ("psd",),
     "silver_wasde": ("wasde", "farm price"),
     "silver_production": ("faostat",),
+    # RETAINED BUT NO LONGER EXERCISED (D-LD Track 2 #5, 2026-08-18): silver_nasa_power is
+    # `quarantined: true` and `visible_tables` now strips it, so it never reaches the loop below. The
+    # entry stays so that un-quarantining the card restores a green coverage property in one step
+    # instead of failing on a map hole that was deleted for an unrelated reason.
     "silver_nasa_power": ("weather aggregates",),
     "silver_esr": ("export sales",),
     "silver_fred_fx": ("fx",),
@@ -93,6 +97,64 @@ def test_every_visible_numbers_table_is_advertised_to_the_router(monkeypatch):
                           f"clause AND the entry together (D-CW-1a), or the table is dark to the router")
     dark = [t for t in visible if not any(tok in purpose for tok in _ADVERTISED[t])]
     assert not dark, f"served but UNADVERTISED to the router: {dark}"
+
+
+# ════════════════════════════════════════════════════════════════════════════════════════════════════
+# D-LD TRACK 2 #5 -- THE QUARANTINE STRIP (SILVER-F047).
+#
+# THE CONTRADICTION IT CLOSES: silver_nasa_power's own card says "QUARANTINED from serving -- weather is
+# served from gold_weather_z", `check_quarantine` fails the BUILD on any engine-map reference to it, and
+# yet it sat in the agent's tool enum and its system-prompt cards -- the model was invited to look up the
+# one table the doctrine forbids serving from. It is also the only lit card absent from the pg mirror
+# (`load_pg_numbers.P1_TABLES`, excluded for size), so each such lookup fell through to Athena on the
+# PROJECTED weather prefix: the ~130-600K-LIST class that cost $134 in Jul-2026.
+# ════════════════════════════════════════════════════════════════════════════════════════════════════
+_QUARANTINED = "silver_nasa_power"
+
+
+def test_quarantined_cards_never_reach_the_agent_tool_enum(monkeypatch):
+    """VISIBILITY, on all three surfaces the model can read: the tool enum, the system-prompt cards, and
+    (through `family_names`) the planner's own family enum."""
+    monkeypatch.setenv("GRAPHRAG_PATTERN_RECORDS", "off")
+    reg = _reg()
+    quarantined = [t for t, ts in reg.tables.items() if ts.quarantined]
+    assert _QUARANTINED in quarantined, "the F047 card vanished -- re-point this pin, do not delete it"
+    visible = nreg.visible_tables(reg)
+    assert not [t for t in quarantined if t in visible]
+    enum = na.tool_schema(reg)["input_schema"]["properties"]["table"]["enum"]
+    sp = na.system_prompt(reg, stats_tool=False)
+    fams = set(dp.family_names())
+    for tid in quarantined:
+        assert tid not in enum
+        assert f"### {tid}" not in sp                       # the card block is gone, not merely the id
+        assert dp._FAMILY_PREFIX.sub("", tid) not in fams   # ...and the router cannot steer at it either
+
+
+def test_quarantined_cards_still_LOAD_so_direct_lookups_stay_legal():
+    """THE CARVE-OUT, PINNED. Quarantine is a VISIBILITY verdict, never a LOADING one -- the kill-switch
+    (`GRAPHRAG_NUMBERS_DISABLE`) is the other thing entirely and makes `build_sql` raise KeyError. The
+    card must stay in `load_registry()` so `reg.get`, the compiler, the F010 reconcile back-pointer and
+    the card's own lints all keep reading it; only the model's ability to NAME it was removed."""
+    reg = _reg()
+    assert _QUARANTINED in reg.tables                       # LOADED, not dropped
+    ts = reg.get(_QUARANTINED)
+    assert ts.quarantined is True and ts.metrics            # the spec is intact, metrics and all
+    # A projected table needs its injected-partition equalities; supplying them is the point -- the
+    # compiler is unchanged, INCLUDING the sargable bounds that make such a read safe on this prefix.
+    sql = Q.build_sql(Q.NumberQuery(table=_QUARANTINED, metric=sorted(ts.metrics)[0], asof="2024-06-01",
+                                    commodity="corn", country="united_states", region="iowa"), ts)
+    assert _QUARANTINED in sql                              # a DIRECT, programmatic lookup still compiles
+    assert "commodity = 'corn'" in sql and "year <= 2024" in sql
+
+
+def test_visible_set_is_the_registry_minus_the_ledger_card_and_the_quarantine(monkeypatch):
+    """ONE derivation, TWO strips, stated as arithmetic so a third strip cannot land unnoticed."""
+    monkeypatch.setenv("GRAPHRAG_PATTERN_RECORDS", "off")
+    reg = _reg()
+    expected = sorted(t for t, ts in reg.tables.items()
+                      if t != "gold_pattern_records" and not ts.quarantined)
+    assert nreg.visible_tables(reg) == expected
+    assert len(expected) == len(reg.tables) - 2             # 27 cards -> 25 visible today
 
 
 @pytest.mark.parametrize("token", [

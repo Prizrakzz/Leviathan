@@ -546,11 +546,16 @@ def test_the_trace_key_is_registered_at_the_tail_with_its_denominator():
     RE-ANCHORED A THIRD TIME (D-HP-25 V2, 2026-08-15, plan 10.30.6): `evidence_geo_dropped` -- the [E]
     geo-containment census -- was APPENDED after THAT. Tail moved by one more; nothing else, and in
     particular this key's own position RELATIVE TO EVERY OLDER KEY is unchanged, which is the invariant
-    the pin actually protects."""
-    assert tk.TRACE_RECORD_KEYS[-4] == "episode_spans_validated"
-    assert tk.TRACE_RECORD_KEYS[-3] == "plan_tokens"
-    assert tk.TRACE_RECORD_KEYS[-2] == "evidence_slot_dropped"
-    assert tk.TRACE_RECORD_KEYS[-1] == "evidence_geo_dropped"
+    the pin actually protects.
+
+    RE-ANCHORED A FOURTH TIME (D-LD Sitting-A, 2026-08-18): `tables_queried` -- the per-table usage
+    census, the first per-table record production has ever had -- was APPENDED after THAT. Tail moved by
+    one more; nothing else, and this key's position RELATIVE TO EVERY OLDER KEY is again unchanged."""
+    assert tk.TRACE_RECORD_KEYS[-5] == "episode_spans_validated"
+    assert tk.TRACE_RECORD_KEYS[-4] == "plan_tokens"
+    assert tk.TRACE_RECORD_KEYS[-3] == "evidence_slot_dropped"
+    assert tk.TRACE_RECORD_KEYS[-2] == "evidence_geo_dropped"
+    assert tk.TRACE_RECORD_KEYS[-1] == "tables_queried"
     assert len(set(tk.TRACE_RECORD_KEYS)) == len(tk.TRACE_RECORD_KEYS)
     assert set(an._validate_episode_spans({"mechanism": _mech(_BACKED_A)}, _injected())) == \
         {"spans_checked", "bullets_dropped", "section_seen"}          # RE-ANCHORED, H1b fold-1 F4

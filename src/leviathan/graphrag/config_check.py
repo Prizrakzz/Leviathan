@@ -1113,10 +1113,15 @@ def check_esr_destinations() -> list[str]:
 
 
 def check_quarantine() -> list[str]:
-    """SILVER-F047 -- a quarantined table (TableSpec.quarantined) keeps serving DIRECT agent lookups (raw
-    daily weather has no gold replacement; gold_weather_z serves anomalies, not observations), but no engine
-    map may ever reference it: the cascade weather leg moved to gold_weather_z at Phase D-W4 and INV-3
-    forbids re-adding an engine leg on the LIST-storm projection. Build-failing, not prose."""
+    """SILVER-F047 -- no engine map may ever reference a quarantined table (TableSpec.quarantined): the
+    cascade weather leg moved to gold_weather_z at Phase D-W4 and INV-3 forbids re-adding an engine leg on
+    the LIST-storm projection. Build-failing, not prose.
+
+    D-LD TRACK 2 #5 (2026-08-18) RETIRES THIS DOCSTRING'S OLD OPENING CLAUSE ("keeps serving DIRECT agent
+    lookups"). `registry.visible_tables` now strips quarantined cards from the agent tool enum, the
+    system-prompt cards and the planner family enum, so the model can no longer name one; the card stays
+    LOADED, so programmatic `reg.get`/`build_sql` lookups -- and this lint, which reads the loaded registry
+    -- are unchanged. This check is unaffected either way: it is about ENGINE MAPS, not visibility."""
     from leviathan.graphrag.numbers.cascade import load_map
     from leviathan.graphrag.numbers.registry import load_registry
     q = tuple(tid for tid, ts in load_registry().tables.items() if getattr(ts, "quarantined", False))

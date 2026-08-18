@@ -759,29 +759,32 @@ def test_dhp4_keys_are_appended_at_the_tail_never_inserted():
     # H1 RE-PIN (D-HP-14): `wrong_slot_audit` appends AFTER the five H0 keys, so the H0 slice moves left by
     # one and NOTHING before it moves at all. Same law, same reason -- this pin is re-anchored to the H0
     # block's own position rather than re-listing it against the tail, so a later append re-pins one line.
-    assert keys[-11:-6] == ("prose_handles", "error", "floor_cause", "bare_digit_count",
+    assert keys[-12:-7] == ("prose_handles", "error", "floor_cause", "bare_digit_count",
                             "citation_resolved")
-    assert keys[-6] == "wrong_slot_audit"
+    assert keys[-7] == "wrong_slot_audit"
     # H1 RE-PIN (FIX W2 / finding NF-2): `slot_orphan_dropped` appends AFTER it. Same law, same one-line
     # re-anchor -- the H0 slice moves left by one more and nothing before it moves at all.
-    assert keys[-5] == "slot_orphan_dropped"
+    assert keys[-6] == "slot_orphan_dropped"
     # H1b RE-PIN (D-HP-15): `episode_spans_validated` appends after THAT. Third application of the same
     # law in this wave, and the third one-line re-anchor -- which is the whole point of writing the pin
     # against the tail rather than against a frozen absolute index.
-    assert keys[-4] == "episode_spans_validated"
+    assert keys[-5] == "episode_spans_validated"
     # G1 AMENDMENT A3 RE-PIN (2026-08-14): `plan_tokens` -- the popped planning region's SIZE, never its
     # text -- appends after THAT. Fourth application of the same law, fourth one-line re-anchor, and
     # nothing before the H0 slice moves at all.
-    assert keys[-3] == "plan_tokens"
+    assert keys[-4] == "plan_tokens"
     # G1 REMEDIATION D2(b) RE-PIN (2026-08-14): `evidence_slot_dropped` -- clause (2b)'s remedy census --
     # appends after THAT. Fifth application of the same law, fifth one-line re-anchor.
-    assert keys[-2] == "evidence_slot_dropped"
+    assert keys[-3] == "evidence_slot_dropped"
     # D-HP-25 RE-PIN (2026-08-15, plan 10.30.6): `evidence_geo_dropped` -- V2's [E] geo-containment
     # census -- appends after THAT. SIXTH application of the same law and the sixth one-line re-anchor,
     # which is exactly what a tail-anchored pin is for. NOTE WHAT DID *NOT* NEED A LINE: V1's own two
     # counters (`geo_checked` / `geo_mismatch`) ride INSIDE `number_handles` and mint no top-level key,
     # so they shift no column at all -- the `escalation_decision` idiom, one registered key per producer.
-    assert keys[-1] == "evidence_geo_dropped"
+    assert keys[-2] == "evidence_geo_dropped"
+    # D-LD SITTING-A RE-PIN (2026-08-18): `tables_queried` -- the per-table usage census, the estate's
+    # first -- appends after THAT. SEVENTH application of the same law and the seventh one-line re-anchor.
+    assert keys[-1] == "tables_queried"
     for older in ("number_handles", "rerank_lane", "walk_shape", "escalation_decision"):
         assert keys.index(older) < keys.index("prose_handles")
     assert len(set(keys)) == len(keys)

@@ -178,10 +178,17 @@ def run_numbers_only(query: str, asof: str, *, client=None, model: str = na.HAIK
     # a dict nobody reads is the defect this project has now shipped twice. `fork_licensed` is
     # fail-closed on a missing basis, and a numbers_only turn has no structured mechanism, so no heading
     # can render and the pin passes on its own terms -- the entry buys future readability, not a gate.
+    # D-LD Sitting-A (Lens C LIST B): `tables_queried` joins the SAME whitelist, APPENDED at the tail so
+    # the pinned substrings above are untouched. It is the ONLY per-table record production has ever had:
+    # `Leviathan/Serving` carries no table dimension anywhere, the numbers stack logs nothing per lookup,
+    # and until this line the sorted card set the agent derived from its own finished call list was written
+    # to a dict nobody read -- the C2/U3 defect a third time. NOT absent-when-empty: a numbers turn that
+    # queried nothing stamps `[]`, which is the turn's own zero and is exactly what a reach census must be
+    # able to see (the CascadeFired 0-semantics, not the absent-when-off idiom).
     for _gk in ("esr_destination_guard", "price_decline_guard", "pattern_records", "period_mismatch_guard",
                 "futures_coverage_guard",      # W3.2: the silver_futures_eod coverage verdict (legacy/decline)
                 "question_shape", "shape_metric_states", "shape_decline_guard", "unit_mismatch_guard",
-                "fork_basis"):
+                "fork_basis", "tables_queried"):
         if out.get(_gk) is not None:
             _trace[_gk] = out[_gk]
     return {"answer": body, "intent": "numbers_only",
@@ -680,9 +687,20 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
         # numbers_only tuple: `answer_numbers` mints none, so the value is None on every turn and the
         # copy-back below (guarded on `is not None`) can never overwrite the basis answer.py already
         # stamped on this lane's own trace. Appended, so C2's three-key substring and U3's count hold.
+        # D-LD Sitting-A appends `tables_queried` here for the #144 reason exactly: the census is
+        # LANE-INDEPENDENT (it is derived from `answer_numbers`' own call list, and BOTH lanes call it),
+        # so a numbers_only-only stamp would make the estate's first per-table usage read blind to every
+        # hybrid turn -- i.e. blind to the lane most numbers actually arrive on.
         for _sk in ("question_shape", "shape_metric_states", "shape_decline_guard", "unit_mismatch_guard",
-                    "fork_basis"):
+                    "fork_basis", "tables_queried"):
             holder[_sk] = nums.get(_sk)
+        if not nums:
+            # Review wf_051e926a F4: on hybrid the numbers lane ALWAYS runs (submitted at _numbers,
+            # failures swallowed into {}), so an absent tables_queried could never mean "never ran"
+            # here -- it would silently conflate a lane outage with a reasoning turn. A failed or
+            # timed-out lane records its own zero (present-with-[]); absence stays meaningful on
+            # numbers_only, and the lane error remains its own signal.
+            holder["tables_queried"] = []
         holder["ms_numbers"] = nums.get("_ms_numbers")            # W6.1-0: numbers-agent duration (MsNumbers)
         return "\n\n".join(x for x in (extra_context, _numbers_block(calls)) if x), calls
 
@@ -717,7 +735,8 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
         out.setdefault("trace", {})["pattern_records"] = holder["pattern_records"]   # T2b D2, see _resolve
     for _sk in ("question_shape", "shape_metric_states", "shape_decline_guard",      # C2 (F5), see _resolve
                 "unit_mismatch_guard",                                               # U3, see _resolve
-                "fork_basis"):                                                       # D-DT-2 c1, see _resolve
+                "fork_basis",                                                        # D-DT-2 c1, see _resolve
+                "tables_queried"):                                                   # D-LD Sitting-A, see _resolve
         if holder.get(_sk) is not None:
             out.setdefault("trace", {})[_sk] = holder[_sk]
     if holder.get("ms_numbers") is not None:
@@ -1953,6 +1972,13 @@ def respond(*args, **kwargs) -> dict:
         # folding them into the block above would inherit its (intent x model x mode) set and bill five
         # always-on counters against that cardinality every month. Silent on the numbers lane.
         emf.emit_quality(tr)
+        # D-LD Sitting-A: PER-TABLE USAGE, emitted from this same seam and LAST on purpose. Its own record,
+        # its own `[["table"]]` dimension set, and NOTHING added to the turn block above -- a table
+        # dimension there would multiply (intent x model x mode) by the card count for every metric in it,
+        # the recurring bill R14 refused. Placed after `emit_quality` so that even a derivation failure
+        # inside it cannot cost an older counter its emission; it is fail-open on its own besides.
+        # Silent on every turn whose numbers lane never ran (the key is absent -> nothing to emit).
+        emf.emit_table_touches(tr.get("tables_queried") or [])
     except Exception:  # noqa: BLE001 — instrumentation must never break an answer
         pass
     return res

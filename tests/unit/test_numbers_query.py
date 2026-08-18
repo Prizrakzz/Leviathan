@@ -763,6 +763,14 @@ _PRE_WAVE_8 = frozenset({
     "silver_psd", "silver_wasde", "silver_production", "silver_nasa_power",
     "silver_esr", "silver_fred_fx", "silver_noaa_oni", "gold_weather_z",
 })
+# D-LD TRACK 2 #5 (2026-08-18): `silver_nasa_power` is `quarantined: true` (SILVER-F047 -- weather serves
+# from gold_weather_z) and `registry.visible_tables` now STRIPS quarantined cards, so it is no longer in
+# the tool enum. It stays NAMED in the pre-wave 8 above -- that set is a historical roster, not a live
+# expectation -- and is subtracted here, so the day the quarantine lifts this line is the one-word edit
+# and the roster above still says which wave the card came from. The card is still LOADED
+# (`load_registry`), so this is a VISIBILITY subtraction and not a registry one; the kill-switch arithmetic
+# below is untouched because a stripped card cannot appear on either side of it.
+_QUARANTINE_STRIPPED = frozenset({"silver_nasa_power"})
 # PRICE_OBSERVABILITY W2 wired silver_pink_sheet, and W4 wired silver_cot, as LATER waves; SEAM C
 # whitelisted silver_futures_prices (2026-07-23) as a still-later one. All are present regardless of the
 # depth-wave kill-switch, so the depth-wave enum baseline is the pre-wave 8 PLUS the price + positioning
@@ -802,8 +810,9 @@ _D_PQ_IDS = ("silver_mpoc_stock_comparison",)
 _D_LD_IDS = ("silver_fgis", "silver_wap_table01_revisions", "silver_fnc_colombia_monthly",
              "silver_fnc_colombia_exports_port_type", "silver_nass_citrus",
              "silver_mpoc_trade_stats_monthly")
-_DEPTH_BASELINE = (_PRE_WAVE_8 | set(_PRICE_IDS) | set(_SEAM_C_IDS) | set(_WIRING_W1_IDS)
-                   | set(_W3_IDS) | set(_D_CW_IDS) | set(_D_PQ_IDS) | set(_D_LD_IDS))
+_DEPTH_BASELINE = ((_PRE_WAVE_8 | set(_PRICE_IDS) | set(_SEAM_C_IDS) | set(_WIRING_W1_IDS)
+                    | set(_W3_IDS) | set(_D_CW_IDS) | set(_D_PQ_IDS) | set(_D_LD_IDS))
+                   - _QUARANTINE_STRIPPED)          # D-LD Track 2 #5, see above
 
 
 def _tool_enum():

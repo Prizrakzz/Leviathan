@@ -440,6 +440,46 @@ def emit_quality(trace: Optional[dict]) -> None:
          dimensions=None, units={n: "Count" for n in _QUALITY_EMF_NAMES.values()})
 
 
+TABLE_TOUCH_METRIC = "NumbersTableTouched"      # D-LD Sitting-A: the ONE spelling, so no consumer re-types it
+
+
+def emit_table_touches(tables: list) -> None:
+    """D-LD Sitting-A: PER-TABLE USAGE, the estate's first. One `NumbersTableTouched = 1` per DISTINCT card
+    this turn queried, each on its OWN record under a `{"table": <card id>}` dimension.
+
+    WHY IT IS ITS OWN CALL AND NOT KEYS ON THE TURN EMITTER -- the `emit_quality` argument, inverted onto
+    the dimension axis. A `table` dimension folded into the turn block would multiply that block's
+    (intent x model x mode) set by the card count for EVERY metric in it, which is the recurring bill R14
+    already refused once. Here the dimension is the point, so the metric gets its own record and the
+    turn emitter is not touched at all: `Dimensions` is `[["table"], <lane set>, []]` and never carries
+    intent, model or mode.
+
+    CARDINALITY, STATED BECAUSE A DIMENSION IS A BILL: BOUNDED BY THE CARD COUNT -- 27 registry cards today
+    (26 visible, 25 after the nasa_power quarantine strip), so at most ~27 series plus the lane set and the
+    fleet aggregate. The bound is ENFORCED here, not assumed: the call list keeps errored calls (declined/
+    errored/no_rows all count for the reach census), and an errored call's `query.table` is the model's RAW
+    tool input -- a hallucinated table name is user-mintable prompt text (review wf_051e926a, finding 1).
+    The TRACE column stays raw truth; the METRIC emits only ids the registry actually loads, so no turn can
+    mint a new dimension value or bill a new custom metric. The registry import lives inside the try: an
+    import failure is a silent no-emit, never a broken turn.
+
+    FAIL-OPEN IN ITS OWN RIGHT (`emit` is already, and this adds the derivation in front of it): an
+    instrument must never break a turn, and this one runs after the answer is finished. Silent no-op on an
+    empty/absent list, so a reasoning or live turn contributes nothing and cannot dilute a per-card panel
+    that is only meaningful over numbers turns. The known-id bound also makes a malformed non-list input
+    inert (a string iterates char-wise; no character is a card id)."""
+    try:
+        from leviathan.graphrag.numbers.registry import load_registry  # lru_cached; late import, no cycle
+        known = load_registry().tables  # LOADING set (.tables, 27): quarantine is a VISIBILITY verdict
+        for tid in (tables or []):
+            name = str(tid).strip()
+            if name and name in known:
+                emit({TABLE_TOUCH_METRIC: 1}, dimensions={"table": name},
+                     units={TABLE_TOUCH_METRIC: "Count"})
+    except Exception:  # noqa: BLE001 -- telemetry must never break a turn
+        pass
+
+
 def emit(metrics: dict[str, float], *, dimensions: Optional[dict[str, str]] = None,
          units: Optional[dict[str, str]] = None) -> None:
     """Print one EMF record. `metrics` = {name: value}. `dimensions` become CloudWatch dimensions (and, per
