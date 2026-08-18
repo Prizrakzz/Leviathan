@@ -77,7 +77,11 @@ variable "serving_image_tag" {
   # DEPLOYED 2026-07-31: the W3 flip build (commit d5aa7353 + the D7 pg mirror). Previous pin was
   # 20260725rev72 = digest 00fcd043, which predates the whitelist flip -- serving could not answer a
   # delivery-month or curve ask on that image no matter what the config said.
-  default     = "20260731w3flip"
+  # DEPLOYED 2026-08-19: the unica-splice build (commit 38dc5f0c, registry 36 cards / 34 visible,
+  # release_series refused on a measured PIT leak). Hand-registered as serving taskdef rev 104 on
+  # digest sha256:74813e92a7dc...; canary three tells passed (rollout, startedAt > push, exact
+  # digest). This pin follows that promotion so a later apply re-derives the same image.
+  default     = "20260819T021949"
 }
 
 # Stage 2: the ACM wildcard cert (leviathanconvexity.com + *) created in the console. us-east-1.
@@ -436,9 +440,12 @@ variable "ecr_pin_audit_image_digest" {
   #     --image-ids imageTag=latest --query 'imageDetails[0].imageDigest'
   # Empty = the whole weekly-audit unit (role, jobdef, scheduler role, DLQ, alarm, schedule)
   # count-gates out of existence. That is the kill-switch and the bootstrap state.
+  # RE-PINNED 2026-08-19 after the unica-splice embedder rebuild (commit 38dc5f0c): :latest =
+  # tag 20260819T021949, manifest sidecar written by build_push_embedder.ps1 on push. The prior
+  # pin (4c71250b, 2026-08-04) stays pullable -- this repo carries no lifecycle policy.
   type        = string
   description = "sha256 digest of the EMBEDDER image the weekly ECR pin audit runs. Empty = the whole D-PR-4 weekly unit is not created."
-  default     = "sha256:4c71250b1b6115751a6aeb263460f979391d66f48930f996ce3f8895e989748f"
+  default     = "sha256:74813e92a7dca26bd64a094afc4952455ecea88c032cbeafd303f832cacb9d46"
 
   validation {
     condition     = var.ecr_pin_audit_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.ecr_pin_audit_image_digest))
