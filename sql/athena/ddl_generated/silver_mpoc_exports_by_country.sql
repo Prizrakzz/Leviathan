@@ -8,10 +8,11 @@
 -- Flat physical layout under one LOCATION -- no partition-enumeration (LIST-storm)
 -- surface; any hive-partition keys are also in-file data columns.
 CREATE EXTERNAL TABLE IF NOT EXISTS silver_mpoc_exports_by_country (
-    year       bigint,
-    country    string,
-    exports_mt double,
-    source     string
+    year             bigint,
+    country          string,
+    exports_mt       double,
+    source           string,
+    year_ending_date date
 )
 STORED AS PARQUET
 LOCATION 's3://leviathan-dev-shahem-001/silver/mpoc_exports_by_country/'

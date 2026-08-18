@@ -262,7 +262,16 @@ def test_cot_is_branch_a_twelfth_pg_mirror_table():
     # silver_fnc_colombia_exports_port_type, silver_nass_citrus, silver_mpoc_trade_stats_monthly.
     # Three of them are partition-PROJECTED, so the Athena fallback this prevents is the LIST-storm
     # class rather than latency. The by-NAME roster (and the reasons) is in the rebuild-gate test.
-    assert len(g.PG_MIRROR_TABLES) == 26, (
+    # D-LD TRANCHE 2 (2026-08-18) added SIX more -- the 27th through 32nd -- on that same rule:
+    # silver_sagis_weekly_deliveries, silver_ams_cotton_quality, silver_nass_annual, silver_food_cpi,
+    # silver_fnc_colombia_area_department, silver_mpoc_exports_by_country. These are the tables Track 1
+    # could not card at all: none carried a date column, so the numbers as-of guard had nothing to
+    # anchor on and every read RAISED; each gained ONE producer-derived column in that wave, which is
+    # what let a card -- and therefore the mirror obligation -- exist. Two are partition-PROJECTED
+    # (nass_annual, fnc_colombia_area_department), so again the prevented fallback is the LIST-storm
+    # class. One carries an extra precondition the by-NAME roster records: mpoc_exports_by_country's
+    # anchor is staged HIDDEN pending its own gated Glue ALTER, so its LOAD must wait for that ALTER.
+    assert len(g.PG_MIRROR_TABLES) == 32, (
         "pg-mirror roster changed; the by-NAME pin lives in tests/unit/test_silver_rebuild_gate.py::"
         "test_branch_selection_all_45_tables. Roster now: " + str(sorted(g.PG_MIRROR_TABLES)))
 

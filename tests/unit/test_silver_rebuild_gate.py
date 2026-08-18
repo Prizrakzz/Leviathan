@@ -93,6 +93,28 @@ _EXPECTED_BRANCH_A = frozenset({
     "silver_fnc_colombia_exports_port_type",
     "silver_nass_citrus",
     "silver_mpoc_trade_stats_monthly",
+    # D-LD TRANCHE 2 (2026-08-18) -- SIX MORE, on the same doctrine and with one extra fact behind
+    # them. These are the tables Track 1 could NOT card: none had a date column of any kind, so the
+    # numbers as-of guard had nothing to anchor on and every read RAISED. Each gained ONE
+    # producer-derived column in this wave (the WIRING WAVE-1 pre-step idiom), which is what let a card
+    # exist at all -- and a served card must be mirrored, so each enters Branch A with the card.
+    # Two of the six DISCHARGE a recorded D-PQ tranche-1a refusal, and all three of that refusal's
+    # remaining 'guard' verdicts are closed by this wave (see tests/unit/test_dpq_dark_tables.py:
+    # _SKIPPED is now EMPTY and the mechanism that emptied it is pinned there, not asserted).
+    # PROJECTED members here: silver_nass_annual and silver_fnc_colombia_area_department -- for those
+    # two an unmirrored pg read falls back onto a projected partition grid (the LIST-storm class).
+    # As with every entry above: the in-VPC load has NOT run, and numbers_parity carries no
+    # SAMPLE_COMMODITY row for any of the six.
+    # ONE ENTRY CARRIES AN EXTRA PRECONDITION, recorded rather than discovered at run time:
+    # silver_mpoc_exports_by_country's derived anchor is STAGED HIDDEN in its F010 contract and its
+    # gated Glue ADD COLUMNS has NOT been applied, so its pg load must wait for that ALTER or the
+    # mirror lands four columns and every as-of-guarded pg lookup fails on the missing column.
+    "silver_sagis_weekly_deliveries",
+    "silver_ams_cotton_quality",
+    "silver_nass_annual",
+    "silver_food_cpi",
+    "silver_fnc_colombia_area_department",
+    "silver_mpoc_exports_by_country",
 })
 
 
@@ -113,7 +135,7 @@ def test_branch_selection_all_45_tables():
         "why_this_matters": "a table entering Branch A gains the pg reload + parity + the V001 floor; "
                             "a table LEAVING it loses its only mirror refresh path while staying "
                             "served -- update this roster deliberately, never to make a test pass"}
-    assert len(branch_a) == 26                        # 20 + D-LD Track 1's six LIGHT-THE-DARK cards
+    assert len(branch_a) == 32                        # 20 + D-LD Track 1's six + Tranche 2's six
     assert branch_a | branch_b == set(names)          # partition: no table is UNKNOWN in the real registry
     assert not (branch_a & branch_b)
 

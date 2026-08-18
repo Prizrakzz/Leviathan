@@ -46,11 +46,14 @@ MPOC = "silver_mpoc_stock_comparison"
 # here goes red -- and the removal is never silent: the reason moves to `_DISCHARGED` and, for the
 # free-axis verdict, to a replacement test that pins the MECHANISM that closed it. The three that remain
 # are untouched and the fence over them is exactly as strong as it was.
-_SKIPPED = {
-    "silver_sagis_weekly_deliveries": "guard",   # week_ending is 100% free text (0/2999 ISO), no date col
-    "silver_mpoc_exports_by_country": "guard",   # year x country only, no knowledge column; content stops 2023
-    "silver_ams_cotton_quality": "guard",        # commodity x geography x season, no knowledge column
-}
+#
+# D-LD TRANCHE 2 (2026-08-18) EMPTIED IT. All three remaining verdicts were `guard`, and `guard` was
+# never a card-only problem: it says the PRODUCER emits no column an as-of can anchor on, so the fix
+# had to come from the producer -- which is exactly what the entry below each name said, and exactly
+# what this wave did. The dict stays DECLARED and empty rather than deleted: the blanket fence below
+# reads it, the disjointness fence pairs it with `_DISCHARGED`, and the next table refused on a
+# structural ground belongs here with its measured reason.
+_SKIPPED: dict[str, str] = {}
 
 # The verdicts D-LD DISCHARGED, kept here because this file is the record of why a table was refused --
 # a discharged refusal that is merely deleted leaves the next reader re-deriving the argument.
@@ -67,6 +70,30 @@ _DISCHARGED = {
     # verdict were CORRECT and both are now closed by card mechanism rather than by assertion; see the
     # replacement test at the bottom of this file.
     "silver_wap_table01_revisions": "free_axis -> closed by row_filters + grain_cols (D-LD 2026-08-18)",
+    # ── D-LD TRANCHE 2 (2026-08-18): the three `guard` verdicts, discharged BY THE PRODUCER, which is
+    # the only way a `guard` verdict can honestly be discharged. Each table gained ONE derived,
+    # conservative, never-leak column and nothing else; the recon's reasoning was correct in every case
+    # and is preserved here, because a discharged refusal that is merely deleted leaves the next reader
+    # re-deriving the argument. The MECHANISM is pinned by
+    # test_the_guard_verdicts_are_discharged_by_a_derived_anchor_not_by_assertion below -- these
+    # strings are the record, that test is the fence.
+    #
+    # Was: "guard" -- week_ending is 100% free text (0 of 2,999 rows ISO; bilingual '1 - 7 Oct/Okt'
+    # with no year in it at all), so there was no date column of any kind. The SILVER-F059 pre-step its
+    # EXPORTS sibling already had was applied here: a producer-derived week_ending_date DATE plus the
+    # gated Glue ADD COLUMNS, both landed 2026-08-18 (10-column catalog).
+    "silver_sagis_weekly_deliveries": "guard -> derived week_ending_date DATE, data_date +5d (D-LD Tranche 2)",
+    # Was: "guard" -- year x country only, no knowledge column. Note the D-LD plan's own row 5 called
+    # this table `wide/year_month`, which could NEVER have compiled: year_month RAISES without BOTH
+    # year_col and month_col and this table has no month column. The pre-step derived year_ending_date
+    # (<year>-12-31) and the card is data_date +60d. The 2023 content ceiling was never the blocker and
+    # is not staleness -- it is a CLOSED ARCHIVE, carried in the card's notes and in the router clause.
+    "silver_mpoc_exports_by_country": "guard -> derived year_ending_date DATE, data_date +60d (D-LD Tranche 2)",
+    # Was: "guard" -- commodity x geography x season, no knowledge column (a crop `season bigint` is a
+    # PERIOD, not a knowledge date). The pre-step derives release_date = (season+1)-09-01, the start of
+    # the NEXT classing season, so the stamp is always >= the real AMS release: zero leak, at most a few
+    # months of withhold. The conab_coffee Card B construction exactly.
+    "silver_ams_cotton_quality": "guard -> derived release_date string, vintage +0d (D-LD Tranche 2)",
 }
 
 
@@ -233,24 +260,68 @@ def test_mpoc_is_advertised_to_the_router():
 # The five the recon ranked into tranche 1a and this wave REFUSED -- each verdict held as a test so the
 # next card cannot land on one silently.
 # ====================================================================================================
-@pytest.mark.parametrize("table", sorted(t for t, why in _SKIPPED.items() if why == "guard"))
-def test_tranche_1a_skips_have_no_anchorable_as_of_guard(table):
-    """These three carry no vintage/ingest/data date AND no year+month pair, so build_sql RAISES on every
-    read. Carding one would ship a served table that refuses 100% of its lookups -- the failure is loud
-    rather than a leak, which is why the fence is in the compiler, but it is still a dead card.
+def test_tranche_1a_skips_have_no_anchorable_as_of_guard():
+    """A `guard` verdict means the table carries no vintage/ingest/data date AND no year+month pair, so
+    build_sql RAISES on every read. Carding one would ship a served table that refuses 100% of its
+    lookups -- the failure is loud rather than a leak, which is why the fence is in the compiler, but it
+    is still a dead card. The fix is never a card: it is a PRODUCER change.
 
-    The fix is NOT a card: silver_sagis_weekly_deliveries needs the SILVER-F059 pre-step its EXPORTS
-    sibling already got (a producer-derived week_ending_date DATE column plus the Glue ADD COLUMNS
-    migration -- its `week_ending` is free text, measured 0 of 2,999 rows ISO, bilingual '1 - 7 Oct/Okt'
-    with no year in it at all), and the other two need a publication/ingest stamp their producers do not
-    currently emit. All three are LOADER/SCHEMA class, not CARD-ONLY."""
+    D-LD TRANCHE 2 DISCHARGED THE LAST THREE, so this loop is empty today and the rule above keeps its
+    text because it is still the correct general rule. It is a LOOP rather than a `parametrize` for
+    exactly that reason: an empty parametrize collects zero cases and pytest reports the fence as
+    skipped, which is a fence disappearing quietly at the moment it stops having work to do. Written
+    this way the test runs, passes on an empty set, and starts binding again the instant a name is
+    added -- and the emptiness itself is asserted deliberately in the test below."""
+    from leviathan.silver import registry as SR
+    reg = SR.load_registry()
+    served = set(nreg.visible_tables(_reg()))
+    for table in sorted(t for t, why in _SKIPPED.items() if why == "guard"):
+        c = reg.table(table)
+        assert c["knowledge_date_col"] is None and c["knowledge_semantics"] is None, table
+        assert table not in served, table                    # not served -- the point of the test
+        cols = {pc["name"] for pc in c["physical_columns"]}
+        assert not ({"year", "month"} <= cols), (
+            f"{table} now carries year+month, so year_month semantics ARE expressible -- re-open the card")
+
+
+@pytest.mark.parametrize("table", sorted(
+    t for t, why in _DISCHARGED.items() if str(why).startswith("guard ->")))
+def test_the_guard_verdicts_are_discharged_by_a_derived_anchor_not_by_assertion(table):
+    """THE REPLACEMENT FENCE, on the WAP precedent: a discharge is only real if the mechanism that
+    closed the blocker is pinned. `guard` said the producer emitted no anchorable column; the discharge
+    is therefore FOUR things holding at once, and no amount of card prose can fake any of them.
+
+      (1) the F010 contract now declares a knowledge column AND its semantics (the producer really did
+          emit it -- the contract is generated from the captured catalog, not hand-written);
+      (2) the numbers card names the SAME column, byte-equal (reconcile_numbers binds the two, but
+          asserting it here means this test fails on the mechanism rather than on a lint's mood);
+      (3) `knowledge_col()` resolves -- the thing that returned None and raised;
+      (4) build_sql COMPILES a guarded read against the real card, emitting a predicate on that column.
+          This is the literal inverse of the verdict: the refusal was "raises on every read".
+    """
     from leviathan.silver import registry as SR
     c = SR.load_registry().table(table)
-    assert c["knowledge_date_col"] is None and c["knowledge_semantics"] is None
-    assert table not in nreg.visible_tables(_reg())          # not served -- the point of the test
-    cols = {pc["name"] for pc in c["physical_columns"]}
-    assert not ({"year", "month"} <= cols), (
-        f"{table} now carries year+month, so year_month semantics ARE expressible -- re-open the card")
+    assert c["knowledge_date_col"] and c["knowledge_semantics"], table            # (1)
+    ts = _reg().get(table)
+    assert ts.knowledge_date_col == c["knowledge_date_col"], table                # (2)
+    assert ts.knowledge_semantics == c["knowledge_semantics"], table
+    anchor = ts.knowledge_col()
+    assert anchor == c["knowledge_date_col"], table                               # (3)
+    sql = Q.build_sql(Q.NumberQuery(table=table, metric=sorted(ts.metrics)[0],    # (4)
+                                    asof="2026-08-18"), ts)
+    assert f"CAST({anchor} AS varchar) <=" in sql, sql
+    assert table in nreg.visible_tables(_reg()), table
+
+
+def test_the_tranche_1a_refusal_set_is_now_fully_discharged():
+    """The emptiness of `_SKIPPED`, asserted as a FACT rather than left as an absence -- so that a
+    future editor who clears an entry to make something pass has to come here and say so, and so that a
+    reader can tell "nothing is refused" from "nobody has looked". Every tranche-1a candidate the recon
+    ranked is now either carded (the five in `_DISCHARGED`) or was never in this file."""
+    assert _SKIPPED == {}, ("_SKIPPED is non-empty again -- that is legitimate, but this pin is where "
+                            "the new refusal gets acknowledged, with its measured reason")
+    assert len(_DISCHARGED) == 5
+    assert not (set(_SKIPPED) & set(_DISCHARGED))            # the two registers stay disjoint
 
 
 def test_the_skipped_tables_are_absent_from_the_numbers_registry():

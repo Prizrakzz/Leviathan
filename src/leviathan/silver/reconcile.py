@@ -149,6 +149,37 @@ NUMBERS_TABLES = (
     #                                     silently, and this is the table whose PIT story is the LEAKIEST
     #                                     of the year_month set (annual pages, ~12-month knowability lag),
     #                                     so the structural check matters more here, not less.
+    # ── D-LD TRANCHE 2 (2026-08-18): the six no-date-column tables whose producers gained PIT anchors
+    #    in this wave. Every one of them carried knowledge_date_col / knowledge_semantics /
+    #    publication_lag_days ALL NULL in its F010 contract until its card gave them a meaning, and each
+    #    is enumerated in the SAME change that adds the tables.yaml card -- the drift test
+    #    set(NUMBERS_TABLES) == set(tables.yaml keys) (tests/unit/silver/test_silver_reconcile.py:30-38)
+    #    is what forces the two edits to land together, and it is the point: an unenumerated table is
+    #    STRUCTURALLY UNCHECKED, so a mis-derived lag would ship live while the gate reported clean.
+    "silver_sagis_weekly_deliveries",   # the SUPPLY-side twin of silver_sagis_weekly_exports: data_date on
+    #                                     the DERIVED week_ending_date, +5d (byte-identical to the sibling,
+    #                                     same source and cadence).
+    "silver_ams_cotton_quality",        # USDA AMS annual US cotton classing quality. vintage on the AMS-1
+    #                                     DERIVED release_date (+0d) -- the conab Card B idiom, so the PIT
+    #                                     trio reconciles against F010 here.
+    "silver_nass_annual",               # USDA NASS settled annual crop production. vintage on the D-LD-9a
+    #                                     DERIVED release_date ('<crop year+1>-02-01', +0d). partition_cols
+    #                                     [commodity, year] are both PROJECTED Glue partition keys, so the
+    #                                     partition_cols lint passes.
+    "silver_food_cpi",                  # World Bank annual consumer-price inflation for the four food-policy
+    #                                     countries. data_date on the derived year-end date, +195d MEASURED
+    #                                     against the WDI release stamp. This contract ALSO carries the
+    #                                     applied REPLACE COLUMNS type corrections (CURATION_OVERRIDES), so
+    #                                     the trio and the catalog landed in one reconciled change.
+    "silver_fnc_colombia_area_department",  # FNC Colombia annual coffee AREA by department. INGEST semantics
+    #                                     on the carried-through bronze ingest_date -- publication_lag_days
+    #                                     stays NULL in F010 and ABSENT on the card (byte-equal, the
+    #                                     silver_production idiom); a non-revising snapshot has no lag.
+    "silver_mpoc_exports_by_country",   # MPOC Malaysian palm exports by DESTINATION. data_date on the derived
+    #                                     year_ending_date, +60d. The anchor column is STAGED HIDDEN in the
+    #                                     contract (glue_type null) ahead of its own gated ADD COLUMNS, which
+    #                                     is exactly why the trio needs a structural check now rather than
+    #                                     after the catalog catches up.
     "gold_pattern_records",             # T2b: pattern-records ledger (44th contract, registered-partition GOLD,
     #                                     flag-off until its deck gates the flip) — enumerated the moment its
     #                                     tables.yaml card landed so its knowledge fields reconcile against F010

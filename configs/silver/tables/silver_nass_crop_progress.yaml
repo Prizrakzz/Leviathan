@@ -148,7 +148,7 @@ min_nonnull_frac_overrides:
   pct_harvested: 0.15
   pct_poor_very_poor: 0.2
   pct_planted: 0.13
-  pct_emerged: 0.08
+  pct_emerged: 0.05
 min_nonnull_frac_season_overrides:
   pct_harvested:
     1-9: 0.1

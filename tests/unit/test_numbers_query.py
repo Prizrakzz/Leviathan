@@ -810,8 +810,22 @@ _D_PQ_IDS = ("silver_mpoc_stock_comparison",)
 _D_LD_IDS = ("silver_fgis", "silver_wap_table01_revisions", "silver_fnc_colombia_monthly",
              "silver_fnc_colombia_exports_port_type", "silver_nass_citrus",
              "silver_mpoc_trade_stats_monthly")
+# D-LD TRANCHE 2 (2026-08-18) landed the six tables Track 1 could NOT reach, and the reason is one
+# sentence: none of them had a date column of any kind, so `query._guard` had nothing to anchor on and
+# every build_sql read RAISED before compiling -- exactly the "three carry NO knowledge/date column at
+# all" note on _D_PQ_IDS above, now discharged. Each gained ONE producer-derived column (the WIRING
+# WAVE-1 pre-step idiom) and then a card. A SEPARATE tuple rather than an extension of _D_LD_IDS
+# because the two tranches are different landings with different preconditions, and a reader tracing
+# why a given id is in the baseline should land on the right paragraph. Same standing as every wave
+# above: present regardless of the DEPTH-wave kill-switch, so they belong in the BASELINE and are NOT
+# among the three ids that switch reverts. Enumerated by NAME so a card leaving the registry fails
+# here with the id in the message.
+_D_LD_T2_IDS = ("silver_sagis_weekly_deliveries", "silver_ams_cotton_quality", "silver_nass_annual",
+                "silver_food_cpi", "silver_fnc_colombia_area_department",
+                "silver_mpoc_exports_by_country")
 _DEPTH_BASELINE = ((_PRE_WAVE_8 | set(_PRICE_IDS) | set(_SEAM_C_IDS) | set(_WIRING_W1_IDS)
-                    | set(_W3_IDS) | set(_D_CW_IDS) | set(_D_PQ_IDS) | set(_D_LD_IDS))
+                    | set(_W3_IDS) | set(_D_CW_IDS) | set(_D_PQ_IDS) | set(_D_LD_IDS)
+                    | set(_D_LD_T2_IDS))
                    - _QUARANTINE_STRIPPED)          # D-LD Track 2 #5, see above
 
 

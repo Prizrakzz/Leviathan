@@ -159,6 +159,32 @@ FRESHNESS_LAG_OVERRIDES: dict[str, int] = {
     "silver_fgis": 14,
     "silver_fnc_colombia_monthly": 45,
     "silver_fnc_colombia_exports_port_type": 45,
+    # D-LD TRANCHE 2 (2026-08-18): the SAME law, applied to the three Tranche-2 cards that declare a
+    # NON-ZERO publication_lag_days. Each pin equals that table's own cadence default, i.e. it cancels
+    # the grace and changes NOTHING else -- the entries exist to stop `effective_sla_lag_days` adding a
+    # CONTENT lag to a WRITE-recency ceiling, never to arm a tighter alarm.
+    # MEASURED, not asserted (build_catalog run before and after the cards landed):
+    #   silver_sagis_weekly_deliveries -- the only one where the widening reached a FAMILY ceiling. The
+    #     card declares +5d (the ratified exports-sibling lag) and the sagis family ceiling moved
+    #     14 -> 19 the moment it did, because this table WAS the family minimum at lag 0. The producer
+    #     fires cron(0 12 ? * FRI *) and writes weekly whatever the content lag, so 14 (weekly cadence
+    #     default, ~2 cycles) is the honest write ceiling and the family is held where it was. The
+    #     silver_sagis_weekly_exports sibling keeps its own 19 UNPINNED and is deliberately not touched
+    #     here: tightening a ratified ceiling is a separate decision, and the family min is 14 either way.
+    #   silver_food_cpi -- +195d (MEASURED against the WDI `lastupdated` release stamp) over an ANNUAL
+    #     cadence would make the ceiling 595 days for a producer that fires MONTHLY, cron(0 16 8 * ? *),
+    #     beside pink_sheet. The world_bank family min is pink_sheet's 85 either way, so this pin moves
+    #     no family ceiling -- it keeps the per-table number honest for BURNED_TABLE_FRESHNESS and for
+    #     the day this table becomes the family minimum.
+    #   silver_mpoc_exports_by_country -- +60d over an ANNUAL cadence would make it 460 for a producer
+    #     that fires monthly, cron(0 12 15 * ? *). Same shape, same reason; the mpoc family min stays 45.
+    # NOT PINNED, and that is a measurement rather than an omission: silver_ams_cotton_quality,
+    # silver_nass_annual and silver_fnc_colombia_area_department all carry publication_lag_days 0/null
+    # (their vintage/ingest anchors ARE the publication event), so there is no grace to add and no
+    # ceiling moves at all -- an entry for any of them would be a pin against nothing.
+    "silver_sagis_weekly_deliveries": 14,
+    "silver_food_cpi": 400,
+    "silver_mpoc_exports_by_country": 400,
 }
 
 

@@ -4,7 +4,7 @@ table_name: silver_nass_annual
 layer: silver
 domain: production
 lifecycle_class: source
-owner: silver-platform
+owner: numbers-platform
 schema_version: 1
 glue_database: leviathan_dev
 s3_root: s3://leviathan-dev-shahem-001/silver/nass_annual
@@ -147,22 +147,22 @@ required_nonnull:
 - state
 - year
 value_columns:
-- area_planted_ha
-- area_harvested_ha
-- yield_t_ha
 - production_mt
+- yield_t_ha
+- area_harvested_ha
+- area_planted_ha
 min_nonnull_frac: 0.5
 min_nonnull_frac_status: provisional
 coverage_axis: commodity x state x year
 vintage_retention: latest-only
-knowledge_date_col: null
-knowledge_semantics: null
-publication_lag_days: null
+knowledge_date_col: release_date
+knowledge_semantics: vintage
+publication_lag_days: 0
 freshness_sla:
   cadence: annual
   max_lag_days: null
-consumers: feature_layer
-numbers_ref: null
+consumers: both
+numbers_ref: configs/graphrag/numbers/tables.yaml#silver_nass_annual
 cascade_ref: null
 source_contract_ref: configs/datasets/source_contracts.yaml#nass_annual
 serving_table: null

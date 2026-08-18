@@ -31,6 +31,19 @@ FNC_PORT = "silver_fnc_colombia_exports_port_type"
 CITRUS = "silver_nass_citrus"
 MPOC_TRADE = "silver_mpoc_trade_stats_monthly"
 
+# D-LD TRANCHE 2 (2026-08-18) -- the SIX NO-DATE-COLUMN cards. Track 1 could not reach any of these:
+# `query._guard` anchors on a knowledge/date column or on BOTH year_col AND month_col, and a crop
+# `season bigint`, a `year` partition key and a free-text `week_ending` label satisfy neither, so every
+# lookup raised BEFORE any SQL compiled. Each table gained ONE producer-derived column (the WIRING
+# WAVE-1 pre-step idiom) and only then could a card exist -- which is why every block below asserts the
+# PIT trio first and the notes second.
+SAGIS_DELIV = "silver_sagis_weekly_deliveries"
+AMS = "silver_ams_cotton_quality"
+NASS_ANNUAL = "silver_nass_annual"
+FOOD_CPI = "silver_food_cpi"
+FNC_AREA = "silver_fnc_colombia_area_department"
+MPOC_EXPORTS = "silver_mpoc_exports_by_country"
+
 
 def _purpose() -> str:
     return next(t.purpose for t in dp.REGISTRY if t.name == "numbers").lower()
@@ -78,6 +91,16 @@ _ADVERTISED = {
     FGIS: ("inspections", "loaded"),                    # D-LD: shipments, advertised beside ESR's sales
     WAP: ("world agricultural production", "revision ledger"),  # D-LD
     CITRUS: ("citrus",),                                # D-LD: the FCOJ-side production forecast
+    # ── D-LD TRANCHE 2. Each token below is NEW to the purpose string, never one a sibling already
+    # earned -- which is the whole point of this map: `("sagis",)` or `("mpoc",)` would pass the
+    # coverage property while leaving the new table dark to the router, because the token is already
+    # paid for by silver_sagis_cec / silver_mpoc_stock_comparison.
+    SAGIS_DELIV: ("producer deliveries", "deliveries"),      # NOT ("sagis",) -- see above
+    AMS: ("cotton classing", "tenderable"),                  # the estate's only crop-QUALITY axis
+    NASS_ANNUAL: ("acreage",),                               # NOT ("nass",) -- crop progress owns that
+    FOOD_CPI: ("consumer price inflation", "cpi"),           # never "food inflation" (FP.CPI.TOTL.ZG)
+    FNC_AREA: ("coffee area", "by department"),              # disjoint from the two FNC siblings
+    MPOC_EXPORTS: ("by destination country",),               # NOT ("mpoc",) -- the monthly card owns that
 }
 
 
@@ -154,7 +177,7 @@ def test_visible_set_is_the_registry_minus_the_ledger_card_and_the_quarantine(mo
     expected = sorted(t for t, ts in reg.tables.items()
                       if t != "gold_pattern_records" and not ts.quarantined)
     assert nreg.visible_tables(reg) == expected
-    assert len(expected) == len(reg.tables) - 2             # 27 cards -> 25 visible today
+    assert len(expected) == len(reg.tables) - 2             # 33 cards -> 31 visible (D-LD Tranche 2)
 
 
 @pytest.mark.parametrize("token", [
@@ -175,6 +198,16 @@ def test_visible_set_is_the_registry_minus_the_ledger_card_and_the_quarantine(mo
     "inspections",
     # D-LD: the citrus forecast -- "nass" alone would have advertised it off the crop-progress clause.
     "citrus",
+    # D-LD TRANCHE 2: six tokens, each NEW to this string. Listed here as well as in _ADVERTISED
+    # because that map is a COVERAGE property (any tuple member passes) while these are the exact
+    # phrases the clauses were written to contribute -- a clause reworded into a sibling's vocabulary
+    # would still satisfy coverage and would still leave the router unable to tell the pair apart.
+    "producer deliveries",          # the SUPPLY-side SAGIS twin, beside the export-pace card
+    "cotton classing", "tenderable",  # the only crop-QUALITY axis in the estate
+    "acreage",                      # settled ANNUAL state-level US production
+    "consumer price inflation",     # ...and never "food inflation": the table is headline CPI
+    "coffee area",                  # Colombian AREA, disjoint from the two FNC siblings
+    "by destination country",       # MPOC's ANNUAL export book, beside its MONTHLY sibling
 ])
 def test_purpose_names_each_census_unlock(token):
     assert token in _purpose(), f"router purpose string omits {token!r} (D-CW-1a census rank order)"
@@ -1613,3 +1646,765 @@ class TestTruncatedReadsMayNotWearASuperlative:
         d = na.tool_schema(_reg())["input_schema"]["properties"]["limit"]["description"]
         assert "never describe a truncated read as the complete record" in d
         assert "not a cost lever" in d
+
+
+# ════════════════════════════════════════════════════════════════════════════════════════════════════
+# D-LD TRANCHE 2 (2026-08-18) -- THE SIX NO-DATE-COLUMN CARDS.
+#
+# WHAT MAKES THIS TRANCHE DIFFERENT FROM TRACK 1, and why every block below leads with the PIT trio:
+# none of these six could be carded at all before its producer changed. `TableSpec.knowledge_col()`
+# yields a column only for vintage / ingest / data_date, and the year_month branch of `query._guard`
+# needs BOTH year_col AND month_col -- so a crop `season bigint`, a `year` partition key, a free-text
+# `week_ending` label and a bare `country x year` grain each satisfied NOTHING, and every lookup raised
+# "table X has no knowledge/date column to anchor the as-of guard" before any SQL was compiled. Each
+# table gained exactly ONE producer-derived column (the WIRING WAVE-1 pre-step idiom: conab
+# survey_release_date, sagis week_ending_date), the catalog caught up, and the card followed.
+#
+# THE SHARED PINS, one per block, so a card cannot land half-wired:
+#   *_card_pit_shape                               -- the trio + the axis declarations, byte-exact
+#   *_card_reconciles_against_the_f010_registry    -- NUMBERS_TABLES + numbers_ref + consumers=both,
+#                                                     and the trio equal on BOTH sides (reconcile.py)
+#   *_is_in_the_pg_mirror_list                     -- served must mean mirrored (silent Athena fallback)
+#   *_card_columns_resolve_in_the_checked_in_ddl   -- through the real lint, not a copy of it
+# ════════════════════════════════════════════════════════════════════════════════════════════════════
+def _f010(table_id: str):
+    from leviathan.silver import registry as SR
+    return SR.load_registry().table(table_id)
+
+
+def _reconciles(table_id: str, trio: tuple):
+    """The four things landing a card actually costs, asserted through the REAL reconcile lint."""
+    from leviathan.silver import reconcile as RC
+    from leviathan.silver import registry as SR
+    reg = SR.load_registry()
+    assert table_id in RC.NUMBERS_TABLES, "an unenumerated table is STRUCTURALLY UNCHECKED"
+    assert [d.detail for d in RC.reconcile_numbers(reg) if d.table == table_id] == []
+    c = reg.table(table_id)
+    assert c["numbers_ref"] and c["consumers"] == "both"
+    assert (c["knowledge_date_col"], c["knowledge_semantics"], c["publication_lag_days"]) == trio
+
+
+def test_every_tranche2_card_is_served_and_in_the_tool_enum():
+    """All six at once: the registry, the visibility derivation and the agent's tool enum agree."""
+    reg = _reg()
+    enum = _props()["table"]["enum"]
+    visible = nreg.visible_tables(reg)
+    for tid in (SAGIS_DELIV, AMS, NASS_ANNUAL, FOOD_CPI, FNC_AREA, MPOC_EXPORTS):
+        assert tid in reg.tables, tid
+        assert tid in visible, tid
+        assert tid in enum, tid
+
+
+def test_no_tranche2_card_declares_period_required():
+    """THE DECISION, PINNED AS A DECISION rather than left as an absence. `period_required` refuses a
+    period-less lookup outright and is calibrated to the WAP trap: every release prints MULTIPLE period
+    rows side by side, so ONE row comes back and it is the WRONG CROP. Three of these six have no date
+    axis at all, and on such a card `_order_col` returns None, so `agg='latest'` is a SERIES read -- the
+    whole citable history ascending with the period stamped on every row (the silver_icco_cocoa shape,
+    which is the structural twin already in the file and likewise unfenced). That is a READING hazard
+    the notes teach, not a wrong single number; declaring the fence would additionally refuse the arc
+    reads these cards exist to serve. If a future card in this family DOES print rival periods per
+    release, this pin is the place that has to move first."""
+    reg = _reg()
+    opted_in = {t for t, ts in reg.tables.items() if ts.period_required}
+    assert opted_in == {"silver_wap_table01_revisions"}, (
+        "period_required is still the WAP-only fence; adding a card here needs the wrong-crop "
+        "measurement that justified it, not an analogy")
+
+
+def test_the_three_dateless_tranche2_cards_compile_latest_as_a_series():
+    """The MEASUREMENT behind the pin above, so it is not an assertion about the compiler's behaviour
+    but a reading of it: with no date_col and no (year_col AND month_col), `agg='latest'` carries no
+    LIMIT 1 and returns the ascending series -- which is exactly why the notes on all three say the
+    HEADLINE row of such a read is the OLDEST, not the newest."""
+    for tid, kw in ((AMS, dict(commodity="cotton")),
+                    (NASS_ANNUAL, dict(commodity="corn_cbot", country="IA")),
+                    (FNC_AREA, dict(commodity="arabica_coffee", country="huila"))):
+        ts = _reg().get(tid)
+        assert Q._order_col(ts) is None, tid
+        sql = Q.build_sql(Q.NumberQuery(table=tid, metric=sorted(ts.metrics)[0], asof="2026-08-18",
+                                        **kw), ts)
+        assert sql.endswith("LIMIT 5000"), tid          # the series cap, never the single-row collapse
+        assert "LIMIT 1" not in sql, tid
+
+
+# ════════════════════════════════════════════════════════════════════════════════════════════════════
+# (1) silver_sagis_weekly_deliveries -- the SUPPLY side of the SAGIS weekly pair.
+# The property this block exists to hold beyond the shared four: the two SAGIS weekly cards are NOT
+# equally fresh (deliveries runs to 2026-08, the export file stops 2024-04), which makes the fresher
+# table the WRONG one for an export question -- the sharpest substitution hazard in the tranche.
+# ════════════════════════════════════════════════════════════════════════════════════════════════════
+def _sagis_deliv():
+    return _reg().get(SAGIS_DELIV)
+
+
+def test_sagis_deliveries_card_pit_shape():
+    """data_date on the DERIVED week_ending_date + the ratified +5d sibling lag. date_col_type is
+    deliberately UNSET: the column is a Glue `date`, not a TIMESTAMP, so the DP-5 substr normalization
+    does not apply and CAST(col AS varchar) is the correct compare on both backends."""
+    ts = _sagis_deliv()
+    assert (ts.knowledge_semantics, ts.knowledge_date_col, ts.date_col) == \
+           ("data_date", "week_ending_date", "week_ending_date")
+    assert ts.publication_lag_days == 5
+    assert ts.date_col_type == "string"                  # NOT "timestamp" -- see the docstring
+    assert ts.shape == "wide" and ts.commodity_col == "crop"
+    assert ts.country_col is None                        # single-geography table; the fence is prose
+    assert ts.period_col is None and ts.period_type == "date"   # `season` is a 'YYYY-YY' LABEL
+    assert ts.partition_cols == [] and ts.year_col is None
+    assert set(ts.metrics) == {"prog_total_mt", "prior_prog_total_mt", "pct_of_prior_yr", "z_vs_3yr_avg"}
+    assert not ts.levels_only and not ts.quarantined
+
+
+def test_sagis_deliveries_declares_its_closed_crop_set():
+    ts = _sagis_deliv()
+    assert list(ts.commodity_values) == ["maize", "wheat", "soybeans", "sunflower"]
+    for crop in ts.commodity_values:
+        assert crop in ts.notes, f"{crop} is enforced but not taught in the card's notes"
+
+
+def test_sagis_deliveries_offcard_crop_is_refused_before_any_sql():
+    """The routed South African CONTRACT SLUG is the reflex reach, and it is not a value of this
+    column -- so the fence turns a silent zero-row read into a teaching refusal naming the four."""
+    class _S:
+        def __init__(self, table, commodity):
+            self.table, self.commodity = table, commodity
+    for slug in ("south_african_white_maize_jse", "sorghum", "barley", "corn_cbot"):
+        with pytest.raises(na.CommodityOffCard) as e:
+            na._check_commodity_class(_S(SAGIS_DELIV, slug), _reg())
+        assert "maize" in str(e.value) and "Nothing was queried." in str(e.value)
+
+
+def test_sagis_deliveries_sql_applies_the_five_day_lag_and_orders_newest_first():
+    spec = Q.NumberQuery(table=SAGIS_DELIV, metric="prog_total_mt", asof="2025-09-01", commodity="maize")
+    sql = Q.build_sql(spec)
+    assert "crop = 'maize'" in sql
+    assert "CAST(week_ending_date AS varchar) <= '2025-08-27'" in sql     # asof - 5d
+    assert "ORDER BY week_ending_date DESC" in sql and sql.endswith("LIMIT 1")
+
+
+def test_sagis_deliveries_oracle_agrees_with_the_guard():
+    """apply_pit_filter is the pure-Python twin of the SQL guard: the +5d lag must withhold the week
+    that is stamped but not yet posted, on BOTH sides."""
+    ts = _sagis_deliv()
+    rows = [
+        {"crop": "maize", "week_ending_date": "2025-08-22", "prog_total_mt": 13_520_800.0},
+        {"crop": "maize", "week_ending_date": "2025-08-29", "prog_total_mt": 13_690_000.0},  # +5d -> not yet
+        {"crop": "wheat", "week_ending_date": "2025-08-22", "prog_total_mt": 100.0},          # wrong crop
+    ]
+    spec = Q.NumberQuery(table=SAGIS_DELIV, metric="prog_total_mt", asof="2025-09-01", commodity="maize")
+    assert [r["week_ending_date"] for r in Q.apply_pit_filter(rows, spec, ts)] == ["2025-08-22"]
+    later = Q.NumberQuery(table=SAGIS_DELIV, metric="prog_total_mt", asof="2025-09-05", commodity="maize")
+    assert sorted(r["week_ending_date"] for r in Q.apply_pit_filter(rows, later, ts)) == \
+           ["2025-08-22", "2025-08-29"]
+
+
+def test_sagis_deliveries_notes_name_the_freshness_substitution_trap():
+    ts = _sagis_deliv()
+    blob = " ".join((ts.description + " " + ts.notes).lower().split())
+    for token in ("silver_sagis_weekly_exports",       # the sibling, named rather than implied
+                  "deliveries are not exports",        # the definitional split
+                  "april 2024",                        # the sibling's ceiling, said out loud
+                  "cumulative",                        # prog_total_mt is season-to-date, not a flow
+                  "south_african_white_maize_jse",     # the slug that is NOT a value of `crop`
+                  "degenerate"):                       # the ratio/z base warning
+        assert token in blob, token
+    assert "never call a dated reading 'current'" in blob
+
+
+def test_sagis_deliveries_card_reconciles_against_the_f010_registry():
+    _reconciles(SAGIS_DELIV, ("week_ending_date", "data_date", 5))
+
+
+def test_sagis_deliveries_is_in_the_pg_mirror_list():
+    from jobs.utils.load_pg_numbers import P1_TABLES
+    assert SAGIS_DELIV in P1_TABLES
+
+
+def test_sagis_deliveries_freshness_ceiling_is_not_widened_by_its_publication_lag():
+    """THE BANKED CATEGORY ERROR, pinned on the card that would have re-earned it. `publication_lag_days`
+    guards the AS-OF axis; `FreshnessLagDays` measures S3 WRITE recency, and the Friday fire writes
+    weekly whatever the content lag. Without the override the sagis FAMILY ceiling moved 14 -> 19 the
+    moment this card declared +5d, because this table WAS the family minimum at lag 0."""
+    from leviathan.silver import dag_catalog as DC
+    assert DC.FRESHNESS_LAG_OVERRIDES[SAGIS_DELIV] == 14
+    assert DC.build_catalog()["sagis"].max_sla_lag_days == 14
+
+
+def test_sagis_deliveries_card_columns_resolve_in_the_checked_in_ddl():
+    assert cc.check_numbers_schema_pins() == []
+
+
+# ════════════════════════════════════════════════════════════════════════════════════════════════════
+# (2) silver_ams_cotton_quality -- the estate's ONLY crop-QUALITY axis (27 rows, annual, vintage on the
+# AMS-1 derived release_date, NO date axis at all).
+# ════════════════════════════════════════════════════════════════════════════════════════════════════
+def _ams():
+    return _reg().get(AMS)
+
+
+def test_ams_cotton_card_pit_shape():
+    """VINTAGE on the DERIVED release_date with a ZERO lag -- release_date IS the (conservatively
+    derived) publication event, the conab_coffee Card B idiom. There is deliberately NO date_col: the
+    data axis is the season integer, and pointing date_col at the vintage axis is the canary-banned
+    pattern (vintage_dates_real, 2026-07-04)."""
+    ts = _ams()
+    assert (ts.knowledge_semantics, ts.knowledge_date_col) == ("vintage", "release_date")
+    assert ts.publication_lag_days == 0
+    assert ts.date_col is None and ts.year_col is None and ts.month_col is None
+    assert ts.shape == "wide" and ts.commodity_col == "commodity" and ts.country_col is None
+    assert (ts.period_col, ts.period_type, ts.period_sql_type) == ("season", "marketing_year", "int")
+    assert ts.partition_cols == [] and not ts.levels_only and not ts.quarantined
+    assert ts.grain_cols == ["commodity", "geography", "season"]
+    assert set(ts.metrics) == {"percent_tenderable", "avg_staple", "samples_classed"}
+    # the two all-null columns are EXCLUDED on purpose (0/27 non-null; the drought_z zero-row class)
+    assert "avg_micronaire" not in ts.metrics and "avg_strength" not in ts.metrics
+
+
+def test_ams_cotton_card_declares_its_closed_slug_set():
+    ts = _ams()
+    assert list(ts.commodity_values) == ["cotton"]
+    for slug in ts.commodity_values:
+        assert slug in ts.notes, f"{slug} is enforced but not taught in the card's notes"
+
+
+def test_ams_cotton_off_card_commodity_is_refused_before_any_sql():
+    class _S:
+        def __init__(self, table, commodity):
+            self.table, self.commodity = table, commodity
+    for slug in ("corn_cbot", "cotton_ice", "soybeans_cbot", "arabica_coffee"):
+        with pytest.raises(na.CommodityOffCard) as e:
+            na._check_commodity_class(_S(AMS, slug), _reg())
+        assert "cotton" in str(e.value) and "Nothing was queried." in str(e.value)
+
+
+def test_ams_cotton_sql_guards_the_as_of_on_the_derived_vintage():
+    """Flat table, projection forbidden -- there is no grid to prune, so the whole SQL story is the
+    commodity equality plus the vintage guard plus the latest-vintage collapse on the TRUE grain."""
+    spec = Q.NumberQuery(table=AMS, metric="percent_tenderable", asof="2025-06-02", commodity="cotton")
+    sql = Q.build_sql(spec)
+    assert "commodity = 'cotton'" in sql
+    assert "CAST(release_date AS varchar) <= '2025-06-02'" in sql
+    assert "PARTITION BY commodity, geography, season ORDER BY release_date DESC" in sql
+    assert "AS _v WHERE _rn = 1" in sql
+
+
+def test_ams_cotton_period_read_pins_one_season_as_an_int():
+    spec = Q.NumberQuery(table=AMS, metric="avg_staple", asof="2025-06-02", commodity="cotton",
+                         period="2023")
+    assert "season = 2023" in Q.build_sql(spec)          # period_sql_type int -> unquoted literal
+
+
+def test_ams_cotton_has_no_date_axis_so_a_window_compiles_to_nothing():
+    """THE CARD'S SHARPEST CALLER TRAP, pinned as code. With no date_col and no year_col there is
+    nothing for period_start/period_end to bind to, so a windowed series read compiles
+    BYTE-IDENTICALLY to the un-windowed one -- which is precisely why `notes` tells the caller to pass
+    `period` instead."""
+    base = Q.NumberQuery(table=AMS, metric="avg_staple", asof="2026-08-18", commodity="cotton",
+                         agg="series")
+    windowed = Q.NumberQuery(table=AMS, metric="avg_staple", asof="2026-08-18", commodity="cotton",
+                             agg="series", period_start="2015-01-01", period_end="2026-08-18")
+    assert Q.build_sql(base) == Q.build_sql(windowed)
+
+
+def test_ams_cotton_oracle_agrees_with_the_guard():
+    """A season stays withheld until its DERIVED release date, on BOTH sides. Season 2025's stamp is
+    2026-09-01, so it is NOT knowable at an August-2026 as-of -- the conservative pin's cost, asserted
+    rather than assumed."""
+    ts = _ams()
+    rows = [
+        {"commodity": "cotton", "geography": "us_total", "season": 2023,
+         "release_date": "2024-09-01", "percent_tenderable": 79.3},
+        {"commodity": "cotton", "geography": "us_total", "season": 2025,
+         "release_date": "2026-09-01", "percent_tenderable": 80.6},
+    ]
+    spec = Q.NumberQuery(table=AMS, metric="percent_tenderable", asof="2026-08-18", commodity="cotton")
+    assert [r["season"] for r in Q.apply_pit_filter(rows, spec, ts)] == [2023]
+    later = Q.NumberQuery(table=AMS, metric="percent_tenderable", asof="2026-09-02", commodity="cotton")
+    assert sorted(r["season"] for r in Q.apply_pit_filter(rows, later, ts)) == [2023, 2025]
+
+
+def test_ams_cotton_card_notes_state_the_pit_and_scope_traps():
+    """THE BLOB IS description + notes + EVERY METRIC DESC, and that is the correct surface rather than
+    a convenience: the model sees id / description / knowledge_semantics / period / metrics / notes, so
+    a rule stated in a metric's `unit` or `desc` is as reachable as one stated in `notes`. The staple
+    UNIT is literally `avg_staple.unit` -- '32nds of an inch', where a caller reading that one metric
+    actually meets it -- and would be invisible to a notes-only assertion; the desc restates it in
+    words. Whitespace is normalized because YAML folds these blocks."""
+    ts = _ams()
+    blob = " ".join((ts.description + " " + ts.notes + " " +
+                     " ".join(m.unit + " " + m.desc for m in ts.metrics.values())).lower().split())
+    for token in ("32nds of an inch",            # the unit a reader will otherwise report as inches
+                  "us cotton",                   # the geography, said out loud
+                  "1999-2007",                   # the gap, enumerated rather than hinted
+                  "missing report",              # what a gap MEANS
+                  "season 2018",                 # the samples_classed coverage floor
+                  "not served",                  # micronaire / strength
+                  "duplicate of season 2023",    # the measured producer defect
+                  "no effect"):                  # period_start/period_end are inert on this card
+        assert token in blob, token
+    assert "never call a dated reading 'current'" in blob
+    for other in ("silver_wasde", "silver_psd", "silver_nass_crop_progress", "silver_futures_prices"):
+        assert other in blob, other
+
+
+def test_ams_cotton_card_reconciles_against_the_f010_registry():
+    _reconciles(AMS, ("release_date", "vintage", 0))
+
+
+def test_ams_cotton_is_in_the_pg_mirror_list():
+    from jobs.utils.load_pg_numbers import P1_TABLES
+    assert AMS in P1_TABLES
+
+
+def test_ams_cotton_card_columns_resolve_in_the_checked_in_ddl():
+    assert cc.check_numbers_schema_pins() == []
+
+
+# ════════════════════════════════════════════════════════════════════════════════════════════════════
+# (3) silver_nass_annual -- the SETTLED state-level US crop record, and the SILVER-F020 enum defect
+# turned into a serving fence.
+# ════════════════════════════════════════════════════════════════════════════════════════════════════
+def _nass_annual():
+    return _reg().get(NASS_ANNUAL)
+
+
+def test_nass_annual_card_pit_shape():
+    """VINTAGE on the D-LD-9a derived release_date ('<crop year+1>-02-01', +0d): NASS publishes the
+    Crop Production ANNUAL SUMMARY for crop year Y in the SECOND WEEK OF JANUARY of Y+1, so
+    first-of-the-month-AFTER is always >= the real release -- zero leak, ~3 weeks of withhold."""
+    ts = _nass_annual()
+    assert (ts.knowledge_semantics, ts.knowledge_date_col) == ("vintage", "release_date")
+    assert ts.publication_lag_days == 0
+    assert ts.date_col is None and ts.month_col is None
+    assert ts.shape == "wide" and ts.commodity_col == "commodity" and ts.country_col == "state"
+    assert (ts.period_col, ts.period_type, ts.period_sql_type) == ("year", "year", "int")
+    assert ts.year_col == "year" and ts.partition_cols == ["commodity", "year"]
+    assert ts.grain_cols == ["commodity", "state", "year"]
+    assert set(ts.metrics) == {"production_mt", "yield_t_ha", "area_harvested_ha", "area_planted_ha"}
+    assert not ts.levels_only and not ts.quarantined
+
+
+def test_nass_annual_commodity_values_exclude_the_two_phantom_wheat_slugs_and_hidden_canola():
+    """SILVER-F020, RESTATED AS A SERVING FACT. The live projection enum promises six slugs. TWO of
+    them (soft_red_winter_wheat_cbot, hard_red_spring_wheat_mgex) have NO physical partition at all, so
+    a wheat lookup would compile cleanly and return ZERO rows -- the WASDE Title-Case "silently not yet
+    published" class arriving through a partition enum. canola_ice is the OPPOSITE case: 36 objects
+    EXIST on S3 and are hidden from Athena by the short enum, so serving it would make the pg mirror
+    (which reads the parquet) and Athena (which reads the catalog) DISAGREE. Both are excluded, and the
+    fence is engine-independent so a GRAPHRAG_NUMBERS_BACKEND flip cannot change the answer."""
+    ts = _nass_annual()
+    assert list(ts.commodity_values) == ["corn_cbot", "soybeans_cbot", "cotton", "rough_rice_cbot"]
+    for phantom in ("soft_red_winter_wheat_cbot", "hard_red_spring_wheat_mgex", "canola_ice"):
+        assert phantom not in ts.commodity_values
+    assert "us wheat is not in this\n      table" in ts.notes.lower() or \
+           "us wheat is not in this table" in " ".join(ts.notes.lower().split())
+
+
+def test_nass_annual_off_card_commodity_is_refused_before_any_sql():
+    class _S:
+        def __init__(self, table, commodity):
+            self.table, self.commodity = table, commodity
+    for slug in ("soft_red_winter_wheat_cbot", "hard_red_spring_wheat_mgex", "canola_ice",
+                 "arabica_coffee"):
+        with pytest.raises(na.CommodityOffCard) as e:
+            na._check_commodity_class(_S(NASS_ANNUAL, slug), _reg())
+        assert "corn_cbot" in str(e.value) and "Nothing was queried." in str(e.value)
+
+
+def test_nass_annual_sql_prunes_the_projection_and_guards_the_as_of():
+    """Partition-PROJECTED (commodity enum x year 1866-2035). The commodity equality plus the sargable
+    year bound are what keep Athena from enumerating that grid; a NAMED crop year additionally emits
+    the partition equality, which prunes ~170 candidates to one."""
+    spec = Q.NumberQuery(table=NASS_ANNUAL, metric="production_mt", asof="2026-08-18",
+                         commodity="corn_cbot", country="IA", period="2025")
+    sql = Q.build_sql(spec)
+    assert "commodity = 'corn_cbot'" in sql
+    assert "state = 'IA'" in sql
+    assert "year = 2025" in sql and "year <= 2026" in sql
+    assert "CAST(release_date AS varchar) <= '2026-08-18'" in sql
+    assert "PARTITION BY commodity, state, year ORDER BY release_date DESC" in sql
+
+
+def test_nass_annual_window_read_emits_bounds_and_never_a_year_equality():
+    """The W3.1 rule: `year` is BOTH the projected partition key and the declared year_col, so a WINDOW
+    read must bound it (an equality would silently return ZERO rows across a multi-year span)."""
+    spec = Q.NumberQuery(table=NASS_ANNUAL, metric="yield_t_ha", asof="2026-08-18",
+                         commodity="corn_cbot", country="US", agg="series",
+                         period_start="2015-01-01", period_end="2025-12-31")
+    sql = Q.build_sql(spec)
+    assert "year >= 2015" in sql and "year <= 2025" in sql
+    assert "year = " not in sql
+
+
+def test_nass_annual_oracle_withholds_the_crop_year_whose_january_summary_has_not_published():
+    ts = _nass_annual()
+    rows = [
+        {"commodity": "corn_cbot", "state": "IA", "year": 2025, "release_date": "2026-02-01",
+         "production_mt": 70_410_000.0},
+        {"commodity": "corn_cbot", "state": "IA", "year": 2026, "release_date": "2027-02-01",
+         "production_mt": None},                                     # in-season acreage row, withheld
+        {"commodity": "corn_cbot", "state": "IL", "year": 2025, "release_date": "2026-02-01",
+         "production_mt": 59_790_000.0},                             # wrong state
+    ]
+    spec = Q.NumberQuery(table=NASS_ANNUAL, metric="production_mt", asof="2026-08-18",
+                         commodity="corn_cbot", country="IA")
+    assert [r["year"] for r in Q.apply_pit_filter(rows, spec, ts)] == [2025]
+
+
+def test_nass_annual_notes_state_the_us_only_state_axis_and_summary_traps():
+    ts = _nass_annual()
+    blob = " ".join((ts.description + " " + ts.notes).lower().split())
+    for token in ("united states and nothing else",   # the geography fence, prose half
+                  "always pass a state",              # the free axis with no default
+                  "never add 'us' to a list of states",   # the double-count trap
+                  "us wheat is not in this table",    # the F020 enum defect, in caller terms
+                  "january",                          # the vintage cadence
+                  "5,000-row cap",                    # corn alone exceeds it
+                  "silver_nass_crop_progress"):       # the sibling that answers the in-season ask
+        assert token in blob, token
+
+
+def test_nass_annual_card_reconciles_against_the_f010_registry():
+    _reconciles(NASS_ANNUAL, ("release_date", "vintage", 0))
+
+
+def test_nass_annual_is_in_the_pg_mirror_list():
+    from jobs.utils.load_pg_numbers import P1_TABLES
+    assert NASS_ANNUAL in P1_TABLES
+
+
+def test_nass_annual_card_columns_resolve_in_the_checked_in_ddl():
+    assert cc.check_numbers_schema_pins() == []
+
+
+# ════════════════════════════════════════════════════════════════════════════════════════════════════
+# (4) silver_food_cpi -- the macro pressure gauge, and the ONE card in this tranche whose only enforced
+# fence is a DATE rather than a vocabulary.
+# ════════════════════════════════════════════════════════════════════════════════════════════════════
+def _food_cpi():
+    return _reg().get(FOOD_CPI)
+
+
+def test_food_cpi_card_pit_shape():
+    """data_date on the derived year-end observation date + a MEASURED 195-day publication lag, with
+    the WB `lastupdated` stamp riding as provenance_col -> the `revision_stamp` alias (the pink-sheet
+    latest_release_ym idiom for the same publisher)."""
+    ts = _food_cpi()
+    assert (ts.knowledge_semantics, ts.knowledge_date_col, ts.date_col) == \
+           ("data_date", "data_date", "data_date")
+    assert ts.publication_lag_days == 195
+    assert ts.provenance_col == "release_date"
+    assert ts.shape == "wide" and ts.commodity_col is None and ts.country_col == "country_iso"
+    assert (ts.period_col, ts.period_type, ts.period_sql_type) == ("year", "year", "int")
+    assert ts.partition_cols == [] and ts.year_col is None
+    assert set(ts.metrics) == {"cpi_yoy_pct", "cpi_yoy_z_5yr", "cpi_yoy_z_10yr", "cpi_available"}
+    assert not ts.levels_only and not ts.quarantined
+
+
+def test_food_cpi_has_no_commodity_fence_and_the_card_says_why():
+    """A LIMITATION, RECORDED, not an omission: the registry offers a closed-set fence only on the
+    COMMODITY axis, and this card's closed set is on the COUNTRY axis (four ISO3 codes). Repurposing
+    commodity_col for it was considered and REJECTED -- the tool schema would ask the model for a
+    'commodity' and get a country, and geography resolution would be pointed at nonsense. So the fence
+    is PROSE, twice, with the D-PQ CLASS-1 caveat understood."""
+    ts = _food_cpi()
+    assert list(ts.commodity_values) == []
+    blob = " ".join((ts.description + " " + ts.notes).lower().split())
+    for iso in ("ind (india)", "idn (indonesia)", "rus (russian federation)", "ukr (ukraine)"):
+        assert iso in blob, iso
+    assert "there is no commodity axis" in blob
+
+
+def test_food_cpi_sql_shifts_the_cutoff_back_by_the_measured_lag():
+    """The lag shifts the as-of RHS LITERAL (_pub_lagged_asof), so the guard stays sargable and
+    backend-agnostic. At 2026-08-18 the cutoff is 2026-02-04, which admits data year 2025."""
+    spec = Q.NumberQuery(table=FOOD_CPI, metric="cpi_yoy_pct", asof="2026-08-18", country="IND")
+    sql = Q.build_sql(spec)
+    assert "country_iso = 'IND'" in sql
+    assert "CAST(data_date AS varchar) <= '2026-02-04'" in sql
+    assert "release_date AS revision_stamp" in sql        # every row carries its WB release stamp
+    assert "ORDER BY data_date DESC" in sql and sql.endswith("LIMIT 1")
+
+
+def test_food_cpi_pit_guard_withholds_the_year_whose_release_has_not_landed():
+    """THE ONLY ENFORCED FENCE THIS CARD HAS, on both sides. At a March-2026 as-of the cutoff is
+    2025-08-18, so data year 2025 (data_date 2025-12-31, published 2026-07-13) is NOT yet knowable and
+    the newest citable reading is 2024. This is the eval deck's `dld_food_cpi_pit_prerelease_F` row,
+    asserted here deterministically."""
+    ts = _food_cpi()
+    rows = [
+        {"country_iso": "IND", "year": 2024, "data_date": "2024-12-31",
+         "release_date": "2025-07-13", "cpi_yoy_pct": 4.953},
+        {"country_iso": "IND", "year": 2025, "data_date": "2025-12-31",
+         "release_date": "2026-07-13", "cpi_yoy_pct": 2.3988},
+    ]
+    early = Q.NumberQuery(table=FOOD_CPI, metric="cpi_yoy_pct", asof="2026-03-01", country="IND")
+    assert [r["year"] for r in Q.apply_pit_filter(rows, early, ts)] == [2024]
+    assert "CAST(data_date AS varchar) <= '2025-08-18'" in Q.build_sql(early)
+    later = Q.NumberQuery(table=FOOD_CPI, metric="cpi_yoy_pct", asof="2026-08-18", country="IND")
+    assert sorted(r["year"] for r in Q.apply_pit_filter(rows, later, ts)) == [2024, 2025]
+
+
+def test_food_cpi_notes_refuse_the_food_inflation_and_policy_forecast_readings():
+    ts = _food_cpi()
+    blob = " ".join((ts.description + " " + ts.notes).lower().split())
+    assert "food inflation" in blob                     # named, in order to be REFUSED
+    assert "consumer price inflation" in blob
+    for token in ("always pass a country",              # the free axis with no default
+                  "nulls are published absences",       # pre-1993 RUS/UKR
+                  "unwinsorized",                       # the z has no plausibility cap
+                  "latest-only",                        # no true as-of replay
+                  "revision_stamp",                     # the provenance alias, named for the citation
+                  "silver_pink_sheet"):                 # the same publisher's price card
+        assert token in blob, token
+    assert "never call a dated reading 'current'" in blob
+    # THE SHARPEST ONE: a policy claim minted from an inflation number is the invention this card refuses
+    assert "it can never say a restriction is coming" in blob
+
+
+def test_food_cpi_card_reconciles_against_the_f010_registry():
+    _reconciles(FOOD_CPI, ("data_date", "data_date", 195))
+
+
+def test_food_cpi_contract_carries_the_applied_replace_columns_types():
+    """The catalog migration was a REPLACE, not an ADD, and BOTH halves are corrections of a live
+    defect. The three z/level columns were declared `float` (Athena `real`) over DOUBLE parquet, so
+    Athena REFUSED to read every served metric while strings, `year`, `cpi_available` and count(*) all
+    succeeded -- the table looked alive and no measure column was readable. Pinned on the GENERATED
+    contract so a regeneration that dropped the CURATION_OVERRIDES entry fails here."""
+    cols = {c["name"]: c for c in _f010(FOOD_CPI)["physical_columns"]}
+    for c in ("cpi_yoy_pct", "cpi_yoy_z_5yr", "cpi_yoy_z_10yr"):
+        assert cols[c]["glue_type"] == "double", c
+    assert cols["cpi_available"]["glue_type"] == "bigint"
+    for c in ("data_date", "release_date"):
+        assert cols[c]["glue_type"] == "string" and cols[c]["nullable"] is False, c
+
+
+def test_food_cpi_is_in_the_pg_mirror_list():
+    from jobs.utils.load_pg_numbers import P1_TABLES
+    assert FOOD_CPI in P1_TABLES
+
+
+def test_food_cpi_freshness_ceiling_is_not_widened_by_its_publication_lag():
+    """195 days of CONTENT lag on an ANNUAL cadence would make the write-recency ceiling 595 days for a
+    producer that fires MONTHLY. Same law as fgis and sagis: the two numbers protect different things."""
+    from leviathan.silver import dag_catalog as DC
+    assert DC.FRESHNESS_LAG_OVERRIDES[FOOD_CPI] == 400
+    assert DC.build_catalog()["world_bank"].max_sla_lag_days == 85      # pink_sheet's, unmoved
+
+
+def test_food_cpi_card_columns_resolve_in_the_checked_in_ddl():
+    assert cc.check_numbers_schema_pins() == []
+
+
+# ════════════════════════════════════════════════════════════════════════════════════════════════════
+# (5) silver_fnc_colombia_area_department -- INGEST semantics, and the only card in the tranche that is
+# fail-CLOSED before its own snapshot stamp.
+# ════════════════════════════════════════════════════════════════════════════════════════════════════
+def _fnc_area():
+    return _reg().get(FNC_AREA)
+
+
+def test_fnc_area_card_pit_shape():
+    """INGEST on the carried-through bronze stamp (the silver_production idiom): FNC republishes the
+    whole workbook and the producer overwrites, so there are no vintages to collapse and NO publication
+    lag to shift -- publication_lag_days stays 0 on the card and NULL in F010, byte-equal."""
+    ts = _fnc_area()
+    assert (ts.knowledge_semantics, ts.knowledge_date_col) == ("ingest", "ingest_date")
+    assert ts.publication_lag_days == 0
+    assert ts.date_col is None and ts.month_col is None
+    assert ts.shape == "wide" and ts.commodity_col == "commodity" and ts.country_col == "department"
+    assert (ts.period_col, ts.period_type, ts.period_sql_type) == ("year", "year", "int")
+    assert ts.year_col == "year" and ts.partition_cols == ["commodity", "year"]
+    assert set(ts.metrics) == {"area_ha"}
+    assert not ts.levels_only and not ts.quarantined
+
+
+def test_fnc_area_declares_its_single_slug_and_teaches_it():
+    ts = _fnc_area()
+    assert list(ts.commodity_values) == ["arabica_coffee"]
+    assert "arabica_coffee" in ts.notes
+
+
+def test_fnc_area_off_card_commodity_is_refused_before_any_sql():
+    class _S:
+        def __init__(self, table, commodity):
+            self.table, self.commodity = table, commodity
+    for slug in ("robusta_coffee", "coffee", "corn_cbot"):
+        with pytest.raises(na.CommodityOffCard) as e:
+            na._check_commodity_class(_S(FNC_AREA, slug), _reg())
+        assert "arabica_coffee" in str(e.value) and "Nothing was queried." in str(e.value)
+
+
+def test_fnc_area_sql_prunes_the_smallest_projected_grid_in_the_registry():
+    spec = Q.NumberQuery(table=FNC_AREA, metric="area_ha", asof="2026-08-18",
+                         commodity="arabica_coffee", country="huila", period="2025")
+    sql = Q.build_sql(spec)
+    assert "commodity = 'arabica_coffee'" in sql
+    assert "department = 'huila'" in sql
+    assert "year = 2025" in sql and "year <= 2026" in sql
+    assert "CAST(ingest_date AS varchar) <= '2026-08-18'" in sql
+
+
+def test_fnc_area_is_fail_closed_before_its_own_snapshot_stamp():
+    """THE COST, ASSERTED RATHER THAN DISCOVERED. An as-of BEFORE the edition's ingest_date returns
+    ZERO rows -- it can never leak, and it means this card answers 'where is the area today' and cannot
+    answer 'what was believed in 2019'. The notes say exactly that; this is the code half."""
+    ts = _fnc_area()
+    rows = [{"commodity": "arabica_coffee", "department": "huila", "year": 2025,
+             "ingest_date": "2026-06-02", "area_ha": 150_127.28}]
+    early = Q.NumberQuery(table=FNC_AREA, metric="area_ha", asof="2025-06-01",
+                          commodity="arabica_coffee", country="huila")
+    assert Q.apply_pit_filter(rows, early, ts) == []
+    now = Q.NumberQuery(table=FNC_AREA, metric="area_ha", asof="2026-08-18",
+                        commodity="arabica_coffee", country="huila")
+    assert [r["area_ha"] for r in Q.apply_pit_filter(rows, now, ts)] == [150_127.28]
+
+
+def test_fnc_area_notes_state_the_no_national_row_and_roster_growth_traps():
+    ts = _fnc_area()
+    blob = " ".join((ts.description + " " + ts.notes).lower().split())
+    for token in ("there is no national total row",   # the sum-with-period rule
+                  "n_santander",                      # the exact snake_case department vocabulary
+                  "roster grows",                     # 16 -> 20 -> 22 -> 23 departments
+                  "hectares",                         # the unit, never bags
+                  "silver_fnc_colombia_monthly",      # the sibling that carries production/exports
+                  "what was believed in 2019"):       # the fail-closed cost, said in caller terms
+        assert token in blob, token
+    assert "never call a dated reading 'current'" in blob
+
+
+def test_fnc_area_card_reconciles_against_the_f010_registry():
+    _reconciles(FNC_AREA, ("ingest_date", "ingest", None))
+
+
+def test_fnc_area_declares_no_lag_so_the_fnc_family_ceiling_is_untouched():
+    """The mirror image of the sagis pin: NO publication lag means NO grace to add, so no
+    FRESHNESS_LAG_OVERRIDES entry is warranted and the fnc family ceiling stays where the D-LD Track-1
+    review put it. An override here would be a pin against nothing."""
+    from leviathan.silver import dag_catalog as DC
+    assert FNC_AREA not in DC.FRESHNESS_LAG_OVERRIDES
+    assert DC.build_catalog()["fnc_colombia"].max_sla_lag_days == 45
+
+
+def test_fnc_area_is_in_the_pg_mirror_list():
+    from jobs.utils.load_pg_numbers import P1_TABLES
+    assert FNC_AREA in P1_TABLES
+
+
+def test_fnc_area_card_columns_resolve_in_the_checked_in_ddl():
+    assert cc.check_numbers_schema_pins() == []
+
+
+# ════════════════════════════════════════════════════════════════════════════════════════════════════
+# (6) silver_mpoc_exports_by_country -- the annual DESTINATION book. It DISCHARGES the D-PQ tranche-1a
+# `_SKIPPED[...] = "guard"` refusal, which was CORRECT at the time: the table has no month column, so
+# the D-LD plan's own `wide/year_month` designation could never have compiled.
+# ════════════════════════════════════════════════════════════════════════════════════════════════════
+def _mpoc_exports():
+    return _reg().get(MPOC_EXPORTS)
+
+
+def test_mpoc_exports_card_pit_shape_is_data_date_not_the_plans_year_month():
+    """THE PLAN WAS WRONG AND THE CORRECTION IS THE PIN. year_month RAISES without BOTH year_col AND
+    month_col; this table has neither a month column nor (deliberately) a year_col -- a year_col would
+    only duplicate the `period` alias on the same physical column and buy no pruning on a flat table."""
+    ts = _mpoc_exports()
+    assert (ts.knowledge_semantics, ts.knowledge_date_col, ts.date_col) == \
+           ("data_date", "year_ending_date", "year_ending_date")
+    assert ts.publication_lag_days == 60
+    assert ts.year_col is None and ts.month_col is None
+    assert ts.shape == "wide" and ts.commodity_col is None and ts.country_col == "country"
+    assert (ts.period_col, ts.period_type, ts.period_sql_type) == ("year", "year", "int")
+    assert ts.partition_cols == []                       # flat, projection forbidden -- nothing to prune
+    assert set(ts.metrics) == {"exports_mt"}
+    assert not ts.levels_only and not ts.quarantined
+
+
+def test_mpoc_exports_declares_a_commodity_fence_despite_having_no_commodity_column():
+    """D-PQ CLASS-1 applied to a card with NO product axis. `commodity` emits no SQL here -- but an
+    EMPTY commodity_values would let a corn or cocoa lookup sail through and return a palm tonnage
+    wearing a grain label, because `_check_commodity_class` reads commodity_values ALONE and never
+    consults commodity_col. BOTH surface forms are listed on purpose: refusing a caller for picking the
+    other of two names for the SAME product would be a manufactured decline."""
+    ts = _mpoc_exports()
+    assert ts.commodity_col is None
+    assert list(ts.commodity_values) == ["palm_oil", "malaysian_crude_palm_oil_cme"]
+
+    class _S:
+        def __init__(self, table, commodity):
+            self.table, self.commodity = table, commodity
+    for ok in ts.commodity_values:
+        na._check_commodity_class(_S(MPOC_EXPORTS, ok), _reg())      # no raise
+    for bad in ("corn_cbot", "cocoa", "soybean_oil_cbot"):
+        with pytest.raises(na.CommodityOffCard):
+            na._check_commodity_class(_S(MPOC_EXPORTS, bad), _reg())
+
+
+def test_mpoc_exports_sql_shifts_the_cutoff_by_sixty_days():
+    spec = Q.NumberQuery(table=MPOC_EXPORTS, metric="exports_mt", asof="2026-08-18", country="india")
+    sql = Q.build_sql(spec)
+    assert "country = 'india'" in sql
+    assert "CAST(year_ending_date AS varchar) <= '2026-06-19'" in sql   # asof - 60d
+    assert "ORDER BY year_ending_date DESC" in sql and sql.endswith("LIMIT 1")
+
+
+def test_mpoc_exports_oracle_holds_the_year_until_the_following_march():
+    """Calendar year Y becomes citable on (Y+1)-03-01: the Jan-Dec total is complete only after
+    December and MPOC's year page carries it the following January."""
+    ts = _mpoc_exports()
+    rows = [
+        {"country": "india", "year": 2022, "year_ending_date": "2022-12-31", "exports_mt": 2_898_770.0},
+        {"country": "india", "year": 2023, "year_ending_date": "2023-12-31", "exports_mt": 2_809_956.0},
+    ]
+    before = Q.NumberQuery(table=MPOC_EXPORTS, metric="exports_mt", asof="2024-02-15", country="india")
+    assert [r["year"] for r in Q.apply_pit_filter(rows, before, ts)] == [2022]
+    after = Q.NumberQuery(table=MPOC_EXPORTS, metric="exports_mt", asof="2024-03-01", country="india")
+    assert sorted(r["year"] for r in Q.apply_pit_filter(rows, after, ts)) == [2022, 2023]
+
+
+def test_mpoc_exports_notes_state_the_panel_ceiling_and_no_total_traps():
+    ts = _mpoc_exports()
+    blob = " ".join((ts.description + " " + ts.notes).lower().split())
+    for token in ("top-destination panel",     # not a destination LIST -- the easiest way to misread it
+                  "did not stop buying",       # a missing year is a shortlist fall-off, never a zero
+                  "there is no total and no share",   # the excluded source TOTAL row
+                  "reporting change",          # the eu -> netherlands basis break
+                  "2023",                      # the archive ceiling, stated
+                  "silver_mpob"):              # where the national denominator actually lives
+        assert token in blob, token
+    assert "never call a dated reading 'current'" in blob
+
+
+def test_mpoc_exports_card_reconciles_against_the_f010_registry():
+    _reconciles(MPOC_EXPORTS, ("year_ending_date", "data_date", 60))
+
+
+def test_mpoc_exports_anchor_column_is_a_real_catalog_column_post_alter():
+    """THE ORDERING FACT THIS PIN GUARDED IS NOW DISCHARGED: the gated ADD COLUMNS was applied
+    2026-08-18 AFTER the canonical re-run (runbook order; verify SELECT read d0=2009-12-31
+    d1=2023-12-31 null_anchors=0), the R0 snapshot was refreshed to the five-column truth, and the
+    hidden staging (glue_type null, the SILVER-F059 sagis precedent) was retired in the same change.
+    The anchor is now a REGULAR catalog column -- so the pg mirror load is UNBLOCKED, and this pin
+    flips to guard the discharged state: a regression back to hidden would silently drop the column
+    from the generated DDL and re-open the four-column mirror hazard the old pin described."""
+    cols = {c["name"]: c for c in _f010(MPOC_EXPORTS)["physical_columns"]}
+    anchor = cols["year_ending_date"]
+    assert anchor["glue_type"] == "date"                 # REAL: renders in the generated DDL
+    assert anchor["target_arrow_type"] == "date32[day]"
+    assert anchor["nullable"] is False                   # a null would silently defeat the PIT guard
+
+
+def test_mpoc_exports_is_in_the_pg_mirror_list():
+    from jobs.utils.load_pg_numbers import P1_TABLES
+    assert MPOC_EXPORTS in P1_TABLES
+
+
+def test_mpoc_exports_freshness_ceiling_is_not_widened_by_its_publication_lag():
+    from leviathan.silver import dag_catalog as DC
+    assert DC.FRESHNESS_LAG_OVERRIDES[MPOC_EXPORTS] == 400
+    assert DC.build_catalog()["mpoc"].max_sla_lag_days == 45          # unmoved by the +60d card
+
+
+def test_mpoc_exports_card_columns_resolve_in_the_checked_in_ddl():
+    assert cc.check_numbers_schema_pins() == []

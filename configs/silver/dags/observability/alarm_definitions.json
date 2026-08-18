@@ -15,7 +15,7 @@
       "metric_name": "BatchJobFailed",
       "metric_namespace": "Leviathan/Silver",
       "oncall_destination": "leviathan-dev-silver-pipeline-alerts",
-      "owner": "silver-platform",
+      "owner": "numbers-platform",
       "period_seconds": 300,
       "retention_days": 90,
       "severity": "P2-business-hours",
@@ -499,7 +499,7 @@
       "metric_name": "FreshnessLagDays",
       "metric_namespace": "Leviathan/Silver",
       "oncall_destination": "leviathan-dev-silver-pipeline-alerts",
-      "owner": "silver-platform",
+      "owner": "numbers-platform",
       "period_seconds": 86400,
       "retention_days": 90,
       "severity": "P2-business-hours",
@@ -753,7 +753,7 @@
       "alarm_name": "leviathan-dev-freshness-sla-breach-sagis",
       "comparison_operator": "GreaterThanThreshold",
       "dedup_key": "freshness/sagis",
-      "description": "SAGIS South Africa grain exceeded its interim freshness ceiling (14d, basis=cadence_default:weekly). Emitted by scripts/silver/freshness_poller.py (FreshnessLagDays, dim Family). Runbook: R4_incident_runbooks.md#freshness-sla-breach.",
+      "description": "SAGIS South Africa grain exceeded its interim freshness ceiling (14d, basis=audit_override(was 19,cadence_default:weekly)). Emitted by scripts/silver/freshness_poller.py (FreshnessLagDays, dim Family). Runbook: R4_incident_runbooks.md#freshness-sla-breach.",
       "dimensions": {
         "Family": "sagis"
       },

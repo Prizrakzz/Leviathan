@@ -196,10 +196,23 @@ def test_the_weekly_nass_sibling_is_untouched():
 
 def test_the_anchor_never_touches_a_measured_value():
     """value_columns is the contract's list of what this table MEASURES; the anchor is timing only,
-    so it must not appear there (and the F010 value list must not have shifted)."""
+    so it must not appear there (and the F010 value SET must not have shifted).
+
+    ASSERTED AS A SET, and the reason is a real change rather than a loosened pin. This test was
+    written against the PRE-CARD contract, where value_columns fell through to the source_contract
+    ``required_columns`` path and therefore came out in PHYSICAL COLUMN order. D-LD Tranche 2 landed
+    the ``silver_nass_annual`` numbers card, and for a carded WIDE table ``build_contract`` derives
+    value_columns from the CARD'S METRIC KEYS instead (gen_registry_from_baseline.py:549) -- INV-5's
+    single authority moving from the source contract to the card, which is the whole point of carding
+    a table. The card leads with ``production_mt`` because that is the metric order the MODEL reads,
+    so the list is now [production_mt, yield_t_ha, area_harvested_ha, area_planted_ha]. MEMBERSHIP is
+    byte-identical, nothing was added or dropped, and no consumer of value_columns is order-sensitive
+    (it drives the per-column min_nonnull_frac floors). What this test actually guards -- that the
+    timing anchor is not among the measured values -- is untouched and asserted below."""
     c = _contract()
-    assert c["value_columns"] == [
+    assert set(c["value_columns"]) == {
         "area_planted_ha", "area_harvested_ha", "yield_t_ha", "production_mt",
-    ]
+    }
+    assert len(c["value_columns"]) == 4                  # no duplicates, no quiet additions
     assert _ANCHOR not in c["value_columns"]
     assert c["natural_key"] == ["commodity", "state", "year"]

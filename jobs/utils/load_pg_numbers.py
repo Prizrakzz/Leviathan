@@ -290,7 +290,87 @@ P1_TABLES = ["silver_psd", "silver_wasde", "silver_production", "silver_esr", "s
              # deliberately carries NO SAMPLE_COMMODITY row for it -- and here that is not a deferral
              # but a STRUCTURAL fact: SAMPLE_COMMODITY panels are keyed by commodity and this table has
              # no commodity column, so a sampled entry would be vacuous.
-             "silver_mpoc_trade_stats_monthly"]
+             "silver_mpoc_trade_stats_monthly",
+             # ── D-LD TRANCHE 2 (2026-08-18): six more cards, six more mirrors, all in the SAME change
+             # that lands the cards. The doctrine is one sentence and it does not bend for size: a
+             # SERVED numbers table must be MIRRORED, because served-but-unmirrored means
+             # GRAPHRAG_NUMBERS_BACKEND=pg raises UndefinedTable per query and SILENTLY FALLS BACK TO
+             # ATHENA (pgnumbers.py:66-77, warning-log only -- never an error, never a wrong number,
+             # just a quietly different backend). "Small enough not to matter" is precisely how that
+             # silent-fallback path gets normalized.
+             # SEQUENCING, common to all six: these entries DEFINE the mirror; the LOAD still has to run
+             # IN-VPC (jobs/submit/submit_batch_load_numbers_pg.py) before any serving flip, and
+             # numbers_parity deliberately carries NO SAMPLE_COMMODITY row for any of them yet -- a
+             # sampled-but-unmirrored table turns the WHOLE parity gate red (numbers_parity.py:30-36
+             # imports P1_TABLES and SKIPs loudly), so the pair is chosen against the first real mirror.
+             #
+             # silver_sagis_weekly_deliveries -- 3,007 rows / one 110 KB object, flat + projection
+             # forbidden. TYPE DOCTRINE: the four wide metrics prog_total_mt / prior_prog_total_mt /
+             # pct_of_prior_yr / z_vs_3yr_avg mirror NUMERIC. week_number is a bigint that is NOT a
+             # metric, NOT the value_col and NOT a year/month/int-period col, so _numeric_cols routes it
+             # to TEXT COLLATE "C" -- correct, because nothing compares it arithmetically (it is a LABEL
+             # on the season axis, and the card orders by week_ending_date). season / crop /
+             # week_ending / source stay TEXT COLLATE "C", and the derived week_ending_date (Glue DATE)
+             # stringifies to ISO TEXT COLLATE "C", which is what build_sql's CAST-as-varchar compare
+             # expects on both backends -- byte-identical to the exports sibling.
+             "silver_sagis_weekly_deliveries",
+             # silver_ams_cotton_quality -- 27 rows / 9.6 KB, the smallest table in the mirror by two
+             # orders of magnitude; size is not a question here. TYPE DOCTRINE: the three declared wide
+             # metrics (percent_tenderable, samples_classed, avg_staple) mirror NUMERIC because metric
+             # NAME == column name on a wide table, and `season` mirrors NUMERIC too because it is the
+             # period_col with period_sql_type=int (_numeric_cols). EVERYTHING ELSE stays TEXT COLLATE
+             # "C" -- commodity, geography, release_date (the ISO 'YYYY-MM-DD' vintage stamp: byte-order
+             # collation is exactly how Athena compares the varchar the guard CASTs to, so the two
+             # backends order it identically), source_pages, source_raw_key, source_file_etag, source.
+             # The two UNDECLARED columns avg_micronaire / avg_strength are not metrics, so they route
+             # to TEXT COLLATE "C" automatically and land as all-NULL text -- never served, never
+             # numeric, no loader change needed.
+             "silver_ams_cotton_quality",
+             # silver_nass_annual -- 14,631 rows / 593 canonical objects, partition-PROJECTED (commodity
+             # enum x year 1866-2035), so the fallback would land on the LIST-storm class. TYPE
+             # DOCTRINE: the four wide metrics production_mt / yield_t_ha / area_harvested_ha /
+             # area_planted_ha mirror NUMERIC; `year` mirrors NUMERIC because it is BOTH the declared
+             # year_col and the int-typed period_col the sargable bounds do arithmetic on, arriving via
+             # meta["partitions"]; marketing_year is a bigint that the card does NOT reference, so it
+             # stays TEXT COLLATE "C" (nothing compares it); leviathan_slug / country / state /
+             # commodity / source / release_date stay TEXT COLLATE "C". NOTE the shadowed keys, already
+             # handled with no loader change: `year` is BOTH a Glue partition key and an in-file body
+             # column (the silver_esr_compact / fnc class) -- _probe_body_columns drops such keys from
+             # the pyarrow partitioning schema and takes the authoritative body value. The four all-NULL
+             # *_cv_pct columns are not metrics and route to TEXT COLLATE "C" as all-NULL text.
+             "silver_nass_annual",
+             # silver_food_cpi -- 264 rows / one 10 KB object, flat. TYPE DOCTRINE: the four wide
+             # metrics mirror numeric -- cpi_yoy_pct / cpi_yoy_z_5yr / cpi_yoy_z_10yr as DOUBLE
+             # PRECISION and cpi_available as BIGINT -- and `year` mirrors bigint because
+             # period_sql_type is int. Everything else is TEXT COLLATE "C": country_iso, country_name,
+             # source, and BOTH derived ISO date strings (data_date, release_date), which the
+             # CAST-as-varchar guard compares identically on both backends.
+             # SEQUENCING NOTE SPECIFIC TO THIS TABLE: the loader reads the GLUE schema, so the catalog
+             # type fix had to land BEFORE the load or the mirror would inherit `real`/`smallint` (the
+             # pre-REPLACE declared widths) instead. The REPLACE COLUMNS is APPLIED (2026-08-18), so the
+             # ordering constraint is discharged, not pending.
+             "silver_food_cpi",
+             # silver_fnc_colombia_area_department -- 464 rows / 24 objects, partition-PROJECTED
+             # (commodity enum {arabica_coffee} x year 2002-2035 = 34 candidates, the smallest projected
+             # grid in the registry). TYPE DOCTRINE: area_ha mirrors NUMERIC (the single wide metric);
+             # `year` mirrors numeric because it is the declared year_col (an int partition key arriving
+             # via meta["partitions"]); leviathan_slug / country / department / department_raw /
+             # commodity / source stay TEXT COLLATE "C", and the carried-through `ingest_date` is an ISO
+             # string that stays TEXT COLLATE "C" -- byte-order collation is exactly how Athena compares
+             # the varchar the INGEST guard CASTs to.
+             "silver_fnc_colombia_area_department",
+             # silver_mpoc_exports_by_country -- 145 rows / one 3.9 KB object, flat + projection
+             # forbidden; the smallest fallback surface in the tranche. TYPE DOCTRINE: exports_mt
+             # mirrors NUMERIC (the single wide metric); `year` mirrors NUMERIC because it is the
+             # period_col with period_sql_type=int; country / source stay TEXT COLLATE "C"; and the
+             # derived year_ending_date (a physical date32) stringifies to the ISO render both backends
+             # compare through CAST-as-varchar.
+             # ONE ORDERING FACT, stated because it is the only one in this batch that is NOT yet
+             # discharged: this table's anchor column is STAGED HIDDEN in the F010 contract and its Glue
+             # ADD COLUMNS has NOT been applied, so a load run before that ALTER would mirror FOUR
+             # columns and every as-of-guarded pg lookup would fail on the missing column. Run the ALTER
+             # (and the producer re-fire) first; the entry is defined here so the two cannot drift.
+             "silver_mpoc_exports_by_country"]
 SCHEMA = "leviathan_dev"                       # == numbers.pgnumbers.SCHEMA == query.ATHENA_DB
 GLUE_DB = "leviathan_dev"
 

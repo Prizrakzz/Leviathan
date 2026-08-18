@@ -453,6 +453,30 @@ refs:
 #   silver_nass_citrus -- DEFERRED (D-LD Track-1 card): no driver attribute names citrus forecasts.
 #   silver_mpoc_trade_stats_monthly -- DEFERRED (D-LD Track-1 card): no driver attribute names
 #     destination-side palm import volumes; the mpob refs above carry the origin side.
+#   -- D-LD TRANCHE 2 (2026-08-18), six cards lit in the same wave. The block above was corrected on
+#      2026-08-18 (review wf_051e926a F5) precisely because it claimed completeness while the newest
+#      cards sat silent; these six land WITH the cards so that claim stays true rather than becoming
+#      false again by the same mechanism, one wave later. Same UN-DEFER GATE as every line above.
+#   silver_sagis_weekly_deliveries -- DEFERRED (D-LD Tranche-2 card): no driver attribute names South
+#     African producer deliveries into commercial storage; the South African refs above resolve to
+#     silver_psd, and the sibling export-pace card is DEFERRED on the same ground.
+#   silver_ams_cotton_quality -- DEFERRED (D-LD Tranche-2 card): no driver attribute names crop QUALITY
+#     at all -- the cotton drivers ask for quantity, price and condition. This is the estate's only
+#     quality axis, so there is not even a near-neighbour attribute to refuse it against.
+#   silver_nass_annual -- DEFERRED (D-LD Tranche-2 card): no driver attribute names settled annual US
+#     acreage, yield or production; the US production/area drivers resolve to silver_psd, which is
+#     vintage-clean across countries where this card is US-only.
+#   silver_food_cpi -- DEFERRED (D-LD Tranche-2 card): no driver attribute names consumer-price
+#     inflation. The near-neighbour is real: the export-restriction drivers (russia_export_tax_quota,
+#     india_import_duty, export_ban) are POLICY attributes, and binding one of them to a CPI series
+#     would make the map assert that inflation IS the policy leg -- exactly the claim the card's own
+#     notes refuse ("it can never say a restriction is coming").
+#   silver_fnc_colombia_area_department -- DEFERRED (D-LD Tranche-2 card): no driver attribute names
+#     Colombian coffee AREA; the coffee area/production drivers resolve to silver_psd and
+#     silver_conab_coffee, and the two FNC siblings above are DEFERRED on the same ground.
+#   silver_mpoc_exports_by_country -- DEFERRED (D-LD Tranche-2 card): no driver attribute names
+#     destination-side palm EXPORT offtake; the mpob refs above carry the origin side, and this card's
+#     archive additionally stops at 2023 -- a cascade leg reading it would go permanently stale.
 
 # ── region_map (RF-2) -- driver region token -> table scope, for country_rule=region refs ──────────────
 # TOP-LEVEL sibling of refs (load_map returns refs only; cascade.load_region_map reads this block).

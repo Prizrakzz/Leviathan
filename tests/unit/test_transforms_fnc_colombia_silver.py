@@ -272,13 +272,14 @@ def test_area_migration_manifest_matches_the_ddl_and_the_writer() -> None:
                      _ddl("silver_fnc_colombia_area_department"), re.MULTILINE)
 
 
-def test_area_migration_is_gated_and_not_yet_applied() -> None:
-    """The repo LEADS live Glue by this column on purpose. `applied: true` in the checked-in
-    artifact would be a claim about AWS that this test run cannot see -- the orchestrator flips it
-    after the apply, never the implementer."""
+def test_area_migration_is_gated_and_applied() -> None:
+    """The repo change AUTHORED the catalog edit gated (applied:false); the orchestrator fired the
+    ALTER on 2026-08-18 (Athena SUCCEEDED, D-LD tranche-2 landing batch) and flipped the record to
+    applied:true in the same batch -- the implementer never flips it, per this pin's original law.
+    The pin now guards the RECORD's truthfulness both ways (the dld9a nass twin)."""
     m = _migration()
     assert m["gated"] is True
-    assert m["applied"] is False
+    assert m["applied"] is True
     assert m["database"] == "leviathan_dev"
 
 

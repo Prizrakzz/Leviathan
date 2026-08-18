@@ -753,17 +753,50 @@ CURATION_OVERRIDES: dict = {
     "silver_chirps": _F047_WEATHER_NOTE,
     "silver_nasa_power": _F047_WEATHER_NOTE,
     "silver_cpc_soil": _F047_WEATHER_NOTE,
-    # D-LD TRANCHE 2 (2026-08-18): the derived PIT anchor year_ending_date. Staged HIDDEN
-    # (glue_type=None) exactly as SILVER-F059 staged sagis week_ending_date -- the registry gains the
-    # column so flat_producer can encode it (the writer arrow schema keys on target_arrow_type), while
-    # ddl.catalog_columns() still renders FOUR columns == live Glue, so
-    # test_generated_matches_live_glue_for_every_table stays green until the gated ADD COLUMNS lands
-    # (diff_structured does NOT compare physical_only columns -- verified at ddl.py:288).
-    # nullable_overrides pins it NON-NULL: it is derived from the page year and can never be missing,
-    # and a null would silently defeat the PIT guard (null <= asof is UNKNOWN, so the row drops).
+    # D-LD TRANCHE 2 (2026-08-18): the derived PIT anchor year_ending_date. Was staged HIDDEN
+    # (the SILVER-F059 sagis precedent) so the producer could encode it while the catalog still
+    # rendered four columns == live Glue; the gated ADD COLUMNS was applied the SAME DAY after the
+    # canonical re-run (runbook order; verify SELECT read d0=2009-12-31 d1=2023-12-31
+    # null_anchors=0), the R0 snapshot refreshed to the five-column truth, and the hidden staging
+    # retired -- the column now resolves from the glue section like any other. nullable_overrides
+    # stays: the anchor derives from the page year and can never be missing, and a null would
+    # silently defeat the PIT guard (null <= asof is UNKNOWN, so the row drops).
     "silver_mpoc_exports_by_country": {
-        "additive_columns_hidden": [("year_ending_date", "date32[day]")],
         "nullable_overrides": {"year_ending_date": False},
+    },
+    # D-LD TRANCHE 2 (2026-08-18) -- silver_food_cpi, and this one is REGISTERED rather than hidden
+    # because its Glue migration is APPLIED, not gated. PROVENANCE: the entry is the food_cpi card
+    # package's own runbook step, transcribed verbatim; the live catalog change was a REPLACE COLUMNS
+    # (not an ADD) that SUCCEEDED 2026-08-18, and the R0 snapshot
+    # reports/silver_readiness/20260712_p65impl/tables/silver_food_cpi.json was refreshed to the
+    # 10-column post-REPLACE shape in the same change (the CONAB apply-then-refresh precedent, and the
+    # same refresh the four Tranche-2 siblings took today).
+    #
+    # TWO THINGS AT ONCE, and both are corrections of a LIVE DEFECT rather than bookkeeping:
+    #  (1) additive_columns (+ additive_columns_registered) -- the producer-derived PIT anchors. The
+    #      table had NO date column of any kind, so every as-of-guarded lookup raised "table
+    #      silver_food_cpi has no knowledge/date column to anchor the as-of guard". `data_date` is the
+    #      year-end OBSERVATION date 'YYYY-12-31' (the card's knowledge_date_col/date_col); `release_date`
+    #      is the World Bank API's own `lastupdated` release stamp, which the bronze parser already read
+    #      and discarded (the card's provenance_col -> the `revision_stamp` alias). REGISTERED, so the
+    #      contract carries concrete Glue/arrow types and the generated DDL renders all ten columns ==
+    #      live Glue -- the WASDE F036 post-apply resolution, not the SILVER-F059 hidden staging above.
+    #      nullable_overrides pins BOTH non-null: each is derived (from the observation year and from the
+    #      release metadata) and can never be missing, and a null would silently defeat the PIT guard
+    #      (null <= asof is UNKNOWN, so the row drops).
+    #  (2) type_overrides -- the SILVER-F062 widen landed in the WRITER (F010 target_arrow_type float64)
+    #      and NEVER in the CATALOG. cpi_yoy_pct / cpi_yoy_z_5yr / cpi_yoy_z_10yr were declared `float`
+    #      (Athena `real`) over DOUBLE parquet, so Athena REFUSED to read them: "HIVE_BAD_DATA: Malformed
+    #      Parquet file. Field cpi_yoy_pct's type DOUBLE in parquet file ... is incompatible with type
+    #      real defined in table schema". Strings, `year`, `cpi_available` and count(*) all succeeded, so
+    #      the table looked alive while EVERY served metric was unreadable. cpi_available is corrected
+    #      int32/tinyint -> bigint for truthfulness (Athena widens that one silently; it was never broken).
+    "silver_food_cpi": {
+        "additive_columns": [("data_date", "string"), ("release_date", "string")],
+        "additive_columns_registered": True,
+        "nullable_overrides": {"data_date": False, "release_date": False},
+        "type_overrides": {"cpi_yoy_pct": "double", "cpi_yoy_z_5yr": "double",
+                           "cpi_yoy_z_10yr": "double", "cpi_available": "bigint"},
     },
     # ── R4 cadence calibration: _cadence(grain) infers RELEASE cadence from DATA grain, which is
     # wrong wherever the two differ (a daily-grain table from a weekly/monthly release). These
@@ -1024,9 +1057,17 @@ CURATION_OVERRIDES: dict = {
         # PROVISIONAL and deliberately conservative (the per-commodity worst case is INFERRED here,
         # not measured): OP-8 recalibrates from a real per-partition census. The gate stays LIVE --
         # KIND_ALL_NAN still hard-fails an all-null column, and losing the populated weeks still trips.
+        # D-LD gate-red RECALIBRATION (2026-08-18): pct_emerged 0.08 -> 0.05, the per-partition
+        # census this comment always owed (OP-8). Full-scan truth, cotton (the worst commodity),
+        # completed years: 2018 0.0681, 2019 0.0762, 2020 0.0933, 2021 0.0826, 2022 0.0827,
+        # 2023 0.0872, 2024 0.1025 -- TWO completed years sit BELOW the inferred 0.08, so a
+        # 2018-shaped year could never pass, and the gate's 18-file sample additionally read
+        # 0.059 against a live 2026 YTD truth of 0.2078 (the sampler undershoots). 0.05 clears
+        # every measured end-state plus sampler noise; a real emptying still trips it and
+        # KIND_ALL_NAN still hard-fails an all-null column.
         "min_nonnull_frac_overrides": {"pct_good_excellent": 0.25, "pct_harvested": 0.15,
                                        "pct_poor_very_poor": 0.20, "pct_planted": 0.13,
-                                       "pct_emerged": 0.08},
+                                       "pct_emerged": 0.05},
         #
         # D-SG G1-5 (user-gated 2026-08-16) -- THE FLOOR THAT REFUSED AUGUST. The usda_nass gate
         # failed on 2026-08-11 (job 90b65749) with "[commodity=corn_cbot] 'pct_harvested' non-null

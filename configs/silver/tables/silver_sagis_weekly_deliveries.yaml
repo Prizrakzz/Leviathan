@@ -4,7 +4,7 @@ table_name: silver_sagis_weekly_deliveries
 layer: silver
 domain: trade_flows
 lifecycle_class: source
-owner: silver-platform
+owner: numbers-platform
 schema_version: 1
 glue_database: leviathan_dev
 s3_root: s3://leviathan-dev-shahem-001/silver/sagis_weekly_deliveries
@@ -94,20 +94,21 @@ required_nonnull:
 - week_number
 value_columns:
 - prog_total_mt
+- prior_prog_total_mt
 - pct_of_prior_yr
 - z_vs_3yr_avg
 min_nonnull_frac: 0.5
 min_nonnull_frac_status: provisional
 coverage_axis: season x crop x week_number
 vintage_retention: latest-only
-knowledge_date_col: null
-knowledge_semantics: null
-publication_lag_days: null
+knowledge_date_col: week_ending_date
+knowledge_semantics: data_date
+publication_lag_days: 5
 freshness_sla:
   cadence: weekly
   max_lag_days: null
-consumers: feature_layer
-numbers_ref: null
+consumers: both
+numbers_ref: configs/graphrag/numbers/tables.yaml#silver_sagis_weekly_deliveries
 cascade_ref: null
 source_contract_ref: configs/datasets/source_contracts.yaml#sagis_deliveries
 serving_table: null

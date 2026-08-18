@@ -109,6 +109,34 @@ REGISTRY: tuple[ToolSpec, ...] = (
         # are exports now" ask here in the first place; the two FNC Colombia clauses (monthly origin
         # print with the ex-dock price, carrying its "never the exchange settle" caveat with it; and
         # exports BY PORT); and the NASS CITRUS forecast, the estate's only observed citrus quantity.
+        #
+        # D-LD TRANCHE 2 (2026-08-18): SIX MORE, the no-date-column set whose producers gained PIT
+        # anchors in the same wave. Each landed WITH its clause and its _ADVERTISED entry, and each
+        # clause carries a token that is genuinely NEW to this string rather than riding a sibling's --
+        # which is the whole point of the coverage map, since a token already earned by another card
+        # passes the fence while leaving the new table dark to the router. In file order:
+        #   * MPOC ANNUAL exports BY DESTINATION COUNTRY -- token `by destination country`. The MONTHLY
+        #     MPOC clause above already owned `mpoc`, so a bare `mpoc` entry would have been the exact
+        #     free-ride this map exists to catch. Its 2023 ceiling rides the sentence it extends.
+        #   * World Bank ANNUAL CPI for the four food-policy economies -- token `consumer price
+        #     inflation`. TWO wording rules, both load-bearing: it says "consumer price inflation" and
+        #     never "food inflation" (the table is FP.CPI.TOTL.ZG, headline CPI carried as a proxy -- a
+        #     purpose that promised food-price data would manufacture the wrong citation the card's own
+        #     notes forbid), and it NAMES the two metric ids so the z is reachable BY NAME and visibly a
+        #     LOOKUP rather than something to compute (the D-PQ FIX-2 R2 remedy).
+        #   * FNC Colombian coffee AREA by DEPARTMENT -- token `coffee area`. Deliberately disjoint from
+        #     the two FNC siblings above (`colombian monthly coffee`, `colombian green-coffee`) so the
+        #     coverage property proves THREE advertisements rather than one clause counted three times.
+        #   * SAGIS weekly PRODUCER DELIVERIES -- token `producer deliveries`. `sagis` was already earned
+        #     twice over (sagis_cec, weekly exports), so the clause is rewritten to advertise the PAIR
+        #     and to say out loud that deliveries are arrivals from the farm, NOT shipments abroad --
+        #     the substitution hazard the card's notes call the sharpest in the tranche (deliveries runs
+        #     to Aug-2026 while the export file stops Apr-2024, so the fresher table is the wrong one).
+        #   * NASS ANNUAL acreage/yield/production by state -- token `acreage`, verified absent from this
+        #     string before this wave; `nass` alone belonged to crop progress.
+        #   * AMS US cotton CLASSING QUALITY -- tokens `cotton classing` / `tenderable`. It is the only
+        #     card in the estate whose SUBJECT is what a harvested crop turned out to BE rather than how
+        #     much of it there is, and the clause says QUALITY out loud for exactly that reason.
         purpose=("leakage-safe SQL over OBSERVED values (USDA PSD S&D vintages, ESR export sales AND "
                  "their PACE vs the year-ago week/marketing year -- national OR BY DESTINATION (which "
                  "country bought how much this marketing year), FGIS export INSPECTIONS -- the tonnage "
@@ -136,20 +164,35 @@ REGISTRY: tuple[ToolSpec, ...] = (
                  "held in the big importing markets (India, China, Pakistan, Bangladesh, the US) and "
                  "MPOC's MALAYSIAN PALM EXPORT tonnage month by month back to 2009 -- a CLOSED archive "
                  "that stops at December 2023, so it is the PRE-2017 history MPOB cannot reach and "
-                 "never the current print; "
+                 "never the current print, and MPOC ANNUAL Malaysian palm exports BY DESTINATION "
+                 "COUNTRY -- which market took how many tonnes, year by year through 2023; "
+                 "World Bank ANNUAL consumer price inflation (CPI) for the four food-policy economies "
+                 "-- India, Indonesia, Russia and Ukraine -- the macro pressure gauge behind "
+                 "export-restriction risk, each year's percent change and its own stored z-score "
+                 "against that country's recent history as TWO SEPARATELY QUERYABLE METRICS "
+                 "(cpi_yoy_pct and cpi_yoy_z_5yr); "
                  "CONAB Brazil coffee surveys, "
                  "FNC Colombian monthly coffee output and exports in 60-kg bags with the FNC ex-dock "
                  "origin price (a physical Colombian reference in US cents per pound, never the "
                  "exchange settle), "
                  "FNC Colombian green-coffee EXPORTS BY PORT of embarkation (Buenaventura, Cartagena, "
-                 "Santa Marta) in 60-kg bags and FOB dollars, SAGIS-CEC South "
-                 "African crop estimates and SAGIS weekly export pace, FAOSTAT annual production; "
+                 "Santa Marta) in 60-kg bags and FOB dollars, FNC Colombian coffee AREA under "
+                 "cultivation by DEPARTMENT (hectares, annual, 2002 on), SAGIS-CEC South "
+                 "African crop estimates plus the two SAGIS weekly South African files -- weekly "
+                 "export pace AND weekly PRODUCER DELIVERIES into commercial storage (maize, wheat, "
+                 "soybeans, sunflower, season-to-date), which are arrivals from the farm and not "
+                 "shipments abroad; FAOSTAT annual production; "
                  "weekly USDA NASS crop CONDITIONS (percent good-to-excellent, poor-to-very-poor) and "
-                 "planting / emergence / harvest PACE by US state; the monthly USDA NASS CITRUS "
+                 "planting / emergence / harvest PACE by US state; ANNUAL US crop ACREAGE, yield and "
+                 "production BY STATE back to 1866 -- how many hectares of corn, soybeans, upland "
+                 "cotton or rice a state planted and harvested and what it made, each crop year "
+                 "citable once its January USDA annual summary published; the monthly USDA NASS CITRUS "
                  "forecast -- US orange, grapefruit and tangerine production in THOUSAND BOXES by "
                  "state (Florida, California, Texas, Arizona) with each release's month-over-month "
                  "REVISION, the only observed citrus quantity in the estate since there is no PSD "
-                 "orange-juice balance sheet; weather aggregates and monthly "
+                 "orange-juice balance sheet; annual USDA AMS US cotton CLASSING QUALITY -- the "
+                 "TENDERABLE (deliverable-grade) share of the classed crop, its average staple length "
+                 "and the number of bales classed, by crop season; weather aggregates and monthly "
                  "weather z-anomalies, FX, and BOTH climate indices -- ENSO/ONI and the Indian Ocean "
                  "Dipole (IOD); plus the continuous front-month futures close as a single dated LEVEL "
                  "only -- that series is roll-spliced, so no change, window or curve read is served "
@@ -280,10 +323,15 @@ def planner_sys(max_contracts: int = MAX_CONTRACTS) -> str:
     "- ALSO list every OBSERVED-DATA family this turn implicates -- the registered numbers series the\n"
     "  question touches (positioning=cot, export sales/pace=esr, balance sheet=psd/wasde, world prices AND\n"
     "  fertilizer/energy input costs=pink_sheet, per-expiry settles/curve=futures_eod, crop conditions and\n"
-    "  planting/harvest pace=nass_crop_progress (citrus FORECASTS by state=nass_citrus -- a different\n"
-    "  card), cocoa grindings=icco_cocoa, palm monthly=mpob (palm EXPORT depth to\n"
-    "  2009=mpoc_trade_stats_monthly, destination stocks=mpoc_stock_comparison -- three different cards),\n"
-    "  Brazil coffee surveys=conab_coffee, South African estimates=sagis_cec, weather=weather_z,\n"
+    "  planting/harvest pace=nass_crop_progress (citrus FORECASTS by state=nass_citrus, SETTLED ANNUAL\n"
+    "  acreage/yield/production by state=nass_annual -- three different cards), cocoa grindings=icco_cocoa,\n"
+    "  palm monthly=mpob (palm EXPORT depth to 2009=mpoc_trade_stats_monthly, destination\n"
+    "  stocks=mpoc_stock_comparison, ANNUAL exports by DESTINATION COUNTRY=mpoc_exports_by_country -- four\n"
+    "  different cards), Brazil coffee surveys=conab_coffee, Colombian coffee AREA by\n"
+    "  department=fnc_colombia_area_department, South African estimates=sagis_cec (weekly EXPORT\n"
+    "  pace=sagis_weekly_exports, weekly PRODUCER DELIVERIES into storage=sagis_weekly_deliveries -- three\n"
+    "  different cards, and deliveries are arrivals from the farm, never shipments abroad), country\n"
+    "  consumer-price inflation=food_cpi, weather=weather_z,\n"
     "  FX=fred_fx, ENSO=noaa_oni, IOD=noaa_iod, ...). Fill it whenever a family is implicated even when you\n"
     "  routed reasoning-only. Use ONLY names from the enum; empty when none apply.\n"
     "- A PROCESSING MARGIN, CRUSH or GRIND question (\"how much pressure is the ethanol grind under\", \"are\n"

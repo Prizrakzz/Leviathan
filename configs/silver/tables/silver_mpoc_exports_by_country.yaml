@@ -4,7 +4,7 @@ table_name: silver_mpoc_exports_by_country
 layer: silver
 domain: trade_flows
 lifecycle_class: source
-owner: silver-platform
+owner: numbers-platform
 schema_version: 1
 glue_database: leviathan_dev
 s3_root: s3://leviathan-dev-shahem-001/silver/mpoc_exports_by_country
@@ -41,13 +41,19 @@ physical_columns:
   target_arrow_type: string
   nullable: true
 - name: year_ending_date
-  glue_type: null
+  glue_type: date
   arrow_type: null
   parquet_physical_type: null
   target_arrow_type: date32[day]
   nullable: false
 writer_schema_pinned: true
-drift_summary: []
+drift_summary:
+- column: year_ending_date
+  kind: null_typed
+  current_physical: null
+  glue_type: date
+  target: date32[day]
+  owner_package: SILVER-F053
 natural_key:
 - year
 - country
@@ -60,14 +66,14 @@ min_nonnull_frac: 0.5
 min_nonnull_frac_status: provisional
 coverage_axis: year x country
 vintage_retention: latest-only
-knowledge_date_col: null
-knowledge_semantics: null
-publication_lag_days: null
+knowledge_date_col: year_ending_date
+knowledge_semantics: data_date
+publication_lag_days: 60
 freshness_sla:
   cadence: annual
   max_lag_days: null
-consumers: feature_layer
-numbers_ref: null
+consumers: both
+numbers_ref: configs/graphrag/numbers/tables.yaml#silver_mpoc_exports_by_country
 cascade_ref: null
 source_contract_ref: configs/datasets/source_contracts.yaml#mpoc_exports_by_country
 serving_table: null
@@ -82,7 +88,7 @@ fingerprint:
   catalog_hash_sha256: 75e584af894d50702af16c2f85d7602b0dce98f911cdbcd1157cc597bd402673
   registered_partition_count: 0
   placeholder_partition_count: 0
-  glue_nonpartition_cols: 4
+  glue_nonpartition_cols: 5
   physical_parquet_cols: 4
 provenance:
   baseline_id: 20260712_p65impl

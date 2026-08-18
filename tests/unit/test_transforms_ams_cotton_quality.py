@@ -155,12 +155,23 @@ def _contract():
 
 
 def _value_valid_silver():
-    # both value_columns (percent_tenderable, samples_classed) populated so the V001 floor passes;
-    # avg_micronaire / avg_strength stay ALL-NULL to exercise the null-type pin.
+    # EVERY value_column populated so the SILVER-V001 floor passes; avg_micronaire / avg_strength stay
+    # ALL-NULL to exercise the null-type pin, which is the only thing these two tests are about.
+    #
+    # THE SET GREW TO THREE (D-LD Tranche 2, 2026-08-18) and this fixture has to track it, because the
+    # floor is computed FROM the contract: landing the numbers card made `build_contract` derive
+    # value_columns from the CARD'S METRIC KEYS for this wide table (gen_registry_from_baseline.py:549),
+    # so `avg_staple` -- a served metric, and one of the two the card actually leads with -- joined
+    # percent_tenderable and samples_classed. It is REAL data on the live table (only avg_micronaire and
+    # avg_strength are the 0/27 null_typed pair, which is why those two and not this one are excluded
+    # from the card), so the 0.5 default floor is right for it and needs no override; what was wrong was
+    # a fixture that populated two of three value columns and then asserted a publish succeeds.
+    # samples_classed keeps its own calibrated 0.25 override (8 of 27 seasons carry it) -- untouched.
     rows = []
-    for season, pt, sc in [(1986, 44.1, 900.0), (1987, 67.0, 950.0)]:
+    for season, pt, sc, st in [(1986, 44.1, 900.0, 34.6), (1987, 67.0, 950.0, 35.1)]:
         rows.append(_brow(season, "us_total", "national_summary", "percent_tenderable", pt, 2))
         rows.append(_brow(season, "us_total", "national_summary", "samples_classed", sc, 2))
+        rows.append(_brow(season, "us_total", "national_narrative", "avg_staple", st, 1))
     return build_ams_cotton_silver(pd.DataFrame(rows))
 
 

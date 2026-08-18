@@ -11,11 +11,13 @@ CREATE EXTERNAL TABLE IF NOT EXISTS silver_food_cpi (
     country_iso    string,
     country_name   string,
     year           bigint,
-    cpi_yoy_pct    float,
-    cpi_yoy_z_5yr  float,
-    cpi_yoy_z_10yr float,
-    cpi_available  tinyint,
-    source         string
+    cpi_yoy_pct    double,
+    cpi_yoy_z_5yr  double,
+    cpi_yoy_z_10yr double,
+    cpi_available  bigint,
+    source         string,
+    data_date      string,
+    release_date   string
 )
 STORED AS PARQUET
 LOCATION 's3://leviathan-dev-shahem-001/silver/food_cpi/'
