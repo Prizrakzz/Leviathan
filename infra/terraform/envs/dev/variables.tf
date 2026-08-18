@@ -347,7 +347,14 @@ variable "worker_fleet_image_digest" {
   # metrics, poller task, straddle + declared ICE lag). Full suite green; two adversarial
   # review passes folded. (The first D-SG push, cf50c051, was CORRUPT -- double-gzipped
   # OCI blobs -- caught by the poller smoke BEFORE any schedule moved; never armed.)
-  default     = "sha256:53db13d53bfb3b5066d92100930f56ee98c1cca309d692be5b6d88cbb18847d2"
+  # D-LD TRANCHE-2 DELIBERATE FLEET BUMP 2026-08-18: e1fe1d82 = the tranche-2 landing build
+  # (six PIT-anchor producer transforms + fetch_mpob --refresh-manifest + unica wayback leg +
+  # Track-1 aftermath). ECR tag 20260818T141445, pushed 14:17Z; build-script runtime-closure +
+  # IMAGE_MANIFEST smokes green; silver suite 898 green at commit. b3-flat-silver rev 29 and
+  # silver-publisher-runner rev 28 hand-registered on this digest the same hour (the pin
+  # moves in the SAME change per this file's standing law); HAND_ARMED['mpob'] released in
+  # this change too -- the mpob descriptor's --refresh-manifest is safe on this image.
+  default     = "sha256:e1fe1d8276b38c457019d20ba2ba4c359f2499842ace5b8d1df527cfaad8f1a9"
 
   validation {
     condition     = var.worker_fleet_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.worker_fleet_image_digest))

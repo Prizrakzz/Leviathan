@@ -99,15 +99,11 @@ HAND_ARMED: dict[str, str] = {
         "shadow-first arm ratified 2026-07-22 (commit d46716cf: 'arm autonomous canonical "
         "promote'); descriptor stays latest_only/stop_and_notify for the Wave-2 CLASS-B invariant"
     ),
-    "mpob": (
-        "IMAGE GATE (D-LD MPOB retrofit 2026-08-18, review wf_051e926a confirmed): the descriptor's "
-        "fetch command carries --refresh-manifest but the digest-pinned b3-flat-silver image still "
-        "bakes the OLD fetch_mpob.py, whose argparse exits 2 on the unknown flag -- terminal after "
-        "ONE attempt per the F1 probe (cb151695), reddening all three monthly fires. The live arm "
-        "stays flag-less until the worker image carrying the new parser is built, pushed and "
-        "registered as a new b3-flat-silver revision; remove this hold in that SAME change "
-        "(variables.tf:278 pin-collision law)"
-    ),
+    # mpob HOLD RELEASED 2026-08-18 (same day it was installed): the gate condition met --
+    # b3-flat-silver rev 29 registered on the tranche-2 image e1fe1d82 whose baked fetch_mpob.py
+    # carries --refresh-manifest, and the descriptors reference the jobdef UNVERSIONED so every
+    # fire resolves latest-ACTIVE. The hold, its review provenance (wf_051e926a) and the exit-2
+    # terminal-after-one rationale are preserved in git history and mpob.json's notes.
     "futures_prices": (
         "shadow-first arm per futures_prices.json's own notes ('the dag_schedules.auto.tfvars.json "
         "futures_prices entry is hand-armed to the shadow-first shape'); A-W4 retrofit landed in the "
