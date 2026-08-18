@@ -4,7 +4,7 @@ table_name: silver_fnc_colombia_monthly
 layer: silver
 domain: production
 lifecycle_class: source
-owner: silver-platform
+owner: numbers-platform
 schema_version: 1
 glue_database: leviathan_dev
 s3_root: s3://leviathan-dev-shahem-001/silver/fnc_colombia/monthly
@@ -96,18 +96,20 @@ value_columns:
 - production_bags_60kg
 - exports_bags_60kg
 - exports_value_usd_m
+- ex_dock_price_usd_cents_per_lb
+- internal_price_cop_per_125kg
 min_nonnull_frac: 0.5
 min_nonnull_frac_status: provisional
 coverage_axis: commodity x year x month
 vintage_retention: latest-only
-knowledge_date_col: null
-knowledge_semantics: null
-publication_lag_days: null
+knowledge_date_col: date
+knowledge_semantics: data_date
+publication_lag_days: 45
 freshness_sla:
   cadence: monthly
   max_lag_days: null
-consumers: feature_layer
-numbers_ref: null
+consumers: both
+numbers_ref: configs/graphrag/numbers/tables.yaml#silver_fnc_colombia_monthly
 cascade_ref: null
 source_contract_ref: configs/datasets/source_contracts.yaml#fnc_colombia_monthly
 serving_table: null

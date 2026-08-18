@@ -18,6 +18,13 @@ is a reusable acceptance rule rather than a fact about MPOC:
     a MONTHLY value in the same value_mmt column, 1-3 rows per (release, commodity, country, MY)), and
     it is why the card that DID land states its two axes in the imperative.
 
+    DISCHARGED 2026-08-18 (D-LD Track 1), and the rule above KEEPS ITS TEXT because it is still the
+    correct general rule -- what changed is that the axis is now closable without a NumberQuery field.
+    A further axis no longer forces a refusal when the card can pin it in CODE: `Metric.row_filters`
+    emits the fence into every compiled read (`vintage_type IN ('year')`), and `grain_cols` decides what
+    a vintage collapse is allowed to collapse. See `_DISCHARGED` below and
+    test_wap_revisions_free_axis_blocker_is_discharged_by_mechanism_not_by_assertion.
+
 AWS-free: everything here reads the checked-in configs and compiles SQL; no query is executed.
 """
 from __future__ import annotations
@@ -31,14 +38,35 @@ from leviathan.graphrag.numbers import registry as nreg
 
 MPOC = "silver_mpoc_stock_comparison"
 
-# The five tranche-1a candidates the recon ranked and this wave did NOT card, with the measured reason.
+# The tranche-1a candidates the recon ranked and this wave did NOT card, with the measured reason.
 # `guard` = the table cannot anchor an as-of guard at all (build_sql raises on every read).
+#
+# D-LD (2026-08-18) removed TWO entries from this dict. Removing an entry is the ONLY honest way to card
+# one of these tables -- the blanket fence below reads this dict, so a card that lands without an edit
+# here goes red -- and the removal is never silent: the reason moves to `_DISCHARGED` and, for the
+# free-axis verdict, to a replacement test that pins the MECHANISM that closed it. The three that remain
+# are untouched and the fence over them is exactly as strong as it was.
 _SKIPPED = {
     "silver_sagis_weekly_deliveries": "guard",   # week_ending is 100% free text (0/2999 ISO), no date col
     "silver_mpoc_exports_by_country": "guard",   # year x country only, no knowledge column; content stops 2023
     "silver_ams_cotton_quality": "guard",        # commodity x geography x season, no knowledge column
-    "silver_mpoc_trade_stats_monthly": "stale",  # guardable, but content stops 2023-12 behind a 21d-old object
-    "silver_wap_table01_revisions": "free_axis",  # vintage_type/row_label axis NumberQuery cannot express
+}
+
+# The verdicts D-LD DISCHARGED, kept here because this file is the record of why a table was refused --
+# a discharged refusal that is merely deleted leaves the next reader re-deriving the argument.
+_DISCHARGED = {
+    # Was: "stale" -- guardable, but content stops 2023-12 behind a 21d-old object. RE-MEASURED 2026-08-18:
+    # the object is 3 days old and CERTIFIED, and the 2023-12 ceiling is not staleness at all but a CLOSED
+    # ARCHIVE (15 annual stat pages in configs/sources/mpoc_archive.yaml, none after 2023). A closed
+    # archive is servable; the card carries the ceiling in its own notes AND in the router clause, so no
+    # ask is routed here for a current print. Note this was the only one of the five whose blocker was a
+    # judgement about FRESHNESS rather than a structural impossibility -- the other reasons cannot be
+    # discharged this way, and the three above are not.
+    "silver_mpoc_trade_stats_monthly": "stale -> closed-archive, re-measured (D-LD 2026-08-18)",
+    # Was: "free_axis" -- vintage_type/row_label axis NumberQuery cannot express. Both halves of that
+    # verdict were CORRECT and both are now closed by card mechanism rather than by assertion; see the
+    # replacement test at the bottom of this file.
+    "silver_wap_table01_revisions": "free_axis -> closed by row_filters + grain_cols (D-LD 2026-08-18)",
 }
 
 
@@ -226,28 +254,47 @@ def test_tranche_1a_skips_have_no_anchorable_as_of_guard(table):
 
 
 def test_the_skipped_tables_are_absent_from_the_numbers_registry():
-    """A blunt anti-regression fence over the whole refused set (including the two whose blocker is not
-    the guard): none of the five may acquire a card without this file being edited, which is where the
-    measured reason lives."""
+    """A blunt anti-regression fence over the whole refused set: none of them may acquire a card without
+    this file being edited, which is where the measured reason lives. UNCHANGED by D-LD -- it still reads
+    the live `_SKIPPED` and still refuses every table in it. What D-LD changed is the CONTENTS of that
+    dict (two verdicts discharged, three untouched), which is the edit the fence exists to force."""
     served = set(nreg.visible_tables(_reg()))
     leaked = sorted(t for t in _SKIPPED if t in served)
     assert not leaked, (f"{leaked} was carded without discharging its recorded blocker "
                         f"(see _SKIPPED in this file and the D-PQ execution record)")
 
 
-def test_wap_revisions_stays_uncarded_while_its_free_axis_is_inexpressible():
-    """silver_wap_table01_revisions is the recon's #2 and its contract IS complete -- but its natural key
-    carries row_label, and vintage_type splits value_mmt into two DIFFERENT quantities (a marketing-year
-    projection and a monthly value) that NumberQuery has no field to choose between. Measured: up to 3
-    rows per (release_month, commodity, country, marketing_year), e.g. wheat/argentina/2024-25 at release
-    2024-09 returns 15.9 (the MY projection) or 18.0 (the September monthly) with nothing to pick.
+def test_a_discharged_verdict_names_a_table_that_really_is_served_now():
+    """The other half of the fence above, and the reason a discharge is a MOVE rather than a delete. A
+    table may sit in `_DISCHARGED` only if it is actually carded -- otherwise a future editor could
+    silence the blanket refusal simply by relocating a name, and the file would record a discharge that
+    never happened. The two dicts must also stay disjoint."""
+    served = set(nreg.visible_tables(_reg()))
+    unserved = sorted(t for t in _DISCHARGED if t not in served)
+    assert not unserved, (f"{unserved} is recorded as DISCHARGED but is not served -- a discharge is not "
+                          f"a way to leave _SKIPPED, it is what landing the card looks like")
+    assert not (set(_SKIPPED) & set(_DISCHARGED))
 
-    Nor does `vintage` semantics rescue it: the vintage branch of build_sql applies its ROW_NUMBER
-    collapse to EVERY agg, so a revision SERIES across release months -- the entire desk story for this
-    table -- is structurally unreachable under the semantics that would deduplicate the axis. The fix is
-    a producer-side split or a new dimension, i.e. a design decision, not a card."""
+
+def test_wap_revisions_free_axis_blocker_is_discharged_by_mechanism_not_by_assertion():
+    """D-LD (2026-08-18) DISCHARGES the D-PQ refusal above. Both halves of the 2026-08-07 verdict were
+    correct and both are now closed by CARD mechanism, so the reason stays here rather than being deleted:
+
+      (a) THE AXIS. `vintage_type` really does put two different quantities in value_mmt, and NumberQuery
+          still has no field to choose between them. The card does not need one: `row_filters` emits
+          `vintage_type IN ('year')` on every read and the `vintage_tiebreak` role_order ranks 'year'
+          first as defence in depth. Re-measured on the canonical parquet: the year rows are UNIQUE on
+          (release_month, commodity, country, marketing_year) in ALL 49,188 groups.
+      (b) THE SERIES. The vintage ROW_NUMBER really does apply to every agg -- but it collapses the GRAIN,
+          and `grain_cols` puts release_month IN the grain (the silver_esr week idiom). The revision
+          series across circulars is therefore reachable, which is what the refusal said it could not be.
+    """
     from leviathan.silver import registry as SR
-    c = SR.load_registry().table("silver_wap_table01_revisions")
-    assert "row_label" in c["natural_key"]
+    T = "silver_wap_table01_revisions"
+    c = SR.load_registry().table(T)
+    assert "row_label" in c["natural_key"]                       # the axis is still physically there
     assert {"vintage_type", "row_label"} <= {pc["name"] for pc in c["physical_columns"]}
-    assert "silver_wap_table01_revisions" not in nreg.visible_tables(_reg())
+    ts = _reg().get(T)
+    assert T in nreg.visible_tables(_reg())                      # ...and it is now SERVED
+    assert "release_month" in ts.group_cols()                    # (b): the release is part of the identity
+    assert ts.metrics["value_mmt"].row_filters["wheat"] == {"vintage_type": ["year"]}   # (a): the fence

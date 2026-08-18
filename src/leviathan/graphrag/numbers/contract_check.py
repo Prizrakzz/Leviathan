@@ -42,7 +42,7 @@ from leviathan.graphrag.numbers.registry import load_registry
 # The projection-trio member that lives in the numbers registry. NEVER DISTINCT-probed here (INV-3): the
 # FR-001 footer-vocabulary check owns every projected table. Excluding it is what makes the "zero Athena
 # against projection tables" acceptance structural rather than a runtime hope.
-NUMBERS_PROJECTION_TABLES = frozenset({"silver_nasa_power"})
+NUMBERS_PROJECTION_TABLES = frozenset({"silver_nasa_power"})  # D-LD review wf_31e951c7: fnc_monthly REMOVED -- C002 DISTINCT-probes the pg MIRROR, not Athena, so excluding a projected table deletes a live existence check for zero LIST-storm benefit (the fgis test two blocks earlier pins exactly this doctrine)
 
 
 def _physical(ts) -> str:

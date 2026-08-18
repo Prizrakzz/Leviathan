@@ -93,7 +93,7 @@ ONCALL_TOPIC = f"{PROJECT}-{ENVIRONMENT}-silver-pipeline-alerts"  # the SNS topi
 # Value: (family, max_lag_days, basis-justification).
 BURNED_TABLE_FRESHNESS: dict[str, tuple[str, int, str]] = {
     "silver_nass_crop_progress": ("usda_nass", 14, "cadence_default:weekly (registry max_lag_days=170 was the mask)"),
-    "silver_fgis": ("usda_fgis", 14, "cadence_default:weekly"),
+    "silver_fgis": ("usda_fgis", 14, "cadence_default:weekly -- WRITE cadence, deliberately WITHOUT publication-lag grace (D-LD review wf_31e951c7): FreshnessLagDays measures S3 write recency, and the Thursday fire WRITES weekly regardless of the 13d content lag the card declares for its AS-OF guard. Adding the lag here (a first fold tried 27) was a category error that opened a 13d blind window on a just-promoted table; the two numbers protect different things and must not be summed"),
     "silver_unica_biweekly_season_history": ("unica", 21, "biweekly cadence: ~1 cycle (14d) + half-cycle grace"),
     "silver_nass_citrus": ("usda_nass", 400, "cadence_default:annual (seasonal/annual citrus; full-cycle miss)"),
 }

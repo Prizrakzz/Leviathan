@@ -629,11 +629,37 @@ def test_the_refusal_message_reaches_the_model_untruncated():
                               nreg.load_registry())) == 400
 
 
+_FNC = "silver_fnc_colombia_monthly"
+_FNC_SLUGS = ("arabica_coffee",)
+
+
+def test_the_fnc_card_declares_its_one_slug():
+    assert list(nreg.load_registry().get(_FNC).commodity_values) == list(_FNC_SLUGS)
+
+
+def test_the_fnc_declared_set_and_the_teaching_notes_agree():
+    """The yaml says the same fact twice on purpose -- `notes` teaches, `commodity_values` enforces."""
+    spec = nreg.load_registry().get(_FNC)
+    for slug in spec.commodity_values:
+        assert slug in spec.notes, f"{slug} is enforced but not taught in the card's notes"
+
+
+@pytest.mark.parametrize("slug", ["robusta_coffee", "brazilian_arabica_coffee", "coffee", "cocoa"])
+def test_a_commodity_off_the_fnc_card_is_refused_before_any_sql(slug):
+    with pytest.raises(na.CommodityOffCard) as e:
+        na._check_commodity_class(_Spec(_FNC, slug), nreg.load_registry())
+    msg = str(e.value)
+    assert "lookup REFUSED" in msg and slug in msg and "Nothing was queried." in msg
+    assert "arabica_coffee" in msg                    # the legal value, enumerated for the repair
+
+
 def test_a_card_with_no_declaration_is_unfenced():
-    """EMPTY commodity_values (every card but NASS today) -> no fence, byte-identical behaviour."""
+    """EMPTY commodity_values -> no fence, byte-identical behaviour. The exclusion list is DERIVED from
+    the registry, not hand-maintained: any card that declares a closed slug set is fenced BY DEFINITION,
+    and D-LD adds more of them (silver_fnc_colombia_monthly is the first after NASS)."""
     reg = nreg.load_registry()
     for tid, spec in reg.tables.items():
-        if tid == _NASS or not spec.commodity_col:
+        if spec.commodity_values or not spec.commodity_col:
             continue
         na._check_commodity_class(_Spec(tid, "anything_at_all"), reg)        # must not raise
 

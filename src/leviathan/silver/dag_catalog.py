@@ -146,6 +146,19 @@ _CADENCE_FALLBACK_LAG_DAYS = 45
 #   weekly cadence default (14) -- this is what drops the usda_nass family ceiling 170 -> 14.
 FRESHNESS_LAG_OVERRIDES: dict[str, int] = {
     "silver_nass_crop_progress": 14,
+    # D-LD (2026-08-18, review wf_31e951c7): the WRITE-recency ceilings for three newly-carded
+    # tables, pinned against a category error. Their numbers cards declared MEASURED
+    # publication_lag_days (fgis 13, fnc 45) for the AS-OF guard -- the axis that stops a card
+    # serving data the source had not yet published. effective_sla_lag_days adds that lag as
+    # GRACE, which is right for content-lag semantics but WRONG for these alarms: FreshnessLagDays
+    # measures S3 write recency, and the producers WRITE on their fire cadence regardless of how
+    # far the content lags (fgis fires every Thursday; fnc weekly-class). Without these pins the
+    # fgis ceiling widened 14 -> 27 and the fnc_colombia FAMILY ceiling silently DOUBLED 45 -> 90
+    # (undisclosed side effect, caught by the review). The two numbers protect different things
+    # and must not be summed.
+    "silver_fgis": 14,
+    "silver_fnc_colombia_monthly": 45,
+    "silver_fnc_colombia_exports_port_type": 45,
 }
 
 

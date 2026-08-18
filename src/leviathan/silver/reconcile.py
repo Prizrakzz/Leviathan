@@ -97,6 +97,58 @@ NUMBERS_TABLES = (
     #                                     contract until this card gave them a meaning (year_month on year+month,
     #                                     no publication lag because the year_month guard branch never applies
     #                                     one). An unenumerated table would let that trio drift apart unchecked.
+    "silver_fgis",                      # D-LD (2026-08-18): USDA FGIS export inspections. Enumerated in
+    #                                     the SAME change that adds the tables.yaml card -- all three
+    #                                     knowledge fields were NULL in the F010 contract until this card
+    #                                     gave them a meaning (data_date on the derived week-ending bucket,
+    #                                     +13d publication lag MEASURED off three Thursday snapshots), and
+    #                                     an unenumerated table would let that trio drift apart unchecked.
+    #                                     The drift test set(NUMBERS_TABLES)==set(tables.yaml keys) at
+    #                                     tests/unit/silver/test_silver_reconcile.py:30-38 is what forces
+    #                                     the two edits to land together.
+    "silver_wap_table01_revisions",     # D-LD (2026-08-18): the USDA FAS WAP Table 01 revision ledger.
+    #                                     Enumerated in the SAME change that adds the tables.yaml card --
+    #                                     the drift test set(NUMBERS_TABLES)==set(tables.yaml keys) forces
+    #                                     that, and it matters here more than usual: the F010 contract
+    #                                     carried knowledge_semantics `year_month` on a table with NO
+    #                                     year/month column (build_sql would RAISE on every read), so this
+    #                                     card REWRITES the trio to vintage/release_month/+12d. An
+    #                                     unenumerated table would let that rewrite drift from the card
+    #                                     unchecked, which is the exact class this tuple exists to catch.
+    "silver_fnc_colombia_monthly",      # D-LD Track 1 (2026-08-18): FNC Colombia monthly coffee. Enumerated
+    #                                     in the SAME change that adds the tables.yaml card -- the drift test
+    #                                     set(NUMBERS_TABLES) == set(tables.yaml keys) is what forces that, and
+    #                                     it is the point: all three knowledge fields were NULL in the F010
+    #                                     contract until this card gave them a meaning (data_date on the
+    #                                     first-of-month `date`, +45d publication lag), and an unenumerated
+    #                                     table would let that trio drift apart STRUCTURALLY UNCHECKED.
+    "silver_fnc_colombia_exports_port_type",  # D-LD (2026-08-18): FNC Colombia green-coffee exports by
+    #                                     PORT. Enumerated in the SAME change that adds the tables.yaml
+    #                                     card -- all three knowledge fields were NULL in the F010
+    #                                     contract until this card gave them a meaning (data_date on the
+    #                                     first-of-month `date`, +45d publication lag), and an
+    #                                     unenumerated table would let that trio drift apart unchecked.
+    #                                     partition_cols [commodity, year] are both PROJECTED Glue
+    #                                     partition keys, so the partition_cols lint passes.
+    "silver_nass_citrus",               # D-LD (2026-08-18): the USDA NASS citrus forecast card, the
+    #                                     numbers home of frozen_orange_juice. Enumerated in the SAME
+    #                                     change that adds the tables.yaml card. Unlike the two entries
+    #                                     above, this contract already CARRIED its PIT trio (release_date
+    #                                     / vintage / 0) before the card -- which is exactly why it must
+    #                                     be enumerated: an already-populated trio is the one that drifts
+    #                                     silently, because nothing about the card's arrival looks like a
+    #                                     new field being minted.
+    "silver_mpoc_trade_stats_monthly",  # D-LD (2026-08-18): MPOC Malaysian monthly palm EXPORT tonnage,
+    #                                     the pre-2017 depth silver_mpob cannot reach. Enumerated in the
+    #                                     SAME change that adds the tables.yaml card, and for the reason
+    #                                     the two entries above give: all three knowledge fields were NULL
+    #                                     in the F010 contract until this card gave them a meaning
+    #                                     (year_month on year+month, no publication lag because the
+    #                                     year_month guard branch never applies one). An unenumerated
+    #                                     table is STRUCTURALLY UNCHECKED -- that trio would drift apart
+    #                                     silently, and this is the table whose PIT story is the LEAKIEST
+    #                                     of the year_month set (annual pages, ~12-month knowability lag),
+    #                                     so the structural check matters more here, not less.
     "gold_pattern_records",             # T2b: pattern-records ledger (44th contract, registered-partition GOLD,
     #                                     flag-off until its deck gates the flip) — enumerated the moment its
     #                                     tables.yaml card landed so its knowledge fields reconcile against F010

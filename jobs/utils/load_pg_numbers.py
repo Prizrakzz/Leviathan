@@ -159,7 +159,138 @@ P1_TABLES = ["silver_psd", "silver_wasde", "silver_production", "silver_esr", "s
              # SEQUENCING: this entry DEFINES the mirror; the LOAD still has to run in-VPC before any
              # serving flip (see the orchestrator note in the D-PQ record). numbers_parity deliberately
              # carries NO SAMPLE_COMMODITY row for it yet, for the reason the NASS entry gives.
-             "silver_mpoc_stock_comparison"]
+             "silver_mpoc_stock_comparison",
+             # D-LD (2026-08-18): silver_fgis joins the mirror in the SAME change that gives it a numbers
+             # card -- served but unmirrored means GRAPHRAG_NUMBERS_BACKEND=pg raises UndefinedTable per
+             # query and SILENTLY FALLS BACK TO ATHENA, and here the fallback lands on a partition-PROJECTED
+             # table (leviathan_slug enum x marketing_year 1982-2035). Small: 113,072 rows, 223 canonical
+             # objects, 6.5 MB total -- not a capacity question, and the doctrine is the point.
+             # TYPE DOCTRINE: exports_mt_weekly / exports_mt_ctd mirror NUMERIC (wide metrics);
+             # marketing_year mirrors NUMERIC because it is the declared period_col with
+             # period_sql_type=int, which is exactly what makes the compiled `marketing_year = 2025`
+             # equality (a bare int literal, query.py:390-391) work on pg as it does on Athena;
+             # week_of_marketing_year is NOT referenced by the card and stays TEXT COLLATE "C" (nothing
+             # does arithmetic on it); leviathan_slug / destination_country / source stay TEXT COLLATE "C";
+             # and week_ending_date (a physical DATE) stringifies to the Athena ISO render, which is what
+             # build_sql's CAST-as-varchar compare expects on both backends -- the nass_crop_progress shape
+             # exactly. NOTE the loader already handles this table's one quirk without any change:
+             # leviathan_slug AND marketing_year are BOTH Glue partition keys AND in-file body columns
+             # (physical_parquet_cols 8 vs glue_nonpartition_cols 6), which makes pyarrow's dataset-schema
+             # unification fail -- _probe_body_columns drops such keys from the partitioning schema and
+             # takes the authoritative body value (load_pg_numbers.py:180-188). Confirmed by reproducing
+             # the exact ArrowTypeError ("Field leviathan_slug has incompatible types: large_string vs
+             # string") on a naive hive read of the canonical prefix.
+             # SEQUENCING: this entry DEFINES the mirror; the LOAD still has to run in-VPC before any
+             # serving flip. numbers_parity deliberately carries NO SAMPLE_COMMODITY row for it yet, for
+             # the reason the NASS entry gives -- a sampled-but-unmirrored table turns the whole parity
+             # gate red, and choosing the commodity/as-of pair is worth doing against the first real mirror.
+             "silver_fgis",
+             # D-LD (2026-08-18): silver_wap_table01_revisions joins the mirror in the SAME change that
+             # gives it a numbers card -- served but unmirrored means GRAPHRAG_NUMBERS_BACKEND=pg raises
+             # UndefinedTable per query and SILENTLY FALLS BACK TO ATHENA. Trivially small (one flat
+             # object, 346 KB / 96,410 rows, projection forbidden), so the fallback would be cheap and
+             # that is precisely how a silent-fallback path gets normalised.
+             # TYPE DOCTRINE: the three wide metric columns value_mmt / prior_value_mmt / revision_mmt
+             # mirror NUMERIC (SQL runs avg/sum/min/max on them). Everything else stays TEXT COLLATE "C":
+             # release_month and prior_release_month are 'YYYY-MM' LABELS, not dates -- the as-of guard is
+             # a byte compare of that label against the lag-shifted ISO cutoff, and TEXT COLLATE "C" is
+             # byte-for-byte Presto's varchar order, so the prefix semantics ('2026-07' <= '2026-08-06')
+             # are identical on both backends. commodity / country / marketing_year / row_label /
+             # vintage_type / vintage_status / month_abbr are all TEXT; marketing_year is
+             # period_sql_type=string, so it must NOT be coerced numeric. There is no partition key
+             # (partition_keys []), so meta["partitions"] contributes nothing.
+             # SEQUENCING: this entry DEFINES the mirror; the LOAD still has to run IN-VPC before any
+             # serving flip. numbers_parity deliberately carries NO SAMPLE_COMMODITY row for it yet -- a
+             # sampled-but-unmirrored table turns the WHOLE parity gate red (the futures_eod pin), and
+             # choosing the commodity/as-of pair is worth doing against the first real mirror.
+             "silver_wap_table01_revisions",
+             # D-LD Track 1 (2026-08-18): silver_fnc_colombia_monthly joins the mirror in the SAME change
+             # that gives it a numbers card -- served but unmirrored means GRAPHRAG_NUMBERS_BACKEND=pg
+             # raises UndefinedTable per query and SILENTLY FALLS BACK TO ATHENA. Here that fallback lands
+             # on a partition-PROJECTED table (commodity enum x year 1913-2035), i.e. the LIST-storm class
+             # -- tiny in practice (<=114 live candidates, and build_sql pins the commodity equality plus
+             # sargable year bounds), but the doctrine is not about the size: a served numbers table must
+             # be mirrored. It is 1,360 rows in 114 objects, ~800 KB total.
+             # TYPE DOCTRINE: the five metric columns (production_bags_60kg, exports_bags_60kg,
+             # exports_value_usd_m, ex_dock_price_usd_cents_per_lb, internal_price_cop_per_125kg) mirror
+             # NUMERIC as wide metrics; `year` (an int PARTITION key) mirrors numeric via meta["partitions"]
+             # because it is the declared year_col the sargable bounds do arithmetic on; `month` (bigint,
+             # an in-file column) is NOT declared as month_col and is not a metric, so it routes to TEXT
+             # COLLATE "C" under _numeric_cols -- harmless, nothing compares it; leviathan_slug / country /
+             # commodity / source stay TEXT COLLATE "C", and `date` (a physical DATE) stringifies to the
+             # Athena ISO render, which is exactly what build_sql's CAST-as-varchar compare expects on both
+             # backends.
+             # SEQUENCING: this entry DEFINES the mirror; the LOAD still has to run IN-VPC before any
+             # serving flip. numbers_parity deliberately carries NO SAMPLE_COMMODITY row for it yet -- a
+             # sampled-but-unmirrored table turns the WHOLE parity gate red (numbers_parity.py:30-36), so
+             # the sample entry is chosen against the first real mirror, not guessed here.
+             "silver_fnc_colombia_monthly",
+             # D-LD (2026-08-18): silver_fnc_colombia_exports_port_type joins the mirror in the SAME
+             # change that gives it a numbers card -- served but unmirrored means
+             # GRAPHRAG_NUMBERS_BACKEND=pg raises UndefinedTable per query and SILENTLY FALLS BACK TO
+             # ATHENA, and here that fallback lands on a partition-PROJECTED table. Tiny (2,147 rows,
+             # 10 objects, 108 KB).
+             # TYPE DOCTRINE: exports_bags_60kg / exports_value_usd mirror numeric (the two wide
+             # metrics); `year` mirrors numeric because it is the declared year_col (Glue type int,
+             # arriving via meta["partitions"]). Everything else stays TEXT COLLATE "C": leviathan_slug,
+             # country, port, port_raw, coffee_type, coffee_type_raw, source, commodity -- and `month`
+             # too, which is a physical bigint but is NOT the declared month_col (no year_month
+             # arithmetic runs on it), so the doctrine routes it to TEXT and nothing filters on it.
+             # `date` is a physical DATE and stringifies to the Athena ISO render, which is what
+             # build_sql's CAST-as-varchar compare expects on both backends (the NASS precedent; NO
+             # date_col_type is needed -- that knob is for physical TIMESTAMPs only).
+             # NOTE the shadowed key: `year` is BOTH a projected partition key and an in-file int64
+             # column. _probe_body_columns already handles exactly this (it drops such keys from the
+             # partitioning schema and loads them from the body); the two values are byte-equal on all
+             # 2,147 rows (verified 2026-08-18). Glue Columns carries 11 names and PartitionKeys 2, so
+             # `all_cols` has no duplicate.
+             # SEQUENCING: this entry DEFINES the mirror; the LOAD still has to run in-VPC before the
+             # serving flip. numbers_parity deliberately carries NO SAMPLE_COMMODITY row for it yet
+             # (the NASS reason -- choose the pair against the first real mirror, and never sample an
+             # unmirrored table).
+             "silver_fnc_colombia_exports_port_type",
+             # D-LD (2026-08-18): silver_nass_citrus joins the mirror in the SAME change that gives it a
+             # numbers card -- served but unmirrored means GRAPHRAG_NUMBERS_BACKEND=pg raises
+             # UndefinedTable per query and SILENTLY FALLS BACK TO ATHENA. The fallback here lands on a
+             # FLAT, projection-forbidden table (2,450 rows, ONE 17.7 KiB object), so its cost is
+             # trivial and the doctrine is the entire reason: a served numbers table must be mirrored,
+             # and "small enough not to matter" is how a silent-fallback path gets normalized.
+             # TYPE DOCTRINE: forecast_1000_boxes and revision_1000_boxes mirror NUMERIC (the two wide
+             # metrics -- _numeric_cols takes them straight off ts.metrics). Everything else stays TEXT
+             # COLLATE "C": season / release_date / crop / state / source are already strings, and --
+             # note, because it is the one that looks wrong -- `report_month` (bigint) and
+             # `hlb_trend_factor` (double) mirror as TEXT too, because neither is a declared metric,
+             # value_col, year_col, month_col or int-typed period col. That is correct and intended: no
+             # SQL this card compiles does arithmetic on either, and hlb_trend_factor is deliberately
+             # unserved. There is no year_col/month_col and no int period col here, so nothing else
+             # goes numeric; `season` is period_sql_type=string and stays TEXT.
+             # SEQUENCING: this entry DEFINES the mirror; the LOAD still has to run in-VPC before any
+             # serving flip. numbers_parity deliberately carries NO SAMPLE_COMMODITY row for it yet --
+             # a sampled-but-unmirrored table turns the WHOLE parity gate red (numbers_parity.py:30-36
+             # imports P1_TABLES and SKIPs loudly), and choosing the (commodity, as-of) pair is worth
+             # doing against the first real mirror. When it is added it must be a CROP LABEL from the
+             # silver data (e.g. all_orange), never a contract slug.
+             "silver_nass_citrus",
+             # D-LD (2026-08-18): silver_mpoc_trade_stats_monthly joins the mirror in the SAME change
+             # that gives it a numbers card -- served but unmirrored means GRAPHRAG_NUMBERS_BACKEND=pg
+             # raises UndefinedTable per query and SILENTLY FALLS BACK TO ATHENA. The fallback here is
+             # trivially cheap (180 rows, ONE 5.8 KB object, flat / projection-forbidden), and it is
+             # mirrored anyway for the reason the entry above states: "small enough not to matter" is
+             # exactly how a silent-fallback path gets normalized.
+             # TYPE DOCTRINE: `exports_mt` mirrors NUMERIC (the single wide metric the card declares);
+             # `year` and `month` mirror NUMERIC because they are the declared year_col/month_col the
+             # (year*100 + month) guard does arithmetic on; `source` stays TEXT COLLATE "C". The
+             # physical `imports_mt` is a double and will mirror numeric under _numeric_cols like any
+             # other double -- that is correct and harmless: it is loaded but NEVER SERVED, because the
+             # card declares no metric for it (see the card comment: prior-year exports on 2020/21/22).
+             # There is no date column of any kind, so nothing stringifies and no DP-5 substr
+             # normalization applies.
+             # SEQUENCING: this entry DEFINES the mirror; the LOAD still has to run IN-VPC
+             # (jobs/submit/submit_batch_load_numbers_pg.py) before any serving flip. numbers_parity
+             # deliberately carries NO SAMPLE_COMMODITY row for it -- and here that is not a deferral
+             # but a STRUCTURAL fact: SAMPLE_COMMODITY panels are keyed by commodity and this table has
+             # no commodity column, so a sampled entry would be vacuous.
+             "silver_mpoc_trade_stats_monthly"]
 SCHEMA = "leviathan_dev"                       # == numbers.pgnumbers.SCHEMA == query.ATHENA_DB
 GLUE_DB = "leviathan_dev"
 

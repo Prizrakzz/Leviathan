@@ -686,18 +686,31 @@ module "serving" {
     #    note) says this flag should not be set in serving, and its consumer (the D-HP flip)
     #    closed dark on 2026-08-15. The live flip is the CLI rev-100 registration; this line
     #    converges the map to the same value so a re-derivation cannot silently flip it back ON.
-    #    RE-DERIVATION WARNING WIDENED (review wf_6906ea5b, measured vs live rev 99): TWELVE
-    #    env keys live ONLY on the registered revision and in neither this map nor the module's
-    #    base_environment (GRAPHRAG_CASCADE_HEADLINE/TIMELINE/OUTLOOK/DOSSIER,
-    #    GRAPHRAG_RESPONSE_CONTRACT, RECENCY_STAMP, TLDR_COHERENCE, PROFILE_CONTEXT,
-    #    FUTURES_NEWEST_FIRST, EVIDENCE_BATCH, METER_EXEMPT_SUBS, EVIDENCE_S3). A terraform
-    #    re-derivation of the serving taskdef would UN-SHIP D-RC and the dossier lane. That
-    #    refresh is CR-3 in docs/private/CONFIG_OF_RECORD_BACKLOG.md, STILL OPEN -- until it
-    #    lands, serving taskdefs are registered ONLY by copy-from-DEPLOYED
-    #    (scripts/ops/register_serving_taskdef.py), never from this map.
+    #    CR-3 CLOSED FOR THE TWELVE (D-LD Q5, owner-ratified 2026-08-18): the twelve live-only
+    #    keys measured by review wf_6906ea5b + recon wf_14e22400 are FOLDED IN below, values
+    #    read off the deployed revision (a tf re-derivation no longer un-ships D-RC or the
+    #    dossier lane). GRAPHRAG_METER_EXEMPT_SUBS rides a variable whose value lives in the
+    #    gitignored terraform.tfvars (a Cognito sub does not belong in a PUBLIC repo).
+    #    Registration doctrine UNCHANGED regardless: serving taskdefs register ONLY by
+    #    copy-from-DEPLOYED (scripts/ops/register_serving_taskdef.py), never from this map --
+    #    the map is the config-of-record, not the registration path.
     # ------------------------------------------------------------------------------------------
     GRAPHRAG_EPISODE_SCAFFOLD        = "on"
     GRAPHRAG_STRIP_AUDIT             = "off"
+
+    # --- CR-3 fold (D-LD Q5, 2026-08-18): the twelve, verbatim from deployed rev 101 ---------
+    GRAPHRAG_CASCADE_HEADLINE        = "on"
+    GRAPHRAG_TIMELINE                = "on"
+    GRAPHRAG_OUTLOOK                 = "on"
+    GRAPHRAG_DOSSIER                 = "on"
+    GRAPHRAG_RESPONSE_CONTRACT       = "verification,ranking,context_node,counterfactual,compare,recency,enumeration,horizon"
+    GRAPHRAG_RECENCY_STAMP           = "on"
+    GRAPHRAG_TLDR_COHERENCE          = "on"
+    GRAPHRAG_PROFILE_CONTEXT         = "on"
+    GRAPHRAG_FUTURES_NEWEST_FIRST    = "on"
+    GRAPHRAG_EVIDENCE_BATCH          = "1"
+    GRAPHRAG_METER_EXEMPT_SUBS       = var.serving_meter_exempt_subs
+    EVIDENCE_S3                      = "s3://leviathan-dev-shahem-001/graphrag_evidence"
 
   }
 
@@ -1110,7 +1123,14 @@ resource "aws_scheduler_schedule" "pattern_records_sweep" {
   count = var.pattern_records_image_digest != "" ? 1 : 0
 
   name  = "${var.project_name}-${var.environment}-pattern-records-sweep"
-  state = "ENABLED" # day-0 SATISFIED 2026-07-25: dry-run -> shadow (543 records reviewed) -> canonical live; user-directed enable
+  # D-LD Q2 (owner-ratified 2026-08-18): PAUSED. The writer fired daily (696 objects,
+  # newest 2026-08-18) while GRAPHRAG_PATTERN_RECORDS stayed off serving rev 101 and the
+  # failed gate's distinct-source-vintage floor needs >=20 ESR vintages -- months away at
+  # weekly cadence. Daily Batch spend with zero serving return. Re-enable WITH the flag
+  # arming when the vintage floor is reachable; the ledger keeps its 179 as_of partitions.
+  # (Previous state: ENABLED -- day-0 SATISFIED 2026-07-25: dry-run -> shadow (543 records
+  # reviewed) -> canonical live; user-directed enable.)
+  state = "DISABLED"
 
   flexible_time_window {
     mode = "OFF"

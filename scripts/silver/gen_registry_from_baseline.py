@@ -548,6 +548,18 @@ def build_contract(name: str, ctx: dict) -> dict:
         value_columns = [TALL_VALUE_COL[name]]
     elif numbers_spec and numbers_spec.get("shape") == "wide":
         value_columns = [m for m in (ctx["metric_keys"].get(name) or []) if m in all_cols]
+        # D-LD (2026-08-18): the WRITER contract is what the producer WRITES, not what serving
+        # exposes -- coupling value_columns to card metrics silently narrows the F010 contract
+        # whenever a card EXCLUDES a metric on a serving decision, which is exactly the class
+        # test_mpoc_trade_card_reconciles pins against. The one live case: silver_mpoc_trade's
+        # imports_mt is excluded from the card because it is MEASURED CORRUPT (prior-year
+        # exports on data years 2020-2022, mechanism = _group_year_column's first-column
+        # fallback), but the producer still writes it and the contract must keep declaring it
+        # until the producer fix lands and the card re-adds the metric.
+        _WRITER_EXTRAS = {"silver_mpoc_trade_stats_monthly": ["imports_mt"]}
+        for extra in _WRITER_EXTRAS.get(name, []):
+            if extra in all_cols and extra not in value_columns:
+                value_columns.append(extra)
     if not value_columns and name == "silver_esr_compact":
         value_columns = [m for m in (ctx["metric_keys"].get("silver_esr") or []) if m in all_cols]
     if not value_columns and source_contract:

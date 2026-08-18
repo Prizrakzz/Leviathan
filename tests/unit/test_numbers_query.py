@@ -791,8 +791,19 @@ _D_CW_IDS = ("silver_nass_crop_progress",)
 # every later wave above: present regardless of the DEPTH-wave kill-switch, so it belongs in the
 # BASELINE and is NOT one of the three ids that switch reverts.
 _D_PQ_IDS = ("silver_mpoc_stock_comparison",)
+# D-LD TRACK 1 (2026-08-18, LIGHT THE DARK) landed six more cards on tables that were already built,
+# scheduled and firing and had no numbers_ref -- FGIS export inspections, the WAP Table 01 revision
+# ledger (which DISCHARGES the D-PQ 'free_axis' refusal), the two FNC Colombia coffee tables, the NASS
+# citrus forecast and the MPOC Malaysian palm export archive (which discharges the D-PQ 'stale' verdict
+# by re-measurement: a CLOSED archive, not a stale one). Same standing as every wave above: present
+# regardless of the DEPTH-wave kill-switch, so they belong in the BASELINE and are NOT among the three
+# ids that switch reverts. Enumerated by NAME rather than folded in as a count so that a card leaving
+# the registry fails here with the id in the message.
+_D_LD_IDS = ("silver_fgis", "silver_wap_table01_revisions", "silver_fnc_colombia_monthly",
+             "silver_fnc_colombia_exports_port_type", "silver_nass_citrus",
+             "silver_mpoc_trade_stats_monthly")
 _DEPTH_BASELINE = (_PRE_WAVE_8 | set(_PRICE_IDS) | set(_SEAM_C_IDS) | set(_WIRING_W1_IDS)
-                   | set(_W3_IDS) | set(_D_CW_IDS) | set(_D_PQ_IDS))
+                   | set(_W3_IDS) | set(_D_CW_IDS) | set(_D_PQ_IDS) | set(_D_LD_IDS))
 
 
 def _tool_enum():

@@ -4,7 +4,7 @@ table_name: silver_wap_table01_revisions
 layer: silver
 domain: balance_sheet
 lifecycle_class: derived
-owner: silver-platform
+owner: numbers-platform
 schema_version: 1
 glue_database: leviathan_dev
 s3_root: s3://leviathan-dev-shahem-001/silver/wap_table01_revisions
@@ -104,19 +104,20 @@ required_nonnull:
 - row_label
 value_columns:
 - value_mmt
+- prior_value_mmt
 - revision_mmt
 min_nonnull_frac: 0.5
 min_nonnull_frac_status: provisional
 coverage_axis: release_month x commodity x country x marketing_year x row_label
 vintage_retention: per-vintage
 knowledge_date_col: release_month
-knowledge_semantics: year_month
-publication_lag_days: null
+knowledge_semantics: vintage
+publication_lag_days: 12
 freshness_sla:
   cadence: monthly
   max_lag_days: null
-consumers: feature_layer
-numbers_ref: null
+consumers: both
+numbers_ref: configs/graphrag/numbers/tables.yaml#silver_wap_table01_revisions
 cascade_ref: null
 source_contract_ref: configs/datasets/source_contracts.yaml#wap_revisions
 serving_table: null

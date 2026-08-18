@@ -554,7 +554,10 @@ class TestPollerEndToEnd:
         assert len(cw.datums) == 4 and len(ratios) == 2 and len(days) == 2
         assert {d["Dimensions"][0]["Value"] for d in ratios} == {"silver_fgis", "usda_fgis"}
         for d in ratios:
-            assert d["Value"] == pytest.approx(7.0 / 14.0, abs=1e-3)   # ceiling 14
+            assert d["Value"] == pytest.approx(7.0 / 14.0, abs=1e-3)   # ceiling 14: WRITE cadence,
+            #                                            pinned via TABLE_CEILING_OVERRIDES (D-LD:
+            #                                            the card's 13d publication lag guards the
+            #                                            AS-OF axis, never this write-recency one)
         for d in days:
             assert d["Value"] == pytest.approx(7.0, abs=1e-3)
         assert cw.namespaces == [METRIC_NAMESPACE]
@@ -562,7 +565,8 @@ class TestPollerEndToEnd:
     def test_each_table_is_normalized_by_its_OWN_ceiling(self, poller, monkeypatch):
         # D-PR-14 in one run: two targets with DIFFERENT ages (7d and 5d) and DIFFERENT ceilings
         # (14 and 10) land on the SAME 0.5 ratio. That equality is the property the family-level
-        # statistic=Maximum needs and that FreshnessLagDays cannot give it.
+        # statistic=Maximum needs and that FreshnessLagDays cannot give it. (fgis's 14 is pinned
+        # via TABLE_CEILING_OVERRIDES -- the D-LD card's publication lag must never widen it.)
         rc, _s3, cw = _run(
             poller, monkeypatch,
             ["--tables", "silver_fgis,graphrag_timeline_episodes"],

@@ -74,6 +74,25 @@ _EXPECTED_BRANCH_A = frozenset({
     # first REAL mirror beats guessing it here (the reverse drift, sampled-but-unmirrored, is what
     # the silver_futures_eod pin forbids).
     "silver_mpoc_stock_comparison",
+    # D-LD TRACK 1 (2026-08-18, LIGHT THE DARK). Six at once -- the 21st through the 26th -- and every
+    # one of them enters for the SAME reason as the 19th and the 20th and for no other: its numbers card
+    # landed in that wave, so the table became SERVED, and a served numbers table must be MIRRORED.
+    # Unmirrored + GRAPHRAG_NUMBERS_BACKEND=pg raises UndefinedTable per query and SILENTLY FALLS BACK
+    # TO ATHENA -- and for the three PROJECTED tables here (silver_fgis, and both fnc_colombia_* tables)
+    # that fallback lands on a projected partition grid, which is the Jul-2026 LIST-storm class rather
+    # than mere latency. Two of the six additionally DISCHARGE a recorded D-PQ refusal: the WAP revision
+    # ledger closed its 'free_axis' blocker in CODE (row_filters + grain_cols) and the MPOC trade archive
+    # closed its 'stale' verdict by re-measurement (a CLOSED archive, not a stale one) -- both discharges
+    # are held in tests/unit/test_dpq_dark_tables.py.
+    # As with silver_mpoc_stock_comparison: the in-VPC load has NOT run yet, and numbers_parity carries
+    # no SAMPLE_COMMODITY row for any of the six -- picking those pairs against the first REAL mirror
+    # beats guessing them here.
+    "silver_fgis",
+    "silver_wap_table01_revisions",
+    "silver_fnc_colombia_monthly",
+    "silver_fnc_colombia_exports_port_type",
+    "silver_nass_citrus",
+    "silver_mpoc_trade_stats_monthly",
 })
 
 
@@ -94,7 +113,7 @@ def test_branch_selection_all_45_tables():
         "why_this_matters": "a table entering Branch A gains the pg reload + parity + the V001 floor; "
                             "a table LEAVING it loses its only mirror refresh path while staying "
                             "served -- update this roster deliberately, never to make a test pass"}
-    assert len(branch_a) == 20                        # 19 + D-PQ tranche 1a's silver_mpoc_stock_comparison
+    assert len(branch_a) == 26                        # 20 + D-LD Track 1's six LIGHT-THE-DARK cards
     assert branch_a | branch_b == set(names)          # partition: no table is UNKNOWN in the real registry
     assert not (branch_a & branch_b)
 

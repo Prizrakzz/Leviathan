@@ -497,3 +497,15 @@ variable "mlflow_enabled" {
   default     = false
   description = "Create the MLflow Fargate stack (service + ALB + Route53 + Cognito client). Off = decommissioned."
 }
+
+# --- D-LD Q5 (2026-08-18): the metering-exempt subject list ------------------
+variable "serving_meter_exempt_subs" {
+  # GRAPHRAG_METER_EXEMPT_SUBS on the serving container: comma-separated Cognito subs
+  # exempt from credit metering (OPS-3, the owner's own account). The VALUE lives in the
+  # gitignored terraform.tfvars -- a sub is an account identifier and this repo is PUBLIC.
+  # Empty default keeps a fresh clone valid; the config-of-record fold (envs/dev/main.tf,
+  # CR-3) reads it so a tf re-derivation of the serving env no longer drops the key.
+  type      = string
+  default   = ""
+  sensitive = true
+}

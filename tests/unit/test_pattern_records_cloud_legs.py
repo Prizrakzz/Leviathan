@@ -238,14 +238,20 @@ class TestJobdefTerraform:
 
 
 class TestScheduleTerraform:
-    def test_schedule_is_armed_after_the_reviewed_day0_run(self, schedule):
-        # Was `state = "DISABLED"` by day-0 doctrine. The doctrine was SATISFIED 2026-07-25 (dry-run ->
-        # shadow, 543 records reviewed -> canonical -> 156-partition backfill) and the schedule was armed
-        # under user direction (ee78c276). The pin now guards the ARMED state, so a stray revert to DISABLED
-        # -- which would silently stop the ledger accruing, the same class of failure the IOD monthly DAG
-        # turned out to be -- fails the suite instead of passing quietly.
-        assert 'state = "ENABLED"' in schedule
-        assert 'state = "DISABLED"' not in schedule
+    def test_schedule_state_matches_the_standing_owner_decision(self, schedule):
+        # THIS PIN HAS FLIPPED TWICE, both times on owner word, and it guards WHICHEVER decision
+        # stands -- never a direction. History: shipped DISABLED by day-0 doctrine; ARMED 2026-07-25
+        # after the reviewed day-0 run (dry-run -> shadow, 543 records reviewed -> canonical ->
+        # 156-partition backfill; user-directed, ee78c276) -- the pin then guarded ENABLED so a
+        # stray revert could not silently stop the ledger. PAUSED 2026-08-18 (D-LD Q2,
+        # owner-ratified, applied live): the writer had fired daily for weeks while
+        # GRAPHRAG_PATTERN_RECORDS stayed off serving and the failed gate's vintage floor needs
+        # >=20 ESR vintages (months away at weekly cadence) -- daily Batch spend, zero serving
+        # return. The pin now guards DISABLED so a stray re-arm cannot silently resume the spend;
+        # the ratified re-enable path is the FLAG ARMING + this schedule in one reviewed change
+        # when the vintage floor is reachable (the rationale block sits on the resource itself).
+        assert 'state = "DISABLED"' in schedule
+        assert 'state = "ENABLED"' not in schedule
 
     def test_schedule_is_count_gated_on_the_digest(self, schedule):
         assert 'count = var.pattern_records_image_digest != "" ? 1 : 0' in schedule

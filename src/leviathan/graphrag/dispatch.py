@@ -97,9 +97,24 @@ REGISTRY: tuple[ToolSpec, ...] = (
         #         than something to compute (which is also what keeps it off the stats tool belt).
         # Both are prompt-side and neither is verifiable offline; the D-CW probe re-run is the adjudicator
         # and these two paragraphs are what a null result should be read against.
+        #
+        # D-LD TRACK 1 (2026-08-18, LIGHT THE DARK): six more served-but-uncarded tables acquired numbers
+        # cards, and a card with no clause here is a table the router keeps routing away from forever --
+        # so each landed WITH its clause and its tests/unit/test_capability_wiring.py::_ADVERTISED entry.
+        # The six clauses, in the order they appear below: FGIS export INSPECTIONS (advertised beside
+        # ESR's sales, because SHIPPED and SOLD are adjacent and distinct); WAP Table 01 as a REVISION
+        # LEDGER whose three metrics are named as SEPARATELY QUERYABLE (the R2 lesson -- prose describing
+        # a derived quantity does not make it reachable by name); MPOC's Malaysian palm EXPORT archive,
+        # whose clause carries its own CEILING (closed at 2023-12) so the planner never routes a "where
+        # are exports now" ask here in the first place; the two FNC Colombia clauses (monthly origin
+        # print with the ex-dock price, carrying its "never the exchange settle" caveat with it; and
+        # exports BY PORT); and the NASS CITRUS forecast, the estate's only observed citrus quantity.
         purpose=("leakage-safe SQL over OBSERVED values (USDA PSD S&D vintages, ESR export sales AND "
                  "their PACE vs the year-ago week/marketing year -- national OR BY DESTINATION (which "
-                 "country bought how much this marketing year), CFTC managed-money POSITIONING levels "
+                 "country bought how much this marketing year), FGIS export INSPECTIONS -- the tonnage "
+                 "of US corn, soybeans and wheat PHYSICALLY LOADED at US ports each week and "
+                 "season-to-date, by destination country (shipped, as against ESR's sold), "
+                 "CFTC managed-money POSITIONING levels "
                  "-- net length, net long/short, how stretched vs its own history -- daily futures "
                  "settles BY DELIVERY MONTH, including the TERM STRUCTURE / forward CURVE across "
                  "expiries and named-contract levels; World Bank monthly world price benchmarks and "
@@ -110,13 +125,31 @@ REGISTRY: tuple[ToolSpec, ...] = (
                  "urea_usd_mt_zscore_5yr), so 'how stretched is it' is a LOOKUP, not a calculation; WASDE "
                  "monthly balance-sheet lines and the US season-average FARM PRICE, each row stamped "
                  "with the release vintage and whether it is an actual, an estimate or a USDA "
-                 "projection; ICCO world cocoa GRINDINGS / production / stocks, MPOB monthly Malaysian "
+                 "projection; USDA FAS World Agricultural Production (WAP) Table 01 -- the "
+                 "month-over-month REVISION ledger for world production by country, where the last "
+                 "circular's number, this circular's number and the CHANGE BETWEEN THEM are three "
+                 "separately queryable metrics, so 'did USDA just raise or cut the crop, and by how "
+                 "much' is a LOOKUP rather than a comparison to assemble (aggregate groups only: total "
+                 "grains, coarse grains, wheat, rice, oilseeds, cotton -- production only, no stocks "
+                 "or use); ICCO world cocoa GRINDINGS / production / stocks, MPOB monthly Malaysian "
                  "palm production / stocks / exports plus MPOC monthly vegetable-oil ENDING STOCKS "
-                 "held in the big importing markets (India, China, Pakistan, Bangladesh, the US), "
-                 "CONAB Brazil coffee surveys, SAGIS-CEC South "
+                 "held in the big importing markets (India, China, Pakistan, Bangladesh, the US) and "
+                 "MPOC's MALAYSIAN PALM EXPORT tonnage month by month back to 2009 -- a CLOSED archive "
+                 "that stops at December 2023, so it is the PRE-2017 history MPOB cannot reach and "
+                 "never the current print; "
+                 "CONAB Brazil coffee surveys, "
+                 "FNC Colombian monthly coffee output and exports in 60-kg bags with the FNC ex-dock "
+                 "origin price (a physical Colombian reference in US cents per pound, never the "
+                 "exchange settle), "
+                 "FNC Colombian green-coffee EXPORTS BY PORT of embarkation (Buenaventura, Cartagena, "
+                 "Santa Marta) in 60-kg bags and FOB dollars, SAGIS-CEC South "
                  "African crop estimates and SAGIS weekly export pace, FAOSTAT annual production; "
                  "weekly USDA NASS crop CONDITIONS (percent good-to-excellent, poor-to-very-poor) and "
-                 "planting / emergence / harvest PACE by US state; weather aggregates and monthly "
+                 "planting / emergence / harvest PACE by US state; the monthly USDA NASS CITRUS "
+                 "forecast -- US orange, grapefruit and tangerine production in THOUSAND BOXES by "
+                 "state (Florida, California, Texas, Arizona) with each release's month-over-month "
+                 "REVISION, the only observed citrus quantity in the estate since there is no PSD "
+                 "orange-juice balance sheet; weather aggregates and monthly "
                  "weather z-anomalies, FX, and BOTH climate indices -- ENSO/ONI and the Indian Ocean "
                  "Dipole (IOD); plus the continuous front-month futures close as a single dated LEVEL "
                  "only -- that series is roll-spliced, so no change, window or curve read is served "
@@ -247,7 +280,9 @@ def planner_sys(max_contracts: int = MAX_CONTRACTS) -> str:
     "- ALSO list every OBSERVED-DATA family this turn implicates -- the registered numbers series the\n"
     "  question touches (positioning=cot, export sales/pace=esr, balance sheet=psd/wasde, world prices AND\n"
     "  fertilizer/energy input costs=pink_sheet, per-expiry settles/curve=futures_eod, crop conditions and\n"
-    "  planting/harvest pace=nass_crop_progress, cocoa grindings=icco_cocoa, palm monthly=mpob, Brazil\n"
+    "  planting/harvest pace=nass_crop_progress (citrus FORECASTS by state=nass_citrus -- a different\n"
+    "  card), cocoa grindings=icco_cocoa, palm monthly=mpob (palm EXPORT depth to 2009=mpoc_trade,\n"
+    "  destination stocks=mpoc_stock -- three different cards), Brazil\n"
     "  coffee surveys=conab_coffee, South African estimates=sagis_cec, weather=nasa_power/gold weather,\n"
     "  FX=fred_fx, ENSO=noaa_oni, IOD=noaa_iod, ...). Fill it whenever a family is implicated even when you\n"
     "  routed reasoning-only. Use ONLY names from the enum; empty when none apply.\n"

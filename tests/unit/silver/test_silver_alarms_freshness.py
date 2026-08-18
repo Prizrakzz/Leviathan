@@ -70,6 +70,10 @@ class TestPerTableAlarms:
     def test_specified_thresholds(self, doc):
         by_table = {a["table"]: a for a in doc["alarms"] if a.get("failure_mode") == "freshness_sla_breach_table"}
         assert by_table["silver_nass_crop_progress"]["threshold"] == 14
+        # D-LD (2026-08-18, review wf_31e951c7): STAYS 14. A first fold moved this to 27 by adding
+        # the fgis card's 13d publication lag as grace -- a category error: this alarm reads S3
+        # WRITE recency and the Thursday fire writes weekly regardless of content lag. The lag
+        # guards the card's AS-OF axis; TABLE_CEILING_OVERRIDES pins the poller to the same 14.
         assert by_table["silver_fgis"]["threshold"] == 14
         assert by_table["silver_unica_biweekly_season_history"]["threshold"] == 21
         assert by_table["silver_nass_citrus"]["threshold"] == 400

@@ -257,7 +257,12 @@ def test_cot_is_branch_a_twelfth_pg_mirror_table():
     # the same card-landed -> served -> must-be-mirrored rule. Note it is TINY (272 rows, one object),
     # so the Athena fallback it prevents would have been cheap -- it was mirrored anyway, because
     # "small enough not to matter" is how a silent-fallback path gets normalized.
-    assert len(g.PG_MIRROR_TABLES) == 20, (
+    # D-LD TRACK 1 (2026-08-18) added SIX at once -- the 21st through 26th -- on that same rule:
+    # silver_fgis, silver_wap_table01_revisions, silver_fnc_colombia_monthly,
+    # silver_fnc_colombia_exports_port_type, silver_nass_citrus, silver_mpoc_trade_stats_monthly.
+    # Three of them are partition-PROJECTED, so the Athena fallback this prevents is the LIST-storm
+    # class rather than latency. The by-NAME roster (and the reasons) is in the rebuild-gate test.
+    assert len(g.PG_MIRROR_TABLES) == 26, (
         "pg-mirror roster changed; the by-NAME pin lives in tests/unit/test_silver_rebuild_gate.py::"
         "test_branch_selection_all_45_tables. Roster now: " + str(sorted(g.PG_MIRROR_TABLES)))
 

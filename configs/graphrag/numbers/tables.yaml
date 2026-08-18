@@ -1254,3 +1254,948 @@ tables:
       swept (sweeps_total=0). ALWAYS pin ONE provenance class in an aggregation -- daily_sweep for recorded
       history, backfill_grid for the labelled engine base rate. The engine RECORDS and the reader interprets:
       never mint a threshold from the count, and never add a conclusion or direction word to it.
+
+  # D-LD (2026-08-18) -- USDA FGIS EXPORT INSPECTIONS, the physical counterpart to silver_esr's bookings.
+  # The estate has carried this table since the 2026-05 bulk backfill and it feeds export_pace_z_* in the
+  # feature layer, but it has never been readable by the numbers agent. 113,072 rows, five contracts,
+  # 196 destinations, weekly from January 1983. Nothing is ingested or re-derived by this card.
+  #
+  # PIT: data_date on week_ending_date + publication_lag_days: 13, and the 13 is MEASURED, not assumed.
+  # FGIS's own report week runs Friday->Thursday, and our fetch snapshots the rolling CY file every
+  # Thursday 12:00 UTC (cron(0 12 ? * THU *), dag_schedules fgis, ENABLED + promote_mode autonomous since
+  # 2026-08-16). Three consecutive snapshots measured the same gap exactly: as_of Thu 2026-07-30 carried
+  # certifications through 2026-07-23; as_of Thu 08-06 through 07-30; as_of Thu 08-13 through 08-06 --
+  # as_of MINUS max(cert_date) = 7 days, three for three. Our week_ending_date is a DERIVED 7-day bucket
+  # end whose weekday drifts year to year (it is anchored to the marketing-year start, not to a weekday),
+  # so a certification dated exactly on a bucket end reaches us at the first Thursday >= cert+7, i.e.
+  # between +7 and +13 days. 13 is the worst case and therefore the only value that never leaks.
+  # WHAT THE 13 ACTUALLY WITHHOLDS, measured: at asof 2026-08-18 the newest week in storage is the bucket
+  # ending 2026-08-09, and it is PARTIAL -- the 08-13 snapshot only reached certifications through 08-06,
+  # so that bucket holds 4 of its 7 days and will be revised UP at the 08-20 run. The lag withholds it
+  # (37 rows across the five slugs) and hands back the bucket ending 2026-08-02, which IS complete. A
+  # smaller lag would have served a half-week as a week.
+  #
+  # PHYSICAL LAYOUT -- and the ONE place this card departs from the projected-table template. The table is
+  # partition_mode: projected / projection: legacy-quarantined, grid = leviathan_slug enum (5) x
+  # marketing_year integer 1982-2035 (54) = 270 candidate prefixes, of which 223 are real (MEASURED by
+  # object listing). partition_cols pins the slug via the ordinary commodity equality, which cuts every
+  # query to 54 candidates. `year_col` is DELIBERATELY NOT DECLARED and this is not an oversight:
+  # marketing_year is a MARKETING year, not a calendar year, and _filters emits `year_col >=
+  # int(period_start[:4])` on any window (query.py:406-407). Corn/soy marketing year Y spans Sep Y to Aug
+  # Y+1, so a perfectly ordinary window like period_start='2026-06-01' would emit `marketing_year >= 2026`
+  # against rows that legitimately live in marketing_year 2025 and return ZERO ROWS SILENTLY -- for eight
+  # of twelve calendar months on corn and soybeans, five of twelve on wheat. That is the same class as the
+  # "projected partition that is also year_col" landmine, arrived at from the other side. Declaring it
+  # would buy 54 prefix LISTs (a fraction of a second, four to five orders of magnitude below the 6.1M-cell
+  # silver_esr grid behind the Jul-2026 $134 storm) at the price of a silent wrong answer, and the marketing
+  # year is reachable anyway: period_col = marketing_year compiles to `marketing_year = 2025`, an exact
+  # partition equality, whenever the caller pins a season. The pg mirror is the serving backend regardless.
+  silver_fgis:
+    description: >
+      USDA FGIS export INSPECTIONS -- the tonnage of US corn, soybeans and wheat actually inspected and
+      certified for export at US ports each week, BY DESTINATION COUNTRY, from January 1983. These are
+      legal certifications under the US Grain Standards Act: grain PHYSICALLY LOADED for that country --
+      not sales booked, not commitments, not forecasts. One row per contract x marketing year x week x
+      destination, carrying that week's tonnage and the season-to-date running total for that destination.
+      Whole metric tons (silver_esr is thousands of MT -- not the same scale). Five contracts only: corn,
+      soybeans and the three wheat classes. The United States is the reporter, never a destination. This is
+      the SHIPMENTS half of the US export program; silver_esr is the SALES half, and the two are different
+      quantities that must never be added or substituted.
+    grain: "one row per contract x marketing year x week x destination country"
+    shape: wide
+    commodity_col: leviathan_slug        # PARTITION key = the contract slug; the equality is what prunes
+    # D-PQ CLASS-1 code fence: the five slugs, DECLARED, so an off-list lookup is refused at spec level
+    # with a teaching error before any SQL is compiled. This list and the "five contracts and only these
+    # five" sentence in `notes` are the same fact said twice on purpose -- notes teach, this enforces.
+    commodity_values: [corn_cbot, soybeans_cbot, hard_red_winter_wheat_kcbt,
+                       hard_red_spring_wheat_mgex, soft_red_winter_wheat_cbot]
+    country_col: destination_country     # FGIS's OWN uppercase abbreviations -- see the notes, this is the
+    #                                      WASDE Title-Case class and there is no name-resolution ref here
+    period_col: marketing_year           # the MY START year, our convention already (no period_offset)
+    period_type: marketing_year
+    period_sql_type: int                 # compiles to `marketing_year = 2025` = an exact partition pin
+    date_col: week_ending_date           # a physical DATE column (not a timestamp -- no date_col_type)
+    knowledge_semantics: data_date
+    knowledge_date_col: week_ending_date
+    publication_lag_days: 13             # MEASURED worst case; see the block comment above
+    partition_cols: [leviathan_slug]     # projected; pinned by the commodity equality. marketing_year is
+    #                                      NOT listed: it is not a NumberQuery field, so _partition_filters
+    #                                      would raise "requires a static marketing_year equality" on every
+    #                                      lookup -- and it must not be year_col either (comment above).
+    metrics:
+      exports_mt_weekly: {unit: "MT", desc: "tonnage inspected and certified for export to that destination DURING that week (a weekly flow, not a running total)"}
+      exports_mt_ctd:    {unit: "MT", desc: "season-to-date CUMULATIVE tonnage to that destination, a running total that only ever climbs within one marketing year and resets at the next"}
+    notes: >
+      THIS IS GRAIN LOADED, NOT GRAIN SOLD. FGIS certifies physical shipments leaving US ports; silver_esr
+      reports SALES -- new sales booked, outstanding unshipped commitments, and its own shipments line. An
+      FGIS number is never a sales figure and never an export FORECAST (that is silver_wasde / silver_psd).
+      The two also disagree on units: FGIS is whole METRIC TONS, silver_esr is THOUSANDS of MT, so a raw
+      comparison is off by 1000 before any definitional gap. Say which one you read -- "inspected for
+      export" or "sold" -- and route sales-pace or unshipped-commitment questions to silver_esr, not here.
+      COMMODITY IS REQUIRED (it is the partition axis, so a lookup without one is refused before any SQL is
+      compiled) and only five exist: corn_cbot, soybeans_cbot, hard_red_winter_wheat_kcbt,
+      hard_red_spring_wheat_mgex, soft_red_winter_wheat_cbot. Sorghum, barley, oats, durum, white wheat,
+      rice, cotton and every processed product are NOT here -- decline rather than substituting a different
+      grain. ONE LOOKUP = ONE METRIC AND ONE DESTINATION: `metric` is required, there is no all-metrics
+      read, and a Mexico-versus-Japan comparison is one call per (metric, destination) pair.
+      NAME THE DESTINATION, OR ASK FOR THE NATIONAL TOTAL PROPERLY. With no country the read spans every
+      destination that shipped that week and agg=latest returns ONE ARBITRARY row: measured on the corn
+      week ending 2026-08-02, that row is JORDAN at 24 MT out of a 1,512,126 MT national week, because the
+      tiebreak is ascending value. A national figure is agg=sum on exports_mt_weekly with country omitted,
+      never agg=latest. Every row carries its own destination -- name it whenever you quote a number.
+      DESTINATION STRINGS ARE FGIS'S OWN UPPERCASE ABBREVIATIONS AND NOTHING RESOLVES THEM: the value is
+      compared literally, and a wrong one returns no rows silently rather than erroring. 'KOREA REP' (not
+      'South Korea'), 'UN KINGDOM' (not 'United Kingdom'), 'DOMINICN REP', 'REP S AFRICA', 'UN ARAB EM',
+      'COTE DIVOIRE', 'CONGO (BRAZ)', 'NETH ANTIL'; the ordinary ones are simply capitalised ('MEXICO',
+      'JAPAN', 'CHINA', 'TAIWAN', 'EGYPT', 'SPAIN', 'VIETNAM'). The record also carries defunct entities
+      ('USSR', 'YUGOSLAVIA', 'ZAIRE', 'BURMA', 'GERM FR (W)') and an 'UNKNOWN' pseudo-destination -- 196
+      strings across the full history, 98 of them in marketing year 2023 or later. When unsure of a
+      spelling, read the season with no country and quote the destination the row itself carries.
+      exports_mt_ctd IS CUMULATIVE, PER DESTINATION, WITHIN ONE MARKETING YEAR -- a running total that
+      resets each season. Never delta it against a weekly figure or across a season boundary, and NEVER SUM
+      IT ACROSS DESTINATIONS: a destination only has a row in weeks it actually received grain, so summing
+      that column over one week's rows drops every buyer that was quiet. Measured on corn 2025/26 through
+      the week ending 2026-08-02 that gives 67,469,343 MT against a true 75,673,883 MT -- a 10.8 percent
+      undercount, 28 of the season's 47 destinations having been quiet that week. A national season total
+      is agg=sum on exports_mt_weekly over the window.
+      A MISSING WEEK MEANS NO SHIPMENT, NOT MISSING DATA. Series have real holes (corn to ALGERIA has 12 of
+      48 weeks in 2025/26, CANADA 8, MEXICO all 48), so a destination's cumulative position at a given week
+      is the last row ON OR BEFORE it. An empty result is a genuine finding: corn to CHINA has ZERO rows in
+      2025/26, the last season with any being 2024/25 at 33,476 MT. Report that as no shipments -- never as
+      no data, and never by quietly switching destination, crop or table.
+      PERIOD IS THE MARKETING-YEAR START YEAR, AND THE CROPS DISAGREE ABOUT WHICH ONE IS CURRENT. period is
+      an integer start year (2025 = the 2025/26 season), the convention silver_psd and silver_esr use. Corn
+      and soybeans run Sep 1 - Aug 31; all three wheat classes run Jun 1 - May 31. So at an as-of in August
+      2026 the current corn and soybean season is 2025 while the current wheat season is 2026 -- one date,
+      different labels by crop. A wrong pin returns no rows, indistinguishable from absence, so when unsure
+      omit period and window with period_start/period_end on the week-ending date instead.
+      week_ending_date IS A DERIVED 7-DAY BUCKET END, NOT A REPORT DATE: the producer buckets certifications
+      into fixed 7-day windows counted from the marketing-year start (Sep 1 or Jun 1) and stamps the last
+      day of the window, so the weekday drifts between seasons and the stamp is NOT the FGIS report
+      Thursday. Quote the date itself ("the week ending 2026-08-02"); never call it a Thursday or a release.
+      FRESHNESS. The weekly run publishes certifications through the previous Thursday, so the newest bucket
+      in storage is normally still PARTIAL; the publication lag withholds it and agg=latest returns the
+      newest COMPLETE week. Cite the reading's own week-ending date and never call a dated reading
+      'current'. Density is about 18 destination rows per corn week (~750 rows per season for corn, ~840
+      for soybeans, 270-340 per wheat class), so one destination's full season is 40 to 50 rows.
+      NO REVISION VINTAGE: latest snapshot only, no as-of axis, so a late-posted certification updates
+      history in place. Rare (these are legal certifications, not a survey), but it means this card cannot
+      answer "what did we think last month" -- for that use silver_esr, whose weekly reports ARE retained.
+
+  # D-LD (2026-08-18) -- USDA FAS WORLD AGRICULTURAL PRODUCTION (WAP) TABLE 01, THE REVISION LEDGER.
+  # The DARK CAPABILITY CENSUS's #2, and the ONE table in the estate whose subject is not a level but the
+  # CHANGE BETWEEN TWO USDA PRINTS. Nothing is ingested, re-chunked or re-derived; this card is the whole fix.
+  #
+  # THE D-PQ REFUSAL, AND EXACTLY HOW IT IS DISCHARGED. tests/unit/test_dpq_dark_tables.py refused this
+  # table on 2026-08-07 for a FREE AXIS: `vintage_type` splits value_mmt into two different quantities and
+  # NumberQuery has no field to choose between them (measured then: 1-3 rows per (release, commodity,
+  # country, marketing_year)). Re-measured 2026-08-18, both halves of that verdict are TRUE and both are
+  # now closed by CARD MECHANISM rather than by a producer change:
+  #   (a) THE AXIS. 96,410 rows split 49,188 `vintage_type='year'` / 47,222 `'month'`. The YEAR rows are
+  #       the marketing-year preliminary/projection estimates and they are UNIQUE on
+  #       (release_month, commodity, country, marketing_year) -- 49,188 groups, EVERY ONE of size 1,
+  #       zero exceptions. The MONTH rows are the circular's this-month/last-month comparison block and
+  #       they are a DIFFERENT quantity: their `marketing_year` is IMPUTED by the producer from the
+  #       block's proj. row (wap_table01._derive_marketing_year_for_months), and they reconcile to NO
+  #       annual figure -- only 14.6% of current-month rows equal the same release's year projection
+  #       (n=24,406), and at 2026-07 world wheat the monthly row prints 820.0 against a 2026/27
+  #       projection of 843.8, a 23.8 MMT gap. So the card serves the YEAR rows and FENCES the month
+  #       rows out, twice over: `row_filters` emits `vintage_type IN ('year')` on every read, and the
+  #       `vintage_tiebreak` role_order ranks 'year' ahead of 'month' if the filter is ever removed.
+  #       The fence is unconditional in practice because `unit_overrides` already RAISES on any
+  #       commodity-less query (see UNITS below), and row_filters keys on the commodity.
+  #   (b) THE SERIES. The refusal's second half was correct and load-bearing: "the vintage branch applies
+  #       its ROW_NUMBER collapse to EVERY agg, so a revision SERIES across release months -- the entire
+  #       desk story -- is structurally unreachable". It is unreachable only when the RELEASE is absent
+  #       from the grain. `grain_cols` puts `release_month` IN the identity group (the silver_esr idiom:
+  #       ESR keys on the WEEK, not the marketing year), so the ROW_NUMBER de-duplicates the ROW_LABEL
+  #       axis and NEVER the release axis. Compiled and verified: agg=series over period_start/period_end
+  #       returns one row per release across the window (2026-05 843.8 / 2026-06 844.4 / 2026-07 843.8 for
+  #       wheat-world-2026/27), while agg=latest still collapses to the single freshest release.
+  #       That is the correct grain for a revisions table: the observation IS "the estimate printed at
+  #       release R", and R is part of its identity.
+  #
+  # PIT: VINTAGE on release_month, minted here. The F010 contract said `year_month`, which is NOT
+  # EXPRESSIBLE -- query._guard RAISES `year_month semantics needs year_col + month_col` and this table
+  # has neither (12 physical columns, no year, no month). release_month is an explicit 'YYYY-MM'
+  # PUBLICATION label, so vintage is both the compilable and the truthful semantics. The guard compiles
+  # to `CAST(release_month AS varchar) <= '<asof - 12d>'`: a 'YYYY-MM' label compared lexically against a
+  # 'YYYY-MM-DD' cutoff is a PREFIX compare, so it admits a month exactly while the cutoff is inside it
+  # or later, and byte order is identical on Presto and on the pg mirror's TEXT COLLATE "C".
+  #
+  # publication_lag_days: 12, and the arithmetic is exact rather than conservative-by-feel. asof - 12d
+  # lands on day 1 of the same month when asof is the 13th, and on the LAST DAY OF THE PRIOR MONTH when
+  # asof is the 12th -- in EVERY calendar month, February included. So a circular is withheld through the
+  # 12th of its own month and becomes citable on the 13th, forever, with no month-length special case.
+  # USDA publishes WAP alongside the WASDE, whose observed calendar is the 8th-12th, so 13 is never early
+  # on the observed record; a slipped release would be a one-day HISTORICAL-REPLAY leak, never a live one
+  # (the row does not exist yet in live use). Verified by the oracle: at asof 2026-07-12 the 2026-07
+  # circular is WITHHELD, at 2026-07-13 it is served.
+  #
+  # SARGABLE PARTITION DISCIPLINE: none needed, and that is a FACT rather than an omission -- the table is
+  # partition_mode flat / projection forbidden / partition_keys [], one object under the flat root. There
+  # is no projected grid, no LIST-storm class, and NO partition_cols may be declared: reconcile_numbers
+  # requires every spec partition_col to be a real Glue partition key and would fail the build.
+  #
+  # NOT in cascade_map (no engine leg) and NOT in cascade.PACE_TABLES -- a monthly ESTIMATE-REVISION
+  # ledger is not a pace surface, and a pace [N] rendered off it would narrate USDA's editing as a flow.
+  silver_wap_table01_revisions:
+    description: >
+      USDA FAS World Agricultural Production (WAP) circular, Table 01 -- the MONTH-OVER-MONTH REVISION
+      ledger for world PRODUCTION. One row per monthly circular x commodity group x country x marketing
+      year, carrying the estimate printed in THAT circular, the estimate the PREVIOUS circular carried for
+      the same series, and the change between them. This is the only table in the estate whose subject is
+      the REVISION itself: "did USDA raise or cut this crop, and by how much" is a lookup here, not a
+      comparison you have to assemble. Six commodity groups, and they are WAP AGGREGATES, not exchange
+      contracts: total_grains, coarse_grains, wheat, rice, oilseeds and cotton. Nineteen country labels
+      including the aggregates world, total_foreign and all_others. PRODUCTION ONLY -- there are no stocks,
+      no use, no trade and no price on this table. Monthly, 2006-12 onward; a circular is published in the
+      first half of its own month and is citable from the 13th.
+    grain: "one row per release_month x commodity x country x marketing_year (the year-vintage rows)"
+    shape: wide
+    commodity_col: commodity            # the WAP aggregate GROUP, not a contract slug (see notes)
+    # D-PQ CLASS-1 code fence: the six groups, DECLARED, so an off-list ask is refused at spec level with a
+    # teaching error BEFORE any SQL. This list and the "only these six exist" sentence in `notes` are the
+    # same fact said twice on purpose -- the notes teach, this enforces.
+    commodity_values: [coarse_grains, cotton, oilseeds, rice, total_grains, wheat]
+    country_col: country                # lower_snake WAP country label; 'world'/'total_foreign' are AGGREGATES
+    period_col: marketing_year
+    period_type: marketing_year
+    period_sql_type: string             # marketing_year is a string like '2026/27'
+    date_col: release_month             # the circular's own 'YYYY-MM' label -- the chronological axis AND
+    #                                     the publication event; declaring it is what makes agg=latest a
+    #                                     single freshest-release row and what makes a release WINDOW
+    #                                     expressible at all (period_start/period_end, as 'YYYY-MM')
+    knowledge_date_col: release_month
+    knowledge_semantics: vintage
+    publication_lag_days: 12            # withheld through the 12th of its own month, citable from the 13th
+    provenance_col: vintage_status      # DP-2: surfaces 'prel.' | 'proj.' as `revision_stamp` on EVERY row,
+    #                                     so a figure carries whether it is a preliminary estimate of a
+    #                                     finished crop or a projection of one still in the ground
+    # THE FREE-AXIS CLOSURE. release_month is IN the grain (the silver_esr week idiom) so the vintage
+    # ROW_NUMBER de-duplicates the ROW_LABEL axis and never the release axis -- which is what keeps the
+    # revision SERIES reachable. Measured: the year rows are unique on these four columns in all 49,188
+    # groups, so _rn=1 is a de-duplication, never a silent pick.
+    grain_cols: [commodity, country, marketing_year, release_month]
+    vintage_tiebreak:
+      - {col: vintage_type, role_order: [year, month]}   # the annual estimate wins; the monthly-comparison
+      #                                                    block is a different quantity (see the header)
+      - {col: row_label, dir: asc, nulls: last}          # final deterministic total-order key
+    metrics:
+      value_mmt:
+        unit: "MMT (cotton: million 480-lb bales)"
+        desc: "the production estimate for that marketing year as printed in THIS circular"
+        # UNITS ARE HETEROGENEOUS AND THE COLUMN NAME LIES. There is no unit column on this table, and
+        # `value_mmt` is million metric tonnes for five of the six groups but MILLION 480-LB BALES for
+        # cotton -- measured, not assumed: world cotton reads 119.3 (2025/26) and 121.9 (2026/27) at the
+        # 2026-07 circular and US cotton reads 14.4/13.9, which are bale figures; the same rows in tonnes
+        # would be ~26 and ~3. Rice is MILLED basis (world 545.7). unit_overrides is the doctrinal remedy
+        # and its documented consequence is load-bearing here: a commodity-less query RAISES, which is
+        # exactly the fence this card wants (see "ALWAYS PASS A COMMODITY" in notes).
+        unit_overrides: {coarse_grains: "MMT", cotton: "million 480-lb bales", oilseeds: "MMT",
+                         rice: "MMT, milled basis", total_grains: "MMT", wheat: "MMT"}
+        # THE ROW FENCE: serve the marketing-year vintage rows ONLY. The monthly-comparison rows carry an
+        # IMPUTED marketing_year and a value that reconciles to no annual figure (14.6% exact match).
+        row_filters:
+          coarse_grains: {vintage_type: [year]}
+          cotton:        {vintage_type: [year]}
+          oilseeds:      {vintage_type: [year]}
+          rice:          {vintage_type: [year]}
+          total_grains:  {vintage_type: [year]}
+          wheat:         {vintage_type: [year]}
+      prior_value_mmt:
+        unit: "MMT (cotton: million 480-lb bales)"
+        desc: "the SAME series' estimate at the previous circular in which it appeared -- the baseline the revision is measured from, not the prior marketing year"
+        unit_overrides: {coarse_grains: "MMT", cotton: "million 480-lb bales", oilseeds: "MMT",
+                         rice: "MMT, milled basis", total_grains: "MMT", wheat: "MMT"}
+        row_filters:
+          coarse_grains: {vintage_type: [year]}
+          cotton:        {vintage_type: [year]}
+          oilseeds:      {vintage_type: [year]}
+          rice:          {vintage_type: [year]}
+          total_grains:  {vintage_type: [year]}
+          wheat:         {vintage_type: [year]}
+      revision_mmt:
+        unit: "MMT change (cotton: million 480-lb-bale change)"
+        desc: "this circular minus the previous one for the same series: positive = USDA RAISED the crop, negative = CUT it. A change in the ESTIMATE, never a change in the crop"
+        unit_overrides: {coarse_grains: "MMT change", cotton: "million 480-lb-bale change",
+                         oilseeds: "MMT change", rice: "MMT change, milled basis",
+                         total_grains: "MMT change", wheat: "MMT change"}
+        row_filters:
+          coarse_grains: {vintage_type: [year]}
+          cotton:        {vintage_type: [year]}
+          oilseeds:      {vintage_type: [year]}
+          rice:          {vintage_type: [year]}
+          total_grains:  {vintage_type: [year]}
+          wheat:         {vintage_type: [year]}
+    notes: >
+      ALWAYS PASS A COMMODITY. Every metric on this card carries per-commodity unit overrides because the
+      table has NO unit column and its units are not uniform, so a commodity-less lookup is REJECTED
+      before anything is queried and costs you a lookup from the budget. commodity takes exactly these
+      six WAP AGGREGATE GROUPS and nothing else: total_grains, coarse_grains, wheat, rice, oilseeds,
+      cotton. THESE ARE NOT CONTRACT SLUGS AND THEY ARE NOT INTERCHANGEABLE WITH CROPS. coarse_grains is
+      corn PLUS sorghum, barley, oats, rye and millet -- it is NOT corn, and a coarse_grains figure must
+      never be narrated as a corn number or read against corn_cbot; oilseeds is every oilseed, not
+      soybeans. total_grains is exactly coarse_grains + wheat + rice (verified to the decimal at the
+      2026-07 circular: 1624.3 + 843.8 + 545.7 = 3013.8). There is no corn, soybean, sugar, coffee or
+      cocoa row here; decline rather than substituting the group for the crop, and for a single crop use
+      silver_wasde or silver_psd.
+      ALWAYS PASS A COUNTRY, AND SAY WHICH ONE. country takes lower_snake WAP labels and only these
+      nineteen exist: world, total_foreign, us, canada, mexico, eu27, russia, ukraine, china, india,
+      indonesia, pakistan, thailand, argentina, brazil, australia, south_africa, turkey, all_others.
+      ALWAYS PASS A PERIOD TOO, AND ITS SPELLING IS THE SLASH FORM: period is the marketing-year LABEL
+      exactly as WAP prints it, a string like '2026/27' -- '2026' alone or '2026-27' matches ZERO rows
+      silently. THIS IS THE CARD'S SHARPEST TRAP, measured: every circular carries TWO marketing years
+      side by side (the prior year's near-final estimate and the current year's projection), and with
+      period free an agg=latest read returns the PRIOR year's row -- 'USDA's latest world wheat
+      production' would answer 799.7 (the finished 2025/26 crop) when the desk means 843.8 (the 2026/27
+      projection). The right crop is a named period, never a default. Every row also rides out with a
+      revision_stamp of 'prel.' (a preliminary estimate of a finished or finishing crop) or 'proj.' (a
+      projection of the crop still in the field) -- quote it with the number so the reader knows which
+      of the two the figure is.
+      THIS CARD SERVES THE MARKETING-YEAR BLOCK ONLY. Each circular also prints a month-over-month
+      comparison block; that half of the table is deliberately NOT served here (the query is fenced to
+      the marketing-year vintage rows). A this-circular-vs-last-circular delta IS answerable -- that is
+      the revision_mmt metric; a question about the circular's own monthly-comparison lines is not.
+      Three of those are AGGREGATES, not places: 'world' is the global total, 'total_foreign' is world
+      minus the US (world = total_foreign + us, exact on every commodity at the 2026-07 circular), and
+      'all_others' is the residual of everything not itemised. With NO country the read spans every label
+      and a latest-value read returns ONE arbitrary country's row -- a Ukrainian number wearing a world
+      label. eu27 IS DEAD FOR GRAINS AND OILSEEDS: the source stopped printing an EU-27 line for
+      coarse_grains, wheat, rice, oilseeds and total_grains after the 2018-07 circular (cotton alone still
+      carries it, through 2026-07), so an EU wheat read at any modern as-of correctly returns NO ROWS --
+      that is a source coverage end, not a query error, and it must not be back-filled from another table
+      and called WAP.
+      ONE LOOKUP = ONE METRIC AND ONE COUNTRY. This card carries three metrics and a free country axis:
+      `metric` is REQUIRED and there is no all-metrics read, so "the print, the prior print and the
+      change" for two origins is six calls -- value_mmt for brazil, then revision_mmt for brazil, and so on.
+      REVISION_MMT IS A CHANGE IN USDA'S ESTIMATE, NOT A CHANGE IN THE CROP AND NOT A FLOW. Positive means
+      the analyst raised the number between two circulars; it is not production growth, not a year-on-year
+      change, and not a trade figure. prior_value_mmt is the SAME marketing year at the PREVIOUS circular,
+      never the previous marketing year -- for a year-on-year comparison read two marketing years, not this
+      column. Values are levels in million metric tonnes EXCEPT cotton, which is MILLION 480-LB BALES
+      (measured: world cotton 121.9 at the 2026-07 circular, US 13.9) -- never convert one to the other
+      here, and rice is on a MILLED basis.
+      THE MAY ROLL IS NOT MISSING DATA. Every May the marketing-year labels turn over: the crop that was a
+      projection becomes the preliminary estimate and a new projection year appears. The revision link
+      keys on that status, so at the MAY circular prior_value_mmt and revision_mmt are NULL for
+      essentially every row (measured: 94.2% of May year rows, and 20 of 228 releases are wholly null this
+      way), and the chain restarts. A marketing year lives about 12 circulars as a projection and about 12
+      more as a preliminary, with the revision chain BREAKING at the switch -- so a "how has this crop been
+      revised all the way through" ask is two chains, not one, and the May row is a chain start, never a
+      zero revision. Overall only 14.1% of year rows carry a non-zero revision: USDA leaves most lines
+      untouched most months, and a 0.0 is a real reading meaning "unchanged", not an absence.
+      Window release months with period_start / period_end AS 'YYYY-MM' -- the comparison is made against
+      the release LABEL, so a full ISO date at period_start ('2026-05-01') silently excludes that whole
+      month (verified: it drops 2026-05 and keeps 2026-06 onward). agg=latest returns the newest circular
+      on or before the as-of; agg=series over a window returns ONE ROW PER CIRCULAR **only when a
+      period is pinned** -- with period free the window returns BOTH marketing years' chains interleaved
+      and ordered by marketing year first, not by release, so a revision path is readable only as
+      (one period) x (a release window). The as-of guard compares the release label plus a 12-day
+      publication lag, so a circular is withheld through the 12th of its own month and citable from the
+      13th; cite the reading's OWN release month and never call a dated reading 'current'.
+      COVERAGE AND ITS HOLES, MEASURED. 228 circulars, 2006-12 through 2026-07, about 216 served rows per
+      circular. Eight calendar months are absent and that is the data: 2007-06 (the producer EXCLUDES it,
+      confirmed commodity-row scrambling in the source PDF), 2013-10, 2019-01, 2023-04, 2024-03, 2024-04,
+      2025-10 and 2025-11. A handful of PDF-extraction artefacts survive in the early record -- 48 of
+      44,621 year rows carry a revision beyond +/-50 units, concentrated in the 2007-05, 2010-07, 2010-08,
+      2015-02, 2016-08, 2016-09, 2018-07, 2018-08 and 2018-11 circulars and mostly on cotton, and one row
+      (2016-08 cotton all_others) is NEGATIVE at -71.0. Treat any single-month revision of that magnitude
+      as an extraction defect and say so rather than narrating it as a USDA action; genuine modern
+      revisions are small (the largest in the last twelve circulars is +17.9 on world total_grains at
+      2026-06).
+      WHAT THIS TABLE IS NOT. PRODUCTION ONLY -- no beginning or ending stocks, no domestic use, no
+      exports or imports, no stocks-to-use and no price. This is the production annex published alongside
+      the WASDE, so for wheat, rice and cotton the same circular's numbers also appear as the `production`
+      line on silver_wasde with a finer region axis and the full balance sheet beside them, and for a
+      single crop's global picture silver_psd is the authority. What lives ONLY here is the AGGREGATE view
+      (total_grains, coarse_grains, oilseeds) and the revision itself -- silver_wasde and silver_psd serve
+      levels as-known and make you difference two vintages to see a revision; this card serves the
+      difference USDA itself printed.
+
+  # D-LD TRACK 1 (2026-08-18) -- FNC COLOMBIA MONTHLY COFFEE, from the LIGHT-THE-DARK census (row 10 of
+  # the Track-1 table). The table has been in silver since the F010 baseline and the publish chain is
+  # LIVE and autonomous (dag_schedules `fnc_colombia`, cron(0 12 15 * ? *), promote mode autonomous,
+  # canonical re-written 2026-08-15) -- what was missing is the card. Nothing is ingested, re-chunked or
+  # re-derived here.
+  #
+  # WHAT THE TABLE ACTUALLY IS, MEASURED 2026-08-18 against the canonical parquet rather than assumed:
+  # 1,360 rows, ONE commodity (arabica_coffee), ONE country (colombia), ONE source (fnc_colombia), 114
+  # years 1913-2026, exactly 12 rows per year through 2025 and 4 rows in 2026 (Jan-Apr). Zero duplicates
+  # on the (year, month) natural key. The five value columns do NOT share one span, and that is the single
+  # most load-bearing fact on this card:
+  #     ex_dock_price_usd_cents_per_lb   1913-01 -> 2026-04   1360/1360 non-null, no gap years
+  #     internal_price_cop_per_125kg     1944-01 -> 2026-04    988/1360
+  #     production_bags_60kg             1956-01 -> 2026-04    844/1360
+  #     exports_bags_60kg                1958-01 -> 2026-03    819/1360
+  #     exports_value_usd_m              1958-01 -> 2026-03    819/1360
+  # The pre-1956 rows EXIST and carry ONLY the ex-dock price; a production or exports read at an early
+  # as-of returns rows whose value is NULL. That is a real absence, never a zero, and the notes say so.
+  #
+  # PIT: data_date on the first-of-month `date` column + a conservative 45-day publication lag. DERIVATION
+  # (not a guess): the stamp is the FIRST of the data month, so the month itself is not complete until up
+  # to 31 days later, and FNC's bulk workbook is picked up by this family's MONTHLY schedule on the 15th of
+  # the following month -- 31 + 14 = 45. It shifts the as-of RHS literal, so the guard stays sargable
+  # (D-W0.3 idiom, the MPOB/pink_sheet pattern). It is never early and at most ~2 weeks late. 45 is also
+  # the number the estate already carries for this family (silver_observability.auto.tfvars.json,
+  # silver_freshness_slas.fnc_colombia = 45), so the two agree by construction rather than by luck.
+  #
+  # WHAT THE LAG DOES NOT DO, STATED PLAINLY. It bounds when a month becomes CITABLE; it says nothing about
+  # when FNC publishes the month at all. MEASURED: the workbooks were re-fetched 2026-08-15 and top out at
+  # April-2026 (March-2026 for the two export columns). The source itself runs three to four months behind,
+  # so at any realistic as-of the newest citable month is a QUARTER old. The family FreshnessLagDays alarm
+  # cannot see this -- it scores the S3 WRITE date (2.7 days at the D-LD recon), not the newest data month
+  # -- which is the same blind spot the ESR inversion records. The notes therefore carry the ceiling as a
+  # caller rule, because no alarm will.
+  #
+  # PHYSICAL LAYOUT: partition PROJECTION (commodity enum 'arabica_coffee' x year 1913-2035 -> at most 114
+  # live candidates today). Pruned exactly the way silver_nass_crop_progress is: the commodity equality is
+  # emitted by the ordinary commodity filter (and query.py:355 REQUIRES it, because commodity is in
+  # partition_cols), and the year axis is pinned by SARGABLE BOUNDS from year_col -- never an equality,
+  # which would return zero rows for any multi-year window. `commodity` is the partition key holding the
+  # slug; the in-file `leviathan_slug` column carries the same value and is deliberately NOT the
+  # commodity_col, because filtering the partition is what prunes.
+  #
+  # NO CASCADE / COMPLEX / CHAIN / TRANSMISSION MAP ENTRY. This is a direct-lookup card only.
+  silver_fnc_colombia_monthly:
+    description: >
+      FNC (Federacion Nacional de Cafeteros de Colombia) MONTHLY Colombian coffee statistics -- national
+      green-coffee PRODUCTION and EXPORTS in 60-kilogram bags, the USD value of those exports, the FNC
+      ex-dock reference PRICE in US cents per pound, and the FNC internal (domestic) price in Colombian
+      pesos per 125-kg carga. One row per calendar month. Colombia is the world's largest producer of
+      washed arabica, so this is the origin-side monthly print for that crop: what Colombia grew, what it
+      shipped, what it earned and what growers were paid. The record is long but the five series do NOT
+      start together -- the ex-dock price runs from 1913, the internal price from 1944, production from
+      1956 and both export series from 1958. Point-in-time via the month's own first-of-month data date
+      plus a conservative 45-day publication lag.
+    grain: "one row per commodity x year x month (monthly, calendar months)"
+    shape: wide
+    commodity_col: commodity            # PARTITION key holding the contract slug; REQUIRED on every lookup
+    # The slug set, DECLARED, so the fence is code and not prose: this table has exactly ONE commodity and
+    # a lookup naming anything else is refused at spec level with a teaching error before any SQL is
+    # compiled (agent.CommodityOffCard). The same fact is said again in `notes` on purpose -- the notes
+    # teach, this enforces -- and the paired test pins them equal. It matches the physical projection
+    # domain byte-for-byte (projection.commodity.values = arabica_coffee).
+    commodity_values: [arabica_coffee]
+    country_col: null                   # SINGLE-GEOGRAPHY table: every row is Colombia. Deliberately not
+    #                                     declared -- there is no geography to select, and passing
+    #                                     country= on a card with no country_col is SILENTLY IGNORED
+    #                                     (query._filters), so the fence has to be prose. See notes.
+    period_type: date
+    date_col: date                      # the DATA month, stamped FIRST-OF-MONTH; a physical DATE column
+    knowledge_semantics: data_date
+    knowledge_date_col: date
+    publication_lag_days: 45            # first-of-month stamp + month completion (<=31d) + the monthly
+    #                                     15th-of-M+1 pickup (~14d); never early, at most ~2 weeks late
+    partition_cols: [commodity, year]   # projected; commodity via the commodity filter, year via bounds
+    year_col: year                      # sargable year bounds prune the projection (never an equality)
+    metrics:
+      production_bags_60kg:
+        unit: "60-kg bags"
+        desc: "green coffee produced in Colombia during that month, as a WHOLE COUNT of 60-kg bags (a 1.2 million reading means 1,200,000 bags, NOT thousands of bags)"
+      exports_bags_60kg:
+        unit: "60-kg bags"
+        desc: "green coffee EXPORTED from Colombia during that month, whole count of 60-kg bags; a shipment flow, not a stock"
+      exports_value_usd_m:
+        unit: "USD million"
+        desc: "FOB value of that month's coffee exports, in MILLIONS of US dollars (a 400 reading is USD 400 million)"
+      ex_dock_price_usd_cents_per_lb:
+        unit: "US cents/lb"
+        desc: "FNC ex-dock reference price for Colombian green coffee in US cents per pound -- a PHYSICAL origin price carrying the Colombian differential, NOT the ICE arabica 'C' futures settle and NOT a World Bank monthly average"
+      internal_price_cop_per_125kg:
+        unit: "COP per 125-kg carga"
+        desc: "FNC internal (domestic grower) price in NOMINAL Colombian pesos per 125-kg carga -- never deflated, never FX-converted, and NOT comparable across eras (see notes)"
+    notes: >
+      COLOMBIA ONLY, AND THERE IS NO COUNTRY FILTER ON THIS CARD. Every row is national Colombia as
+      reported by the FNC; there is no department, port, or grade breakdown here and no other origin. A
+      `country` argument is not offered and passing one changes NOTHING -- the read still returns
+      Colombia -- so a Brazilian, Vietnamese, Ethiopian, Central American or world coffee question must
+      NOT be answered from this card. For Brazil use silver_conab_coffee (arabica / robusta production
+      surveys by region); for the USDA global coffee balance sheet use silver_psd; for the Brazilian
+      arabica CASH reference or the ICE arabica futures curve use the futures cards. Say "Colombia" out
+      loud whenever you quote a figure from here.
+      ALWAYS PASS commodity='arabica_coffee'. It is the ONLY value and it is REQUIRED (it is the
+      partition key), so a lookup without it is rejected before anything is queried; a lookup naming any
+      other slug is refused with a teaching error. There is no robusta row in this table.
+      ONE LOOKUP = ONE METRIC. This card carries FIVE metrics, `metric` is REQUIRED and there is no
+      all-metrics read: production plus exports plus the ex-dock price is THREE calls, not one, and a
+      call that omits `metric` is rejected before anything is queried and still costs you a lookup from
+      the budget.
+      UNITS, AND THE BAG TRAP. production_bags_60kg and exports_bags_60kg are WHOLE COUNTS of 60-kg bags
+      -- a monthly reading near 1.2 million means 1,200,000 bags. silver_conab_coffee's
+      production_thousand_bags is THOUSAND 60-kg bags, so the two cards are 1000x apart in the same
+      nominal unit: divide THIS card's figure by 1,000 before setting it beside a CONAB figure, and say
+      which convention you are using. exports_value_usd_m is in MILLIONS of USD.
+      THE TWO PRICES ARE DIFFERENT ANIMALS AND NEITHER IS AN EXCHANGE PRICE.
+      ex_dock_price_usd_cents_per_lb is the FNC ex-dock (Colombian port) reference for physical green
+      coffee in US cents per pound: it embeds the Colombian quality differential and it is NOT the ICE
+      arabica 'C' settle, NOT the continuous front-month close, and NOT a World Bank monthly average (the
+      Pink Sheet carries no coffee series at all). Label it "the FNC ex-dock price" every time.
+      internal_price_cop_per_125kg is the FNC internal grower price in NOMINAL Colombian pesos per 125-kg
+      carga -- a DIFFERENT physical unit from the 60-kg green bag the volume metrics use, so never convert
+      between them by ratio. Its decade medians run 92 COP in the 1940s to 1.91 million COP in the 2020s;
+      almost all of that is peso debasement, not coffee, and there is no COP series in silver_fred_fx to
+      convert it with. NEVER compare COP levels across eras, never read a rise in the COP price as a
+      rally, and never blend it into a USD price series. For any cross-era or cross-market price
+      comparison use ex_dock_price_usd_cents_per_lb.
+      THE FIVE SERIES DO NOT SHARE ONE SPAN, AND THE PRE-1956 ROWS ARE NOT EMPTY ROWS -- THEY ARE ROWS
+      WITH EMPTY COLUMNS. ex_dock_price_usd_cents_per_lb runs 1913-01 onward (complete, no gap months);
+      internal_price_cop_per_125kg from 1944-01; production_bags_60kg from 1956-01; exports_bags_60kg and
+      exports_value_usd_m from 1958-01. A production or exports read before its start returns ROWS whose
+      value is NULL, which is an absence of measurement and never a zero -- report it as "the FNC series
+      does not start until <year>", not as no output. Within their spans all five series are gapless.
+      CONTENT CEILING, MEASURED 2026-08-18, AND IT IS A QUARTER OLD BY DESIGN OF THE SOURCE: the newest
+      month in the table is APRIL-2026 for production and both prices, and MARCH-2026 for the two export
+      series -- the export columns are ONE MONTH SHORTER than the rest, so a "production and exports for
+      the same month" ask stops a month earlier than a production-only ask. The FNC bulk workbook was
+      re-fetched on 2026-08-15 and still ended there, so this is the SOURCE running three to four months
+      behind, not a broken pipeline and not a gap to apologise for. Expect the newest citable month to
+      trail today by roughly a quarter, cite the reading's OWN year and month, and never call a dated
+      reading 'current'.
+      GRAIN AND WINDOWING: monthly, ~12 rows per year, 1,360 rows over 1913-2026 -- a decade window is
+      ~120 rows and the whole record fits well inside the row cap. Window with period_start/period_end as
+      'YYYY-MM-DD' against the first-of-month date, or agg=latest for the newest knowable month on or
+      before the as-of; agg=sum over twelve months is how an annual total is read.
+      LEVELS, FLOWS AND WHICH YEAR: production and exports are monthly FLOWS (bags in that month), so a
+      month-on-month delta is a change in the flow, never a stock build, and there are no stocks in this
+      table at all. The period axis is the CALENDAR month, and this table carries NO marketing-year label
+      -- Colombia's coffee year runs October to September, so any twelve-month total summed here is a
+      CALENDAR-year total and must be labelled as one, never presented as a crop-year or coffee-year
+      figure. These are FNC's reported actuals, not a forecast: for forward estimates use silver_psd (USDA
+      world coffee balance) or silver_conab_coffee (Brazil surveys).
+
+  # D-LD (LIGHT THE DARK, 2026-08-18) -- FNC COLOMBIA EXPORTS BY PORT x COFFEE TYPE, from the projected
+  # tranche of the dark census. Nothing is ingested, re-chunked or re-derived: the table has been silver
+  # CERTIFIED since 2026-07 (canonical re-published 2026-08-15, run
+  # silver_fnc_colombia_exports_port_type-1786795686372) and had no numbers card, so every Colombian
+  # export-logistics question routed away from a served table.
+  #
+  # PIT: data_date on the first-of-month `date` + a conservative 45-day publication lag. FNC restates the
+  # monthly port/type sheet inside an annually-republished Excel workbook; the month is not public on the
+  # first of the month it is stamped with, so +45d makes month M citable from roughly the 15th-18th of
+  # M+1 -- never early, at most a couple of weeks late. (Same idiom as silver_pink_sheet's +40 on its
+  # first-of-month stamp; the lag shifts the as-of RHS literal, so the guard stays sargable.)
+  #
+  # THE SECOND AXIS PROBLEM, AND WHY THE CARD IS GREEN-COFFEE-ONLY BY CODE. The physical grain is
+  # commodity x year x month x PORT x COFFEE_TYPE. A TableSpec has exactly one free geo slot
+  # (country_col), so one of those two axes cannot be filtered and cannot be surfaced by _extras -- and an
+  # unsurfaced axis is the silver_wasde region incident exactly (the latest ROW_NUMBER collapsed ACROSS
+  # regions and kept one arbitrary region's row). MEASURED here: with no port passed, agg=latest compiles
+  # to `ORDER BY date DESC, year, knowledge_date, value LIMIT 1` and returns the SMALLEST row of the
+  # newest month -- 155 bags at an airport freight terminal, wearing a national label. So `port` takes the
+  # geo slot (17 slugs, the logistics content) and `coffee_type` is PINNED IN CODE to cafe_verde via
+  # Metric.row_filters (the silver_wasde soybeans-unit mechanism, mirrored in apply_pit_filter). Green
+  # coffee is 90.9-93.0 pct of export volume every year of the file (2025: 12,220,205 of 13,138,884 bags),
+  # so the card serves the dominant, comparable, ICE-relevant flow and DECLINES the processed types
+  # instead of interleaving them unlabelled.
+  #
+  # CONTENT CEILING, STATED RATHER THAN DISCOVERED (measured 2026-08-18): 2,147 rows total / 552 green,
+  # 111 month-slices 2017-01 .. 2026-03, 3-9 green rows per month. The fnc_colombia DAG is scheduled and
+  # ENABLED (cron 0 12 15 * ? *, autonomous promote) and fired on 2026-08-15 -- but the bronze fetch is
+  # pinned to ONE workbook URL in configs/sources/fnc_excel_sources.yaml
+  # (Exportaciones-2026-2.xlsx, the 2026-04 edition), so the monthly run re-derives the SAME months and
+  # the table has sat at 2026-03 since April. That is a SOURCE-CONFIG gap, not a data gap, and the read
+  # path already tells the truth about it: every row is stamped with its own month and the recency
+  # machinery cites that stamp. Bumping the workbook URL + a FreshnessLagDays row are separate items by
+  # design -- a card that waits for its source config is a card that stays dark.
+  #
+  # PHYSICAL LAYOUT: partition PROJECTION (commodity enum {arabica_coffee} x year 2017-2035 = ~19
+  # candidates -- four orders of magnitude below the silver_esr grid behind the Jul-2026 LIST storm, but
+  # pruned the same way): the commodity equality is emitted by the ordinary commodity filter and sargable
+  # YEAR BOUNDS come from year_col, so no query enumerates the projected space. `year` is BOTH a projected
+  # partition key AND an in-file int64 column (12 parquet columns vs 11 Glue columns); the partition value
+  # wins on Athena and the pg loader's _probe_body_columns already drops such keys from the partitioning
+  # schema and loads them from the body -- the two are byte-equal on every row (verified 2026-08-18).
+  silver_fnc_colombia_exports_port_type:
+    description: >
+      FNC (Federacion Nacional de Cafeteros) COLOMBIA -- monthly GREEN COFFEE (cafe verde) exports BY
+      PORT OF EMBARKATION, in 60-kg bags and in US dollars of FOB export value. One row per port per
+      calendar month from January 2017. This is the physical shipment file: which Colombian port cleared
+      how many bags of green arabica in a given month, and what those bags were declared at. Buenaventura
+      (Pacific) and Cartagena / Santa Marta / Barranquilla (Caribbean) carry essentially all of it; the
+      inland airports and border crossings are rounding errors. Colombia and arabica only, monthly, no
+      destination and no grade breakdown.
+    grain: "one row per port x month (green coffee; the physical table also carries three processed types)"
+    shape: wide
+    commodity_col: commodity            # PARTITION key holding the contract slug; exactly one value exists
+    commodity_values: [arabica_coffee]  # D-PQ CLASS-1 code fence: one slug, CLOSED. Off-list = pre-SQL refusal.
+    country_col: port                   # repurposed as the GEO axis: the snake_case port-of-embarkation slug
+    period_type: date
+    date_col: date                      # FIRST-OF-MONTH stamp (a physical DATE): a MONTH LABEL, not a day
+    knowledge_semantics: data_date
+    knowledge_date_col: date
+    publication_lag_days: 45            # FNC restates the month in the following month's workbook edition
+    partition_cols: [commodity, year]   # projected; commodity via the commodity filter, year via bounds
+    year_col: year                      # sargable year bounds prune the projection (never an equality)
+    metrics:
+      exports_bags_60kg:
+        unit: "60-kg bags"
+        desc: >
+          GREEN coffee shipped from that port that month, counted in bags of 60 kg (an ACTUAL bag count,
+          not thousands of bags -- the whole country ships roughly 12-13 MILLION bags a year and one
+          strong Buenaventura month is roughly 500,000-800,000). Physical embarkations, not sales, not
+          registrations and not a balance-sheet export line.
+        row_filters:
+          arabica_coffee:
+            coffee_type: ["cafe_verde"]     # GREEN ONLY, in code (see notes for the three excluded types)
+      exports_value_usd:
+        unit: "USD"
+        desc: >
+          Declared PROVISIONAL export value of that port-month's green coffee, in US DOLLARS (the source
+          column is "valor provisional de la exportacion (USD)" -- actual dollars, NOT millions, and
+          provisional means it can be restated in a later workbook edition). Dividing it by
+          exports_bags_60kg gives an FOB average value per bag for that one port-month; that is not a
+          market price and must never be quoted as one.
+        row_filters:
+          arabica_coffee:
+            coffee_type: ["cafe_verde"]     # GREEN ONLY, in code (see notes for the three excluded types)
+    notes: >
+      GREEN COFFEE ONLY, AND SAY SO. The physical table splits every port-month four ways -- cafe_verde
+      (green beans), soluble (instant), tostados (roasted) and extractos (extracts) -- and this card
+      serves cafe_verde and nothing else, enforced in the query, not in prose. Green is 91-93 percent of
+      Colombian export VOLUME in every year of the file (2025: 12.22 of 13.14 million bags), so a figure
+      from this card is NOT Colombia's total coffee exports and will not reconcile with an all-types
+      national number: it is the green-bean flow, the part that trades against ICE arabica. A question
+      specifically about instant / roasted / extract volumes is NOT answerable here -- say so rather than
+      handing back a green number.
+      ALWAYS PASS A PORT. country selects the geography and takes the lowercase snake_case port slug:
+      buenaventura, cartagena, santa_marta, barranquilla, ipiales, medellin, manizales, bogota,
+      barrancabermeja, aerp_el_dorado, aerp_jose_m_cordoba, aerp_alfonso_bonilla, aerp_matecana (the
+      'aerp_' ones are airports). With NO port a latest read returns ONE arbitrary port's row -- measured:
+      the SMALLEST row of the newest month, an airport shipment of a few hundred bags dressed as a
+      national figure. Every row carries its own port in the country field: name the port you are
+      quoting, always. For a national green total use agg=sum with NO port over an explicit month window,
+      and call the result the green-coffee total, never Colombia's coffee exports.
+      ONE LOOKUP = ONE METRIC AND ONE PORT. `metric` is REQUIRED and there is no all-metrics and no
+      all-ports read, so a Pacific-versus-Caribbean comparison is one call per (metric, port) pair --
+      exports_bags_60kg for buenaventura, then exports_bags_60kg for cartagena, and so on. A call that
+      omits `metric` is rejected before anything is queried and costs you a lookup from the budget.
+      COLOMBIA ONLY, ARABICA ONLY. commodity is a CLOSED set of exactly one value, arabica_coffee, and
+      every row is Colombian. This is not Brazil (that is silver_conab_coffee), not the world coffee
+      balance sheet (silver_psd), and not a coffee price (ICE arabica settles are silver_futures_eod /
+      silver_futures_prices). Colombia's national all-types monthly export and production series lives on
+      a different FNC table and is not served here, so do not add this card's ports up and present the
+      total as the national series.
+      MONTHLY, FIRST-OF-MONTH STAMPED. `date` is the first day of the DATA month and is a month LABEL,
+      not a shipment day -- a row stamped 2026-03-01 is all of March. FNC restates the month in the
+      following month's workbook, so a month becomes citable about six weeks after it starts. Cite the
+      reading's OWN month and never call a dated reading 'current' (the discipline the IOD and NASS cards
+      state for their cadences). AND EXPECT IT TO BE OLDER THAN THE LAG: the bronze fetch is pinned to
+      one annually-republished workbook edition, so the newest month here typically trails today by
+      several months -- as this card lands the file ends at March 2026. Report the age of the reading
+      rather than implying it is the latest month that exists in the world.
+      NOT A PRICE, NOT A FLOW RATE. exports_value_usd is a declared provisional FOB value, so
+      value-per-bag is an average realisation for one port-month; it moves with quality mix, contract
+      timing and differentials, and it is not the arabica market. exports_bags_60kg is a monthly total,
+      not a running season-to-date cumulative (unlike silver_sagis_weekly_exports' prog_exports_mt) --
+      month-on-month deltas are legitimate, but a month is a month, not a week.
+      NO DESTINATION AND NO GRADE AXIS. Which country bought it, and what quality it was, are not in this
+      table -- decline rather than inferring a destination from a port.
+      SHAPE AND DENSITY. Window months with period_start/period_end as 'YYYY-MM-DD' on the first-of-month
+      date, agg=latest for the newest published month on or before the as-of, or agg=sum for a period
+      total. Roughly five green rows exist per month across all ports (three to nine), so one port's full
+      history is about 111 rows and a whole-file series is about 552 -- both far inside the row cap.
+      Coverage starts January 2017; only thirteen of the seventeen ports ever ship green coffee, and the
+      small inland ones appear in scattered months only, so an empty result for a minor port in a given
+      month means no green shipment cleared there, not a data outage.
+
+  # D-LD (LIGHT THE DARK, 2026-08-18) -- USDA NASS CITRUS FORECAST, the numbers home of the
+  # frozen_orange_juice contract. This is the sharpest remaining instance of the dark class after
+  # D-CW-2a: the estate registers frozen_orange_juice as a contract, carries a full causal DAG for it
+  # (configs/graphrag/causal/frozen_orange_juice.yaml) and TWO citrus driver slices
+  # (orange_greening_disease, citrus_canker_psyllid) -- and has ZERO observed quantities behind any of
+  # it. silver_psd carries no orange-juice slug at all (PSD_UNSERVED_SLUGS, DISTINCT probe 2026-07-11,
+  # cascade.py:347) and CFTC covers no FCOJ positioning (cftc_cot.yaml not_covered), so four FCOJ
+  # cascade legs are explicitly WAIVED as honest data absence (cascade_census._WAIVERS: ending_stocks,
+  # consumption_demand, US_section301_tariffs, tenderable_collapse). configs/ml/psd_metric_targets.yaml
+  # :338 already names the remedy in words -- "FCOJ needs NASS citrus or WASDE citrus targets". This
+  # card is that remedy on the READ path. Nothing is ingested, re-chunked or re-derived.
+  #
+  # WHAT IT DOES NOT DO, SAID FIRST SO IT IS NEVER MIS-READ AS DONE. It does NOT un-waive those four
+  # cascade legs. They are waived against silver_psd, and the FCOJ DAG's own
+  # `Florida_orange_production` driver carries `silver_ref: nass_citrus_revisions` /
+  # `silver_status: available` while cascade_map.yaml has NO ref of that name -- so the ENGINE leg
+  # stays dark until a cascade_map entry lands (with the F010 cascade_ref back-pointer
+  # reconcile_cascade requires). That is a separate, documented change, deliberately not taken here --
+  # the conab_production_revision precedent three cards up.
+  #
+  # PIT: VINTAGE on release_date, publication_lag_days 0 -- and both were ALREADY on the F010 contract
+  # (knowledge_date_col release_date / knowledge_semantics vintage / publication_lag_days 0), so this
+  # card ADOPTS a derived trio rather than minting one, unlike D-CW-2a and D-PQ tranche 1a. release_date
+  # IS the publication event (the printed NASS release date), so there is nothing to lag.
+  #
+  # NO vintage_tiebreak, AND THAT IS MEASURED RATHER THAN OMITTED. The engine-order tie hazard (the F2
+  # Branch-A break) needs >1 row per grain at one knowledge_date. Here (season, release_date, crop,
+  # state) is the F010 natural key, the tracked producer RAISES on a duplicate of it
+  # (transforms/bronze_to_silver/nass_citrus.py:95-96), and the physical parquet carries ZERO duplicates
+  # on that key AND zero on (release_date, crop, state) across all 2,450 rows. The ROW_NUMBER over
+  # (crop, state, season) therefore cannot tie. `report_month` would be the obvious tiebreak column and
+  # is worthless as one: it equals month(release_date) in 2450/2450 rows.
+  #
+  # PHYSICAL LAYOUT: FLAT (partition_mode flat, projection forbidden, partition_keys [], one 17.7 KiB
+  # object). NO partition_cols and NO year_col -- there is no projected grid to prune, so there is no
+  # LIST-storm class here, and declaring partition_cols would make reconcile_numbers demand real Glue
+  # partition keys and fail the build (the silver_mpoc_stock_comparison rule). The as-of guard's
+  # CAST(release_date AS varchar) is a no-op on a string column and costs nothing on a single-object
+  # flat table; it is NOT the WASDE non-sargable-partition class, which needs a projected key.
+  #
+  # TWO VALUE COLUMNS SERVED, TWO PHYSICAL COLUMNS DELIBERATELY NOT. Both F010 value_columns ship.
+  # revision_1000_boxes is NOT the sagis_cec/conab D4 exclusion class: those are producer-computed
+  # cross-vintage deltas, whereas this is current_forecast MINUS prior_forecast where BOTH numbers are
+  # printed in the SAME NASS release (bronze col_type current_forecast / prior_forecast, transform
+  # :81-89) -- fully knowable at that release_date, PIT-legal, and not reconstructible by differencing
+  # our own stored vintages (our release history is gappy before 2014-15; probed 1987/2019 agreement,
+  # every disagreement a missing intermediate release). EXCLUDED: `hlb_trend_factor` -- the tracked
+  # transform's own docstring records that the ORIGINAL factor "used a Florida-orange baseline this
+  # rebuild cannot reconstruct" and calls it "a diagnostic, not a value-census-gated column", so the
+  # physical values in silver have a definition we cannot state; serving a number whose formula is
+  # unknown is exactly what a card must not do. EXCLUDED: `report_month`, redundant with release_date.
+  silver_nass_citrus:
+    description: >
+      USDA NASS Citrus Forecast -- the monthly, in-season US production forecast for oranges,
+      grapefruit and tangerines by state, in THOUSAND BOXES. One row per crop x state x season per
+      release. NASS forecasts the crop from October through July and revises it every month, so each
+      release carries both the current forecast and the change from the previous month's forecast;
+      as-of a date = the latest release published on or before it. Florida, California, Texas and
+      Arizona plus a 'united_states' national row. This is the only observed citrus quantity in the
+      estate and the only fundamental series behind the frozen_orange_juice contract -- and it is US
+      ONLY, with no Brazilian crop in it at all.
+    grain: "one row per crop x state x season, per monthly release_date"
+    shape: wide
+    commodity_col: crop                  # NASS crop label, NOT a contract slug (see notes)
+    # D-PQ CLASS-1 code fence: the six crop labels the table physically carries, DECLARED, so an
+    # off-list ask (orange_juice, frozen_orange_juice, lemons, limes, a Brazilian crop) is REFUSED at
+    # spec level with a teaching error before any SQL is compiled. The same fact is said again in
+    # `notes` on purpose -- the notes teach, this enforces.
+    commodity_values: [all_orange, valencia_orange, non_valencia_orange, grapefruit,
+                       tangerine_mandarin, tangelo]
+    country_col: state                   # repurposed GEO axis: lower_snake FULL names, 'united_states' = national
+    period_col: season
+    period_type: marketing_year
+    period_sql_type: string              # season is a string like '2024-25' -- HYPHEN, not the WASDE slash
+    knowledge_date_col: release_date
+    knowledge_semantics: vintage
+    publication_lag_days: 0              # release_date IS the publication event
+    grain_cols: [crop, state, season]    # latest-release collapse per (crop, state, season)
+    metrics:
+      forecast_1000_boxes: {unit: "1000 boxes", desc: "the season's production forecast for that crop and state as printed in that release, in THOUSAND boxes (a box is a pack unit whose net weight differs by state and by crop -- never converted to tonnes here)"}
+      revision_1000_boxes: {unit: "1000 boxes", desc: "the change from the PREVIOUS month's forecast, as printed in that same release (this month's forecast minus last month's); negative = the crop was cut. NULL on a season's FIRST release (October has no prior month) and on some Novembers"}
+    notes: >
+      ONE LOOKUP = ONE METRIC, ONE CROP AND ONE STATE. This card carries two metrics and TWO free
+      axes with no default on either, which is the shape that invites a metric-less or state-less
+      sweep: `metric` is REQUIRED and there is no all-metrics and no all-states read, so comparing
+      Florida against California is one call per (metric, crop, state) triple -- forecast_1000_boxes
+      for all_orange in florida, then the same for california. A call that omits `metric` is rejected
+      before anything is queried and costs you a lookup from the budget.
+      THIS TABLE IS THE UNITED STATES AND NOTHING ELSE. Every row is a US state or the national
+      roll-up, reported by USDA NASS. There is no Brazilian, Sao Paulo, CitrusBR, Fundecitrus,
+      Mexican, Spanish or South African citrus number in this table -- and Brazil, not Florida, is the
+      majority of world orange-juice supply, so a Florida box count is NOT a read on the world OJ
+      balance and is not a proxy for one. Say "US" (or the state) out loud whenever you quote a figure
+      from this card, and on a question about the global juice market label it explicitly as the US
+      side or do not use it.
+      ALWAYS PASS A STATE. country takes lower_snake FULL names and only these five exist: florida,
+      california, texas, arizona and 'united_states' -- pass country='united_states' for the national
+      figure. With no state (and no season) the read returns EVERY state's row for EVERY season in
+      one deduped set, sorted with the OLDEST season first -- and the oldest season here is the
+      mis-parsed 2003-04 fragment this card's own history note forbids quoting, so the headline row
+      of an unpinned read is precisely the row you must never cite. Pin the state AND the season (or
+      a season window from 2009-10 on) before quoting anything. NEVER RECONSTRUCT
+      THE NATIONAL FIGURE BY ADDING STATES: the 'united_states' row is NASS's own published total and
+      it equals the sum of the state rows in only about three quarters of releases (grapefruit's US
+      total excludes arizona; some releases print a state the total does not carry). Read the
+      'united_states' row.
+      commodity = the NASS CROP LABEL and only these six exist: all_orange, valencia_orange,
+      non_valencia_orange, grapefruit, tangerine_mandarin and tangelo. These are NOT contract slugs --
+      there is no orange_juice, frozen_orange_juice, lemon or lime row here; anything else is not in
+      this table, so decline rather than substituting a different crop. THE ORANGE CROPS OVERLAP:
+      all_orange IS valencia_orange plus non_valencia_orange exactly, in every release, so quoting the
+      three together double-counts the crop -- pick all_orange for the headline or the two varieties
+      for the split, never both. tangelo is FLORIDA ONLY and NASS stopped reporting it after the
+      2015-16 season. tangerine_mandarin has no texas row at all, and arizona reports grapefruit (plus
+      a handful of tangerine seasons) and nothing else.
+      period = the season string with a HYPHEN, e.g. '2024-25' -- NOT the '2024/25' slash form
+      silver_wasde uses; the slash matches zero rows. A season runs October to July.
+      VALUES ARE THOUSAND BOXES, WHICH IS NOT A WEIGHT. A box is a packing unit whose net weight
+      differs by state and by crop (NASS prints the per-state box weights in the report's own
+      footnote); this table carries NO weight column and NO conversion, so a boxes figure must never
+      be converted to tonnes here, and boxes must never be summed across crops or across states into a
+      tonnage. Quote boxes as boxes.
+      AGG=LATEST HERE MEANS AS-KNOWN, NOT ONE ROW. This card has no separate data-date axis, so
+      agg=latest collapses each (crop, state, season) to its newest release on or before the as-of and
+      returns ONE ROW PER SEASON -- pass period='2024-25' to get a single season's current forecast.
+      agg=series with a period is how the within-season revision path is read (one row per season at
+      its latest vintage; to see a season's month-by-month path you must query at successive as-ofs).
+      SEASONALITY IS NOT STALENESS, AND THEN THE SOURCE IS PAUSED ON TOP OF IT. NASS releases monthly
+      from October to July and publishes NOTHING in August or September, so there is a two-month gap
+      every year and a September as-of correctly returns the July close. Separately and more
+      importantly: THE SOURCE IS PAUSED -- the newest release in this table is 2025-07-11, the July
+      close of the 2024-25 season, and NASS has published no 2025-26 season (probed 2026-07-23). At
+      any as-of after mid-2025 the freshest citable reading is therefore more than a season old, and
+      that is the SOURCE's state, not a pipeline stall. Cite the reading's OWN release date and season
+      and never call a dated reading 'current'.
+      COVERAGE IS CONTINUOUS ONLY FROM 2014-15. Ten releases per season hold from 2014-15 onward (and
+      for 2009-10); 2011-12, 2012-13 and 2013-14 carry two to four releases each; and 2003-04, 2004-05
+      and 2008-09 are single-release fragments whose two one-row entries carry mis-parsed values (a
+      texas all_orange of 3 and a california valencia of 20). Do not quote anything before 2009-10,
+      and treat any pre-2014 season as a partial revision history rather than a monthly path.
+      Forecasts are FORECASTS: even the July release is the season's last in-season forecast, not an
+      audited final utilization figure, and a monthly revision is a forecast change, not production
+      that happened.
+      CROSS-TABLE: there is NO USDA PSD orange-juice balance sheet (a DISTINCT slug probe returned
+      zero rows) and no CFTC positioning for frozen_orange_juice, so this card is the whole observed
+      picture -- decline rather than reaching for a PSD row or another commodity's balance sheet. For
+      weekly US crop CONDITIONS and planting/harvest pace use silver_nass_crop_progress, which is a
+      DIFFERENT NASS table with a DIFFERENT vocabulary: its state axis is the 2-letter USPS code in
+      CAPITALS ('FL', 'US') and its commodity axis is contract slugs, while this card's state axis is
+      lower_snake full names ('florida', 'united_states') and its commodity axis is crop labels.
+      Passing one table's vocabulary to the other returns nothing at all.
+
+  # D-LD (2026-08-18) -- MPOC MALAYSIAN MONTHLY PALM-OIL EXPORT TONNAGE. The third MPOC table and the
+  # second to be carded. It was RANKED AND REFUSED once already: tests/unit/test_dpq_dark_tables.py
+  # `_SKIPPED` carries it as `"stale"  # guardable, but content stops 2023-12 behind a 21d-old object`.
+  # THAT VERDICT IS DISCHARGED HERE BY RE-MEASUREMENT, not waived. The 2023 ceiling is real and it is
+  # PERMANENT, but it is not staleness: configs/sources/mpoc_archive.yaml enumerates the MPOC
+  # trade_statistics series as FIFTEEN annual pages, 2009 through 2023, and there is no 2024 or 2025
+  # page to fetch. This is a CLOSED HISTORICAL ARCHIVE that the pipeline re-publishes faithfully (the
+  # canonical object was rewritten 2026-08-15, CERTIFIED, and still holds exactly the same 180 rows).
+  # A closed archive is a legitimate thing to serve; what it may never do is answer a "right now"
+  # question, and the notes carry that fence in the imperative.
+  #
+  # WHAT THE TABLE ACTUALLY IS, measured 2026-08-18 rather than assumed: 180 rows = 15 years x 12
+  # months, 2009-01..2023-12, zero nulls, zero duplicates on (year, month), `source` = 'mpoc' on every
+  # row. NO commodity column, NO country column, NO destination or grade axis -- one national monthly
+  # number. exports_mt runs 900,558 (2021-02) to 1,843,602 (2011-10) MT/month, ~15.1-18.5 MMT/year,
+  # which is Malaysia's actual palm-oil export scale.
+  #
+  # WHY THIS CARD EXISTS AT ALL, given silver_mpob already serves Malaysian palm monthly: DEPTH OF
+  # HISTORY, and only that. Cross-checked row by row against silver_mpob on their 85 overlapping
+  # months, exports_mt vs exports_palm_oil_mt agree to a MEDIAN of 0.000% (39 of 85 byte-exact, mean
+  # -0.056%, worst case -2.18%) -- MPOC republishes MPOB's numbers. But silver_mpob's canonical parquet
+  # begins 2016-12 and runs to 2026-04, while this table begins 2009-01. The 95 months from 2009-01 to
+  # 2016-11 are Malaysian monthly palm export history that exists NOWHERE ELSE in the numbers registry.
+  # That is the whole unlock, and the notes say so plainly so the model does not treat two views of one
+  # series as two independent confirmations.
+  #
+  # imports_mt IS DELIBERATELY NOT A METRIC. Measured: on 2020, 2021 and 2022 (36 of 180 rows) the
+  # column holds the PRIOR YEAR'S EXPORTS, not imports. imports[2020] is byte-exact equal to
+  # exports[2019] on 12 of 12 months; imports[2022] is byte-exact equal to exports[2021] on 12 of 12;
+  # imports[2021] matches exports[2020] exactly on 5 of 12 and within 0.002-1.12% on the rest (an
+  # unrevised vintage of the same series). The magnitudes clinch it: imports/exports runs 0.012-0.20
+  # (mean 0.053) across the twelve clean years and 0.81-1.39 across those three, and silver_mpob's
+  # imports_palm_oil_mt for the SAME 36 months is 32,311-120,000 MT against MPOC's 0.9-1.8 MILLION
+  # (mean gap 1,337,731 MT) while matching EXACTLY on 44 of the 49 clean overlap months. Mechanism, from
+  # the producer: the source page carries a two-row header ['', 'Exports', 'Imports'] over a year
+  # sub-header, and transforms/bronze_to_silver/mpoc_trade_stats_monthly.py::_group_year_column FALLS
+  # BACK to the group's first column when the page year is not found in that group's year cells --
+  # landing on a prior-year EXPORTS column. The producer's own drift check passes because both header
+  # tokens are present. There is NO per-year metric fence in the registry (row_filters key on
+  # commodity, and this table has no commodity axis at all), so a served imports_mt would be wrong by
+  # ~20x on 20% of the series with no way to withhold it, and wrong invisibly: the values are non-null
+  # and are a plausible magnitude for a big tonnage. Excluding it is the sagis_cec/conab D4 idiom
+  # applied to a defect instead of a semantics mismatch. The producer fix is its own item.
+  #
+  # PIT: year_month, minted here (the F010 contract carried nulls for all three knowledge fields before
+  # this card, exactly like silver_nass_crop_progress at D-CW-2a and silver_mpoc_stock_comparison at
+  # D-PQ tranche 1a). The as-of guard is the ONI/IOD one -- (year*100 + month) <= asof year-month.
+  #
+  # THE LEAK THAT GUARD LEAVES OPEN IS BIGGER HERE THAN ON THE STOCK-COMPARISON CARD, and it is stated
+  # rather than inherited. That card's leak is "the data month plus the print lag, up to ~45 days",
+  # because MPOC prints a month around the middle of the next one. THIS series is published as ONE
+  # ANNUAL PAGE PER CALENDAR YEAR (fifteen stat_urls in configs/sources/mpoc_archive.yaml, one per
+  # year), so a month is not knowable until its YEAR'S page exists -- up to ~12 months after the month
+  # itself, not ~45 days. A replay as-of 2015-06 is handed the 2015-06 row by the guard (verified: the
+  # python oracle keeps it), and no such row could have been read in June 2015. LIVE SERVING IS
+  # UNAFFECTED because the archive closed at 2023-12 and every row is years old; every HISTORICAL
+  # REPLAY / BACKTEST as-of inside a data year LEAKS. That is a bound on how this card may be used, not
+  # a claim that the gap is closed.
+  #
+  # publication_lag_days is deliberately NOT set, and the reason is STRUCTURAL rather than a choice:
+  # the year_month branch of query._guard returns BEFORE _pub_lagged_asof is applied, so a lag declared
+  # here could not shift anything -- it would be inert decoration that the F010 reconcile would then
+  # have to carry as a real number. The cadence sentence in `notes` is a WARNING to the reader, never
+  # a fix.
+  #
+  # SARGABLE PARTITION DISCIPLINE: none needed, and that is a FACT about this table rather than an
+  # omission. F010 says partition_mode flat / projection forbidden / partition_keys [], and the DDL is
+  # a flat five-column external table over one object. There is no projected grid to prune and no
+  # LIST-storm class here; the bare `year <= <asof year>` bound the year_month guard already emits is
+  # the whole story. Do not add partition_cols -- reconcile_numbers would then require them to be real
+  # Glue partition keys and fail the build.
+  #
+  # commodity_values ON A CARD WITH NO commodity_col: this is a SPEC-LEVEL FENCE ONLY and compiles to
+  # NOTHING. query._filters emits a commodity equality only `if spec.commodity and ts.commodity_col`,
+  # and commodity_col is unset here, so no SQL changes; what the list does is let
+  # agent._check_commodity_class REFUSE an off-subject lookup (soybean oil, Indonesian palm, corn)
+  # before any SQL is compiled, instead of silently handing back Malaysia's palm number under whatever
+  # label the caller had in mind. That is the measured D-PQ CLASS-1 leak class, and this is the single
+  # most substitutable card in the registry: a bare tonnage with no commodity axis on a platform
+  # carrying 31 commodities. The two accepted values are NOT invented -- they are the exact strings the
+  # sibling cards' physical columns carry (silver_mpob.commodity = 'malaysian_crude_palm_oil_cme';
+  # silver_mpoc_stock_comparison.oil_type = 'palm_oil'), so a caller arriving from either sibling is
+  # accepted. IF A FUTURE PRODUCER ADDS A COMMODITY COLUMN and someone sets commodity_col, this list
+  # becomes SQL and MUST be re-derived from the physical DISTINCT set first -- that is the WASDE
+  # Title-Case class waiting to happen, and it is the only way this declaration can ever bite.
+  silver_mpoc_trade_stats_monthly:
+    description: >
+      MPOC (Malaysian Palm Oil Council) monthly palm-oil EXPORT tonnage for MALAYSIA -- the national
+      monthly export flow, one row per calendar month. This is a CLOSED HISTORICAL ARCHIVE: it begins
+      2009-01, ENDS 2023-12, and will never extend, because MPOC published the series as one annual page
+      per year and stopped after 2023. Its value is DEPTH, not recency -- it reaches back seven years
+      further than silver_mpob, which is the authority for 2016-12 onward and runs to the present. There
+      is no commodity, destination, grade or product axis here: one number per month, in metric tonnes.
+    grain: "one row per year x month (Malaysia national total; no commodity, destination or grade axis)"
+    shape: wide
+    period_type: date                   # cosmetic here (no period_col) -- the ONI/IOD/stock_comparison idiom
+    year_col: year                      # year_month semantics: (year*100+month) is the guard/window axis
+    month_col: month
+    knowledge_semantics: year_month     # as-of guard = (year*100+month) <= asof year-month
+    # SPEC-LEVEL FENCE ONLY -- there is no commodity_col, so this compiles to no SQL (see the comment
+    # block above). It refuses an off-subject commodity BEFORE any query, with the teaching message.
+    # Both strings are measured physical values of the sibling tables, never invented.
+    commodity_values: [malaysian_crude_palm_oil_cme, palm_oil]
+    metrics:
+      exports_mt: {unit: "MT", desc: "Malaysia's total palm-oil exports in that calendar month, metric tonnes (a MONTHLY FLOW, not cumulative and not a stock)"}
+    notes: >
+      MALAYSIA ONLY, PALM OIL ONLY, EXPORTS ONLY, ONE NUMBER PER MONTH. There is no commodity column,
+      no destination column and no grade column in this table: it cannot tell you who bought it, which
+      product it was, or what any other origin shipped. Indonesia is NOT here. For destination splits
+      use silver_esr (US) or the MPOC country table (which has no card); for the annual world palm
+      balance sheet use silver_psd.
+      THE SERIES ENDS 2023-12 AND WILL NEVER EXTEND. MPOC published this as one annual page per
+      calendar year and the archive stops at 2023, so agg=latest at ANY modern as-of returns
+      December 2023 -- which is a real, correctly-guarded reading and is ALSO years out of date. Never
+      present a figure from this card as current, recent or "the latest" Malaysian export number, and
+      never call a dated reading 'current': say the reading's own year and month out loud every time.
+      A question about where Malaysian palm exports are running NOW is not answerable here at all --
+      it is answerable from silver_mpob, and the honest move is to go there rather than serve a 2023
+      number without its date.
+      USE THIS CARD FOR THE PRE-2017 HISTORY AND silver_mpob FOR EVERYTHING SINCE. silver_mpob's
+      exports_palm_oil_mt begins 2016-12 and runs to the present; this table begins 2009-01. The 95
+      months from 2009-01 to 2016-11 exist nowhere else in this registry, and that is the reason to
+      come here. Where the two overlap they are THE SAME QUANTITY republished, agreeing to a median of
+      0.000% (worst case ~2%), so they are one series seen twice -- never cite both as independent
+      confirmation of each other, never add them, and never delta one against the other and call the
+      difference a revision.
+      IMPORTS ARE NOT SERVED BY THIS CARD, and that is a data verdict rather than an omission. The
+      physical imports_mt column is CORRUPT on 2020, 2021 and 2022 -- it carries the PRIOR YEAR'S
+      EXPORTS there, roughly twenty times the true import figure -- so no import, re-export or net-trade
+      question may be answered from this table. Malaysia's palm imports (it imports Indonesian oil to
+      refine and re-export, so the question is a real one) live on silver_mpob as imports_palm_oil_mt
+      from 2016-12, and on silver_psd annually.
+      exports_mt is a MONTHLY FLOW in metric TONNES -- the tonnage shipped in that month alone. It is
+      not cumulative, so unlike the SAGIS weekly card a month-on-month difference is a genuine change
+      in the flow; and it is not a stock, so it is never a stocks-to-use input. For Malaysian closing
+      stocks and production use silver_mpob.
+      Window months with period_start/period_end as 'YYYY-MM', or agg=latest for the newest month on or
+      before the as-of. The table is small and dense -- 12 rows per year, 180 rows in total -- so the
+      entire fifteen-year series fits far inside one lookup's row cap and a multi-year comparison is
+      one windowed call, not one call per year.
+      THE AS-OF GUARD COMPARES MONTH LABELS, NOT PUBLICATION EVENTS: (year*100 + month) <= asof
+      year-month admits the CURRENT, incomplete month. Worse here than on a monthly-release table,
+      because MPOC printed a whole YEAR at a time -- a month was not knowable until its year's page
+      existed, up to about twelve months later. In live use this is moot: the archive closed in 2023 and
+      every row is years old. In a HISTORICAL REPLAY it is not moot -- an as-of inside a data year will
+      be handed months of that same year that nobody could have read yet, so treat any month in the
+      as-of's own calendar year as NOT YET PUBLISHED regardless of what the guard returns, and do not
+      replay this card as though it were vintage.
