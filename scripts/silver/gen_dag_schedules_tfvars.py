@@ -113,12 +113,22 @@ HAND_ARMED: dict[str, str] = {
 
 # Descriptors that exist but are DELIBERATELY not armed as a live schedule.
 NOT_ARMED: dict[str, str] = {
-    # production_faostat ARMED 2026-08-18 (D-LD Track 2 #2, owner-ratified "do the remaining
-    # tracks"): the hold's own condition was met -- a deliberate decision with a day-0 review,
-    # not a regeneration side effect. The trigger: FAOSTAT is a LIT numbers card (silver_production)
-    # that recon wf_14e22400 measured 76d stale with ZERO eval coverage -- the estate's only true
-    # built-but-unscheduled case on a served table (D-PQ F6). Day-0 smoke = a -manual- SFN fire of
-    # the exact rendered command before the first natural cron (annual, 1st 06:00Z).
+    "production_faostat": (
+        "ARMED then DISARMED the same day, 2026-08-18, BY MEASUREMENT. The arming (D-LD Track 2 #2, "
+        "owner-ratified 'do the remaining tracks') was premised on the family being runnable: "
+        "FAOSTAT is a LIT numbers card (silver_production) measured 76d stale with zero eval "
+        "coverage, the estate's only built-but-unscheduled case on a served table (D-PQ F6). The "
+        "day-0 smoke the arming owed it FAILED in 60s on argparse exit 2: the fetch leg named "
+        "upload_faostat.py, which declares --file required (none was passed) and reads a LOCAL "
+        "path -- in Fargate there is no local zip, so NO argument value could have worked. That "
+        "leg is now removed from the descriptor and the real operating model is written into its "
+        "notes: FAOSTAT QCL is an annual bulk zip a HUMAN uploads, then the two Glue legs are "
+        "fired manually. A cron over those legs alone re-derives the same zip forever. RE-ARM ONLY "
+        "AFTER an unattended fetcher against FAOSTAT's bulk endpoint exists and its own day-0 "
+        "smoke passes -- the generator's refusal to create this entry was RIGHT the first time, "
+        "and overriding it by hand-seeding the tfvars is what put a guaranteed-red schedule live "
+        "(EventBridge leviathan-dev-production_faostat, disabled by hand the same day)."
+    ),
 }
 
 

@@ -1014,3 +1014,55 @@ def test_force_overwrite_grammar_is_per_script(gen):
     assert _dangling(gen.lint_descriptor(mdesc_with(
         ["-m", "jobs.batch.fgis_silver_task", "--force-overwrite"]), "x")), \
         "module-form pointing at a VALUE-TYPED parser must lint RED, not fall back to name-global"
+
+
+# ---------------------------------------------------------------------------
+# RUNNABILITY: a scheduled command must satisfy its script's REQUIRED options.
+# ---------------------------------------------------------------------------
+# The dangling-option rules above prove a value-option HAS its value. Nothing proved a required
+# option is PRESENT AT ALL -- production_faostat's fetch leg named upload_faostat.py with no
+# --file (declared required), lint-clean and unrunnable, and only its day-0 smoke caught it
+# (2026-08-18, argparse exit 2, terminal after one attempt).
+
+def _unrunnable(viol):
+    return [v for v in viol if "omits required option" in v]
+
+
+def test_lint_rejects_a_command_that_omits_a_required_option(gen, descriptors):
+    """THE FAOSTAT DEFECT, reconstructed: upload_faostat.py declares --file required, so a command
+    that names the script and passes nothing is unrunnable and must be refused at RENDER time --
+    long before an arming decision can put it on a cron."""
+    d = copy.deepcopy(descriptors["nass_crop_progress"])
+    d["phases"][0]["tasks"][0]["command"] = ["jobs/ingest/upload_faostat.py"]
+    assert _unrunnable(gen.lint_descriptor(d, "x")), gen.lint_descriptor(d, "x")
+
+
+def test_lint_accepts_the_same_command_once_the_required_option_is_supplied(gen, descriptors):
+    """The check is about the OPTION being present, not about the script: supplying it clears."""
+    d = copy.deepcopy(descriptors["nass_crop_progress"])
+    d["phases"][0]["tasks"][0]["command"] = ["jobs/ingest/upload_faostat.py", "--file", "/tmp/qcl.zip"]
+    assert not _unrunnable(gen.lint_descriptor(d, "x")), gen.lint_descriptor(d, "x")
+
+
+def test_required_option_scan_reads_module_form_too(gen):
+    """Module-form commands resolve through command[1], the same trap the valueless-flag whitelist
+    fell into once (reading command[0] alone made every -m task fall back to a name-global rule)."""
+    assert gen._script_path(["-m", "jobs.audit.silver_rebuild_gate"]).name == "silver_rebuild_gate.py"
+    assert gen._script_path(["jobs/ingest/upload_faostat.py"]).name == "upload_faostat.py"
+    assert gen._script_path([]) is None
+    assert "--file" in gen._required_options(gen._script_path(["jobs/ingest/upload_faostat.py"]))
+
+
+def test_faostat_carries_no_fetch_task_and_is_held_unarmed(descriptors):
+    """The remedy of record: FAOSTAT has NO unattended fetch (upload_faostat.py reads a LOCAL path
+    that cannot exist in Fargate), so the phase is gone and the family is held out of the live
+    scheduler. Re-arming needs a real fetcher AND a passing day-0 smoke."""
+    import importlib.util
+    d = descriptors["production_faostat"]
+    fetch = [p for p in d["phases"] if p["name"] == "fetch"]
+    assert fetch == [], "production_faostat must declare no fetch phase"
+    spec = importlib.util.spec_from_file_location(
+        "gen_tfvars", _GEN.parent / "gen_dag_schedules_tfvars.py")
+    tf = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(tf)
+    assert "production_faostat" in tf.NOT_ARMED

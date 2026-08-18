@@ -22,25 +22,8 @@
     "maximum_event_age_in_seconds": 86400
   },
   "queue": "leviathan-dev-queue-ondemand",
-  "chain_shape": "fetch->bronze[g]->silver_production[g]",
+  "chain_shape": "MANUAL upload (no unattended fetch) -> bronze[g] -> silver_production[g]",
   "phases": [
-    {
-      "name": "fetch",
-      "tasks": [
-        {
-          "id": "upload_faostat",
-          "invocation_form": "s",
-          "integration": "batch",
-          "jobdef": "leviathan-dev-b3-flat-silver",
-          "queue": "leviathan-dev-queue-ondemand",
-          "command": [
-            "jobs/ingest/upload_faostat.py"
-          ],
-          "env": {},
-          "publishes": false
-        }
-      ]
-    },
     {
       "name": "bronze",
       "tasks": [
@@ -71,5 +54,5 @@
       ]
     }
   ],
-  "notes": "FAOSTAT Glue projected-canonical (pythonshell silver), NO shadow -- the Glue jobs do not expose --publish-mode (carried open Q), so the rebuild gate runs as a POST-PUBLISH audit rather than a gate-before-promote. Bulk one run."
+  "notes": "FAOSTAT Glue projected-canonical (pythonshell silver), NO shadow -- the Glue jobs do not expose --publish-mode (carried open Q), so the rebuild gate runs as a POST-PUBLISH audit rather than a gate-before-promote. Bulk one run. | 2026-08-18 (D-LD, MEASURED BY A FAILED FIRE): the fetch phase is REMOVED because it never existed as an unattended leg. It named jobs/ingest/upload_faostat.py, which (a) declares --file required and the descriptor passed none, and (b) reads a LOCAL path off disk -- in a Fargate container there is no local FAOSTAT zip, so no argument value could have made it work. The day-0 smoke this family's arming owed it (execution faostat-manual-dld-day0-20260818T092113) failed in 60s on argparse exit 2 and is the only reason it was caught; exit 2 is terminal after ONE attempt, so every natural fire would have reddened the chain and paged. THE REAL OPERATING MODEL, now written down: FAOSTAT QCL is an ANNUAL ~100MB bulk zip that a human downloads and uploads (python jobs/ingest/upload_faostat.py --file <local zip>), after which the bronze+silver Glue legs are fired manually. The family is therefore NOT ARMED (see NOT_ARMED in scripts/silver/gen_dag_schedules_tfvars.py) -- a cron over these two Glue legs alone would re-derive the SAME zip forever and buy zero freshness. Building a genuine unattended fetcher against FAOSTAT's bulk endpoint is a separate, unstarted piece of work; until it exists, arming this family is a lie the scheduler tells."
 }

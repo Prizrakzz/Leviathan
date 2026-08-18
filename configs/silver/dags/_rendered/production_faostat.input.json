@@ -31,17 +31,7 @@
       ]
     },
     "fetch": {
-      "tasks": [
-        {
-          "command": [
-            "jobs/ingest/upload_faostat.py"
-          ],
-          "env": [],
-          "integration": "batch",
-          "jobdef": "leviathan-dev-b3-flat-silver",
-          "queue": "leviathan-dev-queue-ondemand"
-        }
-      ]
+      "tasks": []
     },
     "silver": {
       "tasks": [

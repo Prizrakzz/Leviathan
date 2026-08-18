@@ -72,6 +72,8 @@ The descriptor lint (exit 2 on any violation) runs in every mode; ``--check`` ex
 from __future__ import annotations
 
 import argparse
+import ast
+import functools
 import json
 import sys
 from pathlib import Path
@@ -148,6 +150,44 @@ def _flag_is_valueless(tok: str, cmd: list) -> bool:
     else:
         script = str(cmd[0]).replace("\\", "/").rsplit("/", 1)[-1]
     return script not in _VALUE_TYPED_EXCEPTIONS.get(tok, frozenset())
+
+
+def _script_path(cmd: list) -> Path | None:
+    """The .py file a task command runs -- script form (cmd[0]) or module form (cmd[1])."""
+    if not cmd:
+        return None
+    if str(cmd[0]) == "-m" and len(cmd) > 1:
+        return _REPO / (str(cmd[1]).replace(".", "/") + ".py")
+    if str(cmd[0]).endswith(".py"):
+        return _REPO / str(cmd[0])
+    return None
+
+
+@functools.lru_cache(maxsize=None)
+def _required_options(script: Path) -> tuple[str, ...]:
+    """Options the target script declares ``required=True``, read from its SOURCE, never imported.
+
+    AST, not import: these are Batch entrypoints whose module bodies pull boto3/pyarrow/psycopg and
+    read env at import time, so importing them to introspect a parser would make this generator fail
+    on a laptop for reasons that have nothing to do with the descriptor it is linting.
+    """
+    try:
+        tree = ast.parse(script.read_text(encoding="utf-8"))
+    except (OSError, SyntaxError):
+        return ()                     # unreadable/unparseable: the path-shape checks above own that
+    out: list[str] = []
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "add_argument"):
+            continue
+        if not any(kw.arg == "required" and isinstance(kw.value, ast.Constant)
+                   and kw.value.value is True for kw in node.keywords):
+            continue
+        for a in node.args:                     # the first long form is the canonical name
+            if isinstance(a, ast.Constant) and isinstance(a.value, str) and a.value.startswith("--"):
+                out.append(a.value)
+                break
+    return tuple(out)
 
 # --- Platform constants (NOT descriptor-driven; the scheduled thin contract is uniform) ---------
 # The on-demand Fargate queue -- every Batch task + the gate run here. The descriptors' interruptible
@@ -309,6 +349,26 @@ def lint_descriptor(desc: dict, stem: str) -> list[str]:
                         f"{stem}: task {tid!r} command has value-expecting option {tok!r} "
                         f"immediately followed by another option {nxt!r} (missing value -> "
                         f"argparse exit 2)"
+                    )
+            # THE INVERSE OF THE CHECK ABOVE, and the gap it left open: those rules prove a
+            # value-option HAS its value; NOTHING proved a required option is PRESENT AT ALL. A
+            # command that omits one entirely lints clean and argparse-exit-2s at fire time --
+            # terminal after ONE attempt (the producer matrix ends on on_exit_code=null -> EXIT,
+            # live-probed as job cb151695), so the whole chain reddens and the family stays dark
+            # until someone reads a 3am alarm. MEASURED 2026-08-18: production_faostat's fetch leg
+            # was `upload_faostat.py` with no `--file`, which that script declares required -- the
+            # family was armed with a command that could never run, and the arming's own day-0
+            # smoke was the only thing that caught it. A static probe of all 155 scheduled commands
+            # found exactly that one, so this check is cheap AND the estate is otherwise clean;
+            # it exists so the next one is impossible to arm, not to chase a known backlog.
+            script = _script_path(cmd)
+            if script is not None:
+                missing = [opt for opt in _required_options(script) if opt not in cmd]
+                if missing:
+                    e.append(
+                        f"{stem}: task {tid!r} command omits required option(s) "
+                        f"{', '.join(missing)} declared by {script.name} "
+                        f"(unrunnable -> argparse exit 2 at fire time)"
                     )
 
             # publishing tasks must declare a known publish_mode
