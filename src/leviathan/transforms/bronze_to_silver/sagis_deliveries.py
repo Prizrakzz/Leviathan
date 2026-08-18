@@ -17,6 +17,15 @@ The four correctness rules the plan calls out:
   4. The known ``2011-12 x wheat x week 51`` overlap (two snapshots reporting week 51) resolves
      to the later-published snapshot.
 
+D-LD (2026-08-18) adds a fifth output column, ``week_ending_date`` -- the ISO calendar date of the
+last day of the ``week_ending`` free-text range, derived through the shared
+:func:`~leviathan.transforms.bronze_to_silver.sagis_weekly_exports.derive_week_ending_dates`. It is
+the leakage-safe point-in-time as-of anchor the numbers card needs and the ONLY one this table has:
+``week_ending`` is free text (0 of 3,007 canonical rows are ISO), ``season`` is a 'YYYY-YY' label
+and ``week_number`` is an int, so without it ``TableSpec.knowledge_col()`` returns nothing and every
+lookup raises before any SQL. It is the TRUE week-ending date; the card applies its own publication
+lag (data_date semantics, +5d) on top -- NOT baked in here.
+
 Pure + AWS-free. ASCII only.
 """
 from __future__ import annotations
@@ -35,6 +44,7 @@ from leviathan.transforms.bronze_to_silver.sagis_common import (
     rank_snapshots,
     same_authority,
 )
+from leviathan.transforms.bronze_to_silver.sagis_weekly_exports import derive_week_ending_dates
 
 logger = get_logger(__name__)
 
@@ -57,6 +67,9 @@ _GRADE_RECONCILE_TOL = 0.02
 _SILVER_COLUMNS: list[str] = [
     "season", "crop", "week_number", "week_ending",
     "prog_total_mt", "prior_prog_total_mt", "pct_of_prior_yr", "z_vs_3yr_avg", "source",
+    # D-LD (2026-08-18) PIT anchor -- APPENDED, never re-ordered, so the F010 contract's
+    # physical_columns list is an append and the Glue migration is a plain ADD COLUMNS.
+    "week_ending_date",
 ]
 
 # INV-2 explicit writer schema, matching the silver_sagis_weekly_deliveries registry.
@@ -70,6 +83,7 @@ SILVER_ARROW_SCHEMA = pa.schema([
     ("pct_of_prior_yr", pa.float64()),
     ("z_vs_3yr_avg", pa.float64()),
     ("source", pa.string()),
+    ("week_ending_date", pa.date32()),
 ])
 
 _ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -431,6 +445,25 @@ def build_deliveries_silver(records: Sequence[DeliveryWeekRecord]) -> pd.DataFra
     for c in ("prog_total_mt", "prior_prog_total_mt", "pct_of_prior_yr", "z_vs_3yr_avg"):
         df[c] = df[c].astype("float64")
     df["week_number"] = df["week_number"].astype("int64")
+
+    # D-LD (2026-08-18) PIT ANCHOR. ``week_ending`` is a bilingual English/Afrikaans date-RANGE
+    # LABEL in at least four era formats and 0 of the 3,007 canonical rows are ISO, so it cannot
+    # anchor an as-of guard: a text compare against an ISO literal admits essentially every row,
+    # and the guard would be present, green and vacuous. Derive the TRUE ISO week-ending date the
+    # same way the exports sibling does (SILVER-F059 / WIRING-WAVE-1 Card C) -- per (season, crop)
+    # group, year inferred by carry-forward + Dec->Jan wrap detection, re-anchored on the weeks
+    # that carry an explicit year. Held as python ``datetime.date`` so the flat publisher encodes
+    # date32[day] (never a string that would sort lexically at window edges). NO publication lag is
+    # baked in: the +5d lives in the numbers card where it stays auditable and tunable.
+    date_by_key: dict[tuple, object] = {}
+    for (season, crop), grp in df.groupby(["season", "crop"], sort=False):
+        weeks = [(int(w), we) for w, we in zip(grp["week_number"], grp["week_ending"])]
+        for wk, when in derive_week_ending_dates(season, weeks).items():
+            date_by_key[(season, crop, wk)] = when
+    df["week_ending_date"] = [
+        date_by_key.get((r.season, r.crop, int(r.week_number)))
+        for r in df.itertuples(index=False)
+    ]
 
     return df[_SILVER_COLUMNS].sort_values(
         ["season", "crop", "week_number"]

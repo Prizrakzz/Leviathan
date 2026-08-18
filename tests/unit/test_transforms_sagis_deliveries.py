@@ -229,12 +229,24 @@ class TestXlsxAndSchema:
         assert len(recs) == 1 and recs[0].week_number == 5
 
     def test_silver_schema_matches_registry(self):
+        """INV-2: every F010 physical column is in the writer schema at the contract's target type.
+
+        D-LD: ``week_ending_date`` is the derived PIT anchor this producer now emits. It enters the
+        contract when ``scripts/silver/gen_registry_from_baseline.py`` is re-run (the staged
+        additive column, the SILVER-F059 precedent the exports sibling already carries), so the
+        producer may lead the contract by EXACTLY that one name and nothing else -- after the
+        regeneration this collapses back to strict equality on its own.
+        """
         from leviathan.silver.registry import load_registry
-        target_to_pa = {"int64": pa.int64(), "float64": pa.float64(), "string": pa.string()}
+        target_to_pa = {"int64": pa.int64(), "float64": pa.float64(), "string": pa.string(),
+                        "date32[day]": pa.date32()}
         contract = load_registry().table("silver_sagis_weekly_deliveries")
         expected = {c["name"]: target_to_pa[c["target_arrow_type"]] for c in contract["physical_columns"]}
         actual = {f.name: f.type for f in SILVER_ARROW_SCHEMA}
-        assert actual == expected
+        for name, typ in expected.items():
+            assert actual.get(name) == typ, f"{name}: {actual.get(name)} != {typ}"
+        assert set(actual) - set(expected) <= {"week_ending_date"}
+        assert actual["week_ending_date"] == pa.date32()
 
     def test_empty_records_returns_empty_contract(self):
         df = build_deliveries_silver([])

@@ -30,6 +30,17 @@ MONTHLY_OUTPUT_COLUMNS = [
     "source",
 ]
 
+# D-LD Tranche 2 (2026-08-18) P0 PIT ANCHOR: ``ingest_date`` is carried through from bronze.
+# The silver table physically had NO date, month or knowledge column, so the numbers read-path
+# could not build an as-of guard at all (``query._guard`` raises "has no knowledge/date column to
+# anchor the as-of guard" on EVERY lookup) -- the table was unqueryable, not merely dark. FNC
+# republishes the whole workbook and this producer OVERWRITES (F010 write_mode: overwrite,
+# vintage_retention: latest-only), so there is no vintage to collapse and no publication lag:
+# the bronze ingest stamp IS the date this edition became known to us (knowledge_semantics:
+# ingest, the silver_production idiom). ``extract_fnc_excel`` stamps every bronze series, so the
+# re-run preserves the true stamp -- do NOT re-run the raw->bronze fetch to land this column.
+# Appended LAST so the existing catalog column order is untouched (the Glue migration is a pure
+# ADD COLUMNS); ``year`` stays in the body as the partition key it has always been.
 AREA_OUTPUT_COLUMNS = [
     "leviathan_slug",
     "country",
@@ -38,6 +49,7 @@ AREA_OUTPUT_COLUMNS = [
     "year",
     "area_ha",
     "source",
+    "ingest_date",
 ]
 
 EXPORTS_PORT_TYPE_OUTPUT_COLUMNS = [
@@ -161,8 +173,14 @@ def transform_fnc_colombia_monthly(bronze_series: dict[str, pd.DataFrame]) -> pd
 
 
 def transform_fnc_colombia_area_department(df: pd.DataFrame) -> pd.DataFrame:
-    """Create annual Colombian coffee area by department."""
-    required = {"year", "department_raw", "department", "area_1000_ha"}
+    """Create annual Colombian coffee area by department.
+
+    ``ingest_date`` is REQUIRED (D-LD Tranche 2 P0): it is this table's only point-in-time anchor,
+    and a bronze frame without it can only produce a silver table whose every as-of lookup raises.
+    Fail loud here rather than shipping a null knowledge column, which would fail CLOSED silently
+    (every row withheld from every as-of read) and look like an empty table instead of a defect.
+    """
+    required = {"year", "department_raw", "department", "area_1000_ha", "ingest_date"}
     if missing := required - set(df.columns):
         raise ValueError(f"FNC area_departamento bronze is missing columns: {missing}")
     if df.empty:
@@ -178,6 +196,17 @@ def transform_fnc_colombia_area_department(df: pd.DataFrame) -> pd.DataFrame:
     work["leviathan_slug"] = LEVIATHAN_SLUG
     work["country"] = COUNTRY
     work["source"] = SOURCE
+
+    # PIT anchor, normalised to the ISO TEXT the guard compares (CAST(ingest_date AS varchar) <=
+    # '<asof>'). A blank/null stamp is refused rather than written: it would withhold the row from
+    # every as-of read, which is fail-CLOSED but indistinguishable from "no data".
+    stamps = work["ingest_date"].astype(str).str.strip()
+    if work["ingest_date"].isna().any() or (stamps == "").any():
+        raise ValueError(
+            "FNC area_departamento bronze has rows with no ingest_date; the as-of guard cannot "
+            "anchor a null knowledge date"
+        )
+    work["ingest_date"] = stamps
 
     work = _validate_unique(
         work,

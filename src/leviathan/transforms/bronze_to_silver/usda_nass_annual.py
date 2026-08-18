@@ -5,6 +5,18 @@ QuickStats crops file, including county rows and a few proxy commodity mappings.
 This transform narrows that data into production-forecasting features:
 national/state only, standard metric units, and one wide row per
 (leviathan_slug, state, year).
+
+D-LD pre-step D-LD-9a (2026-08-18) ADDITIVELY appends one column, ``release_date``
+-- the DERIVED vintage knowledge anchor. The measured physical table carried NO
+date, vintage, ingest or month column of any kind (14 body columns over 593
+canonical objects / 14,631 rows), so a numbers card had nothing to anchor its
+point-in-time as-of guard on: ``knowledge_col()`` returned ``None`` and
+``query.build_sql`` raised "no knowledge/date column to anchor the as-of guard".
+``year`` is the CROP year, not a knowledge date. This is the same shape
+WIRING_WAVE1 met on ``silver_conab_coffee`` (``survey_release_date``) and
+``silver_sagis_weekly_exports`` (``week_ending_date``), and it is solved the same
+way: one producer-derived, conservative, never-leak timing column. See
+``_ANNUAL_SUMMARY_RELEASE`` below. The column NEVER touches a measured value.
 """
 from __future__ import annotations
 
@@ -50,7 +62,15 @@ OUTPUT_COLUMNS = [
     "yield_cv_pct",
     "production_cv_pct",
     "source",
+    # D-LD pre-step D-LD-9a additive tail (kept LAST to mirror the Glue ADD COLUMNS append and the
+    # hand DDL's appended column -- the conab survey_release_date discipline, column for column).
+    "release_date",
 ]
+
+# The 14 columns the producer emitted BEFORE the D-LD pre-step, in order. Frozen here so a future
+# edit that reorders or drops a pre-existing column is a test failure rather than a silent silver
+# rewrite of 593 canonical objects.
+PRE_DLD_OUTPUT_COLUMNS = OUTPUT_COLUMNS[:-1]
 
 _REQUIRED_COLS = frozenset({
     "commodity_desc",
@@ -87,6 +107,47 @@ _NON_FEATURE_UNITS = frozenset({
     "PCT BY SIZE GROUP",
     "PCT BY TYPE",
 })
+
+
+# ---------------------------------------------------------------------------
+# release_date -- the derived, conservative, never-leak vintage anchor (D-LD pre-step D-LD-9a).
+# ---------------------------------------------------------------------------
+# USDA NASS publishes the Crop Production ANNUAL SUMMARY for crop year Y in the SECOND WEEK OF
+# JANUARY of Y+1 (the settled acreage/yield/production this table carries). We stamp the FIRST DAY
+# OF THE MONTH STRICTLY AFTER that window -- Feb 1 of Y+1 -- so the derived date is ALWAYS on/after
+# the real release: the point-in-time as-of guard can never LEAK a crop year before its summary was
+# actually published. It withholds by at most ~3 weeks, which is the SAFE direction.
+#
+# WHAT THIS VINTAGE DELIBERATELY DOES NOT SERVE: the IN-SEASON prints. NASS also publishes
+# Prospective Plantings (Mar 31) and Acreage (Jun 30) for the CURRENT crop year, and those numbers
+# land in this row the moment the weekly job re-reads QuickStats (a 2026 row with planted/harvested
+# acreage and NULL yield/production exists today). ONE row carries ONE knowledge date, and the row
+# is OVERWRITTEN each January with the settled production -- so stamping it June would leak the
+# settled figure on every historical replay. In-season US acreage/pace is silver_nass_crop_progress.
+#
+# The stamp is a pure function of the crop year, so it is stable across re-runs and byte-identical
+# for an unchanged partition. (year offset, month, day) is the single knob.
+_ANNUAL_SUMMARY_RELEASE = (1, 2, 1)
+
+
+def _release_date(crop_year: object) -> str:
+    """Conservative ISO ``YYYY-MM-DD`` annual-summary release stamp for one NASS crop year.
+
+    Raises on a missing/unparseable crop year -- fail-loud, because a null PIT anchor would silently
+    drop the row from the leakage-safe as-of guard (``null <= asof`` is UNKNOWN in SQL, and the
+    Python oracle looks the column up on the row dict)."""
+    if crop_year is None or (isinstance(crop_year, float) and math.isnan(crop_year)):
+        raise ValueError(
+            "NASS annual silver cannot derive a leakage-safe release_date from a null crop year"
+        )
+    try:
+        year = int(crop_year)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"NASS annual crop year {crop_year!r} is not an integer; cannot derive release_date"
+        ) from exc
+    yr_off, month, day = _ANNUAL_SUMMARY_RELEASE
+    return f"{year + yr_off:04d}-{month:02d}-{day:02d}"
 
 
 def _is_all_class(class_name: str) -> bool:
@@ -360,6 +421,12 @@ def transform_nass_annual_bronze_to_silver(df: pd.DataFrame) -> pd.DataFrame:
     ).rename(columns=STAT_TO_CV_COL)
 
     silver = pd.concat([values, cvs], axis=1).reset_index()
+
+    # D-LD pre-step D-LD-9a: the derived vintage anchor. Stamped from the CROP YEAR (an int by
+    # construction above) BEFORE the OUTPUT_COLUMNS backfill below, so it is never NA-filled --
+    # a null here would drop the row from the as-of guard instead of failing loudly.
+    silver["release_date"] = [_release_date(y) for y in silver["year"]]
+
     for col in OUTPUT_COLUMNS:
         if col not in silver.columns:
             silver[col] = pd.NA

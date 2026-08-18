@@ -172,15 +172,24 @@ def parse_tables(html: str) -> list[NormalizedTable]:
 # 3. Vocabulary + numeric normalization.
 # ---------------------------------------------------------------------------
 # Canonical silver country vocabulary (lower_snake). MPOC surface forms -> canonical.
+# D-LD Tranche 2 (2026-08-18): `china p.r` and `u.s.a` are LIVE MPOC surface forms that folded to a
+# key the map did not carry, so normalize_country returned None and the F053 producer dropped the row
+# WITHOUT a warning -- 9 rows across the 2015-2020 pages (china 2015-2017, usa 2015-2020). The map
+# already had 'p.r. china' / 'pr china' (the other spelling) and 'u.s.a.' (WITH the trailing dot);
+# these two are the same countries under MPOC's other printed spelling, not new destinations. Measured
+# effect: silver goes 121 -> 130 rows and the china/usa gaps -- which a desk would otherwise narrate as
+# demand collapsing -- close as the INGEST LOSS they were.
 _COUNTRY_ALIASES: dict[str, str] = {
     "china": "china",
     "p.r. china": "china",
     "pr china": "china",
+    "china p.r": "china",
     "india": "india",
     "pakistan": "pakistan",
     "bangladesh": "bangladesh",
     "usa": "usa",
     "u.s.a.": "usa",
+    "u.s.a": "usa",          # D-LD tranche 2: MPOC's 2015-2020 spelling (no trailing dot) -- 6 rows
     "united states": "usa",
     "united states of america": "usa",
     "eu": "eu",

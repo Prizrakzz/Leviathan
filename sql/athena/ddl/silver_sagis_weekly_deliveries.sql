@@ -9,7 +9,8 @@ CREATE EXTERNAL TABLE IF NOT EXISTS silver_sagis_weekly_deliveries (
     prior_prog_total_mt double,
     pct_of_prior_yr     double,
     z_vs_3yr_avg        double,
-    source              string
+    source              string,
+    week_ending_date    date
 )
 STORED AS PARQUET
 LOCATION 's3://leviathan-dev-shahem-001/silver/sagis_weekly_deliveries/'

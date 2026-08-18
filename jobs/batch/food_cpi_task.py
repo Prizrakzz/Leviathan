@@ -24,6 +24,16 @@ under a fully-authorized canonical publish; a dry-run / shadow run writes nothin
 canonical. The legacy ``--dry-run`` flag is retained as an alias for
 ``--publish-mode dry-run``.
 
+D-LD PIT pre-step (2026-08-18) -- CATALOG FIRST, THEN THIS PRODUCER
+------------------------------------------------------------------
+The transform now derives two PIT anchor columns (``data_date`` = the year-end
+observation date, ``release_date`` = the World Bank ``lastupdated`` release
+stamp) so the table can be read under an as-of guard at all. The publisher
+writes from the EXPLICIT INV-2 arrow schema of the F010 contract, so a run whose
+contract does not yet declare them would fail the encode. :func:`main` therefore
+refuses to fetch anything until the contract declares both -- the catalog leg
+(Glue ALTER + registry regenerate) must land BEFORE the first re-run.
+
 Usage
 -----
     python jobs/batch/food_cpi_task.py                         # dry-run (writes nothing)
@@ -59,7 +69,10 @@ from leviathan.storage.s3 import (
     get_thread_local_s3_client,
     upload_bytes_to_s3,
 )
-from leviathan.transforms.bronze_to_silver.world_bank_food_cpi import build_food_cpi_silver
+from leviathan.transforms.bronze_to_silver.world_bank_food_cpi import (
+    PIT_COLUMNS,
+    build_food_cpi_silver,
+)
 from leviathan.transforms.raw_to_bronze.world_bank_food_cpi import extract_food_cpi_bronze
 
 logger = get_logger("food_cpi_task")
@@ -169,6 +182,28 @@ def _fetch_bronze(
     return bronze_dfs, errors
 
 
+def check_pit_columns_declared(contract: dict) -> None:
+    """Refuse the run until the F010 contract declares the derived PIT anchor columns (D-LD).
+
+    The publisher writes the contract's EXPLICIT INV-2 arrow schema, and ``encode_parquet`` fails
+    closed on a DataFrame whose columns do not match it. A run against the pre-remedy contract
+    would therefore die deep in the encode with no statement of the remedy -- and, worse, a
+    contract that silently dropped the anchors would republish a table no as-of guard can read,
+    which is the exact defect this pre-step exists to close. Fail here instead, before a single
+    World Bank request is made, and name the ordering."""
+    declared = {c["name"] for c in contract.get("physical_columns", [])}
+    absent = [c for c in PIT_COLUMNS if c not in declared]
+    if absent:
+        raise ValueError(
+            f"{_TABLE}: the F010 contract does not declare the derived PIT anchor column(s) "
+            f"{absent}, which this producer now emits. The CATALOG leg of the D-LD pre-step lands "
+            f"FIRST: apply the Glue migration (ALTER TABLE ADD COLUMNS + the float->double / "
+            f"tinyint->bigint type correction), then regenerate the silver registry "
+            f"(scripts/silver/gen_registry_from_baseline.py) and the DDLs, and only then re-run "
+            f"this producer."
+        )
+
+
 def _publish_food_cpi(
     df: pd.DataFrame,
     contract: dict,
@@ -229,6 +264,7 @@ def main() -> None:
     bucket     = args.bucket     or get_required_env("LEVIATHAN_BUCKET")
     aws_region = args.aws_region or get_required_env("AWS_REGION")
     contract = load_registry().table(_TABLE)
+    check_pit_columns_declared(contract)
 
     account_id, role_arn = args.account_id, args.role_arn
     if publish_mode == "canonical" and not account_id and not role_arn:

@@ -8,6 +8,8 @@ from leviathan.transforms.bronze_to_silver.usda_nass_annual import (
     LB_PER_ACRE_TO_T_HA,
     LB_TO_MT,
     OUTPUT_COLUMNS,
+    PRE_DLD_OUTPUT_COLUMNS,
+    _release_date,
     transform_nass_annual_bronze_to_silver,
 )
 
@@ -247,3 +249,112 @@ class TestNassAnnualSilverTransform:
         )
         with pytest.raises(ValueError, match="conflicting duplicate metric rows"):
             transform_nass_annual_bronze_to_silver(pd.DataFrame(rows))
+
+
+# =====================================================================================================
+# D-LD pre-step D-LD-9a -- the DERIVED release_date vintage anchor.
+#
+# The blocker this closes, measured 2026-08-18 against every canonical object with pyarrow (593
+# parquet objects, 14,631 rows): silver_nass_annual carried NO date, vintage, ingest or month column
+# of ANY kind, so a numbers card had nothing to anchor its as-of guard on -- knowledge_col() returned
+# None and query.build_sql raised "no knowledge/date column to anchor the as-of guard". `year` is the
+# CROP year, not a knowledge date. The remedy is the conab survey_release_date idiom, coefficient for
+# coefficient: ONE producer-derived, conservative, never-leak timing column.
+# =====================================================================================================
+class TestNassAnnualReleaseDateAnchor:
+    def test_release_date_is_the_appended_tail_and_nothing_moved(self) -> None:
+        """ADDITIVE: release_date is LAST (mirroring the Glue ADD COLUMNS append and the hand DDL),
+        and the 14 pre-existing columns keep their exact order -- a reorder would silently rewrite
+        593 canonical objects into a different physical layout."""
+        assert OUTPUT_COLUMNS[-1] == "release_date"
+        assert OUTPUT_COLUMNS[:-1] == PRE_DLD_OUTPUT_COLUMNS
+        assert PRE_DLD_OUTPUT_COLUMNS == [
+            "leviathan_slug", "country", "state", "year", "marketing_year",
+            "area_planted_ha", "area_harvested_ha", "yield_t_ha", "production_mt",
+            "area_planted_cv_pct", "area_harvested_cv_pct", "yield_cv_pct", "production_cv_pct",
+            "source",
+        ]
+
+    def test_every_row_carries_a_stamp_parse_coverage(self) -> None:
+        """PARSE COVERAGE: the anchor is a pure function of the crop year, which is non-null by
+        construction (coerced + dropna'd before the pivot), so coverage is total -- 14,631/14,631 on
+        the live canonical parquet, and 100% on every fixture here."""
+        rows = [
+            *_corn_rows(),
+            *_corn_rows(state_alpha="IL"),
+            *_corn_rows(commodity_desc="SOYBEANS", year=1924),
+            *_corn_rows(agg_level_desc="NATIONAL", state_alpha=None, year=1866),
+        ]
+        silver = transform_nass_annual_bronze_to_silver(pd.DataFrame(rows))
+        assert len(silver) == 4
+        assert silver["release_date"].notna().all()
+        assert (silver["release_date"] != "").all()
+        assert silver["release_date"].map(lambda s: isinstance(s, str)).all()
+
+    def test_stamp_is_february_first_of_the_year_after_the_crop_year(self) -> None:
+        """USDA publishes the Crop Production ANNUAL SUMMARY for crop year Y in the second week of
+        JANUARY of Y+1; the stamp is the first of the month STRICTLY AFTER that window."""
+        silver = transform_nass_annual_bronze_to_silver(pd.DataFrame(_corn_rows(year=2025)))
+        assert silver.iloc[0]["release_date"] == "2026-02-01"
+        assert _release_date(1866) == "1867-02-01"
+        assert _release_date(2026) == "2027-02-01"
+        assert _release_date("2024") == "2025-02-01"      # str crop years derive identically
+
+    @pytest.mark.parametrize("crop_year", [1866, 1895, 1924, 1990, 2024, 2025, 2026])
+    def test_stamp_never_leaks_and_withholds_by_at_most_three_weeks(self, crop_year: int) -> None:
+        """The ONE property that makes this leakage-safe: the derived date is always ON OR AFTER the
+        real release (never before => zero leak), and never more than ~3 weeks after it (the real
+        summary lands in the second week of January of Y+1, so Feb 1 is <= 25 days later)."""
+        import datetime as _dt
+
+        stamp = _dt.date.fromisoformat(_release_date(crop_year))
+        real_release_window_end = _dt.date(crop_year + 1, 1, 15)   # NASS: second week of January
+        assert stamp >= real_release_window_end                    # ZERO leak
+        assert (stamp - real_release_window_end).days <= 25        # bounded withhold
+        assert stamp > _dt.date(crop_year, 12, 31)                 # strictly after the crop year
+
+    def test_stamps_are_monotone_in_crop_year_so_knowledge_desc_agrees_with_year_desc(self) -> None:
+        """The latest-vintage ROW_NUMBER collapse orders by knowledge_date DESC; on this card that
+        must agree with crop-year DESC or the newest crop year would not win its own grain."""
+        stamps = [_release_date(y) for y in range(1866, 2036)]
+        assert stamps == sorted(stamps)
+        assert len(set(stamps)) == len(stamps)
+
+    def test_stamp_is_deterministic_across_re_runs(self) -> None:
+        """write_mode overwrite re-derives all 593 objects every weekly run; a non-deterministic
+        stamp (e.g. anything reading the clock) would rewrite byte-identical data every Tuesday."""
+        frame = pd.DataFrame(_corn_rows())
+        first = transform_nass_annual_bronze_to_silver(frame)
+        second = transform_nass_annual_bronze_to_silver(frame)
+        pd.testing.assert_frame_equal(first, second)
+
+    def test_null_crop_year_fails_loud_rather_than_stamping_null(self) -> None:
+        """A null PIT anchor is worse than a crash: `null <= asof` is UNKNOWN in SQL, so the row
+        would silently vanish from every as-of read instead of failing the run."""
+        with pytest.raises(ValueError, match="null crop year"):
+            _release_date(None)
+        with pytest.raises(ValueError, match="null crop year"):
+            _release_date(float("nan"))
+        with pytest.raises(ValueError, match="not an integer"):
+            _release_date("not-a-year")
+
+    def test_empty_output_frame_still_declares_the_column(self) -> None:
+        """The empty-slice path must carry the same 15-column shape, or a partition whose bronze
+        yields nothing would concat into a ragged frame."""
+        empty = transform_nass_annual_bronze_to_silver(
+            pd.DataFrame(_corn_rows(commodity_desc="WHEAT", class_desc="ALL CLASSES"))
+        )
+        assert empty.empty
+        assert list(empty.columns) == OUTPUT_COLUMNS
+
+    def test_no_regression_the_measured_columns_are_untouched(self) -> None:
+        """NO-REGRESSION: the anchor is a TIMING column only -- it never touches a measured value."""
+        silver = transform_nass_annual_bronze_to_silver(pd.DataFrame(_corn_rows()))
+        row = silver.iloc[0]
+        assert list(silver.columns) == OUTPUT_COLUMNS
+        assert row["area_planted_ha"] == pytest.approx(100.0 * ACRE_TO_HA)
+        assert row["area_harvested_ha"] == pytest.approx(90.0 * ACRE_TO_HA)
+        assert row["yield_t_ha"] == pytest.approx(180.0 * 56.0 * LB_PER_ACRE_TO_T_HA)
+        assert row["production_mt"] == pytest.approx(16_200.0 * 56.0 * LB_TO_MT)
+        assert row["marketing_year"] == 2024 and row["year"] == 2024
+        assert row["source"] == "usda_nass" and row["country"] == "united_states"

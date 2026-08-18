@@ -42,6 +42,8 @@ def _silver_row(slug: str, state: str, year: int) -> dict[str, object]:
         "yield_cv_pct": None,
         "production_cv_pct": None,
         "source": "usda_nass",
+        # D-LD pre-step D-LD-9a: the derived vintage anchor rides the publish path as the tail.
+        "release_date": f"{year + 1}-02-01",
     }
 
 
@@ -138,11 +140,43 @@ def test_transform_keys_aggregates_worker_errors(monkeypatch) -> None:
 # ---------------------------------------------------------------------------
 
 def test_silver_columns_match_contract() -> None:
-    # Every contracted physical column is produced; the only extra body column is the
-    # ``year`` partition key (carried in the parquet body AND the object path).
+    # Every contracted physical column is produced; the extra body columns are the ``year``
+    # partition key (carried in the parquet body AND the object path) plus, until the gated catalog
+    # migration lands, the D-LD pre-step's derived ``release_date``.
+    #
+    # D-LD pre-step D-LD-9a: the producer deliberately LEADS the F010 contract by exactly one
+    # additive column. The registry (and live Glue) catch up at the gated ADD COLUMNS + regeneration
+    # -- sql/athena/migrations/silver/20260818T000000Z_silver_nass_annual_release_date_additive.json.
+    # Written as a difference AGAINST the contract so this assertion AUTO-TIGHTENS back to {"year"}
+    # the moment silver_nass_annual.yaml is regenerated: no follow-up test edit, and a producer that
+    # ever DROPPED release_date after the contract carried it would fail the subset check above.
     contract_cols = [c["name"] for c in _CONTRACT["physical_columns"]]
+    prestep_additive = {"release_date"} - set(contract_cols)
     assert set(contract_cols) <= set(task.OUTPUT_COLUMNS)
-    assert set(task.OUTPUT_COLUMNS) - set(contract_cols) == {"year"}
+    assert set(task.OUTPUT_COLUMNS) - set(contract_cols) == {"year"} | prestep_additive
+
+
+def test_published_partition_body_carries_the_derived_vintage_anchor() -> None:
+    """The staged body is ``group[OUTPUT_COLUMNS]``, so the additive tail must actually reach S3 --
+    a card whose knowledge_date_col is absent from the parquet is a COLUMN_NOT_FOUND at every read
+    (the silver_nasa_power incident class)."""
+    import io
+
+    import pyarrow.parquet as pq
+
+    s3 = FakeS3()
+    state = task._publish_nass_annual(_two_partition_final(), _CONTRACT, canonical_authorization(),
+                                      s3, _BUCKET, force_overwrite=True)
+    assert state is ManifestState.CERTIFIED
+
+    body = s3.store[(_BUCKET, silver_nass_annual_key("corn_cbot", 2024))]
+    table = pq.read_table(io.BytesIO(body))
+    assert list(table.column_names) == task.OUTPUT_COLUMNS
+    assert table.column_names[-1] == "release_date"
+    assert set(table.column("release_date").to_pylist()) == {"2025-02-01"}
+    # the 2023 soybean partition gets its OWN crop-year stamp, not the corn one.
+    other = pq.read_table(io.BytesIO(s3.store[(_BUCKET, silver_nass_annual_key("soybeans_cbot", 2023))]))
+    assert set(other.column("release_date").to_pylist()) == {"2024-02-01"}
 
 
 def test_dry_run_writes_nothing_but_validates() -> None:

@@ -67,6 +67,23 @@ _MONTHS: dict[str, int] = {
 _DASH = "[-–—]"                                    # hyphen / en-dash / em-dash
 _END_RE = re.compile(r"^(\d{1,2})\s*([A-Za-z]+(?:/[A-Za-z]+)?)\.?\s*((?:19|20)\d{2}|'\d{2})?\.?$")
 
+# --- D-LD (2026-08-18): the MONTH-WORD-LESS label eras the DELIVERIES sibling publishes ----------
+# MEASURED against all 3,007 rows of the canonical silver_sagis_weekly_deliveries parquet: from
+# 2013-14 onward SAGIS prints the delivery week as a purely NUMERIC range with no month word at
+# all, so ``_END_RE`` (which requires a letter month token) returned None for 2,244 of them --
+# 763/3,007 = 25.4% coverage. The live end-token forms:
+#     '24/02 - 02/03/2018'      '27/04-03/05/2013'      '01/08 - 07/08/2026'
+# Day order is SOUTH AFRICAN dd/mm[/yyyy], verified on the data's own edge: '01/08 - 07/08/2026'
+# is the week ending FRIDAY 7 August 2026 (the newest published week), not 8 July. A token whose
+# month field falls outside 1-12 is REFUSED rather than swapped -- guessing the order would mint a
+# silently wrong week, and a null date is honest where a wrong one is not.
+_NUMERIC_END_RE = re.compile(r"^(\d{1,2})[/.](\d{1,2})(?:[/.]((?:19|20)\d{2}|\d{2}))?\.?$")
+# An ALREADY-ISO label: ``sagis_deliveries.canonical_week_ending`` emits 'YYYY-MM-DD' whenever the
+# source sheet carried a real date cell, which is precisely the row with the BEST source date and
+# would otherwise be the one row shape with no anchor. Matched on the WHOLE label BEFORE the dash
+# split, because 'YYYY-MM-DD' would be torn at its first hyphen by the range splitter.
+_ISO_END_RE = re.compile(r"^((?:19|20)\d{2})-(\d{1,2})-(\d{1,2})$")
+
 
 def _month_number(token: str) -> Optional[int]:
     """Resolve a (possibly bilingual ``Eng/Afr``) month token to 1-12, else None."""
@@ -77,28 +94,55 @@ def _month_number(token: str) -> Optional[int]:
     return None
 
 
+def _parse_numeric_end(raw: str, end: str) -> Optional[tuple[int, int, Optional[int]]]:
+    """Month-word-less fallback -> ``(day, month, year_or_None)``, else None.
+
+    Reached ONLY when the letter-month branch resolved nothing, so it cannot change a single value
+    that already parses: ``silver_sagis_weekly_exports`` derives 1,204/1,204 of its week dates on
+    the letter branch alone and never enters here.
+    """
+    iso = _ISO_END_RE.match(raw)
+    if iso:
+        year, month, day = int(iso.group(1)), int(iso.group(2)), int(iso.group(3))
+        return (day, month, year) if 1 <= month <= 12 and 1 <= day <= 31 else None
+    m = _NUMERIC_END_RE.match(end)
+    if not m:
+        return None
+    day, month = int(m.group(1)), int(m.group(2))
+    if not (1 <= month <= 12 and 1 <= day <= 31):
+        return None                                  # never swap d/m to force a parse
+    ytok = m.group(3)
+    year: Optional[int] = None
+    if ytok:
+        year = int(ytok) if len(ytok) == 4 else 2000 + int(ytok)
+    return day, month, year
+
+
 def parse_week_ending_end(text: Optional[str]) -> Optional[tuple[int, int, Optional[int]]]:
     """Parse the END of a SAGIS free-text week range -> ``(day, month, year_or_None)``.
 
     Splits off everything after the single separating dash and parses the day, month (English or the
-    bilingual ``Eng/Afr`` form), and an optional trailing year (4-digit or ``'YY`` short form).
-    Returns None on anything unparseable (fail-soft -- the caller emits a null date, never a guess).
+    bilingual ``Eng/Afr`` form), and an optional trailing year (4-digit or ``'YY`` short form). When
+    the label carries NO month word at all -- the numeric ``dd/mm[/yyyy]`` and ISO eras the
+    deliveries sibling publishes -- :func:`_parse_numeric_end` is tried as a strictly None-only
+    fallback. Returns None on anything unparseable (fail-soft -- the caller emits a null date,
+    never a guess).
     """
     if not text:
         return None
-    end = re.split(r"\s*" + _DASH + r"\s*", str(text).strip(), maxsplit=1)[-1].strip()
+    raw = str(text).strip()
+    end = re.split(r"\s*" + _DASH + r"\s*", raw, maxsplit=1)[-1].strip()
     m = _END_RE.match(end)
-    if not m:
-        return None
-    month = _month_number(m.group(2))
-    if month is None:
-        return None
-    day = int(m.group(1))
-    ytok = m.group(3)
-    year: Optional[int] = None
-    if ytok:
-        year = 2000 + int(ytok[1:]) if ytok.startswith("'") else int(ytok)
-    return day, month, year
+    if m:
+        month = _month_number(m.group(2))
+        if month is not None:
+            day = int(m.group(1))
+            ytok = m.group(3)
+            year: Optional[int] = None
+            if ytok:
+                year = 2000 + int(ytok[1:]) if ytok.startswith("'") else int(ytok)
+            return day, month, year
+    return _parse_numeric_end(raw, end)
 
 
 def derive_week_ending_dates(

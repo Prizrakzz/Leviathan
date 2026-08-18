@@ -44,6 +44,33 @@ def _crop_from_key(key: str) -> str | None:
     return m.group(1) if m else None
 
 
+def assert_contract_declares_every_column(df) -> None:
+    """D-LD SEQUENCING PIN: fail closed if the F010 contract has not yet declared a producer column.
+
+    ``_sb_producer_publish.df_to_parquet_bytes`` SELECTS the contract's columns out of the frame
+    (``df[[f.name for f in schema]]``), so a column the registry does not declare yet is dropped
+    SILENTLY -- which is exactly how the derived ``week_ending_date`` PIT anchor would vanish if
+    this task were re-run BEFORE ``scripts/silver/gen_registry_from_baseline.py`` regenerated the
+    contract. The run would look clean, the parquet would be byte-identical to the old one, and the
+    numbers card would still be unbuildable. Raise instead, naming the ordering.
+    """
+    from leviathan.silver.registry import load_registry
+
+    declared = {
+        c["name"]
+        for c in load_registry().table("silver_sagis_weekly_deliveries")["physical_columns"]
+    }
+    undeclared = [c for c in df.columns if c not in declared]
+    if undeclared:
+        raise ValueError(
+            "silver_sagis_weekly_deliveries: the F010 contract does not declare producer "
+            f"column(s) {undeclared} -- they would be SILENTLY DROPPED at publish. Regenerate "
+            "configs/silver/tables/silver_sagis_weekly_deliveries.yaml (scripts/silver/"
+            "gen_registry_from_baseline.py) and apply the Glue ADD COLUMNS migration BEFORE "
+            "re-running this producer."
+        )
+
+
 def main() -> None:
     logging.basicConfig(
         level=logging.INFO,
@@ -93,6 +120,11 @@ def main() -> None:
     df_silver = build_deliveries_silver(records)
     logger.info("Deliveries silver rows=%d  seasons=%d", len(df_silver),
                 df_silver["season"].nunique() if len(df_silver) else 0)
+    assert_contract_declares_every_column(df_silver)
+    if len(df_silver):
+        anchored = int(df_silver["week_ending_date"].notna().sum())
+        logger.info("week_ending_date derived on %d/%d rows (%.1f%%)",
+                    anchored, len(df_silver), 100.0 * anchored / len(df_silver))
 
     if args.dry_run:
         logger.info("[DRY-RUN] would publish %d rows to %s", len(df_silver), _SILVER_KEY)

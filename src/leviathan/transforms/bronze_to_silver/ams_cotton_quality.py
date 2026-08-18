@@ -22,6 +22,14 @@ columns are ALL-NULL. Written with pandas inference they land as Arrow ``null`` 
 publisher whose INV-2 schema pins them ``double``, so an all-null measurement column can never
 become Arrow ``null`` again. (The transform still pivots them from the national rows if a future
 report publishes them nationally.)
+
+AMS-1 (D-LD Tranche 2 pre-step) -- the PIT ANCHOR. The table had NO date column of any kind: the
+only chronological axis was ``season``, a crop-year INTEGER. Every as-of guard branch in the numbers
+read path needs a knowledge/date column (or a year+month pair), so the table could not be carded at
+all -- ``build_sql`` raised ``no knowledge/date column to anchor the as-of guard`` on the first
+lookup. This transform now DERIVES ``release_date`` (ISO ``YYYY-MM-DD``), the conservative,
+never-leak publication stamp, exactly as ``conab_coffee.survey_release_date`` does. See
+``ams_release_date``. It is a TIMING column only -- it never touches a measured value.
 """
 from __future__ import annotations
 
@@ -36,6 +44,26 @@ _NATIONAL_GEOGRAPHY = "us_total"
 # The five wide silver measurement columns (pinned present even when a season lacks the metric).
 _METRIC_COLUMNS = ("percent_tenderable", "samples_classed", "avg_staple", "avg_micronaire", "avg_strength")
 
+# ---------------------------------------------------------------------------
+# AMS-1: release_date -- the derived, conservative, never-leak vintage anchor.
+# ---------------------------------------------------------------------------
+# AMS publishes the Annual Cotton Quality Report for crop season Y during Y+1 (measured lower bound:
+# the season-2025 PDF was already retrievable from AMS at our 2026-07-16 fetch stamp). We have ONE
+# observed release date, which is not enough to pin a tight calendar day (the estate's "collect 3
+# fires then declare" rule), so the stamp is derived at the START OF THE NEXT CLASSING SEASON --
+# 1 September of season+1 -- by which the prior season's summary is unambiguously out.
+#
+# CONSERVATIVE BY CONSTRUCTION: the derived date is always ON OR AFTER the real release, so the
+# point-in-time guard can never LEAK a season before it was published. The cost is a withhold of at
+# most a few months on the freshest season, which is the SAFE direction. Tightening the pin to 08-01
+# requires three observed AMS release dates first; until then the conservative pin stands.
+#
+# The stamp is a pure function of the season, so it is strictly increasing in season -- knowledge
+# date DESC and season DESC agree, which is what makes the latest-vintage collapse deterministic.
+_RELEASE_YEAR_OFFSET = 1
+_RELEASE_MONTH = 9
+_RELEASE_DAY = 1
+
 SILVER_COLUMNS: list[str] = [
     "commodity",
     "season",
@@ -49,7 +77,37 @@ SILVER_COLUMNS: list[str] = [
     "source_raw_key",
     "source_file_etag",
     "source",
+    # AMS-1 additive tail (kept LAST to mirror the Glue ADD COLUMNS append + the widened hand DDL;
+    # the conab_coffee survey_release_date precedent). The publisher pins physical order from the
+    # F010 contract, so this list's order is the catalog's, not an accident.
+    "release_date",
 ]
+
+
+def ams_release_date(season: object) -> str:
+    """Conservative ISO ``YYYY-MM-DD`` publication stamp for one AMS cotton crop season.
+
+    ``season`` is the crop year START (2025 = the 2025/26 US crop); the stamp is 1 September of
+    ``season + 1``. Fail-loud on a missing / non-integral season: a null PIT anchor would silently
+    drop the row from the leakage-safe as-of guard (``null <= asof`` is UNKNOWN), which is the
+    quietest possible way to lose a season.
+    """
+    if season is None or pd.isna(season):
+        raise ValueError("AMS cotton: cannot derive release_date from a null season")
+    try:
+        year = int(season)
+        integral = float(season) == float(year)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"AMS cotton: season {season!r} is not an integral crop year; cannot derive a "
+            f"leakage-safe release_date"
+        ) from exc
+    if not integral:
+        raise ValueError(
+            f"AMS cotton: season {season!r} is not an integral crop year; cannot derive a "
+            f"leakage-safe release_date"
+        )
+    return f"{year + _RELEASE_YEAR_OFFSET:04d}-{_RELEASE_MONTH:02d}-{_RELEASE_DAY:02d}"
 
 
 def build_ams_cotton_silver(df_bronze: pd.DataFrame) -> pd.DataFrame:
@@ -103,12 +161,18 @@ def build_ams_cotton_silver(df_bronze: pd.DataFrame) -> pd.DataFrame:
     df = wide.join(pages).join(prov).reset_index()
     df["commodity"] = "cotton"
     df["geography"] = _NATIONAL_GEOGRAPHY
+    # AMS-1: the derived PIT anchor. Always populated -- season is the pivot index, never null.
+    df["release_date"] = [ams_release_date(s) for s in df["season"]]
     df = df.sort_values("season").reset_index(drop=True)
 
     result = df[SILVER_COLUMNS]
     if result.duplicated(subset=["commodity", "geography", "season"]).any():
         raise ValueError("AMS cotton silver: duplicate (commodity, geography, season) rows")
-    logger.info("AMS cotton silver: %d seasons (%s..%s)  micronaire_nonnull=%d strength_nonnull=%d",
+    if result["release_date"].isna().any():
+        raise ValueError("AMS cotton silver: null release_date (the PIT anchor must never be null)")
+    logger.info("AMS cotton silver: %d seasons (%s..%s)  release_date %s..%s  "
+                "micronaire_nonnull=%d strength_nonnull=%d",
                 len(result), int(result["season"].min()), int(result["season"].max()),
+                result["release_date"].min(), result["release_date"].max(),
                 int(result["avg_micronaire"].notna().sum()), int(result["avg_strength"].notna().sum()))
     return result

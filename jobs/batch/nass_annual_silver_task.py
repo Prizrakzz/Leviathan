@@ -23,6 +23,19 @@ writer (preserving the on-disk byte layout). ``--publish-mode`` (default
 This replaces the former latest-only ``put_object`` overwrite so a red rebuild
 gate can protect the canonical writes. The projected table is never partition-
 registered in Glue (INV-3); PROJECTED cataloging is a no-op.
+
+D-LD pre-step D-LD-9a (2026-08-18)
+----------------------------------
+The transform now emits a 15th column, ``release_date`` -- the derived, never-leak
+vintage anchor (``<crop year + 1>-02-01``) the numbers card reads as
+``knowledge_date_col``. It rides the existing write path untouched: the staged
+body is ``group[OUTPUT_COLUMNS]``, so the additive tail is written with the rest.
+``write_mode: overwrite`` + ``vintage_retention: latest-only`` means ONE re-run
+with ``--force-overwrite true`` rewrites all 593 canonical objects (~5 MB); there
+is no backfill and no re-chunk. Sequencing: the gated Glue ``ADD COLUMNS
+(release_date string)`` (see
+``sql/athena/migrations/silver/20260818T000000Z_silver_nass_annual_release_date_additive.json``)
+and the F010 registry regeneration are the ORCHESTRATOR's steps, not this task's.
 """
 from __future__ import annotations
 

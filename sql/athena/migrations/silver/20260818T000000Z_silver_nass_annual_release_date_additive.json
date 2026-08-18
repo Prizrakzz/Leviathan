@@ -1,0 +1,24 @@
+{
+  "package": "D-LD (Track 1 #9, pre-step D-LD-9a)",
+  "table": "silver_nass_annual",
+  "database": "leviathan_dev",
+  "change_type": "additive_update",
+  "risk": "low",
+  "gated": true,
+  "applied": false,
+  "status": "planned -- the producer + hand DDL LEAD live Glue by this one column; apply is an orchestrator AWS step",
+  "generated_at": "2026-08-18T00:00:00+00:00",
+  "guard_mode": "planned",
+  "blocker_measured": "silver_nass_annual carried NO date, vintage, ingest or month column of any kind. Measured 2026-08-18 over EVERY canonical object with pyarrow: 593 parquet objects, 14,631 rows, 14 body columns [leviathan_slug, country, state, year, marketing_year, area_planted_ha, area_harvested_ha, yield_t_ha, production_mt, area_planted_cv_pct, area_harvested_cv_pct, yield_cv_pct, production_cv_pct, source]. `year` is the CROP year, not a knowledge date, and there is no month -- so numbers query.build_sql raised 'no knowledge/date column to anchor the as-of guard' and the table could not be carded.",
+  "mechanism": "Direct ALTER TABLE ADD COLUMNS (Athena/Hive), mirroring the WIRING_WAVE1 silver_conab_coffee survey_release_date precedent (sql/athena/migrations/silver/20260723T000000Z_silver_conab_coffee_survey_release_date_additive.json). release_date is APPENDED LAST (catalog position 14, after `source`) so live-Glue column order stays base-13 + this 1 additive tail -- byte-consistent with sql/athena/ddl/silver_nass_annual.sql and with the producer's OUTPUT_COLUMNS tail. The two Glue partition keys (commodity string, year int) are untouched.",
+  "added_columns": [
+    {"name": "release_date", "glue_type": "string"}
+  ],
+  "apply_sql": "ALTER TABLE leviathan_dev.silver_nass_annual ADD COLUMNS (release_date string);",
+  "glue_call": "glue.update_table(DatabaseName='leviathan_dev', TableInput=<desired silver_nass_annual with the 14th column appended>)  # additive; equivalently the ALTER above",
+  "derivation": "release_date = '<crop_year + 1>-02-01' (ISO YYYY-MM-DD string). USDA NASS publishes the Crop Production ANNUAL SUMMARY for crop year Y in the second week of January of Y+1; the stamp is the first of the month STRICTLY AFTER that window, so it is always >= the real release. ZERO leak, at most ~3 weeks of withhold. Pure function of the crop year => stable across re-runs. Coverage measured against the canonical parquet: 14,631 / 14,631 rows derive a valid stamp (0 null crop years).",
+  "sequencing_note": "Order: (1) apply this ALTER; (2) re-run the producer (jobs/batch/nass_annual_silver_task.py --force-overwrite true) so the 15-column bodies exist -- write_mode overwrite + vintage_retention latest-only rewrites all 593 objects, ~5 MB, no backfill/re-chunk; (3) re-snapshot + regenerate configs/silver/tables/silver_nass_annual.yaml (physical_columns += release_date string/large_string/BYTE_ARRAY/string, fingerprint glue_nonpartition_cols 13->14, physical_parquet_cols 14->15) and sql/athena/ddl_generated/silver_nass_annual.sql. Athena reads parquet by NAME so an order divergence between body and catalog is immaterial for reads, but jobs/utils/validate_athena_ddl_drift.py compares hand DDL vs live Glue IN ORDER -- the ADD COLUMNS append must match the DDL append (it does). Until (1) lands, that drift tripwire and the F011 diff report will show silver_nass_annual as hand-DDL-leads-Glue; both auto-resolve on apply + re-snapshot.",
+  "fold_in_note": "SILVER-F020 is a SET TBLPROPERTIES on the SAME table (add canola_ice to projection.commodity.values; reports/silver_readiness/R2_SA/F020_canola_migration.json, gated, applied: false). Doing both catalog edits in one orchestrator pass costs one migration instead of two. It is DELIBERATELY not folded into this artifact or into the checked-in DDL/registry: the F020 tests (tests/unit/silver/test_f020_nass_projection.py) measure the live defect against the checked-in enum, and flipping the enum here without the card's commodity_values update would let Athena and the pg mirror disagree about canola_ice.",
+  "rollback_note": "ALTER TABLE leviathan_dev.silver_nass_annual REPLACE COLUMNS (...the 13 pre-additive columns...) to drop release_date from the catalog; OR leave the column and disable the numbers card via GRAPHRAG_NUMBERS_DISABLE=silver_nass_annual (config-only, no redeploy, fail-closed). The stored parquet is unaffected either way, and the column is a timing stamp only -- it never touches a measured value.",
+  "reconciliation": "After apply + producer re-run + re-snapshot, D.structured_from_contract == D.structured_from_glue for silver_nass_annual (14 catalog columns + 2 partition keys), the F011 hand-DDL-vs-liveGlue row auto-resolves back to the pre-existing 'formatting/cosmetic' row, and config_check.check_numbers_schema_pins resolves knowledge_date_col='release_date' against this DDL."
+}

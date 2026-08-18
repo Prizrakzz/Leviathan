@@ -39,12 +39,26 @@ which is also point-in-time correct — no look-ahead bias.
 The z-score is computed per country independently.  India's 5% reading
 means something different from Ukraine's 5% reading.  Cross-country
 normalisation would destroy the signal.
+
+Point-in-time anchors (D-LD, 2026-08-18)
+----------------------------------------
+``data_date`` (the year-end observation date ``'{year}-12-31'``) and
+``release_date`` (the World Bank's own ``lastupdated`` release stamp) are
+carried through from bronze -- see
+``raw_to_bronze/world_bank_food_cpi.py`` for why they exist and why they fail
+closed.  ``data_date`` is RE-DERIVED here from ``year`` rather than trusted:
+it is a pure function of the row's own calendar year, so re-deriving makes the
+silver anchor correct even when the bronze parquet predates the pre-step,
+while ``release_date`` can only come from the response metadata and is
+required.  Both are non-null on every row, including the 66 published-absence
+rows (Russia and Ukraine before 1993).
 """
 from __future__ import annotations
 
 import pandas as pd
 
 from leviathan.common.logging import get_logger
+from leviathan.transforms.raw_to_bronze.world_bank_food_cpi import observation_data_date
 
 logger = get_logger(__name__)
 
@@ -63,7 +77,15 @@ SILVER_COLUMNS: list[str] = [
     "cpi_yoy_z_10yr",
     "cpi_available",
     "source",
+    # D-LD PIT anchors, appended AFTER `source` so the column order stays a pure suffix of the
+    # pre-remedy contract (the F010 physical_columns order the publisher writes from).
+    "data_date",
+    "release_date",
 ]
+
+#: The two derived PIT columns the D-LD pre-step adds; the F010 contract catches up in the same
+#: wave (catalog ALTER -> registry regenerate), which is why they are named once, here.
+PIT_COLUMNS: list[str] = ["data_date", "release_date"]
 
 
 def _rolling_zscore(series: pd.Series, window: int, min_periods: int) -> pd.Series:
@@ -101,7 +123,8 @@ def build_food_cpi_silver(dfs: list[pd.DataFrame]) -> pd.DataFrame:
         ``(country_iso, year)``.
 
     Raises:
-        ValueError: If no DataFrames are provided or all are empty.
+        ValueError: If no DataFrames are provided, all are empty, or the bronze
+            input carries no usable ``release_date`` PIT anchor.
     """
     if not dfs:
         raise ValueError("Food CPI silver: no input DataFrames provided")
@@ -126,6 +149,24 @@ def build_food_cpi_silver(dfs: list[pd.DataFrame]) -> pd.DataFrame:
     combined["cpi_available"]  = combined["cpi_yoy_pct"].notna().astype("int8")
     combined["source"]         = "wb_food_cpi"
 
+    # PIT anchors (D-LD). data_date is re-derived from the row's own year -- pure, so it cannot
+    # disagree with bronze and it survives a bronze parquet written before the pre-step landed.
+    combined["data_date"] = combined["year"].map(observation_data_date)
+    if "release_date" not in combined.columns:
+        raise ValueError(
+            "Food CPI silver: bronze input carries no 'release_date' -- the World Bank "
+            "'lastupdated' stamp is the table's provenance anchor and cannot be derived; "
+            "re-run the bronze extract (raw_to_bronze.world_bank_food_cpi) first"
+        )
+    missing_release = int(combined["release_date"].isna().sum()) + int(
+        (combined["release_date"].astype(str).str.strip() == "").sum()
+    )
+    if missing_release:
+        raise ValueError(
+            f"Food CPI silver: {missing_release} row(s) carry no release_date; a PIT anchor "
+            f"that can be null is not an anchor"
+        )
+
     result = (
         combined[SILVER_COLUMNS]
         .sort_values(["country_iso", "year"])
@@ -143,5 +184,14 @@ def build_food_cpi_silver(dfs: list[pd.DataFrame]) -> pd.DataFrame:
             "range=%d–%d  latest=%.1f%%",
             country, len(grp), non_null, z5_nn, yr_min, yr_max, latest,
         )
+
+    logger.info(
+        "Food CPI silver PIT anchors: data_date %d/%d non-null (%s..%s), "
+        "release_date %d/%d non-null (releases=%s)",
+        int(result["data_date"].notna().sum()), len(result),
+        result["data_date"].min(), result["data_date"].max(),
+        int(result["release_date"].notna().sum()), len(result),
+        ",".join(sorted(set(result["release_date"].dropna().astype(str)))),
+    )
 
     return result
