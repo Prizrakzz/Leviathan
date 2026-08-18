@@ -100,6 +100,12 @@ physical_columns:
   parquet_physical_type: BYTE_ARRAY
   target_arrow_type: string
   nullable: true
+- name: release_date
+  glue_type: string
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: string
+  nullable: true
 writer_schema_pinned: false
 drift_summary:
 - column: area_planted_cv_pct
@@ -125,6 +131,12 @@ drift_summary:
   current_physical: 'null'
   glue_type: double
   target: float64
+  owner_package: SILVER-F020
+- column: release_date
+  kind: null_typed
+  current_physical: null
+  glue_type: string
+  target: string
   owner_package: SILVER-F020
 natural_key:
 - commodity
@@ -165,7 +177,7 @@ fingerprint:
   catalog_hash_sha256: 318f521fd50d03d2a2d024e9f6addba1be555805f0330c3f4c847860bf8a46de
   registered_partition_count: 0
   placeholder_partition_count: 0
-  glue_nonpartition_cols: 13
+  glue_nonpartition_cols: 14
   physical_parquet_cols: 14
 provenance:
   baseline_id: 20260712_p65impl

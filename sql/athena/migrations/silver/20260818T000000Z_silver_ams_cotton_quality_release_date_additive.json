@@ -5,19 +5,23 @@
   "change_type": "additive_update",
   "risk": "low",
   "gated": true,
-  "applied": false,
+  "applied": true,
   "status": "planned -- repo (producer + hand DDL + tests) LEADS live Glue by this one column; apply is an ORCHESTRATOR AWS step",
   "generated_at": "2026-08-18T00:00:00+00:00",
   "guard_mode": "planned",
   "why": "The table had NO date column of any kind (12 physical columns, season bigint the only chronological axis). Every as-of guard branch in leviathan.graphrag.numbers.query._guard needs a knowledge/date column or BOTH year_col and month_col, so build_sql raised 'table silver_ams_cotton_quality has no knowledge/date column to anchor the as-of guard' on the first lookup and the table could not be carded. release_date is the DERIVED, conservative, never-leak publication stamp (Sep 1 of season+1) that makes the table a leakage-safe vintage numbers card.",
   "mechanism": "Direct ALTER TABLE ADD COLUMNS (Athena/Hive), mirroring the WIRING_WAVE1 silver_conab_coffee survey_release_date precedent. release_date is APPENDED LAST (position 13) so live-Glue column order stays base-12 + this 1 additive tail -- byte-consistent with sql/athena/ddl/silver_ams_cotton_quality.sql. leviathan.silver.ddl.diff_structured compares columns IN ORDER, so a mid-list insert would have required a full re-register instead; the append keeps the migration a one-liner.",
   "added_columns": [
-    {"name": "release_date", "glue_type": "string"}
+    {
+      "name": "release_date",
+      "glue_type": "string"
+    }
   ],
   "apply_sql": "ALTER TABLE leviathan_dev.silver_ams_cotton_quality ADD COLUMNS (release_date string);",
   "glue_call": "glue.update_table(DatabaseName='leviathan_dev', TableInput=<desired silver_ams_cotton_quality with the 13th column appended>)  # additive; equivalently the ALTER above",
   "sequencing_note": "1) apply this ALTER; 2) append {\"name\": \"release_date\", \"type\": \"string\"} to glue.nonpartition_columns in reports/silver_readiness/20260712_p65impl/tables/silver_ams_cotton_quality.json (the frozen R0 baseline the F010 generator reads); 3) python scripts/silver/gen_registry_from_baseline.py  (configs/silver/tables/silver_ams_cotton_quality.yaml goes 12 -> 13 physical_columns, both fingerprints change); 4) python scripts/silver/generate_ddls_from_registry.py --write; 5) ONLY THEN re-run the producer -- leviathan.silver.flat_producer.encode_parquet raises on a DataFrame column the contract does not declare, so a canonical re-run BEFORE step 3 fails closed with extra=['release_date'].",
   "rollback_note": "ALTER TABLE leviathan_dev.silver_ams_cotton_quality REPLACE COLUMNS (...the 12 pre-additive columns...) to drop release_date from the catalog; the stored parquet is unaffected. The card is not live until D-LD lands it in configs/graphrag/numbers/tables.yaml, so there is no serving surface to disable.",
   "reconciliation": "After apply + baseline re-capture + regeneration, D.structured_from_contract == D.structured_from_glue for silver_ams_cotton_quality (13 cols) and the transient f011 'hand-DDL-vs-liveGlue' row for release_date auto-resolves.",
-  "producer": "jobs/batch/ams_cotton_quality_task.py --publish-mode canonical  (flat, write_mode overwrite, ONE ~9.8 KB object silver/ams_cotton_quality/part-000.parquet; 27 rows)"
+  "producer": "jobs/batch/ams_cotton_quality_task.py --publish-mode canonical  (flat, write_mode overwrite, ONE ~9.8 KB object silver/ams_cotton_quality/part-000.parquet; 27 rows)",
+  "applied_at": "2026-08-18T14:30:00Z (Athena ALTER SUCCEEDED, D-LD tranche-2 landing batch)"
 }

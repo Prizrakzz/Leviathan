@@ -14,7 +14,8 @@ CREATE EXTERNAL TABLE IF NOT EXISTS silver_fnc_colombia_area_department (
     department     string,
     department_raw string,
     area_ha        double,
-    source         string
+    source         string,
+    ingest_date    string
 )
 PARTITIONED BY (commodity string, year int)
 STORED AS PARQUET

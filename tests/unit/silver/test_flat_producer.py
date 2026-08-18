@@ -14,7 +14,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from leviathan.common.publish_guard import (
     ApprovalError,
@@ -43,9 +43,12 @@ def contract():
 
 
 def _df(exports=(2.5e6, 1.8e6)):
+    # D-LD Tranche-2: the fixture contract (mpoc) now stages the year_ending_date PIT anchor
+    # (CURATION_OVERRIDES additive_columns_hidden), so the frame carries it like the producer does.
     return pd.DataFrame({
         "year": [2023, 2023], "country": ["china", "india"],
         "exports_mt": list(exports), "source": ["mpoc", "mpoc"],
+        "year_ending_date": [date(2023, 12, 31), date(2023, 12, 31)],
     })
 
 
@@ -61,17 +64,21 @@ class TestArrowSchema:
 
     def test_schema_order_and_nullability(self, contract):
         sch = pa_schema_from_contract(contract)
-        assert sch.names == ["year", "country", "exports_mt", "source"]
+        assert sch.names == ["year", "country", "exports_mt", "source", "year_ending_date"]
         assert sch.field("year").nullable is False        # natural-key column
         assert sch.field("exports_mt").nullable is True
         assert sch.field("exports_mt").type == pa.float64()
+        # D-LD Tranche-2 staged anchor: non-null by override (a null PIT anchor silently drops the
+        # row at the guard -- null <= asof is UNKNOWN), date32 physical.
+        assert sch.field("year_ending_date").nullable is False
+        assert sch.field("year_ending_date").type == pa.date32()
 
 
 class TestEncode:
     def test_all_null_measure_is_double_not_null(self, contract):
         # the s3-lane null-type hazard: an all-null measure column must write as double.
         df = pd.DataFrame({"year": [2023], "country": ["china"], "exports_mt": [None],
-                           "source": ["mpoc"]})
+                           "source": ["mpoc"], "year_ending_date": [date(2023, 12, 31)]})
         t = pq.read_table(io.BytesIO(encode_parquet(df, contract)))
         assert t.schema.field("exports_mt").type == pa.float64()
 

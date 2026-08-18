@@ -40,6 +40,12 @@ physical_columns:
   parquet_physical_type: BYTE_ARRAY
   target_arrow_type: string
   nullable: true
+- name: year_ending_date
+  glue_type: null
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: date32[day]
+  nullable: false
 writer_schema_pinned: true
 drift_summary: []
 natural_key:

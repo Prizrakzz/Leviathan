@@ -19,7 +19,8 @@ CREATE EXTERNAL TABLE IF NOT EXISTS silver_ams_cotton_quality (
     source_pages       string,
     source_raw_key     string,
     source_file_etag   string,
-    source             string
+    source             string,
+    release_date       string
 )
 STORED AS PARQUET
 LOCATION 's3://leviathan-dev-shahem-001/silver/ams_cotton_quality/'

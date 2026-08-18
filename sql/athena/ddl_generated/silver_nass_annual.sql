@@ -21,7 +21,8 @@ CREATE EXTERNAL TABLE IF NOT EXISTS silver_nass_annual (
     area_harvested_cv_pct double,
     yield_cv_pct          double,
     production_cv_pct     double,
-    source                string
+    source                string,
+    release_date          string
 )
 PARTITIONED BY (commodity string, year int)
 STORED AS PARQUET

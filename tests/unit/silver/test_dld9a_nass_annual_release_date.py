@@ -111,13 +111,15 @@ def test_producer_tail_matches_the_ddl_tail():
     assert ddl_cols == [c for c in OUTPUT_COLUMNS if c != "year"]
 
 
-def test_migration_is_authored_gated_and_not_applied():
-    """INV-1 / the R2 convention: this repo change authors the catalog edit, it never applies it.
-    The orchestrator fires the ALTER; nothing here touches AWS."""
+def test_migration_is_authored_gated_and_applied():
+    """INV-1 / the R2 convention: the repo change AUTHORED the catalog edit gated (applied:false);
+    the orchestrator fired the ALTER on 2026-08-18 (Athena SUCCEEDED, D-LD tranche-2 landing batch)
+    and flipped the record to applied:true in the same batch. This pin now guards the RECORD's
+    truthfulness both ways: gated authorship stands, and applied reflects the live catalog."""
     m = _migration()
     assert m["table"] == _TABLE and m["database"] == "leviathan_dev"
     assert m["gated"] is True
-    assert m["applied"] is False
+    assert m["applied"] is True
     assert m["change_type"] == "additive_update"
     assert m["added_columns"] == [{"name": _ANCHOR, "glue_type": "string"}]
     assert m["apply_sql"] == (

@@ -88,6 +88,12 @@ physical_columns:
   parquet_physical_type: BYTE_ARRAY
   target_arrow_type: string
   nullable: true
+- name: release_date
+  glue_type: string
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: string
+  nullable: true
 writer_schema_pinned: false
 drift_summary:
 - column: avg_micronaire
@@ -101,6 +107,12 @@ drift_summary:
   current_physical: 'null'
   glue_type: double
   target: float64
+  owner_package: SILVER-F050
+- column: release_date
+  kind: null_typed
+  current_physical: null
+  glue_type: string
+  target: string
   owner_package: SILVER-F050
 natural_key:
 - commodity
@@ -139,7 +151,7 @@ fingerprint:
   catalog_hash_sha256: 603aa063878239cdf30cb43df47bccdb4b414410ad5133fc789812bd69e37149
   registered_partition_count: 0
   placeholder_partition_count: 0
-  glue_nonpartition_cols: 12
+  glue_nonpartition_cols: 13
   physical_parquet_cols: 12
 provenance:
   baseline_id: 20260712_p65impl

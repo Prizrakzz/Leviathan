@@ -70,8 +70,20 @@ physical_columns:
   parquet_physical_type: BYTE_ARRAY
   target_arrow_type: string
   nullable: true
+- name: week_ending_date
+  glue_type: date
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: date32[day]
+  nullable: true
 writer_schema_pinned: false
-drift_summary: []
+drift_summary:
+- column: week_ending_date
+  kind: null_typed
+  current_physical: null
+  glue_type: date
+  target: date32[day]
+  owner_package: SILVER-F042
 natural_key:
 - season
 - crop
@@ -110,7 +122,7 @@ fingerprint:
   catalog_hash_sha256: ef9e046cd8832c2d9780a6395d9d1eb5c44059c4f45fe41fbee4a164a6cec079
   registered_partition_count: 0
   placeholder_partition_count: 0
-  glue_nonpartition_cols: 9
+  glue_nonpartition_cols: 10
   physical_parquet_cols: 9
 provenance:
   baseline_id: 20260712_p65impl

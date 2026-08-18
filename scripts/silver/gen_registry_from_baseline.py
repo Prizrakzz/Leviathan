@@ -753,6 +753,18 @@ CURATION_OVERRIDES: dict = {
     "silver_chirps": _F047_WEATHER_NOTE,
     "silver_nasa_power": _F047_WEATHER_NOTE,
     "silver_cpc_soil": _F047_WEATHER_NOTE,
+    # D-LD TRANCHE 2 (2026-08-18): the derived PIT anchor year_ending_date. Staged HIDDEN
+    # (glue_type=None) exactly as SILVER-F059 staged sagis week_ending_date -- the registry gains the
+    # column so flat_producer can encode it (the writer arrow schema keys on target_arrow_type), while
+    # ddl.catalog_columns() still renders FOUR columns == live Glue, so
+    # test_generated_matches_live_glue_for_every_table stays green until the gated ADD COLUMNS lands
+    # (diff_structured does NOT compare physical_only columns -- verified at ddl.py:288).
+    # nullable_overrides pins it NON-NULL: it is derived from the page year and can never be missing,
+    # and a null would silently defeat the PIT guard (null <= asof is UNKNOWN, so the row drops).
+    "silver_mpoc_exports_by_country": {
+        "additive_columns_hidden": [("year_ending_date", "date32[day]")],
+        "nullable_overrides": {"year_ending_date": False},
+    },
     # ── R4 cadence calibration: _cadence(grain) infers RELEASE cadence from DATA grain, which is
     # wrong wherever the two differ (a daily-grain table from a weekly/monthly release). These
     # cadences feed only the interim F082 freshness-alarm ceilings (dag_catalog); max_lag_days
