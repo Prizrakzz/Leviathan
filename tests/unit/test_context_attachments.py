@@ -78,6 +78,32 @@ def test_edge_attachment_mechanism_is_server_derived():
     assert att2["focus_driver"] == "la_nina" and "La Nina raises" in att2["block"]
 
 
+def test_a_cascade_hop_edge_seeds_the_edges_RESOLVED_contract():
+    """D-EC-P0 #68. A clicked cascade-hop edge seeds the foreign market, and `target` is the string the
+    YAML declared -- which on the real estate is usually a bare NODE name (`soybean_oil`), never a
+    contract. Seeding the raw target silently no-opped (`_seed` fences on `graph.contracts`), so the
+    gesture bought the block but not the walk; the seed is now `cross_links`' resolved `target_contract`.
+    The declaring contract is seeded either way."""
+    drv = list(_graph().contracts["arabica_coffee"].drivers)
+    # REAL contract ids on synthetic drivers, the test_dmw_p6 idiom: the alias rule is a CONFIG fact and a
+    # fixture of invented ids would exercise none of it.
+    gr = g.CausalGraph(
+        {"malaysian_crude_palm_oil_cme": cs.CausalContract(
+            contract="malaysian_crude_palm_oil_cme", drivers=drv,
+            inter_commodity=[cs.InterCommodityEdge(driver_commodity="soybean_oil", relation="substitutes_for",
+                                                   sign="-", mechanism="palm and soyoil compete in the bid")]),
+         "soybean_oil_cbot": cs.CausalContract(contract="soybean_oil_cbot", drivers=drv)}, silver=set())
+    e = gr.cross_links("malaysian_crude_palm_oil_cme")[0]
+    assert e["driver_commodity"] == "soybean_oil" and "soybean_oil" not in gr.contracts, \
+        "non-vacuity: the declared target is a NODE, so only the resolution can make it a seed"
+    assert (e["tracked"], e["target_contract"]) == (True, "soybean_oil_cbot")
+    att = orch._resolve_attachments(
+        [{"type": "edge", "contract": "malaysian_crude_palm_oil_cme",
+          "source": "malaysian_crude_palm_oil_cme", "target": "soybean_oil"}], gr, "2024-06-01")
+    assert att["contracts"] == ["malaysian_crude_palm_oil_cme", "soybean_oil_cbot"]
+    assert "CASCADE LINK: malaysian_crude_palm_oil_cme --> soybean_oil" in att["block"]   # names the EDGE
+
+
 def test_event_driver_is_code_mapped_and_client_id_ignored():
     att = orch._resolve_attachments(
         [{"type": "event", "event_type": "export_ban", "commodity": "corn",

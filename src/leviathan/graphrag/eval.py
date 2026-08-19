@@ -397,6 +397,24 @@ def _episode_lines(out: dict) -> list[str]:
 # of it, that the bullet's window is one the engine actually showed the model.
 _YM_RX = re.compile(r"(?<!\d)((?:1[6-9]\d{2}|20\d{2}))-(0[1-9]|1[0-2])(?!\d)")
 _SPAN_YEARS_CAP = 60                                      # a sane bound on year-fallback widening
+# THE ENGINE'S OWN RECEIPT STAMP, subtracted before any date on a bullet is read as a window claim
+# (adversarial review 2026-08-19, remedy (b)). `answer._scaffold_section` signs a receipted bullet with
+# `the dated item [E<k>] recorded <date>`, and since the D-EC P0 receipt-axis fix that date can be a PAIR
+# -- `recorded <in-window date> (reported <publication date>)`. Neither half is a window the bullet is
+# CLAIMING: they are the citation's own timestamps, written by the engine, on a line whose window is the
+# span two tokens earlier. Reading them as window claims widens the bipartite adjacency `_max_matching`
+# consumes, and the widening runs in the FALSE-GREEN direction: the reviewer reproduced one bullet whose
+# targets went {0} -> {0,1} purely because the publication year-month happened to equal a SECOND injected
+# episode's endpoint -- which re-opens the repeat-bullet exploit `_max_matching` was built to close (two
+# copies of one bullet would then match two distinct episodes). So the stamp is subtracted, and the match
+# rides only on dates the bullet wrote as WINDOW dates.
+# DELIBERATELY NARROW, because over-stripping is the other direction of the same failure -- a
+# model-authored date the bullet really is claiming must still be read. Both alternatives require the
+# engine's literal lead word AND a full day-grain ISO date; a bare 'recorded 2020' or 'reported in
+# 2020-03' matches neither and is left in the line for tokenization exactly as before.
+_ENGINE_RECEIPT_STAMP_RX = re.compile(
+    r"\brecorded\s+\d{4}-\d{2}-\d{2}(?:\s*\(\s*reported\s+\d{4}-\d{2}-\d{2}\s*\))?"
+    r"|\(\s*reported\s+\d{4}-\d{2}-\d{2}\s*\)")
 
 
 def _injected_episodes(out: dict) -> list[dict]:
@@ -448,11 +466,18 @@ def _line_targets(line: str, injected: list[dict]) -> set[int]:
     and be scored as an enumeration of it. That is precisely the confabulation shape P3 exists to catch
     (a narrated event in a window the timeline does not carry), so it must red. The cost is a bullet that
     writes an interior month instead of the span it was shown; that is a departure from the instructed
-    shape, and a false RED on a deterministic pin is visible in the row table while a false GREEN is not."""
-    yms = {f"{y}-{m}" for y, m in _YM_RX.findall(line or "")}
+    shape, and a false RED on a deterministic pin is visible in the row table while a false GREEN is not.
+
+    THE ENGINE'S OWN RECEIPT STAMP IS NOT A WINDOW CLAIM and is subtracted first -- see
+    `_ENGINE_RECEIPT_STAMP_RX` for the reproduction that made it load-bearing. The subtraction happens
+    ONCE, ahead of the tier split, because the tier is decided by "did the BULLET write a year-month" and
+    a citation timestamp the engine printed is not the bullet answering that question. Both tiers then
+    read the same subtracted line, so the two cannot disagree about which dates the bullet claimed."""
+    text = _ENGINE_RECEIPT_STAMP_RX.sub(" ", line or "")
+    yms = {f"{y}-{m}" for y, m in _YM_RX.findall(text)}
     if yms:
         return {i for i, e in enumerate(injected) if yms & {e["start"], e["end"]}}
-    years = set(_EPISODE_YEAR_RX.findall(line or ""))
+    years = set(_EPISODE_YEAR_RX.findall(text))
     return {i for i, e in enumerate(injected) if years & _span_years(e)}
 
 

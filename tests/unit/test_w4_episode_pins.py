@@ -469,6 +469,74 @@ def test_two_bullets_whose_year_sets_overlap_still_count_as_two():
     assert _pins({"min_episode_lines": 2}, out)["min_episode_lines"] is True
 
 
+# -- the ENGINE'S OWN RECEIPT STAMP is not a window claim (D-EC P0 axis fix, remedy (b)) --------------
+# `answer._scaffold_section` signs a receipted bullet `the dated item [E<k>] recorded <date>`, and since
+# the receipt axis was corrected that date is a PAIR whenever the two axes disagree: `recorded
+# <in-window date> (reported <publication date>)`. Both are the CITATION's timestamps, not windows the
+# bullet is claiming -- and reading them as claims widens the adjacency `_max_matching` consumes, in the
+# FALSE-GREEN direction. Reproduced below exactly: one bullet's targets go {0} -> {0,1} on the stamp
+# alone, and two IDENTICAL copies of it then match two distinct episodes -- the repeat-bullet exploit
+# `_max_matching` exists to close, re-opened by a rendering change.
+_STAMP_INJ = _inj("1978-08..1980-10", node="yellow_maize") + _inj("1979-06..1979-09", node="drivers/frost")
+_STAMP_BULLET = ("- 1978-08..1980-10 -- yellow_maize: the dated item [E7] recorded 1979-06-11 "
+                 "(reported 2020-03-15) reports a freeze cut the belt harvest; "
+                 "no observed magnitude for this window.")
+_PRE_STAMP_BULLET = ("- 1978-08..1980-10 -- yellow_maize: the dated item [E7] recorded 2020-03-15 "
+                     "reports a freeze cut the belt harvest; "
+                     "no observed magnitude for this window.")
+
+
+def test_the_engine_receipt_stamp_does_not_widen_the_adjacency():
+    """The bullet enumerates ONE injected window (1978-08..1980-10). Its receipt's in-window date lands
+    in a SECOND injected episode's endpoint month (1979-06) purely by corpus coincidence, and its
+    publication date lands in neither. Both stamp halves must be invisible to the match, so the bullet
+    targets exactly the window it wrote -- identically before and after the rendering change."""
+    inj = ev._injected_episodes(_out("x", injected=_STAMP_INJ))
+    assert len(inj) == 2
+    assert ev._line_targets(_PRE_STAMP_BULLET, inj) == {0}
+    assert ev._line_targets(_STAMP_BULLET, inj) == {0}               # WAS {0,1}: the stamp widened it
+
+
+def test_two_identical_stamped_bullets_are_still_ONE_enumerated_episode():
+    """THE EXPLOIT THE WIDENING RE-OPENED, stated as the number `min_episode_lines` reads. Two copies of
+    one bullet are one enumerated episode; with the stamp inside the adjacency they matched TWO, so a
+    section that repeats a single window would have satisfied `min_episode_lines: 2`."""
+    inj = ev._injected_episodes(_out("x", injected=_STAMP_INJ))
+    adj = [ev._line_targets(_STAMP_BULLET, inj), ev._line_targets(_STAMP_BULLET, inj)]
+    assert ev._max_matching(adj) == 1                                # WAS 2
+    # ...and the unsubtracted tokenization is what the 2 came from -- the defect, reproduced in place so
+    # this pin cannot pass merely because the fixture stopped exercising it.
+    raw = [{i for i, e in enumerate(inj)
+            if {f"{y}-{m}" for y, m in ev._YM_RX.findall(b)} & {e["start"], e["end"]}}
+           for b in (_STAMP_BULLET, _STAMP_BULLET)]
+    assert raw == [{0, 1}, {0, 1}] and ev._max_matching(raw) == 2
+    # end to end, through the scorer the deck actually reads
+    mech = "## Episodes\n" + _STAMP_BULLET + "\n" + _STAMP_BULLET + "\n"
+    out = _out(mech, [], injected=_STAMP_INJ)
+    _lines, _adj, distinct = ev._episode_enumeration(out)
+    assert distinct == 1
+    assert _pins({"min_episode_lines": 2}, out)["min_episode_lines"] is False
+
+
+def test_the_stamp_subtraction_leaves_a_model_authored_date_alone():
+    """The other direction of the same failure. The subtraction requires the engine's literal lead word
+    AND a full day-grain ISO date, so a window the MODEL wrote -- and the coarser shapes a model reaches
+    for -- are still read as claims. Over-stripping would manufacture false reds on honest bullets."""
+    inj = ev._injected_episodes(_out("x", injected=_STAMP_INJ))
+    # a bare year-month the model wrote itself, with no stamp anywhere on the line
+    assert ev._line_targets("- 1979-06..1979-09 -- drivers/frost: no citable item in this window.",
+                            inj) == {1}
+    # 'recorded' WITHOUT a day-grain date is not the engine's stamp and is not subtracted
+    assert ev._line_targets("- the frost recorded 1979-06 through 1979-09 was severe.", inj) == {1}
+    # the stamp is subtracted, the model's own second window on the same line is NOT
+    assert ev._line_targets("- 1978-08..1980-10 -- yellow_maize: the dated item [E7] recorded "
+                            "1979-06-11 (reported 2020-03-15) reports it was milder than "
+                            "1979-06..1979-09.", inj) == {0, 1}
+    # tier 2 (no year-month at all once the stamp is gone) still falls back to the YEAR overlap
+    assert ev._line_targets("- 1979 frost: the dated item [E7] recorded 1979-06-11 "
+                            "(reported 2020-03-15) reports a freeze.", inj) == {0, 1}
+
+
 # -- W4-N1: the judge can SEE the injected episodes ---------------------------------------------------
 def _judge_user(out, query=None):
     """Capture the verbatim user string eval.judge() builds -- the same technique that MEASURED the

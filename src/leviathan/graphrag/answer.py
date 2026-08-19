@@ -4508,7 +4508,16 @@ def _scaffold_section(plan: list[tuple], market_register: str, *, degraded: bool
     engine-authored remainder (span, label, handle, date, magnitude), which carries no corpus text at all
     and therefore cannot be strippable for anything a source said. The bullet STILL CITES -- that is the
     property that makes degradation an acceptable answer to a failed reconciliation and a decline the
-    answer only when even this form does not survive."""
+    answer only when even this form does not survive.
+
+    THE `date` SLOT IS `timeline.receipt_when`'s OUTPUT, not `receipt["date"]` (adversarial review
+    2026-08-19, remedy (a)) -- so it reads `recorded <in-window date> (reported <publication date>)`
+    whenever the receipt's two axes disagree, and BYTE-IDENTICALLY `recorded <date>` when they agree.
+    The composition here is unchanged: this function still only interpolates whatever the plan carries,
+    and the plan is built one producer up. The parenthetical adds no span-shaped token
+    (`_EPISODE_SPAN_SHAPE_RX` requires '..'), no bare numeral `register._level_tokens` can see (ISO dates
+    are `_NUM_NOISE`) and no absence or derivation vocabulary, so every leg of `_scaffold_survives` reads
+    exactly as before -- asserted, not assumed, by the fences pinned in the scaffold suite."""
     lines = ["## Episodes"]
     for span, label, ref, date, restatement in plan:
         if ref is None:
@@ -4856,7 +4865,13 @@ def _maybe_scaffold_episodes(structured: dict | None, verifier: dict | None, *,
                                 **({"source_key": item["source_key"]} if item.get("source_key") else {})})
             synthesized.append(ref)
         minted[key] = ref
-        plan.append((span, node, ref, str(receipt.get("date"))[:10],
+        # THE RENDERED DATE IS THE RECEIPT'S IN-WINDOW DATE, with the publication date beside it -- the
+        # SAME producer `timeline.render_line` shows the model (`tl.receipt_when`), never a second
+        # spelling. Reading `receipt["date"]` here printed the PUBLICATION date bare under a span the
+        # reader can see it sits outside of, on 567 of 567 newly-receiptable episodes and 37.5% of the
+        # ones above the corroboration floor. `_receipt_item` above still joins on `receipt["date"]`,
+        # which is why that key stayed the publication date; this slot is the READER's, not the join's.
+        plan.append((span, node, ref, _tl.receipt_when(receipt),
                      _scaffold_restatement(receipt, market_register)))
     if not plan:
         return _declined("no_bullets")

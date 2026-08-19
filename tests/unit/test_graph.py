@@ -96,9 +96,14 @@ def test_regimes_fire_on_threshold_and_interactions():
 
 
 def test_cross_links_tracked_flag():
+    """D-EC-P0 #68: `tracked` is now 'the edge RESOLVES to a loadable hop', and `target_contract` names the
+    contract the walk enqueues. On a graph whose ids are their own nodes the two read the same as the old
+    string test -- the resolution only ever moves a BARE node name or a fenced base yaml."""
     cl = {e["driver_commodity"]: e for e in _graph().cross_links("arabica_coffee")}
     assert cl["robusta_coffee"]["tracked"] is True                   # a loaded contract -> a real hop
+    assert cl["robusta_coffee"]["target_contract"] == "robusta_coffee"      # ...and it is its own target
     assert cl["crude_oil_untracked"]["tracked"] is False             # not loaded -> context only
+    assert cl["crude_oil_untracked"]["target_contract"] is None
     assert cl["robusta_coffee"]["sign"] == "-"
 
 

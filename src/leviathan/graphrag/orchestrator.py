@@ -919,8 +919,9 @@ def _resolve_attachments(context, graph, asof: str) -> dict:
                     continue
                 mech = xl.get("mechanism") or ""
                 _seed(a.contract)
-                if xl.get("tracked"):
-                    _seed(tgt)                     # an untracked target can't seed a walk; the block carries it
+                if xl.get("tracked"):              # an untracked target can't seed a walk; the block carries it
+                    _seed(xl.get("target_contract") or tgt)   # D-EC-P0 #68: the edge's RESOLVED contract
+                                                              # ('soybean_oil' is a node, never a seed)
             else:
                 continue
             node_edge_lines.append(f"- CASCADE LINK: {src} --> {tgt} [{a.contract}] -- "

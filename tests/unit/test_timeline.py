@@ -67,6 +67,126 @@ def test_receipt_attaches_in_window_prop_and_renders(monkeypatch, tmp_path):
     tl.reset_cache()
 
 
+# ── D-EC P0 / task #67: THE RECEIPT AXIS ───────────────────────────────────────────────────────────
+# The measured defect: cluster() builds the window from COALESCE(event_date, date) while episodes_for()
+# matched a receipt on h["date"], the publication date. 583 of 1,118 scored episodes (52.1%) therefore
+# had ZERO contributing prop whose PUBLICATION date landed inside their own window -- unreceiptable no
+# matter how good retrieval got. These pin the reconstruction, both directions, and the PIT floor.
+def _one_window(tmp_path, monkeypatch, dates=("1979-06-01", "1979-09-01", "1980-02-01")):
+    """One artifact holding a single event-dated window for `drivers/frost`, kill-switch ON."""
+    art = tmp_path / "episodes.json"
+    art.write_text(json.dumps({"drivers/frost": [
+        {"start": dates[0], "end": dates[-1], "dates": list(dates)}]}), encoding="utf-8")
+    monkeypatch.setenv("GRAPHRAG_TIMELINE_PATH", str(art))
+    monkeypatch.setenv("GRAPHRAG_TIMELINE", "on")
+    tl.reset_cache()
+
+
+def test_receipt_matches_on_the_window_axis_not_the_publication_axis(tmp_path, monkeypatch):
+    _one_window(tmp_path, monkeypatch)
+    # THE DEFECT, RECONSTRUCTED: a 2020 retrospective narrating 1979. Its publication date is 40 years
+    # outside the window; its event date -- the axis the window was clustered on -- is inside it. Before
+    # the fix this episode rendered _NO_RECEIPT with the citable item sitting in the same prompt.
+    ev = [{"date": "2020-01-15", "event_date": "1979-07-04",
+           "text": "The 1979 harvest was cut by a July freeze across the belt."}]
+    eps = tl.episodes_for("drivers/frost", "2026-01-01", evidence=ev)
+    r = eps[0]["receipt"]
+    assert r is not None                                             # WAS None on the publication axis
+    # THE CONTRACT SHAPE IS UNMOVED: `date` is still the PUBLICATION date, because answer._receipt_item
+    # joins the receipt back to this turn's evidence on it and an unmatched receipt declines the whole
+    # D-DT-1 scaffold. The in-window date rides BESIDE it, only because the two disagree.
+    assert r["date"] == "2020-01-15" and r["event_date"] == "1979-07-04"
+    assert "July freeze" in r["text"]
+    line = tl.render_line("frost", eps)
+    assert 'e.g. 1979-07-04 (reported 2020-01-15): "The 1979 harvest' in line
+    assert tl._NO_RECEIPT not in line
+    monkeypatch.delenv("GRAPHRAG_TIMELINE")
+    monkeypatch.delenv("GRAPHRAG_TIMELINE_PATH")
+    tl.reset_cache()
+
+
+def test_receipt_axis_still_refuses_the_prop_that_is_in_NEITHER(tmp_path, monkeypatch):
+    _one_window(tmp_path, monkeypatch)
+    # Neither axis lands inside 1979-06..1980-02, so the window stays honestly receipt-less. The axis fix
+    # is not a widening: absence stated is still the answer when the corpus holds nothing for the window.
+    ev = [{"date": "2020-01-15", "event_date": "2014-03-02", "text": "A 2014 frost, narrated in 2020."},
+          {"date": "1990-05-05", "text": "A 1990 report with no event date at all."}]
+    eps = tl.episodes_for("drivers/frost", "2026-01-01", evidence=ev)
+    assert eps[0]["receipt"] is None
+    assert tl._NO_RECEIPT in tl.render_line("frost", eps)
+    monkeypatch.delenv("GRAPHRAG_TIMELINE")
+    monkeypatch.delenv("GRAPHRAG_TIMELINE_PATH")
+    tl.reset_cache()
+
+
+def test_receipt_axis_drops_the_publication_date_coincidence(tmp_path, monkeypatch):
+    _one_window(tmp_path, monkeypatch)
+    # THE INVERSE, and the reason this is a correction rather than a widening. A document PUBLISHED
+    # inside the window that is about something else entirely used to receipt it -- the old axis could
+    # not tell "published during" from "about". It no longer can be quoted as backing for this window.
+    ev = [{"date": "1979-08-01", "event_date": "2011-05-05", "text": "About a 2011 event, published 1979."}]
+    eps = tl.episodes_for("drivers/frost", "2026-01-01", evidence=ev)
+    assert eps[0]["receipt"] is None
+    monkeypatch.delenv("GRAPHRAG_TIMELINE")
+    monkeypatch.delenv("GRAPHRAG_TIMELINE_PATH")
+    tl.reset_cache()
+
+
+def test_receipt_axis_is_pit_safe_on_both_axes(tmp_path, monkeypatch):
+    _one_window(tmp_path, monkeypatch, dates=("2021-06-01", "2021-07-10", "2025-08-20"))
+    # PIT: `vis` clamps the window to prop dates <= asof, so `end <= asof` ALWAYS -- and a prop can only
+    # receipt a window it is INSIDE. An item dated after the as-of on either axis is therefore
+    # unreachable at any axis, which is the whole leakage argument: matching on event_date changes WHICH
+    # admitted row is pointed at, never WHETHER a row is admitted (retrieval filters date <= asof
+    # upstream and is untouched here).
+    ev = [{"date": "2025-08-20", "event_date": "2025-08-19", "text": "post-asof on both axes"},
+          {"date": "2021-07-01", "event_date": "2025-08-15", "text": "published pre-asof, EVENT post-asof"}]
+    eps = tl.episodes_for("drivers/frost", "2021-08-01", evidence=ev)
+    assert eps[0]["end"] == "2021-07-10"                             # the 2025 prop date is not yet known
+    assert eps[0]["receipt"] is None                                 # neither item can reach the window
+    monkeypatch.delenv("GRAPHRAG_TIMELINE")
+    monkeypatch.delenv("GRAPHRAG_TIMELINE_PATH")
+    tl.reset_cache()
+
+
+def test_axis_date_coalesces_on_presence_exactly_like_derive():
+    # COALESCE takes event_date whenever it is NON-NULL and cluster() then drops whatever does not parse,
+    # so a present-but-unparseable event_date leaves the prop with NO position on the axis -- it built no
+    # window, so it may receipt none. Absent/blank falls through to the publication date.
+    assert tl.axis_date({"date": "2020-01-15", "event_date": "1979-07-04"}) == "1979-07-04"
+    assert tl.axis_date({"date": "2020-01-15"}) == "2020-01-15"
+    assert tl.axis_date({"date": "2020-01-15", "event_date": None}) == "2020-01-15"
+    assert tl.axis_date({"date": "2020-01-15", "event_date": ""}) == "2020-01-15"
+    assert tl.axis_date({"date": "2020-01-15", "event_date": "1979-06"}) == ""      # month grain: no position
+    assert tl.axis_date({"date": "2020-01-15", "event_date": "circa 1979"}) == ""
+    assert tl.axis_date({"date": None}) == "" and tl.axis_date(None) == ""
+
+
+def test_receipt_render_is_byte_identical_when_the_axes_agree():
+    # A corpus with no recovered event dates renders exactly the pre-fix line: one date, no parenthetical.
+    eps = [{"start": "2021-06-01", "end": "2021-07-10", "n": 2,
+            "receipt": {"date": "2021-07-10", "text": "A damaging frost hit southern Minas Gerais."}}]
+    assert '; e.g. 2021-07-10: "A damaging frost' in tl.render_line("frost", eps)
+    assert "(reported" not in tl.render_line("frost", eps)
+
+
+def test_event_dated_receipt_still_resolves_through_the_scaffold_join(tmp_path, monkeypatch):
+    # THE DOWNSTREAM PIN. answer._receipt_item recovers the turn's OWN evidence row from the receipt by
+    # (date, text prefix) and a MISS declines the entire D-DT-1 episode scaffold -- so re-pointing
+    # receipt["date"] at the event axis would have traded a 52% unreceiptable rate for a 100% decline.
+    from leviathan.graphrag import answer as ans
+    _one_window(tmp_path, monkeypatch)
+    ev = [{"date": "2020-01-15", "event_date": "1979-07-04", "source": "wb_cmo_outlook",
+           "source_key": "s3://text/wb_cmo_outlook/2020-01-15/document.json",
+           "text": "The 1979 harvest was cut by a July freeze across the belt."}]
+    eps = tl.episodes_for("drivers/frost", "2026-01-01", evidence=ev)
+    item = ans._receipt_item(eps[0]["receipt"], ev)
+    assert item is not None and item["source_key"].endswith("document.json")
+    monkeypatch.delenv("GRAPHRAG_TIMELINE")
+    monkeypatch.delenv("GRAPHRAG_TIMELINE_PATH")
+    tl.reset_cache()
+
+
 def test_derive_with_fake_query_fn_and_render():
     eps = tl.derive(query_fn=lambda sql: [
         {"node": "drivers/frost", "d": "2021-06-01"}, {"node": "drivers/frost", "d": "2021-07-01"},

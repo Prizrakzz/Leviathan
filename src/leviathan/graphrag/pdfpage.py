@@ -4,6 +4,11 @@ A serving citation's ``source_key`` is the TEXT-LAYER key ``text/.../document.js
 key lives INSIDE that json (``raw_key``), so recovery is a mandatory 2-hop: GET ``document.json`` -> ``raw_key``
 (a BARE key in the SAME bucket) -> presign. Page recovery then branches on how the text was extracted:
 
+  0. TEXT-LAYER PAGE MAP (fnc): the extractor already emitted one section PER PDF PAGE, named with that page
+     (``fnc_informe_mensual_page_02``), and ``'\\n\\n'.join(sections)`` reproduces ``full_text`` byte-for-byte.
+     The page map is therefore derivable from ``document.json`` alone -- prefix sums of section lengths -- with
+     ZERO pdf I/O. Checked before every pdfplumber path, and only accepted when the join property holds for THAT
+     doc; when it does not (or a section carries no page in its name) the answer is page-unknown, never a guess.
   1. NATIVE pdf + OFFSETS ('exact'/'block'): DETERMINISTIC char->page. Re-run pdfplumber page-by-page REPLICATING
      the extractor's exact pipeline (GAIN skips blank + FAS-footer pages; WAP = pages 1-6; WASDE-digital = pages
      1-7; MPOB = pages 1-5 header/footer-cleaned) so the reconstructed ``full_text`` is byte-identical to the one
@@ -28,6 +33,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import re
 from collections import OrderedDict
 from difflib import SequenceMatcher
 from typing import Optional
@@ -40,6 +46,10 @@ _FULLTEXT_CAP = 60000             # mirrors evidence_batch._FULLTEXT_CAP: the ch
 _FUZZY_THRESHOLD = 0.85           # difflib longest-contiguous-match / len(snippet) to accept a fuzzy page hit
 _WAP_MAX_PAGES = 6                # usda_wap extractor reads pdf.pages[0:6] (narrative; page 6 is the table)
 _WASDE_DIGITAL_MAX_PAGES = 7      # wasde_digital reads pdf.pages[0:7] (highlights + ToC)
+
+_SECTION_PAGE_SOURCES = ("fnc",)  # sources whose text layer ALREADY carries a per-page section map (branch 0)
+_SECTION_PAGE_SEP = "\n\n"        # the separator whose join of those sections reproduces full_text byte-for-byte
+_SECTION_PAGE_RE = re.compile(r"_page_(\d{1,4})$")   # '<publisher>_page_07' -> the REAL 1-indexed pdf page
 
 _DOC_CACHE_MAX = 512              # document.json is immutable per vintage -> cache freely, bounded LRU
 _PAGES_CACHE_MAX = 64            # reconstructed per-page text keyed by raw_key (the expensive pdfplumber pass)
@@ -140,6 +150,45 @@ def _presign(raw_key: str) -> str:
         return ""
 
 
+def _section_pages(doc: dict) -> Optional[tuple]:
+    """Branch 0: build ``([(real_page, text), ...], sep)`` from the TEXT LAYER for a ``_SECTION_PAGE_SOURCES``
+    family, or None when this document cannot supply an honest map. Zero S3 GETs, zero pdfplumber -- the same
+    shape ``_reconstruct_pages`` returns, so ``_char_to_page`` / ``_fuzzy_page`` consume it unchanged.
+
+    fnc's extractor emits one section per pdf page and stamps the REAL 1-indexed page into the section NAME
+    (``fnc_informe_mensual_page_02``), so the page a char offset lands on is a prefix sum of section lengths.
+    Two properties are verified PER DOC before the map is trusted, because the fnc text-layer producer is not
+    in this repo and the convention is read off the data, not off code:
+
+      * ``_SECTION_PAGE_SEP.join(sections) == full_text`` EXACTLY -- the offsets the chunker minted index
+        ``full_text``, so a join that does not reproduce it byte-for-byte would place every page wrong.
+      * that join carries no leading whitespace -- ``_char_to_page`` re-derives the extractor's final ``.strip()``
+        shift from the join, and here no strip happened, so a leading blank would shift every answer.
+
+    A section whose name carries no page (fnc_exportaciones opens with ``resumen_general``, which covers the pdf
+    pages BEFORE the first named one) gets ``real_page=None``: an offset inside it resolves to None, i.e. the
+    viewer's honest 'page unknown' banner rather than a guessed page 1. A doc with no named section at all, a
+    malformed ``sections`` list, or a broken join returns None here -- which is a null page, NEVER a fall-through
+    to the generic pdfplumber replay (that replay joins ALL pages with '\\n' and would answer confidently wrong).
+    """
+    secs = doc.get("sections")
+    if not isinstance(secs, list) or not secs:
+        return None
+    pages = []
+    for s in secs:
+        if not isinstance(s, dict) or not isinstance(s.get("text"), str):
+            return None                                           # unexpected shape -> no map, not a guess
+        m = _SECTION_PAGE_RE.search(s.get("name") or "")
+        page = int(m.group(1)) if m else 0
+        pages.append((page if page > 0 else None, s["text"]))      # page 0 is not a 1-indexed page -> unknown
+    if not any(p is not None for p, _ in pages):
+        return None                                               # nothing is page-named -> there is no map
+    joined = _SECTION_PAGE_SEP.join(t for _, t in pages)
+    if joined != doc.get("full_text") or joined != joined.lstrip():
+        return None                                               # property fails for THIS doc -> page unknown
+    return pages, _SECTION_PAGE_SEP
+
+
 def _reconstruct_pages(source: str, pdf) -> tuple:
     """Replicate the raw_to_text extractor's page pipeline for ``source``, returning ``([(real_page, text), ...],
     sep)`` -- the KEPT pages (with their REAL 1-indexed pdf page numbers) and the join separator, so both the
@@ -153,6 +202,10 @@ def _reconstruct_pages(source: str, pdf) -> tuple:
       * usda_wap   -- pages 1-6, no per-page filter (empty pages kept, as the extractor does); '\\n'.
       * usda_wasde -- pages 1-7 (DIGITAL; textract WASDE never reaches here), no filter; '\\n'.
       * else       -- generic native fallback: all pages, no filter; '\\n'.
+
+    The ``_SECTION_PAGE_SOURCES`` families (fnc) never arrive here: :func:`_section_pages` answers them from the
+    text layer upstream, so this generic fallback -- wrong for fnc on BOTH the separator and the start page --
+    can no longer claim them.
     """
     src = source or ""
     if src.startswith("usda_gain"):
@@ -214,7 +267,8 @@ def _char_to_page(pages: list, sep: str, char_start: int) -> Optional[int]:
     the chunker's view) to the REAL 1-indexed pdf page. Reconstructs the pre-strip ``joined = sep.join(texts)``,
     shifts by the leading-whitespace strip (``full_text = joined.strip()``), then walks per-page cumulative
     lengths (a separator counts with the page BEFORE it). Out-of-range (>= cap, or past the reconstructed text --
-    a version/pipeline mismatch) -> None, never a wrong page."""
+    a version/pipeline mismatch) -> None, never a wrong page. An entry whose page is itself None (a branch-0
+    section with no page in its name) returns None: the offset was located, its page is simply not knowable."""
     if char_start is None or char_start < 0 or char_start >= _FULLTEXT_CAP or not pages:
         return None
     joined = sep.join(t for _, t in pages)
@@ -236,8 +290,10 @@ def _fuzzy_page(pages: list, snippet: Optional[str]) -> Optional[int]:
     passes over the pages in order: (1) whitespace-normalized exact substring; (2) a ``difflib`` ratio >=
     _FUZZY_THRESHOLD against the BEST WINDOW of the page (the window is anchored on the longest common run and
     sized to the snippet, so a page far longer than the snippet doesn't dilute the ratio, yet a mid-string OCR
-    wobble still clears). First page that hits wins; nothing clears -> None (the honest 'page unknown, open at
-    top' floor -- a rewritten proposition often has no verbatim home in the PDF)."""
+    wobble still clears). First page that hits wins -- and if that page is None (a branch-0 section with no page
+    in its name) the answer is None, because the snippet WAS located and its page is genuinely unknown. Nothing
+    clears -> None too (the honest 'page unknown, open at top' floor -- a rewritten proposition often has no
+    verbatim home in the PDF)."""
     needle = _norm(snippet)
     if not needle:
         return None
@@ -281,8 +337,9 @@ def _sidecar_pages(source_key: str) -> Optional[list]:
 def _resolve_page(doc: dict, source_key: str, snippet: Optional[str], char_start: Optional[int],
                   offset_kind: Optional[str]) -> Optional[int]:
     """Pick the best 1-indexed page (or None) for the citation. Branches BEFORE any pdfplumber work: a textract
-    doc uses the sidecar; a non-pdf raw_key has no page. Native PDFs go deterministic when an offset is present,
-    else fuzzy. Raises nothing meaningful -- the caller wraps this so any surprise degrades to None."""
+    doc uses the sidecar; a non-pdf raw_key has no page; a family that ships its own per-page sections reads the
+    map straight off the text layer. Native PDFs go deterministic when an offset is present, else fuzzy. Raises
+    nothing meaningful -- the caller wraps this so any surprise degrades to None."""
     raw_key = doc.get("raw_key") or ""
     method = (doc.get("extraction_method") or "").lower()
     source = doc.get("source") or ""
@@ -291,7 +348,10 @@ def _resolve_page(doc: dict, source_key: str, snippet: Optional[str], char_start
         return _fuzzy_page(sc, snippet) if sc else None
     if _kind_of(raw_key) != "pdf":                                # .html / .txt / other -> open the doc, no page nav
         return None
-    got = _page_texts(raw_key, source)                            # native pdf: re-extract (cached) or None
+    if source in _SECTION_PAGE_SOURCES:                           # branch 0: the text layer already IS the map
+        got = _section_pages(doc)                                 # property fails -> None -> honest 'page unknown'
+    else:
+        got = _page_texts(raw_key, source)                        # native pdf: re-extract (cached) or None
     if got is None:
         return None
     pages, sep = got

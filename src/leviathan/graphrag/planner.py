@@ -978,11 +978,15 @@ def grounded_subgraph(query: str, graph: gph.CausalGraph, *, depth: int = _DEPTH
                         if _fence_hops and d + 1 >= 2:      # D-MW-13 THE HOP FENCE: a second-order hop
                             _fenced_hops += 1               # CONTRACT is ~2.8k tokens and sorts ahead of
                             continue                        # every driver -- P6's mechanism, not P3's
-                        _origin_of_contract.setdefault(e["driver_commodity"],
-                                                       _origin_of_contract.get(cid, cid))
-                        nxt.append((e["driver_commodity"], d + 1,
+                        # D-EC-P0 #68: the hop lands on the edge's RESOLVED contract, not on the string the
+                        # YAML declared -- `soybean_oil` is a node, `corn` is a fenced base yaml, and
+                        # neither is a market this walk can expand. `driver_commodity` rides on in the
+                        # via_edge, so the answer still names the link the curator wrote.
+                        tgt = e.get("target_contract") or e["driver_commodity"]
+                        _origin_of_contract.setdefault(tgt, _origin_of_contract.get(cid, cid))
+                        nxt.append((tgt, d + 1,
                                     {**e, "_from": cid, "category": edge_category(e["relation"])},
-                                    "contract", e["driver_commodity"]))
+                                    "contract", tgt))
                 for drv in graph.contracts[cid].drivers:    # driver fan-in of this contract -> next wave
                     nxt.append((drv.id, d + 1, None, "driver", cid))
             else:

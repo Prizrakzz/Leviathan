@@ -7,8 +7,9 @@ Skipped wholesale if pdfplumber is unavailable (it lives in the serve/batch extr
 
 Coverage: the GAIN blank+boilerplate filter replication (a skipped page must NOT shift the reported page
 number), the 60k cap + past-text truncated tails, native fuzzy hit/difflib/miss->null, the non-pdf branch, the
-textract sidecar branch (with + without the sidecar), a missing-document 404 signal, and the never-raises
-property under S3 failures.
+textract sidecar branch (with + without the sidecar), the fnc TEXT-LAYER page map (branch 0: exact pages with
+zero pdf I/O, unnamed sections -> honest null, a broken join property -> null rather than the generic replay's
+confident wrong page), a missing-document 404 signal, and the never-raises property under S3 failures.
 """
 from __future__ import annotations
 
@@ -172,6 +173,161 @@ def test_fuzzy_miss_returns_null(monkeypatch):
     res = pdfpage.resolve_pdf_page(_GAIN_SK, snippet="semiconductor fabrication yields in Taiwan")
     assert res["page"] is None
     assert res["url"].startswith("https://") and res["kind"] == "pdf"
+
+
+# ── branch 0: the fnc TEXT-LAYER page map ───────────────────────────────────────────────────────────
+# Mirrors the live corpus shape (verified against 3 real docs + all 56 text-layer objects): one section per
+# pdf page, the REAL 1-indexed page in the section NAME, '\n\n'.join(sections) == full_text byte-for-byte, and
+# the first pdf page(s) absent (informe_mensual starts at page 02, exportaciones at page 03 behind an unnamed
+# 'resumen_general'). The SYNTHETIC PDF below is deliberately present in S3 and deliberately DISAGREES with the
+# text layer, so any test that still answers the named page proves the map came from document.json.
+_FNC_SK = ("text/source=fnc/monthly_reports/report_type=cifras/publisher=fnc_informe_mensual/"
+           "publication_date=2025-01-01/document.json")
+_FNC_RK = ("raw/production/source=fnc/monthly_reports/report_type=cifras/upload_year=2026/upload_month=03/"
+           "1.-Informe-mensual-enero-p.pdf")
+_FNC_SECTION_TEXTS = [
+    "Resumen ejecutivo\nEl precio interno de referencia subio durante el mes de enero.",
+    "1.3 Contrato KC\nEl contrato KC de Nueva York cerro el mes con una prima notable.",
+    "1.4 Precio ICO\nMARCADOR DELTA el indicador compuesto de la OIC cedio frente a diciembre.",
+    "2.1 Tasa de cambio (TRM)\nLa TRM promedio del mes se ubico por debajo del promedio anual.",
+    "2.2 Indice de Precios\nLa produccion de cafe de enero fue la mas alta de los ultimos anos.",
+]
+_FNC_PAGES = [2, 3, 4, 5, 6]                                      # pdf page 1 (the cover) has no section
+
+# What the GENERIC replay would see if the fnc branch were missing: every pdf page, joined with '\n'. Page 1
+# carries text here, so the generic answer is off by a page AND by one char per boundary -- the L1-G4 defect.
+_FNC_PDF_PAGES = [["Portada Informe Mensual enero"]] + [t.splitlines() for t in _FNC_SECTION_TEXTS]
+
+
+def _fnc_doc(sections=None) -> dict:
+    secs = sections if sections is not None else [
+        {"name": "fnc_informe_mensual_page_%02d" % p, "text": t}
+        for p, t in zip(_FNC_PAGES, _FNC_SECTION_TEXTS)]
+    return {"source": "fnc", "raw_key": _FNC_RK, "extraction_method": "pdfplumber", "sections": secs,
+            "full_text": "\n\n".join((s.get("text") or "") for s in secs)}
+
+
+def _fnc_env(monkeypatch, doc=None, with_raw=True):
+    """Install an fnc fixture; ``with_raw`` also stores a DISAGREEING synthetic pdf under the raw key."""
+    doc = doc if doc is not None else _fnc_doc()
+    objects = {_FNC_SK: json.dumps(doc).encode()}
+    if with_raw:
+        objects[_FNC_RK] = _make_pdf(_FNC_PDF_PAGES)
+    _install(monkeypatch, objects)
+    return doc
+
+
+def test_fnc_offset_maps_to_the_page_named_in_the_section(monkeypatch):
+    doc = _fnc_env(monkeypatch)
+    start = doc["full_text"].index("MARCADOR DELTA")             # sits in the section named ..._page_04
+    res = pdfpage.resolve_pdf_page(_FNC_SK, char_start=start, offset_kind="exact")
+    assert res["page"] == 4                                       # the REAL pdf page, not the 3rd kept section
+    assert res["kind"] == "pdf" and res["expires_in"] == 900
+
+
+def test_fnc_offset_correct_at_every_section_boundary(monkeypatch):
+    # The '\n\n' separator is worth exactly one char more per boundary than the generic '\n' replay, so a
+    # first/last-char probe is where an off-by-one shows up. Every span end must still name its own page.
+    doc = _fnc_env(monkeypatch)
+    cur = 0
+    for page, text in zip(_FNC_PAGES, _FNC_SECTION_TEXTS):
+        for off in (cur, cur + len(text) // 2, cur + len(text) - 1):
+            got = pdfpage.resolve_pdf_page(_FNC_SK, char_start=off, offset_kind="exact")["page"]
+            assert got == page, "char %d should be pdf page %d, got %r" % (off, page, got)
+        cur += len(text) + 2                                      # + the '\n\n' the join inserted
+
+
+def test_fnc_resolves_with_no_raw_pdf_and_no_pdfplumber(monkeypatch):
+    # The whole point of branch 0: the map is in document.json, so the raw bytes are never fetched. Absent raw
+    # object AND a dead pdfplumber import must still yield the exact page (the pdf leg would give null here).
+    import sys
+    doc = _fnc_env(monkeypatch, with_raw=False)
+    monkeypatch.setitem(sys.modules, "pdfplumber", None)
+    start = doc["full_text"].index("MARCADOR DELTA")
+    assert pdfpage.resolve_pdf_page(_FNC_SK, char_start=start, offset_kind="exact")["page"] == 4
+
+
+def test_fnc_unnamed_section_yields_null_not_a_guessed_page(monkeypatch):
+    # fnc_exportaciones opens with 'resumen_general', which covers the pdf pages BEFORE the first named one.
+    # An offset inside it is genuinely unknowable -> null; the pages AFTER it must still be exact, which only
+    # holds if the unnamed section's length is counted in the prefix sum.
+    secs = [{"name": "resumen_general", "text": "Extracto\nResumen general de las exportaciones del mes."}]
+    secs += [{"name": "fnc_exportaciones_page_%02d" % p, "text": t}
+             for p, t in zip((3, 4, 5), _FNC_SECTION_TEXTS[:3])]
+    doc = _fnc_env(monkeypatch, doc=_fnc_doc(sections=secs))
+    assert pdfpage.resolve_pdf_page(_FNC_SK, char_start=5, offset_kind="exact")["page"] is None
+    start = doc["full_text"].index("MARCADOR DELTA")              # third named section -> pdf page 5
+    assert pdfpage.resolve_pdf_page(_FNC_SK, char_start=start, offset_kind="exact")["page"] == 5
+
+
+def test_fnc_broken_join_property_yields_null_not_the_generic_replay(monkeypatch):
+    # If '\n\n'.join(sections) != full_text for THIS doc the map cannot be trusted. The raw pdf IS available,
+    # so a fall-through would answer confidently -- and wrongly. The honest answer is 'page unknown'.
+    doc = _fnc_doc()
+    doc["full_text"] = doc["full_text"].replace("\n\n", "\n", 1)  # one boundary re-joined the wrong way
+    _fnc_env(monkeypatch, doc=doc)
+    res = pdfpage.resolve_pdf_page(_FNC_SK, char_start=doc["full_text"].index("MARCADOR DELTA"),
+                                   offset_kind="exact")
+    assert res["page"] is None
+    assert res["url"].startswith("https://") and res["kind"] == "pdf"
+
+
+def test_fnc_sections_without_any_page_suffix_yield_null(monkeypatch):
+    _fnc_env(monkeypatch, doc=_fnc_doc(sections=[{"name": "resumen_general", "text": "Extracto del mes."},
+                                                 {"name": "cuerpo", "text": "MARCADOR DELTA sin pagina."}]))
+    assert pdfpage.resolve_pdf_page(_FNC_SK, char_start=25, offset_kind="exact")["page"] is None
+
+
+def test_fnc_malformed_sections_never_raise_and_yield_null(monkeypatch):
+    for secs in ([], "not-a-list", ["fnc_informe_mensual_page_02"],             # section that is not a dict
+                 [{"name": "fnc_informe_mensual_page_02"}],                     # section with no text
+                 [{"name": "fnc_informe_mensual_page_02", "text": None}]):
+        doc = _fnc_doc()
+        doc["sections"] = secs
+        _fnc_env(monkeypatch, doc=doc)
+        res = pdfpage.resolve_pdf_page(_FNC_SK, char_start=3, offset_kind="exact")
+        assert res["page"] is None and res["url"].startswith("https://")
+
+
+def test_fnc_fuzzy_without_offsets_uses_the_section_pages(monkeypatch):
+    # 31.78% of fnc props carry no offset (chunk_coverage: 431/1,356) and land on the fuzzy leg, which now
+    # searches the section texts rather than the generic pdf replay.
+    _fnc_env(monkeypatch)
+    assert pdfpage.resolve_pdf_page(_FNC_SK, snippet="el indicador compuesto de la OIC cedio")["page"] == 4
+    assert pdfpage.resolve_pdf_page(_FNC_SK, snippet="semiconductor fabrication yields")["page"] is None
+
+
+# ── guard: nothing outside the fnc family changes ───────────────────────────────────────────────────
+def test_section_page_map_does_not_leak_to_other_sources(monkeypatch):
+    # A GAIN doc carrying fnc-shaped page-named sections must STILL go through the pdfplumber replay: the
+    # branch keys off the source family, never off the section shape.
+    doc = _gain_doc()
+    doc["sections"] = [{"name": "usda_gain_coffee_page_%02d" % p, "text": t}
+                       for p, t in zip(_FNC_PAGES, _FNC_SECTION_TEXTS)]
+    doc["full_text"] = "\n\n".join(_FNC_SECTION_TEXTS)
+    pdf_bytes = _make_pdf(_GAIN_PAGES)
+    _install(monkeypatch, {_GAIN_SK: json.dumps(doc).encode(), _GAIN_RK: pdf_bytes})
+    canon = extract_gain_pdf(pdf_bytes, _GAIN_RK, "usda_gain_coffee")["full_text"]
+    res = pdfpage.resolve_pdf_page(_GAIN_SK, char_start=canon.index("MARKER BRAVO"), offset_kind="exact")
+    assert res["page"] == 3                                       # the GAIN filter replication, unchanged
+
+
+def test_reconstruct_pages_family_table_is_unchanged(monkeypatch):
+    # Pins the pre-fix (pages, sep) contract of every non-fnc branch against the raw pdfplumber pages, so a
+    # future edit to the family table cannot silently move a page number for any other source.
+    import pdfplumber
+    pdf_bytes = _make_pdf([["page %d narrative line one, comfortably past the GAIN blank threshold" % i,
+                            "page %d narrative line two, likewise well past it" % i] for i in range(1, 10)])
+    with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+        raw = [(i, p.extract_text() or "") for i, p in enumerate(pdf.pages, start=1)]
+        assert pdfpage._reconstruct_pages("", pdf) == (raw, "\n")                 # generic fallback
+        assert pdfpage._reconstruct_pages("icco_qbcs_summary", pdf) == (raw, "\n")
+        assert pdfpage._reconstruct_pages("fnc", pdf) == (raw, "\n")              # unreachable, but unchanged
+        assert pdfpage._reconstruct_pages("usda_wap", pdf) == (raw[:6], "\n")
+        assert pdfpage._reconstruct_pages("usda_wasde", pdf) == (raw[:7], "\n")
+        assert pdfpage._reconstruct_pages("usda_gain_coffee", pdf) == (raw, "\n")  # nothing blank/boilerplate
+        assert pdfpage._reconstruct_pages("mpob", pdf)[1] == "\n\n"
+        assert [p for p, _ in pdfpage._reconstruct_pages("mpob", pdf)[0]] == [1, 2, 3, 4, 5]
 
 
 # ── branch 4: non-pdf raw_key ───────────────────────────────────────────────────────────────────────

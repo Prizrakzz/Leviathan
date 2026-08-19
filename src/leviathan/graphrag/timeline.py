@@ -108,6 +108,37 @@ def _parse(d) -> _dt.date | None:
         return None
 
 
+def axis_date(h) -> str:
+    """The date a retrieved prop sits at ON THE EPISODE AXIS -- `COALESCE(event_date, date)`, character
+    for character the expression :func:`derive` clusters the windows out of. "" when it has none.
+
+    THE DEFECT THIS EXISTS TO CLOSE (D-EC P0, measured 2026-08-19 over the S3 flat store). The window is
+    built on the EVENT axis and `episodes_for` used to match a receipt on `h["date"]`, the PUBLICATION
+    date -- `evidence._out` returns `date` and `event_date` as two separate keys, so the two were never
+    the same instrument. Measured consequence: 583 of 1,118 scored episodes (52.1%) had ZERO contributing
+    prop whose PUBLICATION date landed inside their own window, i.e. they were structurally unreceiptable
+    no matter how good retrieval got, and 149 of them closed before the corpus even begins -- windows
+    that exist ONLY because their props carry event dates. Those rendered `_NO_RECEIPT` forever.
+
+    IT IS A COALESCE ON PRESENCE, NOT ON PARSEABILITY, because that is what `derive` does: SQL COALESCE
+    takes `event_date` whenever it is non-null, and `cluster` then DROPS whatever does not parse. A prop
+    whose `event_date` is present but unparseable therefore contributed NO date to any window, so it has
+    no position on this axis and must match nothing -- falling back to its publication date here would
+    let it receipt a window it never built, which is the same axis confusion in the other direction.
+
+    THE INVERSE MATTERS TOO. A prop whose event_date sits OUTSIDE a window its publication date happens
+    to fall inside no longer receipts that window -- correctly: it is a document published during the
+    window that talks about something else. The old axis admitted it. So this is not "match more"; it is
+    "match the props that actually built this window", which is what a receipt was always meant to be."""
+    if not isinstance(h, dict):
+        return ""
+    raw = h.get("event_date")
+    if raw is None or str(raw).strip() == "":
+        raw = h.get("date")
+    d = _parse(raw)
+    return d.isoformat() if d else ""
+
+
 def cluster(dates: list, gap_days: int = GAP_DAYS) -> list[dict]:
     """Sorted date strings -> episodes split where consecutive props are > gap_days apart."""
     ds = sorted({d for d in (_parse(x) for x in dates) if d})
@@ -411,6 +442,23 @@ def episodes_for(node: str, asof, *, max_n: int = MAX_PER_NODE, evidence: list |
     about. Every emitted episode therefore carries a receipt OR a rendered statement that it has
     none; nothing is emitted silently.
 
+    THE RECEIPT AXIS (D-EC P0, 2026-08-19). "In-window" is decided by :func:`axis_date` --
+    `COALESCE(event_date, date)`, the expression the windows themselves were clustered from -- and not by
+    the publication date, which is a different instrument and made 52.1% of scored episodes unreceiptable
+    by construction (see :func:`axis_date` for the measurement). The RECEIPT still carries the
+    publication date in `receipt["date"]` for the downstream citation seams; the in-window date rides
+    beside it as `receipt["event_date"]` when the two disagree.
+
+    THIS CANNOT LEAK, AND THE REASON IS THAT IT ADMITS NOTHING. Knowledge admission happens upstream and
+    is untouched: `evidence.retrieve` filters `date <= asof` on the PUBLICATION axis before ground()
+    hands the rows here (evidence.py:523 on the flat path, `AND date <= %(asof)s` inside the SQL on both
+    pg paths), and this function's own `vis` clamp keeps only episode dates `<= asof`, so `end <= asof`
+    always. The axis therefore decides WHICH already-admitted row is pointed at, never WHETHER a row is
+    admitted -- and the row it points at is a member of the very `evidence` list the same turn renders in
+    its DATED EVIDENCE block, so a receipt can carry no byte the prompt did not already hold. Two
+    corollaries fall out rather than being asserted: a matched prop's event date is `<= end <= asof`, and
+    a post-asof prop is unreachable here at any axis because retrieval never handed it over.
+
     THE CORROBORATION FLOOR (R3, ratified D-EI-8). An episode recounted to fewer than ``min_props``
     DISTINCT PROP DATES (default :data:`MIN_PROPS`) is dropped here -- after the PIT recount, so the
     threshold is applied to the count the reader would actually have been shown, and before ``max_n``,
@@ -437,8 +485,13 @@ def episodes_for(node: str, asof, *, max_n: int = MAX_PER_NODE, evidence: list |
     asof_d = _parse(asof)
     if asof_d is None:
         return _done([], 0)
-    ev_by_date = sorted(((str(h.get("date") or "")[:10], (h.get("text") or "")) for h in (evidence or [])
-                         if _parse(h.get("date"))), key=lambda x: x[0])
+    # (WINDOW-AXIS date, PUBLICATION date, text), sorted on the axis the windows are measured on -- the
+    # receipt is "the newest prop inside the window" and newest must be read on the same ruler as inside.
+    # A prop needs BOTH: an axis position (or it can match no window: see axis_date) and a parseable
+    # publication date (or the receipt it produces carries no citable stamp for the seams below).
+    ev_by_date = sorted(((axis_date(h), str(h.get("date") or "")[:10], (h.get("text") or ""))
+                         for h in (evidence or [])
+                         if axis_date(h) and _parse(h.get("date"))), key=lambda x: x[0])
     out = []
     for ep in _load().get(node) or []:
         vis = [d for d in ep.get("dates") or [] if (_parse(d) or _dt.date.max) <= asof_d]
@@ -446,9 +499,28 @@ def episodes_for(node: str, asof, *, max_n: int = MAX_PER_NODE, evidence: list |
             continue
         start, end = vis[0], vis[-1]
         receipt = None                                             # newest evidence prop inside [start, end]
-        for d, txt in ev_by_date:
-            if start <= d <= end and txt:
-                receipt = {"date": d, "text": txt[:180]}
+        for wd, pub, txt in ev_by_date:
+            if start <= wd <= end and txt:
+                # `date` STAYS THE PUBLICATION DATE, and that is load-bearing, not inertia. The seams
+                # downstream that READ THIS KEY DIRECTLY are publication-axis JOINS: answer._receipt_item
+                # recovers the turn's OWN evidence row by (h["date"], text prefix) and an unmatched
+                # receipt DECLINES the whole D-DT-1 scaffold; the minted source row and verifier
+                # ['resolved'] entry carry it as the cited item's stamp; and eval.min_episode_lines backs
+                # a bullet on "a year some CITED item is dated in", where the cited item's date is its
+                # publication date. Re-pointing this key at the event axis would have swapped a 52%
+                # unreceiptable rate for a 100% scaffold decline.
+                # RENDERING IS NOT A JOIN, and the two must not be confused (adversarial review
+                # 2026-08-19). Both surfaces that SHOW this receipt to a human -- render_line's "e.g."
+                # and answer._scaffold_section's "the dated item [E<k>] recorded <date>" -- go through
+                # `receipt_when`, which leads with the in-window date and keeps the publication date as
+                # an explicit "(reported ...)" qualifier. A join needs the publication date; a sentence
+                # under a window needs the date that is inside it. This dict carries both, once.
+                receipt = {"date": pub, "text": txt[:180]}
+                if wd != pub:
+                    # THE IN-WINDOW DATE, additive and present only when the two axes disagree -- so the
+                    # rendered line can say WHEN the item is about rather than dropping a publication
+                    # date the reader can see is outside the window under an "e.g." that claims it is in.
+                    receipt["event_date"] = wd
         out.append({"start": start, "end": end, "n": len(vis), "receipt": receipt})
     n_suppressed = 0
     if floor > 1:                                                  # 0 and 1 are the DISABLED settings:
@@ -495,6 +567,37 @@ def _head(label: str) -> str:
     return LINE_PREFIX + label + " (report TIMESTAMPS, not descriptions): "
 
 
+def receipt_when(r: dict) -> str:
+    """The date token a receipt is shown under: the in-window date, and the reported date beside it
+    whenever the two differ. PUBLIC because two modules render this receipt and only ONE spelling of it
+    may exist -- `render_line` here, `answer._scaffold_section` on the reader's page.
+
+    "e.g." asserts that this item is an EXAMPLE FROM THE WINDOW, so the date rendered under it has to be
+    the one that is actually inside the window. Since the axis fix a receipt can be an item published
+    long after the window it describes -- on the exemplar episode `corn 1978-08..1980-10` the backing
+    documents are published a median 15,168 days (41.5 years) later -- and printing that publication date
+    alone under an "e.g." would be a plain contradiction of the span printed two tokens earlier, which is
+    exactly the kind of thing a reasoner resolves by inventing.
+
+    THE SECOND CALL SITE IS THE READER'S, and it is the reason this is not a `_private` helper of
+    `render_line` (adversarial review 2026-08-19, remedy (a)). `answer._scaffold_section` renders the very
+    same receipt to the PAGE as "the dated item [E<k>] recorded <date>", and it read `receipt["date"]`
+    directly -- so the prompt got the corrected axis while the reader kept the publication date under a
+    span it sits outside of. Measured on the fix's own verification set: 567 of 567 newly-receiptable
+    episodes render an out-of-window date that way by construction, 171 of 456 (37.5%) of the episodes
+    ABOVE the corroboration floor -- i.e. of the ones that actually reach a bullet. One formatting truth,
+    two call sites, or the two surfaces disagree about when the cited thing happened.
+
+    BYTE-IDENTICAL WHEN THE AXES AGREE (no `event_date` on the receipt, or an equal one), which is every
+    receipt whose prop carries no recovered event date -- so a corpus with no event dates renders the
+    pre-fix line on both surfaces. The `[:10]` is the DAY-GRAIN slice `_scaffold_section` already applied
+    at its own site; it is a no-op on every receipt `episodes_for` builds (both keys are already day
+    strings there) and is kept here so the shared producer, not its callers, owns the grain."""
+    ev = str((r or {}).get("event_date") or "")[:10]
+    pub = str((r or {}).get("date") or "")[:10]
+    return f"{ev} (reported {pub})" if ev and ev != pub else pub
+
+
 def render_line(label: str, eps: list[dict]) -> str:
     """One prompt line per node. Every episode renders EITHER its citable receipt OR `_NO_RECEIPT` --
     a bare count is never emitted (F-I: the bare count with no marker was the confabulation invitation).
@@ -509,7 +612,7 @@ def render_line(label: str, eps: list[dict]) -> str:
     for e in eps:
         span = f"{month_span(e)} ({e['n']} report dates"
         r = e.get("receipt")
-        span += f'; e.g. {r["date"]}: "{r["text"]}")' if r else f"; {_NO_RECEIPT})"
+        span += f'; e.g. {receipt_when(r)}: "{r["text"]}")' if r else f"; {_NO_RECEIPT})"
         parts.append(span)
     return _head(label) + ", ".join(parts)
 

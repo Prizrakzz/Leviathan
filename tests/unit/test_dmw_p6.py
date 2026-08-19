@@ -207,16 +207,17 @@ def test_corn_cbot_INHERITS_node_corns_edges(real, census):
     spend the slot"), so the zero is now a POSITIVE pin: corn_cbot reaches node corn's 19 indexed edges,
     which are the 20 declared minus the one the base-yaml fence drops.
 
-    The three sibling contracts and the base yaml all read the same 19 -- and the resolution table's
-    recorded `seed` for those edges is STILL `campinas_corn_reference_bmf`, because the re-key changed the
-    KEY, never the tie-break."""
+    The three sibling contracts and the base yaml all read the same 19. The recorded `seed` was
+    campinas_corn_reference_bmf under lexicographic-first until the #68 AMENDMENT (owner word
+    2026-08-19): the tie is a PRODUCT choice, and bare corn means the CBOT benchmark -- so the seed
+    is now corn_cbot via the declared _CANONICAL_SEED map, never a sort accident."""
     rows = real.rev_cross_links("corn_cbot")
     assert len(rows) == 19
     assert census["contract_pair_counts"]["contract_keyed"]["corn_cbot"] == 0, "the defect, as recorded"
     assert census["contract_pair_counts"]["node_keyed"]["corn_cbot"] == 19, "the remedy, as re-derived"
     for cid in ("campinas_corn_reference_bmf", "french_maize_matif", "corn"):
         assert len(real.rev_cross_links(cid)) == 19, cid
-    assert {r["seed"] for r in rows} == {"campinas_corn_reference_bmf"}, "the tie-break is UNCHANGED"
+    assert {r["seed"] for r in rows} == {"corn_cbot"}, "the canonical twin, by owner word 2026-08-19"
     assert {r["seed_node"] for r in rows} == {"corn"}
     assert "corn" not in {r["contract"] for r in rows}, "the base-yaml fence still holds on the foreign end"
 
@@ -231,8 +232,18 @@ def test_the_resolution_table_reproduces_the_census_row_for_row(real, census):
     for k, want in theirs.items():
         got = mine[k]
         assert got["bucket"] == want["bucket"], k
-        assert got["seed"] == want["seed"], k
-        assert got["tie_break"] == want["tie_break"], k
+        # #68 AMENDMENT (owner word 2026-08-19): the census FIXTURE stays the untouched historical
+        # record (lexicographic-first era), and the ONLY divergence the amendment licenses is a
+        # lexicographic tie flipping to the DECLARED canonical twin. Anything else drifting fails.
+        if got["tie_break"] == "canonical-twin":
+            assert want["tie_break"] == "lexicographic-first", k   # only a real tie may flip
+            # ...and only to the node's DECLARED twin: corn's seed moves (campinas -> corn_cbot),
+            # soybeans' is a no-op relabel (soybeans_cbot already won the sort; now it is declared).
+            assert got["seed"] == {"corn": "corn_cbot", "soybeans": "soybeans_cbot"}[got["node"]], k
+            assert want["seed"] in ("campinas_corn_reference_bmf", got["seed"]), k
+        else:
+            assert got["seed"] == want["seed"], k
+            assert got["tie_break"] == want["tie_break"], k
         assert got["node"] == want.get("node"), k
         assert got["candidates"] == want["candidates"], k
         assert got["driver_commodity"] == want["driver_commodity"], k
@@ -248,8 +259,9 @@ def test_the_alias_rule_is_the_ratified_TWO_STEP_reading(real):
     # (a) a CONTRACT-ID-valued string resolves through its node, then back out to the tracked set
     corn_cbot = by_dc["corn_cbot"][0]
     assert corn_cbot["bucket"] == "resolved" and corn_cbot["node"] == "corn"
-    assert corn_cbot["seed"] == "campinas_corn_reference_bmf", "lexicographic-first over the corn set"
-    assert corn_cbot["tie_break"] == "lexicographic-first"
+    # #68 AMENDMENT (owner word 2026-08-19): the corn tie now resolves through _CANONICAL_SEED.
+    assert corn_cbot["seed"] == "corn_cbot", "the canonical twin over the corn set"
+    assert corn_cbot["tie_break"] == "canonical-twin"
     # (b) a NODE-valued multi-contract string: same rule, recorded tie-break
     soyoil = by_dc["soybean_oil"][0]
     assert soyoil["node"] == "soybean_oil" and soyoil["seed"] == "soybean_oil_cbot"
@@ -262,9 +274,10 @@ def test_the_alias_rule_is_the_ratified_TWO_STEP_reading(real):
     no_node = {r["driver_commodity"] for r in real.rev_cross_link_resolution()
                if r["bucket"] == "unresolvable-no-node"}
     assert no_node == {"wheat", "sunflower_oil", "sorghum", "barley", "ethanol"}
-    # (d) every tie-break is RECORDED, and only those two values exist
+    # (d) every tie-break is RECORDED, and only these three values exist ("canonical-twin" joined
+    # the vocabulary with the #68 AMENDMENT, owner word 2026-08-19 -- see graph._CANONICAL_SEED)
     assert {r["tie_break"] for r in real.rev_cross_link_resolution() if r["bucket"] == "resolved"} == \
-        {"single-member", "lexicographic-first"}
+        {"single-member", "lexicographic-first", "canonical-twin"}
 
 
 def test_inversion_parity_against_the_forward_map(real):
@@ -1033,10 +1046,14 @@ def _project(graph, seed: str, foreign: str) -> str:
     forward contract frontier there), and the commodity nodes those contracts cover -- which is what
     `cov_nodes` is built from, since a driver node carries its parent contract.
 
+    D-EC-P0 #68: the forward hop is `target_contract`, the edge's RESOLVED contract -- what the walk
+    actually enqueues. Reading `driver_commodity` here would project the walk as it was BEFORE the alias
+    fix (52 traversable edges, not 94) and this projection would under-count `already_admitted`.
+
     AN UPPER BOUND ON LIVENESS, DECLARED: a realized turn may seed up to 6 contracts, so the covered set can
     only GROW and `same_slice` can only get MORE common. A row this returns dead can never be live; a row it
     returns LIVE is BUYABLE, not guaranteed bought (the pot is one slot for the whole walk)."""
-    reached = {seed} | {e["driver_commodity"] for e in graph.cross_links(seed) if e["tracked"]}
+    reached = {seed} | {e["target_contract"] for e in graph.cross_links(seed) if e["tracked"]}
     covered = {graph.contract_node(c) for c in reached}
     if foreign in reached:
         return "already_admitted"
@@ -1048,18 +1065,27 @@ def _project(graph, seed: str, foreign: str) -> str:
 
 @_XMC_SKIP
 def test_every_frozen_deck_row_is_LIVE_BY_CONSTRUCTION_under_the_shipped_eligibility(real):
-    """THE PIN THE AMENDMENT EXISTS FOR. 6/6 rows must survive the shipped order -- neither
+    """THE PIN THE AMENDMENT EXISTS FOR. The rows must survive the shipped order -- neither
     forward-TRACKED (which spends no slot and admits the node as `cosine`, a reason liveness does not count)
     nor node-CO-SLICED with the seed or one of its forward hops.
 
     The two failure shapes this would have caught before the money: arabica->robusta and raw->white are
     RECIPROCAL pairs, so the walk reaches the foreign forward at d=1 and the slot records
     `already_admitted`; soybeans->campinas_corn names a foreign whose node `corn` a forward hop of the seed
-    already covers, so the slot records `same_slice`."""
+    already covers, so the slot records `same_slice`.
+
+    D-EC-P0 #68 (2026-08-19) -- ONE ROW WENT DEAD, AND THE CAUSE IS A FIX, NOT A REGRESSION. The forward
+    hop resolution (52 -> 94 traversable inter-commodity edges) means `soybean_meal_cbot` now reaches
+    `rapeseed_meal_zce` FORWARD, on its own, for free -- the very edge the deck authored a PAID slot to
+    buy. The instrument is unchanged and the deck stays frozen (its arms already fired, and the freeze law
+    forbids a post-arm edit); what is recorded here is that a re-arm of the cross-market gate must
+    RE-AUTHOR that row against a foreign the fixed walk does not already reach. The pin is kept
+    NON-VACUOUS by naming the dead row explicitly rather than by relaxing the count."""
     rows = _deck_rows()
     verdicts = {r["id"]: _project(real, r["cascade_pair"]["seed"], r["cascade_pair"]["foreign"]) for r in rows}
     assert len(rows) == 6
-    assert sorted(verdicts.values()) == ["LIVE"] * 6, verdicts
+    assert {k: v for k, v in verdicts.items() if v != "LIVE"} == \
+        {"xmc_soymeal_ration_substitution": "already_admitted"}, verdicts
     for r in rows:                                            # and the named foreign is IN the seed's pool
         cp = r["cascade_pair"]
         pool = {lk.get("contract") or lk.get("declaring_contract") for lk in real.rev_cross_links(cp["seed"])}

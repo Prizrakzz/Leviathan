@@ -77,9 +77,10 @@ def _corn(drivers, hops=()) -> g.CausalGraph:
     return g.CausalGraph(out, silver=set())
 
 
-def _chain_graph():
+def _chain_graph(hops=()):
     """One anchor with a 2-link backed chain, one DARK parent, one SAME-SLICE parent, and 9 fillers that
-    outrank the chain on cosine -- i.e. exactly the flattening the wave exists to fix."""
+    outrank the chain on cosine -- i.e. exactly the flattening the wave exists to fix. `hops` declares
+    tracked inter-commodity edges, built through the constructor (see the pin-4 hop test)."""
     ds = [
         _drv("anchor", 0.95, parents=["mid", "darkp", "twin"]),
         _drv("mid", 0.40, parents=["root"]),      # survives tau (0.35) but loses on budget
@@ -87,7 +88,7 @@ def _chain_graph():
         _drv("darkp", 0.30),                      # unbacked -> uncitable -> must never take a slot
         _drv("twin", 0.30),                       # backed but resolves to the ANCHOR's slice -> zero new rows
     ] + [_drv(f"f{i}", 0.90 - i * 0.01) for i in range(9)]
-    return _corn(ds)
+    return _corn(ds, hops=hops)
 
 
 # alias map for the monkeypatched production resolver: `twin` deliberately shares `anchor`'s slice.
@@ -331,11 +332,11 @@ def test_pin4_no_new_contract_block_can_render(alias):
 
 
 def test_pin4_holds_when_a_tracked_hop_is_in_the_walk(alias):
-    gr = _chain_graph()
-    gr.contracts["corn"].inter_commodity = [cs.InterCommodityEdge(driver_commodity="soy", relation="substitutes_for",
-                                                                  sign="-", mechanism="x::soy")]
-    gr.contracts["soy"] = cs.CausalContract(contract="soy", drivers=[_drv("s1", 0.9)])
-    gr._idx = {k: g._index(v) for k, v in gr.contracts.items()}
+    # BUILT THROUGH THE CONSTRUCTOR, never by editing a live graph's `.contracts`: CausalGraph resolves its
+    # inter-commodity map ONCE at load (D-MW-27's reverse index, D-EC-P0 #68's forward hop targets), so a
+    # post-construction edit leaves the walk reading a stale resolution -- the same reason this test used
+    # to have to rebuild `_idx` by hand.
+    gr = _chain_graph(hops=("soy",))
     _REL["x::soy"] = 0.99
     off, on = _walk(gr, closure_reserve=0), _walk(gr, closure_reserve=3)
     seq = lambda sg: list(dict.fromkeys(n.contract for n in sg.nodes))  # noqa: E731

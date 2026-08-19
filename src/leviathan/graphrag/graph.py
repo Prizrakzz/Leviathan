@@ -95,6 +95,11 @@ def _index(c: cs.CausalContract) -> _Index:
 # contract, absent from the hierarchy, whose commodity node is ALSO served by a loaded hierarchy contract)
 # so it fires on the real estate and is a no-op on a synthetic graph the hierarchy knows nothing about.
 _REV_RESOLVED = "resolved"
+# The canonical loaded contract per NODE for cross-market seed resolution, consulted before the
+# lexicographic fallback (see the #68 AMENDMENT comment at the resolution site). soybeans_cbot is
+# already lexicographic-first on its node -- pinned here anyway so the choice is DECLARED for both
+# base-yaml twins rather than one being an accident that happens to agree with the desk.
+_CANONICAL_SEED = {"corn": "corn_cbot", "soybeans": "soybeans_cbot"}
 _REV_NO_NODE = "unresolvable-no-node"
 _REV_NO_CONTRACT = "unresolvable-no-contract"
 
@@ -116,14 +121,17 @@ def _hier_contract_nodes() -> dict:
         return {}
 
 
-def _invert_inter_commodity(contracts: dict) -> tuple[list, dict, dict]:
-    """(resolution_table, index, hier) — the LOAD-TIME inversion, THREE elements. `resolution_table` is one
-    row per inter_commodity edge in the estate (117 today), carrying its bucket, its resolved node, the
-    candidate set and the tie-break that picked the seed, so the resolution is REVISITABLE from an artifact
-    rather than re-derived. `index` is {seed NODE: [edge rows]} over the RESOLVED, TRADEABLE-foreign
-    rows. `hier` is the {contract_id: commodity node} map this same call already read -- bound to
-    `self._hier_nodes` and served by the public `contract_node()`, i.e. the graph's OWN copy of the
-    contract->node fact, so the walk never re-parses commodity_hierarchy.yaml per candidate.
+def _invert_inter_commodity(contracts: dict) -> tuple[list, dict, dict, dict]:
+    """(resolution_table, index, hier, forward) — the LOAD-TIME inversion, FOUR elements.
+    `resolution_table` is one row per inter_commodity edge in the estate (117 today), carrying its bucket,
+    its resolved node, the candidate set and the tie-break that picked the seed, so the resolution is
+    REVISITABLE from an artifact rather than re-derived. `index` is {seed NODE: [edge rows]} over the
+    RESOLVED, TRADEABLE-foreign rows. `hier` is the {contract_id: commodity node} map this same call
+    already read -- bound to `self._hier_nodes` and served by the public `contract_node()`, i.e. the
+    graph's OWN copy of the contract->node fact, so the walk never re-parses commodity_hierarchy.yaml per
+    candidate. `forward` is {declaring contract: [forward_target per declaration index]} -- the SAME
+    resolution read in the FORWARD direction, served by `cross_links()` (see its docstring for the defect
+    it closes and the measurement).
 
     T2-1 (2026-08-15, RATIFIED in docs/private/CASCADE_HOME_AND_SMALL_ITEMS_PLAN.md): THE INDEX IS KEYED BY
     `node_for(seed)`, NOT by the tie-break winner. The resolution RULE is untouched -- the same two-step
@@ -150,6 +158,7 @@ def _invert_inter_commodity(contracts: dict) -> tuple[list, dict, dict]:
                    and any(o != cid and o in hier and hier[o] == _node_of(cid) for o in contracts)}
     table: list[dict] = []
     index: dict[str, list[dict]] = {}
+    forward: dict[str, list] = {}
     for cid in sorted(contracts):
         for i, e in enumerate(contracts[cid].inter_commodity):
             dc = e.driver_commodity
@@ -161,13 +170,33 @@ def _invert_inter_commodity(contracts: dict) -> tuple[list, dict, dict]:
             elif not tracked:
                 bucket, seed, tie = _REV_NO_CONTRACT, None, None
             else:
-                bucket, seed = _REV_RESOLVED, tracked[0]
-                tie = "single-member" if len(tracked) == 1 else "lexicographic-first"
+                # D-EC-P0 #68 AMENDMENT (owner word 2026-08-19): the tie between a node's tracked
+                # contracts is a PRODUCT choice, not a sort order. The census prose calls the base-yaml
+                # pair duplicates OF the CBOT contracts, and a desk analyst saying "corn" means CBOT --
+                # under plain lexicographic-first, bare `corn` resolved to campinas_corn_reference_bmf
+                # (a Brazilian regional reference) on 16 edges purely because 'campinas' < 'corn_cbot',
+                # and 5 anchors measurably lost walk depth. The map names the canonical seed per node;
+                # lexicographic-first remains ONLY as the fallback for nodes it does not name.
+                canonical = _CANONICAL_SEED.get(node)
+                if canonical is not None and canonical in tracked:
+                    bucket, seed = _REV_RESOLVED, canonical
+                    tie = "single-member" if len(tracked) == 1 else "canonical-twin"
+                else:
+                    bucket, seed = _REV_RESOLVED, tracked[0]
+                    tie = "single-member" if len(tracked) == 1 else "lexicographic-first"
+            # D-EC-P0 #68 (2026-08-19) THE FORWARD TARGET -- the contract the WALK hops to, off THIS
+            # resolution and no other. A declared id that is itself a loaded, tradeable contract IS its own
+            # target (the edge named the market it meant: corn_cbot stays corn_cbot, and a synthetic test
+            # graph the hierarchy knows nothing about keeps every hop it had). Everything else -- a bare
+            # node name, and the base-yaml pair the fence declares non-tradeable -- takes the resolved
+            # seed, tie-break and all. `None` (both unresolvable buckets) means NOT TRAVERSABLE FORWARD.
+            fwd = dc if (dc in contracts and dc not in untradeable) else seed
+            forward.setdefault(cid, []).append(fwd)
             row = {"declaring_contract": cid, "idx": i, "driver_commodity": dc, "relation": e.relation,
                    "sign": e.sign, "lag": e.lag, "mechanism": e.mechanism, "blurb": e.blurb,
                    "bucket": bucket, "node": (node if node in nodes else None), "candidates": cands,
                    "tracked_candidates": tracked, "seed": seed, "tie_break": tie,
-                   "foreign_tradeable": cid not in untradeable}
+                   "foreign_tradeable": cid not in untradeable, "forward_target": fwd}
             table.append(row)
             if bucket == _REV_RESOLVED and row["foreign_tradeable"]:
                 # The INDEX row is `cross_links`' shape with the two ends named: `contract` is the FOREIGN
@@ -179,7 +208,7 @@ def _invert_inter_commodity(contracts: dict) -> tuple[list, dict, dict]:
                      "driver_commodity": dc,
                      "relation": e.relation, "sign": e.sign, "lag": e.lag, "mechanism": e.mechanism,
                      "blurb": e.blurb, "tracked": True})
-    return table, index, hier
+    return table, index, hier, forward
 
 
 @dataclass
@@ -206,7 +235,10 @@ class CausalGraph:
         self.version = version
         # D-MW-27: the REVERSE inter-commodity index, built ONCE at load time (never per query). It is a
         # pure transpose of data already in memory plus one hierarchy read, so it costs a load, not a turn.
-        self._rev_table, self._rev_index, self._hier_nodes = _invert_inter_commodity(contracts)
+        # D-EC-P0 #68: the SAME build hands back the forward hop targets, so both directions of the
+        # inter-commodity map are one resolution with one tie-break, resolved once per load.
+        self._rev_table, self._rev_index, self._hier_nodes, self._fwd_targets = \
+            _invert_inter_commodity(contracts)
 
     @classmethod
     def load(cls, paths=None) -> "CausalGraph":
@@ -332,10 +364,41 @@ class CausalGraph:
 
     # ── inter-commodity ───────────────────────────────────────────────────────────────
     def cross_links(self, contract: str) -> list[dict]:
-        """Inter-commodity edges, flagged `tracked` when the target is itself a loaded contract (a real hop)."""
+        """Inter-commodity edges. `target_contract` is the LOADED CONTRACT the forward walk hops to, and
+        `tracked` is simply whether one exists -- a real hop. `driver_commodity` stays the string the YAML
+        declared, so display and the mechanism text are untouched.
+
+        D-EC-P0 #68 (2026-08-19) THE DEFECT THIS CLOSES, measured in data/dec_p0/graph_walk.md S4f. `tracked`
+        used to be `e.driver_commodity in self.contracts` -- RAW STRING EQUALITY -- while the reverse index
+        one screen up resolved the very same edges through the hierarchy. Two readings of one map:
+
+          * 65 of 117 inter-commodity edges were untraversable forward, and 42 of them resolve to a node
+            with a loaded contract and were ALREADY resolved on the reverse side. The 42 are the vegoil/meal
+            crush complex almost exactly (soybean_oil 14, palm_oil 9, soybean_meal 7, rapeseed_oil 6,
+            rapeseed_meal 5, canola 1) -- so the flagship PALM -> SBO -> SBM chain was walkable downstream
+            and NOT walkable forward, the direction every serving preset actually runs.
+          * 34 of the 52 that DID survive landed on `corn` / `soybeans`, the two base yamls this module's
+            own fence classifies as non-tradeable duplicates. Two thirds of the surviving cross-market layer
+            was a hop into a market no desk can trade.
+
+        ONE RESOLUTION, NOT TWO: the target is `_invert_inter_commodity`'s own `forward_target` -- the same
+        two-step node resolution, the same lexicographic-first tie-break, recorded per edge on the
+        resolution table (`rev_cross_link_resolution()[i]['forward_target']`) beside the reverse `seed`. A
+        declared id that is a loaded tradeable contract is its own target, so an edge that names the market
+        it means keeps it; the base-yaml pair and the bare node names take the resolved contract. Measured
+        after: 94 traversable forward edges (52 -> 94, the reverse index's own resolved count), 0 landing on
+        a base yaml, and the 23 edges naming no node at all (`wheat`, `sorghum`, `sunflower_oil`, `barley`,
+        `ethanol` -- group keys, not nodes) still untracked, which is edge-AUTHORING work, not resolution.
+
+        KeyError on an unknown contract, as before: this is a contract lookup (`rev_cross_links` is the
+        index read that must never raise). Rows are fresh dicts."""
+        edges = self.contracts[contract].inter_commodity
+        # index-aligned by construction: the same loop that built the table appended one target per
+        # declared edge, in declaration order, for every loaded contract.
+        targets = self._fwd_targets.get(contract) or ()
         return [{"driver_commodity": e.driver_commodity, "relation": e.relation, "sign": e.sign,
-                 "mechanism": e.mechanism, "lag": e.lag, "tracked": e.driver_commodity in self.contracts}
-                for e in self.contracts[contract].inter_commodity]
+                 "mechanism": e.mechanism, "lag": e.lag, "target_contract": t, "tracked": t is not None}
+                for e, t in zip(edges, targets)]
 
     def rev_cross_links(self, commodity: str) -> list[dict]:
         """D-MW-27 — the INVERSE of `cross_links`: the FOREIGN CONTRACTS that declare `commodity` as a
@@ -444,6 +507,10 @@ class CausalGraph:
                     edges.append({"source": p, "target": d.id, "edge_type": "drives", "sign": None,
                                   "mechanism": by_id[p].mechanism, "blurb": by_id[p].blurb})
         for e in c.inter_commodity:                                 # cascade hop: contract -> other commodity
+            # DELIBERATELY the raw membership test, NOT `cross_links`' resolved `tracked` (D-EC-P0 #68).
+            # This flag is the FE's "is this node clickable" -- the node id IS the route parameter, and
+            # `soybean_oil` is a commodity node with no /v1/graph document. The walk's traversability and
+            # this map's navigability are different questions; resolving here would 404 the click.
             nodes.setdefault(e.driver_commodity, {"id": e.driver_commodity, "kind": "commodity",
                                                   "contract": e.driver_commodity,
                                                   "label": dp.node_label(e.driver_commodity, "commodity"),

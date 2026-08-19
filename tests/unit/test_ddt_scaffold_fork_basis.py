@@ -295,6 +295,95 @@ def test_receipted_window_restates_its_receipt_and_carries_a_handle(monkeypatch)
     assert _RECEIPT["text"] in bullet and _RECEIPT["date"] in bullet
     assert "[E" in bullet and bullet.endswith("no observed magnitude for this window.")
     assert not ev._has_any(bullet, ev._NO_CITABLE)                # the whole point: no false absence
+    assert "(reported" not in bullet                              # the axes agree: pre-fix bytes exactly
+
+
+# ── D2 -- THE RECEIPT AXIS ON THE READER'S PAGE (D-EC P0, adversarial review remedy (a)) ─────────────
+# The axis fix corrected which prop receipts a window (COALESCE(event_date, date), the expression the
+# windows are clustered from) and corrected `render_line`, the PROMPT renderer. This bullet is the OTHER
+# renderer of the same receipt -- the one the READER sees -- and it printed `receipt["date"]`, the
+# PUBLICATION date, bare, under a span the reader can see it sits outside of. Measured on the fix's own
+# verification set: out-of-window on 567 of 567 newly-receiptable episodes by construction, and on 171 of
+# the 456 (37.5%) that sit above the corroboration floor, i.e. that actually reach a bullet.
+# THE EXEMPLAR IS THE REVIEWER'S: a corn-shaped 1978-08..1980-10 window whose backing document is a 2020
+# retrospective about a June 1979 freeze -- the shape the census found a median 41.5 years wide.
+_AXIS_RECEIPT = {"date": "2020-03-15", "event_date": "1979-06-11",
+                 "text": "A June 1979 freeze cut the belt harvest"}
+_AXIS_EPS = [{"start": "1978-08-14", "end": "1980-10-02", "n": 9, "receipt": _AXIS_RECEIPT}]
+_AXIS_EVIDENCE = [{"date": "2020-03-15", "event_date": "1979-06-11", "source": "usda_retrospective",
+                   "source_key": "s3://text/usda_retrospective/2020-03-15/document.json",
+                   "text": "A June 1979 freeze cut the belt harvest, among the worst ever recorded"}]
+
+
+def _axis_section(monkeypatch, eps=None, evidence=None, node="yellow_maize"):
+    """The rendered '## Episodes' section for ONE event-dated window, through the real producers."""
+    eps = _AXIS_EPS if eps is None else eps
+    monkeypatch.setenv("GRAPHRAG_EPISODE_SCAFFOLD", "on")
+    st, vf = _structured(), _verifier()
+    an._maybe_scaffold_episodes(st, vf, injected=_injected(eps, node=node), nodes=[_Node(node, eps)],
+                                evidence=_AXIS_EVIDENCE if evidence is None else evidence, n_positional=2)
+    return ev._episode_section(st["mechanism"])
+
+
+def test_the_rendered_primary_date_lies_inside_the_bullets_own_window(monkeypatch):
+    """THE PIN THE REVIEW BLOCKED ON. Whenever the receipt carries an event date, the date the bullet
+    renders FIRST -- the one the sentence is read as being about -- must be inside the window that same
+    bullet names. The publication date is not dropped: it rides behind as an explicit '(reported ...)'
+    qualifier, so the citation's own timestamp is still on the page and still says what it is."""
+    section = _axis_section(monkeypatch)
+    bullet = [ln for ln in section.split("\n") if ln.startswith("- ")][0]
+    # 'yellow maize', not 'yellow_maize': the mint-time reg.sanitize humanizes the raw node id
+    assert bullet.startswith("- 1978-08..1980-10 -- yellow maize: the dated item [E")
+    assert "recorded 1979-06-11 (reported 2020-03-15)" in bullet
+    # derived, not spelled: the PRIMARY date is inside this bullet's OWN episode window
+    primary = re.search(r"recorded (\d{4}-\d{2}-\d{2})", bullet).group(1)
+    start, end = tl.day_window(_AXIS_EPS[0])
+    assert start <= primary <= end, (primary, start, end)
+    assert primary == _AXIS_RECEIPT["event_date"] != _AXIS_RECEIPT["date"]
+    # ...and the publication date NEVER appears as the primary -- that was the defect, verbatim
+    assert "recorded 2020-03-15" not in bullet
+    assert not (tl.day_window(_AXIS_EPS[0])[0] <= _AXIS_RECEIPT["date"] <= tl.day_window(_AXIS_EPS[0])[1])
+
+
+def test_the_reader_and_the_model_are_shown_the_SAME_date_token(monkeypatch):
+    """ONE FORMATTING TRUTH, TWO CALL SITES. `timeline.receipt_when` produces the token for the prompt
+    line and for the bullet alike; a second spelling here is how the page and the prompt come to disagree
+    about when the cited thing happened, which is the disagreement the axis fix exists to end."""
+    token = tl.receipt_when(_AXIS_RECEIPT)
+    assert token == "1979-06-11 (reported 2020-03-15)"
+    bullet = [ln for ln in _axis_section(monkeypatch).split("\n") if ln.startswith("- ")][0]
+    assert token in bullet                                        # the reader's surface
+    assert token in tl.render_line("yellow_maize", _AXIS_EPS)      # the model's surface
+    assert "receipt_when" in inspect.getsource(an._maybe_scaffold_episodes)   # not a local re-spelling
+
+
+def test_the_bullet_is_byte_identical_when_the_two_axes_agree(monkeypatch):
+    """The no-event-date corpus renders exactly the pre-fix bullet: one date, no parenthetical. This is
+    what makes the change a CORRECTION on the episodes that needed it rather than a reformat of them all."""
+    plain = {k: v for k, v in _AXIS_RECEIPT.items() if k != "event_date"}
+    eps = [{**_AXIS_EPS[0], "receipt": plain}]
+    bullet = [ln for ln in _axis_section(monkeypatch, eps=eps).split("\n") if ln.startswith("- ")][0]
+    assert "recorded 2020-03-15 reports" in bullet and "(reported" not in bullet
+    # an event date EQUAL to the publication date is the same case, and must not print a tautology
+    same = {**_AXIS_RECEIPT, "event_date": _AXIS_RECEIPT["date"]}
+    eps2 = [{**_AXIS_EPS[0], "receipt": same}]
+    b2 = [ln for ln in _axis_section(monkeypatch, eps=eps2).split("\n") if ln.startswith("- ")][0]
+    assert b2 == bullet
+
+
+def test_the_qualified_date_does_not_move_a_single_render_fence(monkeypatch):
+    """The parenthetical is engine-authored text on a line the engine signs, so every fence
+    `_scaffold_survives` applies must read exactly as it did: no span-shaped token (the scanner needs
+    '..'), no bare level (ISO dates are register._NUM_NOISE), no absence or derivation vocabulary, and a
+    sanitize FIXED POINT."""
+    from leviathan.graphrag import register as reg
+    section = _axis_section(monkeypatch)
+    assert reg.unbacked_levels(section) == [] and reg.internal_leaks(section) == []
+    assert reg.sanitize(section) == section
+    assert an._EPISODE_SPAN_SHAPE_RX.findall(section) == ["1978-08..1980-10"]
+    bullet = [ln for ln in section.split("\n") if ln.startswith("- ")][0]
+    assert not ev._has_any(bullet, ev._NO_CITABLE)                # still no false absence
+    assert bullet.endswith("no observed magnitude for this window.")
 
 
 @pytest.mark.parametrize("mask", [(None, None), (None, _RECEIPT), (_RECEIPT, None), (_RECEIPT, _RECEIPT)])
