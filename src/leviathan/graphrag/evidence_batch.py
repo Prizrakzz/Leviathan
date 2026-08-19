@@ -784,7 +784,7 @@ def _build_requests(s3, nodes, n_docs, seed, *, reads: "DocReadTally | None" = N
             for blk, meta, btext in blocks:
                 cid = f"r{len(requests):06d}"                                     # custom_id: ^[A-Za-z0-9_-]{1,64}$
                 requests.append({"custom_id": cid, "params": {                   # no tools, no caching (see header)
-                    "model": ex.HAIKU, "max_tokens": _MAX_OUTPUT_TOKENS, "system": ch._PROP_SYSTEM,
+                    "model": ex.HAIKU, "max_tokens": _MAX_OUTPUT_TOKENS, "temperature": 0, "system": ch._PROP_SYSTEM,
                     "messages": [{"role": "user", "content": blk.verbatim_span}]}})
                 manifest[cid] = _block_meta(meta, blk, btext)                     # + block span for W2.1 offsets
     return requests, manifest, sampling
@@ -1008,7 +1008,7 @@ def _retry_requests(blocks: dict, lost: dict) -> tuple[list, dict]:
                 continue
             rcid = f"{cid}_x{j}"                                       # custom_id: ^[A-Za-z0-9_-]{1,64}$
             reqs.append({"custom_id": rcid, "params": {
-                "model": ex.HAIKU, "max_tokens": _MAX_OUTPUT_TOKENS, "system": ch._PROP_SYSTEM,
+                "model": ex.HAIKU, "max_tokens": _MAX_OUTPUT_TOKENS, "temperature": 0, "system": ch._PROP_SYSTEM,
                 "messages": [{"role": "user", "content": sub}]}})
             man[rcid] = {**m, "block_text": sub, "block_start": bstart + off,
                          "block_end": bstart + off + len(sub), "retry_of": cid}
@@ -1574,7 +1574,7 @@ def _build_requests_from_docs(s3, doc_keys, *, gate=None, ledger: list | None = 
         for blk, meta, btext in blocks:
             cid = f"r{len(requests):06d}"
             requests.append({"custom_id": cid, "params": {
-                "model": ex.HAIKU, "max_tokens": _MAX_OUTPUT_TOKENS, "system": ch._PROP_SYSTEM,
+                "model": ex.HAIKU, "max_tokens": _MAX_OUTPUT_TOKENS, "temperature": 0, "system": ch._PROP_SYSTEM,
                 "messages": [{"role": "user", "content": blk.verbatim_span}]}})
             manifest[cid] = _block_meta(meta, blk, btext)   # + block span for W2.1 offsets
     return requests, manifest
