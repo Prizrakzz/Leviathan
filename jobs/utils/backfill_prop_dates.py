@@ -220,6 +220,14 @@ def main() -> int:
     payload["cache_objects_rewritten" if args.apply else "cache_objects_that_would_move"] = written
     print(f"\nchunk cache: {written} document object(s) "
           f"{'REWRITTEN' if args.apply else 'would move'} of {payload['totals']['docs']} inspected")
+    if payload["totals"]["docs"] == 0:
+        # FAIL-CLOSED (2026-08-19): a mis-pointed store (EVIDENCE_S3 unset, wrong prefix) makes an
+        # empty run indistinguishable from a healthy no-op -- the first real dry-run did exactly
+        # this and reported '0 of 0' with exit 0. An inspected-zero run is a configuration error,
+        # never a verdict about the data.
+        print("REFUSED: 0 documents inspected -- the store is mis-pointed (set EVIDENCE_S3, e.g. "
+              "s3://leviathan-dev-shahem-001/graphrag_evidence) or the cache prefix is empty.")
+        raise SystemExit(2)
     if not args.skip_pg:
         try:
             n = backfill_pg(sources=sources, apply=args.apply, report=report)
