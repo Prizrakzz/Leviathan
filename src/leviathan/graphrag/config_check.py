@@ -250,8 +250,11 @@ def check_chain_map() -> list[str]:
     Every check (sec 2.5), fail-closed like its cascade_map sibling:
 
       1. every `contracts[]` entry is a LOADED contract; every `node` exists in that contract's DAG (ACCENT-FOLDED
-         both sides -- the ENSO root is accented `La_Niña` in 8/14 v1 DAGs, ASCII `La_Nina` in the chain_map; a
-         literal match would leave accented-contract roots unmatched while the lint stayed green).
+         both sides). RE-CUT 2026-08-20 (D-EC XC-2): this used to read "the ENSO root is accented `La_Niña` in
+         8/14 v1 DAGs, ASCII `La_Nina` in the chain_map" -- that MOTIVATION is now retired, because the merge
+         normalized all 14 onto ASCII and no shipped DAG carries a diacritic in an id. The fold STAYS and is
+         not weakened: it is what makes a literal-match regression impossible the next time an author writes
+         `El_Niño`, and it is the reason this lint's output did not move by a single byte across the merge.
       2. every consecutive (parent->child) hop pair is a REAL DAG edge: child.parents contains the parent id,
          accent-folded (the SAME fold the engine runs at match time, cascade._accent_fold).
       3. every `ref` is an ACTIVE cascade_map row (load_map drops deferred); no hop's table is in the census

@@ -186,7 +186,27 @@ def test_the_forward_count_is_the_reverse_indexs_own_resolved_count(real, census
 
 def test_graph_version_hashes_the_configs_not_the_code(real, census):
     """PROPERTY 4, verified rather than asserted in prose: `causal_graph_version` reads YAML BYTES, so a
-    resolution change cannot move a stamped answer's graph identity. Re-derived here from the files."""
+    resolution change cannot move a stamped answer's graph identity. Re-derived here from the files.
+
+    RE-CUT TWICE on 2026-08-20 for D-EC XC-2/XC-5, and each re-cut is the property working, not the property
+    lapsing. Both were CONFIG edits, so the hash MUST move, and the pin is what proves it did:
+
+      482c0e2554e6 -> bfbae71b43b8   the ENSO merge: 110 driver-id reference lines across 18 of the 33 DAGs
+                                     (`El_Niño`->`El_Nino` on 15, `La_Niña`->`La_Nina` on 14,
+                                     `china_state_reserves`->`China_state_reserves` on 3)
+      bfbae71b43b8 -> 7030c21badfc   the XC-5 tail: 6 lines across 2 DAGs (`cny_fx`->`CNY_FX` on
+                                     rapeseed_meal_zce, `US_export_pace`->`us_export_pace` on cotton)
+
+    The second move is worth its own line because it is BYTE-NEUTRAL -- both renames are case-only, so the
+    33 files weigh exactly what they weighed before and only the hash can tell you anything happened. That
+    is the whole argument for hashing bytes rather than counting them.
+
+    The census artifact is NOT re-pinned to the new value and must not be: `data/dec_p0/graph_walk.json` is
+    frozen evidence of the PRE-merge graph (it is what fix #68's 52 -> 94 was measured against), and a
+    measurement file edited to agree with the code it measures has stopped being evidence. The inequality is
+    asserted instead, which pins strictly MORE than the old chained equality did: a code-only change still
+    cannot move `real.version` (that is the third assert), and the artifact still records the graph it was
+    taken on."""
     import hashlib
     paths = sorted(g._CAUSAL_DIR.glob("*.yaml"), key=str)
     h = hashlib.sha256()
@@ -195,7 +215,10 @@ def test_graph_version_hashes_the_configs_not_the_code(real, census):
         h.update(b"\0")
         h.update(p.read_bytes())
         h.update(b"\0")
-    assert real.version == h.hexdigest()[:12] == census["graph_version"] == "482c0e2554e6"
+    assert real.version == h.hexdigest()[:12] == "7030c21badfc"     # POST-XC-5-tail, re-derived from bytes
+    assert census["graph_version"] == "482c0e2554e6"                # the frozen PRE-XC-2 artifact, untouched
+    assert real.version != census["graph_version"], \
+        "a CONFIG edit must move the hash -- that is what 'hashes the configs, not the code' means"
 
 
 # ── the synthetic-graph no-op (the property the relative fence was written for) ──────────────────────

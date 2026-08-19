@@ -23,7 +23,12 @@ from leviathan.graphrag import graph as g
 from leviathan.graphrag.numbers import cascade as cq
 
 ASOF = "2011-06-01"
-NINA = "La_Niña"                                              # ACCENTED in 8/14 v1 DAGs (S2)
+NINA = "La_Niña"
+# RE-CUT 2026-08-20 (D-EC XC-2): was "ACCENTED in 8/14 v1 DAGs (S2)". No shipped DAG spells ENSO with a
+# diacritic any more -- the merge moved all 14 onto ASCII `La_Nina`. Kept accented ON PURPOSE: this file's
+# whole point is that the LIVE selection path folds, and gate-1's "an accented-contract fixture must FIRE"
+# is a property of the code, not a headcount of the corpus. Fixture-only now, and still the only place the
+# live fold is exercised end to end.
 QUESTION = ("How would a La Nina and the drought it drives feed through to the Brazil arabica coffee "
             "balance sheet and its stocks-to-use?")
 # the curated chain under test (writer B's chain_map.yaml content, pinned here): oni_climate -> su_ratio,

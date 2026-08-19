@@ -33,7 +33,16 @@ nodes:
      # CONTEXT commodities (tradeable:false — no contract/silver, never a cascade root, but real edge
      # endpoints: sunflower_oil substitutes_for palm_oil; barley competes_with corn in feed). They
      # have NO entry in commodity_hierarchy.contracts → flagged non-tradeable by construction.
-     sunflower, sunflower_oil, barley, sorghum, fish_meal]
+     sunflower, sunflower_oil, barley, sorghum, fish_meal,
+     # D-EC D15 Wave 1c (2026-08-19) — the thirteen MEASURED-dark context commodities. Same class as the
+     # five above (no contract, no silver, never a cascade root); the roster, the tiering and the
+     # per-node dark-prop counts live on commodity_hierarchy.yaml:context_commodities, which is the
+     # authority. They are node ids HERE because a canonical must be a defined node before it can carry
+     # aliases (config_check.lint_vocab) and because commodity_hierarchy.coverage_check resolves group
+     # and complex members against this list. NODE-MODEL RULE still applies: 'cottonseed meal
+     # production' is the `cottonseed` node + a production metric on a claim, never a node id.
+     cottonseed, coconut, palm_kernel, peanut, ddgs, used_cooking_oil, tallow, hfcs,
+     olive_oil, pulses, fresh_citrus, minor_oilseeds, minor_cereals]
   # NOTE: canola (ICE, Canada) and rapeseed (MATIF, Europe) are the same oilseed agronomically but
   # DISTINCT contracts (`canola_ice` vs `french_rapeseed_matif` in the universe) → distinct nodes,
   # linked at extraction via substitutes_for/correlates_with, NOT collapsed by alias.
@@ -60,7 +69,11 @@ nodes:
      ISO_Sugar, LMC_International]
   climate_driver:    # macro teleconnection drivers — the UPSTREAM cause of the proximate hazards.
                      # A quant reasons "La Niña year → Brazil drought risk"; hazards are downstream.
-    [El_Niño, La_Niña, IOD_positive, IOD_negative, ENSO_neutral]
+    # D-EC XC-2 (2026-08-20): the two ENSO values were ACCENTED here while 17 of the 33 DAGs spelled the
+    # same node ASCII, so those 17 had no vocabulary entry at all and the extractor could not mint the
+    # entity their DAGs depend on. Canonical is now the ASCII majority spelling; the accented forms moved
+    # DOWN into `aliases:` below, where a surface form belongs.
+    [El_Nino, La_Nina, IOD_positive, IOD_negative, ENSO_neutral]
   hazard:            # NEGATIVE weather/disease shocks (sign carried on the edge)
     [drought, frost, flood, heat_stress, excess_rain, leaf_rust, HLB, black_pod, CBD,
      witches_broom, harmattan]
@@ -161,7 +174,12 @@ aliases:             # EN/PT/ES + abbreviations + contract names → canonical n
   rapeseed_oil:      [rapeseed_oil_zce]
   rapeseed_meal:     [rapeseed_meal_zce]
   raw_sugar:         ["açúcar bruto", "azúcar crudo", sugar_no_11]
-  white_sugar:       [refined_sugar, sugar_no_5]
+  # `refined sugars` added 2026-08-20 (the Wave 1c rider, rated and taken): the matcher does no stemming and
+  # `refined_sugar` normalizes to the SINGULAR "refined sugar", so the plural was a separate string missing
+  # 28 props / 12 net-new dark (Wave 1c's measurement over the full chunk cache). It belongs HERE and not in
+  # evidence_windows extra_terms, by that file's own test: refined sugar IS the white contract -- an IDENTITY
+  # claim extraction may act on -- rather than a related-stage word. Homed beside its singular, nowhere else.
+  white_sugar:       [refined_sugar, "refined sugars", sugar_no_5]
   cotton:            ["algodón", "algodão"]
   # D-EC D8 (2026-08-19) ETHANOL MATCH FORMS. `ethanol` was already a commodity node with four aliases, but
   # the four were SLUGS: match_forms(ethanol) covered 'ethanol' / 'hydrous ethanol' / 'anhydrous ethanol' /
@@ -196,8 +214,13 @@ aliases:             # EN/PT/ES + abbreviations + contract names → canonical n
   witches_broom:     ["witches' broom", "witch's broom", crinipellis]
   CBD:               ["coffee berry disease", colletotrichum]
   harmattan:         ["harmattan winds", "dry harmattan"]
-  El_Niño:           [El_Nino, "El Niño", "El Nino", ENSO_warm, ONI_positive]
-  La_Niña:           [La_Nina, "La Niña", "La Nina", ENSO_cool, ONI_negative]
+  # D-EC XC-2 (2026-08-20): keys FLIPPED to the ASCII canonical (was `El_Niño`/`La_Niña`). The accented
+  # DAG-id spelling is kept as a surface form so nothing that ever wrote it goes unrouted. The list is
+  # deliberately redundant under ex._normalize (which de-accents and collapses `_` to a space, so all three
+  # of "El Niño"/"El Nino"/"El_Niño" fold to one string) -- it is an IDENTITY register a reader consults by
+  # eye, and the accented form earned its line by being the id 15 shipped DAGs actually used.
+  El_Nino:           ["El Niño", "El Nino", "El_Niño", ENSO_warm, ONI_positive]
+  La_Nina:           ["La Niña", "La Nina", "La_Niña", ENSO_cool, ONI_negative]
   safrinha:          [second_corn_crop, winter_corn, "segunda safra"]
   MSP:               [minimum_support_price, FRP, SAP, fair_remunerative_price]
   # context (non-tradeable) commodities — substitutes/feed alternatives that drive our contracts
@@ -206,6 +229,96 @@ aliases:             # EN/PT/ES + abbreviations + contract names → canonical n
   barley:            [feed_barley, malting_barley, cebada]
   sorghum:           [milo, "grain sorghum"]
   fish_meal:         [fishmeal, "fish meal", "marine protein"]
+  # ── D-EC D15 Wave 1c (2026-08-19) CONTEXT-COMMODITY MATCH FORMS ───────────────────────────────────
+  # EVERY form below is a MEASURED document frequency over the full 345,870-prop chunk cache, run through
+  # the production pair (ex._normalize -> harvest.build_matcher word-boundary regex). Nothing is imagined.
+  # Two refusal rules were applied and both are recorded, because the forms that are ABSENT are the review:
+  #
+  #   (1) DEAD -> refused. A form with zero occurrences is the e1_census 310-of-638 class. Refused on
+  #       measurement: 'delinted cottonseed', 'coconut cake', 'pke', 'palm kernel expeller', 'wet distillers
+  #       grains', 'distillers solubles', 'distillery byproducts', 'distillers by-products', 'waste cooking
+  #       oil', 'brown grease', 'recycled cooking oil', 'used vegetable oil', 'waste oils and fats', 'used
+  #       cooking oils', 'animal tallow', 'rendered fat(s)', 'poultry fat', 'choice white grease', 'fats and
+  #       greases', 'olive grove', 'olive orchards', 'faba bean', 'cowpea', 'tur dal', 'moong', 'table
+  #       oranges', 'flax seed', 'tea seed oil', 'nigerseed', 'castor beans', 'hemp seed', 'poppy seed',
+  #       'sesameseed', 'sorghum bicolor', 'fonio', 'teff'  -- 36 candidate forms, all zero, all dropped.
+  #   (2) REDUNDANT -> refused. The matcher is word-boundary over a normalized string, so a form that
+  #       CONTAINS a kept form as a whole-word phrase can never claim a prop the kept form misses. Declaring
+  #       it is dead weight that reads as coverage. Refused for this reason (with their measured, fully
+  #       covered counts): 'cottonseed oil' 851 / 'cottonseed meal' 687 / 'cottonseed cake' / 'cottonseed
+  #       hulls' / 'whole cottonseed' (all inside `cottonseed`); 'cotton seed oil'/'cotton seed meal' (inside
+  #       `cotton seed`); 'coconut oil' 2,036 / 'copra meal' 1,216 / 'desiccated coconut' / 'coconut
+  #       products' / 'coconut water' / 'coconut meal' / 'coconut palm' (inside `coconut`/`copra`); 'palm
+  #       kernel oil' 1,257 / 'palm kernel meal' 922 / 'palm kernel cake' (inside `palm kernel`); 'peanut
+  #       oil' 1,221 / 'peanut meal' 801 / 'peanut butter' / 'shelled peanut' / 'in-shell peanut' /
+  #       'groundnut oil' / 'groundnut meal' / 'peanut cake' / 'groundnut cake'; 'distillers dried grains
+  #       with solubles' / 'distillers grains with solubles' / 'dried distillers grains'; 'beef tallow';
+  #       'high fructose corn syrup' 116 / 'hfcs 42' / 'hfcs 55'; 'extra virgin olive oil' / 'virgin olive
+  #       oil' / 'table olives' / 'olive pomace' / 'olive groves'; 'pulse crops' / 'kharif pulses' / 'rabi
+  #       pulses'; 'lemons and limes'; 'sesame seed' / 'sesame oil' / 'safflower seed' / 'safflower oil' /
+  #       'camellia oil' / 'linseed oil'; 'rye flour' / 'oat groats'.
+  #       (The BARE forms are the kept ones precisely because they are the ones that fire on everything.)
+  #
+  # Three further refusals are scope calls, not arithmetic, and each is stated where it belongs:
+  #   * 'lauric oil' / 'lauric oils' (6 props) NOT given to palm_kernel -- it is a CLASS noun spanning PKO
+  #     and CNO, i.e. the aggregate-node layer (census Z01) this wave deliberately does not author.
+  #   * 'corn syrup' (125) and 'corn gluten feed'/'corn gluten meal' (70) NOT given to hfcs/ddgs -- ZERO of
+  #     them are dark (bare 'corn' already claims every one) and gluten feed is the WET-milling co-product,
+  #     a different process from the dry-mill distillers stream `ddgs` names.
+  #   * 'citrus fruit'/'citrus fruits' (183, zero dark) NOT given to fresh_citrus -- `citrus` is already an
+  #     orange_juice extra_term, so the aggregate word is spoken for and re-declaring it moves nothing.
+  cottonseed:        ["cotton seed", cottonseeds]          # 3,641 props / 2,970 DARK. The bare id carries the
+                     # whole co-product chain (oil/meal/cake/hulls); 'cotton seed' is only the two-word
+                     # spelling, whose 167 props already route to `cotton` -- identity, not new mass. The
+                     # PLURAL is a separate string (the matcher does no stemming) and was measured: 30 props,
+                     # 14 of them claimed by no other form of this node.
+  coconut:           [coconuts, copra, cno]                # 6,565 / 5,671 DARK. `copra` 3,317 is the seed,
+                     # `cno` 510 the Philippine/Indonesian desk abbreviation for coconut oil.
+  palm_kernel:       ["palm kernels", pko, pkm, oleochemical, oleochemicals]   # 3,569 / 410 DARK. Bare 'palm'
+                     # is DELIBERATELY ABSENT -- it belongs to palm_oil (evidence_windows extra_terms) and
+                     # taking it would make every CPO prop a lauric prop. 'oleochemical' is the downstream
+                     # industrial demand for lauric oils and the bulk of the mpob source (96 of its 158 dark).
+  peanut:            [peanuts, groundnut, groundnuts]      # 9,041 / 7,975 DARK -- the largest single node in
+                     # this batch and 8.4% of the whole dark mass.
+  ddgs:              [ddg, ddgss, "distillers grains", "distillers dried grains"]   # 960 / 20 DARK. Authored
+                     # for IDENTITY: the mass is real but 98% of it already routes via corn/soymeal. `ddgss`
+                     # is the corpus's own 'DDGSs' double-plural (6 props, 1 net-new dark) -- measured, not
+                     # invented. 'distiller grains' (1 prop, already routed) and 'distillers dried grain'
+                     # (2 props, 0 net) refused as singular-form variants that add nothing.
+  used_cooking_oil:  [uco, "yellow grease"]                # 89 / 41 DARK. THIN pre-X2, declared not discovered.
+  tallow:            ["animal fat", "animal fats", lard]   # 89 / 47 DARK. HONEST SCOPE, the export_levy_duty
+                     # precedent: the id is the D15-ratified name, the content is rendered animal fats of
+                     # every kind (beef tallow, lard, biofuel-feedstock 'animal fats').
+  hfcs:              ["high fructose", isoglucose, "fructose syrup", "glucose syrup"]   # 886 / 572 DARK.
+                     # 'high fructose' (not the full 'high fructose corn syrup') is the kept form because it
+                     # also catches Thailand's 'high fructose syrup' register, 43 props the long form misses.
+  olive_oil:         [olive, olives, evoo]                 # 820 / 759 DARK -- 92.6% dark, the highest share
+                     # of any family measured. Bare 'olive' sampled 10/10 on-topic (olive oil trade + the
+                     # Australian olive crop), so it is kept rather than fenced to the two-word form.
+  pulses:            [pulse, chickpea, chickpeas, garbanzo, garbanzos, lentil, lentils,
+                      "pigeon pea", "pigeon peas", "dry beans", "dry bean", "dry edible beans",
+                      "dry edible bean", "mung bean", "mung beans", "black gram", chana, urad,
+                      "dry peas", "dry pea", "field peas", "kidney beans", "navy beans", "navy bean",
+                      "pinto beans", "pinto bean", cowpeas, "broad beans"]
+                     # 2,089 / 1,712 DARK. Singular AND plural are both declared throughout, and that is not
+                     # cosmetic: the matcher does no stemming, so 'lentil' cannot fire on 'lentils'. A full
+                     # inflection sweep over every authored form (349 candidates) was run precisely because
+                     # of this, and it is what found 'dry edible bean' (22 props, 17 net-new dark), 'dry pea'
+                     # (5/5), 'navy bean' (3/2) and 'pinto bean' (1/1). 'garbanzos' (76 props, 76 dark) is
+                     # the Turkish/Mexican GAIN register and outscores 'chickpeas'. 'green gram' and 'faba
+                     # beans' refused: 1 prop each and neither is dark.
+  fresh_citrus:      ["fresh oranges", "fresh orange", grapefruit, grapefruits, lemon, lemons,
+                      lime, limes, tangerine, tangerines, mandarin, mandarins, clementine, clementines,
+                      pomelo, pomelos, "navel orange", "navel oranges", "valencia orange", "valencia oranges"]
+                     # 4,301 / 3,357 DARK. Bare 'lime' (198 props) sampled 10/10 Persian/Key lime citrus --
+                     # no agricultural-lime soil-amendment prop in the sample -- so it is kept.
+  minor_oilseeds:    [sesame, safflower, flaxseed, flax, linseed, camellia, "niger seed",
+                      "castor seed", "castor oil", perilla]
+                     # 785 / 556 DARK. `mustard` is NOT here -- it rides rapeseed's extra_terms in this same
+                     # batch, and one word on two nodes is the arbitration violation lint_vocab catches.
+  minor_cereals:     [rye, oats, oat, millet, millets, triticale, buckwheat]
+                     # 3,968 / 3,351 DARK. `durum` is NOT here -- it is a wheat CLASS and rides the four
+                     # wheat classes' extra_terms in this same batch (no double-homing).
   # cost-stack + macro-context surface forms (D-CW-1e). Bare ambiguous words are DELIBERATELY absent:
   # "phosphate" alone could be DAP or phosphate rock, and an alias with two canonical identities is the
   # arbitration violation the linter exists to catch -- so only the unambiguous forms are listed.

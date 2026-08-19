@@ -22,17 +22,19 @@
 manifest_version: 1
 generated_by: "python -m leviathan.graphrag.driver_slices_manifest --write"
 source: "configs/graphrag/driver_slices.yaml"
-file_sha256: "eb10c327a7e1ae5b07f2e53c11ae47f20cd5bb9fb2387bb0ce51be5904934c43"
+file_sha256: "ba373465c6b87d08413373ff198852dd44a0cf43df1b03deae2aa57d06d3b766"
 counts:
-  specs: 113
-  dag_aliases: 84
-  waivers: 142
-  terms: 681
+  specs: 126
+  dag_aliases: 90
+  waivers: 127
+  terms: 711
 slices:
   african_swine_fever: {category: "livestock_disease_demand", priority: null, n_terms: 5, terms_sha256: "51277c987b5ca2f0a660175de8f0257b82d1cb7c3adc5ff2cf6af886ef4a6a41"}
   animal_disease_demand_shock: {category: "livestock", priority: null, n_terms: 7, terms_sha256: "a8e1d12f3ad206fe949b5cf46826954d3c9d9d009fb39ec94ad8087612aeef09"}
   argentina_export_policy: {category: "geopolitics_policy", priority: null, n_terms: 6, terms_sha256: "65fde32a15f8a13d0bc40cce69addf92f4de67aabf4b6a591686b16c7ef2f4fd"}
+  ars_fx: {category: "macro", priority: null, n_terms: 3, terms_sha256: "293c6ad901501fbf7022aad30fc17159757286311f2e63b8e00a79aa8929e887"}
   asian_soybean_rust: {category: "crop_disease", priority: null, n_terms: 4, terms_sha256: "73be39f65f8eeba887e02acceab8f290fa3592d340c14b923467461b407ba952"}
+  aud_fx: {category: "macro", priority: null, n_terms: 1, terms_sha256: "90ef09f2d01445ef9dd95bae199707fa5e69ca74d50a3b2e1b9b11673fdc8615"}
   australia_crop_conditions: {category: "weather_regime", priority: null, n_terms: 5, terms_sha256: "206af7f8cc9b30033f4d8241c8070a4d3d62117d2eaa80ccae3b565abb15316b"}
   avian_influenza: {category: "livestock_disease_demand", priority: null, n_terms: 6, terms_sha256: "d0f55a93ae7ddf1b83da8100687e60869b8f17588af104740ccb2d6e6215b7f2"}
   baltic_dry_freight: {category: "freight_rates", priority: null, n_terms: 6, terms_sha256: "b0d0904760e560a6bc96fcbafc4cc5e054a93d76ee9b6c9a12990bfea2fb1591"}
@@ -43,6 +45,7 @@ slices:
   black_sea_corridor: {category: "logistics_chokepoint", priority: null, n_terms: 6, terms_sha256: "90628b9bc92827290e21df70dbd824c3b00d5c5f79a4d9bbd388f18544eee078"}
   brl_fx: {category: "macro", priority: null, n_terms: 5, terms_sha256: "b0e4d3239b562b8e370daef8d9da760a26aa1944d56c936234afb609af9e0f18"}
   broiler_economics: {category: "livestock_feed_demand", priority: null, n_terms: 6, terms_sha256: "9881cf984b271f1c9aafd73c294073c6c7b20bdb563e85ae123ea87ab60d6a03"}
+  cad_fx: {category: "macro", priority: null, n_terms: 3, terms_sha256: "594c5b8f5657aebd78f67b0b4aecac1bdca3e69a9e384ff19dc3ab5394a4e0d3"}
   cattle_cycle_herd_size: {category: "livestock_feed_demand", priority: null, n_terms: 5, terms_sha256: "1ab1084994bf382e69b0611ce3d3e0f8114e6a6ffe4d37af40836f440fedfbe9"}
   cattle_on_feed: {category: "livestock_feed_demand", priority: null, n_terms: 6, terms_sha256: "9ca1aaeeddf0fa1553ec244ae1eccc420c587b1b5464600df35ace2bf7b824d6"}
   cereal_rust_complex: {category: "crop_disease", priority: null, n_terms: 4, terms_sha256: "a70037263332baa3d10db7e0ee5ae0bb54464851aa7cc45570b21387c6d029e1"}
@@ -51,6 +54,7 @@ slices:
   china_crush_demand: {category: "demand_center", priority: null, n_terms: 5, terms_sha256: "66edd1e84a64aa34dede3de9bce643d8d7d7f204e87d24e59fcadbb9aba5961a"}
   china_reserve_auctions: {category: "demand_center", priority: null, n_terms: 7, terms_sha256: "3cb0ea75a136899677291e6115c28ddb688761086b97623e1ea6d56419c36f9d"}
   citrus_canker_psyllid: {category: "crop_disease", priority: null, n_terms: 5, terms_sha256: "9e4039c3b6302efbbe4a95b3ce057ffd881b6ba3c4bbd26eae04f74cf4e7ada7"}
+  cny_fx: {category: "macro", priority: null, n_terms: 3, terms_sha256: "0675eeaa98045fd267b62542ed3c19996a8dd2211d4f2a493a3dad210b2a2f4c"}
   cocoa_grindings: {category: "demand_center", priority: null, n_terms: 6, terms_sha256: "095355269611d4f4eb0ae2492300ecb853367716cf105f315099b6527a6d8d02"}
   cocoa_pod_disease: {category: "crop_disease", priority: null, n_terms: 8, terms_sha256: "d0ac892300f158c17130cc4599ad88d71076a415ada306ccbbb6136f6f1b8797"}
   cocoa_swollen_shoot_virus: {category: "crop_disease", priority: null, n_terms: 4, terms_sha256: "acd9673ac644ccf471ea0820e2d351945bde7406af6e1984685e76dbcf4be459"}
@@ -71,6 +75,7 @@ slices:
   el_nino: {category: "climate", priority: null, n_terms: 3, terms_sha256: "9dab4f2c92449f2b6182b201e63d76d38fd11b79c8045307be442d6bc23a1da3"}
   ethanol_margins: {category: "biofuel_policy", priority: null, n_terms: 7, terms_sha256: "08dc9c21ddf887be58a396f1daf7fb4b7d26e9f64222ee900ba94863cc8aed6d"}
   eu_crop_and_policy: {category: "weather_regime", priority: null, n_terms: 6, terms_sha256: "869250602a966eaac729ed4cd59ad631c952f8f9ae8b0715ea17ff558f52fc9c"}
+  eur_fx: {category: "macro", priority: null, n_terms: 2, terms_sha256: "658d338b183074bb8905c73cb2e744aa46199fbd2d4f3a0d5e37aface1af3d8a"}
   export_ban: {category: "policy", priority: null, n_terms: 7, terms_sha256: "fe050d022f01f2ab7a7c81fdcda54646558260272ee36a7d417feccb9a13dbe0"}
   export_levy_duty: {category: "policy", priority: null, n_terms: 4, terms_sha256: "c4c1705468362d6b9a1575703236d55dcb22c3bc7e287971c3ada8cafbda76c2"}
   fall_armyworm: {category: "crop_pest", priority: null, n_terms: 3, terms_sha256: "3064813df64cd467b956f36fde20f87e676ed928a283d90b614af3f5e915c548"}
@@ -103,6 +108,7 @@ slices:
   mississippi_river_levels: {category: "logistics_chokepoint", priority: null, n_terms: 6, terms_sha256: "fe80c598adc338886e92f1d8b42ad3b950df18a9e5593afe44dea74392eae87c"}
   monsoon: {category: "climate", priority: null, n_terms: 1, terms_sha256: "343ccdf39358b3f908310e2fb9bb714793aa13a6a5fb08fdd829dfa30c2abecb"}
   msp: {category: "policy", priority: null, n_terms: 2, terms_sha256: "a4416977bef5335b8ddace75893f308533e59379f2114c6d692ab3ba1a868882"}
+  mxn_fx: {category: "macro", priority: null, n_terms: 3, terms_sha256: "10ee0a548c2d327cbb32730d400c9341f5b4ea427f707f75fa605d5c1175e0cf"}
   myr_fx: {category: "macro", priority: null, n_terms: 2, terms_sha256: "0a80d48839cbbbad341e25a060b524cf1f7ff8149d858e8ef6a8401d43194dc1"}
   natural_gas: {category: "energy", priority: null, n_terms: 2, terms_sha256: "bc487ff5411a9eedcc145e8e4bca95afb0d96bb203d37f0b76d254c0dcdfe0de"}
   natural_rubber: {category: "non_contract_soft", priority: "context", n_terms: 6, terms_sha256: "d826682a4a14a820252b3cdfc7dc9b68207278a2895b0eafd2b6fabfee600edc"}
@@ -110,6 +116,7 @@ slices:
   palm_oil_disease_pest: {category: "crop_disease", priority: "context", n_terms: 6, terms_sha256: "c6c88d8a341a197a901af42e7af76e92ed9f771313e0d6e7c9c5cc3f594af57c"}
   panama_canal_constraints: {category: "logistics_chokepoint", priority: "context", n_terms: 5, terms_sha256: "fb82530f9fac72af7c90d6794856838893d65451db1292a9e976cc26722f0a5c"}
   parana_river_levels: {category: "logistics_chokepoint", priority: null, n_terms: 5, terms_sha256: "4036229126a8662a5d9829d30f3a2e5835c283d6923ec756ad9832b90f38ba22"}
+  php_fx: {category: "macro", priority: null, n_terms: 3, terms_sha256: "9f72776157c31c0c7f9aebae2e74da46d1e583c485f5244b109e79d483b9020b"}
   polar_vortex_winterkill: {category: "weather_regime", priority: null, n_terms: 6, terms_sha256: "bddd83bd00f1443f79bde8021bb2e0382675d6342cd3b07c06df97186f25c138"}
   potash: {category: "fertilizer", priority: null, n_terms: 3, terms_sha256: "75b3aea1c824f203fe0b6459025679649ece8b6b1ca4436db23fb6ea63a52ade"}
   protein_meal_substitution: {category: "substitution", priority: "context", n_terms: 6, terms_sha256: "4a71255cd9a64f26a7093e65004100da873ee73d9ad8e3b12e62bfc04bfb0ce9", max_props: 25000}
@@ -118,6 +125,7 @@ slices:
   renewable_diesel_capacity: {category: "biofuel_policy", priority: null, n_terms: 7, terms_sha256: "2e950be51a55294e0f71b7c37f8da090b5a0d4209146e24817ef76d5f4697632"}
   rice_blast_pest_complex: {category: "crop_disease", priority: null, n_terms: 6, terms_sha256: "26184b49605c5f26c0021364a6a14df85f15f74afd1fad51fb01602b8e4825c3"}
   rin_credits: {category: "biofuel_policy", priority: null, n_terms: 7, terms_sha256: "810bd12e1caab0762633ed45675d9346222555057c336e5f30b7bd30d5c4ae1d"}
+  rub_fx: {category: "macro", priority: null, n_terms: 3, terms_sha256: "a2e3b988cf098dce23e7d3019ab8332d750fd5514a5017a31ae39c37404b3fac"}
   russia_export_tax_quota: {category: "geopolitics_policy", priority: null, n_terms: 5, terms_sha256: "2dfe088728efba0fb3a6213a9181a35f537420f1dbb8b44a25959e99a8b322bc"}
   sanctions_payment_rails: {category: "geopolitics_policy", priority: "context", n_terms: 7, terms_sha256: "b1181851689fe10c770961a7eaaf371559205bf905ca96827653f859b55a6e51"}
   south_american_safrinha: {category: "weather_regime", priority: null, n_terms: 6, terms_sha256: "670f69d069f8b233309a2e60cbfbddecb9c0fd151fa9cc57d5e467223be05341"}
@@ -130,6 +138,9 @@ slices:
   sustainable_aviation_fuel: {category: "biofuel_policy", priority: "context", n_terms: 5, terms_sha256: "df1520b39e930a0631c0a7fa2272fb5837dd984e58ab891862bd07ac21c81906"}
   tariff: {category: "policy", priority: null, n_terms: 17, terms_sha256: "1f2fd1b9110857e701b48d9d3bbcde1ff0b77d1c879aec7451e6c80f15404e63", max_props: 25000}
   textile_apparel_demand: {category: "demand", priority: null, n_terms: 16, terms_sha256: "c5780fafdc2010d602ff5cad0025776bb6872c27e4b14ecd4661cb5cfe945d63", max_props: 25000}
+  thb_fx: {category: "macro", priority: null, n_terms: 1, terms_sha256: "c075497fe62901cece17a0b3539f9f5cddb52308eb796689885d5e0e094bf796"}
+  try_fx: {category: "macro", priority: null, n_terms: 2, terms_sha256: "70e2ca07266af2cfb7194f944bc8aaa2a8a9f273fabb150d839e97a320938c13"}
+  uah_fx: {category: "macro", priority: null, n_terms: 2, terms_sha256: "b0402af1c3df7c9c59da40f885d144ba992cf06989c1fc5f726caf78153efad4"}
   urea: {category: "fertilizer", priority: null, n_terms: 1, terms_sha256: "57ff2f0dd49e2ec54f58a242e743254c26585abbb9503987815aa72d3363d10a"}
   us_dollar_index: {category: "fx_macro", priority: null, n_terms: 9, terms_sha256: "308fc25f3c585fd298d512b9e4b5420c16b96f318ef072e2166ae049649f89f2"}
   us_drought_monitor: {category: "weather_regime", priority: null, n_terms: 6, terms_sha256: "bd28698a15086ecb327f7e8b4738fefc486f066ac4004297e0ad3318a8d8132c"}
@@ -138,7 +149,9 @@ slices:
   veg_oil_substitution_spreads: {category: "substitution", priority: null, n_terms: 6, terms_sha256: "54f3c6a0b2290c73ad1d2b5fc3bbdb3da265d2832af6da982e34adcd3032e2ba"}
   vessel_lineups_export_basis: {category: "logistics_chokepoint", priority: null, n_terms: 6, terms_sha256: "29e1de00f8cf5810f6591a7e09625c456374a90614b9f754fe195554cee1b11e"}
   vietnam_robusta_weather: {category: "weather_regime", priority: null, n_terms: 5, terms_sha256: "7200d33e9899259e2a9a6c43bb58c0b09c0066124cd91ca25fd269c33681eec9"}
+  vnd_fx: {category: "macro", priority: null, n_terms: 2, terms_sha256: "8c701d85aca50c5334310d58685471d46e6f9257f143915e8104655d0678938c"}
   wasde_stocks_to_use: {category: "balance_sheet", priority: null, n_terms: 6, terms_sha256: "2b6f6b8977d3be396ae619d45cfcf842340adc65017c546ab42f885b8880ebcb", max_props: 25000}
   west_africa_weather: {category: "weather_regime", priority: null, n_terms: 5, terms_sha256: "c21766df48accdd9de347cb80df34dba1430b18e348065f9a7583153441e4111"}
   wheat_blast: {category: "crop_disease", priority: null, n_terms: 4, terms_sha256: "197c2ddce20d43a235b262f360836d92092cd7697e545bb5d4d7dd5166609196"}
   white_premium_refining: {category: "substitution", priority: "context", n_terms: 5, terms_sha256: "1422072a0fdb0109ef1cff4b25603bbf6017d5086c8a4579d1dc07a163b38034"}
+  zar_fx: {category: "macro", priority: null, n_terms: 2, terms_sha256: "2c66c24704fdbff57be789768bbeacb7a6ddf7122594fd56ee392bc28a0b66eb"}

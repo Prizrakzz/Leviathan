@@ -203,8 +203,13 @@ def test_census_esr_probe_fires_covered_darks_mis_assigned(monkeypatch):
     from leviathan.graphrag.numbers import cascade_census as cc
     corn = SimpleNamespace(contract="corn_cbot", drivers=[
         SimpleNamespace(id="us_export_pace", silver_ref="esr_exports", region="US")])
+    # RE-CUT 2026-08-20 (D-EC XC-5 tail): cotton's id was `US_export_pace` here because that is what cotton's
+    # DAG really spelled it -- the LONE leading-case outlier of a 5-contract node. It was renamed onto the
+    # 4-DAG majority `us_export_pace`. The fixture is hermetic so BOTH spellings pass; it is updated anyway,
+    # because a fixture whose whole point is "this is the shape production has" stops earning its keep the
+    # moment it models a shape production no longer has.
     cotton = SimpleNamespace(contract="cotton", drivers=[
-        SimpleNamespace(id="US_export_pace", silver_ref="esr_exports", region="US")])
+        SimpleNamespace(id="us_export_pace", silver_ref="esr_exports", region="US")])
     _mock_candidate_config(monkeypatch, cc, {"corn_cbot": corn, "cotton": cotton})
 
     def qfn(sql):
@@ -213,7 +218,9 @@ def test_census_esr_probe_fires_covered_darks_mis_assigned(monkeypatch):
     art = cc.census(asof="2026-02-15", query_fn=qfn)
     verdicts = {(leg["contract"], leg["node_id"]): leg["verdict"] for leg in art["legs"]}
     assert verdicts[("corn_cbot", "us_export_pace")] == cc.FIRES
-    assert verdicts[("cotton", "US_export_pace")] == cc.DARK
+    assert verdicts[("cotton", "us_export_pace")] == cc.DARK
+    # the VERDICT is what this pins, and it is unmoved by the rename: cotton is dark because cotton is not in
+    # silver_esr, never because of how its id was spelled.
 
 
 # ── D-W3.5.5: a silent week narrates as ABSENCE (DECLINES-HONESTLY), never a fabricated pace.

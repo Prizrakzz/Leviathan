@@ -13,8 +13,12 @@
 #   id:        unique chain id (the deck's chain_fired pin + the fired-trace chain_id).
 #   contracts: [slug, ...]  every slug must be a LOADED contract; the chain fires only when the focus is one.
 #   hops:      ordered [{node, ref, country?}] -- the DAG walk the engine quantifies.
-#     node:    a DAG driver id in EVERY contract of the row (ACCENT-FOLDED both sides: ASCII `La_Nina` here
-#              matches the accented `La_Niña` DAG ids in 8/14 v1 contracts -- CHAIN_ENGINE_PLAN sec 3.2).
+#     node:    a DAG driver id in EVERY contract of the row (ACCENT-FOLDED both sides -- CHAIN_ENGINE_PLAN
+#              sec 3.2). RE-CUT 2026-08-20 (D-EC XC-2): this line used to explain that ASCII `La_Nina` here
+#              matched "the accented `La_Niña` DAG ids in 8/14 v1 contracts". Those 14 DAGs were normalized
+#              onto ASCII in the ENSO merge, so every node name in this file is now a LITERAL match to the
+#              DAG id, and the fold is a standing defense rather than a load-bearing bridge. No row moved:
+#              config_check.check_chain_map() output was byte-identical before and after the merge.
 #     ref:     an ACTIVE cascade_map ref row (never a raw table, D2). The chain names a REF -- the safrinha hop
 #              names `production` (the PSD proxy), NOT the DAG node's own conab_production_revision silver_ref.
 #     country: an explicit PSD-title PIN that OVERRIDES the ref's country_rule (the safrinha class whose

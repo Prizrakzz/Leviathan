@@ -7,7 +7,8 @@ Two layers:
     stub returns rows by table/metric substring.
   * LIVE-SHAPED tests drive the REAL an.answer -> _answer_l2 -> the cq.quantify seam with the
     omit-when-off `chain` kwarg (the P4 pace lesson: fixture tests passed while live wiring was dark).
-    An ACCENTED-contract root (La_Nina) fixture must FIRE through selection (gate-1 accent pin, S2).
+    An ACCENTED-contract root (La_Niña) fixture must FIRE through selection (gate-1 accent pin, S2).
+    (Post-D-EC-XC-2 the accented spelling is fixture-only -- see the NINA constant below.)
 
 Coverage: loader schema (deferred filter + file-absent -> []); the PSD su_ratio hop-resolver + the
 explicit per-hop country PIN (2.1); anchor-window monthly-x-annual alignment + the downstream-only grain
@@ -29,7 +30,15 @@ from leviathan.graphrag import graph as g
 from leviathan.graphrag.numbers import cascade as cq
 
 ASOF = "2011-06-01"
-NINA = "La_Niña"                                              # the ACCENTED ENSO id (8/14 v1 DAGs; S2)
+NINA = "La_Niña"
+# RE-CUT 2026-08-20 (D-EC XC-2). This constant used to read "the ACCENTED ENSO id (8/14 v1 DAGs)" and that
+# claim is RETIRED: the merge normalized every accented ENSO id in the shipped DAGs onto ASCII `La_Nina`
+# (14 contracts moved; `La_Niña` now appears in ZERO of the 33 YAMLs). The fixture DELIBERATELY keeps the
+# accented spelling and the tests below are NOT weakened, because what they pin is the accent-fold seam
+# (sec 3.2) -- selection and per-hop lookup folding both sides -- not the census that motivated it. That
+# seam stays armed for the next accented id an author writes; it simply no longer has a production
+# instance. A fixture that stopped exercising the fold the day the corpus stopped needing it would leave
+# the fold untested exactly when nothing else guards it.
 
 
 # ── builders ───────────────────────────────────────────────────────────────────────────────────────

@@ -124,6 +124,56 @@ drivers:
   idr_fx:        {category: macro, terms: ["rupiah", "idr"]}
   inr_fx:        {category: macro, terms: ["indian rupee", "rupee", "inr"]}
   myr_fx:        {category: macro, terms: ["ringgit", "myr"]}
+  # ── D-EC D15 Wave 1c (2026-08-19) THE A24 FX ROSTER -- thirteen producer currencies, same shape as the
+  # four above. The census fact that ordered this batch: the four CONFIGURED currencies (BRL/IDR/INR/MYR)
+  # show ZERO dark props, so the mechanism demonstrably works and the roster was simply thirteen currencies
+  # short (data/dec_p0/zero_route_clusters.md, cluster Z10: 1,856 dark props of producer-currency FX). FX is
+  # the pass-through that decides farmer selling in every one of these origins.
+  #
+  # EVERY TERM IS MEASURED over the full 345,870-prop chunk cache, and the roster is SPECIFIC exactly as this
+  # file's header demands ("'brazilian real'/'brl' not bare 'real'"). Counts below are ALL props / props that
+  # route NOWHERE today. Four families of refusal, all on measurement, all recorded because the terms that
+  # are ABSENT are the review:
+  # INFLECTIONS ARE SEPARATE STRINGS and this roster is where that bit hardest. The matcher does no stemming,
+  # so every form was put through an exhaustive variant sweep scored by NET-NEW dark props. It caught a
+  # 167-prop miss that no amount of reading would have: 'ruble' is 33 props but 'rubles' is 258, and the
+  # plural is where the dark mass lives -- rub_fx went 25 -> 199 dark, which is EXACTLY the number the census
+  # published for the Russian ruble and which the singular alone could never have reached. Same shape, smaller:
+  # 'euros' +9, 'canadian dollars' +5, 'argentine pesos' +4, 'liras' +1. The plurals that scored ZERO are
+  # refused with the rest of the dead list below ('bahts', 'roubles', 'hryvnias', 'yuans', 'rands',
+  # 'australian dollars', 'vietnamese dongs').
+  #   * DEAD (zero occurrences in 345,870 props): 'thb', 'cny', 'rub', 'russian rouble', 'roubles',
+  #     'argentinian peso', 'hryvnya', 'hryvnias', 'bahts', 'yuans', 'rands', 'australian dollars',
+  #     'vietnamese dongs', 'eur usd', 'eurusd', 'euro depreciat/weaken/strengthen/appreciat'. NOTE the last group:
+  #     _Matcher compiles \b(form)\b, so a truncated stem can only match when the next character is a
+  #     non-word one -- 'euro depreciat' can never fire on 'euro depreciated'. The same is true of brl_fx's
+  #     incumbent 'real depreciat'/'real weaken'/'real strengthen'; that is a pre-existing finding about a
+  #     slice this batch does not otherwise touch, reported and NOT silently edited.
+  #   * OFF-TOPIC on a read sample, refused with the samples quoted in the batch report: 'try' (27 props,
+  #     10/10 the English verb -- "the Government of India will try to provide additional funding") and
+  #     'dong' (70 props, 10/10 Vietnamese place and company names -- Dong Nai province, Shin-Dong-Bang
+  #     Corp). Both are the urea->area over-fire class this file's header and the `area` waiver name.
+  #   * REDUNDANT under word-boundary matching (a form containing a kept form can claim nothing extra):
+  #     'thai baht' (inside 'baht'), 'russian ruble' (inside 'ruble'), 'ukrainian hryvnia' (inside
+  #     'hryvnia'), 'chinese yuan' (inside 'yuan'), 'south african rand' (inside 'rand'), 'turkish lira'
+  #     (inside 'lira'), 'euro exchange rate' (inside 'euro').
+  #   * MARGINAL, refused: 'aud' -- 1 occurrence, 0 dark. 'australian dollar' carries all 62 on its own.
+  # Bare-word risks were SAMPLED before being kept: 'rand' 10/10 South African rand (FX rate + rand/MT
+  # prices), 'cad' 10/10 Canadian dollar, 'lira' 114 of its 115 props are 'turkish lira', 'euro' 41 of 42
+  # (the one exception is a 1996 "Euro-Mediterranean agreement" prop -- bounded, declared, auditable).
+  ars_fx:        {category: macro, terms: ["argentine peso", "argentine pesos", "ars"]}   # 66 / 43 dark
+  thb_fx:        {category: macro, terms: ["baht"]}                           # 1,310 props / 338 dark
+  rub_fx:        {category: macro, terms: ["ruble", "rubles", "rouble"]}      #   289 props / 199 dark
+  cny_fx:        {category: macro, terms: ["yuan", "renminbi", "rmb"]}        # 1,636 props / 195 dark
+  try_fx:        {category: macro, terms: ["lira", "liras"]}                  #   116 props /  71 dark
+  aud_fx:        {category: macro, terms: ["australian dollar"]}              #    90 props /  62 dark
+  uah_fx:        {category: macro, terms: ["hryvnia", "uah"]}                 #   147 props /  61 dark
+  cad_fx:        {category: macro, terms: ["canadian dollar", "canadian dollars", "cad"]}   # 105 / 55 dark
+  zar_fx:        {category: macro, terms: ["rand", "zar"]}                    #    62 props /  48 dark
+  mxn_fx:        {category: macro, terms: ["mexican peso", "mexican pesos", "mxn"]}   # 105 props / 59 dark
+  php_fx:        {category: macro, terms: ["philippine peso", "philippine pesos", "php"]}   # 150 / 72 dark
+  vnd_fx:        {category: macro, terms: ["vietnamese dong", "vnd"]}         #   231 props /  71 dark
+  eur_fx:        {category: macro, terms: ["euro", "euros"]}                  #    68 props /  23 dark
   freight:       {category: macro, terms: ["freight", "ocean freight", "shipping cost", "baltic dry", "vessel availab", "logistics cost", "container rate", "panama canal", "suez"]}
 
   # --- energy (often the START of a cascade: crude -> biodiesel economics / fertilizer / freight) ---
@@ -415,6 +465,19 @@ drivers:
 # favorable_rainfall, export_pace_lag) are intentionally absent — they need the silver leg (F4) or a new slice.
 # Additive: the 13 exact-name matches keep resolving by identity even if omitted here.
 dag_alias:
+  # D-EC XC-2 (2026-08-20). These two rows used to reach HALF the ENSO layer and the file could not say so:
+  # the DAGs carried ENSO under two ids differing by DIACRITIC alone -- ASCII `El_Nino` on 17 contracts,
+  # accented `El_Niño` on 15 (`La_Nina` 17 / `La_Niña` 14), with ZERO DAGs carrying both, so the split
+  # partitioned grains+oilseeds from softs+coffee+canola and no id-keyed traversal could walk a corn ENSO
+  # episode to a coffee one. MEASURED before the merge: 48.6% of El_Nino contract PAIRS were id-walkable
+  # (241 of 496), 48.8% for La_Nina -- the "silent 50% cut to the highest-degree hub" of the desk-ontology
+  # diff, arithmetically. The 33 DAGs are now normalized to the ASCII MAJORITY spelling (the rename moved
+  # 110 id-reference lines across 18 files; driver ids 374 -> 371, driver INSTANCES unchanged at 1,152), so
+  # these rows now reach 32 and 31 contracts respectively -- the union of both former partitions.
+  # NOT the reason the rows kept resolving before: evidence.driver_alias()'s accent-fold pass already routed
+  # the accented ids to these ASCII slice names, so SLICE resolution was never the casualty. What was cut is
+  # every reader keyed on the id STRING (graph joins, convergence membership, episode identity). The fold
+  # pass stays -- it is now a no-op for ENSO and remains the defense for the next accented id.
   el_nino: [El_Nino]
   la_nina: [La_Nina]
   argentina_export_policy: [Argentina_export_registration, Argentina_export_tax, soy_dollar]
@@ -491,7 +554,12 @@ dag_alias:
   drought: [Brazil_conilon_drought, EU_drought, autumn_drought_establishment, china_drought, eu_rapeseed_drought, flash_drought, prairie_drought, regional_drought]
   orange_greening_disease: [Brazil_orange_production, HLB]
   china_buying_pace: [China_import_pace, china_soybean_import, import_arrivals]
-  china_reserve_auctions: [China_reserve_release, China_state_reserves, china_state_reserves, state_reserve_buildup, state_reserve_release]
+  # D-EC XC-5 (2026-08-20): `china_state_reserves` DELETED from this row -- not de-scoped, RETIRED. It was
+  # the same node as `China_state_reserves` under a different leading case (5 DAGs vs 3, zero overlap), and
+  # the 3 lowercase DAGs (corn, corn_cbot, campinas_corn_reference_bmf) were renamed onto the majority
+  # spelling in the same edit. The slice's reach is UNCHANGED at 8 contracts -- it owned both strings, so
+  # this removes a dead key, never a population. Leaving it would be a duplicate id in one owner's list.
+  china_reserve_auctions: [China_reserve_release, China_state_reserves, state_reserve_buildup, state_reserve_release]
   indonesia_b40_palm: [DMO]
   eu_crop_and_policy: [EUDR, EU_EUDR, EU_production, EU_rapeseed_supply, eudr_deforestation]
   parana_river_levels: [Parana_low_water]
@@ -664,6 +732,58 @@ dag_alias:
     # 14 props, and the ONE alias-only entry in the tranche -- MYR_USD already exists as a node on
     # malaysian_crude_palm_oil_cme and palm_olein_dce, so this is wiring, not curation. Reach 0 -> 2.
     # Its `waivers:` row is deleted below in the same edit (the D-CW-3a precedent).
+
+  # ===== D-EC D15 Wave 1c (2026-08-19) -- A24 FX ROSTER WIRING =====================================
+  # Six of the thirteen new fx slices take DAG ids that were WAIVERED silver_only AND UNOWNED. Every
+  # claim below therefore CREATES reach and costs no slice anything -- it is the D8 `favorable_rainfall`
+  # shape, not the D-CW-3a alias-steal shape (an id owned by another slice was never touched; the
+  # duplicate-ownership leg of check_driver_slices would hard-error on that, and does not fire here).
+  # Each claimed id's `waivers:` row is DELETED below in the same edit, per the MYR_USD / gasoil_palm_spread
+  # precedent: a waiver asserts "grounded by the observed silver leg, never text", and that stops being
+  # true the moment a text slice owns the id. Reach counts are measured over configs/graphrag/causal/.
+  # This is WIRING ONLY -- no DAG node is minted, no region token changes, so the D-PQ fence holds and
+  # nothing new is quantified (only brl/ars/cny exist in silver_fred_fx, unchanged by this batch).
+  ars_fx: [ARS_FX]
+    # 56 props / 39 dark. Reach 0 -> 1 (corn_cbot -- Argentine FX and the export-tax/'agro-dollar' schemes
+    # are one channel there; the samples are literally 'peanut exports should receive ARS$300 per dollar').
+  cad_fx: [CAD_FX, usdcad_fx]
+    # 98 / 50. Reach 0 -> 2 (hard_red_spring_wheat_mgex, canola_ice) -- the two boards whose deliverable
+    # supply is priced in CAD.
+  cny_fx: [CNY, CNY_FX, CNY_USD, usdcny_fx]
+    # 1,636 / 195, and the largest reach unlock in the roster: 0 -> 7 (soybean_oil_dce, soybean_meal_dce,
+    # soybeans_no_1_dce, soybeans_no_2_dce, palm_olein_dce, rapeseed_oil_zce, rapeseed_meal_zce). FOUR
+    # spellings of one currency were each separately waived on four different Chinese boards; they now
+    # resolve to one slice.
+    # RE-CUT 2026-08-20 (D-EC XC-5 tail). This note used to end: "The slice name `cny_fx` is ALSO a real DAG
+    # id (rapeseed_meal_zce), which driver_alias() backs by identity -- that self-match is why the id is not
+    # repeated in this list." That self-match NO LONGER EXISTS, and its disappearance is the fix, not a
+    # regression: `cny_fx` and `CNY_FX` were ONE currency node split by leading case across three DAGs
+    # (CNY_FX on soybean_meal_dce + soybeans_no_1_dce, cny_fx on rapeseed_meal_zce, zero DAGs carrying
+    # both), so rapeseed_meal_zce was unreachable from the other two by any id-keyed walk. The lowercase
+    # DAG id was renamed onto the majority spelling, so this slice now backs rapeseed_meal_zce through
+    # `CNY_FX` -- ALREADY IN THIS LIST, which is why the list itself needed no edit and the slice's reach
+    # is unchanged at 7. THE SLICE NAME STAYS LOWERCASE: `cny_fx` is a slice id, not a DAG id, and the two
+    # namespaces were never the same thing -- confusing them is what made the self-match look load-bearing.
+  eur_fx: [EUR_USD, EUR_USD_FX, eurusd_fx]
+    # 42 / 14 -- the thinnest slice in the roster and the widest reach per prop: 0 -> 4 (french_wheat_matif,
+    # french_maize_matif, french_rapeseed_matif, white_sugar). Three spellings, three MATIF boards plus the
+    # London white-sugar board, all previously waived silver_only with no text leg at all.
+  zar_fx: [ZAR_FX, rand_FX]
+    # 62 / 48. Reach 0 -> 2 (south_african_yellow_maize_jse, south_african_white_maize_jse) -- the JSE twins,
+    # one spelling each. 39 of the 48 dark props are in usda_gain_orange_juice (rand/MT citrus prices).
+  vnd_fx: [VND_USD_fx]
+    # 231 / 71. Reach 0 -> 1 (robusta_coffee) -- the dong is the Vietnamese farmer's hold-or-sell currency.
+  # REFUSED, and recorded rather than smuggled:
+  #   * INR_THB_VND_weakness (rough_rice_cbot) is NOT taken by thb_fx or vnd_fx. It is a BASKET id covering
+  #     three currencies at once, and D-GD tranche 2 already declined to give rough_rice_cbot a second FX
+  #     node for exactly this reason ("a second node there would double-own one FX channel"). Refusing it
+  #     again on the same ground is what leaves thb_fx read-dark; INR_PKR_weakness and GBP_cross are
+  #     declined for the same basket/no-slice reasons and keep their waivers.
+  #   * Nothing is claimed for rub_fx, try_fx, aud_fx, uah_fx, mxn_fx, php_fx -- not one of the 371 real DAG
+  #     driver ids names the ruble, lira, Australian dollar, hryvnia, Mexican peso or Philippine peso. There
+  #     is NO WIRING TO DO: these six plus thb_fx are content-rich and routing-dark, the export_levy_duty /
+  #     marine_protein_fishmeal shape, and retiring them is a DAG-AUTHORING act (the post-X2 half). They are
+  #     added to evidence.READ_DARK_SLICES_PIN in the same change, which is where that census lives.
   global_rice_export_policy: [vietnam_thailand_export_policy]
     # 292 props. rough_rice_cbot's whole export-policy stack is India-centric and owned by `export_ban`;
     # this is the non-India half (Vietnam suspensions, Thai price floors) that buyers turn to when India
@@ -719,14 +839,24 @@ dag_alias:
 waivers:
   AMO: {category: silver_only, note: "Atlantic Multidecadal Oscillation teleconnection index"}
   AO: {category: silver_only, note: "Arctic Oscillation teleconnection index"}
-  ARS_FX: {category: silver_only, note: "Argentine peso FX cross"}
+  # ARS_FX: REMOVED 2026-08-19 (D-EC D15 Wave 1c) -- it now resolves to the `ars_fx` slice in dag_alias
+  #   above, so the silver_only claim ("grounded by the observed silver leg, never text") is no longer
+  #   true of it. Same shape as the MYR_USD / favorable_rainfall / gasoil_palm_spread removals.
   Algeria_tender_specs: {category: deferred, note: "Algeria OAIC wheat tender specs"}
   Argentina_crush_capacity: {category: deferred, note: "Argentine crush capacity fundamental"}
-  CAD_FX: {category: silver_only, note: "Canadian dollar FX cross"}
+  # CAD_FX: REMOVED 2026-08-19 (D-EC D15 Wave 1c) -- it now resolves to the `cad_fx` slice in dag_alias
+  #   above, so the silver_only claim ("grounded by the observed silver leg, never text") is no longer
+  #   true of it. Same shape as the MYR_USD / favorable_rainfall / gasoil_palm_spread removals.
   CBD: {category: deferred, note: "Coffee berry disease (Colletotrichum kahawae)"}
-  CNY: {category: silver_only, note: "Chinese yuan FX"}
-  CNY_FX: {category: silver_only, note: "Chinese yuan FX cross"}
-  CNY_USD: {category: silver_only, note: "CNY/USD FX cross"}
+  # CNY: REMOVED 2026-08-19 (D-EC D15 Wave 1c) -- it now resolves to the `cny_fx` slice in dag_alias
+  #   above, so the silver_only claim ("grounded by the observed silver leg, never text") is no longer
+  #   true of it. Same shape as the MYR_USD / favorable_rainfall / gasoil_palm_spread removals.
+  # CNY_FX: REMOVED 2026-08-19 (D-EC D15 Wave 1c) -- it now resolves to the `cny_fx` slice in dag_alias
+  #   above, so the silver_only claim ("grounded by the observed silver leg, never text") is no longer
+  #   true of it. Same shape as the MYR_USD / favorable_rainfall / gasoil_palm_spread removals.
+  # CNY_USD: REMOVED 2026-08-19 (D-EC D15 Wave 1c) -- it now resolves to the `cny_fx` slice in dag_alias
+  #   above, so the silver_only claim ("grounded by the observed silver leg, never text") is no longer
+  #   true of it. Same shape as the MYR_USD / favorable_rainfall / gasoil_palm_spread removals.
   Canada_production: {category: deferred, note: "Canada production fundamental"}
   China_domestic_crop: {category: deferred, note: "China domestic crop supply"}
   China_food_demand: {category: deferred, note: "Chinese food/frying vegoil demand"}
@@ -734,8 +864,12 @@ waivers:
   China_soyoil_stocks: {category: deferred, note: "China soyoil inventory state-marker"}
   China_soyoil_supply: {category: deferred, note: "China soyoil supply from crush"}
   China_vegoil_demand: {category: deferred, note: "Chinese vegoil demand"}
-  EUR_USD: {category: silver_only, note: "EUR/USD FX cross"}
-  EUR_USD_FX: {category: silver_only, note: "EUR/USD FX cross"}
+  # EUR_USD: REMOVED 2026-08-19 (D-EC D15 Wave 1c) -- it now resolves to the `eur_fx` slice in dag_alias
+  #   above, so the silver_only claim ("grounded by the observed silver leg, never text") is no longer
+  #   true of it. Same shape as the MYR_USD / favorable_rainfall / gasoil_palm_spread removals.
+  # EUR_USD_FX: REMOVED 2026-08-19 (D-EC D15 Wave 1c) -- it now resolves to the `eur_fx` slice in dag_alias
+  #   above, so the silver_only claim ("grounded by the observed silver leg, never text") is no longer
+  #   true of it. Same shape as the MYR_USD / favorable_rainfall / gasoil_palm_spread removals.
   FUNCAFE: {category: deferred, note: "Coffee crop-financing/retention policy"}
   Florida_orange_production: {category: deferred, note: "FL orange output fundamental"}
   GBP_cross: {category: silver_only, note: "GBP/USD FX cross arbitrage"}
@@ -755,10 +889,20 @@ waivers:
   SAM: {category: silver_only, note: "Southern Annular Mode teleconnection index"}
   Thailand_production: {category: deferred, note: "Thai sugar supply state"}
   Thailand_white_exports: {category: deferred, note: "Thai white-sugar export supply"}
-  US_export_pace: {category: deferred, note: "US export-sales pace state marker"}
-  VND_USD_fx: {category: silver_only, note: "Vietnamese dong FX cross"}
+  # US_export_pace: MERGED AWAY 2026-08-20 (D-EC XC-5 tail) into the `us_export_pace` row below. It was the
+  #   SAME node under a different leading case -- `us_export_pace` on 4 DAGs (hard_red_spring_wheat_mgex,
+  #   hard_red_winter_wheat_kcbt, soft_red_winter_wheat_cbot, soybean_oil_cbot), `US_export_pace` on 1
+  #   (cotton), zero DAGs carrying both -- and the split had PROPAGATED INTO THIS BLOCK as two waiver rows
+  #   making two different claims about one node. A waiver is keyed by DAG ID; two rows for one id is not a
+  #   finer-grained waiver, it is a waiver that cannot be reasoned about. cotton's DAG id was renamed onto
+  #   the 4-DAG majority spelling and the two rows collapse to one, below, carrying BOTH notes.
+  # VND_USD_fx: REMOVED 2026-08-19 (D-EC D15 Wave 1c) -- it now resolves to the `vnd_fx` slice in dag_alias
+  #   above, so the silver_only claim ("grounded by the observed silver leg, never text") is no longer
+  #   true of it. Same shape as the MYR_USD / favorable_rainfall / gasoil_palm_spread removals.
   Vietnam_export_tax_policy: {category: deferred, note: "Vietnam coffee export policy"}
-  ZAR_FX: {category: silver_only, note: "South African rand FX cross"}
+  # ZAR_FX: REMOVED 2026-08-19 (D-EC D15 Wave 1c) -- it now resolves to the `zar_fx` slice in dag_alias
+  #   above, so the silver_only claim ("grounded by the observed silver leg, never text") is no longer
+  #   true of it. Same shape as the MYR_USD / favorable_rainfall / gasoil_palm_spread removals.
   abandonment: {category: deferred, note: "Crop abandonment yield-loss state-marker"}
   aflatoxin: {category: deferred, note: "Aspergillus aflatoxin in corn"}
   aphids: {category: deferred, note: "Aphid vector"}
@@ -791,7 +935,11 @@ waivers:
   china_rapeseed_supply: {category: deferred, note: "China domestic rapeseed supply"}
   china_rsm_import: {category: deferred, note: "China rapeseed-meal import"}
   china_rsm_stocks: {category: deferred, note: "China rapeseed-meal inventory"}
-  cny_fx: {category: silver_only, note: "Chinese yuan FX cross (lowercase)"}
+  # cny_fx: REMOVED 2026-08-19 (D-EC D15 Wave 1c) -- it now resolves to the `cny_fx` SLICE by IDENTITY
+  #   (driver_alias() seeds `{name: name for name in specs}`, so an id that equals a slice name needs no
+  #   dag_alias row and must not have one -- a self-alias is the benign no-op check_driver_slices leg (b)
+  #   skips). The silver_only claim ("grounded by the observed silver leg, never text") is therefore no
+  #   longer true of it. Same shape as the MYR_USD / favorable_rainfall / gasoil_palm_spread removals.
   conab_production_revision: {category: deferred, note: "CONAB Brazil production revision"}
   consumption: {category: deferred, note: "Bare consumption demand state-marker"}
   consumption_demand: {category: deferred, note: "Generic consumption demand"}
@@ -805,7 +953,9 @@ waivers:
   eu_crush_demand: {category: deferred, note: "EU rapeseed crush demand"}
   eu_import_demand: {category: deferred, note: "Generic EU import demand"}
   eu_neonic_ban: {category: deferred, note: "EU neonicotinoid pesticide ban"}
-  eurusd_fx: {category: silver_only, note: "EUR/USD FX cross (lowercase)"}
+  # eurusd_fx: REMOVED 2026-08-19 (D-EC D15 Wave 1c) -- it now resolves to the `eur_fx` slice in dag_alias
+  #   above, so the silver_only claim ("grounded by the observed silver leg, never text") is no longer
+  #   true of it. Same shape as the MYR_USD / favorable_rainfall / gasoil_palm_spread removals.
   export_levy_duty: {category: deferred, note: "D-EC D8 2026-08-19 -- NOT a dark DAG id. This key is a SLICE
     NAME, entered here for the same reason `indian_ocean_dipole` below is: check_driver_slices leg (c)
     subtracts `set(waivers)` from the read-dark set, and READ_DARK_SLICES_PIN lives in evidence.py, which
@@ -866,7 +1016,7 @@ waivers:
   marine_protein_fishmeal: {category: deferred, note: "D-EC D8 2026-08-19 -- NOT a dark DAG id; a SLICE NAME,
     same mechanism and same honest caveat as `export_levy_duty` above (leg (c) subtracts set(waivers); the
     pin lives in evidence.py, which this batch does not own). 2,511 props measured on the full 345,870-prop
-    chunk cache and not one of the 374 real DAG driver ids names fishmeal or marine protein -- the marine leg
+    chunk cache and not one of the 371 real DAG driver ids names fishmeal or marine protein -- the marine leg
     of the protein-substitution decision exists in the corpus and nowhere in the graph. Retiring this waiver
     is a DAG-authoring act (mint a fishmeal driver on the soybean_meal / rapeseed_meal boards), which is the
     post-X2 half of D8."}
@@ -876,7 +1026,9 @@ waivers:
   pod_fill: {category: deferred, note: "Soybean reproductive-window phenology state marker"}
   pre_harvest_sprouting: {category: deferred, note: "Wheat rain-at-maturity quality hazard"}
   protein_premium: {category: deferred, note: "MGEX high-protein wheat price premium"}
-  rand_FX: {category: silver_only, note: "South African rand FX cross"}
+  # rand_FX: REMOVED 2026-08-19 (D-EC D15 Wave 1c) -- it now resolves to the `zar_fx` slice in dag_alias
+  #   above, so the silver_only claim ("grounded by the observed silver leg, never text") is no longer
+  #   true of it. Same shape as the MYR_USD / favorable_rainfall / gasoil_palm_spread removals.
   rapeoil_demand: {category: deferred, note: "Chinese rapeseed oil food demand"}
   rapeoil_share: {category: deferred, note: "Crush oil-share instrument"}
   rapeseed_crush_demand: {category: deferred, note: "Chinese rapeseed crush demand"}
@@ -900,9 +1052,18 @@ waivers:
   tenderable_collapse: {category: silver_only, note: "ICE certified/exchange stocks collapse"}
   tenderable_quality_squeeze: {category: deferred, note: "Deliverable-grade quality squeeze state"}
   us_export_competition: {category: deferred, note: "US corn export competition vs Brazil"}
-  us_export_pace: {category: deferred, note: "US ESR weekly export-pace state marker; inert until D-W5 esr_exports flip"}
-  usdcad_fx: {category: silver_only, note: "USD/CAD FX cross"}
-  usdcny_fx: {category: silver_only, note: "USD/CNY FX cross"}
+  # us_export_pace: the SURVIVING row of the D-EC XC-5 tail merge (2026-08-20). `category: deferred` and the
+  #   ESR/D-W5 claim are the incumbent 4-DAG row's, unchanged. The retired `US_export_pace` row's own words
+  #   ("US export-sales pace state marker") are folded in rather than dropped -- cotton's leg is the
+  #   export-SALES half and the wheat/soyoil legs are the ESR weekly-pace half, and a merge that silently
+  #   kept one description would have deleted a curator's statement about a real board. Reach 4 -> 5.
+  us_export_pace: {category: deferred, note: "US export-sales pace state marker (cotton) / US ESR weekly export-pace state marker; inert until D-W5 esr_exports flip"}
+  # usdcad_fx: REMOVED 2026-08-19 (D-EC D15 Wave 1c) -- it now resolves to the `cad_fx` slice in dag_alias
+  #   above, so the silver_only claim ("grounded by the observed silver leg, never text") is no longer
+  #   true of it. Same shape as the MYR_USD / favorable_rainfall / gasoil_palm_spread removals.
+  # usdcny_fx: REMOVED 2026-08-19 (D-EC D15 Wave 1c) -- it now resolves to the `cny_fx` slice in dag_alias
+  #   above, so the silver_only claim ("grounded by the observed silver leg, never text") is no longer
+  #   true of it. Same shape as the MYR_USD / favorable_rainfall / gasoil_palm_spread removals.
   vernalization_failure: {category: deferred, note: "SRW mild-winter vernalization failure"}
   wheat_midge: {category: deferred, note: "Wheat midge pest"}
   wheat_streak_mosaic: {category: deferred, note: "Wheat streak mosaic virus"}

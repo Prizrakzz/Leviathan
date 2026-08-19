@@ -564,7 +564,7 @@ def test_the_live_pin_still_matches_the_live_wiring():
     no slice anything. That is the D-CW-3a diesel / gasoil_palm_spread shape exactly.
 
     The other three are read-dark, and the asymmetry is the lesson. `export_levy_duty` (490 props on the
-    full chunk cache) and `marine_protein_fishmeal` (2,511) are dark because not one of the 374 real DAG
+    full chunk cache) and `marine_protein_fishmeal` (2,511) are dark because not one of the 371 real DAG
     driver ids names an export levy/cess or fishmeal at all -- there is NO WIRING TO DO, and retiring them
     is a DAG-authoring act, the post-X2 half of D8.
 
@@ -583,7 +583,25 @@ def test_the_live_pin_still_matches_the_live_wiring():
     All three carry a `waivers:` entry, so `check_driver_slices` is clean and `config_check` exits 0. They
     are now in READ_DARK_SLICES_PIN as well, which is what makes the equality below an EXACT tooth with no
     debt ledger beside it: a FOURTH unaccounted read-dark slice fails here, and so does a pinned name that
-    quietly became reachable. Retire any of the three by minting the DAG driver id that reaches it."""
+    quietly became reachable. Retire any of the three by minting the DAG driver id that reaches it.
+
+    D-EC D15 Wave 1c (2026-08-19): 17 -> 24. The A24 FX roster added THIRTEEN producer-currency slices and
+    the split between them is the whole lesson again. SIX were wired in the same change -- ars_fx <- ARS_FX,
+    cad_fx <- CAD_FX/usdcad_fx, cny_fx <- CNY/CNY_FX/CNY_USD/usdcny_fx, eur_fx <- EUR_USD/EUR_USD_FX/
+    eurusd_fx, zar_fx <- ZAR_FX/rand_FX, vnd_fx <- VND_USD_fx -- and every one of those ids was waived
+    silver_only AND owned by no slice, so the wiring CREATED reach (16 board-DAGs across the six) and cost
+    no slice a single prop: the favorable_rainfall shape, not the alias-steal shape. Each claimed waiver row
+    was DELETED in the same edit, because a waiver asserts "grounded by the observed silver leg, never text"
+    and that stops being true the moment a text slice owns the id (the MYR_USD precedent, verbatim).
+
+    The SEVEN below are the export_levy_duty shape, not the import_quota_trq shape: there is NO WIRING TO
+    DO. Not one of the 371 real DAG driver ids names the Thai baht, ruble, Turkish lira, Australian dollar,
+    hryvnia, Mexican peso or Philippine peso, and they hold real measured mass (thb_fx 338 dark props,
+    rub_fx 199, php_fx 72, try_fx 71, aud_fx 62, uah_fx 61, mxn_fx 59). ONE refusal is recorded rather than
+    smuggled: `INR_THB_VND_weakness` on rough_rice_cbot would have retired thb_fx, and it is a BASKET id
+    covering three currencies -- the exact ground on which D-GD tranche 2 declined to give that board a
+    second FX node. Unlike the D8 three, these seven carry NO `waivers:` row: a slice-name waiver was that
+    batch's workaround for not owning evidence.py, and Wave 1c does own it, so the pin alone is the record."""
     import pytest
     from leviathan.graphrag import display as dp
     if not dp.all_driver_ids():
@@ -598,6 +616,10 @@ def test_the_live_pin_still_matches_the_live_wiring():
     # count -- and the second assertion is the REFUSAL, recorded as an assertion: `China_import_quota_VAT`
     # still belongs to `tariff`, so `import_quota_trq` is dark because nobody stole it, not by oversight.
     assert "benign_growing_conditions" not in ev.read_dark_slices()
+    # D15 Wave 1c: the six WIRED fx slices and the seven that had nothing to wire to. Named for the same
+    # reason as the line above -- deleting a dag_alias row must read as a broken claim, not a drifted count.
+    assert not ({"ars_fx", "cad_fx", "cny_fx", "eur_fx", "zar_fx", "vnd_fx"} & ev.read_dark_slices())
+    assert {"thb_fx", "rub_fx", "try_fx", "aud_fx", "uah_fx", "mxn_fx", "php_fx"} <= set(ev.READ_DARK_SLICES_PIN)
     assert ev.slice_for_driver("China_import_quota_VAT") == "tariff", "D-CW-3a: no alias steal for D8"
 
 

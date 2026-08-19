@@ -680,9 +680,34 @@ def node_for(contract: str) -> str:
 
 
 def all_nodes() -> list[str]:
-    """The distinct commodity nodes across the 31 contracts (~24)."""
-    contracts = _hier().get("contracts") or {}
-    return sorted({(v.get("node") or k) for k, v in contracts.items() if isinstance(v, dict)})
+    """Every commodity node the evidence layer routes to: the distinct nodes across the 31 contracts (24)
+    PLUS commodity_hierarchy.yaml's `context_commodities` (19) = 43.
+
+    D-EC D15 WAVE 1c (2026-08-19) -- THE ROUTING SEAM. Until this change the function read `contracts:`
+    alone, which made a `context_commodities` entry PURELY DECLARATIVE: the only other reader of that key is
+    causal.validate (it accepts them as intercommodity edge TARGETS), so `sunflower`, `sunflower_oil`,
+    `barley`, `sorghum`, `fish_meal` and `ethanol` had no matcher, no evidence/<node>.jsonl and no path by
+    which a proposition could ever reach them. rebuild_slices routes on `{n: build_matcher(match_forms(n))
+    for n in all_nodes()}`, so a node absent from this list is a node the corpus cannot see -- which is why
+    the outside-in census measured 24 nodes / 112 forms against 345,870 propositions and found 27.36% of
+    them routing to nothing (data/dec_p0/zero_route_clusters.md).
+
+    The alternative seam was a driver slice per context commodity, and it was REFUSED on the standing D8
+    ruling: a commodity is not a causal driver ("the fix is commodity_hierarchy.yaml expansion, not a driver
+    slice", thin_slice_fill.md). Two consequences are stated rather than left to be discovered:
+      * new_nodes() now reports the 19 as uncovered, so `build_evidence_task --nodes all|new` (BILLED Haiku
+        chunking) widens by 19 nodes. Nothing here schedules that. The FREE path is the one that matters:
+        --rebuild-slices re-derives every slice from the existing chunks/ cache, and the props are already
+        chunked and already paid for, so the routing fix costs no new extraction.
+      * a context commodity's props may ALSO sit in a driver slice (routing is multi-label by construction),
+        e.g. sunflower_oil text is in `sunflower_oil_balance` and fish_meal text in
+        `marine_protein_fishmeal`. That is duplication of READS, never of population; no slice loses a prop.
+    """
+    h = _hier()
+    contracts = h.get("contracts") or {}
+    nodes = {(v.get("node") or k) for k, v in contracts.items() if isinstance(v, dict)}
+    nodes |= {str(n) for n in (h.get("context_commodities") or []) if n}
+    return sorted(nodes)
 
 
 def covered_nodes() -> set[str]:
@@ -941,7 +966,7 @@ def dag_backed_slice_names() -> set:
 # they are DELIBERATELY WAIVED read-dark until X2/GN-1 feeds them, each for a stated reason recorded at its
 # own site in configs/graphrag/driver_slices.yaml (that file is the authority; this pin is the measurement):
 #   * export_levy_duty (317 props measured at authoring, 490 over the full chunk cache) and
-#     marine_protein_fishmeal (2,511 props) -- NO WIRING EXISTS TO DO: not one of the 374 real DAG driver
+#     marine_protein_fishmeal (2,511 props) -- NO WIRING EXISTS TO DO: not one of the 371 real DAG driver
 #     ids names an export levy/cess or fishmeal/marine protein at all. Content-rich and routing-dark, the
 #     OPPOSITE of the D-EI-4 park case; retiring them is a DAG-AUTHORING act (mint the driver id on the
 #     boards that trade one), which is the post-X2 half of D8.
@@ -954,12 +979,37 @@ def dag_backed_slice_names() -> set:
 # All three carry a `waivers:` entry, so check_driver_slices is clean either way; they are pinned so that
 # the equality in test_config_check.test_the_live_pin_still_matches_the_live_wiring stays an exact tooth
 # (a FOURTH unaccounted read-dark slice still fails it) with no debt ledger standing beside the pin.
+#
+# D-EC D15 Wave 1c (2026-08-19): 17 -> 24. The A24 FX roster added thirteen producer-currency slices and SIX
+# of them were WIRED in the same change (ars_fx <- ARS_FX, cad_fx <- CAD_FX/usdcad_fx, cny_fx <- CNY/CNY_FX/
+# CNY_USD/usdcny_fx, eur_fx <- EUR_USD/EUR_USD_FX/eurusd_fx, zar_fx <- ZAR_FX/rand_FX, vnd_fx <- VND_USD_fx),
+# each taking an id that was waived silver_only AND owned by no slice, so the wiring CREATED reach (16
+# board-DAGs across the six) and cost no slice anything -- the favorable_rainfall shape again, and every
+# claimed waiver row was deleted in the same edit.
+#
+# RE-CUT 2026-08-20 (D-EC XC-2/XC-5): the DAG driver-id count in this block was 374 and is now 371. It fell
+# by exactly three because three ids were RETIRED AS DUPLICATE SPELLINGS of ids that already existed --
+# `El_Niño`->`El_Nino`, `La_Niña`->`La_Nina`, `china_state_reserves`->`China_state_reserves`. No id was
+# deleted and no CONCEPT left the graph: driver INSTANCES held at 1,152 across the 33 DAGs. That matters for
+# every claim below, because each one reads "not one of the N ids names X" -- a count that falls by merging
+# synonyms cannot turn such a claim from false to true, so all of them survive the re-cut unchanged.
+#
+# The SEVEN below are read-dark for the export_levy_duty reason, not the import_quota_trq reason: there is NO
+# WIRING TO DO. Not one of the 371 real DAG driver ids names the Thai baht, ruble, Turkish lira, Australian
+# dollar, hryvnia, Mexican peso or Philippine peso. They are content-rich and routing-dark (measured dark
+# props: thb_fx 338, rub_fx 199, php_fx 72, try_fx 71, aud_fx 62, uah_fx 61, mxn_fx 59), and retiring them is a
+# DAG-AUTHORING act -- mint the FX driver node on the boards that trade the origin -- which is the post-X2
+# half. ONE refusal is recorded rather than smuggled: `INR_THB_VND_weakness` (rough_rice_cbot) would have
+# retired thb_fx, and it is refused because it is a BASKET id covering three currencies, which is the exact
+# ground on which D-GD tranche 2 declined to give that board a second FX node.
+# They are pinned and carry NO `waivers:` row, unlike the D8 three: a slice-name waiver was that batch's
+# workaround for not owning this file, and this batch does own it -- so the pin alone is the record.
 READ_DARK_SLICES_PIN = frozenset({
-    "baltic_dry_freight", "barley_yellow_dwarf_virus", "cattle_cycle_herd_size", "dap",
+    "aud_fx", "baltic_dry_freight", "barley_yellow_dwarf_virus", "cattle_cycle_herd_size", "dap",
     "export_levy_duty", "import_quota_trq", "index_roll_flows", "indian_ocean_dipole",
-    "madden_julian_oscillation", "marine_protein_fishmeal", "metals", "natural_rubber",
-    "real_yields_rates", "sustainable_aviation_fuel", "veg_oil_substitution_spreads",
-    "vessel_lineups_export_basis", "wheat_blast",
+    "madden_julian_oscillation", "marine_protein_fishmeal", "metals", "mxn_fx", "natural_rubber",
+    "php_fx", "real_yields_rates", "rub_fx", "sustainable_aviation_fuel", "thb_fx", "try_fx",
+    "uah_fx", "veg_oil_substitution_spreads", "vessel_lineups_export_basis", "wheat_blast",
 })
 
 
@@ -1192,6 +1242,30 @@ _BARE_NAME_BENIGN = frozenset({
     "hrs", "hrw", "srw",                                      # exchange grade codes -> 'wheat' covers it
     "white", "yellow", "raw", "french",                      # colour/origin qualifiers, not commodities alone
     "oil", "meal", "juice", "soybean",                       # generic co-product/form words another form covers
+    # D-EC D15 Wave 1c (2026-08-19): all_nodes() now includes the hierarchy's context commodities, which put
+    # multi-token ids in front of this sweep for the first time. Two existing benign classes grew; nothing
+    # new was invented.
+    "fresh", "minor", "used", "cooking",                     # QUALIFIERS -- the white/yellow/raw/french class
+                                                             # (fresh_citrus, minor_cereals, minor_oilseeds,
+                                                             # used_cooking_oil). 'minor cereals' is not a
+                                                             # phrase the corpus writes; the node's real forms
+                                                             # are rye/oats/millet/triticale/buckwheat.
+    "kernel",                                                # FORM word -- the oil/meal/juice class (palm_kernel)
+    "palm", "sunflower", "fish", "citrus",                   # OWNED BY ANOTHER NODE -- the `soybean` class,
+                                                             # where the bare head word already fires somewhere
+                                                             # and a second claim would only double-route:
+                                                             # 'palm' is palm_oil's extra_term (palm_kernel
+                                                             # must NOT claim every CPO prop), 'sunflower' is
+                                                             # its own node (vs sunflower_oil), 'fish' is not a
+                                                             # commodity on its own (fish_meal carries
+                                                             # 'fishmeal'/'fish meal'), and 'citrus' is
+                                                             # orange_juice's extra_term -- MEASURED: 'citrus
+                                                             # fruit(s)' is 183 props and ZERO of them dark.
+    # DELIBERATELY NOT SUPPRESSED: 'cereals' (minor_cereals) and 'oilseeds' (minor_oilseeds). Those two
+    # warnings are TRUE and are the one useful thing this sweep says after Wave 1c -- the corpus's AGGREGATE
+    # class nouns ('oilseed' 2,649 props, 'coarse grains' 895, 'vegetable oil' 1,532; census cluster Z01,
+    # 9,599 dark props) have no node, and `minor_cereals`/`minor_oilseeds` are deliberately NOT that node.
+    # Leave them standing until the aggregate layer is authored.
 })
 
 
