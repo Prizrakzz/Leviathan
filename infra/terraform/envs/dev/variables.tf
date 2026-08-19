@@ -81,7 +81,7 @@ variable "serving_image_tag" {
   # release_series refused on a measured PIT leak). Hand-registered as serving taskdef rev 104 on
   # digest sha256:74813e92a7dc...; canary three tells passed (rollout, startedAt > push, exact
   # digest). This pin follows that promotion so a later apply re-derives the same image.
-  default     = "20260819T204843"
+  default     = "20260820T022010"
 }
 
 # Stage 2: the ACM wildcard cert (leviathanconvexity.com + *) created in the console. us-east-1.
@@ -370,7 +370,10 @@ variable "worker_fleet_image_digest" {
   # sales columns red the family on the old baked floor). unica-bronze/b3-flat-silver/
   # unica-annual-state/silver-gate/silver-publisher-runner repinned together (register JSONs in
   # the session scratchpad; owner-run per the local permission gate).
-  default     = "sha256:bb2d47262529352d9cd8ec84b0b1a76b4c8fa0b18d6cec0ba7d33e6835364c82"
+  # OVERNIGHT BUMP 2026-08-20: 554968e7 = the D14 WASDE full-parse + PSD-widening + board_crush
+  # build (e437eff7). wasde-bronze-modern repin JSON prepared for the owner; the remaining silver
+  # families repin with the post-X2 mini-wave fire.
+  default     = "sha256:554968e76d24d9bf8a9c38bf899467b76f287efa18c7f3ffbde29a0de7cedee9"
 
   validation {
     condition     = var.worker_fleet_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.worker_fleet_image_digest))
@@ -457,7 +460,9 @@ variable "ecr_pin_audit_image_digest" {
   # + the unica card-notes repair record). Canary three tells passed on taskdef 105.
   # RE-PINNED 2026-08-19 (#3): the pre-X2 batch build (commit db18565c -- six preconditions +
   # routing curation). evidence-build jobdef rev 79 registered on it the same hour (owner-run).
-  default     = "sha256:d774775edc6ad439a908c27cc8c3e724b8cba45f592c5a93da0ce68467e72ab0"
+  # RE-PINNED 2026-08-20: the overnight batch build (commits 78c911dd..e437eff7 -- D13/D14,
+  # temperature pin, Wave 1c routing, XC-2/XC-5 merge, numbers mini-wave). Serving 107 canaried.
+  default     = "sha256:915f8426c8c16a392add983e7fd0e0630741dc12fbd0646541ae1d44b30bdbb5"
 
   validation {
     condition     = var.ecr_pin_audit_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.ecr_pin_audit_image_digest))
