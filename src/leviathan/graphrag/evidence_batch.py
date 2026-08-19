@@ -212,11 +212,15 @@ def _doc_blocks(s3, node: str, key: str, matcher=None, *, doc: dict | None = Non
     if not full.strip() or (matcher is not None and not matcher.search(full)):
         return []
     dt, date_kind, date_layout = ev.doc_date_detail(doc, key)
+    # D-XB-5 rider: the batch corpus carries the ORIGINAL language + a translated flag, same
+    # semantics as the inline path (chunking._doc_lang: props are English over a non-EN span).
+    lang = ch._doc_lang(_source_of(key), doc.get("lang"))
     blocks = ch.chunk_document(full_text=full, source_key=key, source=_source_of(key),
-                               document_date=dt, lang=doc.get("lang", "en"),
+                               document_date=dt, lang=lang,
                                extraction_method=doc.get("extraction_method"), doc_id=key, target_chars=_MAX_BLOCK_CHARS)
     meta = {"contract": node, "source_key": key, "source": _source_of(key), "date": str(dt),
-            "date_kind": date_kind, "date_layout": date_layout}
+            "date_kind": date_kind, "date_layout": date_layout,
+            "lang": lang, "translated": lang != "en"}
     if tally is not None and date_kind not in ("key", "key_month", "doc_field"):
         tally.note_date_floor(key, date_kind, date_layout)
     return [(blk, meta, full[blk.char_start:blk.char_end] or blk.verbatim_span) for blk in blocks]

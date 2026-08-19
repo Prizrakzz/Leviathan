@@ -48,7 +48,8 @@ _FULLTEXT_CAP = 150000            # mirrors evidence_batch._FULLTEXT_CAP: the ch
 #                                   the 60k-150k band by an X2 pass -- the refusal must never outlive the cut.
 _FUZZY_THRESHOLD = 0.85           # difflib longest-contiguous-match / len(snippet) to accept a fuzzy page hit
 _WAP_MAX_PAGES = 6                # usda_wap extractor reads pdf.pages[0:6] (narrative; page 6 is the table)
-_WASDE_DIGITAL_MAX_PAGES = 7      # wasde_digital reads pdf.pages[0:7] (highlights + ToC)
+# _WASDE_DIGITAL_MAX_PAGES retired by D14 (2026-08-19): wasde_digital parses ALL pages now; the
+# replay in _reconstruct_pages mirrors it unbounded so recovered offsets resolve to real pages.
 
 _SECTION_PAGE_SOURCES = ("fnc",)  # sources whose text layer ALREADY carries a per-page section map (branch 0)
 _SECTION_PAGE_SEP = "\n\n"        # the separator whose join of those sections reproduces full_text byte-for-byte
@@ -235,8 +236,10 @@ def _reconstruct_pages(source: str, pdf) -> tuple:
         limit = min(_WAP_MAX_PAGES, len(pdf.pages))
         return [(i + 1, pdf.pages[i].extract_text() or "") for i in range(limit)], "\n"
     if src == "usda_wasde":
-        limit = min(_WASDE_DIGITAL_MAX_PAGES, len(pdf.pages))
-        return [(i + 1, pdf.pages[i].extract_text() or "") for i in range(limit)], "\n"
+        # D14 (2026-08-19): wasde_digital now parses ALL pages (the 7-page window discarded 75% of
+        # every WASDE on a false premise). This replay must mirror the producer exactly or every
+        # offset past the old window resolves to an honest-but-dark None; the constant moved with it.
+        return [(i + 1, pdf.pages[i].extract_text() or "") for i in range(len(pdf.pages))], "\n"
     return [(i, page.extract_text() or "") for i, page in enumerate(pdf.pages, start=1)], "\n"
 
 

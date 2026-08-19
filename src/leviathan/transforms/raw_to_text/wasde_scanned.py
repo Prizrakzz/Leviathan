@@ -21,6 +21,18 @@ from leviathan.transforms.raw_to_text.schema import DocumentJson
 from leviathan.transforms.raw_to_text.wasde_digital import _split_sections
 
 _SCANNED_YEAR_MAX = 1999  # .pdf + year < 1999 → scanned era (1973–1998)
+
+# The scanned-era page cap.  D14 removed the digital-era cap (`wasde_digital._MAX_PAGE = 7`) because
+# its premise — "pages 7+ are redundant with PSD" — was measured false (25.0% of the 2026-05-12
+# release survived; the livestock/dairy/reliability tables live past the cut and are in no other
+# layer).  THIS cap is a different premise and is deliberately left in place: it is not a parse
+# window but a BILLING window — every page under it is submitted to Textract's
+# DetectDocumentText at ~$1.50/1,000 pages (see jobs/batch/wasde_scanned_task.py and
+# jobs/batch/wasde_pageindex_task.py, which both truncate with `_truncate_pdf` before submitting).
+# Raising it re-bills the whole 1973–1998 backfill, so it moves on an owner's cost call and a
+# re-extraction run, not as a side effect of D14.
+# KNOWN RESIDUAL, recorded here so it is not re-discovered: the scanned era therefore still drops the
+# same livestock/dairy/reliability tables the digital era just recovered.
 _MAX_NARRATIVE_PAGES = 8
 
 

@@ -166,6 +166,96 @@ def test_digital_split_no_headings_returns_empty() -> None:
 
 
 # ---------------------------------------------------------------------------
+# wasde_digital — page window (D14: the 7-page cap is GONE)
+# ---------------------------------------------------------------------------
+#
+# WHY these tests read every page: `_MAX_PAGE = 7` was removed on 2026-08-19 (D14).  Its stated
+# premise — "pages 7+ are redundant with PSD CSV data" — was measured false on release 2026-05-12:
+# the PDF yields 108,844 extractable chars over 40 pages against a stored full_text of 27,262
+# (25.0%), and the livestock / dairy / egg / reliability tables that live past page 7 exist in NO
+# other layer (silver/wasde is crops-only).  The same release lost its COTTON *narrative* section to
+# the window as well.  A test that pins a 7-page read would pin the defect.
+
+from leviathan.transforms.raw_to_text.wasde_digital import extract_wasde_digital
+
+
+def _mock_page(text: str) -> MagicMock:
+    page = MagicMock()
+    page.extract_text.return_value = text
+    return page
+
+
+def _mock_pdf(pages: list) -> MagicMock:
+    pdf = MagicMock()
+    pdf.pages = pages
+    pdf.__enter__ = lambda s: pdf
+    pdf.__exit__ = MagicMock(return_value=False)
+    return pdf
+
+
+def _extract_with_pages(pages: list) -> dict:
+    with patch("leviathan.transforms.raw_to_text.wasde_digital.pdfplumber") as plumber:
+        plumber.open.return_value = _mock_pdf(pages)
+        return extract_wasde_digital(b"fake-pdf", "raw/production/source=usda_wasde/"
+                                                  "release_date=2026-05-12/wasde0526.pdf")
+
+
+def test_digital_reads_every_page_past_seven() -> None:
+    """D14: a 40-page release is parsed in full — no page is skipped, none is read twice."""
+    pages = [_mock_page(f"PAGE {i} body text for the release.") for i in range(40)]
+    doc = _extract_with_pages(pages)
+
+    for i, page in enumerate(pages):
+        page.extract_text.assert_called_once()
+        assert f"PAGE {i} body" in doc["full_text"]
+
+
+def test_digital_full_text_keeps_the_livestock_block() -> None:
+    """The block D14 was ratified to recover: page 31+ tables that are in no other layer."""
+    pages = [_mock_page(f"Narrative page {i}.") for i in range(7)]
+    pages += [_mock_page("filler") for _ in range(23)]
+    pages.append(_mock_page("U.S. Quarterly Animal Product Production\nBeef 6,905 Pork 7,012"))
+    pages.append(_mock_page("Reliability Tables\nCorn yield 90-percent interval"))
+    doc = _extract_with_pages(pages)
+
+    assert "U.S. Quarterly Animal Product Production" in doc["full_text"]
+    assert "Reliability Tables" in doc["full_text"]
+
+
+def test_digital_sections_survive_a_full_length_document() -> None:
+    """_split_sections is heading-driven, so the appendix table zone neither breaks it nor invents a
+    section: the six commodity sections still split, and the tables ride whichever section precedes
+    them (here the last one; on the real 2026-05-12 release it is `sugar`, with COTTON after)."""
+    narrative = [
+        _mock_page("WORLD AGRICULTURAL SUPPLY AND DEMAND ESTIMATES"),
+        _mock_page("WHEAT: U.S. wheat supplies for 2026/27 are projected higher."),
+        _mock_page("COARSE GRAINS: U.S. corn supplies for 2026/27 are raised."),
+        _mock_page("RICE: U.S. rice supplies for 2026/27 are lowered."),
+        _mock_page("OILSEEDS: U.S. soybean supplies for 2026/27 are unchanged."),
+        _mock_page("COTTON: U.S. cotton supplies for 2026/27 are projected higher."),
+        _mock_page("SUGAR: U.S. sugar supplies for 2026/27 are raised."),
+    ]
+    tables = [_mock_page(f"World Wheat Supply and Use  table page {i}\n2025/26 776.1 777.9")
+              for i in range(33)]
+    doc = _extract_with_pages(narrative + tables)
+
+    names = [s["name"] for s in doc["sections"]]
+    assert names == ["wheat", "coarse_grains", "rice", "oilseeds", "cotton", "sugar"]
+    sugar = doc["sections"][-1]["text"]
+    assert "table page 32" in sugar                      # appendix rides the last section, not lost
+    assert len(doc["full_text"]) > len("".join(p.extract_text.return_value for p in narrative))
+
+
+def test_digital_short_pdf_unaffected() -> None:
+    """A 3-page release (the historical short form) still parses — removing the cap is not a floor."""
+    doc = _extract_with_pages([_mock_page("WHEAT: supplies are higher."),
+                               _mock_page("COTTON: supplies are lower."),
+                               _mock_page("")])
+    assert [s["name"] for s in doc["sections"]] == ["wheat", "cotton"]
+    assert doc["extraction_method"] == "pdfplumber"
+
+
+# ---------------------------------------------------------------------------
 # writer.document_exists
 # ---------------------------------------------------------------------------
 

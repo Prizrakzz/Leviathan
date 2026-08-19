@@ -324,7 +324,9 @@ def test_reconstruct_pages_family_table_is_unchanged(monkeypatch):
         assert pdfpage._reconstruct_pages("icco_qbcs_summary", pdf) == (raw, "\n")
         assert pdfpage._reconstruct_pages("fnc", pdf) == (raw, "\n")              # unreachable, but unchanged
         assert pdfpage._reconstruct_pages("usda_wap", pdf) == (raw[:6], "\n")
-        assert pdfpage._reconstruct_pages("usda_wasde", pdf) == (raw[:7], "\n")
+        # D14 (2026-08-19): wasde_digital parses ALL pages now; the replay mirrors it unbounded
+        # (the old 7-page window discarded 75% of every WASDE and kept recovered offsets dark).
+        assert pdfpage._reconstruct_pages("usda_wasde", pdf) == (raw, "\n")
         assert pdfpage._reconstruct_pages("usda_gain_coffee", pdf) == (raw, "\n")  # nothing blank/boilerplate
         assert pdfpage._reconstruct_pages("mpob", pdf)[1] == "\n\n"
         assert [p for p, _ in pdfpage._reconstruct_pages("mpob", pdf)[0]] == [1, 2, 3, 4, 5]
