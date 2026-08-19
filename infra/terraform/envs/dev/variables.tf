@@ -81,7 +81,7 @@ variable "serving_image_tag" {
   # release_series refused on a measured PIT leak). Hand-registered as serving taskdef rev 104 on
   # digest sha256:74813e92a7dc...; canary three tells passed (rollout, startedAt > push, exact
   # digest). This pin follows that promotion so a later apply re-derives the same image.
-  default     = "20260819T021949"
+  default     = "20260819T150004"
 }
 
 # Stage 2: the ACM wildcard cert (leviathanconvexity.com + *) created in the console. us-east-1.
@@ -453,7 +453,9 @@ variable "ecr_pin_audit_image_digest" {
   # pin (4c71250b, 2026-08-04) stays pullable -- this repo carries no lifecycle policy.
   type        = string
   description = "sha256 digest of the EMBEDDER image the weekly ECR pin audit runs. Empty = the whole D-PR-4 weekly unit is not created."
-  default     = "sha256:74813e92a7dca26bd64a094afc4952455ecea88c032cbeafd303f832cacb9d46"
+  # RE-PINNED 2026-08-19 (#2): rev-105 build (commit 19d30450 -- the three D-EC P0 graph fixes
+  # + the unica card-notes repair record). Canary three tells passed on taskdef 105.
+  default     = "sha256:3061b080c448d14ffd8ac78c6d5565945ffee07489f1a2bc8331bc88dd986fff"
 
   validation {
     condition     = var.ecr_pin_audit_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.ecr_pin_audit_image_digest))
