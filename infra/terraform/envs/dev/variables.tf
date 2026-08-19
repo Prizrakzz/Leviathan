@@ -362,7 +362,15 @@ variable "worker_fleet_image_digest" {
   # rev 29 AND silver-gate rev 22 hand-registered on it the same hour -- the gate ride is the
   # point: the floor lives in the image-baked contract, so the weekly nass family gate unreds
   # only on this digest. Pin moves in the SAME change per this file's standing law.
-  default     = "sha256:69de00d21dc2ce7190e9929bec2ddb710ec8c8798ebfe69996098298a324dc61"
+  # UNICA PRODUCER-FIX FLEET BUMP 2026-08-19: bb2d4726 = commit 717bba03 (five measured unica
+  # silver-transform defects repaired: history-page shift detection, release_series row unshift,
+  # pt-BR 1000x separator repair, season-calendar date bijection, monthly-sales value-first
+  # dedup) ON TOP of 38dc5f0c (three unica cards + the sales external_* min_nonnull override at
+  # 0.12 -- the gate ride again: WITHOUT the gate jobdef on this digest, the newly-populated
+  # sales columns red the family on the old baked floor). unica-bronze/b3-flat-silver/
+  # unica-annual-state/silver-gate/silver-publisher-runner repinned together (register JSONs in
+  # the session scratchpad; owner-run per the local permission gate).
+  default     = "sha256:bb2d47262529352d9cd8ec84b0b1a76b4c8fa0b18d6cec0ba7d33e6835364c82"
 
   validation {
     condition     = var.worker_fleet_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.worker_fleet_image_digest))
