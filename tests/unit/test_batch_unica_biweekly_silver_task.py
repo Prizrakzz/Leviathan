@@ -49,7 +49,7 @@ def _season_history_df() -> pd.DataFrame:
 
 def _release_series_df() -> pd.DataFrame:
     return pd.DataFrame([{
-        "harvest_year": "2023_2024", "position_date": "16/04/2023", "region": "center_south",
+        "harvest_year": "2023_2024", "position_date": "2023-04-16", "region": "center_south",
         "cane_crushed_current_t": 1000.0, "cane_crushed_prior_t": 900.0,
         "sugar_produced_current_t": 60.0, "sugar_produced_prior_t": 55.0,
         "ethanol_total_current_m3": 400.0, "ethanol_total_prior_m3": 380.0,
