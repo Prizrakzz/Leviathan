@@ -56,6 +56,16 @@ UNICA_SALES = "silver_unica_monthly_ethanol_sales"
 # The FOURTH table of the tranche's scope, REFUSED a card and pinned as a refusal below.
 UNICA_RELEASE = "silver_unica_biweekly_release_series"
 
+# D-EC DK-13 (2026-08-20) -- the CBOT board crush. STRUCTURALLY UNLIKE every tranche above: those
+# cards un-darkened tables that already existed, this one CREATES the table. It is the estate's
+# first derivation from a PUBLISHED silver table (silver_futures_eod), it lives in gold because the
+# eod contract's own note says a derived series carrying a roll policy belongs there, and it
+# quantifies a driver the graph models in sixteen places that the corpus can never feed. Its block
+# below leads with the PIT trio (as every block does) and then with the SPREAD SEMANTICS, because
+# the failure mode here is neither a missing date nor a stale ceiling -- it is a margin read as a
+# price.
+BOARD_CRUSH = "gold_board_crush"
+
 
 def _purpose() -> str:
     return next(t.purpose for t in dp.REGISTRY if t.name == "numbers").lower()
@@ -120,6 +130,10 @@ _ADVERTISED = {
     UNICA_HIST: ("cane crush",),                             # NOT ("ethanol",) -- see above
     UNICA_CORN: ("corn ethanol",),                           # a different FEEDSTOCK, not a synonym
     UNICA_SALES: ("ethanol sales",),                         # SALES, never production
+    # -- D-EC DK-13. "crush" ALONE would free-ride: UNICA_HIST already paid for "cane crush" and
+    # the purpose string has carried crush/grind language in `when_to_use` since long before either
+    # card existed. The token has to name what is NEW -- the soy PROCESSOR MARGIN as a number.
+    BOARD_CRUSH: ("board crush", "processor margin"),        # NOT ("crush",) -- see above
 }
 
 
@@ -234,6 +248,11 @@ def test_visible_set_is_the_registry_minus_the_ledger_card_and_the_quarantine(mo
     "cane crush",                   # the Centro-Sul biweekly bulletin, season-to-date
     "corn ethanol",                 # the OTHER feedstock, never a synonym for the cane card
     "ethanol sales",                # the demand side: what left the mills, not what they made
+    # D-EC DK-13: the soy processor margin. "crush" was already in the string twice (the cane
+    # bulletin, and the crush/grind routing bullet) without ever naming a MARGIN table, which is
+    # exactly the shape of gap that lets a router send a crush-margin ask to a bean settle.
+    "board crush",                  # the SPREAD, in dollars per bushel -- never a leg price
+    "processor margin",             # said in words, so the ask does not have to know the jargon
 ])
 def test_purpose_names_each_census_unlock(token):
     assert token in _purpose(), f"router purpose string omits {token!r} (D-CW-1a census rank order)"
@@ -2928,3 +2947,180 @@ def test_unica_sales_export_columns_carry_a_measured_floor_not_the_uniform_one()
         assert col in c["value_columns"], "an override key that is not a value_column is orphaned"
     # the four columns that clear the table floor on their own are deliberately NOT pinned down
     assert "internal_current_m3" not in ov                 # 0.6724 measured -- clears 0.5 unaided
+
+
+# ════════════════════════════════════════════════════════════════════════════════════════════════════
+# D-EC DK-13 -- gold_board_crush. The first card in this file whose table is a DERIVATION rather than an
+# ingestion, and the only one whose central hazard is a CATEGORY error: a margin read as a price.
+# ════════════════════════════════════════════════════════════════════════════════════════════════════
+def _crush():
+    return _reg().get(BOARD_CRUSH)
+
+
+def test_board_crush_card_pit_shape():
+    """data_date on the session date with a ONE-DAY lag -- inherited EXACTLY from silver_futures_eod,
+    because a derived number is citable when its last input is and the arithmetic adds no lag of its
+    own. Getting this wrong in the generous direction would have been the easy mistake (every other
+    card in this file carries a lag of 5 to 400 days), and it would have made every crush unquotable
+    for a day after the market already knew it."""
+    ts = _crush()
+    assert (ts.knowledge_semantics, ts.knowledge_date_col, ts.date_col) == \
+           ("data_date", "trade_date", "trade_date")
+    assert ts.publication_lag_days == 1
+    eod = _reg().get("silver_futures_eod")
+    assert ts.publication_lag_days == eod.publication_lag_days, (
+        "the crush lag is INHERITED from its input, not chosen independently -- if the eod lag moves, "
+        "this one moves with it or the crush becomes citable before its own legs are")
+    assert ts.shape == "wide"
+    assert ts.period_type == "date"
+    assert ts.partition_cols == [] and ts.year_col is None
+    assert set(ts.metrics) == {"crush_margin_usd_bu", "meal_value_usd_bu",
+                               "oil_value_usd_bu", "bean_cost_usd_bu"}
+    assert not ts.levels_only and not ts.quarantined
+
+
+def test_board_crush_declares_BOTH_axes_absent_and_still_fences_the_commodity():
+    """THE INVISIBLE-FIELD LAW, applied to a card that has NO free axis at all. commodity_col and
+    country_col are both null -- there is one crush per session, not one per commodity -- and yet the
+    closed commodity set is still declared, because `agent._check_commodity_class` reads
+    commodity_values ALONE and never consults commodity_col. Leaving it empty would let a corn or palm
+    lookup sail through and return a SOY MARGIN wearing the wrong label, at zero SQL cost to catch."""
+    ts = _crush()
+    assert ts.commodity_col is None and ts.country_col is None
+    assert set(ts.commodity_values) == {"soybeans_cbot", "soybean_meal_cbot",
+                                        "soybean_oil_cbot", "soy_complex"}
+
+
+def test_board_crush_refuses_the_chinese_soy_slugs_and_the_card_says_why():
+    """A REFUSAL, not an oversight. The same crush economics drive the DCE and ZCE complexes, and the
+    FEATURE layer's older crush computation deliberately includes those slugs -- so admitting them here
+    would have looked consistent. It is refused because this number is USD per BUSHEL off Chicago
+    settlements: handing it to a Dalian question substitutes one venue's margin for another's across an
+    FX rate this estate converts NOWHERE."""
+    ts = _crush()
+    for cny in ("soybeans_no_1_dce", "soybeans_no_2_dce", "soybean_meal_dce",
+                "soybean_oil_dce", "rapeseed_meal_zce", "rapeseed_oil_zce"):
+        assert cny not in ts.commodity_values, cny
+    blob = " ".join((ts.description + " " + ts.notes).lower().split())
+    assert "cbot only" in blob
+    assert "not answerable" in blob
+
+
+def test_board_crush_does_not_declare_period_required():
+    """THE DECISION, PINNED AS A DECISION rather than left as an absence -- the Tranche-2 idiom.
+    `period_required` is calibrated to the WAP trap: a table where several rows share a period, so
+    agg=latest returns ONE ARBITRARY row and a period-less lookup is a coin flip. This card has no free
+    axis whatsoever -- one row per session, no commodity, no country -- so agg=latest returns THE newest
+    session on or before the as-of, which is the only row it could return and exactly the right answer.
+    Requiring a period would refuse the most natural question the table exists to answer to fence a
+    hazard it does not have. The opt-in set stays pinned at {wap}."""
+    ts = _crush()
+    assert ts.period_required is False
+    reg = _reg()
+    optin = {t for t, spec in reg.tables.items() if spec.period_required}
+    assert optin == {WAP}, optin
+
+
+def test_board_crush_provenance_is_the_RULE_because_there_is_no_revision():
+    """provenance_col carries crush_rule_version, which is not the usual thing to put there -- every
+    other card's provenance is a source RELEASE date. Exchange settlements do not revise, so this table
+    has no vintage axis and no revision stamp to give. What a reader genuinely needs is WHICH DEFINITION
+    produced the number: which coefficients, which legs, which roll. That is what rides out as
+    `revision_stamp`."""
+    ts = _crush()
+    assert ts.provenance_col == "crush_rule_version"
+    blob = " ".join(ts.notes.lower().split())
+    assert "no vintage axis" in blob
+
+
+@pytest.mark.parametrize("token", [
+    # The category error, stated first because it is the one that cannot be detected downstream.
+    "a margin is not a price",
+    # Sign and arithmetic: a spread that crosses zero breaks percentage talk.
+    "negative is a real reading",
+    "meaningless",
+    "wider and narrower, never higher and lower",
+    # The roll: a step that is not a market move.
+    "the roll is a decision, not a fact",
+    "not a market move",
+    # The as-of discipline every dated card in this estate carries.
+    "never call a dated crush current",
+    # The two refusals.
+    "cbot only",
+    "coverage starts 2010-06-06",
+])
+def test_board_crush_notes_teach_the_spread_semantics(token):
+    """The notes are where a fence that cannot be enforced in code gets taught. Every token here is a
+    sentence the card has to carry for a reader to quote the number correctly."""
+    blob = " ".join(_crush().notes.lower().split())
+    assert token in blob, token
+
+
+def test_board_crush_serves_one_unit_and_keeps_the_leg_settles_off_the_metric_list():
+    """THE SETTLE-ONLY-WHITELIST IDIOM, INVERTED. silver_futures_eod carries OHLC for provenance and
+    serves only `settle`; this card carries the three raw leg settles for provenance and serves only the
+    four USD/bushel derivations. The reason is sharper here: the three legs are in THREE DIFFERENT units
+    (cents/bushel, dollars/short ton, cents/pound), so a served metric set spanning them would put a
+    unit change inside one card -- a mis-quote waiting to happen."""
+    ts = _crush()
+    for leg in ("beans_settle", "meal_settle", "oil_settle"):
+        assert leg not in ts.metrics, leg
+    assert {m.unit for m in ts.metrics.values()} == {"USD/bushel"}
+
+
+def test_board_crush_is_served_and_in_the_tool_enum():
+    reg = _reg()
+    assert BOARD_CRUSH in reg.tables
+    assert BOARD_CRUSH in nreg.visible_tables(reg)
+    assert BOARD_CRUSH in _props()["table"]["enum"]
+
+
+def test_board_crush_reconciles_against_its_f010_contract():
+    """The PIT trio is checked STRUCTURALLY against the registry contract, not just read off the card.
+    Note consumers == 'numbers_registry' and not 'both': nothing in the feature/model layer reads this
+    table, so declaring it 'both' would claim a consumer that does not exist. gold_weather_z is the
+    precedent for a gold table on that class."""
+    from leviathan.silver import reconcile as RC
+    from leviathan.silver import registry as SR
+    reg = SR.load_registry()
+    assert BOARD_CRUSH in RC.NUMBERS_TABLES, "an unenumerated table is STRUCTURALLY UNCHECKED"
+    assert [d.detail for d in RC.reconcile_numbers(reg) if d.table == BOARD_CRUSH] == []
+    c = reg.table(BOARD_CRUSH)
+    assert c["numbers_ref"] and c["consumers"] == "numbers_registry"
+    assert (c["knowledge_date_col"], c["knowledge_semantics"], c["publication_lag_days"]) == \
+           ("trade_date", "data_date", 1)
+    assert c["layer"] == "gold" and c["lifecycle_class"] == "derived"
+    assert c["partition_mode"] == "flat" and c["projection"] == "forbidden"
+
+
+def test_board_crush_is_in_the_pg_mirror_list():
+    from jobs.utils.load_pg_numbers import P1_TABLES
+    assert BOARD_CRUSH in P1_TABLES
+
+
+def test_board_crush_value_columns_carry_NO_floor_override_and_that_is_the_measurement():
+    """THE OPPOSITE OF THE unica CASE ABOVE, and pinned for the same reason. Carding a table is what
+    first subjects its metrics to a non-null floor, so the question always has to be asked. Here the
+    answer is that no override is warranted: the transform emits a session ONLY when all three legs
+    printed a front-month settle and DROPS a partial session rather than writing it half-null, so every
+    served metric is populated on every row by construction. A non-null breach on this table is a real
+    producer defect, never a structural absence -- adding an override would mask exactly the failure the
+    floor exists to catch."""
+    c = _f010(BOARD_CRUSH)
+    assert c["min_nonnull_frac"] == 0.5
+    assert not c.get("min_nonnull_frac_overrides")
+    assert set(c["value_columns"]) == {"crush_margin_usd_bu", "meal_value_usd_bu",
+                                       "oil_value_usd_bu", "bean_cost_usd_bu"}
+
+
+def test_board_crush_is_dispositioned_in_the_cascade_register():
+    """Every numbers card must be dispositioned in cascade_map or the register's completeness claim goes
+    false one wave later. This one is DEFERRED, and it is the register's second ARGUED refusal: the
+    near-neighbour is an exact name match (`board_crush` is a driver id in four contracts), so the
+    refusal turns on cascade semantics -- a windowed change on a spread that crosses zero has no stable
+    sign -- rather than on relevance."""
+    import pathlib
+    repo = pathlib.Path(__file__).resolve().parents[2]
+    text = (repo / "configs" / "graphrag" / "numbers" / "cascade_map.yaml").read_text(encoding="utf-8")
+    assert "gold_board_crush -- DEFERRED" in text
+    assert "UN-DEFER GATE" in text

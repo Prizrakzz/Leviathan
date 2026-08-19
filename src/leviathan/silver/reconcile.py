@@ -58,6 +58,11 @@ NUMBERS_TABLES = (
     "silver_fred_fx",
     "silver_noaa_oni",
     "gold_weather_z",
+    "gold_board_crush",                 # D-EC DK-13: the CBOT board crush, the second gold table to
+    #                                     carry a numbers card. Enumerated the moment the card landed
+    #                                     so its data_date/trade_date/+1d PIT trio reconciles against
+    #                                     F010 instead of shipping structurally unchecked -- the same
+    #                                     posture silver_futures_eod took while it was still dark.
     "silver_icco_cocoa",
     "silver_mpob",
     "silver_sagis_cec",

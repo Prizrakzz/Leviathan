@@ -52,6 +52,9 @@ DOMAIN = {
     "silver_fnc_colombia_exports_port_type": "trade_flows",
     "silver_fnc_colombia_monthly": "production", "silver_food_cpi": "macro",
     "silver_fred_fx": "macro", "silver_futures_eod": "prices",
+    # D-EC DK-13: the CBOT board crush is a PRICE-domain derivation -- the number it serves is a
+    # per-bushel margin in USD, computed from three exchange settlements, not a balance sheet.
+    "gold_board_crush": "prices",
     "silver_futures_prices": "prices",
     "silver_icco_cocoa": "balance_sheet", "silver_model_predictions": "model_output",
     "silver_modis_ndvi": "weather", "silver_mpob": "balance_sheet",
@@ -77,6 +80,14 @@ DOMAIN = {
 
 LIFECYCLE = {
     "silver_esr_compact": "serving_copy", "gold_weather_z": "derived",
+    # D-EC DK-13. `derived` has meant "a second output of one bronze->silver task" everywhere else
+    # in this estate; gold_board_crush is the first table derived from a PUBLISHED silver table.
+    # It is gold and not silver by the estate's own written doctrine: silver_futures_eod.yaml says
+    # a derived series carrying a roll policy "would be a separate derived gold_futures_continuous
+    # with its own roll_policy_version", and a board crush is exactly that object -- it cannot be
+    # computed until the ONE front-month rule has been applied, so roll_rule_version rides every row.
+    # gold_weather_z is the shape precedent (derived, gold, flat, tiny, numbers-served).
+    "gold_board_crush": "derived",
     # generated daily by the pattern-records sweep (an engine replay), like model_predictions.
     "gold_pattern_records": "generated",
     "silver_model_predictions": "generated", "silver_wap_table01_revisions": "derived",
@@ -120,6 +131,7 @@ R2_OWNER = {
     "silver_unica_monthly_ethanol_sales": "SILVER-F062", "silver_wap_table01": "SILVER-F043",
     "silver_wap_table01_revisions": "SILVER-F043", "silver_wasde": "SILVER-F033",
     "gold_weather_z": "SILVER-F046",
+    "gold_board_crush": "SILVER-F062",   # D-EC DK-13, the numbers-platform lane
 }
 
 # Producer inventory (best-effort from the R0 writer_entrypoints snapshot + C-WRONG-8 orphan list).
@@ -171,6 +183,10 @@ PRODUCER = {
     "silver_pink_sheet": (_T + "pink_sheet.py", _J + "pink_sheet_silver_task.py", "producer"),
     "silver_production": (_T + "faostat_production.py", None, "producer"),
     "silver_psd": (_T + "usda_psd.py", _J + "psd_silver_task.py", "producer"),
+    # D-EC DK-13: a GOLD producer, so its transform is not under bronze_to_silver/. Spelled out in
+    # full rather than through _T, exactly as the gold_weather_z entry is.
+    "gold_board_crush": ("src/leviathan/transforms/gold/board_crush.py",
+                         _J + "gold_board_crush_task.py", "producer"),
     "silver_sagis_cec": (_T + "sagis_cec.py", _J + "sagis_cec_silver_task.py", "producer"),
     "silver_sagis_weekly_deliveries": (_T + "sagis_deliveries.py", _J + "sagis_deliveries_task.py", "producer"),
     "silver_sagis_weekly_exports": (_T + "sagis_weekly_exports.py", _J + "sagis_weekly_exports_silver_task.py", "producer"),
@@ -262,6 +278,9 @@ KNOWLEDGE_DATE_OVERRIDE = {
 # WITHIN-partition grain, not a table-wide key.
 NATURAL_KEY_FALLBACK = {
     "gold_weather_z": ["commodity", "country", "region", "year", "month", "metric"],
+    # D-EC DK-13: ONE row per trading session. There is no commodity axis and no country axis --
+    # the CBOT board crush is a single global spread, so trade_date alone is the whole key.
+    "gold_board_crush": ["trade_date"],
     "silver_esr": ["commodity_code", "market_year", "as_of_date", "country_code", "week_ending_date"],
     "silver_model_predictions": [],
     "silver_mpob_annual": [],
@@ -869,6 +888,19 @@ CURATION_OVERRIDES: dict = {
     #     labels (instrument_kind / settle_kind / unit / source).
     #   * nullable_overrides -- see _apply_curation_overrides; this is the INV-2 writer-schema
     #     nullability the plan pins verbatim (lines 114-133).
+    # D-EC DK-13 -- gold_board_crush. Two facts build_contract cannot derive from the R0 record:
+    #   * freshness_sla -- the cadence deriver has nothing to read here (no period_col, no month/year
+    #     grain), so it renders NULL and the table would ship with no staleness ceiling at all. The
+    #     crush is a per-SESSION series, so daily/5 MIRRORS its input silver_futures_eod exactly,
+    #     including that table's ratified weekend grace (a Friday close is ~3d old by Monday, so the
+    #     bare daily default of 3 false-fires). It is the input's ceiling because the crush can never
+    #     be fresher than its legs. REVISIT IT if the producer is ever armed on a cron slower than its
+    #     input: the ceiling would then be asserting a cadence nobody scheduled.
+    #   * natural_key -- one row per session; NATURAL_KEY_FALLBACK carries it (there is no
+    #     source_contracts entry, because there is no external source: the input is our own table).
+    "gold_board_crush": {
+        "freshness_sla": {"cadence": "daily", "max_lag_days": 5},
+    },
     "silver_futures_eod": {
         "freshness_sla": {"cadence": "daily", "max_lag_days": 5},
         "natural_key": ["leviathan_slug", "contract_month", "trade_date"],
@@ -1044,7 +1076,44 @@ CURATION_OVERRIDES: dict = {
                    "the ~Dec 2026 QCL release."),
         "approved": "2026-07-15 BF-W2 rider 6 (user gate)",
     }},
-    "silver_psd": {"freshness_sla": {"cadence": "monthly"}},         # PSD refreshes on the WASDE cycle
+    # D-EC XC-1 (2026-08-20) -- THE GATE CONTRACT MOVES WITH THE PRODUCER.
+    # usda_psd.py::_PSD_COMMODITY_TO_SLUGS widened from 13 commodity codes to 47 (29 -> 63
+    # leviathan_slug values), which stops discarding 52.5% of the bulk ZIP we already fetch daily.
+    # That is a change to WHAT THE PRODUCER WRITES, so the V001 floor has to be re-stated against
+    # the new population BEFORE the re-run, not discovered by a red gate afterwards.
+    #
+    # MEASURED, not inferred (the OP-8 lesson): the widened transform was run locally over the real
+    # raw object raw/production/source=usda_psd/.../release_date=2026-08-13/psd_alldata.zip
+    # (2,092,687 rows, 63 commodity codes). Table-wide non-null fractions of the nine value_columns,
+    # before -> after the widening:
+    #     production_mt / imports_mt / exports_mt / consumption_mt   1.000 -> 1.000
+    #     beginning_stocks_mt / ending_stocks_mt                     1.000 -> 0.985
+    #     su_ratio                                                   0.977 -> 0.962
+    #     area_harvested_1000ha                                      0.657 -> 0.5518
+    #     yield_mt_ha                                                0.657 -> 0.5670
+    # Silver rows 164,288 -> 237,581; distinct slugs 29 -> 63.
+    #
+    # WHY THE TWO OVERRIDES. area_harvested_1000ha and yield_mt_ha are SOURCE-STRUCTURAL, which is
+    # exactly the class min_nonnull_frac_overrides was added for: USDA publishes no harvested area
+    # for butter, cheese, beef, pork, broilers, fluid milk, orange juice, or ANY crush meal/oil
+    # sheet -- there is no field to harvest. The widening admits 34 slugs of which 24 are
+    # area-less by construction, so the fraction falls purely by composition and not by any loss of
+    # data: the 131,093 rows that sit under an area-publishing sheet are all still populated.
+    # At the shipped table scalar of 0.5 the measured 0.5518 PASSES, but by 5.2 points -- a margin
+    # thin enough that an ordinary shift in which release partitions bronze holds could red a gate
+    # on data that is precisely what USDA published. Both floors are therefore restated at 0.40,
+    # ~27% below the measured value, the same headroom ratio the nass pct_emerged recalibration
+    # used (0.05 against a measured 0.0681). The gate stays live: KIND_ALL_NAN still hard-fails a
+    # column that goes entirely null, in every month, whatever the floor says.
+    #
+    # The other seven value columns keep the 0.5 table scalar -- every one of them measures 0.96 or
+    # better after the widening, so there is nothing to restate and restating anyway would be the
+    # invented-floor mistake in the other direction.
+    "silver_psd": {
+        "freshness_sla": {"cadence": "monthly"},                     # PSD refreshes on the WASDE cycle
+        "min_nonnull_frac_overrides": {"area_harvested_1000ha": 0.40,
+                                       "yield_mt_ha": 0.40},
+    },
     "silver_mpob": {"freshness_sla": {"cadence": "monthly"}},        # MPOB monthly palm statistics
     "silver_modis_ndvi": {"freshness_sla": {"cadence": "monthly"}},  # 16-day composite; monthly interim
     "silver_nass_crop_progress": {

@@ -78,6 +78,14 @@ FAMILY_RULES: tuple[tuple[str, str], ...] = (
     # NOTE the ordering hazard: never write this rule as ("silver_futures", ...) -- that prefix swallows
     # BOTH tables (family_of matches on startswith) and would silently re-home the live yfinance table.
     ("silver_futures_eod", "futures_eod"),
+    # D-EC DK-13: gold_board_crush gets its OWN family and is NOT folded into `futures_eod`.
+    # It is a CONSUMER of that table, not a producer of it: its input is our own published silver,
+    # its schedule follows the eod chain rather than any venue timezone, and a shared family would
+    # make the eod family's tightest-ceiling arithmetic and its on-call page cover two different
+    # jobs. Same reasoning the note above gives for keeping futures_eod out of `futures`. It has no
+    # SOURCE-backfill DAG at all (there is no external source to re-fetch -- a rebuild is a re-run of
+    # the arithmetic), so its family joins _NON_BACKFILL_FAMILIES below.
+    ("gold_board_crush", "board_crush"),
     ("silver_cot", "cftc"),
     # --- Single-source specialty ------------------------------------------
     ("silver_production", "faostat"),
@@ -120,6 +128,10 @@ FAMILY_LABELS: dict[str, str] = {
     "icco": "ICCO cocoa",
     "model_output": "Model predictions (generation-only)",
     "pattern_records": "Pattern-records ledger (T2B; generation-only engine replay)",
+    # D-EC DK-13. The label says DERIVED out loud: an on-call reading a stale-freshness page for this
+    # family must know the fix is upstream (the three CBOT legs of silver_futures_eod did not land)
+    # far more often than it is here -- there is no vendor to chase.
+    "board_crush": "CBOT board crush (derived from silver_futures_eod; no external source)",
 }
 
 # Interim freshness-SLA lag ceilings per cadence, used when the registry
@@ -279,7 +291,11 @@ class DagFamily:
 
 
 # Families that carry no source-backfill DAG (generation-only outputs).
-_NON_BACKFILL_FAMILIES = frozenset({"model_output", "pattern_records"})
+_NON_BACKFILL_FAMILIES = frozenset({"model_output", "pattern_records",
+                                    # D-EC DK-13: derived from a PUBLISHED silver table, so there is
+                                    # no external source to backfill FROM -- recovery is re-running
+                                    # the transform, not re-fetching a vendor.
+                                    "board_crush"})
 
 
 def build_catalog(registry: Optional[SilverRegistry] = None) -> dict[str, DagFamily]:

@@ -281,7 +281,12 @@ def test_cot_is_branch_a_twelfth_pg_mirror_table():
     # LIST-storm class. NOT in the roster and deliberately so: silver_unica_biweekly_release_series,
     # which was REFUSED a card in that wave (free-text position_date makes the as-of guard a
     # lexicographic no-op), so it is served by nothing and there is nothing to mirror.
-    assert len(g.PG_MIRROR_TABLES) == 35, (
+    # D-EC DK-13 (2026-08-20) added ONE more -- the 36th -- on that same rule: gold_board_crush,
+    # the CBOT board-crush card. It is the first GOLD table added to this roster since
+    # gold_weather_z, and the smallest table on it (FLAT, one object, ~4,000 rows), so the fallback
+    # it prevents is latency and not the LIST-storm class. It is also the only entry that will
+    # never gain a numbers_parity SAMPLE_COMMODITY row: the card has no commodity axis at all.
+    assert len(g.PG_MIRROR_TABLES) == 36, (
         "pg-mirror roster changed; the by-NAME pin lives in tests/unit/test_silver_rebuild_gate.py::"
         "test_branch_selection_all_45_tables. Roster now: " + str(sorted(g.PG_MIRROR_TABLES)))
 

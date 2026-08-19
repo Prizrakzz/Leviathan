@@ -50,9 +50,12 @@ def test_generator_covers_exactly_the_45_baseline_tables(gen):
     # 43 R0 tables + two SYNTHETIC R0 records: the T2B gold_pattern_records ledger (T2B plan sec 1.2)
     # and silver_futures_eod (PRICE_AND_PLAYBOOKS W1.0) -- both authored from a ratified schema so the
     # generator can emit their contracts byte-stably before any AWS object exists.
-    assert len(on_disk) == 45
+    # D-EC DK-13 (2026-08-20): a THIRD synthetic R0 record, gold_board_crush -- authored from the
+    # ratified board-crush schema so its contract renders before the gold producer has ever run.
+    assert len(on_disk) == 46
     assert "gold_pattern_records" in on_disk
     assert "silver_futures_eod" in on_disk
+    assert "gold_board_crush" in on_disk
 
 
 class TestNullableOverrides:

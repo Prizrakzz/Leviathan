@@ -18,7 +18,10 @@ from leviathan.silver.types import (
 # 43 silver + gold_weather_z + gold_pattern_records (T2B ledger). The 43rd silver table is
 # silver_futures_eod (PRICE_AND_PLAYBOOKS W1.0): generated from a SYNTHETIC R0 record ahead of its
 # producers and FENCED out of serving until the W3 whitelist flip.
-EXPECTED_TABLE_COUNT = 45
+# D-EC DK-13 (2026-08-20): + gold_board_crush, the THIRD gold table and the FIRST derived from a
+# PUBLISHED silver table (silver_futures_eod). Also a SYNTHETIC R0 record, for the same reason
+# silver_futures_eod's is: the contract is emitted byte-stably before the producer has ever run.
+EXPECTED_TABLE_COUNT = 46
 
 
 @pytest.fixture(scope="module")
@@ -29,9 +32,13 @@ def reg() -> R.SilverRegistry:
 def test_registry_has_exactly_the_live_43_plus_gold(reg):
     names = reg.names()
     assert len(names) == EXPECTED_TABLE_COUNT
-    # two gold tables now: the weather z-score serving surface + the T2B pattern-records ledger.
+    # three gold tables now: the weather z-score serving surface, the T2B pattern-records ledger,
+    # and the D-EC DK-13 board crush. The silver count is UNCHANGED at 43 -- board crush is gold by
+    # the estate's own doctrine (a derived series carrying a roll policy belongs in gold; see
+    # silver_futures_eod.yaml's ROLL AND CONTINUOUS STAY OUT note), so this arithmetic is what
+    # records that the new table did NOT widen silver.
     gold = [n for n in names if n.startswith("gold_")]
-    assert set(gold) == {"gold_weather_z", "gold_pattern_records"}
+    assert set(gold) == {"gold_weather_z", "gold_pattern_records", "gold_board_crush"}
     silver = [n for n in names if n.startswith("silver_")]
     assert len(silver) == 43
     # the ESR pair + WASDE + model_predictions are all present (registered surfaces).
@@ -61,7 +68,10 @@ def test_partition_modes_match_the_r0_tally(reg):
     # SILVER-F047 catch-up (2026-07-28): the weather storm-trio (nasa_power/chirps/cpc_soil) moved
     # projected -> registered [commodity, year] to match the BF-W1 (2026-07-21) live deprojection
     # the R0 baseline predates, so projected 10 -> 7 and registered 6 -> 9.
-    assert modes == {"flat": 29, "projected": 7, "registered": 9}
+    # D-EC DK-13: flat 29 -> 30. gold_board_crush is flat by design -- ~4,000 rows, one per session
+    # since the 2010-06-06 GLBX floor -- so there is no partition surface to enumerate and no
+    # per-partition ADD on refresh. gold_weather_z is the precedent for a flat gold table.
+    assert modes == {"flat": 30, "projected": 7, "registered": 9}
 
 
 def test_projection_field_is_quarantined_iff_projected(reg):

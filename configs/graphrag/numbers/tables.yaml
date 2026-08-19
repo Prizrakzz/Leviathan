@@ -3412,3 +3412,141 @@ tables:
       early, at most a couple of weeks late. There is NO vintage axis -- one value per (season, month)
       from whichever archived bulletin carried it -- so never present a figure as as-published-on-date
       and never difference two rows and call it a revision.
+
+  gold_board_crush:
+    description: >
+      The CBOT SOYBEAN BOARD CRUSH -- the processor's gross margin, in US DOLLARS PER BUSHEL, for one
+      trading session. It is a SPREAD computed from three exchange settlements the platform already
+      stores: the value of the meal and oil a bushel yields, minus what the bushel costs.
+      crush = 0.022 x soybean meal (USD/short ton) + 0.11 x soybean oil (US cents/lb)
+      - 0.01 x soybeans (US cents/bushel), the standard 44 lb meal / 11 lb oil board convention;
+      each coefficient is a unit conversion, not a fitted parameter. The three legs are the CBOT
+      front-month contracts chosen by the platform's ONE named front-month rule (front-by-open-interest
+      on GLBX), and that rule's version rides every row. One row per trading session on which all three
+      legs printed; CBOT only.
+    grain: "one row per trading session (a single global CBOT spread -- no commodity axis, no country axis)"
+    shape: wide
+    # THE TWO INVISIBLE AXES, declared rather than left absent. This table has NO commodity column and
+    # NO country column: the board crush is ONE number per session, not a number per commodity. The
+    # closed commodity set below is therefore a pre-SQL teaching refusal exactly as it is on
+    # silver_food_cpi -- agent._check_commodity_class reads commodity_values ALONE and never consults
+    # commodity_col, so naming a set costs nothing at query time and stops a corn or palm lookup from
+    # coming back with a soy margin wearing the wrong label.
+    commodity_col: null
+    country_col: null
+    # THE THREE CBOT LEGS AND NOTHING ELSE. The DCE and ZCE soy slugs are DELIBERATELY EXCLUDED even
+    # though the same economics drive them: this number is denominated in USD per BUSHEL off Chicago
+    # settlements, and handing it to a Dalian or Zhengzhou crush question would substitute one venue's
+    # margin for another's across an FX rate this estate never converts. soy_complex is admitted
+    # because it is the hierarchy's own name for the three legs together, which is precisely what a
+    # crush IS.
+    commodity_values: [soybeans_cbot, soybean_meal_cbot, soybean_oil_cbot, soy_complex]
+    period_type: date
+    date_col: trade_date                  # exchange SESSION date; Glue STRING, ISO 'YYYY-MM-DD'
+    knowledge_semantics: data_date
+    knowledge_date_col: trade_date
+    publication_lag_days: 1               # inherited EXACTLY from silver_futures_eod: the crush is
+    #                                       available when its last leg's EOD print is, i.e. D+1. It is
+    #                                       not made later by being computed -- arithmetic adds no lag.
+    partition_cols: []                    # flat gold object; projection FORBIDDEN, no LIST surface
+    # PROVENANCE IS THE RULE, NOT A REVISION. Exchange settlements do not revise, so this table has no
+    # vintage axis and no source revision date to stamp. What a reader genuinely needs to know is WHICH
+    # DEFINITION produced the number -- which coefficients, which legs, which roll -- so
+    # crush_rule_version is what rides out as revision_stamp. Quote it whenever the figure is doing
+    # real work; a crush under one rule version is not comparable to a crush under another.
+    provenance_col: crush_rule_version
+    # period_required IS DELIBERATELY NOT SET, and the refusal is pinned in
+    # tests/unit/test_capability_wiring.py rather than left as an absence. The fence exists for the WAP
+    # trap -- a table where several rows share a period, so agg=latest returns ONE ARBITRARY row. This
+    # card has no free axis at all: no commodity, no country, one row per session. agg=latest therefore
+    # returns THE newest session on or before the as-of, which is the only row it could return and
+    # exactly the right answer. Requiring a period here would refuse the most natural question this
+    # table exists to answer -- where the crush stands -- to fence a hazard it does not have.
+    metrics:
+      crush_margin_usd_bu:
+        unit: "USD/bushel"
+        desc: >
+          THE board crush for that session: meal value + oil value - bean cost, in US dollars per
+          bushel of soybeans. A MARGIN, not a price. Negative readings are real.
+      meal_value_usd_bu:
+        unit: "USD/bushel"
+        desc: >
+          the meal leg's contribution -- 0.022 x the soybean-meal front-month settle (USD/short ton),
+          i.e. what the 44 lb of meal from one bushel was worth that session.
+      oil_value_usd_bu:
+        unit: "USD/bushel"
+        desc: >
+          the oil leg's contribution -- 0.11 x the soybean-oil front-month settle (US cents/lb), i.e.
+          what the 11 lb of oil from one bushel was worth that session.
+      bean_cost_usd_bu:
+        unit: "USD/bushel"
+        desc: >
+          the input cost -- the soybean front-month settle converted from US cents to dollars per
+          bushel. Subtracted from the two product values to give the margin.
+    notes: >
+      A MARGIN IS NOT A PRICE, AND THIS IS THE ONE ERROR THIS CARD EXISTS TO PREVENT. Every figure here
+      is a SPREAD in dollars per bushel -- what a processor earns for crushing, not what anything costs
+      or trades at. "Soybeans were $1.85" is wrong in a way a reader cannot detect; "the board crush was
+      $1.85 per bushel" is right. For the LEVEL of any leg use silver_futures_eod, which serves the
+      per-delivery-month settle with its own unit, currency and settle_kind attached.
+      NEGATIVE IS A REAL READING, NOT A DEFECT. A negative crush means the meal and oil a bushel yields
+      were worth LESS than the bushel -- a processor squeeze, which is exactly when the number matters
+      most. Never clamp it at zero, never call it missing, and never describe a move from -0.20 to +0.30
+      as a percentage change: a percentage of a margin that crosses zero is meaningless. Quote spread
+      moves in dollars per bushel -- the crush widened by 30 cents -- and never in percent.
+      WIDER AND NARROWER, NEVER HIGHER AND LOWER. A crush WIDENS when processing gets more profitable
+      and NARROWS when it gets less. It widens because meal or oil rose, or because beans fell -- three
+      different stories behind one number, which is why meal_value_usd_bu, oil_value_usd_bu and
+      bean_cost_usd_bu are served beside it. When a move is worth explaining, look up the parts: they
+      reconstruct the whole exactly (meal + oil - beans == crush on every row), so the attribution is
+      arithmetic rather than a guess.
+      NEVER CALL A DATED CRUSH CURRENT. Every row is one SESSION, stamped with its own trade date and a
+      one-day publication lag. Say the date out loud on every figure -- the crush settled at $1.85 on 13
+      August 2026 -- and never "the crush is" or "these days" or "at the moment". The same discipline the
+      futures and IOD cards state, and it bites harder here because a spread can invert inside a week.
+      IT IS A FRONT-MONTH CRUSH AND THE ROLL IS A DECISION, NOT A FACT. The three legs are selected by
+      the platform's single named front-month rule (front-by-open-interest, since all three trade on
+      GLBX), and roll_rule_version plus crush_rule_version ride every row. On and around a roll the
+      series steps because the underlying contracts changed, not because the market moved: a
+      day-over-day difference across a roll boundary is NOT a market move. The beans_contract_month,
+      meal_contract_month and oil_contract_month columns are carried so that boundary stays visible.
+      THE TEXTBOOK BOARD CRUSH USES ALIGNED DELIVERY MONTHS AND THIS CARD DOES NOT ENFORCE THAT. Each
+      leg is rolled independently by open interest, so on most sessions the three agree and on some they
+      do not. When they disagree the row is a front-month crush rather than a same-expiry board crush;
+      the three contract-month columns say which case a row is, and a figure quoted from a mixed-month
+      session should say so.
+      CBOT ONLY. There is no Dalian import crush and no Zhengzhou rapeseed crush in this table, and that
+      is a refusal rather than a gap: those venues quote in CNY per tonne, so a crush there needs an FX
+      leg (and, for the import crush, freight), and this platform converts NOTHING at ingest -- units are
+      source-faithful by doctrine. A question about Chinese crush margins is NOT ANSWERABLE here; say so
+      rather than offering the Chicago number as a proxy.
+      THE RAW LEG SETTLES ARE CARRIED BUT NOT SERVED. beans_settle, meal_settle and oil_settle sit on
+      every row for provenance -- they are what the arithmetic consumed -- and they are deliberately
+      absent from the metric list, because each is in a DIFFERENT unit (cents/bushel, dollars/short ton,
+      cents/pound) and a served metric whose unit changes by column is a mis-quote waiting to happen.
+      Every metric this card serves is in ONE unit, USD per bushel. For a leg's own level, with its own
+      unit and its settle_kind label, use silver_futures_eod.
+      SETTLE KIND TRAVELS WITH THE NUMBER. All three legs are CME/CBOT via GLBX and print official
+      SETTLEMENTS, so settle_kind reads settlement on every ordinary row; a session whose legs disagreed
+      reads mixed and should be quoted with that said out loud. A crush built from session closes is a
+      different object from one built from settlements.
+      COVERAGE STARTS 2010-06-06 AND THERE IS NO HISTORY BEFORE IT. That is the measured GLBX floor for
+      all three legs (silver_futures_eod's own per-contract coverage map, measured from the canonical
+      bytes rather than copied from a plan), so a crush for 2008 or 2005 is NOT ANSWERABLE from this
+      card. Decline rather than splicing a different series in front of it.
+      commodity IS OPTIONAL AND THERE IS NO PRODUCT AXIS -- every row is the same single CBOT spread. If
+      you pass one, pass soybeans_cbot, soybean_meal_cbot, soybean_oil_cbot or soy_complex; anything
+      else, including the Dalian and Zhengzhou soy slugs, is refused before anything is queried.
+      POINT-IN-TIME: each row is stamped with its own session date plus a one-day lag, exactly as
+      silver_futures_eod is -- the arithmetic adds no lag of its own. There is NO vintage axis: exchange
+      settlements do not revise, so there is one value per session. Never present a figure from this card
+      as as-published-on-a-date, and never difference two rows and call the result a revision.
+      revision_stamp carries crush_rule_version, the DEFINITION the number was computed under.
+      WHAT THIS CARD IS FOR, AND ITS HARD EDGE: it quantifies the crush driver the causal graph models in
+      sixteen places and could never feed from text -- the corpus carries the phrase board crush in ZERO
+      of 449 sampled documents, because attache reports and WASDE narrative do not discuss market
+      microstructure. It says what the margin WAS, on which session, and how the meal, oil and bean legs
+      contributed. It cannot say what processors will do about it, what crush VOLUMES were, or where the
+      margin is going; a crush-capacity or crush-volume claim minted from this number is exactly the
+      invention it refuses. For the soybean balance sheet behind a crush story use silver_psd; for the
+      leg prices themselves use silver_futures_eod.

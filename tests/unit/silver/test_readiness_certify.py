@@ -362,7 +362,7 @@ def test_runner_build_evidence_smoke(tmp_path):
     # 43 R0 tables + the T2B gold_pattern_records ledger (generation-only, census-exempt like
     # model_predictions -- an engine-replay output, not a value-census measurement source) +
     # silver_futures_eod (PRICE_AND_PLAYBOOKS W1.0, registered ahead of its producers).
-    assert len(evidence) == 45
+    assert len(evidence) == 46   # D-EC DK-13: + gold_board_crush
     assert {e.table for e in evidence} == set(reg.names())    # one row per registry table, no dups
     cert = certify_all(evidence)
     # Structural, and true whatever the artifact tree says: a certificate covers every table and

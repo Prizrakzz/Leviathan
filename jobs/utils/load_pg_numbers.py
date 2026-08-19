@@ -56,6 +56,11 @@ _HIDDEN_PREFIXES = ["_", "."]
 P1_TABLES = ["silver_psd", "silver_wasde", "silver_production", "silver_esr", "silver_fred_fx",
              "silver_noaa_oni", "gold_weather_z",         # gold_weather_z: small tall z-table (D-W4);
              #                                              silver_nasa_power stays EXCLUDED (size, above)
+             # D-EC DK-13: gold_board_crush is a FLAT WIDE table of ~4,000 rows (one per session since
+             # the 2010-06-06 GLBX floor) with four double metrics -- comfortably the smallest table on
+             # this list. trade_date and the three contract_month columns stay ISO TEXT under the type
+             # doctrine; the four *_usd_bu metrics plus the three raw leg settles mirror numeric.
+             "gold_board_crush",
              # numbers-depth wave (W0-4 / D3): three freshly wired WIDE tables. All small-to-modest and
              # numeric-column-safe under the type doctrine: ICCO metrics production_kt/grindings_kt/
              # end_stocks_kt/su_ratio, MPOB *_mt + su_ratio, SAGIS current_estimate_t/area_planted_ha

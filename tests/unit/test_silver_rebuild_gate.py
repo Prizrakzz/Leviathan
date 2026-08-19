@@ -136,6 +136,19 @@ _EXPECTED_BRANCH_A = frozenset({
     "silver_unica_biweekly_season_history",
     "silver_unica_corn_ethanol",
     "silver_unica_monthly_ethanol_sales",
+    # D-EC DK-13 (2026-08-20) -- ONE more, and the first GOLD table added on the served-card rule
+    # since gold_weather_z. A served card must be mirrored: an unmirrored pg read raises
+    # UndefinedTable and falls back to Athena SILENTLY, which for this table costs latency rather
+    # than a LIST storm (it is FLAT, projection-forbidden, ONE object of ~4,000 rows since the
+    # 2010-06-06 GLBX coverage floor -- the smallest table on this roster).
+    # ITS V001 FLOOR IS THE FACT TO READ BEFORE INTERPRETING A GATE RESULT, and it is the opposite
+    # of the unica caveat above: every one of its four served metrics is populated on every row BY
+    # CONSTRUCTION, because the transform emits a session only when all three legs printed and
+    # drops a partial one rather than writing it half-null. A non-null breach here is therefore a
+    # real producer defect and never a structural absence, which is why it carries no overrides.
+    # As with every entry above: the in-VPC load has NOT run. Unlike every entry above, it will
+    # never gain a numbers_parity SAMPLE_COMMODITY row -- the card has no commodity axis at all.
+    "gold_board_crush",
 })
 
 
@@ -143,7 +156,8 @@ def test_branch_selection_all_45_tables():
     from leviathan.silver import registry as sreg
     silver = sreg.load_registry()
     names = silver.names()
-    assert len(names) == 45, f"expected 45 F010 tables, got {len(names)}"
+    # D-EC DK-13 (2026-08-20): + gold_board_crush, the first silver-derived gold table.
+    assert len(names) == 46, f"expected 46 F010 tables, got {len(names)}"
 
     branch_a = {t for t in names if g.select_branch(t, silver_reg=silver) == g.BRANCH_A}
     branch_b = {t for t in names if g.select_branch(t, silver_reg=silver) == g.BRANCH_B}
@@ -156,7 +170,8 @@ def test_branch_selection_all_45_tables():
         "why_this_matters": "a table entering Branch A gains the pg reload + parity + the V001 floor; "
                             "a table LEAVING it loses its only mirror refresh path while staying "
                             "served -- update this roster deliberately, never to make a test pass"}
-    assert len(branch_a) == 35                        # 20 + Track 1's six + T2's six + T3's three
+    # D-EC DK-13: + gold_board_crush (the served-card rule, applied to a GOLD table for the second time)
+    assert len(branch_a) == 36                        # 20 + Track 1's six + T2's six + T3's three + DK-13's one
     assert branch_a | branch_b == set(names)          # partition: no table is UNKNOWN in the real registry
     assert not (branch_a & branch_b)
 
@@ -863,7 +878,17 @@ def test_main_exits_zero_and_prints_a_grepable_warn_line(monkeypatch, capsys, tm
 # =========================================================================================================
 # The measured orphan roster, pinned BY NAME (the estate's convention: an integer pin says a table moved,
 # never WHICH). gold_pattern_records is in the C002 walk and in nobody's gate_tables.
-_EXPECTED_ORPHANS = frozenset({"gold_pattern_records"})
+# D-EC DK-13 (2026-08-20): gold_board_crush joins it, on the SAME ground and not on convenience.
+# The fence exists for a table a family SHOULD gate and does not; both members here are tables no
+# source DAG can gate, because neither has a source. gold_pattern_records is an engine replay;
+# gold_board_crush is arithmetic over a table this estate already publishes, so its dag_catalog
+# family sits in _NON_BACKFILL_FAMILIES and there is nothing to re-fetch. The fix the message below
+# names -- add it to a family gate_tables -- would mean inventing a source DAG for a derivation,
+# and hanging it on the futures_eod family (its INPUT) would charge a crush-transform defect to the
+# venue capture lanes: the wrong on-call and the wrong diagnosis. UN-ORPHAN GATE: if a board_crush
+# DAG descriptor is ever armed, it takes the table in its OWN gate_tables and this roster shrinks
+# back to one.
+_EXPECTED_ORPHANS = frozenset({"gold_pattern_records", "gold_board_crush"})
 
 
 def test_the_c002_walk_set_is_wider_than_the_owned_set_and_the_orphan_is_named():

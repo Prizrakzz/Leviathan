@@ -839,9 +839,17 @@ _D_LD_T2_IDS = ("silver_sagis_weekly_deliveries", "silver_ams_cotton_quality", "
 # tests/unit/test_capability_wiring.py::test_the_refused_unica_table_is_carded_nowhere.
 _D_LD_T3_IDS = ("silver_unica_biweekly_season_history", "silver_unica_corn_ethanol",
                 "silver_unica_monthly_ethanol_sales")
+# D-EC DK-13 (2026-08-20) landed ONE card, and its precondition is unlike every wave above: the
+# table did not exist. gold_board_crush is the first table DERIVED from a published silver table
+# (silver_futures_eod), so nothing had to be un-darkened -- the number had to be COMPUTED. It
+# quantifies a driver the causal graph models in sixteen places and the corpus can never feed
+# (the phrase "board crush" appears in 0 of 449 sampled documents), which is why it could only ever
+# be numbers-bound. Same standing as every wave above: present regardless of the DEPTH-wave
+# kill-switch, so it belongs in the BASELINE and is NOT among the three ids that switch reverts.
+_D_EC_IDS = ("gold_board_crush",)
 _DEPTH_BASELINE = ((_PRE_WAVE_8 | set(_PRICE_IDS) | set(_SEAM_C_IDS) | set(_WIRING_W1_IDS)
                     | set(_W3_IDS) | set(_D_CW_IDS) | set(_D_PQ_IDS) | set(_D_LD_IDS)
-                    | set(_D_LD_T2_IDS) | set(_D_LD_T3_IDS))
+                    | set(_D_LD_T2_IDS) | set(_D_LD_T3_IDS) | set(_D_EC_IDS))
                    - _QUARANTINE_STRIPPED)          # D-LD Track 2 #5, see above
 
 
