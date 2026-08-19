@@ -422,6 +422,7 @@ class RunManifest:
         self.slices: dict[str, dict] = {}                      # layer -> {slice -> record}
         self.unwritten: dict[str, dict] = {}                   # layer -> {slice -> prior-only record} (F9)
         self.docs: dict = {"written": 0, "overwritten": 0, "vintage_transitions": {}, "per_doc_delta": {}}
+        self.extraction: dict = {}                             # X2: per-pass window / doc-read / dedup counters
         self.warnings: list[str] = []
         self.guard: dict[str, dict] = {}                       # layer -> evaluate() verdict
 
@@ -482,6 +483,14 @@ class RunManifest:
                      "vintage_transitions": {str(k): int(v) for k, v in vintage_transitions.items()},
                      "per_doc_delta": {str(k): int(v) for k, v in per_doc_delta.items()}}
 
+    # -- extraction (X2) ----------------------------------------------------------------------------------
+    def record_extraction(self, counters: dict) -> None:
+        """Merge one pass-stage's extraction counters into the manifest: window states (`windows`), document
+        reads (`doc_reads`), the dedup gate (`dedup`). A MERGE rather than a set, because `run` is submit
+        THEN retrieve and each stage records its own half of the same pass. These are the numbers that make
+        "the batch produced fewer props than the census predicted" answerable without a re-measurement."""
+        self.extraction.update({str(k): v for k, v in (counters or {}).items()})
+
     # -- payload / flush ----------------------------------------------------------------------------------
     def payload(self) -> dict:
         return {
@@ -495,6 +504,7 @@ class RunManifest:
             "thresholds": {"slice_drop_refuse": SLICE_DROP_REFUSE, "layer_drop_refuse": LAYER_DROP_REFUSE,
                            "span_contraction_refuses": SPAN_CONTRACTION_REFUSES},
             "docs": self.docs,
+            "extraction": self.extraction,
             "slices": self.slices,
             # F9: store-only slices this pass never wrote. Their files persist unchanged; on a FULL pass that
             # means their terms no longer route and the stale object is nobody's to rewrite.

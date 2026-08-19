@@ -1149,8 +1149,11 @@ def from_evidence(row: dict, i: int) -> Citation:
     label = f"{src} ({date}): {snippet}"
     # snippet (140-char) rides the locator so a durable turn keeps a click-to-hover receipt after the full
     # evidence text is trimmed off the persisted payload (6.4). page/char stay null for old props; W2.1 props
-    # carry char_start/char_end/offset_kind ('exact'|'block'|'none') -- copied through so 6.5 click-to-page can
-    # resolve the source PDF page DETERMINISTICALLY (offsets-first) instead of fuzzy-matching the snippet.
+    # carry char_start/char_end/offset_kind ('exact'|'exact_ws'|'block'|'none') -- copied through so 6.5
+    # click-to-page can resolve the source PDF page DETERMINISTICALLY (offsets-first) instead of
+    # fuzzy-matching the snippet. 'exact_ws' is an exact span recovered through the text layer's line breaks
+    # (evidence_batch._locate_span): it addresses full_text identically to 'exact' and every consumer that
+    # only distinguishes "has an offset" from 'none' needs no change.
     locator = {"kind": "doc", "source_key": sk, "page": row.get("page"),
                "char_start": row.get("char_start"), "char_end": row.get("char_end"),
                "offset_kind": row.get("offset_kind"), "snippet": snippet}

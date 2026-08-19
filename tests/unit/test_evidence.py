@@ -570,12 +570,120 @@ def test_pub_date_release_branch():
 
 
 def test_pub_date_release_branch_no_false_match():
-    """`release=` must NOT fire on `release_date=` (char after `release` there is `_`), nor on undated keys."""
-    assert ev._pub_date("text/source=usda_wasde/release_date=1973-09-17/d.json") is None
+    """`release=` must not CLAIM a `release_date=` key: the wasde key below is now parsed, but by the
+    release_date rule at DAY precision, never by the month-precision release= rule. (Before DEC-P0c S1 this
+    key returned None outright and every one of the 616 wasde documents took a Jan-1 floor.)"""
+    assert ev.pub_date_layout("text/source=usda_wasde/release_date=1973-09-17/d.json") == \
+        (date(1973, 9, 17), "release_date")
     assert ev._pub_date("x/no_date/d.json") is None
     # the two pre-existing branches still win their own formats
     assert ev._pub_date("x/publication_date=20200515/d.json") == date(2020, 5, 15)
     assert ev._pub_date("x/report_05-15-2021/d.json") == date(2021, 5, 15)
+
+
+# ══ DEC-P0c S1: one rule per key layout doc_census names ═════════════════════════════════════════════════
+# Every key below is a REAL key from `data/dec_p0/doc_census.json` sample_keys (or the pilot's own T5b
+# table). Before this fix `_pub_date` matched only three shapes and 2,036 of 7,056 corpus documents (28.9%)
+# fell through to year -> Jan-1 -- an error that is ALWAYS backwards in time, i.e. leakage-permissive
+# against the very `asof` filter this field feeds. Measured after the fix over a fresh LIST of all 7,056
+# `document.json` keys: 6,994 parse, 62 refuse (55 conab + 7 mpob), 0 unknown.
+_REAL_KEYS = [
+    # (key, expected date, expected layout)
+    ("text/source=usda_wasde/release_date=2026-05-12/document.json", date(2026, 5, 12), "release_date"),
+    ("text/source=usda_wasde/release_date=1973-09-17/document.json", date(1973, 9, 17), "release_date"),
+    ("text/source=usda_wap/release_month=2026-07/document.json", date(2026, 7, 1), "release_month"),
+    ("text/source=usda_wap/release_month=1988-01/document.json", date(1988, 1, 1), "release_month"),
+    ("text/source=wb_cmo_outlook/release=1994-11/document.json", date(1994, 11, 1), "release_ym"),
+    ("text/source=icco_qbcs_summary/release_date=2008-02-28/doc=c6a2f397/document.json",
+     date(2008, 2, 28), "release_date"),
+    ("text/source=icco_ewg_stocks/release_date=2022-01-27/doc=9178daf1/document.json",
+     date(2022, 1, 27), "release_date"),
+    ("text/source=sagis_cec/release_date=1999-10-20/doc=c6cd1554/document.json",
+     date(1999, 10, 20), "release_date"),
+    ("text/source=mpoc/release_type=market_highlights/date=20200313/"
+     "slug=crash-of-crude-oil-market-and-its-impact-on-oils-fats/document.json", date(2020, 3, 13), "article_date"),
+    ("text/source=fnc/monthly_reports/report_type=cifras/publisher=fnc_informe_mensual/"
+     "publication_date=2025-03-01/document.json", date(2025, 3, 1), "publication_date_iso"),
+    ("text/source=usda_fas_coffee_wmt/publication_date=20040612/document.json", date(2004, 6, 12), "publication_date"),
+    ("text/source=usda_gain_cocoa/country=GH/publication_date=19980924/"
+     "document=ghana_annual_cocoa_report_accra_ghana_09-17-1998/document.json", date(1998, 9, 24), "publication_date"),
+    ("text/source=usda_gain_sugar/country=MX/publication_date=20141103/"
+     "document=mexico_announces_sugar_cane_reference_price_mexico_mexico_10-31-2014/document.json",
+     date(2014, 11, 3), "publication_date"),
+]
+_REFUSING_KEYS = [
+    ("text/source=conab/crop_year=2025_26/survey=01/document.json", "conab_survey_is_not_a_month"),
+    ("text/source=conab/crop_year=2009_10/survey=12/document.json", "conab_survey_is_not_a_month"),
+    ("text/source=mpob/release_type=overview_pdf/year=2010/document.json", "year_only"),
+]
+
+
+def test_pub_date_parses_every_layout_doc_census_names():
+    """13 layouts, real keys, one assertion each. The GAIN pair also pins precedence: those keys carry BOTH
+    an inner `publication_date=YYYYMMDD` and an MM-DD-YYYY fragment in the document leaf, and the compact
+    stamp must win (they disagree -- 1998-09-24 vs 1998-09-17, 2014-11-03 vs 2014-10-31)."""
+    for key, want, layout in _REAL_KEYS:
+        assert ev.pub_date_layout(key) == (want, layout), key
+        assert ev._pub_date(key) == want, key
+
+
+def test_pub_date_refuses_rather_than_guesses_where_the_key_carries_no_date():
+    """CONAB's `survey=NN` is a survey ordinal in the modern bulletins and a publication MONTH in the
+    pre-2013 era (paths.raw_conab_bulletin_key says so, and the live keys carry both shapes), and mpob's
+    overview PDFs are keyed by `year=` alone. Both refuse to a NAMED layout instead of guessing a month --
+    and the refusal is what makes the surviving Jan-1 attributable."""
+    for key, layout in _REFUSING_KEYS:
+        assert ev.pub_date_layout(key) == (None, layout), key
+    assert ev.pub_date_layout("text/source=brand_new_source/whatever/document.json") == (None, "unknown")
+
+
+def test_pub_date_lookbehinds_keep_the_four_date_families_apart():
+    """The whole guard between `date=`, `publication_date=`, `release=`, `release_date=` and
+    `release_month=` is a lookbehind on the preceding `_`. A leak in either direction re-dates a whole
+    source, so it is asserted directly rather than inferred from the layout table above."""
+    assert ev.pub_date_layout("x/release_date=2020-05-15/d.json")[1] == "release_date"     # not release_ym
+    assert ev.pub_date_layout("x/release_month=2020-05/d.json")[1] == "release_month"      # not release_ym
+    assert ev.pub_date_layout("x/publication_date=20200515/d.json")[1] == "publication_date"  # not article_date
+    assert ev.pub_date_layout("x/download_date=20200515/d.json")[0] is None                # not a publication date
+    assert ev.pub_date_layout("x/release_type=t/date=20200515/d.json")[1] == "article_date"
+
+
+def test_pub_date_ignores_a_malformed_stamp_instead_of_raising():
+    """A stamp that is well-shaped but not a date (month 13) falls THROUGH to the next layout and finally to
+    the documented refusal — never a ValueError out of a chunking pass, and never a coerced date."""
+    assert ev.pub_date_layout("x/release_date=2021-13-40/d.json") == (None, "unknown")
+
+
+def test_doc_date_detail_names_how_the_date_was_obtained():
+    """The flag half of the fix: `kind` separates a parsed publication date from a FLOOR, so a Jan-1 in the
+    store is never again indistinguishable from a real January 1st publication."""
+    assert ev.doc_date_detail({}, "text/source=usda_wasde/release_date=2026-05-12/document.json") == \
+        (date(2026, 5, 12), "key", "release_date")
+    assert ev.doc_date_detail({}, "text/source=usda_wap/release_month=2026-07/document.json") == \
+        (date(2026, 7, 1), "key_month", "release_month")            # day 1 of a REAL month, flagged as such
+    d, kind, layout = ev.doc_date_detail({}, "text/source=mpob/release_type=overview_pdf/year=2016/document.json")
+    assert (d, kind, layout) == (date(2016, 1, 1), "year_floor", "year_only")
+    assert ev.doc_date_detail({"document_date": "2019-04-02"}, "text/source=x/nothing/document.json") == \
+        (date(2019, 4, 2), "doc_field", "unknown")
+    assert ev.doc_date_detail({}, "text/source=x/nothing/document.json") == \
+        (date(1970, 1, 1), "epoch_floor", "unknown")
+    assert ev._doc_date({}, "text/source=usda_wasde/release_date=2026-05-12/document.json") == date(2026, 5, 12)
+
+
+def test_restamp_picks_up_every_new_layout(tmp_path, monkeypatch):
+    """`restamp` re-derives a slice's dates from the stored source_key and was the one existing consumer of
+    _pub_date: a wasde slice stamped 2026-01-01 restamps to the real release with no re-chunk and no embed."""
+    monkeypatch.setattr(ev, "_EVID_DIR", tmp_path)
+    monkeypatch.setattr(ev, "_evid_s3", lambda: None)
+    recs = [{"id": "a", "date": "2026-01-01", "source": "usda_wasde", "text": "t",
+             "source_key": "text/source=usda_wasde/release_date=2026-05-12/document.json"},
+            {"id": "b", "date": "2025-01-01", "source": "conab", "text": "u",
+             "source_key": "text/source=conab/crop_year=2025_26/survey=01/document.json"}]
+    (tmp_path / "corn.jsonl").write_text("\n".join(json.dumps(r) for r in recs), encoding="utf-8")
+    assert ev.restamp("corn") == 2
+    out = [json.loads(x) for x in (tmp_path / "corn.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert out[0]["date"] == "2026-05-12"                           # the wasde Jan-1 floor is gone
+    assert out[1]["date"] == "2025-01-01"                           # conab REFUSED -> its floor is untouched
 
 
 def test_out_projection_carries_event_date():

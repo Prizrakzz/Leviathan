@@ -28,7 +28,8 @@ _WORD = re.compile(r"\w+", re.UNICODE)
 DEFAULT_K = 8               # shingle width in words (correction #6)
 DEFAULT_NUM = 128           # bottom-k MinHash signature size
 DEFAULT_THRESHOLD = 0.85    # conservative: skip only a near-certain dup (D4 -- over-skip is the feared failure)
-FULLTEXT_CAP = 60000        # mirrors evidence_batch._FULLTEXT_CAP (the head-cut the chunker applies)
+FULLTEXT_CAP = 150000       # mirrors evidence_batch._FULLTEXT_CAP (the head-cut the chunker applies); moved
+#                             with it at D10 (60k -> 150k, +$13.45 one-time, residual truncation 1.3%)
 
 
 def normalize(text: str) -> str:
@@ -118,7 +119,11 @@ class NoveltyGate:
         """Verdict for one candidate: {source_key, skip, reason, score, partial_60k_flag, nearest}. reason in
         {exact_dup, near_dup, partial_kept, novel}. An exact md5 dup always skips; a Jaccard >= threshold skips
         UNLESS the doc is >cap (tail-novelty protection -> partial_kept). Admitted candidates are registered so
-        later ones in the same pass dedup against them."""
+        later ones in the same pass dedup against them.
+
+        `partial_60k_flag` keeps its HISTORICAL name -- it is a key in ledgers already written, and renaming
+        it would silently break a reader of those. It has always meant "longer than FULLTEXT_CAP", and the
+        cap is 150,000 since D10; read the number off `novelty.FULLTEXT_CAP`, never off this field name."""
         text = full_text or ""
         partial = len(text) > self.cap
         md5 = md5_hex(text)

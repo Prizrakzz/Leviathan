@@ -11,6 +11,7 @@ import json
 import math
 import os
 import random
+import re
 import threading
 from datetime import date
 from typing import Optional
@@ -176,45 +177,116 @@ def _cosine(a: list[float], b: list[float]) -> float:
     return dot / (na * nb)
 
 
+# ── the publication date the PIT filter reads (DEC-P0c S1) ────────────────────────────────────────────
+# THE KEY IS THE ONLY DATE THE TEXT LAYER CARRIES. No `document.json` in the corpus holds a
+# document_date/date field -- every body is exactly {extracted_at, extraction_method, full_text, raw_key,
+# sections, source} -- so whatever these rules cannot parse falls through to year -> Jan-1. A Jan-1 stamp
+# is ALWAYS on or before the true release, i.e. the error is leakage-PERMISSIVE in the one direction that
+# matters: `date` is exactly the field retrieve()'s asof filter compares (:523) and the pg WHERE repeats,
+# so a document published 2020-06 stamped 2020-01-01 is citable five months early. The P0c pilot measured
+# 2,036 of 7,056 documents (28.9%) taking that fallback -- 100% of usda_wasde (616), usda_wap (450),
+# sagis_cec (463), mpoc (335), fnc (56), conab (55), icco_qbcs_summary (49), icco_ewg_stocks (5) and
+# mpob (7) -- because only three key shapes were ever parsed. One rule per layout `doc_census` names
+# recovers 1,974 of them exactly: re-run over a fresh LIST of all 7,056 `document.json` keys, 6,994 parse
+# and 62 refuse. That is 55 SHORT of the pilot's projected 2,029, and the 55 are CONAB -- the pilot assumed
+# `survey=NN` maps to a month, and reading the live keys against paths.raw_conab_bulletin_key shows it does
+# not (see the refusal below). The gap is a deliberate refusal, not a miss.
+#
+# FIRST MATCH WINS, so the rules are ordered most-specific-first, and each names the LAYOUT it serves:
+# a parse-miss has to be attributable to a key layout, never to "the regex didn't fire".
+_KEY_DATE_ORDER = {"ymd": (1, 2, 3), "ym": (1, 2, None), "mdy": (3, 1, 2)}
+_KEY_DATE_RULES = (
+    # layout                  pattern                                            groups  precision
+    ("publication_date",      r"publication_date=(\d{4})(\d{2})(\d{2})(?!\d)",    "ymd",  "day"),
+    ("publication_date_iso",  r"publication_date=(\d{4})-(\d{2})-(\d{2})",        "ymd",  "day"),   # fnc
+    ("release_date",          r"release_date=(\d{4})-(\d{2})-(\d{2})",            "ymd",  "day"),   # wasde/icco/sagis
+    ("article_date",          r"(?<![A-Za-z_])date=(\d{4})(\d{2})(\d{2})(?!\d)",  "ymd",  "day"),   # mpoc
+    ("release_month",         r"release_month=(\d{4})-(\d{2})(?!\d)",             "ym",   "month"), # usda_wap
+    ("release_ym",            r"(?<![A-Za-z_])release=(\d{4})-(\d{2})(?!\d)",     "ym",   "month"), # wb_cmo_outlook
+    ("document_mmddyyyy",     r"(?<!\d)(\d{2})-(\d{2})-(20\d{2})(?!\d)",          "mdy",  "day"),   # ...mexico_05-15-2021
+)
+# The lookbehinds are the whole guard between the four `*date=` / `*release*=` families: `date=` must not
+# fire inside `publication_date=`/`release_date=`/`download_date=`, and `release=` must not fire inside
+# `release_date=`/`release_month=`. Both are blocked by the preceding `_`.
+
+# Layouts that genuinely carry NO derivable date. Naming them is the difference between a documented
+# refusal and a silent guess -- the document still takes its year floor, but the record says WHICH layout
+# could not do better, so `year_floor` never again reads like a parsed Jan-1.
+_KEY_DATE_REFUSALS = (
+    # CONAB's `survey=NN` is not a calendar. `paths.raw_conab_bulletin_key` documents NN as "survey number
+    # within the season (1-5)" for the modern bulletins and "the publication month (1-12)" for the
+    # pre-2013 OlalaCMS era -- and the live keys carry BOTH shapes (crop_year=2011_12 holds surveys
+    # 01/05/07/09/12, every crop_year from 2012_13 on holds 01-04), so one NN maps to two different months
+    # across an era boundary the key does not state. Deriving a month here would be a guess.
+    ("conab_survey_is_not_a_month", r"/source=conab/"),
+    # mpob overview PDFs are keyed `release_type=overview_pdf/year=YYYY`: one file per calendar year, and
+    # no finer stamp anywhere in the key (7 documents; the only fallbacks the rules above cannot recover).
+    ("year_only", r"(?<![A-Za-z_])year=(\d{4})"),
+)
+
+
+def pub_date_layout(key: str) -> tuple[date | None, str]:
+    """(publication date, LAYOUT NAME) from the S3 key. The date is None when the key carries none, and
+    the layout then names the documented refusal (`conab_survey_is_not_a_month`, `year_only`) or
+    `unknown` for a key shape no rule and no refusal recognises — a new source's first ingest lands here
+    and should be read as "add a rule", not as "this document has no date"."""
+    for layout, pat, order, _prec in _KEY_DATE_RULES:
+        m = re.search(pat, key)
+        if not m:
+            continue
+        gy, gm, gd = _KEY_DATE_ORDER[order]
+        try:
+            return date(int(m[gy]), int(m[gm]), int(m[gd]) if gd else 1), layout
+        except ValueError:
+            continue                       # a malformed stamp (2021-13-40): fall to the next layout, never guess
+    for layout, pat in _KEY_DATE_REFUSALS:
+        if re.search(pat, key):
+            return None, layout
+    return None, "unknown"
+
+
+_KEY_DATE_PRECISION = {layout: prec for layout, _pat, _order, prec in _KEY_DATE_RULES}
+
+
 def _pub_date(key: str) -> date | None:
-    """Exact publication date from the S3 key — `publication_date=YYYYMMDD` (our keys), or an MM-DD-YYYY
-    fragment in the document folder name. None when neither is present."""
-    import re
-    m = re.search(r"publication_date=(\d{4})(\d{2})(\d{2})", key)
-    if m:
-        try:
-            return date(int(m[1]), int(m[2]), int(m[3]))
-        except ValueError:
-            pass
-    m = re.search(r"(?<!\d)(\d{2})-(\d{2})-(20\d{2})(?!\d)", key)     # e.g. ...mexico_05-15-2021
-    if m:
-        try:
-            return date(int(m[3]), int(m[1]), int(m[2]))
-        except ValueError:
-            pass
-    m = re.search(r"release=(\d{4})-(\d{2})", key)                    # wb_cmo_outlook release=YYYY-MM (S6);
-    if m:                                                             # `release=` cannot fire on `release_date=`
-        try:                                                          # (the char after `release` there is `_`)
-            return date(int(m[1]), int(m[2]), 1)
-        except ValueError:
-            pass
-    return None
+    """Exact publication date from the S3 key, or None. The thin half of `pub_date_layout` for the callers
+    that only want the date (restamp, evidence_batch._key_year)."""
+    return pub_date_layout(key)[0]
 
 
-def _doc_date(doc: dict, key: str) -> date:
-    """Document date: exact publication date from the key, else an explicit doc field, else year->Jan-1."""
-    d = _pub_date(key)
+def doc_date_detail(doc: dict, key: str) -> tuple[date, str, str]:
+    """(date, KIND, layout) for one document — the dating decision with its provenance attached, so a
+    Jan-1 that was PARSED is never confused with a Jan-1 that was FLOORED. `kind` is one of:
+
+        key         -- parsed from the key at day precision (an exact publication date)
+        key_month   -- parsed at MONTH precision: day 1 of a real release month (release_month=/release=)
+        doc_field   -- an explicit document_date/date field on the body (no corpus document has one today)
+        year_floor  -- nothing in the key or the body dates it: year -> Jan-1. LEAKAGE-PERMISSIVE, and the
+                       layout says which shape refused
+        epoch_floor -- not even a year: 1970-01-01
+
+    `_doc_date` is this function's first element and is what every existing caller keeps calling; the kind
+    and layout ride into the prop meta (evidence_batch._doc_blocks) so the store can be audited for floors
+    without re-deriving anything."""
+    d, layout = pub_date_layout(key)
     if d:
-        return d
+        return d, ("key_month" if _KEY_DATE_PRECISION.get(layout) == "month" else "key"), layout
     raw = doc.get("document_date") or doc.get("date")
     if raw:
         try:
-            return date.fromisoformat(str(raw)[:10])
+            return date.fromisoformat(str(raw)[:10]), "doc_field", layout
         except ValueError:
             pass
     from leviathan.graphrag import batch_extract as bx
     y = bx._year_of(key)
-    return date(int(y), 1, 1) if y not in (None, "unknown") else date(1970, 1, 1)
+    if y not in (None, "unknown"):
+        return date(int(y), 1, 1), "year_floor", layout
+    return date(1970, 1, 1), "epoch_floor", layout
+
+
+def _doc_date(doc: dict, key: str) -> date:
+    """Document date: exact publication date from the key, else an explicit doc field, else year->Jan-1."""
+    return doc_date_detail(doc, key)[0]
 
 
 # --- source-agnostic sampling: the EDGE is a multi-source corpus, not a USDA-GAIN mirror -----------------
@@ -861,9 +933,31 @@ def dag_backed_slice_names() -> set:
 #     buys absence markers and moves the render surface on live boards, the trade D-EI-4 already rejected.
 #   * plus metals (975), baltic_dry_freight (18), vessel_lineups_export_basis (14),
 #     sustainable_aviation_fuel (25), wheat_blast (32) -- outside the D-GD tranche's named scope, untouched.
+#
+# D-EC D8 Wave-1b, 2026-08-19: 14 -> 17. The pre-X2 curation batch authored FOUR driver slices on measured
+# backing. One of them, `benign_growing_conditions`, was WIRED (it took `favorable_rainfall`, a DAG id that
+# was waivered AND unowned, so the wiring CREATED reach on 16 contracts and cost no slice anything -- the
+# D-CW-3a diesel/gasoil_palm_spread shape) and never entered this census. The other three enter it, and
+# they are DELIBERATELY WAIVED read-dark until X2/GN-1 feeds them, each for a stated reason recorded at its
+# own site in configs/graphrag/driver_slices.yaml (that file is the authority; this pin is the measurement):
+#   * export_levy_duty (317 props measured at authoring, 490 over the full chunk cache) and
+#     marine_protein_fishmeal (2,511 props) -- NO WIRING EXISTS TO DO: not one of the 374 real DAG driver
+#     ids names an export levy/cess or fishmeal/marine protein at all. Content-rich and routing-dark, the
+#     OPPOSITE of the D-EI-4 park case; retiring them is a DAG-AUTHORING act (mint the driver id on the
+#     boards that trade one), which is the post-X2 half of D8.
+#   * import_quota_trq (1,201 props, 450 of them claimed by no other policy slice) -- dark BY REFUSAL.
+#     Its ONE topical DAG id, `China_import_quota_VAT`, is OWNED by `tariff`, and an id belongs to exactly
+#     one slice (check_driver_slices leg (b)), so re-owning it would MOVE reach instead of creating it:
+#     MEASURED at tariff 28 -> 27 contracts, with `raw_sugar` losing its ONLY tariff-owned id. That is
+#     precisely the trade D-CW-3a refused ("an alias steal MOVES reach instead of creating it"), and it was
+#     refused again here. The refusal itself is recorded on tariff's dag_alias entry in the yaml.
+# All three carry a `waivers:` entry, so check_driver_slices is clean either way; they are pinned so that
+# the equality in test_config_check.test_the_live_pin_still_matches_the_live_wiring stays an exact tooth
+# (a FOURTH unaccounted read-dark slice still fails it) with no debt ledger standing beside the pin.
 READ_DARK_SLICES_PIN = frozenset({
     "baltic_dry_freight", "barley_yellow_dwarf_virus", "cattle_cycle_herd_size", "dap",
-    "index_roll_flows", "indian_ocean_dipole", "madden_julian_oscillation", "metals", "natural_rubber",
+    "export_levy_duty", "import_quota_trq", "index_roll_flows", "indian_ocean_dipole",
+    "madden_julian_oscillation", "marine_protein_fishmeal", "metals", "natural_rubber",
     "real_yields_rates", "sustainable_aviation_fuel", "veg_oil_substitution_spreads",
     "vessel_lineups_export_basis", "wheat_blast",
 })
@@ -936,8 +1030,8 @@ def check_driver_slices() -> list[str]:
                         benign self-alias — driver_alias()'s setdefault makes it a no-op identity entry, not a
                         second owner — so it is skipped, never flagged.
       (c) READ-DARK DRIFT (G7.2) -- a configured slice no REAL DAG id reaches can never have an episode line
-                        injected (planner.py:320/:334). 28 such slices were MEASURED and pinned in
-                        READ_DARK_SLICES_PIN. A slice that is read-dark and is neither pinned nor named by a
+                        injected (planner.py:320/:334). 17 such slices were MEASURED and pinned in
+                        READ_DARK_SLICES_PIN (29 -> 28 -> 26 -> 14 -> 17; the pin comment carries every move). A slice that is read-dark and is neither pinned nor named by a
                         `waivers:` entry is a NEW unaccounted gap -> hard error. A pinned slice that has
                         since been wired up is an advisory line telling you to shrink the pin (an
                         improvement must not fail a build). Vacuous when there is no causal dir.
@@ -1144,13 +1238,21 @@ def driver_slices_for(text: str) -> list[str]:
 def slice_cap(driver: str, default: int) -> int | None:
     """The prop cap for one driver slice: its declared `max_props` (G5c / D-EI-3) else the pass default.
 
-    D-EI-3 ratified: KEEP 4,000 as the default and declare it explicitly, per slice, for the four slices that
-    are actually at the cap (`tariff`, `feed_grain_substitution`, `textile_apparel_demand`,
+    D-EI-3 ratified 4,000 as the default and required it be declared explicitly, per slice, for the four
+    slices that were actually at the cap (`tariff`, `feed_grain_substitution`, `textile_apparel_demand`,
     `wasde_stocks_to_use`) — because a cap nobody declared and nobody printed is how 5,809 rows swapped
-    behind four frozen `4000` counts. Raising the cap was priced and rejected: at 20,000 those four slices
-    alone go to ~465 MB each and roughly double the 1.361 GB driver layer. `max_props: null` in a spec means
-    UNCAPPED and is honoured. The spec dict already carried {category, priority, terms}, so this is a new
-    optional field, not a schema change."""
+    behind four frozen `4000` counts.
+
+    D6 SUPERSEDES THE DEFAULT ITSELF, ratified 2026-08-19 (owner word: caps raised, nothing truncates). The
+    pass default is now 25,000, and the two signature defaults (plan_driver_slices / write_driver_slices)
+    move with it. WHY, measured: the D-EI-3 rejection priced a raise against the PRE-X2 store, and X2
+    roughly triples the driver population -- the worst post-X2 demand measured over any single slice is
+    ~15.4k props, so 25,000 clears every slice with headroom while 4,000 is already discarding ~6,800
+    harvested props PER PASS today. A cap that truncates is not a size control, it is a silent sampler
+    (G5a/G5b: the survivors were an arbitrary 4,000 until _truncation_order landed). `max_props: null` in a
+    spec still means UNCAPPED and is honoured, and the ten slices that declare `max_props: 25000` in
+    driver_slices.yaml now agree with the default rather than overriding it. e1_census._CAP_DEFAULT mirrors
+    this number and moves in lockstep -- a stale mirror reports cap pressure that does not exist."""
     spec = driver_specs().get(driver) or {}
     if "max_props" in spec:
         raw = spec.get("max_props")
@@ -1183,7 +1285,8 @@ def _truncation_order(recs: list[dict]) -> list[dict]:
 
 
 def plan_driver_slices(driver_sink: dict, *, backend: str | None = None, bedrock=None,
-                       max_per: int = 4000, warnings: list | None = None,
+                       max_per: int = 25000,          # D6 ratified 2026-08-19: 4,000 -> 25,000; see slice_cap
+                       warnings: list | None = None,
                        manifest=None, allow_churn: float | None = None):
     """Everything write_driver_slices does EXCEPT the write: dedup, deterministic order, per-slice cap,
     prior census, guard verdict. Returns a write_guard.WritePlan.
@@ -1243,7 +1346,8 @@ def plan_driver_slices(driver_sink: dict, *, backend: str | None = None, bedrock
 
 
 def write_driver_slices(driver_sink: dict, *, backend: str | None = None, bedrock=None,
-                        max_per: int = 4000, warnings: list | None = None,
+                        max_per: int = 25000,         # D6 ratified 2026-08-19: 4,000 -> 25,000; see slice_cap
+                        warnings: list | None = None,
                         manifest=None, allow_churn: float | None = None) -> int:
     """Embed + write the accumulated driver props to evidence/drivers/<driver>.jsonl. Dedups the re-chunk
     artifact (same prop harvested from the same doc under multiple commodity builds) by (source_key, text),
@@ -1255,7 +1359,7 @@ def write_driver_slices(driver_sink: dict, *, backend: str | None = None, bedroc
     construction, which is why the guard could never fire for anything. It still RECORDS (an ASCII WARN line
     + an append to the optional `warnings` collector) and still NEVER refuses: a legitimate E1b flow authors
     a slice before its alias lands, and hard-refusing would clobber a build in progress. Expect it to be
-    LOUD now — 28 configured slices are read-dark (READ_DARK_SLICES_PIN); that is the true state, and a
+    LOUD now — 17 configured slices are read-dark (READ_DARK_SLICES_PIN); that is the true state, and a
     guard that says so is worth more than one that reads green because it cannot speak.
 
     G1b/G1c/G5b, the wholesale-write guard (this is C2, one of the FIVE silent seams): the pass is

@@ -13,7 +13,7 @@ key lives INSIDE that json (``raw_key``), so recovery is a mandatory 2-hop: GET 
      the extractor's exact pipeline (GAIN skips blank + FAS-footer pages; WAP = pages 1-6; WASDE-digital = pages
      1-7; MPOB = pages 1-5 header/footer-cleaned) so the reconstructed ``full_text`` is byte-identical to the one
      the chunker measured char offsets against. Map the stored ``char_start`` (a position into
-     ``full_text[:60000]``) through the leading-strip shift + per-page cumulative lengths back to the REAL
+     ``full_text[:_FULLTEXT_CAP]``) through the leading-strip shift + per-page cumulative lengths back to the REAL
      1-indexed pdf page. Replicating the extractor's page FILTER is load-bearing: a skipped blank page shifts
      every following page number, so a naive kept-index would be WRONG.
   2. NATIVE pdf, no offsets (pre-W2.1 props): FUZZY -- whitespace-normalized exact ``find()`` per page, then a
@@ -41,8 +41,11 @@ from typing import Optional
 from leviathan.graphrag.corpus_recon import BUCKET
 
 _EXPIRES = 900                    # presigned-url TTL (s) -- user-initiated, single doc, public source
-_FULLTEXT_CAP = 60000             # mirrors evidence_batch._FULLTEXT_CAP: the chunker only sees full_text[:cap],
-#                                   so a char offset >= cap can never have been minted (guard -> null)
+_FULLTEXT_CAP = 150000            # mirrors evidence_batch._FULLTEXT_CAP: the chunker only sees full_text[:cap],
+#                                   so a char offset >= cap can never have been minted (guard -> null). Moved
+#                                   with it at D10 (60k -> 150k): this refusal is a statement ABOUT that
+#                                   constant, so a stale mirror would null every legitimate offset minted in
+#                                   the 60k-150k band by an X2 pass -- the refusal must never outlive the cut.
 _FUZZY_THRESHOLD = 0.85           # difflib longest-contiguous-match / len(snippet) to accept a fuzzy page hit
 _WAP_MAX_PAGES = 6                # usda_wap extractor reads pdf.pages[0:6] (narrative; page 6 is the table)
 _WASDE_DIGITAL_MAX_PAGES = 7      # wasde_digital reads pdf.pages[0:7] (highlights + ToC)
@@ -263,7 +266,7 @@ def _page_texts(raw_key: str, source: str) -> Optional[tuple]:
 
 
 def _char_to_page(pages: list, sep: str, char_start: int) -> Optional[int]:
-    """Map an absolute ``char_start`` (a position into the STORED ``full_text``, itself ``full_text[:60000]`` from
+    """Map an absolute ``char_start`` (a position into the STORED ``full_text``, itself ``full_text[:_FULLTEXT_CAP]`` from
     the chunker's view) to the REAL 1-indexed pdf page. Reconstructs the pre-strip ``joined = sep.join(texts)``,
     shifts by the leading-whitespace strip (``full_text = joined.strip()``), then walks per-page cumulative
     lengths (a separator counts with the page BEFORE it). Out-of-range (>= cap, or past the reconstructed text --

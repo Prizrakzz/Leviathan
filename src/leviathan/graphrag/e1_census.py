@@ -130,6 +130,24 @@ _REAL_ERAS = _ERAS[:5]                                         # the five databl
 THICK_MIN = 100                                               # only slices with >= this many props are judged
 THIN_MAX = 10                                                 # a real era below this in a thick slice = a gap
 
+# ── cap pressure (D-EC D6, 2026-08-19) ────────────────────────────────────────────────────────────────
+# THE GAP THIS CLOSES. `evidence.plan_driver_slices` prints a WARN the moment a slice is TRUNCATED -- i.e.
+# after the props are already gone -- and prints nothing at all on the pass before, when a slice sits at
+# 99% of its cap. That is how four slices reached exactly 4,000 and stayed there, frozen, while 5,809 of
+# their 16,000 rows were silently swapped at the 2026-07-20 promote. This census is the natural home for
+# the EARLY signal: it already loads every slice's records to count them (`n_routed_props`), so the cap
+# comparison costs zero extra S3 and zero extra parsing.
+#
+# FAIL-OPEN BY CONSTRUCTION, and that is the point: `cap_pressure` is a REPORTED FIELD, never a gate. It
+# cannot refuse a write (it does not run on the write path), it cannot fail a lint, and a slice with no
+# resolvable cap simply reports None. A census that can stop a build is a census people switch off.
+CAP_WARN_FRAC = 0.80                                          # >= 80% of the cap -> report pressure
+_CAP_DEFAULT = 25000                                          # the pass default (evidence.write_driver_slices'
+#                                                               max_per). MIRRORS it and moves in lockstep --
+#                                                               D6 raised both from 4,000 on 2026-08-19, and a
+#                                                               stale mirror here reports cap pressure against
+#                                                               a cap no pass applies.
+
 
 def _era_of(rec: dict) -> str:
     """Bucket one prop record by era. event_date first, else date; unparseable or year > 2026 -> 'undated'."""
@@ -165,6 +183,28 @@ def _thin_eras(n_props: int, hist: dict) -> list[str]:
     if n_props < THICK_MIN:
         return []
     return [e for e in _REAL_ERAS if hist[e] < THIN_MAX]
+
+
+def _cap_pressure(name: str, n_props: int) -> dict | None:
+    """How close one slice sits to its prop cap. None when the slice is UNCAPPED (`max_props: null`) or when
+    the cap cannot be resolved at all -- both are "no pressure to report", never an error.
+
+    Resolves the cap the same way the write path does (`evidence.slice_cap`: the declared `max_props` else
+    the pass default), so the census and the writer can never disagree about which number binds. `at_cap` is
+    the shape that should never be believed on its own -- a stored count EQUAL to the cap is exactly what a
+    truncated slice looks like, and is indistinguishable from a slice that happens to hold that many.
+
+    Swallows nothing it can name: any failure to resolve a cap yields None rather than raising, because this
+    is a reporting field on an advisory census (see CAP_WARN_FRAC)."""
+    try:
+        cap = ev.slice_cap(name, _CAP_DEFAULT)
+    except Exception:  # noqa: BLE001 -- a census may never be the thing that fails
+        return None
+    if not cap or cap <= 0:
+        return None
+    frac = n_props / cap
+    return {"cap": int(cap), "frac": round(frac, 4), "at_cap": n_props >= cap,
+            "pressured": frac >= CAP_WARN_FRAC}
 
 
 def slice_census(alias_map: dict, all_ids, spec_names, disk_names: set[str]) -> list[dict]:
@@ -205,7 +245,8 @@ def slice_census(alias_map: dict, all_ids, spec_names, disk_names: set[str]) -> 
             orphan_kind = "empty"
         out.append({"slice": name, "n_dag_ids": n_ids, "n_routed_props": n_props,
                     "consumed": consumed, "orphan_kind": orphan_kind,
-                    "era_hist": era_hist, "thin_eras": thin_eras})
+                    "era_hist": era_hist, "thin_eras": thin_eras,
+                    "cap_pressure": _cap_pressure(name, n_props)})   # D6: advisory, never a gate
     return out
 
 
@@ -214,9 +255,12 @@ def slice_totals(recs: list[dict]) -> dict:
     for r in recs:
         if r["orphan_kind"]:
             by_kind[r["orphan_kind"]] = by_kind.get(r["orphan_kind"], 0) + 1
+    cp = [r for r in recs if (r.get("cap_pressure") or {}).get("pressured")]
     return {"n_slices": len(recs), "n_consumed": sum(1 for r in recs if r["consumed"]),
             "n_orphan": sum(1 for r in recs if not r["consumed"]), "orphan_by_kind": by_kind,
-            "n_thick_with_thin_eras": sum(1 for r in recs if r.get("thin_eras"))}
+            "n_thick_with_thin_eras": sum(1 for r in recs if r.get("thin_eras")),
+            "n_cap_pressured": len(cp),                                    # D6, advisory
+            "n_at_cap": sum(1 for r in recs if (r.get("cap_pressure") or {}).get("at_cap"))}
 
 
 # ── assembly ────────────────────────────────────────────────────────────────────────────────────────
@@ -282,6 +326,22 @@ def _md(doc: dict) -> str:
     else:
         L.append("- none (no thick slice has a sub-threshold real era)")
 
+    # Cap pressure (D-EC D6): the EARLY signal the write path cannot give -- plan_driver_slices only speaks
+    # once props have already been discarded. Advisory: this table never fails anything.
+    pressured = [r for r in doc["slices"] if (r.get("cap_pressure") or {}).get("pressured")]
+    L += ["", "## Cap pressure (slices at >= "
+          f"{int(CAP_WARN_FRAC * 100)}% of their prop cap)", "",
+          f"- gate: none. This is a REPORT. `at_cap` means the stored count EQUALS the cap, which is what a "
+          "TRUNCATED slice looks like -- it is not proof of truncation and never proof of its absence.", ""]
+    if pressured:
+        L += ["| slice | #props | cap | % of cap | at cap |", "|---|--|--|--|--|"]
+        for r in sorted(pressured, key=lambda x: -x["cap_pressure"]["frac"]):
+            c = r["cap_pressure"]
+            L.append(f"| {r['slice']} | {r['n_routed_props']} | {c['cap']} | {100.0 * c['frac']:.1f}% "
+                     f"| {'y' if c['at_cap'] else ''} |")
+    else:
+        L.append("- none (no slice is within reach of its cap)")
+
     retire = [r["slice"] for r in doc["slices"] if r["orphan_kind"] == "retire"]
     keep = [r["slice"] for r in doc["slices"] if r["orphan_kind"] == "keep"]
     fold_ids = [r["id"] for r in doc["ids"] if r["fold_recoverable"]]
@@ -300,7 +360,9 @@ def _summary_lines(doc: dict) -> list[str]:
             f"| fold-recoverable {it['n_fold_recoverable']}",
             f"reasons {it['by_reason']}",
             f"slices {st['n_slices']} | consumed {st['n_consumed']} | orphan {st['n_orphan']} "
-            f"{st['orphan_by_kind']}"]
+            f"{st['orphan_by_kind']}",
+            f"cap pressure (>= {int(CAP_WARN_FRAC * 100)}% of cap) {st.get('n_cap_pressured', 0)} "
+            f"| at cap {st.get('n_at_cap', 0)}  [advisory, never a gate]"]
 
 
 def _archive_stamp() -> str:

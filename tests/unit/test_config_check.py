@@ -541,7 +541,7 @@ def test_a_waived_read_dark_slice_is_accounted_for(tmp_path, monkeypatch):
 
 
 def test_the_live_pin_still_matches_the_live_wiring():
-    """The 26 read-dark slices are PINNED (READ_DARK_SLICES_PIN) so nobody re-derives a subset by hand
+    """The 17 read-dark slices are PINNED (READ_DARK_SLICES_PIN) so nobody re-derives a subset by hand
     again -- the deck author had already measured five of them at eval_queries_playbooks_v1.yaml:1130-1140.
     Skipped on a tree with no private causal configs.
 
@@ -555,15 +555,50 @@ def test_the_live_pin_still_matches_the_live_wiring():
     not by an alias steal. D-CW-3a had measured that no nutrient-specific driver id existed anywhere in
     the 33 DAGs; D-PQ added them (`urea_cost` on the 12 nitrogen-binding corn/wheat/canola boards,
     `potash_cost` on malaysian_crude_palm_oil_cme), so these two lines invert with the diesel line above:
-    what was a SKIP is now an unlock. `dap` is the one that stayed, deliberately -- see the pin comment."""
+    what was a SKIP is now an unlock. `dap` is the one that stayed, deliberately -- see the pin comment.
+
+    D-EC D8 Wave-1b (2026-08-19): 14 -> 17, carried in the pin ITSELF. The pre-X2 curation batch authored
+    four driver slices on measured backing. ONE of them, `benign_growing_conditions`, was WIRED and never
+    entered this census -- it took `favorable_rainfall`, the dark blocker driver_slices.yaml's own dag_alias
+    header names, an id that was WAIVERED AND UNOWNED, so the wiring CREATED reach (16 contracts) and cost
+    no slice anything. That is the D-CW-3a diesel / gasoil_palm_spread shape exactly.
+
+    The other three are read-dark, and the asymmetry is the lesson. `export_levy_duty` (490 props on the
+    full chunk cache) and `marine_protein_fishmeal` (2,511) are dark because not one of the 374 real DAG
+    driver ids names an export levy/cess or fishmeal at all -- there is NO WIRING TO DO, and retiring them
+    is a DAG-authoring act, the post-X2 half of D8.
+
+    `import_quota_trq` (1,201 props, 450 of them claimed by no other policy slice) is dark BY REFUSAL, and
+    that refusal is the fact this docstring exists to record. THE WIRING DID NOT HAPPEN. Its one topical
+    DAG id, `China_import_quota_VAT`, is OWNED by `tariff`; an id belongs to exactly one slice
+    (check_driver_slices leg (b)), so re-owning it would have MOVED reach rather than created it --
+    MEASURED at tariff 28 -> 27 contracts, with `raw_sugar` losing its ONLY tariff-owned id, i.e. one live
+    board's tariff leg changing what it reads. D-CW-3a had already refused exactly that trade ("an alias
+    steal MOVES reach instead of creating it"), and D8 refused it again on the same reasoning. The refusal
+    is recorded in full at two sites in configs/graphrag/driver_slices.yaml -- on `tariff`'s dag_alias entry
+    and on the slice's own `waivers:` entry -- and THE YAML IS THE AUTHORITY; this pin is the measurement of
+    what that authority produced. An earlier revision of this docstring asserted the wiring HAD happened,
+    which contradicted the config it was supposed to be pinning.
+
+    All three carry a `waivers:` entry, so `check_driver_slices` is clean and `config_check` exits 0. They
+    are now in READ_DARK_SLICES_PIN as well, which is what makes the equality below an EXACT tooth with no
+    debt ledger beside it: a FOURTH unaccounted read-dark slice fails here, and so does a pinned name that
+    quietly became reachable. Retire any of the three by minting the DAG driver id that reaches it."""
     import pytest
     from leviathan.graphrag import display as dp
     if not dp.all_driver_ids():
         pytest.skip("no causal configs in this tree -- the pin is vacuous")
-    assert ev.read_dark_slices() == set(ev.READ_DARK_SLICES_PIN)
+    assert ev.read_dark_slices() == set(ev.READ_DARK_SLICES_PIN)   # exact, both directions, no debt set
+    assert {"export_levy_duty", "marine_protein_fishmeal", "import_quota_trq"} <= set(ev.READ_DARK_SLICES_PIN)
     assert "diesel" not in ev.READ_DARK_SLICES_PIN                # D-CW-3a unlock, measured above
     assert not ({"urea", "potash"} & set(ev.READ_DARK_SLICES_PIN))     # D-PQ curation unlock
     assert "dap" in ev.READ_DARK_SLICES_PIN            # D-PQ DECLINE: no honest phosphate mechanism yet
+    # D8 WIRED, therefore not read-dark. The equality above already proves it; naming it here is what makes
+    # a silent regression (someone deletes the dag_alias line) read as a broken claim rather than a drifted
+    # count -- and the second assertion is the REFUSAL, recorded as an assertion: `China_import_quota_VAT`
+    # still belongs to `tariff`, so `import_quota_trq` is dark because nobody stole it, not by oversight.
+    assert "benign_growing_conditions" not in ev.read_dark_slices()
+    assert ev.slice_for_driver("China_import_quota_VAT") == "tariff", "D-CW-3a: no alias steal for D8"
 
 
 def _live_slice_reach() -> dict[str, set[str]]:

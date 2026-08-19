@@ -163,7 +163,22 @@ aliases:             # EN/PT/ES + abbreviations + contract names → canonical n
   raw_sugar:         ["açúcar bruto", "azúcar crudo", sugar_no_11]
   white_sugar:       [refined_sugar, sugar_no_5]
   cotton:            ["algodón", "algodão"]
-  ethanol:           [hydrous_ethanol, anhydrous_ethanol, etanol, bioethanol]
+  # D-EC D8 (2026-08-19) ETHANOL MATCH FORMS. `ethanol` was already a commodity node with four aliases, but
+  # the four were SLUGS: match_forms(ethanol) covered 'ethanol' / 'hydrous ethanol' / 'anhydrous ethanol' /
+  # 'etanol' / 'bioethanol' and missed the forms the corpus actually writes. Every addition below is a
+  # MEASURED count over the full 345,870-prop chunk cache: corn ethanol 86, bio ethanol 60 (the OPEN
+  # compound -- ex._normalize collapses whitespace between tokens, never inside them, so it is a different
+  # string from 'bioethanol'), molasses-based ethanol 49, sugarcane-based ethanol 48, hydrated ethanol 45
+  # (the USDA/Brazil register for what the slug calls hydrous -- 4 props say 'hydrous ethanol', 45 say
+  # 'hydrated'), corn-based ethanol 27, fuel ethanol 25, grain-based ethanol 14, sugarcane ethanol 6.
+  # DISJOINT FROM THE NUMBERS LANE BY CONSTRUCTION: not one form here is a METRIC phrase. 'ethanol
+  # production', 'ethanol sales', 'ethanol margin' and the rest belong to silver_unica / the numbers
+  # registry and to the `ethanol_margins` driver slice; the NODE-MODEL RULE at the top of this file bars a
+  # metric from riding a node id, and re-declaring those phrases here would poach both.
+  ethanol:           [hydrous_ethanol, anhydrous_ethanol, etanol, bioethanol, "bio ethanol",
+                      "hydrated ethanol", "corn ethanol", "corn-based ethanol", "sugarcane ethanol",
+                      "sugarcane-based ethanol", "molasses-based ethanol", "grain-based ethanol",
+                      "fuel ethanol"]
   biodiesel:         [B40, B35, B30, B50, FAME, palm_biodiesel, biodiesel_mandate_blend]
   Minas_Gerais:      [MG, Minas]                              # sub-regions are their OWN region nodes
   Sul_de_Minas:      ["Sul de Minas", "South of Minas"]

@@ -52,9 +52,11 @@ def test_exact_dup_md5_short_circuit_is_normalization_insensitive():
 
 def test_long_doc_flagged_partial_and_never_autoskipped_on_tail_novelty():
     """A >FULLTEXT_CAP doc that near-dups the corpus is flagged partial_60k and is NOT skipped on Jaccard
-    alone — its head may dup while its tail is genuinely new (only an exact md5 dup would retire it)."""
+    alone — its head may dup while its tail is genuinely new (only an exact md5 dup would retire it).
+    Sized off nv.FULLTEXT_CAP rather than a literal, so the D10 cap raise (60k -> 150k) moves the fixture
+    with the constant instead of quietly turning this into a below-cap test."""
     long_text = ("brazil coffee arabica robusta exports imports prices weather frost drought harvest "
-                 * 1200)                                                # ~84k chars, > 60000
+                 * (nv.FULLTEXT_CAP // 70))                             # comfortably over the cap, whatever it is
     assert len(long_text) > nv.FULLTEXT_CAP
     gate = nv.NoveltyGate({"d1": nv.signature(long_text)})             # seed an identical-signature "cached" doc
     v = gate.check("k_long", long_text)
