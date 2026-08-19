@@ -2688,20 +2688,28 @@ def test_unica_hist_notes_state_the_ceiling_and_its_reason():
                   "not answerable here",          # the instruction, not merely the fact
                   "cumulative",                   # the metrics are season-to-date
                   "centro_sul is the sum",        # the region trap
-                  "16/07/2022",                   # a named corrupt bulletin stamp
-                  "revision_stamp"):              # ...and how to spot one on a returned row
+                  "2022-07-16",                   # a repaired bulletin's ISO stamp (was 16/07/2022
+                                                  # pre-repair; the 2026-08-19 fix normalised stamps)
+                  "revision_stamp"):              # ...and the provenance handle on every row
         assert token in blob, token
     assert "never call a dated reading 'current'" in blob
 
 
-def test_unica_hist_notes_name_every_measured_bad_bulletin():
-    """The defect census, pinned so a notes rewrite cannot quietly drop one. These four stamps are the
-    MEASURED bad bulletins: excluding exactly them leaves 252 rows on which
-    ethanol_anhydrous + ethanol_hydrous == ethanol_total to a maximum relative error of 0.0, while 43
-    of the full table's 300 rows breach that identity by more than 1%."""
+def test_unica_hist_notes_carry_the_repair_record_not_a_decline_list():
+    """RE-PINNED 2026-08-19 after the producer repair (commit 717bba03, chain re-fired gate-green).
+    The four historically-corrupt stamps are FIXED in canonical (335 rows, identity max rel err 0.0
+    on every published split), so the notes now carry the repair record + the one honest residual
+    (18 rows publish the aggregate with a null split) instead of a decline list. The pin holds the
+    repair language so a later rewrite cannot silently resurrect the decline instructions against
+    clean data -- the inverse failure of the one the old pin guarded."""
     blob = _unica_hist().notes
-    for stamp in ("16/07/2022", "01/02/2013", "16/03/2013", "10/16/2025"):
-        assert stamp in blob, stamp
+    for token in ("2026-08-19",                    # the repair date
+                  "2022-05-01", "2022-07-16",      # season 2022/23's clean ISO stamps
+                  "ISO YYYY-MM-DD",                # revision_stamp normalisation
+                  "18 rows",                       # the honest residual: aggregate w/o split
+                  "never derive one leg"):         # the residual's instruction
+        assert token in blob, token
+    assert "DECLINE rather than quote" not in blob  # the decline list is gone with the defects
 
 
 def test_unica_hist_card_reconciles_against_the_f010_registry():
@@ -2780,19 +2788,24 @@ def test_unica_corn_sql_applies_the_fourteen_day_lag():
     assert "ORDER BY fortnight_date DESC" in sql and sql.endswith("LIMIT 1")
 
 
-def test_unica_corn_notes_state_the_ceiling_the_history_floor_and_the_bad_bulletins():
+def test_unica_corn_notes_state_the_ceiling_the_history_floor_and_the_repair():
+    """RE-PINNED 2026-08-19 after the producer repair (commit 717bba03): the two 1000x bulletins and
+    the year-early date are FIXED in canonical (86/86 identity exact; 2024/25 position 24 now
+    2025-04-01), so the notes carry the repair record instead of decline instructions."""
     ts = _unica_corn()
     blob = " ".join((ts.description + " " + ts.notes).lower().split())
-    for token in ("2026-02-01",                   # the ceiling
+    for token in ("2026-02-01",                   # the ceiling (unchanged by the repair)
                   "2026/27",                      # the season with no bulletin
                   "zero parseable bulletins",     # the reason
                   "not answerable here",          # the instruction
                   "2021_2022",                    # the history FLOOR: nothing before 2021/22 exists
-                  "09/01/2022", "10/16/2025",     # the two measured bad bulletins
-                  "2024-04-01",                   # the year-early date stamp on 2024_2025 position 24
+                  "2026-08-19",                   # the repair date
+                  "2025-04-01",                   # the calendar-correct season close post-repair
+                  "iso yyyy-mm-dd",               # revision_stamp normalisation
                   "no region axis"):              # must not borrow the cane card's regions
         assert token in blob, token
     assert "never call a dated reading 'current'" in blob
+    assert "decline" not in blob                  # the decline-list era is over on this card
 
 
 def test_unica_corn_card_reconciles_against_the_f010_registry():
@@ -2805,9 +2818,10 @@ def test_unica_corn_is_in_the_pg_mirror_list():
 
 
 # ════════════════════════════════════════════════════════════════════════════════════════════════════
-# (3) silver_unica_monthly_ethanol_sales -- the demand side, and the estate's only TWO-CEILING card.
-# The newest ROW the guard admits (2025-11-01) is not the newest row carrying a NUMBER (2024-11-01),
-# and the gap between them is the failure mode this block exists to pin.
+# (3) silver_unica_monthly_ethanol_sales -- the demand side. Formerly the estate's only TWO-CEILING
+# card; the 2026-08-19 producer repair (commit 717bba03) recovered the 2025/26 season's values, so
+# newest row == newest populated (2025-11-01) and the pin below now guards the repair record plus
+# the eight honestly-empty rows (2022/23 months 5-11 + Sep-2012, bronze-side content truth).
 # ════════════════════════════════════════════════════════════════════════════════════════════════════
 def _unica_sales():
     return _reg().get(UNICA_SALES)
@@ -2865,22 +2879,26 @@ def test_unica_sales_oracle_agrees_with_the_guard():
         ["2024-10-01", "2024-11-01"]
 
 
-def test_unica_sales_notes_state_BOTH_ceilings_and_the_null_is_not_zero_rule():
-    """THE PIN THIS CARD EXISTS FOR. `agg=latest` at a 2026 as-of returns the 2025-11-01 row and every
-    metric on it is NULL -- so the guard is behaving correctly, a row IS returned, and the only thing
-    standing between that and a fabricated zero is what the notes teach. Both ceilings must be stated
-    or the answer picks one and is wrong either way."""
+def test_unica_sales_notes_state_the_single_ceiling_and_the_null_is_not_zero_rule():
+    """RE-PINNED 2026-08-19: the producer repair recovered the 2025/26 values, so the dual-ceiling
+    era is over -- newest row == newest populated == 2025-11-01. What remains pinned: the repair
+    record, the measured ceiling figures, and the null-is-not-zero rule for the eight rows that stay
+    honestly empty (the as-of guard still returns them)."""
     ts = _unica_sales()
     blob = " ".join((ts.description + " " + ts.notes).lower().split())
-    for token in ("2025-11-01",                       # the newest ROW the guard admits
-                  "2024-11-01",                       # the newest POPULATED month
-                  "two different ceilings",           # said as a structure, not left to be inferred
-                  "do not present a null row as a zero",
+    for token in ("2025-11-01",                       # the single ceiling (row AND populated)
+                  "one ceiling",                      # said as a structure, not left to be inferred
+                  "2,700,274",                        # the measured ceiling figure
+                  "2026-08-19",                       # the repair date
+                  "eight rows remain present and entirely empty",
+                  "content truth",                    # the residual's classification
+                  "never present a null row as a zero",
                   "2026/27", "zero parseable bulletins", "not answerable",
                   "only april through november exist",   # the four missing months per season
                   "not answerable for any month after 2013"):   # the export-channel gap
         assert token in blob, token
     assert "never call a dated reading 'current'" in blob
+    assert "two different ceilings" not in blob       # the dual-ceiling teaching must not resurrect
 
 
 def test_unica_sales_card_reconciles_against_the_f010_registry():

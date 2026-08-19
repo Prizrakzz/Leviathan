@@ -3047,11 +3047,11 @@ tables:
   #                                         position 01/02, 29 rows that season)
   #   silver_unica_corn_ethanol             fortnight_date 2021-04-16 .. 2026-02-01 (same last
   #                                         bulletin, DIFFERENT table -- measured, not inherited)
-  #   silver_unica_monthly_ethanol_sales    month_date 2012-04-01 .. 2025-11-01 ROWS, but the last
-  #                                         POPULATED month is 2024-11-01 -- the 2025_2026 rows exist
-  #                                         and are entirely null. TWO ceilings, and the card states
-  #                                         both, because the guard stops at the first and a reader
-  #                                         who quotes a number stops at the second.
+  #   silver_unica_monthly_ethanol_sales    month_date 2012-04-01 .. 2025-11-01, ONE ceiling again
+  #                                         since the 2026-08-19 producer repair recovered the
+  #                                         2025/26 season's values (the dual-ceiling era is over;
+  #                                         8 rows remain honestly all-null -- 2022/23 months 5-11
+  #                                         + Sep-2012, a bronze-side content truth, task #72).
   #
   # WHY 2026/27 IS EMPTY, carried on all three cards because it is the question a July-2026 ask
   # actually raises: the 2026/27 season has ZERO parseable bulletins. The origin PRUNES superseded
@@ -3080,9 +3080,17 @@ tables:
   # rows (at position 01/10/2021 centro_sul, `sugar_produced_current_t` = 467,439 is the CANE figure
   # the season-history table stores as 467,439,086 t). The card is refused pending a producer fix
   # that emits a real DATE anchor; nothing here is a judgement about the underlying bulletin.
+  # PRODUCER FIX LANDED 2026-08-19 (commit 717bba03): position_date is now a resolved ISO string
+  # (text order == chronological order, the lexicographic leak CLOSED), swapped-stamp duplicates
+  # collapsed (122 -> 105 rows), column roles unshifted, identities exact 105/105. The table is now
+  # CARDABLE; the refusal pin stands until a card wave lands it deliberately.
   # silver_unica_annual_state stays DARK this wave by the same wave's scope decision.
   #
-  # ── A DATA VERDICT THAT RIDES ALL THREE CARDS, AND IT IS NOT COSMETIC ──────────────────────────
+  # ── A DATA VERDICT THAT RIDES ALL THREE CARDS ── REPAIRED 2026-08-19 (commit 717bba03) ─────────
+  # The defects below were fixed in the silver transform and the chain re-fired gate-green the same
+  # day (identities exact on every published row; stamps now ISO; the notes carry the repair record
+  # instead of decline lists). This block is kept as the historical WHY of the provenance_col
+  # declarations, which stay valuable regardless.
   # A minority of rows in each table came out of the parser WRONG, in two measured mechanisms, and
   # both are BULLETIN-SCOPED: every affected row carries the same `source_position_date`. That is
   # why all three cards declare `provenance_col: source_position_date` -- every returned row carries
@@ -3182,21 +3190,16 @@ tables:
       season and that no 2026/27 bulletin has been published in a readable form, rather than offering
       the February figure as though it were current. Say the reading's own season and position date out
       loud on every figure and never call a dated reading 'current'.
-      FOUR BULLETINS ARE MEASURED BAD AND EVERY ROW CARRIES ITS OWN STAMP. Each row's originating
-      bulletin is returned as revision_stamp. DECLINE rather than quote any figure whose revision_stamp
-      is one of these four: '16/07/2022' (21 rows, season 2022_2023 -- every metric is shifted one
-      column left, so sugar_produced_t holds the CANE tonnage, ethanol_total_m3 holds the SUGAR and one
-      row carries a negative hydrous volume; the whole of season 2022/23 comes from this bulletin and
-      is therefore unusable); '01/02/2013' and '16/03/2013' (22 rows, season 2012_2013 and the tail of
-      2013_2014 -- ethanol_total_m3 duplicates cane_crushed_t and ethanol_anhydrous_m3 duplicates
-      sugar_produced_t); and '10/16/2025' (8 rows, season 2025_2026 positions 1-4 -- values are exactly
-      1000x too small, a Brazilian thousands separator read as a decimal point, and the stamp itself is
-      the only one written month-first). The remaining 252 rows satisfy
-      ethanol_anhydrous + ethanol_hydrous == ethanol_total to a maximum relative error of 0.0, which is
-      what identifies the bad four rather than plausibility. A quick sanity check on any single row:
-      seasonal Centro-Sul cane runs in the hundreds of MILLIONS of tonnes and sugar in the tens of
-      millions, so a "sugar" figure above ~45,000,000 t or any metric below ~100,000 is a defect row,
-      not a small season.
+      THE FOUR HISTORICALLY-CORRUPT BULLETINS WERE RE-PARSED AND REPAIRED ON 2026-08-19 (silver
+      transform: column-shift detection keyed on the published additivity identity, thousands-separator
+      scale repair, and a season-calendar date bijection). The table now holds 335 rows and
+      ethanol_anhydrous + ethanol_hydrous == ethanol_total holds to a maximum relative error of 0.0 on
+      EVERY row that publishes the split; season 2022/23 is fully usable (its stamps are 2022-05-01 and
+      2022-07-16). Every row still carries its originating bulletin as revision_stamp, now normalised
+      to ISO YYYY-MM-DD. ONE HONEST RESIDUAL: 18 rows publish the ethanol TOTAL with a null
+      anhydrous/hydrous split (the source page truncated both legs; the aggregate is real, the split
+      was not invented) -- treat a null split as unpublished, never as zero, and never derive one leg
+      by subtraction on those rows.
       UNITS ARE RAW TONNES AND RAW CUBIC METRES, not thousands and not the source page's own display
       scale. On the clean rows cane_crushed_t spans 5,674,389 to 649,389,303 MT, sugar_produced_t
       179,554 to 42,245,297 MT and ethanol_total_m3 221,200 to 34,958,563 m3. Ethanol is a VOLUME and
@@ -3286,21 +3289,14 @@ tables:
       2026/27 corn-ethanol question, or "how much corn ethanol is Brazil making now" asked in mid-2026,
       IS NOT ANSWERABLE HERE: say the series ends at the 1 February 2026 position and why, rather than
       presenting that figure as the current rate. Never call a dated reading 'current'.
-      TWO BULLETINS ARE MEASURED BAD AND EVERY ROW CARRIES ITS OWN STAMP as revision_stamp. DECLINE
-      rather than quote any figure whose revision_stamp is '09/01/2022' (8 rows, season 2022_2023
-      positions 3-10) or '10/16/2025' (13 rows, season 2025_2026 positions 1-13): both are exactly
-      1000x too small, a Brazilian thousands separator read as a decimal point, and both are trivially
-      recognisable because a fortnight's real corn-ethanol output is in the hundreds of THOUSANDS of
-      kilolitres while those rows read in the hundreds. 21 of 86 rows are affected. The consequence for
-      season 2025_2026 is specific and worth stating: its positions 1-13 are unusable and its positions
-      14-20 are clean, so a season-to-date figure for that season is only trustworthy from the November
-      2025 position onward.
-      ONE MORE ROW-LEVEL DEFECT, unrelated to the two bulletins: season 2024_2025 position 24 (label
-      01/04) carries fortnight_date 2024-04-01 where the season calendar requires 2025-04-01 -- a
-      year-early stamp that places the season's LAST position before its FIRST (2024-04-16). Its
-      volumes are consistent with the rest of the season, but its date is not, so it sorts wrongly in
-      any chronological read and becomes citable a year too early under the as-of guard. Treat a
-      2024-04-01 reading on this card as the April 2025 season close.
+      THE TWO HISTORICALLY-CORRUPT BULLETINS AND THE YEAR-EARLY DATE WERE REPAIRED ON 2026-08-19
+      (silver transform: thousands-separator scale repair plus a season-calendar seq 1-24 date
+      bijection). All 86 rows now satisfy anhydrous_quinzenal + hydrous_quinzenal == total_quinzenal
+      to a maximum relative error of 0.0; season 2025/26 is fully usable under its single surviving
+      stamp 2026-02-01 (the corrupt October-2025 bulletin's rows were superseded outright); and season
+      2024/25 position 24 now carries its calendar-correct fortnight_date 2025-04-01, so the season
+      sorts chronologically and nothing is citable a year early. Every row carries its originating
+      bulletin as revision_stamp, now normalised to ISO YYYY-MM-DD.
       SPARSENESS AND NULLS: season 2022_2023 position 1 is present with every metric null, and the
       `_accum_` columns carry more nulls than the `_quinzenal_` ones (6 and 12 of 86) because a
       bulletin sometimes prints the fortnight without restating the running total. A null is a missing
@@ -3368,29 +3364,28 @@ tables:
       Brazil exported no ethanol that month. An export-share or domestic-versus-export split is
       therefore NOT ANSWERABLE for any month after 2013: decline rather than treating a null as zero or
       inferring exports as total minus internal, which for those months would be an invented number.
-      internal_current_m3 is itself null in 19 of 58 rows.
+      internal_current_m3 is itself null in 11 of 58 rows.
       ONLY APRIL THROUGH NOVEMBER EXIST. month_num takes the values 4 to 11 and nothing else, so
       December, January, February and March are ABSENT from every season in this table. A full-season
       or calendar-year ethanol sales total CANNOT be assembled here -- it would silently omit four
       months, including the inter-harvest period. Say which months a figure covers, and decline a
       calendar-year total.
-      SIXTEEN ROWS ARE PRESENT AND ENTIRELY EMPTY, which matters because the as-of guard will return
-      them. Season 2025_2026 has rows for all eight of its months (April to November 2025) and EVERY
-      metric on all eight is null; season 2022_2023 is null for seven of its eight months; and
-      September 2012 is null. So the table has TWO different ceilings and the answer must respect both:
-      the newest ROW is month_date 2025-11-01, but the newest month carrying an actual number is
-      2024-11-01 (total_current_m3 = 2,935,757 m3). A latest-value read at a 2026 as-of will hand back
-      a 2025 row with nothing in it -- report that the month exists but was never populated, and fall
-      back to November 2024 as the last real reading while saying it is that old. Do NOT present a
-      null row as a zero, and do NOT quietly quote the November 2024 figure as if it were current.
-      WHY IT STOPS THERE. The 2025/26 rows are empty and no 2026/27 rows exist at all because the
-      2026/27 season has ZERO parseable bulletins: the origin prunes superseded bulletins so the
-      running season is never archived, the only April-2026 manifest entry is a mislabelled off-topic
-      document, the single web-archive capture is an unparseable layout variant, and May through August
-      2026 have no captures; a force-overwrite rebuild wrote zero rows. A question about Brazilian
-      ethanol sales in mid-2026 is NOT ANSWERABLE from this card -- say the series' last populated
-      month is November 2024 and why, rather than narrating it as the current pace. Never call a dated
-      reading 'current'.
+      THE 2025/26 SEASON WAS RECOVERED ON 2026-08-19 (silver repair: rows carrying values now win the
+      per-month dedup over empty skeletons), so the table has ONE ceiling again: the newest row AND the
+      newest populated month are both 2025-11-01 (total_current_m3 = 2,700,274 m3, internal 2,637,528,
+      external 62,746). EIGHT ROWS REMAIN PRESENT AND ENTIRELY EMPTY, and that is content truth, not a
+      parse gap: season 2022_2023 months May through November (7 rows -- the only covering bulletins
+      are English-language editions whose sales values were destroyed upstream of this table; a
+      bronze-side repair is banked separately) and September 2012 (1 row). The as-of guard will return
+      those rows: report that the month exists but was never populated -- never present a null row as a
+      zero.
+      WHY IT STOPS AT NOVEMBER 2025. No 2026/27 rows exist because the 2026/27 season has ZERO
+      parseable bulletins: the origin prunes superseded bulletins so the running season is never
+      archived, the only April-2026 manifest entry is a mislabelled off-topic document, the single
+      web-archive capture is an unparseable layout variant, and May through August 2026 have no
+      captures; a force-overwrite rebuild wrote zero rows. A question about Brazilian ethanol sales in
+      mid-2026 is NOT ANSWERABLE from this card -- say the series ends at November 2025 and why,
+      rather than narrating it as the current pace. Never call a dated reading 'current'.
       is_partial IS PRESENT AND IS NOT SERVED, and that is a data verdict rather than an omission. The
       column flags exactly ONE row (October 2020) as partial, while at least three other rows are
       obviously part-months and are flagged False: November 2020 reads 143,814 m3 against a prior-year
