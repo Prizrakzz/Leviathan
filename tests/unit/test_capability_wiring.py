@@ -66,6 +66,13 @@ UNICA_RELEASE = "silver_unica_biweekly_release_series"
 # price.
 BOARD_CRUSH = "gold_board_crush"
 
+# LIGHT THE CARD (2026-08-20) -- the MINAGRO Ukrainian State Customs weekly export table. Its shape is
+# unlike every block above in one way that drives the whole test block: the table GROWS FROM BOTH ENDS
+# (a weekly capture lands forward, an archive backfill lands behind), so nothing here -- and nothing in
+# the card -- may pin a row count, a span or a history-start date. What is pinned instead is the GRAIN
+# and the SEMANTICS, which are identical whether the table holds one as-of or four hundred.
+MINAGRO = "silver_minagro_grain_exports"
+
 
 def _purpose() -> str:
     return next(t.purpose for t in dp.REGISTRY if t.name == "numbers").lower()
@@ -134,6 +141,11 @@ _ADVERTISED = {
     # the purpose string has carried crush/grind language in `when_to_use` since long before either
     # card existed. The token has to name what is NEW -- the soy PROCESSOR MARGIN as a number.
     BOARD_CRUSH: ("board crush", "processor margin"),        # NOT ("crush",) -- see above
+    # -- LIGHT THE CARD. "ukraine" ALONE would free-ride: the World Bank CPI clause already pays for it
+    # ("India, Indonesia, Russia and Ukraine"), so the token has to name what is NEW -- the Ukrainian
+    # export COUNT itself. Both alternatives below were verified absent from the purpose string before
+    # this wave, and either one alone identifies the table.
+    MINAGRO: ("ukrainian grain", "state customs"),           # NOT ("ukraine",) -- see above
 }
 
 
@@ -210,7 +222,9 @@ def test_visible_set_is_the_registry_minus_the_ledger_card_and_the_quarantine(mo
     expected = sorted(t for t, ts in reg.tables.items()
                       if t != "gold_pattern_records" and not ts.quarantined)
     assert nreg.visible_tables(reg) == expected
-    assert len(expected) == len(reg.tables) - 2             # 33 cards -> 31 visible (D-LD Tranche 2)
+    assert len(expected) == len(reg.tables) - 2             # 38 cards -> 36 visible (2026-08-20, the
+    #                                                         minagro card). The ASSERTION is relative on
+    #                                                         purpose -- only this comment moves per wave.
 
 
 @pytest.mark.parametrize("token", [
@@ -3137,4 +3151,274 @@ def test_board_crush_is_dispositioned_in_the_cascade_register():
     repo = pathlib.Path(__file__).resolve().parents[2]
     text = (repo / "configs" / "graphrag" / "numbers" / "cascade_map.yaml").read_text(encoding="utf-8")
     assert "gold_board_crush -- DEFERRED" in text
+    assert "UN-DEFER GATE" in text
+
+
+# ════════════════════════════════════════════════════════════════════════════════════════════════════
+# LIGHT THE CARD (2026-08-20) -- silver_minagro_grain_exports, the Ukrainian State Customs weekly
+# export table. STRUCTURALLY UNLIKE every block above in the property that shapes this whole block:
+# those cards describe tables whose content is FIXED (a closed archive, a settled annual record, a
+# paused source), and several of their pins are ceilings and spans. This table GROWS FROM BOTH ENDS --
+# a capture lands forward every week, and an archive backfill lands captures behind it -- so a span
+# pinned here or written into the card would be false within days. Every pin below is therefore about
+# GRAIN and SEMANTICS, which are identical whether the table holds one as-of or four hundred, and one
+# pin asserts the ABSENCE of a span claim in the card itself.
+# ════════════════════════════════════════════════════════════════════════════════════════════════════
+def _minagro():
+    return _reg().get(MINAGRO)
+
+
+def test_minagro_card_is_served_and_in_the_tool_enum():
+    reg = _reg()
+    assert MINAGRO in reg.tables
+    assert MINAGRO in nreg.visible_tables(reg)
+    assert MINAGRO in _props()["table"]["enum"]
+
+
+def test_minagro_card_pit_shape():
+    """data_date on as_of_date with NO publication lag -- the page's own 'as of' date IS the knowledge
+    date, and the CMS publish stamp (a DIFFERENT date the page also carries) is deliberately not used:
+    the ministry re-publishes the page in place, so keying on the stamp would mint a later 'vintage' of
+    numbers that never changed. The trio was ALREADY on the F010 contract before this card -- the
+    producer minted the anchor, not the card -- which is the silver_nass_citrus case and exactly the
+    trio that drifts silently. Flat table: no partition_cols, no year_col. date_col_type stays
+    "string": as_of_date is a Glue `date`, not a TIMESTAMP, so the DP-5 substr normalization does not
+    apply and CAST(col AS varchar) is the correct compare on both backends."""
+    ts = _minagro()
+    assert (ts.knowledge_semantics, ts.knowledge_date_col, ts.date_col) == \
+           ("data_date", "as_of_date", "as_of_date")
+    assert ts.publication_lag_days == 0
+    assert ts.date_col_type == "string"
+    assert ts.year_col is None and ts.month_col is None and ts.period_col is None
+    assert ts.period_type == "date"
+    assert ts.shape == "wide" and ts.commodity_col == "crop_slug"
+    assert ts.country_col is None            # single-geography table; the fence is prose (see notes)
+    assert ts.partition_cols == [] and not ts.quarantined and not ts.levels_only
+    assert set(ts.metrics) == {"my_cumulative_kt", "month_to_date_kt",
+                               "prior_my_cumulative_kt", "prior_my_month_kt"}
+    assert {m.unit for m in ts.metrics.values()} == {"kt"}
+
+
+def test_minagro_declares_no_partition_cols_and_needs_no_vintage_tiebreak():
+    """TWO absences, both measured rather than omitted. (1) SARGABLE PARTITION DISCIPLINE in its
+    NEGATIVE form: flat / projection-forbidden, so there is no projected grid to prune and no
+    LIST-storm class -- and a partition_col that is not a real Glue partition key is a hard
+    reconcile_numbers failure (SILVER-F047). (2) The vintage ROW_NUMBER tie hazard (the F2 Branch-A
+    break) needs the VINTAGE branch, which a data_date card never enters; the producer additionally
+    fails closed on a conflicting restatement of any (as_of_date, crop_slug), which is the F010 natural
+    key, so there is no second row per grain to tie in the first place."""
+    from leviathan.silver import registry as SR
+    ts = _minagro()
+    assert ts.partition_cols == [] and ts.vintage_tiebreak == [] and ts.grain_cols == []
+    c = SR.load_registry().table(MINAGRO)
+    assert c["partition_mode"] == "flat" and c["partition_keys"] == [] and c["projection"] == "forbidden"
+    assert c["natural_key"] == ["as_of_date", "crop_slug"]
+    assert c["vintage_retention"] == "latest-only"
+
+
+def test_minagro_commodity_values_are_the_producers_own_completeness_floor():
+    """D-PQ CLASS-1, and the list is DERIVED rather than hand-listed -- the psd/_PSD_COMMODITY_TO_SLUGS
+    idiom. The ten values ARE the producer's REQUIRED_CROP_SLUGS: build_bronze hard-fails a capture
+    missing any of them ('an absent wheat row reads to a desk as a collapse in wheat exports rather
+    than as a parse failure'), so the fence and the physical DISTINCT set are one universe by
+    construction. Asserted in BOTH directions: a widened producer vocabulary with an unwidened fence
+    would make the card refuse a row silver serves, and the reverse would compile a clean zero-row
+    read."""
+    from leviathan.transforms.raw_to_bronze.minagro_grain_exports import REQUIRED_CROP_SLUGS
+    ts = _minagro()
+    assert set(ts.commodity_values) == set(REQUIRED_CROP_SLUGS)
+    assert sorted(ts.commodity_values) == sorted([
+        "grains_pulses_total", "wheat", "barley", "rye", "corn",
+        "wheat_flour", "other_flour", "flour_total", "flour_grain_equivalent", "grain_flour_total",
+    ])
+    assert len(ts.commodity_values) == 10
+
+
+def test_minagro_off_card_commodity_is_refused_before_any_sql():
+    """The row labels are NOT contract slugs, which is the substitution this fence exists to stop: a
+    `corn_cbot` ask must be refused, never widened onto the Ukrainian corn row (a different crop on a
+    different continent under a name the estate uses for a Chicago contract). Sunflower is the other
+    measured trap -- sunflower oil is Ukraine's largest ag export by value and is NOT in this table."""
+    class _S:
+        def __init__(self, table, commodity):
+            self.table, self.commodity = table, commodity
+    for slug in ("corn_cbot", "soft_red_winter_wheat_cbot", "sunflower_oil", "sunflower"):
+        with pytest.raises(na.CommodityOffCard) as e:
+            na._check_commodity_class(_S(MINAGRO, slug), _reg())
+        assert "Nothing was queried." in str(e.value)
+    for slug in ("wheat", "corn", "barley", "rye", "grains_pulses_total"):
+        na._check_commodity_class(_S(MINAGRO, slug), _reg())   # must NOT raise
+
+
+def test_minagro_sql_guards_the_as_of_and_collapses_latest_to_one_snapshot():
+    """Flat table -> no projection to prune and no partition equality to satisfy. data_date semantics ->
+    NO vintage ROW_NUMBER at all (two as-ofs are two OBSERVATIONS, never two versions of one figure),
+    and agg=latest is the single freshest snapshot on or before the as-of."""
+    sql = Q.build_sql(Q.NumberQuery(table=MINAGRO, metric="my_cumulative_kt", asof="2026-08-20",
+                                    commodity="wheat"))
+    assert "crop_slug = 'wheat'" in sql
+    assert "CAST(as_of_date AS varchar) <= '2026-08-20'" in sql      # no publication lag shift
+    assert "ROW_NUMBER()" not in sql and "_rn = 1" not in sql        # not a vintage table
+    assert "year <=" not in sql                                      # flat: no sargable year bound
+    assert sql.endswith("ORDER BY as_of_date DESC, knowledge_date, value LIMIT 1")
+
+
+def test_minagro_window_read_bounds_the_as_of_date_axis():
+    """The as-of IS the period axis: period_start/period_end bind as_of_date directly (there is no
+    period_col to equal), so a season-to-date arc is a date window and the series cap keeps it
+    bounded."""
+    sql = Q.build_sql(Q.NumberQuery(table=MINAGRO, metric="month_to_date_kt", asof="2026-08-20",
+                                    commodity="corn", agg="series",
+                                    period_start="2026-07-01", period_end="2026-08-20"))
+    assert "CAST(as_of_date AS varchar) >= '2026-07-01'" in sql
+    assert "CAST(as_of_date AS varchar) <= '2026-08-20'" in sql
+    assert sql.endswith("LIMIT 5000")
+
+
+def test_minagro_commodity_less_latest_returns_the_smallest_row_which_is_why_the_card_teaches():
+    """THE MEASURED HAZARD behind the card's ALWAYS-PASS-A-COMMODITY sentence, pinned so the sentence is
+    not decoration. With no crop named, every row of one snapshot ties on knowledge_date, so the total
+    order falls through to `value` ASCENDING and the LIMIT 1 keeps the SMALLEST number in the table --
+    the rye row, a published 0.0, wearing whatever label the question had in mind ('Ukraine has
+    exported nothing'). The citrus unpinned-headline hazard, arriving through a zero-valued row."""
+    sql = Q.build_sql(Q.NumberQuery(table=MINAGRO, metric="my_cumulative_kt", asof="2026-08-20"))
+    assert "crop_slug =" not in sql
+    assert sql.endswith("ORDER BY as_of_date DESC, knowledge_date, value LIMIT 1")   # value ASC = smallest
+    ts = _minagro()
+    snapshot = [
+        {"crop_slug": "wheat", "as_of_date": "2026-08-14", "my_cumulative_kt": 1291.0},
+        {"crop_slug": "corn", "as_of_date": "2026-08-14", "my_cumulative_kt": 1403.0},
+        {"crop_slug": "rye", "as_of_date": "2026-08-14", "my_cumulative_kt": 0.0},
+    ]
+    stateless = Q.NumberQuery(table=MINAGRO, metric="my_cumulative_kt", asof="2026-08-20")
+    kept = Q.apply_pit_filter(snapshot, stateless, ts)
+    assert sorted(r["my_cumulative_kt"] for r in kept) == [0.0, 1291.0, 1403.0]   # nothing narrows it
+    assert min(kept, key=lambda r: r["my_cumulative_kt"])["crop_slug"] == "rye"   # ...and SQL keeps THIS one
+
+
+def test_minagro_oracle_withholds_a_capture_later_than_the_asof():
+    """The pure-Python twin of the guard: a capture is citable from its own as-of date (lag 0, measured
+    -- the page publishes on the morning of the date it describes), and a later capture is invisible
+    until then. There is no vintage collapse on this branch, so an in-window history stays whole."""
+    ts = _minagro()
+    rows = [
+        {"crop_slug": "wheat", "as_of_date": "2026-08-07", "my_cumulative_kt": 1050.0},
+        {"crop_slug": "wheat", "as_of_date": "2026-08-14", "my_cumulative_kt": 1291.0},
+        {"crop_slug": "wheat", "as_of_date": "2026-08-21", "my_cumulative_kt": 1500.0},  # not yet known
+        {"crop_slug": "corn", "as_of_date": "2026-08-14", "my_cumulative_kt": 1403.0},   # wrong crop
+    ]
+    spec = Q.NumberQuery(table=MINAGRO, metric="my_cumulative_kt", asof="2026-08-14", commodity="wheat")
+    assert [r["my_cumulative_kt"] for r in Q.apply_pit_filter(rows, spec, ts)] == [1050.0, 1291.0]
+    later = Q.NumberQuery(table=MINAGRO, metric="my_cumulative_kt", asof="2026-08-25", commodity="wheat")
+    assert [r["my_cumulative_kt"] for r in Q.apply_pit_filter(rows, later, ts)] == [1050.0, 1291.0, 1500.0]
+
+
+@pytest.mark.parametrize("token", [
+    # The geography fence, prose half -- there is no country_col, so prose is the ONLY half there can be.
+    "ukraine and nothing else, and there is no country filter on this card",
+    "never a proxy for the corridor",
+    # The axis this table does not have, said as a refusal rather than as a gap.
+    "and there are no destinations",
+    "not answerable",
+    # The free axis with no default, and the MEASURED hazard behind it.
+    "always pass a commodity",
+    "the smallest number in the snapshot",
+    # The vocabulary trap: row labels, not contract slugs.
+    "not a contract slug",
+    "corn_cbot",
+    "sunflower oil",
+    # The overlap arithmetic -- the trap a ten-row table of totals and parts invites.
+    "the ten rows overlap and must never be summed together",
+    "grain_flour_total is the ministry's own grand total",
+    # Units.
+    "kt = thousand tonnes",
+    # A published zero is an observation.
+    "a published 0.0 is data, not absence",
+    # Cumulative semantics and the season reset.
+    "the cumulative is a running total and the season resets on 1 july",
+    "meaningless",
+    # The month column is INSIDE the cumulative.
+    "is inside the cumulative, never beside it",
+    # The built-in year-ago comparison -- one lookup, not two.
+    "do not fetch a second as-of",
+    # The in-place weekly update and the as-of discipline every dated card in this estate carries.
+    "in place",
+    "there is no vintage axis",
+    "never call a dated reading 'current'",
+    # The cross-table pair a customs count is most likely to be mixed with.
+    "silver_psd",
+])
+def test_minagro_notes_teach_the_scope_units_and_overlap_traps(token):
+    """The notes are where a fence that cannot be enforced in code gets taught. Every token here is a
+    sentence a reader needs in order to quote this table's numbers correctly."""
+    ts = _minagro()
+    blob = " ".join((ts.description + " " + ts.notes).lower().split())
+    assert token in blob, token
+
+
+def test_minagro_card_claims_no_span_because_the_table_grows_from_both_ends():
+    """THE PIN THIS BLOCK EXISTS FOR, and it asserts an ABSENCE. A weekly capture extends the series
+    forward and an archive backfill extends it BACKWARD, so any row count, span or history-start date
+    written into the card would be false within days -- and the model reads a card as fact. What the
+    card carries instead is the instruction to read the as-of stamps of the rows that actually came
+    back. If a future editor adds 'the table begins YYYY-MM' or 'N rows', this test is what stops
+    them."""
+    ts = _minagro()
+    blob = " ".join((ts.description + " " + ts.notes).lower().split())
+    assert "coverage grows from both ends" in blob
+    assert "never state this table's span from memory" in blob
+    for forbidden in ("rows total", "begins 20", "runs from 20", "history starts",
+                      "coverage starts", "the newest as-of is", "ends 20", "back to 20"):
+        assert forbidden not in blob, f"a span claim leaked into the card: {forbidden!r}"
+
+
+def test_minagro_card_reconciles_against_the_f010_registry():
+    """Landing a card is never a one-file edit: reconcile_numbers binds the card's PIT fields to the
+    silver registry contract and requires the numbers_ref back-pointer, and the drift test requires
+    NUMBERS_TABLES to enumerate it. consumers is 'numbers_registry' and NOT 'both' -- nothing in the
+    feature/model layer reads this table, and that is also exactly what
+    scripts/silver/gen_registry_from_baseline.py derives (numbers yes, features no), so a regeneration
+    reproduces it rather than reverting it."""
+    from leviathan.silver import reconcile as RC
+    from leviathan.silver import registry as SR
+    reg = SR.load_registry()
+    assert MINAGRO in RC.NUMBERS_TABLES, "an unenumerated table is STRUCTURALLY UNCHECKED"
+    assert [d.detail for d in RC.reconcile_numbers(reg) if d.table == MINAGRO] == []
+    c = reg.table(MINAGRO)
+    assert c["numbers_ref"] and c["consumers"] == "numbers_registry"
+    assert (c["knowledge_date_col"], c["knowledge_semantics"], c["publication_lag_days"]) == \
+           ("as_of_date", "data_date", 0)
+    # CARDING A WIDE TABLE IS WHAT FIRST SUBJECTS ITS METRICS TO A NON-NULL FLOOR (the unica lesson):
+    # value_columns was EMPTY and min_nonnull_frac NULL until this card existed, because the generator
+    # derives both from the numbers registry. Re-rendered in the same change, so the F011 idempotency
+    # gate stays green -- and the card serves exactly the four the contract now declares, no more.
+    assert set(_minagro().metrics) == set(c["value_columns"])
+    assert c["min_nonnull_frac"] == 0.5 and c["min_nonnull_frac_status"] == "provisional"
+    assert c["owner"] == "numbers-platform"                  # also generator-derived from consumers
+
+
+def test_minagro_is_in_the_pg_mirror_list():
+    """A SERVED numbers table must be MIRRORED: unmirrored + GRAPHRAG_NUMBERS_BACKEND=pg raises
+    UndefinedTable per query and SILENTLY FALLS BACK TO ATHENA. The fallback is cheap here (flat,
+    projection-forbidden, one small object) and that is precisely how a silent-fallback path gets
+    normalised -- the entry exists so the mirror set and the served set cannot drift."""
+    from jobs.utils.load_pg_numbers import P1_TABLES
+    assert MINAGRO in P1_TABLES
+
+
+def test_minagro_card_columns_resolve_in_the_checked_in_ddl():
+    assert cc.check_numbers_schema_pins() == []
+
+
+def test_minagro_is_dispositioned_in_the_cascade_register():
+    """Every numbers card must be dispositioned in cascade_map or the register's completeness claim goes
+    false one wave later. This one is DEFERRED with an ARGUED refusal: the Black Sea driver ids DO name
+    Ukrainian export availability and their existing `export` leg is measurably dark (their region
+    tokens are in region_map.unresolved), so the near-neighbour is real -- and the refusal turns on
+    three mechanical facts (the keying cannot express a row label, the region rule would have to change
+    for every other node that uses `export`, and the DAG attribute has to name the series first)."""
+    import pathlib
+    repo = pathlib.Path(__file__).resolve().parents[2]
+    text = (repo / "configs" / "graphrag" / "numbers" / "cascade_map.yaml").read_text(encoding="utf-8")
+    assert "silver_minagro_grain_exports -- DEFERRED" in text
     assert "UN-DEFER GATE" in text

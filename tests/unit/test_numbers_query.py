@@ -847,9 +847,26 @@ _D_LD_T3_IDS = ("silver_unica_biweekly_season_history", "silver_unica_corn_ethan
 # be numbers-bound. Same standing as every wave above: present regardless of the DEPTH-wave
 # kill-switch, so it belongs in the BASELINE and is NOT among the three ids that switch reverts.
 _D_EC_IDS = ("gold_board_crush",)
+# LIGHT THE CARD / MINAGRO (2026-08-20) landed ONE card, and like gold_board_crush directly above the
+# table did not exist before this wave -- but for the opposite reason. board_crush had to be COMPUTED
+# from our own published silver; this one had to be CAPTURED, from a Ukrainian ministry page behind a
+# Cloudflare managed challenge that refuses Fargate, which is why its weekly leg is the estate's one
+# laptop-side scheduled command (dag_catalog family `minagro`). It is a marketing-year-cumulative
+# export table in thousand tonnes, wide, one row per as_of_date x crop_slug, and its knowledge column
+# is that same as_of_date -- the F010 contract already carried the full PIT trio before the card
+# existed (the silver_nass_citrus case; see the enumeration note in silver/reconcile.py NUMBERS_TABLES,
+# which is the drift check that forces the card and that list to land together).
+# Same standing as every wave above: present regardless of the DEPTH-wave kill-switch, so it belongs
+# in the BASELINE and is NOT among the three ids that switch reverts.
+# THE OTHER THREE TABLES OF THE 2026-08-20 WAVE ARE DELIBERATELY ABSENT, and that is a measurement
+# rather than an omission: silver_ams_gtr, silver_eex_freight and silver_moex_agro_indices are all
+# registered ahead of their producers with `consumers: none`, so the four-checkmark law forbids a card
+# until a cloud run proves rows and there is nothing to put in this enum. They join it the day their
+# cards land, exactly as this one did.
+_MINAGRO_IDS = ("silver_minagro_grain_exports",)
 _DEPTH_BASELINE = ((_PRE_WAVE_8 | set(_PRICE_IDS) | set(_SEAM_C_IDS) | set(_WIRING_W1_IDS)
                     | set(_W3_IDS) | set(_D_CW_IDS) | set(_D_PQ_IDS) | set(_D_LD_IDS)
-                    | set(_D_LD_T2_IDS) | set(_D_LD_T3_IDS) | set(_D_EC_IDS))
+                    | set(_D_LD_T2_IDS) | set(_D_LD_T3_IDS) | set(_D_EC_IDS) | set(_MINAGRO_IDS))
                    - _QUARANTINE_STRIPPED)          # D-LD Track 2 #5, see above
 
 

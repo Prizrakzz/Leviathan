@@ -314,15 +314,31 @@ class TestTheArmIsRealAndStaysReal:
         note = host["euronext_capture_window_note"]
         assert "00:00Z" in note and "16:30Z" in note and "17:30Z" in note
 
-    def test_the_browser_jobdef_is_still_flagged_untracked_by_terraform(self, marker):
-        """The other half of D-PR-23 did NOT land with the arm: the jobdef exists at revision 1
-        with retryStrategy and attemptDurationSeconds both null. The declaration is the only place
-        that says so, so it must keep saying it until the post-freeze batch adopts it."""
-        assert "UNTRACKED BY TERRAFORM" in marker["leg"]["jobdef_note"]
-        assert "retryStrategy" in marker["leg"]["jobdef_note"]
-        open_items = [i for i in marker["arm_preconditions"]["items"]
-                      if _BROWSER_JOBDEF in i["item"]]
-        assert len(open_items) == 1 and open_items[0]["status"].startswith("STILL OPEN")
+    def test_the_browser_jobdef_is_declared_tracked_AND_applied_and_the_source_agrees(self, marker):
+        """RE-KEYED 2026-08-20 (owner word). The prior pin asserted 'UNTRACKED BY TERRAFORM ...
+        rev 1 ... both null' -- and that had ROTTED: modules/batch/main.tf declares
+        aws_batch_job_definition.browser_runner (ADOPTED 2026-08-05) and apply HAS run (tfstate
+        serial 1366 holds revision 3; live ACTIVE rev 3 = timeout 900 + producer retry matrix).
+        This test was pinning the rot it was written to catch. It now asserts the new truth in
+        BOTH directions: the declaration claims tracked-and-applied, the retired claim is gone,
+        and the terraform SOURCE actually contains the resource with the two properties the
+        adoption existed to add (source-level -- no cloud call; the cloud fact was verified once,
+        read-only, at re-key time). The eventbridge 86400 retry-past-midnight seam is deliberately
+        NOT claimed closed -- the precondition item must still name it open."""
+        note = marker["leg"]["jobdef_note"]
+        assert "TRACKED BY TERRAFORM -- DECLARED AND APPLIED" in note
+        # The retired CLAIM must be gone; the note may still QUOTE it as history (it does, in the
+        # re-key parenthesis), so pin the claim's own phrasing rather than the bare token.
+        assert "still UNTRACKED BY TERRAFORM" not in note
+        assert "revision 3" in note and "deregister_on_new_revision" in note
+        items = [i for i in marker["arm_preconditions"]["items"] if _BROWSER_JOBDEF in i["item"]]
+        assert len(items) == 1 and items[0]["status"].startswith("CLOSED 2026-08-05")
+        assert "maximum_event_age_in_seconds=86400" in items[0]["status"]
+        assert "stays open" in items[0]["status"]
+        tf = (_REPO / "infra" / "terraform" / "modules" / "batch" / "main.tf").read_text(encoding="utf-8")
+        assert 'resource "aws_batch_job_definition" "browser_runner"' in tf
+        assert "attempt_duration_seconds = 900" in tf
+        assert "producer_retry_attempts" in tf
 
 
 class TestTheDeclarationMatchesTheCode:

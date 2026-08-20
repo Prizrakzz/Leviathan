@@ -204,6 +204,14 @@ NUMBERS_TABLES = (
     #                                     ALSO carries the measured per-column floors for the two export
     #                                     channels (CURATION_OVERRIDES), because carding a wide table is what
     #                                     first subjects its metrics to a non-null floor at all.
+    # ── LIGHT THE CARD (2026-08-20): the Ukrainian State Customs weekly export table. Unlike every
+    #    Tranche-2 entry above, its F010 contract ALREADY carried the full PIT trio (as_of_date /
+    #    data_date / 0) before the card existed -- the producer minted the anchor, not the card -- which
+    #    is precisely the silver_nass_citrus case and precisely why it must be enumerated: an
+    #    already-populated trio is the one that drifts silently, because nothing about the card's arrival
+    #    looks like a field being minted. The drift test set(NUMBERS_TABLES) == set(tables.yaml keys) is
+    #    what forces this line and the card to land together.
+    "silver_minagro_grain_exports",
     "gold_pattern_records",             # T2b: pattern-records ledger (44th contract, registered-partition GOLD,
     #                                     flag-off until its deck gates the flip) — enumerated the moment its
     #                                     tables.yaml card landed so its knowledge fields reconcile against F010

@@ -161,6 +161,20 @@ REGISTRY: tuple[ToolSpec, ...] = (
         # the crush now" ask here in the first place rather than routing it and relying on the card's
         # notes to catch it afterwards.
         #
+        # LIGHT THE CARD (2026-08-20): ONE clause added -- MINAGRO's Ukrainian State Customs weekly
+        # export table, landing WITH its card and its tests/unit/test_capability_wiring.py::_ADVERTISED
+        # entry, because a card with no clause here is a table the router keeps routing away from
+        # forever. TOKEN DISCIPLINE, measured before writing it: `ukraine` was ALREADY earned by the
+        # World Bank CPI clause above ("India, Indonesia, Russia and Ukraine"), so a bare ("ukraine",)
+        # entry would have been the exact free-ride the coverage map exists to catch -- the token would
+        # pass while the export table stayed dark. `ukrainian grain` and `state customs` are both
+        # verified ABSENT from this string before this wave, and either one alone identifies the table.
+        # THE CEILING RIDES THE SENTENCE, the mpoc_trade idiom applied to an AXIS rather than to a date:
+        # the clause says "no destinations" out loud, so a "who bought Ukrainian wheat" ask is never
+        # routed here in the first place rather than routed and then caught by the card's own notes.
+        # It is advertised BESIDE the SAGIS weekly pair and the FGIS/ESR clauses on purpose -- four
+        # export-pace reads on four different origins, none of them a substitute for another.
+        #
         # D-EC XC-7 CITRUS FLIP (2026-08-20): ONE CLAUSE REWRITTEN, no new table advertised. The NASS
         # CITRUS clause below used to end "the only observed citrus quantity in the estate since there is
         # no PSD orange-juice balance sheet" -- a DEFLECTION that was true when it landed (PSD's commodity
@@ -217,6 +231,11 @@ REGISTRY: tuple[ToolSpec, ...] = (
                  "export pace AND weekly PRODUCER DELIVERIES into commercial storage (maize, wheat, "
                  "soybeans, sunflower, season-to-date), which are arrivals from the farm and not "
                  "shipments abroad; "
+                 "UKRAINIAN GRAIN, PULSE AND FLOUR EXPORTS week by week -- the State Customs count of "
+                 "what physically left Ukraine, season-to-date by crop in thousand tonnes with the "
+                 "ministry's own year-ago figure printed beside each one, so whether the season's "
+                 "export pace is running ahead of or behind last year is a LOOKUP; how much left, "
+                 "never where it went (no destinations); "
                  "UNICA's BRAZILIAN SUGARCANE AND ETHANOL book -- the biweekly Centro-Sul CANE CRUSH "
                  "bulletin (cane crushed, sugar made and ethanol distilled SEASON-TO-DATE by region, "
                  "which is the physical Brazilian supply print behind raw and white sugar), Brazilian "

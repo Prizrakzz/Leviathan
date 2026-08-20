@@ -416,7 +416,30 @@ P1_TABLES = ["silver_psd", "silver_wasde", "silver_production", "silver_esr", "s
              # metric (it is measured unreliable -- see the card's notes), so it is not in the numeric
              # set and lands as text. month_num is a bigint label, TEXT COLLATE "C"; harvest_year /
              # month_label / source_idm / source_position_date likewise.
-             "silver_unica_monthly_ethanol_sales"]
+             "silver_unica_monthly_ethanol_sales",
+             # LIGHT THE CARD (2026-08-20): silver_minagro_grain_exports joins the mirror in the SAME
+             # change that gives it a numbers card -- served but unmirrored means
+             # GRAPHRAG_NUMBERS_BACKEND=pg raises UndefinedTable per query and SILENTLY FALLS BACK TO
+             # ATHENA (pgnumbers.py, warning-log only). FLAT, projection forbidden, one small object, so
+             # the fallback would be a latency cost rather than a LIST-storm one -- the entry exists so
+             # the mirror set and the served set cannot drift, which is the whole doctrine.
+             # TYPE DOCTRINE: the four wide metrics (my_cumulative_kt, month_to_date_kt,
+             # prior_my_cumulative_kt, prior_my_month_kt) mirror NUMERIC. as_of_date is a Glue DATE and
+             # stringifies to the Athena ISO render, which is exactly what the guard's CAST-as-varchar
+             # compare expects on both backends (the nass_crop_progress / fnc_port shape; NO
+             # date_col_type is needed -- that knob is for physical TIMESTAMPs only). crop_slug,
+             # marketing_year, prior_marketing_year and source stay TEXT COLLATE "C": the two
+             # marketing-year columns are LABELS ('2026/2027'), not periods this card compares, and no
+             # partition key exists (partition_keys []), so meta["partitions"] contributes nothing.
+             # SIZING NOTE, stated because this table GROWS FROM BOTH ENDS: ten rows per weekly capture,
+             # plus whatever an archive backfill lands behind it -- still trivial at any plausible
+             # horizon (a decade of weekly captures is ~5,200 rows), so no capacity question arises.
+             # SEQUENCING: this entry DEFINES the mirror; the LOAD still has to run in-VPC. The load is
+             # NOT a one-off here -- the mirror must be re-run after captures land, or pg answers from a
+             # stale snapshot while Athena has the new week. numbers_parity deliberately carries NO
+             # SAMPLE_COMMODITY row for it yet (a sampled-but-unmirrored table turns the WHOLE parity
+             # gate red), so the pair is chosen against the first real mirror.
+             "silver_minagro_grain_exports"]
 SCHEMA = "leviathan_dev"                       # == numbers.pgnumbers.SCHEMA == query.ATHENA_DB
 GLUE_DB = "leviathan_dev"
 

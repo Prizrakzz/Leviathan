@@ -286,7 +286,17 @@ def test_cot_is_branch_a_twelfth_pg_mirror_table():
     # gold_weather_z, and the smallest table on it (FLAT, one object, ~4,000 rows), so the fallback
     # it prevents is latency and not the LIST-storm class. It is also the only entry that will
     # never gain a numbers_parity SAMPLE_COMMODITY row: the card has no commodity axis at all.
-    assert len(g.PG_MIRROR_TABLES) == 36, (
+    # MINAGRO (2026-08-20) added ONE more -- the 37th -- on that same card-landed -> served ->
+    # must-be-mirrored rule: silver_minagro_grain_exports, the Ukrainian State Customs weekly export
+    # table. It is the only one of the 2026-08-20 four-family wave on this roster, and the by-NAME
+    # pin records why the other three are deliberately absent: silver_ams_gtr, silver_eex_freight and
+    # silver_moex_agro_indices all declare `consumers: none` under the four-checkmark law (no numbers
+    # card until a cloud run proves rows), so nothing serves them and there is nothing to mirror --
+    # the silver_unica_biweekly_release_series precedent two paragraphs up. This entry carries a
+    # reading warning of its own, spelled out in the by-NAME roster: the table GROWS FROM BOTH ENDS
+    # (a weekly capture lands forward while an archive backfill lands captures behind it), so the
+    # Branch-A reload is not a one-off here the way it is for a forward-only table.
+    assert len(g.PG_MIRROR_TABLES) == 37, (
         "pg-mirror roster changed; the by-NAME pin lives in tests/unit/test_silver_rebuild_gate.py::"
         "test_branch_selection_all_45_tables. Roster now: " + str(sorted(g.PG_MIRROR_TABLES)))
 

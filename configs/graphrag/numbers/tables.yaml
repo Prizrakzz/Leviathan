@@ -3726,3 +3726,229 @@ tables:
       margin is going; a crush-capacity or crush-volume claim minted from this number is exactly the
       invention it refuses. For the soybean balance sheet behind a crush story use silver_psd; for the
       leg prices themselves use silver_futures_eod.
+
+  # LIGHT THE CARD (2026-08-20) -- MINAGRO UKRAINIAN GRAIN, PULSE AND FLOUR EXPORTS. The SERVING half of
+  # the four-checkmark law: the producer chain landed this week (raw_to_bronze + bronze_to_silver
+  # minagro_grain_exports, driven by jobs/ingest/run_minagro_pipeline.py) and the rows have been in
+  # silver and in the F010 contract since. Nothing here ingests, re-parses or re-derives anything -- the
+  # card is what makes an already-published table reachable, and until it existed every question about
+  # Ukrainian export PACE routed away from the one table in the estate that measures it.
+  #
+  # PROOF OF ROWS, Athena-measured 2026-08-20: the live table answers at as_of_date 2026-08-14 with ten
+  # rows, one per crop_slug -- wheat 1291.0 / 219.0 / 1517.0, barley 339.0 / 40.0 / 463.0, corn 1403.0 /
+  # 89.0 / 827.0 (my_cumulative_kt / month_to_date_kt / prior_my_cumulative_kt), rye a true 0.0 in every
+  # column, the four flour rows, and the two totals: grains_pulses_total 3093 / 348 / 2818 and
+  # grain_flour_total 3097 / 350 / 2826. Two arithmetic facts fall straight out of that snapshot and are
+  # taught in `notes` rather than left for a reader to rediscover: the grand total EXCEEDS the grains
+  # total by exactly the flour-in-grain-equivalent row (3097 - 3093 = 4), and the four NAMED cereals do
+  # NOT exhaust the grains total (1291 + 339 + 1403 + 0 = 3033 against 3093 -- the ~60 kt residual is the
+  # pulses and minor grains the ministry does not break out).
+  #
+  # WRITTEN FOR ONE CAPTURE AND FOR HUNDREDS, DELIBERATELY. A wayback backfill is landing archived
+  # captures in parallel and will extend the history to roughly 2024-03; the description and notes below
+  # therefore carry NO row count, NO history-start date and NO span claim of any kind. Everything they
+  # state is a fact about the GRAIN and the SEMANTICS, both of which are identical whether the table
+  # holds one as-of or four hundred, and the one coverage sentence tells the reader to read the as-of
+  # stamps of the rows that actually came back instead of trusting a number in a card. That is the
+  # mpoc/fnc content-ceiling idiom inverted: those cards state a ceiling because their sources are
+  # closed, this one refuses to state a span because its series grows from BOTH ends.
+  #
+  # PIT: data_date on as_of_date, publication_lag_days 0 -- ADOPTED from the F010 contract rather than
+  # minted (knowledge_date_col as_of_date / knowledge_semantics data_date / publication_lag_days 0 were
+  # already on it), the silver_nass_citrus posture and not the D-CW-2a one. WHY LAG 0 IS HONEST HERE, and
+  # it is a measurement rather than a convention: the page carries TWO dates, its own "as of" date (the
+  # date the State Customs figures describe, which is what the producer keys on) and a separate CMS
+  # publish stamp, and on the measured capture they are the SAME DAY -- published 09:05 Kyiv on
+  # 2026-08-14 for figures as of 14.08.2026. So a row is admitted by the guard only on the day it was
+  # published and the residual exposure is INTRA-DAY on a weekly series. The transform refuses to key on
+  # the publish stamp for the documented reason (the ministry re-publishes the page in place, which would
+  # mint a fresh later "vintage" of numbers that never changed) -- see
+  # transforms/raw_to_bronze/minagro_grain_exports.py's module docstring.
+  #
+  # NO VINTAGE AXIS, AND THAT IS THE PRODUCER'S GUARANTEE RATHER THAN AN OMISSION. write_mode overwrite /
+  # vintage_retention latest-only: silver holds ONE row per (as_of_date, crop_slug) and each capture is a
+  # NEW observation, not a revision of an older one -- the ministry does not restate a past as-of, and
+  # build_silver FAILS CLOSED (MinagroConflictError) if two captures ever carry different values for one
+  # key. data_date is therefore the right semantics; there is no vintage ROW_NUMBER on this branch at
+  # all, so no grain_cols and no vintage_tiebreak are expressible or needed (the engine-order tie hazard
+  # the F2 Branch-A break named requires the vintage branch, which this card never enters).
+  #
+  # PHYSICAL LAYOUT: FLAT (partition_mode flat, projection forbidden, partition_keys [], one object under
+  # the flat root). partition_cols is declared EMPTY and there is NO year_col -- there is no projected
+  # grid to prune, so there is no Jul-2026 LIST-storm class here, and a partition_col that is not a real
+  # Glue partition key is a hard reconcile_numbers failure (SILVER-F047 / the mpoc_stock_comparison
+  # rule). The guard's CAST(as_of_date AS varchar) is the correct compare on both backends: as_of_date is
+  # a Glue `date`, not a TIMESTAMP, so the DP-5 substr normalization does not apply (the
+  # sagis_weekly_deliveries reading, byte-identical).
+  #
+  # THE TEN VALUES ARE THE PRODUCER'S OWN COMPLETENESS FLOOR, not a hand-listed set. They are exactly
+  # raw_to_bronze/minagro_grain_exports.REQUIRED_CROP_SLUGS, and the parse HARD-FAILS a capture missing
+  # any of them ("an absent wheat row reads to a desk as a collapse in wheat exports rather than as a
+  # parse failure"), so the fence and the physical DISTINCT set are one universe by construction rather
+  # than by luck. The opposite case is deliberately asymmetric: an UNKNOWN label (the ministry adding,
+  # say, an oats row) is logged and skipped, never fatal -- so a new commodity would be dark here until
+  # CROP_LABELS and this fence widen TOGETHER, which is the same one-change discipline the nass_annual
+  # card states for its projection enum.
+  #
+  # THE MEASURED LEAK THE COMMODITY FENCE ALSO CLOSES, which is why "ALWAYS PASS A COMMODITY" is in the
+  # notes as a hazard and not as etiquette: with no commodity, agg=latest compiles to
+  # `ORDER BY as_of_date DESC, knowledge_date, value LIMIT 1` -- knowledge_date ties across all ten rows
+  # of one snapshot, so the tiebreak falls through to `value` ASCENDING and the read returns the SMALLEST
+  # number in the table. That is the rye row, a true 0.0, wearing whatever label the caller had in mind:
+  # "Ukraine has exported nothing". The citrus card's unpinned-headline hazard, arriving through a
+  # zero-valued row instead of through a mis-parsed fragment, and pinned in tests/unit/
+  # test_capability_wiring.py rather than trusted to prose.
+  silver_minagro_grain_exports:
+    description: >
+      MINAGRO (Ukraine's Ministry of Agrarian Policy and Food) -- the Ukrainian State Customs table of
+      GRAIN, PULSE and FLOUR EXPORTS, marketing-year cumulative, in THOUSAND TONNES (kt). One row per
+      as-of date x crop row: for each crop the season-to-date total since the marketing year opened on
+      1 July, how much of that total came in the CURRENT CALENDAR MONTH, and the same two figures for
+      the PREVIOUS marketing year at the same point of the season -- the ministry's own year-ago
+      comparison, printed on the row. This is what physically cleared Ukrainian customs, an OBSERVED
+      export pace and not a forecast. UKRAINE ONLY, and there is no destination axis at all: it says how
+      much left the country, never where it went. The ministry republishes the page IN PLACE roughly
+      weekly, so every row is one snapshot of a running total; the series accumulates as each weekly
+      capture lands and its history extends BACKWARD as archived captures are added, so read the as-of
+      stamps you actually get back rather than assuming a span.
+    grain: "one row per as_of_date x crop_slug (one weekly snapshot of the ministry's cumulative table)"
+    shape: wide
+    commodity_col: crop_slug             # the ministry's ROW LABEL, NOT a contract slug (see notes)
+    # D-PQ CLASS-1 fence: the ten row labels this table physically carries, DECLARED, so an off-list ask
+    # (corn_cbot, a US wheat slug, sunflower oil, a Russian crop) is REFUSED at spec level with a
+    # teaching error before any SQL is compiled. The list is the producer's REQUIRED_CROP_SLUGS -- the
+    # completeness floor build_bronze hard-fails on -- so the fence and the physical DISTINCT set cannot
+    # drift apart. The same facts are said again in `notes` on purpose: the notes teach, this enforces.
+    commodity_values: [grains_pulses_total, wheat, barley, rye, corn,
+                       wheat_flour, other_flour, flour_total, flour_grain_equivalent,
+                       grain_flour_total]
+    country_col: null                    # SINGLE-GEOGRAPHY table: every row is national Ukraine.
+    #                                      Deliberately not declared -- there is no geography to select,
+    #                                      and passing country= on a card with no country_col is SILENTLY
+    #                                      IGNORED (query._filters), so the fence has to be prose. The
+    #                                      fnc_colombia_monthly idiom; see notes.
+    period_type: date
+    date_col: as_of_date                 # the table's OWN "as of" date; a physical Glue DATE column
+    knowledge_semantics: data_date
+    knowledge_date_col: as_of_date       # the as-of IS the knowledge date -- one date, declared by the
+    #                                      data, identical in the raw key, in bronze and in silver
+    publication_lag_days: 0              # measured: the CMS publish stamp and the as-of date are the
+    #                                      SAME DAY (09:05 Kyiv), so a row is citable only on the day it
+    #                                      published; the residual is intra-day on a weekly series
+    partition_cols: []                   # flat object; projection FORBIDDEN, no LIST surface, no year_col
+    metrics:
+      my_cumulative_kt:
+        unit: "kt"
+        desc: >
+          MARKETING-YEAR CUMULATIVE exports of that crop in THOUSAND TONNES -- the running season-to-date
+          total since the marketing year opened on 1 July. A LEVEL, not a flow: within a season it only
+          ever rises, and it resets at the next 1 July.
+      month_to_date_kt:
+        unit: "kt"
+        desc: >
+          the part of that cumulative exported so far in the CURRENT CALENDAR MONTH ("of which"), in
+          thousand tonnes. It is INCLUDED in my_cumulative_kt and is never added to it, and it resets on
+          the 1st -- so it is a month-TO-DATE figure, and a completed monthly total only in the last
+          capture before the month turns.
+      prior_my_cumulative_kt:
+        unit: "kt"
+        desc: >
+          the PREVIOUS marketing year's season-to-date cumulative for the same crop at the same point of
+          the season, as the ministry prints it on that same row -- the built-in year-ago comparison.
+          Use it for pace; do not fetch a second as-of a year back.
+      prior_my_month_kt:
+        unit: "kt"
+        desc: >
+          the previous marketing year's same-month figure at that same point of the season -- the
+          year-ago twin of month_to_date_kt, printed on the same row.
+    notes: >
+      UKRAINE AND NOTHING ELSE, AND THERE IS NO COUNTRY FILTER ON THIS CARD. Every row is the NATIONAL
+      Ukrainian export total counted by the State Customs Service and republished by the ministry. There
+      is no Russian, Kazakh, Romanian, Bulgarian, EU or aggregate "Black Sea" figure in this table:
+      Ukraine is ONE origin of the Black Sea complex and is never a proxy for the corridor as a whole and
+      never a proxy for Russia. A `country` argument is not offered and passing one changes NOTHING -- the
+      read still returns Ukraine -- so say "Ukraine" out loud whenever you quote a figure from here. For
+      Russia, or for USDA's own view of Ukraine's marketing-year balance, use silver_psd; for USDA's
+      month-over-month revisions to Ukrainian PRODUCTION use silver_wap_table01_revisions with
+      country='ukraine'.
+      AND THERE ARE NO DESTINATIONS. This card says how much left Ukraine, never where it went: there is
+      no destination, buyer, port or grade column anywhere in the table. "How much Ukrainian wheat went to
+      Egypt / China / the EU" is NOT ANSWERABLE here -- decline rather than reaching for a US destination
+      table, because silver_esr (sold) and silver_fgis (inspected, by destination) are US-ORIGIN flows and
+      answer a question about a different exporter entirely.
+      ONE LOOKUP = ONE METRIC AND ONE CROP. This card carries four metrics on a free crop axis with no
+      default on either. `metric` is REQUIRED and there is no all-metrics and no all-crops read, so wheat
+      against corn is one call per (metric, crop) pair, and a call that omits `metric` is rejected before
+      anything is queried and still costs you a lookup from the budget.
+      ALWAYS PASS A COMMODITY, AND THIS IS A MEASURED HAZARD RATHER THAN ETIQUETTE. With no crop named,
+      a latest read orders by the as-of date and then breaks the ten-way tie on the VALUE ascending, so it
+      returns the SMALLEST number in the snapshot -- which is the rye row, a published 0.0, wearing
+      whatever label the question had in mind. The headline row of an unpinned read is precisely the row
+      you must never cite. Name the crop.
+      commodity = THE MINISTRY'S ROW LABEL, NOT A CONTRACT SLUG, and exactly these ten exist: wheat,
+      barley, rye, corn, grains_pulses_total, wheat_flour, other_flour, flour_total,
+      flour_grain_equivalent and grain_flour_total. corn_cbot, soft_red_winter_wheat_cbot, a NASS crop
+      label, sunflower or sunflower oil, and any other origin's crop are not in this table and are refused
+      before any SQL runs; decline rather than substituting a different crop or a different exchange's
+      slug. Note that SUNFLOWER OIL -- Ukraine's largest ag export by value -- is NOT here: this is the
+      grain, pulse and flour table only.
+      THE TEN ROWS OVERLAP AND MUST NEVER BE SUMMED TOGETHER. grains_pulses_total is the total of all
+      grains AND pulses, and the four named cereals are a SUBSET of it: wheat + barley + rye + corn does
+      NOT equal the total, because the pulses and the minor grains are inside it and are not broken out --
+      so never present the four as if they added up, and never call the residual missing data.
+      wheat_flour + other_flour = flour_total. flour_grain_equivalent is that SAME flour restated as the
+      grain it took to mill it, so flour is in the table TWICE in two different weights. grain_flour_total
+      is the ministry's own grand total and equals grains_pulses_total + flour_grain_equivalent. Pick the
+      total OR the parts, never both, and never add a flour-weight figure to a grain figure -- only
+      flour_grain_equivalent is commensurable with grain at all.
+      kt = THOUSAND TONNES. A reading of 1,291 kt is 1.291 MMT, i.e. 1,291,000 tonnes. Quote it as
+      thousand tonnes (or convert explicitly and say you did); never present a kt figure as tonnes, which
+      is wrong by a factor of a thousand, and never set one beside silver_psd's or silver_wasde's `_mt`
+      columns without converting first -- those are RAW metric tonnes.
+      A PUBLISHED 0.0 IS DATA, NOT ABSENCE. rye in particular prints a genuine 0.0 in all four columns in
+      the weeks Ukraine ships none, and that is an OBSERVATION -- "no rye has moved this season" -- not a
+      missing value, not a gap and not a parse failure. Report the zero as the finding it is. An absent
+      measurement would be NULL, which is a different thing and must be reported as unknown rather than as
+      zero.
+      THE CUMULATIVE IS A RUNNING TOTAL AND THE SEASON RESETS ON 1 JULY. Ukraine's marketing year runs
+      1 July to 30 June, so my_cumulative_kt climbs through the season and drops back to near zero at the
+      turn. A difference between two as-ofs INSIDE one marketing year is the tonnage exported between
+      those two captures -- a pace, and a legitimate read. A difference ACROSS the 1 July boundary is
+      MEANINGLESS and must never be narrated as a collapse in exports. For the same reason a cumulative
+      here is never differenced against a weekly FLOW from another table (silver_esr weekly sales,
+      silver_fgis weekly inspections): a running total and a weekly flow are different objects.
+      month_to_date_kt IS INSIDE THE CUMULATIVE, NEVER BESIDE IT. It is the ministry's "of which" column,
+      so adding it to my_cumulative_kt double-counts the month. It resets on the 1st of each calendar
+      month, so an early-month capture prints a small number that is NOT a monthly total and must never be
+      annualised or compared with a full month; only the last capture before the month turns approximates
+      the completed month.
+      USE THE PRIOR-YEAR COLUMNS FOR THE YEAR-AGO COMPARISON -- DO NOT FETCH A SECOND AS-OF.
+      prior_my_cumulative_kt and prior_my_month_kt are the ministry's OWN year-ago figures for the same
+      crop at the same point of the season, printed on the same row, so "is the pace running ahead of or
+      behind last year" is ONE lookup and a ratio of two numbers you already hold. Pinning an as-of twelve
+      months back answers a DIFFERENT question -- that season's own snapshot, at a different calendar date,
+      and possibly a date this table holds no capture for. The year-ago comparison date is the ministry's
+      own basis and is not carried as a column, so describe it as "the same point last season" and never
+      as an exact date.
+      THE AS-OF IS THE PERIOD AXIS AND IT IS WEEKLY-IRREGULAR. The ministry updates this page IN PLACE,
+      roughly weekly, and each row is one snapshot stamped with the table's own as-of date. There is NO
+      vintage axis: a past as-of is never restated, so two rows are two OBSERVATIONS and never two
+      versions of one figure -- never difference two rows and call the result a revision. agg=latest
+      returns the newest snapshot on or before the as-of, which is the right shape for "where does the
+      pace stand"; window a stretch with period_start/period_end as 'YYYY-MM-DD' against the as-of date.
+      Captures are IRREGULAR -- a week can be missing and the gap between two rows is not always seven
+      days -- so quote the as-of date on every figure, never assume the previous row is exactly a week
+      earlier, and never call a dated reading 'current'.
+      COVERAGE GROWS FROM BOTH ENDS, SO NEVER STATE THIS TABLE'S SPAN FROM MEMORY. New captures extend the
+      series forward every week and archived captures extend it BACKWARD, so both the oldest and the
+      newest readable as-of move. Read the as-of stamps of the rows you actually got back and cite those;
+      if a requested date returns nothing, say no capture is held for it rather than presenting the
+      nearest earlier snapshot as though it were that date -- a latest read on this card silently answers
+      with the newest capture on or before your as-of, which can be older than you assumed.
+      CROSS-TABLE: THIS IS THE CUSTOMS COUNT, NOT THE BALANCE SHEET. silver_psd carries USDA's ESTIMATE
+      and forecast of Ukraine's marketing-year exports in raw metric tonnes; this card carries what
+      actually cleared customs, week by week, in thousand tonnes. They are different objects with
+      different units and different authors -- never mix them into one figure, and treat a divergence
+      between them as a real question (USDA's forecast versus the realised pace) rather than as an error.
+      For US export pace use silver_esr (sold) and silver_fgis (inspected and loaded); for the macro
+      pressure behind Ukrainian export-restriction risk use silver_food_cpi.

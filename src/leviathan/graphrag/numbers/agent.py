@@ -708,6 +708,19 @@ FUTURES_EOD_COVERAGE_TEMPLATES: dict[str, str] = {
     "uncovered": ("there is no per-delivery-month record for that contract here at all, so there is no "
                   "named-expiry level and no curve to read for it -- nothing below should be read as "
                   "that contract's own delivery-month price"),
+    # FLOOR-AWARE TWIN (owner word 2026-08-20; the defect was pre-existing since W3.2 and went
+    # conspicuous when the D-PR-24 MATIF flip minted a two-week-old floor). futures_eod_route reaches
+    # 'uncovered' by TWO paths: coverage_start_for RAISED (no record anywhere -- DCE, Bursa; floor is
+    # None; "at all" is TRUE and the text above stays byte-identical for it), or covers() said 'legacy'
+    # but the retiring continuous card does not serve the slug (rapeseed ZCE pair, both JSE boards,
+    # MIAX HRSW, the three MATIF slugs; floor is KNOWN and "at all" was a lie the engine told while
+    # holding the date in its hand). The template key is selected inside
+    # futures_eod_coverage_template; the ROUTE name stays 'uncovered' everywhere.
+    "uncovered_floored": ("there is no per-delivery-month record for that contract here before "
+                          "{floor} -- the record begins on that date, and no continuous series stands "
+                          "in for the earlier period, so there is no named-expiry level and no curve "
+                          "to read for that period -- nothing below should be read as that contract's "
+                          "own delivery-month price"),
 }
 FUTURES_EOD_COVERAGE_CLASSES: tuple[str, ...] = ("straddle", "uncovered")
 
@@ -870,7 +883,13 @@ def futures_eod_legacy_provenance(floor_iso: Optional[str]) -> str:
 
 
 def futures_eod_coverage_template(route: str, floor_iso: Optional[str]) -> str:
-    """The verbatim decline text for a straddling window / an uncovered contract."""
+    """The verbatim decline text for a straddling window / an uncovered contract.
+
+    'uncovered' picks its text by whether a floor is KNOWN (see the template comment): floor present ->
+    the floored twin that names the date the record begins; floor None -> the original "at all" text,
+    byte-identical to W3.2, because for a venue with no record anywhere it is simply true."""
+    if route == "uncovered" and floor_iso:
+        return FUTURES_EOD_COVERAGE_TEMPLATES["uncovered_floored"].format(floor=floor_iso)
     t = FUTURES_EOD_COVERAGE_TEMPLATES[route]
     return t.format(floor=floor_iso) if floor_iso else t
 

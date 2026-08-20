@@ -223,6 +223,25 @@ class TestCoverageDeclinesAreVerbatim:
         assert na.futures_eod_coverage_preface("serve", _CORN_FLOOR) == ""
         assert na.futures_eod_coverage_guard([]) is None
 
+    def test_a_floored_uncovered_names_the_floor_and_never_claims_at_all(self):
+        """Owner word 2026-08-20: futures_eod_route reaches 'uncovered' holding a KNOWN floor for the
+        venues the retiring continuous card does not serve (ZCE rapeseed pair, both JSE boards, MIAX
+        HRSW, the three MATIF slugs). The old single template said "at all" while the route held the
+        date in its hand -- a decline that lied about its own scope. The floored twin names the date."""
+        t = na.futures_eod_coverage_template("uncovered", _CORN_FLOOR)
+        assert "{floor}" not in t and t.count(_CORN_FLOOR) == 1
+        assert "at all" not in t
+        assert "begins on that date" in t
+
+    def test_a_floorless_uncovered_is_byte_identical_to_the_ratified_w32_text(self):
+        """The floor-is-None path (DCE, Bursa -- no record ANYWHERE) keeps the W3.2 text verbatim,
+        because for a venue with no record "at all" is simply true. Pinned as the exact string so the
+        floored twin can never bleed into it."""
+        assert na.futures_eod_coverage_template("uncovered", None) == (
+            "there is no per-delivery-month record for that contract here at all, so there is no "
+            "named-expiry level and no curve to read for it -- nothing below should be read as "
+            "that contract's own delivery-month price")
+
 
 # -- the ADVERSARIAL rows: the guard on the real executor, not just the pure router -----------------
 class _Blk:
@@ -475,8 +494,13 @@ class TestCoverageGuardReachesAnUnwindowedEraAsk:
 def test_the_seam_c_caveat_is_muted_when_it_would_offer_a_fallback_that_does_not_exist():
     """Every FUTURES_DECLINE_TEMPLATE ends by offering the continuous front-month level. On an UNCOVERED
     venue that offer is FALSE -- the retiring card serves 12 of 31 contracts -- so the reader was told a
-    fallback is available that would raise if asked for, stacked immediately in front of a decline saying
-    there is no record for that contract at all. The coverage template alone is the honest statement."""
+    fallback is available that would raise if asked for, stacked immediately in front of a decline
+    denying the record exists. The coverage template alone is the honest statement.
+
+    RE-KEYED 2026-08-20 (owner word, the floored-uncovered twin): this drive uses french_wheat_matif,
+    which the D-PR-24 flip gave a floor (2026-08-06) -- so its honest half is now the floored template
+    that names the date, not the floorless "at all" text. The floorless text still renders verbatim for
+    the no-record-anywhere venues (DCE/Bursa), pinned elsewhere in this file."""
     q = "what does the Euronext milling wheat futures curve look like"
     out, _ = _drive(q, {"table": TABLE, "metric": "settle", "commodity": "french_wheat_matif",
                         "contract_month": "2026-12,2027-03", "agg": "latest"}, [])
@@ -484,7 +508,8 @@ def test_the_seam_c_caveat_is_muted_when_it_would_offer_a_fallback_that_does_not
     assert out["futures_coverage_guard"] == "uncovered"
     assert "futures_decline_guard" not in out                 # MUTED: no fallback to advertise
     assert na.FUTURES_DECLINE_TEMPLATES["curve"] not in out["answer"]
-    assert na.futures_eod_coverage_template("uncovered", None) in out["answer"]   # the honest half stays
+    assert na.futures_eod_coverage_template("uncovered", "2026-08-06") in out["answer"]  # the honest half
+    assert "at all" not in out["answer"]                      # the retired lie must not linger for a floored venue
 
 
 def test_the_seam_c_mute_is_narrow():

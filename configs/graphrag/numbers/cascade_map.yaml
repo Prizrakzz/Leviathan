@@ -520,6 +520,31 @@ refs:
 #     change rule -- absolute dollars-per-bushel, sign stated rather than inferred, roll boundaries
 #     excluded from the window. Until then the card serves lookups, which is what the DK-13 gap asked
 #     for, and the cascade stays out.
+#   -- LIGHT THE CARD (2026-08-20), the MINAGRO Ukrainian export card. Register extended in the SAME
+#      change that lands the card, for the reason this block's own header gives.
+#   silver_minagro_grain_exports -- DEFERRED (Light-the-card), and the near-neighbour is REAL, so the
+#     refusal is argued rather than "nothing asks for it". The Black Sea driver ids (
+#     BlackSea_export_competition, BlackSea_export_quota_war, blacksea_export_disruption) DO name
+#     Ukrainian export availability, and they already carry `silver_ref: export` -- which resolves to
+#     silver_psd.exports_mt with country_rule: region. That leg is DARK on exactly those nodes, and
+#     measurably so: their region tokens (Black_Sea, Russia_Ukraine, Black_Sea_EU, "EU;Ukraine;Black_Sea")
+#     are all in region_map.unresolved below, so the node skips to qualitative. A Ukraine-scoped weekly
+#     customs leg is therefore the obvious candidate to light them -- and it is refused here on THREE
+#     mechanical grounds, none of which this change may take:
+#       (1) THE KEYING CANNOT EXPRESS IT. Every ref above keys "commodity=contract slug"; this card's
+#           commodity axis is the ministry's ROW LABEL (wheat, barley, corn, rye), which is not a
+#           contract slug and has no translation knob in this map -- the same wall the cattle_beef /
+#           fishmeal GN-1 bindings hit, and the reason both ship silver_status: planned instead.
+#       (2) THE REGION RULE WOULD HAVE TO GO TOO. Those drivers are country_rule: region on purpose;
+#           this table has ONE geography and no country column at all, so a bind needs country_rule:
+#           none, which changes what the EXISTING `export` ref means for every other node that uses it.
+#       (3) THE UN-DEFER GATE ORDER, common to this whole block: the DAG attribute names the series
+#           FIRST, then a row here. `export` names a USDA marketing-year balance-sheet quantity, not a
+#           weekly customs count, and re-pointing it would silently change what nine contracts read.
+#     UN-DEFER GATE: a driver attribute that NAMES the Ukrainian weekly export pace (a new silver_ref,
+#     not a re-point of `export`), plus a keying knob that maps a row label to the commodity axis. Until
+#     then the card serves lookups -- which is what the dark corridor question actually asked for -- and
+#     the cascade stays out.
 
 # ── region_map (RF-2) -- driver region token -> table scope, for country_rule=region refs ──────────────
 # TOP-LEVEL sibling of refs (load_map returns refs only; cascade.load_region_map reads this block).

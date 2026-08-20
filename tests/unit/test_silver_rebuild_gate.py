@@ -149,6 +149,20 @@ _EXPECTED_BRANCH_A = frozenset({
     # As with every entry above: the in-VPC load has NOT run. Unlike every entry above, it will
     # never gain a numbers_parity SAMPLE_COMMODITY row -- the card has no commodity axis at all.
     "gold_board_crush",
+    # LIGHT THE CARD (2026-08-20) -- silver_minagro_grain_exports, on the SAME served-card rule and
+    # DELIBERATELY, not to make a test pass: the card landed this wave, and a served card that is not
+    # mirrored raises UndefinedTable on the pg backend and falls back to Athena SILENTLY. The fallback
+    # is cheap here (FLAT, projection-forbidden, one small object -- not the projected-grid LIST-storm
+    # class), and cheapness is exactly how a silent-fallback path gets normalised.
+    # THE FACT TO READ BEFORE INTERPRETING A GATE RESULT, and it is unlike every entry above: this
+    # table GROWS FROM BOTH ENDS -- a weekly capture lands forward and an archive backfill lands
+    # captures behind it -- so the Branch-A reload is not a one-off; a mirror left un-refreshed answers
+    # from a stale snapshot while Athena carries the new week. Its V001 floor is the generator's
+    # provisional 0.5 with NO overrides: the parse fills all four value columns on every row it emits
+    # (a published 0.0 is a real value, not a null), so a non-null breach here is a producer defect and
+    # never a structural absence. As with every entry above: the in-VPC load has NOT run, and
+    # numbers_parity carries no SAMPLE_COMMODITY row for it yet.
+    "silver_minagro_grain_exports",
 })
 
 
@@ -157,7 +171,17 @@ def test_branch_selection_all_45_tables():
     silver = sreg.load_registry()
     names = silver.names()
     # D-EC DK-13 (2026-08-20): + gold_board_crush, the first silver-derived gold table.
-    assert len(names) == 46, f"expected 46 F010 tables, got {len(names)}"
+    # MINAGRO (2026-08-20): + silver_minagro_grain_exports. It rode Branch B for the hours between the
+    # producer landing and the card landing; the card put it in the pg mirror the same day, so it is
+    # Branch A now (the served-card rule, see the roster entry above).
+    # THE FOUR-FAMILY WAVE CLOSE (2026-08-20): 47 -> 50. All three additions (+ silver_ams_gtr,
+    # + silver_eex_freight, + silver_moex_agro_indices, on top of minagro above) land on BRANCH B and
+    # the Branch-A roster below does NOT move -- each declares `consumers: none` under the
+    # four-checkmark law (no numbers card until a cloud run proves rows), so select_branch's
+    # numbers-served half is false for all three. They join Branch A the day their cards land, by the
+    # same served-card rule minagro just went through; until then a Branch-A entry would promise a pg
+    # mirror refresh for a table with no rows and no card to read them.
+    assert len(names) == 50, f"expected 50 F010 tables, got {len(names)}"
 
     branch_a = {t for t in names if g.select_branch(t, silver_reg=silver) == g.BRANCH_A}
     branch_b = {t for t in names if g.select_branch(t, silver_reg=silver) == g.BRANCH_B}
@@ -171,7 +195,9 @@ def test_branch_selection_all_45_tables():
                             "a table LEAVING it loses its only mirror refresh path while staying "
                             "served -- update this roster deliberately, never to make a test pass"}
     # D-EC DK-13: + gold_board_crush (the served-card rule, applied to a GOLD table for the second time)
-    assert len(branch_a) == 36                        # 20 + Track 1's six + T2's six + T3's three + DK-13's one
+    # LIGHT THE CARD: + silver_minagro_grain_exports (the same rule, applied the day its card landed)
+    assert len(branch_a) == 37                        # 20 + Track 1's six + T2's six + T3's three
+    #                                                   + DK-13's one + minagro
     assert branch_a | branch_b == set(names)          # partition: no table is UNKNOWN in the real registry
     assert not (branch_a & branch_b)
 
@@ -888,7 +914,25 @@ def test_main_exits_zero_and_prints_a_grepable_warn_line(monkeypatch, capsys, tm
 # venue capture lanes: the wrong on-call and the wrong diagnosis. UN-ORPHAN GATE: if a board_crush
 # DAG descriptor is ever armed, it takes the table in its OWN gate_tables and this roster shrinks
 # back to one.
-_EXPECTED_ORPHANS = frozenset({"gold_pattern_records", "gold_board_crush"})
+#
+# LIGHT THE CARD (2026-08-20): silver_minagro_grain_exports joins the roster, and it is the FIRST
+# member that is not a derivation -- it has a real external source, so the fence's own remedy sentence
+# ("adding it to a family's gate_tables is the fix") has to be answered rather than waved past. It
+# cannot be gated today because THERE IS NO DAG DESCRIPTOR TO GATE IT WITH, and none can be armed: the
+# source sits behind a Cloudflare managed challenge that passes local headless Chromium and REFUSES
+# Fargate outright (measured 2026-08-20), so this leg is the estate's one deliberately laptop-side
+# scheduled command (jobs/ingest/run_minagro_pipeline.py, run weekly from a residential vantage) and
+# its F010 producer.batch_task is null. Writing a configs/silver/dags/minagro.json to satisfy this
+# roster would arm a schedule whose command can never run in the cloud -- the exact unrunnable-command
+# class the estate has already been burned by -- so the honest state is a NAMED orphan, not an invented
+# owner. It enters the C002 walk because the numbers card landed (contract_check walks the numbers
+# registry), which is precisely the arrival this fence exists to make visible.
+# UN-ORPHAN GATE: a cloud-runnable capture path (a challenge-passing fetch from AWS, or a vantage the
+# venue accepts) -> a real DAG descriptor -> the table in ITS OWN gate_tables, in that order. Until
+# then a contract drift on this table WARNs estate-wide and reds nobody, and the on-call answer is the
+# laptop pipeline rather than a Batch retry.
+_EXPECTED_ORPHANS = frozenset({"gold_pattern_records", "gold_board_crush",
+                               "silver_minagro_grain_exports"})
 
 
 def test_the_c002_walk_set_is_wider_than_the_owned_set_and_the_orphan_is_named():
