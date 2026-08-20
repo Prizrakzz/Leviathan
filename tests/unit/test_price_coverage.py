@@ -42,13 +42,32 @@ class TestTheMapIsMeasuredNotAssumed:
         assert FC.PRICE_COVERAGE_START["campinas_corn_reference_bmf"] == date(2004, 8, 2)
 
     def test_an_unlanded_venue_is_ABSENT_rather_than_permissive(self):
-        """The three W1c browser venues have no canonical data, so they must have no floor. An
-        entry with an optimistic date would serve a curve for a venue whose bytes never landed."""
-        w1c = [s for s, rec in FC.CONTRACT_MAP.items()
-               if rec["source"] in ("dce", "euronext_matif", "bursa")]
-        assert w1c, "fixture guard: the W1c slugs should exist in CONTRACT_MAP"
-        for slug in w1c:
+        """A venue with no canonical data must have no floor. An entry with an optimistic date
+        would serve a curve for a venue whose bytes never landed.
+
+        RE-KEYED 2026-08-20 (D-PR-24 ANSWER FLIP): euronext_matif LEFT this set. Its bytes landed
+        -- two clean weeks, 108/90/90 rows, trade_dates 2026-08-06..2026-08-19 continuous -- so it
+        now carries a MEASURED floor and is asserted by the sibling test below. DCE and Bursa are
+        still unlanded and keep this test non-vacuous. The rule is unchanged: absence is decided by
+        the bytes, never by the arm."""
+        unlanded = [s for s, rec in FC.CONTRACT_MAP.items() if rec["source"] in ("dce", "bursa")]
+        assert unlanded, "fixture guard: the unlanded browser slugs should exist in CONTRACT_MAP"
+        for slug in unlanded:
             assert slug not in FC.PRICE_COVERAGE_START
+
+    def test_the_matif_floor_is_the_first_BANKED_trade_date(self):
+        """The other half of the same rule, in the affirmative. D-PR-24 armed the leg 2026-08-05
+        and the ANSWER FLIP landed 2026-08-20 by owner word after two clean weeks. The floor is
+        2026-08-06, the first trade date actually banked in the canonical bytes -- NOT the
+        2026-08-05 arm date, and NOT the 2026-07-29 orphan captures, which were never promoted.
+        Either of those would claim coverage the bytes do not have, which is precisely the error
+        the KCBT and CEPEA rows above exist to remember."""
+        matif = sorted(s for s, rec in FC.CONTRACT_MAP.items() if rec["source"] == "euronext_matif")
+        assert len(matif) == 3, matif
+        for slug in matif:
+            assert FC.PRICE_COVERAGE_START[slug] == date(2026, 8, 6), slug
+            assert FC.PRICE_COVERAGE_START[slug] > date(2026, 7, 29), (
+                f"{slug} claims the orphan-capture day as coverage")
 
 
 class TestCoverageStartFailsClosed:

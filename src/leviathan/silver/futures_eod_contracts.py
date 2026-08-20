@@ -211,23 +211,33 @@ CASH_INDEX_SLUGS: frozenset[str] = frozenset(
 # entirely before it serves a LEVEL from the legacy continuous card with an explicit provenance
 # sentence; STRADDLING declines rather than silently splicing two different series.
 #
-# ABSENT slug == NOT SERVED: a slug with no entry has no per-contract record at all (the three W1c
-# browser venues are absent because their canonical data has not landed). Callers must treat a
-# missing key as "no coverage", never as "covered since forever" -- coverage_start_for() below
+# ABSENT slug == NOT SERVED: a slug with no entry has no per-contract record at all (the DCE and
+# Bursa browser venues are absent because their canonical data has not landed). Callers must treat
+# a missing key as "no coverage", never as "covered since forever" -- coverage_start_for() below
 # fails closed so that distinction cannot be fudged.
 #
-# D-PR-24 (2026-08-05) -- THE MATIF LEG IS ARMED; THE SERVING FLIP IS NOT. Probe S3 resolved the
-# SETTL. semantics (three captures, 08-04/08-05: intra-session the column shows the PRIOR completed
-# settlement and the +/- computes against it; it rolls to the finished session's own settlement at
-# the ~18:30 Paris evening publication, so the 22:30Z capture is same-day -- no T-1 risk). The
-# euronext capture+silver legs now ride futures_eod_free; the arm declaration, the probe record and
-# the delisting runbook live at configs/silver/dags/unarmed/futures_eod_browser.json, pinned by
+# D-PR-24 (2026-08-05) -- THE MATIF LEG WAS ARMED. Probe S3 resolved the SETTL. semantics (three
+# captures, 08-04/08-05: intra-session the column shows the PRIOR completed settlement and the +/-
+# computes against it; it rolls to the finished session's own settlement at the ~18:30 Paris evening
+# publication, so the 22:30Z capture is same-day -- no T-1 risk). The euronext capture+silver legs
+# ride futures_eod_free; the arm declaration, the probe record and the delisting runbook live at
+# configs/silver/dags/unarmed/futures_eod_browser.json, pinned by
 # tests/unit/silver/test_matif_arm_declaration.py.
-# TWO GATES, NOT ONE -- and only the FIRST is discharged. Rows may now land in silver, but the
-# three euronext_matif slugs stay ABSENT from this dict, so every MATIF lookup still declines
-# before any SQL compiles. Adding their entries here is the separate serving FLIP: it happens only
-# after landed canonical rows are measured (coverage start = first landed trade_date), which is
-# exactly what makes arm and flip separable.
+#
+# D-PR-24 THE ANSWER FLIP (2026-08-20) -- THE SECOND GATE IS NOW DISCHARGED TOO. The arm and the
+# flip were deliberately separable: rows landing in silver never moved an answer by themselves,
+# because a slug absent from this dict declines before any SQL compiles. The flip is executed by
+# OWNER WORD ("what's stopping us from flipping it already?") after TWO CLEAN WEEKS of nightly
+# fires -- MEASURED on the canonical bytes 2026-08-20: french_wheat_matif 108 rows,
+# french_maize_matif 90, french_rapeseed_matif 90, trade_dates CONTINUOUS 2026-08-06 .. 2026-08-19,
+# zero red fires on the leg. The floor is the FIRST BANKED TRADE DATE (2026-08-06), measured, not
+# the arm date and not the first capture: the 2026-07-29 orphan captures were never promoted to
+# canonical, so claiming them would be the CEPEA nine-year-hole shape in miniature.
+# WHAT THE FLOOR BUYS AND WHAT IT DOES NOT: a window on or after 2026-08-06 now SERVES the
+# per-delivery-month curve; a window entirely before it routes 'legacy', and because MATIF is not
+# one of the continuous card's 12 unit_overrides that becomes 'uncovered' -- an honest decline that
+# NAMES the floor instead of raising; a window straddling 2026-08-06 DECLINES as a straddle. The
+# rapeseed_meal_zce / JSE precedent (a floor with no legacy lane) is the shape being followed.
 # ---------------------------------------------------------------------------
 PRICE_COVERAGE_START: dict[str, date] = {
     "arabica_coffee": date(2018, 12, 24),                 # databento_ifus_impact
@@ -237,6 +247,12 @@ PRICE_COVERAGE_START: dict[str, date] = {
     "cocoa": date(2018, 12, 24),                          # databento_ifus_impact
     "corn_cbot": date(2010, 6, 6),                        # databento_glbx_mdp3
     "cotton": date(2018, 12, 24),                         # databento_ifus_impact
+    # euronext_matif -- armed 2026-08-05 by owner word; ANSWER FLIP executed 2026-08-20 by owner
+    # word after two clean weeks (108 / 90 / 90 rows measured, trade_dates 2026-08-06..2026-08-19
+    # continuous, zero red fires). Floor = the FIRST BANKED TRADE DATE, not the arm date.
+    "french_maize_matif": date(2026, 8, 6),               # euronext_matif
+    "french_rapeseed_matif": date(2026, 8, 6),            # euronext_matif
+    "french_wheat_matif": date(2026, 8, 6),               # euronext_matif
     "frozen_orange_juice": date(2018, 12, 24),            # databento_ifus_impact
     "hard_red_spring_wheat_mgex": date(2025, 9, 9),       # miax
     "hard_red_winter_wheat_kcbt": date(2014, 1, 2),       # databento_glbx_mdp3

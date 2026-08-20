@@ -2072,8 +2072,14 @@ tables:
       is a PER-DELIVERY-MONTH EOD table, distinct from silver_futures_prices (the yfinance
       CONTINUOUS front-month close), the World Bank Pink Sheet MONTHLY averages, and the USDA WASDE
       season-average FARM price. COVERAGE FLOORS: history starts 2010-06 (CME via Databento), 2018-12 (ICE
-      via Databento), 2015-10 (CZCE), 2006 (DCE) -- and JSE SAFEX has NO history at all: that series
-      starts the day its producer first runs.
+      via Databento), 2015-10 (CZCE), 2006 (DCE) -- and the venues whose producers were switched on
+      recently have NO deep history at all: that series starts the day its producer first runs. JSE SAFEX
+      begins 2026-07-29 and Euronext MATIF (the three french_* contracts) begins 2026-08-06 (measured
+      first banked trade date; the leg was armed 2026-08-05 and the serving answer flipped 2026-08-20).
+      For those two venues a question about any earlier period has no per-delivery-month record here and
+      no continuous-series fallback either -- it is DECLINED, and the decline names the date the record
+      begins. Do not read a short history as a thin market: it is a young SERIES, not a young contract,
+      and never compare its span to a Databento leg's as though both measure the same thing.
 
   gold_pattern_records:
     # T2B pattern-records ledger (plan sec 4 / D1 / D7). The engine's OWN recorded verdict history: one

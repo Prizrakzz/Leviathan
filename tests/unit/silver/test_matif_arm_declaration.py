@@ -22,13 +22,31 @@ they fire in three directions:
     ``euronext_matif`` set, or the mirrored row floors drift from the code that owns them, the file
     has become a stale story about a leg that changed underneath it.
 
-And the behavioural half, which the ARM DELIBERATELY DOES NOT CHANGE: MATIF contracts must
-DECLINE, not ERROR, and not serve. ``coverage_start_for`` raising is the fail-closed seam, but the
-raise must never reach a caller -- ``futures_eod_route`` catches it and returns
-``('uncovered', None)``, which the executor turns into ``status='declined'`` with a verbatim
-scope_note before any SQL compiles. Arming the ingest and flipping the answer are separable, and
-this file is where that separation is proven rather than claimed: rows may now land, and every
-MATIF answer is still byte-identical.
+And the behavioural half. THE ARM (2026-08-05) DELIBERATELY DID NOT MOVE IT: for two weeks rows
+landed in ``silver_futures_eod`` and every MATIF answer stayed byte-identical, because a slug absent
+from ``PRICE_COVERAGE_START`` makes ``coverage_start_for`` raise, ``futures_eod_route`` catch, and
+the executor return ``status='declined'`` before any SQL compiles. That separation was the point,
+and it held.
+
+THE ANSWER FLIP (2026-08-20, owner word -- "what's stopping us from flipping it already?") is the
+second decision, executed after two clean weeks of nightly fires: 108 / 90 / 90 rows measured on
+the canonical bytes for wheat / maize / rapeseed, trade_dates 2026-08-06..2026-08-19 continuous,
+zero red fires. All three slugs gained a floor of **2026-08-06** -- the FIRST BANKED TRADE DATE,
+measured, never the arm date and never the 2026-07-29 orphan captures (never promoted to
+canonical). No route code changed; only the map did.
+
+So this file now asserts BOTH DIRECTIONS, which is the only honest shape for a floored slug:
+
+  * ON OR AFTER the floor -- ``('serve', '2026-08-06')``. The per-delivery-month curve answers.
+  * ENTIRELY BEFORE it -- ``('uncovered', '2026-08-06')``. ``covers()`` says 'legacy', but MATIF is
+    not one of the continuous card's 12 ``unit_overrides``, so there is no legacy level to fall
+    back on and the route degrades to an honest decline that NAMES the floor instead of raising.
+    This is exactly the ``rapeseed_meal_zce`` / JSE shape (a floor with no legacy lane).
+  * STRADDLING it -- ``('straddle', '2026-08-06')``. Splicing a per-expiry series onto a
+    roll-spliced continuous one is refused by lint, not left to judgement.
+
+What survives unchanged is the fail-closed seam itself: an UNMAPPED slug still raises, and the
+raise still never reaches a caller. The DCE and Bursa browser slugs are the live proof.
 
 Hermetic: JSON + pure functions. No AWS, no Athena, no network.
 """
@@ -36,6 +54,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -170,11 +189,20 @@ class TestTheDeclarationIsRetiredAndSaysSo:
         assert "NEVER lowered" in rec["runbook"]
         assert "delist" in rec["runbook"].lower()
 
-    def test_the_flip_is_still_declared_a_separate_decision(self, marker):
-        """The whole point of separability: the arm landed and the serving answer did not move."""
+    def test_the_flip_is_recorded_as_a_separate_decision_that_has_now_HAPPENED(self, marker):
+        """The whole point of separability: the arm landed and the serving answer did not move --
+        for two weeks. The record must keep BOTH halves. Dropping 'the arm did not carry it' would
+        rewrite history into 'arming a leg serves it', which is the exact conflation the two-gate
+        design exists to prevent; dropping the flip date would leave a marker asserting a decline
+        the code no longer performs."""
         rec = marker["serving_disposition"]
         assert rec["summary"].startswith("UNCHANGED BY THE ARM")
+        assert "FLIPPED 2026-08-20" in rec["summary"]
         assert "NOT carried by D-PR-24's arm" in rec["flip_is_a_separate_decision"]
+        assert "EXECUTED 2026-08-20" in rec["flip_is_a_separate_decision"]
+        # the floor's provenance is the load-bearing half: first BANKED trade date, not the arm date
+        assert "FIRST BANKED TRADE DATE" in rec["flip_is_a_separate_decision"]
+        assert "2026-08-06" in rec["flip_is_a_separate_decision"]
 
     def test_the_vocabulary_seams_are_enumerated_rather_than_assumed(self, marker):
         """The 2026-08-03 incident class -- ONE undeclared slug reds EVERY family -- is why this
@@ -340,46 +368,110 @@ class TestTheDeclarationMatchesTheCode:
             f"({full})")
 
 
-class TestMatifStillDeclinesRatherThanErrors:
-    """The behavioural half the arm deliberately did not touch: rows may land, and the answer does
-    not move. This is what makes 'arm' and 'flip' two decisions instead of one."""
+class TestMatifAnswersOnOrAfterTheFloorAndDeclinesBeforeIt:
+    """The behavioural half, re-keyed by the 2026-08-20 ANSWER FLIP.
 
-    def test_no_matif_slug_has_a_coverage_floor(self):
-        for slug in _matif_slugs():
-            assert slug not in FC.PRICE_COVERAGE_START, (
-                f"{slug} gained a PRICE_COVERAGE_START entry -- that is the FLIP, which the D-PR-24 "
-                f"arm explicitly does not carry and which is its own reviewed change")
+    The arm (2026-08-05) left this dark on purpose and the separation held for two weeks. The flip
+    is the second decision and it moves the answer in ONE direction only: a window on or after the
+    measured floor now serves the per-delivery-month curve. Everything before it still declines,
+    and a window across it still declines -- so this class asserts BOTH directions rather than
+    swapping one blanket claim for its opposite. Nothing was deleted; the pre-floor half is the
+    same assertion it always was, now keyed to a floor instead of to an absence."""
 
-    def test_coverage_start_for_fails_closed_on_every_matif_slug(self):
-        """The fail-closed seam. It must RAISE (never return a permissive default), because a
-        default would read as 'covered since forever' for a venue whose series has just begun."""
+    # MEASURED on the canonical bytes 2026-08-20: first banked trade date, all three slugs.
+    FLOOR = date(2026, 8, 6)
+    FLOOR_ISO = "2026-08-06"
+    # inside the banked span 2026-08-06..2026-08-19; the day before the floor is the pre-floor twin.
+    POST = "2026-08-19"
+    PRE = "2026-08-05"
+
+    def test_every_matif_slug_carries_the_measured_floor(self):
+        """The FLIP itself. The floor is the first banked trade date -- never the 2026-08-05 arm
+        date, and never the 2026-07-29 orphan captures, which were never promoted to canonical.
+        Claiming either would be the CEPEA nine-year-hole shape in miniature: a coverage claim
+        wider than the bytes."""
+        assert _matif_slugs(), "fixture guard: CONTRACT_MAP must carry the euronext_matif slugs"
         for slug in _matif_slugs():
+            assert FC.PRICE_COVERAGE_START[slug] == self.FLOOR, slug
+            assert FC.coverage_start_for(slug) == self.FLOOR, slug
+
+    def test_the_fail_closed_seam_still_raises_for_an_UNMAPPED_slug(self):
+        """The flip adds three entries; it does NOT soften coverage_start_for. The seam must still
+        RAISE rather than return a permissive default, or 'no entry' would silently read as
+        'covered since forever' for the venues whose bytes still have not landed. The DCE and
+        Bursa browser slugs are the live proof, and they are asserted here so the seam keeps a
+        non-vacuous witness after MATIF stopped being one."""
+        unlanded = sorted(s for s, rec in FC.CONTRACT_MAP.items()
+                          if rec["source"] in ("dce", "bursa"))
+        assert unlanded, "fixture guard: some browser venue must still be unlanded"
+        for slug in unlanded:
+            assert slug not in FC.PRICE_COVERAGE_START
             with pytest.raises(ValueError, match="no PRICE_COVERAGE_START"):
                 FC.coverage_start_for(slug)
 
-    def test_the_route_declines_instead_of_propagating_the_raise(self):
-        """THE PIN. The ValueError above must never reach a caller: futures_eod_route catches it
-        and returns ('uncovered', None). A MATIF ask is a decline, not a 500."""
+    def test_an_ask_at_or_after_the_floor_is_ANSWERED(self):
+        """THE FLIP'S AFFIRMATIVE HALF. A point read inside the banked span, and the boundary day
+        itself, both SERVE -- the route compiles SQL against the per-delivery-month table instead
+        of declining before it."""
         from leviathan.graphrag.numbers import agent as na
         for slug in _matif_slugs():
-            assert na.futures_eod_route(_q(slug)) == ("uncovered", None), slug
+            assert na.futures_eod_route(_q(slug, asof=self.POST)) == ("serve", self.FLOOR_ISO), slug
+            # the floor DAY itself serves (covers() is >=, not >)
+            assert na.futures_eod_route(_q(slug, asof=self.FLOOR_ISO))[0] == "serve", slug
+            # and a window sitting wholly inside the banked span serves as a series too. The as-of
+            # moves WITH the window on purpose: futures_eod_window caps `hi` at the as-of (the
+            # leakage guard would anyway), so a window read at the fixture's July as-of would
+            # collapse back below the floor and route pre-coverage -- correctly, but it would be
+            # asserting the wrong thing.
+            assert na.futures_eod_route(_q(slug, asof=self.POST, agg="series",
+                                           period_start=self.FLOOR_ISO,
+                                           period_end=self.POST)) == ("serve", self.FLOOR_ISO), slug
 
-    def test_the_uncovered_route_is_a_declining_class_with_a_verbatim_note(self):
-        """The executor declines on any route in FUTURES_EOD_COVERAGE_CLASSES -- BEFORE any SQL
-        compiles -- and stamps the model-facing note on the payload."""
+    def test_an_ask_entirely_before_the_floor_still_DECLINES_and_names_the_floor(self):
+        """THE PIN THAT SURVIVES THE FLIP, in its new form. covers() calls a wholly-pre-floor
+        window 'legacy', but the retiring continuous card serves 12 of the 31 contracts and MATIF
+        is not among them -- so futures_eod_route degrades it to 'uncovered' rather than offering a
+        level that does not exist. Same shape as rapeseed_meal_zce (tests/unit/test_futures_eod.py
+        test_a_pre_coverage_ask_with_no_legacy_series_is_uncovered). Note what CHANGED: the floor
+        is now REPORTED instead of None, so the decline names the date the record begins."""
         from leviathan.graphrag.numbers import agent as na
-        assert "uncovered" in na.FUTURES_EOD_COVERAGE_CLASSES
-        note = na.futures_eod_coverage_note("uncovered", None)
+        for slug in _matif_slugs():
+            assert FC.covers(slug, date(2020, 1, 2), date(2020, 3, 2)) == "legacy", slug
+            assert not na._legacy_serves(slug), f"{slug} joined the continuous card -- re-key this"
+            for kwargs in ({"agg": "series", "period_start": "2020-01-02", "period_end": "2020-03-02"},
+                           {"agg": "series", "period_start": "1990-01-02", "period_end": "1991-01-02"},
+                           {"asof": self.PRE},
+                           {"asof": "2026-07-29"}):     # the orphan-capture day is NOT coverage
+                assert na.futures_eod_route(_q(slug, **kwargs)) == ("uncovered", self.FLOOR_ISO), \
+                    (slug, kwargs)
+
+    def test_a_window_STRADDLING_the_floor_declines_as_a_straddle(self):
+        """The straddle rule, unchanged and now reachable for MATIF for the first time: a window
+        crossing 2026-08-06 spans a per-expiry series and nothing, and joining the two would give a
+        series that means neither thing. It is refused by lint, never left to judgement."""
+        from leviathan.graphrag.numbers import agent as na
+        for slug in _matif_slugs():
+            assert FC.covers(slug, date(2026, 7, 1), date(2026, 8, 19)) == "straddle", slug
+            # as-of moves with the window: `hi` is capped at the as-of, so a straddle only exists
+            # for a read whose as-of actually reaches past the floor.
+            assert na.futures_eod_route(_q(slug, asof=self.POST, agg="series",
+                                           period_start="2026-07-01",
+                                           period_end=self.POST)) == ("straddle", self.FLOOR_ISO)
+            # straddling by ONE DAY is still a straddle -- the boundary is not a tolerance band
+            assert na.futures_eod_route(_q(slug, asof=self.FLOOR_ISO, agg="series",
+                                           period_start=self.PRE,
+                                           period_end=self.FLOOR_ISO)) == ("straddle", self.FLOOR_ISO)
+
+    def test_both_declining_routes_stay_declining_classes_with_verbatim_notes(self):
+        """The executor declines on any route in FUTURES_EOD_COVERAGE_CLASSES -- BEFORE any SQL
+        compiles -- and stamps the model-facing note on the payload. Both routes MATIF can now
+        reach are in that set, and the straddle note renders its floor rather than leaking a
+        '{floor}' placeholder at the reader."""
+        from leviathan.graphrag.numbers import agent as na
+        assert {"uncovered", "straddle"} <= set(na.FUTURES_EOD_COVERAGE_CLASSES)
+        note = na.futures_eod_coverage_note("uncovered", self.FLOOR_ISO)
         assert note.startswith("COVERAGE DECLINE --")
         assert "no per-delivery-month record" in note
-
-    def test_a_windowed_matif_ask_declines_the_same_way(self):
-        """Every window shape lands on the same verdict while the floor is absent -- there is no
-        window that accidentally serves, including one that covers the newly-armed sessions."""
-        from leviathan.graphrag.numbers import agent as na
-        slug = _matif_slugs()[0]
-        for kwargs in ({"agg": "series", "period_start": "2020-01-02", "period_end": "2020-03-02"},
-                       {"agg": "series", "period_start": "1990-01-02", "period_end": "1991-01-02"},
-                       {"agg": "series", "period_start": "2026-08-01", "period_end": "2026-08-31"},
-                       {"asof": "2026-07-29"}):
-            assert na.futures_eod_route(_q(slug, **kwargs)) == ("uncovered", None), kwargs
+        straddle = na.futures_eod_coverage_note("straddle", self.FLOOR_ISO)
+        assert straddle.startswith("COVERAGE DECLINE --")
+        assert "{floor}" not in straddle and self.FLOOR_ISO in straddle

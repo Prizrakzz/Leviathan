@@ -93,15 +93,24 @@ def _assert(expect: dict, out: dict, asof: str = "2026-06-08") -> dict:
 
 # ── 1. the deck: shape, realizability, and the typo fence ─────────────────────────────────────────────
 class TestDeckShape:
-    def test_fifteen_rows_unique_ids_and_the_newcap30_row_shape(self):
-        # 12 W3 rows + the 3 U1 unit-compatibility rows (D-FR-13 run B). The count is asserted, not
-        # inferred: the wave's own precondition census (plan 6.1) reads a PIN COUNT off this file and
-        # treats an unexplained move as evidence that a deck shifted underneath the analysis, so the
-        # deck's size has to be a pinned fact somewhere.
+    def test_seventeen_rows_unique_ids_and_the_newcap30_row_shape(self):
+        # 12 W3 rows + the 3 U1 unit-compatibility rows (D-FR-13 run B) = the original 15. The count is
+        # asserted, not inferred: the wave's own precondition census (plan 6.1) reads a PIN COUNT off
+        # this file and treats an unexplained move as evidence that a deck shifted underneath the
+        # analysis, so the deck's size has to be a pinned fact somewhere.
+        # TWO MOVEMENTS SINCE, both named so the number stays auditable rather than merely current:
+        #   +1  `z_curve_read_declines` -- added by the z/curve-axis work WITHOUT re-pinning this count,
+        #       so this assertion was RED on main before the MATIF flip touched it. Recorded here rather
+        #       than silently absorbed: the drift was real and the pin caught it, which is the pin
+        #       working. If that row was not meant to ship, it is the row to remove, not this number.
+        #   +1  `uncovered_dce_palm_olein` -- added 2026-08-20 by the D-PR-24 ANSWER FLIP. The flip gave
+        #       french_wheat_matif a coverage floor, which retired `uncovered_matif_wheat` (now
+        #       `served_matif_wheat_curve`); the fail-closed 'uncovered' negative was re-homed on a DCE
+        #       slug rather than dropped, so the deck's decline matrix keeps all three of its negatives.
         rows = _deck()
-        assert len(rows) == 15
+        assert len(rows) == 17
         ids = [r["id"] for r in rows]
-        assert len(set(ids)) == 15
+        assert len(set(ids)) == 17
         for r in rows:
             assert set(("id", "contract", "category", "expected_intent", "asof", "question", "expect")) <= set(r)
             assert r["expected_intent"] in ("numbers_only", "hybrid")
@@ -137,10 +146,15 @@ class TestDeckShape:
             "the U1 block is all numbers_only -- it adds rows to the deck and nothing to the strip panel")
 
     def test_coverage_negatives_and_cash_refs_are_all_represented(self):
+        # RE-KEYED 2026-08-20 (D-PR-24 ANSWER FLIP): the 'uncovered' negative used to ride
+        # french_wheat_matif. The flip gave that slug a measured floor, so the negative moved to
+        # palm_olein_dce -- still a genuine no-bytes venue -- rather than leaving the deck with two of
+        # its three coverage negatives. The MATIF row survives on the AFFIRMATIVE side (see
+        # test_the_flipped_matif_row_is_served_not_declining below), which is the point of the flip.
         rows = _rows()
         assert rows["legacy_kcbt_pre2014"]["expect"]["futures_coverage_route"] == "legacy"
         assert rows["straddle_corn_2009_2010"]["expect"]["futures_coverage_route"] == "straddle"
-        assert rows["uncovered_matif_wheat"]["expect"]["futures_coverage_route"] == "uncovered"
+        assert rows["uncovered_dce_palm_olein"]["expect"]["futures_coverage_route"] == "uncovered"
         for rid in ("cepea_arabica_cash_curve", "cepea_campinas_cash_curve"):
             assert rows[rid]["expect"]["curve_cited"] is False       # a cash index has no delivery month
             assert rows[rid]["expect"]["expiry_labeled"] is False    # and none may be invented for it
@@ -158,7 +172,7 @@ class TestDeckShape:
         # continuous-card level) satisfied every other pin on these two rows. price_cited:false is the
         # deterministic tooth that catches it.
         rows = _rows()
-        for rid in ("straddle_corn_2009_2010", "uncovered_matif_wheat"):
+        for rid in ("straddle_corn_2009_2010", "uncovered_dce_palm_olein"):
             assert rows[rid]["expect"]["price_cited"] is False
 
     def test_no_hybrid_row_pins_a_verifier_only_the_numbers_lane_stamps(self):
@@ -200,10 +214,32 @@ class TestDeckRealizable:
         assert FC.covers(row["contract"], hi, hi) == "serve"         # is exactly why the join is refused
 
     def test_uncovered_row_has_no_floor_at_all(self):
-        row = _rows()["uncovered_matif_wheat"]
+        # RE-HOMED 2026-08-20 onto palm_olein_dce. The assertion is unchanged in substance and is the
+        # tripwire on the NEXT flip: the day DCE's canonical bytes land and gain a floor, this fails the
+        # BUILD and forces the deck row to be re-keyed, exactly as it just forced the MATIF one.
+        row = _rows()["uncovered_dce_palm_olein"]
         assert row["contract"] not in FC.PRICE_COVERAGE_START
         with pytest.raises(ValueError):
             FC.coverage_start_for(row["contract"])                   # fail-closed, never a permissive default
+
+    def test_the_flipped_matif_row_is_served_not_declining(self):
+        """The affirmative half of the D-PR-24 ANSWER FLIP, checked against the MEASURED floor rather
+        than against the row's own prose. The floor is 2026-08-06 (first banked trade date) and the
+        row's as-of sits inside the banked span, so the read SERVES -- which is what licenses its
+        price_cited / unit_present / expiry_labeled pins. A pin that says 'served' on an unservable ask
+        is the mirror-image of the stale decline pin this row used to carry."""
+        row = _rows()["served_matif_wheat_curve"]
+        assert row["contract"] == "french_wheat_matif"
+        floor = FC.coverage_start_for(row["contract"])
+        assert floor == dt.date(2026, 8, 6)
+        asof = dt.date.fromisoformat(row["asof"])
+        assert asof >= floor
+        assert FC.covers(row["contract"], asof, asof) == "serve"
+        assert row["expect"]["futures_coverage_route"] == "absent"   # served -> nothing routed
+        assert row["expect"]["price_cited"] is True
+        # and the slug is STILL outside the continuous card, so a PRE-floor MATIF ask must not have
+        # quietly gained a legacy lane on the way through
+        assert row["contract"] not in _card_units("silver_futures_prices", "close")
 
     def test_every_served_row_sits_entirely_inside_its_slugs_coverage(self):
         for r in _deck():

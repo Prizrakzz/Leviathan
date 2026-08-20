@@ -925,12 +925,19 @@ def futures_eod_seam_c_muted(calls: Optional[list], reg: Optional[NumbersRegistr
 
     Every FUTURES_DECLINE_TEMPLATE ends by offering the continuous front-month level ("I can give the
     front-month close level on a date, not a curve read"). On an UNCOVERED venue that offer is false: the
-    retiring card serves 12 of the 31 contracts, so for french_wheat_matif / palm_olein_dce / the rest of
-    the W1c browser slugs the reader was told a fallback is available that would raise if asked for --
-    stacked immediately in front of the coverage decline saying there is no record for that contract AT
-    ALL. The coverage template alone is the honest, complete statement. Narrow by construction: only an
+    retiring card serves 12 of the 31 contracts, so for palm_olein_dce / the rest of the unlanded browser
+    slugs the reader was told a fallback is available that would raise if asked for -- stacked
+    immediately in front of the coverage decline saying there is no record for that contract AT ALL. The
+    coverage template alone is the honest, complete statement. Narrow by construction: only an
     'uncovered' route on a slug the continuous card cannot serve mutes anything; a covered turn, a
-    straddle, a legacy rewrite and every non-futures turn are byte-identical."""
+    straddle, a legacy rewrite and every non-futures turn are byte-identical.
+
+    NOTE THE TEST THIS PREDICATE IS NOT (D-PR-24 answer flip, 2026-08-20): the condition is 'the
+    continuous card cannot serve this slug', NEVER 'this slug has no floor'. The three euronext_matif
+    slugs gained a floor of 2026-08-06 and are STILL outside the continuous card's 12 unit_overrides, so
+    a PRE-floor MATIF ask routes 'uncovered' and still mutes here -- correctly, because the offer is
+    still one the engine cannot keep. A POST-floor MATIF ask routes 'serve' and never reaches this
+    function at all; futures_eod_served is what skips SEAM-C there."""
     for c in (calls or []):
         if isinstance(c, dict) and c.get("coverage_route") == "uncovered":
             slug = str(((c.get("query") or {}).get("commodity")) or "").strip()
