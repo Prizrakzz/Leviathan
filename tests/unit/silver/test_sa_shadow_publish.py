@@ -40,8 +40,9 @@ _BUCKET = "leviathan-test"
 # --------------------------------------------------------------------------- pink_sheet (F023)
 def _pink_silver() -> pd.DataFrame:
     # 120 months of history so the rolling 5-yr z-scores (min 36 months) are ~70% non-null -- the F010
-    # value_columns now spans all 32 governed columns (W2), so the publisher's 0.5 non-null floor applies
-    # to the 16 zscore columns too; a single-month frame would fail validation on all-null zscores.
+    # value_columns now spans all 76 governed columns (W2 + the SILVER-F063 widening), so the
+    # publisher's 0.5 non-null floor applies to the 38 zscore columns too; a single-month frame would
+    # fail validation on all-null zscores.
     months = [date(2016 + (m // 12), (m % 12) + 1, 1) for m in range(120)]
     rows = [{
         "date": d, "series_name": bn, "value_usd": 100.0 + i + (j % 7),
@@ -50,11 +51,12 @@ def _pink_silver() -> pd.DataFrame:
     return build_silver([pd.DataFrame(rows)])
 
 
-def test_pink_sheet_inv2_encode_roundtrips_36_cols():
+def test_pink_sheet_inv2_encode_roundtrips_80_cols():
     contract = _REG.table("silver_pink_sheet")
     table = pq.read_table(io.BytesIO(encode_parquet(_pink_silver(), contract)))
     assert table.schema.equals(pa_schema_from_contract(contract))
-    assert table.num_columns == 36
+    # SILVER-F063 widened the contract 36 -> 80 (22 new price legs + 22 z twins, appended last).
+    assert table.num_columns == 80
     assert table.schema.field("date").type == pa.timestamp("us")
     assert table.schema.field("year").type == pa.int64()
     assert table.schema.field("brent_crude_usd_bbl").type == pa.float64()

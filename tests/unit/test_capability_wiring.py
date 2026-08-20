@@ -214,7 +214,8 @@ def test_visible_set_is_the_registry_minus_the_ledger_card_and_the_quarantine(mo
 
 
 @pytest.mark.parametrize("token", [
-    # (1) fertilizer + energy input costs and their z-scores -- 32 pink_sheet metrics, all dark before.
+    # (1) fertilizer + energy input costs and their z-scores -- 76 pink_sheet metrics after the
+    #     SILVER-F063 series widening (32 before it, and all of them dark before W2).
     "urea", "dap", "potash", "phosphate rock", "npk", "natural gas", "brent", "5-year z-score",
     # (2) WASDE + the US season-average farm price, WITH the vintage stamp discipline.
     "farm price", "vintage", "projection",

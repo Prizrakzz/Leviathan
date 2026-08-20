@@ -76,7 +76,7 @@ def _read_leg(bucket: str, slug: str, region: str) -> pd.DataFrame:
     frames: list[pd.DataFrame] = []
     with ThreadPoolExecutor(max_workers=_WORKERS) as pool:
         futs = {
-            pool.submit(s3_download_with_retry, get_thread_local_s3_client(region), bucket, k): k
+            pool.submit(s3_download_with_retry, bucket, k, get_thread_local_s3_client(region)): k
             for k in keys
         }
         for fut in as_completed(futs):

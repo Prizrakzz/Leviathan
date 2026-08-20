@@ -1433,22 +1433,109 @@ tables:
       wheat_us_hrw_usd_t_zscore_5yr:        {unit: "sigma vs 5-yr mean", desc: "US HRW wheat price, sigma vs trailing 5-yr mean (PIT-clean)"}
       wheat_us_srw_usd_t_zscore_5yr:        {unit: "sigma vs 5-yr mean", desc: "US SRW wheat price, sigma vs trailing 5-yr mean (PIT-clean)"}
       rapeseed_oil_usd_t_zscore_5yr:        {unit: "sigma vs 5-yr mean", desc: "rapeseed oil price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      # ---- SILVER-F063 SERIES WIDENING (2026-08-20) -----------------------------------------
+      # (a) PRICING LEGS FOR D15 CONTEXT-COMMODITY NODES. Each of these quantifies a node in
+      # commodity_hierarchy.context_commodities that had narrative coverage and NO price at all.
+      # The consumer named in each desc is the node this leg prices -- that is the GN-1 contract.
+      coconut_oil_usd_t:                    {unit: "USD/mt", desc: "coconut oil monthly world price average (WB); prices the `coconut` context node -- the lauric-oil substitute for palm kernel oil"}
+      groundnuts_usd_t:                     {unit: "USD/mt", desc: "groundnuts (peanuts, the SEED) monthly world price average (WB); prices the `peanut` context node"}
+      groundnut_oil_usd_t:                  {unit: "USD/mt", desc: "groundnut oil (the CRUSH PRODUCT) monthly world price average (WB); the `peanut` crush leg beside groundnuts_usd_t"}
+      palm_kernel_oil_usd_t:                {unit: "USD/mt", desc: "palm kernel oil monthly world price average (WB); prices the `palm_kernel` context node -- the lauric half of the palm complex, distinct from CPO"}
+      fish_meal_usd_t:                      {unit: "USD/mt", desc: "fishmeal monthly world price average (WB); prices `fish_meal` / the marine_protein_fishmeal driver -- the protein-meal substitute for soybean meal"}
+      sunflower_oil_usd_t:                  {unit: "USD/mt", desc: "sunflower oil monthly world price average (WB); prices `sunflower_oil` / the sunflower_oil_balance driver -- the Black Sea vegoil leg"}
+      barley_usd_t:                         {unit: "USD/mt", desc: "barley monthly world price average (WB); prices the `barley` context node. DISCONTINUED by the WB after 2020-08 -- see notes"}
+      sorghum_usd_t:                        {unit: "USD/mt", desc: "sorghum monthly world price average (WB); prices the `sorghum` context node. DISCONTINUED by the WB after 2020-08 -- see notes"}
+      orange_usd_t:                         {unit: "USD/mt", desc: "FRESH oranges monthly world price average (WB); prices the `fresh_citrus` context node. NOT frozen concentrate -- this is the fruit, not the FCOJ contract"}
+      # (b) WORLD BENCHMARKS THAT QUANTIFY EXISTING CONTRACT NODES the card previously declined on.
+      cotton_a_index_usd_t:                 {unit: "USD/mt", desc: "Cotton A Index monthly average (WB); the world cash benchmark for the `cotton` contract node"}
+      rubber_rss3_usd_t:                    {unit: "USD/mt", desc: "natural rubber RSS3 monthly world price average (WB); prices the `natural_rubber` driver slice"}
+      coffee_arabica_usd_t:                 {unit: "USD/mt", desc: "arabica coffee monthly world price average (WB); the cash benchmark for the `arabica_coffee` / `brazilian_arabica_coffee` contract nodes"}
+      coffee_robusta_usd_t:                 {unit: "USD/mt", desc: "robusta coffee monthly world price average (WB); the cash benchmark for the `robusta_coffee` contract node"}
+      cocoa_usd_t:                          {unit: "USD/mt", desc: "cocoa monthly world price average (WB); the cash benchmark for the `cocoa` contract node"}
+      rice_thai_5pct_usd_t:                 {unit: "USD/mt", desc: "Thai 5% broken white rice monthly world price average (WB); the export benchmark for the `rice` / `rough_rice_cbot` nodes"}
+      maize_usd_t:                          {unit: "USD/mt", desc: "maize monthly world price average (WB, US Gulf); the cash benchmark behind the four maize/corn contract nodes"}
+      raw_sugar_eu_usd_t:                   {unit: "USD/mt", desc: "EU sugar import price monthly average (WB) -- a POLICY-ADMINISTERED price; its spread to raw_sugar_world_usd_t IS the import_quota_trq / subsidy wedge"}
+      raw_sugar_us_usd_t:                   {unit: "USD/mt", desc: "US sugar import price monthly average (WB) -- a POLICY-ADMINISTERED price; its spread to raw_sugar_world_usd_t IS the us_farm_program / TRQ wedge"}
+      beef_usd_t:                           {unit: "USD/mt", desc: "beef monthly world price average (WB); the demand-side output price behind cattle_cycle_herd_size / cattle_on_feed / livestock_feed_demand"}
+      chicken_usd_t:                        {unit: "USD/mt", desc: "chicken monthly world price average (WB); the demand-side output price behind broiler_economics -- the numerator of the broiler margin over feed"}
+      # (c) FERTILIZER-CHAIN COMPLETION + ONE MACRO-CONTEXT LEG.
+      tsp_usd_mt:                           {unit: "USD/mt", desc: "triple superphosphate monthly world price average (WB); the third phosphate product beside phosphate_rock (ore) and DAP. NOT a blended_npk_index component"}
+      copper_usd_mt:                        {unit: "USD/mt", desc: "copper monthly world price average (WB); the SINGLE leg for the `metals` macro_context slice -- an industrial-activity gauge, NEVER an agricultural price signal"}
+      # (d) THE Z-SCORE TWINS for all 22 additions (same convention as the pre-F062 columns).
+      coconut_oil_usd_t_zscore_5yr:         {unit: "sigma vs 5-yr mean", desc: "coconut oil price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      groundnuts_usd_t_zscore_5yr:          {unit: "sigma vs 5-yr mean", desc: "groundnuts price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      groundnut_oil_usd_t_zscore_5yr:       {unit: "sigma vs 5-yr mean", desc: "groundnut oil price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      palm_kernel_oil_usd_t_zscore_5yr:     {unit: "sigma vs 5-yr mean", desc: "palm kernel oil price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      fish_meal_usd_t_zscore_5yr:           {unit: "sigma vs 5-yr mean", desc: "fishmeal price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      sunflower_oil_usd_t_zscore_5yr:       {unit: "sigma vs 5-yr mean", desc: "sunflower oil price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      barley_usd_t_zscore_5yr:              {unit: "sigma vs 5-yr mean", desc: "barley price, sigma vs trailing 5-yr mean (PIT-clean); ends with the series in 2020-08"}
+      sorghum_usd_t_zscore_5yr:             {unit: "sigma vs 5-yr mean", desc: "sorghum price, sigma vs trailing 5-yr mean (PIT-clean); ends with the series in 2020-08"}
+      orange_usd_t_zscore_5yr:              {unit: "sigma vs 5-yr mean", desc: "fresh orange price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      cotton_a_index_usd_t_zscore_5yr:      {unit: "sigma vs 5-yr mean", desc: "Cotton A Index, sigma vs trailing 5-yr mean (PIT-clean)"}
+      rubber_rss3_usd_t_zscore_5yr:         {unit: "sigma vs 5-yr mean", desc: "natural rubber RSS3 price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      coffee_arabica_usd_t_zscore_5yr:      {unit: "sigma vs 5-yr mean", desc: "arabica coffee price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      coffee_robusta_usd_t_zscore_5yr:      {unit: "sigma vs 5-yr mean", desc: "robusta coffee price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      cocoa_usd_t_zscore_5yr:               {unit: "sigma vs 5-yr mean", desc: "cocoa price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      rice_thai_5pct_usd_t_zscore_5yr:      {unit: "sigma vs 5-yr mean", desc: "Thai 5% rice price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      maize_usd_t_zscore_5yr:               {unit: "sigma vs 5-yr mean", desc: "maize price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      raw_sugar_eu_usd_t_zscore_5yr:        {unit: "sigma vs 5-yr mean", desc: "EU sugar price, sigma vs trailing 5-yr mean (PIT-clean); floored at 1964, see notes"}
+      raw_sugar_us_usd_t_zscore_5yr:        {unit: "sigma vs 5-yr mean", desc: "US sugar price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      beef_usd_t_zscore_5yr:                {unit: "sigma vs 5-yr mean", desc: "beef price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      chicken_usd_t_zscore_5yr:             {unit: "sigma vs 5-yr mean", desc: "chicken price, sigma vs trailing 5-yr mean (PIT-clean); floored at 1961, see notes"}
+      tsp_usd_mt_zscore_5yr:                {unit: "sigma vs 5-yr mean", desc: "TSP price, sigma vs trailing 5-yr mean (PIT-clean); floored at 1967, see notes"}
+      copper_usd_mt_zscore_5yr:             {unit: "sigma vs 5-yr mean", desc: "copper price, sigma vs trailing 5-yr mean (PIT-clean)"}
     notes: >
-      World Bank Pink Sheet MONTHLY AVERAGES (not exchange settles); series begin 1960+. No
-      commodity/country filter -- the metric name IS the series. agg=latest returns the newest
-      knowable month; window with period_start/period_end 'YYYY-MM-DD'. The table is LATEST-ONLY and
-      WB revises months retroactively, so there is NO true as-of replay -- values are as-published at
-      the CURRENT WB release (see revision_stamp: "as published, WB release <latest_release_ym>").
+      World Bank Pink Sheet MONTHLY AVERAGES -- these are world benchmark CASH/spot averages over a
+      calendar month, NOT exchange settlement prices. Never quote one as a futures settle, a close,
+      or a contract price; if the question is about a board move on a given day, this table cannot
+      answer it and silver_futures_eod can. Series begin 1960+. No commodity/country filter -- the
+      metric name IS the series. agg=latest returns the newest knowable month; window with
+      period_start/period_end 'YYYY-MM-DD'. The table is LATEST-ONLY and WB revises months
+      retroactively, so there is NO true as-of replay -- values are as-published at the CURRENT WB
+      release (see revision_stamp: "as published, WB release <latest_release_ym>").
       HOW STRETCHED A SERIES IS, IS A SECOND METRIC HERE, NOT A CALCULATION: every price carries a
       companion '<metric>_zscore_5yr' metric (urea_usd_mt -> urea_usd_mt_zscore_5yr,
-      natural_gas_us_usd_mmbtu -> natural_gas_us_usd_mmbtu_zscore_5yr, and so on for all 17). Look the
+      natural_gas_us_usd_mmbtu -> natural_gas_us_usd_mmbtu_zscore_5yr, and so on for all 38). Look the
       z up as its own lookup beside the level -- one lookup for the number, one for the sigma. Prefer
       the stored z over computing one from a history read: it is point-in-time-clean by construction,
       whereas a z computed off a capped or windowed series inherits whatever that window happened to be.
-      Per-series validity floors null early z-scores (a z is null until its 5-yr window fills). Prices
-      are USD/mt (edible oils/grains/sugar/fertilizers), USD/bbl (Brent), USD/mmbtu (gas), or an index
-      (blended NPK). Uncovered commodities -- there are NO corn, coffee, cotton, rice or cocoa price
-      columns here -- decline honestly rather than substituting a different series.
+      Per-series validity floors null early z-scores (a z is null until its 5-yr window fills, and
+      three F062 series are floored later than their first month because the WB repeated an annual
+      average 12x before monthly data existed: raw_sugar_eu from 1964, chicken from 1961, tsp from 1967).
+      UNITS. Every agricultural price on this table is USD/tonne, including the eleven series the WB
+      publishes in USD/kg (world/EU/US sugar, cocoa, both coffees, orange, beef, chicken, cotton
+      A-Index, rubber) -- the producer scales those x1000 so any two ag columns can be differenced
+      directly. The non-ag columns are USD/mt (fertilizers, TSP, copper), USD/bbl (Brent), USD/mmbtu
+      (US and EU gas) and one index (blended NPK, which is urea+DAP+potash only -- TSP is NOT in it).
+      WHAT THE 2026-08-20 ADDITIONS PRICE. Nine legs give a price to context commodities that had
+      narrative coverage and no number: coconut_oil (coconut), groundnuts + groundnut_oil (peanut,
+      seed and crush), palm_kernel_oil (palm_kernel), fish_meal (marine protein / the soymeal
+      substitute), sunflower_oil (the Black Sea vegoil), barley and sorghum (feed-grain
+      substitution), orange (fresh citrus). Eleven give a world cash benchmark to contract nodes this
+      card used to decline on: cotton, rubber, arabica, robusta, cocoa, rice, maize (i.e. CORN),
+      EU and US sugar, beef and chicken. Two more complete the phosphate chain (tsp, beside
+      phosphate rock and DAP) and give the metals macro slice one leg (copper).
+      THREE TRAPS ON THE NEW COLUMNS. (1) barley_usd_t and sorghum_usd_t were DISCONTINUED by the
+      World Bank after 2020-08 -- the last value is a 2020 value, so agg=latest returns a five-year-old
+      number. Say the date or do not use them. (2) orange_usd_t is FRESH FRUIT, not frozen concentrate;
+      it is an input-cost signal for the FCOJ contract, never a substitute for an FCOJ quote.
+      (3) copper_usd_mt is here only as an industrial-activity gauge for the metals macro-context
+      slice. It is not an agricultural price and must never be offered as one.
+      THE SUGAR TRIO IS A SPREAD, NOT THREE QUOTES. raw_sugar_world_usd_t is the world dumping price;
+      raw_sugar_eu_usd_t and raw_sugar_us_usd_t are POLICY-ADMINISTERED import prices. The EU-world
+      and US-world gaps are the import_quota_trq / subsidy / us_farm_program wedge, which is the
+      reason all three are carried. All three are USD/tonne, so the subtraction is direct.
+      STILL UNCOVERED -- decline honestly rather than substituting a different series. The World Bank
+      publishes NO copra and NO olive oil, so the `olive_oil` context node has no price leg here at
+      all. There is also no ethanol, cottonseed, DDGS, used cooking oil, tallow, HFCS or pulses
+      column; no canola or rapeseed SEED (only rapeseed oil); no rapeseed meal, no palm olein, no
+      white (refined) sugar, no hard red spring wheat, and no frozen orange juice.
+
+      A z-score is NULL wherever its 5-year window has NO DISPERSION -- the source pins
+      some series flat for years (phosphate rock sat at 44.0 for 102 straight months,
+      1999-2007). A NULL z there means "no dispersion, no z", never missing data; the
+      price column itself stays populated. Ratified Option A, 2026-08-20; exactly 43
+      published months moved 0.0 -> NULL, one column, in the same fire as the widening.
 
   # D-LD TRANCHE 2 (LIGHT THE DARK, 2026-08-18) -- WORLD BANK CONSUMER-PRICE INFLATION, the macro
   # pressure gauge behind export-restriction risk. From the dark-table readiness sweep (CARD-READY-ISH

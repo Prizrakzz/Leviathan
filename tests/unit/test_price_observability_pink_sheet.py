@@ -103,7 +103,9 @@ def test_pink_sheet_metric_order_first_four_for_wide_parity():
     ts = _ts()
     assert list(ts.metrics)[:4] == [
         "soybean_oil_usd_t", "urea_usd_mt", "brent_crude_usd_bbl", "palm_oil_cpo_usd_t_zscore_5yr"]
-    assert len(ts.metrics) == 32
+    # SILVER-F063 SERIES WIDENING (2026-08-20): 32 -> 76 = 38 price levels + 38 _zscore_5yr twins.
+    # 80 physical columns minus date/year/month/latest_release_ym.
+    assert len(ts.metrics) == 76
 
 
 def test_pink_sheet_metric_columns_exist_aws_free():

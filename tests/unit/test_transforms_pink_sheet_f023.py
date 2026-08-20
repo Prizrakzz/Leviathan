@@ -1,8 +1,12 @@
-"""SILVER-F023: Pink Sheet reproduces all 36 columns (OP-3 close).
+"""SILVER-F023: Pink Sheet reproduces the full registry contract (OP-3 close).
 
-Covers the 9 restored commodity-price series, the governed sugar unit rule, exact 36-column output
+Covers the 9 restored commodity-price series, the governed sugar unit rule, exact column output
 against the registry contract, and the bronze fail-closed guard on a missing/ambiguous required
 header (a disappeared header must never publish a narrowed table).
+
+SILVER-F063 (2026-08-20) widened the contract 36 -> 80 columns. This suite keeps its F023 subject --
+the 9 restored series and the fail-closed guard -- and follows the contract count. The widening's own
+disposition/naming/floor pins live in tests/unit/test_transforms_pink_sheet_widening.py.
 """
 from __future__ import annotations
 
@@ -47,12 +51,13 @@ def _bronze_all_series(d="2026-01-01", release="2026M05", values=None):
     return pd.DataFrame(rows)
 
 
-def test_output_is_exactly_the_36_registry_columns():
+def test_output_is_exactly_the_registry_columns():
     contract_cols = [c["name"] for c in load_registry().table("silver_pink_sheet")["physical_columns"]]
     assert SILVER_COLUMNS == contract_cols
     df = build_silver([_bronze_all_series()])
     assert list(df.columns) == contract_cols
-    assert len(df.columns) == 36
+    # SILVER-F063: 3 keys + 37 price series + blended_npk_index + 38 z twins + latest_release_ym.
+    assert len(df.columns) == 80
 
 
 def test_nine_commodity_series_are_restored():
@@ -87,6 +92,16 @@ class TestBronzeRequiredSeriesGuard:
             "palm oil": "Palm oil", "sugar, world": "Sugar, world",
             "wheat, us hrw": "Wheat, US HRW", "wheat, us srw": "Wheat, US SRW",
             "rapeseed oil": "Rapeseed oil",
+            # SILVER-F063 additions -- the EXACT header strings measured 2026-08-20.
+            "coconut oil": "Coconut oil", "groundnuts": "Groundnuts",
+            "groundnut oil": "Groundnut oil **", "palm kernel oil": "Palm kernel oil",
+            "fish meal": "Fish meal", "sunflower oil": "Sunflower oil",
+            "barley": "Barley", "sorghum": "Sorghum", "orange": "Orange",
+            "cotton, a index": "Cotton, A Index", "rubber, rss3": "Rubber, RSS3",
+            "coffee, arabica": "Coffee, Arabica", "coffee, robusta": "Coffee, Robusta",
+            "cocoa": "Cocoa", "rice, thai 5%": "Rice, Thai 5% ", "maize": "Maize",
+            "sugar, eu": "Sugar, EU", "sugar, us": "Sugar, US",
+            "beef": "Beef **", "chicken": "Chicken **", "tsp": "TSP", "copper": "Copper",
         }
         if drop:
             base.pop(drop)

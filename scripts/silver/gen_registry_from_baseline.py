@@ -997,9 +997,32 @@ CURATION_OVERRIDES: dict = {
     # zscore 0.3233 (warmup on top). Floors set measured-minus-margin per the ams-cotton precedent
     # above: a REAL coverage regression (losing populated years) still refuses the publish, and
     # KIND_ALL_NAN still hard-fails an all-null column. Every other column stays at the table floor.
+    # ── SILVER-F063 SERIES WIDENING (2026-08-20): 22 new price legs + 22 z twins. Only TWO of the
+    # new series start late enough to sit under the uniform provisional 0.5, and both floors are
+    # MEASURED, never inferred (the OP-8 inferred-floor lesson). Measurement: the widened producer
+    # run end-to-end over BOTH raw releases held in S3 (2026M05 + 2026M07) -> 798 monthly rows,
+    # 1960-01..2026-06. Non-null counts out of 798:
+    #     palm_kernel_oil_usd_t             366  0.4586   (first month 1996-01)
+    #     palm_kernel_oil_usd_t_zscore_5yr  331  0.4148   (36-month z warmup on top)
+    #     sunflower_oil_usd_t               288  0.3609   (first month 2002-02)
+    #     sunflower_oil_usd_t_zscore_5yr    253  0.3170   (36-month z warmup on top)
+    # Floors are measured-minus-margin, the same shape as the rapeseed pair above (~0.8x measured,
+    # 2dp). The margin is what makes the gate still MEAN something: a REAL coverage regression
+    # (losing populated years) still refuses the publish, and KIND_ALL_NAN still hard-fails an
+    # all-null column no matter how low the floor.
+    # The other 40 new columns clear 0.5 on their own -- the weakest are groundnuts_usd_t_zscore_5yr
+    # at 0.6554 and fish_meal_usd_t_zscore_5yr at 0.6704 -- and are deliberately left at the table
+    # floor. NOTE barley_usd_t / sorghum_usd_t measure 0.9123: the World Bank DISCONTINUED both after
+    # 2020-08, but 60 years of history keeps them far above any floor, so the gate cannot see that
+    # staleness. The card notes carry that warning instead; do not mistake a passing floor for a
+    # live series.
     "silver_pink_sheet": {"min_nonnull_frac_overrides": {
         "rapeseed_oil_usd_t": 0.30,
         "rapeseed_oil_usd_t_zscore_5yr": 0.26,
+        "palm_kernel_oil_usd_t": 0.36,
+        "palm_kernel_oil_usd_t_zscore_5yr": 0.33,
+        "sunflower_oil_usd_t": 0.28,
+        "sunflower_oil_usd_t_zscore_5yr": 0.25,
     }},
     # ── ESR changes_1000mt UPSTREAM TERMINATION (2026-07-23 gate FAIL triage): the FAS ESR
     # /allCountries response DROPPED the `changes` field entirely between the 20260524 and

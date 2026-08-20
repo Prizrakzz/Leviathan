@@ -232,6 +232,270 @@ physical_columns:
   parquet_physical_type: BYTE_ARRAY
   target_arrow_type: string
   nullable: true
+- name: coconut_oil_usd_t
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: groundnuts_usd_t
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: groundnut_oil_usd_t
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: palm_kernel_oil_usd_t
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: fish_meal_usd_t
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: sunflower_oil_usd_t
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: barley_usd_t
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: sorghum_usd_t
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: orange_usd_t
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: cotton_a_index_usd_t
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: rubber_rss3_usd_t
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: coffee_arabica_usd_t
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: coffee_robusta_usd_t
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: cocoa_usd_t
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: rice_thai_5pct_usd_t
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: maize_usd_t
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: raw_sugar_eu_usd_t
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: raw_sugar_us_usd_t
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: beef_usd_t
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: chicken_usd_t
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: tsp_usd_mt
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: copper_usd_mt
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: coconut_oil_usd_t_zscore_5yr
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: groundnuts_usd_t_zscore_5yr
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: groundnut_oil_usd_t_zscore_5yr
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: palm_kernel_oil_usd_t_zscore_5yr
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: fish_meal_usd_t_zscore_5yr
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: sunflower_oil_usd_t_zscore_5yr
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: barley_usd_t_zscore_5yr
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: sorghum_usd_t_zscore_5yr
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: orange_usd_t_zscore_5yr
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: cotton_a_index_usd_t_zscore_5yr
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: rubber_rss3_usd_t_zscore_5yr
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: coffee_arabica_usd_t_zscore_5yr
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: coffee_robusta_usd_t_zscore_5yr
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: cocoa_usd_t_zscore_5yr
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: rice_thai_5pct_usd_t_zscore_5yr
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: maize_usd_t_zscore_5yr
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: raw_sugar_eu_usd_t_zscore_5yr
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: raw_sugar_us_usd_t_zscore_5yr
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: beef_usd_t_zscore_5yr
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: chicken_usd_t_zscore_5yr
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: tsp_usd_mt_zscore_5yr
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: copper_usd_mt_zscore_5yr
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
 writer_schema_pinned: true
 drift_summary: []
 natural_key:
@@ -271,6 +535,50 @@ value_columns:
 - wheat_us_hrw_usd_t_zscore_5yr
 - wheat_us_srw_usd_t_zscore_5yr
 - rapeseed_oil_usd_t_zscore_5yr
+- coconut_oil_usd_t
+- groundnuts_usd_t
+- groundnut_oil_usd_t
+- palm_kernel_oil_usd_t
+- fish_meal_usd_t
+- sunflower_oil_usd_t
+- barley_usd_t
+- sorghum_usd_t
+- orange_usd_t
+- cotton_a_index_usd_t
+- rubber_rss3_usd_t
+- coffee_arabica_usd_t
+- coffee_robusta_usd_t
+- cocoa_usd_t
+- rice_thai_5pct_usd_t
+- maize_usd_t
+- raw_sugar_eu_usd_t
+- raw_sugar_us_usd_t
+- beef_usd_t
+- chicken_usd_t
+- tsp_usd_mt
+- copper_usd_mt
+- coconut_oil_usd_t_zscore_5yr
+- groundnuts_usd_t_zscore_5yr
+- groundnut_oil_usd_t_zscore_5yr
+- palm_kernel_oil_usd_t_zscore_5yr
+- fish_meal_usd_t_zscore_5yr
+- sunflower_oil_usd_t_zscore_5yr
+- barley_usd_t_zscore_5yr
+- sorghum_usd_t_zscore_5yr
+- orange_usd_t_zscore_5yr
+- cotton_a_index_usd_t_zscore_5yr
+- rubber_rss3_usd_t_zscore_5yr
+- coffee_arabica_usd_t_zscore_5yr
+- coffee_robusta_usd_t_zscore_5yr
+- cocoa_usd_t_zscore_5yr
+- rice_thai_5pct_usd_t_zscore_5yr
+- maize_usd_t_zscore_5yr
+- raw_sugar_eu_usd_t_zscore_5yr
+- raw_sugar_us_usd_t_zscore_5yr
+- beef_usd_t_zscore_5yr
+- chicken_usd_t_zscore_5yr
+- tsp_usd_mt_zscore_5yr
+- copper_usd_mt_zscore_5yr
 min_nonnull_frac: 0.5
 min_nonnull_frac_status: provisional
 coverage_axis: monthly date
@@ -297,8 +605,8 @@ fingerprint:
   catalog_hash_sha256: e840399f1eab65e7de29221715af232a431312bf39361489c17e40ee23291240
   registered_partition_count: 0
   placeholder_partition_count: 0
-  glue_nonpartition_cols: 36
-  physical_parquet_cols: 36
+  glue_nonpartition_cols: 80
+  physical_parquet_cols: 80
 provenance:
   baseline_id: 20260712_p65impl
   anchor_git_sha: 7cbbf58a7be021b60cd0f4cf2a5b54c02654fe36
@@ -310,3 +618,7 @@ notes: 'min_nonnull_frac is PROVISIONAL (uniform 0.5) pending per-source calibra
 min_nonnull_frac_overrides:
   rapeseed_oil_usd_t: 0.3
   rapeseed_oil_usd_t_zscore_5yr: 0.26
+  palm_kernel_oil_usd_t: 0.36
+  palm_kernel_oil_usd_t_zscore_5yr: 0.33
+  sunflower_oil_usd_t: 0.28
+  sunflower_oil_usd_t_zscore_5yr: 0.25
