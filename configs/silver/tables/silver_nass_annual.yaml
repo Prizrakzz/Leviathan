@@ -187,13 +187,15 @@ provenance:
 notes: 'min_nonnull_frac is PROVISIONAL (uniform 0.5) pending per-source calibration (OP-8 / AV-11, SILVER-V001).
   This registry is the SINGLE authority for value_columns and min_nonnull_frac (Attack 3 finding #6).
   Types are the INV-2 TARGET writer schema; arrow_type is the current-physical type from the R0 baseline.
-  SILVER-F020: 36 physical commodity=canola_ice parquets (1991-2026) are HIDDEN because the projection
-  enum omits canola_ice. The producer already writes canola_ice; the checked-in projection stays == live
-  Glue and the gated SET TBLPROPERTIES migration (reports/silver_readiness/R2_SA/F020_canola_migration.json)
-  adds canola_ice. Recovery reads S3 footers, NEVER Athena (INV-3).'
+  SILVER-F020 (RESOLVED 2026-08-20): 36 physical commodity=canola_ice parquets were HIDDEN because the
+  projection enum omitted canola_ice; the gated canola-only migration (reports/silver_readiness/R2_SA/
+  F020_canola_migration.json) was RETIRED UNAPPLIED when the D-EC wheat-lane repair ALTERed live Glue
+  to the full ten-value enum (canonical promote + Athena ALTER, same hour, 2026-08-20) -- a superset
+  of its target. The enum below mirrors live Glue per the R2 convention (checked-in == live).
+  Recovery reads S3 footers, NEVER Athena (INV-3).'
 projection_domains:
   projection.commodity.type: enum
-  projection.commodity.values: corn_cbot,soybeans_cbot,rough_rice_cbot,cotton,soft_red_winter_wheat_cbot,hard_red_spring_wheat_mgex
+  projection.commodity.values: corn_cbot,soybeans_cbot,rough_rice_cbot,cotton,soft_red_winter_wheat_cbot,hard_red_spring_wheat_mgex,canola_ice,cottonseed,upland_cotton,pima_cotton
   projection.enabled: 'true'
   projection.year.range: 1866,2035
   projection.year.type: integer

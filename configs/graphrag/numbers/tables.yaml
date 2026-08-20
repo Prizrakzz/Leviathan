@@ -1302,11 +1302,19 @@ tables:
   # cleanly and return ZERO rows -- the WASDE Title-Case "silently not yet published" class, arriving
   # through a partition enum instead of through a metric vocabulary. commodity_values excludes them for
   # exactly that reason, and the notes say out loud that US wheat is not in this table.
+  # RESOLVED 2026-08-20 (D-EC wheat-lane repair, commit c4ebbf23 + canonical promote 117da844): the
+  # paragraph above is the PRE-REPAIR record, kept as history. The wheat lane had dead map keys and had
+  # never once run; the repaired transform published all ten partitions to canonical (verified by S3
+  # listing post-promote) and the projection enum was ALTERed to the same ten in the same change. The
+  # four-checkmark flip below happened only after both were live.
   silver_nass_annual:
     description: >
       USDA NASS annual US crop production -- the settled, state-by-state ANNUAL SUMMARY of planted and
       harvested ACREAGE, YIELD and PRODUCTION for the US corn, soybean, cotton (ALL CLASSES -- upland
-      plus pima, which is what the `cotton` slug is fed from) and rice crops,
+      plus pima, which is what the `cotton` slug is fed from; upland_cotton, pima_cotton and cottonseed
+      are also carried as their own slugs), rice, canola, and -- since the 2026-08-20 wheat-lane repair
+      -- winter wheat (soft_red_winter_wheat_cbot; the NASS WINTER class, i.e. ALL winter wheat incl.
+      hard red and white) and non-durum spring wheat (hard_red_spring_wheat_mgex) back to 1909,
       one row per crop x state x crop year, back to 1866 for corn and cotton. Every figure is in metric
       units (hectares, tonnes, tonnes per hectare), converted from the NASS acre/bushel/bale originals.
       Vintage table: a crop year becomes citable only when USDA publishes its Crop Production Annual
@@ -1325,16 +1333,17 @@ tables:
     # card serves -- is these four. This list and the `only these four crops exist` sentence in `notes`
     # are the same fact said twice on purpose: the notes teach, this enforces.
     #
-    # PUBLISH-GATED, 2026-08-20 (D-EC P0 class-lane repair). The repaired transform CAN now emit five
-    # more slugs -- soft_red_winter_wheat_cbot and hard_red_spring_wheat_mgex from the wheat lane that
-    # had never once run, and cottonseed / upland_cotton / pima_cotton from the cotton class split.
-    # THEY ARE DELIBERATELY NOT ADDED HERE YET: none of those rows is in live silver, and the three
-    # cotton-class slugs are also absent from the projection enum, so advertising any of them now buys
-    # the exact defect this fence exists to stop -- the agent offers a US wheat figure, compiles clean
-    # SQL and gets ZERO rows, which reads as "no data" and is indistinguishable from one. They join
-    # commodity_values IN THE SAME CHANGE as the silver publish plus the gated Glue enum migration
-    # (the canola_ice discipline, three lines above). Do not widen this list ahead of the rows.
-    commodity_values: [corn_cbot, soybeans_cbot, cotton, rough_rice_cbot]
+    # FLIPPED 2026-08-20 (D-EC wheat-lane repair) -- the publish gate this comment used to declare was
+    # satisfied before the widen, in order: (1) canonical promote SUCCEEDED (job 117da844, all ten
+    # commodity partitions verified by S3 listing), (2) the Glue projection enum ALTERed to the same
+    # ten values (Athena SUCCEEDED, same hour), (3) THEN this list widened. canola_ice rides the same
+    # flip: it was physical-but-enum-hidden since F020, and the ALTER un-hid it. The ten below are
+    # measured physical partitions, not promises. NASS still publishes NO annual area/yield for hard
+    # red winter specifically -- kcbt stays refused in the transform (owner-ratified 2026-08-20);
+    # the WINTER class rows live under soft_red_winter_wheat_cbot with the coarseness documented.
+    commodity_values: [corn_cbot, soybeans_cbot, cotton, rough_rice_cbot, canola_ice,
+                       soft_red_winter_wheat_cbot, hard_red_spring_wheat_mgex,
+                       cottonseed, upland_cotton, pima_cotton]
     country_col: state                  # repurposed as the GEO axis: 2-letter USPS code, 'US' = national
     period_col: year                    # the CROP year; == the projected partition key (see the note above)
     period_type: year
@@ -1344,8 +1353,10 @@ tables:
     publication_lag_days: 0             # release_date IS the (conservatively derived) publication event
     partition_cols: [commodity, year]   # projected; commodity via the commodity filter, year via bounds
     year_col: year                      # sargable year bounds prune the projection (never an equality)
-    grain_cols: [commodity, state, year]   # the true unique-observation identity (measured: exactly ONE
-    #                                        row per grain across all 14,631 rows -- zero duplicates, so
+    grain_cols: [commodity, state, year]   # the true unique-observation identity (re-measured at the
+    #                                        2026-08-20 promote: exactly ONE row per grain across all
+    #                                        ~26,081 rows incl. the new wheat/cotton-class slugs --
+    #                                        zero duplicate (slug,state,year) keys in the replay -- so
     #                                        the latest-vintage ROW_NUMBER is a no-op today and NO
     #                                        vintage_tiebreak is needed. Declared anyway because the
     #                                        inferred group would be identical but silent, and a future
@@ -1380,12 +1391,17 @@ tables:
       (verified exactly: the 48 state rows plus OT sum to the 'US' row to the last tonne for US corn
       2024), so a "top states" total that also counts 'US' double-counts the entire crop. Take shares
       AGAINST the 'US' row, never as part of the set.
-      commodity = the CONTRACT slug and only these four crops exist here: corn_cbot, soybeans_cbot,
-      cotton (UPLAND cotton; NASS pima is not carried) and rough_rice_cbot. US WHEAT IS NOT IN THIS
-      TABLE -- there are no winter-wheat, spring-wheat, durum, barley, oat, sorghum, sunflower or sugar
-      rows, and neither is canola. For US wheat use silver_wasde (US balance sheet, incl. the
-      season-average farm price) or silver_psd. Anything outside the four is refused before any SQL
-      runs; decline rather than substituting a different crop.
+      commodity = the CONTRACT slug and exactly these ten exist here (since 2026-08-20): corn_cbot,
+      soybeans_cbot, cotton (ALL CLASSES = upland + pima), upland_cotton, pima_cotton, cottonseed,
+      rough_rice_cbot, canola_ice, soft_red_winter_wheat_cbot and hard_red_spring_wheat_mgex. THE TWO
+      WHEAT SLUGS CARRY NASS CLASSES, NOT PURE CONTRACT GRADES: soft_red_winter_wheat_cbot holds the
+      NASS WINTER class (ALL winter wheat -- hard red, soft red and white together, back to 1909) and
+      hard_red_spring_wheat_mgex holds SPRING EXCL DURUM -- say "US winter wheat" / "US spring wheat"
+      when quoting them, not the exchange grade. There is NO hard-red-winter-specific annual lane
+      (NASS publishes no HRW area or yield): for HRW or any by-class balance-sheet figure use
+      silver_wasde, and there are still no durum, barley, oat, sorghum, sunflower or sugar rows.
+      Anything off the ten is refused before any SQL runs; decline rather than substituting a
+      different crop or class.
       period = the CROP YEAR as an integer (2025 = the 2025 crop). Read one crop year with period=2025,
       or a run of them with period_start/period_end 'YYYY-01-01'/'YYYY-12-31' -- on this card those
       bounds bind the YEAR axis (there is no date column), so they select whole crop years inclusively.

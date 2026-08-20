@@ -2033,31 +2033,41 @@ def test_nass_annual_card_pit_shape():
     assert not ts.levels_only and not ts.quarantined
 
 
-def test_nass_annual_commodity_values_exclude_the_two_phantom_wheat_slugs_and_hidden_canola():
-    """SILVER-F020, RESTATED AS A SERVING FACT. The live projection enum promises six slugs. TWO of
-    them (soft_red_winter_wheat_cbot, hard_red_spring_wheat_mgex) have NO physical partition at all, so
-    a wheat lookup would compile cleanly and return ZERO rows -- the WASDE Title-Case "silently not yet
-    published" class arriving through a partition enum. canola_ice is the OPPOSITE case: 36 objects
-    EXIST on S3 and are hidden from Athena by the short enum, so serving it would make the pg mirror
-    (which reads the parquet) and Athena (which reads the catalog) DISAGREE. Both are excluded, and the
-    fence is engine-independent so a GRAPHRAG_NUMBERS_BACKEND flip cannot change the answer."""
+def test_nass_annual_commodity_values_are_the_ten_measured_partitions():
+    """FLIPPED 2026-08-20 (D-EC wheat-lane repair). The pre-flip pin guarded the OTHER direction --
+    phantom wheat slugs and enum-hidden canola excluded so the agent could never compile a clean
+    zero-row wheat read. The flip conditions were met in order (canonical promote landed all ten
+    partitions, S3-verified; the Glue enum ALTERed to the same ten; THEN the card widened), so this
+    pin now guards the resolved state: exactly the ten measured physical partitions, and the notes
+    teach the CLASS semantics instead of the absence -- NASS WINTER rides the SRW slug (all winter
+    wheat, incl. hard red and white) and there is still NO HRW-specific annual lane (kcbt refused,
+    owner-ratified; WASDE is the by-class home)."""
     ts = _nass_annual()
-    assert list(ts.commodity_values) == ["corn_cbot", "soybeans_cbot", "cotton", "rough_rice_cbot"]
-    for phantom in ("soft_red_winter_wheat_cbot", "hard_red_spring_wheat_mgex", "canola_ice"):
-        assert phantom not in ts.commodity_values
-    assert "us wheat is not in this\n      table" in ts.notes.lower() or \
-           "us wheat is not in this table" in " ".join(ts.notes.lower().split())
+    assert sorted(ts.commodity_values) == sorted([
+        "corn_cbot", "soybeans_cbot", "cotton", "rough_rice_cbot", "canola_ice",
+        "soft_red_winter_wheat_cbot", "hard_red_spring_wheat_mgex",
+        "cottonseed", "upland_cotton", "pima_cotton",
+    ])
+    blob = " ".join(ts.notes.lower().split())
+    assert "us wheat is not in this table" not in blob        # the retired absence must not linger
+    assert "nass winter class" in blob                        # the coarseness is taught, not hidden
+    assert "hard-red-winter-specific annual lane" in blob     # the kcbt refusal, in caller terms
 
 
 def test_nass_annual_off_card_commodity_is_refused_before_any_sql():
     class _S:
         def __init__(self, table, commodity):
             self.table, self.commodity = table, commodity
-    for slug in ("soft_red_winter_wheat_cbot", "hard_red_spring_wheat_mgex", "canola_ice",
-                 "arabica_coffee"):
+    # Post-flip off-card set: the served wheat/canola slugs moved INSIDE the fence, so the refusal
+    # is now keyed on the slugs that stay genuinely outside it -- most meaningfully kcbt, whose
+    # annual lane NASS does not publish (owner-ratified refusal; WASDE carries HRW by class).
+    for slug in ("hard_red_winter_wheat_kcbt", "durum_wheat", "arabica_coffee"):
         with pytest.raises(na.CommodityOffCard) as e:
             na._check_commodity_class(_S(NASS_ANNUAL, slug), _reg())
         assert "corn_cbot" in str(e.value) and "Nothing was queried." in str(e.value)
+    # And the flipped direction, asserted so an over-broad fence fails too:
+    for slug in ("soft_red_winter_wheat_cbot", "hard_red_spring_wheat_mgex", "canola_ice"):
+        na._check_commodity_class(_S(NASS_ANNUAL, slug), _reg())   # must NOT raise
 
 
 def test_nass_annual_sql_prunes_the_projection_and_guards_the_as_of():
@@ -2106,7 +2116,7 @@ def test_nass_annual_notes_state_the_us_only_state_axis_and_summary_traps():
     for token in ("united states and nothing else",   # the geography fence, prose half
                   "always pass a state",              # the free axis with no default
                   "never add 'us' to a list of states",   # the double-count trap
-                  "us wheat is not in this table",    # the F020 enum defect, in caller terms
+                  "nass winter class",                # post-flip: the wheat CLASS semantics taught
                   "january",                          # the vintage cadence
                   "5,000-row cap",                    # corn alone exceeds it
                   "silver_nass_crop_progress"):       # the sibling that answers the in-season ask
