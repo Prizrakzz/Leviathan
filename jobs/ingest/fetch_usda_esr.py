@@ -63,11 +63,10 @@ import logging
 import time
 
 import requests
-
 from leviathan.common.config import get_required_env, load_env
 from leviathan.common.logging import get_logger
 from leviathan.storage.paths import raw_esr_backfill_key, raw_esr_weekly_key
-from leviathan.storage.raw_metadata import check_min_file_size, write_raw_s3_metadata
+from leviathan.storage.raw_metadata import write_raw_s3_metadata
 from leviathan.storage.s3 import s3_object_exists, upload_bytes_to_s3
 
 logger = get_logger(__name__)
@@ -275,7 +274,16 @@ def _fetch_one(
             return None
         raise
 
-    check_min_file_size(data, "usda_esr", context=url)
+    # NO byte floor here (removed 2026-08-20, the 1499/MY2001 lesson): _validate_json above has
+    # already proven the body is a non-empty JSON list, which is a STRICTLY stronger integrity
+    # check than any byte count -- the floor's stated target (api.data.gov HTML auth pages) can
+    # never parse as one.  The floor's only remaining effect was refusing legitimately-thin years:
+    # medium/short rough rice MY2001 is ONE all-zero record = 276 bytes, real data, and the
+    # backfill fail-closed exit killed the whole chain over it (the mis-inferred-floor class,
+    # same family as the nass pct_emerged alarm RCA).
+    if len(data) < _MIN_SIZE_BYTES:
+        logger.info("  [thin] %d bytes (< %d) but valid JSON -- a legitimately thin year, kept",
+                    len(data), _MIN_SIZE_BYTES)
     return data
 
 
