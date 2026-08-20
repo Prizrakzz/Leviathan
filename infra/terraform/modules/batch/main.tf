@@ -181,7 +181,12 @@ resource "aws_batch_compute_environment" "ondemand" {
     # 16 (was 8): a 16-vCPU evidence rebuild must be placeable, and eval arms shouldn't serialize behind
     # one 8-vCPU slot (2026-07-08 pool-sweep + rebuild-OOM lessons; applied live via
     # update-compute-environment the same day -- this line mirrors that already-live value).
-    max_vcpus = min(var.max_vcpus, 16)
+    # 32 (was 16), 2026-08-20: the X2 routing pass IS a 16-vCPU task, so at 16 it starved every
+    # small job (0.25-2 vCPU fetch/bronze legs sat RUNNABLE for hours behind it). Fargate bills
+    # only RUNNING tasks -- the ceiling itself costs nothing; 32 keeps the runaway guard while
+    # letting one rebuild and the routine small fleet coexist. Applied live via
+    # update-compute-environment same day (owner word); this line mirrors that value.
+    max_vcpus = min(var.max_vcpus, 32)
 
     subnets            = var.subnet_ids
     security_group_ids = var.security_group_ids
