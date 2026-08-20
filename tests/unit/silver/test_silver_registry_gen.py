@@ -13,6 +13,30 @@ _REPO = Path(__file__).resolve().parents[3]
 _GEN = _REPO / "scripts" / "silver" / "gen_registry_from_baseline.py"
 _TABLES = _REPO / "configs" / "silver" / "tables"
 
+# ---------------------------------------------------------------------------
+# THE CONTRACTS THE F010 GENERATOR DOES NOT OWN (2026-08-20, the four-family wave close).
+#
+# The rule this file enforces is "the checked-in tree is byte-identical to a fresh render", and it
+# stays enforced for every contract the generator owns. The exceptions are ENUMERATED with a written
+# removal trigger, NOT a loosened gate -- the estate's PRE_PUBLISH_FAMILIES idiom. There are two
+# distinct exception classes and they are deliberately kept apart, because only one of them is a
+# thing this file can decide:
+#
+#   * gen.HAND_AUTHORED_CONTRACTS -- HAS an R0 baseline record (so the generator can render it and
+#     it appears in the drift loop below) but its checked-in contract is hand-authored and cannot
+#     round-trip. Owned by the GENERATOR, which write-protects those names, and imported here rather
+#     than redeclared so the two can never disagree. See that constant for the per-field reasoning.
+#   * _NO_R0_BASELINE_RECORD below -- has no baseline record at all, so the generator has never
+#     heard of it and it cannot drift against anything.
+_NO_R0_BASELINE_RECORD = {
+    # Both hand-authored against a LIVE 2026-08-20 probe of a source that post-dates the
+    # 20260712_p65impl baseline capture, so there is no R0 record to render them from. REMOVAL
+    # TRIGGER: first canonical publish + Glue registration, then re-capture the record
+    # (run_census.census_one) and delete the name -- the equality below re-arms automatically.
+    "silver_eex_freight",
+    "silver_moex_agro_indices",
+}
+
 
 @pytest.fixture(scope="module")
 def gen():
@@ -40,22 +64,52 @@ def test_checked_in_tree_matches_fresh_render(gen):
         on_disk = (_TABLES / f"{n}.yaml").read_text(encoding="utf-8")
         if rendered != on_disk:
             drift.append(n)
-    assert drift == [], f"registry drift; re-run the generator: {drift}"
+    # The gate, unchanged in force: every contract the generator OWNS regenerates byte-identically.
+    # The generator's own HAND_AUTHORED_CONTRACTS is subtracted by name (it write-protects exactly
+    # these), so a contract that leaves that set is re-gated automatically and a NEW drift is fatal.
+    owned_drift = [n for n in drift if n not in gen.HAND_AUTHORED_CONTRACTS]
+    assert owned_drift == [], f"registry drift; re-run the generator: {owned_drift}"
+    # And the exceptions must stay real: a hand-authored contract that HAS started round-tripping is
+    # owed its removal from the set, so this fails in that direction too.
+    for n in gen.HAND_AUTHORED_CONTRACTS:
+        if n in names:
+            assert n in drift, (
+                f"{n!r} now regenerates byte-identically -- drop it from "
+                f"gen_registry_from_baseline.HAND_AUTHORED_CONTRACTS so the byte-identity gate "
+                f"covers it again (and the generator stops write-protecting it)")
 
 
 def test_generator_covers_exactly_the_45_baseline_tables(gen):
     baseline = {p.stem for p in gen.TABLES_JSON.glob("*.json")}
     on_disk = {p.stem for p in _TABLES.glob("*.yaml")}
-    assert baseline == on_disk
+    # A baseline record with no checked-in contract is a HOLE and stays fatal in that direction --
+    # this half of the old `baseline == on_disk` equality is untouched.
+    assert baseline - on_disk == set(), f"baseline record with no contract: {baseline - on_disk}"
+    # The other half is now an ENUMERATED difference -- see _NO_R0_BASELINE_RECORD for the two
+    # live-probe contracts and their removal trigger.
+    assert on_disk - baseline == _NO_R0_BASELINE_RECORD
     # 43 R0 tables + two SYNTHETIC R0 records: the T2B gold_pattern_records ledger (T2B plan sec 1.2)
     # and silver_futures_eod (PRICE_AND_PLAYBOOKS W1.0) -- both authored from a ratified schema so the
     # generator can emit their contracts byte-stably before any AWS object exists.
     # D-EC DK-13 (2026-08-20): a THIRD synthetic R0 record, gold_board_crush -- authored from the
     # ratified board-crush schema so its contract renders before the gold producer has ever run.
-    assert len(on_disk) == 46
+    # MINAGRO (2026-08-20): a FOURTH synthetic R0 record, silver_minagro_grain_exports --
+    # authored from the transform's OUTPUT_COLUMNS so its contract renders before the capture
+    # producer has ever run in the cloud.
+    # THE WAVE CLOSE (2026-08-20): 47 -> 50, one line per family, and the three sources of the bump
+    # are DIFFERENT so they are recorded separately rather than summed:
+    #   +1 silver_ams_gtr            -- a FIFTH synthetic R0 record (authored from the transform's
+    #                                   OUTPUT_COLUMNS), contract hand-authored on top of it;
+    #   +1 silver_moex_agro_indices  -- NO R0 record; hand-authored from a live ISS probe;
+    #   +1 silver_eex_freight        -- NO R0 record; hand-authored from a live EEX probe.
+    # (silver_minagro_grain_exports is the FOURTH synthetic record named in the paragraph above and
+    # is already counted in the 47.)
+    assert len(on_disk) == 50
     assert "gold_pattern_records" in on_disk
     assert "silver_futures_eod" in on_disk
     assert "gold_board_crush" in on_disk
+    assert "silver_minagro_grain_exports" in baseline    # synthetic R0 record #4
+    assert "silver_ams_gtr" in baseline                  # synthetic R0 record #5
 
 
 class TestNullableOverrides:

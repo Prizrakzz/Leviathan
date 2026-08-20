@@ -171,7 +171,38 @@ ARTIFACT_FRESHNESS: dict[str, tuple[str, int, str]] = {
 # of an absence. The set stays as an empty frozenset rather than being deleted, because the NEXT
 # registered-ahead-of-producer table needs the same interlock -- add it here, and remove it only
 # once that table's own (a)-(d) have run.
-PRE_PUBLISH_FAMILIES: frozenset = frozenset()
+#
+# `moex_agro` IS THAT NEXT TABLE (2026-08-20). silver_moex_agro_indices is registered ahead of its
+# producer under the four-checkmark law: the raw fetcher and both transforms exist, no batch task
+# does, no jobdef or schedule is armed, and NOT ONE canonical byte has been published -- so its
+# canonical prefix is EMPTY, the freshness poller emits no datapoint for it, and a
+# treat_missing_data="breaching" freshness alarm would breach on the next apply of any unrelated
+# change in envs/dev and page the shared on-call topic continuously. It is `backfillable` (ISS
+# serves history, unlike the forward-only minagro/EEX legs), so dag_catalog._NON_BACKFILL_FAMILIES
+# would NOT filter it out incidentally the way it does gold_pattern_records -- the exclusion has to
+# be explicit, exactly as futures_eod's was.
+#
+# REMOVAL TRIGGER, unchanged and in this order: (a) rebuild the worker image so it carries
+# jobs/ingest/fetch_moex_agro_indices.py; (b) run the backfill cloud-side and promote canonical BY
+# HAND; (c) arm the daily schedule at promote_mode=autonomous so the canonical prefix advances; (d)
+# THEN drop `moex_agro` here, re-emit the tfvars and apply. Removing it before (b) arms an alarm on
+# an absence.
+# `ams_gtr` IS THE SECOND (2026-08-20, the wave-close reconciliation), and it is here for exactly
+# the reason moex_agro is, reached from the opposite direction. The GTR source is richly
+# backfillable -- the SODA datasets serve 1996-01-01..2026-08-19 and the lane measured every span --
+# so `backfillable` is True and dag_catalog._NON_BACKFILL_FAMILIES does NOT filter it out the way it
+# incidentally covers the two forward-only legs (minagro, eex_freight). But BACKFILLABLE IS NOT
+# PUBLISHED: the fetcher and the transform exist, no batch task does, no jobdef or schedule is
+# armed, and not one canonical byte is under silver/ams_gtr/ -- so the prefix is empty, the poller
+# emits nothing, and treat_missing_data="breaching" would page the shared topic on the next
+# unrelated envs/dev apply. The richness of the source is what makes the exclusion necessary rather
+# than incidental; it is not an argument against it.
+#
+# REMOVAL TRIGGER, the same four steps in the same order: (a) write the bronze->silver batch task and
+# register its jobdef; (b) run the backfill and promote canonical BY HAND; (c) arm the weekly
+# Thursday schedule at promote_mode=autonomous so the canonical prefix advances; (d) THEN drop
+# `ams_gtr` here, re-emit the tfvars and apply. Mirrored in readiness_certify.PRE_PUBLISH_PACKAGE.
+PRE_PUBLISH_FAMILIES: frozenset = frozenset({"moex_agro", "ams_gtr"})
 
 
 def _alarm(*, failure_mode: str, family: str, metric_name: str, dimensions: dict,

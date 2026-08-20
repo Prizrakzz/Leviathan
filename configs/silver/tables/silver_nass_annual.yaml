@@ -190,9 +190,9 @@ notes: 'min_nonnull_frac is PROVISIONAL (uniform 0.5) pending per-source calibra
   SILVER-F020 (RESOLVED 2026-08-20): 36 physical commodity=canola_ice parquets were HIDDEN because the
   projection enum omitted canola_ice; the gated canola-only migration (reports/silver_readiness/R2_SA/
   F020_canola_migration.json) was RETIRED UNAPPLIED when the D-EC wheat-lane repair ALTERed live Glue
-  to the full ten-value enum (canonical promote + Athena ALTER, same hour, 2026-08-20) -- a superset
-  of its target. The enum below mirrors live Glue per the R2 convention (checked-in == live).
-  Recovery reads S3 footers, NEVER Athena (INV-3).'
+  to the full ten-value enum (canonical promote + Athena ALTER, same hour, 2026-08-20) -- a superset of
+  its target. The enum below mirrors live Glue per the R2 convention (checked-in == live). Recovery reads
+  S3 footers, NEVER Athena (INV-3).'
 projection_domains:
   projection.commodity.type: enum
   projection.commodity.values: corn_cbot,soybeans_cbot,rough_rice_cbot,cotton,soft_red_winter_wheat_cbot,hard_red_spring_wheat_mgex,canola_ice,cottonseed,upland_cotton,pima_cotton

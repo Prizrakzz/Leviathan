@@ -362,7 +362,13 @@ def test_runner_build_evidence_smoke(tmp_path):
     # 43 R0 tables + the T2B gold_pattern_records ledger (generation-only, census-exempt like
     # model_predictions -- an engine-replay output, not a value-census measurement source) +
     # silver_futures_eod (PRICE_AND_PLAYBOOKS W1.0, registered ahead of its producers).
-    assert len(evidence) == 46   # D-EC DK-13: + gold_board_crush
+    # D-EC DK-13: + gold_board_crush; MINAGRO: + silver_minagro_grain_exports.
+    # THE FOUR-FAMILY WAVE CLOSE (2026-08-20): 47 -> 50. The evidence set is one row per REGISTRY
+    # table by construction (the next assert is the real invariant), so each new contract adds a row
+    # whether or not its producer has ever run: + silver_moex_agro_indices, + silver_ams_gtr,
+    # + silver_eex_freight. All three land BLOCKED with no census, which is the honest state --
+    # silver_moex_agro_indices and silver_ams_gtr name their work order via PRE_PUBLISH_PACKAGE.
+    assert len(evidence) == 50
     assert {e.table for e in evidence} == set(reg.names())    # one row per registry table, no dups
     cert = certify_all(evidence)
     # Structural, and true whatever the artifact tree says: a certificate covers every table and

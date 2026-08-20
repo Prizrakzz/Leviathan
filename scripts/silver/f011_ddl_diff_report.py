@@ -47,6 +47,28 @@ DISPOSITIONS = frozenset({REGISTRY_WINS, HAND_WINS_FIXED, COSMETIC})
 # R2 packages that own the deferred catalog reconciliation per table (from the readiness matrix).
 _R2_OWNER = {"silver_conab_coffee": "SILVER-F024 / SILVER-F016"}
 
+# THE ONE INPUT THIS REPORT CANNOT HAVE: a live-Glue record (2026-08-20, the four-family wave close).
+#
+# Every row below is computed against three texts -- the registry contract, the hand DDL, and the R0
+# baseline `tables/<t>.json` `glue` block, which IS the live-Glue side. These two contracts were
+# hand-authored against a live source probe on 2026-08-20, long after the 20260712_p65impl capture,
+# and neither table has ever existed in Glue: there is no record to read and no catalog to disagree
+# with. Skipping them is therefore a statement of fact, not a waiver -- the alternative (a fabricated
+# empty `glue` block) would manufacture a clean "registry == live Glue" row for a comparison that
+# never happened, which is the dishonesty this whole report exists to prevent.
+#
+# FAIL-CLOSED, in both directions: `_load_glue` raises for any OTHER table with a missing record (a
+# deleted baseline is a defect, never a skip), and tests/unit/silver/test_ddl_generation.py asserts
+# that each name here really has no record -- so the moment one is captured, the exception must go.
+#
+# REMOVAL TRIGGER: the table's first canonical publish + its Glue registration, then re-capture its
+# R0 record (run_census.census_one -- the sanctioned apply-then-refresh discipline) and delete the
+# name here. The row it then produces is the first honest registry-vs-catalog comparison it can have.
+TABLES_WITHOUT_R0_RECORD: frozenset = frozenset({
+    "silver_eex_freight",
+    "silver_moex_agro_indices",
+})
+
 # BF-W2 step 3 (runbook Deviation 9): tables whose registry deliberately LEADS live Glue by an
 # exact, gated additive column set. CatalogMigrator._glue_columns cannot emit glue_type-null
 # columns, so the registry must carry the migration TARGET types BEFORE the apply; until the gated
@@ -119,6 +141,8 @@ def build_diff() -> list[DriftRow]:
     reg = load_registry()
     rows: list[DriftRow] = []
     for name in reg.names():
+        if name in TABLES_WITHOUT_R0_RECORD:
+            continue                      # no live-Glue side to compare against -- see the constant
         contract = reg.table(name)
         gen = D.render_ddl(contract)
         hand = (HAND_DDL_DIR / f"{name}.sql").read_text(encoding="utf-8")

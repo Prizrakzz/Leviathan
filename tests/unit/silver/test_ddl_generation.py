@@ -74,8 +74,10 @@ def test_render_all_is_deterministic(gen_mod):
     first = gen_mod.render_all()
     second = gen_mod.render_all()
     assert first == second
-    assert len(first) == 46  # 43 R0 + gold_pattern_records (T2B) + silver_futures_eod (W1.0)
-    #                          + gold_board_crush (D-EC DK-13)
+    assert len(first) == 50  # 43 R0 + gold_pattern_records (T2B) + silver_futures_eod (W1.0)
+    #                          + gold_board_crush (D-EC DK-13) + silver_minagro_grain_exports
+    #                          + silver_moex_agro_indices + silver_ams_gtr + silver_eex_freight
+    #                          (the 2026-08-20 four-family wave close; one DDL per registry contract)
 
 
 def test_generated_dir_is_byte_identical_to_a_fresh_render(gen_mod):
@@ -92,8 +94,10 @@ def test_generated_dir_is_byte_identical_to_a_fresh_render(gen_mod):
 def test_all_43_tables_covered(gen_mod):
     rendered = set(gen_mod.render_all())
     on_disk = {p.stem for p in _GENERATED_DIR.glob("*.sql")}
-    assert len(rendered) == 46  # 43 R0 + gold_pattern_records (T2B) + silver_futures_eod (W1.0)
-    #                             + gold_board_crush (D-EC DK-13)
+    assert len(rendered) == 50  # 43 R0 + gold_pattern_records (T2B) + silver_futures_eod (W1.0)
+    #                             + gold_board_crush (D-EC DK-13) + silver_minagro_grain_exports
+    #                             + silver_moex_agro_indices + silver_ams_gtr + silver_eex_freight
+    #                             (the 2026-08-20 four-family wave close)
     assert rendered == on_disk
 
 
@@ -137,7 +141,7 @@ def test_sampled_generated_ddl_parses(reg, mode, name):
 # ---------------------------------------------------------------------------
 # Registry fidelity + parse round-trip.
 # ---------------------------------------------------------------------------
-def test_generated_matches_live_glue_for_every_table(reg):
+def test_generated_matches_live_glue_for_every_table(reg, report_mod):
     """Generated DDL (from the registry) == the live Glue catalog for ALL 43 tables.
 
     Encodes the model_predictions column-order fix (no accidental drift). BF-W2 retired the one
@@ -146,8 +150,21 @@ def test_generated_matches_live_glue_for_every_table(reg):
     snapshots under 20260712_p65impl/tables/ refreshed to the post-migration live state
     (2026-07-15), and the registry regenerates to exactly that state. ANY divergence is drift.
     """
+    # 2026-08-20 wave close: two contracts were hand-authored against a live source probe that
+    # post-dates the R0 capture and have never existed in Glue, so there is no live-Glue side to
+    # compare against. The single source of truth for that exception is the report script's
+    # TABLES_WITHOUT_R0_RECORD (which carries the reasoning and the removal trigger); this test
+    # pins the exception to the FACT in both directions -- a name that acquires a record must
+    # leave the set, and a name outside it must have one or the read below raises.
+    skip = report_mod.TABLES_WITHOUT_R0_RECORD
+    for name in sorted(skip):
+        assert not (_BASELINE_TABLES / f"{name}.json").exists(), (
+            f"{name!r} now HAS an R0 baseline record -- drop it from "
+            f"f011_ddl_diff_report.TABLES_WITHOUT_R0_RECORD so it is compared against live Glue")
     drift = {}
     for name in reg.names():
+        if name in skip:
+            continue
         R = D.structured_from_contract(reg.table(name))
         glue = json.loads((_BASELINE_TABLES / f"{name}.json").read_text(encoding="utf-8"))["glue"]
         G = D.structured_from_glue(glue)
@@ -268,6 +285,19 @@ def test_diff_report_covers_the_known_findings(report_mod):
     reg = load_registry()
     covered = {r.table for r in rows}
     for name in sorted(set(reg.names()) - covered):
-        gen_text = D.render_ddl(reg.table(name))
+        contract = reg.table(name)
+        gen_text = D.render_ddl(contract)
         hand_text = (report_mod.HAND_DDL_DIR / f"{name}.sql").read_text(encoding="utf-8")
+        if name in report_mod.TABLES_WITHOUT_R0_RECORD:
+            # THE THIRD REASON A TABLE CAN BE UNCOVERED (2026-08-20 wave close), and it is neither
+            # of the two above: build_diff skips these because there is no live-Glue record to
+            # compare against (see f011_ddl_diff_report.TABLES_WITHOUT_R0_RECORD), so no row exists
+            # to classify a cosmetic delta -- their hand DDLs are written in the pre-first-write
+            # house style and are NOT byte-identical to the render. What is still assertable, and
+            # what actually matters, is the SEMANTIC half: the two texts must describe the same
+            # table. silver_eex_freight's own hand DDL header makes exactly this claim in prose
+            # ("diff_structured == []"); this is that claim under test rather than in a comment.
+            d = D.diff_structured(D.parse_ddl(hand_text), D.structured_from_contract(contract))
+            assert d == [], f"{name}: hand DDL and registry describe different tables: {d}"
+            continue
         assert gen_text == hand_text, f"{name} has no drift row but generated != hand DDL"

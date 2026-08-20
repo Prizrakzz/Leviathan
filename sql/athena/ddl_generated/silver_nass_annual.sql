@@ -31,7 +31,7 @@ TBLPROPERTIES (
     'EXTERNAL' = 'TRUE',
     'parquet.compression' = 'SNAPPY',
     'projection.commodity.type' = 'enum',
-    'projection.commodity.values' = 'corn_cbot,soybeans_cbot,rough_rice_cbot,cotton,soft_red_winter_wheat_cbot,hard_red_spring_wheat_mgex',
+    'projection.commodity.values' = 'corn_cbot,soybeans_cbot,rough_rice_cbot,cotton,soft_red_winter_wheat_cbot,hard_red_spring_wheat_mgex,canola_ice,cottonseed,upland_cotton,pima_cotton',
     'projection.enabled' = 'true',
     'projection.year.range' = '1866,2035',
     'projection.year.type' = 'integer',

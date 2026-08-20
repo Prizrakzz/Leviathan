@@ -21,7 +21,17 @@ from leviathan.silver.types import (
 # D-EC DK-13 (2026-08-20): + gold_board_crush, the THIRD gold table and the FIRST derived from a
 # PUBLISHED silver table (silver_futures_eod). Also a SYNTHETIC R0 record, for the same reason
 # silver_futures_eod's is: the contract is emitted byte-stably before the producer has ever run.
-EXPECTED_TABLE_COUNT = 46
+#
+# THE FOUR-FAMILY WAVE CLOSE (2026-08-20): 46 -> 50, and every one of the four is a SILVER table
+# registered ahead of its first canonical publish. One line per family, so a later reader can undo
+# exactly one of them:
+#   +1 silver_minagro_grain_exports  (MINAGRO Ukraine State Customs weekly exports)
+#   +1 silver_moex_agro_indices      (MOEX ISS Russian grain indicative indices)
+#   +1 silver_ams_gtr                (USDA AMS Grain Transportation Report freight)
+#   +1 silver_eex_freight            (EEX dry-bulk freight settlements)
+# The gold count is UNCHANGED at 3 -- none of the four is derived from our own published silver,
+# which is the estate's gold test (see the board-crush note above).
+EXPECTED_TABLE_COUNT = 50
 
 
 @pytest.fixture(scope="module")
@@ -40,7 +50,9 @@ def test_registry_has_exactly_the_live_43_plus_gold(reg):
     gold = [n for n in names if n.startswith("gold_")]
     assert set(gold) == {"gold_weather_z", "gold_pattern_records", "gold_board_crush"}
     silver = [n for n in names if n.startswith("silver_")]
-    assert len(silver) == 43
+    # 43 -> 47: the four-family wave close enumerated at EXPECTED_TABLE_COUNT above. This assert is
+    # the one that records that all four widened SILVER and none of them widened gold.
+    assert len(silver) == 47
     # the ESR pair + WASDE + model_predictions are all present (registered surfaces).
     for must in ("silver_esr", "silver_esr_compact", "silver_wasde", "silver_model_predictions"):
         assert must in names
@@ -71,7 +83,17 @@ def test_partition_modes_match_the_r0_tally(reg):
     # D-EC DK-13: flat 29 -> 30. gold_board_crush is flat by design -- ~4,000 rows, one per session
     # since the 2010-06-06 GLBX floor -- so there is no partition surface to enumerate and no
     # per-partition ADD on refresh. gold_weather_z is the precedent for a flat gold table.
-    assert modes == {"flat": 30, "projected": 7, "registered": 9}
+    # THE FOUR-FAMILY WAVE CLOSE (2026-08-20), MEASURED per family rather than totalled:
+    #   flat 30 -> 33, three of the four -- silver_minagro_grain_exports (one row per as-of capture,
+    #     no partition surface), silver_moex_agro_indices (a single indicative-index series) and
+    #     silver_eex_freight (a ~5-day rolling window appended forever; write_mode append, and a
+    #     partition key would have to be invented for it).
+    #   registered 9 -> 10, silver_ams_gtr ALONE -- partition key `dataset`, a CLOSED set of seven
+    #     values enumerable from GTR_DATASETS, which is what earns `registered` over `projected`
+    #     (INV-3: recovery reconciles get-partitions against the seven prefixes, never MSCK).
+    #   projected does NOT move and cannot: `projection: forbidden` on all four. The projected 7 is
+    #     the legacy quarantine and nothing new is ever admitted to it.
+    assert modes == {"flat": 33, "projected": 7, "registered": 10}
 
 
 def test_projection_field_is_quarantined_iff_projected(reg):

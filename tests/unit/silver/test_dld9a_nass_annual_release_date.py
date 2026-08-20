@@ -165,25 +165,34 @@ def test_the_2026_row_is_withheld_and_the_2025_row_is_citable_at_the_dld_asof():
 # ---------------------------------------------------------------------------
 
 def test_silver_f020_projection_enum_is_untouched_by_this_change():
-    """SILVER-F020 (canola_ice hidden by the projection enum) is the ORCHESTRATOR's separate, gated
-    SET TBLPROPERTIES -- reports/silver_readiness/R2_SA/F020_canola_migration.json. The checked-in
-    enum must stay == the F010 contract == live Glue, or tests/unit/silver/test_f020_nass_projection.py
-    stops measuring the live defect and the two serving backends could disagree about canola_ice
-    (load_pg_numbers reads the parquet directly; Athena cannot see the hidden partitions)."""
+    """The invariant this pins is DDL == contract == live Glue -- unchanged. What changed is the
+    VALUE both sides hold: SILVER-F020 was RESOLVED 2026-08-20 (D-EC wheat-lane flip) when the
+    canonical promote landed all ten partitions and the Glue enum was ALTERed to the same ten in
+    the same change (canola_ice un-hidden; the gated canola-only migration retired unapplied).
+    The equality assertion below survives the flip verbatim: it never named the six, so it now
+    pins the ten -- and it still catches the drift class it was written for (a hand edit to one
+    side without the other)."""
     proj = dict(_parsed().projection)
     contract_proj = _contract()["projection_domains"]
     assert proj["projection.commodity.values"] == contract_proj["projection.commodity.values"]
+    # The literal pins the POST-FLIP ten (2026-08-20): the six-value literal this replaced was the
+    # F020-era state; live Glue was ALTERed to these ten in the same change as the canonical promote.
     assert proj["projection.commodity.values"] == (
         "corn_cbot,soybeans_cbot,rough_rice_cbot,cotton,"
-        "soft_red_winter_wheat_cbot,hard_red_spring_wheat_mgex"
+        "soft_red_winter_wheat_cbot,hard_red_spring_wheat_mgex,"
+        "canola_ice,cottonseed,upland_cotton,pima_cotton"
     )
-    assert "canola_ice" not in proj["projection.commodity.values"]
+    # Post-flip: canola_ice is IN the enum (un-hidden by the 2026-08-20 ten-value ALTER); the
+    # F020 record stays applied:false because the canola-only migration was RETIRED UNAPPLIED --
+    # superseded by the wider ALTER, not fired. Both directions pinned.
+    assert "canola_ice" in proj["projection.commodity.values"]
     assert proj["projection.year.range"] == "1866,2035"
     f020 = json.loads(
         (_REPO / "reports" / "silver_readiness" / "R2_SA" / "F020_canola_migration.json")
         .read_text(encoding="utf-8")
     )
-    assert f020["applied"] is False          # still the orchestrator's to fire, still not fired here
+    assert f020["applied"] is False           # retired UNAPPLIED -- superseded, never fired
+    assert "superseded" in f020               # the retirement is recorded, not implied
 
 
 def test_the_weekly_nass_sibling_is_untouched():

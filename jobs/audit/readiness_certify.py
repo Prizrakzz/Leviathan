@@ -80,6 +80,26 @@ PRE_PUBLISH_PACKAGE: dict = {
     # PRICE_AND_PLAYBOOKS W1.0: silver_futures_eod is registered + serving-fenced; W1a (the free-first
     # venues) is the first wave that writes a canonical partition, and W2 completes the coverage.
     "silver_futures_eod": "PRICE-PLAYBOOKS-W1A",
+    # BLACK SEA numbers cluster, 2026-08-20. silver_moex_agro_indices is registered ahead of its
+    # producer: the raw fetcher and both transforms exist, no batch task does, and no jobdef or
+    # schedule is armed -- so there are no objects and a value census is IMPOSSIBLE rather than
+    # merely missing. The row stays BLOCKED and the certificate stays RED; this entry only makes it
+    # name the work that closes the row. That work is the cloud-side backfill, which cannot run
+    # until the worker image is rebuilt to carry jobs/ingest/fetch_moex_agro_indices.py --
+    # iss.moex.com is reachable from AWS and not from a laptop. Mirrors
+    # silver_alarms.PRE_PUBLISH_FAMILIES; REMOVE both the moment the first canonical publish +
+    # census land.
+    "silver_moex_agro_indices": "BLACK-SEA-MOEX-BACKFILL",
+    # BLACK SEA freight backbone, same date, same shape and the OTHER HALF of a mirror this file is
+    # named in: silver_alarms.PRE_PUBLISH_FAMILIES now carries `ams_gtr`, and its removal-trigger
+    # comment points here. The GTR source is the most backfillable one in the cluster (seven SODA
+    # datasets, measured spans back to 1996-01-01) -- the block is not the source, it is that no
+    # bronze->silver batch task or jobdef exists yet, so there are zero objects and the census is
+    # IMPOSSIBLE rather than missing. Naming the work order keeps the row from reading as
+    # SILVER-V001 ("census the data that exists") when there is nothing to census. The row stays
+    # BLOCKED and the certificate stays RED. REMOVE both halves the moment the first canonical
+    # publish + census land.
+    "silver_ams_gtr": "BLACK-SEA-GTR-FIRST-PUBLISH",
 }
 
 
