@@ -173,7 +173,8 @@ def check_country_vocabulary(reg, *, query_fn, caches=None) -> list[str]:
 # ---------------------------------------------------------------------------
 def check_commodity_slug_vocabulary(reg, *, query_fn, caches=None) -> list[str]:
     """Every commodity slug a mapped leg resolves to must exist in the DISTINCT commodity set of the numbers
-    table the leg maps to -- the commodity-slug-miss class (silver_psd tracks no cocoa/orange-juice slug).
+    table the leg maps to -- the commodity-slug-miss class (silver_psd tracks no cocoa slug; it DOES track
+    orange juice since the 2026-08-20 widening re-run, D-EC XC-7).
     Projection tables and slug-less tables (fred_fx/noaa_oni) are skipped."""
     caches = caches if caches is not None else {}
     errs: list[str] = []

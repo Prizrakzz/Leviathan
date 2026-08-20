@@ -375,33 +375,6 @@ class TestWidenedGateContract:
 # ---------------------------------------------------------------------------
 class TestWideningRefusals:
 
-    def test_the_serving_fence_is_NOT_flipped_for_fcoj(self) -> None:
-        # ARM AND FLIP ARE SEPARATE, exactly as the MATIF price legs are. The
-        # producer now WRITES a frozen_orange_juice balance sheet, but nothing
-        # has re-run in the cloud yet, so silver still holds no FCOJ row. Dropping
-        # frozen_orange_juice from PSD_UNSERVED_SLUGS here would arm cascade legs
-        # that compile SQL returning zero rows. The flip belongs to the
-        # orchestrator, AFTER the psd re-run lands and a DISTINCT slug probe
-        # confirms the rows exist -- which is what the waiver's own note in
-        # cascade_census.py asks for ("DELETE the relevant waivers if either
-        # commodity is ever ingested into silver_psd").
-        from leviathan.graphrag.numbers.cascade import PSD_UNSERVED_SLUGS
-        assert "frozen_orange_juice" in PSD_UNSERVED_SLUGS
-        assert "cocoa" in PSD_UNSERVED_SLUGS
-
-    def test_the_psd_numbers_card_is_NOT_widened_yet(self) -> None:
-        # Same reason. The card teaches what the table CONTAINS; widening its
-        # notes to advertise beef and cheese before the re-run would teach the
-        # reader a table that does not exist yet. The card move rides with the
-        # flip, not with the producer.
-        card = yaml.safe_load(
-            (_REPO / "configs" / "graphrag" / "numbers" / "tables.yaml")
-            .read_text(encoding="utf-8"))["tables"]["silver_psd"]
-        assert card["commodity_col"] == "leviathan_slug"
-        assert "commodity_values" not in card, (
-            "silver_psd has no closed commodity set today; if one is added it must be "
-            "generated from a DISTINCT probe of the re-run table, never hand-listed")
-
     def test_the_release_date_convention_is_unchanged_for_every_code(self) -> None:
         # The widening measured that the bulk CSV's `Month` is the CALENDAR month
         # of the release, not the MY-relative index _compute_psd_release_dates
@@ -424,3 +397,65 @@ class TestWideningRefusals:
         for code in (111000, 113000, 114200, 115000,
                      223000, 224200, 224400, 230000, 240000):
             assert _PSD_COMMODITY_TO_MYS[code] == 1
+
+
+# ---------------------------------------------------------------------------
+# THE SERVING FLIP (2026-08-20). This file shipped two CONDITIONAL refusals --
+# "the serving fence is NOT flipped for fcoj" and "the psd numbers card is NOT
+# widened yet" -- and both hung on one condition: rows, proved by a cloud re-run
+# rather than by the producer's intent. That re-run landed at 10:01 and the live
+# object carries 247,036 rows over 63 distinct leviathan_slug values, with 746
+# FCOJ rows across 25 countries and 1,646 fresh_citrus rows across 48
+# (data/dec_p0/projection_census.json, the silver_psd commodity-code family).
+# The tests below are those SAME two decisions asserting the other direction,
+# plus the two traps the widened table created: a conditional refusal that is
+# never flipped when its condition is met stops being a decision and becomes a
+# fence nobody maintains.
+# ---------------------------------------------------------------------------
+class TestServingFlip:
+
+    def _card(self) -> dict:
+        return yaml.safe_load(
+            (_REPO / "configs" / "graphrag" / "numbers" / "tables.yaml")
+            .read_text(encoding="utf-8"))["tables"]["silver_psd"]
+
+    def test_the_serving_fence_is_flipped_for_fcoj(self) -> None:
+        # The psd legs on frozen_orange_juice now un-SKIP at _scope and read real
+        # rows instead of declining. cocoa is a DIFFERENT shape and stays behind
+        # the fence: USDA publishes no cocoa balance sheet at all, so no widening
+        # can ever mint one -- that data's home is ICCO.
+        from leviathan.graphrag.numbers.cascade import PSD_UNSERVED_SLUGS
+        assert "frozen_orange_juice" not in PSD_UNSERVED_SLUGS
+        assert PSD_UNSERVED_SLUGS == frozenset({"cocoa"})
+
+    def test_the_card_fence_is_the_producer_map_slug_for_slug(self) -> None:
+        # The condition the refusal attached to the card move was that its closed
+        # set be GENERATED, never hand-listed. Equality in BOTH directions is the
+        # whole point: a code added to the transform without a card move, and a
+        # slug left on the card after its code is refused, each fail here rather
+        # than as a silent zero-row read (the first) or a silent refusal of a
+        # commodity the table serves (the second).
+        card = self._card()
+        assert card["commodity_col"] == "leviathan_slug"
+        assert sorted(card["commodity_values"]) == sorted(
+            {s for slugs in _PSD_COMMODITY_TO_SLUGS.values() for s in slugs})
+        assert len(card["commodity_values"]) == 63
+
+    def test_the_card_serves_both_citrus_subjects_and_still_refuses_cocoa(self) -> None:
+        # XC-7's two codes are two SUBJECTS, and the card carries both keys so a
+        # juice ask and a fresh-orange ask cannot collapse onto one balance sheet.
+        # cocoa stays off: an off-list ask is a teaching refusal (CommodityOffCard,
+        # pre-SQL), which is the honest answer, not a zero-row read.
+        vals = set(self._card()["commodity_values"])
+        assert {"frozen_orange_juice", "fresh_citrus"} <= vals
+        assert "cocoa" not in vals
+
+    def test_the_card_notes_carry_the_two_traps_the_widening_created(self) -> None:
+        # Both are MEASURED properties of the widened table, not style: chicken_meat
+        # (115000) is broader than broilers_poultry (114200) and OVERLAPS it, so the
+        # two are never summed; and broilers_poultry's newest release_date is
+        # 2016-10-10 -- a content ceiling inside PSD, which a reader quoting it must
+        # know before calling the figure current.
+        blob = " ".join(self._card()["notes"].split()).lower()
+        assert "never sum broilers_poultry and chicken_meat" in blob
+        assert "2016-10-10" in blob

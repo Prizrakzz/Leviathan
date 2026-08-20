@@ -160,6 +160,18 @@ REGISTRY: tuple[ToolSpec, ...] = (
         # archive ending February 2026 (sales November 2024), so the planner never routes a "where is
         # the crush now" ask here in the first place rather than routing it and relying on the card's
         # notes to catch it afterwards.
+        #
+        # D-EC XC-7 CITRUS FLIP (2026-08-20): ONE CLAUSE REWRITTEN, no new table advertised. The NASS
+        # CITRUS clause below used to end "the only observed citrus quantity in the estate since there is
+        # no PSD orange-juice balance sheet" -- a DEFLECTION that was true when it landed (PSD's commodity
+        # map admitted 13 codes and Orange Juice was not one of them; the D-LD Track 1 note above records
+        # the wording as it stood) and became false at 10:01 on 2026-08-20, when the 13 -> 47 re-run put
+        # 746 FCOJ rows across 25 countries and 1,646 fresh-orange rows across 48 into silver_psd. A
+        # purpose string that tells the router a table holds nothing for a subject is a routing fence made
+        # of PROSE, so it had to move the moment the rows existed -- otherwise the estate ingests a balance
+        # sheet the router is still instructed to route away from. The nass_citrus half is UNCHANGED and
+        # keeps the `citrus` token this string owes it: the card is still the US in-season FORECAST in
+        # thousand boxes. The two reads are now advertised as a PAIR, the FGIS/ESR shipped-vs-sold idiom.
         purpose=("leakage-safe SQL over OBSERVED values (USDA PSD S&D vintages, ESR export sales AND "
                  "their PACE vs the year-ago week/marketing year -- national OR BY DESTINATION (which "
                  "country bought how much this marketing year), FGIS export INSPECTIONS -- the tonnage "
@@ -221,8 +233,10 @@ REGISTRY: tuple[ToolSpec, ...] = (
                  "citable once its January USDA annual summary published; the monthly USDA NASS CITRUS "
                  "forecast -- US orange, grapefruit and tangerine production in THOUSAND BOXES by "
                  "state (Florida, California, Texas, Arizona) with each release's month-over-month "
-                 "REVISION, the only observed citrus quantity in the estate since there is no PSD "
-                 "orange-juice balance sheet; annual USDA AMS US cotton CLASSING QUALITY -- the "
+                 "REVISION -- the US in-season forecast, which is a DIFFERENT read from the global "
+                 "marketing-year balance sheets for orange juice and for fresh oranges that PSD now "
+                 "carries (above): a citrus question may want either, and neither substitutes for the "
+                 "other; annual USDA AMS US cotton CLASSING QUALITY -- the "
                  "TENDERABLE (deliverable-grade) share of the classed crop, its average staple length "
                  "and the number of bales classed, by crop season; weather aggregates and monthly "
                  "weather z-anomalies, FX, and BOTH climate indices -- ENSO/ONI and the Indian Ocean "

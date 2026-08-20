@@ -585,7 +585,7 @@ def check_transmission_map() -> list[str]:
          chain id, a link may not carry the vertical hop's `ref:`/`node:` keys, and its `pair_id` may not
          name a cascade_map ref or a vertical chain id. The two engines share ONLY the decline vocabulary
          (3.2); sharing a ref/id surface would blur the T2b ledger's engine attribution.
-      6. STATICALLY DEAD: a leg that is not a loaded contract, or is in PSD_UNSERVED_SLUGS (cocoa/FCOJ carry no
+      6. STATICALLY DEAD: a leg that is not a loaded contract, or is in PSD_UNSERVED_SLUGS (cocoa carries no
          PSD balance sheet) can never yield the World su_ratio both legs need -> the chain is dead on arrival.
          This is the OFFLINE half of the per-pair census (axes (a)/(b), sec 1.3); the era-disjoint + World-synth
          axes need pg and stay with `pair_realizable` at runtime -- this lint is AWS-free by construction.

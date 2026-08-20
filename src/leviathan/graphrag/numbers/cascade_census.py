@@ -473,7 +473,7 @@ def _pair_leg_slug(side) -> str | None:
 
 def _pair_verdict(pair, *, asof: str, query_fn) -> dict:
     """Per-PAIR realizability record. FIRES iff BOTH legs' World synthesis is non-empty AND both legs are
-    era-disjoint; DECLINES-HONESTLY when a leg has no PSD balance sheet at all (cocoa/FCOJ, PSD_UNSERVED_SLUGS);
+    era-disjoint; DECLINES-HONESTLY when a leg has no PSD balance sheet at all (cocoa, PSD_UNSERVED_SLUGS);
     DARK-WITH-REASON when a resolved leg has zero World rows OR fails the disjointness lint; probe-error on a pg
     raise. `warn` carries the disjointness message (surfaced, never silent)."""
     pid = getattr(pair, "id", None)

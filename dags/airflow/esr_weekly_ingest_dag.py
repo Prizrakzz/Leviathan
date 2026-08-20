@@ -61,7 +61,14 @@ _MIN_SIZE_BYTES   = 500
 TARGET_COMMODITY_CODES = [101, 102, 103, 104, 107, 401, 701, 801, 901, 902]
 
 _WHEAT_CODES       = frozenset({101, 102, 103, 104, 105, 106, 107, 201})
-_COTTON_RICE_CODES = frozenset({1201, 1202, 1203, 1301, 1302, 3202})
+# D-EC 2026-08-20: the phantom mirror is gone.  This was one
+# _COTTON_RICE_CODES = {1201, 1202, 1203, 1301, 1302, 3202}; 1302 and 3202 do NOT
+# exist in the source's measured 44-code universe, and every real upland cotton
+# (1401-1404) and rice (1498/1499/1501-1505) code was missing.  These two sets are
+# jobs/ingest/fetch_usda_esr.py's, code for code; a unit test pins the three
+# copies (fetcher, Glue job, this DAG) equal.
+_COTTON_CODES      = frozenset({1201, 1202, 1203, 1301, 1401, 1402, 1403, 1404})
+_RICE_CODES        = frozenset({1498, 1499, 1501, 1502, 1503, 1504, 1505})
 
 logger = get_logger(__name__)
 
@@ -73,7 +80,7 @@ logger = get_logger(__name__)
 def _marketing_year_start_month(commodity_code: int) -> int:
     if commodity_code in _WHEAT_CODES:
         return 6
-    if commodity_code in _COTTON_RICE_CODES:
+    if commodity_code in _COTTON_CODES or commodity_code in _RICE_CODES:
         return 8
     return 9
 

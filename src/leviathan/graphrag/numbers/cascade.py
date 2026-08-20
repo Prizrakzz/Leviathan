@@ -341,10 +341,20 @@ def _plus_days(iso: str, days: int) -> str:
 PSD_SLUG_ALIAS = {"corn": "corn_cbot", "soybeans": "soybeans_cbot"}
 
 # Contracts with NO series in silver_psd AT ALL (DISTINCT leviathan_slug, C002-verified 2026-07-15):
-# USDA PSD carries no cocoa balance sheet (ICCO territory) and no frozen-orange-juice series. A
-# quantify against them can only ever return 0 rows -- declare the absence so the leg SKIPs
-# honestly at _scope and the C002 slug check reads it as KNOWN-UNSERVED rather than drift.
-PSD_UNSERVED_SLUGS = frozenset({"cocoa", "frozen_orange_juice"})
+# USDA PSD carries no cocoa balance sheet -- that is ICCO territory. A quantify against it can only ever
+# return 0 rows -- declare the absence so the leg SKIPs honestly at _scope and the C002 slug check reads
+# it as KNOWN-UNSERVED rather than drift.
+#
+# D-EC XC-7 FLIP (2026-08-20): frozen_orange_juice LEFT this fence. It was here because PSD's commodity
+# map admitted 13 codes and code 585100 (Orange Juice) was not one of them -- an INGESTION absence wearing
+# a source absence's clothes. The 13 -> 47 widening (commit e437eff7) bound 585100 to the contract slug,
+# and the fence stayed armed on purpose until the cloud re-run proved rows rather than intentions: that
+# re-run landed 2026-08-20 10:01 and FCOJ now carries 746 rows across 25 countries in the live object
+# (data/dec_p0/projection_census.json, silver_psd commodity-code family). The flip condition written into
+# tests/unit/test_psd_slug_map_widening.py is met, so the FCOJ psd legs un-SKIP and read real rows.
+# `cocoa` is NOT the same shape and stays: it is not among the 63 slugs the table carries, and no widening
+# can mint it, because USDA does not publish a cocoa balance sheet.
+PSD_UNSERVED_SLUGS = frozenset({"cocoa"})
 
 # Contracts with NO series in silver_cot AT ALL: CFTC covers only US-cleared contracts, and
 # configs/sources/cftc_cot.yaml `not_covered:` is the authoritative declaration (MATIF/DCE/ZCE/JSE/

@@ -12,9 +12,13 @@ Set the key as environment variable FAS_API_KEY (never embed in URLs or code).
 Rate limits
 -----------
 api.data.gov default: 1,000 requests/hour per API key (sliding window).
-Full backfill (~360 requests) completes in ~6 min at 1.0s sleep — well under
-the limit.  Do NOT use a thread pool for this endpoint.  It is a government
-server, not a CDN; concurrency does not improve throughput and risks 429s.
+A weekly run is 44 codes × 2 marketing years = 88 requests (~90 s at 1.0s sleep)
+— well under the limit.  A FULL backfill is 44 codes × ~37 years ≈ 1,630
+requests, which EXCEEDS the hourly key budget in a single pass: split it with
+``--commodity-codes`` (or ``--start-year``/``--end-year``) into batches of under
+1,000 requests and space the batches roughly an hour apart.  Do NOT use a thread
+pool for this endpoint.  It is a government server, not a CDN; concurrency does
+not improve throughput and risks 429s.
 
 Two modes
 ---------
@@ -85,15 +89,82 @@ _DOWNLOAD_TIMEOUT = 30  # seconds per request
 # 500 B catches HTML error pages returned by api.data.gov on auth failure.
 _MIN_SIZE_BYTES = 500
 
-# Commodity codes covered in scope for Leviathan.  Cotton and rice codes are
-# reserved pending confirmation from /api/esr/commodities once an API key is
-# in hand.
-_TARGET_COMMODITY_CODES: list[int] = [101, 102, 103, 104, 107, 401, 701, 801, 901, 902]
+# Source universe — the FULL ESR commodity list, not a hand-picked subset.
+# MEASURED live 2026-08-20: GET /api/esr/commodities with the estate's own
+# FAS_API_KEY returns exactly 44 rows.  Policy is INV-10 source-universe
+# fidelity: fetch every code the source publishes and let the downstream layers
+# decide what to route.  Codes and names below are the API's own
+# commodityCode/commodityName pairs, verbatim, in API order.  Re-run that GET
+# before editing this list — it is the only authority on what exists.
+#
+# unitId spread (also measured 2026-08-20): most codes are unitId=1 (metric
+# tonnes); the cotton lint codes 1301/1401-1404 are unitId=2 (running bales) and
+# the hide/skin codes 1601-1608 are unitId=3/4/5 (pieces, etc).  Those are NOT
+# mass units — see the unit map in transforms/bronze_to_silver/usda_esr.py.
+_TARGET_COMMODITY_CODES: list[int] = [
+    101,   # Wheat - HRW
+    102,   # Wheat - SRW
+    103,   # Wheat - HRS
+    104,   # Wheat - White
+    105,   # Wheat - Durum
+    106,   # Wheat - Mixed
+    107,   # All Wheat
+    201,   # Wheat Products
+    301,   # Barley
+    401,   # Corn
+    501,   # Rye
+    601,   # Oats
+    701,   # Sorghum
+    801,   # Soybeans
+    901,   # Soybean cake & meal
+    902,   # Soybean Oil
+    1001,  # Flaxseed
+    1101,  # Linseed Oil
+    1110,  # Sunflowerseed Oil
+    1201,  # Cottonseed
+    1202,  # Cottonseed cake & meal
+    1203,  # Cottonseed Oil
+    1301,  # Cotton- Am Pima
+    1401,  # Cotton- Upland 1 1/16" & over
+    1402,  # Cotton- Upland 1"-1 1/16" & over
+    1403,  # Cotton- Upland under 1"
+    1404,  # All Upland Cotton
+    1498,  # Rice - LG Rough
+    1499,  # Rice- Med, Short,Other Rough
+    1501,  # Rice- LG Brown
+    1502,  # Rice- Med,Short, Other Brown
+    1503,  # Rice - Long Grain, Milled
+    1504,  # Rice- Med,Short,Other Milled
+    1505,  # All Rice
+    1601,  # Cattle Hides - Whole - Excluding Wet Blues
+    1602,  # Calf Skins - Whole - Excluding Wet Blues
+    1603,  # Kip Skins - Whole - Excluding Wet Blues
+    1604,  # Cattle Hides-Cut into Croupons, etc-excl Wet Blues
+    1605,  # Cattle Hides and Skins-other-excluding Wet Blues
+    1606,  # Cattle Wet Blues-Unsplit (Whole or Sided)
+    1607,  # Cattle Wet Blues-Grain Splits (Whole or Sided)
+    1608,  # Cattle Wet Blues-Splits-Excluding Grain Splits
+    1701,  # Fresh, Chilled, or Frozen Muscle Cuts of Beef
+    1702,  # Fresh, Chilled, or Frozen Muscle Cuts of Pork
+]
 
-# Marketing year start month per commodity group.  Wheat: Jun 1; Cotton/Rice:
-# Aug 1; everything else (corn, soy, sorghum): Sep 1.
+# Marketing year start month per commodity group.  Wheat (incl. durum, mixed and
+# wheat products): Jun 1; the cotton complex and rice: Aug 1; everything else
+# (corn, soy, sorghum, minor grains, oilseeds, livestock, hides): Sep 1.
+#
+# The Sep 1 default is SAFE for any commodity whose marketing year opens in
+# Jan–Sep — weekly mode always fetches {current, current+1}, and that pair
+# provably contains the true marketing year for every start month ≤ 9.  ESR runs
+# the livestock and hide codes on a calendar year; they are covered by the
+# default and are deliberately not special-cased (start month NOT re-measured —
+# only /api/esr/commodities was queried).
 _WHEAT_CODES = frozenset({101, 102, 103, 104, 105, 106, 107, 201})
-_COTTON_RICE_CODES = frozenset({1201, 1202, 1203, 1301, 1302, 3202})
+# Cotton (lint + cottonseed products) and the full rice complex, both Aug 1.
+# The pre-2026-08-20 list carried 1302 and 3202, which do NOT exist in the API's
+# 44-code universe; the real upland cotton codes are 1401-1404 and the rice codes
+# are 1498/1499/1501-1505 (there is no 1500).
+_COTTON_CODES = frozenset({1201, 1202, 1203, 1301, 1401, 1402, 1403, 1404})
+_RICE_CODES = frozenset({1498, 1499, 1501, 1502, 1503, 1504, 1505})
 
 
 # ---------------------------------------------------------------------------
@@ -104,9 +175,9 @@ def _marketing_year_start_month(commodity_code: int) -> int:
     """Return the month (1-12) that opens the marketing year for this code."""
     if commodity_code in _WHEAT_CODES:
         return 6  # Jun 1
-    if commodity_code in _COTTON_RICE_CODES:
+    if commodity_code in _COTTON_CODES or commodity_code in _RICE_CODES:
         return 8  # Aug 1
-    return 9  # Sep 1  (corn, soybeans, sorghum, oilseeds)
+    return 9  # Sep 1  (corn, soybeans, sorghum, oilseeds, livestock, hides)
 
 
 def _current_marketing_year(commodity_code: int, reference_date: datetime.date) -> int:
@@ -410,8 +481,10 @@ def main() -> None:
         default=_TARGET_COMMODITY_CODES,
         metavar="CODE",
         help=(
-            f"ESR commodity codes to fetch (default: {_TARGET_COMMODITY_CODES}). "
-            "Example: --commodity-codes 401 801"
+            f"ESR commodity codes to fetch (default: all "
+            f"{len(_TARGET_COMMODITY_CODES)} codes of the measured source "
+            "universe).  Scope a run with an explicit list to stay under the "
+            "1,000 req/hour key budget.  Example: --commodity-codes 401 801"
         ),
     )
     parser.add_argument(

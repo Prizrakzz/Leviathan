@@ -16,10 +16,14 @@ Silver renames quantity cols with _1000mt suffix and renames unit_id → source_
 from __future__ import annotations
 
 import datetime
+import logging
 
 import pandas as pd
 import pytest
+from leviathan.transforms.bronze_to_silver import usda_esr as T
 from leviathan.transforms.bronze_to_silver.usda_esr import transform_esr_bronze_to_silver
+
+from jobs.ingest import fetch_usda_esr as F
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -265,3 +269,157 @@ class TestMarketYearConvention:
             )
             silver = transform_esr_bronze_to_silver(bronze, MARKET_YEAR)
             assert (silver["commodity_name"] == name).all()
+
+
+# ---------------------------------------------------------------------------
+# D-EC (2026-08-20) -- THE 44-CODE UNIVERSE.
+#
+# The fetcher now requests all 44 measured source codes. `silver_esr_compact`
+# partitions BY commodity_name, so an unmapped code does not read "unknown" in a
+# column -- every unmapped code collapses into ONE `commodity=unknown` partition
+# object. These tests pin the two halves of the disposition: 21 new mass codes
+# map to a slug, and the 13 non-mass codes are skipped IN WRITING.
+# ---------------------------------------------------------------------------
+
+# The 21 new unit_id=1 codes and the slug each one now carries.
+_NEW_MASS_CODE_TO_SLUG: dict[int, str] = {
+    105: "durum_wheat",
+    106: "mixed_wheat",
+    201: "wheat_products",
+    301: "barley",
+    501: "rye",
+    601: "oats",
+    1001: "flaxseed",
+    1101: "linseed_oil",
+    1110: "sunflower_oil",
+    1201: "cottonseed",
+    1202: "cottonseed_meal",
+    1203: "cottonseed_oil",
+    1498: "rough_rice_cbot",
+    1499: "medium_short_rough_rice",
+    1501: "long_grain_brown_rice",
+    1502: "medium_short_brown_rice",
+    1503: "long_grain_milled_rice",
+    1504: "medium_short_milled_rice",
+    1505: "all_rice",
+    1701: "cattle_beef",
+    1702: "hogs",
+}
+
+# The 13 codes that publish bales or piece counts, with the unit that refuses them.
+_NON_MASS_CODES: tuple[int, ...] = (
+    1301, 1401, 1402, 1403, 1404,                    # cotton lint, running bales
+    1601, 1602, 1603, 1604, 1605, 1606, 1607, 1608,  # hides / skins / wet blues, pieces
+)
+
+_TRANSFORM_LOGGER = "leviathan.transforms.bronze_to_silver.usda_esr"
+
+
+def _rows_for(code: int, unit_id: int = 1, n: int = 2) -> pd.DataFrame:
+    """A bronze frame of *n* rows for ONE commodity code -- the real per-code file shape."""
+    return _make_bronze_df(
+        commodity_code=pd.array([code] * n, dtype="Int16"),
+        country_code=pd.array([(351, 1220)[i % 2] for i in range(n)], dtype="Int16"),
+        week_ending_date=[datetime.date(2024, 9, 12 + i) for i in range(n)],
+        outstanding_sales=pd.array([1000.0] * n, dtype="float32"),
+        weekly_exports=pd.array([500.0] * n, dtype="float32"),
+        gross_new_sales=pd.array([600.0] * n, dtype="float32"),
+        changes=pd.array([0.0] * n, dtype="float32"),
+        unit_id=pd.array([unit_id] * n, dtype="Int16"),
+        as_of_date=["20260820"] * n,
+        ingest_date=["2026-08-20"] * n,
+        source=["usda_esr"] * n,
+    )
+
+
+class TestFortyFourCodeDisposition:
+    def test_every_code_in_the_measured_universe_is_mapped_or_written_off(self) -> None:
+        """No third bucket: a code is a slug or a written refusal. This is the assertion that
+        makes `commodity=unknown` unreachable for the universe the fetcher actually requests."""
+        universe = set(F._TARGET_COMMODITY_CODES)
+        assert len(universe) == 44
+        mapped = set(T._COMMODITY_CODE_TO_NAME)
+        skipped = set(T._NON_MASS_UNIT_CODES)
+        assert not (universe - (mapped | skipped)), universe - (mapped | skipped)
+        assert not (mapped & skipped), "a code cannot be both mapped and refused"
+
+    def test_the_two_halves_are_31_and_13(self) -> None:
+        assert len(T._COMMODITY_CODE_TO_NAME) == 31
+        assert set(T._NON_MASS_UNIT_CODES) == set(_NON_MASS_CODES)
+
+    def test_no_two_codes_share_a_slug(self) -> None:
+        """silver_esr_compact writes one object per commodity_name, so two codes on one name
+        merge two different USDA series into a single partition file."""
+        names = list(T._COMMODITY_CODE_TO_NAME.values())
+        assert len(set(names)) == len(names)
+
+    @pytest.mark.parametrize("code,expected", sorted(_NEW_MASS_CODE_TO_SLUG.items()))
+    def test_each_new_mass_code_maps_to_its_slug(self, code: int, expected: str) -> None:
+        silver = transform_esr_bronze_to_silver(_rows_for(code), MARKET_YEAR)
+        assert len(silver) == 2
+        assert (silver["commodity_name"] == expected).all()
+
+    def test_the_whole_mass_universe_produces_no_unknown_partition(self) -> None:
+        """THE PARTITION TEST: run every mass code through in one frame and assert that
+        'unknown' appears nowhere -- the defect this fix exists to prevent."""
+        mass_codes = sorted(set(F._TARGET_COMMODITY_CODES) - set(T._NON_MASS_UNIT_CODES))
+        frames = [_rows_for(code, n=1) for code in mass_codes]
+        silver = transform_esr_bronze_to_silver(
+            pd.concat(frames, ignore_index=True), MARKET_YEAR
+        )
+        assert len(silver) == len(mass_codes)
+        assert "unknown" not in set(silver["commodity_name"])
+        assert silver["commodity_name"].nunique() == len(mass_codes)
+
+
+class TestNonMassCodesAreSkippedInWriting:
+    @pytest.mark.parametrize("code", _NON_MASS_CODES)
+    def test_each_non_mass_code_is_skipped_with_one_log_line(
+        self, code: int, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A SKIP, never an exception: the fetcher requests all 44 codes every Thursday, so a
+        raise here would error-log 13 codes on the live weekly chain forever."""
+        unit_id = 2 if code < 1500 else 3
+        with caplog.at_level(logging.INFO, logger=_TRANSFORM_LOGGER):
+            silver = transform_esr_bronze_to_silver(_rows_for(code, unit_id=unit_id), MARKET_YEAR)
+        assert silver.empty
+        skips = [r for r in caplog.records if "SKIPPING commodity_code=%d" % code in r.getMessage()]
+        assert len(skips) == 1, [r.getMessage() for r in caplog.records]
+        assert T._NON_MASS_UNIT_CODES[code] in skips[0].getMessage()
+
+    def test_a_skipped_only_frame_returns_an_empty_but_well_formed_silver(self) -> None:
+        """Files are partitioned by code, so a skipped code's file yields ZERO rows. The batch
+        producer skips empty results (`not result.empty`), so this must not raise and must not
+        return a shapeless frame."""
+        silver = transform_esr_bronze_to_silver(_rows_for(1601, unit_id=3), MARKET_YEAR)
+        assert silver.empty
+        assert list(silver.columns) == [
+            "commodity_code", "commodity_name", "market_year", "country_code",
+            "week_ending_date", "outstanding_sales_1000mt", "weekly_exports_1000mt",
+            "gross_new_sales_1000mt", "changes_1000mt", "source_unit_id",
+            "as_of_date", "ingest_date", "source",
+        ]
+
+    def test_mass_rows_survive_a_mixed_frame(self) -> None:
+        mixed = pd.concat([_rows_for(401, n=2), _rows_for(1404, unit_id=2, n=2)], ignore_index=True)
+        silver = transform_esr_bronze_to_silver(mixed, MARKET_YEAR)
+        assert set(silver["commodity_name"]) == {"corn_cbot"}
+        assert len(silver) == 2
+
+    def test_an_unknown_unit_still_raises(self) -> None:
+        """The skip is NARROW. Unknown-unit drift on a KEPT code stays fatal, exactly as before."""
+        with pytest.raises(ValueError, match="unrecognised unit_id"):
+            transform_esr_bronze_to_silver(_rows_for(401, unit_id=7), MARKET_YEAR)
+
+    def test_an_unknown_unit_on_an_unmapped_code_still_raises(self) -> None:
+        """A code that is neither mapped nor written off must NOT ride the skip path."""
+        with pytest.raises(ValueError, match="unrecognised unit_id"):
+            transform_esr_bronze_to_silver(_rows_for(9999, unit_id=7), MARKET_YEAR)
+
+    @pytest.mark.parametrize("code", [1301, 1404, 1601, 1608])
+    def test_a_written_off_code_arriving_as_metric_tonnes_raises(self, code: int) -> None:
+        """UNIVERSE-DRIFT DETECTION. unit_id=1 on a code recorded as bales/pieces means USDA
+        re-based the series: the written refusal has stopped describing reality and must be
+        re-decided, not silently re-applied to data this schema COULD now represent."""
+        with pytest.raises(ValueError, match="arrived with unit_id=1"):
+            transform_esr_bronze_to_silver(_rows_for(code, unit_id=1), MARKET_YEAR)

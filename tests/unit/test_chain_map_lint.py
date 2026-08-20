@@ -254,11 +254,15 @@ def test_region_unservable_hop_rejected(monkeypatch):
 
 
 def test_psd_unserved_contract_hop_rejected(monkeypatch):
-    # the second SKIP_NODE cause: frozen_orange_juice is in PSD_UNSERVED_SLUGS, so a silver_psd hop has no
-    # series to read (its `ending_stocks` node DOES carry the psd ref and DOES list `frost` as a parent).
-    bad = {"id": "fcoj_frost_su", "contracts": ["frozen_orange_juice"],
-           "hops": [{"node": "frost", "ref": "frost_event_flag"},
-                    {"node": "ending_stocks", "ref": "psd_ending_stock_su_ratio"}]}
+    # the second SKIP_NODE cause: cocoa is in PSD_UNSERVED_SLUGS, so a silver_psd hop has no series to read
+    # (its `tenderable_collapse` node DOES carry the psd `stock` ref and DOES list `export_pace_lag` as a
+    # parent). RE-KEYED 2026-08-20 (D-EC XC-7): this case used to ride frozen_orange_juice, which LEFT the
+    # fence when the 13 -> 47 widening's cloud re-run proved 746 FCOJ rows in silver_psd -- so the row below
+    # now lints CLEAN on that contract and would have made this negative vacuous. cocoa cannot go the same
+    # way: USDA publishes no cocoa balance sheet at all.
+    bad = {"id": "cocoa_pace_stock", "contracts": ["cocoa"],
+           "hops": [{"node": "export_pace_lag", "ref": "export"},
+                    {"node": "tenderable_collapse", "ref": "stock"}]}
     errs = _lint(monkeypatch, [bad])
     assert any("declared-unserved PSD slug" in e for e in errs)
 

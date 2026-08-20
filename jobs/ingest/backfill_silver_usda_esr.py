@@ -23,24 +23,35 @@ from pathlib import Path
 
 import boto3
 
+_REPO_ROOT = Path(__file__).parents[2]
+
 # Ensure the src package is importable when run from the project root.
-sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
+sys.path.insert(0, str(_REPO_ROOT / "src"))
+# ...and the repo root itself, so `jobs.ingest.fetch_usda_esr` resolves when this
+# file is executed as a script (sys.path[0] is then jobs/ingest, not the root).
+sys.path.insert(0, str(_REPO_ROOT))
 
 from leviathan.common.config import load_env
 from leviathan.common.logging import get_logger
 from leviathan.storage.paths import bronze_esr_key, silver_esr_key
 from leviathan.transforms.bronze_to_silver.usda_esr import transform_esr_bronze_to_silver
 
+from jobs.ingest.fetch_usda_esr import _TARGET_COMMODITY_CODES
+
 logger = get_logger(__name__)
 
 BUCKET = "leviathan-dev-shahem-001"
 AWS_REGION = "us-east-1"
 
-_DEFAULT_COMMODITY_CODES = [101, 102, 103, 104, 107, 401, 701, 801, 901, 902]
+# D-EC 2026-08-20: IMPORTED, never re-typed -- see the twin note in
+# backfill_bronze_usda_esr.py.  A private copy of the code list here would
+# silently re-narrow the backfill to the legacy 10 after the fetcher widened.
+_DEFAULT_COMMODITY_CODES = list(_TARGET_COMMODITY_CODES)
 
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Local ESR bronze → silver backfill")
+    # ASCII only: the Windows console is cp1252 and a U+2192 here crashed --help.
+    p = argparse.ArgumentParser(description="Local ESR bronze -> silver backfill")
     p.add_argument("--commodity-codes", nargs="+", type=int, default=_DEFAULT_COMMODITY_CODES)
     p.add_argument("--start-year", type=int, default=1990)
     p.add_argument("--end-year", type=int, default=datetime.date.today().year)

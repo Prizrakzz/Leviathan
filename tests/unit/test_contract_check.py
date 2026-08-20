@@ -198,8 +198,9 @@ def test_real_registry_wide_metrics_resolve_to_f010_columns():
 
 def test_psd_unserved_slugs_are_known_not_drift(monkeypatch):
     """The C002 slug check treats cascade.PSD_UNSERVED_SLUGS as declared-unserved: no drift error
-    for cocoa/frozen_orange_juice on silver_psd (the runtime SKIPs those legs at _scope), while any
-    OTHER missing slug still fails."""
+    for cocoa on silver_psd (the runtime SKIPs those legs at _scope), while any OTHER missing slug
+    still fails. (frozen_orange_juice was the second member until 2026-08-20, when the PSD widening's
+    cloud re-run proved 746 FCOJ rows and it left the fence -- D-EC XC-7.)"""
     import leviathan.graphrag.numbers.contract_check as ck
 
     legs = [("cocoa", "US_section301_tariffs", {"table": "silver_psd"}, None, "cocoa", "United States"),

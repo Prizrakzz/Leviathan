@@ -354,7 +354,12 @@ def test_world_synth_probe_sql_sums_per_country_latest_union():
 
 
 def test_pair_verdict_declines_on_unserved_leg():
-    """A leg with no PSD balance sheet (cocoa/FCOJ) DECLINES HONESTLY -- never a DARK bug."""
+    """A leg with no PSD balance sheet DECLINES HONESTLY -- never a DARK bug.
+
+    cocoa is the whole example now: USDA PSD publishes no cocoa sheet at all. FCOJ used to be the
+    second member of this set and is NOT one any more -- D-EC XC-7 bound frozen_orange_juice to PSD
+    code 585100 on 2026-08-20, so it is a SERVED leg. The assertion below is cocoa-only and always
+    was."""
     p = _pair("bad", "soybean_oil_cbot", "cocoa")
     rec = cc._pair_verdict(p, asof="2026-02-15", query_fn=_PairPg())
     assert rec["verdict"] == cc.PAIR_DECLINES and "cocoa" in rec["reason"]

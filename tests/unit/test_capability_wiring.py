@@ -1260,9 +1260,12 @@ def test_fnc_port_card_columns_resolve_in_the_checked_in_ddl():
 
 
 # ====================================================================================================
-# D-LD -- the silver_nass_citrus card (LIGHT THE DARK): the numbers home of frozen_orange_juice, which
-# has no PSD balance sheet (PSD_UNSERVED_SLUGS) and no CFTC positioning, and whose four dark cascade
-# legs are WAIVED as honest data absence. A vintage table with two free axes and a paused source.
+# D-LD -- the silver_nass_citrus card (LIGHT THE DARK): the US in-season production forecast behind
+# frozen_orange_juice, which had no PSD balance sheet (PSD_UNSERVED_SLUGS) and no CFTC positioning, and
+# whose four dark cascade legs are WAIVED as honest data absence. A vintage table with two free axes and
+# a paused source. (D-EC XC-7, 2026-08-20: the PSD half of that sentence is history -- the widening's
+# cloud re-run landed 746 FCOJ rows, so silver_psd now serves the GLOBAL balance sheet and this card is
+# the US forecast beside it, not the only citrus read. CFTC and the four waivers are unchanged.)
 # ====================================================================================================
 def _citrus():
     return _reg().get(CITRUS)

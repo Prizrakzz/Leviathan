@@ -731,9 +731,13 @@ def test_primary_title_folds_eu_members(monkeypatch):
 
 
 def test_psd_unserved_slugs_skip_at_scope():
-    """Declared-unserved contracts (PSD has NO cocoa/FCOJ series): the leg SKIPs whole at _scope
-    instead of firing a query that can only return 0 rows (C002-caught at the first live Branch-A
-    gate fire, 2026-07-15). Non-PSD rows for the same contracts are untouched."""
+    """Declared-unserved contracts (PSD has NO cocoa series): the leg SKIPs whole at _scope instead of
+    firing a query that can only return 0 rows (C002-caught at the first live Branch-A gate fire,
+    2026-07-15). Non-PSD rows for the same contract are untouched.
+
+    D-EC XC-7 (2026-08-20): frozen_orange_juice LEFT the fence -- the 13 -> 47 widening's cloud re-run
+    proved 746 FCOJ rows in silver_psd -- so BOTH directions are asserted here. An over-broad fence turns
+    a live leg dark, which is the same silence as the bug it was built to end, only quieter."""
     from types import SimpleNamespace
     from leviathan.graphrag.numbers.cascade import SKIP_NODE, _scope
 
@@ -741,12 +745,13 @@ def test_psd_unserved_slugs_skip_at_scope():
     commodity, country = _scope(n, {"table": "silver_psd", "country_rule": "primary"})
     assert commodity == "cocoa" and country is SKIP_NODE
 
-    n2 = SimpleNamespace(contract="frozen_orange_juice", prior={})
-    _, country2 = _scope(n2, {"table": "silver_psd", "country_rule": "none"})
-    assert country2 is SKIP_NODE                      # unserved beats every country_rule
+    _, country2 = _scope(n, {"table": "silver_esr", "country_rule": "none"})
+    assert country2 is not SKIP_NODE                  # only silver_psd is declared-unserved
 
-    _, country3 = _scope(n2, {"table": "silver_esr", "country_rule": "none"})
-    assert country3 is not SKIP_NODE                  # only silver_psd is declared-unserved
+    n2 = SimpleNamespace(contract="frozen_orange_juice", prior={})
+    commodity3, country3 = _scope(n2, {"table": "silver_psd", "country_rule": "none"})
+    assert commodity3 == "frozen_orange_juice"        # the flipped half: it scopes, it does not SKIP
+    assert country3 is not SKIP_NODE
 
 
 # -- W4 A/B (2026-07-31): every [N] row line carries its SERIES scope ---------------------------------

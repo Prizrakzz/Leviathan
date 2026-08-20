@@ -2419,7 +2419,8 @@ resource "aws_batch_job_definition" "usda_esr_bronze" {
 # Job definition: USDA FAS ESR weekly FETCH (api.data.gov -> raw S3)
 # Phase D D-W1: the recurring-ingest fix. Runs the existing sequential fetch
 # (jobs/ingest/fetch_usda_esr.py --mode weekly) that snapshots the current +
-# new-crop marketing year for all 10 ESR commodity codes as an immutable
+# new-crop marketing year for all 44 ESR commodity codes -- the FULL measured
+# source universe since 2026-08-20, widened from the 10 it used to carry -- as an immutable
 # as_of={today} object -- so post-backfill weeks actually land instead of the
 # data freezing at the 2026-05-24 backfill. Fired weekly by the DISABLED
 # EventBridge Scheduler rule ...-esr-weekly-ingest (see envs/dev/main.tf); the
@@ -2427,7 +2428,8 @@ resource "aws_batch_job_definition" "usda_esr_bronze" {
 #
 # SEQUENTIAL BY CONTRACT: api.data.gov allows 1,000 req/hr per key and this is a
 # government server, NOT a CDN -- the fetch NEVER threads (fetch_usda_esr.py:16-17).
-# A weekly run is ~20 requests (10 codes x current+new-crop MY) at 1.0s sleep.
+# A weekly run is 88 requests (44 codes x current+new-crop MY) at 1.0s sleep, so
+# ~3 min -- still an order of magnitude under the hourly key budget.
 # Sizing: 0.25 vCPU / 512 MB -- pure network I/O, no in-memory parsing (matches
 # the other fetch-family jobdefs: sagis_cec, usda_wasde, usda_wap).
 #
@@ -2493,7 +2495,7 @@ resource "aws_batch_job_definition" "usda_esr_fetch" {
   })
 
   timeout {
-    attempt_duration_seconds = 3600 # 1 h ceiling; a weekly run is ~20 sequential requests (~1 min)
+    attempt_duration_seconds = 3600 # 1 h ceiling; a weekly run is 88 sequential requests (~3 min)
   }
 
   # D-PR-7 / D-PR-37: the shared producer retry matrix (5 rules = the API cap).

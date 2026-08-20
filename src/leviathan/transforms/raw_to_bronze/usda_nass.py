@@ -22,8 +22,16 @@ The Batch submission script should allocate ≥4 GB of container memory.
 Commodity mapping
 -----------------
 NASS uses its own ``commodity_desc`` values (e.g. "CORN", "SOYBEANS").
-The mapping to leviathan slugs is defined in ``_NASS_SLUG_MAP`` below.
-Only rows whose ``commodity_desc`` appears in this map are retained.
+The mappings are ``_ANNUAL_COMMODITY_MAP`` and ``_PROGRESS_COMMODITY_MAP``
+below (there is no ``_NASS_SLUG_MAP``; that name was stale documentation).
+Only rows whose ``commodity_desc`` appears in the relevant map are retained.
+
+A map VALUE is the bronze PARTITION BUCKET, not the silver slug: several
+source commodities deliberately share one bucket (the coarse-grain and
+oilseed proxies), and the bronze partition ``soft_red_winter_wheat_cbot``
+holds every wheat class. The silver transforms re-canonicalise from
+``commodity_desc`` + ``class_desc``, so a bucket name is never a claim
+about what the rows are.
 """
 from __future__ import annotations
 
@@ -43,17 +51,19 @@ logger = get_logger(__name__)
 _ANNUAL_COMMODITY_MAP: dict[str, str] = {
     "CORN":           "corn_cbot",
     "SOYBEANS":       "soybean_meal_cbot",   # proxy — NASS has no meal-only series
+    # D-EC P0: NASS carries EVERY wheat class under commodity_desc='WHEAT' (4,150,930 measured rows)
+    # with the class on class_desc, so this ONE key admits winter, spring, durum and the nine
+    # sub-classes. The former "WHEAT, WINTER" / "WHEAT, SPRING" / "WHEAT, DURUM" keys matched
+    # NOTHING in the source's 278-value commodity_desc census and are deleted rather than left to
+    # read as coverage they never provided.
     "WHEAT":          "soft_red_winter_wheat_cbot",
-    "WHEAT, WINTER":  "soft_red_winter_wheat_cbot",
-    "WHEAT, SPRING":  "hard_red_spring_wheat_mgex",
-    "WHEAT, DURUM":   "hard_red_spring_wheat_mgex",
     "COTTON":         "cotton",
     "RICE":           "rough_rice_cbot",
     "SORGHUM":        "corn_cbot",   # sorghum aggregated with coarse grains
     "OATS":           "corn_cbot",   # coarse grains
     "BARLEY":         "corn_cbot",   # coarse grains
     "SUGARCANE":      "raw_sugar",
-    "SUGAR BEETS":    "raw_sugar",
+    "SUGARBEETS":     "raw_sugar",   # source spelling; "SUGAR BEETS" matched none of 278 values
     "SUNFLOWER":      "soybean_meal_cbot",  # oilseeds proxy
     "CANOLA":         "canola_ice",
 }

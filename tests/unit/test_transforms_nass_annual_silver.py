@@ -186,14 +186,17 @@ class TestNassAnnualSilverTransform:
         silver = transform_nass_annual_bronze_to_silver(pd.DataFrame(rows))
         assert silver.iloc[0]["yield_t_ha"] == pytest.approx(4_000.0 * LB_PER_ACRE_TO_T_HA)
 
-    def test_excludes_non_all_class_rice_and_cottonseed_rows(self) -> None:
+    def test_excludes_non_all_class_rice_rows(self) -> None:
+        """Rice milling classes stay excluded (rough_rice_cbot is fed by the ALL CLASSES total).
+        D-EC P0: the COTTONSEED row that used to ride along in this fixture as a second EXCLUSION now
+        has a home -- cottonseed is a declared tier-1 context node -- so it moved to the class-lane
+        module and this test asserts only what it is named for."""
         rows = [
             _row(commodity_desc="RICE", statisticcat_desc="AREA PLANTED", unit_desc="ACRES", value=100.0),
             _row(commodity_desc="RICE", statisticcat_desc="AREA HARVESTED", unit_desc="ACRES", value=90.0),
             _row(commodity_desc="RICE", statisticcat_desc="YIELD", unit_desc="LB / ACRE", value=7_640.0),
             _row(commodity_desc="RICE", statisticcat_desc="PRODUCTION", unit_desc="CWT", value=6_876.0),
             _row(commodity_desc="RICE", class_desc="LONG GRAIN", statisticcat_desc="YIELD", unit_desc="LB / ACRE", value=7_670.0),
-            _row(commodity_desc="COTTON", class_desc="COTTONSEED", statisticcat_desc="PRODUCTION", unit_desc="TONS", value=109_000.0),
         ]
         silver = transform_nass_annual_bronze_to_silver(pd.DataFrame(rows))
         assert len(silver) == 1
@@ -205,18 +208,24 @@ class TestNassAnnualSilverTransform:
         assert silver.empty
 
     def test_maps_contract_specific_winter_wheat_classes(self) -> None:
+        """D-EC P0: this test used to assert on commodity_desc values NASS DOES NOT PUBLISH
+        ('WHEAT, WINTER' with class 'SOFT RED WINTER'/'HARD RED WINTER'), which is why it passed
+        green over a lane that emitted zero rows for its whole life. Re-pointed at the MEASURED
+        source strings -- commodity_desc='WHEAT', class on class_desc -- and at the sibling's
+        convention. The hard-red-winter sub-class is a written refusal now (production-only, and it
+        would collide with WINTER); see _RECORDED_CLASS_EXCLUSIONS and the class-lane test module."""
         rows = [
-            *_corn_rows(commodity_desc="WHEAT, WINTER", class_desc="SOFT RED WINTER"),
+            *_corn_rows(commodity_desc="WHEAT", class_desc="WINTER"),
             *_corn_rows(
-                commodity_desc="WHEAT, WINTER",
-                class_desc="HARD RED WINTER",
-                state_alpha="KS",
+                commodity_desc="WHEAT",
+                class_desc="SPRING, (EXCL DURUM)",
+                state_alpha="ND",
             ),
         ]
         silver = transform_nass_annual_bronze_to_silver(pd.DataFrame(rows))
         assert set(silver["leviathan_slug"]) == {
             "soft_red_winter_wheat_cbot",
-            "hard_red_winter_wheat_kcbt",
+            "hard_red_spring_wheat_mgex",
         }
 
     def test_supports_cotton_bale_production_and_lb_yield(self) -> None:

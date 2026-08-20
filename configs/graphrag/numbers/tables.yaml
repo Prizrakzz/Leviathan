@@ -14,6 +14,31 @@ tables:
     grain: "one row per commodity x country x market_year x release_date"
     shape: wide
     commodity_col: leviathan_slug
+    # D-EC XC-1/XC-7 CARD FLIP (2026-08-20). ARM AND FLIP WERE SEPARATE and this is the flip half: the
+    # producer widening (13 -> 47 commodity codes, commit e437eff7) re-ran in the cloud at 10:01 and the
+    # live object now carries 247,036 rows across 63 DISTINCT leviathan_slug values, measured on that
+    # rewrite (data/dec_p0/projection_census.json, silver_psd commodity-code family). The card moves WITH
+    # the table and never ahead of it -- teaching beef and cheese before the re-run would have taught a
+    # table that did not exist, which is exactly what test_psd_slug_map_widening.py pinned.
+    # The set is GENERATED from `_PSD_COMMODITY_TO_SLUGS` (transforms/bronze_to_silver/usda_psd.py:263),
+    # never hand-listed, and a test asserts the two are EQUAL in both directions: producer and fence are
+    # ONE universe or the build fails. Without that pin the drift is silent in the worst direction -- a
+    # 48th code lands in the transform, silver serves its rows, and this card refuses every ask for it.
+    # D-PQ CLASS-1 code fence: an off-list ask (cocoa -- ICCO territory, PSD publishes no cocoa sheet at
+    # all; palm_oil; a NASS crop label) is REFUSED at spec level with a teaching error before any SQL is
+    # compiled. The same facts are said again in `notes` on purpose -- the notes teach, this enforces.
+    commodity_values: [arabica_coffee, barley, brazilian_arabica_coffee, broilers_poultry, butter,
+                       campinas_corn_reference_bmf, canola_ice, cattle_beef, cheese, chicken_meat, coconut,
+                       coconut_oil, copra_meal, corn_cbot, cotton, cottonseed, cottonseed_meal, cottonseed_oil,
+                       fish_meal, french_maize_matif, french_rapeseed_matif, french_wheat_matif, fresh_citrus,
+                       frozen_orange_juice, hard_red_spring_wheat_mgex, hard_red_winter_wheat_kcbt, hogs,
+                       malaysian_crude_palm_oil_cme, milk_fluid, milk_powder_nonfat, milk_powder_whole, millet,
+                       mixed_grain, oats, olive_oil, palm_kernel, palm_kernel_meal, palm_kernel_oil,
+                       palm_olein_dce, peanut, peanut_meal, peanut_oil, rapeseed_meal_zce, rapeseed_oil_zce,
+                       raw_sugar, robusta_coffee, rough_rice_cbot, rye, soft_red_winter_wheat_cbot, sorghum,
+                       south_african_white_maize_jse, south_african_yellow_maize_jse, soybean_meal_cbot,
+                       soybean_meal_dce, soybean_oil_cbot, soybean_oil_dce, soybeans_cbot, soybeans_no_1_dce,
+                       soybeans_no_2_dce, sunflower, sunflower_meal, sunflower_oil, white_sugar]
     country_col: country
     period_col: market_year
     period_type: marketing_year
@@ -33,6 +58,20 @@ tables:
     notes: >
       Values in `_mt` columns are RAW metric tonnes (verified: Argentina corn MY2023 ending stocks = 2,462,000
       = 2.46 MMT). period = the marketing year as an integer (e.g. 2023). Latest vintage <= asof = as-known.
+      SIXTY-THREE SLUGS, NOT THIRTEEN CONTRACTS (2026-08-20). This card is the whole USDA balance-sheet book,
+      not just the tradeable grains: each crush complex on its OWN sheets (cottonseed, peanut, coconut,
+      palm_kernel and every family's meal and oil), the minor cereals (barley, sorghum, rye, oats, millet,
+      mixed_grain), the livestock and dairy demand layer (cattle_beef, hogs, broilers_poultry, chicken_meat,
+      milk_fluid, milk_powder_nonfat, milk_powder_whole, butter, cheese) and the citrus pair. NEVER SUM
+      broilers_poultry AND chicken_meat -- the second sheet is BROADER than the first and overlaps it.
+      THE CITRUS PAIR IS TWO SUBJECTS, NEVER ONE: frozen_orange_juice is the FCOJ contract's own balance
+      sheet (the JUICE) and fresh_citrus is the ORANGE fruit; they are never added and neither stands in for
+      the other. For the monthly US orange/grapefruit/tangerine FORECAST by state in thousand boxes use
+      silver_nass_citrus -- that is a US in-season forecast, this is the global marketing-year balance sheet.
+      A CONTENT CEILING INSIDE PSD, NOT A PIPELINE GAP: broilers_poultry's newest release_date is 2016-10-10
+      -- the sheet simply stops there in the source file, ten years back -- so quote the year you are
+      reading and never call that series current.
+      PSD carries NO cocoa balance sheet at all -- cocoa supply/demand is silver_icco_cocoa.
 
   silver_wasde:
     description: >
@@ -1266,7 +1305,8 @@ tables:
   silver_nass_annual:
     description: >
       USDA NASS annual US crop production -- the settled, state-by-state ANNUAL SUMMARY of planted and
-      harvested ACREAGE, YIELD and PRODUCTION for the US corn, soybean, upland cotton and rice crops,
+      harvested ACREAGE, YIELD and PRODUCTION for the US corn, soybean, cotton (ALL CLASSES -- upland
+      plus pima, which is what the `cotton` slug is fed from) and rice crops,
       one row per crop x state x crop year, back to 1866 for corn and cotton. Every figure is in metric
       units (hectares, tonnes, tonnes per hectare), converted from the NASS acre/bushel/bale originals.
       Vintage table: a crop year becomes citable only when USDA publishes its Crop Production Annual
@@ -1284,6 +1324,16 @@ tables:
     # slugs have NO physical partition at all and would return zero rows. What is left -- and what this
     # card serves -- is these four. This list and the `only these four crops exist` sentence in `notes`
     # are the same fact said twice on purpose: the notes teach, this enforces.
+    #
+    # PUBLISH-GATED, 2026-08-20 (D-EC P0 class-lane repair). The repaired transform CAN now emit five
+    # more slugs -- soft_red_winter_wheat_cbot and hard_red_spring_wheat_mgex from the wheat lane that
+    # had never once run, and cottonseed / upland_cotton / pima_cotton from the cotton class split.
+    # THEY ARE DELIBERATELY NOT ADDED HERE YET: none of those rows is in live silver, and the three
+    # cotton-class slugs are also absent from the projection enum, so advertising any of them now buys
+    # the exact defect this fence exists to stop -- the agent offers a US wheat figure, compiles clean
+    # SQL and gets ZERO rows, which reads as "no data" and is indistinguishable from one. They join
+    # commodity_values IN THE SAME CHANGE as the silver publish plus the gated Glue enum migration
+    # (the canola_ice discipline, three lines above). Do not widen this list ahead of the rows.
     commodity_values: [corn_cbot, soybeans_cbot, cotton, rough_rice_cbot]
     country_col: state                  # repurposed as the GEO axis: 2-letter USPS code, 'US' = national
     period_col: year                    # the CROP year; == the projected partition key (see the note above)
@@ -2815,12 +2865,22 @@ tables:
   # D-CW-2a: the estate registers frozen_orange_juice as a contract, carries a full causal DAG for it
   # (configs/graphrag/causal/frozen_orange_juice.yaml) and TWO citrus driver slices
   # (orange_greening_disease, citrus_canker_psyllid) -- and has ZERO observed quantities behind any of
-  # it. silver_psd carries no orange-juice slug at all (PSD_UNSERVED_SLUGS, DISTINCT probe 2026-07-11,
+  # it. silver_psd carried no orange-juice slug at all (PSD_UNSERVED_SLUGS, DISTINCT probe 2026-07-11,
   # cascade.py:347) and CFTC covers no FCOJ positioning (cftc_cot.yaml not_covered), so four FCOJ
   # cascade legs are explicitly WAIVED as honest data absence (cascade_census._WAIVERS: ending_stocks,
   # consumption_demand, US_section301_tariffs, tenderable_collapse). configs/ml/psd_metric_targets.yaml
   # :338 already names the remedy in words -- "FCOJ needs NASS citrus or WASDE citrus targets". This
   # card is that remedy on the READ path. Nothing is ingested, re-chunked or re-derived.
+  #
+  # SUPERSEDED IN PART, D-EC XC-7 (2026-08-20) -- the PSD half of the paragraph above is HISTORY now.
+  # The 13 -> 47 commodity widening bound 585100 (Orange Juice) and 571120 (Oranges, Fresh) and its
+  # cloud re-run landed at 10:01 with 746 FCOJ rows / 25 countries and 1,646 fresh_citrus rows / 48, so
+  # frozen_orange_juice LEFT PSD_UNSERVED_SLUGS and the psd card now serves both slugs. This card is
+  # unaffected in substance -- a US in-season forecast in thousand boxes is not a global marketing-year
+  # balance sheet -- but it is no longer the ONLY citrus read, and its description says so. The CFTC
+  # half stands unchanged. The four cascade waivers are NOT touched here: they name a leg-level
+  # absence whose replacement needs a cascade_map entry, and un-waiving them without one would red the
+  # census on a leg that is dark for the OTHER documented reason (the paragraph below).
   #
   # WHAT IT DOES NOT DO, SAID FIRST SO IT IS NEVER MIS-READ AS DONE. It does NOT un-waive those four
   # cascade legs. They are waived against silver_psd, and the FCOJ DAG's own
@@ -2868,9 +2928,11 @@ tables:
       release. NASS forecasts the crop from October through July and revises it every month, so each
       release carries both the current forecast and the change from the previous month's forecast;
       as-of a date = the latest release published on or before it. Florida, California, Texas and
-      Arizona plus a 'united_states' national row. This is the only observed citrus quantity in the
-      estate and the only fundamental series behind the frozen_orange_juice contract -- and it is US
-      ONLY, with no Brazilian crop in it at all.
+      Arizona plus a 'united_states' national row. This is the estate's only US in-season citrus
+      FORECAST -- and it is US ONLY, with no Brazilian crop in it at all. Since 2026-08-20 the GLOBAL
+      marketing-year balance sheets behind the same contract live on silver_psd (frozen_orange_juice =
+      the juice, fresh_citrus = the orange fruit): a different grain, a different question, and the two
+      reads are never mixed into one figure.
     grain: "one row per crop x state x season, per monthly release_date"
     shape: wide
     commodity_col: crop                  # NASS crop label, NOT a contract slug (see notes)
@@ -2953,9 +3015,14 @@ tables:
       Forecasts are FORECASTS: even the July release is the season's last in-season forecast, not an
       audited final utilization figure, and a monthly revision is a forecast change, not production
       that happened.
-      CROSS-TABLE: there is NO USDA PSD orange-juice balance sheet (a DISTINCT slug probe returned
-      zero rows) and no CFTC positioning for frozen_orange_juice, so this card is the whole observed
-      picture -- decline rather than reaching for a PSD row or another commodity's balance sheet. For
+      CROSS-TABLE: the GLOBAL marketing-year balance sheets behind this contract now live on
+      silver_psd -- frozen_orange_juice is the JUICE sheet and fresh_citrus is the orange FRUIT
+      sheet, both served since 2026-08-20 -- and THIS card remains the US in-season production
+      FORECAST in thousand boxes. Different grain, different question, different unit: read whichever
+      one the question actually asks for, cite it by name, and NEVER MIX THE TWO INTO ONE FIGURE -- a
+      PSD tonnage and a NASS box count are not addable, not a ratio of each other, and not each
+      other's cross-check. There is still NO CFTC positioning for frozen_orange_juice, so on a
+      positioning question decline rather than reaching for another commodity's book. For
       weekly US crop CONDITIONS and planting/harvest pace use silver_nass_crop_progress, which is a
       DIFFERENT NASS table with a DIFFERENT vocabulary: its state axis is the 2-letter USPS code in
       CAPITALS ('FL', 'US') and its commodity axis is contract slugs, while this card's state axis is

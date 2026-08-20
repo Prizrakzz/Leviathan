@@ -17,6 +17,31 @@ WIRING_WAVE1 met on ``silver_conab_coffee`` (``survey_release_date``) and
 ``silver_sagis_weekly_exports`` (``week_ending_date``), and it is solved the same
 way: one producer-derived, conservative, never-leak timing column. See
 ``_ANNUAL_SUMMARY_RELEASE`` below. The column NEVER touches a measured value.
+
+D-EC P0 class-lane repair (2026-08-20)
+--------------------------------------
+The wheat lane had NEVER ONCE RUN. ``_canonical_slug`` keyed on commodity_desc values NASS does
+not publish, so every bronze wheat row was dropped before the converter, hiding two further
+crashes behind it (an unhandled ``BU / PLANTED ACRE`` yield unit and a yield-preference rank that
+was not a total order). All three are fixed together -- they are one defect, discoverable only in
+that order. The class vocabulary is now the sibling's, string for string, and every deliberate
+drop is named in ``_RECORDED_CLASS_EXCLUSIONS``.
+
+MEASURED BY REPLAY, not by inspection -- the repaired transform re-run over every real bronze
+object of the affected partitions: wheat 161 objects / 3,495,679 rows goes from 0 silver rows to
+6,582 (soft_red_winter_wheat_cbot 4,853 + hard_red_spring_wheat_mgex 1,729, 1909-2026, 46 states),
+cotton 161 objects gains cottonseed 2,770 + upland_cotton 1,600 + pima_cotton 497 -- with ZERO
+converter errors and ZERO duplicate keys. Replayed across ALL 872 bronze objects, every
+pre-existing slug comes out BYTE-IDENTICAL against the pre-repair code -- corn_cbot 7,616,
+soybeans_cbot 3,155, cotton 2,755, rough_rice_cbot 884, canola_ice 222, i.e. the full 14,632-row
+live table unchanged, with 11,449 rows added beside it.
+
+CATALOG RIDER: the repair lights partitions for ``soft_red_winter_wheat_cbot`` and
+``hard_red_spring_wheat_mgex``, which the projection enum ALREADY carries
+(configs/silver/tables/silver_nass_annual.yaml:196) -- it was authored expecting wheat. The three
+new cotton-class slugs (``upland_cotton``, ``pima_cotton``, ``cottonseed``) are NOT in that enum
+and will be physically-present-but-hidden until a gated ``SET TBLPROPERTIES`` migration adds them,
+exactly as ``canola_ice`` is today (SILVER-F020). That migration is the orchestrator's step.
 """
 from __future__ import annotations
 
@@ -167,7 +192,122 @@ def _clean_text(value: object) -> str:
     return " ".join(text.upper().split())
 
 
+# ---------------------------------------------------------------------------
+# commodity_desc + class_desc -> leviathan slug (D-EC P0 class-lane repair, 2026-08-20).
+# ---------------------------------------------------------------------------
+# THE STRINGS BELOW ARE MEASURED, NOT GUESSED. The map this replaces keyed on commodity_desc
+# values NASS does not publish -- "WHEAT, SPRING" and "WHEAT, WINTER" -- so all 3,495,679 bronze
+# rows under commodity=soft_red_winter_wheat_cbot fell through to the trailing ``return None``
+# and this lane emitted ZERO wheat rows for its entire life (projection census family
+# "silver_nass_annual", data/dec_p0/projection_census.json: 13 (commodity_desc, class_desc) pairs,
+# 100% None, proven by running the shipped transform on real bronze). NASS carries EVERY wheat
+# class under commodity_desc='WHEAT' and puts the class on class_desc.
+#
+# The 13 measured wheat pairs, re-counted here on bronze years 1990/2022/2024 (NATIONAL+STATE,
+# 25,271 rows): ALL CLASSES 18,519 | WINTER 4,457 | SPRING, (EXCL DURUM) 1,287 |
+# SPRING, DURUM 714 | WINTER, RED, SOFT 86 | WINTER, RED, HARD 83 | SPRING, RED, HARD 31 |
+# WINTER, WHITE, HARD 29 | WINTER, WHITE, SOFT 27 | WINTER, WHITE 11 | SPRING, WHITE, SOFT 10 |
+# SPRING, WHITE, HARD 10 | SPRING, WHITE 7.
+#
+# THE CLASS->SLUG CONVENTION IS THE SIBLING'S, STRING FOR STRING. usda_nass_crop_progress.py:97-101
+# reads the SAME source vocabulary and already produces healthy silver (soft_red_winter_wheat_cbot
+# 35,567 rows, hard_red_spring_wheat_mgex 7,827), so WINTER and SPRING, (EXCL DURUM) map exactly
+# where they map there -- no agronomic re-derivation is invented here.
+#
+# THE COARSENESS THAT BUYS, recorded rather than hidden: NASS's WINTER class is ALL winter wheat
+# (hard red + soft red + white), so filing it under soft_red_winter_wheat_cbot files HRW and white
+# winter wheat under the SRW node. That is the SAME conflation the crop-progress lane already
+# carries (census md:567) and it is a property of the source, not of this file: NASS publishes no
+# separate SRW area or yield series at all. Likewise SPRING, (EXCL DURUM) is all non-durum spring
+# wheat, filed under the HRS node.
+_WHEAT_WINTER_CLASS = "WINTER"
+_WHEAT_SPRING_CLASS = "SPRING, (EXCL DURUM)"
+
+# The DELIBERATE subset, enumerated instead of left to the trailing ``return None``. This dict is
+# DOCUMENTATION WITH A TEST, never control flow: ``_canonical_slug`` does not read it, but the unit
+# suite asserts that every measured (commodity_desc, class_desc) pair is either mapped above or
+# named here, so a future class can never be dropped silently the way the wheat lane was.
+#
+# TWO KINDS OF RECORD LIVE HERE and they are NOT interchangeable (separated 2026-08-20):
+#   * an EXACT PAIR -- ``(commodity_desc, class_desc)`` spelled exactly as NASS publishes it. It
+#     refuses THAT ONE CLASS and says nothing about the commodity's other classes.
+#   * a COMMODITY-LEVEL note -- ``(commodity_desc, _ANY_CLASS)``. The WHOLE commodity is out of
+#     scope, every class of it, published or not yet published.
+# The six commodity-level notes below used to be keyed ``("SORGHUM", "")`` and so on, which READ as
+# exact pairs on the blank class and would have quietly stopped covering the commodity the day NASS
+# began publishing a class on it. The sentinel makes the two kinds impossible to confuse; use
+# :func:`_is_recorded_exclusion` to ask the question rather than indexing the dict directly.
+_ANY_CLASS = "*"
+
+_RECORDED_CLASS_EXCLUSIONS: dict[tuple[str, str], str] = {
+    ("WHEAT", "ALL CLASSES"): (
+        "aggregate of every wheat class; there is no all-wheat contract node, and under any single "
+        "wheat slug it would double-count the WINTER and SPRING rows -- _validate_metric_uniqueness "
+        "would then reject the partition outright. MEASURED CONSEQUENCE, from replaying all 161 "
+        "bronze objects: the earliest year that yields a row is 1909, because 1866-1908 carry ALL "
+        "CLASSES only -- that stretch of US wheat stays dark on this axis"
+    ),
+    ("WHEAT", "SPRING, DURUM"): (
+        "durum has no contract node; the sibling refuses it identically (crop_progress:104-106)"
+    ),
+    ("WHEAT", ""): (
+        "a wheat row carrying a BLANK or NULL class is UNCLASSIFIABLE and is refused in writing. "
+        "NASS puts every wheat class on class_desc, so an empty class_desc names no class at all and "
+        "gives no basis for choosing between the winter (soft_red_winter_wheat_cbot) and spring "
+        "(hard_red_spring_wheat_mgex) nodes -- a guess here would file one class's acreage under the "
+        "other's contract. NOTE THE ASYMMETRY, which is the whole reason this entry exists: for CORN, "
+        "SOYBEANS, RICE and CANOLA a blank class IS the all-classes total (``_is_all_class``) and is "
+        "KEPT, while the wheat lane reads blank as MISSING INFORMATION. The measured class census "
+        "carries no blank-class wheat row, so this covers the null/NaN arrival path and the case where "
+        "bronze has no class_desc column at all (the transform then substitutes '' for every row)"
+    ),
+    # The nine sub-classes below are MEASURED to carry PRODUCTION only -- no AREA, no YIELD -- and
+    # 231 of their 294 sample rows are PCT BY TYPE shares that _NON_FEATURE_UNITS already drops,
+    # leaving 63 rows in BU. Filing e.g. WINTER, RED, SOFT under soft_red_winter_wheat_cbot would
+    # collide with that state-year's WINTER row on (slug, state, year, statisticcat) with a
+    # DIFFERENT value, which is exactly the conflict _validate_metric_uniqueness raises on.
+    # CONSEQUENCE, stated plainly: hard_red_winter_wheat_kcbt still has NO annual lane. NASS annual
+    # publishes no hard-red-winter area or yield anywhere, only that production sliver, so lighting
+    # kcbt is a decision about shipping a production-only partition -- not a map key.
+    ("WHEAT", "WINTER, RED, HARD"): "production-only sub-class; would collide with WINTER",
+    ("WHEAT", "WINTER, RED, SOFT"): "production-only sub-class; would collide with WINTER",
+    ("WHEAT", "WINTER, WHITE"): "production-only sub-class; would collide with WINTER",
+    ("WHEAT", "WINTER, WHITE, HARD"): "production-only sub-class; would collide with WINTER",
+    ("WHEAT", "WINTER, WHITE, SOFT"): "production-only sub-class; would collide with WINTER",
+    ("WHEAT", "SPRING, RED, HARD"): "production-only sub-class; would collide with SPRING",
+    ("WHEAT", "SPRING, WHITE"): "production-only sub-class; would collide with SPRING",
+    ("WHEAT", "SPRING, WHITE, HARD"): "production-only sub-class; would collide with SPRING",
+    ("WHEAT", "SPRING, WHITE, SOFT"): "production-only sub-class; would collide with SPRING",
+    ("RICE", "LONG GRAIN"): "milling class; rough_rice_cbot is fed by the ALL CLASSES total",
+    # ---- COMMODITY-LEVEL notes: EVERY class of these six, not just the blank one ----
+    ("SUGARCANE", _ANY_CLASS): "sugar crops are outside this contract-targeted table",
+    ("SUGARBEETS", _ANY_CLASS): "sugar crops are outside this contract-targeted table",
+    ("SORGHUM", _ANY_CLASS): "coarse-grain proxy; the bronze map buckets it, silver does not adopt it",
+    ("OATS", _ANY_CLASS): "coarse-grain proxy; the bronze map buckets it, silver does not adopt it",
+    ("BARLEY", _ANY_CLASS): "coarse-grain proxy; the bronze map buckets it, silver does not adopt it",
+    ("SUNFLOWER", _ANY_CLASS): "oilseed proxy; no contract node on this axis",
+}
+
+
+def _is_recorded_exclusion(commodity_desc: str, class_desc: str) -> bool:
+    """True when this drop is WRITTEN DOWN -- as its own exact pair, or under the commodity-level
+    note that covers every class of that commodity.
+
+    The one supported way to query :data:`_RECORDED_CLASS_EXCLUSIONS`: indexing it directly is how
+    the two record kinds get confused. Inputs are the CLEANED (upper, collapsed) strings that
+    ``_canonical_slug`` works with."""
+    return (
+        (commodity_desc, class_desc) in _RECORDED_CLASS_EXCLUSIONS
+        or (commodity_desc, _ANY_CLASS) in _RECORDED_CLASS_EXCLUSIONS
+    )
+
+
 def _canonical_slug(commodity_desc: object, class_desc: object) -> str | None:
+    """Map one (``commodity_desc``, ``class_desc``) pair to a leviathan slug, or ``None`` to drop.
+
+    Every ``None`` this returns for a MEASURED pair is named in ``_RECORDED_CLASS_EXCLUSIONS``
+    above with its reason -- the deliberate-subset pattern. Silence is what produced the
+    never-once-run wheat lane."""
     commodity = _clean_text(commodity_desc)
     class_name = _clean_text(class_desc)
 
@@ -175,27 +315,40 @@ def _canonical_slug(commodity_desc: object, class_desc: object) -> str | None:
         return "corn_cbot" if _is_all_class(class_name) else None
     if commodity == "SOYBEANS":
         return "soybeans_cbot" if _is_all_class(class_name) else None
-    if commodity == "COTTON":
-        return "cotton" if _is_all_class(class_name) else None
     if commodity == "RICE":
         return "rough_rice_cbot" if _is_all_class(class_name) else None
     if commodity == "CANOLA":
         return "canola_ice" if _is_all_class(class_name) else None
 
-    if commodity == "WHEAT, SPRING":
-        if class_name in {"", "ALL CLASSES", "HARD RED SPRING"}:
+    if commodity == "COTTON":
+        # ``cotton`` KEEPS its ALL CLASSES basis. The sibling calls UPLAND ``cotton``, and this file
+        # cannot follow it there without either double-counting (ALL CLASSES = upland + pima, so both
+        # under one slug is the conflict the uniqueness validator raises on) or deleting history:
+        # measured on bronze year 1920, ALL CLASSES carries 70 NATIONAL/STATE rows against UPLAND's 6.
+        # So UPLAND and PIMA get slugs of their OWN -- the 23,214 + 5,424 measured rows this producer
+        # used to throw away -- and the divergence from the sibling is recorded right here.
+        if _is_all_class(class_name):
+            return "cotton"
+        if class_name == "UPLAND":
+            return "upland_cotton"
+        if class_name == "PIMA":
+            return "pima_cotton"
+        # cottonseed is a DECLARED tier-1 context node (commodity_hierarchy.yaml:134,184) with 2,956
+        # measured dark propositions and no numeric lane anywhere in the estate; NASS holds 4,460
+        # NATIONAL/STATE rows of it (PRODUCTION in TONS only -- no area, no yield).
+        if class_name == "COTTONSEED":
+            return "cottonseed"
+        return None
+
+    if commodity == "WHEAT":
+        if class_name == _WHEAT_WINTER_CLASS:
+            return "soft_red_winter_wheat_cbot"
+        if class_name == _WHEAT_SPRING_CLASS:
             return "hard_red_spring_wheat_mgex"
         return None
 
-    if commodity == "WHEAT, WINTER":
-        if "SOFT RED WINTER" in class_name:
-            return "soft_red_winter_wheat_cbot"
-        if "HARD RED WINTER" in class_name:
-            return "hard_red_winter_wheat_kcbt"
-        return None
-
-    # Aggregate WHEAT, durum, coarse-grain proxies, sunflower, and sugar crops
-    # are intentionally excluded from this contract-targeted annual table.
+    # Coarse-grain proxies, sunflower, and sugar crops reach this file only because the BRONZE map
+    # buckets them onto an existing partition; they are excluded here, and named above.
     return None
 
 
@@ -260,7 +413,10 @@ def _convert_value(row: pd.Series) -> float:
         raise ValueError(f"Unsupported NASS area unit {unit!r} for {slug!r}")
 
     if stat == "YIELD":
-        if unit in {"BU / ACRE", "BU / NET PLANTED ACRE"}:
+        # BU / PLANTED ACRE is the third measured bushel denominator (51 rows in the wheat yield-unit
+        # census against BU / ACRE 29,945 and BU / NET PLANTED ACRE 5,238). It raised here the moment
+        # the class map was repaired, because until then no wheat row ever reached this converter.
+        if unit in {"BU / ACRE", "BU / NET PLANTED ACRE", "BU / PLANTED ACRE"}:
             return numeric * _bushel_weight(slug, unit) * LB_PER_ACRE_TO_T_HA
         if unit in {"LB / ACRE", "LB / NET PLANTED ACRE"}:
             return numeric * LB_PER_ACRE_TO_T_HA
@@ -288,12 +444,39 @@ def _convert_value(row: pd.Series) -> float:
     raise ValueError(f"Unsupported NASS statistic category {stat!r}")
 
 
+# NASS publishes the SAME (slug, state, year) yield under more than one denominator -- measured on
+# bronze wheat 1990/2022/2024, BU / ACRE (1,417 rows) and BU / NET PLANTED ACRE (173) collide on 116
+# identical keys, and the cotton partition does the same with the LB pair. The old rank named only
+# the two NET PLANTED units, so BU / ACRE and BU / PLANTED ACRE tied at rank 0 with DIFFERENT
+# converted values and _validate_metric_uniqueness raised -- the second crash that fired the moment
+# the class map was fixed.
+#
+# The fix ranks the DENOMINATOR, not the whole unit string, which gives a TOTAL order over every
+# observed yield unit at once: BU|LB|CWT|TONS / ACRE -> 0, ... / NET PLANTED ACRE -> 1,
+# ... / PLANTED ACRE -> 2, anything unobserved -> last. "/ ACRE" stays the winner exactly as before
+# (it is the standard published yield, per harvested acre), so no existing partition changes value.
+_YIELD_DENOMINATOR_PREFERENCE = (
+    "ACRE",
+    "NET PLANTED ACRE",
+    "PLANTED ACRE",
+)
+_UNRANKED_YIELD_DENOMINATOR = len(_YIELD_DENOMINATOR_PREFERENCE)
+
+
+def _yield_denominator(unit: str) -> str:
+    """The part of a NASS yield unit after the slash ('BU / NET PLANTED ACRE' -> 'NET PLANTED ACRE')."""
+    _, _, denominator = unit.partition("/")
+    return denominator.strip()
+
+
 def _metric_preference_rank(row: pd.Series) -> int:
-    stat = row["statisticcat_desc_norm"]
-    unit = row["unit_desc_norm"]
-    if stat == "YIELD" and unit in {"BU / NET PLANTED ACRE", "LB / NET PLANTED ACRE"}:
-        return 1
-    return 0
+    if row["statisticcat_desc_norm"] != "YIELD":
+        return 0
+    denominator = _yield_denominator(row["unit_desc_norm"])
+    try:
+        return _YIELD_DENOMINATOR_PREFERENCE.index(denominator)
+    except ValueError:
+        return _UNRANKED_YIELD_DENOMINATOR
 
 
 def _prefer_metric_rows(df: pd.DataFrame) -> pd.DataFrame:

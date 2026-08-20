@@ -20,24 +20,37 @@ from pathlib import Path
 
 import boto3
 
+_REPO_ROOT = Path(__file__).parents[2]
+
 # Ensure the src package is importable when run from the project root.
-sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
+sys.path.insert(0, str(_REPO_ROOT / "src"))
+# ...and the repo root itself, so `jobs.ingest.fetch_usda_esr` resolves when this
+# file is executed as a script (sys.path[0] is then jobs/ingest, not the root).
+sys.path.insert(0, str(_REPO_ROOT))
 
 from leviathan.common.config import load_env
 from leviathan.common.logging import get_logger
 from leviathan.storage.paths import bronze_esr_key, raw_esr_backfill_key
 from leviathan.transforms.raw_to_bronze.usda_esr import transform_esr_json_to_bronze
 
+from jobs.ingest.fetch_usda_esr import _TARGET_COMMODITY_CODES
+
 logger = get_logger(__name__)
 
 BUCKET = "leviathan-dev-shahem-001"
 AWS_REGION = "us-east-1"
 
-_DEFAULT_COMMODITY_CODES = [101, 102, 103, 104, 107, 401, 701, 801, 901, 902]
+# D-EC 2026-08-20: IMPORTED, never re-typed.  This script used to hold its own
+# copy of the legacy 10-code list, so the fetcher's widening to the measured
+# 44-code universe would have left the backfill silently re-narrowing every run.
+# The fetcher is the single authority on the universe; this is a local script, so
+# importing it directly is the cheapest way to make that authority binding.
+_DEFAULT_COMMODITY_CODES = list(_TARGET_COMMODITY_CODES)
 
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Local ESR raw → bronze backfill")
+    # ASCII only: the Windows console is cp1252 and a U+2192 here crashed --help.
+    p = argparse.ArgumentParser(description="Local ESR raw -> bronze backfill")
     p.add_argument("--commodity-codes", nargs="+", type=int, default=_DEFAULT_COMMODITY_CODES)
     p.add_argument("--start-year", type=int, default=1990)
     p.add_argument("--end-year", type=int, default=datetime.date.today().year)

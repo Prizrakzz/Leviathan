@@ -2152,7 +2152,9 @@ class CommodityOffCard(ValueError):
 
 def _check_commodity_class(spec, reg: NumbersRegistry) -> None:
     """RAISE `CommodityOffCard` when the spec names a commodity outside the card's declared closed set.
-    No declaration (`commodity_values` empty -- every card but NASS today) -> no fence, no behaviour."""
+    A card WITHOUT a declaration (`commodity_values` empty) gets no fence and no behaviour change --
+    opt-in by declaration, so the count of fenced cards is a property of the registry, not of this
+    function, and is deliberately not restated here."""
     cid = str(getattr(spec, "commodity", "") or "").strip()
     tid = str(getattr(spec, "table", "") or "").strip()
     if not cid or not tid:

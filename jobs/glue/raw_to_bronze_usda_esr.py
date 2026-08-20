@@ -24,7 +24,7 @@ Required args:
 
 Optional args:
   --mode            backfill|weekly  (default: backfill)
-  --commodity_codes comma-separated ESR codes  (default: all 10 target codes)
+  --commodity_codes comma-separated ESR codes  (default: all 44 measured source codes)
   --start_year      first marketing year for backfill  (default: 1990)
   --end_year        last marketing year for backfill   (default: current year)
   --as_of           YYYYMMDD snapshot date for weekly  (default: today)
@@ -51,7 +51,22 @@ from leviathan.transforms.raw_to_bronze.usda_esr import transform_esr_json_to_br
 logger = get_logger(__name__)
 
 _RETRY_CFG = Config(retries={"max_attempts": 10, "mode": "adaptive"})
-_DEFAULT_COMMODITY_CODES = [101, 102, 103, 104, 107, 401, 701, 801, 901, 902]
+
+# The measured 44-code ESR universe (GET /api/esr/commodities, 2026-08-20).
+# THIS IS A LITERAL ON PURPOSE: a Glue Python Shell job runs standalone off the
+# bootstrapped wheel and cannot import `jobs.ingest.fetch_usda_esr`, so the list
+# is mirrored rather than shared.  A unit test pins it EQUAL to the fetcher's
+# _TARGET_COMMODITY_CODES (tests/unit/test_fetch_usda_esr_universe.py), so the
+# mirror cannot drift the way the legacy 10-code copy did.
+_DEFAULT_COMMODITY_CODES = [
+    101, 102, 103, 104, 105, 106, 107, 201,
+    301, 401, 501, 601, 701, 801, 901, 902,
+    1001, 1101, 1110,
+    1201, 1202, 1203, 1301, 1401, 1402, 1403, 1404,
+    1498, 1499, 1501, 1502, 1503, 1504, 1505,
+    1601, 1602, 1603, 1604, 1605, 1606, 1607, 1608,
+    1701, 1702,
+]
 _TMP = Path("/tmp/esr_bronze")
 
 # ---------------------------------------------------------------------------
@@ -100,13 +115,20 @@ COMMODITY_CODES: list[int] = (
 # ---------------------------------------------------------------------------
 
 _WHEAT_CODES = frozenset({101, 102, 103, 104, 105, 106, 107, 201})
-_COTTON_RICE_CODES = frozenset({1201, 1202, 1203, 1301, 1302, 3202})
+# D-EC 2026-08-20: the phantom mirror is gone.  This used to be one
+# _COTTON_RICE_CODES = {1201, 1202, 1203, 1301, 1302, 3202} -- 1302 and 3202 do
+# NOT exist in the source's 44-code universe, and every real upland cotton code
+# (1401-1404) and every rice code was missing, so the Aug 1 marketing year was
+# applied to two phantoms and withheld from thirteen real codes.  These two sets
+# are the fetcher's, code for code, and a unit test pins all three copies equal.
+_COTTON_CODES = frozenset({1201, 1202, 1203, 1301, 1401, 1402, 1403, 1404})
+_RICE_CODES = frozenset({1498, 1499, 1501, 1502, 1503, 1504, 1505})
 
 
 def _marketing_year_start_month(commodity_code: int) -> int:
     if commodity_code in _WHEAT_CODES:
         return 6
-    if commodity_code in _COTTON_RICE_CODES:
+    if commodity_code in _COTTON_CODES or commodity_code in _RICE_CODES:
         return 8
     return 9
 
