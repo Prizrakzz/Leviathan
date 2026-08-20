@@ -20,9 +20,15 @@ so there is no per-partition ADD on refresh and no enumeration surface. DDL regi
 load_pg_numbers mirror run are the (ORCHESTRATOR-SEQUENCED) cloud steps; this job only writes the
 parquet.
 
-WHY IT IS CHEAP: the output is one row per trading session since 2010-06-06 -- roughly 4,000 rows,
-a few hundred KB. The intermediate read is the three legs' full per-delivery-month history, which is
-the real sizing input.
+WHY IT IS CHEAP: the output is one row per READABLE trading session -- roughly 2,650 rows, a few
+hundred KB. The intermediate read is the three legs' full per-delivery-month history (153,806 rows
+as of 2026-08-20), which is the real sizing input.
+
+WHY IT IS NOT ~4,000 ROWS: the tape starts 2010-06-06 but GLBX open interest -- the input the ONE
+front-month rule reads for these three legs -- starts 2015-11-19, and 47 later sessions are
+statistics blackouts or expiring-contract final prints. Those 1,532 dates are REFUSED per date and
+printed by name-count below; nothing is filled in for them. See the transform's module docstring for
+the measurement.
 
 Usage:
     python jobs/batch/gold_board_crush_task.py
@@ -46,6 +52,7 @@ from leviathan.transforms.gold.board_crush import (
     CRUSH_RULE_VERSION,
     INPUT_COLUMNS,
     PHYSICAL_COLUMNS,
+    REFUSED_DATES,
     compute_board_crush,
 )
 
@@ -128,6 +135,20 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     gold = compute_board_crush(eod)
+
+    # THE PER-DATE REFUSAL, PRINTED BEFORE THE ZERO-ROW FENCE. A run that emits
+    # nothing must say WHICH dates it could not read and WHY -- the first fire of
+    # this job refused all 153,806 rows and the log could only say "zero rows",
+    # because the input contract was asked once over the whole history instead of
+    # per session. This block is that answer, and it prints on every outcome.
+    ledger = gold.attrs.get(REFUSED_DATES)
+    if ledger is not None:
+        logger.info("gold_board_crush: %s", ledger.render())
+        for role, days in sorted(ledger.refused_by_role.items()):
+            if days:
+                logger.info("gold_board_crush: leg %s refused %d date(s), %s .. %s",
+                            role, len(days), days[0], days[-1])
+
     if gold.empty:
         logger.error("gold_board_crush: computed ZERO rows from %d input rows -- refusing to "
                      "overwrite the published table with an empty one", len(eod))
@@ -143,8 +164,16 @@ def main(argv: list[str] | None = None) -> int:
 
     from leviathan.storage.s3 import get_thread_local_s3_client
 
+    # The ledger is a RUN RECORD, not a column and not schema metadata: it belongs
+    # in this job's log, where an operator reads it, and NOT in the published
+    # parquet (pyarrow would try to JSON it into the pandas metadata block, warn,
+    # and either bloat the file or silently drop it). Cleared explicitly so the
+    # written object is exactly PHYSICAL_COLUMNS and nothing else.
+    body = gold[PHYSICAL_COLUMNS].copy()
+    body.attrs = {}
+
     buf = io.BytesIO()
-    pq.write_table(pa.Table.from_pandas(gold[PHYSICAL_COLUMNS], preserve_index=False),
+    pq.write_table(pa.Table.from_pandas(body, preserve_index=False),
                    buf, compression="snappy")
     get_thread_local_s3_client(region).put_object(
         Bucket=bucket, Key=_GOLD_KEY, Body=buf.getvalue(),

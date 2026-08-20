@@ -82,10 +82,51 @@ import crush) a freight leg, and this estate converts NOTHING at ingest -- units
 are source-faithful by doctrine.  Those two are refused here, on the record,
 rather than approximated.
 
+THE INPUT CONTRACT IS ASKED PER TRADE DATE, NOT PER FRAME
+---------------------------------------------------------
+All three legs are ``databento_glbx_mdp3``, i.e. front-by-OPEN-INTEREST, and
+``futures_roll.front_month_inputs_present`` fails closed when ANY candidate row
+of such a slug carries no readable open interest.  That frame-level granularity
+is CORRECT for the function's other callers and it is deliberately not changed
+here -- but asked once over the whole 153,806-row history it is an all-or-nothing
+question, and the measured tape answers NO: the first real fire refused
+everything on it.
+
+MEASURED 2026-08-20 over the full published tape (read-only S3, 153,806 rows,
+4,184 distinct trade dates):
+
+  * **2010-06-06 .. 2015-11-18 -- open interest does not exist at all.**  Not a
+    sparse gap: ZERO of the three legs' rows carry OI in that window, on any
+    contract, on any session (1,485 dates).  The GLBX ``statistics`` schema --
+    the $1.76 buy that IS the front-by-OI rule's data dependency -- simply does
+    not cover it.  Front-by-OI is an unanswerable question there, and this table
+    says so rather than quietly rolling by nearness under front_month_v2's name.
+  * **2015-11-19 onward -- OI is present, and 47 sessions in ten years are not.**
+    Two shapes, both genuine absences: whole-session statistics blackouts (the
+    year-end sessions Dec 30/31, plus one-offs like 2018-02-23, 2018-08-05,
+    2020-02-27, 2026-08-03), and the final print of an EXPIRING contract, which
+    is still eligible under the month-start rule and carries volume in the
+    single digits but no OI (2016-05-13, 2017-05-12, 2024-01-12 ...).
+  * The most recent session is routinely among them: OI lands a day behind the
+    settlement, so a run at T sees T-1 as the last readable date.
+
+So the crush is computable on 2,652 of 4,184 dates and genuinely uncomputable on
+1,532.  The decision is therefore made PER TRADE DATE and it is BINARY: a date
+whose every leg satisfies the rule's own input contract emits exactly as before;
+a date where any leg does not is REFUSED, alone, and counted.  Nothing is
+filled, no tie-break is worked around, and no partially-readable date is let
+through -- which is the same refusal the frame-level check makes, at the
+granularity the data actually varies on.  The refusal is WRITTEN
+(:class:`DateContractLedger`, carried out on the returned frame's ``.attrs``
+under :data:`REFUSED_DATES`), because 1,532 silently absent sessions and 1,532
+declared ones are very different objects to a reader.
+
 Pure: pandas + the house contract map + the ONE roll rule.  No S3, no AWS, no
 side effects -- ``jobs/batch/gold_board_crush_task.py`` is the I/O shell.
 """
 from __future__ import annotations
+
+from dataclasses import dataclass, field
 
 import pandas as pd
 
@@ -152,6 +193,139 @@ INPUT_COLUMNS: list[str] = [
     "settle_kind", "unit", "open_interest", "volume", "instrument_kind", "source",
 ]
 
+# The ``.attrs`` key the per-date refusal ledger rides out on.  It is set on EVERY
+# return path including the empty ones, so a total refusal is exactly as readable
+# as a partial one -- an empty gold frame that cannot say WHY it is empty is the
+# thing that cost this table its first fire.
+REFUSED_DATES = "board_crush_refused_dates"
+
+
+@dataclass(frozen=True)
+class DateContractLedger:
+    """WHICH trade dates the roll rule could be asked about, and which it could not.
+
+    ``readable`` and ``refused`` partition the input's distinct trade dates; a date
+    is in exactly one of them and never in both.  ``refused_by_role`` says WHICH
+    leg or legs did the refusing (a date can be refused by more than one, so the
+    per-role counts do not sum to ``n_refused``).  Dates are ``YYYY-MM-DD``
+    strings, sorted, exactly as they are emitted on a crush row."""
+
+    readable: tuple[str, ...] = ()
+    refused: tuple[str, ...] = ()
+    refused_by_role: dict[str, tuple[str, ...]] = field(default_factory=dict)
+
+    @property
+    def n_readable(self) -> int:
+        return len(self.readable)
+
+    @property
+    def n_refused(self) -> int:
+        return len(self.refused)
+
+    @property
+    def n_dates(self) -> int:
+        return self.n_readable + self.n_refused
+
+    def render(self) -> str:
+        """The WRITTEN refusal, one ASCII line (the console is cp1252)."""
+        if not self.n_dates:
+            return "board crush: no trade dates in the input at all"
+        by_leg = " ".join(
+            f"{role}({CRUSH_LEGS[role]})={len(self.refused_by_role.get(role, ()))}"
+            for role in CRUSH_LEGS
+        )
+        span = (f"{self.refused[0]}..{self.refused[-1]}" if self.refused else "-")
+        read_span = (f"{self.readable[0]}..{self.readable[-1]}" if self.readable else "-")
+        return (
+            f"board crush: the roll rule's input contract REFUSED {self.n_refused} of "
+            f"{self.n_dates} trade dates ({span}); per leg: {by_leg}; "
+            f"readable {self.n_readable} ({read_span}). All three legs are GLBX, i.e. "
+            f"front-by-open-interest -- a refused date has a leg whose eligible candidate "
+            f"set carries no readable open interest, and emitting one would publish a "
+            f"crush selected by a degraded rule."
+        )
+
+
+def _with_ledger(gold: pd.DataFrame, ledger: DateContractLedger) -> pd.DataFrame:
+    """Attach the ledger to the frame.  Last thing before every return: pandas does
+    not promise ``.attrs`` survives a column selection or a merge, so it is set once,
+    on the object the caller actually receives."""
+    gold.attrs[REFUSED_DATES] = ledger
+    return gold
+
+
+def _eligible_candidates(legs: pd.DataFrame) -> pd.DataFrame:
+    """The rows :func:`futures_roll.front_month` will actually READ, with the trade
+    date parsed into ``_trade_date``.
+
+    Eligibility mirrors the rule's own: a contract not yet in delivery, i.e. its
+    ``contract_month`` month-start is at or after the trade date's month-start.  The
+    ``YYYY-MM`` parse is futures_roll's own ``_month_start`` rather than a second
+    copy of it -- re-declaring the predicate here is exactly the F-L drift that
+    module exists to prevent, and ``config_check.check_futures_roll``'s source fence
+    would never see it.
+
+    The rule's OTHER eligibility clause (a delivery-cycle slug's listed months) is
+    not mirrored because no crush leg uses that method -- all three are GLBX.  If one
+    ever did, this set would be a SUPERSET of what the rule reads, which errs toward
+    refusing a date rather than toward emitting a degraded one."""
+    work = legs.copy()
+    work["_trade_date"] = pd.to_datetime(work["trade_date"], errors="coerce")
+    work = work[work["_trade_date"].notna()]
+    work["_month"] = FR._month_start(work["contract_month"])
+    work = work[work["_month"].notna()]
+    if work.empty:
+        return work
+    work["_trade_month"] = work["_trade_date"].values.astype("datetime64[M]")
+    return work[work["_month"] >= pd.to_datetime(work["_trade_month"])]
+
+
+def date_contract_ledger(legs: pd.DataFrame) -> DateContractLedger:
+    """Ask the roll rule's input contract ONCE PER (trade date, leg), and partition
+    the dates by the answer.
+
+    The question is :func:`futures_roll.front_month_inputs_present`'s, unchanged and
+    un-restated -- it is handed each leg's eligible candidate set for one session and
+    its verdict is taken as-is.  A leg with NO eligible candidate on a date is refused
+    by that same function (an empty frame is not a satisfied precondition), which is
+    also what the three-leg inner join would do to the date one step later; counting
+    it here just means the drop is written down.
+
+    ``legs`` must already be narrowed to :data:`CRUSH_LEGS`.
+
+    COST: one call to the contract per (leg, session) -- ~12,500 calls and ~17s
+    over the full published tape.  That is deliberate and it is not worth
+    optimising away: any vectorised shortcut here would be a second reading of
+    METHOD_METRIC_COL, i.e. the F-L drift in the one place it is hardest to see,
+    and this job runs once a day behind a 51-object S3 read."""
+    elig = _eligible_candidates(legs)
+    dates = sorted({d.strftime("%Y-%m-%d")
+                    for d in pd.to_datetime(legs["trade_date"], errors="coerce").dropna()})
+    if not dates:
+        return DateContractLedger()
+
+    by_role: dict[str, list[str]] = {role: [] for role in CRUSH_LEGS}
+    if len(elig):
+        satisfied = {
+            (str(slug), day.strftime("%Y-%m-%d"))
+            for (slug, day), group in elig.groupby(["leviathan_slug", "_trade_date"], sort=False)
+            if FR.front_month_inputs_present(group)
+        }
+    else:
+        satisfied = set()
+    for role, slug in CRUSH_LEGS.items():
+        for day in dates:
+            if (slug, day) not in satisfied:
+                by_role[role].append(day)
+
+    refused = sorted({d for days in by_role.values() for d in days})
+    refused_set = set(refused)
+    return DateContractLedger(
+        readable=tuple(d for d in dates if d not in refused_set),
+        refused=tuple(refused),
+        refused_by_role={role: tuple(days) for role, days in by_role.items()},
+    )
+
 
 def _assert_leg_units() -> None:
     """Refuse to compute if any leg is no longer quoted in the assumed unit.
@@ -208,7 +382,9 @@ def compute_board_crush(eod: pd.DataFrame) -> pd.DataFrame:
 
     Returns:
         One row per ``trade_date`` on which ALL THREE legs printed a front-month
-        settle, ordered by date, with :data:`PHYSICAL_COLUMNS`.
+        settle AND the roll rule's input contract was satisfied, ordered by date,
+        with :data:`PHYSICAL_COLUMNS`.  The :class:`DateContractLedger` for the
+        call rides out on ``.attrs[REFUSED_DATES]``.
 
     Raises:
         ValueError: if a required input column is missing, or if a leg's quoted
@@ -219,11 +395,17 @@ def compute_board_crush(eod: pd.DataFrame) -> pd.DataFrame:
     a stale third is not a wider series, it is a wrong one -- so the missing
     session is DROPPED rather than forward-filled.  That is the same posture the
     price layer takes toward a straddling window: decline, never splice.
+
+    THE INPUT-CONTRACT RULE, one granularity down.  The roll rule can only be
+    asked about a session whose every leg carries the input it reads; the
+    measured tape has 1,532 sessions where it cannot be (see the module
+    docstring).  Those dates are refused INDIVIDUALLY and written down, never
+    filled and never tie-broken around, and their neighbours are unaffected.
     """
     _assert_leg_units()
 
     if eod is None or len(eod) == 0:
-        return empty_gold()
+        return _with_ledger(empty_gold(), DateContractLedger())
     missing = [c for c in ("leviathan_slug", "trade_date", "contract_month", "settle")
                if c not in eod.columns]
     if missing:
@@ -235,21 +417,35 @@ def compute_board_crush(eod: pd.DataFrame) -> pd.DataFrame:
     legs = eod[eod["leviathan_slug"].isin(CRUSH_LEGS.values())].copy()
     if legs.empty:
         logger.warning("board crush: no rows for any of the three CBOT legs")
-        return empty_gold()
+        return _with_ledger(empty_gold(), DateContractLedger())
 
     # THE ONE ROLL RULE.  Never a second copy: config_check.check_futures_roll
     # fails the build if a competing front-month implementation appears anywhere
     # under src/ jobs/ scripts/, and this transform is exactly the kind of place
-    # a fourth inline copy would otherwise be born.
-    if not FR.front_month_inputs_present(legs):
+    # a fourth inline copy would otherwise be born.  What IS decided here is only
+    # the GRANULARITY the rule's own precondition is asked at -- per trade date,
+    # because that is the axis the tape's open-interest coverage varies on.
+    ledger = date_contract_ledger(legs)
+    if ledger.n_refused:
+        logger.warning("%s", ledger.render())
+    if not ledger.readable:
         logger.warning(
-            "board crush: the roll rule's input contract is not satisfied by these rows "
-            "(all three legs are GLBX, i.e. front-by-open-interest); emitting nothing "
-            "rather than a crush selected by a degraded rule")
-        return empty_gold()
+            "board crush: EVERY one of the %d trade dates failed the roll rule's input "
+            "contract; emitting nothing rather than a crush selected by a degraded rule",
+            ledger.n_dates)
+        return _with_ledger(empty_gold(), ledger)
+
+    # Refused dates leave here and never come back: no fill, no carry, no
+    # neighbour standing in for them.  front_month gets the FULL row set for the
+    # dates that survive -- including any row its own eligibility filter will
+    # drop -- because narrowing its candidate set here would be this module
+    # selecting the contract, which is the one thing it must not do.
+    keep = pd.to_datetime(legs["trade_date"], errors="coerce").dt.strftime("%Y-%m-%d")
+    legs = legs[keep.isin(set(ledger.readable))]
+
     front = FR.front_month(legs)
     if front.empty:
-        return empty_gold()
+        return _with_ledger(empty_gold(), ledger)
 
     keep = ["leviathan_slug", "trade_date", "contract_month", "settle", "settle_kind"]
     keep = [c for c in keep if c in front.columns]
@@ -281,13 +477,13 @@ def compute_board_crush(eod: pd.DataFrame) -> pd.DataFrame:
         out = out.merge(parts[role], on="trade_date", how="inner")
     if out.empty:
         logger.warning("board crush: no session has all three legs; emitting nothing")
-        return empty_gold()
+        return _with_ledger(empty_gold(), ledger)
 
     for role in CRUSH_LEGS:
         out[f"{role}_settle"] = pd.to_numeric(out[f"{role}_settle"], errors="coerce")
     out = out.dropna(subset=[f"{role}_settle" for role in CRUSH_LEGS])
     if out.empty:
-        return empty_gold()
+        return _with_ledger(empty_gold(), ledger)
 
     out["meal_value_usd_bu"] = MEAL_COEF * out["meal_settle"]
     out["oil_value_usd_bu"] = OIL_COEF * out["oil_settle"]
@@ -318,8 +514,8 @@ def compute_board_crush(eod: pd.DataFrame) -> pd.DataFrame:
     out = out[PHYSICAL_COLUMNS]
 
     logger.info(
-        "board crush: rows=%d first=%s last=%s rule=%s roll=%s",
+        "board crush: rows=%d first=%s last=%s rule=%s roll=%s refused_dates=%d",
         len(out), out["trade_date"].iloc[0], out["trade_date"].iloc[-1],
-        CRUSH_RULE_VERSION, FR.ROLL_RULE_VERSION,
+        CRUSH_RULE_VERSION, FR.ROLL_RULE_VERSION, ledger.n_refused,
     )
-    return out
+    return _with_ledger(out, ledger)

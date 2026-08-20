@@ -11,6 +11,8 @@ Pure Python -- no S3, no AWS.
 """
 from __future__ import annotations
 
+import warnings
+
 import pandas as pd
 import pytest
 
@@ -259,3 +261,187 @@ class TestScopeRefusals:
         out = BC.compute_board_crush(pd.concat([_session(), dce], ignore_index=True))
         assert len(out) == 1
         assert out.iloc[0]["crush_margin_usd_bu"] == pytest.approx(1.60)
+
+
+# ---------------------------------------------------------------------------
+# The input contract, asked PER TRADE DATE.
+#
+# MEASURED on the published tape 2026-08-20: GLBX open interest -- the input the
+# ONE front-month rule reads for all three legs -- does not exist before
+# 2015-11-19 (1,485 dates, zero OI prints on any contract of any leg), and 47
+# later sessions are statistics blackouts or expiring-contract final prints.
+# Asked ONCE over the whole 153,806-row history the contract is therefore always
+# False, which is how this table's first fire published nothing at all. Asked per
+# session it is True on 2,652 dates. These tests pin that the granularity moved
+# and the POSTURE did not: a refused date is refused alone, in writing, and is
+# never filled, carried, or tie-broken around.
+# ---------------------------------------------------------------------------
+class TestPerDateInputContract:
+
+    def test_one_missing_print_refuses_its_own_date_and_no_other(self) -> None:
+        good_before = _session("2026-08-12")
+        bad = _session("2026-08-13")
+        # ONE leg, ONE eligible candidate, on ONE date.
+        bad.loc[bad.leviathan_slug == "soybean_oil_cbot", "open_interest"] = pd.NA
+        good_after = _session("2026-08-14")
+        out = BC.compute_board_crush(
+            pd.concat([good_before, bad, good_after], ignore_index=True))
+        assert list(out.trade_date) == ["2026-08-12", "2026-08-14"]
+
+    def test_the_neighbours_are_untouched_not_merely_present(self) -> None:
+        # "Refused alone" has to mean the surviving rows are the SAME rows the
+        # transform would have emitted anyway -- not a rebuilt series.
+        clean = pd.concat([_session("2026-08-12"), _session("2026-08-14")],
+                          ignore_index=True)
+        bad = _session("2026-08-13")
+        bad.loc[bad.leviathan_slug == "soybeans_cbot", "open_interest"] = pd.NA
+        mixed = BC.compute_board_crush(pd.concat([clean, bad], ignore_index=True))
+        assert mixed.reset_index(drop=True).equals(
+            BC.compute_board_crush(clean).reset_index(drop=True))
+
+    def test_a_refused_date_is_never_filled_from_its_neighbour(self) -> None:
+        bad = _session("2026-08-13", beans=1050.0, meal=300.0, oil=50.0)
+        bad.loc[bad.leviathan_slug == "soybean_meal_cbot", "open_interest"] = pd.NA
+        out = BC.compute_board_crush(pd.concat(
+            [_session("2026-08-12", beans=1000.0, meal=310.0, oil=52.0), bad],
+            ignore_index=True))
+        assert list(out.trade_date) == ["2026-08-12"]
+        assert "2026-08-13" not in set(out.trade_date)
+        assert out.iloc[0]["meal_settle"] == pytest.approx(310.0)
+
+    def test_a_missing_print_on_an_INELIGIBLE_candidate_does_not_refuse(self) -> None:
+        # The contract is asked about the rows the rule READS. A delivery month
+        # already under way is not one of them -- front_month drops it before it
+        # ever looks at open interest -- so its absent print is not a defect in
+        # the session, and refusing on it would cost dates for nothing.
+        rows = []
+        for slug, settle in (("soybeans_cbot", 1050.0), ("soybean_meal_cbot", 300.0),
+                             ("soybean_oil_cbot", 50.0)):
+            rows.append(_leg(slug, "2026-08-13", "2026-07", settle * 2, open_interest=None))
+            rows.append(_leg(slug, "2026-08-13", "2026-11", settle, open_interest=9000.0))
+        frame = pd.DataFrame(rows)
+        frame["open_interest"] = frame["open_interest"].astype("object").where(
+            frame["contract_month"] != "2026-07", pd.NA)
+        out = BC.compute_board_crush(frame)
+        assert len(out) == 1
+        assert out.iloc[0]["beans_contract_month"] == "2026-11"
+        assert out.iloc[0]["crush_margin_usd_bu"] == pytest.approx(1.60)
+
+    def test_a_blank_string_print_counts_as_absent_exactly_as_NaN_does(self) -> None:
+        # futures_roll's contract says '' and NaN are both ABSENT. The per-date
+        # ask inherits that rather than re-deciding it.
+        bad = _session("2026-08-13")
+        bad["open_interest"] = bad["open_interest"].astype("object")
+        bad.loc[bad.leviathan_slug == "soybean_oil_cbot", "open_interest"] = ""
+        out = BC.compute_board_crush(
+            pd.concat([_session("2026-08-12"), bad], ignore_index=True))
+        assert list(out.trade_date) == ["2026-08-12"]
+
+    def test_every_date_refused_still_emits_nothing(self) -> None:
+        # The pre-2015-11-19 tape in miniature: no leg carries OI on any session,
+        # so there is no date to compute and the zero-row fence in
+        # jobs/batch/gold_board_crush_task.py is what the caller then hits.
+        frames = []
+        for d in ("2026-08-11", "2026-08-12", "2026-08-13"):
+            s = _session(d)
+            s["open_interest"] = pd.NA
+            frames.append(s)
+        out = BC.compute_board_crush(pd.concat(frames, ignore_index=True))
+        assert out.empty
+        assert list(out.columns) == BC.PHYSICAL_COLUMNS
+        led = out.attrs[BC.REFUSED_DATES]
+        assert led.readable == ()
+        assert led.n_refused == 3
+        assert led.refused == ("2026-08-11", "2026-08-12", "2026-08-13")
+
+
+# ---------------------------------------------------------------------------
+# The refusal is WRITTEN. An empty frame that cannot say why it is empty is the
+# thing that cost this table its first fire.
+# ---------------------------------------------------------------------------
+class TestWrittenRefusal:
+
+    def _mixed(self) -> pd.DataFrame:
+        good = _session("2026-08-12")
+        bad_oil = _session("2026-08-13")
+        bad_oil.loc[bad_oil.leviathan_slug == "soybean_oil_cbot", "open_interest"] = pd.NA
+        bad_two = _session("2026-08-17")
+        bad_two.loc[bad_two.leviathan_slug.isin(
+            ["soybean_oil_cbot", "soybeans_cbot"]), "open_interest"] = pd.NA
+        return pd.concat([good, bad_oil, bad_two], ignore_index=True)
+
+    def test_the_ledger_rides_out_on_the_frame(self) -> None:
+        out = BC.compute_board_crush(self._mixed())
+        assert BC.REFUSED_DATES in out.attrs
+        assert isinstance(out.attrs[BC.REFUSED_DATES], BC.DateContractLedger)
+
+    def test_readable_and_refused_partition_the_dates_exactly(self) -> None:
+        led = BC.compute_board_crush(self._mixed()).attrs[BC.REFUSED_DATES]
+        assert led.readable == ("2026-08-12",)
+        assert led.refused == ("2026-08-13", "2026-08-17")
+        assert set(led.readable) & set(led.refused) == set()
+        assert led.n_dates == 3 == led.n_readable + led.n_refused
+
+    def test_the_breakdown_names_the_leg_that_refused(self) -> None:
+        led = BC.compute_board_crush(self._mixed()).attrs[BC.REFUSED_DATES]
+        assert led.refused_by_role["oil"] == ("2026-08-13", "2026-08-17")
+        assert led.refused_by_role["beans"] == ("2026-08-17",)
+        assert led.refused_by_role["meal"] == ()
+
+    def test_the_rendered_line_carries_count_breakdown_and_span(self) -> None:
+        led = BC.compute_board_crush(self._mixed()).attrs[BC.REFUSED_DATES]
+        line = led.render()
+        assert "REFUSED 2 of 3 trade dates" in line
+        assert "2026-08-13..2026-08-17" in line          # min .. max refused
+        assert "oil(soybean_oil_cbot)=2" in line
+        assert "beans(soybeans_cbot)=1" in line
+        assert "meal(soybean_meal_cbot)=0" in line
+        assert "readable 1 (2026-08-12..2026-08-12)" in line
+
+    def test_the_written_refusal_is_ascii(self) -> None:
+        # The Windows console is cp1252; a non-ASCII log line is an ops failure,
+        # not a cosmetic one.
+        led = BC.compute_board_crush(self._mixed()).attrs[BC.REFUSED_DATES]
+        led.render().encode("ascii")
+
+    def test_a_clean_run_still_accounts_for_every_date(self) -> None:
+        led = BC.compute_board_crush(pd.concat(
+            [_session("2026-08-12"), _session("2026-08-13")],
+            ignore_index=True)).attrs[BC.REFUSED_DATES]
+        assert led.n_refused == 0
+        assert led.readable == ("2026-08-12", "2026-08-13")
+        assert all(v == () for v in led.refused_by_role.values())
+
+    def test_the_batch_task_reads_the_same_accounting_this_module_writes(self) -> None:
+        # The seam: the job prints the ledger BEFORE its zero-row fence, so a run
+        # that publishes nothing still says which dates it could not read.
+        import inspect
+
+        from jobs.batch import gold_board_crush_task as T
+
+        assert T.REFUSED_DATES is BC.REFUSED_DATES
+        src = inspect.getsource(T.main)
+        assert "attrs.get(REFUSED_DATES)" in src
+        assert src.index("ledger.render()") < src.index("computed ZERO rows")
+        # ...and the ledger is a RUN RECORD, so it stays out of the published
+        # parquet: pyarrow cannot JSON a dataclass into the pandas metadata block
+        # and warns when asked to try.
+        assert "body.attrs = {}" in src
+        assert src.index("body.attrs = {}") < src.index("pq.write_table")
+
+    def test_the_ledger_never_reaches_the_written_object(self) -> None:
+        import io
+
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+
+        gold = BC.compute_board_crush(_session())
+        body = gold[BC.PHYSICAL_COLUMNS].copy()
+        body.attrs = {}
+        buf = io.BytesIO()
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")          # the pyarrow attrs warning is a failure
+            pq.write_table(pa.Table.from_pandas(body, preserve_index=False), buf)
+        assert BC.REFUSED_DATES in gold.attrs      # still on what the caller holds
+        assert list(pq.read_table(io.BytesIO(buf.getvalue())).to_pandas().columns) == (
+            BC.PHYSICAL_COLUMNS)
