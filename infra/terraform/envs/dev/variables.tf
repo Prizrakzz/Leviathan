@@ -373,7 +373,14 @@ variable "worker_fleet_image_digest" {
   # OVERNIGHT BUMP 2026-08-20: 554968e7 = the D14 WASDE full-parse + PSD-widening + board_crush
   # build (e437eff7). wasde-bronze-modern repin JSON prepared for the owner; the remaining silver
   # families repin with the post-X2 mini-wave fire.
-  default     = "sha256:554968e76d24d9bf8a9c38bf899467b76f287efa18c7f3ffbde29a0de7cedee9"
+  # DEC NOW-LANES FLEET BUMP 2026-08-20 (#2, 14:13Z): c5f7900a = commit c4ebbf23 (ESR 44-code
+  # universe + 21 new mass-unit slugs + non-mass written skip -- WITHOUT this digest the widened
+  # weekly fetch would collapse 21 codes into commodity=unknown, the dec-now-lanes review's
+  # blocking find; NASS annual wheat repair 0->6,582 rows proven by replay; PSD/FCOJ card flips).
+  # Post-push auditor CLEAN. usda-esr-fetch / esr-bronze-to-silver / usda-nass-bronze /
+  # usda-nass-annual-silver hand-repin via owner (register JSONs in the session scratchpad);
+  # the ten fleet families adopt on the next apply per this file's standing law.
+  default     = "sha256:c5f7900a5c0dd686b0d9bc773de8eebab1851bf845421f248c5a81ebd93aa5fa"
 
   validation {
     condition     = var.worker_fleet_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.worker_fleet_image_digest))
