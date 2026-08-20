@@ -1,0 +1,195 @@
+# HAND-AUTHORED 2026-08-20 against an AWS-side live probe of iss.moex.com, not emitted by
+# scripts/silver/gen_registry_from_baseline.py -- that generator reads the R0 readiness baseline
+# (20260712_p65impl), which predates this table and holds no record of it. Every type below is the
+# INV-2 TARGET writer schema declared by the producing transform
+# (src/leviathan/transforms/bronze_to_silver/moex_agro_indices.py), and arrow_type is set equal to it
+# because no physical parquet exists yet: this table is REGISTERED BEFORE FIRST WRITE, so there is
+# no baseline to observe and nothing has drifted from anything. Re-derive arrow_type from the real
+# footers once the producer has run (that is a fingerprint refresh, not a schema change).
+#
+# SILVER-F010 operational registry (superset).
+table_name: silver_moex_agro_indices
+layer: silver
+domain: prices
+lifecycle_class: source
+owner: numbers-platform
+schema_version: 1
+glue_database: leviathan_dev
+s3_root: s3://leviathan-dev-shahem-001/silver/moex_agro_indices
+s3_bucket: leviathan-dev-shahem-001
+s3_prefix: silver/moex_agro_indices
+layout: flat
+partition_mode: flat
+projection: forbidden
+partition_keys: []
+recovery_strategy: active-release manifest / bounded full relist under the flat root
+physical_columns:
+- name: secid
+  glue_type: string
+  arrow_type: string
+  parquet_physical_type: BYTE_ARRAY
+  target_arrow_type: string
+  nullable: false
+- name: trade_date
+  glue_type: date
+  arrow_type: date32[day]
+  parquet_physical_type: INT32
+  target_arrow_type: date32[day]
+  nullable: false
+- name: close
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: false
+- name: currency
+  glue_type: string
+  arrow_type: string
+  parquet_physical_type: BYTE_ARRAY
+  target_arrow_type: string
+  nullable: false
+- name: board
+  glue_type: string
+  arrow_type: string
+  parquet_physical_type: BYTE_ARRAY
+  target_arrow_type: string
+  nullable: false
+- name: source
+  glue_type: string
+  arrow_type: string
+  parquet_physical_type: BYTE_ARRAY
+  target_arrow_type: string
+  nullable: false
+writer_schema_pinned: false
+drift_summary: []
+natural_key:
+- secid
+- trade_date
+required_nonnull:
+- secid
+- trade_date
+- close
+- currency
+value_columns:
+- close
+min_nonnull_frac: 1.0
+min_nonnull_frac_status: calibrated
+coverage_axis: secid x trade_date
+vintage_retention: latest-only
+knowledge_date_col: trade_date
+knowledge_semantics: data_date
+publication_lag_days: 0
+freshness_sla:
+  cadence: daily
+  max_lag_days: 5
+consumers: none
+numbers_ref: null
+cascade_ref: null
+source_contract_ref: null
+serving_table: null
+producer:
+  status: producer
+  transform: src/leviathan/transforms/bronze_to_silver/moex_agro_indices.py
+  batch_task: null
+  note: 'The raw producer is jobs/ingest/fetch_moex_agro_indices.py and the raw->bronze transform is
+    src/leviathan/transforms/raw_to_bronze/moex_agro_indices.py. There is NO batch task and NO
+    jobdef/schedule yet: the submit shapes are prepared commands in the wave report, not armed
+    infrastructure. The silver materialisation job and the numbers card belong to the projection
+    wave (four-checkmark law -- the card flips at proof-of-rows, and there are no rows until the
+    backfill has run cloud-side). This contract is registered ahead of that so the schema is decided
+    once, before the first write, rather than inferred from whatever the first parquet happened to
+    contain.'
+location_mode: static
+write_mode: append
+fingerprint:
+  schema_fingerprint_sha256: null
+  catalog_hash_sha256: null
+  registered_partition_count: 0
+  placeholder_partition_count: 0
+  glue_nonpartition_cols: 6
+  physical_parquet_cols: 6
+provenance:
+  baseline_id: 20260820_moex_agro_indices_aws_probe
+  anchor_git_sha: 0b4923e5
+  generated_by: hand-authored against an AWS-side live probe of iss.moex.com; the lane context is
+    docs/private/recon/black_sea_numbers_recon.md section 2 (the unreachable ministry duty page)
+  # A REAL repo-relative path (test_silver_registry_gen.test_no_yaml_lacks_a_baseline_record resolves
+  # it): the capture notes ARE this table's baseline record -- they name the endpoint, list which
+  # cells were measured and which are null-by-construction, and enumerate the four ISS-shape
+  # assumptions still open.
+  generated_from: tests/fixtures/moex/capture_notes.md
+notes: 'THE RUSSIAN GRAIN INDICATIVE-PRICE ROUTE, and it exists because the ministry duty page does
+  not answer. mcx.gov.ru (the official weekly export-duty publication) is unreachable from this
+  estate -- curl exits 28 with http=000, Wayback holds nothing, and every reachable English mirror is
+  licensing-fouled (Interfax/TASS copyrighted wires, Alta-Soft back-link obligation, Global Trade
+  Alert CC BY-NC with the number itself behind a sign-in). See
+  docs/private/recon/black_sea_numbers_recon.md section 2. MOEX publishes the INPUT to the duty
+  calculation openly, so this family takes the input series.
+
+  REACHABILITY IS AWS-ONLY AND IT IS A PROPERTY OF THIS TABLE, not an operational footnote:
+  iss.moex.com answers 200 from AWS and http=000 from the estate''s laptop (both probed 2026-08-20).
+  Every run of the producer is cloud-side; the laptop supports --dry-run only. A future operator
+  debugging "the fetcher is broken" on a laptop is seeing the network, not a defect.
+
+  THE SECURITIES (ISS search, measured 2026-08-20): WHFOB wheat FOB Black Sea deep-water (board
+  RTSI, USD); BRFOB barley FOB (RTSI, USD); CRFOB corn FOB (RTSI, USD); WHCPT NTB wheat CPT (board
+  AGRO, RUB); WH4CPTNOV wheat class-4 CPT Novorossiysk, DORMANT -- zero rows in August 2026, kept in
+  the fetch universe because an index that starts printing must be captured on the day it does. An
+  empty ISS history is DATA on this family (dormant security, pre-inception window, no sessions) and
+  the producer reports it as zero rows with a written log line and exit 0, never as a failure.
+
+  UNITS: currency and board are PUBLISHED COLUMNS, never constants. This family serves USD FOB
+  levels near 229-232 beside RUB CPT levels near 11,000-14,000 -- two orders of magnitude apart --
+  so a fixed-unit schema would file one as the other with nothing downstream able to detect it.
+  currency comes from the row''s own CURRENCYID, board from its own BOARDID, and a row carrying
+  neither is REFUSED. There is deliberately NO conversion layer and NO derived USD column: an FX
+  convention has not been established (see the duty note below) and a converted column is
+  indistinguishable from a published one once written. The DENOMINATOR (per metric tonne) is source
+  knowledge and is deliberately NOT synthesised into a unit column -- FOLLOW-UP MOEX-UNIT-1 pins it
+  from the ISS securities-description block on the first cloud-side run.
+
+  PIT: TRADEDATE is the knowledge date. MOEX publishes these indices SAME-DAY at end of session, so
+  knowledge_semantics is data_date and publication_lag_days is 0 -- the index level IS the
+  publication and an as-of guard on trade_date is exact rather than approximate. Nothing on this leg
+  is derived from a wall clock: the date is read out of the payload, is the raw key''s trade_date=
+  segment, and is cross-checked against it by the bronze transform. Residual, disclosed: the evening
+  session ends 23:50 MSK (20:50 UTC), so a run early in the UTC day sees yesterday''s newest row;
+  the producer never asserts "today" and the daily window is wide enough to re-offer it.
+
+  THE EXPORT DUTY IS DOCUMENTED HERE AND DELIBERATELY NOT COMPUTED. The damper is
+  duty = 0.70 x (indicative_price_in_RUB - base_price_in_RUB), floored at zero, with the base price
+  set by Government Decree No. 117 of 06.02.2021 as amended (latest edition 07.03.2026; the wheat
+  base is BELIEVED RUB-denominated in 2026 after an earlier USD-denominated era). VALIDATION SKETCH
+  against this table''s own measured series: WHFOB 2026-08-19 = 229.3 USD/t x an assumed ~83 RUB/USD
+  ~= 19,032 RUB/t, minus an assumed 18,000 RUB/t base = 1,032, x0.70 ~= RUB 722/t, against the
+  published 19-Aug-2026 duty print of RUB 326.6 -> 721.1/t; inverting on 721.1 implies 82.99
+  RUB/USD. That is close enough to confirm the mechanism is understood and nowhere near close enough
+  to publish a number from. NO DUTY COLUMN EXISTS AND NONE MAY BE ADDED WITHOUT **FOLLOW-UP
+  MOEX-DUTY-1**, which requires the decree text (consultant.ru/document/cons_doc_LAW_376329/ or
+  base.garant.ru/400295266/, both reachable) read for (1) the exact per-crop base constants and
+  their amendment timeline, (2) the official FX convention -- which CBR rate over which averaging
+  window, and (3) which indicative-price window feeds a given duty week (the 19-25 Aug rate was
+  fixed BEFORE 19 Aug, so the 229.3 print used in the sketch is almost certainly not the one the
+  Ministry used) -- plus a back-test of the reconstructed series against a run of published weekly
+  rates. A guessed constant inside a transform is a wrong number carrying a provenance trail, which
+  is strictly worse than no number at all. Zero is a DATA POINT on this mechanism, never an absence:
+  the duty ran at zero for six weeks from 27 May 2026 and re-armed in August, and any future duty
+  series must record the zeros explicitly.
+
+  min_nonnull_frac 1.0 on close is CALIBRATED rather than the provisional 0.5: the producer REFUSES
+  to land an observation whose CLOSE is null (an unlabelled level is not a number), so every row
+  that reaches silver carries a level by construction and anything less is a corrupted object rather
+  than a thin source. freshness_sla.max_lag_days=5 covers a long weekend plus a Russian public
+  holiday; unlike the EEX freight leg this source HAS a history endpoint, so a missed day is
+  recoverable and the SLA is an alerting choice rather than a hard data deadline. write_mode append:
+  history here is accumulated one immutable (secid, trade_date) object at a time and first capture
+  always wins -- the producer offers no --force, and a re-served row that differs from the landed one
+  is logged as a divergence finding rather than written over.
+
+  consumers=none and numbers_ref/cascade_ref null are deliberate under the four-checkmark law: no
+  numbers card exists for this family and one must not be minted before proof-of-rows. LICENCE: MOEX
+  ISS is the exchange''s own public API; redistribution terms were NOT established in this wave --
+  treat as fetchable for internal signal and read the ISS terms before any external publication.
+  (Note the adjacent Russian-copyright fact from the recon, which applies to the MINISTRY''s duty
+  rates and not to MOEX: official documents of state bodies are excluded from copyright under
+  Article 1259(6) of the Civil Code.)'

@@ -90,7 +90,40 @@ FAMILY_RULES: tuple[tuple[str, str], ...] = (
     # --- Single-source specialty ------------------------------------------
     ("silver_production", "faostat"),
     ("silver_ams_cotton_quality", "ams"),
+    # AMS GTR: the SAME AGENCY as `ams` above and deliberately NOT the same family. A family here is
+    # one orchestration unit, not one publisher: cotton quality is a classing-office bale file, GTR is
+    # seven SODA datasets on data.gov behind their own weekly Thursday release, with their own fetcher
+    # (jobs/ingest/fetch_ams_gtr.py), their own failure vocabulary (a SODA unit-declaration assert) and
+    # their own on-call answer. Folding them would make the `ams` label ("cotton quality") a lie and
+    # would page the cotton on-call for a barge-rate outage -- the same reasoning the futures_eod note
+    # below gives for keeping it out of `futures`.
+    # NOTE THE SAME ORDERING HAZARD: never write this rule as ("silver_ams", ...) -- that prefix
+    # swallows BOTH tables (family_of matches on startswith) and would silently re-home the live
+    # cotton-quality table into the freight family.
+    ("silver_ams_gtr", "ams_gtr"),
     ("silver_icco_cocoa", "icco"),
+    # MINAGRO: its OWN family, not folded into any grain family. The producer is a headless
+    # BROWSER capture of a Ukrainian ministry page behind a Cloudflare managed challenge --
+    # a different runtime (the browser image), a different failure vocabulary (rc 6 refused /
+    # rc 7 challenge) and a different on-call answer from every other table here.
+    ("silver_minagro_grain_exports", "minagro"),
+    # MOEX AGRO INDICES: its OWN family, and not folded into `futures_eod` or `futures`. These are
+    # INDICATIVE INDICES, not per-delivery-month settlements -- there is no contract month, no curve
+    # and no venue-timezone settlement window to share. More decisively, the family's defining
+    # operational fact is a NETWORK one nothing else here carries: iss.moex.com answers from AWS and
+    # not from the estate's laptop, so its on-call answer to "the fetcher fails" starts somewhere no
+    # other family's does, and its jobs can never be reproduced locally.
+    ("silver_moex_agro_indices", "moex_agro"),
+    # EEX FREIGHT: its OWN family, and specifically NOT `futures_eod` even though both are venue
+    # settlement prices per contract month. Two facts separate them and both are operational. First,
+    # the SOURCE SHAPE: api.eex-group.com serves a rolling ~5-TRADING-DAY window and no history at
+    # all, so this leg is a FORWARD-ONLY ACCUMULATOR (write_mode append, first-capture immutable)
+    # while every futures_eod venue can be re-fetched -- the two cannot share a backfill answer, and
+    # `backfillable` is a per-FAMILY flag. Second, the CEILING: max_lag_days=5 here is the source's
+    # own unrecoverability horizon (the fifth missed daily run is data lost forever), not a
+    # preference, and folding it into futures_eod would let one family's tightest-member arithmetic
+    # decide when a permanently-lossy leg gets to page.
+    ("silver_eex_freight", "eex_freight"),
     # --- Model output (generation-only; NOT a source-backfill DAG) --------
     ("silver_model_predictions", "model_output"),
     # --- Observability ledger (T2B; generation-only engine replay) --------
@@ -115,6 +148,14 @@ FAMILY_LABELS: dict[str, str] = {
     "mpob": "MPOB Malaysian palm-oil board",
     "unica": "UNICA Brazil sugar/ethanol",
     "conab": "CONAB Brazil coffee",
+    "minagro": "MINAGRO Ukraine grain/pulse/flour exports (State Customs)",
+    # The label says AWS-ONLY out loud: an on-call reading a failure page for this family must know
+    # that the source is unreachable from a laptop before spending an hour proving it.
+    "moex_agro": "MOEX Russian grain indicative indices (ISS; AWS-reachable only)",
+    # The label says UNRECOVERABLE out loud, for the same reason the moex label says AWS-ONLY: the
+    # first thing an on-call must know here is that a missed day cannot be re-fetched, so the
+    # response to a failure page is "restore the daily fire NOW", never "re-run the backfill".
+    "eex_freight": "EEX dry-bulk freight settlements (forward-only ~5-day window; NO backfill)",
     "fnc_colombia": "FNC Colombia coffee",
     "sagis": "SAGIS South Africa grain",
     "fred": "FRED FX rates",
@@ -125,6 +166,11 @@ FAMILY_LABELS: dict[str, str] = {
     "cftc": "CFTC Commitments of Traders",
     "faostat": "FAOSTAT production",
     "ams": "USDA AMS cotton quality",
+    # The label names the THREE legs out loud because they lag differently (+1/+2 days weekly,
+    # ~36 days monthly, ~7 months on the annual Ukraine edition), so an on-call reading a stale
+    # page must know which leg it is looking at before deciding anything is wrong.
+    "ams_gtr": "USDA AMS Grain Transportation Report freight (barge / ocean weekly+monthly / "
+               "Ukraine quarterly)",
     "icco": "ICCO cocoa",
     "model_output": "Model predictions (generation-only)",
     "pattern_records": "Pattern-records ledger (T2B; generation-only engine replay)",
@@ -295,7 +341,46 @@ _NON_BACKFILL_FAMILIES = frozenset({"model_output", "pattern_records",
                                     # D-EC DK-13: derived from a PUBLISHED silver table, so there is
                                     # no external source to backfill FROM -- recovery is re-running
                                     # the transform, not re-fetching a vendor.
-                                    "board_crush"})
+                                    "board_crush",
+                                    # MINAGRO: FORWARD-ACCUMULATION, the Bursa shape. The ministry
+                                    # edits ONE standing URL in place and keeps no archive, so the
+                                    # only release that exists to fetch is the current one and a
+                                    # missed week is unrecoverable. A source-backfill DAG here could
+                                    # never fetch anything historical; recovery is re-parsing the
+                                    # landed raw captures, which is a rebuild and not a backfill.
+                                    #
+                                    # RE-OPEN THIS THE DAY A SCHEDULE IS ARMED. The flag also
+                                    # exempts the family from the F082 batch/freshness alarm
+                                    # coverage lint (test_silver_alarms), and a missed week is
+                                    # PRECISELY what a freshness alarm is for on a forward-only
+                                    # source. Today nothing is scheduled, so an alarm would watch
+                                    # nothing; the moment the weekly fire exists, this family needs
+                                    # its alarm pair in the observability tfvars whether or not it
+                                    # can ever be backfilled.
+                                    "minagro",
+                                    # EEX FREIGHT: the SAME forward-only shape, MEASURED rather than
+                                    # inferred -- api.eex-group.com answers a request widened to
+                                    # startDate=2025-01-01 with exactly five settlPx points (probe
+                                    # 2026-08-20), so the only settlements that exist to fetch are
+                                    # the last ~5 trading days and a day not captured is gone. A
+                                    # source-backfill DAG here would have nothing to ask for;
+                                    # recovery is re-parsing landed raw captures, i.e. a rebuild.
+                                    #
+                                    # NOTE the flag is doing DOUBLE duty today and only one half is
+                                    # permanent. Permanent: no source backfill, ever. Temporary: it
+                                    # also keeps the family out of the F082 alarm set while the
+                                    # canonical prefix is still EMPTY (no batch task, no jobdef, no
+                                    # schedule) -- the same empty-prefix paging hazard that put
+                                    # moex_agro in silver_alarms.PRE_PUBLISH_FAMILIES, which
+                                    # backfillable families need stated explicitly and this one gets
+                                    # incidentally (the gold_pattern_records precedent named in that
+                                    # module). RE-OPEN THE DAY THE DAILY FIRE IS ARMED: on a source
+                                    # whose fifth missed run is unrecoverable, a freshness alarm is
+                                    # the single most load-bearing alarm in the estate, and this flag
+                                    # currently suppresses it. Arming the schedule without giving
+                                    # this family its alarm pair is the failure this comment exists
+                                    # to prevent.
+                                    "eex_freight"})
 
 
 def build_catalog(registry: Optional[SilverRegistry] = None) -> dict[str, DagFamily]:

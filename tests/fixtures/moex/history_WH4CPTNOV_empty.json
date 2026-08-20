@@ -1,0 +1,40 @@
+{
+  "history": {
+    "columns": [
+      "BOARDID",
+      "SECID",
+      "TRADEDATE",
+      "SHORTNAME",
+      "NAME",
+      "CLOSE",
+      "OPEN",
+      "HIGH",
+      "LOW",
+      "VALUE",
+      "DURATION",
+      "YIELD",
+      "DECIMALS",
+      "CAPITALIZATION",
+      "CURRENCYID",
+      "DIVISOR",
+      "TRADINGSESSION",
+      "VOLUME",
+      "TRADE_SESSION_DATE"
+    ],
+    "data": []
+  },
+  "history.cursor": {
+    "columns": [
+      "INDEX",
+      "TOTAL",
+      "PAGESIZE"
+    ],
+    "data": [
+      [
+        0,
+        0,
+        100
+      ]
+    ]
+  }
+}

@@ -1,0 +1,184 @@
+# HAND-AUTHORED 2026-08-20 against a LIVE probe of api.eex-group.com, not emitted by
+# scripts/silver/gen_registry_from_baseline.py -- that generator reads the R0 readiness baseline
+# (20260712_p65impl), which predates this table and holds no record of it. Every type below is the
+# INV-2 TARGET writer schema declared by the producing transform
+# (src/leviathan/transforms/bronze_to_silver/eex_freight.py), and arrow_type is set equal to it
+# because no physical parquet exists yet: this table is REGISTERED BEFORE FIRST WRITE, so there is
+# no baseline to observe and nothing has drifted from anything. Re-derive arrow_type from the real
+# footers once the producer has run (that is a fingerprint refresh, not a schema change).
+#
+# OPEN, and deliberately not closed here: this table has NO synthetic R0 baseline record under
+# reports/silver_readiness/20260712_p65impl/tables/, so the generator does not yet know it and
+# tests/unit/silver/test_silver_registry_gen.py::test_generator_covers_exactly_the_45_baseline_tables
+# reports it as an extra on-disk YAML. Closing that needs edits to
+# scripts/silver/gen_registry_from_baseline.py's module-level DOMAIN / LIFECYCLE /
+# CURATION_OVERRIDES dicts plus a re-pin of that test's table count -- a file two other lanes
+# (silver_ams_gtr, silver_minagro_grain_exports) also edited on 2026-08-20 and whose count assert
+# is already failing for silver_ams_gtr for exactly this reason. It is one re-pin for all three,
+# not three, so it is left to whichever lane lands last rather than raced here.
+#
+# SILVER-F010 operational registry (superset).
+table_name: silver_eex_freight
+layer: silver
+domain: freight
+lifecycle_class: source
+owner: numbers-platform
+schema_version: 1
+glue_database: leviathan_dev
+s3_root: s3://leviathan-dev-shahem-001/silver/eex_freight
+s3_bucket: leviathan-dev-shahem-001
+s3_prefix: silver/eex_freight
+layout: flat
+partition_mode: flat
+projection: forbidden
+partition_keys: []
+recovery_strategy: active-release manifest / bounded full relist under the flat root
+physical_columns:
+- name: trade_date
+  glue_type: date
+  arrow_type: date32[day]
+  parquet_physical_type: INT32
+  target_arrow_type: date32[day]
+  nullable: false
+- name: symbol
+  glue_type: string
+  arrow_type: string
+  parquet_physical_type: BYTE_ARRAY
+  target_arrow_type: string
+  nullable: false
+- name: contract_month
+  glue_type: string
+  arrow_type: string
+  parquet_physical_type: BYTE_ARRAY
+  target_arrow_type: string
+  nullable: false
+- name: product
+  glue_type: string
+  arrow_type: string
+  parquet_physical_type: BYTE_ARRAY
+  target_arrow_type: string
+  nullable: false
+- name: route
+  glue_type: string
+  arrow_type: string
+  parquet_physical_type: BYTE_ARRAY
+  target_arrow_type: string
+  nullable: true
+- name: settle_px
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: currency
+  glue_type: string
+  arrow_type: string
+  parquet_physical_type: BYTE_ARRAY
+  target_arrow_type: string
+  nullable: false
+- name: unit
+  glue_type: string
+  arrow_type: string
+  parquet_physical_type: BYTE_ARRAY
+  target_arrow_type: string
+  nullable: false
+- name: volume_lots
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: long_name
+  glue_type: string
+  arrow_type: string
+  parquet_physical_type: BYTE_ARRAY
+  target_arrow_type: string
+  nullable: true
+- name: source
+  glue_type: string
+  arrow_type: string
+  parquet_physical_type: BYTE_ARRAY
+  target_arrow_type: string
+  nullable: false
+writer_schema_pinned: false
+drift_summary: []
+natural_key:
+- symbol
+- contract_month
+- trade_date
+required_nonnull:
+- symbol
+- contract_month
+- trade_date
+- currency
+- unit
+value_columns:
+- settle_px
+min_nonnull_frac: 0.9
+min_nonnull_frac_status: calibrated
+coverage_axis: symbol x contract_month x trade_date
+vintage_retention: latest-only
+knowledge_date_col: trade_date
+knowledge_semantics: data_date
+publication_lag_days: 0
+freshness_sla:
+  cadence: daily
+  max_lag_days: 5
+consumers: none
+numbers_ref: null
+cascade_ref: null
+source_contract_ref: null
+serving_table: null
+producer:
+  status: producer
+  transform: src/leviathan/transforms/bronze_to_silver/eex_freight.py
+  batch_task: null
+  note: 'The raw producer is jobs/ingest/fetch_eex_freight.py and the raw->bronze transform is
+    src/leviathan/transforms/raw_to_bronze/eex_freight.py. There is NO batch task yet: the silver
+    materialisation job and the numbers card belong to the projection wave (four-checkmark law --
+    the card flips at proof-of-rows, and there are no rows until the daily arm has run). This
+    contract is registered ahead of that so the schema is decided once, before the first write,
+    rather than inferred from whatever the first parquet happened to contain.'
+location_mode: static
+write_mode: append
+fingerprint:
+  schema_fingerprint_sha256: null
+  catalog_hash_sha256: null
+  registered_partition_count: 0
+  placeholder_partition_count: 0
+  glue_nonpartition_cols: 11
+  physical_parquet_cols: 11
+provenance:
+  baseline_id: 20260820_eex_freight_live_probe
+  anchor_git_sha: 0b4923e5
+  generated_by: hand-authored from the transform's SILVER_COLUMNS against a live 2026-08-20 probe
+  generated_from: tests/fixtures/eex_freight/capture_notes.md
+notes: 'FORWARD-ONLY ACCUMULATOR, and every field above follows from that. The source
+  (api.eex-group.com/pub/market-data/chart/eod, unauthenticated) serves a rolling ~5-TRADING-DAY
+  window of settlement prices and NO history -- measured 2026-08-20, a request widened to
+  startDate=2025-01-01 still returns exactly five settlPx points. There is no backfill and there
+  never will be, so a day not fetched is gone forever and every raw object is an immutable FIRST
+  CAPTURE (a re-served window is byte-compared and logged to a _divergence/ sibling, never written
+  over). freshness_sla.max_lag_days=5 is therefore the SOURCE''S OWN ceiling and not a preference:
+  four consecutive missed daily runs are recoverable, the fifth is not, and an alarm at 30 days
+  would fire five weeks after the data was already unrecoverable. write_mode is append for the same
+  reason -- history here is accumulated, and an overwrite publisher would be able to destroy days
+  that cannot be re-fetched. UNITS (measured from the payloads'' own uOM field, NOT assumed): this
+  venue publishes TWO price units. uOM=DAYS -> unit "USD/day" for the ten time/trip-charter averages
+  (Panamax 5TC/P1E_82/P2E_82/P3E_82/P6, Supramax 10TC/11TC, Capesize 5TC and 5TC(182), Handysize
+  7TC), and uOM=TN -> unit "USD/tonne" for the three Capesize VOYAGE routes C3EM/C5EM/C7EM, whose
+  settlements print near 15-36 beside Panamax figures near 20,000. The `unit` column is the
+  authority and is built from currency+uOM per row; an unrecognised uOM is FATAL in the transform.
+  volume_lots is in LOTS (the venue''s lotSize series) and is deliberately NOT the venue''s `volume`
+  series, which is denominated in uOM and differs by the lot size on the TN routes; the native
+  figure stays in bronze as volume_uom. PIT: trade_date is the venue''s own published settlement
+  date, carried verbatim from the payload -- nothing on this leg is derived from a wall clock -- so
+  publication_lag_days is 0 (the settlement IS the publication). min_nonnull_frac 0.9 on settle_px
+  is CALIBRATED rather than the provisional 0.5: EEX settles every listed contract every trading day
+  and the census measured 84/84 maturities priced on all five window days for P5TC, so a table with
+  10% missing settlements is a real defect, not a thin source. consumers=none and numbers_ref/
+  cascade_ref null are deliberate under the four-checkmark law: no numbers card exists yet and one
+  must not be minted before proof-of-rows. LICENCE: EEX Group DataSource General Conditions govern
+  redistribution and the clause text could not be extracted from the recon machine
+  (PARKED-FOR-HOME, recon 1d-iv) -- treat as fetchable for internal signal, NOT clearly
+  redistributable, the same posture the live Euronext leg already operates under.'

@@ -57,7 +57,11 @@ DOMAIN = {
     "gold_board_crush": "prices",
     "silver_futures_prices": "prices",
     "silver_icco_cocoa": "balance_sheet", "silver_model_predictions": "model_output",
-    "silver_modis_ndvi": "weather", "silver_mpob": "balance_sheet",
+    "silver_modis_ndvi": "weather",
+    # MINAGRO: State Customs EXPORT volumes off Ukraine, by crop -- the same domain as the
+    # SAGIS weekly export legs, not a balance sheet (there is no production/stocks axis here).
+    "silver_minagro_grain_exports": "trade_flows",
+    "silver_mpob": "balance_sheet",
     "silver_mpob_annual": "balance_sheet", "silver_mpoc_exports_by_country": "trade_flows",
     "silver_mpoc_stock_comparison": "balance_sheet",
     "silver_mpoc_trade_stats_monthly": "trade_flows", "silver_nasa_power": "weather",
@@ -183,6 +187,11 @@ PRODUCER = {
     "silver_pink_sheet": (_T + "pink_sheet.py", _J + "pink_sheet_silver_task.py", "producer"),
     "silver_production": (_T + "faostat_production.py", None, "producer"),
     "silver_psd": (_T + "usda_psd.py", _J + "psd_silver_task.py", "producer"),
+    # MINAGRO: transform-only, batch_task None (the silver_production precedent). The capture
+    # producer is jobs/ingest/fetch_minagro_grain_exports.py; NO batch task and NO jobdef were
+    # created in this wave -- the submit shape and the schedule cadence are prepared_commands,
+    # and the browser image must be REBUILT to carry the fetch script before either can run.
+    "silver_minagro_grain_exports": (_T + "minagro_grain_exports.py", None, "producer"),
     # D-EC DK-13: a GOLD producer, so its transform is not under bronze_to_silver/. Spelled out in
     # full rather than through _T, exactly as the gold_weather_z entry is.
     "gold_board_crush": ("src/leviathan/transforms/gold/board_crush.py",
@@ -261,6 +270,15 @@ KNOWLEDGE_DATE_OVERRIDE = {
     # the release; the MPOB nonzero-lag precedent). Pre-step home; superseded 1:1 by the numbers
     # TableSpec once the Integrate wave adds the silver_sagis_weekly_exports card (numbers_spec wins).
     "silver_sagis_weekly_exports": ("week_ending_date", "data_date", 5),
+    # MINAGRO (data_date, +0d): as_of_date IS the table's own "stanom na" date -- the day the
+    # State Customs figures describe -- read out of the page header, never derived. +0d is
+    # MEASURED and not assumed: the 2026-08-14 capture carries "stanom na 14.08.2026" and a
+    # publish stamp of 14 serpnya 2026, 09:05 -- same calendar day. The CMS stamp can only ever
+    # run at or after the as-of and it MOVES on every in-place re-publish of the standing slug,
+    # which is exactly why it is provenance in bronze and never the knowledge column here. This
+    # is the pre-card home and is superseded 1:1 by a numbers TableSpec if one is ever minted
+    # (numbers_spec wins in build_contract), mirroring the SAGIS week_ending_date precedent.
+    "silver_minagro_grain_exports": ("as_of_date", "data_date", 0),
     # T2B ledger (plan sec 4.1): the serving numbers card reads this table point-in-time on
     # written_at (knowledge_semantics=ingest) -- a row written in 2026 was NOT "known at" a 2019
     # asof, exactly the PIT semantics that confine backfill_grid rows to the labeled engine-replay
@@ -277,6 +295,9 @@ KNOWLEDGE_DATE_OVERRIDE = {
 # source_contract). The numbers grain_cols [commodity_name, country_code, week_ending_date] is the
 # WITHIN-partition grain, not a table-wide key.
 NATURAL_KEY_FALLBACK = {
+    # MINAGRO: ONE row per (as-of date, crop). There is no source_contracts entry yet -- the
+    # table has never run in the cloud, so nothing has been certified against it.
+    "silver_minagro_grain_exports": ["as_of_date", "crop_slug"],
     "gold_weather_z": ["commodity", "country", "region", "year", "month", "metric"],
     # D-EC DK-13: ONE row per trading session. There is no commodity axis and no country axis --
     # the CBOT board crush is a single global spread, so trade_date alone is the whole key.
@@ -379,11 +400,12 @@ def _arrow_to_glue(target: str) -> str:
 
 # LANE SA provenance notes (disjoint dict-assignment so the EXTRA_NOTES literal stays LANE E/OB-owned).
 EXTRA_NOTES["silver_nass_annual"] = (
-    " SILVER-F020: 36 physical commodity=canola_ice parquets (1991-2026) are HIDDEN because the "
-    "projection enum omits canola_ice. The producer already writes canola_ice; the checked-in "
-    "projection stays == live Glue and the gated SET TBLPROPERTIES migration "
-    "(reports/silver_readiness/R2_SA/F020_canola_migration.json) adds canola_ice. Recovery reads S3 "
-    "footers, NEVER Athena (INV-3)."
+    " SILVER-F020 (RESOLVED 2026-08-20): 36 physical commodity=canola_ice parquets were HIDDEN because the "
+    "projection enum omitted canola_ice; the gated canola-only migration (reports/silver_readiness/R2_SA/ "
+    "F020_canola_migration.json) was RETIRED UNAPPLIED when the D-EC wheat-lane repair ALTERed live Glue "
+    "to the full ten-value enum (canonical promote + Athena ALTER, same hour, 2026-08-20) -- a superset "
+    "of its target. The enum below mirrors live Glue per the R2 convention (checked-in == live). "
+    "Recovery reads S3 footers, NEVER Athena (INV-3)."
 )
 EXTRA_NOTES["silver_conab_coffee"] = (
     " SILVER-F024 (OP-4): the 12 revision/provenance columns (region_raw, *_revision_*, "
@@ -901,6 +923,23 @@ CURATION_OVERRIDES: dict = {
     "gold_board_crush": {
         "freshness_sla": {"cadence": "daily", "max_lag_days": 5},
     },
+    # MINAGRO -- two facts build_contract cannot derive, because the table has neither a
+    # source_contracts entry nor a numbers card (four-checkmark law: no card until a cloud run
+    # proves rows), so ``grain`` is empty and both derivations fall through to None:
+    #   * coverage_axis -- the grain, stated here so the value census and the readiness
+    #     evidence have an axis to count over the moment the producer first publishes;
+    #   * freshness_sla -- _cadence("") renders NULL and the table would ship with no
+    #     staleness ceiling at all. The ministry updates the standing slug ~weekly (observed
+    #     Thursdays), so weekly/14 gives exactly ONE missed release of grace before the F082
+    #     alarm speaks. It is INERT until a schedule is armed -- nothing is scheduled in this
+    #     wave -- and it is the ceiling to re-open first if the cadence is ever armed slower.
+    # value_columns stays EMPTY on purpose (the silver_wap_table01 / gold_pattern_records
+    # precedent): it is derived from the source contract or the card, and minting either
+    # before a run has proven rows is the thing the four-checkmark law forbids.
+    "silver_minagro_grain_exports": {
+        "coverage_axis": "as_of_date x crop_slug",
+        "freshness_sla": {"cadence": "weekly", "max_lag_days": 14},
+    },
     "silver_futures_eod": {
         "freshness_sla": {"cadence": "daily", "max_lag_days": 5},
         "natural_key": ["leviathan_slug", "contract_month", "trade_date"],
@@ -1395,28 +1434,62 @@ def _dump_yaml(contract: dict) -> str:
     return header + body
 
 
+# CONTRACTS THIS GENERATOR DOES NOT OWN -- and the reason this is a WRITE guard, not a lint.
+#
+# A table can have an R0 baseline record (so it lands in `names` below) while its checked-in
+# contract is hand-authored, because the record is only the CATALOG half. silver_ams_gtr is that
+# case as of 2026-08-20: its synthetic R0 record was authored from the transform's OUTPUT_COLUMNS,
+# but the contract carries five facts this renderer cannot produce -- `owner: numbers-platform`
+# (derived here as numbers-platform IFF a numbers card exists, and the four-checkmark law forbids
+# one before proof-of-rows), `write_mode: overwrite` (forced to `registered-partition` for every
+# partition_mode=registered table), a `recovery_strategy` naming the seven fixed dataset= prefixes
+# (no override hook), NO `fingerprint` block at all (deliberate: the lane refused to assert a
+# catalog hash for a Glue table that has never been read), and a hand-measured `notes` body that
+# does not begin with this module's boilerplate prefix.
+#
+# THE HAZARD THIS CLOSES: --check printed "REGISTRY DRIFT (regenerate)", and following that
+# instruction ran the WRITE path over every name, which would have silently overwritten those five
+# facts with renderer defaults -- turning a documented divergence into data loss on a contract for
+# a table that has never been published. The write path now SKIPS these names and --check reports
+# them as acknowledged rather than as drift.
+#
+# REMOVAL TRIGGER, in this order: (a) first canonical publish, so a real fingerprint exists to
+# capture; (b) re-capture the R0 record from live Glue (run_census.census_one -- the sanctioned
+# apply-then-refresh discipline, the F024/F036/F047 precedent); (c) encode the remaining hand facts
+# as CURATION_OVERRIDES entries; (d) delete the name here, which re-arms both halves automatically.
+# tests/unit/silver/test_silver_registry_gen.py imports this set and fails if a name in it has
+# started round-tripping, so the exception cannot outlive the fact.
+HAND_AUTHORED_CONTRACTS: frozenset = frozenset({"silver_ams_gtr"})
+
+
 def generate(check: bool = False) -> int:
     ctx = _build_context()
     names = sorted(p.stem for p in TABLES_JSON.glob("*.json"))
     contracts = {n: build_contract(n, ctx) for n in names}
 
     rendered = {n: _dump_yaml(c) for n, c in contracts.items()}
+    owned = {n: t for n, t in rendered.items() if n not in HAND_AUTHORED_CONTRACTS}
     if check:
         diffs = []
-        for n, text in rendered.items():
+        for n, text in owned.items():
             existing = OUT_DIR / f"{n}.yaml"
             if not existing.exists() or existing.read_text(encoding="utf-8") != text:
                 diffs.append(n)
+        held = sorted(n for n in HAND_AUTHORED_CONTRACTS if n in rendered)
+        if held:
+            print("HAND-AUTHORED (not generated, write-protected): " + ", ".join(held))
         if diffs:
             print("REGISTRY DRIFT (regenerate): " + ", ".join(sorted(diffs)))
             return 3
-        print(f"registry check OK: {len(rendered)} contracts byte-identical")
+        print(f"registry check OK: {len(owned)} contracts byte-identical")
         return 0
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    for n, text in rendered.items():
+    for n, text in owned.items():
         (OUT_DIR / f"{n}.yaml").write_text(text, encoding="utf-8")
-    print(f"wrote {len(rendered)} contracts to {OUT_DIR}")
+    skipped = sorted(n for n in HAND_AUTHORED_CONTRACTS if n in rendered)
+    print(f"wrote {len(owned)} contracts to {OUT_DIR}"
+          + (f"; SKIPPED {len(skipped)} hand-authored: {', '.join(skipped)}" if skipped else ""))
 
     _write_known_drift_and_report(contracts, ctx)
     return 0

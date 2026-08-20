@@ -2809,3 +2809,385 @@ def raw_bursa_key(code: str, as_of_date: str, filename: str = BURSA_DAY_FILENAME
 def bursa_code_prefix(code: str) -> str:
     """The LIST prefix holding every capture of ONE Bursa derivatives product."""
     return f"raw/production/source={BURSA_RAW_SOURCE}/code={_bursa_code(code)}/"
+
+
+# ---------------------------------------------------------------------------
+# EEX dry-bulk freight -- the FORWARD-ONLY settlement accumulator
+# ---------------------------------------------------------------------------
+# THE URGENCY IS THE LAYOUT. ``api.eex-group.com/pub/market-data/chart/eod`` serves a rolling
+# ~5-TRADING-DAY window of settlement prices and nothing earlier (measured 2026-08-20: widening the
+# request window to 2025-01-01..2026-08-21 still returns exactly five ``settlPx`` points). There is
+# no backfill and never will be, so every key below is an IMMUTABLE FIRST CAPTURE: a settlement is
+# published once, and a later window re-serving the same (symbol, trade_date) must be byte-compared
+# against what is already landed and LOGGED if it differs -- never overwritten.
+#
+# The trade_date segment is the SETTLEMENT DATE the API itself publishes inside the payload, NOT the
+# fetch date. That is the whole difference from the Euronext and Bursa legs above, whose pages carry
+# no date at all and must borrow the key's ``as_of_date=``: here the knowledge date is the source's
+# own and PIT needs nothing derived. One object per (symbol, trade_date) holds that symbol's WHOLE
+# listed curve for that settlement date.
+EEX_FREIGHT_RAW_SOURCE = "eex_freight"
+EEX_FREIGHT_SETTLEMENTS_FILENAME = "settlements.json"
+# The sibling prefix for a re-served window that DISAGREED with the first capture. It sits under a
+# leading-underscore segment so it is a sibling of, never inside, the ``symbol=`` data plane -- every
+# consumer that LISTs ``source=eex_freight/symbol=`` is blind to it by construction.
+EEX_FREIGHT_DIVERGENCE_MARKER = "_divergence"
+
+
+def _eex_freight_trade_date(value: str) -> str:
+    """``'2026-08-19'``/``'20260819'`` -> ``'2026-08-19'``, with the month and day RANGE-CHECKED.
+
+    ``_compact_date`` alone is not enough here, and the gap is worth naming rather than inheriting:
+    it strips dashes before counting digits, so ``'19-08-2026'`` becomes ``'19082026'`` -- eight
+    digits, all numeric -- and lands under ``trade_date=1908-20-26``. On the legs above that is a
+    small risk because the date is an operator-supplied ``--as-of``; here it is worse, because a
+    mis-keyed object on a forward-only source can never be repaired from upstream. The check is kept
+    LOCAL rather than pushed into ``_compact_date``, which five other producers already depend on.
+    """
+    compact = _compact_date(value, "trade_date")
+    month, day = int(compact[4:6]), int(compact[6:])
+    if not (1 <= month <= 12 and 1 <= day <= 31):
+        raise ValueError(
+            f"eex freight trade_date {value!r} decodes to month {month} day {day}. NOTE that "
+            f"DD-MM-YYYY passes the compact-date check (dashes are stripped first) and would key "
+            f"the object under a date that never existed"
+        )
+    return f"{compact[:4]}-{compact[4:6]}-{compact[6:]}"
+
+
+def _eex_freight_symbol(symbol: str) -> str:
+    """``'p5tc'`` -> ``'P5TC'``, validated. EEX short codes are 4 uppercase alnum characters
+    (``P5TC``, ``S11F``, ``C5TM``, ``H7TC``); the check keeps a symbol token from ever injecting a
+    path segment, exactly as ``_euronext_product`` does for its product slugs."""
+    token = str(symbol or "").strip().upper()
+    if not _is_upper_alnum(token, 3, 8):
+        raise ValueError(
+            f"eex freight symbol {symbol!r} is not an EEX short code (P5TC, S11F, CPTM, ...)"
+        )
+    return token
+
+
+def raw_eex_freight_key(symbol: str, trade_date: str,
+                        filename: str = EEX_FREIGHT_SETTLEMENTS_FILENAME) -> str:
+    """S3 key for ONE symbol's settled curve on ONE settlement date.
+
+    Layout::
+
+        raw/production/source=eex_freight/symbol={CODE}/trade_date={YYYY-MM-DD}/settlements.json
+
+    ``trade_date`` is read out of the API payload's own ``settlPx`` series, so unlike the Euronext
+    and Bursa legs this key is CROSS-CHECKABLE against the bytes it names, and the bronze transform
+    refuses a payload whose declared ``trade_date`` disagrees with this segment.
+    """
+    iso = _eex_freight_trade_date(trade_date)
+    return (f"raw/production/source={EEX_FREIGHT_RAW_SOURCE}/symbol={_eex_freight_symbol(symbol)}/"
+            f"trade_date={iso}/{filename}")
+
+
+def raw_eex_freight_divergence_key(symbol: str, trade_date: str, capture_stamp: str) -> str:
+    """S3 key for a RE-SERVED window that disagreed with the landed first capture.
+
+    Layout::
+
+        raw/production/source=eex_freight/_divergence/symbol={CODE}/trade_date={YYYY-MM-DD}/
+            observed_{capture_stamp}.json
+
+    ``capture_stamp`` is a compact UTC instant (``YYYYMMDDTHHMMSSZ``), so a divergence record is
+    itself write-once and a second disagreement never clobbers the first. The FIRST capture under
+    :func:`raw_eex_freight_key` is never touched.
+    """
+    iso = _eex_freight_trade_date(trade_date)
+    stamp = "".join(ch for ch in str(capture_stamp) if ch.isalnum())
+    if not stamp:
+        raise ValueError(f"eex freight capture_stamp {capture_stamp!r} is empty after sanitising")
+    return (f"raw/production/source={EEX_FREIGHT_RAW_SOURCE}/{EEX_FREIGHT_DIVERGENCE_MARKER}/"
+            f"symbol={_eex_freight_symbol(symbol)}/trade_date={iso}/observed_{stamp}.json")
+
+
+def eex_freight_symbol_prefix(symbol: str) -> str:
+    """The LIST prefix holding every landed settlement date of ONE EEX freight symbol."""
+    return (f"raw/production/source={EEX_FREIGHT_RAW_SOURCE}/"
+            f"symbol={_eex_freight_symbol(symbol)}/")
+
+
+def bronze_eex_freight_key(symbol: str, trade_date: str) -> str:
+    """S3 key for one EEX freight bronze Parquet -- one file per (symbol, trade_date), mirroring
+    the raw grain exactly so a re-parse is a one-object read."""
+    iso = _eex_freight_trade_date(trade_date)
+    return (f"bronze/production/source={EEX_FREIGHT_RAW_SOURCE}/"
+            f"symbol={_eex_freight_symbol(symbol)}/trade_date={iso}/part-000.parquet")
+
+
+def silver_eex_freight_key(filename: str = "part-000.parquet") -> str:
+    """S3 key for the EEX freight silver Parquet.
+
+    FLAT, single object -- one row per (symbol, contract_month, trade_date). It lives under its own
+    ``silver/eex_freight/`` root rather than ``silver/production/`` because that prefix is projected
+    by the long FAOSTAT-shaped ``silver_production`` Athena table (the ``silver_nass_annual``
+    precedent), and a daily accumulator's flat root has no partition-enumeration surface at all.
+    """
+    return f"silver/{EEX_FREIGHT_RAW_SOURCE}/{filename}"
+
+
+# ---------------------------------------------------------------------------
+# USDA AMS Grain Transportation Report (GTR) -- the freight family
+# ---------------------------------------------------------------------------
+# ONE source family, several datasets, two channels:
+#
+#   * the AgTransport SODA JSON API (agtransport.usda.gov/resource/{id}.json)
+#   * one ams.usda.gov spreadsheet (GTRTable1.xlsx), which is the ONLY publication
+#     of the WEEKLY dollars-per-metric-ton ocean rate -- see the fetcher docstring
+#     for the measurement that overturned the recon's "SODA twin exists" note.
+#
+# Layout::
+#
+#   backfill:  raw/production/source=ams_gtr/dataset={dataset}/backfill/{filename}
+#   weekly:    raw/production/source=ams_gtr/dataset={dataset}/as_of={YYYYMMDD}/{filename}
+#
+# GTR publishes weekly on THURSDAY and the SODA datasets are revised in place
+# (a null rate can later become a real one -- measured on 2n8s-739j 2022Q3), so
+# the weekly key is an immutable per-Thursday vintage exactly as FGIS and ESR are.
+AMS_GTR_RAW_SOURCE = "ams_gtr"
+
+# The dataset slugs this family recognises.  Kept here rather than imported from
+# the transform so the path layer stays dependency-free; the transform module
+# ``leviathan.transforms.raw_to_bronze.ams_gtr`` is the SINGLE authority on what
+# each slug means (endpoint, cadence, unit) and its ``GTR_DATASETS`` keys must
+# equal this set -- a unit test pins that equality.
+AMS_GTR_DATASETS: frozenset[str] = frozenset({
+    "ocean_weekly",
+    "ocean_monthly",
+    "barge_pct_tariff",
+    "barge_per_ton",
+    "barge_fwd_1m",
+    "barge_fwd_3m",
+    "ukraine_ocean_quarterly",
+})
+
+
+def _ams_gtr_dataset(dataset: str) -> str:
+    """Validate a GTR dataset slug.  Fail-closed -- an unknown slug is never a key."""
+    token = str(dataset or "").strip()
+    if token not in AMS_GTR_DATASETS:
+        raise ValueError(
+            f"ams_gtr dataset {dataset!r} is not one of {sorted(AMS_GTR_DATASETS)}"
+        )
+    return token
+
+
+def raw_ams_gtr_backfill_key(dataset: str, filename: str) -> str:
+    """S3 key for the static full-history capture of ONE GTR dataset.
+
+    Args:
+        dataset:  A slug from :data:`AMS_GTR_DATASETS`, e.g. ``"barge_pct_tariff"``.
+        filename: Payload filename, e.g. ``"full.json"`` or ``"GTRTable1.xlsx"``.
+    """
+    return (
+        f"raw/production/"
+        f"source={AMS_GTR_RAW_SOURCE}/"
+        f"dataset={_ams_gtr_dataset(dataset)}/"
+        f"backfill/"
+        f"{filename}"
+    )
+
+
+def raw_ams_gtr_weekly_key(dataset: str, as_of_date: str, filename: str) -> str:
+    """S3 key for one immutable weekly (Thursday) vintage of ONE GTR dataset.
+
+    ``as_of_date`` is the FETCH date and is the only OBSERVED knowledge anchor the
+    family carries: neither the SODA payloads nor GTRTable1.xlsx state which report
+    week published a given row.  Silver derives a release date from the period per
+    the D-LD derived-release-date idiom and labels it as derived; this segment is
+    what a consumer uses when it wants zero derivation.
+
+    Args:
+        dataset:    A slug from :data:`AMS_GTR_DATASETS`.
+        as_of_date: Snapshot date, ``YYYY-MM-DD`` or ``YYYYMMDD``.
+        filename:   Payload filename, e.g. ``"full.json"``.
+    """
+    return (
+        f"raw/production/"
+        f"source={AMS_GTR_RAW_SOURCE}/"
+        f"dataset={_ams_gtr_dataset(dataset)}/"
+        f"as_of={_compact_date(as_of_date, 'as_of_date')}/"
+        f"{filename}"
+    )
+
+
+def ams_gtr_dataset_prefix(dataset: str) -> str:
+    """The LIST prefix holding every capture of ONE GTR dataset."""
+    return (
+        f"raw/production/source={AMS_GTR_RAW_SOURCE}/"
+        f"dataset={_ams_gtr_dataset(dataset)}/"
+    )
+
+
+def bronze_ams_gtr_key(dataset: str, as_of_date: str) -> str:
+    """S3 key for one GTR bronze Parquet (one dataset, one snapshot).
+
+    Args:
+        dataset:    A slug from :data:`AMS_GTR_DATASETS`.
+        as_of_date: Snapshot date, ``YYYY-MM-DD`` or ``YYYYMMDD``.
+    """
+    return (
+        f"bronze/production/"
+        f"source={AMS_GTR_RAW_SOURCE}/"
+        f"dataset={_ams_gtr_dataset(dataset)}/"
+        f"as_of={_compact_date(as_of_date, 'as_of_date')}/"
+        f"part-000.parquet"
+    )
+
+
+def silver_ams_gtr_key(dataset: str, filename: str = "part-000.parquet") -> str:
+    """S3 key for a GTR silver Parquet partition -- one object per dataset.
+
+    ``silver_ams_gtr`` is LATEST-ONLY (``write_mode: overwrite``): the per-Thursday
+    vintages live in raw, and each silver row carries its own ``knowledge_date`` /
+    ``as_of_date``, so a backtest filters on the row rather than on the partition.
+    Lives under ``silver/ams_gtr/`` rather than ``silver/production/`` to avoid
+    schema collision with the long-form silver_production Athena table.
+
+    Args:
+        dataset:  A slug from :data:`AMS_GTR_DATASETS`.
+        filename: Parquet filename (default ``"part-000.parquet"``).
+    """
+    return (
+        f"silver/ams_gtr/"
+        f"dataset={_ams_gtr_dataset(dataset)}/"
+        f"{filename}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# MINAGRO -- the Ukrainian grain/pulse/flour export table (a STANDING slug)
+# ---------------------------------------------------------------------------
+# THE KEY IS DATED BY THE DATA, NOT BY THE FETCH. Ukraine's Ministry of Agrarian Policy publishes
+# its State Customs export table at ONE permanent URL and updates it IN PLACE, roughly weekly. There
+# is no per-release URL, no archive index and no document id: the only thing that distinguishes one
+# release from the next is the date printed inside the table itself ("тис. тонн станом на
+# 14.08.2026"). So ``as_of=`` carries THAT date -- read out of the landed markup by
+# ``transforms.raw_to_bronze.minagro_grain_exports.as_of_date_from_page`` -- and never the fetch
+# date. A fetch-dated key would mint a NEW object every time the poller ran against an unchanged
+# page (the same numbers under a dozen dates), and would put a Monday capture of Thursday's release
+# under Monday.
+#
+# FIRST CAPTURE WINS, and that is enforced at the producer: a release is published once, so an
+# existing object under an as_of= key is the release and is never overwritten. Re-fetching would
+# replace a capture with a later re-render of the same release (the CMS re-publishes in place), and
+# raw is the layer nothing downstream can repair.
+MINAGRO_GRAIN_EXPORTS_RAW_SOURCE = "minagro_grain_exports"
+MINAGRO_GRAIN_EXPORTS_FILENAME = "page.html"
+
+
+def raw_minagro_grain_exports_key(
+    as_of_date: str, filename: str = MINAGRO_GRAIN_EXPORTS_FILENAME
+) -> str:
+    """S3 key for one capture of the ministry's export table.
+
+    Layout::
+
+        raw/production/source=minagro_grain_exports/as_of={YYYYMMDD}/page.html
+
+    ``as_of_date`` is the table's OWN ``станом на`` date (``YYYY-MM-DD`` or ``YYYYMMDD``), not the
+    capture date -- see the note above. The landed object is the rendered ``<main>`` outerHTML (the
+    Euronext DOM-snapshot precedent), because the page sits behind a Cloudflare managed challenge
+    that a plain GET cannot clear; the ``raw_meta`` companion carries the true page URL, the capture
+    UTC and the CMS publish stamp so the provenance survives the difference.
+    """
+    return (
+        f"raw/production/source={MINAGRO_GRAIN_EXPORTS_RAW_SOURCE}/"
+        f"as_of={_compact_date(as_of_date, 'as_of_date')}/{filename}"
+    )
+
+
+def minagro_grain_exports_prefix() -> str:
+    """The LIST prefix holding every capture of the ministry's export table."""
+    return f"raw/production/source={MINAGRO_GRAIN_EXPORTS_RAW_SOURCE}/"
+
+
+# ---------------------------------------------------------------------------
+# MOEX AGRO INDICES -- the Russian grain indicative-price route
+# ---------------------------------------------------------------------------
+# THE DATE IS THE VENUE'S OWN. ``iss.moex.com/iss/history/...`` publishes one row per index per
+# TRADEDATE, and TRADEDATE is inside the row -- so, exactly like the EEX freight leg and unlike the
+# Euronext/Bursa page captures, the ``trade_date=`` key segment is CROSS-CHECKABLE against the bytes
+# it names and nothing here is derived from a wall clock.
+#
+# ONE OBJECT PER (SECID, TRADEDATE), and FIRST CAPTURE WINS. A settled index level is published once.
+# ISS *does* have a history endpoint (unlike EEX), so a missed day is recoverable -- but a re-served
+# row must still never overwrite the landed one: MOEX restates nothing, so a byte difference is a
+# finding to record rather than an update to apply, and raw is the layer nothing downstream repairs.
+#
+# REACHABILITY: iss.moex.com answers from AWS and NOT from the estate's laptop (probed 2026-08-20:
+# local http=000, AWS 200). Every real run of this family is cloud-side; local runs are ``--dry-run``
+# only. That is a network fact about the operator's machine, not a property of these key functions,
+# which are pure string builders and are exercised on the laptop by the test suite.
+MOEX_AGRO_INDICES_RAW_SOURCE = "moex_agro_indices"
+MOEX_AGRO_INDICES_ROW_FILENAME = "row.json"
+
+
+def _moex_secid(secid: str) -> str:
+    """``'whfob'`` -> ``'WHFOB'``, validated.
+
+    MOEX security ids are uppercase alphanumerics (``WHFOB``, ``WHCPT``, ``WH4CPTNOV``); the check
+    keeps a secid token from ever injecting a path segment, exactly as ``_eex_freight_symbol`` does.
+    The 3..16 span is deliberately wider than the five securities measured on 2026-08-20 -- MOEX
+    mints long CPT/port-specific codes (``WH4CPTNOV`` is already 9) and a new one must land, not
+    raise.
+    """
+    token = str(secid or "").strip().upper()
+    if not _is_upper_alnum(token, 3, 16):
+        raise ValueError(
+            f"moex secid {secid!r} is not a MOEX security id (WHFOB, WHCPT, WH4CPTNOV, ...)"
+        )
+    return token
+
+
+def raw_moex_agro_indices_key(
+    secid: str, trade_date: str, filename: str = MOEX_AGRO_INDICES_ROW_FILENAME
+) -> str:
+    """S3 key for ONE index's published level on ONE trade date.
+
+    Layout::
+
+        raw/production/source=moex_agro_indices/secid={SECID}/trade_date={YYYY-MM-DD}/row.json
+
+    ``trade_date`` is the row's own ``TRADEDATE``, read out of the ISS payload -- never the fetch
+    date. That is what makes the key immutable and first-capture-wins meaningful: re-running the same
+    window over the same days re-derives the same keys and lands nothing new.
+    """
+    compact = _compact_date(trade_date, "trade_date")
+    iso = f"{compact[:4]}-{compact[4:6]}-{compact[6:]}"
+    return (f"raw/production/source={MOEX_AGRO_INDICES_RAW_SOURCE}/"
+            f"secid={_moex_secid(secid)}/trade_date={iso}/{filename}")
+
+
+def moex_agro_indices_secid_prefix(secid: str) -> str:
+    """The LIST prefix holding every landed trade date of ONE MOEX agro index."""
+    return (f"raw/production/source={MOEX_AGRO_INDICES_RAW_SOURCE}/"
+            f"secid={_moex_secid(secid)}/")
+
+
+def moex_agro_indices_prefix() -> str:
+    """The LIST prefix holding every landed row of every MOEX agro index."""
+    return f"raw/production/source={MOEX_AGRO_INDICES_RAW_SOURCE}/"
+
+
+def bronze_moex_agro_indices_key(secid: str, trade_date: str) -> str:
+    """S3 key for one MOEX agro-index bronze Parquet -- one file per (secid, trade_date), mirroring
+    the raw grain exactly so a re-parse is a one-object read."""
+    compact = _compact_date(trade_date, "trade_date")
+    iso = f"{compact[:4]}-{compact[4:6]}-{compact[6:]}"
+    return (f"bronze/production/source={MOEX_AGRO_INDICES_RAW_SOURCE}/"
+            f"secid={_moex_secid(secid)}/trade_date={iso}/part-000.parquet")
+
+
+def silver_moex_agro_indices_key(filename: str = "part-000.parquet") -> str:
+    """S3 key for the MOEX agro-indices silver Parquet.
+
+    FLAT, single object -- one row per (secid, trade_date). Its own ``silver/moex_agro_indices/``
+    root rather than ``silver/production/``, which is projected by the long FAOSTAT-shaped
+    ``silver_production`` Athena table (the ``silver_eex_freight`` / ``silver_nass_annual``
+    precedent).
+    """
+    return f"silver/{MOEX_AGRO_INDICES_RAW_SOURCE}/{filename}"

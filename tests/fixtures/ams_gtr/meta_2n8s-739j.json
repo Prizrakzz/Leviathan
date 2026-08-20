@@ -1,0 +1,606 @@
+{
+  "id" : "2n8s-739j",
+  "name" : "Ocean Freight Rates for Shipping Grain and Soybeans From Select Ukrainian Ports",
+  "assetType" : "dataset",
+  "attribution" : "Agricultural Marketing Service, USDA",
+  "attributionLink" : "https://www.ams.usda.gov/services/transportation-analysis/ukraine",
+  "averageRating" : 0,
+  "category" : "Transportation Costs",
+  "createdAt" : 1769175386,
+  "description" : "This data set shows the quarterly ocean freight rates for shipping soybeans from select Ukrainian ports to Egypt, China, Indonesia, Turkey and Tunisia.",
+  "diciBackend" : false,
+  "displayType" : "table",
+  "domainCName" : "agtransport.usda.gov",
+  "downloadCount" : 2,
+  "hideFromCatalog" : false,
+  "hideFromDataJson" : false,
+  "locked" : false,
+  "newBackend" : true,
+  "numberOfComments" : 0,
+  "oid" : 42025818,
+  "provenance" : "official",
+  "publicationAppendEnabled" : false,
+  "publicationDate" : 1774463852,
+  "publicationGroup" : 20241627,
+  "publicationStage" : "published",
+  "rowsUpdatedAt" : 1782919465,
+  "rowsUpdatedBy" : "ga9v-zrtn",
+  "tableId" : 20318466,
+  "totalTimesRated" : 0,
+  "viewCount" : 314,
+  "viewLastModified" : 1782937320,
+  "viewType" : "tabular",
+  "approvals" : [ {
+    "reviewedAt" : 1783000976,
+    "reviewedAutomatically" : false,
+    "state" : "approved",
+    "submissionId" : 7549592,
+    "submissionObject" : "public_audience_request",
+    "submissionOutcome" : "change_audience",
+    "submittedAt" : 1782937581,
+    "targetAudience" : "public",
+    "workflowId" : 531,
+    "reviewer" : {
+      "id" : "aiqt-4thn",
+      "displayName" : "Jesse Gastelle"
+    },
+    "submissionDetails" : {
+      "permissionType" : "read"
+    },
+    "submissionOutcomeApplication" : {
+      "endedAt" : 1783000976,
+      "failureCount" : 0,
+      "startedAt" : 1783000976,
+      "status" : "success"
+    },
+    "submitter" : {
+      "id" : "ga9v-zrtn",
+      "displayName" : "Kranti Mulik"
+    }
+  }, {
+    "message" : "The `strict_permissions` flag must be on to enable internal approvals.",
+    "state" : "unsubmittable",
+    "targetAudience" : "internal",
+    "workflowId" : 4623
+  } ],
+  "clientContext" : {
+    "clientContextVariables" : [ ],
+    "inheritedVariables" : { }
+  },
+  "columns" : [ {
+    "id" : 629262572,
+    "name" : "Quarter Ending Date",
+    "dataTypeName" : "calendar_date",
+    "description" : "The date in which the shipment occurred",
+    "fieldName" : "quarter_ending_date",
+    "position" : 1,
+    "renderTypeName" : "calendar_date",
+    "tableColumnId" : 164777282,
+    "cachedContents" : {
+      "non_null" : "260",
+      "largest" : "2025-12-31T00:00:00.000",
+      "null" : "0",
+      "top" : [ {
+        "item" : "2022-09-30T00:00:00.000",
+        "count" : "11"
+      }, {
+        "item" : "2021-12-31T00:00:00.000",
+        "count" : "10"
+      }, {
+        "item" : "2020-09-30T00:00:00.000",
+        "count" : "10"
+      }, {
+        "item" : "2025-09-30T00:00:00.000",
+        "count" : "10"
+      }, {
+        "item" : "2023-12-31T00:00:00.000",
+        "count" : "10"
+      }, {
+        "item" : "2021-09-30T00:00:00.000",
+        "count" : "10"
+      }, {
+        "item" : "2023-03-31T00:00:00.000",
+        "count" : "10"
+      }, {
+        "item" : "2020-12-31T00:00:00.000",
+        "count" : "10"
+      }, {
+        "item" : "2020-06-30T00:00:00.000",
+        "count" : "10"
+      }, {
+        "item" : "2020-03-31T00:00:00.000",
+        "count" : "10"
+      }, {
+        "item" : "2021-06-30T00:00:00.000",
+        "count" : "10"
+      }, {
+        "item" : "2024-09-30T00:00:00.000",
+        "count" : "10"
+      }, {
+        "item" : "2023-09-30T00:00:00.000",
+        "count" : "10"
+      }, {
+        "item" : "2022-03-31T00:00:00.000",
+        "count" : "10"
+      }, {
+        "item" : "2025-03-31T00:00:00.000",
+        "count" : "10"
+      }, {
+        "item" : "2024-03-31T00:00:00.000",
+        "count" : "10"
+      }, {
+        "item" : "2025-12-31T00:00:00.000",
+        "count" : "10"
+      }, {
+        "item" : "2019-12-31T00:00:00.000",
+        "count" : "10"
+      }, {
+        "item" : "2025-06-30T00:00:00.000",
+        "count" : "10"
+      }, {
+        "item" : "2024-12-31T00:00:00.000",
+        "count" : "10"
+      } ],
+      "smallest" : "2019-09-30T00:00:00.000",
+      "count" : "260",
+      "cardinality" : "260"
+    },
+    "format" : {
+      "view" : "date_ymonthd"
+    }
+  }, {
+    "id" : 629262573,
+    "name" : "Year",
+    "dataTypeName" : "text",
+    "description" : "The year in which the shipment occurred",
+    "fieldName" : "year",
+    "position" : 2,
+    "renderTypeName" : "text",
+    "tableColumnId" : 164777290,
+    "cachedContents" : {
+      "non_null" : "260",
+      "largest" : "2025",
+      "null" : "0",
+      "top" : [ {
+        "item" : "2020",
+        "count" : "40"
+      }, {
+        "item" : "2022",
+        "count" : "40"
+      }, {
+        "item" : "2024",
+        "count" : "40"
+      }, {
+        "item" : "2023",
+        "count" : "40"
+      }, {
+        "item" : "2025",
+        "count" : "40"
+      }, {
+        "item" : "2021",
+        "count" : "40"
+      }, {
+        "item" : "2019",
+        "count" : "20"
+      } ],
+      "smallest" : "2019",
+      "count" : "260",
+      "cardinality" : "260"
+    },
+    "format" : {
+      "decimalSeparator" : ".",
+      "groupSeparator" : ","
+    }
+  }, {
+    "id" : 629262574,
+    "name" : "Quarter",
+    "dataTypeName" : "number",
+    "description" : "The quarter in which the shipment occurred",
+    "fieldName" : "quarter",
+    "position" : 3,
+    "renderTypeName" : "number",
+    "tableColumnId" : 164777283,
+    "cachedContents" : {
+      "non_null" : "260",
+      "largest" : "4",
+      "null" : "0",
+      "top" : [ {
+        "item" : "3",
+        "count" : "71"
+      }, {
+        "item" : "4",
+        "count" : "70"
+      }, {
+        "item" : "1",
+        "count" : "60"
+      }, {
+        "item" : "2",
+        "count" : "59"
+      } ],
+      "smallest" : "1",
+      "count" : "260",
+      "cardinality" : "260"
+    },
+    "format" : {
+      "decimalSeparator" : ".",
+      "groupSeparator" : ","
+    }
+  }, {
+    "id" : 629262575,
+    "name" : "Commodity",
+    "dataTypeName" : "text",
+    "description" : "The type of grain shipped",
+    "fieldName" : "commodity",
+    "position" : 4,
+    "renderTypeName" : "text",
+    "tableColumnId" : 164777284,
+    "cachedContents" : {
+      "non_null" : "260",
+      "largest" : "Wheat",
+      "null" : "0",
+      "top" : [ {
+        "item" : "Corn",
+        "count" : "116"
+      }, {
+        "item" : "Wheat",
+        "count" : "116"
+      }, {
+        "item" : "Soybeans",
+        "count" : "28"
+      } ],
+      "smallest" : "Corn",
+      "count" : "260",
+      "cardinality" : "260"
+    },
+    "format" : { }
+  }, {
+    "id" : 629262576,
+    "name" : "Route",
+    "dataTypeName" : "text",
+    "description" : "The Ukrainian origin and destination city and port",
+    "fieldName" : "route",
+    "position" : 5,
+    "renderTypeName" : "text",
+    "tableColumnId" : 164777285,
+    "cachedContents" : {
+      "non_null" : "260",
+      "largest" : "Odesa-Southern ports, China",
+      "null" : "0",
+      "top" : [ {
+        "item" : "Odesa-Alexandria,Egypt",
+        "count" : "52"
+      }, {
+        "item" : "Odesa-Southern ports, China",
+        "count" : "40"
+      }, {
+        "item" : "Mykolaiv-Alexandria, Egypt",
+        "count" : "28"
+      }, {
+        "item" : "Mykolaiv-Southern ports,China",
+        "count" : "27"
+      }, {
+        "item" : "Odesa-Ciwandan/Cigading,Indonesia",
+        "count" : "26"
+      }, {
+        "item" : "Izmail-Marmara Sea ports,Turkey",
+        "count" : "24"
+      }, {
+        "item" : "Izmail-Alexandria,Egypt",
+        "count" : "24"
+      }, {
+        "item" : "Mykolaiv-Ciwandan/Ciganding, Indonesia",
+        "count" : "15"
+      }, {
+        "item" : "Constanta-Tunis,Tunisia",
+        "count" : "12"
+      }, {
+        "item" : "Constanta-Alexandria,Egypt",
+        "count" : "12"
+      } ],
+      "smallest" : "Constanta-Alexandria,Egypt",
+      "count" : "260",
+      "cardinality" : "260"
+    },
+    "format" : { }
+  }, {
+    "id" : 629262581,
+    "name" : "Origin",
+    "dataTypeName" : "text",
+    "description" : "The origin city",
+    "fieldName" : "origin",
+    "position" : 6,
+    "renderTypeName" : "text",
+    "tableColumnId" : 166423861,
+    "cachedContents" : {
+      "non_null" : "260",
+      "largest" : "Odesa",
+      "null" : "0",
+      "top" : [ {
+        "item" : "Odesa",
+        "count" : "118"
+      }, {
+        "item" : "Mykolaiv",
+        "count" : "70"
+      }, {
+        "item" : "Izmail",
+        "count" : "48"
+      }, {
+        "item" : "Constanta",
+        "count" : "24"
+      } ],
+      "smallest" : "Constanta",
+      "count" : "260",
+      "cardinality" : "260"
+    },
+    "format" : { }
+  }, {
+    "id" : 629262577,
+    "name" : "Destination",
+    "dataTypeName" : "text",
+    "description" : "The destination city",
+    "fieldName" : "destination",
+    "position" : 7,
+    "renderTypeName" : "text",
+    "tableColumnId" : 164777286,
+    "cachedContents" : {
+      "non_null" : "260",
+      "largest" : "Tunis, Tunisia",
+      "null" : "0",
+      "top" : [ {
+        "item" : "Alexandria,Egypt",
+        "count" : "116"
+      }, {
+        "item" : "Southern ports, China",
+        "count" : "68"
+      }, {
+        "item" : "Ciwandan/Cigading,Indonesia",
+        "count" : "40"
+      }, {
+        "item" : "Marmara Sea ports,Turkey",
+        "count" : "24"
+      }, {
+        "item" : "Tunis, Tunisia",
+        "count" : "12"
+      } ],
+      "smallest" : "Alexandria,Egypt",
+      "count" : "260",
+      "cardinality" : "260"
+    },
+    "format" : { }
+  }, {
+    "id" : 629262578,
+    "name" : "Vessel Size",
+    "dataTypeName" : "text",
+    "description" : "Vessel size in metric tons",
+    "fieldName" : "vessel_size",
+    "position" : 8,
+    "renderTypeName" : "text",
+    "tableColumnId" : 164777287,
+    "cachedContents" : {
+      "non_null" : "260",
+      "largest" : "60,000-70,000",
+      "null" : "0",
+      "top" : [ {
+        "item" : "25,000-30,000",
+        "count" : "104"
+      }, {
+        "item" : "50,000-55,000",
+        "count" : "54"
+      }, {
+        "item" : "60,000-70,000",
+        "count" : "54"
+      }, {
+        "item" : "5,000-6,000",
+        "count" : "36"
+      }, {
+        "item" : "3,000",
+        "count" : "12"
+      } ],
+      "smallest" : "25,000-30,000",
+      "count" : "260",
+      "cardinality" : "260"
+    },
+    "format" : { }
+  }, {
+    "id" : 629262579,
+    "name" : "Rate",
+    "dataTypeName" : "number",
+    "description" : "Freight rate in US dollars per metric ton",
+    "fieldName" : "rate",
+    "position" : 9,
+    "renderTypeName" : "number",
+    "tableColumnId" : 164777288,
+    "cachedContents" : {
+      "non_null" : "240",
+      "largest" : "101.27",
+      "null" : "20",
+      "top" : [ {
+        "item" : "31.5",
+        "count" : "6"
+      }, {
+        "item" : "13.08",
+        "count" : "4"
+      }, {
+        "item" : "16.33",
+        "count" : "3"
+      }, {
+        "item" : "24.83",
+        "count" : "2"
+      }, {
+        "item" : "33.83",
+        "count" : "2"
+      }, {
+        "item" : "34.25",
+        "count" : "2"
+      }, {
+        "item" : "58.67",
+        "count" : "2"
+      }, {
+        "item" : "31",
+        "count" : "2"
+      }, {
+        "item" : "14.42",
+        "count" : "2"
+      }, {
+        "item" : "34.09",
+        "count" : "2"
+      }, {
+        "item" : "46.67",
+        "count" : "2"
+      }, {
+        "item" : "85.99",
+        "count" : "2"
+      }, {
+        "item" : "29.17",
+        "count" : "2"
+      }, {
+        "item" : "19.5",
+        "count" : "2"
+      }, {
+        "item" : "14.08",
+        "count" : "2"
+      }, {
+        "item" : "33.5",
+        "count" : "2"
+      }, {
+        "item" : "17.17",
+        "count" : "2"
+      }, {
+        "item" : "95.99",
+        "count" : "2"
+      }, {
+        "item" : "55.8",
+        "count" : "2"
+      }, {
+        "item" : "11.33",
+        "count" : "2"
+      } ],
+      "smallest" : "8.83",
+      "count" : "260",
+      "cardinality" : "260"
+    },
+    "format" : {
+      "decimalSeparator" : ".",
+      "groupSeparator" : ","
+    }
+  }, {
+    "id" : 629262580,
+    "name" : "Year/Quarter",
+    "dataTypeName" : "text",
+    "description" : "The year and quarter in which the shipment occurred",
+    "fieldName" : "year_quarter",
+    "position" : 10,
+    "renderTypeName" : "text",
+    "tableColumnId" : 164777289,
+    "cachedContents" : {
+      "non_null" : "260",
+      "largest" : "2025Q4",
+      "null" : "0",
+      "top" : [ {
+        "item" : "2022Q3",
+        "count" : "11"
+      }, {
+        "item" : "2020Q4",
+        "count" : "10"
+      }, {
+        "item" : "2019Q3",
+        "count" : "10"
+      }, {
+        "item" : "2020Q2",
+        "count" : "10"
+      }, {
+        "item" : "2023Q4",
+        "count" : "10"
+      }, {
+        "item" : "2023Q2",
+        "count" : "10"
+      }, {
+        "item" : "2022Q4",
+        "count" : "10"
+      }, {
+        "item" : "2020Q3",
+        "count" : "10"
+      }, {
+        "item" : "2024Q4",
+        "count" : "10"
+      }, {
+        "item" : "2024Q3",
+        "count" : "10"
+      }, {
+        "item" : "2021Q1",
+        "count" : "10"
+      }, {
+        "item" : "2020Q1",
+        "count" : "10"
+      }, {
+        "item" : "2025Q1",
+        "count" : "10"
+      }, {
+        "item" : "2022Q1",
+        "count" : "10"
+      }, {
+        "item" : "2025Q4",
+        "count" : "10"
+      }, {
+        "item" : "2021Q2",
+        "count" : "10"
+      }, {
+        "item" : "2023Q1",
+        "count" : "10"
+      }, {
+        "item" : "2024Q2",
+        "count" : "10"
+      }, {
+        "item" : "2025Q2",
+        "count" : "10"
+      }, {
+        "item" : "2023Q3",
+        "count" : "10"
+      } ],
+      "smallest" : "2019Q3",
+      "count" : "260",
+      "cardinality" : "260"
+    },
+    "format" : { }
+  } ],
+  "grants" : [ {
+    "inherited" : false,
+    "type" : "viewer",
+    "flags" : [ "public" ]
+  } ],
+  "metadata" : {
+    "custom_fields" : {
+      "Publishing" : {
+        "Publishing Schedule" : "Yearly"
+      },
+      "Scope" : {
+        "Geographic Coverage" : "Ukraine",
+        "Temporal Coverage" : "Quarter",
+        "Geographic Unit" : "Country"
+      },
+      "Related Information" : {
+        "Links" : "https://www.ams.usda.gov/services/transportation-analysis/ukraine",
+        "Research" : "Ukraine Grain Transportation"
+      }
+    },
+    "availableDisplayTypes" : [ "table", "fatrow", "page" ]
+  },
+  "owner" : {
+    "id" : "ga9v-zrtn",
+    "displayName" : "Kranti Mulik",
+    "screenName" : "Kranti Mulik",
+    "type" : "interactive",
+    "flags" : [ "acceptedEula" ]
+  },
+  "query" : { },
+  "rights" : [ "read" ],
+  "tableAuthor" : {
+    "id" : "ga9v-zrtn",
+    "displayName" : "Kranti Mulik",
+    "screenName" : "Kranti Mulik",
+    "type" : "interactive",
+    "flags" : [ "acceptedEula" ]
+  },
+  "tags" : [ "ocean", "ukraine", "transportation costs", "grain", "oilseeds" ],
+  "flags" : [ "default", "federated", "internalToPublicFederatedView", "ownerMayBeContacted", "restorable", "restorePossibleForType" ]
+}

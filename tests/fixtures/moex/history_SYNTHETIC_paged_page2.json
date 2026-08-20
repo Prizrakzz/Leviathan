@@ -1,0 +1,83 @@
+{
+  "history": {
+    "columns": [
+      "BOARDID",
+      "SECID",
+      "TRADEDATE",
+      "SHORTNAME",
+      "NAME",
+      "CLOSE",
+      "OPEN",
+      "HIGH",
+      "LOW",
+      "VALUE",
+      "DURATION",
+      "YIELD",
+      "DECIMALS",
+      "CAPITALIZATION",
+      "CURRENCYID",
+      "DIVISOR",
+      "TRADINGSESSION",
+      "VOLUME",
+      "TRADE_SESSION_DATE"
+    ],
+    "data": [
+      [
+        "RTSI",
+        "SYNTH1",
+        "2026-08-06",
+        null,
+        null,
+        103.0,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        "USD",
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        "RTSI",
+        "SYNTH1",
+        "2026-08-07",
+        null,
+        null,
+        104.0,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        "USD",
+        null,
+        null,
+        null,
+        null
+      ]
+    ]
+  },
+  "history.cursor": {
+    "columns": [
+      "INDEX",
+      "TOTAL",
+      "PAGESIZE"
+    ],
+    "data": [
+      [
+        3,
+        5,
+        3
+      ]
+    ]
+  }
+}

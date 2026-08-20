@@ -1,0 +1,281 @@
+# HAND-AUTHORED (not generated): this table has no R0 baseline because it did not exist at
+# baseline time. Every field below was decided against a LIVE measurement of the source on
+# 2026-08-20 and the measurement is quoted in `notes` or in the producer's docstrings.
+# There is no live Glue table yet, so no `fingerprint` block is asserted -- an invented
+# fingerprint would be a claim about a catalog that has never been read.
+table_name: silver_ams_gtr
+layer: silver
+domain: trade_flows
+lifecycle_class: source
+owner: numbers-platform
+schema_version: 1
+glue_database: leviathan_dev
+s3_root: s3://leviathan-dev-shahem-001/silver/ams_gtr
+s3_bucket: leviathan-dev-shahem-001
+s3_prefix: silver/ams_gtr
+layout: partitioned
+partition_mode: registered
+projection: forbidden
+partition_keys:
+- name: dataset
+  glue_type: string
+  projected: false
+recovery_strategy: get-partitions reconcile against the seven fixed dataset= prefixes (the
+  partition set is CLOSED and enumerable from GTR_DATASETS; never MSCK)
+physical_columns:
+- name: series
+  glue_type: string
+  arrow_type: large_string
+  parquet_physical_type: BYTE_ARRAY
+  target_arrow_type: string
+  nullable: false
+- name: route_or_reach
+  glue_type: string
+  arrow_type: large_string
+  parquet_physical_type: BYTE_ARRAY
+  target_arrow_type: string
+  nullable: false
+- name: period_date
+  glue_type: date
+  arrow_type: date32[day]
+  parquet_physical_type: INT32
+  target_arrow_type: date32[day]
+  nullable: false
+- name: period_grain
+  glue_type: string
+  arrow_type: large_string
+  parquet_physical_type: BYTE_ARRAY
+  target_arrow_type: string
+  nullable: false
+- name: rate
+  glue_type: double
+  arrow_type: double
+  parquet_physical_type: DOUBLE
+  target_arrow_type: float64
+  nullable: true
+- name: unit
+  glue_type: string
+  arrow_type: large_string
+  parquet_physical_type: BYTE_ARRAY
+  target_arrow_type: string
+  nullable: false
+- name: forward_month_offset
+  glue_type: bigint
+  arrow_type: int64
+  parquet_physical_type: INT64
+  target_arrow_type: int64
+  nullable: false
+- name: rate_month
+  glue_type: bigint
+  arrow_type: int64
+  parquet_physical_type: INT64
+  target_arrow_type: int64
+  nullable: true
+- name: commodity
+  glue_type: string
+  arrow_type: large_string
+  parquet_physical_type: BYTE_ARRAY
+  target_arrow_type: string
+  nullable: true
+- name: vessel_size
+  glue_type: string
+  arrow_type: large_string
+  parquet_physical_type: BYTE_ARRAY
+  target_arrow_type: string
+  nullable: true
+- name: knowledge_date
+  glue_type: date
+  arrow_type: date32[day]
+  parquet_physical_type: INT32
+  target_arrow_type: date32[day]
+  nullable: false
+- name: knowledge_date_basis
+  glue_type: string
+  arrow_type: large_string
+  parquet_physical_type: BYTE_ARRAY
+  target_arrow_type: string
+  nullable: false
+- name: as_of_date
+  glue_type: string
+  arrow_type: large_string
+  parquet_physical_type: BYTE_ARRAY
+  target_arrow_type: string
+  nullable: false
+- name: ingest_date
+  glue_type: string
+  arrow_type: large_string
+  parquet_physical_type: BYTE_ARRAY
+  target_arrow_type: string
+  nullable: true
+- name: source_attribution
+  glue_type: string
+  arrow_type: large_string
+  parquet_physical_type: BYTE_ARRAY
+  target_arrow_type: string
+  nullable: false
+- name: source
+  glue_type: string
+  arrow_type: large_string
+  parquet_physical_type: BYTE_ARRAY
+  target_arrow_type: string
+  nullable: true
+writer_schema_pinned: false
+drift_summary: []
+natural_key:
+- dataset
+- series
+- route_or_reach
+- period_date
+- forward_month_offset
+- rate_month
+- commodity
+- vessel_size
+required_nonnull:
+- dataset
+- series
+- route_or_reach
+- period_date
+- unit
+- knowledge_date
+- as_of_date
+value_columns:
+- rate
+min_nonnull_frac: 0.5
+min_nonnull_frac_status: provisional
+coverage_axis: dataset x series x route_or_reach x period_date, with forward_month_offset /
+  rate_month (barge forward curves) and commodity / vessel_size (Ukraine ocean) completing the
+  key on the datasets that carry them
+vintage_retention: latest-only
+knowledge_date_col: knowledge_date
+knowledge_semantics: vintage
+publication_lag_days: 0
+freshness_sla:
+  cadence: weekly
+  max_lag_days: null
+consumers: none
+numbers_ref: null
+cascade_ref: null
+source_contract_ref: null
+serving_table: null
+producer:
+  status: producer
+  transform: src/leviathan/transforms/bronze_to_silver/ams_gtr.py
+  batch_task: null
+  note: 'Ingest is jobs/ingest/fetch_ams_gtr.py (modes backfill/weekly). The bronze->silver
+    Batch task is NOT written yet: the four-checkmark law holds the numbers card until
+    proof-of-rows, and a Batch task with no card to feed would be an unfired producer. The
+    transform is complete, fixture-tested and callable; wiring it into a task is one file.'
+location_mode: static
+write_mode: overwrite
+provenance:
+  baseline_id: 20260712_p65impl
+  anchor_git_sha: 0b4923e5
+  generated_by: authored by hand from the SYNTHETIC R0 record cited below; NOT yet rendered by
+    scripts/silver/gen_registry_from_baseline.py -- see notes, THE OPEN HANDOVER
+  generated_from: reports/silver_readiness/20260712_p65impl/tables/silver_ams_gtr.json
+notes: 'THE FREIGHT BACKBONE OF THE BLACK SEA CLUSTER. Seven datasets, one family, all US
+  Government public domain -- AMS states verbatim of these series: "These data series are
+  aggregated from non-confidential and non-copyrighted sources."
+  (https://www.ams.usda.gov/services/transportation-analysis/gtr-datasets). Attribution travels
+  on every row in source_attribution; ocean_monthly additionally carries "SOURCE: O''Neil
+  Commodity Consulting", the private vendor AMS credits for that figure.
+
+  MEASURED SPANS (live, 2026-08-20): ocean_weekly 1,253 weeks 2002-08-21..2026-08-19 (2,506
+  silver rows, 2 series); ocean_monthly 367 months 1996-01-01..2026-07-01 (1,101 rows, 3
+  series); barge_pct_tariff 8,267 rows 2004-01-07..2026-08-18 over 7 origins; barge_per_ton
+  30,706 rows same span over 26 river reaches; barge_fwd_1m and barge_fwd_3m 8,267 rows each;
+  ukraine_ocean_quarterly 259 rows over 26 quarter-ends 2019-09-30..2025-12-31, 10 routes.
+
+  UNITS ARE NOT INTERCHANGEABLE and that is why every row carries one. A percent-of-tariff barge
+  quote (600-800) and a USD-per-ton barge quote (14-17) describe the SAME move; an ocean quote is
+  USD per METRIC ton. Long format with an explicit unit is the only shape that cannot mix them.
+  Each unit is asserted on every fetch against the publisher''s own column metadata
+  (/api/views/{id}.json), captured beside the rows as meta.json -- see
+  assert_soda_unit_declaration. Two source-side unit defects are handled explicitly rather than
+  inherited: (a) 7spn-fbua''s DATASET description says "percent of tariff" while its COLUMN
+  description and its magnitudes say price per ton -- the column wins, the blurb is a copy-paste
+  from deqi-uken; (b) 8uye-ieij is REFUSED outright as a rate source because its column
+  descriptions claim "$/metric ton" while its values are the 2017=100 INDEX (measured 184.973 vs
+  GTRTable1''s 72.75 USD/mt for report week 2026-08-19).
+
+  PIT. knowledge_date is DERIVED and knowledge_date_basis names which rule derived it, per the
+  D-LD derived-release-date idiom -- derive, label, never hide. GTR publishes Thursday, so weekly
+  rows take the first Thursday strictly after period_date (derived_gtr_thursday); the monthly leg
+  runs off month-end because its period_date is the 1st (derived_gtr_thursday_month_end); the
+  Ukraine leg is published ANNUALLY, not weekly, so it takes the first AMS Ukraine annual edition
+  strictly after the quarter end, at that edition month''s last day
+  (derived_ams_ukraine_annual_edition), falling back to observed_snapshot when no edition follows
+  yet. as_of_date is the OBSERVED fetch date and is never derived; a consumer that refuses derived
+  dates filters knowledge_date_basis and uses as_of_date. The transform raises if any row claims
+  knowledge_date > as_of_date, which is impossible for a row that was in the snapshot, AND if any
+  row claims a release BEFORE the period it describes -- the report-date-vs-observation-date
+  inversion, enforced rather than merely asserted (_assert_pit).
+
+  knowledge_semantics is VINTAGE, not data_date, and publication_lag_days is 0. This was declared
+  the other way round in the first cut and it was backwards: knowledge_date is the derived RELEASE
+  date, so the column IS the vintage -- the estate reserves data_date for a column holding the
+  OBSERVATION date, with the lag carrying the publication offset (silver_cot report_date +6,
+  silver_fgis week_ending_date +13), and vintage for a column that already is the release
+  (silver_nass_annual release_date 0, silver_ams_cotton_quality release_date 0, silver_esr
+  as_of_date 0). Here the observation date is period_date. publication_lag_days is consumed
+  ADDITIVELY as as-of grace (src/leviathan/silver/dag_catalog.py::effective_sla_lag_days), so the
+  old "1" would have added a further day on top of a date that had already been advanced to the
+  report. A single scalar could not describe this family in any case -- the three cadences lag by
+  +1/+2 days, ~36 days and ~7 months respectively -- which is exactly why the per-row derived date
+  carries it and the contract-level scalar is 0.
+
+  NULLS ARE ABSENCES (INV-4). Measured: 774 of 8,267 deqi-uken rates, 2,076 of 30,706 7spn-fbua
+  rates and 54 of 2,506 ocean_weekly values are not quoted. None is ever written as 0.0.
+  min_nonnull_frac 0.5 is PROVISIONAL (uniform, pending OP-8 / AV-11 calibration) and comfortably
+  clears the ~9.4% worst-case measured absence.
+
+  A ZERO IS NOT A QUOTE EITHER, and the "never 0.0" claim above is only true because the transform
+  now enforces it. The absence machinery fires on non-numeric text, so a source-side zero used as a
+  missing marker used to walk straight through. Measured live 2026-08-20 over every rate column in
+  the family, there is exactly ONE: 7spn-fbua (2025-12-02, "La Crosse - Minneapolis") publishes
+  price_per_ton "0" -- the first week of that reach''s seasonal ice closure, whose other fifteen
+  weeks (2025-12-09..2026-03-17) the publisher spells as genuine absences with no key at all, as it
+  does for the whole prior winter. All 26 reaches are served that week and 25 carry real rates, so
+  it is that reach''s shutdown, not a file gap; and a $0.00/ton barge rate would mean the barge
+  moved free. RULE: a literal zero in a rate column becomes NULL with a WARN
+  (raw_to_bronze/ams_gtr.py::_null_zero_sentinels), with one principled exemption in
+  ZERO_IS_A_QUOTE_COLUMNS -- gulf_pnw_spread, a DIFFERENCE between two routes rather than a rate,
+  where zero is an ordinary market state (never observed in 367 months, but real if it happens).
+  The zero survives untouched in immutable raw; only its promotion to a number is refused.
+
+  consumers: none is deliberate and temporary -- the four-checkmark law holds the numbers card
+  until proof-of-rows, so nothing reads this table yet.
+
+  THE OPEN HANDOVER (FOUR edits this lane deliberately did NOT make -- it was three, and the
+  fourth was missing). This contract is hand-authored and the SILVER-F010 generator has not yet
+  rendered it, so gen_registry_from_baseline.py --check reports silver_ams_gtr as drift. Closing
+  that needs edits to files a CO-TENANT AGENT was concurrently modifying while this lane ran
+  (scripts/silver/gen_registry_from_baseline.py showed as modified with silver_minagro_grain_exports
+  entries in flight, and tests/unit/silver/ was likewise dirty):
+
+  (1) the generator override dicts in scripts/silver/gen_registry_from_baseline.py --
+  DOMAIN_BY_TABLE silver_ams_gtr -> trade_flows, PRODUCER_BY_TABLE -> (bronze_to_silver/ams_gtr.py,
+  None, "producer"), KNOWLEDGE_DATE_OVERRIDE -> ("knowledge_date", "vintage", 0) -- NOT
+  ("knowledge_date", "data_date", 1); see the PIT paragraph above, the column is the derived
+  RELEASE date and publication_lag_days is consumed additively as grace --
+  NATURAL_KEY_FALLBACK -> the eight-column key above, TALL_VALUE_COL -> "rate";
+
+  (2) tests/unit/silver/test_silver_registry.py::test_registry_has_exactly_the_live_43_plus_gold,
+  silver count 43 -> 44 (+1 per additional new-table lane);
+
+  (3) tests/unit/silver/test_silver_registry_gen.py::test_generator_covers_exactly_the_45_baseline_tables,
+  on_disk count 46 -> 47 (+1 per additional new-table lane);
+
+  (4) tests/unit/silver/test_silver_registry.py::test_partition_modes_match_the_r0_tally, which the
+  first cut of this note MISSED and which this lane alone breaks. It asserts
+  {flat: 30, projected: 7, registered: 9}. silver_ams_gtr is partition_mode REGISTERED (dataset,
+  seven closed values), so registered 9 -> 10 is THIS lane''s bump and nobody else''s -- measured
+  2026-08-20, the other new-table lanes in the tree (eex_freight, minagro_grain_exports,
+  moex_agro_indices) are all FLAT, so the flat count moves by however many of those land and the
+  projected count does not move at all. An orchestrator applying (1)-(3) verbatim would stay red on
+  a test only this contract broke.
+
+  Edits (2), (3) and the flat half of (4) are the SAME lines every new-table lane must bump, so
+  they must be applied ONCE by the orchestrator after every lane lands -- two agents each writing
+  "46 -> 47" would produce 47 where 48 is correct, and a whole-file write would clobber the other
+  lane. Editing them from inside this lane was refused for that reason, not skipped for convenience.'
