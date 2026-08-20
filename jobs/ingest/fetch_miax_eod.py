@@ -40,10 +40,35 @@ carry a space, ``OMWH7 C6.50``). And **no volume and no open interest at all** -
 separate PDF that is not part of this leg. Both facts are the transform's business; this job lands
 the whole file verbatim.
 
-IDEMPOTENCE
------------
+IDEMPOTENCE, AND THE PROBE THAT FAILS CLOSED
+--------------------------------------------
 The raw key is deterministic per session and an existing object is skipped without an HTTP request
 unless ``--force``.
+
+**VERDICT 2026-08-20 -- narrowed, and NOT on the EEX argument. Say the weaker case honestly.**
+Unlike JSE, Bursa or EEX freight, this leg's bytes ARE re-derivable: the URL is a pure date
+substitution over a static published file, a settled session file does not change, and the whole
+CSV horizon above is still served. A capture destroyed here can be fetched again for the price of
+one GET. So ``raw_exists`` is NOT narrowed because the data is unrecoverable. It is narrowed
+because the house idiom (``except Exception: return False``) is WRONG IN TWO WAYS THAT COST
+SOMETHING REAL ON A WALK THIS SHAPE:
+
+  * IT VOIDS THE RESUME CONTRACT EXACTLY WHEN S3 IS UNHAPPY. A backfill is ~222 sequential HEADs,
+    which is precisely the shape that provokes ``SlowDown``; every throttled head then reads as
+    "absent" and re-issues the venue GET and the PUT for a day already landed. The idiom converts
+    an S3 throttle into a venue-hammering re-walk of the entire window -- the opposite of what the
+    skip-existing pass exists to do.
+  * IT IS BLIND TO A RESTATEMENT. If MIAX ever republishes a corrected settlement file under the
+    same URL, a silent overwrite destroys the first capture AND the only evidence the venue
+    restated. This leg has no ``_divergence/`` machinery to catch that (``fetch_eex_freight.py``
+    does), so the landed object is the sole witness.
+
+So only a genuine 404 means absent; any other ``HeadObject`` error takes that SESSION out of the
+walk as a RECORDED FAILURE (the run exits 1), never as a silent skip and never as a licence to
+write. The cost of being wrong in that direction is one re-fire -- the incremental default already
+re-walks the last 5 calendar days -- and exit 1 is Class D EXIT in
+``infra/terraform/modules/batch/main.tf`` ``local.producer_retry_rules``, terminal after ONE
+attempt, so it cannot become a retry storm.
 
 S3 LAYOUT
 ---------
@@ -94,6 +119,10 @@ _RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
 _EXPECTED_HEADER_TOKENS = ("Trade_Date", "Instrument", "Settle")
 # The thinnest plausible session: 7 outrights + a header. A holiday is a 404, not a short file.
 _MIN_DATA_LINES = 5
+
+# The only S3 error codes that mean "this key is genuinely not there". Everything else raises --
+# see raw_exists(). Mirrors fetch_eex_freight._ABSENT_ERROR_CODES.
+_ABSENT_ERROR_CODES = frozenset({"404", "NotFound", "NoSuchKey"})
 
 
 def miax_url(day: date) -> str:
@@ -170,12 +199,34 @@ def land_bytes(bucket: str, key: str, data: bytes, *, source_url: str, region: s
 
 
 def raw_exists(bucket: str, key: str, region: str) -> bool:
+    """True when the object is already landed. **Only a genuine 404 means "absent".**
+
+    THIS DIVERGES FROM THE ESTATE HOUSE IDIOM ON PURPOSE -- see the module docstring's verdict, and
+    note that the verdict here is the WEAKER one: these bytes are re-fetchable. What the swallow-all
+    idiom actually costs on this leg is the resume contract (a throttled 222-day HEAD walk re-GETs
+    and re-PUTs everything it already has) and restatement-blindness (a silent overwrite destroys
+    the only witness that the venue republished a corrected file).
+
+    The 403-instead-of-404 trap does NOT apply on this leg: ``batch_job_role`` carries
+    ``s3:ListBucket`` on the bucket (infra/terraform/modules/iam/main.tf, sid
+    ``ListDataLakeBucket``), so a HeadObject against a key that does not exist answers 404 rather
+    than AccessDenied -- the narrowing cannot brick a first-ever capture.
+    """
+    from botocore.exceptions import ClientError
     from leviathan.storage.s3 import get_thread_local_s3_client
+
     try:
         get_thread_local_s3_client(region).head_object(Bucket=bucket, Key=key)
         return True
-    except Exception:  # noqa: BLE001
-        return False
+    except ClientError as exc:
+        error = exc.response.get("Error") or {}
+        code = str(error.get("Code") or "")
+        status = (exc.response.get("ResponseMetadata") or {}).get("HTTPStatusCode")
+        # HeadObject has no body, so botocore reports the missing-key case as "404"/"NotFound"
+        # rather than the "NoSuchKey" a GetObject would raise. Accept all three spellings.
+        if code in _ABSENT_ERROR_CODES or status == 404:
+            return False
+        raise
 
 
 def resolve_window(args) -> tuple[date, date]:
@@ -242,9 +293,29 @@ def main(argv: Optional[list[str]] = None) -> int:
     failures: list[str] = []
     for day in days:
         key = raw_miax_key(day.isoformat())
-        if not args.force and raw_exists(bucket, key, aws_region):
-            skipped_existing += 1
-            continue                          # HEAD on S3 only -- no MIAX GET, nothing to space
+        if not args.force:
+            # THE ONLY raw_exists CALL SITE ON THIS LEG, and it sits ABOVE the try below, so the
+            # per-day guard cannot catch it -- hence its own. An existence probe that cannot answer
+            # is read neither as "absent" (which is how the old swallow-all raw_exists destroyed
+            # captures: the capture path leads straight to the PUT with no second fence) nor as
+            # "already landed" (a silent skip). The SESSION is taken out of the walk as a RECORDED
+            # FAILURE: nothing fetched for it, nothing written, the other days still run, and the
+            # run exits 1 below so the fire is not read as clean. No sleep is owed -- like the
+            # skip-existing `continue`, this branch issues no MIAX request at all.
+            try:
+                already_landed = raw_exists(bucket, key, aws_region)
+            except Exception as exc:  # noqa: BLE001 -- raw_exists fails CLOSED and may raise here
+                logger.error(
+                    "MIAX %s: the raw existence probe could not answer (%s: %s) -- session SKIPPED "
+                    "and the run marked failed. Refusing to capture: an unanswerable probe must "
+                    "never be read as 'absent' and PUT over a landed capture",
+                    day, type(exc).__name__, exc,
+                )
+                failures.append(f"{day}: existence probe {type(exc).__name__}")
+                continue
+            if already_landed:
+                skipped_existing += 1
+                continue                      # HEAD on S3 only -- no MIAX GET, nothing to space
         try:
             payload = fetch_day(day)
             if payload is None:

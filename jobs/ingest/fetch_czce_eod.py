@@ -31,11 +31,36 @@ Corollaries, all probed:
     ABSENCE, not an error: the loop records it and moves on. The holiday calendar is derived
     EMPIRICALLY from the backfill (probe P10) and is never curated here.
 
-IDEMPOTENCE
------------
+IDEMPOTENCE, AND THE PROBE THAT FAILS CLOSED
+--------------------------------------------
 The raw key is deterministic per session (``.../year={YYYY}/trade_date={YYYYMMDD}/...``), and a day
 whose object already exists is skipped without an HTTP request unless ``--force``. Re-running the
 whole backfill is therefore cheap and safe, and a resumed run costs only the days it has not landed.
+
+**VERDICT 2026-08-20 -- narrowed, and NOT on the EEX argument. The weaker case, said honestly.**
+Unlike JSE or Bursa, this leg's bytes ARE re-derivable: ``DFSStaticFiles`` publishes one immutable
+text file per closed session and the tree reaches back to 2015-10-08, so a destroyed capture costs
+one GET to recover. ``raw_exists`` is therefore not narrowed for unrecoverability. It is narrowed
+because the house idiom (``except Exception: return False``) is wrong in two ways that bite HERE:
+
+  * IT VOIDS THE RESUME CONTRACT EXACTLY WHEN S3 IS UNHAPPY, and this is the leg where that costs
+    most. A full backfill is ~2,600 sequential HEADs -- precisely the shape that provokes
+    ``SlowDown`` -- and every throttled head then reads as "absent" and re-issues the venue GET and
+    the PUT for a day already landed. The paragraph above promises a resumed run costs only what it
+    has not landed; the swallow silently converts an S3 throttle into a full ~2,600-request re-walk
+    against an origin that already answers 412 to anything it does not like. That is how a leg gets
+    itself blocked.
+  * IT IS BLIND TO A RESTATEMENT. If CZCE ever republishes a corrected session file at the same
+    path, a silent overwrite destroys the first capture AND the only evidence of the restatement.
+    There is no ``_divergence/`` machinery on this leg (``fetch_eex_freight.py`` has it); the
+    landed object is the sole witness.
+
+So only a genuine 404 means absent; any other ``HeadObject`` error takes that SESSION out of the
+walk as a RECORDED FAILURE (the run exits 1), never as a silent skip and never as a licence to
+write. Note the asymmetry that makes this safe: a 404 from the VENUE is still an absence and still
+writes nothing, so failing closed on the S3 side cannot manufacture a missing trading day. Exit 1
+is Class D EXIT in ``infra/terraform/modules/batch/main.tf`` ``local.producer_retry_rules``,
+terminal after ONE attempt -- no retry storm.
 
 S3 LAYOUT
 ---------
@@ -94,6 +119,10 @@ _WAF_STATUS = 412
 # across 17 roots). This is a SHAPE sniff on the response, not a data floor -- the silver row floor
 # (gate 5) lives in jobs/batch/futures_eod_task.py and counts SILVER rows for the two kept slugs.
 _MIN_DATA_LINES = 50
+
+# The only S3 error codes that mean "this key is genuinely not there". Everything else raises --
+# see raw_exists(). Mirrors fetch_eex_freight._ABSENT_ERROR_CODES.
+_ABSENT_ERROR_CODES = frozenset({"404", "NotFound", "NoSuchKey"})
 
 
 def czce_url(day: date) -> str:
@@ -186,12 +215,35 @@ def land_bytes(bucket: str, key: str, data: bytes, *, source_url: str, region: s
 
 
 def raw_exists(bucket: str, key: str, region: str) -> bool:
+    """True when the object is already landed. **Only a genuine 404 means "absent".**
+
+    THIS DIVERGES FROM THE ESTATE HOUSE IDIOM ON PURPOSE -- see the module docstring's verdict, and
+    note that the verdict here is the WEAKER one: these bytes are re-fetchable. What the swallow-all
+    idiom actually costs on this leg is the resume contract (a throttled ~2,600-day HEAD walk re-GETs
+    and re-PUTs everything it already has, at an origin that answers 412 to anything it dislikes)
+    and restatement-blindness (a silent overwrite destroys the only witness that the venue
+    republished a corrected session file).
+
+    The 403-instead-of-404 trap does NOT apply on this leg: ``batch_job_role`` carries
+    ``s3:ListBucket`` on the bucket (infra/terraform/modules/iam/main.tf, sid
+    ``ListDataLakeBucket``), so a HeadObject against a key that does not exist answers 404 rather
+    than AccessDenied -- the narrowing cannot brick a first-ever capture.
+    """
+    from botocore.exceptions import ClientError
     from leviathan.storage.s3 import get_thread_local_s3_client
+
     try:
         get_thread_local_s3_client(region).head_object(Bucket=bucket, Key=key)
         return True
-    except Exception:  # noqa: BLE001 -- any head failure means "treat as absent"
-        return False
+    except ClientError as exc:
+        error = exc.response.get("Error") or {}
+        code = str(error.get("Code") or "")
+        status = (exc.response.get("ResponseMetadata") or {}).get("HTTPStatusCode")
+        # HeadObject has no body, so botocore reports the missing-key case as "404"/"NotFound"
+        # rather than the "NoSuchKey" a GetObject would raise. Accept all three spellings.
+        if code in _ABSENT_ERROR_CODES or status == 404:
+            return False
+        raise
 
 
 def resolve_window(args) -> tuple[date, date]:
@@ -259,9 +311,29 @@ def main(argv: Optional[list[str]] = None) -> int:
     failures: list[str] = []
     for day in days:
         key = raw_czce_key(day.isoformat())
-        if not args.force and raw_exists(bucket, key, aws_region):
-            skipped_existing += 1
-            continue                              # HEAD on S3 only -- no CZCE GET, nothing to space
+        if not args.force:
+            # THE ONLY raw_exists CALL SITE ON THIS LEG, and it sits ABOVE the try below, so the
+            # per-day guard cannot catch it -- hence its own. An existence probe that cannot answer
+            # is read neither as "absent" (which is how the old swallow-all raw_exists destroyed
+            # captures: the capture path leads straight to the PUT with no second fence) nor as
+            # "already landed" (a silent skip). The SESSION is taken out of the walk as a RECORDED
+            # FAILURE: nothing fetched for it, nothing written, the other days still run, and the
+            # run exits 1 below so the fire is not read as clean. No sleep is owed -- like the
+            # skip-existing `continue`, this branch issues no CZCE request at all.
+            try:
+                already_landed = raw_exists(bucket, key, aws_region)
+            except Exception as exc:  # noqa: BLE001 -- raw_exists fails CLOSED and may raise here
+                logger.error(
+                    "CZCE %s: the raw existence probe could not answer (%s: %s) -- session SKIPPED "
+                    "and the run marked failed. Refusing to capture: an unanswerable probe must "
+                    "never be read as 'absent' and PUT over a landed capture",
+                    day, type(exc).__name__, exc,
+                )
+                failures.append(f"{day}: existence probe {type(exc).__name__}")
+                continue
+            if already_landed:
+                skipped_existing += 1
+                continue                          # HEAD on S3 only -- no CZCE GET, nothing to space
         try:
             payload = fetch_day(day)
             if payload is None:

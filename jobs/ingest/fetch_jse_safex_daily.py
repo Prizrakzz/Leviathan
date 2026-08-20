@@ -37,12 +37,31 @@ Plan gate 8 makes that a CODE requirement rather than a policy line: this job **
 ever asked to backfill. An explicit ``NotImplementedError`` is strictly better than an empty result,
 because an empty result on a table with no freshness alarm yet is indistinguishable from a holiday.
 
-IDEMPOTENCE
------------
+IDEMPOTENCE, AND THE PROBE THAT FAILS CLOSED
+--------------------------------------------
 The raw key is per FETCH DAY (``as_of_date=``), not per trade date -- the fetch date is the only
 immutability this leg will ever have, because the source object has no version of its own. A day
 whose object already exists is skipped without an HTTP request unless ``--force``. The SESSION date
 comes from the sheet's own header and is the transform's business.
+
+**VERDICT 2026-08-20 -- THIS LEG TAKES THE EEX FAIL-CLOSED PROBE AT FULL STRENGTH, and the section
+above this one is the whole argument.** ``fetch_bursa_fcpo.py``'s own docstring names this producer
+as the no-history precedent ("gate 8"), and the recoverability question has already been answered
+here in the hardest possible terms: the portal object is overwritten every single day and the CDX
+index holds ONE capture of it in its entire history. There is no date parameter, no archive, no
+vendor backfill and -- by :func:`refuse_backfill` -- no code path that may pretend otherwise.
+
+``raw_exists`` gates the only PUT on this leg's raw data plane. The estate house idiom
+(``except Exception: return False``) answers "absent" to a throttle, a 5xx, an expired token or a
+denied head, so a transient ``HeadObject`` failure would make the producer believe today's landed
+capture is missing and PUT a later intraday render of the same overwritten object over it. The
+bytes destroyed that way are gone at any price. So only a genuine 404 means absent; every other
+head error fails the run (exit 1) with NOTHING fetched and nothing written.
+
+Failing is cheap and the failure is terminal, by design: exit 1 is Class D EXIT in
+``infra/terraform/modules/batch/main.tf`` ``local.producer_retry_rules`` (with the mandatory
+terminal ``on_reason = "*"`` rule behind it), so a nonzero exit is terminal after ONE attempt and
+cannot become a retry storm against the portal.
 
 S3 LAYOUT
 ---------
@@ -80,6 +99,10 @@ _TIMEOUT = 60
 _MAX_ATTEMPTS = 4
 _BACKOFF_SECONDS = 5
 _RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
+
+# The only S3 error codes that mean "this key is genuinely not there". Everything else raises --
+# see raw_exists(). Mirrors fetch_eex_freight._ABSENT_ERROR_CODES.
+_ABSENT_ERROR_CODES = frozenset({"404", "NotFound", "NoSuchKey"})
 
 # Legacy OLE compound-document magic. A portal error page served with HTTP 200 fails here rather
 # than landing as a "workbook" that the transform then cannot open.
@@ -154,12 +177,33 @@ def land_bytes(bucket: str, key: str, data: bytes, *, source_url: str, region: s
 
 
 def raw_exists(bucket: str, key: str, region: str) -> bool:
+    """True when the object is already landed. **Only a genuine 404 means "absent".**
+
+    THIS DIVERGES FROM THE ESTATE HOUSE IDIOM ON PURPOSE -- see the module docstring's verdict.
+    ``except Exception: return False`` turns a throttle, a 5xx or an expired credential into
+    "nothing is landed", which is a licence to PUT over the only copy of a day that the portal
+    overwrites nightly and that web.archive.org captured exactly ONCE, ever.
+
+    The 403-instead-of-404 trap does NOT apply on this leg: ``batch_job_role`` carries
+    ``s3:ListBucket`` on the bucket (infra/terraform/modules/iam/main.tf, sid
+    ``ListDataLakeBucket``), so a HeadObject against a key that does not exist answers 404 rather
+    than AccessDenied -- the narrowing cannot brick a first-ever capture.
+    """
+    from botocore.exceptions import ClientError
     from leviathan.storage.s3 import get_thread_local_s3_client
+
     try:
         get_thread_local_s3_client(region).head_object(Bucket=bucket, Key=key)
         return True
-    except Exception:  # noqa: BLE001 -- any head failure means "treat as absent"
-        return False
+    except ClientError as exc:
+        error = exc.response.get("Error") or {}
+        code = str(error.get("Code") or "")
+        status = (exc.response.get("ResponseMetadata") or {}).get("HTTPStatusCode")
+        # HeadObject has no body, so botocore reports the missing-key case as "404"/"NotFound"
+        # rather than the "NoSuchKey" a GetObject would raise. Accept all three spellings.
+        if code in _ABSENT_ERROR_CODES or status == 404:
+            return False
+        raise
 
 
 def main(argv: Optional[list[str]] = None) -> int:
@@ -198,9 +242,27 @@ def main(argv: Optional[list[str]] = None) -> int:
     bucket = args.bucket or get_required_env("LEVIATHAN_BUCKET")
     aws_region = args.aws_region or get_required_env("AWS_REGION")
 
-    if not args.force and raw_exists(bucket, key, aws_region):
-        logger.info("JSE capture for %s already landed -- skipping (use --force to re-fetch)", as_of)
-        return 0
+    if not args.force:
+        # THE ONLY raw_exists CALL SITE ON THIS LEG, and the capture path below leads straight to
+        # the PUT with no second fence in front of it. An existence probe that cannot answer must
+        # be read neither as "absent" (which is how the old swallow-all raw_exists destroyed
+        # captures) nor as "already landed" (a silent skip, on a leg where a skipped day is an
+        # unrecoverable day). It fails the run instead: one line, exit 1, NOTHING fetched.
+        try:
+            already_landed = raw_exists(bucket, key, aws_region)
+        except Exception as exc:  # noqa: BLE001 -- raw_exists fails CLOSED and may raise here
+            logger.error(
+                "FAILED JSE capture for %s: the raw existence probe could not answer (%s: %s) -- "
+                "nothing fetched, NOTHING WRITTEN. Refusing to capture: an unanswerable probe must "
+                "never be read as 'absent' and PUT over a landed capture on a leg whose source "
+                "object is overwritten daily and has ONE archive capture in its whole history",
+                as_of, type(exc).__name__, exc,
+            )
+            return 1
+        if already_landed:
+            logger.info("JSE capture for %s already landed -- skipping (use --force to re-fetch)",
+                        as_of)
+            return 0
     try:
         payload = fetch_workbook()
         bad = looks_like_the_agri_workbook(payload)

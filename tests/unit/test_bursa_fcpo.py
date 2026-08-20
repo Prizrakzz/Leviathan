@@ -499,3 +499,142 @@ class TestProducer:
         """The helpers hand out fresh objects, so the mutation tests above cannot leak."""
         assert day_body() == copy.deepcopy(json.loads(_DAY.read_text(encoding="utf-8")))
         assert len(day_body()["data"]) == 24
+
+
+# ===========================================================================
+# The existence probe FAILS CLOSED -- the one path that could destroy a capture
+# ===========================================================================
+class _StubBrowser:
+    """``leviathan.ingest.browser_fetch``, as far as this producer is concerned.
+
+    Playwright is still never imported -- this is the module boundary ``FETCH._browser()`` returns,
+    stubbed so the S3 call site can be driven end to end through ``main()``. The Cloudflare dance
+    itself is validated by the first Fargate run, by design."""
+
+    EXIT_CHALLENGE_FAILED = 7
+
+    class ChallengeFailed(Exception):
+        pass
+
+    def __init__(self, body):
+        self._body = body
+        self.settled: list[str] = []
+        outer = self
+
+        class _Page:
+            def evaluate(self, _js):
+                return [list(THEAD)]
+
+        class _Session:
+            def __init__(self, _base, headless=True):
+                self.page = _Page()
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_exc):
+                return False
+
+            def goto_and_settle(self, path, ready_check=None, max_wait_s=None):
+                outer.settled.append(path)
+
+            def fetch_json(self, _path):
+                return outer._body
+
+        self.BrowserSession = _Session
+
+
+class TestRawExistsFailsClosed:
+    """``raw_exists`` gates the only PUT on this leg's raw data plane, and nothing stands between it
+    and the write. The estate house idiom answers False on ANY head failure, which turns a throttle
+    or an expired credential into "absent" and therefore into an overwrite -- on a leg whose API
+    serves CURRENT prices only, carries no date parameter and no date field, and whose series
+    starts at the first run."""
+
+    @staticmethod
+    def _s3(monkeypatch, exc):
+        class _S3:
+            def head_object(self, **_kw):
+                if exc is not None:
+                    raise exc
+                return {"ContentLength": 1}
+
+        import leviathan.storage.s3 as S3MOD
+        monkeypatch.setattr(S3MOD, "get_thread_local_s3_client", lambda region: _S3())
+
+    @staticmethod
+    def _client_error(code, status):
+        from botocore.exceptions import ClientError
+        return ClientError(
+            {"Error": {"Code": code, "Message": "x"},
+             "ResponseMetadata": {"HTTPStatusCode": status}},
+            "HeadObject",
+        )
+
+    ARGV = ["--as-of-date", _AS_OF, "--bucket", "test-bucket", "--aws-region", "us-east-1"]
+
+    def test_a_landed_object_is_reported_present(self, monkeypatch):
+        self._s3(monkeypatch, None)
+        assert FETCH.raw_exists("b", "k", "us-east-1") is True
+
+    @pytest.mark.parametrize("code,status", [("404", 404), ("NotFound", 404), ("NoSuchKey", 404)])
+    def test_only_a_genuine_404_means_absent(self, monkeypatch, code, status):
+        """HeadObject has no body, so botocore spells the missing-key case '404'/'NotFound' rather
+        than the 'NoSuchKey' a GetObject would raise. All three are the same fact."""
+        self._s3(monkeypatch, self._client_error(code, status))
+        assert FETCH.raw_exists("b", "k", "us-east-1") is False
+
+    @pytest.mark.parametrize("code,status", [
+        ("SlowDown", 503),
+        ("InternalError", 500),
+        ("ExpiredToken", 400),
+        ("AccessDenied", 403),
+        ("RequestTimeout", 400),
+    ])
+    def test_every_other_head_failure_RAISES_rather_than_fabricating_absence(
+            self, monkeypatch, code, status):
+        from botocore.exceptions import ClientError
+        self._s3(monkeypatch, self._client_error(code, status))
+        with pytest.raises(ClientError):
+            FETCH.raw_exists("b", "k", "us-east-1")
+
+    def test_a_transient_head_failure_never_reaches_the_PUT(self, monkeypatch):
+        """End to end through ``main()``: the head throttles, so the producer must land NOTHING,
+        never launch a browser, and exit 1 -- not exit 0 down the 'already landed' path."""
+        written = {}
+        self._s3(monkeypatch, self._client_error("SlowDown", 503))
+        monkeypatch.setattr(FETCH, "land_bytes",
+                            lambda bucket, key, data, **kw: written.__setitem__(key, data))
+        monkeypatch.setattr(FETCH, "_browser", _no_browser)
+
+        assert FETCH.main(self.ARGV) == 1
+        assert written == {}, "a throttled head must never be read as 'absent' and PUT over"
+
+    def test_the_same_drive_lands_when_the_head_answers_404(self, monkeypatch):
+        """The positive control, so the test above cannot pass vacuously."""
+        written = {}
+        self._s3(monkeypatch, self._client_error("404", 404))
+        monkeypatch.setattr(FETCH, "land_bytes",
+                            lambda bucket, key, data, **kw: written.__setitem__(key, data))
+        stub = _StubBrowser(day_body())
+        monkeypatch.setattr(FETCH, "_browser", lambda: stub)
+
+        assert FETCH.main(self.ARGV) == 0
+        assert sorted(written) == [raw_bursa_key("FCPO", _AS_OF)]
+        assert stub.settled == [FETCH.BURSA_PRICES_PATH]
+
+    def test_force_still_bypasses_the_probe_entirely(self, monkeypatch):
+        """Unchanged behaviour, pinned because the always-on runner fires this leg with --force:
+        an operator asking for an overwrite still gets one, and never sees the new raise path."""
+        written = {}
+        self._s3(monkeypatch, self._client_error("SlowDown", 503))
+        monkeypatch.setattr(FETCH, "land_bytes",
+                            lambda bucket, key, data, **kw: written.__setitem__(key, data))
+        monkeypatch.setattr(FETCH, "_browser", lambda: _StubBrowser(day_body()))
+
+        assert FETCH.main([*self.ARGV, "--force"]) == 0
+        assert sorted(written) == [raw_bursa_key("FCPO", _AS_OF)]
+
+
+def _no_browser():
+    raise AssertionError("a run that captured nothing must never launch Chromium")

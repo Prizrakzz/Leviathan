@@ -67,6 +67,32 @@ COST DISCIPLINE
 empty symbol list is refused before any billable call. Every billable entry point additionally
 passes ``schema`` explicitly (the client defaults to ``trades``, which would price the wrong thing
 by three orders of magnitude).
+
+THE EXISTENCE PROBE FAILS CLOSED -- AND HERE THE ARGUMENT IS MONEY, NOT RECOVERABILITY
+---------------------------------------------------------------------------------------
+VERDICT 2026-08-20. ``raw_exists`` is the ONLY thing standing between a re-run and a re-submit, and
+the estate house idiom (``except Exception: return False``) answers "absent" to a throttle, a 5xx,
+an expired token or a denied head.
+
+**Are the payload bytes re-derivable? YES.** Databento is a vendor, not a rolling window: the same
+``dataset/symbols/schema/start/end`` tuple re-submits to the same DBN, and a done job re-downloads
+FREE for 30 days. So this is not the ``fetch_eex_freight.py`` unrecoverability argument and it is
+not claimed to be. The narrowing is bought for a different reason, and it is the one this leg cares
+about most:
+
+  **A FALSE "ABSENT" IS A PURCHASE.** The line below the probe is ``submit_unit`` -- a BILLABLE
+  batch job. A throttled ``HeadObject`` therefore does not merely overwrite a good payload; it buys
+  it again, outside the pre-buy gate that ``--cost-only`` exists to enforce. The measured unit
+  prices make the size of that plain: IFUS is $34.28 and IFEU $6.18 against a $125 credit pool and
+  a $45.00 recommended buy. An S3 hiccup must never be able to spend money.
+
+So only a genuine 404 means absent; any other ``HeadObject`` error raises. The call site sits inside
+the per-unit ``try``, so the raise becomes the ordinary recorded unit failure (``FAILED <ds>
+<root>/<year>``, ``failures += 1``, run exits 1) -- the other units still run, nothing is submitted
+for the failed one, and no payload is overwritten. Exit 1 is Class D EXIT in
+``infra/terraform/modules/batch/main.tf`` ``local.producer_retry_rules`` (behind the mandatory
+terminal ``on_reason = "*"`` rule), terminal after ONE attempt -- so a failed probe cannot become a
+retry storm that submits the same paid job twice.
 """
 from __future__ import annotations
 
@@ -124,6 +150,10 @@ RESOLVE_CHUNK = 500
 MAX_ATTEMPTS = 5
 BACKOFF_BASE_SECONDS = 2.0
 POLITE_SLEEP_SECONDS = 0.5
+
+# The only S3 error codes that mean "this key is genuinely not there". Everything else raises --
+# see raw_exists(). Mirrors fetch_eex_freight._ABSENT_ERROR_CODES.
+_ABSENT_ERROR_CODES = frozenset({"404", "NotFound", "NoSuchKey"})
 
 
 # ---------------------------------------------------------------------------
@@ -660,12 +690,34 @@ def land_bytes(bucket: str, key: str, data: bytes, *, source_label: str, content
 
 
 def raw_exists(bucket: str, key: str, region: str) -> bool:
+    """True when the object is already landed. **Only a genuine 404 means "absent".**
+
+    THIS DIVERGES FROM THE ESTATE HOUSE IDIOM ON PURPOSE -- see the module docstring's verdict. The
+    payload IS re-derivable here; what the swallow-all idiom buys is a PURCHASE. The next statement
+    after this probe returns False is ``submit_unit``, a billable batch job, so a throttled
+    ``HeadObject`` re-buys a payload the estate already owns (IFUS $34.28, IFEU $6.18, against a
+    $125 credit pool) and overwrites the good one with it. An S3 hiccup must not be able to spend.
+
+    The 403-instead-of-404 trap does NOT apply on this leg: ``batch_job_role`` carries
+    ``s3:ListBucket`` on the bucket (infra/terraform/modules/iam/main.tf, sid
+    ``ListDataLakeBucket``), so a HeadObject against a key that does not exist answers 404 rather
+    than AccessDenied -- the narrowing cannot brick a first-ever capture.
+    """
+    from botocore.exceptions import ClientError
     from leviathan.storage.s3 import get_thread_local_s3_client
+
     try:
         get_thread_local_s3_client(region).head_object(Bucket=bucket, Key=key)
         return True
-    except Exception:  # noqa: BLE001 -- any head failure means "treat as absent"
-        return False
+    except ClientError as exc:
+        error = exc.response.get("Error") or {}
+        code = str(error.get("Code") or "")
+        status = (exc.response.get("ResponseMetadata") or {}).get("HTTPStatusCode")
+        # HeadObject has no body, so botocore reports the missing-key case as "404"/"NotFound"
+        # rather than the "NoSuchKey" a GetObject would raise. Accept all three spellings.
+        if code in _ABSENT_ERROR_CODES or status == 404:
+            return False
+        raise
 
 
 # ---------------------------------------------------------------------------
@@ -830,6 +882,14 @@ def main(argv: Optional[list[str]] = None) -> int:
                 schemas.append(STATISTICS_SCHEMA)
             for schema in schemas:
                 key = raw_databento_key(ds, root, year, payload_filename(schema, root, year, as_of))
+                # THE ONLY raw_exists CALL SITE ON THIS LEG, and the next statement is a BILLABLE
+                # submit. raw_exists now fails CLOSED, and the raise deliberately gets NO handler of
+                # its own: it falls to the per-unit `except` below, which is already the loud,
+                # correct behaviour -- "FAILED <dataset> <root>/<year>", failures += 1, and the run
+                # exits 1. Nothing is submitted for this unit, nothing is overwritten, and the other
+                # units still run. There is no "nothing to fetch" exit-0 path on this producer for
+                # such a run to fall through to: the only early return is the empty-unit-set exit 1
+                # far above, and the final line is `return 1 if failures else 0`.
                 if not args.force_overwrite and raw_exists(bucket, key, aws_region):
                     logger.info("skip %s (raw exists; --force-overwrite to replace)", key)
                     continue

@@ -52,6 +52,16 @@ every missed session is permanently unrecoverable, and there is no backfill to r
 that an operator or a scheduler copying the CZCE/MIAX/DCE invocation gets the plan's gate-8 error
 instead of a silent no-op. There is still no backfill to run.
 
+**AND THAT IS WHY THE EXISTENCE PROBE FAILS CLOSED (verdict 2026-08-20).** ``raw_exists`` gates the
+only PUT on this leg's raw data plane. The estate house idiom (``except Exception: return False``)
+answers "absent" to a throttle, a 5xx, an expired token or a denied head, so a transient S3 failure
+would make the producer believe a landed capture is missing and overwrite it -- on a leg where the
+paragraph above says, in the venue's own terms, that the destroyed bytes can never be re-fetched:
+current prices only, no date parameter, no date field, no history. This is the
+``fetch_eex_freight.py`` argument at full strength. So only a genuine 404 means absent; any other
+``HeadObject`` error fails the run (exit 1) with nothing written. NOTE that ``--force`` skips this
+probe entirely by design, so an operator asking for an overwrite still gets one.
+
 THE EXIT-CODE CONTRACT (this run IS the residual S2 probe)
 ----------------------------------------------------------
 ``ChallengeFailed`` exits ``EXIT_CHALLENGE_FAILED`` (7) with one ASCII log line. On this leg a 7 is
@@ -99,6 +109,10 @@ _API_PATH_FMT = ("/api/v1/derivatives_prices/derivatives_prices"
                  "?code={code}&ses={ses}&per_page={per_page}&page={page}")
 _SOURCE_LABEL = "bursa"
 _CONTENT_TYPE = "application/json"
+
+# The only S3 error codes that mean "this key is genuinely not there". Everything else raises --
+# see raw_exists(). Mirrors fetch_eex_freight._ABSENT_ERROR_CODES.
+_ABSENT_ERROR_CODES = frozenset({"404", "NotFound", "NoSuchKey"})
 
 # Mirrored from leviathan.ingest.browser_fetch; :func:`_browser` binds the two and fails on drift.
 EXIT_CHALLENGE_FAILED = 7
@@ -272,12 +286,34 @@ def land_bytes(bucket: str, key: str, data: bytes, *, source_url: str, region: s
 
 
 def raw_exists(bucket: str, key: str, region: str) -> bool:
+    """True when the object is already landed. **Only a genuine 404 means "absent".**
+
+    THIS DIVERGES FROM THE ESTATE HOUSE IDIOM ON PURPOSE -- see the module docstring's verdict.
+    ``except Exception: return False`` turns a throttle, a 5xx or an expired credential into
+    "nothing is landed", which is a licence to PUT over a session that the API cannot serve twice:
+    ``derivatives_prices`` publishes CURRENT prices only, carries no date parameter and no date
+    field, and the series starts at the first run.
+
+    The 403-instead-of-404 trap does NOT apply on this leg: ``batch_job_role`` carries
+    ``s3:ListBucket`` on the bucket (infra/terraform/modules/iam/main.tf, sid
+    ``ListDataLakeBucket``), so a HeadObject against a key that does not exist answers 404 rather
+    than AccessDenied -- the narrowing cannot brick a first-ever capture.
+    """
+    from botocore.exceptions import ClientError
     from leviathan.storage.s3 import get_thread_local_s3_client
+
     try:
         get_thread_local_s3_client(region).head_object(Bucket=bucket, Key=key)
         return True
-    except Exception:  # noqa: BLE001 -- any head failure means "treat as absent"
-        return False
+    except ClientError as exc:
+        error = exc.response.get("Error") or {}
+        code = str(error.get("Code") or "")
+        status = (exc.response.get("ResponseMetadata") or {}).get("HTTPStatusCode")
+        # HeadObject has no body, so botocore reports the missing-key case as "404"/"NotFound"
+        # rather than the "NoSuchKey" a GetObject would raise. Accept all three spellings.
+        if code in _ABSENT_ERROR_CODES or status == 404:
+            return False
+        raise
 
 
 def build_raw_object(thead: list, body: dict) -> bytes:
@@ -343,10 +379,27 @@ def main(argv: Optional[list[str]] = None) -> int:
     bucket = args.bucket or get_required_env("LEVIATHAN_BUCKET")
     aws_region = args.aws_region or get_required_env("AWS_REGION")
 
-    if args.skip_existing and raw_exists(bucket, key, aws_region):
-        logger.info("bursa %s capture for %s already landed -- skipping (use --force to re-fetch)",
-                    code, as_of)
-        return 0
+    if args.skip_existing:
+        # THE ONLY raw_exists CALL SITE ON THIS LEG, and the capture path below leads straight to
+        # the PUT with no second fence in front of it. An existence probe that cannot answer must
+        # be read neither as "absent" (which is how the old swallow-all raw_exists destroyed
+        # captures) nor as "already landed" (a silent skip). It fails the run instead: one ASCII
+        # line, exit 1, nothing written.
+        try:
+            already_landed = raw_exists(bucket, key, aws_region)
+        except Exception as exc:  # noqa: BLE001 -- raw_exists fails CLOSED and may raise here
+            logger.error(
+                "FAILED bursa %s %s: the raw existence probe could not answer (%s: %s) -- nothing "
+                "fetched, NOTHING WRITTEN. Refusing to capture: an unanswerable probe must never "
+                "be read as 'absent' and PUT over a landed capture on a leg whose API serves "
+                "current prices only and has no date parameter",
+                code, as_of, type(exc).__name__, exc,
+            )
+            return 1
+        if already_landed:
+            logger.info("bursa %s capture for %s already landed -- skipping (use --force to "
+                        "re-fetch)", code, as_of)
+            return 0
 
     bf = _browser()
     try:

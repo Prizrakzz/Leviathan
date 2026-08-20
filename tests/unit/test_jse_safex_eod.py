@@ -359,3 +359,109 @@ class TestProducer:
         from leviathan.common.constants import MIN_RAW_FILE_SIZES
 
         assert MIN_RAW_FILE_SIZES["jse_safex"] == 40_000
+
+
+# ---------------------------------------------------------------------------
+# The existence probe FAILS CLOSED -- the one path that could destroy a capture
+# ---------------------------------------------------------------------------
+class TestRawExistsFailsClosed:
+    """``raw_exists`` gates the only PUT on this leg's raw data plane, and the capture path leads
+    straight to it with no second fence in between. The estate house idiom answers False on ANY
+    head failure, which turns a throttle or an expired credential into "absent" and therefore into
+    an overwrite -- on the leg whose own docstring calls the absence of history THE MOST
+    CONSEQUENTIAL FACT IN W1a: the portal object is overwritten every single day and web.archive.org
+    holds exactly ONE capture of it, ever. ``fetch_bursa_fcpo.py`` names this producer as that
+    precedent ("gate 8"), so this is the EEX argument at full strength."""
+
+    @staticmethod
+    def _s3(monkeypatch, exc):
+        class _S3:
+            def head_object(self, **_kw):
+                if exc is not None:
+                    raise exc
+                return {"ContentLength": 1}
+
+        import leviathan.storage.s3 as S3MOD
+        monkeypatch.setattr(S3MOD, "get_thread_local_s3_client", lambda region: _S3())
+
+    @staticmethod
+    def _client_error(code, status):
+        from botocore.exceptions import ClientError
+        return ClientError(
+            {"Error": {"Code": code, "Message": "x"},
+             "ResponseMetadata": {"HTTPStatusCode": status}},
+            "HeadObject",
+        )
+
+    _AS_OF = "2026-08-20"
+    ARGV = ["--as-of", _AS_OF, "--bucket", "test-bucket", "--aws-region", "us-east-1"]
+
+    def test_a_landed_object_is_reported_present(self, monkeypatch):
+        self._s3(monkeypatch, None)
+        assert FETCH.raw_exists("b", "k", "us-east-1") is True
+
+    @pytest.mark.parametrize("code,status", [("404", 404), ("NotFound", 404), ("NoSuchKey", 404)])
+    def test_only_a_genuine_404_means_absent(self, monkeypatch, code, status):
+        """HeadObject has no body, so botocore spells the missing-key case '404'/'NotFound' rather
+        than the 'NoSuchKey' a GetObject would raise. All three are the same fact."""
+        self._s3(monkeypatch, self._client_error(code, status))
+        assert FETCH.raw_exists("b", "k", "us-east-1") is False
+
+    @pytest.mark.parametrize("code,status", [
+        ("SlowDown", 503),
+        ("InternalError", 500),
+        ("ExpiredToken", 400),
+        ("AccessDenied", 403),
+        ("RequestTimeout", 400),
+    ])
+    def test_every_other_head_failure_RAISES_rather_than_fabricating_absence(
+            self, monkeypatch, code, status):
+        """Fail closed. Failing the run costs a re-fire; treating a throttled head as 'absent'
+        costs a day that the portal has already overwritten."""
+        from botocore.exceptions import ClientError
+        self._s3(monkeypatch, self._client_error(code, status))
+        with pytest.raises(ClientError):
+            FETCH.raw_exists("b", "k", "us-east-1")
+
+    @staticmethod
+    def _drive(monkeypatch, head_exc, *extra):
+        """``main()`` through the REAL raw_exists over a stubbed head_object.
+        Returns ``(exit_code, [landed keys], fetch_count)``."""
+        landed: list[str] = []
+        fetched: list[int] = []
+        TestRawExistsFailsClosed._s3(monkeypatch, head_exc)
+        monkeypatch.setattr(FETCH, "fetch_workbook",
+                            lambda **k: (fetched.append(1) or (FETCH._OLE_MAGIC + b"x" * 64)))
+        monkeypatch.setattr(FETCH, "land_bytes",
+                            lambda bucket, key, data, **kw: landed.append(key))
+        rc = FETCH.main([*TestRawExistsFailsClosed.ARGV, *extra])
+        return rc, landed, len(fetched)
+
+    def test_a_transient_head_failure_never_reaches_the_PUT(self, monkeypatch):
+        """End to end through ``main()``: the probe throttles, so the producer must land NOTHING,
+        never touch the portal, and exit 1 -- NOT the exit 0 of the 'already landed' skip, which
+        is the other way an unanswerable probe could silently swallow a day."""
+        rc, landed, fetches = self._drive(monkeypatch, self._client_error("SlowDown", 503))
+        assert rc == 1
+        assert landed == [], "a throttled head must never be read as 'absent' and PUT over"
+        assert fetches == 0, "the run is refused before the portal is even requested"
+
+    def test_the_same_drive_lands_when_the_head_answers_404(self, monkeypatch):
+        """The positive control, so the test above cannot pass vacuously."""
+        rc, landed, fetches = self._drive(monkeypatch, self._client_error("404", 404))
+        assert rc == 0
+        assert landed == [raw_jse_safex_key(self._AS_OF)] and fetches == 1
+
+    def test_an_already_landed_day_still_short_circuits(self, monkeypatch):
+        """The skip path is unchanged: a head that ANSWERS 'present' skips without an HTTP call."""
+        rc, landed, fetches = self._drive(monkeypatch, None)
+        assert rc == 0 and landed == [] and fetches == 0
+
+    def test_force_bypasses_the_probe_entirely(self, monkeypatch):
+        """``--force`` short-circuits before raw_exists is called at all, so an operator asking for
+        an overwrite still gets one even while S3 is throttling HEADs. Pinned so the narrowing is
+        never mistaken for a lock on the repair path."""
+        rc, landed, fetches = self._drive(monkeypatch, self._client_error("SlowDown", 503),
+                                          "--force")
+        assert rc == 0
+        assert landed == [raw_jse_safex_key(self._AS_OF)] and fetches == 1

@@ -47,6 +47,41 @@ HISTORY IS A ONE-SHOT, AND IT IS CHEAP TO RESUME
 is deterministic, so a landed pair is skipped with a HEAD and no download at all: re-running the
 whole 2006-2026 walk costs only the pairs that have not landed.
 
+THE EXISTENCE PROBE FAILS CLOSED, AND THIS PRODUCER HAS TWO DIFFERENT VERDICTS (2026-08-20)
+--------------------------------------------------------------------------------------------
+``raw_exists`` gates every PUT on this leg's raw data plane and it is called from BOTH mode
+loops. The estate house idiom (``except Exception: return False``) answers "absent" to a throttle,
+a 5xx, an expired token or a denied head, so a transient ``HeadObject`` failure makes the producer
+believe a landed capture is missing and PUT over it. The recoverability answer differs by mode, and
+both are recorded here rather than averaged into one:
+
+  * ``--mode daily`` IS THE EEX ARGUMENT AT FULL STRENGTH. ``/quote/delay/futureData?variety={v}``
+    takes NO date parameter -- it serves the CURRENT state of the board, which is exactly why the
+    raw key is the CAPTURE date and the session date has to be read out of the payload's own
+    ``tradeDate`` by the transform. There is no way to ask this endpoint for yesterday. A capture
+    overwritten by a later render of the board is gone, and (worse, given the NOT_READY guard
+    above) the later render may be the night session's T+1-dated all-zero board.
+  * ``--mode history`` IS THE WEAKER CASE, and it is said honestly: the vendor workbooks are
+    deterministic per ``(variety, year)`` and re-downloadable, so those bytes ARE re-derivable.
+    What the swallow costs there is the resume contract in the paragraph above -- ~105 HEADs whose
+    throttling silently turns "costs only what has not landed" into a full re-download walk behind
+    a WAF that has to be re-cleared with Chromium each time.
+
+So only a genuine 404 means absent; any other ``HeadObject`` error takes that UNIT out of the run
+as a recorded failure and the run exits 1 -- never a silent skip, and never the "nothing to fetch"
+exit 0 below (a run whose probes all threw proved nothing was landed, so reporting it as complete
+would be the worst of the three outcomes). Exit 1 is Class D EXIT in
+``infra/terraform/modules/batch/main.tf`` ``local.producer_retry_rules``, terminal after ONE
+attempt -- no retry storm against a WAF-fronted venue.
+
+**PINNED, because it changes who this fix protects:** ``--force`` sets ``skip_existing=False`` and
+the call sites read ``if args.skip_existing and raw_exists(...)``, so under ``--force`` the probe is
+NEVER CALLED -- Python short-circuits before it. The always-on lane
+(``cursor/always_on/docker-compose.yml``, ``cursor/always_on/run_once_windows.py``) fires
+``--mode daily --force`` and therefore never touches this path at all. The fix binds the
+NON-force runs: the Batch/browser-runner submissions in ``cursor/DCE_BURSA_DAILY_ARM_PLAN.md`` and
+every ``--mode history`` walk, all of which rely on the probe.
+
 S3 LAYOUT
 ---------
     raw/production/source=dce/variety={v}/as_of_date={YYYY-MM-DD}/futureData.json
@@ -129,6 +164,10 @@ EXIT_NOT_READY = 5
 # as a "workbook" the transform then cannot open (the JSE OLE-magic precedent).
 _ZIP_MAGIC = b"PK\x03\x04"
 
+# The only S3 error codes that mean "this key is genuinely not there". Everything else raises --
+# see raw_exists(). Mirrors fetch_eex_freight._ABSENT_ERROR_CODES.
+_ABSENT_ERROR_CODES = frozenset({"404", "NotFound", "NoSuchKey"})
+
 # Politeness between downloads. The history walk is (5 varieties x ~21 years) = ~105 downloads of
 # ~200 KB against a venue that already answers 412 to anything that does not look like a browser.
 _DEFAULT_SLEEP_SECONDS = 1.5
@@ -175,12 +214,57 @@ def land_bytes(bucket: str, key: str, data: bytes, *, source_url: str, region: s
 
 
 def raw_exists(bucket: str, key: str, region: str) -> bool:
+    """True when the object is already landed. **Only a genuine 404 means "absent".**
+
+    THIS DIVERGES FROM THE ESTATE HOUSE IDIOM ON PURPOSE -- see the module docstring's two verdicts.
+    ``except Exception: return False`` turns a throttle, a 5xx or an expired credential into
+    "nothing is landed", which on ``--mode daily`` is a licence to PUT over a capture the venue
+    cannot serve twice (the endpoint has no date parameter; it answers with the CURRENT board), and
+    on ``--mode history`` silently voids the walk's resume contract.
+
+    The 403-instead-of-404 trap does NOT apply on this leg: ``batch_job_role`` carries
+    ``s3:ListBucket`` on the bucket (infra/terraform/modules/iam/main.tf, sid
+    ``ListDataLakeBucket``), so a HeadObject against a key that does not exist answers 404 rather
+    than AccessDenied -- the narrowing cannot brick a first-ever capture.
+    """
+    from botocore.exceptions import ClientError
     from leviathan.storage.s3 import get_thread_local_s3_client
+
     try:
         get_thread_local_s3_client(region).head_object(Bucket=bucket, Key=key)
         return True
-    except Exception:  # noqa: BLE001 -- any head failure means "treat as absent"
-        return False
+    except ClientError as exc:
+        error = exc.response.get("Error") or {}
+        code = str(error.get("Code") or "")
+        status = (exc.response.get("ResponseMetadata") or {}).get("HTTPStatusCode")
+        # HeadObject has no body, so botocore reports the missing-key case as "404"/"NotFound"
+        # rather than the "NoSuchKey" a GetObject would raise. Accept all three spellings.
+        if code in _ABSENT_ERROR_CODES or status == 404:
+            return False
+        raise
+
+
+def probe_landed(bucket: str, key: str, region: str, *, unit: str,
+                 failures: list[str]) -> Optional[bool]:
+    """``True`` already landed, ``False`` owed, **``None`` the probe could not answer**.
+
+    The three-state answer is the whole point, and it is what both call sites below need:
+    ``raw_exists`` now FAILS CLOSED, and an unanswerable probe must be read neither as "absent"
+    (which is how the old swallow-all idiom destroyed captures -- the pending list leads straight
+    to a fetch and a PUT with no second fence in front of it) nor as "already landed" (a silent
+    skip). ``None`` means the unit is taken OUT of the run entirely: it is not fetched, nothing is
+    written for it, its reason is recorded in *failures*, and ``main`` exits 1.
+    """
+    try:
+        return raw_exists(bucket, key, region)
+    except Exception as exc:  # noqa: BLE001 -- raw_exists fails CLOSED and may raise here
+        logger.error(
+            "dce %s: the raw existence probe could not answer (%s: %s) -- unit SKIPPED and the run "
+            "marked failed. Refusing to capture: an unanswerable probe must never be read as "
+            "'absent' and PUT over a landed capture", unit, type(exc).__name__, exc,
+        )
+        failures.append(f"{unit}: existence probe {type(exc).__name__}")
+        return None
 
 
 def resolve_varieties(selected: Optional[list[str]]) -> list[str]:
@@ -333,11 +417,22 @@ def main(argv: Optional[list[str]] = None) -> int:
     # pay for a Chromium start, and a resumed history walk should only open a session if it has
     # something to download.
     skipped = 0
+    # Units whose existence probe could not answer. NOT fetched, NOT written, and NOT allowed to
+    # reach the "nothing to fetch" exit 0 below -- see probe_landed() and the module docstring.
+    probe_failures: list[str] = []
+    # NOTE --force sets skip_existing=False, so `and` short-circuits and raw_exists is never
+    # called on a forced run at all. Pinned in the module docstring: this fix binds the non-force
+    # invocations (the Batch submissions and every history walk), not the always-on --force lane.
     if args.mode == "daily":
         pending_daily: list[tuple[str, str]] = []
         for variety in varieties:
             key = raw_dce_daily_key(variety, as_of)
-            if args.skip_existing and raw_exists(bucket, key, aws_region):
+            landed_already = (probe_landed(bucket, key, aws_region, unit=variety,
+                                           failures=probe_failures)
+                              if args.skip_existing else False)
+            if landed_already is None:
+                continue                       # unanswerable -- taken out, never queued for a PUT
+            if landed_already:
                 skipped += 1
                 continue
             pending_daily.append((variety, key))
@@ -347,16 +442,29 @@ def main(argv: Optional[list[str]] = None) -> int:
         for variety in varieties:
             for year in range(args.year_start, year_end + 1):
                 key = raw_dce_history_key(variety, year)
-                if args.skip_existing and raw_exists(bucket, key, aws_region):
+                landed_already = (probe_landed(bucket, key, aws_region, unit=f"{variety}/{year}",
+                                               failures=probe_failures)
+                                  if args.skip_existing else False)
+                if landed_already is None:
+                    continue                   # unanswerable -- taken out, never queued for a PUT
+                if landed_already:
                     skipped += 1
                     continue
                 pending_history.append((variety, year, key))
         selected = len(varieties) * (year_end - args.year_start + 1)
         pending = len(pending_history)
 
-    logger.info("DCE %s: %d unit(s) selected, %d already landed, %d to fetch",
-                args.mode, selected, skipped, pending)
+    logger.info("DCE %s: %d unit(s) selected, %d already landed, %d to fetch, %d unprobeable",
+                args.mode, selected, skipped, pending, len(probe_failures))
     if not pending:
+        if probe_failures:
+            # NOT the "nothing to fetch" path. Nothing was PROVEN landed for these units, so exit 0
+            # here would report a run that wrote nothing and could not even say why as a clean one
+            # -- the exact fall-through the euronext fix found tonight.
+            logger.error("DCE %s: nothing could be captured -- %d unit(s) failed their existence "
+                         "probe: %s", args.mode, len(probe_failures),
+                         ", ".join(probe_failures[:20]))
+            return 1
         logger.info("nothing to fetch -- every selected unit is already landed")
         return 0
 
@@ -378,6 +486,11 @@ def main(argv: Optional[list[str]] = None) -> int:
     except NavigationFailed as exc:
         # NOT rc 7. The venue was never reached, so this run answered nothing about the challenge.
         return navigation_failed_exit("dce", exc)
+
+    # The unprobeable units are failures of THIS run and are folded in BEFORE the exit decision, so
+    # they take precedence over the NOT_READY branch: a run that could not read S3 must exit 1, not
+    # the retryable 5, whatever the boards were doing.
+    failed = list(failed) + probe_failures
 
     logger.info("DCE %s done: landed=%d skipped_existing=%d not_ready=%d failed=%d",
                 args.mode, landed, skipped, len(not_ready), len(failed))

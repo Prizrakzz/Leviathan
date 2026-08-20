@@ -626,3 +626,148 @@ class TestIdempotentSubmit:
         b.list_jobs = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("list_jobs down"))
         c.batch = b
         assert F.find_submitted_job(c, self._art(), "ohlcv-1d") is None
+
+
+# ---------------------------------------------------------------------------
+# The existence probe FAILS CLOSED -- and here the argument is MONEY
+# ---------------------------------------------------------------------------
+class TestRawExistsFailsClosed:
+    """``raw_exists`` is the only thing standing between a re-run and a re-SUBMIT.
+
+    THE PAYLOAD IS RE-DERIVABLE -- Databento is a vendor, not a rolling window, and a done job
+    re-downloads free for 30 days -- so this is NOT the EEX unrecoverability argument. The argument
+    that bites here is that A FALSE "ABSENT" IS A PURCHASE: the statement after the probe is
+    ``submit_unit``, a billable batch job, so a throttled HeadObject does not merely overwrite a
+    good payload, it buys it again OUTSIDE the ``--cost-only`` pre-buy gate. IFUS is $34.28 and
+    IFEU $6.18 against a $125 credit pool and a $45.00 recommended buy. An S3 hiccup must never be
+    able to spend money."""
+
+    @staticmethod
+    def _client_error(code, status):
+        from botocore.exceptions import ClientError
+        return ClientError(
+            {"Error": {"Code": code, "Message": "x"},
+             "ResponseMetadata": {"HTTPStatusCode": status}},
+            "HeadObject",
+        )
+
+    @staticmethod
+    def _s3(monkeypatch, raiser):
+        """Point ``raw_exists`` at a head_object driven by ``raiser(key)`` -> exception or None."""
+        class _S3:
+            def head_object(self, **kw):
+                exc = raiser(kw["Key"])
+                if exc is not None:
+                    raise exc
+                return {"ContentLength": 1}
+
+        import leviathan.storage.s3 as S3MOD
+        monkeypatch.setattr(S3MOD, "get_thread_local_s3_client", lambda region: _S3())
+
+    @staticmethod
+    def _expected():
+        """``(symbology_key, ohlcv_key, statistics_key)`` for the ZC/2016 unit this class drives."""
+        ds = "glbx_mdp3"
+        return (
+            raw_databento_key(ds, "ZC", 2016, F.symbology_filename("ZC", 2016)),
+            raw_databento_key(ds, "ZC", 2016, F.payload_filename("ohlcv-1d", "ZC", 2016)),
+            raw_databento_key(ds, "ZC", 2016, F.payload_filename("statistics", "ZC", 2016)),
+        )
+
+    def test_a_landed_object_is_reported_present(self, monkeypatch):
+        self._s3(monkeypatch, lambda _key: None)
+        assert F.raw_exists("b", "k", "us-east-1") is True
+
+    @pytest.mark.parametrize("code,status", [("404", 404), ("NotFound", 404), ("NoSuchKey", 404)])
+    def test_only_a_genuine_404_means_absent(self, monkeypatch, code, status):
+        """HeadObject has no body, so botocore spells the missing-key case '404'/'NotFound' rather
+        than the 'NoSuchKey' a GetObject would raise. All three are the same fact."""
+        self._s3(monkeypatch, lambda _key: self._client_error(code, status))
+        assert F.raw_exists("b", "k", "us-east-1") is False
+
+    @pytest.mark.parametrize("code,status", [
+        ("SlowDown", 503),
+        ("InternalError", 500),
+        ("ExpiredToken", 400),
+        ("AccessDenied", 403),
+        ("RequestTimeout", 400),
+    ])
+    def test_every_other_head_failure_RAISES_rather_than_fabricating_absence(
+            self, monkeypatch, code, status):
+        """Fail closed. Failing the unit costs a re-fire; reading a throttled head as 'absent'
+        costs a re-buy that no pre-buy gate ever saw."""
+        from botocore.exceptions import ClientError
+        self._s3(monkeypatch, lambda _key: self._client_error(code, status))
+        with pytest.raises(ClientError):
+            F.raw_exists("b", "k", "us-east-1")
+
+    @staticmethod
+    def _drive(monkeypatch, tmp_path, raiser, *extra):
+        """``main()`` for ONE unit (ZC/2016) through the REAL raw_exists over a stubbed head_object.
+        Returns ``(exit_code, [landed keys], [submitted schemas])``."""
+        landed: list[str] = []
+        submitted: list[str] = []
+        TestRawExistsFailsClosed._s3(monkeypatch, raiser)
+
+        art = {"dataset": "GLBX.MDP3", "root": "ZC", "year": 2016,
+               "outright_symbols": ["ZCH6", "ZCZ6"], "dropped_count": 7,
+               "window": {"start": "2016-01-01", "end_exclusive": "2017-01-01"}}
+
+        def _download(client, job_id, out_dir, **kw):
+            path = tmp_path / f"{job_id}.dbn.zst"
+            path.write_bytes(b"\x28\xb5\x2f\xfd" + b"x" * 512)
+            return [str(path)]
+
+        monkeypatch.setattr(F, "load_env", lambda *a, **k: None)
+        monkeypatch.setattr(F, "load_api_key", lambda *a, **k: "not-a-real-key")
+        monkeypatch.setattr(F, "make_client", lambda key: object())
+        monkeypatch.setattr(F, "resolve_outrights", lambda client, **kw: dict(art))
+        monkeypatch.setattr(F, "land_bytes",
+                            lambda bucket, key, data, **kw: landed.append(key))
+        monkeypatch.setattr(F, "submit_unit",
+                            lambda client, artifact, schema: (submitted.append(schema)
+                                                              or {"id": f"job-{schema}"}))
+        monkeypatch.setattr(F, "wait_and_download", _download)
+        rc = F.main(["--mode", "backfill", "--root", "ZC", "--year", "2016",
+                     "--bucket", "test-bucket", "--aws-region", "us-east-1",
+                     "--download-dir", str(tmp_path), *extra])
+        return rc, landed, submitted
+
+    def test_a_transient_head_failure_never_reaches_the_SUBMIT(self, monkeypatch, tmp_path):
+        """THE ONE THAT MATTERS. The probe throttles, so the unit must fail LOUDLY (exit 1) with
+        NOTHING submitted and no payload written. Under the old idiom this same head failure bought
+        the payload again and overwrote the good one with it."""
+        sym_key, ohlcv_key, stats_key = self._expected()
+        rc, landed, submitted = self._drive(
+            monkeypatch, tmp_path,
+            lambda key: (None if key == sym_key else self._client_error("SlowDown", 503)))
+        assert rc == 1
+        assert submitted == [], "a throttled HeadObject must never become a billable re-buy"
+        assert ohlcv_key not in landed and stats_key not in landed
+
+    def test_the_same_drive_buys_and_lands_when_the_head_answers_404(self, monkeypatch, tmp_path):
+        """The positive control, so the test above cannot pass vacuously: both GLBX schemas are
+        submitted and landed when the probe can actually answer."""
+        sym_key, ohlcv_key, stats_key = self._expected()
+        rc, landed, submitted = self._drive(monkeypatch, tmp_path,
+                                            lambda _key: self._client_error("404", 404))
+        assert rc == 0
+        assert submitted == ["ohlcv-1d", "statistics"]
+        assert landed == [sym_key, ohlcv_key, stats_key]
+
+    def test_an_already_landed_unit_still_short_circuits_without_buying(self, monkeypatch,
+                                                                        tmp_path):
+        """The skip path is unchanged and is the whole point of the probe: a head that ANSWERS
+        'present' spends nothing."""
+        sym_key, _ohlcv_key, _stats_key = self._expected()
+        rc, landed, submitted = self._drive(monkeypatch, tmp_path, lambda _key: None)
+        assert rc == 0 and submitted == []
+        assert landed == [sym_key], "only the symbology artifact, which is re-derived every run"
+
+    def test_force_overwrite_bypasses_the_probe_entirely(self, monkeypatch, tmp_path):
+        """``--force-overwrite`` short-circuits before raw_exists is called, so a deliberate repair
+        still works while S3 throttles HEADs."""
+        rc, _landed, submitted = self._drive(monkeypatch, tmp_path,
+                                             lambda _key: self._client_error("SlowDown", 503),
+                                             "--force-overwrite")
+        assert rc == 0 and submitted == ["ohlcv-1d", "statistics"]

@@ -58,6 +58,38 @@ S3 LAYOUT
 Under ``history/`` so the one-shot and the daily captures never collide in a LIST, and keyed on the
 snapshot timestamp so a re-run is idempotent rather than duplicative.
 
+THE EXISTENCE PROBE FAILS CLOSED -- AND THIS IS THE WEAKEST OF THE EIGHT VERDICTS (2026-08-20)
+-----------------------------------------------------------------------------------------------
+``raw_exists`` gates the only PUT here, and the estate house idiom
+(``except Exception: return False``) answers "absent" to a throttle, a 5xx, an expired token or a
+denied head -- so a transient ``HeadObject`` failure makes the producer believe a landed object is
+missing and PUT over it.
+
+**Are these bytes re-derivable? YES, genuinely -- so this is NOT the EEX argument and it is not the
+``fetch_cepea_daily.py`` argument either, and pretending otherwise would be dishonest.** An archive
+is immutable by construction, the capture is PINNED from the CDX index, and :func:`wrong_capture`
+refuses any body whose SERVED capture is not the pinned one. Re-fetching ``20170708153249`` returns
+``20170708153249``. Even the raw_meta vintage argument that carried the daily leg is weak here: this
+object's provenance is the WAYBACK CAPTURE INSTANT, which is pinned, verified and written into the
+key -- not the fetch instant, which is the only irreproducible field in its ``raw_meta``.
+
+It is narrowed anyway, on three grounds that do not need unrecoverability:
+
+  1. THE COST OF FAILING CLOSED IS ZERO ON THIS LEG. It is a hand-run ONE-SHOT of two GETs. Exit 1
+     costs a re-run and nothing else -- there is no schedule to burn, no window to miss and no
+     cadence to keep. Free insurance is worth buying even against an unlikely loss.
+  2. NOTHING COMPARES THE RE-FETCHED BYTES TO THE LANDED ONES. The OLE magic sniff and the 50 KB
+     ``MIN_RAW_FILE_SIZES['cepea_wayback']`` floor both judge the NEW body in isolation; there is
+     no byte comparison and no ``_divergence/`` record on this leg (``fetch_eex_freight.py`` has
+     both). So a re-landing is unconditional, and whatever Wayback hands back that day wins.
+  3. ``--force`` MUST MEAN SOMETHING. Under the swallow idiom a non-force run silently becomes a
+     forced one whenever S3 throttles, which makes the flag's guarantee a coin flip.
+
+So only a genuine 404 means absent; any other ``HeadObject`` error takes that INDICATOR out as a
+recorded failure and the run exits 1. Exit 1 is Class D EXIT in
+``infra/terraform/modules/batch/main.tf`` ``local.producer_retry_rules``, terminal after one
+attempt -- archive.org is a library and must never see a retry storm.
+
 Usage
 -----
     python jobs/ingest/fetch_cepea_wayback_history.py --dry-run
@@ -114,6 +146,10 @@ _RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
 # Legacy OLE compound-document magic. Wayback serves an HTML "not archived" page with HTTP 200 when
 # a capture is missing, so the magic check is the real presence test.
 _OLE_MAGIC = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
+
+# The only S3 error codes that mean "this key is genuinely not there". Everything else raises --
+# see raw_exists(). Mirrors fetch_eex_freight._ABSENT_ERROR_CODES.
+_ABSENT_ERROR_CODES = frozenset({"404", "NotFound", "NoSuchKey"})
 
 
 def snapshot_url(indicator_id: int) -> str:
@@ -208,12 +244,35 @@ def land_bytes(bucket: str, key: str, data: bytes, *, source_url: str, region: s
 
 
 def raw_exists(bucket: str, key: str, region: str) -> bool:
+    """True when the object is already landed. **Only a genuine 404 means "absent".**
+
+    THIS DIVERGES FROM THE ESTATE HOUSE IDIOM ON PURPOSE -- see the module docstring's verdict, and
+    note that it is the WEAKEST of the eight: an archive is immutable, the capture is pinned and
+    :func:`wrong_capture` verifies what was served, so these bytes really are re-derivable. What the
+    narrowing buys is that ``--force`` keeps meaning something (the swallow silently forces a
+    non-force run on any throttle) on a leg where nothing compares the re-fetched bytes with the
+    landed ones -- and on a two-GET one-shot, failing closed costs a re-run and nothing at all.
+
+    The 403-instead-of-404 trap does NOT apply on this leg: ``batch_job_role`` carries
+    ``s3:ListBucket`` on the bucket (infra/terraform/modules/iam/main.tf, sid
+    ``ListDataLakeBucket``), so a HeadObject against a key that does not exist answers 404 rather
+    than AccessDenied -- the narrowing cannot brick a first-ever capture.
+    """
+    from botocore.exceptions import ClientError
     from leviathan.storage.s3 import get_thread_local_s3_client
+
     try:
         get_thread_local_s3_client(region).head_object(Bucket=bucket, Key=key)
         return True
-    except Exception:  # noqa: BLE001
-        return False
+    except ClientError as exc:
+        error = exc.response.get("Error") or {}
+        code = str(error.get("Code") or "")
+        status = (exc.response.get("ResponseMetadata") or {}).get("HTTPStatusCode")
+        # HeadObject has no body, so botocore reports the missing-key case as "404"/"NotFound"
+        # rather than the "NoSuchKey" a GetObject would raise. Accept all three spellings.
+        if code in _ABSENT_ERROR_CODES or status == 404:
+            return False
+        raise
 
 
 def main(argv: Optional[list[str]] = None) -> int:
@@ -255,9 +314,27 @@ def main(argv: Optional[list[str]] = None) -> int:
     failures: list[str] = []
     for i, ind in enumerate(indicators):
         key = raw_cepea_wayback_key(ind, CEPEA_SNAPSHOTS[ind]["ts"])
-        if not args.force and raw_exists(bucket, key, aws_region):
-            skipped += 1
-            continue
+        if not args.force:
+            # THE ONLY raw_exists CALL SITE ON THIS LEG, and it sits ABOVE the try below, so the
+            # per-indicator guard cannot catch it -- hence its own. An unanswerable probe is read
+            # neither as "absent" (a silent overwrite) nor as "already landed" (a silent skip): the
+            # INDICATOR is taken out as a RECORDED FAILURE, nothing is fetched for it, the other
+            # indicator still runs, and the run exits 1 below. There is no exit-0 fall-through to
+            # worry about here -- `if failures: return 1` is the last word.
+            try:
+                already_landed = raw_exists(bucket, key, aws_region)
+            except Exception as exc:  # noqa: BLE001 -- raw_exists fails CLOSED and may raise here
+                logger.error(
+                    "CEPEA wayback indicator %s: the raw existence probe could not answer (%s: %s) "
+                    "-- indicator SKIPPED and the run marked failed. Nothing fetched, NOTHING "
+                    "WRITTEN: an unanswerable probe must never be read as 'absent' and PUT over a "
+                    "landed capture", ind, type(exc).__name__, exc,
+                )
+                failures.append(f"{ind}: existence probe {type(exc).__name__}")
+                continue
+            if already_landed:
+                skipped += 1
+                continue
         if i:
             time.sleep(_SLEEP_SECONDS)
         try:

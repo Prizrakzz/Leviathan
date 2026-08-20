@@ -519,3 +519,154 @@ class TestProducer:
         reason it is in ``_lazy_bronze`` -- the pin must not reintroduce a wave-order dependency."""
         task = _load("jobs/batch/futures_eod_task.py", "futures_eod_task_euronext")
         assert task.EURONEXT_PRODUCTS == tuple(T.EURONEXT_PRODUCT_MAP)
+
+
+# ===========================================================================
+# The existence probe FAILS CLOSED -- the one path that could destroy a capture
+# ===========================================================================
+class _StubBrowser:
+    """``leviathan.ingest.browser_fetch``, as far as this producer is concerned.
+
+    Playwright is still never imported -- this is the module boundary ``FETCH._browser()`` returns,
+    stubbed so the S3 call site can be driven end to end through ``main()``. The browser plumbing
+    itself is validated by the first Fargate run, by design."""
+
+    EXIT_CHALLENGE_FAILED = 7
+
+    class ChallengeFailed(Exception):
+        pass
+
+    def __init__(self, html: str):
+        self._html = html
+        self.visited: list[str] = []
+        outer = self
+
+        class _Page:
+            def evaluate(self, _js):
+                return outer._html
+
+        class _Session:
+            def __init__(self, _base, headless=True):
+                self.page = _Page()
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_exc):
+                return False
+
+            def goto_and_settle(self, path, ready_check=None, max_wait_s=None):
+                outer.visited.append(path)
+
+        self.BrowserSession = _Session
+
+
+class TestRawExistsFailsClosed:
+    """``raw_exists`` gates the only PUT on this leg's raw data plane, and unlike the EEX freight
+    leg there is no second fence between it and the write. The estate house idiom answers False on
+    ANY head failure, which turns a throttle or an expired credential into "absent" and therefore
+    into an overwrite -- of a headless-Chromium snapshot of the venue's CURRENT board, on a page
+    that publishes no date and has no history endpoint to re-fetch a past session from."""
+
+    @staticmethod
+    def _s3(monkeypatch, raiser):
+        """Point ``raw_exists`` at a head_object driven by ``raiser(key)`` -> exception or None."""
+        class _S3:
+            def head_object(self, **kw):
+                exc = raiser(kw["Key"])
+                if exc is not None:
+                    raise exc
+                return {"ContentLength": 1}
+
+        import leviathan.storage.s3 as S3MOD
+        monkeypatch.setattr(S3MOD, "get_thread_local_s3_client", lambda region: _S3())
+
+    @staticmethod
+    def _client_error(code, status):
+        from botocore.exceptions import ClientError
+        return ClientError(
+            {"Error": {"Code": code, "Message": "x"},
+             "ResponseMetadata": {"HTTPStatusCode": status}},
+            "HeadObject",
+        )
+
+    ARGV = ["--as-of-date", _AS_OF, "--bucket", "test-bucket", "--aws-region", "us-east-1"]
+
+    def test_a_landed_object_is_reported_present(self, monkeypatch):
+        self._s3(monkeypatch, lambda _key: None)
+        assert FETCH.raw_exists("b", "k", "us-east-1") is True
+
+    @pytest.mark.parametrize("code,status", [("404", 404), ("NotFound", 404), ("NoSuchKey", 404)])
+    def test_only_a_genuine_404_means_absent(self, monkeypatch, code, status):
+        """HeadObject has no body, so botocore spells the missing-key case '404'/'NotFound' rather
+        than the 'NoSuchKey' a GetObject would raise. All three are the same fact."""
+        self._s3(monkeypatch, lambda _key: self._client_error(code, status))
+        assert FETCH.raw_exists("b", "k", "us-east-1") is False
+
+    @pytest.mark.parametrize("code,status", [
+        ("SlowDown", 503),
+        ("InternalError", 500),
+        ("ExpiredToken", 400),
+        ("AccessDenied", 403),
+        ("RequestTimeout", 400),
+    ])
+    def test_every_other_head_failure_RAISES_rather_than_fabricating_absence(
+            self, monkeypatch, code, status):
+        """Fail closed. Failing the product costs a re-fire; treating a throttled head as 'absent'
+        costs a session that this venue cannot serve again."""
+        from botocore.exceptions import ClientError
+        self._s3(monkeypatch, lambda _key: self._client_error(code, status))
+        with pytest.raises(ClientError):
+            FETCH.raw_exists("b", "k", "us-east-1")
+
+    def test_a_transient_head_failure_never_reaches_the_PUT(self, monkeypatch):
+        """End to end through ``main()``: every probe throttles, so the producer must land NOTHING,
+        never launch a browser, and report the run as failed -- NOT as 'all products already
+        landed', which is the exit-0 path the old swallow-all code could not have reached but the
+        naive narrowing would."""
+        written = {}
+        self._s3(monkeypatch, lambda _key: self._client_error("SlowDown", 503))
+        monkeypatch.setattr(FETCH, "land_bytes",
+                            lambda bucket, key, data, **kw: written.__setitem__(key, data))
+        monkeypatch.setattr(FETCH, "_browser", _no_browser)
+
+        assert FETCH.main(self.ARGV) == 1
+        assert written == {}, "a throttled head must never be read as 'absent' and PUT over"
+
+    def test_one_products_unanswerable_probe_never_costs_the_others(self, monkeypatch):
+        """The call site is a loop that decides what is owed before Chromium starts. A head that
+        cannot answer takes THAT product out as a recorded failure -- it is not fetched and not
+        written -- while the products whose probe answered 404 are still captured. The run exits 1
+        so the fire is not read as clean."""
+        written = {}
+        blocked = raw_euronext_key("EBM-DPAR", _AS_OF)
+        self._s3(monkeypatch,
+                 lambda key: (self._client_error("SlowDown", 503) if key == blocked
+                              else self._client_error("404", 404)))
+        monkeypatch.setattr(FETCH, "land_bytes",
+                            lambda bucket, key, data, **kw: written.__setitem__(key, data))
+        stub = _StubBrowser(table_html().decode("utf-8"))
+        monkeypatch.setattr(FETCH, "_browser", lambda: stub)
+
+        assert FETCH.main(self.ARGV) == 1
+        assert blocked not in written, "the unanswerable product must never be captured"
+        assert sorted(written) == [raw_euronext_key(p, _AS_OF)
+                                   for p in ("ECO-DPAR", "EMA-DPAR")]
+        assert FETCH.product_path("EBM-DPAR") not in stub.visited
+
+    def test_the_same_drive_lands_all_three_when_the_head_answers(self, monkeypatch):
+        """The positive control, so the two tests above cannot pass vacuously."""
+        written = {}
+        self._s3(monkeypatch, lambda _key: self._client_error("404", 404))
+        monkeypatch.setattr(FETCH, "land_bytes",
+                            lambda bucket, key, data, **kw: written.__setitem__(key, data))
+        monkeypatch.setattr(FETCH, "_browser",
+                            lambda: _StubBrowser(table_html().decode("utf-8")))
+
+        assert FETCH.main(self.ARGV) == 0
+        assert sorted(written) == [raw_euronext_key(p, _AS_OF)
+                                   for p in ("EBM-DPAR", "ECO-DPAR", "EMA-DPAR")]
+
+
+def _no_browser():
+    raise AssertionError("a run that captured nothing must never launch Chromium")

@@ -79,6 +79,33 @@ a declaration in the log, NOT a failure: a hard-fail on ``served != capture`` wo
 Brazilian holidays a year, which is the trade this wave exists to refuse. ``--on-stale land``
 restores the pure land-and-declare behaviour if the declaration alone is ever wanted.
 
+THE EXISTENCE PROBE FAILS CLOSED (verdict 2026-08-20)
+-----------------------------------------------------
+``raw_exists`` gates the only PUT on this leg's raw data plane, and the estate house idiom
+(``except Exception: return False``) answers "absent" to a throttle, a 5xx, an expired token or a
+denied head -- so a transient S3 failure would make the producer believe a landed capture is
+missing and PUT over it.
+
+**Is what the capture holds re-derivable? NO -- and this is the EEX argument, not a weakened one.**
+The value's own series is published on CEPEA's ``.aspx`` pages, which serve an interactive
+Turnstile challenge to plain ``requests``, to a full Chrome header set and via WebFetch; that route
+is closed BY POLICY and not by capability, permanently (see ``fetch_cepea_wayback_history.py``).
+The ``.php`` widget this producer reads serves the LAST published value only -- no series, no date
+parameter. The only history that exists in the estate is a pair of 2017 Wayback snapshots landed by
+a one-shot, with an accepted ~9-year hole to the daily leg's first run on 2026-07-28 that no
+republisher can fill (IPEADATA swept: 3,585 series, zero CEPEA/ESALQ). So a destroyed daily capture
+cannot be re-fetched from anywhere at any price.
+
+And even where a VALUE happened to be re-derivable, an overwrite is still a PIT event: the raw
+object's ``raw_meta`` vintage -- sha256, size, capture instant, and the D-PR-19 ``served_date`` /
+``served_verdict`` / ``served_lag_business_days`` declaration -- describes THE CAPTURE, not the
+number, and cannot be re-created by a later fetch.
+
+So only a genuine 404 means absent. Any other ``HeadObject`` error takes the WHOLE RUN out (exit 1,
+nothing written) rather than one indicator: the landing decision here is a group decision and the
+per-day silver floor is an EQUALITY, so an unanswerable probe on one indicator must never leave the
+other free to manufacture a 1-row day.
+
 S3 LAYOUT
 ---------
     raw/production/source=cepea/indicator={23|77}/as_of_date={YYYY-MM-DD}/widget.js
@@ -154,6 +181,10 @@ _RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
 # Cloudflare's static UA filter. NOT retryable (retrying a UA block just hammers the origin) and
 # NOT an absence (writing nothing would be silent on a table with no freshness alarm).
 _CHALLENGE_STATUS = 403
+
+# The only S3 error codes that mean "this key is genuinely not there". Everything else raises --
+# see raw_exists(). Mirrors fetch_eex_freight._ABSENT_ERROR_CODES.
+_ABSENT_ERROR_CODES = frozenset({"404", "NotFound", "NoSuchKey"})
 
 
 def cepea_url(indicator_id: int) -> str:
@@ -243,12 +274,34 @@ def land_bytes(bucket: str, key: str, data: bytes, *, source_url: str, region: s
 
 
 def raw_exists(bucket: str, key: str, region: str) -> bool:
+    """True when the object is already landed. **Only a genuine 404 means "absent".**
+
+    THIS DIVERGES FROM THE ESTATE HOUSE IDIOM ON PURPOSE -- see the module docstring's verdict.
+    ``except Exception: return False`` turns a throttle, a 5xx or an expired credential into
+    "nothing is landed", which is a licence to PUT over a capture that no route can re-fetch: the
+    ``.aspx`` series pages are Turnstile-closed by policy, the ``.php`` widget serves the last
+    value only, and the archive one-shot stops in 2017.
+
+    The 403-instead-of-404 trap does NOT apply on this leg: ``batch_job_role`` carries
+    ``s3:ListBucket`` on the bucket (infra/terraform/modules/iam/main.tf, sid
+    ``ListDataLakeBucket``), so a HeadObject against a key that does not exist answers 404 rather
+    than AccessDenied -- the narrowing cannot brick a first-ever capture.
+    """
+    from botocore.exceptions import ClientError
     from leviathan.storage.s3 import get_thread_local_s3_client
+
     try:
         get_thread_local_s3_client(region).head_object(Bucket=bucket, Key=key)
         return True
-    except Exception:  # noqa: BLE001
-        return False
+    except ClientError as exc:
+        error = exc.response.get("Error") or {}
+        code = str(error.get("Code") or "")
+        status = (exc.response.get("ResponseMetadata") or {}).get("HTTPStatusCode")
+        # HeadObject has no body, so botocore reports the missing-key case as "404"/"NotFound"
+        # rather than the "NoSuchKey" a GetObject would raise. Accept all three spellings.
+        if code in _ABSENT_ERROR_CODES or status == 404:
+            return False
+        raise
 
 
 def group_verdict(captures: dict[int, dict], *, expected_session: str,
@@ -375,9 +428,31 @@ def main(argv: Optional[list[str]] = None) -> int:
     fetched = 0
     for ind in indicators:
         key = raw_cepea_widget_key(ind, as_of)
-        if not args.force and raw_exists(bucket, key, aws_region):
-            skipped += 1
-            continue
+        if not args.force:
+            # THE ONLY raw_exists CALL SITE ON THIS LEG, and it sits OUTSIDE the per-indicator try
+            # below. An existence probe that cannot answer must be read neither as "absent" (which
+            # is how the old swallow-all raw_exists destroyed captures -- phase 2 PUTs with no
+            # second fence in front of it) nor as "already landed" (a silent skip).
+            #
+            # It takes the WHOLE RUN out, not this indicator: landing is a GROUP decision because
+            # the per-day silver floor is an EQUALITY (== 2). Recording one indicator as failed and
+            # carrying on would leave group_verdict a single fresh capture, which it would quite
+            # correctly rule `land` -- manufacturing exactly the 1-row day that rule exists to
+            # prevent. Phase 1 has written nothing at this point, so returning here lands NOTHING.
+            try:
+                already_landed = raw_exists(bucket, key, aws_region)
+            except Exception as exc:  # noqa: BLE001 -- raw_exists fails CLOSED and may raise here
+                logger.error(
+                    "CEPEA %s REFUSED: the raw existence probe for indicator %s could not answer "
+                    "(%s: %s) -- NOTHING FETCHED, NOTHING LANDED. An unanswerable probe must never "
+                    "be read as 'absent' and PUT over a landed capture on a leg whose series pages "
+                    "are Turnstile-closed and whose widget serves the last value only",
+                    as_of, ind, type(exc).__name__, exc,
+                )
+                return 1
+            if already_landed:
+                skipped += 1
+                continue
         if fetched:
             time.sleep(max(0.0, args.sleep))
         try:

@@ -44,11 +44,23 @@ land a short table. Without that, a three-of-twelve EBM lands, parses cleanly, a
 COMPLETE curve -- and the per-day silver floor cannot see it either, because a short EBM plus a full
 EMA plus a full ECO still clears it.
 
-IDEMPOTENCE
------------
+IDEMPOTENCE, AND THE PROBE THAT FAILS CLOSED
+--------------------------------------------
 The raw key is deterministic per ``(product, as_of_date)`` and a product whose object already
 exists is skipped WITHOUT a browser navigation (and, when every product is already landed, without
 launching a browser at all). ``--force`` re-fetches.
+
+**VERDICT 2026-08-20 -- this leg takes the EEX fail-closed probe.** ``raw_exists`` gates the only
+PUT on this leg's raw data plane, and the estate house idiom (``except Exception: return False``)
+answers "absent" to a throttle, a 5xx, an expired token or a denied head -- so a transient S3
+failure makes the producer believe a landed capture is missing and overwrite it. The bytes that
+would be destroyed are UNRECOVERABLE: this object is a headless-Chromium snapshot of the venue's
+CURRENT board, the page carries no date of its own (so ``as_of_date`` IS the trade date), the quote
+table exists in no plain-requests response, and there is no history endpoint and no archive route
+to re-fetch a past session from. That is the same argument that gives ``fetch_eex_freight.py`` its
+fail-closed probe, and it holds here. So only a genuine 404 means absent; any other ``HeadObject``
+error takes that product out of the run as a RECORDED FAILURE (exit 1), never as a silent skip and
+never as a licence to write.
 
 THE EXIT-CODE CONTRACT (this run IS the residual S2 probe)
 ----------------------------------------------------------
@@ -99,6 +111,10 @@ EURONEXT_BASE_URL = "https://live.euronext.com"
 _PRODUCT_PATH_FMT = "/en/product/commodities-futures/{product}"
 _SOURCE_LABEL = "euronext"
 _CONTENT_TYPE = "text/html"
+
+# The only S3 error codes that mean "this key is genuinely not there". Everything else raises --
+# see raw_exists(). Mirrors fetch_eex_freight._ABSENT_ERROR_CODES.
+_ABSENT_ERROR_CODES = frozenset({"404", "NotFound", "NoSuchKey"})
 
 # Mirrored from leviathan.ingest.browser_fetch so this module's exit contract is readable without
 # importing playwright. :func:`_browser` binds the two and FAILS if they ever drift -- a producer
@@ -245,12 +261,34 @@ def land_bytes(bucket: str, key: str, data: bytes, *, source_url: str, region: s
 
 
 def raw_exists(bucket: str, key: str, region: str) -> bool:
+    """True when the object is already landed. **Only a genuine 404 means "absent".**
+
+    THIS DIVERGES FROM THE ESTATE HOUSE IDIOM ON PURPOSE -- see the module docstring's verdict.
+    ``except Exception: return False`` turns a throttle, a 5xx or an expired credential into
+    "nothing is landed", which is a licence to PUT over a capture that cannot be re-fetched from
+    anywhere: the venue renders this table client-side, publishes no date in it, and serves no
+    history. Aborting the product is strictly cheaper than destroying its only capture.
+
+    The 403-instead-of-404 trap does NOT apply on this leg: ``batch_job_role`` carries
+    ``s3:ListBucket`` on the bucket (infra/terraform/modules/iam/main.tf, sid
+    ``ListDataLakeBucket``), so a HeadObject against a key that does not exist answers 404 rather
+    than AccessDenied -- the narrowing cannot brick a first-ever capture.
+    """
+    from botocore.exceptions import ClientError
     from leviathan.storage.s3 import get_thread_local_s3_client
+
     try:
         get_thread_local_s3_client(region).head_object(Bucket=bucket, Key=key)
         return True
-    except Exception:  # noqa: BLE001 -- any head failure means "treat as absent"
-        return False
+    except ClientError as exc:
+        error = exc.response.get("Error") or {}
+        code = str(error.get("Code") or "")
+        status = (exc.response.get("ResponseMetadata") or {}).get("HTTPStatusCode")
+        # HeadObject has no body, so botocore reports the missing-key case as "404"/"NotFound"
+        # rather than the "NoSuchKey" a GetObject would raise. Accept all three spellings.
+        if code in _ABSENT_ERROR_CODES or status == 404:
+            return False
+        raise
 
 
 def resolve_products(requested: Optional[list[str]]) -> list[str]:
@@ -320,20 +358,45 @@ def main(argv: Optional[list[str]] = None) -> int:
     # landed and Chromium never has to start.
     todo: list[tuple[str, str]] = []
     skipped_existing = 0
+    failures: list[str] = []
     for product in products:
         key = raw_euronext_key(product, as_of, EURONEXT_TABLE_FILENAME)
-        if args.skip_existing and raw_exists(bucket, key, aws_region):
-            skipped_existing += 1
-            continue
+        if args.skip_existing:
+            try:
+                already_landed = raw_exists(bucket, key, aws_region)
+            except Exception as exc:  # noqa: BLE001 -- raw_exists fails CLOSED and may raise here
+                # THE ONLY raw_exists CALL SITE ON THIS LEG, and it sits outside the per-product
+                # guard below. An existence probe that cannot answer must be read neither as
+                # "absent" (which is how the old swallow-all raw_exists destroyed captures -- the
+                # capture path leads straight to the PUT with no second fence in front of it) nor
+                # as "already landed" (a silent skip). The product is taken out of the run as a
+                # RECORDED FAILURE: nothing is fetched for it, nothing is written, the other
+                # products still run, and the run exits 1 so the fire is not read as clean.
+                logger.error(
+                    "euronext %s %s: the raw existence probe could not answer (%s: %s) -- product "
+                    "SKIPPED and the run marked failed. Refusing to capture: an unanswerable probe "
+                    "must never be read as 'absent' and PUT over a landed capture on a leg with no "
+                    "history endpoint", as_of, product, type(exc).__name__, exc,
+                )
+                failures.append(f"{product}: existence probe {type(exc).__name__}")
+                continue
+            if already_landed:
+                skipped_existing += 1
+                continue
         todo.append((product, key))
     if not todo:
+        if failures:
+            # NOT the "nothing to fetch" path: nothing was PROVEN landed, so exit 0 here would
+            # report a run that wrote nothing and could not even tell why as a clean one.
+            logger.error("euronext %s: nothing could be captured -- failed product(s): %s",
+                         as_of, ", ".join(failures))
+            return 1
         logger.info("euronext %s: all %d product(s) already landed -- nothing to fetch "
                     "(use --force to re-capture)", as_of, skipped_existing)
         return 0
 
     bf = _browser()
     landed = 0
-    failures: list[str] = []
     try:
         # ONE session for the venue, all products inside it. Euronext presents no challenge, so a
         # fresh context per product would buy nothing and cost a browser launch each time.

@@ -619,3 +619,132 @@ class TestHostEndToEnd:
         assert spec.publication_sources == ("bursa",)
         assert spec.implemented and spec.todo == ""
         assert TASK._silver_builder("bursa") is build_bursa_fcpo_silver
+
+
+# ---------------------------------------------------------------------------
+# The existence probe FAILS CLOSED -- and here the verdict is the WEAKER one
+# ---------------------------------------------------------------------------
+class TestRawExistsFailsClosed:
+    """``raw_exists`` gates the only PUT on this leg's raw data plane, and the capture path leads
+    straight to it with no second fence in between.
+
+    THE EEX UNRECOVERABILITY ARGUMENT DOES NOT APPLY HERE and the producer says so: DFSStaticFiles
+    publishes one immutable text file per closed session back to 2015-10-08, so a destroyed capture
+    costs one GET. What the estate house idiom actually costs on this leg is the RESUME CONTRACT --
+    a full backfill is ~2,600 sequential HEADs, precisely the shape that provokes SlowDown, and
+    every throttled head then re-GETs and re-PUTs a day already landed, turning an S3 throttle into
+    a ~2,600-request re-walk at an origin that answers 412 to anything it dislikes."""
+
+    @staticmethod
+    def _s3(monkeypatch, raiser):
+        """Point ``raw_exists`` at a head_object driven by ``raiser(key)`` -> exception or None."""
+        class _S3:
+            def head_object(self, **kw):
+                exc = raiser(kw["Key"])
+                if exc is not None:
+                    raise exc
+                return {"ContentLength": 1}
+
+        import leviathan.storage.s3 as S3MOD
+        monkeypatch.setattr(S3MOD, "get_thread_local_s3_client", lambda region: _S3())
+
+    @staticmethod
+    def _client_error(code, status):
+        from botocore.exceptions import ClientError
+        return ClientError(
+            {"Error": {"Code": code, "Message": "x"},
+             "ResponseMetadata": {"HTTPStatusCode": status}},
+            "HeadObject",
+        )
+
+    _DAYS = ("2026-07-27", "2026-07-28")
+    ARGV = ["--mode", "incremental", "--start", _DAYS[0], "--end", _DAYS[-1],
+            "--sleep", "0", "--bucket", "test-bucket", "--aws-region", "us-east-1"]
+
+    @staticmethod
+    def _session_for(day: str) -> bytes:
+        """A session file wide enough to clear the producer's own ``_MIN_DATA_LINES`` shape sniff
+        (>= 50 pipe-delimited rows) and stamped with ``day``'s header date -- the producer checks
+        the file's own date against the day it asked for, so a fixed fixture would be rejected."""
+        return session_file(date=day, rows=list(_ROWS_2026) * 8)
+
+    def test_a_landed_object_is_reported_present(self, monkeypatch):
+        self._s3(monkeypatch, lambda _key: None)
+        assert FETCH.raw_exists("b", "k", "us-east-1") is True
+
+    @pytest.mark.parametrize("code,status", [("404", 404), ("NotFound", 404), ("NoSuchKey", 404)])
+    def test_only_a_genuine_404_means_absent(self, monkeypatch, code, status):
+        """HeadObject has no body, so botocore spells the missing-key case '404'/'NotFound' rather
+        than the 'NoSuchKey' a GetObject would raise. All three are the same fact."""
+        self._s3(monkeypatch, lambda _key: self._client_error(code, status))
+        assert FETCH.raw_exists("b", "k", "us-east-1") is False
+
+    @pytest.mark.parametrize("code,status", [
+        ("SlowDown", 503),
+        ("InternalError", 500),
+        ("ExpiredToken", 400),
+        ("AccessDenied", 403),
+        ("RequestTimeout", 400),
+    ])
+    def test_every_other_head_failure_RAISES_rather_than_fabricating_absence(
+            self, monkeypatch, code, status):
+        """Fail closed. Note the asymmetry that makes this safe: a 404 from the VENUE is still an
+        absence and still writes nothing, so failing closed on the S3 side cannot manufacture a
+        missing trading day."""
+        from botocore.exceptions import ClientError
+        self._s3(monkeypatch, lambda _key: self._client_error(code, status))
+        with pytest.raises(ClientError):
+            FETCH.raw_exists("b", "k", "us-east-1")
+
+    @staticmethod
+    def _drive(monkeypatch, raiser, *extra):
+        """``main()`` through the REAL raw_exists over a stubbed head_object.
+        Returns ``(exit_code, [landed keys], [fetched days])``."""
+        landed: list[str] = []
+        fetched: list[str] = []
+        TestRawExistsFailsClosed._s3(monkeypatch, raiser)
+        monkeypatch.setattr(
+            FETCH, "fetch_day",
+            lambda day, **k: (fetched.append(day.isoformat())
+                              or TestRawExistsFailsClosed._session_for(day.isoformat())))
+        monkeypatch.setattr(FETCH, "land_bytes",
+                            lambda bucket, key, data, **kw: landed.append(key))
+        monkeypatch.setattr(FETCH.time, "sleep", lambda *_a, **_k: None)
+        rc = FETCH.main([*TestRawExistsFailsClosed.ARGV, *extra])
+        return rc, landed, fetched
+
+    def test_a_transient_head_failure_never_reaches_the_PUT(self, monkeypatch):
+        """End to end through ``main()``: every probe throttles, so the producer must land NOTHING,
+        never touch the venue, and report the run as failed rather than as a clean walk."""
+        rc, landed, fetched = self._drive(monkeypatch,
+                                          lambda _k: self._client_error("SlowDown", 503))
+        assert rc == 1
+        assert landed == [], "a throttled head must never be read as 'absent' and PUT over"
+        assert fetched == [], "a session that cannot be probed is never requested from the venue"
+
+    def test_one_sessions_unanswerable_probe_never_costs_the_others(self, monkeypatch):
+        """A head that cannot answer takes THAT session out as a recorded failure -- not fetched,
+        not written -- while the days whose probe answered 404 are still captured. The run exits 1
+        so the fire is not read as clean."""
+        blocked = raw_czce_key(self._DAYS[0])
+        rc, landed, fetched = self._drive(
+            monkeypatch,
+            lambda key: (self._client_error("SlowDown", 503) if key == blocked
+                         else self._client_error("404", 404)))
+        assert rc == 1
+        assert blocked not in landed, "the unanswerable session must never be captured"
+        assert landed == [raw_czce_key(self._DAYS[1])]
+        assert fetched == [self._DAYS[1]]
+
+    def test_the_same_drive_lands_both_when_the_head_answers_404(self, monkeypatch):
+        """The positive control, so the two tests above cannot pass vacuously."""
+        rc, landed, fetched = self._drive(monkeypatch, lambda _k: self._client_error("404", 404))
+        assert rc == 0
+        assert landed == [raw_czce_key(d) for d in self._DAYS]
+        assert fetched == list(self._DAYS)
+
+    def test_an_already_landed_window_still_short_circuits(self, monkeypatch):
+        """The skip path is unchanged: a head that ANSWERS 'present' skips without a CZCE GET --
+        which is the resume contract the swallow-all idiom silently voided."""
+        rc, landed, fetched = self._drive(monkeypatch, lambda _k: None)
+        assert rc == 0 and landed == [] and fetched == []

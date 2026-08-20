@@ -512,7 +512,8 @@ class TestServedDate:
         assert T.business_days_between("2026-07-29", "2026-07-29") == 0
 
     def test_the_expected_session_is_read_in_brazil_and_rolls_off_the_weekend(self):
-        from datetime import datetime as _dt, timezone as _tz
+        from datetime import datetime as _dt
+        from datetime import timezone as _tz
 
         # The scheduled fire: 22:30Z Wednesday is 19:30 BRT the SAME day.
         assert T.session_for_capture(_dt(2026, 7, 29, 22, 30, tzinfo=_tz.utc)) == "2026-07-29"
@@ -609,7 +610,11 @@ class TestProducerServedDateGate:
 
     @staticmethod
     def _run(monkeypatch, *, served: str, expected: str, on_stale: str = "withhold"):
-        """Drive ``main()`` with S3 and HTTP stubbed. Returns ``(exit_code, [(key, extra), ...])``."""
+        """Drive ``main()`` with S3 and HTTP stubbed. Returns ``(exit_code, [(key, extra), ...])``.
+
+        NOTE ``raw_exists`` is replaced wholesale here, so this harness says nothing about the
+        existence probe itself -- see :class:`TestRawExistsFailsClosed`, which drives the same
+        ``main()`` through the REAL probe over a stubbed ``head_object``."""
         landed: list[tuple[str, dict]] = []
 
         monkeypatch.setattr(FETCH, "raw_exists", lambda *a, **k: False)
@@ -705,3 +710,258 @@ class TestSessionGap:
         conflicts = S.session_calendar_conflicts()
         assert conflicts and "cancels out" in conflicts[0]
         assert S.session_calendar_conflicts("some_independent_b3_series") == []
+
+
+# ---------------------------------------------------------------------------
+# The existence probe FAILS CLOSED -- the one path that could destroy a capture
+# ---------------------------------------------------------------------------
+class TestRawExistsFailsClosed:
+    """``raw_exists`` gates the only PUT on this leg's raw data plane. The estate house idiom
+    answers False on ANY head failure, which turns a throttle or an expired credential into
+    "absent" and therefore into an overwrite. Nothing can re-fetch what that destroys: the .aspx
+    series pages are Turnstile-closed BY POLICY, the .php widget serves the last value only, and
+    the archive one-shot stops in 2017 with an accepted ~9-year hole."""
+
+    @staticmethod
+    def _s3(monkeypatch, exc):
+        class _S3:
+            def head_object(self, **_kw):
+                if exc is not None:
+                    raise exc
+                return {"ContentLength": 1}
+
+        import leviathan.storage.s3 as S3MOD
+        monkeypatch.setattr(S3MOD, "get_thread_local_s3_client", lambda region: _S3())
+
+    @staticmethod
+    def _client_error(code, status):
+        from botocore.exceptions import ClientError
+        return ClientError(
+            {"Error": {"Code": code, "Message": "x"},
+             "ResponseMetadata": {"HTTPStatusCode": status}},
+            "HeadObject",
+        )
+
+    def test_a_landed_object_is_reported_present(self, monkeypatch):
+        self._s3(monkeypatch, None)
+        assert FETCH.raw_exists("b", "k", "us-east-1") is True
+
+    @pytest.mark.parametrize("code,status", [("404", 404), ("NotFound", 404), ("NoSuchKey", 404)])
+    def test_only_a_genuine_404_means_absent(self, monkeypatch, code, status):
+        """HeadObject has no body, so botocore spells the missing-key case '404'/'NotFound' rather
+        than the 'NoSuchKey' a GetObject would raise. All three are the same fact."""
+        self._s3(monkeypatch, self._client_error(code, status))
+        assert FETCH.raw_exists("b", "k", "us-east-1") is False
+
+    @pytest.mark.parametrize("code,status", [
+        ("SlowDown", 503),
+        ("InternalError", 500),
+        ("ExpiredToken", 400),
+        ("AccessDenied", 403),
+        ("RequestTimeout", 400),
+    ])
+    def test_every_other_head_failure_RAISES_rather_than_fabricating_absence(
+            self, monkeypatch, code, status):
+        from botocore.exceptions import ClientError
+        self._s3(monkeypatch, self._client_error(code, status))
+        with pytest.raises(ClientError):
+            FETCH.raw_exists("b", "k", "us-east-1")
+
+    @staticmethod
+    def _drive(monkeypatch, head_exc):
+        """``main()`` through the REAL raw_exists over a stubbed head_object. Returns
+        ``(exit_code, [landed keys], [fetched indicator ids])``."""
+        landed: list[str] = []
+        fetched: list[int] = []
+        TestRawExistsFailsClosed._s3(monkeypatch, head_exc)
+        monkeypatch.setattr(FETCH, "fetch_indicator",
+                            lambda ind, **k: (fetched.append(ind) or
+                                              widget(ind, date="29/07/2026",
+                                                     value="1.782,18" if ind == 23 else "65,22")))
+        monkeypatch.setattr(FETCH, "land_bytes",
+                            lambda bucket, key, data, **kw: landed.append(key))
+        monkeypatch.setattr(FETCH.time, "sleep", lambda *_a, **_k: None)
+        rc = FETCH.main(["--bucket", "b", "--aws-region", "us-east-1", "--sleep", "0",
+                         "--as-of", "2026-07-29", "--expected-session", "2026-07-29"])
+        return rc, landed, fetched
+
+    def test_a_transient_head_failure_never_reaches_the_PUT(self, monkeypatch):
+        """End to end through ``main()``: the head throttles on the FIRST indicator, so the run
+        must fetch nothing, land nothing and exit 1."""
+        rc, landed, fetched = self._drive(monkeypatch, self._client_error("SlowDown", 503))
+        assert rc == 1
+        assert landed == [], "a throttled head must never be read as 'absent' and PUT over"
+        assert fetched == [], "the run is refused before the widget is even requested"
+
+    def test_the_refusal_is_the_WHOLE_GROUP_and_never_a_half_day(self, monkeypatch):
+        """THE ORDERING THAT MATTERS. Indicator 23's probe answers 404 and 23 is fetched FRESH;
+        only then does 77's probe throttle. The per-day silver floor on this leg is an EQUALITY
+        (== 2), so if the unanswerable probe merely dropped 77, group_verdict would see one fresh
+        capture, rule `land` -- quite correctly, on what it was given -- and phase 2 would write
+        exactly the 1-row day the group rule exists to prevent. The abort has to take the run."""
+        blocked = raw_cepea_widget_key(77, "2026-07-29")
+        landed: list[str] = []
+        fetched: list[int] = []
+
+        class _S3:
+            def head_object(self, **kw):
+                if kw["Key"] == blocked:
+                    raise TestRawExistsFailsClosed._client_error("SlowDown", 503)
+                raise TestRawExistsFailsClosed._client_error("404", 404)
+
+        import leviathan.storage.s3 as S3MOD
+        monkeypatch.setattr(S3MOD, "get_thread_local_s3_client", lambda region: _S3())
+        monkeypatch.setattr(FETCH, "fetch_indicator",
+                            lambda ind, **k: (fetched.append(ind) or
+                                              widget(ind, date="29/07/2026",
+                                                     value="1.782,18" if ind == 23 else "65,22")))
+        monkeypatch.setattr(FETCH, "land_bytes",
+                            lambda bucket, key, data, **kw: landed.append(key))
+        monkeypatch.setattr(FETCH.time, "sleep", lambda *_a, **_k: None)
+
+        rc = FETCH.main(["--bucket", "b", "--aws-region", "us-east-1", "--sleep", "0",
+                         "--as-of", "2026-07-29", "--expected-session", "2026-07-29"])
+        assert rc == 1
+        assert fetched == [23], "the abort must land mid-loop, AFTER a fresh capture was taken"
+        assert landed == [], "one indicator's unanswerable probe must never leave the other to land"
+
+    def test_the_same_drive_lands_both_when_the_head_answers_404(self, monkeypatch):
+        """The positive control, so the two tests above cannot pass vacuously."""
+        rc, landed, fetched = self._drive(monkeypatch, self._client_error("404", 404))
+        assert rc == 0
+        assert sorted(landed) == sorted(raw_cepea_widget_key(i, "2026-07-29") for i in (23, 77))
+        assert fetched == [23, 77]
+
+    def test_an_already_landed_pair_still_short_circuits(self, monkeypatch):
+        """The skip path is unchanged: a head that ANSWERS 'present' still skips without fetching."""
+        rc, landed, fetched = self._drive(monkeypatch, None)
+        assert rc == 0 and landed == [] and fetched == []
+
+
+# ---------------------------------------------------------------------------
+# The wayback one-shot's existence probe -- the WEAKEST of the eight verdicts
+# ---------------------------------------------------------------------------
+class TestWaybackRawExistsFailsClosed:
+    """``raw_exists`` gates the only PUT on the ARCHIVE leg, and this is the weakest of the eight
+    2026-08-20 verdicts -- the producer's own docstring says so.
+
+    THE BYTES REALLY ARE RE-DERIVABLE HERE: an archive is immutable, the capture is CDX-pinned, and
+    ``wrong_capture`` refuses any body whose SERVED capture is not the pinned one, so re-fetching
+    20170708153249 returns 20170708153249. Even the raw_meta vintage argument that carried the
+    DAILY leg is weak, because this object's provenance is the wayback capture instant -- pinned,
+    verified and written into the key -- not the fetch instant.
+
+    It is narrowed anyway because ``--force`` has to keep meaning something (under the house idiom
+    a non-force run silently becomes a forced one on any throttle), because nothing on this leg
+    compares the re-fetched bytes against the landed ones, and because failing closed on a two-GET
+    hand-run one-shot costs a re-run and nothing else."""
+
+    _PINNED = {23: "20170708153249", 77: "20171027074000"}
+
+    @staticmethod
+    def _s3(monkeypatch, raiser):
+        """Point ``raw_exists`` at a head_object driven by ``raiser(key)`` -> exception or None."""
+        class _S3:
+            def head_object(self, **kw):
+                exc = raiser(kw["Key"])
+                if exc is not None:
+                    raise exc
+                return {"ContentLength": 1}
+
+        import leviathan.storage.s3 as S3MOD
+        monkeypatch.setattr(S3MOD, "get_thread_local_s3_client", lambda region: _S3())
+
+    @staticmethod
+    def _client_error(code, status):
+        from botocore.exceptions import ClientError
+        return ClientError(
+            {"Error": {"Code": code, "Message": "x"},
+             "ResponseMetadata": {"HTTPStatusCode": status}},
+            "HeadObject",
+        )
+
+    def test_a_landed_object_is_reported_present(self, monkeypatch):
+        self._s3(monkeypatch, lambda _key: None)
+        assert WAYBACK.raw_exists("b", "k", "us-east-1") is True
+
+    @pytest.mark.parametrize("code,status", [("404", 404), ("NotFound", 404), ("NoSuchKey", 404)])
+    def test_only_a_genuine_404_means_absent(self, monkeypatch, code, status):
+        """HeadObject has no body, so botocore spells the missing-key case '404'/'NotFound' rather
+        than the 'NoSuchKey' a GetObject would raise. All three are the same fact."""
+        self._s3(monkeypatch, lambda _key: self._client_error(code, status))
+        assert WAYBACK.raw_exists("b", "k", "us-east-1") is False
+
+    @pytest.mark.parametrize("code,status", [
+        ("SlowDown", 503),
+        ("InternalError", 500),
+        ("ExpiredToken", 400),
+        ("AccessDenied", 403),
+        ("RequestTimeout", 400),
+    ])
+    def test_every_other_head_failure_RAISES_rather_than_fabricating_absence(
+            self, monkeypatch, code, status):
+        from botocore.exceptions import ClientError
+        self._s3(monkeypatch, lambda _key: self._client_error(code, status))
+        with pytest.raises(ClientError):
+            WAYBACK.raw_exists("b", "k", "us-east-1")
+
+    @staticmethod
+    def _drive(monkeypatch, raiser, *extra):
+        """``main()`` through the REAL raw_exists over a stubbed head_object.
+        Returns ``(exit_code, [landed keys], [fetched indicator ids])``."""
+        landed: list[str] = []
+        fetched: list[int] = []
+        TestWaybackRawExistsFailsClosed._s3(monkeypatch, raiser)
+        monkeypatch.setattr(
+            WAYBACK, "fetch_snapshot",
+            lambda ind, **k: (fetched.append(ind) or
+                              (WAYBACK._OLE_MAGIC + b"x" * 128,
+                               TestWaybackRawExistsFailsClosed._PINNED[ind])))
+        monkeypatch.setattr(WAYBACK, "land_bytes",
+                            lambda bucket, key, data, **kw: landed.append(key))
+        monkeypatch.setattr(WAYBACK.time, "sleep", lambda *_a, **_k: None)
+        rc = WAYBACK.main(["--bucket", "test-bucket", "--aws-region", "us-east-1", *extra])
+        return rc, landed, fetched
+
+    def test_a_transient_head_failure_never_reaches_the_PUT(self, monkeypatch):
+        """End to end through ``main()``: every probe throttles, so the one-shot must land NOTHING,
+        never call web.archive.org, and exit 1. archive.org is a library -- a run that cannot even
+        establish what it already holds has no business fetching from it."""
+        rc, landed, fetched = self._drive(monkeypatch,
+                                          lambda _k: self._client_error("SlowDown", 503))
+        assert rc == 1
+        assert landed == [], "a throttled head must never be read as 'absent' and PUT over"
+        assert fetched == [], "an indicator that cannot be probed is never requested"
+
+    def test_one_indicators_unanswerable_probe_never_costs_the_other(self, monkeypatch):
+        """The blocked indicator is taken out as a recorded failure while the other still lands --
+        this leg's landing is per-indicator, unlike the DAILY leg where it is a group decision."""
+        blocked = raw_cepea_wayback_key(23, self._PINNED[23])
+        rc, landed, fetched = self._drive(
+            monkeypatch,
+            lambda key: (self._client_error("AccessDenied", 403) if key == blocked
+                         else self._client_error("404", 404)))
+        assert rc == 1
+        assert landed == [raw_cepea_wayback_key(77, self._PINNED[77])]
+        assert fetched == [77]
+
+    def test_the_same_drive_lands_both_when_the_head_answers_404(self, monkeypatch):
+        """The positive control, so the two tests above cannot pass vacuously."""
+        rc, landed, fetched = self._drive(monkeypatch, lambda _k: self._client_error("404", 404))
+        assert rc == 0
+        assert landed == [raw_cepea_wayback_key(i, self._PINNED[i]) for i in (23, 77)]
+        assert fetched == [23, 77]
+
+    def test_an_already_landed_pair_still_short_circuits(self, monkeypatch):
+        """The skip path is unchanged: a head that ANSWERS 'present' skips without a wayback GET."""
+        rc, landed, fetched = self._drive(monkeypatch, lambda _k: None)
+        assert rc == 0 and landed == [] and fetched == []
+
+    def test_force_bypasses_the_probe_entirely(self, monkeypatch):
+        """``--force`` still means what it says while S3 throttles -- which is the flag guarantee
+        the swallow-all idiom quietly turned into a coin flip."""
+        rc, landed, fetched = self._drive(monkeypatch,
+                                          lambda _k: self._client_error("SlowDown", 503),
+                                          "--force")
+        assert rc == 0 and fetched == [23, 77]
+        assert landed == [raw_cepea_wayback_key(i, self._PINNED[i]) for i in (23, 77)]

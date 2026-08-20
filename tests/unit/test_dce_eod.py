@@ -545,3 +545,222 @@ class TestTheExitCodeTranslations:
         so the two guards above are refusing a real capture and not an inert one."""
         rc, written = self._run(monkeypatch, _StubSession(body=settled_daily()))
         assert rc == 0 and len(written) == 1
+
+
+# ---------------------------------------------------------------------------
+# The existence probe FAILS CLOSED -- TWO verdicts, one producer
+# ---------------------------------------------------------------------------
+class _StubHistorySession(_StubSession):
+    """``_StubSession`` plus the ``download`` the history mode calls."""
+
+    def __init__(self, *, workbook: bytes = HISTORY_RAW, **kw):
+        super().__init__(**kw)
+        self._workbook = workbook
+        self.downloaded: list[str] = []
+
+    def download(self, path: str) -> bytes:
+        self.downloaded.append(path)
+        return self._workbook
+
+
+class _NoBrowser:
+    """A BrowserSession that must never be constructed. A run that captured nothing has no
+    business paying for a Chromium start, let alone re-clearing the venue's WAF."""
+
+    def __call__(self, *a, **kw):
+        raise AssertionError("a run that captured nothing must never launch Chromium")
+
+
+class TestRawExistsFailsClosed:
+    """``raw_exists`` gates every PUT on this leg and is called from BOTH mode loops.
+
+    The recoverability answer DIFFERS BY MODE and the producer records both rather than averaging
+    them: ``--mode daily`` is the EEX argument at full strength (``/quote/delay/futureData`` takes
+    NO date parameter -- it serves the CURRENT board, which is why the raw key is the capture date),
+    while ``--mode history`` is the weaker resume-contract case (the vendor workbooks are
+    deterministic per (variety, year) and re-downloadable).
+
+    The call sites sit in the pre-browser selection pass, which makes the exit-0 fall-through the
+    real trap: a run whose probes ALL threw would otherwise reach "nothing to fetch -- every
+    selected unit is already landed" and exit 0, reporting a run that proved nothing as complete.
+    That is the same defect the euronext fix found tonight."""
+
+    @staticmethod
+    def _s3(monkeypatch, raiser):
+        """Point ``raw_exists`` at a head_object driven by ``raiser(key)`` -> exception or None."""
+        class _S3:
+            def head_object(self, **kw):
+                exc = raiser(kw["Key"])
+                if exc is not None:
+                    raise exc
+                return {"ContentLength": 1}
+
+        import leviathan.storage.s3 as S3MOD
+        monkeypatch.setattr(S3MOD, "get_thread_local_s3_client", lambda region: _S3())
+
+    @staticmethod
+    def _client_error(code, status):
+        from botocore.exceptions import ClientError
+        return ClientError(
+            {"Error": {"Code": code, "Message": "x"},
+             "ResponseMetadata": {"HTTPStatusCode": status}},
+            "HeadObject",
+        )
+
+    _AS_OF = "2026-07-29"
+
+    def test_a_landed_object_is_reported_present(self, monkeypatch):
+        self._s3(monkeypatch, lambda _key: None)
+        assert FETCH.raw_exists("b", "k", "us-east-1") is True
+
+    @pytest.mark.parametrize("code,status", [("404", 404), ("NotFound", 404), ("NoSuchKey", 404)])
+    def test_only_a_genuine_404_means_absent(self, monkeypatch, code, status):
+        """HeadObject has no body, so botocore spells the missing-key case '404'/'NotFound' rather
+        than the 'NoSuchKey' a GetObject would raise. All three are the same fact."""
+        self._s3(monkeypatch, lambda _key: self._client_error(code, status))
+        assert FETCH.raw_exists("b", "k", "us-east-1") is False
+
+    @pytest.mark.parametrize("code,status", [
+        ("SlowDown", 503),
+        ("InternalError", 500),
+        ("ExpiredToken", 400),
+        ("AccessDenied", 403),
+        ("RequestTimeout", 400),
+    ])
+    def test_every_other_head_failure_RAISES_rather_than_fabricating_absence(
+            self, monkeypatch, code, status):
+        """Fail closed. Failing the unit costs a re-fire; on --mode daily, treating a throttled
+        head as 'absent' costs a board this endpoint cannot serve again."""
+        from botocore.exceptions import ClientError
+        self._s3(monkeypatch, lambda _key: self._client_error(code, status))
+        with pytest.raises(ClientError):
+            FETCH.raw_exists("b", "k", "us-east-1")
+
+    # -- probe_landed: the three-state answer both call sites need ---------------------------
+    def test_probe_landed_answers_None_when_the_head_cannot_answer(self, monkeypatch):
+        """``None`` is NOT ``False``. Returning False here would put the unit back on the pending
+        list and lead it straight to a fetch and a PUT -- the very overwrite being prevented."""
+        failures: list[str] = []
+        self._s3(monkeypatch, lambda _key: self._client_error("SlowDown", 503))
+        assert FETCH.probe_landed("b", "k", "us-east-1", unit="p", failures=failures) is None
+        assert failures == ["p: existence probe ClientError"]
+
+    def test_probe_landed_answers_False_only_on_a_real_404(self, monkeypatch):
+        failures: list[str] = []
+        self._s3(monkeypatch, lambda _key: self._client_error("404", 404))
+        assert FETCH.probe_landed("b", "k", "us-east-1", unit="p", failures=failures) is False
+        assert failures == []
+
+    # -- --mode daily -----------------------------------------------------------------------
+    @staticmethod
+    def _drive_daily(monkeypatch, raiser, session, *extra):
+        written: list[str] = []
+        TestRawExistsFailsClosed._s3(monkeypatch, raiser)
+        monkeypatch.setattr(FETCH, "BrowserSession", session)
+        monkeypatch.setattr(FETCH, "land_bytes",
+                            lambda bucket, key, data, **kw: written.append(key))
+        rc = FETCH.main(["--mode", "daily", "--as-of-date", TestRawExistsFailsClosed._AS_OF,
+                         "--sleep", "0", "--bucket", "b", "--aws-region", "us-east-1", *extra])
+        return rc, written
+
+    def test_daily_a_transient_head_failure_never_reaches_the_PUT(self, monkeypatch):
+        """End to end: every probe throttles, so nothing is pending, NOTHING is written, Chromium
+        is never launched -- and the run exits 1 rather than taking the "nothing to fetch" exit 0
+        that the naive narrowing would have fallen through to."""
+        rc, written = self._drive_daily(monkeypatch,
+                                        lambda _k: self._client_error("SlowDown", 503),
+                                        _NoBrowser())
+        assert rc == 1, "an all-probes-threw run must never be reported as 'already landed'"
+        assert written == []
+
+    def test_daily_one_unanswerable_probe_never_costs_the_other_varieties(self, monkeypatch):
+        """The blocked variety is taken out as a recorded failure -- not fetched, not written --
+        while the four whose probe answered 404 are captured. The run still exits 1."""
+        blocked = raw_dce_daily_key("p", self._AS_OF)
+        rc, written = self._drive_daily(
+            monkeypatch,
+            lambda key: (self._client_error("ExpiredToken", 400) if key == blocked
+                         else self._client_error("404", 404)),
+            _StubSession(body=settled_daily()))
+        assert rc == 1
+        assert blocked not in written, "the unanswerable variety must never be captured"
+        assert sorted(written) == sorted(raw_dce_daily_key(v, self._AS_OF)
+                                         for v in ("a", "b", "m", "y"))
+
+    def test_daily_the_same_drive_lands_all_five_when_the_head_answers_404(self, monkeypatch):
+        """The positive control, so the two tests above cannot pass vacuously."""
+        rc, written = self._drive_daily(monkeypatch, lambda _k: self._client_error("404", 404),
+                                        _StubSession(body=settled_daily()))
+        assert rc == 0
+        assert sorted(written) == sorted(raw_dce_daily_key(v, self._AS_OF)
+                                         for v in ("a", "b", "m", "p", "y"))
+
+    def test_daily_an_all_landed_window_still_takes_the_clean_exit_0(self, monkeypatch):
+        """The "nothing to fetch" path is intact where it is TRUE: heads that answer 'present'
+        skip everything, no browser starts, and the run is genuinely clean."""
+        rc, written = self._drive_daily(monkeypatch, lambda _k: None, _NoBrowser())
+        assert rc == 0 and written == []
+
+    def test_daily_a_probe_failure_outranks_the_retryable_NOT_READY_code(self, monkeypatch):
+        """A run that could not read S3 must exit 1, not the retryable 5 -- whatever the boards
+        were doing. Here one variety's probe throttles and the rest serve the night-session
+        all-zero board, so both conditions are live at once and the S3 fault has to win."""
+        blocked = raw_dce_daily_key("p", self._AS_OF)
+        rc, written = self._drive_daily(
+            monkeypatch,
+            lambda key: (self._client_error("SlowDown", 503) if key == blocked
+                         else self._client_error("404", 404)),
+            _StubSession(body=DAILY_RAW))
+        assert rc == 1 and rc != FETCH.EXIT_NOT_READY
+        assert written == []
+
+    def test_force_bypasses_the_probe_entirely(self, monkeypatch):
+        """PINNED. ``--force`` sets skip_existing=False and the call sites read
+        ``if args.skip_existing else False``, so raw_exists is never called on a forced run --
+        which is exactly why the always-on lane (``--mode daily --force``) never touched this path
+        and why the fix binds the NON-force Batch submissions instead."""
+        rc, written = self._drive_daily(monkeypatch,
+                                        lambda _k: self._client_error("SlowDown", 503),
+                                        _StubSession(body=settled_daily()), "--force")
+        assert rc == 0
+        assert sorted(written) == sorted(raw_dce_daily_key(v, self._AS_OF)
+                                         for v in ("a", "b", "m", "p", "y"))
+
+    # -- --mode history ---------------------------------------------------------------------
+    @staticmethod
+    def _drive_history(monkeypatch, raiser, session, *extra):
+        written: list[str] = []
+        TestRawExistsFailsClosed._s3(monkeypatch, raiser)
+        monkeypatch.setattr(FETCH, "BrowserSession", session)
+        monkeypatch.setattr(FETCH, "land_bytes",
+                            lambda bucket, key, data, **kw: written.append(key))
+        rc = FETCH.main(["--mode", "history", "--variety", "p",
+                         "--year-start", "2016", "--year-end", "2017",
+                         "--sleep", "0", "--bucket", "b", "--aws-region", "us-east-1", *extra])
+        return rc, written
+
+    def test_history_a_transient_head_failure_never_reaches_the_PUT(self, monkeypatch):
+        """The second call site. Same contract: nothing pending, nothing written, no Chromium, and
+        exit 1 rather than the "nothing to fetch" exit 0."""
+        rc, written = self._drive_history(monkeypatch,
+                                          lambda _k: self._client_error("SlowDown", 503),
+                                          _NoBrowser())
+        assert rc == 1
+        assert written == []
+
+    def test_history_one_units_unanswerable_probe_never_costs_the_others(self, monkeypatch):
+        blocked = raw_dce_history_key("p", 2016)
+        rc, written = self._drive_history(
+            monkeypatch,
+            lambda key: (self._client_error("InternalError", 500) if key == blocked
+                         else self._client_error("404", 404)),
+            _StubHistorySession())
+        assert rc == 1
+        assert written == [raw_dce_history_key("p", 2017)]
+
+    def test_history_the_same_drive_lands_both_when_the_head_answers_404(self, monkeypatch):
+        """The positive control for the history call site."""
+        rc, written = self._drive_history(monkeypatch, lambda _k: self._client_error("404", 404),
+                                          _StubHistorySession())
+        assert rc == 0
+        assert sorted(written) == [raw_dce_history_key("p", y) for y in (2016, 2017)]
