@@ -81,7 +81,13 @@ variable "serving_image_tag" {
   # release_series refused on a measured PIT leak). Hand-registered as serving taskdef rev 104 on
   # digest sha256:74813e92a7dc...; canary three tells passed (rollout, startedAt > push, exact
   # digest). This pin follows that promotion so a later apply re-derives the same image.
-  default     = "20260820T022010"
+  # D-EC WAVE CLOSE 2026-08-20 (rev 108): 20260820T231837 = sha256:c9b341ca..., built at 1734e8fe
+  # -- the doubled evidence store (1,277,979 props, swap live), the 38-card registry (minagro
+  # Ukraine exports, crush, unica, PSD 63 slugs, pink sheet 76 metrics), the NASS wheat + MATIF
+  # answer flips, and the floored-uncovered decline honesty. Taskdef 108 registered copy-from-
+  # deployed-107 (image-only change); canary three tells PASSED (rollout COMPLETED, startedAt
+  # 23:22:05+03 > push 23:18, exact digest).
+  default     = "20260820T231837"
 }
 
 # Stage 2: the ACM wildcard cert (leviathanconvexity.com + *) created in the console. us-east-1.
