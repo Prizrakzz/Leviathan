@@ -22,7 +22,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV HF_HOME=/opt/hf \
     SENTENCE_TRANSFORMERS_HOME=/opt/hf \
     TOKENIZERS_PARALLELISM=false \
-    PYTHONIOENCODING=utf-8
+    PYTHONIOENCODING=utf-8 \
+    PYTHONUNBUFFERED=1
 
 # torch CPU-only wheel from the PyTorch CPU index, then the project deps (core + [embed] = sentence-transformers).
 # torch is installed first so the [embed] resolution sees it satisfied and won't pull the CUDA build.

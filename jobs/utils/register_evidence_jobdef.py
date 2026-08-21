@@ -83,6 +83,11 @@ _CONTAINER = {
         {"name": "GRAPHRAG_SESSIONS_TABLE", "value": "leviathan-dev-graphrag-sessions"},
         {"name": "EVIDENCE_WORKERS", "value": "16"},
         {"name": "PYTHONIOENCODING", "value": "utf-8"},
+        # Stage-1 (graph-completion wave): unbuffered stdout so progress lines reach awslogs live
+        # (the mute-rebuild class), and the EMBED-ONCE cache armed for build jobs -- seed + verify
+        # fail closed to the legacy full-embed path, serving/eval processes never read this flag.
+        {"name": "PYTHONUNBUFFERED", "value": "1"},
+        {"name": "EVIDENCE_EMBED_CACHE", "value": "1"},
     ],
 }
 

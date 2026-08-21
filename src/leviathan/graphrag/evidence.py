@@ -125,11 +125,51 @@ def _bge_local(texts: list[str]) -> list[list[float]]:
             if _bge is None:
                 from sentence_transformers import SentenceTransformer
                 _bge = SentenceTransformer(BGE_MODEL)
-    return [v.tolist() for v in _bge.encode(texts, normalize_embeddings=True)]
+    # show_progress_bar pinned OFF: sentence-transformers turns it on whenever the root logger is
+    # INFO, and its tqdm writes carriage returns to stderr -- awslogs only emits per newline, so a
+    # long embed looks DEAD in CloudWatch (the X2 false-tripwire class). Progress is printed by the
+    # callers in flushed, newline-terminated batches instead.
+    return [v.tolist() for v in _bge.encode(texts, normalize_embeddings=True, show_progress_bar=False)]
 
 
 _Q_CACHE: dict[tuple, list[float]] = {}                       # single-text memo: the L2 walk re-embeds the SAME
 _Q_CACHE_MAX = 4096                                           # query for every node it grounds (WS-0: 26% of wall)
+
+
+from leviathan.graphrag import embed_cache as _ec    # leaf module (Stage 1); no import cycle
+
+_EMBED_PROGRESS_BATCH = 2048                         # Stage-1 logging rider: one flushed line per batch --
+#                                                      the mute-rebuild class (tqdm CRs never reach awslogs;
+#                                                      block-buffered stdout) cost two false tripwires on X2
+
+
+def _cached_slice_body(recs: list[dict], *, backend: str, cache, slice_name: str, bedrock=None) -> str:
+    """The EMBED-ONCE serialization of one slice (Stage 1): cached texts contribute their stored
+    JSON fragment verbatim; only misses embed (batched, progress-printed, newline-flushed); output
+    is spliced BYTE-IDENTICAL to the legacy json.dumps path (vector second-to-last, backend last).
+    Records never gain a `vector` key — that in-memory list (~32.8 KB/row, retained by
+    WritePlan.records for the whole pass) was an ~83 GB OOM at the next pass's scale."""
+    import time as _t
+    backend = backend or DEFAULT_BACKEND                 # review m4: legacy embed() resolved None here;
+    #                                                      the cached path must never diverge on that
+    frags = [cache.fragment(r["text"]) for r in recs]
+    miss = [i for i, f in enumerate(frags) if f is None]
+    if miss:
+        # review m7: dedupe miss TEXTS so a duplicated prop inside one slice embeds once
+        uniq_texts = list(dict.fromkeys(recs[i]["text"] for i in miss))
+        t0 = _t.time()
+        for b0 in range(0, len(uniq_texts), _EMBED_PROGRESS_BATCH):
+            batch = uniq_texts[b0:b0 + _EMBED_PROGRESS_BATCH]
+            vecs = _embed_raw(batch, backend=backend, bedrock=bedrock)
+            for t, v in zip(batch, vecs):
+                cache.add(t, v)
+            done = min(b0 + _EMBED_PROGRESS_BATCH, len(uniq_texts))
+            rate = done / max(_t.time() - t0, 1e-9)
+            print(f"  embed {slice_name}: {done}/{len(uniq_texts)} new ({len(recs) - len(miss)} cached) "
+                  f"{rate:.0f}/s", flush=True)
+        for i in miss:
+            frags[i] = cache.fragment(recs[i]["text"])
+    return "\n".join(_ec.splice(json.dumps(r), f, backend) for r, f in zip(recs, frags))
 
 
 def embed(texts: list[str], *, backend: str | None = None, bedrock=None, model: str = TITAN_MODEL,
@@ -1413,6 +1453,10 @@ def plan_driver_slices(driver_sink: dict, *, backend: str | None = None, bedrock
     def _payload(name: str):
         def _mk() -> str:                                    # embed LAZILY: a refused pass pays no embed
             recs = records[name]
+            cache = _ec.active()                             # EMBED-ONCE (Stage 1): fragments for known
+            if cache is not None:                            # texts, embeds only the misses, splice-serialize
+                return _cached_slice_body(recs, backend=backend, bedrock=bedrock, cache=cache,
+                                          slice_name=f"drivers/{name}")
             for r, v in zip(recs, embed([r["text"] for r in recs], backend=backend, bedrock=bedrock)):
                 r["vector"], r["backend"] = v, backend
             return "\n".join(json.dumps(r) for r in recs)

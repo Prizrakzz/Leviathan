@@ -42,6 +42,10 @@ def _resolve(sel: str) -> list[str]:
 
 
 def main() -> None:
+    try:
+        sys.stdout.reconfigure(line_buffering=True)    # Stage-1 logging rider: never block-buffer to awslogs
+    except (AttributeError, ValueError):
+        pass
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s - %(message)s",
                         stream=sys.stderr)
     ap = argparse.ArgumentParser(description="Cloud evidence build (Bedrock-Haiku chunk + bge-m3 embed -> S3).")

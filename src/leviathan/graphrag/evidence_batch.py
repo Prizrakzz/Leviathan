@@ -16,7 +16,9 @@ import argparse
 import collections
 import hashlib
 import json
+import os
 import re
+import sys
 import time
 
 from leviathan.graphrag import chunking as ch
@@ -264,6 +266,39 @@ def _cached_hashes() -> set:
         return out
     d = ev._EVID_DIR / "chunks"
     return {p.stem for p in d.glob("*.jsonl")} if d.exists() else set()
+
+
+def _slice_object_names() -> list[str]:
+    """The live slice objects (top-level commodity *.jsonl + drivers/*.jsonl) under EVIDENCE_S3 —
+    the embed-cache seed universe: every routed row's vector already sits inline in these. Backup/
+    shadow/chunks prefixes are deliberately excluded (wrong vintages live there). REVIEW M3 rider:
+    when the rebuild targets a SHADOW prefix, that prefix must already hold these slices or the
+    seed refuses and the whole lever is unused -- the run recipe states it, the rebuild logs it."""
+    base = ev._evid_s3()
+    if not base:
+        return []
+    from leviathan.storage.s3 import get_thread_local_s3_client
+    bkt, prefix = ev._parse_s3(base.rstrip("/") + "/")
+    out: list[str] = []
+    pag = get_thread_local_s3_client(os.environ.get("AWS_REGION", "us-east-1")).get_paginator("list_objects_v2")
+    for p in pag.paginate(Bucket=bkt, Prefix=prefix, Delimiter="/"):
+        out += [o["Key"] for o in p.get("Contents", []) if o["Key"].endswith(".jsonl")]
+    for p in pag.paginate(Bucket=bkt, Prefix=prefix + "drivers/"):
+        out += [o["Key"] for o in p.get("Contents", []) if o["Key"].endswith(".jsonl")]
+    return out
+
+
+def _stream_slice_object(key: str):
+    """One slice object's raw JSONL lines, as a GENERATOR (review M2: a list materialized the
+    1.68 GB french_wheat object whole, x12 workers). 1 MiB read chunks (review m3: botocore's
+    default 1 KB chunk recopied ~660 GB across the seed); thread-local client (review m2)."""
+    from leviathan.storage.s3 import get_thread_local_s3_client
+    base = ev._evid_s3()
+    bkt, _ = ev._parse_s3(base.rstrip("/") + "/")
+    body = get_thread_local_s3_client(os.environ.get("AWS_REGION", "us-east-1")).get_object(Bucket=bkt, Key=key)["Body"]
+    for ln in body.iter_lines(chunk_size=1 << 20):
+        if ln:
+            yield ln
 
 
 def _write_doc_cache(props_by_doc: dict, *, chunk_version: str | None = None,
@@ -1218,6 +1253,9 @@ def _plan_commodity_write(kept_by_node: dict, *, backend: str, manifest=None,
     def _payload(node: str):
         def _mk() -> str:                                      # embed LAZILY: a refused pass pays no embed
             recs = records[node]
+            cache = ev._ec.active()                            # EMBED-ONCE (Stage 1): see evidence.py
+            if cache is not None:
+                return ev._cached_slice_body(recs, backend=backend, cache=cache, slice_name=node)
             for r, v in zip(recs, ev.embed([r["text"] for r in recs], backend=backend)):
                 r["vector"], r["backend"] = v, backend
             return "\n".join(json.dumps(r) for r in recs)
@@ -1438,13 +1476,38 @@ def rebuild_slices(*, backend: str | None = None, drivers: bool = True, tally: b
     objects -- can be established for free. Nothing to compare it against: the first armed run ESTABLISHES
     the baseline, it does not check one."""
     backend = backend or ev.DEFAULT_BACKEND
+    if ev._ec.enabled() and not dry_run:
+        # EMBED-ONCE CACHE (Stage 1): seed from the live slices' inline vectors, then VERIFY the
+        # space (500-sample re-embed, cosine >= 1-1e-6) -- a failed seed or verify REFUSES the
+        # cached path and the pass runs exactly as before (fail closed, never half-seeded).
+        try:
+            print(f"  embed-cache: seeding from {ev._evid_s3() or '<EVIDENCE_S3 unset>'} "
+                  "(the target prefix must already hold the live slices, or the seed refuses and "
+                  "the pass runs legacy)", flush=True)
+            cache = ev._ec.EmbedCache(backend)
+            cache.seed_from_slices(list_keys=_slice_object_names, stream_lines=_stream_slice_object)
+            cache.verify(lambda ts: ev._embed_raw(ts, backend=backend))
+            ev._ec.set_active(cache)
+            s = cache.stats
+            print(f"  embed-cache LIVE: {s['seeded']:,} seeded texts "
+                  f"(skipped_backend={s['seed_skipped_backend']} bad_lines={s['seed_bad_lines']})", flush=True)
+        except Exception as exc:  # noqa: BLE001 -- REVIEW M1: EVERY seed/verify failure mode (a
+            # transient GET, MemoryError, a malformed byte, SeedRefused itself) degrades to the
+            # legacy full-embed path; the wave's ONE rebuild must never die in its prologue.
+            ev._ec.set_active(None)
+            print(f"  embed-cache DISABLED for this pass ({type(exc).__name__}: "
+                  f"{str(exc)[:200]}) -- full re-embed, legacy behaviour", flush=True)
     nodes = ev.all_nodes()
     matchers = {n: hv.build_matcher(ev.match_forms(n)) for n in nodes}
     by_node: dict[str, list[dict]] = {n: [] for n in nodes}
     driver_sink: dict[str, list[dict]] | None = {} if drivers else None
     dt = DarkTally(label="rebuild") if tally else None
     ndocs = 0
+    nhashes = 0
     for h in _cached_hashes():
+        nhashes += 1
+        if nhashes % 500 == 0:                             # logging rider: the silent 10-15 min chunk-read
+            print(f"  rebuild-slices: read {nhashes} chunk objects ...", flush=True)
         recs = ev.load_index(f"chunks/{h}")
         if recs:
             ndocs += 1
@@ -1663,6 +1726,14 @@ def run(s3, client, *, nodes, n_docs, seed: int = 0, manifest=None, allow_churn:
 
 
 def main() -> int:
+    # Stage-1 logging rider: container stdout is a PIPE to awslogs, so CPython block-buffers at
+    # ~8 KB and every print() sits invisible until exit -- the mute-rebuild class that cost two
+    # false tripwires on X2. Line-buffer explicitly; works everywhere incl. the laptop, and does
+    # not depend on the jobdef's PYTHONUNBUFFERED (belt) or the Dockerfile's (braces).
+    try:
+        sys.stdout.reconfigure(line_buffering=True)
+    except (AttributeError, ValueError):
+        pass
     ap = argparse.ArgumentParser(description="Batch-API evidence chunking (gated: Haiku batch billed).")
     ap.add_argument("--submit", action="store_true")
     ap.add_argument("--retrieve", metavar="BID")
@@ -1782,8 +1853,11 @@ def main() -> int:
         rebuild_slices(tally=True, dry_run=True)
         return 0
     if args.rebuild_slices:                                            # route the whole chunks/ cache -> slices
-        return _guarded("rebuild", lambda mf: rebuild_slices(tally=args.dark_tally, manifest=mf,
-                                                             allow_churn=allow_churn))
+        try:
+            return _guarded("rebuild", lambda mf: rebuild_slices(tally=args.dark_tally, manifest=mf,
+                                                                 allow_churn=allow_churn))
+        finally:
+            ev._ec.set_active(None)                                    # review m4: never leak the pass cache
     if args.reroute:                                                   # re-derive from the _raw archive
         print(f"reroute {len(nodes)} node(s) from _raw archive -> commodity + driver slices")
         return _guarded("reroute", lambda mf: reroute(nodes=nodes, tally=args.dark_tally, manifest=mf,
