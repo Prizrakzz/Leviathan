@@ -87,7 +87,12 @@ variable "serving_image_tag" {
   # answer flips, and the floored-uncovered decline honesty. Taskdef 108 registered copy-from-
   # deployed-107 (image-only change); canary three tells PASSED (rollout COMPLETED, startedAt
   # 23:22:05+03 > push 23:18, exact digest).
-  default     = "20260820T231837"
+  # PHASE F 2026-08-21 (rev 109): 20260821T130755 = sha256:08b5fd3a..., built at e61158a9 -- the
+  # click-to-page TRUE-page fix (char offsets finally projected through the pg read + carried on
+  # structured.sources; #73 verify-and-repair; CitationPdf span/sentence for the FE highlight).
+  # Taskdef 109 registered copy-from-deployed-108 (image-only change); canary three tells PASSED
+  # (rollout COMPLETED, startedAt 13:13:00+03 > push 13:08:33+03, exact digest 08b5fd3a).
+  default     = "20260821T130755"
 }
 
 # Stage 2: the ACM wildcard cert (leviathanconvexity.com + *) created in the console. us-east-1.
