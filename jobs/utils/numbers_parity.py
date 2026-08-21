@@ -62,7 +62,7 @@ SAMPLE_COMMODITY = {"silver_psd": "corn_cbot", "silver_wasde": "corn", "silver_p
                     "silver_mpob": "malaysian_crude_palm_oil_cme",
                     "silver_sagis_cec": "total_maize",
                     # PRICE_OBSERVABILITY W4.2 (S3.F4): silver_cot's commodity_col is leviathan_slug, which
-                    # holds CONTRACT slugs via _MARKET_TO_SLUG (raw_to_bronze/cftc_cot.py:55-56) -- corn_cbot,
+                    # holds CONTRACT slugs via _CODE_TO_SLUG (raw_to_bronze/cftc_cot.py; code-keyed since 2026-08-21) -- corn_cbot,
                     # NOT bare 'corn' (which matches zero rows = the gold_weather_z vacuous-panel trap; the
                     # EMPTY-PANEL guard would catch it loudly, but the RIGHT sample is corn_cbot).
                     "silver_cot": "corn_cbot",
@@ -283,8 +283,8 @@ def main() -> int:
     s3uri = os.environ.get("EVIDENCE_S3")
     if s3uri:
         try:
-            from leviathan.graphrag import evidence as ev
             import boto3
+            from leviathan.graphrag import evidence as ev
             b, k = ev._parse_s3(s3uri.rstrip("/") + "/eval/numbers_pg_parity.md")
             boto3.client("s3").put_object(Bucket=b, Key=k, Body=report.encode("utf-8"))
             logger.info("report persisted to s3://%s/%s", b, k)

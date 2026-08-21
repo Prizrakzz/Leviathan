@@ -224,7 +224,7 @@ def test_cot_in_pg_mirror_p1_tables():
 
 
 def test_cot_parity_sample_is_the_contract_slug_not_bare_base():
-    """S3.F4: silver_cot.commodity_col is leviathan_slug, which holds CONTRACT slugs (_MARKET_TO_SLUG). The
+    """S3.F4: silver_cot.commodity_col is leviathan_slug, which holds CONTRACT slugs (_CODE_TO_SLUG). The
     parity sample MUST be corn_cbot -- bare 'corn' matches zero rows (the gold_weather_z vacuous-panel trap)."""
     from jobs.utils.numbers_parity import SAMPLE_COMMODITY
     assert SAMPLE_COMMODITY[TID] == "corn_cbot"

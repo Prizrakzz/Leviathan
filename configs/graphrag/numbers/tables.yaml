@@ -1800,9 +1800,12 @@ tables:
     notes: >
       CFTC disaggregated MANAGED-MONEY ONLY (no producer/merchant/swap categories in this wave).
       commodity = the CONTRACT slug (corn_cbot, ...); a bare base name ('corn') matches zero rows.
-      Positioning is unrevised -> latest-only is genuinely point-in-time-clean. 12 slugs live 2006+
-      (wheat series start ~2014 -- a legacy-name gap, W4b -- and wheat z validity starts ~1 year after
-      the series start, mirroring the z-floor note); FCOJ is absent. Positive contracts = net long,
+      Positioning is unrevised -> latest-only is genuinely point-in-time-clean. 15 slugs live
+      (COT-recovery re-key 2026-08-21: the join moved from market NAME to CFTC code, which recovered
+      FCOJ -- 1,049 weeks silently lost to a rename mismatch since inception -- plus canola_ice from
+      2018 and the CME USD Malaysian palm contract from 2021, and closed the W4b legacy-name gap so
+      the three US wheat classes now start 2006-06-13 like the CBOT five; the ICE four start
+      2007-09-04, when ICE entered the disaggregated report). Positive contracts = net long,
       negative = net short. POSITIONING IS HISTORICAL CONTEXT ONLY: cite levels and z past tense; it
       never drives a forecast or a fork. Under R9 as amended (D1, 2026-08-01) it may enter cascade_map
       ONLY as the past-tense context leg `cot_mm_positioning` -- never a fork ref, a regime-MARKER ref,

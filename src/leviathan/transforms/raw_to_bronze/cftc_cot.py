@@ -28,9 +28,11 @@ Long/tidy: one row per (report_date, leviathan_slug).
 
 Market coverage
 ---------------
-14 of 31 Leviathan contracts have CFTC disaggregated futures data
+15 of 31 Leviathan contracts have CFTC disaggregated futures data
 (US-listed contracts on CBOT, ICE US, CME).  Non-US exchanges (DCE,
-Euronext MATIF, JSE, BMF) are not covered by CFTC.
+Euronext MATIF, JSE, BMF, ICE Europe) are not covered by CFTC.
+The join is keyed on ``CFTC_Contract_Market_Code`` (stable across market
+renames); see the _CODE_TO_SLUG block for the 2026-08-21 re-key record.
 
 Column selection
 ----------------
@@ -49,26 +51,64 @@ from leviathan.common.logging import get_logger
 logger = get_logger(__name__)
 
 # ---------------------------------------------------------------------------
-# Market name → Leviathan slug mapping
+# CFTC market code → Leviathan slug mapping (THE JOIN KEY since 2026-08-21)
 # ---------------------------------------------------------------------------
+#
+# RE-KEYED FROM MARKET NAME TO CFTC_Contract_Market_Code (D-EC COT recovery, 2026-08-21).
+# The name join was the silent-loss class: CFTC renames markets and the exact-string map reads the
+# rename as no-data. Measured against every raw file era (weekly 20260814 + bulk 2006_2016 + annual
+# 2018) before this edit:
+#   * frozen_orange_juice: the old map's two name keys ("FROZEN CONCENTRATED ORANGE JUICE - ICE
+#     FUTURES", "FCOJ-A - ICE FUTURES U.S.") matched ZERO rows in ANY era -- the raw name has been
+#     "FRZN CONCENTRATED ORANGE JUICE - ICE FUTURES U.S." since 2006. 1,049 weeks silently absent
+#     from silver since inception (tables.yaml's "FCOJ is absent" note was this defect, not a gap).
+#   * wheat x3: "WHEAT - CHICAGO BOARD OF TRADE"/"- KANSAS CITY BOARD OF TRADE"/"- MINNEAPOLIS
+#     GRAIN EXCHANGE" (2006-2013/14, ~1,190 rows) never matched the modern-name keys -- the W4b
+#     legacy-name gap. Codes 001602/001612/001626 span every rename (incl. MGEX -> MIAX).
+#   * canola_ice (135731, incl. its one week as "CANOLA OIL") and the CME USD Malaysian palm
+#     contract (037021) were never mapped at all.
+# Codes are the stable identity: every rename measured kept its code. NEAR-MISS TRAPS measured and
+# deliberately NOT mapped: 002603 MINI CORN, 005603 MINI SOYBEANS, 00160F BLACK SEA WHEAT FINANCIAL,
+# 037642 MALAYSIAN PALM OIL CALENDAR SWAP (a different contract from 037021).
 
-_MARKET_TO_SLUG: dict[str, str] = {
-    "CORN - CHICAGO BOARD OF TRADE":                    "corn_cbot",
-    "SOYBEANS - CHICAGO BOARD OF TRADE":                "soybeans_cbot",
-    "SOYBEAN OIL - CHICAGO BOARD OF TRADE":             "soybean_oil_cbot",
-    "SOYBEAN MEAL - CHICAGO BOARD OF TRADE":            "soybean_meal_cbot",
-    "WHEAT-SRW - CHICAGO BOARD OF TRADE":               "soft_red_winter_wheat_cbot",
-    "WHEAT-HRW - CHICAGO BOARD OF TRADE":               "hard_red_winter_wheat_kcbt",
-    "WHEAT-HRSpring - MINNEAPOLIS GRAIN EXCHANGE":      "hard_red_spring_wheat_mgex",
-    "WHEAT-HRSpring - MIAX FUTURES EXCHANGE":           "hard_red_spring_wheat_mgex",
-    "COFFEE C - ICE FUTURES U.S.":                      "arabica_coffee",
-    "COCOA - ICE FUTURES U.S.":                         "cocoa",
-    "COTTON NO. 2 - ICE FUTURES U.S.":                  "cotton",
-    "SUGAR NO. 11 - ICE FUTURES U.S.":                  "raw_sugar",
-    "ROUGH RICE - CHICAGO BOARD OF TRADE":              "rough_rice_cbot",
-    "FROZEN CONCENTRATED ORANGE JUICE - ICE FUTURES":   "frozen_orange_juice",
-    "FCOJ-A - ICE FUTURES U.S.":                        "frozen_orange_juice",
+_CODE_TO_SLUG: dict[str, str] = {
+    "001602": "soft_red_winter_wheat_cbot",     # WHEAT / WHEAT-SRW - CBOT
+    "001612": "hard_red_winter_wheat_kcbt",     # WHEAT - KCBT / WHEAT-HRW - CBOT
+    "001626": "hard_red_spring_wheat_mgex",     # WHEAT - MGEX / WHEAT-HRSpring - MGEX / MIAX
+    "002602": "corn_cbot",                      # CORN - CBOT
+    "005602": "soybeans_cbot",                  # SOYBEANS - CBOT
+    "007601": "soybean_oil_cbot",               # SOYBEAN OIL - CBOT
+    "026603": "soybean_meal_cbot",              # SOYBEAN MEAL - CBOT
+    "033661": "cotton",                         # COTTON NO. 2 - NYBOT / ICE
+    "037021": "malaysian_crude_palm_oil_cme",   # USD MALAYSIAN CRUDE PALM OIL - CME
+    "039601": "rough_rice_cbot",                # ROUGH RICE - CBOT
+    "040701": "frozen_orange_juice",            # FRZN CONCENTRATED ORANGE JUICE - ICE
+    "073732": "cocoa",                          # COCOA - NYBOT / ICE
+    "080732": "raw_sugar",                      # SUGAR NO. 11 - NYBOT / ICE
+    "083731": "arabica_coffee",                 # COFFEE C - NYBOT / ICE
+    "135731": "canola_ice",                     # CANOLA (OIL) - ICE
 }
+
+# Every market NAME observed carrying a mapped code, across all measured eras. NOT a join input --
+# purely the rename tripwire: a mapped code arriving under an unseen name is logged (INFO) so the
+# next CFTC rename is visible in the run log instead of silent, and the map above stays the one
+# producer of the join fact.
+_KNOWN_NAMES: frozenset[str] = frozenset({
+    "CORN - CHICAGO BOARD OF TRADE", "SOYBEANS - CHICAGO BOARD OF TRADE",
+    "SOYBEAN OIL - CHICAGO BOARD OF TRADE", "SOYBEAN MEAL - CHICAGO BOARD OF TRADE",
+    "WHEAT - CHICAGO BOARD OF TRADE", "WHEAT-SRW - CHICAGO BOARD OF TRADE",
+    "WHEAT - KANSAS CITY BOARD OF TRADE", "WHEAT-HRW - CHICAGO BOARD OF TRADE",
+    "WHEAT - MINNEAPOLIS GRAIN EXCHANGE", "WHEAT-HRSpring - MINNEAPOLIS GRAIN EXCHANGE",
+    "WHEAT-HRSpring - MIAX FUTURES EXCHANGE",
+    "COFFEE C - ICE FUTURES U.S.", "COFFEE C - NEW YORK BOARD OF TRADE",
+    "COCOA - ICE FUTURES U.S.", "COCOA - NEW YORK BOARD OF TRADE",
+    "COTTON NO. 2 - ICE FUTURES U.S.", "COTTON NO. 2 - NEW YORK BOARD OF TRADE",
+    "SUGAR NO. 11 - ICE FUTURES U.S.", "SUGAR NO. 11 - NEW YORK BOARD OF TRADE",
+    "ROUGH RICE - CHICAGO BOARD OF TRADE",
+    "FRZN CONCENTRATED ORANGE JUICE - ICE FUTURES U.S.",
+    "CANOLA - ICE FUTURES U.S.", "CANOLA OIL - ICE FUTURES U.S.",
+    "USD MALAYSIAN CRUDE PALM OIL", "USD Malaysian Crude Palm Oil C - CHICAGO MERCANTILE EXCHANGE",
+})
 
 # Raw columns we keep (8 of 191)
 _KEEP_COLS: list[str] = [
@@ -261,6 +301,11 @@ def parse_cot_txt(raw_bytes: bytes, year_label: str) -> pd.DataFrame:
     df = pd.read_csv(
         io.BytesIO(raw_bytes),
         usecols=lambda c: c in _KEEP_COLS,
+        # THE JOIN KEY MUST BE READ AS TEXT: CFTC codes carry leading zeros ("002602", "040701")
+        # and pandas' numeric inference strips them, which would miss every _CODE_TO_SLUG key.
+        # (Alphanumeric codes like 00160F would mask this on full files by forcing object dtype --
+        # a small or filtered file without one reads the column numeric, so the dtype is pinned.)
+        dtype={"CFTC_Contract_Market_Code": str},
         low_memory=False,
     )
 
@@ -274,14 +319,28 @@ def parse_cot_txt(raw_bytes: bytes, year_label: str) -> pd.DataFrame:
             )
             df = df[fut_only].copy()
 
-    # Normalise market name: strip whitespace
+    # Normalise the two identity columns: strip whitespace
     df["Market_and_Exchange_Names"] = (
         df["Market_and_Exchange_Names"].astype(str).str.strip()
     )
+    df["CFTC_Contract_Market_Code"] = (
+        df["CFTC_Contract_Market_Code"].astype(str).str.strip()
+    )
 
-    # Map to leviathan slugs — filter to our markets only
-    df["leviathan_slug"] = df["Market_and_Exchange_Names"].map(_MARKET_TO_SLUG)
+    # Map to leviathan slugs BY CFTC CODE — filter to our markets only. The code survives every
+    # market rename (measured: FCOJ, the 2013/14 wheat renames, MGEX->MIAX, CANOLA OIL->CANOLA);
+    # the name join this replaces silently lost 1,049 FCOJ weeks to a rename-class mismatch.
+    df["leviathan_slug"] = df["CFTC_Contract_Market_Code"].map(_CODE_TO_SLUG)
     df = df[df["leviathan_slug"].notna()].copy()
+
+    # The rename tripwire: a mapped code under a name we have never seen is tomorrow's rename,
+    # caught in the log today instead of read as no-data in three years.
+    unseen = df.loc[~df["Market_and_Exchange_Names"].isin(_KNOWN_NAMES),
+                    ["CFTC_Contract_Market_Code", "Market_and_Exchange_Names"]].drop_duplicates()
+    for code, name in unseen.itertuples(index=False):
+        logger.info("COT %s: mapped code %s arrived under a NEW market name %r "
+                    "(join unaffected -- code-keyed; add the name to _KNOWN_NAMES)",
+                    year_label, code, name)
 
     if df.empty:
         logger.warning("COT %s: no mapped markets found", year_label)
