@@ -126,7 +126,10 @@ function goodResult(question: string, asof: string): RespondResult {
       sections: GOOD_SECTIONS,
       diagram_mermaid: 'graph LR; frost-->stocks; stocks-->price',
       sources: [
-        { ref: 1, source: 'USDA FAS GAIN Report — Coffee', date: '2021-07-20', source_key: 's3://gain/kc-2021-07-20' },
+        // ref 1 carries Phase-F pin-point offsets (the live wire mints them now): its "open PDF ▸" walks
+        // the FULL highlight path against the mock PDF's one visible line — glow + scroll, offline.
+        { ref: 1, source: 'USDA FAS GAIN Report — Coffee', date: '2021-07-20', source_key: 's3://gain/kc-2021-07-20',
+          char_start: 10, char_end: 30, offset_kind: 'exact' },
         { ref: 2, source: 'USDA WASDE', date: '2021-07-12', source_key: 's3://wasde/2021-07' },
         { ref: 'N1', source: 'USDA PSD', date: '2021-06-11' },
       ],
@@ -533,11 +536,20 @@ const MOCK_PDF_URL = 'data:application/pdf;base64,JVBERi0xLjQKMSAwIG9iaiA8PCAvVH
 export function mockGetPdfPage(
   _sourceKey: string,
   _snippet?: string,
-  _charStart?: number,
-  _offsetKind?: string,
+  charStart?: number,
+  offsetKind?: string,
+  charEnd?: number,
 ): Promise<PdfPage> {
+  // Phase F: pin-point offsets return the highlight strings (the mock PDF's one visible line), so the
+  // text-layer locate -> glow -> scroll path is walkable offline; offset-less calls stay page-jump-only.
+  const highlightable = charStart != null && charEnd != null
+    && (offsetKind === 'exact' || offsetKind === 'exact_ws');
   return new Promise((resolve) =>
-    setTimeout(() => resolve({ url: MOCK_PDF_URL, page: 1, kind: 'pdf', expires_in: 900 }), 60),
+    setTimeout(() => resolve({
+      url: MOCK_PDF_URL, page: 1, kind: 'pdf', expires_in: 900,
+      span: highlightable ? 'mock source document' : null,
+      sentence: highlightable ? 'Leviathan mock source document' : null,
+    }), 60),
   );
 }
 

@@ -1278,10 +1278,14 @@ def test_dhp9_the_ledger_is_re_minted_from_resolved_after_verify_and_before_prov
                         "1": {"source": "MPOB", "date": "2026-04-30",
                               "source_key": "s3://m", "snippet": "output rose"}}}
     assert an._synthesize_sources(st, rep) == 2
+    # Phase F widened the row with the three span keys (char_start/char_end/offset_kind, None when the
+    # resolved entry lacks them) -- additive, so the field-for-field claim above still holds on the
+    # original five plus honest Nones.
+    _f = {"char_start": None, "char_end": None, "offset_kind": None}
     assert st["sources"] == [
-        {"ref": 1, "source": "MPOB", "date": "2026-04-30", "note": "output rose", "source_key": "s3://m"},
+        {"ref": 1, "source": "MPOB", "date": "2026-04-30", "note": "output rose", "source_key": "s3://m", **_f},
         {"ref": 2, "source": "USDA WASDE", "date": "2026-05-12", "note": "stocks fell",
-         "source_key": "s3://w"}]
+         "source_key": "s3://w", **_f}]
     an._attach_provenance(st, rep)                             # idempotent: the join is already total
     assert [r["source_key"] for r in st["sources"]] == ["s3://m", "s3://w"]
     assert an._synthesize_sources({"tldr": "t"}, {"resolved": {}}) == 0

@@ -85,7 +85,9 @@ def _nodes_of(params: dict) -> list:
 
 def _row(node, i, *, with_vectors=True):
     payload = VEC if with_vectors else 0.5
-    return (node, f"{node}-{i}", "GAIN", f"s3://{node}/{i}", "2021-07-20", None, f"{node} row {i}", payload)
+    # Phase F: the projections gained a `meta` jsonb column (char_start/char_end/offset_kind ride it)
+    # between text and payload -- the fake rows mirror the live tuple shape.
+    return (node, f"{node}-{i}", "GAIN", f"s3://{node}/{i}", "2021-07-20", None, f"{node} row {i}", {}, payload)
 
 
 @pytest.fixture()
@@ -250,7 +252,7 @@ def test_pg_retrieve_threads_candidates_and_still_runs_the_whole_post_fetch_pipe
             {"id": "a-1", "source": "FRED", "source_key": "s3://a/1", "date": "2021-05-01",
              "event_date": None, "text": "dollar note", "vector": [0.0, 1.0, 0.0, 0.0]}]
     conn = fake_pg(lambda sql, p: [(r["id"], r["source"], r["source_key"], r["date"], r["event_date"],
-                                    r["text"], pg._vec_lit(r["vector"])) for r in rows])
+                                    r["text"], {}, pg._vec_lit(r["vector"])) for r in rows])
     fake_embed = lambda t, **k: [QV for _ in t]                # noqa: E731
     borrowed = pg.pg_retrieve("frost", "a", k=2, asof=None, mmr=0.5, embed=fake_embed)
     conn.executed.clear()
@@ -264,7 +266,7 @@ def test_pg_retrieve_threads_candidates_and_still_runs_the_whole_post_fetch_pipe
 def test_a_mismatched_payload_shape_drops_the_prefetch_instead_of_flooring(fake_pg):
     """The guard: probe-shaped rows (`score`, no `vector`) handed to a vector-consuming arm are DISCARDED
     and the node takes one honest borrow, rather than raising a KeyError out of `_dense` mid-walk."""
-    conn = fake_pg(lambda sql, p: [(f"a-{i}", "GAIN", f"s3://a/{i}", "2021-07-20", None, "t", VEC)
+    conn = fake_pg(lambda sql, p: [(f"a-{i}", "GAIN", f"s3://a/{i}", "2021-07-20", None, "t", {}, VEC)
                                    for i in range(2)])
     cheap = [{"id": "a-0", "source": "GAIN", "source_key": "s3://a/0", "date": "2021-07-20",
               "event_date": None, "text": "t", "score": 0.5}]

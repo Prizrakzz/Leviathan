@@ -17,18 +17,25 @@ export type ResolvedMap = Record<string, ResolvedCite>;
  *  which is exactly how D-TW-23 shipped: the type could not tell a wired handler from a stub. */
 export type CiteOpen = ((ref: string) => void) | null;
 
-type Src = { ref?: unknown; source?: unknown; date?: unknown; source_key?: unknown; char_start?: unknown; offset_kind?: unknown };
-type Cit = { id?: unknown; kind?: unknown; locator?: { source_key?: unknown; snippet?: unknown; kind?: unknown } };
+type Src = { ref?: unknown; source?: unknown; date?: unknown; source_key?: unknown;
+  char_start?: unknown; char_end?: unknown; offset_kind?: unknown };
+type CitLoc = { source_key?: unknown; snippet?: unknown; kind?: unknown;
+  char_start?: unknown; char_end?: unknown; offset_kind?: unknown };
+type Cit = { id?: unknown; kind?: unknown; locator?: CitLoc };
 
 /** The doc locator (6.5) a chip carries to open its source PDF: the text-layer `source_key` + the cited
- *  snippet, and — WHEN the structured source carries them (new/E4 props) — the char offset that lets the
- *  backend resolve an EXACT page. Offsets are passed through defensively (optional chaining): absent on
- *  legacy props, so their keys are OMITTED rather than set to undefined. Legacy props still get a locator
+ *  snippet, and — WHEN the structured source (or, Phase F fallback, the citation row's own locator for the
+ *  same source_key) carries them — the char offsets that let the backend resolve an EXACT page and return
+ *  the highlight span. Offsets are passed through defensively (optional chaining): absent on legacy props,
+ *  so their keys are OMITTED rather than set to undefined. Legacy props still get a locator
  *  (source_key + snippet), resolving via server-side snippet fuzzy-match. */
-function docLocator(sourceKey: string, snippet: string | undefined, src?: Src): Record<string, unknown> {
+function docLocator(sourceKey: string, snippet: string | undefined, src?: Src,
+  fallback?: CitLoc): Record<string, unknown> {
   const loc: Record<string, unknown> = { kind: 'doc', source_key: sourceKey, snippet };
-  if (src?.char_start !== undefined) loc.char_start = src.char_start;
-  if (src?.offset_kind !== undefined) loc.offset_kind = src.offset_kind;
+  const from = src?.char_start !== undefined && src?.char_start !== null ? src : fallback;
+  if (from?.char_start !== undefined && from?.char_start !== null) loc.char_start = from.char_start;
+  if (from?.char_end !== undefined && from?.char_end !== null) loc.char_end = from.char_end;
+  if (from?.offset_kind !== undefined && from?.offset_kind !== null) loc.offset_kind = from.offset_kind;
   return loc;
 }
 
@@ -55,9 +62,17 @@ export function resolvedFor(r: {
   // query-provenance. Kept in a SEPARATE map (not merged into numLocByRef) so the digit alias can never
   // shadow an evidence doc locator that shares that digit (E4 and N4 are independent sequences).
   const numLocByDigit = new Map<string, Record<string, unknown>>();
+  // Phase F: a doc citation's OWN locator carries char offsets (the live wire mints them now); harvested
+  // by source_key as the docLocator fallback so a durable turn whose structured.sources predate the offset
+  // fields still highlights. Guarded by the source_key join — offsets never cross documents.
+  const docLocByKey = new Map<string, CitLoc>();
   for (const c of cits) {
     const key = c.locator?.source_key;
     if (typeof key === 'string' && typeof c.locator?.snippet === 'string') snippetByKey.set(key, c.locator.snippet);
+    if (typeof key === 'string' && c.locator?.kind === 'doc'
+        && typeof c.locator?.char_start === 'number' && !docLocByKey.has(key)) {
+      docLocByKey.set(key, c.locator);
+    }
     if (c.locator?.kind === 'number' && typeof c.id === 'string') {
       const nloc = c.locator as Record<string, unknown>;
       numLocByRef.set(c.id, nloc);
@@ -91,7 +106,8 @@ export function resolvedFor(r: {
     // up N4's number locator). Otherwise a structured source WITH a source_key gets a doc locator so the chip
     // can open its source PDF at the cited page (6.5).
     const numLoc = numLocByRef.get(ref) ?? (typeof sk === 'string' ? undefined : numLocByDigit.get(ref));
-    const locator = numLoc ?? (typeof sk === 'string' ? docLocator(sk, text, ss) : undefined);
+    const locator = numLoc
+      ?? (typeof sk === 'string' ? docLocator(sk, text, ss, docLocByKey.get(sk)) : undefined);
     out[ref] = { source, date: (ss?.date as string | undefined) ?? lr?.date, text, locator };
   }
   // A sibling row INHERITS its call's display identity. `N1b` is one row of the lookup `N1` already

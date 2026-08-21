@@ -629,10 +629,14 @@ def fetch_candidates(query_vec, query_text: str, node: str, *, asof: Optional[st
     # measurement of the planner instead of the code. The SAME tiebreak rides fetch_candidates_batch.
     dense = (f"SELECT id, ROW_NUMBER() OVER (ORDER BY vector <=> %(qv)s::vector, id) AS rnk "
              f"FROM {t} WHERE {where} ORDER BY vector <=> %(qv)s::vector, id LIMIT %(k)s")
-    # 7th projected column: the raw vector (rerank/MMR need it in-process) or the scalar cosine. The alias is
+    # 7th projected column: the whole `meta` jsonb — char_start/char_end/offset_kind ride it to the citation
+    # locator (Phase F: the serving read DROPPED them since 6.5, so the deterministic click-to-page leg and
+    # the highlight were structurally dark; one column beats three ->> accessors and keeps the two statement
+    # shapes symmetric). ~100 bytes/row against the 700 KB/row vector payload — immaterial on the fill arm.
+    # 8th: the raw vector (rerank/MMR need it in-process) or the scalar cosine. The alias is
     # NOT `score` — the fused CTE already exposes one, and `ORDER BY f.score` must keep resolving to the CTE's.
     payload = "p.vector::text" if with_vectors else "1 - (p.vector <=> %(qv)s::vector) AS cos_score"
-    cols = f"SELECT p.id, p.source, p.source_key, p.date, p.event_date, p.text, {payload} "
+    cols = f"SELECT p.id, p.source, p.source_key, p.date, p.event_date, p.text, p.meta, {payload} "
     if hybrid and params["tsq"]:
         # ...and the lexical leg's LIMIT had NO ORDER BY at all: it took an arbitrary k of however many
         # rows matched the tsquery, relying on the WindowAgg's emission order. `ORDER BY rnk` states the
@@ -663,18 +667,26 @@ def fetch_candidates(query_vec, query_text: str, node: str, *, asof: Optional[st
 
 
 def _project(r, with_vectors: bool, off: int = 0) -> dict:
-    """One row tuple -> the candidate dict. The six metadata keys are identical on both payload shapes;
-    the seventh is `vector` (list[float]) or `score` (float).
+    """One row tuple -> the candidate dict. The nine metadata keys are identical on both payload shapes
+    (six scalars + the three span keys read off `meta`); the last column is `vector` (list[float]) or
+    `score` (float).
 
     `off` shifts the tuple index because the BATCH statement projects the node as a LEADING column. This
     projection is SHARED by `fetch_candidates` and `fetch_candidates_batch` on purpose: EC-2's parity
     claim is "the batched read returns the same rows", and two hand-written projections are the cheapest
-    imaginable way for that claim to become false in a later edit nobody reviews as a parity change."""
+    imaginable way for that claim to become false in a later edit nobody reviews as a parity change.
+
+    Phase F: `meta` (jsonb -> dict, column index off+6) supplies char_start/char_end/offset_kind so the
+    citation locator stops shipping nulls; absent keys stay None — the honest legacy shape for pre-offset
+    vintages."""
+    meta = r[off + 6] or {}
+    base = {"id": r[off], "source": r[off + 1], "source_key": r[off + 2], "date": r[off + 3],
+            "event_date": r[off + 4], "text": r[off + 5],
+            "char_start": meta.get("char_start"), "char_end": meta.get("char_end"),
+            "offset_kind": meta.get("offset_kind")}
     if with_vectors:
-        return {"id": r[off], "source": r[off + 1], "source_key": r[off + 2], "date": r[off + 3],
-                "event_date": r[off + 4], "text": r[off + 5], "vector": _vec_parse(r[off + 6])}
-    return {"id": r[off], "source": r[off + 1], "source_key": r[off + 2], "date": r[off + 3],
-            "event_date": r[off + 4], "text": r[off + 5], "score": float(r[off + 6])}
+        return {**base, "vector": _vec_parse(r[off + 7])}
+    return {**base, "score": float(r[off + 7])}
 
 
 # EC-2 CHUNK SIZE -- THE PAYLOAD ARITHMETIC, stated so the number is auditable rather than folkloric.
@@ -783,7 +795,7 @@ def _batch_rows(t: str, qv: str, tsq: str, part: list, *, asof, fetch_k: int, hy
     dense = (f"SELECT id, ROW_NUMBER() OVER (ORDER BY vector <=> %(qv)s::vector, id) AS rnk "
              f"FROM {t} WHERE {where} ORDER BY vector <=> %(qv)s::vector, id LIMIT %(k)s")
     payload = "p.vector::text" if with_vectors else "1 - (p.vector <=> %(qv)s::vector)"
-    cols = f"SELECT p.id, p.source, p.source_key, p.date, p.event_date, p.text, {payload} AS payload "
+    cols = f"SELECT p.id, p.source, p.source_key, p.date, p.event_date, p.text, p.meta, {payload} AS payload "
     if hybrid and tsq:
         lex = (f"SELECT id, ROW_NUMBER() OVER (ORDER BY ts_rank(tsv, to_tsquery('simple', %(tsq)s)) DESC, id) "
                f"AS rnk FROM {t} WHERE {where} AND tsv @@ to_tsquery('simple', %(tsq)s) ORDER BY rnk LIMIT %(k)s")
@@ -794,7 +806,7 @@ def _batch_rows(t: str, qv: str, tsq: str, part: list, *, asof, fetch_k: int, hy
     else:
         inner = cols + f"FROM ({dense}) d JOIN {t} p USING (id) ORDER BY d.rnk, p.id LIMIT %(k)s"
     sql = ("WITH q(node) AS (VALUES " + ",".join(vals) + ") "
-           "SELECT q.node, x.id, x.source, x.source_key, x.date, x.event_date, x.text, x.payload "
+           "SELECT q.node, x.id, x.source, x.source_key, x.date, x.event_date, x.text, x.meta, x.payload "
            f"FROM q CROSS JOIN LATERAL ({inner}) x")
     if conn is None:                                         # serving path: ONE pooled borrow for the chunk
         c = _acquire()
@@ -868,5 +880,7 @@ def pg_retrieve(query: str, node: str, *, k: int = 5, asof: str | None = None, n
     rel_by = {id(r): s for r, s in zip(cand, relevance)}
     return [{"date": r["date"], "source": r["source"], "source_key": r["source_key"], "text": r["text"],
              "event_date": r.get("event_date"), "event_date_precision": r.get("event_date_precision"),
+             "char_start": r.get("char_start"), "char_end": r.get("char_end"),
+             "offset_kind": r.get("offset_kind"),                       # Phase F: ride to the citation locator
              "score": rel_by.get(id(r))}
             for r in top]

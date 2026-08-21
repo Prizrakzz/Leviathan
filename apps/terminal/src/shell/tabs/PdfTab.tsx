@@ -12,6 +12,7 @@ export default function PdfTab({ params }: { params: PdfTabParams }) {
         sourceKey={params.sourceKey}
         snippet={params.snippet}
         charStart={params.charStart}
+        charEnd={params.charEnd}
         offsetKind={params.offsetKind}
       />
     </div>

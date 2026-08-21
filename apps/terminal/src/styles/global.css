@@ -68,3 +68,65 @@ body {
     animation: none !important;
   }
 }
+
+/* ── Phase F: the PDF text layer + citation highlight (6.5 → highlight) ──────────────────────────────
+   Hand-ported ESSENTIALS of pdfjs-dist/web/pdf_viewer.css's .textLayer block (v6) rather than importing
+   the 3.5k-line viewer skin (annotation/editor/toolbar rules that would fight the token theme). v6 sizes
+   the layer from --total-scale-factor (renamed from --scale-factor) via CSS round(), which REQUIRES
+   --scale-round-x/y to be defined — an undefined var yields an invalid width, not a fallback. The factor
+   itself is set inline by PdfViewer from the rendered canvas box (max-w-full can shrink it). */
+.lv-pdfwrap {
+  --scale-round-x: 1px;
+  --scale-round-y: 1px;
+}
+
+.lv-textlayer {
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+  line-height: 1;
+  text-align: initial;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  caret-color: CanvasText;
+  z-index: 0;
+}
+
+.lv-textlayer :is(span, br) {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+}
+
+.lv-textlayer {
+  /* pdf_viewer.css:649 verbatim: the span scale rides total-scale × min-font-size (the constructor sets
+     --min-font-size on the container). --font-height carries ITS OWN px units — never multiply by 1px. */
+  --text-scale-factor: calc(var(--total-scale-factor, 1) * var(--min-font-size, 1));
+}
+
+.lv-textlayer span {
+  /* pdf_viewer.css:656-657 verbatim. */
+  --font-height: 0;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+}
+
+.lv-textlayer span::selection {
+  background: color-mix(in srgb, var(--cyan) 35%, transparent);
+}
+
+.lv-textlayer .markedContent {
+  display: contents;
+}
+
+/* The glow rects PdfViewer paints behind the located sentence/span. Multiply keeps the (white) paper's
+   text legible under the wash; the pin is deliberately amber — the receipts accent, not an error hue. */
+.lv-hl-rect {
+  position: absolute;
+  background: color-mix(in srgb, var(--amber) 45%, transparent);
+  mix-blend-mode: multiply;
+  border-radius: 2px;
+  pointer-events: none;
+}

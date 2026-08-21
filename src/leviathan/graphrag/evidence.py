@@ -555,8 +555,12 @@ def _out(recs: list[dict], scores: dict | None = None) -> list[dict]:
     # too. Purely ADDITIVE: it filters nothing here, and every consumer (_ev_block, citations.unify,
     # verify) reads named keys, so an extra one is inert. `scores` is keyed by id() of the SAME record
     # objects, so a row the ranker reordered (mmr_select) still carries its own value.
+    # Phase F: the three span keys ride too (flat JSONL records hold them inline; the pg twin reads them
+    # off `meta`). Same additive discipline as `score` — absent on a pre-offset vintage stays None.
     return [{"date": r["date"], "source": r["source"], "source_key": r["source_key"], "text": r["text"],
              "event_date": r.get("event_date"), "event_date_precision": r.get("event_date_precision"),
+             "char_start": r.get("char_start"), "char_end": r.get("char_end"),
+             "offset_kind": r.get("offset_kind"),
              "score": (scores or {}).get(id(r))}
             for r in recs]
 

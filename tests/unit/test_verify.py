@@ -115,6 +115,23 @@ def test_resolved_mapping_exposed_for_unified_rendering():
     assert r["snippet"].startswith("Record soybean and corn prices")
 
 
+def test_resolved_mapping_carries_span_offsets_when_the_item_has_them():
+    """Phase F: char_start/char_end/offset_kind ride the resolved payload to structured.sources -> the FE
+    PDF highlight. An offset-less item (pre-offset vintage) resolves with honest Nones -- same shape,
+    never a KeyError."""
+    ev_with = [{**EV[1], "source_key": "text/s=usda_wasde/document.json",
+                "char_start": 5120, "char_end": 5208, "offset_kind": "exact_ws"}]
+    s = _structured("Record corn prices occurred in August 2012 on the drought [1].",
+                    [{"ref": "1", "source": "usda_wasde", "date": "2012-08-10", "note": ""}])
+    rep = vf.verify_citations(s, ev_with, [])
+    r = rep["resolved"]["1"]
+    assert r["char_start"] == 5120 and r["char_end"] == 5208 and r["offset_kind"] == "exact_ws"
+    s2 = _structured("Record corn prices occurred in August 2012 on the drought [2].",
+                     [{"ref": "2", "source": "usda_wasde", "date": "2012-08-10", "note": ""}])
+    r2 = vf.verify_citations(s2, EV, [])["resolved"]["2"]
+    assert r2["char_start"] is None and r2["char_end"] is None and r2["offset_kind"] is None
+
+
 def test_foreign_regime_name_stripped_own_survives():
     s = _structured("The bullish_weather_squeeze conditions are documented; the bullish_protein_squeeze "
                     "regime also looms on the drought [2].",

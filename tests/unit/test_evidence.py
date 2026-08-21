@@ -696,8 +696,23 @@ def test_out_projection_carries_event_date():
     out = ev._out(recs)
     assert out[0]["event_date"] == "2010-08-05" and out[0]["event_date_precision"] == "day"
     assert out[1]["event_date"] is None and out[1]["event_date_precision"] is None
+    # Phase F widened the projection with the three span keys (char_start/char_end/offset_kind) --
+    # additive, None on pre-offset vintages, same discipline as `score`.
     assert set(out[0]) == {"date", "source", "source_key", "text", "event_date", "event_date_precision",
-                           "score"}
+                           "char_start", "char_end", "offset_kind", "score"}
+
+
+def test_out_projection_carries_span_offsets():
+    """Phase F: flat JSONL records hold char offsets inline; _out must pass them through (they were
+    dropped here since 6.5, which kept the citation locator's offsets permanently null)."""
+    from leviathan.graphrag import evidence as ev
+    recs = [{"date": "2010-09-01", "source": "usda_gain", "source_key": "k1", "text": "t",
+             "char_start": 1200, "char_end": 1240, "offset_kind": "exact_ws"},
+            {"date": "2011-01-01", "source": "usda_wasde", "source_key": "k2", "text": "u"}]
+    out = ev._out(recs)
+    assert out[0]["char_start"] == 1200 and out[0]["char_end"] == 1240
+    assert out[0]["offset_kind"] == "exact_ws"
+    assert out[1]["char_start"] is None and out[1]["offset_kind"] is None
 
 
 def test_out_projection_carries_the_retrieval_score():

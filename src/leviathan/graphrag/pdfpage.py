@@ -320,6 +320,74 @@ def _fuzzy_page(pages: list, snippet: Optional[str]) -> Optional[int]:
     return None
 
 
+_SPAN_CAP = 600            # a returned highlight anchor is a pin-point (median exact span 25 chars), never a wall
+_SENTENCE_REACH = 400      # D12 expansion cap per side: a table row with no terminal punctuation must not glow a page
+_SENT_BOUND = re.compile(r"[.!?;](?=\s|$)|\n")   # verify.py's _BOUND idiom verbatim: never splits a decimal
+
+
+def _span_of(doc: dict, char_start: Optional[int], char_end: Optional[int]) -> Optional[str]:
+    """The verbatim span ``full_text[char_start:char_end]`` — or None when the offsets cannot name one
+    (either absent, inverted, out of range, empty after strip, or implausibly long for a pin-point).
+    The None path is load-bearing twice over: it skips #73 verification wherever a span cannot be
+    recovered (keeping every legacy fixture with ``full_text: ""`` on today's exact behaviour), and it
+    keeps the response's ``span`` an honest null instead of a guess."""
+    if not isinstance(char_start, int) or not isinstance(char_end, int) or char_end <= char_start:
+        return None
+    text = doc.get("full_text") or ""
+    span = text[char_start:char_end].strip()
+    if not span or len(span) > _SPAN_CAP:
+        return None
+    return span
+
+
+def _verify_and_repair(pages: list, cand: Optional[int], span: str) -> Optional[int]:
+    """Task #73: verify the arithmetic page actually CONTAINS the span; when it does not, walk outward and
+    return the nearest page that does; nothing anywhere -> None (right, or honestly null — never
+    confidently wrong). Reuses ``_fuzzy_page`` as the matcher (normalize -> exact substring -> best-window
+    difflib >= threshold) over an outward-ordered page list, so candidate-first ordering means the
+    arithmetic answer wins whenever it is right and the measured +1/+4 wb drift repairs itself otherwise.
+    Ordering runs over LIST INDICES, not page numbers — blank/boilerplate-filtered docs make index != page.
+    A span that straddles a page boundary would be found nowhere whole, so a prefix retry (span[:40])
+    runs before conceding None."""
+    if not pages:
+        return None
+    idx = next((i for i, (rp, _t) in enumerate(pages) if rp == cand), None) if cand is not None else None
+    if idx is None:
+        ordered = list(pages)
+    else:
+        order = [idx]
+        for d in range(1, len(pages)):
+            if idx + d < len(pages):
+                order.append(idx + d)
+            if idx - d >= 0:
+                order.append(idx - d)
+        ordered = [pages[i] for i in order]
+    got = _fuzzy_page(ordered, span)
+    if got is None and len(span) > 40:
+        got = _fuzzy_page(ordered, span[:40])                 # straddling-span fallback: anchor on the head
+    return got
+
+
+def _sentence_of(doc: dict, char_start: int, char_end: int) -> Optional[str]:
+    """D12: expand ``[char_start, char_end)`` outward to the containing sentence in ``full_text`` — the
+    string that glows, around the pin-point ``span`` the FE anchors on. Boundaries per the verifier's own
+    sentence regex (never a decimal point); reach capped per side so unpunctuated table blocks stay
+    pin-points instead of page-glows."""
+    text = doc.get("full_text") or ""
+    if not text or char_end <= char_start or char_start < 0 or char_start >= len(text):
+        return None
+    lo = max(0, char_start - _SENTENCE_REACH)
+    hi = min(len(text), char_end + _SENTENCE_REACH)
+    start, end = lo, hi
+    for b in _SENT_BOUND.finditer(text, lo, char_start):
+        start = b.end()
+    m = _SENT_BOUND.search(text, char_end, hi)
+    if m:
+        end = m.end()
+    sent = text[start:end].strip()
+    return sent or None
+
+
 def _sidecar_pages(source_key: str) -> Optional[list]:
     """Read the ``pages.json`` sidecar next to ``document.json`` (the W1b scanned-WASDE per-page OCR index),
     returning ``[(page, text), ...]`` or None when absent/malformed. Schema: ``{page_count, pages:[{page,
@@ -341,7 +409,7 @@ def _sidecar_pages(source_key: str) -> Optional[list]:
 
 
 def _resolve_page(doc: dict, source_key: str, snippet: Optional[str], char_start: Optional[int],
-                  offset_kind: Optional[str]) -> Optional[int]:
+                  offset_kind: Optional[str], char_end: Optional[int] = None) -> Optional[int]:
     """Pick the best 1-indexed page (or None) for the citation. Branches BEFORE any pdfplumber work: a textract
     doc uses the sidecar; a non-pdf raw_key has no page; a family that ships its own per-page sections reads the
     map straight off the text layer. Native PDFs go deterministic when an offset is present, else fuzzy. Raises
@@ -363,22 +431,48 @@ def _resolve_page(doc: dict, source_key: str, snippet: Optional[str], char_start
     pages, sep = got
     want_offset = char_start is not None and (offset_kind is None or offset_kind.lower() != "none")
     if want_offset:
-        return _char_to_page(pages, sep, char_start)              # deterministic offsets-first (W2.1 props)
+        page = _char_to_page(pages, sep, char_start)              # deterministic offsets-first (W2.1 props)
+        # Task #73 — verify-and-repair, GATED to the pin-point kinds. `block` spans are the whole ~5,000-char
+        # parent window and straddle page boundaries in essentially every document: verifying them would
+        # null the arithmetic answer across the entire block cohort (the largest offset-carrying class), a
+        # straight regression. exact/exact_ws spans verify; the repair also RECOVERS a page when the
+        # arithmetic said None (a doc whose text was re-extracted under stored offsets — D14's class).
+        span = _span_of(doc, char_start, char_end)
+        if span is not None and (offset_kind or "").lower() in ("exact", "exact_ws"):
+            page = _verify_and_repair(pages, page, span)
+        return page
     return _fuzzy_page(pages, snippet)                            # pre-W2.1 props: snippet fuzzy-match
 
 
 def resolve_pdf_page(source_key: str, snippet: Optional[str] = None, char_start: Optional[int] = None,
-                     offset_kind: Optional[str] = None) -> dict:
-    """Resolve a document citation to ``{url, page, kind, expires_in}``: a presigned URL to the source document,
-    the best-guess 1-indexed page (None when unresolvable -- open at top), the raw kind (pdf/html/txt/other), and
-    the 900s presign TTL. NEVER raises except :class:`PdfDocumentMissing` (document.json gone) -- every other
-    failure returns page=None with the url still populated."""
+                     offset_kind: Optional[str] = None, char_end: Optional[int] = None) -> dict:
+    """Resolve a document citation to ``{url, page, kind, expires_in, span, sentence}``: a presigned URL to
+    the source document, the best-guess 1-indexed page (None when unresolvable -- open at top), the raw kind
+    (pdf/html/txt/other), the 900s presign TTL, and — Phase F — the highlight strings: ``span`` = the
+    verbatim pin-point ``full_text[char_start:char_end]``, ``sentence`` = its D12 containing-sentence
+    expansion. Both are None unless the offsets are the pin-point kinds (exact/exact_ws) on a NATIVE pdf:
+    ``block`` offsets name a ~5,000-char window (meaningless to glow), and a textract doc's full_text came
+    from a DIFFERENT extraction pass than its page sidecar, so its offsets cannot legally address anything
+    the viewer shows (D4: scanned docs are page-jump only). The FE searches the pdf.js text layer for
+    ``sentence`` falling back to ``span`` falling back to today's page-jump — a null here degrades, never
+    errors. NEVER raises except :class:`PdfDocumentMissing` (document.json gone) -- every other failure
+    returns page=None with the url still populated."""
     doc = _load_document(source_key)                              # raises PdfDocumentMissing -> route 404
     raw_key = doc.get("raw_key") or ""
     kind = _kind_of(raw_key)
     url = _presign(raw_key)
     try:
-        page = _resolve_page(doc, source_key, snippet, char_start, offset_kind)
+        page = _resolve_page(doc, source_key, snippet, char_start, offset_kind, char_end)
     except Exception:  # noqa: BLE001 -- page recovery is best-effort; the open must still work
         page = None
-    return {"url": url, "page": page, "kind": kind, "expires_in": _EXPIRES}
+    span = sentence = None
+    method = (doc.get("extraction_method") or "").lower()
+    if (kind == "pdf" and method != "textract"
+            and (offset_kind or "").lower() in ("exact", "exact_ws")):
+        try:
+            span = _span_of(doc, char_start, char_end)
+            if span is not None:
+                sentence = _sentence_of(doc, char_start, char_end)
+        except Exception:  # noqa: BLE001 -- highlight strings are best-effort; the open must still work
+            span = sentence = None
+    return {"url": url, "page": page, "kind": kind, "expires_in": _EXPIRES, "span": span, "sentence": sentence}

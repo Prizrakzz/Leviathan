@@ -94,9 +94,11 @@ def test_dense_fast_path_matches_records_arg(monkeypatch):
     recs = [_rec("hit", "on target", [1.0, 0.0]), _rec("miss", "off", [0.0, 1.0])]
     out = ev.retrieve("q", "node", k=1, records=recs)
     # P9-A W0: the projection carries event_date. D-DV-2: ...and `score`, the relevance the row was ranked
-    # on -- the fast path picks the SAME rows in the SAME order, it just says why.
+    # on -- the fast path picks the SAME rows in the SAME order, it just says why. Phase F widened the
+    # projection with the three span keys (None on offset-less records) -- additive, same discipline.
     assert out == [{"date": "2020-01-01", "source": "usda_wasde", "source_key": "k/hit", "text": "on target",
-                    "event_date": None, "event_date_precision": None, "score": 1.0}]
+                    "event_date": None, "event_date_precision": None,
+                    "char_start": None, "char_end": None, "offset_kind": None, "score": 1.0}]
 
 
 # ── D-MW: the third rerank backend ───────────────────────────────────────────────────────────────────

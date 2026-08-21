@@ -25,7 +25,8 @@ function Row({ r, highlight, rowRef }: { r: ReceiptRow; highlight?: boolean; row
               useUI.getState().openTab({
                 kind: 'pdf',
                 title: r.source ?? sourceKey.split('/').pop() ?? 'Source PDF',
-                params: { sourceKey, snippet: r.snippet },
+                params: { sourceKey, snippet: r.snippet, charStart: r.charStart, charEnd: r.charEnd,
+                          offsetKind: r.offsetKind },
               })
             }
             className="ml-auto text-text-faint hover:text-cyan"

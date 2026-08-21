@@ -236,12 +236,19 @@ class CitationPdf(BaseModel):
     """The 6.5 click-to-page resolver result the PdfModal binds to: a presigned URL to the SOURCE document,
     the best-guess 1-indexed `page` (null when unresolvable -- the modal opens at the top with a 'page unknown'
     banner), the raw doc `kind` (pdf/html/txt/other) so the FE picks a viewer, and the presign TTL in seconds.
+    Phase F adds the highlight strings: `span` = the verbatim pin-point the offsets name in the server's
+    full_text (the FE searches the pdf.js text layer for it -- offsets themselves cannot cross extractors),
+    and `sentence` = its D12 containing-sentence expansion (what glows). Both null unless the citation
+    carries pin-point offsets (exact/exact_ws) on a native PDF -- block offsets and scanned docs stay
+    page-jump-only by design, and a null degrades to today's behaviour, never errors.
     Never an error shape -- a resolver miss degrades to page=null with the url still set; the route 404s ONLY
     when the document.json itself is gone (or the GRAPHRAG_PDF_LINKS kill-switch is off)."""
     url: str
     page: Optional[int] = None
     kind: str
     expires_in: int
+    span: Optional[str] = None
+    sentence: Optional[str] = None
 
 
 # ── 6.6 settings / profile facts / onboarding (design §6.6) ─────────────────────────────────────────

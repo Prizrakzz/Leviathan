@@ -136,11 +136,13 @@ export function getPdfPage(
   snippet?: string,
   charStart?: number,
   offsetKind?: string,
+  charEnd?: number,
 ): Promise<PdfPage> {
-  if (MOCK) return import('./mock').then((m) => m.mockGetPdfPage(sourceKey, snippet, charStart, offsetKind));
+  if (MOCK) return import('./mock').then((m) => m.mockGetPdfPage(sourceKey, snippet, charStart, offsetKind, charEnd));
   const p = new URLSearchParams({ source_key: sourceKey });
   if (snippet) p.set('snippet', snippet);
   if (charStart != null) p.set('char_start', String(charStart));
+  if (charEnd != null) p.set('char_end', String(charEnd));
   if (offsetKind) p.set('offset_kind', offsetKind);
   return getJSON(`/v1/citation/pdf?${p.toString()}`);
 }

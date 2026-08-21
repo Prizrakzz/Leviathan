@@ -410,3 +410,126 @@ def test_never_raises_when_presign_fails(monkeypatch):
     fake.raise_on_presign = True
     res = pdfpage.resolve_pdf_page(_GAIN_SK, snippet="MARKER BRAVO")
     assert res["url"] == "" and res["kind"] == "pdf" and res["expires_in"] == 900
+
+
+# ── Task #73: verify-and-repair (Phase F, 2026-08-21) + the D12 span/sentence response fields ───────
+# These run with a doc whose full_text IS the canonical extraction — the shape the live store holds.
+# Every pre-#73 test above keeps full_text: "" and is untouched: an unrecoverable span skips
+# verification by design (that None path is load-bearing).
+def _gain_env_with_text(monkeypatch):
+    pdf_bytes = _make_pdf(_GAIN_PAGES)
+    canon = extract_gain_pdf(pdf_bytes, _GAIN_RK, "usda_gain_coffee")["full_text"]
+    doc = {**_gain_doc(), "full_text": canon}
+    fake = _install(monkeypatch, {_GAIN_SK: json.dumps(doc).encode(), _GAIN_RK: pdf_bytes})
+    return fake, canon
+
+
+def _span_bounds(canon: str, needle: str) -> tuple[int, int]:
+    s = canon.index(needle)
+    return s, s + len(needle)
+
+
+def test_verify_keeps_a_correct_arithmetic_page(monkeypatch):
+    _fake, canon = _gain_env_with_text(monkeypatch)
+    s, e = _span_bounds(canon, "MARKER BRAVO the cited passage")
+    res = pdfpage.resolve_pdf_page(_GAIN_SK, char_start=s, char_end=e, offset_kind="exact")
+    assert res["page"] == 3                                       # arithmetic was right; verification agrees
+
+
+def test_verify_repairs_a_wrong_arithmetic_page(monkeypatch):
+    """The wb_cmo shape (15/15 measured misses): arithmetic names a NEIGHBOURING page; the span is
+    searched candidate-first then outward and the true page wins."""
+    _fake, canon = _gain_env_with_text(monkeypatch)
+    s, e = _span_bounds(canon, "MARKER BRAVO the cited passage")
+    monkeypatch.setattr(pdfpage, "_char_to_page", lambda pages, sep, cs: 1)   # deliberately wrong
+    res = pdfpage.resolve_pdf_page(_GAIN_SK, char_start=s, char_end=e, offset_kind="exact")
+    assert res["page"] == 3
+
+
+def test_verify_recovers_when_arithmetic_says_none(monkeypatch):
+    """The D14 class: a doc re-extracted under stored offsets makes the arithmetic refuse (out of range);
+    the span search still finds the true page — right, or honestly null, never confidently wrong."""
+    _fake, canon = _gain_env_with_text(monkeypatch)
+    s, e = _span_bounds(canon, "Frost struck the arabica belt")
+    monkeypatch.setattr(pdfpage, "_char_to_page", lambda pages, sep, cs: None)
+    res = pdfpage.resolve_pdf_page(_GAIN_SK, char_start=s, char_end=e, offset_kind="exact")
+    assert res["page"] == 3
+
+
+def test_verify_nulls_a_span_present_on_no_page(monkeypatch):
+    """A span that exists in full_text but on no reconstructed page (replay mismatch) -> None, never the
+    arithmetic guess."""
+    pdf_bytes = _make_pdf(_GAIN_PAGES)
+    canon = extract_gain_pdf(pdf_bytes, _GAIN_RK, "usda_gain_coffee")["full_text"]
+    phantom = "PHANTOM SPAN THAT NO RECONSTRUCTED PAGE CONTAINS ANYWHERE"
+    doc = {**_gain_doc(), "full_text": canon + "\n" + phantom}
+    _install(monkeypatch, {_GAIN_SK: json.dumps(doc).encode(), _GAIN_RK: pdf_bytes})
+    s = (canon + "\n").__len__()
+    monkeypatch.setattr(pdfpage, "_char_to_page", lambda pages, sep, cs: 1)   # confidently wrong arithmetic
+    res = pdfpage.resolve_pdf_page(_GAIN_SK, char_start=s, char_end=s + len(phantom), offset_kind="exact")
+    assert res["page"] is None
+
+
+def test_block_offsets_are_not_verified(monkeypatch):
+    """The gate: a block span is the whole parent window and straddles pages — verifying it would null the
+    arithmetic answer across the largest offset-carrying cohort. block keeps today's pure arithmetic."""
+    _fake, canon = _gain_env_with_text(monkeypatch)
+    monkeypatch.setattr(pdfpage, "_char_to_page", lambda pages, sep, cs: 1)
+    res = pdfpage.resolve_pdf_page(_GAIN_SK, char_start=0, char_end=len(canon), offset_kind="block")
+    assert res["page"] == 1                                       # arithmetic survives, unverified
+
+
+def test_missing_full_text_skips_verification(monkeypatch):
+    """The legacy shape (every fixture above): no recoverable span -> no verification -> arithmetic as-is."""
+    _fake, _pdf, canon = _gain_env(monkeypatch)                   # full_text: ""
+    monkeypatch.setattr(pdfpage, "_char_to_page", lambda pages, sep, cs: 1)
+    res = pdfpage.resolve_pdf_page(_GAIN_SK, char_start=canon.index("MARKER"), char_end=canon.index("MARKER") + 40,
+                                   offset_kind="exact")
+    assert res["page"] == 1
+
+
+def test_straddling_span_falls_back_to_a_prefix(monkeypatch):
+    """A span crossing the page-1 -> page-3 join is found whole on no page; the span[:40] prefix retry
+    anchors on its head page instead of conceding None."""
+    _fake, canon = _gain_env_with_text(monkeypatch)
+    s = canon.index("Brazilian arabica output")                   # page 1, with >40 chars before the join
+    e = min(len(canon), s + 150)                                  # runs across the join into page 3's text
+    monkeypatch.setattr(pdfpage, "_char_to_page", lambda pages, sep, cs: None)
+    res = pdfpage.resolve_pdf_page(_GAIN_SK, char_start=s, char_end=e, offset_kind="exact")
+    assert res["page"] == 1                                       # span[:40] lives whole on page 1
+
+
+def test_response_carries_span_and_sentence_for_exact_kinds(monkeypatch):
+    _fake, canon = _gain_env_with_text(monkeypatch)
+    s, e = _span_bounds(canon, "MARKER BRAVO the cited passage")
+    res = pdfpage.resolve_pdf_page(_GAIN_SK, char_start=s, char_end=e, offset_kind="exact")
+    assert res["span"] == "MARKER BRAVO the cited passage"
+    assert res["sentence"] is not None and "MARKER BRAVO" in res["sentence"]
+    assert res["sentence"].endswith("report.")                    # expanded to the containing sentence
+    assert "crop damage" not in res["sentence"]                   # ...and NOT into the previous one
+
+
+def test_response_span_is_null_for_block_and_missing_offsets(monkeypatch):
+    _fake, canon = _gain_env_with_text(monkeypatch)
+    blocky = pdfpage.resolve_pdf_page(_GAIN_SK, char_start=0, char_end=len(canon), offset_kind="block")
+    assert blocky["span"] is None and blocky["sentence"] is None
+    bare = pdfpage.resolve_pdf_page(_GAIN_SK, snippet="MARKER BRAVO")
+    assert bare["span"] is None and bare["sentence"] is None
+
+
+def test_response_span_is_null_for_textract_docs(monkeypatch):
+    """D4: a scanned doc's full_text came from a DIFFERENT extraction pass than its page sidecar — its
+    offsets cannot legally address what the viewer shows. Page-jump only, span null."""
+    doc = {"source": "usda_wasde", "raw_key": _GAIN_RK, "extraction_method": "textract",
+           "sections": [], "full_text": "some textract full text with A CITED SPAN inside it."}
+    _install(monkeypatch, {_GAIN_SK: json.dumps(doc).encode(), _GAIN_RK: _make_pdf(_GAIN_PAGES)})
+    res = pdfpage.resolve_pdf_page(_GAIN_SK, char_start=34, char_end=46, offset_kind="exact")
+    assert res["span"] is None and res["sentence"] is None
+
+
+def test_fulltext_cap_mirror_law():
+    """Three hand-maintained mirrors of one constant; a stale one silently nulls legitimate offsets in the
+    60k-150k band (pdfpage's own comment). No test enforced it until Phase F."""
+    from leviathan.graphrag import evidence_batch as eb
+    from leviathan.graphrag import novelty as nv
+    assert pdfpage._FULLTEXT_CAP == eb._FULLTEXT_CAP == nv.FULLTEXT_CAP

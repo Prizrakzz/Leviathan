@@ -26,6 +26,11 @@ from leviathan.graphrag import pgstore as pg
 _META = [("i1", "GAIN", "s3://g1", "2021-07-20", None, "July frost hit Sul de Minas"),
          ("i2", "WASDE", "s3://w1", "2021-06-10", None, "stocks steady in June"),
          ("i3", "FRED", "s3://f1", "2021-05-01", None, "dollar strengthened broadly")]
+# Phase F: the 7th projected column is the `meta` jsonb. One row carries pin-point offsets, one a block
+# span, one nothing -- pinning both the passthrough and the None fallthrough for pre-offset vintages.
+_METAJ = [{"char_start": 100, "char_end": 125, "offset_kind": "exact", "chunk_version": "x-20260820"},
+          {"char_start": 0, "char_end": 4900, "offset_kind": "block"},
+          {}]
 _VECS = ["[1.0,0.0,0.0,0.0]", "[0.8,0.1,0.0,0.0]", "[0.0,1.0,0.0,0.0]"]
 _QV = [1.0, 0.0, 0.0, 0.0]
 _NOVEC = "1 - (p.vector <=> %(qv)s::vector) AS cos_score"
@@ -53,7 +58,8 @@ class _Cur:
 
     def fetchall(self):
         vec = "p.vector::text" in self._sink["sql"]
-        return [m + ((v,) if vec else (ev._cosine(_QV, pg._vec_parse(v)),)) for m, v in zip(_META, _VECS)]
+        return [m + (j,) + ((v,) if vec else (ev._cosine(_QV, pg._vec_parse(v)),))
+                for m, j, v in zip(_META, _METAJ, _VECS)]
 
 
 class _Conn:
@@ -113,13 +119,28 @@ def test_fetch_candidates_metadata_identical_and_score_reproduces_cosine():
                                conn=_Conn(), with_vectors=True)
     cheap = pg.fetch_candidates(_QV, "frost", "coffee", asof="2021-08-01", fetch_k=10, hybrid=False,
                                 conn=_Conn(), with_vectors=False)
-    meta = ("id", "source", "source_key", "date", "event_date", "text")
+    meta = ("id", "source", "source_key", "date", "event_date", "text",
+            "char_start", "char_end", "offset_kind")                 # Phase F: the span keys ride both shapes
     assert [{k: r[k] for k in meta} for r in rich] == [{k: r[k] for k in meta} for r in cheap]
     assert [set(r) - set(meta) for r in rich] == [{"vector"}] * len(_META)
     assert [set(r) - set(meta) for r in cheap] == [{"score"}] * len(_META)
     for r, c in zip(rich, cheap):
         assert isinstance(c["score"], float)
         assert c["score"] == pytest.approx(ev._cosine(_QV, r["vector"]))
+
+
+def test_span_keys_survive_to_pg_retrieve_output(no_model):
+    """Phase F's whole point: char_start/char_end/offset_kind cross the retrieve boundary (they were
+    dropped here since 6.5 -- the citation locator shipped four nulls on every turn and the deterministic
+    click-to-page leg was structurally dark). The pre-offset row (empty meta) stays honest Nones."""
+    out = pg.pg_retrieve("frost", "coffee", k=3, asof="2021-08-01", embed=_embed, conn=_Conn())
+    by_key = {r["source_key"]: r for r in out}
+    assert by_key["s3://g1"]["char_start"] == 100
+    assert by_key["s3://g1"]["char_end"] == 125
+    assert by_key["s3://g1"]["offset_kind"] == "exact"
+    assert by_key["s3://w1"]["offset_kind"] == "block"
+    assert by_key["s3://f1"]["char_start"] is None
+    assert by_key["s3://f1"]["offset_kind"] is None
 
 
 def test_pg_retrieve_return_rows_are_key_and_type_identical_across_shapes(no_model):

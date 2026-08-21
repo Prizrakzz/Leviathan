@@ -1045,7 +1045,11 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
             txt = m0.get("text") or ""
             report["resolved"][ref] = {"source": m0.get("source"), "date": m0.get("date"),
                                        "source_key": m0.get("source_key"),
-                                       "snippet": txt[:140] + ("..." if len(txt) > 140 else "")}
+                                       "snippet": txt[:140] + ("..." if len(txt) > 140 else ""),
+                                       # Phase F: the span keys ride to structured.sources -> the PDF
+                                       # highlight; None on pre-offset vintages (the honest legacy shape)
+                                       "char_start": m0.get("char_start"), "char_end": m0.get("char_end"),
+                                       "offset_kind": m0.get("offset_kind")}
         structured["sources"] = kept_sources
 
         # 1b) D-HP-9/D-HP-10 -- UNDER HANDLE-PROSE AN [E] HANDLE IS POSITIONAL, NOT LEDGERED.
@@ -1071,7 +1075,12 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
                 _txt = _item.get("text") or ""
                 report["resolved"][_ref] = {"source": _item.get("source"), "date": _item.get("date"),
                                             "source_key": _item.get("source_key"),
-                                            "snippet": _txt[:140] + ("..." if len(_txt) > 140 else "")}
+                                            "snippet": _txt[:140] + ("..." if len(_txt) > 140 else ""),
+                                            # Phase F: same span keys as the ledgered branch -- the :1057
+                                            # comment's shape-parity law is why these two move together
+                                            "char_start": _item.get("char_start"),
+                                            "char_end": _item.get("char_end"),
+                                            "offset_kind": _item.get("offset_kind")}
 
         # 2) sentence-scoped prose checks; strip violating handles BY POSITION (formatting untouched)
         _BOUND = re.compile(r"[.!?;](?=\s|$)|\n")         # never a decimal point (needs trailing space/EOL)

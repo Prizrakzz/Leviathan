@@ -3432,7 +3432,11 @@ def _synthesize_sources(structured: dict, verifier: dict) -> int:
         if not isinstance(r, dict):
             continue
         rows.append({"ref": int(ref), "source": r.get("source"), "date": r.get("date"),
-                     "note": r.get("snippet") or "", "source_key": r.get("source_key")})
+                     "note": r.get("snippet") or "", "source_key": r.get("source_key"),
+                     # Phase F: the span keys the FE's docLocator has read (and found absent) since 6.5 --
+                     # additive; every consumer joins on named keys, so pre-offset Nones are inert
+                     "char_start": r.get("char_start"), "char_end": r.get("char_end"),
+                     "offset_kind": r.get("offset_kind")})
     structured["sources"] = rows
     return len(rows)
 
@@ -3452,6 +3456,9 @@ def _attach_provenance(structured: dict, verifier: dict) -> None:
         r = resolved.get(ref)
         if isinstance(r, dict) and r.get("source_key"):
             s["source_key"] = r["source_key"]
+            for k in ("char_start", "char_end", "offset_kind"):     # Phase F: idempotent span re-stamp,
+                if r.get(k) is not None:                            # same join as source_key
+                    s[k] = r[k]
 
 
 def _humanize_structured(d: dict, *, market_register: str = reg.FENCED) -> None:

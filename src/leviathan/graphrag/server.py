@@ -1042,9 +1042,11 @@ def events_route(contract: Optional[str] = Query(None), asof: Optional[str] = Qu
 @app.get("/v1/citation/pdf", response_model=M.CitationPdf)
 def citation_pdf_route(source_key: str = Query(...), snippet: Optional[str] = Query(None),
                        char_start: Optional[int] = Query(None), offset_kind: Optional[str] = Query(None),
+                       char_end: Optional[int] = Query(None),
                        ident: dict = Depends(_require_identity)) -> dict:
-    """Resolve a document citation's `locator` (source_key + optional snippet/char_start/offset_kind) to a
-    presigned source-PDF url + the best 1-indexed page (6.5). Identity-gated like the other read routes.
+    """Resolve a document citation's `locator` (source_key + optional snippet/char offsets/offset_kind) to a
+    presigned source-PDF url + the best 1-indexed page (6.5) + the Phase-F highlight strings (span/sentence,
+    null unless the offsets are pin-point kinds on a native PDF). Identity-gated like the other read routes.
     Kill-switch `GRAPHRAG_PDF_LINKS` (default ON, mirroring GRAPHRAG_SUGGEST) -> 404 when off, so the FE hides
     the affordance with no redeploy. Never 500: a resolver miss degrades to page=null with the url still set;
     a MISSING document.json is the only 404 the resolver itself triggers."""
@@ -1052,7 +1054,8 @@ def citation_pdf_route(source_key: str = Query(...), snippet: Optional[str] = Qu
         raise HTTPException(status_code=404, detail="pdf links disabled")
     from leviathan.graphrag import pdfpage
     try:
-        res = pdfpage.resolve_pdf_page(source_key, snippet=snippet, char_start=char_start, offset_kind=offset_kind)
+        res = pdfpage.resolve_pdf_page(source_key, snippet=snippet, char_start=char_start,
+                                       offset_kind=offset_kind, char_end=char_end)
     except pdfpage.PdfDocumentMissing:
         raise HTTPException(status_code=404, detail="source document not found")
     except Exception:  # noqa: BLE001 — the resolver never raises otherwise; belt+braces so a click never 500s

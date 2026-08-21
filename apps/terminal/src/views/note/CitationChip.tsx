@@ -79,6 +79,7 @@ export function CitationChip({
                     sourceKey: loc.source_key as string,
                     snippet: typeof loc.snippet === 'string' ? loc.snippet : undefined,
                     charStart: typeof loc.char_start === 'number' ? loc.char_start : undefined,
+                    charEnd: typeof loc.char_end === 'number' ? loc.char_end : undefined,
                     offsetKind: typeof loc.offset_kind === 'string' ? loc.offset_kind : undefined,
                   },
                 })

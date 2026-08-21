@@ -45,8 +45,40 @@ export interface paths {
          * Respond Stream
          * @description SSE wrapper: respond() runs in a worker thread; the stream relays each `on_stage` tick as its own
          *     `stage` event, then the single terminal `result` (or `error`).
+         *
+         *     `mode` (D-AM-9) is the reasoning-scale query param, the GET twin of Ask.mode -- untyped for the
+         *     same reason (unknown -> standard + stamp, never a 422 on a streamed desk turn).
          */
         get: operations["respond_stream_v1_respond_stream_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/credits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Credits Route
+         * @description {remaining, limit, reset_at} — what the credits badge renders, and what the FE re-reads after a
+         *     submit or a 429 (the /v1/dossier/quota pattern, generalized). FREE: identity-gated, no model call,
+         *     and explicitly NOT the turn quota — reading a counter is not a use of it.
+         *
+         *     DARK IS A 404, not a zero (the dossier-gate idiom, and the shape api/credits.ts already codes
+         *     against): with `GRAPHRAG_CREDITS` off nothing is metered, so there is no meter to report and the FE
+         *     renders no badge at all. A 500 would say something different — that the feature exists and broke.
+         *
+         *     FAIL-OPEN on any store error: a badge that cannot read the counter shows the full grant rather than
+         *     telling a paying user they have nothing left.
+         */
+        get: operations["credits_route_v1_credits_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -149,8 +181,9 @@ export interface paths {
         };
         /**
          * Citation Pdf Route
-         * @description Resolve a document citation's `locator` (source_key + optional snippet/char_start/offset_kind) to a
-         *     presigned source-PDF url + the best 1-indexed page (6.5). Identity-gated like the other read routes.
+         * @description Resolve a document citation's `locator` (source_key + optional snippet/char offsets/offset_kind) to a
+         *     presigned source-PDF url + the best 1-indexed page (6.5) + the Phase-F highlight strings (span/sentence,
+         *     null unless the offsets are pin-point kinds on a native PDF). Identity-gated like the other read routes.
          *     Kill-switch `GRAPHRAG_PDF_LINKS` (default ON, mirroring GRAPHRAG_SUGGEST) -> 404 when off, so the FE hides
          *     the affordance with no redeploy. Never 500: a resolver miss degrades to page=null with the url still set;
          *     a MISSING document.json is the only 404 the resolver itself triggers.
@@ -175,11 +208,42 @@ export interface paths {
         put?: never;
         /**
          * Suggest Route
-         * @description 3-4 follow-up questions for the completed turn (or starters for `{}`). Fired once per turn BY THE
-         *     CLIENT; identity-gated but NEVER the turn quota — a separate namespaced daily counter caps the Haiku
-         *     spend, and every failure mode degrades to `[]` (chips are a nicety, never an error state).
+         * @description Up to 3 GROUNDED follow-up questions for the completed turn (or starters for `{}`). Fired once per
+         *     turn BY THE CLIENT; identity-gated but NEVER the turn quota — a separate namespaced daily counter caps
+         *     the Haiku spend, and every failure mode degrades to `[]` (chips are a nicety, never an error state).
+         *     D-SG S2: 3 is a TARGET reached by over-generation, never a guarantee reached by padding — on shortfall
+         *     the row renders fewer.
          */
         post: operations["suggest_route_v1_suggest_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/gallery": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Gallery Route
+         * @description Curated starters for the empty state. Identity-gated like every other read, and FREE — no model call
+         *     and NO quota of any kind (unlike /v1/suggest, which spends one per turn). The catalog is the suggester's
+         *     own `_suggest_catalog` with an empty scope (global top-N closest to firing): reusing it keeps ONE
+         *     definition of what is answerable, including the per-pair census gate. That also means the catalog flag
+         *     and the convergence warmer govern here too — with either off the catalog is None and the route serves
+         *     the unfilled templates, which is a legible fallback rather than a failure.
+         *
+         *     D-UX-1 makes the same read serve the EDITABLE library as well as the landing page: each item carries its
+         *     raw `template` plus the `slots` it was filled with, and the response carries the `vocab` those slots were
+         *     drawn from. Additive only — `items[].question` and `catalog_warm` are byte-identical to D-AM-16.
+         */
+        get: operations["gallery_route_v1_gallery_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -207,6 +271,50 @@ export interface paths {
          */
         put: operations["put_profile_route_v1_profile_put"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Notifications Route
+         * @description The signed-in user's daily-digest notifications, newest-first. Empty list when the feature is off or
+         *     the user has none — the bell degrades to 'no notifications' cleanly, never a 404. Preferences-adjacent
+         *     (never the answer/evidence path), so the PIT firewall is untouched. No quota (reads are free).
+         */
+        get: operations["list_notifications_route_v1_notifications_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/notifications/{notif_id}/seen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark Notification Seen Route
+         * @description Mark one notification read (idempotent). 404-free AND upsert-free: the store's conditional UpdateItem
+         *     (attribute_exists(sk)) makes an unknown/garbage id a swallowed no-op, so a POST can never CREATE a
+         *     body-less notif# item that escapes TTL. Always 200.
+         */
+        post: operations["mark_notification_seen_route_v1_notifications__notif_id__seen_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -352,6 +460,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/artifacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List */
+        get: operations["_list_v1_artifacts_get"];
+        put?: never;
+        /** Put */
+        post: operations["_put_v1_artifacts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/artifacts/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Del */
+        delete: operations["_del_v1_artifacts__item_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/threads/{thread_id}/turns": {
         parameters: {
             query?: never;
@@ -373,6 +516,103 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/dossier": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dossier Create
+         * @description Accept a deep-research dossier -> 202 {dossier_id, plan_pending: true}.
+         *
+         *     QUOTA IS CHARGED HERE, at ACCEPTANCE, never at completion: two submissions racing on the last slot
+         *     must not both pass, and the atomic conditional counter can only guarantee that at the gate. A job
+         *     that later FAILS refunds; a PARTIAL one does not (it delivered a document and spent real money).
+         *
+         *     ONE as-of is stamped now and governs every sub-query (PIT by construction). An unparseable one is
+         *     rejected loudly rather than silently defaulted — a dossier is 20 minutes and 5-12 turns of spend,
+         *     which is the one place in this API where a typo must not be absorbed.
+         */
+        post: operations["dossier_create_v1_dossier_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dossier/quota": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Dossier Quota
+         * @description {remaining, limit, reset_at} — what the mode picker's badge renders. Free, no model call, no
+         *     turn quota (a read of a counter is not a use of it).
+         */
+        get: operations["dossier_quota_v1_dossier_quota_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dossier/{dossier_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Dossier Get
+         * @description Job state. Owner-scoped by construction: the record is read out of the caller's OWN partition,
+         *     so another user's id is simply not there (404) — the artifacts privacy posture, not a new one.
+         */
+        get: operations["dossier_get_v1_dossier__dossier_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dossier/{dossier_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Dossier Events
+         * @description SSE progress stream — the `respond_stream` idiom (queue relay, 10s keepalive comment, terminal
+         *     event closes), with ONE difference that matters: the job is not owned by this request, so the
+         *     stream REPLAYS the events already recorded before it attaches. A client that connects after the
+         *     plan landed still sees the plan; a client that connects after the job finished gets the whole
+         *     history and an immediate close. Both are the same code path.
+         *
+         *     A dossier that is not live in THIS process (a restart, or another task) replays its persisted log
+         *     and closes — never a stream that hangs forever waiting for a thread that does not exist.
+         */
+        get: operations["dossier_events_v1_dossier__dossier_id__events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -385,12 +625,26 @@ export interface components {
             session_id?: string | null;
             /** Asof */
             asof?: string | null;
+            /**
+             * Context
+             * @default []
+             */
+            context: components["schemas"]["ContextAttachment"][];
+            /** Mode */
+            mode?: string | null;
+            /** Turn Id */
+            turn_id?: string | null;
         };
         /**
          * CitationPdf
          * @description The 6.5 click-to-page resolver result the PdfModal binds to: a presigned URL to the SOURCE document,
          *     the best-guess 1-indexed `page` (null when unresolvable -- the modal opens at the top with a 'page unknown'
          *     banner), the raw doc `kind` (pdf/html/txt/other) so the FE picks a viewer, and the presign TTL in seconds.
+         *     Phase F adds the highlight strings: `span` = the verbatim pin-point the offsets name in the server's
+         *     full_text (the FE searches the pdf.js text layer for it -- offsets themselves cannot cross extractors),
+         *     and `sentence` = its D12 containing-sentence expansion (what glows). Both null unless the citation
+         *     carries pin-point offsets (exact/exact_ws) on a native PDF -- block offsets and scanned docs stay
+         *     page-jump-only by design, and a null degrades to today's behaviour, never errors.
          *     Never an error shape -- a resolver miss degrades to page=null with the url still set; the route 404s ONLY
          *     when the document.json itself is gone (or the GRAPHRAG_PDF_LINKS kill-switch is off).
          */
@@ -403,6 +657,57 @@ export interface components {
             kind: string;
             /** Expires In */
             expires_in: number;
+            /** Span */
+            span?: string | null;
+            /** Sentence */
+            sentence?: string | null;
+        };
+        /**
+         * ContextAttachment
+         * @description One typed 'point at the graph' gesture attached to a turn (node/edge/event/series). The SERVER
+         *     re-derives everything trust-bearing: node/edge ids are validated against the causal graph, the edge
+         *     mechanism is looked up server-side, and an event's driver_id is CODE-mapped from its enum-locked
+         *     event_type — the client's driver_id/mechanism strings are ignored by the resolver (injection posture).
+         *     A future-dated event (date > the final as-of) is fully withheld with a visible note (PIT).
+         *
+         *     D-UX-4 `series` is a CHART LOCATOR and nothing else — {table, metric, commodity?, country?,
+         *     contract_month?}, i.e. exactly /v1/series' arguments MINUS the as-of. Carrying no as-of and no points
+         *     is the whole design: the attachment steers (which series the desk is looking at), the numbers agent
+         *     re-reads it under the NEW turn's own as-of, so an attached chart can never carry a value read at some
+         *     other horizon into a later answer.
+         */
+        ContextAttachment: {
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "node" | "edge" | "event" | "series";
+            /** Contract */
+            contract?: string | null;
+            /** Driver Id */
+            driver_id?: string | null;
+            /** Source */
+            source?: string | null;
+            /** Target */
+            target?: string | null;
+            /** Event Type */
+            event_type?: string | null;
+            /** Commodity */
+            commodity?: string | null;
+            /** Country */
+            country?: string | null;
+            /** Summary */
+            summary?: string | null;
+            /** Date */
+            date?: string | null;
+            /** Table */
+            table?: string | null;
+            /** Metric */
+            metric?: string | null;
+            /** Contract Month */
+            contract_month?: string | null;
+            /** Label */
+            label?: string | null;
         };
         /** ConvergenceMatrix */
         ConvergenceMatrix: {
@@ -421,6 +726,13 @@ export interface components {
             regimes: components["schemas"]["RegimeCard"][];
             /** Drivers */
             drivers: components["schemas"]["DriverSignal"][];
+        };
+        /** DossierIn */
+        DossierIn: {
+            /** Question */
+            question: string;
+            /** Asof */
+            asof?: string | null;
         };
         /** DriverSignal */
         DriverSignal: {
@@ -497,6 +809,95 @@ export interface components {
             /** Events */
             events: components["schemas"]["EventItem"][];
         };
+        /**
+         * Gallery
+         * @description The whole gallery in one free read. `catalog_warm` distinguishes 'filled from live data' from the
+         *     template fallback, so a blank-slot gallery is legible as a cold cache rather than a bug. Never an error
+         *     shape: an unreadable config degrades to `items: []` (no starter row), never a 500 on the landing page.
+         */
+        Gallery: {
+            /**
+             * Items
+             * @default []
+             */
+            items: components["schemas"]["GalleryItem"][];
+            /**
+             * Catalog Warm
+             * @default false
+             */
+            catalog_warm: boolean;
+            vocab?: components["schemas"]["GalleryVocab"];
+        };
+        /**
+         * GalleryItem
+         * @description One curated starter. `question` is the AUTHORED template with its slots filled from the warm
+         *     convergence catalog; `filled` is false when the catalog was cold, in which case `question` is the raw
+         *     template and its `{contract}`/`{regime}`/`{pair}` blanks are the user's to complete. `rc_target` is the
+         *     response contract the wording selects (pinned by test) — carried on the wire as honest provenance for
+         *     the eval/debug lane, not read by the UI.
+         *
+         *     D-UX-1 adds the two fields the EDITABLE template library needs, both derived from what the fill already
+         *     computed (no new server work, no new data): `template` is the raw authored wording WITH its braces, and
+         *     `slots` are the values this row was filled with. `question` stays the product — and stays derivable:
+         *     substituting `slots` into `template` reproduces it byte-for-byte (pinned), so an FE that re-fills the
+         *     template starts from exactly the question the gallery advertises, with the TRUE near-row pairing intact,
+         *     and only diverges where the analyst edits a slot.
+         */
+        GalleryItem: {
+            /** Id */
+            id: string;
+            /** Category */
+            category: string;
+            /** Question */
+            question: string;
+            /**
+             * Rc Target
+             * @default default
+             */
+            rc_target: string;
+            /**
+             * Filled
+             * @default true
+             */
+            filled: boolean;
+            /**
+             * Template
+             * @default
+             */
+            template: string;
+            /**
+             * Slots
+             * @default {}
+             */
+            slots: {
+                [key: string]: string;
+            };
+        };
+        /**
+         * GalleryVocab
+         * @description D-UX-1 — the raw slot vocabularies behind the filled examples, so the FE's per-slot combobox can offer
+         *     what the engine can answer instead of the analyst guessing. Same warm-catalog read as the items (no
+         *     model, no quota); `pairs` carries ONLY the census-realizable set, so the gate that fences the templates
+         *     fences the dropdown too. Every list is empty on a cold catalog — an empty dropdown that still accepts
+         *     free typing is the honest degradation.
+         */
+        GalleryVocab: {
+            /**
+             * Contracts
+             * @default []
+             */
+            contracts: string[];
+            /**
+             * Regimes
+             * @default []
+             */
+            regimes: string[];
+            /**
+             * Pairs
+             * @default []
+             */
+            pairs: string[];
+        };
         /** GraphEdge */
         GraphEdge: {
             /** Source */
@@ -564,6 +965,45 @@ export interface components {
             body: {
                 [key: string]: unknown;
             };
+        };
+        /**
+         * NotificationItem
+         * @description One fanned-out daily-digest notification (auth-gated GET /v1/notifications). Carries the NARROW P2
+         *     event-attachment projection (event_type/commodity/date/summary/country) PLUS server-built display
+         *     artifacts (label + templated analogue query) the FE cannot synthesize, since an event chip never
+         *     receives driver_id on the wire. The stored body also carries an `event` LiveEvent audit blob — kept
+         *     OFF this model on purpose: pydantic's default extra='ignore' (NO model_config; do NOT use _RICH,
+         *     which is extra='allow') silently drops it, the belt to the route's server-side projection.
+         */
+        NotificationItem: {
+            /** Notif Id */
+            notif_id: string;
+            /** Created At */
+            created_at: string;
+            /**
+             * Seen
+             * @default false
+             */
+            seen: boolean;
+            /** Event Type */
+            event_type: string;
+            /** Commodity */
+            commodity: string;
+            /** Date */
+            date?: string | null;
+            /**
+             * Summary
+             * @default
+             */
+            summary: string;
+            /** Country */
+            country?: string | null;
+            /** Label */
+            label: string;
+            /** Query */
+            query: string;
+            /** Driver Id */
+            driver_id?: string | null;
         };
         /**
          * Profile
@@ -718,8 +1158,8 @@ export interface components {
         };
         /**
          * SuggestResponse
-         * @description 3-4 follow-up questions (or [] — over-cap, kill-switch, parse failure all degrade to empty;
-         *     suggestions are a nicety and must never surface an error).
+         * @description Up to 3 grounded follow-up questions (or [] — over-cap, kill-switch, cold catalog and parse failure
+         *     all degrade to empty; suggestions are a nicety and must never surface an error).
          */
         SuggestResponse: {
             /**
@@ -867,6 +1307,9 @@ export interface operations {
                 question: string;
                 session_id?: string | null;
                 asof?: string | null;
+                context?: string | null;
+                mode?: string | null;
+                turn_id?: string | null;
             };
             header?: {
                 authorization?: string | null;
@@ -883,6 +1326,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    credits_route_v1_credits_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -1080,6 +1556,7 @@ export interface operations {
                 snippet?: string | null;
                 char_start?: number | null;
                 offset_kind?: string | null;
+                char_end?: number | null;
             };
             header?: {
                 authorization?: string | null;
@@ -1131,6 +1608,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SuggestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    gallery_route_v1_gallery_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Gallery"];
                 };
             };
             /** @description Validation Error */
@@ -1197,6 +1705,74 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Profile"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_notifications_route_v1_notifications_get: {
+        parameters: {
+            query?: {
+                unseen_only?: boolean;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationItem"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_notification_seen_route_v1_notifications__notif_id__seen_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                notif_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -1591,6 +2167,111 @@ export interface operations {
             };
         };
     };
+    _list_v1_artifacts_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    _put_v1_artifacts_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ItemIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    _del_v1_artifacts__item_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     thread_turns_v1_threads__thread_id__turns_get: {
         parameters: {
             query?: never;
@@ -1611,6 +2292,144 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ThreadTurns"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dossier_create_v1_dossier_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DossierIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dossier_quota_v1_dossier_quota_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dossier_get_v1_dossier__dossier_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                dossier_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dossier_events_v1_dossier__dossier_id__events_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                dossier_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

@@ -86,7 +86,7 @@
     "/v1/respond/stream": {
       "get": {
         "summary": "Respond Stream",
-        "description": "SSE wrapper: respond() runs in a worker thread; the stream relays each `on_stage` tick as its own\n`stage` event, then the single terminal `result` (or `error`).",
+        "description": "SSE wrapper: respond() runs in a worker thread; the stream relays each `on_stage` tick as its own\n`stage` event, then the single terminal `result` (or `error`).\n\n`mode` (D-AM-9) is the reasoning-scale query param, the GET twin of Ask.mode -- untyped for the\nsame reason (unknown -> standard + stamp, never a 422 on a streamed desk turn).",
         "operationId": "respond_stream_v1_respond_stream_get",
         "parameters": [
           {
@@ -131,6 +131,54 @@
             }
           },
           {
+            "name": "context",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Context"
+            }
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Mode"
+            }
+          },
+          {
+            "name": "turn_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Turn Id"
+            }
+          },
+          {
             "name": "authorization",
             "in": "header",
             "required": false,
@@ -153,6 +201,55 @@
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/credits": {
+      "get": {
+        "summary": "Credits Route",
+        "description": "{remaining, limit, reset_at} \u2014 what the credits badge renders, and what the FE re-reads after a\nsubmit or a 429 (the /v1/dossier/quota pattern, generalized). FREE: identity-gated, no model call,\nand explicitly NOT the turn quota \u2014 reading a counter is not a use of it.\n\nDARK IS A 404, not a zero (the dossier-gate idiom, and the shape api/credits.ts already codes\nagainst): with `GRAPHRAG_CREDITS` off nothing is metered, so there is no meter to report and the FE\nrenders no badge at all. A 500 would say something different \u2014 that the feature exists and broke.\n\nFAIL-OPEN on any store error: a badge that cannot read the counter shows the full grant rather than\ntelling a paying user they have nothing left.",
+        "operationId": "credits_route_v1_credits_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Credits Route V1 Credits Get"
+                }
               }
             }
           },
@@ -592,7 +689,7 @@
     "/v1/citation/pdf": {
       "get": {
         "summary": "Citation Pdf Route",
-        "description": "Resolve a document citation's `locator` (source_key + optional snippet/char_start/offset_kind) to a\npresigned source-PDF url + the best 1-indexed page (6.5). Identity-gated like the other read routes.\nKill-switch `GRAPHRAG_PDF_LINKS` (default ON, mirroring GRAPHRAG_SUGGEST) -> 404 when off, so the FE hides\nthe affordance with no redeploy. Never 500: a resolver miss degrades to page=null with the url still set;\na MISSING document.json is the only 404 the resolver itself triggers.",
+        "description": "Resolve a document citation's `locator` (source_key + optional snippet/char offsets/offset_kind) to a\npresigned source-PDF url + the best 1-indexed page (6.5) + the Phase-F highlight strings (span/sentence,\nnull unless the offsets are pin-point kinds on a native PDF). Identity-gated like the other read routes.\nKill-switch `GRAPHRAG_PDF_LINKS` (default ON, mirroring GRAPHRAG_SUGGEST) -> 404 when off, so the FE hides\nthe affordance with no redeploy. Never 500: a resolver miss degrades to page=null with the url still set;\na MISSING document.json is the only 404 the resolver itself triggers.",
         "operationId": "citation_pdf_route_v1_citation_pdf_get",
         "parameters": [
           {
@@ -653,6 +750,22 @@
             }
           },
           {
+            "name": "char_end",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Char End"
+            }
+          },
+          {
             "name": "authorization",
             "in": "header",
             "required": false,
@@ -696,7 +809,7 @@
     "/v1/suggest": {
       "post": {
         "summary": "Suggest Route",
-        "description": "3-4 follow-up questions for the completed turn (or starters for `{}`). Fired once per turn BY THE\nCLIENT; identity-gated but NEVER the turn quota \u2014 a separate namespaced daily counter caps the Haiku\nspend, and every failure mode degrades to `[]` (chips are a nicety, never an error state).",
+        "description": "Up to 3 GROUNDED follow-up questions for the completed turn (or starters for `{}`). Fired once per\nturn BY THE CLIENT; identity-gated but NEVER the turn quota \u2014 a separate namespaced daily counter caps\nthe Haiku spend, and every failure mode degrades to `[]` (chips are a nicety, never an error state).\nD-SG S2: 3 is a TARGET reached by over-generation, never a guarantee reached by padding \u2014 on shortfall\nthe row renders fewer.",
         "operationId": "suggest_route_v1_suggest_post",
         "parameters": [
           {
@@ -733,6 +846,53 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SuggestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/gallery": {
+      "get": {
+        "summary": "Gallery Route",
+        "description": "Curated starters for the empty state. Identity-gated like every other read, and FREE \u2014 no model call\nand NO quota of any kind (unlike /v1/suggest, which spends one per turn). The catalog is the suggester's\nown `_suggest_catalog` with an empty scope (global top-N closest to firing): reusing it keeps ONE\ndefinition of what is answerable, including the per-pair census gate. That also means the catalog flag\nand the convergence warmer govern here too \u2014 with either off the catalog is None and the route serves\nthe unfilled templates, which is a legible fallback rather than a failure.\n\nD-UX-1 makes the same read serve the EDITABLE library as well as the landing page: each item carries its\nraw `template` plus the `slots` it was filled with, and the response carries the `vocab` those slots were\ndrawn from. Additive only \u2014 `items[].question` and `catalog_warm` are byte-identical to D-AM-16.",
+        "operationId": "gallery_route_v1_gallery_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Gallery"
                 }
               }
             }
@@ -835,6 +995,125 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Profile"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/notifications": {
+      "get": {
+        "summary": "List Notifications Route",
+        "description": "The signed-in user's daily-digest notifications, newest-first. Empty list when the feature is off or\nthe user has none \u2014 the bell degrades to 'no notifications' cleanly, never a 404. Preferences-adjacent\n(never the answer/evidence path), so the PIT firewall is untouched. No quota (reads are free).",
+        "operationId": "list_notifications_route_v1_notifications_get",
+        "parameters": [
+          {
+            "name": "unseen_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Unseen Only"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationItem"
+                  },
+                  "title": "Response List Notifications Route V1 Notifications Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/notifications/{notif_id}/seen": {
+      "post": {
+        "summary": "Mark Notification Seen Route",
+        "description": "Mark one notification read (idempotent). 404-free AND upsert-free: the store's conditional UpdateItem\n(attribute_exists(sk)) makes an unknown/garbage id a swallowed no-op, so a POST can never CREATE a\nbody-less notif# item that escapes TTL. Always 200.",
+        "operationId": "mark_notification_seen_route_v1_notifications__notif_id__seen_post",
+        "parameters": [
+          {
+            "name": "notif_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Notif Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Mark Notification Seen Route V1 Notifications  Notif Id  Seen Post"
                 }
               }
             }
@@ -1430,6 +1709,167 @@
         }
       }
     },
+    "/v1/artifacts": {
+      "get": {
+        "summary": " List",
+        "operationId": "_list_v1_artifacts_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response  List V1 Artifacts Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": " Put",
+        "operationId": "_put_v1_artifacts_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ItemIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response  Put V1 Artifacts Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/artifacts/{item_id}": {
+      "delete": {
+        "summary": " Del",
+        "operationId": "_del_v1_artifacts__item_id__delete",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Item Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response  Del V1 Artifacts  Item Id  Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/threads/{thread_id}/turns": {
       "get": {
         "summary": "Thread Turns",
@@ -1485,6 +1925,226 @@
           }
         }
       }
+    },
+    "/v1/dossier": {
+      "post": {
+        "summary": "Dossier Create",
+        "description": "Accept a deep-research dossier -> 202 {dossier_id, plan_pending: true}.\n\nQUOTA IS CHARGED HERE, at ACCEPTANCE, never at completion: two submissions racing on the last slot\nmust not both pass, and the atomic conditional counter can only guarantee that at the gate. A job\nthat later FAILS refunds; a PARTIAL one does not (it delivered a document and spent real money).\n\nONE as-of is stamped now and governs every sub-query (PIT by construction). An unparseable one is\nrejected loudly rather than silently defaulted \u2014 a dossier is 20 minutes and 5-12 turns of spend,\nwhich is the one place in this API where a typo must not be absorbed.",
+        "operationId": "dossier_create_v1_dossier_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DossierIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Dossier Create V1 Dossier Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/dossier/quota": {
+      "get": {
+        "summary": "Dossier Quota",
+        "description": "{remaining, limit, reset_at} \u2014 what the mode picker's badge renders. Free, no model call, no\nturn quota (a read of a counter is not a use of it).",
+        "operationId": "dossier_quota_v1_dossier_quota_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Dossier Quota V1 Dossier Quota Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/dossier/{dossier_id}": {
+      "get": {
+        "summary": "Dossier Get",
+        "description": "Job state. Owner-scoped by construction: the record is read out of the caller's OWN partition,\nso another user's id is simply not there (404) \u2014 the artifacts privacy posture, not a new one.",
+        "operationId": "dossier_get_v1_dossier__dossier_id__get",
+        "parameters": [
+          {
+            "name": "dossier_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dossier Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Dossier Get V1 Dossier  Dossier Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/dossier/{dossier_id}/events": {
+      "get": {
+        "summary": "Dossier Events",
+        "description": "SSE progress stream \u2014 the `respond_stream` idiom (queue relay, 10s keepalive comment, terminal\nevent closes), with ONE difference that matters: the job is not owned by this request, so the\nstream REPLAYS the events already recorded before it attaches. A client that connects after the\nplan landed still sees the plan; a client that connects after the job finished gets the whole\nhistory and an immediate close. Both are the same code path.\n\nA dossier that is not live in THIS process (a restart, or another task) replays its persisted log\nand closes \u2014 never a stream that hangs forever waiting for a thread that does not exist.",
+        "operationId": "dossier_events_v1_dossier__dossier_id__events_get",
+        "parameters": [
+          {
+            "name": "dossier_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dossier Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1516,6 +2176,36 @@
               }
             ],
             "title": "Asof"
+          },
+          "context": {
+            "items": {
+              "$ref": "#/components/schemas/ContextAttachment"
+            },
+            "type": "array",
+            "title": "Context",
+            "default": []
+          },
+          "mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mode"
+          },
+          "turn_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Turn Id"
           }
         },
         "type": "object",
@@ -1548,6 +2238,28 @@
           "expires_in": {
             "type": "integer",
             "title": "Expires In"
+          },
+          "span": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Span"
+          },
+          "sentence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sentence"
           }
         },
         "type": "object",
@@ -1557,7 +2269,170 @@
           "expires_in"
         ],
         "title": "CitationPdf",
-        "description": "The 6.5 click-to-page resolver result the PdfModal binds to: a presigned URL to the SOURCE document,\nthe best-guess 1-indexed `page` (null when unresolvable -- the modal opens at the top with a 'page unknown'\nbanner), the raw doc `kind` (pdf/html/txt/other) so the FE picks a viewer, and the presign TTL in seconds.\nNever an error shape -- a resolver miss degrades to page=null with the url still set; the route 404s ONLY\nwhen the document.json itself is gone (or the GRAPHRAG_PDF_LINKS kill-switch is off)."
+        "description": "The 6.5 click-to-page resolver result the PdfModal binds to: a presigned URL to the SOURCE document,\nthe best-guess 1-indexed `page` (null when unresolvable -- the modal opens at the top with a 'page unknown'\nbanner), the raw doc `kind` (pdf/html/txt/other) so the FE picks a viewer, and the presign TTL in seconds.\nPhase F adds the highlight strings: `span` = the verbatim pin-point the offsets name in the server's\nfull_text (the FE searches the pdf.js text layer for it -- offsets themselves cannot cross extractors),\nand `sentence` = its D12 containing-sentence expansion (what glows). Both null unless the citation\ncarries pin-point offsets (exact/exact_ws) on a native PDF -- block offsets and scanned docs stay\npage-jump-only by design, and a null degrades to today's behaviour, never errors.\nNever an error shape -- a resolver miss degrades to page=null with the url still set; the route 404s ONLY\nwhen the document.json itself is gone (or the GRAPHRAG_PDF_LINKS kill-switch is off)."
+      },
+      "ContextAttachment": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "node",
+              "edge",
+              "event",
+              "series"
+            ],
+            "title": "Type"
+          },
+          "contract": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contract"
+          },
+          "driver_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Driver Id"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target"
+          },
+          "event_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Type"
+          },
+          "commodity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commodity"
+          },
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
+          },
+          "table": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Table"
+          },
+          "metric": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metric"
+          },
+          "contract_month": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contract Month"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "ContextAttachment",
+        "description": "One typed 'point at the graph' gesture attached to a turn (node/edge/event/series). The SERVER\nre-derives everything trust-bearing: node/edge ids are validated against the causal graph, the edge\nmechanism is looked up server-side, and an event's driver_id is CODE-mapped from its enum-locked\nevent_type \u2014 the client's driver_id/mechanism strings are ignored by the resolver (injection posture).\nA future-dated event (date > the final as-of) is fully withheld with a visible note (PIT).\n\nD-UX-4 `series` is a CHART LOCATOR and nothing else \u2014 {table, metric, commodity?, country?,\ncontract_month?}, i.e. exactly /v1/series' arguments MINUS the as-of. Carrying no as-of and no points\nis the whole design: the attachment steers (which series the desk is looking at), the numbers agent\nre-reads it under the NEW turn's own as-of, so an attached chart can never carry a value read at some\nother horizon into a later answer."
       },
       "ConvergenceMatrix": {
         "properties": {
@@ -1619,6 +2494,30 @@
           "drivers"
         ],
         "title": "ConvergenceRow"
+      },
+      "DossierIn": {
+        "properties": {
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "asof": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asof"
+          }
+        },
+        "type": "object",
+        "required": [
+          "question"
+        ],
+        "title": "DossierIn"
       },
       "DriverSignal": {
         "properties": {
@@ -1781,6 +2680,107 @@
           "events"
         ],
         "title": "EventsFeed"
+      },
+      "Gallery": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/GalleryItem"
+            },
+            "type": "array",
+            "title": "Items",
+            "default": []
+          },
+          "catalog_warm": {
+            "type": "boolean",
+            "title": "Catalog Warm",
+            "default": false
+          },
+          "vocab": {
+            "$ref": "#/components/schemas/GalleryVocab"
+          }
+        },
+        "type": "object",
+        "title": "Gallery",
+        "description": "The whole gallery in one free read. `catalog_warm` distinguishes 'filled from live data' from the\ntemplate fallback, so a blank-slot gallery is legible as a cold cache rather than a bug. Never an error\nshape: an unreadable config degrades to `items: []` (no starter row), never a 500 on the landing page."
+      },
+      "GalleryItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "rc_target": {
+            "type": "string",
+            "title": "Rc Target",
+            "default": "default"
+          },
+          "filled": {
+            "type": "boolean",
+            "title": "Filled",
+            "default": true
+          },
+          "template": {
+            "type": "string",
+            "title": "Template",
+            "default": ""
+          },
+          "slots": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Slots",
+            "default": {}
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "category",
+          "question"
+        ],
+        "title": "GalleryItem",
+        "description": "One curated starter. `question` is the AUTHORED template with its slots filled from the warm\nconvergence catalog; `filled` is false when the catalog was cold, in which case `question` is the raw\ntemplate and its `{contract}`/`{regime}`/`{pair}` blanks are the user's to complete. `rc_target` is the\nresponse contract the wording selects (pinned by test) \u2014 carried on the wire as honest provenance for\nthe eval/debug lane, not read by the UI.\n\nD-UX-1 adds the two fields the EDITABLE template library needs, both derived from what the fill already\ncomputed (no new server work, no new data): `template` is the raw authored wording WITH its braces, and\n`slots` are the values this row was filled with. `question` stays the product \u2014 and stays derivable:\nsubstituting `slots` into `template` reproduces it byte-for-byte (pinned), so an FE that re-fills the\ntemplate starts from exactly the question the gallery advertises, with the TRUE near-row pairing intact,\nand only diverges where the analyst edits a slot."
+      },
+      "GalleryVocab": {
+        "properties": {
+          "contracts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Contracts",
+            "default": []
+          },
+          "regimes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Regimes",
+            "default": []
+          },
+          "pairs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Pairs",
+            "default": []
+          }
+        },
+        "type": "object",
+        "title": "GalleryVocab",
+        "description": "D-UX-1 \u2014 the raw slot vocabularies behind the filled examples, so the FE's per-slot combobox can offer\nwhat the engine can answer instead of the analyst guessing. Same warm-catalog read as the items (no\nmodel, no quota); `pairs` carries ONLY the census-realizable set, so the gate that fences the templates\nfences the dropdown too. Every list is empty on a cold catalog \u2014 an empty dropdown that still accepts\nfree typing is the honest degradation."
       },
       "GraphEdge": {
         "properties": {
@@ -2004,6 +3004,88 @@
         },
         "type": "object",
         "title": "ItemIn"
+      },
+      "NotificationItem": {
+        "properties": {
+          "notif_id": {
+            "type": "string",
+            "title": "Notif Id"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "seen": {
+            "type": "boolean",
+            "title": "Seen",
+            "default": false
+          },
+          "event_type": {
+            "type": "string",
+            "title": "Event Type"
+          },
+          "commodity": {
+            "type": "string",
+            "title": "Commodity"
+          },
+          "date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary",
+            "default": ""
+          },
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "query": {
+            "type": "string",
+            "title": "Query"
+          },
+          "driver_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Driver Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "notif_id",
+          "created_at",
+          "event_type",
+          "commodity",
+          "label",
+          "query"
+        ],
+        "title": "NotificationItem",
+        "description": "One fanned-out daily-digest notification (auth-gated GET /v1/notifications). Carries the NARROW P2\nevent-attachment projection (event_type/commodity/date/summary/country) PLUS server-built display\nartifacts (label + templated analogue query) the FE cannot synthesize, since an event chip never\nreceives driver_id on the wire. The stored body also carries an `event` LiveEvent audit blob \u2014 kept\nOFF this model on purpose: pydantic's default extra='ignore' (NO model_config; do NOT use _RICH,\nwhich is extra='allow') silently drops it, the belt to the route's server-side projection."
       },
       "Profile": {
         "properties": {
@@ -2413,7 +3495,7 @@
         },
         "type": "object",
         "title": "SuggestResponse",
-        "description": "3-4 follow-up questions (or [] \u2014 over-cap, kill-switch, parse failure all degrade to empty;\nsuggestions are a nicety and must never surface an error)."
+        "description": "Up to 3 grounded follow-up questions (or [] \u2014 over-cap, kill-switch, cold catalog and parse failure\nall degrade to empty; suggestions are a nicety and must never surface an error)."
       },
       "ThreadTurns": {
         "properties": {

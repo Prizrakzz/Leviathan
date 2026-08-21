@@ -13,7 +13,7 @@ interface Cit {
   ref?: unknown;
   source?: string;
   date?: string;
-  locator?: { source_key?: string; snippet?: string };
+  locator?: { source_key?: string; snippet?: string; char_start?: number; char_end?: number; offset_kind?: string };
 }
 interface Src {
   ref?: unknown;
@@ -28,6 +28,10 @@ export interface ReceiptRow {
   snippet?: string;
   kind: string; // 'evidence' | 'number'
   sourceKey?: string; // 6.4: the pin/filter key
+  // Phase F: char offsets ride to the PDF open so the drawer's `pdf ▸` resolves an exact page + highlight
+  charStart?: number;
+  charEnd?: number;
+  offsetKind?: string;
 }
 export interface Receipts {
   cited: ReceiptRow[];
@@ -91,6 +95,9 @@ export function partitionReceipts(r: RespondResult): Receipts {
       snippet: evText(c),
       kind: c.kind ?? 'evidence',
       sourceKey: sk,
+      charStart: typeof c.locator?.char_start === 'number' ? c.locator.char_start : undefined,
+      charEnd: typeof c.locator?.char_end === 'number' ? c.locator.char_end : undefined,
+      offsetKind: typeof c.locator?.offset_kind === 'string' ? c.locator.offset_kind : undefined,
     };
   });
   const citedKeys = new Set(cits.map((c) => key(c.source, c.date)));

@@ -21,6 +21,7 @@ export interface PdfTabParams {
   sourceKey: string;
   snippet?: string;
   charStart?: number;
+  charEnd?: number;
   offsetKind?: string;
 }
 

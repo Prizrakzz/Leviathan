@@ -265,18 +265,22 @@ def test_citation_pdf_200_shape_with_mocked_resolver(monkeypatch):
     monkeypatch.setenv("GRAPHRAG_PDF_LINKS", "on")
     seen = {}
 
-    def fake(source_key, snippet=None, char_start=None, offset_kind=None):
-        seen.update(source_key=source_key, snippet=snippet, char_start=char_start, offset_kind=offset_kind)
-        return {"url": "https://s3.example/doc.pdf?e=900", "page": 4, "kind": "pdf", "expires_in": 900}
+    def fake(source_key, snippet=None, char_start=None, offset_kind=None, char_end=None):
+        seen.update(source_key=source_key, snippet=snippet, char_start=char_start, offset_kind=offset_kind,
+                    char_end=char_end)
+        return {"url": "https://s3.example/doc.pdf?e=900", "page": 4, "kind": "pdf", "expires_in": 900,
+                "span": "July frost hit Sul de Minas", "sentence": "In July frost hit Sul de Minas hard."}
 
     _mock_resolver(monkeypatch, fake)
     c = _client(monkeypatch)
     r = c.get("/v1/citation/pdf", params={"source_key": "text/s/document.json", "snippet": "frost",
-                                          "char_start": 12, "offset_kind": "exact"})
+                                          "char_start": 12, "char_end": 39, "offset_kind": "exact"})
     assert r.status_code == 200
-    assert r.json() == {"url": "https://s3.example/doc.pdf?e=900", "page": 4, "kind": "pdf", "expires_in": 900}
+    assert r.json() == {"url": "https://s3.example/doc.pdf?e=900", "page": 4, "kind": "pdf", "expires_in": 900,
+                        "span": "July frost hit Sul de Minas",
+                        "sentence": "In July frost hit Sul de Minas hard."}
     assert seen == {"source_key": "text/s/document.json", "snippet": "frost", "char_start": 12,
-                    "offset_kind": "exact"}                       # query params flow through verbatim
+                    "char_end": 39, "offset_kind": "exact"}       # query params flow through verbatim
 
 
 def test_citation_pdf_404_when_document_missing(monkeypatch):
