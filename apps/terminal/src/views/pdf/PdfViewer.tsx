@@ -62,6 +62,7 @@ export function PdfViewer({
   const docRef = useRef<PDFDocumentProxy | null>(null);
   const taskRef = useRef<PDFDocumentLoadingTask | null>(null);
   const loadedKeyRef = useRef<string | null>(null);
+  const renderTaskRef = useRef<{ cancel: () => void } | null>(null);
   const layerRef = useRef<TextLayer | null>(null);
   const roRef = useRef<ResizeObserver | null>(null);
   const rangesRef = useRef<DivRange[]>([]);
@@ -164,6 +165,12 @@ export function PdfViewer({
   // Raster the current page, then (Phase F) the text layer + highlight. pdf.js v6 takes the canvas directly
   // (it owns the 2d context). A per-page raster failure is swallowed — the nav + download links must
   // survive it, so the viewer never blanks mid-read.
+  //
+  // RENDER-TASK CANCELLATION IS LOAD-BEARING, not hygiene (caught LIVE on the WASDE rehydration path,
+  // 2026-08-21): overlapping effect runs on ONE canvas make pdf.js throw "Cannot use the same canvas
+  // during multiple render() operations", the catch ate it, and the page showed the PREVIOUS raster with
+  // NO text layer and no glow. The `cancelled` flag only ignores results — it never stops the task —
+  // so the in-flight RenderTask is tracked and .cancel()ed before any new render (and on cleanup).
   useEffect(() => {
     const doc = docRef.current;
     const canvas = canvasRef.current;
@@ -174,9 +181,13 @@ export function PdfViewer({
         const page = await doc.getPage(Math.min(Math.max(pageNum, 1), numPages));
         if (cancelled) return;
         const viewport = page.getViewport({ scale: 1.35 });
+        renderTaskRef.current?.cancel();                 // stop any in-flight raster BEFORE touching the canvas
         canvas.width = viewport.width;
         canvas.height = viewport.height;
-        await page.render({ canvas, viewport }).promise;
+        const renderTask = page.render({ canvas, viewport });
+        renderTaskRef.current = renderTask;
+        await renderTask.promise;                        // rejects RenderingCancelledException when cancelled
+        if (renderTaskRef.current === renderTask) renderTaskRef.current = null;
         if (cancelled) return;
 
         // ── text layer (v6 TextLayer class; renderTextLayer died with v3) ────────────────────────────
@@ -237,6 +248,8 @@ export function PdfViewer({
     })();
     return () => {
       cancelled = true;
+      renderTaskRef.current?.cancel();                   // a re-run must never overlap the prior raster
+      renderTaskRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- paintHighlights is a stable closure over refs
   }, [pageNum, numPages, meta]);
