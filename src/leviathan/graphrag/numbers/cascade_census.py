@@ -90,6 +90,16 @@ _WAIVERS: dict[tuple[str, str], str] = {
     ("frozen_orange_juice", "US_section301_tariffs"): _NO_FCOJ,
     ("frozen_orange_juice", "tenderable_collapse"): _NO_FCOJ,
     ("white_sugar", "frost"): _NO_WHITE_SUGAR_BRAZIL_WX,
+    # D-EC graph-completion fallout (2026-08-21): the sorghum CLASS DAG (a causal contract with no
+    # tradeable instrument) copied incumbents' silver_refs, but availability is PER-COMMODITY --
+    # gold_weather_z keys by CONTRACT slug and carries no `sorghum` row, and silver_esr fetches five
+    # commodities, sorghum not among them (USDA publishes sorghum ESR; OUR fetch does not carry it).
+    # The first post-wave census read all three dark (commodity-slug-miss). The DAG's own
+    # silver_status is flipped to `planned` at the config site in the same change; the waivers keep
+    # the census exit honest meanwhile. DELETE these if a sorghum weather axis or ESR fetch lands.
+    ("sorghum", "drought"): "gold_weather_z has no sorghum slug (class DAG, not a contract; census probe 2026-08-21)",
+    ("sorghum", "heat_stress"): "gold_weather_z has no sorghum slug (class DAG, not a contract; census probe 2026-08-21)",
+    ("sorghum", "export_pace"): "silver_esr does not fetch sorghum (five-commodity fetch; census probe 2026-08-21)",
 }
 
 # The v4 cascade fixture (config_check._CFG mirror -- both resolve configs/graphrag/).
