@@ -246,7 +246,12 @@ def test_graph_version_hashes_the_configs_not_the_code(real, census):
     #                                  + 3 class DAGs authored (33 -> 36 yamls), lane C's 15 adjudicated
     #                                  edges + the four-tier re-adjudication's 14, the XC-6 parent edges,
     #                                  the policy/FX/livestock nodes, and every written refusal block.
-    assert real.version == h.hexdigest()[:12] == "c9d10c662810"     # POST-completion-wave, re-derived from bytes
+    #   c9d10c662810 -> f6cf1f5db711   the census fallout re-cut, same evening: sorghum's drought /
+    #                                  heat_stress / export_pace flipped available -> planned (the class
+    #                                  DAG copied incumbents' refs, but availability is PER-COMMODITY --
+    #                                  gold_weather_z and silver_esr carry no sorghum axis; the first
+    #                                  post-wave cascade census read all three legs dark).
+    assert real.version == h.hexdigest()[:12] == "f6cf1f5db711"     # POST-census-fallout, re-derived from bytes
     assert census["graph_version"] == "482c0e2554e6"                # the frozen PRE-XC-2 artifact, untouched
     assert real.version != census["graph_version"], \
         "a CONFIG edit must move the hash -- that is what 'hashes the configs, not the code' means"

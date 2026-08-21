@@ -34,15 +34,28 @@ def main() -> None:
 
     ap = argparse.ArgumentParser(description="Submit the silver_rebuild_gate as an in-VPC Batch job")
     ap.add_argument("--tables", required=True, help="comma-separated rebuilt table ids")
-    ap.add_argument("--asof", default="2026-02-15", help="census --diff baseline as-of")
+    ap.add_argument("--asof", default=None, help="census as-of (default: today UTC -- see the asof-trap note below)")
     ap.add_argument("--vcpu", type=int, default=2)
     ap.add_argument("--memory", type=int, default=8192)
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
     aws_region = get_required_env("AWS_REGION")
+    # ASOF TRAP (measured 2026-08-21): the old frozen default "2026-02-15" made every manual gate
+    # run PIT-read the store seven months back -- after the ESR 44-code widening re-vintaged
+    # history past February, that read NINE healthy export-pace legs as "metric-empty" and failed
+    # the gate on phantom drift (the scheduled path never sees this because the DAG passes the
+    # real scheduled time). A census asof must default to NOW unless the caller pins one.
+    if not args.asof:
+        from datetime import datetime, timezone
+        args.asof = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     command = ["jobs/audit/silver_rebuild_gate.py", "--tables", args.tables, "--asof", args.asof]
     overrides = {"command": command,
+                 # Branch-A tables hard-require pg-mirror-only numbers (the gate asserts it and
+                 # CRASHES with exit 70 / no verdict otherwise -- observed 2026-08-21 on silver_cot).
+                 # The scheduled path's silver-gate jobdef bakes this; the evidence-build jobdef this
+                 # wrapper reuses does not, so the override carries it.
+                 "environment": [{"name": "GRAPHRAG_NUMBERS_BACKEND", "value": "pg"}],
                  "resourceRequirements": [{"type": "VCPU", "value": str(args.vcpu)},
                                           {"type": "MEMORY", "value": str(args.memory)}]}
     job_name = "silver-rebuild-gate-" + args.tables.replace(",", "-").replace("_", "-")[:48]
