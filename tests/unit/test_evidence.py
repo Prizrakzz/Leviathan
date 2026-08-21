@@ -948,9 +948,15 @@ def test_never_written_pin_names_its_members_and_is_advisory_only(tmp_path, monk
     props, with no S3 object ever written and no waiver or dag_alias row to unpick). Had the pin entry
     stayed, this module's own staleness branch -- `gone = NEVER_WRITTEN_SLICES_PIN - set(specs)` -- would
     have emitted a "pin STALE" line on every lint run, which is precisely the symptom this pin exists to
-    produce and precisely why the config retirement and the pin edit are one edit."""
-    assert len(ev.NEVER_WRITTEN_SLICES_PIN) == 7
-    assert {"corn_tar_spot", "managed_money_positioning", "india_import_duty"} <= ev.NEVER_WRITTEN_SLICES_PIN
+    produce and precisely why the config retirement and the pin edit are one edit.
+
+    THE ONE REBUILD (2026-08-22): 7 -> 6, and this exit is the OTHER one -- the happy one, taken for
+    the first time ever: `india_import_duty` BECAME WRITTEN (the cache-armed rebuild routed the full
+    X2 corpus and landed its first props; S3 object measured present). A census pin that can only
+    ever shrink by retirement is a ratchet, not a census."""
+    assert len(ev.NEVER_WRITTEN_SLICES_PIN) == 6
+    assert {"corn_tar_spot", "managed_money_positioning"} <= ev.NEVER_WRITTEN_SLICES_PIN
+    assert "india_import_duty" not in ev.NEVER_WRITTEN_SLICES_PIN           # became WRITTEN at the rebuild
     assert "barley_yellow_dwarf_virus" not in ev.NEVER_WRITTEN_SLICES_PIN   # spec retired, not written
     assert ev.NEVER_WRITTEN_SLICES_PIN != ev.READ_DARK_SLICES_PIN          # a DIFFERENT darkness
     monkeypatch.setattr(ev, "_driver_raw", lambda: {"drivers": {n: {"terms": ["t"]} for n in
@@ -958,7 +964,7 @@ def test_never_written_pin_names_its_members_and_is_advisory_only(tmp_path, monk
     ev._reset()
     try:
         lines = ev.never_written_slice_warnings()
-        assert lines and "7 of 7" in lines[0] and "corn_tar_spot" in lines[0]
+        assert lines and "6 of 6" in lines[0] and "corn_tar_spot" in lines[0]
         assert not any("STALE" in ln for ln in lines)
         monkeypatch.setattr(ev, "_driver_raw", lambda: {"drivers": {"corn_tar_spot": {"terms": ["t"]}}})
         ev._reset()

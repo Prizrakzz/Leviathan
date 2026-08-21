@@ -1229,16 +1229,22 @@ READ_DARK_SLICES_PIN = frozenset({
 # config lint that cannot see the store must never fail on it. The only thing checkable without S3 is that
 # every pinned name still EXISTS as a configured spec -- a pinned name that has since been deleted from the
 # config makes the pin stale, and a stale census pin is how "101 vs 109" became folklore in the first place.
+# RE-MEASURED 2026-08-22 at the completion wave's ONE rebuild: 7 -> 6. `india_import_duty` leaves
+# because it BECAME WRITTEN -- the rebuild's routing pass over the full X2 corpus landed its first
+# props (the pin's happy exit, first ever taken). The two retired specs' stale objects
+# (wheat_blast, barley_yellow_dwarf_virus -- the latter DID have an object, correcting the earlier
+# "no object ever written" note) were deleted from S3 in the same act.
 NEVER_WRITTEN_SLICES_PIN = frozenset({
     "corn_southern_rust", "corn_tar_spot", "index_roll_flows",
-    "india_import_duty", "madden_julian_oscillation", "managed_money_positioning",
+    "madden_julian_oscillation", "managed_money_positioning",
     "veg_oil_substitution_spreads",
 })
 
 
 def never_written_slice_warnings() -> list[str]:
     """ADVISORY (non-fatal) G7.4 census pin: the configured slices that have never been written to S3 (8 at
-    the G7.4 measurement, 7 since barley_yellow_dwarf_virus's spec was retired 2026-08-21).
+    the G7.4 measurement; 7 after barley_yellow_dwarf_virus's spec retirement 2026-08-21; 6 after
+    india_import_duty BECAME WRITTEN at the completion wave's rebuild 2026-08-22).
 
     Two lines, both cheap and both config-only:
       * the standing census number itself, so the 109-specs-vs-101-files gap is stated in code rather than
