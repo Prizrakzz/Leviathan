@@ -44,7 +44,16 @@ WAVE_1C_NODES = TIER_1 + TIER_2
 FX_SLICES = ("ars_fx", "thb_fx", "rub_fx", "cny_fx", "try_fx", "aud_fx", "uah_fx", "cad_fx", "zar_fx",
              "mxn_fx", "php_fx", "vnd_fx", "eur_fx")
 FX_WIRED = ("ars_fx", "cad_fx", "cny_fx", "eur_fx", "zar_fx", "vnd_fx")
-FX_READ_DARK = ("thb_fx", "rub_fx", "try_fx", "aud_fx", "uah_fx", "mxn_fx", "php_fx")
+# D-EC post-X2 graph-completion wave (2026-08-21): SIX of the original seven left this roster by acquiring
+# the FX driver node D15 said the post-X2 half would mint -- rub_fx <- RUB_USD (srw/kcbt/matif), try_fx <-
+# TRY_USD (kcbt/matif), thb_fx <- THB_USD (raw_sugar/white_sugar), aud_fx <- AUD_USD (cotton/raw_sugar),
+# uah_fx <- UAH_USD (corn_cbot/french_maize_matif), mxn_fx <- MXN_USD (corn_cbot). They move to FX_WAVE2_WIRED
+# rather than into FX_WIRED because the two groups are wired by DIFFERENT acts and the distinction is the
+# lesson D15 recorded: Wave 1c CLAIMED ids that already existed (waivered + unowned), this wave MINTED new
+# ones. `php_fx` is the only member left, and its reason is stated so it is not mistaken for an oversight:
+# PHP_USD is RESERVED against a `coconut` DAG that does not exist, and a reserved id is not a node.
+FX_WAVE2_WIRED = ("rub_fx", "try_fx", "thb_fx", "aud_fx", "uah_fx", "mxn_fx")
+FX_READ_DARK = ("php_fx",)
 
 
 def _private_configs() -> bool:
@@ -328,7 +337,7 @@ def test_the_two_off_topic_fx_forms_are_refused_with_their_samples():
         assert not (set(ev.driver_slices_for(text)) & set(FX_SLICES)), text
 
 
-def test_six_fx_slices_are_wired_and_seven_are_pinned_read_dark():
+def test_twelve_fx_slices_are_wired_and_one_stays_pinned_read_dark():
     """The asymmetry IS the record. Six slices took DAG ids that were waived silver_only AND owned by no
     slice, so the wiring CREATED reach (the favorable_rainfall shape) and every claimed waiver row was
     deleted in the same edit (the MYR_USD precedent). The other seven are read-dark for the
@@ -338,19 +347,39 @@ def test_six_fx_slices_are_wired_and_seven_are_pinned_read_dark():
     `INR_THB_VND_weakness` is the one refusal: it would have retired thb_fx, and it is a BASKET id covering
     three currencies, which is the exact ground on which D-GD tranche 2 declined a second FX node on
     rough_rice_cbot. test_config_check.test_the_live_pin_still_matches_the_live_wiring already holds the
-    exact equality; this names the members so a silent revert reads as a broken claim, not a drifted count."""
+    exact equality; this names the members so a silent revert reads as a broken claim, not a drifted count.
+
+    D-EC POST-X2 GRAPH-COMPLETION WAVE (2026-08-21): the asymmetry did not survive, and its RESOLUTION is
+    the record now. Six of the seven were retired from the pin by the DAG-authoring act this docstring named
+    as "the post-X2 half" -- `<ISO-4217>_USD` nodes minted on the boards that trade the origin, copying the
+    live IDR_USD shape on malaysian_crude_palm_oil_cme (type macro_driver, silver_ref fred_fx_macro,
+    silver_status available). Each of the six needs an EXPLICIT dag_alias row and none can ride identity,
+    because a slice named `rub_fx` and an id named `RUB_USD` share no spelling; that is asserted below,
+    because identity-resolution is precisely what `cattle_cycle_herd_size` DOES use and confusing the two is
+    how an alias row goes missing. `php_fx` alone remains, RESERVED not authored."""
     from leviathan.graphrag import display as dp
     if not _private_configs() or not dp.all_driver_ids():
         pytest.skip("no private causal/vocabulary configs in this tree")
     dark = ev.read_dark_slices()
     for name in FX_WIRED:
         assert name not in dark, f"{name} lost its wiring"
+    for name in FX_WAVE2_WIRED:
+        assert name not in dark, f"{name} lost the FX node the graph-completion wave minted for it"
+        assert name not in ev.READ_DARK_SLICES_PIN, f"{name} is wired but still pinned read-dark"
     for name in FX_READ_DARK:
         assert name in dark and name in ev.READ_DARK_SLICES_PIN, f"{name} drifted out of the pin"
     backed = ev.backed_dag_ids()
     for did in ("ARS_FX", "CAD_FX", "usdcad_fx", "CNY", "CNY_FX", "CNY_USD", "usdcny_fx",
                 "EUR_USD", "EUR_USD_FX", "eurusd_fx", "ZAR_FX", "rand_FX", "VND_USD_fx"):
         assert did in backed, f"{did} is no longer backed by an fx slice"
+    # The six MINTED ids, and the dag_alias rows that are the only thing resolving them (no shared spelling
+    # with the slice name -> identity cannot help). PHP_USD is deliberately NOT here: reserved, not authored.
+    alias = ev._driver_raw().get("dag_alias") or {}
+    for slice_name, did in (("rub_fx", "RUB_USD"), ("try_fx", "TRY_USD"), ("thb_fx", "THB_USD"),
+                            ("aud_fx", "AUD_USD"), ("uah_fx", "UAH_USD"), ("mxn_fx", "MXN_USD")):
+        assert did in backed, f"{did} was minted but nothing routes to it"
+        assert did in (alias.get(slice_name) or []), f"{slice_name} lost its explicit dag_alias row for {did}"
+    assert "PHP_USD" not in backed, "PHP_USD is RESERVED against a coconut DAG that does not exist"
     waivers = ev._driver_raw().get("waivers") or {}
     # `cny_fx` stays in this roster after the D-EC XC-5 tail (2026-08-20) even though it is NO LONGER A DAG
     # ID -- the lowercase spelling on rapeseed_meal_zce was merged into `CNY_FX`, its 2-DAG majority. The

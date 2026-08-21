@@ -2157,6 +2157,19 @@ def main() -> int:
         print(f"WARN bare_name ({len(bare)} nodes miss their own head-commodity word -- non-fatal):")
         for w in bare:
             print(f"  - {w}")
+    # Advisory (non-fatal): F-A item O #1 / vocab-sweep hygiene rider 14 -- THE ALIAS-MASS SWEEP, the class
+    # bare_name_warnings() structurally cannot catch (it tests only tokens OF the node id, against the NODE's
+    # matcher). A form declared in entity_vocabulary feeds EXTRACTION; only driver_slices terms feed driver
+    # ROUTING, so the extractor can mint an entity the slice matcher can never route -- the "gas-hub class",
+    # found by hand and now made impossible. Suppressions are recorded refusals with their measurement in
+    # evidence._ALIAS_MASS_BENIGN, never silences.
+    from leviathan.graphrag.evidence import alias_mass_warnings
+    alias_mass = alias_mass_warnings()
+    if alias_mass:
+        print(f"WARN alias_mass ({len(alias_mass)} entity_vocabulary forms the extractor can mint but the "
+              f"owning driver slice cannot route -- non-fatal; adding a term is a routing change):")
+        for w in alias_mass:
+            print(f"  - {w}")
     # Advisory (non-fatal): G8 CROSS-FIRE -- one slice's term is a word-boundary substring of another's, so
     # every prop the longer term claims is also claimed by the shorter one ("leaf rust" inside "coffee leaf
     # rust"). Neither of check_driver_slices' hard checks can see this (both read the dag_alias ID map) and
@@ -2179,6 +2192,14 @@ def main() -> int:
     # DIFFERENT set from read-darkness, and deliberately advisory: write-darkness is store state, and a
     # config lint that cannot see the store must never fail a build on it.
     for w in never_written_slice_warnings():
+        print(f"NOTE {w}")
+    # Advisory (non-fatal): B1 recon R4 -- the COUNTRY-AXIS namespace diff across the six rosters that spell a
+    # country (esr_destinations / numbers.agent / geo_lexicon / country_origin / region_map / geography.yaml).
+    # No lint compared any adjacent pair before this, and R-7 records the consequence: extending some rosters
+    # and not others makes the drift worse, not better. Config-only; the tonnage weighting is an optional
+    # argument, never a warehouse call.
+    from leviathan.graphrag.geography import country_axis_warnings
+    for w in country_axis_warnings():
         print(f"NOTE {w}")
     # Advisory (non-fatal): un-blurbed edges — hover falls back to mechanism; count-only to keep output sane.
     missing_blurbs = blurb_presence_warnings()

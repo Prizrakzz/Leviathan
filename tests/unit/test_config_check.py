@@ -260,6 +260,72 @@ def test_bare_name_suppresses_benign_qualifiers_and_forms(monkeypatch):
     assert ev.bare_name_warnings() == []
 
 
+# ── F-A item O #1: the ALIAS-MASS sweep (vocab-sweep hygiene rider 14) ───────────────────────────────
+# A23's register states the gap in one sentence: "bare_name_warnings() structurally CANNOT catch this class
+# (it tests only tokens OF the node id) -- a new lint is owed alongside the fixes". This is that lint. It
+# compares the EXTRACTION lane (entity_vocabulary `aliases:`) against the ROUTING lane (driver_slices
+# `terms:`) for every concept that owns a driver slice, which is the "gas-hub class": the extractor can mint
+# an entity the slice matcher can never route. Hermetic -- synthesize both lanes, monkeypatch auto-undoes.
+def _wire_alias_lanes(monkeypatch, vocab_aliases: dict, slice_terms: dict):
+    from leviathan.graphrag import extract as ex
+    monkeypatch.setattr(ex, "_vocab", lambda: {"aliases": vocab_aliases})
+    monkeypatch.setattr(ev, "_driver_raw", lambda: {"drivers": {n: {"category": "x", "terms": list(t)}
+                                                               for n, t in slice_terms.items()}})
+    ev._reset()
+
+
+def test_alias_mass_flags_the_gas_hub_class(monkeypatch):
+    # THE MEASURED INSTANCE, reproduced as a fixture: entity_vocabulary declares the gas HUB roster while the
+    # `natural_gas` slice carries only the two generic forms. 'natural gas' is a token-spelling of the id
+    # (bare_name's job, skipped here); 'natgas' is the finding. 'Henry Hub'/'TTF' are suppressed as RECORDED
+    # refusals -- measured at ONE prop on the full chunk cache, real fix = the Phase-G wb_cmo text-layer
+    # repair -- which is what proves a suppression is a written refusal and not a silence.
+    try:
+        _wire_alias_lanes(monkeypatch,
+                          {"natural_gas": ["natural gas", "natgas", "gas prices", "Henry Hub", "TTF"]},
+                          {"natural_gas": ["natural gas", "gas prices"]})
+        warns = ev.alias_mass_warnings()
+        assert len(warns) == 1 and "natgas" in warns[0] and "natural_gas" in warns[0]
+        assert "cannot ROUTE" in warns[0] and "_ALIAS_MASS_BENIGN" in warns[0]
+        assert warns[0].encode("ascii")                        # ASCII-safe (cp1252 stdout rule)
+    finally:
+        ev._reset()
+
+
+def test_alias_mass_clean_once_the_term_lands_and_skips_unowned_concepts(monkeypatch):
+    # Two properties in one fixture. (1) THE FIX: adding the form to the slice's terms clears the finding --
+    # the lint follows the routing lane, not a hardcoded list. (2) SCOPE: a vocabulary concept that owns NO
+    # driver slice is not this lint's class at all (the node side is bare_name_warnings') and must not be
+    # reported, or the sweep would flag all ~185 alias keys against 126 slices.
+    try:
+        _wire_alias_lanes(monkeypatch,
+                          {"natural_gas": ["natgas"], "arabica_coffee": ["arabica", "cafe arabica"]},
+                          {"natural_gas": ["natural gas", "natgas"]})
+        assert ev.alias_mass_warnings() == []
+    finally:
+        ev._reset()
+
+
+def test_alias_mass_follows_the_declared_dual_home_map_and_ranks_by_mass(monkeypatch):
+    # The estate deliberately names some node/slice pairs differently (fish_meal the node vs
+    # marine_protein_fishmeal the slice), so identity alone would miss them; _ALIAS_CONCEPT_SLICE declares
+    # the exceptions rather than guessing. Mass is OPTIONAL and never fetched: a caller holding counts passes
+    # them and the lines rank, which is the half of "test aliases against corpus mass" a $0 config lint can
+    # honestly own -- the corpus half belongs to slice_audit.py.
+    try:
+        _wire_alias_lanes(monkeypatch,
+                          {"fish_meal": ["marine protein"], "frost": ["geada", "cold damage"]},
+                          {"marine_protein_fishmeal": ["fishmeal", "fish meal"], "frost": ["frost", "freeze"]})
+        warns = ev.alias_mass_warnings()
+        assert len(warns) == 3
+        assert any("fish_meal" in w and "marine_protein_fishmeal" in w for w in warns)
+        ranked = ev.alias_mass_warnings(mass={"geada": 400, "cold damage": 9, "marine protein": 0})
+        assert "geada" in ranked[0] and "[400 measured]" in ranked[0]
+        assert "marine protein" in ranked[-1]
+    finally:
+        ev._reset()
+
+
 def test_config_check_wrapper_delegates(tmp_path, monkeypatch):
     # the thin config_check.check_driver_slices() wrapper must call the evidence resolver (lint and the
     # runtime router agree by construction). Point both at a synthetic dark config and assert the flag surfaces.
@@ -541,9 +607,9 @@ def test_a_waived_read_dark_slice_is_accounted_for(tmp_path, monkeypatch):
 
 
 def test_the_live_pin_still_matches_the_live_wiring():
-    """The 17 read-dark slices are PINNED (READ_DARK_SLICES_PIN) so nobody re-derives a subset by hand
-    again -- the deck author had already measured five of them at eval_queries_playbooks_v1.yaml:1130-1140.
-    Skipped on a tree with no private causal configs.
+    """The read-dark slices are PINNED (READ_DARK_SLICES_PIN, 12 as of 2026-08-21) so nobody re-derives a
+    subset by hand again -- the deck author had already measured five of them at
+    eval_queries_playbooks_v1.yaml:1130-1140. Skipped on a tree with no private causal configs.
 
     D-CW-3a (2026-08-07): 29 -> 28. `diesel` left the census when driver_slices.yaml aliased the
     previously-waivered DAG id `gasoil_palm_spread` to it. This assertion is the tooth that makes the pin
@@ -601,25 +667,82 @@ def test_the_live_pin_still_matches_the_live_wiring():
     smuggled: `INR_THB_VND_weakness` on rough_rice_cbot would have retired thb_fx, and it is a BASKET id
     covering three currencies -- the exact ground on which D-GD tranche 2 declined to give that board a
     second FX node. Unlike the D8 three, these seven carry NO `waivers:` row: a slice-name waiver was that
-    batch's workaround for not owning evidence.py, and Wave 1c does own it, so the pin alone is the record."""
+    batch's workaround for not owning evidence.py, and Wave 1c does own it, so the pin alone is the record.
+
+    D-EC POST-X2 GRAPH-COMPLETION WAVE (2026-08-21): 24 -> 12, and SIX of the claims above INVERT. Every
+    inversion below is a claim this docstring made and the wave has now answered, so the assertions are
+    re-cut rather than deleted -- a passing test whose prose still asserts the opposite is the failure mode
+    this file exists to prevent (an earlier revision of this very docstring did exactly that).
+
+      * `dap` LEAVES. The D-PQ decline recorded above -- "no honest phosphate mechanism yet" -- is REVERSED
+        IN CONFIG by `dap_cost` on kcbt/matif/corn_cbot/canola_ice, and the reversal is STATED: D-PQ's
+        "build-up nutrient, never marginal inside 1-4 quarters" is refuted by Pakistan's Rabi DAP offtake
+        (-27% 2011, +16% 2012/13) and its chronic N-over-P subsidy skew, its "moves with the nitrogen story"
+        is refuted by China's 2022 joint urea+phosphate export suspension, and SILVER-F063 has since
+        published the DAP price leg, making this the owner's numbers-without-edge gap.
+      * `export_levy_duty`, `import_quota_trq`, `marine_protein_fishmeal` LEAVE -- by MINTING, which is
+        exactly what the D8 paragraph above said the post-X2 half would be. The D8 REFUSAL is untouched and
+        is still asserted below: `China_import_quota_VAT` was never taken from `tariff`.
+      * SIX of the seven FX slices LEAVE (RUB_USD / TRY_USD / THB_USD / AUD_USD / UAH_USD / MXN_USD).
+        `php_fx` STAYS: PHP_USD is RESERVED against a `coconut` DAG that does not exist.
+      * `cattle_cycle_herd_size` and `natural_rubber` and `real_yields_rates` and
+        `sustainable_aviation_fuel` LEAVE, retiring the D-GD "DOUBLE-COUNT REFUSAL" and "NO HOST COMMODITY"
+        classes by finding the parent slot and the host board respectively.
+      * `wheat_blast` and `barley_yellow_dwarf_virus` leave BY RETIREMENT OF THE SPEC -- they are not wired,
+        they are gone, which is why they are asserted here as non-specs rather than as non-pins.
+      * FOUR ARRIVE: the B1 destination slices, the WAVE GATE's third legal state ("written down as
+        edge-reachable-only"), each with its alternative measured and refused by name.
+      * `metals` stays forever and changes CLASS: TERMINALLY CONTEXT, not deferred. Its four acts are
+        asserted below because three of them are RESTRAINTS (do not delete the slice, do not mint an id, do
+        not add a waiver row) and a restraint that nothing checks is a restraint that erodes."""
     import pytest
     from leviathan.graphrag import display as dp
     if not dp.all_driver_ids():
         pytest.skip("no causal configs in this tree -- the pin is vacuous")
     assert ev.read_dark_slices() == set(ev.READ_DARK_SLICES_PIN)   # exact, both directions, no debt set
-    assert {"export_levy_duty", "marine_protein_fishmeal", "import_quota_trq"} <= set(ev.READ_DARK_SLICES_PIN)
     assert "diesel" not in ev.READ_DARK_SLICES_PIN                # D-CW-3a unlock, measured above
     assert not ({"urea", "potash"} & set(ev.READ_DARK_SLICES_PIN))     # D-PQ curation unlock
-    assert "dap" in ev.READ_DARK_SLICES_PIN            # D-PQ DECLINE: no honest phosphate mechanism yet
+    # THE OVERTURN, asserted. `dap` was pinned with the comment "D-PQ DECLINE: no honest phosphate mechanism
+    # yet"; `dap_cost` is that mechanism, so the line inverts and the comment inverts with it.
+    assert "dap" not in ev.READ_DARK_SLICES_PIN            # D-PQ DECLINE REVERSED: dap_cost on 4 boards
+    # The D8 three + the two livestock-protein slices: all five leave by MINTING (the post-X2 half D8 named).
+    assert not ({"export_levy_duty", "import_quota_trq", "marine_protein_fishmeal",
+                 "cattle_cycle_herd_size", "sustainable_aviation_fuel", "natural_rubber",
+                 "real_yields_rates"} & set(ev.READ_DARK_SLICES_PIN))
     # D8 WIRED, therefore not read-dark. The equality above already proves it; naming it here is what makes
     # a silent regression (someone deletes the dag_alias line) read as a broken claim rather than a drifted
-    # count -- and the second assertion is the REFUSAL, recorded as an assertion: `China_import_quota_VAT`
-    # still belongs to `tariff`, so `import_quota_trq` is dark because nobody stole it, not by oversight.
+    # count -- and the last assertion in this test is the REFUSAL, recorded as an assertion:
+    # `China_import_quota_VAT` still belongs to `tariff`, so nobody stole it to retire import_quota_trq.
     assert "benign_growing_conditions" not in ev.read_dark_slices()
     # D15 Wave 1c: the six WIRED fx slices and the seven that had nothing to wire to. Named for the same
     # reason as the line above -- deleting a dag_alias row must read as a broken claim, not a drifted count.
     assert not ({"ars_fx", "cad_fx", "cny_fx", "eur_fx", "zar_fx", "vnd_fx"} & ev.read_dark_slices())
-    assert {"thb_fx", "rub_fx", "try_fx", "aud_fx", "uah_fx", "mxn_fx", "php_fx"} <= set(ev.READ_DARK_SLICES_PIN)
+    assert not ({"thb_fx", "rub_fx", "try_fx", "aud_fx", "uah_fx", "mxn_fx"} & set(ev.READ_DARK_SLICES_PIN))
+    assert "php_fx" in ev.READ_DARK_SLICES_PIN            # PHP_USD is RESERVED; a reserved id is not a node
+    # THE TWO RETIREMENTS. Not "not pinned" -- NOT CONFIGURED. wheat_blast's 32/32 props were Indonesia's
+    # Ministry of TRADE via the term `MoT` (100% contamination, the `leaf rust` precedent at a higher rate)
+    # and its origin geography is absent from all 28 sources; barley_yellow_dwarf_virus measured zero props
+    # and was never written to S3 at all. A pin entry for either would name a spec that does not exist.
+    assert "wheat_blast" not in ev.driver_specs() and "wheat_blast" not in ev.READ_DARK_SLICES_PIN
+    assert ("barley_yellow_dwarf_virus" not in ev.driver_specs()
+            and "barley_yellow_dwarf_virus" not in ev.NEVER_WRITTEN_SLICES_PIN)
+    # THE FOUR B1 DESTINATION SLICES. Pinned AND read-dark AND configured -- all three, because the pin's
+    # third legal state is only honest if the slice actually exists and actually cannot be reached.
+    b1 = {"turkey_tmo_imports", "us_export_flow_relation", "mexico_import_demand", "ne_asia_feed_demand"}
+    assert b1 <= set(ev.READ_DARK_SLICES_PIN) and b1 <= ev.read_dark_slices() and b1 <= set(ev.driver_specs())
+    # ...and the two B1 slices that are NOT here, which is what makes the four a curated set: sea_import_demand
+    # took `buyer_tender_demand` (waivered + unowned -> the wiring CREATES reach) and egypt_gasc_tenders is a
+    # term extension on a slice that was already DAG-backed.
+    assert not ({"sea_import_demand", "egypt_gasc_tenders"} & set(ev.READ_DARK_SLICES_PIN))
+    # `metals`: the PERMANENT pin and its three restraints. RICH-and-RETIRED (975 props, 98% single-source
+    # wb_cmo); the slice stays because SILVER-F063 wired copper_usd_mt to it and names it the consumer, no
+    # DAG id is minted so reach stays 0, and NO waivers row is added -- by the D15 precedent the pin alone is
+    # the record. TERMINALLY CONTEXT, not deferred: (a) index co-membership is a publication fact, (b)
+    # freight-volume shares are `freight`'s, (c) Section-232 retaliation is `tariff`'s, (d) 'copper' fires on
+    # copper FUNGICIDE and 'zinc' on a plant micronutrient.
+    assert "metals" in ev.READ_DARK_SLICES_PIN and "metals" in ev.driver_specs()
+    assert "metals" not in (ev._driver_raw().get("waivers") or {})
+    assert not (ev._driver_raw().get("dag_alias") or {}).get("metals")
     assert ev.slice_for_driver("China_import_quota_VAT") == "tariff", "D-CW-3a: no alias steal for D8"
 
 
@@ -654,17 +777,42 @@ def test_dpq_curation_reach_is_what_the_pin_claims():
     exactly one slice, so an alias steal moves reach instead of creating it; that is precisely why
     D-CW-3a refused to do this by wiring). Reach is the load-bearing number: read-darkness is binary and
     would still read 'unlocked' if urea reached ONE contract, so the pin equality above cannot catch a
-    curation that quietly shrank. Skipped on a tree with no private causal configs."""
+    curation that quietly shrank. Skipped on a tree with no private causal configs.
+
+    RE-CUT 2026-08-21 (D-EC graph-completion wave) FROM COUNT-EQUALITY TO NAMED-MEMBERSHIP + A FLOOR, and
+    the reasoning matters because loosening a pin is normally the wrong move. What D-PQ actually claimed was
+    never "twelve" -- it was "these twelve boards, and no slice lost anything". A count is a WEAKER
+    statement than the membership it summarises: it cannot tell a board swapped for another from a board
+    kept, and it breaks on legitimate growth that has nothing to do with D-PQ. This wave produced exactly
+    that growth -- the class DAGs for `barley`, `sorghum` and `sunflower_oil` (33 causal yamls -> 36) each
+    carry the ordinary fertilizer/macro block, so urea went 12 -> 14, macro 24 -> 27 and fertilizer 15 -> 17
+    with no D-PQ decision touched. Naming the members and flooring the count keeps every tooth this test
+    had (a shrink, a swap, or a re-owned id all still fail) and stops the file demanding an edit every time
+    an unrelated board is authored.
+
+    THE ONE LINE THAT INVERTS: `assert "dap" not in reach`. D-PQ declined a phosphate node and this wave
+    REVERSES that decline in config with `dap_cost` on kcbt/matif/corn_cbot/canola_ice, so the assertion is
+    re-cut to name the four boards. The decline was recorded in prose here and in the pin comment; the
+    reversal is recorded the same way, in the same places, because a refusal that quietly stops being true
+    is indistinguishable from a refusal nobody honoured."""
     if not dp.all_driver_ids():
         pytest.skip("no causal configs in this tree -- the reach census is vacuous")
     reach = _live_slice_reach()
-    assert len(reach["urea"]) == 12                    # corn family 6 + wheat family 4 + canola/rapeseed 2
+    # D-PQ's twelve, by name: corn family 6 + wheat family 4 + canola/rapeseed 2.
+    urea_dpq = {"corn", "corn_cbot", "campinas_corn_reference_bmf", "french_maize_matif",
+                "south_african_white_maize_jse", "south_african_yellow_maize_jse",
+                "french_wheat_matif", "hard_red_spring_wheat_mgex", "hard_red_winter_wheat_kcbt",
+                "soft_red_winter_wheat_cbot", "canola_ice", "french_rapeseed_matif"}
+    assert urea_dpq <= reach["urea"] and len(reach["urea"]) >= 12
     assert len(reach["potash"]) == 1                   # oil palm only -- the estate's one K-binding crop
     assert "malaysian_crude_palm_oil_cme" in reach["potash"]
-    assert len(reach["macro"]) == 24                   # was 1 (cocoa-only): the 2,121-prop choke point
+    assert len(reach["macro"]) >= 24                   # was 1 (cocoa-only): the 2,121-prop choke point
     assert "cocoa" in reach["macro"]                   # the shape donor keeps its node
-    assert len(reach["fertilizer"]) == 15              # UNCHANGED: all five generic ids stayed put
-    assert "dap" not in reach                          # declined, still stranded, and honestly so
+    assert len(reach["fertilizer"]) >= 15              # UNCHANGED by D-PQ: all five generic ids stayed put
+    # THE D-PQ DECLINE, REVERSED IN CONFIG (see the docstring and the READ_DARK_SLICES_PIN comment for the
+    # three grounds and how each was refuted). `dap_cost` parents each board's generic fertilizer node; it
+    # mints no phosphate-ORE node, because 'phosphate rock' measured 1 prop and was refused.
+    assert {"hard_red_winter_wheat_kcbt", "french_wheat_matif", "corn_cbot", "canola_ice"} <= reach["dap"]
 
 
 def test_dpq_new_nodes_carry_no_new_cascade_capability():

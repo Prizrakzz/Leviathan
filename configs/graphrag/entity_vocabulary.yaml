@@ -42,13 +42,48 @@ nodes:
      # and complex members against this list. NODE-MODEL RULE still applies: 'cottonseed meal
      # production' is the `cottonseed` node + a production metric on a claim, never a node id.
      cottonseed, coconut, palm_kernel, peanut, ddgs, used_cooking_oil, tallow, hfcs,
-     olive_oil, pulses, fresh_citrus, minor_oilseeds, minor_cereals]
+     olive_oil, pulses, fresh_citrus, minor_oilseeds, minor_cereals,
+     # D-EC POST-X2 GRAPH-COMPLETION WAVE (2026-08-21) -- F-A item A, THE LIVESTOCK DEMAND LAYER. Same
+     # context class as the D15 thirteen (no `contracts:` entry, non-tradeable by construction, never a
+     # cascade root) and declared here for the same reason: a canonical must be a defined node before it
+     # can carry aliases (config_check.lint_vocab), and commodity_hierarchy.coverage_check resolves the
+     # new `feed_demand_complex` members against this list. The founding measurement is the plan's own:
+     # the pilot measured 50% of WASDE propositions routing to NOTHING because no cattle / poultry / hog
+     # node exists anywhere in the graph. Every alias below is MEASURED on the 345,870-prop pre-X2 chunk
+     # cache with the production matcher pair (ex._normalize -> harvest.build_matcher); see the alias
+     # block for the counts and for the four refusals the measurement forced.
+     # NODE-MODEL RULE still applies: 'cattle on feed' is the `cattle_beef` node + an inventory metric on
+     # a claim, never a node id -- the herd-cycle MECHANISM stays in the driver lane
+     # (`cattle_cycle_herd_size`, `cattle_on_feed`, `broiler_economics`, `hog_margins_crush`).
+     # ESR CODE CORRECTION BANKED HERE so nobody re-derives it: beef is code 1701; 1702 is hogs.
+     broilers_poultry, cattle_beef, hogs, dairy,
+     # F-A item M, the ONE aggregate that is a PRODUCT rather than a set of our nodes: `compound_feed` is
+     # manufactured mixed feed, so it is a context COMMODITY and not a `commodity_group` (a group with no
+     # member set expands to nothing -- the exact `food_grains` defect D8 fixed). Measured 508 props
+     # ('compound feed') + 26 ('compound feeds') + 21 ('mixed feed').
+     compound_feed]
   # NOTE: canola (ICE, Canada) and rapeseed (MATIF, Europe) are the same oilseed agronomically but
   # DISTINCT contracts (`canola_ice` vs `french_rapeseed_matif` in the universe) → distinct nodes,
   # linked at extraction via substitutes_for/correlates_with, NOT collapsed by alias.
   commodity_group:
+    # D-EC POST-X2 GRAPH-COMPLETION WAVE (2026-08-21) -- F-A item M, THE AGGREGATE / GROUP NODE CLASS.
+    # A1's defect, verbatim: "commodity_hierarchy declares grains/oilseeds/oilseed_meals/vegetable_oils/
+    # food_grains/soft_commodities/tropicals + complexes, but ev.all_nodes() returns ONLY the 24 contract
+    # nodes -- no group has match_forms or a slice", so 9,599 aggregate-worded props matched no member
+    # matcher. The ratified design decision (plan L430-434) is GROUP-LEVEL SLICES, not fan-out to members.
+    # THE ROUTING HALF OF THAT DECISION IS commodity_hierarchy.yaml:context_commodities, not this list --
+    # evidence.all_nodes() reads `contracts:` + `context_commodities:`, so a group node named only here
+    # still has no slice. Five aggregates carry MEASURED mass and are routed there; the rest stay
+    # EXPANSION-ONLY and the reason is written at their site in commodity_hierarchy.yaml.
+    # + `coarse_grains` (measured 1,017 'coarse grain' / 1,162 'coarse grains') -- the USDA/FAO feed-cereal
+    #   class noun. It is DISTINCT from the `feed_grains` COMPLEX (a ration-substitute set, expansion
+    #   precedence complex > group) and from `grains` (which includes the food cereals).
+    # `protein_meal` is DELIBERATELY NOT a sixth node here: F-A M names it as "oilseed_meals/protein_meal",
+    # i.e. two candidate names for ONE concept, and minting both would re-create the XC-2/XC-5 spelling-split
+    # class on a node this wave is trying to consolidate. It lands as a SURFACE FORM of `oilseed_meals`
+    # (measured: 'protein meal' 462, 'protein meals' 94).
     [grains, food_grains, feed_grains, oilseeds, vegetable_oils, oilseed_meals,
-     soft_commodities, tropicals]
+     soft_commodities, tropicals, coarse_grains]
   country_origin:    # producers (W1 surface forms) + the structural IMPORTERS that absorb displaced
                      # supply (needed for the trade_flow + substitute stages of a cascade)
     [Brazil, Argentina, United_States, China, Colombia, Vietnam, India, Australia,
@@ -58,7 +93,25 @@ nodes:
      Algeria, Saudi_Arabia,
      # producer countries harvested from configs/geographies/ + corpus-frequent origins
      France, Germany, Italy, Poland, Romania, Hungary, Serbia, Peru, Paraguay, Ecuador,
-     Honduras, Uganda, Ethiopia, Cameroon]
+     Honduras, Uganda, Ethiopia, Cameroon,
+     # -- B1 THE DESTINATION/IMPORTER LAYER, routing half (2026-08-21). recon item R3 -----------------
+     # ELEVEN destinations that carry >= 0.5% of measured US export tonnage and were absent from this
+     # list. Measured (b1_esr_rank / laneb_dest_split over silver/esr, 5 commodities, MY>=2020,
+     # as_of=20260820, grand total 990,222 kt): Taiwan 2.64%, Spain 1.82%, Guatemala 1.51%,
+     # Netherlands 1.03%, Dominican Republic 1.03%, Venezuela 0.92%, Costa Rica 0.85%, Panama 0.68%,
+     # El Salvador 0.64%, Morocco 0.62%, Nicaragua 0.47%. Adding them takes country_origin's tonnage
+     # anchor from 84.2% to ~96%. The header above already says this list carries "the structural
+     # IMPORTERS that absorb displaced supply" -- these eleven are that class and were simply missing.
+     # Corpus attestation, pre-X2 cache (production matcher pair): Netherlands 950, Guatemala 901,
+     # Spain 897, Peru 687(already a node), Ecuador 594(already), Italy 493(already), Taiwan 430,
+     # Venezuela 254, Honduras 235(already), Morocco 179, Costa Rica 62, Nicaragua 62, Panama 35,
+     # El Salvador 21, Dominican Republic 3. THE DOMINICAN REPUBLIC NUMBER IS STATED, NOT HIDDEN: 3
+     # props of corpus attestation against 1.03% of measured tonnage -- it is declared for the TONNAGE
+     # axis (extraction typing + the destination router), not for corpus mass, and that is the whole
+     # point of B1's honest framing ("destination-keyed addressing, never prop rescue").
+     # CONFIG-ONLY: nothing re-chunks here; extraction types them from the next run on (D-CW-1e).
+     Taiwan, Spain, Guatemala, Netherlands, Dominican_Republic, Venezuela, Costa_Rica, Panama,
+     El_Salvador, Morocco, Nicaragua]
   region:            # distinct growing regions (sub-regions are their OWN nodes, not parent aliases;
                      # containment is a belongs_to_group edge, never an alias)
     [Minas_Gerais, Sul_de_Minas, Cerrado_Mineiro, Espirito_Santo, Parana, Mato_Grosso,
@@ -73,6 +126,14 @@ nodes:
     # same node ASCII, so those 17 had no vocabulary entry at all and the extractor could not mint the
     # entity their DAGs depend on. Canonical is now the ASCII majority spelling; the accented forms moved
     # DOWN into `aliases:` below, where a surface form belongs.
+    # RE-MEASURED 2026-08-21 for the completion wave's C-8 hygiene row, and the row CLOSES AS A NO-OP on
+    # this file: the counts the ledger carries (El_Nino 2 / El_Nino-accented 3, La_Nina 2 / La_Nina-accented 2)
+    # reproduce EXACTLY, but they are not a split -- ZERO accented spellings survive as a KEY or an id. The
+    # two ASCII hits are the node list here and the `aliases:` key below; all seven accented hits are prose
+    # in three comment lines plus the deliberate surface forms in the two alias lists. No merge is owed
+    # here. The residue the C-8 row was really pointing at lives on OTHER surfaces and is NOT this lane's:
+    # configs/graphrag/numbers/chain_map.yaml (1 accented La_Nina) and configs/graphrag/gold/
+    # entity_linking.jsonl (1). Handed to the integrator rather than reached across a lane boundary.
     [El_Nino, La_Nina, IOD_positive, IOD_negative, ENSO_neutral]
   hazard:            # NEGATIVE weather/disease shocks (sign carried on the edge)
     [drought, frost, flood, heat_stress, excess_rain, leaf_rust, HLB, black_pod, CBD,
@@ -93,7 +154,22 @@ nodes:
   fertilizer:
     [urea, DAP, potash, phosphate_rock, NPK_blend]
   energy:            # the fuel/energy inputs (crude, gas, diesel) -- biofuel SINKS stay under commodity
-    [crude_oil, natural_gas, diesel]
+    # D-EC POST-X2 GRAPH-COMPLETION WAVE (2026-08-21) -- gap-register row E1, "THE ENERGY FUTURES LEGS"
+    # (owner catch 2026-08-20). The plan assigns the CONTEXT-NODE half to this wave ("Energy CONTEXT NODES
+    # (`heating_oil`, `gasoline`) follow the D15 pattern in the completion wave") and the databento HO/RB/CL
+    # symbol widening to the numbers wave. Both candidates were MEASURED on the 345,870-prop pre-X2 cache
+    # with the production matcher pair, and the measurement SPLITS them:
+    #   gasoline   388 props  (+ 'petrol' 43, the Commonwealth/GAIN register)   -> AUTHORED
+    #   heating oil  3 props  ('rbob' 0, 'ulsd' 0, 'distillate' 3)              -> REFUSED ON MEASUREMENT
+    # THE heating_oil REFUSAL, written so it is reversible rather than re-derived: three propositions in
+    # 345,870 is the e1_census dead class, and the two instrument names a heating-oil node would exist to
+    # catch ('RBOB', 'ULSD') fire ZERO times each -- this corpus is 28 agricultural text sources and it does
+    # not carry a distillate desk. That is a CORPUS-ACQUISITION finding, not a curation one, and it does not
+    # block the numbers half: a databento HO/RB param widening needs a registry card, never a text node.
+    # UN-REFUSE GATE: 'heating oil' or 'ulsd' above zero on the post-X2 cache, or an energy text source.
+    # `gasoline` unblocks F-A item G's `ethanol <-> RBOB/gasoline` blend-economics edge, whose stated
+    # precondition was exactly "needs E1's energy nodes" (plan precondition P12). The EDGE is the DAG lane's.
+    [crude_oil, natural_gas, diesel, gasoline]
   freight:           # ocean freight COST (the rate itself); the routes are chokepoints below
     [baltic_dry_index, panamax_freight]
   logistics_chokepoint:   # physical route constraints that price freight and delay flows
@@ -105,8 +181,17 @@ nodes:
     [flowering_stress, biennial_off_year, biennial_on_year, withheld_supply,
      crush_margin_expansion, tenderable_collapse, replanting_cycle, export_pace_lag, safrinha]
   policy_event:
+    # D-EC POST-X2 GRAPH-COMPLETION WAVE (2026-08-21) -- XC-4's THIRD EUDR BREAK, the one F-A item N does
+    # not cover. XC-4 records the node as "broken THREE ways (3 id spellings, none in entity_vocabulary --
+    # the extractor cannot mint the entity 11 DAG instances depend on)"; F-A N covers the mis-filed slice
+    # terms and the id merge, and the vocabulary row was assigned to nobody. VERIFIED before this edit:
+    # `grep -ci eudr entity_vocabulary.yaml` returned 0 while eleven DAG driver instances across eight
+    # boards name the entity. This row closes that break. EUDR binds 2026-12-30 (web-verified, post-delays).
+    # The three DAG spellings (EUDR x8, EU_EUDR x2, eudr_deforestation x1) merge to `EUDR` in the causal
+    # lane; both retired spellings are kept BELOW as surface forms on the El_Nino accented-form precedent,
+    # so nothing that ever wrote them goes unrouted.
     [export_ban, export_tax, import_tariff, biodiesel_mandate, DMO, FUNCAFE, soy_dollar,
-     quota, levy, port_closure, sanctions, MSP]
+     quota, levy, port_closure, sanctions, MSP, EUDR]
   instrument:
     [arabica_robusta_spread, white_raw_premium, soyoil_palm_premium, wheat_corn_spread,
      soybean_crush_margin, board_crush, sugar_ethanol_parity]
@@ -124,6 +209,7 @@ edges:               # typed/signed/dated relations — NEVER stored as nodes
   depends_on:        {directed: true}
   crushed_into:      {directed: true}                            # oilseed → meal + oil (the crush)
   refined_into:      {directed: true}                            # CPO → palm_olein, raw → white sugar
+  co_product_of:     {directed: false, sign: pos}                # one process yields both (kernel~CPO, lint~cottonseed) — F-A item B; registry row owed by lane C's handoff D
   feedstock_for:     {directed: true,  sign: pm,  lag: months}   # veg-oil/cane/corn → biofuel demand
   diverted_to:       {directed: true,  sign: pm,  lag: months}   # supply rerouted to fuel/domestic use
   redirects_to:      {directed: true,  lag: months}
@@ -221,8 +307,57 @@ aliases:             # EN/PT/ES + abbreviations + contract names → canonical n
   # eye, and the accented form earned its line by being the id 15 shipped DAGs actually used.
   El_Nino:           ["El Niño", "El Nino", "El_Niño", ENSO_warm, ONI_positive]
   La_Nina:           ["La Niña", "La Nina", "La_Niña", ENSO_cool, ONI_negative]
+  # D-EC POST-X2 GRAPH-COMPLETION WAVE (2026-08-21) -- the WEATHER/IOD family's whole vocabulary half.
+  # THE TWO-LANE RULE THAT PUTS THEM HERE AND NOWHERE ELSE (vocab-sweep hygiene H3): a form in
+  # `aliases:` feeds EXTRACTION and the commodity matcher; ONLY `driver_slices.terms` feeds driver
+  # ROUTING. `positive iod` / `negative iod` were declared as TERMS of the `indian_ocean_dipole` driver
+  # slice, where they are measured DEAD (0 of its 4 props) and redundant by construction under
+  # longest-first matching. They are the only forms that DISCRIMINATE THE PHASE, so they belong on the
+  # phase ids as entity aliases. That is ONE edit across two files, not two: the driver lane deletes
+  # them from the slice in the same change. It also resolves -- rather than creates -- the shared
+  # surface-form artifact edge_evidence.md calls out.
+  # THE D15 VARIANT-SWEEP GATE WAS RUN, AND ITS RESULT IS PRINTED HERE RATHER THAN QUIETLY PASSED.
+  # Measured on the full 345,870-prop pre-X2 chunk cache with the production matcher pair
+  # (ex._normalize -> harvest.build_matcher): 'negative indian ocean dipole' 1; 'positive indian ocean
+  # dipole' 0; 'positive iod' 0; 'negative iod' 0; 'positive phase of the indian ocean dipole' 0;
+  # 'negative phase of the indian ocean dipole' 0. Context for those zeros: the ENTIRE IOD text mass in
+  # this corpus is FOUR propositions ('indian ocean dipole' 4, bare 'iod' 4), so five zeros out of six is
+  # a statement about the corpus, not about the forms.
+  # WHY THEY LAND ANYWAY, stated so it is not mistaken for the dead-form class the block above refuses:
+  # this is an IDENTITY REGISTER, the El_Nino accented-form precedent two lines up. Without an alias row
+  # `IOD_positive`'s only match forms are its own id and 'iod positive' -- neither of which any prose
+  # writes -- so the extractor cannot mint the entity that 21 shipped DAG instances depend on, and the
+  # two phases would keep sharing one undiscriminated surface. The forms are standard usage, they are
+  # the spec's verbatim list, and a zero-prop alias costs one regex branch and routes nothing wrongly.
+  # RE-MEASURE OWED on the post-X2 cache (1,387,697 props); if they are still 0/6 the honest next move is
+  # a written refusal here, not silence.
+  # REFUSED as an alias of either phase, on measurement: bare `iod` (4 props) and bare `indian ocean
+  # dipole` (4) -- both are PHASE-BLIND, and the one genuine Australian proposition in the set is a
+  # NEGATIVE event, so handing the bare word to either phase id mints the wrong entity outright.
+  IOD_positive:      ["positive indian ocean dipole", "positive iod",
+                      "positive phase of the indian ocean dipole"]
+  IOD_negative:      ["negative indian ocean dipole", "negative iod",
+                      "negative phase of the indian ocean dipole"]
   safrinha:          [second_corn_crop, winter_corn, "segunda safra"]
   MSP:               [minimum_support_price, FRP, SAP, fair_remunerative_price]
+  # EUDR -- the vocabulary half of XC-4 (see the policy_event node list). Every form MEASURED on the
+  # 345,870-prop pre-X2 cache with the production matcher pair: 'deforestation-free' 21 (normalizes to
+  # 'deforestation free'), 'eu deforestation' 5, 'deforestation regulation' 4, 'eu deforestation
+  # regulation' 1, 'due diligence statement' 1. The bare id 'EUDR' folds to 'eudr' and fires 17 props on
+  # its own via match_forms, so it is NOT re-declared as an alias.
+  # REFUSED ON MEASUREMENT, and this is the whole reason the block is short: bare `deforestation` fires
+  # 44 props and the over-fire class is obvious and large -- Amazon/Cerrado forest-cover and
+  # soy-moratorium prose that predates the regulation by fifteen years. It would mint an EU policy event
+  # on Brazilian land-use text. `geolocation` and `cutoff date` (both named in F-A N's term sketch) are
+  # REFUSED as unmeasured generic nouns: they are compliance-workflow words, not names of the instrument,
+  # and they belong -- if anywhere -- in the `eudr_compliance` DRIVER slice's terms, which is the routing
+  # lane and a different file.
+  # THE TWO RETIRED DAG SPELLINGS ARE KEPT AS SURFACE FORMS, not as ids: `EU_EUDR` (robusta_coffee,
+  # soybeans_no_2_dce) and `eudr_deforestation` (french_rapeseed_matif) merge INTO `EUDR` in the causal
+  # lane this wave, and an id that ever shipped earns a line here so nothing that wrote it goes unrouted.
+  EUDR:              ["deforestation-free", "eu deforestation", "deforestation regulation",
+                      "eu deforestation regulation", "due diligence statement",
+                      EU_EUDR, eudr_deforestation]
   # context (non-tradeable) commodities — substitutes/feed alternatives that drive our contracts
   sunflower:         [sunflowerseed, "sunflower seed", girasol, tournesol]
   sunflower_oil:     ["sunflower oil", "sun oil", "sunflowerseed oil"]
@@ -267,6 +402,29 @@ aliases:             # EN/PT/ES + abbreviations + contract names → canonical n
   #     a different process from the dry-mill distillers stream `ddgs` names.
   #   * 'citrus fruit'/'citrus fruits' (183, zero dark) NOT given to fresh_citrus -- `citrus` is already an
   #     orange_juice extra_term, so the aggregate word is spoken for and re-declaring it moves nothing.
+  #
+  # ── D-EC COMPLETION WAVE (2026-08-21): THE CRUSH-PRODUCT NODES ARE REFUSED, IN WRITING ──────────────
+  # F-A items C, D and K want edges onto `cottonseed_meal`, `cottonseed_oil`, `peanut_meal`, `peanut_oil`,
+  # `palm_kernel_meal`, `coconut_oil`, `palm_kernel_oil`, `sunflower_meal`, `flaxseed_meal` and
+  # `sesame_meal`, and the post-X2 edge adjudication returned WAIVE-UNMEASURABLE on every one of them for
+  # a single reason: "endpoint not in the vocabulary at all -- the node must be authored before any edge on
+  # it can be measured; this is a verdict about the instrument." THIS WAVE DOES NOT AUTHOR THEM, and the
+  # verdict about the instrument is not a licence to mint one.
+  # WHY, on this file's own measurements (rule 2 above, taken in D15 Wave 1c and unchanged): every one of
+  # those surface forms is ALREADY claimed whole-word by a live parent node -- 'cottonseed oil' 851 and
+  # 'cottonseed meal' 687 inside `cottonseed`; 'peanut oil' 1,221 and 'peanut meal' 801 inside `peanut`;
+  # 'coconut oil' 2,036 and 'copra meal' 1,216 inside `coconut`; 'palm kernel oil' 1,257 and 'palm kernel
+  # meal' 922 inside `palm_kernel`; 'sunflower meal' inside `sunflower`. Minting a child node would take
+  # those props OFF the parent (longest-first alternation inside one node's matcher does not apply ACROSS
+  # nodes, but a child node's own matcher would claim them and the parent's slice would keep them, so what
+  # actually happens is a duplicated read, not a rescue) -- and it would MOVE the addressing, which is the
+  # D-CW-3a class the estate has refused twice. `sunflower_meal` is the clearest case: the adjudication had
+  # to measure it through a SURFACE FOLD (it read `protein_meal_substitution ~ soybean_meal` instead), and
+  # that fold is the honest answer, not a defect to route around.
+  # WHAT THE WAVE GIVES THE RELATIONSHIP INSTEAD: `lauric_complex` for the CNO/PKO pair and `oilseed_meals`
+  # (routed, carrying 'protein meal' 462) for the MARA meal basket -- both in commodity_hierarchy.yaml.
+  # UN-REFUSE GATE, written so this is reversible rather than re-argued: a measurement showing DARK mass
+  # under a child form that its parent node does not already claim. None exists today.
   cottonseed:        ["cotton seed", cottonseeds]          # 3,641 props / 2,970 DARK. The bare id carries the
                      # whole co-product chain (oil/meal/cake/hulls); 'cotton seed' is only the two-word
                      # spelling, whose 167 props already route to `cotton` -- identity, not new mass. The
@@ -319,6 +477,80 @@ aliases:             # EN/PT/ES + abbreviations + contract names → canonical n
   minor_cereals:     [rye, oats, oat, millet, millets, triticale, buckwheat]
                      # 3,968 / 3,351 DARK. `durum` is NOT here -- it is a wheat CLASS and rides the four
                      # wheat classes' extra_terms in this same batch (no double-homing).
+  # -- D-EC POST-X2 GRAPH-COMPLETION WAVE (2026-08-21) --------------------------------------------------
+  # F-A item A LIVESTOCK MATCH FORMS + F-A item M AGGREGATE MATCH FORMS + E1's `gasoline`.
+  # EVERY count below is a PROP count MEASURED on the full 345,870-prop pre-X2 chunk cache with the
+  # production pair (ex._normalize -> harvest.build_matcher word-boundary regex). The same two refusal
+  # rules the D15 block above states are applied again and both are recorded, because the forms that are
+  # ABSENT are the review:
+  #   (1) DEAD -> refused (zero occurrences): 'nfdm' 0, 'rbob' 0, 'ulsd' 0, 'soft commodities' 0.
+  #   (2) REDUNDANT -> refused (contains a kept form as a whole word, so it can never claim a prop the
+  #       kept form misses): 'feeder cattle' 28 / 'fed cattle' 54 / 'beef cow' 13 (all inside `cattle` or
+  #       `beef`); 'chicken meat' 102 (inside `chicken`); 'milk powder' 13 / 'skim milk powder' 8 /
+  #       'whole milk powder' 1 (all inside `milk`).
+  # THREE further refusals are OVER-FIRE calls, not arithmetic, and each names its measured class:
+  #   * `turkey` / `turkeys` -- 6,649 / 10 props, and this is the single largest trap in the layer: the
+  #     overwhelming majority is TURKEY THE COUNTRY (TMO tenders, Turkish flour, the inward processing
+  #     regime), not the bird. The estate already ships a guard for exactly this word on the numbers side
+  #     (`agent.py:_HOMONYMS = ("turkey",)`), and declaring it here would re-create the `MoT` defect at
+  #     sixty times the mass. Poultry-turkey text is reachable through `poultry` and `broiler`.
+  #   * `butter` -- 237 props, but cocoa butter, peanut butter and shea butter are all live registers in
+  #     this corpus (the D15 block above already refuses 'peanut butter' as a peanut form). Kept instead:
+  #     `butterfat` (11), which is unambiguous. Dairy butter text is reachable through `dairy` and `milk`.
+  #   * `layers` -- 31 props; the laying-hen sense loses to "layers of", "soil layers", "two layers".
+  #     `laying hens` (8) is kept instead: thin, stated, and unambiguous.
+  #   * bare `cow` / `cows` is NOT declared and NOT sampled -- the livestock spec measured 'cow herd' as a
+  #     DAIRY register and predicts the same over-fire here. Refused unmeasured rather than declared
+  #     unmeasured; the sample is owed before anyone adds it.
+  # CROSS-LANE DOUBLE-ROUTING, said out loud rather than discovered: `cattle`, `poultry`, `broiler`,
+  # `pork` and `feed grains` are also TERMS of live driver slices (cattle_on_feed, livestock_feed_demand,
+  # broiler_economics, feed_grain_substitution). That is the established `china_crush_demand` /
+  # `sunflower_oil` pattern -- routing is multi-label by construction, so this duplicates READS and never
+  # population; no slice loses a prop. The two lanes are also different objects: a form here feeds
+  # EXTRACTION and the commodity matcher, only `driver_slices.terms` feeds driver ROUTING (hygiene H3).
+  cattle_beef:       [cattle, beef]                        # 829 / 837. The node the pilot's zero-routing
+                     # WASDE props needed and never had. The herd-cycle MECHANISM stays in the driver lane
+                     # (`cattle_cycle_herd_size`); this node is the COMMODITY the mechanism moves.
+  broilers_poultry:  [poultry, broiler, broilers, chicken, "laying hens", "egg production"]
+                     # 2,463 / 649 / 59 / 226 / 8 / 240. `broiler` and `broilers` are BOTH declared because
+                     # the matcher does no stemming -- \bbroiler\b cannot fire inside "broilers".
+  hogs:              [hog, swine, pork, pigs, "sow herd", farrowing, "pig crop"]
+                     # 531 / 1,222 / 824 / 144 / 17 / 18 / 28. `swine` is the largest form and most of it
+                     # is African-swine-fever prose, which is exactly the demand shock the node exists for.
+  dairy:             [milk, cheese, whey, butterfat]       # 973 / 130 / 87 / 11. HONEST SCOPE, the
+                     # `tallow` precedent: bare `milk` will also fire on coconut milk and soy milk. The
+                     # contamination is bounded and auditable by slice_audit.py, and the alternative (a
+                     # dairy node with no word for milk) is worse. DK-27's finding is the reason this node
+                     # exists at all -- "DAIRY is NOT covered by the beef nodes".
+  # F-A item M aggregates. `oilseeds` / `vegetable_oils` / `oilseed_meals` / `coarse_grains` /
+  # `compound_feed` are the FIVE with measured aggregate mass and they are the five routed in
+  # commodity_hierarchy.yaml:context_commodities. Each id already supplies its own plural through
+  # match_forms, so only the OTHER inflection is declared here (no stemming, so both are separate strings).
+  oilseeds:          [oilseed]                             # 3,797 (id supplies 'oilseeds' 1,884)
+  vegetable_oils:    ["vegetable oil", "edible oil", "edible oils"]
+                     # 2,359 / 661 / 307 (id supplies 'vegetable oils' 464). 'veg oil' / 'veg oils'
+                     # REFUSED: unmeasured desk shorthand, and this corpus is USDA/WB report prose.
+  oilseed_meals:     ["oilseed meal", "protein meal", "protein meals"]
+                     # 147 / 462 / 94 (id supplies 'oilseed meals' 97). `protein meal` lands HERE and not
+                     # as its own node -- see the commodity_group note above (one concept, one id).
+  coarse_grains:     ["coarse grain"]                      # 1,017 (id supplies 'coarse grains' 1,162)
+  compound_feed:     ["compound feeds", "mixed feed"]      # 26 / 21 (id supplies 'compound feed' 508)
+  # The remaining group nouns get EXTRACTION forms but are NOT routed (no context_commodities entry) --
+  # their mass is either thin or not an aggregate at all, and that is written rather than left implicit.
+  feed_grains:       ["feed grain"]                        # 375 (id supplies 'feed grains' 439). Routing
+                     # deliberately declined: `feed_grains` is also a COMPLEX key and expansion precedence
+                     # is complex > group, so a routing entry under the same name reads as two objects.
+  food_grains:       ["food grain"]                        # 131 (id supplies 'food grains' 83) -- thin.
+  # REFUSED as aggregate surface forms, on measurement: `soft commodities` 0 (dead); `tropical` 134, which
+  # is weather prose ("tropical storm", "tropical climate") and not the softs asset class; bare `grain` /
+  # `grains`, which A1 never measured and which would claim a double-digit percentage of the whole corpus.
+  gasoline:          [petrol]                              # 388 / 43. See the `energy:` node note for the
+                     # measured heating_oil refusal that rides with this addition.
+  # B1's eleven new `country_origin` nodes carry NO alias rows, deliberately and by this file's own two
+  # conventions: (a) ex._normalize collapses `_` to a space, so `Dominican_Republic` already folds to the
+  # surface "dominican republic" and an alias row would be the REDUNDANT class; (b) no existing
+  # country_origin node declares its demonym (Brazil has no 'brazilian' row) -- demonyms are matched in
+  # geography.yaml's own alias index, which is where the country router reads them.
   # cost-stack + macro-context surface forms (D-CW-1e). Bare ambiguous words are DELIBERATELY absent:
   # "phosphate" alone could be DAP or phosphate rock, and an alias with two canonical identities is the
   # arbitration violation the linter exists to catch -- so only the unambiguous forms are listed.

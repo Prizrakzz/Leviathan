@@ -608,6 +608,41 @@ def test_cascade_map_lint_flags_unknown_region_token(tmp_path, monkeypatch):
     assert any("region_map census" in e and "Atlantis" in e for e in errs)
 
 
+def test_the_fx_wave_region_rows_resolve_and_declare_no_currency():
+    """D-EC graph-completion wave, OR-7's HARD GATE: `region_map.resolve` MUST gain Australia, Mexico and
+    Turkey or config_check ERRORS on the six FX nodes this wave authors.
+
+    THE MECHANISM, so the requirement reads as arithmetic and not as a preference. `fred_fx_macro` is
+    `country_rule: region` (cascade_map.yaml), so _check_region_map's census leg walks every causal driver
+    carrying that ref and ERRORS on any `region` token that is in NEITHER `resolve` NOR `unresolved`.
+    AUD_USD lands on cotton/raw_sugar with region Australia, MXN_USD on corn_cbot with Mexico, TRY_USD on
+    kcbt/matif with Turkey -- and none of those three bare tokens was in either list (they appeared ONLY
+    inside compound unresolved strings like "Canada/Australia/China", and a compound does not satisfy the
+    census for a bare token). Russia, Ukraine and Thailand already resolved, which is why RUB/UAH/THB need
+    nothing.
+
+    AND NO `currency:` KEY ON ANY OF THE THREE -- this is the D-PQ fence, not an omission. The same lint
+    errors when a declared currency does not name a real `silver_fred_fx` `<cur>_usd` column, and only
+    brl/ars/cny exist. The wave authors QUALITATIVE FX nodes and quantifies nothing; a currency key here
+    would be a claim to a series that does not exist. Philippines is deliberately absent for the same class
+    of reason one level up: php_fx defers, so its row lands with the coconut DAG that would need it.
+
+    Skipped where the private configs are absent (the region map is gitignored IP)."""
+    rmap = cq.load_region_map() or {}
+    resolve = rmap.get("resolve") or {}
+    if not resolve:
+        pytest.skip("no private cascade_map in this tree")
+    for token in ("Australia", "Mexico", "Turkey"):
+        assert token in resolve, f"{token} missing from region_map.resolve -- the six FX nodes error the build"
+        assert (resolve[token] or {}).get("country"), f"{token}: a resolve entry needs a non-empty country"
+        assert "currency" not in (resolve[token] or {}), (
+            f"{token} declared a currency: only brl/ars/cny are real silver_fred_fx columns, and this wave "
+            f"quantifies nothing (the D-PQ fence)")
+    assert "Philippines" not in resolve, "php_fx defers; its region row lands with the coconut DAG"
+    for token in ("Russia", "Ukraine", "Thailand"):            # the incumbents RUB/UAH/THB ride
+        assert token in resolve
+
+
 def test_cascade_map_lint_flags_phantom_fx_currency(tmp_path, monkeypatch):
     # a resolve currency must be a REAL silver_fred_fx column: 'eur' -> eur_usd does not exist
     from leviathan.causal import blurb as bl

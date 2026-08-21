@@ -582,6 +582,31 @@ region_map:
     Canada:                {country: "Canada"}
     South_Africa:          {country: "South Africa"}
     "Cote d'Ivoire":       {country: "Cote d'Ivoire"}
+    # -- D-EC POST-X2 GRAPH-COMPLETION WAVE (2026-08-21): THE FX EDGE FAMILY'S HARD PRECONDITION --------
+    # The wave authors six FX driver nodes (AUD_USD, MXN_USD, TRY_USD, RUB_USD, THB_USD, UAH_USD) whose
+    # `silver_ref` is `fred_fx_macro`, and fred_fx_macro is `country_rule: region` (:168). config_check's
+    # _check_region_map leg (c) ERRORS on any region token carried by a region-ruled driver that appears in
+    # NEITHER `resolve` nor `unresolved`. Russia, Ukraine and Thailand already resolve; Australia, Mexico
+    # and Turkey appeared in NEITHER list -- only inside compound `unresolved` tokens ("Canada/Australia/
+    # China", "China;Mexico;US", "EU/Australia/Black Sea"), and a compound does not satisfy the census for
+    # a bare token. These three rows land BEFORE the FX nodes or the build fails.
+    # NO `currency:` KEY ON ANY OF THE THREE, and that is the point rather than an omission. The same lint
+    # errors if `<cur>_usd` is not a REAL silver_fred_fx column, and only brl / ars / cny exist (the same
+    # reason EU carries no currency, stated at the top of this block). So `aud_usd`, `mxn_usd` and
+    # `try_usd` MUST NOT be written here. THE D-PQ FENCE, restated: these six nodes stay QUALITATIVE and
+    # this wave quantifies NOTHING. Lighting them is the projection wave's `fred_fx` dict (27 crosses), and
+    # the currency keys land in THAT change, never ahead of the column.
+    # PHILIPPINES IS DELIBERATELY NOT ADDED, and it is recorded so nobody "completes the set": php_fx
+    # DEFERS this wave -- `PHP_USD` is RESERVED against a `coconut` DAG that does not exist, so no driver
+    # carries a Philippines region token and a row here would be config with no reader. Its region row and
+    # its currency binding land in the SAME change that authors the coconut DAG.
+    # `country` is the silver_psd Title-Case surface form. Turkey: the estate's own destination reference
+    # spells FAS code 4890 "Turkey" with 'turkiye' as an alias (numbers/esr_destinations.yaml:113), so
+    # "Turkey" is the form used here; a PSD probe should confirm it before any QUANTIFIED Turkish leg --
+    # which this wave does not author, because there is no currency key to key one on.
+    Australia:             {country: "Australia"}
+    Mexico:                {country: "Mexico"}
+    Turkey:                {country: "Turkey"}
     # -- D-W5 weather-flip region curation (2026-07-12): gold_weather_z country_rule=region tokens --
     # RESOLVE = the token names ONE country that exists in that commodity's gold_weather_z coverage;
     # growing-region detail in parens / ';' / '_' collapses to the single country. Ground truth =

@@ -93,18 +93,27 @@ def test_the_three_buckets_match_the_step0_census(real, census):
     WINNER CONTRACTS: the count survives only because the winner was injective onto its node, so the
     population line below is pinned separately and the census spells the change in
     `summary.seeds_with_pairs_are`."""
+    # D-EC GRAPH-COMPLETION RE-CUT (2026-08-21, integration pass): the wave legitimately moved the live
+    # graph (lane C's 15 edges + the four-tier 14 + 3 class DAGs + the both-directions node admission in
+    # _invert_inter_commodity), so the LIVE terms are re-pinned to the reconciled measurement and the
+    # CENSUS terms are DECOUPLED -- the artifact stays frozen P6-era evidence, never re-pinned (the
+    # forward-hops file's own doctrine). The decomposition identity is the invariant that must never move.
     b = real.rev_cross_link_buckets()
     t = census["totals"]
-    assert b["edges"] == t["inter_commodity_edges"] == 117
-    assert b["resolved"] == t["resolved"] == 94
-    assert b["unresolvable-no-node"] == t["unresolvable_no_node"] == 23
-    assert b["unresolvable-no-contract"] == t["unresolvable_no_contract"] == 0
+    assert b["edges"] == 146
+    assert b["resolved"] == 122
+    assert b["unresolvable-no-node"] == 24
+    assert b["unresolvable-no-contract"] == 0
     assert b["resolved"] + b["unresolvable-no-node"] + b["unresolvable-no-contract"] == b["edges"]
-    assert b["seeds_with_pairs"] == census["summary"]["n_seeds_with_pairs"] == 15
+    assert b["seeds_with_pairs"] == 23
+    assert b["contracts_reaching_pairs"] == 32
+    # THE FROZEN P6 ARTIFACT, pinned at its own numbers so the record stays readable:
+    assert t["inter_commodity_edges"] == 117 and t["resolved"] == 94
+    assert t["unresolvable_no_node"] == 23 and t["unresolvable_no_contract"] == 0
+    assert census["summary"]["n_seeds_with_pairs"] == 15
     assert census["summary"]["seeds_with_pairs"] == sorted(real.contract_node(s)
                                                            for s in census["summary"]["seeds_with_pairs"])
-    # THE NUMBER THE RE-KEY ACTUALLY MOVED, pinned beside the ones it did not.
-    assert b["contracts_reaching_pairs"] == census["summary"]["n_contracts_reaching_pairs"] == 24
+    assert census["summary"]["n_contracts_reaching_pairs"] == 24
     assert census["index_keying"]["applied"].startswith("node")
 
 
@@ -127,8 +136,11 @@ def test_the_rekey_is_NODE_keyed_and_every_contract_of_a_node_reaches_its_nodes_
             assert [(r["contract"], r["idx"]) for r in real.rev_cross_links(m)] == first, (node, m)
         for r in real.rev_cross_links(members[0]):
             assert r["seed_node"] == node, (node, r["contract"])
-    assert sorted(c for c in real.contracts if real.rev_cross_links(c)) == \
-        census["summary"]["contracts_reaching_pairs"]
+    # D-EC RE-CUT (2026-08-21): the census list is now a SUBSET pin -- every P6-era reaching contract
+    # must STILL reach (monotone: the completion wave may add reach, never remove it). The live list
+    # grew to 32 (the class DAGs + new seeds); its exact size is pinned in the buckets test above.
+    reaching = {c for c in real.contracts if real.rev_cross_links(c)}
+    assert set(census["summary"]["contracts_reaching_pairs"]) <= reaching
 
 
 def test_the_census_still_carries_the_P6_era_DECK_AUTHORABILITY_record(census):
@@ -228,9 +240,21 @@ def test_the_resolution_table_reproduces_the_census_row_for_row(real, census):
     sampled."""
     mine = {(r["declaring_contract"], r["idx"]): r for r in real.rev_cross_link_resolution()}
     theirs = {(r["declaring_contract"], r["idx"]): r for r in census["resolution_table"]}
-    assert set(mine) == set(theirs)
+    # D-EC RE-CUT (2026-08-21): the census rows are a SUBSET of the live table (the wave APPENDS edges,
+    # so every P6-era (contract, idx) key is stable and must still reproduce). Two licensed divergence
+    # classes now exist: the #68 canonical-twin flip (below, unchanged) and the completion wave's
+    # CLASS-DAG RESOLUTION -- a P6-era `unresolvable-no-node` row whose driver_commodity gained a loaded
+    # class DAG (barley / sorghum / sunflower_oil) is now `resolved` to that DAG by identity. Anything
+    # else drifting still fails.
+    _CLASS_DAG_RESOLVED = {"barley", "sorghum", "sunflower_oil"}
+    assert set(theirs) <= set(mine)
     for k, want in theirs.items():
         got = mine[k]
+        if (want["bucket"] == "unresolvable-no-node" and got["bucket"] == "resolved"
+                and got["driver_commodity"] in _CLASS_DAG_RESOLVED):
+            assert got["seed"] == got["driver_commodity"] == got["node"], k     # identity, single-member
+            assert got["tie_break"] == "single-member", k
+            continue
         assert got["bucket"] == want["bucket"], k
         # #68 AMENDMENT (owner word 2026-08-19): the census FIXTURE stays the untouched historical
         # record (lexicographic-first era), and the ONLY divergence the amendment licenses is a
@@ -273,7 +297,11 @@ def test_the_alias_rule_is_the_ratified_TWO_STEP_reading(real):
     assert all(r["seed"] is None and r["node"] is None for r in by_dc["wheat"])
     no_node = {r["driver_commodity"] for r in real.rev_cross_link_resolution()
                if r["bucket"] == "unresolvable-no-node"}
-    assert no_node == {"wheat", "sunflower_oil", "sorghum", "barley", "ethanol"}
+    # D-EC RE-CUT (2026-08-21): barley/sorghum/sunflower_oil left this set (class DAGs resolve them both
+    # directions); the completion wave's new edges added the D15 context endpoints, edge-reached-only by
+    # design. This set must stay equal to test_dec_p0_forward_hops._NO_NODE_NAMES.
+    assert no_node == {"wheat", "ethanol", "hfcs", "ddgs", "fresh_citrus", "palm_kernel",
+                       "cottonseed", "peanut", "tallow", "used_cooking_oil"}
     # (d) every tie-break is RECORDED, and only these three values exist ("canonical-twin" joined
     # the vocabulary with the #68 AMENDMENT, owner word 2026-08-19 -- see graph._CANONICAL_SEED)
     assert {r["tie_break"] for r in real.rev_cross_link_resolution() if r["bucket"] == "resolved"} == \
@@ -311,11 +339,16 @@ def test_the_base_yaml_fence_keeps_a_paid_slot_off_a_phantom_market(real, census
     fenced = [r for r in real.rev_cross_link_resolution()
               if r["bucket"] == "resolved" and not r["foreign_tradeable"]]
     assert {r["declaring_contract"] for r in fenced} == {"corn", "soybeans"}
-    assert len(fenced) == real.rev_cross_link_buckets()["untradeable_foreign_edges"] == 7
+    # D-EC RE-CUT (2026-08-21): 7 -> 10. The base yamls duplicate their _cbot twins' declarations, and
+    # the twins' barley/sorghum edges now RESOLVE (class DAGs), so three more duplicate rows hit the
+    # fence -- the fence working harder, not leaking.
+    assert len(fenced) == real.rev_cross_link_buckets()["untradeable_foreign_edges"] == 10
     for seed, rows in ((r["seed"], real.rev_cross_links(r["seed"])) for r in fenced):
         assert all(x["contract"] not in ("corn", "soybeans") for x in rows), seed
-    # AND THE FENCE COSTS NO SEED: the census's 15 seeds survive it (deck_eligible applies it too).
-    assert real.rev_cross_link_buckets()["seeds_with_pairs"] == census["summary"]["n_seeds_with_pairs"]
+    # AND THE FENCE COSTS NO SEED: live seeds (23 post-wave) still dominate the census's 15, and the
+    # census term stays pinned at its own frozen number.
+    assert real.rev_cross_link_buckets()["seeds_with_pairs"] == 23
+    assert census["summary"]["n_seeds_with_pairs"] == 15
 
 
 def test_the_censuss_15_qualifying_pairs_are_all_reachable(real, census):
@@ -348,7 +381,7 @@ def test_the_index_is_built_at_LOAD_time_and_the_lookup_reads_no_config(real, mo
         raise AssertionError("rev_cross_links must not read the hierarchy at query time")
     monkeypatch.setattr(ev, "_hier", _boom)
     assert real.rev_cross_links("soybean_oil_cbot")
-    assert real.rev_cross_link_buckets()["resolved"] == 94
+    assert real.rev_cross_link_buckets()["resolved"] == 122      # D-EC re-cut 2026-08-21 (94 pre-wave)
     assert real.contract_node("soybean_oil_cbot") == "soybean_oil"
 
 
@@ -1084,8 +1117,16 @@ def test_every_frozen_deck_row_is_LIVE_BY_CONSTRUCTION_under_the_shipped_eligibi
     rows = _deck_rows()
     verdicts = {r["id"]: _project(real, r["cascade_pair"]["seed"], r["cascade_pair"]["foreign"]) for r in rows}
     assert len(rows) == 6
+    # D-EC GRAPH-COMPLETION (2026-08-21) -- TWO MORE ROWS WENT DEAD, SAME CLASS AS #68: A FIX, NOT A
+    # REGRESSION. The four-tier wheat-class reciprocals (srw -> kcbt/mgex/matif, mgex -> kcbt) make
+    # `xmc_hrs_milling_protein_switch` and `xmc_srw_export_uncompetitive` forward-reachable for free --
+    # the walk now hops the very edges those rows authored PAID slots to buy. The deck stays frozen
+    # (arms fired, freeze law); a re-arm of the cross-market gate must re-author all three dead rows
+    # against foreigns the completed walk does not already reach. Named explicitly, never a count relax.
     assert {k: v for k, v in verdicts.items() if v != "LIVE"} == \
-        {"xmc_soymeal_ration_substitution": "already_admitted"}, verdicts
+        {"xmc_soymeal_ration_substitution": "already_admitted",
+         "xmc_hrs_milling_protein_switch": "already_admitted",
+         "xmc_srw_export_uncompetitive": "already_admitted"}, verdicts
     for r in rows:                                            # and the named foreign is IN the seed's pool
         cp = r["cascade_pair"]
         pool = {lk.get("contract") or lk.get("declaring_contract") for lk in real.rev_cross_links(cp["seed"])}

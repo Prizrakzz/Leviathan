@@ -1002,6 +1002,11 @@ def dag_backed_slice_names() -> set:
 #     buys absence markers and moves the render surface on live boards, the trade D-EI-4 already rejected.
 #   * plus metals (975), baltic_dry_freight (18), vessel_lineups_export_basis (14),
 #     sustainable_aviation_fuel (25), wheat_blast (32) -- outside the D-GD tranche's named scope, untouched.
+#     THAT LINE IS NO LONGER TRUE OF FOUR OF THE FIVE and it is re-cut, not deleted, by the D-EC
+#     graph-completion block at the bottom of this comment: sustainable_aviation_fuel and natural_rubber
+#     acquire nodes, wheat_blast is RETIRED as a spec, and `metals` is reclassified from "untouched" to
+#     TERMINALLY CONTEXT (measured, permanent). Only baltic_dry_freight and vessel_lineups_export_basis
+#     are still literally untouched.
 #
 # D-EC D8 Wave-1b, 2026-08-19: 14 -> 17. The pre-X2 curation batch authored FOUR driver slices on measured
 # backing. One of them, `benign_growing_conditions`, was WIRED (it took `favorable_rainfall`, a DAG id that
@@ -1038,47 +1043,202 @@ def dag_backed_slice_names() -> set:
 # every claim below, because each one reads "not one of the N ids names X" -- a count that falls by merging
 # synonyms cannot turn such a claim from false to true, so all of them survive the re-cut unchanged.
 #
-# The SEVEN below are read-dark for the export_levy_duty reason, not the import_quota_trq reason: there is NO
-# WIRING TO DO. Not one of the 371 real DAG driver ids names the Thai baht, ruble, Turkish lira, Australian
-# dollar, hryvnia, Mexican peso or Philippine peso. They are content-rich and routing-dark (measured dark
-# props: thb_fx 338, rub_fx 199, php_fx 72, try_fx 71, aud_fx 62, uah_fx 61, mxn_fx 59), and retiring them is a
-# DAG-AUTHORING act -- mint the FX driver node on the boards that trade the origin -- which is the post-X2
-# half. ONE refusal is recorded rather than smuggled: `INR_THB_VND_weakness` (rough_rice_cbot) would have
-# retired thb_fx, and it is refused because it is a BASKET id covering three currencies, which is the exact
-# ground on which D-GD tranche 2 declined to give that board a second FX node.
+# The SEVEN that entered here at D15 Wave 1c were read-dark for the export_levy_duty reason, not the
+# import_quota_trq reason: there was NO WIRING TO DO. Not one of the 371 real DAG driver ids named the Thai
+# baht, ruble, Turkish lira, Australian dollar, hryvnia, Mexican peso or Philippine peso. They were
+# content-rich and routing-dark (measured dark props: thb_fx 338, rub_fx 199, php_fx 72, try_fx 71, aud_fx
+# 62, uah_fx 61, mxn_fx 59), and retiring them is a DAG-AUTHORING act -- mint the FX driver node on the
+# boards that trade the origin -- which is the post-X2 half, executed in the block below. ONE refusal is
+# recorded rather than smuggled: `INR_THB_VND_weakness` (rough_rice_cbot) would have retired thb_fx, and it
+# is refused because it is a BASKET id covering three currencies, which is the exact ground on which D-GD
+# tranche 2 declined to give that board a second FX node.
 # They are pinned and carry NO `waivers:` row, unlike the D8 three: a slice-name waiver was that batch's
 # workaround for not owning this file, and this batch does own it -- so the pin alone is the record.
+#
+# ══ D-EC POST-X2 GRAPH-COMPLETION WAVE, 2026-08-21: 24 -> 12. The most names this pin has ever removed in
+# one edit (SIXTEEN; D-GD tranche 2's 26 -> 14 removed twelve), and the first time it has both SHRUNK and
+# GROWN in the same edit -- which is why the net (-12) understates it. THE ARITHMETIC IS NETTED ONCE, HERE, because
+# five authoring lanes each computed a delta from the SAME 24-entry baseline and those deltas must never be
+# concatenated (docs/private/recon/orphan_curation_specs.md:2179-2188 states the same warning).
+#
+#   SIXTEEN LEAVE. Fourteen leave by ACQUIRING A REAL NODE -- the D-PQ/D-GD shape, never an alias steal;
+#   every id below is brand new, so no slice loses a prop and check_driver_slices leg (b) cannot fire:
+#     dap                        <- `dap_cost` on hard_red_winter_wheat_kcbt, french_wheat_matif, corn_cbot,
+#                                   canola_ice. THIS LINE INVERTS THE D-PQ DECLINE RECORDED ABOVE, and the
+#                                   reversal is STATED rather than silent (the estate's overturn rule).
+#                                   D-PQ's three grounds, re-measured on the doubled corpus: (1) "phosphate
+#                                   is a build-up nutrient with multi-year residual, never marginal inside
+#                                   1-4 quarters" is REFUTED by the slice's own rows -- Pakistan's Rabi DAP
+#                                   offtake moved -27% (2011) and +16% (2012/13), and usda_gain_wheat 2024
+#                                   states that overutilization of nitrogen with less use of phosphate and
+#                                   potash is a chronic Pakistani wheat problem, i.e. where N is subsidised
+#                                   and P is not, the whole price signal lands on P inside one season;
+#                                   (2) "it moves with the nitrogen story urea_cost already carries" is
+#                                   REFUTED by 2022 (China suspended urea AND phosphate exports together)
+#                                   and by usda_gain_wheat 2026-04-28, which records potash reacting less
+#                                   sharply to the war in Iran than nitrogen and phosphate fertilizers;
+#                                   (3) decisive now -- SILVER-F063 published the DAP price leg, so this is
+#                                   the owner's "numbers-without-edge" gap rather than a missing mechanism.
+#     sustainable_aviation_fuel  <- `saf_mandate` on canola_ice, soybean_oil_cbot,
+#                                   malaysian_crude_palm_oil_cme (canada_clean_fuel_regs re-cut in the same
+#                                   change so the SAF demand channel is not carried twice).
+#     natural_rubber             <- `rubber_area_substitution` on malaysian_crude_palm_oil_cme. This retires
+#                                   the "NO HOST COMMODITY" class above by finding the host: the mechanism
+#                                   is Thai smallholder AREA substitution into oil palm, which is a palm
+#                                   driver, not a rubber board.
+#     real_yields_rates          <- `farm_credit_cost` (soybeans_cbot, soybeans,
+#                                   campinas_corn_reference_bmf, cotton) + `FUNCAFE`
+#                                   (brazilian_arabica_coffee, WIRING-ONLY: the id already existed, waivered
+#                                   and owned by no slice -- the favorable_rainfall shape, and its waiver row
+#                                   is deleted in the same edit).
+#     cattle_cycle_herd_size     <- an id of its OWN NAME on corn_cbot, corn, soybean_meal_cbot, parenting
+#                                   each board's existing `cattle_on_feed`. It needs NO dag_alias row and may
+#                                   not have one: driver_alias() seeds {name: name for name in specs}, so
+#                                   identity resolves it and a self-alias row is the benign no-op leg (b)
+#                                   skips. This ALSO inverts the D-GD "DOUBLE-COUNT REFUSAL" above: the node
+#                                   is a PARENT of placements, not a second price-facing sibling of them.
+#     marine_protein_fishmeal    <- `fishmeal_substitution` + `peru_fishmeal_supply` on soybean_meal_cbot,
+#                                   soybean_meal_dce, rapeseed_meal_zce.
+#     import_quota_trq           <- TRQ_sugar / TRQ_soybean_meal / TRQ_corn / TRQ_soybeans / TRQ_rice /
+#                                   TRQ_wheat -- six brand-new ids, nine across the policy family once the
+#                                   three levy ids below are counted. Every one is NEW, so the D8 REFUSAL
+#                                   recorded above still stands unamended: `China_import_quota_VAT` was not taken from
+#                                   `tariff`. The slice leaves by MINTING, which is exactly what D8 said the
+#                                   post-X2 half would be.
+#     export_levy_duty           <- CPO_export_levy / India_levy_sugar_cess / Nigeria_wheat_levy.
+#     rub_fx, try_fx, thb_fx,    <- RUB_USD / TRY_USD / THB_USD / AUD_USD / UAH_USD / MXN_USD, the
+#     aud_fx, uah_fx, mxn_fx        DAG-AUTHORING act the D15 paragraph above named as the post-X2 half.
+#                                   `php_fx` STAYS: PHP_USD is RESERVED against a `coconut` DAG that does not
+#                                   exist, and a reserved id is not a node.
+#   TWO leave by RETIREMENT OF THE SPEC ITSELF -- they are not wired, they are gone from
+#   configs/graphrag/driver_slices.yaml, so a pin entry for either would be a name with nothing behind it:
+#     wheat_blast                RETIRED. 32/32 of its props are Indonesia's Ministry of TRADE matching the
+#                                term `MoT`; 'wheat blast', 'magnaporthe' and 'brusone' each fire 0/32. The
+#                                structural cause is CORPUS GEOGRAPHY, not vocabulary: text/source=
+#                                usda_gain_wheat/ holds exactly thirteen country partitions (AR AU CA CN DE
+#                                EG FR IN PK PL RU TR UA) and no source in the 28-source estate carries a
+#                                Bangladesh partition at all. This is the `leaf rust` deletion precedent at
+#                                a HIGHER contamination rate -- 100% vs coffee_rust's 97%. The `MoT` term
+#                                deletion was unconditional, i.e. mandatory even had the retirement been
+#                                overruled. Its stranded 744,473-byte drivers/wheat_blast.jsonl is deleted at
+#                                the next rebuild; a retired spec beside a live object is a file that lies.
+#     barley_yellow_dwarf_virus  RETIRED (zero props, never written to S3 at all). UN-RETIRE GATE, written so
+#                                it is a gate and not an opinion: a plant-protection source acquisition
+#                                (CIMMYT / AHDB / JRC MARS / a state extension service) PLUS a Bangladesh or
+#                                Brazil GAIN wheat partition. The alias `barley_yellow_dwarf_virus:
+#                                [wheat_streak_mosaic]` was REFUSED even though it is free and non-stealing:
+#                                it would hand a LIVE KCBT node a zero-row slice and delete an honest waiver.
+#                                It also leaves NEVER_WRITTEN_SLICES_PIN below (8 -> 7).
+#
+#   FOUR ARRIVE -- the B1 destination/importer routing half, ratified 2026-08-21. These are NOT a new debt
+#   class; they are the WAVE GATE's third legal state ("written down as edge-reachable-only") chosen
+#   deliberately over the two alternatives, and each one's alternative was measured and refused by name:
+#     turkey_tmo_imports       1,295 props / 1,215 claimed by no other slice. NO topical DAG id exists to
+#                              claim -- the estate has no Turkish import-agency node anywhere in the 33 DAGs.
+#     us_export_flow_relation  845 / 666. `us_export_pace` IS live on 5 DAGs but it is OWNED, so claiming it
+#                              would MOVE reach instead of creating it -- the D-CW-3a alias-steal refusal,
+#                              applied a third time.
+#     mexico_import_demand     729 / 535. `import_demand_destination` exists on white_sugar with region
+#                              'MENA / West Africa / SE Asia', which is topically WRONG for Mexico; a
+#                              geographically false claim is worse than an honest dark line.
+#     ne_asia_feed_demand      473 / 426. No Japanese/Korean buyer node exists to claim.
+#   The two B1 slices that do NOT arrive here are the proof this is a curated set and not a dumping ground:
+#   `sea_import_demand` (1,824 / 1,630) takes `buyer_tender_demand` on rough_rice_cbot -- an exact topical
+#   fit that was waivered and unowned, so the wiring CREATES reach (the favorable_rainfall shape again, and
+#   that waiver row is deleted in the same edit) -- and `egypt_gasc_tenders` is a TERM EXTENSION on a slice
+#   that is already DAG-backed, i.e. zero clause-(c) exposure. Their RETIREMENT PLAN is the edge half, which
+#   is deferred by owner word and not by omission: destinations become `geography.yaml` routing entries plus
+#   `country_origin` vocabulary nodes (never an importer-aggregate node class), and each of the four is
+#   retired from this pin by the buyer-side driver node its edge-half spec authors. Until then the honest
+#   statement is the recon's corrected one: the buyer side EXISTS in the numbers lane (93.5% of measured
+#   tonnage) and in the vocabulary (84.2%); it is absent from evidence ADDRESSING, which is what these four
+#   pin entries say out loud.
+#
+#   EIGHT DO NOT MOVE, and one of them changes CLASS rather than membership:
+#     metals (975 props) -- RECLASSIFIED FROM "untouched" TO **TERMINALLY CONTEXT**. This is a written
+#       REFUSAL, permanent, not a deferral, and it is recorded here as well as at the slice's own site
+#       because the D-GD line above says "untouched" and that is now false. RICH-and-RETIRED: 98% of the
+#       mass is single-source wb_cmo, and the four measured classes are each already owned or each not a
+#       mechanism: (a) commodity-INDEX co-membership (metals and ags appear in the same index table -- a
+#       publication fact, not a transmission); (b) freight-VOLUME shares, owned by `freight`; (c) US Section
+#       232 -> Turkish retaliation, owned by `tariff`; (d) over-fire onto the CHEMICAL ELEMENT rather than
+#       the traded metal -- 'copper' on copper-based FUNGICIDE (4 usda_gain_coffee, 1 usda_gain_cocoa) and
+#       'zinc' as a plant MICRONUTRIENT / flour-fortification additive. FOUR ACTS, and the three restraints
+#       matter as much as the refusal: the slice is NOT deleted and neither is its S3 object (SILVER-F063
+#       wired copper_usd_mt to it and names it as the consumer), NO DAG driver id is minted so reach stays 0,
+#       and NO `waivers:` row is added -- by the D15 precedent quoted above, the pin alone is the record.
+#       NO TERM SURGERY EITHER, deliberately, and the measurement is recorded so nobody re-measures it:
+#       'steel prices' is 1 sentence, 'aluminium' 2 against 'aluminum' 380.
+#     indian_ocean_dipole -- the D-EI-4 refusal is CONFIRMED by re-measurement and its waiver + pin both
+#       stay. The re-measurement corrects the number in BOTH directions: true reach is 15 contracts, not the
+#       4 D-EI-4 assumed, and french_wheat_matif -- which D-EI-4 named -- carries no IOD node at all. The
+#       wave adds EDGES only (parents [El_Nino] / [La_Nina] on the existing instances, three new nodes); the
+#       `indian_ocean_dipole: [IOD_positive, IOD_negative]` alias stays REFUSED because 15 boards would be
+#       lit by 2 distinct facts and the same Indonesian sentence would render up to 3x on the vegoil boards.
+#     php_fx -- see above; PHP_USD is reserved, not authored.
+#     baltic_dry_freight (18 props, 15 of them 1999 vintage) and vessel_lineups_export_basis (14 props,
+#       12/14 being `fob basis` as a price idiom) -- HELD, not retired and not authored. The wave's two
+#       source documents disagree in writing (the orphan register says "completion wave decides
+#       retire-vs-hold explicitly"; the Black Sea graph half says "back the ORPHANS with real DAG edges"),
+#       and neither supplies a mechanism sentence, a board or a numbers home. Their real fix is the AMS/EEX
+#       numbers fetchers, which are building in another lane. Holding is the honest state of an unresolved
+#       decision; inventing an edge to clear a census line is not.
+#     index_roll_flows, madden_julian_oscillation, veg_oil_substitution_spreads -- the ZERO-PROP class,
+#       unchanged. ROUTING CANNOT FIX EMPTY, and both are named TRUE SOURCE ACQUISITIONS (an MJO met index,
+#       a roll-calendar/ETF-flow feed) in the owner-decision register, i.e. budgeted fetcher decisions.
+#
+# ══ INTEGRATION PASS, same wave, same day: 12 -> 25. THIRTEEN ARRIVE, and they arrive READ-DARK BY
+#   CONSTRUCTION rather than by drift: every one is a slice the wave itself authored this day (the F-A item N
+#   fourteen minus eudr_compliance which got a dag_alias, plus the vocab-sweep homes india_crop_season /
+#   domestic_tax_ntm / palm_yield_mechanics) as a TERM-ROUTED evidence surface with no DAG driver id minted
+#   for it -- deliberately, because minting a node is a board-curation act (mechanism, parents, sign, lag)
+#   that no adjudicated spec authorized for these concepts. Each slice's own config site carries the matching
+#   "READ-DARK BY CONSTRUCTION -- needs an evidence.READ_DARK_SLICES_PIN entry" line, written by the lane
+#   that authored it. The un-pin path is the same as ever: a future board curation mints the id, adds the
+#   dag_alias row, and removes the name here in the SAME change. The strongest candidates to leave first,
+#   recorded so the next wave does not re-derive them: opec_supply_policy (920 net-new props, fuel-cost
+#   transmission to every board), processing_capacity (1,677), irrigation_infrastructure (740).
 READ_DARK_SLICES_PIN = frozenset({
-    "aud_fx", "baltic_dry_freight", "barley_yellow_dwarf_virus", "cattle_cycle_herd_size", "dap",
-    "export_levy_duty", "import_quota_trq", "index_roll_flows", "indian_ocean_dipole",
-    "madden_julian_oscillation", "marine_protein_fishmeal", "metals", "mxn_fx", "natural_rubber",
-    "php_fx", "real_yields_rates", "rub_fx", "sustainable_aviation_fuel", "thb_fx", "try_fx",
-    "uah_fx", "veg_oil_substitution_spreads", "vessel_lineups_export_basis", "wheat_blast",
+    "baltic_dry_freight", "domestic_tax_ntm", "india_crop_season", "index_roll_flows",
+    "indian_ocean_dipole", "inland_logistics", "irrigation_infrastructure", "madden_julian_oscillation",
+    "metals", "mexico_import_demand", "ne_asia_feed_demand", "opec_supply_policy", "palm_yield_mechanics",
+    "php_fx", "political_transition", "processing_capacity", "producer_support_intl",
+    "quantitative_weather_anomaly", "sweetener_substitution", "trade_agreement_access",
+    "turkey_tmo_imports", "us_export_flow_relation", "veg_oil_substitution_spreads",
+    "vessel_lineups_export_basis", "wheat_first_processing",
 })
 
 
-# G7.4 -- the 8 configured driver slices that were NEVER WRITTEN to S3 at all (109 configured specs, 101
-# objects under drivers/). MEASURED at plan time by joining yaml.safe_load(driver_slices.yaml) against one
-# LIST of the drivers/ prefix. Pinned here for the same reason READ_DARK_SLICES_PIN is: the handoff's "101
-# slices" is the S3 FILE count, not the config count, and the 8-slice gap was a hand-derived number in a
-# document with nothing in code holding it. This is a DIFFERENT set from READ_DARK_SLICES_PIN, which is
-# read-darkness (no real DAG id reaches it); a slice can be write-dark, read-dark, both or neither. Overlap
-# as pinned: barley_yellow_dwarf_virus, index_roll_flows, madden_julian_oscillation,
+# G7.4 -- the configured driver slices that were NEVER WRITTEN to S3 at all (measured at plan time as 8 of
+# 109 configured specs against 101 objects under drivers/). MEASURED by joining
+# yaml.safe_load(driver_slices.yaml) against one LIST of the drivers/ prefix. Pinned here for the same reason
+# READ_DARK_SLICES_PIN is: the handoff's "101 slices" is the S3 FILE count, not the config count, and the
+# gap was a hand-derived number in a document with nothing in code holding it. This is a DIFFERENT set from
+# READ_DARK_SLICES_PIN, which is read-darkness (no real DAG id reaches it); a slice can be write-dark,
+# read-dark, both or neither. Overlap as pinned: index_roll_flows, madden_julian_oscillation,
 # veg_oil_substitution_spreads are in both.
+#
+# D-EC POST-X2 GRAPH-COMPLETION WAVE, 2026-08-21: 8 -> 7. `barley_yellow_dwarf_virus` leaves, and it leaves
+# for the one reason this pin admits: THE SPEC IS GONE, retired from configs/graphrag/driver_slices.yaml in
+# the same change (zero props measured, no S3 object ever written, no dag_alias row, no waivers row). It did
+# not become written; it stopped being configured. Leaving it here would have tripped this module's own
+# staleness branch below (`gone = NEVER_WRITTEN_SLICES_PIN - set(specs)`) on every lint run -- which is the
+# visible symptom the pin exists to produce, and is exactly why the two edits are one edit.
 #
 # ADVISORY ONLY, and that is load-bearing (F12): write-darkness is STORE state, not config state, and a
 # config lint that cannot see the store must never fail on it. The only thing checkable without S3 is that
 # every pinned name still EXISTS as a configured spec -- a pinned name that has since been deleted from the
 # config makes the pin stale, and a stale census pin is how "101 vs 109" became folklore in the first place.
 NEVER_WRITTEN_SLICES_PIN = frozenset({
-    "barley_yellow_dwarf_virus", "corn_southern_rust", "corn_tar_spot", "index_roll_flows",
+    "corn_southern_rust", "corn_tar_spot", "index_roll_flows",
     "india_import_duty", "madden_julian_oscillation", "managed_money_positioning",
     "veg_oil_substitution_spreads",
 })
 
 
 def never_written_slice_warnings() -> list[str]:
-    """ADVISORY (non-fatal) G7.4 census pin: the 8 configured slices that have never been written to S3.
+    """ADVISORY (non-fatal) G7.4 census pin: the configured slices that have never been written to S3 (8 at
+    the G7.4 measurement, 7 since barley_yellow_dwarf_virus's spec was retired 2026-08-21).
 
     Two lines, both cheap and both config-only:
       * the standing census number itself, so the 109-specs-vs-101-files gap is stated in code rather than
@@ -1124,8 +1284,12 @@ def check_driver_slices() -> list[str]:
                         benign self-alias — driver_alias()'s setdefault makes it a no-op identity entry, not a
                         second owner — so it is skipped, never flagged.
       (c) READ-DARK DRIFT (G7.2) -- a configured slice no REAL DAG id reaches can never have an episode line
-                        injected (planner.py:320/:334). 17 such slices were MEASURED and pinned in
-                        READ_DARK_SLICES_PIN (29 -> 28 -> 26 -> 14 -> 17; the pin comment carries every move). A slice that is read-dark and is neither pinned nor named by a
+                        injected (planner.py:320/:334). 25 such slices are MEASURED and pinned in
+                        READ_DARK_SLICES_PIN (29 -> 28 -> 26 -> 14 -> 17 -> 24 -> 12 -> 25; the pin comment
+                        carries every move, including the 2026-08-21 graph-completion edit that shrank it by
+                        16, grew it by the 4 B1 destination slices, and then grew it by the wave's own 13
+                        new term-routed slices at integration). A slice that is read-dark and is
+                        neither pinned nor named by a
                         `waivers:` entry is a NEW unaccounted gap -> hard error. A pinned slice that has
                         since been wired up is an advisory line telling you to shrink the pin (an
                         improvement must not fail a build). Vacuous when there is no causal dir.
@@ -1338,6 +1502,108 @@ def bare_name_warnings() -> list[str]:
     return warns
 
 
+# ── the ALIAS-MASS lint (F-A item O #1 / vocab-sweep hygiene rider 14) ───────────────────────────────────
+# THE CONCEPT-TO-SLICE MAP. Most concepts that own a driver slice own it under their own name, so identity
+# does the work. These are the DELIBERATE exceptions -- the estate's established dual-home pairs, where a
+# commodity NODE and a driver SLICE describe the same concept under different names on purpose (the naming
+# collision the natural_rubber D15 note raises and declines to create). Recorded here rather than inferred,
+# because guessing a mapping is how a lint starts reporting a class it invented.
+_ALIAS_CONCEPT_SLICE = {
+    "fish_meal": "marine_protein_fishmeal",                   # all_nodes() docstring names this pair
+    "sunflower_oil": "sunflower_oil_balance",                 # ditto
+}
+
+# RECORDED REFUSALS for the alias-mass sweep: (concept, normalized surface form) pairs where the extraction
+# lane legitimately carries a form the ROUTING lane deliberately does not. Same discipline as
+# _BARE_NAME_BENIGN -- a suppression here is a written refusal with its measurement, never a silence.
+_ALIAS_MASS_BENIGN = frozenset({
+    # D-EC post-X2 orphan register, natural_gas (2026-08-21). The owner's own finding was that
+    # entity_vocabulary carries the gas HUB roster while driver_slices.yaml does not, and it was CONFIRMED as
+    # a config fact and REFUTED as a routing loss by measurement: the whole hub roster (henry hub / ttf /
+    # jkm) buys ONE prop on the full chunk cache. The real defect is upstream -- wb_cmo's column-interleave
+    # text layer -- and its fix is the Phase-G repair, not a term add. `lng` (the one term this wave DOES add
+    # to the slice) is not suppressed here because it is being added, so it must clear the sweep honestly.
+    ("natural_gas", "henry hub"),
+    ("natural_gas", "ttf"),
+})
+
+
+def alias_mass_warnings(mass: dict | None = None) -> list[str]:
+    """ADVISORY (non-fatal) EXTRACTION-vs-ROUTING alias sweep -- the class bare_name_warnings() structurally
+    cannot see, and the one the A23 register says is "owed alongside the fixes".
+
+    THE SHAPE (the "gas-hub class"). Two lanes carry surface forms and they are not the same lane. A form in
+    entity_vocabulary `aliases:` (or evidence_windows `extra_terms:`) feeds EXTRACTION and the commodity
+    matcher; ONLY driver_slices `terms:` feeds driver ROUTING. So the extractor can mint an entity that the
+    slice matcher can never route, and nothing in the estate compared the two rosters. Measured instance, and
+    the owner's original finding: entity_vocabulary declares natural_gas aliases [natural gas, natgas, Henry
+    Hub, TTF] while the `natural_gas` slice carries only ["natural gas", "gas prices"].
+
+    WHY bare_name_warnings() CANNOT CATCH IT (A23's own words, and the reason this is a second function and
+    not a widened loop): that sweep iterates `node.split("_")`, i.e. TOKENS OF THE ID, and tests them against
+    the NODE's own matcher. Every finding here is a NON-TOKEN form tested against a DIFFERENT matcher -- the
+    slice's. Neither the tokens nor the matcher overlap.
+
+    THE RULE, verbatim from the hygiene rider: *every entity_vocabulary alias whose concept owns a driver
+    slice must be a term of that slice, or carry a recorded refusal.* A refusal is a `_ALIAS_MASS_BENIGN`
+    entry with its measurement, exactly as `_BARE_NAME_BENIGN` records the bare-name refusals.
+
+    WHAT THIS DELIBERATELY DOES **NOT** DO, stated so the gap is a decision and not an oversight: it does not
+    weigh a finding by CORPUS MASS on its own. A $0 config lint that reaches for the network to answer a
+    census question is how a lint becomes a thing people disable (the same reasoning
+    never_written_slice_warnings() states for the store). The estate's mass instruments are
+    `slice_audit.py` (billed, opt-in, the over-firing detector) and the e1 census; this sweep hands them a
+    SHORT, EXACT candidate list instead of a corpus scan. Callers that already hold counts may pass
+    `mass` = {normalized form -> prop/window count} and every line is annotated and ranked by it.
+
+    REPORTS ONLY, and that is load-bearing in both directions. Adding a form to a slice's terms is a ROUTING
+    change (it re-partitions props across slices and re-triggers the manifest mirror), and some of these
+    forms must NEVER be added -- bare 'dry' on `drought` is precisely the urea->area over-fire the term law
+    forbids. The message therefore offers BOTH dispositions and prefers neither.
+
+    Pure config arithmetic over the vocabulary and the term lists; no S3, no network. Empty and vacuous on a
+    clean checkout with no private configs."""
+    try:
+        aliases = (ex._vocab().get("aliases") or {})
+    except Exception:                                          # noqa: BLE001 -- no private vocabulary: vacuous
+        return []
+    specs = driver_specs()
+    if not specs or not aliases:
+        return []
+    matchers = driver_matchers()
+    rows: list[tuple[int, str]] = []
+    for concept in sorted(aliases):
+        slice_name = _ALIAS_CONCEPT_SLICE.get(concept, concept)
+        if slice_name not in specs:                            # the concept owns no driver slice -> not this
+            continue                                           # lint's class (bare_name owns the node side)
+        matcher = matchers.get(slice_name)
+        if not matcher:                                        # a slice with no usable terms at all
+            continue
+        id_tokens = {ex._normalize(t) for t in concept.split("_") if t}
+        for form in (aliases.get(concept) or []):
+            nf = ex._normalize(str(form))
+            if not nf or len(nf) <= 1:
+                continue
+            if set(nf.split()) <= id_tokens:                   # a token/spelling OF the id -> bare_name's job
+                continue
+            if (concept, nf) in _ALIAS_MASS_BENIGN:            # a RECORDED refusal, with its measurement
+                continue
+            if matcher.search(nf):
+                continue
+            n = int((mass or {}).get(nf, 0))
+            note = f" [{n} measured]" if mass else ""
+            # ASCII-safe surface (the cp1252 stdout law): config_check prints this straight to a Windows
+            # console. Escaped, never folded -- a curator must be able to copy the EXACT form back into the
+            # yaml, and an accent silently stripped here is how a term list acquires a spelling nobody wrote.
+            shown = str(form).encode("ascii", "backslashreplace").decode("ascii")
+            rows.append((n, f"alias-mass {concept}:{shown!r}{note} is an entity_vocabulary form the "
+                            f"EXTRACTOR can mint but slice {slice_name!r} cannot ROUTE -- add it to "
+                            f"driver_slices.yaml terms[{slice_name}], or record a measured refusal in "
+                            f"evidence._ALIAS_MASS_BENIGN (review: some of these are over-fire traps)"))
+    rows.sort(key=lambda r: (-r[0], r[1]))
+    return [msg for _n, msg in rows]
+
+
 def driver_matchers() -> dict:
     """One on-topic matcher per driver slice (cached), built from each driver's terms."""
     global _DRIVER_MATCHERS
@@ -1481,8 +1747,10 @@ def write_driver_slices(driver_sink: dict, *, backend: str | None = None, bedroc
     construction, which is why the guard could never fire for anything. It still RECORDS (an ASCII WARN line
     + an append to the optional `warnings` collector) and still NEVER refuses: a legitimate E1b flow authors
     a slice before its alias lands, and hard-refusing would clobber a build in progress. Expect it to be
-    LOUD now — 17 configured slices are read-dark (READ_DARK_SLICES_PIN); that is the true state, and a
-    guard that says so is worth more than one that reads green because it cannot speak.
+    LOUD now — 25 configured slices are read-dark as of the 2026-08-21 graph-completion wave's
+    integration pass (READ_DARK_SLICES_PIN; 17 when this docstring was written, 12 mid-wave before the
+    wave's own 13 new term-routed slices were pinned); that is the true state, and a guard that
+    says so is worth more than one that reads green because it cannot speak.
 
     G1b/G1c/G5b, the wholesale-write guard (this is C2, one of the FIVE silent seams): the pass is
     now computed IN FULL — dedup, deterministic order, per-slice cap — before ANY byte is written, the

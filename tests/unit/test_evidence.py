@@ -936,20 +936,29 @@ def test_local_slice_bytes_equal_the_manifest_after_bytes_no_crlf_drift(tmp_path
 
 
 # ── F12: the G7.4 never-written census pin ─────────────────────────────────────────────────────────────
-def test_never_written_pin_names_the_eight_and_is_advisory_only(tmp_path, monkeypatch):
+def test_never_written_pin_names_its_members_and_is_advisory_only(tmp_path, monkeypatch):
     """G7.4's "8 never-written slices (census pin)" had no pin: grep over src/ returned nothing. The
     109-specs-vs-101-files gap stayed a hand-derived number in a document, which is the thing a census pin
     exists to stop. It is ADVISORY on purpose -- write-darkness is STORE state, and a config lint that
-    cannot see the store must never fail a build on it."""
-    assert len(ev.NEVER_WRITTEN_SLICES_PIN) == 8
+    cannot see the store must never fail a build on it.
+
+    D-EC POST-X2 GRAPH-COMPLETION WAVE (2026-08-21): 8 -> 7. `barley_yellow_dwarf_virus` left, and the
+    REASON is the point of re-cutting this number rather than loosening the assertion: it did not become
+    written, it stopped being CONFIGURED (the spec was retired from driver_slices.yaml on zero measured
+    props, with no S3 object ever written and no waiver or dag_alias row to unpick). Had the pin entry
+    stayed, this module's own staleness branch -- `gone = NEVER_WRITTEN_SLICES_PIN - set(specs)` -- would
+    have emitted a "pin STALE" line on every lint run, which is precisely the symptom this pin exists to
+    produce and precisely why the config retirement and the pin edit are one edit."""
+    assert len(ev.NEVER_WRITTEN_SLICES_PIN) == 7
     assert {"corn_tar_spot", "managed_money_positioning", "india_import_duty"} <= ev.NEVER_WRITTEN_SLICES_PIN
+    assert "barley_yellow_dwarf_virus" not in ev.NEVER_WRITTEN_SLICES_PIN   # spec retired, not written
     assert ev.NEVER_WRITTEN_SLICES_PIN != ev.READ_DARK_SLICES_PIN          # a DIFFERENT darkness
     monkeypatch.setattr(ev, "_driver_raw", lambda: {"drivers": {n: {"terms": ["t"]} for n in
                                                                 ev.NEVER_WRITTEN_SLICES_PIN}})
     ev._reset()
     try:
         lines = ev.never_written_slice_warnings()
-        assert lines and "8 of 8" in lines[0] and "corn_tar_spot" in lines[0]
+        assert lines and "7 of 7" in lines[0] and "corn_tar_spot" in lines[0]
         assert not any("STALE" in ln for ln in lines)
         monkeypatch.setattr(ev, "_driver_raw", lambda: {"drivers": {"corn_tar_spot": {"terms": ["t"]}}})
         ev._reset()

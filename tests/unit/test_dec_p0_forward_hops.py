@@ -42,7 +42,25 @@ from leviathan.graphrag import graph as g
 
 _CENSUS_PATH = pathlib.Path(__file__).resolve().parents[2] / "data" / "dec_p0" / "graph_walk.json"
 _BASE_YAMLS = ("corn", "soybeans")
-_NO_NODE_NAMES = {"wheat", "sorghum", "sunflower_oil", "barley", "ethanol"}
+# ⚠ RE-CUT DISCHARGED at the D-EC graph-completion wave's INTEGRATION PASS (2026-08-21), re-derived once
+# from the reconciled tree per the owed-block's own procedure. WHAT MOVED IT, in three acts:
+#   * LANE C: +15 adjudicated edges, 3 class DAGs (33 yamls -> 36) -- `barley`, `sorghum` and
+#     `sunflower_oil` STOP being no-node names because each now has a real causal contract, and `hfcs`,
+#     `ddgs`, `fresh_citrus`, `palm_kernel` arrive as D15 context-commodity endpoints of the new edges.
+#   * THE INTEGRATION graph fix: `_invert_inter_commodity` now admits loaded causal contracts as nodes in
+#     BOTH directions (it was hierarchy-only in reverse, which split tracked/resolved 114 vs 103), so the
+#     class DAGs resolve forward AND reverse and tracked == resolved again.
+#   * THE FOUR-TIER RE-ADJUDICATION (owner doctrine, frequency floors overturned for named mechanisms):
+#     +14 more edges -- cottonseed/peanut/rice on cotton, the rapeseed crush pair, the RD feedstock pair
+#     (tallow, used_cooking_oil), hfcs on both sugar boards, the wheat-class reciprocals, sunoil~soyoil --
+#     which adds `cottonseed`, `peanut`, `tallow`, `used_cooking_oil` as edge-reached-only context names
+#     (`rice`, `rapeseed_oil`, `rapeseed_meal` RESOLVE: rough_rice_cbot and the ZCE boards serve them).
+# Every name below is a D15 context commodity or complex key WITHOUT a DAG -- edge-reached-only BY DESIGN.
+# The census artifact data/dec_p0/graph_walk.json stays frozen PRE evidence, never re-pinned; the census
+# terms in the assertions below are therefore DECOUPLED from the live terms (same shape as the
+# graph_version inequality), each pinning the artifact's own PRE number.
+_NO_NODE_NAMES = {"wheat", "ethanol", "hfcs", "ddgs", "fresh_citrus", "palm_kernel",
+                  "cottonseed", "peanut", "tallow", "used_cooking_oil"}
 
 
 @pytest.fixture(scope="module")
@@ -162,12 +180,16 @@ def test_a_declared_contract_id_is_its_own_target(real):
 
 # ── 3. unresolvable-by-construction stays unresolvable ───────────────────────────────────────────────
 def test_the_23_no_node_edges_stay_untracked(real, census):
-    """PROPERTY 3. `wheat` is a COMPLEX KEY with no DAG, not a node -- 10 of these 23. Resolving them by
-    picking a wheat class (complex_map's curated table does exactly that, for a different purpose) would
-    invent an edge the curator never authored. That is P4 edge-authoring work, and it stays open."""
+    """PROPERTY 3. `wheat` is a COMPLEX KEY with no DAG, not a node. Resolving these by picking a class
+    (complex_map's curated table does exactly that, for a different purpose) would invent an edge the
+    curator never authored. RE-CUT 2026-08-21 (integration): 23 -> 24 rows over the 10 context names in
+    _NO_NODE_NAMES -- the wave resolved barley/sorghum/sunflower_oil (class DAGs) and rice/rapeseed_oil/
+    rapeseed_meal (served by rough_rice_cbot and the ZCE boards), while the four-tier edges added new
+    context endpoints. The census term is DECOUPLED: the artifact records the PRE graph's 23."""
     untracked = [(cid, e["driver_commodity"]) for cid in real.contracts
                  for e in real.cross_links(cid) if not e["tracked"]]
-    assert len(untracked) == 23 == census["reverse_index_buckets"]["unresolvable-no-node"]
+    assert len(untracked) == 24
+    assert census["reverse_index_buckets"]["unresolvable-no-node"] == 23, "the PRE number, from the artifact"
     assert {dc for _c, dc in untracked} == _NO_NODE_NAMES
     assert all(e["target_contract"] is None for cid in real.contracts
                for e in real.cross_links(cid) if not e["tracked"])
@@ -175,12 +197,16 @@ def test_the_23_no_node_edges_stay_untracked(real, census):
 
 # ── 4. the totals, against the census artifact ───────────────────────────────────────────────────────
 def test_the_forward_count_is_the_reverse_indexs_own_resolved_count(real, census):
-    """THE HEADLINE NUMBER. 52 -> 94, and 94 is not a new number: it is `resolved`, what the reverse index
-    has answered since D-MW-27. ONE map, read twice, now agreeing."""
+    """THE HEADLINE NUMBER. 52 -> 94 (fix #68), then 94 -> 122 (graph-completion wave: lane C's 15 edges +
+    the four-tier 14 + the class DAGs + the both-directions node fix). 122 is not a new number: it is
+    `resolved`, what the reverse index has answered since D-MW-27. ONE map, read twice, agreeing -- and the
+    integration fix is what made it agree again after the class DAGs split it 114 vs 103. The census terms
+    are DECOUPLED: the artifact records the PRE graph (117 edges, 52 tracked forward)."""
     tracked = sum(1 for cid in real.contracts for e in real.cross_links(cid) if e["tracked"])
     b = real.rev_cross_link_buckets()
-    assert tracked == b["resolved"] == 94
-    assert tracked + 23 == b["edges"] == census["totals"]["inter_commodity_edges"] == 117
+    assert tracked == b["resolved"] == 122
+    assert tracked + 24 == b["edges"] == 146
+    assert census["totals"]["inter_commodity_edges"] == 117, "the PRE number, from the artifact"
     assert census["totals"]["inter_commodity_tracked_forward"] == 52, "the PRE number, from the artifact"
 
 
@@ -215,7 +241,12 @@ def test_graph_version_hashes_the_configs_not_the_code(real, census):
         h.update(b"\0")
         h.update(p.read_bytes())
         h.update(b"\0")
-    assert real.version == h.hexdigest()[:12] == "7030c21badfc"     # POST-XC-5-tail, re-derived from bytes
+    # RE-CUT 2026-08-21 (integration pass), the third line of the chain:
+    #   7030c21badfc -> c9d10c662810   the D-EC graph-completion wave, reconciled: 31 incumbent DAGs edited
+    #                                  + 3 class DAGs authored (33 -> 36 yamls), lane C's 15 adjudicated
+    #                                  edges + the four-tier re-adjudication's 14, the XC-6 parent edges,
+    #                                  the policy/FX/livestock nodes, and every written refusal block.
+    assert real.version == h.hexdigest()[:12] == "c9d10c662810"     # POST-completion-wave, re-derived from bytes
     assert census["graph_version"] == "482c0e2554e6"                # the frozen PRE-XC-2 artifact, untouched
     assert real.version != census["graph_version"], \
         "a CONFIG edit must move the hash -- that is what 'hashes the configs, not the code' means"

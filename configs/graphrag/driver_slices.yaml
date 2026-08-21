@@ -39,18 +39,72 @@
 # to be declared can be deleted in the same change.
 #
 # EVERY EDIT TO THIS FILE MUST BE MIRRORED: `python -m leviathan.graphrag.driver_slices_manifest --write`,
-# then `git add -f configs/graphrag/driver_slices_manifest.yaml`. This file is gitignored whole-directory
-# (.gitignore:49) and has an EMPTY git log, so the tracked manifest is the ONLY reviewable record that a term
-# set changed. config_check and every maintenance Batch job fail on drift.
+# then `git add -f configs/graphrag/driver_slices_manifest.yaml`. config_check and every maintenance Batch
+# job fail on drift, and the mirror is the only guard that fires BEFORE compute is spent.
+# RE-CUT 2026-08-21 (D-EC graph-completion wave, lane A): the sentence this note used to carry -- "this file
+# is gitignored whole-directory (.gitignore:49) and has an EMPTY git log, so the tracked manifest is the ONLY
+# reviewable record that a term set changed" -- IS FALSE and was repeated by seven of seven recon lanes. The
+# DIRECTORY is gitignored, but THIS FILE IS FORCE-ADDED AND TRACKED (`git ls-files` returns it; history
+# 1f1173e7, db18565c, f33d6ee5, 2f2b0620, 93fa5023), exactly like driver_slices_manifest.yaml, params.yaml
+# and the four numbers/*.yaml maps. Two consequences the false sentence was hiding: (1) a term edit DOES
+# leave a reviewable diff, so `git add -f configs/graphrag/driver_slices.yaml` must land in the SAME commit
+# as the mirror or the mirror moves while the source does not -- the precise drift the mirror law exists to
+# prevent; (2) the genuinely unreviewable half is configs/graphrag/causal/ -- 33 .yaml on disk, ZERO tracked,
+# no manifest module -- which is where every DAG driver id this wave mints lands.
 drivers:
   # --- climate (the weather triggers; tie to ONI / soil-moisture / heat silver) ---
-  el_nino:       {category: climate, terms: ["el nino", "el niño", "enso warm phase"]}
-  la_nina:       {category: climate, terms: ["la nina", "la niña", "enso cool phase"]}
-  drought:       {category: climate, max_props: 25000, terms: ["drought", "dryness", "dry weather", "rainfall deficit", "water stress", "below-normal rainfall"]}   # D6: 2,370 measured today, ~6,028 after X2 -- crosses 4,000 for the first time.
-  frost:         {category: climate, terms: ["frost", "frosts", "freeze", "cold snap", "black frost", "frio"]}
+  # D-EC completion wave 2026-08-21 (lane A) ENSO DIACRITIC HYGIENE, the driver_slices half of XC-2. Ledger
+  # correction C-8 re-measured the plan's premise and it does NOT reproduce as a DAG split: the 33 causal
+  # YAMLs are already uniform ASCII (`El_Nino` on 32, zero accented ids). The real residue is HERE, and it is
+  # a DEAD-TERM residue, not a routing split: harvest._Matcher runs BOTH the declared forms and the scanned
+  # text through ex._normalize (NFKD -> ASCII), so "el niño" normalizes to "el nino" and its key is dropped by
+  # the matcher's own `setdefault` -- it could never claim a single prop the ASCII form did not already claim.
+  # MEASURED on the full 345,870-prop chunk cache: the accented forms are exact post-normalization duplicates
+  # (0 net-new props by construction), i.e. the e1_census dead-term class, and they are deleted here. ROUTING
+  # IS UNCHANGED BY THIS EDIT -- zero props move. The accented spellings survive deliberately in the dag_alias
+  # XC-2 note below, where they are HISTORY being narrated, not config being matched.
+  el_nino:       {category: climate, terms: ["el nino", "enso warm phase"]}
+  la_nina:       {category: climate, terms: ["la nina", "enso cool phase"]}
+  # VOCAB SWEEP item 6 (2026-08-21): the pure D1 "gas-hub" class -- entity_vocabulary ALREADY lists "dry
+  # conditions", "dry spell" and "seca" as drought ALIASES (extraction lane) and the ROUTING lane had none of
+  # them. Measured on the 345,870-prop cache (props / net-new driver-dark): dry conditions 301/210, dry spell
+  # 68/46, dry spells 33/23, drier than normal 37/26, seca 2/2, secas 1/1 = +308 net-new dark. The sweep's own
+  # full-text-layer number is 1,168 dark WINDOWS; the gap is the 60.2% of documents not yet chunked, so the
+  # prop count rises with X2. 'dry spell' and 'dry spells' are BOTH declared: the matcher is word-boundary, so
+  # the singular can never fire inside the plural. INTENDED MULTI-LABEL, declared not discovered: bare
+  # 'dry spell' also fires inside `west_africa_weather`'s "west africa dry spell" -- the same concept on two
+  # slices, which is what multi-label routing is for.
+  drought:       {category: climate, max_props: 25000, terms: ["drought", "dryness", "dry weather", "rainfall deficit", "water stress", "below-normal rainfall",
+    "dry conditions", "dry spell", "dry spells", "drier than normal", "seca", "secas"]}   # D6: 2,370 measured today, ~6,028 after X2 -- crosses 4,000 for the first time.
+  # VOCAB SWEEP item 13: entity_vocabulary already lists "geada" as a frost alias; the routing lane had
+  # neither form. AND THE PLURAL IS THE MASS -- geada 58 windows, geadas 495 (8.5x), the exact 'ruble'/'rubles'
+  # finding the A24 FX roster recorded. HONEST INSTRUMENT NOTE: both forms measure ZERO on the 345,870-prop
+  # CHUNK cache and 544 on the full TEXT LAYER, 544/544 from CONAB -- i.e. Brazilian frost prose lives almost
+  # entirely in the 60.2% of documents X2 chunked and this cache does not hold. They are declared on the
+  # text-layer measurement, and they are the term to re-count first at the post-rebuild re-measure.
+  frost:         {category: climate, terms: ["frost", "frosts", "freeze", "cold snap", "black frost", "frio", "geada", "geadas"]}
   flood:         {category: climate, terms: ["flood", "flooding", "excess rain", "waterlogging", "torrential rain"]}
   heat:          {category: climate, terms: ["heat wave", "heatwave", "heat stress", "excessive heat", "record temperatures"]}
+  # VOCAB SWEEP item 5 proposed `monsoon += kharif, rabi` and named itself "the HIGHEST-risk item in this
+  # list", offering the alternative in the same breath: "a new `india_crop_season` slice with the same two
+  # terms". THE ALTERNATIVE IS TAKEN, and the ground is this file's own doctrine. kharif/rabi are SEASON
+  # labels attached to balance-sheet prose ("the last Rabi crop... bumper for oilseeds"), so the add would
+  # have moved ~1,600 windows of acreage/production text onto a CLIMATE slice whose two DAG ids
+  # (monsoon_active / monsoon_weak) mean monsoon RAINFALL on live rice/cotton boards. That is the 'cerrado'
+  # and 'leaf rust' class -- a term whose mass is a different concept from the slice's id -- and this file
+  # deleted both rather than declare them. `monsoon` therefore keeps its single term and its honest scope.
   monsoon:       {category: climate, terms: ["monsoon"]}
+  # NEW SLICE (vocab sweep item 5, authored as its stated alternative). MEASURED on the 345,870-prop cache:
+  # kharif 332 props / 253 net-new dark, rabi 311 / 240 = +493 net-new; full-text-layer 1,639 dark windows.
+  # The Indian corpus does not write "monsoon" when it means the monsoon crop -- it writes kharif
+  # (monsoon-sown) and rabi (post-monsoon residual-moisture), and that season axis is the single densest
+  # unrouted vocabulary in the India GAIN series. REFUSED on measurement: bare `imd` (7 props / 1 net-new
+  # dark) -- a three-letter token under word-boundary matching for one net-new prop is the `MoT` defect
+  # re-created, and the India Meteorological Department is named in full where it matters.
+  # READ-DARK BY CONSTRUCTION: no DAG driver id names an Indian crop season, so this slice needs an
+  # evidence.READ_DARK_SLICES_PIN entry (the wave gate's "written down as edge-reachable-only").
+  india_crop_season: {category: climate, terms: [kharif, rabi]}
+    # India's two crop seasons are the acreage/production axis every India GAIN report is organized around; the monsoon slice models the RAIN, this models the SEASON.  [moves: rice, corn, cotton, soybeans, srw_wheat]
   harmattan:     {category: climate, terms: ["harmattan"]}
   # D-EC D8 (2026-08-19) THE BENIGN ARM. The store had FOUR adverse weather slices (drought 2,370, flood 344,
   # frost 459, heat 89) and no counterfactual: 'ideal conditions' / 'favorable weather' / 'good growing
@@ -80,12 +134,85 @@ drivers:
     "timely rains"]}
     # The counterfactual arm of the four adverse weather slices; grounds "what does a good year look like".  [moves: corn, soybeans, srw_wheat, hrw_wheat, hrs_wheat, french_wheat, cotton, rice]
 
+  # ===== D-EC graph-completion wave 2026-08-21 (F-A item N) -- THE NEUTRAL-VALENCE WEATHER ARM =============
+  # A12 (1,435 props): every weather slice in this file is VALENCED -- drought/flood/frost/heat carry damage,
+  # benign_growing_conditions carries its counterfactual -- so the QUANTITATIVE anomaly register ("110 percent
+  # of normal", "cumulative precipitation to date") had no home and the graph could only read weather once it
+  # had already become a named hazard. That is the LATENESS bias F-A item N names.
+  # TERMS ARE THE MEASURED SUBSET OF THE SPEC'S LIST, and the four the spec named that are NOT here are the
+  # review (all measured on the full 345,870-prop cache with the production matchers):
+  #   * `soil moisture` 437 props / **0 net-new dark** -- 100% already claimed by `us_drought_monitor`, which
+  #     owns the whole RATING vocabulary ("crop conditions", "good-to-excellent", "topsoil moisture").
+  #     Re-declaring it buys double-routing, never coverage (the D8 doctrine, verbatim).
+  #   * `rainfall deficit` 7 / 0 and `below normal rainfall` 21 / 0 -- both are EXACT post-normalization
+  #     duplicates of incumbent `drought` terms ("rainfall deficit", "below-normal rainfall"; _normalize
+  #     collapses the hyphen). Declaring them would be a literal re-declaration.
+  #   * `growing degree days` 2 / 2 and `rainfall surplus` 0 / 0 -- PARKED per harvest.py's two-level prune
+  #     (the concept already has a hitting form) and DEAD respectively.
+  #   * `NDVI` / `vegetation index` are NOT taken here: vocab-sweep item 15 assigns them to
+  #     `us_drought_monitor` to close the `ndvi_vegetation_health` D3 gap on six contracts, and an id gets
+  #     ONE owner. They are added there instead, in this same edit.
+  # ALSO REFUSED, with the sweep's own numbers, so nobody re-proposes them: bare `rainfall` (8,616 windows /
+  # 5,730 driver-dark), `precipitation` (1,976/1,370), `temperatures` (2,443/1,508), `weather conditions`
+  # (5,856/2,931). The sweep names this slice as their natural home AND classes them "WOULD SWAMP THE SLICE";
+  # unsampled, they would turn a quantitative-anomaly slice into "all weather prose", which is the exact
+  # trade the `sugarcane`/`cane` refusal already made. They are the wave's first post-rebuild sampling job.
+  # READ-DARK BY CONSTRUCTION -- needs an evidence.READ_DARK_SLICES_PIN entry.
+  quantitative_weather_anomaly: {category: weather_regime, terms: ["above normal precipitation",
+    "below normal precipitation", "above normal rainfall", "percent of normal", "cumulative precipitation"]}
+    # The neutral-valence anomaly register: how far from normal, stated as a number, BEFORE it becomes a named hazard.  [moves: corn, soybeans, srw_wheat, hrw_wheat, french_wheat, rice, cotton, palm_oil]
+  # F-A item N + vocab sweep item 9. A15 (557 props): water AVAILABILITY is the leading indicator the graph
+  # only ever reads after it has become "drought" ("Out of 123 reservoirs, 114 reported more than 80 percent
+  # of normal storage"). Measured on the full cache: irrigation 879/531 dark, reservoirs 79/64, reservoir
+  # 47/35, dam 115/101, aquifer 9/9 = +740 net-new dark.
+  # *** THE GATE THIS SLICE SHIPPED ON, ADJUDICATED IN THIS SAME EDIT (vocab-sweep hygiene H1) ***
+  # `vietnam_robusta_weather`'s term "irrigation water" was a LIVE OVER-FIRE: 215 props on this cache and
+  # 944 windows corpus-wide, the large majority Indian and Chinese irrigation prose with no Vietnam and no
+  # robusta content, absorbed by a Vietnam-specific slice on every board it reaches. Its net-new dark is
+  # ZERO -- every one of its props is already claimed by another slice -- so it buys that slice no coverage
+  # at all, only mis-filing. It is DELETED at its own site below in this edit, which is what lets bare
+  # `irrigation` be declared here without the two slices fighting over the same mass.
+  # REFUSED on measurement: `canal water allocation` (0 props) and `reservoir level` (redundant -- it contains
+  # the declared bare `reservoir`, and under longest-first word-boundary matching a longer form containing a
+  # declared shorter one can claim nothing extra).
+  # READ-DARK BY CONSTRUCTION -- needs an evidence.READ_DARK_SLICES_PIN entry.
+  irrigation_infrastructure: {category: weather_regime, terms: [irrigation, reservoir, reservoirs, aquifer, dam]}
+    # Reservoir storage, canal allocation and groundwater set the water a crop will actually get, one to two seasons before "drought" is written.  [moves: rice, cotton, srw_wheat, hrw_wheat, corn, raw_sugar]
+
   # --- policy (the announcement triggers; tie to tariff / export-restriction silver) ---
   export_ban:        {category: policy, terms: ["export ban", "export restriction", "export tax", "export duty", "export quota", "export licen", "embargo"]}
-  biodiesel_mandate: {category: policy, terms: ["biodiesel", "renewable diesel", "blending mandate", "blend mandate", "b20", "b30", "b35", "b40", "rfs", "rin "]}
-  tariff:            {category: policy, max_props: 25000, terms: ["tariff", "import duty", "import tax", "antidumping", "anti-dumping", "wto", "world trade organization", "uruguay round", "tariff-rate quota", "trq", "nafta", "usmca", "mercosur", "eu-mercosur", "canola dispute", "export licence", "export license"]}   # G5c: WAS at the cap (4,000 props / ~93 MB). Declared, not inherited -- see the max_props note above. D6 2026-08-19: 4,000 -> 25,000; measured demand on the full chunk cache is 6,867 TODAY, so 2,867 harvested props are being discarded on every pass before X2 adds a thing.
-  msp:               {category: policy, terms: ["minimum support price", "msp"]}
-  subsidy:           {category: policy, max_props: 25000, terms: ["subsidy", "subsidies", "subsidized"]}   # D6: measured 3,038 today, crosses 4,000 for the FIRST time at X2 (~5,218 projected) -- declared BEFORE it silently truncates, not after.
+  # VOCAB SWEEP item 27: modest mass, but it closes THREE D3 gaps at once -- `RenovaBio`, `red_iii_mandate`
+  # and `eu_renewable_biofuel` are DAG ids this slice already OWNS with no term that could fire on them, so
+  # those boards reached an empty text leg. It also declared b20/b30/b35/b40 and skipped b7/b10, the EU and
+  # Malaysian levels. Measured: b7 85 props / 8 net-new dark, b10 43/6, red ii 5/1, renovabio 1/1,
+  # renewable energy directive 4/0, red iii 0/0 (17 dark windows on the full text layer -- mpoc carries the
+  # EU policy story and 60% of the estate's documents are not in this cache). REFUSED, measured at ZERO:
+  # b100, co-processing, cbio, small refinery exemption.
+  biodiesel_mandate: {category: policy, terms: ["biodiesel", "renewable diesel", "blending mandate", "blend mandate", "b20", "b30", "b35", "b40", "rfs", "rin ",
+    "b7", "b10", "red ii", "red iii", "renewable energy directive", "renovabio"]}
+  # VOCAB SWEEP item 3, THE DUTY HALF ONLY -- and the split is load-bearing, not stylistic. This file's own
+  # `export_levy_duty` note RECORDED that "customs duty / countervailing duty ... belong to `tariff`", and
+  # `tariff` then declared neither, so that recorded refusal left the props homeless for a year. Measured on
+  # the 345,870-prop cache (props / net-new driver-dark): customs duty 86/70, countervailing duty 47/14,
+  # safeguard duty 21/19, section 301 33/5, section 232 8/0, phase one 10/7 = +115 net-new. `section 301`
+  # also closes a D3 gap: `US_section301_tariffs` is a tariff-OWNED DAG id on 14 DAGs whose slice carried no
+  # term that could fire on it. THE AGREEMENT HALF IS DELIBERATELY NOT HERE -- see `trade_agreement_access`
+  # below; ASEAN is a region word as often as a policy word and `tariff` is the estate's second-most
+  # cap-pressured slice, so a 2,000-window infusion of schedule prose would change what all 28 of its
+  # contracts read.
+  tariff:            {category: policy, max_props: 25000, terms: ["tariff", "import duty", "import tax", "antidumping", "anti-dumping", "wto", "world trade organization", "uruguay round", "tariff-rate quota", "trq", "nafta", "usmca", "mercosur", "eu-mercosur", "canola dispute", "export licence", "export license",
+    "customs duty", "countervailing duty", "safeguard duty", "section 301", "section 232", "phase one"]}   # G5c: WAS at the cap (4,000 props / ~93 MB). Declared, not inherited -- see the max_props note above. D6 2026-08-19: 4,000 -> 25,000; measured demand on the full chunk cache is 6,867 TODAY, so 2,867 harvested props are being discarded on every pass before X2 adds a thing.
+  # VOCAB SWEEP item 22, the D1 gas-hub class again: entity_vocabulary ALREADY maps FRP and SAP as `msp`
+  # aliases (extraction lane) and the routing lane had neither. FRP/SAP are the Indian CANE prices -- the cost
+  # floor under the world's swing sugar exporter. Measured: frp 30 props/11 dark (30/30 usda_gain_sugar),
+  # state advised price 69/57, fair and remunerative price 8/5. REFUSED, explicitly: bare `sap` -- it collides
+  # with tree sap and the software vendor, and the acronym is spelled out instead.
+  msp:               {category: policy, terms: ["minimum support price", "msp", "frp", "state advised price", "fair and remunerative price"]}
+  # VOCAB SWEEP item 21, the pure INFLECTION class the A24 roster's variant sweep was built to catch: the
+  # matcher does no stemming, so the VERB forms are separate strings. Measured: subsidize 108/65 dark,
+  # subsidizing 44/35, subsidised 1/1 (British, declared anyway -- it costs nothing and mpoc spells British
+  # throughout). Zero new concept, zero judgement, +101 net-new props.
+  subsidy:           {category: policy, max_props: 25000, terms: ["subsidy", "subsidies", "subsidized", "subsidize", "subsidizing", "subsidised"]}   # D6: measured 3,038 today, crosses 4,000 for the FIRST time at X2 (~5,218 projected) -- declared BEFORE it silently truncates, not after.
   # D-EC D8 (2026-08-19) THE TRQ MECHANISM. `quota` fires 2,158 times in the corpus and bare 'quota' /
   # 'import quota' were an exact term of NO slice -- the only coverage was inside the compounds
   # 'tariff-rate quota' (tariff), 'export quota' (export_ban, russia_export_tax_quota) and
@@ -101,9 +228,39 @@ drivers:
   # READ-DARK AND WAIVED, deliberately: the one topical DAG id (`China_import_quota_VAT`) is owned by
   # `tariff`, and taking it would MOVE reach rather than create it -- see the refusal recorded on tariff's
   # dag_alias entry. The slice holds real props and waits for a DAG driver id of its own.
+  # D-EC completion wave 2026-08-21 (orphan register, policy family). EIGHT TERM ADDS, verbatim from the spec,
+  # measured here on the full 345,870-prop cache (props / net-new driver-dark): minimum access volume 38/5,
+  # mav 45/13, out-quota 19/2, unlimited quota 6/2, autonomous quota 12/1, quantitative restrictions 51/35,
+  # quantitative restriction 11/7, tariffication 35/28 = +93 net-new. `out-quota` is NOT redundant with the
+  # incumbent `out-of-quota`: _normalize collapses hyphens to spaces, so "out quota" != "out of quota".
+  # *** THE IMPORT-LICENSING RIDER: SETTLED AS DARK, WITH THE WRITTEN NOTE THE RATIFICATION REQUIRES ***
+  # The disease lane handed this slice a rider ('import approval', 'import approvals', 'import permit',
+  # 'import permits') off the 21 Indonesian import-licensing props that only surfaced because a wheat-disease
+  # matcher was catching them; the policy lane, measuring independently, REFUSED `import permit` as the
+  # LICENSING class. The plan ratified a mechanical settlement 2026-08-20: "settled by the FULL-CACHE DRY-RUN
+  # with production matchers during the completion wave's vocab pass -- ship iff contamination low, else dark
+  # with a written note (the surcharge-audit instrument, applied)". THE DRY-RUN RAN (2026-08-21, production
+  # matchers, all 345,870 props): import permit 71 props / 36 net-new dark, import permits 62/56, import
+  # approval 13/8, import approvals 4/4 = 133 props / 104 net-new. CONTAMINATION IS NOT THE TAIL, IT IS THE
+  # CLASS -- the sampled props are authorization instruments, not quota administration: "China's biotech
+  # regulations require that each shipment have an import permit"; "traders can apply for an interim import
+  # permit"; "importers must apply for an import permit issued by SE to import HFCS into Mexico"; "The Thai
+  # Government issues import permits and soybean importers are required to purchase domestic soybeans at
+  # government determined prices". This slice's honest scope is in/out-of-quota RATES, ALLOCATIONS and FILL.
+  # So the four terms are REFUSED HERE and the rider ships DARK, per the settlement's own else-branch. Two
+  # notes so the mass is not lost: the China biotech permits already route to the new `biotech_market_access`
+  # slice through its bare `biotech` term (verified on the samples, which all contain the word), and the
+  # Indonesian sugar-permit cluster is a domestic import-administration instrument whose candidate home is
+  # `producer_support_intl` -- recorded there, not shipped, because it is unsampled for over-fire.
+  # ALSO REFUSED from the same rider, measured: `spi` 3 props / 0 net-new (a three-letter token = the `MoT`
+  # defect re-created, and it is dead besides); `reference price` 211/155 but 123 of 211 are usda_gain_sugar
+  # domestic PRICE CONTROL, not quota, so it fails the same class test; `maximum retail price` 26/13 and
+  # `ceiling price` 34/15, same class; `bulog` 139/136 is an IMPORT AGENCY and B1's ratified one-owner rule
+  # sends it to the destination/tender slices -- it is declared on `sea_import_demand` below.
   import_quota_trq:  {category: policy, terms: ["import quota", "import quotas", "in-quota", "out-of-quota",
     "over-quota", "under-quota", "within-quota", "duty-free quota", "quota allocation", "tariff quota",
-    "quota volume"]}
+    "quota volume", "minimum access volume", "mav", "out-quota", "unlimited quota", "autonomous quota",
+    "quantitative restrictions", "quantitative restriction", "tariffication"]}
     # TRQ administration (in/out-of-quota rates, allocations, fill) reroutes trade flows independently of the headline tariff.  [moves: raw_sugar, white_sugar, rice, corn, srw_wheat, hrw_wheat, soybean_meal, soybean_oil, palm_oil]
   # D-EC D8 (2026-08-19) THE EXPORT-SIDE DUTY LEG. Bare 'levy' was a term of NO slice; the only coverage was
   # the compounds 'palm export levy' (indonesia_b40_palm) and 'parboiled rice levy'
@@ -116,8 +273,138 @@ drivers:
   # HONEST SCOPE: the measured mass is levies of every direction -- export levies (Indonesia palm, coconut),
   # import levies (Nigeria wheat), and domestic procurement levies (India levy sugar, Australian cotton).
   # The slice id is the D8-ratified name; the content it will actually hold is "statutory levy/cess", wider.
-  export_levy_duty:  {category: policy, terms: ["levy", "levies", "cess", "duty drawback"]}
+  # D-EC completion wave 2026-08-21 (orphan register, policy family). FOUR of the spec's five term adds land.
+  # *** `surcharge` IS A MEASURED OVERTURN OF THIS SLICE'S OWN STANDING REFUSAL, RATIFIED BY OWNER WORD
+  # 2026-08-20, AND IT IS REVERSED IN CONFIG WITH THE STATEMENT RATHER THAN SILENTLY. *** The refusal recorded
+  # four lines above ("bare 'surcharge' is the over-firing class ... freight and fuel surcharges are not export
+  # policy") was made on 96 props on the PRE-X2 cache -- and this batch reproduced that number EXACTLY on the
+  # same cache (96 props / 40 net-new dark), which is what makes the overturn a re-measurement and not a
+  # re-litigation. Re-audited on the DOUBLED 693,710-prop corpus it is 120 props / 53 dark, of which only
+  # 8 of 120 (6.7%) contain ANY freight/fuel/shipping/bunker/demurrage token, and all 8 of those are still
+  # STATUTORY instruments (Brazil's Merchant Marine Tax, a 25% surcharge on freight VALUE; Colombia's diesel
+  # surcharge inside a fuel-alcohol tax exemption), while 10/10 sampled net-new props are trade-policy
+  # surcharges (the Andean variable surcharge, India's social welfare surcharge, Thailand's 1997 crisis
+  # surcharge, Nigeria's port surcharge on the rice duty, Vietnam's coffee export surcharge fund). If a future
+  # curator restores the refusal, restore it ON THIS NUMBER.
+  # The other three, measured on the 345,870-prop cache: price band 88 props / 42 net-new dark, cpo fund 34/2,
+  # bpdpks 10/2.
+  # REFUSED from the spec's own list, on measurement made here: `rodtep` -- 9 props / **0 net-new dark**,
+  # because every one of them is ALREADY a term of `textile_apparel_demand` (:379, the India export-incentive
+  # cluster). Re-declaring it buys double-routing and not one prop of coverage, which is the D8 doctrine
+  # verbatim; the policy lane proposed it without seeing the incumbent. Reported, not smuggled.
+  export_levy_duty:  {category: policy, terms: ["levy", "levies", "cess", "duty drawback",
+    "surcharge", "price band", "cpo fund", "bpdpks"]}
     # Statutory export levies and cesses tax the origin directly, moving FOB competitiveness without any tariff change.  [moves: palm_oil, palm_olein, raw_sugar, white_sugar, rice, cotton, soybean_oil]
+
+  # ===== D-EC graph-completion wave 2026-08-21 -- NEW POLICY SLICES (F-A item N + vocab sweep) ============
+  # Every term below is MEASURED on the full 345,870-prop chunk cache with the production matchers
+  # (harvest.build_matcher over ex._normalize'd text); counts are `props / net-new driver-dark`. The forms a
+  # spec named that are ABSENT are the review, and each carries its number.
+  #
+  # VOCAB SWEEP item 1 (3,824 dark windows, the sweep's #1 by expected routing gain) + F-A item N #8. GAIN's
+  # biotech-approval and phytosanitary sections are how China and the EU GATE soybean, canola and corn imports
+  # ("MARA issued its first biosafety certificate for gene-edited wheat"); GMO approval is a market-ACCESS
+  # driver, not a science note. Measured: biotech 763/702, genetically modified 328/323, phytosanitary 331/255,
+  # quarantine 303/245, gmo 282/273, maximum residue 6/2, mrl 1/1 = +1,801 net-new dark.
+  # DECLARED IMPRECISION, priced with the surcharge instrument rather than waved past: bare `quarantine`
+  # catches 2020-21 COVID crew-quarantine prose -- 41 of its 690 dark windows, 5.9%, BELOW the 6.7% at which
+  # the same instrument ratified `surcharge`. Kept, bounded, and auditable by slice_audit.py.
+  # REFUSED: `import permit biotech` (the frontier's reserved qualified form) scores ZERO as a phrase, and it
+  # is unnecessary -- the China biotech-permit props all contain the word "biotech" and route here already.
+  biotech_market_access: {category: policy, terms: [biotech, gmo, "genetically modified", phytosanitary,
+    quarantine, mrl, "maximum residue"]}
+    # Biosafety approvals, MRLs and phytosanitary protocols are the on/off switch on a whole origin's access to China, the EU and Mexico.  [moves: soybeans, soybean_meal, corn, canola, rapeseed, cotton, rice]
+  # VOCAB SWEEP item 3, THE AGREEMENT HALF -- authored as a NEW slice precisely so it does not land in
+  # `tariff` (see the split note there). Measured: mfn 529/135, fta 448/181, asean 431/263, free trade
+  # agreement 392/253, most favored nation 152/19, cptpp 75/60, customs union 20/11 = +922 net-new dark.
+  # Preferential access is a different lever from a duty RATE: it decides WHICH origin a duty applies to.
+  # READ-DARK BY CONSTRUCTION -- needs an evidence.READ_DARK_SLICES_PIN entry.
+  trade_agreement_access: {category: policy, terms: ["free trade agreement", fta, asean, mfn,
+    "most favored nation", cptpp, "customs union"]}
+    # Preferential-access schedules (FTA/MFN/ASEAN/CPTPP) decide which origin clears a duty wall, independently of the duty rate itself.  [moves: soybean_meal, soybean_oil, palm_oil, corn, raw_sugar, canola, rapeseed]
+  # VOCAB SWEEP item 20. VAT rebate changes are how China actually turns oilmeal imports on and off
+  # ("temporarily lowered the import duties of all oilmeals from 5% (MFN) to 0%" plus VAT) and `tariff` sees
+  # none of it. Measured: value added tax 214/155, excise 49/35 = +190 net-new dark. INTENDED MULTI-LABEL,
+  # declared: `excise` co-fires with `export_levy_duty`'s "cess" on ~41 windows of Indian cess/excise prose --
+  # one instrument, two lenses, not a collision. REFUSED: bare `vat`, a three-letter token nobody sampled.
+  # READ-DARK BY CONSTRUCTION -- needs an evidence.READ_DARK_SLICES_PIN entry.
+  domestic_tax_ntm: {category: policy, terms: ["value added tax", excise]}
+    # Domestic indirect taxes and rebates are the non-tariff lever that reroutes a flow without a single tariff line changing.  [moves: soybean_meal, soybean_oil, palm_oil, raw_sugar, cotton]
+  # F-A item N #12 + B5 + XC-4. THE SPLIT-OUT, and it is a deliberate MOVE of reach, not an addition: all
+  # three EUDR DAG id spellings and both EUDR terms lived inside `eu_crop_and_policy`, a slice whose category
+  # is `weather_regime` and whose other terms are matif / france soft wheat / strategie grains / eu drought --
+  # so a palm or cocoa EUDR question retrieved FRENCH WHEAT WEATHER TEXT. That is B5's finding verbatim
+  # ("EUDR IS MIS-FILED, worse than absent") and F-A N's instruction verbatim ("SPLIT OUT of the mis-filed
+  # eu_crop_and_policy weather slice"). It is recorded as a move because check_driver_slices leg (b) makes an
+  # id single-owner: `eu_crop_and_policy` drops from 11-DAG EUDR reach to its EU_production /
+  # EU_rapeseed_supply remainder, and that cost is named here rather than discovered at lint time.
+  # Measured: eudr 17 props (0 net-new -- already this file's own term), deforestation 44/37,
+  # deforestation-free 21/18, cutoff date 5/5, eu deforestation regulation 1/0, due diligence statement 1/0,
+  # geolocation 1/0. Bare `deforestation` is declared because it is the concept's own noun and its dark mass
+  # is 2x the branded form's; `geolocation` and `cutoff date` are REFUSED (1 and 5 props, both generic
+  # outside this regulation -- `cutoff date`'s five are all wb_cmo data-vintage prose).
+  # COUPLED, cross-lane: this row's dag_alias entry lists all three id spellings (EUDR / EU_EUDR /
+  # eudr_deforestation) so leg (a) holds whether or not the DAG lane's merge-to-one lands in the same commit;
+  # the two retired spellings are deleted from the list once it does.
+  eudr_compliance: {category: policy, terms: [eudr, "eu deforestation regulation", deforestation,
+    "deforestation-free", "due diligence statement"]}
+    # EUDR due-diligence and deforestation-free sourcing binds 2026-12-30 and re-prices origin access for palm, cocoa, coffee, soy and rubber.  [moves: palm_oil, palm_olein, cocoa, arabica_coffee, robusta_coffee, soybeans, soybean_oil, rapeseed]
+  # F-A item N #7, authored under B1's RATIFIED one-owner rule (2026-08-21): "tmo/gasc/bulog belong to the
+  # DESTINATION/TENDER slices (dominant corpus sense = import tenders); producer_support_intl keeps the
+  # domestic-program terms (procurement price, support price, paddy pledging)". So `tmo` (760 props / 715
+  # net-new dark) and `bulog` (139/136) are NOT here -- they are declared on `turkey_tmo_imports` and
+  # `sea_import_demand` below. One declared owner per term, never double-declared.
+  # Measured for what IS here: support price 616/165, procurement price 301/267, proagro 167/144,
+  # paddy pledging 10/3 = +579 net-new dark.
+  # PLUS the policy lane's rider 8, the biggest single dark mass it measured and refused to give
+  # `import_quota_trq` ("broader than TRQ"): the Philippine Sugar Regulatory Administration is a WHOLLY
+  # UNROUTED regulator -- sugar regulatory administration 51/48, sugar order 44/38. It is a domestic
+  # supply-regulation instrument, which is this slice.
+  # INTENDED MULTI-LABEL, declared not discovered: bare `support price` fires INSIDE `msp`'s "minimum support
+  # price" (451 of its 616 props are already claimed there). That is deliberate -- `msp` is the India-specific
+  # instrument, this is its international generalization -- and the 165 net-new are the Pakistani, Turkish and
+  # Egyptian procurement programs `msp` structurally cannot reach.
+  # REFUSED: `intervention buying` (0 props). RECORDED AS A CANDIDATE, NOT SHIPPED: the Indonesian domestic
+  # price-control cluster handed here by the import-licensing settlement above -- reference price 211/155,
+  # ceiling price 34/15, maximum retail price 26/13 -- is unsampled for over-fire (bare `reference price` is
+  # the surcharge over-fire class and was measured firing 7x inside export_ban's props), so it waits for the
+  # post-rebuild sampling pass rather than shipping blind.
+  # READ-DARK BY CONSTRUCTION -- needs an evidence.READ_DARK_SLICES_PIN entry.
+  producer_support_intl: {category: policy, terms: ["procurement price", "support price", "paddy pledging",
+    proagro, "sugar order", "sugar regulatory administration"]}
+    # Domestic procurement/support programs outside the US and India set the floor a farmer sells against and the volume a state buys off the market.  [moves: srw_wheat, hrw_wheat, rice, cotton, raw_sugar, corn]
+  # F-A item N #11 + vocab sweep item 19: the lever BEFORE the policy. "Elections" precedes every export ban,
+  # MSP hike and duty change the estate already models. Measured: elections 149/130, election 69/57 = +187
+  # net-new dark. REFUSED, measured: `cabinet` (210 props but only 52 net-new -- 158 already claimed, and the
+  # term is unsampled for the furniture/committee split), `new administration` (9/8) and `policy review` (6/6)
+  # as too thin to declare on their own. HONEST SCOPE: many props are date-setting mentions with low salience
+  # per prop; this is a "reaches the right episode" add, not a mechanism add, and it was ranked as such.
+  # READ-DARK BY CONSTRUCTION -- needs an evidence.READ_DARK_SLICES_PIN entry.
+  political_transition: {category: geopolitics_policy, terms: [election, elections]}
+    # A scheduled election is the dated lever in front of every export ban, support-price hike and duty change the graph already models.  [moves: corn, srw_wheat, rice, soybeans, palm_oil, raw_sugar]
+  # F-A item N #9 (`labor_strikes`, the Rosario / CP Rail class) merged with vocab sweep item 17, which found
+  # the same mass from the other side: `labor_shortage` is a REAL DAG id on 2 contracts, waived and unowned,
+  # and the Malaysian palm estate labour story is a named production driver. One slice for "people stopped
+  # moving the crop". It CLAIMS `labor_shortage` in dag_alias below, so it is backed and its waiver row is
+  # deleted in this same edit.
+  # Measured: strike 81/60, strikes 23/19, protest 31/23, labor shortages 14/9, labor shortage 11/11,
+  # blockade 1/1, foreign workers 1/1 = +124 net-new dark.
+  # *** DECLARED IMPRECISION, AUDIT-FIRST, and the sweep flagged this exact term as the one to audit ***
+  # bare `strike` carries a MILITARY sense in wb_cmo_outlook: 13 of its 81 props are that source (16% upper
+  # bound), and the three highest-ranked dark samples are one 2019 event restated three ways ("a strike on
+  # Saudi Arabia's oil infrastructure temporarily halved the country's production capacity"). The sweep's own
+  # full-text-layer sample was 10/10 labour actions, so the two instruments disagree and BOTH numbers are
+  # written here. It is kept on the `good condition` precedent -- bounded, stated, and auditable by
+  # slice_audit.py, which exists for exactly this class -- and it is the first term to re-sample after the
+  # rebuild. The QUALIFIED alternatives were measured and are all dead: labor strike 2, strike action 2,
+  # port strike 1, workers strike 1, general strike 0, transport strike 0, labour strike 0, truckers strike 0.
+  # REFUSED, and this one loudly: bare `union` -- 1,109 props / 737 net-new dark, and the dark mass is
+  # "European Union" and "Soviet Union" ("...imports of wheat products and flour from the European Union").
+  # Under word-boundary matching it is the single worst over-fire candidate in this wave, and F-A item N
+  # named it. Also refused: `lockout` and `work stoppage`, 0 props each.
+  labor_strikes: {category: geopolitics_policy, terms: [strike, strikes, blockade, protest,
+    "labor shortage", "labor shortages", "labour shortage", "foreign workers"]}
+    # Strikes, blockades and estate labour shortages stop the crop moving at the port, the mill and the plantation gate.  [moves: soybean_meal, soybean_oil, palm_oil, arabica_coffee, corn, srw_wheat]
 
   # --- macro: FX + freight (the cost-of-trade triggers; tie to FRED FX / freight silver) ---
   brl_fx:        {category: macro, terms: ["brazilian real", "brl", "real depreciat", "real weaken", "real strengthen"]}
@@ -165,29 +452,131 @@ drivers:
   thb_fx:        {category: macro, terms: ["baht"]}                           # 1,310 props / 338 dark
   rub_fx:        {category: macro, terms: ["ruble", "rubles", "rouble"]}      #   289 props / 199 dark
   cny_fx:        {category: macro, terms: ["yuan", "renminbi", "rmb"]}        # 1,636 props / 195 dark
-  try_fx:        {category: macro, terms: ["lira", "liras"]}                  #   116 props /  71 dark
-  aud_fx:        {category: macro, terms: ["australian dollar"]}              #    90 props /  62 dark
-  uah_fx:        {category: macro, terms: ["hryvnia", "uah"]}                 #   147 props /  61 dark
+  # D-EC completion wave 2026-08-21, the fx family's three term adds. BOTH GATES RAN; both PASSED; the
+  # numbers are here because the gates were priced on samples and are now priced on the full cache.
+  #   * try_fx += `tl/mt`, `tl/ton` -- GATE (spec 4.1): "93 net-new measured on a 13.5% RANGE sample; re-run
+  #     the net-new-dark variant sweep over the full 345,870-prop cache before the term ships." IT RAN:
+  #     tl/mt = 394 props / **358 net-new driver-dark** (357 of them usda_gain_wheat), tl/ton = 7/7. The
+  #     slash SURVIVES ex._normalize, which strips only [\s_-]. This is 3.9x the sampled projection and it
+  #     moves try_fx from 116 props to ~517 -- the THIN -> RICH flip the spec predicted, which is now a
+  #     measured fact and not a forecast. REFUSED, as the lane refused them: bare `tl`, `turkish lira (tl)`,
+  #     `tl/kg`.
+  #   * aud_fx += `a$` -- GATE (spec 4.1): "_Matcher compiles \b(a\$)\b; `$` is a non-word char, so the
+  #     trailing \b requires a word character immediately after. Confirm the compiled pattern against 3 real
+  #     props before shipping; if the boundary proves brittle, DROP the addition rather than relax the \b."
+  #     IT RAN on the production matcher: the pattern compiles and fires 336 props / 244 net-new dark, and
+  #     the boundary holds because the corpus always writes an amount straight after the sign. Three verbatim
+  #     dark props: "Water prices in eastern Australia doubled ... to nearly A$500 per megaliter"; "The
+  #     Australian government recently provided A$4 million in funding to support research into the viability
+  #     of a northern Australian rice industry"; "Dam storage levels throughout Queensland and New South
+  #     Wales fell in 2018 ... doubled water prices ... to nearly A$500 per megaliter". The \b guard is NOT
+  #     relaxed and must never be: it is the whole reason "a" alone cannot fire.
+  #   * uah_fx += `ukrainian currency` (46 props / 38 net-new dark) -- the periphrasis the devaluation prose
+  #     actually uses. OVER-FIRE GUARD, load-bearing and never to be relaxed: bare `uah` is safe ONLY under
+  #     word-boundary matching; drop the \b and it claims "Chihuahua".
+  # HONEST SCOPE, written at the site the way `export_levy_duty` writes its own: `thb_fx` is a Thai
+  # LOCAL-CURRENCY PRICE slice, not an FX slice -- 0 of 153 sampled props carry any exchange-rate prose;
+  # `uah_fx`'s `uah` mass is a 2002-03 procurement price-unit idiom and `hryvnia` fired ZERO in 46,736
+  # sampled props; `php_fx` is a currency-DENOMINATION slice; `mxn_fx` is the thinnest of the seven, 6 of 7
+  # sampled props being one corn-oil price sentence restated six ways. TERMS: NONE for rub_fx / thb_fx /
+  # mxn_fx / php_fx -- all four measured clean on their incumbent config terms.
+  try_fx:        {category: macro, terms: ["lira", "liras", "tl/mt", "tl/ton"]}   # 116 props / 71 dark; + tl/mt 394/358, tl/ton 7/7 (full-cache gate, 2026-08-21)
+  aud_fx:        {category: macro, terms: ["australian dollar", "a$"]}        #    90 props /  62 dark; + a$ 336/244 (compile gate PASSED, 2026-08-21)
+  uah_fx:        {category: macro, terms: ["hryvnia", "uah", "ukrainian currency"]}   # 147 props / 61 dark; + ukrainian currency 46/38
   cad_fx:        {category: macro, terms: ["canadian dollar", "canadian dollars", "cad"]}   # 105 / 55 dark
   zar_fx:        {category: macro, terms: ["rand", "zar"]}                    #    62 props /  48 dark
   mxn_fx:        {category: macro, terms: ["mexican peso", "mexican pesos", "mxn"]}   # 105 props / 59 dark
   php_fx:        {category: macro, terms: ["philippine peso", "philippine pesos", "php"]}   # 150 / 72 dark
   vnd_fx:        {category: macro, terms: ["vietnamese dong", "vnd"]}         #   231 props /  71 dark
   eur_fx:        {category: macro, terms: ["euro", "euros"]}                  #    68 props /  23 dark
-  freight:       {category: macro, terms: ["freight", "ocean freight", "shipping cost", "baltic dry", "vessel availab", "logistics cost", "container rate", "panama canal", "suez"]}
+  # VOCAB SWEEP item 23, the FREIGHT half. Measured: panamax 48 props / 33 net-new dark, demurrage 15/11,
+  # port congestion 3/3. `panamax` is an entity_vocabulary alias (panamax_freight) that no slice routed --
+  # the D1 gas-hub class again. The corpus writes "demurrage charges" and "port congestion" where this slice
+  # only knew the American desk phrase.
+  freight:       {category: macro, terms: ["freight", "ocean freight", "shipping cost", "baltic dry", "vessel availab", "logistics cost", "container rate", "panama canal", "suez",
+    "demurrage", "port congestion", "panamax"]}
 
   # --- energy (often the START of a cascade: crude -> biodiesel economics / fertilizer / freight) ---
+  # `crude` DELIBERATELY DOES NOT GAIN THE OPEC TERMS. The vocab sweep (item 4) proposed opec / mb-d /
+  # spare-capacity / bpd here while F-A item N proposed a new `opec_supply_policy` slice for the same
+  # concept; ledger correction C-3 named the collision and the plan's ratification block settles it -- "OPEC
+  # terms get ONE home (C-3)". The home is the new slice below, on A21's own ground: this slice carries
+  # crude PRICES, not the supply DECISION that sets them.
   crude:         {category: energy, terms: ["crude oil", "brent", "wti", "petroleum", "oil prices"]}
   diesel:        {category: energy, terms: ["diesel", "gasoil"]}
-  natural_gas:   {category: energy, terms: ["natural gas", "gas prices"]}
+  # THE SEED FIND, measured twice. Orphan register OR-3 ships `lng` ONLY and DEFERS the rest of the hub
+  # roster on measurement (the whole roster buys ~1 prop; the real fix is the Phase-G wb_cmo text-layer
+  # repair). Vocab sweep item 24 adds `henry hub` at 4 dark windows. Measured here: lng 41 props / 23
+  # net-new dark, henry hub 1/0 -- 174 of lng's 175 dark WINDOWS corpus-wide are wb_cmo_outlook, the estate's
+  # only energy register. entity_vocabulary already carried "Henry Hub" and "TTF" as natural_gas aliases, so
+  # the extraction lane could name a hub the routing lane could not see; `henry hub` closes the smaller half
+  # of that D1 gap and is declared even at 1 prop because it is the aliased form.
+  # REFUSED, and this is the one candidate in the whole sweep that would have shipped a WRONG routing edge on
+  # a plausible-sounding ticker: `ttf` -- 13 windows, and its dark ones are Mexican "Border Worker Cards
+  # (TTF)". The textbook urea->area over-fire. `jkm` and `nbp` measure ZERO.
+  natural_gas:   {category: energy, terms: ["natural gas", "gas prices", "lng", "henry hub"]}
+  # NEW SLICE -- F-A item N #10, and the ONE home for the OPEC vocabulary (ledger C-3, ratified). `crude`
+  # carries prices; nothing in this file carried the production DECISION, so "OPEC output has tumbled 7
+  # percent (2.7 mb/d)" routed nowhere. Measured on the full cache: mb/d 521 props / 418 net-new dark (521 of
+  # 521 wb_cmo_outlook -- an oil-only unit), opec 526/389, barrels per day 117/80, spare capacity 35/33 =
+  # +920 net-new dark. The slash in `mb/d` survives ex._normalize, which strips only [\s_-].
+  # REFUSED on measurement: `opec+` and `opec plus` (1 window; and bare `opec` already claims them, since the
+  # trailing `+` is a non-word character and the word boundary holds); `output quota` (0 props);
+  # `production cut` (9 props / 6 net-new, and unsampled for the crop-production-cut sense).
+  # READ-DARK BY CONSTRUCTION -- needs an evidence.READ_DARK_SLICES_PIN entry.
+  opec_supply_policy: {category: energy, terms: [opec, "mb/d", "spare capacity", "barrels per day"]}
+    # OPEC+ quota decisions and spare capacity set the crude level every biofuel-parity, freight and fertilizer edge in the graph hangs off.  [moves: raw_sugar, palm_oil, soybean_oil, corn]
 
   # --- fertilizer (cost-push; already quantified in your Pink Sheet silver) ---
   urea:          {category: fertilizer, terms: ["urea"]}
-  dap:           {category: fertilizer, terms: ["dap", "diammonium phosphate"]}
+  # ***  D-PQ'S PHOSPHATE REFUSAL IS REVERSED HERE, IN CONFIG, WITH THE STATEMENT -- NEVER SILENTLY.  ***
+  # D-PQ (2026-08-07) declined a `dap` DAG node and recorded three grounds at its dag_alias site below.
+  # The orphan register re-measured all three on the doubled corpus and the owner RATIFIED the overturn
+  # 2026-08-20. The statement, which is the spec's own text and is the thing that makes this reversible:
+  #   Ground 1 -- "phosphate is a build-up/maintenance nutrient with multi-year residual, never the marginal
+  #   input cost inside the 1-4 quarter lag horizon these DAGs model" -- is REFUTED BY THE SLICE'S OWN ROWS:
+  #   Pakistan's Rabi DAP offtake moved -27% (2011) and +16% (2012/13), and usda_gain_wheat 2024 states that
+  #   "overutilization of nitrogen and less use of other nutrients such as phosphate and potash are chronic
+  #   problems in Pakistan wheat production". Where nitrogen is subsidised and phosphate is not, the whole
+  #   price signal lands on P inside ONE season.
+  #   Ground 2 -- "it moves with the nitrogen story `urea_cost` already carries" -- is REFUTED by 2022 (China
+  #   suspended urea AND phosphate exports together) and by usda_gain_wheat 2026-04-28, which says potash
+  #   "reacted less sharply to the war in Iran than nitrogen and phosphate fertilizers": three nutrients,
+  #   three responses, one of them not the nitrogen story.
+  #   Ground 3, decisive now -- SILVER-F063 PUBLISHED THE DAP PRICE LEG (dap_usd_mt + its 5yr z-score,
+  #   numbers/tables.yaml). This is the owner's "numbers-without-edge" gap: a priced input with no mechanism.
+  # TERM ADDS, measured on the 345,870-prop cache: phosphate 104 props / 75 net-new dark, tsp 72/29 (72 of 72
+  # wb_cmo_outlook, the Pink Sheet register), phosphorus 20/6, phosphorous 4/2 (the misspelling the corpus
+  # actually uses) = +112 net-new on an 88-prop slice.
+  # TERM DELETE: `diammonium phosphate` -- REDUNDANT the moment bare `phosphate` is declared, under
+  # longest-first word-boundary matching a longer form containing a declared shorter one claims nothing.
+  # NO `phosphate rock` node was minted (1 prop, refused).
+  dap:           {category: fertilizer, terms: ["dap", "phosphate", "tsp", "phosphorus", "phosphorous"]}
   potash:        {category: fertilizer, terms: ["potash", "potassium chloride", "muriate of potash"]}
   fertilizer:    {category: fertilizer, terms: ["fertilizer", "fertiliser", "nutrient cost", "input cost"]}
 
   # --- macro_context (low-priority cascade endpoints; the barley/sunflower precedent) ---
+  # ===================== `metals` IS RETIRED. TERMINALLY CONTEXT, NOT A PENDING GAP. =====================
+  # D-EC completion wave 2026-08-21, orphan register, industrial family: verdict RICH-AND-RETIRED. This is a
+  # written refusal, not a deletion -- four acts, ZERO of them removals:
+  #   (1) THE SLICE AND ITS S3 OBJECT STAY. SILVER-F063 wired `copper_usd_mt` to this slice and names it as
+  #       the consumer (numbers/tables.yaml), twelve hours before the retirement spec was written. Deleting
+  #       either would break a live numbers card to tidy a census line.
+  #   (2) NO DAG driver id is minted. Reach stays 0, deliberately and permanently.
+  #   (3) THE REFUSAL, on its four MEASURED classes -- what the 975 props actually are: (a) commodity-INDEX
+  #       co-membership (metals and ags priced in the same wb_cmo table, which is co-movement, not
+  #       transmission); (b) freight-VOLUME shares (dry-bulk cargo mix -- owned by `freight`); (c) US Section
+  #       232 steel/aluminium tariffs -> Turkish retaliation on ag (a TARIFF mechanism -- owned by `tariff`,
+  #       which now declares "section 232" itself); (d) OVER-FIRE ONTO THE CHEMICAL ELEMENT -- `copper` on
+  #       copper-based FUNGICIDE (4 usda_gain_coffee, 1 usda_gain_cocoa) and `zinc` as a plant MICRONUTRIENT
+  #       and flour-fortification additive. None of the four is an ag transmission channel worth an edge.
+  #   (4) NO `waivers:` ROW, and none is to be added -- the D15 seven set that precedent, and `metals` STAYS
+  #       IN evidence.READ_DARK_SLICES_PIN PERMANENTLY, so the pin alone is the record.
+  # NO TERM SURGERY IS PERFORMED, DELIBERATELY: churning the term list of a slice we are closing buys a
+  # routing change and no coverage. Measured and recorded here so nobody re-measures: 'steel prices' fires 1
+  # sentence, 'aluminium' 2 against 'aluminum' 380.
+  # RECLASSIFIED from the D-GD tranche-2 note's "outside the D-GD tranche's named scope, untouched" to
+  # TERMINALLY CONTEXT. Explicitly NOT a post-X2 re-measure item: closed permanently.
   metals:        {category: macro_context, priority: context, terms: ["copper", "aluminium", "aluminum", "iron ore", "steel prices", "zinc", "nickel"]}
   macro:         {category: macro_context, priority: context, max_props: 25000, terms: ["interest rate", "inflation", "recession", "gdp growth", "dollar index", "global demand", "covid", "covid-19", "coronavirus", "pandemic", "super cycle", "commodity boom", "financial crisis", "deleveraging"]}   # D6: 2,121 measured today, ~5,258 after X2 -- crosses 4,000 for the first time.
 
@@ -196,10 +585,38 @@ drivers:
     pig cull, hog herd liquidation]}   # Hog herd culls (esp. China) collapse soymeal/corn feed demand then later trigger restocking rebound.  [moves: soybean_meal, soybeans, corn, yellow_maize, rapeseed_meal]
   avian_influenza: {category: livestock_disease_demand, terms: [avian influenza, bird flu, hpai, h5n1,
     poultry cull, layer flock]}   # Poultry culls cut broiler/layer feed offtake and shift protein/egg demand, hitting corn and soymeal grind.  [moves: corn, soybean_meal, yellow_maize, soybeans]
-  cattle_on_feed: {category: livestock_feed_demand, terms: [cattle on feed, cattle-on-feed, placements,
+  # HYGIENE 2026-08-21 (lane A): `cattle-on-feed` DELETED as a post-normalization DUPLICATE of `cattle on
+  # feed` -- ex._normalize collapses [\s_-], so the two are one key and _Matcher's setdefault already dropped
+  # the second. Zero props move. This is the redundancy the livestock lane's rider 16 REPORTED and did not
+  # edit; it is executed here because it is a strict no-op for routing and a dead term is the e1_census class.
+  # The identical duplicate on `livestock_feed_demand` is deleted in the same edit.
+  cattle_on_feed: {category: livestock_feed_demand, terms: [cattle on feed, placements,
     feedlot placements, marketings, cof report]}   # USDA placements/marketings set forward feedlot feed-grain and protein consumption.  [moves: corn, yellow_maize, soybean_meal, hrw_wheat]
+  # *** THE HARD PRECONDITION OF THE LIVESTOCK EDGES, LANDED HERE. *** The orphan register's livestock lane
+  # CHANGED THIS SLICE'S VERDICT on the post-X2 re-measure: 61 props incumbent, 323 with the ten term-adds
+  # below (219 of them routing NOWHERE today) = clears the RICH bar. The spec states the coupling in its own
+  # words: "THE TERM-ADD IS A HARD PRECONDITION OF THE EDGES -- wire the node without the ten adds and you
+  # light a 61-prop leg on three live boards." The adds are therefore landed in this file BEFORE / WITH the
+  # DAG lane's `cattle_cycle_herd_size` node on corn / corn_cbot / soybean_meal_cbot.
+  # NO dag_alias ROW IS NEEDED **OR ALLOWED**: the minted id is IDENTICAL to this slice's name, so
+  # evidence.driver_alias() resolves it by identity (it seeds `{name: name for name in specs}`), and a
+  # self-alias is the benign no-op that check_driver_slices leg (b) skips.
+  # TERM ADDS, verbatim from the spec, measured here on the 345,870-prop cache (props / net-new dark):
+  # cattle numbers 32/29, cow slaughter 27/24, cattle population 26/26, beef cow 13/11, cattle report 12/6,
+  # calf crop 7/4, cattle herd 5/4, beef herd 5/4, replacement heifers 3/3, replacement heifer 1/1 = +112
+  # net-new on a 32-prop slice on this half of the corpus (the spec's 61 -> 323 is the post-X2 number).
+  # TERM DELETE: `beef cow herd` -- REDUNDANT the moment `beef cow` is declared, under longest-first
+  # word-boundary matching. Deleted in the same edit rather than left as a knowingly-dead string.
+  # REFUSALS RECORDED so nobody re-derives them (all measured by the livestock lane): 'cow herd' (dairy
+  # over-fire), 'herd size', 'herd expansion', 'breeding herd' (hogs), 'restocking'/'destocking', bare
+  # 'heifer'/'heifers', 'dairy herd', and the ZERO-prop dead list 'beef cows', 'breeding cows', 'herd
+  # contraction'. Bare `cow`/`cows` remains UNSAMPLED for the dairy over-fire that the 'cow herd' result
+  # predicts and is NOT declared here.
+  # NOT POSITIONING: this is a multi-year feed-demand mechanism. The herd-cycle node must never be narrated
+  # as a cattle-futures view.
   cattle_cycle_herd_size: {category: livestock_feed_demand, terms: [herd liquidation, herd rebuilding, cattle
-      inventory, beef cow herd, heifer retention]}   # Liquidation vs rebuild phases swing multi-year feeder/feedlot feed demand for corn and DDGs.  [moves: corn, yellow_maize, soybean_meal]
+      inventory, heifer retention, beef cow, cattle herd, cattle numbers, cattle population, cattle report,
+      cow slaughter, calf crop, replacement heifer, replacement heifers, beef herd]}   # Liquidation vs rebuild phases swing multi-year feeder/feedlot feed demand for corn and DDGs.  [moves: corn, yellow_maize, soybean_meal]
   hog_margins_crush: {category: livestock_feed_demand, terms: [hog crush, farrow-to-finish margin, hog
       margin, pork cutout, sow herd]}   # Negative hog margins force herd contraction, cutting feed demand; positive margins expand it.  [moves: soybean_meal, corn, yellow_maize]
   broiler_economics: {category: livestock_feed_demand, terms: [broiler, poultry margin, chicken placements,
@@ -241,10 +658,34 @@ drivers:
     rvo, blending economics]}   # RIN prices set US biofuel blending incentive, driving soyoil and corn-ethanol grind demand.  [moves: soybean_oil, corn, yellow_maize]
   renewable_diesel_capacity: {category: biofuel_policy, terms: [renewable diesel, hvo, 45z, blenders tax credit,
     ' btc', feedstock demand, crush expansion]}   # New RD/HVO capacity is structural new demand for soyoil, canola oil and UCO feedstocks.  [moves: soybean_oil, canola, rapeseed_oil, palm_oil]
-  sustainable_aviation_fuel: {category: biofuel_policy, terms: [sustainable aviation fuel, saf, jet biofuel, saf
-      mandate, refuel eu], priority: context}   # SAF mandates create incremental long-dated veg-oil/fat feedstock demand.  [moves: soybean_oil, rapeseed_oil, palm_oil, canola]
+  # D-EC completion wave 2026-08-21, orphan register, energy-fert family. THREE ADDS, FOUR DELETES.
+  # ADD `aviation fuel`, `renewable jet`, `bio-jet`. DELETE `jet biofuel`, `saf mandate`, `refuel eu` (ZERO
+  # props each) and `sustainable aviation fuel` (REDUNDANT under bare `aviation fuel` -- longest-first word
+  # boundary). After the edit the slice holds `saf` plus the three adds.
+  # MEASURED ON THIS CACHE, and stated rather than glossed: `aviation fuel` 22 props / 0 net-new dark (all 22
+  # are already inside this slice via the longer incumbent it replaces), `bio-jet` 1/0, `renewable jet` 0/0.
+  # They ship on the spec's verbatim list; the SAF register is a 2023+ phenomenon and 60.2% of the estate's
+  # documents are not in this pre-X2 cache, so these are the terms to re-count first post-rebuild.
+  # `priority: context` is DROPPED -- the spec ordered the flag dropped for natural_rubber and
+  # real_yields_rates "once it owns a real node" and never mentioned SAF's, which is an omission and not a
+  # decision: this slice gains three real edges (`saf_mandate` on canola_ice, soybean_oil_cbot and
+  # malaysian_crude_palm_oil_cme) in the same wave, so the same rule applies.
+  # NUMBERS FENCE, carried here so no one invents one: SAF has NO silver series and none is to be invented --
+  # the node ships `silver_status: none` with NO `silver_ref`, the india_import_duty precedent.
+  # COUPLED EDIT IN ANOTHER LANE, stated because a demand channel doubles without it: `canada_clean_fuel_regs`
+  # on canola_ice must be re-cut to drop its SAF clause in the SAME change that mints `saf_mandate`.
+  sustainable_aviation_fuel: {category: biofuel_policy, terms: [saf, aviation fuel, renewable jet, bio-jet]}   # SAF mandates create incremental long-dated veg-oil/fat feedstock demand.  [moves: soybean_oil, rapeseed_oil, palm_oil, canola]
+  # VOCAB SWEEP item 8. The slice carried "gasoline demand" and "e15" -- the AMERICAN register -- and 558 of
+  # bare `gasoline`'s dark windows are usda_gain_sugar, i.e. Brazilian hydrous-vs-gasoline PARITY, the exact
+  # mechanism this slice and `sugar_ethanol_parity` jointly model. Measured here: gasoline 388 props / 329
+  # net-new dark, e20 4/4, cogeneration 4/4, e10 8/2 = +339 net-new. e10/e20 are the Indian and Philippine
+  # blend levels; cogeneration is the mill's third revenue leg.
+  # TERM DELETE: `gasoline demand` -- REDUNDANT the moment bare `gasoline` is declared (longest-first word
+  # boundary). DECLARED IMPRECISION: bare `gasoline` also pulls ~51 wb_cmo fuel-price windows that are really
+  # crude-complex; benign, because blend economics IS the mechanism. REFUSED, measured at ZERO: e25, e27,
+  # e85, b100.
   ethanol_margins: {category: biofuel_policy, terms: [ethanol margin, ethanol production, crush margin,
-    blend wall, e15, gasoline demand, ddgs]}   # Ethanol grind profitability sets ~40% of US corn demand and DDGS feed co-product supply.  [moves: corn, yellow_maize, soybean_meal]
+    blend wall, e15, ddgs, gasoline, e10, e20, cogeneration]}   # Ethanol grind profitability sets ~40% of US corn demand and DDGS feed co-product supply.  [moves: corn, yellow_maize, soybean_meal]
   indonesia_b40_palm: {category: biofuel_policy, terms: [b35, b40, indonesia biodiesel mandate, palm diesel
       mandate, domestic market obligation, dmo, palm export levy]}   # Indonesian palm biodiesel mandate diverts palm oil from export, tightening global veg-oil supply.  [moves: palm_oil, palm_olein, soybean_oil, rapeseed_oil]
   veg_oil_substitution_spreads: {category: substitution, terms: [palm-soyoil spread, bo-po spread, veg oil spread,
@@ -266,10 +707,19 @@ drivers:
   # stand; this comment is the record that they were measured, not overlooked.
   sunflower_oil_balance: {category: substitution, max_props: 25000, terms: [sunflower oil, sunoil, sunseed,
     black sea sunflower, ukraine sunoil, sunflower, sunflowerseed, sunflowers]}   # Sunoil availability (Black Sea) sets the marginal substitute in the global veg-oil stack.  [moves: soybean_oil, rapeseed_oil, palm_oil]  # D6/D8: 1,133 -> 8,354 props measured; PAST the old 4,000 default, so the cap is declared, not inherited.
+  # F-A item M FOLD (3 of 3): `feed grains` -- 439 props / 379 net-new dark, 342 of them usda_wasde, the
+  # aggregate the WASDE balance sheet is organized around. Declared here, not on a new aggregate slice.
+  # PRE-EXISTING OVER-FIRE REPORTED, NOT EDITED (vocab-sweep hygiene H1's smaller twin): this slice's bare
+  # `sorghum` claims 62 monsoon windows and 53 rabi windows corpus-wide. It is a real mis-filing but bare
+  # `sorghum` is also the only handle the slice has on the grain, and narrowing it is a routing decision with
+  # its own measurement -- recorded here so it is not re-discovered.
   feed_grain_substitution: {category: substitution, max_props: 25000, terms: [feed wheat, feed barley, sorghum, milo, ddgs feeding,
-    least-cost ration, substitution into wheat]}   # Rationing shifts feeders between corn, feed wheat, barley and sorghum on relative value.  [moves: corn, yellow_maize, srw_wheat, hrw_wheat, soybean_meal]  # G5c: WAS at the cap; 2,127 of its 4,000 rows swapped at the 2026-07-20 promote behind a frozen count. D6 2026-08-19: 4,000 -> 25,000 (measured demand 6,152 today, 8,496 after X2).
+    least-cost ration, substitution into wheat, feed grains]}   # Rationing shifts feeders between corn, feed wheat, barley and sorghum on relative value.  [moves: corn, yellow_maize, srw_wheat, hrw_wheat, soybean_meal]  # G5c: WAS at the cap; 2,127 of its 4,000 rows swapped at the 2026-07-20 promote behind a frozen count. D6 2026-08-19: 4,000 -> 25,000 (measured demand 6,152 today, 8,496 after X2).
+  # F-A item M FOLD (2 of 3): `protein meal` -- 462 props / 397 net-new driver-dark, the aggregate noun the
+  # MARA basket prose actually uses -- is declared on the slice that already models meal substitution rather
+  # than on a new `protein_meal` driver slice. See the placement note on `livestock_feed_demand` above.
   protein_meal_substitution: {category: substitution, max_props: 25000, terms: [rapeseed meal, sunflower meal, ddgs, meal substitution,
-    amino acid, feed protein swap], priority: context}   # Rape/sun meal and DDGs substitute for soymeal in rations on relative protein value.  [moves: soybean_meal, rapeseed_meal, corn]  # D6: 3,280 measured = 82% of the old 4,000 default, i.e. the first slice the new e1_census 80% cap-pressure report flags with no declared cap; ~6,600 after X2.
+    amino acid, feed protein swap, protein meal], priority: context}   # Rape/sun meal and DDGs substitute for soymeal in rations on relative protein value.  [moves: soybean_meal, rapeseed_meal, corn]  # D6: 3,280 measured = 82% of the old 4,000 default, i.e. the first slice the new e1_census 80% cap-pressure report flags with no declared cap; ~6,600 after X2.
   # D-EC D8 (2026-08-19) THE MARINE LEG. NO slice declared any fishmeal form -- exact-term coverage 0,
   # substring coverage 0 -- so "fishmeal prices rose on Peru quota cuts" landed in no driver slice at all,
   # while `protein_meal_substitution` (3,280 props) carried the vegetable half of the same substitution
@@ -281,22 +731,79 @@ drivers:
   # price mechanism). REFUSED ON MEASUREMENT: 'marine protein' and 'anchoveta' score ZERO in 345,870 props
   # (declaring them would add to the e1_census dead-term census), and 'fish oil' (+94 props) is the FAT
   # co-product -- it competes in the veg-oil stack, not the protein stack, and this slice is the protein leg.
-  marine_protein_fishmeal: {category: substitution, terms: [fishmeal, fish meal, anchovy]}
+  # D-EC completion wave 2026-08-21, orphan register, livestock-protein family: SIX TERM ADDS, bought for
+  # STRUCTURE, not volume -- they ARE the quota mechanism the slice models (El Nino -> anchoveta biomass ->
+  # Peruvian quota -> meal price). Measured on the 345,870-prop cache and the total REPRODUCES the lane's
+  # own figure exactly: fishing quota 9/6 dark, fishing ban 4/4, fish catch 4/3, anchovies 2/1,
+  # fishing quotas 0/0, fish catches 3/0 = **+14 net-new**, the lane's "+14 net-new" to the prop.
+  # DECLARED, because a dead term is the e1_census class and these two are dead ON THIS CACHE: `fishing
+  # quotas` scores 0 props and `fish catches` 0 net-new (all 3 already claimed). They ship on the spec's
+  # verbatim list and on its stated structure rationale, and they are the first two to prune at the
+  # post-rebuild re-measure if X2 does not feed them.
+  # The slice also gains its dag_alias row in this edit (fishmeal_substitution + peru_fishmeal_supply on the
+  # three meal boards), which is the act that retires its slice-name waiver -- see both below.
+  marine_protein_fishmeal: {category: substitution, terms: [fishmeal, fish meal, anchovy,
+    anchovies, fishing quota, fishing quotas, fishing ban, fish catch, fish catches]}
     # Fishmeal is the premium protein the soymeal ration prices against; Peru quota/El Nino shocks reprice the whole meal complex.  [moves: soybean_meal, rapeseed_meal, soybeans, corn]
-  natural_rubber: {category: non_contract_soft, terms: [natural rubber, tsr20, ribbed smoked sheet,
-    tire demand, sicom rubber, thailand rubber], priority: context}   # Rubber shares SE-Asia weather and tire-demand cycle, a cross-read for tropical soft sentiment.  [moves: palm_oil, raw_sugar]
+  # D-EC completion wave 2026-08-21, orphan register, industrial family. A COMPLETE TERM REPLACEMENT bar one.
+  # ADD bare `rubber` (318 props / 226 net-new dark): it SUBSUMES "natural rubber", "rubber plantations",
+  # "rubber prices" and "rubber tree" in one string, and 269 of its 318 props are wb_cmo_outlook.
+  # DELETE five: `ribbed smoked sheet`, `sicom rubber`, `thailand rubber` (dead at zero sentences),
+  # `tire demand` (fires once), and `natural rubber` (subsumed by bare `rubber` under word-boundary
+  # matching). KEPT: `tsr20`, the traded grade. REFUSED on measurement: `rss3` (4 sentences).
+  # DECLARED IMPRECISION, so it does not look like a defect later: of bare `rubber`'s dark sentences, ~5 are
+  # the genuine Thai smallholder replant mechanism, 2 are Vietnam MARD Decision-431 policy lists, and the
+  # bulk are wb_cmo_outlook of which roughly a third are PDF two-column figure-source and price-table bleed
+  # -- a CHUNKING artifact that already contaminates the incumbent 79 props equally. Bounded and auditable by
+  # slice_audit.py.
+  # SITE CORRECTION: the annotation `[moves: palm_oil, raw_sugar]` WAS FALSE and is corrected to
+  # `[moves: palm_oil]` -- the authored mechanism is Thai smallholders replanting rubber to OIL PALM; there
+  # is no rubber->sugar channel in it. `priority: context` is DROPPED: the slice owns a real node
+  # (`rubber_area_substitution` on malaysian_crude_palm_oil_cme) as of this wave.
+  natural_rubber: {category: non_contract_soft, terms: [rubber, tsr20]}   # Thai smallholders switching rubber area to oil palm is a multi-year palm supply driver; rubber also shares the SE-Asia weather cycle.  [moves: palm_oil]
   south_american_safrinha: {category: weather_regime, terms: [safrinha, second crop corn, brazil corn, mato grosso,
     winter corn, dry season]}   # Brazil's safrinha is the swing global corn export crop; late-season dryness shifts world balance.  [moves: corn, yellow_maize]
   polar_vortex_winterkill: {category: weather_regime, terms: [winterkill, polar vortex, hard freeze, dormancy,
     snow cover, wheat winterkill]}   # Winterkill risk to dormant winter wheat (no snow cover + arctic blast) drives wheat risk premium.  [moves: hrw_wheat, srw_wheat, french_wheat]
-  indian_ocean_dipole: {category: weather_regime, terms: [indian ocean dipole, iod, positive iod, negative
-      iod], priority: context}   # IOD phase modulates monsoon and SE-Asia/Australia rainfall beyond ENSO, affecting palm and wheat.  [moves: palm_oil, rice, raw_sugar, french_wheat]
+  # D-EC completion wave 2026-08-21, orphan register, weather family. TWO TERM DELETES AND NOTHING ELSE.
+  # `positive iod` and `negative iod` are deleted: measured 0 of the slice's 4 props, and REDUNDANT BY
+  # CONSTRUCTION under longest-first word-boundary matching, since bare `iod` is declared and a longer form
+  # containing it can claim nothing extra. They are not lost -- they MOVE, in the same batch, onto the phase
+  # ids as entity_vocabulary ALIAS rows (IOD_positive / IOD_negative), which is the only lane where they
+  # DISCRIMINATE: `entity_vocabulary.aliases:` feeds EXTRACTION, `driver_slices.terms:` feeds ROUTING, and on
+  # a slice that already routes both phases together they were dead weight.
+  # NO TERM ADDS -- the slice's vocabulary is not its bottleneck (0% over-fire, 4/4 genuine). KEEP
+  # 'indian ocean dipole' and 'iod' EXACTLY AS THEY ARE.
+  # THE D-EI-4 WAIVER AND THE PIN BOTH STAY, and the re-measurement CONFIRMS the refusal rather than
+  # overturning it -- it also corrects it in BOTH directions: true reach is 15 contracts, not the 4 D-EI-4
+  # named, and french_wheat_matif (which D-EI-4 named) carries no IOD node at all. `indian_ocean_dipole:
+  # [IOD_positive, IOD_negative]` is REFUSED in dag_alias: free in the alias-steal sense and still refused,
+  # because it would light 15 contracts off 2 distinct facts and render the same Indonesian sentence up to
+  # three times on the vegoil boards. X2 does not change the verdict and that is measured, not assumed
+  # (4 props now, ~13.5 after X2, within a hair of D-EI-4's own ~12-15 forecast).
+  indian_ocean_dipole: {category: weather_regime, terms: [indian ocean dipole, iod], priority: context}   # IOD phase modulates monsoon and SE-Asia/Australia rainfall beyond ENSO, affecting palm and wheat.  [moves: palm_oil, rice, raw_sugar, french_wheat]
   madden_julian_oscillation: {category: weather_regime, terms: [madden-julian oscillation, mjo, convective phase,
     tropical rainfall pulse], priority: context}   # MJO phase times rainfall pulses across SA/SE-Asia, swinging short-term weather risk premia.  [moves: soybeans, corn, palm_oil, raw_sugar]
+  # VOCAB SWEEP item 15 closes a D3 gap EXACTLY: `ndvi_vegetation_health` is a DAG id on SIX contracts already
+  # OWNED by this slice, and the slice had no term that could fire on it -- six boards reaching an empty text
+  # leg. Measured: ndvi 41 props / 37 net-new dark, vegetation index 16/12 = +49 net-new (usda_wap, the weekly
+  # weather/crop bulletin, is the dominant source). REFUSED as redundant: "normalized difference vegetation
+  # index" -- 181 windows, ALL of which contain "vegetation index" as a whole-word phrase, so it can claim
+  # nothing extra under longest-first matching. These two terms are the reason the new
+  # `quantitative_weather_anomaly` slice does NOT declare them: an id gets one owner.
   us_drought_monitor: {category: weather_regime, terms: [drought monitor, soil moisture, crop progress,
-    good-to-excellent, crop conditions, topsoil moisture]}   # Weekly condition/soil-moisture ratings recalibrate US yield expectations through the season.  [moves: corn, soybeans, hrw_wheat, srw_wheat, cotton]
+    good-to-excellent, crop conditions, topsoil moisture, ndvi, vegetation index]}   # Weekly condition/soil-moisture ratings recalibrate US yield expectations through the season.  [moves: corn, soybeans, hrw_wheat, srw_wheat, cotton]
+  # VOCAB SWEEP item 23, the VESSEL half. This slice held 14 props against 5 contracts and its own vocabulary
+  # ("vessel lineup", "port lineup") is the AMERICAN DESK PHRASE; the corpus writes "vessels waiting to
+  # berth". Measured: vessels 110 props / 83 net-new dark, berth 8/5.
+  # DECLARED IMPRECISION, both numbers written because the two instruments disagree: the sweep flagged bare
+  # `vessels` as audit-first at 30 COVID crew-screening notices in 333 dark WINDOWS (9.0%, above the 6.7% at
+  # which `surcharge` was ratified), while the three highest-ranked dark PROPS on this cache are all on-topic
+  # ("The ports of Mariupol and Berdyansk ... accept only smaller size grain and oilseed carrying vessels";
+  # "Government officials have loosened regulation on cabotage vessels"). It ships with both numbers stated
+  # and is named, with 'strike' and 'oer', as one of the three terms to run slice_audit.py over first.
   vessel_lineups_export_basis: {category: logistics_chokepoint, terms: [vessel lineup, export inspections, fob basis,
-    port lineup, loading delays, gulf premium]}   # Port lineups and FOB basis reveal real-time origin demand and shipping pace vs board.  [moves: soybeans, corn, srw_wheat, hrw_wheat, soybean_meal]
+    port lineup, loading delays, gulf premium, vessels, berth]}   # Port lineups and FOB basis reveal real-time origin demand and shipping pace vs board.  [moves: soybeans, corn, srw_wheat, hrw_wheat, soybean_meal]
   russia_export_tax_quota: {category: geopolitics_policy, terms: [russia wheat export tax, floating tax, export
       quota, minimum export price, russia grain]}   # Russian export taxes/quotas/floor prices set the world wheat price floor as top exporter.  [moves: hrw_wheat, srw_wheat, french_wheat]
   argentina_export_policy: {category: geopolitics_policy, terms: [retenciones, export tax, dolar soja, blue dollar,
@@ -328,17 +835,46 @@ drivers:
     # documents hold 738 'coffee rust' occurrences across 137 docs (X2 / D-EI-6, own lane, own budget).
   orange_greening_disease: {category: crop_disease, terms: [citrus greening, hlb, florida oranges, greening,
     brazil orange crop]}   # Greening disease and Florida hurricane risk drive structural OJ supply contraction.  [moves: orange_juice]
+  # VOCAB SWEEP item 11, the gas-hub class inside ONE report series: the slice carried "atr" (the Brazilian
+  # acronym) and missed `TRS`, the ENGLISH acronym the SAME USDA sugar reports use for the same measurement.
+  # Measured: trs 218 props / 201 net-new dark (194 of them usda_gain_sugar), cane crush 16/16,
+  # consecana 8/8 = +225 net-new. CONSECANA is the Sao Paulo council that SETS the cane price off TRS and
+  # appears in no config anywhere in the estate. `trs` is a three-letter token and is kept on measurement:
+  # 10/10 sampled are the sugar measurement and its dark mass is 201/201 from the two sugar sources, so the
+  # blast radius is bounded BY SOURCE.
   sugar_ethanol_parity: {category: substitution, terms: [sugar-ethanol mix, hydrous ethanol parity, center-south
       crush, atr, brazil ethanol parity, cana mix, cane to ethanol, cane diversion, hydrous ethanol,
-      cane molasses, molasses to ethanol]}   # Brazilian mills flex cane between sugar and ethanol on relative parity, swinging sugar supply.  [moves: raw_sugar, white_sugar]
+      cane molasses, molasses to ethanol, trs, consecana, cane crush]}   # Brazilian mills flex cane between sugar and ethanol on relative parity, swinging sugar supply.  [moves: raw_sugar, white_sugar]
   white_premium_refining: {category: substitution, terms: [white premium, whites premium, refining margin, refined
       sugar, raws-whites arb], priority: context}   # White-raw refining spread directs flows and refinery run rates across sugar grades.  [moves: white_sugar, raw_sugar]
   cotton_polyester_competition: {category: substitution, terms: [polyester, staple fiber, cotton-poly spread, mill
       use, textile demand, yarn margins], priority: context}   # Polyester pricing and mill margins govern cotton's share of fiber demand.  [moves: cotton]
   us_dollar_index: {category: fx_macro, terms: [dxy, dollar index, broad dollar, greenback strength,
     dollar weakness, strong dollar, stronger dollar, dollar strength, weak dollar]}   # Broad USD strength reduces foreign buying power, pressuring dollar-denominated ag exports.  [moves: corn, soybeans, srw_wheat, cotton, raw_sugar, arabica_coffee]
-  real_yields_rates: {category: fx_macro, terms: [real yields, fed funds, carry cost, cost of carry, financing
-      rate, front-end rates], priority: context}   # Higher financing raises carry costs, discouraging commercial storage and steepening curves.  [moves: corn, soybeans, srw_wheat, raw_sugar]
+  # D-EC completion wave 2026-08-21, orphan register, industrial family. A COMPLETE TERM REPLACEMENT: all six
+  # incumbent terms are DELETED and ten are added. Verdict was EMPTY-and-AUTHORED -- the slice held 2 props.
+  # DELETED (6): `real yields`, `fed funds`, `carry cost`, `cost of carry`, `financing rate`,
+  # `front-end rates`. Five of the six are dead at zero sentences; the vocabulary is a US-rates-desk register
+  # that this attache/statistical corpus does not speak.
+  # ADDED (10, verbatim from the spec), measured on the 345,870-prop cache (props / net-new dark):
+  # interest rates 171/139, proagro-adjacent plano safra 22/14, rural credit 23/20, storage costs 22/17,
+  # funcafe 36/35, pronaf 17/13, farm credit 8/3, financing costs 6/6, working capital 6/3,
+  # credit conditions 2/2 = +252 net-new on a 2-prop slice.
+  # `funcafe` IS DECLARED UNACCENTED ONLY -- ex._normalize is NFKD->ASCII, so "Funcafé" folds onto "funcafe"
+  # and a second accented string would be an exact post-normalization duplicate (the el_nino hygiene class).
+  # *** HONESTY RIDER, and the reason it is written rather than assumed: THE SLICE ID IS KEPT even though
+  # this same edit REFUSES the term it is named after. *** `real_yields_rates` is load-bearing in
+  # evidence.READ_DARK_SLICES_PIN, in tests/unit/test_config_check.py and in episodes.json, so renaming it
+  # would be a wider act than this wave should make in passing. The name is therefore a FOSSIL of a refused
+  # term, and the slice's real content is farm CREDIT COST -- Plano Safra, Funcafe, PRONAF, rural credit
+  # lines -- which is the mechanism `farm_credit_cost` models on soybeans / campinas / cotton.
+  # `priority: context` is DROPPED (it owns real nodes as of this wave). `category` moves fx_macro ->
+  # cash_market, which is cosmetic (no resolver reads it) but stops the file asserting something false.
+  # DECLINED AND RECORDED, not re-litigated: DK-19's cost-of-carry node, refused on three independent
+  # measurements. UN-DEFER GATE, stated so it can be reopened mechanically: a rates series in the numbers
+  # registry PLUS the carry vocabulary appearing in the corpus above zero.
+  real_yields_rates: {category: cash_market, terms: [interest rates, plano safra, rural credit, farm credit,
+      storage costs, financing costs, credit conditions, working capital, funcafe, pronaf]}   # Subsidised rural credit and its cost decide whether a producer can hold the crop off the market; the slice name is a fossil, the mechanism is farm financing.  [moves: soybeans, corn, cotton, arabica_coffee]
   crop_insurance_planting_intentions: {category: acreage_policy, terms: [prospective plantings, acreage report, planting
       intentions, prevent plant, spring price, new crop acres]}   # Acreage battle and prevent-plant economics reallocate area between corn, soy, wheat and cotton.  [moves: corn, soybeans, srw_wheat, hrw_wheat, cotton, canola]
   wasde_stocks_to_use: {category: balance_sheet, max_props: 25000, terms: [wasde, stocks-to-use, ending stocks, quarterly grain
@@ -347,23 +883,109 @@ drivers:
       bids, commercial buying, origination pace]}   # Farmer selling reluctance and firm basis signal tight cash supply ahead of board moves.  [moves: corn, soybeans, hrw_wheat, srw_wheat]
   australia_crop_conditions: {category: weather_regime, terms: [australia wheat, abares, eastern australia rain,
     wa crop, frost risk australia]}   # Australian wheat/canola output is the swing high-protein Asia-Pacific supplier.  [moves: french_wheat, hrw_wheat, canola, rapeseed]
+  # D-EC completion wave 2026-08-21 -- THE EUDR SPLIT-OUT, terms half. `eu deforestation regulation` and
+  # `eudr` are REMOVED from this slice and DECLARED on the new `eudr_compliance` slice above, together with
+  # the three EUDR DAG id spellings in dag_alias. B5's measurement is the ground: EUDR was named 41x in DAG
+  # prose, had no slice, and its terms sat inside a WEATHER_REGIME slice whose other four terms are matif /
+  # france soft wheat / strategie grains / eu drought -- so a palm or cocoa EUDR ask retrieved FRENCH WHEAT
+  # WEATHER TEXT. This is a MOVE of reach, stated as one: this slice keeps its EU_production /
+  # EU_rapeseed_supply ids and its four weather terms, and drops from 11-DAG EUDR reach to that remainder.
+  # *** A FINDING THE SPLIT UNCOVERED, ONE LAYER BELOW B5's, AND IT HAD TO BE FIXED IN THE SAME EDIT. ***
+  # Measured term-by-term on the 345,870-prop cache: **ALL FOUR of this slice's non-EUDR terms score ZERO
+  # props** -- `matif` 0, `france soft wheat` 0, `strategie grains` 0, `eu drought` 0 -- so its ENTIRE
+  # 17-prop population came from the two EUDR terms being moved out. B5 called EUDR "mis-filed, worse than
+  # absent"; the deeper fact is that the slice it was mis-filed INTO was a four-dead-term slice living
+  # entirely on the borrowed vocabulary. Performing the split alone would have taken this slice to ZERO
+  # PROPS, which trips write_guard's EMPTY-slice refusal (write_guard.py:334) and stops the wave's single
+  # rebuild mid-flight -- so the replacement vocabulary lands in the same edit.
+  # FOUR TERM ADDS, every one measured (props / net-new driver-dark): eu-27 209/184, french wheat 145/127,
+  # soft wheat 104/92, eu wheat 47/40 = +443 net-new. These are what the corpus ACTUALLY calls this slice's
+  # concept, and they are the vocabulary its two surviving DAG ids already mean: `EU_production` and
+  # `EU_rapeseed_supply`. `eu-27` normalizes to "eu 27" and its mass is USDA WASDE/WAP EU balance-sheet
+  # prose, which is EU_production by definition.
+  # THE FOUR DEAD INCUMBENTS ARE **KEPT**, not deleted, and the distinction is deliberate: zero on THIS cache
+  # is not zero in the corpus. This cache is the pre-X2 39.8% chunked subset, `matif` is the French
+  # exchange's own ticker and `strategie grains` is a real French analytics house, so both plausibly live in
+  # the unchunked 60.2% that X2 folded in. They are the first four terms to re-count at the post-rebuild
+  # re-measure, and they are deleted THEN if they are still zero -- deleting them now on this instrument
+  # would be the reproduce-to-count law broken in the direction that loses data.
+  # CHURN, declared for the rebuild's write_guard: on this cache the slice moves 17 -> ~460 props, i.e. a
+  # large INCREASE, not a drop -- the split is fully covered. Had the adds not landed it would have been
+  # 17 -> 0, a -100% drop AND an empty slice, which is the number this note exists to have prevented.
   eu_crop_and_policy: {category: weather_regime, terms: [matif, france soft wheat, strategie grains, eu
-      drought, eu deforestation regulation, eudr]}   # EU conditions and EUDR compliance shift French wheat and rapeseed/palm trade flows.  [moves: french_wheat, rapeseed, rapeseed_oil, palm_oil]
+      drought, eu-27, french wheat, soft wheat, eu wheat]}   # EU growing conditions and French/EU balance-sheet prose; EUDR compliance moved to its own slice 2026-08-21.  [moves: french_wheat, rapeseed, rapeseed_oil]
+  # *** THE VOCAB-SWEEP H1 OVER-FIRE, ADJUDICATED AND CLOSED IN THIS EDIT (the gate on
+  # `irrigation_infrastructure`). *** `irrigation water` is DELETED. Measured on the 345,870-prop cache: 215
+  # props and **0 net-new driver-dark** -- every single one is already claimed by another slice, so the term
+  # bought this slice no coverage whatever; corpus-wide the sweep measured 944 WINDOWS, the large majority
+  # Indian and Chinese irrigation prose with no Vietnam and no robusta content. A Vietnam-specific slice was
+  # absorbing global irrigation prose on every board it reaches, and it would have fought the new
+  # `irrigation_infrastructure` slice for the same mass. This is the 'cerrado' / 'leaf rust' deletion
+  # precedent: a term whose measured population is a different concept from the slice's id.
+  # CHURN, declared: this slice measures 442 props on the cache; the deleted term's 215 props are largely
+  # NOT unique to it (0 net-new), but the per-slice population still falls materially -- price it into the
+  # rebuild's --allow-churn magnitude alongside eu_crop_and_policy.
+  # THE DAG SIDE IS UNTOUCHED: `Vietnam_irrigation_water_stress` stays this slice's id in dag_alias; the
+  # node's mechanism is genuine, only the corpus-wide matcher was not.
   vietnam_robusta_weather: {category: weather_regime, terms: [central highlands, vietnam coffee, robusta drought,
-    dak lak, irrigation water]}   # Central Highlands water stress at flowering sets the dominant robusta crop outcome.  [moves: robusta_coffee, arabica_coffee]
+    dak lak]}   # Central Highlands water stress at flowering sets the dominant robusta crop outcome.  [moves: robusta_coffee, arabica_coffee]
   west_africa_weather: {category: weather_regime, terms: [ivory coast rain, ghana cocoa belt, west africa
       dry spell, main crop, mid crop]}   # Rainfall timing across the Ivory Coast/Ghana belt drives cocoa main- and mid-crop sizes.  [moves: cocoa]
+  # VOCAB SWEEP item 25, and it WIDENS THIS SLICE PAST ITS ID -- declared here the way `export_levy_duty`
+  # declares its own ("the id is the ratified name; the content it will actually hold is wider"). The estate
+  # had ONE tropical-storm slice and it is spelled for the US Gulf, so the Philippine rice/coconut typhoon,
+  # the Queensland cane cyclone and the Indian cotton cyclone all routed nowhere. Measured: typhoon 122 props
+  # / 114 net-new dark, typhoons 80/70, cyclone 65/54, cyclones 21/12 = +250 net-new. BOTH PLURALS ARE
+  # DECLARED because the matcher does no stemming and the plural carries a third of the mass.
+  # REFUSED as redundant: "tropical cyclone" -- it contains the declared bare `cyclone`.
+  # NOTE FOR THE DAG HALF: no DAG carries any typhoon/cyclone id, so lighting this beyond `hurricane_damage`
+  # (frozen_orange_juice only) is a DAG-authoring act, not a vocabulary one.
   hurricane_gulf_disruption: {category: weather_regime, terms: [hurricane, gulf of mexico, tropical storm, port
-      closure, florida citrus storm], priority: context}   # Gulf hurricanes shut export terminals and damage Florida citrus, spiking near-term risk.  [moves: orange_juice, corn, soybeans]
+      closure, florida citrus storm, typhoon, typhoons, cyclone, cyclones], priority: context}   # Gulf hurricanes shut export terminals and damage Florida citrus, spiking near-term risk; the content is wider than the id -- Philippine/Indian typhoons and Queensland cyclones route here too.  [moves: orange_juice, corn, soybeans, rice, cotton, raw_sugar]
   china_crush_demand: {category: demand_center, terms: [china crush, soybean crush margin, hog feed demand
       china, china meal demand, port stocks china]}   # Chinese crush rates and port inventories drive global soybean and meal pull.  [moves: soybeans, soybean_meal, soybean_oil]
-  global_rice_export_policy: {category: geopolitics_policy, terms: [india rice export ban, non-basmati, parboiled
-      rice levy, vietnam rice, thailand rice, rice tender]}   # Indian rice export curbs reroute global rice trade and ripple into food-security buying.  [moves: rice]
-  egypt_gasc_tenders: {category: demand_center, terms: [gasc, egypt wheat tender, mostakbal, strategic reserves
-      egypt, import tender]}   # Egypt's GASC tenders are the bellwether of global milling-wheat demand and origin competitiveness.  [moves: french_wheat, hrw_wheat, srw_wheat]
+  # VOCAB SWEEP item 10 -- and it is ROUTING PRECISION, not new mass, which is why it is ranked where it is:
+  # measured all-dark = 0 for "broken rice", i.e. the mass is ALREADY routed to the `rice` commodity node and
+  # is merely unreachable from any DRIVER. The slice declared "non-basmati" (the ban's wording) and NOT
+  # "basmati", and declared no GRADE at all -- yet "5 percent broken" IS the unit every rice export price in
+  # the corpus is quoted in ("India's 5 percent broken white rice is $390-400 per ton"). Grade is how the
+  # rice trade says origin competitiveness. Measured: basmati 689 props / 461 net-new dark, broken rice
+  # 276/187, 5 percent broken 24/19.
+  # TERM DELETE: `non-basmati` -- REDUNDANT the moment bare `basmati` is declared. _normalize collapses the
+  # hyphen to a space, so "non basmati" contains "basmati" as a whole word and the shorter form claims every
+  # prop the longer one did.
+  global_rice_export_policy: {category: geopolitics_policy, terms: [india rice export ban, parboiled
+      rice levy, vietnam rice, thailand rice, rice tender, basmati, broken rice, 5 percent broken]}   # Indian rice export curbs reroute global rice trade and ripple into food-security buying.  [moves: rice]
+  # B1 DESTINATION LAYER, ROUTING HALF (ratified 2026-08-21) -- S5, the ONE extension with zero clause-(c)
+  # exposure because the slice is already DAG-backed (`Egypt_GASC_tender`). NINE TERM ADDS, +645 props this
+  # slice does not claim today, every one sample-vetted on the same 345,870-prop cache and reproduced here:
+  # baladi bread 196, egyptian government 130, egyptian wheat 93 (88 net-new dark), bread subsidy 84,
+  # egyptian rice 71, egypt wheat 63, egyptian corn 31, egypt corn 15, egyptian mills 1.
+  # TERM DELETE: `mostakbal` -- measured ZERO, an already-dead incumbent, deleted rather than left.
+  # REFUSED on measurement, all at zero: `egypt soybean`, `egypt tender`, `egyptian tender`.
+  # DECLARED, not discovered: 200 of the 667 props are ALSO `subsidy`'s (bread/flour subsidy prose).
+  # Cross-lane double-routing (a commodity slice plus a driver slice) is the established `china_crush_demand`
+  # pattern and is fine -- but it is said out loud, because B1 measured that 79-96% of destination props
+  # already land in a commodity slice, so this layer buys DESTINATION-KEYED ADDRESSING and never prop rescue.
+  egypt_gasc_tenders: {category: demand_center, terms: [gasc, egypt wheat tender, strategic reserves
+      egypt, import tender, baladi bread, egyptian government, egyptian wheat, bread subsidy, egyptian rice,
+      egypt wheat, egyptian corn, egypt corn, egyptian mills]}   # Egypt's GASC tenders are the bellwether of global milling-wheat demand and origin competitiveness.  [moves: french_wheat, hrw_wheat, srw_wheat]
   # --- ADDED in curation (Opus omitted these high-value desk drivers) ---
-  livestock_feed_demand: {category: livestock, max_props: 25000, terms: [live cattle, feeder cattle, lean hogs, cattle on feed, cattle-on-feed, placements, feedlot, broiler, poultry, feed demand]}   # D6: measured 3,751 today (94% of the old default -- one pass from silent truncation), ~7,059 after X2.
-  animal_disease_demand_shock: {category: livestock, terms: [african swine fever, asf, avian influenza, bird flu, hpai, herd liquidation, culling]}
+  # HYGIENE 2026-08-21: `cattle-on-feed` DELETED here too -- an exact post-normalization duplicate of
+  # `cattle on feed` in this same list (rider 16, executed; zero props move).
+  # F-A item M FOLD: `compound feed` (508 props / 419 net-new dark) is declared HERE rather than on a new
+  # aggregate slice. The aggregate/group NODES of item M (oilseeds, vegetable_oils, protein_meal,
+  # coarse_grains, compound_feed, food_grains, soft_commodities, tropicals) belong in
+  # entity_vocabulary.nodes.commodity + commodity_hierarchy.context_commodities -- that is the seam
+  # evidence.all_nodes() reads and the reason A1's 9,599 props are dark -- and NOT in this file's `drivers:`
+  # block, which resolves DAG DRIVER ids. Declaring them here would have created eight permanently read-dark
+  # slices that duplicate eight context nodes. The DRIVER-SHAPED half of item M's measured vocabulary is
+  # folded into the driver slices that already model it, and this is one of the three.
+  livestock_feed_demand: {category: livestock, max_props: 25000, terms: [live cattle, feeder cattle, lean hogs, cattle on feed, placements, feedlot, broiler, poultry, feed demand, compound feed]}   # D6: measured 3,751 today (94% of the old default -- one pass from silent truncation), ~7,059 after X2.
+  # VOCAB SWEEP item 28: the slice covers ASF and HPAI and stops; FMD is the third herd-culling disease and it
+  # moves the same feed-demand channel. Measured: foot and mouth 25 props / 24 net-new dark, fmd 26/20.
+  # REFUSED: `prrs` (4) and `newcastle` (30, of which 15 are wb_cmo mentions of the CITY).
+  animal_disease_demand_shock: {category: livestock, terms: [african swine fever, asf, avian influenza, bird flu, hpai, herd liquidation, culling, foot and mouth, fmd]}
   cftc_positioning: {category: positioning, terms: [managed money, commitments of traders, cot report, net long, net short, spec length, fund position, open interest]}
     # CONTENT DEBT -- D-CW-3d note (2026-08-07, comment-only, no routing change). 1 PROP, reached by 20 of 33
     # contracts through four aliased ids (cot_mm_positioning / cot_positioning / spec_positioning /
@@ -378,11 +1000,20 @@ drivers:
   # ===== E4 curation (C2/C3): downstream-demand + price-benchmark slices =====
   textile_apparel_demand: {category: demand, max_props: 25000, terms: [textile, textiles, apparel, yarn, garments,
     readymade garments, fabric, spinning, technical textiles, home textiles, rodtep, uflpa, cotlook,
-    xinjiang, forced labor, uyghur]}   # G5c: WAS at the cap (864 props at the 2026-07-09 census -> 4,000 today); 257 rows swapped at the promote. D6 2026-08-19: 4,000 -> 25,000 (4,248 measured today, 8,975 after X2).
+    xinjiang, forced labor, uyghur, gsp, generalized system of preferences]}   # G5c: WAS at the cap (864 props at the 2026-07-09 census -> 4,000 today); 257 rows swapped at the promote. D6 2026-08-19: 4,000 -> 25,000 (4,248 measured today, 8,975 after X2).
     # Downstream fibre-demand cluster (India/China/Bangladesh/Vietnam/Uzbek spinning-weaving-garment
     # complex + India export-incentive/labour-ban policy). 185 dark cotton props. [moves: cotton]
+    # VOCAB SWEEP item 29 (2026-08-21): += gsp (5 props / 3 net-new dark, 10/10 sampled = the preference
+    # scheme) and "generalized system of preferences" (10/6). GSP eligibility is the duty-free access that
+    # decides where garments are cut; the slice already owns UFLPA and RoDTEP, and 28 of GSP's windows are
+    # already co-claimed by its own "textile" term, so the concept is demonstrably in scope. This slice's
+    # incumbent `rodtep` is ALSO why the policy family's proposed `export_levy_duty += rodtep` was refused
+    # above -- one declared owner per term.
+  # HYGIENE 2026-08-21: `fepcafé` DELETED as an exact post-normalization duplicate of `fepcafe` (NFKD->ASCII
+  # folds the accent, so _Matcher's setdefault already dropped it). Zero props move. Same class as the
+  # el_nino / la_nina accented terms above.
   coffee_price_benchmark: {category: price_benchmark, terms: [kc contract, trm, cop/usd, colombian peso,
-    pai mechanism, fepcafe, fepcafé, international coffee agreement, ica quota, export retention,
+    pai mechanism, fepcafe, international coffee agreement, ica quota, export retention,
     retention scheme]}
     # Colombian/washed-arabica price context: the ICE 'KC' arabica reference, COP/USD (TRM) FX narrative,
     # and FNC price-stabilization/incentive policy (FEPCafe, PAI). fnc genuine-dark. [moves: arabica_coffee]
@@ -421,8 +1052,13 @@ drivers:
     # 2006-05-01..2006-05-12 / 2007-05-01..2007-05-17 to 2010-01-01..2010-02-17 / 2017-02-23..2017-04-05.
     # The deck must be re-probed on the rebuild; the "top-4 unchanged" stability claim is NOT available.
     # Discharges the ambiguity half of waivers.leaf_rust; the OWNERSHIP question stays open there.
+  # VOCAB SWEEP item 26: the slice carried mycotoxin / DON / vomitoxin / ergot and NOT the single most-named
+  # mycotoxin in the corpus. Measured: aflatoxin 67 props / 63 net-new dark. `aflatoxin` is ALSO a waived DAG
+  # id on 1 contract ("Aspergillus aflatoxin in corn"), so this one term plus one dag_alias row retires a
+  # waiver and lights a leg. PARKED per harvest.py's two-level prune (the concept already has a hitting
+  # form): `fumonisin` (2 windows) and `ochratoxin` (5).
   fusarium_head_blight_mycotoxin: {category: crop_disease, terms: [Fusarium head blight, scab, Fusarium graminearum,
-    DON, deoxynivalenol, vomitoxin, mycotoxin, ergot]}
+    DON, deoxynivalenol, vomitoxin, mycotoxin, ergot, aflatoxin]}
   asian_soybean_rust: {category: crop_disease, terms: [Asian soybean rust, soybean rust, Phakopsora pachyrhizi,
     ferrugem asiática]}
   corn_tar_spot: {category: crop_disease, terms: [tar spot, Phyllachora maydis, tar spot of corn]}
@@ -430,16 +1066,46 @@ drivers:
   fall_armyworm: {category: crop_pest, terms: [fall armyworm, Spodoptera frugiperda, armyworm]}
   desert_locust_swarm: {category: crop_pest, terms: [desert locust, Schistocerca gregaria, locust swarm,
     locust outbreak, desert locusts, locust swarms, locust upsurge]}
-  wheat_blast: {category: crop_disease, terms: [wheat blast, Magnaporthe oryzae Triticum, MoT, brusone
-      do trigo]}
+  # ============ `wheat_blast` IS RETIRED. The spec is DELETED here; this is its written reason. ============
+  # D-EC completion wave 2026-08-21 (orphan register, disease family; ratified by owner word 2026-08-20).
+  # THE CONTAMINATION IS TOTAL AND IT WAS MEASURED, TWICE. All 32 props of this slice were claimed by ONE
+  # term, `MoT`, and `MoT` matches Indonesia's Ministry of TRADE -- 32 of 32, re-measured on the full
+  # 345,870-prop cache by this lane (32 props, 0 net-new dark, sources usda_gain_sugar 12,
+  # usda_gain_soybean_oil 6, usda_gain_rice 5 -- not one wheat source). The three real handles fire ZERO:
+  # 'wheat blast' 0/32, 'magnaporthe' 0/32, 'brusone' 0/32. This is the `leaf rust` deletion precedent at a
+  # HIGHER contamination rate -- 100% here against coffee_rust's 97%. THE `MoT` DELETION WAS MANDATORY EVEN
+  # IF THE RETIREMENT HAD BEEN OVERRULED: a three-letter token under word-boundary matching is a routing
+  # defect regardless of what happens to the slice around it.
+  # THE STRUCTURAL CAUSE IS CORPUS GEOGRAPHY, NOT VOCABULARY, which is why no term set could have saved it:
+  # text/source=usda_gain_wheat/ holds exactly THIRTEEN country partitions (AR AU CA CN DE EG FR IN PK PL RU
+  # TR UA) -- neither Bangladesh nor Brazil, the two countries where wheat blast is an event -- and no source
+  # in the 28-source estate carries a Bangladesh partition at all.
+  # TWO INDEPENDENT GROUNDS FOR REFUSING THE NODE, so the retirement does not rest on the vocabulary alone:
+  # (1) blast lifts IMPORT demand in importing countries and touches no deliverable supply on SRW / HRW /
+  # HRS / MATIF; (2) its evidence leg is provably empty, so a node would ship an ABSENCE MARKER onto four
+  # LIVE boards -- the exact trade D-EI-4 measured and rejected.
+  # WHAT RETIREMENT MEANS CONCRETELY: the spec is gone from this file; the slice had NO dag_alias row and NO
+  # waivers row, so nothing else in this file moves; `wheat_blast` leaves evidence.READ_DARK_SLICES_PIN
+  # (another lane's file, handed over); and the stranded S3 object
+  # graphrag_evidence/drivers/wheat_blast.jsonl (744,473 bytes, written 2026-08-20) is deleted at the next
+  # rebuild -- a retired spec plus a live object is a file that lies with nothing in config pointing at it.
+  # UN-RETIRE GATE, stated so it can be reopened mechanically: a Bangladesh or Brazil wheat partition in the
+  # text layer, plus a plant-protection source acquisition.
   coffee_leaf_miner_borer: {category: crop_pest, terms: [coffee berry borer, Hypothenemus hampei, broca, leaf
       miner, Leucoptera coffeella]}
   citrus_canker_psyllid: {category: crop_disease, terms: [citrus canker, Xanthomonas citri, Asian citrus psyllid,
     Diaphorina citri, HLB vector]}
   cocoa_swollen_shoot_virus: {category: crop_disease, terms: [cocoa swollen shoot virus, CSSVD, swollen shoot,
     swollen shoot virus disease]}
+  # VOCAB SWEEP item 30 -- the smallest item on the list, here because it closes a D3 gap for free: `red_rot`
+  # is a DAG id this slice OWNS with no term that could fire on it ("there are reports of red rot in some
+  # parts of Uttar Pradesh"). 14 dark windows on the full text layer; 0 on this pre-X2 chunk cache, i.e. the
+  # prose is in the unchunked 60.2% and realizes with X2. REFUSED, and this one matters: bare `smut` -- 63
+  # windows, 55 dark, and the samples are TCK / flag smut in WHEAT phytosanitary disputes, so it would file
+  # cereal quarantine prose into a sugarcane slice. "sugarcane smut" itself measures ZERO, so the owned id
+  # `sugarcane_smut` stays honestly dark.
   sugarcane_disease_pest: {category: crop_disease, terms: [sugarcane mosaic, orange rust, Puccinia kuehnii,
-    ratoon stunting, sugarcane borer, Diatraea saccharalis, Sphenophorus levis]}
+    ratoon stunting, sugarcane borer, Diatraea saccharalis, Sphenophorus levis, red rot]}
   cotton_pest_complex: {category: crop_pest, terms: [pink bollworm, Pectinophora gossypiella, cotton leaf
       curl virus, whitefly, Bemisia tabaci, bollworm]}
   rice_blast_pest_complex: {category: crop_disease, terms: [rice blast, Magnaporthe oryzae, bacterial leaf blight,
@@ -448,10 +1114,240 @@ drivers:
     Oryctes rhinoceros, Ganoderma boninense], priority: context}
   rapeseed_disease_pest: {category: crop_disease, terms: [clubroot, Plasmodiophora brassicae, blackleg, Leptosphaeria
       maculans, sclerotinia, flea beetle, cabbage stem flea beetle, flea beetles]}
-  barley_yellow_dwarf_virus: {category: crop_disease, terms: [barley yellow dwarf virus, BYDV, aphid-borne virus,
-    wheat streak mosaic, wheat curl mite], priority: context}
+  # ===== `barley_yellow_dwarf_virus` IS RETIRED. The spec is DELETED here; this is its written reason. =====
+  # D-EC completion wave 2026-08-21 (orphan register, disease family). EMPTY, and re-measured empty by this
+  # lane on the full 345,870-prop cache: the slice scores **0 props**. It is one of the eight names in
+  # evidence.NEVER_WRITTEN_SLICES_PIN -- it has no object under drivers/ in S3 at all, so there is not even a
+  # stranded file to delete. Routing cannot fix empty, and more terms over an unwritten slice is still zero
+  # props (the `managed_money_positioning` doctrine, recorded at its own site above).
+  # IT LEAVES BOTH PINS: evidence.READ_DARK_SLICES_PIN (24 -> ...) and evidence.NEVER_WRITTEN_SLICES_PIN
+  # (8 -> 7). Both live in src/leviathan/graphrag/evidence.py, which this lane does not own -- handed over.
+  # ONE ALIAS WAS CONSIDERED AND REFUSED IN WRITING: `barley_yellow_dwarf_virus: [wheat_streak_mosaic]`. It
+  # is free and non-stealing, and it is still refused, because it would hand a LIVE KCBT node a zero-row
+  # slice and delete an honest waiver in exchange for nothing a reader would ever see.
+  # UN-RETIRE GATE, stated so it can be reopened mechanically: a plant-protection source acquisition (CIMMYT
+  # / AHDB / JRC MARS / a state extension service) PLUS the vocabulary appearing above zero.
+
   soybean_cyst_nematode: {category: crop_pest, terms: [soybean cyst nematode, Heterodera glycines, sudden death
       syndrome, Fusarium virguliforme, white mold, Sclerotinia sclerotiorum], priority: context}
+
+  # ========= D-EC GRAPH-COMPLETION WAVE 2026-08-21 -- NEW SLICES, PART 2 (F-A N + vocab sweep) ===========
+  # Every count below is `props / net-new driver-dark`, measured by this lane on the full 345,870-prop chunk
+  # cache with the PRODUCTION matchers (harvest.build_matcher over ex._normalize'd text). Where a spec named
+  # a form that is NOT declared, its number is written -- the forms that are ABSENT are the review.
+  #
+  # FOUR OF THE SIX BELOW RESOLVE A REAL DAG ID AND ARE THEREFORE **NOT** READ-DARK: `replanting_cycle`,
+  # `biennial_bearing` and `buffer_stock_release` resolve BY IDENTITY (evidence.driver_alias() seeds
+  # `{name: name for name in specs}`), and each of their `waivers:` rows is deleted below in the same edit --
+  # the favorable_rainfall / MYR_USD precedent, where a waiver's "grounded by the observed silver leg, never
+  # text" claim stops being true the moment a text slice owns the id. `aquaculture_demand` and
+  # `secular_demand_growth` take waived-AND-UNOWNED ids in dag_alias, which is a pure addition: no slice
+  # loses a prop and check_driver_slices leg (b) cannot fire.
+  #
+  # VOCAB SWEEP item 7 -- "THE CHEAPEST STRUCTURAL UNLOCK IN THE SWEEP", and the description is exact:
+  # `replanting_cycle` is already a real DAG driver id on SIX contracts, sitting in `waivers:` as deferred
+  # with no text slice, so a slice with that exact NAME resolves it by identity, needs no dag_alias row and
+  # steals nothing. Aging-tree replanting is THE structural supply driver of coffee, palm and OJ and the graph
+  # could not read one word of it. Measured: replanting 217 props / 188 net-new dark, replanted 66/49,
+  # replant 40/30 = +267 net-new. All three inflections are declared because the matcher does no stemming and
+  # `\b(replant)\b` cannot fire inside "replanting". Low risk: "replant" also covers annual-crop re-seeding
+  # after a weather loss, which is arguably the same mechanism at a shorter lag.
+  replanting_cycle: {category: fundamental_supply, terms: [replanting, replanted, replant]}
+    # Aging-tree replanting and renovation set bearing area a decade out; it is the slowest and least-reversible supply driver in the tree crops.  [moves: arabica_coffee, robusta_coffee, palm_oil, orange_juice, cocoa]
+  # VOCAB SWEEP item 18: `biennial_bearing`, `biennial_on_year`, `biennial_off_year` and `biennial_low_cycle`
+  # are FOUR real DAG ids across up to 6 contracts, ALL waived, and entity_vocabulary already types two of
+  # them as state_markers -- while the on-year/off-year cycle is the single largest source of arabica supply
+  # variance ("the majority of Arabica trees for 2004/05 are in the on-year of the biennial cycle"). A slice
+  # named `biennial_bearing` resolves its own id by identity and takes the other three by alias below; all
+  # four waiver rows are deleted in the same edit. Measured: biennial 125 props / 116 net-new dark (conab 64,
+  # usda_gain_coffee 32). REFUSED as redundant: "biennial bearing" and "biennial cycle", both of which
+  # contain the declared bare form. `biennially` measures ZERO.
+  biennial_bearing: {category: fundamental_supply, terms: [biennial]}
+    # The on-year/off-year alternation of tree crops is a supply oscillation with no weather cause; it is the biggest single term in arabica's variance.  [moves: arabica_coffee, robusta_coffee, orange_juice, cocoa]
+  # VOCAB SWEEP item 14, authored as the NEW SLICE rather than as an `msp` term add -- the lane priced both
+  # and both are honest, and the new slice is taken because `buffer_stock_release` is a real DAG id on 2
+  # contracts sitting in `waivers:`, so naming the slice after it resolves the id by identity and retires the
+  # waiver, while `msp` (2 terms, the PROCUREMENT price) would have had to become "MSP procurement AND
+  # release" to hold it. Also FILLABLE-BY-TERM in the dec_p1 dark-driver fillability census (127 anchored
+  # props). Measured: buffer stock 87 props / 81 net-new dark, food corporation of india 51/45, open market
+  # sale scheme 17/16 = +142 net-new. HONEST SCOPE, declared: "buffer stock" is used loosely by NFA and BULOG
+  # for any strategic reserve (54 of its dark windows are usda_gain_sugar) -- that is the same mechanism in
+  # another country, i.e. scope-widening, not error. REFUSED: bare `fci` (32 props / 20 net-new) -- a
+  # three-letter token nobody sampled, the `MoT` defect class; the agency is spelled out instead. Also
+  # refused as an incumbent: `reserve auction`, already a term of `china_reserve_auctions`.
+  buffer_stock_release: {category: balance_sheet, terms: [buffer stock, food corporation of india,
+    open market sale scheme]}
+    # State reserve releases and OMSS auctions are how a government caps a domestic rally without touching trade policy.  [moves: srw_wheat, hrw_wheat, rice, raw_sugar, corn]
+  # F-A item N #5 + DK-11 (aquaculture is 22.5% of documents and reaches ONE DAG) + cross-lane rider 4, which
+  # measured this as READY TO WIRE: `aquaculture_feed_demand` and `aqua_season` are ALREADY real DAG ids on
+  # rapeseed_meal_zce, both waived and UNOWNED -- the pure-addition shape with zero alias steal. Both waiver
+  # rows are deleted in the same edit. Measured: aquaculture 501 props / 337 net-new dark, fish feed 41/24,
+  # shrimp feed 23/8, aquafeed 12/12 = +381 net-new.
+  # KEPT DELIBERATELY DISJOINT from `marine_protein_fishmeal`: that slice is the SUPPLY SUBSTITUTE (fishmeal
+  # as the protein soymeal prices against), this is the DEMAND CENTRE (the fastest-growing meal channel).
+  # No term appears in both.
+  # REFUSED, measured by the livestock lane and re-measured here: bare `fishery` (18/16) and `fisheries`
+  # (108/88) -- the dark mass is MINISTRY NAMES ("Ministry of Agriculture and Fisheries"), not a demand
+  # channel; bare `shrimp` (the species, not the feed); `fish farming` (0 props).
+  aquaculture_demand: {category: demand_center, terms: [aquaculture, aquafeed, fish feed, shrimp feed]}
+    # Aquafeed is the fastest-growing protein-meal channel and the marginal buyer of rapeseed and soybean meal in Asia.  [moves: soybean_meal, rapeseed_meal, soybeans]
+  # F-A item N #3 (A14, 1,109 props): the corpus argues about income growth, urbanization and food service
+  # constantly and the graph has no node for the DEMAND TREND under every balance sheet. Measured:
+  # per-capita consumption 472 props / 415 net-new dark, food service 131/116, urbanization 60/48,
+  # middle class 37/28, income growth 23/19 = +626 net-new. REFUSED: `dietary shift` (1 prop / 0 net-new).
+  # It CLAIMS `consumption_growth` and `consumption_demand` in dag_alias below -- both waived, both unowned,
+  # both sharing a topical token with this slice name -- and their waiver rows are deleted in the same edit.
+  # Bare `consumption` is deliberately NOT claimed: it is a generic state marker whose honest home is the
+  # numbers binding (the dec_p1 census rates it BINDABLE against the `consumption` cascade ref), and taking
+  # it would be the difflib-noise class this file's dag_alias header rejects by name.
+  secular_demand_growth: {category: demand, terms: [income growth, urbanization, middle class, food service,
+    per-capita consumption]}
+    # Income growth, urbanization and food-service penetration are the slow demand trend under every balance sheet; they set the level a shock moves around.  [moves: soybean_meal, soybean_oil, palm_oil, corn, srw_wheat, raw_sugar]
+  # F-A item N #2 + VOCAB SWEEP item 2 (its #2 by expected routing gain). The corpus argues about capacity
+  # constantly ("saturation of storage capacity for vegetable oils could negatively impact the European
+  # crushing industry") and the graph has no node for THE CONSTRAINT THAT CONVERTS A CROP INTO A PRODUCT.
+  # Measured: crushing capacity 537 props / 508 net-new dark, crush capacity 506/464, storage capacity
+  # 296/269, milling capacity 250/244, silos 184/168, refining capacity 27/24 = +1,677 net-new dark.
+  # "crush capacity" and "crushing capacity" are BOTH declared: they are distinct strings under word-boundary
+  # matching and neither contains the other.
+  # REFUSED on measurement: `utilization rate` (69 props / 61 net-new, but 12 of its windows are TEXTILE mill
+  # use -- the sweep's own advice was "drop it and keep the noun-phrases if you want zero ambiguity", and a
+  # generic rate noun on a capacity slice is the over-fire class this file's header warns about);
+  # `plant expansion` and `debottleneck` (0 props each, the spec's own list, dead on this corpus).
+  # READ-DARK BY CONSTRUCTION -- needs an evidence.READ_DARK_SLICES_PIN entry.
+  processing_capacity: {category: fundamental_supply, terms: [crushing capacity, crush capacity,
+    milling capacity, storage capacity, refining capacity, silos]}
+    # Crush, mill, refine and storage capacity is the physical constraint between a crop and its products; it caps how fast a margin can be arbitraged.  [moves: soybean_meal, soybean_oil, rapeseed_meal, rapeseed_oil, palm_oil, srw_wheat, corn]
+  # F-A item N #6 + VOCAB SWEEP item 16 (A17, 294 props). `freight` is OCEAN freight; the corpus's costliest
+  # logistics prose is INLAND ("Truck rates rose about nine percent... inland transport costs increased 213
+  # percent... from interior hubs such as Rondonopolis"). Measured: railway 166 props / 138 net-new dark,
+  # transportation costs 73/59, elevator 32/32, barge 34/23, trucking 9/8, rail car 4/4 = +264 net-new.
+  # REFUSED on measurement: bare `logistics` (957 windows / 746 driver-dark) -- it is a FILLER NOUN in GAIN
+  # prose and the sweep refused it by name; `terminal` (167/104) -- generic, and it fires inside the
+  # `terminal_heat` wheat concept, so it would file heat-stress prose into a logistics slice; `drying
+  # capacity` (0 props) and `loadings` (1 prop / 0 net-new).
+  # INTENDED MULTI-LABEL, declared: bare `elevator` fires inside `basis_and_farmer_selling`'s "elevator bids".
+  # READ-DARK BY CONSTRUCTION -- needs an evidence.READ_DARK_SLICES_PIN entry.
+  inland_logistics: {category: logistics_chokepoint, terms: [transportation costs, railway, barge, trucking,
+    elevator, rail car]}
+    # Interior freight -- rail, barge, truck and country elevator -- is the cost between the farm gate and the port, and it is a different lever from ocean freight.  [moves: soybeans, soybean_meal, corn, srw_wheat, cotton]
+  # F-A item N #13 (A8, 1,961 props): the first processing stage of the largest food grain had no node, so
+  # milling margins, extraction rates and bread-price politics -- the entire demand side of a wheat balance
+  # sheet -- routed nowhere. Measured: milling wheat 486 props / 400 net-new dark, flour milling 68/62,
+  # bread price 4/3 = +465 net-new.
+  # REFUSED on measurement, and this one prevented a real collision: bare `extraction rate` (369 props / 326
+  # net-new) is NOT the wheat term the spec assumed -- its top sources are usda_gain_soybean_meal (139),
+  # usda_gain_soybean_oil (72) and usda_gain_sugar (53), i.e. OIL and SUGAR extraction. The qualified form
+  # `oil extraction rate` is declared on `palm_yield_mechanics` below, which is its real owner. Also refused:
+  # `flour subsidy` (2 props / 0 net-new -- already claimed, and `bread subsidy` is egypt_gasc_tenders') and
+  # `pasta price` (0 props).
+  # READ-DARK BY CONSTRUCTION -- needs an evidence.READ_DARK_SLICES_PIN entry.
+  wheat_first_processing: {category: demand, terms: [flour milling, milling wheat, bread price]}
+    # Milling grade, extraction and flour/bread pricing are wheat's first processing stage and the whole of its food-demand transmission.  [moves: srw_wheat, hrw_wheat, hrs_wheat, french_wheat]
+  # F-A item N #14 (A9, 1,008 props), the vocabulary twin of F-A item I's HFCS bridge: corn's demand channel
+  # INTO sugar, which no slice and no edge modelled. Measured: hfcs 766 props / 675 net-new dark (653 of them
+  # usda_gain_sugar), molasses 305/220, panela 181/160, gur 138/134, high fructose corn syrup 116/101,
+  # isoglucose 17/15 = +1,305 net-new dark -- the largest single new-slice mass in this lane.
+  # `gur` IS DECLARED despite being a three-letter token, and the ground is measurement, not convenience:
+  # 132 of its 138 props are usda_gain_sugar and the remaining 6 are sugar-adjacent, so the blast radius is
+  # bounded BY SOURCE in exactly the way `trs` is. It is added to the audit-first list all the same.
+  # INTENDED MULTI-LABEL, declared: bare `molasses` fires inside `sugar_ethanol_parity`'s "cane molasses" and
+  # "molasses to ethanol" -- the same substance under two mechanisms (cane diversion vs sweetener
+  # substitution), which is what multi-label routing is for.
+  # READ-DARK BY CONSTRUCTION -- needs an evidence.READ_DARK_SLICES_PIN entry.
+  sweetener_substitution: {category: substitution, terms: [hfcs, high fructose corn syrup, isoglucose,
+    molasses, panela, gur]}
+    # HFCS, isoglucose and the unrefined sweeteners are the demand channel from corn INTO sugar; the substitution decides which crop a beverage bottler buys.  [moves: raw_sugar, white_sugar, corn]
+  # VOCAB SWEEP item 12: the estate models palm through weather, disease, policy and FX and had NO term for
+  # the two numbers MPOB and GAIN actually publish AS the yield mechanism -- FFB yield and OER ("average FFB
+  # yield fell 6.1% to 18.03 tonnes/ha while OER was 20.45%"). Measured: ffb 176 props / 136 net-new dark,
+  # oil extraction rate 124/118, fresh fruit bunches 117/90, oer 37/37 (33 of 37 mpob -- that source is 7
+  # documents and this is most of what they say) = +381 net-new.
+  # DECLARED IMPRECISION: `oer` is short and these are OCR'd scans, so a dropped 'v' in "over" would produce
+  # it. Every sampled window is genuine OER usage, and the longer `oil extraction rate` is declared FIRST as
+  # the primary handle with `oer` as the acronym rider. It is on the audit-first list with 'strike' and
+  # 'vessels'.
+  # READ-DARK BY CONSTRUCTION -- needs an evidence.READ_DARK_SLICES_PIN entry.
+  palm_yield_mechanics: {category: fundamental_supply, terms: [ffb, fresh fruit bunches, oil extraction rate,
+    oer]}
+    # FFB yield and oil extraction rate are the two numbers that convert palm hectares into palm oil; every weather and labour shock lands on one of them.  [moves: palm_oil, palm_olein]
+
+  # ========== B1 DESTINATION/IMPORTER LAYER -- ROUTING HALF (ratified 2026-08-21) ========================
+  # The measured framing, and it is written here so B1 is never re-litigated on the original overstatement:
+  # the buyer side does NOT "not exist". It exists in the NUMBERS lane (numbers/agent.py's shipped
+  # 38-destination detector anchors 93.5% of measured US export tonnage) and in the VOCABULARY (43
+  # country_origin nodes anchor 84.2%); what is absent is EVIDENCE ADDRESSING. 79-96% of the props below
+  # already land in a COMMODITY slice, so this layer buys DESTINATION-KEYED ADDRESSING and never prop rescue:
+  # today a "what is the Philippines doing in meal?" question must find 102 props inside a soybean_meal slice
+  # holding thousands.
+  # THE SURFACE-FORM LAW THAT DECIDED EVERY TERM LIST, measured: a destination's corpus mass lives in
+  # `<demonym|country> + <commodity>` bigrams, named institutions and demand-channel nouns -- and NEVER in
+  # `<country> + import/tender` compounds, every one of which scored ZERO ("mexico corn import", "eu wheat
+  # import", "algeria wheat tender", "japan corn import" ...). An agent handed the ordinary "keep terms
+  # SPECIFIC" rule would have produced a zero-hit slice.
+  # ORIGIN/DESTINATION AMBIGUITY, declared rather than claimed away: `<demonym> <commodity>` is ambiguous by
+  # construction ("colombian sugar" is Colombia-as-PRODUCER). Every list below is restricted to commodities
+  # the destination BUYS, but that is a curation judgement and not something the matcher can enforce -- the
+  # `export_levy_duty` HONEST SCOPE convention, applied.
+  # FOUR OF THE FIVE BELOW ARE READ-DARK BY CONSTRUCTION and need evidence.READ_DARK_SLICES_PIN entries;
+  # that pin edit is the ratified home for them ("the wave gate's 'written down as edge-reachable-only' in
+  # its enforceable form"), and the next wave's edge half retires the pins.
+  # FIVE CANDIDATES WERE REFUSED ON MEASUREMENT and are recorded so they are not re-proposed:
+  # import_parity_landed_cost 95 props, importer_tender_mechanism 92, latam_import_demand 85,
+  # eu_import_demand 28, north_africa_wheat_tenders 26 -- all under the 100-prop authoring gate. The last is
+  # a CORPUS-ACQUISITION finding and not a curation one: `oaic`, `onicl`, `algeria wheat tender` and
+  # `north africa wheat import` are ZERO props, so the Maghreb tender desk is in none of the 28 text sources.
+  # `sea_import_demand` is the one that resolves a DAG id: it claims `buyer_tender_demand` (rough_rice_cbot,
+  # region 'Indonesia/Philippines' -- an exact topical fit), waived and unowned, and that waiver row is
+  # deleted in the same edit.
+  # `bulog` LANDS HERE, not on `producer_support_intl`: B1's ratified one-owner rule sends tmo/gasc/bulog to
+  # the destination/tender slices because the dominant corpus sense is import tenders (measured: bulog 139
+  # props / 136 net-new dark, 110 of them usda_gain_rice -- Indonesia's food agency buying rice).
+  sea_import_demand: {category: demand_center, terms: [indonesian soybean, vietnam soybean, indonesia soybean,
+    thai soybean, philippine soybean, thailand soybean, philippine corn, philippines wheat,
+    philippines soybean meal, malaysia soybean, thai feed, philippines corn, philippines soybean,
+    philippine soybean meal, indonesian flour, nfa rice, indonesia feed, vietnam feed demand,
+    philippine mills, bogasari, bulog]}
+    # SE Asia is the fastest-growing feed and food buyer of US and South American grain and meal; its purchase tempo is a demand signal no commodity slice can address by destination.  [moves: soybean_meal, soybeans, corn, srw_wheat, soybean_oil, rice]
+  # 1,295 props / 1,215 unclaimed by any of the 126 production slices. `tmo` alone is 760 props / 715 net-new
+  # dark and was sampled clean ("The Turkish Grain Board (TMO) imported about 1.3 million metric tons of wheat
+  # duty free..."). No DAG id exists for a Turkish import agency, so this slice is READ-DARK by construction.
+  turkey_tmo_imports: {category: demand_center, terms: [tmo, turkey corn, turkish wheat, turkish flour,
+    turkish grain board, turkey wheat, turkey rice, turkey barley, inward processing regime, turkish corn,
+    turkish barley, toprak mahsulleri]}
+    # TMO's tenders and Turkey's inward-processing regime make it the swing milling-wheat and corn buyer on the Black Sea's doorstep.  [moves: hrw_wheat, srw_wheat, french_wheat, corn]
+  # 845 props / 666 unclaimed. THE FLOW RELATION ITSELF -- "exports to China", "shipped to China" -- which is
+  # how the corpus names a destination without naming a commodity compound.
+  # MEASURED CORRECTION TO B1's OWN RECOMMENDATION, recorded and NOT acted on: B1 declined to claim the DAG
+  # id `us_export_pace` on the ground that it is "LIVE (5 DAGs) but owned; claiming it MOVES reach". It is
+  # live on 5 DAGs, but it is NOT owned -- it is a `waivers:` row (:1060) and appears on no dag_alias RHS, so
+  # claiming it would be the favorable_rainfall / MYR_USD pure-addition shape and would CREATE reach on five
+  # boards while retiring a pin entry and a waiver. The dec_p1 fillability census independently rates
+  # `us_export_pace` FILLABLE-BY-TERM (389 anchored props). The ratified recommendation is followed as
+  # ratified -- READ_DARK pin, no claim -- and the correction is handed to the wave rather than acted on
+  # unilaterally, because the recommendation carries owner word and the correction does not.
+  us_export_flow_relation: {category: demand_center, terms: [exports to china, exports to japan,
+    exports to mexico, exported to china, shipped to china, shipments to china, sales to china,
+    export commitments, us origin, american origin, us exports to, purchases from the united states,
+    sales to japan, sales to mexico]}
+    # The directional flow phrase is how the corpus states destination without a commodity compound; it is the only handle on "who is actually buying from the US".  [moves: soybeans, corn, srw_wheat, hrw_wheat, soybean_meal, soybean_oil]
+  # 729 props / 535 unclaimed. Mexico is the #2 destination by measured US export tonnage (196,073 kt, 19.8%)
+  # and resolves in NO router entry today. REFUSED as topically wrong: `import_demand_destination`
+  # (white_sugar, region 'MENA / West Africa / SE Asia') -- claiming it would point a Mexican slice at a
+  # MENA node. READ-DARK by construction.
+  mexico_import_demand: {category: demand_center, terms: [mexican wheat, mexico soybean, mexican poultry,
+    mexican corn, mexican soybean, mexico wheat, tortilla, mexico corn, mexican consumers, mexico sorghum,
+    mexican sorghum, segalmex, mexican feed, mexican livestock, mexican mills, nixtamal, diconsa, masa]}
+    # Mexico is the largest single buyer of US corn and a top-five buyer of wheat and meal; its tortilla/masa and feed channels are the demand mechanism behind the tonnage.  [moves: corn, srw_wheat, hrw_wheat, soybean_meal, soybeans]
+  # 473 props / 426 unclaimed. Japan, South Korea and Taiwan are 17.3% of measured US export tonnage between
+  # them and are the highest import-CONTEXT destinations in the corpus (South Korea 40.7%, Taiwan 38.9%,
+  # Japan 33.3%, against 15-18% for the origin countries). No DAG id exists; READ-DARK by construction.
+  # REFUSED, measured at ZERO: japanese corn, korea feed, taiwan soybean, korean millers, japan barley,
+  # korea barley, kfa, nofi, maff tender, sbs tender.
+  ne_asia_feed_demand: {category: demand_center, terms: [korean soybean, korea soybean, japanese soybean,
+    japanese crushers, korea soybean meal, korean soybean meal, japanese feed, japan soybean, korean feed,
+    taiwanese, japan wheat, korea corn, japanese wheat, japan feed, taiwan wheat]}
+    # North-East Asia's crushers and feed millers are the price-inelastic core of US meal and grain demand; their buying is the floor under export pace.  [moves: soybean_meal, soybeans, corn, srw_wheat, hrw_wheat]
 
 # ── slice -> DAG driver-id alias map (GraphRAG v2 L2 regime-firing fix, 2026-07-03) ──────────────────────────
 # Slice NAMES (keys under `drivers:` above) were curated independently of the causal-DAG driver ids, so of 353
@@ -482,7 +1378,12 @@ dag_alias:
   la_nina: [La_Nina]
   argentina_export_policy: [Argentina_export_registration, Argentina_export_tax, soy_dollar]
   asian_soybean_rust: [soybean_rust]
-  australia_crop_conditions: [crop_condition, australia_canola_supply, australia_rapeseed_supply]
+  australia_crop_conditions: [crop_condition, australia_canola_supply, australia_rapeseed_supply, australia_wheat_supply]
+    # D-EC completion wave 2026-08-21 (weather family): `australia_wheat_supply` is a BRAND-NEW id minted by
+    # the DAG lane on french_wheat_matif + hard_red_winter_wheat_kcbt, parented by [IOD_positive, drought], so
+    # the chain reads IOD_positive -> australia_wheat_supply -> export_pace_lag -> price. It lands on THIS
+    # slice (a 253-prop non-orphan whose terms already include "australia wheat"), so it shares a topical
+    # token and adds NO driver_slice_alias_warnings advisory. Pure addition: no slice loses an id.
   basis_and_farmer_selling: [basis, sagis_deliveries, withheld_supply]
   brl_fx: [BRL_FX, BRL_USD_fx, BRL_USD, BRL_weakness]
   cftc_positioning: [cot_mm_positioning, cot_positioning, spec_positioning, speculative_positioning]
@@ -497,7 +1398,11 @@ dag_alias:
   fertilizer: [fertilizer_cost, fertilizer_costs, fertilizer_input_cost, fertilizer_input_costs, input_cost_inflation]
   freight: [freight_cost, freight_costs, freight_rates, freight_disruption, freight_logistics, freight_logistics_disruption, port_closure, port_logistics_disruption, rail_logistics_disruption, rhine_danube_freight]
   frost: [frost, early_frost, winterkill_frost]
-  fusarium_head_blight_mycotoxin: [fusarium_head_blight]
+  fusarium_head_blight_mycotoxin: [fusarium_head_blight, aflatoxin]
+    # D-EC completion wave 2026-08-21 (vocab sweep item 26). `aflatoxin` was a waived DAG id on 1 contract
+    # ("Aspergillus aflatoxin in corn") with no owner; the slice now declares the term (67 props / 63 net-new
+    # dark), so one term plus this one id retires a waiver and lights a leg. The id shares a topical token
+    # with the slice's own new term, so no advisory. Its `waivers:` row is deleted below in the same edit.
   heat: [heat_stress, EU_heat_stress, flowering_heat_stress, terminal_heat, terminal_heat_foreign, flowering_stress]
   hog_margins_crush: [hog_margin]
   livestock_feed_demand: [feed_demand, domestic_feed_demand, feed_demand_china, hog_herd_demand, soybean_meal_feed_demand]
@@ -561,7 +1466,18 @@ dag_alias:
   # this removes a dead key, never a population. Leaving it would be a duplicate id in one owner's list.
   china_reserve_auctions: [China_reserve_release, China_state_reserves, state_reserve_buildup, state_reserve_release]
   indonesia_b40_palm: [DMO]
-  eu_crop_and_policy: [EUDR, EU_EUDR, EU_production, EU_rapeseed_supply, eudr_deforestation]
+  eu_crop_and_policy: [EU_production, EU_rapeseed_supply]
+    # D-EC completion wave 2026-08-21 -- THE EUDR SPLIT-OUT, alias half. `EUDR`, `EU_EUDR` and
+    # `eudr_deforestation` MOVED to the new `eudr_compliance` slice below. This is a MOVE of reach and it is
+    # recorded as one, per the D-CW-3a rule that an alias steal must be measured and written rather than
+    # discovered: this slice drops from 11-DAG EUDR reach (EUDR x8, EU_EUDR x2, eudr_deforestation x1) to its
+    # EU_production / EU_rapeseed_supply remainder. THE MOVE IS RATIFIED AND THE GROUND IS MIS-FILING, not
+    # reach arithmetic: the three ids and both EUDR terms sat inside a slice whose category is
+    # `weather_regime` and whose remaining terms are matif / france soft wheat / strategie grains / eu
+    # drought, so an EUDR question about palm or cocoa retrieved French wheat weather text (B5, verbatim:
+    # "EUDR IS MIS-FILED (worse than absent)"). Unlike the China_import_quota_VAT refusal recorded on
+    # `tariff` above, the losing slice here is not losing a topical id -- it is being relieved of one that
+    # was never about EU crop conditions.
   parana_river_levels: [Parana_low_water]
   biodiesel_mandate: [RenovaBio, blend_mandate, eu_biodiesel_demand, eu_renewable_biofuel, red_iii_mandate]
   crop_insurance_planting_intentions: [US_acreage_shift, acreage_competition, canola_area, eu_rapeseed_area, planted_area, soybean_corn_price_ratio]
@@ -579,7 +1495,14 @@ dag_alias:
   hurricane_gulf_disruption: [hurricane_damage]
   macro: [macro_demand]
   sugarcane_disease_pest: [orange_rust, ratoon_stunting, red_rot, sugarcane_smut]
-  broiler_economics: [poultry_expansion]
+  broiler_economics: [poultry_expansion, broiler_margins]
+    # D-EC completion wave 2026-08-21: `broiler_margins` is a NEW id the livestock lane mints (F-A item A).
+    # WIRED, NOT RE-CREATED -- F-A item A's own instruction ("note `broiler_economics` + `hog_margins_crush`
+    # slices EXIST -- wire not re-create"), so no `broiler_margins` driver slice is authored and this slice
+    # takes the id. It shares the token `broiler`, so no advisory, and the slice already declares
+    # `chick placements`, one of the three terms item A proposed for it.
+    # NOT DECLARED, gated: `hatchery` -- the livestock lane flagged it as firing on POULTRY hatchery props
+    # and it is UNSAMPLED, so it waits for the sampling pass rather than shipping blind.
   cereal_rust_complex: [stem_rust, stripe_rust]
   feed_grain_substitution: [wheat_corn_spread]
   white_premium_refining: [white_raw_premium]
@@ -830,6 +1753,172 @@ dag_alias:
   #   * ALSO STILL PINNED, untouched by this wave and outside its scope: dap (88, D-PQ's recorded phosphate
   #     refusal), metals (975), baltic_dry_freight (18), vessel_lineups_export_basis (14),
   #     sustainable_aviation_fuel (25), wheat_blast (32).
+  #
+  # ---- RE-CUT 2026-08-21 (D-EC graph-completion wave). THE TRIANGLE ABOVE IS D-GD TRANCHE 2's RECORD OF
+  # ---- ITS OWN DECISIONS AND IT STANDS AS WRITTEN. Six of its refusals are OVERTURNED BY THIS WAVE, on
+  # ---- re-measurement over a doubled corpus, and each is dispositioned here so a reader of the old text
+  # ---- is not left believing a closed question is still closed:
+  #   * `natural_rubber` -- OVERTURNED. The refusal's ground ("no ag driver whose mechanism is rubber") was
+  #     right about the graph as it stood and wrong about the mechanism: Thai smallholders replacing rubber
+  #     with OIL PALM is a palm supply driver, and `rubber_area_substitution` now models it on
+  #     malaysian_crude_palm_oil_cme. The slice is aliased below; its false `[moves: raw_sugar]` annotation
+  #     is corrected at its own site.
+  #   * `cattle_cycle_herd_size` -- OVERTURNED BY A CHANGED VERDICT, not by a changed argument. The refusal
+  #     rested on 32 props ("routing cannot invent a mechanism from 32 sentences"); the ten term-adds landed
+  #     in this wave take it to 323 post-X2 (219 of them routing nowhere today), which clears the RICH bar.
+  #     It resolves BY IDENTITY, so it needs no row here and must not be given one.
+  #   * `real_yields_rates` -- OVERTURNED. It was CONTENT-STARVED at 2 props because its six terms were a
+  #     US-rates-desk register this corpus does not speak; the complete term replacement at its own site
+  #     takes it to ~254, and it now owns `farm_credit_cost` + `FUNCAFE`.
+  #   * `dap` -- OVERTURNED, and this is the one that reverses a written D-PQ refusal. The statement lives at
+  #     the `dap` site above, where the reversal happens; it is not repeated here.
+  #   * `sustainable_aviation_fuel` -- OVERTURNED: it owns `saf_mandate` on three boards as of this wave.
+  #   * `barley_yellow_dwarf_virus` and `wheat_blast` -- BOTH RETIRED, spec-deleted, with their written
+  #     reasons at their former sites in the `drivers:` block above.
+  # UNCHANGED AND RE-AFFIRMED BY RE-MEASUREMENT: `indian_ocean_dipole` stays parked (D-EI-4 confirmed;
+  # X2 does not move it -- 4 props now, ~13.5 after, against D-EI-4's own ~12-15 forecast) and `metals` is
+  # now TERMINALLY CONTEXT rather than "outside this tranche's scope" -- see the four-class refusal written
+  # at the `metals` site. `index_roll_flows`, `madden_julian_oscillation` and `veg_oil_substitution_spreads`
+  # are untouched. `baltic_dry_freight` and `vessel_lineups_export_basis` are NOT closed: the plan's
+  # ratification (2026-08-21) sends them to this wave's EDGE batch (freight -> export-basis -> FOB
+  # competitiveness), and the vocab half for the second lands at its own site above.
+
+  # ===== D-EC GRAPH-COMPLETION WAVE 2026-08-21 -- dag_alias ADDITIONS (lane A) ==========================
+  # THE MINT-THEN-WIRE LAW APPLIES TO EVERY ROW IN THIS BLOCK: D-CW-3a refuses an alias to a nonexistent id,
+  # so each row below is only honest once the DAG lane's node lands in the SAME change. Rows are grouped by
+  # what they cost, because that is the reviewable question:
+  #   (1) BRAND-NEW IDS, pure additions -- no slice loses a prop, no id changes owner, so
+  #       check_driver_slices leg (b) (duplicate ownership) cannot fire anywhere in this block. This is the
+  #       D8 `favorable_rainfall` shape, NOT the D-CW-3a alias-steal shape.
+  #   (2) WAIVED-AND-UNOWNED IDS claimed by a new text slice -- also pure additions; every one of their
+  #       `waivers:` rows is DELETED below in this same edit, because a waiver asserts "grounded by the
+  #       observed silver leg, never text" and that stops being true the moment a text slice owns the id.
+  #   (3) ONE WIRING-ONLY CLAIM (`FUNCAFE`) on an id that already exists on a live board.
+  # ADVISORY BUDGET FOR THE WHOLE BLOCK, pre-computed: exactly TWO new driver_slice_alias_warnings entries --
+  # `FUNCAFE -> real_yields_rates` and `aqua_season -> aquaculture_demand`, both the legitimate
+  # concept-alias class (no shared literal token), the `natural_gas -> refinery_energy_costs` precedent.
+  # Every other row shares a token with its slice name or its terms.
+  #
+  # -- (1) brand-new ids from the orphan register --------------------------------------------------------
+  dap: [dap_cost]
+    # 0 -> 4 boards (hard_red_winter_wheat_kcbt, french_wheat_matif, corn_cbot, canola_ice). The reversal of
+    # D-PQ's phosphate refusal is stated in full at the `dap` slice site; this row is its wiring.
+  sustainable_aviation_fuel: [saf_mandate]
+    # 0 -> 3 boards (canola_ice, soybean_oil_cbot, malaysian_crude_palm_oil_cme). COUPLED, and a demand
+    # channel DOUBLES without it: `canada_clean_fuel_regs` on canola_ice must lose its SAF clause (mechanism
+    # AND blurb) in the same change.
+  natural_rubber: [rubber_area_substitution]
+    # 0 -> 1 (malaysian_crude_palm_oil_cme). Shares the token `rubber` with the slice name, so no advisory.
+  real_yields_rates: [farm_credit_cost, FUNCAFE]
+    # 0 -> 5. `farm_credit_cost` is brand-new (soybeans_cbot, soybeans, campinas_corn_reference_bmf, cotton);
+    # `FUNCAFE` is WIRING ONLY -- the id ALREADY EXISTS on brazilian_arabica_coffee, waivered and owned by no
+    # slice, and its authored mechanism is byte-identical to the spec's sentence. The orphan register calls
+    # it "WIRING-ONLY FREE REACH -- take FIRST". Its waiver row is deleted below. COST, declared: +1
+    # driver_slice_alias_warnings advisory (no shared token) -- the legitimate concept-alias class, never a
+    # hard failure. The dec_p1 fillability census independently rates FUNCAFE FILLABLE-BY-TERM at 105
+    # anchored props, and this slice's ten term-adds (funcafe, rural credit, credit conditions, financing
+    # costs, plano safra) are exactly that fill.
+  import_quota_trq: [TRQ_sugar, TRQ_soybean_meal, TRQ_corn, TRQ_soybeans, TRQ_rice, TRQ_wheat]
+    # 0 -> 9 boards. Six brand-new ids; ZERO new advisories (every one shares the token `quota` through the
+    # slice's own terms). `TRQ_wheat` is TIER 2 -- if the DAG lane does not author it, DELETE it from this
+    # list rather than leaving an alias to a nonexistent id. CASING LAW: the set is authored uppercase-prefix
+    # (`TRQ_sugar`), the China_import_quota_VAT / US_section301_tariffs house pattern; if any board's author
+    # prefers `trq_sugar` THE WHOLE SET MOVES TOGETHER or the XC-5 duplicate-spelling class re-opens.
+    # THE ANTI-DOUBLE-COUNT DEVICE, so it is not lost between lanes: TRQ_sugar carries an explicit "outside
+    # the China channel" fence in its own mechanism text, because `China_import_quota_VAT` already exists on
+    # raw_sugar and is owned by `tariff` -- a silent overlap is how a double-count ships. `TRQ_cotton` is
+    # REFUSED for the same reason at 70% China overlap.
+    # Its `waivers:` row is deleted below -- that row's own note said to retire it on minting.
+  export_levy_duty: [CPO_export_levy, India_levy_sugar_cess, Nigeria_wheat_levy]
+    # 0 -> 6 boards. Three brand-new ids, zero new advisories. `Nigeria_wheat_levy` is TIER 2 -- same rule as
+    # TRQ_wheat if the DAG lane does not author it. ERA HONESTY, to be carried in the node text and repeated
+    # here so a narration lane cannot miss it: `India_levy_sugar_cess` IS AN ERA NODE, 1999-2023, only 17% of
+    # its mass in the 2020s -- the levy-sugar obligation was ABOLISHED IN 2013 and it must NEVER be narrated
+    # as a current-state instrument. CPO_export_levy is 2015-2026 (80% in the 2020s); Nigeria_wheat_levy
+    # 2001-2024 (38%). OWNERSHIP RIDER: the Russian floating export duty binds on the EXISTING
+    # `Russia_export_tax` id, owned by `russia_export_tax_quota` -- this slice must NOT claim it, which would
+    # be the D-CW-3a alias steal verbatim. Its `waivers:` row is deleted below.
+  marine_protein_fishmeal: [fishmeal_substitution, peru_fishmeal_supply]
+    # 0 -> 3 boards (soybean_meal_cbot, soybean_meal_dce, rapeseed_meal_zce). *** THIS ROW IS NOT IN THE
+    # SPEC'S OWN A3 TABLE AND ITS ABSENCE WOULD HAVE BEEN A HARD BUILD FAILURE. *** The livestock lane mints
+    # two ids whose names are not this slice's name, so without this row neither resolves to any slice and
+    # neither carries a waiver -- check_driver_slices leg (a) errors on both ("dark id: no slice, no
+    # waiver"). Both share the token `fishmeal` with the slice name, so ZERO advisories. `peru_fishmeal_supply`
+    # is authored as a PARENT of `fishmeal_substitution`, never a second price-facing driver; its optional
+    # `parents: [El_Nino]` edge rests on only 5 co-mention props and may be dropped without re-measuring.
+    # The slice's slice-name `waivers:` row is deleted below -- also missing from the spec's A5 list, and
+    # required by the wave's own rule that no waivers row survives next to a live dag_alias row.
+  rub_fx: [RUB_USD]
+    # 0 -> 3 (soft_red_winter_wheat_cbot, hard_red_winter_wheat_kcbt, french_wheat_matif). Appended to the
+    # parents of `BlackSea_export_competition` on the two US boards and of `Russia_export_tax` on MATIF.
+    # TERMS: NONE -- ruble/rubles/rouble measured clean. Declined: MGEX (grade physics) and the corn boards
+    # (uah_fx takes that channel).
+  try_fx: [TRY_USD]
+    # 0 -> 2 (hard_red_winter_wheat_kcbt, french_wheat_matif), parent of `export_pace_lag` on both.
+  thb_fx: [THB_USD]
+    # 0 -> 2 (raw_sugar, white_sugar). A pure APPEND to the existing parents of `Thailand_production` and
+    # `Thailand_white_exports`; no existing edge changes. TERMS: NONE.
+  aud_fx: [AUD_USD]
+    # 0 -> 2 (cotton, raw_sugar). ROOT driver on cotton (parents [], sibling of BRL_weakness and
+    # INR_PKR_weakness); parent of `export_pace_lag` on raw_sugar.
+  uah_fx: [UAH_USD]
+    # 0 -> 2 (corn_cbot, french_maize_matif), parent of `black_sea_competition` on both.
+  mxn_fx: [MXN_USD]
+    # 0 -> 1 (corn_cbot), parent of `export_pace`. TERMS: NONE. Bare `peso` STAYS REFUSED -- it is
+    # currency-ambiguous across mxn_fx / php_fx / ars_fx.
+  # REFUSED IN WRITING, and each refusal is the review:
+  #   * `php_fx: [PHP_USD]` -- REFUSED. `PHP_USD` is RESERVED against a `coconut` DAG THAT DOES NOT EXIST,
+  #     and wiring an alias to a nonexistent id is D-CW-3a verbatim. php_fx STAYS in READ_DARK_SLICES_PIN.
+  #     Recorded so nobody re-samples it: bare `php` is CLEAN (26/26 Philippine peso).
+  #   * `cattle_cycle_herd_size` -- NO ROW IS NEEDED **OR ALLOWED**: the minted id is identical to the slice
+  #     name and resolves by identity; a self-alias is the benign no-op leg (b) skips.
+  #   * `indian_ocean_dipole: [IOD_positive, IOD_negative]` -- REFUSED; the full argument is at the slice site.
+  #   * `barley_yellow_dwarf_virus: [wheat_streak_mosaic]` -- REFUSED; the argument is at its retirement note.
+  #   * `metals` -- mint NO id. Reach stays 0, permanently.
+  #
+  # -- (2) waived-and-unowned ids claimed by the wave's NEW text slices ----------------------------------
+  eudr_compliance: [EUDR, EU_EUDR, eudr_deforestation]
+    # THE SPLIT-OUT's alias half -- a MOVE off `eu_crop_and_policy`, whose cost is written at that row. All
+    # THREE spellings are listed DELIBERATELY, and this is a fail-closed choice the integrator must finish:
+    # the DAG lane merges the three id spellings to ONE (`EUDR`, the 8-instance majority, whose silver_ref
+    # normalizes to `eudr_flag` under curate.reserve_name). If that merge lands in this same commit, DELETE
+    # `EU_EUDR` and `eudr_deforestation` from this list -- an alias to a retired id is dead config (the XC-5
+    # `china_state_reserves` precedent). If it does NOT land, they must stay: an alias to a nonexistent id is
+    # harmless dead config, but a LIVE id owned by nobody is a leg (a) HARD ERROR. Listing all three is
+    # correct in both worlds; listing only `EUDR` is correct in one.
+  biotech_market_access: [GMO_phytosanitary_policy, GMO_white_policy, phytosanitary]
+    # Three waived-and-unowned ids, one new owner. All three share a topical token with this slice's own
+    # terms (`gmo`, `phytosanitary`), so ZERO advisories. The dec_p1 fillability census rates
+    # `GMO_phytosanitary_policy` FILLABLE-BY-TERM at 161 anchored props, and its top anchored terms are
+    # `import permits` / `import permit` -- which this slice deliberately does NOT declare (see the
+    # import-licensing settlement written at `import_quota_trq`); the China biotech-permit props route here
+    # through bare `biotech` instead, which was verified on the samples.
+  labor_strikes: [labor_shortage]
+    # 0 -> 2. A waived-and-unowned real id; shares the token `labor`, so no advisory. The Malaysian palm
+    # estate labour story is a named production driver and had no text leg at all.
+  aquaculture_demand: [aquaculture_feed_demand, aqua_season]
+    # 0 -> 1 (rapeseed_meal_zce), both waived and unowned. `aquaculture_feed_demand` shares the token
+    # `aquaculture`; `aqua_season` shares none, so it costs the block's SECOND and last advisory -- accepted,
+    # and it is the legitimate concept-alias class (an aquaculture feeding-season marker on an aquaculture
+    # demand slice).
+  secular_demand_growth: [consumption_growth, consumption_demand]
+    # Two waived-and-unowned generic-demand ids; both share a token with the slice name (`growth`,
+    # `demand`), so no advisory. Bare `consumption` is deliberately NOT claimed -- it is a generic state
+    # marker whose honest home is a GN-1 number binding, and taking it would be the urea->area difflib-noise
+    # class this file's dag_alias header rejects by name.
+  biennial_bearing: [biennial_on_year, biennial_off_year, biennial_low_cycle]
+    # The slice's OWN id (`biennial_bearing`) resolves by identity and is deliberately absent from this list.
+    # The other three are waived-and-unowned real ids across up to 6 contracts and all share the token
+    # `biennial`, so ZERO advisories. Four waiver rows retire on this one slice.
+  sea_import_demand: [buyer_tender_demand]
+    # B1's one DAG-backed destination slice. `buyer_tender_demand` is a waived, unowned id on rough_rice_cbot
+    # with region 'Indonesia/Philippines' -- an exact topical fit -- and it shares the token `demand`, so no
+    # advisory. It is the reason this slice needs no READ_DARK_SLICES_PIN entry while the other four do.
+  # NO ROW, BY IDENTITY (evidence.driver_alias() seeds `{name: name for name in specs}`), and a self-alias
+  # row would be the benign no-op leg (b) skips -- so none is written: `replanting_cycle` (a real id on SIX
+  # contracts, the vocab sweep's "cheapest structural unlock"), `biennial_bearing`, `buffer_stock_release`
+  # (a real id on 2 contracts) and `cattle_cycle_herd_size`. All four of their `waivers:` rows are deleted
+  # below, which is the act that makes the identity resolution honest.
 
 # ── waivers: dark ids with no text slice, now ACCOUNTED (P2 W1) ──────────────────────────────
 # silver_only = FX crosses / teleconnection indices / computed spreads (grounded by the observed
@@ -870,11 +1959,33 @@ waivers:
   # EUR_USD_FX: REMOVED 2026-08-19 (D-EC D15 Wave 1c) -- it now resolves to the `eur_fx` slice in dag_alias
   #   above, so the silver_only claim ("grounded by the observed silver leg, never text") is no longer
   #   true of it. Same shape as the MYR_USD / favorable_rainfall / gasoil_palm_spread removals.
-  FUNCAFE: {category: deferred, note: "Coffee crop-financing/retention policy"}
+  # ===== D-EC GRAPH-COMPLETION WAVE 2026-08-21 (lane A): TWENTY WAIVER ROWS RETIRE IN THIS EDIT. =========
+  # Every one is deleted for the SAME reason and by the SAME precedent (MYR_USD / favorable_rainfall /
+  # gasoil_palm_spread / the six A24 FX rows): a waiver asserts either "grounded by the observed silver leg,
+  # never text" or "a real corpus gap awaiting the paid chunk pass", and BOTH claims stop being true the
+  # moment a text slice owns the id. Leaving a waiver standing next to a live dag_alias row makes this block
+  # lie, and the wave's own rule is explicit: NO `waivers:` ROW SURVIVES NEXT TO A LIVE dag_alias ROW.
+  # NO NEW WAIVER ROW IS ADDED ANYWHERE IN THIS WAVE. In particular `metals` gets none -- it is pin-only, by
+  # the D15 precedent, and the pin alone is its record. The `indian_ocean_dipole` block below is KEPT
+  # VERBATIM: the D-EI-4 refusal was re-measured and CONFIRMED, so its waiver and its pin both stay.
+  # THE TWENTY, with their new owner: FUNCAFE + (real_yields_rates) | import_quota_trq, export_levy_duty,
+  # marine_protein_fishmeal (their own DAG ids minted) | labor_shortage (labor_strikes) |
+  # aquaculture_feed_demand, aqua_season (aquaculture_demand) | consumption_growth, consumption_demand
+  # (secular_demand_growth) | biennial_bearing, biennial_on_year, biennial_off_year, biennial_low_cycle
+  # (biennial_bearing) | replanting_cycle, buffer_stock_release (identity) | aflatoxin
+  # (fusarium_head_blight_mycotoxin) | GMO_phytosanitary_policy, GMO_white_policy, phytosanitary
+  # (biotech_market_access) | buyer_tender_demand (sea_import_demand).
+  # FUNCAFE: REMOVED 2026-08-21 (D-EC graph-completion wave) -- it now resolves to the `real_yields_rates`
+  #   slice in dag_alias above. This is the orphan register's "WIRING-ONLY FREE REACH (id exists, waivered
+  #   and unowned) -- take FIRST, delete its waiver row in the same edit", executed. The id itself is
+  #   untouched on brazilian_arabica_coffee; only its accounting moves.
   Florida_orange_production: {category: deferred, note: "FL orange output fundamental"}
   GBP_cross: {category: silver_only, note: "GBP/USD FX cross arbitrage"}
-  GMO_phytosanitary_policy: {category: deferred, note: "GMO/phytosanitary trade policy"}
-  GMO_white_policy: {category: deferred, note: "GMO white-sugar policy"}
+  # GMO_phytosanitary_policy: REMOVED 2026-08-21 (D-EC graph-completion wave) -- it now resolves to the
+  #   `biotech_market_access` slice in dag_alias above. The dec_p1 fillability census rates it
+  #   FILLABLE-BY-TERM at 161 anchored props, so "a real corpus gap" was never the right description of it.
+  # GMO_white_policy: REMOVED 2026-08-21 (D-EC graph-completion wave) -- it now resolves to the
+  #   `biotech_market_access` slice in dag_alias above.
   INR_PKR_weakness: {category: silver_only, note: "FX weakness basket"}
   INR_THB_VND_weakness: {category: silver_only, note: "FX weakness basket"}
   IOD_negative: {category: silver_only, note: "Indian Ocean Dipole teleconnection index"}
@@ -904,22 +2015,37 @@ waivers:
   #   above, so the silver_only claim ("grounded by the observed silver leg, never text") is no longer
   #   true of it. Same shape as the MYR_USD / favorable_rainfall / gasoil_palm_spread removals.
   abandonment: {category: deferred, note: "Crop abandonment yield-loss state-marker"}
-  aflatoxin: {category: deferred, note: "Aspergillus aflatoxin in corn"}
+  # aflatoxin: REMOVED 2026-08-21 (D-EC graph-completion wave, vocab sweep item 26) -- it now resolves to
+  #   the `fusarium_head_blight_mycotoxin` slice, which declares `aflatoxin` as a term (67 props / 63
+  #   net-new dark). One term plus one alias row retires a waiver and lights a leg.
   aphids: {category: deferred, note: "Aphid vector"}
-  aqua_season: {category: deferred, note: "Aquaculture feeding-season marker for RSM"}
-  aquaculture_feed_demand: {category: deferred, note: "Chinese aquaculture RSM feed demand"}
+  # aqua_season: REMOVED 2026-08-21 (D-EC graph-completion wave) -- it now resolves to the
+  #   `aquaculture_demand` slice in dag_alias above. It is the one row in this wave that costs a
+  #   driver_slice_alias_warnings advisory (no shared token); declared and accepted at the alias site.
+  # aquaculture_feed_demand: REMOVED 2026-08-21 (D-EC graph-completion wave) -- it now resolves to the
+  #   `aquaculture_demand` slice in dag_alias above. Cross-lane rider 4 measured this as READY TO WIRE
+  #   (1,011 props / 631 dark) and it is the pure-addition shape: waived AND unowned, so nothing is stolen.
   arabica_robusta_spread: {category: deferred, note: "Arabica-robusta price spread instrument"}
   arabica_substitution_into_robusta: {category: deferred, note: "Arabica->robusta substitution instrument"}
   area: {category: deferred, note: "Bare 'area' is exactly the difflib noise the LAW rejects (urea->area)"}
-  biennial_bearing: {category: deferred, note: "Tree-crop biennial on/off yield cycle (coffee/OJ)"}
-  biennial_low_cycle: {category: deferred, note: "Biennial low-yield year marker"}
-  biennial_off_year: {category: deferred, note: "Biennial off-year marker"}
-  biennial_on_year: {category: deferred, note: "Biennial on-year marker"}
+  # biennial_bearing: REMOVED 2026-08-21 (D-EC graph-completion wave, vocab sweep item 18) -- a driver slice
+  #   of the SAME NAME now exists, so evidence.driver_alias() resolves the id BY IDENTITY and no dag_alias
+  #   row is needed or allowed. The dec_p1 fillability census independently rates it FILLABLE-BY-TERM.
+  # biennial_low_cycle: REMOVED 2026-08-21 (D-EC graph-completion wave) -- it now resolves to the
+  #   `biennial_bearing` slice in dag_alias above.
+  # biennial_off_year: REMOVED 2026-08-21 (D-EC graph-completion wave) -- it now resolves to the
+  #   `biennial_bearing` slice in dag_alias above.
+  # biennial_on_year: REMOVED 2026-08-21 (D-EC graph-completion wave) -- it now resolves to the
+  #   `biennial_bearing` slice in dag_alias above.
   blocking_high: {category: deferred, note: "Blocking-high / heat-dome atmospheric pattern (silver blocking_high_z planned)"}
   board_crush: {category: deferred, note: "Soy board crush spread instrument"}
   boll_set: {category: deferred, note: "Cotton boll-set phenology weather stage"}
-  buffer_stock_release: {category: deferred, note: "India FCI/Thailand rice reserve release"}
-  buyer_tender_demand: {category: deferred, note: "Generic import-tender demand"}
+  # buffer_stock_release: REMOVED 2026-08-21 (D-EC graph-completion wave, vocab sweep item 14) -- a driver
+  #   slice of the SAME NAME now exists, so the id resolves BY IDENTITY. The lane priced both options (an
+  #   `msp` term add vs this slice) and took the slice precisely because it retires this row.
+  # buyer_tender_demand: REMOVED 2026-08-21 (D-EC graph-completion wave, B1 routing half) -- it now resolves
+  #   to the `sea_import_demand` slice in dag_alias above. Its region token is 'Indonesia/Philippines', an
+  #   exact topical fit, and it is the reason that slice needs no READ_DARK_SLICES_PIN entry.
   calendar_spread: {category: deferred, note: "Futures calendar-spread instrument"}
   canada_canola_export_pace: {category: deferred, note: "Canada canola export pace"}
   canada_rapeseed_import_supply: {category: deferred, note: "Canada->China rapeseed import supply"}
@@ -942,8 +2068,11 @@ waivers:
   #   longer true of it. Same shape as the MYR_USD / favorable_rainfall / gasoil_palm_spread removals.
   conab_production_revision: {category: deferred, note: "CONAB Brazil production revision"}
   consumption: {category: deferred, note: "Bare consumption demand state-marker"}
-  consumption_demand: {category: deferred, note: "Generic consumption demand"}
-  consumption_growth: {category: deferred, note: "Generic consumption-growth demand"}
+  # consumption_demand: REMOVED 2026-08-21 (D-EC graph-completion wave) -- it now resolves to the
+  #   `secular_demand_growth` slice in dag_alias above. Bare `consumption` KEEPS its row, deliberately: it is
+  #   a generic state marker whose honest home is a GN-1 number binding, not a text slice.
+  # consumption_growth: REMOVED 2026-08-21 (D-EC graph-completion wave) -- it now resolves to the
+  #   `secular_demand_growth` slice in dag_alias above.
   corn_borer: {category: deferred, note: "European corn borer pest"}
   corn_rootworm: {category: deferred, note: "Corn rootworm pest"}
   crush_margin: {category: deferred, note: "Chinese rapeseed crush margin instrument"}
@@ -956,14 +2085,11 @@ waivers:
   # eurusd_fx: REMOVED 2026-08-19 (D-EC D15 Wave 1c) -- it now resolves to the `eur_fx` slice in dag_alias
   #   above, so the silver_only claim ("grounded by the observed silver leg, never text") is no longer
   #   true of it. Same shape as the MYR_USD / favorable_rainfall / gasoil_palm_spread removals.
-  export_levy_duty: {category: deferred, note: "D-EC D8 2026-08-19 -- NOT a dark DAG id. This key is a SLICE
-    NAME, entered here for the same reason `indian_ocean_dipole` below is: check_driver_slices leg (c)
-    subtracts `set(waivers)` from the read-dark set, and READ_DARK_SLICES_PIN lives in evidence.py, which
-    this batch does not own. The slice was authored on 317 props of measured backing (490 measured on the
-    full chunk cache) and NO real DAG driver id means 'export levy/cess' -- the estate's levy ids
-    (export_tax, Brazil_export_tax) are owned by `export_ban`. So it is content-rich and routing-dark: the
-    OPPOSITE of the D-EI-4 park case. Retire this waiver when a DAG author mints an export-levy driver id,
-    or when the id is added to READ_DARK_SLICES_PIN, whichever comes first."}
+  # export_levy_duty: REMOVED 2026-08-21 (D-EC graph-completion wave) -- RETIRED EXACTLY AS ITS OWN NOTE
+  #   INSTRUCTED: "Retire this waiver when a DAG author mints an export-levy driver id". Three were minted
+  #   (CPO_export_levy, India_levy_sugar_cess, Nigeria_wheat_levy) and the slice claims them in dag_alias
+  #   above, so it is no longer read-dark and this SLICE-NAME waiver -- the D8 workaround for not owning
+  #   evidence.py -- has nothing left to account for. It also leaves READ_DARK_SLICES_PIN in the same wave.
   export_pace: {category: deferred, note: "Generic export shipment pace state-marker"}
   export_pace_lag: {category: deferred, note: "Export-pace lag"}
   export_parity: {category: deferred, note: "Export-parity price instrument"}
@@ -982,12 +2108,12 @@ waivers:
   import_demand_destination: {category: deferred, note: "White-sugar destination import demand"}
   import_parity: {category: deferred, note: "SA white-maize import-parity price anchor"}
   import_parity_floor: {category: deferred, note: "SA yellow-maize import-parity instrument"}
-  import_quota_trq: {category: deferred, note: "D-EC D8 2026-08-19 -- NOT a dark DAG id; a SLICE NAME, same
-    mechanism as `export_levy_duty` above. 1,201 props measured on the full chunk cache (450 of them claimed
-    by no other policy slice). The one topical DAG id, `China_import_quota_VAT`, is owned by `tariff`, and
-    taking it would MOVE reach rather than create it (tariff 28 -> 27 contracts; raw_sugar would lose its
-    ONLY tariff-owned id) -- the D-CW-3a refusal, recorded in full on tariff's dag_alias entry. Retire this
-    waiver by minting a TRQ driver id on the boards that trade one."}
+  # import_quota_trq: REMOVED 2026-08-21 (D-EC graph-completion wave) -- RETIRED EXACTLY AS ITS OWN NOTE
+  #   INSTRUCTED: "Retire this waiver by minting a TRQ driver id on the boards that trade one." Six were
+  #   minted (TRQ_sugar / TRQ_soybean_meal / TRQ_corn / TRQ_soybeans / TRQ_rice / TRQ_wheat) and the slice
+  #   claims them in dag_alias above. NOTE WHAT DID **NOT** HAPPEN: `China_import_quota_VAT` is STILL owned
+  #   by `tariff`. The D-CW-3a refusal recorded on tariff's entry stands untouched -- this wave lit the slice
+  #   by CREATING reach on nine boards, which is the answer that refusal was waiting for, not by taking it.
   # D-EI-4 (RATIFIED: waive, do not register). `indian_ocean_dipole` is a SLICE that no causal DAG id
   # reaches: it is not in display.all_driver_ids() (361 ids), no configs/graphrag/causal/*.yaml carries
   # `id: indian_ocean_dipole`, and no dag_alias RHS mentions it. planner._fill therefore never reaches it
@@ -1004,7 +2130,9 @@ waivers:
   # mechanical fix. The measurement lives in evidence.READ_DARK_SLICES_PIN alongside 28 others.
   indian_ocean_dipole: {category: deferred, note: "IOD slice: routed props exist but NO DAG id reaches it; honestly-deferred read-path gap (D-EI-4, waive-not-register)"}
   kc_chi_spread: {category: silver_only, note: "KC-Chicago wheat futures spread instrument"}
-  labor_shortage: {category: deferred, note: "Malaysian palm estate labor shortage"}
+  # labor_shortage: REMOVED 2026-08-21 (D-EC graph-completion wave, vocab sweep item 17) -- it now resolves
+  #   to the `labor_strikes` slice in dag_alias above, which merges the strike/blockade half with the estate
+  #   labour half into one "people stopped moving the crop" slice.
   leaf_rust: {category: deferred, note: "Wheat leaf/brown rust (Puccinia) -- STILL DEFERRED AND UNASSIGNED.
     The ambiguity this note used to describe is GONE, not resolved: Wave R R2 (D-EI-9 option a, 2026-08-02)
     DELETED the 'leaf rust' TERM from cereal_rust_complex outright -- 33 of its 34 props were non-cereal
@@ -1013,16 +2141,18 @@ waivers:
     is still None while stem_rust and stripe_rust both resolve to cereal_rust_complex. Whoever takes this id
     inherits a clean term list, which was the point of deleting rather than patching."}
   lodging: {category: deferred, note: "Crop lodging hazard"}
-  marine_protein_fishmeal: {category: deferred, note: "D-EC D8 2026-08-19 -- NOT a dark DAG id; a SLICE NAME,
-    same mechanism and same honest caveat as `export_levy_duty` above (leg (c) subtracts set(waivers); the
-    pin lives in evidence.py, which this batch does not own). 2,511 props measured on the full 345,870-prop
-    chunk cache and not one of the 371 real DAG driver ids names fishmeal or marine protein -- the marine leg
-    of the protein-substitution decision exists in the corpus and nowhere in the graph. Retiring this waiver
-    is a DAG-authoring act (mint a fishmeal driver on the soybean_meal / rapeseed_meal boards), which is the
-    post-X2 half of D8."}
+  # marine_protein_fishmeal: REMOVED 2026-08-21 (D-EC graph-completion wave) -- RETIRED EXACTLY AS ITS OWN
+  #   NOTE INSTRUCTED: "Retiring this waiver is a DAG-authoring act (mint a fishmeal driver on the
+  #   soybean_meal / rapeseed_meal boards), which is the post-X2 half of D8." Two were minted
+  #   (`fishmeal_substitution`, `peru_fishmeal_supply`) on three meal boards and the slice claims them in
+  #   dag_alias above. THIS ROW WAS **NOT** IN THE ORPHAN SPEC'S OWN A5 DELETE LIST -- it was found by
+  #   re-reading the block rather than by following the spec, and leaving it would have left a waiver
+  #   standing next to a live dag_alias row, which the wave's own rule forbids.
   meal_inventory: {category: deferred, note: "China meal-stocks state marker"}
   oil_share: {category: silver_only, note: "Oil-share-of-crush instrument"}
-  phytosanitary: {category: deferred, note: "Generic phytosanitary trade policy"}
+  # phytosanitary: REMOVED 2026-08-21 (D-EC graph-completion wave) -- it now resolves to the
+  #   `biotech_market_access` slice in dag_alias above, which declares `phytosanitary` as a literal term
+  #   (331 props / 255 net-new driver-dark).
   pod_fill: {category: deferred, note: "Soybean reproductive-window phenology state marker"}
   pre_harvest_sprouting: {category: deferred, note: "Wheat rain-at-maturity quality hazard"}
   protein_premium: {category: deferred, note: "MGEX high-protein wheat price premium"}
@@ -1038,7 +2168,9 @@ waivers:
   refinery_outages: {category: deferred, note: "Refinery outage supply disruption"}
   regional_export_demand: {category: deferred, note: "SA regional maize export demand"}
   regional_import_demand: {category: deferred, note: "SADC regional import demand"}
-  replanting_cycle: {category: deferred, note: "Coffee/cocoa aging-tree replanting structural supply"}
+  # replanting_cycle: REMOVED 2026-08-21 (D-EC graph-completion wave, vocab sweep item 7 -- "the cheapest
+  #   structural unlock in the sweep") -- a driver slice of the SAME NAME now exists, so the id resolves BY
+  #   IDENTITY on all SIX of its contracts and no dag_alias row is needed or allowed.
   septoria: {category: deferred, note: "EU wheat septoria foliar disease"}
   shattering: {category: deferred, note: "Canola pod shattering harvest loss"}
   soybean_crush_margin: {category: deferred, note: "Soybean crush margin instrument"}

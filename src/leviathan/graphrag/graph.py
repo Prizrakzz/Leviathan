@@ -156,6 +156,18 @@ def _invert_inter_commodity(contracts: dict) -> tuple[list, dict, dict, dict]:
     # by a loaded hierarchy contract -> a duplicate of a tradeable sibling, never a market of its own.
     untradeable = {cid for cid in contracts if cid not in hier
                    and any(o != cid and o in hier and hier[o] == _node_of(cid) for o in contracts)}
+    # D-EC GRAPH-COMPLETION INTEGRATION (2026-08-21): a loaded causal contract that is neither a hierarchy
+    # contract nor a base-yaml twin is a real market of its own — the class DAGs (barley, sorghum,
+    # sunflower_oil). The FORWARD branch below already tracks such an edge (`dc in contracts`); admitting the
+    # same contracts here as nodes makes the REVERSE index agree — ONE map, read twice, agreeing again
+    # (tracked == resolved held at 94/94 before the class DAGs landed, then split 114/103 because this set
+    # was hierarchy-only). Guarded on a loaded hierarchy: with no hierarchy at all the whole mechanism stays
+    # the documented no-op, and the fence above still keeps the base-yaml pair off the node set.
+    if hier:
+        for cid in sorted(contracts):
+            if cid not in hier and cid not in untradeable:
+                by_node.setdefault(_node_of(cid), []).append(cid)
+        nodes = set(by_node)
     table: list[dict] = []
     index: dict[str, list[dict]] = {}
     forward: dict[str, list] = {}
