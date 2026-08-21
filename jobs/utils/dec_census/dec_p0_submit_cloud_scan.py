@@ -7,7 +7,13 @@ is one small JSON under eval/.
 
 Reuses leviathan-dev-evidence-build (image ENTRYPOINT is `python`, so the command override is
 ["-c", SRC] -- the same `python -c` idiom submit_batch_evidence_maintenance.build_gated_command uses).
-Scans ALL 125 slices, so the driver half is an independent re-measurement of the local numbers.
+Scans ALL slices, so the driver half is an independent re-measurement of the local numbers.
+
+_x2 run (2026-08-21, graph-completion wave stage 2): the estate is now 163 slices / 29.76 GB
+(43 commodity + 120 driver, was 125 / 12.48 GB). The scan discovers slices by LIST so no code
+change is needed; 8 vCPU / 32,768 MB is KEPT deliberately -- the largest single object is
+french_wheat at 1.68 GB and is streamed in 4 MB reads, and the queue's maxvCpus is 32.
+Output key is dec_p1_era_scan_<STAMP>.json so the dec_p0 scan artifacts stay intact.
 """
 import json
 import time
@@ -19,7 +25,7 @@ QUEUE = "leviathan-dev-queue-ondemand"          # not the SPOT queue: a reclaim 
 JOBDEF = "leviathan-dev-evidence-build"
 BUCKET = "leviathan-dev-shahem-001"
 STAMP = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
-OUTKEY = f"graphrag_evidence/eval/dec_p0_era_scan_{STAMP}.json"
+OUTKEY = f"graphrag_evidence/eval/dec_p1_era_scan_{STAMP}.json"
 
 SRC = r'''
 import boto3, json, re, time
@@ -94,7 +100,7 @@ for pg in s3.get_paginator("list_objects_v2").paginate(Bucket=B, Prefix=P + "dri
         rel = o["Key"][len(P + "drivers/"):]
         if rel.endswith(".jsonl") and "/" not in rel:
             jobs.append((o["Key"], rel[:-6], "driver", o["Size"]))
-print("dec_p0 era scan: %d slices, %.2f GB" % (len(jobs), sum(j[3] for j in jobs)/1e9), flush=True)
+print("dec_p1 era scan: %d slices, %.2f GB" % (len(jobs), sum(j[3] for j in jobs)/1e9), flush=True)
 t0 = time.time()
 out = []; fails = []
 with ThreadPoolExecutor(max_workers=32) as pool:
@@ -105,7 +111,7 @@ with ThreadPoolExecutor(max_workers=32) as pool:
         except Exception as e:
             fails.append({"slice": futs[f][1], "error": str(e)[:300]})
             print("  FAIL %s: %s" % (futs[f][1], str(e)[:200]), flush=True)
-doc = {"census": "dec_p0_era_scan", "generated_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+doc = {"census": "dec_p1_era_scan", "generated_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
        "n_slices": len(out), "n_failed": len(fails), "failures": fails,
        "elapsed_seconds": round(time.time()-t0, 1),
        "slices": sorted(out, key=lambda r: (r["group"], r["slice"]))}
@@ -123,7 +129,7 @@ overrides = {
     ],
 }
 batch = boto3.client("batch", region_name=REGION)
-resp = batch.submit_job(jobName=f"dec-p0-era-scan-{STAMP}", jobQueue=QUEUE,
+resp = batch.submit_job(jobName=f"dec-p1-era-scan-{STAMP}", jobQueue=QUEUE,
                         jobDefinition=JOBDEF, containerOverrides=overrides)
 print("submitted job_id=%s" % resp["jobId"])
 print("out_key=%s" % OUTKEY)

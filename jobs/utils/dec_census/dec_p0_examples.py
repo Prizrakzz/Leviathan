@@ -1,4 +1,4 @@
-"""DEC-P0 step D: pull verbatim example chunks for the top new-edge candidates, so every
+"""DEC-P0/P1 step D: pull verbatim example chunks for the top new-edge candidates, so every
 ranked pair can be checked against real text rather than trusted."""
 import collections
 import glob
@@ -8,7 +8,7 @@ import re
 import unicodedata
 
 SCRATCH = r'C:/Users/User/AppData/Local/Temp/claude/C--Users-User-Desktop-Leviathan/360a169c-9409-4bdb-af00-a02392ed35a2/scratchpad'
-OUT = r'C:/Users/User/Desktop/Leviathan/data/dec_p0/edge_evidence.json'
+OUT = r'C:/Users/User/Desktop/Leviathan/data/dec_p1/edge_evidence.json'
 
 
 def _normalize(s):
@@ -16,8 +16,8 @@ def _normalize(s):
     return re.sub(r'[\s_\-]+', ' ', s).strip().lower()
 
 
-model = json.load(open(os.path.join(SCRATCH, 'dec_p0_model.json'), encoding='utf-8'))
-cm = json.load(open(os.path.join(SCRATCH, 'dec_p0_comention.json'), encoding='utf-8'))
+model = json.load(open(os.path.join(SCRATCH, 'dec_p1_model.json'), encoding='utf-8'))
+cm = json.load(open(os.path.join(SCRATCH, 'dec_p1_comention.json'), encoding='utf-8'))
 art = json.load(open(OUT, encoding='utf-8'))
 ENT = model['entities']
 BLOCK = set(cm['blocked_forms'])
@@ -40,8 +40,10 @@ want = list(dict.fromkeys(tuple(sorted(p)) for p in want))
 wantset = set(want)
 ex = collections.defaultdict(list)
 
-files = sorted(glob.glob(os.path.join(SCRATCH, 'dec_p0_raw', '*.jsonl'))) + \
-        sorted(glob.glob(os.path.join(SCRATCH, 'dec_p0_chunks', '*.jsonl')))
+# _x2 run: chunks/ ONLY -- the 2026-07-01 _raw/ leg is dropped from the co-mention corpus, so a
+# verbatim sample must never be drawn from it either. A sample pulled from outside the judged
+# universe would be a receipt for a measurement that did not happen.
+files = sorted(glob.glob(os.path.join(SCRATCH, 'dec_p1_chunks', '*.jsonl')))
 seen = set()
 for p in files:
     if all(len(ex[k]) >= 3 for k in wantset):

@@ -1,8 +1,8 @@
-"""DEC-P0: render data/dec_p0/edge_evidence.md from the JSON artifact. ASCII only."""
+"""DEC-P0/P1: render data/dec_p1/edge_evidence.md from the JSON artifact. ASCII only."""
 import json
 import os
 
-P = r'C:/Users/User/Desktop/Leviathan/data/dec_p0/edge_evidence.json'
+P = r'C:/Users/User/Desktop/Leviathan/data/dec_p1/edge_evidence.json'
 a = json.load(open(P, encoding='utf-8'))
 h, c, m = a['headline'], a['corpus'], a['method']
 L = []
@@ -10,7 +10,7 @@ w = L.append
 
 w('# Edge evidence audit -- what the CORPUS says about the causal DAG edges')
 w('')
-w(f"Generated {a['generated_utc']} | artifact: `data/dec_p0/edge_evidence.json`")
+w(f"Generated {a['generated_utc']} | artifact: `data/dec_p1/edge_evidence.json`")
 w('')
 w('## Headline')
 w('')
@@ -34,11 +34,14 @@ w(f"- The corpus co-mentions **{h['pairs_with_any_prop_comention']:,} distinct e
   f"chunk and **{h['pairs_with_any_doc_comention']:,}** in the same document. "
   f"**{h['new_candidates_non_context']:,} co-mentioned pairs have no DAG edge** once country/region/"
   f"organization endpoints are set aside ({h['new_candidates_total']:,} including them).")
-w(f"- **{len(a['c_structural_findings']['edge_orphaned_entities'])} entities carry ZERO DAG edges** "
-  f"despite real corpus presence -- including `biodiesel` (1,288 mentions), `sunflower` (6,550) and "
-  f"`fish_meal` (2,623). `canola`<->`rapeseed` (185 co-mentions) and `corn`<->`ethanol` (401) also "
-  f"have no edge in either direction.")
-w(f"- **16 existing edge endpoints are never mentioned once** in {c['unique_chunks_matched']:,} chunks: "
+# _x2 run: these three lines quoted DEC-P0's numbers as literals and would have re-published
+# them verbatim against a 3.5x corpus. Everything here is read from the artifact now.
+_orph = a['c_structural_findings']['edge_orphaned_entities']
+_top3 = ', '.join(f"`{r['entity']}` ({r['corpus_mentions']:,} mentions)" for r in _orph[:3])
+w(f"- **{len(_orph)} entities carry ZERO DAG edges** despite real corpus presence -- the largest "
+  f"being {_top3}.")
+w(f"- **{len(a['endpoints_never_mentioned_in_corpus'])} existing edge endpoints are never mentioned "
+  f"once** in {c['unique_chunks_matched']:,} chunks: "
   + ', '.join(f'`{x}`' for x in a['endpoints_never_mentioned_in_corpus']) + '.')
 w('')
 
@@ -191,23 +194,19 @@ for r in S['edge_orphaned_entities']:
     w(f"| {r['entity']} | {r['kind']} | {r['corpus_mentions']:,} | {r['corpus_documents']:,} | "
       f"{r['top_corpus_partner']} | {r['top_corpus_partner_comentions']:,} |")
 w('')
-w('The three that matter most, because the vocabulary itself already declares the edge type they '
-  'need:')
+# _x2 run: this was four hand-written bullets carrying DEC-P0's literals (biodiesel 1,288,
+# sunflower 6,550, canola~rapeseed 185, corn~ethanol 401). Re-publishing those against a 3.5x
+# corpus would have been the census contradicting its own headline. Generated from the artifact.
+w('The ones that matter most, ranked by the corpus mass sitting behind a node with no edge at all:')
 w('')
-w('- **`biodiesel`** -- 1,288 mentions, degree 0. `entity_vocabulary.yaml` defines `feedstock_for` '
-  'specifically for "veg-oil/cane/corn -> biofuel demand" and types `biodiesel` as a demand SINK, '
-  'but no DAG edge touches it. The corpus pairs it with `palm_oil` 228x (lift 8.9) and `diesel` 96x '
-  '(lift 59.4).')
-w('- **`sunflower`** / `sunflower_oil` -- 6,550 mentions, degree 0 / 3. The vocab comment names '
-  '"sunflower_oil substitutes_for palm_oil" as the reason context commodities exist at all. The '
-  'corpus pairs `sunflower` with `soybeans` 281x and `rapeseed` 141x.')
-w('- **`canola` <-> `rapeseed`** -- not orphans individually (degree 33 and 30) but **there is no '
-  'edge between them**, while the vocab note says explicitly they are "DISTINCT contracts ... linked '
-  'at extraction via substitutes_for/correlates_with". The corpus co-mentions them 185x (lift 2.43).')
-w('- **`corn` <-> `ethanol`** -- 401 same-chunk co-mentions (lift 2.66), no edge. The corn ethanol '
-  'channel IS modelled, but through the `us_ethanol_rfs` / `ethanol_margins` driver slices; the '
-  'commodity-node `feedstock_for` edge the vocab defines is absent. `ethanol` has degree 2 '
-  '(raw_sugar, white_sugar only).')
+for r in S['edge_orphaned_entities'][:6]:
+    w(f"- **`{r['entity']}`** ({r['kind']}) -- {r['corpus_mentions']:,} mentions across "
+      f"{r['corpus_documents']:,} documents, DAG degree 0. Its strongest corpus partner is "
+      f"`{r['top_corpus_partner']}` at {r['top_corpus_partner_comentions']:,} same-chunk "
+      f"co-mentions.")
+w('')
+w('See `data/dec_p1/edge_adjudication.md` for the verdict on each named edge -- this table is the '
+  'evidence, not the decision.')
 w('')
 w('### The corpus names the parent concept; the DAGs hang edges off the class nodes')
 w('')
@@ -216,12 +215,18 @@ w('|---|---|---|')
 for r in S['commodity_dag_degree_vs_corpus_mentions'][:16]:
     w(f"| {r['entity']} | {r['dag_degree']} | {r['corpus_mentions']:,} |")
 w('')
-w('`wheat` is the second most-mentioned entity in the whole corpus (41,885) and carries 7 pairs, '
-  'while `srw_wheat` (223 mentions) carries 34, `hrw_wheat` (178) carries 31 and `hrs_wheat` (478) '
-  'carries 29. This is by DESIGN -- `commodity_hierarchy.yaml` makes `wheat` the un-expanded concept '
-  'and expands it to class members -- but it is also the single biggest reason this audit cannot '
-  'measure the wheat complex: the text says "wheat", the edges say "srw_wheat". Same story for JSE '
-  'maize (`white_maize` 329, `yellow_maize` 331) and `palm_olein` (114).')
+# _x2 run: the wheat-class illustration was hardcoded to DEC-P0's counts. Recomputed.
+_deg = {r['entity']: r for r in S['commodity_dag_degree_vs_corpus_mentions']}
+_wc = [_deg[n] for n in ('wheat', 'srw_wheat', 'hrw_wheat', 'hrs_wheat') if n in _deg]
+if _wc:
+    w('`wheat` carries %d DAG pairs on %s mentions, while its class members carry %s. This is by '
+      'DESIGN -- `commodity_hierarchy.yaml` makes `wheat` the un-expanded concept and expands it to '
+      'class members -- but it is also the single biggest reason this audit cannot measure the '
+      'wheat complex: the text says "wheat", the edges say "srw_wheat".'
+      % (_wc[0]['dag_degree'], format(_wc[0]['corpus_mentions'], ','),
+         '; '.join('`%s` %d pairs on %s mentions'
+                   % (r['entity'], r['dag_degree'], format(r['corpus_mentions'], ','))
+                   for r in _wc[1:])))
 w('')
 w('### Thin endpoints that block measurement')
 w('')

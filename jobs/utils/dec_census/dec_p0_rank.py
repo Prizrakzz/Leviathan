@@ -1,18 +1,29 @@
-"""DEC-P0 step C: rank NEW-edge candidates + UNSUPPORTED existing edges, write artifacts."""
+"""DEC-P0/P1 step C: rank NEW-edge candidates + UNSUPPORTED existing edges, write artifacts.
+
+_x2 run (2026-08-21, graph-completion wave stage 2): OUT re-pointed to data/dec_p1/ --
+data/dec_p0/ is the SOLE pre-X2 baseline every "the corpus doubling fed it" delta is measured
+against, and this writer uses fixed filenames. The corpus is now chunks/-only (the stale
+2026-07-01 _raw/ leg is dropped per data/dec_p0/critique.md:59-63,199-200) and the method block
+carries the live chunks/ LIST snapshot so the judged universe stays identifiable.
+"""
 import collections
 import datetime
+import glob
+import hashlib
 import json
 import math
 import os
 import re
 import unicodedata
 
+CFG = r'C:/Users/User/Desktop/Leviathan/configs/graphrag'
 SCRATCH = r'C:/Users/User/AppData/Local/Temp/claude/C--Users-User-Desktop-Leviathan/360a169c-9409-4bdb-af00-a02392ed35a2/scratchpad'
-OUT = r'C:/Users/User/Desktop/Leviathan/data/dec_p0'
+OUT = r'C:/Users/User/Desktop/Leviathan/data/dec_p1'
 os.makedirs(OUT, exist_ok=True)
 
-model = json.load(open(os.path.join(SCRATCH, 'dec_p0_model.json'), encoding='utf-8'))
-cm = json.load(open(os.path.join(SCRATCH, 'dec_p0_comention.json'), encoding='utf-8'))
+model = json.load(open(os.path.join(SCRATCH, 'dec_p1_model.json'), encoding='utf-8'))
+cm = json.load(open(os.path.join(SCRATCH, 'dec_p1_comention.json'), encoding='utf-8'))
+SNAP = json.load(open(os.path.join(SCRATCH, 'dec_p1_chunks_snapshot.json'), encoding='utf-8'))
 ENT, EDGES = model['entities'], model['edges']
 solo = collections.Counter(cm['solo'])
 dsolo = collections.Counter(cm['doc_solo'])
@@ -168,8 +179,15 @@ thin_rows = [{'entity': e, 'kind': kind(e), 'corpus_mentions': solo[e],
 no_surface = sorted(e for e in ENT if not nf.get(e))
 unmapped, waivers = model['unmapped_endpoints'], model['waivers']
 
+_kind_n = collections.Counter(e['kind'] for e in EDGES)
+_causal_h = hashlib.sha256()
+for _p in sorted(glob.glob(os.path.join(CFG, 'causal', '*.yaml'))):
+    _causal_h.update(open(_p, 'rb').read())
+CAUSAL_HASH = _causal_h.hexdigest()[:12]
+
 art = {
     'artifact': 'edge_evidence',
+    'run': 'dec_p1_x2',
     'generated_utc': datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'),
     'question': 'which causal-DAG edges the corpus text supports, and which node pairs the '
                 'corpus co-mentions that have no edge at all',
@@ -184,28 +202,50 @@ art = {
         'blocked_forms': cm['blocked_forms'],
         'blocked_reason': 'these config aliases normalize to ordinary English words and would '
                           'manufacture co-mentions on every page',
-        'corpus': 'graphrag_evidence/_raw/*.jsonl (24 commodity slices, 190,898 recs, vector-free) '
-                  'UNION graphrag_evidence/chunks/*.jsonl (2,815 per-document chunk files, 345,870 '
-                  'recs), deduped on (id, source_key)',
-        'sampling': 'NO sampling was needed. The vector-free corpus is 235 MB total, so all 396,693 '
-                    'unique chunks were matched -- strictly dominating the ~50k stratified sample the '
-                    'task budgeted for. Per-slice coverage is reported under corpus.per_commodity_slice.',
-        'pg_mirror': 'pg (evidence_props) was PREFERRED per the brief but is VPC-internal and '
-                     'unreachable from this host (TCP 172.31.11.0:5432 refused); fell back to the '
-                     'flat S3 slices, which are the same props.',
+        'corpus': f"graphrag_evidence/chunks/*.jsonl ONLY -- {SNAP['n_objects']:,} per-document "
+                  f"chunk objects, {SNAP['total_bytes']:,} bytes, {N:,} unique vector-free props "
+                  f"deduped on (id, source_key). 43 commodity slices / 120 driver slices exist "
+                  f"alongside but are NOT the co-mention universe.",
+        'corpus_change_vs_dec_p0': 'DEC-P0 scanned _raw/ UNION chunks/ = 396,693 unique chunks '
+                                   '(24 _raw slices, 190,898 recs + 2,815 chunk files, 345,870 recs). '
+                                   'THE _raw/ LEG IS DROPPED HERE. data/dec_p0/critique.md:59-63,'
+                                   '199-200 established that ~50,800 of edge_evidence chunks (12.8%) '
+                                   'are not in the live universe, that _raw/ is frozen at the '
+                                   '2026-07-01 vintage (re-LISTed today: still 24 objects / 80 MB, '
+                                   'unchanged), and recommendation 6 is "Re-scope edge_evidence to '
+                                   'the live store"; thin_slice_fill.md:255 already refused to quote '
+                                   'these counts for that reason. Mention counts here are therefore '
+                                   'LOWER-BOUND-CORRECT rather than inflated, and the DEC-P0 solo/pair '
+                                   'counts are NOT directly subtractable -- compare rates and verdicts, '
+                                   'not raw deltas.',
+        'sampling': f"NO sampling. All {N:,} unique chunks in the live store were matched "
+                    f"({cm['n_scanned']:,} lines scanned before dedup).",
+        'pg_mirror': 'pg (evidence_props) stays PREFERRED-but-unreachable: EVIDENCE_PG_DSN is not '
+                     'set in this env at all and the RDS DSN is VPC-private. Note the two live '
+                     'numbers do NOT reconcile and should not be forced to: pg holds 1,277,979 props '
+                     '(from write_manifest_rebuild_20260820T180701Z) while chunks/ now holds ~1.37M '
+                     '-- the gap is the 2026-08-21 x2 tail merge, which has not been rebuilt into pg.',
+        'causal_content_hash': CAUSAL_HASH,
+        'causal_content_hash_at_dec_p0': '482c0e2554e6',
+        'corpus_snapshot': SNAP,
         'two_granularities': 'PROP co-mention = both entities in the SAME chunk (mean 102.9 chars, '
                              'i.e. one sentence) -- a strict test. DOC co-mention = both entities '
                              'somewhere in the same source document. An edge dark at BOTH levels is '
                              'the real review candidate; dark at prop level only usually just means '
                              'the mechanism is never stated in a single sentence.',
-        'existing_edge_derivation': '33 configs/graphrag/causal/*.yaml -- drivers[].id -> contract '
-                                    '(1,152 rows), drivers[].parents -> driver (1,088), '
-                                    'inter_commodity[].driver_commodity -> contract (117), '
-                                    'convergence[].interactions[].when pairs (277). Contract resolved '
-                                    'to its node via commodity_hierarchy.yaml; DAG driver ids resolved '
-                                    'to entities via entity_vocabulary aliases then driver_slices.dag_alias.',
-        'edges_are_undirected_here': 'co-mention is symmetric, so the 2,634 directed DAG rows collapse '
-                                     'to 979 distinct unordered endpoint pairs',
+        'existing_edge_derivation': f"{len(glob.glob(os.path.join(CFG, 'causal', '*.yaml')))} "
+                                    f"configs/graphrag/causal/*.yaml -- drivers[].id -> contract "
+                                    f"({_kind_n['driver_to_contract']} rows), drivers[].parents -> "
+                                    f"driver ({_kind_n['parent_to_driver']}), "
+                                    f"inter_commodity[].driver_commodity -> contract "
+                                    f"({_kind_n['inter_commodity']}), convergence[].interactions[]."
+                                    f"when pairs ({_kind_n['convergence_interaction']}). Contract "
+                                    f"resolved to its node via commodity_hierarchy.yaml; DAG driver "
+                                    f"ids resolved to entities via entity_vocabulary aliases then "
+                                    f"driver_slices.dag_alias.",
+        'edges_are_undirected_here': f"co-mention is symmetric, so the {len(EDGES):,} directed DAG "
+                                     f"rows collapse to {len(existing):,} distinct unordered "
+                                     f"endpoint pairs",
         'measurable_floor': MEASURABLE_FLOOR,
         'zero_band': ZERO_BAND,
         'degenerate_pairs_excluded_from_new_candidates': len(degenerate),

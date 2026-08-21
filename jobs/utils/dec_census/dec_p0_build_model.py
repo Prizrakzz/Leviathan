@@ -6,7 +6,12 @@ Sources (read, never guessed):
   configs/graphrag/commodity_hierarchy.yaml contract -> node
   configs/graphrag/causal/*.yaml            33 DAGs: drivers[].parents/edge_type, inter_commodity, convergence
 
-Writes scratch/dec_p0_model.json
+Writes scratch/dec_p1_model.json
+
+_x2 run (2026-08-21, graph-completion wave stage 2): output re-pointed to dec_p1_model.json so
+the pre-X2 dec_p0_model.json (causal content hash 482c0e2554e6) survives as the baseline. No
+logic change is needed -- the config has moved under it (hash 031ce56fec3d, ev.all_nodes()
+24 -> 43, vocab commodity nodes 32 -> 45), which is exactly what a re-run should pick up.
 """
 import glob
 import json
@@ -194,7 +199,7 @@ out = {
     'waivers': {k: v for k, v in waivers.items()},
     'contract_node': contract_node,
 }
-json.dump(out, open(os.path.join(SCRATCH, 'dec_p0_model.json'), 'w', encoding='utf-8'))
+json.dump(out, open(os.path.join(SCRATCH, 'dec_p1_model.json'), 'w', encoding='utf-8'))
 
 pairs = set()
 for e in edges:

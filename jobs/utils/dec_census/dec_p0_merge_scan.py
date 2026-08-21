@@ -1,4 +1,4 @@
-"""dec_p0: fold the in-VPC scan into the scan store and cross-check it against the local one.
+"""dec_p0/p1: fold the in-VPC scan into the scan store and cross-check it against the local one.
 
 The cloud job re-measured ALL 125 slices; the laptop had already measured 104 of them over the home
 link. Those 104 are therefore an INDEPENDENT second measurement of the same bytes by a different
@@ -20,11 +20,16 @@ ERAS = ("pre1990", "1990s", "2000s", "2010_17", "2018_26", "undated")
 key = sys.argv[1]
 body = boto3.client('s3').get_object(Bucket=BKT, Key=key)['Body'].read()
 cloud_doc = json.loads(body.decode('utf-8'))
-json.dump(cloud_doc, open(os.path.join(SCRATCH, 'dec_p0_cloud_scan.json'), 'w'), indent=1)
+json.dump(cloud_doc, open(os.path.join(SCRATCH, 'dec_p1_cloud_scan.json'), 'w'), indent=1)
 cloud = {r['slice']: r for r in cloud_doc['slices']}
 
 local = {}
-p = os.path.join(SCRATCH, 'dec_p0_era_scan.jsonl')
+# _x2 run: look for a dec_p1 LOCAL twin. There is none -- the laptop-side era scan was not
+# re-run (the estate is 29.76 GB now and the home link already failed that read at DEC-P0), so the
+# independent-second-measurement cross-check is legitimately EMPTY this vintage and says so rather
+# than silently comparing against the pre-X2 dec_p0_era_scan.jsonl, which would manufacture
+# 104 false disagreements out of a config/corpus vintage gap.
+p = os.path.join(SCRATCH, 'dec_p1_era_scan.jsonl')
 if os.path.exists(p):
     for ln in open(p, encoding='utf-8'):
         if ln.strip():
@@ -51,7 +56,7 @@ print("independent cross-check (laptop vs VPC, same bytes, different transport):
 for b in bad[:10]:
     print("  DISAGREE", json.dumps(b))
 
-out = os.path.join(SCRATCH, 'dec_p0_era_scan_final.jsonl')
+out = os.path.join(SCRATCH, 'dec_p1_era_scan_final.jsonl')
 with open(out, 'w', encoding='utf-8') as f:
     for nm in sorted(cloud):
         f.write(json.dumps(cloud[nm]) + "\n")
@@ -59,4 +64,4 @@ print("wrote %s (%d slices)" % (out, len(cloud)))
 json.dump({"n_compared": len(both), "n_agree": n_ok, "disagreements": bad,
            "cloud_key": key, "cloud_elapsed_seconds": cloud_doc['elapsed_seconds'],
            "cloud_n_failed": cloud_doc['n_failed']},
-          open(os.path.join(SCRATCH, 'dec_p0_crosscheck.json'), 'w'), indent=1)
+          open(os.path.join(SCRATCH, 'dec_p1_crosscheck.json'), 'w'), indent=1)

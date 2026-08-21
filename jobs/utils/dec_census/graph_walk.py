@@ -1,8 +1,23 @@
-"""DEC-P0 graph deep-dive: what the ENGINE actually walks.
+"""DEC-P0/P1 graph deep-dive: what the ENGINE actually walks.
 
 Reconstructs the real node/edge set from the loaded CausalGraph (the same loader serving uses),
 replicates planner.grounded_subgraph's BFS structurally (tau=0, budget=inf) in BOTH cascade
-directions, and emits data/dec_p0/graph_walk.{json,md}.
+directions, and emits data/dec_p1/graph_walk.{json,md}.
+
+_x2 run (2026-08-21, graph-completion wave stage 2). This instrument is a PURE FUNCTION OF THE
+CONFIG -- the corpus doubling changes nothing in it. It is re-run as the QUESTION the co-mention
+census answers, and it carries two comparability fixes the scout's run book pins:
+
+  (i)  ALL_NODES was the 24 hierarchy-CONTRACT nodes only. ev.all_nodes() is 43 today (19 context
+       commodities landed and ALL of them now have commodity slices on S3), so the old definition
+       made `evidence_files_no_node` fire 19 PHANTOM alarms. Widened to ev.all_nodes(), with the
+       contract-only set retained under totals.commodity_nodes_contract_only for comparability.
+       The 130-candidate universe is UNAFFECTED -- it is built from `nodes_with_dag`, not
+       ALL_NODES -- so the ranked structural list stays directly comparable to DEC-P0.
+  (ii) "forward-traversable" was raw string equality (driver_commodity in CONTRACTS) = 52. That
+       rule is PRE-fix-#68. Production resolves through graph.py:102 _CANONICAL_SEED +
+       _invert_inter_commodity and reaches 94 (banked in data/dec_p0/fix68_verify.json). BOTH are
+       now reported, explicitly labelled, so the census cannot contradict a ratified fix.
 """
 from __future__ import annotations
 
@@ -16,7 +31,7 @@ import yaml
 
 REPO = Path("C:/Users/User/Desktop/Leviathan")
 CFG = REPO / "configs" / "graphrag"
-OUT = REPO / "data" / "dec_p0"
+OUT = REPO / "data" / "dec_p1"
 OUT.mkdir(parents=True, exist_ok=True)
 
 from leviathan.graphrag import graph as gph          # noqa: E402
@@ -35,7 +50,9 @@ VOCAB = yaml.safe_load((CFG / "entity_vocabulary.yaml").read_text(encoding="utf-
 DS_RAW = yaml.safe_load((CFG / "driver_slices.yaml").read_text(encoding="utf-8")) or {}
 
 NODE_OF = {cid: (v.get("node") or cid) for cid, v in HC.items() if isinstance(v, dict)}
-ALL_NODES = sorted(set(NODE_OF.values()))
+# COMPARABILITY FIX (i): the node universe is evidence's own, not the contract-derived subset.
+CONTRACT_NODES = sorted(set(NODE_OF.values()))
+ALL_NODES = sorted(set(ev.all_nodes()) | set(CONTRACT_NODES))
 NODE_CONTRACTS = collections.defaultdict(list)
 for _c, _n in sorted(NODE_OF.items()):
     NODE_CONTRACTS[_n].append(_c)
@@ -67,6 +84,34 @@ inter_untracked = [(a, b, r) for (a, b, r, _s, _l) in inter_edges if b not in CO
 # what the REVERSE index resolves (alias-resolved through the hierarchy)
 rev_table = G.rev_cross_link_resolution()
 rev_buckets = G.rev_cross_link_buckets()
+
+# COMPARABILITY FIX (ii): forward-traversability, BOTH rules, never one silently.
+#   raw-rule      = `driver_commodity in CONTRACTS` (string equality). This is what DEC-P0's
+#                   graph_walk reported and it is PRE-fix-#68.
+#   production    = graph.py `_invert_inter_commodity`'s forward_target, i.e. the declared id when
+#                   it is itself a loaded tradeable contract, else the resolved canonical seed
+#                   (_CANONICAL_SEED at graph.py:102, lexicographic-first as fallback).
+#                   `None` on both unresolvable buckets means genuinely NOT traversable.
+fwd_prod_rows = [r for r in rev_table if r.get("forward_target")]
+fwd_prod_recovered = [
+    {"declaring_contract": r["declaring_contract"], "driver_commodity": r["driver_commodity"],
+     "forward_target": r["forward_target"], "tie_break": r.get("tie_break"),
+     "relation": r.get("relation")}
+    for r in rev_table
+    if r.get("forward_target") and r["driver_commodity"] not in CONTRACTS]
+fwd_still_lost = sorted({r["driver_commodity"] for r in rev_table if not r.get("forward_target")})
+FORWARD = {
+    "raw_string_equality_rule": len(inter_tracked),
+    "production_rule_via_canonical_seed": len(fwd_prod_rows),
+    "declared_total": len(inter_edges),
+    "recovered_by_fix_68": len(fwd_prod_recovered),
+    "still_not_traversable": len(inter_edges) - len(fwd_prod_rows),
+    "still_not_traversable_names": fwd_still_lost,
+    "note": ("DEC-P0's graph_walk reported ONLY the raw-string-equality number and it is "
+             "pre-fix-#68. data/dec_p0/fix68_verify.json banks the 52->94 move. Both rules are "
+             "printed here; the PRODUCTION number is the one serving walks."),
+    "recovered_rows": fwd_prod_recovered,
+}
 
 # node-level, ALIAS-RESOLVED directed edge set (declaring node -> declared/driver node)
 resolved_node_edges = set()
@@ -486,9 +531,21 @@ dark_detail = [{"driver_id": d, "waiver_category": (waivers.get(d) or {}).get("c
                for d in dark_driver_ids]
 
 art = {
-    "generated": "2026-08-19",
+    "generated": "2026-08-21",
+    "run": "dec_p1_x2",
+    "corpus_independence": ("This artifact is a PURE FUNCTION of configs/graphrag/*. The X2 corpus "
+                            "doubling does not move a single number in it. It is re-run as the "
+                            "QUESTION (which node pairs are structurally adjacent but unedged) that "
+                            "data/dec_p1/edge_evidence.json ANSWERS from text. It WILL move the "
+                            "moment stage-3 curation lands DAGs -- run it again then as the receipt."),
     "graph_version": G.version,
     "loader": "leviathan.graphrag.graph.CausalGraph.load() (the serving loader)",
+    # The sequencing-trap rider: even a config-only artifact pins the corpus vintage it was run
+    # ALONGSIDE, so the whole stage-2 set can be identified as one measurement later.
+    "corpus_snapshot": json.loads(
+        (Path(r"C:/Users/User/AppData/Local/Temp/claude/"
+              r"C--Users-User-Desktop-Leviathan/360a169c-9409-4bdb-af00-a02392ed35a2/scratchpad")
+         / "dec_p1_chunks_snapshot.json").read_text(encoding="utf-8")),
     "walk_model": {
         "source": "src/leviathan/graphrag/planner.py::grounded_subgraph",
         "expansion_contract": "tracked cross_links (driver_commodity in loaded contract ids, RAW STRING EQUALITY) + EVERY driver of the contract",
@@ -502,6 +559,8 @@ art = {
         "contracts_in_hierarchy": len(HIER_ANCHORS),
         "base_yaml_contracts": BASE_YAMLS,
         "commodity_nodes": len(ALL_NODES), "commodity_nodes_list": ALL_NODES,
+        "commodity_nodes_contract_only": len(CONTRACT_NODES),
+        "commodity_nodes_context_only": sorted(set(ALL_NODES) - set(CONTRACT_NODES)),
         "driver_instances": len(driver_instances),
         "distinct_driver_ids": len(distinct_driver_ids),
         "distinct_driver_ids_display": len(all_dag_ids),
@@ -510,6 +569,7 @@ art = {
         "inter_commodity_edges": len(inter_edges),
         "inter_commodity_tracked_forward": len(inter_tracked),
         "inter_commodity_untracked_forward": len(inter_untracked),
+        "inter_commodity_forward_traversable": FORWARD,
         "convergence_signals": len(convergence_signals),
         "total_edges": drv_target_edges + len(parent_edges) + len(inter_edges),
         "resolved_node_level_edges": len(resolved_node_edges),

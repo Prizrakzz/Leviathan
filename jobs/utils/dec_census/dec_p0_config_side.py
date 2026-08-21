@@ -1,4 +1,4 @@
-"""dec_p0: the CONFIG-side census -- declared universe, DAG-id routing, orphan kinds.
+"""dec_p0/p1: the CONFIG-side census -- declared universe, DAG-id routing, orphan kinds.
 
 Pure function of configs/graphrag/* (no S3, no pg, no model): reuses leviathan.graphrag.evidence
 (driver_specs / driver_alias / slice_for_driver) and display.all_driver_ids() exactly as
@@ -66,7 +66,7 @@ doc = {
     "commodity_all_nodes": all_nodes,
     "n_causal_dags": len(list((ex._CFG / 'causal').glob('*.yaml'))),
 }
-out = os.path.join(SCRATCH, 'dec_p0_config_side.json')
+out = os.path.join(SCRATCH, 'dec_p1_config_side.json')
 json.dump(doc, open(out, 'w', encoding='utf-8'), indent=1)
 print("dag ids %d | backed %d | dark %d | reasons %s | fold-recoverable %d" % (
     id_tot['n_ids'], id_tot['n_backed'], id_tot['n_dark'], id_tot['by_reason'],

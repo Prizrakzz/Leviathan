@@ -1,5 +1,13 @@
-"""DEC-P0: (a) verify the 2026-08-03 rebuild manifest still describes the LIVE slice objects,
-(b) download the whole chunks/ doc cache (2,815 objects, ~155 MB) to scratch."""
+"""DEC-P0/P1: (a) verify the rebuild manifest still describes the LIVE slice objects,
+(b) download the whole chunks/ doc cache to scratch.
+
+_x2 run (2026-08-21, graph-completion wave stage 2): CACHE_DIR is a FRESH dir and the prior
+manifest is re-pointed to the X2 routing pass. Both matter --
+  * jobs/utils/x2_tail_resplit.py:357 REWROTE 569 existing chunk objects on 2026-08-21 09h
+    (374 MB of the 663 MB store), and this fetcher skips any local file with size>0, so a
+    resumed pull into dec_p0_chunks/ would silently mix pre-merge and post-merge props;
+  * the 2026-08-03 manifest is two vintages stale, so its byte check would read as a defect.
+"""
 import json
 import os
 import sys
@@ -10,13 +18,19 @@ from concurrent.futures import ThreadPoolExecutor
 import boto3
 
 SCR = r'C:/Users/User/AppData/Local/Temp/claude/C--Users-User-Desktop-Leviathan/360a169c-9409-4bdb-af00-a02392ed35a2/scratchpad'
-CACHE_DIR = os.path.join(SCR, "dec_p0_chunks")
+CACHE_DIR = os.path.join(SCR, "dec_p1_chunks")
 BUCKET = "leviathan-dev-shahem-001"
 P = "graphrag_evidence/"
+MANIFEST = "write_manifest_rebuild_20260820T180701Z.json"
 
-ev_list = json.load(open(os.path.join(SCR, "dec_p0_ev_listing.json")))
+ev_list = json.load(open(os.path.join(SCR, "dec_p1_ev_listing.json")))
 sizes = {k[len(P):]: s for k, s, _ in ev_list}
-mf = json.load(open(os.path.join(SCR, "write_manifest_rebuild_20260803T134404Z.json")))
+_mf_local = os.path.join(SCR, MANIFEST)
+if not os.path.exists(_mf_local):
+    boto3.client("s3", region_name="us-east-1").download_file(
+        BUCKET, f"{P}eval/{MANIFEST}", _mf_local)
+    print(f"fetched prior manifest {MANIFEST}")
+mf = json.load(open(_mf_local))
 
 # ---- (a) manifest vs live bytes ------------------------------------------------------------
 print("== manifest after_bytes vs live LIST sizes ==")
@@ -40,7 +54,8 @@ for layer, recs in mf["slices"].items():
     for m in mism[:10]:
         print("    MISMATCH", m)
     report[layer] = {"match": ok, "mismatch": bad, "missing": miss, "examples": mism[:20]}
-json.dump(report, open(os.path.join(SCR, "dec_p0_manifest_bytes_check.json"), "w"))
+json.dump({"prior_manifest": MANIFEST, "layers": report},
+          open(os.path.join(SCR, "dec_p1_manifest_bytes_check.json"), "w"))
 
 # ---- (b) download chunks/ ------------------------------------------------------------------
 os.makedirs(CACHE_DIR, exist_ok=True)

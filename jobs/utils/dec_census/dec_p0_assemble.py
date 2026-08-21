@@ -1,9 +1,9 @@
-"""dec_p0: assemble data/dec_p0/slice_census.{json,md} from the four measured inputs.
+"""dec_p0/p1: assemble data/dec_p1/slice_census.{json,md} from the four measured inputs.
 
-  dec_p0_era_scan.jsonl      -- per-slice n_props + 6-bucket era histogram, streamed from S3 (measured)
-  dec_p0_config_side.json    -- declared universe + DAG-id routing (pure config)
-  dec_p0_write_manifest.json -- the 2026-08-03 rebuild's per-slice after_n + date spans (cross-check)
-  dec_p0_s3list.json         -- object bytes + LastModified (presence + staleness)
+  dec_p1_era_scan_final.jsonl -- per-slice n_props + 6-bucket era histogram, streamed from S3 (measured)
+  dec_p1_config_side.json    -- declared universe + DAG-id routing (pure config)
+  dec_p1_write_manifest.json -- the 2026-08-20 X2 rebuild's per-slice after_n + date spans (cross-check)
+  dec_p1_s3list.json         -- object bytes + LastModified (presence + staleness)
 
 Era buckets / thickness gates are e1_census's verbatim: THICK_MIN=100 props to be judged, THIN_MAX=10
 props per REAL era, undated excluded from the gap test. Files are UTF-8; stdout is ASCII (cp1252).
@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 
 SCRATCH = r'C:/Users/User/AppData/Local/Temp/claude/C--Users-User-Desktop-Leviathan/360a169c-9409-4bdb-af00-a02392ed35a2/scratchpad'
 REPO = r'C:/Users/User/Desktop/Leviathan'
-OUTDIR = os.path.join(REPO, 'data', 'dec_p0')
+OUTDIR = os.path.join(REPO, 'data', 'dec_p1')
 
 ERAS = ("pre1990", "1990s", "2000s", "2010_17", "2018_26", "undated")
 REAL_ERAS = ERAS[:5]
@@ -23,20 +23,25 @@ THIN_MAX = 10
 ZERO = 0
 THIN_SLICE_MAX = 10                                    # task definition of a "thin slice": < 10 props
 
-_final = os.path.join(SCRATCH, 'dec_p0_era_scan_final.jsonl')
-_scan_src = _final if os.path.exists(_final) else os.path.join(SCRATCH, 'dec_p0_era_scan.jsonl')
+_final = os.path.join(SCRATCH, 'dec_p1_era_scan_final.jsonl')
+_scan_src = _final if os.path.exists(_final) else os.path.join(SCRATCH, 'dec_p1_era_scan.jsonl')
 scan = {}
 for ln in open(_scan_src, encoding='utf-8'):
     if ln.strip():
         r = json.loads(ln)
         scan[r['slice']] = r
-_xc = os.path.join(SCRATCH, 'dec_p0_crosscheck.json')
+_xc = os.path.join(SCRATCH, 'dec_p1_crosscheck.json')
 crosscheck = json.load(open(_xc, encoding='utf-8')) if os.path.exists(_xc) else None
-cs = json.load(open(os.path.join(SCRATCH, 'dec_p0_config_side.json'), encoding='utf-8'))
-man = json.load(open(os.path.join(SCRATCH, 'dec_p0_write_manifest.json'), encoding='utf-8'))
-s3l = json.load(open(os.path.join(SCRATCH, 'dec_p0_s3list.json'), encoding='utf-8'))
-chunks = json.load(open(os.path.join(SCRATCH, 'dec_p0_chunks.json'), encoding='utf-8'))
-prior = json.load(open(os.path.join(REPO, 'configs/graphrag/eval/e1_census.json'), encoding='utf-8'))
+cs = json.load(open(os.path.join(SCRATCH, 'dec_p1_config_side.json'), encoding='utf-8'))
+man = json.load(open(os.path.join(SCRATCH, 'dec_p1_write_manifest.json'), encoding='utf-8'))
+s3l = json.load(open(os.path.join(SCRATCH, 'dec_p1_s3list.json'), encoding='utf-8'))
+chunks = json.load(open(os.path.join(SCRATCH, 'dec_p1_chunks.json'), encoding='utf-8'))
+# THE PRIOR IS RE-POINTED (see dec_p1_prepare_assemble_inputs.py). It was
+# configs/graphrag/eval/e1_census.json -- a 2026-08-02 artifact (361 ids / 142 dark / 109 slices),
+# TWO config vintages back, so every "vs_prior" number it produced mixed config drift with corpus
+# growth. It is now DEC-P0's own slice_census, the immediately preceding vintage and the sole
+# pre-X2 baseline, which makes the delta one-vintage and readable as "what X2 did".
+prior = json.load(open(os.path.join(SCRATCH, 'dec_p1_prior.json'), encoding='utf-8'))
 prior_by = {s['slice']: s for s in prior['slices']}
 
 s3meta = {}
@@ -188,7 +193,7 @@ _w = cs['waivers']
 waiver_names = set(_w) if isinstance(_w, (dict, list)) else set()
 
 doc = {
-    "census": "dec_p0_slice_thinness",
+    "census": "dec_p1_slice_thinness_x2",
     "version": 1,
     "generated_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     "basis": {
@@ -221,7 +226,15 @@ doc = {
                      "eras": list(ERAS), "real_eras": list(REAL_ERAS),
                      "bucket_rule": ("event_date preferred over date; unparseable / absent / year > 2026 "
                                      "-> 'undated' (a data-quality note, never an era gap)")},
-        "supersedes": "configs/graphrag/eval/e1_census.json (2026-08-02, pre-rebuild)",
+        "supersedes": prior["prior_artifact"],
+        "supersedes_note": ("the hardcoded priors were RE-POINTED for the _x2 run: the write "
+                            "manifest from 20260803T134404Z to the X2 pass 20260820T180701Z "
+                            "(byte-exact against the live objects: 43/43 commodity, 120/120 "
+                            "driver), and the prior census from configs/graphrag/eval/e1_census."
+                            "json (2026-08-02: 361 ids / 142 dark / 109 slices, two config "
+                            "vintages back) to DEC-P0's own slice_census. Left alone, every "
+                            "vs_prior number would have been a two-vintage delta mixing config "
+                            "drift with corpus growth."),
     },
     "totals": {
         "n_slices_universe": len(slices),
@@ -265,7 +278,7 @@ doc = {
         "redundant_props": dup_redundant, "groups": dup_groups},
     "count_mismatch_vs_manifest": mismatch,
     "vs_prior_census": {
-        "prior_artifact": "configs/graphrag/eval/e1_census.json (2026-08-02, pre-rebuild)",
+        "prior_artifact": prior["prior_artifact"],
         "prior_id_totals": prior['id_totals'],
         "prior_slice_totals": prior['slice_totals'],
         "population_moved": [{"slice": n, "before": b, "after": a} for n, b, a in pop_moved],
@@ -300,13 +313,13 @@ def row(s):
 
 L = []
 A = L.append
-A("# Slice-thinness census (dec_p0) -- %s" % doc['generated_utc'])
+A("# Slice-thinness census (dec_p1, post-X2) -- %s" % doc['generated_utc'])
 A("")
-A("Full re-measurement of the evidence store, superseding the 2026-08-02 `e1_census.json` "
-  "(which predates the 2026-08-03 E4W1 rebuild). Every prop count and every era bucket below was read "
-  "from S3 by streaming all %.2f GB of slice objects; nothing is sampled and nothing is estimated. "
-  "The scan ran inside the VPC on Batch -- the home link could not carry the 11.12 GB commodity half."
-  % (doc['totals']['bytes_scanned'] / 1e9))
+A("Full re-measurement of the evidence store on the DOUBLED (X2) corpus, superseding "
+  "`%s`. Every prop count and every era bucket below was read from S3 by streaming all %.2f GB of "
+  "slice objects; nothing is sampled and nothing is estimated. The scan ran inside the VPC on "
+  "Batch -- the home link could not carry the commodity half."
+  % (prior['prior_artifact'], doc['totals']['bytes_scanned'] / 1e9))
 A("")
 A("## Headline")
 A("")
@@ -460,12 +473,14 @@ if dup_rejected:
           % (', '.join('`%s`' % s for s in g['slices']), g['n_props'],
              " vs ".join(format(b, ',') for b in g['name_normalized_bytes'])))
 A("")
-A("## Movement since the superseded census (2026-08-02 -> now)")
+A("## Movement since the superseded census (DEC-P0, pre-X2 -> now)")
 A("")
-A("The prior artifact was written the day BEFORE the 2026-08-03 rebuild, and `driver_slices.yaml` has "
-  "gained aliases since. Both halves moved, which is why it could not be reused.")
+A("The prior is DEC-P0's own census -- the immediately preceding vintage and the sole pre-X2 "
+  "baseline -- so this delta is ONE vintage and reads as `what the corpus doubling did`. The "
+  "assembler's original prior (`configs/graphrag/eval/e1_census.json`, 2026-08-02) was two "
+  "vintages back and was deliberately re-pointed; see basis.supersedes_note.")
 A("")
-A("| metric | 2026-08-02 | now | delta |")
+A("| metric | DEC-P0 (pre-X2) | now | delta |")
 A("|---|--|--|--|")
 for label, b, c in (
         ("DAG driver ids", prior['id_totals']['n_ids'], cs['id_totals']['n_ids'],),
