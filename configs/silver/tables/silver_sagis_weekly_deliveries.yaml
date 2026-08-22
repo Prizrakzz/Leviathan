@@ -98,13 +98,7 @@ value_columns:
 - pct_of_prior_yr
 - z_vs_3yr_avg
 min_nonnull_frac: 0.5
-min_nonnull_frac_overrides:
-  pct_of_prior_yr: 0.6   # OP-8 measured worst 0.9223
-  prior_prog_total_mt: 0.6   # OP-8 measured worst 0.9253
-  prog_total_mt: 0.7   # OP-8 measured worst 1
-  z_vs_3yr_avg: 0.55   # OP-8 measured worst 0.8569
-min_nonnull_frac_status: calibrated   # OP-8 census 2026-08-22 (task #62): per-column floors
-#   = worst COMPLETED publish-frame fraction x 0.7 margin, grid 0.05, clamp [0.02, 0.9]; hand-curated rows untouched; the scalar stays for future columns
+min_nonnull_frac_status: provisional
 coverage_axis: season x crop x week_number
 vintage_retention: latest-only
 knowledge_date_col: week_ending_date

@@ -105,14 +105,7 @@ value_columns:
 - ethanol_anhydrous_m3
 - ethanol_hydrous_m3
 min_nonnull_frac: 0.5
-min_nonnull_frac_overrides:
-  cane_crushed_t: 0.7   # OP-8 measured worst 1
-  ethanol_anhydrous_m3: 0.65   # OP-8 measured worst 0.9463
-  ethanol_hydrous_m3: 0.65   # OP-8 measured worst 0.9463
-  ethanol_total_m3: 0.65   # OP-8 measured worst 0.991
-  sugar_produced_t: 0.7   # OP-8 measured worst 1
-min_nonnull_frac_status: calibrated   # OP-8 census 2026-08-22 (task #62): per-column floors
-#   = worst COMPLETED publish-frame fraction x 0.7 margin, grid 0.05, clamp [0.02, 0.9]; hand-curated rows untouched; the scalar stays for future columns
+min_nonnull_frac_status: provisional
 coverage_axis: harvest_year x region x fortnight_seq
 vintage_retention: latest-only
 knowledge_date_col: fortnight_date

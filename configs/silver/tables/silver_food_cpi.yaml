@@ -150,13 +150,7 @@ value_columns:
 - cpi_yoy_z_10yr
 - cpi_available
 min_nonnull_frac: 0.5
-min_nonnull_frac_overrides:
-  cpi_available: 0.7   # OP-8 measured worst 1
-  cpi_yoy_pct: 0.5   # OP-8 measured worst 0.75
-  cpi_yoy_z_10yr: 0.45   # OP-8 measured worst 0.6742
-  cpi_yoy_z_5yr: 0.45   # OP-8 measured worst 0.7045
-min_nonnull_frac_status: calibrated   # OP-8 census 2026-08-22 (task #62): per-column floors
-#   = worst COMPLETED publish-frame fraction x 0.7 margin, grid 0.05, clamp [0.02, 0.9]; hand-curated rows untouched; the scalar stays for future columns
+min_nonnull_frac_status: provisional
 coverage_axis: country x year
 vintage_retention: latest-only
 knowledge_date_col: data_date

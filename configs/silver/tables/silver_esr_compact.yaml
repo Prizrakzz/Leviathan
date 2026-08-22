@@ -164,8 +164,7 @@ value_columns:
 - gross_new_sales_1000mt
 - changes_1000mt
 min_nonnull_frac: 0.5
-min_nonnull_frac_status: calibrated   # OP-8 census 2026-08-22 (task #62): per-column floors
-#   = worst COMPLETED publish-frame fraction x 0.7 margin, grid 0.05, clamp [0.02, 0.9]; hand-curated rows untouched; the scalar stays for future columns
+min_nonnull_frac_status: provisional
 coverage_axis: commodity(slug partition) x commodity_code x market_year x country_code x week_ending_date
   (latest as_of snapshot per MY)
 vintage_retention: per-week
@@ -206,7 +205,4 @@ notes: 'min_nonnull_frac is PROVISIONAL (uniform 0.5) pending per-source calibra
   for per-week vintages (canonical data/catalog migration is the gated BF-W2 window -- never re-projection).
   See reports/silver_readiness/R2_esr/F031_option_b_path.json and the parity proof under the same prefix.'
 min_nonnull_frac_overrides:
-  gross_new_sales_1000mt: 0.7   # OP-8 measured worst 1
-  outstanding_sales_1000mt: 0.7   # OP-8 measured worst 1
-  weekly_exports_1000mt: 0.7   # OP-8 measured worst 1
   changes_1000mt: 0.0

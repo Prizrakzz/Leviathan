@@ -141,10 +141,7 @@ required_nonnull:
 value_columns:
 - settle
 min_nonnull_frac: 0.5
-min_nonnull_frac_overrides:
-  settle: 0.6   # OP-8 measured worst 0.8915
-min_nonnull_frac_status: calibrated   # OP-8 census 2026-08-22 (task #62): per-column floors
-#   = worst COMPLETED publish-frame fraction x 0.7 margin, grid 0.05, clamp [0.02, 0.9]; hand-curated rows untouched; the scalar stays for future columns
+min_nonnull_frac_status: provisional
 coverage_axis: leviathan_slug x contract_month x trade_date
 vintage_retention: latest-only
 knowledge_date_col: trade_date

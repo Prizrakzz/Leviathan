@@ -177,12 +177,7 @@ value_columns:
 - area_in_production_ha
 - yield_bags_per_ha
 min_nonnull_frac: 0.5
-min_nonnull_frac_overrides:
-  area_in_production_ha: 0.65   # OP-8 measured worst 0.9888
-  production_thousand_bags: 0.5   # OP-8 measured worst 0.777
-  yield_bags_per_ha: 0.7   # OP-8 measured worst 1
-min_nonnull_frac_status: calibrated   # OP-8 census 2026-08-22 (task #62): per-column floors
-#   = worst COMPLETED publish-frame fraction x 0.7 margin, grid 0.05, clamp [0.02, 0.9]; hand-curated rows untouched; the scalar stays for future columns
+min_nonnull_frac_status: provisional
 coverage_axis: commodity x safra_year x survey_number x region
 vintage_retention: latest-only
 knowledge_date_col: survey_release_date

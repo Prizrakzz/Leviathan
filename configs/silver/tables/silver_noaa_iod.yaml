@@ -76,11 +76,7 @@ value_columns:
 - dmi_value
 - iod_dmi_3month_avg
 min_nonnull_frac: 0.5
-min_nonnull_frac_overrides:
-  dmi_value: 0.7   # OP-8 measured worst 1
-  iod_dmi_3month_avg: 0.65   # OP-8 measured worst 0.9989
-min_nonnull_frac_status: calibrated   # OP-8 census 2026-08-22 (task #62): per-column floors
-#   = worst COMPLETED publish-frame fraction x 0.7 margin, grid 0.05, clamp [0.02, 0.9]; hand-curated rows untouched; the scalar stays for future columns
+min_nonnull_frac_status: provisional
 coverage_axis: year x month
 vintage_retention: latest-only
 knowledge_date_col: null

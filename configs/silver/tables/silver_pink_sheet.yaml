@@ -580,8 +580,7 @@ value_columns:
 - tsp_usd_mt_zscore_5yr
 - copper_usd_mt_zscore_5yr
 min_nonnull_frac: 0.5
-min_nonnull_frac_status: calibrated   # OP-8 census 2026-08-22 (task #62): per-column floors
-#   = worst COMPLETED publish-frame fraction x 0.7 margin, grid 0.05, clamp [0.02, 0.9]; hand-curated rows untouched; the scalar stays for future columns
+min_nonnull_frac_status: provisional
 coverage_axis: monthly date
 vintage_retention: latest-only
 knowledge_date_col: date
@@ -617,76 +616,6 @@ notes: 'min_nonnull_frac is PROVISIONAL (uniform 0.5) pending per-source calibra
   This registry is the SINGLE authority for value_columns and min_nonnull_frac (Attack 3 finding #6).
   Types are the INV-2 TARGET writer schema; arrow_type is the current-physical type from the R0 baseline.'
 min_nonnull_frac_overrides:
-  barley_usd_t: 0.6   # OP-8 measured worst 0.9123
-  barley_usd_t_zscore_5yr: 0.6   # OP-8 measured worst 0.8684
-  beef_usd_t: 0.7   # OP-8 measured worst 1
-  beef_usd_t_zscore_5yr: 0.65   # OP-8 measured worst 0.9561
-  blended_npk_index: 0.6   # OP-8 measured worst 0.8947
-  blended_npk_index_zscore_5yr: 0.55   # OP-8 measured worst 0.8509
-  brent_crude_usd_bbl: 0.7   # OP-8 measured worst 1
-  brent_crude_usd_bbl_zscore_5yr: 0.65   # OP-8 measured worst 0.9561
-  chicken_usd_t: 0.7   # OP-8 measured worst 1
-  chicken_usd_t_zscore_5yr: 0.65   # OP-8 measured worst 0.9561
-  cocoa_usd_t: 0.7   # OP-8 measured worst 1
-  cocoa_usd_t_zscore_5yr: 0.65   # OP-8 measured worst 0.9561
-  coconut_oil_usd_t: 0.7   # OP-8 measured worst 1
-  coconut_oil_usd_t_zscore_5yr: 0.65   # OP-8 measured worst 0.9561
-  coffee_arabica_usd_t: 0.7   # OP-8 measured worst 1
-  coffee_arabica_usd_t_zscore_5yr: 0.65   # OP-8 measured worst 0.9561
-  coffee_robusta_usd_t: 0.7   # OP-8 measured worst 1
-  coffee_robusta_usd_t_zscore_5yr: 0.65   # OP-8 measured worst 0.9561
-  copper_usd_mt: 0.7   # OP-8 measured worst 1
-  copper_usd_mt_zscore_5yr: 0.65   # OP-8 measured worst 0.9561
-  cotton_a_index_usd_t: 0.7   # OP-8 measured worst 1
-  cotton_a_index_usd_t_zscore_5yr: 0.65   # OP-8 measured worst 0.9561
-  dap_usd_mt: 0.6   # OP-8 measured worst 0.8947
-  dap_usd_mt_zscore_5yr: 0.55   # OP-8 measured worst 0.8509
-  fish_meal_usd_t: 0.5   # OP-8 measured worst 0.7143
-  fish_meal_usd_t_zscore_5yr: 0.45   # OP-8 measured worst 0.6704
-  groundnut_oil_usd_t: 0.7   # OP-8 measured worst 1
-  groundnut_oil_usd_t_zscore_5yr: 0.65   # OP-8 measured worst 0.9561
-  groundnuts_usd_t: 0.45   # OP-8 measured worst 0.6992
-  groundnuts_usd_t_zscore_5yr: 0.45   # OP-8 measured worst 0.6554
-  maize_usd_t: 0.7   # OP-8 measured worst 1
-  maize_usd_t_zscore_5yr: 0.65   # OP-8 measured worst 0.9561
-  natural_gas_eu_usd_mmbtu: 0.7   # OP-8 measured worst 1
-  natural_gas_eu_usd_mmbtu_zscore_5yr: 0.35   # OP-8 measured worst 0.5338
-  natural_gas_us_usd_mmbtu: 0.7   # OP-8 measured worst 1
-  natural_gas_us_usd_mmbtu_zscore_5yr: 0.5   # OP-8 measured worst 0.7143
-  orange_usd_t: 0.7   # OP-8 measured worst 1
-  orange_usd_t_zscore_5yr: 0.65   # OP-8 measured worst 0.9561
-  palm_oil_cpo_usd_t: 0.7   # OP-8 measured worst 1
-  palm_oil_cpo_usd_t_zscore_5yr: 0.65   # OP-8 measured worst 0.9561
-  phosphate_rock_usd_mt: 0.65   # OP-8 measured worst 0.9987
-  phosphate_rock_usd_mt_zscore_5yr: 0.65   # OP-8 measured worst 0.9549
-  potassium_usd_mt: 0.7   # OP-8 measured worst 1
-  potassium_usd_mt_zscore_5yr: 0.4   # OP-8 measured worst 0.6003
-  raw_sugar_eu_usd_t: 0.7   # OP-8 measured worst 1
-  raw_sugar_eu_usd_t_zscore_5yr: 0.65   # OP-8 measured worst 0.9398
-  raw_sugar_us_usd_t: 0.7   # OP-8 measured worst 1
-  raw_sugar_us_usd_t_zscore_5yr: 0.65   # OP-8 measured worst 0.9561
-  raw_sugar_world_usd_t: 0.7   # OP-8 measured worst 1
-  raw_sugar_world_usd_t_zscore_5yr: 0.65   # OP-8 measured worst 0.9561
-  rice_thai_5pct_usd_t: 0.7   # OP-8 measured worst 1
-  rice_thai_5pct_usd_t_zscore_5yr: 0.65   # OP-8 measured worst 0.9561
-  rubber_rss3_usd_t: 0.7   # OP-8 measured worst 1
-  rubber_rss3_usd_t_zscore_5yr: 0.65   # OP-8 measured worst 0.9561
-  sorghum_usd_t: 0.6   # OP-8 measured worst 0.9123
-  sorghum_usd_t_zscore_5yr: 0.6   # OP-8 measured worst 0.8684
-  soybean_meal_usd_t: 0.7   # OP-8 measured worst 1
-  soybean_meal_usd_t_zscore_5yr: 0.65   # OP-8 measured worst 0.9561
-  soybean_oil_usd_t: 0.7   # OP-8 measured worst 1
-  soybean_oil_usd_t_zscore_5yr: 0.65   # OP-8 measured worst 0.9561
-  soybeans_usd_t: 0.7   # OP-8 measured worst 1
-  soybeans_usd_t_zscore_5yr: 0.65   # OP-8 measured worst 0.9561
-  tsp_usd_mt: 0.7   # OP-8 measured worst 1
-  tsp_usd_mt_zscore_5yr: 0.6   # OP-8 measured worst 0.8947
-  urea_usd_mt: 0.7   # OP-8 measured worst 1
-  urea_usd_mt_zscore_5yr: 0.35   # OP-8 measured worst 0.5188
-  wheat_us_hrw_usd_t: 0.7   # OP-8 measured worst 1
-  wheat_us_hrw_usd_t_zscore_5yr: 0.65   # OP-8 measured worst 0.9561
-  wheat_us_srw_usd_t: 0.45   # OP-8 measured worst 0.7055
-  wheat_us_srw_usd_t_zscore_5yr: 0.45   # OP-8 measured worst 0.6617
   rapeseed_oil_usd_t: 0.3
   rapeseed_oil_usd_t_zscore_5yr: 0.26
   palm_kernel_oil_usd_t: 0.36

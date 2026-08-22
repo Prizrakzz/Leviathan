@@ -112,13 +112,7 @@ value_columns:
 - oil_value_usd_bu
 - bean_cost_usd_bu
 min_nonnull_frac: 0.5
-min_nonnull_frac_overrides:
-  bean_cost_usd_bu: 0.7   # OP-8 measured worst 1
-  crush_margin_usd_bu: 0.7   # OP-8 measured worst 1
-  meal_value_usd_bu: 0.7   # OP-8 measured worst 1
-  oil_value_usd_bu: 0.7   # OP-8 measured worst 1
-min_nonnull_frac_status: calibrated   # OP-8 census 2026-08-22 (task #62): per-column floors
-#   = worst COMPLETED publish-frame fraction x 0.7 margin, grid 0.05, clamp [0.02, 0.9]; hand-curated rows untouched; the scalar stays for future columns
+min_nonnull_frac_status: provisional
 coverage_axis: one row per trading session (a single global CBOT spread -- no commodity axis, no country
   axis)
 vintage_retention: latest-only

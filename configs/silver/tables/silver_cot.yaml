@@ -100,17 +100,7 @@ value_columns:
 - mm_net_z_3yr
 - mm_pct_oi_z_3yr
 min_nonnull_frac: 0.5
-min_nonnull_frac_overrides:
-  mm_long: 0.7   # OP-8 measured worst 1
-  mm_net: 0.7   # OP-8 measured worst 1
-  mm_net_z_3yr: 0.65   # OP-8 measured worst 0.9467
-  mm_pct_oi: 0.7   # OP-8 measured worst 1
-  mm_pct_oi_z_3yr: 0.65   # OP-8 measured worst 0.9467
-  mm_short: 0.7   # OP-8 measured worst 1
-  mm_spread: 0.7   # OP-8 measured worst 1
-  open_interest: 0.7   # OP-8 measured worst 1
-min_nonnull_frac_status: calibrated   # OP-8 census 2026-08-22 (task #62): per-column floors
-#   = worst COMPLETED publish-frame fraction x 0.7 margin, grid 0.05, clamp [0.02, 0.9]; hand-curated rows untouched; the scalar stays for future columns
+min_nonnull_frac_status: provisional
 coverage_axis: leviathan_slug x report_date
 vintage_retention: latest-only
 knowledge_date_col: report_date

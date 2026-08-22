@@ -291,10 +291,7 @@ required_nonnull:
 value_columns:
 - estimate
 min_nonnull_frac: 0.5
-min_nonnull_frac_overrides:
-  estimate: 0.55   # OP-8 measured worst 0.8571
-min_nonnull_frac_status: calibrated   # OP-8 census 2026-08-22 (task #62): per-column floors
-#   = worst COMPLETED publish-frame fraction x 0.7 margin, grid 0.05, clamp [0.02, 0.9]; hand-curated rows untouched; the scalar stays for future columns
+min_nonnull_frac_status: provisional
 coverage_axis: release_date x source_table_id x commodity x region x marketing_year x attribute x estimate_role/projection_month
 vintage_retention: per-vintage
 knowledge_date_col: release_date

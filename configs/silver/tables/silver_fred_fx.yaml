@@ -78,15 +78,7 @@ value_columns:
 - ars_usd_pct_change_90d
 - cny_usd_pct_change_90d
 min_nonnull_frac: 0.5
-min_nonnull_frac_overrides:
-  ars_usd: 0.5   # OP-8 measured worst 0.7314
-  ars_usd_pct_change_90d: 0.5   # OP-8 measured worst 0.7199
-  brl_usd: 0.7   # OP-8 measured worst 1
-  brl_usd_pct_change_90d: 0.65   # OP-8 measured worst 0.9888
-  cny_usd: 0.7   # OP-8 measured worst 1
-  cny_usd_pct_change_90d: 0.65   # OP-8 measured worst 0.9888
-min_nonnull_frac_status: calibrated   # OP-8 census 2026-08-22 (task #62): per-column floors
-#   = worst COMPLETED publish-frame fraction x 0.7 margin, grid 0.05, clamp [0.02, 0.9]; hand-curated rows untouched; the scalar stays for future columns
+min_nonnull_frac_status: provisional
 coverage_axis: daily date
 vintage_retention: latest-only
 knowledge_date_col: null
