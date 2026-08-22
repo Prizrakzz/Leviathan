@@ -245,7 +245,7 @@ def test_assemble_injects_era_diff_row_with_handle_on_cross_era_line_only():
     ic = injected[0]
     assert ic["query"]["period"] == "MY2021->MY2025" and ic["rows"][0]["value"] == 2.0
     n = calls.index(ic) + 1                                          # base=0 -> [N] is 1-indexed position
-    xline = next(ln for ln in lines if "cross-era change in exports_mt (MY2021->MY2025)" in ln)
+    xline = next(ln for ln in lines if "cross-era change in exports (MY2021->MY2025)" in ln)
     assert f"[N{n}]" in xline and "+2 MMT" in xline
     dline = _divergence_line(lines)
     assert dline is not None and f"[N{n}]" not in dline              # NO handle on the a/b prose line
@@ -960,11 +960,11 @@ def test_every_row_formatter_pins_the_full_scoped_line():
         cq._fmt_era_diff(row, 2.0, 7, period="MY2021->MY2025", q=q),
         cq._chain_fmt_line(rec, row, 8, label="(chain hop 1/2: area -> United States exports_mt)"),
     ]
-    assert lines[0] == "- [N4] wheat exports_mt MY2010 (earlier era, as-of 2010-06-01): 3.9 MMT" + tag
-    assert lines[1] == "- [N5] change within the earlier era in exports_mt: -5.058 MMT" + tag
-    assert lines[2] == "- [N6] change within the later era in exports_mt: -3.36 %" + tag
-    assert lines[3] == "- [N7] cross-era change in exports_mt (MY2021->MY2025): +2 MMT" + tag
-    assert lines[4] == ("- [N8] (chain hop 1/2: area -> United States exports_mt) wheat exports_mt MY2010 "
+    assert lines[0] == "- [N4] wheat exports MY2010 (earlier era, as-of 2010-06-01): 3.9 MMT" + tag
+    assert lines[1] == "- [N5] change within the earlier era in exports: -5.058 MMT" + tag
+    assert lines[2] == "- [N6] change within the later era in exports: -3.36 %" + tag
+    assert lines[3] == "- [N7] cross-era change in exports (MY2021->MY2025): +2 MMT" + tag
+    assert lines[4] == ("- [N8] (chain hop 1/2: area -> United States exports_mt) wheat exports MY2010 "
                         "(as-of 2010-06-01): 3.9 MMT" + tag)
     for ln in lines:
         assert "\n" not in ln and ln.endswith("]")

@@ -141,6 +141,7 @@ _ADVERTISED = {
     # the purpose string has carried crush/grind language in `when_to_use` since long before either
     # card existed. The token has to name what is NEW -- the soy PROCESSOR MARGIN as a number.
     BOARD_CRUSH: ("board crush", "processor margin"),        # NOT ("crush",) -- see above
+    "gold_futures_spreads": ("class premium", "white-yellow"),   # GN-2 W2.3: the spread pairs
     # -- LIGHT THE CARD. "ukraine" ALONE would free-ride: the World Bank CPI clause already pays for it
     # ("India, Indonesia, Russia and Ukraine"), so the token has to name what is NEW -- the Ukrainian
     # export COUNT itself. Both alternatives below were verified absent from the purpose string before

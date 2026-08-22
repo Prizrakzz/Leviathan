@@ -63,6 +63,8 @@ NUMBERS_TABLES = (
     #                                     so its data_date/trade_date/+1d PIT trio reconciles against
     #                                     F010 instead of shipping structurally unchecked -- the same
     #                                     posture silver_futures_eod took while it was still dark.
+    "gold_futures_spreads",             # GN-2 W2.3: the spread pairs -- enumerated the moment the
+    #                                     card landed (the gold_board_crush posture above)
     "silver_icco_cocoa",
     "silver_mpob",
     "silver_sagis_cec",

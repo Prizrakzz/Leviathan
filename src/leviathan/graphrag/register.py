@@ -819,7 +819,10 @@ def internal_leaks(text: str) -> list[tuple[str, str]]:
         for m in re.finditer(r"\b" + re.escape(rid) + r"\b", prose):
             hits.append((rid, _ctx(prose, m)))
     for mid in _labeled_metric_slugs():                                  # a LABELED metric's raw slug in prose
-        for m in re.finditer(r"\b" + re.escape(mid) + r"\b", prose):     # (the display layer was bypassed)
+        # (?<!\.) exempts DOT-QUALIFIED addresses: "silver_wasde.avg_farm_price" in agent guidance is
+        # API syntax the agent queries WITH (an address), not display prose -- the leak class is the
+        # BARE slug in narration (owner-ratified 2026-08-22, the price-observability bullet fixture).
+        for m in re.finditer(r"(?<!\.)\b" + re.escape(mid) + r"\b", prose):
             hits.append((mid, _ctx(prose, m)))
     for m in _SAGIS_CROP_RX.finditer(prose):                             # underscored SAGIS crop code in prose
         hits.append((m.group(0), _ctx(prose, m)))

@@ -86,6 +86,10 @@ FAMILY_RULES: tuple[tuple[str, str], ...] = (
     # SOURCE-backfill DAG at all (there is no external source to re-fetch -- a rebuild is a re-run of
     # the arithmetic), so its family joins _NON_BACKFILL_FAMILIES below.
     ("gold_board_crush", "board_crush"),
+    # GN-2 W2.3: gold_futures_spreads -- the SAME consumer-of-our-own-silver shape as board_crush
+    # (input = silver_futures_eod; no external source; rebuild = re-run the arithmetic), so its own
+    # family for the same ceiling/on-call reasons, and _NON_BACKFILL_FAMILIES membership below.
+    ("gold_futures_spreads", "futures_spreads"),
     ("silver_cot", "cftc"),
     # --- Single-source specialty ------------------------------------------
     ("silver_production", "faostat"),
@@ -178,6 +182,7 @@ FAMILY_LABELS: dict[str, str] = {
     # family must know the fix is upstream (the three CBOT legs of silver_futures_eod did not land)
     # far more often than it is here -- there is no vendor to chase.
     "board_crush": "CBOT board crush (derived from silver_futures_eod; no external source)",
+    "futures_spreads": "front-month spread pairs (derived from silver_futures_eod; no external source)",
 }
 
 # Interim freshness-SLA lag ceilings per cadence, used when the registry
@@ -342,6 +347,7 @@ _NON_BACKFILL_FAMILIES = frozenset({"model_output", "pattern_records",
                                     # no external source to backfill FROM -- recovery is re-running
                                     # the transform, not re-fetching a vendor.
                                     "board_crush",
+                                    "futures_spreads",   # GN-2 W2.3: same derived-no-source shape
                                     # MINAGRO: FORWARD-ACCUMULATION, the Bursa shape. The ministry
                                     # edits ONE standing URL in place and keeps no archive, so the
                                     # only release that exists to fetch is the current one and a

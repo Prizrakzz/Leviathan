@@ -263,7 +263,11 @@ REGISTRY: tuple[ToolSpec, ...] = (
                  "BUSHEL for one trading session, meal value plus oil value minus bean cost, with each "
                  "leg served separately so a move can be attributed; a SPREAD and never a price, "
                  "legitimately NEGATIVE when processors are squeezed, and Chicago only -- there is no "
-                 "Dalian or Zhengzhou crush in the estate; "
+                 "Dalian or Zhengzhou crush in the estate; FRONT-MONTH SPREAD PAIRS (GN-2 W2.3) -- the "
+                 "KC-Chicago wheat CLASS PREMIUM (HRW over SRW, US cents per bushel, the protein "
+                 "scarcity spread, history to 2015) and the JSE WHITE-YELLOW maize premium (ZAR per "
+                 "tonne, the food-over-feed premium, young history from 2026-07); each a signed spread "
+                 "in its own unit, never a percent, never compared across pairs; "
                  "plus the continuous front-month futures close as a single dated LEVEL "
                  "only -- that series is roll-spliced, so no change, window or curve read is served "
                  "off it)."),

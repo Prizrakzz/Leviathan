@@ -879,9 +879,11 @@ _D_EC_IDS = ("gold_board_crush",)
 # until a cloud run proves rows and there is nothing to put in this enum. They join it the day their
 # cards land, exactly as this one did.
 _MINAGRO_IDS = ("silver_minagro_grain_exports",)
+_GN2_IDS = ("gold_futures_spreads",)      # GN-2 W2.3: the spread pairs (kc_chi / white_yellow)
 _DEPTH_BASELINE = ((_PRE_WAVE_8 | set(_PRICE_IDS) | set(_SEAM_C_IDS) | set(_WIRING_W1_IDS)
                     | set(_W3_IDS) | set(_D_CW_IDS) | set(_D_PQ_IDS) | set(_D_LD_IDS)
-                    | set(_D_LD_T2_IDS) | set(_D_LD_T3_IDS) | set(_D_EC_IDS) | set(_MINAGRO_IDS))
+                    | set(_D_LD_T2_IDS) | set(_D_LD_T3_IDS) | set(_D_EC_IDS) | set(_MINAGRO_IDS)
+                    | set(_GN2_IDS))
                    - _QUARANTINE_STRIPPED)          # D-LD Track 2 #5, see above
 
 

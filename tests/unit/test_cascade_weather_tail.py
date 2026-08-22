@@ -119,7 +119,9 @@ def test_registry_declares_the_basin_metrics():
 # ── metric display labels: internal ids never reach prose (owner's word 2026-08-22) ──────────────────
 def test_metric_display_resolves_the_card_label_and_falls_back():
     assert cq._metric_display(_WEATHER_ROW) == "drought z-score"          # labeled -> the analyst name
-    assert cq._metric_display({"table": "silver_psd", "metric": "exports_mt"}) == "exports_mt"
+    assert cq._metric_display({"table": "silver_psd", "metric": "exports_mt"}) == "exports"
+    #   (every estate metric is labeled since 2026-08-22 eve; the raw-slug fallback survives
+    #    only for unregistered tables, pinned below)
     assert cq._metric_display({"table": "no_such_table", "metric": "x_y"}) == "x_y"   # never raises
 
 
@@ -130,13 +132,15 @@ def test_fmt_line_prints_the_label_never_the_slug():
     assert "drought z-score" in line and "drought_z" not in line
 
 
-def test_internal_leaks_flags_labeled_slugs_only():
+def test_internal_leaks_flags_every_metric_slug():
+    # ESTATE-WIDE since 2026-08-22 evening: every registry metric carries a label (220/220, owner
+    # directive), so EVERY underscored metric slug in reader prose is a display-layer bypass = a bug.
     from leviathan.graphrag import register as rg
-    hits = rg.internal_leaks("The drought_z reading was benign.")
-    assert any(tok == "drought_z" for tok, _ in hits)                     # labeled -> a leak is a bug
-    hits2 = rg.internal_leaks("Exports rose sharply against exports_mt history.")
-    assert not any(tok == "exports_mt" for tok, _ in hits2)               # unlabeled -> today's accepted state
+    for slug in ("drought_z", "exports_mt", "mm_net_z_3yr", "crush_margin_usd_bu"):
+        hits = rg.internal_leaks(f"The {slug} reading was benign.")
+        assert any(tok == slug for tok, _ in hits), slug
     assert rg.internal_leaks("Drought stress stayed near normal in the basin.") == []
+    assert rg.internal_leaks("Exports rose sharply against the five-year history.") == []
 
 
 # ── per-row commodity aliasing (the sagis gate find): contract slug -> the table's own code ──────────

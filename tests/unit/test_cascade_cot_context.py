@@ -149,7 +149,7 @@ def test_context_leg_renders_a_dated_level_with_the_series_tag(monkeypatch):
         # A1: the SOURCE segment is dp.table_label ("COT"), never the raw silver_* id.
         assert "[series: corn_cbot" in ln and "table: COT]" in ln, ln
         assert "silver_" not in ln, ln
-    assert any("mm_net" in ln and "118432" in ln for ln in lines)      # the dated level itself
+    assert any("managed-money net position" in ln and "118432" in ln for ln in lines)  # the dated level, LABELED
     assert any("as-of 2026-07-31" in ln for ln in lines)
 
 
@@ -163,7 +163,7 @@ def test_every_minted_row_carries_a_shown_binding(monkeypatch):
 
 def test_the_weekly_pace_shapes_render_past_tense(monkeypatch):
     block, _tr, _rt, _calls = _run(monkeypatch=monkeypatch)
-    assert "change in mm_net from the prior week" in block            # window_change, past tense
+    assert "change in managed-money net position from the prior week" in block            # window_change, past tense
     assert "rose in each of the last 3 weeks" in block                # streak, past tense
     for ln in block.splitlines():
         assert cq.pace_register_ok(ln), ln                            # no momentum-class vocabulary
