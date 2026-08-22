@@ -44,6 +44,26 @@ def _slugs() -> tuple[str, ...]:
         return ()
 
 
+@functools.lru_cache(maxsize=1)
+def _labeled_metric_slugs() -> tuple[str, ...]:
+    """Underscored numbers-registry METRIC ids that carry an analyst `label` (owner's word 2026-08-22:
+    internal names never reach prose). LABELED-ONLY by design: a labeled metric's slug in reader prose
+    is a regression (the display layer exists and was bypassed), while an unlabeled metric's slug is
+    today's accepted state -- the fence tightens family-by-family exactly as labels land, never as a
+    false-positive storm over the legacy family."""
+    try:
+        from leviathan.graphrag.numbers.registry import load_registry
+        reg = load_registry()
+        out = set()
+        for ts in reg.tables.values():
+            for mid, m in (ts.metrics or {}).items():
+                if "_" in mid and getattr(m, "label", ""):
+                    out.add(mid)
+        return tuple(sorted(out, key=len, reverse=True))
+    except Exception:  # noqa: BLE001 -- registry missing -> just skip the metric-slug check
+        return ()
+
+
 def _regime_ids() -> tuple[str, ...]:
     """Convergence-regime ids (bullish_drought_squeeze, ...) that must be humanized in prose, longest-first.
     Sourced from the display registry (authoritative over the causal DAGs)."""
@@ -798,6 +818,9 @@ def internal_leaks(text: str) -> list[tuple[str, str]]:
     for rid in _regime_ids():                                            # raw convergence-regime id in prose
         for m in re.finditer(r"\b" + re.escape(rid) + r"\b", prose):
             hits.append((rid, _ctx(prose, m)))
+    for mid in _labeled_metric_slugs():                                  # a LABELED metric's raw slug in prose
+        for m in re.finditer(r"\b" + re.escape(mid) + r"\b", prose):     # (the display layer was bypassed)
+            hits.append((mid, _ctx(prose, m)))
     for m in _SAGIS_CROP_RX.finditer(prose):                             # underscored SAGIS crop code in prose
         hits.append((m.group(0), _ctx(prose, m)))
     return hits

@@ -774,6 +774,22 @@ _BASIN_TAIL_METRICS: frozenset[str] = frozenset(
 _TAIL_SUFFIX = "_tail_share"
 
 
+def _metric_display(row: dict) -> str:
+    """The ANALYST name for a map row's metric on model-facing lines -- the table_label sibling
+    (A1/F21 closed raw table ids on this surface; the owner's word 2026-08-22 closes METRIC ids:
+    internal names never reach prose). Resolution: the registry card's Metric.label, else the slug
+    (an unlabeled metric renders exactly as before -- the fence tightens family-by-family). The
+    machine identity always survives in the [N] call's query dict and the series tag."""
+    try:
+        from leviathan.graphrag.numbers.registry import load_registry
+        m = load_registry().get(row.get("table")).metrics.get(row.get("metric"))
+        if m is not None and getattr(m, "label", ""):
+            return m.label
+    except Exception:  # noqa: BLE001 -- an unregistered table's line must render, never raise
+        pass
+    return str(row.get("metric"))
+
+
 def _z_word(v: float) -> str:
     """The magnitude word for a weather z read. NEUTRAL and magnitude-only on purpose: 'high drought_z'
     is dry stress but 'high tmax_anomaly' in winter can be benign -- direction words would need
@@ -1804,7 +1820,7 @@ def _tail_legs(records: list, kept: list, base: int, calls: list) -> tuple:
         pct = _scaled_val(r, srow)
         q = r.get("query") or {}
         lines.append(f"- [N{n}] share of the basin's cells at or beyond +2 sigma in "
-                     f"{row.get('metric')} (as-of {q.get('asof')}): {pct:g} %" + _series_tag(q, srow))
+                     f"{_metric_display(row)} (as-of {q.get('asof')}): {pct:g} %" + _series_tag(q, srow))
         trace.append({"node": r.get("node_key"), "metric": tail_metric,
                       "share": round(share, 4)})
     return lines, trace
@@ -1858,7 +1874,7 @@ def _pace_legs(records: list, kept: list, base: int, calls: list) -> tuple:
             entry["window_change"] = d
             n += 1
             calls.append(_shown(_pace_synth(r, row, d, n, kind="pace_change", unit=unit), d))
-            lines.append(f"- [N{n}] change in {row.get('metric')} from the prior {grain} "
+            lines.append(f"- [N{n}] change in {_metric_display(row)} from the prior {grain} "
                          f"({gnoun} pace): {d:+g} {unit}".rstrip() + _series_tag(r.get("query"), row))
             emitted = True
         last_delta = vals[-1] - vals[-2]
@@ -1873,7 +1889,7 @@ def _pace_legs(records: list, kept: list, base: int, calls: list) -> tuple:
                 # the streak line renders the run as a DIGIT ("in each of the last 3 weeks") -> a magnitude
                 calls.append(_shown(_pace_synth(r, row, run, n, kind="pace_streak", unit=f"{grain}s"), run))
                 word = "rose" if direction == "up" else "fell"
-                lines.append(f"- [N{n}] {row.get('metric')} {word} in each of the last {run} {grain}s"
+                lines.append(f"- [N{n}] {_metric_display(row)} {word} in each of the last {run} {grain}s"
                              + _series_tag(r.get("query"), row))
                 emitted = True
         if emitted:
@@ -1991,7 +2007,7 @@ def _cross_era_diff(era_deltas: dict, eras: dict, cur: dict | None, row: dict) -
 
 
 def _fmt_era_diff(row: dict, d: float, n: int, *, period: str, q: dict | None = None) -> str:
-    return (f"- [N{n}] cross-era change in {row.get('metric')} ({period}): "
+    return (f"- [N{n}] cross-era change in {_metric_display(row)} ({period}): "
             f"{d:+g} {row.get('narrate_unit') or ''}".rstrip() + _series_tag(q, row))
 
 
@@ -2128,17 +2144,17 @@ def _fmt_line(rec: dict, row: dict, n: int, *, era) -> str:
     if row.get("table") == _WEATHER_Z_TABLE and row.get("metric") in _BASIN_TAIL_METRICS \
             and sv is not None:
         word = f" ({_z_word(sv)})"
-    return (f"- [N{n}] {q.get('commodity')} {row.get('metric')} {q.get('period') or ''} ({tag}, "
+    return (f"- [N{n}] {q.get('commodity')} {_metric_display(row)} {q.get('period') or ''} ({tag}, "
             f"as-of {q.get('asof')}): {val} {unit}".rstrip() + word + _series_tag(q, row))
 
 
 def _fmt_delta(row: dict, d: float, n: int, *, era, q: dict | None = None) -> str:
-    return (f"- [N{n}] change within the {_era_label(era, row)} in {row.get('metric')}: "
+    return (f"- [N{n}] change within the {_era_label(era, row)} in {_metric_display(row)}: "
             f"{d:+g} {row.get('narrate_unit') or ''}".rstrip() + _series_tag(q, row))
 
 
 def _fmt_pct(row: dict, pct: float, n: int, *, era, q: dict | None = None) -> str:
-    return (f"- [N{n}] change within the {_era_label(era, row)} in {row.get('metric')}: {pct:+g} %"
+    return (f"- [N{n}] change within the {_era_label(era, row)} in {_metric_display(row)}: {pct:+g} %"
             + _series_tag(q, row))
 
 
@@ -2212,7 +2228,7 @@ def _assemble(records: list, kept: list, base: int, calls: list) -> tuple:
                 calls.append(_shown(_delta_call(later_rec, row, diff, n, kind="era_diff",
                                                 period=period_lbl), diff))
                 lines.append(_fmt_era_diff(row, diff, n, period=period_lbl, q=later_rec.get("query")))
-            lines.append(f"DIVERGENCE on {row.get('metric')}: {a:+g} vs {b:+g} "
+            lines.append(f"DIVERGENCE on {_metric_display(row)}: {a:+g} vs {b:+g} "
                          f"({row.get('narrate_unit') or ''}) "
                          f"-- render '## Where the record disagrees' and show BOTH eras; do not blend.")
         trace.append({"node_key": list(key) if isinstance(key, tuple) else key, "metric": row.get("metric"),
@@ -3021,17 +3037,17 @@ def _chain_fmt_line(rec: dict, row: dict, n: int, *, label: str, current: bool =
     unit = row.get("narrate_unit") or ""
     q = rec.get("query") or {}
     period = "current" if current else (q.get("period") or "")
-    return (f"- [N{n}] {label} {q.get('commodity') or ''} {row.get('metric')} {period} "
+    return (f"- [N{n}] {label} {q.get('commodity') or ''} {_metric_display(row)} {period} "
             f"(as-of {q.get('asof')}): {val} {unit}".rstrip() + _series_tag(q, row))
 
 
 def _chain_fmt_delta(row: dict, d: float, n: int, *, label: str, q: dict | None = None) -> str:
-    return (f"- [N{n}] {label} change within the anchor window in {row.get('metric')}: "
+    return (f"- [N{n}] {label} change within the anchor window in {_metric_display(row)}: "
             f"{d:+g} {row.get('narrate_unit') or ''}".rstrip() + _series_tag(q, row))
 
 
 def _chain_fmt_pct(row: dict, pct: float, n: int, *, label: str, q: dict | None = None) -> str:
-    return (f"- [N{n}] {label} change within the anchor window in {row.get('metric')}: {pct:+g} %"
+    return (f"- [N{n}] {label} change within the anchor window in {_metric_display(row)}: {pct:+g} %"
             + _series_tag(q, row))
 
 

@@ -96,7 +96,9 @@ def test_tail_legs_render_and_silence():
     # the su_ratio normalizer: stored 0.1818 -> served "18.18 %" -- an ANALYST figure, value-checked
     # against the pre-scaled headline row (figures AND plain language, per the owner's word)
     assert "[N8]" in lines[0] and "18.18 %" in lines[0] and "0.1818" not in lines[0]
-    assert "share of the basin's cells at or beyond +2 sigma in drought_z" in lines[0]
+    # the line speaks the LABEL, never the slug (the _metric_display layer, owner's word)
+    assert "share of the basin's cells at or beyond +2 sigma in drought z-score" in lines[0]
+    assert "drought_z " not in lines[0]
     assert trace[0]["metric"] == "drought_z_tail_share"
     assert trace[0]["share"] == 0.1818                       # the trace keeps the raw stored fraction
 
@@ -112,3 +114,26 @@ def test_registry_declares_the_basin_metrics():
     for m in ("drought_z_tail_share", "heat_stress_z_tail_share", "gdd_z_tail_share",
               "tmax_anomaly_tail_share", "frost_event_share"):
         assert m in ts.metrics, m
+
+
+# ── metric display labels: internal ids never reach prose (owner's word 2026-08-22) ──────────────────
+def test_metric_display_resolves_the_card_label_and_falls_back():
+    assert cq._metric_display(_WEATHER_ROW) == "drought z-score"          # labeled -> the analyst name
+    assert cq._metric_display({"table": "silver_psd", "metric": "exports_mt"}) == "exports_mt"
+    assert cq._metric_display({"table": "no_such_table", "metric": "x_y"}) == "x_y"   # never raises
+
+
+def test_fmt_line_prints_the_label_never_the_slug():
+    rec = {"query": {"commodity": "cocoa", "asof": "2026-08-22"},
+           "rows": [{"value": "0.03"}], "status": "ok"}
+    line = cq._fmt_line(rec, _WEATHER_ROW, 4, era="current")
+    assert "drought z-score" in line and "drought_z" not in line
+
+
+def test_internal_leaks_flags_labeled_slugs_only():
+    from leviathan.graphrag import register as rg
+    hits = rg.internal_leaks("The drought_z reading was benign.")
+    assert any(tok == "drought_z" for tok, _ in hits)                     # labeled -> a leak is a bug
+    hits2 = rg.internal_leaks("Exports rose sharply against exports_mt history.")
+    assert not any(tok == "exports_mt" for tok, _ in hits2)               # unlabeled -> today's accepted state
+    assert rg.internal_leaks("Drought stress stayed near normal in the basin.") == []

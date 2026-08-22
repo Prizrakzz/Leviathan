@@ -31,6 +31,14 @@ class Metric(BaseModel):
     model_config = ConfigDict(extra="forbid")
     unit: str = ""
     desc: str = ""
+    label: str = ""                                          # ANALYST display name for model-facing lines --
+    #                                                          the table_label sibling (owner's word 2026-08-22:
+    #                                                          internal ids never reach prose): 'drought z-score',
+    #                                                          never 'drought_z'. Empty -> the slug renders
+    #                                                          (unlabeled metrics stay byte-identical); a LABELED
+    #                                                          metric's slug in reader prose becomes an
+    #                                                          internal_leaks hit (register.py) -- the fence
+    #                                                          tightens family-by-family as labels land.
     unit_overrides: dict[str, str] = {}                      # DP-1 (PRICE_OBSERVABILITY W1.1): per-commodity unit
     #                                                          for a metric whose SOURCE carries no governed unit
     #                                                          (silver avg_farm_price's `unit` column is null/junk
