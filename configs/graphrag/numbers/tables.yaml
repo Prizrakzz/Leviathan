@@ -489,7 +489,10 @@ tables:
       frost_event_flag: {unit: "0/1", desc: "1 if the monthly minimum temperature fell below the frost threshold"}
       # -- BASIN rows only (GN-2 W1.1, 2026-08-22; weather_z._basin_rows): rows whose country is a
       # basin surface ('West Africa'). On a per-cell country these metrics have ZERO rows -- honest
-      # absence, never an error. Shares are RAW fractions 0-1; the engine never multiplies by 100.
+      # absence, never an error. STORED values are raw fractions 0-1; the cascade's tail line serves
+      # them as % via the sanctioned scale knob (the su_ratio ratio-normalizer precedent), so the
+      # narration quotes "18.2 %" while the pg row keeps 0.1818 -- figures in analyst units, always
+      # beside the plain-language framing, never one without the other (owner's word 2026-08-22).
       drought_z_tail_share:     {unit: "share of basin cells", desc: "share of the basin's member cells at or beyond +2 sigma drought_z that month (0-1)"}
       heat_stress_z_tail_share: {unit: "share of basin cells", desc: "share of the basin's member cells at or beyond +2 sigma heat_stress_z that month (0-1)"}
       gdd_z_tail_share:         {unit: "share of basin cells", desc: "share of the basin's member cells at or beyond +2 sigma gdd_z that month (0-1)"}

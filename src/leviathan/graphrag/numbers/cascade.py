@@ -1794,14 +1794,17 @@ def _tail_legs(records: list, kept: list, base: int, calls: list) -> tuple:
         if share is None:
             continue
         tail_metric = f"{row.get('metric')}{_TAIL_SUFFIX}"
-        # the call rides the record itself (a REAL fetched row) under a share-unit synthetic row, so
-        # the quoted figure value-checks against the exact pg row the [N] handle resolves to
-        srow = {**row, "metric": tail_metric, "narrate_unit": "share of basin cells", "scale": 1}
+        # the call rides the record itself (a REAL fetched row) under a %-unit synthetic row: the
+        # su_ratio ratio-normalizer precedent (stored 0.36 -> served 36 '%'), so the line quotes an
+        # ANALYST figure ("18.2 %") that still value-checks against the pre-scaled headline row.
+        # Figures AND plain language together, per the owner's word -- never one without the other.
+        srow = {**row, "metric": tail_metric, "narrate_unit": "%", "scale": 100}
         n += 1
         calls.append(_shown(_prescaled(r, srow, n), _scaled_val(r, srow)))
+        pct = _scaled_val(r, srow)
         q = r.get("query") or {}
-        lines.append(f"- [N{n}] share of basin cells at or beyond +2 sigma in {row.get('metric')} "
-                     f"(as-of {q.get('asof')}): {share:g}" + _series_tag(q, srow))
+        lines.append(f"- [N{n}] share of the basin's cells at or beyond +2 sigma in "
+                     f"{row.get('metric')} (as-of {q.get('asof')}): {pct:g} %" + _series_tag(q, srow))
         trace.append({"node": r.get("node_key"), "metric": tail_metric,
                       "share": round(share, 4)})
     return lines, trace

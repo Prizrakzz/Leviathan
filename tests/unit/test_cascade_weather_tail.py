@@ -93,9 +93,12 @@ def test_tail_legs_render_and_silence():
     calls: list = []
     lines, trace = cq._tail_legs([ok], kept, 7, calls)
     assert len(lines) == 1 and len(calls) == 1 and len(trace) == 1
-    assert "[N8]" in lines[0] and "0.1818" in lines[0]
-    assert "share of basin cells at or beyond +2 sigma in drought_z" in lines[0]
+    # the su_ratio normalizer: stored 0.1818 -> served "18.18 %" -- an ANALYST figure, value-checked
+    # against the pre-scaled headline row (figures AND plain language, per the owner's word)
+    assert "[N8]" in lines[0] and "18.18 %" in lines[0] and "0.1818" not in lines[0]
+    assert "share of the basin's cells at or beyond +2 sigma in drought_z" in lines[0]
     assert trace[0]["metric"] == "drought_z_tail_share"
+    assert trace[0]["share"] == 0.1818                       # the trace keeps the raw stored fraction
 
     silent = {**ok, "status": "record_silent", "rows": []}
     lines2, trace2 = cq._tail_legs([silent], kept, 7, [])
