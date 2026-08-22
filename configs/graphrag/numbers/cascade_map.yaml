@@ -803,6 +803,11 @@ region_map:
     "West Africa": {country: "West Africa"}
     "Cote d'Ivoire, Ghana": {country: "West Africa"}
     "Ghana, Cote d'Ivoire": {country: "West Africa"}
+    # Nigeria (2026-08-22, the gate's own find): the two wheat Nigeria_wheat_levy drivers carried
+    # 'West Africa' while their mechanism names NIGERIA -- a top-five US wheat destination silver_psd
+    # SERVES (imports_mt 6.5M MT MY2026, probed). Re-keying their region token here turns two dead
+    # tokens into live import legs. No currency key: NGN is not a silver_fred_fx column.
+    Nigeria: {country: "Nigeria"}
   unresolved:
     # export drivers
     - Russia_Ukraine

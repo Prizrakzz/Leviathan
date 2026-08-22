@@ -120,6 +120,13 @@ def _mapped_legs():
             row = casc.map_row(d.silver_ref)
             if row is None:
                 continue
+            if (contract, d.id) in cc._WAIVERS:
+                # the census's own waiver table (honest data absence, argued per leg) governs HERE
+                # too: a waived leg is declared DECLINES-HONESTLY, so flagging its vocabulary as
+                # drift re-litigates a recorded decision every gate run (first hit: the sorghum
+                # trio, waived 2026-08-21, re-flagged by the 2026-08-22 four-table gate). ONE
+                # waiver mechanism, both consumers -- never a parallel skip list.
+                continue
             node = cc._LegNode(contract, d.id, d.silver_ref, d.region)
             commodity, country = casc._scope(node, row)
             row2 = casc._region_row(node, row) if country is not casc.SKIP_NODE else row
