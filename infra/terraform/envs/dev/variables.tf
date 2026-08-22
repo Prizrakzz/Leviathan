@@ -321,7 +321,7 @@ variable "psd_silver_image_digest" {
   # own change, after the first green fire.
   type        = string
   description = "sha256 digest of the worker image the dedicated psd-silver jobdef runs. Empty = the mutable ':latest' tag."
-  default     = "sha256:554968e76d24d9bf8a9c38bf899467b76f287efa18c7f3ffbde29a0de7cedee9"
+  default     = "sha256:6456cb583993e349150e1f658e70539f43cb48f3f0e418e6f7c2213de12933a5" # 2026-08-22 GN-2: gate code w/ waiver honor + commodity_aliases + labels (WORKER repo -- the first cut mis-pointed an embedder digest here; caught in plan review)
 
   validation {
     condition     = var.psd_silver_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.psd_silver_image_digest))
@@ -395,7 +395,7 @@ variable "worker_fleet_image_digest" {
   # Post-push auditor CLEAN. usda-esr-fetch / esr-bronze-to-silver / usda-nass-bronze /
   # usda-nass-annual-silver hand-repin via owner (register JSONs in the session scratchpad);
   # the ten fleet families adopt on the next apply per this file's standing law.
-  default     = "sha256:c5f7900a5c0dd686b0d9bc773de8eebab1851bf845421f248c5a81ebd93aa5fa"
+  default     = "sha256:6456cb583993e349150e1f658e70539f43cb48f3f0e418e6f7c2213de12933a5" # 2026-08-22 GN-2 fleet bump: conab safra parse + weather trailing-month fix + sagis cell-fusion fence
 
   validation {
     condition     = var.worker_fleet_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.worker_fleet_image_digest))
@@ -438,7 +438,7 @@ variable "silver_gate_image_digest" {
   # vintage_waiver (G1-6 PATH A) and the GateVerdict/ValueCensusHardFailTables
   # emitters (G3-4) into the gate. timeline_rebuild's identical old digest below is
   # DELIBERATELY NOT moved (the fleet-digest law: one intended move per variable).
-  default     = "sha256:554968e76d24d9bf8a9c38bf899467b76f287efa18c7f3ffbde29a0de7cedee9"
+  default     = "sha256:6456cb583993e349150e1f658e70539f43cb48f3f0e418e6f7c2213de12933a5" # 2026-08-22 GN-2: gate code w/ waiver honor + commodity_aliases + labels (WORKER repo -- the first cut mis-pointed an embedder digest here; caught in plan review)
 
   validation {
     condition     = var.silver_gate_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.silver_gate_image_digest))
@@ -484,7 +484,7 @@ variable "ecr_pin_audit_image_digest" {
   # routing curation). evidence-build jobdef rev 79 registered on it the same hour (owner-run).
   # RE-PINNED 2026-08-20: the overnight batch build (commits 78c911dd..e437eff7 -- D13/D14,
   # temperature pin, Wave 1c routing, XC-2/XC-5 merge, numbers mini-wave). Serving 107 canaried.
-  default     = "sha256:fe074db1f2a46a8072d726c187618be2133bc7df7a711f3e5ce51d6c7868dd5a"
+  default     = "sha256:ad0981663a1a9fceaeb6ee56a560e39e979a109af4f2887bc1e37cd62f347409" # 2026-08-22 GN-2 fleet bump (rides the same embedder vintage as the gate)
 
   validation {
     condition     = var.ecr_pin_audit_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.ecr_pin_audit_image_digest))
