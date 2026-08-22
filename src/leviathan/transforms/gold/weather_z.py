@@ -65,6 +65,29 @@ from thin same-month baselines — prior-year counts like {0,0,1,0,...} give a t
 week explodes the z to +/-40..80. Beyond |z|~6 the magnitude asserts absurd probabilities and carries no
 statistical meaning REGARDLESS of whether the month was genuinely extreme, so z metrics are clipped to
 +/-``Z_CAP`` (=6.0). Exact-zero variance already yields NaN in ``trailing_baseline_z`` and is dropped.
+
+BASIN AGGREGATE ROWS (GN-2 W1.1, 2026-08-22) — the cocoa DECLINES fix. Multi-country producing belts
+("West Africa") appear in region_map as COMPOUND tokens that scope resolution cannot match against any
+single country row, so the cascade SKIP_NODEs the leg and the engine NEVER READS the station values
+(the mis-diagnosed "declines-honestly" class: scope-resolution failure, not below-threshold calm). The
+fix is transform-side: after the per-cell rows are computed, ``_basin_rows`` emits one aggregate row set
+per basin under a SINGLE resolvable country surface (e.g. 'West Africa'):
+
+    <metric>            : the basin MEAN of member-cell values for each z metric (same metric name, so
+                          an existing-shape leg reads it at the basin surface with zero map machinery).
+    <metric>_tail_share : share of member cells at z >= +TAIL_SIGMA (=2.0) — W2.1's tail statistic
+                          pulled forward as the enabler; share-of-cells is robust to one duplicated or
+                          extreme grid cell dominating a mean, and distinguishes a one-cell artifact
+                          from "a quarter of the belt is cooking".
+    frost_event_share   : basin mean of the 0/1 frost flags — renamed (never ``frost_event_flag``) so a
+                          fractional share is never misread as a flag.
+
+Guards: a basin only emits for a commodity when >= ``BASIN_MIN_COUNTRIES`` member countries are present
+in that commodity's frame (one country alone is not a basin read), and each (metric, year, month) group
+needs >= ``BASIN_MIN_CELLS`` member cells (a 1-cell mean/share is just that cell). Members are declared
+in SILVER snake_case and matched on the PSD surface the gold rows already carry. Basin rows ride the
+same parquet/pg path as cell rows; region_map basin tokens then resolve the compound-token legs to the
+basin surface, and the calm/tail narration renders from these real reads.
 """
 from __future__ import annotations
 
@@ -85,8 +108,24 @@ METRIC_GDD_Z = "gdd_z"
 METRIC_HEAT_STRESS_Z = "heat_stress_z"
 METRIC_DROUGHT_Z = "drought_z"
 METRIC_FROST_FLAG = "frost_event_flag"
+METRIC_FROST_SHARE = "frost_event_share"   # basin grain only — a share must never wear the flag's name
 Z_METRICS = (METRIC_TMAX_ANOMALY, METRIC_GDD_Z, METRIC_HEAT_STRESS_Z, METRIC_DROUGHT_Z)
 ALL_METRICS = Z_METRICS + (METRIC_FROST_FLAG,)
+TAIL_SHARE_SUFFIX = "_tail_share"
+
+# ── basin registry (W1.1) — members in SILVER snake_case; surface = the resolvable country token the
+# region_map basin entry points at. west_africa = the cocoa belt's four producing countries (measured
+# from the live gold frame 2026-08-22: Cameroon 2 cells, Cote Divoire 4, Ghana 3, Nigeria 2; Ecuador is
+# South America and stays a per-cell read). Add basins here ONLY with a measured member list.
+BASINS: dict[str, dict] = {
+    "west_africa": {
+        "surface": "West Africa",
+        "members": ["cameroon", "cote_divoire", "ghana", "nigeria"],
+    },
+}
+TAIL_SIGMA = 2.0
+BASIN_MIN_COUNTRIES = 2
+BASIN_MIN_CELLS = 2
 
 # ── default thresholds — mirror the weather_stage.py defaults (baselines / gdd / heat_stress / drought) ─
 BASELINE_WINDOW_YEARS = 30
@@ -290,6 +329,39 @@ def _frost_flag(nasa: pd.DataFrame, *, commodity, threshold, complete_months) ->
     return rows
 
 
+def _basin_rows(gold: pd.DataFrame, basins: dict[str, dict]) -> pd.DataFrame:
+    """Aggregate per-cell gold rows into basin rows (W1.1). Pure post-pass over the tall frame.
+
+    For each basin whose member countries appear >= BASIN_MIN_COUNTRIES strong in ``gold``: per
+    (commodity, metric, year, month) group with >= BASIN_MIN_CELLS member cells, emit the basin MEAN
+    under the same metric name (frost renamed to ``frost_event_share``) and, for z metrics, the share
+    of cells at z >= +TAIL_SIGMA under ``<metric>_tail_share``. region column = ``<basin>_basin``.
+    """
+    if gold.empty:
+        return pd.DataFrame(columns=GOLD_COLUMNS)
+    rows: list[tuple] = []
+    for basin, spec in basins.items():
+        member_surfaces = {to_psd_surface(m) for m in spec["members"]}
+        sub = gold[gold["country"].isin(member_surfaces)]
+        if sub.empty or sub["country"].nunique() < BASIN_MIN_COUNTRIES:
+            continue
+        surface = spec["surface"]
+        region = f"{basin}_basin"
+        grouped = sub.groupby(["commodity", "metric", "year", "month"])["value"]
+        agg = grouped.agg(basin_mean="mean", n_cells="count",
+                          tail_share=lambda v: float((v >= TAIL_SIGMA).mean())).reset_index()
+        for r in agg.itertuples(index=False):
+            if int(r.n_cells) < BASIN_MIN_CELLS:
+                continue
+            out_metric = METRIC_FROST_SHARE if r.metric == METRIC_FROST_FLAG else r.metric
+            rows.append((r.commodity, surface, region, int(r.year), int(r.month),
+                         out_metric, float(r.basin_mean)))
+            if r.metric in Z_METRICS:
+                rows.append((r.commodity, surface, region, int(r.year), int(r.month),
+                             f"{r.metric}{TAIL_SHARE_SUFFIX}", float(r.tail_share)))
+    return _emit(rows)
+
+
 def compute_weather_z(
     commodity: str,
     *,
@@ -303,6 +375,7 @@ def compute_weather_z(
     dry_percentile: float = DRY_PERCENTILE,
     frost_threshold_c: float = FROST_THRESHOLD_C,
     enforce_month_completeness: bool = True,
+    basins: dict[str, dict] | None = None,
 ) -> pd.DataFrame:
     """Compute the tall gold_weather_z frame for ONE commodity from its silver weather long frames.
 
@@ -312,6 +385,10 @@ def compute_weather_z(
     dropped, frost 0.0 flags are kept. ``enforce_month_completeness`` (production default True) drops
     months not covering every calendar day — the -13.16 partial-month guard; z metrics are winsorized
     at +/-``Z_CAP`` either way. Tests exercising synthetic short months pass False explicitly.
+
+    ``basins`` (default: the module ``BASINS`` registry) appends basin aggregate rows (mean +
+    ``_tail_share`` per z metric, ``frost_event_share``) for basins with enough member countries present
+    — see the module docstring's BASIN AGGREGATE ROWS block. Pass ``{}`` to disable.
     """
     cm = enforce_month_completeness
     rows: list[tuple] = []
@@ -324,4 +401,8 @@ def compute_weather_z(
     rows += _drought_z(chirps, commodity=commodity, window_years=window_years, min_years=min_years,
                       dry_percentile=dry_percentile, complete_months=cm)
     rows += _frost_flag(nasa_power, commodity=commodity, threshold=frost_threshold_c, complete_months=cm)
-    return _emit(rows)
+    gold = _emit(rows)
+    basin_extra = _basin_rows(gold, BASINS if basins is None else basins)
+    if not basin_extra.empty:
+        gold = pd.concat([gold, basin_extra], ignore_index=True)
+    return gold

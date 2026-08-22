@@ -407,3 +407,82 @@ def test_task_passthrough_long_chirps_schema() -> None:
     gold = compute_weather_z("corn_cbot", nasa_power=None, chirps=out,
                              window_years=WIN, min_years=MIN, enforce_month_completeness=False)
     assert not gold.empty and (gold["metric"] == METRIC_DROUGHT_Z).all()
+
+
+# ── basin aggregate rows (GN-2 W1.1): the compound-region-token DECLINES fix ───────────────────────────
+# region_map tokens like 'West Africa' can never scope-resolve against a single country row, so the
+# cocoa weather legs SKIP_NODE'd without ever reading the data. The transform now emits basin rows
+# (mean + tail share) under one resolvable surface; these fences pin the math and the guards.
+
+def _basin_nasa(cell_2003: dict[tuple[str, str], float]) -> pd.DataFrame:
+    """Four-cell basin frame: identical 2000-2002 baseline (20/22/21), per-cell 2003 divergence."""
+    frames = []
+    for (country, region), v2003 in cell_2003.items():
+        levels = {2000: 20.0, 2001: 22.0, 2002: 21.0, 2003: v2003}
+        frames.append(_var_by_year(7, _TMAX, levels, country=country, region=region))
+    return pd.concat(frames, ignore_index=True)
+
+
+def test_basin_rows_mean_and_tail_share() -> None:
+    cells = {("cameroon", "c1"): 24.0, ("cameroon", "c2"): 21.5,
+             ("ghana", "g1"): 22.0, ("ghana", "g2"): 20.0}
+    got = compute_weather_z("cocoa", nasa_power=_basin_nasa(cells),
+                            window_years=WIN, min_years=MIN, enforce_month_completeness=False)
+
+    basin = got[got["country"] == "West Africa"]
+    assert not basin.empty
+    assert set(basin["region"].unique()) == {"west_africa_basin"}
+
+    # expected: mean of the four per-cell z's, tail share = fraction at z >= +2.0
+    cell_z = [float(trailing_baseline_z(
+        pd.Series({2000: 20.0, 2001: 22.0, 2002: 21.0, 2003: v}).sort_index(), WIN, MIN).loc[2003])
+        for v in cells.values()]
+    mean_row = basin[(basin["metric"] == METRIC_TMAX_ANOMALY) & (basin["year"] == 2003)]
+    tail_row = basin[(basin["metric"] == METRIC_TMAX_ANOMALY + "_tail_share") & (basin["year"] == 2003)]
+    assert len(mean_row) == 1 and len(tail_row) == 1
+    assert np.isclose(float(mean_row["value"].iloc[0]), float(np.mean(cell_z)))
+    assert np.isclose(float(tail_row["value"].iloc[0]),
+                      float(np.mean([z >= 2.0 for z in cell_z])))
+    # per-cell member rows are UNTOUCHED: all four cells still emit under their own countries
+    assert set(got["country"].unique()) == {"Cameroon", "Ghana", "West Africa"}
+
+
+def test_basin_requires_two_member_countries() -> None:
+    cells = {("ghana", "g1"): 24.0, ("ghana", "g2"): 21.5}    # one country, two cells
+    got = compute_weather_z("cocoa", nasa_power=_basin_nasa(cells),
+                            window_years=WIN, min_years=MIN, enforce_month_completeness=False)
+    assert "West Africa" not in set(got["country"].unique())  # one country alone is not a basin read
+
+
+def test_basin_min_cells_guard() -> None:
+    # cameroon/c1 alone has a 2004 observation -> the 2004 group has 1 cell -> no basin row for 2004
+    cells = {("cameroon", "c1"): 24.0, ("ghana", "g1"): 22.0}
+    nasa = pd.concat([
+        _basin_nasa(cells),
+        _var_by_year(7, _TMAX, {2004: 23.0}, country="cameroon", region="c1"),
+    ], ignore_index=True)
+    got = compute_weather_z("cocoa", nasa_power=nasa,
+                            window_years=WIN, min_years=MIN, enforce_month_completeness=False)
+    basin = got[got["country"] == "West Africa"]
+    assert not basin[basin["year"] == 2003].empty
+    assert basin[basin["year"] == 2004].empty
+
+
+def test_basin_frost_renamed_to_share_and_no_tail() -> None:
+    frames = [
+        _daily(2001, 7, _TMIN, [5.0, 5.0, -3.0, 5.0], country="cameroon", region="c1"),   # frost
+        _daily(2001, 7, _TMIN, [6.0, 6.0, 6.0, 6.0], country="ghana", region="g1"),       # none
+    ]
+    got = compute_weather_z("cocoa", nasa_power=pd.concat(frames, ignore_index=True),
+                            window_years=WIN, min_years=MIN, enforce_month_completeness=False)
+    basin = got[got["country"] == "West Africa"]
+    assert set(basin["metric"].unique()) == {"frost_event_share"}   # renamed; flag never wears a share
+    assert np.isclose(float(basin["value"].iloc[0]), 0.5)           # 1 of 2 cells flagged
+
+
+def test_basin_disabled_with_empty_registry() -> None:
+    cells = {("cameroon", "c1"): 24.0, ("ghana", "g1"): 22.0}
+    got = compute_weather_z("cocoa", nasa_power=_basin_nasa(cells),
+                            window_years=WIN, min_years=MIN, enforce_month_completeness=False,
+                            basins={})
+    assert "West Africa" not in set(got["country"].unique())
