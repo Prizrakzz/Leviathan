@@ -607,6 +607,18 @@ def _run_live(asof: str, out_path=None) -> int:
     assert b["athena_calls"] == 0, f"ATHENA_CALLS banner is {b['athena_calls']}, expected 0"
 
     from pathlib import Path
+    if out_path and str(out_path).startswith("s3://"):
+        # in-VPC runs have an EPHEMERAL filesystem: an s3:// out is the only artifact that survives
+        # the container (the deck-authoring gap, 2026-08-22 -- decks author FROM the census, and the
+        # census could not hand its artifact back). Upload, then FALL THROUGH: the banner, the
+        # un-waived-dark verdict and the exit code stay byte-identical to a local run.
+        import boto3
+        import re as _re
+        m = _re.match(r"s3://([^/]+)/(.+)", str(out_path))
+        boto3.client("s3").put_object(Bucket=m.group(1), Key=m.group(2),
+                                      Body=json.dumps(artifact, indent=1).encode("utf-8"))
+        print(f"census artifact -> {out_path}")
+        out_path = None
     dest = Path(out_path) if out_path else _artifact_path(asof)
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(json.dumps(artifact, indent=1), encoding="utf-8")
