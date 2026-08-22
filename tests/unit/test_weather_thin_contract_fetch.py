@@ -161,8 +161,14 @@ def test_cpc_soil_to_raw_defaults_current_year_and_env(monkeypatch):
     seen = {}
     monkeypatch.setattr(cpc_raw, "_process_year_via_daily_files",
                         lambda **kw: seen.update(kw) or (0, 0))
+    # PARTIAL-MONTH FIX (2026-08-22): with WHOLE trailing months, the tarball stays untouched on a
+    # current-year default run -- the original claim, now stated on its real precondition. A HOLE
+    # legitimately reaches the tarball (the self-heal); that path is pinned in
+    # test_weather_fetch_trailing_months.py, not here.
+    monkeypatch.setattr(cpc_raw, "_trailing_month_holes",
+                        lambda bucket, region, variable: {"whole": (31, 31)})
     monkeypatch.setattr(cpc_raw, "_process_year_via_tarball",
-                        lambda **kw: (_ for _ in ()).throw(AssertionError("current year must use daily-files")))
+                        lambda **kw: (_ for _ in ()).throw(AssertionError("whole months must use daily-files")))
     monkeypatch.setattr(sys, "argv", ["cpc_soil_to_raw_task.py"])
     cpc_raw.main()
     assert seen["year"] == _CUR and seen["bucket"] == "B" and seen["aws_region"] == "R"

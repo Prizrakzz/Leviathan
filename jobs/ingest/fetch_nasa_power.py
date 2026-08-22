@@ -20,6 +20,17 @@ from leviathan.storage.s3 import list_s3_keys, s3_object_exists, upload_file_to_
 logger = get_logger("backfill_raw_nasa_power")
 
 
+def _is_trailing_window(year: int, month: int) -> bool:
+    """True for the CURRENT and PREVIOUS calendar months -- the two windows the existence skips
+    must never preserve (the partial-month permanence trap, 2026-08-22). By month M-2 a window's
+    raw object has been refetched complete at least once and may be treated as immutable again."""
+    today = datetime.date.today()
+    cur_y, cur_m = today.year, today.month
+    prev_y, prev_m = (cur_y, cur_m - 1) if cur_m > 1 else (cur_y - 1, 12)
+    return (year, month) in ((cur_y, cur_m), (prev_y, prev_m))
+
+
+
 def discover_commodities(bucket: str, aws_region: str) -> list[str]:
     """Commodity slugs from configs/geographies/*_regions.yaml in S3 (thin-contract 'all' sentinel)."""
     keys = list_s3_keys(bucket, "configs/geographies/", suffix="_regions.yaml", aws_region=aws_region)
@@ -85,6 +96,16 @@ def _process_commodity(
             logger.info("SKIP future window %s-%02d (not started; no raw file written)",
                         window.year, window.month)
             continue
+        # PARTIAL-MONTH PERMANENCE FIX (2026-08-22): a month first fetched MID-month writes a
+        # partial raw object, and the existence skips below then preserve the hole forever --
+        # July 2026 sat at 12/31 days across every commodity while daily runs kept "succeeding"
+        # (chirps 0/31, cpc 16/31 -- same trap, three fetchers). The CURRENT and PREVIOUS
+        # calendar months are therefore ALWAYS refetched regardless of local/S3 existence: two
+        # windows per run is cheap, and by M-2 a month's object is immutable-complete again.
+        refetch_trailing = _is_trailing_window(window.year, window.month)
+        if refetch_trailing:
+            logger.info("TRAILING window %s-%02d: existence skips disabled (partial-month fix)",
+                        window.year, window.month)
         for country_block in geography_config["regions"]:
             country = country_block["country"]
 
@@ -145,7 +166,7 @@ def _process_commodity(
                 }
 
                 try:
-                    if local_path.exists():
+                    if local_path.exists() and not refetch_trailing:
                         logger.info("Skipping existing local file: %s", local_path)
                         skipped_count += 1
                         record["status"] = "skipped_local_exists"
@@ -161,7 +182,7 @@ def _process_commodity(
 
                         continue
 
-                    if args.skip_existing_s3 and args.upload:
+                    if args.skip_existing_s3 and args.upload and not refetch_trailing:
                         if s3_object_exists(bucket=bucket, key=s3_key, aws_region=aws_region):
                             logger.warning(
                                 "Skipping duplicate S3 object (already exists): s3://%s/%s",

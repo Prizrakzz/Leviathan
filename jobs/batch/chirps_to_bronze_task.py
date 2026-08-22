@@ -17,7 +17,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timezone
 
 import pandas as pd
-
 from leviathan.common.config import get_required_env, load_env
 from leviathan.common.logging import get_logger
 from leviathan.common.types import Region
@@ -44,12 +43,23 @@ def _months_to_process(
     * A FUTURE year -> no months (no data yet).
     * A PAST year (the preserved backfill path) -> every month 1..12; ``_process_month``'s write-time
       skip-existing still dedups, so behaviour is unchanged from the pre-retrofit backfill.
-    * The CURRENT year (the daily self-window) -> always re-download the current (incomplete) month;
-      for an earlier month, download only when a sentinel bronze object is ABSENT (self-heal a
-      within-year gap) -- so a normal daily run downloads just the current month. ``force_overwrite``
-      re-downloads every elapsed month of the current year."""
+    * The CURRENT year (the daily self-window) -> always re-download the current (incomplete) month
+      AND the previous month; for an older month, download only when a sentinel bronze object is
+      ABSENT (self-heal a within-year gap). ``force_overwrite`` re-downloads every elapsed month.
+      PARTIAL-MONTH PERMANENCE FIX (2026-08-22): the sentinel proves the month was PROCESSED, not
+      that it was COMPLETE -- July 2026 sat at ZERO chirps days behind an existing sentinel while
+      daily runs kept succeeding. The previous month is therefore always in the window: by M-2 the
+      source is final and the sentinel may again be trusted. NOTE the January edge: a daily
+      January run passes year=current only, so December year-1 is refetched via main()'s
+      previous-year top-up, not through this function."""
     if year > today.year:
         return []
+    if year == today.year - 1 and today.month == 1 and not force_overwrite:
+        # The January edge of the partial-month fix: main()'s previous-year top-up only needs
+        # December -- returning the full backfill window here would re-download 12 months of
+        # global rasters every January daily run. An explicit operator backfill that truly wants
+        # all of year-1 in January passes --force_overwrite (documented surprise, stated here).
+        return [12]
     if year < today.year:
         return list(range(1, 13))
     if not locations:
@@ -58,7 +68,7 @@ def _months_to_process(
     sentinel_region = locations[0]["region"]
     months: list[int] = []
     for month in range(1, today.month + 1):
-        if force_overwrite or month == today.month:
+        if force_overwrite or month >= today.month - 1:      # current AND previous month, always
             months.append(month)
             continue
         sentinel = bronze_weather_key(
@@ -247,11 +257,19 @@ def main() -> None:
         len(commodities), year, force_overwrite,
     )
 
+    # PARTIAL-MONTH FIX, the January edge (2026-08-22): a scheduled run passes only the current
+    # year, so in January the always-refetch-previous-month rule cannot reach December year-1
+    # through _months_to_process. Top it up with an explicit December pass of the prior year.
+    years = [year]
+    if args.year is None and today.month == 1:
+        years.insert(0, year - 1)
+
     failures: list[str] = []
     for commodity in commodities:
         try:
-            _process_commodity(bucket, aws_region, commodity, year, args.ingest_date,
-                               force_overwrite, today)
+            for y in years:
+                _process_commodity(bucket, aws_region, commodity, y, args.ingest_date,
+                                   force_overwrite, today)
         except Exception as exc:  # noqa: BLE001 -- one commodity's failure must not kill the rest
             logger.error("[%s] FAILED: %s: %s", commodity, type(exc).__name__, str(exc)[:300])
             failures.append(commodity)

@@ -23,7 +23,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timezone
 
 import requests
-
 from leviathan.common.config import get_required_env, load_env
 from leviathan.common.logging import get_logger
 from leviathan.ingestion.weather.cpc_soil_moisture import (
@@ -232,6 +231,36 @@ def _process_year_via_daily_files(
 # Entry point
 # ---------------------------------------------------------------------------
 
+def _trailing_month_holes(bucket: str, aws_region: str, variable: str) -> dict[str, tuple[int, int]]:
+    """PARTIAL-MONTH PERMANENCE FIX (2026-08-22): {YYYY-MM: (present, expected)} for the CURRENT and
+    PREVIOUS calendar months, counted from the raw S3 day-keys. The live GeoTIFF directory is a
+    ROLLING window -- a day the daily path misses while listed never returns to it, so July 2026
+    silently froze at 16/31 days while every scheduled run "succeeded". Only the annual tarball
+    still carries such days, which is why main() falls back to it on any hole."""
+    s3_client = get_thread_local_s3_client(aws_region)
+    today = date.today()
+    months = [(today.year, today.month)]
+    months.append((today.year, today.month - 1) if today.month > 1 else (today.year - 1, 12))
+    out: dict[str, tuple[int, int]] = {}
+    for (y, m) in months:
+        days_in_month = calendar.monthrange(y, m)[1]
+        # expected: full month when past; days strictly before today when current (1-day lag)
+        expected = days_in_month if (y, m) != (today.year, today.month) else max(0, today.day - 1)
+        present = 0
+        for day in range(1, days_in_month + 1):
+            d = date(y, m, day)
+            if d >= today:
+                break
+            key = raw_cpc_tif_key(variable, d.strftime("%Y%m%d"), f"{variable}.{d.strftime('%Y%m%d')}.tif")
+            try:
+                s3_client.head_object(Bucket=bucket, Key=key)
+                present += 1
+            except Exception:  # noqa: BLE001 -- absent day
+                pass
+        out[f"{y}-{m:02d}"] = (present, expected)
+    return out
+
+
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     parser = argparse.ArgumentParser(description="CPC Soil Moisture → raw S3 (Batch task)")
@@ -277,6 +306,23 @@ def main() -> None:
             ingest_date=args.ingest_date,
             force_overwrite=force_overwrite,
         )
+        # PARTIAL-MONTH PERMANENCE FIX (2026-08-22): the live dir is a rolling window, so a day
+        # missed while listed is unreachable from the daily path forever. Count the trailing
+        # months' raw day-keys and self-heal any hole from the annual tarball (absent keys are
+        # written, existing ones skip -- cheap when whole).
+        holes = _trailing_month_holes(bucket, aws_region, args.variable)
+        for ym, (present, expected) in holes.items():
+            if present < expected:
+                logger.warning("TRAILING-MONTH HOLE %s: %d/%d raw days present -- tarball self-heal",
+                               ym, present, expected)
+        hole_years = sorted({int(ym.split("-")[0]) for ym, (p, e) in holes.items() if p < e})
+        for hy in hole_years:                       # a December hole needs YEAR-1's tarball
+            tw, ts = _process_year_via_tarball(
+                year=hy, variable=args.variable, bucket=bucket, aws_region=aws_region,
+                ingest_date=args.ingest_date, force_overwrite=False,
+            )
+            written += tw
+            skipped += ts
 
     logger.info("Done  written=%d  skipped=%d", written, skipped)
 
