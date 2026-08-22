@@ -142,10 +142,51 @@ def _parse_sheet(
     df = df_raw.iloc[header_idx + 1:].copy()
     raw_headers = list(df_raw.iloc[header_idx])
 
-    # Map headers to element names
+    # TWO-ROW MERGED HEADER (the safra off-by-one fix, 2026-08-22). CONAB sheets carry a merged
+    # header block: the element-group row ("PRODUCAO (mil sacas)...", spanning 3 columns) sits
+    # ABOVE a year row ("Safra 2025" | "Safra 2026" | "VAR. %"). The old single-row read pinned
+    # the group label to the FIRST column of its span -- which is the PRIOR safra's (final)
+    # column -- so every bulletin's value landed one year late, identical across all four
+    # surveys, and the current-safra + VAR columns fell off the sheet as unknown_col_N (the
+    # measured zero revision signal). Verified on the live 2026-05 bulletin: row 3 groups,
+    # row 4 years, row 5 footnote letters, data from row 6.
+    year_row = list(df_raw.iloc[header_idx + 1]) if header_idx + 1 < len(df_raw) else []
+    year_cells = [re.search(r"safra\s*(\d{4})", str(v).lower()) for v in year_row]
+    two_row = any(year_cells)
+
     mapped_headers: list[str] = []
-    for h in raw_headers:
-        mapped_headers.append(_map_element(str(h)) if pd.notna(h) else "unknown_col")
+    if two_row:
+        # Forward-fill the merged group label across its span, then compose identity per
+        # (group, sub-column): the CURRENT safra keeps the canonical element name (so the
+        # silver whitelist reads the honest value); the prior safra and the VAR column get
+        # explicit suffixes (additive -- silver filters them until a card consumes them).
+        group = None
+        for pos, h in enumerate(raw_headers):
+            if pd.notna(h) and str(h).strip():
+                group = str(h)
+            base = _map_element(group) if group is not None else "unknown_col"
+            m = year_cells[pos] if pos < len(year_cells) else None
+            sub = str(year_row[pos]).lower() if pos < len(year_row) else ""
+            if pos == 0:
+                mapped_headers.append(base)                    # the region column
+            elif m:
+                yr = int(m.group(1))
+                if yr == safra_year:
+                    mapped_headers.append(base)                # the bulletin's OWN safra
+                elif yr == safra_year - 1:
+                    mapped_headers.append(f"{base}_prior_safra")
+                else:
+                    mapped_headers.append(f"{base}_safra_{yr}")
+            elif "var" in sub:
+                mapped_headers.append(f"{base}_yoy_var_pct")
+            else:
+                mapped_headers.append("unknown_col")
+        # Data starts BELOW the year row; the footnote-letter row ("(a) (b)...") that follows
+        # has an empty region cell and is dropped by the region filter below.
+        df = df_raw.iloc[header_idx + 2:].copy()
+    else:
+        for h in raw_headers:
+            mapped_headers.append(_map_element(str(h)) if pd.notna(h) else "unknown_col")
 
     df.columns = mapped_headers[: len(df.columns)]
 

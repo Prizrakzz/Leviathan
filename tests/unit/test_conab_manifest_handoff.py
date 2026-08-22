@@ -95,8 +95,54 @@ def test_fetch_errors_clearly_when_no_local_and_no_mirror(monkeypatch, tmp_path)
     monkeypatch.setattr(fetch, "_download_manifest_s3", lambda b, k: None)
     monkeypatch.setenv("LEVIATHAN_BUCKET", "test-bucket")
     import sys
+
     import pytest
     monkeypatch.setattr(sys, "argv", ["fetch", "--dry-run"])
     with pytest.raises(SystemExit) as ei:
         fetch.main()
     assert ei.value.code == 2  # argparse parser.error
+
+
+# ── the safra off-by-one fence (2026-08-22) ─────────────────────────────────────────────────────
+def test_two_row_merged_header_attributes_the_bulletins_own_safra():
+    """THE DEFECT: CONAB sheets carry a merged two-row header (group row spanning three columns,
+    then 'Safra Y-1 | Safra Y | VAR. %'); the single-row parse pinned the group label to the FIRST
+    column of the span -- the PRIOR safra's FINAL number -- so 13/13 bulletins stored last year's
+    value under this year's label, identical across all four surveys (the measured zero revision
+    signal). This fence reproduces the real sheet shape (verified against the live 2026-05
+    bulletin) and pins: the canonical element carries the bulletin's OWN safra, the prior lands
+    under _prior_safra, VAR under _yoy_var_pct."""
+    import pandas as pd
+    from leviathan.transforms.raw_to_bronze import conab_xls as m
+    rows = [
+        [None] * 10,
+        [None] * 10,
+        [None] * 10,
+        ["REGIÃO/UF", "ÁREA EM PRODUÇÃO (ha)", None, None, "PRODUTIVIDADE (sc/ha)", None, None,
+         "PRODUÇÃO (mil sacas beneficiadas)", None, None],
+        [None, "Safra 2025", "Safra 2026", "VAR. % ", "Safra 2025", "Safra 2026", "VAR. % ",
+         "Safra 2025", "Safra 2026", "VAR. % "],
+        [None, " (a)", "(b)", "(b/a)", " (c)", " (d)", "(d/c)", "(e)", " (f)", "(f/e)"],
+        ["BRASIL", 100.0, 110.0, 10.0, 50.0, 55.0, 10.0, 35763.1, 45772.8, 27.99],
+    ]
+    out = m._parse_sheet(pd.DataFrame(rows), "2 Café Arábica", safra_year=2026, survey=2)
+    nat = out[out["region"] == "BRASIL"].set_index("element")["value"]
+    assert nat["production_thousand_bags"] == 45772.8              # the bulletin's OWN safra
+    assert nat["production_thousand_bags_prior_safra"] == 35763.1  # last year's FINAL, labeled as such
+    assert abs(nat["production_thousand_bags_yoy_var_pct"] - 27.99) < 1e-9
+    assert nat["area_in_production_ha"] == 110.0
+    assert nat["yield_bags_per_ha"] == 55.0
+
+
+def test_single_row_header_sheets_still_parse_unchanged():
+    import pandas as pd
+    from leviathan.transforms.raw_to_bronze import conab_xls as m
+    rows = [
+        ["REGIÃO/UF", "ÁREA EM PRODUÇÃO (ha)", "PRODUÇÃO (mil sacas)"],
+        ["BRASIL", 100.0, 39598.4],
+        ["MG", 60.0, 25000.0],
+    ]
+    out = m._parse_sheet(pd.DataFrame(rows), "2 Café Arábica", safra_year=2025, survey=1)
+    nat = out[out["region"] == "BRASIL"].set_index("element")["value"]
+    assert nat["production_thousand_bags"] == 39598.4
+    assert nat["area_in_production_ha"] == 100.0
