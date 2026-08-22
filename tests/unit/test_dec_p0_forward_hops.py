@@ -251,7 +251,10 @@ def test_graph_version_hashes_the_configs_not_the_code(real, census):
     #                                  DAG copied incumbents' refs, but availability is PER-COMMODITY --
     #                                  gold_weather_z and silver_esr carry no sorghum axis; the first
     #                                  post-wave cascade census read all three legs dark).
-    assert real.version == h.hexdigest()[:12] == "f6cf1f5db711"     # POST-census-fallout, re-derived from bytes
+    #   f6cf1f5db711 -> fe7cd796e02f   the GN-1 MPOB split (owner word 2026-08-22): mpob_fundamentals ->
+    #                                  mpob_ending_stocks + mpob_production on the palm board, the
+    #                                  basket-ref split the register's un-defer gate demanded.
+    assert real.version == h.hexdigest()[:12] == "fe7cd796e02f"     # POST-MPOB-split, re-derived from bytes
     assert census["graph_version"] == "482c0e2554e6"                # the frozen PRE-XC-2 artifact, untouched
     assert real.version != census["graph_version"], \
         "a CONFIG edit must move the hash -- that is what 'hashes the configs, not the code' means"

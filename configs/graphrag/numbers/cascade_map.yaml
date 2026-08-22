@@ -380,6 +380,32 @@ refs:
       the 2026-07-18 census, so an honest leg may serve a reading several weeks old WITH its date -- which
       is the correct behaviour, and the reason the report date belongs in the narration.
 
+  # -- GN-1 MPOB SPLIT (owner word 2026-08-22): the old `mpob_fundamentals` basket ref served two
+  #    drivers wanting two different metrics; the DAG now carries metric-specific refs (the register's
+  #    own gate order: the attribute names the series FIRST, then a row here). This row is the PROVED
+  #    half -- value-checked against the served parquet (113 monthly rows 2016-12..2026-04, one
+  #    commodity, zero nulls, 2,309,474 MT -> 2.31 MMT). `mpob_production` (biennial_low_cycle's half)
+  #    stays UNMAPPED pending its own value-proof -- the C3 law: prove, then bind, never same-shape.
+  mpob_ending_stocks:
+    table: silver_mpob
+    metric: closing_stocks_palm_oil_mt
+    agg: latest                    # the freshest published MONTH on/before the asof (the esr_exports idiom;
+    #                                a `series` leg over a trailing window is ORDER BY ASC and rows[0] is
+    #                                the OLDEST print -- the A2b defect)
+    period_type: date              # first-of-month DATA date; period_start/period_end bind `date`
+    leg_mode: current              # CURRENT rhyme leg ONLY -- 113 months is too shallow an era backbone
+    country_rule: none             # ONE geography (Malaysia); the table has NO country column at all
+    keying: "commodity=CONTRACT slug malaysian_crude_palm_oil_cme (the only value in the table)"
+    native_unit: MT
+    narrate_unit: MMT
+    scale: 0.000001                # 2,309,474 MT -> 2.31 MMT
+    coverage_start: 2016           # HARD floor: silver starts 2016-12-01; earlier palm months are dark
+    status: mapped
+    notes: >
+      Malaysian month-end palm-oil stocks (MPOB), the ORIGIN side. 113 monthly rows 2016-12..2026-04,
+      one commodity, zero nulls. Never contrast against silver_psd's ANNUAL world palm balance in the
+      same breath without naming the axis difference (monthly Malaysian stocks vs world marketing-year).
+
 # -- C3 SKIPS (2026-08-01) -- dark refs this wave REFUSED to bind, with the evidence -------------------
 # C3 authored the top UNFENCED dark refs by hand (D4: no generic fallback resolver). Three of the four
 # candidates have NO honest target, and each is recorded here rather than bound to a near-neighbour --
@@ -438,13 +464,11 @@ refs:
 #     is CONSIDERED-AND-REFUSED there, not silent here; it is additionally quarantined (SILVER-F047) and
 #     stripped from serving visibility as of D-LD Sitting-A. The weather legs resolve to gold_weather_z.
 #   silver_icco_cocoa -- DEFERRED: no driver attribute names grindings.
-#   silver_mpob -- DEFERRED, premise RE-ARGUED (GN-1 recon 2026-08-22; the original "no driver names
-#     it" became false when the completion wave minted `biennial_low_cycle` with silver_ref
-#     mpob_fundamentals on malaysian_crude_palm_oil_cme). The refusal now stands on the ONE-REF-ONE-
-#     (table,metric) law: `mpob_fundamentals` is a BASKET name -- the two candidate drivers want two
-#     DIFFERENT metrics (stocks vs output), so a single row under this ref cannot be honest. UN-DEFER
-#     GATE: split the DAG refs to metric-specific names (mpob_stocks_z / mpob_output_z class), then one
-#     row each. A sound stocks row exists in the GN-1 recon record for whoever executes the split.
+#   silver_mpob -- HALF-LIT (GN-1 split, owner word 2026-08-22). The basket ref `mpob_fundamentals`
+#     was split to metric-specific names on the DAG: `ending_stocks` -> mpob_ending_stocks (ROW LANDED
+#     above, value-proved) and `biennial_low_cycle` -> mpob_production (UNMAPPED pending its own
+#     value-proof against production_cpo_mt -- prove, then bind, never same-shape). The one-ref-one-
+#     (table,metric) law held; the un-defer gate was executed in gate order (DAG first, then the row).
 #   silver_mpoc_stock_comparison -- DEFERRED: no driver attribute names destination-side vegoil stocks.
 #   silver_sagis_cec -- DEFERRED, premise RE-ARGUED (GN-1 recon 2026-08-22; both SA maize boards now
 #     carry `cec_production_revision` with silver_ref sagis_cec_revision). The refusal stands on the
