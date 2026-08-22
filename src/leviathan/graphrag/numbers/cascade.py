@@ -758,6 +758,34 @@ def lint_pace_collapse() -> list[str]:
     return errs
 
 
+# ── GN-2 W1.1 NARRATION (2026-08-22): the basin calm/tail vocabulary ────────────────────────────────
+# The owner directive, verbatim: "it shouldn't decline, what the hell does that mean to a user ...
+# we're not spitting out code, we're talking to analysts." The basin rows (weather_z._basin_rows) give
+# the engine real reads for multi-country belts; these two pieces give the reads an ANALYST'S VOICE:
+# a magnitude word on the mean line ("near normal" -- calm weather is information, never silence), and
+# the TAIL RIDER -- one sibling read of `<metric>_tail_share` (share of member cells at >= +2 sigma)
+# so a calm mean can still say "but a fifth of the belt is in the tail". Non-basin countries carry NO
+# tail metric -> record_silent -> no line: fail-closed by construction, zero basin detection needed.
+# _BASIN_TAIL_METRICS mirrors weather_z.Z_METRICS (fence-tested equal, never imported at runtime --
+# serving must not couple to a transform module's import graph).
+_WEATHER_Z_TABLE = "gold_weather_z"
+_BASIN_TAIL_METRICS: frozenset[str] = frozenset(
+    {"tmax_anomaly", "gdd_z", "heat_stress_z", "drought_z"})
+_TAIL_SUFFIX = "_tail_share"
+
+
+def _z_word(v: float) -> str:
+    """The magnitude word for a weather z read. NEUTRAL and magnitude-only on purpose: 'high drought_z'
+    is dry stress but 'high tmax_anomaly' in winter can be benign -- direction words would need
+    per-metric per-season semantics this seam does not own. Past-tense register-safe."""
+    a = abs(v)
+    if a < 1.0:
+        return "near normal"
+    if a < 2.0:
+        return "notably above normal" if v > 0 else "notably below normal"
+    return "extreme (>= 2 sigma above normal)" if v > 0 else "extreme (>= 2 sigma below normal)"
+
+
 def _pace_grain(row) -> str | None:
     """The pace grain word for a map row, or None (=> NO pace leg): annual/MY grain, event flags, and any
     table outside the pace-capable inventory all decline structurally."""
@@ -888,6 +916,12 @@ def _node_specs(n, row, commodity, country, eras, asof, *, pace: bool = False) -
         specs.append({**base, "leg": ("pace", None), "era_idx": None, "my": None,   # byte-identical specs)
                       "t1": _plus_days(asof, -days), "t2": asof, "asof": asof,
                       "agg": "series", "period": None})
+    # W1.1 basin TAIL rider: one sibling `<metric>_tail_share` read beside the CURRENT weather-z leg.
+    # Only basin rows carry the metric, so a non-basin country returns record_silent -> no line ever.
+    if asof and row.get("table") == _WEATHER_Z_TABLE and row.get("metric") in _BASIN_TAIL_METRICS:
+        specs.append({**base, "metric": f"{row['metric']}{_TAIL_SUFFIX}", "leg": ("tail", None),
+                      "era_idx": None, "my": None, "t1": _plus_days(asof, -365), "t2": asof,
+                      "asof": asof, "agg": "latest", "period": None})
     return specs
 
 
@@ -1181,6 +1215,16 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
             except Exception:  # noqa: BLE001 -- a traceless sg must never break the v1 answer
                 pass
             block_lines = block_lines + p_lines
+    # W1.1 basin tail lines: ungated -- the spec only exists for gold_weather_z z-rows, and only basin
+    # surfaces return rows, so the blast radius is the basin nodes by construction; the serving deploy
+    # is the rollout gate and the judged deck is the judge.
+    t_lines, t_trace = _tail_legs(records, kept, len(extra_number_calls), extra_number_calls)
+    if t_trace:
+        try:
+            sg.trace["quantify_basin_tail"] = t_trace
+        except Exception:  # noqa: BLE001 -- a traceless sg must never break the v1 answer
+            pass
+        block_lines = block_lines + t_lines
     r_lines, r_trace = _reroute(pairs, era_deltas)
     block_lines = block_lines + r_lines
     # RV-W2: the cross-COMMODITY relative-value fork, gated ONLY by the orchestrator-threaded xc_request (the
@@ -1730,6 +1774,39 @@ def _pace_series(r: dict, table, *, expiry_col=None, commodity=None) -> tuple[li
     return vals, (collapse if multi else None)
 
 
+def _tail_legs(records: list, kept: list, base: int, calls: list) -> tuple:
+    """W1.1: render the basin TAIL lines off the leg=('tail',*) sibling records -- one [N] line per
+    basin weather-z node quoting the RAW share (0-1, the row's own value; the engine never multiplies).
+    A silent/error/empty tail record renders NOTHING (non-basin countries have no tail metric by
+    construction -- honest absence, the pace-leg discipline). Appends [N] calls IN PLACE (synthetic
+    rows are cap-free). Returns (lines, trace); trace non-empty IFF at least one tail line rendered."""
+    rows_by_key = {g["specs"][0]["node_key"]: g["row"] for g in kept if g.get("specs")}
+    lines, trace = [], []
+    n = base
+    for r in records:
+        leg = r.get("leg") or ()
+        if not leg or leg[0] != "tail" or r.get("status") != "ok" or not (r.get("rows") or []):
+            continue
+        row = rows_by_key.get(r.get("node_key"))
+        if row is None:
+            continue
+        share = _float_val(r)
+        if share is None:
+            continue
+        tail_metric = f"{row.get('metric')}{_TAIL_SUFFIX}"
+        # the call rides the record itself (a REAL fetched row) under a share-unit synthetic row, so
+        # the quoted figure value-checks against the exact pg row the [N] handle resolves to
+        srow = {**row, "metric": tail_metric, "narrate_unit": "share of basin cells", "scale": 1}
+        n += 1
+        calls.append(_shown(_prescaled(r, srow, n), _scaled_val(r, srow)))
+        q = r.get("query") or {}
+        lines.append(f"- [N{n}] share of basin cells at or beyond +2 sigma in {row.get('metric')} "
+                     f"(as-of {q.get('asof')}): {share:g}" + _series_tag(q, srow))
+        trace.append({"node": r.get("node_key"), "metric": tail_metric,
+                      "share": round(share, 4)})
+    return lines, trace
+
+
 def _pace_legs(records: list, kept: list, base: int, calls: list) -> tuple:
     """T2a: deterministic streak/window_change rows off the leg=('pace',*) series records (stats.py
     primitives -- the engine never does free-form math), computed over the PER-PERIOD collapsed series
@@ -1935,6 +2012,9 @@ def _group_by_node(records: list, kept: list) -> dict:
         elif leg[0] == "pace":
             grp["pace"] = r          # T2a: consumed by _pace_legs only -- NEVER an era bucket (a pace
             #                          series in era 0 would poison _era_delta with sub-annual points)
+        elif leg[0] == "tail":
+            grp["tail"] = r          # W1.1: consumed by _tail_legs only -- same quarantine as pace (a
+            #                          share in an era bucket would poison _era_delta with a 0-1 value)
         else:
             grp["eras"].setdefault(r.get("era_idx") or 0, []).append(r)
     for grp in out.values():
@@ -2038,8 +2118,15 @@ def _fmt_line(rec: dict, row: dict, n: int, *, era) -> str:
     unit = row.get("narrate_unit") or ""
     q = rec.get("query") or {}
     tag = _era_label(era, row)
+    # W1.1: the calm word -- a weather-z read carries its magnitude in ANALYST vocabulary ("near
+    # normal" beats a bare 0.03 to a reader; calm weather is information, never silence). Words only,
+    # no figures, so the verifier's number discipline is untouched.
+    word = ""
+    if row.get("table") == _WEATHER_Z_TABLE and row.get("metric") in _BASIN_TAIL_METRICS \
+            and sv is not None:
+        word = f" ({_z_word(sv)})"
     return (f"- [N{n}] {q.get('commodity')} {row.get('metric')} {q.get('period') or ''} ({tag}, "
-            f"as-of {q.get('asof')}): {val} {unit}".rstrip() + _series_tag(q, row))
+            f"as-of {q.get('asof')}): {val} {unit}".rstrip() + word + _series_tag(q, row))
 
 
 def _fmt_delta(row: dict, d: float, n: int, *, era, q: dict | None = None) -> str:

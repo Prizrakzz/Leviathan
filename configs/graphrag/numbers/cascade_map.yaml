@@ -480,6 +480,37 @@ refs:
       freshest row can trail the session by nearly two weeks -- cite the week_ending date, never "this
       week".
 
+  # -- GN-2 W2.2 (2026-08-22): SAGIS CEC -- bound the SAME DAY the fence landed ------------------------
+  # The binding was GATED on the unit-explosion fix (EDA-SEMANTIC-UNIT-001): the served column carried
+  # 59 cell-fusion fabrications (max 1.7e30). The two-arm fence + quarantine shipped (f4ef4579), the
+  # canonical republished on the fenced image (1,697 rows, ZERO values above 1e8, frame byte-identical
+  # to the proven shadow), the pg mirror reloaded -- THEN this row. Two drivers consume it (the JSE
+  # white/yellow maize contracts' sagis_cec_revision ref). THE METRIC IS THE LEVEL
+  # (current_estimate_t), exactly as the recon ratified and as the D4 doctrine requires: the card
+  # EXCLUDES revision_t/revision_pct on both revision cards (sagis + conab, the mirrored D4
+  # exclusion -- cross-vintage deltas are never served as point-in-time levels). The driver's
+  # revision SEMANTICS come from the engine's own delta machinery over releases -- serve levels,
+  # derive changes, cite both endpoints.
+  sagis_cec_revision:
+    table: silver_sagis_cec
+    metric: current_estimate_t
+    agg: latest                    # the freshest CEC release's estimate on/before the asof
+    period_type: date              # release_date axis
+    leg_mode: current              # monthly estimate cycle -- a pace signal, not an era backbone
+    country_rule: none             # ONE geography (South Africa); scope 'total' is the national headline
+    keying: "commodity = SAGIS crop code (white_maize / yellow_maize for the JSE contracts)"
+    native_unit: MT
+    narrate_unit: MT
+    scale: 1
+    coverage_start: 1999
+    status: mapped
+    notes: >
+      The CEC's current crop production estimate LEVEL, whole metric tonnes, per release. A revision
+      is narrated as the CHANGE BETWEEN two releases' levels (the engine's delta rows, both endpoints
+      citable) -- never a served revision column (the D4 exclusion, mirrored on the conab card). Cite
+      the release_date and estimate number; a fused-cell vintage's row is QUARANTINED at parse, so an
+      absent release here is honest refusal, not silence.
+
 # -- C3 SKIPS (2026-08-01) -- dark refs this wave REFUSED to bind, with the evidence -------------------
 # C3 authored the top UNFENCED dark refs by hand (D4: no generic fallback resolver). Three of the four
 # candidates have NO honest target, and each is recorded here rather than bound to a near-neighbour --
