@@ -92,7 +92,9 @@ variable "serving_image_tag" {
   # structured.sources; #73 verify-and-repair; CitationPdf span/sentence for the FE highlight).
   # Taskdef 109 registered copy-from-deployed-108 (image-only change); canary three tells PASSED
   # (rollout COMPLETED, startedAt 13:13:00+03 > push 13:08:33+03, exact digest 08b5fd3a).
-  default     = "20260821T130755"
+  # DRIFT ADOPTION 2026-08-22 (tf_drift_roster.md): live serving rev 110's build; tag verified
+  # resolving to embedder digest fe074db1 (commit cd671130).
+  default     = "20260821T220215"
 }
 
 # Stage 2: the ACM wildcard cert (leviathanconvexity.com + *) created in the console. us-east-1.
@@ -292,7 +294,9 @@ variable "pink_sheet_image_digest" {
   # D-SG S-C repin 2026-08-16: cf50c051 = the worker build carrying the pink_sheet
   # --skip-existing-s3 restore + release-recency fence (G2-1c). The pin-collision law:
   # the task change and this digest move ride the SAME change or an apply reverts the fix.
-  default     = "sha256:53db13d53bfb3b5066d92100930f56ee98c1cca309d692be5b6d88cbb18847d2"
+  # DRIFT ADOPTION 2026-08-22 (tf_drift_roster.md): adopt live jobdef rev 10's digest (the F063
+  # build) -- the old default shared a literal with silver_gate's, the shared-literal trap.
+  default     = "sha256:65d8a125a5ebc34da218754374909d33000523c14fea2b52c20e47cbe571946d"
 
   validation {
     condition     = var.pink_sheet_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.pink_sheet_image_digest))
@@ -317,7 +321,7 @@ variable "psd_silver_image_digest" {
   # own change, after the first green fire.
   type        = string
   description = "sha256 digest of the worker image the dedicated psd-silver jobdef runs. Empty = the mutable ':latest' tag."
-  default     = "sha256:e8aa7857a2e1b3b0258fa7258803a60d608a1209cf3b02042220da2094bf4b7f"
+  default     = "sha256:554968e76d24d9bf8a9c38bf899467b76f287efa18c7f3ffbde29a0de7cedee9"
 
   validation {
     condition     = var.psd_silver_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.psd_silver_image_digest))
@@ -434,7 +438,7 @@ variable "silver_gate_image_digest" {
   # vintage_waiver (G1-6 PATH A) and the GateVerdict/ValueCensusHardFailTables
   # emitters (G3-4) into the gate. timeline_rebuild's identical old digest below is
   # DELIBERATELY NOT moved (the fleet-digest law: one intended move per variable).
-  default     = "sha256:53db13d53bfb3b5066d92100930f56ee98c1cca309d692be5b6d88cbb18847d2"
+  default     = "sha256:554968e76d24d9bf8a9c38bf899467b76f287efa18c7f3ffbde29a0de7cedee9"
 
   validation {
     condition     = var.silver_gate_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.silver_gate_image_digest))
@@ -480,7 +484,7 @@ variable "ecr_pin_audit_image_digest" {
   # routing curation). evidence-build jobdef rev 79 registered on it the same hour (owner-run).
   # RE-PINNED 2026-08-20: the overnight batch build (commits 78c911dd..e437eff7 -- D13/D14,
   # temperature pin, Wave 1c routing, XC-2/XC-5 merge, numbers mini-wave). Serving 107 canaried.
-  default     = "sha256:915f8426c8c16a392add983e7fd0e0630741dc12fbd0646541ae1d44b30bdbb5"
+  default     = "sha256:fe074db1f2a46a8072d726c187618be2133bc7df7a711f3e5ce51d6c7868dd5a"
 
   validation {
     condition     = var.ecr_pin_audit_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.ecr_pin_audit_image_digest))
