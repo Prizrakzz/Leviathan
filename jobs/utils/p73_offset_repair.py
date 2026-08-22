@@ -93,7 +93,7 @@ def main() -> int:
 
     import psycopg
     dsn = config.get_required_env("EVIDENCE_PG_DSN")
-    table = pg._table()
+    table = pg.table_name()
     stamp = f"p73-{_dt.datetime.now(_dt.timezone.utc).strftime('%Y%m%d')}"
 
     where = ("meta IS NULL OR meta->>'offset_kind' IS NULL OR meta->>'offset_kind' = 'none' "
