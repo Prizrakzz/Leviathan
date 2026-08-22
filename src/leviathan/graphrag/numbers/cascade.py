@@ -609,6 +609,12 @@ PACE_TABLES = {
     "silver_pink_sheet": "month", "silver_mpob": "month", "gold_weather_z": "month",
     "silver_noaa_oni": "month",
     "silver_fred_fx": "day",
+    # GN-2 W1.4 (2026-08-22): FGIS weekly export INSPECTIONS -- the SHIPMENTS half of the US export
+    # program (silver_esr is the SALES half). Grain mirrors ESR's: per destination x week, sum-collapsed
+    # to the national weekly flow. This entry is only legal TOGETHER with the _PACE_PERIOD_KEY_EXTRA
+    # row below -- without it the entry alone ships the exact fabrication the collapse exists to prevent
+    # (the recon's R1 FATAL; see the registry's own comment).
+    "silver_fgis": "week",
 }
 # T2a CROSS-SECTION COLLAPSE (skeptic fold, pre-flip blocker): two pace tables return MULTIPLE rows per
 # period under agg=series -- silver_esr is per DESTINATION x week (no country column even exists to
@@ -630,7 +636,9 @@ PACE_TABLES = {
 # select the FRONT expiry by the named, versioned query-time rule FIRST, then delta across DATES. That
 # rule lives in exactly one place (leviathan.silver.futures_roll.front_month, ROLL_RULE_VERSION
 # front_month_v2, fenced by config_check.check_futures_roll) and is CALLED here, never re-derived.
-_PACE_COLLAPSE = {"silver_esr": "sum", "gold_weather_z": "mean", "silver_futures_eod": "front_expiry"}
+_PACE_COLLAPSE = {"silver_esr": "sum", "gold_weather_z": "mean", "silver_futures_eod": "front_expiry",
+                  "silver_fgis": "sum"}   # W1.4: national weekly inspections = sum across destinations
+                  #                         (the ESR flow-total doctrine; whole MT, never a price)
 _PACE_COLLAPSE_KINDS: frozenset[str] = frozenset({"sum", "mean", "front_expiry"})
 # PRICE TABLES (F-E lint): a table whose served value IS a price. `sum`/`mean` are FORBIDDEN as the
 # collapse kind for any of these -- the aggregate of a price cross-section is not a price anyone quotes.
@@ -1530,12 +1538,28 @@ def _pace_synth(rec: dict, row: dict, value, n: int, *, kind: str, unit: str) ->
             "status": "ok"}
 
 
-def _pace_period_key(rr: dict, idx: int):
+# GN-2 W1.4 (2026-08-22): PER-TABLE extra period-key aliases. A table whose date_col IS its
+# knowledge_date_col surfaces ONLY `knowledge_date` in query._extras (the dedup at _extras' data_date
+# branch), so the legacy alias list below misses every live row and the key falls to ("_row", idx) --
+# EVERY ROW ITS OWN PERIOD -- and the cross-section collapse silently never groups: on a
+# per-destination table the "pace" delta is then destinationB-minus-destinationA inside one week, a
+# fabrication wearing a real [N] row (the recon's R1 FATAL: the naive PACE_TABLES entry alone ships
+# it). Scoped PER TABLE rather than adding knowledge_date to the legacy list: on silver_cot /
+# silver_pink_sheet / silver_mpob the ("_row", idx) branch is load-bearing and pinned (_pace_row_date's
+# docstring records that deliberate exclusion) -- those tables are one row per period BY GRAIN, and
+# this registry must never widen behavior it cannot see the grain of.
+_PACE_PERIOD_KEY_EXTRA: dict[str, tuple[str, ...]] = {
+    "silver_fgis": ("knowledge_date",),   # date_col == knowledge_date_col == week_ending_date
+}
+
+
+def _pace_period_key(rr: dict, idx: int, extra: tuple[str, ...] = ()):
     """The row's PERIOD identity for the T2a cross-section collapse: the chronological data-axis alias
     (data_date) or the raw silver column names test fixtures/guard-cols carry, else (year, month) for
     year_month tables, else the row's own index -- a keyless single-grain table keeps the legacy
-    one-row-one-period behavior exactly."""
-    for k in ("data_date", "week_ending_date", "date", "report_date"):
+    one-row-one-period behavior exactly. ``extra`` (W1.4) prepends TABLE-SCOPED aliases from
+    _PACE_PERIOD_KEY_EXTRA -- never widen the shared list for one table's schema."""
+    for k in (*extra, "data_date", "week_ending_date", "date", "report_date"):
         v = rr.get(k)
         if v not in (None, ""):
             return str(v)
@@ -1686,7 +1710,7 @@ def _pace_series(r: dict, table, *, expiry_col=None, commodity=None) -> tuple[li
             v = float(str(rr.get("value")).replace(",", ""))
         except (TypeError, ValueError):
             continue
-        k = _pace_period_key(rr, i)
+        k = _pace_period_key(rr, i, _PACE_PERIOD_KEY_EXTRA.get(table, ()))
         if k not in periods:
             order.append(k)
             periods[k] = []

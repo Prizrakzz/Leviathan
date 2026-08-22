@@ -444,6 +444,42 @@ refs:
       on a roll step would narrate a contract change as a market move (2022-06-02's sole negative print
       was old-crop beans vs new-crop products for one session). crush_rule_version rides every row.
 
+  # -- GN-2 W1.4 (2026-08-22): FGIS HONEST PACE -- the three US wheat classes only ---------------------
+  # The DAG ref fgis_export_pace_yoy renamed to THIS ref on hard_red_winter_wheat_kcbt /
+  # hard_red_spring_wheat_mgex / soft_red_winter_wheat_cbot: the pace leg serves STREAKS and
+  # week-over-week window changes, never a year-over-year ratio -- the old *_yoy name promised
+  # arithmetic the engine does not do, so the name changed instead of the engine (honest semantics).
+  # CAMPINAS REFUSED: its instance (region US;Brazil) keeps the OLD unmapped name and silver_status:
+  # planned -- US inspections are not a Brazilian board's competitor signal without a contrast frame.
+  # THE SEAM THIS ROW RIDES (the recon's R1 FATAL, built in the SAME change): silver_fgis's date_col IS
+  # its knowledge_date_col, so live rows surface only `knowledge_date` and the naive PACE_TABLES entry
+  # alone would leave the cross-section collapse INERT -- every row its own period, the "pace" delta =
+  # two DESTINATIONS inside one week. cascade._PACE_PERIOD_KEY_EXTRA carries the table-scoped alias;
+  # PACE_TABLES gets week grain; _PACE_COLLAPSE gets sum (national weekly flow across destinations).
+  # corn_cbot / soybeans_cbot carry NO fgis driver today -- adding one is a DAG decision, not a map edit.
+  fgis_inspections_pace:
+    table: silver_fgis
+    metric: exports_mt_weekly
+    agg: latest                    # the freshest WEEK on/before the asof (the esr_exports idiom); the
+    #                                pace leg reads its own trailing series regardless of agg
+    period_type: date              # weekly pace: period_start/period_end bind week_ending_date
+    leg_mode: current              # CURRENT rhyme leg ONLY -- never an era leg (the ESR precedent:
+    #                                weekly shipments are a pace signal, not an era backbone)
+    country_rule: none             # per-destination rows sum to the national flow in the pace collapse;
+    #                                destination_country carries FGIS's OWN abbreviations (no name ref)
+    native_unit: MT
+    narrate_unit: MT               # WHOLE metric tons -- silver_esr is 1000 MT; never compare raw
+    scale: 1
+    coverage_start: 1983
+    status: mapped
+    notes: >
+      US weekly export INSPECTIONS pace (FGIS, the SHIPMENTS half; silver_esr is the SALES half --
+      different quantities, never added or substituted). The single freshest week's inspected tonnage
+      on/before the session as-of, summed across destinations; pace streaks/window changes ride the
+      T2a machinery. WHOLE MT (ESR is thousands). Publication lag 13 days measured worst-case: the
+      freshest row can trail the session by nearly two weeks -- cite the week_ending date, never "this
+      week".
+
 # -- C3 SKIPS (2026-08-01) -- dark refs this wave REFUSED to bind, with the evidence -------------------
 # C3 authored the top UNFENCED dark refs by hand (D4: no generic fallback resolver). Three of the four
 # candidates have NO honest target, and each is recorded here rather than bound to a near-neighbour --
