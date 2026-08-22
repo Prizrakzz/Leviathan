@@ -300,14 +300,19 @@ def _self_tests(d: dict, inv: dict) -> dict:
     G, table, node_of = d["G"], d["table"], d["node_of"]
     errors = []
     out = collections.OrderedDict()
-    out["edge_count_117"] = len(table) == 117
+    # RE-CUT 2026-08-22 (GN-2): the four-tier wave grew the graph 117 -> 146 (the committed
+    # test_dmw_p6 live-graph pins); every count below is MEASURED off the reconciled graph,
+    # never inherited. --verify-legacy keeps the P6-frozen faithfulness lens untouched.
+    out["edge_count_146"] = len(table) == 146
     out["buckets_sum_to_edges"] = (inv["totals"]["resolved"] + inv["totals"]["unresolvable_no_node"]
                                    + inv["totals"]["unresolvable_no_contract"]) == len(table)
-    out["plan_52_tracked_65_alias_arithmetic"] = (
-        inv["totals"]["naive_inversion_tracked_edges"] == 52
-        and inv["totals"]["driver_commodity_strings_not_contract_ids"] == 65)
-    out["no_node_classes_match_plan_round3_enumeration"] = (
-        set(d["no_node_classes"]) == {"wheat", "sunflower_oil", "sorghum", "barley", "ethanol"})
+    out["plan_71_tracked_75_alias_arithmetic"] = (
+        inv["totals"]["naive_inversion_tracked_edges"] == 71
+        and inv["totals"]["driver_commodity_strings_not_contract_ids"] == 75)
+    out["no_node_classes_match_reconciled_context_names"] = (
+        set(d["no_node_classes"]) == {"cottonseed", "ddgs", "ethanol", "fresh_citrus", "hfcs",
+                                      "palm_kernel", "peanut", "tallow", "used_cooking_uco"
+                                      .replace("_uco", "_oil"), "wheat"})
     out["wheat_is_the_10_edge_largest_class"] = d["no_node_classes"].get("wheat") == 10 and \
         d["no_node_classes"]["wheat"] == max(d["no_node_classes"].values())
     # inversion parity: every resolved+tradeable edge is exactly one index row, and nothing else is
@@ -324,8 +329,14 @@ def _self_tests(d: dict, inv: dict) -> dict:
     total_rows = sum(len(G.rev_cross_links(s)) for s in d["seed_nodes"])
     out["inversion_parity_vs_forward_map"] = (not errors) and total_rows == hit
     out["every_seed_is_a_loaded_contract"] = all(p["seed"] in d["loaded"] for p in d["pairs"])
-    out["every_seed_is_backed"] = all(p["seed_backed"] for p in d["pairs"])
-    out["plan_20_of_33_naive_zero_pair_claim"] = len(d["naive_zero"]) == 20
+    # RE-CUT 2026-08-22 (GN-2): the four-tier wave minted reciprocal edges whose seeds are
+    # READ-DARK BY CONSTRUCTION (the M decision: aggregate/context contracts carry group-level
+    # slices the term router does not address). Those three -- and ONLY those three, pinned by
+    # name so a fourth unbacked seed still fails -- are exempt.
+    _READ_DARK_SEEDS = {"sorghum", "sunflower_oil", "barley"}
+    out["every_seed_is_backed_or_known_read_dark"] = all(
+        p["seed_backed"] or p["seed"] in _READ_DARK_SEEDS for p in d["pairs"])
+    out["plan_18_naive_zero_pair_claim"] = len(d["naive_zero"]) == 18
     out["no_unbacked_foreign_among_hierarchy_contracts"] = all(
         p["backed"] for p in d["pairs"] if p["foreign_is_hierarchy_contract"])
     out["node_for_parity_vs_evidence_py"] = "PASS" if all(
@@ -339,12 +350,13 @@ def _self_tests(d: dict, inv: dict) -> dict:
         [(x["contract"], x["idx"]) for x in G.rev_cross_links(a)]
         == [(x["contract"], x["idx"]) for x in G.rev_cross_links(b)]
         for members in d["inv_hier"].values() for a in members[:1] for b in members)
+    # ck was 0 pre-#68; the _CANONICAL_SEED re-key made corn edges declare corn_cbot directly
     out["t2_1_corn_cbot_reaches_node_corns_edges"] = (
-        d["counts_ck"]["corn_cbot"] == 0 and d["counts_nk"]["corn_cbot"] == 19
+        d["counts_ck"]["corn_cbot"] == 19 and d["counts_nk"]["corn_cbot"] == 19
         and len(G.rev_cross_links("corn_cbot")) == 19)
-    out["t2_1_buckets_and_deck_are_UNCHANGED_by_the_rekey"] = (
-        G.rev_cross_link_buckets()["resolved"] == inv["totals"]["resolved"] == 94
-        and G.rev_cross_link_buckets()["unresolvable-no-node"] == 23 and len(d["deck"]) == 63)
+    out["t2_1_buckets_and_deck_match_the_reconciled_graph"] = (
+        G.rev_cross_link_buckets()["resolved"] == inv["totals"]["resolved"] == 122
+        and G.rev_cross_link_buckets()["unresolvable-no-node"] == 24 and len(d["deck"]) == 84)
     out["t2_1_rev_cross_links_never_raises_on_unknown_or_node_ids"] = (
         G.rev_cross_links("no_such_contract") == [] and G.rev_cross_links("wheat") == [])
     out["errors"] = errors
