@@ -840,6 +840,11 @@ tables:
       (production_revision_*, area_revision_ha, ...) are EXCLUDED -- they are cross-survey DELTAS, not
       point-in-time levels (mirrors the sagis_cec D4 exclusion). Each safra collapses to its latest
       survey as-known at asof. For the USDA global coffee balance sheet use silver_psd.
+      SAFRA RE-PARSE 2026-08-22 (commit c8366016): the bronze parser previously read the PRIOR safra's
+      final column of CONAB's merged two-row header, so every value sat one year late and identical
+      across surveys; the canonical republished this date carries each bulletin's OWN safra (arabica
+      safra-2026 corrected 35,763 -> 45,773 at survey 2) and the per-survey estimates now genuinely
+      vary -- answers citing pre-2026-08-22 vintages carried the shifted labels.
 
   # WIRING WAVE-1 (Card C): SAGIS South-African WEEKLY cumulative grain export pace. DATA-DATE on the
   # DERIVED week_ending_date (WIRING_WAVE1 pre-step, producer sagis_weekly_exports.py: the free-text
