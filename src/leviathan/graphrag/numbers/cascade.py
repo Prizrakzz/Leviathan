@@ -574,6 +574,13 @@ def _scope(n, row) -> tuple:
     column: a resolved region needs a currency (metric pick, _region_row) or the leg is not honest."""
     commodity = getattr(n, "contract", None)
     commodity = PSD_SLUG_ALIAS.get(commodity, commodity)
+    # PER-ROW commodity aliasing (GN-2 W2.2 gate find, 2026-08-22): a table whose commodity axis is
+    # the SOURCE's own code (silver_sagis_cec stores crop codes white_maize/yellow_maize) can never
+    # match a CONTRACT slug (south_african_white_maize_jse), and the GLOBAL alias map above is the
+    # wrong tool -- it would re-key the contract's every OTHER leg (psd, spreads) too. The row's own
+    # `commodity_aliases: {contract_slug: table_code}` re-keys ONLY the legs that ride this row;
+    # validated fail-closed by config_check.check_cascade_map.
+    commodity = ((row or {}).get("commodity_aliases") or {}).get(commodity, commodity)
     if (row or {}).get("table") == "silver_psd" and commodity in PSD_UNSERVED_SLUGS:
         return commodity, SKIP_NODE          # declared-unserved: PSD has no series for this contract
     if (row or {}).get("table") == "silver_cot" and commodity in cot_unserved_slugs():

@@ -191,6 +191,13 @@ def check_cascade_map() -> list[str]:
         if row.get("change_rule") not in (None, "absolute"):
             errs.append(f"cascade_map {ref!r}: bad change_rule {row.get('change_rule')!r} "
                         f"(allowed: absent, 'absolute')")
+        # GN-2 W2.2: commodity_aliases re-keys contract slugs to the table's own commodity codes,
+        # PER ROW. Malformed shape fails the build -- a silently-dropped alias is a dark leg.
+        ca = row.get("commodity_aliases")
+        if ca is not None and (not isinstance(ca, dict) or not all(
+                isinstance(k, str) and isinstance(v, str) and k and v for k, v in ca.items())):
+            errs.append(f"cascade_map {ref!r}: commodity_aliases must be a non-empty-str -> "
+                        f"non-empty-str mapping, got {ca!r}")
     errs += _check_region_map(reg)
     return errs
 

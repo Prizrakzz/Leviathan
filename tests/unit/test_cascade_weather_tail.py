@@ -137,3 +137,17 @@ def test_internal_leaks_flags_labeled_slugs_only():
     hits2 = rg.internal_leaks("Exports rose sharply against exports_mt history.")
     assert not any(tok == "exports_mt" for tok, _ in hits2)               # unlabeled -> today's accepted state
     assert rg.internal_leaks("Drought stress stayed near normal in the basin.") == []
+
+
+# ── per-row commodity aliasing (the sagis gate find): contract slug -> the table's own code ──────────
+def test_scope_honors_the_rows_commodity_aliases():
+    row = {"table": "silver_sagis_cec", "metric": "current_estimate_t", "country_rule": "none",
+           "commodity_aliases": {"south_african_white_maize_jse": "white_maize"}}
+    n = SimpleNamespace(contract="south_african_white_maize_jse", id="cec_production_revision",
+                        prior={"silver_ref": "sagis_cec_revision", "region": None}, evidence=[])
+    commodity, country = cq._scope(n, row)
+    assert commodity == "white_maize" and country is None
+    # a contract absent from the alias map keys through unchanged; other rows are untouched
+    n2 = SimpleNamespace(contract="corn_cbot", id="x", prior={"silver_ref": "export", "region": None},
+                         evidence=[])
+    assert cq._scope(n2, {**row, "commodity_aliases": {}})[0] == "corn_cbot"
