@@ -30,12 +30,14 @@ logger = get_logger("submit_batch_gold_weather_z")
 
 _JOB_DEF_NAME = "leviathan-dev-gold-weather-z"
 _JOB_QUEUE = "leviathan-dev-queue"
-# Pinned by DIGEST (content-checked 2026-07-24: month-completeness gate + Z_CAP winsorize present,
-# tag 20260724rev61) -- never trust :latest, and read the digest from `aws ecr describe-images`,
-# never a build log.
+# Pinned by DIGEST (content-checked 2026-08-22: W1.1 basin aggregate rows -- BASINS registry +
+# _tail_share metrics + frost_event_share -- present alongside the month-completeness gate + Z_CAP
+# winsorize, tag 20260822T124518) -- never trust :latest, and read the digest from
+# `aws ecr describe-images`, never a build log. Jobdef re-pinned to rev 7 same day (boto3
+# copy-top-revision-swap-digest; tf drift recorded for the next fleet-bump batch).
 _ECR_IMAGE = (
     "668891723125.dkr.ecr.us-east-1.amazonaws.com/leviathan-dev-leviathan-embedder"
-    "@sha256:d565fc7f2f78e5e7cea783d6d5b6dfbb219f141ac0c703b989ea86e1bc0ff9be"
+    "@sha256:70de777e04a68c1e27f8a4f6e3169e8114a01d813e2b17b29425e5ba9399155b"
 )
 _JOB_ROLE_ARN = "arn:aws:iam::668891723125:role/leviathan-dev-batch-job-role"
 _EXEC_ROLE_ARN = "arn:aws:iam::668891723125:role/leviathan-dev-batch-execution-role"
