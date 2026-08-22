@@ -124,7 +124,9 @@ freshness_sla:
   max_lag_days: 5
 consumers: numbers_registry
 numbers_ref: configs/graphrag/numbers/tables.yaml#gold_board_crush
-cascade_ref: null
+# GN-2 W1.3 (2026-08-22): the register's own un-defer gate met (change_rule: absolute + is_roll_boundary
+# exclusion + signed USD/bu deltas); the CBOT-soy 11 DAG instances renamed to this market-specific ref.
+cascade_ref: configs/graphrag/numbers/cascade_map.yaml#cbot_board_crush_margin
 source_contract_ref: null
 serving_table: null
 producer:

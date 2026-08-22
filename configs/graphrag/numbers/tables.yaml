@@ -3624,7 +3624,10 @@ tables:
     # margin for another's across an FX rate this estate never converts. soy_complex is admitted
     # because it is the hierarchy's own name for the three legs together, which is precisely what a
     # crush IS.
-    commodity_values: [soybeans_cbot, soybean_meal_cbot, soybean_oil_cbot, soy_complex]
+    # `soybeans` ADMITTED 2026-08-22 (GN-2 W1.3): the class DAG (configs/graphrag/causal/soybeans.yaml)
+    # carries two cbot_board_crush_margin drivers, so the class contract asks this card legitimately --
+    # it is the US complex's parent, not a foreign venue. The DCE/ZCE fence below is unchanged.
+    commodity_values: [soybeans_cbot, soybean_meal_cbot, soybean_oil_cbot, soybeans, soy_complex]
     period_type: date
     date_col: trade_date                  # exchange SESSION date; Glue STRING, ISO 'YYYY-MM-DD'
     knowledge_semantics: data_date
@@ -3652,21 +3655,57 @@ tables:
         desc: >
           THE board crush for that session: meal value + oil value - bean cost, in US dollars per
           bushel of soybeans. A MARGIN, not a price. Negative readings are real.
+        # THE ROLL FENCE (GN-2 W1.3, 2026-08-22). Every served read excludes roll-boundary sessions
+        # (is_roll_boundary=1: a leg's front contract changed vs the previous emitted session) -- the
+        # series steps there because the CONTRACTS changed, not the market (2022-06-02's sole negative
+        # print was old-crop beans vs new-crop products for one session), and a window endpoint landing
+        # on one narrates a contract change as a market move. Cost: a "latest" read on a roll day
+        # serves the prior session -- one session older and honestly comparable. The producer emits
+        # the column as a STRING '0'/'1' (build_sql's row_filters emit is a quoted literal with no
+        # cast, which type-errors on an Athena INT column; string compares identically on Athena, pg
+        # and the pure-Python oracle). Keyed per asking commodity (row_filters is per-commodity by
+        # design); the five keys are exactly commodity_values.
+        row_filters:
+          soybeans_cbot:     &crush_roll_fence
+            is_roll_boundary: ["0"]
+          soybean_meal_cbot: *crush_roll_fence
+          soybean_oil_cbot:  *crush_roll_fence
+          soybeans:          *crush_roll_fence
+          soy_complex:       *crush_roll_fence
       meal_value_usd_bu:
         unit: "USD/bushel"
         desc: >
           the meal leg's contribution -- 0.022 x the soybean-meal front-month settle (USD/short ton),
           i.e. what the 44 lb of meal from one bushel was worth that session.
+        # same roll fence as the margin: each leg's value steps at its own roll
+        row_filters:
+          soybeans_cbot:     *crush_roll_fence
+          soybean_meal_cbot: *crush_roll_fence
+          soybean_oil_cbot:  *crush_roll_fence
+          soybeans:          *crush_roll_fence
+          soy_complex:       *crush_roll_fence
       oil_value_usd_bu:
         unit: "USD/bushel"
         desc: >
           the oil leg's contribution -- 0.11 x the soybean-oil front-month settle (US cents/lb), i.e.
           what the 11 lb of oil from one bushel was worth that session.
+        row_filters:
+          soybeans_cbot:     *crush_roll_fence
+          soybean_meal_cbot: *crush_roll_fence
+          soybean_oil_cbot:  *crush_roll_fence
+          soybeans:          *crush_roll_fence
+          soy_complex:       *crush_roll_fence
       bean_cost_usd_bu:
         unit: "USD/bushel"
         desc: >
           the input cost -- the soybean front-month settle converted from US cents to dollars per
           bushel. Subtracted from the two product values to give the margin.
+        row_filters:
+          soybeans_cbot:     *crush_roll_fence
+          soybean_meal_cbot: *crush_roll_fence
+          soybean_oil_cbot:  *crush_roll_fence
+          soybeans:          *crush_roll_fence
+          soy_complex:       *crush_roll_fence
     notes: >
       A MARGIN IS NOT A PRICE, AND THIS IS THE ONE ERROR THIS CARD EXISTS TO PREVENT. Every figure here
       is a SPREAD in dollars per bushel -- what a processor earns for crushing, not what anything costs
@@ -3693,7 +3732,11 @@ tables:
       GLBX), and roll_rule_version plus crush_rule_version ride every row. On and around a roll the
       series steps because the underlying contracts changed, not because the market moved: a
       day-over-day difference across a roll boundary is NOT a market move. The beans_contract_month,
-      meal_contract_month and oil_contract_month columns are carried so that boundary stays visible.
+      meal_contract_month and oil_contract_month columns are carried so that boundary stays visible,
+      and since 2026-08-22 the producer marks it outright: is_roll_boundary (STRING '0'/'1') is '1' on
+      any session where a leg's front contract differs from the previous emitted session's. Every
+      served metric excludes those sessions via row_filters (see the metric blocks) -- the boundary
+      rows remain in the TABLE for provenance, they are simply never quoted as market moves.
       THE TEXTBOOK BOARD CRUSH USES ALIGNED DELIVERY MONTHS AND THIS CARD DOES NOT ENFORCE THAT. Each
       leg is rolled independently by open interest, so on most sessions the three agree and on some they
       do not. When they disagree the row is a front-month crush rather than a same-expiry board crush;

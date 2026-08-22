@@ -150,7 +150,10 @@ def test_athena_firewall_blocks_invocation_and_dirty_stats():
 # -- W2.3 check_pin_realizability -------------------------------------------------------------------------
 def test_query_realizable_per_query_vs_contract():
     # the grounded biodiesel chain is all unmapped -> per-query FALSE even though the contract rolls up TRUE
-    grounded = ["biodiesel_mandate", "RFS", "RIN", "blend_mandate", "crude_oil", "soybean_crush_margin"]
+    # (re-cut 2026-08-22: soybean_crush_margin became MAPPED by GN-2 W1.3's cbot_board_crush_margin row, so
+    #  it can no longer serve as the all-unmapped fixture; oil_share holds the same seat -- its ref
+    #  cbot_crush_oil_share is deliberately PLANNED/unmapped, a ratio awaiting its own metric)
+    grounded = ["biodiesel_mandate", "RFS", "RIN", "blend_mandate", "crude_oil", "oil_share"]
     q = {"id": "synth_q6", "contract": "soybean_oil_cbot", "cascade_drivers": grounded,
          "expect": {"cascade_fired": True}}
     assert cc.query_realizable(q) is False

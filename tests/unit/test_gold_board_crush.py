@@ -445,3 +445,45 @@ class TestWrittenRefusal:
         assert BC.REFUSED_DATES in gold.attrs      # still on what the caller holds
         assert list(pq.read_table(io.BytesIO(buf.getvalue())).to_pandas().columns) == (
             BC.PHYSICAL_COLUMNS)
+
+
+# ---------------------------------------------------------------------------
+# is_roll_boundary (GN-2 W1.3): a contract step is marked, never narrated as a move.
+# ---------------------------------------------------------------------------
+class TestRollBoundary:
+
+    def _four_sessions(self) -> pd.DataFrame:
+        rows = []
+        # two ordinary sessions, then BEANS rolls to 2027-01 while the products stay, then quiet again
+        for d in ("2026-08-13", "2026-08-14"):
+            rows += [_leg("soybeans_cbot", d, "2026-11", 1050.0),
+                     _leg("soybean_meal_cbot", d, "2026-11", 300.0),
+                     _leg("soybean_oil_cbot", d, "2026-11", 50.0)]
+        for d in ("2026-08-17", "2026-08-18"):
+            rows += [_leg("soybeans_cbot", d, "2027-01", 1060.0),
+                     _leg("soybean_meal_cbot", d, "2026-11", 300.0),
+                     _leg("soybean_oil_cbot", d, "2026-11", 50.0)]
+        return pd.DataFrame(rows)
+
+    def test_the_roll_session_is_marked_and_its_neighbours_are_not(self) -> None:
+        gold = BC.compute_board_crush(self._four_sessions())
+        assert list(gold["trade_date"]) == ["2026-08-13", "2026-08-14", "2026-08-17", "2026-08-18"]
+        assert list(gold["is_roll_boundary"]) == ["0", "0", "1", "0"]
+
+    def test_the_flag_is_a_string_not_a_bool_or_int(self) -> None:
+        # build_sql's row_filters emit is a QUOTED literal with no cast: an INT column type-errors on
+        # Athena and a bool diverges (str(True)='True' vs SQL 'true'). String is the one type all
+        # three backends compare identically -- so the dtype IS the contract, not a formatting choice.
+        gold = BC.compute_board_crush(self._four_sessions())
+        assert all(isinstance(v, str) and v in ("0", "1") for v in gold["is_roll_boundary"])
+
+    def test_first_emitted_session_is_not_a_boundary(self) -> None:
+        gold = BC.compute_board_crush(_session())
+        assert list(gold["is_roll_boundary"]) == ["0"]
+
+    def test_the_level_still_emits_on_a_roll_session(self) -> None:
+        # the boundary row stays IN the table (provenance); exclusion is the CARD's row_filters,
+        # never the producer dropping a real settled number
+        gold = BC.compute_board_crush(self._four_sessions())
+        boundary = gold[gold["is_roll_boundary"] == "1"]
+        assert len(boundary) == 1 and boundary["crush_margin_usd_bu"].notna().all()

@@ -180,6 +180,7 @@ PHYSICAL_COLUMNS: list[str] = [
     "meal_settle",
     "oil_settle",
     "settle_kind",
+    "is_roll_boundary",
     "roll_rule_version",
     "crush_rule_version",
 ]
@@ -367,6 +368,7 @@ def empty_gold() -> pd.DataFrame:
         "meal_settle":          pd.Series([], dtype="float64"),
         "oil_settle":           pd.Series([], dtype="float64"),
         "settle_kind":          pd.Series([], dtype="object"),
+        "is_roll_boundary":     pd.Series([], dtype="object"),
         "roll_rule_version":    pd.Series([], dtype="object"),
         "crush_rule_version":   pd.Series([], dtype="object"),
     })
@@ -511,6 +513,30 @@ def compute_board_crush(eod: pd.DataFrame) -> pd.DataFrame:
     out["trade_date"] = out["trade_date"].dt.strftime("%Y-%m-%d")
 
     out = out.sort_values("trade_date", kind="mergesort").reset_index(drop=True)
+
+    # IS_ROLL_BOUNDARY (GN-2 W1.3, 2026-08-22).  '1' on a session where ANY leg's front contract
+    # differs from that leg's front contract on the PREVIOUS EMITTED session, else '0'.  The crush
+    # steps at every roll for reasons that are not market moves -- 2022-06-02's sole negative print
+    # was old-crop beans against new-crop products for one session -- so a change window whose
+    # endpoint lands on a roll step narrates a contract change as a market move.  The LEVEL still
+    # emits (it is a real settled number); the column lets readers EXCLUDE these sessions
+    # (Metric.row_filters on the card does exactly that for every served read).  A STRING '0'/'1',
+    # not a bool and not an int, and that is load-bearing: build_sql's row_filters emit is a QUOTED
+    # literal with no CAST (`col IN ('0')`), which errors on an Athena INT column and silently
+    # diverges on a bool (Python str(True)='True' vs SQL 'true'); the pg mirror's type doctrine
+    # routes every non-metric column to TEXT anyway, so a string is the ONE type all three backends
+    # (Athena, pg, the pure-Python oracle) compare identically.
+    # A gap of refused dates between two emitted rows still marks correctly: the comparison is
+    # contract identity between consecutive EMITTED rows, which is the axis change math runs on.
+    # The first emitted row is '0' (no prior row -- no change is computed from it either).
+    # CRUSH_RULE_VERSION is NOT bumped: the emitted margin's definition is unchanged; this column
+    # only DESCRIBES the roll structure the rule already produced.
+    month_cols = [f"{role}_contract_month" for role in CRUSH_LEGS]
+    stepped = (out[month_cols] != out[month_cols].shift(1)).any(axis=1)
+    if len(stepped):
+        stepped.iloc[0] = False
+    out["is_roll_boundary"] = stepped.map({True: "1", False: "0"}).astype("object")
+
     out = out[PHYSICAL_COLUMNS]
 
     logger.info(

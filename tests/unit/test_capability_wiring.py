@@ -3015,8 +3015,11 @@ def test_board_crush_declares_BOTH_axes_absent_and_still_fences_the_commodity():
     lookup sail through and return a SOY MARGIN wearing the wrong label, at zero SQL cost to catch."""
     ts = _crush()
     assert ts.commodity_col is None and ts.country_col is None
+    # `soybeans` admitted 2026-08-22 (GN-2 W1.3): the class DAG carries two cbot_board_crush_margin
+    # drivers, so the class contract asks this card legitimately -- the fence is against FOREIGN
+    # VENUES (the DCE/ZCE test below), never against the US complex's own parent.
     assert set(ts.commodity_values) == {"soybeans_cbot", "soybean_meal_cbot",
-                                        "soybean_oil_cbot", "soy_complex"}
+                                        "soybean_oil_cbot", "soybeans", "soy_complex"}
 
 
 def test_board_crush_refuses_the_chinese_soy_slugs_and_the_card_says_why():
@@ -3075,7 +3078,10 @@ def test_board_crush_provenance_is_the_RULE_because_there_is_no_revision():
     "never call a dated crush current",
     # The two refusals.
     "cbot only",
-    "coverage starts 2010-06-06",
+    # re-pinned 2026-08-22 with the card (300d137a): the served floor was RE-MEASURED to 2015-11-19 --
+    # front-by-open-interest is unanswerable before it (zero OI on the tape); "2010-06-06" was the raw
+    # GLBX floor, not the served one. The pin lagged the card by one session; caught by this suite.
+    "coverage starts 2015-11-19",
 ])
 def test_board_crush_notes_teach_the_spread_semantics(token):
     """The notes are where a fence that cannot be enforced in code gets taught. Every token here is a
@@ -3143,15 +3149,18 @@ def test_board_crush_value_columns_carry_NO_floor_override_and_that_is_the_measu
 
 def test_board_crush_is_dispositioned_in_the_cascade_register():
     """Every numbers card must be dispositioned in cascade_map or the register's completeness claim goes
-    false one wave later. This one is DEFERRED, and it is the register's second ARGUED refusal: the
-    near-neighbour is an exact name match (`board_crush` is a driver id in four contracts), so the
-    refusal turns on cascade semantics -- a windowed change on a spread that crosses zero has no stable
-    sign -- rather than on relevance."""
+    false one wave later. This one was the register's second ARGUED refusal (a windowed change on a
+    spread that crosses zero has no stable sign) -- and 2026-08-22 (GN-2 W1.3) its own UN-DEFER GATE
+    was met term for term: change_rule: absolute, signed USD/bu deltas, roll boundaries excluded. The
+    pin now asserts the UN-DEFER record, the surviving ORIGINAL refusal text (the reason the gate had
+    those terms), and the ACTIVE ref that binds it."""
     import pathlib
     repo = pathlib.Path(__file__).resolve().parents[2]
     text = (repo / "configs" / "graphrag" / "numbers" / "cascade_map.yaml").read_text(encoding="utf-8")
-    assert "gold_board_crush -- DEFERRED" in text
+    assert "gold_board_crush -- UN-DEFERRED 2026-08-22" in text
+    assert "ORIGINAL: DEFERRED (D-EC DK-13 card)" in text
     assert "UN-DEFER GATE" in text
+    assert "cbot_board_crush_margin:" in text
 
 
 # ════════════════════════════════════════════════════════════════════════════════════════════════════

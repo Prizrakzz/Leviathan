@@ -133,6 +133,18 @@ def test_pct_change():
     assert cq._pct_change([_ok(0), _ok(5)], row) is None             # zero base -> no percent claim
 
 
+def test_change_rule_absolute_suppresses_the_pct_row():
+    # GN-2 W1.3: a zero-crossing SPREAD metric (board crush) must never narrate a percent -- the
+    # measured consecutive-session trap is +10,086%. The knob kills the pct row at the ONE choke
+    # point both emission sites call; the absolute delta row (era_delta) is untouched.
+    row = {"scale": 1, "narrate_unit": "USD/bu", "metric": "crush_margin_usd_bu",
+           "change_rule": "absolute"}
+    assert cq._pct_change([_ok(10), _ok(11.8)], row) is None
+    assert cq._era_delta([_ok(10), _ok(11.8)], row) == pytest.approx(1.8)
+    # an absent / unknown-falsy knob keeps today's behavior byte-identical
+    assert cq._pct_change([_ok(10), _ok(11.8)], {**row, "change_rule": None}) == 18.0
+
+
 def test_divergence_two_eras_opposite_signs():
     row = {"scale": 1, "narrate_unit": "MMT", "metric": "exports_mt"}
     div, a, b = cq._divergence({0: +4.0, 1: -2.0}, {0: [], 1: []}, None, row)

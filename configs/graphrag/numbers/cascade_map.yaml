@@ -406,6 +406,44 @@ refs:
       one commodity, zero nulls. Never contrast against silver_psd's ANNUAL world palm balance in the
       same breath without naming the axis difference (monthly Malaysian stocks vs world marketing-year).
 
+  # -- GN-2 W1.3 (2026-08-22): THE CRUSH LIFT -- the register's own un-defer gate, met exactly --------
+  # The gold_board_crush DEFERRED entry below (D-EC DK-13) wrote its own gate: "a cascade ref may bind
+  # this table once the cascade carries a spread-aware change rule -- absolute dollars-per-bushel, sign
+  # stated rather than inferred, roll boundaries excluded from the window." This row lands in the SAME
+  # change that builds all three: `change_rule: absolute` suppresses the pct row (cascade._pct_change;
+  # the measured consecutive-session trap is +10,086% on a zero-crossing spread), the producer's new
+  # is_roll_boundary column + the card's row_filters exclude roll-step sessions from every read, and the
+  # delta row carries the signed USD/bu figure. THE REF SPLIT (the MPOB precedent): the old blanket
+  # `crush_margin_z` ref described 13 DIFFERENT crush markets under one name with no per-contract
+  # scoping -- the CBOT-soy 11 instances (soybean_meal_cbot / soybean_oil_cbot / soybeans /
+  # soybeans_cbot; ids soybean_crush_margin + board_crush) renamed to THIS market-specific ref; the 3
+  # oil_share instances renamed to cbot_crush_oil_share and stay PLANNED (a RATIO -- needs its own
+  # metric, never this margin's); the 17 foreign-crush instances (DCE/ZCE/canola) stay refused --
+  # venue data that has never landed, an acquisition-class owner decision.
+  cbot_board_crush_margin:
+    table: gold_board_crush
+    metric: crush_margin_usd_bu
+    agg: latest                    # the freshest SESSION on/before the asof (the esr_exports idiom)
+    period_type: date              # exchange session date; period_start/period_end bind trade_date
+    # NO leg_mode: the DEFAULT (era legs + current). Era legs are exactly where the delta/pct machinery
+    # runs, and suppressing pct while KEEPING the signed USD/bu delta is the point of change_rule --
+    # a `leg_mode: current` row would make the knob inert and the lift mute.
+    change_rule: absolute          # NEVER a % on a zero-crossing spread; the absolute delta row is the change
+    country_rule: none             # ONE market (CBOT); the table has NO country column at all
+    keying: "no commodity column -- ONE series; class check via the card's commodity_values teaching set"
+    native_unit: USD/bu
+    narrate_unit: USD/bu
+    scale: 1
+    coverage_start: 2015           # HARD floor: front-by-OI is unanswerable before 2015-11-19 (no OI on tape)
+    status: mapped
+    notes: >
+      The CBOT soybean BOARD CRUSH (gross processor margin, USD per bushel per session). A SPREAD that
+      crosses zero: narrate the signed level and the signed absolute change, NEVER a percent (suppressed
+      by change_rule) and NEVER "up is bullish" without the meal/oil decomposition. Roll-boundary
+      sessions are excluded via the card's row_filters (is_roll_boundary=0): a window endpoint landing
+      on a roll step would narrate a contract change as a market move (2022-06-02's sole negative print
+      was old-crop beans vs new-crop products for one session). crush_rule_version rides every row.
+
 # -- C3 SKIPS (2026-08-01) -- dark refs this wave REFUSED to bind, with the evidence -------------------
 # C3 authored the top UNFENCED dark refs by hand (D4: no generic fallback resolver). Three of the four
 # candidates have NO honest target, and each is recorded here rather than bound to a near-neighbour --
@@ -424,7 +462,15 @@ refs:
 #     deliberately moved the weather legs OFF. Un-skip gate: a real precip-z family in gold_weather_z
 #     (registered in tables.yaml), then one row here, stage-windowing left to the gold transform.
 #
-#   crush_margin_z (28 instances, 12 ids, 13 contracts) -- NO CRUSH SERIES IN THE NUMBERS REGISTRY.
+#   crush_margin_z -- SUPERSEDED 2026-08-22 (GN-2 W1.3) for the CBOT-soy 11 of its 28 instances: the
+#     un-skip gate below WAS met exactly as written (gold_board_crush produced + carded, D-EC DK-13),
+#     and those 11 renamed to the market-specific `cbot_board_crush_margin` (ACTIVE row above) under
+#     the MPOB-split precedent -- the blanket name described 13 different crush markets with no
+#     per-contract scoping. The 3 oil_share instances renamed to cbot_crush_oil_share (PLANNED: a
+#     ratio needs its own metric); the 17 foreign-crush instances (DCE/ZCE/canola) still carry
+#     crush_margin_z and this skip STANDS for them -- their venues' data has never landed (an
+#     acquisition-class owner decision, filed to the source register). ORIGINAL (2026-08-01):
+#     (28 instances, 12 ids, 13 contracts) -- NO CRUSH SERIES IN THE NUMBERS REGISTRY.
 #     No loaded table carries a crush margin, a board crush, or an oil share (checked across all 19
 #     registered cards). A crush margin is DERIVED arithmetic over three separate futures legs
 #     (meal + oil - beans, with per-contract unit conversions), and this map binds ONE (table, metric)
@@ -558,7 +604,11 @@ refs:
 #     demand signal.
 #   -- D-EC DK-13 (2026-08-20), the board-crush card. Register extended in the SAME change that lands
 #      the card, so the completeness claim above stays true rather than becoming false one wave later.
-#   gold_board_crush -- DEFERRED (D-EC DK-13 card), and this is the register's SECOND argued refusal,
+#   gold_board_crush -- UN-DEFERRED 2026-08-22 (GN-2 W1.3): the gate this entry wrote for itself was
+#     met term for term -- change_rule: absolute (pct suppressed engine-side), signed USD/bu deltas,
+#     roll boundaries excluded (producer is_roll_boundary + card row_filters). ACTIVE row:
+#     cbot_board_crush_margin above. The refusal below stays as the RECORD of why the gate had those
+#     terms. ORIGINAL: DEFERRED (D-EC DK-13 card), and this is the register's SECOND argued refusal,
 #     because here the near-neighbour is not merely real, it is an exact name match. The causal DAGs
 #     carry `board_crush` in four contracts and `soybean_crush_margin` in eight more, and this card is
 #     the series those ids describe -- so binding looks not just permissible but overdue. It is
@@ -706,6 +756,17 @@ region_map:
     "South_Africa_Free_State;North_West;Mpumalanga": {country: "South Africa"}
     "South_Africa_Highveld": {country: "South Africa"}
     "South_Africa_North_West;Free_State": {country: "South Africa"}
+    # -- GN-2 W1.1 basin tokens (2026-08-22): the compound-region DECLINES fix. These three sat in
+    # `unresolved` under the D-W5 premise "no single honest country" -- repaired BY CONSTRUCTION:
+    # gold_weather_z now emits basin aggregate rows (weather_z.py BASINS registry) under the single
+    # surface 'West Africa' = the cocoa belt's measured four countries (Cameroon/Cote Divoire/Ghana/
+    # Nigeria, 11 cells): per-metric basin MEAN + <metric>_tail_share (share of cells >= +2 sigma) +
+    # frost_event_share. The basin row IS the honest multi-country read; the engine finally READS the
+    # station data it skipped for a year. 'MENA / West Africa / SE Asia'-class DEMAND compounds stay
+    # unresolved -- they name import regions, not this producing belt.
+    "West Africa": {country: "West Africa"}
+    "Cote d'Ivoire, Ghana": {country: "West Africa"}
+    "Ghana, Cote d'Ivoire": {country: "West Africa"}
   unresolved:
     # export drivers
     - Russia_Ukraine
@@ -713,8 +774,7 @@ region_map:
     - Black_Sea_EU
     - Black_Sea
     - "Black Sea"
-    - "Cote d'Ivoire, Ghana"
-    - "Ghana, Cote d'Ivoire"
+    # "Cote d'Ivoire, Ghana" / "Ghana, Cote d'Ivoire" MOVED to resolve 2026-08-22 (GN-2 W1.1 basin rows)
     - "Argentina;Ukraine"
     - "Indonesia, Malaysia"
     - "Malaysia, Indonesia"
@@ -765,7 +825,9 @@ region_map:
     # -- D-W5 weather-flip region curation (2026-07-12): tokens spanning >1 country (or a
     #    multi-country belt/region) -- no single honest country, so the weather leg declines-honestly --
     - "Brazil and Colombia highlands"
-    - "West Africa"
+    # "West Africa" MOVED to resolve 2026-08-22 (GN-2 W1.1): gold_weather_z now emits basin aggregate
+    # rows under the single surface 'West Africa', so the D-W5 premise ("no single honest country")
+    # is repaired by construction -- see the basin block at the end of resolve.
     - "US_Midwest;Argentina;Brazil;EU;Black_Sea"
     - "US_Midwest;Argentina;Brazil_safrinha"
     - "US_Midwest;Brazil_safrinha"

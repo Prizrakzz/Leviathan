@@ -24,6 +24,16 @@
 -- The three leg settles are carried for PROVENANCE and are deliberately NOT served metrics: each is in a
 -- different unit (US cents/bushel, USD/short ton, US cents/lb), and a served metric whose unit changes by
 -- column is a mis-quote waiting to happen. Every SERVED metric here is USD/bushel.
+--
+-- is_roll_boundary (GN-2 W1.3, 2026-08-22): STRING '0'/'1' -- '1' when any leg's front contract differs
+-- from the previous emitted session's (the series steps there because the CONTRACTS changed, not the
+-- market). A STRING deliberately: build_sql's row_filters emit is a quoted literal with NO cast
+-- (`col IN ('0')`), which type-errors on an Athena INT column, and the pg mirror's type doctrine routes
+-- non-metric columns to TEXT anyway -- string is the one type Athena, pg and the pure-Python oracle
+-- compare identically. Every served metric excludes ='1' via the card's row_filters.
+-- SCHEMA CHANGE DEPLOY: this file is CREATE IF NOT EXISTS, so the live catalog needs a one-time
+-- `ALTER TABLE gold_board_crush ADD COLUMNS (is_roll_boundary string)` (parquet maps by NAME -- old
+-- files read NULL for it, and the very next task run overwrites the single parquet object anyway).
 CREATE EXTERNAL TABLE IF NOT EXISTS gold_board_crush (
     trade_date           string,
     crush_margin_usd_bu  double,
@@ -37,6 +47,7 @@ CREATE EXTERNAL TABLE IF NOT EXISTS gold_board_crush (
     meal_settle          double,
     oil_settle           double,
     settle_kind          string,
+    is_roll_boundary     string,
     roll_rule_version    string,
     crush_rule_version   string
 )

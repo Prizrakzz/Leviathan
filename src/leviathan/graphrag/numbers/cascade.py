@@ -1790,7 +1790,16 @@ def _era_delta(oks: list, row: dict) -> float | None:
 
 def _pct_change(oks: list, row: dict) -> float | None:
     """100*(last-first)/first over the era's ok rows -- injected ALONGSIDE the absolute delta so a percent
-    narration ('rose ~18% [N4]') value-checks against a real row (P9/D-B2)."""
+    narration ('rose ~18% [N4]') value-checks against a real row (P9/D-B2).
+
+    ``change_rule: absolute`` (GN-2 W1.3, 2026-08-22) suppresses the pct row ENTIRELY for refs whose
+    metric is a SPREAD that crosses zero: percent-of-a-near-zero-base asserts absurd magnitudes (the
+    measured board-crush consecutive-session trap is +10,086%), and a sign flip makes the ratio's sign
+    meaningless too. The absolute delta row -- which already ships beside every pct row -- is the honest
+    change for such metrics, in the metric's own unit. One gate here covers BOTH emission sites
+    (_assemble and the chain hop renderer); validated fail-closed by config_check.check_cascade_map."""
+    if str(row.get("change_rule") or "") == "absolute":
+        return None
     vals = [v for v in (_float_val(r) for r in oks) if v is not None]
     if len(vals) < 2 or vals[0] == 0:
         return None

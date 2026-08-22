@@ -186,6 +186,11 @@ def check_cascade_map() -> list[str]:
             errs.append(f"cascade_map {ref!r}: scale != 1 requires narrate_unit")
         if row.get("country_rule") not in (None, "primary", "none", "region"):
             errs.append(f"cascade_map {ref!r}: bad country_rule {row.get('country_rule')!r}")
+        # GN-2 W1.3: change_rule gates the pct-change row for zero-crossing SPREAD metrics. Fail closed
+        # on any other value -- a typo'd knob silently KEEPING the pct row is the exact failure class.
+        if row.get("change_rule") not in (None, "absolute"):
+            errs.append(f"cascade_map {ref!r}: bad change_rule {row.get('change_rule')!r} "
+                        f"(allowed: absent, 'absolute')")
     errs += _check_region_map(reg)
     return errs
 
