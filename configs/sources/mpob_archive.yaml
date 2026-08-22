@@ -164,3 +164,10 @@ releases:
   - release_type: overview_pdf
     year: 2016
     stat_url: "https://bepi.mpob.gov.my/images/overview/Overview_of_Industry_2016.pdf"
+
+  # --- adopted by fetch_mpob.py --refresh-manifest --save-manifest (2026-08-22) ---
+
+  - release_type: monthly_release
+    year: 2026
+    month: 7
+    stat_url: "https://bepi.mpob.gov.my/stat/web_report1.php?val=202675&val1=07"
