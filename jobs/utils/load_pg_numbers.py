@@ -61,6 +61,12 @@ P1_TABLES = ["silver_psd", "silver_wasde", "silver_production", "silver_esr", "s
              # this list. trade_date and the three contract_month columns stay ISO TEXT under the type
              # doctrine; the four *_usd_bu metrics plus the three raw leg settles mirror numeric.
              "gold_board_crush",
+             # GN-2 W2.3: gold_futures_spreads -- flat WIDE table, ~2,700 rows (kc_chi's decade +
+             # white_yellow's young JSE feed). spread_value mirrors numeric (the declared metric);
+             # trade_date/spread_id/unit/slugs/contract months/is_roll_boundary ('0'/'1' STRING --
+             # the crush's three-backend identity) stay ISO TEXT under the type doctrine; the two
+             # raw leg settles mirror numeric as declared value columns' siblings do on the crush.
+             "gold_futures_spreads",
              # numbers-depth wave (W0-4 / D3): three freshly wired WIDE tables. All small-to-modest and
              # numeric-column-safe under the type doctrine: ICCO metrics production_kt/grindings_kt/
              # end_stocks_kt/su_ratio, MPOB *_mt + su_ratio, SAGIS current_estimate_t/area_planted_ha
