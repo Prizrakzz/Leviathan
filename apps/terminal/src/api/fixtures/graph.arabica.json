@@ -1,12 +1,16 @@
 {
   "contract": "arabica_coffee",
-  "graph_version": "e8a9656c3195",
+  "graph_version": "f6cf1f5db711",
+  "asof": null,
   "nodes": [
     {
       "id": "arabica_coffee",
       "kind": "contract",
       "contract": "arabica_coffee",
       "label": "ICE arabica coffee",
+      "silver_status": null,
+      "confidence": null,
+      "active": null,
       "target_metric": "price"
     },
     {
@@ -14,267 +18,319 @@
       "kind": "hazard",
       "contract": "arabica_coffee",
       "label": "frost",
-      "silver_ref": "frost_event_flag",
       "silver_status": "available",
-      "confidence": "high"
+      "confidence": "high",
+      "active": null,
+      "silver_ref": "frost_event_flag"
     },
     {
       "id": "drought",
       "kind": "hazard",
       "contract": "arabica_coffee",
       "label": "drought",
-      "silver_ref": "drought_z",
       "silver_status": "available",
-      "confidence": "high"
+      "confidence": "high",
+      "active": null,
+      "silver_ref": "drought_z"
     },
     {
       "id": "flash_drought",
       "kind": "hazard",
       "contract": "arabica_coffee",
       "label": "flash drought",
-      "silver_ref": "drought_z",
       "silver_status": "available",
-      "confidence": "medium"
+      "confidence": "medium",
+      "active": null,
+      "silver_ref": "drought_z"
     },
     {
       "id": "heat_stress",
       "kind": "hazard",
       "contract": "arabica_coffee",
       "label": "heat stress",
-      "silver_ref": "heat_stress_z",
       "silver_status": "available",
-      "confidence": "high"
+      "confidence": "high",
+      "active": null,
+      "silver_ref": "heat_stress_z"
     },
     {
       "id": "flowering_stress",
       "kind": "state_marker",
       "contract": "arabica_coffee",
       "label": "flowering stress",
-      "silver_ref": "heat_stress_z",
       "silver_status": "available",
-      "confidence": "medium"
+      "confidence": "medium",
+      "active": null,
+      "silver_ref": "heat_stress_z"
     },
     {
       "id": "excess_rain",
       "kind": "hazard",
       "contract": "arabica_coffee",
       "label": "excess rain",
-      "silver_ref": "excess_rain_z",
       "silver_status": "planned",
-      "confidence": "medium"
+      "confidence": "medium",
+      "active": null,
+      "silver_ref": "excess_rain_z"
     },
     {
       "id": "coffee_leaf_rust",
       "kind": "hazard",
       "contract": "arabica_coffee",
       "label": "coffee leaf rust",
-      "silver_ref": "leaf_rust_flag",
       "silver_status": "planned",
-      "confidence": "high"
+      "confidence": "high",
+      "active": null,
+      "silver_ref": "leaf_rust_flag"
     },
     {
       "id": "CBD",
       "kind": "hazard",
       "contract": "arabica_coffee",
       "label": "CBD",
-      "silver_ref": "cbd_flag",
       "silver_status": "planned",
-      "confidence": "low"
+      "confidence": "low",
+      "active": null,
+      "silver_ref": "cbd_flag"
     },
     {
       "id": "coffee_berry_borer",
       "kind": "hazard",
       "contract": "arabica_coffee",
       "label": "coffee berry borer",
-      "silver_ref": "coffee_berry_borer_flag",
       "silver_status": "planned",
-      "confidence": "low"
+      "confidence": "low",
+      "active": null,
+      "silver_ref": "coffee_berry_borer_flag"
     },
     {
-      "id": "La_Niña",
+      "id": "La_Nina",
       "kind": "climate_driver",
       "contract": "arabica_coffee",
-      "label": "La Niña",
-      "silver_ref": "oni_climate",
+      "label": "La Nina",
       "silver_status": "available",
-      "confidence": "medium"
+      "confidence": "medium",
+      "active": null,
+      "silver_ref": "oni_climate"
     },
     {
-      "id": "El_Niño",
+      "id": "El_Nino",
       "kind": "climate_driver",
       "contract": "arabica_coffee",
-      "label": "El Niño",
-      "silver_ref": "oni_climate",
+      "label": "El Nino",
       "silver_status": "available",
-      "confidence": "medium"
+      "confidence": "medium",
+      "active": null,
+      "silver_ref": "oni_climate"
     },
     {
       "id": "blocking_high",
       "kind": "climate_driver",
       "contract": "arabica_coffee",
       "label": "blocking high",
-      "silver_ref": "blocking_high_z",
       "silver_status": "planned",
-      "confidence": "low"
+      "confidence": "low",
+      "active": null,
+      "silver_ref": "blocking_high_z"
     },
     {
       "id": "biennial_off_year",
       "kind": "state_marker",
       "contract": "arabica_coffee",
       "label": "biennial off year",
-      "silver_ref": "biennial_bearing_flag",
       "silver_status": "planned",
-      "confidence": "high"
+      "confidence": "high",
+      "active": null,
+      "silver_ref": "biennial_bearing_flag"
     },
     {
       "id": "biennial_on_year",
       "kind": "state_marker",
       "contract": "arabica_coffee",
       "label": "biennial on year",
-      "silver_ref": "biennial_bearing_flag",
       "silver_status": "planned",
-      "confidence": "high"
+      "confidence": "high",
+      "active": null,
+      "silver_ref": "biennial_bearing_flag"
     },
     {
       "id": "psd_ending_stock_su_ratio",
       "kind": "fundamental",
       "contract": "arabica_coffee",
       "label": "psd ending stock su ratio",
-      "silver_ref": "psd_ending_stock_su_ratio",
       "silver_status": "available",
-      "confidence": "high"
+      "confidence": "high",
+      "active": null,
+      "silver_ref": "psd_ending_stock_su_ratio"
     },
     {
       "id": "tenderable_collapse",
       "kind": "state_marker",
       "contract": "arabica_coffee",
       "label": "tenderable collapse",
-      "silver_ref": "stock",
       "silver_status": "available",
-      "confidence": "high"
+      "confidence": "high",
+      "active": null,
+      "silver_ref": "stock"
     },
     {
       "id": "withheld_supply",
       "kind": "state_marker",
       "contract": "arabica_coffee",
       "label": "withheld supply",
-      "silver_ref": "withheld_supply_flag",
       "silver_status": "planned",
-      "confidence": "medium"
+      "confidence": "medium",
+      "active": null,
+      "silver_ref": "withheld_supply_flag"
     },
     {
       "id": "export_pace_lag",
       "kind": "state_marker",
       "contract": "arabica_coffee",
       "label": "export pace lag",
-      "silver_ref": "export",
       "silver_status": "available",
-      "confidence": "medium"
+      "confidence": "medium",
+      "active": null,
+      "silver_ref": "export"
     },
     {
       "id": "EUDR",
       "kind": "policy_event",
       "contract": "arabica_coffee",
       "label": "EUDR",
-      "silver_ref": "eudr_flag",
       "silver_status": "planned",
-      "confidence": "medium"
+      "confidence": "medium",
+      "active": null,
+      "silver_ref": "eudr_flag"
     },
     {
       "id": "import_tariff",
       "kind": "policy_event",
       "contract": "arabica_coffee",
       "label": "import tariff",
-      "silver_ref": "import",
       "silver_status": "available",
-      "confidence": "medium"
+      "confidence": "medium",
+      "active": null,
+      "silver_ref": "import"
     },
     {
       "id": "export_tax",
       "kind": "policy_event",
       "contract": "arabica_coffee",
       "label": "export tax",
-      "silver_ref": "export",
       "silver_status": "available",
-      "confidence": "low"
+      "confidence": "low",
+      "active": null,
+      "silver_ref": "export"
     },
     {
       "id": "BRL_FX",
       "kind": "macro",
       "contract": "arabica_coffee",
       "label": "BRL FX",
-      "silver_ref": "fred_fx_macro",
       "silver_status": "available",
-      "confidence": "high"
+      "confidence": "high",
+      "active": null,
+      "silver_ref": "fred_fx_macro"
     },
     {
       "id": "USD_macro",
       "kind": "macro",
       "contract": "arabica_coffee",
       "label": "USD macro",
-      "silver_ref": "fred_fx_macro",
       "silver_status": "available",
-      "confidence": "medium"
+      "confidence": "medium",
+      "active": null,
+      "silver_ref": "fred_fx_macro"
     },
     {
       "id": "cot_mm_positioning",
       "kind": "positioning",
       "contract": "arabica_coffee",
       "label": "cot mm positioning",
-      "silver_ref": "cot_mm_positioning",
       "silver_status": "available",
-      "confidence": "medium"
+      "confidence": "medium",
+      "active": null,
+      "silver_ref": "cot_mm_positioning"
     },
     {
       "id": "freight_costs",
       "kind": "logistics",
       "contract": "arabica_coffee",
       "label": "freight costs",
-      "silver_ref": "freight_costs_z",
       "silver_status": "planned",
-      "confidence": "low"
+      "confidence": "low",
+      "active": null,
+      "silver_ref": "freight_costs_z"
     },
     {
       "id": "port_closure",
       "kind": "logistics",
       "contract": "arabica_coffee",
       "label": "port closure",
-      "silver_ref": "port_closure_z",
       "silver_status": "planned",
-      "confidence": "low"
+      "confidence": "low",
+      "active": null,
+      "silver_ref": "port_closure_z"
     },
     {
       "id": "consumption",
       "kind": "demand",
       "contract": "arabica_coffee",
       "label": "consumption",
-      "silver_ref": "consumption",
       "silver_status": "available",
-      "confidence": "medium"
+      "confidence": "medium",
+      "active": null,
+      "silver_ref": "consumption"
     },
     {
       "id": "replanting_cycle",
       "kind": "state_marker",
       "contract": "arabica_coffee",
       "label": "replanting cycle",
-      "silver_ref": "area",
       "silver_status": "available",
-      "confidence": "medium"
+      "confidence": "medium",
+      "active": null,
+      "silver_ref": "area"
     },
     {
       "id": "coffee_price_benchmark",
       "kind": "market",
       "contract": "arabica_coffee",
       "label": "coffee price benchmark",
-      "silver_ref": null,
       "silver_status": "none",
-      "confidence": "medium"
+      "confidence": "medium",
+      "active": null,
+      "silver_ref": null
+    },
+    {
+      "id": "macro_demand",
+      "kind": "macro",
+      "contract": "arabica_coffee",
+      "label": "macro demand",
+      "silver_status": "available",
+      "confidence": "medium",
+      "active": null,
+      "silver_ref": "fred_fx_macro"
+    },
+    {
+      "id": "IOD_positive",
+      "kind": "climate_driver",
+      "contract": "arabica_coffee",
+      "label": "IOD positive",
+      "silver_status": "available",
+      "confidence": "medium",
+      "active": null,
+      "silver_ref": "iod_climate"
     },
     {
       "id": "robusta_coffee",
       "kind": "commodity",
       "contract": "robusta_coffee",
       "label": "ICE robusta coffee",
+      "silver_status": null,
+      "confidence": null,
+      "active": null,
       "tracked": true
     }
   ],
@@ -286,8 +342,8 @@
       "sign": "+",
       "lag": "0-2 quarters",
       "mechanism": "Radiative frost in Brazil's southern arabica belt (Sul de Minas, Paraná) kills leaves and damages buds, slashing the next crop and spiking prices.",
-      "blurb": "Frost damages coffee plants, reducing next harvest and raising prices",
       "confidence": "high",
+      "blurb": "Frost damages coffee plants, reducing next harvest and raising prices",
       "target_metric": "price"
     },
     {
@@ -295,15 +351,19 @@
       "target": "frost",
       "edge_type": "drives",
       "sign": null,
+      "lag": null,
       "mechanism": "A blocking high over central South America steers polar air masses north, triggering frost events and suppressing rainfall in the coffee belt.",
+      "confidence": null,
       "blurb": "High pressure system steers polar air north, causing frost and reducing rainfall in coffee regions."
     },
     {
-      "source": "La_Niña",
+      "source": "La_Nina",
       "target": "frost",
       "edge_type": "drives",
       "sign": null,
+      "lag": null,
       "mechanism": "La Nina promotes drier/cooler patterns over southern Brazil and increased cold-air intrusions, raising frost and drought risk in the arabica belt.",
+      "confidence": null,
       "blurb": "La Niña drives drier, cooler conditions and cold intrusions, increasing frost and drought risk for arabica coffee."
     },
     {
@@ -313,16 +373,18 @@
       "sign": "+",
       "lag": "1-3 quarters",
       "mechanism": "Soil-moisture deficit during cherry development and flowering reduces bean filling and aborts flowers, cutting Brazilian arabica yields.",
-      "blurb": "Low soil moisture during cherry development cuts bean filling and aborts flowers, reducing yields.",
       "confidence": "high",
+      "blurb": "Low soil moisture during cherry development cuts bean filling and aborts flowers, reducing yields.",
       "target_metric": "price"
     },
     {
-      "source": "La_Niña",
+      "source": "La_Nina",
       "target": "drought",
       "edge_type": "drives",
       "sign": null,
+      "lag": null,
       "mechanism": "La Nina promotes drier/cooler patterns over southern Brazil and increased cold-air intrusions, raising frost and drought risk in the arabica belt.",
+      "confidence": null,
       "blurb": "La Niña drives drier, cooler conditions and cold intrusions, increasing frost and drought risk for arabica coffee."
     },
     {
@@ -330,7 +392,9 @@
       "target": "drought",
       "edge_type": "drives",
       "sign": null,
+      "lag": null,
       "mechanism": "A blocking high over central South America steers polar air masses north, triggering frost events and suppressing rainfall in the coffee belt.",
+      "confidence": null,
       "blurb": "High pressure system steers polar air north, causing frost and reducing rainfall in coffee regions."
     },
     {
@@ -340,8 +404,8 @@
       "sign": "+",
       "lag": "1-3 quarters",
       "mechanism": "Rapid-onset moisture depletion coinciding with flowering causes flower abortion and 'star' flowers, lowering arabica set.",
-      "blurb": "Moisture loss during flowering aborts flowers and creates star blooms, reducing arabica yield.",
       "confidence": "medium",
+      "blurb": "Moisture loss during flowering aborts flowers and creates star blooms, reducing arabica yield.",
       "target_metric": "price"
     },
     {
@@ -349,7 +413,9 @@
       "target": "flash_drought",
       "edge_type": "drives",
       "sign": null,
+      "lag": null,
       "mechanism": "High daytime temperatures above ~30C during flowering/cherry fill stress the crop and accelerate moisture loss, cutting arabica yield and quality.",
+      "confidence": null,
       "blurb": "High daytime heat during flowering accelerates moisture loss, reducing arabica yield and quality."
     },
     {
@@ -357,7 +423,9 @@
       "target": "flash_drought",
       "edge_type": "drives",
       "sign": null,
+      "lag": null,
       "mechanism": "A blocking high over central South America steers polar air masses north, triggering frost events and suppressing rainfall in the coffee belt.",
+      "confidence": null,
       "blurb": "High pressure system steers polar air north, causing frost and reducing rainfall in coffee regions."
     },
     {
@@ -367,16 +435,18 @@
       "sign": "+",
       "lag": "1-3 quarters",
       "mechanism": "High daytime temperatures above ~30C during flowering/cherry fill stress the crop and accelerate moisture loss, cutting arabica yield and quality.",
-      "blurb": "High daytime heat during flowering accelerates moisture loss, reducing arabica yield and quality.",
       "confidence": "high",
+      "blurb": "High daytime heat during flowering accelerates moisture loss, reducing arabica yield and quality.",
       "target_metric": "price"
     },
     {
-      "source": "La_Niña",
+      "source": "La_Nina",
       "target": "heat_stress",
       "edge_type": "drives",
       "sign": null,
+      "lag": null,
       "mechanism": "La Nina promotes drier/cooler patterns over southern Brazil and increased cold-air intrusions, raising frost and drought risk in the arabica belt.",
+      "confidence": null,
       "blurb": "La Niña drives drier, cooler conditions and cold intrusions, increasing frost and drought risk for arabica coffee."
     },
     {
@@ -384,7 +454,9 @@
       "target": "heat_stress",
       "edge_type": "drives",
       "sign": null,
+      "lag": null,
       "mechanism": "A blocking high over central South America steers polar air masses north, triggering frost events and suppressing rainfall in the coffee belt.",
+      "confidence": null,
       "blurb": "High pressure system steers polar air north, causing frost and reducing rainfall in coffee regions."
     },
     {
@@ -394,8 +466,8 @@
       "sign": "+",
       "lag": "2-4 quarters",
       "mechanism": "Irregular rains or heat during the flowering window produce poor/uneven flowering and fewer cherries, signaling a smaller upcoming crop.",
-      "blurb": "Irregular rains or heat during flowering reduces cherry yield and signals smaller upcoming crop.",
       "confidence": "medium",
+      "blurb": "Irregular rains or heat during flowering reduces cherry yield and signals smaller upcoming crop.",
       "target_metric": "price"
     },
     {
@@ -403,7 +475,9 @@
       "target": "flowering_stress",
       "edge_type": "drives",
       "sign": null,
+      "lag": null,
       "mechanism": "High daytime temperatures above ~30C during flowering/cherry fill stress the crop and accelerate moisture loss, cutting arabica yield and quality.",
+      "confidence": null,
       "blurb": "High daytime heat during flowering accelerates moisture loss, reducing arabica yield and quality."
     },
     {
@@ -411,7 +485,9 @@
       "target": "flowering_stress",
       "edge_type": "drives",
       "sign": null,
+      "lag": null,
       "mechanism": "Soil-moisture deficit during cherry development and flowering reduces bean filling and aborts flowers, cutting Brazilian arabica yields.",
+      "confidence": null,
       "blurb": "Low soil moisture during cherry development cuts bean filling and aborts flowers, reducing yields."
     },
     {
@@ -419,7 +495,9 @@
       "target": "flowering_stress",
       "edge_type": "drives",
       "sign": null,
+      "lag": null,
       "mechanism": "Excessive rain during harvest/drying disrupts picking and causes defects (mold, blackening) in Colombia and Brazil naturals, tightening high-grade supply.",
+      "confidence": null,
       "blurb": "Excessive rain disrupts harvest and causes mold, blackening in natural coffees, tightening high-grade supply."
     },
     {
@@ -429,16 +507,18 @@
       "sign": "+",
       "lag": "0-2 quarters",
       "mechanism": "Excessive rain during harvest/drying disrupts picking and causes defects (mold, blackening) in Colombia and Brazil naturals, tightening high-grade supply.",
-      "blurb": "Excessive rain disrupts harvest and causes mold, blackening in natural coffees, tightening high-grade supply.",
       "confidence": "medium",
+      "blurb": "Excessive rain disrupts harvest and causes mold, blackening in natural coffees, tightening high-grade supply.",
       "target_metric": "price"
     },
     {
-      "source": "La_Niña",
+      "source": "La_Nina",
       "target": "excess_rain",
       "edge_type": "drives",
       "sign": null,
+      "lag": null,
       "mechanism": "La Nina promotes drier/cooler patterns over southern Brazil and increased cold-air intrusions, raising frost and drought risk in the arabica belt.",
+      "confidence": null,
       "blurb": "La Niña drives drier, cooler conditions and cold intrusions, increasing frost and drought risk for arabica coffee."
     },
     {
@@ -448,8 +528,8 @@
       "sign": "+",
       "lag": "1-4 quarters",
       "mechanism": "Coffee leaf rust (Hemileia vastatrix / la roya) epidemics defoliate arabica trees—favoured by warm, humid conditions—cutting yields multi-season; the 2012-14 Central America/Colombia roya crisis is the class event.",
-      "blurb": "Warm, humid conditions spread coffee leaf rust, defoliating arabica trees and reducing yields for years.",
       "confidence": "high",
+      "blurb": "Warm, humid conditions spread coffee leaf rust, defoliating arabica trees and reducing yields for years.",
       "target_metric": "price"
     },
     {
@@ -457,7 +537,9 @@
       "target": "coffee_leaf_rust",
       "edge_type": "drives",
       "sign": null,
+      "lag": null,
       "mechanism": "Excessive rain during harvest/drying disrupts picking and causes defects (mold, blackening) in Colombia and Brazil naturals, tightening high-grade supply.",
+      "confidence": null,
       "blurb": "Excessive rain disrupts harvest and causes mold, blackening in natural coffees, tightening high-grade supply."
     },
     {
@@ -467,8 +549,8 @@
       "sign": "+",
       "lag": "1-3 quarters",
       "mechanism": "Coffee berry disease (Colletotrichum kahawae) rots developing arabica cherries in cool, wet East African highlands, reducing exportable supply.",
-      "blurb": "Disease rots cherries in cool, wet highlands, reducing exportable coffee supply.",
       "confidence": "low",
+      "blurb": "Disease rots cherries in cool, wet highlands, reducing exportable coffee supply.",
       "target_metric": "price"
     },
     {
@@ -476,7 +558,9 @@
       "target": "CBD",
       "edge_type": "drives",
       "sign": null,
+      "lag": null,
       "mechanism": "Excessive rain during harvest/drying disrupts picking and causes defects (mold, blackening) in Colombia and Brazil naturals, tightening high-grade supply.",
+      "confidence": null,
       "blurb": "Excessive rain disrupts harvest and causes mold, blackening in natural coffees, tightening high-grade supply."
     },
     {
@@ -486,8 +570,8 @@
       "sign": "+",
       "lag": "1-3 quarters",
       "mechanism": "Hypothenemus hampei bores into beans degrading quality and yield; warming expands its altitude range into arabica zones, raising losses.",
-      "blurb": "Beetle boring degrades bean quality; warming extends pest range into arabica zones, increasing losses.",
       "confidence": "low",
+      "blurb": "Beetle boring degrades bean quality; warming extends pest range into arabica zones, increasing losses.",
       "target_metric": "price"
     },
     {
@@ -495,29 +579,31 @@
       "target": "coffee_berry_borer",
       "edge_type": "drives",
       "sign": null,
+      "lag": null,
       "mechanism": "High daytime temperatures above ~30C during flowering/cherry fill stress the crop and accelerate moisture loss, cutting arabica yield and quality.",
+      "confidence": null,
       "blurb": "High daytime heat during flowering accelerates moisture loss, reducing arabica yield and quality."
     },
     {
-      "source": "La_Niña",
+      "source": "La_Nina",
       "target": "arabica_coffee",
       "edge_type": "teleconnects_to",
       "sign": "+",
       "lag": "1-3 quarters",
       "mechanism": "La Nina promotes drier/cooler patterns over southern Brazil and increased cold-air intrusions, raising frost and drought risk in the arabica belt.",
-      "blurb": "La Niña drives drier, cooler conditions and cold intrusions, increasing frost and drought risk for arabica coffee.",
       "confidence": "medium",
+      "blurb": "La Niña drives drier, cooler conditions and cold intrusions, increasing frost and drought risk for arabica coffee.",
       "target_metric": "price"
     },
     {
-      "source": "El_Niño",
+      "source": "El_Nino",
       "target": "arabica_coffee",
       "edge_type": "teleconnects_to",
       "sign": "-",
       "lag": "1-3 quarters",
       "mechanism": "El Nino brings wetter, milder conditions to southern Brazil (the dominant arabica producer) — supportive of the crop, so a larger Brazilian harvest pressures price; partly offset by drought risk to Colombia/Central America, but the Brazil channel dominates the net.",
-      "blurb": "Wetter conditions in Brazil boost arabica supply, pressuring prices down; offsetting drought risks elsewhere matter less.",
       "confidence": "medium",
+      "blurb": "Wetter conditions in Brazil boost arabica supply, pressuring prices down; offsetting drought risks elsewhere matter less.",
       "target_metric": "price"
     },
     {
@@ -527,16 +613,18 @@
       "sign": "+",
       "lag": "0-1 quarters",
       "mechanism": "A blocking high over central South America steers polar air masses north, triggering frost events and suppressing rainfall in the coffee belt.",
-      "blurb": "High pressure system steers polar air north, causing frost and reducing rainfall in coffee regions.",
       "confidence": "low",
+      "blurb": "High pressure system steers polar air north, causing frost and reducing rainfall in coffee regions.",
       "target_metric": "price"
     },
     {
-      "source": "La_Niña",
+      "source": "La_Nina",
       "target": "blocking_high",
       "edge_type": "drives",
       "sign": null,
+      "lag": null,
       "mechanism": "La Nina promotes drier/cooler patterns over southern Brazil and increased cold-air intrusions, raising frost and drought risk in the arabica belt.",
+      "confidence": null,
       "blurb": "La Niña drives drier, cooler conditions and cold intrusions, increasing frost and drought risk for arabica coffee."
     },
     {
@@ -546,8 +634,8 @@
       "sign": "+",
       "lag": "0-2 quarters",
       "mechanism": "Arabica's biennial bearing cycle yields a low-production 'off' year following a heavy crop, mechanically tightening supply and lifting prices.",
-      "blurb": "Heavy crop triggers off year, tightening supply and lifting prices.",
       "confidence": "high",
+      "blurb": "Heavy crop triggers off year, tightening supply and lifting prices.",
       "target_metric": "price"
     },
     {
@@ -555,7 +643,9 @@
       "target": "biennial_off_year",
       "edge_type": "drives",
       "sign": null,
+      "lag": null,
       "mechanism": "The high-yield 'on' year of the biennial cycle boosts Brazilian output, loosening balances and pressuring prices.",
+      "confidence": null,
       "blurb": "Biennial high-yield year increases Brazilian output, tightens supply, and lowers prices."
     },
     {
@@ -565,8 +655,8 @@
       "sign": "-",
       "lag": "0-2 quarters",
       "mechanism": "The high-yield 'on' year of the biennial cycle boosts Brazilian output, loosening balances and pressuring prices.",
-      "blurb": "Biennial high-yield year increases Brazilian output, tightens supply, and lowers prices.",
       "confidence": "high",
+      "blurb": "Biennial high-yield year increases Brazilian output, tightens supply, and lowers prices.",
       "target_metric": "price"
     },
     {
@@ -576,8 +666,8 @@
       "sign": "-",
       "lag": "0-2 quarters",
       "mechanism": "Lower global/exporter ending stocks-to-use ratio signals tighter balances and supports higher arabica prices.",
-      "blurb": "Tighter global balances from lower ending stocks support higher arabica prices",
       "confidence": "high",
+      "blurb": "Tighter global balances from lower ending stocks support higher arabica prices",
       "target_metric": "price"
     },
     {
@@ -585,7 +675,9 @@
       "target": "psd_ending_stock_su_ratio",
       "edge_type": "drives",
       "sign": null,
+      "lag": null,
       "mechanism": "Radiative frost in Brazil's southern arabica belt (Sul de Minas, Paraná) kills leaves and damages buds, slashing the next crop and spiking prices.",
+      "confidence": null,
       "blurb": "Frost damages coffee plants, reducing next harvest and raising prices"
     },
     {
@@ -593,7 +685,9 @@
       "target": "psd_ending_stock_su_ratio",
       "edge_type": "drives",
       "sign": null,
+      "lag": null,
       "mechanism": "Soil-moisture deficit during cherry development and flowering reduces bean filling and aborts flowers, cutting Brazilian arabica yields.",
+      "confidence": null,
       "blurb": "Low soil moisture during cherry development cuts bean filling and aborts flowers, reducing yields."
     },
     {
@@ -601,7 +695,9 @@
       "target": "psd_ending_stock_su_ratio",
       "edge_type": "drives",
       "sign": null,
+      "lag": null,
       "mechanism": "Arabica's biennial bearing cycle yields a low-production 'off' year following a heavy crop, mechanically tightening supply and lifting prices.",
+      "confidence": null,
       "blurb": "Heavy crop triggers off year, tightening supply and lifting prices."
     },
     {
@@ -609,7 +705,9 @@
       "target": "psd_ending_stock_su_ratio",
       "edge_type": "drives",
       "sign": null,
+      "lag": null,
       "mechanism": "Growth in global coffee consumption (specialty/out-of-home and emerging markets) tightens balances over time and supports prices.",
+      "confidence": null,
       "blurb": "Rising global coffee demand tightens supplies and raises prices."
     },
     {
@@ -619,8 +717,8 @@
       "sign": "+",
       "lag": "0-1 quarters",
       "mechanism": "A drop in ICE certified/exchange-grade washed arabica stocks signals scarcity of deliverable supply, driving spot premiums and price spikes.",
-      "blurb": "Lower certified arabica stocks signal scarce deliverable supply, pushing spot premiums and prices higher.",
       "confidence": "high",
+      "blurb": "Lower certified arabica stocks signal scarce deliverable supply, pushing spot premiums and prices higher.",
       "target_metric": "price"
     },
     {
@@ -628,7 +726,9 @@
       "target": "tenderable_collapse",
       "edge_type": "drives",
       "sign": null,
+      "lag": null,
       "mechanism": "Radiative frost in Brazil's southern arabica belt (Sul de Minas, Paraná) kills leaves and damages buds, slashing the next crop and spiking prices.",
+      "confidence": null,
       "blurb": "Frost damages coffee plants, reducing next harvest and raising prices"
     },
     {
@@ -636,7 +736,9 @@
       "target": "tenderable_collapse",
       "edge_type": "drives",
       "sign": null,
+      "lag": null,
       "mechanism": "Soil-moisture deficit during cherry development and flowering reduces bean filling and aborts flowers, cutting Brazilian arabica yields.",
+      "confidence": null,
       "blurb": "Low soil moisture during cherry development cuts bean filling and aborts flowers, reducing yields."
     },
     {
@@ -644,7 +746,9 @@
       "target": "tenderable_collapse",
       "edge_type": "drives",
       "sign": null,
+      "lag": null,
       "mechanism": "Slow shipment pace from origin (logistics, low farmer selling) tightens importer pipelines and supports prices.",
+      "confidence": null,
       "blurb": "Slow shipments from origin tighten importer pipelines and support prices."
     },
     {
@@ -654,8 +758,8 @@
       "sign": "+",
       "lag": "0-2 quarters",
       "mechanism": "Producers/exporters holding back beans (price disputes, weak FX incentive, defaults on forward contracts) tightens near-term physical availability.",
-      "blurb": "Producers withholding beans due to price disputes and weak currency incentives reduces near-term supply.",
       "confidence": "medium",
+      "blurb": "Producers withholding beans due to price disputes and weak currency incentives reduces near-term supply.",
       "target_metric": "price"
     },
     {
@@ -663,7 +767,9 @@
       "target": "withheld_supply",
       "edge_type": "drives",
       "sign": null,
+      "lag": null,
       "mechanism": "Origin export taxes/levies raise the floor on offered prices and can reduce export flows, supporting international arabica prices.",
+      "confidence": null,
       "blurb": "Export taxes raise minimum prices, reducing flows and supporting international arabica prices."
     },
     {
@@ -673,8 +779,8 @@
       "sign": "+",
       "lag": "0-2 quarters",
       "mechanism": "Slow shipment pace from origin (logistics, low farmer selling) tightens importer pipelines and supports prices.",
-      "blurb": "Slow shipments from origin tighten importer pipelines and support prices.",
       "confidence": "medium",
+      "blurb": "Slow shipments from origin tighten importer pipelines and support prices.",
       "target_metric": "price"
     },
     {
@@ -682,7 +788,9 @@
       "target": "export_pace_lag",
       "edge_type": "drives",
       "sign": null,
+      "lag": null,
       "mechanism": "Port congestion/closures at Santos or Colombian ports stall exports, tightening near-term availability to importers.",
+      "confidence": null,
       "blurb": "Port congestion at Santos or Colombian ports reduces export availability to importers."
     },
     {
@@ -690,7 +798,9 @@
       "target": "export_pace_lag",
       "edge_type": "drives",
       "sign": null,
+      "lag": null,
       "mechanism": "Producers/exporters holding back beans (price disputes, weak FX incentive, defaults on forward contracts) tightens near-term physical availability.",
+      "confidence": null,
       "blurb": "Producers withholding beans due to price disputes and weak currency incentives reduces near-term supply."
     },
     {
@@ -700,8 +810,8 @@
       "sign": "+",
       "lag": "1-4 quarters",
       "mechanism": "EU Deforestation Regulation raises compliance/traceability costs and risks excluding non-compliant origins, front-loading demand for certified beans and lifting prices.",
-      "blurb": "Compliance costs and traceability requirements front-load demand for certified beans, raising prices.",
       "confidence": "medium",
+      "blurb": "Compliance costs and traceability requirements front-load demand for certified beans, raising prices.",
       "target_metric": "price"
     },
     {
@@ -711,8 +821,8 @@
       "sign": "+",
       "lag": "0-2 quarters",
       "mechanism": "US/importer tariffs on green coffee from a major origin cause near-term supply-chain disruption and front-loading that lift nearby ICE prices; the longer-run demand-destruction pull is weaker at this 0-2 quarter horizon.",
-      "blurb": "Tariffs on green coffee from major origins disrupt supply chains and front-load demand, lifting prices near-term.",
       "confidence": "medium",
+      "blurb": "Tariffs on green coffee from major origins disrupt supply chains and front-load demand, lifting prices near-term.",
       "target_metric": "price"
     },
     {
@@ -722,8 +832,8 @@
       "sign": "+",
       "lag": "0-2 quarters",
       "mechanism": "Origin export taxes/levies raise the floor on offered prices and can reduce export flows, supporting international arabica prices.",
-      "blurb": "Export taxes raise minimum prices, reducing flows and supporting international arabica prices.",
       "confidence": "low",
+      "blurb": "Export taxes raise minimum prices, reducing flows and supporting international arabica prices.",
       "target_metric": "price"
     },
     {
@@ -733,8 +843,8 @@
       "sign": "-",
       "lag": "0-2 quarters",
       "mechanism": "A weaker Brazilian real incentivizes Brazilian producers to sell/export aggressively in USD terms, increasing supply to market and pressuring dollar arabica prices.",
-      "blurb": "Weaker real pushes Brazilian producers to export more aggressively, increasing arabica supply and lowering prices.",
       "confidence": "high",
+      "blurb": "Weaker real pushes Brazilian producers to export more aggressively, increasing arabica supply and lowering prices.",
       "target_metric": "price"
     },
     {
@@ -744,8 +854,8 @@
       "sign": "-",
       "lag": "0-2 quarters",
       "mechanism": "A stronger broad US dollar pressures dollar-denominated commodity prices and dampens importer purchasing power, weighing on arabica.",
-      "blurb": "Stronger dollar pressures arabica prices down and reduces importer buying power.",
       "confidence": "medium",
+      "blurb": "Stronger dollar pressures arabica prices down and reduces importer buying power.",
       "target_metric": "price"
     },
     {
@@ -755,8 +865,8 @@
       "sign": "+",
       "lag": "0-1 quarters",
       "mechanism": "Managed-money net-long buildup amplifies and accelerates rallies (and unwinds amplify selloffs), driving momentum beyond fundamentals.",
-      "blurb": "Speculative buying builds momentum in rallies, selling accelerates declines beyond market fundamentals.",
       "confidence": "medium",
+      "blurb": "Speculative buying builds momentum in rallies, selling accelerates declines beyond market fundamentals.",
       "target_metric": "price"
     },
     {
@@ -764,7 +874,9 @@
       "target": "cot_mm_positioning",
       "edge_type": "drives",
       "sign": null,
+      "lag": null,
       "mechanism": "Radiative frost in Brazil's southern arabica belt (Sul de Minas, Paraná) kills leaves and damages buds, slashing the next crop and spiking prices.",
+      "confidence": null,
       "blurb": "Frost damages coffee plants, reducing next harvest and raising prices"
     },
     {
@@ -772,7 +884,9 @@
       "target": "cot_mm_positioning",
       "edge_type": "drives",
       "sign": null,
+      "lag": null,
       "mechanism": "Soil-moisture deficit during cherry development and flowering reduces bean filling and aborts flowers, cutting Brazilian arabica yields.",
+      "confidence": null,
       "blurb": "Low soil moisture during cherry development cuts bean filling and aborts flowers, reducing yields."
     },
     {
@@ -780,7 +894,9 @@
       "target": "cot_mm_positioning",
       "edge_type": "drives",
       "sign": null,
+      "lag": null,
       "mechanism": "A drop in ICE certified/exchange-grade washed arabica stocks signals scarcity of deliverable supply, driving spot premiums and price spikes.",
+      "confidence": null,
       "blurb": "Lower certified arabica stocks signal scarce deliverable supply, pushing spot premiums and prices higher."
     },
     {
@@ -790,8 +906,8 @@
       "sign": "+",
       "lag": "0-2 quarters",
       "mechanism": "Higher container/ocean freight and shipping disruptions (e.g., Red Sea reroutes) raise delivered coffee costs and delay arrivals, supporting prices.",
-      "blurb": "Higher shipping costs and delays raise coffee prices through increased delivery expenses.",
       "confidence": "low",
+      "blurb": "Higher shipping costs and delays raise coffee prices through increased delivery expenses.",
       "target_metric": "price"
     },
     {
@@ -799,7 +915,9 @@
       "target": "freight_costs",
       "edge_type": "drives",
       "sign": null,
+      "lag": null,
       "mechanism": "Port congestion/closures at Santos or Colombian ports stall exports, tightening near-term availability to importers.",
+      "confidence": null,
       "blurb": "Port congestion at Santos or Colombian ports reduces export availability to importers."
     },
     {
@@ -809,8 +927,8 @@
       "sign": "+",
       "lag": "0-1 quarters",
       "mechanism": "Port congestion/closures at Santos or Colombian ports stall exports, tightening near-term availability to importers.",
-      "blurb": "Port congestion at Santos or Colombian ports reduces export availability to importers.",
       "confidence": "low",
+      "blurb": "Port congestion at Santos or Colombian ports reduces export availability to importers.",
       "target_metric": "price"
     },
     {
@@ -818,7 +936,9 @@
       "target": "port_closure",
       "edge_type": "drives",
       "sign": null,
+      "lag": null,
       "mechanism": "Excessive rain during harvest/drying disrupts picking and causes defects (mold, blackening) in Colombia and Brazil naturals, tightening high-grade supply.",
+      "confidence": null,
       "blurb": "Excessive rain disrupts harvest and causes mold, blackening in natural coffees, tightening high-grade supply."
     },
     {
@@ -828,8 +948,8 @@
       "sign": "+",
       "lag": "2-8 quarters",
       "mechanism": "Growth in global coffee consumption (specialty/out-of-home and emerging markets) tightens balances over time and supports prices.",
-      "blurb": "Rising global coffee demand tightens supplies and raises prices.",
       "confidence": "medium",
+      "blurb": "Rising global coffee demand tightens supplies and raises prices.",
       "target_metric": "price"
     },
     {
@@ -837,8 +957,20 @@
       "target": "consumption",
       "edge_type": "drives",
       "sign": null,
+      "lag": null,
       "mechanism": "A stronger broad US dollar pressures dollar-denominated commodity prices and dampens importer purchasing power, weighing on arabica.",
+      "confidence": null,
       "blurb": "Stronger dollar pressures arabica prices down and reduces importer buying power."
+    },
+    {
+      "source": "macro_demand",
+      "target": "consumption",
+      "edge_type": "drives",
+      "sign": null,
+      "lag": null,
+      "mechanism": "Global growth and consumer discretionary spending drive out-of-home and specialty coffee consumption; recessions trade drinkers down or out and pressure arabica price.",
+      "confidence": null,
+      "blurb": "Growth lifts out-of-home and specialty coffee demand; recessions trade drinkers down and pressure prices."
     },
     {
       "source": "replanting_cycle",
@@ -847,8 +979,8 @@
       "sign": "+",
       "lag": "4-12 quarters",
       "mechanism": "Aging/destroyed trees being stumped and replanted reduce bearing area for 2-3 years, structurally tightening medium-term supply.",
-      "blurb": "Replanted trees reduce productive area for 2–3 years, tightening medium-term supply.",
       "confidence": "medium",
+      "blurb": "Replanted trees reduce productive area for 2–3 years, tightening medium-term supply.",
       "target_metric": "price"
     },
     {
@@ -856,7 +988,9 @@
       "target": "replanting_cycle",
       "edge_type": "drives",
       "sign": null,
+      "lag": null,
       "mechanism": "Coffee leaf rust (Hemileia vastatrix / la roya) epidemics defoliate arabica trees—favoured by warm, humid conditions—cutting yields multi-season; the 2012-14 Central America/Colombia roya crisis is the class event.",
+      "confidence": null,
       "blurb": "Warm, humid conditions spread coffee leaf rust, defoliating arabica trees and reducing yields for years."
     },
     {
@@ -864,7 +998,9 @@
       "target": "replanting_cycle",
       "edge_type": "drives",
       "sign": null,
+      "lag": null,
       "mechanism": "Soil-moisture deficit during cherry development and flowering reduces bean filling and aborts flowers, cutting Brazilian arabica yields.",
+      "confidence": null,
       "blurb": "Low soil moisture during cherry development cuts bean filling and aborts flowers, reducing yields."
     },
     {
@@ -874,9 +1010,41 @@
       "sign": "0",
       "lag": "0-1 quarters",
       "mechanism": "The ICE 'KC' arabica reference price, the COP/USD (TRM) exchange-rate narrative, and FNC price-stabilization policy (FEPCafe fund, PAI incentive) frame Colombian washed-arabica price formation; the relationship is a co-moving benchmark/context rather than a one-directional driver.",
-      "blurb": "Global arabica benchmark and peso exchange rates frame Colombian washed-arabica pricing through stabilization policy.",
       "confidence": "medium",
+      "blurb": "Global arabica benchmark and peso exchange rates frame Colombian washed-arabica pricing through stabilization policy.",
       "target_metric": "price"
+    },
+    {
+      "source": "macro_demand",
+      "target": "arabica_coffee",
+      "edge_type": "causes",
+      "sign": "+",
+      "lag": "1-4 quarters",
+      "mechanism": "Global growth and consumer discretionary spending drive out-of-home and specialty coffee consumption; recessions trade drinkers down or out and pressure arabica price.",
+      "confidence": "medium",
+      "blurb": "Growth lifts out-of-home and specialty coffee demand; recessions trade drinkers down and pressure prices.",
+      "target_metric": "price"
+    },
+    {
+      "source": "IOD_positive",
+      "target": "arabica_coffee",
+      "edge_type": "teleconnects_to",
+      "sign": "+",
+      "lag": "1-3 quarters",
+      "mechanism": "A positive IOD peaking in Sep-Nov suppresses the Belg short rains that follow roughly four months later over the Ethiopian arabica highlands, cutting flowering and early cherry set and tightening washed-arabica exportable supply, raising price.",
+      "confidence": "medium",
+      "blurb": "Positive IOD suppresses Ethiopian Belg rains, cutting cherry set and tightening washed-arabica supply.",
+      "target_metric": "price"
+    },
+    {
+      "source": "El_Nino",
+      "target": "IOD_positive",
+      "edge_type": "drives",
+      "sign": null,
+      "lag": null,
+      "mechanism": "El Nino brings wetter, milder conditions to southern Brazil (the dominant arabica producer) — supportive of the crop, so a larger Brazilian harvest pressures price; partly offset by drought risk to Colombia/Central America, but the Brazil channel dominates the net.",
+      "confidence": null,
+      "blurb": "Wetter conditions in Brazil boost arabica supply, pressuring prices down; offsetting drought risks elsewhere matter less."
     },
     {
       "source": "arabica_coffee",
@@ -885,6 +1053,7 @@
       "sign": "-",
       "lag": "0-3 quarters",
       "mechanism": "Cheap, abundant robusta substitutes into roaster blends, capping arabica demand; a narrowing arabica-robusta spread eases substitution pressure while a robusta supply shock (Vietnam drought) can pull arabica up via blend re-substitution.",
+      "confidence": null,
       "blurb": "Robusta abundance caps arabica demand; arabica prices rise when robusta supply tightens"
     }
   ]
