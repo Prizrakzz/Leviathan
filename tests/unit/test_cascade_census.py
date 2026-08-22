@@ -16,6 +16,17 @@ from leviathan.graphrag.numbers import cascade_census as cc
 from leviathan.graphrag.numbers import query as Q
 
 
+@pytest.fixture(autouse=True)
+def _clean_athena_stats():
+    """The census banner's `athena_calls` is `len(Q.STATS)` -- a MODULE GLOBAL any earlier suite in the
+    same process can leave residue in (test_numbers_query did: the pairing failed on clean HEAD
+    4570ec35 while each file alone passed). Reset on both sides of every test here so this file's
+    `athena_calls == 0` assertions count only what THIS test ran, whatever ran before it."""
+    Q.reset_stats()
+    yield
+    Q.reset_stats()
+
+
 def _drv(driver_id: str, silver_ref: str, region):
     return types.SimpleNamespace(id=driver_id, silver_ref=silver_ref, region=region)
 

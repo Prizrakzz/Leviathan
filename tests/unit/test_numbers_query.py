@@ -7,8 +7,23 @@ from __future__ import annotations
 
 import random
 
+import pytest
+
+from leviathan.graphrag.numbers import query as _Q
 from leviathan.graphrag.numbers.query import NumberQuery, apply_pit_filter, build_sql
 from leviathan.graphrag.numbers.registry import Metric, TableSpec, VintageTiebreakTerm, load_registry
+
+
+@pytest.fixture(autouse=True)
+def _clean_athena_stats():
+    """Q.STATS is a MODULE GLOBAL the census banner counts (cascade_census `athena_calls`), so a test
+    here that runs a query and leaves its stat behind fails test_cascade_census's `athena_calls == 0`
+    assertion IN ANOTHER FILE, only when the suites share a process and this one runs first (verified
+    on clean HEAD 4570ec35: the pairing fails, each file alone passes). Reset on both sides of every
+    test so suite order never matters."""
+    _Q.reset_stats()
+    yield
+    _Q.reset_stats()
 
 
 def _psd() -> TableSpec:                                   # wide + vintage
