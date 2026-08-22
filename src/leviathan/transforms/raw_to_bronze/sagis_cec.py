@@ -221,6 +221,41 @@ _CHANGE_TOKEN_RE = re.compile(r"[+-]?\d+,\d+\s*%?")
 # A CEC value integer: space/nbsp-grouped thousands ("3 615 650", "985 000") or a bare integer.
 _CEC_INT_RE = re.compile(r"\d{1,3}(?:[  ]\d{3})+|\d+")
 
+# ── THE CELL-FUSION FENCE (GN-2 W2.2, 2026-08-22; EDA-SEMANTIC-UNIT-001) ────────────────────
+# The era-B .doc extraction sometimes drops a  cell delimiter, FUSING two table cells into one
+# string ("2 05072 050" = two figures). The old accept branch space-stripped and float()'d that into
+# 205,072,050 -- a plausible-looking fabrication -- and longer fusions minted the measured 1.7e30
+# monsters (52 silver rows, 31.9% MAD outliers on the served column). The signature is structural
+# and detectable BEFORE any float exists:
+#   * a digit cell CONTAINING spaces must be exactly thousands-grouped (\d{1,3}( \d{3})*): a 5-digit
+#     group like "05072" can only come from fusion;
+#   * a spaceless digit run longer than _MAX_BARE_DIGITS cannot be a South African crop figure
+#     (the largest crop ever measured is ~2.4e7 t = 8 digits).
+# A fused cell POISONS ITS WHOLE ROW: _emit_summary_rows assigns values POSITIONALLY (values[0] =
+# area, values[1] = current), so dropping one cell silently shifts every later figure into the wrong
+# column -- worse than the big number. Fused rows are QUARANTINED (counted, source-keyed), never
+# emitted and never "repaired".
+_MAX_BARE_DIGITS = 8
+_GROUPED_CELL_RE = re.compile(r"[+-]?\d{1,3}(?:[  ]\d{3})*")
+_MALFORMED = object()      # _cell_value's fusion sentinel -- distinct from None (label/dash/change)
+
+
+def _is_fused_digit_cell(s: str) -> bool:
+    """True when a digit-bearing cell shows the cell-fusion signature (see the block above).
+
+    TWO independent arms, either sufficient: (1) STRUCTURE -- a spaced cell whose grouping is not
+    exactly thousands-grouped; (2) MAGNITUDE -- more than _MAX_BARE_DIGITS total digits REGARDLESS
+    of grouping: a fusion can land on perfectly valid grouping by luck ("158 915 500" -- the
+    measured 2022-09-28 total_maize 1.59e8, nine digits, which then poisoned six 2023 rows through
+    the prior-year join), and no South African crop figure has ever exceeded eight digits."""
+    if re.fullmatch(r"[+-]?[\d  ]+", s) is None:
+        return False                                   # not a pure digit/space cell: not ours to judge
+    if sum(ch.isdigit() for ch in s) > _MAX_BARE_DIGITS:
+        return True
+    if " " in s or " " in s:
+        return re.fullmatch(_GROUPED_CELL_RE, s) is None
+    return False
+
 
 def _line_values(rest: str) -> list[float]:
     """Extract the ordered numeric VALUES from the part of a PDF text line after the crop label.
@@ -229,6 +264,11 @@ def _line_values(rest: str) -> list[float]:
     reads space-grouped thousands as single integers. Returns them in printed order (area first)."""
     cleaned = _CHANGE_TOKEN_RE.sub(" ", rest.replace(" ", " "))
     cleaned = cleaned.replace("%", " ")
+    # NO fusion belt HERE, deliberately (W2.2 post-mortem): this function's ONE consumer is the
+    # early-PDF title check ("a title line carries no values"), so silently DROPPING an over-long
+    # token turned data lines into "titles" and misattributed whole province tables to the wrong
+    # crop (six fabricated rows: 2000 "soybeans" and 2008 "sunflower" wearing the maize table's
+    # figures). Magnitude fencing lives in _cell_value, the path that actually mints values.
     return [float(m.group().replace(" ", "").replace(" ", "")) for m in _CEC_INT_RE.finditer(cleaned)]
 
 
@@ -243,6 +283,8 @@ def _cell_value(cell) -> Optional[float]:
         return None
     if "," in s or "%" in s:            # change column -> not a value
         return None
+    if _is_fused_digit_cell(s):         # W2.2: fusion signature -> the caller QUARANTINES the row
+        return _MALFORMED
     s2 = s.replace(" ", "")
     if re.fullmatch(r"[+-]?\d+", s2):
         return float(s2)
@@ -875,7 +917,12 @@ def _read_modern_pdf(data: bytes, source_key: str) -> CecParseResult:
             if not row:
                 continue
             label = (row[0] or "").replace("\n", " ").strip()
-            values = [v for v in (_cell_value(c) for c in row[1:]) if v is not None]
+            cellvals = [_cell_value(c) for c in row[1:]]
+            if any(v is _MALFORMED for v in cellvals):
+                result.quarantined.append(QuarantineRecord(
+                    "cell_fusion", ERA_MODERN_PDF, source_key, label[:80]))
+                continue
+            values = [v for v in cellvals if v is not None]
             rows.append((label, values))
     _emit_summary_rows(rows, meta, result)
     return result
@@ -910,7 +957,12 @@ def _read_early_pdf(data: bytes, source_key: str) -> CecParseResult:
                     f = _fold((row[0] or "").replace("\n", " "))
                     if not ("total rsa" in f or f.startswith("totaal")):
                         continue
-                    values = [v for v in (_cell_value(c) for c in row[1:]) if v is not None]
+                    cellvals = [_cell_value(c) for c in row[1:]]
+                    if any(v is _MALFORMED for v in cellvals):
+                        result.quarantined.append(QuarantineRecord(
+                            "cell_fusion", ERA_EARLY_PDF, source_key, f[:80]))
+                        continue
+                    values = [v for v in cellvals if v is not None]
                     if len(values) < 2:
                         continue
                     if _crop_season_mismatch(crop, meta.season_type):
@@ -950,33 +1002,51 @@ def _read_doc(data: bytes, era: str, source_key: str) -> CecParseResult:
     meta = _build_meta(era, source_key, text, text, "doc")
     result = CecParseResult(era=era, source_key=source_key)
     cells = [c.strip() for c in head.split("\x07")]
-    rows = _rows_from_cells(cells)
+    rows, fused = _rows_from_cells(cells)
+    for lbl in fused:
+        result.quarantined.append(QuarantineRecord(
+            "cell_fusion", era, source_key,
+            f"{lbl[:80]}: a fused digit cell broke the row's positional integrity (W2.2)"))
     _emit_summary_rows(rows, meta, result)
     return result
 
 
-def _rows_from_cells(cells: list[str]) -> list[tuple[str, list[float]]]:
+def _rows_from_cells(cells: list[str]) -> tuple[list[tuple[str, list[float]]], list[str]]:
     """Group a flat .doc cell stream into (label, values) rows: a non-numeric label cell starts a
-    row and the following numeric cells are its values (until the next label cell)."""
+    row and the following numeric cells are its values (until the next label cell). Returns
+    (rows, fused_labels) -- a row containing a fused digit cell (W2.2) is refused WHOLE and its
+    label lands in the second list for the caller to quarantine."""
     rows: list[tuple[str, list[float]]] = []
+    fused: list[str] = []
     label: Optional[str] = None
     values: list[float] = []
+    poisoned = False
+
+    def _flush() -> None:
+        nonlocal poisoned
+        if label is not None:
+            if poisoned:
+                fused.append(label)     # W2.2: positional integrity broken -> refuse the row whole
+            else:
+                rows.append((label, values))
+        poisoned = False
+
     for cell in cells:
         if not cell:
             continue
         num = _cell_value(cell)
-        if num is None:
+        if num is _MALFORMED:
+            poisoned = True
+        elif num is None:
             # a change-% cell ("+1,41") is not a value and not a new label -> ignore mid-row
             if "," in cell or "%" in cell:
                 continue
-            if label is not None:
-                rows.append((label, values))
+            _flush()
             label, values = cell, []
         else:
             values.append(num)
-    if label is not None:
-        rows.append((label, values))
-    return rows
+    _flush()
+    return rows, fused
 
 
 def _read_xls(data: bytes, source_key: str) -> CecParseResult:
@@ -986,6 +1056,7 @@ def _read_xls(data: bytes, source_key: str) -> CecParseResult:
     sheet = book.sheet_by_index(0)
     all_text_parts: list[str] = []
     grid: list[tuple[str, list[float]]] = []
+    fused_rows: list[str] = []
     for r in range(sheet.nrows):
         raw_cells = [sheet.cell_value(r, c) for c in range(sheet.ncols)]
         label = ""
@@ -994,12 +1065,18 @@ def _read_xls(data: bytes, source_key: str) -> CecParseResult:
                 label = cell.strip()
                 all_text_parts.append(label)
                 break
-        values = [v for v in (_cell_value(c) for c in raw_cells) if v is not None]
+        cellvals = [_cell_value(c) for c in raw_cells]
+        if any(v is _MALFORMED for v in cellvals):
+            fused_rows.append(label[:80])
+            continue
+        values = [v for v in cellvals if v is not None]
         grid.append((label, values))
 
     full = "\n".join(all_text_parts)
     meta = _build_meta(ERA_XLS, source_key, full, full, "xls")
     result = CecParseResult(era=ERA_XLS, source_key=source_key)
+    for lbl in fused_rows:
+        result.quarantined.append(QuarantineRecord("cell_fusion", ERA_XLS, source_key, lbl))
     # Bound to the summary block: stop at the first province-detail header row.
     summary: list[tuple[str, list[float]]] = []
     for label, values in grid:

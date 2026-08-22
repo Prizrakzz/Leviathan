@@ -183,7 +183,12 @@ value_columns:
 - ndvi
 - ndvi_z_score
 min_nonnull_frac: 0.5
-min_nonnull_frac_status: provisional
+min_nonnull_frac_overrides:
+  ndvi: 0.7   # OP-8 measured worst 1
+  ndvi_z_score: 0.65   # OP-8 measured worst 0.9879
+  period: 0.7   # OP-8 measured worst 1
+min_nonnull_frac_status: calibrated   # OP-8 census 2026-08-22 (task #62): per-column floors
+#   = worst COMPLETED publish-frame fraction x 0.7 margin, grid 0.05, clamp [0.02, 0.9]; hand-curated rows untouched; the scalar stays for future columns
 coverage_axis: commodity x country x region x date
 vintage_retention: latest-only
 knowledge_date_col: null

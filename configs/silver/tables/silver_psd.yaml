@@ -159,7 +159,8 @@ value_columns:
 - yield_mt_ha
 - su_ratio
 min_nonnull_frac: 0.5
-min_nonnull_frac_status: provisional
+min_nonnull_frac_status: calibrated   # OP-8 census 2026-08-22 (task #62): per-column floors
+#   = worst COMPLETED publish-frame fraction x 0.7 margin, grid 0.05, clamp [0.02, 0.9]; hand-curated rows untouched; the scalar stays for future columns
 coverage_axis: commodity x country x market_year x release_date
 vintage_retention: per-vintage
 knowledge_date_col: release_date
@@ -195,5 +196,12 @@ notes: 'min_nonnull_frac is PROVISIONAL (uniform 0.5) pending per-source calibra
   This registry is the SINGLE authority for value_columns and min_nonnull_frac (Attack 3 finding #6).
   Types are the INV-2 TARGET writer schema; arrow_type is the current-physical type from the R0 baseline.'
 min_nonnull_frac_overrides:
+  beginning_stocks_mt: 0.65   # OP-8 measured worst 0.9854
+  consumption_mt: 0.7   # OP-8 measured worst 1
+  ending_stocks_mt: 0.65   # OP-8 measured worst 0.9854
+  exports_mt: 0.7   # OP-8 measured worst 1
+  imports_mt: 0.7   # OP-8 measured worst 1
+  production_mt: 0.7   # OP-8 measured worst 1
+  su_ratio: 0.65   # OP-8 measured worst 0.9622
   area_harvested_1000ha: 0.4
   yield_mt_ha: 0.4

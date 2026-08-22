@@ -100,7 +100,15 @@ value_columns:
 - anhydrous_accum_kl
 - hydrous_accum_kl
 min_nonnull_frac: 0.5
-min_nonnull_frac_status: provisional
+min_nonnull_frac_overrides:
+  anhydrous_accum_kl: 0.65   # OP-8 measured worst 0.9884
+  anhydrous_quinzenal_kl: 0.7   # OP-8 measured worst 1
+  hydrous_accum_kl: 0.65   # OP-8 measured worst 0.9884
+  hydrous_quinzenal_kl: 0.7   # OP-8 measured worst 1
+  total_accum_kl: 0.65   # OP-8 measured worst 0.9884
+  total_quinzenal_kl: 0.7   # OP-8 measured worst 1
+min_nonnull_frac_status: calibrated   # OP-8 census 2026-08-22 (task #62): per-column floors
+#   = worst COMPLETED publish-frame fraction x 0.7 margin, grid 0.05, clamp [0.02, 0.9]; hand-curated rows untouched; the scalar stays for future columns
 coverage_axis: one row per harvest_year x fortnight position (biweekly; corn ethanol, national)
 vintage_retention: latest-only
 knowledge_date_col: fortnight_date

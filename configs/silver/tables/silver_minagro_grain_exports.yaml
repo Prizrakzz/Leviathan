@@ -84,7 +84,13 @@ value_columns:
 - prior_my_cumulative_kt
 - prior_my_month_kt
 min_nonnull_frac: 0.5
-min_nonnull_frac_status: provisional
+min_nonnull_frac_overrides:
+  month_to_date_kt: 0.7   # OP-8 measured worst 1
+  my_cumulative_kt: 0.7   # OP-8 measured worst 1
+  prior_my_cumulative_kt: 0.7   # OP-8 measured worst 1
+  prior_my_month_kt: 0.7   # OP-8 measured worst 1
+min_nonnull_frac_status: calibrated   # OP-8 census 2026-08-22 (task #62): per-column floors
+#   = worst COMPLETED publish-frame fraction x 0.7 margin, grid 0.05, clamp [0.02, 0.9]; hand-curated rows untouched; the scalar stays for future columns
 coverage_axis: as_of_date x crop_slug
 vintage_retention: latest-only
 knowledge_date_col: as_of_date

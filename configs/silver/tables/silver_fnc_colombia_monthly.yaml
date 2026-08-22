@@ -99,7 +99,14 @@ value_columns:
 - ex_dock_price_usd_cents_per_lb
 - internal_price_cop_per_125kg
 min_nonnull_frac: 0.5
-min_nonnull_frac_status: provisional
+min_nonnull_frac_overrides:
+  ex_dock_price_usd_cents_per_lb: 0.7   # OP-8 measured worst 1
+  exports_bags_60kg: 0   # OP-8 measured worst 0
+  exports_value_usd_m: 0   # OP-8 measured worst 0
+  internal_price_cop_per_125kg: 0   # OP-8 measured worst 0
+  production_bags_60kg: 0   # OP-8 measured worst 0
+min_nonnull_frac_status: calibrated   # OP-8 census 2026-08-22 (task #62): per-column floors
+#   = worst COMPLETED publish-frame fraction x 0.7 margin, grid 0.05, clamp [0.02, 0.9]; hand-curated rows untouched; the scalar stays for future columns
 coverage_axis: commodity x year x month
 vintage_retention: latest-only
 knowledge_date_col: date

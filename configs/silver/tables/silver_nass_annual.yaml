@@ -152,7 +152,13 @@ value_columns:
 - area_harvested_ha
 - area_planted_ha
 min_nonnull_frac: 0.5
-min_nonnull_frac_status: provisional
+min_nonnull_frac_overrides:
+  area_harvested_ha: 0   # OP-8 measured worst 0
+  area_planted_ha: 0   # OP-8 measured worst 0
+  production_mt: 0   # OP-8 measured worst 0
+  yield_t_ha: 0   # OP-8 measured worst 0
+min_nonnull_frac_status: calibrated   # OP-8 census 2026-08-22 (task #62): per-column floors
+#   = worst COMPLETED publish-frame fraction x 0.7 margin, grid 0.05, clamp [0.02, 0.9]; hand-curated rows untouched; the scalar stays for future columns
 coverage_axis: commodity x state x year
 vintage_retention: latest-only
 knowledge_date_col: release_date

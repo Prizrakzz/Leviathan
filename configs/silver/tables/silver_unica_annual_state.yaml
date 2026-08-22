@@ -77,7 +77,12 @@ value_columns:
 - sugar_produced_t
 - ethanol_total_m3
 min_nonnull_frac: 0.5
-min_nonnull_frac_status: provisional
+min_nonnull_frac_overrides:
+  cane_crushed_t: 0.7   # OP-8 measured worst 1
+  ethanol_total_m3: 0.7   # OP-8 measured worst 1
+  sugar_produced_t: 0.7   # OP-8 measured worst 1
+min_nonnull_frac_status: calibrated   # OP-8 census 2026-08-22 (task #62): per-column floors
+#   = worst COMPLETED publish-frame fraction x 0.7 margin, grid 0.05, clamp [0.02, 0.9]; hand-curated rows untouched; the scalar stays for future columns
 coverage_axis: harvest_year x state_region
 vintage_retention: latest-only
 knowledge_date_col: null

@@ -124,7 +124,11 @@ value_columns:
 - current_estimate_t
 - area_planted_ha
 min_nonnull_frac: 0.5
-min_nonnull_frac_status: provisional
+min_nonnull_frac_overrides:
+  area_planted_ha: 0.65   # OP-8 measured worst 0.9971
+  current_estimate_t: 0.7   # OP-8 measured worst 1
+min_nonnull_frac_status: calibrated   # OP-8 census 2026-08-22 (task #62): per-column floors
+#   = worst COMPLETED publish-frame fraction x 0.7 margin, grid 0.05, clamp [0.02, 0.9]; hand-curated rows untouched; the scalar stays for future columns
 coverage_axis: production_year x report_month x crop x scope x estimate_number
 vintage_retention: per-vintage
 knowledge_date_col: release_date
