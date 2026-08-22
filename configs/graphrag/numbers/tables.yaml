@@ -3709,9 +3709,10 @@ tables:
       SETTLEMENTS, so settle_kind reads settlement on every ordinary row; a session whose legs disagreed
       reads mixed and should be quoted with that said out loud. A crush built from session closes is a
       different object from one built from settlements.
-      COVERAGE STARTS 2010-06-06 AND THERE IS NO HISTORY BEFORE IT. That is the measured GLBX floor for
-      all three legs (silver_futures_eod's own per-contract coverage map, measured from the canonical
-      bytes rather than copied from a plan), so a crush for 2008 or 2005 is NOT ANSWERABLE from this
+      COVERAGE STARTS 2015-11-19 AND THERE IS NO HISTORY BEFORE IT (RE-MEASURED 2026-08-22 from the
+      SERVED parquet: 2,652 rows, 2015-11-19..2026-08-18 -- the earlier "2010-06-06" figure was the
+      GLBX floor for the LEGS, not the floor of the three-leg INTERSECTION this card serves; the
+      producer's own notes carry the same fact). A crush for 2014 or 2008 is NOT ANSWERABLE from this
       card. Decline rather than splicing a different series in front of it.
       commodity IS OPTIONAL AND THERE IS NO PRODUCT AXIS -- every row is the same single CBOT spread. If
       you pass one, pass soybeans_cbot, soybean_meal_cbot, soybean_oil_cbot or soy_complex; anything

@@ -90,6 +90,11 @@ refs:
   # repoint today would narrate 12 region rows, not the national headline. When the producer region filter
   # lands, add the ref below AND drop conab_production_revision from the proxy note above; gate on
   # config_check.check_cascade_map + a cascade_census --diff (only this ref moves):
+  # ── GN-1 RECON WARNING (2026-08-22): pasting this row TODAY is a trap that passes every lint. The
+  # blocker the comment above names (region filter) is only ONE of four measured grounds -- the row as
+  # sketched reads 12 region rows not the national headline, the card fences the REVISION columns by
+  # name (tables.yaml, the sagis D4 exclusion mirror), and the LEVEL metric it uses would return
+  # zero-delta windows on survey cadence. Re-run the GN-1 recon's measurements before landing anything.
   #   conab_production_revision:
   #     table: silver_conab_coffee
   #     metric: production_thousand_bags
@@ -433,24 +438,47 @@ refs:
 #     is CONSIDERED-AND-REFUSED there, not silent here; it is additionally quarantined (SILVER-F047) and
 #     stripped from serving visibility as of D-LD Sitting-A. The weather legs resolve to gold_weather_z.
 #   silver_icco_cocoa -- DEFERRED: no driver attribute names grindings.
-#   silver_mpob -- DEFERRED: no driver attribute names Malaysian palm stocks or output.
+#   silver_mpob -- DEFERRED, premise RE-ARGUED (GN-1 recon 2026-08-22; the original "no driver names
+#     it" became false when the completion wave minted `biennial_low_cycle` with silver_ref
+#     mpob_fundamentals on malaysian_crude_palm_oil_cme). The refusal now stands on the ONE-REF-ONE-
+#     (table,metric) law: `mpob_fundamentals` is a BASKET name -- the two candidate drivers want two
+#     DIFFERENT metrics (stocks vs output), so a single row under this ref cannot be honest. UN-DEFER
+#     GATE: split the DAG refs to metric-specific names (mpob_stocks_z / mpob_output_z class), then one
+#     row each. A sound stocks row exists in the GN-1 recon record for whoever executes the split.
 #   silver_mpoc_stock_comparison -- DEFERRED: no driver attribute names destination-side vegoil stocks.
-#   silver_sagis_cec -- DEFERRED: no driver attribute names the South African crop estimate.
+#   silver_sagis_cec -- DEFERRED, premise RE-ARGUED (GN-1 recon 2026-08-22; both SA maize boards now
+#     carry `cec_production_revision` with silver_ref sagis_cec_revision). The refusal stands on the
+#     D4/sagis REVISIONS ground this file already applies to wap_table01: a cross-survey DELTA series
+#     is vintage arithmetic, not an observed level, and no cascade change-rule can narrate a revision
+#     of a revision honestly. UN-DEFER GATE: a served LEVEL metric with a declared revision axis.
 #   silver_sagis_weekly_exports -- DEFERRED: no driver attribute names South African weekly export
 #     volumes; the export refs above resolve to silver_psd.
-#   silver_nass_crop_progress -- DEFERRED: no driver attribute names crop condition or planting/harvest
-#     pace.
+#   silver_nass_crop_progress -- DEFERRED, premise RE-ARGUED (GN-1 recon 2026-08-22; pod_fill and
+#     boll_set now declare silver_ref nass_crop_progress_ge_z). The refusal stands on GEOGRAPHY: the
+#     phenology drivers are stage-and-region-specific and this map's country_rule knobs (none|primary|
+#     region) cannot key a state-level G/E share to a stage window -- country_rule none returns a real,
+#     cited, unit-clean number about the WRONG geography (the D4 failure in its purest form; measured
+#     in the recon). UN-DEFER GATE: a stage/region keying knob, not a map row.
 #   gold_pattern_records -- DEFERRED: the outcomes ledger card, not an observed-data series; a cascade
 #     ref would feed engine output back into the engine.
-#   silver_fgis -- DEFERRED (D-LD Track-1 card, lit 2026-08-18): no driver attribute names weekly export
-#     inspections; the export-pace refs above resolve to silver_psd/esr.
-#   silver_wap_table01_revisions -- DEFERRED (D-LD Track-1 card): a REVISIONS series; a cascade ref
-#     would bind a driver to vintage deltas, which no DAG attribute names.
+#   silver_fgis -- DEFERRED (D-LD Track-1 card, lit 2026-08-18), premise RE-ARGUED (GN-1 recon
+#     2026-08-22; `us_export_competition` on campinas now declares silver_ref fgis_export_pace_yoy).
+#     The refusal stands on the ENGINE seam: a YoY pace read needs cascade.py's PACE_TABLES +
+#     _PACE_COLLAPSE treatment, which this map's knobs cannot express -- lighting it is a code change
+#     with its own review, never a row. The export-pace refs above still resolve to silver_psd/esr.
+#   silver_wap_table01_revisions -- DEFERRED (D-LD Track-1 card), premise HALF-MOVED (GN-1 recon
+#     2026-08-22: `Canada_production` on mgex now declares silver_ref wap_nonUS_revision -- a DAG
+#     attribute DOES name it now). The refusal's mechanical half stands untouched: a REVISIONS series
+#     is vintage deltas, and a cascade change-window over deltas double-differences the data into
+#     noise with a sign no desk can read. UN-DEFER GATE unchanged: a served LEVEL metric.
 #   silver_fnc_colombia_monthly -- DEFERRED (D-LD Track-1 card): no driver attribute names Colombian
 #     monthly coffee output.
 #   silver_fnc_colombia_exports_port_type -- DEFERRED (D-LD Track-1 card): no driver attribute names
 #     port-type export splits.
-#   silver_nass_citrus -- DEFERRED (D-LD Track-1 card): no driver attribute names citrus forecasts.
+#   silver_nass_citrus -- DEFERRED (D-LD Track-1 card), premise RE-ARGUED (GN-1 recon 2026-08-22;
+#     `Florida_orange_production` on FCOJ now declares silver_ref nass_citrus_revisions). The refusal
+#     stands on the same REVISIONS ground as wap_table01 above, plus source debt: the citrus lane has
+#     raw but no text/level producer. UN-DEFER GATE: a level-series producer first.
 #   silver_mpoc_trade_stats_monthly -- DEFERRED (D-LD Track-1 card): no driver attribute names
 #     destination-side palm import volumes; the mpob refs above carry the origin side.
 #   -- D-LD TRANCHE 2 (2026-08-18), six cards lit in the same wave. The block above was corrected on
@@ -460,9 +488,12 @@ refs:
 #   silver_sagis_weekly_deliveries -- DEFERRED (D-LD Tranche-2 card): no driver attribute names South
 #     African producer deliveries into commercial storage; the South African refs above resolve to
 #     silver_psd, and the sibling export-pace card is DEFERRED on the same ground.
-#   silver_ams_cotton_quality -- DEFERRED (D-LD Tranche-2 card): no driver attribute names crop QUALITY
-#     at all -- the cotton drivers ask for quantity, price and condition. This is the estate's only
-#     quality axis, so there is not even a near-neighbour attribute to refuse it against.
+#   silver_ams_cotton_quality -- DEFERRED (D-LD Tranche-2 card), premise RE-ARGUED (GN-1 recon
+#     2026-08-22; `tenderable_quality_squeeze` on cotton now declares silver_ref ams_cotton_quality --
+#     the near-neighbour exists now). The refusal stands on source debt + semantics: the quality lane
+#     has raw classing data but no silver producer, and a tenderable-quality SQUEEZE is a distribution
+#     tail, not a level a single metric row can carry. UN-DEFER GATE: the classing silver producer plus
+#     a declared tail metric.
 #   silver_nass_annual -- DEFERRED (D-LD Tranche-2 card): no driver attribute names settled annual US
 #     acreage, yield or production; the US production/area drivers resolve to silver_psd, which is
 #     vintage-clean across countries where this card is US-only.
@@ -545,6 +576,17 @@ refs:
 #     not a re-point of `export`), plus a keying knob that maps a row label to the commodity axis. Until
 #     then the card serves lookups -- which is what the dark corridor question actually asked for -- and
 #     the cascade stays out.
+#
+#   -- GN-1 RECON (2026-08-22): two cards were ABSENT from this register while its header claims
+#      completeness -- the exact mechanism the wf_051e926a F5 correction named. Both land here now.
+#   silver_futures_eod -- REFUSED: the `price` ref three non-US maize boards declare (cbot_arbitrage /
+#     cbot_corn_anchor / cbot_corn_price) would bind the engine's OWN price surface into the cascade --
+#     a self-reference that narrates the market to itself and passes every existing lint silently
+#     (check_cascade_map tests only table.metric existence). A price LEVEL is the target, never a
+#     driver. UN-DEFER GATE: none foreseen; the cross-market relationship is the GRAPH's job
+#     (inter_commodity edges), not a numbers leg.
+#   silver_futures_prices -- REFUSED on the same self-reference ground, plus its own build fence:
+#     close-only AND levels_only (build_sql raises on any window/series/spread read).
 
 # ── region_map (RF-2) -- driver region token -> table scope, for country_rule=region refs ──────────────
 # TOP-LEVEL sibling of refs (load_map returns refs only; cascade.load_region_map reads this block).
