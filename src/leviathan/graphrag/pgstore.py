@@ -129,11 +129,30 @@ _CONN = None
 _PG_LOCK = threading.Lock()
 
 # Serving-path connection POOL: a turn issues ~34 round-trips (10 fill fetches + ~24 regime probes); one
-# lock-serialized connection made that ~8.5s of the walk. A few pooled autocommit connections un-serialize it
-# (RDS t4g.micro handles this comfortably). Callers that pass an explicit `conn` (tests, the loader) keep the
-# old single-connection + lock path.
+# lock-serialized connection made that ~8.5s of the walk. A few pooled autocommit connections un-serialize it.
+# Callers that pass an explicit `conn` (tests, the loader) keep the old single-connection + lock path.
+#
+# DEFAULT 4 -> 8 (2026-08-23, owner challenge "why don't we increase ... since it affects answer quality").
+# The old 4 was sized against an RDS t4g.micro this estate no longer runs, and it was never a safety margin --
+# it was a BOTTLENECK wearing one, on two measured counts:
+#   (1) QUALITY/LATENCY: planner._PROBE_WORKERS notes effective probe concurrency is
+#       min(probe_workers, EVIDENCE_PG_POOL), so a pool of 4 throttles the WALK itself no matter how wide
+#       the preset asks to be -- the pool silently sets the graph's fan-out.
+#   (2) AVAILABILITY: exhaustion is not a queue, it is a KILL -- _POOL_WAIT_S trips and the turn floors
+#       (`pg_pool_exhausted`). That class voided a whole deck arm set on 2026-08-23.
+# MEASURED HEADROOM (db.m7g.xlarge, 4 vCPU/16 GB, postgres 17): max_connections ~1,800; 14-day peak
+# 56 connections (the 2026-08-23 eval arms), production-only peak far lower. 8 matches what the serving
+# taskdef has always overridden to, so this default now AGREES with production instead of quietly
+# disagreeing with it. THE REAL CEILING IS RDS CPU, NOT CONNECTIONS -- measured 2026-08-23: TWO eval arms
+# pinned the DB at 99.8-100% CPU at 56 conns (3% of the connection ceiling). The mechanism: there is NO ANN
+# index by design (see the module docstring) -- the dense leg is an exact cosine scan, single-threaded and
+# CPU-bound, so ONE borrowed slot ~= ONE busy DB vCPU and the sane pool is ~2x DB cores. 4 vCPU -> 8.
+# Raise ONLY after the DB grows cores, and NEVER without decoupling numbers/cascade.py's fan-out width,
+# which reads _POOL_SIZE directly (cascade.py:1223/:3226/:3404) -- a bigger pool currently widens ONE
+# turn's cascade instead of admitting more turns. Eval arms pass EVIDENCE_PG_POOL=24 explicitly because
+# their concurrency is known and bounded.
 _POOL = None
-_POOL_SIZE = int(os.environ.get("EVIDENCE_PG_POOL", "4"))
+_POOL_SIZE = int(os.environ.get("EVIDENCE_PG_POOL", "8"))
 # Checkout wait ceiling: holders keep a conn for milliseconds (one execute+fetch), so a multi-minute wait
 # means slots leaked or a holder wedged — fail the ONE caller loudly (pg_query degrades to its Athena
 # fallback; a walk fetch errors its turn) instead of blocking every worker forever (Jul-11 stall autopsy).
