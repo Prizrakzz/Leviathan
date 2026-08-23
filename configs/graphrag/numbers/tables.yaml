@@ -46,15 +46,15 @@ tables:
     knowledge_date_col: release_date
     knowledge_semantics: vintage
     metrics:
-      production_mt:         {unit: "MT", desc: "production for the marketing year"}
-      exports_mt:            {unit: "MT", desc: "exports"}
-      imports_mt:            {unit: "MT", desc: "imports"}
-      beginning_stocks_mt:   {unit: "MT", desc: "carry-in stocks"}
-      ending_stocks_mt:      {unit: "MT", desc: "carry-out stocks"}
-      consumption_mt:        {unit: "MT", desc: "domestic consumption/use"}
-      area_harvested_1000ha: {unit: "1000 ha", desc: "harvested area"}
-      yield_mt_ha:           {unit: "MT/ha", desc: "yield"}
-      su_ratio:              {unit: "ratio", desc: "stocks-to-use ratio"}
+      production_mt:         {label: "production", unit: "MT", desc: "production for the marketing year"}
+      exports_mt:            {label: "exports", unit: "MT", desc: "exports"}
+      imports_mt:            {label: "imports", unit: "MT", desc: "imports"}
+      beginning_stocks_mt:   {label: "beginning stocks", unit: "MT", desc: "carry-in stocks"}
+      ending_stocks_mt:      {label: "ending stocks", unit: "MT", desc: "carry-out stocks"}
+      consumption_mt:        {label: "consumption", unit: "MT", desc: "domestic consumption/use"}
+      area_harvested_1000ha: {label: "area harvested", unit: "1000 ha", desc: "harvested area"}
+      yield_mt_ha:           {label: "yield", unit: "MT/ha", desc: "yield"}
+      su_ratio:              {label: "stocks-to-use ratio", unit: "ratio", desc: "stocks-to-use ratio"}
     notes: >
       Values in `_mt` columns are RAW metric tonnes (verified: Argentina corn MY2023 ending stocks = 2,462,000
       = 2.46 MMT). period = the marketing year as an integer (e.g. 2023). Latest vintage <= asof = as-known.
@@ -144,12 +144,12 @@ tables:
       # The previous Title-Case names ('Ending Stocks', 'Total Use') matched ZERO rows — every WASDE lookup
       # silently compiled to an empty result and reported "not yet published". Caught by the pg-mirror
       # loader's 0-row load; values verified against SELECT DISTINCT attribute on release_date=2024-06-12.
-      "ending_stocks":   {desc: "carry-out stocks line"}
-      "production":      {desc: "production line"}
-      "exports":         {desc: "exports line"}
-      "imports":         {desc: "imports line"}
-      "domestic_total":  {desc: "total domestic use line (was mislabeled 'Total Use')"}
-      "beginning_stocks": {desc: "carry-in stocks line"}
+      "ending_stocks":   {label: "ending stocks", desc: "carry-out stocks line"}
+      "production":      {label: "production", desc: "production line"}
+      "exports":         {label: "exports", desc: "exports line"}
+      "imports":         {label: "imports", desc: "imports line"}
+      "domestic_total":  {label: "total domestic use", desc: "total domestic use line (was mislabeled 'Total Use')"}
+      "beginning_stocks": {label: "beginning stocks", desc: "carry-in stocks line"}
       # PRICE_OBSERVABILITY A3 RE-WHITELIST (2026-07-22): silver_wasde was rebuilt + promoted (canonical
       # CERTIFIED, 373 releases 1995+, pg parity PASS) and avg_farm_price is LIVE data again -- unwinding the
       # July W3.0 exclusion (label-dead then; the bronze alias was re-extended + re-parsed). Coverage + units
@@ -179,6 +179,7 @@ tables:
       # R1 (config_check) binds unit_overrides keys to _FARM_PRICE_COMMODITIES; R3 binds the estimate_role-first
       # vintage_tiebreak + provenance_col above (both already present).
       "avg_farm_price":
+        label: "average farm price"
         desc: >
           US season-average price by commodity (USDA survey-based; NOT a futures settle). corn, wheat, sorghum,
           oats and barley are $/bu; rice $/cwt; cotton c/lb; soybeans $/bu. soybean_oil (c/lb) and soybean_meal
@@ -231,9 +232,9 @@ tables:
       # physical vocabulary is production_quantity/area_harvested/yield (footer-probed 2026-07-15);
       # the old declared name 'production' was a zero-row phantom -- the pg loader's isin filter
       # never even mirrored those rows (C002-caught at the first live Branch-A gate fire).
-      production_quantity: {desc: "production quantity"}
-      area_harvested:      {desc: "harvested area"}
-      yield:               {desc: "yield"}
+      production_quantity: {label: "production", desc: "production quantity"}
+      area_harvested:      {label: "area harvested", desc: "harvested area"}
+      yield:               {label: "yield", desc: "yield"}
     notes: "metric strings match the dataset's metric labels. period = year integer."
 
   # SILVER-F047 QUARANTINE (corrected 2026-07-21 -- the earlier claim of a BF-W1 "numbers dispatch
@@ -275,12 +276,12 @@ tables:
     month_col: month                     # catalog); month = an in-file column since the compaction
     knowledge_semantics: data_date
     metrics:
-      temperature_2m_mean_c:    {unit: "degC", desc: "daily mean 2m temperature"}
-      temperature_2m_max_c:     {unit: "degC", desc: "daily max 2m temperature"}
-      temperature_2m_min_c:     {unit: "degC", desc: "daily min 2m temperature"}
-      precipitation_mm:         {unit: "mm", desc: "daily precipitation"}
-      relative_humidity_2m_pct: {unit: "pct", desc: "daily mean relative humidity"}
-      wind_speed_2m_m_s:        {unit: "m/s", desc: "daily mean 2m wind speed"}
+      temperature_2m_mean_c:    {label: "daily mean temperature", unit: "degC", desc: "daily mean 2m temperature"}
+      temperature_2m_max_c:     {label: "daily max temperature", unit: "degC", desc: "daily max 2m temperature"}
+      temperature_2m_min_c:     {label: "daily min temperature", unit: "degC", desc: "daily min 2m temperature"}
+      precipitation_mm:         {label: "daily precipitation", unit: "mm", desc: "daily precipitation"}
+      relative_humidity_2m_pct: {label: "relative humidity", unit: "pct", desc: "daily mean relative humidity"}
+      wind_speed_2m_m_s:        {label: "wind speed", unit: "m/s", desc: "daily mean 2m wind speed"}
     notes: >
       Use period_start/period_end for the window and agg=sum (precip) or agg=mean (temp). region partition
       exists but is not yet a query filter (v1 aggregates across regions of a commodity+country).
@@ -350,10 +351,10 @@ tables:
     athena_table: silver_esr_compact
     partition_cols: [commodity]
     metrics:
-      weekly_exports_1000mt:    {unit: "1000 MT", desc: "actual shipments in the week"}
-      outstanding_sales_1000mt: {unit: "1000 MT", desc: "unshipped sales on the books"}
-      gross_new_sales_1000mt:   {unit: "1000 MT", desc: "new sales booked in the week"}
-      changes_1000mt:           {unit: "1000 MT", desc: "net change in outstanding sales"}
+      weekly_exports_1000mt:    {label: "weekly exports", unit: "1000 MT", desc: "actual shipments in the week"}
+      outstanding_sales_1000mt: {label: "outstanding sales", unit: "1000 MT", desc: "unshipped sales on the books"}
+      gross_new_sales_1000mt:   {label: "gross new sales", unit: "1000 MT", desc: "new sales booked in the week"}
+      changes_1000mt:           {label: "weekly net changes", unit: "1000 MT", desc: "net change in outstanding sales"}
     notes: >
       Units are 1000 MT (the transform divides raw MT by 1000). commodity = contract slug. Pass country=<name>
       for a per-destination (buyer) read, or OMIT country for the national total (agg=sum for a marketing-year
@@ -374,12 +375,12 @@ tables:
     date_col: date
     knowledge_semantics: data_date
     metrics:
-      brl_usd: {unit: "BRL per USD (FRED)", desc: "Brazilian real per US dollar; higher = weaker real"}
-      ars_usd: {unit: "ARS per USD (FRED)", desc: "Argentine peso per US dollar; higher = weaker peso"}
-      cny_usd: {unit: "CNY per USD (FRED)", desc: "Chinese yuan per US dollar; higher = weaker yuan"}
-      brl_usd_pct_change_90d: {unit: "pct", desc: "BRL/USD 90-day percent change"}
-      ars_usd_pct_change_90d: {unit: "pct", desc: "ARS/USD 90-day percent change"}
-      cny_usd_pct_change_90d: {unit: "pct", desc: "CNY/USD 90-day percent change"}
+      brl_usd: {label: "BRL/USD exchange rate", unit: "BRL per USD (FRED)", desc: "Brazilian real per US dollar; higher = weaker real"}
+      ars_usd: {label: "ARS/USD exchange rate", unit: "ARS per USD (FRED)", desc: "Argentine peso per US dollar; higher = weaker peso"}
+      cny_usd: {label: "CNY/USD exchange rate", unit: "CNY per USD (FRED)", desc: "Chinese yuan per US dollar; higher = weaker yuan"}
+      brl_usd_pct_change_90d: {label: "BRL/USD 90-day % change", unit: "pct", desc: "BRL/USD 90-day percent change"}
+      ars_usd_pct_change_90d: {label: "ARS/USD 90-day % change", unit: "pct", desc: "ARS/USD 90-day percent change"}
+      cny_usd_pct_change_90d: {label: "CNY/USD 90-day % change", unit: "pct", desc: "CNY/USD 90-day percent change"}
     notes: >
       No commodity/country filter. agg=latest returns the rate as-of a date; period_start/end + agg for a window.
       Direction is the FRED "local currency per USD" convention (verify against source before hard sizing).
@@ -396,11 +397,11 @@ tables:
     month_col: month
     knowledge_semantics: year_month
     metrics:
-      oni_anom:     {unit: "degC", desc: "ONI 3-month SST anomaly (>= +0.5 El Nino, <= -0.5 La Nina)"}
-      oni_lag3:     {unit: "degC", desc: "ONI lagged 3 months"}
-      oni_lag6:     {unit: "degC", desc: "ONI lagged 6 months"}
-      el_nino_flag: {unit: "0/1", desc: "1 if the month is classified El Nino"}
-      la_nina_flag: {unit: "0/1", desc: "1 if the month is classified La Nina"}
+      oni_anom:     {label: "ONI anomaly", unit: "degC", desc: "ONI 3-month SST anomaly (>= +0.5 El Nino, <= -0.5 La Nina)"}
+      oni_lag3:     {label: "ONI (3-month lag)", unit: "degC", desc: "ONI lagged 3 months"}
+      oni_lag6:     {label: "ONI (6-month lag)", unit: "degC", desc: "ONI lagged 6 months"}
+      el_nino_flag: {label: "El Nino episode flag", unit: "0/1", desc: "1 if the month is classified El Nino"}
+      la_nina_flag: {label: "La Nina episode flag", unit: "0/1", desc: "1 if the month is classified La Nina"}
     notes: >
       No commodity filter (global ENSO state). agg=latest = the current ONI as-of a date. as-of compares
       (year*100 + month) <= asof year-month, so a mid-month asof sees only completed months.
@@ -440,8 +441,8 @@ tables:
     month_col: month
     knowledge_semantics: year_month
     metrics:
-      dmi_value:          {unit: "degC", desc: "IOD Dipole Mode Index, monthly SST-gradient anomaly (positive = positive IOD)"}
-      iod_dmi_3month_avg: {unit: "degC", desc: "DMI 3-month running mean (seasonal IOD signal)"}
+      dmi_value:          {label: "IOD dipole index", unit: "degC", desc: "IOD Dipole Mode Index, monthly SST-gradient anomaly (positive = positive IOD)"}
+      iod_dmi_3month_avg: {label: "IOD dipole index 3-month average", unit: "degC", desc: "DMI 3-month running mean (seasonal IOD signal)"}
     notes: >
       No commodity/country filter (global IOD state). agg=latest = the latest published DMI as-of a
       date; window months with period_start/period_end as 'YYYY-MM'. as-of compares (year*100 + month)
@@ -482,22 +483,22 @@ tables:
     metric_col: metric                    # tall: the metric NAME lives here
     value_col: value                      # tall: the z-score / flag value lives here
     metrics:
-      drought_z:        {unit: "z", desc: "longest consecutive dry-day run in the month, z vs prior-year same months (CHIRPS)"}
-      heat_stress_z:    {unit: "z", desc: "count of days above the heat threshold in the month, z vs prior-year same months"}
-      gdd_z:            {unit: "z", desc: "growing-degree-days accumulated in the month, z vs prior-year same months"}
-      tmax_anomaly:     {unit: "z", desc: "mean daily max temperature in the month, z vs prior-year same months"}
-      frost_event_flag: {unit: "0/1", desc: "1 if the monthly minimum temperature fell below the frost threshold"}
+      drought_z:        {label: "drought z-score", unit: "z", desc: "longest consecutive dry-day run in the month, z vs prior-year same months (CHIRPS)"}
+      heat_stress_z:    {label: "heat-stress z-score", unit: "z", desc: "count of days above the heat threshold in the month, z vs prior-year same months"}
+      gdd_z:            {label: "growing-degree-day z-score", unit: "z", desc: "growing-degree-days accumulated in the month, z vs prior-year same months"}
+      tmax_anomaly:     {label: "max-temperature anomaly", unit: "z", desc: "mean daily max temperature in the month, z vs prior-year same months"}
+      frost_event_flag: {label: "frost occurrence", unit: "0/1", desc: "1 if the monthly minimum temperature fell below the frost threshold"}
       # -- BASIN rows only (GN-2 W1.1, 2026-08-22; weather_z._basin_rows): rows whose country is a
       # basin surface ('West Africa'). On a per-cell country these metrics have ZERO rows -- honest
       # absence, never an error. STORED values are raw fractions 0-1; the cascade's tail line serves
       # them as % via the sanctioned scale knob (the su_ratio ratio-normalizer precedent), so the
       # narration quotes "18.2 %" while the pg row keeps 0.1818 -- figures in analyst units, always
       # beside the plain-language framing, never one without the other (owner's word 2026-08-22).
-      drought_z_tail_share:     {unit: "share of basin cells", desc: "share of the basin's member cells at or beyond +2 sigma drought_z that month (0-1)"}
-      heat_stress_z_tail_share: {unit: "share of basin cells", desc: "share of the basin's member cells at or beyond +2 sigma heat_stress_z that month (0-1)"}
-      gdd_z_tail_share:         {unit: "share of basin cells", desc: "share of the basin's member cells at or beyond +2 sigma gdd_z that month (0-1)"}
-      tmax_anomaly_tail_share:  {unit: "share of basin cells", desc: "share of the basin's member cells at or beyond +2 sigma tmax_anomaly that month (0-1)"}
-      frost_event_share:        {unit: "share of basin cells", desc: "share of the basin's member cells whose monthly minimum fell below the frost threshold (0-1; the flag renamed at basin grain so a fraction is never misread as a flag)"}
+      drought_z_tail_share:     {label: "share of basin cells in drought-z tail", unit: "share of basin cells", desc: "share of the basin's member cells at or beyond +2 sigma drought_z that month (0-1)"}
+      heat_stress_z_tail_share: {label: "share of basin cells in heat-stress tail", unit: "share of basin cells", desc: "share of the basin's member cells at or beyond +2 sigma heat_stress_z that month (0-1)"}
+      gdd_z_tail_share:         {label: "share of basin cells in GDD tail", unit: "share of basin cells", desc: "share of the basin's member cells at or beyond +2 sigma gdd_z that month (0-1)"}
+      tmax_anomaly_tail_share:  {label: "share of basin cells in max-temperature tail", unit: "share of basin cells", desc: "share of the basin's member cells at or beyond +2 sigma tmax_anomaly that month (0-1)"}
+      frost_event_share:        {label: "share of basin cells with frost", unit: "share of basin cells", desc: "share of the basin's member cells whose monthly minimum fell below the frost threshold (0-1; the flag renamed at basin grain so a fraction is never misread as a flag)"}
     notes: >
       z-scores are dimensionless (scale 1 — never delta a z against a level). country is the PSD Title-Case
       surface form ('United States', 'Brazil', 'European Union') so a country_rule=region weather leg
@@ -535,10 +536,10 @@ tables:
     publication_lag_days: 0             # latest_release_date IS the publication event
     grain_cols: [cocoa_year]            # one row per year already; vintage guard just withholds future releases
     metrics:
-      production_kt:  {unit: "1000 MT", desc: "world cocoa production (thousand tonnes)"}
-      grindings_kt:   {unit: "1000 MT", desc: "world cocoa grindings = world use (thousand tonnes)"}
-      end_stocks_kt:  {unit: "1000 MT", desc: "world end-of-year cocoa stocks (thousand tonnes)"}
-      su_ratio:       {unit: "ratio",   desc: "ICCO stocks-to-use = end_stocks_kt / grindings_kt (ANNUAL; NOT the PSD-World su_ratio)"}
+      production_kt:  {label: "production", unit: "1000 MT", desc: "world cocoa production (thousand tonnes)"}
+      grindings_kt:   {label: "grindings", unit: "1000 MT", desc: "world cocoa grindings = world use (thousand tonnes)"}
+      end_stocks_kt:  {label: "end stocks", unit: "1000 MT", desc: "world end-of-year cocoa stocks (thousand tonnes)"}
+      su_ratio:       {label: "stocks-to-use ratio", unit: "ratio",   desc: "ICCO stocks-to-use = end_stocks_kt / grindings_kt (ANNUAL; NOT the PSD-World su_ratio)"}
     notes: >
       Single-commodity WORLD table (cocoa) -- omit commodity/country. period = cocoa marketing year
       as a string '2024/25'. Values are in THOUSAND tonnes (kt). su_ratio is ICCO's annual
@@ -559,11 +560,11 @@ tables:
     knowledge_date_col: date
     publication_lag_days: 43            # D1: conservative fixed lag -- see calibration
     metrics:
-      production_cpo_mt:          {unit: "MT", desc: "crude palm oil production in the month"}
-      closing_stocks_palm_oil_mt: {unit: "MT", desc: "end-of-month palm oil stocks"}
-      exports_palm_oil_mt:        {unit: "MT", desc: "palm oil exports in the month"}
-      imports_palm_oil_mt:        {unit: "MT", desc: "palm oil imports in the month"}
-      su_ratio:                   {unit: "ratio", desc: "MONTHLY closing stocks / that-month exports (NOT the PSD annual stocks-to-use)"}
+      production_cpo_mt:          {label: "production crude palm oil", unit: "MT", desc: "crude palm oil production in the month"}
+      closing_stocks_palm_oil_mt: {label: "palm oil closing stocks", unit: "MT", desc: "end-of-month palm oil stocks"}
+      exports_palm_oil_mt:        {label: "exports palm oil", unit: "MT", desc: "palm oil exports in the month"}
+      imports_palm_oil_mt:        {label: "imports palm oil", unit: "MT", desc: "palm oil imports in the month"}
+      su_ratio:                   {label: "stocks-to-use ratio", unit: "ratio", desc: "MONTHLY closing stocks / that-month exports (NOT the PSD annual stocks-to-use)"}
     notes: >
       commodity = malaysian_crude_palm_oil_cme (the only value). date is the DATA month stamped
       first-of-month; window with period_start/period_end 'YYYY-MM-DD' or agg=latest for the newest
@@ -632,7 +633,7 @@ tables:
     month_col: month
     knowledge_semantics: year_month     # as-of guard = (year*100+month) <= asof year-month
     metrics:
-      ending_stocks_mt: {unit: "MT", desc: "end-of-month stocks of that oil held in that country (metric tonnes)"}
+      ending_stocks_mt: {label: "ending stocks", unit: "MT", desc: "end-of-month stocks of that oil held in that country (metric tonnes)"}
     notes: >
       ALWAYS PASS BOTH A COUNTRY AND AN OIL. This table carries TWO free axes and neither has a
       default: with no country the read spans every holding country and a latest-value read returns
@@ -727,7 +728,7 @@ tables:
     # decline. contract_check (C002) does not DISTINCT-probe this field, so no zero-row hazard.
     commodity_values: [palm_oil, malaysian_crude_palm_oil_cme]
     metrics:
-      exports_mt: {unit: "MT", desc: "Malaysian palm oil exported to that destination in that calendar year (metric tonnes, Jan-Dec total)"}
+      exports_mt: {label: "exports", unit: "MT", desc: "Malaysian palm oil exported to that destination in that calendar year (metric tonnes, Jan-Dec total)"}
     notes: >
       ALWAYS PASS A COUNTRY. This card carries ONE metric and ONE free axis, and that axis has no
       default: with no country the read spans every destination in the panel and a latest-value read
@@ -801,8 +802,8 @@ tables:
     vintage_tiebreak:
       - {col: estimate_number, dir: desc}        # deterministic total order if two rows share a release_date
     metrics:
-      current_estimate_t: {unit: "MT", desc: "current CEC production estimate (metric tonnes)"}
-      area_planted_ha:    {unit: "ha", desc: "area planted"}
+      current_estimate_t: {label: "CEC production estimate", unit: "MT", desc: "current CEC production estimate (metric tonnes)"}
+      area_planted_ha:    {label: "area planted", unit: "ha", desc: "area planted"}
     notes: >
       South Africa ONLY. commodity is a SAGIS crop code (total_maize for all maize; white_maize /
       yellow_maize for the split). country selects the SCOPE: pass 'total' for the national headline
@@ -841,9 +842,9 @@ tables:
     vintage_tiebreak:
       - {col: survey_number, dir: desc}          # deterministic total order (later survey wins the tie)
     metrics:
-      production_thousand_bags: {unit: "1000 60-kg bags", desc: "CONAB production estimate (thousand 60-kg bags)"}
-      area_in_production_ha:    {unit: "ha", desc: "area in production"}
-      yield_bags_per_ha:        {unit: "bags/ha", desc: "yield (60-kg bags per hectare)"}
+      production_thousand_bags: {label: "production", unit: "1000 60-kg bags", desc: "CONAB production estimate (thousand 60-kg bags)"}
+      area_in_production_ha:    {label: "area in production", unit: "ha", desc: "area in production"}
+      yield_bags_per_ha:        {label: "yield", unit: "bags/ha", desc: "yield (60-kg bags per hectare)"}
     notes: >
       Brazil ONLY. commodity = arabica_coffee | robusta_coffee. region selects the geo scope -- pass
       region='brazil' for the national headline (state codes/names are sub-scopes). period = safra_year
@@ -883,9 +884,9 @@ tables:
     knowledge_date_col: week_ending_date
     publication_lag_days: 5             # cumulative file posted weekly; conservative +5d never leaks
     metrics:
-      prog_exports_mt:  {unit: "MT", desc: "season-to-date (cumulative) exports through the week"}
-      pct_of_prior_yr:  {unit: "pct", desc: "prog_exports as a percent of the prior season, SAME week (pre-computed, no-lookahead)"}
-      z_vs_3yr_avg:     {unit: "sigma vs 3-yr", desc: "prog_exports z vs the trailing <=3 prior seasons, same week (pre-computed, no-lookahead)"}
+      prog_exports_mt:  {label: "season-to-date exports", unit: "MT", desc: "season-to-date (cumulative) exports through the week"}
+      pct_of_prior_yr:  {label: "% of prior year", unit: "pct", desc: "prog_exports as a percent of the prior season, SAME week (pre-computed, no-lookahead)"}
+      z_vs_3yr_avg:     {label: "z-score vs 3-year average", unit: "sigma vs 3-yr", desc: "prog_exports z vs the trailing <=3 prior seasons, same week (pre-computed, no-lookahead)"}
     notes: >
       South Africa ONLY. crop = maize | wheat. prog_exports_mt is CUMULATIVE season-to-date (a running
       total, NOT a weekly flow -- never delta it against a weekly ESR figure). Window weeks with
@@ -945,10 +946,10 @@ tables:
     knowledge_date_col: week_ending_date
     publication_lag_days: 5             # cumulative file posted weekly; conservative +5d never leaks
     metrics:
-      prog_total_mt:       {unit: "MT", desc: "season-to-date (cumulative) producer deliveries into commercial storage through the week"}
-      prior_prog_total_mt: {unit: "MT", desc: "the PRIOR season's cumulative deliveries at the SAME week number -- the denominator of pct_of_prior_yr, served so the ratio can be sanity-checked against its own base"}
-      pct_of_prior_yr:     {unit: "ratio vs prior season", desc: "prog_total_mt divided by prior_prog_total_mt, same week (pre-computed, no-lookahead). A RATIO, never a percentage: 1.02 means 2 percent above last year, NOT 1 percent of it"}
-      z_vs_3yr_avg:        {unit: "sigma vs 3-yr", desc: "prog_total_mt z-score against the trailing <=3 PRIOR seasons' same week (pre-computed, no-lookahead, sample std)"}
+      prog_total_mt:       {label: "season-to-date producer deliveries", unit: "MT", desc: "season-to-date (cumulative) producer deliveries into commercial storage through the week"}
+      prior_prog_total_mt: {label: "prior-season deliveries to date", unit: "MT", desc: "the PRIOR season's cumulative deliveries at the SAME week number -- the denominator of pct_of_prior_yr, served so the ratio can be sanity-checked against its own base"}
+      pct_of_prior_yr:     {label: "% of prior year", unit: "ratio vs prior season", desc: "prog_total_mt divided by prior_prog_total_mt, same week (pre-computed, no-lookahead). A RATIO, never a percentage: 1.02 means 2 percent above last year, NOT 1 percent of it"}
+      z_vs_3yr_avg:        {label: "z-score vs 3-year average", unit: "sigma vs 3-yr", desc: "prog_total_mt z-score against the trailing <=3 PRIOR seasons' same week (pre-computed, no-lookahead, sample std)"}
     notes: >
       DELIVERIES ARE NOT EXPORTS. This card counts grain arriving from the farm into commercial storage
       inside South Africa. It does NOT measure anything leaving the country. The export-pace card is
@@ -1097,6 +1098,7 @@ tables:
     #                                              that axis holds one value today
     metrics:
       percent_tenderable:
+        label: "percent tenderable"
         unit: "pct of bales classed"
         desc: >
           share of the season's classed US cotton meeting the TENDERABLE (deliverable-grade) quality
@@ -1104,12 +1106,14 @@ tables:
           classing program's own and nothing is recomputed here. A quality share, never a stocks or
           deliverable-supply figure.
       avg_staple:
+        label: "average staple"
         unit: "32nds of an inch"
         desc: >
           season-average staple (fibre) length of the classed crop in THIRTY-SECONDS OF AN INCH -- 36.37
           means 36.37/32 in, about 1.14 in. Never report it as inches or millimetres without dividing by 32
           and saying so.
       samples_classed:
+        label: "samples classed"
         unit: "bales classed"
         desc: >
           number of bales the AMS classing offices classed in the season. A CLASSING COUNT of what came
@@ -1210,11 +1214,11 @@ tables:
     partition_cols: [commodity, year]   # projected; commodity via the commodity filter, year via bounds
     year_col: year                      # sargable year bounds prune the projection (never an equality)
     metrics:
-      pct_good_excellent: {unit: "pct of acreage", desc: "percent of the crop rated GOOD or EXCELLENT that week (the condition headline; higher = better crop)"}
-      pct_poor_very_poor: {unit: "pct of acreage", desc: "percent of the crop rated POOR or VERY POOR that week (the stress tail; it is NOT 100 minus good/excellent -- the fair category sits between them)"}
-      pct_planted:        {unit: "pct of acreage", desc: "CUMULATIVE percent of intended acreage planted through that week"}
-      pct_emerged:        {unit: "pct of acreage", desc: "CUMULATIVE percent of acreage emerged through that week"}
-      pct_harvested:      {unit: "pct of acreage", desc: "CUMULATIVE percent of acreage harvested through that week"}
+      pct_good_excellent: {label: "% rated good-to-excellent", unit: "pct of acreage", desc: "percent of the crop rated GOOD or EXCELLENT that week (the condition headline; higher = better crop)"}
+      pct_poor_very_poor: {label: "% rated poor-to-very-poor", unit: "pct of acreage", desc: "percent of the crop rated POOR or VERY POOR that week (the stress tail; it is NOT 100 minus good/excellent -- the fair category sits between them)"}
+      pct_planted:        {label: "% planted", unit: "pct of acreage", desc: "CUMULATIVE percent of intended acreage planted through that week"}
+      pct_emerged:        {label: "% emerged", unit: "pct of acreage", desc: "CUMULATIVE percent of acreage emerged through that week"}
+      pct_harvested:      {label: "% harvested", unit: "pct of acreage", desc: "CUMULATIVE percent of acreage harvested through that week"}
     notes: >
       ONE LOOKUP = ONE METRIC AND ONE STATE. This card carries FIVE metrics and a free state axis, which
       is the exact shape that invites a metric-less state sweep ("give me Iowa's conditions"): `metric` is
@@ -1378,10 +1382,10 @@ tables:
     #                                        inferred group would be identical but silent, and a future
     #                                        NASS class/utilization split would break it invisibly.)
     metrics:
-      production_mt:      {unit: "MT", desc: "production for the crop year, metric tonnes (converted from NASS bushels / 480-lb bales / cwt)"}
-      yield_t_ha:         {unit: "MT/ha", desc: "yield, metric tonnes per hectare (US corn ~11.7 t/ha == ~186 bu/ac; multiply by 0.40468564 then divide by the crop's bushel weight to go back to bu/ac)"}
-      area_harvested_ha:  {unit: "ha", desc: "area HARVESTED, hectares (1 ha = 2.47105 acres)"}
-      area_planted_ha:    {unit: "ha", desc: "area PLANTED, hectares -- planted minus harvested is abandonment, which is the whole cotton story most years"}
+      production_mt:      {label: "production", unit: "MT", desc: "production for the crop year, metric tonnes (converted from NASS bushels / 480-lb bales / cwt)"}
+      yield_t_ha:         {label: "yield", unit: "MT/ha", desc: "yield, metric tonnes per hectare (US corn ~11.7 t/ha == ~186 bu/ac; multiply by 0.40468564 then divide by the crop's bushel weight to go back to bu/ac)"}
+      area_harvested_ha:  {label: "area harvested", unit: "ha", desc: "area HARVESTED, hectares (1 ha = 2.47105 acres)"}
+      area_planted_ha:    {label: "area planted", unit: "ha", desc: "area PLANTED, hectares -- planted minus harvested is abandonment, which is the whole cotton story most years"}
     notes: >
       THIS TABLE IS THE UNITED STATES AND NOTHING ELSE. Every row is a US state (or the 'US' national
       roll-up) reported by USDA NASS: there is no Brazilian, Argentine, Chinese, EU, Black Sea, Indian
@@ -1483,89 +1487,89 @@ tables:
     # coverage. Every key is verified against configs/silver/tables/silver_pink_sheet.yaml (never invented;
     # the physical energy column is brent_crude_usd_bbl, not "brent_usd_bbl").
     metrics:
-      soybean_oil_usd_t:                    {unit: "USD/mt", desc: "soybean oil monthly world price average (WB)"}
-      urea_usd_mt:                          {unit: "USD/mt", desc: "urea fertilizer monthly world price average (WB)"}
-      brent_crude_usd_bbl:                  {unit: "USD/bbl", desc: "Brent crude monthly average (WB energy)"}
-      palm_oil_cpo_usd_t_zscore_5yr:        {unit: "sigma vs 5-yr mean", desc: "palm oil CPO price, sigma vs trailing 5-yr mean (PIT-clean)"}
-      soybeans_usd_t:                       {unit: "USD/mt", desc: "soybeans monthly world price average (WB)"}
-      soybean_meal_usd_t:                   {unit: "USD/mt", desc: "soybean meal monthly world price average (WB)"}
-      palm_oil_cpo_usd_t:                   {unit: "USD/mt", desc: "crude palm oil monthly world price average (WB)"}
-      raw_sugar_world_usd_t:                {unit: "USD/mt", desc: "raw sugar (world) monthly price average (WB)"}
-      wheat_us_hrw_usd_t:                   {unit: "USD/mt", desc: "US hard red winter wheat monthly price average (WB)"}
-      wheat_us_srw_usd_t:                   {unit: "USD/mt", desc: "US soft red winter wheat monthly price average (WB)"}
-      rapeseed_oil_usd_t:                   {unit: "USD/mt", desc: "rapeseed oil monthly world price average (WB)"}
-      dap_usd_mt:                           {unit: "USD/mt", desc: "DAP fertilizer monthly world price average (WB)"}
-      potassium_usd_mt:                     {unit: "USD/mt", desc: "potassium (potash) fertilizer monthly world price average (WB)"}
-      phosphate_rock_usd_mt:                {unit: "USD/mt", desc: "phosphate rock monthly world price average (WB)"}
-      natural_gas_us_usd_mmbtu:             {unit: "USD/mmbtu", desc: "US natural gas monthly average (WB energy)"}
-      natural_gas_eu_usd_mmbtu:             {unit: "USD/mmbtu", desc: "EU natural gas monthly average (WB energy)"}
-      blended_npk_index:                    {unit: "index", desc: "blended NPK fertilizer price index (WB)"}
-      urea_usd_mt_zscore_5yr:               {unit: "sigma vs 5-yr mean", desc: "urea price, sigma vs trailing 5-yr mean (PIT-clean)"}
-      dap_usd_mt_zscore_5yr:                {unit: "sigma vs 5-yr mean", desc: "DAP price, sigma vs trailing 5-yr mean (PIT-clean)"}
-      potassium_usd_mt_zscore_5yr:          {unit: "sigma vs 5-yr mean", desc: "potassium price, sigma vs trailing 5-yr mean (PIT-clean)"}
-      natural_gas_us_usd_mmbtu_zscore_5yr:  {unit: "sigma vs 5-yr mean", desc: "US natural gas, sigma vs trailing 5-yr mean (PIT-clean)"}
-      natural_gas_eu_usd_mmbtu_zscore_5yr:  {unit: "sigma vs 5-yr mean", desc: "EU natural gas, sigma vs trailing 5-yr mean (PIT-clean)"}
-      phosphate_rock_usd_mt_zscore_5yr:     {unit: "sigma vs 5-yr mean", desc: "phosphate rock, sigma vs trailing 5-yr mean (PIT-clean)"}
-      brent_crude_usd_bbl_zscore_5yr:       {unit: "sigma vs 5-yr mean", desc: "Brent crude, sigma vs trailing 5-yr mean (PIT-clean)"}
-      blended_npk_index_zscore_5yr:         {unit: "sigma vs 5-yr mean", desc: "blended NPK index, sigma vs trailing 5-yr mean (PIT-clean)"}
-      soybeans_usd_t_zscore_5yr:            {unit: "sigma vs 5-yr mean", desc: "soybeans price, sigma vs trailing 5-yr mean (PIT-clean)"}
-      soybean_oil_usd_t_zscore_5yr:         {unit: "sigma vs 5-yr mean", desc: "soybean oil price, sigma vs trailing 5-yr mean (PIT-clean)"}
-      soybean_meal_usd_t_zscore_5yr:        {unit: "sigma vs 5-yr mean", desc: "soybean meal price, sigma vs trailing 5-yr mean (PIT-clean)"}
-      raw_sugar_world_usd_t_zscore_5yr:     {unit: "sigma vs 5-yr mean", desc: "raw sugar (world) price, sigma vs trailing 5-yr mean (PIT-clean)"}
-      wheat_us_hrw_usd_t_zscore_5yr:        {unit: "sigma vs 5-yr mean", desc: "US HRW wheat price, sigma vs trailing 5-yr mean (PIT-clean)"}
-      wheat_us_srw_usd_t_zscore_5yr:        {unit: "sigma vs 5-yr mean", desc: "US SRW wheat price, sigma vs trailing 5-yr mean (PIT-clean)"}
-      rapeseed_oil_usd_t_zscore_5yr:        {unit: "sigma vs 5-yr mean", desc: "rapeseed oil price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      soybean_oil_usd_t:                    {label: "soybean oil price", unit: "USD/mt", desc: "soybean oil monthly world price average (WB)"}
+      urea_usd_mt:                          {label: "urea price", unit: "USD/mt", desc: "urea fertilizer monthly world price average (WB)"}
+      brent_crude_usd_bbl:                  {label: "brent crude price", unit: "USD/bbl", desc: "Brent crude monthly average (WB energy)"}
+      palm_oil_cpo_usd_t_zscore_5yr:        {label: "crude palm oil price 5-year z-score", unit: "sigma vs 5-yr mean", desc: "palm oil CPO price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      soybeans_usd_t:                       {label: "soybeans price", unit: "USD/mt", desc: "soybeans monthly world price average (WB)"}
+      soybean_meal_usd_t:                   {label: "soybean meal price", unit: "USD/mt", desc: "soybean meal monthly world price average (WB)"}
+      palm_oil_cpo_usd_t:                   {label: "crude palm oil price", unit: "USD/mt", desc: "crude palm oil monthly world price average (WB)"}
+      raw_sugar_world_usd_t:                {label: "raw sugar world price", unit: "USD/mt", desc: "raw sugar (world) monthly price average (WB)"}
+      wheat_us_hrw_usd_t:                   {label: "wheat US HRW price", unit: "USD/mt", desc: "US hard red winter wheat monthly price average (WB)"}
+      wheat_us_srw_usd_t:                   {label: "wheat US SRW price", unit: "USD/mt", desc: "US soft red winter wheat monthly price average (WB)"}
+      rapeseed_oil_usd_t:                   {label: "rapeseed oil price", unit: "USD/mt", desc: "rapeseed oil monthly world price average (WB)"}
+      dap_usd_mt:                           {label: "DAP fertilizer price", unit: "USD/mt", desc: "DAP fertilizer monthly world price average (WB)"}
+      potassium_usd_mt:                     {label: "potassium chloride price", unit: "USD/mt", desc: "potassium (potash) fertilizer monthly world price average (WB)"}
+      phosphate_rock_usd_mt:                {label: "phosphate rock price", unit: "USD/mt", desc: "phosphate rock monthly world price average (WB)"}
+      natural_gas_us_usd_mmbtu:             {label: "natural gas US price", unit: "USD/mmbtu", desc: "US natural gas monthly average (WB energy)"}
+      natural_gas_eu_usd_mmbtu:             {label: "natural gas EU price", unit: "USD/mmbtu", desc: "EU natural gas monthly average (WB energy)"}
+      blended_npk_index:                    {label: "blended NPK fertilizer index", unit: "index", desc: "blended NPK fertilizer price index (WB)"}
+      urea_usd_mt_zscore_5yr:               {label: "urea price 5-year z-score", unit: "sigma vs 5-yr mean", desc: "urea price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      dap_usd_mt_zscore_5yr:                {label: "DAP fertilizer price 5-year z-score", unit: "sigma vs 5-yr mean", desc: "DAP price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      potassium_usd_mt_zscore_5yr:          {label: "potassium chloride price 5-year z-score", unit: "sigma vs 5-yr mean", desc: "potassium price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      natural_gas_us_usd_mmbtu_zscore_5yr:  {label: "natural gas US price 5-year z-score", unit: "sigma vs 5-yr mean", desc: "US natural gas, sigma vs trailing 5-yr mean (PIT-clean)"}
+      natural_gas_eu_usd_mmbtu_zscore_5yr:  {label: "natural gas EU price 5-year z-score", unit: "sigma vs 5-yr mean", desc: "EU natural gas, sigma vs trailing 5-yr mean (PIT-clean)"}
+      phosphate_rock_usd_mt_zscore_5yr:     {label: "phosphate rock price 5-year z-score", unit: "sigma vs 5-yr mean", desc: "phosphate rock, sigma vs trailing 5-yr mean (PIT-clean)"}
+      brent_crude_usd_bbl_zscore_5yr:       {label: "brent crude price 5-year z-score", unit: "sigma vs 5-yr mean", desc: "Brent crude, sigma vs trailing 5-yr mean (PIT-clean)"}
+      blended_npk_index_zscore_5yr:         {label: "blended NPK fertilizer index 5-year z-score", unit: "sigma vs 5-yr mean", desc: "blended NPK index, sigma vs trailing 5-yr mean (PIT-clean)"}
+      soybeans_usd_t_zscore_5yr:            {label: "soybeans price 5-year z-score", unit: "sigma vs 5-yr mean", desc: "soybeans price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      soybean_oil_usd_t_zscore_5yr:         {label: "soybean oil price 5-year z-score", unit: "sigma vs 5-yr mean", desc: "soybean oil price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      soybean_meal_usd_t_zscore_5yr:        {label: "soybean meal price 5-year z-score", unit: "sigma vs 5-yr mean", desc: "soybean meal price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      raw_sugar_world_usd_t_zscore_5yr:     {label: "raw sugar world price 5-year z-score", unit: "sigma vs 5-yr mean", desc: "raw sugar (world) price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      wheat_us_hrw_usd_t_zscore_5yr:        {label: "wheat US HRW price 5-year z-score", unit: "sigma vs 5-yr mean", desc: "US HRW wheat price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      wheat_us_srw_usd_t_zscore_5yr:        {label: "wheat US SRW price 5-year z-score", unit: "sigma vs 5-yr mean", desc: "US SRW wheat price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      rapeseed_oil_usd_t_zscore_5yr:        {label: "rapeseed oil price 5-year z-score", unit: "sigma vs 5-yr mean", desc: "rapeseed oil price, sigma vs trailing 5-yr mean (PIT-clean)"}
       # ---- SILVER-F063 SERIES WIDENING (2026-08-20) -----------------------------------------
       # (a) PRICING LEGS FOR D15 CONTEXT-COMMODITY NODES. Each of these quantifies a node in
       # commodity_hierarchy.context_commodities that had narrative coverage and NO price at all.
       # The consumer named in each desc is the node this leg prices -- that is the GN-1 contract.
-      coconut_oil_usd_t:                    {unit: "USD/mt", desc: "coconut oil monthly world price average (WB); prices the `coconut` context node -- the lauric-oil substitute for palm kernel oil"}
-      groundnuts_usd_t:                     {unit: "USD/mt", desc: "groundnuts (peanuts, the SEED) monthly world price average (WB); prices the `peanut` context node"}
-      groundnut_oil_usd_t:                  {unit: "USD/mt", desc: "groundnut oil (the CRUSH PRODUCT) monthly world price average (WB); the `peanut` crush leg beside groundnuts_usd_t"}
-      palm_kernel_oil_usd_t:                {unit: "USD/mt", desc: "palm kernel oil monthly world price average (WB); prices the `palm_kernel` context node -- the lauric half of the palm complex, distinct from CPO"}
-      fish_meal_usd_t:                      {unit: "USD/mt", desc: "fishmeal monthly world price average (WB); prices `fish_meal` / the marine_protein_fishmeal driver -- the protein-meal substitute for soybean meal"}
-      sunflower_oil_usd_t:                  {unit: "USD/mt", desc: "sunflower oil monthly world price average (WB); prices `sunflower_oil` / the sunflower_oil_balance driver -- the Black Sea vegoil leg"}
-      barley_usd_t:                         {unit: "USD/mt", desc: "barley monthly world price average (WB); prices the `barley` context node. DISCONTINUED by the WB after 2020-08 -- see notes"}
-      sorghum_usd_t:                        {unit: "USD/mt", desc: "sorghum monthly world price average (WB); prices the `sorghum` context node. DISCONTINUED by the WB after 2020-08 -- see notes"}
-      orange_usd_t:                         {unit: "USD/mt", desc: "FRESH oranges monthly world price average (WB); prices the `fresh_citrus` context node. NOT frozen concentrate -- this is the fruit, not the FCOJ contract"}
+      coconut_oil_usd_t:                    {label: "coconut oil price", unit: "USD/mt", desc: "coconut oil monthly world price average (WB); prices the `coconut` context node -- the lauric-oil substitute for palm kernel oil"}
+      groundnuts_usd_t:                     {label: "groundnuts price", unit: "USD/mt", desc: "groundnuts (peanuts, the SEED) monthly world price average (WB); prices the `peanut` context node"}
+      groundnut_oil_usd_t:                  {label: "groundnut oil price", unit: "USD/mt", desc: "groundnut oil (the CRUSH PRODUCT) monthly world price average (WB); the `peanut` crush leg beside groundnuts_usd_t"}
+      palm_kernel_oil_usd_t:                {label: "palm kernel oil price", unit: "USD/mt", desc: "palm kernel oil monthly world price average (WB); prices the `palm_kernel` context node -- the lauric half of the palm complex, distinct from CPO"}
+      fish_meal_usd_t:                      {label: "fish meal price", unit: "USD/mt", desc: "fishmeal monthly world price average (WB); prices `fish_meal` / the marine_protein_fishmeal driver -- the protein-meal substitute for soybean meal"}
+      sunflower_oil_usd_t:                  {label: "sunflower oil price", unit: "USD/mt", desc: "sunflower oil monthly world price average (WB); prices `sunflower_oil` / the sunflower_oil_balance driver -- the Black Sea vegoil leg"}
+      barley_usd_t:                         {label: "barley price", unit: "USD/mt", desc: "barley monthly world price average (WB); prices the `barley` context node. DISCONTINUED by the WB after 2020-08 -- see notes"}
+      sorghum_usd_t:                        {label: "sorghum price", unit: "USD/mt", desc: "sorghum monthly world price average (WB); prices the `sorghum` context node. DISCONTINUED by the WB after 2020-08 -- see notes"}
+      orange_usd_t:                         {label: "orange price", unit: "USD/mt", desc: "FRESH oranges monthly world price average (WB); prices the `fresh_citrus` context node. NOT frozen concentrate -- this is the fruit, not the FCOJ contract"}
       # (b) WORLD BENCHMARKS THAT QUANTIFY EXISTING CONTRACT NODES the card previously declined on.
-      cotton_a_index_usd_t:                 {unit: "USD/mt", desc: "Cotton A Index monthly average (WB); the world cash benchmark for the `cotton` contract node"}
-      rubber_rss3_usd_t:                    {unit: "USD/mt", desc: "natural rubber RSS3 monthly world price average (WB); prices the `natural_rubber` driver slice"}
-      coffee_arabica_usd_t:                 {unit: "USD/mt", desc: "arabica coffee monthly world price average (WB); the cash benchmark for the `arabica_coffee` / `brazilian_arabica_coffee` contract nodes"}
-      coffee_robusta_usd_t:                 {unit: "USD/mt", desc: "robusta coffee monthly world price average (WB); the cash benchmark for the `robusta_coffee` contract node"}
-      cocoa_usd_t:                          {unit: "USD/mt", desc: "cocoa monthly world price average (WB); the cash benchmark for the `cocoa` contract node"}
-      rice_thai_5pct_usd_t:                 {unit: "USD/mt", desc: "Thai 5% broken white rice monthly world price average (WB); the export benchmark for the `rice` / `rough_rice_cbot` nodes"}
-      maize_usd_t:                          {unit: "USD/mt", desc: "maize monthly world price average (WB, US Gulf); the cash benchmark behind the four maize/corn contract nodes"}
-      raw_sugar_eu_usd_t:                   {unit: "USD/mt", desc: "EU sugar import price monthly average (WB) -- a POLICY-ADMINISTERED price; its spread to raw_sugar_world_usd_t IS the import_quota_trq / subsidy wedge"}
-      raw_sugar_us_usd_t:                   {unit: "USD/mt", desc: "US sugar import price monthly average (WB) -- a POLICY-ADMINISTERED price; its spread to raw_sugar_world_usd_t IS the us_farm_program / TRQ wedge"}
-      beef_usd_t:                           {unit: "USD/mt", desc: "beef monthly world price average (WB); the demand-side output price behind cattle_cycle_herd_size / cattle_on_feed / livestock_feed_demand"}
-      chicken_usd_t:                        {unit: "USD/mt", desc: "chicken monthly world price average (WB); the demand-side output price behind broiler_economics -- the numerator of the broiler margin over feed"}
+      cotton_a_index_usd_t:                 {label: "Cotton A Index price", unit: "USD/mt", desc: "Cotton A Index monthly average (WB); the world cash benchmark for the `cotton` contract node"}
+      rubber_rss3_usd_t:                    {label: "RSS3 rubber price", unit: "USD/mt", desc: "natural rubber RSS3 monthly world price average (WB); prices the `natural_rubber` driver slice"}
+      coffee_arabica_usd_t:                 {label: "coffee arabica price", unit: "USD/mt", desc: "arabica coffee monthly world price average (WB); the cash benchmark for the `arabica_coffee` / `brazilian_arabica_coffee` contract nodes"}
+      coffee_robusta_usd_t:                 {label: "coffee robusta price", unit: "USD/mt", desc: "robusta coffee monthly world price average (WB); the cash benchmark for the `robusta_coffee` contract node"}
+      cocoa_usd_t:                          {label: "cocoa price", unit: "USD/mt", desc: "cocoa monthly world price average (WB); the cash benchmark for the `cocoa` contract node"}
+      rice_thai_5pct_usd_t:                 {label: "Thai 5% rice price", unit: "USD/mt", desc: "Thai 5% broken white rice monthly world price average (WB); the export benchmark for the `rice` / `rough_rice_cbot` nodes"}
+      maize_usd_t:                          {label: "maize price", unit: "USD/mt", desc: "maize monthly world price average (WB, US Gulf); the cash benchmark behind the four maize/corn contract nodes"}
+      raw_sugar_eu_usd_t:                   {label: "raw sugar EU price", unit: "USD/mt", desc: "EU sugar import price monthly average (WB) -- a POLICY-ADMINISTERED price; its spread to raw_sugar_world_usd_t IS the import_quota_trq / subsidy wedge"}
+      raw_sugar_us_usd_t:                   {label: "raw sugar US price", unit: "USD/mt", desc: "US sugar import price monthly average (WB) -- a POLICY-ADMINISTERED price; its spread to raw_sugar_world_usd_t IS the us_farm_program / TRQ wedge"}
+      beef_usd_t:                           {label: "beef price", unit: "USD/mt", desc: "beef monthly world price average (WB); the demand-side output price behind cattle_cycle_herd_size / cattle_on_feed / livestock_feed_demand"}
+      chicken_usd_t:                        {label: "chicken price", unit: "USD/mt", desc: "chicken monthly world price average (WB); the demand-side output price behind broiler_economics -- the numerator of the broiler margin over feed"}
       # (c) FERTILIZER-CHAIN COMPLETION + ONE MACRO-CONTEXT LEG.
-      tsp_usd_mt:                           {unit: "USD/mt", desc: "triple superphosphate monthly world price average (WB); the third phosphate product beside phosphate_rock (ore) and DAP. NOT a blended_npk_index component"}
-      copper_usd_mt:                        {unit: "USD/mt", desc: "copper monthly world price average (WB); the SINGLE leg for the `metals` macro_context slice -- an industrial-activity gauge, NEVER an agricultural price signal"}
+      tsp_usd_mt:                           {label: "TSP fertilizer price", unit: "USD/mt", desc: "triple superphosphate monthly world price average (WB); the third phosphate product beside phosphate_rock (ore) and DAP. NOT a blended_npk_index component"}
+      copper_usd_mt:                        {label: "copper price", unit: "USD/mt", desc: "copper monthly world price average (WB); the SINGLE leg for the `metals` macro_context slice -- an industrial-activity gauge, NEVER an agricultural price signal"}
       # (d) THE Z-SCORE TWINS for all 22 additions (same convention as the pre-F062 columns).
-      coconut_oil_usd_t_zscore_5yr:         {unit: "sigma vs 5-yr mean", desc: "coconut oil price, sigma vs trailing 5-yr mean (PIT-clean)"}
-      groundnuts_usd_t_zscore_5yr:          {unit: "sigma vs 5-yr mean", desc: "groundnuts price, sigma vs trailing 5-yr mean (PIT-clean)"}
-      groundnut_oil_usd_t_zscore_5yr:       {unit: "sigma vs 5-yr mean", desc: "groundnut oil price, sigma vs trailing 5-yr mean (PIT-clean)"}
-      palm_kernel_oil_usd_t_zscore_5yr:     {unit: "sigma vs 5-yr mean", desc: "palm kernel oil price, sigma vs trailing 5-yr mean (PIT-clean)"}
-      fish_meal_usd_t_zscore_5yr:           {unit: "sigma vs 5-yr mean", desc: "fishmeal price, sigma vs trailing 5-yr mean (PIT-clean)"}
-      sunflower_oil_usd_t_zscore_5yr:       {unit: "sigma vs 5-yr mean", desc: "sunflower oil price, sigma vs trailing 5-yr mean (PIT-clean)"}
-      barley_usd_t_zscore_5yr:              {unit: "sigma vs 5-yr mean", desc: "barley price, sigma vs trailing 5-yr mean (PIT-clean); ends with the series in 2020-08"}
-      sorghum_usd_t_zscore_5yr:             {unit: "sigma vs 5-yr mean", desc: "sorghum price, sigma vs trailing 5-yr mean (PIT-clean); ends with the series in 2020-08"}
-      orange_usd_t_zscore_5yr:              {unit: "sigma vs 5-yr mean", desc: "fresh orange price, sigma vs trailing 5-yr mean (PIT-clean)"}
-      cotton_a_index_usd_t_zscore_5yr:      {unit: "sigma vs 5-yr mean", desc: "Cotton A Index, sigma vs trailing 5-yr mean (PIT-clean)"}
-      rubber_rss3_usd_t_zscore_5yr:         {unit: "sigma vs 5-yr mean", desc: "natural rubber RSS3 price, sigma vs trailing 5-yr mean (PIT-clean)"}
-      coffee_arabica_usd_t_zscore_5yr:      {unit: "sigma vs 5-yr mean", desc: "arabica coffee price, sigma vs trailing 5-yr mean (PIT-clean)"}
-      coffee_robusta_usd_t_zscore_5yr:      {unit: "sigma vs 5-yr mean", desc: "robusta coffee price, sigma vs trailing 5-yr mean (PIT-clean)"}
-      cocoa_usd_t_zscore_5yr:               {unit: "sigma vs 5-yr mean", desc: "cocoa price, sigma vs trailing 5-yr mean (PIT-clean)"}
-      rice_thai_5pct_usd_t_zscore_5yr:      {unit: "sigma vs 5-yr mean", desc: "Thai 5% rice price, sigma vs trailing 5-yr mean (PIT-clean)"}
-      maize_usd_t_zscore_5yr:               {unit: "sigma vs 5-yr mean", desc: "maize price, sigma vs trailing 5-yr mean (PIT-clean)"}
-      raw_sugar_eu_usd_t_zscore_5yr:        {unit: "sigma vs 5-yr mean", desc: "EU sugar price, sigma vs trailing 5-yr mean (PIT-clean); floored at 1964, see notes"}
-      raw_sugar_us_usd_t_zscore_5yr:        {unit: "sigma vs 5-yr mean", desc: "US sugar price, sigma vs trailing 5-yr mean (PIT-clean)"}
-      beef_usd_t_zscore_5yr:                {unit: "sigma vs 5-yr mean", desc: "beef price, sigma vs trailing 5-yr mean (PIT-clean)"}
-      chicken_usd_t_zscore_5yr:             {unit: "sigma vs 5-yr mean", desc: "chicken price, sigma vs trailing 5-yr mean (PIT-clean); floored at 1961, see notes"}
-      tsp_usd_mt_zscore_5yr:                {unit: "sigma vs 5-yr mean", desc: "TSP price, sigma vs trailing 5-yr mean (PIT-clean); floored at 1967, see notes"}
-      copper_usd_mt_zscore_5yr:             {unit: "sigma vs 5-yr mean", desc: "copper price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      coconut_oil_usd_t_zscore_5yr:         {label: "coconut oil price 5-year z-score", unit: "sigma vs 5-yr mean", desc: "coconut oil price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      groundnuts_usd_t_zscore_5yr:          {label: "groundnuts price 5-year z-score", unit: "sigma vs 5-yr mean", desc: "groundnuts price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      groundnut_oil_usd_t_zscore_5yr:       {label: "groundnut oil price 5-year z-score", unit: "sigma vs 5-yr mean", desc: "groundnut oil price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      palm_kernel_oil_usd_t_zscore_5yr:     {label: "palm kernel oil price 5-year z-score", unit: "sigma vs 5-yr mean", desc: "palm kernel oil price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      fish_meal_usd_t_zscore_5yr:           {label: "fish meal price 5-year z-score", unit: "sigma vs 5-yr mean", desc: "fishmeal price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      sunflower_oil_usd_t_zscore_5yr:       {label: "sunflower oil price 5-year z-score", unit: "sigma vs 5-yr mean", desc: "sunflower oil price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      barley_usd_t_zscore_5yr:              {label: "barley price 5-year z-score", unit: "sigma vs 5-yr mean", desc: "barley price, sigma vs trailing 5-yr mean (PIT-clean); ends with the series in 2020-08"}
+      sorghum_usd_t_zscore_5yr:             {label: "sorghum price 5-year z-score", unit: "sigma vs 5-yr mean", desc: "sorghum price, sigma vs trailing 5-yr mean (PIT-clean); ends with the series in 2020-08"}
+      orange_usd_t_zscore_5yr:              {label: "orange price 5-year z-score", unit: "sigma vs 5-yr mean", desc: "fresh orange price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      cotton_a_index_usd_t_zscore_5yr:      {label: "Cotton A Index price 5-year z-score", unit: "sigma vs 5-yr mean", desc: "Cotton A Index, sigma vs trailing 5-yr mean (PIT-clean)"}
+      rubber_rss3_usd_t_zscore_5yr:         {label: "RSS3 rubber price 5-year z-score", unit: "sigma vs 5-yr mean", desc: "natural rubber RSS3 price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      coffee_arabica_usd_t_zscore_5yr:      {label: "coffee arabica price 5-year z-score", unit: "sigma vs 5-yr mean", desc: "arabica coffee price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      coffee_robusta_usd_t_zscore_5yr:      {label: "coffee robusta price 5-year z-score", unit: "sigma vs 5-yr mean", desc: "robusta coffee price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      cocoa_usd_t_zscore_5yr:               {label: "cocoa price 5-year z-score", unit: "sigma vs 5-yr mean", desc: "cocoa price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      rice_thai_5pct_usd_t_zscore_5yr:      {label: "Thai 5% rice price 5-year z-score", unit: "sigma vs 5-yr mean", desc: "Thai 5% rice price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      maize_usd_t_zscore_5yr:               {label: "maize price 5-year z-score", unit: "sigma vs 5-yr mean", desc: "maize price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      raw_sugar_eu_usd_t_zscore_5yr:        {label: "raw sugar EU price 5-year z-score", unit: "sigma vs 5-yr mean", desc: "EU sugar price, sigma vs trailing 5-yr mean (PIT-clean); floored at 1964, see notes"}
+      raw_sugar_us_usd_t_zscore_5yr:        {label: "raw sugar US price 5-year z-score", unit: "sigma vs 5-yr mean", desc: "US sugar price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      beef_usd_t_zscore_5yr:                {label: "beef price 5-year z-score", unit: "sigma vs 5-yr mean", desc: "beef price, sigma vs trailing 5-yr mean (PIT-clean)"}
+      chicken_usd_t_zscore_5yr:             {label: "chicken price 5-year z-score", unit: "sigma vs 5-yr mean", desc: "chicken price, sigma vs trailing 5-yr mean (PIT-clean); floored at 1961, see notes"}
+      tsp_usd_mt_zscore_5yr:                {label: "TSP fertilizer price 5-year z-score", unit: "sigma vs 5-yr mean", desc: "TSP price, sigma vs trailing 5-yr mean (PIT-clean); floored at 1967, see notes"}
+      copper_usd_mt_zscore_5yr:             {label: "copper price 5-year z-score", unit: "sigma vs 5-yr mean", desc: "copper price, sigma vs trailing 5-yr mean (PIT-clean)"}
     notes: >
       World Bank Pink Sheet MONTHLY AVERAGES -- these are world benchmark CASH/spot averages over a
       calendar month, NOT exchange settlement prices. Never quote one as a futures settle, a close,
@@ -1700,23 +1704,27 @@ tables:
     provenance_col: release_date        # PRE-STEP DERIVED: the WB API `lastupdated` -> alias revision_stamp
     metrics:
       cpi_yoy_pct:
+        label: "CPI year-over-year %"
         unit: "pct"
         desc: >
           annual percent change in the country's consumer price index (overall CPI, calendar-year average
           against the prior year's average -- NOT December-over-December and NOT a monthly print). Carried
           as a proxy for food-price pressure; it is economy-wide inflation, never a crop or food price.
       cpi_yoy_z_5yr:
+        label: "CPI year-over-year z-score (5-year)"
         unit: "sigma vs prior 5 yrs"
         desc: >
           cpi_yoy_pct expressed in sigma against the mean and sd of the FIVE STRICTLY PRIOR years
           (pre-computed, no-lookahead, served as stored). Null until 3 prior observations exist.
       cpi_yoy_z_10yr:
+        label: "CPI year-over-year z-score (10-year)"
         unit: "sigma vs prior 10 yrs"
         desc: >
           the same reading against the TEN STRICTLY PRIOR years -- the structural context window for
           countries with episodic hyperinflation, where a 5-year baseline over-normalises. Null until 5
           prior observations exist.
       cpi_available:
+        label: "CPI availability flag"
         unit: "0/1"
         desc: >
           1 if the source published a reading for that country-year, 0 if it did not (Russia and Ukraine
@@ -1805,14 +1813,14 @@ tables:
     #                                      several times a year. Fixed-lag model -- shutdown-era replay is
     #                                      approximate (catch-ups batch-release weeks late); max_lag_days=10 alarms.
     metrics:
-      open_interest:   {unit: "contracts", desc: "total open interest across all reportable and nonreportable traders"}
-      mm_long:         {unit: "contracts", desc: "managed-money long positions"}
-      mm_short:        {unit: "contracts", desc: "managed-money short positions"}
-      mm_spread:       {unit: "contracts", desc: "managed-money spreading positions"}
-      mm_net:          {unit: "contracts", desc: "managed-money net position (mm_long minus mm_short)"}
-      mm_pct_oi:       {unit: "pct of OI (signed)", desc: "managed-money NET position as a SIGNED percent of open interest (mm_net/OI*100; negative = net short)"}
-      mm_net_z_3yr:    {unit: "sigma vs 3-yr mean", desc: "managed-money net, sigma vs the 3-yr trailing window (PIT-clean)"}
-      mm_pct_oi_z_3yr: {unit: "sigma vs 3-yr mean", desc: "managed-money net percent-of-OI, sigma vs the 3-yr trailing window (PIT-clean)"}
+      open_interest:   {label: "open interest", unit: "contracts", desc: "total open interest across all reportable and nonreportable traders"}
+      mm_long:         {label: "managed-money longs", unit: "contracts", desc: "managed-money long positions"}
+      mm_short:        {label: "managed-money shorts", unit: "contracts", desc: "managed-money short positions"}
+      mm_spread:       {label: "managed-money spreading positions", unit: "contracts", desc: "managed-money spreading positions"}
+      mm_net:          {label: "managed-money net position", unit: "contracts", desc: "managed-money net position (mm_long minus mm_short)"}
+      mm_pct_oi:       {label: "managed-money share of open interest", unit: "pct of OI (signed)", desc: "managed-money NET position as a SIGNED percent of open interest (mm_net/OI*100; negative = net short)"}
+      mm_net_z_3yr:    {label: "managed-money net position 3-year z-score", unit: "sigma vs 3-yr mean", desc: "managed-money net, sigma vs the 3-yr trailing window (PIT-clean)"}
+      mm_pct_oi_z_3yr: {label: "managed-money share of open interest 3-year z-score", unit: "sigma vs 3-yr mean", desc: "managed-money net percent-of-OI, sigma vs the 3-yr trailing window (PIT-clean)"}
     notes: >
       CFTC disaggregated MANAGED-MONEY ONLY (no producer/merchant/swap categories in this wave).
       commodity = the CONTRACT slug (corn_cbot, ...); a bare base name ('corn') matches zero rows.
@@ -1879,6 +1887,7 @@ tables:
       # BINDS the unit_overrides keys to the exact 12-slug set and the values to the strings below AND to
       # UNIT_MAP (three-way; drift any way fails the build).
       close:
+        label: "closing price"
         desc: >
           front-month CONTINUOUS close (daily Yahoo quote). LEVELS-ONLY: report as an observed level on its
           trading date, framed as the CONTINUOUS FRONT-MONTH close (Yahoo quote) -- never a specific expiry,
@@ -1990,6 +1999,7 @@ tables:
       # is written from) and to config_check._FUTURES_EOD_UNIT_OVERRIDES: drift in any direction fails the
       # build. The vocabulary is wide on purpose (ten currencies), which is exactly why it is bound.
       settle:
+        label: "settlement price"
         desc: >
           the end-of-day price for a SPECIFIC delivery month on its trading date. ALWAYS cite it together
           with the row's `settle_kind` -- an ICE row is a session close, not an official settlement, and a
@@ -2216,8 +2226,8 @@ tables:
     #                                      would raise "requires a static marketing_year equality" on every
     #                                      lookup -- and it must not be year_col either (comment above).
     metrics:
-      exports_mt_weekly: {unit: "MT", desc: "tonnage inspected and certified for export to that destination DURING that week (a weekly flow, not a running total)"}
-      exports_mt_ctd:    {unit: "MT", desc: "season-to-date CUMULATIVE tonnage to that destination, a running total that only ever climbs within one marketing year and resets at the next"}
+      exports_mt_weekly: {label: "weekly export inspections", unit: "MT", desc: "tonnage inspected and certified for export to that destination DURING that week (a weekly flow, not a running total)"}
+      exports_mt_ctd:    {label: "season-to-date export inspections", unit: "MT", desc: "season-to-date CUMULATIVE tonnage to that destination, a running total that only ever climbs within one marketing year and resets at the next"}
     notes: >
       THIS IS GRAIN LOADED, NOT GRAIN SOLD. FGIS certifies physical shipments leaving US ports; silver_esr
       reports SALES -- new sales booked, outstanding unshipped commitments, and its own shipments line. An
@@ -2379,6 +2389,7 @@ tables:
       - {col: row_label, dir: asc, nulls: last}          # final deterministic total-order key
     metrics:
       value_mmt:
+        label: "WAP estimate"
         unit: "MMT (cotton: million 480-lb bales)"
         desc: "the production estimate for that marketing year as printed in THIS circular"
         # UNITS ARE HETEROGENEOUS AND THE COLUMN NAME LIES. There is no unit column on this table, and
@@ -2400,6 +2411,7 @@ tables:
           total_grains:  {vintage_type: [year]}
           wheat:         {vintage_type: [year]}
       prior_value_mmt:
+        label: "prior-month WAP estimate"
         unit: "MMT (cotton: million 480-lb bales)"
         desc: "the SAME series' estimate at the previous circular in which it appeared -- the baseline the revision is measured from, not the prior marketing year"
         unit_overrides: {coarse_grains: "MMT", cotton: "million 480-lb bales", oilseeds: "MMT",
@@ -2412,6 +2424,7 @@ tables:
           total_grains:  {vintage_type: [year]}
           wheat:         {vintage_type: [year]}
       revision_mmt:
+        label: "month-over-month revision"
         unit: "MMT change (cotton: million 480-lb-bale change)"
         desc: "this circular minus the previous one for the same series: positive = USDA RAISED the crop, negative = CUT it. A change in the ESTIMATE, never a change in the crop"
         unit_overrides: {coarse_grains: "MMT change", cotton: "million 480-lb-bale change",
@@ -2587,18 +2600,23 @@ tables:
     year_col: year                      # sargable year bounds prune the projection (never an equality)
     metrics:
       production_bags_60kg:
+        label: "production"
         unit: "60-kg bags"
         desc: "green coffee produced in Colombia during that month, as a WHOLE COUNT of 60-kg bags (a 1.2 million reading means 1,200,000 bags, NOT thousands of bags)"
       exports_bags_60kg:
+        label: "exports"
         unit: "60-kg bags"
         desc: "green coffee EXPORTED from Colombia during that month, whole count of 60-kg bags; a shipment flow, not a stock"
       exports_value_usd_m:
+        label: "export value"
         unit: "USD million"
         desc: "FOB value of that month's coffee exports, in MILLIONS of US dollars (a 400 reading is USD 400 million)"
       ex_dock_price_usd_cents_per_lb:
+        label: "ex-dock price"
         unit: "US cents/lb"
         desc: "FNC ex-dock reference price for Colombian green coffee in US cents per pound -- a PHYSICAL origin price carrying the Colombian differential, NOT the ICE arabica 'C' futures settle and NOT a World Bank monthly average"
       internal_price_cop_per_125kg:
+        label: "internal price"
         unit: "COP per 125-kg carga"
         desc: "FNC internal (domestic grower) price in NOMINAL Colombian pesos per 125-kg carga -- never deflated, never FX-converted, and NOT comparable across eras (see notes)"
     notes: >
@@ -2725,6 +2743,7 @@ tables:
     year_col: year                      # sargable year bounds prune the projection (never an equality)
     metrics:
       exports_bags_60kg:
+        label: "exports"
         unit: "60-kg bags"
         desc: >
           GREEN coffee shipped from that port that month, counted in bags of 60 kg (an ACTUAL bag count,
@@ -2735,6 +2754,7 @@ tables:
           arabica_coffee:
             coffee_type: ["cafe_verde"]     # GREEN ONLY, in code (see notes for the three excluded types)
       exports_value_usd:
+        label: "export value"
         unit: "USD"
         desc: >
           Declared PROVISIONAL export value of that port-month's green coffee, in US DOLLARS (the source
@@ -2863,7 +2883,7 @@ tables:
     partition_cols: [commodity, year]   # projected; commodity via the commodity filter, year via bounds
     year_col: year                      # sargable year bounds prune the projection (never an equality)
     metrics:
-      area_ha: {unit: "ha", desc: "area under coffee in that department that calendar year, in HECTARES (the source publishes thousand ha; silver multiplies by 1000). It is planted/standing area, never production and never a yield."}
+      area_ha: {label: "area", unit: "ha", desc: "area under coffee in that department that calendar year, in HECTARES (the source publishes thousand ha; silver multiplies by 1000). It is planted/standing area, never production and never a yield."}
     notes: >
       COLOMBIA ONLY, ARABICA ONLY. Every row is one Colombian department in one calendar year as published
       by the Federacion Nacional de Cafeteros. commodity = arabica_coffee and that is the ONLY slug this
@@ -2992,8 +3012,8 @@ tables:
     publication_lag_days: 0              # release_date IS the publication event
     grain_cols: [crop, state, season]    # latest-release collapse per (crop, state, season)
     metrics:
-      forecast_1000_boxes: {unit: "1000 boxes", desc: "the season's production forecast for that crop and state as printed in that release, in THOUSAND boxes (a box is a pack unit whose net weight differs by state and by crop -- never converted to tonnes here)"}
-      revision_1000_boxes: {unit: "1000 boxes", desc: "the change from the PREVIOUS month's forecast, as printed in that same release (this month's forecast minus last month's); negative = the crop was cut. NULL on a season's FIRST release (October has no prior month) and on some Novembers"}
+      forecast_1000_boxes: {label: "production forecast", unit: "1000 boxes", desc: "the season's production forecast for that crop and state as printed in that release, in THOUSAND boxes (a box is a pack unit whose net weight differs by state and by crop -- never converted to tonnes here)"}
+      revision_1000_boxes: {label: "forecast revision", unit: "1000 boxes", desc: "the change from the PREVIOUS month's forecast, as printed in that same release (this month's forecast minus last month's); negative = the crop was cut. NULL on a season's FIRST release (October has no prior month) and on some Novembers"}
     notes: >
       ONE LOOKUP = ONE METRIC, ONE CROP AND ONE STATE. This card carries two metrics and TWO free
       axes with no default on either, which is the shape that invites a metric-less or state-less
@@ -3174,7 +3194,7 @@ tables:
     # Both strings are measured physical values of the sibling tables, never invented.
     commodity_values: [malaysian_crude_palm_oil_cme, palm_oil]
     metrics:
-      exports_mt: {unit: "MT", desc: "Malaysia's total palm-oil exports in that calendar month, metric tonnes (a MONTHLY FLOW, not cumulative and not a stock)"}
+      exports_mt: {label: "exports", unit: "MT", desc: "Malaysia's total palm-oil exports in that calendar month, metric tonnes (a MONTHLY FLOW, not cumulative and not a stock)"}
     notes: >
       MALAYSIA ONLY, PALM OIL ONLY, EXPORTS ONLY, ONE NUMBER PER MONTH. There is no commodity column,
       no destination column and no grade column in this table: it cannot tell you who bought it, which
@@ -3341,11 +3361,11 @@ tables:
     publication_lag_days: 14            # position date -> bulletin print; see the POINT-IN-TIME note
     provenance_col: source_position_date  # DP-2 -> alias `revision_stamp`: the originating bulletin
     metrics:
-      cane_crushed_t:       {unit: "MT", desc: "sugarcane crushed in that region SINCE THE SEASON OPENED, cumulative metric tonnes (not the fortnight's own crush)"}
-      sugar_produced_t:     {unit: "MT", desc: "sugar produced season-to-date, cumulative metric tonnes"}
-      ethanol_total_m3:     {unit: "m3", desc: "total ethanol produced season-to-date, cumulative cubic metres (== anhydrous + hydrous, exactly, on clean rows)"}
-      ethanol_anhydrous_m3: {unit: "m3", desc: "ANHYDROUS ethanol season-to-date, cumulative cubic metres -- the gasoline-blending grade"}
-      ethanol_hydrous_m3:   {unit: "m3", desc: "HYDROUS ethanol season-to-date, cumulative cubic metres -- the neat fuel sold at the pump"}
+      cane_crushed_t:       {label: "cane crushed", unit: "MT", desc: "sugarcane crushed in that region SINCE THE SEASON OPENED, cumulative metric tonnes (not the fortnight's own crush)"}
+      sugar_produced_t:     {label: "sugar produced", unit: "MT", desc: "sugar produced season-to-date, cumulative metric tonnes"}
+      ethanol_total_m3:     {label: "total ethanol produced", unit: "m3", desc: "total ethanol produced season-to-date, cumulative cubic metres (== anhydrous + hydrous, exactly, on clean rows)"}
+      ethanol_anhydrous_m3: {label: "anhydrous ethanol produced", unit: "m3", desc: "ANHYDROUS ethanol season-to-date, cumulative cubic metres -- the gasoline-blending grade"}
+      ethanol_hydrous_m3:   {label: "hydrous ethanol produced", unit: "m3", desc: "HYDROUS ethanol season-to-date, cumulative cubic metres -- the neat fuel sold at the pump"}
     notes: >
       EVERY NUMBER ON THIS CARD IS CUMULATIVE SEASON-TO-DATE, AND THAT IS THE EASIEST THING TO GET
       WRONG. cane_crushed_t at position 01/02 is everything crushed since the season opened in April,
@@ -3443,12 +3463,12 @@ tables:
     publication_lag_days: 14            # same bulletin, same cadence as the cane card
     provenance_col: source_position_date  # DP-2 -> alias `revision_stamp`
     metrics:
-      total_quinzenal_kl:     {unit: "m3", desc: "corn ethanol produced IN THAT FORTNIGHT ALONE, kilolitres (== cubic metres); a FLOW, not cumulative"}
-      anhydrous_quinzenal_kl: {unit: "m3", desc: "ANHYDROUS corn ethanol in that fortnight alone, kilolitres (a FLOW, not cumulative) -- the gasoline-blending grade"}
-      hydrous_quinzenal_kl:   {unit: "m3", desc: "HYDROUS corn ethanol in that fortnight alone, kilolitres (a FLOW, not cumulative) -- the neat pump fuel"}
-      total_accum_kl:         {unit: "m3", desc: "corn ethanol produced SINCE THE SEASON OPENED, cumulative kilolitres"}
-      anhydrous_accum_kl:     {unit: "m3", desc: "anhydrous corn ethanol season-to-date, cumulative kilolitres"}
-      hydrous_accum_kl:       {unit: "m3", desc: "hydrous corn ethanol season-to-date, cumulative kilolitres"}
+      total_quinzenal_kl:     {label: "fortnight ethanol output (total)", unit: "m3", desc: "corn ethanol produced IN THAT FORTNIGHT ALONE, kilolitres (== cubic metres); a FLOW, not cumulative"}
+      anhydrous_quinzenal_kl: {label: "fortnight anhydrous output", unit: "m3", desc: "ANHYDROUS corn ethanol in that fortnight alone, kilolitres (a FLOW, not cumulative) -- the gasoline-blending grade"}
+      hydrous_quinzenal_kl:   {label: "fortnight hydrous output", unit: "m3", desc: "HYDROUS corn ethanol in that fortnight alone, kilolitres (a FLOW, not cumulative) -- the neat pump fuel"}
+      total_accum_kl:         {label: "season-to-date ethanol output (total)", unit: "m3", desc: "corn ethanol produced SINCE THE SEASON OPENED, cumulative kilolitres"}
+      anhydrous_accum_kl:     {label: "season-to-date anhydrous output", unit: "m3", desc: "anhydrous corn ethanol season-to-date, cumulative kilolitres"}
+      hydrous_accum_kl:       {label: "season-to-date hydrous output", unit: "m3", desc: "hydrous corn ethanol season-to-date, cumulative kilolitres"}
     notes: >
       THIS CARD CARRIES BOTH A FLOW AND A CUMULATIVE, AND MIXING THEM IS THE PRIMARY HAZARD. The
       `_quinzenal_` metrics are that fortnight's own production; the `_accum_` metrics are everything
@@ -3534,12 +3554,12 @@ tables:
     publication_lag_days: 45            # month START -> month end (~30d) -> the following bulletin (~15d)
     provenance_col: source_position_date  # DP-2 -> alias `revision_stamp`
     metrics:
-      total_current_m3:    {unit: "m3", desc: "total ethanol SOLD by Centro-Sul mills in that month, cubic metres (a monthly FLOW; == internal + external where both are printed)"}
-      total_prior_m3:      {unit: "m3", desc: "the SAME month one year earlier, as printed in the source beside the current figure -- a stored comparator, never recompute it"}
-      internal_current_m3: {unit: "m3", desc: "DOMESTIC-market ethanol sales that month, cubic metres"}
-      internal_prior_m3:   {unit: "m3", desc: "domestic sales in the same month one year earlier, as printed"}
-      external_current_m3: {unit: "m3", desc: "EXPORT ethanol sales that month, cubic metres (sparse -- see notes)"}
-      external_prior_m3:   {unit: "m3", desc: "export sales in the same month one year earlier, as printed"}
+      total_current_m3:    {label: "ethanol sales (current month)", unit: "m3", desc: "total ethanol SOLD by Centro-Sul mills in that month, cubic metres (a monthly FLOW; == internal + external where both are printed)"}
+      total_prior_m3:      {label: "ethanol sales (prior-year month)", unit: "m3", desc: "the SAME month one year earlier, as printed in the source beside the current figure -- a stored comparator, never recompute it"}
+      internal_current_m3: {label: "domestic ethanol sales (current month)", unit: "m3", desc: "DOMESTIC-market ethanol sales that month, cubic metres"}
+      internal_prior_m3:   {label: "domestic ethanol sales (prior-year month)", unit: "m3", desc: "domestic sales in the same month one year earlier, as printed"}
+      external_current_m3: {label: "export ethanol sales (current month)", unit: "m3", desc: "EXPORT ethanol sales that month, cubic metres (sparse -- see notes)"}
+      external_prior_m3:   {label: "export ethanol sales (prior-year month)", unit: "m3", desc: "export sales in the same month one year earlier, as printed"}
     notes: >
       SALES ARE NOT PRODUCTION. This card is what mills SOLD; silver_unica_biweekly_season_history is
       what they MADE. The two are different quantities on different cadences (monthly flow versus
@@ -3662,6 +3682,7 @@ tables:
     # table exists to answer -- where the crush stands -- to fence a hazard it does not have.
     metrics:
       crush_margin_usd_bu:
+        label: "board crush margin"
         unit: "USD/bushel"
         desc: >
           THE board crush for that session: meal value + oil value - bean cost, in US dollars per
@@ -3684,6 +3705,7 @@ tables:
           soybeans:          *crush_roll_fence
           soy_complex:       *crush_roll_fence
       meal_value_usd_bu:
+        label: "meal value per bushel"
         unit: "USD/bushel"
         desc: >
           the meal leg's contribution -- 0.022 x the soybean-meal front-month settle (USD/short ton),
@@ -3696,6 +3718,7 @@ tables:
           soybeans:          *crush_roll_fence
           soy_complex:       *crush_roll_fence
       oil_value_usd_bu:
+        label: "oil value per bushel"
         unit: "USD/bushel"
         desc: >
           the oil leg's contribution -- 0.11 x the soybean-oil front-month settle (US cents/lb), i.e.
@@ -3707,6 +3730,7 @@ tables:
           soybeans:          *crush_roll_fence
           soy_complex:       *crush_roll_fence
       bean_cost_usd_bu:
+        label: "bean cost per bushel"
         unit: "USD/bushel"
         desc: >
           the input cost -- the soybean front-month settle converted from US cents to dollars per
@@ -3861,6 +3885,54 @@ tables:
   # "Ukraine has exported nothing". The citrus card's unpinned-headline hazard, arriving through a
   # zero-valued row instead of through a mis-parsed fragment, and pinned in tests/unit/
   # test_capability_wiring.py rather than trusted to prose.
+  gold_futures_spreads:
+    description: >
+      SAME-UNIT TWO-LEG FUTURES SPREADS, one row per (spread_id, trading session): the front-month
+      spread between two contracts the platform serves, under the ONE named roll rule, with both
+      legs' identity on the row. Two spreads today: kc_chi (HRW minus SRW wheat, US cents/bushel --
+      the protein class premium) and white_yellow (JSE white minus yellow maize, ZAR/t -- the food
+      premium). Each spread is single-unit BY LAW (both legs' unit and currency asserted equal at
+      build; a venue re-quote refuses, never rescales).
+    grain: "one row per spread_id x trading session"
+    shape: wide
+    commodity_col: spread_id
+    commodity_values: [kc_chi, white_yellow]
+    country_col: null
+    period_type: date
+    date_col: trade_date                  # exchange SESSION date; ISO 'YYYY-MM-DD' string
+    knowledge_semantics: data_date
+    knowledge_date_col: trade_date
+    publication_lag_days: 1               # inherited from silver_futures_eod, arithmetic adds no lag
+    partition_cols: []                    # flat gold object; projection FORBIDDEN
+    provenance_col: spread_rule_version
+    metrics:
+      spread_value:
+        label: "front-month spread"
+        unit: "per-spread (see unit_overrides)"
+        desc: >
+          long-leg front settle minus short-leg front settle, in the pair's OWN unit (the unit column
+          rides every row). SIGNED: negative means the short leg over the long leg -- a real reading.
+        unit_overrides:
+          kc_chi: "US cents/bushel"
+          white_yellow: "ZAR/t"
+        # THE ROLL FENCE (the gold_board_crush precedent, from day one): every served read excludes
+        # sessions where EITHER leg's front contract changed vs the previous emitted session.
+        row_filters:
+          kc_chi:       &spread_roll_fence
+            is_roll_boundary: ["0"]
+          white_yellow: *spread_roll_fence
+    notes: >
+      A SPREAD IS NOT A PRICE: quote it as a premium/discount in its own unit ("HRW settled 104.5
+      cents over SRW on 13 August 2026"), never as a level of either leg. NEGATIVE IS REAL (KC-Chi
+      inverted in 2016 and 2023; a white-under-yellow print is a real food-demand signal). NEVER a
+      percent change on a spread -- it crosses zero (the board-crush law). NEVER compare across
+      spread_ids: different units, different currencies, different markets. kc_chi history starts at
+      the GLBX open-interest floor (2015-11-19, the crush's own floor; earlier dates are REFUSED by
+      the roll rule's input contract, not missing). white_yellow history starts 2026-07-29 -- the JSE
+      feed is YOUNG: cite the session date, never "historically". Roll-boundary sessions stay in the
+      TABLE for provenance and are never served (row_filters); the legs' own levels live in
+      silver_futures_eod with their own units.
+
   silver_minagro_grain_exports:
     description: >
       MINAGRO (Ukraine's Ministry of Agrarian Policy and Food) -- the Ukrainian State Customs table of
@@ -3901,12 +3973,14 @@ tables:
     partition_cols: []                   # flat object; projection FORBIDDEN, no LIST surface, no year_col
     metrics:
       my_cumulative_kt:
+        label: "marketing-year cumulative exports"
         unit: "kt"
         desc: >
           MARKETING-YEAR CUMULATIVE exports of that crop in THOUSAND TONNES -- the running season-to-date
           total since the marketing year opened on 1 July. A LEVEL, not a flow: within a season it only
           ever rises, and it resets at the next 1 July.
       month_to_date_kt:
+        label: "month-to-date exports"
         unit: "kt"
         desc: >
           the part of that cumulative exported so far in the CURRENT CALENDAR MONTH ("of which"), in
@@ -3914,12 +3988,14 @@ tables:
           the 1st -- so it is a month-TO-DATE figure, and a completed monthly total only in the last
           capture before the month turns.
       prior_my_cumulative_kt:
+        label: "prior marketing-year cumulative exports"
         unit: "kt"
         desc: >
           the PREVIOUS marketing year's season-to-date cumulative for the same crop at the same point of
           the season, as the ministry prints it on that same row -- the built-in year-ago comparison.
           Use it for pace; do not fetch a second as-of a year back.
       prior_my_month_kt:
+        label: "prior marketing-year same-month exports"
         unit: "kt"
         desc: >
           the previous marketing year's same-month figure at that same point of the season -- the

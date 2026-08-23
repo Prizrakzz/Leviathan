@@ -498,7 +498,13 @@ refs:
     period_type: date              # release_date axis
     leg_mode: current              # monthly estimate cycle -- a pace signal, not an era backbone
     country_rule: none             # ONE geography (South Africa); scope 'total' is the national headline
-    keying: "commodity = SAGIS crop code (white_maize / yellow_maize for the JSE contracts)"
+    keying: "commodity = SAGIS crop code via commodity_aliases (the table stores crop codes, not slugs)"
+    # THE GATE'S OWN FIND (first fire 4db27e5b): the census queried this table with the CONTRACT
+    # slugs and found nothing -- the crop column stores the source's own codes. Per-row aliasing
+    # (never the global map: the JSE contracts' other legs keep their slugs).
+    commodity_aliases:
+      south_african_white_maize_jse: white_maize
+      south_african_yellow_maize_jse: yellow_maize
     native_unit: MT
     narrate_unit: MT
     scale: 1
@@ -510,6 +516,55 @@ refs:
       citable) -- never a served revision column (the D4 exclusion, mirrored on the conab card). Cite
       the release_date and estimate number; a fused-cell vintage's row is QUARANTINED at parse, so an
       absent release here is honest refusal, not silence.
+
+  # -- GN-2 W2.3 (2026-08-22): the spread scaffold's two live pairs -- the blanket `spread` ref dies
+  # per market (the crush split precedent). The two calendar_spread instances re-keyed to their own
+  # PLANNED refs (kc_calendar_spread / srw_calendar_spread: a CURVE needs two expiries of one
+  # contract -- the futures-v1.5 curve deferral stands); the other blanket `spread` instances stay
+  # refused per the C3 register. change_rule: absolute on BOTH rows -- a class spread crosses zero
+  # exactly like the crush (KC-Chicago inverted in 2016 and 2023). Roll-boundary sessions are
+  # excluded via the card's row_filters (producer is_roll_boundary, the crush column).
+  kc_chi_spread:
+    table: gold_futures_spreads
+    metric: spread_value
+    agg: latest
+    period_type: date              # exchange session date (trade_date)
+    change_rule: absolute          # NEVER a % on a zero-crossing spread
+    country_rule: none             # one market pair; no country axis
+    keying: "commodity = spread_id via commodity_aliases (kc_chi)"
+    commodity_aliases:
+      hard_red_winter_wheat_kcbt: kc_chi
+    native_unit: "US cents/bushel"
+    narrate_unit: "US cents/bushel"
+    scale: 1
+    coverage_start: 2015           # the GLBX OI floor (2015-11-19), same as the crush
+    status: mapped
+    notes: >
+      The KC-Chicago wheat class premium (HRW front minus SRW front, US cents per bushel) -- the
+      protein-scarcity spread. SIGNED: a negative print (2016, 2023) means SRW over HRW and is a real
+      reading. Narrate the signed level and signed cents change; never a percent (suppressed).
+  white_yellow_spread:
+    table: gold_futures_spreads
+    metric: spread_value
+    agg: latest
+    period_type: date
+    leg_mode: current              # the JSE feed is YOUNG (history starts 2026-07-29) -- no era backbone;
+    #                                lift leg_mode when a season of history exists
+    change_rule: absolute
+    country_rule: none
+    keying: "commodity = spread_id via commodity_aliases (white_yellow)"
+    commodity_aliases:
+      south_african_white_maize_jse: white_yellow
+    native_unit: "ZAR/t"
+    narrate_unit: "ZAR/t"
+    scale: 1
+    coverage_start: 2026           # HARD floor: the JSE feed's first session is 2026-07-29
+    status: mapped
+    notes: >
+      The JSE white-over-yellow maize premium (ZAR per tonne) -- the white-maize food premium over
+      yellow feed maize. SIGNED; a negative print is a real reading. HISTORY IS SHALLOW (first
+      session 2026-07-29): say the date, never "historically". Never compared against the KC spread
+      -- different currencies, different markets.
 
 # -- C3 SKIPS (2026-08-01) -- dark refs this wave REFUSED to bind, with the evidence -------------------
 # C3 authored the top UNFENCED dark refs by hand (D4: no generic fallback resolver). Three of the four

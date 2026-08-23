@@ -92,6 +92,12 @@ serving:
     k_by_depth: [5, 3, 2]
   retrieval:                    # evidence.retrieve / pgstore.pg_retrieve / rankers
     fetch_k: 60
+    rerank_backend: cohere      # OWNER WORD 2026-08-23 ("forget bge reranker as we'll never use it"): cohere
+                                # native is THE rerank lane. This params default closes the silent-bge hole --
+                                # the code default was "bge", so any lane that forgot the GRAPHRAG_RERANK_BACKEND
+                                # env (the deck eval arms did) silently reranked on the local model with zero
+                                # signal and $0 cohere spend. Prod taskdef env already says cohere; now the
+                                # default agrees. bge remains ONLY as the coded failure-fallback inside rankers.
     rerank_pool: 60             # CE pool; 24 was tried + REVERTED (41.7% deep-rescue rate, 2026-07-03 ablation)
     k: 5
     mmr: 0.5
