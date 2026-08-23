@@ -72,9 +72,14 @@ def resolve_model(model: str) -> str:
 # continuously, sub-second gaps; TTFT < ~60s) and far below the multi-minute hang. Overridable via
 # GRAPHRAG_LLM_READ_TIMEOUT for a slow-network fallback.
 def _client_timeout():
-    import httpx
+    # anthropic.Timeout, NEVER httpx.Timeout (2026-08-23 RCA): anthropic 1.0 vendors its own httpx
+    # fork, and a REAL httpx.Timeout instance fails its isinstance checks, falls through to
+    # sock.settimeout(<Timeout object>) -> TypeError -> masked as APIConnectionError "Connection
+    # error." on EVERY call. That masked crash voided two deck run sets wearing a network-outage
+    # costume. On anthropic 0.x anthropic.Timeout IS httpx.Timeout, so this spelling is identical
+    # there and correct on both SDK lines.
     read = float(os.environ.get("GRAPHRAG_LLM_READ_TIMEOUT", "300") or 300)
-    return httpx.Timeout(connect=15.0, read=read, write=60.0, pool=15.0)
+    return anthropic.Timeout(connect=15.0, read=read, write=60.0, pool=15.0)
 
 
 def make_client():

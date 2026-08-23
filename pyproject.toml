@@ -14,7 +14,7 @@ version = "0.1.0"
 description = "Commodity market-neutral trading system"
 requires-python = ">=3.9"
 dependencies = [
-    "anthropic>=0.111",     # Anthropic + Bedrock clients (serving provider routing needs the modern AnthropicBedrock; Opus authoring stays 1P)
+    "anthropic>=0.111,<1",  # Anthropic + Bedrock clients (serving provider routing needs the modern AnthropicBedrock; Opus authoring stays 1P). <1 PINNED 2026-08-23: the unpinned bound let the Aug-22 image bakes float onto anthropic 1.0.0 (released Aug-20) whose vendored-httpx broke every serving call as a masked "Connection error." — two deck run sets voided. Lift to 1.x only via a deliberate migration pass.
     "beautifulsoup4>=4.12",
     "boto3",
     "lxml>=4.9",
