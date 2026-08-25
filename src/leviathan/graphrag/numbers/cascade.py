@@ -34,7 +34,29 @@ TRANSMISSION_DEPTH_CAP = 2                                       # links per cha
 
 
 # ── the map (B-S2) ───────────────────────────────────────────────────────────────────────────────────
+def _cascade_width(n: int) -> int:
+    """Executor width for the cascade's pg waves: min(GRAPHRAG_CASCADE_WORKERS, pool, n).
+
+    DECOUPLED from _POOL_SIZE (2026-08-25, the capacity refuter's precondition for ANY pool raise):
+    width=pool was honest when the pool was 4 -- ceil(N/4) serial rounds either way -- but the pool
+    is a SHARED per-process resource sized for CONCURRENT TURNS, and deriving a single turn's fan-out
+    from it inverts that: at pool 24 one turn's prewarm went 24-wide, drained every slot, and starved
+    its sibling rows into `pg_pool_exhausted` (measured 2026-08-25, the A/B L arm -- opus-turn overlap
+    made the collision window real). A turn's width is now its OWN bounded knob; the pool stays the
+    turn-concurrency budget. Default 4 = the old pool-4 behavior, byte-identical to pre-raise widths.
+    """
+    import os as _os
+
+    from leviathan.graphrag.pgstore import _POOL_SIZE
+    try:
+        w = int(_os.environ.get("GRAPHRAG_CASCADE_WORKERS", "4") or 4)
+    except (TypeError, ValueError):
+        w = 4
+    return max(1, min(w, _POOL_SIZE, n))
+
+
 @functools.lru_cache(maxsize=1)
+
 def load_map() -> dict:
     """{silver_ref: {table, metric, agg, period_type, native_unit, narrate_unit, scale, country_rule}}.
     lru_cached; a row flagged `deferred: true` (uncertified/empty source, e.g. ESR) is inert: never returned
@@ -1215,12 +1237,11 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
     kept_keys = {g["key"] for g in kept}
     pairs = [p for p in pairs if p["a_key"] in kept_keys and p["b_key"] in kept_keys]
     flat = [s for g in kept for s in g["specs"]]
-    # ONE wave, executor width = the pg CONNECTION POOL (R5): 12 workers over a 4-conn pool would be
-    # ceil(N/4) serial rounds anyway -- width=pool is the honest (and equally fast) shape.
+    # ONE wave; executor width via _cascade_width -- a single turn's fan-out must never drain the
+    # SHARED pool (the 2026-08-25 wedge; see the helper's docstring).
     from concurrent.futures import ThreadPoolExecutor
 
-    from leviathan.graphrag.pgstore import _POOL_SIZE
-    width = max(1, min(_POOL_SIZE, len(flat)))
+    width = _cascade_width(len(flat))
     with ThreadPoolExecutor(max_workers=width) as pool:
         records = list(pool.map(                                     # order preserved; _run_one never raises
             lambda s: _run_one(qfn, s, futures_newest_first=futures_newest_first), flat))
@@ -3222,8 +3243,7 @@ def _chain_legs(sg, graph, kept: list, records: list, qfn, asof, near, calls: li
         if need:
             from concurrent.futures import ThreadPoolExecutor
 
-            from leviathan.graphrag.pgstore import _POOL_SIZE
-            width = max(1, min(_POOL_SIZE, len(need)))
+            width = _cascade_width(len(need))
             with ThreadPoolExecutor(max_workers=width) as pool:
                 for s, rec in zip(need, pool.map(
                         lambda sp: _run_one(qfn, sp, futures_newest_first=futures_newest_first), need)):
@@ -3400,8 +3420,7 @@ def _xmit_prewarm(qfn, keys: list, asof) -> None:
         return
     from concurrent.futures import ThreadPoolExecutor
 
-    from leviathan.graphrag.pgstore import _POOL_SIZE
-    width = max(1, min(_POOL_SIZE, len(keys)))
+    width = _cascade_width(len(keys))
     with ThreadPoolExecutor(max_workers=width) as pool:
         list(pool.map(lambda k: _world_su_ratio(qfn, k[0], k[1], asof), keys))
 
