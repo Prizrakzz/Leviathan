@@ -37,7 +37,7 @@ _JOB_QUEUE = "leviathan-dev-queue"
 # copy-top-revision-swap-digest; tf drift recorded for the next fleet-bump batch).
 _ECR_IMAGE = (
     "668891723125.dkr.ecr.us-east-1.amazonaws.com/leviathan-dev-leviathan-embedder"
-    "@sha256:70de777e04a68c1e27f8a4f6e3169e8114a01d813e2b17b29425e5ba9399155b"
+    "@sha256:78264c51bc2a09411c350b845f02e547b50c4792e731360bc12835900ac344bf"  # 2026-08-25 W-2/W-4: basins + country tail tier + _cells (projection Lane 2)
 )
 _JOB_ROLE_ARN = "arn:aws:iam::668891723125:role/leviathan-dev-batch-job-role"
 _EXEC_ROLE_ARN = "arn:aws:iam::668891723125:role/leviathan-dev-batch-execution-role"
