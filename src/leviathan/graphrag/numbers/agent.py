@@ -2301,6 +2301,14 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
     turn nobody asked for. DEFAULT FALSE -> every Q.run below compiles the byte-identical ASC total order,
     which is the rollback. It reaches all THREE reads on this lane: the executor's main lookup, the W3.2
     legacy-level rewrite beside it, and the ESR aggregate legs."""
+    # D-AM-5's seat seam, THIRD instance (2026-08-23, the A/B seat wave's lever): env fills the DEFAULT
+    # only, exactly like GRAPHRAG_SYNTH_MODEL (answer.py:8766) and GRAPHRAG_DISPATCH_MODEL (dispatch.py:662)
+    # -- an explicit caller model always wins, env unset is byte-identical. The docstring's no-env doctrine
+    # above covers READ-SHAPE flags (families / futures_newest_first), where a mis-plumbed enable changes
+    # what a turn LOOKS AT; the model SEAT changes who reads it, and the estate's two existing seat seams
+    # both live in-module. Rollback = unset one var, no deploy.
+    if model == HAIKU:
+        model = os.environ.get("GRAPHRAG_NUMBERS_MODEL") or model
     reg = reg or load_registry()
     if client is None:                             # real serving path -> provider-routed + retried
         from leviathan.graphrag import providers as pv
