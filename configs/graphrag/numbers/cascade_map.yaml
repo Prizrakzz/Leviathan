@@ -58,6 +58,11 @@ refs:
     agg: latest
     period_type: marketing_year
     window_granularity: marketing-year
+    # W0-7 (D-9, 2026-08-25): a Global/global driver token on this primary-ruled row silently cited the
+    # contract's primary country (cotton's global_textile_demand answered with China). Fenced: such a
+    # token now SKIP_NODEs (honest decline). Re-key the token to a nation in the DAG if the driver is
+    # genuinely national (the FX-5 shape) -- never widen region_map with a Global entry (D-7).
+    global_token: skip
     keying: "commodity=contract slug; country=consuming region"
     native_unit: MT
     narrate_unit: MMT
@@ -153,6 +158,12 @@ refs:
     agg: latest
     period_type: marketing_year
     window_granularity: marketing-year
+    # W0-7 (D-9, 2026-08-25): 11 census legs tokened Global/global rode this primary-ruled row and
+    # FIRED with the contract primary's national su_ratio (french_wheat_matif -> European Union, the
+    # three US wheats -> United States, raw_sugar -> Brazil, robusta -> Vietnam; barley + sunflower_oil
+    # have NO geography primary and ran country-UNFILTERED). Fenced: Global-class tokens SKIP_NODE.
+    # The honest world surface is silver_production's World row, gated on FAO-3 (C-3) -- never this row.
+    global_token: skip
     keying: "commodity=contract slug; country=_primary_country(contract) Title-Case"
     native_unit: ratio
     narrate_unit: "%"
@@ -258,6 +269,12 @@ refs:
     #                                    week mislabeled "current".
     period_type: date                  # weekly pace: period_start/period_end bind week_ending_date
     leg_mode: current                  # NEW FLAG (D-W3.2): the current rhyme leg ONLY -- never an era leg
+    # W0-3 (projection wave, 2026-08-25): the sorghum leg was dark on SLUG IDENTITY, not data absence --
+    # ESR code 701 is fetched, maps to `grain_sorghum` (usda_esr.py), and silver objects landed
+    # 2026-08-20; the class DAG's contract slug is `sorghum`. Per-row aliasing (the sagis precedent
+    # above): only ESR legs re-key, the sorghum DAG's other refs keep their slug.
+    commodity_aliases:
+      sorghum: grain_sorghum
     country_rule: none                 # US-only source; no country column, v1 sums destinations
     native_unit: "1000 MT"
     narrate_unit: "1000 MT"            # kt/week flow -- NOT MMT, NOT a level; scale 1 (no ratio trap)
@@ -788,9 +805,13 @@ refs:
 # TOP-LEVEL sibling of refs (load_map returns refs only; cascade.load_region_map reads this block).
 # resolve: EXACT region tokens (as written in configs/graphrag/causal/*.yaml) that name ONE country.
 #   country = the silver_psd surface form (Title-Case, W0/RF-0 convention: 'United States', 'South Africa').
-#   currency = silver_fred_fx column prefix (<currency>_usd must be a REAL column -- lint-enforced). Only
-#   brl/ars/cny exist in silver_fred_fx; EU maps to no currency because there is NO eur_usd column, so EU
-#   fx legs stay qualitative rather than narrate the wrong pair.
+#   currency = silver_fred_fx column prefix (<currency>_usd must be a REAL column -- lint-enforced).
+#   FX-4 (projection wave, 2026-08-25): the 14-cross widening landed (FX-1..FX-3), so ten currency keys
+#   below quantify the region legs that declined for want of a column (MEASURED: 19 legs / 13 boards),
+#   + the UK row for D-3's cocoa GBP cross. ARGENTINA'S KEY IS DELETED, not the column (FX-6): ars_usd
+#   is dead at source since 2020-10-30 and agg=latest carries NO null filter, so the key made 5 legs
+#   decline on a NULL while looking green -- the column stays for history, the key returns only with a
+#   live source. rub/uah/vnd stay keyless: no source (the day one lands, the change is three keys).
 # unresolved: compound/prose/vague tokens that CANNOT honestly resolve to one country -- the node skips to
 #   qualitative (rrv1 2c: primary-fallback stamps the wrong country's numbers; country=null on a PSD trade
 #   ref mixes ~150 countries). Splitting compounds (China/US) by metric axis is RF-3 pairing work, not this
@@ -805,21 +826,26 @@ region_map:
     China:                 {country: "China", currency: cny}
     "China (import side)": {country: "China", currency: cny}
     "China (FX)":          {country: "China", currency: cny}
-    India:                 {country: "India"}
-    "India (import side)": {country: "India"}
+    India:                 {country: "India", currency: inr}
+    "India (import side)": {country: "India", currency: inr}
     Brazil:                {country: "Brazil", currency: brl}
     "Brazil / FX":         {country: "Brazil", currency: brl}
-    Argentina:             {country: "Argentina", currency: ars}
-    EU:                    {country: "European Union"}
-    Eurozone:              {country: "European Union"}
-    Indonesia:             {country: "Indonesia"}
-    Malaysia:              {country: "Malaysia"}
-    "Malaysia (FX)":       {country: "Malaysia"}
+    # FX-6: `currency: ars` DELETED (see the block comment above) -- the country half stays live.
+    Argentina:             {country: "Argentina"}
+    EU:                    {country: "European Union", currency: eur}
+    Eurozone:              {country: "European Union", currency: eur}
+    Indonesia:             {country: "Indonesia", currency: idr}
+    Malaysia:              {country: "Malaysia", currency: myr}
+    "Malaysia (FX)":       {country: "Malaysia", currency: myr}
     Vietnam:               {country: "Vietnam"}
-    Thailand:              {country: "Thailand"}
-    Canada:                {country: "Canada"}
-    South_Africa:          {country: "South Africa"}
+    Thailand:              {country: "Thailand", currency: thb}
+    Canada:                {country: "Canada", currency: cad}
+    South_Africa:          {country: "South Africa", currency: zar}
     "Cote d'Ivoire":       {country: "Cote d'Ivoire"}
+    # D-3 (ratified 2026-08-25): cocoa's GBP_cross re-keys Global -> United Kingdom. Surface form
+    # PROBED live before this row landed: silver_psd DISTINCT country carries 'United Kingdom'
+    # (1,807 rows / 62 slugs, 2026-08-25). gbp_usd is a real column since FX-1's 14-cross widening.
+    "United Kingdom":      {country: "United Kingdom", currency: gbp}
     # -- D-EC POST-X2 GRAPH-COMPLETION WAVE (2026-08-21): THE FX EDGE FAMILY'S HARD PRECONDITION --------
     # The wave authors six FX driver nodes (AUD_USD, MXN_USD, TRY_USD, RUB_USD, THB_USD, UAH_USD) whose
     # `silver_ref` is `fred_fx_macro`, and fred_fx_macro is `country_rule: region` (:168). config_check's
@@ -828,23 +854,19 @@ region_map:
     # and Turkey appeared in NEITHER list -- only inside compound `unresolved` tokens ("Canada/Australia/
     # China", "China;Mexico;US", "EU/Australia/Black Sea"), and a compound does not satisfy the census for
     # a bare token. These three rows land BEFORE the FX nodes or the build fails.
-    # NO `currency:` KEY ON ANY OF THE THREE, and that is the point rather than an omission. The same lint
-    # errors if `<cur>_usd` is not a REAL silver_fred_fx column, and only brl / ars / cny exist (the same
-    # reason EU carries no currency, stated at the top of this block). So `aud_usd`, `mxn_usd` and
-    # `try_usd` MUST NOT be written here. THE D-PQ FENCE, restated: these six nodes stay QUALITATIVE and
-    # this wave quantifies NOTHING. Lighting them is the projection wave's `fred_fx` dict (27 crosses), and
-    # the currency keys land in THAT change, never ahead of the column.
-    # PHILIPPINES IS DELIBERATELY NOT ADDED, and it is recorded so nobody "completes the set": php_fx
-    # DEFERS this wave -- `PHP_USD` is RESERVED against a `coconut` DAG that does not exist, so no driver
-    # carries a Philippines region token and a row here would be config with no reader. Its region row and
-    # its currency binding land in the SAME change that authors the coconut DAG.
-    # `country` is the silver_psd Title-Case surface form. Turkey: the estate's own destination reference
-    # spells FAS code 4890 "Turkey" with 'turkiye' as an alias (numbers/esr_destinations.yaml:113), so
-    # "Turkey" is the form used here; a PSD probe should confirm it before any QUANTIFIED Turkish leg --
-    # which this wave does not author, because there is no currency key to key one on.
-    Australia:             {country: "Australia"}
-    Mexico:                {country: "Mexico"}
-    Turkey:                {country: "Turkey"}
+    # FX-4 (projection wave, 2026-08-25): THE PROMISED CHANGE ARRIVED. The 2026-08-21 fence here read
+    # "the currency keys land in THAT change [the projection wave's fred_fx widening], never ahead of
+    # the column" -- FX-1..FX-3 landed aud_usd / mxn_usd / try_usd as real, card-declared columns, so
+    # the three keys below are now legal and the same lint that FORBADE them ENFORCES them (a key whose
+    # <cur>_usd is not a card metric is still a build failure; the ordering is code, not convention).
+    # PHILIPPINES IS STILL DELIBERATELY NOT ADDED: php_fx stays RESERVED against a `coconut` DAG that
+    # does not exist (D-CW-3a); its region row and currency binding land in the SAME change that
+    # authors the coconut DAG, never here to "complete the set".
+    # `country` is the silver_psd Title-Case surface form. Turkey: the estate's own destination
+    # reference spells FAS code 4890 "Turkey" ('turkiye' aliased, numbers/esr_destinations.yaml:113).
+    Australia:             {country: "Australia", currency: aud}
+    Mexico:                {country: "Mexico", currency: mxn}
+    Turkey:                {country: "Turkey", currency: "try"}
     # -- D-W5 weather-flip region curation (2026-07-12): gold_weather_z country_rule=region tokens --
     # RESOLVE = the token names ONE country that exists in that commodity's gold_weather_z coverage;
     # growing-region detail in parens / ';' / '_' collapses to the single country. Ground truth =

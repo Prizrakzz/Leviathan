@@ -12,6 +12,10 @@ tables:
       a given release_date; estimates are revised across releases, so as-of a date means the latest release on
       or before it.
     grain: "one row per commodity x country x market_year x release_date"
+    # COVERAGE (PA-1, hoisted from this card's own measured text): 247,036 rows / 63 slugs, measured at the
+    # XC-1/XC-7 re-run (comment above)
+    row_count: 247036
+    cadence: annual
     shape: wide
     commodity_col: leviathan_slug
     # D-EC XC-1/XC-7 CARD FLIP (2026-08-20). ARM AND FLIP WERE SEPARATE and this is the flip half: the
@@ -55,6 +59,16 @@ tables:
       area_harvested_1000ha: {label: "area harvested", unit: "1000 ha", desc: "harvested area"}
       yield_mt_ha:           {label: "yield", unit: "MT/ha", desc: "yield"}
       su_ratio:              {label: "stocks-to-use ratio", unit: "ratio", desc: "stocks-to-use ratio"}
+      # W0-2 (projection wave, 2026-08-25): four columns the producer has ALWAYS written, never advertised.
+      # Coverage measured on the live object before authoring (the PA-1 law) -- see notes for the spans.
+      su_ratio_yoy_delta:        {label: "stocks-to-use ratio change (YoY)", unit: "ratio",
+                                  desc: "year-over-year change in the stocks-to-use ratio, compared at the SAME release month of the estimate cycle (apples-to-apples vintages)"}
+      production_mt_revision:    {label: "production revision", unit: "MT",
+                                  desc: "month-over-month revision of the production estimate between consecutive WASDE releases for the same marketing year"}
+      ending_stocks_mt_revision: {label: "ending stocks revision", unit: "MT",
+                                  desc: "month-over-month revision of the ending-stocks estimate between consecutive WASDE releases for the same marketing year"}
+      consumption_mt_revision:   {label: "consumption revision", unit: "MT",
+                                  desc: "month-over-month revision of the consumption estimate between consecutive WASDE releases for the same marketing year"}
     notes: >
       Values in `_mt` columns are RAW metric tonnes (verified: Argentina corn MY2023 ending stocks = 2,462,000
       = 2.46 MMT). period = the marketing year as an integer (e.g. 2023). Latest vintage <= asof = as-known.
@@ -72,6 +86,14 @@ tables:
       -- the sheet simply stops there in the source file, ten years back -- so quote the year you are
       reading and never call that series current.
       PSD carries NO cocoa balance sheet at all -- cocoa supply/demand is silver_icco_cocoa.
+      THE REVISION METRICS COVER THE WASDE-TRACKED ERA ONLY, PER SLUG -- never say "revisions back to
+      1960". Measured on the live object (2026-08-25): production/ending-stocks/consumption revisions
+      exist for marketing years 2014-2026 on 56 of the 63 slugs, and each slug's onset differs (the
+      cottonseed family from MY2014; rye, coconut, copra_meal and palm_kernel_meal only from MY2025) --
+      the pre-WASDE mass (MY 1960-2004, one pass-through print per year) has no prior estimate to revise
+      against, so a "not published" there is structural, not a gap. su_ratio_yoy_delta DOES span the full
+      book (MY 1961-2026, 61 slugs): a YoY comparison needs only last year's same-month print. A revision
+      of 0 is a real "unchanged estimate"; an absent revision means no consecutive-month pair exists.
 
   silver_wasde:
     description: >
@@ -80,6 +102,9 @@ tables:
       balance-sheet line items; region is the geographic scope of the estimate (united_states, world,
       brazil, major_exporters, ...). As-of a date = the latest monthly release on or before it.
     grain: "one row per commodity x table_type x region x attribute x marketing_year x release_date"
+    # COVERAGE (PA-1, hoisted from this card's own measured text): monthly release; no table-wide row/span
+    # census is stated on this card
+    cadence: monthly
     # FIXED 2026-07-05 (pg-parity gate catch): the grain also carries table_type + region — without them
     # in grain_cols the latest-vintage ROW_NUMBER collapsed ACROSS regions and kept one arbitrary region
     # row per (commodity, MY, attribute). Undetectable before because the Title-Case metrics bug made
@@ -217,6 +242,8 @@ tables:
       live in `metric`, values in `value`. Observational/annual — stamped with an ingest_date (no revision
       vintage), so as-of = rows ingested on or before the date.
     grain: "one row per commodity x country x year x metric"
+    # COVERAGE (PA-1, hoisted from this card's own measured text): annual, ingest-stamped; no census stated
+    cadence: annual
     shape: tall
     commodity_col: commodity
     country_col: country
@@ -258,6 +285,9 @@ tables:
       queried as a windowed aggregate (sum precip / mean temp over a period_start..period_end).
       SILVER-F047: QUARANTINED from serving -- weather is served from gold_weather_z.
     grain: "one row per commodity x country x region x date (daily)"
+    # COVERAGE (PA-1, hoisted from this card's own measured text): quarantined -- never rendered; declared
+    # for parity
+    cadence: daily
     shape: wide
     partition_cols: [commodity, country, region]   # PHYSICAL TRUTH post BF-W1 compaction (synced 2026-07-21):
     #                  Glue partitions are [commodity, year] REGISTERED; country/region/month are IN-FILE
@@ -309,8 +339,29 @@ tables:
       returns NO rows (never a silent national total). Bloc/region aggregate codes (e.g. the EU) are a bloc
       aggregate, and pseudo codes (Unknown) are never a single-country name target.
     grain: "one row per commodity x destination x week_ending_date, per weekly as_of_date report"
+    # COVERAGE (PA-1, W0-5 projection wave 2026-08-25): MEASURED on the LATEST VINTAGE per slug (the
+    # as-of collapse serving actually reads): 1,472,434 rows across 31 slugs, weeks 1989-06-01 through
+    # 2026-08-13. The physical table holds more (every retained weekly vintage); the latest-vintage cut
+    # is the honest serving denominator. NO last_obs -- weekly reports keep landing.
+    row_count: 1472434
+    first_obs: "1989-06-01"
+    cadence: weekly
     shape: wide
     commodity_col: commodity_name            # already our slugs: corn_cbot, soybeans_cbot, hard_red_winter_wheat_kcbt, ...
+    # W0-3 (projection wave, 2026-08-25): the fence this card NEVER had. The 2026-08-20 widening coined
+    # 21 new slugs and the card named none of them, so every off-card ESR ask compiled SQL and returned
+    # a SILENT 0-row (sorghum's export_pace leg sat dark on slug identity for five days with rows LIVE
+    # in silver). The set mirrors transforms/bronze_to_silver/usda_esr.py `_COMMODITY_CODE_TO_NAME`
+    # exactly -- generated, never hand-listed; a test asserts equality BOTH directions (the PSD pin's
+    # shape), so producer and fence are ONE universe or the build fails. `sorghum` asks ride the
+    # cascade row's commodity_aliases (sorghum -> grain_sorghum); the FENCE lists table codes only.
+    commodity_values: [all_rice, all_wheat, barley, cattle_beef, corn_cbot, cottonseed, cottonseed_meal,
+                       cottonseed_oil, durum_wheat, flaxseed, grain_sorghum, hard_red_spring_wheat_mgex,
+                       hard_red_winter_wheat_kcbt, hogs, linseed_oil, long_grain_brown_rice,
+                       long_grain_milled_rice, medium_short_brown_rice, medium_short_milled_rice,
+                       medium_short_rough_rice, mixed_wheat, oats, rough_rice_cbot, rye,
+                       soft_red_winter_wheat_cbot, soybean_meal_cbot, soybean_oil_cbot, soybeans_cbot,
+                       sunflower_oil, wheat_products, white_wheat]
     country_col: country_code                 # ESR_DESTINATION_PLAN W1: raw int FAS destination code (in-file on
     #                                           silver_esr_compact, NOT a projected partition) -> name<->code is a
     #                                           query-time translation (esr_destinations.yaml), no silver col / pg reload
@@ -367,9 +418,19 @@ tables:
 
   silver_fred_fx:
     description: >
-      Daily FX rates (FRED) for the commodity-relevant currencies vs the US dollar — Brazilian real, Argentine
-      peso, Chinese yuan — with 90-day percent changes. Macro table (no commodity), known same-day (data_date).
+      Daily FX rates for the commodity-relevant currencies vs the US dollar — 14 crosses: Brazilian real,
+      Argentine peso, Chinese yuan, Indonesian rupiah, Indian rupee, Malaysian ringgit, Thai baht, Turkish
+      lira, Australian and Canadian dollars, South African rand, Mexican peso, euro and British pound —
+      each with its 90-day percent change beside it. Macro table (no commodity), known same-day
+      (data_date). Source is the ECB reference rate via Frankfurter ("fred" in the id is a documented
+      legacy misnomer, ADR-003).
     grain: "one row per date"
+    # COVERAGE (PA-1, W0-5 projection wave 2026-08-25): registry.py's own rule stated verbatim, finally
+    # declared here. NO last_obs -- the table is alive (fx_macro_daily); a widening lane (FX-1..FX-3)
+    # re-measures row_count when the currency roster moves.
+    row_count: 5538
+    first_obs: "2004-12-31"
+    cadence: daily
     shape: wide
     period_type: date
     date_col: date
@@ -381,9 +442,40 @@ tables:
       brl_usd_pct_change_90d: {label: "BRL/USD 90-day % change", unit: "pct", desc: "BRL/USD 90-day percent change"}
       ars_usd_pct_change_90d: {label: "ARS/USD 90-day % change", unit: "pct", desc: "ARS/USD 90-day percent change"}
       cny_usd_pct_change_90d: {label: "CNY/USD 90-day % change", unit: "pct", desc: "CNY/USD 90-day percent change"}
+      # FX-1/FX-3 (projection wave, 2026-08-25): the currency widening -- eleven new crosses, each the
+      # quantified leg beside cascade prose that already shipped (19 declining region legs + D-3's
+      # cocoa GBP cross). Same convention as the incumbents: local units per USD, higher = weaker.
+      idr_usd: {label: "IDR/USD exchange rate", unit: "IDR per USD (ECB via Frankfurter)", desc: "Indonesian rupiah per US dollar; higher = weaker rupiah"}
+      inr_usd: {label: "INR/USD exchange rate", unit: "INR per USD (ECB via Frankfurter)", desc: "Indian rupee per US dollar; higher = weaker rupee"}
+      myr_usd: {label: "MYR/USD exchange rate", unit: "MYR per USD (ECB via Frankfurter)", desc: "Malaysian ringgit per US dollar; higher = weaker ringgit"}
+      thb_usd: {label: "THB/USD exchange rate", unit: "THB per USD (ECB via Frankfurter)", desc: "Thai baht per US dollar; higher = weaker baht"}
+      try_usd: {label: "TRY/USD exchange rate", unit: "TRY per USD (ECB via Frankfurter)", desc: "Turkish lira per US dollar; higher = weaker lira"}
+      aud_usd: {label: "AUD/USD exchange rate", unit: "AUD per USD (ECB via Frankfurter)", desc: "Australian dollars per US dollar; higher = weaker Aussie"}
+      cad_usd: {label: "CAD/USD exchange rate", unit: "CAD per USD (ECB via Frankfurter)", desc: "Canadian dollars per US dollar; higher = weaker loonie"}
+      zar_usd: {label: "ZAR/USD exchange rate", unit: "ZAR per USD (ECB via Frankfurter)", desc: "South African rand per US dollar; higher = weaker rand"}
+      mxn_usd: {label: "MXN/USD exchange rate", unit: "MXN per USD (ECB via Frankfurter)", desc: "Mexican pesos per US dollar; higher = weaker peso"}
+      eur_usd: {label: "EUR/USD exchange rate", unit: "EUR per USD (ECB via Frankfurter)", desc: "Euros per US dollar; higher = weaker euro"}
+      gbp_usd: {label: "GBP/USD exchange rate", unit: "GBP per USD (ECB via Frankfurter)", desc: "British pounds per US dollar; higher = weaker pound"}
+      idr_usd_pct_change_90d: {label: "IDR/USD 90-day % change", unit: "pct", desc: "IDR/USD 90-day percent change"}
+      inr_usd_pct_change_90d: {label: "INR/USD 90-day % change", unit: "pct", desc: "INR/USD 90-day percent change"}
+      myr_usd_pct_change_90d: {label: "MYR/USD 90-day % change", unit: "pct", desc: "MYR/USD 90-day percent change"}
+      thb_usd_pct_change_90d: {label: "THB/USD 90-day % change", unit: "pct", desc: "THB/USD 90-day percent change"}
+      try_usd_pct_change_90d: {label: "TRY/USD 90-day % change", unit: "pct", desc: "TRY/USD 90-day percent change"}
+      aud_usd_pct_change_90d: {label: "AUD/USD 90-day % change", unit: "pct", desc: "AUD/USD 90-day percent change"}
+      cad_usd_pct_change_90d: {label: "CAD/USD 90-day % change", unit: "pct", desc: "CAD/USD 90-day percent change"}
+      zar_usd_pct_change_90d: {label: "ZAR/USD 90-day % change", unit: "pct", desc: "ZAR/USD 90-day percent change"}
+      mxn_usd_pct_change_90d: {label: "MXN/USD 90-day % change", unit: "pct", desc: "MXN/USD 90-day percent change"}
+      eur_usd_pct_change_90d: {label: "EUR/USD 90-day % change", unit: "pct", desc: "EUR/USD 90-day percent change"}
+      gbp_usd_pct_change_90d: {label: "GBP/USD 90-day % change", unit: "pct", desc: "GBP/USD 90-day percent change"}
     notes: >
       No commodity/country filter. agg=latest returns the rate as-of a date; period_start/end + agg for a window.
-      Direction is the FRED "local currency per USD" convention (verify against source before hard sizing).
+      Direction is the "local currency per USD" convention (verify against source before hard sizing).
+      THE ARGENTINE PESO SERIES IS DEAD AT SOURCE: ars_usd's last non-null observation is 2020-10-30 (the
+      ECB stopped publishing an ARS reference rate) -- the column stays for history, but never quote it as
+      a current rate and never say the estate lacks ARS "data": it has sixteen years of history and a
+      dead front. The ELEVEN NEW CROSSES (2026-08-25) fill forward from the next daily fetch across the
+      full 2004+ history; until that first post-widening fire lands they exist on the card but hold no
+      rows, and an as-of read before it honestly returns nothing.
 
   silver_noaa_oni:
     description: >
@@ -391,6 +483,8 @@ tables:
       anomaly (>= +0.5 El Nino, <= -0.5 La Nina); flags mark El Nino / La Nina months and the Brazil/Argentina
       teleconnection regimes. No date column — identified by year + month, known at month end (year_month guard).
     grain: "one row per year x month"
+    # COVERAGE (PA-1, hoisted from this card's own measured text): monthly ENSO state; no census stated
+    cadence: monthly
     shape: wide
     period_type: date
     year_col: year
@@ -435,6 +529,10 @@ tables:
       today by roughly one month; that is the source's live cadence, not a gap. Global climate state; no
       commodity filter.
     grain: "one row per year x month"
+    # COVERAGE (PA-1, hoisted from this card's own measured text): NOAA CPC ERSSTv5 IODMI record,
+    # 1950-01..present (description + the ADR note)
+    first_obs: "1950-01"
+    cadence: monthly
     shape: wide
     period_type: date
     year_col: year
@@ -465,9 +563,18 @@ tables:
       (the baseline excludes the observation year), so a value for year Y never sees Y. Non-revising
       observational anomalies — as-of a date = months whose (year, month) is on or before the as-of
       year-month. Decoupled from BOTH the deferred MLOps gold.feature_spine (silverleg.py:16-20 bars the
-      cascade from it) AND the projected silver_nasa_power (the Jul-2026 LIST-storm class); this table is
-      non-projected and mirror-friendly.
+      cascade from it) AND the projected raw-observation weather layer upstream of it (the Jul-2026
+      LIST-storm class); this table is non-projected and mirror-friendly, and it is the ONLY weather table
+      you can look up -- there is no raw daily temperature or precipitation card here, so a raw-value
+      weather ask is answered as an ANOMALY (z) or declined, never routed to another weather table.
     grain: "one row per commodity x country x region x year x month x metric"
+    # COVERAGE (PA-1, W0-5 projection wave 2026-08-25): MEASURED across the 31 live gold parquets
+    # (footer census). NO last_obs -- the table refreshes on the weather cycle. Lane 2's basin work
+    # re-measures this in the same change that adds the tail-share/cells metrics (a gold re-run
+    # rewrites all 31 objects).
+    row_count: 779213
+    first_obs: "1981"
+    cadence: monthly
     shape: tall
     commodity_col: commodity
     country_col: country
@@ -503,7 +610,7 @@ tables:
       z-scores are dimensionless (scale 1 — never delta a z against a level). country is the PSD Title-Case
       surface form ('United States', 'Brazil', 'European Union') so a country_rule=region weather leg
       resolves against it instead of going DARK. region is carried through but is NOT a query filter in v1
-      (a windowed leg aggregates across the commodity's regions, like silver_nasa_power v1). period =
+      (a windowed leg aggregates across the commodity's regions). period =
       year+month; as-of compares (year*100 + month) <= asof year-month. A mid-month asof sees only
       COMPLETE months because the transform drops any month not covering every calendar day (RCA
       2026-07-24: a ~23-day July's GDD sum z-scored against full-month baselines served gdd_z=-13.16) —
@@ -525,6 +632,8 @@ tables:
       collapsed to one row per cocoa marketing year. Grindings (world use), production, end stocks
       and stocks-to-use, each taken from the latest ICCO release that carried it. Annual grain.
     grain: "one row per cocoa_year (world balance sheet)"
+    # COVERAGE (PA-1, hoisted from this card's own measured text): one row per cocoa_year; no census stated
+    cadence: annual
     shape: wide
     commodity_col: null                 # single-commodity (cocoa); no commodity filter (W0-5)
     country_col: null                   # world aggregate; no country axis
@@ -552,6 +661,10 @@ tables:
       exports/imports and a monthly stocks-to-exports ratio for Malaysian crude palm oil. Monthly
       grain; each month's stats are published ~10th of the FOLLOWING month.
     grain: "one row per commodity x month (first-of-month data date)"
+    # COVERAGE (PA-1, hoisted from this card's own measured text): "silver_mpob's canonical parquet begins
+    # 2016-12 and runs to the present" (the mpoc_trade_stats cross-check block). LIVE front -> no last_obs
+    first_obs: "2016-12"
+    cadence: monthly
     shape: wide
     commodity_col: commodity            # single value malaysian_crude_palm_oil_cme (probed)
     period_type: date
@@ -625,6 +738,12 @@ tables:
       the USDA annual world oilseed balance sheet use silver_psd. Monthly grain; a completed month is
       published around the middle of the following month.
     grain: "one row per country x oil_type x year x month"
+    # COVERAGE (PA-1, hoisted from this card's own measured text): "272 rows, 5 IMPORTING countries ... x 4
+    # oils x 18 months, 2025-01..2026-06" (2026-08-07). The month front still MOVES (notes: expect it to
+    # trail by one to two months) -> no last_obs
+    row_count: 272
+    first_obs: "2025-01"
+    cadence: monthly
     shape: wide
     commodity_col: oil_type             # the OIL axis; values are oil names, NOT contract slugs (see notes)
     country_col: country                # the HOLDING country (lower_snake); this is a destination axis
@@ -708,6 +827,12 @@ tables:
       volume, so the country list CHANGES year to year. Annual grain; a completed calendar year is
       published the following January.
     grain: "one row per calendar year x destination country (annual top-destination panel)"
+    # COVERAGE (PA-1, hoisted from this card's own measured text): FIFTEEN annual pages 2009-2023
+    # (mpoc_archive.yaml, enumerated in the trade-stats block); "COVERAGE STOPS AT CALENDAR YEAR 2023" is a
+    # CLOSED archive, so the ceiling is declarable
+    first_obs: "2009"
+    last_obs: "2023"
+    cadence: annual
     shape: wide
     country_col: country                # the DESTINATION country (lower_snake); the only free axis
     period_col: year                    # the CALENDAR year of the flow (Jan-Dec), an integer
@@ -789,6 +914,8 @@ tables:
       of national crop estimates by crop and reporting scope. Vintage table: each estimate carries a
       release_date; as-of a date = the latest estimate published on or before it.
     grain: "one row per crop x scope x production_year x report_month x estimate_number per release_date"
+    # COVERAGE (PA-1, hoisted from this card's own measured text): numbered CEC estimates; no census stated
+    cadence: release
     shape: wide
     commodity_col: crop                 # SAGIS crop code: total_maize/white_maize/yellow_maize/wheat/... (W0-7)
     country_col: scope                  # W0-2/D5: repurposed for the reporting scope total|commercial|developing
@@ -829,6 +956,8 @@ tables:
       four surveys published across the crop year; as-of a date = the latest survey published on or
       before it. National ('brazil' region) headline plus state/region detail.
     grain: "one row per commodity x region x safra_year x survey_number"
+    # COVERAGE (PA-1, hoisted from this card's own measured text): up to four numbered surveys per safra
+    cadence: release
     shape: wide
     commodity_col: commodity            # arabica_coffee | robusta_coffee
     country_col: region                 # repurposed as the geo axis; pass region='brazil' for national
@@ -876,6 +1005,13 @@ tables:
       prior-year and a z-score vs the trailing 3-year same-week average. Point-in-time via the week's
       ending date plus a conservative publication lag.
     grain: "one row per season x crop x week_number"
+    # COVERAGE (PA-1, hoisted from this card's own measured text): "canonical parquet 1204 rows, 0 nulls,
+    # 2003-05..2024-04" (Card C block). The file STOPPED at 2024-04 (the deliveries card names the 27-month
+    # gap as this tranche's sharpest hazard) -> the end is a ceiling
+    row_count: 1204
+    first_obs: "2003-05"
+    last_obs: "2024-04"
+    cadence: weekly
     shape: wide
     commodity_col: crop                 # maize | wheat (SAGIS crop label, NOT a contract slug)
     period_type: date
@@ -931,6 +1067,11 @@ tables:
       same week's prior-season tonnage, the ratio between them, and a z-score versus the trailing 3-year
       same-week average. Point-in-time via the week's ending date plus a conservative publication lag.
     grain: "one row per season x crop x week_number"
+    # COVERAGE (PA-1, hoisted from this card's own measured text): "3,007 rows, maize 1,051 / wheat 1,074 /
+    # soybeans 441 / sunflower 441". Seasons are 'YYYY-YY' LABELS, not month keys, so no first_obs is
+    # declarable on this axis; the front is LIVE (weekly job on the clock) -> no last_obs
+    row_count: 3007
+    cadence: weekly
     shape: wide
     commodity_col: crop                 # maize | wheat | soybeans | sunflower (SAGIS crop LABEL, not a slug)
     # D-PQ CLASS-1 code fence. The four labels are the COMPLETE measured vocabulary of the physical column
@@ -1075,6 +1216,13 @@ tables:
       season Y is published during the following year, so at any as-of the newest citable season is
       normally the PRIOR crop year, not the one now in the field.
     grain: "one row per crop season (US national cotton classing summary; commodity x geography x season)"
+    # COVERAGE (PA-1, hoisted from this card's own measured text): "27 rows ... 1986 through 1998, then
+    # 2008, 2009, 2011, 2015, 2016, 2017, then 2018 through 2025" (2026-08-18). ANNUAL: the newest season is
+    # fixed until the next classing summary -- the SPAN, gaps in the notes
+    row_count: 27
+    first_obs: "1986"
+    last_obs: "2025"
+    cadence: annual
     shape: wide
     commodity_col: commodity             # single value 'cotton' (probed); the estate's ICE cotton slug
     # D-PQ CLASS-1 code fence: the slug set is CLOSED at exactly one value, so a lookup naming any other
@@ -1197,6 +1345,10 @@ tables:
       wheat. The week ending Sunday is published the following Monday afternoon and is citable from the
       Tuesday after it.
     grain: "one row per contract x state x week-ending date (weekly, in season)"
+    # COVERAGE (PA-1, hoisted from this card's own measured text): "week by week from 1979". The end is a
+    # SCHEDULING gap being closed (D-CW-2a(i)-(iii)), never a source ceiling -> no last_obs
+    first_obs: "1979"
+    cadence: weekly
     shape: wide
     commodity_col: commodity            # PARTITION key = the contract slug (6 values; see notes)
     # D-PQ CLASS-1: the six slugs, DECLARED, so the fence is code and not prose. A lookup naming anything
@@ -1343,6 +1495,13 @@ tables:
       in-season read: for weekly condition ratings and planting/harvest pace use
       silver_nass_crop_progress, and for the current marketing year's USDA forecast use silver_wasde.
     grain: "one row per commodity x state x crop year (annual, latest-revised)"
+    # COVERAGE (PA-1, hoisted from this card's own measured text): "~26,081 rows" re-measured at the
+    # 2026-08-20 promote; "crop years 1866-2026". last_obs is the newest CITABLE crop year (2026 exists but
+    # is withheld until its January summary -- the notes carry that distinction)
+    row_count: 26081
+    first_obs: "1866"
+    last_obs: "2025"
+    cadence: annual
     shape: wide
     commodity_col: commodity            # PARTITION key = the contract slug (4 served values; see notes)
     # D-PQ CLASS-1 fence: the slugs this card can actually answer, DECLARED, so the refusal is code and
@@ -1473,6 +1632,10 @@ tables:
       settles) for edible oils, grains, sugar, fertilizers and energy, in US dollars. Wide table,
       one row per month. Point-in-time via a monthly data date plus a conservative publication lag.
     grain: "one row per month (first-of-month data date)"
+    # COVERAGE (PA-1, hoisted from this card's own measured text): "Series begin 1960+" (notes). LIVE
+    # monthly front -> no last_obs
+    first_obs: "1960"
+    cadence: monthly
     shape: wide
     period_type: date
     date_col: date                       # first-of-month DATA month; PHYSICAL TYPE IS TIMESTAMP (DP-5)
@@ -1691,6 +1854,13 @@ tables:
       "food inflation". A whole calendar year is one observation and the figure is a year-AVERAGE over
       the prior year-average, so it is not the monthly year-on-year print a news story quotes.
     grain: "one row per country_iso x year (annual, latest-only, one World Bank release for the whole table)"
+    # COVERAGE (PA-1, hoisted from this card's own measured text): "264 rows: FOUR countries (IND, IDN, RUS,
+    # UKR) x 66 calendar years 1960-2025". ANNUAL and one year behind -> the newest year is fixed until the
+    # next WB release
+    row_count: 264
+    first_obs: "1960"
+    last_obs: "2025"
+    cadence: annual
     shape: wide
     commodity_col: null                 # NO commodity axis (macro table) -- see notes: a commodity passed here is IGNORED
     country_col: country_iso            # ISO3 in CAPITALS; the closed four-value set lives in notes (no code fence exists)
@@ -1802,6 +1972,11 @@ tables:
       the cascade map ONLY as a fetched past-tense CONTEXT leg (cot_mm_positioning); it may never be a
       fork ref, a regime-MARKER ref, or a chain/complex/transmission hop.
     grain: "one row per contract x report_date (weekly Tuesday positions)"
+    # COVERAGE (PA-1, hoisted from this card's own measured text): "the three US wheat classes now start
+    # 2006-06-13 like the CBOT five; the ICE four start 2007-09-04" (the 2026-08-21 re-key). LIVE weekly
+    # front -> no last_obs
+    first_obs: "2006-06-13"
+    cadence: weekly
     shape: wide
     commodity_col: leviathan_slug        # CONTRACT slugs (corn_cbot, soybeans_cbot, ...); base names match 0 rows
     period_type: date
@@ -1867,6 +2042,8 @@ tables:
       read (the roll splice between expiries contaminates any cross-date delta). Point-in-time via the
       trading date plus a one-day publication lag.
     grain: "one row per contract x trading date (daily front-month close, Yahoo quote)"
+    # COVERAGE (PA-1, hoisted from this card's own measured text): daily continuous close; no census stated
+    cadence: daily
     shape: wide
     commodity_col: leviathan_slug        # CONTRACT slugs (corn_cbot, ...); the front-month CONTINUOUS series
     period_type: date
@@ -1951,6 +2128,11 @@ tables:
       (~70 per long-lived contract), distinct from Monday's session bar -- real prints, never fill. Point-in-time via the trading date
       plus a one-day publication lag.
     grain: "one row per contract x delivery month x trading date (per-delivery-month EOD)"
+    # COVERAGE (PA-1, hoisted from this card's own measured text): "COVERAGE FLOORS: history starts 2010-06
+    # (CME), 2018-12 (ICE), 2015-10 (CZCE), 2006 (DCE)" -- the EARLIEST venue floor; the per-venue floors
+    # and the two 2026 venues stay in the notes, where they are per-contract facts
+    first_obs: "2006"
+    cadence: daily
     shape: wide
     commodity_col: leviathan_slug        # CONTRACT slugs (corn_cbot, ...); all 31 registry contracts
     period_type: date
@@ -2128,6 +2310,9 @@ tables:
       vintaged-leg weekly replay asofs -- NEVER blend the two, and phrase a backfill rate as 'weekly replay
       asofs', not recent daily firing. If no firing is recorded for a pair, say so plainly; never infer a run length.
     grain: "one row per record_kind x contract x driver_or_chain_id x as_of_date"
+    # COVERAGE (PA-1, hoisted from this card's own measured text): the daily sweep accrues one partition per
+    # day
+    cadence: daily
     grain_cols: [record_kind, contract, driver_or_chain_id, as_of_date]
     shape: wide
     commodity_col: contract
@@ -2205,6 +2390,11 @@ tables:
       the SHIPMENTS half of the US export program; silver_esr is the SALES half, and the two are different
       quantities that must never be added or substituted.
     grain: "one row per contract x marketing year x week x destination country"
+    # COVERAGE (PA-1, hoisted from this card's own measured text): "113,072 rows, five contracts, 196
+    # destinations, weekly from January 1983". LIVE weekly front (Thursday fire) -> no last_obs
+    row_count: 113072
+    first_obs: "1983-01"
+    cadence: weekly
     shape: wide
     commodity_col: leviathan_slug        # PARTITION key = the contract slug; the equality is what prunes
     # D-PQ CLASS-1 code fence: the five slugs, DECLARED, so an off-list lookup is refused at spec level
@@ -2358,6 +2548,12 @@ tables:
       no use, no trade and no price on this table. Monthly, 2006-12 onward; a circular is published in the
       first half of its own month and is citable from the 13th.
     grain: "one row per release_month x commodity x country x marketing_year (the year-vintage rows)"
+    # COVERAGE (PA-1, hoisted from this card's own measured text): 49,188 `vintage_type='year'` rows -- the
+    # SERVED half of the 96,410 (the month rows are fenced out by row_filters); "228 circulars, 2006-12
+    # through 2026-07". LIVE monthly circular -> no last_obs
+    row_count: 49188
+    first_obs: "2006-12"
+    cadence: monthly
     shape: wide
     commodity_col: commodity            # the WAP aggregate GROUP, not a contract slug (see notes)
     # D-PQ CLASS-1 code fence: the six groups, DECLARED, so an off-list ask is refused at spec level with a
@@ -2578,6 +2774,13 @@ tables:
       1956 and both export series from 1958. Point-in-time via the month's own first-of-month data date
       plus a conservative 45-day publication lag.
     grain: "one row per commodity x year x month (monthly, calendar months)"
+    # COVERAGE (PA-1, hoisted from this card's own measured text): "1,360 rows ... 114 years 1913-2026";
+    # "the newest month in the table is APRIL-2026" and the SOURCE runs three to four months behind -- a
+    # content ceiling the notes state in the imperative
+    row_count: 1360
+    first_obs: "1913-01"
+    last_obs: "2026-04"
+    cadence: monthly
     shape: wide
     commodity_col: commodity            # PARTITION key holding the contract slug; REQUIRED on every lookup
     # The slug set, DECLARED, so the fence is code and not prose: this table has exactly ONE commodity and
@@ -2730,6 +2933,13 @@ tables:
       inland airports and border crossings are rounding errors. Colombia and arabica only, monthly, no
       destination and no grade breakdown.
     grain: "one row per port x month (green coffee; the physical table also carries three processed types)"
+    # COVERAGE (PA-1, hoisted from this card's own measured text): "2,147 rows total / 552 green, 111
+    # month-slices 2017-01 .. 2026-03" -- row_count is the SERVED (cafe_verde) half; the bronze fetch is
+    # pinned to one workbook edition, so 2026-03 is a ceiling until that config moves
+    row_count: 552
+    first_obs: "2017-01"
+    last_obs: "2026-03"
+    cadence: monthly
     shape: wide
     commodity_col: commodity            # PARTITION key holding the contract slug; exactly one value exists
     commodity_values: [arabica_coffee]  # D-PQ CLASS-1 code fence: one slug, CLOSED. Off-list = pre-SQL refusal.
@@ -2867,6 +3077,12 @@ tables:
       departments for one year. Point-in-time by the snapshot's ingest date: FNC republishes the whole
       workbook, so this table holds one non-revising edition, not a vintage history.
     grain: "one row per commodity x department x calendar year (annual, 2002+)"
+    # COVERAGE (PA-1, hoisted from this card's own measured text): "one row per department per calendar year
+    # from 2002"; "The newest year in the table is 2025 (measured 2026-08-18)" and a new year appears
+    # roughly once a year
+    first_obs: "2002"
+    last_obs: "2025"
+    cadence: annual
     shape: wide
     commodity_col: commodity            # PARTITION key = the contract slug (ONE value; see notes)
     # D-PQ CLASS-1: the closed slug set, DECLARED, so the fence is code and not prose. A lookup naming
@@ -2995,6 +3211,12 @@ tables:
       the juice, fresh_citrus = the orange fruit): a different grain, a different question, and the two
       reads are never mixed into one figure.
     grain: "one row per crop x state x season, per monthly release_date"
+    # COVERAGE (PA-1, hoisted from this card's own measured text): "all 2,450 rows"; "the newest release in
+    # this table is 2025-07-11" and NASS has published no 2025-26 season -- a PAUSED source, so the end is a
+    # ceiling. No first_obs: the oldest seasons are mis-parsed fragments the notes forbid quoting
+    row_count: 2450
+    last_obs: "2025-07-11"
+    cadence: monthly
     shape: wide
     commodity_col: crop                  # NASS crop label, NOT a contract slug (see notes)
     # D-PQ CLASS-1 code fence: the six crop labels the table physically carries, DECLARED, so an
@@ -3184,6 +3406,12 @@ tables:
       further than silver_mpob, which is the authority for 2016-12 onward and runs to the present. There
       is no commodity, destination, grade or product axis here: one number per month, in metric tonnes.
     grain: "one row per year x month (Malaysia national total; no commodity, destination or grade axis)"
+    # COVERAGE (PA-1, hoisted from this card's own measured text): "180 rows = 15 years x 12 months,
+    # 2009-01..2023-12" -- a CLOSED archive that "will never extend"
+    row_count: 180
+    first_obs: "2009-01"
+    last_obs: "2023-12"
+    cadence: monthly
     shape: wide
     period_type: date                   # cosmetic here (no period_col) -- the ONI/IOD/stock_comparison idiom
     year_col: year                      # year_month semantics: (year*100+month) is the guard/window axis
@@ -3339,6 +3567,13 @@ tables:
       Centro-Sul) and centro_sul, which is their SUM and not a fourth place. Coverage is bulletin-
       sparse -- nine seasons between 2012/13 and 2025/26 with 2016/17 through 2020/21 absent entirely.
     grain: "one row per harvest_year x region x fortnight position (biweekly, season-to-date cumulative)"
+    # COVERAGE (PA-1, hoisted from this card's own measured text): "fortnight_date 2012-04-16 .. 2026-02-01"
+    # (per-table ceiling census); "The table now holds 335 rows" after the 2026-08-19 repair. 2026/27 has
+    # ZERO parseable bulletins -> a real ceiling
+    row_count: 335
+    first_obs: "2012-04-16"
+    last_obs: "2026-02-01"
+    cadence: biweekly
     shape: wide
     commodity_col: null                 # no product column -- every row is Brazilian cane and its output
     # D-PQ CLASS-1 on a card with NO commodity axis (the mpoc_exports idiom). `commodity` emits no SQL
@@ -3445,6 +3680,12 @@ tables:
       position -- and coverage starts with the 2021/22 season, which is when UNICA began publishing the
       corn table at all.
     grain: "one row per harvest_year x fortnight position (biweekly; corn ethanol, national)"
+    # COVERAGE (PA-1, hoisted from this card's own measured text): "fortnight_date 2021-04-16 .. 2026-02-01
+    # (same last bulletin, DIFFERENT table -- measured, not inherited)"; "All 86 rows"
+    row_count: 86
+    first_obs: "2021-04-16"
+    last_obs: "2026-02-01"
+    cadence: biweekly
     shape: wide
     commodity_col: null                 # no product column -- every row is Brazilian corn ethanol
     # The closed set is CORN, and deliberately so: the reflex reach for a Brazilian corn-ethanol ask is
@@ -3534,6 +3775,12 @@ tables:
       across nine seasons, only the April-November months of each season, and 16 of those rows carry no
       figures at all.
     grain: "one row per harvest_year x calendar month (monthly ethanol sales, Centro-Sul mills)"
+    # COVERAGE (PA-1, hoisted from this card's own measured text): "month_date 2012-04-01 .. 2025-11-01, ONE
+    # ceiling again" after the 2026-08-19 recovery; "58 rows"
+    row_count: 58
+    first_obs: "2012-04-01"
+    last_obs: "2025-11-01"
+    cadence: monthly
     shape: wide
     commodity_col: null                 # no product column -- every row is Brazilian cane ethanol
     # Sugar slugs, for the same reason the cane card carries them: this is UNICA's cane-mill book and
@@ -3640,6 +3887,12 @@ tables:
       on GLBX), and that rule's version rides every row. One row per trading session on which all three
       legs printed; CBOT only.
     grain: "one row per trading session (a single global CBOT spread -- no commodity axis, no country axis)"
+    # COVERAGE (PA-1, hoisted from this card's own measured text): "RE-MEASURED 2026-08-22 from the SERVED
+    # parquet: 2,652 rows, 2015-11-19..2026-08-18". LIVE daily session front -> no last_obs (a stale end
+    # date on a daily card declines sessions the table holds)
+    row_count: 2652
+    first_obs: "2015-11-19"
+    cadence: daily
     shape: wide
     # THE TWO INVISIBLE AXES, declared rather than left absent. This table has NO commodity column and
     # NO country column: the board crush is ONE number per session, not a number per commodity. The
@@ -3894,6 +4147,11 @@ tables:
       premium). Each spread is single-unit BY LAW (both legs' unit and currency asserted equal at
       build; a venue re-quote refuses, never rescales).
     grain: "one row per spread_id x trading session"
+    # COVERAGE (PA-1, hoisted from this card's own measured text): "kc_chi history starts at the GLBX
+    # open-interest floor (2015-11-19)"; white_yellow starts 2026-07-29 and stays a per-spread fact in the
+    # notes
+    first_obs: "2015-11-19"
+    cadence: daily
     shape: wide
     commodity_col: spread_id
     commodity_values: [kc_chi, white_yellow]
@@ -3947,6 +4205,10 @@ tables:
       capture lands and its history extends BACKWARD as archived captures are added, so read the as-of
       stamps you actually get back rather than assuming a span.
     grain: "one row per as_of_date x crop_slug (one weekly snapshot of the ministry's cumulative table)"
+    # COVERAGE (PA-1, hoisted from this card's own measured text): NEITHER end is declarable and that is the
+    # CARD'S OWN RULE: "COVERAGE GROWS FROM BOTH ENDS, SO NEVER STATE THIS TABLE'S SPAN FROM MEMORY" --
+    # captures extend it forward weekly and backward as the wayback backfill lands
+    cadence: weekly
     shape: wide
     commodity_col: crop_slug             # the ministry's ROW LABEL, NOT a contract slug (see notes)
     # D-PQ CLASS-1 fence: the ten row labels this table physically carries, DECLARED, so an off-list ask

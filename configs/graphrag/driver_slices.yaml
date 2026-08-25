@@ -1702,6 +1702,12 @@ dag_alias:
   #     node for exactly this reason ("a second node there would double-own one FX channel"). Refusing it
   #     again on the same ground is what leaves thb_fx read-dark; INR_PKR_weakness and GBP_cross are
   #     declined for the same basket/no-slice reasons and keep their waivers.
+  #     D-3 UPDATE (2026-08-25): GBP_cross's NUMBER half is now LIVE -- the token re-keyed
+  #     Global -> United Kingdom, the region row carries currency gbp, and gbp_usd is a real
+  #     silver_fred_fx column (FX-1's 14-cross widening), so the cascade leg quantifies. The PROSE
+  #     half stays exactly as refused above: no gbp_fx slice exists and minting one is slice-BUILDING
+  #     (the post-X2 zero-embed lever's jurisdiction), not wiring. A reader seeing the number without
+  #     a slice beside it is seeing this recorded state, not an omission.
   #   * Nothing is claimed for rub_fx, try_fx, aud_fx, uah_fx, mxn_fx, php_fx -- not one of the 371 real DAG
   #     driver ids names the ruble, lira, Australian dollar, hryvnia, Mexican peso or Philippine peso. There
   #     is NO WIRING TO DO: these six plus thb_fx are content-rich and routing-dark, the export_levy_duty /
