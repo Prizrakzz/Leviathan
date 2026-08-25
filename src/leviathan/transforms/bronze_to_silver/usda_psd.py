@@ -808,11 +808,20 @@ def transform_psd_bronze_to_silver(
     dedup_key = pivot_index + ["attribute_desc"]
     n_dupes = int(combined.duplicated(subset=dedup_key).sum())
     if n_dupes:
+        # VINTAGE DIRECTION FIX (owner word 2026-08-25; found by the Lane-3 grain test): for every
+        # historical row the F2 clamp does not bind, so two bronze snapshots of the same vintage carry
+        # the IDENTICAL release_date -- a blind keep-first here resolved the tie to whichever snapshot
+        # the caller listed FIRST (oldest, in the natural order), contradicting the card's
+        # vintage_retention: latest-only and silently starving step 11.5 of the re-print it exists to
+        # resolve. bronze_ingest_date is the only surviving witness to WHICH snapshot a row came from;
+        # ordering on it makes the dedup latest-wins on both axes and caller-order-independent (the
+        # long companion shipped this rule first; the wide table now matches).
         logger.warning(
-            "PSD transform: %d duplicate (index + attribute_desc) rows; keeping first",
+            "PSD transform: %d duplicate (index + attribute_desc) rows; keeping newest snapshot",
             n_dupes,
         )
-        combined = combined.drop_duplicates(subset=dedup_key, keep="first")
+        combined = (combined.sort_values(dedup_key + ["bronze_ingest_date"])
+                            .drop_duplicates(subset=dedup_key, keep="last"))
 
     # -----------------------------------------------------------------------
     # 11. Pivot attribute_desc → wide columns

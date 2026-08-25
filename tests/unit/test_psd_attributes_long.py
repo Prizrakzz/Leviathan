@@ -196,23 +196,22 @@ class TestGrain:
             prod = long[(long.attribute == "Production") & (long.leviathan_slug == "raw_sugar")]
             assert len(prod) == 1 and prod.value.iloc[0] == 999.0
 
-    def test_RIDER_the_wide_producer_resolves_the_same_tie_the_other_way(self) -> None:
-        # A MEASUREMENT RIDER on a live defect this lane FOUND but does NOT fix:
-        # silver_psd's step-10 dedup key includes release_date and keeps FIRST, so
-        # when the F2 clamp does not bind (every historical row) the OLDER snapshot
-        # wins and step 11.5's latest-only rule never gets a chance to run. This
-        # test PINS the current behaviour so the follow-up fix is a visible,
-        # deliberate flip rather than a silent one. It is not an assertion that the
-        # behaviour is correct -- it is not.
+    def test_the_wide_producer_now_resolves_reprint_ties_latest_wins(self) -> None:
+        # THE RIDER FLIPPED, DELIBERATELY (owner word 2026-08-25). This test previously
+        # PINNED the defect: step-10's blind keep-first let the OLDEST snapshot win every
+        # historical re-print tie (identical release_date whenever the F2 clamp does not
+        # bind), contradicting vintage_retention: latest-only. The wide producer now orders
+        # the dedup on bronze_ingest_date -- the long companion's rule -- so the NEWEST
+        # snapshot's value wins regardless of caller argument order. Both orders asserted.
         old = _bronze(711100, _COFFEE_ROWS, release_date="2026-07-17")
         new = _bronze(711100, _COFFEE_ROWS, release_date="2026-08-13")
         new.loc[new.attribute_id == 28, "value"] = 999.0
-        wide = transform_psd_bronze_to_silver([old, new])
-        row = wide[wide.leviathan_slug == "robusta_coffee"]
-        assert len(row) == 1
-        assert row.production_mt.iloc[0] == 900.0 * 60.0, (
-            "silver_psd now prefers the NEWER re-print -- if that was a deliberate "
-            "fix, delete this rider; if it was accidental, this is where it shows")
+        for order in ([old, new], [new, old]):
+            wide = transform_psd_bronze_to_silver([d.copy() for d in order])
+            row = wide[wide.leviathan_slug == "robusta_coffee"]
+            assert len(row) == 1
+            assert row.production_mt.iloc[0] == 999.0 * 60.0, (
+                "the newest re-print must win the vintage tie in EITHER caller order")
 
     def test_attribute_id_maps_one_to_one_onto_attribute(self) -> None:
         long = transform_psd_attributes_bronze_to_silver(
