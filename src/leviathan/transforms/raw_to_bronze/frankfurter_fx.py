@@ -44,10 +44,16 @@ logger = get_logger(__name__)
 # The 14 = the measured region_map DEMAND (+ GBP for D-3's cocoa cross) (19 declining legs across 13 boards: FX-4) + the incumbents.
 # ARS is KEPT deliberately although DEAD at source since 2020-10-30 (FX-6/ADR-003: the column stays,
 # the tripwire below names the dead symbol on every fire instead of six years of silence).
-# The FURTHER widening to Frankfurter's full ~29-symbol universe is GATED ON THE FX-9(a) PROBE
-# (network-parked: api.frankfurter.dev returns 403 from the sandbox) -- an unproven symbol in the
-# querystring risks failing the WHOLE fetch, so no symbol enters here without a probe-confirmed
-# first/last date. Add rows only in (symbol, column) pairs the probe has named.
+# THE UNIVERSE, PROBE-ARMED (FX-9a executed 2026-08-25, data/dec_p0/frankfurter_fx9a_probe.json;
+# the 403 was urllib's USER-AGENT, not the vantage -- requests, the client this task already uses,
+# gets 200). The /currencies roster is exactly 30; every symbol below except ARS measured PERFECT
+# 1.0 coverage 2004-12-31..2026-08-25 (5,542 ECB business days). FETCH THE UNIVERSE, SERVE THE
+# DEMAND: silver's _RATE_COLUMNS serves 14; the rest land in bronze only, so a future currency ask
+# is a config row, not a backfill. Dead/discontinued symbols (CYP EEK HRK LTL LVL MTL ROL SIT SKK
+# TRL DZD MAD TWD RUB, and BGN which the euro retires 2026-01) are NOT requested -- a dead symbol
+# in the querystring risks the whole GET, and ARS (in-roster, dead 2020-10-30, coverage 0.7311)
+# already exercises the tripwire daily. RUB note for the parked-refusal record: HISTORY EXISTS to
+# 2022-03-01 (coverage 0.7932) -- the refusal is 'dead front', no longer 'no source'.
 SERIES_MAP: dict[str, str] = {
     "BRL": "brl_usd",
     "ARS": "ars_usd",
@@ -62,9 +68,25 @@ SERIES_MAP: dict[str, str] = {
     "ZAR": "zar_usd",
     "MXN": "mxn_usd",
     "EUR": "eur_usd",
-    # D-3 (ratified 2026-08-25): the cocoa GBP_cross leg -- London/New York arbitrage needs the
-    # pound. ECB-core symbol, full history expected; floors still ride the FX-9(a) probe.
+    # D-3 (ratified 2026-08-25): the cocoa GBP_cross leg -- London/New York arbitrage needs the pound.
     "GBP": "gbp_usd",
+    # -- bronze-only from here (the probe-confirmed live remainder; not in _RATE_COLUMNS, not served) --
+    "CHF": "chf_usd",
+    "CZK": "czk_usd",
+    "DKK": "dkk_usd",
+    "HKD": "hkd_usd",
+    "HUF": "huf_usd",
+    "ILS": "ils_usd",
+    "ISK": "isk_usd",
+    "JPY": "jpy_usd",
+    "KRW": "krw_usd",
+    "NOK": "nok_usd",
+    "NZD": "nzd_usd",
+    "PHP": "php_usd",
+    "PLN": "pln_usd",
+    "RON": "ron_usd",
+    "SEK": "sek_usd",
+    "SGD": "sgd_usd",
 }
 
 SOURCE = "frankfurter"

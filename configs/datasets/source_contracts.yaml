@@ -419,7 +419,14 @@ sources:
     s3_prefix: s3://leviathan-dev-shahem-001/silver/fred_fx/
     status: certified_driver
     grain: daily date
-    required_columns: [date, brl_usd, brl_usd_pct_change_90d, cny_usd, cny_usd_pct_change_90d, source]
+    # FX-2(d), probe-armed 2026-08-25 (FX-9a, data/dec_p0/frankfurter_fx9a_probe.json): every one of
+    # the eleven new crosses measured PERFECT 1.0 coverage 2004-12-31..2026-08-25 (5,542/5,542 ECB
+    # business days), so all eleven enter required_columns and NO min_nonnull_frac_overrides are
+    # needed (the plan's ~0.65 concern measured moot). ars stays OUT (dead at source 2020-10-30,
+    # coverage 0.7311 -- required would red the daily gate on an honest death).
+    required_columns: [date, brl_usd, brl_usd_pct_change_90d, cny_usd, cny_usd_pct_change_90d,
+                       idr_usd, inr_usd, myr_usd, thb_usd, try_usd, aud_usd, cad_usd, zar_usd,
+                       mxn_usd, eur_usd, gbp_usd, source]
     natural_key: [date]
     date_columns: [date]
     availability_columns: [date]

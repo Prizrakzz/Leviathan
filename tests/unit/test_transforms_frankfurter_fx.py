@@ -181,9 +181,15 @@ def test_silver_schema_matches_registry():
 def _dense_rates(n_days: int = 500) -> dict:
     d0 = date(2020, 1, 1)
     rates = {}
+    # FX-1/FX-2(d) (2026-08-25): the dense fixture emits EVERY SERVED currency, not three of
+    # fourteen -- the eleven new crosses are value_columns under the 0.5 floor (probe-measured 1.0
+    # live coverage), and a fixture missing them reads 0.0 at the publish gate. ARS stays in (it is
+    # served for history and the source really did emit it through 2020, the fixture's era).
+    from leviathan.transforms.bronze_to_silver.frankfurter_fx import _RATE_COLUMNS
+    symbols = [c[:3].upper() for c in _RATE_COLUMNS]
     for i in range(n_days):
         d = (d0 + timedelta(days=i)).isoformat()
-        rates[d] = {"BRL": 4.0 + i * 0.001, "ARS": 60.0 + i * 0.05, "CNY": 6.9 + i * 0.0005}
+        rates[d] = {sym: 1.0 + j * 0.7 + i * 0.001 for j, sym in enumerate(symbols)}
     return rates
 
 
@@ -218,10 +224,12 @@ class TestPublish:
         from jobs.batch._sb_producer_publish import publish_flat_silver
 
         s = build_fx_silver(extract_fx_bronze(_json(_dense_rates(500))))
-        # All 6 value columns must clear the 0.5 non-null floor on a dense 500-day series.
-        for c in ("brl_usd", "ars_usd", "cny_usd",
-                  "brl_usd_pct_change_90d", "ars_usd_pct_change_90d", "cny_usd_pct_change_90d"):
-            assert s[c].notna().mean() > 0.5, c
+        # EVERY value column must clear the 0.5 non-null floor on a dense 500-day series
+        # (roster-derived: three-of-fourteen hand lists are the drift the widening exposed).
+        from leviathan.transforms.bronze_to_silver.frankfurter_fx import _RATE_COLUMNS
+        for base in _RATE_COLUMNS:
+            for c in (base, f"{base}_pct_change_90d"):
+                assert s[c].notna().mean() > 0.5, c
 
         for argv, expect_keys in [(["p"], 1), (["p", "--publish-mode", "shadow"], 2)]:
             fs = self._fake_s3()
@@ -261,9 +269,13 @@ class TestPublishIdentityResolution:
         monkeypatch.setattr(sbp, "authorize_publish", fake_authorize)
         # FX-1 (2026-08-25): build the fixture off SILVER_COLUMNS so the frame tracks the currency
         # roster instead of hand-listing three of thirteen (the exact drift the widening exposed).
+        # Every rate/pct column NON-NULL: since FX-2(d) the new crosses are value_columns under the
+        # 0.5 floor (probe-measured 1.0 live coverage), and an all-NaN fixture column reads 0.0
+        # against it. ARS alone stays NaN -- dead at source, deliberately outside required_columns.
         from leviathan.transforms.bronze_to_silver.frankfurter_fx import SILVER_COLUMNS
-        row = {c: [float("nan")] for c in SILVER_COLUMNS}
+        row = {c: [1.5] for c in SILVER_COLUMNS}
         row.update({"date": ["2026-01-02"], "brl_usd": [5.0], "cny_usd": [7.0],
+                    "ars_usd": [float("nan")], "ars_usd_pct_change_90d": [float("nan")],
                     "source": ["frankfurter"]})
         df = pd.DataFrame(row)
         with pytest.raises(RuntimeError, match="stop-here"):
