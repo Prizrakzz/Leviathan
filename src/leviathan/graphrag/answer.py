@@ -8673,6 +8673,9 @@ def _call_opus(system: str, user, *, model: str, tool: dict, on_token=None, temp
     # own ceiling -- forwarded only when provided, mirroring `temperature` exactly.
     kw = dict(model=pv.resolve_model(model), max_tokens=max_tokens or 12000, tool=tool,
               degrade_to=ex.HAIKU, usage_sink=_sink)  # answers grew
+    _think = pv.synth_thinking()                       # c/d seam: None unless GRAPHRAG_SYNTH_THINKING=adaptive
+    if _think is not None:
+        kw["thinking"] = _think                        # WRITER seat only; both serving lanes accept it
     if on_token is not None:
         out, degraded = pv.serving_call_stream(client, sys_blocks, user, on_token=on_token, **kw)
     else:

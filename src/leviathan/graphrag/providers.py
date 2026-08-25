@@ -82,6 +82,19 @@ def _client_timeout():
     return anthropic.Timeout(connect=15.0, read=read, write=60.0, pool=15.0)
 
 
+def synth_thinking() -> Optional[dict]:
+    """The c/d THINKING seam's env resolver (2026-08-25; arms deferred until after the projection
+    wave by owner word -- the PLUMBING lands now so c/d fires without a bake cycle then).
+    GRAPHRAG_SYNTH_THINKING=adaptive -> {"type": "adaptive"}; unset/anything else -> None =
+    byte-identical thought-free serving, which is the rollback (unset one var, no deploy).
+    Scope: resolved at the WRITER call site only (answer.py threads it through serving_call) --
+    dispatch, the numbers agent, and the judge never read it, so an env flip cannot move a seat
+    the arm design did not name. The DEGRADED attempt always drops thinking: a rescue must not
+    add a new failure mode, and the degrade target (haiku-4-5) does not take adaptive."""
+    v = (os.environ.get("GRAPHRAG_SYNTH_THINKING") or "").strip().lower()
+    return {"type": "adaptive"} if v == "adaptive" else None
+
+
 def make_client():
     """The serving client for the active provider. Bedrock auth is the boto3 credential chain
     (task role in-cloud), Anthropic is the .env/env API key — same resolution the offline path uses.
@@ -108,7 +121,8 @@ def with_retry(fn):
 def serving_call(client, system, user, *, model: str, max_tokens: int = 4096, tool: dict,
                  degrade_to: Optional[str] = None,
                  temperature: Optional[float] = None,
-                 usage_sink: Optional[list] = None) -> tuple[dict, Optional[str]]:
+                 usage_sink: Optional[list] = None,
+                 thinking: Optional[dict] = None) -> tuple[dict, Optional[str]]:
     """One forced-tool serving call with the full fallback chain. Returns (tool_input, degraded_model)
     where degraded_model is None on the primary path and the ALIAS (e.g. 'claude-haiku-4-5') when the
     degraded attempt served the answer — callers surface that as a visible caveat + trace entry.
@@ -117,6 +131,8 @@ def serving_call(client, system, user, *, model: str, max_tokens: int = 4096, to
     `usage_sink` (D-AM-4): when a list is passed, the extract.Usage of the attempt that SERVED the
     answer is appended — additive, so the return shape and every existing caller stay untouched."""
     _t = {} if temperature is None else {"temperature": temperature}
+    if thinking is not None:
+        _t["thinking"] = thinking                  # PRIMARY attempt only; degraded() below never thinks
     try:
         out, _u = with_retry(lambda: ex.call_opus(client, system, user, model=model,
                                                   max_tokens=max_tokens, tool=tool, **_t))
@@ -131,7 +147,8 @@ def serving_call(client, system, user, *, model: str, max_tokens: int = 4096, to
         @retry(retry=retry_if_exception_type(RETRYABLE), reraise=True,
                wait=wait_exponential(multiplier=2, min=2, max=8), stop=stop_after_attempt(2))
         def degraded():
-            return ex.call_opus(client, system, user, model=fallback, max_tokens=max_tokens, tool=tool, **_t)
+            _dt = {k: v for k, v in _t.items() if k != "thinking"}   # a rescue never thinks (see synth_thinking)
+            return ex.call_opus(client, system, user, model=fallback, max_tokens=max_tokens, tool=tool, **_dt)
         out, _u = degraded()
         if usage_sink is not None:
             usage_sink.append(_u)
@@ -140,7 +157,8 @@ def serving_call(client, system, user, *, model: str, max_tokens: int = 4096, to
 
 def serving_call_stream(client, system, user, *, model: str, max_tokens: int = 4096, tool: dict,
                         degrade_to: Optional[str] = None, on_token,
-                        usage_sink: Optional[list] = None) -> tuple[dict, Optional[str]]:
+                        usage_sink: Optional[list] = None,
+                        thinking: Optional[dict] = None) -> tuple[dict, Optional[str]]:
     """Streaming variant of serving_call: relays the tool's input_json_delta text via `on_token` as the note
     generates, and returns the SAME (tool_input, degraded_model). Robustness is preserved: an availability
     error degrades to the fallback model (buffered — the fast path already failed), and any other stream-path
@@ -148,7 +166,8 @@ def serving_call_stream(client, system, user, *, model: str, max_tokens: int = 4
     `usage_sink` (D-AM-4): same additive contract as serving_call — the serving attempt's Usage is appended."""
     try:
         out, _u = with_retry(lambda: ex.call_opus_stream(client, system, user, model=model,
-                                                         max_tokens=max_tokens, tool=tool, on_token=on_token))
+                                                         max_tokens=max_tokens, tool=tool, on_token=on_token,
+                                                         thinking=thinking))
         if usage_sink is not None:
             usage_sink.append(_u)
         return out, None
@@ -167,7 +186,7 @@ def serving_call_stream(client, system, user, *, model: str, max_tokens: int = 4
         return out, degrade_to
     except Exception:  # noqa: BLE001 — a streaming-specific failure must never lose the answer
         return serving_call(client, system, user, model=model, max_tokens=max_tokens, tool=tool,
-                            degrade_to=degrade_to, usage_sink=usage_sink)
+                            degrade_to=degrade_to, usage_sink=usage_sink, thinking=thinking)
 
 
 # ── D-AM-4: serving cost arithmetic ───────────────────────────────────────────────────────────────

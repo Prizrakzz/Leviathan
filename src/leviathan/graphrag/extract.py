@@ -528,19 +528,30 @@ def _truncated(usage: Usage, max_tokens: int, model: str, advice: str) -> ValueE
 
 def call_opus(client, system: str, user: str, *, model: str = MODEL,
               max_tokens: int = 4096, tool: dict | None = None,
-              temperature: float | None = None) -> tuple[dict, Usage]:
+              temperature: float | None = None,
+              thinking: dict | None = None) -> tuple[dict, Usage]:
     """One forced-tool extraction call. Returns (tool_input_dict, usage). Retries are the caller's job
     (kept thin so the unit test can pass a trivial fake client). `tool` defaults to the full schema; pass
     extraction_tool(lean=True) for the lean schema (e.g. the bake-off). `temperature` reaches
     messages.create only when provided (D18: the dispatch planner pins 0) — every existing caller omits
-    it and stays byte-identical at the API default."""
+    it and stays byte-identical at the API default.
+
+    `thinking` (the c/d seam, 2026-08-25; default None = byte-identical): an API thinking config, e.g.
+    {"type": "adaptive"}. WHEN SET, tool_choice flips forced -> {"type": "auto"} because the API REJECTS
+    forced tool_choice under extended thinking -- this is precisely why every seat has run thought-free
+    to date. The no-tool_use raise below is UNCHANGED and is the fence: a thinking turn that answers in
+    prose instead of calling the tool fails LOUDLY as the same correctness error, never a silent prose
+    answer wearing a structured contract."""
     tool = tool or extraction_tool()
     _t = {} if temperature is None else {"temperature": temperature}
+    if thinking is not None:
+        _t["thinking"] = thinking
+    _tc = {"type": "auto"} if thinking is not None else {"type": "tool", "name": tool["name"]}
     resp = client.messages.create(
         model=model, max_tokens=max_tokens, system=system,
         messages=[{"role": "user", "content": user}],
         tools=[tool],
-        tool_choice={"type": "tool", "name": tool["name"]},
+        tool_choice=_tc,
         **_t,
     )
     if getattr(resp, "stop_reason", None) == "max_tokens":
@@ -576,7 +587,8 @@ def _fgt_stream_headers(client) -> dict | None:
 
 
 def call_opus_stream(client, system: str, user, *, model: str = MODEL, max_tokens: int = 4096,
-                     tool: dict | None = None, on_token=None) -> tuple[dict, Usage]:
+                     tool: dict | None = None, on_token=None,
+                     thinking: dict | None = None) -> tuple[dict, Usage]:
     """Streaming forced-tool call — same contract as call_opus (returns (tool_input_dict, usage)), but relays
     the tool's `input_json_delta` text to `on_token` as it generates so the UI can render the note live
     instead of blocking on the full completion. The SDK assembles the final message. A progress callback must
@@ -584,9 +596,14 @@ def call_opus_stream(client, system: str, user, *, model: str = MODEL, max_token
     GRAPHRAG_FGT_STREAM, see _fgt_stream_headers) removes the upstream slabbing; it's mirrored on the
     _EXT_CACHE_BETA extra_headers idiom (single code path, both provider lanes)."""
     tool = tool or extraction_tool()
+    # the c/d thinking seam, mirrored from call_opus: thinking forces tool_choice auto (the API rejects
+    # forced-tool + thinking); None = byte-identical. The no-tool_use raise stays the fence on both lanes.
+    _tc = {"type": "auto"} if thinking is not None else {"type": "tool", "name": tool["name"]}
     kw: dict = dict(model=model, max_tokens=max_tokens, system=system,
                     messages=[{"role": "user", "content": user}],
-                    tools=[tool], tool_choice={"type": "tool", "name": tool["name"]})
+                    tools=[tool], tool_choice=_tc)
+    if thinking is not None:
+        kw["thinking"] = thinking
     hdr = _fgt_stream_headers(client)
     if hdr is not None:
         kw["extra_headers"] = hdr
