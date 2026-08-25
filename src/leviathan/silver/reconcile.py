@@ -51,6 +51,16 @@ FEATURES_YAML = _REPO_ROOT / "configs" / "features" / "features.yaml"
 # ``set(NUMBERS_TABLES) == set(tables.yaml keys)`` keeps this from silently reopening.
 NUMBERS_TABLES = (
     "silver_psd",
+    "silver_psd_attributes",            # PROJECTION WAVE Lane 3 (L2-3): the LONG PSD companion,
+    #                                     enumerated in the SAME change that adds its card -- the
+    #                                     drift test below is what forces that, and the reason is
+    #                                     the strongest this tuple has: reconcile_numbers iterates
+    #                                     ONLY this tuple, so an unenumerated table's PIT trio is
+    #                                     never compared against F010 at all. This table's grain is
+    #                                     the VINTAGE grain and release_date is NOT in it, so the
+    #                                     release_date/vintage/null trio is the ONE thing standing
+    #                                     between an as-of read and a wrong-vintage number. It rides
+    #                                     from birth rather than after the first publish.
     "silver_wasde",
     "silver_production",
     "silver_nasa_power",

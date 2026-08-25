@@ -18,8 +18,12 @@ Pure Python -- no S3, no AWS.
 """
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import pandas as pd
 import pytest
+import yaml
 
 import leviathan.transforms.bronze_to_silver.usda_psd as U
 import leviathan.transforms.bronze_to_silver.usda_psd_attributes as U4
@@ -41,6 +45,8 @@ from leviathan.transforms.bronze_to_silver.usda_psd_attributes import (
     _SUGAR_WHITE_SLUGS,
     transform_psd_attributes_bronze_to_silver,
 )
+
+_REPO = Path(__file__).resolve().parents[2]
 
 # (attribute_desc, attribute_id, unit_desc, value) -- byte-exact spellings from the
 # 2026-08-13 census; ids are USDA's own.
@@ -623,3 +629,216 @@ class TestDegenerate:
         long = transform_psd_attributes_bronze_to_silver([_bronze(574000)])  # Apples
         assert long.empty
         assert list(long.columns) == _SILVER_PSD_ATTR_COLS
+
+
+# ---------------------------------------------------------------------------
+# L2-3 -- THE CARD, AND THE DECLARED ROSTER THAT IS THE D-6 DECISION.
+# ---------------------------------------------------------------------------
+# The roster on the numbers card is not documentation. ``load_pg_numbers.load_table``
+# filters every TALL table to ``field(metric_col).isin(ts.metrics)``, so an attribute
+# absent from the card is invisible to serving AND to the census whatever silver holds
+# -- and, symmetrically, declaring one is what spends RDS storage on a database whose
+# autoscaling is OFF. So the roster IS the admission decision and it is pinned here.
+#
+# THE PIN IS THE ROSTER ITSELF, NOT THE CENSUS FILE. ``data/dec_p0/psd_attribute_census
+# .json`` is an untracked run artifact: it is present in the main tree and absent from a
+# fresh worktree, so a test that only read it would SKIP in exactly the checkout a
+# reviewer uses. The measured figures therefore live in the table below as literals and
+# the arithmetic is asserted from them unconditionally; the census cross-check at the end
+# re-derives the same numbers from the artifact WHEN it is on disk, and says which file
+# it wanted when it is not.
+#
+# COLUMNS: attribute_id (USDA's own, the key R4 joins on), the card's declared unit (None
+# = the card deliberately declares none because the attribute is multi-unit in scope),
+# the census in-scope row count BEFORE slug fan-out, and ADMITTED = the post-fan-out rows
+# the mirror actually loads. Admitted == in_scope x (number of slugs the attribute reaches)
+# and for the six variety/refining splits that multiplier is R4's, not the code's -- which
+# is the entire reason R4 ships with the table.
+_ROSTER: dict[str, tuple[int, str | None, int, int]] = {
+    # -- T1, the ranked payload. These nine sum to 742,057 == the D-6 admission number.
+    "Crush":                  (7,   "1000 MT",             52475,  71551),
+    "Feed Dom. Consumption":  (130, "1000 MT",             31153,  84759),
+    "FSI Consumption":        (192, "1000 MT",             31153,  84759),
+    "Feed Waste Dom. Cons.":  (161, "1000 MT",             60140,  83368),
+    "Food Use Dom. Cons.":    (149, "1000 MT",             60140,  83368),
+    "Industrial Dom. Cons.":  (140, "1000 MT",             43446,  57127),
+    "TY Exports":             (113, "1000 MT",             38769,  92375),
+    "TY Imports":             (81,  "1000 MT",             38769,  92375),
+    "TY Imp. from U.S.":      (84,  "1000 MT",             38769,  92375),
+    # -- the FOUR consumption labels: 237,581 together == every slug-vintage exactly once.
+    "Domestic Consumption":   (125, None,                 123090, 209156),
+    "Total Disappearance":    (126, "1000 MT",              9501,  19002),
+    "Domestic Use":           (142, "1000 480 lb. Bales",   7777,   7777),
+    "Fresh Dom. Consumption": (135, "1000 MT",              1646,   1646),
+    # -- the variety / refining splits: R4-restricted, so admitted < a naive fan-out.
+    "Arabica Production":     (29,  "1000 60 KG BAGS",      4616,   9232),
+    "Robusta Production":     (53,  "1000 60 KG BAGS",      4616,   4616),
+    "Raw Imports":            (64,  "1000 MT",              9501,   9501),
+    "Raw Exports":            (89,  "1000 MT",              9501,   9501),
+    "Refined Imp.(Raw Val)":  (74,  "1000 MT",              9501,   9501),
+    "Refined Exp.(Raw Val)":  (99,  "1000 MT",              9501,   9501),
+    # -- the head count, carried because the per-row unit column retires the hazard.
+    "Cows In Milk":           (6,   "1000 HEAD",            1917,   1917),
+}
+_T1_LABELS: tuple[str, ...] = (
+    "Crush", "Feed Dom. Consumption", "FSI Consumption", "Feed Waste Dom. Cons.",
+    "Food Use Dom. Cons.", "Industrial Dom. Cons.", "TY Exports", "TY Imports",
+    "TY Imp. from U.S.",
+)
+_CONSUMPTION_LABELS: tuple[str, ...] = (
+    "Domestic Consumption", "Total Disappearance", "Domestic Use", "Fresh Dom. Consumption",
+)
+_D6_ADMISSION = 742057          # the T1 nine -- the census's own answers.e_d6_number
+_DECLARED_ADMISSION = 1033407   # the whole roster, post-R4 -- what the pg mirror loads
+_CONSUMPTION_ROWS = 237581      # the four labels together
+_CENSUS = _REPO / "data" / "dec_p0" / "psd_attribute_census.json"
+
+
+def _psd_attr_card() -> dict:
+    return yaml.safe_load(
+        (_REPO / "configs" / "graphrag" / "numbers" / "tables.yaml")
+        .read_text(encoding="utf-8"))["tables"]["silver_psd_attributes"]
+
+
+class TestTheCardIsTheTable:
+
+    def test_the_card_is_tall_on_the_producers_own_columns(self) -> None:
+        # A tall card that names a column the producer does not write compiles SQL that
+        # dies COLUMN_NOT_FOUND at serving time (the silver_nasa_power incident). Bind the
+        # three tall columns to the producer's output schema rather than re-typing them.
+        card = _psd_attr_card()
+        assert card["shape"] == "tall"
+        for key in ("commodity_col", "country_col", "period_col", "knowledge_date_col",
+                    "metric_col", "value_col", "unit_col"):
+            assert card[key] in _SILVER_PSD_ATTR_COLS, (key, card[key])
+        assert card["metric_col"] == "attribute"
+        assert card["value_col"] == "value"
+        assert card["unit_col"] == "unit"
+
+    def test_the_serving_grain_is_not_the_physical_grain(self) -> None:
+        # THE LANE-3 REVIEW'S FATAL #1, pinned in the fixed direction. The PHYSICAL grain
+        # (with wasde_release_month) is the F010 contract's natural_key == the transform's
+        # _GRAIN_COLS -- the table retains all ~13 WASDE vintages per marketing year. The
+        # CARD declares NO grain_cols: its serving identity is the tall fallback
+        # [slug, country, market_year, attribute], which is what lets build_sql's
+        # latest-vintage ROW_NUMBER collapse those vintages to "the latest release on or
+        # before asof". Declaring the physical grain on the card partitions the ROW_NUMBER
+        # by the table's own uniqueness key -- _rn = 1 filters NOTHING and every ask fans
+        # ~13 vintages per marketing year. silver_psd is the precedent: its natural_key
+        # carries release_date, its card's serving grain does not.
+        card = _psd_attr_card()
+        assert "grain_cols" not in card, (
+            "grain_cols on this card makes the as-of vintage collapse a structural no-op; "
+            "the physical grain lives in the F010 natural_key, not here")
+        contract = yaml.safe_load(
+            (_REPO / "configs" / "silver" / "tables" / "silver_psd_attributes.yaml")
+            .read_text(encoding="utf-8"))
+        assert contract["natural_key"] == list(_GRAIN_COLS)
+        assert "wasde_release_month" in contract["natural_key"]
+        assert contract["vintage_retention"] == "per-vintage"
+
+    def test_the_pit_trio_is_the_vintage_one(self) -> None:
+        card = _psd_attr_card()
+        assert card["knowledge_date_col"] == "release_date"
+        assert card["knowledge_semantics"] == "vintage"
+        assert "publication_lag_days" not in card      # same as silver_psd: no data-date lag
+        assert card["period_col"] == "market_year" and card["period_sql_type"] == "int"
+
+    def test_the_coverage_census_is_declared_without_a_false_ceiling(self) -> None:
+        # PA-1: row_count is the SERVED subset -- the registry field's own contract
+        # (registry.py glosses it as "MEASURED rows the card SERVES", the
+        # silver_wap_table01_revisions precedent), and for a tall card the served subset
+        # is exactly what the pg mirror admits: the declared roster, 1,033,407 post-R4.
+        # The full-object figure (3,264,235) lives in the card's COVERAGE comment and is
+        # re-derivable from the census; declaring it here would overstate serving by 3.2x.
+        # first_obs is the table-wide floor. NO last_obs -- the bulk file is cumulative
+        # and re-fires monthly, and a stale end date is the model DECLINING a question
+        # the table can answer.
+        card = _psd_attr_card()
+        assert card["row_count"] == _DECLARED_ADMISSION
+        assert card["first_obs"] == "1960"
+        assert card["cadence"] == "annual"
+        assert "last_obs" not in card
+
+
+class TestTheDeclaredRosterIsTheD6Decision:
+
+    def test_the_card_declares_exactly_the_adjudicated_roster(self) -> None:
+        declared = set(_psd_attr_card()["metrics"])
+        assert declared == set(_ROSTER), {
+            "on_card_not_adjudicated": sorted(declared - set(_ROSTER)),
+            "adjudicated_not_on_card": sorted(set(_ROSTER) - declared),
+            "why_this_matters": "the roster IS the pg admission set (load_table filters tall "
+                                "tables to it), so a metric added here silently adds rows to a "
+                                "mirror whose database cannot autoscale"}
+
+    def test_the_t1_nine_sum_to_the_d6_number_exactly(self) -> None:
+        assert sum(_ROSTER[k][3] for k in _T1_LABELS) == _D6_ADMISSION
+
+    def test_the_whole_roster_sums_to_the_declared_footprint(self) -> None:
+        # 742,057 (T1) + 237,581 (the four consumption labels) + 51,852 (the six splits,
+        # post-R4) + 1,917 (Cows In Milk) = 1,033,407. Stated as the sum rather than as a
+        # literal so a roster edit that forgets this number fails with the arithmetic.
+        assert sum(v[3] for v in _ROSTER.values()) == _DECLARED_ADMISSION
+
+    def test_the_four_consumption_labels_are_every_slug_vintage_once(self) -> None:
+        assert sum(_ROSTER[k][3] for k in _CONSUMPTION_LABELS) == _CONSUMPTION_ROWS
+
+    def test_the_card_declares_a_unit_only_where_one_unit_is_true(self) -> None:
+        # A metric-level unit that is true of only SOME of the attribute's rows is worse
+        # than none: _metric_line renders it verbatim onto every citation. Domestic
+        # Consumption spans four in-scope units, so its card entry declares none and the
+        # row's unit column governs -- and that is asserted, not left to good intentions.
+        metrics = _psd_attr_card()["metrics"]
+        for label, (_id, unit, _rows, _adm) in _ROSTER.items():
+            got = (metrics[label].get("unit") or "") or None
+            assert got == unit, (label, got, unit)
+
+    def test_the_split_attributes_admission_is_r4s_and_not_the_codes(self) -> None:
+        # THE NON-VACUOUS HALF. Every split attribute's admitted row count is DERIVED from
+        # the live R4 registry (in-scope rows x the slugs R4 lets it reach), never copied
+        # from the table above -- so widening one of these adjudications back to the whole
+        # code fails here with the row count it would manufacture.
+        splits = {29: 711100, 53: 711100, 64: 612000, 89: 612000, 74: 612000, 99: 612000}
+        for label, (attr_id, _unit, in_scope, admitted) in _ROSTER.items():
+            code = splits.get(attr_id)
+            if code is None:
+                continue
+            reach = len(_PSD_ATTR_FANOUT[code][attr_id])
+            assert in_scope * reach == admitted, (label, reach, in_scope * reach, admitted)
+            assert reach < len(_PSD_COMMODITY_TO_SLUGS[code]), (
+                f"{label} now fans to EVERY slug of {code} -- that is the manufactured-row "
+                f"failure R4 exists to prevent, and it would add "
+                f"{in_scope * len(_PSD_COMMODITY_TO_SLUGS[code]) - admitted} false rows")
+
+    def test_the_refused_attributes_are_absent_from_the_roster(self) -> None:
+        # Two named declines, and neither may drift onto the card without also leaving the
+        # transform's refusal: Milling Rate carries a FALSE '(1000 MT)' label on a 1e4-scaled
+        # rate, and coffee's Other Production belongs to no slug.
+        declared_ids = {v[0] for v in _ROSTER.values()}
+        assert 182 in _PSD_UNIT_MISLABELLED_ATTR_IDS and 182 not in declared_ids
+        assert _PSD_ATTR_FANOUT[711100][56] == frozenset() and 56 not in declared_ids
+
+    def test_the_notes_teach_the_four_labels_the_refusal_and_the_ceiling(self) -> None:
+        blob = " ".join(_psd_attr_card()["notes"].split()).lower()
+        assert "consumption is four labels" in blob
+        assert "milling rate" in blob
+        assert "2016-10-10" in blob          # broilers_poultry's per-slug content ceiling
+        assert "unit` column is authoritative" in blob or "unit` is authoritative" in blob
+
+    @pytest.mark.skipif(not _CENSUS.exists(),
+                        reason=f"L2-0 census artifact absent from this checkout: {_CENSUS} "
+                               f"(untracked run output; present in the main tree). The roster "
+                               f"pins above run unconditionally -- this is the re-derivation.")
+    def test_the_roster_figures_re_derive_from_the_banked_census(self) -> None:
+        doc = json.loads(_CENSUS.read_text(encoding="utf-8"))
+        by_label = {l["attribute_desc"]: l for l in doc["labels"]}
+        for label, (attr_id, _unit, in_scope, _adm) in _ROSTER.items():
+            rec = by_label[label]
+            assert rec["attribute_ids"] == [attr_id], (label, rec["attribute_ids"])
+            assert rec["rows_in_scope"] == in_scope, (label, rec["rows_in_scope"], in_scope)
+        # the census answered D-6 on its own naive (R4-blind) fan-out of the T1 nine; those
+        # nine touch no heterogeneous code, so the two derivations must agree exactly.
+        assert doc["answers"]["e_d6_number"]["rows_in_scope_post_slug_explode"] == _D6_ADMISSION
+        assert sorted(doc["answers"]["e_d6_number"]["declared_labels_byte_exact"]) == \
+            sorted(_T1_LABELS)

@@ -163,6 +163,32 @@ class TableSpec(BaseModel):
     #                                                          row's code back to a display name in the `country`
     #                                                          extra. None (every other table) -> byte-identical
     #                                                          (the plain country equality path).
+    #                                                          FAO-3 ADDS THE SECOND SURFACE, and it is not a
+    #                                                          code table: silver_production.country holds
+    #                                                          FAOSTAT's RAW M49 DISPLAY STRINGS ('United States
+    #                                                          of America', 'Viet Nam', 'China, mainland'), so a
+    #                                                          country='United States' ask emitted a plain
+    #                                                          equality that matched ZERO rows, silently. The ref
+    #                                                          file NAMES the resolver (query._country_ref
+    #                                                          dispatches on it); an unrecognised ref raises
+    #                                                          rather than falling back to that equality.
+    country_axis_is_destination: Optional[bool] = None       # SEMANTIC, distinct from the wiring above and split
+    #                                                          out at FAO-3 because the two stopped coinciding.
+    #                                                          True == this card's country axis enumerates the
+    #                                                          BUYERS of ONE national flow (silver_esr), so a row's
+    #                                                          country is NOT the fact's geography and citations /
+    #                                                          answer must never borrow it for a label the query
+    #                                                          did not ask for (the fix-cycle-2 blocker). False ==
+    #                                                          a FREE geography axis (silver_production's reporting
+    #                                                          countries, NASS states): the row's geo IS the fact's
+    #                                                          geography and the label fallback stands. None (every
+    #                                                          card that predates this field) -> falls back to
+    #                                                          ``bool(country_name_ref)``, i.e. byte-identical to
+    #                                                          the overloaded reading it replaces, so a card that
+    #                                                          gains country_name_ref without declaring this reads
+    #                                                          destination-coded and goes SILENT rather than
+    #                                                          mislabelling (the fail direction both call sites
+    #                                                          already chose).
     period_col: Optional[str] = None
     period_type: Literal["marketing_year", "year", "date", "none"] = "none"
     period_sql_type: Literal["int", "string"] = "string"     # how the period column compares in SQL
@@ -328,6 +354,14 @@ class TableSpec(BaseModel):
             return None
         return self.date_col or self.knowledge_date_col      # data_date
 
+    def destination_coded(self) -> bool:
+        """True when the country axis enumerates BUYERS of one national flow (see
+        ``country_axis_is_destination``). The declared value wins; an undeclared card falls back to the
+        pre-FAO-3 reading, ``bool(country_name_ref)``."""
+        if self.country_axis_is_destination is not None:
+            return self.country_axis_is_destination
+        return bool(self.country_name_ref)
+
     def group_cols(self) -> list[str]:
         """The identity group for latest-vintage selection. Explicit grain_cols win (e.g. ESR keys on the WEEK,
         not the marketing year); else inferred from commodity/country/period(+metric)."""
@@ -418,6 +452,18 @@ class NumbersRegistry(BaseModel):
 # them does not also blind their lints -- a fence that disarms the check that guards it is not a fence.
 WHITELIST_ABSENT_DEFAULT: frozenset[str] = frozenset({
     "gold_futures_outcomes", "gold_pattern_outcomes", "gold_cot_outcomes",
+    # PROJECTION WAVE Lane 3 (2026-08-25): silver_psd_attributes -- the LONG PSD companion, ARMED
+    # AHEAD OF THE PUBLISH on exactly the silver_futures_eod/gold_futures_outcomes argument above.
+    # The card, the F010 contract, both DDLs and the producer are all landed; the batch task exists;
+    # but NO canonical object and NO Glue table exist yet, so a visible card would compile
+    # SELECT ... FROM leviathan_dev.silver_psd_attributes into a missing table on every routed ask
+    # (and the pg leg would UndefinedTable into the same missing Athena table). THE FLIP REMOVES THE
+    # ID in the same change as: P1_TABLES membership + the Branch-A/orphan/pg-mirror pin moves
+    # (test_silver_rebuild_gate, test_price_observability_cot), the dispatch attribute-axis clause,
+    # the depth-enum baseline entry (test_numbers_query._LANE3_IDS), psd_monthly gate_tables + SFN
+    # regen, and the cascade legs -- gated on (a) the L2-2 canonical publish having written real
+    # objects, (b) the Glue table resolving, (c) the pg mirror reload, (d) the census re-cut.
+    "silver_psd_attributes",
 })
 
 

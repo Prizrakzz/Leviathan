@@ -33,7 +33,13 @@ from leviathan.silver.types import (
 # which is the estate's gold test (see the board-crush note above).
 # 51 = 50 + gold_futures_spreads (GN-2 W2.3 2026-08-22; pins caught up 2026-08-25 by the
 # projection wave's first full-suite sweep, together with the rebuild-gate/registry-gen/ddl pins)
-EXPECTED_TABLE_COUNT = 51
+# 52 = 51 + silver_psd_attributes (PROJECTION WAVE Lane 3, 2026-08-25): the LONG PSD companion, a
+# SILVER table registered ahead of its first canonical publish from a SYNTHETIC R0 record -- the
+# gold_board_crush / gold_futures_spreads posture applied to silver. It is NOT gold: nothing is
+# derived from a table this estate publishes, it is a second projection of the same USDA bulk object
+# that silver_psd already reads, and it carries no roll or policy version. So SILVER moves and gold
+# does not, which is what the two asserts below record separately rather than by totalling.
+EXPECTED_TABLE_COUNT = 52
 
 
 @pytest.fixture(scope="module")
@@ -57,7 +63,8 @@ def test_registry_has_exactly_the_live_43_plus_gold(reg):
     silver = [n for n in names if n.startswith("silver_")]
     # 43 -> 47: the four-family wave close enumerated at EXPECTED_TABLE_COUNT above. This assert is
     # the one that records that all four widened SILVER and none of them widened gold.
-    assert len(silver) == 47
+    # 47 -> 48: silver_psd_attributes (projection wave Lane 3) -- the same recording, one table on.
+    assert len(silver) == 48
     # the ESR pair + WASDE + model_predictions are all present (registered surfaces).
     for must in ("silver_esr", "silver_esr_compact", "silver_wasde", "silver_model_predictions"):
         assert must in names
@@ -100,7 +107,12 @@ def test_partition_modes_match_the_r0_tally(reg):
     #     the legacy quarantine and nothing new is ever admitted to it.
     # flat 33 -> 34: gold_futures_spreads (W2.3) -- FLAT like its board-crush template
     # (one small object, projection-forbidden).
-    assert modes == {"flat": 34, "projected": 7, "registered": 10}
+    # flat 34 -> 35: silver_psd_attributes (projection wave Lane 3) -- FLAT like silver_psd itself,
+    # and for the same reason: the bulk file is CUMULATIVE, so one publish overwrites the whole
+    # object set and there is nothing to enumerate per release. Deliberately NOT partitioned on
+    # release_date -- that would mint a projected/registered grid over a table the loader reads
+    # whole, which is the Jul-2026 LIST-storm shape this estate spent a wave undoing.
+    assert modes == {"flat": 35, "projected": 7, "registered": 10}
 
 
 def test_projection_field_is_quarantined_iff_projected(reg):

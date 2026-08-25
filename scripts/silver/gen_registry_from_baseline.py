@@ -69,6 +69,9 @@ DOMAIN = {
     "silver_nass_crop_progress": "crop_condition", "silver_noaa_iod": "climate",
     "silver_noaa_oni": "climate", "silver_pink_sheet": "prices",
     "silver_production": "production", "silver_psd": "balance_sheet",
+    # PROJECTION WAVE Lane 3: the LONG companion to silver_psd. Same source, same sheets, same
+    # domain -- 56 attribute labels against the wide pivot's 11, not a different subject.
+    "silver_psd_attributes": "balance_sheet",
     "silver_sagis_cec": "production", "silver_sagis_weekly_deliveries": "trade_flows",
     "silver_sagis_weekly_exports": "trade_flows", "silver_unica_annual_state": "production",
     "silver_unica_biweekly_release_series": "production",
@@ -103,6 +106,12 @@ LIFECYCLE = {
 PER_VINTAGE = {
     "silver_wasde", "silver_psd", "silver_wap_table01_revisions", "silver_nass_citrus",
     "silver_sagis_cec", "silver_model_predictions",
+    # PROJECTION WAVE Lane 3 (2026-08-25): the LONG PSD companion retains the same vintage fan as
+    # silver_psd -- one row per (slug, country, market_year, wasde_release_month, attribute), i.e.
+    # all ~13 WASDE vintages of every marketing year. The producer's (release_date,
+    # bronze_ingest_date) latest-wins dedup collapses RE-PRINTS of the same vintage, which is
+    # re-print hygiene, not retention: retention here is per-vintage, exactly as the wide table's.
+    "silver_psd_attributes",
 }
 # BF-W2 SILVER-F031 option-b: ESR retains one weekly as_of vintage per (slug, week) -- the serving
 # compact gains a REGISTERED as_of_date partition dimension (never re-projection). Flipped from the
@@ -187,6 +196,15 @@ PRODUCER = {
     "silver_pink_sheet": (_T + "pink_sheet.py", _J + "pink_sheet_silver_task.py", "producer"),
     "silver_production": (_T + "faostat_production.py", None, "producer"),
     "silver_psd": (_T + "usda_psd.py", _J + "psd_silver_task.py", "producer"),
+    # PROJECTION WAVE Lane 3: the long companion. The batch task path lands in the SAME integration
+    # that created the task file (jobs/batch/psd_attributes_silver_task.py, the L2-2 publish leg) --
+    # its own earlier comment demanded exactly that. NOTE the task is REGISTERED here before its
+    # first cloud run: the jobdef it submits through (leviathan-dev-psd-silver, reused via
+    # containerOverrides) is digest-pinned to a 2026-08-22 image that predates the module, so a
+    # submit before the bake+repin dies on import -- the serving card is separately parked behind
+    # registry.WHITELIST_ABSENT_DEFAULT until the first canonical publish.
+    "silver_psd_attributes": (_T + "usda_psd_attributes.py", _J + "psd_attributes_silver_task.py",
+                              "producer"),
     # MINAGRO: transform-only, batch_task None (the silver_production precedent). The capture
     # producer is jobs/ingest/fetch_minagro_grain_exports.py; NO batch task and NO jobdef were
     # created in this wave -- the submit shape and the schedule cadence are prepared_commands,
@@ -313,10 +331,24 @@ NATURAL_KEY_FALLBACK = {
     # driver_or_chain_id the non-null key columns (nullable = cn not in natural_key). counterparty
     # stays NULLABLE (reserved for the deferred fork kinds, plan sec 1.1 / F4).
     "gold_pattern_records": ["record_kind", "contract", "driver_or_chain_id", "as_of_date"],
+    # PROJECTION WAVE Lane 3 -- silver_psd_attributes' natural key is the PHYSICAL grain, pinned
+    # HERE (derivation time, so the nullable heuristic sees it) and deliberately NOT inherited from
+    # the numbers card: the card declares NO grain_cols, because its SERVING identity is the tall
+    # fallback [slug, country, market_year, attribute] -- that is what lets the latest-vintage
+    # ROW_NUMBER collapse the ~13 WASDE vintages per marketing year (declaring the physical grain
+    # there made the as-of collapse a structural no-op, the Lane-3 review's fatal #1). silver_psd is
+    # the estate's own demonstration that the two are different objects: its natural_key carries
+    # release_date, its card's serving grain does not.
+    "silver_psd_attributes": ["leviathan_slug", "country", "market_year", "wasde_release_month",
+                              "attribute"],
 }
 
 # Tall numbers value column (the actual measure lives in ONE column; metric NAMES are row values).
-TALL_VALUE_COL = {"silver_wasde": "estimate", "silver_production": "value", "gold_weather_z": "value"}
+TALL_VALUE_COL = {"silver_wasde": "estimate", "silver_production": "value", "gold_weather_z": "value",
+                  # PROJECTION WAVE Lane 3: silver_psd_attributes is tall, so the INV-5 value column
+                  # cannot be derived from the card's metrics -- those are ROW VALUES of `attribute`,
+                  # not columns. Declaring it here is what gives the table a value_census floor at all.
+                  "silver_psd_attributes": "value"}
 
 # Deprecated physical columns (SILVER-F030 ESR semantic ADR): retained as nullable compatibility
 # columns, never repurposed and never synthesized. ``changes``/``changes_1000mt`` (weekly revision
@@ -1217,6 +1249,24 @@ CURATION_OVERRIDES: dict = {
                                        "production_mt_revision": 0.025,
                                        "ending_stocks_mt_revision": 0.025,
                                        "consumption_mt_revision": 0.025},
+    },
+    # PROJECTION WAVE Lane 3 -- silver_psd_attributes. ONE fact build_contract cannot derive, and it
+    # is a PIT fact rather than a style one. The generated required_nonnull mirrors the natural key,
+    # and this table's key is the VINTAGE grain (slug, country, market_year, wasde_release_month,
+    # attribute) -- release_date is NOT in it, so the knowledge column would ship nullable. A null
+    # knowledge date is not a gap: `release_date <= asof` is UNKNOWN, so the row drops out of EVERY
+    # as-of query silently (the silver_food_cpi reasoning above, verbatim). release_date is DERIVED
+    # from (market_year, wasde_release_month) and can never be missing, `unit` and `attribute_id` are
+    # both transform-enforced (a unit-less row RAISES; attribute_id is a required bronze column and
+    # the id R4 keys on), so all three are asserted rather than hoped for. `value` stays nullable and
+    # is the value_column instead -- an absent USDA figure is data, and the census floor is what
+    # measures it.
+    "silver_psd_attributes": {
+        # (natural_key rides NATURAL_KEY_FALLBACK above -- derivation time, so the nullable
+        # heuristic sees the physical grain; see the comment there for the serving-grain split.)
+        "required_nonnull": ["leviathan_slug", "country", "market_year", "wasde_release_month",
+                             "attribute", "attribute_id", "release_date", "unit"],
+        "nullable_overrides": {"release_date": False, "unit": False, "attribute_id": False},
     },
     "silver_mpob": {"freshness_sla": {"cadence": "monthly"}},        # MPOB monthly palm statistics
     "silver_modis_ndvi": {"freshness_sla": {"cadence": "monthly"}},  # 16-day composite; monthly interim

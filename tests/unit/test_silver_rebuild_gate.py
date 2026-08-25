@@ -172,6 +172,15 @@ _EXPECTED_BRANCH_A = frozenset({
     # commit moved neither this roster nor the orphan roster nor the 50-pin -- three reds this sweep
     # closed together, deliberately, on the measured facts above.
     "gold_futures_spreads",
+    # PROJECTION WAVE Lane 3 (2026-08-25) -- silver_psd_attributes is DELIBERATELY ABSENT. Its F010
+    # contract lands in this change (the 52-pin below moves), but the card is parked behind
+    # registry.WHITELIST_ABSENT_DEFAULT until the first canonical publish: no Glue table exists yet,
+    # so a P1_TABLES membership today would SystemExit the default mirror load on a table nothing can
+    # resolve. It enters Branch A at the whitelist FLIP, in the same change as its P1_TABLES
+    # membership -- the served-card rule, applied on the day the table is actually servable. The pg
+    # footprint fact that matters then: load_table filters tall tables to the declared metric roster,
+    # so the mirror takes 1,033,407 rows of the 3,264,235 produced -- adding an attribute to the card
+    # is what spends RDS storage, and leviathan-dev-pg has autoscaling OFF.
 })
 
 
@@ -193,7 +202,11 @@ def test_branch_selection_all_45_tables():
     # GN-2 W2.3 (2026-08-22, caught 2026-08-25): 50 -> 51. gold_futures_spreads landed with card +
     # P1_TABLES membership (served the same day, so Branch A by the served-card rule) but this pin and
     # the orphan roster were not moved in that commit -- the projection wave's first sweep found both red.
-    assert len(names) == 51, f"expected 51 F010 tables, got {len(names)}"
+    # PROJECTION WAVE Lane 3 (2026-08-25): 51 -> 52. silver_psd_attributes' F010 contract lands and
+    # this pin moves with it -- the whole lesson of the W2.3 line above. The card itself is parked
+    # behind registry.WHITELIST_ABSENT_DEFAULT (no Glue table yet), so Branch A, the orphan roster
+    # and the pg-mirror count do NOT move here: they move at the whitelist flip, with P1_TABLES.
+    assert len(names) == 52, f"expected 52 F010 tables, got {len(names)}"
 
     branch_a = {t for t in names if g.select_branch(t, silver_reg=silver) == g.BRANCH_A}
     branch_b = {t for t in names if g.select_branch(t, silver_reg=silver) == g.BRANCH_B}
@@ -210,6 +223,7 @@ def test_branch_selection_all_45_tables():
     # LIGHT THE CARD: + silver_minagro_grain_exports (the same rule, applied the day its card landed)
     assert len(branch_a) == 38          # 20 + Track 1's six + T2's six + T3's three + W2.3's spreads
     #                                                   + DK-13's one + minagro
+    # (silver_psd_attributes is Branch B until the whitelist flip -- see _EXPECTED_BRANCH_A)
     assert branch_a | branch_b == set(names)          # partition: no table is UNKNOWN in the real registry
     assert not (branch_a & branch_b)
 
@@ -951,6 +965,14 @@ def test_main_exits_zero_and_prints_a_grepable_warn_line(monkeypatch, capsys, tm
 # commit lit card + P1_TABLES but never moved this roster; the projection wave's first test sweep found
 # the red. UN-ORPHAN GATE: same as board_crush -- a spreads DAG descriptor, if ever armed, takes the
 # table in its OWN gate_tables.
+#
+# PROJECTION WAVE Lane 3 (2026-08-25): silver_psd_attributes is NOT here, on the fence's own remedy
+# sentence ("adding it to a family's gate_tables is the fix; widening this roster is not"). Its card
+# is parked behind registry.WHITELIST_ABSENT_DEFAULT, so the C002 walk never reaches it and there is
+# no orphan to name. At the whitelist flip -- after the L2-2 batch task's first canonical publish has
+# written real objects -- it goes straight into psd_monthly.json's gate_tables (same bulk object, same
+# chain, same on-call as silver_psd) with the rendered SFN inputs regenerated, and never through this
+# roster at all.
 _EXPECTED_ORPHANS = frozenset({"gold_pattern_records", "gold_board_crush",
                                "silver_minagro_grain_exports", "gold_futures_spreads"})
 

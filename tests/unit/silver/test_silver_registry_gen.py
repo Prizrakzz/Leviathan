@@ -108,12 +108,22 @@ def test_generator_covers_exactly_the_45_baseline_tables(gen):
     #                                   board-crush template; this pin was not moved in that commit
     #                                   (caught by the projection wave's first sweep 2026-08-25,
     #                                   together with the rebuild-gate trio and the missing DDL).
-    assert len(on_disk) == 51
+    #   +1 silver_psd_attributes     -- PROJECTION WAVE Lane 3 (2026-08-25), a SIXTH synthetic R0
+    #                                   record, authored from the long transform's
+    #                                   _SILVER_PSD_ATTR_COLS + its cast block. Contract GENERATED
+    #                                   (not hand-authored, unlike silver_ams_gtr): every fact the
+    #                                   renderer could not derive rides CURATION_OVERRIDES /
+    #                                   DOMAIN / PRODUCER / TALL_VALUE_COL instead, so this name
+    #                                   stays OUT of HAND_AUTHORED_CONTRACTS and the write path
+    #                                   keeps owning it.
+    assert len(on_disk) == 52
     assert "gold_pattern_records" in on_disk
     assert "silver_futures_eod" in on_disk
     assert "gold_board_crush" in on_disk
     assert "silver_minagro_grain_exports" in baseline    # synthetic R0 record #4
     assert "silver_ams_gtr" in baseline                  # synthetic R0 record #5
+    assert "silver_psd_attributes" in baseline           # synthetic R0 record #6
+    assert "silver_psd_attributes" not in gen.HAND_AUTHORED_CONTRACTS
 
 
 class TestNullableOverrides:

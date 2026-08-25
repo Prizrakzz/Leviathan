@@ -369,7 +369,10 @@ def test_runner_build_evidence_smoke(tmp_path):
     # + silver_eex_freight. All three land BLOCKED with no census, which is the honest state --
     # silver_moex_agro_indices and silver_ams_gtr name their work order via PRE_PUBLISH_PACKAGE.
     # 50 -> 51: + gold_futures_spreads (GN-2 W2.3; pin caught up 2026-08-25)
-    assert len(evidence) == 51
+    # 51 -> 52: + silver_psd_attributes (PROJECTION WAVE Lane 3, 2026-08-25). It lands BLOCKED with
+    # no census and that is the honest state -- the transform has a full-object proof but no batch
+    # task and no canonical publish yet, so there is nothing on S3 for the value census to read.
+    assert len(evidence) == 52
     assert {e.table for e in evidence} == set(reg.names())    # one row per registry table, no dups
     cert = certify_all(evidence)
     # Structural, and true whatever the artifact tree says: a certificate covers every table and

@@ -47,6 +47,13 @@ FAMILY_RULES: tuple[tuple[str, str], ...] = (
     ("silver_esr_compact", "usda_esr"),
     ("silver_esr", "usda_esr"),
     ("silver_wasde", "usda_wasde"),
+    # NOTE this prefix DELIBERATELY swallows silver_psd_attributes, and that is the right answer
+    # rather than an accident of `startswith`: the long companion is produced from the SAME bulk
+    # object, on the SAME psd_monthly chain, with the same fetcher, the same failure vocabulary and
+    # the same on-call answer -- a second family would page two people for one file. The ordering
+    # hazard the futures_eod / ams_gtr notes below warn about is the REVERSE case (a short prefix
+    # swallowing a table that needed its own home); this is the case where the swallow is the
+    # decision. Re-open it only if the long table ever gains its own schedule.
     ("silver_psd", "usda_psd"),
     ("silver_wap_table01", "usda_wap"),          # + _revisions
     ("silver_nass_", "usda_nass"),               # nass_annual / nass_crop_progress / nass_citrus

@@ -426,10 +426,13 @@ class TestWideningRefusals:
 # ---------------------------------------------------------------------------
 class TestServingFlip:
 
-    def _card(self) -> dict:
+    def _cards(self) -> dict:
         return yaml.safe_load(
             (_REPO / "configs" / "graphrag" / "numbers" / "tables.yaml")
-            .read_text(encoding="utf-8"))["tables"]["silver_psd"]
+            .read_text(encoding="utf-8"))["tables"]
+
+    def _card(self) -> dict:
+        return self._cards()["silver_psd"]
 
     def test_the_serving_fence_is_flipped_for_fcoj(self) -> None:
         # The psd legs on frozen_orange_juice now un-SKIP at _scope and read real
@@ -440,18 +443,35 @@ class TestServingFlip:
         assert "frozen_orange_juice" not in PSD_UNSERVED_SLUGS
         assert PSD_UNSERVED_SLUGS == frozenset({"cocoa"})
 
-    def test_the_card_fence_is_the_producer_map_slug_for_slug(self) -> None:
+    # PROJECTION WAVE Lane 3 (2026-08-25): the fence test now runs over BOTH PSD cards. The wide
+    # table and its long companion are two projections of ONE producer map, so a 48th code landing
+    # in the transform must move BOTH cards or the estate ships a table whose own fence refuses rows
+    # it serves. Parametrized rather than duplicated: a THIRD psd card would join by adding a name.
+    _PSD_CARD_IDS = ("silver_psd", "silver_psd_attributes")
+
+    @pytest.mark.parametrize("tid", _PSD_CARD_IDS)
+    def test_the_card_fence_is_the_producer_map_slug_for_slug(self, tid: str) -> None:
         # The condition the refusal attached to the card move was that its closed
         # set be GENERATED, never hand-listed. Equality in BOTH directions is the
         # whole point: a code added to the transform without a card move, and a
         # slug left on the card after its code is refused, each fail here rather
         # than as a silent zero-row read (the first) or a silent refusal of a
         # commodity the table serves (the second).
-        card = self._card()
+        card = self._cards()[tid]
         assert card["commodity_col"] == "leviathan_slug"
         assert sorted(card["commodity_values"]) == sorted(
             {s for slugs in _PSD_COMMODITY_TO_SLUGS.values() for s in slugs})
         assert len(card["commodity_values"]) == 63
+
+    def test_the_two_psd_cards_share_one_commodity_vocabulary(self) -> None:
+        # The equality above is per-card and would still pass if the two cards drifted onto two
+        # DIFFERENT correct-at-authoring copies of the map. This asserts the pairwise fact directly,
+        # so the failure message names the drift between the cards rather than between a card and
+        # the transform -- they are one vocabulary because they are one producer map.
+        cards = self._cards()
+        a = set(cards["silver_psd"]["commodity_values"])
+        b = set(cards["silver_psd_attributes"]["commodity_values"])
+        assert a == b, {"wide_only": sorted(a - b), "long_only": sorted(b - a)}
 
     def test_the_card_serves_both_citrus_subjects_and_still_refuses_cocoa(self) -> None:
         # XC-7's two codes are two SUBJECTS, and the card carries both keys so a
