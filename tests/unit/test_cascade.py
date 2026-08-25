@@ -398,16 +398,24 @@ def test_scope_primary_and_none_rules_unchanged(monkeypatch):
 
 
 def test_region_row_fx_currency_pick():
-    # the ars_usd/brl_usd fold-forward fix: the region's currency picks the metric; country stays None
-    # (silver_fred_fx has no country column); a resolved region with NO fx column (Canada) skips honestly.
+    # the currency-pick mechanism: the region's currency picks the metric; country stays None
+    # (silver_fred_fx has no country column); a resolved region with NO currency key skips honestly.
+    # FX-4/FX-6 (2026-08-25) flipped the CASES on schedule, not the mechanism: Canada now picks
+    # cad_usd (the widening landed its column), and ARGENTINA skips -- its key was deleted because
+    # ars died at source 2020-10-30 and agg=latest carries no null filter (5 legs declined on a NULL
+    # while looking green). Vietnam still has no source, so it pins the no-currency skip.
     row = cq.load_map()["fred_fx_macro"]
     ars = _node(contract="soybeans", ref="fred_fx_macro", region="Argentina")
-    assert cq._region_row(ars, row)["metric"] == "ars_usd"
-    assert cq._scope(ars, row) == ("soybeans_cbot", None)
+    assert cq._region_row(ars, row)["metric"] == "brl_usd"           # no currency -> row unchanged
+    _c, ars_country = cq._scope(ars, row)
+    assert ars_country is cq.SKIP_NODE                               # fx-no-currency, the FX-6 point
     brl = _node(contract="soybeans", ref="fred_fx_macro", region="Brazil")
     assert cq._region_row(brl, row)["metric"] == "brl_usd"
-    _c, country = cq._scope(_node(contract="soybeans", ref="fred_fx_macro", region="Canada"), row)
-    assert country is cq.SKIP_NODE
+    cad = _node(contract="soybeans", ref="fred_fx_macro", region="Canada")
+    assert cq._region_row(cad, row)["metric"] == "cad_usd"
+    assert cq._scope(cad, row) == ("soybeans_cbot", None)
+    _c2, country2 = cq._scope(_node(contract="soybeans", ref="fred_fx_macro", region="Vietnam"), row)
+    assert country2 is cq.SKIP_NODE
 
 
 # ── RF-3/RF-4: the cross-country reroute (probe-shaped fixtures; RF-0 verdicts pinned 2026-07-11) ────
@@ -620,53 +628,52 @@ def test_cascade_map_lint_flags_unknown_region_token(tmp_path, monkeypatch):
     assert any("region_map census" in e and "Atlantis" in e for e in errs)
 
 
-def test_the_fx_wave_region_rows_resolve_and_declare_no_currency():
-    """D-EC graph-completion wave, OR-7's HARD GATE: `region_map.resolve` MUST gain Australia, Mexico and
-    Turkey or config_check ERRORS on the six FX nodes this wave authors.
-
-    THE MECHANISM, so the requirement reads as arithmetic and not as a preference. `fred_fx_macro` is
-    `country_rule: region` (cascade_map.yaml), so _check_region_map's census leg walks every causal driver
-    carrying that ref and ERRORS on any `region` token that is in NEITHER `resolve` NOR `unresolved`.
-    AUD_USD lands on cotton/raw_sugar with region Australia, MXN_USD on corn_cbot with Mexico, TRY_USD on
-    kcbt/matif with Turkey -- and none of those three bare tokens was in either list (they appeared ONLY
-    inside compound unresolved strings like "Canada/Australia/China", and a compound does not satisfy the
-    census for a bare token). Russia, Ukraine and Thailand already resolved, which is why RUB/UAH/THB need
-    nothing.
-
-    AND NO `currency:` KEY ON ANY OF THE THREE -- this is the D-PQ fence, not an omission. The same lint
-    errors when a declared currency does not name a real `silver_fred_fx` `<cur>_usd` column, and only
-    brl/ars/cny exist. The wave authors QUALITATIVE FX nodes and quantifies nothing; a currency key here
-    would be a claim to a series that does not exist. Philippines is deliberately absent for the same class
-    of reason one level up: php_fx defers, so its row lands with the coconut DAG that would need it.
+def test_the_fx_wave_region_rows_carry_their_promised_currencies():
+    """FX-4 (projection wave, 2026-08-25) -- the 2026-08-21 pin INVERTED on schedule. That pin held
+    Australia/Mexico/Turkey currency-LESS because aud/mxn/try_usd were not real columns and "the
+    currency keys land in THAT change [the widening], never ahead of the column". The widening landed
+    (FX-1..FX-3: 14 crosses fetched, served, card-declared), so this test now pins the PROMISED state:
+    ten currency keys on the demand entries + the D-3 United Kingdom row (probed live: silver_psd
+    carries 'United Kingdom', 1,807 rows/62 slugs). STILL KEYLESS, each for a recorded reason:
+    Argentina (FX-6 -- ars dead at source since 2020-10-30; the key made 5 legs decline on a NULL),
+    Russia/Ukraine/Vietnam (no source: RUB/UAH/VND are the parked acquisition), and Philippines stays
+    ABSENT entirely (php_fx rides the unwritten coconut DAG, D-CW-3a).
 
     Skipped where the private configs are absent (the region map is gitignored IP)."""
     rmap = cq.load_region_map() or {}
     resolve = rmap.get("resolve") or {}
     if not resolve:
         pytest.skip("no private cascade_map in this tree")
-    for token in ("Australia", "Mexico", "Turkey"):
-        assert token in resolve, f"{token} missing from region_map.resolve -- the six FX nodes error the build"
-        assert (resolve[token] or {}).get("country"), f"{token}: a resolve entry needs a non-empty country"
-        assert "currency" not in (resolve[token] or {}), (
-            f"{token} declared a currency: only brl/ars/cny are real silver_fred_fx columns, and this wave "
-            f"quantifies nothing (the D-PQ fence)")
+    want = {"Australia": "aud", "Mexico": "mxn", "Turkey": "try", "Canada": "cad",
+            "EU": "eur", "Eurozone": "eur", "Indonesia": "idr", "India": "inr",
+            "India (import side)": "inr", "Malaysia": "myr", "Malaysia (FX)": "myr",
+            "Thailand": "thb", "South_Africa": "zar", "United Kingdom": "gbp"}
+    for token, cur in want.items():
+        entry = resolve.get(token) or {}
+        assert entry.get("country"), f"{token}: missing from resolve or empty country"
+        assert entry.get("currency") == cur, (
+            f"{token}: expected currency {cur!r}, got {entry.get('currency')!r} -- the FX-4 keys "
+            f"move only with their columns")
+    for token in ("Argentina", "Russia", "Ukraine", "Vietnam"):
+        assert "currency" not in (resolve.get(token) or {}), (
+            f"{token} gained a currency key: ARS is dead at source and RUB/UAH/VND have no source -- "
+            f"a key here quantifies a series that cannot answer")
     assert "Philippines" not in resolve, "php_fx defers; its region row lands with the coconut DAG"
-    for token in ("Russia", "Ukraine", "Thailand"):            # the incumbents RUB/UAH/THB ride
-        assert token in resolve
 
 
 def test_cascade_map_lint_flags_phantom_fx_currency(tmp_path, monkeypatch):
-    # a resolve currency must be a REAL silver_fred_fx column: 'eur' -> eur_usd does not exist
+    # a resolve currency must be a REAL silver_fred_fx column. 'eur' stopped being the phantom when
+    # FX-1 landed eur_usd (2026-08-25); 'chf' keeps the mechanism honest -- no franc column exists.
     from leviathan.causal import blurb as bl
     causal = tmp_path / "causal"
     causal.mkdir()                                                   # empty causal dir: census part inert
     monkeypatch.setattr(bl, "_CAUSAL_DIR", causal)
     monkeypatch.setattr(cq, "load_region_map",
-                        lambda: {"resolve": {"EU": {"country": "European Union", "currency": "eur"}},
+                        lambda: {"resolve": {"CH": {"country": "Switzerland", "currency": "chf"}},
                                  "unresolved": []})
     from leviathan.graphrag.config_check import check_cascade_map
     errs = check_cascade_map()
-    assert any("eur_usd" in e for e in errs)
+    assert any("chf_usd" in e for e in errs)
 
 
 # ── the answer.py seam (flag + breaker + wiring; quantify itself is covered above) ───────────────────
@@ -799,6 +806,72 @@ def test_psd_unserved_slugs_skip_at_scope():
     commodity3, country3 = _scope(n2, {"table": "silver_psd", "country_rule": "none"})
     assert commodity3 == "frozen_orange_juice"        # the flipped half: it scopes, it does not SKIP
     assert country3 is not SKIP_NODE
+
+
+# ── W0-7 (D-9, 2026-08-25): the Global mis-scope fence + the no-geography-primary skip ───────────────
+def test_global_token_fence_skips_at_scope(monkeypatch):
+    """A Global/global driver token on a primary-ruled row that declares `global_token: skip` DECLINES
+    instead of firing the contract primary's NATIONAL number under a world label (12 census legs:
+    french_wheat_matif's *global* ending stocks cited European Union, raw_sugar's Brazil, robusta's
+    Vietnam). A national token on the same row still resolves -- the fence bites the Global class only."""
+    from types import SimpleNamespace
+    from leviathan.graphrag import silverleg as slv
+    monkeypatch.setattr(slv, "_primary_country", lambda c: "france")
+    fenced = {"table": "silver_psd", "country_rule": "primary", "global_token": "skip"}
+    for tok in ("Global", "global"):
+        n = SimpleNamespace(contract="french_wheat_matif", prior={"region": tok})
+        _c, country, reason = cq._scope_ex(n, fenced)
+        assert country is cq.SKIP_NODE and reason == "global-token-fenced"
+    n2 = SimpleNamespace(contract="french_wheat_matif", prior={"region": "EU"})
+    assert cq._scope(n2, fenced) == ("french_wheat_matif", "European Union")
+    # an UNFENCED row keeps legacy behavior at the resolver -- the config lint (not a resolver guess)
+    # is what forces the declaration, so config and engine can never disagree about what is fenced
+    n3 = SimpleNamespace(contract="french_wheat_matif", prior={"region": "Global"})
+    assert cq._scope(n3, {"table": "silver_psd", "country_rule": "primary"}) == (
+        "french_wheat_matif", "European Union")
+
+
+def test_no_geography_primary_skips_on_per_country_table(monkeypatch):
+    """W0-7 companion (census find + owner word 2026-08-25): CONTEXT commodities (barley, sorghum,
+    sunflower_oil) carry no geography entry BY DESIGN -- they are not primary tracked contracts. The old
+    fall-through compiled an UNFILTERED per-country query and agg=latest served whichever country's row
+    sorted last (8 census legs, pg_rows 2666-4265 = the whole multi-country surface). A per-country
+    table now SKIPs; a table with no country axis keeps the honest country=None scope."""
+    from types import SimpleNamespace
+    from leviathan.graphrag import silverleg as slv
+    monkeypatch.setattr(slv, "_primary_country", lambda c: None)
+    n = SimpleNamespace(contract="barley", prior={"region": "EU;Black_Sea;Australia"})
+    _c, country, reason = cq._scope_ex(n, {"table": "silver_psd", "country_rule": "primary"})
+    assert country is cq.SKIP_NODE and reason == "no-geography-primary"
+    _c2, country2, reason2 = cq._scope_ex(n, {"table": "silver_noaa_oni", "country_rule": "primary"})
+    assert country2 is None and reason2 is None
+
+
+def test_the_two_fenced_rows_declare_global_token_skip():
+    """The live-map pin: the exact two rows the census proved mis-scoped (11 su_ratio legs + cotton's
+    global_textile_demand on consumption) carry the fence. check_cascade_map's fence census makes any
+    FUTURE Global-tokened primary leg fail the build; this pins the two known rows never silently lose it."""
+    m = cq.load_map()
+    for ref in ("psd_ending_stock_su_ratio", "consumption"):
+        assert (m[ref] or {}).get("global_token") == "skip", f"{ref} lost its W0-7 fence"
+
+
+def test_global_token_fence_lint_catches_reintroduction(tmp_path, monkeypatch):
+    # the class-closer half: a NEW Global-tokened driver on a primary-ruled row WITHOUT the fence fails
+    # the build (never an eval three weeks later). Uses the real map's `production` row, which is
+    # primary-ruled and unfenced -- exactly the reintroduction shape.
+    from leviathan.causal import blurb as bl
+    causal = tmp_path / "causal"
+    causal.mkdir()
+    (causal / "fixture.yaml").write_text(
+        "contract: test_contract\n"
+        "drivers:\n"
+        "- {id: world_stocks, type: supply_demand, sign: '+', mechanism: m, "
+        "silver_ref: production, region: Global}\n", encoding="utf-8")
+    monkeypatch.setattr(bl, "_CAUSAL_DIR", causal)
+    from leviathan.graphrag.config_check import check_cascade_map
+    errs = check_cascade_map()
+    assert any("global-token fence" in e and "world_stocks" in e for e in errs)
 
 
 # -- W4 A/B (2026-07-31): every [N] row line carries its SERIES scope ---------------------------------

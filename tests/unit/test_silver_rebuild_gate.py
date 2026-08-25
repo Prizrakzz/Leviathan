@@ -163,6 +163,15 @@ _EXPECTED_BRANCH_A = frozenset({
     # never a structural absence. As with every entry above: the in-VPC load has NOT run, and
     # numbers_parity carries no SAMPLE_COMMODITY row for it yet.
     "silver_minagro_grain_exports",
+    # GN-2 W2.3 (2026-08-22; roster caught up 2026-08-25 by the projection wave's first sweep) -- the
+    # SECOND gold derivation on the served-card rule, gold_board_crush's exact shape: its card and
+    # P1_TABLES membership landed in the same change (kc_chi + white_yellow spread legs served, census
+    # FIRES), so a served card must be mirrored. FLAT, projection-forbidden, ~2,700 rows (kc_chi's
+    # decade + the young JSE feed), so an unmirrored fallback costs latency, not a LIST storm. LONG
+    # shape with per-spread unit_overrides; roll sessions excluded by row_filters at the card. The W2.3
+    # commit moved neither this roster nor the orphan roster nor the 50-pin -- three reds this sweep
+    # closed together, deliberately, on the measured facts above.
+    "gold_futures_spreads",
 })
 
 
@@ -181,7 +190,10 @@ def test_branch_selection_all_45_tables():
     # numbers-served half is false for all three. They join Branch A the day their cards land, by the
     # same served-card rule minagro just went through; until then a Branch-A entry would promise a pg
     # mirror refresh for a table with no rows and no card to read them.
-    assert len(names) == 50, f"expected 50 F010 tables, got {len(names)}"
+    # GN-2 W2.3 (2026-08-22, caught 2026-08-25): 50 -> 51. gold_futures_spreads landed with card +
+    # P1_TABLES membership (served the same day, so Branch A by the served-card rule) but this pin and
+    # the orphan roster were not moved in that commit -- the projection wave's first sweep found both red.
+    assert len(names) == 51, f"expected 51 F010 tables, got {len(names)}"
 
     branch_a = {t for t in names if g.select_branch(t, silver_reg=silver) == g.BRANCH_A}
     branch_b = {t for t in names if g.select_branch(t, silver_reg=silver) == g.BRANCH_B}
@@ -196,7 +208,7 @@ def test_branch_selection_all_45_tables():
                             "served -- update this roster deliberately, never to make a test pass"}
     # D-EC DK-13: + gold_board_crush (the served-card rule, applied to a GOLD table for the second time)
     # LIGHT THE CARD: + silver_minagro_grain_exports (the same rule, applied the day its card landed)
-    assert len(branch_a) == 37                        # 20 + Track 1's six + T2's six + T3's three
+    assert len(branch_a) == 38          # 20 + Track 1's six + T2's six + T3's three + W2.3's spreads
     #                                                   + DK-13's one + minagro
     assert branch_a | branch_b == set(names)          # partition: no table is UNKNOWN in the real registry
     assert not (branch_a & branch_b)
@@ -931,8 +943,16 @@ def test_main_exits_zero_and_prints_a_grepable_warn_line(monkeypatch, capsys, tm
 # venue accepts) -> a real DAG descriptor -> the table in ITS OWN gate_tables, in that order. Until
 # then a contract drift on this table WARNs estate-wide and reds nobody, and the on-call answer is the
 # laptop pipeline rather than a Batch retry.
+#
+# GN-2 W2.3 (2026-08-22, roster caught up 2026-08-25): gold_futures_spreads joins on gold_board_crush's
+# EXACT ground -- arithmetic over a table this estate already publishes (silver_futures_eod), built by
+# its own Batch task on the crush template, so there is no source DAG to gate it with and hanging it on
+# the futures_eod family would charge a spread-transform defect to the venue capture lanes. The W2.3
+# commit lit card + P1_TABLES but never moved this roster; the projection wave's first test sweep found
+# the red. UN-ORPHAN GATE: same as board_crush -- a spreads DAG descriptor, if ever armed, takes the
+# table in its OWN gate_tables.
 _EXPECTED_ORPHANS = frozenset({"gold_pattern_records", "gold_board_crush",
-                               "silver_minagro_grain_exports"})
+                               "silver_minagro_grain_exports", "gold_futures_spreads"})
 
 
 def test_the_c002_walk_set_is_wider_than_the_owned_set_and_the_orphan_is_named():

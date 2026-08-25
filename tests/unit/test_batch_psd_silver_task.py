@@ -41,15 +41,18 @@ _SENTINEL = b"OLD-CANONICAL-PSD"
 
 
 def _silver_df() -> pd.DataFrame:
-    """One full 18-column canonical silver row (value columns non-null clear the 0.5 floor)."""
+    """One full 18-column canonical silver row -- every value column NON-NULL so the fixture clears
+    every V001 floor. W0-2 (projection wave, 2026-08-25) promoted the four derived columns into
+    value_columns with measured floors (su_ratio_yoy_delta 0.60; the three revisions 0.025); the old
+    all-None tail read 0.0 non-null and failed the publish gate on a frame nobody meant to test."""
     return pd.DataFrame([{
         "leviathan_slug": "corn_cbot", "country": "united_states",
         "market_year": 2024, "wasde_release_month": 5, "release_date": "2026-05-10",
         "beginning_stocks_mt": 40.0, "production_mt": 380.0, "imports_mt": 1.0,
         "exports_mt": 60.0, "ending_stocks_mt": 45.0, "consumption_mt": 310.0,
         "area_harvested_1000ha": 33000.0, "yield_mt_ha": 11.5, "su_ratio": 0.145,
-        "su_ratio_yoy_delta": None, "production_mt_revision": None,
-        "ending_stocks_mt_revision": None, "consumption_mt_revision": None,
+        "su_ratio_yoy_delta": -0.012, "production_mt_revision": 2.0,
+        "ending_stocks_mt_revision": -1.0, "consumption_mt_revision": 0.5,
     }])
 
 

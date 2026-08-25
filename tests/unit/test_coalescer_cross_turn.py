@@ -50,7 +50,10 @@ from leviathan.graphrag import rankers as rk
 
 @pytest.fixture()
 def coal(monkeypatch):
-    """A private coalescer, installed as the module singleton (rerank_expect/unexpect route to it)."""
+    """A private coalescer, installed as the module singleton (rerank_expect/unexpect route to it).
+    NO lane pin here: this file tests BOTH lanes (the D-MW cohere dispatch tests ride the ambient
+    cohere default the 2026-08-25 params ratification set), so bedrock-lane tests pin bedrock
+    INDIVIDUALLY (see test_serving_latency.fresh_coal for the rationale on that side)."""
     c = rk._RerankCoalescer()
     monkeypatch.setattr(rk, "_COAL", c)
     return c
@@ -92,6 +95,9 @@ def test_second_turn_hint_does_not_split_the_first_turns_batch(monkeypatch, coal
     Assign (old)-> _expect 2, the leader breaks at n=3 and fires a partial batch -> A is split across
                    two requests and the run makes >2 requests in total.
     """
+    # bedrock-lane test (patches _bedrock_rerank_call): pin the lane -- the ambient default is
+    # cohere since the 2026-08-25 params ratification, and on it this fake never fires.
+    monkeypatch.setattr(rk, "_rerank_backend", lambda: "bedrock")
     monkeypatch.setattr(rk, "_coalesce_quiescence", lambda: 60.0)   # neutralise the timer safety net
     calls: list[tuple[str, list[str]]] = []
     fired = threading.Lock()
@@ -136,6 +142,9 @@ def test_second_turn_hint_does_not_split_the_first_turns_batch(monkeypatch, coal
 def test_leadership_stays_process_global(monkeypatch, coal):
     """SV-Q4-1: per-turn leadership is REJECTED. While one leader holds the queue, a caller from another
     turn must join its batch -- never elect a second leader and fire a concurrent request."""
+    # bedrock-lane test (patches _bedrock_rerank_call): pin the lane -- the ambient default is
+    # cohere since the 2026-08-25 params ratification, and on it this fake never fires.
+    monkeypatch.setattr(rk, "_rerank_backend", lambda: "bedrock")
     monkeypatch.setattr(rk, "_coalesce_quiescence", lambda: 60.0)
     in_flight: list[int] = []
     peak = [0]

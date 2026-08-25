@@ -31,7 +31,15 @@ _LAG_DAYS = 90
 _PCT_ROUND = 6
 
 # Column order matches the silver_fred_fx registry contract exactly.
-_RATE_COLUMNS: list[str] = ["brl_usd", "ars_usd", "cny_usd"]
+# FX-1 (projection wave, 2026-08-25): 3 -> 14 (incl. GBP for D-3's cocoa GBP_cross). The incumbents keep their positions (additive columns
+# only -- the Glue ALTER is ADD COLUMNS, D-4); the ten new are the measured region_map demand (FX-4:
+# 19 declining legs across 13 boards). ARS stays although dead at source since 2020-10-30 (ADR-003 /
+# FX-6 -- the column is history, the refusal lives in region_map's Argentina entry losing its
+# currency key). SERVE THE DEMAND, fetch rides SERIES_MAP -- do not add a column here without its
+# cascade consumer.
+_RATE_COLUMNS: list[str] = ["brl_usd", "ars_usd", "cny_usd",
+                            "idr_usd", "inr_usd", "myr_usd", "thb_usd", "try_usd",
+                            "aud_usd", "cad_usd", "zar_usd", "mxn_usd", "eur_usd", "gbp_usd"]
 SILVER_COLUMNS: list[str] = ["date"]
 for _c in _RATE_COLUMNS:
     SILVER_COLUMNS.append(_c)
@@ -124,10 +132,11 @@ def build_fx_silver(df_bronze: pd.DataFrame) -> pd.DataFrame:
     # Hard grain assertion (INV): unique date, count(*) == count(DISTINCT date).
     assert len(result) == result["date"].nunique(), "date grain violated"
 
+    # FX-1: the nonnull census loops the CONFIGURED columns -- the old literal brl/ars/cny line would
+    # have reported three of thirteen and hidden a dead new currency on its first fire.
+    nonnull = "  ".join(f"{c}={int(result[c].notna().sum())}" for c in _RATE_COLUMNS)
     logger.info(
-        "Frankfurter FX silver: %d rows  range=%s..%s  brl_nonnull=%d ars_nonnull=%d cny_nonnull=%d",
-        len(result), result["date"].min(), result["date"].max(),
-        int(result["brl_usd"].notna().sum()), int(result["ars_usd"].notna().sum()),
-        int(result["cny_usd"].notna().sum()),
+        "Frankfurter FX silver: %d rows  range=%s..%s  nonnull: %s",
+        len(result), result["date"].min(), result["date"].max(), nonnull,
     )
     return result

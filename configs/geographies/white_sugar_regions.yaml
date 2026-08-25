@@ -81,3 +81,29 @@ regions:
       - region: us_sugar_florida
         latitude: 26.65
         longitude: -80.70
+  # W-1 / P-E (projection wave, 2026-08-25): the Brazil cane belt -- the SAME five cells as
+  # raw_sugar_regions.yaml, byte-identical lat/lon BY REQUIREMENT: the 1981..2026 history arrives as a
+  # pure S3 re-partition of raw_sugar's already-fetched observations (zero new NASA POWER or CHIRPS
+  # calls); identical coordinates are what make that copy honest. The daily fetch reads this file FROM
+  # S3 (fetch_nasa_power.py) -- sync configs/ before expecting forward rows. geography.yaml already
+  # listed white_sugar under brazil; this file was the missing half (frost shipped with one month of
+  # history otherwise -- _frost_flag needs no baseline, so nothing would have said so).
+  - country: brazil
+    country_name: "Brazil"
+    importance: primary
+    locations:
+      - region: br_sugar_sao_paulo
+        latitude: -21.29
+        longitude: -48.18
+      - region: br_sugar_goias
+        latitude: -15.93
+        longitude: -50.14
+      - region: br_sugar_minas_gerais
+        latitude: -18.10
+        longitude: -44.38
+      - region: br_sugar_parana
+        latitude: -24.89
+        longitude: -51.55
+      - region: br_sugar_mato_grosso_do_sul
+        latitude: -20.51
+        longitude: -54.54

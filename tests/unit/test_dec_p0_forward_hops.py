@@ -254,7 +254,14 @@ def test_graph_version_hashes_the_configs_not_the_code(real, census):
     #   f6cf1f5db711 -> fe7cd796e02f   the GN-1 MPOB split (owner word 2026-08-22): mpob_fundamentals ->
     #                                  mpob_ending_stocks + mpob_production on the palm board, the
     #                                  basket-ref split the register's un-defer gate demanded.
-    assert real.version == h.hexdigest()[:12] == "fe7cd796e02f"     # POST-MPOB-split, re-derived from bytes
+    #   fe7cd796e02f -> ddbbc7022b77   the projection wave's Lane 0 + Lane 1 config batch (2026-08-25):
+    #                                  W0-7's global_token: skip on two cascade rows + the sorghum
+    #                                  export_pace un-plan (planned -> available, the esr_exports
+    #                                  commodity_aliases re-key) + FX-4's ten currency keys + the D-3
+    #                                  United Kingdom row + FX-6's Argentina key deletion + FX-5's three
+    #                                  DAG token re-keys (matif EUR legs Global/EU;Global -> EU, cocoa
+    #                                  GBP_cross Global -> United Kingdom).
+    assert real.version == h.hexdigest()[:12] == "ddbbc7022b77"     # POST-projection-Lane-0/1, re-derived from bytes
     assert census["graph_version"] == "482c0e2554e6"                # the frozen PRE-XC-2 artifact, untouched
     assert real.version != census["graph_version"], \
         "a CONFIG edit must move the hash -- that is what 'hashes the configs, not the code' means"

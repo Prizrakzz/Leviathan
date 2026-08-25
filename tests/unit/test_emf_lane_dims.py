@@ -54,14 +54,20 @@ def test_ecs_metadata_v3_var_also_counts_as_serving(capsys, monkeypatch):
     assert doc["source"] == "serving"
 
 
-def test_batch_env_labels_source_batch_and_bge(capsys, monkeypatch):
-    """Batch jobdef :31 shape: AWS_BATCH_JOB_ID present, NO rerank env -> params has no
-    `serving.retrieval.rerank_backend` key either, so the code default `bge` is what actually ran. That
-    absence is finding S1's mechanism, so it is pinned here rather than assumed."""
-    assert prm.get("serving.retrieval.rerank_backend", "__absent__") == "__absent__"
+def test_batch_env_labels_source_batch_and_cohere(capsys, monkeypatch):
+    """Batch jobdef shape: AWS_BATCH_JOB_ID present, NO rerank env -> the params default decides.
+
+    HISTORY, because this pin flipped ON SCHEDULE and the old wording would read as a regression:
+    finding S1's mechanism was the ABSENCE of `serving.retrieval.rerank_backend` from params, which
+    made the code default `bge` what actually ran on the batch lane -- and that absence was pinned
+    here. The 2026-08-25 owner ratification ("forget bge, focus on cohere api") put the key IN params
+    (`cohere`), so the batch lane now resolves cohere by default and the label must say so -- the
+    INVARIANT (the label reports what actually ran, params-resolved, not what an env var wished) is
+    unchanged; only the resolved value moved with the config."""
+    assert prm.get("serving.retrieval.rerank_backend", "__absent__") == "cohere"
     monkeypatch.setenv("AWS_BATCH_JOB_ID", "0115c188-2bae-4431-92f7-c2411ff0e0ca")
     doc = _emit_and_parse(capsys, metrics={"TurnLatencyMs": 213_454}, dimensions={"intent": "hybrid"})
-    assert doc["source"] == "batch" and doc["rerank_backend"] == "bge"
+    assert doc["source"] == "batch" and doc["rerank_backend"] == "cohere"
 
 
 def test_batch_on_fargate_is_batch_not_serving(capsys, monkeypatch):

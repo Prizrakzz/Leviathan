@@ -35,7 +35,7 @@ TRANSMISSION_DEPTH_CAP = 2                                       # links per cha
 
 # ── the map (B-S2) ───────────────────────────────────────────────────────────────────────────────────
 def _cascade_width(n: int) -> int:
-    """Executor width for the cascade's pg waves: min(GRAPHRAG_CASCADE_WORKERS, pool, n).
+    """Executor width for the cascade's pg waves: min(serving.cascade.workers, pool, n).
 
     DECOUPLED from _POOL_SIZE (2026-08-25, the capacity refuter's precondition for ANY pool raise):
     width=pool was honest when the pool was 4 -- ceil(N/4) serial rounds either way -- but the pool
@@ -44,12 +44,16 @@ def _cascade_width(n: int) -> int:
     its sibling rows into `pg_pool_exhausted` (measured 2026-08-25, the A/B L arm -- opus-turn overlap
     made the collision window real). A turn's width is now its OWN bounded knob; the pool stays the
     turn-concurrency budget. Default 4 = the old pool-4 behavior, byte-identical to pre-raise widths.
-    """
-    import os as _os
 
+    The knob rides PARAMS (`serving.cascade.workers`), the TRANSMISSION_CAP channel above -- the
+    wedge-day version read a GRAPHRAG_CASCADE_WORKERS environment variable inside this module, which
+    the SKEPTIC F3 doctrine test forbids (config enters the engine at the answer.py seam or via
+    params, never as an engine-owned environment read), and which nothing anywhere ever set.
+    Corrected 2026-08-25, caught by that test on the projection wave's first full-suite sweep.
+    """
     from leviathan.graphrag.pgstore import _POOL_SIZE
     try:
-        w = int(_os.environ.get("GRAPHRAG_CASCADE_WORKERS", "4") or 4)
+        w = int(_pr.get("serving.cascade.workers", 4) or 4)
     except (TypeError, ValueError):
         w = 4
     return max(1, min(w, _POOL_SIZE, n))
@@ -586,14 +590,35 @@ def _region_row(n, row) -> dict:
     return {**row, "metric": f"{cur}_usd"} if cur else row
 
 
-def _scope(n, row) -> tuple:
-    """commodity = the node's contract (aliased to the silver slug where they differ); country per the
-    map row's country_rule, in the TABLE's surface form — silver_psd stores 'United States' while geo
-    gives 'united_states' (the silverleg precedent; both mismatches W0-caught: every PSD leg died).
-    country_rule: none -> no country; primary -> the contract's primary country (default); region -> the
-    DRIVER's own region token via region_map (F1/RF-2 -- primary quantified the US series under a
-    Russia/China leg), with SKIP_NODE when the token does not resolve. silver_fred_fx has no country
-    column: a resolved region needs a currency (metric pick, _region_row) or the leg is not honest."""
+def _driver_token(n) -> str:
+    """The node's raw driver region token ('' when absent) -- the same read _region_entry makes, split
+    out so the W0-7 fence and the resolver share one accessor and cannot diverge on the None-prior edge."""
+    try:
+        return ((getattr(n, "prior", None) or {}).get("region") or "").strip()
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def _table_has_country(table) -> bool:
+    """Does the table declare a country axis (TableSpec.country_col)? Drives the no-geography-primary
+    skip: on a per-country table an unfiltered query is mixed-country garbage; on a country-less table
+    country=None is the only honest scope. Registry-lookup failure reads as country-less (legacy
+    behavior) -- the census re-derives this with a live registry, so the lint half stays fail-closed.
+    Uncached ON PURPOSE: _registry() is the cached layer, and a second cache here would hold stale
+    verdicts across test monkeypatches and config reloads."""
+    if not table:
+        return False
+    try:
+        return bool(getattr(_registry().get(table), "country_col", None))
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _scope_ex(n, row) -> tuple:
+    """_scope plus the WHY: (commodity, country, skip_reason). skip_reason is None whenever the leg
+    resolves, else one of the census's decline classes -- the single undifferentiated 'region-unresolved'
+    string mislabelled 37 of 260 declines (14%: unserved-slug and fx-no-currency legs reported as token
+    misses) and made the projection wave's own before/after diff uninterpretable (W0-1)."""
     commodity = getattr(n, "contract", None)
     commodity = PSD_SLUG_ALIAS.get(commodity, commodity)
     # PER-ROW commodity aliasing (GN-2 W2.2 gate find, 2026-08-22): a table whose commodity axis is
@@ -604,21 +629,52 @@ def _scope(n, row) -> tuple:
     # validated fail-closed by config_check.check_cascade_map.
     commodity = ((row or {}).get("commodity_aliases") or {}).get(commodity, commodity)
     if (row or {}).get("table") == "silver_psd" and commodity in PSD_UNSERVED_SLUGS:
-        return commodity, SKIP_NODE          # declared-unserved: PSD has no series for this contract
+        return commodity, SKIP_NODE, "psd-unserved-slug"   # declared-unserved: PSD has no series for this contract
     if (row or {}).get("table") == "silver_cot" and commodity in cot_unserved_slugs():
-        return commodity, SKIP_NODE          # declared-unserved: cftc_cot.yaml lists it not_covered
+        return commodity, SKIP_NODE, "cot-unserved-slug"   # declared-unserved: cftc_cot.yaml lists it not_covered
     rule = (row or {}).get("country_rule", "primary")
     if rule == "none":
-        return commodity, None
+        return commodity, None, None
     if rule == "region":
         entry = _region_entry(n)
         if not entry:
-            return commodity, SKIP_NODE
+            return commodity, SKIP_NODE, "region-token-unresolved"
         if (row or {}).get("table") == "silver_fred_fx":
-            return commodity, (None if entry.get("currency") else SKIP_NODE)
+            return (commodity, None, None) if entry.get("currency") \
+                else (commodity, SKIP_NODE, "fx-no-currency")
         country = entry.get("country")
-        return commodity, (country if country else SKIP_NODE)
-    return commodity, _primary_title(commodity)
+        return (commodity, country, None) if country \
+            else (commodity, SKIP_NODE, "region-entry-no-country")
+    # W0-7 GLOBAL MIS-SCOPE FENCE (D-9, 2026-08-25): a Global/global driver token on a primary-ruled
+    # row was silently answered with the CONTRACT's primary country -- french_wheat_matif's *global*
+    # ending stocks cited European Union, raw_sugar's Brazil, robusta's Vietnam (12 census legs). A row
+    # that declares `global_token: skip` declines instead; re-keying a genuinely-national token to its
+    # nation is DAG work (the FX-5 shape), never a resolver guess. Per-row by D-7: never a region_map token.
+    if (row or {}).get("global_token") == "skip" and _driver_token(n) in ("Global", "global"):
+        return commodity, SKIP_NODE, "global-token-fenced"
+    title = _primary_title(commodity)
+    # W0-7 companion (census find + owner word, 2026-08-25): CONTEXT commodities (barley, sorghum,
+    # sunflower_oil) carry no geography entry BY DESIGN -- _primary_title is None. On a table WITH a
+    # country column, country=None compiles to an UNFILTERED per-country query, and agg=latest then
+    # serves whichever country's row sorts last (8 census legs FIRED so, pg_rows 2666-4265 = the whole
+    # multi-country surface). Same law as rrv1 2c: decline beats an arbitrary country's number. Tables
+    # without a country axis (fx/oni/mpob) keep country=None -- there is nothing to mis-scope.
+    if title is None and _table_has_country((row or {}).get("table")):
+        return commodity, SKIP_NODE, "no-geography-primary"
+    return commodity, title, None
+
+
+def _scope(n, row) -> tuple:
+    """commodity = the node's contract (aliased to the silver slug where they differ); country per the
+    map row's country_rule, in the TABLE's surface form — silver_psd stores 'United States' while geo
+    gives 'united_states' (the silverleg precedent; both mismatches W0-caught: every PSD leg died).
+    country_rule: none -> no country; primary -> the contract's primary country (default); region -> the
+    DRIVER's own region token via region_map (F1/RF-2 -- primary quantified the US series under a
+    Russia/China leg), with SKIP_NODE when the token does not resolve. silver_fred_fx has no country
+    column: a resolved region needs a currency (metric pick, _region_row) or the leg is not honest.
+    Thin wrapper over _scope_ex -- the runtime path drops the reason, the census keeps it."""
+    commodity, country, _ = _scope_ex(n, row)
+    return commodity, country
 
 
 # ── T2a (CONVERGENCE_TIER1) pace-leg inventory: SUB-ANNUAL chronological grains ONLY ─────────────────

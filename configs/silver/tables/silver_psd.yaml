@@ -158,6 +158,10 @@ value_columns:
 - area_harvested_1000ha
 - yield_mt_ha
 - su_ratio
+- su_ratio_yoy_delta
+- production_mt_revision
+- ending_stocks_mt_revision
+- consumption_mt_revision
 min_nonnull_frac: 0.5
 min_nonnull_frac_status: provisional
 coverage_axis: commodity x country x market_year x release_date
@@ -197,3 +201,7 @@ notes: 'min_nonnull_frac is PROVISIONAL (uniform 0.5) pending per-source calibra
 min_nonnull_frac_overrides:
   area_harvested_1000ha: 0.4
   yield_mt_ha: 0.4
+  su_ratio_yoy_delta: 0.6
+  production_mt_revision: 0.025
+  ending_stocks_mt_revision: 0.025
+  consumption_mt_revision: 0.025

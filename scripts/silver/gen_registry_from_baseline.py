@@ -839,6 +839,31 @@ CURATION_OVERRIDES: dict = {
         "type_overrides": {"cpi_yoy_pct": "double", "cpi_yoy_z_5yr": "double",
                            "cpi_yoy_z_10yr": "double", "cpi_available": "bigint"},
     },
+    # FX-1/FX-2 (projection wave, 2026-08-25): the currency widening's F010 spine. Eleven new rates (incl. GBP, D-3) +
+    # their 90d pct-change siblings, all float64 (arrow target; Glue renders double), all NULLABLE (the ARS lesson: a currency can die at
+    # source mid-history and a gap is data, not a defect). REGISTERED so the generated DDL renders the
+    # full 27-column shape and the Glue ALTER (D-4, ADD COLUMNS -- additive by construction) reconciles
+    # 1:1. The writer (bronze_to_silver/frankfurter_fx.py _RATE_COLUMNS) widened in the SAME change --
+    # contract and writer must ride the SAME worker image or the daily gate's feature_probe goes RED.
+    # min_nonnull_frac_overrides for the new currencies are GATED ON THE FX-9(a) PROBE (network-parked;
+    # coverage vs the 2004-12-31 floor is unmeasured until it runs) -- on a wide table value_columns is
+    # the card-metric set, so the floors land with the FX-3 card metrics, not before.
+    "silver_fred_fx": {
+        "additive_columns": [
+            ("idr_usd", "float64"), ("idr_usd_pct_change_90d", "float64"),
+            ("inr_usd", "float64"), ("inr_usd_pct_change_90d", "float64"),
+            ("myr_usd", "float64"), ("myr_usd_pct_change_90d", "float64"),
+            ("thb_usd", "float64"), ("thb_usd_pct_change_90d", "float64"),
+            ("try_usd", "float64"), ("try_usd_pct_change_90d", "float64"),
+            ("aud_usd", "float64"), ("aud_usd_pct_change_90d", "float64"),
+            ("cad_usd", "float64"), ("cad_usd_pct_change_90d", "float64"),
+            ("zar_usd", "float64"), ("zar_usd_pct_change_90d", "float64"),
+            ("mxn_usd", "float64"), ("mxn_usd_pct_change_90d", "float64"),
+            ("eur_usd", "float64"), ("eur_usd_pct_change_90d", "float64"),
+            ("gbp_usd", "float64"), ("gbp_usd_pct_change_90d", "float64"),
+        ],
+        "additive_columns_registered": True,
+    },
     # ── R4 cadence calibration: _cadence(grain) infers RELEASE cadence from DATA grain, which is
     # wrong wherever the two differ (a daily-grain table from a weekly/monthly release). These
     # cadences feed only the interim F082 freshness-alarm ceilings (dag_catalog); max_lag_days
@@ -1171,10 +1196,27 @@ CURATION_OVERRIDES: dict = {
     # The other seven value columns keep the 0.5 table scalar -- every one of them measures 0.96 or
     # better after the widening, so there is nothing to restate and restating anyway would be the
     # invented-floor mistake in the other direction.
+    # W0-2 (projection wave, 2026-08-25) -- FOUR MORE FLOORS, in the SAME edit as the card metrics that
+    # promote them (the D-CW-2a law: a promoted column with no floor inherits the provisional 0.5 and
+    # fails the next publish on a column nobody changed). The four columns are producer-written since
+    # the transform's step 13/14 landed; the card never advertised them, so value_columns never held
+    # them and no floor was ever owed -- until now. MEASURED on the live object (247,036 rows,
+    # 2026-08-25): su_ratio_yoy_delta 0.8577; production_mt_revision 0.0383; ending_stocks_mt_revision
+    # 0.0381; consumption_mt_revision 0.0383. The three revision fractions are STRUCTURAL, not defects:
+    # a revision is `.diff(1)` across consecutive wasde_release_months within (slug, country, MY), and
+    # the pre-WASDE mass (MY 1960-2004, month_code 0, ONE print per key) has no consecutive pair --
+    # measured, revisions exist only for MY 2014-2026 on 56/63 slugs. Floors at the ~27% headroom the
+    # two entries above set (0.8577 -> 0.60; 0.0381 -> 0.025); KIND_ALL_NAN still hard-fails a column
+    # that goes entirely null, whatever the floor says. The revision fraction RISES as releases land
+    # (each new month adds revision-carrying rows), so these floors only get safer with time.
     "silver_psd": {
         "freshness_sla": {"cadence": "monthly"},                     # PSD refreshes on the WASDE cycle
         "min_nonnull_frac_overrides": {"area_harvested_1000ha": 0.40,
-                                       "yield_mt_ha": 0.40},
+                                       "yield_mt_ha": 0.40,
+                                       "su_ratio_yoy_delta": 0.60,
+                                       "production_mt_revision": 0.025,
+                                       "ending_stocks_mt_revision": 0.025,
+                                       "consumption_mt_revision": 0.025},
     },
     "silver_mpob": {"freshness_sla": {"cadence": "monthly"}},        # MPOB monthly palm statistics
     "silver_modis_ndvi": {"freshness_sla": {"cadence": "monthly"}},  # 16-day composite; monthly interim

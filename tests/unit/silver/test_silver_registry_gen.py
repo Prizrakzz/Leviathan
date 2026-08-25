@@ -104,7 +104,11 @@ def test_generator_covers_exactly_the_45_baseline_tables(gen):
     #   +1 silver_eex_freight        -- NO R0 record; hand-authored from a live EEX probe.
     # (silver_minagro_grain_exports is the FOURTH synthetic record named in the paragraph above and
     # is already counted in the 47.)
-    assert len(on_disk) == 50
+    #   +1 gold_futures_spreads      -- GN-2 W2.3 (2026-08-22), the second gold derivation on the
+    #                                   board-crush template; this pin was not moved in that commit
+    #                                   (caught by the projection wave's first sweep 2026-08-25,
+    #                                   together with the rebuild-gate trio and the missing DDL).
+    assert len(on_disk) == 51
     assert "gold_pattern_records" in on_disk
     assert "silver_futures_eod" in on_disk
     assert "gold_board_crush" in on_disk

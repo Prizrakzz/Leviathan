@@ -328,7 +328,7 @@ class TestWidenedGateContract:
             (_REPO / "configs" / "silver" / "tables" / "silver_psd.yaml")
             .read_text(encoding="utf-8"))
 
-    def test_psd_contract_carries_the_two_structural_floor_overrides(self) -> None:
+    def test_psd_contract_carries_the_structural_floor_overrides(self) -> None:
         # MEASURED post-widening, table-wide, by running this transform over the
         # real 2026-08-13 raw object: area_harvested_1000ha 0.657 -> 0.5518 and
         # yield_mt_ha 0.657 -> 0.5670. At the shipped 0.5 table scalar both still
@@ -336,8 +336,17 @@ class TestWidenedGateContract:
         # release partitions bronze holds could red the gate on data that is
         # exactly what USDA published. Both floors sit ~27% below the measurement,
         # the same headroom ratio the nass pct_emerged recalibration used.
+        # W0-2 (projection wave, 2026-08-25) -- FOUR MORE, promoted with the card
+        # metrics in the same change (the D-CW-2a law: a promoted column with no
+        # floor inherits the provisional 0.5 it can never reach). MEASURED on the
+        # live 247,036-row object: su_ratio_yoy_delta 0.8577 -> floor 0.60; the
+        # three revision columns 0.0381-0.0383 -> floor 0.025 (a revision is
+        # .diff(1) across consecutive release months, and the pre-WASDE mass has
+        # ONE print per key -- revisions exist only for MY2014+ on 56/63 slugs).
         ov = self._contract().get("min_nonnull_frac_overrides") or {}
-        assert ov == {"area_harvested_1000ha": 0.40, "yield_mt_ha": 0.40}
+        assert ov == {"area_harvested_1000ha": 0.40, "yield_mt_ha": 0.40,
+                      "su_ratio_yoy_delta": 0.60, "production_mt_revision": 0.025,
+                      "ending_stocks_mt_revision": 0.025, "consumption_mt_revision": 0.025}
 
     def test_the_other_seven_value_columns_keep_the_table_scalar(self) -> None:
         c = self._contract()
@@ -350,9 +359,12 @@ class TestWidenedGateContract:
         # area/yield are absent because USDA publishes no harvested area for
         # butter or beef -- not because anything was lost. A floor added for a
         # column that IS published everywhere would be a masked producer defect
-        # wearing a calibration's clothes.
+        # wearing a calibration's clothes. The W0-2 four are the same class: the
+        # YoY delta has no prior-year print at the book's front edge, and a
+        # revision needs a consecutive-month pair the pre-WASDE era never has.
         assert set(self._contract()["min_nonnull_frac_overrides"]) == {
-            "area_harvested_1000ha", "yield_mt_ha"}
+            "area_harvested_1000ha", "yield_mt_ha", "su_ratio_yoy_delta",
+            "production_mt_revision", "ending_stocks_mt_revision", "consumption_mt_revision"}
 
     def test_the_gate_still_hard_fails_a_column_that_goes_entirely_null(self) -> None:
         # The floors loosen a threshold; they do not disarm the gate. KIND_ALL_NAN

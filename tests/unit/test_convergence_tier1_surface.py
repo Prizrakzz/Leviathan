@@ -39,8 +39,13 @@ def test_t2_pace_phrasings_pass_all_fences():
     for s in safe:
         assert _clean(s), f"pace phrasing tripped a fence: {s!r}"
         assert cq.pace_register_ok(s), f"pace phrasing tripped the momentum fence: {s!r}"
-    # the engine's own emitted line shapes
-    assert _clean("- [N7] change in weekly_exports_1000mt from the prior week (weekly pace): +50 1000 MT")
+    # the engine's own emitted line shapes. Since the 2026-08-22 labeled-only leak fence (owner word:
+    # internal names never reach prose), _metric_display renders the CARD LABEL on this line -- the
+    # engine emits "weekly exports", never the raw id. Both directions pinned: the current shape is
+    # clean AND the pre-label shape now TRIPS the fence (that trip is the fence working -- this line
+    # asserted the raw-id shape clean until the projection wave's 2026-08-25 sweep re-pinned it).
+    assert _clean("- [N7] change in weekly exports from the prior week (weekly pace): +50 1000 MT")
+    assert reg.register_leaks("- [N7] change in weekly_exports_1000mt from the prior week (weekly pace)")
     assert _clean("- [N8] fell in each of the last 2 months")
 
 

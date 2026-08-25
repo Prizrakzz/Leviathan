@@ -199,8 +199,33 @@ def _su_ratio(query_fn, contract: str, asof: str, newest_first: bool | str = Fal
             "detail": f"{country or 'unspecified country'} MY{latest_p} vs {len(hist)} prior years at the same vintage"}
 
 
+def _fx_metric_for(contract: str) -> str:
+    """The contract's headline FX cross, derived from the SAME region_map authority the cascade
+    resolver uses (FX-7, projection wave 2026-08-25). The old literal -- cny for _dce/_zce, brl for
+    EVERYTHING else -- z-scored the Malaysian palm board, both JSE boards, all four MATIF boards and
+    canola_ice against the Brazilian real. Two documented rules, both answered BY THE MAP so the two
+    engines cannot drift: (1) a Chinese-venue board (_dce/_zce) keeps the yuan -- the settle is in
+    yuan and import parity is the load-bearing cross (the incumbent intent, now read off the map's
+    China entry instead of a second literal); (2) every other board takes its geography primary's
+    keyed currency (EU members fold to 'European Union', the cascade's own fold). brl_usd stays the
+    DOCUMENTED fallback for primaries with no keyed currency (US boards: the rival-exporter real, the
+    incumbent behavior; the CAD cross MGEX's DAG names rides the cascade's own fx leg via FX-4, not
+    this headline slot)."""
+    try:
+        from leviathan.graphrag.numbers import cascade as _casc
+        resolve = _casc.load_region_map().get("resolve") or {}
+        title = "China" if contract.endswith(("_dce", "_zce")) else _casc._primary_title(contract)
+        if title:
+            for entry in resolve.values():
+                if (entry or {}).get("country") == title and entry.get("currency"):
+                    return f"{entry['currency']}_usd"
+    except Exception:  # noqa: BLE001 -- a map/import hiccup degrades to the incumbent default
+        pass
+    return "brl_usd"
+
+
 def _fx(query_fn, contract: str, asof: str, newest_first: bool | str = False) -> dict:
-    metric = "cny_usd" if contract.endswith(("_dce", "_zce")) else "brl_usd"
+    metric = _fx_metric_for(contract)
     window_days = int(_thr("fred_fx_macro", "window_days", 504))
     start = (_dt.date.fromisoformat(asof[:10]) - _dt.timedelta(days=window_days)).isoformat()
     rows = _rows(query_fn, "silver_fred_fx", metric, asof, period_start=start, limit=800,

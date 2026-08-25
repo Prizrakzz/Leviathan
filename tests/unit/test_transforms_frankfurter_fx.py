@@ -259,12 +259,13 @@ class TestPublishIdentityResolution:
             raise RuntimeError("stop-here")  # surgical: identity plumbing only
 
         monkeypatch.setattr(sbp, "authorize_publish", fake_authorize)
-        df = pd.DataFrame({
-            "date": ["2026-01-02"], "brl_usd": [5.0], "ars_usd": [float("nan")],
-            "cny_usd": [7.0], "brl_usd_pct_change_90d": [float("nan")],
-            "ars_usd_pct_change_90d": [float("nan")], "cny_usd_pct_change_90d": [float("nan")],
-            "source": ["frankfurter"],
-        })
+        # FX-1 (2026-08-25): build the fixture off SILVER_COLUMNS so the frame tracks the currency
+        # roster instead of hand-listing three of thirteen (the exact drift the widening exposed).
+        from leviathan.transforms.bronze_to_silver.frankfurter_fx import SILVER_COLUMNS
+        row = {c: [float("nan")] for c in SILVER_COLUMNS}
+        row.update({"date": ["2026-01-02"], "brl_usd": [5.0], "cny_usd": [7.0],
+                    "source": ["frankfurter"]})
+        df = pd.DataFrame(row)
         with pytest.raises(RuntimeError, match="stop-here"):
             sbp.publish_flat_silver(table_name="silver_fred_fx", df=df, job="t",
                                     canonical_key="silver/fred_fx/part-000.parquet",

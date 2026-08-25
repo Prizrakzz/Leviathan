@@ -37,6 +37,9 @@ class _FakeRerankClient:
 
 def test_bedrock_rerank_remaps_to_input_order(monkeypatch):
     # results come back OUT of order and index 1 is absent -> it must floor to 0.0, aligned to input order
+    # (_bedrock_rerank_scores rides the SHARED coalescer whose _fire dispatches by the ambient backend --
+    # pin the lane or the cohere default routes this to the cohere leaf's key check; see fresh_coal)
+    monkeypatch.setattr(rk, "_rerank_backend", lambda: "bedrock")
     fake = _FakeRerankClient([{"index": 2, "relevanceScore": 0.9}, {"index": 0, "relevanceScore": 0.4}])
     monkeypatch.setattr(rk, "_bedrock_rerank_client", fake)
     scores = rk._bedrock_rerank_scores("frost", ["a", "b", "c"])
@@ -79,6 +82,14 @@ def test_rerank_empty_is_noop():
 def fresh_coal(monkeypatch):
     coal = rk._RerankCoalescer()
     monkeypatch.setattr(rk, "_COAL", coal)
+    # These are BEDROCK-LANE tests by construction (their packing shape -- one flattened list per
+    # query, offset-chunked in the leaf -- is part of what they pin). The serving DEFAULT flipped to
+    # cohere with the 2026-08-25 params ratification (`serving.retrieval.rerank_backend: cohere`), so
+    # the lane is pinned HERE rather than inherited: on the ambient default the patched
+    # _bedrock_rerank_call never fires and every invariant read as broken (9 reds, caught by the
+    # projection wave's first full-suite sweep). The cohere lane's own dispatch behavior is covered by
+    # its D-MW tests; the bedrock lane stays the declared rollback lane.
+    monkeypatch.setattr(rk, "_rerank_backend", lambda: "bedrock")
     return coal
 
 
@@ -228,6 +239,9 @@ def test_leader_abort_releases_the_flag_and_leaves_the_coalescer_usable(monkeypa
         fresh_coal.submit("q", ["d"])
     assert fresh_coal._leading is False and fresh_coal._pending == []
     monkeypatch.undo()                                        # the process is not wedged: next turn works
+    # undo() also dropped fresh_coal's bedrock-lane pin -- restore it with the fake, or the retry
+    # dispatches to the ambient cohere default and dies on the key check (see the fixture comment)
+    monkeypatch.setattr(rk, "_rerank_backend", lambda: "bedrock")
     monkeypatch.setattr(rk, "_bedrock_rerank_call", lambda q, d: [0.5] * len(d))
     fresh_coal.expect(1, window=1.0)
     assert fresh_coal.submit("q", ["d"]) == [0.5]

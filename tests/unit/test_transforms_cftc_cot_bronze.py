@@ -138,11 +138,12 @@ def test_parse_headerless_produces_correctly_aligned_bronze() -> None:
 
     wheat = by_slug["soft_red_winter_wheat_cbot"]
     assert wheat["report_date"] == "2026-07-07"
-    # NOTE: cftc_code loses its leading zeros (001602 -> "1602") because pandas
-    # infers CFTC_Contract_Market_Code as int64. This is PRE-EXISTING parser
-    # behaviour, identical for headered backfill files (see the parity test
-    # below), and out of scope for the headerless fetch fix.
-    assert wheat["cftc_code"] == "1602"
+    # f66e5a90 (2026-08-21, the FCOJ 1,049-lost-weeks fix) re-keyed the contract-market join on the
+    # CFTC CODE and made the parser PRESERVE it verbatim ("001602" stays "001602" -- the int64
+    # inference that stripped leading zeros was part of the string-identity defect class, not a
+    # harmless quirk). This pin apologized for the loss when it was written; it now pins the fix.
+    # Caught stale 2026-08-25 by the projection wave's full-suite sweep.
+    assert wheat["cftc_code"] == "001602"
     assert int(wheat["open_interest"]) == 412570
     assert int(wheat["mm_long"]) == 73719
     assert int(wheat["mm_short"]) == 134151
@@ -151,7 +152,7 @@ def test_parse_headerless_produces_correctly_aligned_bronze() -> None:
     assert wheat["source"] == "cftc_cot"
 
     corn = by_slug["corn_cbot"]
-    assert corn["cftc_code"] == "2602"             # 002602 int-coerced (pre-existing)
+    assert corn["cftc_code"] == "002602"           # preserved verbatim since f66e5a90 (see the wheat pin)
     assert int(corn["open_interest"]) == 1711613
     assert int(corn["mm_long"]) == 287447
     assert int(corn["mm_short"]) == 302446

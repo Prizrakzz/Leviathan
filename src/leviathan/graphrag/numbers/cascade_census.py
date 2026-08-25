@@ -21,8 +21,14 @@ trust-the-closure post-hoc banner.
 
 VERDICTS (one per MAPPED leg -- unmapped drivers are DESIGNED-qualitative and out of census scope):
   FIRES              -- mapped ref, resolvable country, pg_probe returns rows. Can inject a citable [N].
-  DECLINES-HONESTLY  -- SKIP_NODE on a compound/prose/unresolved region (the engine stays qualitative and
-                        the answer narrates the mechanism without a fake number); or an explicit waiver.
+  DECLINES-HONESTLY  -- SKIP_NODE (the engine stays qualitative and the answer narrates the mechanism
+                        without a fake number); or an explicit waiver. The reason string comes from
+                        _scope_ex (W0-1, 2026-08-25 -- one undifferentiated 'region-unresolved' string
+                        mislabelled 14% of declines): region-token-unresolved (genuine compound/prose/
+                        missing token), psd-unserved-slug, cot-unserved-slug, fx-no-currency,
+                        region-entry-no-country, global-token-fenced (the W0-7 mis-scope fence),
+                        no-geography-primary (context commodity on a per-country table -- unfiltered
+                        agg=latest would serve an arbitrary country's row).
   DARK-WITH-REASON   -- mapped, country RESOLVED, but pg_probe returns ZERO rows: the leg believes it will
                         fire and doesn't. Sub-reasons: country-not-a-psd-title (France->EU), commodity-slug-miss
                         (the PSD_SLUG_ALIAS class), metric-empty-for-country, uncertified-table.
@@ -71,7 +77,9 @@ _UNCERTIFIED = UNCERTIFIED_TABLES
 # rows -- USDA PSD tracks neither commodity, so every leg below is honest data absence, not a bug.
 # DELETE the relevant waivers if either commodity is ever ingested into silver_psd.
 _NO_COCOA = "silver_psd has no cocoa balance sheet (DISTINCT slug probe 2026-07-11)"
-_NO_FCOJ = "silver_psd has no orange-juice balance sheet (DISTINCT slug probe 2026-07-11)"
+# _NO_FCOJ deleted W0-4 (2026-08-25): its premise ("no orange-juice balance sheet") died 2026-08-20
+# when the 13->47 widening landed 746 FCOJ rows; the two surviving FCOJ waivers below carry their own
+# honest per-leg justifications (mis-scoped tokens, the D-10 class).
 # D-W5 weather flip (2026-07-12): white_sugar's `frost` driver is a Brazil-cane-belt hazard (region
 # `Brazil CS` -> Brazil, mechanism "frost in southern Brazil cane areas"), but white_sugar's
 # gold_weather_z covers only the refined-sugar regions (China/EU/India/Thailand/US) -- Brazil cane
@@ -85,10 +93,27 @@ _WAIVERS: dict[tuple[str, str], str] = {
     ("cocoa", "tenderable_collapse"): _NO_COCOA,
     ("cocoa", "grind_demand"): _NO_COCOA,
     ("cocoa", "demand_destruction"): _NO_COCOA,
-    ("frozen_orange_juice", "ending_stocks"): _NO_FCOJ,
-    ("frozen_orange_juice", "consumption_demand"): _NO_FCOJ,
-    ("frozen_orange_juice", "US_section301_tariffs"): _NO_FCOJ,
-    ("frozen_orange_juice", "tenderable_collapse"): _NO_FCOJ,
+    # W0-4 (2026-08-25): the four FCOJ waivers stood on a DEAD premise -- frozen_orange_juice has been
+    # on the psd card since 2026-08-20 (746 rows, 25 countries). Adjudicated per leg, pre-census:
+    #   ending_stocks         -- waiver DELETED. Token 'Global' on the fenced su_ratio row: the W0-7
+    #                            fence provides the honest decline (global-token-fenced); a waiver on
+    #                            top would hide the fence's own reason string.
+    #   US_section301_tariffs -- waiver DELETED. Region-ruled import row, token US -> United States;
+    #                            the 0.5 census probes it for real (FIRES expected; a dark read exits
+    #                            non-zero and earns a NEW waiver with the honest reason, never this one).
+    #   consumption_demand + tenderable_collapse -- waivers KEPT but their justification REWRITTEN
+    #                            below: the old "no balance sheet" reason is false, and deleting them
+    #                            would let both FIRE with BRAZIL's numbers under 'US / EU' / 'US'
+    #                            (ICE warehouse) labels -- the D-10 mis-scope class (primary-ruled rows
+    #                            ignore tokens; FCOJ's primary is Brazil, not a token member).
+    ("frozen_orange_juice", "consumption_demand"): (
+        "mis-scoped token, NOT data absence: 'US / EU' demand leg on a primary-ruled row would fire "
+        "with BRAZIL's consumption_mt (FCOJ rows exist since 2026-08-20). D-10 class -- unwaive only "
+        "with a per-leg scope mechanism or an RF-3 pairing"),
+    ("frozen_orange_juice", "tenderable_collapse"): (
+        "mis-scoped token, NOT data absence: 'US' (ICE warehouse) stocks leg on a primary-ruled row "
+        "would fire with BRAZIL's ending_stocks_mt. D-10 class -- unwaive only with a per-leg scope "
+        "mechanism or an RF-3 pairing"),
     ("white_sugar", "frost"): _NO_WHITE_SUGAR_BRAZIL_WX,
     # D-EC graph-completion fallout (2026-08-21): the sorghum CLASS DAG (a causal contract with no
     # tradeable instrument) copied incumbents' silver_refs, but availability is PER-COMMODITY --
@@ -99,7 +124,10 @@ _WAIVERS: dict[tuple[str, str], str] = {
     # the census exit honest meanwhile. DELETE these if a sorghum weather axis or ESR fetch lands.
     ("sorghum", "drought"): "gold_weather_z has no sorghum slug (class DAG, not a contract; census probe 2026-08-21)",
     ("sorghum", "heat_stress"): "gold_weather_z has no sorghum slug (class DAG, not a contract; census probe 2026-08-21)",
-    ("sorghum", "export_pace"): "silver_esr does not fetch sorghum (five-commodity fetch; census probe 2026-08-21)",
+    # W0-3 (2026-08-25): the ("sorghum", "export_pace") waiver DELETED -- its stated reason was FALSE
+    # when written (ESR code 701 fetched, grain_sorghum silver objects landed 2026-08-20 17:14; the leg
+    # was dark on slug identity, not data absence). The esr_exports commodity_aliases re-key lights it;
+    # the 0.5 census proves it FIRES or reads the honest dark reason, never a waiver on a dead premise.
 }
 
 # The v4 cascade fixture (config_check._CFG mirror -- both resolve configs/graphrag/).
@@ -253,7 +281,7 @@ def census(*, asof: str = CENSUS_ASOF_DEFAULT, query_fn, cmap=None) -> dict:
             if row is None:
                 continue                                        # unmapped/deferred -> out of census scope
             n = _LegNode(contract, d.id, d.silver_ref, d.region)
-            commodity, country = casc._scope(n, row)
+            commodity, country, skip_reason = casc._scope_ex(n, row)
             rec = _leg_record(contract, d.id, d.silver_ref, row.get("table"), row.get("metric"),
                               d.region, country)
             waiver = _WAIVERS.get((contract, d.id))
@@ -262,8 +290,12 @@ def census(*, asof: str = CENSUS_ASOF_DEFAULT, query_fn, cmap=None) -> dict:
                 legs.append(rec)
                 continue
             if country is casc.SKIP_NODE:
+                # W0-1 (2026-08-25): the reason comes from the RESOLVER, never a census-side guess --
+                # the old single 'region-unresolved' string mislabelled 37/260 declines (14%:
+                # unserved-slug + fx-no-currency legs reported as token misses), making every
+                # "addressable declines" figure derived from it unquotable.
                 rec["country"] = None
-                rec["verdict"], rec["reason"] = DECLINES, "region-unresolved"
+                rec["verdict"], rec["reason"] = DECLINES, skip_reason or "region-unresolved"
                 legs.append(rec)
                 continue
             row2 = casc._region_row(n, row)                     # fred_fx: region currency picks the metric

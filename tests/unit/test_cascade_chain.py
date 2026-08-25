@@ -151,6 +151,11 @@ def test_chain_fires_two_hops_injects_rows_and_writes_trace(monkeypatch):
 
 
 def test_chain_handles_continue_the_turn_count(monkeypatch):
+    # W0-7 companion (2026-08-25): the synthetic contract has no geography entry, and a
+    # primary-less leg on a per-country table now DECLINES (no-geography-primary) instead of
+    # falling through unfiltered -- these are CHAIN-mechanics tests, so give the contract the
+    # primary their premise always assumed (the census fixture took the same fix).
+    monkeypatch.setattr("leviathan.graphrag.silverleg._primary_country", lambda c: "united_states")
     _cm(monkeypatch, _skeleton_chain())
     root = _evnode("wheat", "area", "area", ["2010-08-05", "2010-11-20"])
     calls = [{"query": {}, "rows": [{"value": "1"}], "status": "ok"}] * 3   # 3 prior handles this turn
@@ -393,6 +398,11 @@ def test_windowless_root_with_downstream_hop_absent_from_walk_declines(monkeypat
 # ── the downstream-only grain rule (2.2(3), S5): a MY root admitted; a MY->month step declined ───────
 def test_annual_root_admitted(monkeypatch):
     # skeleton root `area` is a marketing_year (annual) ref -> admitted by the folded grain rule.
+    # W0-7 companion (2026-08-25): the synthetic contract has no geography entry, and a
+    # primary-less leg on a per-country table now DECLINES (no-geography-primary) instead of
+    # falling through unfiltered -- these are CHAIN-mechanics tests, so give the contract the
+    # primary their premise always assumed (the census fixture took the same fix).
+    monkeypatch.setattr("leviathan.graphrag.silverleg._primary_country", lambda c: "united_states")
     _cm(monkeypatch, _skeleton_chain())
     root = _evnode("wheat", "area", "area", ["2010-08-05", "2010-11-20"])
     _l, fired, decline = cq._chain_legs(_sg(["wheat"], [root]), _skeleton_graph(), [], [],
@@ -447,6 +457,11 @@ def test_collapse_then_fire_records_the_collapsed_hop(monkeypatch):
 
 # ── a dark hop kills the chain (4.1); a declined chain injects ZERO rows (honest ledger) ─────────────
 def test_dark_hop_declines_whole_and_injects_nothing(monkeypatch):
+    # W0-7 companion (2026-08-25): the synthetic contract has no geography entry, and a
+    # primary-less leg on a per-country table now DECLINES (no-geography-primary) instead of
+    # falling through unfiltered -- these are CHAIN-mechanics tests, so give the contract the
+    # primary their premise always assumed (the census fixture took the same fix).
+    monkeypatch.setattr("leviathan.graphrag.silverleg._primary_country", lambda c: "united_states")
     _cm(monkeypatch, _skeleton_chain())
     root = _evnode("wheat", "area", "area", ["2010-08-05", "2010-11-20"])
     calls = []
@@ -457,6 +472,11 @@ def test_dark_hop_declines_whole_and_injects_nothing(monkeypatch):
 
 # ── CHAIN_CAP: cap-atomic decline; reuse-before-fetch (3.4) ──────────────────────────────────────────
 def test_cap_atomic_declines_whole(monkeypatch):
+    # W0-7 companion (2026-08-25): the synthetic contract has no geography entry, and a
+    # primary-less leg on a per-country table now DECLINES (no-geography-primary) instead of
+    # falling through unfiltered -- these are CHAIN-mechanics tests, so give the contract the
+    # primary their premise always assumed (the census fixture took the same fix).
+    monkeypatch.setattr("leviathan.graphrag.silverleg._primary_country", lambda c: "united_states")
     _cm(monkeypatch, _skeleton_chain())
     monkeypatch.setattr(cq, "CHAIN_CAP", 1)                        # any 2-hop chain nets > 1 fetch
     root = _evnode("wheat", "area", "area", ["2010-08-05", "2010-11-20"])

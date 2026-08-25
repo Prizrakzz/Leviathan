@@ -368,7 +368,8 @@ def test_runner_build_evidence_smoke(tmp_path):
     # whether or not its producer has ever run: + silver_moex_agro_indices, + silver_ams_gtr,
     # + silver_eex_freight. All three land BLOCKED with no census, which is the honest state --
     # silver_moex_agro_indices and silver_ams_gtr name their work order via PRE_PUBLISH_PACKAGE.
-    assert len(evidence) == 50
+    # 50 -> 51: + gold_futures_spreads (GN-2 W2.3; pin caught up 2026-08-25)
+    assert len(evidence) == 51
     assert {e.table for e in evidence} == set(reg.names())    # one row per registry table, no dups
     cert = certify_all(evidence)
     # Structural, and true whatever the artifact tree says: a certificate covers every table and

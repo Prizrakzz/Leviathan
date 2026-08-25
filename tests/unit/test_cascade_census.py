@@ -67,6 +67,11 @@ def _synth_index(monkeypatch):
     monkeypatch.setattr(cc, "_contract_index", lambda: {"test_soy": _SYNTH})
     # keep the census verdict test hermetic -- the fixture-derived per-query block is exercised elsewhere
     monkeypatch.setattr(cc, "_per_query_realizability", lambda: [])
+    # the probe_err_leg rides the primary rule; test_soy has no geography entry, and since W0-7 a
+    # primary-less leg on a per-country table DECLINES (no-geography-primary) before any probe runs --
+    # give the synth contract a primary so the leg still reaches the raising pg mock
+    from leviathan.graphrag import silverleg as slv
+    monkeypatch.setattr(slv, "_primary_country", lambda c: "united_states")
 
 
 def test_census_verdict_classification(_synth_index):
@@ -79,7 +84,9 @@ def test_census_verdict_classification(_synth_index):
     assert verdicts["fires_leg"]["pg_rows"] == 1
 
     assert verdicts["declines_leg"]["verdict"] == cc.DECLINES
-    assert verdicts["declines_leg"]["reason"] == "region-unresolved"
+    # W0-1: the reason names the resolver's own branch -- a genuine token miss on a region-ruled row,
+    # never the old undifferentiated 'region-unresolved' (which mislabelled unserved-slug declines too)
+    assert verdicts["declines_leg"]["reason"] == "region-token-unresolved"
     assert verdicts["declines_leg"]["country"] is None
 
     assert verdicts["dark_leg"]["verdict"] == cc.DARK

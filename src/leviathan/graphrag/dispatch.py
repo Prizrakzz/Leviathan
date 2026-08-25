@@ -187,7 +187,26 @@ REGISTRY: tuple[ToolSpec, ...] = (
         # sheet the router is still instructed to route away from. The nass_citrus half is UNCHANGED and
         # keeps the `citrus` token this string owes it: the card is still the US in-season FORECAST in
         # thousand boxes. The two reads are now advertised as a PAIR, the FGIS/ESR shipped-vs-sold idiom.
-        purpose=("leakage-safe SQL over OBSERVED values (USDA PSD S&D vintages, ESR export sales AND "
+        # W0-2 (projection wave, 2026-08-25): the PSD half of the WAP revision idiom. The producer has
+        # always written su_ratio_yoy_delta + three balance-sheet revision columns; the card now serves
+        # them, so the router must know a PSD "did USDA raise or cut" ask is a LOOKUP too -- scoped
+        # honestly to the WASDE-tracked era (revisions MY2014+ per slug, NEVER 1960; the card's notes
+        # carry the measured spans and the model reads those verbatim).
+        # W0-6b (projection wave, 2026-08-25): the five-word PSD advertisement never moved when the
+        # 2026-08-20 widening took the card from 13 contracts to the 63-slug balance-sheet BOOK -- the
+        # livestock/dairy/crush subjects were servable and unadvertised. The subject roster below moves
+        # WITH the card's commodity_values, never ahead of it.
+        purpose=("leakage-safe SQL over OBSERVED values (USDA PSD S&D vintages -- the WHOLE 63-slug "
+                 "balance-sheet book: grains and oilseeds, every crush complex's own meal and oil sheets "
+                 "(cottonseed, peanut, coconut, palm kernel, sunflower), the livestock and dairy demand "
+                 "layer (cattle/beef, hogs, broilers, fluid milk, milk powders, butter, cheese) and the "
+                 "citrus pair -- including, per country "
+                 "and marketing year, the month-over-month REVISION of the production / ending-stocks / "
+                 "consumption estimates between consecutive releases (WASDE-tracked era, roughly "
+                 "MY2014 onward, varies by slug) and the YoY CHANGE in the stocks-to-use ratio compared "
+                 "at the same release month, so 'did USDA just raise or cut this country's crop' and "
+                 "'is the balance sheet tighter than last year' are LOOKUPS on the PSD card as well; "
+                 "ESR export sales AND "
                  "their PACE vs the year-ago week/marketing year -- national OR BY DESTINATION (which "
                  "country bought how much this marketing year), FGIS export INSPECTIONS -- the tonnage "
                  "of US corn, soybeans and wheat PHYSICALLY LOADED at US ports each week and "
@@ -442,7 +461,11 @@ _GLOSS_HEAD = (
     "  question touches (positioning=cot, export sales/pace=esr, balance sheet=psd/wasde, world prices AND\n"
     "  fertilizer/energy input costs=pink_sheet, per-expiry settles/curve=futures_eod, crop conditions and\n"
     "  planting/harvest pace=nass_crop_progress (citrus FORECASTS by state=nass_citrus, SETTLED ANNUAL\n"
-    "  acreage/yield/production by state=nass_annual -- three different cards), cocoa grindings=icco_cocoa,\n"
+    # W0-6a (projection wave, 2026-08-25): nass_annual went servable for US WHEAT BY CLASS on 2026-08-20
+    # (SRW back to 1909 + HRS, 6,582 rows) and nothing in this gloss said so -- a wheat-acreage ask had
+    # no cue that the deep state-level history exists. The phrase moves WITH the card, never ahead.
+    "  acreage/yield/production by state=nass_annual -- three different cards, and nass_annual carries US\n"
+    "  WHEAT BY CLASS with soft red winter back to 1909), cocoa grindings=icco_cocoa,\n"
     "  palm monthly=mpob (palm EXPORT depth to 2009=mpoc_trade_stats_monthly, destination\n"
     "  stocks=mpoc_stock_comparison, ANNUAL exports by DESTINATION COUNTRY=mpoc_exports_by_country -- four\n"
     "  different cards), Brazil coffee surveys=conab_coffee, Colombian coffee AREA by\n"
@@ -455,11 +478,23 @@ _GLOSS_HEAD = (
     "  different cards: the first is what the mills MADE from cane, the second is a different FEEDSTOCK\n"
     "  entirely, the third is what was SOLD; all three end in early 2026 and none can answer a\n"
     "  2026/27 question), weather=weather_z,\n"
-    "  FX=fred_fx, ENSO=noaa_oni, IOD=noaa_iod,\n"
+    # FX-8a (projection wave, 2026-08-25): "FX=fred_fx" was the ONLY family glossed without subjects
+    # while the card went 3 -> 14 crosses -- the roster below is caller terms, so a real/rand/ringgit
+    # question cues the family without knowing a column name.
+    "  FX -- the real, peso (MXN), yuan, rupiah, rupee, ringgit, baht, lira, Aussie and Canadian\n"
+    "  dollars, rand, euro and pound vs the USD, each with a 90-day %-change beside it (the Argentine\n"
+    "  peso series is DEAD at source since late 2020 -- history only)=fred_fx,\n"
+    "  ENSO=noaa_oni, IOD=noaa_iod,\n"
     "  soybean processor MARGIN in dollars per bushel=board_crush (the CBOT crush SPREAD -- distinct\n"
     "  from futures_eod, which serves the LEG PRICES the spread is built from, and from psd, which\n"
     "  serves the soybean BALANCE SHEET behind it: three different cards, and a crush question wants\n"
-    "  the spread, not a bean settle),\n")
+    "  the spread, not a bean settle),\n"
+    # W0-6c (projection wave, 2026-08-25): `production` finally bound. The _GLOSS_BIND comment below has
+    # warned since PA-11 that the nass_annual phrase does NOT gloss it -- silver_production (FAOSTAT) sat
+    # un-glossed while being the estate's only ANNUAL WORLD production surface. Lane 4 (FAO-5) widens the
+    # numbers-agent purpose string separately; this is the router cue.
+    "  FAOSTAT annual production/area-harvested/yield history=production (the long global record incl. a\n"
+    "  true WORLD row -- history and world totals, as against psd's per-country balance sheets),\n")
 
 _GLOSS_BIND = re.compile(r"=([a-z0-9_/]+)")     # the gloss's own binding form: `<phrase>=<fam>[/<fam>]`.
 #                                                 Anchored on `=` on purpose -- a bare token scan matches

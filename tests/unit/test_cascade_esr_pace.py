@@ -238,3 +238,36 @@ def test_esr_silent_week_narrates_absence_no_fabricated_pace():
     absence = [ln for ln in lines if "vintage not yet published" in ln]
     assert len(absence) == 1 and "[N" not in absence[0]            # absence line, no citation handle
     assert trace and trace[0]["current_status"] == "not_known"
+
+
+# ── W0-3 (projection wave, 2026-08-25): the ESR card fence + the sorghum slug-identity leg ───────────
+def test_esr_card_fence_equals_the_transform_universe():
+    """The card's commodity_values mirrors the producer's _COMMODITY_CODE_TO_NAME EXACTLY, both
+    directions (the PSD pin's shape). The card had NO fence for the five days after the 2026-08-20
+    widening coined 21 slugs -- every off-card ask compiled SQL and 0-rowed silently, and sorghum's
+    export_pace leg sat dark on slug identity with rows LIVE in silver. One universe or the build fails."""
+    from leviathan.graphrag.numbers.registry import load_registry
+    from leviathan.transforms.bronze_to_silver.usda_esr import _COMMODITY_CODE_TO_NAME
+    fence = set(load_registry().get("silver_esr").commodity_values or [])
+    universe = set(_COMMODITY_CODE_TO_NAME.values())
+    assert fence, "silver_esr lost its commodity_values fence (W0-3)"
+    assert fence == universe, (
+        f"card-only={sorted(fence - universe)} producer-only={sorted(universe - fence)} -- "
+        f"the fence is GENERATED from the transform map, never hand-drifted")
+
+
+def test_sorghum_export_pace_leg_resolves_via_the_alias():
+    """The class DAG's contract slug is `sorghum`; the table stores `grain_sorghum` (ESR code 701).
+    The esr_exports row's per-row commodity_aliases re-keys ONLY the ESR legs -- _scope returns the
+    table's own code so the SQL matches rows that exist, and the sorghum DAG's other refs keep their
+    slug. The census waiver on the dead 'our fetch does not carry sorghum' premise is DELETED; the 0.5
+    census proves FIRES live (rows-in-mirror is ASSUMED until then, per W-0)."""
+    from types import SimpleNamespace
+    from leviathan.graphrag.numbers import cascade as cq2
+    row = cq2.load_map()["esr_exports"]
+    assert (row.get("commodity_aliases") or {}).get("sorghum") == "grain_sorghum"
+    commodity, country = cq2._scope(SimpleNamespace(contract="sorghum", prior={"region": "US"}), row)
+    assert commodity == "grain_sorghum"
+    assert country is not cq2.SKIP_NODE                # country_rule none -- the designed ESR collapse
+    from leviathan.graphrag.numbers import cascade_census as ccz
+    assert ("sorghum", "export_pace") not in ccz._WAIVERS

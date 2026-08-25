@@ -74,7 +74,9 @@ def test_render_all_is_deterministic(gen_mod):
     first = gen_mod.render_all()
     second = gen_mod.render_all()
     assert first == second
-    assert len(first) == 50  # 43 R0 + gold_pattern_records (T2B) + silver_futures_eod (W1.0)
+    assert len(first) == 51  # 43 R0 + gold_pattern_records (T2B) + silver_futures_eod (W1.0)
+    # + gold_futures_spreads (GN-2 W2.3 2026-08-22; pin caught up 2026-08-25 with its
+    # missing generated DDL, by the projection wave's first full-suite sweep)
     #                          + gold_board_crush (D-EC DK-13) + silver_minagro_grain_exports
     #                          + silver_moex_agro_indices + silver_ams_gtr + silver_eex_freight
     #                          (the 2026-08-20 four-family wave close; one DDL per registry contract)
@@ -94,7 +96,7 @@ def test_generated_dir_is_byte_identical_to_a_fresh_render(gen_mod):
 def test_all_43_tables_covered(gen_mod):
     rendered = set(gen_mod.render_all())
     on_disk = {p.stem for p in _GENERATED_DIR.glob("*.sql")}
-    assert len(rendered) == 50  # 43 R0 + gold_pattern_records (T2B) + silver_futures_eod (W1.0)
+    assert len(rendered) == 51  # 43 R0 + T2B + W1.0 + W2.3 spreads (see the pin above)
     #                             + gold_board_crush (D-EC DK-13) + silver_minagro_grain_exports
     #                             + silver_moex_agro_indices + silver_ams_gtr + silver_eex_freight
     #                             (the 2026-08-20 four-family wave close)

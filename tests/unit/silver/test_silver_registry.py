@@ -31,7 +31,9 @@ from leviathan.silver.types import (
 #   +1 silver_eex_freight            (EEX dry-bulk freight settlements)
 # The gold count is UNCHANGED at 3 -- none of the four is derived from our own published silver,
 # which is the estate's gold test (see the board-crush note above).
-EXPECTED_TABLE_COUNT = 50
+# 51 = 50 + gold_futures_spreads (GN-2 W2.3 2026-08-22; pins caught up 2026-08-25 by the
+# projection wave's first full-suite sweep, together with the rebuild-gate/registry-gen/ddl pins)
+EXPECTED_TABLE_COUNT = 51
 
 
 @pytest.fixture(scope="module")
@@ -48,7 +50,10 @@ def test_registry_has_exactly_the_live_43_plus_gold(reg):
     # silver_futures_eod.yaml's ROLL AND CONTINUOUS STAY OUT note), so this arithmetic is what
     # records that the new table did NOT widen silver.
     gold = [n for n in names if n.startswith("gold_")]
-    assert set(gold) == {"gold_weather_z", "gold_pattern_records", "gold_board_crush"}
+    # + gold_futures_spreads (W2.3): the SECOND derived-series gold on the board-crush doctrine --
+    # a same-unit spread carrying a roll rule belongs in gold, and silver stays unwidened by it.
+    assert set(gold) == {"gold_weather_z", "gold_pattern_records", "gold_board_crush",
+                         "gold_futures_spreads"}
     silver = [n for n in names if n.startswith("silver_")]
     # 43 -> 47: the four-family wave close enumerated at EXPECTED_TABLE_COUNT above. This assert is
     # the one that records that all four widened SILVER and none of them widened gold.
@@ -93,7 +98,9 @@ def test_partition_modes_match_the_r0_tally(reg):
     #     (INV-3: recovery reconciles get-partitions against the seven prefixes, never MSCK).
     #   projected does NOT move and cannot: `projection: forbidden` on all four. The projected 7 is
     #     the legacy quarantine and nothing new is ever admitted to it.
-    assert modes == {"flat": 33, "projected": 7, "registered": 10}
+    # flat 33 -> 34: gold_futures_spreads (W2.3) -- FLAT like its board-crush template
+    # (one small object, projection-forbidden).
+    assert modes == {"flat": 34, "projected": 7, "registered": 10}
 
 
 def test_projection_field_is_quarantined_iff_projected(reg):

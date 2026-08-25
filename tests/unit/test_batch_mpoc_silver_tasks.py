@@ -19,6 +19,7 @@ Pure/hermetic: an in-memory :class:`FakeS3` and a recording client factory repla
 """
 from __future__ import annotations
 
+import datetime as dt
 import sys
 
 import pandas as pd
@@ -51,10 +52,22 @@ def _monthly_df() -> pd.DataFrame:
 
 
 def _exports_df() -> pd.DataFrame:
-    return pd.DataFrame({
+    # Mirrors transform_exports_by_country's v2 OUTPUT_COLUMNS exactly, incl. the derived PIT anchor
+    # year_ending_date = date(year, 12, 31) (D-LD tranche 2). This fixture went STALE at the contract
+    # un-hide (490ba6f1, 2026-08-18 18:17) and four publish-path tests sat red for a week -- the
+    # producer, the contract and the live Glue catalog all carried the column (each verified
+    # 2026-08-25); only this hand-rolled frame modelled the v1 shape. The assertion welds the fixture
+    # to the transform's own column list so the next widening reds HERE with a readable message,
+    # never in a downstream contract mismatch.
+    df = pd.DataFrame({
         "year": [2023, 2023], "country": ["india", "china"],
         "exports_mt": [2_809_956.0, 1_466_864.0], "source": ["mpoc", "mpoc"],
+        "year_ending_date": [dt.date(2023, 12, 31), dt.date(2023, 12, 31)],
     })
+    from leviathan.transforms.bronze_to_silver.mpoc_exports_by_country import OUTPUT_COLUMNS
+    assert list(df.columns) == OUTPUT_COLUMNS, (
+        f"fixture drifted from the producer's OUTPUT_COLUMNS: {list(df.columns)} != {OUTPUT_COLUMNS}")
+    return df
 
 
 def _stock_df() -> pd.DataFrame:

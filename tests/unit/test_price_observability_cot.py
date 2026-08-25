@@ -296,7 +296,9 @@ def test_cot_is_branch_a_twelfth_pg_mirror_table():
     # reading warning of its own, spelled out in the by-NAME roster: the table GROWS FROM BOTH ENDS
     # (a weekly capture lands forward while an archive backfill lands captures behind it), so the
     # Branch-A reload is not a one-off here the way it is for a forward-only table.
-    assert len(g.PG_MIRROR_TABLES) == 37, (
+    # 38 = 37 + gold_futures_spreads (GN-2 W2.3 2026-08-22; served card + P1 member, the
+    # by-NAME roster moved in test_silver_rebuild_gate 2026-08-25 -- this count follows it)
+    assert len(g.PG_MIRROR_TABLES) == 38, (
         "pg-mirror roster changed; the by-NAME pin lives in tests/unit/test_silver_rebuild_gate.py::"
         "test_branch_selection_all_45_tables. Roster now: " + str(sorted(g.PG_MIRROR_TABLES)))
 

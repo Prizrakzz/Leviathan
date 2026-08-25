@@ -198,7 +198,46 @@ def check_cascade_map() -> list[str]:
                 isinstance(k, str) and isinstance(v, str) and k and v for k, v in ca.items())):
             errs.append(f"cascade_map {ref!r}: commodity_aliases must be a non-empty-str -> "
                         f"non-empty-str mapping, got {ca!r}")
+        # W0-7 (D-9): global_token is the per-row Global-mis-scope fence. Only 'skip' is defined, and
+        # only on rows whose country slot comes from the contract primary -- on region rows the token
+        # already resolves-or-skips, on none rows there is no country claim to mis-scope.
+        gt = row.get("global_token")
+        if gt is not None and gt != "skip":
+            errs.append(f"cascade_map {ref!r}: bad global_token {gt!r} (allowed: absent, 'skip')")
+        if gt is not None and row.get("country_rule") not in (None, "primary"):
+            errs.append(f"cascade_map {ref!r}: global_token on a country_rule="
+                        f"{row.get('country_rule')!r} row is dead config (fence is primary-only)")
     errs += _check_region_map(reg)
+    errs += _check_global_token_fence()
+    return errs
+
+
+def _check_global_token_fence() -> list[str]:
+    """W0-7 class-closer (D-9, 2026-08-25): a Global/global driver token on a primary-ruled cascade row
+    is ALWAYS the mis-scope class -- the token claims a world figure, the row answers with the contract
+    primary's national one (12 census legs FIRED so: french_wheat_matif's global ending stocks cited
+    European Union). Every such (driver, row) pair must ride a row declaring `global_token: skip`; a new
+    DAG token or map row that reintroduces the class fails the BUILD, not an eval three weeks later."""
+    from leviathan.causal import blurb as bl
+    from leviathan.causal import schema as cs
+    from leviathan.graphrag.numbers.cascade import load_map
+    errs: list[str] = []
+    cmap = load_map() or {}
+    for p in sorted(bl._CAUSAL_DIR.glob("*.yaml")):
+        try:
+            c = cs.load(p)
+        except Exception:  # noqa: BLE001 -- a malformed YAML is a separate lint's problem
+            continue
+        for d in c.drivers:
+            row = cmap.get(d.silver_ref)
+            if row is None:
+                continue
+            if (d.region or "").strip() in ("Global", "global") \
+                    and row.get("country_rule") in (None, "primary") \
+                    and row.get("global_token") != "skip":
+                errs.append(f"global-token fence: {c.contract}/{d.id} tokened {d.region!r} rides "
+                            f"primary-ruled row {d.silver_ref!r} without global_token: skip -- the leg "
+                            f"would fire with the contract primary's NATIONAL number under a Global label")
     return errs
 
 

@@ -15,7 +15,29 @@ CREATE EXTERNAL TABLE IF NOT EXISTS silver_fred_fx (
     ars_usd_pct_change_90d double,
     cny_usd                double,
     cny_usd_pct_change_90d double,
-    source                 string
+    source                 string,
+    idr_usd                double,
+    idr_usd_pct_change_90d double,
+    inr_usd                double,
+    inr_usd_pct_change_90d double,
+    myr_usd                double,
+    myr_usd_pct_change_90d double,
+    thb_usd                double,
+    thb_usd_pct_change_90d double,
+    try_usd                double,
+    try_usd_pct_change_90d double,
+    aud_usd                double,
+    aud_usd_pct_change_90d double,
+    cad_usd                double,
+    cad_usd_pct_change_90d double,
+    zar_usd                double,
+    zar_usd_pct_change_90d double,
+    mxn_usd                double,
+    mxn_usd_pct_change_90d double,
+    eur_usd                double,
+    eur_usd_pct_change_90d double,
+    gbp_usd                double,
+    gbp_usd_pct_change_90d double
 )
 STORED AS PARQUET
 LOCATION 's3://leviathan-dev-shahem-001/silver/fred_fx/'

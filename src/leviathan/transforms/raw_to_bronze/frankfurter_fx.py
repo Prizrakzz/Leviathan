@@ -38,11 +38,33 @@ from leviathan.common.logging import get_logger
 
 logger = get_logger(__name__)
 
-# Explicit series mapping (ADR-003, frozen). Upstream currency symbol -> silver column.
+# Explicit series mapping (ADR-003). FX-1 (projection wave, 2026-08-25) widened 3 -> 14: this dict
+# decides what is FETCHED (frankfurter_fx_task derives the querystring from it) while the silver
+# transform's _RATE_COLUMNS decides what is SERVED -- keep both in view when editing either.
+# The 14 = the measured region_map DEMAND (+ GBP for D-3's cocoa cross) (19 declining legs across 13 boards: FX-4) + the incumbents.
+# ARS is KEPT deliberately although DEAD at source since 2020-10-30 (FX-6/ADR-003: the column stays,
+# the tripwire below names the dead symbol on every fire instead of six years of silence).
+# The FURTHER widening to Frankfurter's full ~29-symbol universe is GATED ON THE FX-9(a) PROBE
+# (network-parked: api.frankfurter.dev returns 403 from the sandbox) -- an unproven symbol in the
+# querystring risks failing the WHOLE fetch, so no symbol enters here without a probe-confirmed
+# first/last date. Add rows only in (symbol, column) pairs the probe has named.
 SERIES_MAP: dict[str, str] = {
     "BRL": "brl_usd",
     "ARS": "ars_usd",
     "CNY": "cny_usd",
+    "IDR": "idr_usd",
+    "INR": "inr_usd",
+    "MYR": "myr_usd",
+    "THB": "thb_usd",
+    "TRY": "try_usd",
+    "AUD": "aud_usd",
+    "CAD": "cad_usd",
+    "ZAR": "zar_usd",
+    "MXN": "mxn_usd",
+    "EUR": "eur_usd",
+    # D-3 (ratified 2026-08-25): the cocoa GBP_cross leg -- London/New York arbitrage needs the
+    # pound. ECB-core symbol, full history expected; floors still ride the FX-9(a) probe.
+    "GBP": "gbp_usd",
 }
 
 SOURCE = "frankfurter"
@@ -97,6 +119,19 @@ def extract_fx_bronze(raw_bytes: bytes) -> pd.DataFrame:
 
     if not records:
         raise ValueError("Frankfurter FX bronze: no parseable observations in 'rates'")
+
+    # FX-1 DEAD-SYMBOL TRIPWIRE (projection wave, 2026-08-25; the f66e5a90 shape): a requested symbol
+    # returning ZERO observations is named on every fire, never silently absent -- ARS died at source
+    # on 2020-10-30 and nothing said so for six years (5 legs declined on a NULL while the 0.5 gate
+    # passed at 73%). WARN, not raise: a single dead symbol must not kill the 12 live ones, and the
+    # per-column floors (FX-2d) are the fail-closed half once the probe sets them.
+    seen = {r["currency"] for r in records}
+    for symbol in SERIES_MAP:
+        if symbol not in seen:
+            logger.warning(
+                "Frankfurter FX bronze: requested symbol %s returned ZERO observations in this "
+                "window -- dead at source or dropped from the API roster (the ARS class; see "
+                "SERIES_MAP's FX-6 note)", symbol)
 
     df = pd.DataFrame(records)
 

@@ -64,8 +64,272 @@ physical_columns:
   parquet_physical_type: BYTE_ARRAY
   target_arrow_type: string
   nullable: true
+- name: idr_usd
+  glue_type: double
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: float64
+  nullable: true
+- name: idr_usd_pct_change_90d
+  glue_type: double
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: float64
+  nullable: true
+- name: inr_usd
+  glue_type: double
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: float64
+  nullable: true
+- name: inr_usd_pct_change_90d
+  glue_type: double
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: float64
+  nullable: true
+- name: myr_usd
+  glue_type: double
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: float64
+  nullable: true
+- name: myr_usd_pct_change_90d
+  glue_type: double
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: float64
+  nullable: true
+- name: thb_usd
+  glue_type: double
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: float64
+  nullable: true
+- name: thb_usd_pct_change_90d
+  glue_type: double
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: float64
+  nullable: true
+- name: try_usd
+  glue_type: double
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: float64
+  nullable: true
+- name: try_usd_pct_change_90d
+  glue_type: double
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: float64
+  nullable: true
+- name: aud_usd
+  glue_type: double
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: float64
+  nullable: true
+- name: aud_usd_pct_change_90d
+  glue_type: double
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: float64
+  nullable: true
+- name: cad_usd
+  glue_type: double
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: float64
+  nullable: true
+- name: cad_usd_pct_change_90d
+  glue_type: double
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: float64
+  nullable: true
+- name: zar_usd
+  glue_type: double
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: float64
+  nullable: true
+- name: zar_usd_pct_change_90d
+  glue_type: double
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: float64
+  nullable: true
+- name: mxn_usd
+  glue_type: double
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: float64
+  nullable: true
+- name: mxn_usd_pct_change_90d
+  glue_type: double
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: float64
+  nullable: true
+- name: eur_usd
+  glue_type: double
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: float64
+  nullable: true
+- name: eur_usd_pct_change_90d
+  glue_type: double
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: float64
+  nullable: true
+- name: gbp_usd
+  glue_type: double
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: float64
+  nullable: true
+- name: gbp_usd_pct_change_90d
+  glue_type: double
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: float64
+  nullable: true
 writer_schema_pinned: false
-drift_summary: []
+drift_summary:
+- column: idr_usd
+  kind: null_typed
+  current_physical: null
+  glue_type: double
+  target: float64
+  owner_package: SILVER-F040
+- column: idr_usd_pct_change_90d
+  kind: null_typed
+  current_physical: null
+  glue_type: double
+  target: float64
+  owner_package: SILVER-F040
+- column: inr_usd
+  kind: null_typed
+  current_physical: null
+  glue_type: double
+  target: float64
+  owner_package: SILVER-F040
+- column: inr_usd_pct_change_90d
+  kind: null_typed
+  current_physical: null
+  glue_type: double
+  target: float64
+  owner_package: SILVER-F040
+- column: myr_usd
+  kind: null_typed
+  current_physical: null
+  glue_type: double
+  target: float64
+  owner_package: SILVER-F040
+- column: myr_usd_pct_change_90d
+  kind: null_typed
+  current_physical: null
+  glue_type: double
+  target: float64
+  owner_package: SILVER-F040
+- column: thb_usd
+  kind: null_typed
+  current_physical: null
+  glue_type: double
+  target: float64
+  owner_package: SILVER-F040
+- column: thb_usd_pct_change_90d
+  kind: null_typed
+  current_physical: null
+  glue_type: double
+  target: float64
+  owner_package: SILVER-F040
+- column: try_usd
+  kind: null_typed
+  current_physical: null
+  glue_type: double
+  target: float64
+  owner_package: SILVER-F040
+- column: try_usd_pct_change_90d
+  kind: null_typed
+  current_physical: null
+  glue_type: double
+  target: float64
+  owner_package: SILVER-F040
+- column: aud_usd
+  kind: null_typed
+  current_physical: null
+  glue_type: double
+  target: float64
+  owner_package: SILVER-F040
+- column: aud_usd_pct_change_90d
+  kind: null_typed
+  current_physical: null
+  glue_type: double
+  target: float64
+  owner_package: SILVER-F040
+- column: cad_usd
+  kind: null_typed
+  current_physical: null
+  glue_type: double
+  target: float64
+  owner_package: SILVER-F040
+- column: cad_usd_pct_change_90d
+  kind: null_typed
+  current_physical: null
+  glue_type: double
+  target: float64
+  owner_package: SILVER-F040
+- column: zar_usd
+  kind: null_typed
+  current_physical: null
+  glue_type: double
+  target: float64
+  owner_package: SILVER-F040
+- column: zar_usd_pct_change_90d
+  kind: null_typed
+  current_physical: null
+  glue_type: double
+  target: float64
+  owner_package: SILVER-F040
+- column: mxn_usd
+  kind: null_typed
+  current_physical: null
+  glue_type: double
+  target: float64
+  owner_package: SILVER-F040
+- column: mxn_usd_pct_change_90d
+  kind: null_typed
+  current_physical: null
+  glue_type: double
+  target: float64
+  owner_package: SILVER-F040
+- column: eur_usd
+  kind: null_typed
+  current_physical: null
+  glue_type: double
+  target: float64
+  owner_package: SILVER-F040
+- column: eur_usd_pct_change_90d
+  kind: null_typed
+  current_physical: null
+  glue_type: double
+  target: float64
+  owner_package: SILVER-F040
+- column: gbp_usd
+  kind: null_typed
+  current_physical: null
+  glue_type: double
+  target: float64
+  owner_package: SILVER-F040
+- column: gbp_usd_pct_change_90d
+  kind: null_typed
+  current_physical: null
+  glue_type: double
+  target: float64
+  owner_package: SILVER-F040
 natural_key:
 - date
 required_nonnull:
@@ -77,6 +341,28 @@ value_columns:
 - brl_usd_pct_change_90d
 - ars_usd_pct_change_90d
 - cny_usd_pct_change_90d
+- idr_usd
+- inr_usd
+- myr_usd
+- thb_usd
+- try_usd
+- aud_usd
+- cad_usd
+- zar_usd
+- mxn_usd
+- eur_usd
+- gbp_usd
+- idr_usd_pct_change_90d
+- inr_usd_pct_change_90d
+- myr_usd_pct_change_90d
+- thb_usd_pct_change_90d
+- try_usd_pct_change_90d
+- aud_usd_pct_change_90d
+- cad_usd_pct_change_90d
+- zar_usd_pct_change_90d
+- mxn_usd_pct_change_90d
+- eur_usd_pct_change_90d
+- gbp_usd_pct_change_90d
 min_nonnull_frac: 0.5
 min_nonnull_frac_status: provisional
 coverage_axis: daily date
@@ -103,7 +389,7 @@ fingerprint:
   catalog_hash_sha256: e0b9b4657f736f3707a6c70e34549391cbb29079b5f588bbb32806c0e226eb51
   registered_partition_count: 0
   placeholder_partition_count: 0
-  glue_nonpartition_cols: 8
+  glue_nonpartition_cols: 30
   physical_parquet_cols: 8
 provenance:
   baseline_id: 20260712_p65impl
