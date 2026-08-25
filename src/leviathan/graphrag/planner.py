@@ -2148,11 +2148,21 @@ def graph_to_mermaid(sg: Subgraph, graph: gph.CausalGraph) -> str:
     kept = {n.key for n in sg.nodes}
     lines = ["flowchart LR"]
     price = {}                                             # one price node per contract in the subgraph
+    # PA-10c (2026-08-25): the diagram's LABELS are reader-visible (mermaid renders them verbatim), and
+    # de-underscoring left internal-ese on the map -- "south african white maize jse price" where the
+    # display layer already knows "JSE white maize". Node IDS stay slugs on purpose: they are addresses
+    # the reader never sees, the same doctrine as dot-qualified metric ids.
+    try:
+        from leviathan.graphrag import display as _dp
+        _clabel = _dp._contract_label
+    except Exception:  # noqa: BLE001 -- display unavailable -> the old de-underscore stands
+        def _clabel(c):
+            return c.replace("_", " ")
     for n in sg.nodes:
         if n.kind == "contract":
             pid = _mid("p", n.contract, "price")
             price[n.contract] = pid
-            lines.append(f'{pid}["{n.contract.replace("_", " ")} price"]')
+            lines.append(f'{pid}["{_clabel(n.contract)} price"]')
     for n in sg.nodes:
         if n.kind != "driver":
             continue

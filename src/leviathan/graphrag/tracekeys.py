@@ -22,9 +22,6 @@ CONTRACT:
 
 # out["trace"] -> record[key], absent-as-None. ORDER IS THE ARTIFACT COLUMN ORDER — append, never sort.
 TRACE_RECORD_KEYS: tuple[str, ...] = (
-    "served_rows",               # PA-8: rows behind the [N] lines per turn (answer.py stamps it) -- the
-                                 # Gate-A column beside AgentZeroCallTurns; a series question with a big
-                                 # served_rows and a "record does not carry" sentence is the mpob class
     "fork_basis",                # D-DT-2 c1: the fork-licensing basis (both mint sites)
     "episodes_model_authored",   # D-DT-1 component 6: report column, never a pin
     "episodes_scaffolded",       # ...and the stamp beside it (fired/restatement_dropped/declined)

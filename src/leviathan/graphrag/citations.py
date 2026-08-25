@@ -144,7 +144,36 @@ def _metric_display_name(table: str, metric, row: Optional[dict] = None) -> str:
         disp = _metric_display({"table": table, "metric": metric}) or str(metric)
     except Exception:  # noqa: BLE001 -- an unregistered table's label must render, never raise
         return str(metric)
+    if disp == str(metric):
+        # PA-10d (2026-08-25): the DERIVED variants (_delta/_pct/_era_diff, minted by the cascade's
+        # delta legs) carry no label of their own, so the raw id reached the menu line beside a labeled
+        # base ("000ha_delta" in the re-judge residual-leak census). Resolve the BASE metric's label and
+        # qualify it in plain language; an unlabeled BASE still renders the slug (the family-by-family
+        # tightening rule, unchanged).
+        for suf, word in (("_era_diff", "era difference"), ("_delta", "change"), ("_pct", "% change")):
+            if str(metric).endswith(suf):
+                try:
+                    base = _metric_display({"table": table, "metric": str(metric)[: -len(suf)]})
+                except Exception:  # noqa: BLE001
+                    base = None
+                if base and base != str(metric)[: -len(suf)]:
+                    disp = f"{base} ({word})"
+                break
     return str(metric) if _kind_conflict(disp, row or {}) else disp
+
+
+def _contract_display(slug) -> str:
+    """The analyst name for a contract slug on a citation label ("south_african_white_maize_jse" ->
+    "JSE white maize") -- the re-judge residual-leak census was 100% this column. Lazy import, any
+    failure returns the input unchanged (today's rendering to the byte). The machine identity stays in
+    `locator`/`payload`, the same address-vs-display doctrine as the metric twin above."""
+    if not slug:
+        return str(slug or "")
+    try:
+        from leviathan.graphrag import display as _dp
+        return _dp._contract_label(str(slug)) or str(slug)
+    except Exception:  # noqa: BLE001
+        return str(slug)
 
 
 def _row_date_text(r: dict) -> str:
@@ -496,7 +525,7 @@ def from_number(call: dict, i: int) -> Citation:
     _zw = str(rH.get("z_window") or "").strip()
     _zs = str(rH.get("z_series") or "").strip()
     _zspan = f"vs {_zw} points of {_zs}" if (_zw and _zs) else ""
-    scope = " ".join(x for x in (q.get("commodity"), geo, per, _delivery, _zspan) if x)
+    scope = " ".join(x for x in (_contract_display(q.get("commodity")), geo, per, _delivery, _zspan) if x)
     # D-HP G1 REMEDIATION-2 R2-b: the blank-value read is routed to the ABSENCE branch BEFORE either
     # rows-bearing branch can claim it. `_blank` is false on every read that carries a value, so both
     # branches below are byte-identical on every such turn.
