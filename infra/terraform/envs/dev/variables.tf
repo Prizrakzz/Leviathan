@@ -332,7 +332,7 @@ variable "psd_silver_image_digest" {
   # own change, after the first green fire.
   type        = string
   description = "sha256 digest of the worker image the dedicated psd-silver jobdef runs. Empty = the mutable ':latest' tag."
-  default     = "sha256:6456cb583993e349150e1f658e70539f43cb48f3f0e418e6f7c2213de12933a5" # 2026-08-22 GN-2: gate code w/ waiver honor + commodity_aliases + labels (WORKER repo -- the first cut mis-pointed an embedder digest here; caught in plan review)
+  default     = "sha256:9cc50c0032fd53df7f12229016c9dc812d6f486bc0048ca2f6230cfddf7ce6ad" # 2026-08-25 projection Lane 0/1 (tag 20260825T2, commit 86ff493f): psd producer UNCHANGED -- rides the fleet vintage unification; the image now bakes the W0-2 contract (4 value_columns + measured floors) its publish validation reads
 
   validation {
     condition     = var.psd_silver_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.psd_silver_image_digest))
@@ -406,7 +406,7 @@ variable "worker_fleet_image_digest" {
   # Post-push auditor CLEAN. usda-esr-fetch / esr-bronze-to-silver / usda-nass-bronze /
   # usda-nass-annual-silver hand-repin via owner (register JSONs in the session scratchpad);
   # the ten fleet families adopt on the next apply per this file's standing law.
-  default     = "sha256:6456cb583993e349150e1f658e70539f43cb48f3f0e418e6f7c2213de12933a5" # 2026-08-22 GN-2 fleet bump: conab safra parse + weather trailing-month fix + sagis cell-fusion fence
+  default     = "sha256:9cc50c0032fd53df7f12229016c9dc812d6f486bc0048ca2f6230cfddf7ce6ad" # 2026-08-25 projection Lane 0/1 fleet bump (tag 20260825T2, commit 86ff493f): frankfurter 14-symbol fetch + dead-symbol tripwire + the W0 fences/contracts -- fx_macro_daily runs the widened SERIES_MAP from this vintage on
 
   validation {
     condition     = var.worker_fleet_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.worker_fleet_image_digest))
@@ -449,7 +449,7 @@ variable "silver_gate_image_digest" {
   # vintage_waiver (G1-6 PATH A) and the GateVerdict/ValueCensusHardFailTables
   # emitters (G3-4) into the gate. timeline_rebuild's identical old digest below is
   # DELIBERATELY NOT moved (the fleet-digest law: one intended move per variable).
-  default     = "sha256:6456cb583993e349150e1f658e70539f43cb48f3f0e418e6f7c2213de12933a5" # 2026-08-22 GN-2: gate code w/ waiver honor + commodity_aliases + labels (WORKER repo -- the first cut mis-pointed an embedder digest here; caught in plan review)
+  default     = "sha256:9cc50c0032fd53df7f12229016c9dc812d6f486bc0048ca2f6230cfddf7ce6ad" # 2026-08-25 projection Lane 0/1 (tag 20260825T2, commit 86ff493f): the gate MUST ride the same vintage as the FX-1/W0-2 contracts -- silver_fred_fx widened 8 -> 30 columns and the feature_probe on the old image would red on its own stale contract
 
   validation {
     condition     = var.silver_gate_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.silver_gate_image_digest))
