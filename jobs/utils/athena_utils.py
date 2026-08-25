@@ -31,7 +31,25 @@ ATHENA_RESULTS = f"s3://{BUCKET}/athena-results/"
 WEATHER_START_YEAR = 1981
 WEATHER_END_YEAR = 2035
 FAOSTAT_START_YEAR = 1961
-FAOSTAT_END_YEAR = 2023
+# 2024 = the measured crop-year ceiling of the 2026-05-13 QCL vintage (Lane-4/FAO-1; the live table's
+# own ALTER tightens 1961,2035 -> 1961,2024 on the same measurement). Re-measure at the next vintage.
+FAOSTAT_END_YEAR = 2024
+
+
+def _faostat_commodity_enum() -> list[str]:
+    """silver_production's projection enum == faostat_item_map.yaml's KEY SET, read from the file that
+    IS the ingested universe (run_faostat_backfill's own rule) -- NEVER the 31-contract
+    ALL_COMMODITIES. The two sets were coincidentally equal before FAO-1 widened the map to 43; twelve
+    of the new keys (barley, sorghum, sunflower, ...) are context commodities that structurally cannot
+    enter the contract roster, so an enum built from ALL_COMMODITIES silently re-darkens their
+    partitions on the next ensure_catalog() run (Lane-4 review, minor 3 -- this function is currently
+    caller-less, which is exactly when a stale literal outlives everyone's memory of it)."""
+    import yaml
+    from pathlib import Path
+    map_path = (Path(__file__).resolve().parents[2]
+                / "configs" / "sources" / "faostat_item_map.yaml")
+    with open(map_path, encoding="utf-8") as f:
+        return list(yaml.safe_load(f).keys())
 
 
 # ---------------------------------------------------------------------------
@@ -216,7 +234,7 @@ LOCATION '{prod_base}'
 TBLPROPERTIES (
     'projection.enabled'          = 'true',
     'projection.commodity.type'   = 'enum',
-    'projection.commodity.values' = '{','.join(ALL_COMMODITIES)}',
+    'projection.commodity.values' = '{','.join(_faostat_commodity_enum())}',
     'projection.year.type'        = 'integer',
     'projection.year.range'       = '{FAOSTAT_START_YEAR},{FAOSTAT_END_YEAR}',
     'storage.location.template'   = '{prod_template}'

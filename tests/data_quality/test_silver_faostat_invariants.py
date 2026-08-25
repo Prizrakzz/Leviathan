@@ -75,10 +75,19 @@ class TestSilverFaostatIsOfficial:
     def test_is_official_is_boolean(self, silver_faostat_df):
         assert pd.api.types.is_bool_dtype(silver_faostat_df["is_official"])
 
-    def test_flag_a_is_non_official(self, silver_faostat_df):
+    def test_flag_a_is_official(self, silver_faostat_df):
+        """FAO-6: ``A`` is FAO's "Official figure". The pre-FAO-6 pin here asserted the opposite -- it
+        was authored against the PRE-2022 legend and the release changed schemes under it, so
+        ``is_official`` read TRUE on imputed and missing rows and FALSE on 70% official ones."""
         flag_a_rows = silver_faostat_df[silver_faostat_df["flag"] == "A"]
-        if not flag_a_rows.empty:
-            assert (~flag_a_rows["is_official"]).all()
+        # NOT `if not empty:` -- a fixture that stops carrying A rows would green the invariant this
+        # test exists to hold in the corrected direction, leaving FAO-6 unpinned at this layer
+        # (Lane-4 review, minor 4). A is 43.7% of the live file; an A-free frame is a fixture bug.
+        assert not flag_a_rows.empty, "fixture carries no flag='A' rows -- the FAO-6 pin would be vacuous"
+        assert flag_a_rows["is_official"].all()
+
+    def test_only_flag_a_is_official(self, silver_faostat_df):
+        assert set(silver_faostat_df.loc[silver_faostat_df["is_official"], "flag"].unique()) <= {"A"}
 
     def test_no_nulls_in_is_official(self, silver_faostat_df):
         assert silver_faostat_df["is_official"].notna().all()

@@ -1166,6 +1166,16 @@ def check_esr_destinations() -> list[str]:
     return lint_reference()
 
 
+def check_faostat_areas() -> list[str]:
+    """FAO-3: the FAOSTAT area reference lints clean -- strict (extra='forbid') schema parse, global alias
+    uniqueness (the 'china' collision between the mainland row and the four-way roll-up is exactly what
+    this catches), pseudo<->kind consistency, and every declared aggregate member resolving to a declared
+    area. AWS-free; the raw-object coverage probe (faostat_areas.missing_areas over the measured 244) is
+    a unit test against the tracked QCL ZIP, not a build gate that reads S3."""
+    from leviathan.graphrag.numbers.faostat_areas import lint_reference
+    return lint_reference()
+
+
 def check_quarantine() -> list[str]:
     """SILVER-F047 -- no engine map may ever reference a quarantined table (TableSpec.quarantined): the
     cascade weather leg moved to gold_weather_z at Phase D-W4 and INV-3 forbids re-adding an engine leg on
@@ -2219,6 +2229,7 @@ def main() -> int:
                         ("prompt_quarantine", check_prompt_quarantine()),
                         ("numbers_schema_pins", check_numbers_schema_pins()),
                         ("esr_destinations", check_esr_destinations()),
+                        ("faostat_areas", check_faostat_areas()),
                         ("cot_register", check_cot_register()),
                         ("stats_registry", check_stats_registry()),
                         ("futures_lite", check_futures_lite()),

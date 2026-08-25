@@ -496,15 +496,17 @@ def from_number(call: dict, i: int) -> Citation:
     # FIX-CYCLE-2 REVIEW BLOCKER: unanimity is TRIVIALLY satisfied by the default agg='latest'
     # (LIMIT 1) read -- one row always agrees with itself -- so an UNSCOPED ESR latest read stamped
     # a single buyer's name on the national leg, beside the scope note saying the opposite. The
-    # honest discriminator is SEMANTIC, not arithmetic: a destination-coded table (country_name_ref
-    # set -- its country axis enumerates buyers of ONE national flow) must never borrow row geo the
-    # query did not ask for. Free-axis cards (NASS states, MPOC per-country stocks) keep the
-    # fallback: there, the row's geo IS the fact's geography.
+    # honest discriminator is SEMANTIC, not arithmetic: a destination-coded table (its country axis
+    # enumerates buyers of ONE national flow) must never borrow row geo the query did not ask for.
+    # Free-axis cards (NASS states, MPOC per-country stocks, FAOSTAT reporting countries) keep the
+    # fallback: there, the row's geo IS the fact's geography. The card DECLARES which it is
+    # (TableSpec.country_axis_is_destination); an undeclared card reads destination-coded, which is
+    # the silent direction.
     def _dest_coded(tbl: str) -> bool:
         try:
             from leviathan.graphrag.numbers import registry as _reg
             spec = _reg.load_registry().tables.get(tbl)
-            return bool(spec is not None and getattr(spec, "country_name_ref", None))
+            return bool(spec is not None and spec.destination_coded())
         except Exception:  # noqa: BLE001 -- a registry hiccup must fail SILENT (no label), never loud
             return True
     _geos = {str(r.get("country")).strip() for r in rows if str(r.get("country") or "").strip()}

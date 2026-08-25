@@ -1,7 +1,10 @@
-"""One-shot FAOSTAT backfill: raw→bronze then bronze→silver for all 31 commodities.
+"""One-shot FAOSTAT backfill: raw→bronze then bronze→silver for every mapped commodity.
 
-Submits Glue jobs in parallel (up to 31 concurrent), polls to completion,
+Submits Glue jobs in parallel (up to _MAX_CONCURRENT_STARTS at a time), polls to completion,
 then starts the next stage. Uses the shared FAOSTAT ZIP on S3.
+
+The commodity roster is faostat_item_map.yaml's key set and is never restated as a literal here --
+the map grew 31 -> 43 at FAO-1 and a hard-coded count would have gone stale in the same commit.
 
 Usage:
     python jobs/orchestrate/run_faostat_backfill.py
@@ -41,12 +44,22 @@ RAW_S3_KEY = (
 
 POLL_INTERVAL = 30  # seconds
 
+# Glue start-request concurrency cap -- a throttle on the submit fan-out, NOT a commodity count.
+# It read 31 while the item map also held 31 keys, so the two meanings were indistinguishable;
+# they are separated here because only one of them moves when the map widens.
+_MAX_CONCURRENT_STARTS = 31
+
 # ---------------------------------------------------------------------------
 # Load item map
 # ---------------------------------------------------------------------------
 
-_MAP_PATH = Path(__file__).parents[1] / "configs" / "sources" / "faostat_item_map.yaml"
-with _MAP_PATH.open() as _f:
+# parents[2] is the REPO ROOT (this module lives at jobs/orchestrate/); parents[1] resolved to
+# `jobs/configs/sources/...`, a path that has never existed, so importing this module raised
+# FileNotFoundError before it could parse a single argument. The runner has been unrunnable since it
+# moved into jobs/orchestrate/ -- the FAO-1 rewrite is submitted through it, so the roster load has to
+# resolve on a plain local import.
+_MAP_PATH = Path(__file__).resolve().parents[2] / "configs" / "sources" / "faostat_item_map.yaml"
+with _MAP_PATH.open(encoding="utf-8") as _f:
     ITEM_MAP: dict[str, str] = yaml.safe_load(_f)
 
 ALL_COMMODITIES: list[str] = list(ITEM_MAP.keys())
@@ -119,7 +132,7 @@ def run_stage(
         return {}
     ingest_date = date.today().isoformat()
 
-    with ThreadPoolExecutor(max_workers=min(len(commodities), 31)) as pool:
+    with ThreadPoolExecutor(max_workers=min(len(commodities), _MAX_CONCURRENT_STARTS)) as pool:
         if "r2b" in job_name or "raw" in job_name:
             futures = [pool.submit(_start_r2b, glue, c, ingest_date, dry_run) for c in commodities]
         else:
@@ -141,7 +154,10 @@ def run_stage(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="FAOSTAT backfill: raw→bronze then bronze→silver for all 31 commodities."
+        description=(
+            "FAOSTAT backfill: raw→bronze then bronze→silver for all "
+            f"{len(ALL_COMMODITIES)} mapped commodities."
+        )
     )
     parser.add_argument(
         "--commodities",

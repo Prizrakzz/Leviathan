@@ -803,11 +803,13 @@ def _futures_newest_first_on() -> bool:
     cascade_census.py:190/:391/:396 compile with build_sql and execute the raw string themselves BY DESIGN,
     so if either is ever given the flag it must also call query.resort_rows_chronological on the rows, or it
     is measuring the un-re-sorted DESC surface. (b) THE CONSTANT-TABLE READS -- cascade's
-    `_psd_component_rows` (silver_psd, reached five deep through the RV2/transmission engines),
-    cascade's `_cot_outcome_read` (gold_cot_outcomes), and silverleg's `_rows` (whose three callers pass
-    silver_psd / silver_fred_fx / silver_noaa_oni as literals). Every one of those names its table as a
-    literal and no such card declares `contract_month_col`, so `_newest_first_applies` is structurally
-    False there and a threaded flag could not move one byte of their SQL. All of it is pinned in
+    `_psd_component_rows` (a `table` KWARG since L2-5, defaulting to silver_psd and reachable for the
+    long companion silver_psd_attributes too, still reached five deep through the RV2/transmission
+    engines), cascade's `_cot_outcome_read` (gold_cot_outcomes), and silverleg's `_rows` (whose three
+    callers pass silver_psd / silver_fred_fx / silver_noaa_oni as literals). Each of those reads only
+    the cards its classified constants name (the PSD site's two live in _CONSTANT_TABLE_SITES) and no
+    such card declares `contract_month_col`, so `_newest_first_applies` is structurally False there
+    and a threaded flag could not move one byte of their SQL. All of it is pinned in
     test_futures_readpath_pins, so each omission stays MEASURED rather than assumed: the day one of those
     cards grows a delivery-month axis, the pin reds and this paragraph is what gets read.
 
@@ -6016,7 +6018,7 @@ def _receipt_dest_coded(table: str) -> bool:
     try:
         from leviathan.graphrag.numbers import registry as _reg
         spec = _reg.load_registry().tables.get(table)
-        return bool(spec is not None and getattr(spec, "country_name_ref", None))
+        return bool(spec is not None and spec.destination_coded())
     except Exception:  # noqa: BLE001 -- a registry hiccup must fail SILENT, never loud
         return True
 

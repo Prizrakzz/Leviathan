@@ -4,6 +4,33 @@
 # Derived products (meal, oil, refined sugar) that have no dedicated FAO crop
 # row are mapped to their parent crop's production data. See README §FAOSTAT
 # for rationale.
+#
+# THIS FILE *IS* THE INGESTED UNIVERSE. raw_to_bronze_faostat filters one item
+# per Glue run (`--fao_item_name`, matched case-insensitively but otherwise
+# EXACTLY), so an item absent here is never read at all -- widening the silver
+# element filter alone recovers nothing. The Item strings below are therefore
+# authored against the release's own legend member
+# `Production_Crops_Livestock_E_ItemCodes.csv`, normalized `"; " -> ", "`:
+# MEASURED on the 2026-05-11 ZIP, the legend CSVs print a SEMICOLON where the
+# data column prints a COMMA ("Groundnuts; excluding shelled" vs "Groundnuts,
+# excluding shelled"), and under that one substitution the legend reconciles
+# with the data column exactly -- 244/244 areas, all 301 data items. A typoed
+# Item string costs a cloud Glue run that dies on "No rows found"; the map is
+# pinned against the legend by tests/unit/test_faostat_item_map.py instead.
+#
+# SLUG LAW (c4ebbf23). A key here is a slug from the PSD 63-commodity
+# vocabulary (`usda_psd._PSD_COMMODITY_TO_SLUGS`) wherever the two surfaces
+# overlap, so the estate's two annual-production surfaces share ONE commodity
+# axis. A key is admitted only when it already has a home -- a `contracts:`
+# entry or a `context_commodities` id in commodity_hierarchy.yaml, or a
+# PSD publication-grain slug in `_PSD_FORWARD_DECLARED_SLUGS` -- never invented
+# here.
+#
+# ONE ITEM PER SLUG, AND THAT IS A CONSTRAINT, NOT A CONVENIENCE. The slug is
+# the bronze/silver `commodity=` partition and `--fao_item_name` is a single
+# scalar Glue argument, so a second item on an existing key does not widen it,
+# it REPLACES it (a duplicate YAML key is last-wins, silently). See the cotton
+# block for the one item this rule parks.
 
 # ── Cocoa ──────────────────────────────────────────────────────────────────
 cocoa: "Cocoa beans"
@@ -50,6 +77,20 @@ brazilian_arabica_coffee: "Coffee, green"
 
 # ── Cotton ─────────────────────────────────────────────────────────────────
 cotton: "Seed cotton, unginned"
+cottonseed:     "Cotton seed"      # D15 tier-1 context commodity (PSD 2223000)
+cottonseed_oil: "Cottonseed oil"   # PSD publication grain (4233000, forward-declared)
+#
+# PARKED, NOT FORGOTTEN -- "Cotton lint, ginned" (7,903 rows / 135 areas,
+# 1961-2023). It is the FAO item that matches what the ICE contract trades and
+# what PSD 2631000 publishes (`1000 480 lb. Bales` → lint), while the `cotton`
+# key above resolves to SEED COTTON, the unginned field crop that still carries
+# its seed. Admitting lint therefore does not widen `cotton`, it REBASES a live
+# series onto a different physical subject (~3x apart), and the one-item-per-
+# slug rule leaves no second key: the PSD 63-slug vocabulary has no lint-only
+# slug, so minting one here would be inventing a commodity axis from the wrong
+# end of the system. Recorded as the measured cross-surface collision it is --
+# silver_psd.cotton is LINT and silver_production.cotton is SEED COTTON under
+# one slug today -- and left for an owner decision, not resolved by this map.
 
 # ── Sugar ──────────────────────────────────────────────────────────────────
 raw_sugar:   "Sugar cane"
@@ -57,3 +98,26 @@ white_sugar: "Sugar cane"  # derived — parent crop production used
 
 # ── Orange juice ───────────────────────────────────────────────────────────
 frozen_orange_juice: "Oranges"
+
+# ── Coarse and minor cereals (FAO-1) ───────────────────────────────────────
+# barley and sorghum are declared context commodities; rye/oats/millet are PSD
+# publication grains under the D15 `minor_cereals` node -- numbers keys today,
+# graph nodes when the edge half declares them (usda_psd R3).
+sorghum: "Sorghum"
+barley:  "Barley"
+millet:  "Millet"
+oats:    "Oats"
+rye:     "Rye"
+
+# ── Oilseeds, oilseed co-products and vegetable oils (FAO-1) ───────────────
+# peanut / sunflower / palm_kernel / sunflower_oil are declared context
+# commodities; palm_kernel_oil is a PSD publication grain (4244000).
+# `Groundnuts, excluding shelled` is the ONLY groundnut CROP item the QCL file
+# carries (the sibling `Groundnut oil` is the crushed product, mapped nowhere
+# here); it is the in-shell basis, so its tonnage is not comparable with a
+# shelled/kernel figure without a shelling ratio this map does not apply.
+peanut:          "Groundnuts, excluding shelled"
+sunflower:       "Sunflower seed"
+sunflower_oil:   "Sunflower-seed oil, crude"
+palm_kernel:     "Palm kernels"
+palm_kernel_oil: "Oil of palm kernel"

@@ -20,6 +20,8 @@ transform:
   * retains provenance (``note``, ``dataset``, ``source_file_name``);
   * resolves only logically-exact duplicates automatically and FAILS on a conflicting natural-key
     value (never a silent last-wins);
+  * derives ``is_official`` from the release's OWN flag legend (:data:`FLAG_SEMANTICS`) and refuses
+    any flag the legend does not carry (fail-closed on a scheme change, FAO-6);
   * emits exactly the 12 canonical physical columns -- ``commodity`` and ``year`` are the projected
     partition keys carried on the S3 path, never in the parquet body (INV-2 exact writer schema).
 
@@ -65,7 +67,37 @@ CANONICAL_PHYSICAL_COLUMNS = [
 SOURCE = "faostat"
 DEFAULT_DATASET = "QCL"  # FAOSTAT Production_Crops_Livestock (QCL); overridden by a bronze `dataset`.
 
-NON_OFFICIAL_FLAGS = {"E", "F", "Fc", "Im", "*", "A"}
+# ── FAOSTAT observation-status flags (FAO-6) ───────────────────────────────────────────────────────
+# The descriptions are VERBATIM from the release's own legend, ``Production_Crops_Livestock_E_Flags.csv``,
+# which ships INSIDE the same QCL ZIP this transform's bronze is cut from -- the legend and the data are
+# one artefact, so the scheme can never be read from a stale doc.
+#
+# THIS REPLACES THE PRE-2022 SCHEME (``{"E","F","Fc","Im","*","A"}`` read as NON-official). FAOSTAT
+# switched legends and the estate did not: MEASURED on the 2026-05-11 raw ZIP, all 4,209,110 rows carry
+# exactly {A, E, X, I, M} and ZERO carry F / Fc / Im / ``*`` -- four dead keys, which is itself the proof
+# the file changed schemes. Under the old set ``A`` (an OFFICIAL figure, 43.7% of the file) was marked
+# UNOFFICIAL while ``I`` (imputed) and ``M`` (missing) were marked OFFICIAL, so ``is_official`` was
+# inverted on the two ends that matter most. The ML label lane reads that column (`source_contracts.yaml`
+# status: core), so this is a correctness fix, not a cosmetic one.
+FLAG_SEMANTICS: dict[str, str] = {
+    "A": "Official figure",
+    "E": "Estimated value",
+    "I": "Value imputed by a receiving agency",
+    "M": "Missing value; data cannot exist",
+    "X": "Figure from external organization",
+}
+
+# Officiality is ASSERTED, never inferred: only FAO's own "Official figure" marks a row official.
+OFFICIAL_FLAGS = frozenset({"A"})
+
+# ``M`` says the observation CANNOT EXIST. THIS IS A FORWARD GUARD, NOT A REPAIR: measured on the
+# 2026-05-11 ZIP, all 94,355 M rows print an EMPTY Value cell, so pd.to_numeric has already made them
+# NaN and this blanking moves zero rows on the current vintage (the Lane-4 review measured it to the
+# row). It exists for the vintage where FAO does print a number beside M -- carrying that number
+# forward would mint a measured-looking figure for a country-year FAO states cannot exist -- and it
+# runs AFTER duplicate resolution so such a value still participates in conflict detection first
+# (see _blank_no_value_flags). Neither official nor a value.
+NO_VALUE_FLAGS = frozenset({"M"})
 
 # Natural key for silver_production (commodity is fixed per call; year is the partition tuple key).
 _NATURAL_KEY = ["country_key", "metric", "year"]
@@ -149,6 +181,47 @@ def _resolve_duplicates_or_raise(silver: pd.DataFrame) -> pd.DataFrame:
     return silver.drop_duplicates(subset=_NATURAL_KEY, keep="last")
 
 
+def _apply_flag_semantics(df: pd.DataFrame) -> pd.DataFrame:
+    """Derive ``is_official`` from :data:`FLAG_SEMANTICS` and blank the value of a ``M`` row (FAO-6).
+
+    FAIL-CLOSED IN BOTH DIRECTIONS, and they are different directions on purpose:
+
+      * a PRESENT flag the legend does not carry is a legend change -- raise, because the alternative
+        is publishing an ``is_official`` whose meaning nobody has read. The four dead pre-2022 keys
+        (F / Fc / Im / ``*``) reach this branch if FAO ever reverts, which is exactly when a silent
+        default would re-inject the inverted column this replaced;
+      * an ABSENT flag is an absence of an OFFICIALITY ASSERTION, not a scheme change -- the row keeps
+        its value and reads ``is_official=False``. Measured: the 2026-05-11 ZIP carries no blank flag
+        at all, so this branch exists for a future vintage and for hand-built frames, and it leans the
+        only way that cannot manufacture officialness."""
+    flags = df["flag"].astype("string").str.strip()
+    unknown = sorted(set(flags.dropna().unique()) - set(FLAG_SEMANTICS))
+    if unknown:
+        raise FaostatMappingError(
+            f"FAOSTAT bronze carries observation flag(s) {unknown} absent from the release legend "
+            f"{sorted(FLAG_SEMANTICS)}. The flag scheme changed: re-read "
+            "Production_Crops_Livestock_E_Flags.csv inside the QCL ZIP and re-derive is_official "
+            "before publishing (FAO-6)."
+        )
+    df["is_official"] = flags.isin(OFFICIAL_FLAGS).fillna(False).astype(bool)
+    return df
+
+
+def _blank_no_value_flags(df: pd.DataFrame) -> pd.DataFrame:
+    """NULL the value of every :data:`NO_VALUE_FLAGS` row -- AFTER duplicate resolution, deliberately.
+
+    Blanking before ``_resolve_duplicates_or_raise`` fails OPEN for exactly the future vintage this
+    guard exists for: the conflict test drops NaN, so an M row carrying a printed number would vanish
+    from conflict detection and ``keep="last"`` could silently publish the NaN M row over a real
+    official figure -- the "never a silent last-wins" promise broken by ordering alone (Lane-4 review,
+    minor 1). Run here, a numeric M cell first collides loudly with any sibling row, and only the
+    survivor is blanked."""
+    flags = df["flag"].astype("string").str.strip()
+    # float NaN, not pd.NA: `value` is float64 by this point and the registry contract keeps it numeric.
+    df.loc[flags.isin(NO_VALUE_FLAGS).fillna(False), "value"] = float("nan")
+    return df
+
+
 def transform_faostat_production_silver_df(
     df: pd.DataFrame,
     commodity: str,
@@ -192,7 +265,7 @@ def transform_faostat_production_silver_df(
     df["flag"] = df["flag"].where(
         df["flag"].notna() & (df["flag"].astype(str).str.strip() != ""), other=None
     )
-    df["is_official"] = ~df["flag"].astype(str).str.strip().isin(NON_OFFICIAL_FLAGS)
+    df = _apply_flag_semantics(df)
 
     df = df.dropna(subset=["year", "metric", "country_key"]).copy()
     if df.empty:
@@ -201,18 +274,21 @@ def transform_faostat_production_silver_df(
 
     silver = df[CANONICAL_PHYSICAL_COLUMNS + ["year"]].copy()
     silver = _resolve_duplicates_or_raise(silver)
+    silver = _blank_no_value_flags(silver)
 
-    # Coverage warnings (unofficial-heavy sources).
+    # Coverage warnings (unofficial-heavy sources). Under the FAO-6 scheme these carry signal: a
+    # non-official row is E/I/X/M (estimated / imputed / external-org / missing), never an A.
     for (ckey, metric), group in silver.groupby(["country_key", "metric"]):
         if group["is_official"].sum() == 0:
             logger.warning(
-                "No official rows for country_key=%s metric=%s -- all values are FAO estimates",
+                "No official rows for country_key=%s metric=%s -- every value is FAO-estimated, "
+                "imputed or sourced from an external organization",
                 ckey, metric,
             )
     non_official_pct = (~silver["is_official"]).mean() * 100
     if non_official_pct > 30:
         logger.warning(
-            "%.1f%% of silver rows are non-official (FAO estimated/imputed). "
+            "%.1f%% of silver rows are non-official (FAO estimated/imputed/external). "
             "Review flag distribution before using in ML.",
             non_official_pct,
         )

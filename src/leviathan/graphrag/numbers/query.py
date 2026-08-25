@@ -13,6 +13,7 @@ testability are guaranteed by construction, not by prompt discipline.
 from __future__ import annotations
 
 import functools
+from importlib import import_module
 from typing import Literal, Optional
 
 from pydantic import BaseModel
@@ -204,22 +205,51 @@ def _commodity_code_filter(spec: NumberQuery, ts: TableSpec) -> list[str]:
     return []
 
 
-def _esr_country_codes(spec: NumberQuery, ts: TableSpec) -> list[str]:
-    """ESR_DESTINATION_PLAN W1 (sub-route A2): translate the model's destination NAME to FAS code(s)
-    and emit a backend-agnostic ``CAST(country_col AS varchar) IN ('...')`` filter. CAST-as-varchar is a
-    no-op on the pg TEXT ``country_code`` and stringifies the Athena smallint, so the quoted-string IN
-    list compares IDENTICALLY on both backends (the smallint/TEXT type trap, ESR plan 1). ``country_code``
-    is an in-file column of silver_esr_compact (NOT a projected partition key -- partitions = commodity),
-    so the no-CAST-on-projected-partition rule does not apply.
+# ── country-name references: card-declared name -> physical country value ────────────────────────────
+# A card whose country_col holds something the model would never type -- a raw FAS destination CODE
+# (silver_esr) or FAOSTAT's raw M49 DISPLAY STRING (silver_production) -- names its reference in
+# TableSpec.country_name_ref, and this table says which loader serves it. Both loaders expose the SAME
+# protocol (resolve_codes / display / is_pseudo / kind), so the two call sites below are one code path.
+_COUNTRY_REF_LOADERS: dict[str, tuple[str, str]] = {
+    "numbers/esr_destinations.yaml": ("leviathan.graphrag.numbers.esr_destinations", "load_esr_destinations"),
+    "numbers/faostat_areas.yaml":    ("leviathan.graphrag.numbers.faostat_areas", "load_faostat_areas"),
+}
 
-    An UNRESOLVED name fails CLOSED (an IN list that matches ZERO rows), never a silent national total --
-    the July name-vs-code lesson class (``country='China'`` -> ``country_code = 'China'`` -> 0 rows
-    narrated as a real figure). EMPTY (no spec.country) -> [] so the national path is byte-identical."""
+
+def _country_ref(ts: TableSpec):
+    """The loaded reference for ``ts.country_name_ref``. RAISES on a ref this module does not serve --
+    a card that declares a reference and silently gets the plain-equality path back is the exact
+    zero-rows-narrated-as-a-figure failure the mechanism exists to close, so an unknown ref must be
+    loud at compile time rather than wrong at answer time."""
+    try:
+        module, fn = _COUNTRY_REF_LOADERS[ts.country_name_ref]
+    except KeyError:
+        raise ValueError(
+            f"table {ts.id!r} declares country_name_ref={ts.country_name_ref!r}, which no loader in "
+            f"query._COUNTRY_REF_LOADERS serves (known: {sorted(_COUNTRY_REF_LOADERS)})"
+        ) from None
+    return getattr(import_module(module), fn)()
+
+
+def _country_ref_filters(spec: NumberQuery, ts: TableSpec) -> list[str]:
+    """ESR_DESTINATION_PLAN W1 (sub-route A2), generalized at FAO-3: translate the model's country NAME
+    to the value(s) the physical column actually holds and emit a backend-agnostic
+    ``CAST(country_col AS varchar) IN ('...')`` filter. CAST-as-varchar is a no-op on the pg TEXT
+    ``country_code`` and stringifies the Athena smallint, so the quoted-string IN list compares
+    IDENTICALLY on both backends (the smallint/TEXT type trap, ESR plan 1); on the FAOSTAT string
+    column it is a no-op both sides. Neither card's country_col is a projected partition key
+    (silver_esr_compact partitions on commodity; silver_production on commodity/year), so the
+    no-CAST-on-projected-partition rule does not apply to either.
+
+    An UNRESOLVED name fails CLOSED (an IN list that matches ZERO rows), never a silent national total
+    or world row -- the July name-vs-code lesson class (``country='China'`` -> ``country_code = 'China'``
+    -> 0 rows narrated as a real figure), which FAOSTAT reproduces one layer over
+    (``country = 'United States'`` against a column holding 'United States of America').
+    EMPTY (no spec.country) -> [] so the unscoped path is byte-identical."""
     if not (ts.country_name_ref and spec.country):
         return []
-    from leviathan.graphrag.numbers.esr_destinations import load_esr_destinations
-    codes = load_esr_destinations().resolve_codes(spec.country)
-    col = _dcol(ts.country_col)                                # CAST(country_code AS varchar) -- type-agnostic
+    codes = _country_ref(ts).resolve_codes(spec.country)
+    col = _dcol(ts.country_col)                                # CAST(country_col AS varchar) -- type-agnostic
     if not codes:                                             # unresolved name -> fail CLOSED (zero rows)
         return [f"{col} IN ('__unresolved_destination__')"]
     return [f"{col} IN ({', '.join(_q(c) for c in codes)})"]
@@ -379,8 +409,8 @@ def _filters(spec: NumberQuery, ts: TableSpec) -> list[str]:
     for col, vals in cf.items():                             # emit `col IN (...)`; a country_col IN clause
         if vals:                                             # REPLACES the plain equality below (widening the
             w.append(f"{col} IN ({', '.join(_q(v) for v in vals)})")  # match across e.g. the cotton region split)
-    if ts.country_name_ref:                                  # ESR destination: NAME->code IN filter (fail-closed);
-        w += _esr_country_codes(spec, ts)                    # [] when no spec.country -> national path unchanged
+    if ts.country_name_ref:                                  # card-declared ref: NAME->value IN filter (fail-closed);
+        w += _country_ref_filters(spec, ts)                  # [] when no spec.country -> unscoped path unchanged
     elif spec.country and ts.country_col and ts.country_col not in ts.partition_cols and ts.country_col not in cf:
         w.append(f"{ts.country_col} = {_q(spec.country)}")
     w += _contract_month_filter(spec, ts)                    # W3.1: named-expiry equality / curve IN(...) list
@@ -922,10 +952,10 @@ def apply_pit_filter(rows: list[dict], spec: NumberQuery, ts: TableSpec) -> list
     cf_sets = {col: {str(v) for v in vals} for col, vals in cf.items()}  # of build_sql's `col IN (...)` emit)
     months = set(_contract_months(spec))                                 # W3.1 delivery-month scope: mirrors
     #                                                                      _contract_month_filter's equality/IN emit
-    esr_codes: Optional[set[str]] = None                                 # ESR destination: resolved str codes for
-    if ts.country_name_ref and spec.country:                             # spec.country (mirrors _esr_country_codes;
-        from leviathan.graphrag.numbers.esr_destinations import load_esr_destinations  # EMPTY set == unresolved ->
-        esr_codes = {str(c) for c in load_esr_destinations().resolve_codes(spec.country)}  # fail CLOSED (no row kept)
+    ref_values: Optional[set[str]] = None                                # card-declared ref: resolved str values
+    if ts.country_name_ref and spec.country:                             # for spec.country (mirrors
+        #                                                                  _country_ref_filters; EMPTY set ==
+        ref_values = {str(c) for c in _country_ref(ts).resolve_codes(spec.country)}  # unresolved -> no row kept)
 
     def keep(r: dict) -> bool:
         if "region" in ts.partition_cols:
@@ -940,8 +970,8 @@ def apply_pit_filter(rows: list[dict], spec: NumberQuery, ts: TableSpec) -> list
         elif ts.country_col and ts.country_col in cf_sets:               # A3: a row_filter on the country_col
             if str(r.get(ts.country_col)) not in cf_sets[ts.country_col]:  # WIDENS the match (cotton region split)
                 return False
-        elif esr_codes is not None:                                      # ESR destination: NAME->code membership
-            if str(r.get(ts.country_col)) not in esr_codes:              # (esr_codes empty == unresolved -> closed)
+        elif ref_values is not None:                                     # card-declared ref: NAME->value membership
+            if str(r.get(ts.country_col)) not in ref_values:             # (empty set == unresolved -> fail CLOSED)
                 return False
         elif spec.country and ts.country_col and str(r.get(ts.country_col)) != str(spec.country):
             return False
@@ -1015,17 +1045,18 @@ def _apply_unit_overrides(rows: list[dict], spec: NumberQuery, ts: TableSpec) ->
 
 
 def _apply_country_names(rows: list[dict], spec: NumberQuery, ts: TableSpec) -> list[dict]:
-    """ESR_DESTINATION_PLAN W1.3.3 POST-FETCH: render the row's raw ``country_code`` (surfaced as the
-    ``country`` extra alias) to its display name, so a citation/answer shows 'China', not '5700'. The code
+    """ESR_DESTINATION_PLAN W1.3.3 POST-FETCH: render the row's raw country value (surfaced as the
+    ``country`` extra alias) to its display name, so a citation/answer shows 'China', not '5700'. The value
     comes back as a STRING on BOTH backends (Athena VarCharValue / pg _stringify), so display() is
-    str-normalized (the folded S2 int-key/string-value reconciliation); an unmapped code falls back to the
-    bare code string (never raises -- the reference-lint makes a probe-present-but-unmapped code a hard
+    str-normalized (the folded S2 int-key/string-value reconciliation); an unmapped value falls back to the
+    bare string (never raises -- the reference-lint makes a probe-present-but-unmapped value a hard
     failure). Only for a card with country_name_ref; agg=sum rows carry no ``country`` extra (nothing to
-    render). Every other table is byte-identical."""
+    render). Every other table is byte-identical. On the FAOSTAT reference the render is the IDENTITY --
+    FAOSTAT's own area string is already the honest label, and rewriting it to an estate name would put a
+    word on the row that the source never printed."""
     if not ts.country_name_ref:
         return rows
-    from leviathan.graphrag.numbers.esr_destinations import load_esr_destinations
-    dst = load_esr_destinations()
+    dst = _country_ref(ts)
     for r in rows:
         if r.get("country") is not None:
             r["country"] = dst.display(r["country"])
@@ -1132,7 +1163,7 @@ def run(spec: NumberQuery, *, query_fn=None, db: str = ATHENA_DB,
     if spec.agg == FRONT_EXPIRY_AGG:
         rows = select_front_expiry(rows, spec, ts)           # A': run the ONE named rule, keep ONE row
     rows = _apply_unit_overrides(rows, spec, ts)
-    return _apply_country_names(rows, spec, ts)              # ESR: raw country_code -> display name (post-fetch)
+    return _apply_country_names(rows, spec, ts)              # country_name_ref cards: raw value -> display name
 
 
 # -- D-PQ A': THE EXCHANGE-SETTLE ANCHOR (front-expiry selection at the READ PATH) ----------------------
