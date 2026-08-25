@@ -524,7 +524,9 @@ def test_composition_census_n_evidence_carries_its_post_h0_meaning(monkeypatch):
     # ONE local, TWO consumers, in that order: the GROUNDING LEDGER the model reads, then the census the
     # composition mandates reason about. A second derivation is how the two come to disagree about N.
     n_ev = src.index("n_ev = (len(_uniq) if _menu_on")
-    assert src.index("_grounding_ledger(n_ev, n_num, menu_on=_menu_on)", n_ev) > n_ev
+    # PA-8(b): the same site now also passes SERVED ROWS; `n_ev` -- the integer THIS pin is about -- is
+    # still the ledger's first argument and still the census', from one local.
+    assert src.index("_grounding_ledger(n_ev, n_num, menu_on=_menu_on, n_rows=n_srv)", n_ev) > n_ev
     assert src.index("n_evidence=n_ev)", n_ev) > n_ev
     # ...and the MENU-OFF (dossier) lane keeps the PRE-dedup count on the SAME line, deliberately:
     # nothing numbered anything there, so the honest statement is the loose cap the pre-D-HP prompt made.

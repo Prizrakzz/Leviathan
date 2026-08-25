@@ -64,6 +64,38 @@ def _labeled_metric_slugs() -> tuple[str, ...]:
         return ()
 
 
+@functools.lru_cache(maxsize=1)
+def _metric_labels() -> tuple[tuple[str, str], ...]:
+    """(metric slug, analyst label) pairs the SANITIZER may substitute, longest-slug-first.
+
+    PA-10(b) (2026-08-25): `_labeled_metric_slugs` has DETECTED this class since the GN-2 label fold, and
+    `sanitize` repaired only contract slugs (968-969), regime ids (970-971) and SAGIS crop codes (972) --
+    so the one leak class the estate can name with the reader's own word for it was the one class left
+    unrepaired. The detector is untouched: the fence's COUNT still reports every occurrence (that number is
+    the run-6 census' instrument), and repair is what changes.
+
+    AN AMBIGUOUS SLUG IS NOT SUBSTITUTED. The same metric id lives on several cards ("su_ratio" is three
+    metrics on three cards until PA-2's labels land), and picking one card's label for a bare token in
+    prose would assert a meaning the text may not have -- the estate's standing refusal ("both labels or
+    neither, and never a guess from a partial pair", citations.py). Measured over the shipped registry at
+    authoring time: 203 labeled underscored slugs, ZERO ambiguous, so today this excludes nothing; it is
+    the fence that keeps a future duplicate label from minting a wrong analyst name.
+
+    Deterministic by construction: sorted by (-len, slug), so equal-length slugs cannot ride dict order."""
+    try:
+        from leviathan.graphrag.numbers.registry import load_registry
+        by_slug: dict[str, set[str]] = {}
+        for ts in load_registry().tables.values():
+            for mid, m in (ts.metrics or {}).items():
+                lab = str(getattr(m, "label", "") or "").strip()
+                if "_" in mid and lab:
+                    by_slug.setdefault(mid, set()).add(lab)
+        return tuple((mid, next(iter(labs))) for mid, labs in
+                     sorted(by_slug.items(), key=lambda kv: (-len(kv[0]), kv[0])) if len(labs) == 1)
+    except Exception:  # noqa: BLE001 -- registry missing -> no metric repair, exactly today's behaviour
+        return ()
+
+
 def _regime_ids() -> tuple[str, ...]:
     """Convergence-regime ids (bullish_drought_squeeze, ...) that must be humanized in prose, longest-first.
     Sourced from the display registry (authoritative over the causal DAGs)."""
@@ -969,6 +1001,14 @@ def sanitize(text: str, *, market_register: str = FENCED) -> str:
             seg = re.sub(r"\b" + re.escape(slug) + r"\b", disp.get(slug, slug.replace("_", " ")), seg)
         for rid in _regime_ids():                                        # longest-first -> humanize regime ids
             seg = re.sub(r"\b" + re.escape(rid) + r"\b", _regime_label(rid), seg)
+        # PA-10(b): a LABELED metric slug is replaced by its analyst label, the way the three classes above
+        # are. `(?<!\.)` is the DETECTOR's own exemption, copied verbatim: "silver_wasde.avg_farm_price" in
+        # agent guidance is an ADDRESS the agent queries with, not display prose (owner-ratified
+        # 2026-08-22), and a sanitizer that rewrote it would break the syntax it is teaching. Longest-first,
+        # so a slug that contains a shorter one cannot be half-rewritten. Labels carry no underscores, so
+        # the pass stays idempotent -- the same property the SAGIS de-underscore relies on.
+        for _mid, _lab in _metric_labels():                              # lambda repl: a label is LITERAL
+            seg = re.sub(r"(?<!\.)\b" + re.escape(_mid) + r"\b", lambda _m, _l=_lab: _l, seg)
         seg = _SAGIS_CROP_RX.sub(lambda m: m.group(1).replace("_", " "), seg)   # SAGIS crop code -> friendly
         if not outlook:                                                  # W5.0: _MOOD permitted on outlook turns
             seg = _MOOD.sub(_mood_word, seg)                             # neutralize any residual mood word

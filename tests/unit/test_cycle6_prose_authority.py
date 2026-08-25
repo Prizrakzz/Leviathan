@@ -186,7 +186,8 @@ def test_gas_pass2_shape_is_GIVEN_UP_by_the_cycle7_per_call_scope():
           "mechanism": ("European natural gas as of June 2026 stood at 15.17 USD/mmbtu, with a 5-year "
                         "z-score of -0.30632 sigma.")}
     rows = _rows(an._cited_sources_block(st, _VR, _gas_calls()))
-    assert rows == [r for r in rows if r.startswith("[N3] PINK SHEET urea_usd_mt")], rows
+    # PA-10(a): the metric renders through the card's analyst label ("urea price"), never the raw slug.
+    assert rows == [r for r in rows if r.startswith("[N3] PINK SHEET urea price")], rows
     assert not any(r.startswith("[N1b]") or r.startswith("[N2b]") for r in rows), rows
 
 
@@ -546,8 +547,10 @@ def test_a_percent_CHANGE_never_names_a_percent_LEVEL_row():
     # the same two clauses in the reviewer's own spelling, each standing alone
     mint = lambda p: [c.label for c in cit.prose_completion_citations(                # noqa: E731
         [cot], orc._stated_values(p), seen=set(), cited={1})]
+    # PA-10(a): the minted row speaks the card's analyst label, not `mm_pct_oi`; the percent question --
+    # WHICH row mints -- is untouched.
     assert mint("Per the COT [N1], managed money holds 15.7 percent of open interest.") == \
-        ["COT mm_pct_oi corn MY2026-06-01 = 15.7316 pct of OI (signed)"]
+        ["COT managed-money share of open interest corn MY2026-06-01 = 15.7316 pct of OI (signed)"]
     assert mint("Per the COT [N1], positioning fell, down 2.1 percent on the week.") == []
 
 

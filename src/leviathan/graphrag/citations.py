@@ -96,6 +96,57 @@ def _print_kind(row: dict) -> str:
     return _SETTLE_KIND_WORDS.get(kind, kind)
 
 
+# -- PA-10(a) (2026-08-25): THE METRIC RENDERS THROUGH THE ANALYST DISPLAY --------------------------------
+# The [N] label is read TWICE and both readers were handed the raw registry slug: the writer's numbers panel
+# (`orchestrator._numbers_block`) and the reader's `## Sources` list (`answer._cited_sources_block`). The
+# persona forbids exactly that token ("NEVER emit an internal identifier of ANY kind", answer.py:220-222)
+# and `register.internal_leaks` COUNTS it (register.py:821-826), so the run-6 census' 69 leaked ids were in
+# large part the writer typing back what the panel gave it. ONE MAPPING, NEVER TWO: `numbers.cascade
+# ._metric_display` is the analyst path the cascade lines have used since the GN-2 label fold (9ede60ed);
+# a second copy of Metric.label resolution is precisely how two lanes come to disagree about what a metric
+# is CALLED. The machine identity is untouched in `locator`/`payload`, which is what a drill-down re-runs.
+#
+# THE ROW'S DECLARED PRINT KIND OUTRANKS THE CARD'S METRIC LABEL, and that guard is not optional. Measured
+# on this file's own fixture: `silver_futures_eod.settle` is labeled "settlement price", and that card also
+# serves ICE `ohlcv-1d` bars whose `settle_kind` is `close` -- rendering the label there would mint
+# "settlement price ... (session close)", the ICE mislabel `eval._SETTLE_MISLABEL_RX` exists to CONVICT.
+# So when a row declares its own print kind and the card's label asserts a DIFFERENT one, the row wins and
+# the metric renders exactly as it does today. Keyed on the kind TOKEN, not the phrase, so a label that
+# names the row's OWN kind ("settlement price" on a settlement row) is kept and an unrelated label
+# ("open interest") is never suppressed.
+_KIND_RX = {
+    "settlement": re.compile(r"settl", re.I),
+    "close": re.compile(r"\bclose\b|\bclosing price\b", re.I),   # never "closing stocks" -- not a print kind
+    "cash_index": re.compile(r"cash index", re.I),
+    "mark_to_market": re.compile(r"mark[- ]to[- ]market", re.I),
+}
+
+
+def _kind_conflict(display: str, row: dict) -> bool:
+    """True when `display` asserts a print kind OTHER than the one this row declares."""
+    kind = str((row or {}).get("settle_kind") or "").strip()
+    if not kind or not display:
+        return False
+    return any(rx.search(display) for k, rx in _KIND_RX.items() if k != kind)
+
+
+def _metric_display_name(table: str, metric, row: Optional[dict] = None) -> str:
+    """The ANALYST name for a metric on a citation label -- `_metric_unit`'s twin, and a DELEGATION.
+
+    Lazy import (the `_series_truncated` / `_zero_aggregate` discipline: this module keeps no import-time
+    dependency on the numbers stack), and ANY failure returns the slug -- today's rendering to the byte,
+    never a raise. An unlabeled metric also returns the slug: the fence tightens family-by-family exactly
+    as labels land, which is `register._labeled_metric_slugs`' own stated rule."""
+    if not metric:
+        return str(metric or "")
+    try:
+        from leviathan.graphrag.numbers.cascade import _metric_display
+        disp = _metric_display({"table": table, "metric": metric}) or str(metric)
+    except Exception:  # noqa: BLE001 -- an unregistered table's label must render, never raise
+        return str(metric)
+    return str(metric) if _kind_conflict(disp, row or {}) else disp
+
+
 def _row_date_text(r: dict) -> str:
     """The observation's own date, in `_row_order_key`'s priority. "" when the row carries none."""
     for a in ("data_date", "knowledge_date"):
@@ -371,6 +422,11 @@ def from_number(call: dict, i: int) -> Citation:
     # (judged-30 RCA (b)). The full `rows` order is untouched (payload keeps rows[:3] as before).
     rH = max(rows, key=_row_order_key) if rows else {}
     table, metric = q.get("table", ""), q.get("metric", "")
+    # PA-10(a): the metric is spoken in the ANALYST's name on every branch below, from ONE resolution.
+    # All three branches render `{src} {metric} {scope} = ...`, so a display name on the value-bearing
+    # branch alone would have the same call's empty read and its zero-aggregate read naming the metric
+    # differently in one footer -- the drift this file refuses everywhere else (`_period_label`'s "MYMY").
+    mdisp = _metric_display_name(table, metric, rH)
     src = _source_label(table)
     asof = q.get("asof")
     value = rH.get("value")
@@ -452,10 +508,10 @@ def from_number(call: dict, i: int) -> Citation:
         # reads `Citation.value` -- leaving "0.0" there would let a stand-in [N] handle splice a measured
         # zero into the prose, which is the assertion this whole class exists to refuse. The row set is
         # untouched in `payload`/`locator`, so the drill-down still re-runs the real read.
-        label = f"{src} {metric} {scope} = {_ZERO_AGG_LABEL}".strip()
+        label = f"{src} {mdisp} {scope} = {_ZERO_AGG_LABEL}".strip()
         value, unit = None, None
     elif rows and not _blank:
-        label = f"{src} {metric} {scope} = {_fmt(value)} {unit}".strip()
+        label = f"{src} {mdisp} {scope} = {_fmt(value)} {unit}".strip()
         # D-PQ RENDER-2, second half: WHAT KIND OF PRINT this is, plus the row's own currency. Both are
         # card-declared columns and neither was reaching the writer. The currency is appended only when it
         # is not already inside the unit string (US cents/bushel already says USD; CNY/t already says CNY),
@@ -471,6 +527,34 @@ def from_number(call: dict, i: int) -> Citation:
         _hd, _ad = _parse_date(kd), _parse_date(asof)
         if _hd and _ad and (_ad - _hd).days > 30:
             label += f" (latest available {str(kd)[:10]}; as-of {asof})"
+        # ══ PA-8(a) (2026-08-25): THE ABUNDANCE MARKER -- HOW MANY ROWS THIS CALL ACTUALLY SERVED ════════
+        # This line headlines `max(rows, _row_order_key)` and says NOTHING about the other rows, so a
+        # 24-month MPOB stock series and a single latest read render as the same one-line panel entry.
+        # The measured cost is `gn2_mpob_stock_build` ("walk me through the stocks month by month"),
+        # 2/5 ON ALL THREE SEATS: the agent held the monthly series and the writer, reading this panel,
+        # was told there was one number. The same class is recorded further down this file -- 35 served
+        # WASDE rows shown as one line and scored as fabrication -- and the CYCLE-5 fix threaded `stated=`
+        # into the READER's footer only; `orchestrator._numbers_block` still calls `unify(None, calls)`,
+        # because the panel is built BEFORE the prose exists and there is nothing yet to match rows to.
+        # So the panel states the COUNT. The markers beside it (TRUNCATED, NO ROWS RETURNED, the
+        # zero-aggregate label) already cover every scarcity class; this is the missing ABUNDANCE one.
+        #
+        # FACT ONLY, NO IMPERATIVE (the split pinned in test_citations.py, and restated below): the same
+        # string renders into the reader's `## Sources` list, so what lives here is provenance a reader is
+        # entitled to -- how many observations back this line and which one is displayed.
+        # NOTHING ABOUT WHICH ROWS ARE SERVED CHANGES -- `rows` is the call's own served set, `payload`
+        # still carries rows[:3], and the drill-down still re-runs the same read.
+        _trunc = _series_truncated(call)
+        if len(rows) > 1:
+            # THE SPAN RIDES ONLY WHEN THE ROWS ACTUALLY SPAN SOMETHING, and never opposite a TRUNCATED
+            # marker, which states its own: one span per line, from whichever marker owns it.
+            # `_covered_span` collapses to a single date when every row carries the same one, and 35 rows
+            # of ONE WASDE vintage (the motivating serve below -- 35 marketing years, one release date)
+            # would then read as a one-day series, the opposite of what the reader must take from it.
+            _sspan = "" if _trunc else _covered_span(rows)
+            label += (f" [{len(rows)} rows served"
+                      + (f", covering {_sspan}" if ".." in _sspan else "")
+                      + "; newest shown]")
         # D-PQ RENDER-3 -- THE TRUNCATION ANNOTATION, THREADED TO THE WRITER. `agent.series_truncated` has
         # existed since J3b and `format_provenance` / `eval._num_line` both render it; the SYNTHESIS PROMPT
         # never did, because it is built from these labels. Measured 2026-08-07 (dcw_probe_v1 row 11,
@@ -486,7 +570,7 @@ def from_number(call: dict, i: int) -> Citation:
         # ("do not call it full history") is correct for the first and is register leakage in the second,
         # so the directive lives in the prompt-only SCOPE-NOTE channel (`_numbers_block`) and what stays
         # here is the provenance a reader is entitled to see anyway: this is a slice, and here is its span.
-        if _series_truncated(call):
+        if _trunc:
             _span = _covered_span(rows)
             _cap = q.get("limit")
             label += (" [TRUNCATED at the "
@@ -496,7 +580,7 @@ def from_number(call: dict, i: int) -> Citation:
                       + " -- not the complete record]")
     else:
         _st = BLANK_VALUE_STATUS if _blank else status
-        label = f"{src} {metric} {scope} = {_empty_label(_st, asof)}".strip()
+        label = f"{src} {mdisp} {scope} = {_empty_label(_st, asof)}".strip()
         # D-HP G1 REMEDIATION-2 R2-b: the blank-value read gives up its VALUE too, for the same reason the
         # zero-row and zero-aggregate classes give up theirs -- `answer._number_handle_value` reads
         # `Citation.value`, and leaving `''` there left the ONE consumer that had it right depending on a
@@ -789,7 +873,10 @@ def _mint_row_citations(call: dict, i: int, rows: list[dict]) -> list[Citation]:
         unit = r.get("unit") or _metric_unit(table, metric, q.get("commodity"))
         geo = q.get("country") or (str(r.get("country")).strip() if r.get("country") else None)
         scope = " ".join(x for x in (q.get("commodity"), geo, per) if x)
-        label = f"{src} {metric} {scope} = {_fmt(val)} {unit}".strip()
+        # PA-10(a): the extras are LETTER-SUFFIXED siblings of the headline (N1b, N1c...) rendered into the
+        # same footer block, so they speak the metric in the same analyst name -- per ROW, since the row is
+        # what declares this line's print kind.
+        label = f"{src} {_metric_display_name(table, metric, r)} {scope} = {_fmt(val)} {unit}".strip()
         tags = [t for t in (str(r.get("revision_stamp") or "").strip(), _print_kind(r)) if t]
         if tags:
             label += " (" + ", ".join(tags) + ")"

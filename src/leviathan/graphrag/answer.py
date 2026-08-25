@@ -307,7 +307,13 @@ _SYSTEM_MENTOR = (
 # P9-B: appended to the mentor persona ONLY when GRAPHRAG_CASCADE_QUANT is on -- the quantify loop supplies
 # the [N] rows, so (unlike Phase A) a [N]-cited dated lag is backed and will NOT be stripped.
 _SYSTEM_CASCADE = (
-    "\nOBSERVED CASCADE NUMBERS. When an 'OBSERVED CASCADE NUMBERS' block is present, narrate the record from "
+    # PA-10(c) (2026-08-25): BOTH NUMBER PANELS ARE NAMED HERE. The [N] index space spans them -- the agent's
+    # lookups arrive as `orchestrator._numbers_block` ("SILVER NUMBERS") and the quantify loop appends its
+    # rows to the SAME `extra_number_calls` list, so [N7] may live in either block -- while this paragraph
+    # named only the cascade one. Every rule below (row-only figures, the [N] handle, no internal ids) was
+    # therefore scoped away from the lane that serves the agent's rows. Naming, not new rules.
+    "\nOBSERVED NUMBER PANELS. When an 'OBSERVED CASCADE NUMBERS' block or a 'SILVER NUMBERS' block is "
+    "present, narrate the record from "
     "those rows ONLY: every figure you state MUST appear in an injected row and carry its numbered [N] handle "
     "(e.g. \"US wheat export commitments were 12.549 MMT [N4]\"). NEVER state a number that "
     "is not in an injected row -- if you want to note a change with no row, write it as prose without a handle. "
@@ -1671,7 +1677,12 @@ _SYSTEM_HANDLES = (
     "THE ONE RULE: you do not type figures. You write the HANDLE where the figure belongs, and the engine "
     "substitutes the value, its unit and its citation before the reader sees the sentence. Write \"US wheat "
     "export commitments were [N4]\", never \"were 12.549 MMT [N4]\". The receipt rows above are a numbered "
-    "MENU and a handle is an ADDRESS into it: [N7] is the 7th OBSERVED CASCADE NUMBERS row, [E7] is the 7th "
+    # PA-10(c): the [N] menu spans BOTH number panels -- the agent's lookups ('SILVER NUMBERS') and the
+    # quantify loop's rows ('OBSERVED CASCADE NUMBERS') share one index space (`extra_number_calls`), so an
+    # address described as a cascade row alone left the agent lane's rows nameless on exactly the turns
+    # they are the whole answer. Counted the way it always was: [N] rows in order, across the number blocks.
+    "MENU and a handle is an ADDRESS into it: [N7] is the 7th injected number row -- counted in order "
+    "across the number panels ('OBSERVED CASCADE NUMBERS' and 'SILVER NUMBERS') -- and [E7] is the 7th "
     "evidence item, counted once per source across every block.\n"
     "THIS SUPERSEDES, BY NAME: (a) 'every figure you state MUST appear in an injected row AND carry its "
     "numbered [N] handle' -- the FIGURE half is deleted, the HANDLE half stands alone; (b) every "
@@ -2692,7 +2703,12 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
             else sum(len(getattr(n, "evidence", []) or []) for n in sg.nodes))
     n_num = len(extra_number_calls or [])
     sg.trace["injected_n"] = n_num                               # W6.1-0: [N] rows injected (cited-vs-injected denom)
-    _ledger_line = _grounding_ledger(n_ev, n_num, menu_on=_menu_on)
+    # PA-8(b): the ledger states SERVED ROWS and names the lookups separately -- `n_num` still governs the
+    # [N] handle range (one indexed citation per call) and still stamps `injected_n`, so no counter and no
+    # address moves. `n_srv` is a pure sum over the same `rows` lists the panel renders.
+    n_srv = _served_rows(extra_number_calls)
+    sg.trace["served_rows"] = n_srv                              # PA-8: rows behind the [N] lines, per turn
+    _ledger_line = _grounding_ledger(n_ev, n_num, menu_on=_menu_on, n_rows=n_srv)
     # D-RC-13: the record's EDGE, stamped observationally (trace, unconditional -- the fork_basis
     # scoped-promise precedent) and stated to the model only when the flag is on (the suffix is ''
     # otherwise, so the ledger line is byte-identical flag-off).
@@ -3365,7 +3381,17 @@ def render(d: dict, *, include_ledger: bool = True) -> str:
     return "\n".join(parts).strip()
 
 
-def _grounding_ledger(n_ev: int, n_num: int, *, menu_on: bool) -> str:
+def _served_rows(calls) -> int:
+    """Rows SERVED across a turn's number calls -- the count PA-8 says the ledger owes the writer.
+
+    A call's `rows` is its own served set (`citations.from_number` headlines max() over it and shows one
+    line), so this is a pure sum over the same lists the panel renders: build-time deterministic, no
+    ordering dependence, nothing probed. A malformed call reads as zero rows -- one-sided, the direction
+    that can under-count an abundance, never invent one."""
+    return sum(len((c or {}).get("rows") or []) for c in (calls or []) if isinstance(c, dict))
+
+
+def _grounding_ledger(n_ev: int, n_num: int, *, menu_on: bool, n_rows: int | None = None) -> str:
     """THE GROUNDING LEDGER sentence -- ONE producer, both serving bodies (D-HP-16).
 
     Clause A' (the thin-turn honesty fix): a per-turn line enumerating the EXACT valid handle ranges, so
@@ -3383,12 +3409,23 @@ def _grounding_ledger(n_ev: int, n_num: int, *, menu_on: bool) -> str:
 
     `menu_on` False is the pre-D-HP sentence AND the pre-D-HP loose cap, byte for byte: "each mapping to
     the item tagged with it above" is a claim ABOUT RENDERED ROWS and must not outlive them (D-HP-16's
-    dossier lane renders unnumbered rows and must not be told its handles are addresses)."""
+    dossier lane renders unnumbered rows and must not be told its handles are addresses).
+
+    PA-8(b) (2026-08-25) -- `n_rows`: THE COUNT IS ROWS, THE HANDLE RANGE IS LOOKUPS, AND THEY ARE NOT THE
+    SAME NUMBER. The shipped sentence counted CALLS and called them rows (`n_num = len(extra_number_calls)`,
+    answer.py), so a 24-month MPOB series served under one lookup was announced to the writer as "1 observed
+    number row(s)" and narrated as an absence -- `gn2_mpob_stock_build`, 2/5 on all three seats. The [N]
+    clause KEEPS counting lookups because that is what it addresses: `unify` mints one indexed citation per
+    call ([N1]..[Nn_num]) and the per-row extras are letter-suffixed siblings that consume no index, so a
+    range built on rows would invite handles that resolve to nothing. `n_rows=None` renders the pre-PA-8
+    sentence to the byte, for any caller that has only the counts."""
     e_clause = (("Emit NO [E] handles (there are no evidence items); " if n_ev == 0 else
                  f"[E] handles run [E1]..[E{n_ev}], each mapping to the item tagged with it above; ")
                 if menu_on else
                 f"Cite AT MOST {n_ev} distinct [E] handles, each mapping to one item above; ")
-    return (f"GROUNDING LEDGER: {n_ev} dated evidence item(s) and {n_num} observed number row(s) are "
+    n_clause = (f"{n_num} observed number row(s)" if n_rows is None
+                else f"{n_rows} observed number row(s) across {n_num} lookup(s)")
+    return (f"GROUNDING LEDGER: {n_ev} dated evidence item(s) and {n_clause} are "
             f"available for this question. " + e_clause
             + ("emit NO [N] handles (there are no number rows)."
                if n_num == 0 else f"[N] handles run [N1]..[N{n_num}]."))
@@ -8875,7 +8912,8 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     if _handles:
         volatile_blocks.append(_grounding_ledger(
             len(uniq) if _ev_menu is not None else len(evidence),
-            len(extra_number_calls or []), menu_on=_ev_menu is not None))
+            len(extra_number_calls or []), menu_on=_ev_menu is not None,
+            n_rows=_served_rows(extra_number_calls)))       # PA-8(b): rows, not calls (same producer)
     # D-RC-13 on the one-hop body: this body has no GROUNDING LEDGER line of its own on the CONTROL lane,
     # so the record-edge sentence rides its own volatile block (same text, same flag, '' when off ->
     # byte-identical assembly).

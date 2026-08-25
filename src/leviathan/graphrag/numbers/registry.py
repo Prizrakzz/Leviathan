@@ -114,6 +114,41 @@ class TableSpec(BaseModel):
     #                                                          (registered partitions; the projected original
     #                                                          cost ~130-600K S3 LISTs/query, Jul-2026 storm)
     grain: str = ""
+    # ── THE COVERAGE CENSUS (PA-1, PROMPT-AUDIT WAVE 1, 2026-08-25) ──────────────────────────────────
+    # Four optional fields carrying the MEASURED census this file has always held and always DISCARDED.
+    # The numbers lived only in comment lines -- "272 rows, 5 IMPORTING countries ... 2025-01..2026-06"
+    # (silver_mpoc_stock_comparison), "247,036 rows across 63 DISTINCT leviathan_slug values"
+    # (silver_psd) -- so the model reading a card learned the table's SHAPE and never its DEPTH: only
+    # 12 of 39 cards stated a date span in prose and 8 a row count. A card that never says it holds
+    # twenty-four monthly prints is a card a walk-through question routes away from, which is
+    # `gn2_mpob_stock_build` scoring 2/5 on every seat. `agent._table_card` renders ONE `coverage:`
+    # line from whichever of the four are set; a card that declares NONE renders no line at all --
+    # an absent census is SILENCE, never a fabricated one.
+    #
+    # BUILD-TIME ONLY, and that is a CACHE law rather than a preference: the numbers system block is
+    # ONE ephemeral-cached ~45k-token block keyed on (registry, flags) (agent.py:2321-2322), so a live
+    # `max(date)` probe here would re-write 45k tokens EVERY turn (the B1 precedent that put the
+    # families hint on the USER turn). These are DECLARATIONS that travel with the card exactly as
+    # `commodity_values` does, re-measured by the same hand that re-measures those -- the card moves
+    # WITH the table and never ahead of it.
+    #
+    # `last_obs` IS FOR A CEILING, NOT FOR A MOVING FRONT. Declare it where the card's own text states
+    # an END the source will not move past soon: a closed archive (silver_mpoc_trade_stats_monthly
+    # "ENDS 2023-12 and will never extend"), a stopped file (silver_sagis_weekly_exports at 2024-04), a
+    # paused publisher (silver_nass_citrus at 2025-07-11), or an ANNUAL series whose newest year is
+    # fixed until the next annual print. A LIVE daily/weekly front gets `first_obs` + `cadence` and NO
+    # `last_obs`: a stale end date is not a harmless approximation, it is the model DECLINING a
+    # question the table can answer. silver_minagro_grain_exports declares neither end, because its own
+    # notes forbid it ("COVERAGE GROWS FROM BOTH ENDS, SO NEVER STATE THIS TABLE'S SPAN FROM MEMORY").
+    row_count: Optional[int] = None                          # MEASURED rows the card SERVES -- the served
+    #                                                          half where a row_filters fence cuts the
+    #                                                          table (silver_wap_table01_revisions: 49,188
+    #                                                          year rows, not its 96,410 physical rows)
+    first_obs: Optional[str] = None                          # oldest observation LABEL, spelled on the
+    #                                                          card's OWN axis ('1913-01', '1866', '2024-25')
+    last_obs: Optional[str] = None                           # newest observation LABEL -- CEILINGS ONLY
+    cadence: Optional[str] = None                            # one word: daily | weekly | biweekly |
+    #                                                          monthly | annual | release
     shape: Literal["wide", "tall"]
     commodity_col: Optional[str] = None
     country_col: Optional[str] = None

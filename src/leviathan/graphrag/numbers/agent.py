@@ -1490,8 +1490,13 @@ def tool_schema(reg: NumbersRegistry) -> dict:
                 "metric": {"type": "string", "description": "a metric listed for that table"},
                 "commodity": {"type": "string", "description": "commodity/contract slug, if the table is per-commodity"},
                 "country": {"type": "string", "description": "country, if the table is per-country"},
-                "region": {"type": "string", "description": "station-region for weather tables (e.g. us_corn_iowa); "
-                                                            "omit to use the commodity's primary region"},
+                # PA-5: the example was `us_corn_iowa`, a silver_nasa_power region -- the vocabulary of the
+                # one QUARANTINED card, which `visible_tables` strips from this very enum. The parameter
+                # stays (it is a NumberQuery field and a card may yet declare a region axis); the example
+                # naming an uncallable table does not. config_check.check_prompt_quarantine pins it.
+                "region": {"type": "string", "description": "station-region, on a card whose own text "
+                                                            "declares one; omit to use the commodity's "
+                                                            "primary region"},
                 # D-PQ FIX-3 (D-CW-4 R4): "per the table's period format" left the ONE rule that actually
                 # decides whether a marketing-year read returns rows unstated at the only place the model
                 # reads before choosing a value. The measured failure: an ESR destination leg queried
@@ -1911,20 +1916,192 @@ def _stat_calls(stat: str, res: dict, prov: dict, series_unit: Optional[str], kd
     return [_row(res["value"], stat)]
 
 
+# ── PA-1..PA-4 (PROMPT-AUDIT WAVE 1, 2026-08-25) -- THE CARD, RENDERED WHOLE ───────────────────────────
+# The card used to render FOUR things: id, description, identify-by, and a comma-joined list of
+# `key [unit]`. Everything else the registry knows was declared and never shown. `grain` is set on 39/39
+# cards and was rendered on 0. `publication_lag_days` is set on 19/39 and was rendered on 0. All 219
+# metrics carry a `label` AND a `desc` (registry.Metric) and the model saw NEITHER -- so `su_ratio [ratio]`
+# appeared on three cards meaning three different formulas, and the GN-2 label vocabulary (commit 9ede60ed)
+# reached the WRITER while never reaching the lane that CHOOSES the metric. The four coverage fields
+# (PA-1) join them here, and the read-shape line (PA-4) is derived from period_type/grain rather than left
+# inside the tool-schema enum, where a "walk me through the stocks month by month" question never looks.
+#
+# EVERY LINE BELOW IS A PURE FUNCTION OF THE REGISTRY -- no live date, no db probe, no per-turn text. The
+# numbers system block is ONE ephemeral-cached ~45k-token block byte-stable per (registry, flags)
+# (agent.py:2321-2322); anything turn-varying here re-writes 45k tokens EVERY turn, which is exactly why
+# the B1 routing hint lives on the USER turn instead.
+
+def _one_line(s: str) -> str:
+    """Collapse a folded-YAML scalar to a single line. A metric renders on ONE line BY CONTRACT: 219 of
+    them, and a multi-line desc would make the metric list unreadable as a list."""
+    return " ".join((s or "").split())
+
+
+def _coverage_bits(ts: TableSpec) -> list[str]:
+    """PA-1: the declared census as ordered display fragments -- rows, span, cadence. A card that declares
+    none returns [] and renders NO coverage line: an absent census is silence, NEVER a fabricated one.
+    `first_obs` with no `last_obs` renders "<first> onward", which is the honest shape for a live front
+    (see the registry's ceiling rule -- a stale end date makes the model decline a servable question)."""
+    bits: list[str] = []
+    if ts.row_count is not None:
+        bits.append(f"{ts.row_count:,} rows")
+    if ts.first_obs and ts.last_obs:
+        bits.append(f"{ts.first_obs} .. {ts.last_obs}")
+    elif ts.first_obs:
+        bits.append(f"{ts.first_obs} onward")
+    elif ts.last_obs:
+        bits.append(f"through {ts.last_obs}")
+    if ts.cadence:
+        bits.append(ts.cadence)
+    return bits
+
+
+def _read_shapes(ts: TableSpec) -> str:
+    """PA-4: which agg actually answers which SHAPE of question, derived from the card's own declared
+    axes. `agg='series'` lived only inside the tool-schema enum while the LAST bullet before the cards --
+    the recency slot -- said "use agg=latest (not the first row) for the most recent value", so a
+    month-by-month question read that sentence last and asked for one row (gn2_mpob_stock_build, 2/5 on
+    every seat). The no-date-axis branch is not a caveat, it is the trap four cards each teach in prose:
+    with `_order_col` None (query.py:457) `agg='latest'` does NOT collapse to one row, so the HEADLINE row
+    of an unpinned read is whatever the total order put first -- on silver_nass_citrus, the mis-parsed
+    2003-04 fragment its own notes forbid quoting."""
+    if ts.levels_only:
+        return ("agg=latest ONLY -- one date's LEVEL. A change, a window, a series and a curve are all "
+                "REFUSED on this card, so read the level and state its date.")
+    if ts.knowledge_semantics == "year_month":
+        return ("a walk, a trend or a month-by-month path is agg='series' with period_start/period_end as "
+                "'YYYY-MM'; a point question is agg=latest for the newest reading, or that same window "
+                "narrowed to the ONE month asked about. sum/mean/max/min collapse the window to one number.")
+    if ts.date_col:
+        return ("a walk, a trend or a period-by-period path is agg='series' with period_start/period_end "
+                "over the window -- that is the ONLY read that returns more than one observation; a point "
+                "question is agg=latest (the newest observation on or before the as-of). sum/mean/max/min "
+                "collapse the same window to one number.")
+    period = {"marketing_year": "marketing year", "year": "year"}.get(ts.period_type, "period")
+    return (f"NO date axis on this card, so agg=latest does NOT collapse to one row: it returns one row per "
+            f"{period} (and per every other axis you left unpinned), each stamped with its own {period}. "
+            f"Pin `period` for a single {period}, and pin the other axes too; an unpinned read is the whole "
+            f"set, so read the stamps on every row and never assume the first row is the newest one.")
+
+
+def _metric_line(key: str, m) -> str:
+    """PA-2: `- {key} [{unit}] -- {label}: {desc}`, one line per metric. label/desc render only when set,
+    so an unlabelled metric is byte-identical to `- {key} [{unit}]`."""
+    head = f"- {key} [{m.unit}]" if m.unit else f"- {key}"
+    tail = ": ".join(x for x in (_one_line(m.label), _one_line(m.desc)) if x)
+    return f"{head} -- {tail}" if tail else head
+
+
 def _table_card(ts: TableSpec) -> str:
     ident = ", ".join(x for x in (
         f"commodity={ts.commodity_col}" if ts.commodity_col else "",
         f"country={ts.country_col}" if ts.country_col else "",
         f"period={ts.period_col}({ts.period_type})" if ts.period_col else "",
         "date-windowed" if ts.date_col and not ts.period_col else "") if x)
-    metrics = ", ".join(f"{k} [{v.unit}]" if v.unit else k for k, v in ts.metrics.items())
-    return (f"### {ts.id} ({ts.knowledge_semantics})\n{ts.description.strip()}\n"
-            f"identify by: {ident or 'n/a'}\nmetrics: {metrics}\n{('note: ' + ts.notes.strip()) if ts.notes else ''}")
+    out = [f"### {ts.id} ({ts.knowledge_semantics})", ts.description.strip(),
+           f"identify by: {ident or 'n/a'}"]
+    if ts.grain:
+        out.append(f"grain: {_one_line(ts.grain)}")
+    cov = _coverage_bits(ts)
+    if cov:
+        out.append("coverage: " + ", ".join(cov))
+    if ts.publication_lag_days:
+        n = ts.publication_lag_days
+        out.append(f"publication lag: {n} day{'' if n == 1 else 's'} -- an observation is not citable "
+                   f"until that long after its own date")
+    out.append(f"read shapes: {_read_shapes(ts)}")
+    if ts.metrics:
+        out.append("metrics:")
+        out.extend(_metric_line(k, m) for k, m in ts.metrics.items())
+    else:
+        out.append("metrics: none -- this card answers by aggregation only")
+    if ts.notes:
+        out.append("note: " + ts.notes.strip())
+    return "\n".join(out)
+
+
+# ── PA-3: AN INDEX BEFORE THE WALL ─────────────────────────────────────────────────────────────────────
+# 37 cards, ~154k chars, `sorted(reg.tables)` alphabetical, no table of contents and no subject grouping.
+# The 12,761-char Conventions header names only 14 of them, so gold_board_crush, gold_futures_spreads, all
+# three MPOC cards, the three FNC cards, silver_fgis and silver_sagis_weekly_deliveries existed ONLY inside
+# the wall -- which is exactly the set the XMC rows need. The grouping is a DECLARED map rather than a
+# regex over the ids, because the id prefix is the SOURCE (silver_/gold_) and never the subject: silver_cot
+# and silver_fred_fx share a prefix with silver_psd and answer nothing like it. An id absent from every
+# group lands in OTHER TABLES rather than vanishing -- a new card must never be silently un-indexed.
+_INDEX_GROUPS: tuple[tuple[str, frozenset[str]], ...] = (
+    ("BALANCE SHEETS, PRODUCTION AND CROP ESTIMATES", frozenset({
+        "silver_psd", "silver_wasde", "silver_wap_table01_revisions", "silver_icco_cocoa",
+        "silver_production", "silver_nass_annual", "silver_nass_crop_progress", "silver_nass_citrus",
+        "silver_sagis_cec", "silver_conab_coffee", "silver_ams_cotton_quality",
+        "silver_fnc_colombia_area_department"})),
+    ("EXPORT PROGRAMS, PACE AND PHYSICAL FLOWS", frozenset({
+        "silver_esr", "silver_fgis", "silver_sagis_weekly_exports", "silver_sagis_weekly_deliveries",
+        "silver_minagro_grain_exports", "silver_mpoc_exports_by_country",
+        "silver_mpoc_trade_stats_monthly", "silver_fnc_colombia_exports_port_type",
+        "silver_fnc_colombia_monthly"})),
+    ("PRICES, SPREADS AND THE BOARD", frozenset({
+        "silver_futures_eod", "silver_futures_prices", "silver_pink_sheet", "gold_board_crush",
+        "gold_futures_spreads"})),
+    ("PROCESSING, STOCKS AND MILL OUTPUT", frozenset({
+        "silver_mpob", "silver_mpoc_stock_comparison", "silver_unica_biweekly_season_history",
+        "silver_unica_corn_ethanol", "silver_unica_monthly_ethanol_sales"})),
+    ("WEATHER AND CLIMATE", frozenset({
+        "gold_weather_z", "silver_noaa_oni", "silver_noaa_iod", "silver_nasa_power"})),
+    ("POSITIONING, MACRO AND THE ENGINE'S OWN LEDGER", frozenset({
+        "silver_cot", "silver_fred_fx", "silver_food_cpi", "gold_pattern_records"})),
+)
+_INDEX_OTHER = "OTHER TABLES"
+_INDEX_PURPOSE_MAX = 150
+# A sentence end, never an abbreviation: the char before the period must be a lowercase letter, a digit or
+# a closing bracket, so 'U.S.' and '(Production, Supply & Distribution)' are never cut mid-phrase.
+_SENTENCE_END = re.compile(r"(?<=[a-z0-9)\]%])\.\s")
+
+
+def _index_purpose(ts: TableSpec) -> str:
+    """One line of purpose, CLIPPED from the card's own description -- never a second copy of it."""
+    text = _one_line(ts.description)
+    m = _SENTENCE_END.search(text)
+    if m:
+        text = text[:m.start() + 1]
+    if len(text) > _INDEX_PURPOSE_MAX:
+        text = text[:_INDEX_PURPOSE_MAX].rsplit(" ", 1)[0].rstrip(" ,;:-") + " ..."
+    return text
+
+
+def _index_scope(ts: TableSpec) -> str:
+    """The commodity scope, off the card's own declared fence. A short closed set is NAMED (that is the
+    vocabulary a router needs); a long one is counted, because the card itself teaches the list."""
+    if ts.commodity_values:
+        vals = sorted(ts.commodity_values)
+        return ", ".join(vals) if len(vals) <= 4 else f"{len(vals)} declared commodity values"
+    return "per-commodity" if ts.commodity_col else "no commodity axis"
+
+
+def _index_row(ts: TableSpec) -> str:
+    fields = [ts.id, _index_purpose(ts), _index_scope(ts), ", ".join(_coverage_bits(ts))]
+    return "- " + " | ".join(f for f in fields if f)
+
+
+def _index(reg: NumbersRegistry, visible: list[str]) -> str:
+    blocks, placed = [], set()
+    for heading, ids in _INDEX_GROUPS:
+        members = sorted(t for t in visible if t in ids)          # sorted: byte-stable per registry
+        placed.update(members)
+        if members:
+            blocks.append(heading + "\n" + "\n".join(_index_row(reg.get(t)) for t in members))
+    rest = sorted(t for t in visible if t not in placed)
+    if rest:
+        blocks.append(_INDEX_OTHER + "\n" + "\n".join(_index_row(reg.get(t)) for t in rest))
+    # The header deliberately does NOT repeat the literal "## Tables" heading: this string is scanned by
+    # eval tooling and by the tests, and a second occurrence of a section marker splits at the wrong place.
+    return ("## Index -- every table below, by subject: `id | what it holds | commodity scope | coverage`. "
+            "The full card for each id follows in the next section.\n\n" + "\n\n".join(blocks))
 
 
 def system_prompt(reg: NumbersRegistry, stats_tool: Optional[bool] = None) -> str:
     visible = _visible_tables(reg)                         # pattern-records card filtered out when flag OFF
     cards = "\n\n".join(_table_card(reg.get(t)) for t in visible)
+    index = _index(reg, visible)                           # PA-3: same visible set -> same kill-switch parity
     # T2B: the observation-register bullet ships ONLY when the gold_pattern_records card is visible (flag on),
     # so with the flag off the ## Conventions block is byte-identical to pre-feature (kill-switch parity --
     # the model is never told about a table it does not have).
@@ -2055,9 +2232,18 @@ def system_prompt(reg: NumbersRegistry, stats_tool: Optional[bool] = None) -> st
         "for the US national total across all buyers. Label the figure as that destination (or as the US-wide "
         "total when unscoped); the EU and other blocs are bloc aggregates. An unrecognised destination returns "
         "no rows -- say the figure is unavailable, never present a national total as that destination.\n"
-        "- silver_nasa_power is per STATION-REGION: each lookup reads ONE region (defaults to the commodity's "
-        "primary growing region, e.g. us_corn_iowa for corn_cbot). The result is that station's value, not a "
-        "belt-wide total — state the region when you report the number.\n"
+        # PA-5 QUARANTINE PARITY (2026-08-25) -- DELETED, not amended: the silver_nasa_power STATION-REGION
+        # bullet stood here teaching a table the model cannot name. The card carries `quarantined: true`
+        # (SILVER-F047) and `registry.visible_tables` has stripped it from the tool enum, the system-prompt
+        # cards AND the planner family enum since D-LD Track 2 #5 -- so this bullet taught the ONE table
+        # whose own card says "QUARANTINED from serving", and every lookup it invited would have raised at
+        # the enum. Kill-switch parity was already enforced for pattern-records (the ## Conventions bullet
+        # ships only with the card) and for compute_stat (the stats bullet rides `stats_on`); the quarantine
+        # was the one verdict with a fence and a door beside it. `config_check.check_prompt_quarantine`
+        # pins the class: NO quarantined table id may appear in the rendered prompt or the tool schema.
+        # The region PARAMETER stays in the schema (it is a NumberQuery field) -- its us_corn_iowa example
+        # went with the bullet for the same reason.
+
         # D-PQ FIX-2b (2026-08-07) -- THE MARGIN/CRUSH MULTI-LEG CUE, MOVED TO THE SEAM THAT BINDS.
         # FIX-2's first attempt put this cue in `dispatch.ToolSpec.when_to_use`, on the hypothesis that the
         # row was being routed away from numbers. THE RE-RUN FALSIFIED THAT HYPOTHESIS, and the falsifier is
@@ -2104,6 +2290,10 @@ def system_prompt(reg: NumbersRegistry, stats_tool: Optional[bool] = None) -> st
         "- Each returned row is self-identifying (it carries its own period / year / month) — read those to confirm "
         "which observation each number is; results are chronological, so use agg=latest (not the first row) for "
         "the most recent value.\n\n"
+        # PA-3: the INDEX sits between the Conventions and the wall of cards, so the set of tables is
+        # readable BEFORE 154k chars of card text -- and so the cards that exist only inside the wall are
+        # nameable at all. Generated from the registry, sorted within groups: byte-stable per registry.
+        f"{index}\n\n"
         f"## Tables\n{cards}"
     )
 

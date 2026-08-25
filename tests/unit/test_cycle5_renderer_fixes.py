@@ -57,8 +57,12 @@ def test_multi_row_serve_footnotes_every_stated_row():
     cits = cit.unify(None, [call], stated=orc._stated_values(_FARM_PRICE_PROSE))
     body = cit.render(cits)
     lines = body.split("\n")
-    # the headline row is FIRST and unchanged
-    assert lines[0].startswith("[N1] USDA WASDE avg_farm_price corn united_states = 4.4 $/bu")
+    # the headline row is FIRST and unchanged in SUBSTANCE -- PA-8(a)/PA-10(a) (2026-08-25) rebuilt the two
+    # halves this very serve indicted: the metric speaks the card's analyst label ("average farm price", the
+    # `_metric_display` path) instead of the raw slug, and the line now STATES that 35 rows were served with
+    # one shown -- the abundance marker this incident is the motivating case for.
+    assert lines[0].startswith("[N1] USDA WASDE average farm price corn united_states = 4.4 $/bu")
+    assert "35 rows served" in lines[0] and "newest shown" in lines[0]
     assert "[known 2026-07-10]" in lines[0]
     # ...and BOTH stated sibling-period values now have a row of their own, vintage-stamped
     assert any(x.startswith("[N1b]") and "4.24" in x and "MY2024/25" in x and "(actual)" in x

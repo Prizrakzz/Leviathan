@@ -614,7 +614,9 @@ def test_dhp2_ledger_line_gives_e_a_range_symmetric_with_n():
     assert src.count("Cite AT MOST") == 1                              # one spelling, in the producer
     # ONE PRODUCER, BOTH BODIES: L2 unconditionally, one-hop under handle-prose (D-HP-16)
     assert src.count("_grounding_ledger(") == 3                         # def + two call sites
-    assert "_ledger_line = _grounding_ledger(n_ev, n_num, menu_on=_menu_on)" in src
+    # PA-8(b): the L2 site now also passes SERVED ROWS (`n_rows`) -- `n_num` still governs the [N] range,
+    # which is what this pin is about, so the call-site assertion follows the signature.
+    assert "_ledger_line = _grounding_ledger(n_ev, n_num, menu_on=_menu_on, n_rows=n_srv)" in src
     assert "volatile_blocks.append(_grounding_ledger(" in src
 
 

@@ -1145,6 +1145,46 @@ def check_quarantine() -> list[str]:
     return _check_no_engine_ref(load_map(), q, "F047", "quarantined")
 
 
+def check_prompt_quarantine() -> list[str]:
+    """PA-5 (PROMPT-AUDIT WAVE 1, 2026-08-25) -- QUARANTINE PARITY ON THE MODEL-FACING SURFACES.
+
+    `check_quarantine` above fences the ENGINE MAPS and `registry.visible_tables` strips the card from the
+    tool enum, the system-prompt cards and the planner family enum. What NEITHER covered is the PROSE: the
+    ## Conventions block carried a `silver_nasa_power is per STATION-REGION` bullet and the tool schema's
+    `region` parameter advertised `us_corn_iowa` -- the quarantined card's own vocabulary -- so the model
+    was taught, in the one place it reads before choosing a table, a table it cannot name and a lookup that
+    would have raised at the enum. A fence with a door beside it. Both were deleted; this pins the CLASS.
+
+    It reads the RENDERED strings (not the source) because that is what the model gets, and it renders in
+    BOTH `stats_tool` states so a quarantined id can never re-enter through a flag-gated branch. Vacuous
+    only if nothing is quarantined -- and that is reported as a NOTE, never as a silent pass, because a
+    pin whose subject vanished is a pin to re-point rather than to delete (the test_capability_wiring
+    idiom on the same card)."""
+    import json as _json
+    from leviathan.graphrag.numbers import agent as na
+    from leviathan.graphrag.numbers.registry import load_registry
+    reg = load_registry()
+    quarantined = sorted(tid for tid, ts in reg.tables.items() if getattr(ts, "quarantined", False))
+    if not quarantined:
+        print("NOTE prompt_quarantine: no card carries quarantined=true -- pin is VACUOUS, re-point it "
+              "at the next quarantine rather than deleting it")
+        return []
+    errs: list[str] = []
+    for stats_on in (True, False):
+        rendered = na.system_prompt(reg, stats_tool=stats_on)
+        for tid in quarantined:
+            if tid in rendered:
+                errs.append(f"prompt_quarantine: quarantined table {tid!r} appears in the rendered numbers "
+                            f"system prompt (stats_tool={stats_on}) -- the model is being taught a table "
+                            f"`visible_tables` strips from its own tool enum")
+    schema = _json.dumps([na.tool_schema(reg), na.stats_tool_schema()], sort_keys=True)
+    for tid in quarantined:
+        if tid in schema:
+            errs.append(f"prompt_quarantine: quarantined table {tid!r} appears in the model-facing tool "
+                        f"schema (enum, parameter description or example)")
+    return errs
+
+
 # R7: a POSITIONING metric must be a DATED LEVEL or a Z-SCORE -- never a forecast/percentile-projection family.
 # Level units are the raw position/OI counts + the signed pct-of-OI; z families carry a sigma/z-score unit. A
 # metric outside these families (or a forward-looking name) means positioning is being served as something
@@ -2137,6 +2177,7 @@ def main() -> int:
                         ("edge_blurbs", check_edge_blurbs()),
                         ("price_register", check_price_register()),
                         ("quarantine", check_quarantine()),
+                        ("prompt_quarantine", check_prompt_quarantine()),
                         ("numbers_schema_pins", check_numbers_schema_pins()),
                         ("esr_destinations", check_esr_destinations()),
                         ("cot_register", check_cot_register()),
