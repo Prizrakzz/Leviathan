@@ -1411,6 +1411,21 @@ def silver_psd_key() -> str:
     return "silver/psd/part-000.parquet"
 
 
+def silver_psd_attributes_key() -> str:
+    """S3 key for the USDA PSD LONG attributes silver Parquet (every attribute, native units).
+
+    The long companion to :func:`silver_psd_key`: one row per ``(leviathan_slug, country,
+    market_year, wasde_release_month, release_date, attribute)`` carrying the value in the unit
+    USDA published it in, where the wide table pivots eight attributes into MT-denominated
+    columns and drops the rest.  Flat and consolidated on the same terms as the wide table.
+
+    The root is a SIBLING of ``silver/psd/``, never a child of it: the wide table's recovery
+    strategy is a bounded full relist under its own flat root, and a long object nested inside
+    that root would be relisted as if it were wide data.
+    """
+    return "silver/psd_attributes/part-000.parquet"
+
+
 def bronze_pink_sheet_key(release_ym: str) -> str:
     """S3 key for a World Bank Pink Sheet bronze Parquet (one monthly release).
 
