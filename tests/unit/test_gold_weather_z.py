@@ -20,6 +20,7 @@ from leviathan.transforms.gold.weather_z import (
     METRIC_GDD_Z,
     METRIC_HEAT_STRESS_Z,
     METRIC_TMAX_ANOMALY,
+    Z_METRICS,
     _drought_runs,
     compute_weather_z,
     to_psd_surface,
@@ -476,8 +477,10 @@ def test_basin_frost_renamed_to_share_and_no_tail() -> None:
     got = compute_weather_z("cocoa", nasa_power=pd.concat(frames, ignore_index=True),
                             window_years=WIN, min_years=MIN, enforce_month_completeness=False)
     basin = got[got["country"] == "West Africa"]
-    assert set(basin["metric"].unique()) == {"frost_event_share"}   # renamed; flag never wears a share
-    assert np.isclose(float(basin["value"].iloc[0]), 0.5)           # 1 of 2 cells flagged
+    # renamed (a flag never wears a share); the W-3 provenance row rides beside it, and NO tail share
+    assert set(basin["metric"].unique()) == {"frost_event_share", "frost_event_flag_cells"}
+    share = basin[basin["metric"] == "frost_event_share"]
+    assert np.isclose(float(share["value"].iloc[0]), 0.5)           # 1 of 2 cells flagged
 
 
 def test_basin_disabled_with_empty_registry() -> None:
@@ -486,3 +489,252 @@ def test_basin_disabled_with_empty_registry() -> None:
                             window_years=WIN, min_years=MIN, enforce_month_completeness=False,
                             basins={})
     assert "West Africa" not in set(got["country"].unique())
+
+
+# ── W-2: three measured basins, one entry per belt, zero new fetches ───────────────────────────────────
+# The member lists were MEASURED off configs/geographies (the tokens the silver frames carry); this
+# fence pins the registry shape and the surface tokens, which are load-bearing (a surface that collides
+# with a live per-cell country value would merge a belt aggregate into a real country's row pool).
+
+def test_basin_registry_declares_the_four_belts_with_snake_case_members() -> None:
+    from leviathan.transforms.gold.weather_z import BASINS
+    assert set(BASINS) == {"west_africa", "eu_belt", "sea_palm_belt", "northern_plains_prairies"}
+    assert BASINS["eu_belt"]["members"] == [
+        "france", "germany", "poland", "romania", "hungary", "italy", "ukraine"]
+    assert BASINS["sea_palm_belt"]["members"] == ["indonesia", "malaysia"]
+    assert BASINS["northern_plains_prairies"]["members"] == ["united_states", "canada"]
+    for spec in BASINS.values():
+        for m in spec["members"]:
+            assert m == m.lower() and " " not in m, m       # SILVER snake_case, never a surface form
+
+
+def test_basin_surfaces_never_collide_with_a_live_country_value() -> None:
+    """'European Union' is a LIVE per-cell country value (rapeseed_oil_zce carries country
+    european_union) -- the eu_belt surface must never be that string, or a belt aggregate would land
+    in a real country's row pool. Same rule for every member's own surface."""
+    from leviathan.transforms.gold.weather_z import BASINS
+    surfaces = {spec["surface"] for spec in BASINS.values()}
+    assert "European Union" not in surfaces
+    assert surfaces == {"West Africa", "EU Belt", "SE Asia Palm Belt", "Northern Plains"}
+    member_surfaces = {to_psd_surface(m) for spec in BASINS.values() for m in spec["members"]}
+    assert surfaces.isdisjoint(member_surfaces)
+
+
+def test_member_tokens_match_the_geography_configs() -> None:
+    """Every declared member must be a country token some tracked geography config actually carries --
+    a typo'd member is a basin that silently never fires (the class W-2 was written to avoid)."""
+    yaml = pytest.importorskip("yaml")
+    import glob
+    import os
+    from leviathan.transforms.gold.weather_z import BASINS
+    root = os.path.join(os.path.dirname(__file__), "..", "..", "configs", "geographies")
+    paths = sorted(glob.glob(os.path.join(root, "*_regions.yaml")))
+    if not paths:
+        pytest.skip("configs/geographies absent from this tree")
+    live: set[str] = set()
+    for p in paths:
+        with open(p, encoding="utf-8") as fh:
+            for r in (yaml.safe_load(fh) or {}).get("regions", []):
+                live.add(r["country"])
+    for basin, spec in BASINS.items():
+        for m in spec["members"]:
+            assert m in live, f"{basin} member {m!r} is in no geography config"
+
+
+def test_single_country_intersection_is_silently_skipped() -> None:
+    """The STRUCK single-country belts (us_midwest_soy_belt, safrinha_belt) would look exactly like
+    this: a frame carrying ONE member of a declared basin. The nunique() < BASIN_MIN_COUNTRIES guard
+    skips it whole -- no basin row AND no country tier (the tier decomposes a basin read, it is never
+    a standalone per-country product)."""
+    from leviathan.transforms.gold.weather_z import BASINS
+    cells = {("united_states", "ia"): 24.0, ("united_states", "il"): 21.5}   # us only: canada absent
+    got = compute_weather_z("soybeans_cbot", nasa_power=_basin_nasa(cells),
+                            window_years=WIN, min_years=MIN, enforce_month_completeness=False)
+    assert BASINS["northern_plains_prairies"]["surface"] not in set(got["country"].unique())
+    assert set(got["region"].unique()) == {"ia", "il"}          # no *_basin, no *_country row
+    assert set(got["metric"].unique()) <= set(ALL_METRICS)      # only cell-grain metrics survive
+
+
+# ── W-4: the per-country tail tier ────────────────────────────────────────────────────────────────────
+# <metric>_tail_share used to exist at BASIN grain only, so more basins bought more BASIN rows and never
+# a per-country one. The tier emits the member's own tail share (and frost share) under the member's own
+# surface at region '<member>_country' -- and NEVER the mean, which would collide with the per-cell rows
+# already sitting under that country surface (region is not a v1 query filter).
+
+def test_country_tier_emits_shares_never_the_mean() -> None:
+    cells = {("cameroon", "c1"): 24.0, ("cameroon", "c2"): 21.5,
+             ("ghana", "g1"): 22.0, ("ghana", "g2"): 20.0}
+    got = compute_weather_z("cocoa", nasa_power=_basin_nasa(cells),
+                            window_years=WIN, min_years=MIN, enforce_month_completeness=False)
+    tier = got[got["region"].str.endswith("_country")]
+    assert set(tier["region"].unique()) == {"cameroon_country", "ghana_country"}
+    assert set(tier["country"].unique()) == {"Cameroon", "Ghana"}      # the member's OWN PSD surface
+    # exactly the share + provenance vocabulary; the bare metric name NEVER appears at this grain
+    assert set(tier["metric"].unique()) == {"tmax_anomaly_tail_share", "tmax_anomaly_cells"}
+    assert METRIC_TMAX_ANOMALY not in set(tier["metric"].unique())
+
+    # the value is THAT COUNTRY's share, computed from that country's cells only
+    def cell_z(v: float) -> float:
+        return float(trailing_baseline_z(
+            pd.Series({2000: 20.0, 2001: 22.0, 2002: 21.0, 2003: v}).sort_index(),
+            WIN, MIN).loc[2003])
+    for country, region, vals in (("Cameroon", "cameroon_country", (24.0, 21.5)),
+                                  ("Ghana", "ghana_country", (22.0, 20.0))):
+        row = tier[(tier["country"] == country) & (tier["region"] == region)
+                   & (tier["metric"] == "tmax_anomaly_tail_share") & (tier["year"] == 2003)]
+        assert len(row) == 1
+        assert np.isclose(float(row["value"].iloc[0]),
+                          float(np.mean([cell_z(v) >= 2.0 for v in vals])))
+
+    # the tall key stays unique even though country-tier rows share a country surface with cell rows
+    key = ["commodity", "country", "region", "year", "month", "metric"]
+    assert not got.duplicated(subset=key).any()
+
+
+def test_country_tier_frost_share_and_no_flag_no_tail() -> None:
+    frames = [
+        _daily(2001, 7, _TMIN, [5.0, 5.0, -3.0, 5.0], country="cameroon", region="c1"),   # frost
+        _daily(2001, 7, _TMIN, [-2.0, 6.0, 6.0, 6.0], country="cameroon", region="c2"),   # frost
+        _daily(2001, 7, _TMIN, [6.0, 6.0, 6.0, 6.0], country="ghana", region="g1"),       # none
+    ]
+    got = compute_weather_z("cocoa", nasa_power=pd.concat(frames, ignore_index=True),
+                            window_years=WIN, min_years=MIN, enforce_month_completeness=False)
+    tier = got[got["region"].str.endswith("_country")]
+    assert set(tier["metric"].unique()) == {"frost_event_share", "frost_event_flag_cells"}
+    cmr = tier[(tier["country"] == "Cameroon") & (tier["metric"] == "frost_event_share")]
+    gha = tier[(tier["country"] == "Ghana") & (tier["metric"] == "frost_event_share")]
+    assert np.isclose(float(cmr["value"].iloc[0]), 1.0)      # 2 of 2 Cameroon cells flagged
+    assert np.isclose(float(gha["value"].iloc[0]), 0.0)      # 0 of 1 -- a real reading, kept
+    # the 0/1 FLAG itself never appears at country-tier grain (only on the per-cell rows)
+    assert METRIC_FROST_FLAG not in set(tier["metric"].unique())
+    assert (got[got["metric"] == METRIC_FROST_FLAG]["region"].isin(["c1", "c2", "g1"])).all()
+
+
+def test_country_tier_rides_the_basin_min_cells_gate() -> None:
+    """A country-tier row ALWAYS has a parent basin row at the same (commodity, metric, year, month):
+    a month too thin for a belt read must not reappear decomposed."""
+    cells = {("cameroon", "c1"): 24.0, ("ghana", "g1"): 22.0}
+    nasa = pd.concat([
+        _basin_nasa(cells),
+        _var_by_year(7, _TMAX, {2004: 23.0}, country="cameroon", region="c1"),   # 2004: 1 cell only
+    ], ignore_index=True)
+    got = compute_weather_z("cocoa", nasa_power=nasa,
+                            window_years=WIN, min_years=MIN, enforce_month_completeness=False)
+    tier = got[got["region"].str.endswith("_country")]
+    assert not tier[tier["year"] == 2003].empty
+    assert tier[tier["year"] == 2004].empty                  # gated with its parent basin row
+
+
+# ── W-3: <metric>_cells, the fidelity guard that ships WITH the basins ─────────────────────────────────
+
+def test_cells_metric_at_both_grains_with_correct_counts() -> None:
+    cells = {("cameroon", "c1"): 24.0, ("cameroon", "c2"): 21.5,
+             ("ghana", "g1"): 22.0, ("ghana", "g2"): 20.0, ("nigeria", "n1"): 23.0}
+    got = compute_weather_z("cocoa", nasa_power=_basin_nasa(cells),
+                            window_years=WIN, min_years=MIN, enforce_month_completeness=False)
+    at = lambda region, metric: got[(got["region"] == region) & (got["metric"] == metric)
+                                    & (got["year"] == 2003)]["value"]
+    basin_cells = at("west_africa_basin", "tmax_anomaly_cells")
+    assert len(basin_cells) == 1 and float(basin_cells.iloc[0]) == 5.0     # all five member cells
+    for region, n in (("cameroon_country", 2.0), ("ghana_country", 2.0), ("nigeria_country", 1.0)):
+        col = at(region, "tmax_anomaly_cells")
+        assert len(col) == 1 and float(col.iloc[0]) == n, region
+    # counts are integers CARRIED AS FLOATS (the tall value column is numeric, one dtype for all rows)
+    assert got["value"].dtype.kind == "f"
+    # exactly one cells row per (grain, metric, year, month) -- provenance is never duplicated
+    cellrows = got[got["metric"].str.endswith("_cells")]
+    assert not cellrows.duplicated(subset=["commodity", "country", "region", "year",
+                                           "month", "metric"]).any()
+
+
+def test_lat50_shape_absent_country_row_and_a_short_basin_count() -> None:
+    """THE MEASURED CASE (configs/sources/chirps.yaml: coverage.lat_max = 50). french_rapeseed_matif
+    loses ALL 4 German and ALL 3 Polish cells from drought_z while every temperature metric keeps them,
+    yet the >= 2-countries test passes on the WHOLE commodity frame -- so an 'EU (France/Germany/Poland)'
+    drought leg is answered by a basin holding ZERO German cells. Here: germany has tmax cells and NO
+    drought cells. The country tier for germany/drought_z must be ABSENT, and the basin's
+    drought_z_cells must count only the cells that exist -- short against tmax_anomaly_cells, which is
+    the disclosure."""
+    tmax_cells = {("france", "fr1"): 24.0, ("france", "fr2"): 21.0,
+                  ("germany", "de1"): 23.0, ("germany", "de2"): 22.0}
+    nasa = _basin_nasa(tmax_cells)
+    # CHIRPS: france only -- germany is above latitude 50 and simply has no precipitation cells
+    rng = np.random.default_rng(3)
+    precip = pd.concat(
+        [_daily(y, 7, _PRECIP, list(rng.uniform(0.0, 10.0, size=20)), country="france", region=r)
+         for r in ("fr1", "fr2") for y in range(2000, 2012)], ignore_index=True)
+    got = compute_weather_z("french_rapeseed_matif", nasa_power=nasa, chirps=precip,
+                            window_years=WIN, min_years=MIN, enforce_month_completeness=False)
+
+    basin = got[got["region"] == "eu_belt_basin"]
+    assert set(basin["country"].unique()) == {"EU Belt"}
+    # the basin EXISTS (2 countries on the whole frame) yet its drought leg is France-only ...
+    assert float(basin[(basin["metric"] == "tmax_anomaly_cells") & (basin["year"] == 2003)]
+                 ["value"].iloc[0]) == 4.0
+    drought_counts = basin[basin["metric"] == "drought_z_cells"]["value"].unique()
+    assert len(drought_counts) == 1 and float(drought_counts[0]) == 2.0   # 2 of 4: SHORT, and it SAYS so
+
+    # ... and germany has NO drought country-tier row at all, while it does have a tmax one
+    tier = got[got["region"].str.endswith("_country")]
+    de = set(tier[tier["country"] == "Germany"]["metric"].unique())
+    assert "tmax_anomaly_tail_share" in de and "tmax_anomaly_cells" in de
+    assert not any(m.startswith("drought_z") for m in de)     # honest absence, never a fabricated share
+    fr = set(tier[tier["country"] == "France"]["metric"].unique())
+    assert {"drought_z_tail_share", "drought_z_cells"} <= fr
+
+
+# ── one basin entry, many commodities: the frame intersection does the work ────────────────────────────
+
+def test_one_eu_belt_entry_serves_multiple_commodities_by_frame_intersection() -> None:
+    """W-2's whole economy: ONE eu_belt entry covers all three MATIF contracts because _basin_rows
+    intersects the member list against each commodity's OWN frame. Pinned on a two-commodity gold
+    frame (compute_weather_z is per-commodity, the post-pass is not)."""
+    from leviathan.transforms.gold.weather_z import BASINS, _basin_rows
+
+    def cell(commodity, country, region, metric, value):
+        return {"commodity": commodity, "country": to_psd_surface(country), "region": region,
+                "year": 2003, "month": 7, "metric": metric, "value": value}
+
+    gold = pd.DataFrame([
+        # french_wheat_matif: france + germany (+ romania) -- three members
+        cell("french_wheat_matif", "france", "fr1", METRIC_TMAX_ANOMALY, 2.5),
+        cell("french_wheat_matif", "germany", "de1", METRIC_TMAX_ANOMALY, 0.5),
+        cell("french_wheat_matif", "romania", "ro1", METRIC_TMAX_ANOMALY, 1.0),
+        # french_maize_matif: france + hungary + italy -- a DIFFERENT member subset, same entry
+        cell("french_maize_matif", "france", "fr9", METRIC_TMAX_ANOMALY, 3.0),
+        cell("french_maize_matif", "hungary", "hu1", METRIC_TMAX_ANOMALY, 2.2),
+        cell("french_maize_matif", "italy", "it1", METRIC_TMAX_ANOMALY, -0.4),
+        # corn_cbot: ukraine ALONE of the members -> 1 country -> skipped, correctly
+        cell("corn_cbot", "ukraine", "ua1", METRIC_TMAX_ANOMALY, 4.0),
+        cell("corn_cbot", "united_states", "ia", METRIC_TMAX_ANOMALY, 4.0),
+    ])
+    out = _basin_rows(gold, BASINS)
+    belts = out[out["region"] == "eu_belt_basin"]
+    assert set(belts["commodity"].unique()) == {"french_wheat_matif", "french_maize_matif"}
+    # each commodity's basin is built from ITS OWN members only
+    for commodity, n, mean in (("french_wheat_matif", 3.0, (2.5 + 0.5 + 1.0) / 3),
+                               ("french_maize_matif", 3.0, (3.0 + 2.2 - 0.4) / 3)):
+        sub = belts[belts["commodity"] == commodity]
+        assert float(sub[sub["metric"] == "tmax_anomaly_cells"]["value"].iloc[0]) == n
+        assert np.isclose(float(sub[sub["metric"] == METRIC_TMAX_ANOMALY]["value"].iloc[0]), mean)
+    assert out[out["commodity"] == "corn_cbot"].empty          # ukraine alone is not a belt
+    # every qualifying member got its own country tier, keyed on the SILVER token
+    assert set(out[out["commodity"] == "french_maize_matif"]["region"].unique()) == {
+        "eu_belt_basin", "france_country", "hungary_country", "italy_country"}
+
+
+def test_derived_metric_vocabulary_is_exactly_what_the_post_pass_emits() -> None:
+    """DERIVED_METRICS is the card's contract: every name the post-pass can emit that a per-cell row
+    never carries. ALL_METRICS stays the CELL-grain contract."""
+    from leviathan.transforms.gold.weather_z import BASINS, DERIVED_METRICS, _basin_rows
+
+    rows = []
+    for country, region in (("cameroon", "c1"), ("ghana", "g1")):
+        for metric in ALL_METRICS:
+            rows.append({"commodity": "cocoa", "country": to_psd_surface(country), "region": region,
+                         "year": 2003, "month": 7, "metric": metric, "value": 2.5})
+    out = _basin_rows(pd.DataFrame(rows), BASINS)
+    emitted = set(out["metric"].unique())
+    assert emitted == set(DERIVED_METRICS) | set(Z_METRICS)    # z means ride at BASIN grain only
+    assert set(DERIVED_METRICS).isdisjoint(set(ALL_METRICS))
+    assert len(DERIVED_METRICS) == len(set(DERIVED_METRICS)) == 10

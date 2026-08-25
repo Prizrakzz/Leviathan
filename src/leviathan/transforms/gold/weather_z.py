@@ -88,6 +88,35 @@ needs >= ``BASIN_MIN_CELLS`` member cells (a 1-cell mean/share is just that cell
 in SILVER snake_case and matched on the PSD surface the gold rows already carry. Basin rows ride the
 same parquet/pg path as cell rows; region_map basin tokens then resolve the compound-token legs to the
 basin surface, and the calm/tail narration renders from these real reads.
+
+PER-COUNTRY TAIL TIER (W-4, 2026-08-25) — the basin decomposed by member. Until now ``_tail_share`` was
+emitted at BASIN grain ONLY and ``n_cells`` was computed and thrown away, so adding basins bought more
+BASIN rows and never a per-country one: "how much of Ghana is in the tail" had no row to read. The same
+post-pass now also emits, per member country present in the commodity's frame, at
+region ``<member>_country`` under that member's own PSD surface (region is not a query filter in v1):
+
+    <metric>_tail_share : share of THAT COUNTRY's member cells at z >= +TAIL_SIGMA.
+    frost_event_share   : mean of THAT COUNTRY's 0/1 frost flags (again never ``frost_event_flag``).
+
+The country tier deliberately carries NO ``<metric>`` mean. The per-cell rows already sit under the same
+country surface, and region is not a filter, so a country-scoped ``agg=mean`` over ``drought_z`` reads
+the cells; a country-tier mean under the SAME metric name would silently join that pool and double-count
+the country against itself. ``_tail_share`` / ``frost_event_share`` / ``_cells`` are names that exist at
+NO other grain under a country surface, so they can only ever be read as what they are.
+
+CELL-COUNT PROVENANCE (W-3, the fidelity guard that must ship WITH the basins) — ``<metric>_cells``,
+emitted at BOTH grains for every metric, integer counts carried as floats. The ``>= BASIN_MIN_COUNTRIES``
+test runs on the WHOLE commodity frame across ALL metrics, but the sources do not cover the members
+equally: CHIRPS stops at latitude 50 (configs/sources/chirps.yaml, coverage.lat_max), and MEASURED from
+configs/geographies on 2026-08-25 that costs french_rapeseed_matif ALL 4 German and ALL 3 Polish cells
+(and 1 of 5 French), french_wheat_matif 3 of 4 German, ALL 3 Polish and 1 of 6 French, and
+hard_red_spring_wheat_mgex 2 of 3 CANADIAN cells. So an "EU (France/Germany/Poland)" drought leg would be
+answered by a basin holding ZERO German or Polish drought cells, and a "Northern Plains" drought leg by
+one that is 4/5 US -- while the temperature metrics on the SAME basin surface carry every member. Nothing
+in the emitted rows said so. ``<metric>_cells`` says it: ``tmax_anomaly_cells``=16 beside
+``drought_z_cells``=8 IS the disclosure, per metric, per month, at both grains, and a member whose
+metric has no cells at all simply has NO country-tier row for that metric -- absence that a present
+sibling metric makes legible instead of silent.
 """
 from __future__ import annotations
 
@@ -112,20 +141,74 @@ METRIC_FROST_SHARE = "frost_event_share"   # basin grain only — a share must n
 Z_METRICS = (METRIC_TMAX_ANOMALY, METRIC_GDD_Z, METRIC_HEAT_STRESS_Z, METRIC_DROUGHT_Z)
 ALL_METRICS = Z_METRICS + (METRIC_FROST_FLAG,)
 TAIL_SHARE_SUFFIX = "_tail_share"
+CELLS_SUFFIX = "_cells"                    # W-3 provenance: how many member cells this row was built from
+COUNTRY_TIER_SUFFIX = "_country"           # region token for the per-member tier (cf. ``_basin``)
 
-# ── basin registry (W1.1) — members in SILVER snake_case; surface = the resolvable country token the
-# region_map basin entry points at. west_africa = the cocoa belt's four producing countries (measured
-# from the live gold frame 2026-08-22: Cameroon 2 cells, Cote Divoire 4, Ghana 3, Nigeria 2; Ecuador is
-# South America and stays a per-cell read). Add basins here ONLY with a measured member list.
+# Everything the aggregate post-pass can emit that a per-cell row never carries -- the vocabulary the
+# numbers card must declare and the only names legal at a basin OR country-tier surface. ALL_METRICS
+# stays the CELL-grain contract (the registry fence asserts it is a subset of the card's metrics).
+DERIVED_METRICS: tuple[str, ...] = (
+    tuple(f"{m}{TAIL_SHARE_SUFFIX}" for m in Z_METRICS)
+    + (METRIC_FROST_SHARE,)
+    + tuple(f"{m}{CELLS_SUFFIX}" for m in ALL_METRICS)
+)
+
+# ── basin registry (W1.1; W-2 2026-08-25) — members in SILVER snake_case (the exact ``country:`` token
+# configs/geographies/<commodity>_regions.yaml carries into the silver weather frames); surface = the
+# resolvable country token the region_map basin entry points at. ONE entry per belt serves every
+# commodity: ``_basin_rows`` intersects the member list against each commodity's OWN frame, so a
+# contract that carries two members gets a basin and one that carries a single member is silently
+# skipped by the nunique() < BASIN_MIN_COUNTRIES guard. Add basins here ONLY with a measured member list.
+#
+# MEASURED member lists (configs/geographies, 2026-08-25; the same instrument reproduces west_africa's
+# live-frame cell counts exactly, which is why it is trusted for the three new belts):
+#   west_africa               cocoa {cote_divoire 4, ghana 3, cameroon 2, nigeria 2} = 11 cells.
+#                             (Ecuador is South America and stays a per-cell read.)
+#   eu_belt                   french_wheat_matif   {france 6, germany 4, poland 3, romania 3} = 16
+#                             french_rapeseed_matif{france 5, germany 4, poland 3, ukraine 4} = 16
+#                             french_maize_matif   {france 5, romania 3, hungary 2, italy 3}  = 13
+#                             corn_cbot intersects at ukraine ALONE -> 1 country -> skipped, correctly.
+#   sea_palm_belt             malaysian_crude_palm_oil_cme {malaysia 6, indonesia 6} = 12
+#                             palm_olein_dce               {indonesia 6, malaysia 5} = 11
+#                             robusta_coffee intersects at indonesia alone -> skipped, correctly.
+#   northern_plains_prairies  hard_red_spring_wheat_mgex {united_states 4, canada 3} = 7. Every other
+#                             US or Canadian contract (soybeans_cbot, canola_ice, rapeseed_*_zce, ...)
+#                             carries exactly ONE of the two and is skipped.
+#
+# SURFACE TOKENS ARE LOAD-BEARING: eu_belt is "EU Belt" and NEVER "European Union" -- that string is a
+# LIVE per-cell country value (rapeseed_oil_zce carries country european_union), and reusing it would
+# merge a belt aggregate into a real country's row pool.
+#
+# STRUCK, do not add: us_midwest_soy_belt and safrinha_belt are SINGLE-COUNTRY -- the nunique guard
+# would skip them silently forever, and a single country already has per-cell rows plus (since W-4) a
+# country tier wherever it rides a real belt. black_sea_wheat_belt is NOT CONSTRUCTIBLE from the live
+# geographies (no commodity frame carries two of its would-be members).
 BASINS: dict[str, dict] = {
     "west_africa": {
         "surface": "West Africa",
         "members": ["cameroon", "cote_divoire", "ghana", "nigeria"],
     },
+    "eu_belt": {
+        "surface": "EU Belt",
+        "members": ["france", "germany", "poland", "romania", "hungary", "italy", "ukraine"],
+    },
+    "sea_palm_belt": {
+        "surface": "SE Asia Palm Belt",
+        "members": ["indonesia", "malaysia"],
+    },
+    "northern_plains_prairies": {
+        "surface": "Northern Plains",
+        "members": ["united_states", "canada"],
+    },
 }
 TAIL_SIGMA = 2.0
 BASIN_MIN_COUNTRIES = 2
 BASIN_MIN_CELLS = 2
+# The country tier needs only ONE cell. A 1-cell tail share is 0.0 or 1.0 -- a legitimate reading of
+# "that country's only cell is / is not in the tail" -- and the ``<metric>_cells`` row emitted beside it
+# states the thinness outright. Disclosure beats a floor here: a floor would DELETE the very rows W-3
+# exists to make visible (the lat-50 members are exactly the thin ones).
+COUNTRY_MIN_CELLS = 1
 
 # ── default thresholds — mirror the weather_stage.py defaults (baselines / gdd / heat_stress / drought) ─
 BASELINE_WINDOW_YEARS = 30
@@ -329,36 +412,82 @@ def _frost_flag(nasa: pd.DataFrame, *, commodity, threshold, complete_months) ->
     return rows
 
 
-def _basin_rows(gold: pd.DataFrame, basins: dict[str, dict]) -> pd.DataFrame:
-    """Aggregate per-cell gold rows into basin rows (W1.1). Pure post-pass over the tall frame.
+def _tail_share(values) -> float:
+    """Share of member cells at or beyond +TAIL_SIGMA. One definition, both grains."""
+    return float((values >= TAIL_SIGMA).mean())
 
-    For each basin whose member countries appear >= BASIN_MIN_COUNTRIES strong in ``gold``: per
-    (commodity, metric, year, month) group with >= BASIN_MIN_CELLS member cells, emit the basin MEAN
-    under the same metric name (frost renamed to ``frost_event_share``) and, for z metrics, the share
-    of cells at z >= +TAIL_SIGMA under ``<metric>_tail_share``. region column = ``<basin>_basin``.
+
+def _basin_rows(gold: pd.DataFrame, basins: dict[str, dict]) -> pd.DataFrame:
+    """Aggregate per-cell gold rows into basin rows (W1.1) and per-member country-tier rows (W-4).
+    Pure post-pass over the tall frame.
+
+    A basin is considered for a commodity only when >= BASIN_MIN_COUNTRIES of its member countries
+    appear in that commodity's frame; otherwise NOTHING is emitted for it at EITHER grain -- the
+    country tier is a decomposition OF a basin read, never a standalone per-country product (a lone
+    country already has its own per-cell rows). Per (commodity, metric, year, month):
+
+      BASIN grain   (country = spec['surface'], region = ``<basin>_basin``), gated on
+                    >= BASIN_MIN_CELLS member cells in the group:
+                      ``<metric>``            basin MEAN (frost renamed ``frost_event_share``)
+                      ``<metric>_tail_share`` z metrics only -- share of cells at >= +TAIL_SIGMA
+                      ``<metric>_cells``      how many member cells the two rows above were built from
+
+      COUNTRY grain (country = the member's own PSD surface, region = ``<member>_country``), gated on
+                    the SAME group clearing BASIN_MIN_CELLS at basin grain, plus >= COUNTRY_MIN_CELLS
+                    cells for that member -- so a country-tier row ALWAYS has a parent basin row at the
+                    same (commodity, metric, year, month), and a month too thin for a belt read never
+                    reappears decomposed:
+                      ``<metric>_tail_share`` z metrics only -- share of THAT country's cells in the tail
+                      ``frost_event_share``   frost only -- mean of THAT country's 0/1 flags
+                      ``<metric>_cells``      that country's contributing cell count
+                    NO ``<metric>`` mean: the per-cell rows already sit under this country surface and
+                    region is not a v1 query filter, so a same-named mean would double-count.
+
+    A member appearing in two basins is emitted ONCE at country grain (first basin in registry order):
+    the row is basin-independent by construction, so a second copy would only duplicate the tall key.
     """
     if gold.empty:
         return pd.DataFrame(columns=GOLD_COLUMNS)
     rows: list[tuple] = []
+    seen_country: set[tuple] = set()
     for basin, spec in basins.items():
-        member_surfaces = {to_psd_surface(m) for m in spec["members"]}
-        sub = gold[gold["country"].isin(member_surfaces)]
+        member_by_surface = {to_psd_surface(m): m for m in spec["members"]}
+        sub = gold[gold["country"].isin(set(member_by_surface))]
         if sub.empty or sub["country"].nunique() < BASIN_MIN_COUNTRIES:
             continue
         surface = spec["surface"]
         region = f"{basin}_basin"
-        grouped = sub.groupby(["commodity", "metric", "year", "month"])["value"]
-        agg = grouped.agg(basin_mean="mean", n_cells="count",
-                          tail_share=lambda v: float((v >= TAIL_SIGMA).mean())).reset_index()
+        agg = sub.groupby(["commodity", "metric", "year", "month"])["value"].agg(
+            basin_mean="mean", n_cells="count", tail_share=_tail_share).reset_index()
+        # the basin-grain cell count IS the country tier's gate -- one guard, one meaning
+        basin_cells = {(r.commodity, r.metric, int(r.year), int(r.month)): int(r.n_cells)
+                       for r in agg.itertuples(index=False)}
         for r in agg.itertuples(index=False):
             if int(r.n_cells) < BASIN_MIN_CELLS:
                 continue
+            key = (r.commodity, surface, region, int(r.year), int(r.month))
             out_metric = METRIC_FROST_SHARE if r.metric == METRIC_FROST_FLAG else r.metric
-            rows.append((r.commodity, surface, region, int(r.year), int(r.month),
-                         out_metric, float(r.basin_mean)))
+            rows.append((*key, out_metric, float(r.basin_mean)))
             if r.metric in Z_METRICS:
-                rows.append((r.commodity, surface, region, int(r.year), int(r.month),
-                             f"{r.metric}{TAIL_SHARE_SUFFIX}", float(r.tail_share)))
+                rows.append((*key, f"{r.metric}{TAIL_SHARE_SUFFIX}", float(r.tail_share)))
+            rows.append((*key, f"{r.metric}{CELLS_SUFFIX}", float(r.n_cells)))
+
+        cagg = sub.groupby(["commodity", "country", "metric", "year", "month"])["value"].agg(
+            country_mean="mean", n_cells="count", tail_share=_tail_share).reset_index()
+        for r in cagg.itertuples(index=False):
+            group = (r.commodity, r.metric, int(r.year), int(r.month))
+            if basin_cells.get(group, 0) < BASIN_MIN_CELLS or int(r.n_cells) < COUNTRY_MIN_CELLS:
+                continue
+            creg = f"{member_by_surface[r.country]}{COUNTRY_TIER_SUFFIX}"
+            key = (r.commodity, r.country, creg, int(r.year), int(r.month))
+            if (key, r.metric) in seen_country:
+                continue
+            seen_country.add((key, r.metric))
+            if r.metric in Z_METRICS:
+                rows.append((*key, f"{r.metric}{TAIL_SHARE_SUFFIX}", float(r.tail_share)))
+            elif r.metric == METRIC_FROST_FLAG:
+                rows.append((*key, METRIC_FROST_SHARE, float(r.country_mean)))
+            rows.append((*key, f"{r.metric}{CELLS_SUFFIX}", float(r.n_cells)))
     return _emit(rows)
 
 
@@ -386,9 +515,12 @@ def compute_weather_z(
     months not covering every calendar day — the -13.16 partial-month guard; z metrics are winsorized
     at +/-``Z_CAP`` either way. Tests exercising synthetic short months pass False explicitly.
 
-    ``basins`` (default: the module ``BASINS`` registry) appends basin aggregate rows (mean +
-    ``_tail_share`` per z metric, ``frost_event_share``) for basins with enough member countries present
-    — see the module docstring's BASIN AGGREGATE ROWS block. Pass ``{}`` to disable.
+    ``basins`` (default: the module ``BASINS`` registry) appends the aggregate post-pass for basins with
+    enough member countries present in THIS commodity's frame: basin rows (mean + ``_tail_share`` per z
+    metric + ``frost_event_share``) and the per-member country tier (``_tail_share`` /
+    ``frost_event_share`` only, never a mean), with ``<metric>_cells`` provenance at both grains — see
+    the module docstring's BASIN AGGREGATE ROWS / PER-COUNTRY TAIL TIER / CELL-COUNT PROVENANCE blocks.
+    Pass ``{}`` to disable.
     """
     cm = enforce_month_completeness
     rows: list[tuple] = []

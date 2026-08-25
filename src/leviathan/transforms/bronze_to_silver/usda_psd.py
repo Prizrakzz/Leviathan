@@ -594,25 +594,50 @@ def _compute_psd_release_dates(df: pd.DataFrame) -> pd.Series:
     return dates
 
 
-def transform_psd_bronze_to_silver(
+def prepare_psd_combined_frame(
     dfs: list[pd.DataFrame],
+    *,
+    extra_required: frozenset[str] = frozenset(),
 ) -> pd.DataFrame:
-    """Convert one or more bronze PSD DataFrames into a single silver DataFrame.
+    """Run steps 1-5 of the PSD pipeline and return the frame at the BRANCH POINT.
 
-    Each element of *dfs* is one ``release_date`` partition read from S3
-    (``bronze/production/source=usda_psd/release_date=.../part-000.parquet``).
-    Passing multiple DataFrames enables revision-diff computation across
-    sequential WASDE releases.
+    D-EC L2-2 (2026-08-25) -- THE SHARED PREFIX.  ``silver_psd`` (wide, 8 pivoted
+    attributes, MT-converted) and ``silver_psd_attributes`` (long, every attribute,
+    native units) are the SAME table up to this point: same commodity filter, same
+    slug fan-out, same WASDE-calendar release_date, same consumption remaps.  The
+    two producers therefore share one prefix rather than each keeping a copy of it
+    -- a duplicated prefix is a pair of tables that drift apart silently, which is
+    the exact failure class R2 exists to stop one level down.
+
+    The returned frame is post-explode (one row per leviathan_slug) and post-remap,
+    and it carries TWO attribute-label columns:
+
+      * ``attribute_desc``        -- the NORMALISED label the wide pivot keys on
+                                    ("Total Disappearance"/"Domestic Use"/"Fresh
+                                    Dom. Consumption" already folded into
+                                    "Domestic Consumption").
+      * ``attribute_desc_native`` -- USDA's own label, snapshotted BEFORE the
+                                    remaps.  The long companion emits this one so
+                                    that (attribute, attribute_id) stays 1:1 across
+                                    the whole table; the wide pivot ignores it.
+
+    MEASURED (2026-08-13 bulk object): the three remaps are 1:1 RENAMES, not
+    merges -- codes 612000 / 2631000 / 571120 publish NO attribute_id 125 of their
+    own, so folding 126 / 142 / 135 onto "Domestic Consumption" can never collide
+    with a genuine 125 row.  Either label choice is therefore grain-safe; the long
+    table takes the native one for fidelity, not to dodge a collision.
 
     Args:
         dfs: List of bronze DataFrames.  Must be non-empty.
+        extra_required: Column names required IN ADDITION to :data:`_REQUIRED_COLS`
+            (the long producer adds ``attribute_id``).
 
     Returns:
-        Wide-format silver DataFrame with :data:`_SILVER_COLS` columns.
+        The combined frame at the branch point, or an EMPTY frame when no row
+        survives the commodity filter.  Callers own their own empty schema.
 
     Raises:
-        ValueError: If *dfs* is empty, required columns are missing, or an
-                    unrecognised ``unit_desc`` appears for an in-scope row.
+        ValueError: If *dfs* is empty or required columns are missing.
     """
     if not dfs:
         raise ValueError("dfs must contain at least one DataFrame")
@@ -620,8 +645,9 @@ def transform_psd_bronze_to_silver(
     # -----------------------------------------------------------------------
     # 1. Validate required columns
     # -----------------------------------------------------------------------
+    required = _REQUIRED_COLS | frozenset(extra_required)
     for i, df in enumerate(dfs):
-        missing = _REQUIRED_COLS - set(df.columns)
+        missing = required - set(df.columns)
         if missing:
             raise ValueError(
                 f"PSD bronze DataFrame[{i}] missing required columns: {missing}. "
@@ -644,7 +670,7 @@ def transform_psd_bronze_to_silver(
 
     if combined.empty:
         logger.warning("PSD transform: no in-scope rows remain after commodity filter")
-        return _empty_silver()
+        return combined
 
     # -----------------------------------------------------------------------
     # 4. Fan-out: explode each commodity row to one row per contract slug
@@ -673,10 +699,22 @@ def transform_psd_bronze_to_silver(
     combined["release_date"] = computed_date.where(
         computed_date <= ingest_date, ingest_date
     )
+    # Keep the bronze ingest date the line above overwrites.  It is the ONLY
+    # surviving witness to WHICH SNAPSHOT a row came from, and the computed WASDE
+    # date is not a substitute: for any row the F2 clamp does not bind (i.e. every
+    # historical row) two different bronze snapshots produce the SAME computed
+    # release_date, so "which of these two re-prints is newer" is unanswerable
+    # without it.  The long companion uses it as the vintage tiebreak; nothing in
+    # the wide path reads it.
+    combined["bronze_ingest_date"] = ingest_date
 
     # -----------------------------------------------------------------------
-    # 5. Remap non-standard consumption attribute labels → "Domestic Consumption"
+    # 5. Remap non-standard consumption attribute labels -> "Domestic Consumption"
     # -----------------------------------------------------------------------
+    # Snapshot USDA's own label FIRST.  The long companion keys on it; nothing in
+    # the wide path reads it (pivot_table takes index/columns/values explicitly).
+    combined["attribute_desc_native"] = combined["attribute_desc"]
+
     sugar_mask = (
         combined["leviathan_slug"].isin(_SUGAR_SLUGS)
         & (combined["attribute_desc"] == _SUGAR_CONSUMPTION_ATTR)
@@ -694,6 +732,35 @@ def transform_psd_bronze_to_silver(
         & (combined["attribute_desc"] == _FRESH_CONSUMPTION_ATTR)
     )
     combined.loc[fresh_mask, "attribute_desc"] = "Domestic Consumption"
+
+    return combined
+
+
+def transform_psd_bronze_to_silver(
+    dfs: list[pd.DataFrame],
+) -> pd.DataFrame:
+    """Convert one or more bronze PSD DataFrames into a single silver DataFrame.
+
+    Each element of *dfs* is one ``release_date`` partition read from S3
+    (``bronze/production/source=usda_psd/release_date=.../part-000.parquet``).
+    Passing multiple DataFrames enables revision-diff computation across
+    sequential WASDE releases.
+
+    Args:
+        dfs: List of bronze DataFrames.  Must be non-empty.
+
+    Returns:
+        Wide-format silver DataFrame with :data:`_SILVER_COLS` columns.
+
+    Raises:
+        ValueError: If *dfs* is empty, required columns are missing, or an
+                    unrecognised ``unit_desc`` appears for an in-scope row.
+    """
+    # Steps 1-5 are shared with the long companion producer; see
+    # prepare_psd_combined_frame for why they live in one place.
+    combined = prepare_psd_combined_frame(dfs)
+    if combined.empty:
+        return _empty_silver()
 
     # -----------------------------------------------------------------------
     # 6. Filter to the eight target attributes
