@@ -94,7 +94,18 @@ variable "serving_image_tag" {
   # (rollout COMPLETED, startedAt 13:13:00+03 > push 13:08:33+03, exact digest 08b5fd3a).
   # DRIFT ADOPTION 2026-08-22 (tf_drift_roster.md): live serving rev 110's build; tag verified
   # resolving to embedder digest fe074db1 (commit cd671130).
-  default     = "20260821T220215"
+  # DEPLOYED 2026-08-25 (rev 113): tag 20260825T143545 = digest ce408c38..., built
+  # at b86c716e -- the COMPOUND deploy: the anthropic-1.0 vendored-httpx timeout fix (f485d04e;
+  # rev 110's image could not complete ANY LLM call), the ratified A/B seats as taskdef env
+  # (GRAPHRAG_SYNTH_MODEL=claude-opus-5, GRAPHRAG_NUMBERS_MODEL=claude-sonnet-5; dispatch stays
+  # sonnet-4-6 by the judged verdict), the GN-2 config fold (219 labels, spread cascade rows,
+  # cohere-default rerank), and PA prompt waves 1+2a+2b (catalog/index/read-shapes, rows-not-
+  # calls ledger, display binding to leaks=1, read floor + stats obligation). Taskdef 113
+  # registered copy-from-deployed-110 with the two seat ADDs (112 = image-only, superseded
+  # unused). Canary: three tells PASSED (new task 16a90c14, startedAt 15:06:58+03 > push,
+  # exact digest); healthz contracts 36; graph_version f6cf1f5db711 -> 4311f8636287 = CONVERGENCE
+  # to the graph every judged number of 2026-08-23/25 was measured on (usefulness 4.00 lineage).
+  default     = "20260825T143545"
 }
 
 # Stage 2: the ACM wildcard cert (leviathanconvexity.com + *) created in the console. us-east-1.
