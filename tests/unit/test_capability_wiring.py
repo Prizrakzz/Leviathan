@@ -73,6 +73,12 @@ BOARD_CRUSH = "gold_board_crush"
 # and the SEMANTICS, which are identical whether the table holds one as-of or four hundred.
 MINAGRO = "silver_minagro_grain_exports"
 
+# L2-4 (projection wave Lane 3, 2026-08-25) -- the PSD LONG COMPANION, one row per balance-sheet line in
+# USDA's own unit. It is the sibling of a card already advertised rather than a new subject, which is
+# exactly why its token discipline is the strictest in this file: "crush" and "attribute" were BOTH already
+# paid for by the string, so an entry using either would have advertised nothing at all.
+PSD_ATTRS = "silver_psd_attributes"
+
 
 def _purpose() -> str:
     return next(t.purpose for t in dp.REGISTRY if t.name == "numbers").lower()
@@ -147,6 +153,16 @@ _ADVERTISED = {
     # export COUNT itself. Both alternatives below were verified absent from the purpose string before
     # this wave, and either one alone identifies the table.
     MINAGRO: ("ukrainian grain", "state customs"),           # NOT ("ukraine",) -- see above
+    # -- L2-4 (projection wave Lane 3, 2026-08-25). The entry lands with the CLAUSE, ahead of the card the
+    # sibling L2-3 change registers -- the nasa_power precedent above for an entry whose table the loop
+    # cannot reach yet: it is inert until `silver_psd_attributes` becomes visible and green the moment it
+    # does, instead of failing that change on a map hole opened by an unrelated one.
+    # `crush` ALONE would free-ride three times over (UNICA's "cane crush", BOARD_CRUSH's "board crush",
+    # and the long-standing "no Dalian or Zhengzhou crush"), and `attribute` free-rides on the string's own
+    # "so a move can be attributed" -- both were MEASURED on the purpose text before this entry was
+    # written. `oilseed crush` and `arabica` were verified ABSENT from it, and either alone identifies the
+    # long companion.
+    PSD_ATTRS: ("oilseed crush", "arabica"),                 # NOT ("crush",) / ("attribute",) -- see above
 }
 
 

@@ -366,6 +366,16 @@ def _plus_days(iso: str, days: int) -> str:
 # exchange slugs; the cascade bypasses the agent, so it aliases here.
 PSD_SLUG_ALIAS = {"corn": "corn_cbot", "soybeans": "soybeans_cbot"}
 
+# THE TWO PSD SURFACES (projection wave Lane 3, L2-5, 2026-08-25). One source object, two shapes: the wide
+# card pivots eight attributes into MT-denominated COLUMNS, the long companion keeps every published line
+# with the metric as a VALUE of an `attribute` column and the value in USDA's OWN unit. Named here, beside
+# the other PSD identity constants, because both the declared-unserved fence below and the World synthesis
+# 1,700 lines down have to mean the same two cards -- a second literal in either place is how the fence and
+# the reader drift apart.
+_PSD_TABLE = "silver_psd"
+_PSD_ATTR_TABLE = "silver_psd_attributes"
+PSD_TABLES = frozenset({_PSD_TABLE, _PSD_ATTR_TABLE})
+
 # Contracts with NO series in silver_psd AT ALL (DISTINCT leviathan_slug, C002-verified 2026-07-15):
 # USDA PSD carries no cocoa balance sheet -- that is ICCO territory. A quantify against it can only ever
 # return 0 rows -- declare the absence so the leg SKIPs honestly at _scope and the C002 slug check reads
@@ -613,19 +623,32 @@ def _driver_token(n) -> str:
         return ""
 
 
+def _table_spec(table):
+    """THE registry read for every engine question about a card's declared shape: the TableSpec, or None
+    when the registry cannot answer -- an unregistered card (the long PSD companion before its own change
+    lands) or a load failure. Uncached ON PURPOSE: _registry() is the cached layer, and a second cache here
+    would hold stale verdicts across test monkeypatches and config reloads."""
+    if not table:
+        return None
+    try:
+        return _registry().get(table)
+    except Exception:  # noqa: BLE001 -- an unknown table is a DECLINE, never a raise inside a leg
+        return None
+
+
+def _table_shape(table) -> str | None:
+    """The card's declared SQL shape ('wide' = metric IS a column | 'tall' = metric is a VALUE of the
+    metric column), or None when no card answers for `table`. Callers treat None as "cannot know how this
+    metric is spelled" and decline rather than guessing (L2-5)."""
+    return getattr(_table_spec(table), "shape", None)
+
+
 def _table_has_country(table) -> bool:
     """Does the table declare a country axis (TableSpec.country_col)? Drives the no-geography-primary
     skip: on a per-country table an unfiltered query is mixed-country garbage; on a country-less table
     country=None is the only honest scope. Registry-lookup failure reads as country-less (legacy
-    behavior) -- the census re-derives this with a live registry, so the lint half stays fail-closed.
-    Uncached ON PURPOSE: _registry() is the cached layer, and a second cache here would hold stale
-    verdicts across test monkeypatches and config reloads."""
-    if not table:
-        return False
-    try:
-        return bool(getattr(_registry().get(table), "country_col", None))
-    except Exception:  # noqa: BLE001
-        return False
+    behavior) -- the census re-derives this with a live registry, so the lint half stays fail-closed."""
+    return bool(getattr(_table_spec(table), "country_col", None))
 
 
 def _scope_ex(n, row) -> tuple:
@@ -642,7 +665,11 @@ def _scope_ex(n, row) -> tuple:
     # `commodity_aliases: {contract_slug: table_code}` re-keys ONLY the legs that ride this row;
     # validated fail-closed by config_check.check_cascade_map.
     commodity = ((row or {}).get("commodity_aliases") or {}).get(commodity, commodity)
-    if (row or {}).get("table") == "silver_psd" and commodity in PSD_UNSERVED_SLUGS:
+    # BOTH PSD surfaces (L2-5): the fence is about the SOURCE, not about a shape. USDA publishes no cocoa
+    # balance sheet at all, so the long companion is exactly as empty of cocoa as the wide card is -- a
+    # table-literal fence would have let an attribute-axis cocoa leg compile and fetch its way to the same
+    # zero rows, and the census would have read that as drift instead of as the declared absence it is.
+    if (row or {}).get("table") in PSD_TABLES and commodity in PSD_UNSERVED_SLUGS:
         return commodity, SKIP_NODE, "psd-unserved-slug"   # declared-unserved: PSD has no series for this contract
     if (row or {}).get("table") == "silver_cot" and commodity in cot_unserved_slugs():
         return commodity, SKIP_NODE, "cot-unserved-slug"   # declared-unserved: cftc_cot.yaml lists it not_covered
@@ -1209,16 +1236,18 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
     wave (_run_one -> fetch_window), the price pair, the vertical chain engine, and the J4 tape reads --
     and, by construction, NOT the reads whose table is a compile-time constant with no `contract_month_col`:
 
-      * `_psd_component_rows` -> fetch_window(table="silver_psd"), reached through _world_su_ratio /
-        _leg_world_deltas from the RV2 + transmission engines;
+      * `_psd_component_rows` -> fetch_window(table=_PSD_TABLE | _PSD_ATTR_TABLE), reached through
+        _world_su_ratio / _world_attribute_total / _leg_world_deltas from the RV2 + transmission engines;
       * `_cot_outcome_read`  -> fetch_window(table=COT_OUTCOME_TABLE = "gold_cot_outcomes").
 
     Those two are UNFLAGGED BY DESIGN, on the same footing as numbers_parity/cascade_census: their table is
-    a literal in this file, `_newest_first_applies` keys on `ts.contract_month_col`, and neither card
-    declares one -- so a threaded flag could not change one byte of their SQL, and a five-deep signature
-    change through the PSD chain would buy churn instead of coverage. It is a MEASURED omission, not an
-    assumed one: test_futures_readpath_pins pins that both tables' cards carry no contract_month_col, so
-    the day either one grows a delivery-month axis the pin reds and this paragraph is what gets read.
+    a module constant in this file (L2-5 made the PSD surface a kwarg, so it is the two PSD cards rather
+    than one literal -- the pin moved with it), `_newest_first_applies` keys on `ts.contract_month_col`,
+    and no card any of them can name declares one -- so a threaded flag could not change one byte of their
+    SQL, and a five-deep signature change through the PSD chain would buy churn instead of coverage. It is
+    a MEASURED omission, not an assumed one: test_futures_readpath_pins pins that every card those sites
+    can reach carries no contract_month_col, so the day one grows a delivery-month axis the pin reds and
+    this paragraph is what gets read.
     Never raises (R6 -- the seam also belts it)."""
     _set_headline(headline)
     groups = []
@@ -2382,6 +2411,57 @@ def _reroute(pairs: list, deltas_by_key: dict) -> tuple:
 _XC_SU_STOCKS = "ending_stocks_mt"
 _XC_SU_USE = "consumption_mt"
 
+# ── THE PSD ATTRIBUTE AXIS (projection wave Lane 3, L2-5, 2026-08-25) ───────────────────────────────
+# The two surfaces are named at PSD_TABLES (top of file). Which spelling a component takes is a property of
+# the TABLE, not of the caller, so the engine reads the registry's declared `shape` rather than carrying a
+# second literal anywhere below.
+#
+# Wide COLUMN -> the USDA attribute label the long companion stores, byte-exact from the L2-0 census
+# (data/dec_p0/psd_attribute_census.json, bulk object release_date=2026-08-13). The spellings are pinned as
+# a literal set in tests/unit/test_psd_attribute_axis.py, not read from the artifact at import time.
+_PSD_ATTR_OF_COLUMN: dict[str, str] = {
+    "beginning_stocks_mt":   "Beginning Stocks",
+    "ending_stocks_mt":      "Ending Stocks",
+    "production_mt":         "Production",
+    "exports_mt":            "Exports",
+    "imports_mt":            "Imports",
+    "area_harvested_1000ha": "Area Harvested",
+    "yield_mt_ha":           "Yield",
+    "consumption_mt":        "Domestic Consumption",   # SLUG-DEPENDENT -- see _PSD_CONSUMPTION_ATTR_BY_SLUG
+}
+
+# THE CONSUMPTION COMPONENT IS THE ONE THAT IS NOT A RENAME. The wide producer NORMALISES three source
+# labels onto 'Domestic Consumption' for its pivot (census meta.producer_remap_sources, 2026-08-13); the
+# long companion emits USDA's OWN label, because a table where one label spans four attribute_ids cannot be
+# joined to the source's key. A single-label map would therefore compile `attribute = 'Domestic
+# Consumption'` for sugar, cotton and fresh citrus and return a SILENT ZERO ROW -- the silver_wasde
+# Title-Case class of bug, landing on the denominator of the World stocks-to-use ratio.
+_PSD_CONSUMPTION_ATTR_BY_SLUG: dict[str, str] = {
+    "raw_sugar":    "Total Disappearance",
+    "white_sugar":  "Total Disappearance",
+    "cotton":       "Domestic Use",
+    "fresh_citrus": "Fresh Dom. Consumption",
+}
+
+
+def _psd_attr_label(component: str, slug: str) -> str:
+    """The long companion's own spelling of a balance-sheet `component` for `slug`: USDA's native attribute
+    label for a wide silver_psd COLUMN, or the component unchanged when it already IS such a label (so a
+    leg may name 'Crush' or 'TY Exports' directly -- attributes the wide card has no column for). NEVER a
+    guess: `_psd_component_rows` refuses any label the tall card does not declare.
+
+    THE SLUG-AWARE REMAP FIRES ON BOTH SPELLINGS (Lane-3 review): the docstring above invites callers to
+    name attributes directly, so 'Domestic Consumption' arriving AS the native label must remap for
+    sugar/cotton/citrus exactly as the wide column name does -- code 612000 never publishes 'Domestic
+    Consumption', so the un-remapped label is a None for raw_sugar dressed as a decline."""
+    if component == _XC_SU_USE:
+        return _PSD_CONSUMPTION_ATTR_BY_SLUG.get(slug, _PSD_ATTR_OF_COLUMN[_XC_SU_USE])
+    label = _PSD_ATTR_OF_COLUMN.get(component, component)
+    if label == _PSD_ATTR_OF_COLUMN[_XC_SU_USE]:
+        return _PSD_CONSUMPTION_ATTR_BY_SLUG.get(slug, label)
+    return label
+
+
 # ── EU membership-window dedup (the 2026-07-20 UK-backfill fix; SINGLE SOURCE, census imports these) ────
 # USDA PSD backfills INDIVIDUAL member rows for marketing years the EU aggregate ALSO covers (live case:
 # 'United Kingdom' rows for MY2016-2019 while the EU-28 aggregate for those same MYs still includes the UK).
@@ -2466,26 +2546,114 @@ def _release_of(row: dict) -> str | None:
     return None
 
 
-def _psd_component_rows(qfn, slug: str, metric: str, my: int, asof) -> list:
-    """PIT-safe per-country rows for a WIDE-PSD component metric at (slug, MY), as-known at asof: country=None
+def _psd_component_rows(qfn, slug: str, metric: str, my: int, asof, *, table: str = _PSD_TABLE) -> list:
+    """PIT-safe per-country rows for a PSD component at (slug, MY), as-known at asof: country=None
     -> every country's latest vintage <= asof, via the SAME keyed fetch_window path a cascade leg uses (same
     as-of guard, same sargable-partition discipline). Never raises (fetch_window degrades to rows=[]).
 
-    S1 canary: UNFLAGGED BY DESIGN (see quantify's docstring). `table` is the literal "silver_psd" below,
-    whose card declares no `contract_month_col`, so `_newest_first_applies` is False for every spec this
-    function can build -- passing the FUTURES canary down the five-deep PSD chain could not change one byte
-    of SQL. Pinned in test_futures_readpath_pins, so the omission is measured rather than assumed.
+    SHAPE-KEYED, not table-keyed (L2-5): `metric` is spelled the way the REGISTRY says `table` spells it --
+    a wide COLUMN on silver_psd, a VALUE of the metric column on the long companion. The tall branch adds
+    the one fence the wide branch never needed: a metric the tall card does not DECLARE is refused HERE,
+    before any SQL, because build_sql would happily compile `attribute = 'ending_stocks_mt'` and hand back
+    a silent zero row -- indistinguishable from "not published" and the exact shape of the silver_wasde
+    Title-Case bug, which returned zero rows for every WASDE lookup for months. A table with no card at all
+    (the companion before its own change lands) has shape None and takes neither branch: fetch_window
+    compiles against an unregistered table, returns status='error' with rows=[], and the leg declines.
+
+    S1 canary: UNFLAGGED BY DESIGN (see quantify's docstring). Both tables this function can reach declare
+    no `contract_month_col`, so `_newest_first_applies` is False for every spec it can build -- passing the
+    FUTURES canary down the five-deep PSD chain could not change one byte of SQL. Pinned in
+    test_futures_readpath_pins, so the omission is measured rather than assumed.
 
     D-AM-18: under the ESTATE-WIDE token that structural argument no longer holds (the scope stops keying
     on `contract_month_col`), so this stays unthreaded as a DECISION. The read is scoped to one marketing
     year (`period=my`, `period_type='marketing_year'`), which is what bounds it: a single MY across every
     country is orders of magnitude under the 5000 cap, so which end the cap keeps is unobservable here."""
-    rec = fetch_window(qfn, table="silver_psd", metric=metric, commodity=slug, country=None,
+    if _table_shape(table) == "tall":
+        ts = _table_spec(table)
+        if metric not in (getattr(ts, "metrics", None) or {}):
+            return []                                   # undeclared attribute -> decline, never a 0-row SQL
+    rec = fetch_window(qfn, table=table, metric=metric, commodity=slug, country=None,
                        t1=None, t2=None, asof=asof, agg="series", period=my, period_type="marketing_year")
     return rec.get("rows") or []
 
 
-def _world_su_ratio(qfn, slug: str, my: int, asof) -> tuple | None:
+def _latest_per_country(rows: list) -> dict:
+    """{country: (row, release)} -- each country's OWN latest stamped vintage. The live SQL already
+    collapses to one row per country (ROW_NUMBER over group_cols ORDER BY release_date DESC, _rn=1), so
+    this is a pass-through there; an injected qfn (tests, cache wrappers) may hand back raw multi-vintage
+    rows, so latest-wins is enforced here too. Unstamped rows (no release) drop -- fail closed, mirroring
+    apply_pit_filter's NULL-knowledge-date rule. First-seen wins a same-release tie (idempotent)."""
+    best: dict = {}
+    for r in rows:
+        c, rd = r.get("country"), _release_of(r)
+        if c is None or rd is None:
+            continue
+        prev = best.get(c)
+        if prev is None or rd > prev[1]:
+            best[c] = (r, rd)
+    return best
+
+
+def _world_sum(rows: list, my: int) -> tuple | None:
+    """THE World synthesis, once: (total, n_summed, max_release, unit) over the per-country-latest union for
+    one component at one marketing year, with the EU membership-window dedup applied. Hoisted out of
+    `_world_su_ratio` (L2-5) so the wide ratio and any attribute-axis total share ONE arithmetic and cannot
+    drift apart on dedup, on latest-wins, or on the freshness stamp.
+
+    NATIVE-UNIT GUARD, the tall table's own hazard: the long companion carries the value in USDA's unit with
+    a `unit` column beside it, so one (slug, attribute, MY) set can legitimately span '(1000 MT)' and
+    '(MT)'. Adding those is a MANUFACTURED number, so a set carrying more than one distinct unit is REFUSED
+    (None) rather than summed. Inert on silver_psd, whose card declares no unit column: its rows carry no
+    `unit` extra at all, the unit set is empty, and the returned unit is None -- byte-identical to the
+    nested `_sum_latest` this replaces.
+
+    Returns None when the set cannot be summed honestly; (0.0, 0, None, unit) is a legitimate empty sum and
+    stays the caller's decision to decline."""
+    latest = _latest_per_country(rows)
+    # aggregate_present demands a NUMERIC aggregate value, not mere row presence: a NULL-valued EU row
+    # carries NO member tonnage, so deduping against it would DROP the member from the sum outright
+    # (skeptic probe T3, 2026-07-20) -- and split the engine from the census existence probe, whose
+    # SQL sum(value) ignores NULLs and keeps the member.
+    agg_present = any(str(c) in EU_AGGREGATE_TITLES and _as_float(r.get("value")) is not None
+                      for c, (r, _rd) in latest.items())
+    tot, n, mx, units = 0.0, 0, None, set()
+    for c, (r, rd) in latest.items():
+        if eu_member_deduped(c, my, aggregate_present=agg_present):
+            continue                                        # inside the EU aggregate this MY: already counted
+        v = _as_float(r.get("value"))
+        if v is None:
+            continue
+        u = str(r.get("unit") or "").strip()
+        if u:
+            units.add(u)
+        tot, n = tot + v, n + 1
+        if mx is None or rd > mx:
+            mx = rd
+    if len(units) > 1:
+        return None                                         # mixed native units: never added, always refused
+    return tot, n, mx, (next(iter(units)) if units else None)
+
+
+def _world_attribute_total(qfn, slug: str, attribute: str, my: int, asof,
+                           *, table: str = _PSD_ATTR_TABLE) -> tuple | None:
+    """The World synthesis on the ATTRIBUTE axis: the per-country-latest SUM of one NATIVE PSD attribute
+    ('Crush', 'Feed Dom. Consumption', 'TY Exports', ...) at (slug, MY) as known at asof, in that
+    attribute's own unit. Same arithmetic as the su_ratio components by construction (`_world_sum`), same
+    EU dedup, same freshness stamp -- and the same honest declines: an undeclared attribute, an
+    unregistered card, an empty set or a mixed-unit set all return None rather than a number.
+
+    Returns (total, unit, release_date, n_countries). The unit RIDES the total because this table converts
+    nothing: a total with its unit dropped is the (1000 HEAD)/(1000 MT) collision waiting to happen."""
+    rows = _psd_component_rows(qfn, slug, _psd_attr_label(attribute, slug), my, asof, table=table)
+    got = _world_sum(rows, my) if rows else None
+    if got is None:
+        return None
+    tot, n, rd, unit = got
+    return (tot, unit, rd, n) if n else None
+
+
+def _world_su_ratio(qfn, slug: str, my: int, asof, *, table: str = _PSD_TABLE) -> tuple | None:
     """Recipe-B World stocks-to-use for (slug, MY) as a pre-scaled '%': SUM(ending_stocks_mt)/SUM(consumption_mt)
     over EACH COUNTRY'S OWN LATEST vintage <= asof (the per-country-latest union; no literal country='World'
     row exists), with the EU membership-window DEDUP: when an EU aggregate title is present in the
@@ -2506,53 +2674,32 @@ def _world_su_ratio(qfn, slug: str, my: int, asof) -> tuple | None:
     existence probe already runs (_world_synth_nonempty rides build_sql agg=sum/country=None, which sums the
     same per-country-latest set), so engine and census are coherent by construction.
 
-    Returns (ratio_pct, release_date, n_countries) or None (missing component / empty sum / zero use -> the
-    leg declines honestly). release_date is the MAX release across the summed rows -- an as-of FRESHNESS
-    STAMP for the citation, NOT a claim that every summed row came from that vintage."""
-    st = _psd_component_rows(qfn, slug, _XC_SU_STOCKS, my, asof)
-    us = _psd_component_rows(qfn, slug, _XC_SU_USE, my, asof)
+    SURFACE-AWARE (L2-5): the two components are named as the WIDE card's columns and re-spelled by
+    `_psd_attr_label` when the surface being read is TALL, so the same ratio is computable on either PSD
+    table without a second copy of this arithmetic. The consumption component is the one that is not a
+    rename -- sugar, cotton and fresh citrus keep USDA's own label on the long companion -- which is why
+    the re-spelling is slug-aware rather than a single-string swap. The ratio itself is UNIT-FREE (a
+    quotient of two sums in one unit), so the tall path additionally demands that the numerator and
+    denominator carry the SAME native unit; different units mean the quotient is not a stocks-to-use ratio
+    at all, and the leg declines rather than printing one.
+
+    Returns (ratio_pct, release_date, n_countries) or None (missing component / empty sum / zero use /
+    mixed or mismatched native units -> the leg declines honestly). release_date is the MAX release across
+    the summed rows -- an as-of FRESHNESS STAMP for the citation, NOT a claim that every summed row came
+    from that vintage."""
+    tall = _table_shape(table) == "tall"
+    stocks = _psd_attr_label(_XC_SU_STOCKS, slug) if tall else _XC_SU_STOCKS
+    use = _psd_attr_label(_XC_SU_USE, slug) if tall else _XC_SU_USE
+    st = _psd_component_rows(qfn, slug, stocks, my, asof, table=table)
+    us = _psd_component_rows(qfn, slug, use, my, asof, table=table)
     if not st or not us:
         return None
-
-    def _latest_per_country(rows: list) -> dict:
-        """{country: (row, release)} -- each country's OWN latest stamped vintage. The live SQL already
-        collapses to one row per country (ROW_NUMBER over group_cols ORDER BY release_date DESC, _rn=1), so
-        this is a pass-through there; an injected qfn (tests, cache wrappers) may hand back raw multi-vintage
-        rows, so latest-wins is enforced here too. Unstamped rows (no release) drop -- fail closed, mirroring
-        apply_pit_filter's NULL-knowledge-date rule. First-seen wins a same-release tie (idempotent)."""
-        best: dict = {}
-        for r in rows:
-            c, rd = r.get("country"), _release_of(r)
-            if c is None or rd is None:
-                continue
-            prev = best.get(c)
-            if prev is None or rd > prev[1]:
-                best[c] = (r, rd)
-        return best
-
-    def _sum_latest(rows: list) -> tuple:
-        latest = _latest_per_country(rows)
-        # aggregate_present demands a NUMERIC aggregate value, not mere row presence: a NULL-valued EU row
-        # carries NO member tonnage, so deduping against it would DROP the member from the sum outright
-        # (skeptic probe T3, 2026-07-20) -- and split the engine from the census existence probe, whose
-        # SQL sum(value) ignores NULLs and keeps the member.
-        agg_present = any(str(c) in EU_AGGREGATE_TITLES and _as_float(r.get("value")) is not None
-                          for c, (r, _rd) in latest.items())
-        tot, n, mx = 0.0, 0, None
-        for c, (r, rd) in latest.items():
-            if eu_member_deduped(c, my, aggregate_present=agg_present):
-                continue                                        # inside the EU aggregate this MY: already counted
-            v = _as_float(r.get("value"))
-            if v is None:
-                continue
-            tot, n = tot + v, n + 1
-            if mx is None or rd > mx:
-                mx = rd
-        return tot, n, mx
-
-    s_tot, s_n, s_rd = _sum_latest(st)
-    u_tot, u_n, u_rd = _sum_latest(us)
-    if s_n == 0 or u_n == 0 or u_tot == 0:
+    s, u = _world_sum(st, my), _world_sum(us, my)
+    if s is None or u is None:
+        return None
+    s_tot, s_n, s_rd, s_unit = s
+    u_tot, u_n, u_rd, u_unit = u
+    if s_n == 0 or u_n == 0 or u_tot == 0 or s_unit != u_unit:
         return None
     rd = max(x for x in (s_rd, u_rd) if x is not None)           # freshness stamp over the summed set
     return (100.0 * s_tot / u_tot, rd, min(s_n, u_n))

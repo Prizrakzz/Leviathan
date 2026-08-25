@@ -855,8 +855,13 @@ class TestS1UnflaggedByDesign:
     classified here rather than unexplained."""
 
     # (site, the tables its callers can actually pass). Every one is a LITERAL at the call site.
+    # L2-5 (projection wave Lane 3, 2026-08-25): `_psd_component_rows` gained a `table` KWARG so the PSD
+    # attribute axis is reachable, so its entry moves in the SAME change that moved its population -- the
+    # site is no longer a single literal, it is the two PSD surfaces its default and its one non-default
+    # caller can name. Neither card declares a delivery-month axis, so the classification is unchanged;
+    # what would break it is a THIRD table reaching the site, which the anti-vacuity pin below catches.
     _CONSTANT_TABLE_SITES = {
-        "cascade._psd_component_rows": ("silver_psd",),
+        "cascade._psd_component_rows": ("silver_psd", "silver_psd_attributes"),
         "cascade._cot_outcome_read": ("gold_cot_outcomes",),
         # T1-1 NOTE (2026-08-15): silverleg._rows is now THREADED (see the Q.run census below). Its entry
         # stays here because the three-table statement is still the fact that bounds what its SQL can be,
@@ -902,8 +907,35 @@ class TestS1UnflaggedByDesign:
         src = inspect.getsource(CQ)
         calls = src.count("fetch_window(qfn,") - 1        # minus the `def fetch_window(qfn, *, ...)` line
         assert calls == 3, f"a new fetch_window call site appeared ({calls} now) -- classify it"
-        # ...and the two that skip the canary are exactly the two constant-table reads named above.
-        assert 'table="silver_psd"' in src and "table=COT_OUTCOME_TABLE" in src
+        # ...and the two that skip the canary are exactly the two constant-table reads named above. L2-5
+        # made the PSD surface a KWARG, so that site's literal became a module CONSTANT and the pin follows
+        # it there rather than being deleted: the constants ARE the two cards the entry above names.
+        # ASSERTED ON THE FUNCTION'S OWN SOURCE, not the module's: `fetch_window`'s def line carries
+        # `table=table` itself, so a module-level substring check is vacuously true even with a third
+        # card hard-coded at the read site (proven by mutation in the Lane-3 review) -- the pin has to
+        # read the body it classifies.
+        psd_site = inspect.getsource(CQ._psd_component_rows)
+        assert "fetch_window(qfn, table=table," in psd_site, \
+            "_psd_component_rows no longer threads its `table` kwarg into the read"
+        assert 'table="' not in psd_site and "table='" not in psd_site, \
+            "_psd_component_rows hard-codes a card at the exact read site this census classifies"
+        assert "table=COT_OUTCOME_TABLE" in src
+        assert (CQ._PSD_TABLE, CQ._PSD_ATTR_TABLE) == \
+            tuple(self._CONSTANT_TABLE_SITES["cascade._psd_component_rows"])
+
+    def test_the_psd_read_site_really_does_only_reach_those_two_cards(self):
+        """ANTI-VACUITY for `_psd_component_rows`' entry, the silverleg pin's twin (L2-5). The site takes
+        `table` as a kwarg now, so the two-card statement holds only while every caller threads the
+        parameter rather than naming a card of its own -- a third table hard-coded at a call site would
+        leave the classification above vacuously green while the site silently read a card nobody
+        classified."""
+        import inspect
+        src = inspect.getsource(CQ)
+        assert src.count("_psd_component_rows(") == 4, "def + 3 calls -- a new PSD read site appeared"
+        for fn in (CQ._world_su_ratio, CQ._world_attribute_total):
+            body = inspect.getsource(fn)
+            assert "_psd_component_rows(" in body and "table=table" in body
+            assert 'table="' not in body, f"{fn.__name__} hard-codes a PSD card instead of threading it"
 
     def test_the_serving_Q_run_census_is_complete(self):
         """THE PIN THAT WOULD HAVE CAUGHT silverleg. Every `Q.run(` in the serving tree is either threaded
