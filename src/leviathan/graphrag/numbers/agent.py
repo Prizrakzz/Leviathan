@@ -1633,7 +1633,10 @@ def stats_tool_schema() -> dict:
             "the numbers, and the result comes back as an observed [N] figure you then state in plain past/"
             "present tense. `series_handle`/`value_handle` are the `handle` field on a prior lookup_number "
             "result FROM THIS TURN; a handle from a different turn, or an unknown one, is refused. Never "
-            "forecast, extrapolate, or fit a trend -- these are DESCRIPTIVE history only."),
+            "forecast, extrapolate, or fit a trend -- these are DESCRIPTIVE history only. WHEN TO USE "
+            "(PA-13): whenever the question asks for a trend or direction (window_change), a run or streak "
+            "(streak), or how unusual a reading is (zscore, percentile) -- read the series, then call this. "
+            "Any change/percentile/streak/z figure you would otherwise write yourself belongs here."),
         "input_schema": {
             "type": "object",
             "properties": {
@@ -2117,6 +2120,11 @@ def system_prompt(reg: NumbersRegistry, stats_tool: Optional[bool] = None) -> st
         "tense (e.g. 'the latest reading sits in the 96th percentile of its own history [N]', 'a third "
         "consecutive downward revision [N]'). Percentile / streak / z-score vocabulary is servable ONLY "
         "through the tool, and only over history -- never as a forecast, trend-fit, or extrapolation.\n"
+        "- THE QUESTION ITSELF CAN DEMAND THE ARITHMETIC (PA-13, the owner's mandate: these tools are "
+        "not there for show). A question asking for a TREND or DIRECTION requires window_change; a RUN "
+        "or STREAK requires streak; HOW UNUSUAL requires zscore or percentile -- in each case read the "
+        "series first (agg='series'), then REQUEST the statistic. Prose adjectives ('built steadily', "
+        "'unusually high') are NOT a substitute for the computed figure.\n"
         # D-AM-17 KILL-SWITCH PARITY: the spread arm's steering rides the SAME `stats_on` string as the
         # tool schema's `spread` enum member and its near_month/far_month properties, so the model is
         # never told about an arm it does not have -- and never has one it was not told how to call.
@@ -2131,14 +2139,21 @@ def system_prompt(reg: NumbersRegistry, stats_tool: Optional[bool] = None) -> st
         "You are a data-lookup agent for an agricultural-commodity desk. Answer ONLY with numbers you actually "
         "retrieve via the lookup_number tool from the tables below — never invent or recall a figure. Every value "
         "is returned as-known at a fixed as-of date you cannot change (point-in-time correct). Call the tool as "
-        "many times as needed (different tables/metrics/scopes), then give a short factual answer that states each "
+        "many times as needed (different tables/metrics/scopes) -- and the floor is NOT zero: if the Index "
+        "below names a card that plausibly holds what the question is about, READ it before you answer "
+        "(the generalized margin law -- the one prior zero-call incident got exactly this fix, scoped to "
+        "margins; it is now the law for every card). A narrative question -- a walk-through, a trend, "
+        "how-has-X-been -- is STILL a numbers question: a series read, never commentary. Then give a "
+        "short factual answer that states each "
         "number with its unit and its knowledge_date (when it was published). A tool_result has a `status`: "
         "`ok` (use the value); `not_known` (vintage tables only — the value was genuinely not yet published at "
         "the as-of date; say so plainly); `no_rows` (the query matched NO data — a filter/scope mismatch or a "
         "gap in the lake; say the figure is UNAVAILABLE from this lookup and that the scope may not have "
         "matched — NEVER claim it was 'not yet published' or 'not known at the as-of date'); or `error` (the "
         "lookup FAILED for a data-access reason — say the figure is UNAVAILABLE due to a lookup error, and do "
-        "NOT claim it was 'not known at the as-of date'). Do not reason beyond the numbers.\n\n"
+        "NOT claim it was 'not known at the as-of date'). An absence you never looked up is NOT an honest "
+        "decline: never state that the record lacks a figure whose card you did not read -- the only "
+        "honest 'unavailable' is one a tool_result returned. Do not reason beyond the numbers.\n\n"
         "## Conventions\n"
         "- `commodity` is the exact CONTRACT SLUG, e.g. corn_cbot, soybeans_cbot, soybean_oil_cbot, "
         "hard_red_winter_wheat_kcbt, hard_red_spring_wheat_mgex, soft_red_winter_wheat_cbot, french_wheat_matif, "
