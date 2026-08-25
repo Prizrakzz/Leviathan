@@ -1041,3 +1041,21 @@ def test_every_row_formatter_pins_the_full_scoped_line():
                         "(as-of 2010-06-01): 3.9 MMT" + tag)
     for ln in lines:
         assert "\n" not in ln and ln.endswith("]")
+
+
+# ── W-5 frost basin swap (2026-08-25): the Lane-2 census's first live catch, closed at the resolver ──
+def test_frost_leg_on_a_basin_entry_reads_the_share_with_its_units():
+    """At aggregate grain the frost FLAG is renamed frost_event_share by design; a frost leg resolving
+    to a `basin: true` region entry must read the share WITH the share's unit trio -- the Lane-2 census
+    read three dark legs (metric-empty-for-country at 'EU Belt'/'Northern Plains') because the flag has
+    zero rows on a basin surface. Entry-driven like the fred_fx currency pick, same seam, same tests."""
+    from types import SimpleNamespace
+    row = cq.load_map()["frost_event_flag"]
+    n = SimpleNamespace(contract="french_wheat_matif", prior={"region": "France_EU"})
+    swapped = cq._region_row(n, row)
+    assert swapped["metric"] == "frost_event_share"
+    assert swapped["narrate_unit"] == "%" and float(swapped["scale"]) == 100
+    # a NON-basin region entry keeps the flag untouched (Brazil: a live per-cell country)
+    n2 = SimpleNamespace(contract="white_sugar", prior={"region": "Brazil CS"})
+    same = cq._region_row(n2, row)
+    assert same["metric"] == "frost_event_flag" and same["narrate_unit"] == "flag"

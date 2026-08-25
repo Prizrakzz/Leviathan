@@ -581,13 +581,27 @@ def _primary_title(commodity) -> str | None:
 
 
 def _region_row(n, row) -> dict:
-    """fred_fx currency pick (RF-2): a country_rule=region row on silver_fred_fx swaps its metric to the
-    resolved region's '<currency>_usd' (the ars_usd/brl_usd fold-forward fix). Every other row passes
-    through unchanged. A resolved region WITHOUT a currency never reaches here (SKIP_NODE in _scope)."""
-    if (row or {}).get("country_rule") != "region" or (row or {}).get("table") != "silver_fred_fx":
+    """Entry-driven metric picks for region-ruled rows; every other row passes through unchanged.
+
+    (1) fred_fx currency pick (RF-2): a country_rule=region row on silver_fred_fx swaps its metric to
+    the resolved region's '<currency>_usd' (the ars_usd/brl_usd fold-forward fix). A resolved region
+    WITHOUT a currency never reaches here (SKIP_NODE in _scope).
+    (2) W-5 FROST BASIN SWAP (2026-08-25): at aggregate grain the frost FLAG is renamed to a SHARE by
+    design (weather_z: 'a share must never wear the flag's name'), so a frost leg resolving to a
+    region_map entry declaring `basin: true` reads `frost_event_share` -- the flag has ZERO rows on a
+    basin surface (the Lane-2 census's three dark legs, the repaired instrument's first live catch).
+    The unit trio moves WITH the metric: a share narrated on the flag's spec would print 0.18 as if
+    it were an event bit."""
+    if (row or {}).get("country_rule") != "region":
         return row
-    cur = (_region_entry(n) or {}).get("currency")
-    return {**row, "metric": f"{cur}_usd"} if cur else row
+    if (row or {}).get("table") == "silver_fred_fx":
+        cur = (_region_entry(n) or {}).get("currency")
+        return {**row, "metric": f"{cur}_usd"} if cur else row
+    if (row or {}).get("table") == "gold_weather_z" and (row or {}).get("metric") == "frost_event_flag":
+        if (_region_entry(n) or {}).get("basin"):
+            return {**row, "metric": "frost_event_share",
+                    "native_unit": "share of member cells", "narrate_unit": "%", "scale": 100}
+    return row
 
 
 def _driver_token(n) -> str:

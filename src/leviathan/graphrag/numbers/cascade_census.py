@@ -80,13 +80,11 @@ _NO_COCOA = "silver_psd has no cocoa balance sheet (DISTINCT slug probe 2026-07-
 # _NO_FCOJ deleted W0-4 (2026-08-25): its premise ("no orange-juice balance sheet") died 2026-08-20
 # when the 13->47 widening landed 746 FCOJ rows; the two surviving FCOJ waivers below carry their own
 # honest per-leg justifications (mis-scoped tokens, the D-10 class).
-# D-W5 weather flip (2026-07-12): white_sugar's `frost` driver is a Brazil-cane-belt hazard (region
-# `Brazil CS` -> Brazil, mechanism "frost in southern Brazil cane areas"), but white_sugar's
-# gold_weather_z covers only the refined-sugar regions (China/EU/India/Thailand/US) -- Brazil cane
-# weather belongs to RAW_SUGAR (whose frost leg FIRES). Honest per-contract coverage gap, not a bug.
-_NO_WHITE_SUGAR_BRAZIL_WX = ("white_sugar gold_weather_z has no Brazil coverage (raw_sugar owns the "
-                             "Brazil cane belt); the Brazil-frost hazard fires on raw_sugar, not the "
-                             "refined-sugar contract -- gold coverage probe 2026-07-12")
+# _NO_WHITE_SUGAR_BRAZIL_WX deleted W-1 (2026-08-25): its premise died when the re-partition landed
+# raw_sugar's five br_sugar_* cells into commodity=white_sugar for 1981-2026 (92/92 objects merged,
+# backup-first, jobs/utils/repartition_white_sugar_brazil_weather.py) and the geography config gained
+# the same five cells for the forward fetch. The frost leg now probes for real; a dark read earns a
+# NEW waiver with the honest reason, never the dead one.
 _WAIVERS: dict[tuple[str, str], str] = {
     ("cocoa", "US_section301_tariffs"): _NO_COCOA,
     ("cocoa", "export_pace_lag"): _NO_COCOA,
@@ -114,7 +112,6 @@ _WAIVERS: dict[tuple[str, str], str] = {
         "mis-scoped token, NOT data absence: 'US' (ICE warehouse) stocks leg on a primary-ruled row "
         "would fire with BRAZIL's ending_stocks_mt. D-10 class -- unwaive only with a per-leg scope "
         "mechanism or an RF-3 pairing"),
-    ("white_sugar", "frost"): _NO_WHITE_SUGAR_BRAZIL_WX,
     # D-EC graph-completion fallout (2026-08-21): the sorghum CLASS DAG (a causal contract with no
     # tradeable instrument) copied incumbents' silver_refs, but availability is PER-COMMODITY --
     # gold_weather_z keys by CONTRACT slug and carries no `sorghum` row, and silver_esr fetches five
