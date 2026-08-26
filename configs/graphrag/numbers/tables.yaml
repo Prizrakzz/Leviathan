@@ -94,6 +94,156 @@ tables:
       against, so a "not published" there is structural, not a gap. su_ratio_yoy_delta DOES span the full
       book (MY 1961-2026, 61 slugs): a YoY comparison needs only last year's same-month print. A revision
       of 0 is a real "unchanged estimate"; an absent revision means no consecutive-month pair exists.
+      THESE EIGHT COLUMNS ARE NOT THE WHOLE SHEET -- silver_psd_attributes is the LONG companion and it
+      is where the rest of the book lives. CRUSH, the DEMAND DECOMPOSITION (feed, FSI, feed+waste, food
+      use, industrial use), the TRADE-YEAR trio (TY exports, TY imports, TY imports from the U.S.), the
+      COFFEE arabica/robusta production split and the SUGAR raw/refined trade split are all published by
+      USDA and served there, in USDA's own units. Route those asks to silver_psd_attributes rather than
+      answering "not published"; this card stays the MT-denominated balance-sheet spine, and the two
+      cards share ONE commodity vocabulary (the same 63 slugs, from the same producer map).
+
+  silver_psd_attributes:
+    description: >
+      USDA PSD -- the LONG companion to silver_psd. One row per leviathan_slug x country x
+      market_year x wasde_release_month x attribute, with the value in USDA's OWN unit. silver_psd
+      pivots EIGHT balance-sheet attributes into MT-denominated columns and discards the rest; this
+      table carries all FIFTY-SIX attributes the bulk file publishes for in-scope commodities --
+      Crush, the whole demand decomposition, the TY trade trio, the coffee and sugar variety splits,
+      and the rate attributes no unit factor exists for. Estimates are revised across releases, so
+      as-of a date means the latest release on or before it.
+    grain: "one row per leviathan_slug x country x market_year x wasde_release_month x attribute"
+    # THE SERVING GRAIN IS NOT THE PHYSICAL GRAIN, AND THE DIFFERENCE IS THE AS-OF MACHINERY. The
+    # PHYSICAL grain above carries wasde_release_month: the F010 natural_key keeps it, the producer
+    # dedups on it, and the table retains all ~13 WASDE vintages of every marketing year (389,283
+    # rows carry month_code 0, the pre-WASDE-tracking mass, MY 1960-2004). grain_cols is
+    # deliberately ABSENT: build_sql's latest-vintage ROW_NUMBER partitions by the tall fallback
+    # (leviathan_slug, country, market_year, attribute) and orders by release_date DESC, which is
+    # exactly what collapses those vintages to "the latest release on or before asof". Declaring
+    # the physical grain here would make that collapse a structural no-op -- one row per partition,
+    # _rn = 1 filters nothing -- and every ask would fan ~13 vintages per marketing year.
+    # silver_psd omits release_date from its serving grain for the same reason. silver_wasde's
+    # regression was the OPPOSITE error: it dropped SUBJECT dimensions (table_type, region), never
+    # the vintage axis. The vintage axis belongs to the ROW_NUMBER; the subject axes belong to the
+    # grain; and the one card that puts its vintage axis in grain_cols
+    # (silver_wap_table01_revisions) does so because the revision SERIES is its subject, guarded by
+    # row_filters + vintage_tiebreak this card does not carry.
+    # COVERAGE (PA-1, projection wave Lane 3, 2026-08-25). row_count is the SERVED subset -- the
+    # declared metrics roster below, which is also exactly what the pg mirror admits: 1,033,407
+    # rows after R4's attribute-aware fan-out, of which the ranked T1 payload (Crush + the demand
+    # decomposition + the TY trio) is 742,057, the L2-0 census's D-6 admission figure. The WHOLE
+    # produced object is 3,264,235 long rows (0 grain dupes, 63 slugs, 56 attribute labels, 214
+    # countries), MEASURED on a full-object run of the producer over the 2026-08-13 bulk release.
+    # NO last_obs: the bulk file is cumulative and re-fires on days 8-13 of every month, so the
+    # front moves; first_obs is the table-wide floor and the PER-ATTRIBUTE onsets differ
+    # (Industrial Dom. Cons. from MY1961, Fresh Dom. Consumption and Cows In Milk from MY1964) --
+    # see notes.
+    row_count: 1033407
+    first_obs: "1960"
+    cadence: annual
+    shape: tall
+    commodity_col: leviathan_slug
+    # GENERATED from _PSD_COMMODITY_TO_SLUGS (transforms/bronze_to_silver/usda_psd.py:263), never
+    # hand-listed -- the same both-directions equality test silver_psd's card already carries. The
+    # two cards share ONE producer map and must never drift apart: a 48th code landing in the
+    # transform with only one card moved is a table serving rows its own fence refuses.
+    commodity_values: [arabica_coffee, barley, brazilian_arabica_coffee, broilers_poultry, butter,
+                       campinas_corn_reference_bmf, canola_ice, cattle_beef, cheese, chicken_meat, coconut,
+                       coconut_oil, copra_meal, corn_cbot, cotton, cottonseed, cottonseed_meal, cottonseed_oil,
+                       fish_meal, french_maize_matif, french_rapeseed_matif, french_wheat_matif, fresh_citrus,
+                       frozen_orange_juice, hard_red_spring_wheat_mgex, hard_red_winter_wheat_kcbt, hogs,
+                       malaysian_crude_palm_oil_cme, milk_fluid, milk_powder_nonfat, milk_powder_whole, millet,
+                       mixed_grain, oats, olive_oil, palm_kernel, palm_kernel_meal, palm_kernel_oil,
+                       palm_olein_dce, peanut, peanut_meal, peanut_oil, rapeseed_meal_zce, rapeseed_oil_zce,
+                       raw_sugar, robusta_coffee, rough_rice_cbot, rye, soft_red_winter_wheat_cbot, sorghum,
+                       south_african_white_maize_jse, south_african_yellow_maize_jse, soybean_meal_cbot,
+                       soybean_meal_dce, soybean_oil_cbot, soybean_oil_dce, soybeans_cbot, soybeans_no_1_dce,
+                       soybeans_no_2_dce, sunflower, sunflower_meal, sunflower_oil, white_sugar]
+    country_col: country
+    period_col: market_year
+    period_type: marketing_year
+    period_sql_type: int                 # market_year is a smallint, e.g. 2023
+    knowledge_date_col: release_date
+    knowledge_semantics: vintage
+    metric_col: attribute                # tall: the metric NAME is USDA's OWN label (see notes)
+    value_col: value
+    unit_col: unit
+    # THE DECLARED ROSTER IS THE D-6 DECISION MADE FLESH, and it is not cosmetic: load_pg_numbers
+    # filters every tall table to `attribute IN (declared metrics)`, so an attribute absent from this
+    # roster is invisible to serving AND to the census whatever silver holds. Spellings are USDA's
+    # own, byte-for-byte off the 2026-08-13 census (data/dec_p0/psd_attribute_census.json) -- the
+    # silver_wasde Title-Case bug returned ZERO rows for every WASDE lookup for months, so a metric
+    # key here is a source string, never a house one. Per-attribute row counts (in-scope, after R4's
+    # fan-out) are stated so a later editor can re-derive the admission arithmetic without a re-run.
+    metrics:
+      # -- T1, the ranked payload: 742,057 rows, EXACTLY the D-6 admission number ------------------
+      "Crush":                  {label: "crush", unit: "1000 MT", desc: "oilseed volume crushed for meal and oil -- 71,551 rows, 21 commodities, MY1960-2026. The estate's ONLY physical crush VOLUME; gold_board_crush is a Chicago MARGIN in $/bu and answers a different question"}
+      "Feed Dom. Consumption":  {label: "feed use", unit: "1000 MT", desc: "domestic feed consumption -- 84,759 rows, 8 commodities, MY1960-2026"}
+      "FSI Consumption":        {label: "food, seed and industrial use", unit: "1000 MT", desc: "food/seed/industrial consumption, the non-feed half of the split -- 84,759 rows, 8 commodities, MY1960-2026"}
+      "Feed Waste Dom. Cons.":  {label: "feed and waste use", unit: "1000 MT", desc: "domestic feed-and-waste consumption (the wider feed line USDA prints for 24 commodities) -- 83,368 rows, MY1960-2026"}
+      "Food Use Dom. Cons.":    {label: "food use", unit: "1000 MT", desc: "domestic food consumption -- 83,368 rows, 24 commodities, MY1960-2026"}
+      "Industrial Dom. Cons.":  {label: "industrial use", unit: "1000 MT", desc: "domestic industrial consumption -- the corn-ethanol grind lives here; 57,127 rows, 17 commodities, MY1961-2026"}
+      "TY Exports":             {label: "trade-year exports", unit: "1000 MT", desc: "exports on the TRADE year, not the marketing year -- the basis that reconciles ESR and FGIS against the balance sheet; 92,375 rows, 9 commodities, MY1960-2026"}
+      "TY Imports":             {label: "trade-year imports", unit: "1000 MT", desc: "imports on the trade year -- 92,375 rows, 9 commodities, MY1960-2026"}
+      "TY Imp. from U.S.":      {label: "trade-year imports from the United States", unit: "1000 MT", desc: "the destination's imports FROM the U.S. on the trade year -- each destination's US import share back to 1960; 92,375 rows, 9 commodities"}
+      # -- THE FOUR CONSUMPTION LABELS. A consumption ask spans ALL FOUR or three commodity families
+      #    silently drop; see the CONSUMPTION IS FOUR LABELS note below. 237,581 rows together.
+      "Domestic Consumption":   {label: "domestic consumption", desc: "domestic consumption on 44 of the in-scope commodity codes -- 209,156 rows, MY1960-2026. THE ONE MULTI-UNIT METRIC ON THIS CARD: 40 codes print (1000 MT) 111,016 rows, plus (1000 MT CWE) 6,712 / (1000 60 KG BAGS) 4,616 / (MT) 746 -- so ALWAYS PASS A COMMODITY with this metric, the row's unit column governs, and these rows are NEVER summed across commodities"}
+      "Total Disappearance":    {label: "total disappearance (sugar's consumption line)", unit: "1000 MT", desc: "the sugar sheet's consumption line -- raw_sugar and white_sugar publish NO 'Domestic Consumption'; 19,002 rows, MY1960-2026"}
+      "Domestic Use":           {label: "domestic use (cotton's consumption line)", unit: "1000 480 lb. Bales", desc: "the cotton sheet's consumption line, in RUNNING BALES not tonnes -- 7,777 rows, MY1960-2026"}
+      "Fresh Dom. Consumption": {label: "fresh domestic consumption (fresh citrus's consumption line)", unit: "1000 MT", desc: "the fresh-citrus sheet's consumption line -- 1,646 rows, MY1964-2025"}
+      # -- THE VARIETY / REFINING SPLITS. Correctness, not depth: without these, three coffee slugs
+      #    and two sugar slugs read IDENTICAL numbers off one shared sheet.
+      "Arabica Production":     {label: "arabica production", unit: "1000 60 KG BAGS", desc: "arabica green-coffee production -- carried ONLY by arabica_coffee and brazilian_arabica_coffee (R4); 9,232 rows, MY1960-2026"}
+      "Robusta Production":     {label: "robusta production", unit: "1000 60 KG BAGS", desc: "robusta green-coffee production -- carried ONLY by robusta_coffee (R4); 4,616 rows, MY1960-2026"}
+      "Raw Imports":            {label: "raw sugar imports", unit: "1000 MT", desc: "imports of RAW sugar -- carried only by raw_sugar (R4); 9,501 rows, MY1960-2026"}
+      "Raw Exports":            {label: "raw sugar exports", unit: "1000 MT", desc: "exports of RAW sugar -- carried only by raw_sugar (R4); 9,501 rows, MY1960-2026"}
+      "Refined Imp.(Raw Val)":  {label: "refined sugar imports (raw-value basis)", unit: "1000 MT", desc: "imports of REFINED sugar, tonnage stated on the raw-sugar-equivalent accounting basis -- carried only by white_sugar (R4 / D-L3-6, owner-ratified: '(Raw Val)' is the BASIS, not the subject); 9,501 rows, MY1960-2026"}
+      "Refined Exp.(Raw Val)":  {label: "refined sugar exports (raw-value basis)", unit: "1000 MT", desc: "exports of REFINED sugar on the raw-value accounting basis -- carried only by white_sugar (R4 / D-L3-6); 9,501 rows, MY1960-2026"}
+      # -- THE HEAD COUNT, carried honestly because the unit column retires the hazard --------------
+      "Cows In Milk":           {label: "cows in milk", unit: "1000 HEAD", desc: "milking herd size, a HEAD COUNT and not a tonnage -- 1,917 rows on milk_fluid, MY1964-2026. NEVER added to, differenced against or ratioed with any (1000 MT) row on this card"}
+    notes: >
+      VALUES ARE IN USDA'S NATIVE UNIT AND THE `unit` COLUMN IS AUTHORITATIVE -- this table converts
+      nothing. Six units are live across the card ((1000 MT), (1000 MT CWE), (MT), (1000 60 KG BAGS),
+      1000 480 lb. Bales, (1000 HEAD)), so never sum or difference two rows without checking that
+      their units match, and never quote a figure without its unit. The COLUMN prints USDA's
+      parenthesized spellings -- '(1000 MT)' -- while this card's unit fields unwrap them for prose;
+      the row's unit column is the compare key. That honesty is the same mechanism that lets the
+      table carry rates and head counts at all: silver_psd RAISES on any unit it cannot convert, and
+      PERCENT/RATIO are deliberately absent from its factor table.
+      CONSUMPTION IS FOUR LABELS, NOT ONE, AND AN ASK MUST SPAN ALL FOUR. USDA prints the same
+      economic line under four different names: Domestic Consumption (44 commodity codes -- and the
+      one multi-unit metric on this card, so ALWAYS PASS A COMMODITY with it), Total Disappearance
+      (sugar -- raw_sugar and white_sugar have NO Domestic Consumption row), Domestic Use (cotton, in
+      running bales) and Fresh Dom. Consumption (fresh_citrus). Together they are 237,581 rows =
+      every slug-vintage exactly once: 44 + 1 + 1 + 1 = 47 commodity codes, the producer's whole
+      mapped-code set. A consumption question answered off "Domestic Consumption" alone silently
+      drops sugar, cotton and fresh citrus -- three families that each look like a data gap and are
+      not one.
+      METRIC NAMES ARE USDA'S OWN SPELLINGS, byte-for-byte, punctuation included ("Feed Waste Dom.
+      Cons.", "TY Imp. from U.S.", "Refined Imp.(Raw Val)"). A house-cased variant matches ZERO rows
+      and reads as "not published" -- the silver_wasde Title-Case bug, which hid every WASDE lookup
+      for months.
+      TWO ATTRIBUTES THE TABLE REFUSES BY NAME, both declines and neither a gap. Milling Rate
+      (.9999) (attribute 182, code 422110 Rice, Milled; 7,616 rows/release) is a 1e4-scaled RATE the
+      source labels "(1000 MT)" -- measured min 0 / median 6,500 / max 7,561, i.e. a milling rate of
+      ~0.65, not 6.5 MMT. Serving it under its own false unit would be wrong by ~1e7, so the rows are
+      declined at the transform (_PSD_UNIT_MISLABELLED_ATTR_IDS); reopening needs a value-scale
+      column, never a rewritten unit string. And "Other Production" on the coffee sheet (the residual
+      variety leg, 4,616 rows/release) belongs to NEITHER arabica nor robusta and there is no third
+      coffee slug to carry it, so it is a declared no-slug drop.
+      PER-SLUG AND PER-ATTRIBUTE CEILINGS, quoted with the year they belong to. broilers_poultry's
+      newest release_date is 2016-10-10 -- the sheet stops there inside the source file, ten years
+      back -- so never call that series current. Attribute onsets differ from the table's 1960 floor:
+      Industrial Dom. Cons. starts MY1961, Fresh Dom. Consumption and Cows In Milk MY1964, and Fresh
+      Dom. Consumption's newest in-scope year is 2025.
+      VINTAGES: release_date is the WASDE release the estimate was published at, derived from
+      (market_year, wasde_release_month); month_code 0 marks the pre-WASDE-tracking mass (MY
+      1960-2004, 389,283 rows) that carries one pass-through print per year. Re-printed vintages
+      resolve LATEST-WINS on (release_date, bronze_ingest_date), so the table retains one row per
+      vintage and as-of a date means the latest release on or before it.
+      SCOPE: the metrics above are the DECLARED subset -- 20 of the 56 attributes the produced object
+      holds. An undeclared attribute is not "missing data"; it is not advertised, and the honest
+      answer is that this card does not serve it.
 
   silver_wasde:
     description: >
@@ -246,7 +396,18 @@ tables:
     cadence: annual
     shape: tall
     commodity_col: commodity
-    country_col: country
+    country_col: country                      # FAO-3: holds FAOSTAT's RAW M49 DISPLAY STRING ('United States of
+    #                                           America', 'Viet Nam', "Côte d'Ivoire", 'China, mainland'), so a
+    #                                           country='United States' ask emitted a plain equality that matched
+    #                                           ZERO rows, silently -- name<->area is a query-time translation
+    #                                           (faostat_areas.yaml), no silver column and no pg reload
+    country_name_ref: numbers/faostat_areas.yaml   # FAO-3 numbers-owned static area reference, 244 areas incl.
+    #                                                the aggregate ladder (World / 5 continents + sub-regions /
+    #                                                European Union (27) / LDC+LLDC+SIDS+LIFDC+NFIDC) and the bare
+    #                                                'China' row, a mainland+HK+Macao+Taiwan roll-up
+    country_axis_is_destination: false        # FREE geography axis: these are REPORTING countries of a world crop
+    #                                           surface, so the row's country IS the fact's geography and the
+    #                                           citation label fallback stands (silver_esr is the other reading)
     period_col: year
     period_type: year
     period_sql_type: int
@@ -366,6 +527,10 @@ tables:
     #                                           silver_esr_compact, NOT a projected partition) -> name<->code is a
     #                                           query-time translation (esr_destinations.yaml), no silver col / pg reload
     country_name_ref: numbers/esr_destinations.yaml   # W0 numbers-owned static FAS code<->name reference
+    country_axis_is_destination: true         # the country axis enumerates BUYERS of one national flow, so a row's
+    #                                           country is NOT the fact's geography and no label may borrow it
+    #                                           (fix-cycle-2). Stated rather than inferred from country_name_ref:
+    #                                           FAO-3 gave that key a second, FREE-axis user (silver_production)
     period_col: market_year
     period_type: marketing_year
     period_sql_type: int
@@ -595,17 +760,37 @@ tables:
       gdd_z:            {label: "growing-degree-day z-score", unit: "z", desc: "growing-degree-days accumulated in the month, z vs prior-year same months"}
       tmax_anomaly:     {label: "max-temperature anomaly", unit: "z", desc: "mean daily max temperature in the month, z vs prior-year same months"}
       frost_event_flag: {label: "frost occurrence", unit: "0/1", desc: "1 if the monthly minimum temperature fell below the frost threshold"}
-      # -- BASIN rows only (GN-2 W1.1, 2026-08-22; weather_z._basin_rows): rows whose country is a
-      # basin surface ('West Africa'). On a per-cell country these metrics have ZERO rows -- honest
-      # absence, never an error. STORED values are raw fractions 0-1; the cascade's tail line serves
-      # them as % via the sanctioned scale knob (the su_ratio ratio-normalizer precedent), so the
-      # narration quotes "18.2 %" while the pg row keeps 0.1818 -- figures in analyst units, always
-      # beside the plain-language framing, never one without the other (owner's word 2026-08-22).
-      drought_z_tail_share:     {label: "share of basin cells in drought-z tail", unit: "share of basin cells", desc: "share of the basin's member cells at or beyond +2 sigma drought_z that month (0-1)"}
-      heat_stress_z_tail_share: {label: "share of basin cells in heat-stress tail", unit: "share of basin cells", desc: "share of the basin's member cells at or beyond +2 sigma heat_stress_z that month (0-1)"}
-      gdd_z_tail_share:         {label: "share of basin cells in GDD tail", unit: "share of basin cells", desc: "share of the basin's member cells at or beyond +2 sigma gdd_z that month (0-1)"}
-      tmax_anomaly_tail_share:  {label: "share of basin cells in max-temperature tail", unit: "share of basin cells", desc: "share of the basin's member cells at or beyond +2 sigma tmax_anomaly that month (0-1)"}
-      frost_event_share:        {label: "share of basin cells with frost", unit: "share of basin cells", desc: "share of the basin's member cells whose monthly minimum fell below the frost threshold (0-1; the flag renamed at basin grain so a fraction is never misread as a flag)"}
+      # -- AGGREGATE rows only (GN-2 W1.1 + W-2/W-3/W-4, 2026-08-25; weather_z._basin_rows): rows whose
+      # country is a BASIN surface ('West Africa', 'EU Belt', 'SE Asia Palm Belt', 'Northern Plains')
+      # at region <basin>_basin, or a MEMBER country at region <member>_country -- the per-country tail
+      # tier. On a per-CELL row these have ZERO rows: honest absence, never an error. The country tier
+      # deliberately carries NO <metric> mean -- the per-cell rows already sit under that same country
+      # surface and region is not a v1 filter, so a same-named mean would double-count the country
+      # against itself. STORED share values are raw fractions 0-1; the cascade's tail line serves them
+      # as % via the sanctioned scale knob (the su_ratio ratio-normalizer precedent), so the narration
+      # quotes "18.2 %" while the pg row keeps 0.1818 -- figures in analyst units, always beside the
+      # plain-language framing, never one without the other (owner's word 2026-08-22).
+      drought_z_tail_share:     {label: "share of basin cells in drought-z tail", unit: "share of basin cells", desc: "share of the basin's (or member country's) cells at or beyond +2 sigma drought_z that month (0-1)"}
+      heat_stress_z_tail_share: {label: "share of basin cells in heat-stress tail", unit: "share of basin cells", desc: "share of the basin's (or member country's) cells at or beyond +2 sigma heat_stress_z that month (0-1)"}
+      gdd_z_tail_share:         {label: "share of basin cells in GDD tail", unit: "share of basin cells", desc: "share of the basin's (or member country's) cells at or beyond +2 sigma gdd_z that month (0-1)"}
+      tmax_anomaly_tail_share:  {label: "share of basin cells in max-temperature tail", unit: "share of basin cells", desc: "share of the basin's (or member country's) cells at or beyond +2 sigma tmax_anomaly that month (0-1)"}
+      frost_event_share:        {label: "share of basin cells with frost", unit: "share of basin cells", desc: "share of the basin's (or member country's) cells whose monthly minimum fell below the frost threshold (0-1; the flag renamed at aggregate grain so a fraction is never misread as a flag)"}
+      # -- <metric>_cells (W-3, the fidelity guard that ships WITH the basins): how many member cells the
+      # aggregate row above was built from, at BOTH grains. Integer counts stored as floats. The
+      # >=2-member-countries test runs on the WHOLE commodity frame across ALL metrics, but the sources
+      # do not cover the members equally: CHIRPS stops at latitude 50 (configs/sources/chirps.yaml,
+      # coverage.lat_max). MEASURED 2026-08-25 -- french_rapeseed_matif loses ALL 4 German, ALL 3 Polish
+      # and 1 of 5 French drought cells; french_wheat_matif 3 of 4 German, ALL 3 Polish and 1 of 6
+      # French; hard_red_spring_wheat_mgex 2 of 3 CANADIAN. So an 'EU (France/Germany/Poland)' drought
+      # leg is answered by a basin holding ZERO German or Polish drought cells, and a 'Northern Plains'
+      # one by a basin that is 4/5 US -- while the temperature metrics on the SAME surface carry every
+      # member. Reading drought_z_cells BESIDE tmax_anomaly_cells (8 vs 16) is what makes that visible;
+      # a member with no cells for a metric simply has NO country-tier row for it.
+      drought_z_cells:          {label: "member cells behind the drought-z read", unit: "cells", desc: "count of member grid cells contributing to this basin or member-country drought_z aggregate that month (source-coverage provenance; short against a sibling metric's count means the source does not cover every member)"}
+      heat_stress_z_cells:      {label: "member cells behind the heat-stress read", unit: "cells", desc: "count of member grid cells contributing to this basin or member-country heat_stress_z aggregate that month"}
+      gdd_z_cells:              {label: "member cells behind the GDD read", unit: "cells", desc: "count of member grid cells contributing to this basin or member-country gdd_z aggregate that month"}
+      tmax_anomaly_cells:       {label: "member cells behind the max-temperature read", unit: "cells", desc: "count of member grid cells contributing to this basin or member-country tmax_anomaly aggregate that month"}
+      frost_event_flag_cells:   {label: "member cells behind the frost read", unit: "cells", desc: "count of member grid cells contributing to this basin or member-country frost_event_share that month"}
     notes: >
       z-scores are dimensionless (scale 1 — never delta a z against a level). country is the PSD Title-Case
       surface form ('United States', 'Brazil', 'European Union') so a country_rule=region weather leg

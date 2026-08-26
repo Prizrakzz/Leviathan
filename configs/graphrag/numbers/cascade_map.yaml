@@ -908,14 +908,36 @@ region_map:
     # frost_event_share. The basin row IS the honest multi-country read; the engine finally READS the
     # station data it skipped for a year. 'MENA / West Africa / SE Asia'-class DEMAND compounds stay
     # unresolved -- they name import regions, not this producing belt.
-    "West Africa": {country: "West Africa"}
-    "Cote d'Ivoire, Ghana": {country: "West Africa"}
-    "Ghana, Cote d'Ivoire": {country: "West Africa"}
+    # basin: true marks an AGGREGATE surface: a frost leg resolving here reads frost_event_share
+    # (the flag has zero rows at aggregate grain -- cascade._region_row W-5 swap, 2026-08-25).
+    "West Africa": {country: "West Africa", basin: true}
+    "Cote d'Ivoire, Ghana": {country: "West Africa", basin: true}
+    "Ghana, Cote d'Ivoire": {country: "West Africa", basin: true}
     # Nigeria (2026-08-22, the gate's own find): the two wheat Nigeria_wheat_levy drivers carried
     # 'West Africa' while their mechanism names NIGERIA -- a top-five US wheat destination silver_psd
     # SERVES (imports_mt 6.5M MT MY2026, probed). Re-keying their region token here turns two dead
     # tokens into live import legs. No currency key: NGN is not a silver_fred_fx column.
     Nigeria: {country: "Nigeria"}
+    # -- W-5 (projection wave, 2026-08-25): three NEW basins landed in weather_z.py (W-2/W-4, the
+    # eu_belt / sea_palm_belt / northern_plains_prairies registry rows + the per-country tail tier),
+    # so nine tokens move out of `unresolved` exactly as 'West Africa' moved 2026-08-22. RESOLUTION
+    # RULE, applied token by token: every place the token NAMES must be a basin member, or the token
+    # stays unresolved -- resolving 'France;Danube_Basin;Black_Sea;Ukraine' to 'EU Belt' would claim
+    # Black-Sea coverage the basin lacks (Russia is in ZERO geography contracts), so the two
+    # Black-Sea-naming EU compounds and 'EU/Canada' STAY unresolved (honest declines). ALSO STAYING,
+    # per the plan's own W-5 exclusion: 'Poland;Germany;Ukraine' (french_maize frost) -- the contract
+    # holds only france/romania/hungary/italy cells, a DAG token defect to fix in the DAG, never here.
+    # The <metric>_cells provenance beside every basin read discloses per-metric member thinness
+    # (CHIRPS lat-50: EU Belt drought carries no German or Polish cells -- measured, on the card).
+    "EU (France/Germany/Poland)": {country: "EU Belt", basin: true}
+    "EU rapeseed belt": {country: "EU Belt", basin: true}
+    "EU/Ukraine": {country: "EU Belt", basin: true}
+    "France;Danube_Basin": {country: "EU Belt", basin: true}
+    "France;Romania;Hungary;Ukraine": {country: "EU Belt", basin: true}
+    "France_EU": {country: "EU Belt", basin: true}
+    "SE Asia palm belt": {country: "SE Asia Palm Belt", basin: true}
+    "Sumatra, Kalimantan, Peninsular Malaysia, Sabah/Sarawak": {country: "SE Asia Palm Belt", basin: true}
+    "US_Northern_Plains_Canadian_Prairies": {country: "Northern Plains", basin: true}
   unresolved:
     # export drivers
     - Russia_Ukraine
@@ -986,20 +1008,11 @@ region_map:
     - "US Texas / India"
     - "US / India / China Xinjiang"
     - "France;Danube_Basin;Black_Sea;Ukraine"
-    - "France;Romania;Hungary;Ukraine"
-    - "France;Danube_Basin"
     - "Poland;Germany;Ukraine"
-    - "EU (France/Germany/Poland)"
-    - "EU rapeseed belt"
-    - "EU/Ukraine"
-    - "France_EU"
     - "India_BlackSea"
     - "Florida_US / Sao_Paulo_Brazil"
     - "Sao_Paulo_Brazil / Florida_US"
-    - "US_Northern_Plains_Canadian_Prairies"
     - "India_BlackSea_EU"
-    - "Sumatra, Kalimantan, Peninsular Malaysia, Sabah/Sarawak"
-    - "SE Asia palm belt"
     - "EU/Australia/Black Sea"
     - "EU/Black Sea"
     - "EU/Canada"
