@@ -504,6 +504,38 @@ class BaseBronzeToSilverJob(_BaseGlueJob, ABC):
         if failures:
             raise SystemExit(1)
 
+    def run_quality_gate(self, silver_df: pd.DataFrame) -> None:
+        """Step-4 quality gate, an OVERRIDABLE SEAM (Lane 4, 2026-08-26).
+
+        The DEFAULT body is the legacy generic gate, byte-equivalent to what every armed family
+        (the weather chains) has always run: ``run_silver_quality_checks`` over the weather-era
+        SILVER_REQUIRED_COLUMNS / SILVER_NATURAL_KEY, report to S3, raise on hard failures.
+
+        WHY THE SEAM EXISTS: that generic gate PREDATES the SILVER-F010 contract system and its
+        column/key rosters are weather-shaped (date/month/day/region/variable). The first-ever run
+        of the retrofitted FAOSTAT silver leg died on it -- the gate demanded columns the F022
+        canonical schema deliberately does not have, counted the M-flag's contract-sanctioned NULL
+        values as failures, and keyed dedup on a 3-column subset that made 25,970 of 26k rows read
+        as duplicates. A family with an F010 contract overrides this seam and validates against
+        THE CONTRACT; families without one keep the legacy gate untouched."""
+        from leviathan.common.quality import (  # noqa: PLC0415
+            run_silver_quality_checks,
+            write_quality_report_to_s3,
+        )
+
+        expected_countries = self._load_expected_countries()
+        quality_report = run_silver_quality_checks(
+            silver_df, self.commodity, self.source, expected_countries
+        )
+        write_quality_report_to_s3(
+            quality_report, self.bucket, self.source, self.commodity, self.aws_region
+        )
+        if not quality_report["passed"]:
+            failures = quality_report.get("hard_failures", {})
+            raise RuntimeError(
+                f"Silver quality checks failed for {self.source}/{self.commodity}: {failures}"
+            )
+
     # ------------------------------------------------------------------
     # Main entry point
     # ------------------------------------------------------------------
@@ -564,24 +596,8 @@ class BaseBronzeToSilverJob(_BaseGlueJob, ABC):
             logger.warning("Silver transform returned empty DataFrame — nothing to write.")
             return
 
-        # 4. Silver quality checks + report
-        from leviathan.common.quality import (  # noqa: PLC0415
-            run_silver_quality_checks,
-            write_quality_report_to_s3,
-        )
-
-        expected_countries = self._load_expected_countries()
-        quality_report = run_silver_quality_checks(
-            silver_df, self.commodity, self.source, expected_countries
-        )
-        write_quality_report_to_s3(
-            quality_report, self.bucket, self.source, self.commodity, self.aws_region
-        )
-        if not quality_report["passed"]:
-            failures = quality_report.get("hard_failures", {})
-            raise RuntimeError(
-                f"Silver quality checks failed for {self.source}/{self.commodity}: {failures}"
-            )
+        # 4. Silver quality checks + report (overridable seam -- see run_quality_gate)
+        self.run_quality_gate(silver_df)
 
         # 5. Get partitions + skip-existing check
         partitions = list(self.get_partitions(silver_df))

@@ -62,6 +62,50 @@ class FaostatBronzeToSilver(BaseBronzeToSilverJob):
             parts.append(b)
         return pd.concat(parts, ignore_index=True)
 
+    def run_quality_gate(self, silver_df: pd.DataFrame) -> None:
+        """CONTRACT-DRIVEN gate (overrides the legacy weather-era generic -- Lane 4, 2026-08-26).
+
+        The base default demands date/month/day/region/variable, counts the M-flag's
+        contract-sanctioned NULL values as failures, and dedups on a key subset that read ~all
+        FAOSTAT rows as duplicates -- the first-ever run of this leg died on it. This family HAS a
+        SILVER-F010 contract (already loaded for the INV-2 encode), so the gate validates against
+        THAT: exact column roster, the real natural key, and the contract's own non-null floor."""
+        from leviathan.common.quality import write_quality_report_to_s3  # noqa: PLC0415
+
+        failures: dict = {}
+        expected = set(CANONICAL_PHYSICAL_COLUMNS) | {"commodity", "year"}
+        got = set(silver_df.columns)
+        if got != expected:
+            failures["column_roster"] = {"missing": sorted(expected - got),
+                                         "unexpected": sorted(got - expected)}
+        # The real natural key (commodity is the routing axis; country_key/metric/year the
+        # in-partition key the transform's _resolve_duplicates_or_raise already enforces per call).
+        dupes = int(silver_df.duplicated(subset=["commodity", "country_key", "metric", "year"]).sum())
+        if dupes:
+            failures["duplicate_natural_keys"] = dupes
+        # value is NULLABLE by contract (flag=M means "data cannot exist"); the floor is the
+        # contract's own min_nonnull_frac, never zero-nulls.
+        floor = self._contract.get("min_nonnull_frac") or 0.0
+        nonnull = float(silver_df["value"].notna().mean()) if len(silver_df) else 0.0
+        if nonnull < floor:
+            failures["value_nonnull_below_contract_floor"] = {"nonnull_frac": round(nonnull, 4),
+                                                              "floor": floor}
+        if silver_df["is_official"].isna().any():
+            failures["is_official_nulls"] = int(silver_df["is_official"].isna().sum())
+        report = {
+            "passed": not failures,
+            "gate": "F010-contract (bronze_to_silver_faostat.run_quality_gate)",
+            "hard_failures": failures,
+            "rows": int(len(silver_df)),
+            "value_nonnull_frac": round(nonnull, 4),
+            "contract_min_nonnull_frac": floor,
+        }
+        write_quality_report_to_s3(report, self.bucket, self.source, self.commodity, self.aws_region)
+        if failures:
+            raise RuntimeError(
+                f"Silver quality checks failed for {self.source}/{self.commodity}: {failures}"
+            )
+
     def get_partitions(self, df: pd.DataFrame) -> Iterable[tuple[dict, pd.DataFrame]]:
         for (commodity, year), group in df.groupby(["commodity", "year"]):
             yield {"commodity": str(commodity), "year": int(year)}, group.reset_index(drop=True)
