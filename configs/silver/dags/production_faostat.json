@@ -11,8 +11,7 @@
   "skip_existing": false,
   "asof": "<aws.scheduler.scheduled-time>",
   "gate_tables": [
-    "silver_production",
-    "silver_production_livestock"
+    "silver_production"
   ],
   "gate_baseline_uri": "s3://leviathan-dev-shahem-001/cascade_census/rolling/production_faostat/census.json",
   "gate_jobdef": "leviathan-dev-silver-gate",

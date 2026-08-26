@@ -978,6 +978,28 @@ _EXPECTED_ORPHANS = frozenset({"gold_pattern_records", "gold_board_crush",
                                "silver_minagro_grain_exports", "gold_futures_spreads"})
 
 
+def _resolve_owned(walked: set, owned: set) -> set:
+    """A walked NUMBERS card counts as owned when the PHYSICAL table it serves from is owned
+    (TableSpec.athena_table). KEYING-KNOB SITTING, MEASURED 2026-08-26: silver_production_livestock
+    is the estate's first card that names no F010 contract of its own (two cards, one physical),
+    and the first attempt at the remedy sentence -- putting the CARD id into production_faostat's
+    gate_tables -- FAILED IN THE CLOUD with the gate's own preflight exit 71: --tables is checked
+    against the baked F010 registry, which is right (a gate stage runs on a physical contract, and
+    a card id there would run the same physical twice at best). The fence's intent is 'a walked
+    table's drift must RED somebody': the livestock card's rows ARE silver_production's rows, and
+    silver_production is owned by production_faostat -- so ownership for a second card on one
+    physical resolves THROUGH the physical, and a card id must never enter gate_tables."""
+    from leviathan.graphrag.numbers.registry import load_registry
+    tables = load_registry().tables
+    out = set()
+    for t in walked:
+        card = tables.get(t)
+        phys = getattr(card, "athena_table", None) if card is not None else None
+        if t in owned or (phys and phys in owned):
+            out.add(t)
+    return out
+
+
 def test_the_c002_walk_set_is_wider_than_the_owned_set_and_the_orphan_is_named():
     """The measurement the fence exists for -- asserted against the LIVE registry and the LIVE descriptors,
     so it re-measures on every run rather than trusting a number written down on 2026-08-04."""
@@ -988,6 +1010,7 @@ def test_the_c002_walk_set_is_wider_than_the_owned_set_and_the_orphan_is_named()
     owned = g.gated_tables()
     assert owned is not None, "the dag descriptors must be readable from the repo/image tree"
     assert len(owned) >= 40, len(owned)     # a partial read would show up as invented orphans below
+    owned = _resolve_owned(walked, set(owned))   # two-cards-one-physical: owned THROUGH athena_table
     assert walked - owned == set(_EXPECTED_ORPHANS), {
         "new_orphans": sorted(walked - owned - _EXPECTED_ORPHANS),
         "orphans_that_gained_an_owner": sorted(_EXPECTED_ORPHANS - (walked - owned)),
