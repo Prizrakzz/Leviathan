@@ -7,6 +7,10 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "leviathan.schemas" = ["*.yaml"]
+# The F010 contract configs, copied in at build time by setup.py's build_py hook (the in-tree copy
+# is gitignored; the tracked configs/silver tree is the single source of truth). Needed by the Glue
+# wheel-only environments -- see leviathan/silver/registry.py's wheel-fallback comment.
+"leviathan.silver" = ["_contract_configs/*", "_contract_configs/tables/*"]
 
 [project]
 name = "leviathan"

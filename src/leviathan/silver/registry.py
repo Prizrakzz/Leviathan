@@ -25,9 +25,22 @@ from leviathan.silver.types import is_narrowing_change
 
 # ---------------------------------------------------------------------------
 # Repo locations (resolved relative to this file; no CWD dependence).
+#
+# WHEEL FALLBACK (Lane 4, 2026-08-26): in a pip-installed environment (the Glue Python Shell
+# bootstrap installs the wheel into site-packages) parents[3] is the interpreter's lib dir and
+# configs/ does not exist there -- the FIRST-EVER run of the retrofitted bronze_to_silver_faostat
+# glue script died on exactly that (FileNotFoundError on table_contract.schema.json; the family
+# had never executed this code path before, so the gap was invisible). The wheel build copies
+# configs/silver/{table_contract.schema.json, known_drift.yaml, tables/*} into the package as
+# leviathan/silver/_contract_configs/ (setup.py build hook; the in-tree copy is GITIGNORED, so
+# the tracked configs/ tree stays the single source of truth), and this module falls back to the
+# bundled copy ONLY when the repo tree is absent. The bake preflight asserts the bundled copy is
+# byte-identical to the tree before any upload -- drift between the two cannot ship.
 # ---------------------------------------------------------------------------
 _REPO_ROOT = Path(__file__).resolve().parents[3]
-CONFIGS_SILVER_DIR = _REPO_ROOT / "configs" / "silver"
+_TREE_CONFIGS = _REPO_ROOT / "configs" / "silver"
+_BUNDLED_CONFIGS = Path(__file__).resolve().parent / "_contract_configs"
+CONFIGS_SILVER_DIR = _TREE_CONFIGS if _TREE_CONFIGS.exists() else _BUNDLED_CONFIGS
 SCHEMA_PATH = CONFIGS_SILVER_DIR / "table_contract.schema.json"
 TABLES_DIR = CONFIGS_SILVER_DIR / "tables"
 KNOWN_DRIFT_PATH = CONFIGS_SILVER_DIR / "known_drift.yaml"

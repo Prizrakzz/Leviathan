@@ -75,3 +75,6 @@ infra/terraform/**/*.tfplan
 # F2 pre-flight (public repo hardening): approval secrets + identity-bearing evidence artifacts
 scratch/
 reports/silver_readiness/
+
+# build-time copy of configs/silver bundled into the wheel (setup.py); the tracked configs/ tree is the source of truth
+src/leviathan/silver/_contract_configs/
