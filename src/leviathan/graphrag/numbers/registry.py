@@ -493,11 +493,19 @@ WHITELIST_ABSENT_DEFAULT: frozenset[str] = frozenset({
     #       shared-table coupling: livestock rows present + crop fence absent = crop narration on a
     #       herd count.
     # The flip change carries: this removal, the card's measured coverage, the dispatch herd
-    # sentence and router cue, and the load_pg_numbers union fix. The CASCADE legs the arm text
-    # promised resolve to the post-X2 graph-completion wave (plan F-A, the livestock demand layer),
-    # which is PARKED by owner word -- the finding rides, the intervention stays parked; no cascade
-    # leg ships with this flip. NOTE the physical table is shared and nothing here ever gated
-    # silver_production itself -- the crop card was live throughout.
+    # sentence and router cue, and the load_pg_numbers union fix. THE CASCADE LEGS the arm text
+    # promised ship NO ROW here, and the reason is a written adjudication, not a park (CORRECTED
+    # 2026-08-26 -- the first cut of this record mis-called the post-X2 graph-completion wave
+    # "parked"; it EXECUTED before the projection wave, and cattle_cycle_herd_size /
+    # livestock_feed_demand / broiler_margins are live DAG nodes in four contracts today): the
+    # cascade map keys every ref "commodity=contract slug" with no translation knob, so a herd leg
+    # on a corn or meal contract cannot read commodity=cattle_beef -- the wall cascade_map.yaml's
+    # own refusal block names, and the reason the cattle_beef/fishmeal GN-1 bindings ship
+    # `silver_status: planned` in the DAGs. That un-defer gate had TWO halves: endpoints that
+    # exist (THIS flip discharges it) and a commodity-keying knob in the cascade/GN-1 seam (a
+    # deliberate code change, still open -- the knob's sitting flips the planned bindings live).
+    # NOTE the physical table is shared and nothing here ever gated silver_production itself --
+    # the crop card was live throughout.
 })
 
 
