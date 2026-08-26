@@ -665,6 +665,34 @@ def _scope_ex(n, row) -> tuple:
     # `commodity_aliases: {contract_slug: table_code}` re-keys ONLY the legs that ride this row;
     # validated fail-closed by config_check.check_cascade_map.
     commodity = ((row or {}).get("commodity_aliases") or {}).get(commodity, commodity)
+    # THE KEYING KNOB (2026-08-26): a FIXED per-row commodity. `commodity: <slug>` REPLACES the
+    # resolved slug for EVERY leg that rides this row, so a ref can read a NON-CONTRACT commodity --
+    # a herd count under commodity=cattle_beef on a corn or meal board. This closes the wall
+    # cascade_map's minagro refusal block spent its ground (1) on ("commodity=contract slug" with no
+    # translation knob -- the wall the cattle_beef/fishmeal GN-1 bindings hit, both shipping
+    # silver_status: planned for it); that block is REWRITTEN by the same sitting to rest on its two
+    # surviving grounds, so this comment names the wall rather than quoting a line that no longer
+    # exists. It is a DIFFERENT MECHANISM from commodity_aliases above and
+    # the two are lint-exclusive per row: aliases are a PER-CONTRACT RENAME with a silent fallback
+    # (`.get(commodity, commodity)`), so a contract absent from the alias map keys through as itself
+    # -- correct when the row's job is to translate each board's own slug into the source's own code
+    # (sagis crop codes, the ESR sorghum name), and a silent MISS when the row's job is to read one
+    # commodity nobody's contract is named after. A fixed override cannot miss: there is no contract
+    # key to match, so a second board acquiring the ref reads the same series rather than its own
+    # slug and a zero-row leg.
+    # IT LANDS HERE, ABOVE THE FENCES, ON PURPOSE: the PSD/COT declared-unserved tests below must read
+    # the OVERRIDDEN slug -- a fixed `cocoa`/`fish_meal` override has to meet the same source-absence
+    # fence a contract slug meets, or the fence would grade the wrong commodity.
+    # THE GEOGRAPHY TRAP (R3, MEASURED before this knob shipped): configs/geographies/*_regions.yaml is
+    # named for CONTRACT slugs only, so _primary_title(<override>) is None for every override slug
+    # (measured: 'cattle_beef' -> None while 'corn_cbot' -> 'United States'), and a country_rule
+    # `primary` row would lose the contract's real geography HERE and then decline
+    # `no-geography-primary` at the fence below -- a false decline wearing a fence's clothes. Hence
+    # check_cascade_map requires an override row to declare country_rule EXPLICITLY as `region` or
+    # `none`; `primary` and the absent default are build failures, not judgement calls.
+    fixed_commodity = (row or {}).get("commodity")
+    if fixed_commodity:
+        commodity = fixed_commodity
     # BOTH PSD surfaces (L2-5): the fence is about the SOURCE, not about a shape. USDA publishes no cocoa
     # balance sheet at all, so the long companion is exactly as empty of cocoa as the wide card is -- a
     # table-literal fence would have let an attribute-axis cocoa leg compile and fetch its way to the same

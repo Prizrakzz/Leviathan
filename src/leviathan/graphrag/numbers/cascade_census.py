@@ -243,7 +243,21 @@ def _dark_reason(table: str, commodity: str | None, country: str | None, ts, cac
     ccol = getattr(ts, "country_col", None)
     if country and ccol:
         titles = caches.setdefault(("title", phys), _distinct_set(phys, ccol, query_fn))
-        if country not in titles:
+        # country_name_ref tables (KEYING-KNOB review find, 2026-08-26): build_sql translates the
+        # resolved NAME into the physical value(s) through the card's reference (FAO-3 --
+        # 'United States' -> 'United States of America'), so comparing the untranslated name against
+        # the raw DISTINCT would mislabel EVERY dark leg on such a table as country-not-a-psd-title
+        # even when the country is present. Resolve through the same loader the probe's SQL used;
+        # an unresolved name is exactly the miss this class names. herd_size_cattle
+        # (silver_production_livestock) is the first such leg -- before it, no name-translated table
+        # carried a cascade row and this branch was unreachable.
+        wanted = {country}
+        if getattr(ts, "country_name_ref", None):
+            try:
+                wanted = set(Q._country_ref(ts).resolve_codes(country)) or {country}
+            except Exception:  # noqa: BLE001 -- a ref-load failure must not crash a census verdict
+                pass
+        if not (wanted & titles):
             return "country-not-a-psd-title"
     if table in _UNCERTIFIED:
         return "uncertified-table"

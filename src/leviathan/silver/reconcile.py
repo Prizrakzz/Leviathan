@@ -410,16 +410,30 @@ def reconcile_numbers(reg: SilverRegistry, path: Optional[Path] = None) -> list[
 
 
 def reconcile_cascade(reg: SilverRegistry, path: Optional[Path] = None) -> list[Divergence]:
+    """Every cascade_map ref resolves to an F010 contract, and that contract records a back-pointer.
+
+    A cascade row's ``table`` is a NUMBERS CARD id, not necessarily a Glue table -- ``contract_name_for``
+    (above) is the estate's one resolution of the two, and this lint reads it for the same reason
+    ``reconcile_numbers`` does. Before the keying-knob sitting (2026-08-26) every mapped card happened
+    to BE its own physical table, so the distinction was invisible here; the first row on
+    ``silver_production_livestock`` (the second card on the ``silver_production`` object) made it
+    load-bearing -- unresolved, that row would report a phantom ``missing_table`` for a card that names
+    no Glue table by design, and the back-pointer would be demanded of a contract that cannot exist.
+    Resolving it instead puts the back-pointer where it is checkable: on the PHYSICAL table's contract,
+    which is also what makes two cards on one object share one recorded cascade home."""
     refs = _cascade_refs(path)
+    specs = _numbers_specs()
     out: list[Divergence] = []
+    contracts: set = set()
     for ref_name, spec in refs.items():
         table = spec.get("table")
-        if table not in reg.tables:
+        contract = contract_name_for(table, specs.get(table, {}), reg) if table else table
+        contracts.add(contract)
+        if contract not in reg.tables:
             out.append(Divergence("cascade", table or ref_name, "missing_table",
                                    f"cascade ref '{ref_name}' -> table '{table}' absent from registry"))
     # every referenced table should record a cascade_ref back-pointer somewhere.
-    referenced = {s.get("table") for s in refs.values()}
-    for table in referenced:
+    for table in contracts:
         if table in reg.tables and not reg.tables[table].get("cascade_ref"):
             out.append(Divergence("cascade", table, "missing_cascade_ref",
                                    "cascade-referenced table lacks a cascade_ref back-pointer"))

@@ -628,6 +628,132 @@ def test_cascade_map_lint_flags_unknown_region_token(tmp_path, monkeypatch):
     assert any("region_map census" in e and "Atlantis" in e for e in errs)
 
 
+# ── THE KEYING KNOB (2026-08-26): a FIXED per-row commodity override ─────────────────────────────────
+def _override_row(**over):
+    """A minimal ACTIVE row carrying the fixed override, on the card the first live row uses."""
+    row = {"table": "silver_production_livestock", "metric": "live_animals", "commodity": "cattle_beef",
+           "agg": "latest", "period_type": "date", "country_rule": "region", "scale": 1}
+    row.update(over)
+    return row
+
+
+def _lint_with(monkeypatch, row, ref="synthetic_override"):
+    monkeypatch.setattr(cq, "load_map", lambda: {ref: row})
+    from leviathan.graphrag.config_check import check_cascade_map
+    return check_cascade_map()
+
+
+def test_scope_honors_a_fixed_commodity_override():
+    """The knob's whole purpose: the row's `commodity` REPLACES the contract slug, so a herd leg on a
+    corn board reads cattle_beef. The contract still supplies the region token, and country_rule=region
+    resolves it independently of the override -- the two axes never touch."""
+    n = _node(contract="corn_cbot", ref="herd_size_cattle", region="US")
+    assert cq._scope_ex(n, _override_row()) == ("cattle_beef", "United States", None)
+    n2 = _node(contract="soybean_meal_cbot", ref="herd_size_cattle", region="US")
+    assert cq._scope(n2, _override_row()) == ("cattle_beef", "United States")
+    # and WITHOUT the key the same row keys through as the contract (the knob is opt-in per row)
+    plain = _override_row()
+    plain.pop("commodity")
+    assert cq._scope_ex(n, plain)[0] == "corn_cbot"
+
+
+def test_fixed_override_is_tested_by_the_unserved_fence():
+    """The override lands ABOVE the PSD/COT declared-unserved fences on purpose: an override slug must
+    meet the same source-absence test a contract slug meets, or the fence would grade the wrong
+    commodity and a leg would compile against a sheet USDA does not publish."""
+    row = _override_row(table="silver_psd", metric="production_mt", commodity="cocoa",
+                        period_type="marketing_year")
+    commodity, country, reason = cq._scope_ex(_node(contract="corn_cbot", region="US"), row)
+    assert (commodity, country, reason) == ("cocoa", cq.SKIP_NODE, "psd-unserved-slug")
+
+
+def test_keying_knob_lint_rejects_a_malformed_override(monkeypatch):
+    errs = _lint_with(monkeypatch, _override_row(commodity=""))
+    assert any("commodity must be a non-empty str" in e for e in errs), errs
+    errs = _lint_with(monkeypatch, _override_row(commodity=["cattle_beef"]))
+    assert any("commodity must be a non-empty str" in e for e in errs), errs
+
+
+def test_keying_knob_lint_rejects_override_plus_aliases(monkeypatch):
+    """ONE keying mechanism per row. A rename map beside a fixed read is ambiguous, and the answer the
+    code would give (the fixed one wins, silently) makes the alias entries dead config that reads live."""
+    errs = _lint_with(monkeypatch, _override_row(commodity_aliases={"corn_cbot": "cattle_beef"}))
+    assert any("mutually exclusive" in e for e in errs), errs
+
+
+def test_keying_knob_lint_demands_an_explicit_region_or_none_country_rule(monkeypatch):
+    """THE GEOGRAPHY TRAP, MEASURED: configs/geographies/*_regions.yaml is named for CONTRACT slugs, so
+    _primary_title('cattle_beef') is None where _primary_title('corn_cbot') is 'United States'. A
+    country_rule=primary override row would therefore lose the real geography at the override line and
+    false-decline `no-geography-primary` at the fence below -- forever, and silently."""
+    from leviathan.graphrag.numbers import cascade as _c
+    assert _c._primary_title("cattle_beef") is None                  # the measurement the lint rests on
+    assert _c._primary_title("corn_cbot") == "United States"
+    for rule in ("primary",):
+        errs = _lint_with(monkeypatch, _override_row(country_rule=rule))
+        assert any("country_rule EXPLICITLY as 'region' or 'none'" in e for e in errs), (rule, errs)
+    absent = _override_row()
+    absent.pop("country_rule")
+    errs = _lint_with(monkeypatch, absent)
+    assert any("country_rule EXPLICITLY as 'region' or 'none'" in e for e in errs), errs
+    # 'none' is legal ONLY on a country-less card (review tightening, 2026-08-26): _scope_ex
+    # short-circuits rule=='none' BEFORE the no-geography fence, so on a country-bearing table an
+    # override row with 'none' compiles an UNFILTERED multi-country read and agg=latest serves
+    # whichever country sorts last -- the W0-7 class, reopened by config. The livestock card HAS a
+    # country axis, so 'none' on the fixture row is now the error; the mpob-shaped country-less
+    # case is the one 'none' remains for.
+    errs = _lint_with(monkeypatch, _override_row(country_rule="none"))
+    assert any("declares a country axis" in e for e in errs), errs
+
+
+def test_keying_knob_lint_pins_the_override_inside_the_cards_commodity_values(monkeypatch):
+    """The projection-enum law: a slug outside the card's closed set compiles SQL and returns a SILENT
+    zero, which reads as "no herd" rather than "not published" -- the defect FAO-5's fence exists to
+    close, reachable again through a knob that keys by hand."""
+    errs = _lint_with(monkeypatch, _override_row(commodity="cattle"))
+    assert any("declared commodity_values" in e for e in errs), errs
+    from leviathan.graphrag.numbers.registry import load_registry
+    assert "cattle_beef" in load_registry().get("silver_production_livestock").commodity_values
+
+
+def test_the_two_keying_knob_rows_are_wired_on_the_real_map():
+    """The rows themselves, pinned by the triples that decide what they read. Both are ACTIVE (not
+    deferred), both carry the override, and neither may drift to a country_rule the lint forbids."""
+    m = cq.load_map()
+    herd = m["herd_size_cattle"]
+    assert (herd["table"], herd["metric"], herd["commodity"], herd["country_rule"]) == \
+        ("silver_production_livestock", "live_animals", "cattle_beef", "region")
+    assert herd["period_type"] == "date" and herd["agg"] == "latest" and herd["leg_mode"] == "current"
+    assert herd["native_unit"] == "An" and herd["narrate_unit"] == "million head"
+    assert float(herd["scale"]) == 0.000001                          # head -> million head
+    fish = m["fishmeal_supply"]
+    assert (fish["table"], fish["metric"], fish["commodity"], fish["country_rule"]) == \
+        ("silver_psd", "production_mt", "fish_meal", "region")
+    assert fish["period_type"] == "marketing_year"
+    assert "commodity_aliases" not in herd and "commodity_aliases" not in fish
+
+
+def test_the_rekeyed_gn1_refs_resolve_and_the_sourceless_ones_stay_planned():
+    """The re-key, both directions. The three cattle_cycle_herd_size bindings and the three
+    peru_fishmeal_supply bindings now resolve through map_row; cattle_on_feed_z and broiler_margin_z do
+    NOT, and must not -- no source has been ingested for either, so they stay `planned` for want of
+    DATA, never for want of the knob. fishmeal_price_z stays unmapped for a THIRD reason: its only
+    instrument is silver_pink_sheet, which R4 fences from every engine ref."""
+    for ref in ("herd_size_cattle", "fishmeal_supply"):
+        assert cq.map_row(ref) is not None, ref
+    for ref in ("cattle_on_feed_z", "broiler_margin_z", "fishmeal_price_z", "cattle_beef_herd_z",
+                "fishmeal_supply_z"):
+        assert cq.map_row(ref) is None, f"{ref} acquired a row without its own decision"
+    # the real geography verdicts, on the REAL region_map: US resolves, the two-nation token does not
+    herd = cq.load_map()["herd_size_cattle"]
+    assert cq._scope_ex(_node(contract="corn", ref="herd_size_cattle", region="US"), herd) == \
+        ("cattle_beef", "United States", None)
+    fish = cq.load_map()["fishmeal_supply"]
+    commodity, country, reason = cq._scope_ex(
+        _node(contract="soybean_meal_cbot", ref="fishmeal_supply", region="Peru/Chile"), fish)
+    assert (commodity, country, reason) == ("fish_meal", cq.SKIP_NODE, "region-token-unresolved")
+
+
 def test_the_fx_wave_region_rows_carry_their_promised_currencies():
     """FX-4 (projection wave, 2026-08-25) -- the 2026-08-21 pin INVERTED on schedule. That pin held
     Australia/Mexico/Turkey currency-LESS because aud/mxn/try_usd were not real columns and "the

@@ -752,12 +752,26 @@ def test_generate_is_fatal_exit2_on_unresolved_placeholder(gen, descriptors, mon
 # gate_tables reference real registry tables.
 # ---------------------------------------------------------------------------
 def test_gate_tables_are_real_registry_tables(descriptors):
+    """A gate table must be R0-fingerprintable -- an F010 contract name, or (the Lane-5 class) a
+    NUMBERS card whose athena_table resolves to one. silver_production_livestock is the estate's
+    first card that names no contract of its own: TWO cards, ONE physical (silver_production), one
+    contract. The gate itself resolves exactly this way (silver_rebuild_gate.py:414 `phys =
+    athena_table or id`), and reconcile resolves it through contract_name_for -- this pin accepts
+    the same resolution rather than forcing a phantom second contract for a shared physical."""
+    from leviathan.graphrag.numbers.registry import load_registry as load_numbers
     from leviathan.silver.registry import load_registry
 
     reg_names = set(load_registry().names())
+    numbers = load_numbers().tables
     for stem, d in descriptors.items():
         for tbl in d["gate_tables"]:
-            assert tbl in reg_names, f"{stem}: gate table {tbl!r} not in the silver registry"
+            if tbl in reg_names:
+                continue
+            card = numbers.get(tbl)
+            phys = getattr(card, "athena_table", None) if card is not None else None
+            assert phys in reg_names, (
+                f"{stem}: gate table {tbl!r} is neither an F010 contract nor a numbers card whose "
+                f"athena_table resolves to one (resolved physical: {phys!r})")
 
 
 def test_family_field_matches_catalog(descriptors):

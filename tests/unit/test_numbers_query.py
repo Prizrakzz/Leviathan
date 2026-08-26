@@ -887,10 +887,17 @@ _GN2_IDS = ("gold_futures_spreads",)      # GN-2 W2.3: the spread pairs (kc_chi 
 # Its own config-only rollback is GRAPHRAG_NUMBERS_DISABLE=silver_psd_attributes, which the enum
 # machinery already gives every card for free.
 _LANE3_IDS = ("silver_psd_attributes",)
+# PROJECTION WAVE Lane 5 (flipped 2026-08-26, 4ec0ee69): silver_production_livestock, the SECOND
+# card on the silver_production physical table (herd/flock size, the milking herd, per-animal
+# yield). Joins the BASELINE and not _NEW_DEPTH_IDS for the _LANE3_IDS reason verbatim: the
+# depth-wave kill-switch reverts its own three tables and nothing else. This card's config-only
+# rollback is GRAPHRAG_NUMBERS_DISABLE=silver_production_livestock. (This line was owed BY the
+# flip commit and landed a sitting late -- the keying-knob review caught the red.)
+_LANE5_IDS = ("silver_production_livestock",)
 _DEPTH_BASELINE = ((_PRE_WAVE_8 | set(_PRICE_IDS) | set(_SEAM_C_IDS) | set(_WIRING_W1_IDS)
                     | set(_W3_IDS) | set(_D_CW_IDS) | set(_D_PQ_IDS) | set(_D_LD_IDS)
                     | set(_D_LD_T2_IDS) | set(_D_LD_T3_IDS) | set(_D_EC_IDS) | set(_MINAGRO_IDS)
-                    | set(_GN2_IDS) | set(_LANE3_IDS))
+                    | set(_GN2_IDS) | set(_LANE3_IDS) | set(_LANE5_IDS))
                    - _QUARANTINE_STRIPPED)          # D-LD Track 2 #5, see above
 
 

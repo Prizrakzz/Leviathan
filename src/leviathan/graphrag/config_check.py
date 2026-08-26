@@ -198,6 +198,63 @@ def check_cascade_map() -> list[str]:
                 isinstance(k, str) and isinstance(v, str) and k and v for k, v in ca.items())):
             errs.append(f"cascade_map {ref!r}: commodity_aliases must be a non-empty-str -> "
                         f"non-empty-str mapping, got {ca!r}")
+        # THE KEYING KNOB (2026-08-26): `commodity` is a FIXED per-row override -- the row reads ONE
+        # non-contract commodity for every leg that rides it (cascade._scope_ex). Four fail-closed
+        # terms, because every one of them is a way for the override to return a real, cited,
+        # unit-clean number about the WRONG thing (the D4 class this file exists to refuse).
+        fixed = row.get("commodity")
+        if fixed is not None:
+            if not isinstance(fixed, str) or not fixed:
+                errs.append(f"cascade_map {ref!r}: commodity must be a non-empty str "
+                            f"(the FIXED override slug), got {fixed!r}")
+            # ONE keying mechanism per row. commodity_aliases is a per-contract RENAME that falls back
+            # to the contract slug; commodity is a FIXED read that cannot miss. A row carrying both is
+            # ambiguous about which one wins for a contract the alias map names -- and the answer
+            # (the fixed one, silently) would make the alias entries dead config that reads as live.
+            if row.get("commodity_aliases") is not None:
+                errs.append(f"cascade_map {ref!r}: `commodity` (fixed override) and "
+                            f"`commodity_aliases` (per-contract rename) are mutually exclusive -- one "
+                            f"keying mechanism per row")
+            # THE GEOGRAPHY TRAP, MEASURED (R3 recon, 2026-08-26): configs/geographies/*_regions.yaml
+            # is named for CONTRACT slugs, so _primary_title(<override>) is None for every override
+            # slug ('cattle_beef' -> None where 'corn_cbot' -> 'United States'). On a country-bearing
+            # table a country_rule=primary override therefore declines `no-geography-primary` on every
+            # leg -- a permanent FALSE DECLINE wearing a fence's clothes; on a country-less table it
+            # scopes country=None by accident rather than by decision. The row must SAY which it means.
+            # (Cross-field precedent: the global_token dead-config check just below.)
+            if row.get("country_rule") not in ("region", "none"):
+                errs.append(f"cascade_map {ref!r}: a `commodity` override row must declare "
+                            f"country_rule EXPLICITLY as 'region' or 'none', got "
+                            f"{row.get('country_rule')!r} -- the override slug has no geographies "
+                            f"config, so 'primary' (and the absent default) resolves None and the leg "
+                            f"false-declines no-geography-primary on every contract")
+            # ...and 'none' is only honest on a COUNTRY-LESS card (review find, 2026-08-26):
+            # _scope_ex short-circuits rule=='none' BEFORE the no-geography fence, so on a
+            # country-bearing table it compiles an UNFILTERED multi-country query and agg=latest
+            # serves whichever country's row sorts last -- the same class the W0-7 fence closed for
+            # context commodities, reopened by config. A country-bearing table's override row must
+            # scope through 'region'.
+            elif (row.get("country_rule") == "none" and ts is not None
+                    and getattr(ts, "country_col", None)):
+                errs.append(f"cascade_map {ref!r}: country_rule 'none' on a `commodity` override "
+                            f"row whose table {row.get('table')!r} declares a country axis "
+                            f"({ts.country_col!r}) -- an unscoped read is mixed-country garbage; "
+                            f"use 'region'")
+            # THE PROJECTION-ENUM LAW: a value outside the card's declared commodity_values compiles
+            # SQL and returns a silent zero rows, which reads as "no herd" rather than "not published"
+            # -- the exact defect the per-card fence exists to close (FAO-5). FAIL-CLOSED both ways
+            # (review find, 2026-08-26): a card with NO declared commodity_values gives the override
+            # nothing to be checked against, so an override there ships unvalidated -- the target
+            # card must declare its enum before a fixed read may point at it.
+            values = getattr(ts, "commodity_values", None) if ts is not None else None
+            if ts is not None and not values:
+                errs.append(f"cascade_map {ref!r}: `commodity` override on {row.get('table')!r}, "
+                            f"whose card declares NO commodity_values -- declare the card's enum "
+                            f"(the FAO-5 fence) before a fixed read may point at it")
+            elif values and isinstance(fixed, str) and fixed and fixed not in values:
+                errs.append(f"cascade_map {ref!r}: commodity {fixed!r} is not in "
+                            f"{row.get('table')!r}'s declared commodity_values -- a slug outside the "
+                            f"enum resolves ZERO rows silently")
         # W0-7 (D-9): global_token is the per-row Global-mis-scope fence. Only 'skip' is defined, and
         # only on rows whose country slot comes from the contract primary -- on region rows the token
         # already resolves-or-skips, on none rows there is no country claim to mis-scope.

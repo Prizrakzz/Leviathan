@@ -3446,9 +3446,17 @@ def test_minagro_is_dispositioned_in_the_cascade_register():
     """Every numbers card must be dispositioned in cascade_map or the register's completeness claim goes
     false one wave later. This one is DEFERRED with an ARGUED refusal: the Black Sea driver ids DO name
     Ukrainian export availability and their existing `export` leg is measurably dark (their region
-    tokens are in region_map.unresolved), so the near-neighbour is real -- and the refusal turns on
-    three mechanical facts (the keying cannot express a row label, the region rule would have to change
-    for every other node that uses `export`, and the DAG attribute has to name the series first)."""
+    tokens are in region_map.unresolved), so the near-neighbour is real.
+
+    THE REFUSAL STANDS ON TWO GROUNDS, NOT THREE, as of the keying-knob sitting (2026-08-26). Ground
+    (1) was "the keying cannot express a row label", and the map now carries a FIXED per-row
+    `commodity:` override -- so that ground is WITHDRAWN IN THE FILE rather than restated, and what
+    replaces it is the knob's own limit: the override is ONE fixed commodity per ROW, while this
+    card's axis is a ministry row label that varies BY CONTRACT (a per-contract rename, which is
+    commodity_aliases' shape, and the lint makes the two exclusive per row). The two SURVIVING
+    grounds are unchanged and are what the refusal rests on: the region rule would have to change for
+    every other node that uses `export`, and the DAG attribute has to name the series first. This test
+    pins the entry's existence and its gate, not the count of its grounds."""
     import pathlib
     repo = pathlib.Path(__file__).resolve().parents[2]
     text = (repo / "configs" / "graphrag" / "numbers" / "cascade_map.yaml").read_text(encoding="utf-8")

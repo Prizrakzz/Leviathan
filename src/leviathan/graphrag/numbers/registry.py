@@ -493,17 +493,31 @@ WHITELIST_ABSENT_DEFAULT: frozenset[str] = frozenset({
     #       shared-table coupling: livestock rows present + crop fence absent = crop narration on a
     #       herd count.
     # The flip change carries: this removal, the card's measured coverage, the dispatch herd
-    # sentence and router cue, and the load_pg_numbers union fix. THE CASCADE LEGS the arm text
-    # promised ship NO ROW here, and the reason is a written adjudication, not a park (CORRECTED
+    # sentence and router cue, and the load_pg_numbers union fix. THE CASCADE LEGS shipped NO ROW in
+    # the flip change itself, and the reason was a written adjudication, not a park (CORRECTED
     # 2026-08-26 -- the first cut of this record mis-called the post-X2 graph-completion wave
     # "parked"; it EXECUTED before the projection wave, and cattle_cycle_herd_size /
     # livestock_feed_demand / broiler_margins are live DAG nodes in four contracts today): the
-    # cascade map keys every ref "commodity=contract slug" with no translation knob, so a herd leg
-    # on a corn or meal contract cannot read commodity=cattle_beef -- the wall cascade_map.yaml's
-    # own refusal block names, and the reason the cattle_beef/fishmeal GN-1 bindings ship
-    # `silver_status: planned` in the DAGs. That un-defer gate had TWO halves: endpoints that
-    # exist (THIS flip discharges it) and a commodity-keying knob in the cascade/GN-1 seam (a
-    # deliberate code change, still open -- the knob's sitting flips the planned bindings live).
+    # cascade map keyed every ref "commodity=contract slug" with no translation knob, so a herd leg
+    # on a corn or meal contract could not read commodity=cattle_beef. That un-defer gate had TWO
+    # halves: endpoints that exist (the flip discharged it) and a commodity-keying knob in the
+    # cascade/GN-1 seam (a deliberate code change).
+    # THE KNOB LANDED 2026-08-26, the same day, in its own sitting -- this half is DISCHARGED and the
+    # herd leg is LIVE. What shipped: a FIXED per-row `commodity: <slug>` override in
+    # cascade._scope_ex (applied above the PSD/COT unserved fences so an override slug meets the same
+    # source-absence tests a contract slug meets), four fail-closed terms in
+    # config_check.check_cascade_map (non-empty str; exclusive with commodity_aliases; country_rule
+    # declared EXPLICITLY region|none, because an override slug has no configs/geographies file and a
+    # `primary` row would false-decline no-geography-primary on every leg; and membership in THIS
+    # card's commodity_values -- the projection-enum law, a slug outside the enum returns a silent
+    # zero); and the first two rows to use it, `herd_size_cattle` (this card, commodity cattle_beef,
+    # live_animals in head) and `fishmeal_supply` (silver_psd, commodity fish_meal). The three
+    # cattle_cycle_herd_size bindings flipped planned -> available in corn / corn_cbot /
+    # soybean_meal_cbot and read this card today. STILL OPEN, and neither is a keying question:
+    # fishmeal_substitution's price leg wants silver_pink_sheet, which R4 fences from every engine ref
+    # (owner adjudication); peru_fishmeal_supply's three legs are bound and decline honestly on a
+    # two-nation region token until a DAG curation re-keys it; cattle_on_feed and broiler_margins stay
+    # planned for want of an ingested source, not for want of a knob.
     # NOTE the physical table is shared and nothing here ever gated silver_production itself --
     # the crop card was live throughout.
 })

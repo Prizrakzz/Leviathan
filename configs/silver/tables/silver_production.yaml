@@ -120,7 +120,12 @@ freshness_sla:
   max_lag_days: null
 consumers: both
 numbers_ref: configs/graphrag/numbers/tables.yaml#silver_production
-cascade_ref: null
+# KEYING-KNOB SITTING (2026-08-26): the back-pointer names a row on the LIVESTOCK card
+# (silver_production_livestock), the second numbers card on THIS physical object. One contract per
+# physical table, so one back-pointer -- reconcile_cascade resolves the card id through
+# contract_name_for before it looks the contract up. The CROP card carries no cascade row and stays
+# DEFERRED in cascade_map's served-table register.
+cascade_ref: configs/graphrag/numbers/cascade_map.yaml#herd_size_cattle
 source_contract_ref: configs/datasets/source_contracts.yaml#production:faostat
 serving_table: null
 producer:
