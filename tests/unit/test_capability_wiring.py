@@ -163,6 +163,12 @@ _ADVERTISED = {
     # written. `oilseed crush` and `arabica` were verified ABSENT from it, and either alone identifies the
     # long companion.
     PSD_ATTRS: ("oilseed crush", "arabica"),                 # NOT ("crush",) / ("attribute",) -- see above
+    # -- Lane 5 (FAO-2) flip, 2026-08-26. `faostat` ALONE would free-ride on the crop card's token
+    # (paid for by silver_production above), and `livestock` free-rides on nothing today but is one
+    # sibling away from the ambiguity this map exists to catch. Both tokens below name what is NEW --
+    # the animal-count axis itself -- and were verified absent from the purpose string before the
+    # herd clause landed.
+    "silver_production_livestock": ("herd dynamics", "milking herd"),   # NOT ("faostat",) -- see above
 }
 
 

@@ -464,45 +464,40 @@ WHITELIST_ABSENT_DEFAULT: frozenset[str] = frozenset({
     # psd_monthly gate_tables + SFN regen, and the cascade legs.
     #
     # PROJECTION WAVE Lane 5 (FAO-2): `silver_production_livestock`, the SECOND card on the
-    # silver_production physical table (`athena_table: silver_production`), ARMED here on arrival --
-    # the Lane-3 arm-vs-flip doctrine applied without waiting to be burned by it. The card is
-    # authored, the item map is widened and the transforms map the five livestock elements, but the
-    # LIVESTOCK ROWS DO NOT EXIST YET: the Lane-4 crop rewrite (2026-08-26) republished the crop
-    # surface -- ~2,742 canonical objects, area_harvested / production_quantity / yield only -- and
-    # no livestock item has ever entered bronze, so a served card would advertise `live_animals` and
-    # answer every herd question with a silent 0 rows -- worse than "not published", because 0 rows
-    # reads as "no cattle". PA-1 forbids estimating the coverage fields, and there is nothing to
-    # measure until the livestock backfill runs.
-    #
-    # THE FLIP GATE, in order, each step discharged by an artifact and not by a re-read of this
-    # comment (steps (a2) and (e) added by the Lane-5 adversarial review -- both are the shared
-    # physical table's couplings, and both were proven live by Lane 4's own canary):
-    #   (a) the FAOSTAT livestock backfill has run through the Glue backfill lane
-    #       (run_faostat_backfill; the Lane-4 canary discipline: one-slug canary + body/flag
-    #       assertion BEFORE the fan-out) for the four livestock slugs (cattle_beef, hogs,
-    #       broilers_poultry, milk_fluid), with the four per-commodity row counts read off the run;
-    #   (a2) `projection.commodity.values` on the LIVE Glue table has been ALTERed to carry the four
-    #       livestock slugs BEFORE the DISTINCT probe -- the enum is 43 crop slugs today (measured
-    #       at the Lane-4 ALTER), and a partition value absent from a projection enum resolves to
-    #       ZERO ROWS silently: the backfill would land objects Athena cannot see, and gate (b)
-    #       would fail while S3 said success. configs/silver/tables/silver_production.yaml's
-    #       projection_domains moves in the same change (the F010 registry of record renders the
-    #       DDL from it);
-    #   (b) a DISTINCT probe on the published objects returns the four slugs and the metric set the
-    #       card declares, byte-for-byte (the silver_wasde Title-Case lesson);
-    #   (c) `load_pg_numbers` has mirrored them -- the census and C002 both read the MIRROR, so an
-    #       S3-only proof is not a proof (CLAUSE 5);
-    #   (d) the card's PA-1 coverage fields (row_count / first_obs / cadence) are RE-MEASURED on the
-    #       produced objects and moved in the flip change, never before it;
-    #   (e) the CROP card has gained its `commodity_values` fence (FAO-5) in the same change or
-    #       earlier -- the two cards share one physical table, and with livestock rows present but
-    #       the crop fence absent, the LIVE crop card would answer milk_fluid + production_quantity
-    #       with crop narration and no unit warning. The coupling is hard, and it lives HERE because
-    #       the gates travel with the entry, not with a plan document.
+    # silver_production physical table (`athena_table: silver_production`), was ARMED here on
+    # arrival 2026-08-26 (the Lane-3 arm-vs-flip doctrine applied without waiting to be burned by
+    # it: card + item map + transforms landed with NO livestock row in bronze, and a served card
+    # would have answered every herd question with a silent 0 rows) and FLIPPED OUT the same day
+    # with THE FLIP GATE discharged step by step, each by an artifact:
+    #   (a) the backfill ran through run_faostat_backfill with the Lane-4 canary discipline --
+    #       cattle_beef alone first, body/flag assertion on the produced objects BEFORE the
+    #       three-slug fan-out -- and every count landed EXACTLY on the banked census
+    #       (data/dec_p0/faostat_livestock_census.md): cattle_beef 13,831 / hogs 12,824 /
+    #       broilers_poultry 13,932 / milk_fluid 40,067 = 80,654 rows, 1961-2024, F010-contract
+    #       quality gates passed on all four runs;
+    #   (a2) `projection.commodity.values` ALTERed live 43 -> 47 AND the registry of record
+    #       (configs/silver/tables/silver_production.yaml projection_domains) moved 31 -> 47 in the
+    #       same sitting (c0d96c7e) -- closing the drift Lane 4 left, where the live table said 43
+    #       while the YAML a DDL re-render reads still said 31;
+    #   (b) the Athena DISTINCT probe returned exactly the card's six (commodity, metric, unit)
+    #       tuples byte-for-byte (broilers' `1000 An` included) and the 80,654 total;
+    #   (c) `load_pg_numbers` mirrors them -- the first reload loaded 875,512 of 942,807 and the
+    #       shortfall named the defect to the row: the tall-table filter admitted ONE card's metric
+    #       roster on a TWO-card physical, dropping every livestock row except milk
+    #       production_quantity (the one metric NAME the crop card also declares). The filter is
+    #       now the UNION of registered cards per physical (load_pg_numbers.load_table), and the
+    #       re-run's count is the artifact;
+    #   (d) the card's PA-1 coverage fields were RE-MEASURED on the produced objects and move in
+    #       this flip change (row_count 80,654 / first_obs 1961 / last_obs 2024), never before it;
+    #   (e) the CROP card's `commodity_values` fence (FAO-5) landed EARLIER (cfb93969) -- the
+    #       shared-table coupling: livestock rows present + crop fence absent = crop narration on a
+    #       herd count.
     # The flip change carries: this removal, the card's measured coverage, the dispatch herd
-    # sentence, and the cascade legs. NOTE the physical table is shared, so nothing here gates
-    # silver_production itself -- the crop card is live throughout.
-    "silver_production_livestock",
+    # sentence and router cue, and the load_pg_numbers union fix. The CASCADE legs the arm text
+    # promised resolve to the post-X2 graph-completion wave (plan F-A, the livestock demand layer),
+    # which is PARKED by owner word -- the finding rides, the intervention stays parked; no cascade
+    # leg ships with this flip. NOTE the physical table is shared and nothing here ever gated
+    # silver_production itself -- the crop card was live throughout.
 })
 
 

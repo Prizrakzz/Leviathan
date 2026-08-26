@@ -328,6 +328,15 @@ REGISTRY: tuple[ToolSpec, ...] = (
                  "psd's is MT/ha (a 1000x difference -- convert, never compare raw); one FAOSTAT "
                  "item serves every slug of its complex identically, so never sum across a "
                  "complex's slugs; "
+                 "FAOSTAT annual LIVESTOCK herd dynamics 1961-2024 -- herd/flock SIZE (head of "
+                 "cattle and hogs, THOUSAND head for broilers: the row's own unit column is "
+                 "authoritative, and a raw cross-species compare is wrong by exactly 1000x), the "
+                 "MILKING herd, farm-gate milk in tonnes and milk yield per animal in kg/An -- the "
+                 "estate's ONLY animal-count surface: PSD serves cattle_beef/hogs/broilers_poultry "
+                 "as MEAT balance sheets in tonnes, so 'how many animals' is answered here and "
+                 "'how much meat' at psd, never mixed in one figure; the slaughter axis (animals "
+                 "slaughtered per year) is UNSERVED on any surface -- say so rather than answering "
+                 "it from herd size; "
                  "weekly USDA NASS crop CONDITIONS (percent good-to-excellent, poor-to-very-poor) and "
                  "planting / emergence / harvest PACE by US state; ANNUAL US crop ACREAGE, yield and "
                  "production BY STATE back to 1866 -- how many hectares of corn, soybeans, upland "
@@ -557,7 +566,14 @@ _GLOSS_HEAD = (
     # un-glossed while being the estate's only ANNUAL WORLD production surface. Lane 4 (FAO-5) widens the
     # numbers-agent purpose string separately; this is the router cue.
     "  FAOSTAT annual production/area-harvested/yield history=production (the long global record incl. a\n"
-    "  true WORLD row -- history and world totals, as against psd's per-country balance sheets),\n")
+    "  true WORLD row -- history and world totals, as against psd's per-country balance sheets),\n"
+    # Lane 5 (FAO-2) flip, 2026-08-26: the herd cue. Same family-naming rule as every line above --
+    # silver_production_livestock minus the layer prefix -- and the psd contrast is the routing fence:
+    # the same three meat slugs live on BOTH cards, tonnes there, head counts here.
+    "  herd/flock SIZE (how many cattle/hogs/chickens), milking herd, milk output per\n"
+    "  animal=production_livestock (FAOSTAT head counts -- the estate's only animal-count surface;\n"
+    "  psd's cattle_beef/hogs/broilers_poultry rows are MEAT balance sheets in tonnes, so 'how many\n"
+    "  animals' routes here and 'how much meat' routes to psd),\n")
 
 _GLOSS_BIND = re.compile(r"=([a-z0-9_/]+)")     # the gloss's own binding form: `<phrase>=<fam>[/<fam>]`.
 #                                                 Anchored on `=` on purpose -- a bare token scan matches

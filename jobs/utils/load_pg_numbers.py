@@ -606,7 +606,27 @@ def load_table(ts, conn, *, dry_run: bool = False, batch_rows: int = 20000) -> i
 
     flt = None
     if ts.shape == "tall" and ts.metric_col and ts.metrics:
-        flt = pads.field(ts.metric_col).isin(list(ts.metrics))   # serve-relevant rows only (wasde: ~2%)
+        # TWO CARDS, ONE PHYSICAL (Lane 5: silver_production + silver_production_livestock). The
+        # mirror is a mirror of the PHYSICAL table, so the admitted roster is the UNION of every
+        # REGISTERED card's declared metrics on this physical -- filtering to the one card named in
+        # P1_TABLES silently drops the sibling card's rows. Measured 2026-08-26 on the first
+        # livestock reload: 875,512 of 942,807 loaded -- every livestock row EXCEPT milk
+        # production_quantity, the one metric NAME the crop card also declares, which is exactly
+        # the signature of a single-card filter on a two-card physical. A FENCED card
+        # (WHITELIST_ABSENT_DEFAULT) is absent from the loaded registry, so its roster does not
+        # ride until its flip: the arm parks the storage spend too, by construction (the
+        # silver_psd_attributes sizing doctrine above). NOTE one P1 entry per PHYSICAL: a second
+        # entry on the same physical would DROP+CREATE over the first's load.
+        roster = set(ts.metrics)
+        try:
+            from leviathan.graphrag.numbers.registry import load_registry as _lr
+            for other in _lr().tables.values():
+                if ((other.athena_table or other.id) == physical
+                        and other.shape == "tall" and other.metric_col == ts.metric_col):
+                    roster.update(other.metrics or ())
+        except Exception:  # noqa: BLE001 -- registry load failure must not kill a single-card load
+            pass
+        flt = pads.field(ts.metric_col).isin(sorted(roster))   # serve-relevant rows only (wasde: ~2%)
 
     with conn.cursor() as cur:
         cur.execute(f'CREATE SCHEMA IF NOT EXISTS "{SCHEMA}"')

@@ -123,16 +123,17 @@ class TestTheSecondCardOnOnePhysicalTable:
         assert "silver_esr_compact" in reg.tables
         assert RC.contract_name_for("silver_esr", specs["silver_esr"], reg) == "silver_esr"
 
-    def test_the_card_is_born_fenced_out_of_the_served_registry(self):
-        """PA-1 + the Lane-3 arm-vs-flip doctrine: the livestock ROWS DO NOT EXIST YET, so a served
-        card would answer every herd question with a silent 0 rows -- which reads as 'no cattle', not
-        as 'not published'. The flip removes the id AFTER the backfill, the DISTINCT probe and the pg
-        reload, and moves the measured coverage fields in the same change."""
+    def test_the_card_flipped_live_and_the_fence_stays_discharged(self):
+        """FLIPPED 2026-08-26: the card was born fenced (PA-1 + the Lane-3 arm-vs-flip doctrine --
+        no livestock row existed, and a served card would have read as 'no cattle') and left the
+        fence the same day with every gate discharged by an artifact (the discharge record lives on
+        the WHITELIST_ABSENT_DEFAULT entry). This pin now guards the discharged state: a regression
+        back onto the whitelist would silently unserve a backfilled, mirrored, probed surface."""
         from leviathan.graphrag.numbers import registry as NR
-        assert "silver_production_livestock" in NR.WHITELIST_ABSENT_DEFAULT
+        assert "silver_production_livestock" not in NR.WHITELIST_ABSENT_DEFAULT
         assert not (NR.WHITELIST_ABSENT_DEFAULT & NR._disabled_tables())   # env lane stays separate
-        assert "silver_production_livestock" not in NR.load_registry().tables
-        # the physical table is SHARED, so nothing here may fence the crop card
+        assert "silver_production_livestock" in NR.load_registry().tables
+        # the physical table is SHARED and was never fenced -- the crop card was live throughout
         assert "silver_production" not in NR.WHITELIST_ABSENT_DEFAULT
         assert "silver_production" in NR.load_registry().tables
 

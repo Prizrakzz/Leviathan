@@ -119,14 +119,16 @@ class TestTheSecondCardIsTheSameTable:
                     "country_axis_is_destination"):
             assert card.get(key) == crop.get(key), key
 
-    def test_the_pa1_coverage_fields_are_absent_not_estimated(self):
-        """PA-1. `_table_card` renders ONE coverage line from whichever of the four are set and none
-        at all when none is -- an absent census is SILENCE, never a fabricated one. There are zero
-        livestock rows in the live objects, so there is nothing to measure yet. `cadence` is a
-        DECLARATION of the source's publication frequency, not a measurement, and stays."""
+    def test_the_pa1_coverage_fields_are_the_measured_backfill(self):
+        """PA-1, FLIPPED 2026-08-26: the fields were DELIBERATELY ABSENT while zero livestock rows
+        existed (an absent census is SILENCE, never a fabricated one) and were measured on the
+        PRODUCED objects in the flip change -- where every figure landed exactly on the banked
+        census (data/dec_p0/faostat_livestock_census.md): 13,831 + 12,824 + 13,932 + 40,067 =
+        80,654 rows, 1961-2024. `cadence` was always a declaration, not a measurement."""
         card = _card()
-        for field in ("row_count", "first_obs", "last_obs"):
-            assert card.get(field) is None, field
+        assert card["row_count"] == 80654
+        assert card["first_obs"] == "1961"
+        assert card["last_obs"] == "2024"
         assert card["cadence"] == "annual"
 
     def test_the_card_declares_a_unit_only_where_one_unit_is_true(self):
@@ -256,30 +258,36 @@ class TestTheCensusBacksEveryNumberOnTheCard:
         assert METRIC_UNITS["yield_per_animal"] >= {"kg/An"}
 
 
-class TestTheArmIsRealAndReversible:
+class TestTheFlipIsRealAndTheFenceStaysDischarged:
+    """FLIPPED 2026-08-26. The arm-state pins this class carried until the flip now guard the
+    DISCHARGED state (the mpoc anchor-pin precedent): a regression back onto the whitelist would
+    silently unserve a backfilled, mirrored, probed surface -- worse than the arm it would imitate,
+    because this time the rows EXIST and 'no cattle' would be a lie about served data."""
 
-    def test_the_card_is_dropped_from_the_served_registry(self):
-        assert CARD_ID in NR.WHITELIST_ABSENT_DEFAULT
-        assert CARD_ID not in NR.load_registry().tables
+    def test_the_card_is_served_post_flip(self):
+        assert CARD_ID not in NR.WHITELIST_ABSENT_DEFAULT
+        assert CARD_ID in NR.load_registry().tables
 
     def test_the_shared_physical_table_stays_served_throughout(self):
-        """The arm fences a CARD, never the object. silver_production is live and must stay live --
+        """The arm fenced a CARD, never the object. silver_production was live throughout --
         this is the one respect in which a second-card arm differs from silver_futures_eod's."""
         assert PHYSICAL not in NR.WHITELIST_ABSENT_DEFAULT
         assert PHYSICAL in NR.load_registry().tables
 
-    def test_the_flip_gate_is_written_where_the_fence_is(self):
-        """A fence with no written removal trigger is a fence nobody dares remove. The SIX gates --
-        backfill via the Glue lane with the Lane-4 canary discipline, the PROJECTION-ENUM ALTER
-        (a partition value absent from the enum resolves to zero rows SILENTLY, so the backfill
-        would land objects Athena cannot see), the DISTINCT probe, the pg reload, the re-measured
-        coverage, and the CROP card's commodity_values fence (the shared-table coupling: livestock
-        rows present + crop fence absent = crop narration on a herd count) -- travel with the
-        entry, not with a plan document. The last two were added by the Lane-5 adversarial review;
-        the enum hazard was proven LIVE by Lane 4's own canary the same day."""
+    def test_the_discharge_record_is_written_where_the_fence_was(self):
+        """A fence with no written removal trigger is a fence nobody dares remove -- and a fence
+        removed with no written discharge is a decision nobody can audit. The SIX gates travel with
+        the entry as its discharge record now: backfill via run_faostat_backfill with the Lane-4
+        canary discipline, the PROJECTION-ENUM ALTER, the DISTINCT probe, the pg reload (whose
+        first run's 875,512-of-942,807 shortfall exposed the one-card-roster filter on a two-card
+        physical -- fixed as the load_pg_numbers union), the RE-MEASURED coverage, and the CROP
+        card's commodity_values fence."""
         text = (_REPO / "src/leviathan/graphrag/numbers/registry.py").read_text(encoding="utf-8")
         block = text.split("PROJECTION WAVE Lane 5")[1].split("})")[0]
+        assert "FLIPPED OUT" in block
         for token in ("THE FLIP GATE", "run_faostat_backfill", "canary",
                       "projection.commodity.values", "DISTINCT probe",
                       "load_pg_numbers", "RE-MEASURED", "commodity_values"):
             assert token in block, token
+        # the flip must not have left the ENTRY behind -- the record stays, the fence goes
+        assert '"silver_production_livestock",' not in block
