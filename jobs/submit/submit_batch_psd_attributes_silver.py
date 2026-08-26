@@ -116,6 +116,15 @@ def main() -> None:
     command = build_command(publish_mode=args.publish_mode, force_overwrite=args.force_overwrite,
                             on_uncovered=args.on_uncovered)
     overrides: dict[str, object] = {"command": command}
+    if args.publish_mode == "canonical":
+        # The KMS approval pair, byte-identical to psd_monthly's rendered promote leg
+        # (configs/silver/dags/_rendered/psd_monthly.input.json). Without it the canonical path
+        # fails CLOSED at the publish guard -- the jobdef's silver-publisher role holds kms:Sign,
+        # but the guard only signs when the mode says so. Shadow/dry-run stay env-free.
+        overrides["environment"] = [
+            {"name": "LEVIATHAN_APPROVAL_MODE", "value": "kms"},
+            {"name": "LEVIATHAN_KMS_KEY_ID", "value": "alias/leviathan-dev-publish-signer"},
+        ]
     if args.vcpu is not None:
         overrides["resourceRequirements"] = [
             {"type": "VCPU", "value": str(args.vcpu)},
