@@ -332,7 +332,7 @@ variable "psd_silver_image_digest" {
   # own change, after the first green fire.
   type        = string
   description = "sha256 digest of the worker image the dedicated psd-silver jobdef runs. Empty = the mutable ':latest' tag."
-  default     = "sha256:9cc50c0032fd53df7f12229016c9dc812d6f486bc0048ca2f6230cfddf7ce6ad" # 2026-08-25 projection Lane 0/1 (tag 20260825T2, commit 86ff493f): psd producer UNCHANGED -- rides the fleet vintage unification; the image now bakes the W0-2 contract (4 value_columns + measured floors) its publish validation reads
+  default     = "sha256:5d25d886d7621cc1e6f199f656e75c8a7d10fc563a791394339a8bddce25df43" # 2026-08-26 projection Lane 3 (tag 20260826T1, commit 8b445674): THE MOVE THIS TIME IS THE PSD CODE ITSELF, deliberately -- the ratified vintage-direction fix (4f72b8f1: step-10 orders bronze_ingest_date, newest re-print wins; served numbers MOVE on re-printed vintages, that is the point) + the long companion (usda_psd_attributes.py + jobs/batch/psd_attributes_silver_task.py, which submits through THIS jobdef via containerOverrides and dies on import against any older image) + the F010 silver_psd_attributes contract its publish validation reads. One digest move, one attributable content change, per the standing law above.
 
   validation {
     condition     = var.psd_silver_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.psd_silver_image_digest))
@@ -406,7 +406,7 @@ variable "worker_fleet_image_digest" {
   # Post-push auditor CLEAN. usda-esr-fetch / esr-bronze-to-silver / usda-nass-bronze /
   # usda-nass-annual-silver hand-repin via owner (register JSONs in the session scratchpad);
   # the ten fleet families adopt on the next apply per this file's standing law.
-  default     = "sha256:9cc50c0032fd53df7f12229016c9dc812d6f486bc0048ca2f6230cfddf7ce6ad" # 2026-08-25 projection Lane 0/1 fleet bump (tag 20260825T2, commit 86ff493f): frankfurter 14-symbol fetch + dead-symbol tripwire + the W0 fences/contracts -- fx_macro_daily runs the widened SERIES_MAP from this vintage on
+  default     = "sha256:19146dede82d15cc7ed2d4776ecf0b92ccee0058851180b761addae30da8d251" # 2026-08-26 EVE fleet bump (commit f99a03d6): the STALE-CENSUS-BANK incident closes -- the 08-25 vintage's scheduled [Reconcile] steps were overwriting rolling baselines with pre-flip censuses (measured: unica at 12:16Z banked 676/404 four hours AFTER the 679/428 lane3flip), because cascade_census walks the configs BAKED INTO THIS IMAGE. This vintage carries the L5 livestock flip, the keying knob, the R4 price-context amendment (config_check lints the gate itself runs) and the Peru un-defer -- census truth 688 legs / 437 FIRES, banked to both re-banked baselines 18:45Z on the SAME commit's embedder twin
 
   validation {
     condition     = var.worker_fleet_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.worker_fleet_image_digest))
@@ -449,7 +449,7 @@ variable "silver_gate_image_digest" {
   # vintage_waiver (G1-6 PATH A) and the GateVerdict/ValueCensusHardFailTables
   # emitters (G3-4) into the gate. timeline_rebuild's identical old digest below is
   # DELIBERATELY NOT moved (the fleet-digest law: one intended move per variable).
-  default     = "sha256:9cc50c0032fd53df7f12229016c9dc812d6f486bc0048ca2f6230cfddf7ce6ad" # 2026-08-25 projection Lane 0/1 (tag 20260825T2, commit 86ff493f): the gate MUST ride the same vintage as the FX-1/W0-2 contracts -- silver_fred_fx widened 8 -> 30 columns and the feature_probe on the old image would red on its own stale contract
+  default     = "sha256:19146dede82d15cc7ed2d4776ecf0b92ccee0058851180b761addae30da8d251" # 2026-08-26 EVE (commit f99a03d6): the gate MUST ride the vintage whose lints and configs it enforces -- this one carries the R4 price-context amendment (check_price_register/_check_price_context_lane run IN the gate), the keying-knob lints, the country_name_ref class fix in contract_check (the 08-26 gate fire 5aadd1c9 FAILED on exactly the untranslated compare an older gate image would still make), and the census map whose [Reconcile] step banks the rolling baselines (the stale-bank incident, see worker_fleet_image_digest above)
 
   validation {
     condition     = var.silver_gate_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.silver_gate_image_digest))
