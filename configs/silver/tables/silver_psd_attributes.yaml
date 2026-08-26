@@ -129,8 +129,8 @@ producer:
 location_mode: static
 write_mode: overwrite
 fingerprint:
-  schema_fingerprint_sha256: '0000000000000000000000000000000000000000000000000000000000000000'
-  catalog_hash_sha256: '0000000000000000000000000000000000000000000000000000000000000000'
+  schema_fingerprint_sha256: 07e8330c7cd350e50d8b6b2b6e0061e5cf5d3f46cdc980c3eb016bfc5629f264
+  catalog_hash_sha256: a959adbfbafa30fe3f528b355e6729bd674a41377ce401c429b96aaceff316e3
   registered_partition_count: 0
   placeholder_partition_count: 0
   glue_nonpartition_cols: 9
